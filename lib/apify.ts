@@ -92,6 +92,7 @@ function resumenEsquema(esquema: Esquema) {
 
 export type ResultadoActor = {
   actor: string;
+  runId?: string;
   ok: boolean;
   error?: string;
   entrada?: Record<string, unknown>;
@@ -140,7 +141,7 @@ export async function correrActor(actor: string, q: string, max: number, esperaS
           .then((x) => x.json()).catch(() => [])
       : [];
     return {
-      actor, ok: run.status === "SUCCEEDED", estado: run.status, entrada, campos_del_esquema: campos, precio,
+      actor, runId: run.id, ok: run.status === "SUCCEEDED", estado: run.status, entrada, campos_del_esquema: campos, precio,
       costo_usd: run.usageTotalUsd ?? null, cobros: run.chargedEventCounts ?? null, segundos: Math.round((Date.now() - t0) / 1000),
       cantidad: Array.isArray(items) ? items.length : 0, items: Array.isArray(items) ? items : [],
     };
@@ -148,4 +149,21 @@ export async function correrActor(actor: string, q: string, max: number, esperaS
     return { actor, ok: false, error: String(e), entrada, campos_del_esquema: campos, precio,
       segundos: Math.round((Date.now() - t0) / 1000) };
   }
+}
+
+/** Costo final de cada corrida, leído de Apify. Apify termina de asentar los
+ *  cobros un rato después de que la corrida termina, así que el costo que se
+ *  guarda al terminar puede quedar corto: éste es el que vale. */
+export async function costosFinales(runIds: string[]) {
+  const token = apifyToken();
+  if (!token) return {};
+  const pares = await Promise.all(runIds.map(async (id) => {
+    try {
+      const run = await get(`/actor-runs/${id}`, token);
+      return [id, { estado: run.status as string, usd: (run.usageTotalUsd ?? null) as number | null, cobros: run.chargedEventCounts ?? null }] as const;
+    } catch {
+      return [id, null] as const;
+    }
+  }));
+  return Object.fromEntries(pares.filter(([, v]) => v)) as Record<string, { estado: string; usd: number | null; cobros: unknown }>;
 }
