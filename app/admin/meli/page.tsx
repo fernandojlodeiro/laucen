@@ -179,7 +179,8 @@ export default async function Meli({ searchParams }: {
       </section>
 
       <section className="mb-6">
-        <h2 className="font-bold text-sm mb-2">2. Probar una búsqueda</h2>
+        <h2 className="font-bold text-sm mb-2 flex items-center justify-between">2. Probar una búsqueda
+          <Link href="/admin/meli/apify" className={SUAVE}>Probar con Apify →</Link></h2>
         <form className="flex gap-2">
           <input name="q" defaultValue={q} placeholder="ej: auriculares bluetooth"
             className="border border-[#E3E9F0] rounded-lg px-3 py-2 flex-1 text-sm" />
