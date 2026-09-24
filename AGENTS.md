@@ -38,8 +38,10 @@ hacer con lo que se encuentra — eso sí es específico de este proyecto y nadi
 - **Hosting**: Vercel, proyecto `laucen`, mismo equipo (CadaMes). Git conectado, deploy de
   producción ya salió **READY** al menos una vez. Variables de entorno ya cargadas:
   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `ADMIN_EMAILS`
-  (`fernandojlodeiro@gmail.com`), `NEXT_PUBLIC_SITE_URL`, y `DATABASE_URL` (la cargó Fer mismo
-  con la contraseña real de la base — nadie más la tiene).
+  (`fernandojlodeiro@gmail.com`), `NEXT_PUBLIC_SITE_URL`, y `DATABASE_URL` (la cargó Fer mismo — nadie más la tiene). Ojo:
+  `DATABASE_URL` tiene **sólo la contraseña** de la base, no la dirección; `lib/database-url.ts`
+  arma la dirección contra el pooler `aws-0-sa-east-1` (la conexión directa `db.…` es sólo IPv6
+  y Vercel no llega). Si algo de la base falla, mirar primero `/admin/diagnostico`.
 - **Cron**: Vercel Cron Jobs, nativo — todavía no configurado, porque no hay qué correr hasta
   que exista la lógica de búsqueda.
 - **Dominios**: `laucen.com.ar` (Nic.ar) y `laucen.com` (GoDaddy), los dos agregados al proyecto
@@ -57,11 +59,9 @@ hacer con lo que se encuentra — eso sí es específico de este proyecto y nadi
     con errores/datos viejos después del cambio de nameservers — es normal e inofensivo (GoDaddy
     ya no controla el DNS real, esa pantalla quedó de adorno). No perder tiempo arreglándolo.
 
-**Lo único que falta para confirmar que todo funciona de punta a punta**: que Fer entre a
-cualquiera de los dos dominios (en cuanto propague) y se registre una cuenta desde ahí. Eso
-confirma que `DATABASE_URL` está bien cargada y que el flujo completo (registro → organización →
-rol Admin → panel) anda. Todavía no se pudo probar eso — la sesión que lo hizo no tiene forma de
-navegar a un sitio externo para probarlo ella misma.
+**Punta a punta confirmado el 24/9**: Fer entró por `laucen.vercel.app` y quedó con usuario,
+organización y rol Admin en la base. Supabase tiene prendida la confirmación por mail; el registro
+ya lo contempla (muestra "Revisá tu mail").
 
 ## Cómo hablarle a Fer
 

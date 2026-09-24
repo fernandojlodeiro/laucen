@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Pool } from "pg";
 import { sosVos } from "@/lib/admin";
-import { databaseUrl, urlConPassword, POOLERS } from "@/lib/database-url";
+import { databaseUrl } from "@/lib/database-url";
 
 export const dynamic = "force-dynamic";
 
@@ -67,10 +67,6 @@ export default async function Diagnostico() {
   const soloPassword = !!cruda && !cruda.includes("://");
   if (soloPassword) forma.variable = { valor: "tiene sólo la contraseña: la dirección se arma sola", ok: true };
   const prueba = await probarConexion();
-  // Con sólo la contraseña, se prueban los dos poolers posibles de la región.
-  const porPooler = soloPassword
-    ? await Promise.all(POOLERS.map(async (h) => ({ h, r: await probarConexion(urlConPassword(cruda!.trim(), h)) })))
-    : [];
 
   return (
     <main className="max-w-lg mx-auto p-6">
@@ -91,9 +87,6 @@ export default async function Diagnostico() {
       <p className={`text-sm rounded-lg px-3 py-2 ${prueba.ok ? "text-[#1F6E4A] bg-[#EEF7F1]" : "text-[#C03420] bg-[#FDF1EF]"}`}>
         {prueba.texto}
       </p>
-      {porPooler.map(({ h, r }) => (
-        <p key={h} className={`text-xs mt-2 ${r.ok ? "text-[#1F6E4A]" : "text-[#C03420]"}`}>{h}: {r.texto}</p>
-      ))}
     </main>
   );
 }

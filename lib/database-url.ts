@@ -5,9 +5,11 @@
 //   de Supabase (la conexión directa es sólo IPv6 y Vercel no llega).
 
 export const PROYECTO = "pcltuzztybiovhuaheek";
-export const POOLERS = ["aws-0-sa-east-1.pooler.supabase.com", "aws-1-sa-east-1.pooler.supabase.com"];
+// Confirmado desde Vercel el 24/9: el pooler de este proyecto es aws-0 (aws-1
+// responde "tenant not found").
+export const POOLER = "aws-0-sa-east-1.pooler.supabase.com";
 
-export function urlConPassword(password: string, host = POOLERS[0]): string {
+export function urlConPassword(password: string, host = POOLER): string {
   return `postgresql://postgres.${PROYECTO}:${encodeURIComponent(password)}@${host}:6543/postgres`;
 }
 
