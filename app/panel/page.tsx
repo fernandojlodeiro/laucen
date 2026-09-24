@@ -32,6 +32,7 @@ export default async function Panel() {
         <div className="flex flex-wrap gap-2">
           <Link href="/admin/bitacora" className={SUAVE}>🗒️ Bitácora</Link>
           <Link href="/admin/para-probar" className={SUAVE}>🧪 Para probar</Link>
+          <Link href="/admin/meli" className={SUAVE}>🛒 Mercado Libre</Link>
         </div>
       )}
     </main>
