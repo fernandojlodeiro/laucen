@@ -54,21 +54,43 @@ async function correrPruebas(q: string, token: string | null): Promise<Respuesta
     await paso(`/trends/MLA/${cat}`);
     await paso(`/highlights/MLA/category/${cat}`);
   }
+  if (cat) await paso(`/categories/${cat}`);
   const prods = await paso(`/products/search?status=active&site_id=MLA&q=${e}&limit=5`);
-  const productoId = sacar(prods.datos, ["results", 0, "id"]) as string | undefined;
+  // ¿Hasta dónde se puede recorrer el catálogo? (paginado profundo)
+  await paso(`/products/search?status=active&site_id=MLA&q=${e}&limit=50&offset=750`);
+  await paso(`/products/search?status=active&site_id=MLA&q=${e}&limit=5&offset=1000`);
+  if (cat) {
+    await paso(`/sites/MLA/search?category=${cat}&limit=5`);
+    await paso(`/products/search?status=active&site_id=MLA&domain_id=${encodeURIComponent(String(sacar(disc.datos, [0, "domain_id"]) ?? ""))}&limit=5`);
+  }
+
+  // Ofertas de los primeros 3 productos de catálogo: juntar ítems y vendedores.
+  const productos = ((sacar(prods.datos, ["results"]) as { id: string }[] | undefined) ?? []).slice(0, 3);
+  const itemIds = new Set<string>();
+  const vendedores = new Set<string>();
   let itemId = sacar(busqueda.datos, ["results", 0, "id"]) as string | undefined;
-  if (productoId) {
-    await paso(`/products/${productoId}`);
-    const items = await paso(`/products/${productoId}/items?limit=5`);
-    itemId ??= sacar(items.datos, ["results", 0, "item_id"]) as string | undefined;
+  for (const [i, p] of productos.entries()) {
+    if (i === 0) await paso(`/products/${p.id}`);
+    const items = await paso(`/products/${p.id}/items?limit=20`);
+    for (const it of (sacar(items.datos, ["results"]) as { item_id: string; seller_id: number }[] | undefined) ?? []) {
+      itemIds.add(it.item_id);
+      vendedores.add(String(it.seller_id));
+    }
+  }
+  itemId ??= [...itemIds][0];
+
+  const ids = [...itemIds].slice(0, 5).join(",");
+  if (ids) {
+    await paso(`/items?ids=${ids}`);
+    await paso(`/items?ids=${ids}&attributes=id,title,price,sold_quantity,available_quantity,date_created,permalink`);
+    await paso(`/visits/items?ids=${ids}`);
   }
   if (itemId) {
-    const item = await paso(`/items/${itemId}`);
+    await paso(`/items/${itemId}`);
     await paso(`/items/${itemId}/description`);
     await paso(`/reviews/item/${itemId}`);
-    const vendedor = sacar(item.datos, ["seller_id"]);
-    if (vendedor) await paso(`/users/${vendedor}`);
   }
+  for (const v of [...vendedores].slice(0, 2)) await paso(`/users/${v}`);
   return out;
 }
 
