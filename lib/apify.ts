@@ -18,7 +18,7 @@ async function get(ruta: string, token: string) {
   return cuerpo?.data ?? cuerpo;
 }
 
-type Campo = { type?: string; enum?: unknown[]; default?: unknown; prefill?: unknown; editor?: string };
+type Campo = { type?: string; enum?: unknown[]; default?: unknown; prefill?: unknown; editor?: string; minimum?: number; maximum?: number };
 type Esquema = { properties?: Record<string, Campo>; required?: string[] };
 
 /** Esquema de entrada de la última versión del actor. */
@@ -38,31 +38,56 @@ function slug(q: string) {
   return q.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-");
 }
 
-/** Arma la entrada del actor a partir de su esquema: la búsqueda, el máximo
- *  de resultados, Argentina, y el modo de detalle si lo tiene. */
+/** Arma la entrada del actor a partir de su esquema: la búsqueda (por texto
+ *  si el actor la acepta; si no, por URL del listado), el máximo de
+ *  resultados, una sola página, Argentina, y el detalle de cada producto. */
 export function armarEntrada(esquema: Esquema, q: string, max: number) {
   const entrada: Record<string, unknown> = {};
   const url = `https://listado.mercadolibre.com.ar/${slug(q)}`;
-  for (const [k, c] of Object.entries(esquema.properties ?? {})) {
+  const props = Object.entries(esquema.properties ?? {});
+  const esTexto = (c: Campo) => c.type === "string" || c.type === "array";
+  const campoBusqueda = props.find(([k, c]) => esTexto(c) && !c.enum && /search|quer|keyword|term|^q$/i.test(k));
+
+  for (const [k, c] of props) {
     const n = k.toLowerCase();
     const arr = c.type === "array";
-    if (/start_?urls|^urls$/.test(n)) {
-      entrada[k] = c.editor === "stringList" ? [url] : [{ url }];
-    } else if (/search|query|keyword|term|^q$/.test(n)) {
+    const opciones = (c.enum ?? []).map(String);
+    if (c.type === "integer" || c.type === "number") {
+      // Nunca tocar precios, reseñas ni preguntas; páginas: una sola.
+      if (/price|review|question|concurren|timeout|delay|retr/.test(n)) continue;
+      let v: number | undefined;
+      if (/page/.test(n)) v = 1;
+      else if (/max|limit|count|results|items|products/.test(n)) v = max;
+      if (v === undefined) continue;
+      if (c.minimum !== undefined) v = Math.max(v, c.minimum);
+      if (c.maximum !== undefined) v = Math.min(v, c.maximum);
+      entrada[k] = v;
+    } else if (campoBusqueda?.[0] === k) {
       entrada[k] = arr ? [q] : q;
-    } else if (c.type === "integer" && /max|limit|count|results|items/.test(n)) {
-      entrada[k] = max;
+    } else if (!campoBusqueda && /start_?urls|^urls$/.test(n)) {
+      entrada[k] = c.editor === "stringList" ? [url] : [{ url }];
     } else if (/country|site|domain|market/.test(n)) {
-      const opciones = (c.enum ?? []).map(String);
       const ar = opciones.find((o) => /^(ar|mla|arg|argentina|mercadolibre\.com\.ar)$/i.test(o))
         ?? opciones.find((o) => /argentin|\.com\.ar|mla/i.test(o));
       if (ar) entrada[k] = arr ? [ar] : ar;
       else if (!opciones.length && c.type === "string") entrada[k] = "AR";
-    } else if (c.type === "boolean" && /detail|pdp|full|description|seller/.test(n)) {
+    } else if (/^mode$|type$/.test(n) && opciones.length) {
+      const modo = opciones.find((o) => /search|keyword|query|listing/i.test(o));
+      if (modo) entrada[k] = modo;
+    } else if (c.type === "boolean" && /detail|pdp|full|description|seller|enrich/.test(n) && !/review|question/.test(n)) {
       entrada[k] = true;
     }
   }
   return entrada;
+}
+
+/** Resumen corto del esquema (tipo, opciones, mínimos) para poder revisarlo después. */
+function resumenEsquema(esquema: Esquema) {
+  return Object.fromEntries(Object.entries(esquema.properties ?? {}).map(([k, c]) => [k, {
+    type: c.type, ...(c.enum ? { enum: c.enum.slice(0, 15) } : {}),
+    ...(c.minimum !== undefined ? { min: c.minimum } : {}), ...(c.maximum !== undefined ? { max: c.maximum } : {}),
+    ...(c.default !== undefined ? { default: c.default } : {}), ...(c.prefill !== undefined ? { prefill: c.prefill } : {}),
+  }]));
 }
 
 export type ResultadoActor = {
@@ -70,7 +95,7 @@ export type ResultadoActor = {
   ok: boolean;
   error?: string;
   entrada?: Record<string, unknown>;
-  campos_del_esquema?: string[];
+  campos_del_esquema?: unknown;
   precio?: unknown;
   estado?: string;
   costo_usd?: number | null;
@@ -87,16 +112,16 @@ export async function correrActor(actor: string, q: string, max: number, esperaS
   if (!token) return { actor, ok: false, error: "Falta APIFY_TOKEN" };
   const t0 = Date.now();
   let entrada: Record<string, unknown> | undefined;
-  let campos: string[] | undefined;
+  let campos: unknown;
   let precio: unknown;
   try {
     const e = await esquemaDe(actor, token);
     precio = e.precio;
-    campos = Object.keys(e.esquema.properties ?? {});
+    campos = resumenEsquema(e.esquema);
     entrada = armarEntrada(e.esquema, q, max);
 
     const r = await fetch(
-      `${API}/acts/${actor}/runs?token=${token}&maxItems=${max}&maxTotalChargeUsd=0.5&waitForFinish=60`,
+      `${API}/acts/${actor}/runs?token=${token}&maxItems=${max}&maxTotalChargeUsd=0.25&waitForFinish=60`,
       { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(entrada), cache: "no-store" },
     );
     const cuerpo = await r.json().catch(() => null);
@@ -104,6 +129,11 @@ export async function correrActor(actor: string, q: string, max: number, esperaS
     let run = cuerpo.data;
     while (!["SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"].includes(run.status) && Date.now() - t0 < esperaSeg * 1000) {
       run = await get(`/actor-runs/${run.id}?waitForFinish=30`, token);
+    }
+    // Si no terminó en el tiempo de espera, se corta para que no siga gastando.
+    if (!["SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"].includes(run.status)) {
+      run = await fetch(`${API}/actor-runs/${run.id}/abort?token=${token}`, { method: "POST", cache: "no-store" })
+        .then((x) => x.json()).then((x) => x.data ?? run).catch(() => run);
     }
     const items = run.defaultDatasetId
       ? await fetch(`${API}/datasets/${run.defaultDatasetId}/items?token=${token}&clean=true&limit=${max}`, { cache: "no-store" })

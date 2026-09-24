@@ -98,7 +98,7 @@ export default async function Apify({ searchParams }: {
           ))}
         </fieldset>
         <p className="text-[11px] text-[#5C6B76]">
-          {MAX} resultados por actor, tope de USD 0,50 por actor. Corren en paralelo: puede tardar hasta 4 minutos.
+          {MAX} resultados por actor, tope de USD 0,25 por actor. Corren en paralelo: puede tardar hasta 4 minutos.
         </p>
       </form>
 
