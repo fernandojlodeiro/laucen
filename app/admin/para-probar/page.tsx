@@ -312,7 +312,7 @@ export default async function ParaProbar({
   return (
     <main className="max-w-3xl mx-auto p-5">
       <header className="mt-2 mb-4">
-        <Link href="/admin" className={`inline-block mb-2 ${SUAVE}`}>← Panel</Link>
+        <Link href="/panel" className={`inline-block mb-2 ${SUAVE}`}>← Panel</Link>
         <h1 className="text-lg font-bold">Para probar</h1>
         <p className="text-xs text-[#5C6B76] mt-1">
           Todo lo que llegó a la app y todavía nadie abrió. Lo que se movió último, arriba. Cada hilo

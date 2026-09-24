@@ -3,7 +3,7 @@
 // Server Component y esa página no tiene forma de renovarla). Va en la RAÍZ
 // del repo, no en src/.
 
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { esRutaPublica } from "@/lib/rutas-publicas";
 
@@ -16,8 +16,8 @@ export async function middleware(req: NextRequest) {
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     cookies: {
       getAll: () => req.cookies.getAll(),
-      setAll: (cookies) => cookies.forEach(({ name, value, options }) =>
-        respuesta.cookies.set(name, value, options)),
+      setAll: (cookies: { name: string; value: string; options: CookieOptions }[]) =>
+        cookies.forEach(({ name, value, options }) => respuesta.cookies.set(name, value, options)),
     },
   });
 

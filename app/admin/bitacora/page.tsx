@@ -219,7 +219,7 @@ export default async function Bitacora({
   return (
     <main className="max-w-5xl mx-auto p-5">
       <header className="mt-2 mb-4">
-        <Link href="/admin" className={`inline-block mb-2 ${SUAVE}`}>← Panel</Link>
+        <Link href="/panel" className={`inline-block mb-2 ${SUAVE}`}>← Panel</Link>
         <h1 className="text-lg font-bold">Bitácora</h1>
         <p className="text-xs text-[#5C6B76] mt-1">
           El canal de coordinación de este proyecto. Acá quedan las órdenes, las decisiones y

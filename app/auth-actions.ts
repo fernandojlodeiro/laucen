@@ -38,7 +38,7 @@ export async function accionLogin(_previo: Problema, formData: FormData): Promis
   const supabase = await supabaseServer();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { texto: motivoLegible(error) };
-  redirect("/");
+  redirect("/panel");
 }
 
 /** Registro en un solo paso: crea la cuenta, la organización y el rol Admin
@@ -69,7 +69,7 @@ export async function accionRegistro(_previo: Problema, formData: FormData): Pro
     usuarioId: u.id, organizacionId: org.id, rolId: admin.id, estado: "ACTIVO",
   });
 
-  redirect("/");
+  redirect("/panel");
 }
 
 export async function accionLogout() {
@@ -96,5 +96,5 @@ export async function accionNuevaPassword(_previo: Problema, formData: FormData)
   const supabase = await supabaseServer();
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { texto: motivoLegible(error) };
-  redirect("/");
+  redirect("/panel");
 }
