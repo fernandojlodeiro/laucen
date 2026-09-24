@@ -14,24 +14,54 @@ por organización, permisos como checkboxes— por si más adelante hay más de 
 usándolo. Nace de un cron que dispara búsquedas periódicas y guarda resultados; un panel simple
 para mirarlos es la parte final, no la primera.
 
-## Infraestructura (ya creada, no preguntar — ya está andando)
+## Qué falta construir (la parte que le da sentido al proyecto)
 
-- **Repo**: `fernandojlodeiro/laucen` en GitHub, ya con el código de arranque adentro (ver
-  `README.md`: qué hay y qué falta conectar).
+Todo lo de abajo (login, panel, bitácora, para probar, deploy) es **andamiaje**. Lo que todavía
+no existe, y es el motivo por el que se creó este proyecto:
+
+- Ningún cron corriendo búsquedas.
+- Ninguna tabla ni pantalla de "parámetros de búsqueda" ni de "resultados".
+- `app/panel/page.tsx` hoy es un placeholder ("Todavía no hay búsquedas cargadas").
+
+Antes de ponerse a construir esto, preguntarle a Fer qué sitios buscar, con qué criterios y qué
+hacer con lo que se encuentra — eso sí es específico de este proyecto y nadie lo decidió todavía.
+
+## Infraestructura (ya creada y andando — no preguntar, no rehacer)
+
+- **Repo**: `fernandojlodeiro/laucen` en GitHub. Tiene la app de Next.js 15 (App Router,
+  TypeScript, Tailwind) completa y funcionando — no un esqueleto, la app real. Compila limpio
+  (`npm run build` verificado). Conectado a Vercel: cada push a `main` despliega solo.
 - **Base de datos**: Supabase, proyecto `laucen` (ref `pcltuzztybiovhuaheek`, región
-  `sa-east-1`), misma cuenta que CadaMes pero base separada. Ya tiene corridas las migraciones
-  de `db/tenancy.sql` (login multi-cliente) y `db/coordinacion.sql` (bitácora + para probar). No
+  `sa-east-1`), misma cuenta que CadaMes pero base separada. Migraciones ya corridas:
+  `db/tenancy.sql` (login multi-cliente) y `db/coordinacion.sql` (bitácora + para probar). No
   se comparte ninguna tabla con CadaMes.
-- **Hosting**: Vercel, proyecto `laucen`, mismo equipo (CadaMes) que administra Fer. Todavía no
-  tiene el repo de Git conectado — eso es lo primero para hacer andar los deploys automáticos.
-- **Cron**: Vercel Cron Jobs, nativo — no hace falta un servicio externo.
-- **Dominio**: Fer tiene `laucen.com` (GoDaddy) y `laucen.com.ar` (Nic.ar) comprados, todavía sin
-  conectar a Vercel. El DNS probablemente se administra en Cloudflare, no en el registrador —
-  confirmar con Fer antes de pedirle que toque algo ahí.
+- **Hosting**: Vercel, proyecto `laucen`, mismo equipo (CadaMes). Git conectado, deploy de
+  producción ya salió **READY** al menos una vez. Variables de entorno ya cargadas:
+  `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `ADMIN_EMAILS`
+  (`fernandojlodeiro@gmail.com`), `NEXT_PUBLIC_SITE_URL`, y `DATABASE_URL` (la cargó Fer mismo
+  con la contraseña real de la base — nadie más la tiene).
+- **Cron**: Vercel Cron Jobs, nativo — todavía no configurado, porque no hay qué correr hasta
+  que exista la lógica de búsqueda.
+- **Dominios**: `laucen.com.ar` (Nic.ar) y `laucen.com` (GoDaddy), los dos agregados al proyecto
+  de Vercel y con sus nameservers ya cambiados a los de Vercel (`ns1`/`ns2.vercel-dns.com`).
+  **Al 24/9 a la tarde ninguno de los dos había terminado de propagar todavía** — Nic.ar es
+  particularmente lento (pasa por un trámite de "Trámites a Distancia", no es instantáneo como
+  otros registradores; puede tardar horas o hasta el otro día hábil), GoDaddy debería ser más
+  rápido (minutos a un par de horas). **Antes de tocar nada de dominios, revisar primero si ya
+  propagó** — puede que para cuando se lea esto ya esté listo.
+  - En el medio, `laucen.com.ar` mostraba una landing vieja de CadaMes (de cuando ese dominio se
+    usaba de ejemplo antes de que CadaMes tuviera el suyo, hosteada en una empresa vieja,
+    Hostmar) — es esperable que siga viéndose así hasta que la propagación termine. No es un
+    bug de esta app.
+  - En GoDaddy, la pestaña "Registros DNS" y un reenvío viejo a `tiendevirtual.com` quedaron
+    con errores/datos viejos después del cambio de nameservers — es normal e inofensivo (GoDaddy
+    ya no controla el DNS real, esa pantalla quedó de adorno). No perder tiempo arreglándolo.
 
-Lo que falta para tener el proyecto corriendo (en `README.md` del repo, con el detalle): crear
-la app de Next.js alrededor del código ya portado, cargar las variables de entorno en Vercel,
-conectar el repo de Git al proyecto de Vercel, y armar `db/index.ts` (el cliente de Drizzle).
+**Lo único que falta para confirmar que todo funciona de punta a punta**: que Fer entre a
+cualquiera de los dos dominios (en cuanto propague) y se registre una cuenta desde ahí. Eso
+confirma que `DATABASE_URL` está bien cargada y que el flujo completo (registro → organización →
+rol Admin → panel) anda. Todavía no se pudo probar eso — la sesión que lo hizo no tiene forma de
+navegar a un sitio externo para probarlo ella misma.
 
 ## Cómo hablarle a Fer
 
