@@ -10,6 +10,15 @@ import { VERDE } from "@/app/botones";
 export default function Registro() {
   const [problema, accion, pendiente] = useActionState<Problema, FormData>(accionRegistro, null);
 
+  if (problema?.ok) {
+    return (
+      <main className="max-w-sm mx-auto p-6 mt-10">
+        <h1 className="text-lg font-bold mb-4">Revisá tu mail</h1>
+        <p className="text-sm text-[#1F6E4A] bg-[#EEF7F1] rounded-lg px-3 py-2">{problema.texto}</p>
+      </main>
+    );
+  }
+
   return (
     <main className="max-w-sm mx-auto p-6 mt-10">
       <h1 className="text-lg font-bold mb-4">Crear cuenta</h1>

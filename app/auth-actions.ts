@@ -15,14 +15,17 @@ import { supabaseServer } from "@/lib/supabase";
 import { db } from "@/db";
 import { organizaciones, membresias } from "@/db/tenancy";
 import { asegurarRolesDeLaOrg } from "@/lib/roles";
-import { asegurarUsuario } from "@/lib/tenancy";
+import { vincularUsuario } from "@/lib/tenancy";
+import { eq } from "drizzle-orm";
 
-export type Problema = { campo?: string; texto: string } | null;
+/** `ok` = no es un error sino un aviso (ej. "te mandamos un mail"). */
+export type Problema = { campo?: string; texto: string; ok?: boolean } | null;
 
 function motivoLegible(error: { message: string } | null): string {
   if (!error) return "";
   const m = error.message.toLowerCase();
   if (m.includes("invalid login credentials")) return "El mail o la contraseña no coinciden.";
+  if (m.includes("email not confirmed")) return "Todavía no confirmaste el mail. Buscá el link que te mandamos (fijate en spam).";
   if (m.includes("already registered") || m.includes("already exists")) return "Ese mail ya tiene una cuenta.";
   if (m.includes("password")) return "La contraseña tiene que tener al menos 8 caracteres.";
   console.error("[auth] error de Supabase:", error.message);
@@ -54,21 +57,37 @@ export async function accionRegistro(_previo: Problema, formData: FormData): Pro
   }
 
   const supabase = await supabaseServer();
-  const { error } = await supabase.auth.signUp({
-    email, password, options: { data: { nombre } },
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const { data, error } = await supabase.auth.signUp({
+    email, password,
+    options: { data: { nombre }, emailRedirectTo: `${base}/auth/callback?next=/panel` },
   });
   if (error) return { texto: motivoLegible(error) };
+  // Con la confirmación por mail prendida, un mail ya registrado no da error:
+  // devuelve un usuario de mentira sin identidades.
+  if (!data.user || data.user.identities?.length === 0) {
+    return { texto: "Ese mail ya tiene una cuenta." };
+  }
 
-  const u = await asegurarUsuario();
-  if (!u) return { texto: "La cuenta se creó pero no se pudo terminar el alta. Probá iniciar sesión." };
+  // Se usa el usuario que devuelve signUp, no la sesión: si hay que confirmar
+  // el mail, todavía no hay sesión, pero la organización se deja armada igual.
+  const u = await vincularUsuario({ authId: data.user.id, email, nombre });
+  if (!u) return { texto: "No se pudo completar. Probá de nuevo en un momento." };
 
-  const [org] = await db.insert(organizaciones).values({ nombre: organizacion }).returning();
-  const roles = await asegurarRolesDeLaOrg(org.id);
-  const admin = roles.find((r) => r.protegido) ?? roles[0];
-  await db.insert(membresias).values({
-    usuarioId: u.id, organizacionId: org.id, rolId: admin.id, estado: "ACTIVO",
-  });
+  // Si ya se registró antes sin confirmar, no le armamos otra organización.
+  const [yaTiene] = await db.select().from(membresias).where(eq(membresias.usuarioId, u.id)).limit(1);
+  if (!yaTiene) {
+    const [org] = await db.insert(organizaciones).values({ nombre: organizacion }).returning();
+    const roles = await asegurarRolesDeLaOrg(org.id);
+    const admin = roles.find((r) => r.protegido) ?? roles[0];
+    await db.insert(membresias).values({
+      usuarioId: u.id, organizacionId: org.id, rolId: admin.id, estado: "ACTIVO",
+    });
+  }
 
+  if (!data.session) {
+    return { ok: true, texto: `Te mandamos un mail a ${email}. Abrí el link para confirmar la cuenta y entrás directo al panel.` };
+  }
   redirect("/panel");
 }
 
