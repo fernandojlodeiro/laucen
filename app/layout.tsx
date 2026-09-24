@@ -6,7 +6,8 @@ export const metadata: Metadata = {
   description: "Búsqueda de productos en China para importar",
 };
 
-/** Hora del último deploy en hora argentina, más el commit corto. */
+/** Hora del último deploy en hora argentina, el commit corto y el id del
+ *  deploy de Vercel (el mismo `dpl_…` que muestra Vercel en Deployments). */
 function versión() {
   const hora = process.env.BUILD_TIME
     ? new Date(process.env.BUILD_TIME).toLocaleString("es-AR", {
@@ -15,7 +16,8 @@ function versión() {
       })
     : "";
   const commit = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
-  return [hora && `Actualizado ${hora}`, commit].filter(Boolean).join(" · ");
+  const deploy = process.env.VERCEL_DEPLOYMENT_ID;
+  return [hora && `Actualizado ${hora}`, commit, deploy].filter(Boolean).join(" · ");
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
