@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { sosVos } from "@/lib/admin";
@@ -147,6 +148,7 @@ export default async function Meli({ searchParams }: {
 
   return (
     <main className="max-w-2xl mx-auto p-6">
+      <Link href="/panel" className={`inline-block mb-2 ${SUAVE}`}>← Panel</Link>
       <h1 className="text-lg font-bold mb-4">Mercado Libre — qué trae la API</h1>
 
       {sp.ok && <p className="text-sm text-[#1F6E4A] bg-[#EEF7F1] rounded-lg px-3 py-2 mb-4">Cuenta conectada.</p>}

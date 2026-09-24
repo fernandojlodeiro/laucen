@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Pool } from "pg";
 import { sosVos } from "@/lib/admin";
+import { SUAVE } from "@/app/botones";
 import { databaseUrl } from "@/lib/database-url";
 
 export const dynamic = "force-dynamic";
@@ -70,6 +72,7 @@ export default async function Diagnostico() {
 
   return (
     <main className="max-w-lg mx-auto p-6">
+      <Link href="/panel" className={`inline-block mb-2 ${SUAVE}`}>← Panel</Link>
       <h1 className="text-lg font-bold mb-4">Diagnóstico de la base</h1>
       <table className="w-full text-sm mb-4">
         <tbody>
