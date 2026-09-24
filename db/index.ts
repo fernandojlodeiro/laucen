@@ -6,6 +6,13 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
+// Supabase exige SSL en la conexión directa. `rejectUnauthorized: false` es
+// el mismo trato que usa Supabase en sus propios ejemplos con node-postgres
+// desde un entorno serverless (Vercel) — sin esto, cualquier pantalla que
+// toque la base tira un error 500 sin explicación.
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL!,
+  ssl: { rejectUnauthorized: false },
+});
 
 export const db = drizzle(pool);
