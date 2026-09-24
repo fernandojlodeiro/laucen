@@ -179,13 +179,18 @@ export default async function Meli({ searchParams }: {
       </section>
 
       <section className="mb-6">
-        <h2 className="font-bold text-sm mb-2 flex items-center justify-between">2. Probar una búsqueda
-          <Link href="/admin/meli/apify" className={SUAVE}>Probar con Apify →</Link></h2>
+        <h2 className="font-bold text-sm mb-2">2. Probar una búsqueda</h2>
         <form className="flex gap-2">
           <input name="q" defaultValue={q} placeholder="ej: auriculares bluetooth"
             className="border border-[#E3E9F0] rounded-lg px-3 py-2 flex-1 text-sm" />
           <button className={PRIMARIO}>Probar</button>
         </form>
+      </section>
+
+      <section className="border border-[#E3E9F0] rounded-lg p-4 mb-6 bg-white text-sm">
+        <h2 className="font-bold mb-1">3. Scrapers de Apify</h2>
+        <p className="text-xs text-[#5C6B76] mb-3">Lo que la API no da (ventas, stock, publicaciones fuera de catálogo), leyendo las páginas.</p>
+        <Link href="/admin/meli/apify" className={`${SUAVE} inline-block`}>Probar con Apify →</Link>
       </section>
 
       {problemaLlave && <p className="text-xs text-[#C03420] mb-2">{problemaLlave}</p>}
