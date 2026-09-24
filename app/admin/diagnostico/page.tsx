@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Pool } from "pg";
 import { sosVos } from "@/lib/admin";
+import { databaseUrl, urlConPassword, POOLERS } from "@/lib/database-url";
 
 export const dynamic = "force-dynamic";
 
@@ -45,8 +46,8 @@ function formaDeLaUrl(cruda: string | undefined): Record<string, Forma> {
   };
 }
 
-async function probarConexion(): Promise<{ ok: boolean; texto: string }> {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 8000 });
+async function probarConexion(url = databaseUrl()): Promise<{ ok: boolean; texto: string }> {
+  const pool = new Pool({ connectionString: url, connectionTimeoutMillis: 8000 });
   try {
     const r = await pool.query("select current_user as u");
     return { ok: true, texto: `Conecta bien (usuario ${r.rows[0].u}).` };
@@ -60,8 +61,16 @@ async function probarConexion(): Promise<{ ok: boolean; texto: string }> {
 
 export default async function Diagnostico() {
   if (!(await sosVos())) redirect("/panel");
-  const forma = formaDeLaUrl(process.env.DATABASE_URL);
+  const cruda = process.env.DATABASE_URL;
+  const limpia = databaseUrl();
+  const forma = formaDeLaUrl(limpia);
+  const soloPassword = !!cruda && !cruda.includes("://");
+  if (soloPassword) forma.variable = { valor: "tiene sólo la contraseña: la dirección se arma sola", ok: true };
   const prueba = await probarConexion();
+  // Con sólo la contraseña, se prueban los dos poolers posibles de la región.
+  const porPooler = soloPassword
+    ? await Promise.all(POOLERS.map(async (h) => ({ h, r: await probarConexion(urlConPassword(cruda!.trim(), h)) })))
+    : [];
 
   return (
     <main className="max-w-lg mx-auto p-6">
@@ -82,6 +91,9 @@ export default async function Diagnostico() {
       <p className={`text-sm rounded-lg px-3 py-2 ${prueba.ok ? "text-[#1F6E4A] bg-[#EEF7F1]" : "text-[#C03420] bg-[#FDF1EF]"}`}>
         {prueba.texto}
       </p>
+      {porPooler.map(({ h, r }) => (
+        <p key={h} className={`text-xs mt-2 ${r.ok ? "text-[#1F6E4A]" : "text-[#C03420]"}`}>{h}: {r.texto}</p>
+      ))}
     </main>
   );
 }
