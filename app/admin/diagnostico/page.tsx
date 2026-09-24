@@ -47,7 +47,7 @@ function formaDeLaUrl(cruda: string | undefined): Record<string, Forma> {
 }
 
 async function probarConexion(url = databaseUrl()): Promise<{ ok: boolean; texto: string }> {
-  const pool = new Pool({ connectionString: url, connectionTimeoutMillis: 8000 });
+  const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 8000 });
   try {
     const r = await pool.query("select current_user as u");
     return { ok: true, texto: `Conecta bien (usuario ${r.rows[0].u}).` };
