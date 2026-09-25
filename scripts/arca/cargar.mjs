@@ -167,8 +167,10 @@ async function cargarMes(c, carpeta, periodo) {
   const t0 = Date.now();
 
   return enTransaccion(c, async () => {
+    const paso = (t) => console.log(`${periodo}: ${t}… (${Math.round((Date.now() - t0) / 1000)} s)`);
     await c.query("select pg_advisory_xact_lock(7212002)");
     await c.query("set local work_mem = '256MB'");
+    paso("subiendo los ítems");
     // Las filas de encabezado repetidas del .lst ("NUM_ITEM" en vez de un
     // número) se descartan en la PC, antes de subir: el 4º campo del CSV
     // (num_item) tiene que ser un número. Los 3 primeros nunca traen comas.
@@ -204,15 +206,19 @@ async function cargarMes(c, carpeta, periodo) {
     await pipeline(createReadStream(items), createGunzip(), filtro, destino);
 
     // Recarga limpia del mes: lo viejo de ese período se va, entra lo nuevo.
+    paso(`guardando ${leidos - descartados} ítems`);
     await c.query("delete from arca_impo_items where periodo = $1", [periodo]);
     const ins = await c.query(`
       insert into arca_impo_items (${COLS_ITEM}) select ${COLS_ITEM} from t_items
       on conflict (destinacion, num_item) do update set
         ${COLS_ITEM.split(", ").filter((x) => x !== "destinacion" && x !== "num_item").map((x) => `${x} = excluded.${x}`).join(", ")}`);
 
+    paso("leyendo impuestos y calculando derechos");
     const d = await calcularDerechos(c, periodo, impuestos);
 
+    paso("armando los resúmenes (lo más largo)");
     await recalcularResumen(c, periodo);
+    paso("confirmando");
     await c.query(`
       insert into arca_cargas (periodo, cargado_en, filas_crudas, items, filas_impuestos)
       values ($1, now(), $2, $3, $4)

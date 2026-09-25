@@ -15,7 +15,15 @@ export function asegurarEsquemaArca(): Promise<void> {
     const cliente = await pool.connect();
     try {
       await cliente.query("begin");
-      await cliente.query("select pg_advisory_xact_lock(7212002)");
+      // Si hay una carga de ARCA en curso (scripts/arca/cargar.mjs tiene el
+      // mismo candado), las tablas ya existen: no se espera — si no, la
+      // pantalla quedaba colgada hasta que terminara la carga.
+      const r = await cliente.query<{ ok: boolean }>("select pg_try_advisory_xact_lock(7212002) as ok");
+      if (!r.rows[0].ok) {
+        await cliente.query("rollback");
+        listo = null; // se reintenta en el próximo pedido
+        return;
+      }
       await cliente.query(sql);
       await cliente.query("commit");
     } catch (e) {
