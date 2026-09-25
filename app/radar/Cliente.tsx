@@ -52,3 +52,25 @@ export function TachoConfirmar({ accion, campos, pregunta }: {
     </form>
   );
 }
+
+/** Botón que, antes de mandar, pregunta ahí mismo "¿…? Sí / No" (para
+ *  acciones que casi nunca hacen falta). */
+export function BotonConfirmar({ accion, campos, clase, texto, pregunta, corriendo }: {
+  accion: (fd: FormData) => Promise<void>;
+  campos: Record<string, string>;
+  clase: string;
+  texto: string;
+  pregunta: string;
+  corriendo: string;
+}) {
+  const [preguntando, setPreguntando] = useState(false);
+  if (!preguntando) return <button type="button" onClick={() => setPreguntando(true)} className={clase}>{texto}</button>;
+  return (
+    <form action={accion} className="flex items-center gap-1 text-xs">
+      {Object.entries(campos).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
+      <span>{pregunta}</span>
+      <BotonEnviar clase={BORRAR} corriendo={corriendo}>Sí</BotonEnviar>
+      <button type="button" onClick={() => setPreguntando(false)} className={SUAVE}>No</button>
+    </form>
+  );
+}

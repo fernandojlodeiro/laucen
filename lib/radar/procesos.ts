@@ -149,3 +149,15 @@ export async function ultimosProcesos(organizacionId: string, n = 10) {
   ]);
   return [...propios, ...arbol].sort((a, b) => b.empezo.getTime() - a.empezo.getTime()).slice(0, n);
 }
+
+/** Estado de la carga del árbol para mostrar: la última vez que quedó
+ *  completo y, si hay un refresco en curso, cuánto le falta. */
+export async function situacionDelArbol() {
+  const ok = await ultimaOk("arbol", null);
+  const [ult] = await db.select().from(radarProcesos)
+    .where(and(eq(radarProcesos.tipo, "arbol"), isNull(radarProcesos.organizacionId)))
+    .orderBy(desc(radarProcesos.empezo)).limit(1);
+  const refrescando = !!ult && !!ok && ult.id !== ok.id && ult.estado !== "fallo";
+  const faltan = refrescando ? (ult.detalle as { pendientes?: number } | null)?.pendientes ?? null : null;
+  return { completoEl: ok?.termino ?? ok?.empezo ?? null, refrescando, faltan };
+}
