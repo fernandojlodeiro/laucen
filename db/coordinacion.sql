@@ -139,3 +139,15 @@ create index if not exists para_probar_vueltas_hilo_idx
 
 alter table coordinacion.para_probar enable row level security;
 alter table coordinacion.para_probar_vueltas enable row level security;
+
+-- Documentos publicados para las sesiones que no tienen el repo (Cowork):
+-- en cada deploy de producción, scripts/publicar-documentos.mjs sube
+-- AGENTS.md acá con el commit del build. Cowork lo lee con su conector de
+-- Supabase (nombre = 'AGENTS.md'). Nada público en internet.
+create table if not exists coordinacion.documentos (
+  nombre         text primary key,          -- 'AGENTS.md'
+  contenido      text not null,
+  commit         text,                      -- sha corto del build
+  actualizado_ts timestamptz not null default now()
+);
+alter table coordinacion.documentos enable row level security;

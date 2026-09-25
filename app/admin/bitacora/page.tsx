@@ -10,6 +10,20 @@ import { accionConfirmarLectura, accionAnotarEnBitacora, accionEstadoDePendiente
   accionResponderEntrada } from "@/app/coordinacion-actions";
 import { SUAVE, VERDE, DESPLEGABLE, DESPLEGABLE_CHICO, FLECHA } from "@/app/botones";
 import Vacio from "@/app/Vacio";
+import { pool } from "@/db";
+
+type Documento = { nombre: string; commit: string | null; actualizado_ts: Date; largo: number };
+
+/** Lo que el build publicó en coordinacion.documentos (lo que lee Cowork). */
+async function documentosPublicados(): Promise<Documento[]> {
+  try {
+    const r = await pool.query<Documento>(
+      "select nombre, commit, actualizado_ts, length(contenido)::int largo from coordinacion.documentos order by nombre");
+    return r.rows;
+  } catch {
+    return []; // la tabla todavía no existe: no rompe la bitácora
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -177,9 +191,10 @@ export default async function Bitacora({
   if (!(await sosVos())) redirect("/");
   const sp = await searchParams;
 
-  const [entradas, pendientes, autores] = await Promise.all([
-    ultimasEntradas(), losPendientes(), losAutores(),
+  const [entradas, pendientes, autores, documentos] = await Promise.all([
+    ultimasEntradas(), losPendientes(), losAutores(), documentosPublicados(),
   ]);
+  const buildActual = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
   const color = Object.fromEntries(autores.map((a) => [a.slug, a.color]));
   const slugs = autores.filter((a) => a.activo).map((a) => a.slug);
   const leyeron = await quienLeyo(entradas.filter((e) => e.pideLectura).map((e) => e.id));
@@ -234,6 +249,26 @@ export default async function Bitacora({
         </Link>
         <Link href="/admin/para-probar" className={SUAVE}>🧪 Para probar</Link>
       </div>
+
+      <section className="mb-5 text-xs bg-white border border-[#E3E9F0] rounded-xl px-3 py-2">
+        <b>Documentos publicados para Cowork</b>{" "}
+        <span className="text-[#5C6B76]">(coordinacion.documentos, se suben solos en cada deploy)</span>
+        {documentos.length === 0 ? (
+          <p className="text-[#C03420] mt-1">Todavía no hay ninguno publicado.</p>
+        ) : (
+          <ul className="mt-1 space-y-0.5">
+            {documentos.map((d) => (
+              <li key={d.nombre}>
+                <span className="font-mono">{d.nombre}</span> · commit <span className="font-mono">{d.commit ?? "—"}</span>
+                {buildActual && (d.commit === buildActual
+                  ? <span className="text-[#1F6E4A]"> (el de este deploy ✓)</span>
+                  : <span className="text-[#C03420]"> (este deploy es {buildActual}: no coincide)</span>)}
+                {" "}· {cuando(d.actualizado_ts)} · {d.largo.toLocaleString("es-AR")} caracteres
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <details className="group mb-5">
         <summary className={DESPLEGABLE}>
