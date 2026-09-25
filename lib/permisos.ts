@@ -7,6 +7,8 @@
 // después NACE APAGADA para los roles que ya existen. Toda migración que
 // sume un permiso nuevo tiene que decidir explícitamente a qué rol existente
 // se lo da (el default por ausencia es `false`, no un default explícito).
+// EXCEPCIÓN hoy: los permisos de FUNCIONES (botones del menú) valen `true` si
+// faltan — ver abajo y AGENTS.md.
 
 export type PermisoKey =
   | "ver_config"
@@ -51,7 +53,17 @@ export const PRESETS: Record<PresetKey, { label: string; descripcion: string; pe
   },
 };
 
-/** ¿La membresía tiene el permiso? (un objeto vacío = sin permisos). */
+/** Las "funciones": el permiso de cada botón del menú inicial (el panel).
+ *  Una función nueva agrega acá su permiso. Regla de AGENTS.md ("Permisos
+ *  mientras Laucen lo usa sólo Fer"): mientras no exista la pantalla de roles
+ *  y usuarios, una función que el rol no tiene cargada cuenta como PRENDIDA.
+ *  Sólo un `false` explícito la apaga. */
+export const FUNCIONES: PermisoKey[] = ["radar_ver", "importaciones_ver"];
+
+/** ¿La membresía tiene el permiso? Los de FUNCIONES, si faltan, valen true;
+ *  el resto, si falta, vale false. */
 export function tienePermiso(permisos: Permisos | null | undefined, key: PermisoKey): boolean {
-  return !!permisos && permisos[key] === true;
+  const valor = permisos?.[key];
+  if (FUNCIONES.includes(key)) return valor !== false;
+  return valor === true;
 }

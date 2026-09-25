@@ -11,9 +11,10 @@ import { accionLogout } from "@/app/auth-actions";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 
 export default async function Panel() {
-  // Antes de leer los permisos: db/arca.sql es el que le da "Ver
-  // Importaciones" al Admin, y sin eso el botón no aparece nunca. Si falla,
-  // el panel igual se dibuja (sin el botón).
+  // Cada botón del menú es una "función" con su permiso en el rol (ver
+  // FUNCIONES en lib/permisos.ts): hoy, si el rol no lo tiene cargado, vale
+  // true. Las tablas de Importaciones se aseguran antes, para que al entrar
+  // ya existan; si falla, el panel igual se dibuja.
   await asegurarEsquemaArca().catch((e) => console.error("esquema de importaciones", e));
   const sesion = await sesionRequerida();
   const esAdmin = await sosVos();
@@ -31,8 +32,12 @@ export default async function Panel() {
       </header>
 
       <div className="flex flex-wrap gap-2 mb-6">
-        <Link href="/radar" className={PRIMARIO}>📡 Radar</Link>
-        <Link href="/radar/seguidas" className={SUAVE}>★ Mis categorías seguidas</Link>
+        {tienePermiso(sesion.permisos, "radar_ver") && (
+          <>
+            <Link href="/radar" className={PRIMARIO}>📡 Radar</Link>
+            <Link href="/radar/seguidas" className={SUAVE}>★ Mis categorías seguidas</Link>
+          </>
+        )}
         {tienePermiso(sesion.permisos, "importaciones_ver") && (
           <Link href="/importaciones" className={PRIMARIO}>🚢 Importaciones</Link>
         )}

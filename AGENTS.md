@@ -113,13 +113,19 @@ Editar y borrar en una lista o tabla:
 
 ## Permisos mientras Laucen lo usa sólo Fer
 
-Mientras el proyecto esté en esta etapa (desarrollo, y en uso sólo por Fer), **toda función nueva
-lleva su permiso (gate) en el rol, pero ese permiso nace ENCENDIDO**: por defecto `true`. La
-pantalla de roles y usuarios todavía no está construida, así que un permiso que nace apagado
-esconde la función y no hay dónde prenderlo (pasó con el botón de Importaciones). El gate se
-pone igual, para que ya esté cuando haya más usuarios, pero siempre en `true`. Esto cambia
-cuando Fer lo diga explícitamente; hasta entonces pisa lo que dice `lib/permisos.ts` sobre que
-un permiso nuevo "nace apagado".
+- **Función = cada botón del menú inicial (el panel).** Hoy: Radar (con "Mis categorías
+  seguidas") e Importaciones. Las herramientas internas (bitácora, para probar, Mercado Libre)
+  no cuentan: esas son sólo de Fer por mail (`lib/admin.ts`).
+- **Cada función tiene su permiso en el rol, y el botón aparece sólo si el rol lo tiene en
+  `true`.** El gate funciona de verdad: un `false` explícito esconde el botón y cierra la
+  pantalla.
+- **Mientras no exista la pantalla de roles y usuarios, un permiso de función que el rol no
+  tiene cargado vale `true`.** Está resuelto en el código: la lista `FUNCIONES` de
+  `lib/permisos.ts` y `tienePermiso()`. Una función nueva agrega ahí su permiso y queda visible
+  sin que nadie tenga que prenderlo. Los demás permisos (los que no son de un botón del menú,
+  ej. `radar_gastar`) siguen como antes: si faltan, valen `false`.
+- Esto vale mientras el proyecto esté en desarrollo y lo use sólo Fer; cambia cuando Fer lo
+  diga explícitamente.
 
 ## Disciplina técnica (todo va a main)
 
