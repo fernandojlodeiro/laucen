@@ -20,6 +20,7 @@ export const AREAS = {
   resultados: "Resultados",
   cron: "Cron",
   panel: "Panel",
+  importaciones: "Importaciones",
   interno: "Por dentro",
 } as const;
 export type Area = keyof typeof AREAS;

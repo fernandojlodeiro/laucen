@@ -5,3 +5,10 @@ node_modules
 drizzle
 *.tsbuildinfo
 next-env.d.ts
+
+# Datos de ARCA / Softrade: viven en la PC de Fer (C:\Laucen\...), nunca en el repo.
+/arca/
+/softrade/
+*.lst
+*.csv.gz
+impo_resumen_*.json

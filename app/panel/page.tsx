@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import { sesionRequerida } from "@/lib/tenancy";
+import { tienePermiso } from "@/lib/permisos";
 import { sosVos } from "@/lib/admin";
 import { accionLogout } from "@/app/auth-actions";
 import { PRIMARIO, SUAVE } from "@/app/botones";
@@ -27,6 +28,9 @@ export default async function Panel() {
       <div className="flex flex-wrap gap-2 mb-6">
         <Link href="/radar" className={PRIMARIO}>📡 Radar</Link>
         <Link href="/radar/seguidas" className={SUAVE}>★ Mis categorías seguidas</Link>
+        {tienePermiso(sesion.permisos, "importaciones_ver") && (
+          <Link href="/importaciones" className={PRIMARIO}>🚢 Importaciones</Link>
+        )}
       </div>
 
       {esAdmin && (
