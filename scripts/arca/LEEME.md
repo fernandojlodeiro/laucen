@@ -16,8 +16,8 @@ paso a paso para la sesión de Claude Code **que corre en la PC de Fer**
 
 | Qué | Carpeta |
 |---|---|
-| ZIP mensuales de ARCA, nombre original `AAAAMM.zip` | `C:\Laucen\arca\raw\` |
-| `arancel.zip` (Nomenclatura Común del Mercosur) | `C:\Laucen\arca\ref\` |
+| ZIP mensuales de ARCA, con el nombre tal como los baja ARCA (`AAAAMM.zip`; el mes sale de los 6 números del nombre, no hay que renombrar). Ojo: dos ZIP del mismo mes (ej. `202608 (1).zip`) se pisan | `C:\Laucen\arca\raw\` |
+| `arancel.zip` (Nomenclatura Común del Mercosur), con ese nombre tal cual | `C:\Laucen\arca\ref\` |
 | CSV intermedios (los generan los scripts) | `C:\Laucen\arca\out\` |
 | Excel de Softrade | `C:\Laucen\softrade\in\` (se mueven solos a `done\` o `error\`) |
 
