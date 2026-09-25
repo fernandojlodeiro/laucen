@@ -24,13 +24,16 @@ import { from as copyFrom } from "pg-copy-streams";
 import { leerSoftrade } from "./softrade.mjs";
 import { CONCEPTO_DERECHOS } from "./parametros.mjs";
 
-const RAIZ = path.resolve(import.meta.dirname, "..", "..");
+// Anda de dos maneras: dentro del repo (scripts/arca/) o suelto en una
+// carpeta de la PC de Fer (C:\Laucen\carga\, con arca.sql y .env.local al lado).
+const AQUI = import.meta.dirname;
+const RAIZ = path.resolve(AQUI, "..", "..");
+const primero = (...rutas) => rutas.find((r) => existsSync(r));
 
 // ── Conexión ────────────────────────────────────────────────
 
 function cargarEnv() {
-  for (const f of [".env.local", ".env"]) {
-    const p = path.join(RAIZ, f);
+  for (const p of [AQUI, RAIZ].flatMap((d) => [path.join(d, ".env.local"), path.join(d, ".env")])) {
     if (existsSync(p)) try { process.loadEnvFile(p); } catch { /* formato raro: se sigue */ }
   }
 }
@@ -77,7 +80,9 @@ async function copiarCsv(c, sql, archivo) {
 }
 
 async function esquema(c) {
-  await c.query(readFileSync(path.join(RAIZ, "db", "arca.sql"), "utf8"));
+  const sql = primero(path.join(AQUI, "arca.sql"), path.join(RAIZ, "db", "arca.sql"));
+  if (!sql) throw new Error("No encuentro arca.sql (tiene que estar al lado de cargar.mjs, o en db/ del repo)");
+  await c.query(readFileSync(sql, "utf8"));
 }
 
 // ── ARCA ────────────────────────────────────────────────────

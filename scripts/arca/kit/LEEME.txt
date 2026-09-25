@@ -1,0 +1,40 @@
+LAUCEN - CARGA DE ARCA Y SOFTRADE (en tu PC, sin el repo)
+==========================================================
+
+CARPETAS
+  C:\Laucen\carga\         esta carpeta (los scripts)
+  C:\Laucen\arca\raw\      los ZIP de ARCA, tal cual los baja ARCA (202608.zip, ...)
+  C:\Laucen\arca\ref\      arancel.zip
+  C:\Laucen\arca\out\      la llenan los scripts (NO borrar los impo_impuestos_*.csv.gz)
+  C:\Laucen\softrade\in\   los Excel de Softrade (se mueven solos a done\ o error\)
+
+UNA SOLA VEZ
+  1. Tener instalados Python 3 y Node.js (versión 22 o más nueva).
+  2. Abrir .env.local (en esta carpeta) con el Bloc de notas y reemplazar
+     PONER_ACA_LA_CONTRASEÑA por la contraseña de la base (la misma de Vercel).
+  3. En una ventana de comandos (cmd):
+       cd C:\Laucen\carga
+       npm install
+
+PRIMERO: AGOSTO 2026 + ARANCEL + SOFTRADE, Y VERIFICAR
+  cd C:\Laucen\carga
+  python arancel_transform.py C:\Laucen\arca\ref\arancel.zip C:\Laucen\arca\out
+  node cargar.mjs arancel C:\Laucen\arca\out
+  python arca_transform.py C:\Laucen\arca\raw\202608.zip C:\Laucen\arca\out
+  node cargar.mjs arca C:\Laucen\arca\out 202608
+  node cargar.mjs softrade C:\Laucen\softrade
+  node cargar.mjs verificar
+  node cargar.mjs alicuotas
+
+  "verificar" tiene que dar todo OK. Si algo da MAL, no seguir: avisar.
+
+DESPUÉS: EL RESTO DE LOS MESES (tarda horas, dejarlo corriendo)
+  for %f in (C:\Laucen\arca\raw\*.zip) do python arca_transform.py %f C:\Laucen\arca\out
+  node cargar.mjs arca C:\Laucen\arca\out
+
+  Los meses ya cargados se saltean solos. Se puede cortar y volver a correr.
+
+EXCEL NUEVOS DE SOFTRADE (cuando haya)
+  node cargar.mjs softrade C:\Laucen\softrade
+
+Si cambian los scripts en el repo, pedir un kit nuevo.

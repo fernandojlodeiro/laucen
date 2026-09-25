@@ -1,0 +1,11 @@
+{
+  "name": "laucen-carga",
+  "private": true,
+  "type": "module",
+  "description": "Carga de ARCA + Softrade a Supabase, suelta en C:\\Laucen\\carga (sin el repo).",
+  "dependencies": {
+    "exceljs": "4.4.0",
+    "pg": "8.23.0",
+    "pg-copy-streams": "7.0.0"
+  }
+}
