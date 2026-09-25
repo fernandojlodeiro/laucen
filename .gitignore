@@ -12,3 +12,6 @@ next-env.d.ts
 *.lst
 *.csv.gz
 impo_resumen_*.json
+
+# Python
+__pycache__/
