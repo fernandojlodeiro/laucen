@@ -1,22 +1,14 @@
 // Tablas que se usan en Buscar y en las fichas de NCM e importador.
 
 import { periodoLindo } from "@/lib/arca/filtro";
-import { VIAS, nombre, tituloAlicuota, type Refs, type items, type marcasVistas, type serieMensual } from "@/lib/arca/consultas";
+import { VIAS, nombre, type Refs, type items, type marcasVistas, type serieMensual } from "@/lib/arca/consultas";
 import { BotonCsv, CAJA_TABLA, Col, LinkImportador, LinkNcm, TABLA, TD, TDN, THEAD, TR, cant, usd, usd2 } from "./Piezas";
 
-/** Las 5 alícuotas vigentes del nomenclador, cada una con su nombre al pasar
- *  el mouse (o "sin confirmar"). La de derechos, si ya se sabe cuál es, en negrita. */
-export function Alicuotas({ alic, nombres }: { alic: (number | null)[] | null; nombres: (string | null)[] }) {
-  if (!alic) return <span className="text-[#C9D3DD]">—</span>;
-  return (
-    <span className="whitespace-nowrap">
-      {alic.map((v, i) => (
-        <span key={i} title={tituloAlicuota(nombres, i)} className={nombres[i] ? "font-bold" : "text-[#5C6B76]"}>
-          {i > 0 && " · "}{v == null ? "—" : `${cant(v)}%`}
-        </span>
-      ))}
-    </span>
-  );
+/** Un porcentaje, o un rango si las aperturas de la NCM difieren ("18–35%"). */
+export function Pct({ min, max, titulo }: { min: number | null; max?: number | null; titulo?: string }) {
+  if (min == null) return <span className="text-[#C9D3DD]" title={titulo}>—</span>;
+  const texto = max != null && max !== min ? `${cant(min)}–${cant(max)}%` : `${cant(min)}%`;
+  return <span className="whitespace-nowrap" title={titulo}>{texto}</span>;
 }
 
 export function Barra({ total, mostrados, csv }: { total: number; mostrados: number; csv: string }) {
@@ -61,9 +53,7 @@ export function Serie({ filas, csv }: { filas: Awaited<ReturnType<typeof serieMe
   );
 }
 
-export function Items({ datos, refs, alicNombres, csv }: {
-  datos: Awaited<ReturnType<typeof items>>; refs: Refs; alicNombres: (string | null)[]; csv?: string;
-}) {
+export function Items({ datos, refs, csv }: { datos: Awaited<ReturnType<typeof items>>; refs: Refs; csv?: string }) {
   const { filas, total } = datos;
   const conSoftrade = filas.some((x) => x.enriquecido);
   return (
@@ -76,7 +66,7 @@ export function Items({ datos, refs, alicNombres, csv }: {
             <Col texto="NCM" derecha={false} /><Col texto="Origen" derecha={false} /><Col texto="Transporte" derecha={false} />
             <Col texto="Cantidad" /><Col texto="FOB USD" /><Col texto="FOB unit." />
             {conSoftrade && <><Col texto="CIF USD" /><Col texto="Kg netos" /></>}
-            <Col texto="Derechos pagados % FOB" /><Col texto="Alícuotas vigentes (nomenclador)" derecha={false} />
+            <Col texto="Arancel hoy" /><Col texto="IVA" /><Col texto="Estadística" />
             {conSoftrade && <><Col texto="Marca" derecha={false} /><Col texto="Cód. artículo" derecha={false} /><Col texto="Fecha" derecha={false} /></>}
           </tr></thead>
           <tbody>
@@ -94,14 +84,9 @@ export function Items({ datos, refs, alicNombres, csv }: {
                 {conSoftrade && <>
                   <td className={TDN}>{x.usd_cif == null ? "" : usd(x.usd_cif)}</td><td className={TDN}>{x.kg_netos == null ? "" : cant(x.kg_netos)}</td>
                 </>}
-                <td className={TDN} title={x.derechos_pct_efectivo == null ? "Sin dato: el concepto de derechos todavía no está confirmado" : undefined}>
-                  {x.derechos_pct_efectivo == null ? "—" : `${cant(x.derechos_pct_efectivo)}%`}
-                </td>
-                <td className={TD}>
-                  {x.alic_variantes > 1
-                    ? <LinkNcm ncm={x.ncm} texto="varían según apertura" />
-                    : <Alicuotas alic={x.alic} nombres={alicNombres} />}
-                </td>
+                <td className={TDN}><Pct min={x.arancel_min} max={x.arancel_max} titulo="Arancel de importación fuera del Mercosur, nomenclador vigente" /></td>
+                <td className={TDN}><Pct min={x.iva_pct} titulo="IVA deducido de los despachos de esta NCM" /></td>
+                <td className={TDN}><Pct min={x.estadistica_pct} titulo="Tasa de estadística deducida de los despachos de esta NCM" /></td>
                 {conSoftrade && <>
                   <td className={TD}>{x.marcas?.join(", ") ?? ""}</td><td className={TD}>{x.codigos_articulo?.join(", ") ?? ""}</td>
                   <td className={TD}>{x.fecha ?? ""}</td>

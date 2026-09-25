@@ -1,17 +1,17 @@
-// Ficha de una NCM: qué es (nomenclador), y juntos el FOB histórico (ARCA),
-// las alícuotas vigentes (nomenclador) y CIF + kg cuando hay Softrade. Sin
-// montos de impuestos. Después: serie mensual, importadores, países, marcas.
+// Ficha de una NCM: qué es, cuánto paga HOY (arancel del nomenclador vigente,
+// fuera del Mercosur; IVA y estadística deducidos de los despachos), el FOB
+// del período (ARCA) y CIF + kg cuando hay Softrade. Después: serie mensual,
+// importadores, países, marcas.
 
 import Link from "next/link";
 import { pool } from "@/db";
 import { aParams, leerFiltro, periodoLindo, periodosCargados, type Params } from "@/lib/arca/filtro";
 import {
-  alicuotasDeNcm, marcasVistas, nombre, nombresAlicuotas, rankingImportadores, rankingPaises, referencias, resumenSoftrade,
-  serieMensual, tituloAlicuota,
+  marcasVistas, nombre, rankingImportadores, rankingPaises, referencias, resumenSoftrade, serieMensual, tasasDeNcm,
 } from "@/lib/arca/consultas";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import { CAJA_TABLA, CAMPO, Col, ETIQUETA, LinkImportador, SinDatos, TABLA, TD, TDN, THEAD, TR, cant, entrar, pct, usd } from "../Piezas";
-import { Alicuotas, MarcasVistas, Serie } from "../Tablas";
+import { MarcasVistas, Pct, Serie } from "../Tablas";
 
 export const dynamic = "force-dynamic";
 
@@ -28,13 +28,13 @@ export default async function FichaNcm({ searchParams }: { searchParams: Promise
   f.hasta ??= periodos.at(-1);
   f.desde ??= periodos[Math.max(0, periodos.indexOf(f.hasta!) - 11)] ?? periodos[0];
 
-  const [refs, info, aperturas, alicNombres, soft, serie, imps, paises, marcas] = await Promise.all([
+  const [refs, info, tasas, soft, serie, imps, paises, marcas] = await Promise.all([
     referencias(),
     pool.query("select *, to_char(vigencia, 'DD/MM/YYYY') vig from ref_ncm_vigente where codigo = $1", [codigo]).then((r) => r.rows[0]),
-    alicuotasDeNcm(codigo), nombresAlicuotas(), resumenSoftrade(f, org),
+    tasasDeNcm(codigo), resumenSoftrade(f, org),
     serieMensual(f, org), rankingImportadores(f, org, "fob", 50), rankingPaises(f, org), marcasVistas(f, org),
   ]);
-  const vigencia = aperturas[0]?.vigencia ?? info?.vig;
+  const vigencia = tasas.vigencia ?? info?.vig;
 
   return (
     <div className="space-y-5">
@@ -60,29 +60,24 @@ export default async function FichaNcm({ searchParams }: { searchParams: Promise
           <p className="text-[11px] text-[#5C6B76]">FOB {periodoLindo(f.desde!)}–{periodoLindo(f.hasta!)} (ARCA)</p>
           <p className="text-lg font-bold tabular-nums">USD {usd(soft.fob)}</p>
           <p className="text-[11px] text-[#5C6B76]">{soft.items} ítems</p>
-          <p className="text-[11px] text-[#5C6B76] mt-1">
-            Derechos pagados sobre FOB: {soft.derechosProm == null
-              ? "sin dato (el concepto de derechos todavía no está confirmado)"
-              : <b className="text-[#1B2A35]">{cant(soft.derechosProm)}% promedio ({soft.conDerechos} ítems)</b>}
-          </p>
+
         </div>
         <div className="bg-white border border-[#E3E9F0] rounded-xl p-3">
-          <p className="text-[11px] text-[#5C6B76]">Alícuotas vigentes (nomenclador{vigencia ? ` del ${vigencia}` : ""})</p>
-          {aperturas.length === 0 ? (
-            <p className="text-xs text-[#5C6B76] mt-1">El nomenclador todavía no está cargado.</p>
-          ) : (
-            <ul className="text-xs mt-1 space-y-0.5">
-              {[0, 1, 2, 3, 4].map((i) => {
-                const vals = [...new Set(aperturas.map((a) => a.alic[i]))];
-                return (
-                  <li key={i} className="flex justify-between gap-2">
-                    <span className={alicNombres[i] ? "font-bold" : "text-[#5C6B76]"}>{tituloAlicuota(alicNombres, i)}</span>
-                    <span className="tabular-nums">{vals.length === 1 ? `${cant(vals[0])}%` : `${cant(Math.min(...vals.map((v) => v ?? 0)))}–${cant(Math.max(...vals.map((v) => v ?? 0)))}%`}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          <p className="text-[11px] text-[#5C6B76]">Lo que paga hoy, importando desde fuera del Mercosur</p>
+          <ul className="text-xs mt-1 space-y-1">
+            <li className="flex justify-between gap-2">
+              <span><b>Arancel</b> <span className="text-[#5C6B76]">(nomenclador{vigencia ? ` del ${vigencia}` : ""})</span></span>
+              <b className="tabular-nums"><Pct min={tasas.arancelMin} max={tasas.arancelMax} /></b>
+            </li>
+            <li className="flex justify-between gap-2">
+              <span><b>IVA</b> <span className="text-[#5C6B76]">{tasas.iva == null ? "(sin despachos para deducirlo)" : `(deducido de ${tasas.ivaItems} de ${tasas.ivaTotal} despachos)`}</span></span>
+              <b className="tabular-nums"><Pct min={tasas.iva} /></b>
+            </li>
+            <li className="flex justify-between gap-2">
+              <span><b>Estadística</b> <span className="text-[#5C6B76]">{tasas.est == null ? "(sin despachos para deducirla)" : `(deducida de ${tasas.estItems} de ${tasas.estTotal} despachos)`}</span></span>
+              <b className="tabular-nums"><Pct min={tasas.est} /></b>
+            </li>
+          </ul>
         </div>
         <div className="bg-white border border-[#E3E9F0] rounded-xl p-3">
           <p className="text-[11px] text-[#5C6B76]">CIF y kilos (Softrade)</p>
@@ -100,20 +95,19 @@ export default async function FichaNcm({ searchParams }: { searchParams: Promise
         </div>
       </section>
 
-      {aperturas.length > 0 && (
+      {tasas.aperturas.length > 0 && (
         <details className="text-xs">
-          <summary className="cursor-pointer text-[#16577F] font-semibold">Aperturas SIM y sus alícuotas ({aperturas.length})</summary>
+          <summary className="cursor-pointer text-[#16577F] font-semibold">Aperturas SIM y su arancel ({tasas.aperturas.length})</summary>
           <div className={`${CAJA_TABLA} mt-2`}>
             <table className={TABLA}>
               <thead className={THEAD}><tr>
-                <Col texto="Apertura" derecha={false} /><Col texto="Descripción" derecha={false} />
-                <Col texto={`Alícuotas: ${[0, 1, 2, 3, 4].map((i) => tituloAlicuota(alicNombres, i)).join(" · ")}`} derecha={false} />
+                <Col texto="Apertura" derecha={false} /><Col texto="Descripción" derecha={false} /><Col texto="Arancel" />
               </tr></thead>
-              <tbody>{aperturas.map((a) => (
+              <tbody>{tasas.aperturas.map((a) => (
                 <tr key={a.codigo} className={TR}>
                   <td className={`${TD} font-mono whitespace-nowrap`}>{a.codigo}</td>
                   <td className={TD}>{a.descripcion}</td>
-                  <td className={TD}><Alicuotas alic={a.alic} nombres={alicNombres} /></td>
+                  <td className={TDN}><Pct min={a.arancel} /></td>
                 </tr>))}
               </tbody>
             </table>

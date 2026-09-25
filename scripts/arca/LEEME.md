@@ -38,9 +38,6 @@ node scripts\arca\cargar.mjs softrade C:\Laucen\softrade
 # Verificar contra los números de la orden (sección 8, pasos 4 y 6)
 node scripts\arca\cargar.mjs verificar
 
-# Cuál alícuota del nomenclador es derechos (cruce con Softrade)
-node scripts\arca\cargar.mjs alicuotas
-
 # SÓLO cuando verificar dio todo OK: el resto de los meses de raw\
 # (los ya cargados se saltean; --forzar para recargar uno)
 for %f in (C:\Laucen\arca\raw\*.zip) do python scripts\arca\arca_transform.py %f C:\Laucen\arca\out
@@ -48,29 +45,26 @@ node scripts\arca\cargar.mjs arca C:\Laucen\arca\out
 ```
 
 Otros: `node scripts\arca\cargar.mjs resumen [AAAAMM ...]` recalcula las tablas
-resumen; `derechos <carpeta>` recalcula `derechos_pct_efectivo` en todos los meses (ver abajo);
+resumen; `tasas <carpeta>` recalcula IVA y estadística por NCM en todos los meses (ver abajo);
 `esquema` sólo crea/actualiza las tablas.
 
 ## Reglas
 
 - **Orden**: primero agosto 2026 + el Excel de ejemplo de Softrade, y `verificar`
   tiene que dar todo OK (ítems, despachos, importadores, 8516.29.00 China, el
-  despacho 26001IC04154138R/1 con cantidad y FOB, derechos_pct_efectivo en null,
-  y los chequeos de Softrade). Recién después, el resto de los meses.
+  despacho 26001IC04154138R/1 con cantidad y FOB, y los chequeos de Softrade). Recién después, el resto de los meses.
 - Mirar sólo la línea de resumen que imprime cada script. **No** abrir los
   `.lst` ni los `.csv.gz` (salvo las 3 primeras líneas para verificar formato).
 - `arca_transform.py` es el de Cowork, probado contra el archivo real de agosto
   2026. No reescribirlo: si hace falta otra cosa, se hace en la carga.
-- Impuestos: **no se guarda ningún monto** (recorte del 25/09, bitácora #3). Del
-  `impo_impuestos_AAAAMM.csv.gz` sólo sale `derechos_pct_efectivo` (derechos /
-  FOB × 100, 2 decimales). No borrar esos `.csv.gz` de `out\`: el recálculo los
-  vuelve a leer.
-- Concepto de derechos: **010** (confirmado por Fer el 25/09; 061 es la tasa de
-  estadística). Está en `scripts/arca/parametros.mjs`. Si alguna vez cambia: poner
-  el código ahí y correr `node scripts\arca\cargar.mjs derechos C:\Laucen\arca\out`.
-- Alícuotas del nomenclador: después de cargar el arancel y el Excel de Softrade,
-  `node scripts\arca\cargar.mjs alicuotas` identifica cuál de las 5 es derechos
-  (cruce con el "% Dere." de Softrade) y lo anota en `ref_alicuota`. Las otras
-  cuatro quedan sin nombre hasta que Fer las confirme.
+- Impuestos: **no se guarda ningún monto por despacho.** Del
+  `impo_impuestos_AAAAMM.csv.gz` se deduce, por NCM, la tasa de IVA y la de
+  estadística que se paga (la que más se repite; ver `agg_tasas_mes` y
+  `ncm_tasas`). No borrar esos `.csv.gz` de `out\`: `cargar.mjs tasas <carpeta>`
+  los relee para recalcular. Conceptos (confirmados por Fer): 010 = derechos,
+  061 = tasa de estadística, 415 = IVA — en `scripts/arca/parametros.mjs`.
+- El arancel sale del nomenclador: columna 3 (`alic_3`, derecho de importación
+  extrazona = fuera del Mercosur). Las 6 columnas están nombradas en
+  `ref_alicuota` según el diseño de archivos de ARCA.
 - Cada carga de `arancel.zip` es una versión nueva (fecha del nombre del archivo);
   no pisa las anteriores. Recargar la misma fecha la reemplaza.

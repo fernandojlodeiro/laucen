@@ -24,7 +24,6 @@ PRIMERO: AGOSTO 2026 + ARANCEL + SOFTRADE, Y VERIFICAR
   node cargar.mjs arca C:\Laucen\arca\out 202608
   node cargar.mjs softrade C:\Laucen\softrade
   node cargar.mjs verificar
-  node cargar.mjs alicuotas
 
   "verificar" tiene que dar todo OK. Si algo da MAL, no seguir: avisar.
 
@@ -33,6 +32,11 @@ DESPUÉS: EL RESTO DE LOS MESES (tarda horas, dejarlo corriendo)
   node cargar.mjs arca C:\Laucen\arca\out
 
   Los meses ya cargados se saltean solos. Se puede cortar y volver a correr.
+
+IVA Y ESTADÍSTICA POR NCM
+  Se deducen solos al cargar cada mes (no están en el nomenclador). Para
+  recalcularlos en todos los meses ya cargados:
+    node cargar.mjs tasas C:\Laucen\arca\out
 
 EXCEL NUEVOS DE SOFTRADE (cuando haya)
   node cargar.mjs softrade C:\Laucen\softrade

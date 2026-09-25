@@ -14,7 +14,9 @@ Nomenclador (docs, sección 5):
     2@85.16           @      @ ... @CALENTADORES ELECTRICOS DE AGUA ...
     2@8516.29.00      @      @ ... @--Los demas
     2@8516.29.00.100A @000.00@008.00@020.00@008.00@000.00@      @07@  @      Radiadores ...
-Columna 1 = código, 2-6 = alícuotas, 8 = unidad, última = descripción,
+Columna 1 = código, 2-7 = seis alícuotas (exportación, reintegro extrazona,
+importación extrazona, reintegro intrazona, importación intrazona, específico
+mínimo), 8 = unidad estadística, 9 = unidad de derecho específico, última = descripción,
 indentada con espacios y guiones según el nivel. El padre se reconstruye con
 una pila: partida -> guiones (-, --, ---) -> aperturas SIM por sangría.
 
@@ -113,7 +115,11 @@ def nomenclador(lineas):
         filas[codigo] = {
             "codigo": codigo, "tipo": tipo, "nivel": len(pila) + 1, "padre": padre,
             "descripcion": limpiar(desc_cruda), "unidad": c[8].strip(),
-            "alic": [alicuota(x) for x in c[2:7]],
+            # 6 alícuotas (diseño de ARCA): exportación, reintegro extrazona,
+            # importación extrazona, reintegro intrazona, importación
+            # intrazona, derecho específico mínimo.
+            "alic": [alicuota(x) for x in c[2:8]],
+            "unidad_esp": c[9].strip(),
         }
         pila.append((prof, codigo))
 
@@ -156,10 +162,11 @@ def main():
     with open(os.path.join(salida, "ref_ncm.csv"), "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(["codigo", "vigencia", "tipo", "nivel", "padre", "descripcion", "descripcion_completa",
-                    "unidad", "alic_1", "alic_2", "alic_3", "alic_4", "alic_5"])
+                    "unidad", "alic_1", "alic_2", "alic_3", "alic_4", "alic_5", "alic_6",
+                    "unidad_derecho_especifico"])
         for x in ncm:
             w.writerow([x["codigo"], vigencia, x["tipo"], x["nivel"], x["padre"], x["descripcion"],
-                        x["descripcion_completa"], x["unidad"], *x["alic"]])
+                        x["descripcion_completa"], x["unidad"], *x["alic"], x["unidad_esp"]])
     with open(os.path.join(salida, "ref_sufijo.csv"), "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(["posicion", "codigo", "norma", "descripcion"])

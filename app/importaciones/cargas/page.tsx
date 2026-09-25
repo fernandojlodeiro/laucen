@@ -23,7 +23,7 @@ export default async function Cargas() {
       select 'ref_ncm (versión vigente)' t, count(*)::int n from ref_ncm_vigente
       union all select 'ref_ncm: versiones cargadas', count(distinct vigencia)::int from ref_ncm
       union all select 'ref_sufijo', count(*)::int from ref_sufijo
-      union all select 'Alícuotas del nomenclador identificadas (de 5)', count(*)::int from ref_alicuota where nombre is not null
+      union all select 'NCM con IVA y estadística deducidos', count(*)::int from ncm_tasas where iva_pct is not null
       union all select 'ref_pais (con nombre)', count(*)::int from ref_pais where nombre is not null
       union all select 'ref_transporte (con nombre)', count(*)::int from ref_transporte where nombre is not null
       union all select 'ref_concepto (con nombre)', count(*)::int from ref_concepto where nombre is not null`).then((r) => r.rows),
@@ -49,7 +49,7 @@ export default async function Cargas() {
         ) : (
           <div className={CAJA_TABLA}>
             <table className={TABLA}>
-              <thead className={THEAD}><tr><Col texto="Mes" derecha={false} /><Col texto="Filas crudas" /><Col texto="Ítems" /><Col texto="Ítem × concepto (sólo para derechos)" /><Col texto="Cargado" derecha={false} /></tr></thead>
+              <thead className={THEAD}><tr><Col texto="Mes" derecha={false} /><Col texto="Filas crudas" /><Col texto="Ítems" /><Col texto="Filas con concepto de impuesto" /><Col texto="Cargado" derecha={false} /></tr></thead>
               <tbody>{arca.map((a) => (
                 <tr key={a.periodo} className={TR}>
                   <td className={TD}>{periodoLindo(a.periodo)}</td>

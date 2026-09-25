@@ -36,15 +36,11 @@ create index if not exists arca_impo_items_pais_idx on arca_impo_items (pais_ori
 create index if not exists arca_impo_items_periodo_idx on arca_impo_items (periodo);
 alter table arca_impo_items enable row level security;
 
--- Impuestos: NO se guardan montos (orden de Cowork del 25/09, bitácora #3).
--- Del .lst sólo se usan las columnas 14 (concepto) y 15 (monto) para
--- deduplicar y para calcular, por ítem, el % de derechos efectivamente
--- pagado: derechos / FOB × 100, con 2 decimales (ej. 12.35 = 12,35 %). Sirve
--- para ver posiciones con acuerdos (Mercosur/ALADI) donde se paga menos que
--- el arancel nominal. Qué concepto son los derechos NO está confirmado (010 o
--- 061): el código vive en scripts/arca/parametros.mjs, en null, y mientras
--- sea null la columna queda null. `cargar.mjs derechos` la recalcula.
-alter table arca_impo_items add column if not exists derechos_pct_efectivo numeric;
+-- Impuestos: NO se guardan montos por despacho. Del .lst sólo se usan las
+-- columnas 14 (concepto) y 15 (monto) para deducir, por NCM, la tasa de IVA y
+-- la de estadística que se paga hoy (ver agg_tasas_mes más abajo).
+-- (derechos_pct_efectivo, lo pagado por cada competidor, se sacó por pedido
+-- de Fer el 25/09: la columna se borra de la base después del deploy.)
 
 -- Qué período se cargó, para no cargar dos veces y saber qué falta.
 create table if not exists arca_cargas (
@@ -89,6 +85,9 @@ create table if not exists ref_ncm (
 );
 create index if not exists ref_ncm_padre_idx on ref_ncm (padre);
 alter table ref_ncm enable row level security;
+-- La 6ª alícuota y la 2ª unidad (diseño de archivos de ARCA, DI PHSI).
+alter table ref_ncm add column if not exists alic_6 numeric;
+alter table ref_ncm add column if not exists unidad_derecho_especifico text;
 
 -- Versiones del nomenclador: cada carga de arancel.zip es una versión con su
 -- fecha de vigencia (la del nombre del archivo, ej. nomenclador_20260925.txt)
@@ -108,21 +107,70 @@ begin
 end $$;
 
 -- La versión vigente = la última cargada (cada carga es el nomenclador entero).
-drop view if exists ref_ncm_vigente;
+drop view if exists ref_ncm_vigente cascade;  -- ncm_arancel depende de ella: se recrea más abajo
 create view ref_ncm_vigente with (security_invoker = true) as
 select * from ref_ncm where vigencia = (select max(vigencia) from ref_ncm);
 
--- Qué es cada una de las 5 alícuotas del nomenclador. Sin nombre hasta
--- confirmarlo: la de derechos la deduce `cargar.mjs alicuotas` cruzando con
--- el "% Dere." de Softrade; las otras cuatro, sólo cuando Fer las confirme.
+-- Qué es cada alícuota del nomenclador: según el diseño oficial de ARCA
+-- ("Consulta Arancel Integrado / Sufijos de Valor", DI PHSI). Para Fer, lo que
+-- importa es alic_3: el arancel que se paga importando desde fuera del Mercosur.
 create table if not exists ref_alicuota (
-  columna text primary key,   -- 'alic_1' .. 'alic_5'
-  nombre  text,               -- null = sin identificar
+  columna text primary key,   -- 'alic_1' .. 'alic_6'
+  nombre  text,
   nota    text                -- de dónde salió el nombre
 );
 alter table ref_alicuota enable row level security;
-insert into ref_alicuota (columna) values ('alic_1'), ('alic_2'), ('alic_3'), ('alic_4'), ('alic_5')
-on conflict do nothing;
+insert into ref_alicuota (columna, nombre, nota) values
+  ('alic_1', 'Derecho de exportación', 'Diseño de archivos de ARCA (DI PHSI)'),
+  ('alic_2', 'Reintegro extrazona', 'Diseño de archivos de ARCA (DI PHSI)'),
+  ('alic_3', 'Arancel de importación (fuera del Mercosur)', 'Diseño de archivos de ARCA (DI PHSI): derecho de importación extrazona'),
+  ('alic_4', 'Reintegro intrazona', 'Diseño de archivos de ARCA (DI PHSI)'),
+  ('alic_5', 'Arancel de importación (Mercosur)', 'Diseño de archivos de ARCA (DI PHSI): derecho de importación intrazona'),
+  ('alic_6', 'Derecho de importación específico mínimo', 'Diseño de archivos de ARCA (DI PHSI)')
+on conflict (columna) do update set nombre = excluded.nombre, nota = excluded.nota;
+
+-- Arancel (fuera del Mercosur) de cada NCM de 8 dígitos, vigente: el mínimo y
+-- el máximo entre sus aperturas SIM (casi siempre son iguales).
+drop view if exists ncm_arancel;
+create view ncm_arancel with (security_invoker = true) as
+select left(codigo, 10) as ncm, min(alic_3) as arancel_min, max(alic_3) as arancel_max
+  from ref_ncm_vigente
+ where alic_3 is not null and length(codigo) >= 10
+ group by 1;
+
+-- IVA y tasa de estadística por NCM, DEDUCIDOS de los despachos (no están en
+-- el nomenclador). Por ítem: CIF = derechos / arancel; estadística % =
+-- estadística / CIF; IVA % = IVA / (CIF + derechos + estadística). Sólo ítems
+-- con arancel > 0 y un CIF creíble (entre 1 y 1,6 veces el FOB). Se cuentan
+-- los ítems por tasa (redondeada a 0,5) y mes; ncm_tasas se queda con la que
+-- más se repite en los últimos 12 meses cargados. Lo calcula cargar.mjs.
+create table if not exists agg_tasas_mes (
+  ncm     text collate "C" not null,
+  periodo char(6) not null,
+  tipo    text not null check (tipo in ('iva', 'estadistica')),
+  pct     numeric not null,
+  items   int not null,
+  primary key (ncm, periodo, tipo, pct)
+);
+create index if not exists agg_tasas_mes_periodo_idx on agg_tasas_mes (periodo);
+alter table agg_tasas_mes enable row level security;
+
+drop view if exists ncm_tasas;
+create view ncm_tasas with (security_invoker = true) as
+with ult as (select periodo from arca_cargas order by periodo desc limit 12),
+     t as (select ncm, tipo, pct, sum(items)::int items
+             from agg_tasas_mes where periodo in (select periodo from ult) group by 1, 2, 3),
+     r as (select t.*, sum(items) over (partition by ncm, tipo)::int total,
+                  row_number() over (partition by ncm, tipo order by items desc, pct desc) n
+             from t)
+select ncm,
+       max(pct)   filter (where tipo = 'iva' and n = 1)         as iva_pct,
+       max(items) filter (where tipo = 'iva' and n = 1)         as iva_items,
+       max(total) filter (where tipo = 'iva' and n = 1)         as iva_total,
+       max(pct)   filter (where tipo = 'estadistica' and n = 1) as estadistica_pct,
+       max(items) filter (where tipo = 'estadistica' and n = 1) as estadistica_items,
+       max(total) filter (where tipo = 'estadistica' and n = 1) as estadistica_total
+  from r group by ncm;
 
 -- Sufijos de valor (marca, código de artículo, atributos por posición).
 create table if not exists ref_sufijo (

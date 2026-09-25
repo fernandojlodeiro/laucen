@@ -6,7 +6,7 @@ import Link from "next/link";
 import { pool } from "@/db";
 import { aParams, hayFiltro, leerFiltro, periodoLindo, periodosCargados, usaResumen, type Filtro, type Params } from "@/lib/arca/filtro";
 import {
-  cobertura, nombresAlicuotas, codigosVistos, items, nombre, rankingImportadores, rankingNcm, rankingPaises, referencias, serieMensual, type Refs,
+  cobertura, codigosVistos, items, nombre, rankingImportadores, rankingNcm, rankingPaises, referencias, serieMensual, type Refs,
 } from "@/lib/arca/consultas";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import {
@@ -220,8 +220,7 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<P
   } else if (vista === "serie") {
     contenido = <Serie filas={await serieMensual(f, org)} csv={csv} />;
   } else {
-    const [datos, alicNombres] = await Promise.all([items(f, org, LIMITE), nombresAlicuotas()]);
-    contenido = <Items datos={datos} refs={refs} alicNombres={alicNombres} csv={csv} />;
+    contenido = <Items datos={await items(f, org, LIMITE)} refs={refs} csv={csv} />;
   }
 
   return (

@@ -5,8 +5,7 @@
 //
 //   node scripts/arca/cargar.mjs esquema
 //   node scripts/arca/cargar.mjs arca     C:\Laucen\arca\out [202608 ...] [--forzar]
-//   node scripts/arca/cargar.mjs derechos C:\\Laucen\\arca\\out   (tras fijar el concepto en parametros.mjs)
-//   node scripts/arca/cargar.mjs alicuotas  (cuál alícuota del nomenclador es derechos, cruzando con Softrade)
+//   node scripts/arca/cargar.mjs tasas    C:\Laucen\arca\out (recalcula IVA y estadística por NCM)
 //   node scripts/arca/cargar.mjs arancel  C:\Laucen\arca\out
 //   node scripts/arca/cargar.mjs softrade C:\Laucen\softrade
 //   node scripts/arca/cargar.mjs resumen  [202608 ...]
@@ -18,13 +17,13 @@
 import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
-import { Transform } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { createGunzip } from "node:zlib";
 import readline from "node:readline";
 import pg from "pg";
 import { from as copyFrom } from "pg-copy-streams";
 import { leerSoftrade } from "./softrade.mjs";
-import { CONCEPTO_DERECHOS } from "./parametros.mjs";
+import { CONCEPTO_DERECHOS, CONCEPTO_ESTADISTICA, CONCEPTO_IVA } from "./parametros.mjs";
 
 // Anda de dos maneras: dentro del repo (scripts/arca/) o suelto en una
 // carpeta de la PC de Fer (C:\Laucen\carga\, con arca.sql y .env.local al lado).
@@ -116,17 +115,14 @@ async function recalcularResumen(c, periodo) {
      group by 1, 2`, [periodo]);
 }
 
-// Derechos efectivos: % de derechos pagados sobre el FOB del ítem, con 2
-// decimales. Sale del CSV de impuestos (columnas 14 y 15 del .lst); ningún
-// monto de impuestos se guarda. El concepto de derechos está en
-// parametros.mjs; si es null, la columna queda null.
-async function calcularDerechos(c, periodo, archivoImpuestos) {
-  // Se lee en la PC, en streaming: a la base sólo suben las filas del
-  // concepto de derechos (≈1 por ítem), no las 7,8 millones del mes (con eso
-  // la base se quedaba sin espacio temporal). Las filas de encabezado
-  // repetidas del .lst ("NUM_ITEM" en vez de un número) se saltean.
+// IVA y estadística por NCM. El CSV de impuestos se lee en la PC, en
+// streaming; por ítem se juntan derechos, estadística e IVA y a la base sube
+// una fila por ítem (no las 7,8 millones). Ningún monto queda guardado: sólo
+// cuántos ítems pagaron cada tasa, por NCM y mes (agg_tasas_mes).
+async function calcularTasas(c, periodo, archivoImpuestos) {
   let filasCrudas = 0, conceptos = 0;
-  const derechos = [];
+  const porItem = new Map();   // "destinacion|item" → [derechos, estadística, iva]
+  const col = { [CONCEPTO_DERECHOS]: 0, [CONCEPTO_ESTADISTICA]: 1, [CONCEPTO_IVA]: 2 };
   const lector = readline.createInterface({ input: createReadStream(archivoImpuestos).pipe(createGunzip()), crlfDelay: Infinity });
   let primera = true;
   for await (const linea of lector) {
@@ -134,30 +130,42 @@ async function calcularDerechos(c, periodo, archivoImpuestos) {
     if (!linea) continue;
     filasCrudas++;
     const [, destinacion, numItem, concepto, monto] = linea.split(",").map((x) => x.trim());
-    if (!/^[0-9]+$/.test(numItem ?? "")) continue;
+    if (!/^[0-9]+$/.test(numItem ?? "")) continue;       // encabezado repetido del .lst
     if (concepto) conceptos++;
-    if (CONCEPTO_DERECHOS !== null && concepto === CONCEPTO_DERECHOS && monto) {
-      derechos.push({ d: destinacion, i: Number(numItem), m: Number(monto) });
-    }
+    const k = col[concepto];
+    if (k === undefined || !monto) continue;
+    const clave = `${destinacion}|${numItem}`;
+    const v = porItem.get(clave) ?? [0, 0, 0];
+    v[k] += Number(monto);
+    porItem.set(clave, v);
   }
-  if (CONCEPTO_DERECHOS === null) {
-    await c.query("update arca_impo_items set derechos_pct_efectivo = null where periodo = $1 and derechos_pct_efectivo is not null", [periodo]);
-    return { filasCrudas, conceptos, conDerechos: 0 };
+  await c.query("create temp table if not exists t_tasas (destinacion text, num_item int, der numeric, est numeric, iva numeric) on commit drop");
+  await c.query("truncate t_tasas");
+  const filas = [];
+  for (const [clave, [der, est, iva]] of porItem) {
+    if (der > 0 && iva > 0) { const [d, i] = clave.split("|"); filas.push(`${d},${i},${der},${est},${iva}\n`); }
   }
-  await c.query("update arca_impo_items set derechos_pct_efectivo = null where periodo = $1", [periodo]);
-  await c.query("create temp table if not exists t_der (destinacion text, num_item int, monto numeric) on commit drop");
-  await c.query("truncate t_der");
-  for (let k = 0; k < derechos.length; k += 20000) {
-    await c.query(`insert into t_der select * from jsonb_to_recordset($1::jsonb) as x(d text, i int, m numeric)`,
-      [JSON.stringify(derechos.slice(k, k + 20000))]);
-  }
+  await pipeline(Readable.from(filas), c.query(copyFrom("copy t_tasas from stdin with (format csv)")));
+  await c.query("delete from agg_tasas_mes where periodo = $1", [periodo]);
+  // CIF = derechos / arancel (sólo NCM con un único arancel > 0 en todas sus
+  // aperturas); se descartan CIF no creíbles (fuera de 1 a 1,6 veces el FOB:
+  // acuerdos, derechos específicos, errores).
   const r = await c.query(`
-    with d as (select destinacion, num_item, sum(monto) monto from t_der group by 1, 2)
-    update arca_impo_items a
-       set derechos_pct_efectivo = round(d.monto / nullif(a.fob_item, 0) * 100, 2)
-      from d
-     where a.periodo = $1 and a.destinacion = d.destinacion and a.num_item = d.num_item`, [periodo]);
-  return { filasCrudas, conceptos, conDerechos: r.rowCount };
+    with x as (
+      select a.ncm, t.der, t.est, t.iva, a.fob_item, t.der / (ar.arancel_min / 100) cif
+        from t_tasas t
+        join arca_impo_items a on a.periodo = $1 and a.destinacion = t.destinacion and a.num_item = t.num_item
+        join ncm_arancel ar on ar.ncm = a.ncm and ar.arancel_min = ar.arancel_max and ar.arancel_min > 0),
+    z as (
+      select ncm, (round(iva / (cif + der + est) * 200) / 2)::numeric(6, 1) iva_pct,
+             (round(est / cif * 200) / 2)::numeric(6, 1) est_pct
+        from x where fob_item > 0 and cif between fob_item and fob_item * 1.6)
+    insert into agg_tasas_mes (ncm, periodo, tipo, pct, items)
+    select ncm, $1, 'iva', iva_pct, count(*) from z group by ncm, iva_pct
+    union all
+    select ncm, $1, 'estadistica', est_pct, count(*) from z group by ncm, est_pct`, [periodo]);
+  const usados = (await c.query("select coalesce(sum(items), 0)::int n from agg_tasas_mes where periodo = $1 and tipo = 'iva'", [periodo])).rows[0].n;
+  return { filasCrudas, conceptos, itemsTasas: usados };
 }
 
 async function cargarMes(c, carpeta, periodo) {
@@ -213,8 +221,8 @@ async function cargarMes(c, carpeta, periodo) {
       on conflict (destinacion, num_item) do update set
         ${COLS_ITEM.split(", ").filter((x) => x !== "destinacion" && x !== "num_item").map((x) => `${x} = excluded.${x}`).join(", ")}`);
 
-    paso("leyendo impuestos y calculando derechos");
-    const d = await calcularDerechos(c, periodo, impuestos);
+    paso("leyendo impuestos y deduciendo IVA y estadística por NCM");
+    const d = await calcularTasas(c, periodo, impuestos);
 
     paso("armando los resúmenes (lo más largo)");
     await recalcularResumen(c, periodo);
@@ -227,22 +235,21 @@ async function cargarMes(c, carpeta, periodo) {
       [periodo, d.filasCrudas, ins.rowCount, d.conceptos, descartados]);
     console.log(`${periodo}: filas_crudas=${d.filasCrudas} items=${ins.rowCount} (csv ${leidos}` +
       (descartados ? `, ${descartados} fila(s) de encabezado descartada(s)` : "") + ") " +
-      `derechos=${CONCEPTO_DERECHOS ?? "sin definir (derechos_pct_efectivo queda null)"}` +
-      (CONCEPTO_DERECHOS ? ` items_con_derechos=${d.conDerechos}` : "") +
+      `items_para_tasas=${d.itemsTasas}` +
       ` (${Math.round((Date.now() - t0) / 1000)} s)`);
   });
 }
 
-/** Recalcula derechos_pct_efectivo en todos los meses cargados, releyendo los
- *  impo_impuestos_AAAAMM.csv.gz (en la base no quedan montos). */
-async function recalcularDerechos(c, [carpeta]) {
+/** Recalcula IVA y estadística por NCM en todos los meses cargados, releyendo
+ *  los impo_impuestos_AAAAMM.csv.gz (en la base no quedan montos). */
+async function recalcularTasas(c, [carpeta]) {
   if (!carpeta) throw new Error("Falta la carpeta con los impo_impuestos_AAAAMM.csv.gz");
   const periodos = (await c.query("select periodo from arca_cargas order by 1")).rows.map((r) => r.periodo);
   for (const p of periodos) {
     const archivo = path.join(carpeta, `impo_impuestos_${p}.csv.gz`);
     if (!existsSync(archivo)) { console.log(`${p}: FALTA ${archivo}, no se recalculó`); continue; }
-    const d = await enTransaccion(c, () => calcularDerechos(c, p, archivo));
-    console.log(`${p}: derechos_pct_efectivo recalculado (concepto ${CONCEPTO_DERECHOS ?? "sin definir → null"}, ${d.conDerechos} ítems con valor)`);
+    const d = await enTransaccion(c, () => calcularTasas(c, p, archivo));
+    console.log(`${p}: IVA y estadística recalculados (${d.itemsTasas} ítems usados)`);
   }
 }
 
@@ -266,7 +273,7 @@ async function arca(c, args) {
 async function arancel(c, [carpeta]) {
   if (!carpeta) throw new Error("Falta la carpeta con ref_ncm.csv y ref_sufijo.csv");
   await enTransaccion(c, async () => {
-    const cols = "codigo, vigencia, tipo, nivel, padre, descripcion, descripcion_completa, unidad, alic_1, alic_2, alic_3, alic_4, alic_5";
+    const cols = "codigo, vigencia, tipo, nivel, padre, descripcion, descripcion_completa, unidad, alic_1, alic_2, alic_3, alic_4, alic_5, alic_6, unidad_derecho_especifico";
     await c.query("create temp table t_ncm (like ref_ncm) on commit drop");
     await copiarCsv(c, `copy t_ncm (${cols}) from stdin with (format csv, header true)`, path.join(carpeta, "ref_ncm.csv"));
     // Cada vigencia es una versión: una carga nueva no pisa las anteriores.
@@ -279,7 +286,7 @@ async function arancel(c, [carpeta]) {
                             where vigencia < $1 order by codigo, vigencia desc) p
                     where p.codigo = t.codigo`, [vig[0]]);
     await c.query("delete from ref_ncm where vigencia = $1", [vig[0]]);
-    const n = await c.query("insert into ref_ncm select * from t_ncm");
+    const n = await c.query(`insert into ref_ncm (${cols}, uso_economico, rubro_ml) select ${cols}, uso_economico, rubro_ml from t_ncm`);
     const versiones = (await c.query("select string_agg(distinct vigencia::text, ', ' order by vigencia::text) v from ref_ncm")).rows[0].v;
     await c.query("create temp table t_suf (like ref_sufijo) on commit drop");
     await copiarCsv(c, "copy t_suf (posicion, codigo, norma, descripcion) from stdin with (format csv, header true)",
@@ -291,33 +298,6 @@ async function arancel(c, [carpeta]) {
   });
 }
 
-// ── Alícuotas: cuál es derechos ─────────────────────────────
-// Cruza el "% Dere." de cada ítem de Softrade con las 5 alícuotas de la
-// misma NCM-SIM en el nomenclador vigente. La columna que coincide es
-// derechos. Las otras cuatro no se nombran: las confirma Fer.
-
-async function alicuotas(c) {
-  const r = await c.query(`
-    select count(*)::int total,
-           ${[1, 2, 3, 4, 5].map((i) => `count(*) filter (where n.alic_${i} = s.derecho_pct)::int a${i}`).join(", ")}
-      from softrade_items s
-      join ref_ncm_vigente n on n.codigo = s.ncm_sim
-     where s.derecho_pct is not null`);
-  const x = r.rows[0];
-  if (!x.total) { console.log("alicuotas: no hay ítems de Softrade con % Dere. y NCM-SIM en el nomenclador vigente"); return; }
-  const cols = [1, 2, 3, 4, 5].map((i) => ({ col: `alic_${i}`, n: x[`a${i}`], pct: x[`a${i}`] / x.total }));
-  for (const k of cols) console.log(`  ${k.col}: coincide en ${k.n} de ${x.total} ítems (${(k.pct * 100).toFixed(1)}%)`);
-  const buenas = cols.filter((k) => k.pct >= 0.95);
-  if (buenas.length !== 1) {
-    console.log(`alicuotas: ${buenas.length === 0 ? "ninguna columna coincide" : "coincide más de una columna"} en ≥95% de los ítems: no se asigna nada. Revisar a mano.`);
-    return;
-  }
-  const g = buenas[0];
-  await c.query("update ref_alicuota set nombre = null, nota = null where nombre = 'Derechos de importación' and columna <> $1", [g.col]);
-  await c.query("update ref_alicuota set nombre = 'Derechos de importación', nota = $2 where columna = $1",
-    [g.col, `Deducido cruzando con el % Dere. de Softrade: coincide en ${g.n} de ${x.total} ítems (${new Date().toISOString().slice(0, 10)}).`]);
-  console.log(`alicuotas: ${g.col} = Derechos de importación (guardado en ref_alicuota). Las otras cuatro quedan sin nombre hasta que Fer las confirme.`);
-}
 
 // ── Softrade ────────────────────────────────────────────────
 
@@ -414,14 +394,11 @@ async function verificar(c) {
   console.log(`     26001IC04154138R/1: ${d ? `${d.importador} · ${d.cantidad} u · FOB ${d.fob}` : "no está"} (esperado Importadora MCA · 230 · 8178.75)`);
   chequeo("26001IC04154138R/1 cantidad", d?.cantidad, 230);
   chequeo("26001IC04154138R/1 FOB", d?.fob, 8178.75);
-  // Derechos efectivos: mientras el concepto no esté confirmado, todo null.
-  const der = await uno("select count(*) filter (where derechos_pct_efectivo is not null)::int con from arca_impo_items");
-  if (CONCEPTO_DERECHOS === null) chequeo("derechos_pct_efectivo null (concepto sin confirmar)", der.con, 0);
-  else console.log(`     derechos_pct_efectivo con valor: ${der.con} ítems (concepto ${CONCEPTO_DERECHOS})`);
-  // Despacho de control: 010 = 1.826,36 sobre FOB 8.178,75 → 22,33 %.
-  if (CONCEPTO_DERECHOS === "010") {
-    const dc = await uno(`select derechos_pct_efectivo::float8 p from arca_impo_items where destinacion = '26001IC04154138R' and num_item = 1`);
-    chequeo("26001IC04154138R/1 derechos pagados % FOB", dc?.p, 22.33);
+  // IVA y estadística deducidos (informativo): muebles (9403.20.90) y la NCM de control.
+  for (const ncm of ["9403.20.90", "8516.29.00"]) {
+    const t = await uno("select * from ncm_tasas where ncm = $1", [ncm]);
+    console.log(`     ${ncm}: IVA ${t?.iva_pct ?? "—"}% (${t?.iva_items ?? 0} de ${t?.iva_total ?? 0} ítems) · ` +
+      `estadística ${t?.estadistica_pct ?? "—"}% (${t?.estadistica_items ?? 0} de ${t?.estadistica_total ?? 0})`);
   }
   const r = await uno(`select coalesce(sum(items), 0) items from agg_ncm_pais_mes where periodo = '202608'`);
   chequeo("resumen agg_ncm_pais_mes = ítems", r.items, a.items);
@@ -456,8 +433,7 @@ const COMANDOS = {
   arca,
   arancel,
   softrade,
-  derechos: recalcularDerechos,
-  alicuotas,
+  tasas: recalcularTasas,
   resumen: async (c, periodos) => {
     const lista = periodos.length ? periodos : (await c.query("select periodo from arca_cargas order by 1")).rows.map((r) => r.periodo);
     for (const p of lista) { await enTransaccion(c, () => recalcularResumen(c, p)); console.log(`${p}: resumen recalculado`); }
@@ -466,7 +442,7 @@ const COMANDOS = {
 };
 
 if (!COMANDOS[comando]) {
-  console.log("Comandos: esquema | arca <carpeta> [AAAAMM ...] [--forzar] | derechos <carpeta> | alicuotas | arancel <carpeta> | softrade [carpeta] | resumen [AAAAMM ...] | verificar");
+  console.log("Comandos: esquema | arca <carpeta> [AAAAMM ...] [--forzar] | tasas <carpeta> | arancel <carpeta> | softrade [carpeta] | resumen [AAAAMM ...] | verificar");
   process.exit(1);
 }
 const c = await conectar();
