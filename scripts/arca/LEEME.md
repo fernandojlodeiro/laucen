@@ -65,11 +65,9 @@ resumen; `derechos <carpeta>` recalcula `derechos_pct_efectivo` en todos los mes
   `impo_impuestos_AAAAMM.csv.gz` sólo sale `derechos_pct_efectivo` (derechos /
   FOB × 100, 2 decimales). No borrar esos `.csv.gz` de `out\`: el recálculo los
   vuelve a leer.
-- `derechos_pct_efectivo` queda en null hasta que Fer confirme qué concepto son
-  los derechos (010 o 061, sin verificar). El código vive en un solo lugar:
-  `scripts/arca/parametros.mjs` (`CONCEPTO_DERECHOS = null`). Cuando se sepa: poner
+- Concepto de derechos: **010** (confirmado por Fer el 25/09; 061 es la tasa de
+  estadística). Está en `scripts/arca/parametros.mjs`. Si alguna vez cambia: poner
   el código ahí y correr `node scripts\arca\cargar.mjs derechos C:\Laucen\arca\out`.
-  No adivinar.
 - Alícuotas del nomenclador: después de cargar el arancel y el Excel de Softrade,
   `node scripts\arca\cargar.mjs alicuotas` identifica cuál de las 5 es derechos
   (cruce con el "% Dere." de Softrade) y lo anota en `ref_alicuota`. Las otras

@@ -142,7 +142,8 @@ insert into ref_pais (codigo, nombre) values
 on conflict do nothing;
 insert into ref_concepto (codigo, nombre) values
   ('415', 'IVA'), ('429', 'Ingresos Brutos'), ('450', 'Ciudad Autónoma de Bs. As.'),
-  ('422', 'IVA adicional'), ('424', 'Impuesto a las Ganancias')
+  ('422', 'IVA adicional'), ('424', 'Impuesto a las Ganancias'),
+  ('010', 'Derechos de importación'), ('061', 'Tasa de estadística')   -- confirmados por Fer, 25/09
 on conflict do nothing;
 
 -- ── Resúmenes (se recalculan al terminar cada carga mensual) ─

@@ -410,6 +410,11 @@ async function verificar(c) {
   const der = await uno("select count(*) filter (where derechos_pct_efectivo is not null)::int con from arca_impo_items");
   if (CONCEPTO_DERECHOS === null) chequeo("derechos_pct_efectivo null (concepto sin confirmar)", der.con, 0);
   else console.log(`     derechos_pct_efectivo con valor: ${der.con} ítems (concepto ${CONCEPTO_DERECHOS})`);
+  // Despacho de control: 010 = 1.826,36 sobre FOB 8.178,75 → 22,33 %.
+  if (CONCEPTO_DERECHOS === "010") {
+    const dc = await uno(`select derechos_pct_efectivo::float8 p from arca_impo_items where destinacion = '26001IC04154138R' and num_item = 1`);
+    chequeo("26001IC04154138R/1 derechos pagados % FOB", dc?.p, 22.33);
+  }
   const r = await uno(`select coalesce(sum(items), 0) items from agg_ncm_pais_mes where periodo = '202608'`);
   chequeo("resumen agg_ncm_pais_mes = ítems", r.items, a.items);
 
