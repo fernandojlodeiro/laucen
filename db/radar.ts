@@ -46,6 +46,7 @@ export const meliBusquedas = pgTable("meli_busquedas", {
   runId: text("run_id"),
   pedidaEl: timestamp("pedida_el", { withTimezone: true }).notNull().defaultNow(),
   terminadaEl: timestamp("terminada_el", { withTimezone: true }),
+  semilla: text("semilla").notNull().default("tendencia"),
 });
 
 export const meliPublicaciones = pgTable("meli_publicaciones", {
@@ -104,3 +105,12 @@ export const radarProcesos = pgTable("radar_procesos", {
   estado: text("estado").notNull().default("corriendo"),
   detalle: jsonb("detalle"),
 });
+
+export const radarPalabrasSeguidas = pgTable("radar_palabras_seguidas", {
+  organizacionId: text("organizacion_id").notNull().references(() => organizaciones.id, { onDelete: "cascade" }),
+  clave: text("clave").notNull(),
+  palabra: text("palabra").notNull(),
+  categoriaId: text("categoria_id"),
+  desde: timestamp("desde", { withTimezone: true }).notNull().defaultNow(),
+  creadoPor: text("creado_por"),
+}, (t) => [primaryKey({ columns: [t.organizacionId, t.clave] })]);

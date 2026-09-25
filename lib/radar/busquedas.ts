@@ -37,12 +37,13 @@ export function publicacionesDe(busquedaId: number) {
   return db.select().from(meliPublicaciones).where(eq(meliPublicaciones.busquedaId, busquedaId)).orderBy(asc(meliPublicaciones.posicion));
 }
 
-type Pedido = { palabra: string; categoriaId: string | null; organizacionId: string; usuarioId?: string; origen?: "manual" | "cron" };
+type Pedido = { palabra: string; categoriaId: string | null; organizacionId: string; usuarioId?: string; origen?: "manual" | "cron"; semilla?: "tendencia" | "propia" };
 
 async function abrir(p: Pedido, fuente: string) {
   const [b] = await db.insert(meliBusquedas).values({
     palabra: p.palabra, categoriaId: p.categoriaId === SITIO ? null : p.categoriaId, fuente,
     origen: p.origen ?? "manual", organizacionId: p.organizacionId, usuarioId: p.usuarioId ?? null,
+    semilla: p.semilla ?? "tendencia",
   }).returning();
   return b;
 }

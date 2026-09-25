@@ -25,6 +25,7 @@ function destino(f: FilaHistorial) {
   if (f.categoria_id) u.set("cat", f.categoria_id);
   if (f.grupo) u.set("g", f.grupo);
   u.set("b", String(f.id));
+  if (f.semilla === "propia") u.set("propia", "1");
   return `/radar?${u}`;
 }
 
@@ -95,6 +96,7 @@ export default async function Historial({ searchParams }: { searchParams: Promis
                     <span className="block text-[11px] text-[#5C6B76] truncate">Todo Mercado Libre{f.ruta ? ` › ${f.ruta}` : ""}</span>
                     <span className="block text-sm">
                       <b>“{f.palabra}”</b>
+                      {f.semilla === "propia" && <span className="text-xs text-[#8a6100]"> · ✍ palabra propia</span>}
                       <span className="text-xs text-[#5C6B76]">
                         {f.grupo && ` · ${GRUPOS[f.grupo as Grupo]?.label ?? f.grupo}`}
                         {` · ${fuente(f)} · ${f.publicaciones} publ.`}

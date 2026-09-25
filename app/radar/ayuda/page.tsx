@@ -36,7 +36,7 @@ export default function Ayuda() {
     <div className="grid gap-4">
       <nav className="text-xs flex flex-wrap gap-x-3 gap-y-1">
         {[["simbolos", "Símbolos"], ["seguir", "Seguir una categoría"], ["grupos", "Los tres rankings"],
-          ["publicaciones", "Ver publicaciones y Apify"], ["automatico", "Lo que corre solo"], ["historial", "Historial"],
+          ["publicaciones", "Ver publicaciones y Apify"], ["propias", "Mis palabras"], ["automatico", "Lo que corre solo"], ["historial", "Historial"],
           ["datos", "De dónde salen los datos"]].map(([id, t]) => (
           <a key={id} href={`#${id}`} className="text-[#16577F] underline">{t}</a>
         ))}
@@ -56,6 +56,7 @@ export default function Ayuda() {
         </Simbolo>
         <Simbolo s={<span className="inline-block w-4 h-4 rounded-full border border-[#9AA7B3] text-[10px] leading-4">i</span>}>Al lado de cada ranking: pasá el mouse (o tocala) y explica la regla de ese ranking.</Simbolo>
         <Simbolo s="🤖">Lo hizo el proceso automático, no una persona.</Simbolo>
+        <Simbolo s="✍">Palabra propia: la escribió alguien en “Buscar mis palabras” (no vino de las tendencias).</Simbolo>
       </Seccion>
 
       <Seccion id="seguir" titulo="Seguir una categoría (★ o el interruptor “Seguir”)">
@@ -85,11 +86,18 @@ export default function Ayuda() {
         <p>Una misma palabra no se vuelve a buscar (ni a pagar) en la misma semana: se muestra lo guardado. Hay un <b>tope de gasto semanal</b> de Apify (Configuración); al llegar, no deja buscar más hasta el lunes.</p>
       </Seccion>
 
+      <Seccion id="propias" titulo="✍ Buscar mis palabras y palabras seguidas">
+        <p>Arriba de los rankings, en Tendencias, está <b>“Buscar mis palabras”</b>: escribís cualquier cosa (no hace falta que esté en las tendencias) y la buscás gratis o con Apify, igual que una palabra de la lista. Si estás dentro de una categoría, la búsqueda queda asociada a esa categoría; si estás en “Todo Mercado Libre”, queda suelta.</p>
+        <p>Queda en el Historial con la marca <b>✍ palabra propia</b>.</p>
+        <p>Con la <b>★ al lado de la palabra</b> la seguís: aparece en “Mis categorías seguidas” → “Mis palabras seguidas”, y los días del proceso automático se vuelve a buscar sola con Apify (cuesta lo mismo que una búsqueda con Apify, dentro del tope semanal). Así ves cómo cambian su precio y sus vendidos con el tiempo.</p>
+      </Seccion>
+
       <Seccion id="automatico" titulo="Lo que corre solo (el proceso diario)">
         <p>Todos los días a las <b>8:00</b> la app se despierta y hace lo que le toque según Configuración:</p>
         <ul className="list-disc pl-5 grid gap-1">
           <li><b>Leer tendencias</b> (gratis, cada 7 días por defecto): “Todo Mercado Libre” y todas las categorías que seguís.</li>
           <li><b>Profundizar</b> (pago, junto con lo anterior): en las seguidas con “Profundizar” prendido, busca con Apify las primeras palabras de cada ranking (3 por defecto, × 3 rankings) y guarda sus publicaciones. Respeta el tope semanal.</li>
+          <li><b>Palabras seguidas</b> (pago, junto con lo anterior): cada palabra propia con ★ se vuelve a buscar con Apify. Respeta el tope semanal.</li>
           <li><b>Árbol de categorías</b> (gratis, cada 1 mes por defecto): relee todas las categorías de Mercado Libre.</li>
         </ul>
         <p>Si no le alcanza el tiempo, sigue al día siguiente donde quedó, sin repetir ni volver a pagar. Lo que hizo se ve en Configuración → “Últimas corridas”.</p>

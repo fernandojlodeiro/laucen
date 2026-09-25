@@ -15,6 +15,7 @@ import { buscarGratis, buscarConApify, TopeDeGasto } from "@/lib/radar/busquedas
 import { procesoArbol, procesoTendencias } from "@/lib/radar/procesos";
 import { estadoDelArbol } from "@/lib/radar/categorias";
 import { FUENTES_APIFY } from "@/lib/radar/config";
+import { seguirPalabra } from "@/lib/radar/palabras";
 
 async function contexto(permiso: PermisoKey) {
   await asegurarEsquema();
@@ -112,4 +113,31 @@ export async function accionCorrerAhora(fd: FormData) {
     await procesoTendencias(s.org.id, "manual", hasta);
   }
   redirect("/radar/configuracion?ok=corrido");
+}
+
+/** "Buscar mis palabras": una palabra propia (no de tendencias), asociada a la
+ *  categoría en la que está parado (o suelta si está en Todo Mercado Libre). */
+export async function accionBuscarPropia(fd: FormData) {
+  const modo = texto(fd, "modo");
+  const s = await contexto(modo === "apify" ? "radar_gastar" : "radar_ver");
+  const palabra = texto(fd, "palabra").replace(/\s+/g, " ").slice(0, 120);
+  if (!palabra) volver(fd);
+  const cat = texto(fd, "cat");
+  const pedido = { palabra, categoriaId: cat && cat !== SITIO ? cat : null, organizacionId: s.org.id, usuarioId: s.usuario.id, semilla: "propia" as const };
+  try {
+    if (modo === "apify") await buscarConApify(pedido);
+    else await buscarGratis(pedido);
+  } catch (e) {
+    console.error("[radar] búsqueda propia:", e);
+    volver(fd, { abierta: palabra, error: e instanceof TopeDeGasto ? "tope" : "apify" });
+  }
+  volver(fd, { abierta: palabra, propia: "1" });
+}
+
+/** ★ de una palabra propia: seguirla (el proceso de los lunes la vuelve a buscar con Apify). */
+export async function accionSeguirPalabra(fd: FormData) {
+  const s = await contexto("radar_ver");
+  const cat = texto(fd, "cat");
+  await seguirPalabra(s.org.id, texto(fd, "palabra"), cat && cat !== SITIO ? cat : null, s.usuario.id, fd.get("valor") === "1");
+  volver(fd);
 }

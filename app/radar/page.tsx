@@ -12,7 +12,8 @@ import { vistas } from "@/lib/radar/historial";
 import { meliBusquedas } from "@/db/radar";
 import { FUENTES_APIFY, configDe, costoProfundizar, type FuenteApify } from "@/lib/radar/config";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
-import { accionApify, accionProfundizar, accionSeguir, accionVerPublicaciones } from "./actions";
+import { accionApify, accionBuscarPropia, accionProfundizar, accionSeguir, accionSeguirPalabra, accionVerPublicaciones } from "./actions";
+import { sigoPalabra } from "@/lib/radar/palabras";
 import { Aviso, Estrella, Interruptor, pesos } from "./Piezas";
 import { BotonEnviar } from "./Cliente";
 
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic";
 // "Mejorar con Apify" espera a que el actor termine (~1 min).
 export const maxDuration = 300;
 
-type Params = { cat?: string; g?: string; q?: string; abierta?: string; b?: string; error?: string };
+type Params = { cat?: string; g?: string; q?: string; abierta?: string; b?: string; propia?: string; error?: string };
 
 const ERRORES: Record<string, string> = {
   permiso: "No tenés permiso para eso.",
@@ -128,7 +129,7 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
   const seguidaMap = new Map(seguidas.map((s) => [s.categoriaId, s]));
   const estaSeguida = cat !== SITIO ? seguidaMap.get(cat) : undefined;
 
-  const busquedas = await busquedasDeLaSemana(lista.map((p) => p.palabra));
+  const busquedas = await busquedasDeLaSemana([...lista.map((p) => p.palabra), ...(sp.abierta ? [sp.abierta] : [])]);
   const yaTiene = (palabra: string, pref: string) =>
     busquedas.find((b) => b.palabra.toLowerCase() === palabra.toLowerCase() && b.fuente.startsWith(pref) && sirve(b));
 
@@ -142,6 +143,9 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
   const pubsAbiertas = await Promise.all(ultimaPorFuente.map(async (b) => ({ b, pubs: await publicacionesDe(b.id) })));
   const abiertaEnLista = !!abierta && lista.some((p) => p.palabra.toLowerCase() === abierta);
   const yaVistas = await vistas(sesion.org.id, lista.map((p) => p.palabra));
+  const esPropia = !!abierta && (sp.propia === "1" || pubsAbiertas.some(({ b }) => b.semilla === "propia"));
+  const palabraAbierta = puntual?.palabra ?? sp.abierta ?? "";
+  const palabraSeguida = palabraAbierta ? await sigoPalabra(sesion.org.id, palabraAbierta) : false;
   const fuente = FUENTES_APIFY[config.fuenteApify as FuenteApify];
 
   return (
@@ -207,6 +211,18 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
 
         {/* Tendencias */}
         <section>
+          {/* Buscar mis palabras: una búsqueda propia, asociada a esta categoría (o suelta en Todo ML). */}
+          <form action={accionBuscarPropia} className="border border-[#E3E9F0] rounded-lg bg-white p-2 mb-3 flex flex-wrap items-center gap-2">
+            <input type="hidden" name="cat" value={cat} />
+            <input type="hidden" name="volver" value={url({})} />
+            <span className="text-xs font-bold text-[#5C6B76]">✍ Buscar mis palabras</span>
+            <input name="palabra" required maxLength={120} placeholder={cat === SITIO ? "ej: maceta autorriego 30 cm" : `dentro de “${camino.at(-1)?.nombre ?? ""}”`}
+              className="border border-[#E3E9F0] rounded-lg px-3 py-1.5 flex-1 min-w-[180px] text-sm" />
+            <BotonEnviar clase={SUAVE} corriendo="Buscando…"><span>Ver publicaciones</span></BotonEnviar>
+            {puedeGastar && (
+              <button name="modo" value="apify" className={`${VERDE} disabled:opacity-60`}>Con Apify ~USD {fuente.costoPorPalabra.toFixed(2)}</button>
+            )}
+          </form>
           <nav className="flex gap-1 border-b border-[#E3E9F0] mb-2">
             {(Object.keys(GRUPOS) as Grupo[]).map((g) => (
               <span key={g} className="flex items-center -mb-px">
@@ -245,7 +261,16 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
           )}
           {abierta && !abiertaEnLista && pubsAbiertas.length > 0 && (
             <div className="border border-[#E3E9F0] rounded-lg bg-white px-3 py-2 mb-2">
-              <p className="text-sm font-semibold">“{pubsAbiertas[0].b.palabra}” <span className="text-xs font-normal text-[#5C6B76]">(esta semana no está en este grupo)</span></p>
+              <div className="flex flex-wrap items-center gap-2">
+                {esPropia && (
+                  <Estrella accion={accionSeguirPalabra} prendida={palabraSeguida}
+                    campos={{ palabra: pubsAbiertas[0].b.palabra, cat, volver: url({ abierta: pubsAbiertas[0].b.palabra, propia: "1" }) }} />
+                )}
+                <p className="text-sm font-semibold">“{pubsAbiertas[0].b.palabra}”</p>
+                <span className="text-xs text-[#5C6B76]">
+                  {esPropia ? `✍ palabra propia${palabraSeguida ? " · seguida: se vuelve a buscar con Apify los días del proceso" : " · ★ para seguirla"}` : "(esta semana no está en este grupo)"}
+                </span>
+              </div>
               {pubsAbiertas.map(({ b, pubs }) => <TablaPublicaciones key={b.id} b={b} pubs={pubs} />)}
             </div>
           )}

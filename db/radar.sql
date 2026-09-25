@@ -95,6 +95,23 @@ create table if not exists meli_publicaciones (
 );
 alter table meli_publicaciones enable row level security;
 
+-- De dónde salió la palabra de una búsqueda: 'tendencia' (una de las 50 de
+-- Mercado Libre) o 'propia' (la escribió alguien en "Buscar mis palabras").
+alter table meli_busquedas add column if not exists semilla text not null default 'tendencia';
+
+-- Palabras propias que sigue cada organización: el proceso de los lunes las
+-- vuelve a buscar con Apify (dentro del tope de gasto).
+create table if not exists radar_palabras_seguidas (
+  organizacion_id text not null references organizaciones(id) on delete cascade,
+  clave           text not null,                  -- lower(trim(palabra)): evita duplicados
+  palabra         text not null,                  -- como la escribió
+  categoria_id    text,                           -- la categoría donde se buscó (null = todo ML)
+  desde           timestamptz not null default now(),
+  creado_por      text,
+  primary key (organizacion_id, clave)
+);
+alter table radar_palabras_seguidas enable row level security;
+
 -- Las categorías que sigue cada organización.
 create table if not exists radar_seguidas (
   organizacion_id text not null references organizaciones(id) on delete cascade,

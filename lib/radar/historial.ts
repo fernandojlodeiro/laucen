@@ -19,6 +19,7 @@ export type FilaHistorial = {
   publicaciones: number;
   quien: string | null;
   grupo: string | null;
+  semilla: string;
 };
 
 /** Últimas búsquedas de la organización, con la ruta completa de la
@@ -26,7 +27,7 @@ export type FilaHistorial = {
 export async function historial(organizacionId: string, { automaticas = true, texto = "", limite = 200 } = {}) {
   const filtroTexto = texto.trim() ? `%${texto.trim().replace(/[%_]/g, "")}%` : null;
   const r = await db.execute(sql`
-    select b.id, b.palabra, b.categoria_id, c.ruta, b.fuente, b.origen, b.estado, b.pedida_el, b.costo_usd,
+    select b.id, b.palabra, b.categoria_id, c.ruta, b.fuente, b.origen, b.estado, b.pedida_el, b.costo_usd, b.semilla,
            (select count(*)::int from meli_publicaciones p where p.busqueda_id = b.id) as publicaciones,
            u.nombre as quien,
            (select t.grupo from meli_tendencias_lecturas l join meli_tendencias t on t.lectura_id = l.id

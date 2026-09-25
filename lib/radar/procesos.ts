@@ -13,6 +13,7 @@ import { configDe, toca } from "./config";
 import { cargarArbol } from "./categorias";
 import { lecturaDeLaSemana, palabrasDe } from "./tendencias";
 import { TopeDeGasto, actualizarCostos, buscarConApify } from "./busquedas";
+import { palabrasSeguidas } from "./palabras";
 
 type Origen = "cron" | "manual";
 
@@ -75,7 +76,23 @@ export async function procesoTendencias(organizacionId: string, origen: Origen, 
       }));
     }
     detalle.profundizar = { pedidas: palabras.length, hechas, tope, errores };
-    const completo = fallidas.length === 0 && (tope || hechas >= palabras.length);
+
+    // Palabras propias seguidas: se vuelven a buscar con Apify (mismo tope).
+    const propias = await palabrasSeguidas(organizacionId);
+    let hechasP = 0;
+    for (let i = 0; i < propias.length && !tope && Date.now() + 150_000 < hasta; i += 4) {
+      await Promise.all(propias.slice(i, i + 4).map(async (p) => {
+        try {
+          await buscarConApify({ palabra: p.palabra, categoriaId: p.categoriaId, organizacionId, origen: "cron", semilla: "propia" }, 120);
+          hechasP++;
+        } catch (e) {
+          if (e instanceof TopeDeGasto) tope = true;
+          else errores.push(`${p.palabra}: ${String(e).slice(0, 120)}`);
+        }
+      }));
+    }
+    detalle.propias = { pedidas: propias.length, hechas: hechasP };
+    const completo = fallidas.length === 0 && (tope || (hechas >= palabras.length && hechasP >= propias.length));
     await cerrarProceso(proc.id, completo ? "ok" : "parcial", detalle);
     return detalle;
   } catch (e) {
