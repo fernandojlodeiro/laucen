@@ -20,7 +20,10 @@ export default async function Cargas() {
     pool.query<{ archivo: string; cargado_en: Date; parametros: string | null; filas: number; items: number; subitems: number }>(
       "select * from softrade_cargas order by cargado_en desc").then((r) => r.rows),
     pool.query<{ t: string; n: number }>(`
-      select 'ref_ncm' t, count(*)::int n from ref_ncm union all select 'ref_sufijo', count(*)::int from ref_sufijo
+      select 'ref_ncm (versión vigente)' t, count(*)::int n from ref_ncm_vigente
+      union all select 'ref_ncm: versiones cargadas', count(distinct vigencia)::int from ref_ncm
+      union all select 'ref_sufijo', count(*)::int from ref_sufijo
+      union all select 'Alícuotas del nomenclador identificadas (de 5)', count(*)::int from ref_alicuota where nombre is not null
       union all select 'ref_pais (con nombre)', count(*)::int from ref_pais where nombre is not null
       union all select 'ref_transporte (con nombre)', count(*)::int from ref_transporte where nombre is not null
       union all select 'ref_concepto (con nombre)', count(*)::int from ref_concepto where nombre is not null`).then((r) => r.rows),
@@ -46,7 +49,7 @@ export default async function Cargas() {
         ) : (
           <div className={CAJA_TABLA}>
             <table className={TABLA}>
-              <thead className={THEAD}><tr><Col texto="Mes" derecha={false} /><Col texto="Filas crudas" /><Col texto="Ítems" /><Col texto="Conceptos de impuestos" /><Col texto="Cargado" derecha={false} /></tr></thead>
+              <thead className={THEAD}><tr><Col texto="Mes" derecha={false} /><Col texto="Filas crudas" /><Col texto="Ítems" /><Col texto="Ítem × concepto (sólo para derechos)" /><Col texto="Cargado" derecha={false} /></tr></thead>
               <tbody>{arca.map((a) => (
                 <tr key={a.periodo} className={TR}>
                   <td className={TD}>{periodoLindo(a.periodo)}</td>

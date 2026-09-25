@@ -1,6 +1,6 @@
 # Orden para Code — Base de importaciones argentinas (ARCA) en Laucen
 
-Fecha: 25/09/2026, versión 2 (agrega Softrade, sufijos y consultas de descubrimiento). **Actualizada el 25/09 con las decisiones de Fer** (impuestos en jsonb por ítem, sin tabla `arca_impo_impuestos`; parámetro del concepto de derechos; script de Cowork en `scripts/arca/`). Origen: sesión de Cowork con Fer. Este documento reemplaza cualquier versión anterior y cualquier suposición sobre datos de aduana. Todo lo que dice "verificado" fue probado con el archivo real de agosto 2026 o con el Excel real de Softrade.
+Fecha: 25/09/2026, versión 2 (agrega Softrade, sufijos y consultas de descubrimiento). **Actualizada el 25/09 con las decisiones de Fer**: script de Cowork en `scripts/arca/`; **recorte de impuestos** (bitácora #3): no se guarda ningún monto de impuestos, sólo `derechos_pct_efectivo` por ítem; alícuotas vigentes desde el nomenclador, versionado por fecha de vigencia. Origen: sesión de Cowork con Fer. Este documento reemplaza cualquier versión anterior y cualquier suposición sobre datos de aduana. Todo lo que dice "verificado" fue probado con el archivo real de agosto 2026 o con el Excel real de Softrade.
 
 ---
 
@@ -50,7 +50,7 @@ ARCA publica gratis, mes a mes desde 2017, el detalle de **cada ítem de cada de
 Regla de oro: **nunca abrir el .lst entero en memoria ni en Excel, nunca subir el crudo a Supabase.** Se lee en streaming desde el ZIP y se escriben dos CSV comprimidos por mes:
 
 - `impo_items_AAAAMM.csv.gz` — una fila por ítem (columnas 0-13, deduplicadas). Agosto: 530.186 filas, 7,8 MB.
-- `impo_impuestos_AAAAMM.csv.gz` — una fila por ítem y concepto (periodo, destinacion, num_item, concepto, monto). Agosto: 7,8 M filas, 46 MB. **No se carga como tabla**: `scripts/arca/cargar.mjs` lo agrupa por ítem y llena la columna jsonb `impuestos` (ver sección 4).
+- `impo_impuestos_AAAAMM.csv.gz` — una fila por ítem y concepto (periodo, destinacion, num_item, concepto, monto). Agosto: 7,8 M filas, 46 MB. **No se carga**: `scripts/arca/cargar.mjs` lo lee sólo para calcular `derechos_pct_efectivo` (ver sección 4) y lo descarta. Conviene no borrarlo de `out\`: si se confirma el concepto de derechos, el recálculo lo vuelve a leer.
 
 El script corre en ~1 minuto por mes con Python 3 sin dependencias. Está probado con 202608.zip. Está en `scripts/arca/arca_transform.py` y se usa tal cual; lo que haga falta de más se hace en la carga.
 
@@ -62,13 +62,13 @@ El script corre en ~1 minuto por mes con Python 3 sin dependencias. Está probad
 2. Esa carpeta y `C:\Laucen\arca\out\` van al `.gitignore`. Nada de esto entra al repo.
 3. Code corre `python arca_transform.py C:\Laucen\arca\raw\AAAAMM.zip C:\Laucen\arca\out\` por cada mes (o un `for` sobre todos los ZIP). Lee solo la línea de resumen que imprime el script. **No hacer `cat`, `head`, `type` ni abrir los .lst ni los .csv.gz** salvo las 3 primeras líneas para verificar formato.
 4. Carga a Supabase con `COPY` vía el cliente de Postgres en streaming (`scripts/arca/cargar.mjs`), mes por mes, en transacción. Paso a paso en `scripts/arca/LEEME.md`. Nunca por la interfaz web ni por inserts fila a fila.
-5. Registrar en una tabla `arca_cargas` qué período se cargó, cuándo, cuántos ítems y cuántas filas de impuestos, para no cargar dos veces y para saber qué falta.
+5. Registrar en una tabla `arca_cargas` qué período se cargó, cuándo, cuántos ítems y cuántas combinaciones ítem × concepto había (sólo informativo), para no cargar dos veces y para saber qué falta.
 
 ---
 
 ## 4. Esquema propuesto en Supabase
 
-Fer pasa a **plan Pro (USD 25/mes)** antes de la carga: el plan gratis tiene 500 MB y se pausa tras una semana sin uso; Pro incluye 8 GB (verificado en la página de precios el 25/09/2026). Estimación: todos los países, ~6,4 M ítems/año → 300–500 MB/año con índices en `arca_impo_items`; los impuestos como jsonb por ítem suman bastante menos que una tabla aparte (que hubiera sido ~15× más grande), ver nota abajo.
+Fer pasa a **plan Pro (USD 25/mes)** antes de la carga: el plan gratis tiene 500 MB y se pausa tras una semana sin uso; Pro incluye 8 GB (verificado en la página de precios el 25/09/2026). Estimación: todos los países, ~6,4 M ítems/año → 300–500 MB/año con índices en `arca_impo_items`; sin montos de impuestos (ver nota abajo) queda del orden de 100 MB/año con todos los países.
 
 ```sql
 create table arca_impo_items (
@@ -86,21 +86,13 @@ create table arca_impo_items (
   pais_origen      text,                     -- código crudo
   pais_procedencia text,
   ncm              text collate "C" not null, -- '8516.29.00'
-  impuestos        jsonb,                    -- {"415": 2339.01, "010": 1826.36, ...}: clave = código de concepto tal cual viene, valor = monto USD
-  impuestos_total_usd numeric,               -- suma de todos los conceptos del ítem
-  derechos_usd     numeric,                  -- el concepto de arca_parametros.concepto_derechos; NULL mientras no se sepa cuál es
+  derechos_pct_efectivo numeric,            -- derechos pagados / fob_item × 100, 2 decimales (ej. 12.35 = 12,35 %); NULL mientras el concepto de derechos no esté confirmado
   primary key (destinacion, num_item)
 );
 create index on arca_impo_items (ncm, periodo);
 create index on arca_impo_items (importador);
 create index on arca_impo_items (pais_origen, periodo);
 create index on arca_impo_items (periodo);
-
-create table arca_parametros (      -- parámetros de la carga, en un solo lugar
-  clave text primary key,           -- 'concepto_derechos'
-  valor text,                       -- NULL hasta que Fer confirme el código
-  nota  text
-);
 
 create table arca_cargas (
   periodo char(6) primary key,
@@ -109,7 +101,7 @@ create table arca_cargas (
 );
 ```
 
-**Impuestos (decidido por Fer el 25/09):** no hay tabla `arca_impo_impuestos` (serían ~7,8 M filas por mes). Todos los conceptos de cada ítem van en la columna jsonb `arca_impo_items.impuestos`, más `impuestos_total_usd` (la suma) y `derechos_usd`. Qué concepto son los derechos de importación **no se sabe** (010 y 061 figuran "no disponible" en Softrade): el código vive en `arca_parametros.concepto_derechos`, en NULL, y mientras tanto `derechos_usd` queda en NULL. No adivinar. Cuando Fer lo confirme se carga el código y `node scripts/arca/cargar.mjs derechos` recalcula todos los meses.
+**Impuestos (recorte decidido por Fer el 25/09, bitácora #3):** no se guarda ningún monto de impuestos (ni tabla por concepto, ni jsonb, ni totales). De las columnas 14 (concepto) y 15 (monto) del .lst sólo sale, por ítem, `derechos_pct_efectivo` = monto del concepto de derechos / `fob_item` × 100, redondeado a 2 decimales. Sirve para detectar posiciones con acuerdos (Mercosur/ALADI) donde el arancel pagado es menor al nominal (comparándolo con la alícuota de derechos del nomenclador, sección 5). Qué concepto son los derechos **no está confirmado** (010 o 061 figuran "no disponible" en Softrade): el código vive en un solo lugar, `scripts/arca/parametros.mjs` (`CONCEPTO_DERECHOS`), en `null`; mientras sea `null` la columna queda NULL. No adivinar. Cuando Fer lo confirme se pone el código ahí y `node scripts/arca/cargar.mjs derechos C:\Laucen\arca\out` recalcula todos los meses releyendo los `impo_impuestos_AAAAMM.csv.gz`.
 
 ### Tablas de referencia
 
@@ -153,8 +145,9 @@ create table ref_ncm (
 2@8516.29.00.230Q @000.00@008.00@020.00@008.00@000.00@      @07@  @       Con resistencia ceramica, incluso de coeficiente termico positivo (PTC)
 ```
 
-- Columna 1 = código (partida `85.16`, NCM 8 dígitos `8516.29.00`, aperturas SIM de 11 dígitos + letra). Columnas 2-6 = cinco alícuotas (no verificado cuál es cuál; guardarlas como `alic_1..alic_5`). Columna 8 = código de unidad. Última columna = descripción, **indentada con espacios según el nivel jerárquico** (usar la cantidad de espacios iniciales y los guiones `-`/`--` para reconstruir padre/hijo).
+- Columna 1 = código (partida `85.16`, NCM 8 dígitos `8516.29.00`, aperturas SIM de 11 dígitos + letra). Columnas 2-6 = cinco alícuotas, guardadas como `alic_1..alic_5`. Cuál es cuál se registra en `ref_alicuota`: la de **derechos** se deduce con `node scripts/arca/cargar.mjs alicuotas`, que cruza el "% Dere." de los ítems de Softrade (`softrade_items.derecho_pct`) con las alícuotas de la misma NCM-SIM; la columna que coincide (≥95 % de los ítems, y una sola) es derechos. Las otras cuatro (tasa estadística, IVA, IVA adicional, ganancias, en algún orden) **no se nombran** hasta que Fer las confirme contra el Arancel Integrado de ARCA. Columna 8 = código de unidad. Última columna = descripción, **indentada con espacios según el nivel jerárquico** (usar la cantidad de espacios iniciales y los guiones `-`/`--` para reconstruir padre/hijo).
 - Los despachos usan NCM a 8 dígitos. Para el join basta `ref_ncm.codigo = arca_impo_items.ncm`. Las aperturas SIM se cargan igual para tener descripciones más finas y futuro uso.
+- **Versiones:** `ref_ncm` lleva `vigencia` (la fecha del nombre del archivo, ej. `nomenclador_20260925.txt` → 25/09/2026) y la clave es (`codigo`, `vigencia`). Una carga nueva de `arancel.zip` crea una versión nueva sin pisar la anterior; el panel usa la vista `ref_ncm_vigente` (la última). `ref_ncm` es la fuente de los porcentajes vigentes.
 - Armar `descripcion_completa` concatenando la descripción de la partida + subpartidas + la propia (es lo que hace Softrade y hace legible una NCM "Los demás").
 
 ### 5.1 Sufijos de valor (`sufijos_AAAAMMDD.txt`, verificado)
@@ -201,7 +194,7 @@ Las consultas del panel van contra estas tablas; el detalle fila a fila se consu
 Filtros combinables: rango de períodos, NCM (uno, varios, prefijo de capítulo, o un **rubro guardado**), país de origen, país de procedencia, medio de transporte, importador (búsqueda por texto), aduana, rango de FOB unitario, rango de cantidad.
 
 Salidas:
-- Tabla de ítems con todo decodificado (nombres, no códigos) y FOB unitario calculado.
+- Tabla de ítems con todo decodificado (nombres, no códigos) y FOB unitario calculado. Juntos: FOB (ARCA), CIF + kg cuando hay Softrade, derechos pagados en % del FOB y las alícuotas vigentes del nomenclador. Sin montos de impuestos. Lo mismo en la ficha de NCM.
 - Ranking de importadores para el filtro elegido: FOB, cantidad, ítems, **% sobre el total del filtro**, transporte predominante.
 - Serie mensual: FOB, cantidad, ítems, cantidad de importadores, por transporte (marítimo vs aéreo vs terrestre vs vacío).
 - Ranking de NCM dentro del filtro.
@@ -358,9 +351,9 @@ Patrón: tokens separados por `-`, cada uno `XX(valor)` o `XXnn`. Reglas:
 1. Migraciones: tablas de datos, referencia, resumen, `arca_cargas`.
 2. Cargar `ref_transporte`, `ref_pais` (parcial), `ref_concepto` (parcial) con los valores de la sección 4.
 3. Cargar `ref_ncm` y `ref_sufijo` desde `arancel.zip`.
-4. Correr `arca_transform.py` sobre **un solo mes** (202608, Fer ya lo tiene bajado) y cargarlo. Verificar contra estos números: 530.186 ítems, 64.863 despachos, 12.089 importadores; NCM `8516.29.00` con origen `310` debe dar 10 ítems y 7 importadores, y el despacho `26001IC04154138R` ítem 1 debe ser Importadora MCA, 230 unidades, FOB 8.178,75, con impuestos iguales a los de Softrade: 415 = 2.339,01; 429 = 356,42; 450 = 55,69; 422 = 2.227,63; 424 = 668,29; 010 = 1.826,36; 061 = 180,00. Todo esto lo chequea `node scripts/arca/cargar.mjs verificar`.
+4. Correr `arca_transform.py` sobre **un solo mes** (202608, Fer ya lo tiene bajado) y cargarlo. Verificar contra estos números: 530.186 ítems, 64.863 despachos, 12.089 importadores; NCM `8516.29.00` con origen `310` debe dar 10 ítems y 7 importadores, y el despacho `26001IC04154138R` ítem 1 debe ser Importadora MCA, 230 unidades, FOB 8.178,75; y mientras el concepto de derechos no esté confirmado, `derechos_pct_efectivo` tiene que quedar NULL en todos los ítems. Todo esto lo chequea `node scripts/arca/cargar.mjs verificar`.
 5. Recalcular resumen. Una consulta de prueba desde la app.
-6. Cargar el Excel de ejemplo de Softrade (`detalle_ARimportDetalladas_2026-8-5-131045.xlsx`, Fer lo deja en `C:\Laucen\softrade\in\`). Verificar: 158 filas → 93 ítems, 31 importadores; el ítem `26001IC03000924J` / 54 tiene 2 subítems, ambos marca INTELBRAS, códigos `4770537 MRM 537` y `4770029 COC 4038P`; el ítem `26008IC03000411H` / 11 tiene 15 subítems marca SACCARO. Cruzar con ARCA agosto: todos los identificadores del Excel deben existir en `arca_impo_items` con NCM `9403.20.90`.
+6. Cargar el Excel de ejemplo de Softrade (`detalle_ARimportDetalladas_2026-8-5-131045.xlsx`, Fer lo deja en `C:\Laucen\softrade\in\`). Verificar: 158 filas → 93 ítems, 31 importadores; el ítem `26001IC03000924J` / 54 tiene 2 subítems, ambos marca INTELBRAS, códigos `4770537 MRM 537` y `4770029 COC 4038P`; el ítem `26008IC03000411H` / 11 tiene 15 subítems marca SACCARO. Cruzar con ARCA agosto: todos los identificadores del Excel deben existir en `arca_impo_items` con NCM `9403.20.90`. Después, `node scripts/arca/cargar.mjs alicuotas` para identificar la alícuota de derechos en el nomenclador.
 7. Avisar a Fer. Recién después, el resto de los meses de ARCA en lote.
 8. Consultas de descubrimiento (7.1).
 9. Panel completo (7) con la capa Softrade (7B).

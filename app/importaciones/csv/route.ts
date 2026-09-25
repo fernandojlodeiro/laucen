@@ -7,7 +7,7 @@ import { sesionActual } from "@/lib/tenancy";
 import { tienePermiso } from "@/lib/permisos";
 import { asegurarEsquemaArca } from "@/lib/arca/esquema";
 import { leerFiltro, periodosCargados } from "@/lib/arca/filtro";
-import { VIAS, items, nombre, rankingImportadores, rankingNcm, rankingPaises, referencias, serieMensual } from "@/lib/arca/consultas";
+import { VIAS, items, nombre, nombresAlicuotas, rankingImportadores, rankingNcm, rankingPaises, referencias, serieMensual } from "@/lib/arca/consultas";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -52,13 +52,13 @@ export async function GET(req: NextRequest) {
     cab = ["periodo", "fob_usd", "cantidad", "items", "importadores", ...VIAS.map((v) => `fob_${v.clave}`), "fob_otros"];
     filas = r.map((x) => [x.periodo, x.fob, x.cantidad, x.items, x.importadores, ...VIAS.map((v) => x.porVia[v.clave]), x.porVia.otros]);
   } else if (vista === "items") {
-    const r = await items(f, org, TOPE);
+    const [r, alic] = await Promise.all([items(f, org, TOPE), nombresAlicuotas()]);
     cab = ["periodo", "destinacion", "item", "aduana", "importador", "importador_completo", "ncm", "pais_origen", "pais_procedencia",
-      "transporte", "unidad", "cantidad", "fob_usd", "fob_unitario", "impuestos_total_usd", "derechos_usd", "impuestos_por_concepto", "marcas", "codigos_articulo", "kg_netos", "cif_usd", "fecha"];
+      "transporte", "unidad", "cantidad", "fob_usd", "fob_unitario", "derechos_pct_efectivo", "ncm_sim", ...[0, 1, 2, 3, 4].map((i) => `alicuota_${i + 1}_${(alic[i] ?? "sin_confirmar").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_")}`), "marcas", "codigos_articulo", "kg_netos", "cif_usd", "fecha"];
     filas = r.filas.map((x) => [x.periodo, x.destinacion, x.num_item, x.aduana, x.importador, x.importador_completo, x.ncm,
       nombre(refs.pais, x.pais_origen), nombre(refs.pais, x.pais_procedencia), nombre(refs.transporte, x.transporte),
-      nombre(refs.unidad, x.unidad), x.cantidad, x.fob_item, x.fob_unit, x.impuestos_total_usd, x.derechos_usd,
-      x.impuestos ? JSON.stringify(x.impuestos) : null, x.marcas, x.codigos_articulo, x.kg_netos, x.usd_cif, x.fecha]);
+      nombre(refs.unidad, x.unidad), x.cantidad, x.fob_item, x.fob_unit, x.derechos_pct_efectivo, x.ncm_sim,
+      ...[0, 1, 2, 3, 4].map((i) => (x.alic_variantes > 1 ? "varía" : x.alic?.[i] ?? null)), x.marcas, x.codigos_articulo, x.kg_netos, x.usd_cif, x.fecha]);
   } else {
     const r = await rankingImportadores(f, org, orden, TOPE);
     cab = ["importador", "fob_usd", "pct_del_total", "cantidad", "items", "ncm_distintas", "transporte_principal"];

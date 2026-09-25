@@ -38,7 +38,7 @@ export default async function Rubros({ searchParams }: { searchParams: Promise<P
   const actual = rubros.find((r) => r.id === elegido);
   const suyas = actual ? (await pool.query<{ ncm: string; descripcion: string | null }>(`
     select rn.ncm, x.descripcion_completa descripcion
-      from rubro_ncm rn left join ref_ncm x on x.codigo = rn.ncm
+      from rubro_ncm rn left join ref_ncm_vigente x on x.codigo = rn.ncm
      where rn.rubro_id = $1 order by rn.ncm`, [actual.id])).rows : [];
   const yaEsta = new Set(suyas.map((x) => x.ncm));
 
@@ -51,10 +51,10 @@ export default async function Rubros({ searchParams }: { searchParams: Promise<P
       return `(x.descripcion_completa ilike $${valores.length} or x.codigo like $${valores.length})`;
     });
     encontradas = (await pool.query(`
-      select codigo, tipo, nivel, descripcion, descripcion_completa from ref_ncm x
+      select codigo, tipo, nivel, descripcion, descripcion_completa from ref_ncm_vigente x
        where ${cond.join(" and ")} order by codigo limit 200`, valores)).rows;
   }
-  const hayNomenclador = q ? true : !!(await pool.query("select 1 from ref_ncm limit 1")).rowCount;
+  const hayNomenclador = q ? true : !!(await pool.query("select 1 from ref_ncm_vigente limit 1")).rowCount;
   const aqui = (extra: Record<string, string | number | undefined>) => {
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries({ r: elegido, q: q || undefined, ...extra })) if (v !== undefined) p.set(k, String(v));

@@ -36,30 +36,15 @@ create index if not exists arca_impo_items_pais_idx on arca_impo_items (pais_ori
 create index if not exists arca_impo_items_periodo_idx on arca_impo_items (periodo);
 alter table arca_impo_items enable row level security;
 
--- Impuestos por concepto: NO van en una tabla aparte (serían ~7,8 millones
--- de filas por mes). Van en la columna jsonb `impuestos` de cada ítem
--- (decisión de Fer, 25/09): {"415": 2339.01, "010": 1826.36, ...}, clave = el
--- código de concepto tal cual viene en el .lst. Más dos columnas numéricas
--- para consultar sin abrir el JSON (se agregan abajo, con `if not exists`).
-alter table arca_impo_items add column if not exists impuestos           jsonb;
-alter table arca_impo_items add column if not exists impuestos_total_usd numeric;  -- suma de todos los conceptos
-alter table arca_impo_items add column if not exists derechos_usd        numeric;  -- el concepto de arca_parametros.concepto_derechos
-
--- Parámetros de la carga, en un solo lugar.
--- concepto_derechos: qué código de concepto son los derechos de importación.
--- NO se sabe todavía (010 y 061 figuran "no disponible" en Softrade): queda
--- en null y derechos_usd queda en null. Cuando Fer lo confirme:
---   update arca_parametros set valor = '<código>' where clave = 'concepto_derechos';
---   node scripts/arca/cargar.mjs derechos      (recalcula todos los meses)
-create table if not exists arca_parametros (
-  clave text primary key,
-  valor text,
-  nota  text
-);
-alter table arca_parametros enable row level security;
-insert into arca_parametros (clave, valor, nota) values
-  ('concepto_derechos', null, 'Código de concepto de los derechos de importación. Sin confirmar: no adivinar.')
-on conflict do nothing;
+-- Impuestos: NO se guardan montos (orden de Cowork del 25/09, bitácora #3).
+-- Del .lst sólo se usan las columnas 14 (concepto) y 15 (monto) para
+-- deduplicar y para calcular, por ítem, el % de derechos efectivamente
+-- pagado: derechos / FOB × 100, con 2 decimales (ej. 12.35 = 12,35 %). Sirve
+-- para ver posiciones con acuerdos (Mercosur/ALADI) donde se paga menos que
+-- el arancel nominal. Qué concepto son los derechos NO está confirmado (010 o
+-- 061): el código vive en scripts/arca/parametros.mjs, en null, y mientras
+-- sea null la columna queda null. `cargar.mjs derechos` la recalcula.
+alter table arca_impo_items add column if not exists derechos_pct_efectivo numeric;
 
 -- Qué período se cargó, para no cargar dos veces y saber qué falta.
 create table if not exists arca_cargas (
@@ -95,12 +80,46 @@ create table if not exists ref_ncm (
   descripcion          text,
   descripcion_completa text,               -- la de los ancestros + la propia
   unidad               text,
-  alic_1 numeric, alic_2 numeric, alic_3 numeric, alic_4 numeric, alic_5 numeric,  -- cuál es cuál: sin verificar
+  alic_1 numeric, alic_2 numeric, alic_3 numeric, alic_4 numeric, alic_5 numeric,  -- cuál es cuál: ref_alicuota
   uso_economico        text,               -- futuro: consumo / intermedio / capital
   rubro_ml             text[]              -- futuro: etiquetas de rubro estilo ML
 );
 create index if not exists ref_ncm_padre_idx on ref_ncm (padre);
 alter table ref_ncm enable row level security;
+
+-- Versiones del nomenclador: cada carga de arancel.zip es una versión con su
+-- fecha de vigencia (la del nombre del archivo, ej. nomenclador_20260925.txt)
+-- y no pisa las anteriores. La clave pasa a ser (codigo, vigencia).
+alter table ref_ncm add column if not exists vigencia date;
+do $$
+begin
+  if not exists (
+    select 1 from pg_index i join pg_class c on c.oid = i.indrelid
+     where c.relname = 'ref_ncm' and i.indisprimary and i.indnatts = 2
+  ) then
+    update ref_ncm set vigencia = date '2026-09-25' where vigencia is null;
+    alter table ref_ncm drop constraint if exists ref_ncm_pkey;
+    alter table ref_ncm alter column vigencia set not null;
+    alter table ref_ncm add primary key (codigo, vigencia);
+  end if;
+end $$;
+
+-- La versión vigente = la última cargada (cada carga es el nomenclador entero).
+drop view if exists ref_ncm_vigente;
+create view ref_ncm_vigente with (security_invoker = true) as
+select * from ref_ncm where vigencia = (select max(vigencia) from ref_ncm);
+
+-- Qué es cada una de las 5 alícuotas del nomenclador. Sin nombre hasta
+-- confirmarlo: la de derechos la deduce `cargar.mjs alicuotas` cruzando con
+-- el "% Dere." de Softrade; las otras cuatro, sólo cuando Fer las confirme.
+create table if not exists ref_alicuota (
+  columna text primary key,   -- 'alic_1' .. 'alic_5'
+  nombre  text,               -- null = sin identificar
+  nota    text                -- de dónde salió el nombre
+);
+alter table ref_alicuota enable row level security;
+insert into ref_alicuota (columna) values ('alic_1'), ('alic_2'), ('alic_3'), ('alic_4'), ('alic_5')
+on conflict do nothing;
 
 -- Sufijos de valor (marca, código de artículo, atributos por posición).
 create table if not exists ref_sufijo (
@@ -290,7 +309,7 @@ begin
     insert into coordinacion.bitacora (autor, tipo, titulo, detalle, pendientes, ref_doc)
     values ('code', 'entrega', 'Importaciones (ARCA + Softrade): base, carga y panel',
       'Tablas de ARCA, referencias, resúmenes, rubros y Softrade (db/arca.sql, se crean solas). Scripts de carga en scripts/arca/ (se corren desde la PC de Fer). Panel /importaciones: Buscar, Descubrir, Rubros, Cargas, fichas de NCM e importador.',
-      '1) Cargar arancel.zip, 202608 y el Excel de ejemplo desde la PC de Fer y correr "verificar"; recién después el resto de los meses. 2) Qué concepto son los derechos de importación (010 o 061): hasta confirmarlo derechos_usd queda en null (arca_parametros). 3) Tabla completa de países y qué es el transporte vacío.',
+      '1) Cargar arancel.zip, 202608 y el Excel de ejemplo desde la PC de Fer y correr "verificar"; recién después el resto de los meses. 2) Qué concepto son los derechos de importación (010 o 061): hasta confirmarlo derechos_pct_efectivo queda en null (scripts/arca/parametros.mjs). 3) Tabla completa de países y qué es el transporte vacío.',
       'docs/orden-arca-importaciones.md');
   end if;
 
@@ -304,7 +323,7 @@ begin
   if not exists (select 1 from coordinacion.para_probar where titulo = 'Importaciones: cargar 08/2026, nomenclador y Excel de Softrade') then
     insert into coordinacion.para_probar (autor, pedido_por, sesion, titulo, detalle, areas, prioridad)
     values ('code', 'fer', s, 'Importaciones: cargar 08/2026, nomenclador y Excel de Softrade',
-      'Desde la PC, con Claude Code en el repo: seguir scripts/arca/LEEME.md (arancel, 202608, softrade) y correr "node scripts/arca/cargar.mjs verificar". Todo tiene que dar OK: 530.186 ítems, 64.863 despachos, 12.089 importadores, 8516.29.00 China 10 ítems / 7 importadores, los impuestos de 26001IC04154138R/1 iguales a Softrade, Softrade 158 filas / 93 ítems / 31 importadores, INTELBRAS y SACCARO.',
+      'Desde la PC, con Claude Code en el repo: seguir scripts/arca/LEEME.md (arancel, 202608, softrade) y correr "node scripts/arca/cargar.mjs verificar". Todo tiene que dar OK: 530.186 ítems, 64.863 despachos, 12.089 importadores, 8516.29.00 China 10 ítems / 7 importadores, 26001IC04154138R/1 con 230 u. y FOB 8.178,75, derechos_pct_efectivo en null, Softrade 158 filas / 93 ítems / 31 importadores, INTELBRAS y SACCARO. Después correr "alicuotas": tiene que decir qué alícuota es derechos.',
       '{importaciones,interno}', 'alta');
   end if;
 

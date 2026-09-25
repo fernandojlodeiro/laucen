@@ -46,7 +46,7 @@ export async function ncmQueCrecen(p: ParamsCrecen, org: string): Promise<FilaCr
     select r.*, coalesce(fob_act, 0) - coalesce(fob_ant, 0) dif_fob,
            fob_act / nullif(fob_ant, 0) - 1 var_fob, cant_act / nullif(cant_ant, 0) - 1 var_cant,
            x.descripcion_completa descripcion
-      from r left join ref_ncm x on x.codigo = r.ncm
+      from r left join ref_ncm_vigente x on x.codigo = r.ncm
      order by ${col} desc nulls last limit 200`, sql.valores);
   return r.rows.map((x) => ({
     ncm: x.ncm, descripcion: x.descripcion, fob_act: n(x.fob_act), fob_ant: n(x.fob_ant), dif_fob: n(x.dif_fob),
@@ -96,7 +96,7 @@ export async function nichos(p: ParamsNicho, org: string): Promise<FilaNicho[]> 
     imp as (select ncm, importador, sum(fob) fob from b where ncm in (select ncm from r) group by 1, 2)
     select r.*, x.descripcion_completa descripcion, top.importador principal, top.fob / nullif(r.fob, 0) pct_principal
       from r
-      left join ref_ncm x on x.codigo = r.ncm
+      left join ref_ncm_vigente x on x.codigo = r.ncm
       left join lateral (select importador, fob from imp where imp.ncm = r.ncm order by fob desc nulls last limit 1) top on true
      order by r.fob desc nulls last limit 300`, sql.valores);
   return r.rows.map((x) => ({ ...x, fob: n(x.fob), pct_principal: n(x.pct_principal) }));
@@ -123,7 +123,7 @@ export async function densidadVias(p: ParamsVias, org: string): Promise<FilaVias
         from agg_ncm_importador_mes m where ${w.join(" and ")}
        group by m.ncm
        ${p.fobMin !== undefined ? `having sum(m.fob) >= ${sql.p(p.fobMin)}` : ""}) r
-      left join lateral (select descripcion_completa descripcion from ref_ncm x where x.codigo = r.ncm) x on true
+      left join lateral (select descripcion_completa descripcion from ref_ncm_vigente x where x.codigo = r.ncm) x on true
      order by ${col} desc nulls last limit 300`, sql.valores);
   return r.rows.map((x) => ({
     ncm: x.ncm, descripcion: x.descripcion, fob: n(x.fob), items: x.items,

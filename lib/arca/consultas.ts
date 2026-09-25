@@ -7,7 +7,6 @@ import { base, dondeItems, Sql, type Filtro } from "./filtro";
 // ── Referencias (códigos → nombres) ───────────────────────
 
 export type Refs = {
-  concepto: Map<string, string>;
   pais: Map<string, string>;
   transporte: Map<string, string>;
   aduana: Map<string, string>;
@@ -18,9 +17,9 @@ export async function referencias(): Promise<Refs> {
   const leer = async (t: string) =>
     new Map((await pool.query<{ codigo: string; nombre: string | null }>(`select codigo, nombre from ${t}`)).rows
       .filter((r) => r.nombre).map((r) => [r.codigo, r.nombre!]));
-  const [pais, transporte, aduana, unidad, concepto] = await Promise.all(
-    ["ref_pais", "ref_transporte", "ref_aduana", "ref_unidad", "ref_concepto"].map(leer));
-  return { pais, transporte, aduana, unidad, concepto };
+  const [pais, transporte, aduana, unidad] = await Promise.all(
+    ["ref_pais", "ref_transporte", "ref_aduana", "ref_unidad"].map(leer));
+  return { pais, transporte, aduana, unidad };
 }
 
 /** El nombre si se sabe; si no, el código crudo. Nunca se inventa. */
@@ -73,7 +72,7 @@ export async function rankingNcm(f: Filtro, org: string, orden: string, limite: 
     r as (select ncm, sum(fob) fob, sum(cantidad) cantidad, sum(items)::int items, count(distinct importador)::int importadores
             from b group by ncm)
     select r.*, r.fob / nullif(sum(r.fob) over (), 0) pct, count(*) over ()::int total, x.descripcion_completa descripcion
-      from r left join ref_ncm x on x.codigo = r.ncm
+      from r left join ref_ncm_vigente x on x.codigo = r.ncm
      order by ${col} ${col === "ncm" ? "asc" : "desc nulls last"} limit ${Number(limite)}`, sql.valores);
   return {
     total: r.rows[0]?.total ?? 0,
@@ -127,24 +126,41 @@ export type FilaItem = {
   pais_origen: string | null; pais_procedencia: string | null;
   enriquecido: boolean; fecha: string | null; importador_completo: string | null; kg_netos: number | null; usd_cif: number | null;
   marcas: string[] | null; codigos_articulo: string[] | null;
-  impuestos: Record<string, number> | null; impuestos_total_usd: number | null; derechos_usd: number | null;
+  ncm_sim: string | null;
+  derechos_pct_efectivo: number | null;       // % de derechos pagado sobre el FOB (null si el concepto no está confirmado)
+  alic: (number | null)[] | null;             // las 5 alícuotas vigentes del nomenclador
+  alic_variantes: number;                     // >1: las aperturas SIM de esa NCM tienen alícuotas distintas
 };
 
 export async function items(f: Filtro, org: string, limite: number): Promise<{ filas: FilaItem[]; total: number }> {
   const sql = new Sql();
   const w = await dondeItems(f, sql, "a", org);
+  // Alícuotas vigentes: las de la apertura SIM exacta si Softrade la trae;
+  // si no, las de las aperturas de esa NCM (si difieren entre sí, se avisa).
   const r = await pool.query(`
-    select a.periodo, a.destinacion, a.num_item, a.aduana, a.importador, a.ncm, a.transporte, a.unidad,
-           a.cantidad, a.fob_item, a.fob_item / nullif(a.cantidad, 0) fob_unit, a.pais_origen, a.pais_procedencia,
-           a.enriquecido, to_char(a.fecha, 'DD/MM/YYYY') fecha, a.importador_completo, a.kg_netos, a.usd_cif,
-           a.marcas, a.codigos_articulo, a.impuestos, a.impuestos_total_usd, a.derechos_usd, count(*) over ()::int total
-      from v_items_enriquecidos a ${w}
-     order by a.fob_item desc nulls last limit ${Number(limite)}`, sql.valores);
+    with it as (
+      select a.periodo, a.destinacion, a.num_item, a.aduana, a.importador, a.ncm, a.transporte, a.unidad,
+             a.cantidad, a.fob_item, a.fob_item / nullif(a.cantidad, 0) fob_unit, a.pais_origen, a.pais_procedencia,
+             a.enriquecido, to_char(a.fecha, 'DD/MM/YYYY') fecha, a.importador_completo, a.kg_netos, a.usd_cif,
+             a.marcas, a.codigos_articulo, a.ncm_sim, a.derechos_pct_efectivo, count(*) over ()::int total
+        from v_items_enriquecidos a ${w}
+       order by a.fob_item desc nulls last limit ${Number(limite)})
+    select it.*, coalesce(al.variantes, 0) alic_variantes, al.alic
+      from it
+      left join lateral (
+        select count(distinct array[x.alic_1, x.alic_2, x.alic_3, x.alic_4, x.alic_5])::int variantes,
+               min(array[x.alic_1, x.alic_2, x.alic_3, x.alic_4, x.alic_5]) alic
+          from ref_ncm_vigente x
+         where x.tipo = 'sim' and x.alic_1 is not null
+           and x.codigo >= coalesce(it.ncm_sim, it.ncm || '.') collate "C"
+           and x.codigo < (coalesce(it.ncm_sim, it.ncm || '.') || '~') collate "C") al on true
+     order by it.fob_item desc nulls last`, sql.valores);
   return {
     total: r.rows[0]?.total ?? 0,
     filas: r.rows.map((x) => ({
       ...x, cantidad: n(x.cantidad), fob_item: n(x.fob_item), fob_unit: n(x.fob_unit), kg_netos: n(x.kg_netos), usd_cif: n(x.usd_cif),
-      impuestos_total_usd: n(x.impuestos_total_usd), derechos_usd: n(x.derechos_usd),
+      derechos_pct_efectivo: n(x.derechos_pct_efectivo),
+      alic: x.alic ? (x.alic as unknown[]).map(n) : null,
     })),
   };
 }
@@ -160,6 +176,49 @@ export async function cobertura(f: Filtro, org: string): Promise<{ con: number; 
            count(*) filter (where exists (select 1 from softrade_items s where s.destinacion = a.destinacion and s.num_item = a.num_item))::int con
       from arca_impo_items a ${w}`, sql.valores);
   return r.rows[0];
+}
+
+// ── Alícuotas del nomenclador ─────────────────────────────
+
+/** Nombre de cada columna de alícuota (ref_alicuota). Sin confirmar = null. */
+export async function nombresAlicuotas(): Promise<(string | null)[]> {
+  const r = await pool.query<{ columna: string; nombre: string | null }>("select columna, nombre from ref_alicuota order by columna");
+  const m = new Map(r.rows.map((x) => [x.columna, x.nombre]));
+  return [1, 2, 3, 4, 5].map((i) => m.get(`alic_${i}`) ?? null);
+}
+
+/** "Derechos de importación" o, si no se sabe, "Alícuota 3 (sin confirmar)". */
+export const tituloAlicuota = (nombres: (string | null)[], i: number) => nombres[i] ?? `Alícuota ${i + 1} (sin confirmar)`;
+
+/** Aperturas SIM vigentes de una NCM con sus alícuotas, y la fecha de vigencia. */
+export async function alicuotasDeNcm(ncm: string): Promise<{ codigo: string; descripcion: string | null; alic: (number | null)[]; vigencia: string }[]> {
+  const r = await pool.query(`
+    select codigo, descripcion, array[alic_1, alic_2, alic_3, alic_4, alic_5] alic, to_char(vigencia, 'DD/MM/YYYY') vigencia
+      from ref_ncm_vigente
+     where tipo = 'sim' and alic_1 is not null and codigo like $1
+     order by codigo limit 200`, [`${ncm}.%`]);
+  return r.rows.map((x) => ({ ...x, alic: (x.alic as unknown[]).map(n) }));
+}
+
+/** Lo que Softrade agrega para un filtro: CIF y kg, y los derechos efectivos de ARCA. */
+export async function resumenSoftrade(f: Filtro, org: string): Promise<{
+  items: number; conSoftrade: number; fob: number | null; cif: number | null; kgNetos: number | null; fobSoftrade: number | null;
+  derechosProm: number | null; conDerechos: number;
+}> {
+  const sql = new Sql();
+  const w = await dondeItems(f, sql, "a", org);
+  const r = await pool.query(`
+    select count(*)::int items, count(s.destinacion)::int con_softrade, sum(a.fob_item) fob,
+           sum(s.usd_cif) cif, sum(s.kg_netos) kg_netos, sum(s.usd_fob) filter (where s.usd_cif is not null) fob_softrade,
+           round(avg(a.derechos_pct_efectivo), 2) derechos_prom, count(a.derechos_pct_efectivo)::int con_derechos
+      from arca_impo_items a
+      left join softrade_items s on s.destinacion = a.destinacion and s.num_item = a.num_item
+      ${w}`, sql.valores);
+  const x = r.rows[0];
+  return {
+    items: x.items, conSoftrade: x.con_softrade, fob: n(x.fob), cif: n(x.cif), kgNetos: n(x.kg_netos),
+    fobSoftrade: n(x.fob_softrade), derechosProm: n(x.derechos_prom), conDerechos: x.con_derechos,
+  };
 }
 
 // ── Marcas vistas (Softrade) ──────────────────────────────

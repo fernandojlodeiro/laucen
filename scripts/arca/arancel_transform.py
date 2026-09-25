@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """ARCA: arancel.zip (Nomenclatura Común del Mercosur) -> ref_ncm.csv y ref_sufijo.csv.
 
+La fecha de vigencia sale del nombre del nomenclador (nomenclador_AAAAMMDD.txt)
+y va en cada fila: una carga nueva es una versión nueva, no pisa la anterior.
+
 Uso:
     python arancel_transform.py C:\\Laucen\\arca\\ref\\arancel.zip C:\\Laucen\\arca\\out\\
 
@@ -29,7 +32,15 @@ def leer(z, prefijo):
     nombres = [n for n in z.namelist() if re.search(prefijo + r"_?\d*\.txt$", os.path.basename(n), re.IGNORECASE)]
     if len(nombres) != 1:
         raise SystemExit(f"no encontré un único {prefijo}_AAAAMMDD.txt en el ZIP")
-    return z.read(nombres[0]).decode("latin-1").splitlines()
+    return z.read(nombres[0]).decode("latin-1").splitlines(), os.path.basename(nombres[0])
+
+
+def vigencia_de(nombre):
+    """nomenclador_20260925.txt -> '2026-09-25' (la fecha de vigencia de esta versión)."""
+    m = re.search(r"(\d{4})(\d{2})(\d{2})", nombre)
+    if not m:
+        raise SystemExit(f"{nombre}: no trae la fecha AAAAMMDD en el nombre")
+    return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
 
 
 def tipo_de(codigo):
@@ -127,15 +138,17 @@ def main():
     ruta_zip, salida = sys.argv[1], sys.argv[2]
     os.makedirs(salida, exist_ok=True)
     with zipfile.ZipFile(ruta_zip) as z:
-        ncm, rep_n, raras_n = nomenclador(leer(z, "nomenclador"))
-        suf, rep_s, raras_s = sufijos(leer(z, "sufijos"))
+        lineas, nombre_nom = leer(z, "nomenclador")
+        vigencia = vigencia_de(nombre_nom)
+        ncm, rep_n, raras_n = nomenclador(lineas)
+        suf, rep_s, raras_s = sufijos(leer(z, "sufijos")[0])
 
     with open(os.path.join(salida, "ref_ncm.csv"), "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["codigo", "tipo", "nivel", "padre", "descripcion", "descripcion_completa",
+        w.writerow(["codigo", "vigencia", "tipo", "nivel", "padre", "descripcion", "descripcion_completa",
                     "unidad", "alic_1", "alic_2", "alic_3", "alic_4", "alic_5"])
         for x in ncm:
-            w.writerow([x["codigo"], x["tipo"], x["nivel"], x["padre"], x["descripcion"],
+            w.writerow([x["codigo"], vigencia, x["tipo"], x["nivel"], x["padre"], x["descripcion"],
                         x["descripcion_completa"], x["unidad"], *x["alic"]])
     with open(os.path.join(salida, "ref_sufijo.csv"), "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
@@ -145,7 +158,7 @@ def main():
     por_tipo = {}
     for x in ncm:
         por_tipo[x["tipo"]] = por_tipo.get(x["tipo"], 0) + 1
-    print(f"arancel: ncm={len(ncm)} {por_tipo} repetidos={rep_n} raras={raras_n} | "
+    print(f"arancel: vigencia={vigencia} ncm={len(ncm)} {por_tipo} repetidos={rep_n} raras={raras_n} | "
           f"sufijos={len(suf)} repetidos={rep_s} raras={raras_s}", flush=True)
 
 

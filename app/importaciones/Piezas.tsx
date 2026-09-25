@@ -50,8 +50,8 @@ export const TDN = "py-1.5 px-2 text-right whitespace-nowrap tabular-nums";
 export const CAMPO = "border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs bg-white";
 export const ETIQUETA = "flex flex-col gap-1 text-[11px] text-[#5C6B76]";
 
-export function LinkNcm({ ncm }: { ncm: string }) {
-  return <Link href={`/importaciones/ncm?c=${encodeURIComponent(ncm)}`} className="text-[#16577F] underline whitespace-nowrap">{ncm}</Link>;
+export function LinkNcm({ ncm, texto }: { ncm: string; texto?: string }) {
+  return <Link href={`/importaciones/ncm?c=${encodeURIComponent(ncm)}`} className="text-[#16577F] underline whitespace-nowrap">{texto ?? ncm}</Link>;
 }
 
 export function LinkImportador({ nombre }: { nombre: string }) {

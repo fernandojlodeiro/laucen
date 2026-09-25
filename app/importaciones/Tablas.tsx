@@ -1,15 +1,22 @@
 // Tablas que se usan en Buscar y en las fichas de NCM e importador.
 
 import { periodoLindo } from "@/lib/arca/filtro";
-import { VIAS, nombre, type Refs, type items, type marcasVistas, type serieMensual } from "@/lib/arca/consultas";
+import { VIAS, nombre, tituloAlicuota, type Refs, type items, type marcasVistas, type serieMensual } from "@/lib/arca/consultas";
 import { BotonCsv, CAJA_TABLA, Col, LinkImportador, LinkNcm, TABLA, TD, TDN, THEAD, TR, cant, usd, usd2 } from "./Piezas";
 
-/** "IVA (415): 2.339,01 · 010: 1.826,36 …" para el cartelito al pasar el mouse. */
-function detalleImpuestos(imp: Record<string, number> | null, refs: Refs): string | undefined {
-  if (!imp) return undefined;
-  return Object.entries(imp)
-    .map(([c, m]) => `${refs.concepto.has(c) ? `${refs.concepto.get(c)} (${c})` : c}: ${usd2(Number(m))}`)
-    .join(" · ");
+/** Las 5 alícuotas vigentes del nomenclador, cada una con su nombre al pasar
+ *  el mouse (o "sin confirmar"). La de derechos, si ya se sabe cuál es, en negrita. */
+export function Alicuotas({ alic, nombres }: { alic: (number | null)[] | null; nombres: (string | null)[] }) {
+  if (!alic) return <span className="text-[#C9D3DD]">—</span>;
+  return (
+    <span className="whitespace-nowrap">
+      {alic.map((v, i) => (
+        <span key={i} title={tituloAlicuota(nombres, i)} className={nombres[i] ? "font-bold" : "text-[#5C6B76]"}>
+          {i > 0 && " · "}{v == null ? "—" : `${cant(v)}%`}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 export function Barra({ total, mostrados, csv }: { total: number; mostrados: number; csv: string }) {
@@ -54,7 +61,9 @@ export function Serie({ filas, csv }: { filas: Awaited<ReturnType<typeof serieMe
   );
 }
 
-export function Items({ datos, refs, csv }: { datos: Awaited<ReturnType<typeof items>>; refs: Refs; csv?: string }) {
+export function Items({ datos, refs, alicNombres, csv }: {
+  datos: Awaited<ReturnType<typeof items>>; refs: Refs; alicNombres: (string | null)[]; csv?: string;
+}) {
   const { filas, total } = datos;
   const conSoftrade = filas.some((x) => x.enriquecido);
   return (
@@ -65,8 +74,10 @@ export function Items({ datos, refs, csv }: { datos: Awaited<ReturnType<typeof i
           <thead className={THEAD}><tr>
             <Col texto="" /><Col texto="Mes" derecha={false} /><Col texto="Despacho / ítem" derecha={false} /><Col texto="Importador" derecha={false} />
             <Col texto="NCM" derecha={false} /><Col texto="Origen" derecha={false} /><Col texto="Transporte" derecha={false} />
-            <Col texto="Cantidad" /><Col texto="FOB USD" /><Col texto="FOB unit." /><Col texto="Impuestos USD" />
-            {conSoftrade && <><Col texto="Marca" derecha={false} /><Col texto="Cód. artículo" derecha={false} /><Col texto="Kg netos" /><Col texto="CIF USD" /><Col texto="Fecha" derecha={false} /></>}
+            <Col texto="Cantidad" /><Col texto="FOB USD" /><Col texto="FOB unit." />
+            {conSoftrade && <><Col texto="CIF USD" /><Col texto="Kg netos" /></>}
+            <Col texto="Derechos pagados % FOB" /><Col texto="Alícuotas vigentes (nomenclador)" derecha={false} />
+            {conSoftrade && <><Col texto="Marca" derecha={false} /><Col texto="Cód. artículo" derecha={false} /><Col texto="Fecha" derecha={false} /></>}
           </tr></thead>
           <tbody>
             {filas.map((x) => (
@@ -80,10 +91,19 @@ export function Items({ datos, refs, csv }: { datos: Awaited<ReturnType<typeof i
                 <td className={TD}>{nombre(refs.transporte, x.transporte)}</td>
                 <td className={TDN}>{cant(x.cantidad)} {x.unidad ? <span className="text-[10px] text-[#5C6B76]">{nombre(refs.unidad, x.unidad)}</span> : null}</td>
                 <td className={TDN}>{usd(x.fob_item)}</td><td className={TDN}>{usd2(x.fob_unit)}</td>
-                <td className={TDN} title={detalleImpuestos(x.impuestos, refs)}>{usd(x.impuestos_total_usd)}</td>
+                {conSoftrade && <>
+                  <td className={TDN}>{x.usd_cif == null ? "" : usd(x.usd_cif)}</td><td className={TDN}>{x.kg_netos == null ? "" : cant(x.kg_netos)}</td>
+                </>}
+                <td className={TDN} title={x.derechos_pct_efectivo == null ? "Sin dato: el concepto de derechos todavía no está confirmado" : undefined}>
+                  {x.derechos_pct_efectivo == null ? "—" : `${cant(x.derechos_pct_efectivo)}%`}
+                </td>
+                <td className={TD}>
+                  {x.alic_variantes > 1
+                    ? <LinkNcm ncm={x.ncm} texto="varían según apertura" />
+                    : <Alicuotas alic={x.alic} nombres={alicNombres} />}
+                </td>
                 {conSoftrade && <>
                   <td className={TD}>{x.marcas?.join(", ") ?? ""}</td><td className={TD}>{x.codigos_articulo?.join(", ") ?? ""}</td>
-                  <td className={TDN}>{x.kg_netos == null ? "" : cant(x.kg_netos)}</td><td className={TDN}>{x.usd_cif == null ? "" : usd(x.usd_cif)}</td>
                   <td className={TD}>{x.fecha ?? ""}</td>
                 </>}
               </tr>
