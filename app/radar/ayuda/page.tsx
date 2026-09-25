@@ -89,7 +89,7 @@ export default function Ayuda() {
       <Seccion id="propias" titulo="✍ Buscar mis palabras y palabras seguidas">
         <p>Arriba de los rankings, en Tendencias, está <b>“Buscar mis palabras”</b>: escribís cualquier cosa (no hace falta que esté en las tendencias) y la buscás gratis o con Apify, igual que una palabra de la lista. Si estás dentro de una categoría, la búsqueda queda asociada a esa categoría; si estás en “Todo Mercado Libre”, queda suelta.</p>
         <p>Queda en el Historial con la marca <b>✍ palabra propia</b>.</p>
-        <p>Con la <b>★ al lado de la palabra</b> la seguís: aparece en “Mis categorías seguidas” → “Mis palabras seguidas”, y los días del proceso automático se vuelve a buscar sola con Apify (cuesta lo mismo que una búsqueda con Apify, dentro del tope semanal). Así ves cómo cambian su precio y sus vendidos con el tiempo.</p>
+        <p>Ojo: esa ★ es de la <b>palabra</b>, no de una categoría (dice “Seguir esta palabra”). Con ella la seguís: aparece en “Mis categorías seguidas” → “Mis palabras seguidas”, y los días del proceso automático se vuelve a buscar sola con Apify (cuesta lo mismo que una búsqueda con Apify, dentro del tope semanal). Así ves cómo cambian su precio y sus vendidos con el tiempo.</p>
       </Seccion>
 
       <Seccion id="automatico" titulo="Lo que corre solo (el proceso diario)">

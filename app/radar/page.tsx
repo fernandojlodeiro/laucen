@@ -95,7 +95,7 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
   const puedeGastar = await puede("radar_gastar");
 
   const cat = sp.cat?.trim() || SITIO;
-  const grupo: Grupo = sp.g && sp.g in GRUPOS ? (sp.g as Grupo) : "crecimiento";
+  const grupo: Grupo = sp.g && sp.g in GRUPOS ? (sp.g as Grupo) : "populares";
   const q = sp.q?.trim() ?? "";
   const url = (cambios: Partial<Params>) => {
     const u = new URLSearchParams();
@@ -216,7 +216,7 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
             <input type="hidden" name="cat" value={cat} />
             <input type="hidden" name="volver" value={url({})} />
             <span className="text-xs font-bold text-[#5C6B76]">✍ Buscar mis palabras</span>
-            <input name="palabra" required maxLength={120} placeholder={cat === SITIO ? "ej: maceta autorriego 30 cm" : `dentro de “${camino.at(-1)?.nombre ?? ""}”`}
+            <input name="palabra" required maxLength={120} defaultValue={esPropia ? palabraAbierta : undefined} placeholder={cat === SITIO ? "ej: maceta autorriego 30 cm" : `dentro de “${camino.at(-1)?.nombre ?? ""}”`}
               className="border border-[#E3E9F0] rounded-lg px-3 py-1.5 flex-1 min-w-[180px] text-sm" />
             <BotonEnviar clase={SUAVE} corriendo="Buscando…"><span>Ver publicaciones</span></BotonEnviar>
             {puedeGastar && (
@@ -262,15 +262,32 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
           {abierta && !abiertaEnLista && pubsAbiertas.length > 0 && (
             <div className="border border-[#E3E9F0] rounded-lg bg-white px-3 py-2 mb-2">
               <div className="flex flex-wrap items-center gap-2">
-                {esPropia && (
-                  <Estrella accion={accionSeguirPalabra} prendida={palabraSeguida}
-                    campos={{ palabra: pubsAbiertas[0].b.palabra, cat, volver: url({ abierta: pubsAbiertas[0].b.palabra, propia: "1" }) }} />
-                )}
                 <p className="text-sm font-semibold">“{pubsAbiertas[0].b.palabra}”</p>
                 <span className="text-xs text-[#5C6B76]">
-                  {esPropia ? `✍ palabra propia${palabraSeguida ? " · seguida: se vuelve a buscar con Apify los días del proceso" : " · ★ para seguirla"}` : "(esta semana no está en este grupo)"}
+                  {esPropia ? "✍ palabra propia" : "(esta semana no está en este grupo)"}
                 </span>
               </div>
+              {esPropia && (
+                <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
+                  {/* Estrella de la PALABRA (no de una categoría): la vuelve a buscar el proceso automático. */}
+                  <Estrella accion={accionSeguirPalabra} prendida={palabraSeguida}
+                    campos={{ palabra: pubsAbiertas[0].b.palabra, cat, volver: url({ abierta: pubsAbiertas[0].b.palabra, propia: "1" }) }} />
+                  <span className="text-[#5C6B76]">
+                    {palabraSeguida
+                      ? <>Seguís <b>esta palabra</b>{cat === SITIO ? " (en Todo Mercado Libre)" : ""}: los días del proceso se vuelve a buscar sola con Apify.</>
+                      : <>Seguir <b>esta palabra</b> (no la categoría): los días del proceso se vuelve a buscar sola con Apify.</>}
+                  </span>
+                  {puedeGastar && !yaTiene(pubsAbiertas[0].b.palabra, "apify") && (
+                    <form action={accionBuscarPropia} className="ml-auto">
+                      <input type="hidden" name="palabra" value={pubsAbiertas[0].b.palabra} />
+                      <input type="hidden" name="cat" value={cat} />
+                      <input type="hidden" name="modo" value="apify" />
+                      <input type="hidden" name="volver" value={url({})} />
+                      <BotonEnviar clase={VERDE} corriendo="Corriendo… ~1 min">Mejorar con Apify ~USD {fuente.costoPorPalabra.toFixed(2)}</BotonEnviar>
+                    </form>
+                  )}
+                </div>
+              )}
               {pubsAbiertas.map(({ b, pubs }) => <TablaPublicaciones key={b.id} b={b} pubs={pubs} />)}
             </div>
           )}
