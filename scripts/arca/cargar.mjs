@@ -18,7 +18,9 @@
 import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
+import { Transform } from "node:stream";
 import { createGunzip } from "node:zlib";
+import readline from "node:readline";
 import pg from "pg";
 import { from as copyFrom } from "pg-copy-streams";
 import { leerSoftrade } from "./softrade.mjs";
@@ -119,28 +121,42 @@ async function recalcularResumen(c, periodo) {
 // monto de impuestos se guarda. El concepto de derechos está en
 // parametros.mjs; si es null, la columna queda null.
 async function calcularDerechos(c, periodo, archivoImpuestos) {
-  // Entra todo como texto y se descartan las filas que no son datos (el .lst
-  // trae filas de encabezado repetidas en el medio, con "NUM_ITEM" en vez de
-  // un número).
-  await c.query("create temp table if not exists t_imp_txt (periodo text, destinacion text, num_item text, concepto text, monto text) on commit drop");
-  await c.query("create temp table if not exists t_imp (periodo char(6), destinacion text, num_item int, concepto text, monto numeric) on commit drop");
-  await c.query("truncate t_imp_txt; truncate t_imp");
-  const filasCrudas = await copiarCsv(c,
-    "copy t_imp_txt from stdin with (format csv, header true, force_not_null (concepto))", archivoImpuestos);
-  await c.query(`insert into t_imp select periodo, trim(destinacion), trim(num_item)::int, trim(concepto), nullif(trim(monto), '')::numeric
-                   from t_imp_txt where trim(num_item) ~ '^[0-9]+$'`);
-  const conceptos = (await c.query("select count(*)::int n from (select distinct destinacion, num_item, concepto from t_imp where concepto <> '') x")).rows[0].n;
+  // Se lee en la PC, en streaming: a la base sólo suben las filas del
+  // concepto de derechos (≈1 por ítem), no las 7,8 millones del mes (con eso
+  // la base se quedaba sin espacio temporal). Las filas de encabezado
+  // repetidas del .lst ("NUM_ITEM" en vez de un número) se saltean.
+  let filasCrudas = 0, conceptos = 0;
+  const derechos = [];
+  const lector = readline.createInterface({ input: createReadStream(archivoImpuestos).pipe(createGunzip()), crlfDelay: Infinity });
+  let primera = true;
+  for await (const linea of lector) {
+    if (primera) { primera = false; continue; }          // encabezado del CSV
+    if (!linea) continue;
+    filasCrudas++;
+    const [, destinacion, numItem, concepto, monto] = linea.split(",").map((x) => x.trim());
+    if (!/^[0-9]+$/.test(numItem ?? "")) continue;
+    if (concepto) conceptos++;
+    if (CONCEPTO_DERECHOS !== null && concepto === CONCEPTO_DERECHOS && monto) {
+      derechos.push({ d: destinacion, i: Number(numItem), m: Number(monto) });
+    }
+  }
   if (CONCEPTO_DERECHOS === null) {
     await c.query("update arca_impo_items set derechos_pct_efectivo = null where periodo = $1 and derechos_pct_efectivo is not null", [periodo]);
     return { filasCrudas, conceptos, conDerechos: 0 };
   }
   await c.query("update arca_impo_items set derechos_pct_efectivo = null where periodo = $1", [periodo]);
+  await c.query("create temp table if not exists t_der (destinacion text, num_item int, monto numeric) on commit drop");
+  await c.query("truncate t_der");
+  for (let k = 0; k < derechos.length; k += 20000) {
+    await c.query(`insert into t_der select * from jsonb_to_recordset($1::jsonb) as x(d text, i int, m numeric)`,
+      [JSON.stringify(derechos.slice(k, k + 20000))]);
+  }
   const r = await c.query(`
-    with d as (select destinacion, num_item, sum(monto) monto from t_imp where concepto = $2 group by 1, 2)
+    with d as (select destinacion, num_item, sum(monto) monto from t_der group by 1, 2)
     update arca_impo_items a
        set derechos_pct_efectivo = round(d.monto / nullif(a.fob_item, 0) * 100, 2)
       from d
-     where a.periodo = $1 and a.destinacion = d.destinacion and a.num_item = d.num_item`, [periodo, CONCEPTO_DERECHOS]);
+     where a.periodo = $1 and a.destinacion = d.destinacion and a.num_item = d.num_item`, [periodo]);
   return { filasCrudas, conceptos, conDerechos: r.rowCount };
 }
 
@@ -153,19 +169,39 @@ async function cargarMes(c, carpeta, periodo) {
   return enTransaccion(c, async () => {
     await c.query("select pg_advisory_xact_lock(7212002)");
     await c.query("set local work_mem = '256MB'");
-    // Todo como texto primero: así una fila de encabezado repetida en el .lst
-    // ("NUM_ITEM" en vez de un número) se descarta en vez de frenar la carga.
-    await c.query(`create temp table t_items_txt (${COLS_ITEM.split(", ").map((x) => `${x} text`).join(", ")}) on commit drop`);
-    const leidos = await copiarCsv(c,
-      `copy t_items_txt (${COLS_ITEM}) from stdin with (format csv, header true, force_not_null (${TEXTO_ITEM}))`, items);
+    // Las filas de encabezado repetidas del .lst ("NUM_ITEM" en vez de un
+    // número) se descartan en la PC, antes de subir: el 4º campo del CSV
+    // (num_item) tiene que ser un número. Los 3 primeros nunca traen comas.
     await c.query("create temp table t_items (like arca_impo_items) on commit drop");
-    const NUM = new Set(["num_item", "cantidad", "fob_item", "fob_total"]);
-    const pasados = await c.query(`
-      insert into t_items (${COLS_ITEM})
-      select ${COLS_ITEM.split(", ").map((x) => (x === "num_item" ? "trim(num_item)::int"
-        : NUM.has(x) ? `nullif(trim(${x}), '')::numeric` : x === "periodo" ? "periodo" : `trim(${x})`)).join(", ")}
-        from t_items_txt where trim(num_item) ~ '^[0-9]+$'`);
-    const descartados = leidos - pasados.rowCount;
+    let leidos = 0, descartados = 0, cabecera = true;
+    const filtro = new Transform({
+      transform(trozo, _enc, listo) {
+        this.resto = (this.resto ?? "") + trozo.toString("utf8");
+        const lineas = this.resto.split("\n");
+        this.resto = lineas.pop();
+        const salen = [];
+        for (const l of lineas) {
+          if (cabecera) { cabecera = false; continue; }
+          if (!l.trim()) continue;
+          leidos++;
+          if (/^[0-9]+$/.test((l.split(",", 4)[3] ?? "").trim())) salen.push(l);
+          else descartados++;
+        }
+        listo(null, salen.length ? salen.join("\n") + "\n" : "");
+      },
+      flush(listo) {
+        const l = this.resto ?? "";
+        if (l.trim() && !cabecera) {
+          leidos++;
+          if (/^[0-9]+$/.test((l.split(",", 4)[3] ?? "").trim())) return listo(null, l + "\n");
+          descartados++;
+        }
+        listo(null, "");
+      },
+    });
+    const destino = c.query(copyFrom(
+      `copy t_items (${COLS_ITEM}) from stdin with (format csv, force_not_null (${TEXTO_ITEM}))`));
+    await pipeline(createReadStream(items), createGunzip(), filtro, destino);
 
     // Recarga limpia del mes: lo viejo de ese período se va, entra lo nuevo.
     await c.query("delete from arca_impo_items where periodo = $1", [periodo]);
