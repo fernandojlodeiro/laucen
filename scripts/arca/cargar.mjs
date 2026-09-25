@@ -119,10 +119,16 @@ async function recalcularResumen(c, periodo) {
 // monto de impuestos se guarda. El concepto de derechos está en
 // parametros.mjs; si es null, la columna queda null.
 async function calcularDerechos(c, periodo, archivoImpuestos) {
+  // Entra todo como texto y se descartan las filas que no son datos (el .lst
+  // trae filas de encabezado repetidas en el medio, con "NUM_ITEM" en vez de
+  // un número).
+  await c.query("create temp table if not exists t_imp_txt (periodo text, destinacion text, num_item text, concepto text, monto text) on commit drop");
   await c.query("create temp table if not exists t_imp (periodo char(6), destinacion text, num_item int, concepto text, monto numeric) on commit drop");
-  await c.query("truncate t_imp");
+  await c.query("truncate t_imp_txt; truncate t_imp");
   const filasCrudas = await copiarCsv(c,
-    "copy t_imp from stdin with (format csv, header true, force_not_null (concepto))", archivoImpuestos);
+    "copy t_imp_txt from stdin with (format csv, header true, force_not_null (concepto))", archivoImpuestos);
+  await c.query(`insert into t_imp select periodo, trim(destinacion), trim(num_item)::int, trim(concepto), nullif(trim(monto), '')::numeric
+                   from t_imp_txt where trim(num_item) ~ '^[0-9]+$'`);
   const conceptos = (await c.query("select count(*)::int n from (select distinct destinacion, num_item, concepto from t_imp where concepto <> '') x")).rows[0].n;
   if (CONCEPTO_DERECHOS === null) {
     await c.query("update arca_impo_items set derechos_pct_efectivo = null where periodo = $1 and derechos_pct_efectivo is not null", [periodo]);
@@ -147,9 +153,19 @@ async function cargarMes(c, carpeta, periodo) {
   return enTransaccion(c, async () => {
     await c.query("select pg_advisory_xact_lock(7212002)");
     await c.query("set local work_mem = '256MB'");
-    await c.query("create temp table t_items (like arca_impo_items) on commit drop");
+    // Todo como texto primero: así una fila de encabezado repetida en el .lst
+    // ("NUM_ITEM" en vez de un número) se descarta en vez de frenar la carga.
+    await c.query(`create temp table t_items_txt (${COLS_ITEM.split(", ").map((x) => `${x} text`).join(", ")}) on commit drop`);
     const leidos = await copiarCsv(c,
-      `copy t_items (${COLS_ITEM}) from stdin with (format csv, header true, force_not_null (${TEXTO_ITEM}))`, items);
+      `copy t_items_txt (${COLS_ITEM}) from stdin with (format csv, header true, force_not_null (${TEXTO_ITEM}))`, items);
+    await c.query("create temp table t_items (like arca_impo_items) on commit drop");
+    const NUM = new Set(["num_item", "cantidad", "fob_item", "fob_total"]);
+    const pasados = await c.query(`
+      insert into t_items (${COLS_ITEM})
+      select ${COLS_ITEM.split(", ").map((x) => (x === "num_item" ? "trim(num_item)::int"
+        : NUM.has(x) ? `nullif(trim(${x}), '')::numeric` : x === "periodo" ? "periodo" : `trim(${x})`)).join(", ")}
+        from t_items_txt where trim(num_item) ~ '^[0-9]+$'`);
+    const descartados = leidos - pasados.rowCount;
 
     // Recarga limpia del mes: lo viejo de ese período se va, entra lo nuevo.
     await c.query("delete from arca_impo_items where periodo = $1", [periodo]);
@@ -167,7 +183,8 @@ async function cargarMes(c, carpeta, periodo) {
       on conflict (periodo) do update set cargado_en = now(), filas_crudas = excluded.filas_crudas,
         items = excluded.items, filas_impuestos = excluded.filas_impuestos`,
       [periodo, d.filasCrudas, ins.rowCount, d.conceptos]);
-    console.log(`${periodo}: filas_crudas=${d.filasCrudas} items=${ins.rowCount} (csv ${leidos}) ` +
+    console.log(`${periodo}: filas_crudas=${d.filasCrudas} items=${ins.rowCount} (csv ${leidos}` +
+      (descartados ? `, ${descartados} fila(s) de encabezado descartada(s)` : "") + ") " +
       `derechos=${CONCEPTO_DERECHOS ?? "sin definir (derechos_pct_efectivo queda null)"}` +
       (CONCEPTO_DERECHOS ? ` items_con_derechos=${d.conDerechos}` : "") +
       ` (${Math.round((Date.now() - t0) / 1000)} s)`);
@@ -333,9 +350,17 @@ async function verificar(c) {
 
   const a = await uno(`select count(*) items, count(distinct destinacion) despachos, count(distinct importador) importadores
                          from arca_impo_items where periodo = '202608'`);
-  chequeo("202608 ítems", a.items, 530186);
-  chequeo("202608 despachos", a.despachos, 64863);
-  chequeo("202608 importadores", a.importadores, 12089);
+  // La orden contó con el script de Cowork, que dejaba pasar la fila de
+  // encabezado repetida del .lst ("DESTINACION", "NUM_ITEM", "NOMBRE_IMPORTADOR")
+  // como si fuera un ítem, un despacho y un importador más. La carga la
+  // descarta: exactamente uno menos es lo esperable.
+  const conEncabezado = (texto, real, esperado) => {
+    if (Number(real) === esperado - 1) console.log(`OK*  ${texto}: ${real} (la orden dice ${esperado}, contando la fila de encabezado del .lst)`);
+    else chequeo(texto, real, esperado);
+  };
+  conEncabezado("202608 ítems", a.items, 530186);
+  conEncabezado("202608 despachos", a.despachos, 64863);
+  conEncabezado("202608 importadores", a.importadores, 12089);
   const b = await uno(`select count(*) items, count(distinct importador) importadores from arca_impo_items
                         where periodo = '202608' and ncm = '8516.29.00' and pais_origen = '310'`);
   chequeo("8516.29.00 China ítems", b.items, 10);
