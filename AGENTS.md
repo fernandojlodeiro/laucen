@@ -30,6 +30,16 @@ para mirarlos es la parte final, no la primera.
 - **Cron**: `vercel.json` llama `/api/radar/cron` todos los días a las 11:00 UTC (8:00 AR); qué
   corre lo decide la configuración de cada organización. Si se carga `CRON_SECRET` en Vercel, se
   exige; sin ella la ruta es pública pero inofensiva (no repite nada de la semana, tope de gasto).
+- **Importaciones** (`/importaciones`, botón "🚢 Importaciones" en el panel): despachos de
+  importación argentinos de ARCA (2017 en adelante, todos los países) + enriquecimiento con los
+  Excel de Softrade. Orden completa en `docs/orden-arca-importaciones.md`. Tablas en
+  `db/arca.sql` (se crean solas igual que las del Radar, vía `lib/arca/esquema.ts`). Pestañas
+  Buscar (filtros + importadores/NCM/países/serie/ítems + CSV), Descubrir (NCM que crecen,
+  importadores nuevos, nichos, marítimo/aéreo), Rubros, Cargas; fichas de NCM e importador.
+  **Los datos NO se cargan desde la nube**: los ZIP y Excel están en la PC de Fer
+  (`C:\Laucen\...`) y se cargan con `scripts/arca/` desde una sesión local — paso a paso en
+  `scripts/arca/LEEME.md`. El panel usa los resúmenes `agg_*` salvo filtros finos (procedencia,
+  aduana, FOB unitario, cantidad, marca), que van a la tabla grande.
 - **Falta**: la búsqueda en China (Alibaba/1688) y el cruce con Mercado Libre.
 
 ## Infraestructura (ya creada y andando — no preguntar, no rehacer)

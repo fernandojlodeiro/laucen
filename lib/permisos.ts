@@ -15,7 +15,9 @@ export type PermisoKey =
   | "gestionar_equipo"
   | "radar_ver"
   | "radar_gastar"
-  | "radar_configurar";
+  | "radar_configurar"
+  | "importaciones_ver"
+  | "importaciones_rubros";
 
 export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "gestionar_busquedas", label: "Gestionar búsquedas", ayuda: "Crear, editar y pausar las búsquedas programadas." },
@@ -25,6 +27,8 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "radar_ver", label: "Ver el Radar", ayuda: "Tendencias de Mercado Libre, categorías seguidas y publicaciones ya traídas." },
   { key: "radar_gastar", label: "Gastar en el Radar", ayuda: "Pedir búsquedas pagas (Apify) y prender \"profundizar\" en una categoría." },
   { key: "radar_configurar", label: "Configurar el Radar", ayuda: "Tope de gasto, frecuencia de los procesos automáticos y demás parámetros." },
+  { key: "importaciones_ver", label: "Ver Importaciones", ayuda: "Buscador y consultas sobre los despachos de importación (ARCA + Softrade)." },
+  { key: "importaciones_rubros", label: "Armar rubros", ayuda: "Crear, editar y borrar los rubros guardados (grupos de NCM)." },
 ];
 
 export type Permisos = Partial<Record<PermisoKey, boolean>>;
