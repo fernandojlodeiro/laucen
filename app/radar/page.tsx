@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { radarSeguidas } from "@/db/radar";
 import { sesionRequerida, puede } from "@/lib/tenancy";
 import { asegurarEsquema } from "@/lib/radar/esquema";
-import { GRUPOS, GRUPOS_CONFIRMADOS, SITIO, fechaCorta, semanaDe, type Grupo } from "@/lib/radar/base";
+import { FUENTE_GRUPOS, GRUPOS, GRUPOS_CONFIRMADOS, SITIO, fechaCorta, semanaDe, type Grupo } from "@/lib/radar/base";
 import { buscarCategorias, caminoDe, hijasDe, type Categoria } from "@/lib/radar/categorias";
 import { comparar, lecturaAnterior, lecturaDeLaSemana, palabrasDe, type Cambio } from "@/lib/radar/tendencias";
 import { busquedasDeLaSemana, publicacionesDe, sirve, type Busqueda, type Publicacion } from "@/lib/radar/busquedas";
@@ -208,10 +208,25 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
         <section>
           <nav className="flex gap-1 border-b border-[#E3E9F0] mb-2">
             {(Object.keys(GRUPOS) as Grupo[]).map((g) => (
-              <Link key={g} href={url({ g })} title={GRUPOS[g].ayuda}
-                className={`px-3 py-2 text-xs font-bold -mb-px border-b-2 ${g === grupo ? "border-[#16577F] text-[#16577F]" : "border-transparent text-[#5C6B76]"}`}>
-                {GRUPOS[g].label} <span className="font-normal text-[#9AA7B3]">({actuales.filter((p) => p.grupo === g).length})</span>
-              </Link>
+              <span key={g} className="flex items-center -mb-px">
+                <Link href={url({ g })}
+                  className={`pl-3 pr-1 py-2 text-xs font-bold border-b-2 ${g === grupo ? "border-[#16577F] text-[#16577F]" : "border-transparent text-[#5C6B76]"}`}>
+                  {GRUPOS[g].label} <span className="font-normal text-[#9AA7B3]">({actuales.filter((p) => p.grupo === g).length})</span>
+                </Link>
+                {/* Globo con la regla del ranking: al pasar el mouse o al tocar la "i". */}
+                <span className="relative group mr-2">
+                  <button type="button" aria-label={`Cómo se arma “${GRUPOS[g].label}”`}
+                    className="w-4 h-4 rounded-full border border-[#9AA7B3] text-[10px] leading-none text-[#5C6B76] bg-white">i</button>
+                  <span role="tooltip"
+                    className="invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition absolute z-20 left-1/2 -translate-x-1/2 top-6 w-72 rounded-lg border border-[#E3E9F0] bg-white shadow-lg p-3 text-[11px] text-[#1F2A33] font-normal">
+                    <b className="block text-xs mb-1">{GRUPOS[g].label}</b>
+                    <ul className="list-disc pl-4 grid gap-1">
+                      {GRUPOS[g].regla.map((r) => <li key={r}>{r}</li>)}
+                    </ul>
+                    <span className="block mt-2 text-[10px] text-[#9AA7B3]">{FUENTE_GRUPOS}</span>
+                  </span>
+                </span>
+              </span>
             ))}
           </nav>
           <p className="text-[11px] text-[#5C6B76] mb-2">

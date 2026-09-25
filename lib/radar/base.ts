@@ -34,12 +34,22 @@ export function fechaCorta(iso: string | Date): string {
 // 20 siguientes = más deseadas, 20 últimas = más populares. Puede venir menos
 // de 50: los tramos se cuentan igual por posición.
 export const GRUPOS = {
-  crecimiento: { label: "Crecimiento", ayuda: "Productos con el mayor aumento de ingresos (ventas en $) de la última semana." },
-  buscadas: { label: "Más buscadas", ayuda: "Productos con mayor volumen de búsquedas de la última semana." },
-  populares: { label: "Populares", ayuda: "Las tendencias más populares de la semana: las que más subieron en búsquedas contra dos semanas atrás." },
+  crecimiento: {
+    label: "Crecimiento", ayuda: "Productos con el mayor aumento de ingresos (ventas en $) de la última semana.",
+    regla: ["Posiciones 1 a 10 de la lista de Mercado Libre.", "Mide INGRESOS, no búsquedas: los productos cuya facturación (ventas en $) más creció en la última semana.", "Sirve para ver qué se está vendiendo cada vez más, aunque todavía no sea masivo."],
+  },
+  buscadas: {
+    label: "Más buscadas", ayuda: "Productos con mayor volumen de búsquedas de la última semana.",
+    regla: ["Posiciones 11 a 30.", "Mide BÚSQUEDAS: lo que más gente buscó en la última semana, en cantidad absoluta.", "Son los clásicos de siempre: mucho volumen y, en general, mucha competencia."],
+  },
+  populares: {
+    label: "Populares", ayuda: "Las tendencias más populares de la semana: las que más subieron en búsquedas contra dos semanas atrás.",
+    regla: ["Posiciones 31 a 50.", "Mide el AUMENTO de búsquedas: lo que más subió en la última semana comparado con dos semanas atrás.", "Sirve para detectar lo que está empezando a pegar (temporada, moda, un evento)."],
+  },
 } as const;
 export type Grupo = keyof typeof GRUPOS;
 export const GRUPOS_CONFIRMADOS = true;
+export const FUENTE_GRUPOS = "Documentación oficial de Mercado Libre (developers → Tendencias). La lista trae hasta 50 palabras y se actualiza una vez por semana.";
 
 export function grupoDe(posicion: number): Grupo {
   if (posicion <= 10) return "crecimiento";
