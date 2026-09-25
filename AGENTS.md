@@ -152,10 +152,28 @@ cambie, Fer lo va a decir explícitamente.
 - **Bitácora y para probar**: Supabase, proyecto `laucen` (ref `pcltuzztybiovhuaheek`), esquema
   `coordinacion` (`db/coordinacion.sql`). En la app: `/admin/bitacora` y `/admin/para-probar`.
   Autores: `fer`, `code`, `cowork`; Cowork escribe como `cowork`, Code como `code`.
+- **La bitácora es el vínculo de coordinación entre Fer y las sesiones de Code y de Cowork.**
+  **Toda sesión lee las entradas nuevas de la bitácora antes de empezar.**
 - **Un tema = un hilo.** La entrada raíz lleva tipo `orden` o `pregunta` y
-  `pide_lectura = true`; las respuestas llevan `responde_a` = id de la raíz. Un hilo se cierra
-  cuando alguien escribe "Tema cerrado". **Toda sesión lee las entradas nuevas de la bitácora
-  antes de empezar.**
+  `pide_lectura = true`; las respuestas llevan `responde_a` = id de la raíz.
+- **Anotar sin esperar respuesta**: si una sesión hizo algo que no necesita respuesta de nadie,
+  lo anota y listo. Sin seguimiento.
+- **Pedidos de una sesión a otra** (Cowork → Code o Code → Cowork): el título lo dice de entrada,
+  "Para Code: …" o "Para Cowork: …". Enseguida de anotarlo, **quien pidió programa una revisión
+  de la bitácora** para dentro de 5 a 60 minutos (a su criterio, según lo que tarde la tarea),
+  para ver si ya está hecho y si hay alguna repregunta.
+- **El seguimiento no se corta hasta que el tema se cierra**: en cada revisión, si el tema sigue
+  abierto, se programa la próxima. Sin novedades, se repite cada 60 minutos. Si pasan **24 horas
+  desde la última respuesta en el hilo** sin nada nuevo, se deja de revisar; y antes de parar,
+  la sesión que pidió le escribe a Fer **en el chat de esa sesión**: "Fer, el tema '…' (#id)
+  quedó colgado".
+- **Cierre**: un tema entre sesiones se cierra cuando **las dos partes** escribieron "Tema
+  cerrado"; con una sola no alcanza. **Fer puede cerrarlo solo**: si Fer escribe "Tema cerrado",
+  se terminó — nadie programa más revisiones y se cancelan las que haya.
+- **Si Fer interviene** y le dice a la sesión que pidió "fijate, ya está", esa sesión cancela la
+  revisión programada, lee la bitácora y responde igual.
+- Si una sesión no tiene cómo programar revisiones, lo anota en el hilo ("no puedo hacer el
+  seguimiento") y Fer decide.
 - **Tomar una tarea: primero se avisa, después se hace.** Fer suele tener varias sesiones de
   Code y de Cowork abiertas a la vez. Para que dos no hagan lo mismo:
   1. Antes de tomar una orden de la bitácora, leer su hilo entero: si alguien ya escribió
@@ -177,9 +195,6 @@ cambie, Fer lo va a decir explícitamente.
 - **"Para probar"**: una fila por cada cosa distinta que haya que probar, con qué abrir, qué
   hacer y qué tiene que pasar, en pocas frases. Se inserta en el mismo paso que el push. El
   arreglo de algo que falló no es una fila nueva: es una vuelta colgada de la misma fila.
-- **Cowork revisa la bitácora con una tarea programada** (entre 5 y 60 minutos según el tema)
-  hasta que el hilo se cierra; si Fer avisa que lo vio, Cowork cancela la tarea y responde
-  igual.
 - **Archivos que Cowork le manda a Code**: `NNN-laucen-<tema>.md`, numeración correlativa
   compartida con CadaMes; antes de asignar un número se mira el último usado.
 - **Softrade**: plataforma de datos de aduana a la que Fer accede con la cuenta de un amigo
