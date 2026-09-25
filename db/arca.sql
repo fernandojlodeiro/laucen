@@ -55,6 +55,9 @@ create table if not exists arca_cargas (
   filas_impuestos bigint
 );
 alter table arca_cargas enable row level security;
+-- Filas del CSV de ítems que no eran datos (encabezados repetidos en el .lst)
+-- y la carga descartó: `verificar` las descuenta de las cifras de la orden.
+alter table arca_cargas add column if not exists items_descartados int;
 
 -- ── Tablas de referencia ──────────────────────────────────
 -- Nunca se inventan nombres: lo que no se sabe queda con nombre null y el

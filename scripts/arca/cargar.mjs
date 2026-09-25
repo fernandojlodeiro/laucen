@@ -220,11 +220,11 @@ async function cargarMes(c, carpeta, periodo) {
     await recalcularResumen(c, periodo);
     paso("confirmando");
     await c.query(`
-      insert into arca_cargas (periodo, cargado_en, filas_crudas, items, filas_impuestos)
-      values ($1, now(), $2, $3, $4)
+      insert into arca_cargas (periodo, cargado_en, filas_crudas, items, filas_impuestos, items_descartados)
+      values ($1, now(), $2, $3, $4, $5)
       on conflict (periodo) do update set cargado_en = now(), filas_crudas = excluded.filas_crudas,
-        items = excluded.items, filas_impuestos = excluded.filas_impuestos`,
-      [periodo, d.filasCrudas, ins.rowCount, d.conceptos]);
+        items = excluded.items, filas_impuestos = excluded.filas_impuestos, items_descartados = excluded.items_descartados`,
+      [periodo, d.filasCrudas, ins.rowCount, d.conceptos, descartados]);
     console.log(`${periodo}: filas_crudas=${d.filasCrudas} items=${ins.rowCount} (csv ${leidos}` +
       (descartados ? `, ${descartados} fila(s) de encabezado descartada(s)` : "") + ") " +
       `derechos=${CONCEPTO_DERECHOS ?? "sin definir (derechos_pct_efectivo queda null)"}` +
@@ -396,9 +396,11 @@ async function verificar(c) {
   // encabezado repetida del .lst ("DESTINACION", "NUM_ITEM", "NOMBRE_IMPORTADOR")
   // como si fuera un ítem, un despacho y un importador más. La carga la
   // descarta: exactamente uno menos es lo esperable.
+  const desc = Number((await uno("select coalesce(items_descartados, 0) n from arca_cargas where periodo = '202608'"))?.n ?? 0);
   const conEncabezado = (texto, real, esperado) => {
-    if (Number(real) === esperado - 1) console.log(`OK*  ${texto}: ${real} (la orden dice ${esperado}, contando la fila de encabezado del .lst)`);
-    else chequeo(texto, real, esperado);
+    if (desc > 0 && Number(real) === esperado - desc) {
+      console.log(`OK*  ${texto}: ${real} (la orden dice ${esperado}; la diferencia son las ${desc} fila(s) de encabezado del .lst que la carga descartó)`);
+    } else chequeo(texto, real, esperado);
   };
   conEncabezado("202608 ítems", a.items, 530186);
   conEncabezado("202608 despachos", a.despachos, 64863);
