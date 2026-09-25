@@ -195,6 +195,7 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
           </ul>
           {cat !== SITIO && (
             <div className="border-t border-[#E3E9F0] mt-2 pt-2 grid gap-2">
+              <Link href="/radar/ayuda#seguir" className="text-[11px] text-[#16577F] underline">¿Qué hace seguir y profundizar?</Link>
               <Interruptor accion={accionSeguir} prendido={!!estaSeguida} etiqueta="Seguir esta categoría"
                 campos={{ cat, volver: aqui }} />
               <Interruptor accion={accionProfundizar} prendido={!!estaSeguida?.profundizar} etiqueta="Profundizar automático"

@@ -17,6 +17,7 @@ export default function RadarLayout({ children }: { children: React.ReactNode })
         { href: "/radar/seguidas", texto: "Mis categorías seguidas" },
         { href: "/radar/historial", texto: "Historial" },
         { href: "/radar/configuracion", texto: "Configuración" },
+        { href: "/radar/ayuda", texto: "Ayuda" },
       ]} />
       {children}
     </main>

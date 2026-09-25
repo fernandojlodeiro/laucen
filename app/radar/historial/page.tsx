@@ -5,7 +5,11 @@ import { GRUPOS, ZONA, type Grupo } from "@/lib/radar/base";
 import { historial, type FilaHistorial } from "@/lib/radar/historial";
 import { actualizarCostos } from "@/lib/radar/busquedas";
 import { PRIMARIO } from "@/app/botones";
-import { Aviso, InterruptorFiltro } from "../Piezas";
+import { Aviso, Estrella, InterruptorFiltro } from "../Piezas";
+import { accionSeguir } from "../actions";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { radarSeguidas } from "@/db/radar";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +18,7 @@ export const dynamic = "force-dynamic";
 // categoría completa; al tocarla vuelve a Tendencias con esa búsqueda abierta.
 
 const dia = (d: Date) => d.toLocaleDateString("es-AR", { timeZone: ZONA, weekday: "long", day: "2-digit", month: "2-digit" });
-const hora = (d: Date) => d.toLocaleTimeString("es-AR", { timeZone: ZONA, hour: "2-digit", minute: "2-digit" });
+const hora = (d: Date) => d.toLocaleTimeString("es-AR", { timeZone: ZONA, hour: "2-digit", minute: "2-digit", hour12: false });
 
 function destino(f: FilaHistorial) {
   const u = new URLSearchParams();
@@ -38,7 +42,10 @@ export default async function Historial({ searchParams }: { searchParams: Promis
   // Apify asienta el costo después de terminar: se trae el final antes de mostrar.
   await actualizarCostos().catch(() => 0);
   const filas = await historial(sesion.org.id, { automaticas, texto: q });
+  const seguidas = new Set((await db.select({ c: radarSeguidas.categoriaId }).from(radarSeguidas)
+    .where(eq(radarSeguidas.organizacionId, sesion.org.id))).map((x) => x.c));
 
+  const aqui = `/radar/historial${q || !automaticas ? "?" + new URLSearchParams({ ...(q ? { q } : {}), ...(!automaticas ? { auto: "0" } : {}) }) : ""}`;
   const conAuto = (valor: boolean) => {
     const u = new URLSearchParams();
     if (q) u.set("q", q);
@@ -75,9 +82,15 @@ export default async function Historial({ searchParams }: { searchParams: Promis
           <h2 className="text-xs font-bold text-[#5C6B76] mb-1 capitalize">{d}</h2>
           <ol className="grid gap-1">
             {lista.map((f) => (
-              <li key={f.id}>
-                <Link href={destino(f)} className="flex gap-3 items-start border border-[#E3E9F0] rounded-lg bg-white px-3 py-2 hover:bg-[#F5F8FB]">
-                  <span className="text-xs text-[#5C6B76] w-11 shrink-0 pt-0.5">{hora(f.pedida_el)}</span>
+              <li key={f.id} className="flex items-stretch gap-1">
+                {/* Estrella: seguir la categoría de esta búsqueda desde acá. */}
+                <span className="flex items-center border border-[#E3E9F0] rounded-lg bg-white px-1.5">
+                  {f.categoria_id
+                    ? <Estrella accion={accionSeguir} prendida={seguidas.has(f.categoria_id)} campos={{ cat: f.categoria_id, volver: aqui }} />
+                    : <span className="text-base leading-none px-1 text-[#E3E9F0]" title="Todo Mercado Libre: no se sigue">☆</span>}
+                </span>
+                <Link href={destino(f)} className="flex-1 min-w-0 flex gap-3 items-start border border-[#E3E9F0] rounded-lg bg-white px-3 py-2 hover:bg-[#F5F8FB]">
+                  <span className="text-xs text-[#5C6B76] shrink-0 whitespace-nowrap tabular-nums pt-0.5">{hora(f.pedida_el)}</span>
                   <span className="flex-1 min-w-0">
                     <span className="block text-[11px] text-[#5C6B76] truncate">Todo Mercado Libre{f.ruta ? ` › ${f.ruta}` : ""}</span>
                     <span className="block text-sm">
