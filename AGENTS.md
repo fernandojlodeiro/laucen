@@ -1,7 +1,8 @@
 # Laucen — convenciones para toda sesión (Code y Cowork)
 
-**Este archivo es de convenciones generales. Un detalle de un módulo va en su doc de `docs/` o
-en la bitácora, nunca acá.**
+**Este archivo es de convenciones generales. Un detalle de un módulo va en la bitácora, nunca
+acá.** Tampoco en un documento aparte del repo: Cowork no ve el repo, y lo que no está en la
+bitácora no lo sabe (ver "Coordinación entre sesiones").
 
 Existe para que no le preguntes a Fer cosas que ya se saben. Leelo entero antes de preguntar
 nada. Sólo preguntale lo que es específico de la tarea: qué sitios de China buscar, con qué
@@ -19,12 +20,12 @@ checkboxes— por si más adelante hay más de una organización usándolo. La b
 que dispara búsquedas periódicas y guarda resultados; el panel para mirarlos es la parte final,
 no la primera.
 
-## Módulos (una línea cada uno; el detalle, en su doc)
+## Módulos (una línea cada uno; el detalle, en la bitácora)
 
-- **Radar** (`/radar`): tendencias de Mercado Libre. → `docs/radar.md`
+- **Radar** (`/radar`): tendencias de Mercado Libre.
 - **Importaciones** (`/importaciones`): despachos de importación argentinos de ARCA +
-  enriquecimiento con Softrade. → `docs/orden-arca-importaciones.md`, carga en
-  `scripts/arca/LEEME.md`
+  enriquecimiento con Softrade. La orden original de Cowork está en
+  `docs/orden-arca-importaciones.md`; los pasos de carga para Code, en `scripts/arca/LEEME.md`.
 - **Coordinación** (`/admin/bitacora`, `/admin/para-probar`): bitácora y "para probar", sólo
   Fer. → sección "Coordinación entre sesiones" de este archivo
 - **Falta**: la búsqueda en China (Alibaba/1688) y el cruce con Mercado Libre.
@@ -150,8 +151,14 @@ cambie, Fer lo va a decir explícitamente.
   `pide_lectura = true`; las respuestas llevan `responde_a` = id de la raíz. Un hilo se cierra
   cuando alguien escribe "Tema cerrado". **Toda sesión lee las entradas nuevas de la bitácora
   antes de empezar.**
-- Qué va en la bitácora: un tema nuevo o un hueco que quedó abierto — no un parte de trabajo con
-  la lista de archivos tocados ni las pruebas que pasaron (eso ya está en el commit).
+- **Todo lo nuevo se anota en la bitácora, aunque nadie lo haya pedido.** Cada cosa que una
+  sesión hace, decide o descubre (una función nueva, un cambio de criterio, un detalle de cómo
+  anda un módulo, un hueco que queda abierto) va a la bitácora: qué es, para qué, y qué queda
+  pendiente. Así Fer, Code, Cowork y las sesiones futuras están todos al tanto y se arma el ida
+  y vuelta solo. La bitácora es la memoria compartida del proyecto: lo que no está ahí, para
+  Cowork no existe.
+- Lo que NO va: el parte de trabajo con la lista de archivos tocados y las pruebas que pasaron
+  (eso ya está en el commit).
 - **"Para probar"**: una fila por cada cosa distinta que haya que probar, con qué abrir, qué
   hacer y qué tiene que pasar, en pocas frases. Se inserta en el mismo paso que el push. El
   arreglo de algo que falló no es una fila nueva: es una vuelta colgada de la misma fila.
