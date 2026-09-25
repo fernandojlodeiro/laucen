@@ -5,11 +5,16 @@
 import Link from "next/link";
 import { sesionRequerida } from "@/lib/tenancy";
 import { tienePermiso } from "@/lib/permisos";
+import { asegurarEsquemaArca } from "@/lib/arca/esquema";
 import { sosVos } from "@/lib/admin";
 import { accionLogout } from "@/app/auth-actions";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 
 export default async function Panel() {
+  // Antes de leer los permisos: db/arca.sql es el que le da "Ver
+  // Importaciones" al Admin, y sin eso el botón no aparece nunca. Si falla,
+  // el panel igual se dibuja (sin el botón).
+  await asegurarEsquemaArca().catch((e) => console.error("esquema de importaciones", e));
   const sesion = await sesionRequerida();
   const esAdmin = await sosVos();
 
