@@ -5,12 +5,12 @@ import { asegurarEsquema } from "@/lib/radar/esquema";
 import { ZONA, fechaCorta, semanaDe } from "@/lib/radar/base";
 import { FUENTES_APIFY, configDe } from "@/lib/radar/config";
 import { estadoDelArbol } from "@/lib/radar/categorias";
-import { ultimosProcesos } from "@/lib/radar/procesos";
+import { situacionDelArbol, ultimosProcesos } from "@/lib/radar/procesos";
 import { cuentaDe } from "@/lib/meli";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { accionCorrerAhora, accionGuardarConfig } from "../actions";
 import { Aviso } from "../Piezas";
-import { BotonEnviar } from "../Cliente";
+import { BotonConfirmar, BotonEnviar } from "../Cliente";
 
 export const dynamic = "force-dynamic";
 // "Correr ahora" espera al proceso (hasta ~4 min).
@@ -54,9 +54,11 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
   if (!(await puede("radar_ver"))) return <Aviso tipo="error">No tenés permiso para ver el Radar.</Aviso>;
   const puedeConfigurar = await puede("radar_configurar");
 
-  const [c, arbol, procesos, cuenta, esFer] = await Promise.all([
+  const [c, arbol, procesos, cuenta, esFer, situacion] = await Promise.all([
     configDe(sesion.org.id), estadoDelArbol(), ultimosProcesos(sesion.org.id, 12), cuentaDe(sesion.org.id), sosVos(),
+    situacionDelArbol(),
   ]);
+  const arbolCompleto = arbol.total > 0 && arbol.pendientes === 0;
 
   return (
     <div className="grid gap-6">
@@ -111,21 +113,36 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
         <h2 className="text-sm font-bold mb-1">Procesos</h2>
         <p className="text-xs text-[#5C6B76] mb-3">
           El disparador corre todos los días a las 8:00 y hace lo que toque según lo de arriba.
-          Árbol cargado: <b>{arbol.total.toLocaleString("es-AR")}</b> categorías
-          {arbol.pendientes > 0 && <>, faltan leer <b>{arbol.pendientes.toLocaleString("es-AR")}</b></>}.
         </p>
+        {arbolCompleto ? (
+          <Aviso tipo="ok">
+            ✅ Árbol completo: <b>{arbol.total.toLocaleString("es-AR")}</b> categorías
+            {situacion.completoEl && <>, al {fechaCorta(situacion.completoEl)}</>}.
+            {situacion.refrescando && <> Se está releyendo{situacion.faltan != null && <> (faltan {situacion.faltan.toLocaleString("es-AR")})</>}; mientras tanto se usa el que está.</>}
+          </Aviso>
+        ) : (
+          <Aviso tipo="info">
+            {arbol.total === 0
+              ? "El árbol de categorías todavía no se cargó."
+              : <>Cargando el árbol: van <b>{arbol.total.toLocaleString("es-AR")}</b> categorías, faltan leer <b>{arbol.pendientes.toLocaleString("es-AR")}</b> (el total crece a medida que aparecen subcategorías).</>}
+          </Aviso>
+        )}
         {puedeConfigurar && (
           <div className="flex flex-wrap gap-2 mb-4">
             <form action={accionCorrerAhora}>
               <input type="hidden" name="tipo" value="tendencias" />
               <BotonEnviar clase={VERDE} corriendo="Corriendo…">Leer tendencias ahora</BotonEnviar>
             </form>
-            <form action={accionCorrerAhora}>
-              <input type="hidden" name="tipo" value="arbol" />
-              <BotonEnviar clase={SUAVE} corriendo="Cargando… (hasta 4 min)">
-                {arbol.total === 0 || arbol.pendientes > 0 ? "Seguir cargando el árbol" : "Releer el árbol ahora"}
-              </BotonEnviar>
-            </form>
+            {arbolCompleto ? (
+              <BotonConfirmar accion={accionCorrerAhora} campos={{ tipo: "arbol" }} clase={SUAVE} texto="Releer el árbol ahora"
+                pregunta={`¿Releer las ${arbol.total.toLocaleString("es-AR")} categorías? Casi nunca hace falta.`}
+                corriendo="Releyendo… (hasta 4 min)" />
+            ) : (
+              <form action={accionCorrerAhora}>
+                <input type="hidden" name="tipo" value="arbol" />
+                <BotonEnviar clase={SUAVE} corriendo="Cargando… (hasta 4 min)">Seguir cargando el árbol</BotonEnviar>
+              </form>
+            )}
           </div>
         )}
         <h3 className="text-xs font-bold text-[#5C6B76] mb-1">Últimas corridas</h3>
