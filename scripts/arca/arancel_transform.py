@@ -36,11 +36,21 @@ def leer(z, prefijo):
 
 
 def vigencia_de(nombre):
-    """nomenclador_20260925.txt -> '2026-09-25' (la fecha de vigencia de esta versión)."""
-    m = re.search(r"(\d{4})(\d{2})(\d{2})", nombre)
+    """Fecha de vigencia desde el nombre: nomenclador_25092026.txt (DDMMAAAA, como
+    viene hoy de ARCA) o nomenclador_20260925.txt (AAAAMMDD) -> '2026-09-25'."""
+    import datetime
+    m = re.search(r"(\d{8})", nombre)
     if not m:
-        raise SystemExit(f"{nombre}: no trae la fecha AAAAMMDD en el nombre")
-    return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+        raise SystemExit(f"{nombre}: no trae la fecha (8 números) en el nombre")
+    d = m.group(1)
+    for anio, mes, dia in ((d[4:], d[2:4], d[:2]), (d[:4], d[4:6], d[6:])):
+        try:
+            f = datetime.date(int(anio), int(mes), int(dia))
+        except ValueError:
+            continue
+        if 2000 <= f.year <= 2100:
+            return f.isoformat()
+    raise SystemExit(f"{nombre}: no entiendo la fecha {d}")
 
 
 def tipo_de(codigo):
