@@ -48,13 +48,22 @@ function TablaPublicaciones({ b, pubs }: { b: Busqueda; pubs: Publicacion[] }) {
       {pubs.length > 0 && (
         <table className="w-full text-xs">
           <thead className="text-[#5C6B76] text-left">
-            <tr><th className="px-3 py-1">#</th><th className="py-1">Publicación</th><th className="py-1 text-right">Precio</th>
+            <tr><th className="px-3 py-1">#</th><th className="py-1 pr-2">Foto</th><th className="py-1">Publicación</th><th className="py-1 text-right">Precio</th>
               {esApify && <th className="py-1 text-right px-2">Vendidos</th>}<th className="py-1 px-2">Vendedor</th></tr>
           </thead>
           <tbody>
             {pubs.slice(0, esApify ? 10 : 10).map((p) => (
               <tr key={p.posicion} className="border-t border-[#E3E9F0] align-top">
                 <td className="px-3 py-1 text-[#9AA7B3]">{p.posicion < 1000 ? p.posicion : ""}</td>
+                <td className="py-1 pr-2">
+                  {p.foto ? (
+                    <a href={p.url ?? p.foto} target="_blank" rel="noreferrer">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- foto externa de ML, miniatura */}
+                      <img src={p.foto} alt="" loading="lazy" referrerPolicy="no-referrer"
+                        className="w-14 h-14 object-contain rounded border border-[#E3E9F0] bg-white" />
+                    </a>
+                  ) : <span className="inline-block w-14 h-14 rounded border border-dashed border-[#E3E9F0]" />}
+                </td>
                 <td className="py-1">
                   {p.url ? <a href={p.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{p.titulo}</a> : p.titulo}
                   {p.stockTexto && <span className="text-[#5C6B76]"> · {p.stockTexto}</span>}
