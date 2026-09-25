@@ -111,6 +111,16 @@ Editar y borrar en una lista o tabla:
 - En una grilla o tabla, la edición pasa **adentro de la fila** — el lápiz convierte esa fila en
   sus campos editables ahí mismo, nunca un panel aparte ni una ventana.
 
+## Permisos mientras Laucen lo usa sólo Fer
+
+Mientras el proyecto esté en esta etapa (desarrollo, y en uso sólo por Fer), **toda función nueva
+lleva su permiso (gate) en el rol, pero ese permiso nace ENCENDIDO**: por defecto `true`. La
+pantalla de roles y usuarios todavía no está construida, así que un permiso que nace apagado
+esconde la función y no hay dónde prenderlo (pasó con el botón de Importaciones). El gate se
+pone igual, para que ya esté cuando haya más usuarios, pero siempre en `true`. Esto cambia
+cuando Fer lo diga explícitamente; hasta entonces pisa lo que dice `lib/permisos.ts` sobre que
+un permiso nuevo "nace apagado".
+
 ## Disciplina técnica (todo va a main)
 
 - No hay rama de integración que esperar: lo terminado y verificado se mergea a main.
