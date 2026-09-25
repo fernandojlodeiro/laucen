@@ -54,10 +54,11 @@ export async function GET(req: NextRequest) {
   } else if (vista === "items") {
     const r = await items(f, org, TOPE);
     cab = ["periodo", "destinacion", "item", "aduana", "importador", "importador_completo", "ncm", "pais_origen", "pais_procedencia",
-      "transporte", "unidad", "cantidad", "fob_usd", "fob_unitario", "marcas", "codigos_articulo", "kg_netos", "cif_usd", "fecha"];
+      "transporte", "unidad", "cantidad", "fob_usd", "fob_unitario", "impuestos_total_usd", "derechos_usd", "impuestos_por_concepto", "marcas", "codigos_articulo", "kg_netos", "cif_usd", "fecha"];
     filas = r.filas.map((x) => [x.periodo, x.destinacion, x.num_item, x.aduana, x.importador, x.importador_completo, x.ncm,
       nombre(refs.pais, x.pais_origen), nombre(refs.pais, x.pais_procedencia), nombre(refs.transporte, x.transporte),
-      nombre(refs.unidad, x.unidad), x.cantidad, x.fob_item, x.fob_unit, x.marcas, x.codigos_articulo, x.kg_netos, x.usd_cif, x.fecha]);
+      nombre(refs.unidad, x.unidad), x.cantidad, x.fob_item, x.fob_unit, x.impuestos_total_usd, x.derechos_usd,
+      x.impuestos ? JSON.stringify(x.impuestos) : null, x.marcas, x.codigos_articulo, x.kg_netos, x.usd_cif, x.fecha]);
   } else {
     const r = await rankingImportadores(f, org, orden, TOPE);
     cab = ["importador", "fob_usd", "pct_del_total", "cantidad", "items", "ncm_distintas", "transporte_principal"];

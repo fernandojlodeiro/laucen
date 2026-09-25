@@ -36,16 +36,30 @@ create index if not exists arca_impo_items_pais_idx on arca_impo_items (pais_ori
 create index if not exists arca_impo_items_periodo_idx on arca_impo_items (periodo);
 alter table arca_impo_items enable row level security;
 
--- Una fila por ítem y concepto de arancel/impuesto. Se carga sólo si se pide
--- (ver docs: es ~15 veces más grande que los ítems; decisión pendiente de Fer).
-create table if not exists arca_impo_impuestos (
-  destinacion text not null,
-  num_item    int  not null,
-  concepto    text not null,
-  monto       numeric,
-  primary key (destinacion, num_item, concepto)
+-- Impuestos por concepto: NO van en una tabla aparte (serían ~7,8 millones
+-- de filas por mes). Van en la columna jsonb `impuestos` de cada ítem
+-- (decisión de Fer, 25/09): {"415": 2339.01, "010": 1826.36, ...}, clave = el
+-- código de concepto tal cual viene en el .lst. Más dos columnas numéricas
+-- para consultar sin abrir el JSON (se agregan abajo, con `if not exists`).
+alter table arca_impo_items add column if not exists impuestos           jsonb;
+alter table arca_impo_items add column if not exists impuestos_total_usd numeric;  -- suma de todos los conceptos
+alter table arca_impo_items add column if not exists derechos_usd        numeric;  -- el concepto de arca_parametros.concepto_derechos
+
+-- Parámetros de la carga, en un solo lugar.
+-- concepto_derechos: qué código de concepto son los derechos de importación.
+-- NO se sabe todavía (010 y 061 figuran "no disponible" en Softrade): queda
+-- en null y derechos_usd queda en null. Cuando Fer lo confirme:
+--   update arca_parametros set valor = '<código>' where clave = 'concepto_derechos';
+--   node scripts/arca/cargar.mjs derechos      (recalcula todos los meses)
+create table if not exists arca_parametros (
+  clave text primary key,
+  valor text,
+  nota  text
 );
-alter table arca_impo_impuestos enable row level security;
+alter table arca_parametros enable row level security;
+insert into arca_parametros (clave, valor, nota) values
+  ('concepto_derechos', null, 'Código de concepto de los derechos de importación. Sin confirmar: no adivinar.')
+on conflict do nothing;
 
 -- Qué período se cargó, para no cargar dos veces y saber qué falta.
 create table if not exists arca_cargas (
@@ -233,7 +247,10 @@ alter table softrade_cargas enable row level security;
 -- siempre filtrada por clave o por período, y así nunca queda vieja.
 -- security_invoker: respeta el RLS de las tablas (sin eso, la API pública
 -- de Supabase la serviría con los permisos del dueño).
-create or replace view v_items_enriquecidos with (security_invoker = true) as
+-- Se borra y se recrea (no tiene datos): así sigue andando cuando se le
+-- agregan columnas a arca_impo_items.
+drop view if exists v_items_enriquecidos;
+create view v_items_enriquecidos with (security_invoker = true) as
 select a.*,
        s.fecha, s.importador as importador_completo, s.kg_netos, s.kg_brutos,
        s.usd_cif, s.flete_usd, s.seguro_usd, s.derecho_usd, s.ncm_sim, s.via as via_softrade,
@@ -273,7 +290,7 @@ begin
     insert into coordinacion.bitacora (autor, tipo, titulo, detalle, pendientes, ref_doc)
     values ('code', 'entrega', 'Importaciones (ARCA + Softrade): base, carga y panel',
       'Tablas de ARCA, referencias, resúmenes, rubros y Softrade (db/arca.sql, se crean solas). Scripts de carga en scripts/arca/ (se corren desde la PC de Fer). Panel /importaciones: Buscar, Descubrir, Rubros, Cargas, fichas de NCM e importador.',
-      '1) Cargar arancel.zip, 202608 y el Excel de ejemplo desde la PC de Fer y correr "verificar". 2) Decidir qué hacer con los impuestos por concepto (tabla completa, jsonb por ítem o columnas): hoy no se cargan. 3) Tabla completa de países y qué es el transporte vacío. 4) arca_transform.py se reescribió (el original no llegó): comparar si aparece.',
+      '1) Cargar arancel.zip, 202608 y el Excel de ejemplo desde la PC de Fer y correr "verificar"; recién después el resto de los meses. 2) Qué concepto son los derechos de importación (010 o 061): hasta confirmarlo derechos_usd queda en null (arca_parametros). 3) Tabla completa de países y qué es el transporte vacío.',
       'docs/orden-arca-importaciones.md');
   end if;
 
@@ -287,7 +304,7 @@ begin
   if not exists (select 1 from coordinacion.para_probar where titulo = 'Importaciones: cargar 08/2026, nomenclador y Excel de Softrade') then
     insert into coordinacion.para_probar (autor, pedido_por, sesion, titulo, detalle, areas, prioridad)
     values ('code', 'fer', s, 'Importaciones: cargar 08/2026, nomenclador y Excel de Softrade',
-      'Desde la PC, con Claude Code en el repo: seguir scripts/arca/LEEME.md (arancel, 202608, softrade) y correr "node scripts/arca/cargar.mjs verificar". Todo tiene que dar OK: 530.186 ítems, 64.863 despachos, 12.089 importadores, 8516.29.00 China 10 ítems / 7 importadores, Softrade 93 ítems / 31 importadores, INTELBRAS y SACCARO.',
+      'Desde la PC, con Claude Code en el repo: seguir scripts/arca/LEEME.md (arancel, 202608, softrade) y correr "node scripts/arca/cargar.mjs verificar". Todo tiene que dar OK: 530.186 ítems, 64.863 despachos, 12.089 importadores, 8516.29.00 China 10 ítems / 7 importadores, los impuestos de 26001IC04154138R/1 iguales a Softrade, Softrade 158 filas / 93 ítems / 31 importadores, INTELBRAS y SACCARO.',
       '{importaciones,interno}', 'alta');
   end if;
 

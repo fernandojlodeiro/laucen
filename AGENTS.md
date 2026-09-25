@@ -39,7 +39,9 @@ para mirarlos es la parte final, no la primera.
   **Los datos NO se cargan desde la nube**: los ZIP y Excel están en la PC de Fer
   (`C:\Laucen\...`) y se cargan con `scripts/arca/` desde una sesión local — paso a paso en
   `scripts/arca/LEEME.md`. El panel usa los resúmenes `agg_*` salvo filtros finos (procedencia,
-  aduana, FOB unitario, cantidad, marca), que van a la tabla grande.
+  aduana, FOB unitario, cantidad, marca), que van a la tabla grande. Los impuestos por concepto
+  van en el jsonb `arca_impo_items.impuestos` (no hay tabla aparte); `derechos_usd` queda en null
+  hasta que Fer confirme qué concepto es (`arca_parametros.concepto_derechos`, no adivinar).
 - **Falta**: la búsqueda en China (Alibaba/1688) y el cruce con Mercado Libre.
 
 ## Infraestructura (ya creada y andando — no preguntar, no rehacer)

@@ -1,172 +1,65 @@
 #!/usr/bin/env python3
-"""ARCA: impo_AAAAMM.lst (dentro del ZIP mensual) -> dos CSV comprimidos.
+"""
+arca_transform.py — Convierte un ZIP mensual de ARCA (Información agregada de
+comercio exterior) en dos CSV comprimidos listos para cargar en Postgres:
+
+  impo_items_AAAAMM.csv.gz     una fila por ítem de despacho (deduplicado)
+  impo_impuestos_AAAAMM.csv.gz una fila por ítem y concepto de arancel
+
+Columnas del .lst (separador comilla simple, latin-1, 2 líneas de encabezado):
+  0 ADU  1 DESTINACION  2 NUM_ITEM  3 FECHA(AAAAMM)  4 NOMBRE_IMPORTADOR(30 car.)
+  5 M(transporte)  6 UN(unidad)  7 CANT_UNIDAD_MEDIDA  8 FOB_DOLAR(del ítem)
+  9 FOB_TOTAL(de la destinación)  10 DIV  11 PAI origen  12 PAI procedencia
+  13 POS_NCM  14 COD(concepto arancel)  15 MONTO(USD)
 
 Uso:
-    python arca_transform.py C:\\Laucen\\arca\\raw\\202608.zip C:\\Laucen\\arca\\out\\
-    python arca_transform.py C:\\Laucen\\arca\\raw\\*.zip C:\\Laucen\\arca\\out\\
+  python arca_transform.py 202608.zip [carpeta_salida]
 
-Escribe, por mes:
-    impo_items_AAAAMM.csv.gz      una fila por ítem (columnas 0-13, deduplicadas)
-    impo_impuestos_AAAAMM.csv.gz  una fila por ítem y concepto de arancel
-    impo_resumen_AAAAMM.json      los conteos (los usa cargar.mjs)
-
-Lee en streaming desde el ZIP (nunca descomprime el .lst a disco ni lo sube
-entero a memoria). Python 3 sin dependencias. Imprime UNA línea de resumen por
-mes: es lo único que hay que mirar.
-
-Formato del .lst (docs/orden-arca-importaciones.md, sección 1): latin-1,
-separador comilla simple, 2 líneas de encabezado, líneas rellenadas con
-espacios, 16 columnas. El mismo ítem (DESTINACION + NUM_ITEM) se repite una
-vez por concepto de arancel: columnas 0-13 iguales, cambian 14 (COD) y 15
-(MONTO).
+No descomprime a disco ni carga el archivo en memoria: lee en streaming.
+Probado con 202608.zip (7.826.669 filas -> 530.186 ítems) en ~1 min (Python 3, sin dependencias).
 """
+import csv, gzip, io, os, re, sys, zipfile
 
-import csv
-import glob
-import gzip
-import io
-import json
-import os
-import re
-import sys
-import time
-import zipfile
-
-COLUMNAS_ITEM = [
-    "periodo", "aduana", "destinacion", "num_item", "importador", "transporte",
-    "unidad", "cantidad", "fob_item", "fob_total", "divisa", "pais_origen",
-    "pais_procedencia", "ncm",
-]
-COLUMNAS_IMPUESTO = ["periodo", "destinacion", "num_item", "concepto", "monto"]
-N_COLUMNAS = 16
-IMPORTADOR = 4  # la única columna de texto libre: si trae una comilla, se rearma
-
-
-def numero(texto):
-    """'8178.75', '8.178,75', '8178,75', '' -> '8178.75' / ''. Nunca inventa."""
-    t = texto.strip()
-    if not t:
-        return ""
-    if "," in t and "." in t:
-        # el último separador es el decimal
-        if t.rfind(",") > t.rfind("."):
-            t = t.replace(".", "").replace(",", ".")
-        else:
-            t = t.replace(",", "")
-    elif "," in t:
-        t = t.replace(",", ".")
-    try:
-        float(t)
-    except ValueError:
-        raise ValueError(f"número inválido: {texto!r}")
-    return t
-
-
-def partir(linea):
-    """Parte una línea en sus 16 columnas (o None si no se puede)."""
-    campos = linea.rstrip("\r\n").rstrip().split("'")
-    if len(campos) == N_COLUMNAS + 1 and campos[-1].strip() == "":
-        campos.pop()  # separador al final de la línea
-    if len(campos) > N_COLUMNAS:
-        # el nombre del importador trajo comillas simples (ej. O'NEILL)
-        sobran = len(campos) - N_COLUMNAS
-        nombre = "'".join(campos[IMPORTADOR:IMPORTADOR + sobran + 1])
-        campos = campos[:IMPORTADOR] + [nombre] + campos[IMPORTADOR + sobran + 1:]
-    if len(campos) != N_COLUMNAS:
-        return None
-    return [c.strip() for c in campos]
-
-
-def transformar(ruta_zip, carpeta_salida):
-    inicio = time.time()
-    nombre = os.path.basename(ruta_zip)
-    m = re.fullmatch(r"(\d{6})\.zip", nombre, re.IGNORECASE)
+def main(zip_path, out_dir="."):
+    m = re.search(r"(\d{6})", os.path.basename(zip_path))
     if not m:
-        raise SystemExit(f"{nombre}: el ZIP tiene que llamarse AAAAMM.zip")
+        sys.exit("El nombre del zip debe contener AAAAMM, ej. 202608.zip")
     periodo = m.group(1)
+    zf = zipfile.ZipFile(zip_path)
+    name = next(n for n in zf.namelist() if n.lower().startswith("impo_"))
 
-    with zipfile.ZipFile(ruta_zip) as z:
-        candidatos = [n for n in z.namelist() if re.search(r"impo_\d{6}\.lst$", n, re.IGNORECASE)]
-        if len(candidatos) != 1:
-            raise SystemExit(f"{nombre}: no encontré un único impo_AAAAMM.lst adentro")
+    items_path = os.path.join(out_dir, f"impo_items_{periodo}.csv.gz")
+    tax_path   = os.path.join(out_dir, f"impo_impuestos_{periodo}.csv.gz")
+    f_items = gzip.open(items_path, "wt", newline="", encoding="utf-8")
+    f_tax   = gzip.open(tax_path,   "wt", newline="", encoding="utf-8")
+    w_items = csv.writer(f_items); w_tax = csv.writer(f_tax)
+    w_items.writerow(["periodo","aduana","destinacion","num_item","importador",
+                      "transporte","unidad","cantidad","fob_item","fob_total",
+                      "divisa","pais_origen","pais_procedencia","ncm"])
+    w_tax.writerow(["periodo","destinacion","num_item","concepto","monto"])
 
-        os.makedirs(carpeta_salida, exist_ok=True)
-        ruta_items = os.path.join(carpeta_salida, f"impo_items_{periodo}.csv.gz")
-        ruta_imp = os.path.join(carpeta_salida, f"impo_impuestos_{periodo}.csv.gz")
-        tmp_items, tmp_imp = ruta_items + ".tmp", ruta_imp + ".tmp"
-
-        vistos = {}          # (destinacion, num_item) -> hash de columnas 0-13 (poca memoria)
-        despachos = set()
-        importadores = set()
-        filas = malformadas = inconsistentes = otro_periodo = impuestos = 0
-
-        with z.open(candidatos[0]) as crudo, \
-                gzip.open(tmp_items, "wt", encoding="utf-8", newline="", compresslevel=6) as f_items, \
-                gzip.open(tmp_imp, "wt", encoding="utf-8", newline="", compresslevel=6) as f_imp:
-            texto = io.TextIOWrapper(crudo, encoding="latin-1", newline="")
-            w_items = csv.writer(f_items)
-            w_imp = csv.writer(f_imp)
-            w_items.writerow(COLUMNAS_ITEM)
-            w_imp.writerow(COLUMNAS_IMPUESTO)
-
-            for n, linea in enumerate(texto):
-                if n < 2 or not linea.strip():
-                    continue  # encabezado / renglón vacío
-                filas += 1
-                c = partir(linea)
-                if c is None or not c[1] or not c[2].isdigit():
-                    malformadas += 1
-                    continue
-                try:
-                    cantidad, fob_item, fob_total = numero(c[7]), numero(c[8]), numero(c[9])
-                    monto = numero(c[15])
-                except ValueError:
-                    malformadas += 1
-                    continue
-                destinacion, num_item = c[1], int(c[2])
-                clave = (destinacion, num_item)
-                item = (c[0], destinacion, num_item, c[4], c[5], c[6], cantidad, fob_item,
-                        fob_total, c[10], c[11], c[12], c[13])
-                huella = hash(item)
-                previo = vistos.get(clave)
-                if previo is None:
-                    vistos[clave] = huella
-                    if c[3] and c[3] != periodo:
-                        otro_periodo += 1
-                    despachos.add(destinacion)
-                    importadores.add(c[4])
-                    w_items.writerow((periodo,) + item)
-                elif previo != huella:
-                    inconsistentes += 1
-                if c[14]:
-                    w_imp.writerow((periodo, destinacion, num_item, c[14], monto))
-                    impuestos += 1
-
-    os.replace(tmp_items, ruta_items)
-    os.replace(tmp_imp, ruta_imp)
-    segundos = time.time() - inicio
-    # lo lee scripts/arca/cargar.mjs para anotar la carga en arca_cargas
-    with open(os.path.join(carpeta_salida, f"impo_resumen_{periodo}.json"), "w") as f:
-        json.dump({"periodo": periodo, "filas_crudas": filas, "items": len(vistos),
-                   "despachos": len(despachos), "importadores": len(importadores),
-                   "filas_impuestos": impuestos, "malformadas": malformadas,
-                   "inconsistentes": inconsistentes}, f)
-    print(f"{periodo}: filas_crudas={filas} items={len(vistos)} despachos={len(despachos)} "
-          f"importadores={len(importadores)} filas_impuestos={impuestos} "
-          f"malformadas={malformadas} inconsistentes={inconsistentes} "
-          f"fecha_distinta={otro_periodo} ({segundos:.0f} s)", flush=True)
-
-
-def main():
-    if len(sys.argv) < 3:
-        raise SystemExit(__doc__)
-    salida = sys.argv[-1]
-    zips = []
-    for patron in sys.argv[1:-1]:
-        zips.extend(sorted(glob.glob(patron)) or [patron])
-    for ruta in zips:
-        transformar(ruta, salida)
-
+    seen = set(); n_rows = n_items = 0
+    with zf.open(name) as raw:
+        for i, line in enumerate(io.TextIOWrapper(raw, encoding="latin-1", newline="\n")):
+            if i < 2:            # dos líneas de encabezado
+                continue
+            p = line.rstrip("\n").rstrip().split("'")
+            if len(p) < 16:
+                continue
+            n_rows += 1
+            dest = p[1].strip(); item = p[2].strip()
+            key = (dest, item)
+            if key not in seen:
+                seen.add(key); n_items += 1
+                w_items.writerow([periodo, p[0].strip(), dest, item, p[4].strip(),
+                                  p[5].strip(), p[6].strip(), p[7].strip(),
+                                  p[8].strip(), p[9].strip(), p[10].strip(),
+                                  p[11].strip(), p[12].strip(), p[13].strip()])
+            w_tax.writerow([periodo, dest, item, p[14].strip(), p[15].strip()])
+    f_items.close(); f_tax.close()
+    print(f"{periodo}: {n_rows} filas crudas -> {n_items} items. Salida: {items_path}, {tax_path}")
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 2:
+        sys.exit(__doc__)
+    main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else ".")

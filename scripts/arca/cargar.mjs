@@ -4,7 +4,8 @@
 // contraseña de la base en .env.local (DATABASE_URL, igual que en Vercel).
 //
 //   node scripts/arca/cargar.mjs esquema
-//   node scripts/arca/cargar.mjs arca     C:\Laucen\arca\out [202608 ...] [--forzar] [--con-impuestos]
+//   node scripts/arca/cargar.mjs arca     C:\Laucen\arca\out [202608 ...] [--forzar]
+//   node scripts/arca/cargar.mjs derechos   (tras fijar arca_parametros.concepto_derechos)
 //   node scripts/arca/cargar.mjs arancel  C:\Laucen\arca\out
 //   node scripts/arca/cargar.mjs softrade C:\Laucen\softrade
 //   node scripts/arca/cargar.mjs resumen  [202608 ...]
@@ -106,38 +107,52 @@ async function recalcularResumen(c, periodo) {
      group by 1, 2`, [periodo]);
 }
 
-async function cargarMes(c, carpeta, periodo, { conImpuestos }) {
+// El código de concepto de los derechos de importación, del único lugar donde
+// está (arca_parametros). null = no se sabe todavía: derechos_usd queda null.
+async function conceptoDerechos(c) {
+  const r = await c.query("select valor from arca_parametros where clave = 'concepto_derechos'");
+  return r.rows[0]?.valor?.trim() || null;
+}
+
+async function cargarMes(c, carpeta, periodo) {
   const items = path.join(carpeta, `impo_items_${periodo}.csv.gz`);
   const impuestos = path.join(carpeta, `impo_impuestos_${periodo}.csv.gz`);
-  const resumenJson = path.join(carpeta, `impo_resumen_${periodo}.json`);
-  const resumen = existsSync(resumenJson) ? JSON.parse(readFileSync(resumenJson, "utf8")) : {};
+  if (!existsSync(impuestos)) throw new Error(`Falta ${impuestos}`);
   const t0 = Date.now();
 
   return enTransaccion(c, async () => {
     await c.query("select pg_advisory_xact_lock(7212002)");
+    await c.query("set local work_mem = '256MB'");
     await c.query("create temp table t_items (like arca_impo_items) on commit drop");
     const leidos = await copiarCsv(c,
       `copy t_items (${COLS_ITEM}) from stdin with (format csv, header true, force_not_null (${TEXTO_ITEM}))`, items);
 
     // Recarga limpia del mes: lo viejo de ese período se va, entra lo nuevo.
-    await c.query(`delete from arca_impo_impuestos i using arca_impo_items a
-                    where a.periodo = $1 and i.destinacion = a.destinacion and i.num_item = a.num_item`, [periodo]);
     await c.query("delete from arca_impo_items where periodo = $1", [periodo]);
     const ins = await c.query(`
       insert into arca_impo_items (${COLS_ITEM}) select ${COLS_ITEM} from t_items
       on conflict (destinacion, num_item) do update set
         ${COLS_ITEM.split(", ").filter((x) => x !== "destinacion" && x !== "num_item").map((x) => `${x} = excluded.${x}`).join(", ")}`);
 
-    let filasImpuestos = null;
-    if (conImpuestos) {
-      await c.query("create temp table t_imp (periodo char(6), destinacion text, num_item int, concepto text, monto numeric) on commit drop");
-      await copiarCsv(c, "copy t_imp from stdin with (format csv, header true)", impuestos);
-      const r = await c.query(`
-        insert into arca_impo_impuestos (destinacion, num_item, concepto, monto)
-        select destinacion, num_item, concepto, sum(monto) from t_imp group by 1, 2, 3
-        on conflict (destinacion, num_item, concepto) do update set monto = excluded.monto`);
-      filasImpuestos = r.rowCount;
-    }
+    // Impuestos: el CSV trae una fila por cada fila cruda del .lst (ítem ×
+    // concepto). Se juntan en el jsonb de cada ítem: {"415": 2339.01, ...}.
+    await c.query("create temp table t_imp (periodo char(6), destinacion text, num_item int, concepto text, monto numeric) on commit drop");
+    const filasCrudas = await copiarCsv(c,
+      "copy t_imp from stdin with (format csv, header true, force_not_null (concepto))", impuestos);
+    const derechos = await conceptoDerechos(c);
+    const imp = await c.query(`
+      with g as (select destinacion, num_item, concepto, sum(monto) monto
+                   from t_imp where concepto <> '' group by 1, 2, 3),
+           j as (select destinacion, num_item, jsonb_object_agg(concepto, monto) impuestos,
+                        sum(monto) total, count(*) conceptos
+                   from g group by 1, 2)
+      update arca_impo_items a
+         set impuestos = j.impuestos, impuestos_total_usd = j.total,
+             derechos_usd = case when $2::text is null then null else (j.impuestos ->> $2::text)::numeric end
+        from j
+       where a.periodo = $1 and a.destinacion = j.destinacion and a.num_item = j.num_item
+      returning j.conceptos`, [periodo, derechos]);
+    const filasImpuestos = imp.rows.reduce((t, r) => t + Number(r.conceptos), 0);
 
     await recalcularResumen(c, periodo);
     await c.query(`
@@ -145,18 +160,30 @@ async function cargarMes(c, carpeta, periodo, { conImpuestos }) {
       values ($1, now(), $2, $3, $4)
       on conflict (periodo) do update set cargado_en = now(), filas_crudas = excluded.filas_crudas,
         items = excluded.items, filas_impuestos = excluded.filas_impuestos`,
-      [periodo, resumen.filas_crudas ?? null, ins.rowCount, filasImpuestos]);
-    console.log(`${periodo}: items=${ins.rowCount} (csv ${leidos})` +
-      (conImpuestos ? ` impuestos=${filasImpuestos}` : " impuestos=no cargados") +
-      ` (${Math.round((Date.now() - t0) / 1000)} s)`);
+      [periodo, filasCrudas, ins.rowCount, filasImpuestos]);
+    console.log(`${periodo}: filas_crudas=${filasCrudas} items=${ins.rowCount} (csv ${leidos}) ` +
+      `items_con_impuestos=${imp.rowCount} conceptos=${filasImpuestos} ` +
+      `derechos=${derechos ?? "sin definir"} (${Math.round((Date.now() - t0) / 1000)} s)`);
   });
+}
+
+/** Recalcula derechos_usd en todos los meses, después de fijar concepto_derechos. */
+async function recalcularDerechos(c) {
+  const derechos = await conceptoDerechos(c);
+  const periodos = (await c.query("select periodo from arca_cargas order by 1")).rows.map((r) => r.periodo);
+  for (const p of periodos) {
+    const r = await c.query(`
+      update arca_impo_items
+         set derechos_usd = case when $2::text is null then null else (impuestos ->> $2::text)::numeric end
+       where periodo = $1`, [p, derechos]);
+    console.log(`${p}: derechos_usd recalculado (${r.rowCount} ítems, concepto ${derechos ?? "sin definir → null"})`);
+  }
 }
 
 async function arca(c, args) {
   const carpeta = args.find((a) => !a.startsWith("--") && !/^\d{6}$/.test(a));
   if (!carpeta) throw new Error("Falta la carpeta con los impo_items_AAAAMM.csv.gz");
   const forzar = args.includes("--forzar");
-  const conImpuestos = args.includes("--con-impuestos");
   let periodos = args.filter((a) => /^\d{6}$/.test(a));
   if (!periodos.length) {
     periodos = readdirSync(carpeta).map((f) => f.match(/^impo_items_(\d{6})\.csv\.gz$/)?.[1]).filter(Boolean).sort();
@@ -164,7 +191,7 @@ async function arca(c, args) {
   const ya = new Set((await c.query("select periodo from arca_cargas")).rows.map((r) => r.periodo));
   for (const p of periodos) {
     if (ya.has(p) && !forzar) { console.log(`${p}: ya estaba cargado (--forzar para recargar)`); continue; }
-    await cargarMes(c, carpeta, p, { conImpuestos });
+    await cargarMes(c, carpeta, p);
   }
 }
 
@@ -275,6 +302,19 @@ async function verificar(c) {
   const d = await uno(`select importador, cantidad::float8 cantidad, fob_item::float8 fob from arca_impo_items
                         where destinacion = '26001IC04154138R' and num_item = 1`);
   console.log(`     26001IC04154138R/1: ${d ? `${d.importador} · ${d.cantidad} u · FOB ${d.fob}` : "no está"} (esperado Importadora MCA · 230 · 8178.75)`);
+  chequeo("26001IC04154138R/1 cantidad", d?.cantidad, 230);
+  chequeo("26001IC04154138R/1 FOB", d?.fob, 8178.75);
+  // Impuestos del mismo ítem, contra lo que muestra Softrade.
+  const esperados = { "415": 2339.01, "429": 356.42, "450": 55.69, "422": 2227.63, "424": 668.29, "010": 1826.36, "061": 180.0 };
+  const imp = await uno(`select impuestos, impuestos_total_usd::float8 total from arca_impo_items
+                          where destinacion = '26001IC04154138R' and num_item = 1`);
+  for (const [concepto, monto] of Object.entries(esperados)) {
+    const real = imp?.impuestos?.[concepto];
+    chequeo(`26001IC04154138R/1 impuesto ${concepto}`, real == null ? "no está" : Number(real).toFixed(2), monto.toFixed(2));
+  }
+  const otros = Object.keys(imp?.impuestos ?? {}).filter((k) => !(k in esperados));
+  console.log(`     26001IC04154138R/1 impuestos_total_usd: ${imp?.total ?? "—"}` +
+    (otros.length ? ` (además trae conceptos que Softrade no muestra: ${otros.join(", ")})` : ""));
   const r = await uno(`select coalesce(sum(items), 0) items from agg_ncm_pais_mes where periodo = '202608'`);
   chequeo("resumen agg_ncm_pais_mes = ítems", r.items, a.items);
 
@@ -308,6 +348,7 @@ const COMANDOS = {
   arca,
   arancel,
   softrade,
+  derechos: recalcularDerechos,
   resumen: async (c, periodos) => {
     const lista = periodos.length ? periodos : (await c.query("select periodo from arca_cargas order by 1")).rows.map((r) => r.periodo);
     for (const p of lista) { await enTransaccion(c, () => recalcularResumen(c, p)); console.log(`${p}: resumen recalculado`); }
@@ -316,7 +357,7 @@ const COMANDOS = {
 };
 
 if (!COMANDOS[comando]) {
-  console.log("Comandos: esquema | arca <carpeta> [AAAAMM ...] [--forzar] [--con-impuestos] | arancel <carpeta> | softrade [carpeta] | resumen [AAAAMM ...] | verificar");
+  console.log("Comandos: esquema | arca <carpeta> [AAAAMM ...] [--forzar] | derechos | arancel <carpeta> | softrade [carpeta] | resumen [AAAAMM ...] | verificar");
   process.exit(1);
 }
 const c = await conectar();

@@ -8,7 +8,8 @@ paso a paso para la sesión de Claude Code **que corre en la PC de Fer**
 
 1. `npm install` en el repo.
 2. Crear `.env.local` en la raíz del repo con `DATABASE_URL=<contraseña de la base>`
-   (la misma que está en Vercel; Fer la tiene). Nunca se sube al repo.
+   (la misma que está en Vercel; Fer la tiene). Nunca se sube al repo: `.gitignore`
+   ya excluye `.env` y `.env*.local`.
 3. Python 3 instalado (sin paquetes extra).
 
 ## Dónde van los archivos
@@ -31,29 +32,38 @@ node scripts\arca\cargar.mjs arancel C:\Laucen\arca\out
 python scripts\arca\arca_transform.py C:\Laucen\arca\raw\202608.zip C:\Laucen\arca\out
 node scripts\arca\cargar.mjs arca C:\Laucen\arca\out 202608
 
-# Todos los meses que haya en raw\ (los ya cargados se saltean; --forzar para recargar)
-python scripts\arca\arca_transform.py "C:\Laucen\arca\raw\*.zip" C:\Laucen\arca\out
-node scripts\arca\cargar.mjs arca C:\Laucen\arca\out
-
 # Softrade: carga cada .xlsx nuevo de in\ y lo mueve a done\ (o error\ con un .log)
 node scripts\arca\cargar.mjs softrade C:\Laucen\softrade
 
 # Verificar contra los números de la orden (sección 8, pasos 4 y 6)
 node scripts\arca\cargar.mjs verificar
+
+# SÓLO cuando verificar dio todo OK: el resto de los meses de raw\
+# (los ya cargados se saltean; --forzar para recargar uno)
+for %f in (C:\Laucen\arca\raw\*.zip) do python scripts\arca\arca_transform.py %f C:\Laucen\arca\out
+node scripts\arca\cargar.mjs arca C:\Laucen\arca\out
 ```
 
 Otros: `node scripts\arca\cargar.mjs resumen [AAAAMM ...]` recalcula las tablas
-resumen; `esquema` sólo crea/actualiza las tablas.
+resumen; `derechos` recalcula `derechos_usd` en todos los meses (ver abajo);
+`esquema` sólo crea/actualiza las tablas.
 
 ## Reglas
 
+- **Orden**: primero agosto 2026 + el Excel de ejemplo de Softrade, y `verificar`
+  tiene que dar todo OK (ítems, despachos, importadores, 8516.29.00 China, el
+  despacho 26001IC04154138R/1 con sus 7 impuestos iguales a Softrade, y los
+  chequeos de Softrade). Recién después, el resto de los meses.
 - Mirar sólo la línea de resumen que imprime cada script. **No** abrir los
   `.lst` ni los `.csv.gz` (salvo las 3 primeras líneas para verificar formato).
-- `malformadas` o `inconsistentes` distintos de 0 en `arca_transform.py`: mirar
-  antes de cargar. `fecha_distinta` es informativo.
-- Impuestos por concepto (`--con-impuestos`): **no cargar todavía**, pendiente
-  de decisión de Fer (ocupan ~15 veces lo que los ítems). El `.csv.gz` queda en
-  `out\`, así que el dato no se pierde.
-- `arca_transform.py` se reescribió porque el original no llegó al repo. Si
-  aparece el original, comparar la salida de los dos sobre 202608 y quedarse
-  con el que dé los números de la orden.
+- `arca_transform.py` es el de Cowork, probado contra el archivo real de agosto
+  2026. No reescribirlo: si hace falta otra cosa, se hace en la carga.
+- Impuestos: no hay tabla aparte. `cargar.mjs arca` junta todos los conceptos de
+  cada ítem en la columna jsonb `arca_impo_items.impuestos` (clave = código de
+  concepto tal cual viene, valor = monto USD), más `impuestos_total_usd` (la suma)
+  y `derechos_usd`.
+- `derechos_usd` queda en null hasta que Fer confirme qué concepto son los
+  derechos de importación (010 o 061, sin verificar). El código vive en un solo
+  lugar: `arca_parametros.concepto_derechos`. Cuando se sepa:
+  `update arca_parametros set valor = '<código>' where clave = 'concepto_derechos';`
+  y después `node scripts\arca\cargar.mjs derechos`. No adivinar.

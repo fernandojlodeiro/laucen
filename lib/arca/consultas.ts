@@ -7,6 +7,7 @@ import { base, dondeItems, Sql, type Filtro } from "./filtro";
 // ── Referencias (códigos → nombres) ───────────────────────
 
 export type Refs = {
+  concepto: Map<string, string>;
   pais: Map<string, string>;
   transporte: Map<string, string>;
   aduana: Map<string, string>;
@@ -17,9 +18,9 @@ export async function referencias(): Promise<Refs> {
   const leer = async (t: string) =>
     new Map((await pool.query<{ codigo: string; nombre: string | null }>(`select codigo, nombre from ${t}`)).rows
       .filter((r) => r.nombre).map((r) => [r.codigo, r.nombre!]));
-  const [pais, transporte, aduana, unidad] = await Promise.all(
-    ["ref_pais", "ref_transporte", "ref_aduana", "ref_unidad"].map(leer));
-  return { pais, transporte, aduana, unidad };
+  const [pais, transporte, aduana, unidad, concepto] = await Promise.all(
+    ["ref_pais", "ref_transporte", "ref_aduana", "ref_unidad", "ref_concepto"].map(leer));
+  return { pais, transporte, aduana, unidad, concepto };
 }
 
 /** El nombre si se sabe; si no, el código crudo. Nunca se inventa. */
@@ -126,6 +127,7 @@ export type FilaItem = {
   pais_origen: string | null; pais_procedencia: string | null;
   enriquecido: boolean; fecha: string | null; importador_completo: string | null; kg_netos: number | null; usd_cif: number | null;
   marcas: string[] | null; codigos_articulo: string[] | null;
+  impuestos: Record<string, number> | null; impuestos_total_usd: number | null; derechos_usd: number | null;
 };
 
 export async function items(f: Filtro, org: string, limite: number): Promise<{ filas: FilaItem[]; total: number }> {
@@ -135,12 +137,15 @@ export async function items(f: Filtro, org: string, limite: number): Promise<{ f
     select a.periodo, a.destinacion, a.num_item, a.aduana, a.importador, a.ncm, a.transporte, a.unidad,
            a.cantidad, a.fob_item, a.fob_item / nullif(a.cantidad, 0) fob_unit, a.pais_origen, a.pais_procedencia,
            a.enriquecido, to_char(a.fecha, 'DD/MM/YYYY') fecha, a.importador_completo, a.kg_netos, a.usd_cif,
-           a.marcas, a.codigos_articulo, count(*) over ()::int total
+           a.marcas, a.codigos_articulo, a.impuestos, a.impuestos_total_usd, a.derechos_usd, count(*) over ()::int total
       from v_items_enriquecidos a ${w}
      order by a.fob_item desc nulls last limit ${Number(limite)}`, sql.valores);
   return {
     total: r.rows[0]?.total ?? 0,
-    filas: r.rows.map((x) => ({ ...x, cantidad: n(x.cantidad), fob_item: n(x.fob_item), fob_unit: n(x.fob_unit), kg_netos: n(x.kg_netos), usd_cif: n(x.usd_cif) })),
+    filas: r.rows.map((x) => ({
+      ...x, cantidad: n(x.cantidad), fob_item: n(x.fob_item), fob_unit: n(x.fob_unit), kg_netos: n(x.kg_netos), usd_cif: n(x.usd_cif),
+      impuestos_total_usd: n(x.impuestos_total_usd), derechos_usd: n(x.derechos_usd),
+    })),
   };
 }
 

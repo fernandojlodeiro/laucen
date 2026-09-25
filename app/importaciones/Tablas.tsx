@@ -4,6 +4,14 @@ import { periodoLindo } from "@/lib/arca/filtro";
 import { VIAS, nombre, type Refs, type items, type marcasVistas, type serieMensual } from "@/lib/arca/consultas";
 import { BotonCsv, CAJA_TABLA, Col, LinkImportador, LinkNcm, TABLA, TD, TDN, THEAD, TR, cant, usd, usd2 } from "./Piezas";
 
+/** "IVA (415): 2.339,01 · 010: 1.826,36 …" para el cartelito al pasar el mouse. */
+function detalleImpuestos(imp: Record<string, number> | null, refs: Refs): string | undefined {
+  if (!imp) return undefined;
+  return Object.entries(imp)
+    .map(([c, m]) => `${refs.concepto.has(c) ? `${refs.concepto.get(c)} (${c})` : c}: ${usd2(Number(m))}`)
+    .join(" · ");
+}
+
 export function Barra({ total, mostrados, csv }: { total: number; mostrados: number; csv: string }) {
   return (
     <div className="flex items-center justify-between gap-2 mb-2 text-xs text-[#5C6B76]">
@@ -57,7 +65,7 @@ export function Items({ datos, refs, csv }: { datos: Awaited<ReturnType<typeof i
           <thead className={THEAD}><tr>
             <Col texto="" /><Col texto="Mes" derecha={false} /><Col texto="Despacho / ítem" derecha={false} /><Col texto="Importador" derecha={false} />
             <Col texto="NCM" derecha={false} /><Col texto="Origen" derecha={false} /><Col texto="Transporte" derecha={false} />
-            <Col texto="Cantidad" /><Col texto="FOB USD" /><Col texto="FOB unit." />
+            <Col texto="Cantidad" /><Col texto="FOB USD" /><Col texto="FOB unit." /><Col texto="Impuestos USD" />
             {conSoftrade && <><Col texto="Marca" derecha={false} /><Col texto="Cód. artículo" derecha={false} /><Col texto="Kg netos" /><Col texto="CIF USD" /><Col texto="Fecha" derecha={false} /></>}
           </tr></thead>
           <tbody>
@@ -72,6 +80,7 @@ export function Items({ datos, refs, csv }: { datos: Awaited<ReturnType<typeof i
                 <td className={TD}>{nombre(refs.transporte, x.transporte)}</td>
                 <td className={TDN}>{cant(x.cantidad)} {x.unidad ? <span className="text-[10px] text-[#5C6B76]">{nombre(refs.unidad, x.unidad)}</span> : null}</td>
                 <td className={TDN}>{usd(x.fob_item)}</td><td className={TDN}>{usd2(x.fob_unit)}</td>
+                <td className={TDN} title={detalleImpuestos(x.impuestos, refs)}>{usd(x.impuestos_total_usd)}</td>
                 {conSoftrade && <>
                   <td className={TD}>{x.marcas?.join(", ") ?? ""}</td><td className={TD}>{x.codigos_articulo?.join(", ") ?? ""}</td>
                   <td className={TDN}>{x.kg_netos == null ? "" : cant(x.kg_netos)}</td><td className={TDN}>{x.usd_cif == null ? "" : usd(x.usd_cif)}</td>

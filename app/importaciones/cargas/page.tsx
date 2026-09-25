@@ -46,13 +46,13 @@ export default async function Cargas() {
         ) : (
           <div className={CAJA_TABLA}>
             <table className={TABLA}>
-              <thead className={THEAD}><tr><Col texto="Mes" derecha={false} /><Col texto="Filas crudas" /><Col texto="Ítems" /><Col texto="Filas de impuestos" /><Col texto="Cargado" derecha={false} /></tr></thead>
+              <thead className={THEAD}><tr><Col texto="Mes" derecha={false} /><Col texto="Filas crudas" /><Col texto="Ítems" /><Col texto="Conceptos de impuestos" /><Col texto="Cargado" derecha={false} /></tr></thead>
               <tbody>{arca.map((a) => (
                 <tr key={a.periodo} className={TR}>
                   <td className={TD}>{periodoLindo(a.periodo)}</td>
                   <td className={TDN}>{a.filas_crudas ? Number(a.filas_crudas).toLocaleString("es-AR") : "—"}</td>
                   <td className={TDN}>{a.items ? Number(a.items).toLocaleString("es-AR") : "—"}</td>
-                  <td className={TDN}>{a.filas_impuestos ? Number(a.filas_impuestos).toLocaleString("es-AR") : "no cargadas"}</td>
+                  <td className={TDN}>{a.filas_impuestos ? Number(a.filas_impuestos).toLocaleString("es-AR") : "—"}</td>
                   <td className={TD}>{fecha(a.cargado_en)}</td>
                 </tr>))}
               </tbody>
