@@ -9,6 +9,7 @@ export const RUTAS_PUBLICAS = [
   "/reset",
   "/auth/callback",
   "/api/meli/notificaciones",
+  "/api/radar/cron",
 ];
 
 /** La landing ("/") es pública y es la única ruta exacta que no pide login;

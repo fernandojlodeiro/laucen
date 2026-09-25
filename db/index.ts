@@ -10,7 +10,7 @@ import { databaseUrl } from "@/lib/database-url";
 // el mismo trato que usa Supabase en sus propios ejemplos con node-postgres
 // desde un entorno serverless (Vercel) — sin esto, cualquier pantalla que
 // toque la base tira un error 500 sin explicación.
-const pool = new Pool({
+export const pool = new Pool({
   connectionString: databaseUrl(),
   ssl: { rejectUnauthorized: false },
 });

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { sesionRequerida } from "@/lib/tenancy";
 import { sosVos } from "@/lib/admin";
 import { accionLogout } from "@/app/auth-actions";
-import { SUAVE } from "@/app/botones";
+import { PRIMARIO, SUAVE } from "@/app/botones";
 
 export default async function Panel() {
   const sesion = await sesionRequerida();
@@ -24,9 +24,10 @@ export default async function Panel() {
         </form>
       </header>
 
-      <p className="text-sm text-[#5C6B76] mb-6">
-        Todavía no hay búsquedas cargadas. Esto arranca acá.
-      </p>
+      <div className="flex flex-wrap gap-2 mb-6">
+        <Link href="/radar" className={PRIMARIO}>📡 Radar</Link>
+        <Link href="/radar/seguidas" className={SUAVE}>★ Mis categorías seguidas</Link>
+      </div>
 
       {esAdmin && (
         <div className="flex flex-wrap gap-2">

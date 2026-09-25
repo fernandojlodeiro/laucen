@@ -12,13 +12,19 @@ export type PermisoKey =
   | "ver_config"
   | "gestionar_busquedas"
   | "ver_resultados"
-  | "gestionar_equipo";
+  | "gestionar_equipo"
+  | "radar_ver"
+  | "radar_gastar"
+  | "radar_configurar";
 
 export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "gestionar_busquedas", label: "Gestionar búsquedas", ayuda: "Crear, editar y pausar las búsquedas programadas." },
   { key: "ver_resultados", label: "Ver resultados", ayuda: "Ver los productos que encontró cada búsqueda." },
   { key: "ver_config", label: "Ver configuración", ayuda: "Los datos de la organización y su plan." },
   { key: "gestionar_equipo", label: "Gestionar equipo", ayuda: "Invitar personas y configurar sus permisos." },
+  { key: "radar_ver", label: "Ver el Radar", ayuda: "Tendencias de Mercado Libre, categorías seguidas y publicaciones ya traídas." },
+  { key: "radar_gastar", label: "Gastar en el Radar", ayuda: "Pedir búsquedas pagas (Apify) y prender \"profundizar\" en una categoría." },
+  { key: "radar_configurar", label: "Configurar el Radar", ayuda: "Tope de gasto, frecuencia de los procesos automáticos y demás parámetros." },
 ];
 
 export type Permisos = Partial<Record<PermisoKey, boolean>>;

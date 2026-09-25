@@ -106,8 +106,56 @@ export type ResultadoActor = {
   items?: unknown[];
 };
 
-/** Corre el actor con tope de resultados y de gasto, espera a que termine
- *  (hasta `esperaSeg`) y trae los resultados. Nunca tira. */
+export type Corrida = {
+  runId?: string;
+  estado?: string;
+  costoUsd: number | null;
+  cobros?: unknown;
+  items: unknown[];
+  error?: string;
+};
+
+const TERMINADO = ["SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"];
+
+/** Corre un actor con una entrada ya armada, con tope de resultados y de
+ *  gasto; espera hasta `esperaSeg` y, si no terminó, lo aborta para que no
+ *  siga gastando. Nunca tira. */
+export async function correrConEntrada(actor: string, entrada: Record<string, unknown>,
+  { max, esperaSeg, topeUsd }: { max: number; esperaSeg: number; topeUsd: number }): Promise<Corrida> {
+  const token = apifyToken();
+  if (!token) return { costoUsd: null, items: [], error: "Falta APIFY_TOKEN" };
+  const t0 = Date.now();
+  try {
+    const r = await fetch(
+      `${API}/acts/${actor}/runs?token=${token}&maxItems=${max}&maxTotalChargeUsd=${topeUsd}&waitForFinish=60`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(entrada), cache: "no-store" },
+    );
+    const cuerpo = await r.json().catch(() => null);
+    if (!r.ok) throw new Error(`${r.status} ${cuerpo?.error?.message ?? ""}`.trim());
+    let run = cuerpo.data;
+    while (!TERMINADO.includes(run.status) && Date.now() - t0 < esperaSeg * 1000) {
+      run = await get(`/actor-runs/${run.id}?waitForFinish=30`, token);
+    }
+    if (!TERMINADO.includes(run.status)) {
+      run = await fetch(`${API}/actor-runs/${run.id}/abort?token=${token}`, { method: "POST", cache: "no-store" })
+        .then((x) => x.json()).then((x) => x.data ?? run).catch(() => run);
+    }
+    const items = run.defaultDatasetId
+      ? await fetch(`${API}/datasets/${run.defaultDatasetId}/items?token=${token}&clean=true&limit=${max}`, { cache: "no-store" })
+          .then((x) => x.json()).catch(() => [])
+      : [];
+    return {
+      runId: run.id, estado: run.status, costoUsd: run.usageTotalUsd ?? null, cobros: run.chargedEventCounts ?? null,
+      items: Array.isArray(items) ? items : [],
+      error: run.status === "SUCCEEDED" ? undefined : `La corrida terminó ${run.status}`,
+    };
+  } catch (e) {
+    return { costoUsd: null, items: [], error: String(e) };
+  }
+}
+
+/** Corre el actor con tope de resultados y de gasto, armando la entrada desde
+ *  su esquema (banco de pruebas), y trae los resultados. Nunca tira. */
 export async function correrActor(actor: string, q: string, max: number, esperaSeg: number): Promise<ResultadoActor> {
   const token = apifyToken();
   if (!token) return { actor, ok: false, error: "Falta APIFY_TOKEN" };
@@ -120,30 +168,12 @@ export async function correrActor(actor: string, q: string, max: number, esperaS
     precio = e.precio;
     campos = resumenEsquema(e.esquema);
     entrada = armarEntrada(e.esquema, q, max);
-
-    const r = await fetch(
-      `${API}/acts/${actor}/runs?token=${token}&maxItems=${max}&maxTotalChargeUsd=0.25&waitForFinish=60`,
-      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(entrada), cache: "no-store" },
-    );
-    const cuerpo = await r.json().catch(() => null);
-    if (!r.ok) throw new Error(`${r.status} ${cuerpo?.error?.message ?? ""}`.trim());
-    let run = cuerpo.data;
-    while (!["SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"].includes(run.status) && Date.now() - t0 < esperaSeg * 1000) {
-      run = await get(`/actor-runs/${run.id}?waitForFinish=30`, token);
-    }
-    // Si no terminó en el tiempo de espera, se corta para que no siga gastando.
-    if (!["SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"].includes(run.status)) {
-      run = await fetch(`${API}/actor-runs/${run.id}/abort?token=${token}`, { method: "POST", cache: "no-store" })
-        .then((x) => x.json()).then((x) => x.data ?? run).catch(() => run);
-    }
-    const items = run.defaultDatasetId
-      ? await fetch(`${API}/datasets/${run.defaultDatasetId}/items?token=${token}&clean=true&limit=${max}`, { cache: "no-store" })
-          .then((x) => x.json()).catch(() => [])
-      : [];
+    const c = await correrConEntrada(actor, entrada, { max, esperaSeg, topeUsd: 0.25 });
+    if (!c.runId) throw new Error(c.error);
     return {
-      actor, runId: run.id, ok: run.status === "SUCCEEDED", estado: run.status, entrada, campos_del_esquema: campos, precio,
-      costo_usd: run.usageTotalUsd ?? null, cobros: run.chargedEventCounts ?? null, segundos: Math.round((Date.now() - t0) / 1000),
-      cantidad: Array.isArray(items) ? items.length : 0, items: Array.isArray(items) ? items : [],
+      actor, runId: c.runId, ok: c.estado === "SUCCEEDED", estado: c.estado, entrada, campos_del_esquema: campos, precio,
+      costo_usd: c.costoUsd, cobros: c.cobros ?? null, segundos: Math.round((Date.now() - t0) / 1000),
+      cantidad: c.items.length, items: c.items,
     };
   } catch (e) {
     return { actor, ok: false, error: String(e), entrada, campos_del_esquema: campos, precio,

@@ -14,17 +14,23 @@ por organización, permisos como checkboxes— por si más adelante hay más de 
 usándolo. Nace de un cron que dispara búsquedas periódicas y guarda resultados; un panel simple
 para mirarlos es la parte final, no la primera.
 
-## Qué falta construir (la parte que le da sentido al proyecto)
+## Qué hay construido y qué falta
 
-Todo lo de abajo (login, panel, bitácora, para probar, deploy) es **andamiaje**. Lo que todavía
-no existe, y es el motivo por el que se creó este proyecto:
-
-- Ningún cron corriendo búsquedas.
-- Ninguna tabla ni pantalla de "parámetros de búsqueda" ni de "resultados".
-- `app/panel/page.tsx` hoy es un placeholder ("Todavía no hay búsquedas cargadas").
-
-Antes de ponerse a construir esto, preguntarle a Fer qué sitios buscar, con qué criterios y qué
-hacer con lo que se encuentra — eso sí es específico de este proyecto y nadie lo decidió todavía.
+- **Radar** (`/radar`, botón "📡 Radar" en el panel): tendencias de Mercado Libre. Árbol de
+  categorías completo (se carga en tandas y se refresca según configuración), tendencias por
+  categoría separadas en tres grupos (crecimiento / más buscadas / populares — **deducidos por
+  el tramo de la lista, 1–10 / 11–30 / 31–50, supuesto sin confirmar**, ver `lib/radar/base.ts`),
+  comparación contra la semana anterior, categorías seguidas (estrella + interruptor),
+  "Ver publicaciones" (API gratis, catálogo) y "Mejorar con Apify" (paga, con tope semanal),
+  pestaña Configuración con todos los parámetros. Código en `lib/radar/`, `app/radar/`, tablas
+  en `db/radar.sql`.
+- **Las tablas del Radar se crean solas**: `lib/radar/esquema.ts` corre `db/radar.sql`
+  (idempotente) al primer uso tras cada arranque. Una migración nueva del Radar va en ese mismo
+  archivo, siempre con `if not exists`.
+- **Cron**: `vercel.json` llama `/api/radar/cron` todos los días a las 11:00 UTC (8:00 AR); qué
+  corre lo decide la configuración de cada organización. Si se carga `CRON_SECRET` en Vercel, se
+  exige; sin ella la ruta es pública pero inofensiva (no repite nada de la semana, tope de gasto).
+- **Falta**: la búsqueda en China (Alibaba/1688) y el cruce con Mercado Libre.
 
 ## Infraestructura (ya creada y andando — no preguntar, no rehacer)
 
@@ -42,8 +48,7 @@ hacer con lo que se encuentra — eso sí es específico de este proyecto y nadi
   `DATABASE_URL` tiene **sólo la contraseña** de la base, no la dirección; `lib/database-url.ts`
   arma la dirección contra el pooler `aws-0-sa-east-1` (la conexión directa `db.…` es sólo IPv6
   y Vercel no llega). Si algo de la base falla, mirar primero `/admin/diagnostico`.
-- **Cron**: Vercel Cron Jobs, nativo — todavía no configurado, porque no hay qué correr hasta
-  que exista la lógica de búsqueda.
+- **Cron**: Vercel Cron Jobs, nativo — ver "Qué hay construido" arriba.
 - **Dominios**: `laucen.com.ar` (Nic.ar) y `laucen.com` (GoDaddy), los dos agregados al proyecto
   de Vercel y con sus nameservers ya cambiados a los de Vercel (`ns1`/`ns2.vercel-dns.com`).
   **Al 24/9 a la tarde ninguno de los dos había terminado de propagar todavía** — Nic.ar es

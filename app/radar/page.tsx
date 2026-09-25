@@ -1,0 +1,263 @@
+import Link from "next/link";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { radarSeguidas } from "@/db/radar";
+import { sesionRequerida, puede } from "@/lib/tenancy";
+import { asegurarEsquema } from "@/lib/radar/esquema";
+import { GRUPOS, GRUPOS_CONFIRMADOS, SITIO, fechaCorta, semanaDe, type Grupo } from "@/lib/radar/base";
+import { buscarCategorias, caminoDe, hijasDe, type Categoria } from "@/lib/radar/categorias";
+import { comparar, lecturaAnterior, lecturaDeLaSemana, palabrasDe, type Cambio } from "@/lib/radar/tendencias";
+import { busquedasDeLaSemana, publicacionesDe, sirve, type Busqueda, type Publicacion } from "@/lib/radar/busquedas";
+import { FUENTES_APIFY, configDe, costoProfundizar, type FuenteApify } from "@/lib/radar/config";
+import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
+import { accionApify, accionProfundizar, accionSeguir, accionVerPublicaciones } from "./actions";
+import { Aviso, Estrella, Interruptor, pesos } from "./Piezas";
+import { BotonEnviar } from "./Cliente";
+
+export const dynamic = "force-dynamic";
+// "Mejorar con Apify" espera a que el actor termine (~1 min).
+export const maxDuration = 300;
+
+type Params = { cat?: string; g?: string; q?: string; abierta?: string; error?: string };
+
+const ERRORES: Record<string, string> = {
+  permiso: "No tenés permiso para eso.",
+  tope: "Se llegó al tope semanal de gasto de Apify. Se puede cambiar en Configuración.",
+  apify: "Apify no pudo completar la búsqueda. Probá de nuevo en un rato.",
+};
+
+function Cambio({ c }: { c: Cambio }) {
+  if (c.tipo === "nueva") return <span className="text-[10px] font-bold rounded px-1 bg-[#EEF7F1] text-[#1F6E4A]">NUEVA</span>;
+  if (c.tipo === "sube") return <span className="text-[11px] text-[#1F6E4A]">▲{c.lugares}</span>;
+  if (c.tipo === "baja") return <span className="text-[11px] text-[#C03420]">▼{c.lugares}</span>;
+  if (c.tipo === "igual") return <span className="text-[11px] text-[#9AA7B3]">=</span>;
+  return null;
+}
+
+function TablaPublicaciones({ b, pubs }: { b: Busqueda; pubs: Publicacion[] }) {
+  const esApify = b.fuente.startsWith("apify");
+  return (
+    <div className="mt-2 border border-[#E3E9F0] rounded-lg bg-[#FAFBFC] overflow-x-auto">
+      <p className="text-[11px] text-[#5C6B76] px-3 pt-2">
+        {esApify ? `Apify (${b.fuente.slice(6)})` : "API de Mercado Libre (catálogo, gratis)"} · {fechaCorta(b.pedidaEl)}
+        {b.totalResultados && ` · ${b.totalResultados}`}
+        {b.costoUsd ? ` · USD ${b.costoUsd.toFixed(3)}` : ""}
+        {b.estado === "fallo" && <span className="text-[#C03420]"> · falló: {b.error}</span>}
+        {b.estado === "corriendo" && " · corriendo…"}
+      </p>
+      {pubs.length > 0 && (
+        <table className="w-full text-xs">
+          <thead className="text-[#5C6B76] text-left">
+            <tr><th className="px-3 py-1">#</th><th className="py-1">Publicación</th><th className="py-1 text-right">Precio</th>
+              {esApify && <th className="py-1 text-right px-2">Vendidos</th>}<th className="py-1 px-2">Vendedor</th></tr>
+          </thead>
+          <tbody>
+            {pubs.slice(0, esApify ? 10 : 10).map((p) => (
+              <tr key={p.posicion} className="border-t border-[#E3E9F0] align-top">
+                <td className="px-3 py-1 text-[#9AA7B3]">{p.posicion < 1000 ? p.posicion : ""}</td>
+                <td className="py-1">
+                  {p.url ? <a href={p.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{p.titulo}</a> : p.titulo}
+                  {p.stockTexto && <span className="text-[#5C6B76]"> · {p.stockTexto}</span>}
+                </td>
+                <td className="py-1 text-right whitespace-nowrap">
+                  {pesos(p.precio)}
+                  {p.precioAnterior && p.precioAnterior > (p.precio ?? 0) && <span className="block text-[10px] text-[#9AA7B3] line-through">{pesos(p.precioAnterior)}</span>}
+                </td>
+                {esApify && <td className="py-1 px-2 text-right whitespace-nowrap">{p.vendidos != null ? `+${p.vendidos}` : "—"}</td>}
+                <td className="py-1 px-2">{p.vendedor}{p.tiendaOficial && " (oficial)"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {esApify && pubs.length > 10 && <p className="text-[11px] text-[#5C6B76] px-3 pb-2">Se muestran 10 de {pubs.length} guardadas.</p>}
+    </div>
+  );
+}
+
+export default async function Tendencias({ searchParams }: { searchParams: Promise<Params> }) {
+  await asegurarEsquema();
+  const sesion = await sesionRequerida();
+  const sp = await searchParams;
+  if (!(await puede("radar_ver"))) return <Aviso tipo="error">No tenés permiso para ver el Radar.</Aviso>;
+  const puedeGastar = await puede("radar_gastar");
+
+  const cat = sp.cat?.trim() || SITIO;
+  const grupo: Grupo = sp.g && sp.g in GRUPOS ? (sp.g as Grupo) : "crecimiento";
+  const q = sp.q?.trim() ?? "";
+  const url = (cambios: Partial<Params>) => {
+    const u = new URLSearchParams();
+    const todo: Params = { cat, g: grupo, ...cambios };
+    for (const [k, v] of Object.entries(todo)) if (v && !(k === "cat" && v === SITIO)) u.set(k, v);
+    const s = u.toString();
+    return s ? `/radar?${s}` : "/radar";
+  };
+  const aqui = url({ abierta: sp.abierta });
+
+  const config = await configDe(sesion.org.id);
+  let problema = "";
+  let camino: Categoria[] = [], hijas: Categoria[] = [];
+  try {
+    [camino, hijas] = await Promise.all([caminoDe(cat), hijasDe(cat)]);
+  } catch (e) {
+    console.error("[radar] categorías:", e);
+    problema = "No se pudieron leer las categorías de Mercado Libre.";
+  }
+  const encontradas = q ? await buscarCategorias(q) : [];
+
+  const lectura = await lecturaDeLaSemana(cat, sesion.org.id).catch(() => null);
+  const anterior = lectura ? await lecturaAnterior(cat, lectura.semana) : null;
+  const [actuales, previas] = await Promise.all([
+    lectura ? palabrasDe([lectura.id]) : Promise.resolve([]),
+    anterior ? palabrasDe([anterior.id]) : Promise.resolve(null),
+  ]);
+  const { lista, salieron } = comparar(actuales, previas, grupo);
+
+  const seguidas = await db.select().from(radarSeguidas).where(eq(radarSeguidas.organizacionId, sesion.org.id));
+  const seguidaMap = new Map(seguidas.map((s) => [s.categoriaId, s]));
+  const estaSeguida = cat !== SITIO ? seguidaMap.get(cat) : undefined;
+
+  const busquedas = await busquedasDeLaSemana(lista.map((p) => p.palabra));
+  const yaTiene = (palabra: string, pref: string) =>
+    busquedas.find((b) => b.palabra.toLowerCase() === palabra.toLowerCase() && b.fuente.startsWith(pref) && sirve(b));
+
+  const abierta = sp.abierta?.toLowerCase();
+  const abiertas = abierta ? busquedas.filter((b) => b.palabra.toLowerCase() === abierta) : [];
+  const ultimaPorFuente = [...new Map(abiertas.map((b) => [b.fuente, b])).values()];
+  const pubsAbiertas = await Promise.all(ultimaPorFuente.map(async (b) => ({ b, pubs: await publicacionesDe(b.id) })));
+  const fuente = FUENTES_APIFY[config.fuenteApify as FuenteApify];
+
+  return (
+    <div>
+      {sp.error && <Aviso tipo="error">{ERRORES[sp.error] ?? "Algo falló."}</Aviso>}
+      {problema && <Aviso tipo="error">{problema}</Aviso>}
+
+      {/* Buscador de rubros */}
+      <form action="/radar" className="flex gap-2 mb-2">
+        <input name="q" defaultValue={q} placeholder="Buscar rubro en todo el árbol (ej: maceta)"
+          className="border border-[#E3E9F0] rounded-lg px-3 py-2 flex-1 text-sm" />
+        <button className={PRIMARIO}>Buscar</button>
+      </form>
+      {q && (
+        <div className="mb-3 border border-[#E3E9F0] rounded-lg bg-white">
+          {encontradas.length === 0 && <p className="text-xs text-[#5C6B76] px-3 py-2">Nada con “{q}” en el árbol cargado.</p>}
+          {encontradas.map((c) => (
+            <Link key={c.id} href={url({ cat: c.id, q: undefined })} className="flex justify-between gap-2 px-3 py-1.5 text-xs border-b last:border-0 border-[#E3E9F0] hover:bg-[#F5F8FB]">
+              <span>{c.ruta}</span>
+              <span className="text-[#9AA7B3] whitespace-nowrap">{c.publicaciones?.toLocaleString("es-AR") ?? ""}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* Migas */}
+      <nav className="text-xs mb-3 flex flex-wrap items-center gap-1">
+        <Link href={url({ cat: SITIO })} className="text-[#16577F] underline">Todo Mercado Libre</Link>
+        {camino.map((c) => (
+          <span key={c.id} className="flex items-center gap-1">
+            <span className="text-[#9AA7B3]">›</span>
+            <Link href={url({ cat: c.id })} className={c.id === cat ? "font-bold" : "text-[#16577F] underline"}>{c.nombre}</Link>
+          </span>
+        ))}
+        <span className="ml-auto text-[#5C6B76]">semana del {fechaCorta(semanaDe())}</span>
+      </nav>
+
+      <div className="grid md:grid-cols-[260px_1fr] gap-4">
+        {/* Subcategorías */}
+        <aside className="border border-[#E3E9F0] rounded-lg bg-white p-2 self-start">
+          <p className="text-[11px] font-bold text-[#5C6B76] px-1 mb-1">SUBCATEGORÍAS</p>
+          {hijas.length === 0 && <p className="text-xs text-[#9AA7B3] px-1">No tiene subcategorías.</p>}
+          <ul className="max-h-[60vh] overflow-y-auto">
+            {hijas.map((h) => (
+              <li key={h.id} className="flex items-center gap-1 py-0.5">
+                <Estrella accion={accionSeguir} prendida={seguidaMap.has(h.id)} campos={{ cat: h.id, volver: aqui }} />
+                <Link href={url({ cat: h.id })} className="flex-1 text-xs text-[#16577F] hover:underline truncate" title={h.ruta}>{h.nombre}</Link>
+                <span className="text-[10px] text-[#9AA7B3]">{h.publicaciones != null ? h.publicaciones.toLocaleString("es-AR") : ""}</span>
+              </li>
+            ))}
+          </ul>
+          {cat !== SITIO && (
+            <div className="border-t border-[#E3E9F0] mt-2 pt-2 grid gap-2">
+              <Interruptor accion={accionSeguir} prendido={!!estaSeguida} etiqueta="Seguir esta categoría"
+                campos={{ cat, volver: aqui }} />
+              <Interruptor accion={accionProfundizar} prendido={!!estaSeguida?.profundizar} etiqueta="Profundizar automático"
+                deshabilitado={!estaSeguida || !puedeGastar} campos={{ cat, volver: aqui }}
+                ayuda={`${config.palabrasAProfundizar} por grupo con Apify los días del proceso · ~USD ${costoProfundizar(config).toFixed(2)}`} />
+            </div>
+          )}
+        </aside>
+
+        {/* Tendencias */}
+        <section>
+          <nav className="flex gap-1 border-b border-[#E3E9F0] mb-2">
+            {(Object.keys(GRUPOS) as Grupo[]).map((g) => (
+              <Link key={g} href={url({ g })} title={GRUPOS[g].ayuda}
+                className={`px-3 py-2 text-xs font-bold -mb-px border-b-2 ${g === grupo ? "border-[#16577F] text-[#16577F]" : "border-transparent text-[#5C6B76]"}`}>
+                {GRUPOS[g].label} <span className="font-normal text-[#9AA7B3]">({actuales.filter((p) => p.grupo === g).length})</span>
+              </Link>
+            ))}
+          </nav>
+          <p className="text-[11px] text-[#5C6B76] mb-2">
+            {GRUPOS[grupo].ayuda}
+            {!GRUPOS_CONFIRMADOS && " (Grupo deducido por la posición en la lista: supuesto, a confirmar con algunas semanas.)"}
+            {lectura && ` · Leída el ${fechaCorta(lectura.leidaEl)}.`}
+            {lectura && !anterior && " Primera lectura: todavía no hay semana anterior para comparar."}
+          </p>
+
+          {!lectura && <Aviso tipo="error">No se pudieron leer las tendencias. ¿Está conectada la cuenta de Mercado Libre?</Aviso>}
+          {lectura && actuales.length === 0 && <Aviso>Mercado Libre no informa tendencias para esta categoría.</Aviso>}
+
+          <ol className="grid gap-1">
+            {lista.map((p) => {
+              const gratis = yaTiene(p.palabra, "api");
+              const paga = yaTiene(p.palabra, "apify");
+              const estaAbierta = abierta === p.palabra.toLowerCase();
+              return (
+                <li key={p.posicion} className="border border-[#E3E9F0] rounded-lg bg-white px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-[#9AA7B3] w-5 text-right">{p.lugar}.</span>
+                    <span className="text-sm font-semibold">{p.palabra}</span>
+                    <Cambio c={p.cambio} />
+                    {p.url && <a href={p.url} target="_blank" rel="noreferrer" className="text-[11px] text-[#16577F] underline">ver en ML ↗</a>}
+                    <span className="ml-auto flex gap-1">
+                      {gratis ? (
+                        <Link href={estaAbierta ? url({}) : url({ abierta: p.palabra })} className={SUAVE}>
+                          {estaAbierta ? "Cerrar" : "Ver publicaciones"}
+                        </Link>
+                      ) : (
+                        <form action={accionVerPublicaciones}>
+                          <input type="hidden" name="palabra" value={p.palabra} />
+                          <input type="hidden" name="cat" value={cat} />
+                          <input type="hidden" name="volver" value={url({})} />
+                          <BotonEnviar clase={SUAVE} corriendo="Buscando…">Ver publicaciones</BotonEnviar>
+                        </form>
+                      )}
+                      {puedeGastar && !paga && (
+                        <form action={accionApify}>
+                          <input type="hidden" name="palabra" value={p.palabra} />
+                          <input type="hidden" name="cat" value={cat} />
+                          <input type="hidden" name="volver" value={url({})} />
+                          <BotonEnviar clase={VERDE} corriendo="Corriendo… ~1 min">
+                            Mejorar con Apify ~USD {fuente.costoPorPalabra.toFixed(2)}
+                          </BotonEnviar>
+                        </form>
+                      )}
+                      {paga && !estaAbierta && <Link href={url({ abierta: p.palabra })} className={SUAVE}>Ver (Apify)</Link>}
+                    </span>
+                  </div>
+                  {estaAbierta && pubsAbiertas.map(({ b, pubs }) => <TablaPublicaciones key={b.id} b={b} pubs={pubs} />)}
+                </li>
+              );
+            })}
+          </ol>
+
+          {config.mostrarSalieron && salieron.length > 0 && (
+            <p className="text-[11px] text-[#5C6B76] mt-3">
+              <b>Salieron de este grupo</b> desde la semana pasada: {salieron.join(" · ")}
+            </p>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
