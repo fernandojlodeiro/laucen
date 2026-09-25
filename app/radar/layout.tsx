@@ -15,6 +15,7 @@ export default function RadarLayout({ children }: { children: React.ReactNode })
       <Pestanas items={[
         { href: "/radar", texto: "Tendencias" },
         { href: "/radar/seguidas", texto: "Mis categorías seguidas" },
+        { href: "/radar/historial", texto: "Historial" },
         { href: "/radar/configuracion", texto: "Configuración" },
       ]} />
       {children}

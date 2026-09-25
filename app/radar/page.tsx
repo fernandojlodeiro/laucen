@@ -8,6 +8,8 @@ import { GRUPOS, GRUPOS_CONFIRMADOS, SITIO, fechaCorta, semanaDe, type Grupo } f
 import { buscarCategorias, caminoDe, hijasDe, type Categoria } from "@/lib/radar/categorias";
 import { comparar, lecturaAnterior, lecturaDeLaSemana, palabrasDe, type Cambio } from "@/lib/radar/tendencias";
 import { busquedasDeLaSemana, publicacionesDe, sirve, type Busqueda, type Publicacion } from "@/lib/radar/busquedas";
+import { vistas } from "@/lib/radar/historial";
+import { meliBusquedas } from "@/db/radar";
 import { FUENTES_APIFY, configDe, costoProfundizar, type FuenteApify } from "@/lib/radar/config";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { accionApify, accionProfundizar, accionSeguir, accionVerPublicaciones } from "./actions";
@@ -18,7 +20,7 @@ export const dynamic = "force-dynamic";
 // "Mejorar con Apify" espera a que el actor termine (~1 min).
 export const maxDuration = 300;
 
-type Params = { cat?: string; g?: string; q?: string; abierta?: string; error?: string };
+type Params = { cat?: string; g?: string; q?: string; abierta?: string; b?: string; error?: string };
 
 const ERRORES: Record<string, string> = {
   permiso: "No tenés permiso para eso.",
@@ -130,10 +132,16 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
   const yaTiene = (palabra: string, pref: string) =>
     busquedas.find((b) => b.palabra.toLowerCase() === palabra.toLowerCase() && b.fuente.startsWith(pref) && sirve(b));
 
-  const abierta = sp.abierta?.toLowerCase();
-  const abiertas = abierta ? busquedas.filter((b) => b.palabra.toLowerCase() === abierta) : [];
+  // Una búsqueda puntual (desde el Historial): se abre aunque sea de otra semana.
+  const [puntual] = sp.b && /^\d+$/.test(sp.b)
+    ? await db.select().from(meliBusquedas).where(and(eq(meliBusquedas.id, Number(sp.b)), eq(meliBusquedas.organizacionId, sesion.org.id)))
+    : [];
+  const abierta = (puntual?.palabra ?? sp.abierta)?.toLowerCase();
+  const abiertas = puntual ? [puntual] : abierta ? busquedas.filter((b) => b.palabra.toLowerCase() === abierta) : [];
   const ultimaPorFuente = [...new Map(abiertas.map((b) => [b.fuente, b])).values()];
   const pubsAbiertas = await Promise.all(ultimaPorFuente.map(async (b) => ({ b, pubs: await publicacionesDe(b.id) })));
+  const abiertaEnLista = !!abierta && lista.some((p) => p.palabra.toLowerCase() === abierta);
+  const yaVistas = await vistas(sesion.org.id, lista.map((p) => p.palabra));
   const fuente = FUENTES_APIFY[config.fuenteApify as FuenteApify];
 
   return (
@@ -216,18 +224,35 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
           {!lectura && <Aviso tipo="error">No se pudieron leer las tendencias. ¿Está conectada la cuenta de Mercado Libre?</Aviso>}
           {lectura && actuales.length === 0 && <Aviso>Mercado Libre no informa tendencias para esta categoría.</Aviso>}
 
+          {puntual && semanaDe(puntual.pedidaEl) !== semanaDe() && (
+            <Aviso>Búsqueda del {fechaCorta(puntual.pedidaEl)}. La lista de tendencias de abajo es la de esta semana.</Aviso>
+          )}
+          {abierta && !abiertaEnLista && pubsAbiertas.length > 0 && (
+            <div className="border border-[#E3E9F0] rounded-lg bg-white px-3 py-2 mb-2">
+              <p className="text-sm font-semibold">“{pubsAbiertas[0].b.palabra}” <span className="text-xs font-normal text-[#5C6B76]">(esta semana no está en este grupo)</span></p>
+              {pubsAbiertas.map(({ b, pubs }) => <TablaPublicaciones key={b.id} b={b} pubs={pubs} />)}
+            </div>
+          )}
+
           <ol className="grid gap-1">
             {lista.map((p) => {
               const gratis = yaTiene(p.palabra, "api");
               const paga = yaTiene(p.palabra, "apify");
               const estaAbierta = abierta === p.palabra.toLowerCase();
+              const vista = yaVistas.get(p.palabra.toLowerCase());
               return (
-                <li key={p.posicion} className="border border-[#E3E9F0] rounded-lg bg-white px-3 py-2">
+                <li key={p.posicion} className={`border rounded-lg px-3 py-2 ${vista ? "bg-[#F1F3F5] border-[#DCE2E8]" : "bg-white border-[#E3E9F0]"}`}>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs text-[#9AA7B3] w-5 text-right">{p.lugar}.</span>
                     <span className="text-sm font-semibold">{p.palabra}</span>
                     <Cambio c={p.cambio} />
                     {p.url && <a href={p.url} target="_blank" rel="noreferrer" className="text-[11px] text-[#16577F] underline">ver en ML ↗</a>}
+                    {vista && (
+                      <Link href={`/radar/historial?q=${encodeURIComponent(p.palabra)}`} title="Ver en el historial"
+                        className="text-[10px] rounded px-1.5 py-0.5 bg-white border border-[#DCE2E8] text-[#5C6B76]">
+                        👁 vista {fechaCorta(vista.cuando)} · {vista.automatica ? "🤖 automática" : vista.quien ?? "?"}
+                      </Link>
+                    )}
                     <span className="ml-auto flex gap-1">
                       {gratis ? (
                         <Link href={estaAbierta ? url({}) : url({ abierta: p.palabra })} className={SUAVE}>

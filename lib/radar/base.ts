@@ -28,17 +28,18 @@ export function fechaCorta(iso: string | Date): string {
   return d.toLocaleDateString("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit" });
 }
 
-// Grupos de tendencias. La API los devuelve en una sola lista, en tramos:
-// 1–10 las que más crecieron, 11–30 las más buscadas, 31–50 las populares.
-// SUPUESTO sin confirmar (la respuesta no marca el grupo): se revisa con
-// algunas semanas de historia; si cambia, se cambia acá y en nada más.
+// Grupos de tendencias. La API devuelve una sola lista, en tramos fijos
+// según la documentación oficial (developers.mercadolibre.com.ar/es_ar/tendencias,
+// confirmado por Cowork el 25/9, bitácora #9): 10 primeras = mayor crecimiento,
+// 20 siguientes = más deseadas, 20 últimas = más populares. Puede venir menos
+// de 50: los tramos se cuentan igual por posición.
 export const GRUPOS = {
-  crecimiento: { label: "Crecimiento", ayuda: "Las que más crecieron en la última semana." },
-  buscadas: { label: "Más buscadas", ayuda: "Las de mayor volumen de búsqueda de la última semana." },
-  populares: { label: "Populares", ayuda: "Las que más subieron contra dos semanas atrás." },
+  crecimiento: { label: "Crecimiento", ayuda: "Productos con el mayor aumento de ingresos (ventas en $) de la última semana." },
+  buscadas: { label: "Más buscadas", ayuda: "Productos con mayor volumen de búsquedas de la última semana." },
+  populares: { label: "Populares", ayuda: "Las tendencias más populares de la semana: las que más subieron en búsquedas contra dos semanas atrás." },
 } as const;
 export type Grupo = keyof typeof GRUPOS;
-export const GRUPOS_CONFIRMADOS = false;
+export const GRUPOS_CONFIRMADOS = true;
 
 export function grupoDe(posicion: number): Grupo {
   if (posicion <= 10) return "crecimiento";
