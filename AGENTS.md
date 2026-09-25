@@ -144,6 +144,11 @@ cambie, Fer lo va a decir explícitamente.
   `coordinacion.documentos` (nombre `'AGENTS.md'`) con su conector de Supabase; Code, del repo.
   Cada deploy de producción lo publica solo ahí (`scripts/publicar-documentos.mjs`, paso del
   build), con el commit del build.
+- **Cowork NUNCA edita `AGENTS.md` en la base** (`coordinacion.documentos`): es una copia, el
+  próximo deploy la pisa y el cambio se pierde. El original está en el repo y lo cambia sólo
+  Code. Si Cowork necesita asentar algo en `AGENTS.md`, anota en la bitácora una entrada tipo
+  `orden` ("agregar a AGENTS.md: …", con el texto); la sesión de Code que la tome cambia el
+  archivo, lo sube a main (el deploy lo vuelve a publicar en la base) y responde en el hilo.
 - **Bitácora y para probar**: Supabase, proyecto `laucen` (ref `pcltuzztybiovhuaheek`), esquema
   `coordinacion` (`db/coordinacion.sql`). En la app: `/admin/bitacora` y `/admin/para-probar`.
   Autores: `fer`, `code`, `cowork`; Cowork escribe como `cowork`, Code como `code`.
@@ -151,6 +156,16 @@ cambie, Fer lo va a decir explícitamente.
   `pide_lectura = true`; las respuestas llevan `responde_a` = id de la raíz. Un hilo se cierra
   cuando alguien escribe "Tema cerrado". **Toda sesión lee las entradas nuevas de la bitácora
   antes de empezar.**
+- **Tomar una tarea: primero se avisa, después se hace.** Fer suele tener varias sesiones de
+  Code y de Cowork abiertas a la vez. Para que dos no hagan lo mismo:
+  1. Antes de tomar una orden de la bitácora, leer su hilo entero: si alguien ya escribió
+     "Me encargo yo" y todavía no escribió "Terminado", esa tarea es de esa sesión — no se toca.
+  2. Si nadie la tomó: **lo primero** es responder en el hilo "Me encargo yo" (con el link o id
+     de la sesión). Recién después se empieza a trabajar.
+  3. Enseguida de anotarlo, releer el hilo: si otra sesión escribió "Me encargo yo" antes (id
+     más bajo), gana esa; la segunda escribe "La deja, la toma #<id>" y no la hace.
+  4. Al terminar, responder en el hilo "Terminado" (con qué se hizo, en pocas líneas), para
+     que ninguna otra sesión la intente. Si se abandona a mitad, escribir "La suelto" y por qué.
 - **Todo lo nuevo se anota en la bitácora, aunque nadie lo haya pedido.** Cada cosa que una
   sesión hace, decide o descubre (una función nueva, un cambio de criterio, un detalle de cómo
   anda un módulo, un hueco que queda abierto) va a la bitácora: qué es, para qué, y qué queda
