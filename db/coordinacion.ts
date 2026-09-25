@@ -33,7 +33,16 @@ export const bitacora = coordinacion.table("bitacora", {
   respondeA: bigint("responde_a", { mode: "number" }),
   vistoFer: timestamp("visto_fer", { withTimezone: true }),
   pideLectura: boolean("pide_lectura").notNull().default(false),
+  sesion: text("sesion"),
 }, (t) => [index("bitacora_ts_idx").on(t.ts)]);
+
+/** Título de cada sesión (el que Fer le pone en el panel de Claude). */
+export const sesiones = coordinacion.table("sesiones", {
+  id: text("id").primaryKey(),
+  titulo: text("titulo").notNull(),
+  autor: text("autor"),
+  actualizadaTs: timestamp("actualizada_ts", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const lecturas = coordinacion.table("lecturas", {
   bitacoraId: bigint("bitacora_id", { mode: "number" }).notNull(),

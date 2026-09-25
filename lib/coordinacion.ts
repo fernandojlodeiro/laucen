@@ -4,7 +4,7 @@
 // Drizzle de este proyecto.
 
 import { db } from "@/db";
-import { autores, bitacora, pendientes, lecturas } from "@/db/coordinacion";
+import { autores, bitacora, pendientes, lecturas, sesiones } from "@/db/coordinacion";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 
 // ── Los vocabularios ───────────────────────────────────
@@ -68,6 +68,8 @@ export type Entrada = {
   /** Cuándo se dio por leída. `null` = todavía hay que mirarla. */
   vistoFer: Date | null;
   pideLectura?: boolean;
+  /** Id de la sesión que la escribió (se muestra con su título). */
+  sesion?: string | null;
 };
 
 export type Hilo = Entrada & { respuestas: Entrada[] };
@@ -136,6 +138,7 @@ export async function ultimasEntradas(limite = 60): Promise<Entrada[]> {
       pendientes: bitacora.pendientes, refDoc: bitacora.refDoc, respondeA: bitacora.respondeA,
       vistoFer: bitacora.vistoFer,
       pideLectura: bitacora.pideLectura,
+      sesion: bitacora.sesion,
     })
     .from(bitacora)
     .orderBy(desc(bitacora.ts), desc(bitacora.id))
@@ -176,4 +179,10 @@ export async function anotar(fila: {
   refDoc?: string | null; respondeA?: number | null;
 }) {
   await db.insert(bitacora).values(fila);
+}
+
+/** Título de cada sesión, por id (el nombre que Fer le pone en el panel de Claude). */
+export async function titulosDeSesiones(): Promise<Map<string, string>> {
+  const filas = await db.select({ id: sesiones.id, titulo: sesiones.titulo }).from(sesiones);
+  return new Map(filas.map((f) => [f.id, f.titulo]));
 }

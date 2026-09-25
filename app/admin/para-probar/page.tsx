@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sosVos } from "@/lib/admin";
-import { losAutores, PRIORIDADES, esPrioridad } from "@/lib/coordinacion";
+import { losAutores, titulosDeSesiones, PRIORIDADES, esPrioridad } from "@/lib/coordinacion";
+import SesionChip from "@/app/admin/SesionChip";
 import {
   todasLasFilas, vueltasDe, filtrar, ordenar, contar, areasConAlgo, letra, AREAS, ESTADOS_PRUEBA,
   TIPOS_DE_VUELTA, esArea, esEstadoPrueba, type Fila, type Filtro, type Vuelta,
@@ -117,9 +118,9 @@ function ConTexto({ fila, marca, boton, tono, fondo, rotulo, placeholder, obliga
   );
 }
 
-function Hilo({ fila, vueltas, color, nombre, volverA, recien }: {
+function Hilo({ fila, vueltas, color, nombre, volverA, recien, titulos }: {
   fila: Fila; vueltas: Vuelta[]; color: Record<string, string>; nombre: Record<string, string>;
-  volverA: string; recien: boolean;
+  volverA: string; recien: boolean; titulos: Map<string, string>;
 }) {
   const borde = fila.estado === "con_fallas" ? "border-[#EFD3CE]"
     : fila.estado === "observado" ? "border-[#F0DFAE]"
@@ -156,11 +157,7 @@ function Hilo({ fila, vueltas, color, nombre, volverA, recien }: {
           style={{ color: color[fila.autor] }}>
           {quien(fila.autor)}
         </span>
-        {fila.sesion && (
-          <span className="px-2 py-0.5 rounded bg-[#EEF3F8] border border-[#E3E9F0] text-[#16577F] font-semibold">
-            {fila.sesion}
-          </span>
-        )}
+        <SesionChip id={fila.sesion} titulos={titulos} />
         {fila.pedidoPor && (
           <>
             <span>· por pedido de</span>
@@ -189,7 +186,7 @@ function Hilo({ fila, vueltas, color, nombre, volverA, recien }: {
               <b>{TIPOS_DE_VUELTA[v.tipo as keyof typeof TIPOS_DE_VUELTA] ?? v.tipo}</b>
               {v.texto && <span className="whitespace-pre-wrap">: {v.texto}</span>}
               <span className="block text-[11px] mt-1 opacity-80">
-                {quien(v.autor)}{v.sesion ? ` · ${v.sesion}` : ""} · {cuando(v.ts)}
+                {quien(v.autor)}{v.sesion ? ` · ${titulos.get(v.sesion) ?? v.sesion}` : ""} · {cuando(v.ts)}
                 {v.version ? ` · build ${v.version}` : ""}
               </span>
               {v.autor === "fer" && (
@@ -271,7 +268,7 @@ export default async function ParaProbar({
   if (!(await sosVos())) redirect("/");
   const sp = await searchParams;
 
-  const [filas, autores] = await Promise.all([todasLasFilas(), losAutores()]);
+  const [filas, autores, titulos] = await Promise.all([todasLasFilas(), losAutores(), titulosDeSesiones()]);
   const color = Object.fromEntries(autores.map((a) => [a.slug, a.color]));
   const nombre = Object.fromEntries(autores.map((a) => [a.slug, a.nombre]));
   const activos = autores.filter((a) => a.activo);
@@ -447,7 +444,7 @@ export default async function ParaProbar({
       ) : (
         <ul className="grid gap-3">
           {lista.map((f) => (
-            <Hilo key={f.id} fila={f} vueltas={vueltas.get(f.id) ?? []} color={color} nombre={nombre}
+            <Hilo key={f.id} fila={f} vueltas={vueltas.get(f.id) ?? []} color={color} nombre={nombre} titulos={titulos}
               volverA={aca} recien={sp.ok === String(f.id)} />
           ))}
         </ul>

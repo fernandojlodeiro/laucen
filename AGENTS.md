@@ -152,6 +152,12 @@ cambie, Fer lo va a decir explícitamente.
 - **Bitácora y para probar**: Supabase, proyecto `laucen` (ref `pcltuzztybiovhuaheek`), esquema
   `coordinacion` (`db/coordinacion.sql`). En la app: `/admin/bitacora` y `/admin/para-probar`.
   Autores: `fer`, `code`, `cowork`; Cowork escribe como `cowork`, Code como `code`.
+- **Nombre de la sesión**: toda entrada de bitácora y fila de para probar lleva en `sesion` el
+  id de la sesión que la escribió, y esa sesión mantiene su título en `coordinacion.sesiones`
+  (`id`, `titulo`, `autor`): antes de escribir, un upsert con el título actual. El título es el
+  que Fer le pone a la sesión en el panel de Claude (Code lo lee con `get_session`, sin
+  `session_id`; Cowork usa el nombre de su conversación). Las pantallas muestran el título, no
+  el id.
 - **La bitácora es el vínculo de coordinación entre Fer y las sesiones de Code y de Cowork.**
   **Toda sesión lee las entradas nuevas de la bitácora antes de empezar.**
 - **Un tema = un hilo.** La entrada raíz lleva tipo `orden` o `pregunta` y

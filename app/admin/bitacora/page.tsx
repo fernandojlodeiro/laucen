@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sosVos } from "@/lib/admin";
 import {
+  titulosDeSesiones,
   ultimasEntradas, losPendientes, losAutores, enHilos, paraVos,
   TIPOS, ESTADOS, PRIORIDADES, esTipo, type Entrada, type Hilo,
   quienLeyo,
@@ -10,6 +11,7 @@ import { accionConfirmarLectura, accionAnotarEnBitacora, accionEstadoDePendiente
   accionResponderEntrada } from "@/app/coordinacion-actions";
 import { SUAVE, VERDE, DESPLEGABLE, DESPLEGABLE_CHICO, FLECHA } from "@/app/botones";
 import Vacio from "@/app/Vacio";
+import SesionChip from "@/app/admin/SesionChip";
 import { pool } from "@/db";
 
 type Documento = { nombre: string; commit: string | null; actualizado_ts: Date; largo: number };
@@ -48,13 +50,14 @@ const cuando = (d: Date) =>
     timeZone: "America/Argentina/Buenos_Aires",
   });
 
-function Firma({ entrada, color }: { entrada: Entrada; color: string }) {
+function Firma({ entrada, color, titulos }: { entrada: Entrada; color: string; titulos: Map<string, string> }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#5C6B76]">
       <span className="font-bold px-2 py-0.5 rounded-full bg-[#F7F8F6] border border-[#E3E9F0]"
         style={{ color }}>
         {entrada.autor}
       </span>
+      <SesionChip id={entrada.sesion} titulos={titulos} />
       <span className="font-semibold">{TIPOS[entrada.tipo as keyof typeof TIPOS] ?? entrada.tipo}</span>
       <span>·</span>
       <span className="tabular-nums">{cuando(entrada.ts)}</span>
@@ -191,8 +194,8 @@ export default async function Bitacora({
   if (!(await sosVos())) redirect("/");
   const sp = await searchParams;
 
-  const [entradas, pendientes, autores, documentos] = await Promise.all([
-    ultimasEntradas(), losPendientes(), losAutores(), documentosPublicados(),
+  const [entradas, pendientes, autores, documentos, titulos] = await Promise.all([
+    ultimasEntradas(), losPendientes(), losAutores(), documentosPublicados(), titulosDeSesiones(),
   ]);
   const buildActual = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
   const color = Object.fromEntries(autores.map((a) => [a.slug, a.color]));
@@ -357,7 +360,7 @@ export default async function Bitacora({
               {hilos.map((h) => (
                 <article key={h.id} id={`e${h.id}`}
                   className="bg-white border border-[#E3E9F0] rounded-2xl p-4 scroll-mt-4">
-                  <Firma entrada={h} color={color[h.autor] ?? "#5C6B76"} />
+                  <Firma entrada={h} color={color[h.autor] ?? "#5C6B76"} titulos={titulos} />
                   <h2 className="font-semibold text-sm mt-1">{h.titulo}</h2>
                   <Cuerpo entrada={h} />
                   {h.respondeA !== null && (
@@ -368,7 +371,7 @@ export default async function Bitacora({
                   {h.respuestas.map((r) => (
                     <div key={r.id} id={`e${r.id}`}
                       className="mt-3 pl-3 border-l-2 border-[#E3E9F0] scroll-mt-4">
-                      <Firma entrada={r} color={color[r.autor] ?? "#5C6B76"} />
+                      <Firma entrada={r} color={color[r.autor] ?? "#5C6B76"} titulos={titulos} />
                       <h3 className="font-semibold text-sm mt-1">{r.titulo}</h3>
                       <Cuerpo entrada={r} />
                       {r.respondeA !== h.id && (

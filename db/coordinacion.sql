@@ -151,3 +151,17 @@ create table if not exists coordinacion.documentos (
   actualizado_ts timestamptz not null default now()
 );
 alter table coordinacion.documentos enable row level security;
+
+-- Nombre de cada sesión (el título que Fer le pone en el panel de Claude),
+-- para mostrarlo en la bitácora y en "para probar" en vez del id. Cada
+-- sesión de Code lo actualiza antes de escribir (lo lee con get_session);
+-- Cowork anota el suyo. `sesion` en bitácora / para probar guarda el id.
+create table if not exists coordinacion.sesiones (
+  id             text primary key,          -- 'session_01…'
+  titulo         text not null,
+  autor          text references coordinacion.autores(slug),
+  actualizada_ts timestamptz not null default now()
+);
+alter table coordinacion.sesiones enable row level security;
+
+alter table coordinacion.bitacora add column if not exists sesion text;
