@@ -58,14 +58,25 @@ export function aPubML(x: Record<string, unknown>): PubML {
   };
 }
 
+/** Cómo arma Mercado Libre la dirección de una categoría: cada nivel en
+ *  minúsculas, sin acentos ni signos, palabras separadas por "-" y sin la "y"
+ *  ("Hogar, Muebles y Jardín › Jardin y Aire Libre" →
+ *  listado.mercadolibre.com.ar/hogar-muebles-jardin/jardin-aire-libre/, visto
+ *  por Fer el 27/9). */
+export function slugCategoria(nombre: string) {
+  return nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9ñ]+/g, " ").trim().split(/\s+/).filter((w) => w !== "y" && w !== "e").join("-");
+}
+
 /** Dirección del listado de la categoría en Mercado Libre, con el rango de precio. */
-export async function urlDeCategoria(categoriaId: string, organizacionId: string, min: number | null, max: number | null) {
-  const token = await tokenML(organizacionId);
-  const r = await ml(`/categories/${categoriaId}`, token);
-  const permalink = (r.datos as { permalink?: string } | null)?.permalink?.replace(/\/$/, "");
-  const base = permalink || `https://listado.mercadolibre.com.ar/_CategoryID_${categoriaId}`;
-  const rango = min != null || max != null ? `/_PriceRange_${min ?? 0}-${max ?? 999999999}_NoIndex_True` : "";
-  return `${base}${rango}`;
+export async function urlDeCategoria(categoriaId: string, _organizacionId: string, min: number | null, max: number | null) {
+  const c = await categoria(categoriaId);
+  if (!c) throw new Error(`No se encontró la categoría ${categoriaId}`);
+  const camino = c.ruta.split(" › ").map(slugCategoria).join("/");
+  // Con un filtro en la dirección, Mercado Libre muestra el listado (sin
+  // filtro, en las categorías grandes muestra una portada con carruseles).
+  const rango = `_PriceRange_${min ?? 0}-${max ?? 999999999}_NoIndex_True`;
+  return `https://listado.mercadolibre.com.ar/${camino}/${rango}`;
 }
 
 const enRango = (p: number | null, min: number | null, max: number | null) =>
