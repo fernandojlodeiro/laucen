@@ -6,7 +6,7 @@ import { sesionRequerida } from "@/lib/tenancy";
 import { db } from "@/db";
 import { meliPruebas } from "@/db/meli";
 import { apifyToken, costosFinales } from "@/lib/apify";
-import { hayClaude } from "@/lib/china/traducir";
+import { hayClaude, traducirTitulos } from "@/lib/china/traducir";
 import { SUAVE } from "@/app/botones";
 import { accionCorrerChina, accionTraducir, type PruebaChina } from "./actions";
 import { ACTORES, MAX, TOPE_USD } from "./config";
@@ -69,9 +69,15 @@ function minimoDe(it: unknown): string | null {
   return null;
 }
 
-function Vistazo({ items }: { items: unknown[] }) {
-  const filas = items.map((it) => ({
-    titulo: campo(it, /^(title|subject|name|product_?title|productName|offerTitle)$/i) ?? campo(it, /title|subject|name/i),
+/** El título original (en chino, si el actor trae los dos). */
+function tituloDe(it: unknown) {
+  return campo(it, /^(title|subject|name|product_?title|productName|offerTitle|titleCn)$/i) ?? campo(it, /title|subject|name/i);
+}
+
+function Vistazo({ items, es }: { items: unknown[]; es?: string[] }) {
+  const filas = items.map((it, i) => ({
+    titulo: es?.[i] || tituloDe(it),
+    original: es?.[i] ? tituloDe(it) : null,
     precio: precioDe(it),
     minimo: minimoDe(it),
     foto: campo(it, /^(image|img|imageUrl|image_url|mainImage|main_image|thumbnail|pic|picUrl|images)$/i),
@@ -85,14 +91,15 @@ function Vistazo({ items }: { items: unknown[] }) {
       <tbody>
         {filas.map((f, i) => (
           <tr key={i} className="border-t border-[#E3E9F0] align-top">
-            <td className="py-1 pr-2 w-12">
+            <td className="py-1 pr-2 w-16">
               {f.foto && /^(https?:)?\/\//.test(f.foto) && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={f.foto.startsWith("//") ? `https:${f.foto}` : f.foto} alt="" className="w-10 h-10 object-cover rounded" />
+                <img src={f.foto.startsWith("//") ? `https:${f.foto}` : f.foto} alt="" referrerPolicy="no-referrer" loading="lazy" className="w-16 h-16 object-cover rounded" />
               )}
             </td>
             <td className="py-1 pr-2">
               {f.url ? <a href={f.url.startsWith("//") ? `https:${f.url}` : f.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{f.titulo ?? "(sin título)"}</a> : f.titulo ?? "(sin título)"}
+              {f.original && <span className="block text-[#9AA7B3]">{f.original}</span>}
             </td>
             <td className="py-1 px-2 whitespace-nowrap">{f.precio ?? "—"}</td>
             <td className="py-1 whitespace-nowrap">{f.minimo ?? "—"}</td>
@@ -118,7 +125,7 @@ function Resultado({ r, final }: { r: Corrida; final?: Final }) {
       <div className="px-3 pb-3 text-[11px]">
         {r.error && <p className="text-[#C03420] mb-2">{r.error}</p>}
         {r.busqueda && r.tipo === "texto" && <p className="text-[#5C6B76] mb-2">Buscó: “{r.busqueda}”</p>}
-        {!!r.items?.length && <Vistazo items={r.items} />}
+        {!!r.items?.length && <Vistazo items={r.items} es={r.titulos_es} />}
         {final?.cobros != null && <p className="text-[#5C6B76] mb-2">Cobros: {JSON.stringify(final.cobros)}</p>}
         <p className="text-[#5C6B76]">Entrada que se armó:</p>
         <pre className="overflow-x-auto mb-2">{JSON.stringify(r.entrada, null, 2)}</pre>
@@ -154,6 +161,21 @@ export default async function China({ searchParams }: { searchParams: Promise<SP
   const datos = prueba && (prueba.resultados as { corridas?: unknown }).corridas ? (prueba.resultados as PruebaChina) : null;
   const corriendo = !!prueba && !datos;
   const corridas = datos?.corridas ?? [];
+
+  // Títulos en castellano: se traducen con Claude la primera vez que se mira
+  // la prueba y quedan guardados junto a los resultados.
+  if (claude && prueba && datos) {
+    const faltan = corridas.filter((r) => r.items?.length && !r.titulos_es?.length);
+    if (faltan.length) {
+      await Promise.all(faltan.map(async (r) => {
+        const es = await traducirTitulos((r.items ?? []).map((it) => tituloDe(it) ?? ""));
+        if (es) r.titulos_es = es;
+      }));
+      if (faltan.some((r) => r.titulos_es?.length)) {
+        await db.update(meliPruebas).set({ resultados: datos }).where(eq(meliPruebas.id, prueba.id));
+      }
+    }
+  }
   const finales = await costosFinales(corridas.map((r) => r.runId).filter((x): x is string => !!x));
   const total = corridas.reduce((t, r) => t + ((r.runId ? finales[r.runId]?.usd : null) ?? r.costo_usd ?? 0), 0);
 

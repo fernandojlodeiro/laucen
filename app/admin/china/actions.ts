@@ -18,7 +18,7 @@ export type PruebaChina = {
   zh: string;
   traducidoPor: "claude" | "a mano" | null;
   imagen: string;
-  corridas: (ResultadoActor & { plataforma: string; tipo: string; busqueda: string })[];
+  corridas: (ResultadoActor & { plataforma: string; tipo: string; busqueda: string; titulos_es?: string[] })[];
 };
 
 function volver(p: Record<string, string>): never {

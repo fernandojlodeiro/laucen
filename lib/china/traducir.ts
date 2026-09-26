@@ -58,3 +58,35 @@ export async function traducir(texto: string): Promise<Traduccion | Falla | null
     return { motivo: motivoDe(status, mensaje), tecnico: `${status ?? ""} ${mensaje}`.trim().slice(0, 1000) };
   }
 }
+
+/** Traduce al castellano una lista de títulos de productos (chino o inglés),
+ *  en un solo pedido. Devuelve la lista en el mismo orden ("" donde no pudo),
+ *  o null si no hay llave o falló todo. */
+export async function traducirTitulos(titulos: string[]): Promise<string[] | null> {
+  if (!hayClaude() || !titulos.length) return null;
+  const workspace = process.env.ANTHROPIC_WORKSPACE_ID?.trim();
+  const client = new Anthropic(workspace ? { defaultHeaders: { "anthropic-workspace-id": workspace } } : {});
+  try {
+    const r = await client.messages.create({
+      model: "claude-opus-5",
+      max_tokens: 8000,
+      output_config: { effort: "low" },
+      system:
+        "Traducís al castellano rioplatense títulos de productos de sitios mayoristas chinos, para un importador argentino. " +
+        "Cada título viene numerado. Respondé una línea por título, con el mismo número y nada más: \"N. traducción\". " +
+        "Traducción corta y clara (qué producto es, material, medida, voltaje); sacá palabras de relleno de venta.",
+      messages: [{ role: "user", content: titulos.map((t, i) => `${i + 1}. ${t.replace(/\s+/g, " ").trim()}`).join("\n") }],
+    });
+    if (r.stop_reason === "refusal") return null;
+    const salida = r.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
+    const lista = titulos.map(() => "");
+    for (const linea of salida.split("\n")) {
+      const m = linea.match(/^\s*(\d+)[.)]\s*(.+)$/);
+      if (m && Number(m[1]) >= 1 && Number(m[1]) <= titulos.length) lista[Number(m[1]) - 1] = m[2].trim();
+    }
+    return lista.some(Boolean) ? lista : null;
+  } catch (e) {
+    console.error("[china] Claude títulos:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
