@@ -4,16 +4,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { sosVos } from "@/lib/admin";
 import { sesionRequerida } from "@/lib/tenancy";
-import { buscarCategorias } from "@/lib/radar/categorias";
 import { avanzar, crearCorrida, revisar } from "@/lib/piloto/proceso";
 import { POR_DEFECTO, type Parametros } from "@/lib/piloto/tipos";
-
-/** Buscador de categorías del formulario (devuelve la lista, no navega). */
-export async function accionBuscarCategorias(texto: string) {
-  if (!(await sosVos()) || texto.trim().length < 2) return [];
-  const r = await buscarCategorias(texto.trim(), 30);
-  return r.map((c) => ({ id: c.id, ruta: c.ruta, nivel: c.nivel }));
-}
 
 const numero = (v: FormDataEntryValue | null, def: number | null) => {
   const t = String(v ?? "").replace(/\./g, "").replace(",", ".").trim();

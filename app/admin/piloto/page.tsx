@@ -9,8 +9,8 @@ import { apifyToken } from "@/lib/apify";
 import { SUAVE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { PRIMARIO } from "@/app/botones";
-import { accionBuscarCategorias, accionCrearPiloto } from "./actions";
-import { ElegirCategorias } from "./Cliente";
+import { accionCrearPiloto } from "./actions";
+import ExploradorCategorias from "@/app/componentes/ExploradorCategorias";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Piloto", robots: { index: false, follow: false } };
@@ -78,7 +78,7 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
         <h2 className="text-sm font-bold mb-2">Nuevo piloto</h2>
         {sp.error === "categorias" && <p className="text-xs text-[#C03420] bg-[#FDF1EF] rounded-lg px-3 py-2 mb-3">Elegí al menos una categoría.</p>}
         <form action={accionCrearPiloto} className="grid gap-4 bg-white border border-[#E3E9F0] rounded-lg p-4">
-          <ElegirCategorias buscar={accionBuscarCategorias} />
+          <ExploradorCategorias modo="elegir" />
           <fieldset className="grid sm:grid-cols-2 gap-3">
             <legend className="text-xs font-bold mb-1">Mercado Libre</legend>
             {campo("precioMin", "Precio de venta desde ($)", v.precioMin)}

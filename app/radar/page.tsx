@@ -5,7 +5,8 @@ import { radarSeguidas } from "@/db/radar";
 import { sesionRequerida, puede } from "@/lib/tenancy";
 import { asegurarEsquema } from "@/lib/radar/esquema";
 import { FUENTE_GRUPOS, GRUPOS, GRUPOS_CONFIRMADOS, SITIO, fechaCorta, semanaDe, type Grupo } from "@/lib/radar/base";
-import { buscarCategorias, caminoDe, hijasDe, type Categoria } from "@/lib/radar/categorias";
+import { caminoDe, hijasDe, type Categoria } from "@/lib/radar/categorias";
+import ExploradorCategorias from "@/app/componentes/ExploradorCategorias";
 import { comparar, lecturaAnterior, lecturaDeLaSemana, palabrasDe, type Cambio } from "@/lib/radar/tendencias";
 import { busquedasDeLaSemana, publicacionesDe, sirve, type Busqueda, type Publicacion } from "@/lib/radar/busquedas";
 import { vistas } from "@/lib/radar/historial";
@@ -96,7 +97,6 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
 
   const cat = sp.cat?.trim() || SITIO;
   const grupo: Grupo = sp.g && sp.g in GRUPOS ? (sp.g as Grupo) : "populares";
-  const q = sp.q?.trim() ?? "";
   const url = (cambios: Partial<Params>) => {
     const u = new URLSearchParams();
     const todo: Params = { cat, g: grupo, ...cambios };
@@ -115,7 +115,6 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
     console.error("[radar] categorías:", e);
     problema = "No se pudieron leer las categorías de Mercado Libre.";
   }
-  const encontradas = q ? await buscarCategorias(q) : [];
 
   const lectura = await lecturaDeLaSemana(cat, sesion.org.id).catch(() => null);
   const anterior = lectura ? await lecturaAnterior(cat, lectura.semana) : null;
@@ -153,23 +152,11 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
       {sp.error && <Aviso tipo="error">{ERRORES[sp.error] ?? "Algo falló."}</Aviso>}
       {problema && <Aviso tipo="error">{problema}</Aviso>}
 
-      {/* Buscador de rubros */}
-      <form action="/radar" className="flex gap-2 mb-2">
-        <input name="q" defaultValue={q} placeholder="Buscar rubro en todo el árbol (ej: maceta)"
-          className="border border-[#E3E9F0] rounded-lg px-3 py-2 flex-1 text-sm" />
-        <button className={PRIMARIO}>Buscar</button>
-      </form>
-      {q && (
-        <div className="mb-3 border border-[#E3E9F0] rounded-lg bg-white">
-          {encontradas.length === 0 && <p className="text-xs text-[#5C6B76] px-3 py-2">Nada con “{q}” en el árbol cargado.</p>}
-          {encontradas.map((c) => (
-            <Link key={c.id} href={url({ cat: c.id, q: undefined })} className="flex justify-between gap-2 px-3 py-1.5 text-xs border-b last:border-0 border-[#E3E9F0] hover:bg-[#F5F8FB]">
-              <span>{c.ruta}</span>
-              <span className="text-[#9AA7B3] whitespace-nowrap">{c.publicaciones?.toLocaleString("es-AR") ?? ""}</span>
-            </Link>
-          ))}
-        </div>
-      )}
+      {/* Buscador de rubros: mientras se escribe, dentro de la categoría donde
+          uno está parado (en todo el árbol si está en la raíz). */}
+      <div className="mb-3">
+        <ExploradorCategorias key={cat} modo="ir" irA="/radar?cat=" inicio={cat} soloBuscador alto="75vh" />
+      </div>
 
       {/* Migas */}
       <nav className="text-xs mb-3 flex flex-wrap items-center gap-1">
@@ -188,7 +175,7 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
         <aside className="border border-[#E3E9F0] rounded-lg bg-white p-2 self-start">
           <p className="text-[11px] font-bold text-[#5C6B76] px-1 mb-1">SUBCATEGORÍAS</p>
           {hijas.length === 0 && <p className="text-xs text-[#9AA7B3] px-1">No tiene subcategorías.</p>}
-          <ul className="max-h-[60vh] overflow-y-auto">
+          <ul className="max-h-[75vh] overflow-y-auto">
             {hijas.map((h) => (
               <li key={h.id} className="flex items-center gap-1 py-0.5">
                 <Estrella accion={accionSeguir} prendida={seguidaMap.has(h.id)} campos={{ cat: h.id, volver: aqui }} />
