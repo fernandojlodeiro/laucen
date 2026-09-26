@@ -3,7 +3,7 @@
 // alguien entra a una categoría cuyas hijas todavía no se leyeron, se leen en
 // el momento (así navegar anda aunque la carga completa no haya terminado).
 
-import { and, asc, desc, eq, ilike, isNull, lt, or, sql } from "drizzle-orm";
+import { asc, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { meliCategorias } from "@/db/radar";
 import { SITIO, ml, tokenML, enTandas } from "./base";
@@ -105,20 +105,6 @@ export async function caminoDe(id: string): Promise<Categoria[]> {
     [actual] = await db.select().from(meliCategorias).where(eq(meliCategorias.id, actual.padreId));
   }
   return camino;
-}
-
-/** Buscador de rubros dentro de una rama: las categorías que cuelgan de
- *  `dentroDe` (a cualquier profundidad) cuyo nombre contiene el texto. Sin
- *  `dentroDe` (o 'MLA'), en todo el árbol. */
-export async function buscarCategoriasEn(texto: string, dentroDe: string | null, limite = 200) {
-  const patron = `%${texto.replace(/[%_\\]/g, "")}%`;
-  let filtroRama = sql`true`;
-  if (dentroDe && dentroDe !== SITIO) {
-    const [madre] = await db.select().from(meliCategorias).where(eq(meliCategorias.id, dentroDe));
-    if (madre) filtroRama = sql`${meliCategorias.ruta} like ${`${madre.ruta.replace(/[%_\\]/g, "\\$&")} › %`}`;
-  }
-  return db.select().from(meliCategorias).where(and(ilike(meliCategorias.nombre, patron), filtroRama))
-    .orderBy(asc(meliCategorias.nivel), desc(sql`coalesce(${meliCategorias.publicaciones}, 0)`)).limit(limite);
 }
 
 export async function estadoDelArbol(corte?: Date) {

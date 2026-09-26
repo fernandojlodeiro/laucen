@@ -1,33 +1,25 @@
 "use server";
 
-// Acciones del buscador de categorías (componente ExploradorCategorias):
-// navegar el árbol y buscar dentro de una rama. Para cualquier pantalla que
-// elija categorías (Radar, piloto…).
+// El árbol de categorías entero, para el explorador de categorías
+// (componente ExploradorCategorias). Se baja una sola vez por pantalla y
+// después navegar y buscar es instantáneo, sin ir al servidor.
 
+import { sql } from "drizzle-orm";
+import { db } from "@/db";
 import { sesionRequerida } from "@/lib/tenancy";
-import { buscarCategoriasEn, caminoDe, hijasDe } from "@/lib/radar/categorias";
-import { SITIO } from "@/lib/radar/base";
 
-export type CatLigera = { id: string; nombre: string; ruta: string; nivel: number; publicaciones: number | null; esHoja: boolean };
+/** Una categoría en forma compacta: [id, nombre, padre, nivel, publicaciones, esHoja]. */
+export type Fila = [string, string, string | null, number, number | null, boolean];
 
-const ligera = (c: { id: string; nombre: string; ruta: string; nivel: number; publicaciones: number | null; esHoja: boolean }): CatLigera =>
-  ({ id: c.id, nombre: c.nombre, ruta: c.ruta, nivel: c.nivel, publicaciones: c.publicaciones, esHoja: c.esHoja });
-
-/** Una rama del árbol: el camino hasta ella y sus hijas. */
-export async function accionRama(id: string) {
+export async function accionArbol(): Promise<{ filas: Fila[]; error: string | null }> {
   await sesionRequerida();
   try {
-    const [camino, hijas] = await Promise.all([id === SITIO ? Promise.resolve([]) : caminoDe(id), hijasDe(id)]);
-    return { camino: camino.map(ligera), hijas: hijas.map(ligera), error: null };
+    const r = await db.execute(sql`select id, nombre, padre_id, nivel, publicaciones, es_hoja from meli_categorias`);
+    const filas = (r.rows as { id: string; nombre: string; padre_id: string | null; nivel: number; publicaciones: number | null; es_hoja: boolean }[])
+      .map((c): Fila => [c.id, c.nombre, c.padre_id, c.nivel, c.publicaciones, c.es_hoja]);
+    return { filas, error: filas.length ? null : "El árbol de categorías todavía no está cargado (se carga desde el Radar)." };
   } catch (e) {
-    console.error("[categorías] rama:", e);
-    return { camino: [], hijas: [], error: "No se pudieron leer las categorías de Mercado Libre." };
+    console.error("[categorías] árbol:", e);
+    return { filas: [], error: "No se pudieron leer las categorías." };
   }
-}
-
-/** Categorías cuyo nombre contiene el texto, dentro de la rama (o en todo el árbol). */
-export async function accionBuscarEnRama(texto: string, dentroDe: string | null) {
-  await sesionRequerida();
-  if (texto.trim().length < 2) return [];
-  return (await buscarCategoriasEn(texto.trim(), dentroDe)).map(ligera);
 }
