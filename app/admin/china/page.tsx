@@ -75,7 +75,17 @@ function tituloDe(it: unknown) {
   return campo(it, /^(title|subject|name|product_?title|productName|offerTitle|titleCn)$/i) ?? campo(it, /title|subject|name/i);
 }
 
-function Vistazo({ items, es }: { items: unknown[]; es?: string[] }) {
+/** Algunos actores de búsqueda por foto devuelven un registro por foto con
+ *  los productos adentro (`results`): se aplanan para mostrarlos y traducirlos. */
+function productos(items: unknown[] = []): unknown[] {
+  return items.flatMap((it) => {
+    const r = (it as { results?: unknown })?.results;
+    return Array.isArray(r) ? r : [it];
+  });
+}
+
+function Vistazo({ items: crudos, es }: { items: unknown[]; es?: string[] }) {
+  const items = productos(crudos);
   const filas = items.map((it, i) => ({
     titulo: es?.[i] || tituloDe(it),
     original: es?.[i] ? tituloDe(it) : null,
@@ -117,7 +127,7 @@ function Resultado({ r, final }: { r: Corrida; final?: Final }) {
     <details className="border border-[#E3E9F0] rounded-lg mb-2 bg-white">
       <summary className="cursor-pointer px-3 py-2 text-xs flex flex-wrap gap-2 items-center">
         <span className={`font-bold rounded px-1.5 py-0.5 ${r.ok ? "bg-[#EEF7F1] text-[#1F6E4A]" : "bg-[#FDF1EF] text-[#C03420]"}`}>
-          {r.ok ? `${r.cantidad} resultados` : final?.estado ?? r.estado ?? "error"}
+          {r.ok ? `${productos(r.items).length} resultados` : final?.estado ?? r.estado ?? "error"}
         </span>
         <span className="rounded px-1.5 py-0.5 bg-[#EEF3F8]">{r.plataforma === "1688" ? "1688" : "Alibaba"} · {r.tipo === "imagen" ? "por foto" : "por texto"}</span>
         <code>{r.actor}</code>
@@ -169,7 +179,7 @@ export default async function China({ searchParams }: { searchParams: Promise<SP
     const faltan = corridas.filter((r) => r.items?.length && !r.titulos_es?.length);
     if (faltan.length) {
       await Promise.all(faltan.map(async (r) => {
-        const es = await traducirTitulos((r.items ?? []).map((it) => tituloDe(it) ?? ""));
+        const es = await traducirTitulos(productos(r.items).map((it) => tituloDe(it) ?? ""));
         if (es) r.titulos_es = es;
       }));
       if (faltan.some((r) => r.titulos_es?.length)) {

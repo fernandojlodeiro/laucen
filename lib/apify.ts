@@ -66,7 +66,7 @@ export function armarEntrada(esquema: Esquema, q: string, max: number, extras?: 
       entrada[k] = arr ? (c.editor === "stringList" ? [extras.imagen] : [{ url: extras.imagen }]) : extras.imagen;
       continue;
     }
-    if (extras?.plataforma && opciones.length && /platform|source|site|marketplace|store|shop/.test(n)) {
+    if (extras?.plataforma && opciones.length && /platform|provider|source|site|marketplace|store|shop/.test(n)) {
       const p = opciones.find((o) => o.toLowerCase().includes(extras.plataforma!.toLowerCase()));
       if (p) entrada[k] = arr ? [p] : p;
       continue;
@@ -76,8 +76,9 @@ export function armarEntrada(esquema: Esquema, q: string, max: number, extras?: 
       continue;
     }
     if (c.type === "integer" || c.type === "number") {
-      // Nunca tocar precios, reseñas, preguntas, topes de gasto ni pedido mínimo; páginas: una sola.
-      if (/price|review|question|concurren|timeout|delay|retr|charge|usd|cost|budget|moq|order/.test(n)) continue;
+      // Nunca tocar precios, reseñas, preguntas, topes de gasto, pedido mínimo ni
+      // límites de la imagen (bytes, píxeles); páginas: una sola.
+      if (/price|review|question|concurren|timeout|delay|retr|charge|usd|cost|budget|moq|order|bytes|pixel|size|rate|image/.test(n)) continue;
       let v: number | undefined;
       if (/page/.test(n)) v = 1;
       else if (/max|limit|count|results|items|products/.test(n)) v = max;
