@@ -158,8 +158,16 @@ alter table agg_tasas_mes enable row level security;
 drop view if exists ncm_tasas;
 create view ncm_tasas with (security_invoker = true) as
 with ult as (select periodo from arca_cargas order by periodo desc limit 12),
-     t as (select ncm, tipo, pct, sum(items)::int items
-             from agg_tasas_mes where periodo in (select periodo from ult) group by 1, 2, 3),
+     -- El IVA deducido sale apenas corrido (21,5 en vez de 21; 11 en vez de
+     -- 10,5): la base real tiene algo más que CIF + derechos + estadística.
+     -- Se lleva a la tasa legal más cercana si está a ≤ 1,5 puntos.
+     t0 as (select ncm, tipo, items,
+                   case when tipo = 'iva' then
+                     case when abs(pct - 21) <= 1.5 then 21 when abs(pct - 10.5) <= 1.5 then 10.5
+                          when abs(pct - 27) <= 1.5 then 27 else pct end
+                   else pct end::numeric(6, 1) as pct
+              from agg_tasas_mes where periodo in (select periodo from ult)),
+     t as (select ncm, tipo, pct, sum(items)::int items from t0 group by 1, 2, 3),
      r as (select t.*, sum(items) over (partition by ncm, tipo)::int total,
                   row_number() over (partition by ncm, tipo order by items desc, pct desc) n
              from t)
