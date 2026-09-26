@@ -99,6 +99,8 @@ export default function ExploradorCategorias({ modo, irA, campo = "cats", inicio
   const relativa = (n: Nodo) => (prefijo && n.ruta.startsWith(prefijo) ? n.ruta.slice(prefijo.length) : n.ruta);
   const entrar = (id: string) => { setActual(id); setTexto(""); setPrevia(null); };
   const agregar = (n: Nodo) => setElegidas((e) => (e.some((x) => x.id === n.id) ? e : [...e, { id: n.id, ruta: n.ruta }]));
+  // El + agrega y, si ya estaba, el ✓ la saca (por si se tocó el renglón equivocado).
+  const alternar = (n: Nodo) => setElegidas((e) => (e.some((x) => x.id === n.id) ? e.filter((x) => x.id !== n.id) : [...e, { id: n.id, ruta: n.ruta }]));
   const elegida = (id: string) => elegidas.some((e) => e.id === id);
   const mirar = (n: Nodo) => {
     if (pausa.current) clearTimeout(pausa.current);
@@ -108,8 +110,8 @@ export default function ExploradorCategorias({ modo, irA, campo = "cats", inicio
   const hijasPrevia = previa ? arbol?.hijos.get(previa.id) ?? [] : [];
   const cantidad = (n: Nodo) => <span className="text-[10px] text-[#9AA7B3] whitespace-nowrap">{n.publicaciones != null ? n.publicaciones.toLocaleString("es-AR") : ""}</span>;
   const botonMas = (n: Nodo) => modo === "elegir" && (
-    <button type="button" disabled={elegida(n.id)} onClick={() => agregar(n)} className={MAS}
-      aria-label={elegida(n.id) ? "Elegida" : `Agregar ${n.nombre}`} title={elegida(n.id) ? "Elegida" : "Agregar"}>
+    <button type="button" onClick={() => alternar(n)} className={`${MAS} ${elegida(n.id) ? "!bg-[#EEF7F1] !text-[#1F6E4A]" : ""}`}
+      aria-label={elegida(n.id) ? `Quitar ${n.nombre}` : `Agregar ${n.nombre}`} title={elegida(n.id) ? "Quitar" : "Agregar"}>
       {elegida(n.id) ? "✓" : "+"}
     </button>
   );
