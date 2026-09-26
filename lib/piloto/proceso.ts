@@ -7,7 +7,7 @@ import { pool } from "@/db";
 import { USD_POR_MTOK } from "@/lib/claude";
 import { asegurarEsquema } from "./esquema";
 import { buscadosDeCategoria, cruzar, listadoDeCategoria, urlDeCategoria } from "./ml";
-import { buscarEnChina, estimarCajas, fletePct, juzgar } from "./china";
+import { buscarEnChina, estimarCajas, flete, juzgar } from "./china";
 import type { AvanceCategoria, Caja, Parametros, PubML } from "./tipos";
 
 export type Corrida = {
@@ -155,9 +155,11 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
       await sumarClaude(id, "caja", r.tokensIn, r.tokensOut);
       for (const x of lote) {
         const caja = r.cajas.get(x.id) ?? null;
-        const pct = caja ? fletePct(caja, x.precio, p) : null;
-        await pool.query("update piloto_productos set caja = $2, flete_pct = $3, pasa_flete = $4, etapa = 'china', error = $5 where id = $1",
-          [x.id, caja, pct, pct == null ? null : pct <= p.topeFletePct, caja ? null : `Sin caja estimada${r.error ? `: ${r.error}` : ""}`]);
+        const f = caja ? flete(caja, x.precio, p) : null;
+        // Fuera de la franja: no se busca en China ni pasa por el juez.
+        const etapa = f?.franja === "fuera" ? "listo" : "china";
+        await pool.query("update piloto_productos set caja = $2, flete_usd = $3, flete_pct = $4, franja = $5, etapa = $6, error = $7 where id = $1",
+          [x.id, caja, f?.usd ?? null, f?.pct ?? null, f?.franja ?? null, etapa, caja ? null : `Sin caja estimada${r.error ? `: ${r.error}` : ""} (se busca igual)`]);
       }
       hechos.push(`caja de ${lote.length}`);
     }
@@ -205,7 +207,7 @@ export async function productosDe(corridaId: number) {
   return r.rows as {
     id: number; categoria_id: string; lado: string; palabra: string | null; campeon: boolean; item_id: string | null;
     titulo: string; url: string | null; foto: string | null; precio: number | null; vendidos: number | null; vendidos_texto: string | null;
-    opiniones: number | null; caja: Caja | null; flete_pct: number | null; pasa_flete: boolean | null;
+    opiniones: number | null; caja: Caja | null; flete_usd: number | null; flete_pct: number | null; franja: import("./tipos").Franja | null;
     china: { en?: string; zh?: string; candidatos?: import("./tipos").Candidato[]; errores?: string[] } | null;
     juicio: import("./tipos").Juicio | null; revision: string | null; comentario: string | null; etapa: string; error: string | null;
   }[];

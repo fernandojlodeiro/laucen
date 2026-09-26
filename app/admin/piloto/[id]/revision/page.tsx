@@ -11,6 +11,11 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const VEREDICTO = { si: "equiparable", dudoso: "dudoso", no: "no es" } as const;
+const FRANJA = {
+  seguro: { texto: "entra seguro", color: "text-[#1F6E4A]" },
+  gris: { texto: "zona gris: puede no ser rentable", color: "text-[#8a6100]" },
+  fuera: { texto: "descartado por flete (no se buscó en China)", color: "text-[#9AA7B3]" },
+} as const;
 const COLOR = { si: "text-[#1F6E4A]", dudoso: "text-[#8a6100]", no: "text-[#9AA7B3]" } as const;
 
 function Foto({ src }: { src: string | null }) {
@@ -31,7 +36,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
   const rutas = new Map(c.parametros.categorias.map((x) => [x.id, x.ruta]));
   let productos = await productosDe(c.id);
   if (sp.campeones) productos = productos.filter((x) => x.campeon);
-  if (sp.pasan) productos = productos.filter((x) => x.pasa_flete !== false);
+  if (sp.pasan) productos = productos.filter((x) => x.franja !== "fuera");
   const filtro = (k: keyof SP) => {
     const q = new URLSearchParams(Object.entries({ ...sp, [k]: sp[k] ? "" : "1" }).filter(([, v]) => v) as [string, string][]);
     return `/admin/piloto/${c.id}/revision${q.size ? `?${q}` : ""}`;
@@ -43,7 +48,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
     <div>
       <div className="flex flex-wrap gap-4 items-center mb-3">
         <InterruptorFiltro href={filtro("campeones")} prendido={!!sp.campeones} etiqueta="Sólo campeones" />
-        <InterruptorFiltro href={filtro("pasan")} prendido={!!sp.pasan} etiqueta="Sólo los que pasan el flete" />
+        <InterruptorFiltro href={filtro("pasan")} prendido={!!sp.pasan} etiqueta="Ocultar los descartados por flete" />
         <span className="text-xs text-[#5C6B76]">{productos.length} productos · revisados {revisados.length} · el juez acertó {aciertos}</span>
       </div>
       {productos.length === 0 && <p className="text-xs text-[#9AA7B3]">Todavía no hay productos (se crean al procesar Mercado Libre).</p>}
@@ -72,8 +77,11 @@ export default async function Revision({ params, searchParams }: { params: Promi
                       <p className="mt-1">
                         Caja {x.caja.largo}×{x.caja.ancho}×{x.caja.alto} cm · {x.caja.kg} kg ({x.caja.fuente === "claude" ? "estimado por Claude" : "dato de China"})
                         {x.flete_pct != null && (
-                          <b className={x.pasa_flete ? "text-[#1F6E4A]" : "text-[#C03420]"}> · flete {x.flete_pct}% {x.pasa_flete ? "✓" : `(pasa el tope de ${c.parametros.topeFletePct}%)`}</b>
+                          <b className={FRANJA[x.franja ?? "gris"].color}> · flete {x.flete_pct}% del precio (US$ {x.flete_usd}) · {FRANJA[x.franja ?? "gris"].texto}</b>
                         )}
+                        {x.flete_usd != null && elegido?.usd ? (
+                          <span className="block text-[#5C6B76]">= {Math.round((x.flete_usd / elegido.usd) * 100)}% del FOB del candidato (US$ {elegido.usd})</span>
+                        ) : null}
                       </p>
                     )}
                   </div>
@@ -132,7 +140,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
                   </table>
                 </details>
               )}
-              {x.etapa === "listo" && (
+              {x.etapa === "listo" && x.franja !== "fuera" && (
                 <form action={accionRevisar} className="mt-3 flex flex-wrap gap-2 items-center border-t border-[#E3E9F0] pt-2">
                   <input type="hidden" name="producto" value={x.id} />
                   <input type="hidden" name="corrida" value={c.id} />

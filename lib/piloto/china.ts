@@ -5,7 +5,7 @@
 import { correrConEntrada } from "@/lib/apify";
 import { jsonDe, pedirClaude, type Contenido } from "@/lib/claude";
 import { traducir, esFalla } from "@/lib/china/traducir";
-import type { Caja, Candidato, Juicio, Parametros } from "./tipos";
+import type { Caja, Candidato, Franja, Juicio, Parametros } from "./tipos";
 
 // Actores elegidos en el banco de China: rápidos y con precio.
 const ACTOR_1688 = "parseforge~1688-scraper";
@@ -99,15 +99,21 @@ export async function estimarCajas(productos: { id: number; titulo: string; foto
   return { cajas, error: "error" in r ? r.error : null, tokensIn, tokensOut };
 }
 
-/** Flete por unidad como % del precio de venta. En contenedor se paga por m³
- *  o por tonelada (1 m³ = 1.000 kg), lo que dé más. */
-export function fletePct(caja: Caja, precioPesos: number | null, p: Parametros) {
-  if (!precioPesos) return null;
+/** Flete por unidad: en dólares y como % del precio de venta, y la franja.
+ *  Barco: se paga por m³ o por tonelada (1 m³ = 1.000 kg), lo que dé más.
+ *  Avión: por kilo, real o volumétrico (largo × ancho × alto en cm ÷ 6.000),
+ *  lo que dé más. */
+export function flete(caja: Caja, precioPesos: number | null, p: Parametros): { usd: number; pct: number | null; franja: Franja | null } {
   const m3 = (caja.largo * caja.ancho * caja.alto) / 1_000_000;
-  const cobrable = Math.max(m3, caja.kg / 1000);
-  const fleteUsd = cobrable * p.fleteM3Usd;
-  const precioUsd = precioPesos / p.dolar;
-  return Math.round((fleteUsd / precioUsd) * 1000) / 10;
+  const usd = p.modo === "avion"
+    ? Math.max(caja.kg, (caja.largo * caja.ancho * caja.alto) / 6000) * p.fleteKgUsd
+    : Math.max(m3, caja.kg / 1000) * p.fleteM3Usd;
+  if (!precioPesos) return { usd, pct: null, franja: null };
+  const pct = Math.round((usd / (precioPesos / p.dolar)) * 1000) / 10;
+  const franja: Franja = p.modo === "avion"
+    ? (pct <= p.seguroPct ? "seguro" : pct <= p.grisPct ? "gris" : "fuera")
+    : (pct >= p.seguroPct ? "seguro" : pct >= p.grisPct ? "gris" : "fuera");
+  return { usd: Math.round(usd * 100) / 100, pct, franja };
 }
 
 /** El juez: compara el producto de Mercado Libre contra los candidatos de

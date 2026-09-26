@@ -6,9 +6,16 @@ export type Parametros = {
   precioMax: number | null;
   porCategoria: number;           // productos por lado y por categoría (3)
   listado: number;                // publicaciones que se leen del listado de la categoría (50)
-  fleteM3Usd: number;             // costo del flete marítimo por m³
+  modo: Modo;                     // buscar productos para traer en barco o en avión
+  fleteM3Usd: number;             // barco: costo del flete por m³ (o por tonelada, lo que dé más)
+  fleteKgUsd: number;             // avión: costo del flete por kilo (real o volumétrico, lo que dé más)
   dolar: number;                  // pesos por dólar
-  topeFletePct: number;           // el flete no puede pasar de este % del precio de venta
+  // Flete como % del precio de venta. Barco: "seguro" desde seguroPct para
+  // arriba (el avión no compite), "gris" entre grisPct y seguroPct, abajo
+  // de grisPct no se busca. Avión: al revés (seguro hasta seguroPct, gris
+  // hasta grisPct, más caro no se busca).
+  seguroPct: number;
+  grisPct: number;
   yuanPorDolar: number;           // para pasar los precios de 1688 a dólares
   minimoMax: number;              // pedido mínimo "razonable" (unidades)
   topeApifyUsd: number;           // tope de gasto de Apify de todo el piloto
@@ -16,8 +23,14 @@ export type Parametros = {
 
 export const POR_DEFECTO: Omit<Parametros, "categorias"> = {
   precioMin: null, precioMax: null, porCategoria: 3, listado: 50,
-  fleteM3Usd: 100, dolar: 1400, topeFletePct: 10, yuanPorDolar: 7.1, minimoMax: 500, topeApifyUsd: 10,
+  modo: "barco", fleteM3Usd: 140, fleteKgUsd: 8, dolar: 1500, seguroPct: 20, grisPct: 15,
+  yuanPorDolar: 7.1, minimoMax: 500, topeApifyUsd: 10,
 };
+
+export type Modo = "barco" | "avion";
+/** Dónde cae un producto según el flete: seguro (se busca), gris (se busca
+ *  marcado "puede no ser rentable"), fuera (no se busca). */
+export type Franja = "seguro" | "gris" | "fuera";
 
 export type Caja = { largo: number; ancho: number; alto: number; kg: number; fuente: "claude" | "china"; nota?: string };
 

@@ -45,3 +45,7 @@ create table if not exists piloto_productos (
 );
 create index if not exists piloto_productos_corrida_idx on piloto_productos (corrida_id);
 alter table piloto_productos enable row level security;
+
+-- 27/9: modo barco/avión con zona gris (reemplaza a pasa_flete, que queda sin uso).
+alter table piloto_productos add column if not exists franja text;        -- seguro | gris | fuera
+alter table piloto_productos add column if not exists flete_usd double precision;

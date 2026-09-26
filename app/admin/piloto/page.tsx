@@ -86,11 +86,26 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
             {campo("porCategoria", "Productos por lado y por categoría", v.porCategoria, "3 más buscados + 3 más vendidos")}
             {campo("listado", "Publicaciones a leer del listado de cada categoría", v.listado)}
           </fieldset>
-          <fieldset className="grid sm:grid-cols-3 gap-3">
+          <fieldset className="grid gap-3">
             <legend className="text-xs font-bold mb-1">Flete</legend>
-            {campo("fleteM3Usd", "Flete por m³ (US$)", v.fleteM3Usd)}
-            {campo("dolar", "Dólar ($)", v.dolar)}
-            {campo("topeFletePct", "Tope de flete (% del precio)", v.topeFletePct)}
+            <div className="flex flex-wrap gap-4 text-xs">
+              <label className="flex items-center gap-2">
+                <input type="radio" name="modo" value="barco" defaultChecked={v.modo !== "avion"} /> Productos para traer en <b>barco</b>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="radio" name="modo" value="avion" defaultChecked={v.modo === "avion"} /> Productos para traer en <b>avión</b>
+              </label>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-3">
+              {campo("fleteM3Usd", "Barco: flete por m³ (US$)", v.fleteM3Usd, "o por tonelada si pesa más (1 m³ = 1.000 kg)")}
+              {campo("fleteKgUsd", "Avión: flete por kilo (US$)", v.fleteKgUsd, "peso real o volumétrico (cm³ ÷ 6.000), lo que dé más")}
+              {campo("dolar", "Dólar ($)", v.dolar)}
+              {campo("seguroPct", "Entra seguro (% del precio)", v.seguroPct, "Barco: desde este % para arriba. Avión: hasta este %.")}
+              {campo("grisPct", "Zona gris (% del precio)", v.grisPct, "Barco: entre este % y el seguro. Avión: entre el seguro y este %. Se busca marcado.")}
+            </div>
+            <p className="text-[11px] text-[#5C6B76]">
+              El flete se calcula sobre la caja que estima Claude, como % del precio de venta. Lo que queda fuera de la zona gris no se busca en China.
+            </p>
           </fieldset>
           <fieldset className="grid sm:grid-cols-3 gap-3">
             <legend className="text-xs font-bold mb-1">China y juez</legend>
