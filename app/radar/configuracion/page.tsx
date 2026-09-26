@@ -86,7 +86,7 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
           </Fila>
           <Fila titulo="Profundizar" ayuda="En las categorías con “Profundizar” prendido: cuántas palabras de cada grupo se buscan con Apify.">
             <input name="palabras" type="number" min={1} max={20} defaultValue={c.palabrasAProfundizar} className={`${campo} w-20`} />
-            <span>primeras de cada grupo (× 3 grupos)</span>
+            <span>primeras de cada grupo (× 2 grupos: más deseadas y más populares)</span>
           </Fila>
           <Fila titulo="Fuente de Apify" ayuda="Para “Mejorar con Apify” y para profundizar.">
             <select name="fuente" defaultValue={c.fuenteApify} className={campo}>

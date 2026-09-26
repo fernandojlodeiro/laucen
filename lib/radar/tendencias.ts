@@ -88,7 +88,7 @@ export async function novedades(categoriaId: string) {
   const [act, ant] = await Promise.all([palabrasDe([actual.id]), anterior ? palabrasDe([anterior.id]) : Promise.resolve(null)]);
   let nuevas: string[] = [], subieron = 0;
   const salieron: string[] = [];
-  for (const g of ["crecimiento", "buscadas", "populares"] as Grupo[]) {
+  for (const g of ["buscadas", "populares"] as Grupo[]) {
     const c = comparar(act, ant, g);
     nuevas = nuevas.concat(c.lista.filter((p) => p.cambio.tipo === "nueva").map((p) => p.palabra));
     subieron += c.lista.filter((p) => p.cambio.tipo === "sube").length;

@@ -162,3 +162,8 @@ update roles
    set permisos = permisos || '{"radar_ver": true, "radar_gastar": true, "radar_configurar": true}'::jsonb
  where protegido
    and not (permisos ? 'radar_ver');
+
+-- 27/9: los grupos pasan a ser los de la página de Mercado Libre: 1-20 más
+-- deseadas ('buscadas'), 21 en adelante más populares; 'crecimiento' no existe.
+update meli_tendencias set grupo = case when posicion <= 20 then 'buscadas' else 'populares' end
+ where grupo <> case when posicion <= 20 then 'buscadas' else 'populares' end;

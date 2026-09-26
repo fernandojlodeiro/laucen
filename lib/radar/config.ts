@@ -36,5 +36,5 @@ export function toca(cada: number, unidad: string, desde: string, ultimaOk: Date
 
 /** Cuánto sale por semana "profundizar" en una categoría. */
 export function costoProfundizar(c: ConfigRadar) {
-  return c.palabrasAProfundizar * 3 * FUENTES_APIFY[c.fuenteApify as FuenteApify].costoPorPalabra;
+  return c.palabrasAProfundizar * 2 * FUENTES_APIFY[c.fuenteApify as FuenteApify].costoPorPalabra;
 }

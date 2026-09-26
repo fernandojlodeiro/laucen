@@ -28,34 +28,30 @@ export function fechaCorta(iso: string | Date): string {
   return d.toLocaleDateString("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit" });
 }
 
-// Grupos de tendencias. La API devuelve una sola lista, en tramos fijos
-// según la documentación oficial (developers.mercadolibre.com.ar/es_ar/tendencias,
-// confirmado por Cowork el 25/9, bitácora #9): 10 primeras = mayor crecimiento,
-// 20 siguientes = más deseadas, 20 últimas = más populares. Puede venir menos
-// de 50: los tramos se cuentan igual por posición.
+// Grupos de tendencias. La API devuelve una sola lista (hasta 50 palabras,
+// en general 40) y la página de cada categoría de Mercado Libre la muestra en
+// dos carruseles: "Las búsquedas más deseadas" = posiciones 1 a 20 y "Las
+// tendencias más populares" = 21 en adelante. Verificado por Fer el 27/9 en
+// Jardín y Aire Libre (el 20º más deseado es la palabra 20 de la API y el 20º
+// más popular, la 40). La documentación decía otra cosa (bitácora #9: 1-10
+// crecimiento, 11-30 deseadas, 31-50 populares) y no coincide con la página.
 export const GRUPOS = {
-  // Orden de las pestañas (pedido de Fer): Populares, Más buscadas, Crecimiento.
+  // Orden de las pestañas: Populares, Más deseadas.
   populares: {
-    label: "Populares", ayuda: "Las tendencias más populares de la semana: las que más subieron en búsquedas contra dos semanas atrás.",
-    regla: ["Posiciones 31 a 50.", "Mide el AUMENTO de búsquedas: lo que más subió en la última semana comparado con dos semanas atrás.", "Sirve para detectar lo que está empezando a pegar (temporada, moda, un evento)."],
+    label: "Más populares", ayuda: "“Las tendencias más populares” de la página de la categoría: las que más subieron en búsquedas.",
+    regla: ["Posiciones 21 en adelante de la lista de Mercado Libre (en la página: “Las tendencias más populares”).", "Según la documentación de Mercado Libre, mide el AUMENTO de búsquedas contra dos semanas atrás.", "Sirve para detectar lo que está empezando a pegar (temporada, moda, un evento)."],
   },
   buscadas: {
-    label: "Más buscadas", ayuda: "Productos con mayor volumen de búsquedas de la última semana.",
-    regla: ["Posiciones 11 a 30.", "Mide BÚSQUEDAS: lo que más gente buscó en la última semana, en cantidad absoluta.", "Son los clásicos de siempre: mucho volumen y, en general, mucha competencia."],
-  },
-  crecimiento: {
-    label: "Crecimiento", ayuda: "Productos con el mayor aumento de ingresos (ventas en $) de la última semana.",
-    regla: ["Posiciones 1 a 10 de la lista de Mercado Libre.", "Mide INGRESOS, no búsquedas: los productos cuya facturación (ventas en $) más creció en la última semana.", "Sirve para ver qué se está vendiendo cada vez más, aunque todavía no sea masivo."],
+    label: "Más deseadas", ayuda: "“Las búsquedas más deseadas” de la página de la categoría: lo más buscado de la semana.",
+    regla: ["Posiciones 1 a 20 de la lista de Mercado Libre (en la página: “Las búsquedas más deseadas”).", "Mide BÚSQUEDAS: lo que más gente buscó en la última semana.", "Son los clásicos: mucho volumen y, en general, mucha competencia."],
   },
 } as const;
 export type Grupo = keyof typeof GRUPOS;
 export const GRUPOS_CONFIRMADOS = true;
-export const FUENTE_GRUPOS = "Documentación oficial de Mercado Libre (developers → Tendencias). La lista trae hasta 50 palabras y se actualiza una vez por semana.";
+export const FUENTE_GRUPOS = "Mismos grupos que muestra Mercado Libre en la página de cada categoría (verificado el 27/9). La lista se actualiza una vez por semana.";
 
 export function grupoDe(posicion: number): Grupo {
-  if (posicion <= 10) return "crecimiento";
-  if (posicion <= 30) return "buscadas";
-  return "populares";
+  return posicion <= 20 ? "buscadas" : "populares";
 }
 
 /** Llave de Mercado Libre para leer datos globales: la de la organización

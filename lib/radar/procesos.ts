@@ -56,7 +56,7 @@ export async function procesoTendencias(organizacionId: string, origen: Origen, 
       const l = await lecturaDeLaSemana(s.categoriaId, organizacionId);
       if (!l) continue;
       const lista = await palabrasDe([l.id]);
-      for (const g of ["crecimiento", "buscadas", "populares"] as Grupo[]) {
+      for (const g of ["buscadas", "populares"] as Grupo[]) {
         lista.filter((p) => p.grupo === g).slice(0, config.palabrasAProfundizar)
           .forEach((p) => palabras.push({ palabra: p.palabra, categoriaId: s.categoriaId }));
       }

@@ -60,12 +60,16 @@ export function aPubML(x: Record<string, unknown>): PubML {
 
 /** Cómo arma Mercado Libre la dirección de una categoría: cada nivel en
  *  minúsculas, sin acentos ni signos, palabras separadas por "-" y sin la "y"
- *  ("Hogar, Muebles y Jardín › Jardin y Aire Libre" →
+ *  ni conectores ("Hogar, Muebles y Jardín › Jardin y Aire Libre" →
  *  listado.mercadolibre.com.ar/hogar-muebles-jardin/jardin-aire-libre/, visto
  *  por Fer el 27/9). */
+// "Muebles para Exterior" → muebles-exterior (visto por Fer el 27/9). Los
+// demás conectores se sacan por las dudas (no verificado).
+const CONECTORES = new Set(["y", "e", "o", "para", "de", "del", "la", "las", "el", "los", "en", "con", "a", "por"]);
+
 export function slugCategoria(nombre: string) {
   return nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
-    .replace(/[^a-z0-9ñ]+/g, " ").trim().split(/\s+/).filter((w) => w !== "y" && w !== "e").join("-");
+    .replace(/[^a-z0-9ñ]+/g, " ").trim().split(/\s+/).filter((w) => !CONECTORES.has(w)).join("-");
 }
 
 /** Dirección del listado de la categoría en Mercado Libre, con el rango de precio. */

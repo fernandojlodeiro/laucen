@@ -35,7 +35,7 @@ export default function Ayuda() {
   return (
     <div className="grid gap-4">
       <nav className="text-xs flex flex-wrap gap-x-3 gap-y-1">
-        {[["simbolos", "Símbolos"], ["seguir", "Seguir una categoría"], ["grupos", "Los tres rankings"],
+        {[["simbolos", "Símbolos"], ["seguir", "Seguir una categoría"], ["grupos", "Los dos rankings"],
           ["publicaciones", "Ver publicaciones y Apify"], ["propias", "Mis palabras"], ["automatico", "Lo que corre solo"], ["historial", "Historial"],
           ["datos", "De dónde salen los datos"]].map(([id, t]) => (
           <a key={id} href={`#${id}`} className="text-[#16577F] underline">{t}</a>
@@ -69,7 +69,7 @@ export default function Ayuda() {
         <p>La estrella y el interruptor “Seguir esta categoría” son lo mismo: la estrella sirve para seguir una subcategoría sin entrar; el interruptor, para la categoría en la que estás.</p>
       </Seccion>
 
-      <Seccion id="grupos" titulo="Los tres rankings (pestañas de Tendencias)">
+      <Seccion id="grupos" titulo="Los dos rankings (pestañas de Tendencias)">
         {(Object.keys(GRUPOS) as Grupo[]).map((g) => (
           <div key={g}>
             <b>{GRUPOS[g].label}</b>
@@ -96,7 +96,7 @@ export default function Ayuda() {
         <p>Todos los días a las <b>8:00</b> la app se despierta y hace lo que le toque según Configuración:</p>
         <ul className="list-disc pl-5 grid gap-1">
           <li><b>Leer tendencias</b> (gratis, cada 7 días por defecto): “Todo Mercado Libre” y todas las categorías que seguís.</li>
-          <li><b>Profundizar</b> (pago, junto con lo anterior): en las seguidas con “Profundizar” prendido, busca con Apify las primeras palabras de cada ranking (3 por defecto, × 3 rankings) y guarda sus publicaciones. Respeta el tope semanal.</li>
+          <li><b>Profundizar</b> (pago, junto con lo anterior): en las seguidas con “Profundizar” prendido, busca con Apify las primeras palabras de cada ranking (3 por defecto, × 2 rankings) y guarda sus publicaciones. Respeta el tope semanal.</li>
           <li><b>Palabras seguidas</b> (pago, junto con lo anterior): cada palabra propia con ★ se vuelve a buscar con Apify. Respeta el tope semanal.</li>
           <li><b>Árbol de categorías</b> (gratis, cada 1 mes por defecto): relee todas las categorías de Mercado Libre.</li>
         </ul>
