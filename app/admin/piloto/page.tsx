@@ -27,6 +27,8 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
   // Los parámetros se precargan con los del último piloto.
   const ult = lista[0]?.parametros;
   const v = { ...POR_DEFECTO, ...(ult ?? {}) };
+  // Un valor viejo fuera de rango (el 71 del piloto #3) no se vuelve a precargar.
+  if (v.yuanPorDolar < 3 || v.yuanPorDolar > 15) v.yuanPorDolar = POR_DEFECTO.yuanPorDolar;
   const input = "border border-[#E3E9F0] rounded-lg px-3 py-2 text-sm w-full";
   const campo = (name: string, etiqueta: string, valor: number | null, ayuda?: string) => (
     <label className="grid gap-1 text-xs">
