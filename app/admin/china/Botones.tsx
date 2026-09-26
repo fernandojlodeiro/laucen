@@ -6,10 +6,13 @@
 import { useFormStatus } from "react-dom";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 
-export default function Botones({ traducir, puedeTraducir }: { traducir: (f: FormData) => Promise<void>; puedeTraducir: boolean }) {
+export default function Botones({ traducir, probarFoto, puedeTraducir }: {
+  traducir: (f: FormData) => Promise<void>; probarFoto: (f: FormData) => Promise<void>; puedeTraducir: boolean;
+}) {
   const { pending, data } = useFormStatus();
   // El botón que se apretó viaja en el formulario ("accion=traducir").
   const traduciendo = pending && data?.get("accion") === "traducir";
+  const probando = pending && data?.get("accion") === "probar";
   return (
     <div className="flex flex-wrap gap-2">
       {puedeTraducir && (
@@ -17,8 +20,11 @@ export default function Botones({ traducir, puedeTraducir }: { traducir: (f: For
           {traduciendo ? "Traduciendo…" : "Traducir con Claude"}
         </button>
       )}
+      <button name="accion" value="probar" formAction={probarFoto} disabled={pending} className={`${SUAVE} disabled:opacity-60`}>
+        {probando ? "Probando…" : "Probar la foto (no gasta)"}
+      </button>
       <button disabled={pending} className={`${PRIMARIO} disabled:opacity-60`}>
-        {pending && !traduciendo ? "Corriendo… (hasta 4 min)" : "Correr en Apify"}
+        {pending && !traduciendo && !probando ? "Corriendo… (hasta 4 min)" : "Correr en Apify"}
       </button>
     </div>
   );

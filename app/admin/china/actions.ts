@@ -8,6 +8,7 @@ import { sosVos } from "@/lib/admin";
 import { sesionRequerida } from "@/lib/tenancy";
 import { correrActor, type ResultadoActor } from "@/lib/apify";
 import { esFalla, traducir } from "@/lib/china/traducir";
+import { guardarFoto, probarLink } from "@/lib/china/fotos";
 import { ACTORES, MAX, actorLibre, urlBusqueda, type Actor } from "./config";
 
 const CORRIENDO = { estado: "corriendo" };
@@ -24,6 +25,32 @@ export type PruebaChina = {
 function volver(p: Record<string, string>): never {
   const q = new URLSearchParams(Object.entries(p).filter(([, v]) => v));
   redirect(`/admin/china${q.size ? `?${q}` : ""}`);
+}
+
+/** La foto del formulario: el archivo subido (se guarda y da un link) o, si
+ *  no hay archivo, el link pegado. Mercado Libre da cada foto también en
+ *  .jpg; los buscadores por foto de China no siempre aceptan .webp. */
+async function fotoDelFormulario(formData: FormData, organizacionId: string): Promise<{ link: string; motivo?: string }> {
+  const archivo = formData.get("archivo");
+  if (archivo instanceof File && archivo.size > 0) {
+    const r = await guardarFoto(organizacionId, archivo);
+    return "link" in r ? { link: r.link } : { link: "", motivo: r.motivo };
+  }
+  const link = String(formData.get("imagen") ?? "").trim().replace(/^(https?:\/\/[^/]*mlstatic\.com\/.+)\.webp$/i, "$1.jpg");
+  return { link };
+}
+
+/** "Probar la foto": no busca ni gasta. Guarda la foto si es un archivo,
+ *  prueba desde el servidor que el link se pueda bajar y vuelve a mostrarla. */
+export async function accionProbarFoto(formData: FormData) {
+  if (!(await sosVos())) redirect("/panel");
+  const sesion = await sesionRequerida();
+  const texto = String(formData.get("texto") ?? "").trim();
+  const en = String(formData.get("en") ?? "").trim();
+  const zh = String(formData.get("zh") ?? "").trim();
+  const foto = await fotoDelFormulario(formData, sesion.org.id);
+  const prueba = foto.link ? await probarLink(foto.link) : { ok: false, detalle: foto.motivo ?? "no llegó ningún link ni archivo" };
+  volver({ texto, en, zh, imagen: foto.link, fotook: prueba.ok ? "1" : "0", fotodet: prueba.detalle });
 }
 
 /** "Traducir con Claude": sólo traduce y vuelve con los campos llenos, para
@@ -51,9 +78,7 @@ export async function accionCorrerChina(formData: FormData) {
   const texto = String(formData.get("texto") ?? "").trim();
   let en = String(formData.get("en") ?? "").trim();
   let zh = String(formData.get("zh") ?? "").trim();
-  // Mercado Libre da cada foto también en .jpg; los buscadores por foto de
-  // China no siempre aceptan .webp.
-  const imagen = String(formData.get("imagen") ?? "").trim().replace(/^(https?:\/\/[^/]*mlstatic\.com\/.+)\.webp$/i, "$1.jpg");
+  const imagen = (await fotoDelFormulario(formData, sesion.org.id)).link;
   const ids = formData.getAll("actor").map(String);
   const elegidos: Actor[] = ACTORES.filter((a) => ids.includes(a.id));
   const libre = actorLibre(String(formData.get("otro") ?? ""));

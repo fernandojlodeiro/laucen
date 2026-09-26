@@ -8,7 +8,8 @@ import { meliPruebas } from "@/db/meli";
 import { apifyToken, costosFinales } from "@/lib/apify";
 import { hayClaude, traducirTitulos } from "@/lib/china/traducir";
 import { SUAVE } from "@/app/botones";
-import { accionCorrerChina, accionTraducir, type PruebaChina } from "./actions";
+import { accionCorrerChina, accionProbarFoto, accionTraducir, type PruebaChina } from "./actions";
+import FotoCampo from "./FotoCampo";
 import { ACTORES, MAX, TOPE_USD } from "./config";
 import Botones from "./Botones";
 
@@ -146,7 +147,7 @@ function Resultado({ r, final }: { r: Corrida; final?: Final }) {
   );
 }
 
-type SP = { prueba?: string; texto?: string; en?: string; zh?: string; imagen?: string; tr?: string; motivo?: string };
+type SP = { prueba?: string; texto?: string; en?: string; zh?: string; imagen?: string; tr?: string; motivo?: string; fotook?: string; fotodet?: string };
 
 export default async function China({ searchParams }: { searchParams: Promise<SP> }) {
   if (!(await sosVos())) redirect("/panel");
@@ -180,7 +181,7 @@ export default async function China({ searchParams }: { searchParams: Promise<SP
   const total = corridas.reduce((t, r) => t + ((r.runId ? finales[r.runId]?.usd : null) ?? r.costo_usd ?? 0), 0);
 
   // Lo que se precarga en el formulario: lo recién traducido o la última prueba.
-  const vieneDeTraducir = sp.texto !== undefined || sp.en !== undefined;
+  const vieneDeTraducir = sp.texto !== undefined || sp.en !== undefined || sp.fotook !== undefined;
   const val = vieneDeTraducir
     ? { texto: sp.texto ?? "", en: sp.en ?? "", zh: sp.zh ?? "", imagen: sp.imagen ?? "" }
     : { texto: datos?.texto ?? "", en: datos?.en ?? "", zh: datos?.zh ?? "", imagen: datos?.imagen ?? "" };
@@ -223,10 +224,19 @@ export default async function China({ searchParams }: { searchParams: Promise<SP
             <input name="zh" defaultValue={val.zh} placeholder={claude ? "vacío = lo traduce Claude" : "ej: 自动吸水花盆 塑料 20cm"} className={input} />
           </label>
         </div>
-        <label className="grid gap-1 text-xs">
-          Foto (URL de una imagen, para los de búsqueda por foto)
-          <input name="imagen" type="url" defaultValue={val.imagen} placeholder="https://http2.mlstatic.com/…jpg" className={input} />
-        </label>
+        <FotoCampo link={val.imagen} clase={input} />
+        {sp.fotook !== undefined && (
+          <div className={`text-xs rounded-lg px-3 py-2 flex gap-3 items-start ${sp.fotook === "1" ? "bg-[#EEF7F1] text-[#1F6E4A]" : "bg-[#FDF1EF] text-[#C03420]"}`}>
+            {sp.fotook === "1" && val.imagen && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={val.imagen} alt="" referrerPolicy="no-referrer" className="w-20 h-20 object-cover rounded" />
+            )}
+            <div>
+              <b>{sp.fotook === "1" ? "La foto llega bien." : "La foto no llega:"}</b> {sp.fotodet}
+              {val.imagen && <span className="block break-all text-[#5C6B76] mt-1">Link que reciben los buscadores: {val.imagen}</span>}
+            </div>
+          </div>
+        )}
         <fieldset className="grid gap-1 text-xs">
           <legend className="mb-1">Actores</legend>
           {ACTORES.map((a) => (
@@ -241,7 +251,7 @@ export default async function China({ searchParams }: { searchParams: Promise<SP
             <input name="otro" placeholder="ej: songd/1688-search-scraper" className={input} />
           </label>
         </fieldset>
-        <Botones traducir={accionTraducir} puedeTraducir={claude} />
+        <Botones traducir={accionTraducir} probarFoto={accionProbarFoto} puedeTraducir={claude} />
         <p className="text-[11px] text-[#5C6B76]">
           {MAX} resultados por actor, tope de USD {TOPE_USD.toFixed(2).replace(".", ",")} por actor. Los de foto vienen destildados:
           tildalos si cargaste una foto. Recargar la página no vuelve a correr nada.
