@@ -112,6 +112,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
                 </div>
               </div>
               {x.error && <p className="text-[#C03420] mt-2">{x.error}</p>}
+              {j?.nota && <p className="text-[#8a6100] mt-1 text-[11px]">{j.nota}</p>}
               {cands.length > 0 && (
                 <details className="mt-2">
                   <summary className="cursor-pointer text-[#16577F]">Ver los {cands.length} resultados de China con el veredicto</summary>

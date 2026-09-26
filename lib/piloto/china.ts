@@ -149,21 +149,25 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     }
   });
   let r = await pedirClaude({ system, contenido: conFotos, maxTokens: 6000, effort: "medium" });
-  let tokensIn = r.tokensIn, tokensOut = r.tokensOut, sinFotos = false;
+  let tokensIn = r.tokensIn, tokensOut = r.tokensOut, sinFotos = false, motivoSinFotos = "";
   if ("error" in r) {
     // Alguna foto de China no se pudo bajar: se juzga sólo con la foto de Mercado Libre.
     const soloML: Contenido = [{ type: "text", text: cabeza }];
     if (fotoML) soloML.push({ type: "image", source: { type: "base64", media_type: fotoML.media_type, data: fotoML.data } });
     soloML.push({ type: "text", text: `Candidatos (sin fotos):\n${lista}` });
+    const errorConFotos = r.error;
+    console.error("[piloto] juez con fotos falló:", errorConFotos);
     r = await pedirClaude({ system, contenido: soloML, maxTokens: 6000, effort: "medium" });
     tokensIn += r.tokensIn; tokensOut += r.tokensOut; sinFotos = true;
+    motivoSinFotos = errorConFotos.slice(0, 300);
   }
   if ("error" in r) return { juicio: { veredictos: [], elegido: null, motivo: "", error: r.error } as Juicio, tokensIn, tokensOut };
   const j = jsonDe<Juicio>(r.texto);
   if (!j) return { juicio: { veredictos: [], elegido: null, motivo: "", error: "Claude contestó en otro formato" } as Juicio, tokensIn, tokensOut };
   return {
     juicio: { veredictos: j.veredictos ?? [], elegido: typeof j.elegido === "number" ? j.elegido : null,
-      motivo: (j.motivo ?? "") + (sinFotos ? " (juzgado sin las fotos de China)" : "") },
+      motivo: (j.motivo ?? "") + (sinFotos ? " (juzgado sin las fotos de China)" : ""),
+      ...(motivoSinFotos ? { nota: `Sin fotos porque: ${motivoSinFotos}` } : {}) },
     tokensIn, tokensOut,
   };
 }

@@ -49,7 +49,7 @@ export type Candidato = {
 };
 
 export type Veredicto = { n: number; v: "si" | "dudoso" | "no"; motivo: string };
-export type Juicio = { veredictos: Veredicto[]; elegido: number | null; motivo: string; error?: string };
+export type Juicio = { veredictos: Veredicto[]; elegido: number | null; motivo: string; error?: string; nota?: string };
 
 /** Una publicación de Mercado Libre, normalizada (venga de donde venga). */
 export type PubML = {
