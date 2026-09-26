@@ -54,11 +54,11 @@ export async function GET(req: NextRequest) {
   } else if (vista === "items") {
     const r = await items(f, org, TOPE);
     cab = ["periodo", "destinacion", "item", "aduana", "importador", "importador_completo", "ncm", "pais_origen", "pais_procedencia",
-      "transporte", "unidad", "cantidad", "fob_usd", "fob_unitario", "ncm_sim", "arancel_pct_min", "arancel_pct_max", "iva_pct", "estadistica_pct", "marcas", "codigos_articulo", "kg_netos", "cif_usd", "fecha"];
+      "transporte", "unidad", "cantidad", "fob_usd", "fob_unitario", "ncm_sim", "arancel_pct_min", "arancel_pct_max", "iva_pct", "iva_origen", "estadistica_pct", "marcas", "codigos_articulo", "kg_netos", "cif_usd", "fecha"];
     filas = r.filas.map((x) => [x.periodo, x.destinacion, x.num_item, x.aduana, x.importador, x.importador_completo, x.ncm,
       nombre(refs.pais, x.pais_origen), nombre(refs.pais, x.pais_procedencia), nombre(refs.transporte, x.transporte),
       nombre(refs.unidad, x.unidad), x.cantidad, x.fob_item, x.fob_unit, x.ncm_sim,
-      x.arancel_min, x.arancel_max, x.iva_pct, x.estadistica_pct, x.marcas, x.codigos_articulo, x.kg_netos, x.usd_cif, x.fecha]);
+      x.arancel_min, x.arancel_max, x.iva_pct, x.iva_por_defecto ? "por defecto (revisar)" : "deducido", x.estadistica_pct, x.marcas, x.codigos_articulo, x.kg_netos, x.usd_cif, x.fecha]);
   } else {
     const r = await rankingImportadores(f, org, orden, TOPE);
     cab = ["importador", "fob_usd", "pct_del_total", "cantidad", "items", "ncm_distintas", "transporte_principal"];

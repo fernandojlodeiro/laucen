@@ -85,7 +85,10 @@ export function Items({ datos, refs, csv }: { datos: Awaited<ReturnType<typeof i
                   <td className={TDN}>{x.usd_cif == null ? "" : usd(x.usd_cif)}</td><td className={TDN}>{x.kg_netos == null ? "" : cant(x.kg_netos)}</td>
                 </>}
                 <td className={TDN}><Pct min={x.arancel_min} max={x.arancel_max} titulo="Arancel de importación fuera del Mercosur, nomenclador vigente" /></td>
-                <td className={TDN}><Pct min={x.iva_pct} titulo="IVA deducido de los despachos de esta NCM" /></td>
+                <td className={`${TDN} ${x.iva_por_defecto ? "text-[#8a6100]" : ""}`}>
+                  <Pct min={x.iva_pct} titulo={x.iva_por_defecto ? "21 % por defecto: no se pudo deducir de los despachos. Revisar." : "IVA deducido de los despachos de esta NCM"} />
+                  {x.iva_por_defecto && "*"}
+                </td>
                 <td className={TDN}><Pct min={x.estadistica_pct} titulo="Tasa de estadística deducida de los despachos de esta NCM" /></td>
                 {conSoftrade && <>
                   <td className={TD}>{x.marcas?.join(", ") ?? ""}</td><td className={TD}>{x.codigos_articulo?.join(", ") ?? ""}</td>

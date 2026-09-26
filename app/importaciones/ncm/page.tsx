@@ -70,8 +70,8 @@ export default async function FichaNcm({ searchParams }: { searchParams: Promise
               <b className="tabular-nums"><Pct min={tasas.arancelMin} max={tasas.arancelMax} /></b>
             </li>
             <li className="flex justify-between gap-2">
-              <span><b>IVA</b> <span className="text-[#5C6B76]">{tasas.iva == null ? "(sin despachos para deducirlo)" : `(deducido de ${tasas.ivaItems} de ${tasas.ivaTotal} despachos)`}</span></span>
-              <b className="tabular-nums"><Pct min={tasas.iva} /></b>
+              <span><b>IVA</b> <span className={tasas.ivaPorDefecto ? "text-[#8a6100]" : "text-[#5C6B76]"}>{tasas.ivaPorDefecto ? "(por defecto: no se pudo deducir de los despachos — revisar)" : `(deducido de ${tasas.ivaItems} de ${tasas.ivaTotal} despachos)`}</span></span>
+              <b className={`tabular-nums ${tasas.ivaPorDefecto ? "text-[#8a6100]" : ""}`}><Pct min={tasas.iva} />{tasas.ivaPorDefecto && "*"}</b>
             </li>
             <li className="flex justify-between gap-2">
               <span><b>Estadística</b> <span className="text-[#5C6B76]">{tasas.est == null ? "(sin despachos para deducirla)" : `(deducida de ${tasas.estItems} de ${tasas.estTotal} despachos)`}</span></span>

@@ -129,7 +129,8 @@ export type FilaItem = {
   ncm_sim: string | null;
   arancel_min: number | null;   // arancel vigente (fuera del Mercosur), del nomenclador
   arancel_max: number | null;   // distinto del mínimo: las aperturas SIM de esa NCM difieren
-  iva_pct: number | null;       // deducido de los despachos (ncm_tasas)
+  iva_pct: number | null;       // deducido de los despachos (ncm_tasas); si no hay, IVA_POR_DEFECTO
+  iva_por_defecto: boolean;     // true = no se pudo deducir: 21 % hasta revisarlo
   estadistica_pct: number | null;
 };
 
@@ -147,7 +148,7 @@ export async function items(f: Filtro, org: string, limite: number): Promise<{ f
         from v_items_enriquecidos a ${w}
        order by a.fob_item desc nulls last limit ${Number(limite)})
     select it.*, coalesce(sim.alic_3, ar.arancel_min) arancel_min, coalesce(sim.alic_3, ar.arancel_max) arancel_max,
-           t.iva_pct, t.estadistica_pct
+           coalesce(t.iva_pct, ${IVA_POR_DEFECTO}) iva_pct, (t.iva_pct is null) iva_por_defecto, t.estadistica_pct
       from it
       left join ref_ncm_vigente sim on sim.codigo = it.ncm_sim
       left join ncm_arancel ar on ar.ncm = it.ncm
@@ -177,10 +178,16 @@ export async function cobertura(f: Filtro, org: string): Promise<{ con: number; 
 
 // ── Lo que paga hoy una NCM ───────────────────────────────
 
+/** IVA cuando no se puede deducir de los despachos (NCM con arancel 0 o sin
+ *  despachos). Decisión de Fer (25/09): 21 %, que es lo general; el 10,5 % es
+ *  para pocas posiciones (bienes de capital, notebooks, impresoras 3D). Se
+ *  muestra marcado "por defecto" para revisarlo. */
+export const IVA_POR_DEFECTO = 21;
+
 export type Tasas = {
   vigencia: string | null;
   arancelMin: number | null; arancelMax: number | null;   // nomenclador, fuera del Mercosur
-  iva: number | null; ivaItems: number; ivaTotal: number;  // deducidos de los despachos
+  iva: number | null; ivaPorDefecto: boolean; ivaItems: number; ivaTotal: number;  // deducidos de los despachos
   est: number | null; estItems: number; estTotal: number;
   aperturas: { codigo: string; descripcion: string | null; arancel: number | null }[];
 };
@@ -196,7 +203,7 @@ export async function tasasDeNcm(ncm: string): Promise<Tasas> {
   return {
     vigencia: ap[0]?.vigencia ?? null,
     arancelMin: n(ar?.arancel_min), arancelMax: n(ar?.arancel_max),
-    iva: n(t?.iva_pct), ivaItems: t?.iva_items ?? 0, ivaTotal: t?.iva_total ?? 0,
+    iva: n(t?.iva_pct) ?? IVA_POR_DEFECTO, ivaPorDefecto: t?.iva_pct == null, ivaItems: t?.iva_items ?? 0, ivaTotal: t?.iva_total ?? 0,
     est: n(t?.estadistica_pct), estItems: t?.estadistica_items ?? 0, estTotal: t?.estadistica_total ?? 0,
     aperturas: ap.map((x) => ({ codigo: x.codigo, descripcion: x.descripcion, arancel: n(x.arancel) })),
   };
