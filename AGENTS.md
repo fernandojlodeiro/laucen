@@ -44,6 +44,11 @@ no la primera.
   `lib/database-url.ts` arma la dirección contra el pooler `aws-0-sa-east-1` (la conexión
   directa `db.…` es sólo IPv6 y Vercel no llega). Si algo de la base falla, mirar primero
   `/admin/diagnostico`.
+  También: `MELI_APP_ID`, `MELI_CLIENT_SECRET` (Mercado Libre), `APIFY_TOKEN` (Apify) y
+  `ANTHROPIC_API_KEY` (Claude; tiene que ser una llave creada adentro de un workspace, o si no
+  hace falta `ANTHROPIC_WORKSPACE_ID`). **Después de que Fer cambia una variable, se despliega
+  con un push a main, nunca con el botón "Redeploy" de Vercel**: ese botón vuelve a desplegar
+  un commit viejo y deja producción atrasada.
 - **Cron**: Vercel Cron Jobs nativo (`vercel.json`).
 - **Login**: confirmado de punta a punta el 24/9 (Fer entra por `laucen.vercel.app`, con
   organización y rol Admin). Supabase tiene prendida la confirmación por mail.
