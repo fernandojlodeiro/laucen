@@ -68,7 +68,7 @@ El script corre en ~1 minuto por mes con Python 3 sin dependencias. Está probad
 
 ## 4. Esquema propuesto en Supabase
 
-Fer pasa a **plan Pro (USD 25/mes)** antes de la carga: el plan gratis tiene 500 MB y se pausa tras una semana sin uso; Pro incluye 8 GB (verificado en la página de precios el 25/09/2026). Estimación: todos los países, ~6,4 M ítems/año → 300–500 MB/año con índices en `arca_impo_items`; sin montos de impuestos (ver nota abajo) queda del orden de 100 MB/año con todos los países.
+Fer pasa a **plan Pro (USD 25/mes)** antes de la carga: el plan gratis tiene 500 MB y se pausa tras una semana sin uso; Pro incluye 8 GB (verificado en la página de precios el 25/09/2026). Estimación: todos los países, ~6,4 M ítems/año → 300–500 MB/año con índices en `arca_impo_items`; sin montos de impuestos. **Medido con agosto 2026 (26/09): ~150 MB por mes (ítems 109 MB + resúmenes ~38 MB) → ~1,8 GB por año, ~18 GB los 10 años.** La estimación anterior de "~100 MB/año" estaba mal.
 
 ```sql
 create table arca_impo_items (
