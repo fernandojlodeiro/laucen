@@ -42,18 +42,49 @@ function campo(item: unknown, patron: RegExp, profundidad = 0): string | null {
   return null;
 }
 
+/** Precio legible: cada actor lo trae distinto (texto, número, {min,max},
+ *  priceMin/priceMax). */
+function precioDe(it: unknown): string | null {
+  if (!it || typeof it !== "object") return null;
+  const o = it as Record<string, unknown>;
+  const mon = typeof o.currency === "string" ? o.currency : "";
+  if (typeof o.priceText === "string" && o.priceText) return `${o.priceText}${mon && !o.priceText.includes("$") ? ` ${mon}` : ""}`;
+  const p = o.price;
+  if (typeof p === "string" && p) return p;
+  if (p && typeof p === "object") {
+    const q = p as Record<string, unknown>;
+    const m = typeof q.currency === "string" ? q.currency : mon;
+    if (q.min != null) return `${q.min}${q.max != null && q.max !== q.min ? `–${q.max}` : ""} ${m}`.trim();
+  }
+  if (o.priceMin != null) return `${o.priceMin}${o.priceMax != null && o.priceMax !== o.priceMin ? `–${o.priceMax}` : ""} ${mon}`.trim();
+  if (typeof p === "number") return `${p} ${mon}`.trim();
+  return campo(it, /price/i);
+}
+
+function minimoDe(it: unknown): string | null {
+  if (!it || typeof it !== "object") return null;
+  const o = it as Record<string, unknown>;
+  if (typeof o.moqText === "string") return o.moqText.replace(/^Min\. order:\s*/i, "");
+  if (o.moq != null && typeof o.moq !== "object") return String(o.moq);
+  return null;
+}
+
 function Vistazo({ items }: { items: unknown[] }) {
-  const filas = items.slice(0, 8).map((it) => ({
+  const filas = items.map((it) => ({
     titulo: campo(it, /^(title|subject|name|product_?title|productName|offerTitle)$/i) ?? campo(it, /title|subject|name/i),
-    precio: campo(it, /price/i),
+    precio: precioDe(it),
+    minimo: minimoDe(it),
     foto: campo(it, /^(image|img|imageUrl|image_url|mainImage|main_image|thumbnail|pic|picUrl|images)$/i),
     url: campo(it, /^(url|link|detailUrl|productUrl|product_url|offerUrl|href)$/i),
   }));
   return (
     <table className="w-full text-[11px] mb-2">
+      <thead className="text-left text-[#5C6B76]">
+        <tr><th></th><th className="py-1">Producto</th><th className="py-1 px-2">Precio</th><th className="py-1">Pedido mín.</th></tr>
+      </thead>
       <tbody>
         {filas.map((f, i) => (
-          <tr key={i} className="border-b last:border-0 border-[#E3E9F0] align-top">
+          <tr key={i} className="border-t border-[#E3E9F0] align-top">
             <td className="py-1 pr-2 w-12">
               {f.foto && /^(https?:)?\/\//.test(f.foto) && (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -63,7 +94,8 @@ function Vistazo({ items }: { items: unknown[] }) {
             <td className="py-1 pr-2">
               {f.url ? <a href={f.url.startsWith("//") ? `https:${f.url}` : f.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{f.titulo ?? "(sin título)"}</a> : f.titulo ?? "(sin título)"}
             </td>
-            <td className="py-1 whitespace-nowrap">{f.precio ?? "—"}</td>
+            <td className="py-1 px-2 whitespace-nowrap">{f.precio ?? "—"}</td>
+            <td className="py-1 whitespace-nowrap">{f.minimo ?? "—"}</td>
           </tr>
         ))}
       </tbody>
