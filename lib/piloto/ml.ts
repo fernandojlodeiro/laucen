@@ -10,7 +10,7 @@ import { correrConEntrada } from "@/lib/apify";
 import { jsonDe, pedirClaude } from "@/lib/claude";
 import { ml, tokenML } from "@/lib/radar/base";
 import { lecturaDeLaSemana, palabrasDe } from "@/lib/radar/tendencias";
-import { buscarGratis, publicacionesDe } from "@/lib/radar/busquedas";
+import { categoria } from "@/lib/radar/categorias";
 import type { ListadoActor, PubML } from "./tipos";
 
 const num = (v: unknown): number | null => {
@@ -91,7 +91,8 @@ export async function listadoDeCategoria(url: string, n: number, min: number | n
     if (!puedeGastar(0.3)) return actores.push({ actor, url, ok: false, cantidad: 0, costoUsd: null, error: "Tope de gasto de Apify" });
     const c = await correrConEntrada(actor, entrada, { max: n, esperaSeg: 150, topeUsd: 0.3 });
     const propias = (c.items as Record<string, unknown>[]).map(aPubML).filter((p) => p.titulo !== "(sin título)");
-    actores.push({ actor, url, ok: propias.length > 0, cantidad: propias.length, costoUsd: c.costoUsd, error: propias.length ? undefined : c.error ?? "No trajo publicaciones" });
+    actores.push({ actor, url, ok: propias.length > 0, cantidad: propias.length, costoUsd: c.costoUsd, error: propias.length ? undefined : c.error ?? "No trajo publicaciones",
+      muestra: c.items[0] ? JSON.stringify(c.items[0]).slice(0, 2000) : undefined });
     pubs.push(...propias);
   }));
   // Sin repetidos; dentro del rango de precio; más vendidos primero (a igual
@@ -107,26 +108,62 @@ export async function listadoDeCategoria(url: string, n: number, min: number | n
   return { actores, listado: unicas };
 }
 
+/** ¿La categoría `id` está dentro de la rama `rama` (o es ella)? */
+async function dentroDeRama(id: string, rama: string) {
+  if (id === rama) return true;
+  const [c, r] = await Promise.all([categoria(id).catch(() => null), categoria(rama).catch(() => null)]);
+  return !!c && !!r && c.ruta.startsWith(`${r.ruta} › `);
+}
+
 /** Las palabras más buscadas de la categoría y, por cada una, la primera
- *  publicación de catálogo dentro del rango de precio. Gratis. */
+ *  publicación de catálogo dentro del rango de precio. Gratis. Para no traer
+ *  cualquier cosa que comparta una palabra (un libro, un disco), Mercado
+ *  Libre primero dice en qué categoría cae la palabra (domain_discovery): si
+ *  no cae dentro de la categoría elegida, se descarta; si cae, se busca sólo
+ *  en ese tipo de producto (domain_id). */
 export async function buscadosDeCategoria(categoriaId: string, organizacionId: string, cuantos: number, min: number | null, max: number | null) {
   const lectura = await lecturaDeLaSemana(categoriaId, organizacionId);
   if (!lectura) return { palabras: [], pubs: [], error: "No se pudieron leer las tendencias de la categoría" };
+  const token = await tokenML(organizacionId);
   const lista = (await palabrasDe([lectura.id])).filter((p) => p.grupo === "buscadas").sort((a, b) => a.posicion - b.posicion);
   const palabras: { palabra: string; encontrada: boolean; motivo?: string }[] = [];
   const pubs: (PubML & { palabra: string })[] = [];
   for (const p of lista) {
-    if (pubs.length >= cuantos || palabras.length >= cuantos * 3) break;
-    const b = await buscarGratis({ palabra: p.palabra, categoriaId, organizacionId, origen: "manual" }, 6);
-    const encontradas = b.estado === "terminada" ? await publicacionesDe(b.id) : [];
-    const buena = encontradas.find((x) => enRango(x.precio, min, max));
-    if (buena && !pubs.some((x) => x.productoId && x.productoId === buena.productoId)) {
-      pubs.push({ palabra: p.palabra, itemId: buena.itemId, productoId: buena.productoId, titulo: buena.titulo, url: buena.url,
-        foto: buena.foto, precio: buena.precio, vendidos: buena.vendidos, vendidosTexto: buena.vendidosTexto, opiniones: buena.opiniones });
+    if (pubs.length >= cuantos || palabras.length >= cuantos * 4) break;
+    const q = encodeURIComponent(p.palabra);
+    const disc = await ml(`/sites/MLA/domain_discovery/search?q=${q}&limit=3`, token);
+    const opciones = (Array.isArray(disc.datos) ? disc.datos : []) as { domain_id?: string; category_id?: string; category_name?: string }[];
+    let dominio: string | null = null;
+    for (const o of opciones) {
+      if (o.category_id && o.domain_id && await dentroDeRama(o.category_id, categoriaId)) { dominio = o.domain_id; break; }
+    }
+    if (!dominio) {
+      palabras.push({ palabra: p.palabra, encontrada: false,
+        motivo: opciones[0]?.category_name ? `Mercado Libre la ubica en otra categoría (${opciones[0].category_name})` : "Mercado Libre no la ubica en ninguna categoría" });
+      continue;
+    }
+    const r = await ml(`/products/search?status=active&site_id=MLA&q=${q}&domain_id=${encodeURIComponent(dominio)}&limit=10`, token);
+    const productos = ((r.datos as { results?: { id: string; name: string; domain_id?: string; pictures?: { url: string }[] }[] })?.results ?? [])
+      .filter((x) => !x.domain_id || x.domain_id === dominio);
+    let elegida: (PubML & { palabra: string }) | null = null;
+    for (const prod of productos.slice(0, 6)) {
+      if (pubs.some((x) => x.productoId === prod.id)) continue;
+      const it = await ml(`/products/${prod.id}/items?limit=10`, token);
+      const ofertas = ((it.datos as { results?: Record<string, unknown>[] })?.results ?? []);
+      if (!ofertas.length) continue;
+      const o = ofertas.reduce((a, x) => (Number(x.price) < Number(a.price) ? x : a));
+      const precio = Number(o.price) || null;
+      if (!enRango(precio, min, max)) continue;
+      elegida = { palabra: p.palabra, itemId: String(o.item_id ?? "") || null, productoId: prod.id, titulo: prod.name,
+        url: `https://www.mercadolibre.com.ar/p/${prod.id}`, foto: prod.pictures?.[0]?.url ?? null, precio,
+        vendidos: null, vendidosTexto: null, opiniones: null };
+      break;
+    }
+    if (elegida) {
+      pubs.push(elegida);
       palabras.push({ palabra: p.palabra, encontrada: true });
     } else {
-      palabras.push({ palabra: p.palabra, encontrada: false,
-        motivo: b.estado !== "terminada" ? "la búsqueda falló" : encontradas.length ? "ninguna en el rango de precio" : "sin productos de catálogo" });
+      palabras.push({ palabra: p.palabra, encontrada: false, motivo: productos.length ? "ninguna en el rango de precio" : "sin productos de catálogo" });
     }
   }
   return { palabras, pubs, error: null };

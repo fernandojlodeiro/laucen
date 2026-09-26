@@ -77,6 +77,7 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
       <section>
         <h2 className="text-sm font-bold mb-2">Nuevo piloto</h2>
         {sp.error === "categorias" && <p className="text-xs text-[#C03420] bg-[#FDF1EF] rounded-lg px-3 py-2 mb-3">Elegí al menos una categoría.</p>}
+        {sp.error === "yuan" && <p className="text-xs text-[#C03420] bg-[#FDF1EF] rounded-lg px-3 py-2 mb-3">Los yuanes por dólar tienen que estar entre 3 y 15 (hoy rondan 7,1). ¿Pusiste 71 en vez de 7,1?</p>}
         <form action={accionCrearPiloto} className="grid gap-4 bg-white border border-[#E3E9F0] rounded-lg p-4">
           <ExploradorCategorias modo="elegir" />
           <fieldset className="grid sm:grid-cols-2 gap-3">
@@ -109,7 +110,7 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
           </fieldset>
           <fieldset className="grid sm:grid-cols-3 gap-3">
             <legend className="text-xs font-bold mb-1">China y juez</legend>
-            {campo("yuanPorDolar", "Yuanes por dólar", v.yuanPorDolar)}
+            {campo("yuanPorDolar", "Yuanes por dólar", v.yuanPorDolar, "ronda 7,1 (con coma o punto)")}
             {campo("minimoMax", "Pedido mínimo razonable (unidades)", v.minimoMax)}
             {campo("topeApifyUsd", "Tope de gasto de Apify (US$)", v.topeApifyUsd)}
           </fieldset>

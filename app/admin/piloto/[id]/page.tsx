@@ -51,6 +51,10 @@ export default async function PilotoML({ params }: { params: Promise<{ id: strin
                     <span key={a.actor}>
                       <code>{a.actor.replace("~", "/")}</code>: {a.ok ? `${a.cantidad} publicaciones` : `no anduvo (${a.error})`}
                       {a.costoUsd != null && ` · US$ ${a.costoUsd.toFixed(3)}`}
+                      {a.muestra && (
+                        <details className="inline ml-1"><summary className="inline cursor-pointer underline">ver dato crudo</summary>
+                          <pre className="whitespace-pre-wrap break-all text-[10px] bg-[#F5F8FB] p-2 rounded">{a.muestra}</pre></details>
+                      )}
                     </span>
                   ))}
                   {av.palabras && av.palabras.length > 0 && (

@@ -64,7 +64,7 @@ export type PubML = {
   opiniones: number | null;
 };
 
-export type ListadoActor = { actor: string; url: string; ok: boolean; cantidad: number; costoUsd: number | null; error?: string };
+export type ListadoActor = { actor: string; url: string; ok: boolean; cantidad: number; costoUsd: number | null; error?: string; muestra?: string };
 
 /** Lo que se guarda por categoría en piloto_corridas.avance. */
 export type AvanceCategoria = {

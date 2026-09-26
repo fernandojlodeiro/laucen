@@ -5,6 +5,7 @@
 import { correrConEntrada } from "@/lib/apify";
 import { jsonDe, pedirClaude, type Contenido } from "@/lib/claude";
 import { traducir, esFalla } from "@/lib/china/traducir";
+import { aBase64 } from "@/lib/imagenes";
 import type { Caja, Candidato, Franja, Juicio, Parametros } from "./tipos";
 
 // Actores elegidos en el banco de China: rápidos y con precio.
@@ -71,10 +72,12 @@ export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: 
  *  kg), mirando título y foto. De a varios productos por pedido. */
 export async function estimarCajas(productos: { id: number; titulo: string; foto: string | null }[]) {
   const contenido: Contenido = [];
-  for (const p of productos) {
+  const fotos = await Promise.all(productos.map((p) => aBase64(p.foto)));
+  productos.forEach((p, i) => {
     contenido.push({ type: "text", text: `Producto ${p.id}: ${p.titulo}` });
-    if (p.foto) contenido.push({ type: "image", source: { type: "url", url: p.foto } });
-  }
+    const f = fotos[i];
+    if (f) contenido.push({ type: "image", source: { type: "base64", media_type: f.media_type, data: f.data } });
+  });
   const pedido = {
     system: "Sos despachante e importador. Para cada producto estimá la caja de envío de UNA unidad tal como viene de fábrica " +
       "(embalaje individual): largo, ancho y alto en centímetros y peso bruto en kg. Si el producto se vende en pack, es la caja del pack. " +
@@ -134,13 +137,15 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     ` | mínimo ${c.minimo ?? "?"} | ${c.proveedor ?? "proveedor ?"}${c.fabrica ? ", fábrica" : ""}${c.anios ? `, ${c.anios} años` : ""}${c.ventas ? `, ventas ${c.ventas}` : ""}`).join("\n");
   const cabeza = `Mercado Libre: ${ml.titulo} — $${ml.precio ?? "?"} (pesos)`;
 
+  // Las fotos se bajan desde el servidor (a Claude no siempre le dejan).
+  const [fotoML, ...fotosCands] = await Promise.all([aBase64(ml.foto), ...candidatos.map((c) => aBase64(c.foto))]);
   const conFotos: Contenido = [{ type: "text", text: cabeza }];
-  if (ml.foto) conFotos.push({ type: "image", source: { type: "url", url: ml.foto } });
-  conFotos.push({ type: "text", text: `Candidatos:\n${lista}\n\nFotos de los candidatos (el número es el de la lista):` });
-  candidatos.forEach((c, i) => {
-    if (c.foto) {
+  if (fotoML) conFotos.push({ type: "image", source: { type: "base64", media_type: fotoML.media_type, data: fotoML.data } });
+  conFotos.push({ type: "text", text: `Candidatos:\n${lista}\n\nFotos de los candidatos (el número es el de la lista; si falta, no se pudo bajar):` });
+  fotosCands.forEach((f, i) => {
+    if (f) {
       conFotos.push({ type: "text", text: `Foto ${i + 1}:` });
-      conFotos.push({ type: "image", source: { type: "url", url: c.foto } });
+      conFotos.push({ type: "image", source: { type: "base64", media_type: f.media_type, data: f.data } });
     }
   });
   let r = await pedirClaude({ system, contenido: conFotos, maxTokens: 6000, effort: "medium" });
@@ -148,7 +153,7 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
   if ("error" in r) {
     // Alguna foto de China no se pudo bajar: se juzga sólo con la foto de Mercado Libre.
     const soloML: Contenido = [{ type: "text", text: cabeza }];
-    if (ml.foto) soloML.push({ type: "image", source: { type: "url", url: ml.foto } });
+    if (fotoML) soloML.push({ type: "image", source: { type: "base64", media_type: fotoML.media_type, data: fotoML.data } });
     soloML.push({ type: "text", text: `Candidatos (sin fotos):\n${lista}` });
     r = await pedirClaude({ system, contenido: soloML, maxTokens: 6000, effort: "medium" });
     tokensIn += r.tokensIn; tokensOut += r.tokensOut; sinFotos = true;

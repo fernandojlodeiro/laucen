@@ -7,8 +7,12 @@ import { sesionRequerida } from "@/lib/tenancy";
 import { avanzar, crearCorrida, revisar } from "@/lib/piloto/proceso";
 import { POR_DEFECTO, type Parametros } from "@/lib/piloto/tipos";
 
+/** Número escrito a la argentina o no: "70.000" = 70000, "7,1" = 7.1 y
+ *  también "7.1" = 7.1 (un punto con 1 o 2 decimales es la coma decimal). */
 const numero = (v: FormDataEntryValue | null, def: number | null) => {
-  const t = String(v ?? "").replace(/\./g, "").replace(",", ".").trim();
+  let t = String(v ?? "").replace(/[$\s]/g, "");
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+  else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, "");
   if (!t) return def;
   const n = Number(t);
   return Number.isFinite(n) ? n : def;
@@ -39,6 +43,8 @@ export async function accionCrearPiloto(formData: FormData) {
     minimoMax: numero(formData.get("minimoMax"), d.minimoMax)!,
     topeApifyUsd: numero(formData.get("topeApifyUsd"), d.topeApifyUsd)!,
   };
+  // Un yuan fuera de rango es casi seguro un error de tipeo (71 en vez de 7,1).
+  if (p.yuanPorDolar < 3 || p.yuanPorDolar > 15) redirect("/admin/piloto?error=yuan");
   const id = await crearCorrida(sesion.org.id, p);
   redirect(`/admin/piloto/${id}`);
 }
