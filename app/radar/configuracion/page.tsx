@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CampoNumero from "@/app/componentes/CampoNumero";
 import { sesionRequerida, puede } from "@/lib/tenancy";
 import { sosVos } from "@/lib/admin";
 import { asegurarEsquema } from "@/lib/radar/esquema";
@@ -34,7 +35,7 @@ function Frecuencia({ prefijo, cada, unidad, desde }: { prefijo: string; cada: n
   return (
     <>
       <span>cada</span>
-      <input name={`${prefijo}_cada`} type="number" min={1} max={365} defaultValue={cada} className={`${campo} w-20`} />
+      <CampoNumero name={`${prefijo}_cada`} valor={cada} tipo="entero" className={`${campo} w-20`} />
       <select name={`${prefijo}_unidad`} defaultValue={unidad} className={campo}>
         <option value="dias">días</option>
         <option value="meses">meses</option>
@@ -75,7 +76,7 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
         <fieldset disabled={!puedeConfigurar}>
           <Fila titulo="Tope de gasto en Apify" ayuda="Por semana, sumando búsquedas a mano y automáticas. Al llegar, no corre más hasta el lunes.">
             <span>USD</span>
-            <input name="tope" type="number" min={0} step={0.5} defaultValue={c.topeSemanalUsd} className={`${campo} w-24`} />
+            <CampoNumero name="tope" valor={c.topeSemanalUsd} tipo="usd" className={`${campo} w-24`} />
             <span>por semana</span>
           </Fila>
           <Fila titulo="Leer tendencias" ayuda="La general y las de tus categorías seguidas (gratis). Mercado Libre las cambia una vez por semana.">
@@ -85,7 +86,7 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
             <Frecuencia prefijo="arbol" cada={c.arbolCada} unidad={c.arbolUnidad} desde={c.arbolDesde} />
           </Fila>
           <Fila titulo="Profundizar" ayuda="En las categorías con “Profundizar” prendido: cuántas palabras de cada grupo se buscan con Apify.">
-            <input name="palabras" type="number" min={1} max={20} defaultValue={c.palabrasAProfundizar} className={`${campo} w-20`} />
+            <CampoNumero name="palabras" valor={c.palabrasAProfundizar} tipo="entero" className={`${campo} w-20`} />
             <span>primeras de cada grupo (× 2 grupos: más deseadas y más populares)</span>
           </Fila>
           <Fila titulo="Fuente de Apify" ayuda="Para “Mejorar con Apify” y para profundizar.">

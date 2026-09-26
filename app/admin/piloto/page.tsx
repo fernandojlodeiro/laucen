@@ -11,6 +11,8 @@ import { BotonEnviar } from "@/app/radar/Cliente";
 import { PRIMARIO } from "@/app/botones";
 import { accionCrearPiloto } from "./actions";
 import ExploradorCategorias from "@/app/componentes/ExploradorCategorias";
+import CampoNumero from "@/app/componentes/CampoNumero";
+import type { TipoNumero } from "@/lib/numeros";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Piloto", robots: { index: false, follow: false } };
@@ -30,10 +32,12 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
   // Un valor viejo fuera de rango (el 71 del piloto #3) no se vuelve a precargar.
   if (v.yuanPorDolar < 3 || v.yuanPorDolar > 15) v.yuanPorDolar = POR_DEFECTO.yuanPorDolar;
   const input = "border border-[#E3E9F0] rounded-lg px-3 py-2 text-sm w-full";
-  const campo = (name: string, etiqueta: string, valor: number | null, ayuda?: string) => (
-    <label className="grid gap-1 text-xs">
+  // Etiqueta arriba, campo y ayuda abajo; "content-start" para que los campos
+  // de una misma fila queden alineados aunque una ayuda ocupe dos renglones.
+  const campo = (name: string, etiqueta: string, valor: number | null, tipo: TipoNumero, ayuda?: string) => (
+    <label className="grid gap-1 content-start text-xs">
       {etiqueta}
-      <input name={name} defaultValue={valor ?? ""} inputMode="decimal" className={input} />
+      <CampoNumero name={name} valor={valor} tipo={tipo} className={input} />
       {ayuda && <span className="text-[11px] text-[#9AA7B3]">{ayuda}</span>}
     </label>
   );
@@ -84,27 +88,30 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
           <ExploradorCategorias modo="elegir" />
           <fieldset className="grid sm:grid-cols-2 gap-3">
             <legend className="text-xs font-bold mb-1">Mercado Libre</legend>
-            {campo("precioMin", "Precio de venta desde ($)", v.precioMin)}
-            {campo("precioMax", "Precio de venta hasta ($)", v.precioMax)}
-            {campo("porCategoria", "Productos por lado y por categoría", v.porCategoria, "3 más buscados + 3 más vendidos")}
-            {campo("listado", "Publicaciones a leer del listado de cada categoría", v.listado)}
+            {campo("precioMin", "Precio de venta desde ($)", v.precioMin, "pesos")}
+            {campo("precioMax", "Precio de venta hasta ($)", v.precioMax, "pesos")}
+            {campo("porCategoria", "Productos por lado y por categoría", v.porCategoria, "entero", "esa cantidad de más buscados y de más vendidos")}
+            {campo("listado", "Publicaciones a leer del listado de cada categoría", v.listado, "entero")}
           </fieldset>
           <fieldset className="grid gap-3">
-            <legend className="text-xs font-bold mb-1">Flete</legend>
-            <div className="flex flex-wrap gap-4 text-xs">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
+              <span className="font-bold">Tipo de transporte</span>
               <label className="flex items-center gap-2">
-                <input type="radio" name="modo" value="barco" defaultChecked={v.modo !== "avion"} /> Productos para traer en <b>barco</b>
+                <input type="radio" name="modo" value="barco" defaultChecked={v.modo !== "avion"} /> Marítimo
               </label>
               <label className="flex items-center gap-2">
-                <input type="radio" name="modo" value="avion" defaultChecked={v.modo === "avion"} /> Productos para traer en <b>avión</b>
+                <input type="radio" name="modo" value="avion" defaultChecked={v.modo === "avion"} /> Aéreo
+              </label>
+              <label className="flex items-center gap-2 text-[#9AA7B3]" title="Tiene otras reglas; todavía no se usa">
+                <input type="radio" name="modo" value="courier" disabled /> Courier (próximamente)
               </label>
             </div>
             <div className="grid sm:grid-cols-3 gap-3">
-              {campo("fleteM3Usd", "Barco: flete por m³ (US$)", v.fleteM3Usd, "o por tonelada si pesa más (1 m³ = 1.000 kg)")}
-              {campo("fleteKgUsd", "Avión: flete por kilo (US$)", v.fleteKgUsd, "peso real o volumétrico (cm³ ÷ 6.000), lo que dé más")}
-              {campo("dolar", "Dólar ($)", v.dolar)}
-              {campo("seguroPct", "Entra seguro (% del precio)", v.seguroPct, "Barco: desde este % para arriba. Avión: hasta este %.")}
-              {campo("grisPct", "Zona gris (% del precio)", v.grisPct, "Barco: entre este % y el seguro. Avión: entre el seguro y este %. Se busca marcado.")}
+              {campo("fleteM3Usd", "Marítimo: flete por m³ (US$)", v.fleteM3Usd, "usd", "o por tonelada si pesa más (1 m³ = 1.000 kg)")}
+              {campo("fleteKgUsd", "Aéreo: flete por kilo (US$)", v.fleteKgUsd, "usd", "peso real o volumétrico (cm³ ÷ 6.000), lo que dé más")}
+              {campo("dolar", "Dólar ($)", v.dolar, "pesos")}
+              {campo("seguroPct", "Entra seguro (% del precio)", v.seguroPct, "pct", "Marítimo: desde este % para arriba. Aéreo: hasta este %.")}
+              {campo("grisPct", "Zona gris (% del precio)", v.grisPct, "pct", "Marítimo: entre este % y el seguro. Aéreo: entre el seguro y este %. Se busca marcado.")}
             </div>
             <p className="text-[11px] text-[#5C6B76]">
               El flete se calcula sobre la caja que estima Claude, como % del precio de venta. Lo que queda fuera de la zona gris no se busca en China.
@@ -112,9 +119,9 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
           </fieldset>
           <fieldset className="grid sm:grid-cols-3 gap-3">
             <legend className="text-xs font-bold mb-1">China y juez</legend>
-            {campo("yuanPorDolar", "Yuanes por dólar", v.yuanPorDolar, "ronda 7,1 (con coma o punto)")}
-            {campo("minimoMax", "Pedido mínimo razonable (unidades)", v.minimoMax)}
-            {campo("topeApifyUsd", "Tope de gasto de Apify (US$)", v.topeApifyUsd)}
+            {campo("yuanPorDolar", "Yuanes por dólar", v.yuanPorDolar, "decimal", "ronda 7,1 (con coma o punto)")}
+            {campo("minimoMax", "Pedido mínimo razonable (unidades)", v.minimoMax, "entero")}
+            {campo("topeApifyUsd", "Tope de gasto de Apify (US$)", v.topeApifyUsd, "usd")}
           </fieldset>
           <div><BotonEnviar clase={PRIMARIO} corriendo="Creando…">Crear piloto</BotonEnviar></div>
         </form>

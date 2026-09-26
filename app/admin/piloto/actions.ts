@@ -6,17 +6,9 @@ import { sosVos } from "@/lib/admin";
 import { sesionRequerida } from "@/lib/tenancy";
 import { avanzar, crearCorrida, revisar } from "@/lib/piloto/proceso";
 import { POR_DEFECTO, type Parametros } from "@/lib/piloto/tipos";
+import { leerNumero } from "@/lib/numeros";
 
-/** Número escrito a la argentina o no: "70.000" = 70000, "7,1" = 7.1 y
- *  también "7.1" = 7.1 (un punto con 1 o 2 decimales es la coma decimal). */
-const numero = (v: FormDataEntryValue | null, def: number | null) => {
-  let t = String(v ?? "").replace(/[$\s]/g, "");
-  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
-  else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, "");
-  if (!t) return def;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : def;
-};
+const numero = (v: FormDataEntryValue | null, def: number | null) => leerNumero(v) ?? def;
 
 export async function accionCrearPiloto(formData: FormData) {
   if (!(await sosVos())) redirect("/panel");

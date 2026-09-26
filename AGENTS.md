@@ -89,6 +89,15 @@ Editar y borrar en una lista o tabla:
 - En una grilla o tabla, la edición pasa **adentro de la fila** — el lápiz convierte esa fila en
   sus campos editables ahí mismo, nunca un panel aparte ni una ventana.
 
+Campos numéricos (pedido de Fer, 27/9): usar `app/componentes/CampoNumero.tsx` y leer con
+`leerNumero()` de `lib/numeros.ts`.
+- Todo número va **alineado a la derecha**.
+- Precios (pesos o dólares): al salir del campo o con Enter se reescriben con **punto de
+  miles**. Porcentajes: **un decimal**. Enter en un campo no envía el formulario.
+- Se acepta "7,1" y "7.1" (un punto que no separa miles es la coma decimal).
+- Campos de una misma fila, alineados aunque una ayuda ocupe dos renglones.
+- Una opción que todavía no se usa se muestra deshabilitada ("próximamente"), no se esconde.
+
 "Nada de la cocina en las pantallas": un error técnico (de Supabase, de la base) se traduce a
 criollo, nunca se muestra crudo (`motivoLegible()` en `app/auth-actions.ts`).
 

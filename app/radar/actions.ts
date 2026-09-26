@@ -4,6 +4,7 @@
 // cada organización; cuando existan los roles, se reparte con checkboxes).
 
 import { redirect } from "next/navigation";
+import { leerNumero } from "@/lib/numeros";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { radarConfig, radarSeguidas } from "@/db/radar";
@@ -77,7 +78,7 @@ export async function accionApify(fd: FormData) {
 }
 
 const entero = (v: string, min: number, max: number, def: number) => {
-  const n = Math.round(Number(v));
+  const n = Math.round(leerNumero(v) ?? NaN);
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
 };
 const fecha = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : new Date().toISOString().slice(0, 10));
@@ -85,7 +86,7 @@ const unidad = (v: string) => (v === "meses" ? "meses" : "dias");
 
 export async function accionGuardarConfig(fd: FormData) {
   const s = await contexto("radar_configurar");
-  const tope = Number(texto(fd, "tope").replace(",", "."));
+  const tope = leerNumero(texto(fd, "tope")) ?? NaN;
   const fuente = texto(fd, "fuente");
   await db.update(radarConfig).set({
     topeSemanalUsd: Number.isFinite(tope) && tope >= 0 ? Math.min(tope, 1000) : 5,

@@ -41,7 +41,7 @@ export default async function Validacion({ params }: { params: Promise<{ id: str
       <section className="bg-white border border-[#E3E9F0] rounded-lg p-4 text-xs grid gap-1">
         <p className="font-bold text-sm">Resumen</p>
         <p>
-          Modo <b>{p.modo === "avion" ? "avión" : "barco"}</b>:
+          Transporte <b>{p.modo === "avion" ? "aéreo" : "marítimo"}</b>:
           {" "}<b className="text-[#1F6E4A]">{cuenta.seguro} entran seguro</b> ·{" "}
           <b className="text-[#8a6100]">{cuenta.gris} en zona gris</b> ·{" "}
           <span className="text-[#9AA7B3]">{cuenta.fuera} descartados por flete</span>

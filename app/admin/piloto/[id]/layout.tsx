@@ -30,7 +30,7 @@ export default async function LayoutPiloto({ children, params }: { children: Rea
       <Link href="/admin/piloto" className={`inline-block mb-2 ${SUAVE}`}>← Pilotos</Link>
       <h1 className="text-lg font-bold mb-1">Piloto #{c.id}</h1>
       <p className="text-xs text-[#5C6B76] mb-1">
-        {p.categorias.length} categorías · precio {rango} · {p.porCategoria} por lado · {p.modo === "avion" ? `avión US$ ${p.fleteKgUsd}/kg · seguro hasta ${p.seguroPct}%, gris hasta ${p.grisPct}%` : `barco US$ ${p.fleteM3Usd}/m³ · seguro desde ${p.seguroPct}%, gris desde ${p.grisPct}%`} · dólar ${p.dolar} ·
+        {p.categorias.length} categorías · precio {rango} · {p.porCategoria} por lado · {p.modo === "avion" ? `aéreo US$ ${p.fleteKgUsd}/kg · seguro hasta ${p.seguroPct}%, gris hasta ${p.grisPct}%` : `marítimo US$ ${p.fleteM3Usd}/m³ · seguro desde ${p.seguroPct}%, gris desde ${p.grisPct}%`} · dólar ${p.dolar} ·
         pedido mínimo hasta {p.minimoMax} · ¥{p.yuanPorDolar} por dólar
       </p>
       <p className="text-xs mb-1">
