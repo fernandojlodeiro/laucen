@@ -51,7 +51,9 @@ export async function accionCorrerChina(formData: FormData) {
   const texto = String(formData.get("texto") ?? "").trim();
   let en = String(formData.get("en") ?? "").trim();
   let zh = String(formData.get("zh") ?? "").trim();
-  const imagen = String(formData.get("imagen") ?? "").trim();
+  // Mercado Libre da cada foto también en .jpg; los buscadores por foto de
+  // China no siempre aceptan .webp.
+  const imagen = String(formData.get("imagen") ?? "").trim().replace(/^(https?:\/\/[^/]*mlstatic\.com\/.+)\.webp$/i, "$1.jpg");
   const ids = formData.getAll("actor").map(String);
   const elegidos: Actor[] = ACTORES.filter((a) => ids.includes(a.id));
   const libre = actorLibre(String(formData.get("otro") ?? ""));
