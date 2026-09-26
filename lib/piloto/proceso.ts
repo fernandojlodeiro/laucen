@@ -76,7 +76,7 @@ async function etapaML(c: Corrida, categoriaId: string) {
 
   av.urlListado = await urlDeCategoria(categoriaId, c.organizacion_id, p.precioMin, p.precioMax).catch(() => undefined);
   const [lst, bus] = await Promise.all([
-    av.urlListado ? listadoDeCategoria(av.urlListado, p.listado, p.precioMin, p.precioMax, puedeGastar)
+    av.urlListado ? listadoDeCategoria(av.urlListado, categoriaId, p.listado, p.precioMin, p.precioMax, puedeGastar)
       : Promise.resolve({ actores: [], listado: [] as PubML[] }),
     buscadosDeCategoria(categoriaId, c.organizacion_id, p.porCategoria, p.precioMin, p.precioMax)
       .catch((e) => ({ palabras: [], pubs: [], error: String(e).slice(0, 200) })),

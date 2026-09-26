@@ -53,6 +53,7 @@ export type Juicio = { veredictos: Veredicto[]; elegido: number | null; motivo: 
 
 /** Una publicación de Mercado Libre, normalizada (venga de donde venga). */
 export type PubML = {
+  categoriaId?: string | null;    // si el actor la informa (karamelo sí, scrapesage no)
   itemId: string | null;
   productoId: string | null;
   titulo: string;
@@ -64,7 +65,7 @@ export type PubML = {
   opiniones: number | null;
 };
 
-export type ListadoActor = { actor: string; url: string; ok: boolean; cantidad: number; costoUsd: number | null; error?: string; muestra?: string };
+export type ListadoActor = { actor: string; url: string; ok: boolean; cantidad: number; costoUsd: number | null; error?: string; muestra?: string; descartadas?: number };
 
 /** Lo que se guarda por categoría en piloto_corridas.avance. */
 export type AvanceCategoria = {

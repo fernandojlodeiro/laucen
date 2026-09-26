@@ -50,6 +50,7 @@ export default async function PilotoML({ params }: { params: Promise<{ id: strin
                   {av.actores?.map((a) => (
                     <span key={a.actor}>
                       <code>{a.actor.replace("~", "/")}</code>: {a.ok ? `${a.cantidad} publicaciones` : `no anduvo (${a.error})`}
+                      {!!a.descartadas && ` · ${a.descartadas} descartadas por ser de otra categoría`}
                       {a.costoUsd != null && ` · US$ ${a.costoUsd.toFixed(3)}`}
                       {a.muestra && (
                         <details className="inline ml-1"><summary className="inline cursor-pointer underline">ver dato crudo</summary>
@@ -71,7 +72,7 @@ export default async function PilotoML({ params }: { params: Promise<{ id: strin
                     ))}
                   </div>
                   <div>
-                    <h3 className="text-xs font-bold mb-1">Más vendidos <span className="font-normal text-[#5C6B76]">(listado, Apify; primeros 10 de {av.listado?.length ?? 0})</span></h3>
+                    <h3 className="text-xs font-bold mb-1">Más vendidos <span className="font-normal text-[#5C6B76]">(listado, Apify; primeros 10 de {av.listado?.length ?? 0}; primero los que traen vendidos, después en el orden de relevancia de Mercado Libre)</span></h3>
                     {!av.listado?.length && <p className="text-[11px] text-[#9AA7B3]">El listado no trajo publicaciones en el rango.</p>}
                     {av.listado?.slice(0, 10).map((x, i) => (
                       <Tarjeta key={`${x.itemId}-${i}`} p={x}

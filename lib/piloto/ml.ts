@@ -46,6 +46,7 @@ export function aPubML(x: Record<string, unknown>): PubML {
     ?? url?.match(/MLA-?\d+/)?.[0]?.replace("-", "") ?? null;
   const vend = x.soldQuantity ?? x.sold_quantity ?? x.sold_quantity_text ?? x.soldText ?? x.sold;
   return {
+    categoriaId: texto(x, "categoryId", "category_id"),
     itemId,
     productoId: texto(x, "catalogProductId", "catalog_product_id", "productId", "product_id"),
     titulo: texto(x, "title", "name", "titulo") ?? "(sin título)",
@@ -88,7 +89,7 @@ const enRango = (p: number | null, min: number | null, max: number | null) =>
 
 /** Lee el listado de la categoría con dos actores a la vez (es un ensayo: no
  *  sabemos cuál acepta una dirección de categoría) y junta lo que traigan. */
-export async function listadoDeCategoria(url: string, n: number, min: number | null, max: number | null, puedeGastar: (usd: number) => boolean) {
+export async function listadoDeCategoria(url: string, categoriaId: string, n: number, min: number | null, max: number | null, puedeGastar: (usd: number) => boolean) {
   const actores: ListadoActor[] = [];
   const pubs: PubML[] = [];
   const intentos: { actor: string; entrada: Record<string, unknown> }[] = [
@@ -105,13 +106,21 @@ export async function listadoDeCategoria(url: string, n: number, min: number | n
   await Promise.all(intentos.map(async ({ actor, entrada }) => {
     if (!puedeGastar(0.3)) return actores.push({ actor, url, ok: false, cantidad: 0, costoUsd: null, error: "Tope de gasto de Apify" });
     const c = await correrConEntrada(actor, entrada, { max: n, esperaSeg: 150, topeUsd: 0.3 });
-    const propias = (c.items as Record<string, unknown>[]).map(aPubML).filter((p) => p.titulo !== "(sin título)");
-    actores.push({ actor, url, ok: propias.length > 0, cantidad: propias.length, costoUsd: c.costoUsd, error: propias.length ? undefined : c.error ?? "No trajo publicaciones",
+    const todas = (c.items as Record<string, unknown>[]).map(aPubML).filter((p) => p.titulo !== "(sin título)");
+    // Si el actor dice de qué categoría es cada publicación, se descartan las
+    // de otras ramas (karamelo no entiende la dirección de la categoría y trae
+    // de todo el rubro).
+    const dentro = await Promise.all(todas.map((p) => (p.categoriaId ? dentroDeRama(p.categoriaId, categoriaId) : Promise.resolve(true))));
+    const propias = todas.filter((_, i) => dentro[i]);
+    actores.push({ actor, url, ok: propias.length > 0, cantidad: propias.length, costoUsd: c.costoUsd, descartadas: todas.length - propias.length,
+      error: propias.length ? undefined : todas.length ? "Todo lo que trajo era de otras categorías" : c.error ?? "No trajo publicaciones",
       muestra: c.items[0] ? JSON.stringify(c.items[0]).slice(0, 2000) : undefined });
     pubs.push(...propias);
   }));
-  // Sin repetidos; dentro del rango de precio; más vendidos primero (a igual
-  // escalón, más opiniones).
+  // Sin repetidos; dentro del rango de precio; primero las que tienen el dato
+  // de vendidos (más vendidas primero, a igual escalón más opiniones) y
+  // después las demás en el orden de Mercado Libre ("más relevantes", que
+  // ya pesa las ventas).
   const vistos = new Set<string>();
   const unicas = pubs.filter((p) => {
     const k = p.itemId ?? p.url ?? p.titulo;
@@ -119,7 +128,9 @@ export async function listadoDeCategoria(url: string, n: number, min: number | n
     vistos.add(k);
     return enRango(p.precio, min, max);
   });
-  unicas.sort((a, b) => (b.vendidos ?? -1) - (a.vendidos ?? -1) || (b.opiniones ?? -1) - (a.opiniones ?? -1));
+  const conVendidos = unicas.filter((p) => p.vendidos != null)
+    .sort((a, b) => b.vendidos! - a.vendidos! || (b.opiniones ?? -1) - (a.opiniones ?? -1));
+  unicas.splice(0, unicas.length, ...conVendidos, ...unicas.filter((p) => p.vendidos == null));
   return { actores, listado: unicas };
 }
 
