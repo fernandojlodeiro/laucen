@@ -2,7 +2,10 @@
 // cargaron y si están los nomencladores. La carga en sí no se hace desde
 // acá: los archivos están en la PC de Fer (ver scripts/arca/LEEME.md).
 
+import Link from "next/link";
 import { pool } from "@/db";
+import { sosVos } from "@/lib/admin";
+import { SUAVE } from "@/app/botones";
 import { periodoLindo, sumarMeses } from "@/lib/arca/filtro";
 import { CAJA_TABLA, Col, TABLA, TD, TDN, THEAD, TR, entrar } from "../Piezas";
 
@@ -14,6 +17,7 @@ const fecha = (d: Date | null) => (d ? d.toLocaleString("es-AR", { timeZone: "Am
 
 export default async function Cargas() {
   await entrar();
+  const esFer = await sosVos();
   const [arca, softrade, refs, tamano] = await Promise.all([
     pool.query<{ periodo: string; cargado_en: Date; filas_crudas: string | null; items: string | null; filas_impuestos: string | null }>(
       "select * from arca_cargas order by periodo desc").then((r) => r.rows),
@@ -42,6 +46,12 @@ export default async function Cargas() {
 
   return (
     <div className="space-y-6">
+      {esFer && (
+        <section className="flex items-center justify-between gap-2 bg-white border border-[#E3E9F0] rounded-xl p-3 text-xs">
+          <span>Sacar de la base los capítulos y partidas que no vas a estudiar.</span>
+          <Link href="/importaciones/depurar" className={SUAVE}>🧹 Depurar posiciones</Link>
+        </section>
+      )}
       <section>
         <h2 className="text-sm font-bold mb-2">Meses de ARCA cargados ({arca.length})</h2>
         {arca.length === 0 ? (

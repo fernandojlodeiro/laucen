@@ -113,6 +113,7 @@ async function recalcularResumen(c, periodo) {
     select importador, periodo, count(*), sum(fob_item), count(distinct ncm)
       from arca_impo_items where periodo = $1
      group by 1, 2`, [periodo]);
+  await c.query("refresh materialized view arca_peso_partida");   // lo usa /importaciones/depurar
 }
 
 // IVA y estadística por NCM. El CSV de impuestos se lee en la PC, en
@@ -217,7 +218,8 @@ async function cargarMes(c, carpeta, periodo) {
     paso(`guardando ${leidos - descartados} ítems`);
     await c.query("delete from arca_impo_items where periodo = $1", [periodo]);
     const ins = await c.query(`
-      insert into arca_impo_items (${COLS_ITEM}) select ${COLS_ITEM} from t_items
+      insert into arca_impo_items (${COLS_ITEM}) select ${COLS_ITEM} from t_items t
+       where not exists (select 1 from arca_depuracion d where d.excluir and t.ncm like d.prefijo || '%')  -- depuradas por Fer
       on conflict (destinacion, num_item) do update set
         ${COLS_ITEM.split(", ").filter((x) => x !== "destinacion" && x !== "num_item").map((x) => `${x} = excluded.${x}`).join(", ")}`);
 
