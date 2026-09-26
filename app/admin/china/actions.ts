@@ -7,7 +7,7 @@ import { meliPruebas } from "@/db/meli";
 import { sosVos } from "@/lib/admin";
 import { sesionRequerida } from "@/lib/tenancy";
 import { correrActor, type ResultadoActor } from "@/lib/apify";
-import { traducir } from "@/lib/china/traducir";
+import { esFalla, traducir } from "@/lib/china/traducir";
 import { ACTORES, MAX, actorLibre, urlBusqueda, type Actor } from "./config";
 
 const CORRIENDO = { estado: "corriendo" };
@@ -32,8 +32,15 @@ export async function accionTraducir(formData: FormData) {
   if (!(await sosVos())) redirect("/panel");
   const texto = String(formData.get("texto") ?? "").trim();
   const imagen = String(formData.get("imagen") ?? "").trim();
-  const t = texto ? await traducir(texto) : null;
-  volver({ texto, imagen, en: t?.en ?? "", zh: t?.zh ?? "", tr: t ? "ok" : texto ? "fallo" : "" });
+  const sesion = await sesionRequerida();
+  const r = texto ? await traducir(texto) : null;
+  const falla = esFalla(r) ? r : null;
+  const t = esFalla(r) ? null : r;
+  // El detalle técnico queda guardado (no se muestra): para que Code lo lea.
+  if (falla) {
+    await db.insert(meliPruebas).values({ organizacionId: sesion.org.id, consulta: "china traducción: falló", resultados: falla });
+  }
+  volver({ texto, imagen, en: t?.en ?? "", zh: t?.zh ?? "", tr: t ? "ok" : texto ? "fallo" : "", motivo: falla?.motivo ?? "" });
 }
 
 /** Corre los actores elegidos. Sólo con el botón; si hay una corrida de
@@ -62,7 +69,7 @@ export async function accionCorrerChina(formData: FormData) {
   let traducidoPor: PruebaChina["traducidoPor"] = en || zh ? "a mano" : null;
   if (texto && (!en || !zh)) {
     const t = await traducir(texto);
-    if (t) {
+    if (t && !esFalla(t)) {
       en ||= t.en;
       zh ||= t.zh;
       traducidoPor = traducidoPor ?? "claude";

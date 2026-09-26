@@ -107,7 +107,7 @@ function Resultado({ r, final }: { r: Corrida; final?: Final }) {
   );
 }
 
-type SP = { prueba?: string; texto?: string; en?: string; zh?: string; imagen?: string; tr?: string };
+type SP = { prueba?: string; texto?: string; en?: string; zh?: string; imagen?: string; tr?: string; motivo?: string };
 
 export default async function China({ searchParams }: { searchParams: Promise<SP> }) {
   if (!(await sosVos())) redirect("/panel");
@@ -150,7 +150,7 @@ export default async function China({ searchParams }: { searchParams: Promise<SP
         </p>
       )}
       {sp.tr === "fallo" && (
-        <p className="text-sm text-[#C03420] bg-[#FDF1EF] rounded-lg px-3 py-2 mb-4">Claude no pudo traducir ahora. Probá de nuevo o escribila a mano.</p>
+        <p className="text-sm text-[#C03420] bg-[#FDF1EF] rounded-lg px-3 py-2 mb-4">Claude no pudo traducir{sp.motivo ? `: ${sp.motivo}` : " ahora"}. Probá de nuevo o escribí la traducción a mano.</p>
       )}
 
       <form action={accionCorrerChina} className="mb-6 grid gap-3">

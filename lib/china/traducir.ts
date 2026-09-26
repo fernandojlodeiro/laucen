@@ -9,8 +9,22 @@ export function hayClaude() {
 }
 
 export type Traduccion = { en: string; zh: string };
+/** Por qué no tradujo, en criollo, y el detalle técnico para guardar. */
+export type Falla = { motivo: string; tecnico: string };
+export const esFalla = (x: Traduccion | Falla | null): x is Falla => !!x && "motivo" in x;
 
-export async function traducir(texto: string): Promise<Traduccion | null> {
+function motivoDe(status: number | undefined, mensaje: string): string {
+  if (status === 401) return "la llave de Claude (ANTHROPIC_API_KEY) no es válida";
+  if (status === 403) return "la llave de Claude no tiene permiso para usar este modelo";
+  if (/credit|balance|billing/i.test(mensaje)) return "la cuenta de Claude no tiene saldo cargado";
+  if (status === 404) return "el modelo de Claude no está disponible para esta cuenta";
+  if (status === 429) return "se pasó el límite de pedidos a Claude; probá en un minuto";
+  if (status && status >= 500) return "Claude está con problemas ahora; probá en un rato";
+  return "Claude no respondió bien";
+}
+
+/** Traduce; si no puede, devuelve por qué (sin llave o sin texto: null). */
+export async function traducir(texto: string): Promise<Traduccion | Falla | null> {
   if (!hayClaude() || !texto.trim()) return null;
   const client = new Anthropic();
   try {
@@ -26,14 +40,18 @@ export async function traducir(texto: string): Promise<Traduccion | null> {
         "Quitá marcas, medidas de envío y palabras de venta (oferta, envío gratis). Dejá medidas y materiales del producto.",
       messages: [{ role: "user", content: texto.trim() }],
     });
-    if (r.stop_reason === "refusal") return null;
+    if (r.stop_reason === "refusal") {
+      return { motivo: "Claude no quiso traducir ese texto", tecnico: "refusal" };
+    }
     const salida = r.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
     const en = salida.match(/^\s*EN:\s*(.+)$/m)?.[1]?.trim();
     const zh = salida.match(/^\s*ZH:\s*(.+)$/m)?.[1]?.trim();
-    return en && zh ? { en, zh } : null;
+    if (en && zh) return { en, zh };
+    return { motivo: "Claude contestó en otro formato", tecnico: salida.slice(0, 500) };
   } catch (e) {
-    if (e instanceof Anthropic.APIError) console.error(`[china] Claude ${e.status}:`, e.message);
-    else console.error("[china] Claude:", e);
-    return null;
+    const status = e instanceof Anthropic.APIError ? e.status : undefined;
+    const mensaje = e instanceof Error ? e.message : String(e);
+    console.error(`[china] Claude ${status ?? ""}:`, mensaje);
+    return { motivo: motivoDe(status, mensaje), tecnico: `${status ?? ""} ${mensaje}`.trim().slice(0, 1000) };
   }
 }
