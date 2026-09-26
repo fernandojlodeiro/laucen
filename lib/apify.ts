@@ -41,17 +41,40 @@ function slug(q: string) {
 /** Arma la entrada del actor a partir de su esquema: la búsqueda (por texto
  *  si el actor la acepta; si no, por URL del listado), el máximo de
  *  resultados, una sola página, Argentina, y el detalle de cada producto. */
-export function armarEntrada(esquema: Esquema, q: string, max: number) {
+/** Extras para sitios que no son Mercado Libre (banco de China): la URL de
+ *  una foto (búsqueda por imagen), la plataforma a elegir si el actor sirve
+ *  para varias, y la URL del listado de búsqueda del sitio. Con extras no se
+ *  fuerza Argentina como país. */
+export type Extras = { imagen?: string; plataforma?: string; urlBusqueda?: string };
+
+const ES_IMAGEN = /image|img|photo|picture|pic/i;
+
+export function armarEntrada(esquema: Esquema, q: string, max: number, extras?: Extras) {
   const entrada: Record<string, unknown> = {};
-  const url = `https://listado.mercadolibre.com.ar/${slug(q)}`;
+  const url = extras?.urlBusqueda ?? `https://listado.mercadolibre.com.ar/${slug(q)}`;
   const props = Object.entries(esquema.properties ?? {});
   const esTexto = (c: Campo) => c.type === "string" || c.type === "array";
-  const campoBusqueda = props.find(([k, c]) => esTexto(c) && !c.enum && /search|quer|keyword|term|^q$/i.test(k));
+  const campoBusqueda = q
+    ? props.find(([k, c]) => esTexto(c) && !c.enum && !ES_IMAGEN.test(k) && /search|quer|keyword|term|^q$/i.test(k))
+    : undefined;
 
   for (const [k, c] of props) {
     const n = k.toLowerCase();
     const arr = c.type === "array";
     const opciones = (c.enum ?? []).map(String);
+    if (extras?.imagen && esTexto(c) && ES_IMAGEN.test(k) && !/base64|file|upload/i.test(k) && c.editor !== "fileupload") {
+      entrada[k] = arr ? (c.editor === "stringList" ? [extras.imagen] : [{ url: extras.imagen }]) : extras.imagen;
+      continue;
+    }
+    if (extras?.plataforma && opciones.length && /platform|source|site|marketplace|store|shop/.test(n)) {
+      const p = opciones.find((o) => o.toLowerCase().includes(extras.plataforma!.toLowerCase()));
+      if (p) entrada[k] = arr ? [p] : p;
+      continue;
+    }
+    if (extras && c.type === "boolean" && /translat|english/.test(n)) {
+      entrada[k] = true;
+      continue;
+    }
     if (c.type === "integer" || c.type === "number") {
       // Nunca tocar precios, reseñas ni preguntas; páginas: una sola.
       if (/price|review|question|concurren|timeout|delay|retr/.test(n)) continue;
@@ -64,9 +87,9 @@ export function armarEntrada(esquema: Esquema, q: string, max: number) {
       entrada[k] = v;
     } else if (campoBusqueda?.[0] === k) {
       entrada[k] = arr ? [q] : q;
-    } else if (!campoBusqueda && /start_?urls|^urls$/.test(n)) {
+    } else if (!campoBusqueda && q && /start_?urls|^urls$/.test(n)) {
       entrada[k] = c.editor === "stringList" ? [url] : [{ url }];
-    } else if (/country|site|domain|market/.test(n)) {
+    } else if (!extras && /country|site|domain|market/.test(n)) {
       const ar = opciones.find((o) => /^(ar|mla|arg|argentina|mercadolibre\.com\.ar)$/i.test(o))
         ?? opciones.find((o) => /argentin|\.com\.ar|mla/i.test(o));
       if (ar) entrada[k] = arr ? [ar] : ar;
@@ -156,7 +179,7 @@ export async function correrConEntrada(actor: string, entrada: Record<string, un
 
 /** Corre el actor con tope de resultados y de gasto, armando la entrada desde
  *  su esquema (banco de pruebas), y trae los resultados. Nunca tira. */
-export async function correrActor(actor: string, q: string, max: number, esperaSeg: number): Promise<ResultadoActor> {
+export async function correrActor(actor: string, q: string, max: number, esperaSeg: number, extras?: Extras): Promise<ResultadoActor> {
   const token = apifyToken();
   if (!token) return { actor, ok: false, error: "Falta APIFY_TOKEN" };
   const t0 = Date.now();
@@ -167,7 +190,7 @@ export async function correrActor(actor: string, q: string, max: number, esperaS
     const e = await esquemaDe(actor, token);
     precio = e.precio;
     campos = resumenEsquema(e.esquema);
-    entrada = armarEntrada(e.esquema, q, max);
+    entrada = armarEntrada(e.esquema, q, max, extras);
     const c = await correrConEntrada(actor, entrada, { max, esperaSeg, topeUsd: 0.25 });
     if (!c.runId) throw new Error(c.error);
     return {
