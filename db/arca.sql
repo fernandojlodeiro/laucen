@@ -702,6 +702,8 @@ on conflict do nothing;
 -- Se refresca al final de cada carga (cargar.mjs) y al aplicar la depuración.
 create materialized view if not exists arca_peso_partida as
 select left(ncm, 4) as partida, sum(items)::bigint as items from agg_ncm_pais_mes group by 1;
+-- Una vista materializada no tiene RLS: que no la vea la API pública de Supabase.
+revoke all on arca_peso_partida from anon, authenticated;
 
 -- ── Coordinación: lo que esta entrega deja anotado ────────
 -- La sesión que la hizo corre en la nube sin acceso a la base; se anota acá,
