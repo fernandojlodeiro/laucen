@@ -14,6 +14,7 @@ export type Falla = { motivo: string; tecnico: string };
 export const esFalla = (x: Traduccion | Falla | null): x is Falla => !!x && "motivo" in x;
 
 function motivoDe(status: number | undefined, mensaje: string): string {
+  if (/workspace/i.test(mensaje)) return "la llave de Claude no está asignada a un workspace: hay que crear una llave nueva adentro de un workspace de la consola de Anthropic";
   if (status === 401) return "la llave de Claude (ANTHROPIC_API_KEY) no es válida";
   if (status === 403) return "la llave de Claude no tiene permiso para usar este modelo";
   if (/credit|balance|billing/i.test(mensaje)) return "la cuenta de Claude no tiene saldo cargado";
@@ -26,7 +27,9 @@ function motivoDe(status: number | undefined, mensaje: string): string {
 /** Traduce; si no puede, devuelve por qué (sin llave o sin texto: null). */
 export async function traducir(texto: string): Promise<Traduccion | Falla | null> {
   if (!hayClaude() || !texto.trim()) return null;
-  const client = new Anthropic();
+  // Una llave de cuenta (no de un workspace) necesita decir a qué workspace va.
+  const workspace = process.env.ANTHROPIC_WORKSPACE_ID?.trim();
+  const client = new Anthropic(workspace ? { defaultHeaders: { "anthropic-workspace-id": workspace } } : {});
   try {
     const r = await client.messages.create({
       model: "claude-opus-5",

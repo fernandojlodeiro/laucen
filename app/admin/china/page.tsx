@@ -138,7 +138,8 @@ export default async function China({ searchParams }: { searchParams: Promise<SP
       <h1 className="text-lg font-bold mb-1">China — pruebas</h1>
       <p className="text-xs text-[#5C6B76] mb-4">
         Corre varios scrapers de Apify de 1688 y Alibaba con la misma búsqueda, para ver cuál trae mejores datos.
-        A 1688 le va la búsqueda en chino; a Alibaba, en inglés.
+        Vos escribís en castellano y Claude lo traduce: Alibaba es el sitio de exportación (está en inglés) y 1688 es el
+        mercado interno chino (sólo entiende chino), así que a cada uno se le busca en su idioma.
       </p>
 
       {!apifyToken() && (
@@ -160,11 +161,11 @@ export default async function China({ searchParams }: { searchParams: Promise<SP
         </label>
         <div className="grid sm:grid-cols-2 gap-3">
           <label className="grid gap-1 text-xs">
-            Inglés (Alibaba)
+            Inglés, para Alibaba (se completa solo; tocalo sólo para corregir)
             <input name="en" defaultValue={val.en} placeholder={claude ? "vacío = lo traduce Claude" : "ej: self watering plastic pot 20cm"} className={input} />
           </label>
           <label className="grid gap-1 text-xs">
-            Chino (1688)
+            Chino, para 1688 (se completa solo; tocalo sólo para corregir)
             <input name="zh" defaultValue={val.zh} placeholder={claude ? "vacío = lo traduce Claude" : "ej: 自动吸水花盆 塑料 20cm"} className={input} />
           </label>
         </div>
