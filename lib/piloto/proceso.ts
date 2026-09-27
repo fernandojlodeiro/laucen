@@ -7,7 +7,7 @@ import { pool } from "@/db";
 import { USD_POR_MTOK } from "@/lib/claude";
 import { asegurarEsquema } from "./esquema";
 import { buscadosDeCategoria, cruzar, datosDeEnvio, listadoDeCategoria, urlDeCategoria } from "./ml";
-import { buscarEnChina, estimarCajas, flete, juzgar } from "./china";
+import { buscarEnChina, cajasConWeb, estimarCajas, flete, juzgar } from "./china";
 import type { AvanceCategoria, Caja, Parametros, PubML } from "./tipos";
 
 export type Corrida = {
@@ -77,12 +77,16 @@ async function etapaML(c: Corrida, categoriaId: string) {
   let gastado = await gastoApify(c.id);
   const puedeGastar = (usd: number) => { if (gastado + usd > tope) return false; gastado += usd; return true; };
 
-  av.urlListado = await urlDeCategoria(categoriaId, c.organizacion_id, p.precioMin, p.precioMax).catch(() => undefined);
+  av.urlListado = await urlDeCategoria(categoriaId, c.organizacion_id, p.precioMin, p.precioMax, !!p.soloLocal).catch(() => undefined);
+  const sinBuscados = { palabras: [], pubs: [] as (PubML & { palabra: string })[], error: null as string | null };
   const [lst, bus] = await Promise.all([
     av.urlListado ? listadoDeCategoria(av.urlListado, categoriaId, p.listado, p.precioMin, p.precioMax, puedeGastar)
       : Promise.resolve({ actores: [], listado: [] as PubML[] }),
-    buscadosDeCategoria(categoriaId, c.organizacion_id, p.porCategoria, p.precioMin, p.precioMax)
-      .catch((e) => ({ palabras: [], pubs: [], error: String(e).slice(0, 200) })),
+    // (28/9) Fer comprobó que las palabras de tendencias no sirven: con
+    // soloListado se toman sólo los primeros del listado de la categoría.
+    p.soloListado ? Promise.resolve(sinBuscados)
+      : buscadosDeCategoria(categoriaId, c.organizacion_id, p.porCategoria, p.precioMin, p.precioMax)
+        .catch((e) => ({ palabras: [], pubs: [], error: String(e).slice(0, 200) })),
   ]);
   if (!av.urlListado) av.errores!.push("No se pudo armar la dirección del listado de la categoría");
   for (const a of lst.actores) await sumarApify(c.id, a.costoUsd);
@@ -93,7 +97,7 @@ async function etapaML(c: Corrida, categoriaId: string) {
 
   const vendidos = lst.listado.slice(0, p.porCategoria);
   // El cruce se hace contra todo el listado leído, no sólo los 3 primeros.
-  const cr = await cruzar(bus.pubs, lst.listado);
+  const cr = bus.pubs.length ? await cruzar(bus.pubs, lst.listado) : { pares: [], tokensIn: 0, tokensOut: 0, usd: 0 };
   await sumarClaude(c.id, "cruce", cr.tokensIn, cr.tokensOut, cr.usd);
   av.cruce = cr.pares.map((x) => ({ buscado: bus.pubs[x.b].titulo, vendido: lst.listado[x.v].titulo, como: x.como }));
   const buscadosCampeones = new Set(cr.pares.map((x) => x.b));
@@ -167,7 +171,9 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
       const deML = await Promise.all(lote.map((x) => datosDeEnvio({ itemId: x.item_id, productoId: x.producto_id }, organizacionId)
         .catch(() => ({ caja: null, texto: "" }))));
       const faltan = lote.map((x, i) => ({ ...x, texto: deML[i].texto })).filter((_, i) => !deML[i].caja);
-      const r = faltan.length ? await estimarCajas(faltan) : { cajas: new Map<number, Caja>(), error: null, tokensIn: 0, tokensOut: 0, usd: 0 };
+      // Los que no traen peso: búsqueda web (pilotos nuevos) o estimación por foto (viejos).
+      const r = !faltan.length ? { cajas: new Map<number, Caja>(), error: null, tokensIn: 0, tokensOut: 0, usd: 0 }
+        : p.soloListado ? await cajasConWeb(faltan) : await estimarCajas(faltan);
       await sumarClaude(id, "caja", r.tokensIn, r.tokensOut, r.usd);
       for (const [i, x] of lote.entries()) {
         await pool.query("update piloto_productos set datos_ml = $2 where id = $1", [x.id, deML[i].texto || null]);

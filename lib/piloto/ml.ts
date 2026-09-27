@@ -45,7 +45,11 @@ export function aPubML(x: Record<string, unknown>): PubML {
   const itemId = texto(x, "publicationId", "item_id", "ml_id", "itemId", "id")?.match(/MLA-?\d+/)?.[0]?.replace("-", "")
     ?? url?.match(/MLA-?\d+/)?.[0]?.replace("-", "") ?? null;
   const vend = x.soldQuantity ?? x.sold_quantity ?? x.sold_quantity_text ?? x.soldText ?? x.sold;
+  const internacional = x.isInternationalPurchase === true || x.internationalPurchase === true || x.international === true
+    || /internacional/i.test(String(x.shipping ?? "")) || x.shippingOrigin === "international";
   return {
+    publicidad: x.sponsored === true || x.isAd === true || x.resultType === "AD" || /is_advertising=true/.test(String(x.clickUrl ?? "")),
+    internacional,
     categoriaId: texto(x, "categoryId", "category_id"),
     itemId,
     productoId: texto(x, "catalogProductId", "catalog_product_id", "productId", "product_id"),
@@ -73,15 +77,18 @@ export function slugCategoria(nombre: string) {
     .replace(/[^a-z0-9ñ]+/g, " ").trim().split(/\s+/).filter((w) => !CONECTORES.has(w)).join("-");
 }
 
-/** Dirección del listado de la categoría en Mercado Libre, con el rango de precio. */
-export async function urlDeCategoria(categoriaId: string, _organizacionId: string, min: number | null, max: number | null) {
+/** Dirección del listado de la categoría en Mercado Libre, con el rango de
+ *  precio y, si se pide, sólo envío local (sin compra internacional). Formato
+ *  copiado de la dirección que armó Fer en el navegador (27/9):
+ *  …/colchones-inflables/_PriceRange_70000ARS-500000ARS_NoIndex_True_SHIPPING*ORIGIN_10215068 */
+export async function urlDeCategoria(categoriaId: string, _organizacionId: string, min: number | null, max: number | null, soloLocal = false) {
   const c = await categoria(categoriaId);
   if (!c) throw new Error(`No se encontró la categoría ${categoriaId}`);
   const camino = c.ruta.split(" › ").map(slugCategoria).join("/");
   // Con un filtro en la dirección, Mercado Libre muestra el listado (sin
   // filtro, en las categorías grandes muestra una portada con carruseles).
-  const rango = `_PriceRange_${min ?? 0}-${max ?? 999999999}_NoIndex_True`;
-  return `https://listado.mercadolibre.com.ar/${camino}/${rango}`;
+  const rango = `_PriceRange_${min ?? 0}ARS-${max ?? 999999999}ARS_NoIndex_True`;
+  return `https://listado.mercadolibre.com.ar/${camino}/${rango}${soloLocal ? "_SHIPPING*ORIGIN_10215068" : ""}`;
 }
 
 const enRango = (p: number | null, min: number | null, max: number | null) =>
@@ -98,11 +105,7 @@ export async function listadoDeCategoria(url: string, categoriaId: string, n: nu
       ...(min != null ? { minPrice: min } : {}), ...(max != null ? { maxPrice: max } : {}),
     } },
   ];
-  const ruta = url.match(/^https:\/\/listado\.mercadolibre\.com\.ar\/(.+)$/)?.[1];
-  if (ruta) intentos.push({ actor: "karamelo~mercado-libre-listings-scraper", entrada: {
-    keyword: ruta, country: "https://listado.mercadolibre.com.ar/", maxPages: Math.ceil(n / 48),
-    extractProductDetails: false, includeReviews: false, includeQuestions: false, includeVariations: false,
-  } });
+  // karamelo quedó afuera (28/9): no entiende la dirección de una categoría.
   await Promise.all(intentos.map(async ({ actor, entrada }) => {
     if (!puedeGastar(0.3)) return actores.push({ actor, url, ok: false, cantidad: 0, costoUsd: null, error: "Tope de gasto de Apify" });
     const c = await correrConEntrada(actor, entrada, { max: n, esperaSeg: 150, topeUsd: 0.3 });
@@ -111,8 +114,10 @@ export async function listadoDeCategoria(url: string, categoriaId: string, n: nu
     // de otras ramas (karamelo no entiende la dirección de la categoría y trae
     // de todo el rubro).
     const dentro = await Promise.all(todas.map((p) => (p.categoriaId ? dentroDeRama(p.categoriaId, categoriaId) : Promise.resolve(true))));
-    const propias = todas.filter((_, i) => dentro[i]);
+    // Sin publicidad (aparece primera por pagar, no por vender) ni compra internacional.
+    const propias = todas.filter((p, i) => dentro[i] && !p.publicidad && !p.internacional);
     actores.push({ actor, url, ok: propias.length > 0, cantidad: propias.length, costoUsd: c.costoUsd, descartadas: todas.length - propias.length,
+      publicidad: todas.filter((p) => p.publicidad).length,
       error: propias.length ? undefined : todas.length ? "Todo lo que trajo era de otras categorías" : c.error ?? "No trajo publicaciones",
       muestra: c.items[0] ? JSON.stringify(c.items[0]).slice(0, 2000) : undefined });
     pubs.push(...propias);
@@ -263,8 +268,13 @@ export async function datosDeEnvio(pub: { itemId: string | null; productoId: str
   }
   const por = (id: string) => atributos.find((a) => a.id === id);
   const l = enCm(por("PACKAGE_LENGTH")), w = enCm(por("PACKAGE_WIDTH")), h = enCm(por("PACKAGE_HEIGHT")), kg = enKg(por("PACKAGE_WEIGHT"));
-  const caja: Caja | null = l && w && h && kg
-    ? { largo: Math.round(l), ancho: Math.round(w), alto: Math.round(h), kg: Math.round(kg * 100) / 100, fuente: "mercadolibre", nota: "atributos del paquete en Mercado Libre" }
+  // El peso es lo que más importa (Fer, 28/9) y casi todas las publicaciones
+  // lo traen: el del paquete o, si no, el del producto.
+  const kgProducto = enKg(por("WEIGHT")) ?? enKg(atributos.find((a) => /^(PRODUCT_)?WEIGHT$|NET_WEIGHT/.test(a.id ?? "")));
+  const peso = kg ?? kgProducto;
+  const caja: Caja | null = peso
+    ? { largo: l ? Math.round(l) : 0, ancho: w ? Math.round(w) : 0, alto: h ? Math.round(h) : 0, kg: Math.round(peso * 100) / 100,
+        fuente: "mercadolibre", nota: `${kg ? "peso del paquete" : "peso del producto"} en Mercado Libre${l && w && h ? " y medidas del paquete" : ""}` }
     : null;
   const lineas = atributos.filter((a) => a.id && MEDIDAS.test(a.id) && a.value_name).map((a) => `${a.name ?? a.id}: ${a.value_name}`);
   const texto = [lineas.join("\n"), descripcion.replace(/\s+/g, " ").slice(0, 1500)].filter(Boolean).join("\nDescripción: ");

@@ -20,6 +20,8 @@ export type Parametros = {
   minimoMax: number;              // pedido mínimo "razonable" (unidades)
   topeApifyUsd: number;           // tope de gasto de Apify de todo el piloto
   sitios?: Sitio[];               // dónde buscar en China (sin dato = 1688 + Alibaba, pilotos viejos)
+  soloListado?: boolean;          // (28/9) sólo los primeros del listado de la categoría, sin tendencias ni cruce
+  soloLocal?: boolean;            // sólo publicaciones con envío local (sin compra internacional)
 };
 
 export type Sitio = "aliexpress" | "1688" | "alibaba";
@@ -28,7 +30,7 @@ export const SITIOS: Record<Sitio, string> = { aliexpress: "AliExpress", "1688":
 export const POR_DEFECTO: Omit<Parametros, "categorias"> = {
   precioMin: null, precioMax: null, porCategoria: 3, listado: 50,
   modo: "barco", fleteM3Usd: 140, fleteKgUsd: 8, dolar: 1500, seguroPct: 20, grisPct: 15,
-  yuanPorDolar: 7.1, minimoMax: 500, topeApifyUsd: 10, sitios: ["aliexpress"],
+  yuanPorDolar: 7.1, minimoMax: 500, topeApifyUsd: 10, sitios: ["aliexpress"], soloListado: true, soloLocal: true,
 };
 
 export type Modo = "barco" | "avion";
@@ -36,7 +38,7 @@ export type Modo = "barco" | "avion";
  *  marcado "puede no ser rentable"), fuera (no se busca). */
 export type Franja = "seguro" | "gris" | "fuera";
 
-export type Caja = { largo: number; ancho: number; alto: number; kg: number; fuente: "mercadolibre" | "descripcion" | "claude" | "china"; nota?: string };
+export type Caja = { largo: number; ancho: number; alto: number; kg: number; fuente: "mercadolibre" | "descripcion" | "web" | "claude" | "china"; nota?: string };
 
 export type Candidato = {
   sitio: Sitio;
@@ -64,6 +66,8 @@ export type Juicio = {
 
 /** Una publicación de Mercado Libre, normalizada (venga de donde venga). */
 export type PubML = {
+  publicidad?: boolean;           // publicación paga (aparece primera por publicidad, no por ventas)
+  internacional?: boolean;        // compra internacional
   categoriaId?: string | null;    // si el actor la informa (karamelo sí, scrapesage no)
   itemId: string | null;
   productoId: string | null;
@@ -76,7 +80,7 @@ export type PubML = {
   opiniones: number | null;
 };
 
-export type ListadoActor = { actor: string; url: string; ok: boolean; cantidad: number; costoUsd: number | null; error?: string; muestra?: string; descartadas?: number };
+export type ListadoActor = { actor: string; url: string; ok: boolean; cantidad: number; costoUsd: number | null; error?: string; muestra?: string; descartadas?: number; publicidad?: number };
 
 /** Lo que se guarda por categoría en piloto_corridas.avance. */
 export type AvanceCategoria = {

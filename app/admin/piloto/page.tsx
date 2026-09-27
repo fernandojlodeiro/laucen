@@ -90,7 +90,7 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
             <legend className="text-xs font-bold mb-1">Mercado Libre</legend>
             {campo("precioMin", "Precio de venta desde ($)", v.precioMin, "pesos")}
             {campo("precioMax", "Precio de venta hasta ($)", v.precioMax, "pesos")}
-            {campo("porCategoria", "Productos por lado y por categoría", v.porCategoria, "entero", "esa cantidad de más buscados y de más vendidos")}
+            {campo("porCategoria", "Productos por categoría", v.porCategoria, "entero", "los primeros del listado de la categoría (sin publicidad)")}
             {campo("listado", "Publicaciones a leer del listado de cada categoría", v.listado, "entero")}
           </fieldset>
           <fieldset className="grid gap-3">
@@ -107,10 +107,10 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
               </label>
             </div>
             <div className="grid sm:grid-cols-3 gap-3">
-              {campo("fleteM3Usd", "Marítimo: flete por m³ (US$)", v.fleteM3Usd, "usd", "o por tonelada si pesa más (1 m³ = 1.000 kg)")}
-              {campo("fleteKgUsd", "Aéreo: flete por kilo (US$)", v.fleteKgUsd, "usd", "peso real o volumétrico (cm³ ÷ 6.000), lo que dé más")}
+              {campo("fleteM3Usd", "Marítimo: flete por m³ (US$)", v.fleteM3Usd, "usd", "no se usa para filtrar; queda para el margen")}
+              {campo("fleteKgUsd", "Aéreo: flete por kilo (US$)", v.fleteKgUsd, "usd", "con esto se decide barco o avión: peso real o volumétrico (cm³ ÷ 6.000), lo que dé más")}
               {campo("dolar", "Dólar ($)", v.dolar, "pesos")}
-              {campo("seguroPct", "Entra seguro (% del precio)", v.seguroPct, "pct", "Marítimo: desde este % para arriba. Aéreo: hasta este %.")}
+              {campo("seguroPct", "Entra seguro (% del precio)", v.seguroPct, "pct", "Flete aéreo como % del precio. Marítimo: entra desde este % para arriba (el avión sale caro). Aéreo: hasta este %.")}
               {campo("grisPct", "Zona gris (% del precio)", v.grisPct, "pct", "Marítimo: entre este % y el seguro. Aéreo: entre el seguro y este %. Se busca marcado.")}
             </div>
             <p className="text-[11px] text-[#5C6B76]">
@@ -123,7 +123,7 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
             {campo("minimoMax", "Pedido mínimo razonable (unidades)", v.minimoMax, "entero")}
             {campo("topeApifyUsd", "Tope de gasto de Apify (US$)", v.topeApifyUsd, "usd")}
           </fieldset>
-          <p className="text-xs text-[#5C6B76]">Busca en China en <b>AliExpress</b> (precio por unidad, enviando a Argentina).</p>
+          <p className="text-xs text-[#5C6B76]">Toma los primeros del listado de cada categoría (rango de precio, sólo envío local, sin publicidad) y los busca en <b>AliExpress</b> con precio puesto en China.</p>
           <label className="flex items-center gap-2 text-xs">
             <input type="checkbox" name="automatico" value="1" defaultChecked /> Procesar solo, sin dejar la página abierta (avanza cada 5 minutos)
           </label>

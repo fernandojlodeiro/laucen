@@ -16,6 +16,10 @@ export const MODELO = MODELOS.grande.id;
 /** Precio de Claude Opus 5 (lo que se usó hasta el piloto #4). */
 export const USD_POR_MTOK = { entrada: MODELOS.grande.entrada, salida: MODELOS.grande.salida };
 
+/** Búsqueda web de Anthropic: se cobra aparte de los tokens. Valor de
+ *  referencia (US$ 10 cada mil búsquedas); confirmarlo en la factura. */
+export const USD_POR_BUSQUEDA = 0.01;
+
 export function costoUsd(modelo: Modelo, tokensIn: number, tokensOut: number) {
   const m = MODELOS[modelo];
   return (tokensIn * m.entrada + tokensOut * m.salida) / 1_000_000;

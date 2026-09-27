@@ -15,11 +15,11 @@ const VEREDICTO = { si: "equiparable", dudoso: "dudoso", no: "no es" } as const;
 const FRANJA = {
   seguro: { texto: "entra seguro", color: "text-[#1F6E4A]" },
   gris: { texto: "zona gris: puede no ser rentable", color: "text-[#8a6100]" },
-  fuera: { texto: "descartado por flete (no se buscó en China)", color: "text-[#9AA7B3]" },
+  fuera: { texto: "descartado por flete: conviene el otro transporte (no se buscó en China)", color: "text-[#9AA7B3]" },
 } as const;
 const FUENTE_CAJA: Record<string, string> = {
-  mercadolibre: "dato del paquete en Mercado Libre", descripcion: "de la descripción de Mercado Libre",
-  claude: "estimado por Claude", china: "dato de China",
+  mercadolibre: "dato de Mercado Libre", descripcion: "de la descripción de Mercado Libre",
+  web: "buscado en la web", claude: "estimado por Claude", china: "dato de China",
 };
 const COLOR = { si: "text-[#1F6E4A]", dudoso: "text-[#8a6100]", no: "text-[#9AA7B3]" } as const;
 
@@ -80,9 +80,9 @@ export default async function Revision({ params, searchParams }: { params: Promi
                     <p className="text-[#5C6B76]">{pesos(x.precio)}{x.vendidos_texto && ` · ${x.vendidos_texto}`}</p>
                     {x.caja && (
                       <p className="mt-1">
-                        Caja {x.caja.largo}×{x.caja.ancho}×{x.caja.alto} cm · {x.caja.kg} kg ({FUENTE_CAJA[x.caja.fuente] ?? x.caja.fuente})
+                        {x.caja.largo ? `Caja ${x.caja.largo}×${x.caja.ancho}×${x.caja.alto} cm · ` : "Sin medidas de caja · "}{x.caja.kg} kg ({FUENTE_CAJA[x.caja.fuente] ?? x.caja.fuente}{x.caja.nota ? `: ${x.caja.nota}` : ""})
                         {x.flete_pct != null && (
-                          <b className={FRANJA[x.franja ?? "gris"].color}> · flete {x.flete_pct}% del precio (US$ {x.flete_usd}) · {FRANJA[x.franja ?? "gris"].texto}</b>
+                          <b className={FRANJA[x.franja ?? "gris"].color}> · flete aéreo US$ {x.flete_usd} = {x.flete_pct}% del precio · {FRANJA[x.franja ?? "gris"].texto}</b>
                         )}
                         {x.flete_usd != null && (j?.costoUsd ?? elegido?.usd) ? (
                           <span className="block text-[#5C6B76]">= {Math.round((x.flete_usd / (j?.costoUsd ?? elegido!.usd!)) * 100)}% del costo en China (US$ {j?.costoUsd ?? elegido?.usd})</span>
