@@ -56,7 +56,7 @@ export type Candidato = {
 
 /** Del juez nuevo (piloto #5 en adelante) sólo vienen los "si" y "dudoso";
  *  los demás quedaron afuera en el prefiltro o el juez los descartó. */
-export type Veredicto = { n: number; v: "si" | "dudoso" | "no"; motivo: string; unidades?: number; falta?: string };
+export type Veredicto = { n: number; v: "si" | "dudoso" | "no"; motivo: string; unidades?: number; falta?: string; variante?: string };
 export type Juicio = {
   veredictos: Veredicto[]; elegido: number | null; motivo: string; error?: string; nota?: string;
   componentes?: string;           // cómo el juez desarmó el producto de Mercado Libre ("2 colchones dobles + inflador + 2 almohadas")
@@ -80,7 +80,7 @@ export type PubML = {
   opiniones: number | null;
 };
 
-export type ListadoActor = { actor: string; url: string; ok: boolean; cantidad: number; costoUsd: number | null; error?: string; muestra?: string; descartadas?: number; publicidad?: number };
+export type ListadoActor = { actor: string; url: string; ok: boolean; cantidad: number; costoUsd: number | null; runId?: string; error?: string; muestra?: string; descartadas?: number; publicidad?: number };
 
 /** Lo que se guarda por categoría en piloto_corridas.avance. */
 export type AvanceCategoria = {

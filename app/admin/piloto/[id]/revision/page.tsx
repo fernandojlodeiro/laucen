@@ -7,6 +7,7 @@ import { BotonEnviar } from "@/app/radar/Cliente";
 import { SUAVE, VERDE, BORRAR } from "@/app/botones";
 import { accionRevisar } from "../../actions";
 import { SITIOS } from "@/lib/piloto/tipos";
+import { formatearNumero } from "@/lib/numeros";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -77,7 +78,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
                   <div>
                     <p className="font-bold">Mercado Libre</p>
                     {x.url ? <a href={x.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{x.titulo}</a> : x.titulo}
-                    <p className="text-[#5C6B76]">{pesos(x.precio)}{x.vendidos_texto && ` · ${x.vendidos_texto}`}</p>
+                    <p className="text-[#5C6B76]">{pesos(x.precio)}{x.precio != null && ` (US$ ${formatearNumero(x.precio / c.parametros.dolar, "usd")})`}{x.vendidos_texto && ` · ${x.vendidos_texto}`}</p>
                     {x.caja && (
                       <p className="mt-1">
                         {x.caja.largo ? `Caja ${x.caja.largo}×${x.caja.ancho}×${x.caja.alto} cm · ` : "Sin medidas de caja · "}{x.caja.kg} kg ({FUENTE_CAJA[x.caja.fuente] ?? x.caja.fuente}{x.caja.nota ? `: ${x.caja.nota}` : ""})
@@ -85,7 +86,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
                           <b className={FRANJA[x.franja ?? "gris"].color}> · flete aéreo US$ {x.flete_usd} = {x.flete_pct}% del precio · {FRANJA[x.franja ?? "gris"].texto}</b>
                         )}
                         {x.flete_usd != null && (j?.costoUsd ?? elegido?.usd) ? (
-                          <span className="block text-[#5C6B76]">= {Math.round((x.flete_usd / (j?.costoUsd ?? elegido!.usd!)) * 100)}% del costo en China (US$ {j?.costoUsd ?? elegido?.usd})</span>
+                          <span className="block text-[#5C6B76]">El flete aéreo equivale al {Math.round((x.flete_usd / (j?.costoUsd ?? elegido!.usd!)) * 100)}% de lo que cuesta en China (US$ {j?.costoUsd ?? elegido?.usd})</span>
                         ) : null}
                       </p>
                     )}
@@ -140,7 +141,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
                               {k.url ? <a href={k.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{k.titulo}</a> : k.titulo}
                               <span className="block text-[#5C6B76]">{k.sitio} · {k.usd != null ? `US$ ${k.usd}` : "—"} · mín. {k.minimo ?? "?"}</span>
                             </td>
-                            <td className={`py-1 w-56 ${v ? COLOR[v.v] : ""}`}>{v ? <><b>{VEREDICTO[v.v]}</b>{v.unidades && v.unidades > 1 ? ` (× ${v.unidades})` : ""}{v.falta ? `, falta ${v.falta}` : ""} — {v.motivo}</> : j?.preseleccion && !j.preseleccion.includes(i + 1) ? <span className="text-[#9AA7B3]">descartado en el prefiltro</span> : "—"}</td>
+                            <td className={`py-1 w-56 ${v ? COLOR[v.v] : ""}`}>{v ? <><b>{VEREDICTO[v.v]}</b>{v.unidades && v.unidades > 1 ? ` (× ${v.unidades})` : ""}{v.falta && !/^(ninguno|nada|-)$/i.test(v.falta.trim()) ? `, falta ${v.falta}` : ""}{v.variante ? `, variante: ${v.variante}` : ""} — {v.motivo}</> : j?.preseleccion && !j.preseleccion.includes(i + 1) ? <span className="text-[#9AA7B3]">descartado en el prefiltro</span> : "—"}</td>
                           </tr>
                         );
                       })}

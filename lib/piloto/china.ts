@@ -76,7 +76,7 @@ function aCandidatoAliexpress(x: Record<string, unknown>): Candidato {
   };
 }
 
-export type BusquedaChina = { en: string; zh: string; candidatos: Candidato[]; costoUsd: number; errores: string[]; tokensIn: number; tokensOut: number };
+export type BusquedaChina = { en: string; zh: string; candidatos: Candidato[]; costoUsd: number; runIds?: string[]; errores: string[]; tokensIn: number; tokensOut: number };
 
 /** Traduce el título y busca en los sitios del piloto: AliExpress (en
  *  inglés, con envío dentro de China, en dólares), 1688 (en chino), Alibaba (en inglés). */
@@ -88,6 +88,7 @@ export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: 
   const sitios: Sitio[] = p.sitios?.length ? p.sitios : ["1688", "alibaba"];
   const errores: string[] = [];
   let costoUsd = 0;
+  const runIds: string[] = [];
   let muestra: string | undefined;
   const corridas = await Promise.all(sitios.map(async (sitio) => {
     if (!puedeGastar(0.05)) { errores.push(`${sitio}: tope de gasto de Apify`); return []; }
@@ -96,6 +97,7 @@ export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: 
       const r = await correrActor(ACTOR_ALIEXPRESS, t.en, POR_SITIO, 120,
         { urlBusqueda: `https://www.aliexpress.com/w/wholesale-${encodeURIComponent(t.en.replace(/\s+/g, "-"))}.html`, pais: "CN", moneda: "USD" });
       costoUsd += r.costo_usd ?? 0;
+      if (r.runId) runIds.push(r.runId);
       if (!r.items?.length) errores.push(`aliexpress: ${r.error ?? "sin resultados"}`);
       muestra = r.items?.[0] ? JSON.stringify(r.items[0]).slice(0, 2000) : undefined;
       return ((r.items ?? []) as Record<string, unknown>[]).map(aCandidatoAliexpress).filter((c) => c.titulo !== "(sin título)");
@@ -105,11 +107,12 @@ export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: 
       : [ACTOR_ALIBABA, { searchTerms: [t.en], maxItems: POR_SITIO, maxPages: 1 }];
     const c = await correrConEntrada(actor, entrada, { max: POR_SITIO, esperaSeg: 120, topeUsd: 0.1 });
     costoUsd += c.costoUsd ?? 0;
+    if (c.runId) runIds.push(c.runId);
     if (!c.items.length) errores.push(`${sitio}: ${c.error ?? "sin resultados"}`);
     return (c.items as Record<string, unknown>[]).map((x) => aCandidato(sitio, x, p.yuanPorDolar));
   }));
   // La traducción no se cuenta acá (va con el modelo chico, centavos).
-  return { en: t.en, zh: t.zh, candidatos: corridas.flat(), costoUsd, errores, tokensIn: 0, tokensOut: 0, muestra };
+  return { en: t.en, zh: t.zh, candidatos: corridas.flat(), costoUsd, runIds, errores, tokensIn: 0, tokensOut: 0, muestra };
 }
 
 /** La caja de envío de una unidad (cm y kg) de cada producto, con el
@@ -246,10 +249,17 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     "accesorios incluidos). Una versión mejor o peor (con bomba si el original no tiene, otra medida, otra potencia, sin un accesorio que el original trae) " +
     "es \"dudoso\", nunca \"si\". Indicá cuántas unidades del candidato hacen falta (unidades) y qué componente falta (falta), con un motivo corto. " +
     "No listes los que no sirven.\n" +
+    // Pedido de Fer (28/9, piloto #6): en AliExpress y Alibaba una misma
+    // publicación trae varias medidas o versiones y el título no siempre lo dice.
+    "Ojo: en China una misma publicación suele tener VARIAS VARIANTES adentro (medidas, versiones, colores, con o sin accesorios) que se eligen " +
+    "al comprar; el título a veces las nombra todas ('Single/Double', 'Twin/Queen', '1/2/3 Person', medidas separadas por '/') y a veces ninguna. " +
+    "Si el título o la foto indican que entre las variantes está la que coincide con el de Mercado Libre, es \"si\" y en variante poné cuál elegir " +
+    "(ej: \"1 plaza 191x99\"). Si el tipo coincide pero no se sabe si está la medida justa, es \"dudoso\" con variante = \"ver medidas en la publicación\". " +
+    "El precio que viene es el de la variante más barata: si la que hay que elegir puede ser más cara, decilo en el motivo.\n" +
     `Paso 3: elegí el mejor SÓLO entre los \"si\": el menor costo total para armar el producto completo (unidades × precio + una estimación de lo que falta), ` +
     `con un pedido mínimo de hasta ${p.minimoMax} unidades; a costo parecido, el de más ventas o mejor proveedor. costoUsd = ese costo total. ` +
     "Si ninguno sirve, elegido = null.\n" +
-    "Respondé sólo JSON: {\"componentes\":\"...\",\"veredictos\":[{\"n\":3,\"v\":\"si\",\"unidades\":2,\"falta\":\"inflador\",\"motivo\":\"...\"}]," +
+    "Respondé sólo JSON: {\"componentes\":\"...\",\"veredictos\":[{\"n\":3,\"v\":\"si\",\"unidades\":2,\"falta\":\"inflador\",\"variante\":\"1 plaza\",\"motivo\":\"...\"}]," +
     "\"elegido\":3,\"costoUsd\":24.5,\"motivo\":\"por qué ese\"}. Usá los números de los candidatos tal como vienen.";
   const [fotoML, ...fotos] = await Promise.all([aBase64(ml.foto), ...elegidos.map((n) => aBase64(candidatos[n - 1].foto))]);
   const armar = (conFotos: boolean): Contenido => {

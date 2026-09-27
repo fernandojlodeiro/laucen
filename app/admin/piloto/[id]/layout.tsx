@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { sosVos } from "@/lib/admin";
 import { sesionRequerida } from "@/lib/tenancy";
 import { pool } from "@/db";
-import { corrida, usdDeClaude } from "@/lib/piloto/proceso";
+import { corrida, costoApifyFinal, usdDeClaude } from "@/lib/piloto/proceso";
 import { SUAVE } from "@/app/botones";
 import { Pestanas } from "@/app/radar/Cliente";
 import { accionAvanzar } from "../actions";
@@ -21,7 +21,7 @@ export default async function LayoutPiloto({ children, params }: { children: Rea
   const total = etapas.rows.reduce((t, r) => t + r.n, 0);
   const catsHechas = p.categorias.filter((x) => c.avance[x.id]?.hecho).length;
   const claudeUsd = usdDeClaude(c.costos);
-  const apifyUsd = c.costos.apifyUsd ?? 0;
+  const apifyUsd = await costoApifyFinal(c).catch(() => c.costos.apifyUsd ?? 0);
   const tok = Object.values(c.costos.claude ?? {}).reduce((t, x) => ({ in: t.in + x.in, out: t.out + x.out }), { in: 0, out: 0 });
   const rango = `${p.precioMin != null ? `$${p.precioMin.toLocaleString("es-AR")}` : "sin mínimo"} a ${p.precioMax != null ? `$${p.precioMax.toLocaleString("es-AR")}` : "sin máximo"}`;
 

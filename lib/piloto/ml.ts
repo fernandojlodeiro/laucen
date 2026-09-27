@@ -42,8 +42,15 @@ const texto = (o: Record<string, unknown>, ...claves: string[]) => {
 /** Normaliza una publicación de cualquier actor de Mercado Libre. */
 export function aPubML(x: Record<string, unknown>): PubML {
   const url = texto(x, "permalink", "productUrl", "url", "url_item", "link");
-  const itemId = texto(x, "publicationId", "item_id", "ml_id", "itemId", "id")?.match(/MLA-?\d+/)?.[0]?.replace("-", "")
-    ?? url?.match(/MLA-?\d+/)?.[0]?.replace("-", "") ?? null;
+  // En el listado casi todo viene como ficha de catálogo (/p/MLA…, 8 dígitos)
+  // o producto de vendedor (/up/MLAU…); la publicación (MLA de 10 dígitos)
+  // sólo a veces. Piloto #6: se tomaba el número de la ficha como si fuera la
+  // publicación y Mercado Libre no devolvía el peso.
+  const ficha = url?.match(/\/p\/(MLA\d+)/)?.[1] ?? url?.match(/\/up\/(MLAU\d+)/)?.[1] ?? null;
+  const candidatoItem = texto(x, "publicationId", "item_id", "ml_id", "itemId", "id")?.match(/MLA-?\d+/)?.[0]?.replace("-", "")
+    ?? String(x.clickUrl ?? "").match(/[?&]wid=(MLA\d+)/)?.[1]
+    ?? url?.match(/articulo\.mercadolibre\.com\.ar\/(MLA-?\d+)/)?.[1]?.replace("-", "") ?? null;
+  const itemId = candidatoItem && candidatoItem !== ficha && /^MLA\d{9,}$/.test(candidatoItem) ? candidatoItem : null;
   const vend = x.soldQuantity ?? x.sold_quantity ?? x.sold_quantity_text ?? x.soldText ?? x.sold;
   const internacional = x.isInternationalPurchase === true || x.internationalPurchase === true || x.international === true
     || /internacional/i.test(String(x.shipping ?? "")) || x.shippingOrigin === "international";
@@ -52,7 +59,7 @@ export function aPubML(x: Record<string, unknown>): PubML {
     internacional,
     categoriaId: texto(x, "categoryId", "category_id"),
     itemId,
-    productoId: texto(x, "catalogProductId", "catalog_product_id", "productId", "product_id"),
+    productoId: texto(x, "catalogProductId", "catalog_product_id", "productId", "product_id") ?? ficha,
     titulo: texto(x, "title", "name", "titulo") ?? "(sin título)",
     url,
     foto: texto(x, "thumbnailUrl", "thumbnail", "image", "imageUrl", "picture", "images", "pictures"),
@@ -116,7 +123,7 @@ export async function listadoDeCategoria(url: string, categoriaId: string, n: nu
     const dentro = await Promise.all(todas.map((p) => (p.categoriaId ? dentroDeRama(p.categoriaId, categoriaId) : Promise.resolve(true))));
     // Sin publicidad (aparece primera por pagar, no por vender) ni compra internacional.
     const propias = todas.filter((p, i) => dentro[i] && !p.publicidad && !p.internacional);
-    actores.push({ actor, url, ok: propias.length > 0, cantidad: propias.length, costoUsd: c.costoUsd, descartadas: todas.length - propias.length,
+    actores.push({ actor, url, ok: propias.length > 0, cantidad: propias.length, costoUsd: c.costoUsd, runId: c.runId, descartadas: todas.length - propias.length,
       publicidad: todas.filter((p) => p.publicidad).length,
       error: propias.length ? undefined : todas.length ? "Todo lo que trajo era de otras categorías" : c.error ?? "No trajo publicaciones",
       muestra: c.items[0] ? JSON.stringify(c.items[0]).slice(0, 2000) : undefined });
@@ -128,7 +135,7 @@ export async function listadoDeCategoria(url: string, categoriaId: string, n: nu
   // ya pesa las ventas).
   const vistos = new Set<string>();
   const unicas = pubs.filter((p) => {
-    const k = p.itemId ?? p.url ?? p.titulo;
+    const k = p.itemId ?? p.productoId ?? p.url ?? p.titulo;
     if (vistos.has(k)) return false;
     vistos.add(k);
     return enRango(p.precio, min, max);
@@ -258,12 +265,23 @@ export async function datosDeEnvio(pub: { itemId: string | null; productoId: str
     atributos = ((item.datos as { attributes?: Atributo[] })?.attributes) ?? [];
     const d = await ml(`/items/${pub.itemId}/description`, token);
     descripcion = String((d.datos as { plain_text?: string } | null)?.plain_text ?? "");
+  } else if (pub.productoId?.startsWith("MLAU")) {
+    // Producto de vendedor (/up/MLAU…).
+    const p = await ml(`/user-products/${pub.productoId}`, token);
+    if (p.status === 200) atributos = ((p.datos as { attributes?: Atributo[] })?.attributes) ?? [];
   } else if (pub.productoId) {
+    // Ficha de catálogo (/p/MLA…): sus atributos, y los de la publicación que
+    // gana la ficha, que es la que suele traer el paquete (PACKAGE_*).
     const p = await ml(`/products/${pub.productoId}`, token);
     if (p.status === 200) {
-      const datos = p.datos as { attributes?: Atributo[]; short_description?: { content?: string } };
+      const datos = p.datos as { attributes?: Atributo[]; short_description?: { content?: string }; buy_box_winner?: { item_id?: string } | null };
       atributos = datos.attributes ?? [];
       descripcion = String(datos.short_description?.content ?? "");
+      const ganador = datos.buy_box_winner?.item_id;
+      if (ganador) {
+        const g = await ml(`/items/${ganador}`, token);
+        if (g.status === 200) atributos = [...(((g.datos as { attributes?: Atributo[] })?.attributes) ?? []), ...atributos];
+      }
     }
   }
   const por = (id: string) => atributos.find((a) => a.id === id);

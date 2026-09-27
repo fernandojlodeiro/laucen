@@ -4,6 +4,7 @@
 // que termina. Con candado: una sola tanda a la vez por piloto.
 
 import { pool } from "@/db";
+import { costosFinales } from "@/lib/apify";
 import { USD_POR_MTOK } from "@/lib/claude";
 import { asegurarEsquema } from "./esquema";
 import { buscadosDeCategoria, cruzar, datosDeEnvio, listadoDeCategoria, urlDeCategoria } from "./ml";
@@ -14,7 +15,7 @@ export type Corrida = {
   id: number; organizacion_id: string; creada_el: Date; parametros: Parametros; estado: string;
   avance: Record<string, AvanceCategoria>; costos: Costos; trabajando_desde: Date | null; automatico: boolean;
 };
-export type Costos = { apifyUsd?: number; claude?: Record<string, { in: number; out: number; usd?: number }> };
+export type Costos = { apifyUsd?: number; apifyRuns?: string[]; apifyFinal?: boolean; claude?: Record<string, { in: number; out: number; usd?: number }> };
 
 /** Lo gastado en Claude: el costo guardado por etapa (según el modelo usado)
  *  o, en los pilotos viejos que no lo guardaban, a precio de Opus. */
@@ -44,9 +45,30 @@ export async function corridas(organizacionId: string) {
 }
 
 // Costos: se suman en la base (varias tareas en paralelo).
-async function sumarApify(id: number, usd: number | null) {
-  if (!usd) return;
-  await pool.query("update piloto_corridas set costos = jsonb_set(costos, '{apifyUsd}', to_jsonb(coalesce((costos->>'apifyUsd')::float, 0) + $2::float)) where id = $1", [id, usd]);
+// Se guardan también las corridas de Apify: al terminar, Apify todavía no
+// asentó todos los cobros (piloto #6: AliExpress figuraba en cero) y el costo
+// final se vuelve a leer después (costoApifyFinal).
+async function sumarApify(id: number, usd: number | null, runIds: (string | undefined)[] = []) {
+  const runs = runIds.filter(Boolean);
+  if (!usd && !runs.length) return;
+  await pool.query(
+    `update piloto_corridas set costos = jsonb_set(jsonb_set(costos, '{apifyUsd}', to_jsonb(coalesce((costos->>'apifyUsd')::float, 0) + $2::float)),
+       '{apifyRuns}', coalesce(costos->'apifyRuns', '[]'::jsonb) || $3::jsonb) where id = $1`, [id, usd ?? 0, JSON.stringify(runs)]);
+}
+
+/** Relee de Apify el costo final de las corridas del piloto y lo guarda. Una
+ *  hora después de creado el piloto ya no cambia y se deja de consultar. */
+export async function costoApifyFinal(c: Corrida) {
+  const runs = c.costos.apifyRuns ?? [];
+  if (c.estado !== "listo" || !runs.length || c.costos.apifyFinal) return c.costos.apifyUsd ?? 0;
+  const finales = await costosFinales(runs);
+  const leidos = Object.values(finales);
+  if (leidos.length < runs.length) return c.costos.apifyUsd ?? 0;
+  const usd = leidos.reduce((t, x) => t + (x.usd ?? 0), 0);
+  const final = Date.now() - new Date(c.creada_el).getTime() > 3_600_000;
+  await pool.query(
+    "update piloto_corridas set costos = costos || jsonb_build_object('apifyUsd', $2::float, 'apifyFinal', $3::boolean) where id = $1", [c.id, usd, final]);
+  return usd;
 }
 async function sumarClaude(id: number, etapa: string, tin: number, tout: number, usd: number) {
   if (!tin && !tout) return;
@@ -89,7 +111,7 @@ async function etapaML(c: Corrida, categoriaId: string) {
         .catch((e) => ({ palabras: [], pubs: [], error: String(e).slice(0, 200) })),
   ]);
   if (!av.urlListado) av.errores!.push("No se pudo armar la dirección del listado de la categoría");
-  for (const a of lst.actores) await sumarApify(c.id, a.costoUsd);
+  for (const a of lst.actores) await sumarApify(c.id, a.costoUsd, [a.runId]);
   av.actores = lst.actores;
   av.listado = lst.listado;
   av.palabras = bus.palabras;
@@ -195,7 +217,7 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
       if (!lote.length) break;
       await Promise.all(lote.map(async (x) => {
         const r = await buscarEnChina(x.titulo, p, puedeGastar);
-        await sumarApify(id, r.costoUsd);
+        await sumarApify(id, r.costoUsd, r.runIds);
         await pool.query("update piloto_productos set china = $2, etapa = 'juez', error = $3 where id = $1",
           [x.id, { en: r.en, zh: r.zh, candidatos: r.candidatos, errores: r.errores, muestra: r.muestra }, r.errores.join(" · ") || null]);
       }));

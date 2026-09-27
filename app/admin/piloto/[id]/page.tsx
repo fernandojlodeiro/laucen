@@ -4,12 +4,13 @@ import { sesionRequerida } from "@/lib/tenancy";
 import { corrida, productosDe } from "@/lib/piloto/proceso";
 import type { PubML } from "@/lib/piloto/tipos";
 import { pesos } from "@/app/radar/Piezas";
+import { formatearNumero } from "@/lib/numeros";
 
 export const dynamic = "force-dynamic";
 // Cada tanda de "Procesar" corre acá: hasta 5 minutos.
 export const maxDuration = 300;
 
-function Tarjeta({ p, extra, marca }: { p: Pick<PubML, "titulo" | "url" | "foto" | "precio" | "vendidosTexto">; extra?: string | null; marca?: string }) {
+function Tarjeta({ p, extra, marca, dolar }: { p: Pick<PubML, "titulo" | "url" | "foto" | "precio" | "vendidosTexto">; extra?: string | null; marca?: string; dolar: number }) {
   return (
     <div className="flex gap-2 py-1.5 border-b last:border-0 border-[#E3E9F0]">
       {p.foto ? (
@@ -19,7 +20,7 @@ function Tarjeta({ p, extra, marca }: { p: Pick<PubML, "titulo" | "url" | "foto"
       <div className="text-[11px] min-w-0">
         {marca && <span className="font-bold text-[#8a6100] mr-1">{marca}</span>}
         {p.url ? <a href={p.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{p.titulo}</a> : p.titulo}
-        <span className="block text-[#5C6B76]">{pesos(p.precio)}{p.vendidosTexto && ` · ${p.vendidosTexto}`}{extra && ` · ${extra}`}</span>
+        <span className="block text-[#5C6B76]">{pesos(p.precio)}{p.precio != null && dolar > 0 && ` (US$ ${formatearNumero(p.precio / dolar, "usd")})`}{p.vendidosTexto && ` · ${p.vendidosTexto}`}{extra && ` · ${extra}`}</span>
       </div>
     </div>
   );
@@ -68,14 +69,14 @@ export default async function PilotoML({ params }: { params: Promise<{ id: strin
                     <h3 className="text-xs font-bold mb-1">Más buscados <span className="font-normal text-[#5C6B76]">(tendencias, gratis)</span></h3>
                     {buscados.length === 0 && <p className="text-[11px] text-[#9AA7B3]">Ninguno dentro del rango de precio.</p>}
                     {buscados.map((x) => (
-                      <Tarjeta key={x.id} p={{ ...x, vendidosTexto: x.vendidos_texto }} extra={`“${x.palabra}”`} marca={x.campeon ? "★ campeón" : undefined} />
+                      <Tarjeta dolar={c.parametros.dolar} key={x.id} p={{ ...x, vendidosTexto: x.vendidos_texto }} extra={`“${x.palabra}”`} marca={x.campeon ? "★ campeón" : undefined} />
                     ))}
                   </div>
                   <div>
                     <h3 className="text-xs font-bold mb-1">Más vendidos <span className="font-normal text-[#5C6B76]">(listado, Apify; primeros 10 de {av.listado?.length ?? 0}; primero los que traen vendidos, después en el orden de relevancia de Mercado Libre)</span></h3>
                     {!av.listado?.length && <p className="text-[11px] text-[#9AA7B3]">El listado no trajo publicaciones en el rango.</p>}
                     {av.listado?.slice(0, 10).map((x, i) => (
-                      <Tarjeta key={`${x.itemId}-${i}`} p={x}
+                      <Tarjeta dolar={c.parametros.dolar} key={`${x.itemId}-${i}`} p={x}
                         marca={i < elegidos.length ? (elegidos[i]?.campeon ? "★ campeón · elegido" : "elegido") : undefined} />
                     ))}
                   </div>
