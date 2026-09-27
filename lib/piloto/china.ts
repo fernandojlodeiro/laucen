@@ -274,13 +274,13 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     });
     return c;
   };
-  let r = await pedirClaude({ system, contenido: armar(true), maxTokens: 2500, modelo: "medio", effort: "low" });
+  let r = await pedirClaude({ system, contenido: armar(true), maxTokens: 4000, modelo: "medio", effort: "low" });
   tokensIn += r.tokensIn; tokensOut += r.tokensOut; usd += r.usd;
   let nota = "";
   if ("error" in r) {
     nota = `Sin fotos de China porque: ${r.error.slice(0, 300)}`;
     console.error("[piloto] juez con fotos falló:", r.error);
-    r = await pedirClaude({ system, contenido: armar(false), maxTokens: 2500, modelo: "medio", effort: "low" });
+    r = await pedirClaude({ system, contenido: armar(false), maxTokens: 4000, modelo: "medio", effort: "low" });
     tokensIn += r.tokensIn; tokensOut += r.tokensOut; usd += r.usd;
   }
   if ("error" in r) return { juicio: vacio("", { error: r.error, preseleccion: elegidos }), tokensIn, tokensOut, usd };

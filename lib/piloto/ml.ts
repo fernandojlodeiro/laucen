@@ -241,15 +241,28 @@ export async function cruzar(buscados: PubML[], vendidos: PubML[]) {
 // caja; si no, el texto (atributos + descripción) se le pasa a Claude para
 // que la saque de ahí antes de adivinar.
 
-type Atributo = { id?: string; name?: string; value_name?: string | null; value_struct?: { number?: number; unit?: string } | null };
+type Estructura = { number?: number; unit?: string };
+type Atributo = { id?: string; name?: string; value_name?: string | null; value_struct?: Estructura | null; values?: { struct?: Estructura | null }[] };
+
+// Las publicaciones traen value_struct; las fichas de catálogo a veces sólo
+// values[].struct o el texto ("2.64 kg"). Piloto #7: la ficha decía "Peso:
+// 2.64 kg" y no se leía.
+function numeroYUnidad(a?: Atributo): Estructura | null {
+  const s = a?.value_struct ?? a?.values?.find((v) => v.struct)?.struct;
+  if (s && typeof s.number === "number") return s;
+  const m = a?.value_name?.replace(",", ".").match(/(\d+(?:\.\d+)?)\s*([a-zA-Z"]+)?/);
+  return m ? { number: Number(m[1]), unit: m[2] ?? "" } : null;
+}
 
 function enCm(a?: Atributo) {
-  const n = a?.value_struct?.number, u = (a?.value_struct?.unit ?? "").toLowerCase();
+  const s = numeroYUnidad(a);
+  const n = s?.number, u = (s?.unit ?? "").toLowerCase();
   if (typeof n !== "number" || !(n > 0)) return null;
   return u === "mm" ? n / 10 : u === "m" ? n * 100 : u === "in" || u === "\"" ? n * 2.54 : n;
 }
 function enKg(a?: Atributo) {
-  const n = a?.value_struct?.number, u = (a?.value_struct?.unit ?? "").toLowerCase();
+  const s = numeroYUnidad(a);
+  const n = s?.number, u = (s?.unit ?? "").toLowerCase();
   if (typeof n !== "number" || !(n > 0)) return null;
   return u === "g" ? n / 1000 : u === "lb" ? n * 0.4536 : u === "oz" ? n * 0.02835 : n;
 }
