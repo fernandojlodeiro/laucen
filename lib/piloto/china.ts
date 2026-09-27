@@ -262,9 +262,12 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     "El precio que viene es el de la variante más barata: si la que hay que elegir puede ser más cara, decilo en el motivo.\n" +
     `Paso 3: elegí el mejor SÓLO entre los \"si\": el menor costo total para armar el producto completo (unidades × precio + una estimación de lo que falta), ` +
     `con un pedido mínimo de hasta ${p.minimoMax} unidades; a costo parecido, el de más ventas o mejor proveedor. costoUsd = ese costo total. ` +
+    // Piloto #8: dejó afuera uno de Alibaba a la mitad de precio "por el pedido mínimo".
+    `Un pedido mínimo dentro de ese tope NO es motivo para preferir otro más caro: Alibaba y AliExpress compiten igual. ` +
     "Si ninguno sirve, elegido = null.\n" +
     "Paso 4: la posición arancelaria NCM (Mercosur, 8 dígitos, formato 0000.00.00) con la que se despacharía en Argentina el producto " +
-    "de Mercado Libre, según su material y función.\n" +
+    "de Mercado Libre, según su material y función. Respetá las notas legales de sección y capítulo (por ejemplo, los colchones " +
+    "neumáticos o inflables NO van en 94.04: van en 39.26 si son de plástico, 40.16 si son de caucho o 63.06 si son de textil).\n" +
     "Respondé sólo JSON: {\"componentes\":\"...\",\"veredictos\":[{\"n\":3,\"v\":\"si\",\"unidades\":2,\"falta\":\"inflador\",\"variante\":\"1 plaza\",\"motivo\":\"...\"}]," +
     "\"elegido\":3,\"costoUsd\":24.5,\"motivo\":\"por qué ese\",\"ncm\":\"8516.29.00\"}. Usá los números de los candidatos tal como vienen.";
   const [fotoML, ...fotos] = await Promise.all([aBase64(ml.foto), ...elegidos.map((n) => aBase64(candidatos[n - 1].foto))]);
