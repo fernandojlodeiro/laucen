@@ -116,7 +116,8 @@ export async function accionCorrerChina(formData: FormData) {
     }
     const q = a.plataforma === "1688" ? zh || en || texto : en || texto;
     if (!q) return { actor: a.id, ok: false, error: "Falta el texto a buscar", plataforma: a.plataforma, tipo: a.tipo, busqueda: "" };
-    const r = await correrActor(actor, q, MAX, 240, { plataforma: a.plataforma, urlBusqueda: urlBusqueda(a.plataforma, q) });
+    const r = await correrActor(actor, q, MAX, 240, { plataforma: a.plataforma, urlBusqueda: urlBusqueda(a.plataforma, q),
+      ...(a.plataforma === "aliexpress" ? { pais: "AR", moneda: "USD" } : {}) });
     return { ...r, actor: a.id, plataforma: a.plataforma, tipo: a.tipo, busqueda: q };
   }));
 

@@ -6,6 +6,7 @@ import { pesos, InterruptorFiltro } from "@/app/radar/Piezas";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { SUAVE, VERDE, BORRAR } from "@/app/botones";
 import { accionRevisar } from "../../actions";
+import { SITIOS } from "@/lib/piloto/tipos";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -16,6 +17,10 @@ const FRANJA = {
   gris: { texto: "zona gris: puede no ser rentable", color: "text-[#8a6100]" },
   fuera: { texto: "descartado por flete (no se buscó en China)", color: "text-[#9AA7B3]" },
 } as const;
+const FUENTE_CAJA: Record<string, string> = {
+  mercadolibre: "dato del paquete en Mercado Libre", descripcion: "de la descripción de Mercado Libre",
+  claude: "estimado por Claude", china: "dato de China",
+};
 const COLOR = { si: "text-[#1F6E4A]", dudoso: "text-[#8a6100]", no: "text-[#9AA7B3]" } as const;
 
 function Foto({ src }: { src: string | null }) {
@@ -75,12 +80,12 @@ export default async function Revision({ params, searchParams }: { params: Promi
                     <p className="text-[#5C6B76]">{pesos(x.precio)}{x.vendidos_texto && ` · ${x.vendidos_texto}`}</p>
                     {x.caja && (
                       <p className="mt-1">
-                        Caja {x.caja.largo}×{x.caja.ancho}×{x.caja.alto} cm · {x.caja.kg} kg ({x.caja.fuente === "claude" ? "estimado por Claude" : "dato de China"})
+                        Caja {x.caja.largo}×{x.caja.ancho}×{x.caja.alto} cm · {x.caja.kg} kg ({FUENTE_CAJA[x.caja.fuente] ?? x.caja.fuente})
                         {x.flete_pct != null && (
                           <b className={FRANJA[x.franja ?? "gris"].color}> · flete {x.flete_pct}% del precio (US$ {x.flete_usd}) · {FRANJA[x.franja ?? "gris"].texto}</b>
                         )}
-                        {x.flete_usd != null && elegido?.usd ? (
-                          <span className="block text-[#5C6B76]">= {Math.round((x.flete_usd / elegido.usd) * 100)}% del FOB del candidato (US$ {elegido.usd})</span>
+                        {x.flete_usd != null && (j?.costoUsd ?? elegido?.usd) ? (
+                          <span className="block text-[#5C6B76]">= {Math.round((x.flete_usd / (j?.costoUsd ?? elegido!.usd!)) * 100)}% del costo en China (US$ {j?.costoUsd ?? elegido?.usd})</span>
                         ) : null}
                       </p>
                     )}
@@ -94,7 +99,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
                       <>
                         {elegido.url ? <a href={elegido.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{elegido.titulo}</a> : elegido.titulo}
                         <p className="text-[#5C6B76]">
-                          {elegido.sitio === "1688" ? "1688" : "Alibaba"} · {elegido.usd != null ? `US$ ${elegido.usd}` : "sin precio"}
+                          {SITIOS[elegido.sitio] ?? elegido.sitio} · {elegido.usd != null ? `US$ ${elegido.usd}` : "sin precio"}
                           {elegido.precioTexto && ` (${elegido.precioTexto})`} · mínimo {elegido.minimo ?? "?"}
                           {elegido.proveedor && ` · ${elegido.proveedor}`}{elegido.anios ? `, ${elegido.anios} años` : ""}
                         </p>
@@ -105,7 +110,9 @@ export default async function Revision({ params, searchParams }: { params: Promi
                     {j && (
                       <p className="mt-1">
                         {j.motivo && <span>{j.motivo} </span>}
-                        <span className="text-[#5C6B76]">({cuenta.si} equiparables · {cuenta.dudoso} dudosos · {cuenta.no} no son, de {cands.length})</span>
+                        <span className="text-[#5C6B76]">({cuenta.si} equiparables · {cuenta.dudoso} dudosos · {cands.length - cuenta.si - cuenta.dudoso} no sirven, de {cands.length}{j.preseleccion ? `; el juez miró ${j.preseleccion.length} preseleccionados` : ""})</span>
+                        {j.componentes && <span className="block mt-1"><b>Qué se vende en Mercado Libre:</b> {j.componentes}</span>}
+                        {j.costoUsd != null && <span className="block"><b>Costo de armarlo en China:</b> US$ {j.costoUsd}</span>}
                       </p>
                     )}
                   </div>
@@ -133,7 +140,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
                               {k.url ? <a href={k.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{k.titulo}</a> : k.titulo}
                               <span className="block text-[#5C6B76]">{k.sitio} · {k.usd != null ? `US$ ${k.usd}` : "—"} · mín. {k.minimo ?? "?"}</span>
                             </td>
-                            <td className={`py-1 w-56 ${v ? COLOR[v.v] : ""}`}>{v ? <><b>{VEREDICTO[v.v]}</b> — {v.motivo}</> : "—"}</td>
+                            <td className={`py-1 w-56 ${v ? COLOR[v.v] : ""}`}>{v ? <><b>{VEREDICTO[v.v]}</b>{v.unidades && v.unidades > 1 ? ` (× ${v.unidades})` : ""}{v.falta ? `, falta ${v.falta}` : ""} — {v.motivo}</> : j?.preseleccion && !j.preseleccion.includes(i + 1) ? <span className="text-[#9AA7B3]">descartado en el prefiltro</span> : "—"}</td>
                           </tr>
                         );
                       })}

@@ -1,10 +1,15 @@
 // Actores de Apify que se comparan en el banco de China. `plataforma` decide
 // qué búsqueda recibe (1688 → chino; Alibaba → inglés) y `tipo` si busca por
 // texto o por foto.
-export type Plataforma = "1688" | "alibaba";
+export type Plataforma = "1688" | "alibaba" | "aliexpress";
+export const NOMBRE_PLATAFORMA: Record<Plataforma, string> = { "1688": "1688", alibaba: "Alibaba", aliexpress: "AliExpress" };
 export type Actor = { id: string; plataforma: Plataforma; tipo: "texto" | "imagen" };
 
 export const ACTORES: Actor[] = [
+  // AliExpress (27/9): precio por unidad, pensado para el consumidor final.
+  { id: "dami_studio/aliexpress-products-scraper", plataforma: "aliexpress", tipo: "texto" },
+  { id: "memo23/aliexpress-scraper", plataforma: "aliexpress", tipo: "texto" },
+  { id: "axlymxp/aliexpress-search-scraper", plataforma: "aliexpress", tipo: "texto" },
   { id: "crawleast/1688-product-scraper", plataforma: "1688", tipo: "texto" },
   { id: "dami_studio/1688-wholesale-scraper", plataforma: "1688", tipo: "texto" },
   { id: "parseforge/1688-scraper", plataforma: "1688", tipo: "texto" },
@@ -31,6 +36,7 @@ export const MAX = 20;
 export const TOPE_USD = 0.25;
 
 export function urlBusqueda(plataforma: Plataforma, q: string) {
+  if (plataforma === "aliexpress") return `https://www.aliexpress.com/w/wholesale-${encodeURIComponent(q.replace(/\s+/g, "-"))}.html`;
   return plataforma === "1688"
     ? `https://s.1688.com/selloffer/offer_search.htm?keywords=${encodeURIComponent(q)}&charset=utf8`
     : `https://www.alibaba.com/trade/search?SearchText=${encodeURIComponent(q)}`;

@@ -11,6 +11,7 @@ export const RUTAS_PUBLICAS = [
   "/api/meli/notificaciones",
   "/api/radar/cron",
   "/api/china/foto",
+  "/api/piloto/tanda",
 ];
 
 /** La landing ("/") es pública y es la única ruta exacta que no pide login;

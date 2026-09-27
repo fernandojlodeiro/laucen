@@ -11,7 +11,7 @@ import { jsonDe, pedirClaude } from "@/lib/claude";
 import { ml, tokenML } from "@/lib/radar/base";
 import { lecturaDeLaSemana, palabrasDe } from "@/lib/radar/tendencias";
 import { categoria } from "@/lib/radar/categorias";
-import type { ListadoActor, PubML } from "./tipos";
+import type { Caja, ListadoActor, PubML } from "./tipos";
 
 const num = (v: unknown): number | null => {
   if (v == null || v === "") return null;
@@ -203,16 +203,16 @@ export async function cruzar(buscados: PubML[], vendidos: PubML[]) {
   buscados.forEach((b, i) => vendidos.forEach((v, j) => {
     if ((b.itemId && b.itemId === v.itemId) || (b.productoId && b.productoId === v.productoId)) pares.push({ b: i, v: j, como: "mismo producto" });
   }));
-  let tokens = { tokensIn: 0, tokensOut: 0 };
+  let tokens = { tokensIn: 0, tokensOut: 0, usd: 0 };
   if (buscados.length && vendidos.length) {
     const r = await pedirClaude({
       system: "Comparás publicaciones de Mercado Libre Argentina. Te doy dos listas: B (productos buscados) y V (productos vendidos). " +
         "Decí qué pares son el MISMO tipo de producto con características equivalentes (mismo uso, tamaño/capacidad parecidos), aunque sean de distinta marca o vendedor. " +
         "No emparejes productos sólo porque son del mismo rubro. Respondé sólo JSON: {\"pares\":[{\"b\":1,\"v\":3}]}.",
       contenido: `B:\n${buscados.map((x, i) => `${i + 1}. ${x.titulo} — $${x.precio ?? "?"}`).join("\n")}\n\nV:\n${vendidos.map((x, i) => `${i + 1}. ${x.titulo} — $${x.precio ?? "?"}`).join("\n")}`,
-      maxTokens: 2000,
+      maxTokens: 2000, modelo: "chico",
     });
-    tokens = { tokensIn: r.tokensIn, tokensOut: r.tokensOut };
+    tokens = { tokensIn: r.tokensIn, tokensOut: r.tokensOut, usd: r.usd };
     if ("texto" in r) {
       for (const p of jsonDe<{ pares?: { b: number; v: number }[] }>(r.texto)?.pares ?? []) {
         const b = p.b - 1, v = p.v - 1;
@@ -221,4 +221,52 @@ export async function cruzar(buscados: PubML[], vendidos: PubML[]) {
     }
   }
   return { pares, ...tokens };
+}
+
+// ── Medidas y peso desde Mercado Libre ────────────────────
+// Los vendedores suelen cargar el paquete en los atributos (PACKAGE_*) o las
+// medidas en la descripción. Si están los atributos del paquete, esa es la
+// caja; si no, el texto (atributos + descripción) se le pasa a Claude para
+// que la saque de ahí antes de adivinar.
+
+type Atributo = { id?: string; name?: string; value_name?: string | null; value_struct?: { number?: number; unit?: string } | null };
+
+function enCm(a?: Atributo) {
+  const n = a?.value_struct?.number, u = (a?.value_struct?.unit ?? "").toLowerCase();
+  if (typeof n !== "number" || !(n > 0)) return null;
+  return u === "mm" ? n / 10 : u === "m" ? n * 100 : u === "in" || u === "\"" ? n * 2.54 : n;
+}
+function enKg(a?: Atributo) {
+  const n = a?.value_struct?.number, u = (a?.value_struct?.unit ?? "").toLowerCase();
+  if (typeof n !== "number" || !(n > 0)) return null;
+  return u === "g" ? n / 1000 : u === "lb" ? n * 0.4536 : u === "oz" ? n * 0.02835 : n;
+}
+
+const MEDIDAS = /PACKAGE|HEIGHT|WIDTH|LENGTH|DEPTH|WEIGHT|DIAMETER|UNITS_PER_PACK|SALE_FORMAT|INCLUDES|CAPACITY|SIZE/;
+
+export async function datosDeEnvio(pub: { itemId: string | null; productoId: string | null }, organizacionId: string) {
+  const token = await tokenML(organizacionId);
+  let atributos: Atributo[] = [];
+  let descripcion = "";
+  const item = pub.itemId && /^MLA\d+$/.test(pub.itemId) ? await ml(`/items/${pub.itemId}`, token) : null;
+  if (item?.status === 200) {
+    atributos = ((item.datos as { attributes?: Atributo[] })?.attributes) ?? [];
+    const d = await ml(`/items/${pub.itemId}/description`, token);
+    descripcion = String((d.datos as { plain_text?: string } | null)?.plain_text ?? "");
+  } else if (pub.productoId) {
+    const p = await ml(`/products/${pub.productoId}`, token);
+    if (p.status === 200) {
+      const datos = p.datos as { attributes?: Atributo[]; short_description?: { content?: string } };
+      atributos = datos.attributes ?? [];
+      descripcion = String(datos.short_description?.content ?? "");
+    }
+  }
+  const por = (id: string) => atributos.find((a) => a.id === id);
+  const l = enCm(por("PACKAGE_LENGTH")), w = enCm(por("PACKAGE_WIDTH")), h = enCm(por("PACKAGE_HEIGHT")), kg = enKg(por("PACKAGE_WEIGHT"));
+  const caja: Caja | null = l && w && h && kg
+    ? { largo: Math.round(l), ancho: Math.round(w), alto: Math.round(h), kg: Math.round(kg * 100) / 100, fuente: "mercadolibre", nota: "atributos del paquete en Mercado Libre" }
+    : null;
+  const lineas = atributos.filter((a) => a.id && MEDIDAS.test(a.id) && a.value_name).map((a) => `${a.name ?? a.id}: ${a.value_name}`);
+  const texto = [lineas.join("\n"), descripcion.replace(/\s+/g, " ").slice(0, 1500)].filter(Boolean).join("\nDescripción: ");
+  return { caja, texto };
 }

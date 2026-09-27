@@ -3,6 +3,7 @@
 // sin ella devuelve null y la pantalla pide escribir la traducción a mano.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { MODELOS } from "@/lib/claude";
 
 export function hayClaude() {
   return !!process.env.ANTHROPIC_API_KEY?.trim();
@@ -32,9 +33,8 @@ export async function traducir(texto: string): Promise<Traduccion | Falla | null
   const client = new Anthropic(workspace ? { defaultHeaders: { "anthropic-workspace-id": workspace } } : {});
   try {
     const r = await client.messages.create({
-      model: "claude-opus-5",
+      model: MODELOS.chico.id, // traducir un título es mecánico: modelo chico
       max_tokens: 1000,
-      output_config: { effort: "low" },
       system:
         "Traducís títulos de productos para buscarlos en sitios mayoristas de China. " +
         "Respondé exactamente dos líneas, sin nada más:\n" +
@@ -68,9 +68,8 @@ export async function traducirTitulos(titulos: string[]): Promise<string[] | nul
   const client = new Anthropic(workspace ? { defaultHeaders: { "anthropic-workspace-id": workspace } } : {});
   try {
     const r = await client.messages.create({
-      model: "claude-opus-5",
+      model: MODELOS.chico.id,
       max_tokens: 8000,
-      output_config: { effort: "low" },
       system:
         "Traducís al castellano rioplatense títulos de productos de sitios mayoristas chinos, para un importador argentino. " +
         "Cada título viene numerado. Respondé una línea por título, con el mismo número y nada más: \"N. traducción\". " +

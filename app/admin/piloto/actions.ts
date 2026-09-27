@@ -34,10 +34,11 @@ export async function accionCrearPiloto(formData: FormData) {
     yuanPorDolar: numero(formData.get("yuanPorDolar"), d.yuanPorDolar)!,
     minimoMax: numero(formData.get("minimoMax"), d.minimoMax)!,
     topeApifyUsd: numero(formData.get("topeApifyUsd"), d.topeApifyUsd)!,
+    sitios: ["aliexpress"],
   };
   // Un yuan fuera de rango es casi seguro un error de tipeo (71 en vez de 7,1).
   if (p.yuanPorDolar < 3 || p.yuanPorDolar > 15) redirect("/admin/piloto?error=yuan");
-  const id = await crearCorrida(sesion.org.id, p);
+  const id = await crearCorrida(sesion.org.id, p, formData.get("automatico") === "1");
   redirect(`/admin/piloto/${id}`);
 }
 

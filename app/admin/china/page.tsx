@@ -10,7 +10,7 @@ import { hayClaude, traducirTitulos } from "@/lib/china/traducir";
 import { SUAVE } from "@/app/botones";
 import { accionCorrerChina, accionProbarFoto, accionTraducir, type PruebaChina } from "./actions";
 import FotoCampo from "./FotoCampo";
-import { ACTORES, MAX, TOPE_USD } from "./config";
+import { ACTORES, MAX, NOMBRE_PLATAFORMA, TOPE_USD, type Plataforma } from "./config";
 import Botones from "./Botones";
 
 export const dynamic = "force-dynamic";
@@ -129,7 +129,7 @@ function Resultado({ r, final }: { r: Corrida; final?: Final }) {
         <span className={`font-bold rounded px-1.5 py-0.5 ${r.ok ? "bg-[#EEF7F1] text-[#1F6E4A]" : "bg-[#FDF1EF] text-[#C03420]"}`}>
           {r.ok ? `${productos(r.items).length} resultados` : final?.estado ?? r.estado ?? "error"}
         </span>
-        <span className="rounded px-1.5 py-0.5 bg-[#EEF3F8]">{r.plataforma === "1688" ? "1688" : "Alibaba"} · {r.tipo === "imagen" ? "por foto" : "por texto"}</span>
+        <span className="rounded px-1.5 py-0.5 bg-[#EEF3F8]">{NOMBRE_PLATAFORMA[r.plataforma as Plataforma] ?? r.plataforma} · {r.tipo === "imagen" ? "por foto" : "por texto"}</span>
         <code>{r.actor}</code>
         <span className="text-[#5C6B76]">{r.segundos != null && `${r.segundos}s`}{usd != null && ` · USD ${usd.toFixed(3)}`}</span>
       </summary>
@@ -252,7 +252,7 @@ export default async function China({ searchParams }: { searchParams: Promise<SP
           {ACTORES.map((a) => (
             <label key={a.id} className="flex items-center gap-2">
               <input type="checkbox" name="actor" value={a.id} defaultChecked={a.tipo === "texto"} />
-              <span className="rounded px-1.5 py-0.5 bg-[#EEF3F8]">{a.plataforma === "1688" ? "1688" : "Alibaba"} · {a.tipo === "imagen" ? "foto" : "texto"}</span>
+              <span className="rounded px-1.5 py-0.5 bg-[#EEF3F8]">{NOMBRE_PLATAFORMA[a.plataforma]} · {a.tipo === "imagen" ? "foto" : "texto"}</span>
               <code>{a.id}</code>
             </label>
           ))}

@@ -41,6 +41,9 @@ export default async function LayoutPiloto({ children, params }: { children: Rea
         Costo: Apify US$ {apifyUsd.toFixed(2)} (tope {p.topeApifyUsd}) · Claude US$ {claudeUsd.toFixed(2)} ({tok.in.toLocaleString("es-AR")} tokens de entrada, {tok.out.toLocaleString("es-AR")} de salida)
         · <b>total US$ {(apifyUsd + claudeUsd).toFixed(2)}</b>
       </p>
+      {c.automatico && c.estado !== "listo" && (
+        <p className="text-xs text-[#1F6E4A] mb-1">Se procesa solo cada 5 minutos, aunque cierres la página. Recargá para ver el avance.</p>
+      )}
       <Procesar id={c.id} avanzar={accionAvanzar} terminado={c.estado === "listo"} />
       <Pestanas items={[
         { href: `/admin/piloto/${c.id}`, texto: "Mercado Libre" },

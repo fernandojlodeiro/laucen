@@ -26,7 +26,8 @@ export default async function Validacion({ params }: { params: Promise<{ id: str
     const cands = x.china?.candidatos ?? [];
     const el = x.juicio?.elegido != null ? cands[x.juicio.elegido - 1] : null;
     const ventaUsd = x.precio != null ? x.precio / p.dolar : null;
-    const fob = el?.usd ?? null;
+    // El costo de armar lo mismo en China (juez nuevo) o el precio del elegido.
+    const fob = x.juicio?.costoUsd ?? el?.usd ?? null;
     const costo = fob != null && x.flete_usd != null ? fob + x.flete_usd : null;
     return {
       x, el, ventaUsd, fob,

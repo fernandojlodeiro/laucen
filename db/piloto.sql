@@ -49,3 +49,13 @@ alter table piloto_productos enable row level security;
 -- 27/9: modo barco/avión con zona gris (reemplaza a pasa_flete, que queda sin uso).
 alter table piloto_productos add column if not exists franja text;        -- seguro | gris | fuera
 alter table piloto_productos add column if not exists flete_usd double precision;
+
+-- 27/9: texto de Mercado Libre (atributos de medidas + descripción) para la
+-- caja y el juez; y "automático" para que avance solo, sin la página abierta.
+alter table piloto_productos add column if not exists datos_ml text;
+alter table piloto_corridas add column if not exists automatico boolean not null default false;
+
+-- Llave del llamado automático (/api/piloto/tanda), que hace la base cada
+-- 5 minutos con pg_cron + pg_net. Una sola fila.
+create table if not exists piloto_llave (id int primary key default 1 check (id = 1), clave text not null);
+alter table piloto_llave enable row level security;

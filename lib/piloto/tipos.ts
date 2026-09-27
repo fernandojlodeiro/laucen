@@ -19,12 +19,16 @@ export type Parametros = {
   yuanPorDolar: number;           // para pasar los precios de 1688 a dólares
   minimoMax: number;              // pedido mínimo "razonable" (unidades)
   topeApifyUsd: number;           // tope de gasto de Apify de todo el piloto
+  sitios?: Sitio[];               // dónde buscar en China (sin dato = 1688 + Alibaba, pilotos viejos)
 };
+
+export type Sitio = "aliexpress" | "1688" | "alibaba";
+export const SITIOS: Record<Sitio, string> = { aliexpress: "AliExpress", "1688": "1688", alibaba: "Alibaba" };
 
 export const POR_DEFECTO: Omit<Parametros, "categorias"> = {
   precioMin: null, precioMax: null, porCategoria: 3, listado: 50,
   modo: "barco", fleteM3Usd: 140, fleteKgUsd: 8, dolar: 1500, seguroPct: 20, grisPct: 15,
-  yuanPorDolar: 7.1, minimoMax: 500, topeApifyUsd: 10,
+  yuanPorDolar: 7.1, minimoMax: 500, topeApifyUsd: 10, sitios: ["aliexpress"],
 };
 
 export type Modo = "barco" | "avion";
@@ -32,10 +36,10 @@ export type Modo = "barco" | "avion";
  *  marcado "puede no ser rentable"), fuera (no se busca). */
 export type Franja = "seguro" | "gris" | "fuera";
 
-export type Caja = { largo: number; ancho: number; alto: number; kg: number; fuente: "claude" | "china"; nota?: string };
+export type Caja = { largo: number; ancho: number; alto: number; kg: number; fuente: "mercadolibre" | "descripcion" | "claude" | "china"; nota?: string };
 
 export type Candidato = {
-  sitio: "1688" | "alibaba";
+  sitio: Sitio;
   titulo: string;
   precioTexto: string | null;
   usd: number | null;             // precio unitario más bajo, en dólares
@@ -48,8 +52,15 @@ export type Candidato = {
   ventas: string | null;
 };
 
-export type Veredicto = { n: number; v: "si" | "dudoso" | "no"; motivo: string };
-export type Juicio = { veredictos: Veredicto[]; elegido: number | null; motivo: string; error?: string; nota?: string };
+/** Del juez nuevo (piloto #5 en adelante) sólo vienen los "si" y "dudoso";
+ *  los demás quedaron afuera en el prefiltro o el juez los descartó. */
+export type Veredicto = { n: number; v: "si" | "dudoso" | "no"; motivo: string; unidades?: number; falta?: string };
+export type Juicio = {
+  veredictos: Veredicto[]; elegido: number | null; motivo: string; error?: string; nota?: string;
+  componentes?: string;           // cómo el juez desarmó el producto de Mercado Libre ("2 colchones dobles + inflador + 2 almohadas")
+  costoUsd?: number | null;       // costo en China de armar lo mismo (unidades × precio + faltantes estimados)
+  preseleccion?: number[];        // los candidatos que pasaron el prefiltro barato
+};
 
 /** Una publicación de Mercado Libre, normalizada (venga de donde venga). */
 export type PubML = {

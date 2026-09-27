@@ -1,16 +1,18 @@
-// Piloto, lado China: traducir el título, buscar en 1688 y Alibaba, estimar
-// la caja de envío y juzgar los resultados. Claude hace la traducción, la
-// estimación de la caja y el juicio.
+// Piloto, lado China: traducir el título, buscar (AliExpress; o 1688 y
+// Alibaba en los pilotos viejos), estimar la caja de envío y juzgar. Lo
+// mecánico va con el modelo chico de Claude; el juez, con el del medio.
 
-import { correrConEntrada } from "@/lib/apify";
+import { correrActor, correrConEntrada } from "@/lib/apify";
 import { jsonDe, pedirClaude, type Contenido } from "@/lib/claude";
 import { traducir, esFalla } from "@/lib/china/traducir";
 import { aBase64 } from "@/lib/imagenes";
-import type { Caja, Candidato, Franja, Juicio, Parametros } from "./tipos";
+import type { Caja, Candidato, Franja, Juicio, Parametros, Sitio } from "./tipos";
 
 // Actores elegidos en el banco de China: rápidos y con precio.
 const ACTOR_1688 = "parseforge~1688-scraper";
 const ACTOR_ALIBABA = "memo23~alibaba-scraper";
+// AliExpress: el primero del banco (27/9); se prueban los otros en el banco.
+export const ACTOR_ALIEXPRESS = "dami_studio~aliexpress-products-scraper";
 const POR_SITIO = 20;
 
 const primerNumero = (v: unknown): number | null => {
@@ -44,62 +46,105 @@ function aCandidato(sitio: Candidato["sitio"], x: Record<string, unknown>, yuanP
   };
 }
 
+/** AliExpress: cada actor nombra distinto los campos; se busca por nombre. */
+function campo(x: Record<string, unknown>, ...claves: string[]) {
+  for (const k of claves) {
+    const v = x[k];
+    if (v != null && v !== "" && !(Array.isArray(v) && !v.length)) return v;
+  }
+  return null;
+}
+function aCandidatoAliexpress(x: Record<string, unknown>): Candidato {
+  const precio = campo(x, "salePrice", "price", "minPrice", "priceMin", "currentPrice", "sale_price", "targetSalePrice", "originalPrice");
+  const precioObj = precio && typeof precio === "object" ? (precio as Record<string, unknown>) : null;
+  const valor = precioObj ? campo(precioObj, "min", "value", "amount", "minPrice") : precio;
+  const moneda = String(campo(x, "currency", "currencyCode") ?? (precioObj ? campo(precioObj, "currency") : "") ?? "");
+  const usd = primerNumero(valor);
+  return {
+    sitio: "aliexpress", titulo: str(campo(x, "title", "name", "productTitle", "subject")) ?? "(sin título)",
+    precioTexto: valor != null ? `${moneda && moneda !== "USD" ? `${moneda} ` : "US$ "}${valor}` : null,
+    // Si el actor no respetó la moneda pedida, el precio no se toma como dólares.
+    usd: moneda && moneda.toUpperCase() !== "USD" ? null : usd,
+    minimo: 1,
+    foto: https(primero(campo(x, "image", "imageUrl", "mainImage", "img", "images", "thumbnail", "productImage"))),
+    url: https(str(campo(x, "url", "productUrl", "link", "detailUrl", "href"))),
+    proveedor: str(campo(x, "storeName", "store", "sellerName", "shopName")),
+    fabrica: null, anios: null,
+    ventas: str(campo(x, "orders", "sold", "soldCount", "tradeCount", "salesCount", "totalSold")),
+  };
+}
+
 export type BusquedaChina = { en: string; zh: string; candidatos: Candidato[]; costoUsd: number; errores: string[]; tokensIn: number; tokensOut: number };
 
-/** Traduce el título y busca en 1688 (en chino) y Alibaba (en inglés). */
-export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: (usd: number) => boolean): Promise<BusquedaChina> {
+/** Traduce el título y busca en los sitios del piloto: AliExpress (en
+ *  inglés, enviando a Argentina, en dólares), 1688 (en chino), Alibaba (en inglés). */
+export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: (usd: number) => boolean): Promise<BusquedaChina & { muestra?: string }> {
   const t = await traducir(titulo);
   if (!t || esFalla(t)) {
     return { en: "", zh: "", candidatos: [], costoUsd: 0, errores: [`No se pudo traducir: ${t && esFalla(t) ? t.motivo : "sin llave de Claude"}`], tokensIn: 0, tokensOut: 0 };
   }
+  const sitios: Sitio[] = p.sitios?.length ? p.sitios : ["1688", "alibaba"];
   const errores: string[] = [];
   let costoUsd = 0;
-  const corridas = await Promise.all(([
-    ["1688", ACTOR_1688, { searchTerms: [t.zh], maxItems: POR_SITIO }],
-    ["alibaba", ACTOR_ALIBABA, { searchTerms: [t.en], maxItems: POR_SITIO, maxPages: 1 }],
-  ] as const).map(async ([sitio, actor, entrada]) => {
+  let muestra: string | undefined;
+  const corridas = await Promise.all(sitios.map(async (sitio) => {
     if (!puedeGastar(0.05)) { errores.push(`${sitio}: tope de gasto de Apify`); return []; }
+    if (sitio === "aliexpress") {
+      // La entrada se arma desde el esquema del actor (lib/apify.ts).
+      const r = await correrActor(ACTOR_ALIEXPRESS, t.en, POR_SITIO, 120,
+        { urlBusqueda: `https://www.aliexpress.com/w/wholesale-${encodeURIComponent(t.en.replace(/\s+/g, "-"))}.html`, pais: "AR", moneda: "USD" });
+      costoUsd += r.costo_usd ?? 0;
+      if (!r.items?.length) errores.push(`aliexpress: ${r.error ?? "sin resultados"}`);
+      muestra = r.items?.[0] ? JSON.stringify(r.items[0]).slice(0, 2000) : undefined;
+      return ((r.items ?? []) as Record<string, unknown>[]).map(aCandidatoAliexpress).filter((c) => c.titulo !== "(sin título)");
+    }
+    const [actor, entrada] = sitio === "1688"
+      ? [ACTOR_1688, { searchTerms: [t.zh], maxItems: POR_SITIO }]
+      : [ACTOR_ALIBABA, { searchTerms: [t.en], maxItems: POR_SITIO, maxPages: 1 }];
     const c = await correrConEntrada(actor, entrada, { max: POR_SITIO, esperaSeg: 120, topeUsd: 0.1 });
     costoUsd += c.costoUsd ?? 0;
     if (!c.items.length) errores.push(`${sitio}: ${c.error ?? "sin resultados"}`);
     return (c.items as Record<string, unknown>[]).map((x) => aCandidato(sitio, x, p.yuanPorDolar));
   }));
-  // La traducción la cuenta traducir() aparte; acá sólo lo de Apify.
-  return { en: t.en, zh: t.zh, candidatos: corridas.flat(), costoUsd, errores, tokensIn: 0, tokensOut: 0 };
+  // La traducción no se cuenta acá (va con el modelo chico, centavos).
+  return { en: t.en, zh: t.zh, candidatos: corridas.flat(), costoUsd, errores, tokensIn: 0, tokensOut: 0, muestra };
 }
 
-/** Estima la caja de envío de una unidad de cada producto (medidas en cm y
- *  kg), mirando título y foto. De a varios productos por pedido. */
-export async function estimarCajas(productos: { id: number; titulo: string; foto: string | null }[]) {
+/** La caja de envío de una unidad (cm y kg) de cada producto, con el
+ *  modelo chico. Primero lo que dice Mercado Libre (atributos y descripción,
+ *  en `texto`); si no dice nada, estimada mirando título y foto. */
+export async function estimarCajas(productos: { id: number; titulo: string; foto: string | null; texto?: string }[]) {
   const contenido: Contenido = [];
   const fotos = await Promise.all(productos.map((p) => aBase64(p.foto)));
   productos.forEach((p, i) => {
-    contenido.push({ type: "text", text: `Producto ${p.id}: ${p.titulo}` });
+    contenido.push({ type: "text", text: `Producto ${p.id}: ${p.titulo}${p.texto ? `\nDatos de la publicación: ${p.texto}` : ""}` });
     const f = fotos[i];
     if (f) contenido.push({ type: "image", source: { type: "base64", media_type: f.media_type, data: f.data } });
   });
   const pedido = {
-    system: "Sos despachante e importador. Para cada producto estimá la caja de envío de UNA unidad tal como viene de fábrica " +
-      "(embalaje individual): largo, ancho y alto en centímetros y peso bruto en kg. Si el producto se vende en pack, es la caja del pack. " +
-      "Respondé sólo JSON: {\"cajas\":[{\"id\":123,\"largo\":30,\"ancho\":20,\"alto\":10,\"kg\":1.2,\"nota\":\"breve\"}]}.",
+    system: "Sos despachante e importador. Para cada producto dá la caja de envío de lo que se vende en la publicación (si es un set o pack, " +
+      "la caja de todo el set), tal como viene de fábrica: largo, ancho y alto en cm y peso bruto en kg. " +
+      "Si los datos de la publicación traen medidas o peso del paquete o del producto, USALOS (sumando un poco de embalaje si son del producto) " +
+      "y poné fuente \"descripcion\"; si no hay datos, estimá por la foto y el título y poné fuente \"estimado\". " +
+      "Respondé sólo JSON: {\"cajas\":[{\"id\":123,\"largo\":30,\"ancho\":20,\"alto\":10,\"kg\":1.2,\"fuente\":\"descripcion\",\"nota\":\"breve\"}]}.",
     maxTokens: 3000,
+    modelo: "chico" as const,
   };
   let r = await pedirClaude({ ...pedido, contenido });
-  // Si alguna foto no se pudo bajar, se reintenta sin fotos.
-  let tokensIn = r.tokensIn, tokensOut = r.tokensOut;
+  let tokensIn = r.tokensIn, tokensOut = r.tokensOut, usd = r.usd;
   if ("error" in r) {
-    r = await pedirClaude({ ...pedido, contenido: productos.map((p) => `Producto ${p.id}: ${p.titulo}`).join("\n") });
-    tokensIn += r.tokensIn; tokensOut += r.tokensOut;
+    r = await pedirClaude({ ...pedido, contenido: productos.map((p) => `Producto ${p.id}: ${p.titulo}${p.texto ? `\nDatos: ${p.texto}` : ""}`).join("\n\n") });
+    tokensIn += r.tokensIn; tokensOut += r.tokensOut; usd += r.usd;
   }
   const cajas = new Map<number, Caja>();
   if ("texto" in r) {
-    for (const c of jsonDe<{ cajas?: (Omit<Caja, "fuente"> & { id: number })[] }>(r.texto)?.cajas ?? []) {
+    for (const c of jsonDe<{ cajas?: (Omit<Caja, "fuente"> & { id: number; fuente?: string })[] }>(r.texto)?.cajas ?? []) {
       if ([c.largo, c.ancho, c.alto, c.kg].every((n) => typeof n === "number" && n > 0)) {
-        cajas.set(c.id, { largo: c.largo, ancho: c.ancho, alto: c.alto, kg: c.kg, fuente: "claude", nota: c.nota });
+        cajas.set(c.id, { largo: c.largo, ancho: c.ancho, alto: c.alto, kg: c.kg, fuente: c.fuente === "descripcion" ? "descripcion" : "claude", nota: c.nota });
       }
     }
   }
-  return { cajas, error: "error" in r ? r.error : null, tokensIn, tokensOut };
+  return { cajas, error: "error" in r ? r.error : null, tokensIn, tokensOut, usd };
 }
 
 /** Flete por unidad: en dólares y como % del precio de venta, y la franja.
@@ -119,55 +164,78 @@ export function flete(caja: Caja, precioPesos: number | null, p: Parametros): { 
   return { usd: Math.round(usd * 100) / 100, pct, franja };
 }
 
-/** El juez: compara el producto de Mercado Libre contra los candidatos de
- *  China, marca cada uno (equiparable / dudoso / no es) y elige el mejor. */
-export async function juzgar(ml: { titulo: string; foto: string | null; precio: number | null }, candidatos: Candidato[], p: Parametros) {
-  if (!candidatos.length) return { juicio: { veredictos: [], elegido: null, motivo: "No hubo resultados en China." } as Juicio, tokensIn: 0, tokensOut: 0 };
-  const system =
-    "Sos el comprador de un importador argentino que compra en China a través de un agente. Te doy un producto que se vende en Mercado Libre " +
-    "y una lista numerada de productos de 1688 y Alibaba. Tareas:\n" +
-    "1) Para cada candidato decidí si es EQUIPARABLE al de Mercado Libre (\"si\": mismo producto o equivalente directo, que se podría vender como ese), " +
-    "\"dudoso\" (parecido pero con alguna diferencia importante o datos insuficientes) o \"no\" (otro producto, un repuesto, un accesorio, otro tamaño o capacidad muy distinta). " +
-    "Motivo en una línea corta, en castellano.\n" +
-    `2) Entre los "si", elegí el mejor candidato para comprar: el precio unitario más bajo con un pedido mínimo de hasta ${p.minimoMax} unidades; ` +
-    "con precios parecidos (±10%), el proveedor más confiable (fábrica, más años, más ventas). Si no hay ningún \"si\", elegido = null.\n" +
-    "Respondé sólo JSON: {\"veredictos\":[{\"n\":1,\"v\":\"si\",\"motivo\":\"...\"}],\"elegido\":3,\"motivo\":\"por qué ese\"}.";
-  const lista = candidatos.map((c, i) =>
-    `${i + 1}. [${c.sitio}] ${c.titulo} | ${c.usd != null ? `US$ ${c.usd}` : "sin precio"}${c.precioTexto ? ` (${c.precioTexto})` : ""}` +
-    ` | mínimo ${c.minimo ?? "?"} | ${c.proveedor ?? "proveedor ?"}${c.fabrica ? ", fábrica" : ""}${c.anios ? `, ${c.anios} años` : ""}${c.ventas ? `, ventas ${c.ventas}` : ""}`).join("\n");
-  const cabeza = `Mercado Libre: ${ml.titulo} — $${ml.precio ?? "?"} (pesos)`;
+const lineaCandidato = (c: Candidato, n: number) =>
+  `${n}. [${c.sitio}] ${c.titulo} | ${c.usd != null ? `US$ ${c.usd}` : "sin precio"}${c.precioTexto ? ` (${c.precioTexto})` : ""}` +
+  ` | mínimo ${c.minimo ?? "?"}${c.proveedor ? ` | ${c.proveedor}` : ""}${c.fabrica ? ", fábrica" : ""}${c.anios ? `, ${c.anios} años` : ""}${c.ventas ? `, ventas ${c.ventas}` : ""}`;
 
-  // Las fotos se bajan desde el servidor (a Claude no siempre le dejan).
-  const [fotoML, ...fotosCands] = await Promise.all([aBase64(ml.foto), ...candidatos.map((c) => aBase64(c.foto))]);
-  const conFotos: Contenido = [{ type: "text", text: cabeza }];
-  if (fotoML) conFotos.push({ type: "image", source: { type: "base64", media_type: fotoML.media_type, data: fotoML.data } });
-  conFotos.push({ type: "text", text: `Candidatos:\n${lista}\n\nFotos de los candidatos (el número es el de la lista; si falta, no se pudo bajar):` });
-  fotosCands.forEach((f, i) => {
-    if (f) {
-      conFotos.push({ type: "text", text: `Foto ${i + 1}:` });
-      conFotos.push({ type: "image", source: { type: "base64", media_type: f.media_type, data: f.data } });
-    }
+/** El juez, en dos pasos:
+ *  1) prefiltro con el modelo chico, sólo texto: de todos los candidatos,
+ *     los que podrían ser el mismo producto (hasta 8);
+ *  2) juez con el modelo del medio, con las fotos de esos pocos: desarma el
+ *     producto de Mercado Libre (cantidad, accesorios), marca los que sirven
+ *     y elige el mejor, con el costo de armar lo mismo en China. */
+export async function juzgar(ml: { titulo: string; foto: string | null; precio: number | null; texto?: string }, candidatos: Candidato[], p: Parametros) {
+  const vacio = (motivo: string, extra: Partial<Juicio> = {}) => ({ veredictos: [], elegido: null, motivo, ...extra }) as Juicio;
+  if (!candidatos.length) return { juicio: vacio("No hubo resultados en China."), tokensIn: 0, tokensOut: 0, usd: 0 };
+  const cabeza = `Mercado Libre: ${ml.titulo} — $${ml.precio ?? "?"} (pesos)${ml.texto ? `\nDatos de la publicación: ${ml.texto.slice(0, 1200)}` : ""}`;
+
+  // 1) Prefiltro barato.
+  const pre = await pedirClaude({
+    modelo: "chico", maxTokens: 400,
+    system: "Te doy un producto de Mercado Libre y una lista numerada de productos de China. Devolvé los números de los que PODRÍAN ser " +
+      "el mismo tipo de producto (o una parte de él, si el de Mercado Libre es un set), como máximo 8, los más parecidos primero. " +
+      "Descartá repuestos, accesorios sueltos y otros productos. Respondé sólo JSON: {\"n\":[3,7,1]}.",
+    contenido: `${cabeza}\n\nCandidatos:\n${candidatos.map((c, i) => lineaCandidato(c, i + 1)).join("\n")}`,
   });
-  let r = await pedirClaude({ system, contenido: conFotos, maxTokens: 6000, effort: "medium" });
-  let tokensIn = r.tokensIn, tokensOut = r.tokensOut, sinFotos = false, motivoSinFotos = "";
+  let tokensIn = pre.tokensIn, tokensOut = pre.tokensOut, usd = pre.usd;
+  const elegidos = "texto" in pre
+    ? [...new Set((jsonDe<{ n?: number[] }>(pre.texto)?.n ?? []).filter((n) => Number.isInteger(n) && n >= 1 && n <= candidatos.length))].slice(0, 8)
+    : candidatos.slice(0, 8).map((_, i) => i + 1);
+  if (!elegidos.length) return { juicio: vacio("Ningún resultado de China parece el mismo producto.", { preseleccion: [] }), tokensIn, tokensOut, usd };
+
+  // 2) Juez con fotos, sólo sobre los preseleccionados (con su número original).
+  const system =
+    "Sos el comprador de un importador argentino. Te doy un producto que se vende en Mercado Libre y algunos candidatos de China, con fotos.\n" +
+    "Paso 1: desarmá el producto de Mercado Libre en sus componentes, con cantidades (ej: \"2 colchones dobles + 1 inflador eléctrico + 2 almohadas\"). " +
+    "Mirá bien el título, la foto y los datos: sets, packs, 'x2', 'combo', 'kit', 'incluye'.\n" +
+    "Paso 2: para cada candidato que SIRVA para armar ese mismo producto decí \"si\" o \"dudoso\", cuántas unidades del candidato hacen falta " +
+    "(unidades) y qué componente falta (falta), con un motivo corto. No listes los que no sirven.\n" +
+    `Paso 3: elegí el mejor: el menor costo total para armar el producto completo (unidades × precio + una estimación de lo que falta), ` +
+    `con un pedido mínimo de hasta ${p.minimoMax} unidades; a costo parecido, el de más ventas o mejor proveedor. costoUsd = ese costo total. ` +
+    "Si ninguno sirve, elegido = null.\n" +
+    "Respondé sólo JSON: {\"componentes\":\"...\",\"veredictos\":[{\"n\":3,\"v\":\"si\",\"unidades\":2,\"falta\":\"inflador\",\"motivo\":\"...\"}]," +
+    "\"elegido\":3,\"costoUsd\":24.5,\"motivo\":\"por qué ese\"}. Usá los números de los candidatos tal como vienen.";
+  const [fotoML, ...fotos] = await Promise.all([aBase64(ml.foto), ...elegidos.map((n) => aBase64(candidatos[n - 1].foto))]);
+  const armar = (conFotos: boolean): Contenido => {
+    const c: Contenido = [{ type: "text", text: cabeza }];
+    if (fotoML) c.push({ type: "image", source: { type: "base64", media_type: fotoML.media_type, data: fotoML.data } });
+    c.push({ type: "text", text: `Candidatos:\n${elegidos.map((n) => lineaCandidato(candidatos[n - 1], n)).join("\n")}` });
+    if (conFotos) elegidos.forEach((n, i) => {
+      const f = fotos[i];
+      if (!f) return;
+      c.push({ type: "text", text: `Foto del candidato ${n}:` });
+      c.push({ type: "image", source: { type: "base64", media_type: f.media_type, data: f.data } });
+    });
+    return c;
+  };
+  let r = await pedirClaude({ system, contenido: armar(true), maxTokens: 2500, modelo: "medio", effort: "low" });
+  tokensIn += r.tokensIn; tokensOut += r.tokensOut; usd += r.usd;
+  let nota = "";
   if ("error" in r) {
-    // Alguna foto de China no se pudo bajar: se juzga sólo con la foto de Mercado Libre.
-    const soloML: Contenido = [{ type: "text", text: cabeza }];
-    if (fotoML) soloML.push({ type: "image", source: { type: "base64", media_type: fotoML.media_type, data: fotoML.data } });
-    soloML.push({ type: "text", text: `Candidatos (sin fotos):\n${lista}` });
-    const errorConFotos = r.error;
-    console.error("[piloto] juez con fotos falló:", errorConFotos);
-    r = await pedirClaude({ system, contenido: soloML, maxTokens: 6000, effort: "medium" });
-    tokensIn += r.tokensIn; tokensOut += r.tokensOut; sinFotos = true;
-    motivoSinFotos = errorConFotos.slice(0, 300);
+    nota = `Sin fotos de China porque: ${r.error.slice(0, 300)}`;
+    console.error("[piloto] juez con fotos falló:", r.error);
+    r = await pedirClaude({ system, contenido: armar(false), maxTokens: 2500, modelo: "medio", effort: "low" });
+    tokensIn += r.tokensIn; tokensOut += r.tokensOut; usd += r.usd;
   }
-  if ("error" in r) return { juicio: { veredictos: [], elegido: null, motivo: "", error: r.error } as Juicio, tokensIn, tokensOut };
+  if ("error" in r) return { juicio: vacio("", { error: r.error, preseleccion: elegidos }), tokensIn, tokensOut, usd };
   const j = jsonDe<Juicio>(r.texto);
-  if (!j) return { juicio: { veredictos: [], elegido: null, motivo: "", error: "Claude contestó en otro formato" } as Juicio, tokensIn, tokensOut };
+  if (!j) return { juicio: vacio("", { error: "Claude contestó en otro formato", preseleccion: elegidos }), tokensIn, tokensOut, usd };
   return {
-    juicio: { veredictos: j.veredictos ?? [], elegido: typeof j.elegido === "number" ? j.elegido : null,
-      motivo: (j.motivo ?? "") + (sinFotos ? " (juzgado sin las fotos de China)" : ""),
-      ...(motivoSinFotos ? { nota: `Sin fotos porque: ${motivoSinFotos}` } : {}) },
-    tokensIn, tokensOut,
+    juicio: {
+      componentes: j.componentes, veredictos: (j.veredictos ?? []).filter((v) => v.v === "si" || v.v === "dudoso"),
+      elegido: typeof j.elegido === "number" ? j.elegido : null, costoUsd: typeof j.costoUsd === "number" ? j.costoUsd : null,
+      motivo: j.motivo ?? "", preseleccion: elegidos, ...(nota ? { nota } : {}),
+    } as Juicio,
+    tokensIn, tokensOut, usd,
   };
 }

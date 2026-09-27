@@ -45,7 +45,7 @@ function slug(q: string) {
  *  una foto (búsqueda por imagen), la plataforma a elegir si el actor sirve
  *  para varias, y la URL del listado de búsqueda del sitio. Con extras no se
  *  fuerza Argentina como país. */
-export type Extras = { imagen?: string; plataforma?: string; urlBusqueda?: string };
+export type Extras = { imagen?: string; plataforma?: string; urlBusqueda?: string; pais?: string; moneda?: string };
 
 const ES_IMAGEN = /image|img|photo|picture|pic/i;
 
@@ -69,6 +69,17 @@ export function armarEntrada(esquema: Esquema, q: string, max: number, extras?: 
     if (extras?.plataforma && opciones.length && /platform|provider|source|site|marketplace|store|shop/.test(n)) {
       const p = opciones.find((o) => o.toLowerCase().includes(extras.plataforma!.toLowerCase()));
       if (p) entrada[k] = arr ? [p] : p;
+      continue;
+    }
+    // País de envío y moneda (AliExpress: enviar a Argentina, precios en dólares).
+    if (extras?.pais && /ship.?to|shipto|destination|deliver/.test(n) && (c.type === "string" || opciones.length)) {
+      const v = opciones.length ? opciones.find((o) => o.toUpperCase() === extras.pais || /argentin/i.test(o)) : extras.pais;
+      if (v) entrada[k] = v;
+      continue;
+    }
+    if (extras?.moneda && /currency|moneda/.test(n) && (c.type === "string" || opciones.length)) {
+      const v = opciones.length ? opciones.find((o) => o.toUpperCase() === extras.moneda) : extras.moneda;
+      if (v) entrada[k] = v;
       continue;
     }
     if (extras && c.type === "boolean" && /translat|english/.test(n)) {

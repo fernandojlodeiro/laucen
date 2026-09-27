@@ -123,6 +123,10 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
             {campo("minimoMax", "Pedido mínimo razonable (unidades)", v.minimoMax, "entero")}
             {campo("topeApifyUsd", "Tope de gasto de Apify (US$)", v.topeApifyUsd, "usd")}
           </fieldset>
+          <p className="text-xs text-[#5C6B76]">Busca en China en <b>AliExpress</b> (precio por unidad, enviando a Argentina).</p>
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" name="automatico" value="1" defaultChecked /> Procesar solo, sin dejar la página abierta (avanza cada 5 minutos)
+          </label>
           <div><BotonEnviar clase={PRIMARIO} corriendo="Creando…">Crear piloto</BotonEnviar></div>
         </form>
       </section>
