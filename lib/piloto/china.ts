@@ -228,21 +228,24 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
 
   // 1) Prefiltro barato.
   const pre = await pedirClaude({
-    modelo: "chico", maxTokens: 600,
+    modelo: "chico", maxTokens: 1500,
     // Ampliado por pedido de Fer (28/9, piloto #7): dejaba afuera candidatos
     // que servían porque el título de China es genérico o nombra varias medidas.
     system: "Te doy un producto de Mercado Libre y una lista numerada de productos de China. Devolvé los números de los que PODRÍAN ser " +
       "el mismo tipo de producto (o una parte de él, si el de Mercado Libre es un set), como máximo 15, los más parecidos primero. " +
       "Sé amplio: dejá pasar los de título genérico, los que nombran varias medidas o versiones y los que no dicen la medida, porque la " +
       "variante justa puede estar adentro de la publicación. Descartá sólo lo que es claramente otra cosa: repuestos, accesorios sueltos, " +
-      "otro producto. Respondé sólo JSON: {\"n\":[3,7,1]}.",
+      "otro producto. De cada uno que descartes, el motivo en pocas palabras. " +
+      "Respondé sólo JSON: {\"n\":[3,7,1],\"fuera\":{\"2\":\"repuesto\",\"5\":\"otro producto: bomba sola\"}}.",
     contenido: `${cabeza}\n\nCandidatos:\n${candidatos.map((c, i) => lineaCandidato(c, i + 1)).join("\n")}`,
   });
   let tokensIn = pre.tokensIn, tokensOut = pre.tokensOut, usd = pre.usd;
+  const respPre = "texto" in pre ? jsonDe<{ n?: number[]; fuera?: Record<string, string> }>(pre.texto) : null;
+  const descartes = respPre?.fuera && typeof respPre.fuera === "object" ? respPre.fuera : undefined;
   const elegidos = "texto" in pre
-    ? [...new Set((jsonDe<{ n?: number[] }>(pre.texto)?.n ?? []).filter((n) => Number.isInteger(n) && n >= 1 && n <= candidatos.length))].slice(0, 15)
+    ? [...new Set((respPre?.n ?? []).filter((n) => Number.isInteger(n) && n >= 1 && n <= candidatos.length))].slice(0, 15)
     : candidatos.slice(0, 15).map((_, i) => i + 1);
-  if (!elegidos.length) return { juicio: vacio("Ningún resultado de China parece el mismo producto.", { preseleccion: [] }), tokensIn, tokensOut, usd };
+  if (!elegidos.length) return { juicio: vacio("Ningún resultado de China parece el mismo producto.", { preseleccion: [], ...(descartes ? { descartes } : {}) }), tokensIn, tokensOut, usd };
 
   // 2) Juez con fotos, sólo sobre los preseleccionados (con su número original).
   const system =
@@ -252,7 +255,8 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     "Paso 2: para cada candidato que sea EL MISMO producto decí \"si\": mismas características (medida, capacidad, potencia, material, " +
     "accesorios incluidos). Una versión mejor o peor (con bomba si el original no tiene, otra medida, otra potencia, sin un accesorio que el original trae) " +
     "es \"dudoso\", nunca \"si\". Indicá cuántas unidades del candidato hacen falta (unidades) y qué componente falta (falta), con un motivo corto. " +
-    "No listes los que no sirven.\n" +
+    "Listá TODOS los candidatos que te doy, también los que no sirven (v \"no\"), cada uno con su motivo corto: Fer quiere saber por qué " +
+    "se descartó cada uno.\n" +
     // Pedido de Fer (28/9, piloto #6): en AliExpress y Alibaba una misma
     // publicación trae varias medidas o versiones y el título no siempre lo dice.
     "Ojo: en China una misma publicación suele tener VARIAS VARIANTES adentro (medidas, versiones, colores, con o sin accesorios) que se eligen " +
@@ -297,9 +301,9 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
   if (!j) return { juicio: vacio("", { error: "Claude contestó en otro formato", preseleccion: elegidos }), tokensIn, tokensOut, usd };
   return {
     juicio: {
-      componentes: j.componentes, veredictos: (j.veredictos ?? []).filter((v) => v.v === "si" || v.v === "dudoso"),
+      componentes: j.componentes, veredictos: (j.veredictos ?? []).filter((v) => v.v === "si" || v.v === "dudoso" || v.v === "no"),
       elegido: typeof j.elegido === "number" ? j.elegido : null, costoUsd: typeof j.costoUsd === "number" ? j.costoUsd : null,
-      motivo: j.motivo ?? "", preseleccion: elegidos, ncm: typeof j.ncm === "string" ? j.ncm : undefined, ...(nota ? { nota } : {}),
+      motivo: j.motivo ?? "", preseleccion: elegidos, ...(descartes ? { descartes } : {}), ncm: typeof j.ncm === "string" ? j.ncm : undefined, ...(nota ? { nota } : {}),
     } as Juicio,
     tokensIn, tokensOut, usd,
   };

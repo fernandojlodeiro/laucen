@@ -63,6 +63,7 @@ export type Juicio = {
   costoUsd?: number | null;       // costo en China de armar lo mismo (unidades × precio + faltantes estimados)
   preseleccion?: number[];        // los candidatos que pasaron el prefiltro barato
   ncm?: string;                   // la NCM que propone el juez para el producto de Mercado Libre
+  descartes?: Record<string, string>; // motivo de cada candidato que dejó afuera el filtro previo (por número)
 };
 
 /** Una publicación de Mercado Libre, normalizada (venga de donde venga). */

@@ -239,12 +239,14 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         const r = await juzgar({ titulo: x.titulo, foto: x.foto, precio: x.precio, texto: x.datos_ml ?? undefined }, cands, p);
         await sumarClaude(id, "juez", r.tokensIn, r.tokensOut, r.usd);
         // Lo que hace falta para el costo puesto en Argentina y el neto de ML.
-        const [tasas, deML] = await Promise.all([
+        // Sin candidato elegido no hay costo que calcular (Fer, 28/9).
+        const conCandidato = r.juicio.elegido != null && !!r.juicio.costoUsd;
+        const [tasas, deML] = conCandidato ? await Promise.all([
           r.juicio.ncm ? tasasDe(r.juicio.ncm).catch(() => null) : Promise.resolve(null),
           costosML(organizacionId, x.categoria_id, x.precio, x.caja),
-        ]);
+        ]) : [null, null];
         await pool.query("update piloto_productos set juicio = $2, costo = $4, etapa = 'listo', error = coalesce($3, error) where id = $1",
-          [x.id, r.juicio, r.juicio.error ?? null, { tasas, ml: deML }]);
+          [x.id, r.juicio, r.juicio.error ?? null, conCandidato ? { tasas, ml: deML } : null]);
       }));
       hechos.push(`juez de ${lote.length}`);
     }
