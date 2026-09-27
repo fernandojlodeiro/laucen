@@ -64,7 +64,10 @@ export async function estadoDepuracion(): Promise<{ capitulos: Capitulo[]; total
       propuesta: e?.propuesta ?? false, motivo: e?.motivo ?? null });
   }
   const aplicado = dep.reduce<Date | null>((m, x) => (x.aplicado_ts && (!m || x.aplicado_ts > m) ? x.aplicado_ts : m), null);
-  return { capitulos: [...caps.values()], total, aplicado };
+  // De los que más ítems tienen a los que menos (a igual peso, por código).
+  const porPeso = (a: Partida, b: Partida) => b.items - a.items || a.prefijo.localeCompare(b.prefijo);
+  for (const c of caps.values()) c.partidas.sort(porPeso);
+  return { capitulos: [...caps.values()].sort(porPeso), total, aplicado };
 }
 
 /** Cuántos ítems se sacan con lo marcado (capítulo entero o partidas sueltas). */
