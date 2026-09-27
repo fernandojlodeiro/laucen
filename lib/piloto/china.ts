@@ -228,16 +228,20 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
 
   // 1) Prefiltro barato.
   const pre = await pedirClaude({
-    modelo: "chico", maxTokens: 400,
+    modelo: "chico", maxTokens: 600,
+    // Ampliado por pedido de Fer (28/9, piloto #7): dejaba afuera candidatos
+    // que servían porque el título de China es genérico o nombra varias medidas.
     system: "Te doy un producto de Mercado Libre y una lista numerada de productos de China. Devolvé los números de los que PODRÍAN ser " +
-      "el mismo tipo de producto (o una parte de él, si el de Mercado Libre es un set), como máximo 8, los más parecidos primero. " +
-      "Descartá repuestos, accesorios sueltos y otros productos. Respondé sólo JSON: {\"n\":[3,7,1]}.",
+      "el mismo tipo de producto (o una parte de él, si el de Mercado Libre es un set), como máximo 15, los más parecidos primero. " +
+      "Sé amplio: dejá pasar los de título genérico, los que nombran varias medidas o versiones y los que no dicen la medida, porque la " +
+      "variante justa puede estar adentro de la publicación. Descartá sólo lo que es claramente otra cosa: repuestos, accesorios sueltos, " +
+      "otro producto. Respondé sólo JSON: {\"n\":[3,7,1]}.",
     contenido: `${cabeza}\n\nCandidatos:\n${candidatos.map((c, i) => lineaCandidato(c, i + 1)).join("\n")}`,
   });
   let tokensIn = pre.tokensIn, tokensOut = pre.tokensOut, usd = pre.usd;
   const elegidos = "texto" in pre
-    ? [...new Set((jsonDe<{ n?: number[] }>(pre.texto)?.n ?? []).filter((n) => Number.isInteger(n) && n >= 1 && n <= candidatos.length))].slice(0, 8)
-    : candidatos.slice(0, 8).map((_, i) => i + 1);
+    ? [...new Set((jsonDe<{ n?: number[] }>(pre.texto)?.n ?? []).filter((n) => Number.isInteger(n) && n >= 1 && n <= candidatos.length))].slice(0, 15)
+    : candidatos.slice(0, 15).map((_, i) => i + 1);
   if (!elegidos.length) return { juicio: vacio("Ningún resultado de China parece el mismo producto.", { preseleccion: [] }), tokensIn, tokensOut, usd };
 
   // 2) Juez con fotos, sólo sobre los preseleccionados (con su número original).
@@ -259,8 +263,10 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     `Paso 3: elegí el mejor SÓLO entre los \"si\": el menor costo total para armar el producto completo (unidades × precio + una estimación de lo que falta), ` +
     `con un pedido mínimo de hasta ${p.minimoMax} unidades; a costo parecido, el de más ventas o mejor proveedor. costoUsd = ese costo total. ` +
     "Si ninguno sirve, elegido = null.\n" +
+    "Paso 4: la posición arancelaria NCM (Mercosur, 8 dígitos, formato 0000.00.00) con la que se despacharía en Argentina el producto " +
+    "de Mercado Libre, según su material y función.\n" +
     "Respondé sólo JSON: {\"componentes\":\"...\",\"veredictos\":[{\"n\":3,\"v\":\"si\",\"unidades\":2,\"falta\":\"inflador\",\"variante\":\"1 plaza\",\"motivo\":\"...\"}]," +
-    "\"elegido\":3,\"costoUsd\":24.5,\"motivo\":\"por qué ese\"}. Usá los números de los candidatos tal como vienen.";
+    "\"elegido\":3,\"costoUsd\":24.5,\"motivo\":\"por qué ese\",\"ncm\":\"8516.29.00\"}. Usá los números de los candidatos tal como vienen.";
   const [fotoML, ...fotos] = await Promise.all([aBase64(ml.foto), ...elegidos.map((n) => aBase64(candidatos[n - 1].foto))]);
   const armar = (conFotos: boolean): Contenido => {
     const c: Contenido = [{ type: "text", text: cabeza }];
@@ -290,7 +296,7 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     juicio: {
       componentes: j.componentes, veredictos: (j.veredictos ?? []).filter((v) => v.v === "si" || v.v === "dudoso"),
       elegido: typeof j.elegido === "number" ? j.elegido : null, costoUsd: typeof j.costoUsd === "number" ? j.costoUsd : null,
-      motivo: j.motivo ?? "", preseleccion: elegidos, ...(nota ? { nota } : {}),
+      motivo: j.motivo ?? "", preseleccion: elegidos, ncm: typeof j.ncm === "string" ? j.ncm : undefined, ...(nota ? { nota } : {}),
     } as Juicio,
     tokensIn, tokensOut, usd,
   };

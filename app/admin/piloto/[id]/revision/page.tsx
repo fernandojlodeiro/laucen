@@ -8,6 +8,7 @@ import { SUAVE, VERDE, BORRAR } from "@/app/botones";
 import { accionRevisar } from "../../actions";
 import { SITIOS } from "@/lib/piloto/tipos";
 import { formatearNumero } from "@/lib/numeros";
+import { Costo } from "./Costo";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -119,6 +120,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
                   </div>
                 </div>
               </div>
+              {j?.costoUsd != null && <Costo fob={j.costoUsd} caja={x.caja} precio={x.precio} p={c.parametros} datos={x.costo} />}
               {x.error && <p className="text-[#C03420] mt-2">{x.error}</p>}
               {j?.nota && <p className="text-[#8a6100] mt-1 text-[11px]">{j.nota}</p>}
               {cands.length > 0 && (
@@ -141,7 +143,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
                               {k.url ? <a href={k.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{k.titulo}</a> : k.titulo}
                               <span className="block text-[#5C6B76]">{k.sitio} · {k.usd != null ? `US$ ${k.usd}` : "—"} · mín. {k.minimo ?? "?"}</span>
                             </td>
-                            <td className={`py-1 w-56 ${v ? COLOR[v.v] : ""}`}>{v ? <><b>{VEREDICTO[v.v]}</b>{v.unidades && v.unidades > 1 ? ` (× ${v.unidades})` : ""}{v.falta && !/^(ninguno|nada|-)$/i.test(v.falta.trim()) ? `, falta ${v.falta}` : ""}{v.variante ? `, variante: ${v.variante}` : ""} — {v.motivo}</> : j?.preseleccion && !j.preseleccion.includes(i + 1) ? <span className="text-[#9AA7B3]">descartado en el prefiltro</span> : "—"}</td>
+                            <td className={`py-1 w-56 ${v ? COLOR[v.v] : ""}`}>{v ? <><b>{VEREDICTO[v.v]}</b>{v.unidades && v.unidades > 1 ? ` (× ${v.unidades})` : ""}{v.falta && !/^(ninguno|nada|-)$/i.test(v.falta.trim()) ? `, falta ${v.falta}` : ""}{v.variante ? `, variante: ${v.variante}` : ""} — {v.motivo}</> : j?.preseleccion && !j.preseleccion.includes(i + 1) ? <span className="text-[#9AA7B3]">descartado en el filtro previo (sólo por el título, con el modelo barato)</span> : "—"}</td>
                           </tr>
                         );
                       })}

@@ -62,6 +62,7 @@ export type Juicio = {
   componentes?: string;           // cómo el juez desarmó el producto de Mercado Libre ("2 colchones dobles + inflador + 2 almohadas")
   costoUsd?: number | null;       // costo en China de armar lo mismo (unidades × precio + faltantes estimados)
   preseleccion?: number[];        // los candidatos que pasaron el prefiltro barato
+  ncm?: string;                   // la NCM que propone el juez para el producto de Mercado Libre
 };
 
 /** Una publicación de Mercado Libre, normalizada (venga de donde venga). */

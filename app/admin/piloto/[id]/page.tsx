@@ -64,23 +64,23 @@ export default async function PilotoML({ params }: { params: Promise<{ id: strin
                   )}
                   {av.errores?.map((e) => <span key={e} className="text-[#C03420]">{e}</span>)}
                 </div>
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div>
+                <div className={`grid gap-4 ${c.parametros.soloListado ? "" : "md:grid-cols-3"}`}>
+                  {!c.parametros.soloListado && <div>
                     <h3 className="text-xs font-bold mb-1">Más buscados <span className="font-normal text-[#5C6B76]">(tendencias, gratis)</span></h3>
                     {buscados.length === 0 && <p className="text-[11px] text-[#9AA7B3]">Ninguno dentro del rango de precio.</p>}
                     {buscados.map((x) => (
                       <Tarjeta dolar={c.parametros.dolar} key={x.id} p={{ ...x, vendidosTexto: x.vendidos_texto }} extra={`“${x.palabra}”`} marca={x.campeon ? "★ campeón" : undefined} />
                     ))}
-                  </div>
+                  </div>}
                   <div>
-                    <h3 className="text-xs font-bold mb-1">Más vendidos <span className="font-normal text-[#5C6B76]">(listado, Apify; primeros 10 de {av.listado?.length ?? 0}; primero los que traen vendidos, después en el orden de relevancia de Mercado Libre)</span></h3>
+                    <h3 className="text-xs font-bold mb-1">Listado de la categoría <span className="font-normal text-[#5C6B76]">(Apify; primeros 10 de {av.listado?.length ?? 0}, en el orden de Mercado Libre, sin publicidad)</span></h3>
                     {!av.listado?.length && <p className="text-[11px] text-[#9AA7B3]">El listado no trajo publicaciones en el rango.</p>}
                     {av.listado?.slice(0, 10).map((x, i) => (
                       <Tarjeta dolar={c.parametros.dolar} key={`${x.itemId}-${i}`} p={x}
                         marca={i < elegidos.length ? (elegidos[i]?.campeon ? "★ campeón · elegido" : "elegido") : undefined} />
                     ))}
                   </div>
-                  <div>
+                  {!c.parametros.soloListado && <div>
                     <h3 className="text-xs font-bold mb-1">Campeones <span className="font-normal text-[#5C6B76]">(buscado y vendido)</span></h3>
                     {!av.cruce?.length && <p className="text-[11px] text-[#9AA7B3]">Ningún buscado aparece entre los vendidos del listado.</p>}
                     {av.cruce?.map((x, i) => (
@@ -88,7 +88,7 @@ export default async function PilotoML({ params }: { params: Promise<{ id: strin
                         <b>{x.buscado}</b><span className="block text-[#5C6B76]">≈ {x.vendido} ({x.como})</span>
                       </p>
                     ))}
-                  </div>
+                  </div>}
                 </div>
               </>
             )}

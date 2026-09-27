@@ -41,6 +41,14 @@ export default async function LayoutPiloto({ children, params }: { children: Rea
         Costo: Apify US$ {apifyUsd.toFixed(2)} (tope {p.topeApifyUsd}) · Claude US$ {claudeUsd.toFixed(2)} ({tok.in.toLocaleString("es-AR")} tokens de entrada, {tok.out.toLocaleString("es-AR")} de salida)
         · <b>total US$ {(apifyUsd + claudeUsd).toFixed(2)}</b>
       </p>
+      {/* El listado exacto que se usó, para compararlo (Fer, 28/9: el orden cambia de una vez a otra). */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        {p.categorias.map((cat) => c.avance[cat.id]?.urlListado && (
+          <a key={cat.id} href={c.avance[cat.id].urlListado} target="_blank" rel="noreferrer" className={SUAVE}>
+            Ver el listado en Mercado Libre{p.categorias.length > 1 ? `: ${cat.ruta.split(" › ").pop()}` : ""} ↗
+          </a>
+        ))}
+      </div>
       {c.automatico && c.estado !== "listo" && (
         <p className="text-xs text-[#1F6E4A] mb-1">Se procesa solo cada 5 minutos, aunque cierres la página. Recargá para ver el avance.</p>
       )}

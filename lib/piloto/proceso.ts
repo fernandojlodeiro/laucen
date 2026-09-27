@@ -9,6 +9,7 @@ import { USD_POR_MTOK } from "@/lib/claude";
 import { asegurarEsquema } from "./esquema";
 import { buscadosDeCategoria, cruzar, datosDeEnvio, listadoDeCategoria, urlDeCategoria } from "./ml";
 import { buscarEnChina, cajasConWeb, estimarCajas, flete, juzgar } from "./china";
+import { costosML, tasasDe } from "./costo";
 import type { AvanceCategoria, Caja, Parametros, PubML } from "./tipos";
 
 export type Corrida = {
@@ -141,10 +142,10 @@ async function etapaML(c: Corrida, categoriaId: string) {
 }
 
 type FilaProducto = { id: number; titulo: string; foto: string | null; precio: number | null; caja: Caja | null; china: { candidatos?: unknown[] } | null;
-  item_id: string | null; producto_id: string | null; datos_ml: string | null };
+  item_id: string | null; producto_id: string | null; datos_ml: string | null; categoria_id: string };
 
 async function productosEn(corridaId: number, etapa: string, n: number) {
-  const r = await pool.query<FilaProducto>("select id, titulo, foto, precio, caja, china, item_id, producto_id, datos_ml from piloto_productos where corrida_id = $1 and etapa = $2 order by id limit $3", [corridaId, etapa, n]);
+  const r = await pool.query<FilaProducto>("select id, titulo, foto, precio, caja, china, item_id, producto_id, datos_ml, categoria_id from piloto_productos where corrida_id = $1 and etapa = $2 order by id limit $3", [corridaId, etapa, n]);
   return r.rows;
 }
 
@@ -192,14 +193,19 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
       // o el texto de atributos y descripción para que Claude lo lea.
       const deML = await Promise.all(lote.map((x) => datosDeEnvio({ itemId: x.item_id, productoId: x.producto_id }, organizacionId)
         .catch(() => ({ caja: null, texto: "" }))));
-      const faltan = lote.map((x, i) => ({ ...x, texto: deML[i].texto })).filter((_, i) => !deML[i].caja);
+      // Sin medidas tampoco alcanza: el flete en barco del costo se cobra por volumen.
+      const faltan = lote.map((x, i) => ({ ...x, texto: deML[i].texto })).filter((_, i) => !deML[i].caja?.largo);
       // Los que no traen peso: búsqueda web (pilotos nuevos) o estimación por foto (viejos).
       const r = !faltan.length ? { cajas: new Map<number, Caja>(), error: null, tokensIn: 0, tokensOut: 0, usd: 0 }
         : p.soloListado ? await cajasConWeb(faltan) : await estimarCajas(faltan);
       await sumarClaude(id, "caja", r.tokensIn, r.tokensOut, r.usd);
       for (const [i, x] of lote.entries()) {
         await pool.query("update piloto_productos set datos_ml = $2 where id = $1", [x.id, deML[i].texto || null]);
-        const caja = deML[i].caja ?? r.cajas.get(x.id) ?? null;
+        const deMl = deML[i].caja, deWeb = r.cajas.get(x.id);
+        // El peso de Mercado Libre manda; las medidas, de la búsqueda si ML no las trae.
+        const caja = deMl && deWeb && !deMl.largo
+          ? { ...deWeb, kg: deMl.kg, fuente: deMl.fuente, nota: `${deMl.nota ?? "peso de Mercado Libre"}; medidas: ${deWeb.nota ?? "búsqueda web"}` }
+          : deMl ?? deWeb ?? null;
         const f = caja ? flete(caja, x.precio, p) : null;
         // Fuera de la franja: no se busca en China ni pasa por el juez.
         const etapa = f?.franja === "fuera" ? "listo" : "china";
@@ -232,8 +238,13 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         const cands = (x.china?.candidatos ?? []) as Parameters<typeof juzgar>[1];
         const r = await juzgar({ titulo: x.titulo, foto: x.foto, precio: x.precio, texto: x.datos_ml ?? undefined }, cands, p);
         await sumarClaude(id, "juez", r.tokensIn, r.tokensOut, r.usd);
-        await pool.query("update piloto_productos set juicio = $2, etapa = 'listo', error = coalesce($3, error) where id = $1",
-          [x.id, r.juicio, r.juicio.error ?? null]);
+        // Lo que hace falta para el costo puesto en Argentina y el neto de ML.
+        const [tasas, deML] = await Promise.all([
+          r.juicio.ncm ? tasasDe(r.juicio.ncm).catch(() => null) : Promise.resolve(null),
+          costosML(organizacionId, x.categoria_id, x.precio, x.caja),
+        ]);
+        await pool.query("update piloto_productos set juicio = $2, costo = $4, etapa = 'listo', error = coalesce($3, error) where id = $1",
+          [x.id, r.juicio, r.juicio.error ?? null, { tasas, ml: deML }]);
       }));
       hechos.push(`juez de ${lote.length}`);
     }
@@ -254,7 +265,7 @@ export async function productosDe(corridaId: number) {
     titulo: string; url: string | null; foto: string | null; precio: number | null; vendidos: number | null; vendidos_texto: string | null;
     opiniones: number | null; caja: Caja | null; flete_usd: number | null; flete_pct: number | null; franja: import("./tipos").Franja | null;
     china: { en?: string; zh?: string; candidatos?: import("./tipos").Candidato[]; errores?: string[]; muestra?: string } | null;
-    datos_ml: string | null;
+    datos_ml: string | null; costo: import("./costo").DatosCosto | null;
     juicio: import("./tipos").Juicio | null; revision: string | null; comentario: string | null; etapa: string; error: string | null;
   }[];
 }

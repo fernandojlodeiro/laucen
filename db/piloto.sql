@@ -59,3 +59,7 @@ alter table piloto_corridas add column if not exists automatico boolean not null
 -- 5 minutos con pg_cron + pg_net. Una sola fila.
 create table if not exists piloto_llave (id int primary key default 1 check (id = 1), clave text not null);
 alter table piloto_llave enable row level security;
+
+-- 28/9: costo puesto en Argentina. NCM validada con sus tasas y la comisión y
+-- el envío Full de Mercado Libre (lib/piloto/costo.ts); la cuenta se hace al mostrar.
+alter table piloto_productos add column if not exists costo jsonb;
