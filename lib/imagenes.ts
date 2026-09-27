@@ -2,6 +2,8 @@
 // Claude. Mandarle a Claude el link falla con algunos sitios (Mercado Libre,
 // alicdn) que no le dejan bajar la foto; desde Vercel sí se puede.
 
+import sharp from "sharp";
+
 const TIPOS = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
 type Tipo = (typeof TIPOS)[number];
 const MAX = 3.5 * 1024 * 1024;
@@ -28,7 +30,14 @@ export async function aBase64(url: string | null | undefined): Promise<ImagenB64
     // entero si el tipo declarado no coincide.
     const tipo = tipoPorContenido(buf);
     if (!tipo) return null;
-    return { media_type: tipo, data: buf.toString("base64") };
+    // Se achica a 400 px de lado como máximo: Claude cobra por tamaño de
+    // imagen y para reconocer un producto alcanza.
+    try {
+      const chica = await sharp(buf).resize(400, 400, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer();
+      return { media_type: "image/jpeg", data: chica.toString("base64") };
+    } catch {
+      return { media_type: tipo, data: buf.toString("base64") };
+    }
   } catch {
     return null;
   }

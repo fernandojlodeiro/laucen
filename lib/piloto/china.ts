@@ -124,7 +124,9 @@ export async function estimarCajas(productos: { id: number; titulo: string; foto
   const pedido = {
     system: "Sos despachante e importador. Para cada producto dá la caja de envío de lo que se vende en la publicación (si es un set o pack, " +
       "la caja de todo el set), tal como viene de fábrica: largo, ancho y alto en cm y peso bruto en kg. " +
-      "Si los datos de la publicación traen medidas o peso del paquete o del producto, USALOS (sumando un poco de embalaje si son del producto) " +
+      "OJO: la caja es la del producto EMBALADO, no armado: un colchón inflable viaja desinflado y doblado (una caja de zapatos grande), " +
+      "una silla plegable viaja plegada, un mueble viaja desarmado. Las medidas de uso (inflado, armado, desplegado) NO son la caja. " +
+      "Si los datos de la publicación traen medidas o peso DEL PAQUETE, usalos; si sólo traen las del producto armado, estimá el embalaje a partir de eso " +
       "y poné fuente \"descripcion\"; si no hay datos, estimá por la foto y el título y poné fuente \"estimado\". " +
       "Respondé sólo JSON: {\"cajas\":[{\"id\":123,\"largo\":30,\"ancho\":20,\"alto\":10,\"kg\":1.2,\"fuente\":\"descripcion\",\"nota\":\"breve\"}]}.",
     maxTokens: 3000,
