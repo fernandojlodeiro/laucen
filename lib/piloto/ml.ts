@@ -273,16 +273,18 @@ const MEDIDAS = /PACKAGE|HEIGHT|WIDTH|LENGTH|DEPTH|WEIGHT|DIAMETER|UNITS_PER_PAC
  *  las fichas de catálogo siempre están las medidas). Respaldo cuando la API
  *  no da los atributos (piloto #13: producto de vendedor /up/ sin datos). */
 async function caracteristicasDePagina(url: string | null | undefined) {
-  if (!url) return "";
+  if (!url) { rastro(url, "sin dirección de la publicación"); return ""; }
   try {
     const r = await fetch(url.replace(/[?#].*$/, ""), { headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140 Safari/537.36", "accept-language": "es-AR" }, cache: "no-store" });
+    rastro(url, `página directa: ${r.status}`);
     // Si ML frena el pedido (403 o la cáscara anti-bot), sigue con Apify (piloto #21: volvía vacío sin probarlo).
     if (!r.ok) return caracteristicasConApify(url);
     const texto = (await r.text()).replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<\/(tr|th|td|li|p|div|h\d)>/gi, "\n")
       .replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n");
     const i = texto.search(/Características (principales|del producto)|Características/);
+    rastro(url, `página directa: ${texto.length} letras, Características ${i >= 0 ? "sí" : "no"}`);
     if (i >= 0) return texto.slice(i, i + 2500).trim();
-  } catch { /* sigue con Apify */ }
+  } catch (e) { rastro(url, `página directa falló: ${String(e).slice(0, 80)}`); }
   return caracteristicasConApify(url);
 }
 
@@ -292,6 +294,12 @@ async function caracteristicasDePagina(url: string | null | undefined) {
 // Lo que pasó en la última lectura con Apify, para dejarlo anotado en el producto
 // (piloto #21: la primera prueba volvió vacía y no se sabía por qué).
 export const avisosPagina = new Map<string, string>();
+/** Paso a paso de la lectura de una publicación, para anotarlo cuando no trae nada. */
+export const rastros = new Map<string, string[]>();
+function rastro(url: string | null | undefined, paso: string) {
+  const k = url ?? "";
+  rastros.set(k, [...(rastros.get(k) ?? []), paso].slice(-12));
+}
 
 async function caracteristicasConApify(url: string) {
   // Cowork (#102, 8.1): sin cookies ML devuelve una cáscara anti-bot de 8 KB titulada
@@ -318,6 +326,7 @@ async function caracteristicasConApify(url: string) {
       useSessionPool: true, persistCookiesPerSession: true, proxyConfiguration: proxy,
     }, { max: 1, esperaSeg: 90, topeUsd: 0.1 }).catch((e) => ({ items: [], error: String(e) }));
     const it = c.items?.[0] as { caracteristicas?: string; descripcion?: string; titulo?: string; largo?: number; item?: string | null } | undefined;
+    rastro(url, `Apify ${proxy.apifyProxyCountry ? "AR" : "residencial"}: ${c.error ?? "ok"}, ${c.items?.length ?? 0} resultado(s)${it ? `, "${(it.titulo ?? "").slice(0, 40)}" ${it.largo ?? 0} letras, ítem ${it.item ?? "-"}` : ""}`);
     if (it?.item) itemsDePagina.set(url, it.item);
     const texto = [it?.caracteristicas, it?.descripcion].filter(Boolean).join("\n").trim();
     if (texto) { avisosPagina.delete(url); return texto; }
@@ -334,7 +343,9 @@ export async function datosDeEnvio(pub: { itemId: string | null; productoId: str
   const token = await tokenML(organizacionId);
   let atributos: Atributo[] = [];
   let descripcion = "";
+  rastros.delete(pub.url ?? "");
   const item = pub.itemId && /^MLA\d+$/.test(pub.itemId) ? await ml(`/items/${pub.itemId}`, token) : null;
+  if (item) rastro(pub.url, `/items: ${item.status}`);
   if (item?.status === 200) {
     atributos = ((item.datos as { attributes?: Atributo[] })?.attributes) ?? [];
     const d = await ml(`/items/${pub.itemId}/description`, token);
@@ -342,6 +353,7 @@ export async function datosDeEnvio(pub: { itemId: string | null; productoId: str
   } else if (pub.productoId?.startsWith("MLAU")) {
     // Producto de vendedor (/up/MLAU…).
     const p = await ml(`/user-products/${pub.productoId}`, token);
+    rastro(pub.url, `/user-products: ${p.status}`);
     if (p.status === 200) {
       const datos = p.datos as { attributes?: Atributo[]; catalog_product_id?: string | null };
       atributos = datos.attributes ?? [];
@@ -379,6 +391,7 @@ export async function datosDeEnvio(pub: { itemId: string | null; productoId: str
   const lineas = atributos.filter((a) => a.id && MEDIDAS.test(a.id) && a.value_name).map((a) => `${a.name ?? a.id}: ${a.value_name}`);
   let texto = [lineas.join("\n"), descripcion.replace(/\s+/g, " ").slice(0, 1500)].filter(Boolean).join("\nDescripción: ");
   // Sin medidas por la API: las características de la página.
+  rastro(pub.url, `API: ${atributos.length} atributos, ${texto.length} letras`);
   if (!/Largo|Ancho|Altura|LENGTH|WIDTH|HEIGHT/i.test(texto)) {
     const pagina = await caracteristicasDePagina(pub.url);
     if (pagina) texto = [texto, `De la página de Mercado Libre: ${pagina}`].filter(Boolean).join("\n");
