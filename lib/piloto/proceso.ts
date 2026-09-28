@@ -178,8 +178,9 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         `insert into piloto_productos (corrida_id, categoria_id, lado, palabra, campeon, item_id, producto_id, titulo, url, foto, precio, vendidos,
            vendidos_texto, opiniones, caja, flete_usd, flete_pct, franja, datos_ml, etapa)
          select $1, categoria_id, lado, palabra, campeon, item_id, producto_id, titulo, url, foto, precio, vendidos, vendidos_texto, opiniones,
-           caja, flete_usd, flete_pct, franja, datos_ml, case when franja = 'fuera' then 'listo' else 'china' end
-           from piloto_productos where corrida_id = $2 order by id`, [id, p.desdeCorrida]);
+           caja, flete_usd, flete_pct, franja, datos_ml,
+           case when $3::boolean then 'caja' when franja = 'fuera' then 'listo' else 'china' end
+           from piloto_productos where corrida_id = $2 order by id`, [id, p.desdeCorrida, !!p.rehacerCaja]);
       await pool.query(
         `update piloto_corridas set estado = 'productos', avance = (select avance from piloto_corridas where id = $2) where id = $1`, [id, p.desdeCorrida]);
       c.estado = "productos";

@@ -20,6 +20,7 @@ export type Parametros = {
   minimoMax: number;              // pedido mínimo "razonable" (unidades)
   topeApifyUsd: number;           // tope de gasto de Apify de todo el piloto
   desdeCorrida?: number;          // usa los mismos productos de Mercado Libre de ese piloto (para comparar IAs)
+  rehacerCaja?: boolean;          // con desdeCorrida: vuelve a leer medidas y caja de Mercado Libre (reglas nuevas)
   ia?: import("@/lib/ia").Proveedor; // qué IA busca, filtra y juzga (sin dato = Anthropic); para comparar (Fer, 28/9)
   sitios?: Sitio[];               // dónde buscar en China (sin dato = 1688 + Alibaba, pilotos viejos)
   soloListado?: boolean;          // (28/9) sólo los primeros del listado de la categoría, sin tendencias ni cruce
