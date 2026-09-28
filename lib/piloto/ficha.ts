@@ -6,7 +6,7 @@
 // nombra cada campo no está verificado: se busca por nombre en todo el
 // resultado y se guarda una muestra cruda para revisarlo.
 
-import { correrActor } from "@/lib/apify";
+import { correrActor, correrConEntrada } from "@/lib/apify";
 import type { Ficha, Tramo } from "./tipos";
 
 export const ACTOR_FICHA = "tortuga~alibaba-scraper";
@@ -85,3 +85,40 @@ export async function leerFicha(url: string): Promise<Ficha & { costoUsd: number
 
 /** Precio del pedido mínimo: el del primer tramo (el más caro). */
 export const precioMinimo = (f?: Ficha | null) => (f?.tramos?.length ? f.tramos[0].usd : null);
+
+/** Precio de cada variante (medida, color) leído de la página de Alibaba, para
+ *  las publicaciones que no tienen precios por cantidad sino por variante
+ *  (Cowork #102 H2: el piloto tomaba el techo del rango, 10,90, cuando la
+ *  medida pedida valía 7,30). Está en window.detailData.globalData.product.sku:
+ *  skuAttrs (nombres) + skuInfoMap ("attr:valor;…" → dollarPrice). Nunca tira. */
+export async function preciosPorVariante(url: string): Promise<{ variantes: { nombre: string; usd: number }[]; costoUsd: number; runId?: string; error?: string }> {
+  const pageFunction = `async function pageFunction({ body }) {
+    const html = String(body);
+    const i = html.indexOf('window.detailData');
+    if (i < 0) return { error: 'sin detailData', largo: html.length };
+    const a = html.indexOf('{', i);
+    let prof = 0, fin = -1, enTexto = false, esc = false;
+    for (let k = a; k < html.length; k++) {
+      const ch = html[k];
+      if (enTexto) { if (esc) esc = false; else if (ch === '\\\\') esc = true; else if (ch === '"') enTexto = false; continue; }
+      if (ch === '"') enTexto = true; else if (ch === '{') prof++; else if (ch === '}' && --prof === 0) { fin = k; break; }
+    }
+    let d; try { d = JSON.parse(html.slice(a, fin + 1)); } catch (e) { return { error: 'detailData ilegible' }; }
+    const sku = d && d.globalData && d.globalData.product && d.globalData.product.sku;
+    if (!sku || !sku.skuInfoMap) return { error: 'sin precios por variante' };
+    const nombres = {};
+    for (const at of sku.skuAttrs || []) for (const v of at.values || []) nombres[at.id + ':' + v.id] = at.name + ' ' + v.name;
+    const variantes = Object.entries(sku.skuInfoMap).map(([k, v]) => ({
+      nombre: k.split(';').filter(Boolean).map((p) => nombres[p] || p).join(' · '),
+      usd: Number(v.dollarPrice ?? v.price),
+    })).filter((x) => x.usd > 0);
+    return { variantes };
+  }`;
+  const c = await correrConEntrada("apify~cheerio-scraper", {
+    startUrls: [{ url }], pageFunction, maxRequestsPerCrawl: 1, maxConcurrency: 1, maxRequestRetries: 3,
+    useSessionPool: true, persistCookiesPerSession: true,
+    proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"] },
+  }, { max: 1, esperaSeg: 90, topeUsd: 0.1 }).catch((e) => ({ items: [], error: String(e), costoUsd: 0, runId: undefined }));
+  const it = c.items?.[0] as { variantes?: { nombre: string; usd: number }[]; error?: string } | undefined;
+  return { variantes: (it?.variantes ?? []).slice(0, 60), costoUsd: c.costoUsd ?? 0, runId: c.runId, error: it?.error ?? c.error };
+}

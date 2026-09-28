@@ -11,7 +11,7 @@ import { avisosPagina, buscadosDeCategoria, cruzar, datosDeEnvio, listadoDeCateg
 import { buscarEnChina, cajasConWeb, estimarCajas, flete, juzgar, verificar } from "./china";
 import { costosML, cuenta, tasasDe } from "./costo";
 import type { AvanceCategoria, Caja, Candidato, Ficha, Juicio, Parametros, PubML } from "./tipos";
-import { leerFicha, precioMinimo } from "./ficha";
+import { leerFicha, precioMinimo, preciosPorVariante } from "./ficha";
 import { clasificar, corregir } from "./ncm";
 
 export type Corrida = {
@@ -310,6 +310,12 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
           const f = await leerFicha(url);
           await sumarApify(id, f.costoUsd, [f.runId]);
           fichas[v.n] = { ok: f.ok, tramos: f.tramos, caja: f.caja, error: f.error, muestra: f.muestra };
+          // Sin precios por cantidad el precio va por variante: se lee de la página (Cowork #102 H2).
+          if (f.ok && !f.tramos?.length && puedeGastar(0.03)) {
+            const pv = await preciosPorVariante(url);
+            await sumarApify(id, pv.costoUsd, pv.runId ? [pv.runId] : []);
+            if (pv.variantes.length) fichas[v.n].variantes = pv.variantes;
+          }
         }));
         // Segunda mirada con las publicaciones por dentro: medidas, componentes y proporción de precio.
         const ver = si.length ? await verificar({ titulo: x.titulo, precio: x.precio, texto: x.datos_ml }, j.componentes,
@@ -334,12 +340,15 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
           const f = fichas[v.n];
           const minimo = f?.tramos?.[0]?.desde ?? cands[v.n - 1].minimo;
           if (minimo != null && minimo > p.minimoMax) continue;
-          const precio = precioMinimo(f) ?? cands[v.n - 1].usd;
+          // El precio de la variante que hay que pedir, si la segunda mirada la eligió de la lista de la página.
+          const pv = verificacion?.find((c) => c.n === v.n)?.usdVariante;
+          const deVariante = typeof pv === "number" && f?.variantes?.some((x) => Math.abs(x.usd - pv) < 0.01) ? pv : null;
+          const precio = precioMinimo(f) ?? deVariante ?? cands[v.n - 1].usd;
           if (precio == null) continue;
           // Accesorios que faltan: lo que estimó la segunda mirada (por unidad de ML); si no, lo del juez.
           const extras = verificacion?.find((c) => c.n === v.n)?.extrasUsd;
           const total = Math.round(((v.unidades ?? 1) * precio + (typeof extras === "number" ? extras : faltantes)) * 100) / 100;
-          const claro = !!f?.tramos?.length;
+          const claro = !!f?.tramos?.length || deVariante != null;
           if (!mejor || (claro && !mejor.claro) || (claro === mejor.claro && total < mejor.total)) mejor = { n: v.n, total, claro };
         }
         const juicio: Juicio = { ...j, fichas, elegidoJuez: j.elegido, elegido: mejor?.n ?? null, costoUsd: mejor?.total ?? null,

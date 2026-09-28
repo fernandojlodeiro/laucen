@@ -123,7 +123,8 @@ export default async function Revision({ params, searchParams }: { params: Promi
                           <p className="text-[#8a6100]">Con las publicaciones por dentro conviene éste; el juez había elegido el {j.elegidoJuez}.</p>
                         )}
                         {j?.elegido != null && j.verificacion?.find((v) => v.n === j.elegido)?.variante && (
-                          <p>Variante a pedir: <b>{j.verificacion.find((v) => v.n === j.elegido)!.variante}</b></p>
+                          <p>Variante a pedir: <b>{j.verificacion.find((v) => v.n === j.elegido)!.variante}</b>
+                            {j.verificacion.find((v) => v.n === j.elegido)!.usdVariante != null && <> — US$ {j.verificacion.find((v) => v.n === j.elegido)!.usdVariante} (precio de esa variante en la página)</>}</p>
                         )}
                         {j?.precioIncierto && <p className="text-[#8a6100]">Precio incierto: la publicación no muestra precios por cantidad (depende de la variante).</p>}
                       </>

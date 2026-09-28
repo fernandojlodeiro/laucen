@@ -48,7 +48,7 @@ export type Caja = { largo: number; ancho: number; alto: number; kg: number; fue
  *  búsqueda no coincide con el de la página; ahí están los precios por
  *  cantidad y la caja de envío). */
 export type Tramo = { desde: number; hasta: number | null; usd: number };
-export type Ficha = { ok: boolean; tramos?: Tramo[]; caja?: { largo: number; ancho: number; alto: number; kg: number } | null; error?: string; muestra?: string };
+export type Ficha = { ok: boolean; tramos?: Tramo[]; variantes?: { nombre: string; usd: number }[]; caja?: { largo: number; ancho: number; alto: number; kg: number } | null; error?: string; muestra?: string };
 
 export type Candidato = {
   sitio: Sitio;
@@ -77,7 +77,7 @@ export type Juicio = {
   ncmAlternativa?: string;        // otra NCM posible, si el juez duda
   fichas?: Record<string, Ficha>; // lo leído de la publicación de China de los "si" (por número)
   elegidoJuez?: number | null;    // el que eligió el juez con el precio de la búsqueda, antes de leer las fichas
-  verificacion?: { n: number; igual: boolean; variante?: string; motivo?: string; extrasUsd?: number;
+  verificacion?: { n: number; igual: boolean; variante?: string; usdVariante?: number | null; motivo?: string; extrasUsd?: number;
     medidas?: { largo: number; ancho: number; alto: number } | null;
     caja?: { largo: number; ancho: number; alto: number; kg: number } | null }[]; // segunda mirada con las fichas
   precioIncierto?: boolean;

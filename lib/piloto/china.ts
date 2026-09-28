@@ -101,13 +101,16 @@ async function armarBusqueda(titulo: string, ia: Proveedor | undefined, texto?: 
     system: "Armás la búsqueda para encontrar en Alibaba el mismo producto que se vende en Mercado Libre. Sacá marca, número de modelo, " +
       "color, capacidad de carga, garantía y palabras de venta: nada de eso existe en China con ese nombre. Dejá el tipo de producto, " +
       "la medida o tamaño principal y lo que lo distingue (con bomba eléctrica, flocado, con inflador manual, etc.). En inglés, de 3 a 7 " +
-      "palabras, como lo buscaría un comprador mayorista; y en chino simplificado para 1688. Respondé sólo JSON: {\"en\":\"...\",\"zh\":\"...\"}.",
+      "palabras, como lo buscaría un comprador mayorista; y en chino simplificado para 1688. Aparte, si el producto es de una MARCA con " +
+      "número de MODELO reconocible (Bestway 67002, Intex 64758), en \"marca\" poné sólo marca y modelo tal como se buscarían; si es " +
+      "genérico o sin modelo, null. Respondé sólo JSON: {\"en\":\"...\",\"zh\":\"...\",\"marca\":\"... o null\"}.",
     contenido: `Producto: ${titulo}${texto ? `\nDatos: ${texto.slice(0, 800)}` : ""}` +
       (previa ? `\n\nLa búsqueda anterior "${previa.en}" no encontró el mismo producto. Por qué: ${previa.motivo}\n` +
         "Proponé otra búsqueda distinta: más general o con otras palabras (sinónimos de la industria), sin repetir la anterior." : ""),
   });
-  const j = "texto" in r ? jsonDe<{ en?: string; zh?: string }>(r.texto) : null;
-  return { en: j?.en?.trim() ?? "", zh: j?.zh?.trim() ?? "", tokensIn: r.tokensIn, tokensOut: r.tokensOut, usd: r.usd };
+  const j = "texto" in r ? jsonDe<{ en?: string; zh?: string; marca?: string | null }>(r.texto) : null;
+  const marca = j?.marca && j.marca.trim().toLowerCase() !== "null" ? j.marca.trim() : null;
+  return { en: j?.en?.trim() ?? "", zh: j?.zh?.trim() ?? "", marca, tokensIn: r.tokensIn, tokensOut: r.tokensOut, usd: r.usd };
 }
 
 export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: (usd: number) => boolean,
@@ -137,14 +140,25 @@ export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: 
     const [actor, entrada] = sitio === "1688"
       ? [ACTOR_1688, { searchTerms: [t.zh], maxItems: POR_SITIO }]
       : [ACTOR_ALIBABA, { searchTerms: [t.en], maxItems: POR_SITIO, maxPages: 1 }];
-    const c = await correrConEntrada(actor, entrada, { max: POR_SITIO, esperaSeg: 120, topeUsd: 0.1 });
-    costoUsd += c.costoUsd ?? 0;
-    if (c.runId) runIds.push(c.runId);
-    if (!c.items.length) errores.push(`${sitio}: ${c.error ?? "sin resultados"}`);
-    return (c.items as Record<string, unknown>[]).map((x) => aCandidato(sitio, x, p.yuanPorDolar));
+    // Producto de marca (Fer, 28/9): primero la marca y el modelo exactos, y además la
+    // búsqueda sin marca, por si no está o hay uno igual más barato. Los de la marca van primero.
+    const marca = sitio === "alibaba" && armada?.marca && !opciones.previa ? armada.marca : null;
+    const [c, cm] = await Promise.all([
+      correrConEntrada(actor, entrada, { max: POR_SITIO, esperaSeg: 120, topeUsd: 0.1 }),
+      marca && puedeGastar(0.05) ? correrConEntrada(actor, { searchTerms: [marca], maxItems: 10, maxPages: 1 }, { max: 10, esperaSeg: 120, topeUsd: 0.1 }) : Promise.resolve(null),
+    ]);
+    for (const x of [c, cm]) {
+      if (!x) continue;
+      costoUsd += x.costoUsd ?? 0;
+      if (x.runId) runIds.push(x.runId);
+    }
+    if (!c.items.length && !cm?.items.length) errores.push(`${sitio}: ${c.error ?? "sin resultados"}`);
+    const vistos = new Set<string>();
+    return ([...(cm?.items ?? []), ...c.items] as Record<string, unknown>[]).map((x) => aCandidato(sitio, x, p.yuanPorDolar))
+      .filter((x) => { const k = x.url ?? x.titulo; if (vistos.has(k)) return false; vistos.add(k); return true; });
   }));
   // La traducción no se cuenta acá (va con el modelo chico, centavos).
-  return { en: t.en, zh: t.zh, candidatos: corridas.flat(), costoUsd, runIds, errores,
+  return { en: armada?.marca && !opciones.previa ? `${armada.marca} | ${t.en}` : t.en, zh: t.zh, candidatos: corridas.flat(), costoUsd, runIds, errores,
     tokensIn: armada?.tokensIn ?? 0, tokensOut: armada?.tokensOut ?? 0, claudeUsd: armada?.usd ?? 0, muestra };
 }
 
@@ -277,7 +291,8 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
       "el mismo tipo de producto (o una parte de él, si el de Mercado Libre es un set), como máximo 15, los más parecidos primero. " +
       "Sé amplio: dejá pasar los de título genérico, los que nombran varias medidas o versiones y los que no dicen la medida, porque la " +
       "variante justa puede estar adentro de la publicación. Descartá sólo lo que es claramente otra cosa: repuestos, accesorios sueltos, " +
-      "otro producto. De cada uno que descartes, el motivo en pocas palabras. " +
+      "otro producto. Si el de Mercado Libre es de marca y modelo, los que son esa MISMA marca y modelo van siempre primero. " +
+      "De cada uno que descartes, el motivo en pocas palabras. " +
       "Respondé sólo JSON: {\"n\":[3,7,1],\"fuera\":{\"2\":\"repuesto\",\"5\":\"otro producto: bomba sola\"}}.",
     contenido: `${cabeza}\n\nCandidatos:\n${candidatos.map((c, i) => lineaCandidato(c, i + 1)).join("\n")}`,
   });
@@ -397,16 +412,19 @@ export async function verificar(ml: { titulo: string; precio: number | null; tex
       "unidad del producto: si el empaque es de varias unidades (cartón con N piezas), dividilo; el peso puede venir en gramos. " +
       "MEDIDAS: en medidasML poné las medidas del producto de Mercado Libre (armado/inflado, no la caja) y en medidas las del candidato " +
       "(de la variante a pedir), en cm; si no las encontrás, null. El programa las vuelve a comparar con la tolerancia.\n" +
-      'Respondé sólo JSON: {"medidasML":{"largo":200,"ancho":150,"alto":40},"c":[{"n":3,"igual":true,"variante":"qué variante pedir (medida)","extrasUsd":1.5,' +
+      "PRECIO POR VARIANTE: si el candidato trae la lista \"Precios por variante\", en usdVariante poné el precio EXACTO de la lista " +
+      "de la variante que hay que pedir (la de la misma medida); si no hay lista, null.\n" +
+      'Respondé sólo JSON: {"medidasML":{"largo":200,"ancho":150,"alto":40},"c":[{"n":3,"igual":true,"variante":"qué variante pedir (medida)","usdVariante":7.3,"extrasUsd":1.5,' +
       '"medidas":{"largo":198,"ancho":152,"alto":40},"caja":{"largo":40,"ancho":30,"alto":12,"kg":2.8},"motivo":"corto"}]}. Sin datos de caja, caja = null.',
     contenido: `Mercado Libre: ${ml.titulo}${usdML ? ` — US$ ${usdML} al público` : ""}\n` +
       (componentes ? `Qué incluye: ${componentes}\n` : "") + (ml.texto ? `Datos: ${ml.texto.slice(0, 1200)}\n` : "") +
       items.map((it) => `\nCandidato ${it.n}: ${it.titulo}\nPrecio: ${it.ficha?.tramos?.length
         ? it.ficha.tramos.map((t) => `US$ ${t.usd} desde ${t.desde} u.`).join(", ") : `US$ ${it.usd ?? "?"} (de la búsqueda)`}\n` +
+        (it.ficha?.variantes?.length ? `Precios por variante: ${it.ficha.variantes.map((x) => `${x.nombre} US$ ${x.usd}`).join("; ")}\n` : "") +
         `Publicación por dentro: ${(it.ficha?.muestra ?? "(no se pudo leer)").replace(/"(images|videoUrl|imageUrl|supplier)":(\[[^\]]*\]|"[^"]*"|\{[^}]*\})/g, "").slice(0, 2500)}`).join("\n"),
   });
   type Medidas = { largo: number; ancho: number; alto: number } | null;
-  const j = "texto" in r ? jsonDe<{ medidasML?: Medidas; c?: { n: number; igual: boolean; variante?: string; motivo?: string; extrasUsd?: number;
+  const j = "texto" in r ? jsonDe<{ medidasML?: Medidas; c?: { n: number; igual: boolean; variante?: string; usdVariante?: number | null; motivo?: string; extrasUsd?: number;
     medidas?: Medidas; caja?: { largo: number; ancho: number; alto: number; kg: number } | null }[] }>(r.texto) : null;
   // El programa controla la tolerancia de medidas, sin confiar en el modelo (piloto #21:
   // Gemini dio por iguales 194×64 contra 220×70 y 191×137 contra 203×152).

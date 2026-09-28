@@ -151,6 +151,12 @@ export type Corrida = {
 };
 
 const TERMINADO = ["SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"];
+// Memoria de cada corrida (MB). Por defecto tortuga y scrapesage piden 4 GB: con
+// 16 a la vez se llenan los 64 GB del plan y Apify contesta 402 (Cowork, #102 H3).
+// Leer páginas por HTTP no necesita más de 1 GB.
+const MEMORIA: Record<string, number> = {
+  "tortuga~alibaba-scraper": 1024, "scrapesage~mercadolibre-scraper": 1024, "apify~cheerio-scraper": 1024,
+};
 
 /** Corre un actor con una entrada ya armada, con tope de resultados y de
  *  gasto; espera hasta `esperaSeg` y, si no terminó, lo aborta para que no
@@ -168,7 +174,8 @@ export async function correrConEntrada(actor: string, entrada: Record<string, un
     let cuerpo: any;
     for (let intento = 0; ; intento++) {
       r = await fetch(
-        `${API}/acts/${actor}/runs?token=${token}&maxItems=${max}&maxTotalChargeUsd=${topeUsd}&waitForFinish=60`,
+        `${API}/acts/${actor}/runs?token=${token}&maxItems=${max}&maxTotalChargeUsd=${topeUsd}&waitForFinish=60` +
+          (MEMORIA[actor] ? `&memory=${MEMORIA[actor]}` : ""),
         { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(entrada), cache: "no-store" },
       );
       cuerpo = await r.json().catch(() => null);
