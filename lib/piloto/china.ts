@@ -22,6 +22,11 @@ const primerNumero = (v: unknown): number | null => {
   const m = String(v ?? "").replace(/,/g, "").match(/\d+(\.\d+)?/);
   return m ? Number(m[0]) : null;
 };
+const ultimoNumero = (v: unknown): number | null => {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  const ms = String(v ?? "").replace(/,/g, "").match(/\d+(\.\d+)?/g);
+  return ms ? Number(ms[ms.length - 1]) : null;
+};
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : typeof v === "number" ? String(v) : null);
 const primero = (v: unknown) => (Array.isArray(v) ? str(v[0]) : str(v));
 const https = (u: string | null) => (u?.startsWith("//") ? `https:${u}` : u);
@@ -42,7 +47,8 @@ function aCandidato(sitio: Candidato["sitio"], x: Record<string, unknown>, yuanP
   }
   return {
     sitio, titulo: str(x.title) ?? "(sin título)", precioTexto: str(x.price),
-    usd: primerNumero(x.priceMin ?? x.price), minimo: primerNumero(x.minOrder),
+    // El más alto del rango: suele ser el del pedido mínimo (Fer, 28/9: siempre el más conservador).
+    usd: ultimoNumero(x.price) ?? primerNumero(x.priceMax ?? x.priceMin), minimo: primerNumero(x.minOrder),
     foto: https(primero(x.images) ?? str(x.mainImage)), url: https(str(x.productUrl)),
     proveedor: str(x.supplierName), fabrica: null, anios: primerNumero(x.supplierYears), ventas: null,
   };
@@ -80,8 +86,30 @@ export type BusquedaChina = { en: string; zh: string; candidatos: Candidato[]; c
 
 /** Traduce el título y busca en los sitios del piloto: AliExpress (en
  *  inglés, con envío dentro de China, en dólares), 1688 (en chino), Alibaba (en inglés). */
-export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: (usd: number) => boolean): Promise<BusquedaChina & { muestra?: string }> {
-  const t = await traducir(titulo);
+/** Arma la búsqueda para China a partir de la publicación de Mercado Libre:
+ *  sin marca, modelo, color ni palabras de venta, como la escribiría un
+ *  comprador (Fer, 28/9: "no hay chances de que en China un producto no
+ *  exista"; si no aparece, es que se buscó mal). Con `previa`, la búsqueda
+ *  anterior no sirvió y se pide otra distinta. */
+async function armarBusqueda(titulo: string, texto?: string, previa?: { en: string; motivo: string }) {
+  const r = await pedirClaude({
+    modelo: "chico", maxTokens: 300,
+    system: "Armás la búsqueda para encontrar en Alibaba el mismo producto que se vende en Mercado Libre. Sacá marca, número de modelo, " +
+      "color, capacidad de carga, garantía y palabras de venta: nada de eso existe en China con ese nombre. Dejá el tipo de producto, " +
+      "la medida o tamaño principal y lo que lo distingue (con bomba eléctrica, flocado, con inflador manual, etc.). En inglés, de 3 a 7 " +
+      "palabras, como lo buscaría un comprador mayorista; y en chino simplificado para 1688. Respondé sólo JSON: {\"en\":\"...\",\"zh\":\"...\"}.",
+    contenido: `Producto: ${titulo}${texto ? `\nDatos: ${texto.slice(0, 800)}` : ""}` +
+      (previa ? `\n\nLa búsqueda anterior "${previa.en}" no encontró el mismo producto. Por qué: ${previa.motivo}\n` +
+        "Proponé otra búsqueda distinta: más general o con otras palabras (sinónimos de la industria), sin repetir la anterior." : ""),
+  });
+  const j = "texto" in r ? jsonDe<{ en?: string; zh?: string }>(r.texto) : null;
+  return { en: j?.en?.trim() ?? "", zh: j?.zh?.trim() ?? "", tokensIn: r.tokensIn, tokensOut: r.tokensOut, usd: r.usd };
+}
+
+export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: (usd: number) => boolean,
+  opciones: { texto?: string; previa?: { en: string; motivo: string } } = {}): Promise<BusquedaChina & { muestra?: string; claudeUsd?: number }> {
+  const armada = await armarBusqueda(titulo, opciones.texto, opciones.previa).catch(() => null);
+  const t = armada?.en ? { en: armada.en, zh: armada.zh || armada.en } : await traducir(titulo);
   if (!t || esFalla(t)) {
     return { en: "", zh: "", candidatos: [], costoUsd: 0, errores: [`No se pudo traducir: ${t && esFalla(t) ? t.motivo : "sin llave de Claude"}`], tokensIn: 0, tokensOut: 0 };
   }
@@ -112,7 +140,8 @@ export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: 
     return (c.items as Record<string, unknown>[]).map((x) => aCandidato(sitio, x, p.yuanPorDolar));
   }));
   // La traducción no se cuenta acá (va con el modelo chico, centavos).
-  return { en: t.en, zh: t.zh, candidatos: corridas.flat(), costoUsd, runIds, errores, tokensIn: 0, tokensOut: 0, muestra };
+  return { en: t.en, zh: t.zh, candidatos: corridas.flat(), costoUsd, runIds, errores,
+    tokensIn: armada?.tokensIn ?? 0, tokensOut: armada?.tokensOut ?? 0, claudeUsd: armada?.usd ?? 0, muestra };
 }
 
 /** La caja de envío de una unidad (cm y kg) de cada producto, con el
@@ -271,7 +300,8 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     "Si ninguno sirve, elegido = null.\n" +
     "Paso 4: la posición arancelaria NCM (Mercosur, 8 dígitos, formato 0000.00.00) con la que se despacharía en Argentina el producto " +
     "de Mercado Libre, según su material y función. Respetá las notas legales de sección y capítulo (por ejemplo, los colchones " +
-    "neumáticos o inflables NO van en 94.04: van en 39.26 si son de plástico, 40.16 si son de caucho o 63.06 si son de textil).\n" +
+    "neumáticos o inflables NO van en 94.04: van en 39.26 si son de plástico, 40.16 si son de caucho o 63.06 si son de textil). " +
+    "Si dudás entre dos posiciones, poné la otra en ncmAlternativa (si no, no la pongas).\n" +
     "Respondé sólo JSON: {\"componentes\":\"...\",\"veredictos\":[{\"n\":3,\"v\":\"si\",\"unidades\":2,\"falta\":\"inflador\",\"variante\":\"1 plaza\",\"motivo\":\"...\"}]," +
     "\"elegido\":3,\"costoUsd\":24.5,\"motivo\":\"por qué ese\",\"ncm\":\"8516.29.00\"}. Usá los números de los candidatos tal como vienen.";
   const [fotoML, ...fotos] = await Promise.all([aBase64(ml.foto), ...elegidos.map((n) => aBase64(candidatos[n - 1].foto))]);
@@ -303,7 +333,8 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     juicio: {
       componentes: j.componentes, veredictos: (j.veredictos ?? []).filter((v) => v.v === "si" || v.v === "dudoso" || v.v === "no"),
       elegido: typeof j.elegido === "number" ? j.elegido : null, costoUsd: typeof j.costoUsd === "number" ? j.costoUsd : null,
-      motivo: j.motivo ?? "", preseleccion: elegidos, ...(descartes ? { descartes } : {}), ncm: typeof j.ncm === "string" ? j.ncm : undefined, ...(nota ? { nota } : {}),
+      motivo: j.motivo ?? "", preseleccion: elegidos, ...(descartes ? { descartes } : {}), ncm: typeof j.ncm === "string" ? j.ncm : undefined,
+      ...(typeof j.ncmAlternativa === "string" && j.ncmAlternativa ? { ncmAlternativa: j.ncmAlternativa } : {}), ...(nota ? { nota } : {}),
     } as Juicio,
     tokensIn, tokensOut, usd,
   };

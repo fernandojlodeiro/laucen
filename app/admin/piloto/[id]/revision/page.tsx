@@ -64,6 +64,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
           const cands = x.china?.candidatos ?? [];
           const j = x.juicio;
           const elegido = j?.elegido != null ? cands[j.elegido - 1] : null;
+          const ficha = j?.elegido != null ? j.fichas?.[String(j.elegido)] : undefined;
           const cuenta = { si: 0, dudoso: 0, no: 0 };
           j?.veredictos.forEach((v) => { cuenta[v.v] = (cuenta[v.v] ?? 0) + 1; });
           return (
@@ -101,10 +102,25 @@ export default async function Revision({ params, searchParams }: { params: Promi
                       <>
                         {elegido.url ? <a href={elegido.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{elegido.titulo}</a> : elegido.titulo}
                         <p className="text-[#5C6B76]">
-                          {SITIOS[elegido.sitio] ?? elegido.sitio} · {elegido.usd != null ? `US$ ${elegido.usd}` : "sin precio"}
-                          {elegido.precioTexto && ` (${elegido.precioTexto})`} · mínimo {elegido.minimo ?? "?"}
+                          {SITIOS[elegido.sitio] ?? elegido.sitio}
                           {elegido.proveedor && ` · ${elegido.proveedor}`}{elegido.anios ? `, ${elegido.anios} años` : ""}
                         </p>
+                        {/* Precios de la publicación por dentro: se usa el del pedido mínimo (el más alto). */}
+                        {ficha?.tramos?.length ? (
+                          <p>
+                            <b>Precio del pedido mínimo: US$ {formatearNumero(ficha.tramos[0].usd, "usd")}</b>
+                            <span className="text-[#5C6B76]"> · {ficha.tramos.map((t) => `US$ ${formatearNumero(t.usd, "usd")} (${t.hasta ? `${formatearNumero(t.desde, "entero")}–${formatearNumero(t.hasta, "entero")}` : `≥ ${formatearNumero(t.desde, "entero")}`} u.)`).join(" · ")}</span>
+                            {ficha.caja && <span className="block text-[#5C6B76]">Caja según la publicación: {ficha.caja.largo}×{ficha.caja.ancho}×{ficha.caja.alto} cm{ficha.caja.kg ? `, ${formatearNumero(ficha.caja.kg, "decimal")} kg` : ""}</span>}
+                          </p>
+                        ) : (
+                          <p className="text-[#5C6B76]">
+                            US$ {elegido.usd ?? "?"} {elegido.precioTexto && `(búsqueda: ${elegido.precioTexto}; se toma el más alto)`} · mínimo {elegido.minimo ?? "?"}
+                            {ficha && <span className="block text-[#8a6100]">No se pudo leer la publicación por dentro: {ficha.error}</span>}
+                          </p>
+                        )}
+                        {j?.elegidoJuez != null && j.elegidoJuez !== j.elegido && (
+                          <p className="text-[#8a6100]">Con los precios de las publicaciones conviene éste; el juez había elegido el {j.elegidoJuez}.</p>
+                        )}
                       </>
                     ) : (
                       <p className="text-[#9AA7B3]">{x.etapa === "listo" ? "No eligió ninguno." : "Todavía no juzgó."}</p>
@@ -120,7 +136,11 @@ export default async function Revision({ params, searchParams }: { params: Promi
                   </div>
                 </div>
               </div>
-              {j?.elegido != null && !!j.costoUsd && <Costo fob={j.costoUsd} caja={x.caja} precio={x.precio} p={c.parametros} datos={x.costo} />}
+              {j?.busquedaPrevia && (
+                <p className="mt-2 text-[#8a6100]">La primera búsqueda (“{j.busquedaPrevia.en}”) no encontró el mismo producto ({j.busquedaPrevia.motivo.slice(0, 200)}); se buscó de nuevo con “{x.china?.en}”.</p>
+              )}
+              {j?.elegido != null && !!j.costoUsd && x.costo && <Costo fob={j.costoUsd} caja={x.caja} precio={x.precio} p={c.parametros} datos={x.costo}
+                cajaChina={ficha?.caja} unidades={j.veredictos.find((v) => v.n === j.elegido)?.unidades ?? 1} />}
               {x.error && <p className="text-[#C03420] mt-2">{x.error}</p>}
               {j?.nota && <p className="text-[#8a6100] mt-1 text-[11px]">{j.nota}</p>}
               {cands.length > 0 && (

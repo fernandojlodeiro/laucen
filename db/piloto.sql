@@ -40,7 +40,7 @@ create table if not exists piloto_productos (
   juicio          jsonb,                           -- {veredictos[], elegido, motivo}
   revision        text,                            -- acerto | no_acerto
   comentario      text,
-  etapa           text not null default 'caja',    -- caja | china | juez | listo
+  etapa           text not null default 'caja',    -- caja | china | juez | ficha | listo
   error           text
 );
 create index if not exists piloto_productos_corrida_idx on piloto_productos (corrida_id);

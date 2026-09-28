@@ -20,7 +20,7 @@ export type Tasas = {
   arancel: number | null; arancelMin?: number | null; iva: number; estadistica: number; deDespachos: boolean; despachos: number;
 };
 export type CostosML = { comision: number | null; envio: number | null; errores: string[] };
-export type DatosCosto = { tasas: Tasas | null; ml: CostosML };
+export type DatosCosto = { tasas: Tasas | null; alternativa?: Tasas | null; ml: CostosML };
 
 /** "6306.40.90", "630640", "6306.40.90.000C" → "6306.40.90" (null si no hay 8 dígitos). */
 export function normalizarNcm(s: string | null | undefined) {
@@ -98,18 +98,24 @@ export type Cuenta = {
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /** La cuenta completa en dólares, por unidad del producto de Mercado Libre. */
-export function cuenta(fob: number, caja: Caja | null, precioPesos: number | null, p: Parametros, datos: DatosCosto | null): Cuenta {
+export function cuenta(fob: number, cajaML: Caja | null, precioPesos: number | null, p: Parametros, datos: DatosCosto | null,
+  cajaChina?: { largo: number; ancho: number; alto: number; kg: number } | null, unidades = 1): Cuenta {
+  // La caja de la publicación de China manda (Fer, 28/9: ahí las medidas son
+  // exactas), por las unidades que hacen falta; si no, la de Mercado Libre.
+  const deChina = !!(cajaChina?.largo && cajaChina.ancho && cajaChina.alto);
+  const n = deChina ? unidades : 1;
+  const caja = deChina ? cajaChina! : cajaML;
   const falta: string[] = [];
   const t = datos?.tasas;
   let flete: number | null = null, fleteComo = "";
   if (p.modo === "avion") {
     if (caja?.kg) {
       const kg = Math.max(caja.kg, caja.largo && caja.ancho && caja.alto ? (caja.largo * caja.ancho * caja.alto) / 6000 : 0);
-      flete = kg * p.fleteKgUsd; fleteComo = `avión: ${r2(kg)} kg cobrables × US$ ${p.fleteKgUsd}`;
+      flete = kg * p.fleteKgUsd * n; fleteComo = `avión: ${r2(kg)} kg cobrables × US$ ${p.fleteKgUsd}${n > 1 ? ` × ${n} unidades` : ""}`;
     } else falta.push("el peso de la caja");
   } else if (caja?.largo && caja.ancho && caja.alto) {
     const m3 = (caja.largo * caja.ancho * caja.alto) / 1e6;
-    flete = m3 * p.fleteM3Usd; fleteComo = `barco: ${caja.largo}×${caja.ancho}×${caja.alto} cm = ${m3.toLocaleString("es-AR", { maximumFractionDigits: 4 })} m³ × US$ ${p.fleteM3Usd}`;
+    flete = m3 * p.fleteM3Usd * n; fleteComo = `barco: caja ${deChina ? "de la publicación de China" : "de Mercado Libre"} ${caja.largo}×${caja.ancho}×${caja.alto} cm = ${m3.toLocaleString("es-AR", { maximumFractionDigits: 4 })} m³ × US$ ${p.fleteM3Usd}${n > 1 ? ` × ${n} unidades` : ""}`;
   } else falta.push("las medidas de la caja (el barco se cobra por volumen)");
   if (!t) falta.push("la NCM");
   else if (t.arancel == null) falta.push("el arancel de la NCM");

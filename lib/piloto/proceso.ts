@@ -10,7 +10,8 @@ import { asegurarEsquema } from "./esquema";
 import { buscadosDeCategoria, cruzar, datosDeEnvio, listadoDeCategoria, urlDeCategoria } from "./ml";
 import { buscarEnChina, cajasConWeb, estimarCajas, flete, juzgar } from "./china";
 import { costosML, tasasDe } from "./costo";
-import type { AvanceCategoria, Caja, Parametros, PubML } from "./tipos";
+import type { AvanceCategoria, Caja, Candidato, Ficha, Juicio, Parametros, PubML } from "./tipos";
+import { leerFicha, precioMinimo } from "./ficha";
 
 export type Corrida = {
   id: number; organizacion_id: string; creada_el: Date; parametros: Parametros; estado: string;
@@ -141,11 +142,13 @@ async function etapaML(c: Corrida, categoriaId: string) {
   await pool.query("update piloto_corridas set avance = jsonb_set(avance, array[$2::text], $3::jsonb) where id = $1", [c.id, categoriaId, JSON.stringify(av)]);
 }
 
-type FilaProducto = { id: number; titulo: string; foto: string | null; precio: number | null; caja: Caja | null; china: { candidatos?: unknown[] } | null;
+type FilaProducto = { id: number; titulo: string; foto: string | null; precio: number | null; caja: Caja | null;
+  china: { candidatos?: unknown[]; en?: string; reintentar?: { en: string; motivo: string }; previa?: { en: string; motivo: string } } | null;
+  juicio: Juicio | null;
   item_id: string | null; producto_id: string | null; datos_ml: string | null; categoria_id: string };
 
 async function productosEn(corridaId: number, etapa: string, n: number) {
-  const r = await pool.query<FilaProducto>("select id, titulo, foto, precio, caja, china, item_id, producto_id, datos_ml, categoria_id from piloto_productos where corrida_id = $1 and etapa = $2 order by id limit $3", [corridaId, etapa, n]);
+  const r = await pool.query<FilaProducto>("select id, titulo, foto, precio, caja, china, juicio, item_id, producto_id, datos_ml, categoria_id from piloto_productos where corrida_id = $1 and etapa = $2 order by id limit $3", [corridaId, etapa, n]);
   return r.rows;
 }
 
@@ -222,10 +225,14 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
       const lote = await productosEn(id, "china", 4);
       if (!lote.length) break;
       await Promise.all(lote.map(async (x) => {
-        const r = await buscarEnChina(x.titulo, p, puedeGastar);
+        // Si viene de una búsqueda que no encontró nada, se busca con otras palabras (una sola vez).
+        const previa = x.china?.reintentar;
+        const r = await buscarEnChina(x.titulo, p, puedeGastar, { texto: x.datos_ml ?? undefined, previa });
         await sumarApify(id, r.costoUsd, r.runIds);
+        await sumarClaude(id, "busqueda", r.tokensIn, r.tokensOut, r.claudeUsd ?? 0);
         await pool.query("update piloto_productos set china = $2, etapa = 'juez', error = $3 where id = $1",
-          [x.id, { en: r.en, zh: r.zh, candidatos: r.candidatos, errores: r.errores, muestra: r.muestra }, r.errores.join(" · ") || null]);
+          [x.id, { en: r.en, zh: r.zh, candidatos: r.candidatos, errores: r.errores, muestra: r.muestra, ...(previa ? { previa } : {}) },
+            r.errores.join(" · ") || null]);
       }));
       hechos.push(`China de ${lote.length}`);
     }
@@ -238,17 +245,64 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         const cands = (x.china?.candidatos ?? []) as Parameters<typeof juzgar>[1];
         const r = await juzgar({ titulo: x.titulo, foto: x.foto, precio: x.precio, texto: x.datos_ml ?? undefined }, cands, p);
         await sumarClaude(id, "juez", r.tokensIn, r.tokensOut, r.usd);
-        // Lo que hace falta para el costo puesto en Argentina y el neto de ML.
-        // Sin candidato elegido no hay costo que calcular (Fer, 28/9).
-        const conCandidato = r.juicio.elegido != null && !!r.juicio.costoUsd;
-        const [tasas, deML] = conCandidato ? await Promise.all([
-          r.juicio.ncm ? tasasDe(r.juicio.ncm).catch(() => null) : Promise.resolve(null),
-          costosML(organizacionId, x.categoria_id, x.precio, x.caja),
-        ]) : [null, null];
-        await pool.query("update piloto_productos set juicio = $2, costo = $4, etapa = 'listo', error = coalesce($3, error) where id = $1",
-          [x.id, r.juicio, r.juicio.error ?? null, conCandidato ? { tasas, ml: deML } : null]);
+        const juicio = { ...r.juicio, ...(x.china?.previa ? { busquedaPrevia: x.china.previa } : {}) };
+        // Sin ningún "sí": se replantea la búsqueda una vez (Fer, 28/9: el producto
+        // existe en China; si no aparece, se buscó mal).
+        const hayIgual = (juicio.veredictos ?? []).some((v) => v.v === "si");
+        if (!hayIgual && !x.china?.previa && !juicio.error) {
+          await pool.query("update piloto_productos set china = china || jsonb_build_object('reintentar', $2::jsonb), juicio = $3, etapa = 'china' where id = $1",
+            [x.id, JSON.stringify({ en: x.china?.en ?? "", motivo: juicio.motivo || "ningún candidato era el mismo producto" }), juicio]);
+          return;
+        }
+        await pool.query("update piloto_productos set juicio = $2, etapa = $4, error = coalesce($3, error) where id = $1",
+          [x.id, juicio, juicio.error ?? null, hayIgual ? "ficha" : "listo"]);
       }));
       hechos.push(`juez de ${lote.length}`);
+    }
+
+    // 5) Fichas de China de los "sí": precio del pedido mínimo y caja; se
+    // elige otra vez con esos precios y se calcula el costo.
+    while (quedaTiempo(130_000)) {
+      const lote = await productosEn(id, "ficha", 3);
+      if (!lote.length) break;
+      await Promise.all(lote.map(async (x) => {
+        const j = x.juicio!;
+        const cands = (x.china?.candidatos ?? []) as Candidato[];
+        const si = (j.veredictos ?? []).filter((v) => v.v === "si" && cands[v.n - 1])
+          .sort((a, b) => (cands[a.n - 1].usd ?? 1e9) - (cands[b.n - 1].usd ?? 1e9)).slice(0, 3);
+        const fichas: Record<string, Ficha> = {};
+        await Promise.all(si.map(async (v) => {
+          const url = cands[v.n - 1].url;
+          if (!url || !puedeGastar(0.03)) { fichas[v.n] = { ok: false, error: url ? "tope de gasto de Apify" : "sin dirección" }; return; }
+          const f = await leerFicha(url);
+          await sumarApify(id, f.costoUsd, [f.runId]);
+          fichas[v.n] = { ok: f.ok, tramos: f.tramos, caja: f.caja, error: f.error, muestra: f.muestra };
+        }));
+        // Lo que el juez estimó para lo que falta (accesorios): se mantiene.
+        const el = j.elegido != null ? cands[j.elegido - 1] : null;
+        const uEl = (j.veredictos ?? []).find((v) => v.n === j.elegido)?.unidades ?? 1;
+        const faltantes = el?.usd != null && j.costoUsd ? Math.max(0, j.costoUsd - uEl * el.usd) : 0;
+        let mejor: { n: number; total: number } | null = null;
+        for (const v of si) {
+          const f = fichas[v.n];
+          const minimo = f?.tramos?.[0]?.desde ?? cands[v.n - 1].minimo;
+          if (minimo != null && minimo > p.minimoMax) continue;
+          const precio = precioMinimo(f) ?? cands[v.n - 1].usd;
+          if (precio == null) continue;
+          const total = Math.round(((v.unidades ?? 1) * precio + faltantes) * 100) / 100;
+          if (!mejor || total < mejor.total) mejor = { n: v.n, total };
+        }
+        const juicio: Juicio = { ...j, fichas, elegidoJuez: j.elegido, elegido: mejor?.n ?? j.elegido, costoUsd: mejor?.total ?? j.costoUsd };
+        const conCandidato = juicio.elegido != null && !!juicio.costoUsd;
+        const [tasas, alternativa, deML] = conCandidato ? await Promise.all([
+          j.ncm ? tasasDe(j.ncm).catch(() => null) : Promise.resolve(null),
+          j.ncmAlternativa ? tasasDe(j.ncmAlternativa).catch(() => null) : Promise.resolve(null),
+          costosML(organizacionId, x.categoria_id, x.precio, x.caja),
+        ]) : [null, null, null];
+        await pool.query("update piloto_productos set juicio = $2, costo = $3, etapa = 'listo' where id = $1",
+          [x.id, juicio, conCandidato ? { tasas, alternativa, ml: deML } : null]);
+      }));
+      hechos.push(`fichas de ${lote.length}`);
     }
 
     const faltan = await pool.query<{ n: number }>("select count(*)::int n from piloto_productos where corrida_id = $1 and etapa <> 'listo'", [id]);
@@ -266,7 +320,7 @@ export async function productosDe(corridaId: number) {
     id: number; categoria_id: string; lado: string; palabra: string | null; campeon: boolean; item_id: string | null;
     titulo: string; url: string | null; foto: string | null; precio: number | null; vendidos: number | null; vendidos_texto: string | null;
     opiniones: number | null; caja: Caja | null; flete_usd: number | null; flete_pct: number | null; franja: import("./tipos").Franja | null;
-    china: { en?: string; zh?: string; candidatos?: import("./tipos").Candidato[]; errores?: string[]; muestra?: string } | null;
+    china: { en?: string; zh?: string; candidatos?: import("./tipos").Candidato[]; errores?: string[]; muestra?: string; previa?: { en: string; motivo: string } } | null;
     datos_ml: string | null; costo: import("./costo").DatosCosto | null;
     juicio: import("./tipos").Juicio | null; revision: string | null; comentario: string | null; etapa: string; error: string | null;
   }[];

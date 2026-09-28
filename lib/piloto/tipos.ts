@@ -40,6 +40,12 @@ export type Franja = "seguro" | "gris" | "fuera";
 
 export type Caja = { largo: number; ancho: number; alto: number; kg: number; fuente: "mercadolibre" | "descripcion" | "web" | "claude" | "china"; nota?: string };
 
+/** Lo que dice la publicación de China por dentro (Fer, 28/9: el precio de la
+ *  búsqueda no coincide con el de la página; ahí están los precios por
+ *  cantidad y la caja de envío). */
+export type Tramo = { desde: number; hasta: number | null; usd: number };
+export type Ficha = { ok: boolean; tramos?: Tramo[]; caja?: { largo: number; ancho: number; alto: number; kg: number } | null; error?: string; muestra?: string };
+
 export type Candidato = {
   sitio: Sitio;
   titulo: string;
@@ -64,6 +70,10 @@ export type Juicio = {
   preseleccion?: number[];        // los candidatos que pasaron el prefiltro barato
   ncm?: string;                   // la NCM que propone el juez para el producto de Mercado Libre
   descartes?: Record<string, string>; // motivo de cada candidato que dejó afuera el filtro previo (por número)
+  ncmAlternativa?: string;        // otra NCM posible, si el juez duda
+  fichas?: Record<string, Ficha>; // lo leído de la publicación de China de los "si" (por número)
+  elegidoJuez?: number | null;    // el que eligió el juez con el precio de la búsqueda, antes de leer las fichas
+  busquedaPrevia?: { en: string; motivo: string }; // la búsqueda que no encontró nada y se replanteó
 };
 
 /** Una publicación de Mercado Libre, normalizada (venga de donde venga). */

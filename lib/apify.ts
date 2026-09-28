@@ -99,7 +99,7 @@ export function armarEntrada(esquema: Esquema, q: string, max: number, extras?: 
       entrada[k] = v;
     } else if (campoBusqueda?.[0] === k) {
       entrada[k] = arr ? [q] : q;
-    } else if (!campoBusqueda && q && /start_?urls|^urls$/.test(n)) {
+    } else if (!campoBusqueda && (q || extras?.urlBusqueda) && /start_?urls|^urls$|product_?urls?$/.test(n)) {
       entrada[k] = c.editor === "stringList" ? [url] : [{ url }];
     } else if (!extras && /country|site|domain|market/.test(n)) {
       const ar = opciones.find((o) => /^(ar|mla|arg|argentina|mercadolibre\.com\.ar)$/i.test(o))

@@ -9,15 +9,26 @@ const color = (n: number | null) => (n == null ? "" : n >= 0 ? "text-[#1F6E4A]" 
 
 /** Costo puesto en Argentina contra el precio de venta de Mercado Libre, con
  *  el desglose a un clic (Fer, 28/9). */
-export function Costo({ fob, caja, precio, p, datos }: { fob: number; caja: Caja | null; precio: number | null; p: Parametros; datos: DatosCosto | null }) {
-  const k = cuenta(fob, caja, precio, p, datos);
+export function Costo({ fob, caja, precio, p, datos, cajaChina, unidades }: {
+  fob: number; caja: Caja | null; precio: number | null; p: Parametros; datos: DatosCosto | null;
+  cajaChina?: { largo: number; ancho: number; alto: number; kg: number } | null; unidades?: number;
+}) {
+  const k = cuenta(fob, caja, precio, p, datos, cajaChina, unidades);
   const t = datos?.tasas;
+  const alt = datos?.alternativa;
+  // Fer (28/9): una duda de NCM que no cambia el arancel no se menciona; si lo
+  // cambia, se marca fuerte para revisarla.
+  const avisos: string[] = [];
+  if (t && alt && alt.arancel != null && t.arancel != null && alt.arancel !== t.arancel)
+    avisos.push(`Revisar la NCM: puede ir en ${t.ncm} (arancel ${formatearNumero(t.arancel, "pct")}%) o en ${alt.ncm} (arancel ${formatearNumero(alt.arancel, "pct")}%). Se usó ${t.ncm}.`);
+  if (t?.arancelMin != null && t.arancel != null)
+    avisos.push(`Revisar la NCM ${t.ncm}: según la apertura, el arancel va de ${formatearNumero(t.arancelMin, "pct")}% a ${formatearNumero(t.arancel, "pct")}%. Se usó ${formatearNumero(t.arancel, "pct")}%.`);
   const filas: [string, string, string?][] = [
     ["FOB (costo en China)", usd(k.fob)],
     ["Seguro", usd(k.seguro), "1% del FOB"],
     ["Flete", usd(k.flete), k.fleteComo],
     ["CIF", usd(k.cif), "FOB + seguro + flete"],
-    ["Derechos", usd(k.derechos), t?.arancel != null ? `${formatearNumero(t.arancel, "pct")}% del CIF${t.arancelMin != null ? ` (según la apertura, desde ${formatearNumero(t.arancelMin, "pct")}%; se toma el más alto)` : ""}` : "sin arancel"],
+    ["Derechos", usd(k.derechos), t?.arancel != null ? `${formatearNumero(t.arancel, "pct")}% del CIF (NCM ${t.ncm})` : "sin arancel"],
     ["Tasa de estadística", usd(k.estadistica), t ? `${formatearNumero(t.estadistica, "pct")}% del CIF` : ""],
     ["Base imponible", usd(k.base), "CIF + derechos + estadística"],
     ["IVA", usd(k.iva), t ? `${formatearNumero(t.iva, "pct")}% de la base${t.deDespachos ? "" : " (sin despachos de esa NCM: se asume)"}` : ""],
@@ -32,6 +43,7 @@ export function Costo({ fob, caja, precio, p, datos }: { fob: number; caja: Caja
         {k.neto != null && <> · neto de Mercado Libre {usd(k.neto)}: <b className={color(k.netoSobreCosto)}>{pct(k.netoSobreCosto)} sobre el costo</b> ({pct(k.netoSobreVenta)} sobre la venta)</>}
       </p>
       {k.falta.length > 0 && <p className="text-[#8a6100]">Para completar la cuenta falta {k.falta.join(" y ")}.</p>}
+      {avisos.map((a) => <p key={a} className="text-[#C03420] font-bold">⚠ {a}</p>)}
       <details className="mt-1 group">
         <summary className={DESPLEGABLE_CHICO}>Ver la cuenta</summary>
         <table className="mt-2 text-[11px]">

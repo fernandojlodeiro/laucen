@@ -35,7 +35,7 @@ export default async function LayoutPiloto({ children, params }: { children: Rea
       </p>
       <p className="text-xs mb-1">
         Avance: Mercado Libre {catsHechas}/{p.categorias.length} categorías · productos {total}
-        {total > 0 && ` (caja ${n.caja ?? 0} · China ${n.china ?? 0} · juez ${n.juez ?? 0} · listos ${n.listo ?? 0})`}
+        {total > 0 && ` (caja ${n.caja ?? 0} · China ${n.china ?? 0} · juez ${n.juez ?? 0} · fichas ${n.ficha ?? 0} · listos ${n.listo ?? 0})`}
       </p>
       <p className="text-xs mb-3">
         Costo: Apify US$ {apifyUsd.toFixed(2)} (tope {p.topeApifyUsd}) · Claude US$ {claudeUsd.toFixed(2)} ({tok.in.toLocaleString("es-AR")} tokens de entrada, {tok.out.toLocaleString("es-AR")} de salida)
