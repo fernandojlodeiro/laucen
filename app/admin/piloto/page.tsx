@@ -92,6 +92,7 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
             {campo("precioMax", "Precio de venta hasta ($)", v.precioMax, "pesos")}
             {campo("porCategoria", "Productos por categoría", v.porCategoria, "entero", "los primeros del listado de la categoría (sin publicidad)")}
             {campo("listado", "Publicaciones a leer del listado de cada categoría", v.listado, "entero")}
+            {campo("vendidosMin", "Ventas mínimas en Mercado Libre", v.vendidosMin ?? 50, "entero", "con menos ventas no se busca en China (sin el dato, entra)")}
           </fieldset>
           <fieldset className="grid gap-3">
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">

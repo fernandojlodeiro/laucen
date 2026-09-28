@@ -5,6 +5,7 @@ export type Parametros = {
   precioMin: number | null;       // precio de venta en Mercado Libre, en pesos
   precioMax: number | null;
   porCategoria: number;           // productos por lado y por categoría (3)
+  vendidosMin?: number;           // no se busca en China lo que vendió menos (Fer, 28/9, #123; sin dato de ventas, entra)
   listado: number;                // publicaciones que se leen del listado de la categoría (50)
   modo: Modo;                     // buscar productos para traer en barco o en avión
   fleteM3Usd: number;             // barco: costo del flete por m³ (o por tonelada, lo que dé más)
@@ -32,7 +33,7 @@ export type Sitio = "aliexpress" | "1688" | "alibaba";
 export const SITIOS: Record<Sitio, string> = { aliexpress: "AliExpress", "1688": "1688", alibaba: "Alibaba" };
 
 export const POR_DEFECTO: Omit<Parametros, "categorias"> = {
-  precioMin: null, precioMax: null, porCategoria: 3, listado: 50,
+  precioMin: null, precioMax: null, porCategoria: 3, vendidosMin: 50, listado: 50,
   modo: "barco", fleteM3Usd: 140, fleteKgUsd: 8, dolar: 1500, seguroPct: 20, grisPct: 15,
   yuanPorDolar: 7.1, minimoMax: 500, topeApifyUsd: 10, sitios: ["aliexpress"], soloListado: true, soloLocal: true,
 };
@@ -77,7 +78,7 @@ export type Juicio = {
   ncmAlternativa?: string;        // otra NCM posible, si el juez duda
   fichas?: Record<string, Ficha>; // lo leído de la publicación de China de los "si" (por número)
   elegidoJuez?: number | null;    // el que eligió el juez con el precio de la búsqueda, antes de leer las fichas
-  verificacion?: { n: number; igual: boolean; variante?: string; usdVariante?: number | null; motivo?: string; extrasUsd?: number;
+  verificacion?: { n: number; igual: boolean; variante?: string; usdVariante?: number | null; usdMedida?: number | null; motivo?: string; extrasUsd?: number;
     medidas?: { largo: number; ancho: number; alto: number } | null;
     caja?: { largo: number; ancho: number; alto: number; kg: number } | null }[]; // segunda mirada con las fichas
   precioIncierto?: boolean;
@@ -113,5 +114,6 @@ export type AvanceCategoria = {
   listado?: PubML[];              // las publicaciones del listado, ordenadas por vendidos
   palabras?: { palabra: string; encontrada: boolean; motivo?: string }[];
   cruce?: { buscado: string; vendido: string; como: "mismo producto" | "equivalente" }[];
+  salteados?: { titulo: string; motivo: string }[]; // del listado, los que no se buscan (no importables, pocas ventas)
   errores?: string[];
 };

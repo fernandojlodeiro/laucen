@@ -17,7 +17,7 @@ const ACTOR_1688 = "parseforge~1688-scraper";
 const ACTOR_ALIBABA = "memo23~alibaba-scraper";
 // AliExpress: el primero del banco (27/9); se prueban los otros en el banco.
 export const ACTOR_ALIEXPRESS = "dami_studio~aliexpress-products-scraper";
-const POR_SITIO = 20;
+const POR_SITIO = 40; // dos páginas de Alibaba (#123: con 20 se colaba mucho de otra cosa)
 // Mientras el piloto está en prueba, el mejor modelo en todos los pasos (Fer,
 // 28/9: "la idea es que funcione y sirva"). Cuando esté estable, se prueba bajar.
 const MODELO = "grande" as const;
@@ -109,7 +109,7 @@ export type BusquedaChina = { en: string; zh: string; candidatos: Candidato[]; c
  *  comprador (Fer, 28/9: "no hay chances de que en China un producto no
  *  exista"; si no aparece, es que se buscó mal). Con `previa`, la búsqueda
  *  anterior no sirvió y se pide otra distinta. */
-async function armarBusqueda(titulo: string, ia: Proveedor | undefined, texto?: string, previa?: { en: string; motivo: string }) {
+async function armarBusqueda(titulo: string, ia: Proveedor | undefined, texto?: string, previa?: { en: string; motivo: string }, ruta?: string) {
   const r = await pedirIA(ia, {
     maxTokens: 600,
     system: "Armás la búsqueda para encontrar en Alibaba el mismo producto que se vende en Mercado Libre. Sacá marca, número de modelo, " +
@@ -117,10 +117,13 @@ async function armarBusqueda(titulo: string, ia: Proveedor | undefined, texto?: 
       "la medida o tamaño principal y lo que lo distingue (con bomba eléctrica, flocado, con inflador manual, etc.). En inglés, de 3 a 7 " +
       "palabras, como lo buscaría un comprador mayorista; y en chino simplificado para 1688. Aparte, si el producto es de una MARCA con " +
       "número de MODELO reconocible (Bestway 67002, Intex 64758), en \"marca\" poné sólo marca y modelo tal como se buscarían; si es " +
-      "genérico o sin modelo, null. Respondé sólo JSON: {\"en\":\"...\",\"zh\":\"...\",\"marca\":\"... o null\"}.",
-    contenido: `Producto: ${titulo}${texto ? `\nDatos: ${texto.slice(0, 800)}` : ""}` +
+      "genérico o sin modelo, null. La CATEGORÍA de Mercado Libre dice para qué es (jardín, exterior, auto, cocina…): esa palabra " +
+      "(outdoor, garden, patio, car…) tiene que quedar en la búsqueda, para no traer productos de otro uso (#123: una mesa de jardín trajo " +
+      "comedores de interior). Respondé sólo JSON: {\"en\":\"...\",\"zh\":\"...\",\"marca\":\"... o null\"}.",
+    contenido: `Producto: ${titulo}${ruta ? `\nCategoría de Mercado Libre: ${ruta}` : ""}${texto ? `\nDatos: ${texto.slice(0, 800)}` : ""}` +
       (previa ? `\n\nLa búsqueda anterior "${previa.en}" no encontró el mismo producto. Por qué: ${previa.motivo}\n` +
-        "Proponé otra búsqueda distinta: más general o con otras palabras (sinónimos de la industria), sin repetir la anterior." : ""),
+        "Proponé otra búsqueda distinta: más general o con otras palabras (sinónimos de la industria), sin repetir la anterior. " +
+        "El TIPO de producto y su uso no cambian (si era un juego de jardín, sigue siendo de jardín): cambian las palabras." : ""),
   });
   const j = "texto" in r ? jsonDe<{ en?: string; zh?: string; marca?: string | null }>(r.texto) : null;
   const marca = j?.marca && j.marca.trim().toLowerCase() !== "null" ? j.marca.trim() : null;
@@ -128,8 +131,8 @@ async function armarBusqueda(titulo: string, ia: Proveedor | undefined, texto?: 
 }
 
 export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: (usd: number) => boolean,
-  opciones: { texto?: string; previa?: { en: string; motivo: string } } = {}): Promise<BusquedaChina & { muestra?: string; claudeUsd?: number }> {
-  const armada = await armarBusqueda(titulo, p.ia, opciones.texto, opciones.previa).catch(() => null);
+  opciones: { texto?: string; previa?: { en: string; motivo: string }; ruta?: string } = {}): Promise<BusquedaChina & { muestra?: string; claudeUsd?: number }> {
+  const armada = await armarBusqueda(titulo, p.ia, opciones.texto, opciones.previa, opciones.ruta).catch(() => null);
   const t = armada?.en ? { en: armada.en, zh: armada.zh || armada.en } : await traducir(titulo);
   if (!t || esFalla(t)) {
     return { en: "", zh: "", candidatos: [], costoUsd: 0, errores: [`No se pudo traducir: ${t && esFalla(t) ? t.motivo : "sin llave de Claude"}`], tokensIn: 0, tokensOut: 0 };
@@ -153,7 +156,7 @@ export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: 
     }
     const [actor, entrada] = sitio === "1688"
       ? [ACTOR_1688, { searchTerms: [t.zh], maxItems: POR_SITIO }]
-      : [ACTOR_ALIBABA, { searchTerms: [t.en], maxItems: POR_SITIO, maxPages: 1 }];
+      : [ACTOR_ALIBABA, { searchTerms: [t.en], maxItems: POR_SITIO, maxPages: 2 }];
     // Producto de marca (Fer, 28/9): primero la marca y el modelo exactos, y además la
     // búsqueda sin marca, por si no está o hay uno igual más barato. Los de la marca van primero.
     const marca = sitio === "alibaba" && armada?.marca && !opciones.previa ? armada.marca : null;
@@ -325,8 +328,14 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     "Sos el comprador de un importador argentino. Te doy un producto que se vende en Mercado Libre y algunos candidatos de China, con fotos.\n" +
     "Paso 1: desarmá el producto de Mercado Libre en sus componentes, con cantidades (ej: \"2 colchones dobles + 1 inflador eléctrico + 2 almohadas\"). " +
     "Mirá bien el título, la foto y los datos: sets, packs, 'x2', 'combo', 'kit', 'incluye'.\n" +
-    "Paso 2: para cada candidato que sea EL MISMO producto decí \"si\": el producto principal con las mismas características (medida, capacidad, " +
-    "potencia, material). Una versión peor en lo principal (otra medida, menos potencia, otro material) es \"dudoso\", nunca \"si\". " +
+    "Paso 2: para cada candidato que sea EL MISMO producto o su EQUIVALENTE decí \"si\": mismo tipo, misma función y uso, mismo material y " +
+    "las mismas características principales (medida, capacidad, potencia). Fer compra el equivalente, no la marca: los detalles de diseño " +
+    "(de qué lado está la puerta, forma de la manija, color, estampado, logo) NO descartan. Una versión mejor en lo principal (más potencia, " +
+    "más capacidad) con las medidas dentro de la tolerancia también es \"si\". Una versión peor en lo principal (otra medida, menos potencia, " +
+    "otro material, otro uso: interior contra exterior) es \"dudoso\" o \"no\". " +
+    "A MEDIDA: si el candidato se vende por metro, por m², por kilo o dice customizable / cut to size / any size / OEM size, es \"si\" " +
+    "aunque no nombre la medida de Mercado Libre: calculá costoUsd como precio por unidad de medida × la cantidad que trae el de Mercado " +
+    "Libre (ej. rafia 1,80 x 50 m = 90 m² × US$ 0,25 el m²) y explicalo en el motivo. " +
     "ACCESORIOS Y EXTRAS (Fer, 28/9): si al candidato le falta un accesorio barato que el original trae (almohadas, inflador manual, bolsa, " +
     "parche), igual es \"si\": poné en falta qué falta y sumá su costo estimado en China al costo total; un combo se arma con N unidades del " +
     "producto más los accesorios. Si el candidato trae un extra barato que el original no tiene (almohada, inflador de pie, bolsa), también es " +
@@ -379,8 +388,14 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     tokensIn += r.tokensIn; tokensOut += r.tokensOut; usd += r.usd;
   }
   if ("error" in r) return { juicio: vacio("", { error: r.error, preseleccion: elegidos }), tokensIn, tokensOut, usd };
-  const j = jsonDe<Juicio>(r.texto);
-  if (!j) return { juicio: vacio("", { error: "La IA contestó en otro formato", preseleccion: elegidos }), tokensIn, tokensOut, usd };
+  let j = jsonDe<Juicio>(r.texto);
+  if (!j) {
+    // Una vez más (#123: la Bramer se perdió por un JSON mal armado).
+    const r2 = await pedirIA(p.ia, { system, contenido: armar(false), maxTokens: 6000, effort: "medium" });
+    tokensIn += r2.tokensIn; tokensOut += r2.tokensOut; usd += r2.usd;
+    j = "texto" in r2 ? jsonDe<Juicio>(r2.texto) : null;
+  }
+  if (!j) return { juicio: vacio("", { error: "La IA contestó en otro formato (dos veces)", preseleccion: elegidos }), tokensIn, tokensOut, usd };
   return {
     juicio: {
       componentes: j.componentes, veredictos: (j.veredictos ?? []).filter((v) => v.v === "si" || v.v === "dudoso" || v.v === "no"),
@@ -428,6 +443,9 @@ export async function verificar(ml: { titulo: string; precio: number | null; tex
       "unidad del producto: si el empaque es de varias unidades (cartón con N piezas), dividilo; el peso puede venir en gramos. " +
       "Si el empaque de la publicación es ilógico para el producto (ej. 100x100x100 cm para una desmalezadora, que embalada mide unos " +
       "170x23x23), no lo copies: poné en caja tu estimación razonable. " +
+      "EQUIVALENTE: Fer compra el equivalente, no la marca; los detalles de diseño (lado de la puerta, color, forma) no descartan. " +
+      "A MEDIDA: lo que se vende por metro, m² o kilo, o dice customizable / cut to size, es igual=true; en usdMedida poné el precio " +
+      "por unidad de medida × la cantidad del de Mercado Libre (ej. 90 m² × 0,25 = 22,5); si no se vende así, usdMedida = null. " +
       "VERSIÓN MEJOR: si el candidato es el mismo tipo de producto con algo MEJOR (más potencia, mayor capacidad) y sus medidas " +
       "están dentro de la tolerancia, es igual=true (Fer, 28/9: una bordeadora de 550W contra una de 450W, con 30 cm de corte contra 33, " +
       "sirve). Lo que sí lo descarta: otra tecnología (a batería contra a cable, a nafta contra eléctrica) o algo PEOR que el de Mercado Libre. " +
@@ -437,7 +455,7 @@ export async function verificar(ml: { titulo: string; precio: number | null; tex
       "(de la variante a pedir), en cm; si no las encontrás, null. El programa las vuelve a comparar con la tolerancia.\n" +
       "PRECIO POR VARIANTE: si el candidato trae la lista \"Precios por variante\", en usdVariante poné el precio EXACTO de la lista " +
       "de la variante que hay que pedir (la de la misma medida); si no hay lista, null.\n" +
-      'Respondé sólo JSON: {"medidasML":{"largo":200,"ancho":150,"alto":40},"c":[{"n":3,"igual":true,"variante":"qué variante pedir (medida)","usdVariante":7.3,"extrasUsd":1.5,' +
+      'Respondé sólo JSON: {"medidasML":{"largo":200,"ancho":150,"alto":40},"c":[{"n":3,"igual":true,"variante":"qué variante pedir (medida)","usdVariante":7.3,"usdMedida":null,"extrasUsd":1.5,' +
       '"medidas":{"largo":198,"ancho":152,"alto":40},"caja":{"largo":40,"ancho":30,"alto":12,"kg":2.8},"motivo":"corto"}]}. Sin datos de caja, caja = null.',
     contenido: `Mercado Libre: ${ml.titulo}${usdML ? ` — US$ ${usdML} al público` : ""}\n` +
       (componentes ? `Qué incluye: ${componentes}\n` : "") + (ml.texto ? `Datos: ${ml.texto.slice(0, 1200)}\n` : "") +
@@ -447,7 +465,7 @@ export async function verificar(ml: { titulo: string; precio: number | null; tex
         `Publicación por dentro: ${(it.ficha?.muestra ?? "(no se pudo leer)").replace(/"(images|videoUrl|imageUrl|supplier)":(\[[^\]]*\]|"[^"]*"|\{[^}]*\})/g, "").slice(0, 2500)}`).join("\n"),
   });
   type Medidas = { largo: number; ancho: number; alto: number } | null;
-  const j = "texto" in r ? jsonDe<{ medidasML?: Medidas; c?: { n: number; igual: boolean; variante?: string; usdVariante?: number | null; motivo?: string; extrasUsd?: number;
+  const j = "texto" in r ? jsonDe<{ medidasML?: Medidas; c?: { n: number; igual: boolean; variante?: string; usdVariante?: number | null; usdMedida?: number | null; motivo?: string; extrasUsd?: number;
     medidas?: Medidas; caja?: { largo: number; ancho: number; alto: number; kg: number } | null }[] }>(r.texto) : null;
   // El programa controla la tolerancia de medidas, sin confiar en el modelo (piloto #21:
   // Gemini dio por iguales 194×64 contra 220×70 y 191×137 contra 203×152).

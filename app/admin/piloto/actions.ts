@@ -24,6 +24,7 @@ export async function accionCrearPiloto(formData: FormData) {
     precioMin: numero(formData.get("precioMin"), null),
     precioMax: numero(formData.get("precioMax"), null),
     porCategoria: numero(formData.get("porCategoria"), d.porCategoria)!,
+    vendidosMin: numero(formData.get("vendidosMin"), d.vendidosMin ?? 50) ?? 50,
     listado: numero(formData.get("listado"), d.listado)!,
     modo: formData.get("modo") === "avion" ? "avion" : "barco",
     fleteM3Usd: numero(formData.get("fleteM3Usd"), d.fleteM3Usd)!,

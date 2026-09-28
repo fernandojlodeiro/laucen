@@ -120,7 +120,17 @@ async function etapaML(c: Corrida, categoriaId: string) {
   av.palabras = bus.palabras;
   if (bus.error) av.errores!.push(bus.error);
 
-  const vendidos = lst.listado.slice(0, p.porCategoria);
+  // Antes de gastar en China (#123): fuera lo que no se importa (semillas, plantas,
+  // alimentos, químicos: SENASA/ANMAT) y lo que vendió menos que el mínimo.
+  const minVentas = p.vendidosMin ?? 0;
+  const salteados: { titulo: string; motivo: string }[] = [];
+  const aptos = lst.listado.filter((pub) => {
+    if (NO_IMPORTABLE.test(pub.titulo)) { salteados.push({ titulo: pub.titulo, motivo: "no se importa (semillas, plantas, alimentos o químicos)" }); return false; }
+    if (pub.vendidos != null && pub.vendidos < minVentas) { salteados.push({ titulo: pub.titulo, motivo: `vendió ${pub.vendidos} (mínimo ${minVentas})` }); return false; }
+    return true;
+  });
+  av.salteados = salteados.slice(0, 30);
+  const vendidos = aptos.slice(0, p.porCategoria);
   // El cruce se hace contra todo el listado leído, no sólo los 3 primeros.
   const cr = bus.pubs.length ? await cruzar(bus.pubs, lst.listado) : { pares: [], tokensIn: 0, tokensOut: 0, usd: 0 };
   await sumarClaude(c.id, "cruce", cr.tokensIn, cr.tokensOut, cr.usd);
@@ -142,6 +152,8 @@ async function etapaML(c: Corrida, categoriaId: string) {
   av.hecho = true;
   await pool.query("update piloto_corridas set avance = jsonb_set(avance, array[$2::text], $3::jsonb) where id = $1", [c.id, categoriaId, JSON.stringify(av)]);
 }
+
+const NO_IMPORTABLE = /\bsemilla|plant[ií]n|plantas? viva|esqueje|bulbos?\b|fertiliz|abono|herbicida|insecticida|fungicida|plaguicida|alimento|comida para|golosina|bebida|\bvino\b|cerveza|sustrato|tierra (negra|f[eé]rtil)|medicamento|veterinari|suplemento dietario/i;
 
 type FilaProducto = { id: number; titulo: string; foto: string | null; precio: number | null; caja: Caja | null;
   china: { candidatos?: unknown[]; en?: string; reintentar?: { en: string; motivo: string }; previa?: { en: string; motivo: string };
@@ -280,7 +292,8 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         const etapa = f?.franja === "fuera" ? "listo" : "china";
         await pool.query("update piloto_productos set caja = $2, flete_usd = $3, flete_pct = $4, franja = $5, etapa = $6, error = $7 where id = $1",
           [x.id, caja, f?.usd ?? null, f?.pct ?? null, f?.franja ?? null, etapa,
-            [caja ? null : `Sin caja estimada${r.error ? `: ${r.error}` : ""} (se busca igual)`,
+            [f?.franja === "fuera" ? `No se buscó en China: el flete aéreo es el ${f.pct}% del precio, fuera de la franja del piloto (${p.modo === "avion" ? `más de ${p.grisPct}%` : `menos de ${p.grisPct}%: conviene traerlo en avión`})` : null,
+              caja ? null : `Sin caja estimada${r.error ? `: ${r.error}` : ""} (se busca igual)`,
               x.url && avisosPagina.has(x.url) ? `No se pudo leer la página de Mercado Libre (${avisosPagina.get(x.url)})` : null,
               !datos ? `Mercado Libre no dio datos (${(rastros.get(x.url ?? "") ?? ["sin rastro"]).join(" → ")})` : null].filter(Boolean).join(" · ") || null]);
       }
@@ -296,7 +309,7 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
       await Promise.all(lote.map(async (x) => {
         // Si viene de una búsqueda que no encontró nada, se busca con otras palabras (una sola vez).
         const previa = x.china?.reintentar;
-        const r = await buscarEnChina(x.titulo, p, puedeGastar, { texto: x.datos_ml ?? undefined, previa });
+        const r = await buscarEnChina(x.titulo, p, puedeGastar, { texto: x.datos_ml ?? undefined, previa, ruta: p.categorias.find((cat) => cat.id === x.categoria_id)?.ruta });
         await sumarApify(id, r.costoUsd, r.runIds);
         await sumarClaude(id, "busqueda", r.tokensIn, r.tokensOut, r.claudeUsd ?? 0);
         await pool.query("update piloto_productos set china = $2, etapa = 'juez', error = coalesce($3, error) where id = $1",
@@ -409,12 +422,15 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
           const est = precioMinimo(f) == null && deVariante == null
             ? estimarVariante(f?.muestra, cands[v.n - 1].precioTexto, verificacion?.find((c) => c.n === v.n)?.variante) : null;
           if (est) estimados[v.n] = est;
-          const precio = precioMinimo(f) ?? deVariante ?? est?.usd ?? cands[v.n - 1].usd;
+          // Vendido por metro, m² o kilo: el precio de la cantidad que trae el de Mercado Libre (#123, rafia).
+          const pm = verificacion?.find((c) => c.n === v.n)?.usdMedida;
+          const porMedida = typeof pm === "number" && pm > 0 ? pm : null;
+          const precio = porMedida ?? precioMinimo(f) ?? deVariante ?? est?.usd ?? cands[v.n - 1].usd;
           if (precio == null) continue;
           // Accesorios que faltan: lo que estimó la segunda mirada (por unidad de ML); si no, lo del juez.
           const extras = verificacion?.find((c) => c.n === v.n)?.extrasUsd;
           const total = Math.round(((v.unidades ?? 1) * precio + (typeof extras === "number" ? extras : faltantes)) * 100) / 100;
-          const claro = !!f?.tramos?.length || deVariante != null || !!est;
+          const claro = !!f?.tramos?.length || deVariante != null || !!est || porMedida != null;
           if (!mejor || (claro && !mejor.claro) || (claro === mejor.claro && total < mejor.total)) mejor = { n: v.n, total, claro };
         }
         const juicio: Juicio = { ...j, fichas, elegidoJuez: j.elegido, elegido: mejor?.n ?? null, costoUsd: mejor?.total ?? null,

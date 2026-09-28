@@ -108,14 +108,15 @@ export async function listadoDeCategoria(url: string, categoriaId: string, n: nu
   const pubs: PubML[] = [];
   const intentos: { actor: string; entrada: Record<string, unknown> }[] = [
     { actor: "scrapesage~mercadolibre-scraper", entrada: {
-      site: "MLA", startUrls: [{ url }], maxItems: n, maxPagesPerQuery: Math.ceil(n / 48),
+      // Con el detalle de cada publicación viene lo vendido (soldQuantity), para el mínimo de ventas (#123).
+      site: "MLA", startUrls: [{ url }], maxItems: n, maxPagesPerQuery: Math.ceil(n / 48), includeProductDetails: true,
       ...(min != null ? { minPrice: min } : {}), ...(max != null ? { maxPrice: max } : {}),
     } },
   ];
   // karamelo quedó afuera (28/9): no entiende la dirección de una categoría.
   await Promise.all(intentos.map(async ({ actor, entrada }) => {
-    if (!puedeGastar(0.3)) return actores.push({ actor, url, ok: false, cantidad: 0, costoUsd: null, error: "Tope de gasto de Apify" });
-    const c = await correrConEntrada(actor, entrada, { max: n, esperaSeg: 150, topeUsd: 0.3 });
+    if (!puedeGastar(0.6)) return actores.push({ actor, url, ok: false, cantidad: 0, costoUsd: null, error: "Tope de gasto de Apify" });
+    const c = await correrConEntrada(actor, entrada, { max: n, esperaSeg: 180, topeUsd: 0.6 });
     const todas = (c.items as Record<string, unknown>[]).map(aPubML).filter((p) => p.titulo !== "(sin título)");
     // Si el actor dice de qué categoría es cada publicación, se descartan las
     // de otras ramas (karamelo no entiende la dirección de la categoría y trae
@@ -339,6 +340,9 @@ async function caracteristicasConApify(url: string) {
   const intentos = [
     { nombre: "cheerio AR", actor: "apify~cheerio-scraper", entrada: { pageFunction, useSessionPool: true, persistCookiesPerSession: true, proxyConfiguration: ar } },
     { nombre: "Chrome AR", actor: "apify~web-scraper", entrada: { pageFunction: pageFunctionChrome, injectJQuery: false, proxyConfiguration: ar } },
+    // Tercer intento (#123): residencial de cualquier país, otra IP y otra sesión.
+    { nombre: "Chrome residencial", actor: "apify~web-scraper", entrada: { pageFunction: pageFunctionChrome, injectJQuery: false,
+      proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"] } } },
   ];
   let aviso = "";
   for (const x of intentos) {
