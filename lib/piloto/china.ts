@@ -231,6 +231,8 @@ export async function cajasConWeb(productos: { id: number; titulo: string; texto
     "El peso es lo más importante; si no encontrás medidas, poné 0. Si no encontrás nada, estimá y aclaralo en la nota. " +
     "Además, si los datos de la publicación no traen las MEDIDAS DEL PRODUCTO (largo, ancho, alto, material), abrí la publicación de " +
     "Mercado Libre con web_fetch y copiá las de la sección Características (Fer, 28/9: en las fichas de catálogo siempre están). " +
+    "Las MEDIDAS DEL PRODUCTO sólo valen si las leíste en esa misma publicación: si no la pudiste abrir, medidas = null. NUNCA las " +
+    "saques de otro sitio ni de un producto parecido (piloto #21: puso 191x137x22 de otra página y el colchón era de 200x150x40). " +
     "Respondé al final sólo JSON: {\"cajas\":[{\"id\":1,\"kg\":10,\"largo\":100,\"ancho\":40,\"alto\":20,\"fuente\":\"web\" o \"estimado\",\"nota\":\"de dónde\"," +
     "\"medidas\":\"Largo: 200 cm, Ancho: 150 cm, Alto: 40 cm, Material: PVC\" o null}]}.";
   const texto = productos.map((p) => `Producto ${p.id}: ${p.titulo}${p.url ? `\nPublicación: ${p.url.replace(/[?#].*$/, "")}` : ""}` +

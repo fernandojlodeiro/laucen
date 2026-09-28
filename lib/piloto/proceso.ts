@@ -241,7 +241,7 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         await pool.query("update piloto_productos set caja = $2, flete_usd = $3, flete_pct = $4, franja = $5, etapa = $6, error = $7 where id = $1",
           [x.id, caja, f?.usd ?? null, f?.pct ?? null, f?.franja ?? null, etapa,
             [caja ? null : `Sin caja estimada${r.error ? `: ${r.error}` : ""} (se busca igual)`,
-              x.url && avisosPagina.has(x.url) && sinMedidas(datos) ? `No se pudo leer la página de Mercado Libre (${avisosPagina.get(x.url)})` : null].filter(Boolean).join(" · ") || null]);
+              x.url && avisosPagina.has(x.url) ? `No se pudo leer la página de Mercado Libre (${avisosPagina.get(x.url)})` : null].filter(Boolean).join(" · ") || null]);
       }
       hechos.push(`caja de ${lote.length}`);
     }
