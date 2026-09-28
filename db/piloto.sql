@@ -56,7 +56,7 @@ alter table piloto_productos add column if not exists datos_ml text;
 alter table piloto_corridas add column if not exists automatico boolean not null default false;
 
 -- Llave del llamado automático (/api/piloto/tanda), que hace la base cada
--- 5 minutos con pg_cron + pg_net. Una sola fila.
+-- minuto con pg_cron + pg_net (antes cada 5; Fer, 28/9). Una sola fila.
 create table if not exists piloto_llave (id int primary key default 1 check (id = 1), clave text not null);
 alter table piloto_llave enable row level security;
 

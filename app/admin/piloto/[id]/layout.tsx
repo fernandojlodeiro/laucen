@@ -53,7 +53,7 @@ export default async function LayoutPiloto({ children, params }: { children: Rea
         ))}
       </div>
       {c.automatico && c.estado !== "listo" && (
-        <p className="text-xs text-[#1F6E4A] mb-1">Se procesa solo cada 5 minutos, aunque cierres la página. Recargá para ver el avance.</p>
+        <p className="text-xs text-[#1F6E4A] mb-1">Se procesa solo cada minuto, aunque cierres la página. Recargá para ver el avance.</p>
       )}
       <Procesar id={c.id} avanzar={accionAvanzar} terminado={c.estado === "listo"} />
       <Pestanas items={[

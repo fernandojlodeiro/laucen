@@ -128,7 +128,7 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
             <input type="checkbox" name="dobleModelo" value="1" /> Doble modelo: la segunda mirada (¿es el mismo producto?) la hace Anthropic
           </label>
           <label className="flex items-center gap-2 text-xs">
-            <input type="checkbox" name="automatico" value="1" /> Procesar solo, sin dejar la página abierta (avanza cada 5 minutos)
+            <input type="checkbox" name="automatico" value="1" /> Procesar solo, sin dejar la página abierta (avanza cada minuto)
           </label>
           <div><BotonEnviar clase={PRIMARIO} corriendo="Creando…">Crear piloto</BotonEnviar></div>
         </form>

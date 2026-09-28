@@ -337,7 +337,7 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
     // Fichas (hasta 90 s) + segunda mirada + NCM pueden llevar 4 minutos: sólo al
     // principio de una tanda, para que no la corte el límite de Vercel.
     while (quedaTiempo(250_000)) {
-      const lote = await productosEn(id, "ficha", 3);
+      const lote = await productosEn(id, "ficha", 10);
       if (!lote.length) break;
       await Promise.all(lote.map(async (x) => {
         const j = x.juicio!;
