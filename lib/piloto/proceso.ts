@@ -316,6 +316,7 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
             const pv = await preciosPorVariante(url);
             await sumarApify(id, pv.costoUsd, pv.runId ? [pv.runId] : []);
             if (pv.variantes.length) fichas[v.n].variantes = pv.variantes;
+            else fichas[v.n].error = `${fichas[v.n].error ?? ""} · precios por variante: ${pv.error ?? "sin datos"}`.replace(/^ · /, "");
           }
         }));
         // Segunda mirada con las publicaciones por dentro: medidas, componentes y proporción de precio.

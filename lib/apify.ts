@@ -155,7 +155,7 @@ const TERMINADO = ["SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"];
 // 16 a la vez se llenan los 64 GB del plan y Apify contesta 402 (Cowork, #102 H3).
 // Leer páginas por HTTP no necesita más de 1 GB.
 const MEMORIA: Record<string, number> = {
-  "tortuga~alibaba-scraper": 1024, "scrapesage~mercadolibre-scraper": 1024, "apify~cheerio-scraper": 1024,
+  "tortuga~alibaba-scraper": 1024, "scrapesage~mercadolibre-scraper": 1024, "apify~cheerio-scraper": 1024, "apify~web-scraper": 2048,
 };
 
 /** Corre un actor con una entrada ya armada, con tope de resultados y de

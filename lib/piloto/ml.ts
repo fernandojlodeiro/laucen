@@ -318,20 +318,40 @@ async function caracteristicasConApify(url: string) {
     return { url: request.url, titulo: $('title').text(), largo: html.length, item: item ? item[1] : null,
       caracteristicas: pares.join('\\n'), descripcion: d >= 0 ? t.slice(d, d + 1500) : '' };
   }`;
+  // Con Chrome de verdad (web-scraper): ML le devuelve a cheerio una página anti-bot de
+  // 39 KB titulada "Mercado Libre" aunque vaya por proxy residencial (piloto #21, 28/9).
+  const pageFunctionChrome = `async function pageFunction(context) {
+    await new Promise((ok) => setTimeout(ok, 2500));
+    const html = document.documentElement.outerHTML;
+    const pares = [];
+    const re = /\\{"id":"([^"]{1,80})","text":"([^"]{1,200})"/g;
+    let m;
+    while ((m = re.exec(html)) && pares.length < 80) { const l = m[1] + ': ' + m[2]; if (!pares.includes(l)) pares.push(l); }
+    const t = (document.body ? document.body.innerText : '').replace(/\\s+/g, ' ');
+    if (!pares.length) { const i = t.search(/Características (del producto|principales)/); if (i >= 0) pares.push(t.slice(i, i + 2000)); }
+    const d = t.indexOf('Descripción');
+    const item = html.match(/"item_id":"(MLA\\d+)"/);
+    return { url: context.request.url, titulo: document.title, largo: html.length, item: item ? item[1] : null,
+      caracteristicas: pares.join('\\n'), descripcion: d >= 0 ? t.slice(d, d + 1500) : '' };
+  }`;
   const limpia = url.replace(/[?#].*$/, "");
+  const ar = { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"], apifyProxyCountry: "AR" };
+  const intentos = [
+    { nombre: "cheerio AR", actor: "apify~cheerio-scraper", entrada: { pageFunction, useSessionPool: true, persistCookiesPerSession: true, proxyConfiguration: ar } },
+    { nombre: "Chrome AR", actor: "apify~web-scraper", entrada: { pageFunction: pageFunctionChrome, injectJQuery: false, proxyConfiguration: ar } },
+  ];
   let aviso = "";
-  for (const proxy of [{ useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"], apifyProxyCountry: "AR" }, { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"] }]) {
-    const c = await correrConEntrada("apify~cheerio-scraper", {
-      startUrls: [{ url: limpia }], pageFunction, maxRequestsPerCrawl: 1, maxConcurrency: 1, maxRequestRetries: 3,
-      useSessionPool: true, persistCookiesPerSession: true, proxyConfiguration: proxy,
-    }, { max: 1, esperaSeg: 90, topeUsd: 0.1 }).catch((e) => ({ items: [], error: String(e) }));
+  for (const x of intentos) {
+    const c = await correrConEntrada(x.actor, {
+      startUrls: [{ url: limpia }], maxRequestsPerCrawl: 1, maxConcurrency: 1, maxRequestRetries: 3, ...x.entrada,
+    }, { max: 1, esperaSeg: 120, topeUsd: 0.1 }).catch((e) => ({ items: [], error: String(e) }));
     const it = c.items?.[0] as { caracteristicas?: string; descripcion?: string; titulo?: string; largo?: number; item?: string | null } | undefined;
-    rastro(url, `Apify ${proxy.apifyProxyCountry ? "AR" : "residencial"}: ${c.error ?? "ok"}, ${c.items?.length ?? 0} resultado(s)${it ? `, "${(it.titulo ?? "").slice(0, 40)}" ${it.largo ?? 0} letras, ítem ${it.item ?? "-"}` : ""}`);
+    rastro(url, `Apify ${x.nombre}: ${c.error ?? "ok"}, ${c.items?.length ?? 0} resultado(s)${it ? `, "${(it.titulo ?? "").slice(0, 40)}" ${it.largo ?? 0} letras, ítem ${it.item ?? "-"}` : ""}`);
     if (it?.item) itemsDePagina.set(url, it.item);
     const texto = [it?.caracteristicas, it?.descripcion].filter(Boolean).join("\n").trim();
     if (texto) { avisosPagina.delete(url); return texto; }
-    aviso += `${aviso ? " · " : ""}${proxy.apifyProxyCountry ? "residencial AR" : "residencial"}: ` +
-      (it ? `la página "${(it.titulo ?? "").slice(0, 60)}" (${it.largo ?? 0} letras) no trae Características` : `sin página${c.error ? ` (${String(c.error).slice(0, 80)})` : ""}`);
+    aviso += `${aviso ? " · " : ""}${x.nombre}: ` +
+      (it ? `la página "${(it.titulo ?? "").slice(0, 60)}" (${it.largo ?? 0} letras) no trae Características` : `sin página${c.error ? ` (${String(c.error).slice(0, 120)})` : ""}`);
   }
   avisosPagina.set(url, aviso);
   return "";
