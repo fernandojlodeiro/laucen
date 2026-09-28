@@ -49,15 +49,24 @@ const normalizarClave = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " 
 
 /** Devuelve la clasificación del tipo de mercadería: la registrada si ya hay
  *  una de ese tipo; si no, la hace y la registra. Nunca tira: null si no pudo. */
-export async function clasificar(contexto: Contexto): Promise<Clasificacion & { usd: number; tokensIn: number; tokensOut: number } | null> {
+// De a una por vez (piloto #11: dos colchones en paralelo crearon dos tipos casi iguales).
+let fila: Promise<unknown> = Promise.resolve();
+export function clasificar(contexto: Contexto) {
+  const r = fila.then(() => clasificarUna(contexto));
+  fila = r.catch(() => null);
+  return r;
+}
+
+async function clasificarUna(contexto: Contexto): Promise<Clasificacion & { usd: number; tokensIn: number; tokensOut: number } | null> {
   const datos = datosDe(contexto);
   const tipos = (await pool.query<{ clave: string; ncm: string }>("select clave, ncm from ncm_clasificaciones order by clave")).rows;
 
   // 1) Qué tipo de mercadería es; si ya está registrado, ése. Si no, su NCM de 8 dígitos.
   const r1 = await pedirClaude({
     modelo: "grande", effort: "high", maxTokens: 3000,
-    system: `${REGLAS}\nPrimero nombrá el TIPO DE MERCADERÍA en pocas palabras, genérico y sin marca ni medida: el tipo de producto, su ` +
-      "material principal y, si cambia la posición, su función (ej: \"colchón inflable de PVC\", \"colchoneta inflable de nylon con TPU\"). " +
+    system: `${REGLAS}\nPrimero nombrá el TIPO DE MERCADERÍA en pocas palabras, lo MÁS GENÉRICO posible: sólo el tipo de producto y su ` +
+      "material principal (ej: \"colchón inflable de PVC\", \"colchoneta inflable de textil recubierto\"). NO agregues accesorios, bomba, " +
+      "flocado, medidas, colores ni marca, salvo que cambien la posición arancelaria. " +
       "Te paso los tipos ya registrados: si el producto es de un tipo registrado (misma mercadería a efectos aduaneros), devolvé ese nombre " +
       "EXACTO en \"registrado\" y nada más. Si no, clasificalo.\n" +
       'Respondé sólo JSON: {"registrado":"nombre exacto de la lista"} o {"tipo":"...","ncm":"0000.00.00","alternativa":"0000.00.00 o null",' +
@@ -77,24 +86,27 @@ export async function clasificar(contexto: Contexto): Promise<Clasificacion & { 
   const ya = await registrada(clave);
   if (ya) return { ...ya, usd, tokensIn, tokensOut };
 
-  // 2) La apertura SIM, que es la que fija el arancel exacto.
-  const abiertas = (await aperturas(ncm)).filter((a) => a.arancel != null);
+  // 2) La apertura SIM, que es la que fija el arancel exacto. Si la NCM de 8
+  // dígitos no existe (piloto #11: 6306.40.00), se ofrecen las de la subpartida.
+  let base = ncm;
+  if (!(await aperturas(ncm)).length) base = ncm.slice(0, 7);
+  const abiertas = (await aperturas(base)).filter((a) => a.arancel != null);
   let sim: Apertura | null = abiertas.length === 1 ? abiertas[0] : null;
   if (abiertas.length > 1) {
     const aranceles = new Set(abiertas.map((a) => a.arancel));
-    const todas = await aperturas(ncm); // con los títulos intermedios, para que se entienda el árbol
+    const todas = await aperturas(base); // con los títulos intermedios, para que se entienda el árbol
     const r2 = await pedirClaude({
       modelo: "grande", effort: "high", maxTokens: 1500,
-      system: `${REGLAS} Te doy las aperturas SIM de la posición ${ncm} con su arancel. Elegí la que corresponde al producto. ` +
+      system: `${REGLAS} Te doy las aperturas SIM de la posición ${base} con su arancel. Elegí la que corresponde al producto. ` +
         'Respondé sólo JSON: {"sim":"código exacto de la lista","motivo":"..."}.',
-      contenido: `${datos}\nAperturas de ${ncm}:\n${todas.map((a) => `${a.codigo} — ${a.descripcion}${a.arancel != null ? ` (arancel ${a.arancel}%)` : ""}`).join("\n")}`,
+      contenido: `${datos}\nAperturas de ${base}:\n${todas.map((a) => `${a.codigo} — ${a.descripcion}${a.arancel != null ? ` (arancel ${a.arancel}%)` : ""}`).join("\n")}`,
     });
     usd += r2.usd; tokensIn += r2.tokensIn; tokensOut += r2.tokensOut;
     const j2 = "texto" in r2 ? jsonDe<{ sim?: string }>(r2.texto) : null;
     sim = abiertas.find((a) => a.codigo === j2?.sim?.trim()) ?? (aranceles.size === 1 ? abiertas[0] : null);
   }
   const c: Clasificacion = {
-    clave, ncm, sim: sim?.codigo ?? null, arancel: sim?.arancel ?? null, alternativa: normalizarNcm(j1?.alternativa ?? null),
+    clave, ncm: sim ? sim.codigo.slice(0, 10) : ncm, sim: sim?.codigo ?? null, arancel: sim?.arancel ?? null, alternativa: normalizarNcm(j1?.alternativa ?? null),
     material: j1?.material ?? null, motivo: j1?.motivo ?? null, fuente: "claude", actualizado: new Date().toISOString(), nueva: true,
   };
   await pool.query(
