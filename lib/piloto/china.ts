@@ -207,22 +207,28 @@ export function flete(caja: Caja, precioPesos: number | null, p: Parametros): { 
 /** Peso y caja con búsqueda web (como hace Fer en Google: "‹producto› peso
  *  medidas caja"), para los que la publicación no trae el peso. Modelo del
  *  medio con la búsqueda web básica de Anthropic. */
-export async function cajasConWeb(productos: { id: number; titulo: string; texto?: string }[]) {
+export async function cajasConWeb(productos: { id: number; titulo: string; texto?: string; url?: string | null }[]) {
   const cajas = new Map<number, Caja>();
+  const medidas = new Map<number, string>();
   let tokensIn = 0, tokensOut = 0, usd = 0, busquedas = 0;
   const cliente = clienteClaude();
   const system = "Sos despachante. Para cada producto buscá en la web el peso y las medidas de la CAJA de envío de una unidad " +
     "(producto embalado: desinflado, plegado o desarmado; si es un set, todo el set). Buscá por modelo y marca (ej: \"‹producto› peso medidas caja\"). " +
     "El peso es lo más importante; si no encontrás medidas, poné 0. Si no encontrás nada, estimá y aclaralo en la nota. " +
-    "Respondé al final sólo JSON: {\"cajas\":[{\"id\":1,\"kg\":10,\"largo\":100,\"ancho\":40,\"alto\":20,\"fuente\":\"web\" o \"estimado\",\"nota\":\"de dónde\"}]}.";
-  const texto = productos.map((p) => `Producto ${p.id}: ${p.titulo}${p.texto ? `\nDatos de la publicación: ${p.texto.slice(0, 600)}` : ""}`).join("\n\n");
+    "Además, si los datos de la publicación no traen las MEDIDAS DEL PRODUCTO (largo, ancho, alto, material), abrí la publicación de " +
+    "Mercado Libre con web_fetch y copiá las de la sección Características (Fer, 28/9: en las fichas de catálogo siempre están). " +
+    "Respondé al final sólo JSON: {\"cajas\":[{\"id\":1,\"kg\":10,\"largo\":100,\"ancho\":40,\"alto\":20,\"fuente\":\"web\" o \"estimado\",\"nota\":\"de dónde\"," +
+    "\"medidas\":\"Largo: 200 cm, Ancho: 150 cm, Alto: 40 cm, Material: PVC\" o null}]}.";
+  const texto = productos.map((p) => `Producto ${p.id}: ${p.titulo}${p.url ? `\nPublicación: ${p.url.replace(/[?#].*$/, "")}` : ""}` +
+    `${p.texto ? `\nDatos de la publicación: ${p.texto.slice(0, 600)}` : ""}`).join("\n\n");
   try {
     const mensajes: Anthropic.MessageParam[] = [{ role: "user", content: texto }];
     let r: Anthropic.Message | null = null;
     for (let vuelta = 0; vuelta < 3; vuelta++) {
       r = await cliente.messages.create({
         model: MODELOS[MODELO].id, max_tokens: 3000, system, output_config: { effort: "low" },
-        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: productos.length * 2 }],
+        tools: [{ type: "web_search_20260209", name: "web_search", max_uses: productos.length * 2 },
+          { type: "web_fetch_20260209", name: "web_fetch", max_uses: productos.length * 2, allowed_domains: ["mercadolibre.com.ar"] }],
         messages: mensajes,
       });
       tokensIn += r.usage.input_tokens; tokensOut += r.usage.output_tokens;
@@ -232,15 +238,16 @@ export async function cajasConWeb(productos: { id: number; titulo: string; texto
     }
     usd = costoUsd(MODELO, tokensIn, tokensOut) + busquedas * USD_POR_BUSQUEDA;
     const salida = (r?.content ?? []).map((b) => (b.type === "text" ? b.text : "")).join("\n");
-    for (const c of jsonDe<{ cajas?: { id: number; kg: number; largo?: number; ancho?: number; alto?: number; fuente?: string; nota?: string }[] }>(salida)?.cajas ?? []) {
+    for (const c of jsonDe<{ cajas?: { id: number; kg: number; largo?: number; ancho?: number; alto?: number; fuente?: string; nota?: string; medidas?: string | null }[] }>(salida)?.cajas ?? []) {
+      if (typeof c.medidas === "string" && c.medidas.trim()) medidas.set(c.id, c.medidas.trim());
       if (typeof c.kg === "number" && c.kg > 0) {
         cajas.set(c.id, { largo: c.largo || 0, ancho: c.ancho || 0, alto: c.alto || 0, kg: c.kg,
           fuente: c.fuente === "web" ? "web" : "claude", nota: c.nota });
       }
     }
-    return { cajas, error: null as string | null, tokensIn, tokensOut, usd, busquedas };
+    return { cajas, medidas, error: null as string | null, tokensIn, tokensOut, usd, busquedas };
   } catch (e) {
-    return { cajas, error: (e instanceof Error ? e.message : String(e)).slice(0, 300), tokensIn, tokensOut, usd, busquedas };
+    return { cajas, medidas, error: (e instanceof Error ? e.message : String(e)).slice(0, 300), tokensIn, tokensOut, usd, busquedas };
   }
 }
 
@@ -292,8 +299,9 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     "ACCESORIOS Y EXTRAS (Fer, 28/9): si al candidato le falta un accesorio barato que el original trae (almohadas, inflador manual, bolsa, " +
     "parche), igual es \"si\": poné en falta qué falta y sumá su costo estimado en China al costo total; un combo se arma con N unidades del " +
     "producto más los accesorios. Si el candidato trae un extra barato que el original no tiene (almohada, inflador de pie, bolsa), también es " +
-    "\"si\" mientras el producto principal sea el mismo y el precio siga dando. MEDIDAS (Fer, 28/9): compará largo, ancho y alto con los de Mercado Libre; una diferencia de 2 o 3 cm está bien, " +
-    "pero más de un 10% en cualquiera (ej. 30 cm de alto contra 40) es otro producto: \"si\" sólo si la publicación ofrece la medida justa como variante. " +
+    "\"si\" mientras el producto principal sea el mismo y el precio siga dando. MEDIDAS (Fer, 28/9): compará largo, ancho y alto con los de Mercado Libre, EN CENTÍMETROS: hasta 5 cm de diferencia en " +
+    "largo y ancho y hasta 3 cm en alto está bien (en medidas de menos de 50 cm, hasta un 10%); más que eso es otro producto (ej. 137 contra 152 cm de " +
+    "ancho, o 30 contra 40 cm de alto): \"si\" sólo si la publicación ofrece la medida justa como variante. " +
     "PRECIO (sentido común): el mismo producto en China cuesta normalmente entre el 10% y el 35% de lo que se vende al público en Argentina; si un " +
     "candidato cuesta más de la mitad del precio de Mercado Libre en dólares, casi seguro es otro producto, otra calidad u otra cantidad: no es \"si\". " +
     "Indicá cuántas unidades del candidato hacen falta (unidades) y qué componente falta (falta), con un motivo corto. " +
@@ -364,7 +372,8 @@ export async function verificar(ml: { titulo: string; precio: number | null; tex
     maxTokens: 3000, effort: "medium",
     system: "Sos el comprador de un importador argentino. Te doy un producto que se vende en Mercado Libre (con sus medidas y su precio al " +
       "público en dólares) y la publicación por dentro de cada candidato de China (variantes, atributos, precios por cantidad, caja). Para cada " +
-      "candidato decidí si es EL MISMO producto: el producto principal con las mismas medidas (hasta un 10% de diferencia en cada una, o una " +
+      "candidato decidí si es EL MISMO producto: el producto principal con las mismas medidas (hasta 5 cm de diferencia en largo y ancho y 3 cm en alto; en medidas " +
+      "de menos de 50 cm, hasta un 10%; ej. 137 contra 152 cm de ancho NO es igual), o una " +
       "variante de la publicación que las tenga) y el mismo material. Las medidas del producto están en las variantes (\"size\") y los atributos; " +
       "leelas con cuidado. Si le falta un accesorio barato que el original trae (almohadas, inflador manual, bolsa) o trae un extra barato que el " +
       "original no tiene, igual es el mismo producto: en extrasUsd poné el costo estimado en China de lo que falta, por unidad del producto de " +

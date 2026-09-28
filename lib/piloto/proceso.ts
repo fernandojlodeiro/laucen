@@ -218,14 +218,19 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
       const deML = await Promise.all(lote.map((x) => datosDeEnvio({ itemId: x.item_id, productoId: x.producto_id, url: x.url }, organizacionId)
         .catch(() => ({ caja: null, texto: "" }))));
       // Sin medidas tampoco alcanza: el flete en barco del costo se cobra por volumen.
-      const faltan = lote.map((x, i) => ({ ...x, texto: deML[i].texto })).filter((_, i) => !deML[i].caja?.largo);
+      // Y sin las medidas del producto (piloto #17: Premium 2 plazas sin medidas) se leen de la publicación.
+      const sinMedidas = (t: string) => !/Largo|Ancho|Altura|LENGTH|WIDTH|HEIGHT/i.test(t);
+      const faltan = lote.map((x, i) => ({ ...x, texto: deML[i].texto })).filter((x, i) => !deML[i].caja?.largo || (p.soloListado && sinMedidas(x.texto)));
       // Los que no traen peso: búsqueda web (pilotos nuevos) o estimación por foto (viejos).
-      const r = !faltan.length ? { cajas: new Map<number, Caja>(), error: null, tokensIn: 0, tokensOut: 0, usd: 0 }
-        : p.soloListado ? await cajasConWeb(faltan) : await estimarCajas(faltan);
+      const r = !faltan.length ? { cajas: new Map<number, Caja>(), medidas: new Map<number, string>(), error: null, tokensIn: 0, tokensOut: 0, usd: 0 }
+        : p.soloListado ? await cajasConWeb(faltan) : { ...(await estimarCajas(faltan)), medidas: new Map<number, string>() };
       await sumarClaude(id, "caja", r.tokensIn, r.tokensOut, r.usd);
       for (const [i, x] of lote.entries()) {
-        await pool.query("update piloto_productos set datos_ml = $2 where id = $1", [x.id, deML[i].texto || null]);
-        const deMl = deML[i].caja, deWeb = r.cajas.get(x.id);
+        const medidas = r.medidas.get(x.id);
+        const datos = [deML[i].texto, medidas && sinMedidas(deML[i].texto) ? `Medidas del producto (publicación de Mercado Libre): ${medidas}` : ""].filter(Boolean).join("\n");
+        await pool.query("update piloto_productos set datos_ml = $2 where id = $1", [x.id, datos || null]);
+        // Si ML ya trajo la caja completa, la búsqueda fue sólo por las medidas del producto.
+        const deMl = deML[i].caja, deWeb = deMl?.largo ? undefined : r.cajas.get(x.id);
         // El peso de Mercado Libre manda; las medidas, de la búsqueda si ML no las trae.
         const caja = deMl && deWeb && !deMl.largo
           ? { ...deWeb, kg: deMl.kg, fuente: deMl.fuente, nota: `${deMl.nota ?? "peso de Mercado Libre"}; medidas: ${deWeb.nota ?? "búsqueda web"}` }
@@ -358,10 +363,18 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         if (clas?.usd) await sumarClaude(id, "ncm", clas.tokensIn, clas.tokensOut, clas.usd);
         const ncm = clas?.ncm ?? j.ncm;
         const otra = clas ? clas.alternativa : j.ncmAlternativa;
+        // Caja del envío Full: si la de Mercado Libre la estimó la IA o salió de la web, se arma con la
+        // caja de China por las unidades (piloto #17: el combo quedó en 50×40×30 y 7,5 kg estimados).
+        const cajaUnidad = fichas[juicio.elegido!]?.caja;
+        const uEnvio = (j.veredictos ?? []).find((v) => v.n === juicio.elegido)?.unidades ?? 1;
+        const cajaEnvio: Caja | null = x.caja?.fuente !== "mercadolibre" && cajaUnidad?.largo && cajaUnidad.kg
+          ? { largo: cajaUnidad.largo, ancho: cajaUnidad.ancho, alto: cajaUnidad.alto * uEnvio, kg: cajaUnidad.kg * uEnvio, fuente: "china",
+              nota: `caja de China${uEnvio > 1 ? ` × ${uEnvio} unidades` : ""}` }
+          : x.caja;
         const [tasas, alternativa, deML] = await Promise.all([
           ncm ? tasasDe(ncm, clas?.arancel).catch(() => null) : Promise.resolve(null),
           otra ? tasasDe(otra).catch(() => null) : Promise.resolve(null),
-          costosML(organizacionId, x.categoria_id, x.precio, x.caja),
+          costosML(organizacionId, x.categoria_id, x.precio, cajaEnvio),
         ]);
         const clasificacion = clas ? { ...clas, usd: undefined, tokensIn: undefined, tokensOut: undefined } : null;
         const datosCosto = { tasas, alternativa, ml: deML, clasificacion };
