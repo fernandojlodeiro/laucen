@@ -123,7 +123,10 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
             {campo("minimoMax", "Pedido mínimo razonable (unidades)", v.minimoMax, "entero")}
             {campo("topeApifyUsd", "Tope de gasto de Apify (US$)", v.topeApifyUsd, "usd")}
           </fieldset>
-          <p className="text-xs text-[#5C6B76]">Toma los primeros del listado de cada categoría (rango de precio, sólo envío local, sin publicidad) y los busca en <b>AliExpress</b> con precio puesto en China.</p>
+          <p className="text-xs text-[#5C6B76]">Toma los primeros del listado de cada categoría (rango de precio, sólo envío local, sin publicidad) y los busca en <b>Alibaba</b>. Busca, filtra y juzga Gemini.</p>
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" name="dobleModelo" value="1" /> Doble modelo: la segunda mirada (¿es el mismo producto?) la hace Anthropic
+          </label>
           <label className="flex items-center gap-2 text-xs">
             <input type="checkbox" name="automatico" value="1" /> Procesar solo, sin dejar la página abierta (avanza cada 5 minutos)
           </label>

@@ -365,10 +365,24 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
  *  atributos, precios por cantidad, caja): ¿es de verdad el mismo producto?
  *  Piloto #11: el juez aceptó otras medidas (30 cm de alto contra 40) mirando
  *  sólo el título. Nunca tira: sin respuesta, no descarta a nadie. */
+/** Si las medidas del candidato se pasan de la tolerancia de Fer (5 cm en largo y
+ *  ancho, 3 cm en alto; 10% en medidas de menos de 50 cm), el motivo; si no, null.
+ *  Se comparan de mayor a menor, así no importa en qué orden vinieron. */
+export function fueraDeMedida(ml: { largo: number; ancho: number; alto: number } | null, ch: { largo: number; ancho: number; alto: number } | null) {
+  const lista = (m: typeof ml) => (m ? [m.largo, m.ancho, m.alto].map(Number) : []);
+  const a = lista(ml).filter((x) => x > 0).sort((x, y) => y - x), b = lista(ch).filter((x) => x > 0).sort((x, y) => y - x);
+  if (a.length < 2 || a.length !== b.length) return null;
+  for (let i = 0; i < a.length; i++) {
+    const tol = a[i] < 50 ? a[i] * 0.1 : i < 2 ? 5 : 3;
+    if (Math.abs(a[i] - b[i]) > tol) return `medidas ${b.join("×")} cm contra ${a.join("×")} cm de Mercado Libre, fuera de tolerancia`;
+  }
+  return null;
+}
+
 export async function verificar(ml: { titulo: string; precio: number | null; texto?: string | null }, componentes: string | undefined,
   items: { n: number; titulo: string; usd: number | null; ficha?: Ficha }[], p: Parametros) {
   const usdML = ml.precio ? Math.round((ml.precio / p.dolar) * 100) / 100 : null;
-  const r = await pedirIA(p.ia, {
+  const r = await pedirIA(p.dobleModelo ? "anthropic" : p.ia, {
     maxTokens: 3000, effort: "medium",
     system: "Sos el comprador de un importador argentino. Te doy un producto que se vende en Mercado Libre (con sus medidas y su precio al " +
       "público en dólares) y la publicación por dentro de cada candidato de China (variantes, atributos, precios por cantidad, caja). Para cada " +
@@ -381,15 +395,24 @@ export async function verificar(ml: { titulo: string; precio: number | null; tex
       "producto en China cuesta normalmente entre el 10% y el 35% del precio al público en Argentina; si cuesta más de la mitad, es otro producto, " +
       "otra calidad u otra cantidad.\nCAJA: del empaque de la publicación (packaging: unitSizeCm, unitWeightKg, propiedades) deducí la caja de UNA " +
       "unidad del producto: si el empaque es de varias unidades (cartón con N piezas), dividilo; el peso puede venir en gramos. " +
-      'Respondé sólo JSON: {"c":[{"n":3,"igual":true,"variante":"qué variante pedir (medida)","extrasUsd":1.5,' +
-      '"caja":{"largo":40,"ancho":30,"alto":12,"kg":2.8},"motivo":"corto"}]}. Sin datos de caja, caja = null.',
+      "MEDIDAS: en medidasML poné las medidas del producto de Mercado Libre (armado/inflado, no la caja) y en medidas las del candidato " +
+      "(de la variante a pedir), en cm; si no las encontrás, null. El programa las vuelve a comparar con la tolerancia.\n" +
+      'Respondé sólo JSON: {"medidasML":{"largo":200,"ancho":150,"alto":40},"c":[{"n":3,"igual":true,"variante":"qué variante pedir (medida)","extrasUsd":1.5,' +
+      '"medidas":{"largo":198,"ancho":152,"alto":40},"caja":{"largo":40,"ancho":30,"alto":12,"kg":2.8},"motivo":"corto"}]}. Sin datos de caja, caja = null.',
     contenido: `Mercado Libre: ${ml.titulo}${usdML ? ` — US$ ${usdML} al público` : ""}\n` +
       (componentes ? `Qué incluye: ${componentes}\n` : "") + (ml.texto ? `Datos: ${ml.texto.slice(0, 1200)}\n` : "") +
       items.map((it) => `\nCandidato ${it.n}: ${it.titulo}\nPrecio: ${it.ficha?.tramos?.length
         ? it.ficha.tramos.map((t) => `US$ ${t.usd} desde ${t.desde} u.`).join(", ") : `US$ ${it.usd ?? "?"} (de la búsqueda)`}\n` +
         `Publicación por dentro: ${(it.ficha?.muestra ?? "(no se pudo leer)").replace(/"(images|videoUrl|imageUrl|supplier)":(\[[^\]]*\]|"[^"]*"|\{[^}]*\})/g, "").slice(0, 2500)}`).join("\n"),
   });
-  const j = "texto" in r ? jsonDe<{ c?: { n: number; igual: boolean; variante?: string; motivo?: string; extrasUsd?: number;
-    caja?: { largo: number; ancho: number; alto: number; kg: number } | null }[] }>(r.texto) : null;
+  type Medidas = { largo: number; ancho: number; alto: number } | null;
+  const j = "texto" in r ? jsonDe<{ medidasML?: Medidas; c?: { n: number; igual: boolean; variante?: string; motivo?: string; extrasUsd?: number;
+    medidas?: Medidas; caja?: { largo: number; ancho: number; alto: number; kg: number } | null }[] }>(r.texto) : null;
+  // El programa controla la tolerancia de medidas, sin confiar en el modelo (piloto #21:
+  // Gemini dio por iguales 194×64 contra 220×70 y 191×137 contra 203×152).
+  for (const c of j?.c ?? []) {
+    const fuera = fueraDeMedida(j?.medidasML ?? null, c.medidas ?? null);
+    if (c.igual && fuera) { c.igual = false; c.motivo = `${fuera} (control del programa)${c.motivo ? `; ${c.motivo}` : ""}`; }
+  }
   return { resultado: j?.c ?? null, error: "error" in r ? r.error : null, tokensIn: r.tokensIn, tokensOut: r.tokensOut, usd: r.usd };
 }

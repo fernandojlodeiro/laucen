@@ -22,6 +22,7 @@ export type Parametros = {
   desdeCorrida?: number;          // usa los mismos productos de Mercado Libre de ese piloto (para comparar IAs)
   rehacerCaja?: boolean;          // con desdeCorrida: vuelve a leer medidas y caja de Mercado Libre (reglas nuevas)
   ia?: import("@/lib/ia").Proveedor; // qué IA busca, filtra y juzga (sin dato = Anthropic); para comparar (Fer, 28/9)
+  dobleModelo?: boolean;          // la segunda mirada la hace Anthropic en vez de la IA del piloto (Fer, 28/9)
   sitios?: Sitio[];               // dónde buscar en China (sin dato = 1688 + Alibaba, pilotos viejos)
   soloListado?: boolean;          // (28/9) sólo los primeros del listado de la categoría, sin tendencias ni cruce
   soloLocal?: boolean;            // sólo publicaciones con envío local (sin compra internacional)
@@ -77,6 +78,7 @@ export type Juicio = {
   fichas?: Record<string, Ficha>; // lo leído de la publicación de China de los "si" (por número)
   elegidoJuez?: number | null;    // el que eligió el juez con el precio de la búsqueda, antes de leer las fichas
   verificacion?: { n: number; igual: boolean; variante?: string; motivo?: string; extrasUsd?: number;
+    medidas?: { largo: number; ancho: number; alto: number } | null;
     caja?: { largo: number; ancho: number; alto: number; kg: number } | null }[]; // segunda mirada con las fichas
   precioIncierto?: boolean;
   modelo?: string;                // el modelo de IA que juzgó       // el elegido no muestra precios por cantidad (precio por variante)

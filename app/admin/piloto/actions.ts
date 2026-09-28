@@ -34,7 +34,7 @@ export async function accionCrearPiloto(formData: FormData) {
     yuanPorDolar: numero(formData.get("yuanPorDolar"), d.yuanPorDolar)!,
     minimoMax: numero(formData.get("minimoMax"), d.minimoMax)!,
     topeApifyUsd: numero(formData.get("topeApifyUsd"), d.topeApifyUsd)!,
-    ia: "gemini", sitios: ["alibaba"], soloListado: true, soloLocal: true,
+    ia: "gemini", dobleModelo: formData.get("dobleModelo") === "1", sitios: ["alibaba"], soloListado: true, soloLocal: true,
   };
   // Un yuan fuera de rango es casi seguro un error de tipeo (71 en vez de 7,1).
   if (p.yuanPorDolar < 3 || p.yuanPorDolar > 15) redirect("/admin/piloto?error=yuan");

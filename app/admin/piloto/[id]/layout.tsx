@@ -39,7 +39,8 @@ export default async function LayoutPiloto({ children, params }: { children: Rea
         {total > 0 && ` (caja ${n.caja ?? 0} · China ${n.china ?? 0} · juez ${n.juez ?? 0} · fichas ${n.ficha ?? 0} · listos ${n.listo ?? 0})`}
       </p>
       <p className="text-xs mb-3">
-        IA: <b>{NOMBRE_PROVEEDOR[p.ia ?? "anthropic"]}</b> ({modeloDe(p.ia ?? "anthropic") || "sin modelo cargado"}) ·
+        IA: <b>{NOMBRE_PROVEEDOR[p.ia ?? "anthropic"]}</b> ({modeloDe(p.ia ?? "anthropic") || "sin modelo cargado"})
+        {p.dobleModelo && <> + segunda mirada con <b>Anthropic</b> ({modeloDe("anthropic")})</>} ·
         Costo: Apify US$ {apifyUsd.toFixed(2)} (tope {p.topeApifyUsd}) · IA US$ {claudeUsd.toFixed(2)} ({tok.in.toLocaleString("es-AR")} tokens de entrada, {tok.out.toLocaleString("es-AR")} de salida)
         · <b>total US$ {(apifyUsd + claudeUsd).toFixed(2)}</b>
       </p>
