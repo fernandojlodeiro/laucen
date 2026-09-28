@@ -93,6 +93,11 @@ export default async function Revision({ params, searchParams }: { params: Promi
                         ) : null}
                       </p>
                     )}
+                    {/* El cuadro de la cuenta, abajo de la publicación (Fer, 28/9). */}
+                    {j?.elegido != null && !!j.costoUsd && x.costo && <Costo fob={j.costoUsd} caja={x.caja} precio={x.precio} p={c.parametros} datos={x.costo}
+                      cajaChina={ficha?.caja} unidades={j.veredictos.find((v) => v.n === j.elegido)?.unidades ?? 1} tramos={ficha?.tramos}
+                      lapiz={{ producto: x.id, corrida: c.id, editando: sp.ncm === String(x.id),
+                        editar: `/admin/piloto/${c.id}/revision?ncm=${x.id}#p${x.id}`, cancelar: `/admin/piloto/${c.id}/revision#p${x.id}` }} />}
                   </div>
                 </div>
                 <div className="flex gap-3">
@@ -127,7 +132,9 @@ export default async function Revision({ params, searchParams }: { params: Promi
                           <p>Variante a pedir: <b>{j.verificacion.find((v) => v.n === j.elegido)!.variante}</b>
                             {j.verificacion.find((v) => v.n === j.elegido)!.usdVariante != null && <> — US$ {j.verificacion.find((v) => v.n === j.elegido)!.usdVariante} (precio de esa variante en la página)</>}</p>
                         )}
-                        {j?.precioIncierto && <p className="text-[#8a6100]">Precio incierto: la publicación no muestra precios por cantidad (depende de la variante).</p>}
+                        {j?.precioEstimado ? (
+                          <p className="text-[#8a6100]">Precio estimado de la variante: US$ {formatearNumero(j.precioEstimado.usd, "usd")} ({j.precioEstimado.variante} es la {j.precioEstimado.posicion}ª de {j.precioEstimado.de} medidas, en un rango de US$ {formatearNumero(j.precioEstimado.desde, "usd")} a {formatearNumero(j.precioEstimado.hasta, "usd")}; Alibaba no deja leer el precio exacto).</p>
+                        ) : j?.precioIncierto && <p className="text-[#8a6100]">Precio incierto: la publicación no muestra precios por cantidad (depende de la variante).</p>}
                       </>
                     ) : (
                       <p className="text-[#9AA7B3]">{x.etapa === "listo" ? "No eligió ninguno." : "Todavía no juzgó."}</p>
@@ -149,10 +156,6 @@ export default async function Revision({ params, searchParams }: { params: Promi
               {j?.busquedaPrevia && (
                 <p className="mt-2 text-[#8a6100]">La primera búsqueda (“{j.busquedaPrevia.en}”) no encontró el mismo producto ({j.busquedaPrevia.motivo.slice(0, 200)}); se buscó de nuevo con “{x.china?.en}”.</p>
               )}
-              {j?.elegido != null && !!j.costoUsd && x.costo && <Costo fob={j.costoUsd} caja={x.caja} precio={x.precio} p={c.parametros} datos={x.costo}
-                cajaChina={ficha?.caja} unidades={j.veredictos.find((v) => v.n === j.elegido)?.unidades ?? 1} tramos={ficha?.tramos}
-                lapiz={{ producto: x.id, corrida: c.id, editando: sp.ncm === String(x.id),
-                  editar: `/admin/piloto/${c.id}/revision?ncm=${x.id}#p${x.id}`, cancelar: `/admin/piloto/${c.id}/revision#p${x.id}` }} />}
               {x.error && <p className="text-[#C03420] mt-2">{x.error}</p>}
               {j?.nota && <p className="text-[#8a6100] mt-1 text-[11px]">{j.nota}</p>}
               {cands.length > 0 && (

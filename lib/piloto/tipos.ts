@@ -81,6 +81,7 @@ export type Juicio = {
     medidas?: { largo: number; ancho: number; alto: number } | null;
     caja?: { largo: number; ancho: number; alto: number; kg: number } | null }[]; // segunda mirada con las fichas
   precioIncierto?: boolean;
+  precioEstimado?: { usd: number; desde: number; hasta: number; posicion: number; de: number; variante: string };
   modelo?: string;                // el modelo de IA que juzgó       // el elegido no muestra precios por cantidad (precio por variante)
   incoherente?: string;           // la cuenta da menos de 50% sobre el costo aun después de replantear la búsqueda
   busquedaPrevia?: { en: string; motivo: string }; // la búsqueda que no encontró nada y se replanteó

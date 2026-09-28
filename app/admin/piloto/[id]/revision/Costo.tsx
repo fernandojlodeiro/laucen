@@ -9,7 +9,10 @@ const LAPIZ = "text-sm leading-none rounded-lg px-2 py-1.5 bg-white border borde
 
 const usd = (n: number | null) => (n == null ? "—" : `US$ ${formatearNumero(n, "usd")}`);
 const pct = (n: number | null) => (n == null ? "—" : `${formatearNumero(n, "pct")}%`);
-const color = (n: number | null) => (n == null ? "" : n >= 0 ? "text-[#1F6E4A]" : "text-[#C03420]");
+// Neto sobre la venta (Fer, 28/9): 30% o más, verde; menos de 20, ámbar; menos de 10,
+// casi rojo; menos de 5, rojo.
+const colorNeto = (n: number | null) => n == null ? "text-[#5C6B76]" : n >= 30 ? "text-[#138A4B]" : n >= 20 ? "text-[#1F6E4A]"
+  : n >= 10 ? "text-[#B7791F]" : n >= 5 ? "text-[#D2551E]" : "text-[#C03420]";
 
 /** Costo puesto en Argentina contra el precio de venta de Mercado Libre, con
  *  el desglose a un clic (Fer, 28/9). */
@@ -46,45 +49,42 @@ export function Costo({ fob, caja, precio, p, datos, cajaChina, unidades, lapiz,
     ["Despachante, depósito y otros", usd(k.gastos), "3% del CIF"],
     ["Costo puesto en Argentina", usd(k.costo)],
   ];
+  // El cuadro de siempre, para ver la cuenta de un golpe de vista (Fer, 28/9). El número
+  // que más mira es el último: neto después de Mercado Libre, sobre la venta.
+  const conVol = !!(kv && ultimo);
+  const filasCuadro: [string, (x: typeof k) => string, boolean?][] = [
+    ["Costo puesto en Argentina", (x) => usd(x.costo)],
+    ["Venta en Mercado Libre", (x) => usd(x.venta)],
+    ["Bruta sobre el costo", (x) => pct(x.sobreCosto)],
+    ["Bruta sobre la venta", (x) => pct(x.sobreVenta)],
+    ["Neto de ML (sin comisión ni envío Full)", (x) => usd(x.neto)],
+    ["Neto sobre el costo", (x) => pct(x.netoSobreCosto)],
+    ["Neto sobre la venta", (x) => pct(x.netoSobreVenta), true],
+  ];
   return (
-    <div className="mt-2 border-t border-[#E3E9F0] pt-2">
-      <p>
-        <b>Costo puesto en Argentina: {usd(k.costo)}</b> · venta en Mercado Libre {usd(k.venta)} ·{" "}
-        rentabilidad bruta <b className={color(k.sobreCosto)}>{pct(k.sobreCosto)} sobre el costo</b> ({pct(k.sobreVenta)} sobre la venta)
-        {k.neto != null && <> · neto de Mercado Libre {usd(k.neto)}: <b className={color(k.netoSobreCosto)}>{pct(k.netoSobreCosto)} sobre el costo</b> ({pct(k.netoSobreVenta)} sobre la venta)</>}
-      </p>
-      {kv && ultimo && (
-        <p className="text-[#5C6B76]">
-          Con el precio por volumen (US$ {formatearNumero(ultimo.usd, "usd")} desde {formatearNumero(ultimo.desde, "entero")} u.): costo {usd(kv.costo)} ·{" "}
-          bruta <b className={color(kv.sobreCosto)}>{pct(kv.sobreCosto)}</b> sobre el costo
-          {kv.neto != null && <> · neto de ML <b className={color(kv.netoSobreCosto)}>{pct(kv.netoSobreCosto)}</b> sobre el costo</>}
-        </p>
-      )}
-      {k.falta.length > 0 && <p className="text-[#8a6100]">Para completar la cuenta falta {k.falta.join(" y ")}.</p>}
-      {avisos.map((a) => <p key={a} className="text-[#C03420] font-bold">⚠ {a}</p>)}
-      {/* NCM con lápiz: la corrección queda registrada para ese producto de China (Fer, 28/9). */}
-      {lapiz?.editando ? (
-        <form action={accionCorregirNcm} className="flex flex-wrap gap-1 items-center mt-1">
-          <input type="hidden" name="producto" value={lapiz.producto} />
-          <input type="hidden" name="corrida" value={lapiz.corrida} />
-          <span>NCM:</span>
-          <input name="ncm" defaultValue={cl?.sim ?? t?.ncm ?? ""} autoFocus placeholder="3926.90.90 o 3926.90.90.999A"
-            className="border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs w-48" />
-          <button className={VERDE}>Guardar</button>
-          <Link href={lapiz.cancelar} className={SUAVE}>Cancelar</Link>
-          <span className="text-[11px] text-[#5C6B76] w-full">Con la apertura completa (…999A) se toma su arancel exacto. Vale para todo este tipo de mercadería ({cl?.clave ?? "este producto"}) de acá en adelante.</span>
-        </form>
-      ) : t && (
-        <p className="mt-1 flex flex-wrap items-center gap-2">
-          <span>
-            <b>NCM {cl?.sim ?? t.ncm}</b> · arancel {t.arancel != null ? `${formatearNumero(t.arancel, "pct")}%` : "?"}
-            {cl && <span className="text-[#5C6B76]"> · tipo: {cl.clave} · {cl.fuente === "fer" ? "corregida por vos" : `clasificada por Claude${cl.nueva ? "" : " (del registro)"}`}{cl.material ? ` · material: ${cl.material}` : ""}</span>}
-          </span>
-          {lapiz && <Link href={lapiz.editar} className={LAPIZ} aria-label="Corregir la NCM">✏️</Link>}
-          {cl?.motivo && cl.fuente !== "fer" && <span className="block w-full text-[11px] text-[#5C6B76]">{cl.motivo}</span>}
-        </p>
-      )}
-      <details className="mt-1 group">
+    <div className="mt-2">
+      <table className="text-xs border border-[#E3E9F0] rounded-lg">
+        {conVol && (
+          <thead>
+            <tr className="text-[11px] text-[#5C6B76]">
+              <th />
+              <th className="px-2 py-1 text-right font-normal">Pedido mínimo</th>
+              <th className="px-2 py-1 text-right font-normal">Por volumen (≥ {formatearNumero(ultimo!.desde, "entero")} u.)</th>
+            </tr>
+          </thead>
+        )}
+        <tbody>
+          {filasCuadro.map(([nombre, valor, principal]) => (
+            <tr key={nombre} className={principal ? "border-t border-[#E3E9F0]" : ""}>
+              <td className={`px-2 py-0.5 ${principal ? "font-bold" : ""}`}>{nombre}</td>
+              {[k, ...(conVol ? [kv!] : [])].map((x, i) => (
+                <td key={i} className={`px-2 py-0.5 text-right whitespace-nowrap ${principal ? `text-base font-bold ${colorNeto(x.netoSobreVenta)}` : ""}`}>{valor(x)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <details className="mt-1">
         <summary className={DESPLEGABLE_CHICO}>Ver la cuenta</summary>
         <table className="mt-2 text-[11px]">
           <tbody>
@@ -109,6 +109,30 @@ export function Costo({ fob, caja, precio, p, datos, cajaChina, unidades, lapiz,
         )}
         {!!datos?.ml.errores.length && <p className="text-[11px] text-[#8a6100]">Mercado Libre no dio: {datos.ml.errores.join(" · ")}</p>}
       </details>
+      {k.falta.length > 0 && <p className="text-[#8a6100]">Para completar la cuenta falta {k.falta.join(" y ")}.</p>}
+      {avisos.map((a) => <p key={a} className="text-[#C03420] font-bold">⚠ {a}</p>)}
+      {/* NCM con lápiz: la corrección queda registrada para ese producto de China (Fer, 28/9). */}
+      {lapiz?.editando ? (
+        <form action={accionCorregirNcm} className="flex flex-wrap gap-1 items-center mt-1">
+          <input type="hidden" name="producto" value={lapiz.producto} />
+          <input type="hidden" name="corrida" value={lapiz.corrida} />
+          <span>NCM:</span>
+          <input name="ncm" defaultValue={cl?.sim ?? t?.ncm ?? ""} autoFocus placeholder="3926.90.90 o 3926.90.90.999A"
+            className="border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs w-48" />
+          <button className={VERDE}>Guardar</button>
+          <Link href={lapiz.cancelar} className={SUAVE}>Cancelar</Link>
+          <span className="text-[11px] text-[#5C6B76] w-full">Con la apertura completa (…999A) se toma su arancel exacto. Vale para todo este tipo de mercadería ({cl?.clave ?? "este producto"}) de acá en adelante.</span>
+        </form>
+      ) : t && (
+        <p className="mt-1 flex flex-wrap items-center gap-2">
+          <span>
+            <b>NCM {cl?.sim ?? t.ncm}</b> · arancel {t.arancel != null ? `${formatearNumero(t.arancel, "pct")}%` : "?"}
+            {cl && <span className="text-[#5C6B76]"> · tipo: {cl.clave} · {cl.fuente === "fer" ? "corregida por vos" : `clasificada por Claude${cl.nueva ? "" : " (del registro)"}`}{cl.material ? ` · material: ${cl.material}` : ""}</span>}
+          </span>
+          {lapiz && <Link href={lapiz.editar} className={LAPIZ} aria-label="Corregir la NCM">✏️</Link>}
+          {cl?.motivo && cl.fuente !== "fer" && <span className="block w-full text-[11px] text-[#5C6B76]">{cl.motivo}</span>}
+        </p>
+      )}
     </div>
   );
 }

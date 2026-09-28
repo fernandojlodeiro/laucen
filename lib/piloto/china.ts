@@ -428,6 +428,9 @@ export async function verificar(ml: { titulo: string; precio: number | null; tex
       "unidad del producto: si el empaque es de varias unidades (cartón con N piezas), dividilo; el peso puede venir en gramos. " +
       "Si el empaque de la publicación es ilógico para el producto (ej. 100x100x100 cm para una desmalezadora, que embalada mide unos " +
       "170x23x23), no lo copies: poné en caja tu estimación razonable. " +
+      "VERSIÓN MEJOR: si el candidato es el mismo tipo de producto con algo MEJOR (más potencia, mayor capacidad) y sus medidas " +
+      "están dentro de la tolerancia, es igual=true (Fer, 28/9: una bordeadora de 550W contra una de 450W, con 30 cm de corte contra 33, " +
+      "sirve). Lo que sí lo descarta: otra tecnología (a batería contra a cable, a nafta contra eléctrica) o algo PEOR que el de Mercado Libre. " +
       "ACCESORIOS: si el candidato es el producto principal y le faltan piezas baratas que el de Mercado Libre trae en el kit (soporte, " +
       "boquillas, pinzas, llaves, almohadas), es el MISMO producto: igual=true y el costo de lo que falta en extrasUsd. No lo descartes por eso. " +
       "MEDIDAS: en medidasML poné las medidas del producto de Mercado Libre (armado/inflado, no la caja) y en medidas las del candidato " +

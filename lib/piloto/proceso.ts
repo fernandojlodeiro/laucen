@@ -154,6 +154,30 @@ async function productosEn(corridaId: number, etapa: string, n: number) {
   return r.rows;
 }
 
+export type PrecioEstimado = { usd: number; desde: number; hasta: number; posicion: number; de: number; variante: string };
+
+/** Precio de una variante estimado por su posición en la lista de la publicación
+ *  (Alibaba las ordena de la más barata a la más cara) dentro del rango de precios
+ *  de la búsqueda. Ej.: 5 medidas entre US$ 4,60 y 10,90, la 3ª ≈ 7,75 (real 7,30). */
+function estimarVariante(muestra: string | undefined, precioTexto: string | null | undefined, variante: string | undefined): PrecioEstimado | null {
+  if (!muestra || !precioTexto || !variante) return null;
+  const nums = (precioTexto.replace(/,/g, "").match(/\d+(?:\.\d+)?/g) ?? []).map(Number).filter((n) => n > 0);
+  if (nums.length < 2) return null;
+  const desde = Math.min(...nums), hasta = Math.max(...nums);
+  if (!(hasta > desde)) return null;
+  const clave = (t: string) => (t.match(/\d+/g) ?? []).join("x") || t.toLowerCase().trim();
+  const buscada = clave(variante);
+  for (const m of muestra.matchAll(/"name":"([^"]*)","values":\[([^\]]*)\]/g)) {
+    const valores = [...m[2].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((x) => x[1]);
+    if (valores.length < 2) continue;
+    const i = valores.findIndex((x) => clave(x) === buscada || variante.toLowerCase().includes(x.toLowerCase()) || x.toLowerCase().includes(variante.toLowerCase()));
+    if (i < 0) continue;
+    const usd = Math.round((desde + ((hasta - desde) * i) / (valores.length - 1)) * 100) / 100;
+    return { usd, desde, hasta, posicion: i + 1, de: valores.length, variante: valores[i] };
+  }
+  return null;
+}
+
 /** Termina un producto sin candidato. Si antes había uno que se descartó sólo por
  *  la rentabilidad baja (control de coherencia) y la búsqueda nueva no encontró
  *  otro, queda ése marcado como comparación dudosa (piloto #22: la placa M3 Plus
@@ -371,6 +395,7 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         const uEl = (j.veredictos ?? []).find((v) => v.n === j.elegido)?.unidades ?? 1;
         const faltantes = el?.usd != null && j.costoUsd ? Math.max(0, j.costoUsd - uEl * el.usd) : 0;
         // El más barato con el precio del pedido mínimo; los que tienen precios por cantidad claros, primero.
+        const estimados: Record<number, PrecioEstimado> = {};
         let mejor: { n: number; total: number; claro: boolean } | null = null;
         for (const v of pasan) {
           const f = fichas[v.n];
@@ -379,15 +404,21 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
           // El precio de la variante que hay que pedir, si la segunda mirada la eligió de la lista de la página.
           const pv = verificacion?.find((c) => c.n === v.n)?.usdVariante;
           const deVariante = typeof pv === "number" && f?.variantes?.some((x) => Math.abs(x.usd - pv) < 0.01) ? pv : null;
-          const precio = precioMinimo(f) ?? deVariante ?? cands[v.n - 1].usd;
+          // Sin el precio exacto de la variante (Alibaba muestra CAPTCHA): se estima por la posición
+          // de la medida en la lista, dentro del rango de precios (Fer, 28/9, opción 1).
+          const est = precioMinimo(f) == null && deVariante == null
+            ? estimarVariante(f?.muestra, cands[v.n - 1].precioTexto, verificacion?.find((c) => c.n === v.n)?.variante) : null;
+          if (est) estimados[v.n] = est;
+          const precio = precioMinimo(f) ?? deVariante ?? est?.usd ?? cands[v.n - 1].usd;
           if (precio == null) continue;
           // Accesorios que faltan: lo que estimó la segunda mirada (por unidad de ML); si no, lo del juez.
           const extras = verificacion?.find((c) => c.n === v.n)?.extrasUsd;
           const total = Math.round(((v.unidades ?? 1) * precio + (typeof extras === "number" ? extras : faltantes)) * 100) / 100;
-          const claro = !!f?.tramos?.length || deVariante != null;
+          const claro = !!f?.tramos?.length || deVariante != null || !!est;
           if (!mejor || (claro && !mejor.claro) || (claro === mejor.claro && total < mejor.total)) mejor = { n: v.n, total, claro };
         }
         const juicio: Juicio = { ...j, fichas, elegidoJuez: j.elegido, elegido: mejor?.n ?? null, costoUsd: mejor?.total ?? null,
+          ...(mejor && estimados[mejor.n] ? { precioEstimado: estimados[mejor.n] } : {}),
           ...(verificacion ? { verificacion } : {}), ...(mejor && !mejor.claro ? { precioIncierto: true } : {}) };
         // Ninguno pasó la segunda mirada: se replantea la búsqueda una vez.
         if (!mejor && !x.china?.previa) {
