@@ -12,7 +12,6 @@
 // Del lado de Mercado Libre, sólo publicación clásica y envío por Full.
 
 import { pool } from "@/db";
-import { ml, tokenML } from "@/lib/radar/base";
 import type { Caja, Parametros } from "./tipos";
 
 export type Tasas = {
@@ -63,30 +62,39 @@ export async function tasasDe(propuesta: string, arancelFijo?: number | null): P
 
 /** Comisión de publicación clásica y costo del envío por Full, en pesos,
  *  preguntados a Mercado Libre con la cuenta de Fer. Nunca tira. */
-export async function costosML(organizacionId: string, categoriaId: string, precio: number | null, caja: Caja | null): Promise<CostosML> {
+/** Comisión de publicación clásica y envío gratis por Full, en pesos, de las
+ *  tablas que actualiza todos los días el cron de costos de ML (bitácora #84).
+ *  Fer (28/9): siempre de las tablas, no se le pregunta más a Mercado Libre. */
+export async function costosML(_organizacionId: string, categoriaId: string, precio: number | null, caja: Caja | null): Promise<CostosML> {
   const errores: string[] = [];
   if (!precio) return { comision: null, envio: null, errores: ["sin precio"] };
-  const token = await tokenML(organizacionId).catch(() => null);
   let comision: number | null = null, envio: number | null = null;
-  try {
-    const r = await ml(`/sites/MLA/listing_prices?price=${Math.round(precio)}&listing_type_id=gold_special&category_id=${categoriaId}`, token);
-    const d = (Array.isArray(r.datos) ? r.datos[0] : r.datos) as { sale_fee_amount?: number } | null;
-    if (r.status === 200 && typeof d?.sale_fee_amount === "number") comision = d.sale_fee_amount;
-    else errores.push(`comisión: respuesta ${r.status}`);
-  } catch (e) { errores.push(`comisión: ${String(e).slice(0, 120)}`); }
+  const c = await pool.query<{ clasica_pct: string | null }>("select clasica_pct from ml_costos_comisiones_vigente where categoria_id = $1", [categoriaId]).catch(() => null);
+  const pct = c?.rows[0]?.clasica_pct;
+  if (pct != null) comision = Math.round(precio * Number(pct)) / 100;
+  else errores.push(`comisión: la categoría ${categoriaId} no está en la tabla de comisiones`);
+  // Cargo fijo por unidad (sólo debajo de $33.000): el del precio de la grilla más cercano por debajo.
+  if (comision != null && precio < 33000) {
+    const f = await pool.query<{ cargo_fijo: string }>(
+      "select cargo_fijo from ml_costos_cargo_fijo_vigente where logistica = 'fulfillment' and precio <= $1 order by precio desc, peso_g limit 1", [precio]).catch(() => null);
+    if (f?.rows[0]) comision += Number(f.rows[0].cargo_fijo);
+  }
   if (!caja?.kg) errores.push("envío: sin peso");
-  else try {
-    const yo = await ml("/users/me", token);
-    const id = (yo.datos as { id?: number } | null)?.id;
-    if (!id) throw new Error(`/users/me respondió ${yo.status}`);
-    // Sin medidas se manda una caja chica: el costo lo define el peso.
-    const [l, w, h] = caja.largo && caja.ancho && caja.alto ? [caja.largo, caja.ancho, caja.alto].map((x) => Math.max(1, Math.round(x))) : [20, 20, 10];
-    const r = await ml(`/users/${id}/shipping_options/free?dimensions=${l}x${w}x${h},${Math.round(caja.kg * 1000)}&item_price=${Math.round(precio)}` +
-      `&listing_type_id=gold_special&mode=me2&condition=new&logistic_type=fulfillment&verbose=true`, token);
-    const d = r.datos as { coverage?: { all_country?: { list_cost?: number } } } | null;
-    if (r.status === 200 && typeof d?.coverage?.all_country?.list_cost === "number") envio = d.coverage.all_country.list_cost;
-    else errores.push(`envío: respuesta ${r.status}`);
-  } catch (e) { errores.push(`envío: ${String(e).slice(0, 120)}`); }
+  else {
+    // Full cobra por tramo de peso facturable (el mayor entre el real y el volumétrico). La grilla
+    // de la tabla tiene 15 tamaños: se toma el primer tramo que cubre la caja, al precio de la grilla
+    // más cercano por debajo del de venta. Es aproximado (contra la API, entre -16% y +8% en los colchones).
+    const volumetricoG = caja.largo && caja.ancho && caja.alto ? (caja.largo * caja.ancho * caja.alto) / 4 : 0; // cm³/4000 kg
+    const facturableG = Math.max(Math.round(caja.kg * 1000), Math.round(volumetricoG));
+    const e = await pool.query<{ costo: string }>(
+      `with p as (select coalesce((select max(precio) from ml_costos_envio_gratis_vigente where logistica = 'fulfillment' and precio <= $1),
+                                  (select min(precio) from ml_costos_envio_gratis_vigente where logistica = 'fulfillment')) precio)
+       select costo from ml_costos_envio_gratis_vigente g, p
+        where g.logistica = 'fulfillment' and g.precio = p.precio and greatest(g.peso_facturable, g.peso_g) >= $2
+        order by g.peso_g limit 1`, [precio, facturableG]).catch(() => null);
+    if (e?.rows[0]) envio = Number(e.rows[0].costo);
+    else errores.push("envío: no está en la tabla de envíos (más grande o pesado que la grilla)");
+  }
   return { comision, envio, errores };
 }
 
