@@ -75,6 +75,16 @@ export default async function PilotoML({ params }: { params: Promise<{ id: strin
                   <div>
                     <h3 className="text-xs font-bold mb-1">Listado de la categoría <span className="font-normal text-[#5C6B76]">(Apify; primeros 10 de {av.listado?.length ?? 0}, en el orden de Mercado Libre, sin publicidad)</span></h3>
                     {!av.listado?.length && <p className="text-[11px] text-[#9AA7B3]">El listado no trajo publicaciones en el rango.</p>}
+                    {!!av.listado?.length && (() => {
+                      // Cowork #127: si scrapesage no trae lo vendido, el mínimo de ventas no filtra nada; que se vea.
+                      const con = av.listado!.filter((x) => x.vendidos != null).length;
+                      return <p className={`text-[11px] mb-1 ${con < av.listado!.length / 2 ? "text-[#8a6100] font-bold" : "text-[#5C6B76]"}`}>
+                        Vendidos: con el dato {con} de {av.listado!.length} publicaciones{con < av.listado!.length / 2 ? " (el mínimo de ventas casi no puede filtrar)" : ""}.
+                      </p>;
+                    })()}
+                    {!!av.salteados?.length && (
+                      <p className="text-[11px] text-[#5C6B76] mb-1">No se buscaron en China: {av.salteados.map((x) => `${x.titulo} (${x.motivo})`).join(" · ")}</p>
+                    )}
                     {av.listado?.slice(0, 10).map((x, i) => (
                       <Tarjeta dolar={c.parametros.dolar} key={`${x.itemId}-${i}`} p={x}
                         marca={i < elegidos.length ? (elegidos[i]?.campeon ? "★ campeón · elegido" : "elegido") : undefined} />

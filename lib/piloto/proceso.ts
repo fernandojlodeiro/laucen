@@ -130,6 +130,7 @@ async function etapaML(c: Corrida, categoriaId: string) {
     return true;
   });
   av.salteados = salteados.slice(0, 30);
+  av.sinVendidos = lst.listado.filter((x) => x.vendidos == null).length;
   const vendidos = aptos.slice(0, p.porCategoria);
   // El cruce se hace contra todo el listado leído, no sólo los 3 primeros.
   const cr = bus.pubs.length ? await cruzar(bus.pubs, lst.listado) : { pares: [], tokensIn: 0, tokensOut: 0, usd: 0 };

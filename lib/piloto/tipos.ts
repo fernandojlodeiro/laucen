@@ -114,6 +114,7 @@ export type AvanceCategoria = {
   listado?: PubML[];              // las publicaciones del listado, ordenadas por vendidos
   palabras?: { palabra: string; encontrada: boolean; motivo?: string }[];
   cruce?: { buscado: string; vendido: string; como: "mismo producto" | "equivalente" }[];
-  salteados?: { titulo: string; motivo: string }[]; // del listado, los que no se buscan (no importables, pocas ventas)
+  salteados?: { titulo: string; motivo: string }[];
+  sinVendidos?: number;           // publicaciones del listado sin el dato de vendidos (Cowork #127) // del listado, los que no se buscan (no importables, pocas ventas)
   errores?: string[];
 };
