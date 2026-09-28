@@ -15,6 +15,11 @@ export type Proveedor = (typeof PROVEEDORES)[number];
 export const NOMBRE_PROVEEDOR: Record<Proveedor, string> = { anthropic: "Anthropic", openai: "OpenAI", gemini: "Gemini", perplexity: "Perplexity" };
 
 const env = (k: string) => process.env[k]?.trim() || "";
+// La llave: la primera palabra (piloto #16: la variable tenía la llave repetida en
+// tres renglones y el pedido falló).
+const llaveDe = (k: string) => env(k).split(/\s+/)[0] ?? "";
+// Nunca guardar ni mostrar una llave: se tapa en cualquier mensaje de error.
+const sinLlaves = (s: string) => s.replace(/(Bearer\s+)?\b(pplx-|sk-|AIza|sk-ant-)[\w-]{8,}/g, "[llave]");
 export function modeloDe(p: Proveedor) {
   return env(`VISIBILIDAD_MODELO_${p.toUpperCase()}`) || (p === "anthropic" ? MODELOS.grande.id : "");
 }
@@ -66,10 +71,10 @@ export async function pedirIA(proveedor: Proveedor | undefined, pedido: {
       const uso = { tokensIn: r.usage.input_tokens, tokensOut: r.usage.output_tokens, usd: costoUsd("grande", r.usage.input_tokens, r.usage.output_tokens), modelo };
       return { texto: r.content.map((b) => (b.type === "text" ? b.text : "")).join("\n"), ...uso };
     } catch (e) {
-      return { error: String(e).slice(0, 500), ...sinUso };
+      return { error: sinLlaves(String(e)).slice(0, 500), ...sinUso };
     }
   }
-  const llave = env(`${prov.toUpperCase()}_API_KEY`);
+  const llave = llaveDe(`${prov.toUpperCase()}_API_KEY`);
   if (!llave) return { error: `Falta ${prov.toUpperCase()}_API_KEY`, ...sinUso };
   if (!modelo) return { error: `Falta VISIBILIDAD_MODELO_${prov.toUpperCase()}`, ...sinUso };
   const ps = partes(pedido.contenido);
@@ -99,6 +104,6 @@ export async function pedirIA(proveedor: Proveedor | undefined, pedido: {
     const uso = { tokensIn: tin, tokensOut: tout, usd: usdDe(modelo, tin, tout), modelo };
     return texto ? { texto, ...uso } : { error: `${prov} no devolvió texto (${j?.choices?.[0]?.finish_reason ?? "?"})`, ...uso };
   } catch (e) {
-    return { error: `${prov}: ${e instanceof Error ? e.message : String(e)}`.slice(0, 500), ...sinUso };
+    return { error: sinLlaves(`${prov}: ${e instanceof Error ? e.message : String(e)}`).slice(0, 500), ...sinUso };
   }
 }

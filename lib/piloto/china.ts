@@ -343,7 +343,7 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     juicio: {
       componentes: j.componentes, veredictos: (j.veredictos ?? []).filter((v) => v.v === "si" || v.v === "dudoso" || v.v === "no"),
       elegido: typeof j.elegido === "number" ? j.elegido : null, costoUsd: typeof j.costoUsd === "number" ? j.costoUsd : null,
-      motivo: j.motivo ?? "", preseleccion: elegidos, ...(descartes ? { descartes } : {}), ncm: typeof j.ncm === "string" ? j.ncm : undefined,
+      motivo: j.motivo ?? "", preseleccion: elegidos, modelo: r.modelo, ...(descartes ? { descartes } : {}), ncm: typeof j.ncm === "string" ? j.ncm : undefined,
       ...(typeof j.ncmAlternativa === "string" && j.ncmAlternativa ? { ncmAlternativa: j.ncmAlternativa } : {}), ...(nota ? { nota } : {}),
     } as Juicio,
     tokensIn, tokensOut, usd,

@@ -76,7 +76,8 @@ export type Juicio = {
   fichas?: Record<string, Ficha>; // lo leído de la publicación de China de los "si" (por número)
   elegidoJuez?: number | null;    // el que eligió el juez con el precio de la búsqueda, antes de leer las fichas
   verificacion?: { n: number; igual: boolean; variante?: string; motivo?: string }[]; // segunda mirada con las fichas
-  precioIncierto?: boolean;       // el elegido no muestra precios por cantidad (precio por variante)
+  precioIncierto?: boolean;
+  modelo?: string;                // el modelo de IA que juzgó       // el elegido no muestra precios por cantidad (precio por variante)
   incoherente?: string;           // la cuenta da menos de 50% sobre el costo aun después de replantear la búsqueda
   busquedaPrevia?: { en: string; motivo: string }; // la búsqueda que no encontró nada y se replanteó
 };
