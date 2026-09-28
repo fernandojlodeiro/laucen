@@ -125,7 +125,7 @@ export default async function Pilotos({ searchParams }: { searchParams: Promise<
           </fieldset>
           <p className="text-xs text-[#5C6B76]">Toma los primeros del listado de cada categoría (rango de precio, sólo envío local, sin publicidad) y los busca en <b>AliExpress</b> con precio puesto en China.</p>
           <label className="flex items-center gap-2 text-xs">
-            <input type="checkbox" name="automatico" value="1" defaultChecked /> Procesar solo, sin dejar la página abierta (avanza cada 5 minutos)
+            <input type="checkbox" name="automatico" value="1" /> Procesar solo, sin dejar la página abierta (avanza cada 5 minutos)
           </label>
           <div><BotonEnviar clase={PRIMARIO} corriendo="Creando…">Crear piloto</BotonEnviar></div>
         </form>
