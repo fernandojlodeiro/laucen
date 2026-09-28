@@ -280,10 +280,27 @@ async function caracteristicasDePagina(url: string | null | undefined) {
     const texto = (await r.text()).replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<\/(tr|th|td|li|p|div|h\d)>/gi, "\n")
       .replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n");
     const i = texto.search(/Características (principales|del producto)|Características/);
-    return i >= 0 ? texto.slice(i, i + 2500).trim() : "";
-  } catch {
-    return "";
-  }
+    if (i >= 0) return texto.slice(i, i + 2500).trim();
+  } catch { /* sigue con Apify */ }
+  return caracteristicasConApify(url);
+}
+
+/** ML bloquea la página desde Vercel y desde web_fetch de Anthropic (piloto
+ *  #21, Premium 2 plazas /up/). Se lee con el actor genérico de Apify, que
+ *  entra con proxies: Características + Descripción. Unos centavos. */
+async function caracteristicasConApify(url: string) {
+  const pageFunction = `async function pageFunction({ $, request }) {
+    const t = $('body').text().replace(/\\s+/g, ' ');
+    const i = t.search(/Características del producto|Características principales/);
+    const d = t.indexOf('Descripción', i > 0 ? i : 0);
+    return { url: request.url, caracteristicas: i >= 0 ? t.slice(i, i + 2000) : '', descripcion: d >= 0 ? t.slice(d, d + 1500) : '' };
+  }`;
+  const c = await correrConEntrada("apify~cheerio-scraper", {
+    startUrls: [{ url: url.replace(/[?#].*$/, "") }], pageFunction, maxRequestsPerCrawl: 1, maxConcurrency: 1,
+    proxyConfiguration: { useApifyProxy: true },
+  }, { max: 1, esperaSeg: 90, topeUsd: 0.05 }).catch(() => null);
+  const it = c?.items?.[0] as { caracteristicas?: string; descripcion?: string } | undefined;
+  return [it?.caracteristicas, it?.descripcion].filter(Boolean).join("\n").trim();
 }
 
 export async function datosDeEnvio(pub: { itemId: string | null; productoId: string | null; url?: string | null }, organizacionId: string) {
