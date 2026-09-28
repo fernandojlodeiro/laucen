@@ -259,7 +259,7 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         const r = await buscarEnChina(x.titulo, p, puedeGastar, { texto: x.datos_ml ?? undefined, previa });
         await sumarApify(id, r.costoUsd, r.runIds);
         await sumarClaude(id, "busqueda", r.tokensIn, r.tokensOut, r.claudeUsd ?? 0);
-        await pool.query("update piloto_productos set china = $2, etapa = 'juez', error = $3 where id = $1",
+        await pool.query("update piloto_productos set china = $2, etapa = 'juez', error = coalesce($3, error) where id = $1",
           [x.id, { en: r.en, zh: r.zh, candidatos: r.candidatos, errores: r.errores, muestra: r.muestra, ...(previa ? { previa } : {}) },
             r.errores.join(" · ") || null]);
       }));
