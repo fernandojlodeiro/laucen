@@ -288,19 +288,34 @@ async function caracteristicasDePagina(url: string | null | undefined) {
 /** ML bloquea la página desde Vercel y desde web_fetch de Anthropic (piloto
  *  #21, Premium 2 plazas /up/). Se lee con el actor genérico de Apify, que
  *  entra con proxies: Características + Descripción. Unos centavos. */
+// Lo que pasó en la última lectura con Apify, para dejarlo anotado en el producto
+// (piloto #21: la primera prueba volvió vacía y no se sabía por qué).
+export const avisosPagina = new Map<string, string>();
+
 async function caracteristicasConApify(url: string) {
   const pageFunction = `async function pageFunction({ $, request }) {
     const t = $('body').text().replace(/\\s+/g, ' ');
     const i = t.search(/Características del producto|Características principales/);
     const d = t.indexOf('Descripción', i > 0 ? i : 0);
-    return { url: request.url, caracteristicas: i >= 0 ? t.slice(i, i + 2000) : '', descripcion: d >= 0 ? t.slice(d, d + 1500) : '' };
+    return { url: request.url, titulo: $('title').text(), largo: t.length,
+      caracteristicas: i >= 0 ? t.slice(i, i + 2000) : '', descripcion: d >= 0 ? t.slice(d, d + 1500) : '' };
   }`;
-  const c = await correrConEntrada("apify~cheerio-scraper", {
-    startUrls: [{ url: url.replace(/[?#].*$/, "") }], pageFunction, maxRequestsPerCrawl: 1, maxConcurrency: 1,
-    proxyConfiguration: { useApifyProxy: true },
-  }, { max: 1, esperaSeg: 90, topeUsd: 0.05 }).catch(() => null);
-  const it = c?.items?.[0] as { caracteristicas?: string; descripcion?: string } | undefined;
-  return [it?.caracteristicas, it?.descripcion].filter(Boolean).join("\n").trim();
+  const limpia = url.replace(/[?#].*$/, "");
+  let aviso = "";
+  // Primero el proxy común; si ML lo frena, proxy residencial de Argentina (unos centavos más).
+  for (const proxy of [{ useApifyProxy: true }, { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"], apifyProxyCountry: "AR" }]) {
+    const c = await correrConEntrada("apify~cheerio-scraper", {
+      startUrls: [{ url: limpia }], pageFunction, maxRequestsPerCrawl: 1, maxConcurrency: 1, maxRequestRetries: 2,
+      proxyConfiguration: proxy,
+    }, { max: 1, esperaSeg: 90, topeUsd: 0.1 }).catch((e) => ({ items: [], error: String(e) }));
+    const it = c.items?.[0] as { caracteristicas?: string; descripcion?: string; titulo?: string; largo?: number } | undefined;
+    const texto = [it?.caracteristicas, it?.descripcion].filter(Boolean).join("\n").trim();
+    if (texto) { avisosPagina.delete(url); return texto; }
+    aviso += `${aviso ? " · " : ""}${proxy.apifyProxyGroups ? "residencial" : "común"}: ` +
+      (it ? `la página "${(it.titulo ?? "").slice(0, 60)}" (${it.largo ?? 0} letras) no tiene Características` : `sin página${c.error ? ` (${String(c.error).slice(0, 80)})` : ""}`);
+  }
+  avisosPagina.set(url, aviso);
+  return "";
 }
 
 export async function datosDeEnvio(pub: { itemId: string | null; productoId: string | null; url?: string | null }, organizacionId: string) {

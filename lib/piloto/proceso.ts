@@ -7,7 +7,7 @@ import { pool } from "@/db";
 import { costosFinales } from "@/lib/apify";
 import { USD_POR_MTOK } from "@/lib/claude";
 import { asegurarEsquema } from "./esquema";
-import { buscadosDeCategoria, cruzar, datosDeEnvio, listadoDeCategoria, urlDeCategoria } from "./ml";
+import { avisosPagina, buscadosDeCategoria, cruzar, datosDeEnvio, listadoDeCategoria, urlDeCategoria } from "./ml";
 import { buscarEnChina, cajasConWeb, estimarCajas, flete, juzgar, verificar } from "./china";
 import { costosML, cuenta, tasasDe } from "./costo";
 import type { AvanceCategoria, Caja, Candidato, Ficha, Juicio, Parametros, PubML } from "./tipos";
@@ -239,7 +239,9 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         // Fuera de la franja: no se busca en China ni pasa por el juez.
         const etapa = f?.franja === "fuera" ? "listo" : "china";
         await pool.query("update piloto_productos set caja = $2, flete_usd = $3, flete_pct = $4, franja = $5, etapa = $6, error = $7 where id = $1",
-          [x.id, caja, f?.usd ?? null, f?.pct ?? null, f?.franja ?? null, etapa, caja ? null : `Sin caja estimada${r.error ? `: ${r.error}` : ""} (se busca igual)`]);
+          [x.id, caja, f?.usd ?? null, f?.pct ?? null, f?.franja ?? null, etapa,
+            [caja ? null : `Sin caja estimada${r.error ? `: ${r.error}` : ""} (se busca igual)`,
+              x.url && avisosPagina.has(x.url) && sinMedidas(datos) ? `No se pudo leer la página de Mercado Libre (${avisosPagina.get(x.url)})` : null].filter(Boolean).join(" · ") || null]);
       }
       hechos.push(`caja de ${lote.length}`);
     }
