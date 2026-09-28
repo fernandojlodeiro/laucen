@@ -48,10 +48,19 @@ function partes(c: Contenido): Parte[] {
 }
 
 async function postJson(url: string, cuerpo: unknown, headers: Record<string, string>) {
-  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(cuerpo), cache: "no-store" });
-  const j = await r.json().catch(() => null);
-  if (!r.ok) throw new Error(`${r.status} ${JSON.stringify(j?.error ?? j ?? "").slice(0, 300)}`);
-  return j;
+  // Límite de pedidos (429) o saturación (503/529): se espera y se reintenta hasta 3 veces
+  // (piloto #16: Perplexity cortó 4 de 5 productos por límite de pedidos).
+  for (let intento = 0; ; intento++) {
+    const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(cuerpo), cache: "no-store" });
+    const j = await r.json().catch(() => null);
+    if (r.ok) return j;
+    if ([429, 503, 529].includes(r.status) && intento < 3) {
+      const espera = Number(r.headers.get("retry-after")) || 10 * 2 ** intento;
+      await new Promise((ok) => setTimeout(ok, Math.min(espera, 40) * 1000));
+      continue;
+    }
+    throw new Error(`${r.status} ${JSON.stringify(j?.error ?? j ?? "").slice(0, 300)}`);
+  }
 }
 
 /** El pedido, al proveedor que toque. Nunca tira: texto o error, y los tokens. */
