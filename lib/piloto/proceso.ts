@@ -216,7 +216,7 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
       // Primero lo que dice Mercado Libre (gratis): paquete en los atributos,
       // o el texto de atributos y descripción para que Claude lo lea.
       const deML = await Promise.all(lote.map((x) => datosDeEnvio({ itemId: x.item_id, productoId: x.producto_id, url: x.url }, organizacionId)
-        .catch(() => ({ caja: null, texto: "" }))));
+        .catch((e) => { avisosPagina.set(x.url ?? "", `falló la lectura de Mercado Libre: ${String(e).slice(0, 120)}`); return { caja: null, texto: "" }; })));
       // Sin medidas tampoco alcanza: el flete en barco del costo se cobra por volumen.
       // Y sin las medidas del producto (piloto #17: Premium 2 plazas sin medidas) se leen de la publicación.
       const sinMedidas = (t: string) => !/Largo|Ancho|Altura|LENGTH|WIDTH|HEIGHT/i.test(t);

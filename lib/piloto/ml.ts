@@ -276,7 +276,8 @@ async function caracteristicasDePagina(url: string | null | undefined) {
   if (!url) return "";
   try {
     const r = await fetch(url.replace(/[?#].*$/, ""), { headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140 Safari/537.36", "accept-language": "es-AR" }, cache: "no-store" });
-    if (!r.ok) return "";
+    // Si ML frena el pedido (403 o la cáscara anti-bot), sigue con Apify (piloto #21: volvía vacío sin probarlo).
+    if (!r.ok) return caracteristicasConApify(url);
     const texto = (await r.text()).replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<\/(tr|th|td|li|p|div|h\d)>/gi, "\n")
       .replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n");
     const i = texto.search(/Características (principales|del producto)|Características/);
@@ -293,30 +294,41 @@ async function caracteristicasDePagina(url: string | null | undefined) {
 export const avisosPagina = new Map<string, string>();
 
 async function caracteristicasConApify(url: string) {
-  const pageFunction = `async function pageFunction({ $, request }) {
+  // Cowork (#102, 8.1): sin cookies ML devuelve una cáscara anti-bot de 8 KB titulada
+  // "Mercado Libre". Con proxy residencial y sesión con cookies viene la página entera,
+  // con las Características en un JSON embebido ({"id":"Altura x Largo x Ancho","text":"40 cm x 200 cm x 150 cm"})
+  // y el ítem que la vende ("item_id":"MLA…").
+  const pageFunction = `async function pageFunction({ $, request, body }) {
+    const html = String(body);
+    const pares = [];
+    const re = /\\{"id":"([^"]{1,80})","text":"([^"]{1,200})"/g;
+    let m;
+    while ((m = re.exec(html)) && pares.length < 80) { const l = m[1] + ': ' + m[2]; if (!pares.includes(l)) pares.push(l); }
     const t = $('body').text().replace(/\\s+/g, ' ');
-    const i = t.search(/Características del producto|Características principales/);
-    const d = t.indexOf('Descripción', i > 0 ? i : 0);
-    return { url: request.url, titulo: $('title').text(), largo: t.length,
-      caracteristicas: i >= 0 ? t.slice(i, i + 2000) : '', descripcion: d >= 0 ? t.slice(d, d + 1500) : '' };
+    const d = t.indexOf('Descripción');
+    const item = html.match(/"item_id":"(MLA\\d+)"/);
+    return { url: request.url, titulo: $('title').text(), largo: html.length, item: item ? item[1] : null,
+      caracteristicas: pares.join('\\n'), descripcion: d >= 0 ? t.slice(d, d + 1500) : '' };
   }`;
   const limpia = url.replace(/[?#].*$/, "");
   let aviso = "";
-  // Primero el proxy común; si ML lo frena, proxy residencial de Argentina (unos centavos más).
-  for (const proxy of [{ useApifyProxy: true }, { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"], apifyProxyCountry: "AR" }]) {
+  for (const proxy of [{ useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"], apifyProxyCountry: "AR" }, { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"] }]) {
     const c = await correrConEntrada("apify~cheerio-scraper", {
-      startUrls: [{ url: limpia }], pageFunction, maxRequestsPerCrawl: 1, maxConcurrency: 1, maxRequestRetries: 2,
-      proxyConfiguration: proxy,
+      startUrls: [{ url: limpia }], pageFunction, maxRequestsPerCrawl: 1, maxConcurrency: 1, maxRequestRetries: 3,
+      useSessionPool: true, persistCookiesPerSession: true, proxyConfiguration: proxy,
     }, { max: 1, esperaSeg: 90, topeUsd: 0.1 }).catch((e) => ({ items: [], error: String(e) }));
-    const it = c.items?.[0] as { caracteristicas?: string; descripcion?: string; titulo?: string; largo?: number } | undefined;
+    const it = c.items?.[0] as { caracteristicas?: string; descripcion?: string; titulo?: string; largo?: number; item?: string | null } | undefined;
+    if (it?.item) itemsDePagina.set(url, it.item);
     const texto = [it?.caracteristicas, it?.descripcion].filter(Boolean).join("\n").trim();
     if (texto) { avisosPagina.delete(url); return texto; }
-    aviso += `${aviso ? " · " : ""}${proxy.apifyProxyGroups ? "residencial" : "común"}: ` +
-      (it ? `la página "${(it.titulo ?? "").slice(0, 60)}" (${it.largo ?? 0} letras) no tiene Características` : `sin página${c.error ? ` (${String(c.error).slice(0, 80)})` : ""}`);
+    aviso += `${aviso ? " · " : ""}${proxy.apifyProxyCountry ? "residencial AR" : "residencial"}: ` +
+      (it ? `la página "${(it.titulo ?? "").slice(0, 60)}" (${it.largo ?? 0} letras) no trae Características` : `sin página${c.error ? ` (${String(c.error).slice(0, 80)})` : ""}`);
   }
   avisosPagina.set(url, aviso);
   return "";
 }
+/** El ítem MLA… que vende una publicación /up/, leído de su página. */
+export const itemsDePagina = new Map<string, string>();
 
 export async function datosDeEnvio(pub: { itemId: string | null; productoId: string | null; url?: string | null }, organizacionId: string) {
   const token = await tokenML(organizacionId);
@@ -370,6 +382,13 @@ export async function datosDeEnvio(pub: { itemId: string | null; productoId: str
   if (!/Largo|Ancho|Altura|LENGTH|WIDTH|HEIGHT/i.test(texto)) {
     const pagina = await caracteristicasDePagina(pub.url);
     if (pagina) texto = [texto, `De la página de Mercado Libre: ${pagina}`].filter(Boolean).join("\n");
+    // La descripción del ítem que la vende sí sale por la API (#105: /items/{id}/description da 200).
+    const itemPagina = pub.url ? itemsDePagina.get(pub.url) : null;
+    if (itemPagina && !descripcion) {
+      const d = await ml(`/items/${itemPagina}/description`, token).catch(() => null);
+      const pt = String((d?.datos as { plain_text?: string } | null)?.plain_text ?? "").replace(/\s+/g, " ").slice(0, 1500);
+      if (pt) texto = [texto, `Descripción del ítem ${itemPagina}: ${pt}`].filter(Boolean).join("\n");
+    }
   }
   return { caja, texto };
 }
