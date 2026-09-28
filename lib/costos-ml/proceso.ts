@@ -1,7 +1,8 @@
 // Costos de vender en Mercado Libre: todos los días se le pregunta a la API de
-// ML, con la cuenta de Fer, cuánto cuesta vender, y se guarda con fecha y hora
+// ML, con la cuenta de Fer, cuánto cuesta vender, y se guarda SÓLO LO QUE
+// CAMBIÓ respecto de lo último guardado, con la fecha desde la que vale
 // (tablas ml_costos_*, db/costos_ml.sql). Lo leen las sesiones que calculan el
-// costo de vender por ML.
+// costo de vender por ML (vistas ml_costos_*_vigente).
 //
 // Una corrida por día, en partes ("fases"). Las chicas (unos cientos de
 // consultas) se hacen enteras en un turno; si el turno se corta, se rehacen.
@@ -89,27 +90,36 @@ async function enParalelo<T, R>(items: T[], n: number, hasta: number, tarea: (x:
   return out;
 }
 
-/** Inserta filas (objetos con los nombres de columna) en una tabla. */
-async function insertar(tabla: string, filas: Record<string, unknown>[]) {
+/** Guarda en `tabla` sólo las filas cuyos valores cambiaron respecto de la
+ *  última fila guardada con la misma clave (o que son nuevas). Devuelve
+ *  cuántas agregó. `filas` trae todas las columnas de la tabla. */
+async function guardarCambios(c: Corrida, tabla: string, claves: string[], valores: string[], filas: Record<string, unknown>[]) {
+  let nuevas = 0;
+  const igualClave = claves.map((k) => `u.${k} = n.${k}`).join(" and ");
+  const igualValor = valores.map((v) => `u.${v} is not distinct from n.${v}`).join(" and ");
   for (let i = 0; i < filas.length; i += 500) {
-    await pool.query(
-      `insert into ${tabla} select * from jsonb_populate_recordset(null::${tabla}, $1::jsonb)`,
+    const r = await pool.query(
+      `insert into ${tabla} select n.* from jsonb_populate_recordset(null::${tabla}, $1::jsonb) n
+        where not exists (select 1 from (select * from ${tabla} u where ${igualClave} order by u.desde desc limit 1) u
+                           where ${igualValor})
+        on conflict do nothing`,
       [JSON.stringify(filas.slice(i, i + 500))]);
+    nuevas += r.rowCount ?? 0;
   }
+  if (nuevas) await pool.query(
+    `update ml_costos_corridas set cambios = coalesce(cambios, '{}'::jsonb) || jsonb_build_object($2::text, coalesce((cambios->>$2)::int, 0) + $3)
+      where id = $1`, [c.id, tabla, nuevas]);
+  return nuevas;
 }
 
-type Corrida = { id: number; fecha: string; fases: string[]; meli_user: string | null; terminada: Date | null };
+type Corrida = { id: number; fecha: string; fases: string[]; meli_user: string | null; terminada: Date | null;
+  iniciada: Date; cursor: string | null };
 
 /** Crea la corrida de hoy si no existe. */
 export async function iniciarHoy(): Promise<number> {
   const r = await pool.query<{ id: number }>(
     `insert into ml_costos_corridas (fecha) values ($1) on conflict (fecha) do update set fecha = excluded.fecha returning id`, [hoyAR()]);
   return r.rows[0].id;
-}
-
-export async function hayPendiente(): Promise<boolean> {
-  const r = await pool.query("select 1 from ml_costos_corridas where terminada is null limit 1");
-  return (r.rowCount ?? 0) > 0;
 }
 
 type LP = { listing_type_id?: string; sale_fee_amount?: number;
@@ -123,50 +133,46 @@ async function referencias(c: Corrida, token: string, userId: number, hasta: num
     ["metodos_envio", `/sites/${SITIO}/shipping_methods`],
     ["preferencias_envio", `/users/${userId}/shipping_preferences`],
     ["cuenta", `/users/${userId}`],
-    ["medios_pago", `/sites/${SITIO}/payment_methods`],
-    ["sitio", `/sites/${SITIO}`],
-    ["listing_prices_referencia", `/sites/${SITIO}/listing_prices?price=${PRECIO_COMISION}&category_id=${CATEGORIA_REF}`],
   ];
-  const res = await enParalelo(rutas, 4, hasta, async ([clave, ruta]) => ({ clave, ruta, r: await pedir(ruta, token) }));
+  const res = await enParalelo(rutas, 4, hasta, async ([clave, ruta]) => ({ clave, r: await pedir(ruta, token) }));
   if (!res) return false;
-  const ts = new Date().toISOString();
-  await pool.query("delete from ml_costos_referencias where corrida_id = $1", [c.id]);
-  await insertar("ml_costos_referencias", res.map(({ clave, ruta, r }) => {
-    // De la cuenta sólo interesa lo que cambia costos; sin datos personales.
-    let datos = r.datos as Record<string, unknown> | null;
-    if (clave === "cuenta" && datos) datos = {
-      id: datos.id, user_type: datos.user_type, tags: datos.tags, address: { state: (datos.address as { state?: string })?.state, zip_code: (datos.address as { zip_code?: string })?.zip_code },
-      seller_reputation: datos.seller_reputation, status: datos.status,
-    };
-    return { corrida_id: c.id, clave, ts, ruta, status: r.status, datos };
-  }));
+  const filas = res.filter(({ r }) => r.status === 200).map(({ clave, r }) => {
+    let datos = r.datos as Record<string, unknown>;
+    // De la cuenta, sólo lo que cambia costos (el nivel y el tipo), no métricas ni datos personales.
+    if (clave === "cuenta") {
+      const rep = datos.seller_reputation as { level_id?: string; power_seller_status?: string } | undefined;
+      const dir = datos.address as { state?: string; zip_code?: string } | undefined;
+      datos = { user_type: datos.user_type, tags: datos.tags, provincia: dir?.state, cp: dir?.zip_code,
+        nivel: rep?.level_id, mercadolider: rep?.power_seller_status };
+    }
+    return { clave, desde: c.iniciada, corrida_id: c.id, datos };
+  });
+  await guardarCambios(c, "ml_costos_referencias", ["clave"], ["datos"], filas);
   return true;
 }
 
 async function cargoFijo(c: Corrida, token: string, _u: number, hasta: number) {
-  type Q = { tipo: string; precio: number; logistica: string | null; peso: number | null };
+  type Q = { tipo: string; precio: number; logistica: string; peso: number };
   const qs: Q[] = [];
   for (const tipo of TIPOS) for (const precio of PRECIOS_CARGO_FIJO) {
-    qs.push({ tipo, precio, logistica: null, peso: null });
+    qs.push({ tipo, precio, logistica: "-", peso: 0 });
     for (const logistica of LOGISTICAS) for (const peso of PESOS_CARGO_FIJO) qs.push({ tipo, precio, logistica, peso });
   }
   const res = await enParalelo(qs, 8, hasta, async (q) => {
-    const extra = q.logistica ? `&logistic_type=${q.logistica}&billable_weight=${q.peso}` : "";
+    const extra = q.peso ? `&logistic_type=${q.logistica}&billable_weight=${q.peso}` : "";
     const r = await pedir(`/sites/${SITIO}/listing_prices?price=${q.precio}&category_id=${CATEGORIA_REF}&listing_type_id=${q.tipo}${extra}`, token);
     const d = (Array.isArray(r.datos) ? r.datos[0] : r.datos) as LP | null;
-    const ok = r.status === 200 && d?.sale_fee_details;
+    if (r.status !== 200 || !d?.sale_fee_details) return null;
     return {
-      corrida_id: c.id, ts: new Date().toISOString(), categoria_id: CATEGORIA_REF, tipo: q.tipo, precio: q.precio,
-      logistica: q.logistica, peso_g: q.peso, status: r.status,
-      cargo_fijo: ok ? d.sale_fee_details!.fixed_fee ?? null : null,
-      porcentaje: ok ? d.sale_fee_details!.percentage_fee ?? null : null,
-      comision_total: ok ? d.sale_fee_amount ?? null : null,
-      crudo: r.datos,
+      tipo: q.tipo, precio: q.precio, logistica: q.logistica, peso_g: q.peso, desde: c.iniciada, corrida_id: c.id,
+      cargo_fijo: d.sale_fee_details.fixed_fee ?? null, porcentaje: d.sale_fee_details.percentage_fee ?? null,
+      comision_total: d.sale_fee_amount ?? null,
     };
   });
   if (!res) return false;
-  await pool.query("delete from ml_costos_cargo_fijo where corrida_id = $1", [c.id]);
-  await insertar("ml_costos_cargo_fijo", res);
+  await guardarCambios(c, "ml_costos_cargo_fijo", ["tipo", "precio", "logistica", "peso_g"],
+    ["cargo_fijo", "porcentaje", "comision_total"], res.filter((x) => x !== null));
+  await sumarFallas(c, res.filter((x) => x === null).length);
   return true;
 }
 
@@ -181,15 +187,17 @@ async function envioGratis(c: Corrida, token: string, userId: number, hasta: num
       `&listing_type_id=${tipo}&mode=me2&condition=new&logistic_type=${q.logistica}&verbose=true`, token);
     const a = (r.datos as { coverage?: { all_country?: { list_cost?: number; billable_weight?: number; discount?: { rate?: number; promoted_amount?: number } } } } | null)
       ?.coverage?.all_country;
+    if (r.status !== 200 || !a) return null;
     return {
-      corrida_id: c.id, ts: new Date().toISOString(), logistica: q.logistica, tipo, precio: q.precio, peso_g: q.peso, medidas,
-      status: r.status, costo: a?.list_cost ?? null, costo_lleno: a?.discount?.promoted_amount ?? null,
-      bonificacion: a?.discount?.rate ?? null, peso_facturable: a?.billable_weight ?? null, crudo: r.datos,
+      logistica: q.logistica, tipo, precio: q.precio, peso_g: q.peso, desde: c.iniciada, corrida_id: c.id, medidas,
+      costo: a.list_cost ?? null, costo_lleno: a.discount?.promoted_amount ?? null,
+      bonificacion: a.discount?.rate ?? null, peso_facturable: a.billable_weight ?? null,
     };
   });
   if (!res) return false;
-  await pool.query("delete from ml_costos_envio_gratis where corrida_id = $1", [c.id]);
-  await insertar("ml_costos_envio_gratis", res);
+  await guardarCambios(c, "ml_costos_envio_gratis", ["logistica", "tipo", "precio", "peso_g"],
+    ["costo", "costo_lleno", "bonificacion", "peso_facturable"], res.filter((x) => x !== null));
+  await sumarFallas(c, res.filter((x) => x === null).length);
   return true;
 }
 
@@ -198,67 +206,59 @@ async function envioDestino(c: Corrida, token: string, userId: number, hasta: nu
   const res = await enParalelo(qs, 8, hasta, async (q) => {
     const medidas = cajaPara(q.peso);
     const r = await pedir(`/users/${userId}/shipping_options?zip_code=${q.cp}&dimensions=${medidas},${q.peso}&item_price=${PRECIO_DESTINO}`, token);
-    type Op = { name?: string; shipping_method_type?: string; shipping_method_id?: number; cost?: number; list_cost?: number };
+    type Op = { name?: string; shipping_method_type?: string; shipping_method_id?: number; cost?: number };
     const d = r.datos as { destination?: { state?: { name?: string } }; options?: Op[] } | null;
-    const opciones = (d?.options ?? []).map((o) => ({ nombre: o.name, tipo: o.shipping_method_type, metodo: o.shipping_method_id, costo: o.cost, costo_lista: o.list_cost }));
+    if (r.status !== 200 || !d?.options) return null;
+    const opciones = d.options
+      .map((o) => ({ nombre: o.name ?? null, tipo: o.shipping_method_type ?? null, metodo: o.shipping_method_id ?? null, costo: o.cost ?? null }))
+      .sort((a, b) => (a.metodo ?? 0) - (b.metodo ?? 0));
     const costos = opciones.map((o) => o.costo).filter((x): x is number => typeof x === "number");
     return {
-      corrida_id: c.id, ts: new Date().toISOString(), cp: q.cp, lugar: q.lugar, provincia: d?.destination?.state?.name ?? null,
-      precio: PRECIO_DESTINO, peso_g: q.peso, medidas, status: r.status,
-      costo_min: costos.length ? Math.min(...costos) : null, opciones, crudo: r.datos,
+      cp: q.cp, peso_g: q.peso, precio: PRECIO_DESTINO, desde: c.iniciada, corrida_id: c.id, lugar: q.lugar,
+      provincia: d.destination?.state?.name ?? null, medidas, costo_min: costos.length ? Math.min(...costos) : null, opciones,
     };
   });
   if (!res) return false;
-  await pool.query("delete from ml_costos_envio_destino where corrida_id = $1", [c.id]);
-  await insertar("ml_costos_envio_destino", res);
+  await guardarCambios(c, "ml_costos_envio_destino", ["cp", "peso_g", "precio"], ["costo_min", "opciones"], res.filter((x) => x !== null));
+  await sumarFallas(c, res.filter((x) => x === null).length);
   return true;
 }
 
-/** La comisión de cada categoría hoja; avanza de a tandas. Devuelve true cuando no queda ninguna. */
+/** La comisión de cada categoría hoja, en orden, de a 200; `cursor` guarda
+ *  hasta dónde llegó. Devuelve true cuando no queda ninguna. */
 async function comisiones(c: Corrida, token: string, _u: number, hasta: number) {
   while (Date.now() < hasta) {
     const pend = await pool.query<{ id: string; ruta: string }>(
-      `select m.id, m.ruta from meli_categorias m
-        left join ml_costos_comisiones k on k.corrida_id = $1 and k.categoria_id = m.id
-        where m.es_hoja and (k.categoria_id is null or (k.status <> 200 and k.intentos < 3))
-        order by m.id limit 200`, [c.id]);
+      `select id, ruta from meli_categorias where es_hoja and id > coalesce($1, '') order by id limit 200`, [c.cursor]);
     if (!pend.rows.length) return true;
     const res = await enParalelo(pend.rows, 10, hasta, async (cat) => {
       const r = await pedir(`/sites/${SITIO}/listing_prices?price=${PRECIO_COMISION}&category_id=${cat.id}`, token);
-      const lista = (Array.isArray(r.datos) ? r.datos : []) as LP[];
+      if (r.status !== 200 || !Array.isArray(r.datos)) return null;
+      const lista = r.datos as LP[];
       const de = (t: string) => lista.find((x) => x.listing_type_id === t)?.sale_fee_details;
       return {
-        corrida_id: c.id, categoria_id: cat.id, ts: new Date().toISOString(), ruta: cat.ruta, status: r.status, intentos: 1,
-        precio: PRECIO_COMISION, clasica_pct: de("gold_special")?.percentage_fee ?? null,
-        premium_pct: de("gold_pro")?.percentage_fee ?? null, premium_cuotas_pct: de("gold_pro")?.financing_add_on_fee ?? null,
-        crudo: r.datos,
+        categoria_id: cat.id, desde: c.iniciada, corrida_id: c.id, ruta: cat.ruta,
+        clasica_pct: de("gold_special")?.percentage_fee ?? null, premium_pct: de("gold_pro")?.percentage_fee ?? null,
+        premium_cuotas_pct: de("gold_pro")?.financing_add_on_fee ?? null,
       };
     });
     if (!res) return false;
-    await pool.query(
-      `insert into ml_costos_comisiones select * from jsonb_populate_recordset(null::ml_costos_comisiones, $1::jsonb)
-       on conflict (corrida_id, categoria_id) do update set ts = excluded.ts, status = excluded.status,
-         intentos = ml_costos_comisiones.intentos + 1, clasica_pct = excluded.clasica_pct, premium_pct = excluded.premium_pct,
-         premium_cuotas_pct = excluded.premium_cuotas_pct, crudo = excluded.crudo`, [JSON.stringify(res)]);
+    await guardarCambios(c, "ml_costos_comisiones", ["categoria_id"], ["clasica_pct", "premium_pct", "premium_cuotas_pct"],
+      res.filter((x) => x !== null));
+    await sumarFallas(c, res.filter((x) => x === null).length);
+    c.cursor = pend.rows[pend.rows.length - 1].id;
+    await pool.query("update ml_costos_corridas set cursor = $2 where id = $1", [c.id, c.cursor]);
   }
   return false;
+}
+
+async function sumarFallas(c: Corrida, n: number) {
+  if (n) await pool.query("update ml_costos_corridas set fallas = fallas + $2 where id = $1", [c.id, n]);
 }
 
 const PASOS: Record<Fase, (c: Corrida, token: string, userId: number, hasta: number) => Promise<boolean>> = {
   referencias, cargo_fijo: cargoFijo, envio_gratis: envioGratis, envio_destino: envioDestino, comisiones,
 };
-
-async function resumen(id: number) {
-  const r = await pool.query(
-    `select (select count(*) from ml_costos_comisiones where corrida_id = $1 and status = 200) comisiones_ok,
-            (select count(*) from ml_costos_comisiones where corrida_id = $1 and status <> 200) comisiones_error,
-            (select count(*) from ml_costos_cargo_fijo where corrida_id = $1 and status = 200) cargo_fijo_ok,
-            (select count(*) from ml_costos_envio_gratis where corrida_id = $1 and status = 200) envio_gratis_ok,
-            (select count(*) from ml_costos_envio_destino where corrida_id = $1 and status = 200) envio_destino_ok,
-            (select min(precio) from ml_costos_cargo_fijo where corrida_id = $1 and status = 200 and logistica is null
-                and tipo = 'gold_special' and cargo_fijo = 0) umbral_sin_cargo_fijo`, [id]);
-  return r.rows[0];
-}
 
 /** Avanza las corridas sin terminar hasta `hasta` (ms). Nunca tira. */
 export async function avanzar(hasta: number) {
@@ -285,7 +285,7 @@ export async function avanzar(hasta: number) {
         await pool.query("update ml_costos_corridas set fases = $2, error = null where id = $1", [c.id, c.fases]);
       }
       const fin = FASES.every((f) => c.fases.includes(f));
-      if (fin) await pool.query("update ml_costos_corridas set terminada = now(), resumen = $2 where id = $1", [c.id, await resumen(c.id)]);
+      if (fin) await pool.query("update ml_costos_corridas set terminada = now() where id = $1", [c.id]);
       out.push({ corrida: c.id, fecha: c.fecha, hechas, terminada: fin });
     } catch (e) {
       const msg = String(e).slice(0, 300);
@@ -301,10 +301,49 @@ export async function avanzar(hasta: number) {
 export async function ultimasCorridas(n = 10) {
   const r = await pool.query<{
     id: number; fecha: string; iniciada: Date; terminada: Date | null; fases: string[]; error: string | null;
-    resumen: Record<string, unknown> | null; comisiones: number; hojas: number;
+    cursor: string | null; fallas: number; cambios: Record<string, number> | null; hojas: number; hechas: number;
   }>(
-    `select c.*, (select count(*)::int from ml_costos_comisiones k where k.corrida_id = c.id and k.status = 200) comisiones,
-            (select count(*)::int from meli_categorias where es_hoja) hojas
+    `select c.*, (select count(*)::int from meli_categorias where es_hoja) hojas,
+            (select count(*)::int from meli_categorias where es_hoja and id <= coalesce(c.cursor, '')) hechas
        from ml_costos_corridas c order by id desc limit $1`, [n]);
   return r.rows;
 }
+
+// ── Lectura para la pantalla (lo vigente) ──────────────
+
+const num = (v: unknown) => (v == null ? null : Number(v));
+
+export async function comisionesVigentes(buscar: string, limite = 200) {
+  const q = `%${buscar.trim()}%`;
+  const r = await pool.query<{ categoria_id: string; ruta: string | null; desde: Date; clasica_pct: string | null; premium_pct: string | null; premium_cuotas_pct: string | null; cambios: number }>(
+    `select v.*, (select count(*)::int from ml_costos_comisiones k where k.categoria_id = v.categoria_id) cambios
+       from ml_costos_comisiones_vigente v
+      where $1 = '%%' or v.ruta ilike $1 or v.categoria_id ilike $1
+      order by v.ruta limit $2`, [q, limite]);
+  const total = await pool.query<{ n: number }>(
+    `select count(*)::int n from ml_costos_comisiones_vigente v where $1 = '%%' or v.ruta ilike $1 or v.categoria_id ilike $1`, [q]);
+  return {
+    total: total.rows[0].n,
+    filas: r.rows.map((f) => ({ ...f, clasica_pct: num(f.clasica_pct), premium_pct: num(f.premium_pct), premium_cuotas_pct: num(f.premium_cuotas_pct) })),
+  };
+}
+
+export async function cargoFijoVigente() {
+  const r = await pool.query<{ tipo: string; precio: string; logistica: string; peso_g: number; cargo_fijo: string | null; desde: Date }>(
+    "select tipo, precio, logistica, peso_g, cargo_fijo, desde from ml_costos_cargo_fijo_vigente where tipo = 'gold_special'");
+  return r.rows.map((f) => ({ ...f, precio: Number(f.precio), cargo_fijo: num(f.cargo_fijo) }));
+}
+
+export async function envioGratisVigente() {
+  const r = await pool.query<{ logistica: string; precio: string; peso_g: number; costo: string | null; peso_facturable: number | null; desde: Date }>(
+    "select logistica, precio, peso_g, costo, peso_facturable, desde from ml_costos_envio_gratis_vigente");
+  return r.rows.map((f) => ({ ...f, precio: Number(f.precio), costo: num(f.costo) }));
+}
+
+export async function envioDestinoVigente() {
+  const r = await pool.query<{ cp: string; lugar: string; provincia: string | null; peso_g: number; costo_min: string | null; desde: Date }>(
+    "select cp, lugar, provincia, peso_g, costo_min, desde from ml_costos_envio_destino_vigente");
+  return r.rows.map((f) => ({ ...f, costo_min: num(f.costo_min) }));
+}
+
+export const GRILLAS = { PRECIOS_CARGO_FIJO, PESOS_CARGO_FIJO, PRECIOS_ENVIO, PESOS_ENVIO, PESOS_DESTINO, PRECIO_DESTINO };
