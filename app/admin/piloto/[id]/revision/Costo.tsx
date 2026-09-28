@@ -13,13 +13,18 @@ const color = (n: number | null) => (n == null ? "" : n >= 0 ? "text-[#1F6E4A]" 
 
 /** Costo puesto en Argentina contra el precio de venta de Mercado Libre, con
  *  el desglose a un clic (Fer, 28/9). */
-export function Costo({ fob, caja, precio, p, datos, cajaChina, unidades, lapiz }: {
+export function Costo({ fob, caja, precio, p, datos, cajaChina, unidades, lapiz, tramos }: {
   fob: number; caja: Caja | null; precio: number | null; p: Parametros; datos: DatosCosto | null;
   cajaChina?: { largo: number; ancho: number; alto: number; kg: number } | null; unidades?: number;
+  tramos?: { desde: number; hasta: number | null; usd: number }[];
   lapiz?: { producto: number; corrida: number; editando: boolean; editar: string; cancelar: string };
 }) {
   const cl = datos?.clasificacion;
   const k = cuenta(fob, caja, precio, p, datos, cajaChina, unidades);
+  // Con el precio por volumen (el último tramo de la publicación): cuánto rinde trayendo más cantidad (Fer, 28/9).
+  const u = unidades ?? 1;
+  const ultimo = tramos && tramos.length > 1 ? tramos[tramos.length - 1] : null;
+  const kv = ultimo ? cuenta(Math.max(0, fob - u * tramos![0].usd + u * ultimo.usd), caja, precio, p, datos, cajaChina, unidades) : null;
   const t = datos?.tasas;
   const alt = datos?.alternativa;
   // Fer (28/9): una duda de NCM que no cambia el arancel no se menciona; si lo
@@ -48,6 +53,13 @@ export function Costo({ fob, caja, precio, p, datos, cajaChina, unidades, lapiz 
         rentabilidad bruta <b className={color(k.sobreCosto)}>{pct(k.sobreCosto)} sobre el costo</b> ({pct(k.sobreVenta)} sobre la venta)
         {k.neto != null && <> · neto de Mercado Libre {usd(k.neto)}: <b className={color(k.netoSobreCosto)}>{pct(k.netoSobreCosto)} sobre el costo</b> ({pct(k.netoSobreVenta)} sobre la venta)</>}
       </p>
+      {kv && ultimo && (
+        <p className="text-[#5C6B76]">
+          Con el precio por volumen (US$ {formatearNumero(ultimo.usd, "usd")} desde {formatearNumero(ultimo.desde, "entero")} u.): costo {usd(kv.costo)} ·{" "}
+          bruta <b className={color(kv.sobreCosto)}>{pct(kv.sobreCosto)}</b> sobre el costo
+          {kv.neto != null && <> · neto de ML <b className={color(kv.netoSobreCosto)}>{pct(kv.netoSobreCosto)}</b> sobre el costo</>}
+        </p>
+      )}
       {k.falta.length > 0 && <p className="text-[#8a6100]">Para completar la cuenta falta {k.falta.join(" y ")}.</p>}
       {avisos.map((a) => <p key={a} className="text-[#C03420] font-bold">⚠ {a}</p>)}
       {/* NCM con lápiz: la corrección queda registrada para ese producto de China (Fer, 28/9). */}

@@ -148,7 +148,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
                 <p className="mt-2 text-[#8a6100]">La primera búsqueda (“{j.busquedaPrevia.en}”) no encontró el mismo producto ({j.busquedaPrevia.motivo.slice(0, 200)}); se buscó de nuevo con “{x.china?.en}”.</p>
               )}
               {j?.elegido != null && !!j.costoUsd && x.costo && <Costo fob={j.costoUsd} caja={x.caja} precio={x.precio} p={c.parametros} datos={x.costo}
-                cajaChina={ficha?.caja} unidades={j.veredictos.find((v) => v.n === j.elegido)?.unidades ?? 1}
+                cajaChina={ficha?.caja} unidades={j.veredictos.find((v) => v.n === j.elegido)?.unidades ?? 1} tramos={ficha?.tramos}
                 lapiz={{ producto: x.id, corrida: c.id, editando: sp.ncm === String(x.id),
                   editar: `/admin/piloto/${c.id}/revision?ncm=${x.id}#p${x.id}`, cancelar: `/admin/piloto/${c.id}/revision#p${x.id}` }} />}
               {x.error && <p className="text-[#C03420] mt-2">{x.error}</p>}
