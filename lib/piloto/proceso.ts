@@ -330,7 +330,7 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
           await sumarApify(id, f.costoUsd, [f.runId]);
           fichas[v.n] = { ok: f.ok, tramos: f.tramos, caja: f.caja, error: f.error, muestra: f.muestra };
           // Sin precios por cantidad el precio va por variante: se lee de la página (Cowork #102 H2).
-          if (f.ok && !f.tramos?.length && puedeGastar(0.03)) {
+          if (!f.tramos?.length && f.error?.startsWith("la publicación no muestra precios") && puedeGastar(0.03)) {
             const pv = await preciosPorVariante(url);
             await sumarApify(id, pv.costoUsd, pv.runId ? [pv.runId] : []);
             if (pv.variantes.length) fichas[v.n].variantes = pv.variantes;
