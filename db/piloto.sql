@@ -63,3 +63,22 @@ alter table piloto_llave enable row level security;
 -- 28/9: costo puesto en Argentina. NCM validada con sus tasas y la comisión y
 -- el envío Full de Mercado Libre (lib/piloto/costo.ts); la cuenta se hace al mostrar.
 alter table piloto_productos add column if not exists costo jsonb;
+
+-- 28/9: registro de NCM por producto de China. Se clasifica una sola vez en la
+-- vida (modelo grande, con la ficha y las aperturas del nomenclador); si Fer
+-- la corrige con el lápiz, queda la de Fer (fuente = 'fer').
+create table if not exists ncm_clasificaciones (
+  clave        text primary key,          -- 'alibaba:1601164688606' (o la dirección)
+  titulo       text,
+  ncm          text not null,             -- '3926.90.90'
+  sim          text,                      -- apertura: '3926.90.90.900C'
+  arancel      numeric,
+  alternativa  text,
+  material     text,
+  motivo       text,
+  fuente       text not null default 'claude',  -- claude | fer
+  modelo       text,
+  creado       timestamptz not null default now(),
+  actualizado  timestamptz not null default now()
+);
+alter table ncm_clasificaciones enable row level security;

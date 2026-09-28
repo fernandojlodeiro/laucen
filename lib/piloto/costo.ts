@@ -20,7 +20,8 @@ export type Tasas = {
   arancel: number | null; arancelMin?: number | null; iva: number; estadistica: number; deDespachos: boolean; despachos: number;
 };
 export type CostosML = { comision: number | null; envio: number | null; errores: string[] };
-export type DatosCosto = { tasas: Tasas | null; alternativa?: Tasas | null; ml: CostosML };
+export type DatosCosto = { tasas: Tasas | null; alternativa?: Tasas | null; ml: CostosML;
+  clasificacion?: import("./ncm").Clasificacion | null };
 
 /** "6306.40.90", "630640", "6306.40.90.000C" → "6306.40.90" (null si no hay 8 dígitos). */
 export function normalizarNcm(s: string | null | undefined) {
@@ -28,7 +29,8 @@ export function normalizarNcm(s: string | null | undefined) {
   return d.length >= 8 ? `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6, 8)}` : null;
 }
 
-export async function tasasDe(propuesta: string): Promise<Tasas | null> {
+/** `arancelFijo`: el de la apertura SIM ya elegida (clasificación registrada). */
+export async function tasasDe(propuesta: string, arancelFijo?: number | null): Promise<Tasas | null> {
   let ncm = normalizarNcm(propuesta);
   if (!ncm) return null;
   let aproximada = false;
@@ -52,7 +54,8 @@ export async function tasasDe(propuesta: string): Promise<Tasas | null> {
   return {
     ncm, propuesta, existe: true, aproximada, descripcion: f?.descripcion ?? null,
     // Si la NCM tiene aperturas con distinto arancel, se toma el más alto (conservador).
-    arancel: num(f?.arancel_max), arancelMin: num(f?.arancel_min) !== num(f?.arancel_max) ? num(f?.arancel_min) : null,
+    arancel: arancelFijo ?? num(f?.arancel_max),
+    arancelMin: arancelFijo == null && num(f?.arancel_min) !== num(f?.arancel_max) ? num(f?.arancel_min) : null,
     // Sin despachos de esa NCM: 21% de IVA y 0% de estadística (lo que más se paga hoy).
     iva: num(f?.iva_pct) ?? 21, estadistica: num(f?.estadistica_pct) ?? 0, deDespachos: f?.iva_pct != null, despachos: f?.despachos ?? 0,
   };

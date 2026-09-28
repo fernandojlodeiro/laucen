@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { sosVos } from "@/lib/admin";
 import { sesionRequerida } from "@/lib/tenancy";
-import { avanzar, crearCorrida, revisar } from "@/lib/piloto/proceso";
+import { avanzar, corregirNcmProducto, crearCorrida, revisar } from "@/lib/piloto/proceso";
 import { POR_DEFECTO, type Parametros } from "@/lib/piloto/tipos";
 import { leerNumero } from "@/lib/numeros";
 
@@ -62,4 +62,13 @@ export async function accionRevisar(formData: FormData) {
   const comentario = String(formData.get("comentario") ?? "").trim() || null;
   await revisar(id, sesion.org.id, revision, comentario);
   revalidatePath(`/admin/piloto/${formData.get("corrida")}/revision`);
+}
+
+export async function accionCorregirNcm(formData: FormData) {
+  if (!(await sosVos())) redirect("/panel");
+  const sesion = await sesionRequerida();
+  const corrida = Number(formData.get("corrida"));
+  const ok = await corregirNcmProducto(Number(formData.get("producto")), sesion.org.id, String(formData.get("ncm") ?? ""));
+  revalidatePath(`/admin/piloto/${corrida}/revision`);
+  redirect(`/admin/piloto/${corrida}/revision${ok ? "" : "?ncmError=1"}`);
 }

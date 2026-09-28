@@ -32,7 +32,7 @@ function Foto({ src }: { src: string | null }) {
   ) : <span className="w-24 h-24 shrink-0 rounded bg-[#EEF3F8]" />;
 }
 
-type SP = { campeones?: string; pasan?: string };
+type SP = { campeones?: string; pasan?: string; ncm?: string; ncmError?: string };
 
 export default async function Revision({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SP> }) {
   if (!(await sosVos())) redirect("/panel");
@@ -58,6 +58,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
         <InterruptorFiltro href={filtro("pasan")} prendido={!!sp.pasan} etiqueta="Ocultar los descartados por flete" />
         <span className="text-xs text-[#5C6B76]">{productos.length} productos · revisados {revisados.length} · el juez acertó {aciertos}</span>
       </div>
+      {sp.ncmError && <p className="text-xs text-[#C03420] mb-2">No se pudo guardar la NCM: tiene que tener al menos 8 dígitos (ej. 3926.90.90).</p>}
       {productos.length === 0 && <p className="text-xs text-[#9AA7B3]">Todavía no hay productos (se crean al procesar Mercado Libre).</p>}
       <div className="grid gap-3">
         {productos.map((x) => {
@@ -68,7 +69,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
           const cuenta = { si: 0, dudoso: 0, no: 0 };
           j?.veredictos.forEach((v) => { cuenta[v.v] = (cuenta[v.v] ?? 0) + 1; });
           return (
-            <article key={x.id} className="bg-white border border-[#E3E9F0] rounded-lg p-3 text-xs">
+            <article key={x.id} id={`p${x.id}`} className="bg-white border border-[#E3E9F0] rounded-lg p-3 text-xs scroll-mt-4">
               <p className="text-[11px] text-[#5C6B76] mb-2">
                 {rutas.get(x.categoria_id)} · {x.lado === "buscado" ? `más buscado (“${x.palabra}”)` : "más vendido"}
                 {x.campeon && <b className="text-[#8a6100]"> · ★ campeón</b>}
@@ -140,7 +141,9 @@ export default async function Revision({ params, searchParams }: { params: Promi
                 <p className="mt-2 text-[#8a6100]">La primera búsqueda (“{j.busquedaPrevia.en}”) no encontró el mismo producto ({j.busquedaPrevia.motivo.slice(0, 200)}); se buscó de nuevo con “{x.china?.en}”.</p>
               )}
               {j?.elegido != null && !!j.costoUsd && x.costo && <Costo fob={j.costoUsd} caja={x.caja} precio={x.precio} p={c.parametros} datos={x.costo}
-                cajaChina={ficha?.caja} unidades={j.veredictos.find((v) => v.n === j.elegido)?.unidades ?? 1} />}
+                cajaChina={ficha?.caja} unidades={j.veredictos.find((v) => v.n === j.elegido)?.unidades ?? 1}
+                lapiz={{ producto: x.id, corrida: c.id, editando: sp.ncm === String(x.id),
+                  editar: `/admin/piloto/${c.id}/revision?ncm=${x.id}#p${x.id}`, cancelar: `/admin/piloto/${c.id}/revision#p${x.id}` }} />}
               {x.error && <p className="text-[#C03420] mt-2">{x.error}</p>}
               {j?.nota && <p className="text-[#8a6100] mt-1 text-[11px]">{j.nota}</p>}
               {cands.length > 0 && (

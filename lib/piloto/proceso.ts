@@ -12,6 +12,7 @@ import { buscarEnChina, cajasConWeb, estimarCajas, flete, juzgar } from "./china
 import { costosML, tasasDe } from "./costo";
 import type { AvanceCategoria, Caja, Candidato, Ficha, Juicio, Parametros, PubML } from "./tipos";
 import { leerFicha, precioMinimo } from "./ficha";
+import { claveDe, clasificar, corregir } from "./ncm";
 
 export type Corrida = {
   id: number; organizacion_id: string; creada_el: Date; parametros: Parametros; estado: string;
@@ -262,7 +263,8 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
 
     // 5) Fichas de China de los "sí": precio del pedido mínimo y caja; se
     // elige otra vez con esos precios y se calcula el costo.
-    while (quedaTiempo(130_000)) {
+    // Leer la ficha (hasta 2 minutos) y clasificar la NCM con el modelo grande: margen amplio.
+    while (quedaTiempo(200_000)) {
       const lote = await productosEn(id, "ficha", 3);
       if (!lote.length) break;
       await Promise.all(lote.map(async (x) => {
@@ -294,13 +296,28 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         }
         const juicio: Juicio = { ...j, fichas, elegidoJuez: j.elegido, elegido: mejor?.n ?? j.elegido, costoUsd: mejor?.total ?? j.costoUsd };
         const conCandidato = juicio.elegido != null && !!juicio.costoUsd;
-        const [tasas, alternativa, deML] = conCandidato ? await Promise.all([
-          j.ncm ? tasasDe(j.ncm).catch(() => null) : Promise.resolve(null),
-          j.ncmAlternativa ? tasasDe(j.ncmAlternativa).catch(() => null) : Promise.resolve(null),
+        if (!conCandidato) {
+          await pool.query("update piloto_productos set juicio = $2, costo = null, etapa = 'listo' where id = $1", [x.id, juicio]);
+          return;
+        }
+        // NCM: una sola vez en la vida por producto de China, con la ficha (material) como contexto.
+        const cand = cands[juicio.elegido! - 1];
+        const clave = claveDe(cand.url);
+        const clas = clave ? await clasificar(clave, {
+          mlTitulo: x.titulo, mlTexto: x.datos_ml, componentes: j.componentes, chinaTitulo: cand.titulo,
+          chinaFicha: fichas[juicio.elegido!]?.muestra ?? null, sugerida: j.ncm ?? null,
+        }).catch(() => null) : null;
+        if (clas?.usd) await sumarClaude(id, "ncm", clas.tokensIn, clas.tokensOut, clas.usd);
+        const ncm = clas?.ncm ?? j.ncm;
+        const otra = clas ? clas.alternativa : j.ncmAlternativa;
+        const [tasas, alternativa, deML] = await Promise.all([
+          ncm ? tasasDe(ncm, clas?.arancel).catch(() => null) : Promise.resolve(null),
+          otra ? tasasDe(otra).catch(() => null) : Promise.resolve(null),
           costosML(organizacionId, x.categoria_id, x.precio, x.caja),
-        ]) : [null, null, null];
+        ]);
+        const clasificacion = clas ? { ...clas, usd: undefined, tokensIn: undefined, tokensOut: undefined } : null;
         await pool.query("update piloto_productos set juicio = $2, costo = $3, etapa = 'listo' where id = $1",
-          [x.id, juicio, conCandidato ? { tasas, alternativa, ml: deML } : null]);
+          [x.id, juicio, { tasas, alternativa, ml: deML, clasificacion }]);
       }));
       hechos.push(`fichas de ${lote.length}`);
     }
@@ -330,4 +347,22 @@ export async function revisar(productoId: number, organizacionId: string, revisi
   await pool.query(
     `update piloto_productos p set revision = coalesce($3, p.revision), comentario = $4 from piloto_corridas c
       where p.id = $1 and p.corrida_id = c.id and c.organizacion_id = $2`, [productoId, organizacionId, revision, comentario]);
+}
+
+/** Lápiz de la NCM: guarda la corrección de Fer para ese producto de China
+ *  (vale para siempre) y rehace las tasas del producto. */
+export async function corregirNcmProducto(productoId: number, organizacionId: string, ncmTexto: string) {
+  const r = await pool.query<{ china: { candidatos?: Candidato[] } | null; juicio: Juicio | null; costo: import("./costo").DatosCosto | null }>(
+    `select p.china, p.juicio, p.costo from piloto_productos p join piloto_corridas c on c.id = p.corrida_id
+      where p.id = $1 and c.organizacion_id = $2`, [productoId, organizacionId]);
+  const f = r.rows[0];
+  const cand = f?.juicio?.elegido != null ? f.china?.candidatos?.[f.juicio.elegido - 1] : null;
+  const clave = claveDe(cand?.url);
+  if (!f || !cand || !clave) return false;
+  const clas = await corregir(clave, ncmTexto, cand.titulo);
+  if (!clas) return false;
+  const tasas = await tasasDe(clas.ncm, clas.arancel);
+  await pool.query("update piloto_productos set costo = coalesce(costo, '{}'::jsonb) || $2::jsonb where id = $1",
+    [productoId, JSON.stringify({ tasas, alternativa: null, clasificacion: clas })]);
+  return true;
 }
