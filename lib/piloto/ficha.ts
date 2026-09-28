@@ -114,11 +114,35 @@ export async function preciosPorVariante(url: string): Promise<{ variantes: { no
     })).filter((x) => x.usd > 0);
     return { variantes };
   }`;
-  const c = await correrConEntrada("apify~cheerio-scraper", {
-    startUrls: [{ url }], pageFunction, maxRequestsPerCrawl: 1, maxConcurrency: 1, maxRequestRetries: 3,
-    useSessionPool: true, persistCookiesPerSession: true,
-    proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"] },
-  }, { max: 1, esperaSeg: 90, topeUsd: 0.1 }).catch((e) => ({ items: [], error: String(e), costoUsd: 0, runId: undefined }));
-  const it = c.items?.[0] as { variantes?: { nombre: string; usd: number }[]; error?: string } | undefined;
-  return { variantes: (it?.variantes ?? []).slice(0, 60), costoUsd: c.costoUsd ?? 0, runId: c.runId, error: it?.error ?? c.error };
+  // Con Chrome (web-scraper): Alibaba le devuelve a cheerio una página sin detailData
+  // (piloto #22, 28/9: 3 de 3). En el navegador window.detailData ya está armado.
+  const pageFunctionChrome = `async function pageFunction(context) {
+    await new Promise((ok) => setTimeout(ok, 3000));
+    const d = window.detailData;
+    const sku = d && d.globalData && d.globalData.product && d.globalData.product.sku;
+    if (!sku || !sku.skuInfoMap) return { error: d ? 'sin precios por variante' : 'sin detailData (' + document.title.slice(0, 60) + ')' };
+    const nombres = {};
+    for (const at of sku.skuAttrs || []) for (const v of at.values || []) nombres[at.id + ':' + v.id] = at.name + ' ' + v.name;
+    const variantes = Object.entries(sku.skuInfoMap).map(([k, v]) => ({
+      nombre: k.split(';').filter(Boolean).map((p) => nombres[p] || p).join(' · '),
+      usd: Number(v.dollarPrice ?? v.price),
+    })).filter((x) => x.usd > 0);
+    return { variantes };
+  }`;
+  const proxy = { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"] };
+  let costoUsd = 0, runId: string | undefined;
+  const errores: string[] = [];
+  for (const [actor, entrada] of [
+    ["apify~cheerio-scraper", { pageFunction, useSessionPool: true, persistCookiesPerSession: true, proxyConfiguration: proxy }],
+    ["apify~web-scraper", { pageFunction: pageFunctionChrome, injectJQuery: false, proxyConfiguration: proxy }],
+  ] as const) {
+    const c = await correrConEntrada(actor, { startUrls: [{ url }], maxRequestsPerCrawl: 1, maxConcurrency: 1, maxRequestRetries: 3, ...entrada },
+      { max: 1, esperaSeg: 120, topeUsd: 0.1 }).catch((e) => ({ items: [], error: String(e), costoUsd: 0, runId: undefined }));
+    costoUsd += c.costoUsd ?? 0;
+    runId = c.runId ?? runId;
+    const it = c.items?.[0] as { variantes?: { nombre: string; usd: number }[]; error?: string } | undefined;
+    if (it?.variantes?.length) return { variantes: it.variantes.slice(0, 60), costoUsd, runId };
+    errores.push(`${actor.includes("web") ? "Chrome" : "cheerio"}: ${it?.error ?? c.error ?? "sin datos"}`);
+  }
+  return { variantes: [], costoUsd, runId, error: errores.join(" · ") };
 }
