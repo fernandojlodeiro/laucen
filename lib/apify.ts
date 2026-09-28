@@ -161,11 +161,23 @@ export async function correrConEntrada(actor: string, entrada: Record<string, un
   if (!token) return { costoUsd: null, items: [], error: "Falta APIFY_TOKEN" };
   const t0 = Date.now();
   try {
-    const r = await fetch(
-      `${API}/acts/${actor}/runs?token=${token}&maxItems=${max}&maxTotalChargeUsd=${topeUsd}&waitForFinish=60`,
-      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(entrada), cache: "no-store" },
-    );
-    const cuerpo = await r.json().catch(() => null);
+    // Si la cuenta llegó al tope de memoria de Apify (muchos actores a la vez: 402),
+    // se espera y se reintenta hasta 4 veces (pilotos 17-20 en paralelo).
+    let r: Response;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let cuerpo: any;
+    for (let intento = 0; ; intento++) {
+      r = await fetch(
+        `${API}/acts/${actor}/runs?token=${token}&maxItems=${max}&maxTotalChargeUsd=${topeUsd}&waitForFinish=60`,
+        { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(entrada), cache: "no-store" },
+      );
+      cuerpo = await r.json().catch(() => null);
+      if (r.status === 402 && /memory/i.test(cuerpo?.error?.message ?? "") && intento < 4 && Date.now() - t0 < esperaSeg * 1000) {
+        await new Promise((ok) => setTimeout(ok, 15_000));
+        continue;
+      }
+      break;
+    }
     if (!r.ok) throw new Error(`${r.status} ${cuerpo?.error?.message ?? ""}`.trim());
     let run = cuerpo.data;
     while (!TERMINADO.includes(run.status) && Date.now() - t0 < esperaSeg * 1000) {
