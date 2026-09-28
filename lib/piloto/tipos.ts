@@ -19,6 +19,8 @@ export type Parametros = {
   yuanPorDolar: number;           // para pasar los precios de 1688 a dólares
   minimoMax: number;              // pedido mínimo "razonable" (unidades)
   topeApifyUsd: number;           // tope de gasto de Apify de todo el piloto
+  desdeCorrida?: number;          // usa los mismos productos de Mercado Libre de ese piloto (para comparar IAs)
+  ia?: import("@/lib/ia").Proveedor; // qué IA busca, filtra y juzga (sin dato = Anthropic); para comparar (Fer, 28/9)
   sitios?: Sitio[];               // dónde buscar en China (sin dato = 1688 + Alibaba, pilotos viejos)
   soloListado?: boolean;          // (28/9) sólo los primeros del listado de la categoría, sin tendencias ni cruce
   soloLocal?: boolean;            // sólo publicaciones con envío local (sin compra internacional)
@@ -73,6 +75,9 @@ export type Juicio = {
   ncmAlternativa?: string;        // otra NCM posible, si el juez duda
   fichas?: Record<string, Ficha>; // lo leído de la publicación de China de los "si" (por número)
   elegidoJuez?: number | null;    // el que eligió el juez con el precio de la búsqueda, antes de leer las fichas
+  verificacion?: { n: number; igual: boolean; variante?: string; motivo?: string }[]; // segunda mirada con las fichas
+  precioIncierto?: boolean;       // el elegido no muestra precios por cantidad (precio por variante)
+  incoherente?: string;           // la cuenta da menos de 50% sobre el costo aun después de replantear la búsqueda
   busquedaPrevia?: { en: string; motivo: string }; // la búsqueda que no encontró nada y se replanteó
 };
 

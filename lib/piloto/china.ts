@@ -5,10 +5,11 @@
 
 import { correrActor, correrConEntrada } from "@/lib/apify";
 import Anthropic from "@anthropic-ai/sdk";
+import { pedirIA, type Proveedor } from "@/lib/ia";
 import { MODELOS, USD_POR_BUSQUEDA, clienteClaude, costoUsd, jsonDe, pedirClaude, type Contenido } from "@/lib/claude";
 import { traducir, esFalla } from "@/lib/china/traducir";
 import { aBase64 } from "@/lib/imagenes";
-import type { Caja, Candidato, Franja, Juicio, Parametros, Sitio } from "./tipos";
+import type { Caja, Candidato, Ficha, Franja, Juicio, Parametros, Sitio } from "./tipos";
 
 // Actores elegidos en el banco de China: rápidos y con precio.
 const ACTOR_1688 = "parseforge~1688-scraper";
@@ -94,9 +95,9 @@ export type BusquedaChina = { en: string; zh: string; candidatos: Candidato[]; c
  *  comprador (Fer, 28/9: "no hay chances de que en China un producto no
  *  exista"; si no aparece, es que se buscó mal). Con `previa`, la búsqueda
  *  anterior no sirvió y se pide otra distinta. */
-async function armarBusqueda(titulo: string, texto?: string, previa?: { en: string; motivo: string }) {
-  const r = await pedirClaude({
-    modelo: MODELO, maxTokens: 300,
+async function armarBusqueda(titulo: string, ia: Proveedor | undefined, texto?: string, previa?: { en: string; motivo: string }) {
+  const r = await pedirIA(ia, {
+    maxTokens: 600,
     system: "Armás la búsqueda para encontrar en Alibaba el mismo producto que se vende en Mercado Libre. Sacá marca, número de modelo, " +
       "color, capacidad de carga, garantía y palabras de venta: nada de eso existe en China con ese nombre. Dejá el tipo de producto, " +
       "la medida o tamaño principal y lo que lo distingue (con bomba eléctrica, flocado, con inflador manual, etc.). En inglés, de 3 a 7 " +
@@ -111,7 +112,7 @@ async function armarBusqueda(titulo: string, texto?: string, previa?: { en: stri
 
 export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: (usd: number) => boolean,
   opciones: { texto?: string; previa?: { en: string; motivo: string } } = {}): Promise<BusquedaChina & { muestra?: string; claudeUsd?: number }> {
-  const armada = await armarBusqueda(titulo, opciones.texto, opciones.previa).catch(() => null);
+  const armada = await armarBusqueda(titulo, p.ia, opciones.texto, opciones.previa).catch(() => null);
   const t = armada?.en ? { en: armada.en, zh: armada.zh || armada.en } : await traducir(titulo);
   if (!t || esFalla(t)) {
     return { en: "", zh: "", candidatos: [], costoUsd: 0, errores: [`No se pudo traducir: ${t && esFalla(t) ? t.motivo : "sin llave de Claude"}`], tokensIn: 0, tokensOut: 0 };
@@ -256,11 +257,13 @@ const lineaCandidato = (c: Candidato, n: number) =>
 export async function juzgar(ml: { titulo: string; foto: string | null; precio: number | null; texto?: string }, candidatos: Candidato[], p: Parametros) {
   const vacio = (motivo: string, extra: Partial<Juicio> = {}) => ({ veredictos: [], elegido: null, motivo, ...extra }) as Juicio;
   if (!candidatos.length) return { juicio: vacio("No hubo resultados en China."), tokensIn: 0, tokensOut: 0, usd: 0 };
-  const cabeza = `Mercado Libre: ${ml.titulo} — $${ml.precio ?? "?"} (pesos)${ml.texto ? `\nDatos de la publicación: ${ml.texto.slice(0, 1200)}` : ""}`;
+  const usdML = ml.precio ? Math.round((ml.precio / p.dolar) * 100) / 100 : null;
+  const cabeza = `Mercado Libre: ${ml.titulo} — $${ml.precio ?? "?"} (pesos)${usdML ? ` ≈ US$ ${usdML} al público en Argentina` : ""}` +
+    `${ml.texto ? `\nDatos de la publicación: ${ml.texto.slice(0, 1200)}` : ""}`;
 
   // 1) Prefiltro barato.
-  const pre = await pedirClaude({
-    modelo: MODELO, maxTokens: 1500,
+  const pre = await pedirIA(p.ia, {
+    maxTokens: 1500,
     // Ampliado por pedido de Fer (28/9, piloto #7): dejaba afuera candidatos
     // que servían porque el título de China es genérico o nombra varias medidas.
     system: "Te doy un producto de Mercado Libre y una lista numerada de productos de China. Devolvé los números de los que PODRÍAN ser " +
@@ -286,7 +289,11 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     "Mirá bien el título, la foto y los datos: sets, packs, 'x2', 'combo', 'kit', 'incluye'.\n" +
     "Paso 2: para cada candidato que sea EL MISMO producto decí \"si\": mismas características (medida, capacidad, potencia, material, " +
     "accesorios incluidos). Una versión mejor o peor (con bomba si el original no tiene, otra medida, otra potencia, sin un accesorio que el original trae) " +
-    "es \"dudoso\", nunca \"si\". Indicá cuántas unidades del candidato hacen falta (unidades) y qué componente falta (falta), con un motivo corto. " +
+    "es \"dudoso\", nunca \"si\". MEDIDAS (Fer, 28/9): compará largo, ancho y alto con los de Mercado Libre; una diferencia de 2 o 3 cm está bien, " +
+    "pero más de un 10% en cualquiera (ej. 30 cm de alto contra 40) es otro producto: \"si\" sólo si la publicación ofrece la medida justa como variante. " +
+    "PRECIO (sentido común): el mismo producto en China cuesta normalmente entre el 10% y el 35% de lo que se vende al público en Argentina; si un " +
+    "candidato cuesta más de la mitad del precio de Mercado Libre en dólares, casi seguro es otro producto, otra calidad u otra cantidad: no es \"si\". " +
+    "Indicá cuántas unidades del candidato hacen falta (unidades) y qué componente falta (falta), con un motivo corto. " +
     "Listá TODOS los candidatos que te doy, también los que no sirven (v \"no\"), cada uno con su motivo corto: Fer quiere saber por qué " +
     "se descartó cada uno.\n" +
     // Pedido de Fer (28/9, piloto #6): en AliExpress y Alibaba una misma
@@ -320,18 +327,18 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     });
     return c;
   };
-  let r = await pedirClaude({ system, contenido: armar(true), maxTokens: 6000, modelo: MODELO, effort: "medium" });
+  let r = await pedirIA(p.ia, { system, contenido: armar(true), maxTokens: 6000, effort: "medium" });
   tokensIn += r.tokensIn; tokensOut += r.tokensOut; usd += r.usd;
   let nota = "";
   if ("error" in r) {
     nota = `Sin fotos de China porque: ${r.error.slice(0, 300)}`;
     console.error("[piloto] juez con fotos falló:", r.error);
-    r = await pedirClaude({ system, contenido: armar(false), maxTokens: 6000, modelo: MODELO, effort: "medium" });
+    r = await pedirIA(p.ia, { system, contenido: armar(false), maxTokens: 6000, effort: "medium" });
     tokensIn += r.tokensIn; tokensOut += r.tokensOut; usd += r.usd;
   }
   if ("error" in r) return { juicio: vacio("", { error: r.error, preseleccion: elegidos }), tokensIn, tokensOut, usd };
   const j = jsonDe<Juicio>(r.texto);
-  if (!j) return { juicio: vacio("", { error: "Claude contestó en otro formato", preseleccion: elegidos }), tokensIn, tokensOut, usd };
+  if (!j) return { juicio: vacio("", { error: "La IA contestó en otro formato", preseleccion: elegidos }), tokensIn, tokensOut, usd };
   return {
     juicio: {
       componentes: j.componentes, veredictos: (j.veredictos ?? []).filter((v) => v.v === "si" || v.v === "dudoso" || v.v === "no"),
@@ -341,4 +348,29 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     } as Juicio,
     tokensIn, tokensOut, usd,
   };
+}
+
+/** Segunda mirada, ya con las publicaciones de China por dentro (variantes,
+ *  atributos, precios por cantidad, caja): ¿es de verdad el mismo producto?
+ *  Piloto #11: el juez aceptó otras medidas (30 cm de alto contra 40) mirando
+ *  sólo el título. Nunca tira: sin respuesta, no descarta a nadie. */
+export async function verificar(ml: { titulo: string; precio: number | null; texto?: string | null }, componentes: string | undefined,
+  items: { n: number; titulo: string; usd: number | null; ficha?: Ficha }[], p: Parametros) {
+  const usdML = ml.precio ? Math.round((ml.precio / p.dolar) * 100) / 100 : null;
+  const r = await pedirIA(p.ia, {
+    maxTokens: 3000, effort: "medium",
+    system: "Sos el comprador de un importador argentino. Te doy un producto que se vende en Mercado Libre (con sus medidas y su precio al " +
+      "público en dólares) y la publicación por dentro de cada candidato de China (variantes, atributos, precios por cantidad, caja). Para cada " +
+      "candidato decidí si es EL MISMO producto: mismas medidas (hasta un 10% de diferencia en cada una, o una variante de la publicación que " +
+      "las tenga), mismo material y mismos componentes. Mirá también la proporción de precio: el mismo producto en China cuesta normalmente " +
+      "entre el 10% y el 35% del precio al público en Argentina; si cuesta más de la mitad, es otro producto, otra calidad u otra cantidad. " +
+      'Respondé sólo JSON: {"c":[{"n":3,"igual":true,"variante":"qué variante pedir (medida)","motivo":"corto"}]}.',
+    contenido: `Mercado Libre: ${ml.titulo}${usdML ? ` — US$ ${usdML} al público` : ""}\n` +
+      (componentes ? `Qué incluye: ${componentes}\n` : "") + (ml.texto ? `Datos: ${ml.texto.slice(0, 1200)}\n` : "") +
+      items.map((it) => `\nCandidato ${it.n}: ${it.titulo}\nPrecio: ${it.ficha?.tramos?.length
+        ? it.ficha.tramos.map((t) => `US$ ${t.usd} desde ${t.desde} u.`).join(", ") : `US$ ${it.usd ?? "?"} (de la búsqueda)`}\n` +
+        `Publicación por dentro: ${(it.ficha?.muestra ?? "(no se pudo leer)").replace(/"(images|videoUrl|imageUrl|supplier)":(\[[^\]]*\]|"[^"]*"|\{[^}]*\})/g, "").slice(0, 2500)}`).join("\n"),
+  });
+  const j = "texto" in r ? jsonDe<{ c?: { n: number; igual: boolean; variante?: string; motivo?: string }[] }>(r.texto) : null;
+  return { resultado: j?.c ?? null, error: "error" in r ? r.error : null, tokensIn: r.tokensIn, tokensOut: r.tokensOut, usd: r.usd };
 }

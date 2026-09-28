@@ -14,15 +14,18 @@ export async function GET(req: Request) {
   await asegurarEsquema();
   const ok = await pool.query("select 1 from piloto_llave where clave = $1", [clave]);
   if (!clave || !ok.rowCount) return new Response("No", { status: 403 });
+  // Hasta 4 pilotos a la vez (Fer, 28/9: comparar las cuatro IAs en paralelo).
   const r = await pool.query<{ id: number; organizacion_id: string }>(
-    "select id, organizacion_id from piloto_corridas where automatico and estado <> 'listo' order by id limit 1");
-  const c = r.rows[0];
-  if (!c) return Response.json({ nada: true });
-  try {
-    const res = await avanzar(c.id, c.organizacion_id, Date.now() + 270_000);
-    return Response.json({ piloto: c.id, ...res });
-  } catch (e) {
-    console.error("[piloto] tanda automática:", e);
-    return Response.json({ piloto: c.id, error: true }, { status: 500 });
-  }
+    "select id, organizacion_id from piloto_corridas where automatico and estado <> 'listo' order by id limit 4");
+  if (!r.rows.length) return Response.json({ nada: true });
+  const hasta = Date.now() + 270_000;
+  const res = await Promise.all(r.rows.map(async (c) => {
+    try {
+      return { piloto: c.id, ...(await avanzar(c.id, c.organizacion_id, hasta)) };
+    } catch (e) {
+      console.error("[piloto] tanda automática:", c.id, e);
+      return { piloto: c.id, error: true };
+    }
+  }));
+  return Response.json(res);
 }

@@ -5,6 +5,7 @@ import { sesionRequerida } from "@/lib/tenancy";
 import { pool } from "@/db";
 import { corrida, costoApifyFinal, usdDeClaude } from "@/lib/piloto/proceso";
 import { SUAVE } from "@/app/botones";
+import { NOMBRE_PROVEEDOR, modeloDe } from "@/lib/ia";
 import { Pestanas } from "@/app/radar/Cliente";
 import { accionAvanzar } from "../actions";
 import { Procesar } from "../Cliente";
@@ -38,7 +39,8 @@ export default async function LayoutPiloto({ children, params }: { children: Rea
         {total > 0 && ` (caja ${n.caja ?? 0} · China ${n.china ?? 0} · juez ${n.juez ?? 0} · fichas ${n.ficha ?? 0} · listos ${n.listo ?? 0})`}
       </p>
       <p className="text-xs mb-3">
-        Costo: Apify US$ {apifyUsd.toFixed(2)} (tope {p.topeApifyUsd}) · Claude US$ {claudeUsd.toFixed(2)} ({tok.in.toLocaleString("es-AR")} tokens de entrada, {tok.out.toLocaleString("es-AR")} de salida)
+        IA: <b>{NOMBRE_PROVEEDOR[p.ia ?? "anthropic"]}</b> ({modeloDe(p.ia ?? "anthropic") || "sin modelo cargado"}) ·
+        Costo: Apify US$ {apifyUsd.toFixed(2)} (tope {p.topeApifyUsd}) · IA US$ {claudeUsd.toFixed(2)} ({tok.in.toLocaleString("es-AR")} tokens de entrada, {tok.out.toLocaleString("es-AR")} de salida)
         · <b>total US$ {(apifyUsd + claudeUsd).toFixed(2)}</b>
       </p>
       {/* El listado exacto que se usó, para compararlo (Fer, 28/9: el orden cambia de una vez a otra). */}

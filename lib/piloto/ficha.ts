@@ -73,7 +73,7 @@ export function cajaDe(x: Nodo): Ficha["caja"] {
 }
 
 export async function leerFicha(url: string): Promise<Ficha & { costoUsd: number; runId?: string }> {
-  const r = await correrActor(ACTOR_FICHA, "", 1, 120, { urlBusqueda: url });
+  const r = await correrActor(ACTOR_FICHA, "", 1, 90, { urlBusqueda: url });
   const item = (r.items ?? [])[0] as Record<string, unknown> | undefined;
   const base = { costoUsd: r.costo_usd ?? 0, runId: r.runId };
   if (!item) return { ...base, ok: false, error: r.error ?? "no trajo la publicación", muestra: JSON.stringify(r.entrada ?? {}).slice(0, 500) };

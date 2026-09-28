@@ -120,8 +120,12 @@ export default async function Revision({ params, searchParams }: { params: Promi
                           </p>
                         )}
                         {j?.elegidoJuez != null && j.elegidoJuez !== j.elegido && (
-                          <p className="text-[#8a6100]">Con los precios de las publicaciones conviene éste; el juez había elegido el {j.elegidoJuez}.</p>
+                          <p className="text-[#8a6100]">Con las publicaciones por dentro conviene éste; el juez había elegido el {j.elegidoJuez}.</p>
                         )}
+                        {j?.elegido != null && j.verificacion?.find((v) => v.n === j.elegido)?.variante && (
+                          <p>Variante a pedir: <b>{j.verificacion.find((v) => v.n === j.elegido)!.variante}</b></p>
+                        )}
+                        {j?.precioIncierto && <p className="text-[#8a6100]">Precio incierto: la publicación no muestra precios por cantidad (depende de la variante).</p>}
                       </>
                     ) : (
                       <p className="text-[#9AA7B3]">{x.etapa === "listo" ? "No eligió ninguno." : "Todavía no juzgó."}</p>
@@ -137,6 +141,9 @@ export default async function Revision({ params, searchParams }: { params: Promi
                   </div>
                 </div>
               </div>
+              {j?.incoherente && (
+                <p className="mt-2 text-[#C03420] font-bold">⚠ Comparación dudosa, revisar: {j.incoherente}</p>
+              )}
               {j?.busquedaPrevia && (
                 <p className="mt-2 text-[#8a6100]">La primera búsqueda (“{j.busquedaPrevia.en}”) no encontró el mismo producto ({j.busquedaPrevia.motivo.slice(0, 200)}); se buscó de nuevo con “{x.china?.en}”.</p>
               )}
@@ -166,7 +173,10 @@ export default async function Revision({ params, searchParams }: { params: Promi
                               {k.url ? <a href={k.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{k.titulo}</a> : k.titulo}
                               <span className="block text-[#5C6B76]">{k.sitio} · {k.usd != null ? `US$ ${k.usd}` : "—"} · mín. {k.minimo ?? "?"}</span>
                             </td>
-                            <td className={`py-1 w-56 ${v ? COLOR[v.v] : ""}`}>{v ? <><b>{VEREDICTO[v.v]}</b>{v.unidades && v.unidades > 1 ? ` (× ${v.unidades})` : ""}{v.falta && !/^(ninguno|nada|-)$/i.test(v.falta.trim()) ? `, falta ${v.falta}` : ""}{v.variante ? `, variante: ${v.variante}` : ""} — {v.motivo}</> : j?.preseleccion && !j.preseleccion.includes(i + 1) ? <span className="text-[#9AA7B3]">descartado en el filtro previo (sólo por el título){j.descartes?.[String(i + 1)] ? `: ${j.descartes[String(i + 1)]}` : ""}</span> : "—"}</td>
+                            <td className={`py-1 w-56 ${v ? COLOR[v.v] : ""}`}>{v ? <><b>{VEREDICTO[v.v]}</b>{v.unidades && v.unidades > 1 ? ` (× ${v.unidades})` : ""}{v.falta && !/^(ninguno|nada|-)$/i.test(v.falta.trim()) ? `, falta ${v.falta}` : ""}{v.variante ? `, variante: ${v.variante}` : ""} — {v.motivo}
+                              {(() => { const s2 = j?.verificacion?.find((c) => c.n === i + 1); const f = j?.fichas?.[String(i + 1)];
+                                return <>{f?.tramos?.length ? <span className="block text-[#5C6B76]">Por dentro: {f.tramos.map((t) => `US$ ${t.usd} desde ${t.desde}`).join(" · ")}</span> : null}
+                                  {s2 && <span className={`block ${s2.igual ? "text-[#1F6E4A]" : "text-[#C03420]"}`}>Segunda mirada: {s2.igual ? "igual" : "no es igual"}{s2.motivo ? ` — ${s2.motivo}` : ""}</span>}</>; })()}</> : j?.preseleccion && !j.preseleccion.includes(i + 1) ? <span className="text-[#9AA7B3]">descartado en el filtro previo (sólo por el título){j.descartes?.[String(i + 1)] ? `: ${j.descartes[String(i + 1)]}` : ""}</span> : "—"}</td>
                           </tr>
                         );
                       })}

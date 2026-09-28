@@ -8,8 +8,8 @@ import { costosFinales } from "@/lib/apify";
 import { USD_POR_MTOK } from "@/lib/claude";
 import { asegurarEsquema } from "./esquema";
 import { buscadosDeCategoria, cruzar, datosDeEnvio, listadoDeCategoria, urlDeCategoria } from "./ml";
-import { buscarEnChina, cajasConWeb, estimarCajas, flete, juzgar } from "./china";
-import { costosML, tasasDe } from "./costo";
+import { buscarEnChina, cajasConWeb, estimarCajas, flete, juzgar, verificar } from "./china";
+import { costosML, cuenta, tasasDe } from "./costo";
 import type { AvanceCategoria, Caja, Candidato, Ficha, Juicio, Parametros, PubML } from "./tipos";
 import { leerFicha, precioMinimo } from "./ficha";
 import { clasificar, corregir } from "./ncm";
@@ -167,6 +167,25 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
     const p = c.parametros;
     const quedaTiempo = (ms: number) => Date.now() + ms < hasta;
 
+    // 0) Comparar IAs (Fer, 28/9): los mismos productos de otro piloto, con su
+    // listado, caja y datos de Mercado Libre; desde ahí sigue con su propia IA.
+    if (c.estado === "ml" && p.desdeCorrida) {
+      const origen = await pool.query<{ n: number; listos: number }>(
+        `select count(*)::int n, count(*) filter (where etapa <> 'caja')::int listos from piloto_productos where corrida_id = $1`, [p.desdeCorrida]);
+      const o = origen.rows[0];
+      if (!o.n || o.listos < o.n) return { terminado: false, hecho: `Espero los productos del piloto #${p.desdeCorrida}` };
+      await pool.query(
+        `insert into piloto_productos (corrida_id, categoria_id, lado, palabra, campeon, item_id, producto_id, titulo, url, foto, precio, vendidos,
+           vendidos_texto, opiniones, caja, flete_usd, flete_pct, franja, datos_ml, etapa)
+         select $1, categoria_id, lado, palabra, campeon, item_id, producto_id, titulo, url, foto, precio, vendidos, vendidos_texto, opiniones,
+           caja, flete_usd, flete_pct, franja, datos_ml, case when franja = 'fuera' then 'listo' else 'china' end
+           from piloto_productos where corrida_id = $2 order by id`, [id, p.desdeCorrida]);
+      await pool.query(
+        `update piloto_corridas set estado = 'productos', avance = (select avance from piloto_corridas where id = $2) where id = $1`, [id, p.desdeCorrida]);
+      c.estado = "productos";
+      hechos.push(`Productos copiados del piloto #${p.desdeCorrida}`);
+    }
+
     // 1) Mercado Libre: de a 3 categorías en paralelo (cada una ~2-3 min).
     if (c.estado === "ml") {
       let pendientes = p.categorias.filter((cat) => !c.avance[cat.id]?.hecho);
@@ -264,14 +283,18 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
     // 5) Fichas de China de los "sí": precio del pedido mínimo y caja; se
     // elige otra vez con esos precios y se calcula el costo.
     // Leer la ficha (hasta 2 minutos) y clasificar la NCM con el modelo grande: margen amplio.
-    while (quedaTiempo(200_000)) {
+    // Fichas (hasta 90 s) + segunda mirada + NCM pueden llevar 4 minutos: sólo al
+    // principio de una tanda, para que no la corte el límite de Vercel.
+    while (quedaTiempo(250_000)) {
       const lote = await productosEn(id, "ficha", 3);
       if (!lote.length) break;
       await Promise.all(lote.map(async (x) => {
         const j = x.juicio!;
         const cands = (x.china?.candidatos ?? []) as Candidato[];
+        // Todas las fichas de los "sí" (hasta 5): el precio de la búsqueda no es confiable
+        // para ordenar (piloto #11: quedaron afuera candidatos más baratos).
         const si = (j.veredictos ?? []).filter((v) => v.v === "si" && cands[v.n - 1])
-          .sort((a, b) => (cands[a.n - 1].usd ?? 1e9) - (cands[b.n - 1].usd ?? 1e9)).slice(0, 3);
+          .sort((a, b) => (cands[a.n - 1].usd ?? 1e9) - (cands[b.n - 1].usd ?? 1e9)).slice(0, 5);
         const fichas: Record<string, Ficha> = {};
         await Promise.all(si.map(async (v) => {
           const url = cands[v.n - 1].url;
@@ -280,21 +303,37 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
           await sumarApify(id, f.costoUsd, [f.runId]);
           fichas[v.n] = { ok: f.ok, tramos: f.tramos, caja: f.caja, error: f.error, muestra: f.muestra };
         }));
+        // Segunda mirada con las publicaciones por dentro: medidas, componentes y proporción de precio.
+        const ver = si.length ? await verificar({ titulo: x.titulo, precio: x.precio, texto: x.datos_ml }, j.componentes,
+          si.map((v) => ({ n: v.n, titulo: cands[v.n - 1].titulo, usd: cands[v.n - 1].usd, ficha: fichas[v.n] })), p).catch(() => null) : null;
+        if (ver) await sumarClaude(id, "verificacion", ver.tokensIn, ver.tokensOut, ver.usd);
+        const verificacion = ver?.resultado ?? null;
+        const pasan = verificacion ? si.filter((v) => verificacion.find((c) => c.n === v.n)?.igual) : si;
         // Lo que el juez estimó para lo que falta (accesorios): se mantiene.
         const el = j.elegido != null ? cands[j.elegido - 1] : null;
         const uEl = (j.veredictos ?? []).find((v) => v.n === j.elegido)?.unidades ?? 1;
         const faltantes = el?.usd != null && j.costoUsd ? Math.max(0, j.costoUsd - uEl * el.usd) : 0;
-        let mejor: { n: number; total: number } | null = null;
-        for (const v of si) {
+        // El más barato con el precio del pedido mínimo; los que tienen precios por cantidad claros, primero.
+        let mejor: { n: number; total: number; claro: boolean } | null = null;
+        for (const v of pasan) {
           const f = fichas[v.n];
           const minimo = f?.tramos?.[0]?.desde ?? cands[v.n - 1].minimo;
           if (minimo != null && minimo > p.minimoMax) continue;
           const precio = precioMinimo(f) ?? cands[v.n - 1].usd;
           if (precio == null) continue;
           const total = Math.round(((v.unidades ?? 1) * precio + faltantes) * 100) / 100;
-          if (!mejor || total < mejor.total) mejor = { n: v.n, total };
+          const claro = !!f?.tramos?.length;
+          if (!mejor || (claro && !mejor.claro) || (claro === mejor.claro && total < mejor.total)) mejor = { n: v.n, total, claro };
         }
-        const juicio: Juicio = { ...j, fichas, elegidoJuez: j.elegido, elegido: mejor?.n ?? j.elegido, costoUsd: mejor?.total ?? j.costoUsd };
+        const juicio: Juicio = { ...j, fichas, elegidoJuez: j.elegido, elegido: mejor?.n ?? null, costoUsd: mejor?.total ?? null,
+          ...(verificacion ? { verificacion } : {}), ...(mejor && !mejor.claro ? { precioIncierto: true } : {}) };
+        // Ninguno pasó la segunda mirada: se replantea la búsqueda una vez.
+        if (!mejor && !x.china?.previa) {
+          const motivo = verificacion?.filter((c) => !c.igual).map((c) => c.motivo).filter(Boolean).slice(0, 3).join("; ") || "ningún candidato era el mismo producto";
+          await pool.query("update piloto_productos set china = china || jsonb_build_object('reintentar', $2::jsonb), juicio = $3, etapa = 'china' where id = $1",
+            [x.id, JSON.stringify({ en: x.china?.en ?? "", motivo }), juicio]);
+          return;
+        }
         const conCandidato = juicio.elegido != null && !!juicio.costoUsd;
         if (!conCandidato) {
           await pool.query("update piloto_productos set juicio = $2, costo = null, etapa = 'listo' where id = $1", [x.id, juicio]);
@@ -315,8 +354,22 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
           costosML(organizacionId, x.categoria_id, x.precio, x.caja),
         ]);
         const clasificacion = clas ? { ...clas, usd: undefined, tokensIn: undefined, tokensOut: undefined } : null;
-        await pool.query("update piloto_productos set juicio = $2, costo = $3, etapa = 'listo' where id = $1",
-          [x.id, juicio, { tasas, alternativa, ml: deML, clasificacion }]);
+        const datosCosto = { tasas, alternativa, ml: deML, clasificacion };
+        // Control de coherencia (Fer, 28/9): comprar en China y vender en ML nunca da
+        // negativo ni tan justo; menos de 50% sobre el costo es comparación mala.
+        const k = cuenta(juicio.costoUsd!, x.caja, x.precio, p, datosCosto, fichas[juicio.elegido!]?.caja,
+          (j.veredictos ?? []).find((v) => v.n === juicio.elegido)?.unidades ?? 1);
+        if (k.sobreCosto != null && k.sobreCosto < 50) {
+          const motivo = `El costo puesto en Argentina (US$ ${k.costo}) contra la venta en Mercado Libre (US$ ${k.venta}) da ${k.sobreCosto}% sobre el costo: ` +
+            "seguro se comparó otro producto (otra medida, calidad o cantidad). Hay que encontrar el mismo, con sus medidas.";
+          if (!x.china?.previa) {
+            await pool.query("update piloto_productos set china = china || jsonb_build_object('reintentar', $2::jsonb), juicio = $3, etapa = 'china' where id = $1",
+              [x.id, JSON.stringify({ en: x.china?.en ?? "", motivo }), juicio]);
+            return;
+          }
+          juicio.incoherente = motivo;
+        }
+        await pool.query("update piloto_productos set juicio = $2, costo = $3, etapa = 'listo' where id = $1", [x.id, juicio, datosCosto]);
       }));
       hechos.push(`fichas de ${lote.length}`);
     }
