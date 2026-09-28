@@ -348,7 +348,10 @@ async function caracteristicasConApify(url: string) {
     const it = c.items?.[0] as { caracteristicas?: string; descripcion?: string; titulo?: string; largo?: number; item?: string | null } | undefined;
     rastro(url, `Apify ${x.nombre}: ${c.error ?? "ok"}, ${c.items?.length ?? 0} resultado(s)${it ? `, "${(it.titulo ?? "").slice(0, 40)}" ${it.largo ?? 0} letras, ítem ${it.item ?? "-"}` : ""}`);
     if (it?.item) itemsDePagina.set(url, it.item);
-    const texto = [it?.caracteristicas, it?.descripcion].filter(Boolean).join("\n").trim();
+    // Sin los pares internos de la página (pricing_price_subtitle: {price_installments}) y, si se
+    // sabe el ítem que la vende, sin el texto suelto de la página: su descripción sale por la API.
+    const car = (it?.caracteristicas ?? "").split("\n").filter((l) => l && !/^[a-z_]+:|\{/.test(l)).join("\n");
+    const texto = [car, it?.item ? "" : it?.descripcion].filter(Boolean).join("\n").trim();
     if (texto) { avisosPagina.delete(url); return texto; }
     aviso += `${aviso ? " · " : ""}${x.nombre}: ` +
       (it ? `la página "${(it.titulo ?? "").slice(0, 60)}" (${it.largo ?? 0} letras) no trae Características` : `sin página${c.error ? ` (${String(c.error).slice(0, 120)})` : ""}`);
