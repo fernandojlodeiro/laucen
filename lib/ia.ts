@@ -90,13 +90,29 @@ export async function pedirIA(proveedor: Proveedor | undefined, pedido: {
       const uso = { tokensIn: tin, tokensOut: tout, usd: usdDe(modelo, tin, tout), modelo };
       return texto ? { texto, ...uso } : { error: `Gemini no devolvió texto (${j?.candidates?.[0]?.finishReason ?? "?"})`, ...uso };
     }
-    // OpenAI y Perplexity: formato de chat de OpenAI.
-    const url = prov === "openai" ? "https://api.openai.com/v1/chat/completions" : "https://api.perplexity.ai/chat/completions";
+    if (prov === "perplexity") {
+      // Perplexity retiró /chat/completions el 27/9/2026 (piloto #16: 403): ahora es
+      // la Agent API, con el formato "responses" (instructions + input, output_text).
+      const slug = modelo.includes("/") ? modelo : /^sonar/.test(modelo) ? `perplexity/${modelo}` : modelo;
+      const j = await postJson("https://api.perplexity.ai/v1/responses", {
+        model: slug, instructions: pedido.system, max_output_tokens: maxTokens,
+        input: [{ role: "user", content: ps.map((x) => (x.tipo === "texto" ? { type: "input_text", text: x.texto }
+          : { type: "input_image", image_url: `data:${x.mime};base64,${x.datos}` })) }],
+      }, { authorization: `Bearer ${llave}` });
+      const texto = String(j?.output_text ?? (j?.output ?? []).flatMap((o: { content?: { text?: string }[] }) => o.content ?? []).map((c: { text?: string }) => c.text ?? "").join("\n"))
+        .replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+      const tin = j?.usage?.input_tokens ?? j?.usage?.prompt_tokens ?? 0, tout = j?.usage?.output_tokens ?? j?.usage?.completion_tokens ?? 0;
+      const uso = { tokensIn: tin, tokensOut: tout, usd: usdDe(modelo, tin, tout), modelo };
+      if (j?.status && j.status !== "completed") return { error: `perplexity: ${j.status} ${JSON.stringify(j?.error ?? j?.incomplete_details ?? "").slice(0, 200)}`, ...uso };
+      return texto ? { texto, ...uso } : { error: "perplexity no devolvió texto", ...uso };
+    }
+    // OpenAI: formato de chat.
+    const url = "https://api.openai.com/v1/chat/completions";
     const content = ps.map((x) => (x.tipo === "texto" ? { type: "text", text: x.texto } : { type: "image_url", image_url: { url: `data:${x.mime};base64,${x.datos}` } }));
     const j = await postJson(url, {
       model: modelo,
       messages: [{ role: "system", content: pedido.system }, { role: "user", content }],
-      ...(prov === "openai" ? { max_completion_tokens: maxTokens + 8000 } : { max_tokens: maxTokens }),
+      max_completion_tokens: maxTokens + 8000,
     }, { authorization: `Bearer ${llave}` });
     // Los modelos que razonan (sonar-reasoning) mandan lo que piensan entre <think>.
     const texto = String(j?.choices?.[0]?.message?.content ?? "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
