@@ -3,6 +3,7 @@
 // Alibaba en los pilotos viejos), estimar la caja de envío y juzgar. Lo
 // mecánico va con el modelo chico de Claude; el juez, con el del medio.
 
+import { ACTOR_FICHA } from "./ficha";
 import { correrActor, correrConEntrada } from "@/lib/apify";
 import Anthropic from "@anthropic-ai/sdk";
 import { pedirIA, type Proveedor } from "@/lib/ia";
@@ -55,6 +56,19 @@ function aCandidato(sitio: Candidato["sitio"], x: Record<string, unknown>, yuanP
     usd: ultimoNumero(x.price) ?? primerNumero(x.priceMax ?? x.priceMin), minimo: primerNumero(x.minOrder),
     foto: https(primero(x.images) ?? str(x.mainImage)), url: https(str(x.productUrl)),
     proveedor: str(x.supplierName), fabrica: null, anios: primerNumero(x.supplierYears), ventas: null,
+  };
+}
+
+/** Resultado de búsqueda de tortuga~alibaba-scraper (lo usa la búsqueda por marca y
+ *  modelo: memo23 con "Bestway 67002" trajo 40 piletas y ningún colchón, #110). */
+function aCandidatoTortuga(x: Record<string, unknown>): Candidato {
+  const s = (x.supplier ?? {}) as Record<string, unknown>;
+  return {
+    sitio: "alibaba", titulo: str(x.title) ?? "(sin título)", precioTexto: str(x.priceText),
+    usd: primerNumero(x.priceMax ?? x.priceMin) ?? ultimoNumero(x.priceText), minimo: primerNumero(x.moq),
+    foto: https(str(x.imageUrl) ?? primero(x.images)), url: https(str(x.url) ?? str(x.sourceUrl)),
+    proveedor: str(s.name), fabrica: s.isVerifiedManufacturer != null ? Boolean(s.isVerifiedManufacturer) : null,
+    anios: primerNumero(s.yearsOnAlibaba), ventas: str(x.soldText),
   };
 }
 
@@ -145,7 +159,7 @@ export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: 
     const marca = sitio === "alibaba" && armada?.marca && !opciones.previa ? armada.marca : null;
     const [c, cm] = await Promise.all([
       correrConEntrada(actor, entrada, { max: POR_SITIO, esperaSeg: 120, topeUsd: 0.1 }),
-      marca && puedeGastar(0.05) ? correrConEntrada(actor, { searchTerms: [marca], maxItems: 10, maxPages: 1 }, { max: 10, esperaSeg: 120, topeUsd: 0.1 }) : Promise.resolve(null),
+      marca && puedeGastar(0.05) ? correrConEntrada(ACTOR_FICHA, { searchTerms: [marca], maxItems: 10, includeDetails: false }, { max: 10, esperaSeg: 120, topeUsd: 0.1 }) : Promise.resolve(null),
     ]);
     for (const x of [c, cm]) {
       if (!x) continue;
@@ -154,7 +168,7 @@ export async function buscarEnChina(titulo: string, p: Parametros, puedeGastar: 
     }
     if (!c.items.length && !cm?.items.length) errores.push(`${sitio}: ${c.error ?? "sin resultados"}`);
     const vistos = new Set<string>();
-    return ([...(cm?.items ?? []), ...c.items] as Record<string, unknown>[]).map((x) => aCandidato(sitio, x, p.yuanPorDolar))
+    return [...((cm?.items ?? []) as Record<string, unknown>[]).map(aCandidatoTortuga), ...(c.items as Record<string, unknown>[]).map((x) => aCandidato(sitio, x, p.yuanPorDolar))]
       .filter((x) => { const k = x.url ?? x.titulo; if (vistos.has(k)) return false; vistos.add(k); return true; });
   }));
   // La traducción no se cuenta acá (va con el modelo chico, centavos).
