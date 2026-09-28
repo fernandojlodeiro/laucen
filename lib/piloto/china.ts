@@ -16,6 +16,9 @@ const ACTOR_ALIBABA = "memo23~alibaba-scraper";
 // AliExpress: el primero del banco (27/9); se prueban los otros en el banco.
 export const ACTOR_ALIEXPRESS = "dami_studio~aliexpress-products-scraper";
 const POR_SITIO = 20;
+// Mientras el piloto está en prueba, el mejor modelo en todos los pasos (Fer,
+// 28/9: "la idea es que funcione y sirva"). Cuando esté estable, se prueba bajar.
+const MODELO = "grande" as const;
 
 const primerNumero = (v: unknown): number | null => {
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
@@ -93,7 +96,7 @@ export type BusquedaChina = { en: string; zh: string; candidatos: Candidato[]; c
  *  anterior no sirvió y se pide otra distinta. */
 async function armarBusqueda(titulo: string, texto?: string, previa?: { en: string; motivo: string }) {
   const r = await pedirClaude({
-    modelo: "chico", maxTokens: 300,
+    modelo: MODELO, maxTokens: 300,
     system: "Armás la búsqueda para encontrar en Alibaba el mismo producto que se vende en Mercado Libre. Sacá marca, número de modelo, " +
       "color, capacidad de carga, garantía y palabras de venta: nada de eso existe en China con ese nombre. Dejá el tipo de producto, " +
       "la medida o tamaño principal y lo que lo distingue (con bomba eléctrica, flocado, con inflador manual, etc.). En inglés, de 3 a 7 " +
@@ -164,7 +167,7 @@ export async function estimarCajas(productos: { id: number; titulo: string; foto
       "y poné fuente \"descripcion\"; si no hay datos, estimá por la foto y el título y poné fuente \"estimado\". " +
       "Respondé sólo JSON: {\"cajas\":[{\"id\":123,\"largo\":30,\"ancho\":20,\"alto\":10,\"kg\":1.2,\"fuente\":\"descripcion\",\"nota\":\"breve\"}]}.",
     maxTokens: 3000,
-    modelo: "chico" as const,
+    modelo: MODELO,
   };
   let r = await pedirClaude({ ...pedido, contenido });
   let tokensIn = r.tokensIn, tokensOut = r.tokensOut, usd = r.usd;
@@ -217,7 +220,7 @@ export async function cajasConWeb(productos: { id: number; titulo: string; texto
     let r: Anthropic.Message | null = null;
     for (let vuelta = 0; vuelta < 3; vuelta++) {
       r = await cliente.messages.create({
-        model: MODELOS.medio.id, max_tokens: 3000, system, output_config: { effort: "low" },
+        model: MODELOS[MODELO].id, max_tokens: 3000, system, output_config: { effort: "low" },
         tools: [{ type: "web_search_20250305", name: "web_search", max_uses: productos.length * 2 }],
         messages: mensajes,
       });
@@ -226,7 +229,7 @@ export async function cajasConWeb(productos: { id: number; titulo: string; texto
       if (r.stop_reason !== "pause_turn") break;
       mensajes.push({ role: "assistant", content: r.content });
     }
-    usd = costoUsd("medio", tokensIn, tokensOut) + busquedas * USD_POR_BUSQUEDA;
+    usd = costoUsd(MODELO, tokensIn, tokensOut) + busquedas * USD_POR_BUSQUEDA;
     const salida = (r?.content ?? []).map((b) => (b.type === "text" ? b.text : "")).join("\n");
     for (const c of jsonDe<{ cajas?: { id: number; kg: number; largo?: number; ancho?: number; alto?: number; fuente?: string; nota?: string }[] }>(salida)?.cajas ?? []) {
       if (typeof c.kg === "number" && c.kg > 0) {
@@ -257,7 +260,7 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
 
   // 1) Prefiltro barato.
   const pre = await pedirClaude({
-    modelo: "chico", maxTokens: 1500,
+    modelo: MODELO, maxTokens: 1500,
     // Ampliado por pedido de Fer (28/9, piloto #7): dejaba afuera candidatos
     // que servían porque el título de China es genérico o nombra varias medidas.
     system: "Te doy un producto de Mercado Libre y una lista numerada de productos de China. Devolvé los números de los que PODRÍAN ser " +
@@ -317,13 +320,13 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     });
     return c;
   };
-  let r = await pedirClaude({ system, contenido: armar(true), maxTokens: 4000, modelo: "medio", effort: "low" });
+  let r = await pedirClaude({ system, contenido: armar(true), maxTokens: 6000, modelo: MODELO, effort: "medium" });
   tokensIn += r.tokensIn; tokensOut += r.tokensOut; usd += r.usd;
   let nota = "";
   if ("error" in r) {
     nota = `Sin fotos de China porque: ${r.error.slice(0, 300)}`;
     console.error("[piloto] juez con fotos falló:", r.error);
-    r = await pedirClaude({ system, contenido: armar(false), maxTokens: 4000, modelo: "medio", effort: "low" });
+    r = await pedirClaude({ system, contenido: armar(false), maxTokens: 6000, modelo: MODELO, effort: "medium" });
     tokensIn += r.tokensIn; tokensOut += r.tokensOut; usd += r.usd;
   }
   if ("error" in r) return { juicio: vacio("", { error: r.error, preseleccion: elegidos }), tokensIn, tokensOut, usd };
