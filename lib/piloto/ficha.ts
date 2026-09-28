@@ -53,7 +53,8 @@ export function tramosDe(x: Nodo): Tramo[] {
 export function cajaDe(x: Nodo): Ficha["caja"] {
   let dims: number[] | null = null, kg: number | null = null;
   for (const [k, v] of recorrer(x)) {
-    if (!dims && /(package|packing|packaging|carton|box).*(size|dimension)|^dimensions?$/i.test(k)) {
+    // tortuga~alibaba-scraper: packaging.unitSizeCm = "55X45X35", packaging.unitWeightKg = 8 (piloto #10).
+    if (!dims && /(package|packing|packaging|carton|box).*(size|dimension)|^dimensions?$|unit.?size|size.?cm/i.test(k)) {
       if (typeof v === "string") {
         const ns = (v.match(/\d+(?:\.\d+)?/g) ?? []).map(Number);
         if (ns.length >= 3) dims = ns.slice(0, 3).map((n) => (/inch|\bin\b/i.test(v) ? n * 2.54 : /\bmm\b/i.test(v) ? n / 10 : n));
@@ -62,10 +63,10 @@ export function cajaDe(x: Nodo): Ficha["caja"] {
         if (l && w && h) dims = [l, w, h];
       }
     }
-    if (kg == null && /gross.?weight|package.?weight|single.?weight|^weight$/i.test(k) && (typeof v === "string" || typeof v === "number")) {
+    if (kg == null && /gross.?weight|package.?weight|single.?weight|unit.?weight|^weight$/i.test(k) && (typeof v === "string" || typeof v === "number")) {
       const n = numero(v);
       if (n) kg = typeof v === "string" && /\bg\b|gram/i.test(v) && !/kg/i.test(v) ? n / 1000 : typeof v === "string" && /lb/i.test(v) ? n * 0.4536
-        : typeof v === "number" && n > 200 ? n / 1000 : n; // un número suelto de más de 200 son gramos
+        : typeof v === "number" && n > 200 && !/kg/i.test(k) ? n / 1000 : n; // un número suelto de más de 200 son gramos
     }
   }
   return dims ? { largo: Math.round(dims[0]), ancho: Math.round(dims[1]), alto: Math.round(dims[2]), kg: kg ?? 0 } : null;
@@ -78,7 +79,7 @@ export async function leerFicha(url: string): Promise<Ficha & { costoUsd: number
   if (!item) return { ...base, ok: false, error: r.error ?? "no trajo la publicación", muestra: JSON.stringify(r.entrada ?? {}).slice(0, 500) };
   const tramos = tramosDe(item);
   const caja = cajaDe(item);
-  return { ...base, ok: tramos.length > 0, tramos, caja, ...(tramos.length ? {} : { error: "no se encontraron los precios por cantidad" }),
+  return { ...base, ok: tramos.length > 0, tramos, caja, ...(tramos.length ? {} : { error: "la publicación no muestra precios por cantidad (suele pasar cuando el precio depende de la variante); se usa el más alto de la búsqueda" }),
     muestra: JSON.stringify(item).slice(0, 4000) };
 }
 
