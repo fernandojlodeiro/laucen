@@ -12,7 +12,7 @@ import { buscarEnChina, cajasConWeb, estimarCajas, flete, juzgar } from "./china
 import { costosML, tasasDe } from "./costo";
 import type { AvanceCategoria, Caja, Candidato, Ficha, Juicio, Parametros, PubML } from "./tipos";
 import { leerFicha, precioMinimo } from "./ficha";
-import { claveDe, clasificar, corregir } from "./ncm";
+import { clasificar, corregir } from "./ncm";
 
 export type Corrida = {
   id: number; organizacion_id: string; creada_el: Date; parametros: Parametros; estado: string;
@@ -302,11 +302,10 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         }
         // NCM: una sola vez en la vida por producto de China, con la ficha (material) como contexto.
         const cand = cands[juicio.elegido! - 1];
-        const clave = claveDe(cand.url);
-        const clas = clave ? await clasificar(clave, {
+        const clas = await clasificar({
           mlTitulo: x.titulo, mlTexto: x.datos_ml, componentes: j.componentes, chinaTitulo: cand.titulo,
           chinaFicha: fichas[juicio.elegido!]?.muestra ?? null, sugerida: j.ncm ?? null,
-        }).catch(() => null) : null;
+        }).catch(() => null);
         if (clas?.usd) await sumarClaude(id, "ncm", clas.tokensIn, clas.tokensOut, clas.usd);
         const ncm = clas?.ncm ?? j.ncm;
         const otra = clas ? clas.alternativa : j.ncmAlternativa;
@@ -357,7 +356,8 @@ export async function corregirNcmProducto(productoId: number, organizacionId: st
       where p.id = $1 and c.organizacion_id = $2`, [productoId, organizacionId]);
   const f = r.rows[0];
   const cand = f?.juicio?.elegido != null ? f.china?.candidatos?.[f.juicio.elegido - 1] : null;
-  const clave = claveDe(cand?.url);
+  // La corrección va al tipo de mercadería del producto (si todavía no tiene, al título de China).
+  const clave = f?.costo?.clasificacion?.clave ?? cand?.titulo?.trim().toLowerCase();
   if (!f || !cand || !clave) return false;
   const clas = await corregir(clave, ncmTexto, cand.titulo);
   if (!clas) return false;

@@ -60,13 +60,13 @@ export function Costo({ fob, caja, precio, p, datos, cajaChina, unidades, lapiz 
             className="border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs w-48" />
           <button className={VERDE}>Guardar</button>
           <Link href={lapiz.cancelar} className={SUAVE}>Cancelar</Link>
-          <span className="text-[11px] text-[#5C6B76] w-full">Con la apertura completa (…999A) se toma su arancel exacto. Vale para este producto de China de acá en adelante.</span>
+          <span className="text-[11px] text-[#5C6B76] w-full">Con la apertura completa (…999A) se toma su arancel exacto. Vale para todo este tipo de mercadería ({cl?.clave ?? "este producto"}) de acá en adelante.</span>
         </form>
       ) : t && (
         <p className="mt-1 flex flex-wrap items-center gap-2">
           <span>
             <b>NCM {cl?.sim ?? t.ncm}</b> · arancel {t.arancel != null ? `${formatearNumero(t.arancel, "pct")}%` : "?"}
-            {cl && <span className="text-[#5C6B76]"> · {cl.fuente === "fer" ? "corregida por vos" : `clasificada por Claude${cl.nueva ? "" : " (del registro)"}`}{cl.material ? ` · material: ${cl.material}` : ""}</span>}
+            {cl && <span className="text-[#5C6B76]"> · tipo: {cl.clave} · {cl.fuente === "fer" ? "corregida por vos" : `clasificada por Claude${cl.nueva ? "" : " (del registro)"}`}{cl.material ? ` · material: ${cl.material}` : ""}</span>}
           </span>
           {lapiz && <Link href={lapiz.editar} className={LAPIZ} aria-label="Corregir la NCM">✏️</Link>}
           {cl?.motivo && cl.fuente !== "fer" && <span className="block w-full text-[11px] text-[#5C6B76]">{cl.motivo}</span>}

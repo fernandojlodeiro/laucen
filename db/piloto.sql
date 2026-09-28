@@ -68,7 +68,7 @@ alter table piloto_productos add column if not exists costo jsonb;
 -- vida (modelo grande, con la ficha y las aperturas del nomenclador); si Fer
 -- la corrige con el lápiz, queda la de Fer (fuente = 'fer').
 create table if not exists ncm_clasificaciones (
-  clave        text primary key,          -- 'alibaba:1601164688606' (o la dirección)
+  clave        text primary key,          -- tipo de mercadería: 'colchón inflable de pvc'
   titulo       text,
   ncm          text not null,             -- '3926.90.90'
   sim          text,                      -- apertura: '3926.90.90.900C'
