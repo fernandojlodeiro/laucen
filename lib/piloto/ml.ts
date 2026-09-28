@@ -269,7 +269,24 @@ function enKg(a?: Atributo) {
 
 const MEDIDAS = /PACKAGE|HEIGHT|WIDTH|LENGTH|DEPTH|WEIGHT|DIAMETER|UNITS_PER_PACK|SALE_FORMAT|INCLUDES|CAPACITY|SIZE/;
 
-export async function datosDeEnvio(pub: { itemId: string | null; productoId: string | null }, organizacionId: string) {
+/** Las características de la página pública de la publicación (Fer, 28/9: en
+ *  las fichas de catálogo siempre están las medidas). Respaldo cuando la API
+ *  no da los atributos (piloto #13: producto de vendedor /up/ sin datos). */
+async function caracteristicasDePagina(url: string | null | undefined) {
+  if (!url) return "";
+  try {
+    const r = await fetch(url.replace(/[?#].*$/, ""), { headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140 Safari/537.36", "accept-language": "es-AR" }, cache: "no-store" });
+    if (!r.ok) return "";
+    const texto = (await r.text()).replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<\/(tr|th|td|li|p|div|h\d)>/gi, "\n")
+      .replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n");
+    const i = texto.search(/Características (principales|del producto)|Características/);
+    return i >= 0 ? texto.slice(i, i + 2500).trim() : "";
+  } catch {
+    return "";
+  }
+}
+
+export async function datosDeEnvio(pub: { itemId: string | null; productoId: string | null; url?: string | null }, organizacionId: string) {
   const token = await tokenML(organizacionId);
   let atributos: Atributo[] = [];
   let descripcion = "";
@@ -281,7 +298,15 @@ export async function datosDeEnvio(pub: { itemId: string | null; productoId: str
   } else if (pub.productoId?.startsWith("MLAU")) {
     // Producto de vendedor (/up/MLAU…).
     const p = await ml(`/user-products/${pub.productoId}`, token);
-    if (p.status === 200) atributos = ((p.datos as { attributes?: Atributo[] })?.attributes) ?? [];
+    if (p.status === 200) {
+      const datos = p.datos as { attributes?: Atributo[]; catalog_product_id?: string | null };
+      atributos = datos.attributes ?? [];
+      // Si el producto de vendedor está asociado a una ficha de catálogo, sus atributos también.
+      if (datos.catalog_product_id) {
+        const c = await ml(`/products/${datos.catalog_product_id}`, token);
+        if (c.status === 200) atributos = [...atributos, ...(((c.datos as { attributes?: Atributo[] })?.attributes) ?? [])];
+      }
+    }
   } else if (pub.productoId) {
     // Ficha de catálogo (/p/MLA…): sus atributos, y los de la publicación que
     // gana la ficha, que es la que suele traer el paquete (PACKAGE_*).
@@ -308,6 +333,11 @@ export async function datosDeEnvio(pub: { itemId: string | null; productoId: str
         fuente: "mercadolibre", nota: `${kg ? "peso del paquete" : "peso del producto"} en Mercado Libre${l && w && h ? " y medidas del paquete" : ""}` }
     : null;
   const lineas = atributos.filter((a) => a.id && MEDIDAS.test(a.id) && a.value_name).map((a) => `${a.name ?? a.id}: ${a.value_name}`);
-  const texto = [lineas.join("\n"), descripcion.replace(/\s+/g, " ").slice(0, 1500)].filter(Boolean).join("\nDescripción: ");
+  let texto = [lineas.join("\n"), descripcion.replace(/\s+/g, " ").slice(0, 1500)].filter(Boolean).join("\nDescripción: ");
+  // Sin medidas por la API: las características de la página.
+  if (!/Largo|Ancho|Altura|LENGTH|WIDTH|HEIGHT/i.test(texto)) {
+    const pagina = await caracteristicasDePagina(pub.url);
+    if (pagina) texto = [texto, `De la página de Mercado Libre: ${pagina}`].filter(Boolean).join("\n");
+  }
   return { caja, texto };
 }

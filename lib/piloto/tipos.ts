@@ -75,7 +75,8 @@ export type Juicio = {
   ncmAlternativa?: string;        // otra NCM posible, si el juez duda
   fichas?: Record<string, Ficha>; // lo leído de la publicación de China de los "si" (por número)
   elegidoJuez?: number | null;    // el que eligió el juez con el precio de la búsqueda, antes de leer las fichas
-  verificacion?: { n: number; igual: boolean; variante?: string; motivo?: string }[]; // segunda mirada con las fichas
+  verificacion?: { n: number; igual: boolean; variante?: string; motivo?: string; extrasUsd?: number;
+    caja?: { largo: number; ancho: number; alto: number; kg: number } | null }[]; // segunda mirada con las fichas
   precioIncierto?: boolean;
   modelo?: string;                // el modelo de IA que juzgó       // el elegido no muestra precios por cantidad (precio por variante)
   incoherente?: string;           // la cuenta da menos de 50% sobre el costo aun después de replantear la búsqueda

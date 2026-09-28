@@ -287,9 +287,12 @@ export async function juzgar(ml: { titulo: string; foto: string | null; precio: 
     "Sos el comprador de un importador argentino. Te doy un producto que se vende en Mercado Libre y algunos candidatos de China, con fotos.\n" +
     "Paso 1: desarmá el producto de Mercado Libre en sus componentes, con cantidades (ej: \"2 colchones dobles + 1 inflador eléctrico + 2 almohadas\"). " +
     "Mirá bien el título, la foto y los datos: sets, packs, 'x2', 'combo', 'kit', 'incluye'.\n" +
-    "Paso 2: para cada candidato que sea EL MISMO producto decí \"si\": mismas características (medida, capacidad, potencia, material, " +
-    "accesorios incluidos). Una versión mejor o peor (con bomba si el original no tiene, otra medida, otra potencia, sin un accesorio que el original trae) " +
-    "es \"dudoso\", nunca \"si\". MEDIDAS (Fer, 28/9): compará largo, ancho y alto con los de Mercado Libre; una diferencia de 2 o 3 cm está bien, " +
+    "Paso 2: para cada candidato que sea EL MISMO producto decí \"si\": el producto principal con las mismas características (medida, capacidad, " +
+    "potencia, material). Una versión peor en lo principal (otra medida, menos potencia, otro material) es \"dudoso\", nunca \"si\". " +
+    "ACCESORIOS Y EXTRAS (Fer, 28/9): si al candidato le falta un accesorio barato que el original trae (almohadas, inflador manual, bolsa, " +
+    "parche), igual es \"si\": poné en falta qué falta y sumá su costo estimado en China al costo total; un combo se arma con N unidades del " +
+    "producto más los accesorios. Si el candidato trae un extra barato que el original no tiene (almohada, inflador de pie, bolsa), también es " +
+    "\"si\" mientras el producto principal sea el mismo y el precio siga dando. MEDIDAS (Fer, 28/9): compará largo, ancho y alto con los de Mercado Libre; una diferencia de 2 o 3 cm está bien, " +
     "pero más de un 10% en cualquiera (ej. 30 cm de alto contra 40) es otro producto: \"si\" sólo si la publicación ofrece la medida justa como variante. " +
     "PRECIO (sentido común): el mismo producto en China cuesta normalmente entre el 10% y el 35% de lo que se vende al público en Argentina; si un " +
     "candidato cuesta más de la mitad del precio de Mercado Libre en dólares, casi seguro es otro producto, otra calidad u otra cantidad: no es \"si\". " +
@@ -361,16 +364,23 @@ export async function verificar(ml: { titulo: string; precio: number | null; tex
     maxTokens: 3000, effort: "medium",
     system: "Sos el comprador de un importador argentino. Te doy un producto que se vende en Mercado Libre (con sus medidas y su precio al " +
       "público en dólares) y la publicación por dentro de cada candidato de China (variantes, atributos, precios por cantidad, caja). Para cada " +
-      "candidato decidí si es EL MISMO producto: mismas medidas (hasta un 10% de diferencia en cada una, o una variante de la publicación que " +
-      "las tenga), mismo material y mismos componentes. Mirá también la proporción de precio: el mismo producto en China cuesta normalmente " +
-      "entre el 10% y el 35% del precio al público en Argentina; si cuesta más de la mitad, es otro producto, otra calidad u otra cantidad. " +
-      'Respondé sólo JSON: {"c":[{"n":3,"igual":true,"variante":"qué variante pedir (medida)","motivo":"corto"}]}.',
+      "candidato decidí si es EL MISMO producto: el producto principal con las mismas medidas (hasta un 10% de diferencia en cada una, o una " +
+      "variante de la publicación que las tenga) y el mismo material. Las medidas del producto están en las variantes (\"size\") y los atributos; " +
+      "leelas con cuidado. Si le falta un accesorio barato que el original trae (almohadas, inflador manual, bolsa) o trae un extra barato que el " +
+      "original no tiene, igual es el mismo producto: en extrasUsd poné el costo estimado en China de lo que falta, por unidad del producto de " +
+      "Mercado Libre (0 si no falta nada). Un combo de Mercado Libre se arma con varias unidades. Mirá también la proporción de precio: el mismo " +
+      "producto en China cuesta normalmente entre el 10% y el 35% del precio al público en Argentina; si cuesta más de la mitad, es otro producto, " +
+      "otra calidad u otra cantidad.\nCAJA: del empaque de la publicación (packaging: unitSizeCm, unitWeightKg, propiedades) deducí la caja de UNA " +
+      "unidad del producto: si el empaque es de varias unidades (cartón con N piezas), dividilo; el peso puede venir en gramos. " +
+      'Respondé sólo JSON: {"c":[{"n":3,"igual":true,"variante":"qué variante pedir (medida)","extrasUsd":1.5,' +
+      '"caja":{"largo":40,"ancho":30,"alto":12,"kg":2.8},"motivo":"corto"}]}. Sin datos de caja, caja = null.',
     contenido: `Mercado Libre: ${ml.titulo}${usdML ? ` — US$ ${usdML} al público` : ""}\n` +
       (componentes ? `Qué incluye: ${componentes}\n` : "") + (ml.texto ? `Datos: ${ml.texto.slice(0, 1200)}\n` : "") +
       items.map((it) => `\nCandidato ${it.n}: ${it.titulo}\nPrecio: ${it.ficha?.tramos?.length
         ? it.ficha.tramos.map((t) => `US$ ${t.usd} desde ${t.desde} u.`).join(", ") : `US$ ${it.usd ?? "?"} (de la búsqueda)`}\n` +
         `Publicación por dentro: ${(it.ficha?.muestra ?? "(no se pudo leer)").replace(/"(images|videoUrl|imageUrl|supplier)":(\[[^\]]*\]|"[^"]*"|\{[^}]*\})/g, "").slice(0, 2500)}`).join("\n"),
   });
-  const j = "texto" in r ? jsonDe<{ c?: { n: number; igual: boolean; variante?: string; motivo?: string }[] }>(r.texto) : null;
+  const j = "texto" in r ? jsonDe<{ c?: { n: number; igual: boolean; variante?: string; motivo?: string; extrasUsd?: number;
+    caja?: { largo: number; ancho: number; alto: number; kg: number } | null }[] }>(r.texto) : null;
   return { resultado: j?.c ?? null, error: "error" in r ? r.error : null, tokensIn: r.tokensIn, tokensOut: r.tokensOut, usd: r.usd };
 }

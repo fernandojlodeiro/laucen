@@ -66,7 +66,7 @@ export function cajaDe(x: Nodo): Ficha["caja"] {
     if (kg == null && /gross.?weight|package.?weight|single.?weight|unit.?weight|^weight$/i.test(k) && (typeof v === "string" || typeof v === "number")) {
       const n = numero(v);
       if (n) kg = typeof v === "string" && /\bg\b|gram/i.test(v) && !/kg/i.test(v) ? n / 1000 : typeof v === "string" && /lb/i.test(v) ? n * 0.4536
-        : typeof v === "number" && n > 200 && !/kg/i.test(k) ? n / 1000 : n; // un número suelto de más de 200 son gramos
+        : n > 200 ? n / 1000 : n; // más de 200 "kg" por unidad son gramos (piloto #14: 7500)
     }
   }
   return dims ? { largo: Math.round(dims[0]), ancho: Math.round(dims[1]), alto: Math.round(dims[2]), kg: kg ?? 0 } : null;

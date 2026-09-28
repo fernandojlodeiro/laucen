@@ -146,10 +146,10 @@ async function etapaML(c: Corrida, categoriaId: string) {
 type FilaProducto = { id: number; titulo: string; foto: string | null; precio: number | null; caja: Caja | null;
   china: { candidatos?: unknown[]; en?: string; reintentar?: { en: string; motivo: string }; previa?: { en: string; motivo: string } } | null;
   juicio: Juicio | null;
-  item_id: string | null; producto_id: string | null; datos_ml: string | null; categoria_id: string };
+  item_id: string | null; producto_id: string | null; datos_ml: string | null; categoria_id: string; url: string | null };
 
 async function productosEn(corridaId: number, etapa: string, n: number) {
-  const r = await pool.query<FilaProducto>("select id, titulo, foto, precio, caja, china, juicio, item_id, producto_id, datos_ml, categoria_id from piloto_productos where corrida_id = $1 and etapa = $2 order by id limit $3", [corridaId, etapa, n]);
+  const r = await pool.query<FilaProducto>("select id, titulo, foto, precio, caja, china, juicio, item_id, producto_id, datos_ml, categoria_id, url from piloto_productos where corrida_id = $1 and etapa = $2 order by id limit $3", [corridaId, etapa, n]);
   return r.rows;
 }
 
@@ -214,7 +214,7 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
       if (!lote.length) break;
       // Primero lo que dice Mercado Libre (gratis): paquete en los atributos,
       // o el texto de atributos y descripción para que Claude lo lea.
-      const deML = await Promise.all(lote.map((x) => datosDeEnvio({ itemId: x.item_id, productoId: x.producto_id }, organizacionId)
+      const deML = await Promise.all(lote.map((x) => datosDeEnvio({ itemId: x.item_id, productoId: x.producto_id, url: x.url }, organizacionId)
         .catch(() => ({ caja: null, texto: "" }))));
       // Sin medidas tampoco alcanza: el flete en barco del costo se cobra por volumen.
       const faltan = lote.map((x, i) => ({ ...x, texto: deML[i].texto })).filter((_, i) => !deML[i].caja?.largo);
@@ -309,6 +309,13 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         if (ver) await sumarClaude(id, "verificacion", ver.tokensIn, ver.tokensOut, ver.usd);
         const verificacion = ver?.resultado ?? null;
         const pasan = verificacion ? si.filter((v) => verificacion.find((c) => c.n === v.n)?.igual) : si;
+        // La caja de UNA unidad según la segunda mirada, que interpreta el empaque
+        // (piloto #15: 54×46×32 era un cartón de varias unidades) y los gramos.
+        for (const c of verificacion ?? []) {
+          const k = c.caja;
+          if (fichas[c.n] && k && k.largo > 0 && k.ancho > 0 && k.alto > 0)
+            fichas[c.n].caja = { largo: Math.round(k.largo), ancho: Math.round(k.ancho), alto: Math.round(k.alto), kg: k.kg > 200 ? k.kg / 1000 : k.kg || 0 };
+        }
         // Lo que el juez estimó para lo que falta (accesorios): se mantiene.
         const el = j.elegido != null ? cands[j.elegido - 1] : null;
         const uEl = (j.veredictos ?? []).find((v) => v.n === j.elegido)?.unidades ?? 1;
@@ -321,7 +328,9 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
           if (minimo != null && minimo > p.minimoMax) continue;
           const precio = precioMinimo(f) ?? cands[v.n - 1].usd;
           if (precio == null) continue;
-          const total = Math.round(((v.unidades ?? 1) * precio + faltantes) * 100) / 100;
+          // Accesorios que faltan: lo que estimó la segunda mirada (por unidad de ML); si no, lo del juez.
+          const extras = verificacion?.find((c) => c.n === v.n)?.extrasUsd;
+          const total = Math.round(((v.unidades ?? 1) * precio + (typeof extras === "number" ? extras : faltantes)) * 100) / 100;
           const claro = !!f?.tramos?.length;
           if (!mejor || (claro && !mejor.claro) || (claro === mejor.claro && total < mejor.total)) mejor = { n: v.n, total, claro };
         }
