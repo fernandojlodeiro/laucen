@@ -347,3 +347,39 @@ export async function envioDestinoVigente() {
 }
 
 export const GRILLAS = { PRECIOS_CARGO_FIJO, PESOS_CARGO_FIJO, PRECIOS_ENVIO, PESOS_ENVIO, PESOS_DESTINO, PRECIO_DESTINO };
+
+export type Cambio = { desde: Date; que: string; detalle: string; antes: string; ahora: string };
+
+/** Lo que cambió después de la primera carga, lo más nuevo primero: una fila
+ *  por clave que cambió de valor (o que apareció nueva, p. ej. una categoría). */
+export async function cambiosRecientes(limite = 300): Promise<Cambio[]> {
+  const r = await pool.query<Cambio>(
+    `with primera as (select min(id) id from ml_costos_corridas),
+     com as (
+       select desde, corrida_id, 'Comisión' que, coalesce(ruta, categoria_id) detalle,
+              lag(concat_ws(' · ', 'clásica ' || replace(round(clasica_pct, 2)::text, '.', ',') || ' %', 'premium ' || replace(round(premium_pct, 2)::text, '.', ',') || ' %', 'cuotas ' || replace(round(premium_cuotas_pct, 2)::text, '.', ',') || ' %'))
+                over (partition by categoria_id order by desde) antes,
+              concat_ws(' · ', 'clásica ' || replace(round(clasica_pct, 2)::text, '.', ',') || ' %', 'premium ' || replace(round(premium_pct, 2)::text, '.', ',') || ' %', 'cuotas ' || replace(round(premium_cuotas_pct, 2)::text, '.', ',') || ' %') ahora
+         from ml_costos_comisiones),
+     cf as (
+       select desde, corrida_id, 'Cargo fijo' que,
+              case tipo when 'gold_special' then 'Clásica' when 'gold_pro' then 'Premium' else tipo end || ' · $ ' || replace(to_char(precio, 'FM999,999,990'), ',', '.') || case when peso_g > 0 then ' · ' || case logistica when 'fulfillment' then 'Full' else 'Colecta' end || ' ' || peso_g || ' g' else '' end detalle,
+              lag('$ ' || replace(to_char(cargo_fijo, 'FM999,999,990'), ',', '.')) over (partition by tipo, precio, logistica, peso_g order by desde) antes, '$ ' || replace(to_char(cargo_fijo, 'FM999,999,990'), ',', '.') ahora
+         from ml_costos_cargo_fijo),
+     eg as (
+       select desde, corrida_id, 'Envío gratis' que, case logistica when 'fulfillment' then 'Full' else 'Colecta' end || ' · ' || peso_g || ' g · a $ ' || replace(to_char(precio, 'FM999,999,990'), ',', '.') detalle,
+              lag('$ ' || replace(to_char(costo, 'FM999,999,990'), ',', '.')) over (partition by logistica, tipo, precio, peso_g order by desde) antes, '$ ' || replace(to_char(costo, 'FM999,999,990'), ',', '.') ahora
+         from ml_costos_envio_gratis),
+     ed as (
+       select desde, corrida_id, 'Envío por destino' que, lugar || ' · ' || peso_g || ' g' detalle,
+              lag('$ ' || replace(to_char(costo_min, 'FM999,999,990'), ',', '.')) over (partition by cp, peso_g, precio order by desde) antes, '$ ' || replace(to_char(costo_min, 'FM999,999,990'), ',', '.') ahora
+         from ml_costos_envio_destino),
+     rf as (
+       select desde, corrida_id, 'Referencia' que, clave detalle,
+              lag(left(datos::text, 120)) over (partition by clave order by desde) antes, left(datos::text, 120) ahora
+         from ml_costos_referencias),
+     todo as (select * from com union all select * from cf union all select * from eg union all select * from ed union all select * from rf)
+     select desde, que, detalle, coalesce(antes, '(nuevo)') antes, ahora from todo, primera
+      where corrida_id > primera.id order by desde desc, que, detalle limit $1`, [limite]);
+  return r.rows;
+}

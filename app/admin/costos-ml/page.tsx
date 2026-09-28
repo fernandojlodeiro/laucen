@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { sosVos } from "@/lib/admin";
 import { asegurarEsquema } from "@/lib/costos-ml/esquema";
 import {
-  DESTINOS, FASES, GRILLAS, cargoFijoVigente, comisionesVigentes, envioDestinoVigente, envioGratisVigente, ultimasCorridas,
+  DESTINOS, FASES, GRILLAS, cambiosRecientes, cargoFijoVigente, comisionesVigentes, envioDestinoVigente, envioGratisVigente, ultimasCorridas,
 } from "@/lib/costos-ml/proceso";
 import { formatearNumero } from "@/lib/numeros";
 import { PRIMARIO, SUAVE } from "@/app/botones";
@@ -19,6 +19,7 @@ export const metadata = { title: "Costos ML", robots: { index: false, follow: fa
 // ml_costos_* (sólo cambios) para las sesiones que calculan costos.
 
 const VISTAS = [
+  { clave: "cambios", texto: "Cambios" },
   { clave: "comisiones", texto: "Comisiones" },
   { clave: "cargo", texto: "Cargo fijo" },
   { clave: "envio", texto: "Envío gratis (vendedor)" },
@@ -33,7 +34,7 @@ const NOMBRES: Record<string, string> = {
 };
 
 const ZONA = "America/Argentina/Buenos_Aires";
-const fecha = (d: Date | null | undefined) =>
+const fecha = (d: Date | null | undefined): string =>
   d ? new Date(d).toLocaleDateString("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit", year: "2-digit" }) : "";
 const hora = (d: Date | null) =>
   d ? new Date(d).toLocaleString("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
@@ -54,7 +55,7 @@ export default async function CostosML({ searchParams }: { searchParams: Promise
   if (!(await sosVos())) redirect("/panel");
   await asegurarEsquema();
   const sp = await searchParams;
-  const vista: Vista = VISTAS.some((v) => v.clave === sp.ver) ? (sp.ver as Vista) : "comisiones";
+  const vista: Vista = VISTAS.some((v) => v.clave === sp.ver) ? (sp.ver as Vista) : "cambios";
 
   return (
     <main className="max-w-5xl mx-auto p-6">
@@ -72,12 +73,56 @@ export default async function CostosML({ searchParams }: { searchParams: Promise
           </Link>
         ))}
       </nav>
+      {vista === "cambios" && <Cambios />}
       {vista === "comisiones" && <Comisiones q={sp.q ?? ""} />}
       {vista === "cargo" && <CargoFijo />}
       {vista === "envio" && <EnvioGratis />}
       {vista === "destino" && <EnvioDestino />}
       {vista === "corridas" && <Corridas />}
     </main>
+  );
+}
+
+async function Cambios() {
+  const lista = await cambiosRecientes();
+  // Agrupados por día (hora argentina).
+  const dias = new Map<string, typeof lista>();
+  for (const c of lista) {
+    const d = fecha(c.desde);
+    dias.set(d, [...(dias.get(d) ?? []), c]);
+  }
+  return (
+    <section>
+      <p className="text-[11px] text-[#9AA7B3] mb-3">
+        Lo que Mercado Libre cambió desde la primera lectura (28/09/26), lo más nuevo arriba: qué cambió, cuánto valía antes y cuánto vale
+        ahora. Sirve de referencia para saber cuándo ML cambia sus costos.
+      </p>
+      {lista.length === 0 ? (
+        <p className="text-sm text-[#5C6B76]">Todavía no hubo cambios.</p>
+      ) : [...dias].map(([dia, filas]) => (
+        <div key={dia} className="mb-5">
+          <h2 className="text-sm font-bold mb-1">{dia} · {formatearNumero(filas.length, "entero")} cambio{filas.length > 1 ? "s" : ""}</h2>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-[#5C6B76]">
+                <th className={TH}>Qué</th><th className={TH}>Detalle</th><th className={`${TH} text-right`}>Antes</th><th className={`${TH} text-right`}>Ahora</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filas.map((c, i) => (
+                <tr key={i} className="border-t border-[#E3E9F0] align-top">
+                  <td className={`${TD} text-xs whitespace-nowrap`}>{c.que}</td>
+                  <td className={`${TD} text-xs`}>{c.detalle}</td>
+                  <td className={`${TD} text-right text-xs text-[#5C6B76]`}>{c.antes}</td>
+                  <td className={`${TD} text-right text-xs font-bold`}>{c.ahora}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+      {lista.length >= 300 && <p className="text-[11px] text-[#9AA7B3]">Se muestran los últimos 300 cambios.</p>}
+    </section>
   );
 }
 
