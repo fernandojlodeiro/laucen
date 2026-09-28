@@ -48,7 +48,7 @@ export type Caja = { largo: number; ancho: number; alto: number; kg: number; fue
  *  búsqueda no coincide con el de la página; ahí están los precios por
  *  cantidad y la caja de envío). */
 export type Tramo = { desde: number; hasta: number | null; usd: number };
-export type Ficha = { ok: boolean; tramos?: Tramo[]; variantes?: { nombre: string; usd: number }[]; caja?: { largo: number; ancho: number; alto: number; kg: number } | null; error?: string; muestra?: string };
+export type Ficha = { ok: boolean; tramos?: Tramo[]; variantes?: { nombre: string; usd: number }[]; cajaDudosa?: string; caja?: { largo: number; ancho: number; alto: number; kg: number } | null; error?: string; muestra?: string };
 
 export type Candidato = {
   sitio: Sitio;

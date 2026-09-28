@@ -112,6 +112,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
                             <b>Precio del pedido mínimo: US$ {formatearNumero(ficha.tramos[0].usd, "usd")}</b>
                             <span className="text-[#5C6B76]"> · {ficha.tramos.map((t) => `US$ ${formatearNumero(t.usd, "usd")} (${t.hasta ? `${formatearNumero(t.desde, "entero")}–${formatearNumero(t.hasta, "entero")}` : `≥ ${formatearNumero(t.desde, "entero")}`} u.)`).join(" · ")}</span>
                             {ficha.caja && <span className="block text-[#5C6B76]">Caja según la publicación: {ficha.caja.largo}×{ficha.caja.ancho}×{ficha.caja.alto} cm{ficha.caja.kg ? `, ${formatearNumero(ficha.caja.kg, "decimal")} kg` : ""}</span>}
+                            {ficha.cajaDudosa && <span className="block font-bold text-[#C03420]">Caja dudosa: {ficha.cajaDudosa}</span>}
                           </p>
                         ) : (
                           <p className="text-[#5C6B76]">

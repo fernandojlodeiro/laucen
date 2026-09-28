@@ -144,13 +144,29 @@ async function etapaML(c: Corrida, categoriaId: string) {
 }
 
 type FilaProducto = { id: number; titulo: string; foto: string | null; precio: number | null; caja: Caja | null;
-  china: { candidatos?: unknown[]; en?: string; reintentar?: { en: string; motivo: string }; previa?: { en: string; motivo: string } } | null;
+  china: { candidatos?: unknown[]; en?: string; reintentar?: { en: string; motivo: string }; previa?: { en: string; motivo: string };
+    anterior?: { juicio: Juicio; costo: unknown } } | null;
   juicio: Juicio | null;
   item_id: string | null; producto_id: string | null; datos_ml: string | null; categoria_id: string; url: string | null };
 
 async function productosEn(corridaId: number, etapa: string, n: number) {
   const r = await pool.query<FilaProducto>("select id, titulo, foto, precio, caja, china, juicio, item_id, producto_id, datos_ml, categoria_id, url from piloto_productos where corrida_id = $1 and etapa = $2 order by id limit $3", [corridaId, etapa, n]);
   return r.rows;
+}
+
+/** Termina un producto sin candidato. Si antes había uno que se descartó sólo por
+ *  la rentabilidad baja (control de coherencia) y la búsqueda nueva no encontró
+ *  otro, queda ése marcado como comparación dudosa (piloto #22: la placa M3 Plus
+ *  se perdió al replantear). */
+async function sinCandidato(x: FilaProducto, juicio: Juicio) {
+  const a = x.china?.anterior;
+  if (a?.juicio?.elegido != null) {
+    const j = { ...a.juicio, incoherente: `${a.juicio.incoherente ?? ""} La búsqueda nueva no encontró otro: queda éste, comparación dudosa.`.trim(),
+      busquedaPrevia: juicio.busquedaPrevia };
+    await pool.query("update piloto_productos set juicio = $2, costo = $3, etapa = 'listo' where id = $1", [x.id, j, a.costo]);
+    return;
+  }
+  await pool.query("update piloto_productos set juicio = $2, costo = null, etapa = 'listo' where id = $1", [x.id, juicio]);
 }
 
 /** Hace una tanda de trabajo. Devuelve si quedó algo por hacer. */
@@ -260,7 +276,8 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         await sumarApify(id, r.costoUsd, r.runIds);
         await sumarClaude(id, "busqueda", r.tokensIn, r.tokensOut, r.claudeUsd ?? 0);
         await pool.query("update piloto_productos set china = $2, etapa = 'juez', error = coalesce($3, error) where id = $1",
-          [x.id, { en: r.en, zh: r.zh, candidatos: r.candidatos, errores: r.errores, muestra: r.muestra, ...(previa ? { previa } : {}) },
+          [x.id, { en: r.en, zh: r.zh, candidatos: r.candidatos, errores: r.errores, muestra: r.muestra, ...(previa ? { previa } : {}),
+            ...(x.china?.anterior ? { anterior: x.china.anterior } : {}) },
             r.errores.join(" · ") || null]);
       }));
       hechos.push(`China de ${lote.length}`);
@@ -283,6 +300,7 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
             [x.id, JSON.stringify({ en: x.china?.en ?? "", motivo: juicio.motivo || "ningún candidato era el mismo producto" }), juicio]);
           return;
         }
+        if (!hayIgual && x.china?.anterior) { await sinCandidato(x, juicio); return; }
         await pool.query("update piloto_productos set juicio = $2, etapa = $4, error = coalesce($3, error) where id = $1",
           [x.id, juicio, juicio.error ?? null, hayIgual ? "ficha" : "listo"]);
       }));
@@ -332,6 +350,22 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
           if (fichas[c.n] && k && k.largo > 0 && k.ancho > 0 && k.alto > 0)
             fichas[c.n].caja = { largo: Math.round(k.largo), ancho: Math.round(k.ancho), alto: Math.round(k.alto), kg: k.kg > 200 ? k.kg / 1000 : k.kg || 0 };
         }
+        // Caja ilógica en la publicación de China (Fer, 28/9: la motoguadaña Omaha decía
+        // 100×100×100 cm y 50 kg; la real es ~170×23×23): se avisa y se usa la de Mercado Libre.
+        const ref = x.caja?.largo && x.caja.ancho && x.caja.alto ? x.caja : null;
+        for (const [n, f] of Object.entries(fichas)) {
+          const k = f.caja;
+          if (!k?.largo || !k.ancho || !k.alto) continue;
+          const m3 = (k.largo * k.ancho * k.alto) / 1e6;
+          const m3Ref = ref ? (ref.largo * ref.ancho * ref.alto) / 1e6 : null;
+          const texto = `${k.largo}×${k.ancho}×${k.alto} cm`;
+          const motivo = k.largo === k.ancho && k.ancho === k.alto && k.largo >= 50 ? `la caja de la publicación (${texto}) tiene los tres lados iguales: es un dato de relleno`
+            : m3Ref && m3 > 3 * m3Ref ? `la caja de la publicación (${texto} = ${m3.toFixed(3)} m³) es más del triple que la del producto (${m3Ref.toFixed(3)} m³)`
+            : k.kg && m3 > 0.05 && k.kg / m3 < 20 ? `la caja de la publicación (${texto}, ${k.kg} kg) es ilógica: casi vacía` : null;
+          if (!motivo) continue;
+          fichas[n].cajaDudosa = ref ? `${motivo}; se usa la caja de Mercado Libre (${ref.largo}×${ref.ancho}×${ref.alto} cm)` : `${motivo}; revisala`;
+          if (ref) fichas[n].caja = { largo: ref.largo, ancho: ref.ancho, alto: ref.alto, kg: ref.kg || k.kg };
+        }
         // Lo que el juez estimó para lo que falta (accesorios): se mantiene.
         const el = j.elegido != null ? cands[j.elegido - 1] : null;
         const uEl = (j.veredictos ?? []).find((v) => v.n === j.elegido)?.unidades ?? 1;
@@ -364,7 +398,7 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         }
         const conCandidato = juicio.elegido != null && !!juicio.costoUsd;
         if (!conCandidato) {
-          await pool.query("update piloto_productos set juicio = $2, costo = null, etapa = 'listo' where id = $1", [x.id, juicio]);
+          await sinCandidato(x, juicio);
           return;
         }
         // NCM: una sola vez en la vida por producto de China, con la ficha (material) como contexto.
@@ -398,12 +432,12 @@ export async function avanzar(id: number, organizacionId: string, hasta: number)
         if (k.sobreCosto != null && k.sobreCosto < 50) {
           const motivo = `El costo puesto en Argentina (US$ ${k.costo}) contra la venta en Mercado Libre (US$ ${k.venta}) da ${k.sobreCosto}% sobre el costo: ` +
             "seguro se comparó otro producto (otra medida, calidad o cantidad). Hay que encontrar el mismo, con sus medidas.";
+          juicio.incoherente = motivo;
           if (!x.china?.previa) {
-            await pool.query("update piloto_productos set china = china || jsonb_build_object('reintentar', $2::jsonb), juicio = $3, etapa = 'china' where id = $1",
-              [x.id, JSON.stringify({ en: x.china?.en ?? "", motivo }), juicio]);
+            await pool.query("update piloto_productos set china = china || jsonb_build_object('reintentar', $2::jsonb, 'anterior', $4::jsonb), juicio = $3, etapa = 'china' where id = $1",
+              [x.id, JSON.stringify({ en: x.china?.en ?? "", motivo }), juicio, JSON.stringify({ juicio, costo: datosCosto })]);
             return;
           }
-          juicio.incoherente = motivo;
         }
         await pool.query("update piloto_productos set juicio = $2, costo = $3, etapa = 'listo' where id = $1", [x.id, juicio, datosCosto]);
       }));

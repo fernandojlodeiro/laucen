@@ -426,6 +426,10 @@ export async function verificar(ml: { titulo: string; precio: number | null; tex
       "producto en China cuesta normalmente entre el 10% y el 35% del precio al público en Argentina; si cuesta más de la mitad, es otro producto, " +
       "otra calidad u otra cantidad.\nCAJA: del empaque de la publicación (packaging: unitSizeCm, unitWeightKg, propiedades) deducí la caja de UNA " +
       "unidad del producto: si el empaque es de varias unidades (cartón con N piezas), dividilo; el peso puede venir en gramos. " +
+      "Si el empaque de la publicación es ilógico para el producto (ej. 100x100x100 cm para una desmalezadora, que embalada mide unos " +
+      "170x23x23), no lo copies: poné en caja tu estimación razonable. " +
+      "ACCESORIOS: si el candidato es el producto principal y le faltan piezas baratas que el de Mercado Libre trae en el kit (soporte, " +
+      "boquillas, pinzas, llaves, almohadas), es el MISMO producto: igual=true y el costo de lo que falta en extrasUsd. No lo descartes por eso. " +
       "MEDIDAS: en medidasML poné las medidas del producto de Mercado Libre (armado/inflado, no la caja) y en medidas las del candidato " +
       "(de la variante a pedir), en cm; si no las encontrás, null. El programa las vuelve a comparar con la tolerancia.\n" +
       "PRECIO POR VARIANTE: si el candidato trae la lista \"Precios por variante\", en usdVariante poné el precio EXACTO de la lista " +
