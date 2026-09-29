@@ -104,6 +104,67 @@ async function correrPruebas(q: string, token: string | null): Promise<Respuesta
   return out;
 }
 
+/** Lo que ML deja ver de publicaciones puntuales (propias o ajenas), para
+ *  armar un seguimiento de competencia como el de Virtual Seller: precio,
+ *  si está activa, quién más vende el mismo producto de catálogo. */
+function leerPublicaciones(texto: string) {
+  const items = new Set<string>(), productos = new Set<string>(), up = new Set<string>();
+  for (const linea of texto.split(/[\s,]+/)) {
+    const l = linea.trim().toUpperCase();
+    if (!l) continue;
+    const u = l.match(/MLAU-?(\d+)/);
+    if (u) { up.add(`MLAU${u[1]}`); continue; }
+    const p = l.match(/\/P\/MLA-?(\d+)/);
+    if (p) { productos.add(`MLA${p[1]}`); continue; }
+    const i = l.match(/MLA-?(\d+)/);
+    if (i) items.add(`MLA${i[1]}`);
+  }
+  return { items: [...items].slice(0, 6), productos: [...productos].slice(0, 6), up: [...up].slice(0, 6) };
+}
+
+async function correrCompetencia(texto: string, token: string | null): Promise<Respuesta[]> {
+  const { items, productos, up } = leerPublicaciones(texto);
+  const out: Respuesta[] = [];
+  const paso = async (ruta: string, conLlave = true) => {
+    const r = await llamar(ruta, conLlave ? token : null);
+    out.push({ ...r, ruta: conLlave ? ruta : `${ruta}  (sin llave)` });
+    return r;
+  };
+  // Control: una publicación propia (ésa sí tiene que dar 200).
+  const yo = await llamar("/users/me", token);
+  const uid = sacar(yo.datos, ["id"]);
+  const mias = await paso(`/users/${uid}/items/search?status=active&limit=3`);
+  const propia = sacar(mias.datos, ["results", 0]) as string | undefined;
+  if (propia) {
+    await paso(`/items/${propia}?attributes=id,title,price,status,catalog_product_id,user_product_id`);
+    await paso(`/items/${propia}/price_to_win?version=v2`);
+  }
+  for (const id of items) {
+    const it = await paso(`/items/${id}`);
+    await paso(`/items/${id}`, false);
+    await paso(`/items/${id}?attributes=id,price,status,catalog_product_id`);
+    await paso(`/items?ids=${id}&attributes=id,price,status`);
+    await paso(`/items/${id}/prices`);
+    await paso(`/items/${id}/sale_price?context=channel_marketplace`);
+    await paso(`/items/${id}/price_to_win?version=v2`);
+    await paso(`/visits/items?ids=${id}`);
+    await paso(`/items/${id}/shipping_options?zip_code=1425`);
+    await paso(`/reviews/item/${id}?limit=1`);
+    const cat = sacar(it.datos, ["catalog_product_id"]) as string | undefined;
+    if (cat) productos.push(cat);
+  }
+  for (const id of [...new Set(productos)]) {
+    await paso(`/products/${id}`);
+    await paso(`/products/${id}/items?limit=20`);
+    await paso(`/products/${id}/items?limit=20`, false);
+  }
+  for (const id of up) {
+    await paso(`/user-products/${id}`);
+    await paso(`/user-products/${id}/items`);
+  }
+  return out;
+}
+
 function Resultado({ r }: { r: Respuesta }) {
   const ok = r.status >= 200 && r.status < 300;
   const texto = typeof r.datos === "string" ? r.datos : JSON.stringify(r.datos, null, 2);
@@ -121,7 +182,7 @@ function Resultado({ r }: { r: Respuesta }) {
 }
 
 export default async function Meli({ searchParams }: {
-  searchParams: Promise<{ q?: string; ok?: string; error?: string; detalle?: string }>;
+  searchParams: Promise<{ q?: string; pubs?: string; ok?: string; error?: string; detalle?: string }>;
 }) {
   if (!(await sosVos())) redirect("/panel");
   const sesion = await sesionRequerida();
@@ -132,18 +193,20 @@ export default async function Meli({ searchParams }: {
   const hayCredenciales = !!credenciales();
   const cuenta = await cuentaDe(sesion.org.id);
   const q = sp.q?.trim() ?? "";
+  const pubs = sp.pubs?.trim() ?? "";
 
   let resultados: Respuesta[] = [];
   let problemaLlave = "";
-  if (q) {
+  if (q || pubs) {
     let token: string | null = null;
     try {
       token = await tokenVigente(sesion.org.id);
     } catch (e) {
       problemaLlave = `No se pudo renovar la llave: ${String(e)}`;
     }
-    resultados = await correrPruebas(q, token);
-    await db.insert(meliPruebas).values({ organizacionId: sesion.org.id, consulta: q, resultados });
+    resultados = pubs ? await correrCompetencia(pubs, token) : await correrPruebas(q, token);
+    await db.insert(meliPruebas).values({
+      organizacionId: sesion.org.id, consulta: pubs ? `competencia: ${pubs.slice(0, 300)}` : q, resultados });
   }
 
   return (
@@ -191,6 +254,20 @@ export default async function Meli({ searchParams }: {
         <h2 className="font-bold mb-1">3. Scrapers de Apify</h2>
         <p className="text-xs text-[#5C6B76] mb-3">Lo que la API no da (ventas, stock, publicaciones fuera de catálogo), leyendo las páginas.</p>
         <Link href="/admin/meli/apify" className={`${SUAVE} inline-block`}>Probar con Apify →</Link>
+      </section>
+
+      <section className="border border-[#E3E9F0] rounded-lg p-4 mb-6 bg-white text-sm">
+        <h2 className="font-bold mb-1">4. Seguimiento de competencia</h2>
+        <p className="text-xs text-[#5C6B76] mb-3">
+          Pegá publicaciones (links o códigos MLA…), una por renglón: una tuya y las de la competencia.
+          Se prueba qué deja ver la API de cada una (precio, si está activa, otros vendedores del mismo producto).
+        </p>
+        <form>
+          <textarea name="pubs" defaultValue={pubs} rows={4}
+            placeholder={"https://articulo.mercadolibre.com.ar/MLA-123456789-…\nhttps://www.mercadolibre.com.ar/…/p/MLA12345678"}
+            className="border border-[#E3E9F0] rounded-lg px-3 py-2 w-full text-sm mb-2" />
+          <button className={PRIMARIO}>Probar</button>
+        </form>
       </section>
 
       {problemaLlave && <p className="text-xs text-[#C03420] mb-2">{problemaLlave}</p>}
