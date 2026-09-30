@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { meliPruebas } from "@/db/meli";
 import { credenciales, cuentaDe, tokenVigente, llamar, redirectUri, type Respuesta } from "@/lib/meli";
 import { SUAVE, VERDE, PRIMARIO } from "@/app/botones";
-import { leerPaginas } from "@/lib/meli-pagina";
+import { leerPaginas, aLink } from "@/lib/meli-pagina";
 import { costosFinales } from "@/lib/apify";
 import { and, desc, eq, like } from "drizzle-orm";
 
@@ -169,17 +169,35 @@ async function correrCompetencia(texto: string, token: string | null): Promise<R
   return out;
 }
 
-/** Lee con Apify la página de hasta 5 publicaciones en una sola corrida. */
-async function correrPaginas(texto: string): Promise<Respuesta[]> {
-  const urls = [...new Set(texto.split(/\s+/).filter((l) => /^https?:\/\/\S*mercadolibre\.com\.ar\//i.test(l)))].slice(0, 5);
-  if (!urls.length) return [{ ruta: "(páginas)", status: 0, datos: "Pegá links de Mercado Libre (https://…mercadolibre.com.ar/…)." }];
+/** Lee con Apify la página de hasta 5 publicaciones (links o códigos) en una sola corrida. */
+async function correrPaginas(texto: string, token: string | null): Promise<Respuesta[]> {
+  const esCatalogo = async (id: string) => (await llamar(`/products/${id}`, token)).status === 200;
+  const lineas = texto.split(/\s+/).filter(Boolean).slice(0, 5);
+  const urls = (await Promise.all(lineas.map((l) => aLink(l, esCatalogo)))).filter((u): u is string => !!u);
+  if (!urls.length) return [{ ruta: "(páginas)", status: 0, datos: "Pegá links de Mercado Libre o códigos MLA… / MLAU…." }];
   const out: Respuesta[] = [];
   for (const c of await leerPaginas(urls)) {
     out.push({ ruta: `(corrida) Apify ${c.intento} · ${c.urls.length} página(s) · ${c.segundos} s`, status: c.runId ? 200 : 0,
-      datos: { run_id: c.runId ?? null, paginas: c.urls.length, error: c.error ?? null } });
+      datos: { run_id: c.runId ?? null, paginas: c.urls.length, urls: c.urls, error: c.error ?? null } });
     for (const it of c.items) out.push({ ruta: `Apify ${c.intento} · ${String(it.url ?? "")}`, status: it.item_id || it.precio ? 200 : 0, datos: it });
   }
   return out;
+}
+
+/** Botón "Leer": corre, guarda y vuelve a la pantalla con el resultado, así
+ *  recargar la página (F5) no vuelve a correr ni a cobrar (30/9). */
+async function leerAccion(form: FormData) {
+  "use server";
+  if (!(await sosVos())) redirect("/panel");
+  const sesion = await sesionRequerida();
+  const paginas = String(form.get("paginas") ?? "").trim();
+  if (!paginas) redirect("/admin/meli");
+  const token = await tokenVigente(sesion.org.id).catch(() => null);
+  const resultados = await correrPaginas(paginas, token);
+  const [fila] = await db.insert(meliPruebas)
+    .values({ organizacionId: sesion.org.id, consulta: `apify-pagina: ${paginas.slice(0, 1000)}`, resultados })
+    .returning({ id: meliPruebas.id });
+  redirect(`/admin/meli?prueba=${fila.id}`);
 }
 
 /** Costo final de las últimas corridas, releído de Apify (el que se ve al
@@ -213,7 +231,7 @@ function Resultado({ r }: { r: Respuesta }) {
 }
 
 export default async function Meli({ searchParams }: {
-  searchParams: Promise<{ q?: string; pubs?: string; paginas?: string; ok?: string; error?: string; detalle?: string }>;
+  searchParams: Promise<{ q?: string; pubs?: string; prueba?: string; ok?: string; error?: string; detalle?: string }>;
 }) {
   if (!(await sosVos())) redirect("/panel");
   const sesion = await sesionRequerida();
@@ -225,14 +243,18 @@ export default async function Meli({ searchParams }: {
   const cuenta = await cuentaDe(sesion.org.id);
   const q = sp.q?.trim() ?? "";
   const pubs = sp.pubs?.trim() ?? "";
-  const paginas = sp.paginas?.trim() ?? "";
+  let paginas = "";
 
   let resultados: Respuesta[] = [];
   const costos = await costosRecientes(sesion.org.id).catch(() => []);
   let problemaLlave = "";
-  if (paginas) {
-    resultados = await correrPaginas(paginas);
-    await db.insert(meliPruebas).values({ organizacionId: sesion.org.id, consulta: `apify-pagina: ${paginas.slice(0, 1000)}`, resultados });
+  if (sp.prueba && /^\d+$/.test(sp.prueba)) {
+    const [fila] = await db.select().from(meliPruebas)
+      .where(and(eq(meliPruebas.id, Number(sp.prueba)), eq(meliPruebas.organizacionId, sesion.org.id)));
+    if (fila) {
+      resultados = fila.resultados as Respuesta[];
+      paginas = fila.consulta.replace(/^apify-pagina: /, "");
+    }
   } else if (q || pubs) {
     let token: string | null = null;
     try {
@@ -309,10 +331,10 @@ export default async function Meli({ searchParams }: {
       <section className="border border-[#E3E9F0] rounded-lg p-4 mb-6 bg-white text-sm">
         <h2 className="font-bold mb-1">5. Leer la página con Apify</h2>
         <p className="text-xs text-[#5C6B76] mb-3">
-          Para las publicaciones comunes ajenas, que la API no deja ver. Pegá hasta 5 links, uno por renglón (se leen todos en una corrida):
+          Para las publicaciones comunes ajenas, que la API no deja ver. Pegá hasta 5 links o códigos (MLA… / MLAU…), uno por renglón (se leen todos en una corrida):
           trae precio, vendedor, vendidos, disponibles y si está pausada. Tarda uno o dos minutos.
         </p>
-        <form>
+        <form action={leerAccion}>
           <textarea name="paginas" defaultValue={paginas} rows={3}
             placeholder={"https://www.mercadolibre.com.ar/…/up/MLAU…"}
             className="border border-[#E3E9F0] rounded-lg px-3 py-2 w-full text-sm mb-2" />

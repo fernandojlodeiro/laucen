@@ -19,16 +19,20 @@ export type LecturaPagina = {
   items: Record<string, unknown>[];
 };
 
-// Corre adentro de Chrome, en la página de ML. Lee sólo la parte de arriba
-// (precio, cuadro de compra, vendedor): lo de abajo son productos relacionados
-// de otros vendedores ("+50 vendidos" del control remoto, 30/9).
+// Corre adentro de Chrome, en la página de ML. Antes de leer el texto saca los
+// carruseles de productos relacionados ("+50 vendidos" del control remoto era de
+// otro producto, 30/9). No se corta el texto por palabras: el menú de atajos de
+// arriba de todo ya dice "Descripción" y "Preguntas", y el cuadro de compra
+// (vendedor, stock) viene después de las Características.
 const pageFunction = `async function pageFunction(context) {
   await new Promise((ok) => setTimeout(ok, 2000));
   const html = document.documentElement.outerHTML;
+  document.querySelectorAll('[class*="recommendations"], [class*="carousel"], [id*="recommendations"], [class*="ui-pdp-related"], footer, nav')
+    .forEach((e) => e.remove());
   const todo = (document.body ? document.body.innerText : '').replace(/\\s+/g, ' ');
-  const corte = ['Productos relacionados', 'Características del producto', 'Características principales', 'Descripción', 'Preguntas']
-    .map((m) => todo.indexOf(m)).filter((i) => i > 0);
-  const texto = todo.slice(0, corte.length ? Math.min(...corte) : 3000);
+  const rel = todo.indexOf('Productos relacionados');
+  const texto = rel > 0 ? todo.slice(0, rel) : todo;
+  const clase = (sel) => { const e = document.querySelector(sel); return e ? e.textContent.replace(/\\s+/g, ' ').trim() : null; };
   const meta = (sel) => { const e = document.querySelector(sel); return e ? (e.getAttribute('content') || e.textContent || '').trim() : null; };
   const cerca = (re, largo) => { const m = texto.match(re); return m ? texto.slice(m.index, m.index + (largo || 60)).trim() : null; };
   const ld = [];
@@ -36,9 +40,10 @@ const pageFunction = `async function pageFunction(context) {
   const prod = ld.find((x) => x && (x['@type'] === 'Product' || x.offers)) || null;
   const ofertas = prod && prod.offers ? (Array.isArray(prod.offers) ? prod.offers : [prod.offers]) : [];
   const item = html.match(/"item_id":"(MLA\\d+)"/);
-  const ultima = /¡?Última (en stock|disponible)/i.test(texto);
-  const disp = texto.match(/\\+?([\\d.]+) disponibles?/i);
-  const vend = texto.match(/(\\+?[\\d.]+(?: mil)?) vendidos?/i);
+  const subtitulo = clase('.ui-pdp-subtitle');
+  const vend = (subtitulo || texto).match(/(\\+?[\\d.]+(?: mil)?) vendidos?/i);
+  const ultima = texto.match(/¡?Última (en stock|disponible)!?/i);
+  const disp = (clase('.ui-pdp-buybox__quantity__available') || texto).match(/\\+?[\\d.]+ disponibles?/i);
   return {
     url: context.request.url,
     titulo_pagina: document.title,
@@ -47,14 +52,15 @@ const pageFunction = `async function pageFunction(context) {
     moneda: ofertas.length ? ofertas[0].priceCurrency : null,
     en_stock_ld: ofertas.length ? String(ofertas[0].availability || '').replace('https://schema.org/', '') : null,
     nombre: prod ? prod.name : null,
+    subtitulo,
     vendidos: vend ? vend[1] : null,
-    disponibles: ultima ? '1 (Última en stock)' : (disp ? disp[0] : null),
+    disponibles: ultima ? '1 (' + ultima[0] + ')' : (disp ? disp[0] : null),
     vendido_por: cerca(/Vendido por/i, 70),
     mejor_precio: cerca(/Mejor precio/i, 90),
     otras_opciones: cerca(/\\d+ productos? (nuevos?|usados?) desde/i, 60),
     pausada: /Publicación pausada|pausamos esta publicación/i.test(texto),
     finalizada: /Publicación finalizada/i.test(texto),
-    texto_arriba: texto.slice(0, 1200),
+    texto: texto.slice(0, 4000),
   };
 }`;
 
@@ -64,6 +70,21 @@ const INTENTOS = [
 ];
 
 const limpiar = (u: string) => u.replace(/[?#].*$/, "");
+
+/** Link o código → link de la página. MLAU… es producto del vendedor (/up/);
+ *  un MLA… suelto puede ser ficha de catálogo (/p/) o publicación: `esCatalogo`
+ *  lo decide (con la API). */
+export async function aLink(x: string, esCatalogo: (id: string) => Promise<boolean>): Promise<string | null> {
+  const l = x.trim();
+  if (/^https?:\/\/\S*mercadolibre\.com\.ar\//i.test(l)) return l;
+  const up = l.match(/^MLAU-?(\d+)$/i);
+  if (up) return `https://www.mercadolibre.com.ar/up/MLAU${up[1]}`;
+  const m = l.match(/^MLA-?(\d+)$/i);
+  if (!m) return null;
+  return (await esCatalogo(`MLA${m[1]}`))
+    ? `https://www.mercadolibre.com.ar/p/MLA${m[1]}`
+    : `https://articulo.mercadolibre.com.ar/MLA-${m[1]}`;
+}
 
 /** Lee varias páginas en una corrida; las que no traen la publicación se
  *  reintentan juntas con otra conexión. Devuelve cada corrida. Nunca tira. */
