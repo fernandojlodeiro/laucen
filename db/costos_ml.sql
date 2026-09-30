@@ -54,6 +54,25 @@ create table if not exists ml_costos_comisiones (
   primary key (categoria_id, desde)
 );
 alter table ml_costos_comisiones enable row level security;
+-- 30/9 (Fer): lo que se suma al % de la clásica por cada plan de cuotas. Se
+-- consulta sólo en las categorías donde Fer tiene publicaciones activas.
+-- premium_cuotas_pct (arriba) es el de la premium sin marca (6 cuotas).
+alter table ml_costos_comisiones add column if not exists clasica_bajo_interes_pct numeric;  -- gold_special + pcj-co-funded
+alter table ml_costos_comisiones add column if not exists premium_3x_pct numeric;            -- gold_pro + 3x_campaign
+alter table ml_costos_comisiones add column if not exists premium_9x_pct numeric;            -- gold_pro + 9x_campaign
+alter table ml_costos_comisiones add column if not exists premium_12x_pct numeric;           -- gold_pro + 12x_campaign
+
+-- Categorías donde Fer tiene publicaciones activas (se rearma en cada
+-- corrida; `activa` = estaba en la última). Las comisiones se consultan y se
+-- muestran sólo para éstas (Fer, 30/9).
+create table if not exists ml_costos_mis_categorias (
+  categoria_id  text primary key,
+  ruta          text,
+  publicaciones int not null default 0,
+  activa        boolean not null default true,
+  vista         timestamptz not null default now()
+);
+alter table ml_costos_mis_categorias enable row level security;
 
 -- Cargo fijo por unidad (debajo del umbral de envío gratis). Depende del
 -- precio y, si se manda logística, del peso facturable. logistica '-' = sin

@@ -6,9 +6,10 @@
 //
 // Una corrida por día, en partes ("fases"). Las chicas (unos cientos de
 // consultas) se hacen enteras en un turno; si el turno se corta, se rehacen.
-// La grande (la comisión de cada una de las ~10.700 categorías hoja) avanza de
-// a tandas: el cron de Vercel la arranca y pg_cron la sigue cada 5 minutos
-// hasta terminar (app/api/costos-ml/cron).
+// Las comisiones se consultan sólo en las categorías donde Fer tiene
+// publicaciones activas, con el cargo de cada plan de cuotas (Fer, 30/9; antes
+// eran las ~10.700 categorías hoja). Si un turno no alcanza, pg_cron sigue
+// cada 5 minutos (app/api/costos-ml/cron).
 //
 // Lo que se vio de la API el 28/9 (cuenta de Fer, Córdoba):
 // - /sites/MLA/listing_prices: % por categoría y tipo de publicación; el % no
@@ -224,32 +225,75 @@ async function envioDestino(c: Corrida, token: string, userId: number, hasta: nu
   return true;
 }
 
-/** La comisión de cada categoría hoja, en orden, de a 200; `cursor` guarda
- *  hasta dónde llegó. Devuelve true cuando no queda ninguna. */
-async function comisiones(c: Corrida, token: string, _u: number, hasta: number) {
-  while (Date.now() < hasta) {
-    const pend = await pool.query<{ id: string; ruta: string }>(
-      `select id, ruta from meli_categorias where es_hoja and id > coalesce($1, '') order by id limit 200`, [c.cursor]);
-    if (!pend.rows.length) return true;
-    const res = await enParalelo(pend.rows, 10, hasta, async (cat) => {
-      const r = await pedir(`/sites/${SITIO}/listing_prices?price=${PRECIO_COMISION}&category_id=${cat.id}`, token);
-      if (r.status !== 200 || !Array.isArray(r.datos)) return null;
-      const lista = r.datos as LP[];
-      const de = (t: string) => lista.find((x) => x.listing_type_id === t)?.sale_fee_details;
-      return {
-        categoria_id: cat.id, desde: c.iniciada, corrida_id: c.id, ruta: cat.ruta,
-        clasica_pct: de("gold_special")?.percentage_fee ?? null, premium_pct: de("gold_pro")?.percentage_fee ?? null,
-        premium_cuotas_pct: de("gold_pro")?.financing_add_on_fee ?? null,
-      };
-    });
-    if (!res) return false;
-    await guardarCambios(c, "ml_costos_comisiones", ["categoria_id"], ["clasica_pct", "premium_pct", "premium_cuotas_pct"],
-      res.filter((x) => x !== null));
-    await sumarFallas(c, res.filter((x) => x === null).length);
-    c.cursor = pend.rows[pend.rows.length - 1].id;
-    await pool.query("update ml_costos_corridas set cursor = $2 where id = $1", [c.id, c.cursor]);
+/** Las categorías donde Fer tiene publicaciones activas (Fer, 30/9: sólo
+ *  ésas interesan). Se guardan en ml_costos_mis_categorias. */
+async function misCategorias(token: string, userId: number, hasta: number) {
+  const ids: string[] = [];
+  for (let offset = 0; ; offset += 100) {
+    if (Date.now() > hasta) return null;
+    const r = await pedir(`/users/${userId}/items/search?status=active&limit=100&offset=${offset}`, token);
+    const d = r.datos as { results?: string[]; paging?: { total?: number } } | null;
+    if (r.status !== 200 || !d?.results) return null;
+    ids.push(...d.results);
+    if (!d.results.length || ids.length >= (d.paging?.total ?? 0) || offset >= 900) break;
   }
-  return false;
+  const tandas: string[][] = [];
+  for (let i = 0; i < ids.length; i += 20) tandas.push(ids.slice(i, i + 20));
+  const res = await enParalelo(tandas, 5, hasta, async (t) => {
+    const r = await pedir(`/items?ids=${t.join(",")}&attributes=id,category_id`, token);
+    return Array.isArray(r.datos) ? (r.datos as { code?: number; body?: { category_id?: string } }[]).map((x) => x.body?.category_id) : [];
+  });
+  if (!res) return null;
+  const cuenta = new Map<string, number>();
+  for (const cat of res.flat()) if (cat) cuenta.set(cat, (cuenta.get(cat) ?? 0) + 1);
+  const filas = [...cuenta].map(([categoria_id, publicaciones]) => ({ categoria_id, publicaciones }));
+  await pool.query(
+    `insert into ml_costos_mis_categorias (categoria_id, ruta, publicaciones, activa, vista)
+     select n.categoria_id, (select ruta from meli_categorias m where m.id = n.categoria_id), n.publicaciones, true, now()
+       from jsonb_to_recordset($1::jsonb) n(categoria_id text, publicaciones int)
+     on conflict (categoria_id) do update set ruta = coalesce(excluded.ruta, ml_costos_mis_categorias.ruta),
+       publicaciones = excluded.publicaciones, activa = true, vista = excluded.vista`, [JSON.stringify(filas)]);
+  await pool.query("update ml_costos_mis_categorias set activa = false where activa and not (categoria_id = any($1::text[]))",
+    [filas.map((f) => f.categoria_id)]);
+  return filas.map((f) => f.categoria_id);
+}
+
+/** La comisión de cada categoría donde Fer tiene publicaciones activas, con lo
+ *  que suma cada plan de cuotas (marca de ML en la publicación). */
+const PLANES = [
+  ["clasica_bajo_interes_pct", "gold_special", "pcj-co-funded"],
+  ["premium_3x_pct", "gold_pro", "3x_campaign"],
+  ["premium_9x_pct", "gold_pro", "9x_campaign"],
+  ["premium_12x_pct", "gold_pro", "12x_campaign"],
+] as const;
+
+async function comisiones(c: Corrida, token: string, userId: number, hasta: number) {
+  const cats = await misCategorias(token, userId, hasta);
+  if (!cats) return false;
+  const rutas = new Map((await pool.query<{ categoria_id: string; ruta: string | null }>(
+    "select categoria_id, ruta from ml_costos_mis_categorias where activa")).rows.map((r) => [r.categoria_id, r.ruta]));
+  const res = await enParalelo(cats, 5, hasta, async (cat) => {
+    const r = await pedir(`/sites/${SITIO}/listing_prices?price=${PRECIO_COMISION}&category_id=${cat}`, token);
+    if (r.status !== 200 || !Array.isArray(r.datos)) return null;
+    const lista = r.datos as LP[];
+    const de = (t: string) => lista.find((x) => x.listing_type_id === t)?.sale_fee_details;
+    const fila: Record<string, unknown> = {
+      categoria_id: cat, desde: c.iniciada, corrida_id: c.id, ruta: rutas.get(cat) ?? null,
+      clasica_pct: de("gold_special")?.percentage_fee ?? null, premium_pct: de("gold_pro")?.percentage_fee ?? null,
+      premium_cuotas_pct: de("gold_pro")?.financing_add_on_fee ?? null,
+    };
+    for (const [col, tipo, tag] of PLANES) {
+      const p = await pedir(`/sites/${SITIO}/listing_prices?price=${PRECIO_COMISION}&category_id=${cat}&listing_type_id=${tipo}&tags=${tag}`, token);
+      const d = (Array.isArray(p.datos) ? p.datos[0] : p.datos) as LP | null;
+      fila[col] = p.status === 200 ? d?.sale_fee_details?.financing_add_on_fee ?? null : null;
+    }
+    return fila;
+  });
+  if (!res) return false;
+  await guardarCambios(c, "ml_costos_comisiones", ["categoria_id"],
+    ["clasica_pct", "premium_pct", "premium_cuotas_pct", ...PLANES.map(([col]) => col)], res.filter((x) => x !== null));
+  await sumarFallas(c, res.filter((x) => x === null).length);
+  return true;
 }
 
 async function sumarFallas(c: Corrida, n: number) {
@@ -303,8 +347,7 @@ export async function ultimasCorridas(n = 10) {
     id: number; fecha: string; iniciada: Date; terminada: Date | null; fases: string[]; error: string | null;
     cursor: string | null; fallas: number; cambios: Record<string, number> | null; hojas: number; hechas: number;
   }>(
-    `select c.*, (select count(*)::int from meli_categorias where es_hoja) hojas,
-            (select count(*)::int from meli_categorias where es_hoja and id <= coalesce(c.cursor, '')) hechas
+    `select c.*, (select count(*)::int from ml_costos_mis_categorias where activa) hojas, 0 hechas
        from ml_costos_corridas c order by id desc limit $1`, [n]);
   return r.rows;
 }
@@ -313,18 +356,28 @@ export async function ultimasCorridas(n = 10) {
 
 const num = (v: unknown) => (v == null ? null : Number(v));
 
-export async function comisionesVigentes(buscar: string, limite = 200) {
+type FilaComision = { categoria_id: string; ruta: string | null; desde: Date; publicaciones: number; cambios: number;
+  clasica_pct: string | null; premium_pct: string | null; premium_cuotas_pct: string | null; clasica_bajo_interes_pct: string | null;
+  premium_3x_pct: string | null; premium_9x_pct: string | null; premium_12x_pct: string | null };
+
+/** Comisiones vigentes de las categorías donde Fer tiene publicaciones activas. */
+export async function comisionesVigentes(buscar: string, limite = 300) {
   const q = `%${buscar.trim()}%`;
-  const r = await pool.query<{ categoria_id: string; ruta: string | null; desde: Date; clasica_pct: string | null; premium_pct: string | null; premium_cuotas_pct: string | null; cambios: number }>(
-    `select v.*, (select count(*)::int from ml_costos_comisiones k where k.categoria_id = v.categoria_id) cambios
-       from ml_costos_comisiones_vigente v
-      where $1 = '%%' or v.ruta ilike $1 or v.categoria_id ilike $1
-      order by v.ruta limit $2`, [q, limite]);
+  const r = await pool.query<FilaComision>(
+    `select v.*, coalesce(m.ruta, v.ruta) ruta, m.publicaciones,
+            (select count(*)::int from ml_costos_comisiones k where k.categoria_id = v.categoria_id) cambios
+       from ml_costos_comisiones_vigente v join ml_costos_mis_categorias m on m.categoria_id = v.categoria_id and m.activa
+      where $1 = '%%' or coalesce(m.ruta, v.ruta) ilike $1 or v.categoria_id ilike $1
+      order by m.publicaciones desc, 2 limit $2`, [q, limite]);
   const total = await pool.query<{ n: number }>(
-    `select count(*)::int n from ml_costos_comisiones_vigente v where $1 = '%%' or v.ruta ilike $1 or v.categoria_id ilike $1`, [q]);
+    `select count(*)::int n from ml_costos_mis_categorias m where m.activa and ($1 = '%%' or m.ruta ilike $1 or m.categoria_id ilike $1)`, [q]);
   return {
     total: total.rows[0].n,
-    filas: r.rows.map((f) => ({ ...f, clasica_pct: num(f.clasica_pct), premium_pct: num(f.premium_pct), premium_cuotas_pct: num(f.premium_cuotas_pct) })),
+    filas: r.rows.map((f) => ({
+      ...f, clasica_pct: num(f.clasica_pct), premium_pct: num(f.premium_pct), premium_cuotas_pct: num(f.premium_cuotas_pct),
+      clasica_bajo_interes_pct: num(f.clasica_bajo_interes_pct), premium_3x_pct: num(f.premium_3x_pct),
+      premium_9x_pct: num(f.premium_9x_pct), premium_12x_pct: num(f.premium_12x_pct),
+    })),
   };
 }
 
@@ -357,10 +410,10 @@ export async function cambiosRecientes(limite = 300): Promise<Cambio[]> {
     `with primera as (select min(id) id from ml_costos_corridas),
      com as (
        select desde, corrida_id, 'Comisión' que, coalesce(ruta, categoria_id) detalle,
-              lag(concat_ws(' · ', 'clásica ' || replace(round(clasica_pct, 2)::text, '.', ',') || ' %', 'premium ' || replace(round(premium_pct, 2)::text, '.', ',') || ' %', 'cuotas ' || replace(round(premium_cuotas_pct, 2)::text, '.', ',') || ' %'))
+              lag(concat_ws(' · ', 'clásica ' || replace(round(clasica_pct, 2)::text, '.', ',') || ' %', 'premium ' || replace(round(premium_pct, 2)::text, '.', ',') || ' %', 'cuotas ' || replace(round(premium_cuotas_pct, 2)::text, '.', ',') || ' %', 'bajo interés +' || replace(round(clasica_bajo_interes_pct, 2)::text, '.', ',') || ' %', '3x +' || replace(round(premium_3x_pct, 2)::text, '.', ',') || ' %', '9x +' || replace(round(premium_9x_pct, 2)::text, '.', ',') || ' %', '12x +' || replace(round(premium_12x_pct, 2)::text, '.', ',') || ' %'))
                 over (partition by categoria_id order by desde) antes,
-              concat_ws(' · ', 'clásica ' || replace(round(clasica_pct, 2)::text, '.', ',') || ' %', 'premium ' || replace(round(premium_pct, 2)::text, '.', ',') || ' %', 'cuotas ' || replace(round(premium_cuotas_pct, 2)::text, '.', ',') || ' %') ahora
-         from ml_costos_comisiones),
+              concat_ws(' · ', 'clásica ' || replace(round(clasica_pct, 2)::text, '.', ',') || ' %', 'premium ' || replace(round(premium_pct, 2)::text, '.', ',') || ' %', 'cuotas ' || replace(round(premium_cuotas_pct, 2)::text, '.', ',') || ' %', 'bajo interés +' || replace(round(clasica_bajo_interes_pct, 2)::text, '.', ',') || ' %', '3x +' || replace(round(premium_3x_pct, 2)::text, '.', ',') || ' %', '9x +' || replace(round(premium_9x_pct, 2)::text, '.', ',') || ' %', '12x +' || replace(round(premium_12x_pct, 2)::text, '.', ',') || ' %') ahora
+         from ml_costos_comisiones c where exists (select 1 from ml_costos_mis_categorias m where m.categoria_id = c.categoria_id and m.activa)),
      cf as (
        select desde, corrida_id, 'Cargo fijo' que,
               case tipo when 'gold_special' then 'Clásica' when 'gold_pro' then 'Premium' else tipo end || ' · $ ' || replace(to_char(precio, 'FM999,999,990'), ',', '.') || case when peso_g > 0 then ' · ' || case logistica when 'fulfillment' then 'Full' else 'Colecta' end || ' ' || peso_g || ' g' else '' end detalle,
@@ -370,10 +423,16 @@ export async function cambiosRecientes(limite = 300): Promise<Cambio[]> {
        select desde, corrida_id, 'Envío gratis' que, case logistica when 'fulfillment' then 'Full' else 'Colecta' end || ' · ' || peso_g || ' g · a $ ' || replace(to_char(precio, 'FM999,999,990'), ',', '.') detalle,
               lag('$ ' || replace(to_char(costo, 'FM999,999,990'), ',', '.')) over (partition by logistica, tipo, precio, peso_g order by desde) antes, '$ ' || replace(to_char(costo, 'FM999,999,990'), ',', '.') ahora
          from ml_costos_envio_gratis),
+     -- Envío por destino: las opciones que ofrece ML con su precio, no sólo la
+     -- más barata (Fer, 30/9: aparecía "cambio" y se veía igual).
+     edt as (
+       select *, coalesce((select string_agg(coalesce(o->>'nombre', o->>'tipo', '?') || ' $ ' || replace(to_char((o->>'costo')::numeric, 'FM999,999,990'), ',', '.'), ' · ' order by o->>'metodo')
+                             from jsonb_array_elements(coalesce(opciones, '[]'::jsonb)) o), '$ ' || replace(to_char(costo_min, 'FM999,999,990'), ',', '.')) txt
+         from ml_costos_envio_destino),
      ed as (
        select desde, corrida_id, 'Envío por destino' que, lugar || ' · ' || peso_g || ' g' detalle,
-              lag('$ ' || replace(to_char(costo_min, 'FM999,999,990'), ',', '.')) over (partition by cp, peso_g, precio order by desde) antes, '$ ' || replace(to_char(costo_min, 'FM999,999,990'), ',', '.') ahora
-         from ml_costos_envio_destino),
+              lag(txt) over (partition by cp, peso_g, precio order by desde) antes, txt ahora
+         from edt),
      rf as (
        select desde, corrida_id, 'Referencia' que, clave detalle,
               lag(left(datos::text, 120)) over (partition by clave order by desde) antes, left(datos::text, 120) ahora

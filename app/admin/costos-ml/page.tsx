@@ -128,37 +128,47 @@ async function Cambios() {
 
 async function Comisiones({ q }: { q: string }) {
   const { total, filas } = await comisionesVigentes(q);
+  const mas = (base: number | null, extra: number | null) => (base == null || extra == null ? null : base + extra);
   return (
-    <section>
+    <section className="overflow-x-auto">
       <form className="flex gap-2 mb-2">
         <input type="hidden" name="ver" value="comisiones" />
-        <input name="q" defaultValue={q} placeholder="Buscar categoría (por ejemplo: colchón inflable)"
+        <input name="q" defaultValue={q} placeholder="Buscar categoría (por ejemplo: regulador)"
           className="border border-[#E3E9F0] rounded-lg px-3 py-2 text-sm flex-1" />
         <button className={PRIMARIO}>Buscar</button>
       </form>
       <p className="text-[11px] text-[#9AA7B3] mb-2">
-        {formatearNumero(total, "entero")} categorías{filas.length < total ? `; se muestran las primeras ${filas.length}, buscá para achicar` : ""}.
-        El % es sobre el precio y no depende del precio. Autos, Inmuebles y Servicios son clasificados: no tienen comisión por venta.
+        {formatearNumero(total, "entero")} categorías donde tenés publicaciones activas (las que más publicaciones tienen, arriba).
+        Comisión total sobre el precio según las cuotas que ofrezca la publicación; no depende del precio. Las cuotas van por la marca que
+        ML le pone a la publicación (3x, 9x, 12x); lo que vale es lo que muestra la página al comprador.
       </p>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs text-[#5C6B76]">
-            <th className={TH}>Categoría</th><th className={`${TH} text-right`}>Clásica</th><th className={`${TH} text-right`}>Premium</th>
-            <th className={`${TH} text-right`}>de eso, cuotas</th><th className={`${TH} text-right`}>Desde</th>
+            <th className={TH}>Categoría</th><th className={`${TH} text-right`}>Publ.</th>
+            <th className={`${TH} text-right`}>Clásica</th><th className={`${TH} text-right`}>Clásica interés bajo</th>
+            <th className={`${TH} text-right`}>Premium 3x</th><th className={`${TH} text-right`}>Premium (6)</th>
+            <th className={`${TH} text-right`}>Premium 9x</th><th className={`${TH} text-right`}>Premium 12x</th>
+            <th className={`${TH} text-right`}>Desde</th>
           </tr>
         </thead>
         <tbody>
           {filas.map((f) => (
             <tr key={f.categoria_id} className="border-t border-[#E3E9F0]">
               <td className={`${TD} text-xs`}>{f.ruta} <span className="text-[#9AA7B3]">{f.categoria_id}</span></td>
+              <td className={`${TD} text-right`}>{formatearNumero(f.publicaciones, "entero")}</td>
               <td className={`${TD} text-right`}>{pct(f.clasica_pct)}</td>
+              <td className={`${TD} text-right`}>{pct(mas(f.clasica_pct, f.clasica_bajo_interes_pct))}</td>
+              <td className={`${TD} text-right`}>{pct(mas(f.clasica_pct, f.premium_3x_pct))}</td>
               <td className={`${TD} text-right`}>{pct(f.premium_pct)}</td>
-              <td className={`${TD} text-right text-[#5C6B76]`}>{pct(f.premium_cuotas_pct)}</td>
+              <td className={`${TD} text-right`}>{pct(mas(f.clasica_pct, f.premium_9x_pct))}</td>
+              <td className={`${TD} text-right`}>{pct(mas(f.clasica_pct, f.premium_12x_pct))}</td>
               <td className={`${TD} text-right text-xs text-[#5C6B76]`}>{fecha(f.desde)}{f.cambios > 1 ? ` (${f.cambios - 1} cambio${f.cambios > 2 ? "s" : ""})` : ""}</td>
             </tr>
           ))}
         </tbody>
       </table>
+      {filas.length === 0 && <p className="text-sm text-[#5C6B76] mt-2">Todavía no se leyeron tus categorías: se completan en la próxima corrida (o con "Correr ahora" en Corridas).</p>}
     </section>
   );
 }
@@ -282,7 +292,7 @@ async function Corridas() {
           <thead>
             <tr className="text-left text-xs text-[#5C6B76]">
               <th className={TH}>Fecha</th><th className={TH}>Empezó</th><th className={TH}>Terminó</th>
-              <th className={`${TH} text-right`}>Categorías</th><th className={`${TH} text-right`}>Cambios guardados</th>
+              <th className={`${TH} text-right`}>Tus categorías</th><th className={`${TH} text-right`}>Cambios guardados</th>
               <th className={`${TH} text-right`}>Sin respuesta</th><th className={TH}>Partes</th>
             </tr>
           </thead>
@@ -292,7 +302,7 @@ async function Corridas() {
                 <td className={TD}>{fecha(new Date(`${new Date(c.fecha).toISOString().slice(0, 10)}T12:00:00Z`))}</td>
                 <td className={TD}>{hora(c.iniciada)}</td>
                 <td className={TD}>{hora(c.terminada)}</td>
-                <td className={`${TD} text-right`}>{formatearNumero(c.fases.includes("comisiones") ? c.hojas : c.hechas, "entero")} / {formatearNumero(c.hojas, "entero")}</td>
+                <td className={`${TD} text-right`}>{c.fases.includes("comisiones") ? formatearNumero(c.hojas, "entero") : "—"}</td>
                 <td className={`${TD} text-right`}>{formatearNumero(filasNuevas(c.cambios), "entero")}</td>
                 <td className={`${TD} text-right`}>{formatearNumero(c.fallas, "entero")}</td>
                 <td className={`${TD} text-xs`}>
