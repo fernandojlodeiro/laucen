@@ -244,10 +244,12 @@ export async function costosFinales(runIds: string[]) {
   const pares = await Promise.all(runIds.map(async (id) => {
     try {
       const run = await get(`/actor-runs/${id}`, token);
-      return [id, { estado: run.status as string, usd: (run.usageTotalUsd ?? null) as number | null, cobros: run.chargedEventCounts ?? null }] as const;
+      return [id, { estado: run.status as string, usd: (run.usageTotalUsd ?? null) as number | null, cobros: run.chargedEventCounts ?? null,
+        detalle: (run.usageUsd ?? null) as Record<string, number> | null, uso: (run.usage ?? null) as Record<string, number> | null }] as const;
     } catch {
       return [id, null] as const;
     }
   }));
-  return Object.fromEntries(pares.filter(([, v]) => v)) as Record<string, { estado: string; usd: number | null; cobros: unknown }>;
+  return Object.fromEntries(pares.filter(([, v]) => v)) as Record<string, {
+    estado: string; usd: number | null; cobros: unknown; detalle: Record<string, number> | null; uso: Record<string, number> | null }>;
 }

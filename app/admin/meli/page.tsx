@@ -212,7 +212,8 @@ async function costosRecientes(organizacionId: string) {
     .map((r) => ({ ts: f.ts, ruta: r.ruta, ...(r.datos as { run_id: string | null; paginas: number }) })))
     .filter((c) => c.run_id);
   const finales = await costosFinales(corridas.map((c) => c.run_id!));
-  return corridas.map((c) => ({ ...c, usd: finales[c.run_id!]?.usd ?? null }));
+  return corridas.map((c) => ({ ...c, usd: finales[c.run_id!]?.usd ?? null,
+    detalle: finales[c.run_id!]?.detalle ?? null, uso: finales[c.run_id!]?.uso ?? null }));
 }
 
 function Resultado({ r }: { r: Respuesta }) {
@@ -352,7 +353,7 @@ export default async function Meli({ searchParams }: {
               </tr>
             </thead>
             <tbody>
-              {costos.map((c) => (
+              {costos.flatMap((c) => [
                 <tr key={c.run_id} className="border-t border-[#E3E9F0]">
                   <td className="py-1">
                     {c.ts.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" })}{" "}
@@ -361,8 +362,14 @@ export default async function Meli({ searchParams }: {
                   <td className="py-1 text-right">{c.paginas}</td>
                   <td className="py-1 text-right">{c.usd === null ? "?" : c.usd.toFixed(4)}</td>
                   <td className="py-1 text-right">{c.usd === null ? "?" : (c.usd / c.paginas).toFixed(4)}</td>
-                </tr>
-              ))}
+                </tr>,
+                <tr key={`${c.run_id}-detalle`}>
+                  <td colSpan={4} className="pb-2 text-[11px] text-[#5C6B76]">
+                    {Object.entries(c.detalle ?? {}).filter(([, v]) => v).map(([k, v]) =>
+                      `${k}: USD ${v.toFixed(4)}${c.uso?.[k] !== undefined ? ` (${c.uso[k]})` : ""}`).join(" · ") || "sin desglose"}
+                  </td>
+                </tr>,
+              ])}
             </tbody>
           </table>
         )}
