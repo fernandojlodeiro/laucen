@@ -8,6 +8,7 @@ import { meliPruebas } from "@/db/meli";
 import { credenciales, cuentaDe, tokenVigente, llamar, redirectUri, type Respuesta } from "@/lib/meli";
 import { SUAVE, VERDE, PRIMARIO } from "@/app/botones";
 import { leerPaginas, aLink } from "@/lib/meli-pagina";
+import BotonLeer from "./BotonLeer";
 import { costosFinales } from "@/lib/apify";
 import { and, desc, eq, like } from "drizzle-orm";
 
@@ -338,7 +339,7 @@ export default async function Meli({ searchParams }: {
           <textarea name="paginas" defaultValue={paginas} rows={3}
             placeholder={"https://www.mercadolibre.com.ar/…/up/MLAU…"}
             className="border border-[#E3E9F0] rounded-lg px-3 py-2 w-full text-sm mb-2" />
-          <button className={PRIMARIO}>Leer</button>
+          <BotonLeer />
         </form>
         {costos.length > 0 && (
           <table className="w-full text-xs mt-4">

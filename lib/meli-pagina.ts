@@ -5,8 +5,9 @@
 // proxy residencial de Argentina, como el piloto (lib/piloto/ml.ts).
 //
 // Para gastar menos (Fer, 30/9: cada página costaba USD 0,04 a 0,05): varias
-// publicaciones en una sola corrida, Chrome sin bajar fotos ni CSS (el proxy
-// residencial cobra por lo que se baja) y 1 GB de memoria (usaba ~600 MB).
+// publicaciones en una sola corrida, de a una por vez, y 1 GB de memoria (usaba
+// ~600 MB). Chrome sin fotos ni CSS (downloadMedia/downloadCss en false) no
+// sirvió: ML devolvió la página anti-bot en todas (pruebas 30 y 31).
 
 import { correrConEntrada } from "@/lib/apify";
 
@@ -95,8 +96,8 @@ export async function leerPaginas(urls: string[]): Promise<LecturaPagina[]> {
     if (!faltan.length) break;
     const t0 = Date.now();
     const c = await correrConEntrada("apify~web-scraper", {
-      startUrls: faltan.map((url) => ({ url })), maxRequestsPerCrawl: faltan.length, maxConcurrency: 2, maxRequestRetries: 3,
-      pageFunction, injectJQuery: false, downloadMedia: false, downloadCss: false, proxyConfiguration: x.proxy,
+      startUrls: faltan.map((url) => ({ url })), maxRequestsPerCrawl: faltan.length, maxConcurrency: 1, maxRequestRetries: 3,
+      pageFunction, injectJQuery: false, proxyConfiguration: x.proxy,
     }, { max: faltan.length, esperaSeg: 200, topeUsd: 0.1 * faltan.length, memoria: 1024 })
       .catch((e) => ({ items: [], error: String(e), runId: undefined }));
     const items = (c.items ?? []) as Record<string, unknown>[];
