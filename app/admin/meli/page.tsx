@@ -7,7 +7,9 @@ import { db } from "@/db";
 import { meliPruebas } from "@/db/meli";
 import { credenciales, cuentaDe, tokenVigente, llamar, redirectUri, type Respuesta } from "@/lib/meli";
 import { SUAVE, VERDE, PRIMARIO } from "@/app/botones";
-import { leerPagina, conCostoFinal } from "@/lib/meli-pagina";
+import { leerPaginas } from "@/lib/meli-pagina";
+import { costosFinales } from "@/lib/apify";
+import { and, desc, eq, like } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -167,16 +169,31 @@ async function correrCompetencia(texto: string, token: string | null): Promise<R
   return out;
 }
 
-/** Lee con Apify la página de hasta 2 publicaciones (a la vez) y deja el costo de cada lectura. */
+/** Lee con Apify la página de hasta 5 publicaciones en una sola corrida. */
 async function correrPaginas(texto: string): Promise<Respuesta[]> {
-  const urls = [...new Set(texto.split(/\s+/).filter((l) => /^https?:\/\/\S*mercadolibre\.com\.ar\//i.test(l)))].slice(0, 2);
+  const urls = [...new Set(texto.split(/\s+/).filter((l) => /^https?:\/\/\S*mercadolibre\.com\.ar\//i.test(l)))].slice(0, 5);
   if (!urls.length) return [{ ruta: "(páginas)", status: 0, datos: "Pegá links de Mercado Libre (https://…mercadolibre.com.ar/…)." }];
-  const lecturas = await conCostoFinal((await Promise.all(urls.map(leerPagina))).flat());
-  return lecturas.map((l) => ({
-    ruta: `Apify ${l.intento} · ${l.url} · USD ${l.costoUsd ?? "?"} · ${l.segundos} s`,
-    status: l.datos ? 200 : 0,
-    datos: l.datos ?? l.error ?? "sin resultado",
-  }));
+  const out: Respuesta[] = [];
+  for (const c of await leerPaginas(urls)) {
+    out.push({ ruta: `(corrida) Apify ${c.intento} · ${c.urls.length} página(s) · ${c.segundos} s`, status: c.runId ? 200 : 0,
+      datos: { run_id: c.runId ?? null, paginas: c.urls.length, error: c.error ?? null } });
+    for (const it of c.items) out.push({ ruta: `Apify ${c.intento} · ${String(it.url ?? "")}`, status: it.item_id || it.precio ? 200 : 0, datos: it });
+  }
+  return out;
+}
+
+/** Costo final de las últimas corridas, releído de Apify (el que se ve al
+ *  terminar queda corto: Apify asienta el cobro un rato después). */
+async function costosRecientes(organizacionId: string) {
+  const filas = await db.select().from(meliPruebas)
+    .where(and(eq(meliPruebas.organizacionId, organizacionId), like(meliPruebas.consulta, "apify-pagina:%")))
+    .orderBy(desc(meliPruebas.id)).limit(8);
+  const corridas = filas.flatMap((f) => ((f.resultados as Respuesta[]) ?? [])
+    .filter((r) => r.ruta.startsWith("(corrida)"))
+    .map((r) => ({ ts: f.ts, ruta: r.ruta, ...(r.datos as { run_id: string | null; paginas: number }) })))
+    .filter((c) => c.run_id);
+  const finales = await costosFinales(corridas.map((c) => c.run_id!));
+  return corridas.map((c) => ({ ...c, usd: finales[c.run_id!]?.usd ?? null }));
 }
 
 function Resultado({ r }: { r: Respuesta }) {
@@ -211,6 +228,7 @@ export default async function Meli({ searchParams }: {
   const paginas = sp.paginas?.trim() ?? "";
 
   let resultados: Respuesta[] = [];
+  const costos = await costosRecientes(sesion.org.id).catch(() => []);
   let problemaLlave = "";
   if (paginas) {
     resultados = await correrPaginas(paginas);
@@ -291,8 +309,8 @@ export default async function Meli({ searchParams }: {
       <section className="border border-[#E3E9F0] rounded-lg p-4 mb-6 bg-white text-sm">
         <h2 className="font-bold mb-1">5. Leer la página con Apify</h2>
         <p className="text-xs text-[#5C6B76] mb-3">
-          Para las publicaciones comunes ajenas, que la API no deja ver. Pegá hasta 2 links, uno por renglón:
-          trae precio, vendedor, vendidos, disponibles y si está pausada, con el costo de cada lectura. Tarda uno o dos minutos.
+          Para las publicaciones comunes ajenas, que la API no deja ver. Pegá hasta 5 links, uno por renglón (se leen todos en una corrida):
+          trae precio, vendedor, vendidos, disponibles y si está pausada. Tarda uno o dos minutos.
         </p>
         <form>
           <textarea name="paginas" defaultValue={paginas} rows={3}
@@ -300,6 +318,31 @@ export default async function Meli({ searchParams }: {
             className="border border-[#E3E9F0] rounded-lg px-3 py-2 w-full text-sm mb-2" />
           <button className={PRIMARIO}>Leer</button>
         </form>
+        {costos.length > 0 && (
+          <table className="w-full text-xs mt-4">
+            <thead>
+              <tr className="text-[#5C6B76] text-left">
+                <th className="font-normal py-1">Corrida</th>
+                <th className="font-normal py-1 text-right">Páginas</th>
+                <th className="font-normal py-1 text-right">Costo final USD</th>
+                <th className="font-normal py-1 text-right">Por página</th>
+              </tr>
+            </thead>
+            <tbody>
+              {costos.map((c) => (
+                <tr key={c.run_id} className="border-t border-[#E3E9F0]">
+                  <td className="py-1">
+                    {c.ts.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" })}{" "}
+                    <code>{c.run_id}</code>
+                  </td>
+                  <td className="py-1 text-right">{c.paginas}</td>
+                  <td className="py-1 text-right">{c.usd === null ? "?" : c.usd.toFixed(4)}</td>
+                  <td className="py-1 text-right">{c.usd === null ? "?" : (c.usd / c.paginas).toFixed(4)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
 
       {problemaLlave && <p className="text-xs text-[#C03420] mb-2">{problemaLlave}</p>}

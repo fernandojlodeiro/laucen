@@ -162,7 +162,7 @@ const MEMORIA: Record<string, number> = {
  *  gasto; espera hasta `esperaSeg` y, si no terminó, lo aborta para que no
  *  siga gastando. Nunca tira. */
 export async function correrConEntrada(actor: string, entrada: Record<string, unknown>,
-  { max, esperaSeg, topeUsd }: { max: number; esperaSeg: number; topeUsd: number }): Promise<Corrida> {
+  { max, esperaSeg, topeUsd, memoria }: { max: number; esperaSeg: number; topeUsd: number; memoria?: number }): Promise<Corrida> {
   const token = apifyToken();
   if (!token) return { costoUsd: null, items: [], error: "Falta APIFY_TOKEN" };
   const t0 = Date.now();
@@ -175,7 +175,7 @@ export async function correrConEntrada(actor: string, entrada: Record<string, un
     for (let intento = 0; ; intento++) {
       r = await fetch(
         `${API}/acts/${actor}/runs?token=${token}&maxItems=${max}&maxTotalChargeUsd=${topeUsd}&waitForFinish=60` +
-          (MEMORIA[actor] ? `&memory=${MEMORIA[actor]}` : ""),
+          ((memoria ?? MEMORIA[actor]) ? `&memory=${memoria ?? MEMORIA[actor]}` : ""),
         { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(entrada), cache: "no-store" },
       );
       cuerpo = await r.json().catch(() => null);
