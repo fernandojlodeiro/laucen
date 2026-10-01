@@ -26,6 +26,10 @@ no la primera.
 - **Importaciones** (`/importaciones`): despachos de importación argentinos de ARCA +
   enriquecimiento con Softrade. La orden original de Cowork está en
   `docs/orden-arca-importaciones.md`; los pasos de carga para Code, en `scripts/arca/LEEME.md`.
+- **Cimiento del ERP** (orden 136, `docs/136-laucen-cimiento.md`): el sistema de gestión que
+  reemplaza a Virtual Seller — menú (`lib/menu.ts`), catálogo, precios, stock, canales,
+  clientes, pedidos, API (`/api/pedidos`, `/api/catalogo`), tipo de cambio, importar. El contrato
+  de la API y de las funciones únicas está en la bitácora, hilo "136 — Cimiento".
 - **Coordinación** (`/admin/bitacora`, `/admin/para-probar`): bitácora y "para probar", sólo
   Fer. → sección "Coordinación entre sesiones" de este archivo
 - **Falta**: la búsqueda en China (Alibaba/1688) y el cruce con Mercado Libre.
