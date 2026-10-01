@@ -13,6 +13,10 @@ export const RUTAS_PUBLICAS = [
   "/api/china/foto",
   "/api/piloto/tanda",
   "/api/costos-ml/cron",
+  "/api/tipo-cambio/cron",
+  // La API del cimiento: se autentica con el token de cada canal, no con la sesión.
+  "/api/pedidos",
+  "/api/catalogo",
 ];
 
 /** La landing ("/") es pública y es la única ruta exacta que no pide login;

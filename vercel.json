@@ -1,6 +1,16 @@
 {
   "crons": [
-    { "path": "/api/radar/cron", "schedule": "0 11 * * *" },
-    { "path": "/api/costos-ml/cron", "schedule": "30 9 * * *" }
+    {
+      "path": "/api/radar/cron",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/costos-ml/cron",
+      "schedule": "30 9 * * *"
+    },
+    {
+      "path": "/api/tipo-cambio/cron",
+      "schedule": "15 19 * * *"
+    }
   ]
 }
