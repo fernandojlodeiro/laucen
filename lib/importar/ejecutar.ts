@@ -431,11 +431,15 @@ export async function ejecutarImportacion(org: string, importacionId: number, us
   const faltan = faltanObligatorios(destino, imp.mapeo);
   if (faltan.length) throw new ErrorErp(`Falta mapear: ${faltan.join(", ")}.`);
 
-  // Un candado por importación: dos pestañas no la procesan a la vez.
+  // Un candado por importación: dos pestañas no la procesan a la vez. Va en
+  // una transacción abierta mientras dura el lote (el pooler de Supabase
+  // reparte las consultas sueltas entre conexiones: un candado de sesión
+  // podría quedar colgado; el de transacción se suelta solo al terminar).
   const candado = await pool.connect();
   let procesadas = 0;
   try {
-    const ok = await candado.query<{ ok: boolean }>("select pg_try_advisory_lock(hashtext('importacion'), $1::int) ok", [importacionId]);
+    await candado.query("begin");
+    const ok = await candado.query<{ ok: boolean }>("select pg_try_advisory_xact_lock(hashtext('importacion'), $1::int) ok", [importacionId]);
     if (!ok.rows[0].ok) throw new ErrorErp("Esta importación ya se está ejecutando (¿en otra pestaña?). Esperá que termine.");
     try {
       await consulta("update importacion set estado = 'ejecutando' where id = $1 and organizacion_id = $2", [importacionId, org]);
@@ -485,9 +489,11 @@ export async function ejecutarImportacion(org: string, importacionId: number, us
         }
       }
     } finally {
-      await candado.query("select pg_advisory_unlock(hashtext('importacion'), $1::int)", [importacionId]).catch(() => {});
+      await candado.query("commit").catch(() => {});
     }
   } finally {
+    // Si no consiguió el candado, la transacción quedó abierta: se cierra acá.
+    await candado.query("rollback").catch(() => {});
     candado.release();
   }
   const t = await actualizarTotales(org, importacionId);
