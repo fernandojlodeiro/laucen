@@ -1,4 +1,4 @@
-// Lee un .xlsx y deja sus filas en `importacion_fila` (una por renglón, como
+// Lee un .xlsx o un .csv y deja sus filas en `importacion_fila` (una por renglón, como
 // {columna: valor}). Fechas → texto ISO, números → número, el resto → texto.
 // Los inserts van de a lotes para aguantar decenas de miles de filas.
 
@@ -90,6 +90,74 @@ export function leerHoja(hoja: ExcelJS.Worksheet): Hoja {
     if (alguno) filas.push({ n, datos });
   });
   return { columnas, filas };
+}
+
+/** Lee un .csv: detecta la codificación (UTF-8, o si no Windows-1252, como
+ *  exporta Excel en castellano) y el separador (";" como lo guarda Excel en
+ *  Argentina, "," o tabulador). Respeta comillas ("a; b" es un solo valor, ""
+ *  es una comilla). La primera fila son los encabezados. Los valores quedan
+ *  como texto: después se leen como número o fecha según el campo ("1.234,5",
+ *  "15/03/2026"). */
+export function leerCsv(contenido: ArrayBuffer): Hoja {
+  let texto: string;
+  try {
+    texto = new TextDecoder("utf-8", { fatal: true }).decode(contenido);
+  } catch {
+    texto = new TextDecoder("windows-1252").decode(contenido);
+  }
+  texto = texto.replace(/^\uFEFF/, "");
+  const primera = texto.slice(0, texto.search(/\r?\n/) >>> 0 || texto.length);
+  const contar = (c: string) => primera.split(c).length - 1;
+  const sep = [";", ",", "\t"].reduce((a, b) => (contar(b) > contar(a) ? b : a));
+
+  const filas: string[][] = [];
+  let fila: string[] = [];
+  let campo = "";
+  let comillas = false;
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto[i];
+    if (comillas) {
+      if (c === '"') {
+        if (texto[i + 1] === '"') { campo += '"'; i++; } else comillas = false;
+      } else campo += c;
+    } else if (c === '"' && campo === "") comillas = true;
+    else if (c === sep) { fila.push(campo); campo = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && texto[i + 1] === "\n") i++;
+      fila.push(campo); filas.push(fila); fila = []; campo = "";
+    } else campo += c;
+  }
+  if (campo !== "" || fila.length) { fila.push(campo); filas.push(fila); }
+
+  const encabezado = filas[0] ?? [];
+  const columnas: string[] = [];
+  const indices: number[] = [];
+  const usados = new Map<string, number>();
+  const ancho = Math.max(0, ...filas.map((f) => f.length));
+  for (let i = 0; i < ancho; i++) {
+    let nombre = (limpiar(encabezado[i] ?? "") ?? "").replace(/\s+/g, " ");
+    if (!nombre) {
+      if (!filas.slice(1).some((f) => limpiar(f[i] ?? ""))) continue;
+      nombre = `Columna ${i + 1}`;
+    }
+    const veces = (usados.get(nombre) ?? 0) + 1;
+    usados.set(nombre, veces);
+    columnas.push(veces > 1 ? `${nombre} (${veces})` : nombre);
+    indices.push(i);
+  }
+  if (!columnas.length) throw new ErrorErp("La primera fila del archivo está vacía: tiene que tener los nombres de las columnas.");
+
+  const salida: Hoja["filas"] = [];
+  filas.slice(1).forEach((f, k) => {
+    const datos: Record<string, Valor> = {};
+    let alguno = false;
+    indices.forEach((i, j) => {
+      const v = limpiar(f[i] ?? "");
+      if (v != null) { datos[columnas[j]] = v; alguno = true; }
+    });
+    if (alguno) salida.push({ n: k + 2, datos });
+  });
+  return { columnas, filas: salida };
 }
 
 /** Crea la importación con sus filas y devuelve su id. El mapeo arranca con

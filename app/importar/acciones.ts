@@ -9,7 +9,7 @@ import { consulta, motivoErp, ErrorErp } from "@/lib/erp/base";
 import { intentar, id } from "@/lib/erp/acciones";
 import { supabaseServer } from "@/lib/supabase";
 import { esDestino } from "@/lib/importar/campos";
-import { abrirLibro, leerHoja, guardarImportacion } from "@/lib/importar/leer";
+import { abrirLibro, leerHoja, leerCsv, guardarImportacion } from "@/lib/importar/leer";
 
 export type ResultadoLectura = { id: number } | { hojas: string[] } | { motivo: string };
 
@@ -25,6 +25,13 @@ export async function accionLeerArchivo(args: { ruta: string; archivo: string; d
     const sb = await supabaseServer();
     const { data, error } = await sb.storage.from("importaciones").download(args.ruta);
     if (error || !data) throw new ErrorErp("No se pudo bajar el archivo que subiste. Probá de nuevo.");
+    if (/\.csv$/i.test(args.ruta)) {
+      const nuevo = await guardarImportacion(s.org.id, {
+        destino: args.destino, archivo: args.archivo.slice(0, 200), ruta: args.ruta, hoja: "CSV", datos: leerCsv(await data.arrayBuffer()), usuarioId: s.usuario.id,
+      });
+      revalidatePath("/importar");
+      return { id: nuevo };
+    }
     const libro = await abrirLibro(await data.arrayBuffer());
     const nombres = libro.worksheets.map((h) => h.name);
     if (nombres.length > 1 && !args.hoja) return { hojas: nombres };
