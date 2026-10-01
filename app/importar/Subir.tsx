@@ -38,7 +38,7 @@ export default function Subir({ organizacionId, destinos }: { organizacionId: st
     if (!destino) { setMotivo("Elegí qué querés importar."); return; }
     if (subido) { await leer(subido.ruta, subido.nombre, hoja); return; }
     if (!archivo) { setMotivo("Elegí el archivo."); return; }
-    if (!/\.(xlsx|csv)$/i.test(archivo.name)) { setMotivo("Tiene que ser un Excel .xlsx o un .csv (si es .xls viejo, abrilo y guardalo como .xlsx o .csv)."); return; }
+    if (!/\.(xlsx|xls|csv)$/i.test(archivo.name)) { setMotivo("Tiene que ser un Excel (.xlsx o el .xls que exporta Virtual Seller) o un .csv."); return; }
     setPaso("subiendo");
     const r = await subirArchivo("importaciones", organizacionId, archivo, "importar");
     if ("motivo" in r && r.motivo) { setPaso(""); setMotivo(r.motivo); return; }
@@ -54,8 +54,8 @@ export default function Subir({ organizacionId, destinos }: { organizacionId: st
           {destinos.map((d) => <option key={d.clave} value={d.clave}>{d.nombre}</option>)}
         </select></label>
       {!subido ? (
-        <label><span className={ETIQUETA}>Archivo Excel (.xlsx) o .csv</span>
-          <input type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" disabled={ocupado}
+        <label><span className={ETIQUETA}>Archivo Excel (.xlsx / .xls) o .csv</span>
+          <input type="file" accept=".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" disabled={ocupado}
             onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} className="text-xs" /></label>
       ) : (
         <label><span className={ETIQUETA}>El archivo tiene varias hojas: ¿cuál?</span>

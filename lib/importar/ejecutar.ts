@@ -12,6 +12,7 @@ import type { PoolClient } from "pg";
 import { pool } from "@/db";
 import { consulta, una, enTransaccion, ErrorErp, motivoErp, type Consultor } from "@/lib/erp/base";
 import { leerNumero } from "@/lib/numeros";
+import { condicionIva, documentoValido, normalizarCuit, separarNombre, tipoDocumento } from "@/lib/clientes";
 import { guardarPrecio } from "@/lib/precios";
 import { moverStock } from "@/lib/stock";
 import { crearPedido, type LineaEntrada } from "@/lib/pedidos";
@@ -92,25 +93,6 @@ export function leerFecha(v: Valor): string | null {
 }
 
 const digitos = (s: string | null) => (s ? s.replace(/\D/g, "") : "");
-
-function tipoDocumento(tipo: string | null, numero: string | null): string | null {
-  const t = tipo?.toUpperCase().trim();
-  if (t) return ["DNI", "CUIT", "CUIL", "PASAPORTE", "OTRO"].includes(t) ? t : t.startsWith("PAS") ? "PASAPORTE" : "OTRO";
-  const d = digitos(numero);
-  if (!d) return null;
-  return d.length === 11 ? "CUIT" : d.length >= 7 && d.length <= 8 ? "DNI" : "OTRO";
-}
-
-function condicionIva(v: string | null): string | null {
-  const t = v?.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[._]/g, " ").trim();
-  if (!t) return null;
-  if (t.includes("inscripto") || t === "ri" || t === "r i") return "responsable_inscripto";
-  if (t.includes("monotrib") || t === "mt" || t === "rs") return "monotributo";
-  if (t.includes("exento") || t === "ex") return "exento";
-  if (t.includes("no responsable") || t === "nr") return "no_responsable";
-  if (t.includes("consumidor") || t === "cf") return "consumidor_final";
-  return null;
-}
 
 // ── Lo que se crea solo (fuera de la transacción de la fila) ─
 
@@ -247,52 +229,90 @@ async function filaProducto(c: PoolClient, ctx: Ctx, d: Record<string, Valor>): 
 }
 
 async function filaCliente(c: PoolClient, ctx: Ctx, d: Record<string, Valor>): Promise<string> {
-  const nombre = txt(get(ctx, d, "nombre"));
+  const razon = txt(get(ctx, d, "razon_social"));
+  const nombre = txt(get(ctx, d, "nombre")) ?? razon;
   if (!nombre) throw new ErrorErp("Falta el nombre.");
-  const tipoTxt = txt(get(ctx, d, "tipo"));
-  const tipo = tipoTxt ? (tipoTxt.toLowerCase().includes("mayor") ? "mayorista" : "consumidor_final") : null;
+  const tipoTxt = txt(get(ctx, d, "tipo"))?.toLowerCase() ?? null;
+  if (tipoTxt?.includes("proveedor")) throw new ErrorErp(`Es "${txt(get(ctx, d, "tipo"))}": los proveedores no van con los clientes.`);
+  const tipo = tipoTxt ? (tipoTxt.includes("mayor") ? "mayorista" : "consumidor_final") : null;
   const email = txt(get(ctx, d, "email"))?.toLowerCase() ?? null;
-  const docNum = txt(get(ctx, d, "documento_numero"));
-  const docTipo = tipoDocumento(txt(get(ctx, d, "documento_tipo")), docNum);
   const ivaTxt = txt(get(ctx, d, "condicion_iva"));
   const iva = condicionIva(ivaTxt);
-  const nota = ivaTxt && !iva ? ` (condición IVA "${ivaTxt}" no reconocida: quedó sin cargar)` : "";
+  const avisos: string[] = [];
+  if (ivaTxt && !iva) avisos.push(`condición IVA "${ivaTxt}" no reconocida`);
 
+  // Documento: Virtual Seller a veces trae el número en "Tipo Documento", o
+  // un CUIT como documento, o números de relleno (1111111).
+  let docTipoTxt = txt(get(ctx, d, "documento_tipo"));
+  let docNumTxt = txt(get(ctx, d, "documento_numero"));
+  if (docTipoTxt && /^\d[\d.\- ]*$/.test(docTipoTxt) && !docNumTxt) { docNumTxt = docTipoTxt; docTipoTxt = null; }
+  const docNum = documentoValido(docNumTxt);
+  if (docNumTxt && !docNum) avisos.push(`documento "${docNumTxt}" ignorado (de relleno)`);
+  const cuitTxt = txt(get(ctx, d, "cuit"));
+  let cuit = normalizarCuit(cuitTxt);
+  if (cuitTxt && !cuit) avisos.push(`CUIT "${cuitTxt}" sin 11 dígitos: quedó sin cargar`);
+  if (!cuit && docNum?.length === 11) cuit = normalizarCuit(docNum);
+  const docTipo = docNum ? tipoDocumento(docTipoTxt, docNum) : null;
+  const apodo = txt(get(ctx, d, "apodo_ml"));
+  const partes = separarNombre(nombre);
+
+  // ¿Ya existe? CUIT → DNI → apodo de ML → mail.
   let id: number | null = null;
-  const doc = digitos(docNum);
-  if (doc) {
-    const r = await c.query<{ id: string }>("select id from cliente where organizacion_id = $1 and regexp_replace(documento_numero, '\\D', '', 'g') = $2 order by id limit 1", [ctx.org, doc]);
+  const buscar = async (sql: string, v: string) => {
+    if (id) return;
+    const r = await c.query<{ id: string }>(sql, [ctx.org, v]);
     if (r.rows[0]) id = Number(r.rows[0].id);
-  } else if (email) {
-    const r = await c.query<{ id: string }>("select id from cliente where organizacion_id = $1 and lower(email) = $2 order by id limit 1", [ctx.org, email]);
-    if (r.rows[0]) id = Number(r.rows[0].id);
-  }
-  const valores = [ctx.org, nombre, tipo, email, txt(get(ctx, d, "telefono")), docTipo, docNum, iva];
+  };
+  if (cuit) await buscar("select id from cliente where organizacion_id = $1 and regexp_replace(coalesce(cuit, ''), '\\D', '', 'g') = regexp_replace($2, '\\D', '', 'g') order by id limit 1", cuit);
+  if (docNum) await buscar("select id from cliente where organizacion_id = $1 and regexp_replace(documento_numero, '\\D', '', 'g') = $2 order by id limit 1", docNum);
+  if (apodo) await buscar("select id from cliente where organizacion_id = $1 and lower(apodo_ml) = lower($2) order by id limit 1", apodo);
+  if (email) await buscar("select id from cliente where organizacion_id = $1 and lower(email) = $2 order by id limit 1", email);
+
+  // Toda la fila original, para no perder ninguna columna.
+  const crudo = JSON.stringify({ virtual_seller: d });
+  const valores = [ctx.org, nombre, tipo, email, txt(get(ctx, d, "telefono")), docTipo, docNum, iva,
+    razon, cuit, apodo, txt(get(ctx, d, "telefono_movil")), partes.nombre, partes.apellido,
+    txt(get(ctx, d, "notas")), crudo];
   const creado = !id;
   if (id) {
     await c.query(`
       update cliente set nombre = $2, tipo = coalesce($3, tipo), email = coalesce($4, email), telefono = coalesce($5, telefono),
              documento_tipo = coalesce($6, documento_tipo), documento_numero = coalesce($7, documento_numero),
-             condicion_iva = coalesce($8, condicion_iva)
-       where id = $9 and organizacion_id = $1`, [...valores, id]);
+             condicion_iva = coalesce($8, condicion_iva), razon_social = coalesce($9, razon_social), cuit = coalesce($10, cuit),
+             apodo_ml = coalesce($11, apodo_ml), telefono_movil = coalesce($12, telefono_movil),
+             nombre_pila = coalesce($13, nombre_pila), apellido = coalesce($14, apellido),
+             notas = coalesce($15, notas), datos_externos = datos_externos || $16::jsonb
+       where id = $17 and organizacion_id = $1`, [...valores, id]);
   } else {
     const r = await c.query<{ id: string }>(`
-      insert into cliente (organizacion_id, nombre, tipo, email, telefono, documento_tipo, documento_numero, condicion_iva)
-      values ($1, $2, coalesce($3, 'consumidor_final'), $4, $5, $6, $7, $8) returning id`, valores);
+      insert into cliente (organizacion_id, nombre, tipo, email, telefono, documento_tipo, documento_numero, condicion_iva,
+                           razon_social, cuit, apodo_ml, telefono_movil, nombre_pila, apellido, notas, datos_externos)
+      values ($1, $2, coalesce($3, 'consumidor_final'), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb) returning id`, valores);
     id = Number(r.rows[0].id);
   }
 
-  const dir = ["calle", "numero", "localidad", "provincia", "codigo_postal"].map((k) => txt(get(ctx, d, k)));
-  if (dir.some(Boolean)) {
-    // No repite una dirección que ya tiene (misma calle, número y localidad).
+  // Direcciones: la principal (fiscal) y, si es otra, la de envío. No repite
+  // una que ya tiene (misma calle, número y localidad).
+  const pais = txt(get(ctx, d, "pais"));
+  const paisId = !pais || /^argentina$|^ar$/i.test(pais) ? "AR" : pais.slice(0, 2).toUpperCase();
+  const agregarDireccion = async (etiqueta: string, calle: string | null, numero: string | null, localidad: string | null, provincia: string | null, cp: string | null) => {
+    if (![calle, numero, localidad, provincia, cp].some(Boolean)) return;
     await c.query(`
-      insert into cliente_direccion (organizacion_id, cliente_id, calle, numero, localidad, provincia, codigo_postal, principal)
-      select $1, $2, $3, $4, $5, $6, $7, not exists (select 1 from cliente_direccion where cliente_id = $2)
+      insert into cliente_direccion (organizacion_id, cliente_id, etiqueta, calle, numero, localidad, provincia, codigo_postal, pais, principal)
+      select $1, $2, $3, $4, $5, $6, $7, $8, $9, not exists (select 1 from cliente_direccion where cliente_id = $2)
        where not exists (select 1 from cliente_direccion where cliente_id = $2
-                           and lower(coalesce(calle, '')) = lower(coalesce($3, '')) and coalesce(numero, '') = coalesce($4, '')
-                           and lower(coalesce(localidad, '')) = lower(coalesce($5, '')))`, [ctx.org, id, ...dir]);
-  }
-  return (creado ? "Creado" : "Actualizado") + nota;
+                           and lower(coalesce(calle, '')) = lower(coalesce($4, '')) and coalesce(numero, '') = coalesce($5, '')
+                           and lower(coalesce(localidad, '')) = lower(coalesce($6, '')))`,
+      [ctx.org, id, etiqueta, calle, numero, localidad, provincia, cp, paisId]);
+  };
+  const calle = txt(get(ctx, d, "calle"));
+  const localidad = txt(get(ctx, d, "localidad"));
+  const provincia = txt(get(ctx, d, "provincia"));
+  await agregarDireccion("Fiscal", calle, txt(get(ctx, d, "numero")), localidad, provincia, txt(get(ctx, d, "codigo_postal")));
+  const envio = txt(get(ctx, d, "direccion_envio"));
+  if (envio && envio.toLowerCase() !== calle?.toLowerCase()) await agregarDireccion("Envío", envio, null, null, null, null);
+
+  return (creado ? "Creado" : "Actualizado") + (avisos.length ? ` (${avisos.join("; ")})` : "");
 }
 
 async function filaStock(c: PoolClient, ctx: Ctx, d: Record<string, Valor>): Promise<string> {

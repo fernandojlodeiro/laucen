@@ -7,7 +7,7 @@ import { consulta, una } from "@/lib/erp/base";
 import { listasDePrecios } from "@/lib/precios";
 import { enVista } from "@/lib/moneda";
 import { ESTADOS_PEDIDO, type EstadoPedido } from "@/lib/pedidos";
-import { VERDE, SUAVE } from "@/app/botones";
+import { VERDE, SUAVE, DESPLEGABLE, FLECHA } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
@@ -25,10 +25,13 @@ type SP = { editar?: string; ok?: string; error?: string };
 type Cliente = {
   id: number; nombre: string; tipo: string; email: string | null; telefono: string | null; documento_tipo: string | null;
   documento_numero: string | null; condicion_iva: string | null; lista_precios_id: number | null; notas: string | null; creado_ts: Date;
+  razon_social: string | null; cuit: string | null; apodo_ml: string | null; telefono_movil: string | null;
+  nombre_pila: string | null; apellido: string | null; datos_externos: Record<string, Record<string, unknown>>;
 };
 type Direccion = {
   id: number; etiqueta: string | null; calle: string | null; numero: string | null; piso_depto: string | null; localidad: string | null;
   provincia: string | null; codigo_postal: string | null; pais: string; principal: boolean;
+  receptor: string | null; receptor_telefono: string | null; referencia: string | null;
 };
 
 const CAMPOS_DIR = [
@@ -43,14 +46,16 @@ export default async function FichaCliente({ params, searchParams }: { params: P
   const cid = Number(id);
   if (!Number.isInteger(cid) || cid <= 0) notFound();
   const c = await una<Cliente>(`
-    select id::int, nombre, tipo, email, telefono, documento_tipo, documento_numero, condicion_iva, lista_precios_id::int, notas, creado_ts
+    select id::int, nombre, tipo, email, telefono, documento_tipo, documento_numero, condicion_iva, lista_precios_id::int, notas, creado_ts,
+           razon_social, cuit, apodo_ml, telefono_movil, nombre_pila, apellido, datos_externos
       from cliente where id = $1 and organizacion_id = $2`, [cid, s.org.id]);
   if (!c) notFound();
   const editar = Number(sp.editar) || 0;
 
   const [direcciones, identidades, pedidos, listas] = await Promise.all([
     consulta<Direccion>(`
-      select id::int, etiqueta, calle, numero, piso_depto, localidad, provincia, codigo_postal, pais, principal
+      select id::int, etiqueta, calle, numero, piso_depto, localidad, provincia, codigo_postal, pais, principal,
+             receptor, receptor_telefono, referencia
         from cliente_direccion where cliente_id = $1 and organizacion_id = $2 order by principal desc, id`, [cid, s.org.id]),
     consulta<{ id: number; canal: string; id_externo: string }>(`
       select i.id::int, ca.nombre canal, i.id_externo from cliente_identidad i join canal ca on ca.id = i.canal_id
@@ -65,6 +70,9 @@ export default async function FichaCliente({ params, searchParams }: { params: P
   const direccionTexto = (d: Direccion) =>
     [[d.calle, d.numero].filter(Boolean).join(" "), d.piso_depto, d.localidad, d.provincia, d.codigo_postal && `CP ${d.codigo_postal}`, d.pais !== "AR" ? d.pais : null]
       .filter(Boolean).join(", ") || "—";
+  const extrasDireccion = (d: Direccion) =>
+    [d.receptor && `Recibe: ${d.receptor}${d.receptor_telefono ? ` (${d.receptor_telefono})` : ""}`, d.referencia && `Referencia: ${d.referencia}`].filter(Boolean).join(" · ");
+  const ORIGENES: Record<string, string> = { virtual_seller: "Virtual Seller", ml: "Mercado Libre" };
 
   return (
     <Pantalla titulo={c.nombre} subtitulo={<><Link href="/ventas/clientes" className="text-[#16577F] hover:underline">← Clientes</Link> · cliente desde el {fecha(c.creado_ts)}</>}
@@ -75,16 +83,28 @@ export default async function FichaCliente({ params, searchParams }: { params: P
 
       <form action={accionGuardarCliente} className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start mb-4`}>
         <input type="hidden" name="id" value={cid} />
-        <label className="sm:col-span-2"><span className={ETIQUETA}>Nombre o razón social</span>
+        <label className="sm:col-span-2"><span className={ETIQUETA}>Nombre (como se lo conoce)</span>
           <input name="nombre" defaultValue={c.nombre} className={`${CAMPO} w-full`} /></label>
         <label><span className={ETIQUETA}>Tipo</span>
           <select name="tipo" defaultValue={c.tipo} className={`${CAMPO} w-full`}>
             {Object.entries(TIPOS_CLIENTE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select></label>
+        <label className="sm:col-span-2"><span className={ETIQUETA}>Razón social (para facturar)</span>
+          <input name="razon_social" defaultValue={c.razon_social ?? ""} className={`${CAMPO} w-full`} /></label>
+        <label><span className={ETIQUETA}>CUIT</span>
+          <input name="cuit" defaultValue={c.cuit ?? ""} placeholder="20-12345678-9" className={`${CAMPO} w-full`} /></label>
+        <label><span className={ETIQUETA}>Apellido</span>
+          <input name="apellido" defaultValue={c.apellido ?? ""} className={`${CAMPO} w-full`} /></label>
+        <label><span className={ETIQUETA}>Nombre de pila</span>
+          <input name="nombre_pila" defaultValue={c.nombre_pila ?? ""} className={`${CAMPO} w-full`} /></label>
+        <label><span className={ETIQUETA}>Apodo en Mercado Libre</span>
+          <input name="apodo_ml" defaultValue={c.apodo_ml ?? ""} className={`${CAMPO} w-full`} /></label>
         <label><span className={ETIQUETA}>Mail</span>
           <input name="email" type="email" defaultValue={c.email ?? ""} className={`${CAMPO} w-full`} /></label>
         <label><span className={ETIQUETA}>Teléfono</span>
           <input name="telefono" defaultValue={c.telefono ?? ""} className={`${CAMPO} w-full`} /></label>
+        <label><span className={ETIQUETA}>Celular</span>
+          <input name="telefono_movil" defaultValue={c.telefono_movil ?? ""} className={`${CAMPO} w-full`} /></label>
         <div><span className={ETIQUETA}>Documento</span>
           <div className="flex gap-1">
             <select name="documento_tipo" defaultValue={c.documento_tipo ?? ""} className={CAMPO} aria-label="Tipo de documento">
@@ -104,11 +124,29 @@ export default async function FichaCliente({ params, searchParams }: { params: P
             {listas.map((l) => <option key={l.id} value={l.id}>{l.nombre}{l.estado === "archivada" ? " (archivada)" : ""}</option>)}
           </select>
           <span className="block text-[10px] text-[#5C6B76] mt-0.5">Para mayoristas. Vacío = la del canal.</span></label>
-        <div />
         <label className="sm:col-span-3"><span className={ETIQUETA}>Notas</span>
           <textarea name="notas" defaultValue={c.notas ?? ""} rows={2} className={`${CAMPO} w-full`} /></label>
         <div className="sm:col-span-3"><button className={VERDE}>Guardar</button></div>
       </form>
+
+      {Object.keys(c.datos_externos ?? {}).length > 0 && (
+        <details className="mb-4 group">
+          <summary className={DESPLEGABLE}>Datos originales (tal como llegaron) <span className={FLECHA}>▾</span></summary>
+          <div className="grid gap-3 sm:grid-cols-2 mt-2">
+            {Object.entries(c.datos_externos).map(([origen, datos]) => (
+              <section key={origen} className={CAJA}>
+                <h3 className="text-xs font-bold mb-1">{ORIGENES[origen] ?? origen}</h3>
+                <dl className="text-[11px] grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+                  {Object.entries(datos ?? {}).flatMap(([k, v]) => [
+                    <dt key={`k${k}`} className="text-[#5C6B76]">{k}</dt>,
+                    <dd key={`v${k}`} className="break-words">{typeof v === "object" ? JSON.stringify(v) : String(v)}</dd>,
+                  ])}
+                </dl>
+              </section>
+            ))}
+          </div>
+        </details>
+      )}
 
       <h2 className="text-sm font-bold mb-2">Direcciones</h2>
       <div className={`${CAJA_TABLA} mb-2`}>
@@ -131,7 +169,7 @@ export default async function FichaCliente({ params, searchParams }: { params: P
             ) : (
               <tr key={d.id} className={TR}>
                 <td className={TD}>{d.etiqueta ?? "—"}</td>
-                <td className={TD}>{direccionTexto(d)}</td>
+                <td className={TD}>{direccionTexto(d)}{extrasDireccion(d) && <span className="block text-[11px] text-[#5C6B76]">{extrasDireccion(d)}</span>}</td>
                 <td className={TD}>
                   {d.principal ? <Estado texto="Principal" tono="verde" /> : (
                     <form action={accionDireccionPrincipal}>

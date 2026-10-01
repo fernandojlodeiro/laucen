@@ -17,7 +17,7 @@ export async function abrirLibro(contenido: ArrayBuffer): Promise<ExcelJS.Workbo
   try {
     await libro.xlsx.load(contenido);
   } catch {
-    throw new ErrorErp("No se pudo leer el archivo. Tiene que ser un Excel .xlsx (si es .xls viejo, abrilo y guardalo como .xlsx).");
+    throw new ErrorErp("No se pudo leer el archivo. Tiene que ser un Excel .xlsx, el .xls que exporta Virtual Seller o un .csv (si es un .xls viejo de otro lado, abrilo y guardalo como .xlsx).");
   }
   if (!libro.worksheets.length) throw new ErrorErp("El archivo no tiene hojas.");
   return libro;
@@ -129,15 +129,43 @@ export function leerCsv(contenido: ArrayBuffer): Hoja {
   }
   if (campo !== "" || fila.length) { fila.push(campo); filas.push(fila); }
 
-  const encabezado = filas[0] ?? [];
+  const { columnas, indices } = columnasDe(filas[0] ?? [], filas.slice(1));
+  return filasDeTexto(columnas, indices, filas.slice(1));
+}
+
+/** Arma las filas de datos a partir de los renglones de texto. Los reportes
+ *  de Virtual Seller (Salesforce) terminan con un renglón vacío y un pie
+ *  ("Clientes y proveedores", "Copyright…", "Generado por…"): lo que viene
+ *  después del primer renglón vacío no se lee. */
+function filasDeTexto(columnas: string[], indices: number[], renglones: string[][]): Hoja {
+  const salida: Hoja["filas"] = [];
+  for (const [k, f] of renglones.entries()) {
+    const datos: Record<string, Valor> = {};
+    let alguno = false;
+    indices.forEach((i, j) => {
+      const v = limpiar(f[i] ?? "");
+      if (v != null) { datos[columnas[j]] = v; alguno = true; }
+    });
+    if (!alguno) {
+      if (salida.length) break;
+      continue;
+    }
+    salida.push({ n: k + 2, datos });
+  }
+  return { columnas, filas: salida };
+}
+
+/** Arma columnas e índices desde el renglón de encabezados (sin columnas
+ *  vacías; repetidos con "(2)"). */
+function columnasDe(encabezado: string[], renglones: string[][]) {
   const columnas: string[] = [];
   const indices: number[] = [];
   const usados = new Map<string, number>();
-  const ancho = Math.max(0, ...filas.map((f) => f.length));
+  const ancho = Math.max(encabezado.length, ...renglones.map((f) => f.length));
   for (let i = 0; i < ancho; i++) {
     let nombre = (limpiar(encabezado[i] ?? "") ?? "").replace(/\s+/g, " ");
     if (!nombre) {
-      if (!filas.slice(1).some((f) => limpiar(f[i] ?? ""))) continue;
+      if (!renglones.some((f) => limpiar(f[i] ?? ""))) continue;
       nombre = `Columna ${i + 1}`;
     }
     const veces = (usados.get(nombre) ?? 0) + 1;
@@ -146,18 +174,31 @@ export function leerCsv(contenido: ArrayBuffer): Hoja {
     indices.push(i);
   }
   if (!columnas.length) throw new ErrorErp("La primera fila del archivo está vacía: tiene que tener los nombres de las columnas.");
+  return { columnas, indices };
+}
 
-  const salida: Hoja["filas"] = [];
-  filas.slice(1).forEach((f, k) => {
-    const datos: Record<string, Valor> = {};
-    let alguno = false;
-    indices.forEach((i, j) => {
-      const v = limpiar(f[i] ?? "");
-      if (v != null) { datos[columnas[j]] = v; alguno = true; }
-    });
-    if (alguno) salida.push({ n: k + 2, datos });
-  });
-  return { columnas, filas: salida };
+/** ¿El archivo es en realidad una página HTML con una tabla? Así exporta
+ *  Virtual Seller sus "Excel" (.xls). */
+export function esHtml(contenido: ArrayBuffer): boolean {
+  const inicio = new TextDecoder("utf-8").decode(contenido.slice(0, 2048)).trimStart().toLowerCase();
+  return inicio.startsWith("<") && inicio.includes("<table") || inicio.startsWith("<html") || inicio.startsWith("<head");
+}
+
+const ENTIDADES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+const desescapar = (t: string) => t.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (m, e: string) =>
+  e[0] === "#" ? String.fromCodePoint(e[1].toLowerCase() === "x" ? parseInt(e.slice(2), 16) : Number(e.slice(1))) : ENTIDADES[e.toLowerCase()] ?? m);
+
+/** Lee la primera tabla de un "Excel" que es HTML. */
+export function leerHtml(contenido: ArrayBuffer): Hoja {
+  let texto: string;
+  try { texto = new TextDecoder("utf-8", { fatal: true }).decode(contenido); }
+  catch { texto = new TextDecoder("windows-1252").decode(contenido); }
+  const renglones = [...texto.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map((r) =>
+    [...r[1].matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi)].map((c) =>
+      desescapar(c[1].replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim()));
+  if (!renglones.length) throw new ErrorErp("El archivo no tiene ninguna tabla para leer.");
+  const { columnas, indices } = columnasDe(renglones[0], renglones.slice(1));
+  return filasDeTexto(columnas, indices, renglones.slice(1));
 }
 
 /** Crea la importación con sus filas y devuelve su id. El mapeo arranca con

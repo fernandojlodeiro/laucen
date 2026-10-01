@@ -99,6 +99,21 @@ create index if not exists cliente_documento on cliente (organizacion_id, docume
 create index if not exists cliente_email on cliente (organizacion_id, lower(email)) where email is not null;
 alter table cliente enable row level security;
 select erp_politica_org('cliente');
+-- Lo que trae Virtual Seller (1/10): nombre de la cuenta ≠ razón social, CUIT
+-- aparte del DNI, el apodo de Mercado Libre (sirve para enlazar sus compras)
+-- y un segundo teléfono.
+alter table cliente add column if not exists razon_social text;
+alter table cliente add column if not exists cuit text;
+alter table cliente add column if not exists apodo_ml text;
+alter table cliente add column if not exists telefono_movil text;
+-- Lo que trae Mercado Libre (billing_info de la orden, 1/10): nombre y
+-- apellido por separado (los pide la factura) y, para no perder nada, el
+-- dato crudo de cada origen en `datos_externos` ({"ml": {...}, "virtual_seller": {...}}).
+alter table cliente add column if not exists nombre_pila text;
+alter table cliente add column if not exists apellido text;
+alter table cliente add column if not exists datos_externos jsonb not null default '{}';
+create index if not exists cliente_cuit on cliente (organizacion_id, cuit) where cuit is not null;
+create index if not exists cliente_apodo_ml on cliente (organizacion_id, lower(apodo_ml)) where apodo_ml is not null;
 
 create table if not exists cliente_direccion (
   id               bigint generated always as identity primary key,
@@ -118,6 +133,17 @@ create table if not exists cliente_direccion (
 create index if not exists cliente_direccion_cliente on cliente_direccion (cliente_id);
 alter table cliente_direccion enable row level security;
 select erp_politica_org('cliente_direccion');
+-- Lo que trae el envío de Mercado Libre (1/10): quién recibe, su teléfono,
+-- referencias para llegar, coordenadas, el id de la dirección en ML y el
+-- código de provincia (letra de ARCA, ej. "X" = Córdoba). `etiqueta`: Fiscal,
+-- Envío, etc.
+alter table cliente_direccion add column if not exists receptor text;
+alter table cliente_direccion add column if not exists receptor_telefono text;
+alter table cliente_direccion add column if not exists referencia text;
+alter table cliente_direccion add column if not exists latitud numeric(10, 6);
+alter table cliente_direccion add column if not exists longitud numeric(10, 6);
+alter table cliente_direccion add column if not exists provincia_codigo text;
+alter table cliente_direccion add column if not exists id_externo text;
 
 -- El id del cliente en cada canal (ej. el comprador de ML): enlaza al mismo
 -- cliente que compra en dos cuentas de Mercado Libre.

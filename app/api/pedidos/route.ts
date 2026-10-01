@@ -6,8 +6,11 @@
 // Cuerpo:
 // { "canal": 3 (opcional; si viene tiene que ser el del token),
 //   "id_externo": "2000001234" (opcional; repetir no duplica),
-//   "cliente": { "id_externo", "nombre", "email", "telefono", "documento_tipo", "documento_numero",
-//                "condicion_iva", "tipo", "direccion": {...} },
+//   "cliente": { "id_externo", "nombre", "razon_social", "nombre_pila", "apellido", "email", "telefono",
+//                "telefono_movil", "documento_tipo", "documento_numero", "cuit", "condicion_iva", "tipo",
+//                "apodo_ml", "datos_externos": {"ml": {…crudo…}},
+//                "direccion": {calle, numero, piso_depto, localidad, provincia, provincia_codigo, codigo_postal, pais},
+//                "direccion_envio": {…lo mismo + receptor, receptor_telefono, referencia, latitud, longitud, id_externo} },
 //   "lineas": [ { "variacion_id": 12 | "sku": "ABC-1", "cantidad": 2, "precio_unitario"?: 1500, "titulo"?: "…" } ],
 //   "moneda"?: "ARS" | "USD", "medio_pago"?: "…", "estado_pago"?: "pendiente" | "pagado" | "a_convenir",
 //   "envio"?: {…}, "notas"?: "…", "fecha"?: "2026-10-01T15:00:00-03:00" }

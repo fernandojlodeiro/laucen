@@ -11,6 +11,7 @@ import type { PoolClient } from "pg";
 import { consulta, una, enTransaccion, ErrorErp, type Consultor } from "@/lib/erp/base";
 import { precioDe } from "@/lib/precios";
 import { convertir, esMoneda, type Moneda } from "@/lib/moneda";
+import { condicionIva, documentoValido, normalizarCuit } from "@/lib/clientes";
 
 export const ESTADOS_PEDIDO = {
   nuevo: "Nuevo",
@@ -52,10 +53,25 @@ export type ClienteEntrada = {
   documento_tipo?: string | null;
   documento_numero?: string | null;
   condicion_iva?: string | null;
-  direccion?: {
-    calle?: string; numero?: string; piso_depto?: string; localidad?: string;
-    provincia?: string; codigo_postal?: string; pais?: string;
-  } | null;
+  razon_social?: string | null;
+  cuit?: string | null;
+  /** Apodo del comprador en Mercado Libre (buyer.nickname). */
+  apodo_ml?: string | null;
+  nombre_pila?: string | null;
+  apellido?: string | null;
+  telefono_movil?: string | null;
+  /** El dato crudo tal como vino, por origen (ej. {"ml": {billing_info…}}): se guarda entero. */
+  datos_externos?: Record<string, unknown> | null;
+  direccion?: DireccionEntrada | null;
+  /** Otra dirección (ej. la de envío, si la fiscal es otra). */
+  direccion_envio?: DireccionEntrada | null;
+};
+
+export type DireccionEntrada = {
+  calle?: string; numero?: string; piso_depto?: string; localidad?: string;
+  provincia?: string; provincia_codigo?: string; codigo_postal?: string; pais?: string;
+  /** Quién recibe y su teléfono, referencias para llegar, coordenadas, id de la dirección en el canal. */
+  receptor?: string; receptor_telefono?: string; referencia?: string; latitud?: number; longitud?: number; id_externo?: string;
 };
 
 export type LineaEntrada = {
@@ -175,8 +191,9 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
 }
 
 /** Encuentra el cliente del pedido o lo crea. Orden: id dado → identidad en
- *  el canal → documento → email → nuevo. Si vino id_externo, deja enlazada
- *  la identidad para la próxima. */
+ *  el canal → CUIT → documento → apodo de ML → mail → nuevo. Si ya existía,
+ *  completa los datos que le falten (nunca pisa uno cargado) y suma el dato
+ *  crudo. Si vino id_externo, deja enlazada la identidad para la próxima. */
 async function clienteDelPedido(c: PoolClient, org: string, canalId: number, e: PedidoEntrada): Promise<number | null> {
   if (e.clienteId) {
     const r = await c.query("select id from cliente where id = $1 and organizacion_id = $2", [e.clienteId, org]);
@@ -185,36 +202,59 @@ async function clienteDelPedido(c: PoolClient, org: string, canalId: number, e: 
   }
   const d = e.cliente;
   if (!d) return null;
+  const cuit = normalizarCuit(d.cuit) ?? (documentoValido(d.documento_numero)?.length === 11 ? normalizarCuit(d.documento_numero) : null);
+  const doc = documentoValido(d.documento_numero);
   let id: number | null = null;
-  if (d.id_externo) {
-    const r = await c.query<{ cliente_id: string }>("select cliente_id from cliente_identidad where canal_id = $1 and id_externo = $2", [canalId, d.id_externo]);
-    if (r.rows[0]) id = Number(r.rows[0].cliente_id);
-  }
-  if (!id && d.documento_numero) {
-    const doc = d.documento_numero.replace(/\D/g, "");
-    const r = await c.query<{ id: string }>("select id from cliente where organizacion_id = $1 and regexp_replace(documento_numero, '\\D', '', 'g') = $2 order by id limit 1", [org, doc]);
+  const buscar = async (sql: string, v: unknown[]) => {
+    if (id) return;
+    const r = await c.query<{ id: string }>(sql, v);
     if (r.rows[0]) id = Number(r.rows[0].id);
-  }
-  if (!id && d.email) {
-    const r = await c.query<{ id: string }>("select id from cliente where organizacion_id = $1 and lower(email) = lower($2) order by id limit 1", [org, d.email.trim()]);
-    if (r.rows[0]) id = Number(r.rows[0].id);
-  }
-  if (!id) {
-    const nombre = d.nombre?.trim() || d.email?.trim() || (d.id_externo ? `Cliente ${d.id_externo}` : "");
+  };
+  if (d.id_externo) await buscar("select cliente_id id from cliente_identidad where canal_id = $1 and id_externo = $2", [canalId, d.id_externo]);
+  if (cuit) await buscar("select id from cliente where organizacion_id = $1 and regexp_replace(coalesce(cuit, ''), '\\D', '', 'g') = regexp_replace($2, '\\D', '', 'g') order by id limit 1", [org, cuit]);
+  if (doc) await buscar("select id from cliente where organizacion_id = $1 and regexp_replace(documento_numero, '\\D', '', 'g') = $2 order by id limit 1", [org, doc]);
+  if (d.apodo_ml) await buscar("select id from cliente where organizacion_id = $1 and lower(apodo_ml) = lower($2) order by id limit 1", [org, d.apodo_ml.trim()]);
+  if (d.email) await buscar("select id from cliente where organizacion_id = $1 and lower(email) = lower($2) order by id limit 1", [org, d.email.trim()]);
+
+  const limpio = (x?: string | null) => x?.trim() || null;
+  const nombre = limpio(d.nombre) || limpio(d.razon_social)
+    || [limpio(d.apellido), limpio(d.nombre_pila)].filter(Boolean).join(", ") || limpio(d.email) || limpio(d.apodo_ml)
+    || (d.id_externo ? `Cliente ${d.id_externo}` : "");
+  const valores = [org, nombre || null, d.tipo === "mayorista" ? "mayorista" : null, limpio(d.email), limpio(d.telefono),
+    doc ? normalDoc(d.documento_tipo) ?? (doc.length === 11 ? "CUIT" : "DNI") : null, doc, condicionIva(d.condicion_iva),
+    limpio(d.razon_social), cuit, limpio(d.apodo_ml), limpio(d.nombre_pila), limpio(d.apellido), limpio(d.telefono_movil),
+    JSON.stringify(d.datos_externos ?? {})];
+  if (id) {
+    await c.query(`
+      update cliente set nombre = coalesce(nombre, $2), tipo = coalesce($3, tipo), email = coalesce(email, $4), telefono = coalesce(telefono, $5),
+             documento_tipo = coalesce(documento_tipo, $6), documento_numero = coalesce(documento_numero, $7),
+             condicion_iva = coalesce(condicion_iva, $8), razon_social = coalesce(razon_social, $9), cuit = coalesce(cuit, $10),
+             apodo_ml = coalesce(apodo_ml, $11), nombre_pila = coalesce(nombre_pila, $12), apellido = coalesce(apellido, $13),
+             telefono_movil = coalesce(telefono_movil, $14), datos_externos = datos_externos || $15::jsonb
+       where id = $16 and organizacion_id = $1`, [...valores, id]);
+  } else {
     if (!nombre) throw new ErrorErp("El cliente necesita al menos un nombre, un mail o su id en el canal.");
     const r = await c.query<{ id: string }>(`
-      insert into cliente (organizacion_id, nombre, tipo, email, telefono, documento_tipo, documento_numero, condicion_iva)
-      values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
-      [org, nombre, d.tipo === "mayorista" ? "mayorista" : "consumidor_final", d.email?.trim() || null, d.telefono?.trim() || null,
-        normalDoc(d.documento_tipo), d.documento_numero?.trim() || null, normalIva(d.condicion_iva)]);
+      insert into cliente (organizacion_id, nombre, tipo, email, telefono, documento_tipo, documento_numero, condicion_iva,
+                           razon_social, cuit, apodo_ml, nombre_pila, apellido, telefono_movil, datos_externos)
+      values ($1, $2, coalesce($3, 'consumidor_final'), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb) returning id`, valores);
     id = Number(r.rows[0].id);
-    if (d.direccion && Object.values(d.direccion).some(Boolean)) {
-      const x = d.direccion;
-      await c.query(`
-        insert into cliente_direccion (organizacion_id, cliente_id, calle, numero, piso_depto, localidad, provincia, codigo_postal, pais, principal)
-        values ($1, $2, $3, $4, $5, $6, $7, $8, coalesce($9, 'AR'), true)`,
-        [org, id, x.calle ?? null, x.numero ?? null, x.piso_depto ?? null, x.localidad ?? null, x.provincia ?? null, x.codigo_postal ?? null, x.pais ?? null]);
-    }
+  }
+  for (const [etiqueta, x] of [["Fiscal", d.direccion], ["Envío", d.direccion_envio]] as const) {
+    if (!x || !Object.values(x).some((v) => v != null && v !== "")) continue;
+    // No repite una dirección que ya tiene (mismo id en el canal, o misma calle, número y localidad).
+    await c.query(`
+      insert into cliente_direccion (organizacion_id, cliente_id, etiqueta, calle, numero, piso_depto, localidad, provincia, provincia_codigo,
+                                     codigo_postal, pais, receptor, receptor_telefono, referencia, latitud, longitud, id_externo, principal)
+      select $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, coalesce($11, 'AR'), $12, $13, $14, $15, $16, $17,
+             not exists (select 1 from cliente_direccion where cliente_id = $2)
+       where not exists (select 1 from cliente_direccion where cliente_id = $2
+                           and (($17::text is not null and id_externo = $17)
+                                or (lower(coalesce(calle, '')) = lower(coalesce($4, '')) and coalesce(numero, '') = coalesce($5, '')
+                                    and lower(coalesce(localidad, '')) = lower(coalesce($7, '')))))`,
+      [org, id, etiqueta, x.calle ?? null, x.numero ?? null, x.piso_depto ?? null, x.localidad ?? null, x.provincia ?? null,
+        x.provincia_codigo ?? null, x.codigo_postal ?? null, x.pais ?? null, x.receptor ?? null, x.receptor_telefono ?? null,
+        x.referencia ?? null, x.latitud ?? null, x.longitud ?? null, x.id_externo != null ? String(x.id_externo) : null]);
   }
   if (d.id_externo) {
     await c.query(`insert into cliente_identidad (organizacion_id, cliente_id, canal_id, id_externo) values ($1, $2, $3, $4)
@@ -228,12 +268,6 @@ const normalDoc = (x?: string | null) => {
   const t = x?.trim().toUpperCase();
   return t ? (DOCS.includes(t) ? t : "OTRO") : null;
 };
-const IVAS = ["consumidor_final", "responsable_inscripto", "monotributo", "exento", "no_responsable"];
-const normalIva = (x?: string | null) => {
-  const t = x?.trim().toLowerCase().replace(/\s+/g, "_");
-  return t && IVAS.includes(t) ? t : null;
-};
-
 // ── Leer ─────────────────────────────────────────────────
 
 /** Un pedido completo (para el detalle y para GET /api/pedidos/:id). */

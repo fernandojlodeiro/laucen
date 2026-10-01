@@ -9,7 +9,7 @@ import { consulta, motivoErp, ErrorErp } from "@/lib/erp/base";
 import { intentar, id } from "@/lib/erp/acciones";
 import { supabaseServer } from "@/lib/supabase";
 import { esDestino } from "@/lib/importar/campos";
-import { abrirLibro, leerHoja, leerCsv, guardarImportacion } from "@/lib/importar/leer";
+import { abrirLibro, leerHoja, leerCsv, leerHtml, esHtml, guardarImportacion } from "@/lib/importar/leer";
 
 export type ResultadoLectura = { id: number } | { hojas: string[] } | { motivo: string };
 
@@ -25,14 +25,19 @@ export async function accionLeerArchivo(args: { ruta: string; archivo: string; d
     const sb = await supabaseServer();
     const { data, error } = await sb.storage.from("importaciones").download(args.ruta);
     if (error || !data) throw new ErrorErp("No se pudo bajar el archivo que subiste. Probá de nuevo.");
-    if (/\.csv$/i.test(args.ruta)) {
+    const contenido = await data.arrayBuffer();
+    // CSV, o un "Excel" que en realidad es una tabla HTML (así exporta
+    // Virtual Seller sus .xls): se leen como texto. Si no, es un .xlsx.
+    const comoTexto = /\.csv$/i.test(args.ruta) ? { hoja: "CSV", datos: leerCsv(contenido) }
+      : esHtml(contenido) ? { hoja: "Tabla", datos: leerHtml(contenido) } : null;
+    if (comoTexto) {
       const nuevo = await guardarImportacion(s.org.id, {
-        destino: args.destino, archivo: args.archivo.slice(0, 200), ruta: args.ruta, hoja: "CSV", datos: leerCsv(await data.arrayBuffer()), usuarioId: s.usuario.id,
+        destino: args.destino, archivo: args.archivo.slice(0, 200), ruta: args.ruta, hoja: comoTexto.hoja, datos: comoTexto.datos, usuarioId: s.usuario.id,
       });
       revalidatePath("/importar");
       return { id: nuevo };
     }
-    const libro = await abrirLibro(await data.arrayBuffer());
+    const libro = await abrirLibro(contenido);
     const nombres = libro.worksheets.map((h) => h.name);
     if (nombres.length > 1 && !args.hoja) return { hojas: nombres };
     const hoja = args.hoja ? libro.getWorksheet(args.hoja) : libro.worksheets[0];
