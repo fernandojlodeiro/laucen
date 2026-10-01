@@ -1,26 +1,33 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
+import { esRutaPublica } from "@/lib/rutas-publicas";
+import { versión } from "@/lib/version";
+import Marco from "@/app/componentes/marco/Marco";
 
 export const metadata: Metadata = {
   title: "Laucen",
-  description: "Búsqueda de productos en China para importar",
+  description: "Gestión de ventas, stock e importación",
 };
 
-/** Hora del último deploy en hora argentina, el commit corto y el id del
- *  deploy de Vercel (el mismo `dpl_…` que muestra Vercel en Deployments). */
-function versión() {
-  const hora = process.env.BUILD_TIME
-    ? new Date(process.env.BUILD_TIME).toLocaleString("es-AR", {
-        timeZone: "America/Argentina/Buenos_Aires",
-        day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
-      })
-    : "";
-  const commit = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
-  const deploy = process.env.VERCEL_DEPLOYMENT_ID;
-  return [hora && `Actualizado ${hora}`, commit, deploy].filter(Boolean).join(" · ");
+export const viewport: Viewport = { width: "device-width", initialScale: 1 };
+
+/** Rutas que nunca llevan el marco del sistema (menú + barra de estado). */
+function sinMarco(ruta: string) {
+  return !ruta || esRutaPublica(ruta) || ruta.startsWith("/onboarding") || ruta.startsWith("/api/");
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const ruta = (await headers()).get("x-ruta") ?? "";
+  if (!sinMarco(ruta)) {
+    return (
+      <html lang="es">
+        <body>
+          <Marco version={versión()}>{children}</Marco>
+        </body>
+      </html>
+    );
+  }
   return (
     <html lang="es">
       <body>

@@ -1,59 +1,63 @@
-// El panel, detrás del login. Arranca con lo mínimo: quién sos, y —si sos
-// vos, Fer— los dos botones de las herramientas internas. Lo de búsquedas de
-// productos se agrega acá cuando exista.
+// El panel de inicio (orden 136, §2 bis): tarjetas con lo pendiente. Las
+// tarjetas salen de lib/panel.ts; una que todavía no se puede calcular se
+// muestra como "próximamente".
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { sesionRequerida } from "@/lib/tenancy";
 import { tienePermiso } from "@/lib/permisos";
-import { asegurarEsquemaArca } from "@/lib/arca/esquema";
-import { sosVos } from "@/lib/admin";
-import { accionLogout } from "@/app/auth-actions";
-import { PRIMARIO, SUAVE } from "@/app/botones";
+import { TARJETAS, type Renglon } from "@/lib/panel";
+import { motivoErp } from "@/lib/erp/base";
+
+export const dynamic = "force-dynamic";
 
 export default async function Panel() {
-  // Cada botón del menú es una "función" con su permiso en el rol (ver
-  // FUNCIONES en lib/permisos.ts): hoy, si el rol no lo tiene cargado, vale
-  // true. Las tablas de Importaciones se aseguran antes, para que al entrar
-  // ya existan; si falla, el panel igual se dibuja.
-  await asegurarEsquemaArca().catch((e) => console.error("esquema de importaciones", e));
   const sesion = await sesionRequerida();
-  const esAdmin = await sosVos();
+  if (!tienePermiso(sesion.permisos, "panel_ver")) redirect("/radar");
+  const tarjetas = TARJETAS.filter((t) => !t.permiso || tienePermiso(sesion.permisos, t.permiso));
+  const datos = await Promise.all(tarjetas.map(async (t) => {
+    if (!t.calcular) return { t, renglones: null as Renglon[] | null, error: null as string | null };
+    try {
+      return { t, renglones: await t.calcular(sesion.org.id), error: null };
+    } catch (e) {
+      return { t, renglones: null, error: motivoErp(e) };
+    }
+  }));
 
   return (
-    <main className="max-w-lg mx-auto p-6">
-      <header className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-lg font-bold">{sesion.org.nombre}</h1>
-          <p className="text-xs text-[#5C6B76]">{sesion.usuario.email}</p>
-        </div>
-        <form action={accionLogout}>
-          <button className={SUAVE}>Cerrar sesión</button>
-        </form>
-      </header>
-
-      <div className="flex flex-wrap gap-2 mb-6">
-        {tienePermiso(sesion.permisos, "radar_ver") && (
-          <>
-            <Link href="/radar" className={PRIMARIO}>📡 Radar</Link>
-            <Link href="/radar/seguidas" className={SUAVE}>★ Mis categorías seguidas</Link>
-          </>
-        )}
-        {tienePermiso(sesion.permisos, "importaciones_ver") && (
-          <Link href="/importaciones" className={PRIMARIO}>🚢 Importaciones</Link>
-        )}
+    <main className="max-w-6xl mx-auto p-4 sm:p-6">
+      <h1 className="text-lg font-bold mb-4">Panel</h1>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {datos.map(({ t, renglones, error }) => (
+          <section key={t.id} className={`rounded-xl border p-3 ${t.calcular ? "bg-white border-[#E3E9F0]" : "bg-[#F7F8F6] border-dashed border-[#D5DDE5]"}`}>
+            <header className="flex items-center justify-between mb-2">
+              <h2 className={`text-sm font-bold ${t.calcular ? "" : "text-[#9AA7B3]"}`}>{t.titulo}</h2>
+              {t.href && <Link href={t.href} className="text-[11px] font-bold rounded-lg px-2 py-1 bg-[#EEF3F8] border border-[#E3E9F0] text-[#16577F]">Ver</Link>}
+            </header>
+            {!t.calcular && <p className="text-xs text-[#9AA7B3] italic">Próximamente</p>}
+            {error && <p className="text-xs text-[#C03420]">{error}</p>}
+            {renglones && (
+              <ul className="text-xs divide-y divide-[#EEF1F4]">
+                {renglones.map((r, i) => {
+                  const cuerpo = (
+                    <>
+                      <span className="truncate">{r.texto}</span>
+                      <span className={`tabular-nums text-right font-bold ${r.alerta ? "text-[#C03420]" : ""}`}>{r.valor}</span>
+                    </>
+                  );
+                  return (
+                    <li key={i}>
+                      {r.href
+                        ? <Link href={r.href} className="flex justify-between gap-3 py-1.5 hover:text-[#16577F]">{cuerpo}</Link>
+                        : <div className="flex justify-between gap-3 py-1.5 text-[#5C6B76]">{cuerpo}</div>}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        ))}
       </div>
-
-      {esAdmin && (
-        <div className="flex flex-wrap gap-2">
-          <Link href="/admin/bitacora" className={SUAVE}>🗒️ Bitácora</Link>
-          <Link href="/admin/para-probar" className={SUAVE}>🧪 Para probar</Link>
-          <Link href="/admin/meli" className={SUAVE}>🛒 Mercado Libre</Link>
-          <Link href="/admin/china" className={SUAVE}>🇨🇳 China — pruebas</Link>
-          <Link href="/admin/piloto" className={SUAVE}>🧭 Piloto</Link>
-          <Link href="/admin/costos-ml" className={SUAVE}>💲 Costos ML</Link>
-          <Link href="/admin/ventas-ml" className={SUAVE}>📊 Ventas ML por categoría</Link>
-        </div>
-      )}
     </main>
   );
 }

@@ -11,7 +11,11 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function middleware(req: NextRequest) {
-  const respuesta = NextResponse.next({ request: req });
+  // La ruta viaja en un encabezado para que el layout raíz sepa si dibuja el
+  // marco del sistema (menú y barra de estado) o una pantalla pública suelta.
+  const encabezados = new Headers(req.headers);
+  encabezados.set("x-ruta", req.nextUrl.pathname);
+  const respuesta = NextResponse.next({ request: { headers: encabezados } });
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     cookies: {

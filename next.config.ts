@@ -7,7 +7,8 @@ const nextConfig: NextConfig = {
   // servidor: que viajen con el deploy.
   // Las fotos de la pantalla de China viajan en el formulario (hasta 4 MB).
   experimental: { serverActions: { bodySizeLimit: "5mb" } },
-  outputFileTracingIncludes: { "/**": ["./db/radar.sql", "./db/arca.sql", "./db/china.sql", "./db/piloto.sql", "./db/costos_ml.sql"] },
+  outputFileTracingIncludes: { "/**": ["./db/radar.sql", "./db/arca.sql", "./db/china.sql", "./db/piloto.sql", "./db/costos_ml.sql",
+    "./db/moneda.sql", "./db/eventos.sql", "./db/catalogo.sql", "./db/stock.sql", "./db/ventas.sql", "./db/importar.sql"] },
 };
 
 export default nextConfig;
