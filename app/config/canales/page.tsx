@@ -3,6 +3,7 @@
 // ellos) y el token con que llama a la API de pedidos.
 
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { consulta } from "@/lib/erp/base";
 import { VERDE, SUAVE, PRIMARIO, APAGAR } from "@/app/botones";
 import { TachoConfirmar, BotonConfirmar } from "@/app/radar/Cliente";
@@ -50,6 +51,8 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
   const listas = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from lista_precios where organizacion_id = $1 and estado = 'activa' order by orden, nombre", [s.org.id]);
   const elegido = canales.find((c) => c.id === Number(sp.c));
+  const crudo = (await cookies()).get("token_nuevo")?.value?.match(/^(\d+):([0-9a-f]{64})$/);
+  const tokenNuevo = crudo ? { canal: Number(crudo[1]), token: crudo[2] } : null;
   const aqui = url(BASE, { c: elegido?.id });
 
   const susDepositos = elegido ? await consulta<{ id: number; nombre: string; estado: string; prioridad: number }>(`
@@ -192,6 +195,11 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
             <p className="text-[11px] text-[#5C6B76] mb-2">
               La tienda web y la sincronización de Mercado Libre cargan pedidos llamando a <code>/api/pedidos</code> con <code>Authorization: Bearer &lt;token&gt;</code>: el token dice de qué canal es el pedido.
             </p>
+            {tokenNuevo && tokenNuevo.canal === elegido.id && (
+              <p className="text-xs rounded-lg px-3 py-2 mb-2 bg-[#FFF8E5] text-[#8a6100] break-all">
+                Token nuevo (copialo ahora, en un minuto deja de mostrarse): <b className="font-mono select-all">{tokenNuevo.token}</b>
+              </p>
+            )}
             {elegido.token_fin ? (
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span>Tiene token: termina en <b className="font-mono">…{elegido.token_fin}</b></span>

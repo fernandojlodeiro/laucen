@@ -2,6 +2,7 @@
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, entero, id } from "@/lib/erp/acciones";
@@ -116,7 +117,9 @@ export async function accionQuitarDeposito(fd: FormData) {
 
 // ── Token de la API ───────────────────────────────────────
 
-/** Genera (o reemplaza) el token: se muestra completo una sola vez, en el aviso. */
+/** Genera (o reemplaza) el token. Se muestra completo una sola vez: viaja en
+ *  una cookie que dura un minuto (no en la dirección, para que no quede en el
+ *  historial del navegador ni en los registros de Vercel). */
 export async function accionGenerarToken(fd: FormData) {
   const s = await entrarErp("canales_ver");
   await intentar(volverDe(fd), async () => {
@@ -124,8 +127,9 @@ export async function accionGenerarToken(fd: FormData) {
     const token = randomBytes(32).toString("hex");
     await consulta("update canal set config = config || jsonb_build_object('token', $3::text) where id = $2 and organizacion_id = $1",
       [s.org.id, canal, token]);
+    (await cookies()).set("token_nuevo", `${canal}:${token}`, { httpOnly: true, sameSite: "strict", path: BASE, maxAge: 60, secure: true });
     revalidatePath(BASE);
-    return `Token nuevo: ${token} — copialo ahora, no se vuelve a mostrar completo.`;
+    return "Token nuevo generado: copialo ahora, no se vuelve a mostrar completo.";
   });
 }
 
