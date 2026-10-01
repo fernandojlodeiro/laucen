@@ -51,6 +51,7 @@ export default async function Panel() {
           <Link href="/admin/china" className={SUAVE}>🇨🇳 China — pruebas</Link>
           <Link href="/admin/piloto" className={SUAVE}>🧭 Piloto</Link>
           <Link href="/admin/costos-ml" className={SUAVE}>💲 Costos ML</Link>
+          <Link href="/admin/ventas-ml" className={SUAVE}>📊 Ventas ML por categoría</Link>
         </div>
       )}
     </main>
