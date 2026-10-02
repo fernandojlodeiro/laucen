@@ -9,12 +9,8 @@ export const precio = (n: number, moneda: "ARS" | "USD") => `${moneda === "USD" 
 /** Los métodos de envío que no piden dirección (comprar tampoco la exige). */
 export const sinDireccion = (tipo: string | undefined) => tipo === "retiro" || tipo === "a_convenir";
 
-/** Las 24 provincias (los nombres tienen que coincidir con las tarifas "por_provincia" de metodo_envio). */
-export const PROVINCIAS = [
-  "Buenos Aires", "Ciudad de Buenos Aires", "Catamarca", "Chaco", "Chubut", "Córdoba", "Corrientes", "Entre Ríos",
-  "Formosa", "Jujuy", "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquén", "Río Negro", "Salta", "San Juan",
-  "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán",
-];
+/** Las 24 provincias: las de la configuración de envíos, que son las claves de metodo_envio.tarifas. */
+export { PROVINCIAS } from "@/app/config/envios/comun";
 
 export const CONDICIONES_IVA: [string, string][] = [
   ["responsable_inscripto", "Responsable inscripto"], ["monotributo", "Monotributo"], ["exento", "Exento"], ["consumidor_final", "Consumidor final"],

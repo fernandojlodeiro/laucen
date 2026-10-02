@@ -20,6 +20,7 @@ export async function metodosEnvio(t: Tienda): Promise<MetodoEnvio[]> {
 export type Eleccion = { metodoEnvioId: number | null; medio: string | null; provincia: string | null };
 
 export type Resumen = {
+  /** subtotal de cada línea a precio de venta (los descuentos van aparte, en `descuentos`). */
   lineas: { variacionId: number; titulo: string; foto: string | null; cantidad: number; subtotal: number }[];
   subtotal: number;
   descuentos: { nombre: string; importe: number }[];
@@ -46,7 +47,7 @@ export async function resumir(t: Tienda, carrito: LineaCarrito[], e: Eleccion, m
     }
   }));
   return {
-    lineas: cot.lineas.map((l) => ({ variacionId: l.variacionId, titulo: l.titulo, foto: l.foto, cantidad: l.cantidad, subtotal: l.subtotal })),
+    lineas: cot.lineas.map((l) => ({ variacionId: l.variacionId, titulo: l.titulo, foto: l.foto, cantidad: l.cantidad, subtotal: Math.round(l.ventaUnit * l.cantidad * 100) / 100 })),
     subtotal: cot.subtotal, descuentos: cot.descuentos,
     envio: cot.envio ? { nombre: cot.envio.nombre, costo: cot.envio.costo, bonificado: cot.envio.bonificado, aConvenir: cot.envio.aConvenir } : null,
     total: cot.total, sinStock: cot.sinStock, costos, moneda: t.moneda,

@@ -177,7 +177,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
                     onChange={(e) => { setProvincia(e.target.value); recotizar({ provincia: e.target.value }); }}>
                     <option value="">Elegí…</option>
                     {PROVINCIAS.map((p) => <option key={p} value={p}>{p}</option>)}
-                    {provincia && !PROVINCIAS.includes(provincia) && <option value={provincia}>{provincia}</option>}
+                    {provincia && !(PROVINCIAS as readonly string[]).includes(provincia) && <option value={provincia}>{provincia}</option>}
                   </select>
                 </div>
                 <Campo nombre="codigo_postal" etiqueta="Código postal" autoComplete="postal-code" defaultValue={precarga.codigo_postal} />

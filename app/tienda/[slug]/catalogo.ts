@@ -14,7 +14,9 @@ export const COLOR_POR_DEFECTO = "#16577F";
 
 /** La tienda del slug (una sola consulta por request); si no existe, 404. */
 export const cargarTienda = cache(async (slug: string): Promise<Tienda> => {
-  const t = await tiendaPorSlug(decodeURIComponent(slug));
+  let s = slug;
+  try { s = decodeURIComponent(slug); } catch { /* queda como vino */ }
+  const t = await tiendaPorSlug(s);
   if (!t) notFound();
   return t;
 });
@@ -169,4 +171,17 @@ export async function listarProductos(t: Tienda, op: {
       cucardas: cucardas.get(f.id) ?? [], cuotas: mejorPlanSinInteres(planes[i]),
     })),
   };
+}
+
+/** El estado del pedido como lo entiende el comprador. */
+export function estadoCriollo(estado: string, estadoPago: string, metodoTipo: string | null): { texto: string; color: string } {
+  if (estado === "cancelado") return { texto: "Cancelado", color: "bg-gray-200 text-gray-700" };
+  if (estado === "devuelto") return { texto: "Devuelto", color: "bg-gray-200 text-gray-700" };
+  if (estado === "entregado") return { texto: "Entregado", color: "bg-green-100 text-green-800" };
+  if (estado === "despachado") return { texto: "En camino", color: "bg-blue-100 text-blue-800" };
+  if (estado === "preparado") return { texto: metodoTipo === "retiro" ? "Listo para retirar" : "Listo para enviar", color: "bg-blue-100 text-blue-800" };
+  if (estado === "en_preparacion") return { texto: "En preparación", color: "bg-blue-100 text-blue-800" };
+  if (estado === "pagado" || estadoPago === "pagado") return { texto: "Pagado", color: "bg-green-100 text-green-800" };
+  if (estadoPago === "a_convenir") return { texto: "Recibido", color: "bg-blue-100 text-blue-800" };
+  return { texto: "Pendiente de pago", color: "bg-amber-100 text-amber-900" };
 }
