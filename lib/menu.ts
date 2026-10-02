@@ -66,18 +66,17 @@ export const MENU: SeccionMenu[] = [
     texto: "Compras",
     items: [
       { texto: "Proveedores", href: "/compras/proveedores", permiso: "proveedores_ver" },
-      { texto: "Facturas de compra" },
-      { texto: "Despachos de importación" },
+      { texto: "Facturas de compra", href: "/compras/facturas", permiso: "compras_ver" },
+      { texto: "Despachos de importación", href: "/compras/despachos", permiso: "despachos_ver" },
     ],
   },
   {
     texto: "Administración",
     items: [
       { texto: "Facturación", href: "/administracion/facturacion", permiso: "facturacion_ver" },
-      { texto: "Cuentas corrientes" },
-      { texto: "Bancos" },
-      { texto: "Caja" },
-      { texto: "Contabilidad" },
+      { texto: "Cuentas corrientes", href: "/administracion/cuentas-corrientes", permiso: "cuentas_corrientes_ver" },
+      { texto: "Caja y bancos", href: "/administracion/tesoreria", permiso: "tesoreria_ver" },
+      { texto: "Contabilidad", href: "/administracion/contabilidad", permiso: "contabilidad_ver" },
     ],
   },
   {

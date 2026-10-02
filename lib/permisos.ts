@@ -45,7 +45,12 @@ export type PermisoKey =
   | "facturacion_ver"
   | "tienda_config"
   | "medios_pago_ver"
-  | "reglas_ver";
+  | "reglas_ver"
+  | "compras_ver"
+  | "despachos_ver"
+  | "cuentas_corrientes_ver"
+  | "tesoreria_ver"
+  | "contabilidad_ver";
 
 export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "gestionar_busquedas", label: "Gestionar búsquedas", ayuda: "Crear, editar y pausar las búsquedas programadas." },
@@ -82,6 +87,11 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "tienda_config", label: "Tienda web", ayuda: "Configurar la tienda web y sus métodos de envío." },
   { key: "medios_pago_ver", label: "Medios de pago", ayuda: "Medios de pago de la tienda y sus credenciales." },
   { key: "reglas_ver", label: "Reglas comerciales y cuotas", ayuda: "Promociones, descuentos, envío bonificado y planes de cuotas." },
+  { key: "compras_ver", label: "Facturas de compra", ayuda: "Cargar y registrar facturas de proveedores (ingresan stock y costo)." },
+  { key: "despachos_ver", label: "Despachos de importación", ayuda: "Cargar despachos y prorratear sus costos." },
+  { key: "cuentas_corrientes_ver", label: "Cuentas corrientes", ayuda: "Saldos de clientes y proveedores, recibos y órdenes de pago." },
+  { key: "tesoreria_ver", label: "Caja y bancos", ayuda: "Cuentas de fondos, movimientos, transferencias y conciliación." },
+  { key: "contabilidad_ver", label: "Contabilidad", ayuda: "Plan de cuentas, asientos, libro diario, mayores y balances." },
 ];
 
 export type Permisos = Partial<Record<PermisoKey, boolean>>;
@@ -116,6 +126,7 @@ export const FUNCIONES: PermisoKey[] = [
   "tipo_cambio_ver", "usuarios_ver", "importar_ver", "proveedores_ver",
   "envios_ver", "preguntas_ver", "picking_ver", "recepcion_ver", "etiquetas_ver", "facturacion_ver",
   "tienda_config", "medios_pago_ver", "reglas_ver",
+  "compras_ver", "despachos_ver", "cuentas_corrientes_ver", "tesoreria_ver", "contabilidad_ver",
 ];
 
 /** ¿La membresía tiene el permiso? Los de FUNCIONES, si faltan, valen true;
