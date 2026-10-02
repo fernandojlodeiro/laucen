@@ -36,7 +36,7 @@ import type { Hoja, Valor } from "@/lib/importar/leer";
 import { moverStock } from "@/lib/stock";
 import { guardarPrecio } from "@/lib/precios";
 import { ml, type CuentaMl, cuentasDe } from "@/lib/mercadolibre/api";
-import { guardarItem, type ItemMl } from "@/lib/mercadolibre/publicaciones";
+import { guardarItem, vincular, type ItemMl } from "@/lib/mercadolibre/publicaciones";
 
 export const DEPOSITO_VS = "CORDOBA CENTRAL";
 export const LISTA_BASE = "Clásicas";
@@ -206,7 +206,9 @@ export async function analizar(org: string, id: number, hastaMs: number): Promis
   await consulta(`
     update importacion_vs_sku s set ml_items = coalesce((
       select jsonb_agg(distinct m.item_id) from meli_item m
-       where m.canal_id = $3 and m.estado in ('active', 'paused') and upper(regexp_replace(trim(m.sku), '^DE-', '', 'i')) = s.sku), '[]')
+       where m.canal_id = $3 and m.estado in ('active', 'paused')
+         and (upper(regexp_replace(trim(m.sku), '^DE-', '', 'i')) = s.sku
+              or exists (select 1 from sku_equivalencia e where e.organizacion_id = $2 and e.alias = upper(trim(m.sku)) and upper(e.sku) = s.sku))), '[]')
      where s.importacion_id = $1 and s.organizacion_id = $2`, [id, org, cuenta.canalId]);
   // Destino de cada SKU y los IVA para comparar.
   const columnas = (imp.resumen.columnas_maestro as string[]) ?? [];
@@ -236,7 +238,7 @@ export async function analizar(org: string, id: number, hastaMs: number): Promis
       const fam = cFam && f.maestro ? norm(String(f.maestro[cFam] ?? "")) : "";
       const kit = !!f.maestro && ((!!cSub && esKitVs(f.maestro[cSub])) || (!!cTipo && esKitVs(f.maestro[cTipo])));
       let destino: string;
-      let kitComp: string | null = null, kitCant: number | null = null;
+      let kitComp: string | null = null, kitCant: number | null = null, skuNuevo: string | null = null;
       if (!f.maestro) { destino = "sin_maestro"; if (total > 0) cuenta_.stock_sin_maestro.push(f.sku); }
       else if (kit && fam.startsWith("notebook") && total <= 0) {
         // Las "configuraciones" de notebook (notebook + memoria/disco) siguen la regla de las notebooks.
@@ -258,7 +260,13 @@ export async function analizar(org: string, id: number, hastaMs: number): Promis
         else if (!kitCant) cuenta_.kits_sin_cantidad.push(f.sku);
         else { kitComp = comp; componentes.add(comp); cuenta_.kits_armados++; }
         if (!kitComp) kitCant = null;
-        destino = (kitComp ? stockDe(kitComp) : total) > 0 ? "activo" : "inactivo";
+        // Los combos y los que no se pueden armar entran inactivos (Fer, 2/10): se arman a mano.
+        destino = kitComp && stockDe(kitComp) > 0 ? "activo" : "inactivo";
+        // Convención (Fer, 2/10): el pack es BASE-Xn y la unidad sigue siendo BASE-U.
+        if (kitComp && kitCant) {
+          const nuevo = `${kitComp.replace(/-U$/i, "")}-X${kitCant}`;
+          if (nuevo !== f.sku && !porSkuMap.get(nuevo)?.maestro) skuNuevo = nuevo;
+        }
         if (destino === "activo") { cuenta_.con_stock++; if (f.ml_items.length) cuenta_.publicados++; else cuenta_.sin_publicar++; } else cuenta_.inactivos++;
       }
       else if (total > 0) { destino = "activo"; cuenta_.con_stock++; if (f.ml_items.length) cuenta_.publicados++; else cuenta_.sin_publicar++; }
@@ -271,8 +279,8 @@ export async function analizar(org: string, id: number, hastaMs: number): Promis
       if (destino !== "descartado" && vs != null && distintos.length) {
         difIva.push({ sku: f.sku, titulo: mls[0].titulo, vs, ml: distintos[0].iva ?? 0, items: distintos.map((m) => m.item) });
       }
-      await c.query("update importacion_vs_sku set destino = $3, iva_vs = $4, iva_ml = $5, kit_componente = $6, kit_cantidad = $7 where importacion_id = $1 and sku = $2",
-        [id, f.sku, destino, vs, mlIva, kitComp, kitCant]);
+      await c.query("update importacion_vs_sku set destino = $3, iva_vs = $4, iva_ml = $5, kit_componente = $6, kit_cantidad = $7, sku_nuevo = $8 where importacion_id = $1 and sku = $2",
+        [id, f.sku, destino, vs, mlIva, kitComp, kitCant, skuNuevo]);
     }
     // Un componente de kit entra aunque no tenga stock (sería "notebook descartada" sólo por la familia).
     if (componentes.size) {
@@ -283,10 +291,18 @@ export async function analizar(org: string, id: number, hastaMs: number): Promis
   });
   const pubs = await una<{ total: number; sin_sku: number; sin_producto: number }>(`
     select count(*)::int total, count(*) filter (where sku is null)::int sin_sku,
-           count(*) filter (where sku is not null and not exists (select 1 from importacion_vs_sku s where s.importacion_id = $1 and s.sku = upper(regexp_replace(trim(m.sku), '^DE-', '', 'i')) and s.maestro is not null))::int sin_producto
+           count(*) filter (where sku is not null and not exists (select 1 from importacion_vs_sku s where s.importacion_id = $1 and s.maestro is not null and s.ml_items ? m.item_id))::int sin_producto
       from meli_item m where m.canal_id = $2 and m.estado in ('active', 'paused')`, [id, cuenta.canalId]);
+  // Publicaciones cuyo SKU en ML no es el de Laucen (packs renombrados, equivalencias cargadas a mano).
+  const skuDif = await consulta<{ item: string; sku_ml: string | null; sku: string }>(`
+    select m.item_id item, m.sku sku_ml, coalesce(s.sku_nuevo, s.sku) sku
+      from importacion_vs_sku s cross join lateral jsonb_array_elements_text(s.ml_items) x(item)
+      join meli_item m on m.canal_id = $2 and m.item_id = x.item and m.variation_id = ''
+     where s.importacion_id = $1 and s.destino in ('activo', 'inactivo') and upper(coalesce(m.sku, '')) <> upper(coalesce(s.sku_nuevo, s.sku))
+     order by 3, 1`, [id, cuenta.canalId]);
+  const renombrados = await una<{ n: number }>("select count(*)::int n from importacion_vs_sku where importacion_id = $1 and sku_nuevo is not null", [id]);
   await consulta("update importacion_vs set estado = 'analizado', resumen = resumen || $3::jsonb where id = $1 and organizacion_id = $2",
-    [id, org, JSON.stringify({ ...cuenta_, iva_diferencias: difIva, columna_iva: cIva, publicaciones: pubs })]);
+    [id, org, JSON.stringify({ ...cuenta_, iva_diferencias: difIva, columna_iva: cIva, publicaciones: pubs, sku_diferencias: skuDif, packs_renombrados: renombrados?.n ?? 0 })]);
   return true;
 }
 
@@ -310,6 +326,27 @@ export async function corregirIvaMl(org: string, id: number): Promise<{ ok: numb
   }
   await consulta("update importacion_vs set resumen = resumen || $3::jsonb where id = $1 and organizacion_id = $2",
     [id, org, JSON.stringify({ iva_corregido: { ok, errores: errores.slice(0, 50), items: corregidos } })]);
+  return { ok, errores };
+}
+
+/** Corrige en ML el SKU de las publicaciones que no coinciden con Laucen. */
+export async function corregirSkuMl(org: string, id: number): Promise<{ ok: number; errores: string[] }> {
+  const imp = await una<Corrida>("select id::int, estado, resumen from importacion_vs where id = $1 and organizacion_id = $2", [id, org]);
+  if (!imp) throw new ErrorErp("La importación no existe.");
+  const difs = (imp.resumen.sku_diferencias as { item: string; sku: string }[]) ?? [];
+  const cuenta = await cuentaBase(org);
+  let ok = 0;
+  const errores: string[] = [], corregidos: string[] = [];
+  for (const d of difs) {
+    const r = await ml<{ message?: string; cause?: { message?: string }[] }>(cuenta, "PUT", `/items/${d.item}`,
+      { attributes: [{ id: "SELLER_SKU", value_name: d.sku }] });
+    if (r.status >= 200 && r.status < 300) {
+      ok++; corregidos.push(d.item);
+      await consulta("update meli_item set sku = $3 where canal_id = $1 and item_id = $2", [cuenta.canalId, d.item, d.sku]);
+    } else errores.push(`${d.item} → ${d.sku}: ${r.datos?.cause?.[0]?.message ?? r.datos?.message ?? `error ${r.status}`}`);
+  }
+  await consulta("update importacion_vs set resumen = resumen || $3::jsonb where id = $1 and organizacion_id = $2",
+    [id, org, JSON.stringify({ sku_corregido: { ok, errores: errores.slice(0, 50), items: corregidos } })]);
   return { ok, errores };
 }
 
@@ -378,7 +415,8 @@ async function familiaVs(ctx: Ctx, nombre: string | null): Promise<number | null
 }
 
 async function importarSku(ctx: Ctx, f: { sku: string; stock: { ubicacion: string; cantidad: number }[]; maestro: Record<string, Valor>; precio: string | null;
-  ml_items: string[]; destino: string; iva_vs: string | null; kit_componente: string | null; kit_cantidad: number | null }) {
+  ml_items: string[]; destino: string; iva_vs: string | null; kit_componente: string | null; kit_cantidad: number | null; sku_nuevo: string | null }) {
+  const skuFinal = f.sku_nuevo ?? f.sku;
   const m = f.maestro, cols = ctx.columnas;
   const val = (...nombres: string[]) => { const c = columna(cols, ...nombres); return c ? txt(m[c]) : null; };
   const items = f.ml_items.length ? await consulta<{ item_id: string; estado: string; tipo: string | null; precio: string | null; d: ItemMl & {
@@ -427,7 +465,7 @@ async function importarSku(ctx: Ctx, f: { sku: string; stock: { ubicacion: strin
         ancho_cm = coalesce(excluded.ancho_cm, producto.ancho_cm), alto_cm = coalesce(excluded.alto_cm, producto.alto_cm),
         estado = excluded.estado, tipo = excluded.tipo, actualizado_ts = now()
       returning id`,
-      [ctx.org, f.sku, titulo.slice(0, 300), descripcion, familia, at("BRAND") ?? val("marca"), at("MODEL") ?? val("modelo"), at("LINE"), garantia, condicion,
+      [ctx.org, skuFinal, titulo.slice(0, 300), descripcion, familia, at("BRAND") ?? val("marca"), at("MODEL") ?? val("modelo"), at("LINE"), garantia, condicion,
         it?.category_id ?? null, JSON.stringify(atributos), kitVs && !armado, iva, at("GTIN") ?? val("codigo upc", "codigo ean", "codigo de barra"),
         peso != null ? Math.round(peso) : null, it ? dimension(it, "PACKAGE_LENGTH") : null, it ? dimension(it, "PACKAGE_WIDTH") : null, it ? dimension(it, "PACKAGE_HEIGHT") : null, estado,
         armado ? "kit" : "simple"]);
@@ -463,12 +501,14 @@ async function importarSku(ctx: Ctx, f: { sku: string; stock: { ubicacion: strin
       const actual = Number((await c.query<{ n: string }>("select coalesce(sum(cantidad), 0) n from stock where variacion_id = $1 and ubicacion_id = $2", [vid, u])).rows[0].n);
       const dif = Math.round(s.cantidad) - actual;
       if (dif) await moverStock(ctx.org, { variacionId: vid, tipo: "ajuste", cantidad: Math.abs(dif), destinoId: dif > 0 ? u : null, origenId: dif < 0 ? u : null,
-        referencia: { tipo: "importacion_vs", id: f.sku }, usuarioId: ctx.usuarioId, nota: "Stock inicial de Virtual Seller" }, c);
+        referencia: { tipo: "importacion_vs", id: skuFinal }, usuarioId: ctx.usuarioId, nota: "Stock inicial de Virtual Seller" }, c);
     }
     return vid;
   });
   // Publicaciones: guardarItem las vincula por SKU y las refresca; después el precio tachado.
   for (const i of items) {
+    // Se vincula a mano (el SKU de ML puede ser el viejo o el de una equivalencia) y después se refresca.
+    await vincular(ctx.cuenta, i.item_id, "", variacionId);
     await guardarItem(ctx.cuenta, i.d);
     await consulta("update publicacion set precio_tachado = $3 where canal_id = $1 and id_externo = $2",
       [ctx.cuenta.canalId, i.item_id, i.d.original_price && i.d.original_price > Number(i.precio) ? i.d.original_price : null]);
@@ -492,7 +532,7 @@ export async function importar(org: string, id: number, hastaMs: number): Promis
   for (;;) {
     if (Date.now() > hastaMs) return false;
     const filas = await consulta<Parameters<typeof importarSku>[1]>(`
-      select sku, stock, maestro, precio, ml_items, destino, iva_vs, kit_componente, kit_cantidad from importacion_vs_sku
+      select sku, stock, maestro, precio, ml_items, destino, iva_vs, kit_componente, kit_cantidad, sku_nuevo from importacion_vs_sku
        where importacion_id = $1 and organizacion_id = $2 and resultado is null and destino in ('activo', 'inactivo')
        order by (kit_componente is not null), (destino = 'activo') desc, sku limit 50`, [id, org]);
     if (!filas.length) break;
@@ -508,6 +548,12 @@ export async function importar(org: string, id: number, hastaMs: number): Promis
   }
   const t = await una<{ ok: number; err: number }>(`select count(*) filter (where resultado = 'ok')::int ok, count(*) filter (where resultado = 'error')::int err
     from importacion_vs_sku where importacion_id = $1`, [id]);
+  // Equivalencias: los packs renombrados (SKU viejo → nuevo) y las cargadas a mano apuntando al SKU final.
+  await consulta(`insert into sku_equivalencia (organizacion_id, alias, sku, origen)
+                  select $2, upper(sku), sku_nuevo, 'pack_renombrado' from importacion_vs_sku where importacion_id = $1 and sku_nuevo is not null
+                  on conflict (organizacion_id, alias) do update set sku = excluded.sku`, [id, org]);
+  await consulta(`update sku_equivalencia e set sku = s.sku_nuevo from importacion_vs_sku s
+                   where s.importacion_id = $1 and e.organizacion_id = $2 and upper(e.sku) = s.sku and s.sku_nuevo is not null and e.origen = 'manual'`, [id, org]);
   await consulta("update importacion_vs set estado = 'terminado', terminado_ts = now(), resumen = resumen || $2::jsonb where id = $1",
     [id, JSON.stringify({ importados: t?.ok ?? 0, con_error: t?.err ?? 0 })]);
   return true;

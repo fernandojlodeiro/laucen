@@ -58,7 +58,13 @@ export async function guardarItem(cuenta: CuentaMl, it: ItemMl): Promise<number>
       [cuenta.canalId, it.id, f.variation_id]);
     let pubId = pub ? Number(pub.id) : null;
     if (!pubId && f.sku) {
-      const v = await una<{ id: string }>("select id from variacion where organizacion_id = $1 and lower(sku) = lower($2)", [org, f.sku]);
+      // Por SKU, o por una equivalencia (SKU viejo o con otro código en ML → SKU de Laucen).
+      const v = await una<{ id: string }>(`
+        select id from variacion where organizacion_id = $1 and lower(sku) = lower($2)
+        union all
+        select v.id from sku_equivalencia e join variacion v on v.organizacion_id = e.organizacion_id and lower(v.sku) = lower(e.sku)
+         where e.organizacion_id = $1 and e.alias = upper($2)
+        limit 1`, [org, f.sku]);
       if (v) { pubId = await vincular(cuenta, it.id, f.variation_id, Number(v.id)); vinculadas++; }
     }
     if (pubId) await refrescarPublicacion(cuenta, pubId, it, f);

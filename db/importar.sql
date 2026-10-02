@@ -123,3 +123,21 @@ alter table importacion_vs_sku add column if not exists kit_cantidad int;
 create index if not exists importacion_vs_sku_pend on importacion_vs_sku (importacion_id) where resultado is null;
 alter table importacion_vs_sku enable row level security;
 select erp_politica_org('importacion_vs_sku');
+
+-- Equivalencias de SKU (Fer, 2/10): un SKU viejo o el que figura en una
+-- publicación de ML → el SKU de Laucen. Las arma la importación (packs
+-- renombrados: SKU00715 → SKU00715-X5) y las carga Fer (publicaciones con
+-- otro código que el del maestro). Sirven para corregir el SKU en todas las
+-- cuentas de ML, también las que se conecten después.
+create table if not exists sku_equivalencia (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  alias            text not null,                   -- SKU viejo / de ML (en mayúsculas)
+  sku              text not null,                   -- SKU de Laucen
+  origen           text not null default 'manual',  -- pack_renombrado, manual
+  creado_ts        timestamptz not null default now(),
+  primary key (organizacion_id, alias)
+);
+alter table sku_equivalencia enable row level security;
+select erp_politica_org('sku_equivalencia');
+-- El SKU con el que entra a Laucen (si se renombra: los packs).
+alter table importacion_vs_sku add column if not exists sku_nuevo text;

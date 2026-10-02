@@ -10,7 +10,7 @@ import { consulta, una, motivoErp, ErrorErp } from "@/lib/erp/base";
 import { intentar, id } from "@/lib/erp/acciones";
 import { supabaseServer } from "@/lib/supabase";
 import { abrirLibro, leerHoja, leerCsv, leerHtml, esHtml, type Hoja } from "@/lib/importar/leer";
-import { cargarArchivos, avanzar, corregirIvaMl } from "@/lib/importar/virtualseller";
+import { cargarArchivos, avanzar, corregirIvaMl, corregirSkuMl } from "@/lib/importar/virtualseller";
 
 async function leerDeStorage(org: string, ruta: string): Promise<Hoja> {
   if (!ruta?.startsWith(`${org}/`) || ruta.includes("..")) throw new ErrorErp("El archivo no es de esta organización.");
@@ -50,6 +50,16 @@ export async function accionCorregirIva(fd: FormData) {
     const r = await corregirIvaMl(s.org.id, iid);
     revalidatePath(volver(iid));
     return r.errores.length ? `Se corrigieron ${r.ok}; ${r.errores.length} no se pudieron (ver abajo).` : `Listo: se corrigió el IVA de ${r.ok} publicaciones en Mercado Libre.`;
+  });
+}
+
+export async function accionCorregirSku(fd: FormData) {
+  const s = await entrarErp("importar_ver");
+  const iid = id(fd);
+  await intentar(volver(iid), async () => {
+    const r = await corregirSkuMl(s.org.id, iid);
+    revalidatePath(volver(iid));
+    return r.errores.length ? `Se corrigieron ${r.ok}; ${r.errores.length} no se pudieron (ver abajo).` : `Listo: se corrigió el SKU de ${r.ok} publicaciones en Mercado Libre.`;
   });
 }
 

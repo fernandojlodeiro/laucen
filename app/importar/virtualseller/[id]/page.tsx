@@ -12,7 +12,7 @@ import { entrarErp, Pantalla, Avisos, Estado, CAJA, CAJA_TABLA, TABLA, THEAD, TH
 import { fechaHora } from "@/app/ventas/formato";
 import { ESTADOS_VS } from "../estados";
 import Refrescar from "../Refrescar";
-import { accionCorregirIva, accionImportarVs, accionReintentarVs } from "../acciones";
+import { accionCorregirIva, accionCorregirSku, accionImportarVs, accionReintentarVs } from "../acciones";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -23,6 +23,8 @@ type Resumen = {
   iva_diferencias?: { sku: string; titulo: string; vs: number; ml: number; items: string[] }[];
   publicaciones?: { total: number; sin_sku: number; sin_producto: number };
   iva_corregido?: { ok: number; errores: string[]; items: string[] }; importados?: number; con_error?: number;
+  sku_diferencias?: { item: string; sku_ml: string | null; sku: string }[]; packs_renombrados?: number;
+  sku_corregido?: { ok: number; errores: string[]; items: string[] };
 };
 
 const n = (x: number | undefined) => (x ?? 0).toLocaleString("es-AR");
@@ -120,6 +122,41 @@ export default async function CorridaVs({ params, searchParams }: { params: Prom
               </div>
               {r.iva_corregido?.errores?.length ? (
                 <ul className="text-[11px] text-[#C03420] mb-4 list-disc pl-4">{r.iva_corregido.errores.map((e) => <li key={e}>{e}</li>)}</ul>
+              ) : <div className="mb-4" />}
+            </>
+          )}
+
+          <h2 className="text-sm font-bold mb-2">SKU distinto en Mercado Libre</h2>
+          <p className="text-[11px] text-[#5C6B76] mb-2">
+            Packs renombrados a la convención BASE-Xn (la unidad sigue BASE-U): {n(r.packs_renombrados)}. Las equivalencias (SKU viejo → nuevo, y las que cargaste a mano)
+            quedan guardadas para corregir también las cuentas de ML que conectes después.
+          </p>
+          {!r.sku_diferencias?.length ? <p className="text-xs text-[#5C6B76] mb-4">Todas las publicaciones ya tienen el SKU de Laucen.</p> : (
+            <>
+              <div className={`${CAJA_TABLA} mb-2 max-h-80 overflow-y-auto`}>
+                <table className={TABLA}>
+                  <thead className={THEAD}><tr><th className={TH}>Publicación</th><th className={TH}>SKU en ML</th><th className={TH}>SKU en Laucen</th></tr></thead>
+                  <tbody>
+                    {r.sku_diferencias.map((d) => {
+                      const hecho = r.sku_corregido?.items?.includes(d.item);
+                      return (
+                        <tr key={d.item} className={TR}>
+                          <td className={TD}>{d.item}{hecho ? <span className="text-[#1F6E4A]"> ✓</span> : null}</td>
+                          <td className={TD}>{d.sku_ml ?? "—"}</td>
+                          <td className={`${TD} font-semibold`}>{d.sku}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <BotonConfirmar accion={accionCorregirSku} campos={{ id: String(iid) }} clase={SUAVE} texto="Corregir el SKU en Mercado Libre"
+                  pregunta={`¿Cambiar el SKU de ${r.sku_diferencias.length} publicaciones al de Laucen?`} corriendo="Corrigiendo…" />
+                <span className="text-[11px] text-[#5C6B76]">Conviene hacerlo después de importar: la importación las vincula igual por el SKU viejo.</span>
+              </div>
+              {r.sku_corregido?.errores?.length ? (
+                <ul className="text-[11px] text-[#C03420] mb-4 list-disc pl-4">{r.sku_corregido.errores.map((e) => <li key={e}>{e}</li>)}</ul>
               ) : <div className="mb-4" />}
             </>
           )}
