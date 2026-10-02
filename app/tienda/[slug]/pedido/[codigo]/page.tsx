@@ -65,9 +65,8 @@ const ESTADO_ENVIO: Record<string, string> = {
 };
 
 export default async function PaginaPedido({ params, searchParams }: Props) {
-  const { slug, codigo: crudo } = await params;
+  const { slug, codigo } = await params;
   const t = await cargarTienda(slug);
-  const codigo = crudo;
   const sp = await searchParams;
   const d = /^[\w-]{4,40}$/.test(codigo) ? await cargarPedido(t, codigo) : null;
   if (!d) notFound();
