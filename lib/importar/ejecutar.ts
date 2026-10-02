@@ -233,7 +233,7 @@ async function filaCliente(c: PoolClient, ctx: Ctx, d: Record<string, Valor>): P
   const nombre = txt(get(ctx, d, "nombre")) ?? razon;
   if (!nombre) throw new ErrorErp("Falta el nombre.");
   const tipoTxt = txt(get(ctx, d, "tipo"))?.toLowerCase() ?? null;
-  if (tipoTxt?.includes("proveedor")) throw new ErrorErp(`Es "${txt(get(ctx, d, "tipo"))}": los proveedores no van con los clientes.`);
+  if (tipoTxt?.includes("proveedor")) return filaProveedor(c, ctx, d, nombre, razon);
   const tipo = tipoTxt ? (tipoTxt.includes("mayor") ? "mayorista" : "consumidor_final") : null;
   const email = txt(get(ctx, d, "email"))?.toLowerCase() ?? null;
   const ivaTxt = txt(get(ctx, d, "condicion_iva"));
@@ -313,6 +313,44 @@ async function filaCliente(c: PoolClient, ctx: Ctx, d: Record<string, Valor>): P
   if (envio && envio.toLowerCase() !== calle?.toLowerCase()) await agregarDireccion("Envío", envio, null, null, null, null);
 
   return (creado ? "Creado" : "Actualizado") + (avisos.length ? ` (${avisos.join("; ")})` : "");
+}
+
+/** Una fila de proveedor del archivo "Clientes y proveedores" de Virtual
+ *  Seller: va a la tabla proveedor. Busca por CUIT y, si no, por nombre
+ *  exacto; completa sin pisar lo cargado. */
+async function filaProveedor(c: PoolClient, ctx: Ctx, d: Record<string, Valor>, nombre: string, razon: string | null): Promise<string> {
+  const cuitTxt = txt(get(ctx, d, "cuit"));
+  const docNum = documentoValido(txt(get(ctx, d, "documento_numero")));
+  const cuit = normalizarCuit(cuitTxt) ?? (docNum?.length === 11 ? normalizarCuit(docNum) : null);
+  let id: number | null = null;
+  if (cuit) {
+    const r = await c.query<{ id: string }>("select id from proveedor where organizacion_id = $1 and regexp_replace(coalesce(cuit, ''), '\\D', '', 'g') = regexp_replace($2, '\\D', '', 'g') limit 1", [ctx.org, cuit]);
+    if (r.rows[0]) id = Number(r.rows[0].id);
+  }
+  if (!id) {
+    const r = await c.query<{ id: string }>("select id from proveedor where organizacion_id = $1 and lower(nombre) = lower($2) limit 1", [ctx.org, nombre]);
+    if (r.rows[0]) id = Number(r.rows[0].id);
+  }
+  const pais = txt(get(ctx, d, "pais"));
+  const valores = [ctx.org, nombre, razon, cuit ?? cuitTxt, condicionIva(txt(get(ctx, d, "condicion_iva"))),
+    !pais || /^argentina$|^ar$/i.test(pais) ? "AR" : pais.slice(0, 2).toUpperCase(),
+    txt(get(ctx, d, "email"))?.toLowerCase() ?? null, txt(get(ctx, d, "telefono")), txt(get(ctx, d, "telefono_movil")),
+    txt(get(ctx, d, "calle")) ?? txt(get(ctx, d, "direccion_envio")), txt(get(ctx, d, "localidad")), txt(get(ctx, d, "provincia")),
+    txt(get(ctx, d, "codigo_postal")), txt(get(ctx, d, "notas")), JSON.stringify({ virtual_seller: d })];
+  if (id) {
+    await c.query(`
+      update proveedor set razon_social = coalesce(razon_social, $3), cuit = coalesce(cuit, $4), condicion_iva = coalesce(condicion_iva, $5),
+             email = coalesce(email, $7), telefono = coalesce(telefono, $8), telefono_movil = coalesce(telefono_movil, $9),
+             calle = coalesce(calle, $10), localidad = coalesce(localidad, $11), provincia = coalesce(provincia, $12),
+             codigo_postal = coalesce(codigo_postal, $13), notas = coalesce(notas, $14), datos_externos = datos_externos || $15::jsonb
+       where id = $16 and organizacion_id = $1 and $2::text is not null and $6::text is not null`, [...valores, id]);
+    return "Proveedor actualizado";
+  }
+  await c.query(`
+    insert into proveedor (organizacion_id, nombre, razon_social, cuit, condicion_iva, pais, email, telefono, telefono_movil,
+                           calle, localidad, provincia, codigo_postal, notas, datos_externos)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb)`, valores);
+  return "Proveedor creado";
 }
 
 async function filaStock(c: PoolClient, ctx: Ctx, d: Record<string, Valor>): Promise<string> {

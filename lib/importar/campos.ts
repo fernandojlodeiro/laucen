@@ -41,12 +41,12 @@ export const DESTINOS: Record<Destino, { nombre: string; ayuda: string; campos: 
     ],
   },
   clientes: {
-    nombre: "Clientes",
-    ayuda: "Busca si ya existe por CUIT, DNI, apodo de Mercado Libre o mail (en ese orden): si existe lo completa, si no lo crea. Nunca borra un dato que ya estaba. Toda la fila original queda guardada en la ficha (datos de Virtual Seller), aunque una columna no tenga campo propio.",
+    nombre: "Clientes y proveedores",
+    ayuda: "Las filas cuyo Tipo dice \"Proveedor\" van a Proveedores (Compras); \"mayorista\" queda como cliente mayorista; el resto, clientes. Un cliente se busca si ya existe por CUIT, DNI, apodo de Mercado Libre o mail (en ese orden): si existe lo completa, si no lo crea. Nunca borra un dato que ya estaba. Toda la fila original queda guardada en la ficha (datos de Virtual Seller), aunque una columna no tenga campo propio.",
     campos: [
       { clave: "nombre", etiqueta: "Nombre (de la cuenta)", obligatorio: true, ayuda: "Si viene como \"Apellido, Nombre\", se separan apellido y nombre.", alias: ["nombre de la cuenta", "nombre", "cliente", "apellido y nombre", "nombre y apellido"] },
       { clave: "razon_social", etiqueta: "Razón social", alias: ["denominacion y razon social", "razon social", "denominacion"] },
-      { clave: "tipo", etiqueta: "Tipo", ayuda: "Cliente / Cliente mayorista (Virtual Seller). Una fila de proveedor se rechaza: los proveedores van aparte.", alias: ["tipo", "tipo cliente"] },
+      { clave: "tipo", etiqueta: "Tipo", ayuda: "Cliente / Cliente mayorista / Proveedor (Virtual Seller). Los proveedores van a su propia tabla.", alias: ["tipo", "tipo cliente"] },
       { clave: "condicion_iva", etiqueta: "Condición IVA", ayuda: "CF, RI, M (monotributo), E (exento), NR, o el texto completo.", alias: ["categoria iva", "condicion iva", "iva", "cond iva", "situacion iva"] },
       { clave: "cuit", etiqueta: "CUIT (identificación tributaria)", ayuda: "Con o sin guiones: queda como 20-12345678-9.", alias: ["identificacion tributaria", "cuit", "cuil"] },
       { clave: "documento_tipo", etiqueta: "Tipo de documento", ayuda: "DNI, CUIT, CUIL, PASAPORTE u OTRO. Vacío = se deduce del número.", alias: ["tipo documento", "tipo doc"] },

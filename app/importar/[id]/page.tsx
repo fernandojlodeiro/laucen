@@ -12,6 +12,7 @@ import {
 import { fechaHora } from "@/app/ventas/formato";
 import { DESTINOS, ESTADOS_IMPORTACION, esDestino, faltanObligatorios } from "@/lib/importar/campos";
 import type { Valor } from "@/lib/importar/leer";
+import SeguirSolo from "@/app/importar/SeguirSolo";
 import { accionGuardarMapeo, accionCargarMapeo, accionBorrarMapeo, accionEjecutar } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ export const maxDuration = 300;
 
 const POR_PAGINA = 50;
 
-type SP = { pagina?: string; ok?: string; error?: string };
+type SP = { pagina?: string; ok?: string; error?: string; seguir?: string };
 
 const mostrar = (v: Valor | undefined) => (v == null ? "" : typeof v === "number" ? v.toLocaleString("es-AR", { maximumFractionDigits: 4 }) : String(v));
 
@@ -55,7 +56,7 @@ export default async function Importacion({ params, searchParams }: { params: Pr
       <p className="text-xs text-[#5C6B76] mb-3">{destino.ayuda}</p>
 
       {empezada
-        ? <Informe iid={iid} cuenta={cuenta} terminado={imp.terminado_ts} pagina={Math.max(1, Number(sp.pagina) || 1)} org={s.org.id} mapeados={mapeados.map((c) => ({ etiqueta: c.etiqueta, col: imp.mapeo[c.clave] }))} />
+        ? <Informe iid={iid} auto={sp.seguir === "1" && !sp.error} cuenta={cuenta} terminado={imp.terminado_ts} pagina={Math.max(1, Number(sp.pagina) || 1)} org={s.org.id} mapeados={mapeados.map((c) => ({ etiqueta: c.etiqueta, col: imp.mapeo[c.clave] }))} />
         : <Mapeo iid={iid} org={s.org.id} imp={imp} faltan={faltan} />}
     </Pantalla>
   );
@@ -156,7 +157,8 @@ async function Mapeo({ iid, org, imp, faltan }: {
       ) : (
         <form action={accionEjecutar} className="flex items-center gap-2">
           <input type="hidden" name="id" value={iid} />
-          <BotonEnviar clase={VERDE} corriendo="Importando… (puede tardar unos minutos)">Ejecutar la importación</BotonEnviar>
+          <input type="hidden" name="seguir" value="1" />
+          <BotonEnviar clase={VERDE} corriendo="Importando… (sigue solo hasta terminar)">Ejecutar la importación</BotonEnviar>
           <span className="text-xs text-[#5C6B76]">Usa el mapeo aplicado (si cambiaste algo arriba, primero “Aplicar”).</span>
         </form>
       )}
@@ -164,8 +166,8 @@ async function Mapeo({ iid, org, imp, faltan }: {
   );
 }
 
-async function Informe({ iid, org, cuenta, terminado, pagina, mapeados }: {
-  iid: number; org: string; cuenta: { ok: number; err: number; pend: number }; terminado: Date | null; pagina: number;
+async function Informe({ iid, auto, org, cuenta, terminado, pagina, mapeados }: {
+  iid: number; auto: boolean; org: string; cuenta: { ok: number; err: number; pend: number }; terminado: Date | null; pagina: number;
   mapeados: { etiqueta: string; col: string }[];
 }) {
   const rechazadas = await consulta<{ n: number; motivo: string | null; datos: Record<string, Valor> }>(`
@@ -184,11 +186,7 @@ async function Informe({ iid, org, cuenta, terminado, pagina, mapeados }: {
         <div className={CAJA}><div className="text-[11px] text-[#5C6B76]">Pendientes</div><div className="text-lg font-bold tabular-nums text-right">{n(cuenta.pend)}</div></div>
       </div>
       {cuenta.pend > 0 ? (
-        <form action={accionEjecutar} className="flex items-center gap-2 mb-4">
-          <input type="hidden" name="id" value={iid} />
-          <BotonEnviar clase={VERDE} corriendo="Importando… (puede tardar unos minutos)">Seguir</BotonEnviar>
-          <span className="text-xs text-[#5C6B76]">Quedaron filas sin procesar: sigue desde donde quedó.</span>
-        </form>
+        <SeguirSolo accion={accionEjecutar} iid={iid} auto={auto} pausar={`/importar/${iid}`} />
       ) : terminado && <p className="text-xs text-[#5C6B76] mb-4">Terminó el {fechaHora(terminado)}.</p>}
 
       <h2 className="text-sm font-bold mb-2">Filas rechazadas</h2>

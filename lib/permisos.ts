@@ -35,7 +35,8 @@ export type PermisoKey =
   | "canales_ver"
   | "tipo_cambio_ver"
   | "usuarios_ver"
-  | "importar_ver";
+  | "importar_ver"
+  | "proveedores_ver";
 
 export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "gestionar_busquedas", label: "Gestionar búsquedas", ayuda: "Crear, editar y pausar las búsquedas programadas." },
@@ -62,6 +63,7 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "tipo_cambio_ver", label: "Tipo de cambio", ayuda: "El tipo de cambio del día y su historia." },
   { key: "usuarios_ver", label: "Usuarios y roles", ayuda: "Quién está en la organización y con qué rol." },
   { key: "importar_ver", label: "Importar datos", ayuda: "Importar productos, clientes, ventas y stock desde Excel." },
+  { key: "proveedores_ver", label: "Proveedores", ayuda: "Ver y cargar proveedores." },
 ];
 
 export type Permisos = Partial<Record<PermisoKey, boolean>>;
@@ -93,7 +95,7 @@ export const FUNCIONES: PermisoKey[] = [
   "radar_ver", "importaciones_ver",
   "panel_ver", "pedidos_ver", "clientes_ver", "productos_ver", "familias_ver", "precios_ver",
   "publicaciones_ver", "cucardas_ver", "depositos_ver", "stock_ver", "stock_ajustar", "canales_ver",
-  "tipo_cambio_ver", "usuarios_ver", "importar_ver",
+  "tipo_cambio_ver", "usuarios_ver", "importar_ver", "proveedores_ver",
 ];
 
 /** ¿La membresía tiene el permiso? Los de FUNCIONES, si faltan, valen true;

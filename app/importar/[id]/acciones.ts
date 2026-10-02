@@ -83,8 +83,13 @@ export async function accionEjecutar(fd: FormData) {
     const r = await ejecutarImportacion(s.org.id, iid, s.usuario.id);
     revalidatePath(volver(iid));
     revalidatePath("/importar");
-    return r.pendientes
-      ? `Se procesaron ${r.procesadas.toLocaleString("es-AR")} filas; quedan ${r.pendientes.toLocaleString("es-AR")}. Tocá "Seguir".`
-      : "Listo: se procesaron todas las filas.";
+    if (r.pendientes) {
+      const msg = `Se procesaron ${r.procesadas.toLocaleString("es-AR")} filas; quedan ${r.pendientes.toLocaleString("es-AR")}.`;
+      // Con "seguir", la pantalla vuelve a mandar el formulario sola (SeguirSolo).
+      return fd.get("seguir") === "1"
+        ? { ir: `${volver(iid)}?seguir=1&ok=${encodeURIComponent(msg + " Sigue solo…")}` }
+        : `${msg} Tocá "Seguir".`;
+    }
+    return "Listo: se procesaron todas las filas.";
   });
 }
