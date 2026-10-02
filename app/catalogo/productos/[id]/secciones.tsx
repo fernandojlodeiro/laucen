@@ -66,8 +66,14 @@ const depositosActivos = (org: string) =>
 
 // ── Datos ─────────────────────────────────────────────────
 
+/** Alícuotas de IVA que acepta ARCA (valor guardado → texto). */
+const ALICUOTAS_IVA = [["21", "21 %"], ["10.5", "10,5 %"], ["27", "27 %"], ["5", "5 %"], ["2.5", "2,5 %"], ["0", "0 %"]] as const;
+
 export async function SeccionDatos({ s, p, seccion }: Props) {
   const familias = await opcionesFamilias(s.org.id);
+  // La alícuota de IVA (facturación) se lee aparte: la consulta del producto está en page.tsx.
+  const iva = await consulta<{ iva_pct: string }>("select iva_pct::text from producto where id = $1 and organizacion_id = $2", [p.id, s.org.id]);
+  const ivaPct = String(Number(iva[0]?.iva_pct ?? 21));
   const heredado = p.descuento_familia ?? 0;
   const umbralOrg = Number(p.umbral_org ?? 1) || 1;
   return (
@@ -119,6 +125,12 @@ export async function SeccionDatos({ s, p, seccion }: Props) {
       <label><span className={ETIQUETA}>Umbral de pausa</span>
         <CampoNumero name="umbral_pausa" valor={p.umbral_pausa} tipo="entero" placeholder={String(umbralOrg)} className={`${CAMPO} w-full`} />
         <span className="block text-[10px] text-[#5C6B76] mt-0.5">Vacío = el del canal o el general ({umbralOrg}).</span>
+      </label>
+      <label><span className={ETIQUETA}>IVA</span>
+        <select name="iva_pct" defaultValue={ivaPct} className={`${CAMPO} w-full`}>
+          {ALICUOTAS_IVA.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+        </select>
+        <span className="block text-[10px] text-[#5C6B76] mt-0.5">Los precios se cargan con IVA; al facturar se discrimina con esta alícuota.</span>
       </label>
       <div className="col-span-2 sm:col-span-4 flex justify-end"><button className={VERDE}>Guardar</button></div>
     </form>

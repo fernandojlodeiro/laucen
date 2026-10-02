@@ -111,6 +111,8 @@ export async function accionGuardarDatos(fd: FormData) {
       tipo === "con_variaciones" ? null : texto(fd, "codigo_barras"),
       entero(fd, "peso_g"), numero(fd, "largo_cm"), numero(fd, "ancho_cm"), numero(fd, "alto_cm"),
       pct(fd, "descuento_pct"), entero(fd, "umbral_pausa"), entero(fd, "stock_minimo"),
+      // IVA: sólo las alícuotas de ARCA; cualquier otra cosa deja la que tenía.
+      [0, 2.5, 5, 10.5, 21, 27].includes(Number(fd.get("iva_pct"))) && fd.get("iva_pct") !== "" ? Number(fd.get("iva_pct")) : null,
     ];
     await enTransaccion(async (c) => {
       // Si deja de ser kit, sus componentes se van: si no, el stock se seguiría
@@ -124,7 +126,7 @@ export async function accionGuardarDatos(fd: FormData) {
       await c.query(`
         update producto set sku_base = $3, titulo = $4, descripcion = $5, familia_id = $6, marca = $7, tipo = $8, estado = $9,
                codigo_barras = $10, peso_g = $11, largo_cm = $12, ancho_cm = $13, alto_cm = $14,
-               descuento_pct = $15, umbral_pausa = $16, stock_minimo = $17, actualizado_ts = now()
+               descuento_pct = $15, umbral_pausa = $16, stock_minimo = $17, iva_pct = coalesce($18, iva_pct), actualizado_ts = now()
          where id = $2 and organizacion_id = $1`, valores);
     });
     revalidatePath(`${LISTADO}/${pid}`);
