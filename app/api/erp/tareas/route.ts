@@ -49,7 +49,7 @@ export async function GET(req: Request) {
   const imps = (await pool.query<{ id: number; organizacion_id: string; usuario_id: string | null }>(
     "select id::int, organizacion_id, usuario_id from importacion where segundo_plano and estado = 'ejecutando' order by id")).rows;
   const vs = (await pool.query<{ id: number; organizacion_id: string }>(
-    "select id::int, organizacion_id from importacion_vs where estado in ('cargando', 'importando') order by id")).rows;
+    "select id::int, organizacion_id from importacion_vs where estado in ('cargando', 'importando') or coalesce((resumen ->> 'iva_en_curso')::boolean, false) order by id")).rows;
   if (imps.length || vs.length) {
     informe.importaciones = imps.map((i) => i.id);
     informe.importaciones_vs = vs.map((i) => i.id);

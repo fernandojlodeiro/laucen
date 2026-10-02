@@ -22,7 +22,7 @@ type Resumen = {
   notebooks_descartadas?: number; stock_sin_maestro?: string[]; kits?: number; kits_armados?: number; kits_sin_componente?: string[]; kits_sin_cantidad?: string[]; columna_iva?: string | null;
   iva_diferencias?: { sku: string; titulo: string; vs: number; ml: number; items: string[] }[];
   publicaciones?: { total: number; sin_sku: number; sin_producto: number };
-  iva_corregido?: { ok: number; errores: string[]; items: string[] }; importados?: number; con_error?: number;
+  iva_corregido?: { ok: number; errores: string[]; items: string[] }; importados?: number; con_error?: number; iva_en_curso?: boolean; iva_regla?: string;
   sku_diferencias?: { item: string; sku_ml: string | null; sku: string }[]; packs_renombrados?: number;
   sku_corregido?: { ok: number; errores: string[]; items: string[] };
 };
@@ -45,7 +45,8 @@ export default async function CorridaVs({ params, searchParams }: { params: Prom
   const errores = (avance?.err ?? 0) > 0 ? await consulta<{ sku: string; motivo: string | null }>(
     "select sku, motivo from importacion_vs_sku where importacion_id = $1 and resultado = 'error' order by sku limit 100", [iid]) : [];
   const corregidos = new Set(r.iva_corregido?.items ?? []);
-  const andando = imp.estado === "cargando" || imp.estado === "importando";
+  const andando = imp.estado === "cargando" || imp.estado === "importando" || !!r.iva_en_curso;
+  const totalIva = r.iva_diferencias?.reduce((a, d) => a + d.items.length, 0) ?? 0;
 
   return (
     <Pantalla titulo="Importación desde Virtual Seller" ancho="max-w-5xl"
@@ -103,7 +104,7 @@ export default async function CorridaVs({ params, searchParams }: { params: Prom
                 <table className={TABLA}>
                   <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Publicación</th><th className={THN}>IVA VS</th><th className={THN}>IVA ML</th><th className={TH}>Publicaciones</th></tr></thead>
                   <tbody>
-                    {r.iva_diferencias.map((d) => (
+                    {r.iva_diferencias.slice(0, 300).map((d) => (
                       <tr key={d.sku} className={TR}>
                         <td className={TD}>{d.sku}</td>
                         <td className={TD}>{d.titulo}</td>
@@ -115,6 +116,13 @@ export default async function CorridaVs({ params, searchParams }: { params: Prom
                   </tbody>
                 </table>
               </div>
+              {r.iva_diferencias.length > 300 && <p className="text-[11px] text-[#5C6B76] mb-2">Se muestran 300 de {n(r.iva_diferencias.length)} productos.</p>}
+              {r.iva_regla && <p className="text-[11px] text-[#5C6B76] mb-2">{r.iva_regla}.</p>}
+              {(r.iva_en_curso || r.iva_corregido) && (
+                <p className="text-xs rounded-lg px-3 py-2 mb-2 bg-[#EEF3F8] text-[#16577F]">
+                  Corregidas en Mercado Libre: {n(r.iva_corregido?.ok)} de {n(totalIva)}{r.iva_en_curso ? " — sigue sola en segundo plano." : "."}
+                </p>
+              )}
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <BotonConfirmar accion={accionCorregirIva} campos={{ id: String(iid) }} clase={SUAVE} texto="Corregir el IVA en Mercado Libre"
                   pregunta={`¿Cambiar el IVA de ${r.iva_diferencias.reduce((a, d) => a + d.items.length, 0)} publicaciones al de Virtual Seller?`} corriendo="Corrigiendo…" />

@@ -312,27 +312,35 @@ export async function analizar(org: string, id: number, hastaMs: number): Promis
   return true;
 }
 
-/** Corrige en ML el IVA de las publicaciones que no coinciden con VS. */
-export async function corregirIvaMl(org: string, id: number): Promise<{ ok: number; errores: string[] }> {
+/** Corrige en ML el IVA de las publicaciones de la lista de diferencias.
+ *  Son miles: corre de a tandas hasta `hastaMs`, saltea las ya corregidas y
+ *  la siguen las tareas de fondo mientras resumen.iva_en_curso esté prendido. */
+export async function corregirIvaMl(org: string, id: number, hastaMs = Date.now() + 250_000): Promise<{ ok: number; errores: string[]; pendientes: number }> {
   const imp = await una<Corrida>("select id::int, estado, resumen from importacion_vs where id = $1 and organizacion_id = $2", [id, org]);
   if (!imp) throw new ErrorErp("La importación no existe.");
   const difs = (imp.resumen.iva_diferencias as { sku: string; vs: number; items: string[] }[]) ?? [];
+  const previo = (imp.resumen.iva_corregido as { ok: number; errores: string[]; items: string[] } | undefined) ?? { ok: 0, errores: [], items: [] };
+  const hechos = new Set(previo.items);
+  const conError = new Set(previo.errores.map((e) => e.split(" ")[0]));
+  const cola = difs.flatMap((d) => d.items.map((item) => ({ item, sku: d.sku, vs: d.vs }))).filter((x) => !hechos.has(x.item) && !conError.has(x.item));
   const cuenta = await cuentaBase(org);
   let ok = 0;
   const errores: string[] = [];
-  const corregidos: string[] = [];
-  for (const d of difs) {
-    for (const item of d.items) {
-      const valor = `${d.vs} %`;
-      const r = await ml<{ message?: string; cause?: { message?: string }[] }>(cuenta, "PUT", `/items/${item}`,
-        { attributes: [{ id: "VALUE_ADDED_TAX", value_name: valor }] });
-      if (r.status >= 200 && r.status < 300) { ok++; corregidos.push(item); }
-      else errores.push(`${item} (${d.sku}): ${r.datos?.cause?.[0]?.message ?? r.datos?.message ?? `error ${r.status}`}`);
-    }
+  const guardar = async (pendientes: number) => consulta("update importacion_vs set resumen = resumen || $3::jsonb where id = $1 and organizacion_id = $2",
+    [id, org, JSON.stringify({ iva_corregido: { ok: previo.ok + ok, errores: [...previo.errores, ...errores].slice(0, 200), items: [...hechos] }, iva_en_curso: pendientes > 0 })]);
+  let i = 0;
+  for (; i < cola.length; i++) {
+    if (Date.now() > hastaMs) break;
+    const x = cola[i];
+    const r = await ml<{ message?: string; cause?: { message?: string }[] }>(cuenta, "PUT", `/items/${x.item}`,
+      { attributes: [{ id: "VALUE_ADDED_TAX", value_name: `${x.vs} %` }] });
+    if (r.status >= 200 && r.status < 300) { ok++; hechos.add(x.item); }
+    else errores.push(`${x.item} (${x.sku}): ${r.datos?.cause?.[0]?.message ?? r.datos?.message ?? `error ${r.status}`}`);
+    if (i % 50 === 49) await guardar(cola.length - i - 1);
   }
-  await consulta("update importacion_vs set resumen = resumen || $3::jsonb where id = $1 and organizacion_id = $2",
-    [id, org, JSON.stringify({ iva_corregido: { ok, errores: errores.slice(0, 50), items: corregidos } })]);
-  return { ok, errores };
+  const pendientes = cola.length - i;
+  await guardar(pendientes);
+  return { ok, errores, pendientes };
 }
 
 /** Corrige en ML el SKU de las publicaciones que no coinciden con Laucen. */
@@ -575,9 +583,11 @@ export async function avanzar(org: string, id: number, hastaMs: number) {
     await candado.query("begin");
     const ok = await candado.query<{ ok: boolean }>("select pg_try_advisory_xact_lock(hashtext('importacion_vs'), $1::int) ok", [id]);
     if (!ok.rows[0].ok) return;
-    const imp = await una<{ estado: string }>("select estado from importacion_vs where id = $1 and organizacion_id = $2", [id, org]);
+    const imp = await una<{ estado: string; iva: boolean }>(
+      "select estado, coalesce((resumen ->> 'iva_en_curso')::boolean, false) iva from importacion_vs where id = $1 and organizacion_id = $2", [id, org]);
     if (!imp) return;
     try {
+      if (imp.iva) await corregirIvaMl(org, id, hastaMs);
       if (imp.estado === "cargando") await analizar(org, id, hastaMs);
       else if (imp.estado === "importando") await importar(org, id, hastaMs);
     } catch (e) {

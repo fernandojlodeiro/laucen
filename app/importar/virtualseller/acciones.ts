@@ -47,9 +47,13 @@ export async function accionCorregirIva(fd: FormData) {
   const s = await entrarErp("importar_ver");
   const iid = id(fd);
   await intentar(volver(iid), async () => {
-    const r = await corregirIvaMl(s.org.id, iid);
+    // Arranca acá una tanda; si quedan, las siguen las tareas de fondo.
+    await consulta("update importacion_vs set resumen = resumen || '{\"iva_en_curso\": true}'::jsonb where id = $1 and organizacion_id = $2", [iid, s.org.id]);
+    const r = await corregirIvaMl(s.org.id, iid, Date.now() + 40_000);
     revalidatePath(volver(iid));
-    return r.errores.length ? `Se corrigieron ${r.ok}; ${r.errores.length} no se pudieron (ver abajo).` : `Listo: se corrigió el IVA de ${r.ok} publicaciones en Mercado Libre.`;
+    return r.pendientes
+      ? `Arrancó: ${r.ok} corregidas. Quedan ${r.pendientes}; siguen solas en segundo plano.`
+      : r.errores.length ? `Se corrigieron ${r.ok}; ${r.errores.length} no se pudieron (ver abajo).` : `Listo: se corrigió el IVA de ${r.ok} publicaciones en Mercado Libre.`;
   });
 }
 
