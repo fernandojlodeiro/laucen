@@ -11,13 +11,14 @@ import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import { accionBorrarPublicacion, accionCrearPublicacion, accionGuardarPublicacion } from "./acciones";
+import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
 
 export const dynamic = "force-dynamic";
 
 const BASE = "/catalogo/publicaciones";
 const LIMITE = 200;
 
-type SP = { canal?: string; estado?: string; q?: string; editar?: string; ok?: string; error?: string };
+type SP = { canal?: string; estado?: string; q?: string; inactivos?: string; editar?: string; ok?: string; error?: string };
 
 type Fila = {
   id: number; variacion_id: number; sku: string; titulo_var: string; canal_id: number; canal: string;
@@ -36,7 +37,8 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
   const estado = sp.estado && TEXTO_ESTADO[sp.estado] ? sp.estado : null;
   const q = sp.q?.trim() || "";
   const editar = Number(sp.editar) || 0;
-  const aqui = url(BASE, { canal: canalId, estado, q });
+  const inactivos = verInactivos(sp);
+  const aqui = url(BASE, { canal: canalId, estado, q, inactivos: inactivos ? "1" : null });
 
   const canales = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from canal where organizacion_id = $1 and estado <> 'archivado' order by nombre", [s.org.id]);
@@ -48,13 +50,15 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
            to_char(pu.ultima_sincronizacion_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') sincronizada
       from publicacion pu
       join variacion v on v.id = pu.variacion_id
+      join producto p on p.id = v.producto_id
       join canal c on c.id = pu.canal_id
      where pu.organizacion_id = $1
+       and ($6 or p.estado <> 'archivado')
        and ($2::bigint is null or pu.canal_id = $2)
        and ($3::text is null or pu.estado = $3)
        and ($4::text is null or v.sku ilike $4 or pu.id_externo ilike $4 or v.codigo_barras = $5)
      order by c.nombre, v.sku, pu.id
-     limit ${LIMITE}`, [s.org.id, canalId, estado, q ? `%${q}%` : null, q]);
+     limit ${LIMITE}`, [s.org.id, canalId, estado, q ? `%${q}%` : null, q, inactivos]);
 
   const campos = (f?: Fila) => (
     <>
@@ -101,8 +105,9 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
           </select></label>
         <label><span className={ETIQUETA}>Buscar</span>
           <input name="q" defaultValue={q} placeholder="SKU o id externo" className={`${CAMPO} w-48`} /></label>
+        <MostrarInactivos activo={inactivos} />
         <button className={SUAVE}>Filtrar</button>
-        {(canalId || estado || q) && <Link href={BASE} className={SUAVE}>Limpiar</Link>}
+        {(canalId || estado || q || inactivos) && <Link href={BASE} className={SUAVE}>Limpiar</Link>}
       </form>
 
       <div className={CAJA_TABLA}>

@@ -11,6 +11,7 @@ import { facturarPendientes } from "@/lib/arca/facturar";
 import { sincronizarVentasCc } from "@/lib/administracion/cc";
 import { contabilizarPendientes } from "@/lib/administracion/contabilidad";
 import { ejecutarImportacion } from "@/lib/importar/ejecutar";
+import { avanzar as avanzarVs } from "@/lib/importar/virtualseller";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -47,9 +48,16 @@ export async function GET(req: Request) {
   // (el barrido de Mercado Libre usa la misma cola).
   const imps = (await pool.query<{ id: number; organizacion_id: string; usuario_id: string | null }>(
     "select id::int, organizacion_id, usuario_id from importacion where segundo_plano and estado = 'ejecutando' order by id")).rows;
-  if (imps.length) {
+  const vs = (await pool.query<{ id: number; organizacion_id: string }>(
+    "select id::int, organizacion_id from importacion_vs where estado in ('cargando', 'importando') order by id")).rows;
+  if (imps.length || vs.length) {
     informe.importaciones = imps.map((i) => i.id);
+    informe.importaciones_vs = vs.map((i) => i.id);
     after(async () => {
+      for (const i of vs) {
+        if (t0 + 105_000 - Date.now() < 10_000) break;
+        await avanzarVs(i.organizacion_id, i.id, t0 + 105_000);
+      }
       for (const i of imps) {
         const resto = t0 + 105_000 - Date.now();
         if (resto < 10_000) break;

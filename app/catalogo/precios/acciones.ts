@@ -41,9 +41,27 @@ export async function accionGuardarLista(fd: FormData) {
   await intentar(volverDe(fd), async () => {
     const nombre = texto(fd, "nombre");
     if (!nombre) throw new ErrorErp("La lista necesita un nombre.");
-    await consulta(`update lista_precios set nombre = $3, moneda_base = $4, orden = $5, estado = $6
+    const lid = id(fd);
+    // "Se calcula desde" otra lista × coeficiente. precio_de mira un solo
+    // nivel: la base no puede ser ella misma ni una que se calcula desde otra,
+    // y una lista que ya es base de otra no puede tener base (sin ciclos).
+    const baseId = id(fd, "base_lista_id") || null;
+    let coef: number | null = null;
+    if (baseId) {
+      if (baseId === lid) throw new ErrorErp("Una lista no puede calcularse desde sí misma.");
+      const [b] = await consulta<{ base_lista_id: number | null }>(
+        "select base_lista_id::int from lista_precios where id = $2 and organizacion_id = $1", [s.org.id, baseId]);
+      if (!b) throw new ErrorErp("La lista de base no existe.");
+      if (b.base_lista_id) throw new ErrorErp("Esa lista ya se calcula desde otra: elegí una con precios propios.");
+      const [hija] = await consulta("select 1 from lista_precios where organizacion_id = $1 and base_lista_id = $2 limit 1", [s.org.id, lid]);
+      if (hija) throw new ErrorErp("Esta lista es base de otra: no puede calcularse a su vez desde una tercera.");
+      coef = numero(fd, "coeficiente");
+      if (coef == null) throw new ErrorErp("Falta el coeficiente (ej. 0,90).");
+      if (coef <= 0 || coef >= 10000) throw new ErrorErp("El coeficiente tiene que ser mayor que cero (ej. 0,90 o 1,15).");
+    }
+    await consulta(`update lista_precios set nombre = $3, moneda_base = $4, orden = $5, estado = $6, base_lista_id = $7, coeficiente = $8
                      where id = $2 and organizacion_id = $1`,
-      [s.org.id, id(fd), nombre, moneda(fd), entero(fd, "orden") ?? 0, fd.get("estado") === "archivada" ? "archivada" : "activa"]);
+      [s.org.id, lid, nombre, moneda(fd), entero(fd, "orden") ?? 0, fd.get("estado") === "archivada" ? "archivada" : "activa", baseId, coef]);
     revalidatePath(BASE);
     return "Guardado.";
   });

@@ -27,6 +27,9 @@ export default async function Importar({ searchParams }: { searchParams: Promise
   return (
     <Pantalla titulo="Importar datos" subtitulo="Productos, clientes, ventas históricas y stock inicial desde un Excel" ancho="max-w-5xl">
       <Avisos sp={sp} />
+      <Link href="/importar/virtualseller" className="block mb-3 rounded-xl border border-[#16577F] bg-[#EEF3F8] px-3 py-2 text-xs text-[#16577F] hover:underline">
+        <b>Productos desde Virtual Seller + Mercado Libre</b>: stock, maestro y lista de precios de VS cruzados con tus publicaciones →
+      </Link>
       <Subir organizacionId={s.org.id} destinos={Object.entries(DESTINOS).map(([clave, d]) => ({ clave, nombre: d.nombre }))} />
       <p className="text-[11px] text-[#5C6B76] mt-2 mb-5">
         La primera fila del Excel tiene que tener los nombres de las columnas. Después de subirlo elegís qué columna va a cada campo, mirás cómo queda y lo ejecutás.

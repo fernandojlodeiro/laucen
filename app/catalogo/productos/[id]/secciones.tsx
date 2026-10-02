@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { precioDe, listasDePrecios } from "@/lib/precios";
-import { enVista, type Moneda } from "@/lib/moneda";
+import { enVista, formatear, type Moneda } from "@/lib/moneda";
 import { formatearNumero } from "@/lib/numeros";
 import type { Sesion } from "@/lib/tenancy";
 import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
@@ -18,7 +18,7 @@ import {
   accionCrearAtributo, accionGuardarAtributo, accionBorrarAtributo, accionMoverFoto, accionBorrarFoto,
   accionGuardarCucardas, accionAgregarComponente, accionGuardarComponente, accionBorrarComponente, accionGuardarPrecio,
 } from "../acciones";
-import { opcionesFamilias, EstadoProducto, TIPOS_PRODUCTO, ESTADOS_PRODUCTO, ESTADOS_VARIACION } from "../comun";
+import { opcionesFamilias, EstadoProducto, TIPOS_PRODUCTO, ESTADOS_PRODUCTO, ESTADOS_VARIACION, CONDICIONES, condicionDe } from "../comun";
 import SubirFoto from "../SubirFoto";
 
 export type Producto = {
@@ -27,6 +27,8 @@ export type Producto = {
   largo_cm: number | null; ancho_cm: number | null; alto_cm: number | null; descuento_pct: number | null;
   umbral_pausa: number | null; stock_minimo: number | null; descuento_familia: number | null; umbral_org: string | null;
   variacion_default: number | null;
+  modelo: string | null; linea: string | null; garantia: string | null; condicion: string | null;
+  categoria_ml: string | null; atributos_ml: unknown; kit_vs: boolean;
 };
 
 type Props = {
@@ -52,17 +54,49 @@ const ocultos = (p: Producto, seccion: string, extra: Record<string, string | nu
 type Variacion = {
   id: number; sku: string; codigo_barras: string | null; titulo: string | null; titulo_efectivo: string; descuento_pct: number | null;
   descuento_efectivo: number; estado: string; es_default: boolean; atributos: string | null;
+  costo_fob: number | null; costo_moneda: Moneda;
+  costo_promedio_ars: number | null; costo_promedio_usd: number | null; costo_ultimo_ars: number | null; costo_ultimo_usd: number | null;
 };
 function variacionesDe(org: string, pid: number) {
   return consulta<Variacion>(`
     select v.id::int, v.sku, v.codigo_barras, v.titulo, titulo_variacion(v.id) titulo_efectivo, v.descuento_pct::float8,
            descuento_efectivo(v.organizacion_id, v.id)::float8 descuento_efectivo, v.estado, v.es_default,
-           (select string_agg(a.nombre || '=' || a.valor, '; ' order by a.orden, a.nombre) from variacion_atributo a where a.variacion_id = v.id) atributos
+           (select string_agg(a.nombre || '=' || a.valor, '; ' order by a.orden, a.nombre) from variacion_atributo a where a.variacion_id = v.id) atributos,
+           v.costo_fob::float8, v.costo_moneda, v.costo_promedio_ars::float8, v.costo_promedio_usd::float8,
+           v.costo_ultimo_ars::float8, v.costo_ultimo_usd::float8
       from variacion v where v.producto_id = $2 and v.organizacion_id = $1 order by v.orden, v.id`, [org, pid]);
 }
 
 const depositosActivos = (org: string) =>
   consulta<{ id: number; nombre: string }>("select id::int, nombre from deposito where organizacion_id = $1 and estado = 'activo' order by nombre, id", [org]);
+
+/** El costo puesto en depósito (sale de compras y despachos), en gris. */
+function CostoDeposito({ v, vista }: { v: Variacion; vista: Moneda }) {
+  const prom = v.costo_promedio_ars != null || v.costo_promedio_usd != null;
+  const ult = v.costo_ultimo_ars != null || v.costo_ultimo_usd != null;
+  if (!prom && !ult) return <span className="text-[10px] text-[#5C6B76]">Sin costo en depósito todavía (sale de compras).</span>;
+  return (
+    <span className="text-[10px] text-[#5C6B76]">
+      Puesto en depósito:{prom && <> promedio {enVista({ ars: v.costo_promedio_ars, usd: v.costo_promedio_usd }, vista)}</>}
+      {prom && ult && " ·"}{ult && <> último {enVista({ ars: v.costo_ultimo_ars, usd: v.costo_ultimo_usd }, vista)}</>} — sale de compras.
+    </span>
+  );
+}
+
+/** Campo de costo FOB con su selector de moneda. */
+function CampoCosto({ v }: { v: Pick<Variacion, "costo_fob" | "costo_moneda"> | null }) {
+  return (
+    <span className="flex gap-1">
+      <CampoNumero name="costo_fob" valor={v?.costo_fob ?? null} tipo="decimal" className={`${CAMPO} w-full min-w-0`} />
+      <select name="costo_moneda" defaultValue={v?.costo_moneda ?? "USD"} className={CAMPO} aria-label="Moneda del costo">
+        <option value="USD">USD</option><option value="ARS">ARS</option>
+      </select>
+    </span>
+  );
+}
+
+type AtributoMl = { id?: string; name?: string; value_name?: string | null };
+const atributosMl = (x: unknown): AtributoMl[] => (Array.isArray(x) ? x.filter((a) => a && typeof a === "object") as AtributoMl[] : []);
 
 // ── Datos ─────────────────────────────────────────────────
 
@@ -76,7 +110,11 @@ export async function SeccionDatos({ s, p, seccion }: Props) {
   const ivaPct = String(Number(iva[0]?.iva_pct ?? 21));
   const heredado = p.descuento_familia ?? 0;
   const umbralOrg = Number(p.umbral_org ?? 1) || 1;
+  const conVariaciones = p.tipo === "con_variaciones";
+  const vDefault = conVariaciones ? null : (await variacionesDe(s.org.id, p.id)).find((v) => v.es_default) ?? null;
+  const attrsMl = atributosMl(p.atributos_ml);
   return (
+    <>
     <form action={accionGuardarDatos} className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 items-start`}>
       <Ocultos p={p} seccion={seccion} />
       <label><span className={ETIQUETA}>SKU base</span><input name="sku_base" defaultValue={p.sku_base} className={`${CAMPO} w-full font-mono`} /></label>
@@ -107,6 +145,28 @@ export async function SeccionDatos({ s, p, seccion }: Props) {
       ) : (
         <div><span className={ETIQUETA}>Código de barras</span><p className="text-[11px] text-[#5C6B76] py-1.5">Va en cada variación.</p></div>
       )}
+      <label><span className={ETIQUETA}>Modelo</span><input name="modelo" defaultValue={p.modelo ?? ""} className={`${CAMPO} w-full`} /></label>
+      <label><span className={ETIQUETA}>Línea</span><input name="linea" defaultValue={p.linea ?? ""} className={`${CAMPO} w-full`} /></label>
+      <label><span className={ETIQUETA}>Garantía</span><input name="garantia" defaultValue={p.garantia ?? ""} placeholder="ej. 6 meses" className={`${CAMPO} w-full`} /></label>
+      <label><span className={ETIQUETA}>Condición</span>
+        <select name="condicion" defaultValue={condicionDe(p.condicion)} className={`${CAMPO} w-full`}>
+          <option value="">Sin indicar</option>
+          {Object.entries(CONDICIONES).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
+        </select>
+      </label>
+      {vDefault ? (
+        <div className="col-span-2">
+          <input type="hidden" name="con_costo" value="1" />
+          <label><span className={ETIQUETA}>Costo FOB</span><CampoCosto v={vDefault} /></label>
+          <CostoDeposito v={vDefault} vista={s.moneda} />
+        </div>
+      ) : (
+        <div className="col-span-2"><span className={ETIQUETA}>Costo FOB</span><p className="text-[11px] text-[#5C6B76] py-1.5">Va en cada variación.</p></div>
+      )}
+      <label className="col-span-2 flex items-center gap-2 text-xs self-end py-1.5">
+        <input type="checkbox" name="kit_vs" defaultChecked={p.kit_vs} className="h-4 w-4 accent-[#16577F]" />
+        Kit en Virtual Seller (armar a mano)
+      </label>
       <label><span className={ETIQUETA}>Peso (g)</span><CampoNumero name="peso_g" valor={p.peso_g} tipo="entero" className={`${CAMPO} w-full`} /></label>
       <label><span className={ETIQUETA}>Stock mínimo</span><CampoNumero name="stock_minimo" valor={p.stock_minimo} tipo="entero" className={`${CAMPO} w-full`} />
         <span className="block text-[10px] text-[#5C6B76] mt-0.5">Debajo de esto, avisa el panel.</span>
@@ -134,6 +194,28 @@ export async function SeccionDatos({ s, p, seccion }: Props) {
       </label>
       <div className="col-span-2 sm:col-span-4 flex justify-end"><button className={VERDE}>Guardar</button></div>
     </form>
+    {/* Lo que trajo Mercado Libre: sólo para mirar. */}
+    <details className={`${CAJA} mt-3`}>
+      <summary className="text-sm font-bold cursor-pointer">
+        Atributos de Mercado Libre <span className="text-[11px] font-normal text-[#5C6B76]">· {attrsMl.length} · categoría {p.categoria_ml ?? "—"}</span>
+      </summary>
+      {attrsMl.length === 0 ? <p className="text-xs text-[#5C6B76] mt-2">No trajo atributos de Mercado Libre.</p> : (
+        <div className={`${CAJA_TABLA} mt-2 max-w-2xl`}>
+          <table className={TABLA}>
+            <thead className={THEAD}><tr><th className={TH}>Atributo</th><th className={TH}>Valor</th></tr></thead>
+            <tbody>
+              {attrsMl.map((a, i) => (
+                <tr key={`${a.id ?? ""}-${i}`} className={TR}>
+                  <td className={`${TD} font-semibold`}>{a.name ?? a.id ?? "—"}</td>
+                  <td className={TD}>{a.value_name ?? <span className="text-[#5C6B76]">—</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </details>
+    </>
   );
 }
 
@@ -155,7 +237,7 @@ export async function SeccionVariaciones({ s, p, sp, seccion }: Props) {
           <thead className={THEAD}>
             <tr>
               <th className={TH}>SKU</th><th className={TH}>Código de barras</th><th className={TH}>Atributos</th><th className={TH}>Título</th>
-              <th className={THN}>Descuento</th><th className={TH}>Estado</th><th />
+              <th className={THN}>Descuento</th><th className={THN}>Costo FOB</th><th className={TH}>Estado</th><th />
             </tr>
           </thead>
           <tbody>
@@ -163,7 +245,7 @@ export async function SeccionVariaciones({ s, p, sp, seccion }: Props) {
               const fija = v.es_default && !conVariaciones;
               return editar === v.id ? (
                 <tr key={v.id} className={`${TR} bg-[#FAFBFC]`}>
-                  <td colSpan={7} className={TD}>
+                  <td colSpan={8} className={TD}>
                     <form action={accionGuardarVariacion} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-start">
                       <Ocultos p={p} seccion={seccion} />
                       <input type="hidden" name="id" value={v.id} />
@@ -187,7 +269,8 @@ export async function SeccionVariaciones({ s, p, sp, seccion }: Props) {
                           {Object.entries(ESTADOS_VARIACION).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
                         </select>
                       </label>
-                      <div className="col-span-2 sm:col-span-4 flex gap-2 justify-end self-end">
+                      <div className="col-span-2"><span className={ETIQUETA}>Costo FOB</span><CampoCosto v={v} /><CostoDeposito v={v} vista={s.moneda} /></div>
+                      <div className="col-span-2 sm:col-span-2 flex gap-2 justify-end self-end">
                         <button className={VERDE}>Guardar</button>
                         <Link href={aqui(p, seccion)} className={SUAVE} scroll={false}>Cancelar</Link>
                       </div>
@@ -203,6 +286,7 @@ export async function SeccionVariaciones({ s, p, sp, seccion }: Props) {
                   <td className={TDN}>
                     {v.descuento_pct != null ? pct(v.descuento_pct) : <span className="text-[#5C6B76]" title="Heredado">{pct(v.descuento_efectivo)}</span>}
                   </td>
+                  <td className={TDN}>{v.costo_fob != null ? formatear(v.costo_fob, v.costo_moneda) : <span className="text-[#5C6B76]">—</span>}</td>
                   <td className={TD}><EstadoProducto estado={v.estado} /></td>
                   <td className={`${TD} text-right whitespace-nowrap`}>
                     <span className="inline-flex gap-1">
@@ -594,8 +678,10 @@ export async function SeccionStock({ s, p }: Props) {
 // ── Publicaciones ─────────────────────────────────────────
 
 export async function SeccionPublicaciones({ s, p }: Props) {
-  const filas = await consulta<{ id: number; sku: string; canal: string; id_externo: string | null; titulo: string; tipo_publicacion: string | null; estado: string; sincro: string | null }>(`
+  const filas = await consulta<{ id: number; sku: string; canal: string; id_externo: string | null; titulo: string; tipo_publicacion: string | null; estado: string; sincro: string | null;
+    precio: number | null; precio_tachado: number | null }>(`
     select pu.id::int, v.sku, c.nombre canal, pu.id_externo, coalesce(pu.titulo, titulo_variacion(v.id)) titulo, pu.tipo_publicacion, pu.estado,
+           pu.precio_canal::float8 precio, pu.precio_tachado::float8,
            to_char(pu.ultima_sincronizacion_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YYYY HH24:MI') sincro
       from publicacion pu join variacion v on v.id = pu.variacion_id join canal c on c.id = pu.canal_id
      where v.producto_id = $2 and pu.organizacion_id = $1 order by c.nombre, v.sku`, [s.org.id, p.id]);
@@ -606,10 +692,10 @@ export async function SeccionPublicaciones({ s, p }: Props) {
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={TH}>Canal</th><th className={TH}>Variación</th><th className={TH}>Id externo</th><th className={TH}>Título</th><th className={TH}>Tipo</th><th className={TH}>Estado</th><th className={TH}>Última sincronización</th></tr>
+            <tr><th className={TH}>Canal</th><th className={TH}>Variación</th><th className={TH}>Id externo</th><th className={TH}>Título</th><th className={TH}>Tipo</th><th className={THN}>Precio</th><th className={TH}>Estado</th><th className={TH}>Última sincronización</th></tr>
           </thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>Ninguna variación de este producto está publicada.</td></tr>}
+            {filas.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>Ninguna variación de este producto está publicada.</td></tr>}
             {filas.map((f) => (
               <tr key={f.id} className={TR}>
                 <td className={TD}>{f.canal}</td>
@@ -617,6 +703,11 @@ export async function SeccionPublicaciones({ s, p }: Props) {
                 <td className={`${TD} font-mono`}>{f.id_externo ?? "—"}</td>
                 <td className={TD}>{f.titulo}</td>
                 <td className={TD}>{f.tipo_publicacion ?? "—"}</td>
+                <td className={TDN}>
+                  {/* El precio de la publicación es el de venta; el tachado, el de antes de la campaña. */}
+                  {f.precio_tachado != null && <span className="line-through text-[#5C6B76] mr-1.5">{formatear(f.precio_tachado, "ARS")}</span>}
+                  {f.precio != null ? formatear(f.precio, "ARS") : <span className="text-[#5C6B76]">—</span>}
+                </td>
                 <td className={TD}><Estado texto={f.estado.charAt(0).toUpperCase() + f.estado.slice(1)} tono={tono(f.estado)} /></td>
                 <td className={`${TD} text-[#5C6B76] whitespace-nowrap`}>{f.sincro ?? "—"}</td>
               </tr>

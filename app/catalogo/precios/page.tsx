@@ -15,6 +15,7 @@ import CampoNumero from "@/app/componentes/CampoNumero";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
+import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
 import { accionBorrarLista, accionCrearLista, accionGuardarLista, accionGuardarPrecio, accionMasivo } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ const BASE = "/catalogo/precios";
 const POR_PAGINA = 100;
 
 type SP = {
-  lista?: string; editar?: string; precio?: string; q?: string; p?: string; ok?: string; error?: string;
+  lista?: string; editar?: string; precio?: string; q?: string; p?: string; inactivos?: string; ok?: string; error?: string;
   // Carga masiva (paso 1: elegir; paso 2: confirmar).
   md?: string; mo?: string; ms?: string; mpct?: string; mr?: string;
 };
@@ -32,6 +33,7 @@ type Fila = {
   id: number; sku: string; titulo: string; precio_id: number | null;
   lista_ars: string | null; lista_usd: string | null; moneda_origen: Moneda | null; vigente: string | null;
   descuento: string; venta_ars: string | null; venta_usd: string | null; total: number;
+  propio: boolean;
 };
 
 export default async function Precios({ searchParams }: { searchParams: Promise<SP> }) {
@@ -41,14 +43,30 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
   const cuantos = await consulta<{ lista_id: number; n: number }>(
     `select lista_id::int, count(distinct variacion_id)::int n from precio where organizacion_id = $1 group by lista_id`, [s.org.id]);
   const nPrecios = new Map(cuantos.map((c) => [c.lista_id, c.n]));
+  // Lista derivada: "se calcula desde" otra lista × coeficiente (lo resuelve precio_de).
+  const derivadas = await consulta<{ id: number; base_lista_id: number | null; coeficiente: number | null }>(
+    "select id::int, base_lista_id::int, coeficiente::float8 from lista_precios where organizacion_id = $1", [s.org.id]);
+  const baseDe = new Map(derivadas.map((d) => [d.id, d]));
+  const nombreLista = new Map(listas.map((l) => [l.id, l.nombre]));
+  /** "= Web × 0,9" si la lista tiene base; vacío si no. */
+  const formula = (lid: number) => {
+    const d = baseDe.get(lid);
+    return d?.base_lista_id ? `= ${nombreLista.get(d.base_lista_id) ?? "?"} × ${formatearNumero(d.coeficiente ?? 1, "decimal")}` : "";
+  };
+  // Puede ser base de `lid`: no ella misma, ni una que ya se calcula desde
+  // otra (precio_de mira un solo nivel, y así tampoco hay ciclos).
+  const puedeSerBase = (lid: number, bid: number) => bid !== lid && !baseDe.get(bid)?.base_lista_id;
+  const esBaseDeOtra = (lid: number) => derivadas.some((d) => d.base_lista_id === lid);
 
   const editarLista = Number(sp.editar) || 0;
   const lista = listas.find((l) => l.id === Number(sp.lista)) ?? listas.find((l) => l.estado === "activa") ?? listas[0];
   const q = sp.q?.trim() || "";
   const pagina = Math.max(1, Number(sp.p) || 1);
   const editarPrecio = Number(sp.precio) || 0;
+  const inactivos = verInactivos(sp);
+  const ina = inactivos ? "1" : null;
   // La dirección de esta vista, sin lo que abre una edición: a donde vuelven las acciones.
-  const aqui = url(BASE, { lista: lista?.id, q, p: pagina > 1 ? pagina : null });
+  const aqui = url(BASE, { lista: lista?.id, q, p: pagina > 1 ? pagina : null, inactivos: ina });
 
   let filas: Fila[] = [];
   if (lista) {
@@ -56,15 +74,16 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
       select v.id::int, v.sku, titulo_variacion(v.id) titulo, pr.precio_id::int,
              pr.lista_ars, pr.lista_usd, pr.moneda_origen, to_char(pr.vigente_desde, 'DD/MM/YYYY') vigente,
              descuento_efectivo($1, v.id) descuento, pr.venta_ars, pr.venta_usd,
+             coalesce((select x.lista_id = $2 from precio x where x.id = pr.precio_id), false) propio,
              count(*) over ()::int total
         from variacion v
         join producto p on p.id = v.producto_id
         left join lateral precio_de($1, v.id, $2, $3::date) pr on true
-       where v.organizacion_id = $1 and v.estado = 'activa' and p.estado <> 'archivado'
+       where v.organizacion_id = $1 and v.estado = 'activa' and ($7 or p.estado <> 'archivado')
          and ($4::text is null or v.sku ilike $4 or p.titulo ilike $4 or v.titulo ilike $4 or v.codigo_barras = $5)
        order by v.sku
        limit ${POR_PAGINA} offset $6`,
-      [s.org.id, lista.id, hoyAR(), q ? `%${q}%` : null, q, (pagina - 1) * POR_PAGINA]);
+      [s.org.id, lista.id, hoyAR(), q ? `%${q}%` : null, q, (pagina - 1) * POR_PAGINA, inactivos]);
   }
   const total = filas[0]?.total ?? 0;
   const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
@@ -89,13 +108,13 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={TH}>Lista</th><th className={TH}>Moneda base</th><th className={THN}>Orden</th><th className={TH}>Estado</th><th className={THN}>Variaciones con precio</th><th /></tr>
+            <tr><th className={TH}>Lista</th><th className={TH}>Moneda base</th><th className={TH}>Se calcula desde</th><th className={THN}>Orden</th><th className={TH}>Estado</th><th className={THN}>Variaciones con precio</th><th /></tr>
           </thead>
           <tbody>
-            {listas.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>Todavía no hay listas. Agregá la primera abajo (ej. Mercado Libre, Web minorista, Mayorista, Local).</td></tr>}
+            {listas.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>Todavía no hay listas. Agregá la primera abajo (ej. Mercado Libre, Web minorista, Mayorista, Local).</td></tr>}
             {listas.map((l) => editarLista === l.id ? (
               <tr key={l.id} className={`${TR} bg-[#FAFBFC]`}>
-                <td colSpan={6} className={TD}>
+                <td colSpan={7} className={TD}>
                   <form action={accionGuardarLista} className="flex flex-wrap items-center gap-2">
                     <input type="hidden" name="id" value={l.id} />
                     <input type="hidden" name="volver" value={url(BASE, { lista: l.id })} />
@@ -103,12 +122,27 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                     <select name="moneda" defaultValue={l.moneda_base} className={CAMPO} aria-label="Moneda base">
                       <option value="ARS">Pesos</option><option value="USD">Dólares</option>
                     </select>
+                    <label className="inline-flex items-center gap-1 text-[11px] text-[#5C6B76]">Se calcula desde
+                      <select name="base_lista_id" defaultValue={baseDe.get(l.id)?.base_lista_id ?? ""} className={CAMPO} aria-label="Se calcula desde">
+                        <option value="">Ninguna (precios propios)</option>
+                        {listas.filter((b) => b.id !== l.id).map((b) => (
+                          <option key={b.id} value={b.id} disabled={!puedeSerBase(l.id, b.id) || esBaseDeOtra(l.id)}>{b.nombre}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="inline-flex items-center gap-1 text-[11px] text-[#5C6B76]">×
+                      <CampoNumero name="coeficiente" valor={baseDe.get(l.id)?.coeficiente ?? null} tipo="decimal" placeholder="0,90" className={`${CAMPO} w-20`} />
+                    </label>
                     <CampoNumero name="orden" valor={l.orden} tipo="entero" className={`${CAMPO} w-16`} />
                     <select name="estado" defaultValue={l.estado} className={CAMPO} aria-label="Estado">
                       <option value="activa">Activa</option><option value="archivada">Archivada</option>
                     </select>
                     <button className={VERDE}>Guardar</button>
                     <Link href={url(BASE, { lista: l.id })} className={SUAVE}>Cancelar</Link>
+                    <p className="w-full text-[10px] text-[#5C6B76]">
+                      Con una lista de base, el precio es el de esa lista por el coeficiente (ej. 0,90 = 10 % menos). Un precio cargado a mano en esta lista gana sobre el calculado.
+                      {esBaseDeOtra(l.id) && " Esta lista es base de otra: no puede calcularse a su vez desde una tercera."}
+                    </p>
                   </form>
                 </td>
               </tr>
@@ -119,6 +153,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                   {lista?.id === l.id && <span className="ml-2 text-[10px] text-[#5C6B76]">(viendo abajo)</span>}
                 </td>
                 <td className={TD}>{l.moneda_base === "USD" ? "Dólares" : "Pesos"}</td>
+                <td className={`${TD} text-[#5C6B76] whitespace-nowrap`}>{formula(l.id) || "—"}</td>
                 <td className={TDN}>{l.orden}</td>
                 <td className={TD}><Estado texto={l.estado === "activa" ? "Activa" : "Archivada"} tono={l.estado === "activa" ? "verde" : "gris"} /></td>
                 <td className={TDN}>{nPrecios.get(l.id) ?? 0}</td>
@@ -147,14 +182,21 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
       {lista && (
         <section className="mt-6">
           <div className="flex flex-wrap items-end justify-between gap-2 mb-2">
-            <h2 className="text-sm font-bold">Precios de “{lista.nombre}” <span className="font-normal text-[#5C6B76]">· se ven en {s.moneda === "USD" ? "dólares" : "pesos"}</span></h2>
-            <form action={BASE} className="flex gap-2">
+            <h2 className="text-sm font-bold">Precios de “{lista.nombre}” <span className="font-normal text-[#5C6B76]">· se ven en {s.moneda === "USD" ? "dólares" : "pesos"}</span>
+              {formula(lista.id) && <span className="font-normal text-[#5C6B76]"> · {formula(lista.id)}</span>}</h2>
+            <form action={BASE} className="flex flex-wrap items-center gap-2">
               <input type="hidden" name="lista" value={lista.id} />
               <input name="q" defaultValue={q} placeholder="Buscar SKU, título o código de barras" className={`${CAMPO} w-64`} />
+              <MostrarInactivos activo={inactivos} />
               <button className={SUAVE}>Buscar</button>
-              {q && <Link href={url(BASE, { lista: lista.id })} className={SUAVE}>Limpiar</Link>}
+              {(q || inactivos) && <Link href={url(BASE, { lista: lista.id })} className={SUAVE}>Limpiar</Link>}
             </form>
           </div>
+          {formula(lista.id) && (
+            <p className="text-[11px] text-[#5C6B76] mb-2">
+              Esta lista se calcula: {lista.nombre} {formula(lista.id)}. Un precio cargado a mano acá gana sobre el calculado (los calculados dicen “calculado”).
+            </p>
+          )}
           <div className={CAJA_TABLA}>
             <table className={TABLA}>
               <thead className={THEAD}>
@@ -176,8 +218,8 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                         <input type="hidden" name="variacion" value={f.id} />
                         <input type="hidden" name="volver" value={aqui} />
                         <CampoNumero name="importe" tipo={lista.moneda_base === "USD" ? "usd" : "pesos"}
-                          valor={f.precio_id ? Number(lista.moneda_base === "USD" ? f.lista_usd : f.lista_ars) : null}
-                          placeholder="Precio de lista" className={`${CAMPO} w-32`} />
+                          valor={f.propio ? Number(lista.moneda_base === "USD" ? f.lista_usd : f.lista_ars) : null}
+                          placeholder={f.precio_id && !f.propio ? `Calculado: ${formatearNumero(Number(lista.moneda_base === "USD" ? f.lista_usd : f.lista_ars), "pesos")}` : "Precio de lista"} className={`${CAMPO} w-32`} />
                         <select name="moneda" defaultValue={lista.moneda_base} className={CAMPO} aria-label="Moneda en que se carga">
                           <option value="ARS">Pesos</option><option value="USD">Dólares</option>
                         </select>
@@ -194,8 +236,11 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                     <td className={TDN}>{Number(f.descuento) > 0 ? `${formatearNumero(Number(f.descuento), "pct")} %` : "—"}</td>
                     <td className={`${TDN} font-semibold`}>{f.precio_id ? enVista({ ars: f.venta_ars, usd: f.venta_usd }, s.moneda) : "—"}</td>
                     <td className={TD}>{f.vigente ?? "—"}</td>
-                    <td className={TD}>{f.moneda_origen ? (f.moneda_origen === "USD" ? "Dólares" : "Pesos") : "—"}</td>
-                    <td className={`${TD} text-right`}><Lapiz href={url(BASE, { lista: lista.id, q, p: pagina > 1 ? pagina : null, precio: f.id })} etiqueta="Editar precio" /></td>
+                    <td className={TD}>
+                      {f.moneda_origen ? (f.moneda_origen === "USD" ? "Dólares" : "Pesos") : "—"}
+                      {f.precio_id && !f.propio && <span className="ml-1.5"><Estado texto="calculado" tono="azul" /></span>}
+                    </td>
+                    <td className={`${TD} text-right`}><Lapiz href={url(BASE, { lista: lista.id, q, p: pagina > 1 ? pagina : null, inactivos: ina, precio: f.id })} etiqueta="Editar precio" /></td>
                   </tr>
                 ))}
               </tbody>
@@ -203,9 +248,9 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
           </div>
           {paginas > 1 && (
             <div className="flex items-center justify-end gap-2 mt-2 text-xs">
-              {pagina > 1 && <Link href={url(BASE, { lista: lista.id, q, p: pagina - 1 })} className={SUAVE}>← Anterior</Link>}
+              {pagina > 1 && <Link href={url(BASE, { lista: lista.id, q, inactivos: ina, p: pagina - 1 })} className={SUAVE}>← Anterior</Link>}
               <span className="text-[#5C6B76]">Página {pagina} de {paginas} · {total} variaciones</span>
-              {pagina < paginas && <Link href={url(BASE, { lista: lista.id, q, p: pagina + 1 })} className={SUAVE}>Siguiente →</Link>}
+              {pagina < paginas && <Link href={url(BASE, { lista: lista.id, q, inactivos: ina, p: pagina + 1 })} className={SUAVE}>Siguiente →</Link>}
             </div>
           )}
         </section>

@@ -9,14 +9,17 @@ import { ESTADOS_PEDIDO, type EstadoPedido } from "@/lib/pedidos";
 import { PRIMARIO } from "@/app/botones";
 import { entrarErp, Pantalla, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO } from "@/app/componentes/erp";
 import { fecha, TONO_ESTADO, etiqueta } from "@/app/ventas/formato";
+import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
 
 export const dynamic = "force-dynamic";
 
 const TOPE = 20;
 
-export default async function Buscar({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function Buscar({ searchParams }: { searchParams: Promise<{ q?: string; inactivos?: string }> }) {
   const s = await entrarErp("panel_ver");
-  const q = ((await searchParams).q ?? "").trim().slice(0, 100);
+  const sp = await searchParams;
+  const q = (sp.q ?? "").trim().slice(0, 100);
+  const inactivos = verInactivos(sp);
   const n = /^\d{1,15}$/.test(q) ? Number(q) : null;
   const patron = `%${q.replace(/[\\%_]/g, (x) => `\\${x}`)}%`;
   // Cada bloque se muestra sólo si la persona puede ver esa función.
@@ -32,12 +35,12 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
              (select string_agg(distinct v.sku, ', ') from variacion v
                where v.producto_id = p.id and v.sku <> p.sku_base and (v.sku ilike $2 or v.codigo_barras = $3)) donde
         from producto p
-       where p.organizacion_id = $1
+       where p.organizacion_id = $1 and ($5 or p.estado <> 'archivado')
          and (p.sku_base ilike $2 or p.titulo ilike $2 or p.codigo_barras = $3 or p.id = $4
               or exists (select 1 from variacion v where v.producto_id = p.id
                            and (v.sku ilike $2 or v.codigo_barras = $3 or v.titulo ilike $2)))
        order by (p.sku_base ilike $3) desc, p.titulo
-       limit ${TOPE}`, [s.org.id, patron, q, n]) : [],
+       limit ${TOPE}`, [s.org.id, patron, q, n, inactivos]) : [],
     ver.pedidos ? consulta<{ id: number; id_externo: string | null; fecha: Date; canal: string; cliente: string | null; estado: EstadoPedido; total_ars: number; total_usd: number }>(`
       select p.id::int, p.id_externo, p.fecha, ca.nombre canal, cl.nombre cliente, p.estado, p.total_ars::float, p.total_usd::float
         from pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
@@ -59,8 +62,9 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
 
   return (
     <Pantalla titulo="Buscar" subtitulo="Productos, pedidos y clientes" ancho="max-w-5xl">
-      <form className="flex gap-2 mb-4">
+      <form className="flex flex-wrap items-center gap-2 mb-4">
         <input name="q" defaultValue={q} autoFocus placeholder="SKU, título, código de barras, nº de pedido, cliente, mail, documento…" className={`${CAMPO} flex-1`} />
+        <MostrarInactivos activo={inactivos} />
         <button className={PRIMARIO}>Buscar</button>
       </form>
       {!q && <p className="text-xs text-[#5C6B76]">Escribí qué buscar.</p>}
@@ -78,7 +82,7 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
                     <td className={`${TD} font-mono whitespace-nowrap`}><Link href={`/catalogo/productos/${p.id}`} className="text-[#16577F] hover:underline">{p.sku_base}</Link></td>
                     <td className={TD}><Link href={`/catalogo/productos/${p.id}`} className="font-semibold text-[#16577F] hover:underline">{p.titulo}</Link></td>
                     <td className={`${TD} font-mono`}>{p.donde ?? ""}</td>
-                    <td className={TD}><Estado texto={p.estado === "activo" ? "Activo" : p.estado === "pausado" ? "Pausado" : "Archivado"} tono={p.estado === "activo" ? "verde" : "gris"} /></td>
+                    <td className={TD}><Estado texto={p.estado === "activo" ? "Activo" : p.estado === "pausado" ? "Pausado" : "Inactivo"} tono={p.estado === "activo" ? "verde" : "gris"} /></td>
                   </tr>
                 ))}
               </tbody>

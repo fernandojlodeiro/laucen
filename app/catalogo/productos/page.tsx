@@ -6,14 +6,15 @@ import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import {
-  entrarErp, Pantalla, Avisos, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import { accionCrearProducto } from "./acciones";
 import { opcionesFamilias, EstadoProducto, TIPOS_PRODUCTO, ESTADOS_PRODUCTO } from "./comun";
+import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
 
 export const dynamic = "force-dynamic";
 
-type SP = { q?: string; estado?: string; familia?: string; tipo?: string; nuevo?: string; ok?: string; error?: string };
+type SP = { q?: string; estado?: string; familia?: string; tipo?: string; inactivos?: string; kitvs?: string; nuevo?: string; ok?: string; error?: string };
 
 export default async function Productos({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("productos_ver");
@@ -22,14 +23,17 @@ export default async function Productos({ searchParams }: { searchParams: Promis
   const estado = sp.estado && Object.hasOwn(ESTADOS_PRODUCTO, sp.estado) ? sp.estado : "";
   const tipo = sp.tipo && Object.hasOwn(TIPOS_PRODUCTO, sp.tipo) ? sp.tipo : "";
   const familia = Number(sp.familia) || 0;
+  // Los inactivos (archivados) sólo con la caja tildada, o si se los pide por estado.
+  const inactivos = verInactivos(sp) || estado === "archivado";
+  const kitVs = sp.kitvs === "1";
   const familias = await opcionesFamilias(s.org.id);
 
   // Stock disponible total = suma, por variación y depósito activo, de
   // stock_disponible_deposito (un kit se calcula desde sus componentes).
   const filas = await consulta<{
-    id: number; sku_base: string; titulo: string; familia: string | null; tipo: string; estado: string; variaciones: number; disponible: number;
+    id: number; sku_base: string; titulo: string; familia: string | null; tipo: string; estado: string; kit_vs: boolean; variaciones: number; disponible: number;
   }>(`
-    select p.id::int, p.sku_base, p.titulo, f.nombre familia, p.tipo, p.estado,
+    select p.id::int, p.sku_base, p.titulo, f.nombre familia, p.tipo, p.estado, p.kit_vs,
            (select count(*) from variacion v where v.producto_id = p.id)::int variaciones,
            (select coalesce(sum(stock_disponible_deposito(p.organizacion_id, v.id, d.id)), 0)
               from variacion v cross join deposito d
@@ -42,10 +46,12 @@ export default async function Productos({ searchParams }: { searchParams: Promis
        and ($3 = '' or p.estado = $3)
        and ($4 = '' or p.tipo = $4)
        and ($5 = 0 or p.familia_id = $5)
+       and ($6 or p.estado <> 'archivado')
+       and (not $7 or p.kit_vs)
      order by p.titulo
-     limit 300`, [s.org.id, q, estado, tipo, familia]);
+     limit 300`, [s.org.id, q, estado, tipo, familia, inactivos, kitVs]);
 
-  const hayFiltro = q || estado || tipo || familia;
+  const hayFiltro = q || estado || tipo || familia || verInactivos(sp) || kitVs;
   return (
     <Pantalla titulo="Productos" subtitulo="Cada producto con sus variaciones, kits, fotos, cucardas, precios y stock"
       acciones={<Link href={url("/catalogo/productos", { ...sp, ok: undefined, error: undefined, nuevo: sp.nuevo ? undefined : "1" })} className={PRIMARIO}>Producto nuevo</Link>}>
@@ -86,6 +92,11 @@ export default async function Productos({ searchParams }: { searchParams: Promis
           <option value="">Todos los tipos</option>
           {Object.entries(TIPOS_PRODUCTO).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
         </select>
+        <label className="inline-flex items-center gap-1.5 text-xs text-[#5C6B76] py-1.5 whitespace-nowrap">
+          <input type="checkbox" name="kitvs" value="1" defaultChecked={kitVs} className="h-4 w-4 accent-[#16577F]" />
+          Kits de Virtual Seller
+        </label>
+        <MostrarInactivos activo={verInactivos(sp)} />
         <button className={SUAVE}>Buscar</button>
         {hayFiltro && <Link href="/catalogo/productos" className={SUAVE}>Limpiar</Link>}
       </form>
@@ -103,9 +114,10 @@ export default async function Productos({ searchParams }: { searchParams: Promis
               <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>{hayFiltro ? "Ningún producto coincide con la búsqueda." : "Todavía no hay productos."}</td></tr>
             )}
             {filas.map((p) => (
-              <tr key={p.id} className={`${TR} hover:bg-[#FAFBFC]`}>
+              <tr key={p.id} className={`${TR} hover:bg-[#FAFBFC] ${p.estado === "archivado" ? "opacity-60 text-[#5C6B76]" : ""}`}>
                 <td className={`${TD} font-mono whitespace-nowrap`}><Link href={`/catalogo/productos/${p.id}`} className="text-[#16577F] font-semibold">{p.sku_base}</Link></td>
-                <td className={TD}><Link href={`/catalogo/productos/${p.id}`} className="hover:underline">{p.titulo}</Link></td>
+                <td className={TD}><Link href={`/catalogo/productos/${p.id}`} className="hover:underline">{p.titulo}</Link>
+                  {p.kit_vs && <span className="ml-1.5"><Estado texto="Kit VS" tono="azul" /></span>}</td>
                 <td className={`${TD} text-[#5C6B76]`}>{p.familia ?? "—"}</td>
                 <td className={TD}>{TIPOS_PRODUCTO[p.tipo] ?? p.tipo}</td>
                 <td className={TDN}>{p.variaciones}</td>

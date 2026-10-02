@@ -30,6 +30,7 @@ type Fila = {
   logistica: string | null; permalink: string | null; foto: string | null; publicacion_id: number | null;
   variaciones: number; primera: boolean;
   variacion_id: number | null; var_sku: string | null; var_titulo: string | null; producto_id: number | null; disponible: number | null;
+  inactivo: boolean;
 };
 
 const ESTADO_ML: Record<string, { texto: string; tono: "verde" | "amarillo" | "gris" | "azul" }> = {
@@ -87,7 +88,8 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
            mi.logistica, mi.permalink, mi.foto, mi.publicacion_id::int,
            mi.variaciones, mi.primera,
            v.id::int variacion_id, v.sku var_sku, case when v.id is null then null else titulo_variacion(v.id) end var_titulo,
-           v.producto_id::int, case when v.id is null then null else stock_disponible_canal($1, v.id, $2) end disponible
+           v.producto_id::int, coalesce((select pr.estado = 'archivado' from producto pr where pr.id = v.producto_id), false) inactivo,
+           case when v.id is null then null else stock_disponible_canal($1, v.id, $2) end disponible
       from (
         -- Cuántas variaciones tiene el item y cuál es su primera fila sin
         -- vincular (ahí va "Crear producto"), antes de filtrar y paginar.
@@ -213,6 +215,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
                           {f.producto_id
                             ? <Link href={`/catalogo/productos/${f.producto_id}`} className="text-[#16577F] underline font-semibold">{f.var_sku}</Link>
                             : <span className="font-semibold">{f.var_sku}</span>}
+                          {f.inactivo && <span className="ml-1.5"><Estado texto="Inactivo" /></span>}
                           <div className="text-[#5C6B76]">{f.var_titulo}</div>
                           <div className="text-[10px] text-[#5C6B76]">Disponible en Laucen para este canal: <span className="tabular-nums font-semibold text-[#1a2a36]">{f.disponible ?? 0}</span></div>
                         </div>

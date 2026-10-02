@@ -7,7 +7,8 @@ import { notFound } from "next/navigation";
 import { una } from "@/lib/erp/base";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import { entrarErp, Pantalla, Avisos } from "@/app/componentes/erp";
-import { accionBorrarProducto } from "../acciones";
+import { accionBorrarProducto, accionCambiarEstadoProducto } from "../acciones";
+import { SUAVE } from "@/app/botones";
 import { EstadoProducto, TIPOS_PRODUCTO } from "../comun";
 import {
   type Producto, SeccionDatos, SeccionVariaciones, SeccionAtributos, SeccionFotos, SeccionCucardas, SeccionKit,
@@ -27,6 +28,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
 
   const p = await una<Producto>(`
     select p.id::int, p.sku_base, p.titulo, p.descripcion, p.familia_id::int, f.nombre familia, p.marca, p.tipo, p.estado, p.codigo_barras,
+           p.modelo, p.linea, p.garantia, p.condicion, p.categoria_ml, p.atributos_ml, p.kit_vs,
            p.peso_g, p.largo_cm::float8, p.ancho_cm::float8, p.alto_cm::float8, p.descuento_pct::float8, p.umbral_pausa, p.stock_minimo,
            (with recursive cadena as (
               select fa.id, fa.padre_id, fa.descuento_pct, 0 nivel from familia fa where fa.id = p.familia_id
@@ -58,7 +60,17 @@ export default async function FichaProducto({ params, searchParams }: { params: 
     <Pantalla
       titulo={<span className="flex flex-wrap items-center gap-2"><span className="font-mono text-[#5C6B76]">{p.sku_base}</span> {p.titulo} <EstadoProducto estado={p.estado} /></span>}
       subtitulo={<>{TIPOS_PRODUCTO[p.tipo]}{p.familia ? ` · ${p.familia}` : ""}{p.marca ? ` · ${p.marca}` : ""} · <Link href="/catalogo/productos" className="text-[#16577F]">← Volver a productos</Link></>}
-      acciones={<TachoConfirmar accion={accionBorrarProducto} campos={{ producto_id: String(p.id), seccion }} pregunta="¿Borrar el producto entero?" />}
+      acciones={
+        <span className="inline-flex items-center gap-2">
+          {/* Inactivo = archivado: deja de aparecer en listados y buscadores. */}
+          <form action={accionCambiarEstadoProducto}>
+            <input type="hidden" name="producto_id" value={p.id} /><input type="hidden" name="seccion" value={seccion} />
+            <input type="hidden" name="estado" value={p.estado === "archivado" ? "activo" : "archivado"} />
+            <button className={SUAVE}>{p.estado === "archivado" ? "Volver a Activo" : "Pasar a Inactivo"}</button>
+          </form>
+          <TachoConfirmar accion={accionBorrarProducto} campos={{ producto_id: String(p.id), seccion }} pregunta="¿Borrar el producto entero?" />
+        </span>
+      }
     >
       <Avisos sp={sp} />
       <nav className="flex gap-1 border-b border-[#E3E9F0] mb-4 overflow-x-auto">

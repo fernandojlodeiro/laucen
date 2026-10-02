@@ -8,6 +8,7 @@ import { consulta, una } from "@/lib/erp/base";
 import { TIPOS_MOVIMIENTO, type TipoMovimiento } from "@/lib/stock";
 import { SUAVE } from "@/app/botones";
 import { InterruptorFiltro } from "@/app/radar/Piezas";
+import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
 import {
   entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, CAJA,
 } from "@/app/componentes/erp";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
 const BASE = "/stock/consulta";
 const LIMITE = 100;
 
-type SP = { q?: string; filtro?: string; v?: string; ok?: string; error?: string };
+type SP = { q?: string; filtro?: string; v?: string; inactivos?: string; ok?: string; error?: string };
 
 type Variacion = {
   id: number; sku: string; codigo_barras: string | null; titulo: string; kit: boolean; stock_minimo: number | null;
@@ -32,6 +33,8 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
   const q = sp.q?.trim() || "";
   const filtro = sp.filtro === "bajo_minimo" || sp.filtro === "negativo" ? sp.filtro : null;
   const vId = Number(sp.v) || 0;
+  const inactivos = verInactivos(sp);
+  const ina = inactivos ? "1" : null;
 
   // Totales por variación en los depósitos activos. El disponible sale de
   // stock_disponible_deposito (así un kit se calcula de sus componentes).
@@ -39,7 +42,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
     with v as (
       select v.id, v.sku, v.codigo_barras, titulo_variacion(v.id) titulo, es_kit(v.id) kit, p.stock_minimo, p.id producto_id
         from variacion v join producto p on p.id = v.producto_id
-       where v.organizacion_id = $1 and v.estado <> 'archivada' and p.estado <> 'archivado'
+       where v.organizacion_id = $1 and v.estado <> 'archivada' and ($5 or p.estado <> 'archivado')
          and ($2::text is null or v.sku ilike $2 or p.titulo ilike $2 or v.titulo ilike $2 or v.codigo_barras = $3 or p.codigo_barras = $3)
     ), t as (
       select v.*,
@@ -55,7 +58,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
      where ($4::text is null
             or ($4 = 'bajo_minimo' and stock_minimo is not null and disponible < stock_minimo)
             or ($4 = 'negativo' and disponible < 0))
-     order by sku limit ${LIMITE}`, [s.org.id, q ? `%${q}%` : null, q, filtro]);
+     order by sku limit ${LIMITE}`, [s.org.id, q ? `%${q}%` : null, q, filtro, inactivos]);
 
   // Una variación abierta: detalle por depósito y ubicación + movimientos.
   const elegida = vId ? await una<Variacion>(`
@@ -104,14 +107,15 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
     <Pantalla titulo="Consulta de stock" subtitulo="Qué hay de cada producto en cada depósito y ubicación. Disponible = cantidad − reservado.">
       <Avisos sp={sp} />
       <div className="flex flex-wrap items-center gap-4 mb-3">
-        <form action={BASE} className="flex gap-2">
+        <form action={BASE} className="flex flex-wrap items-center gap-2">
           {filtro && <input type="hidden" name="filtro" value={filtro} />}
           <input name="q" defaultValue={q} placeholder="SKU, título o código de barras" className={`${CAMPO} w-72`} autoFocus={!vId} />
+          <MostrarInactivos activo={inactivos} />
           <button className={SUAVE}>Buscar</button>
-          {q && <Link href={url(BASE, { filtro })} className={SUAVE}>Limpiar</Link>}
+          {q && <Link href={url(BASE, { filtro, inactivos: ina })} className={SUAVE}>Limpiar</Link>}
         </form>
-        <InterruptorFiltro href={url(BASE, { q, filtro: filtro === "bajo_minimo" ? null : "bajo_minimo" })} prendido={filtro === "bajo_minimo"} etiqueta="Sólo bajo el mínimo" />
-        <InterruptorFiltro href={url(BASE, { q, filtro: filtro === "negativo" ? null : "negativo" })} prendido={filtro === "negativo"} etiqueta="Sólo con disponible negativo" />
+        <InterruptorFiltro href={url(BASE, { q, inactivos: ina, filtro: filtro === "bajo_minimo" ? null : "bajo_minimo" })} prendido={filtro === "bajo_minimo"} etiqueta="Sólo bajo el mínimo" />
+        <InterruptorFiltro href={url(BASE, { q, inactivos: ina, filtro: filtro === "negativo" ? null : "negativo" })} prendido={filtro === "negativo"} etiqueta="Sólo con disponible negativo" />
       </div>
 
       {elegida && (
@@ -127,7 +131,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
             </div>
             <span className="flex gap-2">
               {!elegida.kit && <Link href={url("/stock/ajustes", { sku: elegida.sku })} className={SUAVE}>Ajustar</Link>}
-              <Link href={url(BASE, { q, filtro })} className={SUAVE}>Cerrar</Link>
+              <Link href={url(BASE, { q, filtro, inactivos: ina })} className={SUAVE}>Cerrar</Link>
             </span>
           </div>
 
@@ -219,7 +223,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
             {variaciones.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>{q || filtro ? "Nada coincide." : "Todavía no hay productos."}</td></tr>}
             {variaciones.map((v) => (
               <tr key={v.id} className={`${TR} ${v.id === elegida?.id ? "bg-[#EEF3F8]" : ""}`}>
-                <td className={`${TD} whitespace-nowrap`}><Link href={url(BASE, { q, filtro, v: v.id })} className="font-semibold text-[#16577F] hover:underline">{v.sku}</Link></td>
+                <td className={`${TD} whitespace-nowrap`}><Link href={url(BASE, { q, filtro, inactivos: ina, v: v.id })} className="font-semibold text-[#16577F] hover:underline">{v.sku}</Link></td>
                 <td className={TD}>{v.titulo} {v.kit && <Estado texto="Kit" tono="azul" />}</td>
                 <td className={TDN}>{v.kit ? "—" : v.cantidad}</td>
                 <td className={TDN}>{v.kit ? "—" : v.reservado}</td>

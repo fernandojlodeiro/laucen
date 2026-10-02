@@ -44,15 +44,16 @@ export async function deLaOrg(org: string, tabla: Tabla, id: number | null, nomb
 export type VariacionEncontrada = { id: number; sku: string; titulo: string };
 
 /** Variaciones de la organización que coinciden con el texto (SKU, código de
- *  barras o título). Hasta 30. */
-export function buscarVariaciones(org: string, q: string) {
+ *  barras o título). Hasta 30. Las de productos inactivos (archivados), sólo
+ *  si se pide `inactivos`. */
+export function buscarVariaciones(org: string, q: string, inactivos = false) {
   if (!q.trim()) return Promise.resolve([] as VariacionEncontrada[]);
   return consulta<VariacionEncontrada>(`
     select v.id::int, v.sku, titulo_variacion(v.id) titulo
-      from variacion v
-     where v.organizacion_id = $1 and v.estado <> 'archivada'
+      from variacion v join producto p on p.id = v.producto_id
+     where v.organizacion_id = $1 and v.estado <> 'archivada' and ($3 or p.estado <> 'archivado')
        and (v.sku ilike '%' || $2 || '%' or v.codigo_barras = $2 or titulo_variacion(v.id) ilike '%' || $2 || '%')
-     order by (v.sku ilike $2) desc, v.sku limit 30`, [org, q.trim()]);
+     order by (v.sku ilike $2) desc, v.sku limit 30`, [org, q.trim(), inactivos]);
 }
 
 /** El título de una variación (para la descripción por defecto de una línea). */

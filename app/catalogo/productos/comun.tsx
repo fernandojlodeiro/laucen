@@ -4,12 +4,21 @@ import { consulta } from "@/lib/erp/base";
 import { Estado } from "@/app/componentes/erp";
 
 export const TIPOS_PRODUCTO: Record<string, string> = { simple: "Simple", con_variaciones: "Con variaciones", kit: "Kit" };
-export const ESTADOS_PRODUCTO: Record<string, string> = { activo: "Activo", pausado: "Pausado", archivado: "Archivado" };
-export const ESTADOS_VARIACION: Record<string, string> = { activa: "Activa", pausada: "Pausada", archivada: "Archivada" };
+export const ESTADOS_PRODUCTO: Record<string, string> = { activo: "Activo", pausado: "Pausado", archivado: "Inactivo" };
+export const ESTADOS_VARIACION: Record<string, string> = { activa: "Activa", pausada: "Pausada", archivada: "Inactiva" };
 
 export function EstadoProducto({ estado }: { estado: string }) {
   const tono = estado === "activo" || estado === "activa" ? "verde" : estado === "pausado" || estado === "pausada" ? "amarillo" : "gris";
   return <Estado texto={ESTADOS_PRODUCTO[estado] ?? ESTADOS_VARIACION[estado] ?? estado} tono={tono} />;
+}
+
+/** Condición del producto (la que trae Mercado Libre). */
+export const CONDICIONES: Record<string, string> = { nuevo: "Nuevo", usado: "Usado", reacondicionado: "Reacondicionado" };
+/** La condición guardada → clave de CONDICIONES (acepta también las de ML:
+ *  new, used, refurbished). Vacío si no hay o no se reconoce. */
+export function condicionDe(c: string | null | undefined): string {
+  const k = (c ?? "").trim().toLowerCase();
+  return ({ new: "nuevo", used: "usado", refurbished: "reacondicionado" } as Record<string, string>)[k] ?? (Object.hasOwn(CONDICIONES, k) ? k : "");
 }
 
 export type FamiliaArbol = { id: number; padre_id: number | null; nombre: string; nivel: number; etiqueta: string };

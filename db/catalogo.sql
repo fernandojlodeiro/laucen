@@ -298,19 +298,34 @@ $$;
  *  descuento efectivo y venta, en las dos monedas. Es la ÚNICA forma de
  *  obtener un precio en todo el sistema (lib/precios/ la envuelve). Sin fila
  *  si la variación no tiene precio cargado en esa lista. */
+-- Lista derivada (Fer, 2/10): "Web = Clásicas × coeficiente". Si la lista
+-- tiene base, el precio de una variación es el de la base por el
+-- coeficiente, salvo que la lista tenga un precio propio cargado para esa
+-- variación (ése gana).
+alter table lista_precios add column if not exists base_lista_id bigint references lista_precios(id) on delete set null;
+alter table lista_precios add column if not exists coeficiente numeric(8, 4) check (coeficiente > 0);
+
 create or replace function public.precio_de(p_org text, p_variacion bigint, p_lista bigint, p_fecha date default current_date)
 returns table (
   precio_id bigint, lista_ars numeric, lista_usd numeric, moneda_origen text, vigente_desde date,
   descuento_pct numeric, venta_ars numeric, venta_usd numeric
 ) language sql stable as $$
-  select pr.id, pr.importe_ars, pr.importe_usd, pr.moneda_origen, pr.vigente_desde, d.pct,
-         round(pr.importe_ars * (1 - d.pct / 100), 2),
-         round(pr.importe_usd * (1 - d.pct / 100), 2)
-    from precio pr
+  with l as (select base_lista_id, coalesce(coeficiente, 1) coef from lista_precios where id = p_lista and organizacion_id = p_org),
+  c as (
+    select pr.id, pr.importe_ars, pr.importe_usd, pr.moneda_origen, pr.vigente_desde, 0 prio
+      from precio pr
+     where pr.organizacion_id = p_org and pr.variacion_id = p_variacion and pr.lista_id = p_lista and pr.vigente_desde <= p_fecha
+    union all
+    select pr.id, round(pr.importe_ars * l.coef, 2), round(pr.importe_usd * l.coef, 2), pr.moneda_origen, pr.vigente_desde, 1
+      from precio pr cross join l
+     where l.base_lista_id is not null and pr.organizacion_id = p_org and pr.variacion_id = p_variacion
+       and pr.lista_id = l.base_lista_id and pr.vigente_desde <= p_fecha)
+  select c.id, c.importe_ars, c.importe_usd, c.moneda_origen, c.vigente_desde, d.pct,
+         round(c.importe_ars * (1 - d.pct / 100), 2),
+         round(c.importe_usd * (1 - d.pct / 100), 2)
+    from c
     cross join lateral (select descuento_efectivo(p_org, p_variacion) pct) d
-   where pr.organizacion_id = p_org and pr.variacion_id = p_variacion and pr.lista_id = p_lista
-     and pr.vigente_desde <= p_fecha
-   order by pr.vigente_desde desc
+   order by c.prio, c.vigente_desde desc
    limit 1
 $$;
 

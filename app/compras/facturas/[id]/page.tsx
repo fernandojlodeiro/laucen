@@ -15,6 +15,7 @@ import {
 } from "@/app/componentes/erp";
 import { fecha as fechaAR, fechaHora } from "@/app/ventas/formato";
 import { ESTADO_FACTURA, ALICUOTAS, numeroFactura, pct, buscarVariaciones } from "../../comun";
+import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
 import { CamposCabecera, opcionesCabecera } from "../Cabecera";
 import {
   accionGuardarCabecera, accionAgregarLinea, accionGuardarLinea, accionBorrarLinea, accionBorrarFactura, accionRegistrarFactura,
@@ -22,7 +23,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type SP = { editar?: string; q?: string; ok?: string; error?: string };
+type SP = { editar?: string; q?: string; inactivos?: string; ok?: string; error?: string };
 
 type Factura = {
   id: number; proveedor_id: number; proveedor: string; letra: string; es_nota_credito: boolean; punto_venta: number | null; numero: string | null;
@@ -57,7 +58,7 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
         from factura_compra_linea l left join variacion v on v.id = l.variacion_id
        where l.factura_id = $1 and l.organizacion_id = $2 order by l.orden, l.id`, [fid, s.org.id]),
     borrador ? opcionesCabecera(s.org.id) : null,
-    borrador ? buscarVariaciones(s.org.id, q) : [],
+    borrador ? buscarVariaciones(s.org.id, q, verInactivos(sp)) : [],
   ]);
   const editar = borrador ? Number(sp.editar) || 0 : 0;
   const aqui = (extra: Record<string, string | number | null> = {}) => url(`/compras/facturas/${fid}`, { q: q || null, ...extra });
@@ -155,6 +156,7 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
           <form className="flex flex-wrap items-end gap-2">
             <label className="flex-1 min-w-48"><span className={ETIQUETA}>Buscar producto por SKU, código o título</span>
               <input name="q" defaultValue={q} className={`${CAMPO} w-full`} /></label>
+            <MostrarInactivos activo={verInactivos(sp)} />
             <button className={SUAVE}>Buscar</button>
           </form>
           <form action={accionAgregarLinea} className="flex flex-wrap items-end gap-2">

@@ -9,10 +9,11 @@ import CampoNumero from "@/app/componentes/CampoNumero";
 import { entrarErp, Pantalla, CAJA, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { GRANDE } from "../formato";
 import { PestanasEtiquetas, ElegirFormato } from "./piezas";
+import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
 
 export const dynamic = "force-dynamic";
 
-type SP = { q?: string; v?: string };
+type SP = { q?: string; v?: string; inactivos?: string };
 
 export default async function EtiquetasProductos({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("etiquetas_ver");
@@ -22,10 +23,12 @@ export default async function EtiquetasProductos({ searchParams }: { searchParam
   const [variaciones, listas] = await Promise.all([
     q || v ? consulta<{ id: number; sku: string; titulo: string; codigo_barras: string | null }>(`
       select v.id::int, v.sku, titulo_variacion(v.id) titulo, v.codigo_barras
-        from variacion v
+        from variacion v join producto p on p.id = v.producto_id
        where v.organizacion_id = $1 and v.estado <> 'archivada' and not es_kit(v.id)
+         -- Inactivos sólo con la caja tildada (o si se llegó con ?v= desde la ficha).
+         and ($4 or v.id = $2 or p.estado <> 'archivado')
          and (v.id = $2 or ($3 <> '' and (v.sku ilike '%' || $3 || '%' or v.codigo_barras = $3 or titulo_variacion(v.id) ilike '%' || $3 || '%')))
-       order by v.id = $2 desc, v.sku limit 60`, [s.org.id, v, q]) : Promise.resolve([]),
+       order by v.id = $2 desc, v.sku limit 60`, [s.org.id, v, q, verInactivos(sp)]) : Promise.resolve([]),
     listasDePrecios(s.org.id),
   ]);
   const activas = listas.filter((l) => l.estado === "activa");
@@ -35,8 +38,9 @@ export default async function EtiquetasProductos({ searchParams }: { searchParam
   return (
     <Pantalla titulo="Etiquetas" subtitulo="Para pegar en los productos y en las estanterías" ancho="max-w-2xl">
       <PestanasEtiquetas />
-      <form className="flex gap-2 mb-4">
+      <form className="flex flex-wrap items-center gap-2 mb-4">
         <input name="q" defaultValue={q} placeholder="SKU, título o código de barras" className={`${CAMPO} flex-1 text-base py-2.5`} autoFocus={!v} />
+        <MostrarInactivos activo={verInactivos(sp)} />
         <button className={`${SUAVE} ${GRANDE}`}>Buscar</button>
       </form>
 

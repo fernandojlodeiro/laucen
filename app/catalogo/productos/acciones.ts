@@ -38,6 +38,15 @@ async function variacionDe(org: string, pid: number, vid: number) {
   return v;
 }
 
+/** Costo FOB y su moneda (campos costo_fob y costo_moneda del formulario). */
+function costoFob(fd: FormData): [number | null, "ARS" | "USD"] {
+  const n = numero(fd, "costo_fob");
+  if (n != null && n < 0) throw new ErrorErp("El costo FOB no puede ser negativo.");
+  return [n, fd.get("costo_moneda") === "ARS" ? "ARS" : "USD"];
+}
+
+const CONDICIONES = ["nuevo", "usado", "reacondicionado"];
+
 const pct = (fd: FormData, k: string) => {
   const n = numero(fd, k);
   if (n != null && (n < 0 || n > 100)) throw new ErrorErp("El descuento va de 0 a 100 %.");
@@ -113,7 +122,13 @@ export async function accionGuardarDatos(fd: FormData) {
       pct(fd, "descuento_pct"), entero(fd, "umbral_pausa"), entero(fd, "stock_minimo"),
       // IVA: sólo las alícuotas de ARCA; cualquier otra cosa deja la que tenía.
       [0, 2.5, 5, 10.5, 21, 27].includes(Number(fd.get("iva_pct"))) && fd.get("iva_pct") !== "" ? Number(fd.get("iva_pct")) : null,
+      texto(fd, "modelo"), texto(fd, "linea"), texto(fd, "garantia"),
+      CONDICIONES.includes(String(fd.get("condicion"))) ? String(fd.get("condicion")) : null,
+      tildado(fd, "kit_vs"),
     ];
+    // El costo FOB de un simple/kit va en su variación default (el campo sólo
+    // viene en el formulario cuando el producto no tiene variaciones).
+    const costo = fd.get("con_costo") === "1" ? costoFob(fd) : null;
     await enTransaccion(async (c) => {
       // Si deja de ser kit, sus componentes se van: si no, el stock se seguiría
       // calculando desde ellos.
@@ -126,11 +141,30 @@ export async function accionGuardarDatos(fd: FormData) {
       await c.query(`
         update producto set sku_base = $3, titulo = $4, descripcion = $5, familia_id = $6, marca = $7, tipo = $8, estado = $9,
                codigo_barras = $10, peso_g = $11, largo_cm = $12, ancho_cm = $13, alto_cm = $14,
-               descuento_pct = $15, umbral_pausa = $16, stock_minimo = $17, iva_pct = coalesce($18, iva_pct), actualizado_ts = now()
+               descuento_pct = $15, umbral_pausa = $16, stock_minimo = $17, iva_pct = coalesce($18, iva_pct),
+               modelo = $19, linea = $20, garantia = $21, condicion = $22, kit_vs = $23, actualizado_ts = now()
          where id = $2 and organizacion_id = $1`, valores);
+      if (costo && tipo !== "con_variaciones") {
+        await c.query("update variacion set costo_fob = $3, costo_moneda = $4 where producto_id = $2 and organizacion_id = $1 and es_default",
+          [s.org.id, pid, costo[0], costo[1]]);
+      }
     });
     revalidatePath(`${LISTADO}/${pid}`);
     return "Guardado.";
+  });
+}
+
+/** Pasar a Inactivo (archivado) o volver a Activo, desde la cabecera de la ficha. */
+export async function accionCambiarEstadoProducto(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  await intentar(ficha(pid, fd), async () => {
+    await productoDe(s.org.id, pid);
+    const estado = fd.get("estado") === "archivado" ? "archivado" : "activo";
+    await consulta("update producto set estado = $3, actualizado_ts = now() where id = $2 and organizacion_id = $1", [s.org.id, pid, estado]);
+    revalidatePath(`${LISTADO}/${pid}`);
+    revalidatePath(LISTADO);
+    return estado === "archivado" ? "Pasó a Inactivo: ya no aparece en los listados." : "Volvió a Activo.";
   });
 }
 
@@ -176,7 +210,10 @@ export async function accionGuardarVariacion(fd: FormData) {
     const v = await variacionDe(s.org.id, pid, id(fd));
     const attrs = leerAtributos(texto(fd, "atributos"));
     const estado = ["activa", "pausada", "archivada"].includes(String(fd.get("estado"))) ? String(fd.get("estado")) : "activa";
+    const [costo, monedaCosto] = costoFob(fd);
     await enTransaccion(async (c) => {
+      await c.query("update variacion set costo_fob = $3, costo_moneda = $4 where id = $2 and organizacion_id = $1",
+        [s.org.id, v.id, costo, monedaCosto]);
       if (v.es_default && p.tipo !== "con_variaciones") {
         // La default de un simple/kit: el SKU y el código los manda el producto.
         await c.query("update variacion set titulo = $3, descuento_pct = $4, estado = $5 where id = $2 and organizacion_id = $1",

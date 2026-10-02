@@ -16,6 +16,7 @@ import {
 } from "@/app/componentes/erp";
 import { fecha as fechaAR, fechaHora } from "@/app/ventas/formato";
 import { ESTADO_DESPACHO, buscarVariaciones, pct } from "../../comun";
+import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
 import { CamposDespacho, opcionesDespacho } from "../Cabecera";
 import {
   accionGuardarDespacho, accionAgregarItem, accionGuardarItem, accionBorrarItem, accionAgregarLineaDespacho,
@@ -24,7 +25,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type SP = { editar?: string; q?: string; ok?: string; error?: string };
+type SP = { editar?: string; q?: string; inactivos?: string; ok?: string; error?: string };
 
 type Item = { concepto: string; importe_ars: number };
 type Despacho = {
@@ -62,7 +63,7 @@ export default async function DetalleDespacho({ params, searchParams }: { params
         from despacho_linea where despacho_id = $1 and organizacion_id = $2 order by orden, id`, [did, s.org.id]),
     calcularDespacho(s.org.id, did),
     borrador ? opcionesDespacho(s.org.id) : null,
-    borrador ? buscarVariaciones(s.org.id, q) : [],
+    borrador ? buscarVariaciones(s.org.id, q, verInactivos(sp)) : [],
   ]);
   const editar = borrador ? sp.editar ?? "" : "";
   const aqui = (extra: Record<string, string | number | null> = {}) => url(`/compras/despachos/${did}`, { q: q || null, ...extra });
@@ -218,6 +219,7 @@ export default async function DetalleDespacho({ params, searchParams }: { params
           <form className="flex flex-wrap items-end gap-2">
             <label className="flex-1 min-w-48"><span className={ETIQUETA}>Buscar producto por SKU, código o título</span>
               <input name="q" defaultValue={q} className={`${CAMPO} w-full`} /></label>
+            <MostrarInactivos activo={verInactivos(sp)} />
             <button className={SUAVE}>Buscar</button>
           </form>
           <form action={accionAgregarLineaDespacho} className="flex flex-wrap items-end gap-2">
