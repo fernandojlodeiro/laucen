@@ -117,6 +117,9 @@ create table if not exists importacion_vs_sku (
   motivo           text,
   primary key (importacion_id, sku)
 );
+-- Kits (Fer, 2/10): el "-U" que lo forma y cuántos (sacado del título).
+alter table importacion_vs_sku add column if not exists kit_componente text;
+alter table importacion_vs_sku add column if not exists kit_cantidad int;
 create index if not exists importacion_vs_sku_pend on importacion_vs_sku (importacion_id) where resultado is null;
 alter table importacion_vs_sku enable row level security;
 select erp_politica_org('importacion_vs_sku');

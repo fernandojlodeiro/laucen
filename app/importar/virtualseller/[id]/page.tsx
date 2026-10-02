@@ -19,7 +19,7 @@ export const maxDuration = 300;
 
 type Resumen = {
   ml_leidas?: number; ml_completo?: boolean; con_stock?: number; publicados?: number; sin_publicar?: number; inactivos?: number;
-  notebooks_descartadas?: number; stock_sin_maestro?: string[]; kits?: number; columna_iva?: string | null;
+  notebooks_descartadas?: number; stock_sin_maestro?: string[]; kits?: number; kits_armados?: number; kits_sin_componente?: string[]; kits_sin_cantidad?: string[]; columna_iva?: string | null;
   iva_diferencias?: { sku: string; titulo: string; vs: number; ml: number; items: string[] }[];
   publicaciones?: { total: number; sin_sku: number; sin_producto: number };
   iva_corregido?: { ok: number; errores: string[]; items: string[] }; importados?: number; con_error?: number;
@@ -64,7 +64,7 @@ export default async function CorridaVs({ params, searchParams }: { params: Prom
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             {[
               ["Con stock (activos)", r.con_stock], ["· publicados en ML", r.publicados], ["· sin publicar", r.sin_publicar],
-              ["Sin stock (inactivos)", r.inactivos], ["Notebooks sin stock (no entran)", r.notebooks_descartadas], ["Kits de VS (marcados)", r.kits],
+              ["Sin stock (inactivos)", r.inactivos], ["Notebooks sin stock (no entran)", r.notebooks_descartadas], ["Kits (armados con su -U)", r.kits_armados],
               ["Publicaciones de la cuenta", r.publicaciones?.total], ["· sin SKU / sin producto en VS", undefined],
             ].map(([t, v], i) => (
               <div key={i} className={CAJA}>
@@ -79,6 +79,14 @@ export default async function CorridaVs({ params, searchParams }: { params: Prom
           {(r.stock_sin_maestro?.length ?? 0) > 0 && (
             <p className="text-xs rounded-lg px-3 py-2 mb-4 bg-[#FFF8E5] text-[#8a6100]">
               {r.stock_sin_maestro!.length} SKU tienen stock pero no están en el maestro (no se importan): {r.stock_sin_maestro!.slice(0, 30).join(", ")}{r.stock_sin_maestro!.length > 30 ? "…" : ""}
+            </p>
+          )}
+
+          {((r.kits_sin_componente?.length ?? 0) + (r.kits_sin_cantidad?.length ?? 0)) > 0 && (
+            <p className="text-xs rounded-lg px-3 py-2 mb-4 bg-[#FFF8E5] text-[#8a6100]">
+              De {n(r.kits)} kits, {n(r.kits_armados)} se arman solos. Los demás entran marcados &quot;Kit VS&quot; para armarlos a mano:
+              {r.kits_sin_componente?.length ? <> sin su &quot;-U&quot; en el maestro: {r.kits_sin_componente.slice(0, 30).join(", ")}{r.kits_sin_componente.length > 30 ? "…" : ""}.</> : null}
+              {r.kits_sin_cantidad?.length ? <> El título no dice cuántas unidades: {r.kits_sin_cantidad.slice(0, 30).join(", ")}{r.kits_sin_cantidad.length > 30 ? "…" : ""}.</> : null}
             </p>
           )}
 

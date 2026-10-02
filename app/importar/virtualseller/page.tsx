@@ -27,6 +27,7 @@ export default async function ImportarVs({ searchParams }: { searchParams: Promi
         <li>Stock: los SKU de DE (con &quot;DE-&quot; adelante) se suman a los de TV. Va al depósito CORDOBA CENTRAL, cada uno en su ubicación.</li>
         <li>Con stock → activo. Sin stock → inactivo, salvo las notebooks (familia que empieza con NOTEBOOK), que no entran.</li>
         <li>Si está publicado en Mercado Libre: título, fotos, categoría, atributos y medidas de ML; IVA de Virtual Seller; descripción de ML (o de VS si ML no tiene).</li>
+        <li>Kits: entran siempre (el stock lo tienen sus componentes) y se arman con su &quot;-U&quot;; la cantidad sale del título (&quot;Pack X5&quot; = 5 × SKU-U). Su costo FOB es la suma de los componentes.</li>
         <li>Antes de grabar nada te muestra el resumen y las diferencias de IVA.</li>
       </ul>
 

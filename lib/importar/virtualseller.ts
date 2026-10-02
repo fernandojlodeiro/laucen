@@ -15,7 +15,11 @@
 //     de la lista Clásicas es el de la publicación Clásica (con su precio
 //     tachado si está en campaña); si no hay Clásica, el de Lista_000.
 //   - Sin publicación: todo de VS.
-//   - "Kit" de VS: sólo la marca kit_vs (se arman a mano).
+//   - "Kit" de VS (Fer, 2/10): se importa siempre, aunque no tenga stock (el
+//     stock lo tienen sus componentes), y se arma como kit del sistema con
+//     su "-U" (SKU00715 = N × SKU00715-U), N sacado del título ("Pack X5").
+//     Su costo FOB es la suma de los componentes. Si no se puede armar (no
+//     está el -U o el título no dice cuántos), queda con la marca kit_vs.
 //   - Costo del maestro: costo FOB en USD.
 // Se puede correr más de una vez: actualiza, y el stock se lleva al valor del
 // archivo (no se suma dos veces).
@@ -60,6 +64,20 @@ function columna(cols: string[], ...buscar: string[]): string | null {
   }
   return null;
 }
+
+/** Cuántas unidades tiene un pack, según el título: "Pack X5 Unidades",
+ *  "X 10 u", "10 Unidades". null si no lo dice. */
+export function cantidadDelTitulo(t: string | null | undefined): number | null {
+  if (!t) return null;
+  const pruebas = [/\bpack\s*(?:de\s*|x\s*)?(\d{1,4})\b/i, /\bx\s*(\d{1,4})\s*(?:u|un|uds?|unid(?:ades)?|pcs|piezas)?\b/i, /\b(\d{1,4})\s*(?:unidades|unid|uds|pcs|piezas)\b/i];
+  for (const r of pruebas) {
+    const m = t.match(r);
+    if (m && Number(m[1]) > 1) return Number(m[1]);
+  }
+  return null;
+}
+
+export const esKitVs = (tipo: Valor | undefined) => /kit/i.test(String(tipo ?? ""));
 
 export const skuLimpio = (s: string) => s.trim().replace(/^DE-/i, "").toUpperCase();
 
@@ -192,19 +210,36 @@ export async function analizar(org: string, id: number, hastaMs: number): Promis
       [cuenta.canalId, idsMl]);
     for (const x of its) ivaMl.set(x.item_id, { iva: ivaDe(x.d), item: x.item_id, titulo: x.titulo });
   }
-  const cuenta_ = { con_stock: 0, publicados: 0, sin_publicar: 0, inactivos: 0, notebooks_descartadas: 0, stock_sin_maestro: [] as string[], kits: 0 };
+  const cuenta_ = { con_stock: 0, publicados: 0, sin_publicar: 0, inactivos: 0, notebooks_descartadas: 0, stock_sin_maestro: [] as string[],
+    kits: 0, kits_armados: 0, kits_sin_componente: [] as string[], kits_sin_cantidad: [] as string[] };
   const difIva: { sku: string; titulo: string; vs: number; ml: number; items: string[] }[] = [];
   const cTipo = columna(columnas, "tipo de producto");
+  const cDen = columna(columnas, "producto: denominacion", "denominacion"), cTit = columna(columnas, "titulo de la publicacion ml");
+  const porSku = new Map(filas.map((f) => [f.sku, f]));
+  const stockDe = (sku: string) => porSku.get(sku)?.stock.reduce((a, x) => a + x.cantidad, 0) ?? 0;
+  const componentes = new Set<string>();
   await enTransaccion(async (c) => {
     for (const f of filas) {
-      const total = f.stock.reduce((s, x) => s + x.cantidad, 0);
+      const total = stockDe(f.sku);
       const fam = cFam && f.maestro ? norm(String(f.maestro[cFam] ?? "")) : "";
+      const kit = !!f.maestro && !!cTipo && esKitVs(f.maestro[cTipo]);
       let destino: string;
+      let kitComp: string | null = null, kitCant: number | null = null;
       if (!f.maestro) { destino = "sin_maestro"; if (total > 0) cuenta_.stock_sin_maestro.push(f.sku); }
+      else if (kit) {
+        // El kit entra siempre: activo si su componente tiene stock.
+        cuenta_.kits++;
+        const comp = `${f.sku}-U`;
+        kitCant = cantidadDelTitulo((cDen && txt(f.maestro[cDen])) || null) ?? cantidadDelTitulo((cTit && txt(f.maestro[cTit])) || null);
+        if (!porSku.get(comp)?.maestro) cuenta_.kits_sin_componente.push(f.sku);
+        else if (!kitCant) cuenta_.kits_sin_cantidad.push(f.sku);
+        else { kitComp = comp; componentes.add(comp); cuenta_.kits_armados++; }
+        destino = (kitComp ? stockDe(kitComp) : total) > 0 ? "activo" : "inactivo";
+        if (destino === "activo") { cuenta_.con_stock++; if (f.ml_items.length) cuenta_.publicados++; else cuenta_.sin_publicar++; } else cuenta_.inactivos++;
+      }
       else if (total > 0) { destino = "activo"; cuenta_.con_stock++; if (f.ml_items.length) cuenta_.publicados++; else cuenta_.sin_publicar++; }
       else if (fam.startsWith("notebook")) { destino = "descartado"; cuenta_.notebooks_descartadas++; }
       else { destino = "inactivo"; cuenta_.inactivos++; }
-      if (f.maestro && cTipo && /kit|config/i.test(String(f.maestro[cTipo] ?? ""))) cuenta_.kits++;
       const vs = f.maestro && cIva ? numeroVs(f.maestro[cIva]) : null;
       const mls = f.ml_items.map((i) => ivaMl.get(i)).filter(Boolean) as { iva: number | null; item: string; titulo: string }[];
       const mlIva = mls.find((m) => m.iva != null)?.iva ?? null;
@@ -212,8 +247,14 @@ export async function analizar(org: string, id: number, hastaMs: number): Promis
       if (destino !== "descartado" && vs != null && distintos.length) {
         difIva.push({ sku: f.sku, titulo: mls[0].titulo, vs, ml: distintos[0].iva ?? 0, items: distintos.map((m) => m.item) });
       }
-      await c.query("update importacion_vs_sku set destino = $3, iva_vs = $4, iva_ml = $5 where importacion_id = $1 and sku = $2",
-        [id, f.sku, destino, vs, mlIva]);
+      await c.query("update importacion_vs_sku set destino = $3, iva_vs = $4, iva_ml = $5, kit_componente = $6, kit_cantidad = $7 where importacion_id = $1 and sku = $2",
+        [id, f.sku, destino, vs, mlIva, kitComp, kitCant]);
+    }
+    // Un componente de kit entra aunque no tenga stock (sería "notebook descartada" sólo por la familia).
+    if (componentes.size) {
+      const r = await c.query("update importacion_vs_sku set destino = 'inactivo' where importacion_id = $1 and sku = any($2::text[]) and destino = 'descartado'", [id, [...componentes]]);
+      cuenta_.notebooks_descartadas -= r.rowCount ?? 0;
+      cuenta_.inactivos += r.rowCount ?? 0;
     }
   });
   const pubs = await una<{ total: number; sin_sku: number; sin_producto: number }>(`
@@ -313,7 +354,7 @@ async function familiaVs(ctx: Ctx, nombre: string | null): Promise<number | null
 }
 
 async function importarSku(ctx: Ctx, f: { sku: string; stock: { ubicacion: string; cantidad: number }[]; maestro: Record<string, Valor>; precio: string | null;
-  ml_items: string[]; destino: string; iva_vs: string | null }) {
+  ml_items: string[]; destino: string; iva_vs: string | null; kit_componente: string | null; kit_cantidad: number | null }) {
   const m = f.maestro, cols = ctx.columnas;
   const val = (...nombres: string[]) => { const c = columna(cols, ...nombres); return c ? txt(m[c]) : null; };
   const items = f.ml_items.length ? await consulta<{ item_id: string; estado: string; tipo: string | null; precio: string | null; d: ItemMl & {
@@ -338,8 +379,8 @@ async function importarSku(ctx: Ctx, f: { sku: string; stock: { ubicacion: strin
   const familia = it ? await familiaMl(ctx, it.category_id) : await familiaVs(ctx, val("familia"));
   const garantia = it?.sale_terms?.filter((t) => /WARRANTY/.test(t.id)).map((t) => t.value_name).filter(Boolean).join(" · ") || null;
   const condicion = it?.condition === "used" ? "usado" : it?.condition === "refurbished" ? "reacondicionado" : it ? "nuevo" : null;
-  const tipoVs = val("tipo de producto") ?? "";
-  const kit = /kit|config/i.test(tipoVs);
+  const kitVs = esKitVs(val("tipo de producto"));
+  const armado = kitVs && !!f.kit_componente && !!f.kit_cantidad;
   const costo = numeroVs(m[columna(cols, "costo") ?? ""] ?? null);
   const fotos = (it?.pictures ?? []).map((p) => p.secure_url || p.url).filter(Boolean).slice(0, 12) as string[];
   const atributos = (it?.attributes ?? []).filter((a) => a.value_name).map((a) => ({ id: a.id, name: a.name ?? a.id, value_name: a.value_name }));
@@ -349,8 +390,8 @@ async function importarSku(ctx: Ctx, f: { sku: string; stock: { ubicacion: strin
   const variacionId = await enTransaccion(async (c) => {
     const p = await c.query<{ id: string }>(`
       insert into producto (organizacion_id, sku_base, titulo, descripcion, familia_id, marca, modelo, linea, garantia, condicion, categoria_ml,
-                            atributos_ml, kit_vs, iva_pct, codigo_barras, peso_g, largo_cm, ancho_cm, alto_cm, estado)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20)
+                            atributos_ml, kit_vs, iva_pct, codigo_barras, peso_g, largo_cm, ancho_cm, alto_cm, estado, tipo)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       on conflict (organizacion_id, sku_base) do update set titulo = excluded.titulo, descripcion = coalesce(excluded.descripcion, producto.descripcion),
         familia_id = coalesce(excluded.familia_id, producto.familia_id), marca = coalesce(excluded.marca, producto.marca),
         modelo = coalesce(excluded.modelo, producto.modelo), linea = coalesce(excluded.linea, producto.linea),
@@ -360,15 +401,26 @@ async function importarSku(ctx: Ctx, f: { sku: string; stock: { ubicacion: strin
         kit_vs = excluded.kit_vs, iva_pct = excluded.iva_pct, codigo_barras = coalesce(excluded.codigo_barras, producto.codigo_barras),
         peso_g = coalesce(excluded.peso_g, producto.peso_g), largo_cm = coalesce(excluded.largo_cm, producto.largo_cm),
         ancho_cm = coalesce(excluded.ancho_cm, producto.ancho_cm), alto_cm = coalesce(excluded.alto_cm, producto.alto_cm),
-        estado = excluded.estado, actualizado_ts = now()
+        estado = excluded.estado, tipo = excluded.tipo, actualizado_ts = now()
       returning id`,
       [ctx.org, f.sku, titulo.slice(0, 300), descripcion, familia, at("BRAND") ?? val("marca"), at("MODEL") ?? val("modelo"), at("LINE"), garantia, condicion,
-        it?.category_id ?? null, JSON.stringify(atributos), kit, iva, at("GTIN") ?? val("codigo upc", "codigo ean", "codigo de barra"),
-        peso != null ? Math.round(peso) : null, it ? dimension(it, "PACKAGE_LENGTH") : null, it ? dimension(it, "PACKAGE_WIDTH") : null, it ? dimension(it, "PACKAGE_HEIGHT") : null, estado]);
+        it?.category_id ?? null, JSON.stringify(atributos), kitVs && !armado, iva, at("GTIN") ?? val("codigo upc", "codigo ean", "codigo de barra"),
+        peso != null ? Math.round(peso) : null, it ? dimension(it, "PACKAGE_LENGTH") : null, it ? dimension(it, "PACKAGE_WIDTH") : null, it ? dimension(it, "PACKAGE_HEIGHT") : null, estado,
+        armado ? "kit" : "simple"]);
     const productoId = Number(p.rows[0].id);
     const v = await c.query<{ id: string }>("select id from variacion where producto_id = $1 and es_default", [productoId]);
     const vid = Number(v.rows[0].id);
-    if (costo != null) await c.query("update variacion set costo_fob = $2, costo_moneda = 'USD' where id = $1", [vid, costo]);
+    if (armado) {
+      // El kit: N × su "-U" (que ya se importó antes). Costo FOB = suma de los componentes.
+      const comp = await c.query<{ id: string; costo_fob: string | null }>(
+        "select v.id, v.costo_fob from variacion v where v.organizacion_id = $1 and upper(v.sku) = $2", [ctx.org, f.kit_componente]);
+      if (!comp.rows[0]) throw new ErrorErp(`No está el componente ${f.kit_componente}.`);
+      await c.query("delete from kit_componente where variacion_kit_id = $1 and variacion_componente_id <> $2", [vid, comp.rows[0].id]);
+      await c.query(`insert into kit_componente (organizacion_id, variacion_kit_id, variacion_componente_id, cantidad) values ($1, $2, $3, $4)
+                     on conflict (variacion_kit_id, variacion_componente_id) do update set cantidad = excluded.cantidad`, [ctx.org, vid, comp.rows[0].id, f.kit_cantidad]);
+      const fob = comp.rows[0].costo_fob != null ? Number(comp.rows[0].costo_fob) * f.kit_cantidad! : null;
+      await c.query("update variacion set costo_fob = $2, costo_moneda = 'USD' where id = $1", [vid, fob]);
+    } else if (costo != null) await c.query("update variacion set costo_fob = $2, costo_moneda = 'USD' where id = $1", [vid, costo]);
     if (fotos.length) {
       await c.query("delete from producto_foto where producto_id = $1 and ruta_storage is null", [productoId]);
       for (const [i, u] of fotos.entries()) await c.query("insert into producto_foto (organizacion_id, producto_id, orden, url) values ($1, $2, $3, $4)", [ctx.org, productoId, i, u]);
@@ -381,8 +433,8 @@ async function importarSku(ctx: Ctx, f: { sku: string; stock: { ubicacion: strin
         await guardarPrecio(ctx.org, { listaId: ctx.listaBase, variacionId: vid, importe: r2(precio), moneda: "ARS", usuarioId: ctx.usuarioId }, c);
       }
     }
-    // Stock: se lleva cada ubicación al valor del archivo.
-    for (const s of f.stock) {
+    // Stock: se lleva cada ubicación al valor del archivo (un kit no tiene stock propio).
+    for (const s of armado ? [] : f.stock) {
       const u = await ubicacion(c, ctx, s.ubicacion);
       const actual = Number((await c.query<{ n: string }>("select coalesce(sum(cantidad), 0) n from stock where variacion_id = $1 and ubicacion_id = $2", [vid, u])).rows[0].n);
       const dif = Math.round(s.cantidad) - actual;
@@ -416,9 +468,9 @@ export async function importar(org: string, id: number, hastaMs: number): Promis
   for (;;) {
     if (Date.now() > hastaMs) return false;
     const filas = await consulta<Parameters<typeof importarSku>[1]>(`
-      select sku, stock, maestro, precio, ml_items, destino, iva_vs from importacion_vs_sku
+      select sku, stock, maestro, precio, ml_items, destino, iva_vs, kit_componente, kit_cantidad from importacion_vs_sku
        where importacion_id = $1 and organizacion_id = $2 and resultado is null and destino in ('activo', 'inactivo')
-       order by (destino = 'activo') desc, sku limit 50`, [id, org]);
+       order by (kit_componente is not null), (destino = 'activo') desc, sku limit 50`, [id, org]);
     if (!filas.length) break;
     for (const f of filas) {
       if (Date.now() > hastaMs) return false;

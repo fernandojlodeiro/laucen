@@ -144,8 +144,10 @@ export async function accionGuardarDatos(fd: FormData) {
                descuento_pct = $15, umbral_pausa = $16, stock_minimo = $17, iva_pct = coalesce($18, iva_pct),
                modelo = $19, linea = $20, garantia = $21, condicion = $22, kit_vs = $23, actualizado_ts = now()
          where id = $2 and organizacion_id = $1`, valores);
-      if (costo && tipo !== "con_variaciones") {
-        await c.query("update variacion set costo_fob = $3, costo_moneda = $4 where producto_id = $2 and organizacion_id = $1 and es_default",
+      // Un kit no graba costo FOB: es la suma de sus componentes.
+      if (costo && tipo !== "con_variaciones" && tipo !== "kit") {
+        await c.query(`update variacion set costo_fob = $3, costo_moneda = $4
+                        where producto_id = $2 and organizacion_id = $1 and es_default and not es_kit(id)`,
           [s.org.id, pid, costo[0], costo[1]]);
       }
     });
@@ -212,8 +214,11 @@ export async function accionGuardarVariacion(fd: FormData) {
     const estado = ["activa", "pausada", "archivada"].includes(String(fd.get("estado"))) ? String(fd.get("estado")) : "activa";
     const [costo, monedaCosto] = costoFob(fd);
     await enTransaccion(async (c) => {
-      await c.query("update variacion set costo_fob = $3, costo_moneda = $4 where id = $2 and organizacion_id = $1",
-        [s.org.id, v.id, costo, monedaCosto]);
+      // Un kit (por tipo o con componentes) no graba costo FOB: se calcula.
+      if (p.tipo !== "kit") {
+        await c.query("update variacion set costo_fob = $3, costo_moneda = $4 where id = $2 and organizacion_id = $1 and not es_kit(id)",
+          [s.org.id, v.id, costo, monedaCosto]);
+      }
       if (v.es_default && p.tipo !== "con_variaciones") {
         // La default de un simple/kit: el SKU y el código los manda el producto.
         await c.query("update variacion set titulo = $3, descuento_pct = $4, estado = $5 where id = $2 and organizacion_id = $1",

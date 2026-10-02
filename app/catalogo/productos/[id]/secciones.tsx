@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { precioDe, listasDePrecios } from "@/lib/precios";
-import { enVista, formatear, type Moneda } from "@/lib/moneda";
+import { enVista, formatear, tcDelDia, type Moneda } from "@/lib/moneda";
 import { formatearNumero } from "@/lib/numeros";
 import type { Sesion } from "@/lib/tenancy";
 import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
@@ -95,6 +95,57 @@ function CampoCosto({ v }: { v: Pick<Variacion, "costo_fob" | "costo_moneda"> | 
   );
 }
 
+/** Costo FOB de un kit: no se carga, es la suma de sus componentes
+ *  (costo_fob × cantidad). Si los componentes mezclan monedas, todo a USD
+ *  con el tipo de cambio del día. */
+type CostoKit = {
+  total: number | null; moneda: Moneda; sinCosto: string[]; sinTc: boolean;
+  componentes: { sku: string; cantidad: number; subtotal: number | null; moneda: Moneda }[];
+};
+async function costosKit(org: string, variaciones: number[]): Promise<Map<number, CostoKit>> {
+  const salida = new Map<number, CostoKit>();
+  if (!variaciones.length) return salida;
+  const filas = await consulta<{ kit: number; sku: string; cantidad: number; costo: number | null; moneda: Moneda }>(`
+    select k.variacion_kit_id::int kit, v.sku, k.cantidad, v.costo_fob::float8 costo, v.costo_moneda moneda
+      from kit_componente k join variacion v on v.id = k.variacion_componente_id
+     where k.organizacion_id = $1 and k.variacion_kit_id = any($2::bigint[]) order by v.sku`, [org, variaciones]);
+  let tc: number | null | undefined;
+  for (const id of variaciones) {
+    const comp = filas.filter((f) => f.kit === id);
+    if (!comp.length) continue;
+    const conCosto = comp.filter((c) => c.costo != null);
+    const mezcla = new Set(conCosto.map((c) => c.moneda)).size > 1;
+    const moneda: Moneda = mezcla ? "USD" : conCosto[0]?.moneda ?? "USD";
+    if (mezcla && tc === undefined) tc = (await tcDelDia(org))?.venta ?? null;
+    const aMoneda = (n: number, de: Moneda) => (de === moneda ? n : tc ? n / tc : null);
+    const componentes = comp.map((c) => {
+      const sub = c.costo == null ? null : aMoneda(c.costo * c.cantidad, c.moneda);
+      return { sku: c.sku, cantidad: c.cantidad, subtotal: sub, moneda };
+    });
+    const sinTc = mezcla && !tc;
+    const total = sinTc || !conCosto.length ? null : componentes.reduce((t, c) => t + (c.subtotal ?? 0), 0);
+    salida.set(id, { total, moneda, componentes, sinTc, sinCosto: comp.filter((c) => c.costo == null).map((c) => c.sku) });
+  }
+  return salida;
+}
+
+/** El costo FOB calculado de un kit, con sus componentes debajo. */
+function CostoKitVer({ k }: { k: CostoKit | undefined }) {
+  if (!k) return <span className="block text-[11px] text-[#5C6B76] py-1.5">El kit todavía no tiene componentes: su costo FOB es la suma de ellos.</span>;
+  return (
+    <span className="block text-xs">
+      <span className="block py-1.5 tabular-nums font-semibold text-right">{k.total != null ? formatear(k.total, k.moneda) : "—"}</span>
+      <span className="block text-[10px] text-[#5C6B76]">Suma de sus componentes{k.sinTc && " (no hay tipo de cambio del día para pasar todo a USD)"}:</span>
+      <ul className="text-[10px] text-[#5C6B76] tabular-nums">
+        {k.componentes.map((c, i) => (
+          <li key={i}>{c.sku} × {c.cantidad} = {c.subtotal != null ? formatear(c.subtotal, c.moneda) : "sin costo"}</li>
+        ))}
+      </ul>
+      {k.sinCosto.length > 0 && <span className="block text-[10px] text-[#8a6100]">Falta el costo FOB de {k.sinCosto.join(", ")}.</span>}
+    </span>
+  );
+}
+
 type AtributoMl = { id?: string; name?: string; value_name?: string | null };
 const atributosMl = (x: unknown): AtributoMl[] => (Array.isArray(x) ? x.filter((a) => a && typeof a === "object") as AtributoMl[] : []);
 
@@ -112,6 +163,8 @@ export async function SeccionDatos({ s, p, seccion }: Props) {
   const umbralOrg = Number(p.umbral_org ?? 1) || 1;
   const conVariaciones = p.tipo === "con_variaciones";
   const vDefault = conVariaciones ? null : (await variacionesDe(s.org.id, p.id)).find((v) => v.es_default) ?? null;
+  const kits = vDefault ? await costosKit(s.org.id, [vDefault.id]) : new Map<number, CostoKit>();
+  const esKit = !!vDefault && (p.tipo === "kit" || kits.has(vDefault.id));
   const attrsMl = atributosMl(p.atributos_ml);
   return (
     <>
@@ -154,7 +207,12 @@ export async function SeccionDatos({ s, p, seccion }: Props) {
           {Object.entries(CONDICIONES).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
         </select>
       </label>
-      {vDefault ? (
+      {vDefault && esKit ? (
+        <div className="col-span-2">
+          <span className={ETIQUETA}>Costo FOB</span>
+          <CostoKitVer k={kits.get(vDefault.id)} />
+        </div>
+      ) : vDefault ? (
         <div className="col-span-2">
           <input type="hidden" name="con_costo" value="1" />
           <label><span className={ETIQUETA}>Costo FOB</span><CampoCosto v={vDefault} /></label>
@@ -225,6 +283,9 @@ export async function SeccionVariaciones({ s, p, sp, seccion }: Props) {
   const filas = await variacionesDe(s.org.id, p.id);
   const editar = Number(sp.editar) || 0;
   const conVariaciones = p.tipo === "con_variaciones";
+  // Un kit (por tipo o porque tiene componentes) no carga costo: se calcula.
+  const kits = await costosKit(s.org.id, filas.map((v) => v.id));
+  const esKit = (v: Variacion) => p.tipo === "kit" || kits.has(v.id);
   return (
     <>
       {!conVariaciones && (
@@ -269,7 +330,9 @@ export async function SeccionVariaciones({ s, p, sp, seccion }: Props) {
                           {Object.entries(ESTADOS_VARIACION).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
                         </select>
                       </label>
-                      <div className="col-span-2"><span className={ETIQUETA}>Costo FOB</span><CampoCosto v={v} /><CostoDeposito v={v} vista={s.moneda} /></div>
+                      <div className="col-span-2"><span className={ETIQUETA}>Costo FOB</span>
+                        {esKit(v) ? <CostoKitVer k={kits.get(v.id)} /> : <><CampoCosto v={v} /><CostoDeposito v={v} vista={s.moneda} /></>}
+                      </div>
                       <div className="col-span-2 sm:col-span-2 flex gap-2 justify-end self-end">
                         <button className={VERDE}>Guardar</button>
                         <Link href={aqui(p, seccion)} className={SUAVE} scroll={false}>Cancelar</Link>
@@ -286,7 +349,12 @@ export async function SeccionVariaciones({ s, p, sp, seccion }: Props) {
                   <td className={TDN}>
                     {v.descuento_pct != null ? pct(v.descuento_pct) : <span className="text-[#5C6B76]" title="Heredado">{pct(v.descuento_efectivo)}</span>}
                   </td>
-                  <td className={TDN}>{v.costo_fob != null ? formatear(v.costo_fob, v.costo_moneda) : <span className="text-[#5C6B76]">—</span>}</td>
+                  <td className={TDN}>
+                    {esKit(v) ? (() => {
+                      const k = kits.get(v.id);
+                      return <span title="Suma de sus componentes">{k?.total != null ? formatear(k.total, k.moneda) : "—"} <span className="text-[10px] text-[#5C6B76]">(suma de sus componentes)</span></span>;
+                    })() : v.costo_fob != null ? formatear(v.costo_fob, v.costo_moneda) : <span className="text-[#5C6B76]">—</span>}
+                  </td>
                   <td className={TD}><EstadoProducto estado={v.estado} /></td>
                   <td className={`${TD} text-right whitespace-nowrap`}>
                     <span className="inline-flex gap-1">
