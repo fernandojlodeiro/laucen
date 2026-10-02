@@ -30,6 +30,7 @@
 // periódicas en segundo plano.
 
 import type { PoolClient } from "pg";
+import { pool } from "@/db";
 import { consulta, una, enTransaccion, ErrorErp, motivoErp } from "@/lib/erp/base";
 import type { Hoja, Valor } from "@/lib/importar/leer";
 import { moverStock } from "@/lib/stock";
@@ -155,7 +156,7 @@ async function cuentaBase(org: string): Promise<CuentaMl> {
 
 /** Trae a meli_item las publicaciones activas y pausadas de la cuenta (las
  *  cerradas no: son años de historia que no se importan). */
-async function traerActivas(cuenta: CuentaMl, hastaMs: number): Promise<{ leidas: number; completo: boolean }> {
+async function traerActivas(cuenta: CuentaMl, hastaMs: number, desde: Date): Promise<{ leidas: number; completo: boolean }> {
   let leidas = 0;
   for (const estado of ["active", "paused"]) {
     let scroll: string | null = null;
@@ -167,8 +168,12 @@ async function traerActivas(cuenta: CuentaMl, hastaMs: number): Promise<{ leidas
       const ids = r.datos.results ?? [];
       if (!ids.length) break;
       scroll = r.datos.scroll_id ?? null;
-      for (let i = 0; i < ids.length; i += 20) {
-        const m = await ml<{ code: number; body: ItemMl }[]>(cuenta, "GET", `/items?ids=${ids.slice(i, i + 20).join(",")}&include_attributes=all`);
+      // Si se retoma después de un corte, no se vuelven a bajar las que ya se trajeron en esta corrida.
+      const ya = new Set((await consulta<{ item_id: string }>(
+        "select item_id from meli_item where canal_id = $1 and item_id = any($2::text[]) and actualizado_ts >= $3", [cuenta.canalId, ids, desde])).map((x) => x.item_id));
+      const faltan = ids.filter((x) => !ya.has(x));
+      for (let i = 0; i < faltan.length; i += 20) {
+        const m = await ml<{ code: number; body: ItemMl }[]>(cuenta, "GET", `/items?ids=${faltan.slice(i, i + 20).join(",")}&include_attributes=all`);
         if (m.status !== 200) continue;
         for (const x of m.datos) if (x.code === 200) { await guardarItem(cuenta, x.body); leidas++; }
       }
@@ -185,11 +190,11 @@ type Corrida = { id: number; estado: string; resumen: Record<string, unknown> };
 /** Paso de análisis: trae las publicaciones de la cuenta base (puede llevar
  *  varias vueltas) y arma el resumen. Devuelve true si terminó. */
 export async function analizar(org: string, id: number, hastaMs: number): Promise<boolean> {
-  const imp = await una<Corrida>("select id::int, estado, resumen from importacion_vs where id = $1 and organizacion_id = $2", [id, org]);
+  const imp = await una<Corrida & { creado_ts: Date }>("select id::int, estado, resumen, creado_ts from importacion_vs where id = $1 and organizacion_id = $2", [id, org]);
   if (!imp || imp.estado !== "cargando") return true;
   const cuenta = await cuentaBase(org);
   if (!imp.resumen.ml_completo) {
-    const t = await traerActivas(cuenta, hastaMs);
+    const t = await traerActivas(cuenta, hastaMs, imp.creado_ts);
     if (!t.completo) {
       await consulta("update importacion_vs set resumen = resumen || $3::jsonb where id = $1 and organizacion_id = $2",
         [id, org, JSON.stringify({ ml_leidas: (Number(imp.resumen.ml_leidas) || 0) + t.leidas })]);
@@ -495,14 +500,26 @@ export async function importar(org: string, id: number, hastaMs: number): Promis
   return true;
 }
 
-/** Un paso de la corrida (lo llaman las tareas periódicas y la pantalla). */
+/** Un paso de la corrida (lo llaman las tareas periódicas y la pantalla).
+ *  Con candado: si ya la está procesando otro (la pantalla o la tarea de
+ *  fondo), no hace nada. El candado va en una transacción abierta mientras
+ *  dura el paso (el pooler reparte las consultas sueltas entre conexiones). */
 export async function avanzar(org: string, id: number, hastaMs: number) {
-  const imp = await una<{ estado: string }>("select estado from importacion_vs where id = $1 and organizacion_id = $2", [id, org]);
-  if (!imp) return;
+  const candado = await pool.connect();
   try {
-    if (imp.estado === "cargando") await analizar(org, id, hastaMs);
-    else if (imp.estado === "importando") await importar(org, id, hastaMs);
-  } catch (e) {
-    await consulta("update importacion_vs set error = $2 where id = $1", [id, motivoErp(e)]);
+    await candado.query("begin");
+    const ok = await candado.query<{ ok: boolean }>("select pg_try_advisory_xact_lock(hashtext('importacion_vs'), $1::int) ok", [id]);
+    if (!ok.rows[0].ok) return;
+    const imp = await una<{ estado: string }>("select estado from importacion_vs where id = $1 and organizacion_id = $2", [id, org]);
+    if (!imp) return;
+    try {
+      if (imp.estado === "cargando") await analizar(org, id, hastaMs);
+      else if (imp.estado === "importando") await importar(org, id, hastaMs);
+    } catch (e) {
+      await consulta("update importacion_vs set error = $2 where id = $1", [id, motivoErp(e)]);
+    }
+  } finally {
+    await candado.query("rollback").catch(() => {});
+    candado.release();
   }
 }
