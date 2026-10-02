@@ -1,13 +1,15 @@
 // Tareas periódicas del ERP: lo llama pg_cron de Supabase cada 2 minutos con
 // ?clave= (tabla erp_llave). Hoy: facturación automática (pedidos que
 // llegaron al estado elegido) y reintento de comprobantes con error; ventas
-// facturadas a cuenta corriente; asientos contables que falten.
+// facturadas a cuenta corriente; asientos contables que falten; e
+// importaciones que siguen solas en segundo plano.
 
 import { pool } from "@/db";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { facturarPendientes } from "@/lib/arca/facturar";
 import { sincronizarVentasCc } from "@/lib/administracion/cc";
 import { contabilizarPendientes } from "@/lib/administracion/contabilidad";
+import { ejecutarImportacion } from "@/lib/importar/ejecutar";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -29,15 +31,30 @@ export async function GET(req: Request) {
     select organizacion_id from emisor union select organizacion_id from plan_cuenta
      union select organizacion_id from cuenta_fondos union select organizacion_id from factura_compra`)).rows;
   for (const { organizacion_id } of adm) {
-    if (Date.now() - t0 > 100_000) break;
+    if (Date.now() - t0 > 40_000) break;
     const r: Record<string, unknown> = (informe[organizacion_id] as Record<string, unknown>) ?? {};
     try {
       r.cuenta_corriente = await sincronizarVentasCc(organizacion_id);
-      r.contabilidad = await contabilizarPendientes(organizacion_id, t0 + 100_000);
+      r.contabilidad = await contabilizarPendientes(organizacion_id, t0 + 40_000);
     } catch (e) {
       r.error_administracion = e instanceof Error ? e.message : String(e);
     }
     informe[organizacion_id] = r;
+  }
+  // Importaciones en segundo plano: lo que quede del tiempo, de a una.
+  const imps = (await pool.query<{ id: number; organizacion_id: string; usuario_id: string | null }>(
+    "select id::int, organizacion_id, usuario_id from importacion where segundo_plano and estado = 'ejecutando' order by id")).rows;
+  for (const i of imps) {
+    const resto = t0 + 105_000 - Date.now();
+    if (resto < 10_000) break;
+    try {
+      const r = await ejecutarImportacion(i.organizacion_id, i.id, i.usuario_id ?? "sistema", resto);
+      if (!r.pendientes) await pool.query("update importacion set segundo_plano = false where id = $1", [i.id]);
+      informe[`importacion_${i.id}`] = r;
+    } catch (e) {
+      // "Ya se está ejecutando": la está procesando la pantalla; la próxima vuelta sigue.
+      informe[`importacion_${i.id}`] = e instanceof Error ? e.message : String(e);
+    }
   }
   return Response.json({ ok: true, segundos: Math.round((Date.now() - t0) / 1000), informe });
 }

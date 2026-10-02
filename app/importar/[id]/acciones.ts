@@ -75,21 +75,37 @@ export async function accionBorrarMapeo(fd: FormData) {
   });
 }
 
-/** Ejecuta (o sigue) la importación hasta terminar o hasta el tope de tiempo. */
+/** Ejecuta (o sigue) la importación: la deja andando sola en segundo plano
+ *  (las tareas periódicas siguen cada 2 minutos aunque se cierre la pestaña)
+ *  y procesa un primer lote acá mismo para que se vea que arrancó. */
 export async function accionEjecutar(fd: FormData) {
   const s = await entrarErp("importar_ver");
   const iid = id(fd);
   await intentar(volver(iid), async () => {
-    const r = await ejecutarImportacion(s.org.id, iid, s.usuario.id);
+    await consulta("update importacion set segundo_plano = true, usuario_id = coalesce(usuario_id, $3) where id = $1 and organizacion_id = $2", [iid, s.org.id, s.usuario.id]);
+    let r: { procesadas: number; pendientes: number };
+    try {
+      r = await ejecutarImportacion(s.org.id, iid, s.usuario.id, 20_000);
+    } catch (e) {
+      // Ya la está procesando la tarea de fondo: no es un error.
+      if (e instanceof ErrorErp && /ya se está ejecutando/.test(e.message)) return "Sigue sola en segundo plano: podés cerrar la pestaña.";
+      throw e;
+    }
     revalidatePath(volver(iid));
     revalidatePath("/importar");
-    if (r.pendientes) {
-      const msg = `Se procesaron ${r.procesadas.toLocaleString("es-AR")} filas; quedan ${r.pendientes.toLocaleString("es-AR")}.`;
-      // Con "seguir", la pantalla vuelve a mandar el formulario sola (SeguirSolo).
-      return fd.get("seguir") === "1"
-        ? { ir: `${volver(iid)}?seguir=1&ok=${encodeURIComponent(msg + " Sigue solo…")}` }
-        : `${msg} Tocá "Seguir".`;
-    }
+    if (r.pendientes) return `Arrancó: ${r.procesadas.toLocaleString("es-AR")} filas listas. Sigue sola en segundo plano: podés cerrar la pestaña.`;
+    await consulta("update importacion set segundo_plano = false where id = $1 and organizacion_id = $2", [iid, s.org.id]);
     return "Listo: se procesaron todas las filas.";
+  });
+}
+
+/** Frena la importación en segundo plano (lo hecho queda; "Seguir" retoma). */
+export async function accionPausar(fd: FormData) {
+  const s = await entrarErp("importar_ver");
+  const iid = id(fd);
+  await intentar(volver(iid), async () => {
+    await consulta("update importacion set segundo_plano = false where id = $1 and organizacion_id = $2", [iid, s.org.id]);
+    revalidatePath(volver(iid));
+    return "Pausada. Lo importado queda; \"Seguir\" retoma desde donde quedó.";
   });
 }

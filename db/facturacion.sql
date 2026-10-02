@@ -121,3 +121,24 @@ create table if not exists erp_llave (
 );
 insert into erp_llave (id, clave) values (1, encode(gen_random_bytes(24), 'hex')) on conflict (id) do nothing;
 alter table erp_llave enable row level security;
+
+-- Datos generales de la empresa (Configuración → Empresa): lo que no es
+-- fiscal. Lo fiscal (CUIT, razón social, condición IVA, punto de venta) vive
+-- en `emisor`. El logo sale en las facturas y es el de la tienda si la
+-- tienda no tiene uno propio.
+create table if not exists empresa (
+  organizacion_id  text primary key references organizaciones(id) on delete cascade,
+  nombre_fantasia  text,
+  logo             text,
+  email            text,
+  telefono         text,
+  whatsapp         text,
+  web              text,
+  direccion        text,
+  localidad        text,
+  provincia        text,
+  codigo_postal    text,
+  actualizado_ts   timestamptz not null default now()
+);
+alter table empresa enable row level security;
+select erp_politica_org('empresa');

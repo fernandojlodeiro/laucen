@@ -1,40 +1,50 @@
 "use client";
 
-// "Seguir" que se aprieta solo: mientras queden filas, cada vuelta procesa un
-// lote (lo que entra en el tiempo de una función de Vercel) y vuelve a
-// mandar el formulario. Se puede pausar; "Seguir" a mano retoma.
+// La importación que sigue sola: mientras está en segundo plano la procesan
+// las tareas periódicas del servidor (cada 2 minutos, aunque se cierre la
+// pestaña) y esta pantalla se refresca sola para mostrar el avance. "Pausar"
+// la frena; "Seguir" la retoma desde donde quedó.
 
-import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { SUAVE, VERDE } from "@/app/botones";
+import { APAGAR, VERDE } from "@/app/botones";
 
-function Boton({ auto }: { auto: boolean }) {
+function Boton({ clase, texto, corriendo }: { clase: string; texto: string; corriendo: string }) {
   const { pending } = useFormStatus();
-  return (
-    <button disabled={pending} className={`${VERDE} disabled:opacity-60`}>
-      {pending ? "Importando… (sigue solo hasta terminar)" : auto ? "Siguiendo…" : "Seguir"}
-    </button>
-  );
+  return <button disabled={pending} className={`${clase} disabled:opacity-60`}>{pending ? corriendo : texto}</button>;
 }
 
-export default function SeguirSolo({ accion, iid, auto, pausar }: {
-  accion: (fd: FormData) => Promise<void>; iid: number; auto: boolean; pausar: string;
+export default function SeguirSolo({ seguir, pausar, iid, andando }: {
+  seguir: (fd: FormData) => Promise<void>; pausar: (fd: FormData) => Promise<void>; iid: number; andando: boolean;
 }) {
-  const form = useRef<HTMLFormElement>(null);
+  const router = useRouter();
   useEffect(() => {
-    if (!auto) return;
-    const t = setTimeout(() => form.current?.requestSubmit(), 800);
-    return () => clearTimeout(t);
-  }, [auto]);
+    if (!andando) return;
+    const t = setInterval(() => router.refresh(), 15_000);
+    return () => clearInterval(t);
+  }, [andando, router]);
   return (
-    <form ref={form} action={accion} className="flex flex-wrap items-center gap-2 mb-4">
-      <input type="hidden" name="id" value={iid} />
-      <input type="hidden" name="seguir" value="1" />
-      <Boton auto={auto} />
-      {auto
-        ? <Link href={pausar} className={SUAVE}>Pausar</Link>
-        : <span className="text-xs text-[#5C6B76]">Quedaron filas sin procesar: sigue desde donde quedó, solo, hasta terminar.</span>}
-    </form>
+    <div className="flex flex-wrap items-center gap-2 mb-4">
+      {andando ? (
+        <>
+          <span className="text-xs rounded-lg px-3 py-2 bg-[#E8F6EF] text-[#107740]">
+            Importando sola en segundo plano. Podés cerrar la pestaña: sigue igual. Esta pantalla se actualiza cada 15 segundos.
+          </span>
+          <form action={pausar}>
+            <input type="hidden" name="id" value={iid} />
+            <Boton clase={APAGAR} texto="Pausar" corriendo="Pausando…" />
+          </form>
+        </>
+      ) : (
+        <>
+          <form action={seguir}>
+            <input type="hidden" name="id" value={iid} />
+            <Boton clase={VERDE} texto="Seguir" corriendo="Arrancando…" />
+          </form>
+          <span className="text-xs text-[#5C6B76]">Está pausada: sigue desde donde quedó, sola, hasta terminar.</span>
+        </>
+      )}
+    </div>
   );
 }

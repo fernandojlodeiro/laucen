@@ -50,3 +50,16 @@ create table if not exists importacion_fila (
 );
 alter table importacion_fila enable row level security;
 select erp_politica_org('importacion_fila');
+
+-- Búsquedas del importador de clientes (lib/importar/ejecutar.ts): con
+-- 100.000 filas, sin estos índices cada fila recorría la tabla entera.
+-- Las expresiones tienen que ser IGUALES a las de las consultas.
+create index if not exists cliente_cuit_digitos on cliente (organizacion_id, regexp_replace(coalesce(cuit, ''), '\D', '', 'g'));
+create index if not exists cliente_documento_digitos on cliente (organizacion_id, regexp_replace(documento_numero, '\D', '', 'g'));
+create index if not exists cliente_email_lower on cliente (organizacion_id, lower(email));
+create index if not exists cliente_apodo_lower on cliente (organizacion_id, lower(apodo_ml));
+create index if not exists proveedor_cuit_digitos on proveedor (organizacion_id, regexp_replace(coalesce(cuit, ''), '\D', '', 'g'));
+
+-- Que una importación siga sola, sin la pestaña abierta: las tareas
+-- periódicas (/api/erp/tareas) procesan las que tienen esto prendido.
+alter table importacion add column if not exists segundo_plano boolean not null default false;
