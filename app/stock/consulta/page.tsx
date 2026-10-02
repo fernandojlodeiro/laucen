@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 const BASE = "/stock/consulta";
 const LIMITE = 100;
 
-type SP = { q?: string; filtro?: string; v?: string; inactivos?: string; dep?: string; ok?: string; error?: string };
+type SP = { q?: string; filtro?: string; v?: string; inactivos?: string; dep?: string; contiene?: string; ok?: string; error?: string };
 
 type Variacion = {
   id: number; sku: string; codigo_barras: string | null; titulo: string; kit: boolean; stock_minimo: number | null;
@@ -37,6 +37,9 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
   const filtro = sp.filtro === "bajo_minimo" || sp.filtro === "negativo" ? sp.filtro : null;
   const vId = Number(sp.v) || 0;
   const inactivos = verInactivos(sp);
+  // "Comienza por" (tildado salvo ?contiene=1): la búsqueda coincide al principio del texto.
+  const comienza = sp.contiene !== "1";
+  const cont = comienza ? null : "1";
   const ina = inactivos ? "1" : null;
 
   // Depósito: "todos" o uno. Si la dirección no lo dice, el último elegido
@@ -75,7 +78,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
      where ($4::text is null
             or ($4 = 'bajo_minimo' and stock_minimo is not null and disponible < stock_minimo)
             or ($4 = 'negativo' and disponible < 0))
-     order by sku limit ${LIMITE}`, [s.org.id, q ? `%${q}%` : null, q, filtro, inactivos, depId]);
+     order by sku limit ${LIMITE}`, [s.org.id, q ? `${comienza ? "" : "%"}${q.replace(/[\\%_]/g, "\\$&")}%` : null, q, filtro, inactivos, depId]);
 
   // Una variación abierta: detalle por depósito y ubicación + movimientos.
   const elegida = vId ? await una<Variacion>(`
@@ -125,12 +128,12 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
       <Avisos sp={sp} />
       <RecordarDeposito valor={sp.dep ?? null} />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
-        <BuscadorVivo q={q} inactivos={inactivos} autoFocus={!vId} />
-        <InterruptorFiltro href={url(BASE, { q, filtro, inactivos: ina, v: vId || null, dep: todos ? String(depositos[0]?.id ?? "todos") : "todos" })}
+        <BuscadorVivo q={q} inactivos={inactivos} comienza={comienza} autoFocus={!vId} />
+        <InterruptorFiltro href={url(BASE, { q, contiene: cont, filtro, inactivos: ina, v: vId || null, dep: todos ? String(depositos[0]?.id ?? "todos") : "todos" })}
           prendido={todos} etiqueta="Todos los depósitos" />
         {!todos && <ElegirDeposito depositos={depositos} elegido={elegidoDep.id} />}
-        <InterruptorFiltro href={url(BASE, { dep, q, inactivos: ina, filtro: filtro === "bajo_minimo" ? null : "bajo_minimo" })} prendido={filtro === "bajo_minimo"} etiqueta="Sólo bajo el mínimo" />
-        <InterruptorFiltro href={url(BASE, { dep, q, inactivos: ina, filtro: filtro === "negativo" ? null : "negativo" })} prendido={filtro === "negativo"} etiqueta="Sólo con disponible negativo" />
+        <InterruptorFiltro href={url(BASE, { dep, contiene: cont, q, inactivos: ina, filtro: filtro === "bajo_minimo" ? null : "bajo_minimo" })} prendido={filtro === "bajo_minimo"} etiqueta="Sólo bajo el mínimo" />
+        <InterruptorFiltro href={url(BASE, { dep, contiene: cont, q, inactivos: ina, filtro: filtro === "negativo" ? null : "negativo" })} prendido={filtro === "negativo"} etiqueta="Sólo con disponible negativo" />
       </div>
 
       {elegida && (
@@ -146,7 +149,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
             </div>
             <span className="flex gap-2">
               {!elegida.kit && <Link href={url("/stock/ajustes", { sku: elegida.sku })} className={SUAVE}>Ajustar</Link>}
-              <Link href={url(BASE, { dep, q, filtro, inactivos: ina })} className={SUAVE}>Cerrar</Link>
+              <Link href={url(BASE, { dep, contiene: cont, q, filtro, inactivos: ina })} className={SUAVE}>Cerrar</Link>
             </span>
           </div>
 
@@ -154,7 +157,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
             <>
               <p className="text-[11px] text-[#5C6B76] mb-2">
                 Un kit no tiene stock propio: el disponible se calcula de sus componentes (cuántos kits se pueden armar en cada depósito) y, al venderlo, se mueve el stock de cada componente.
-                Componentes: {componentes.map((c, i) => <span key={c.id}>{i > 0 && ", "}<Link href={url(BASE, { dep, v: c.id })} className="text-[#16577F] underline">{c.cantidad} × {c.sku}</Link></span>)}.
+                Componentes: {componentes.map((c, i) => <span key={c.id}>{i > 0 && ", "}<Link href={url(BASE, { dep, contiene: cont, v: c.id })} className="text-[#16577F] underline">{c.cantidad} × {c.sku}</Link></span>)}.
               </p>
               <div className={CAJA_TABLA}>
                 <table className={TABLA}>
@@ -238,7 +241,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
             {variaciones.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>{q || filtro ? "Nada coincide." : "Todavía no hay productos."}</td></tr>}
             {variaciones.map((v) => (
               <tr key={v.id} className={`${TR} ${v.id === elegida?.id ? "bg-[#EEF3F8]" : ""}`}>
-                <td className={`${TD} whitespace-nowrap`}><Link href={url(BASE, { dep, q, filtro, inactivos: ina, v: v.id })} className="font-semibold text-[#16577F] hover:underline">{v.sku}</Link></td>
+                <td className={`${TD} whitespace-nowrap`}><Link href={url(BASE, { dep, contiene: cont, q, filtro, inactivos: ina, v: v.id })} className="font-semibold text-[#16577F] hover:underline">{v.sku}</Link></td>
                 <td className={TD}>{v.titulo} {v.kit && <Estado texto="Kit" tono="azul" />}</td>
                 <td className={TDN}>{v.kit ? "—" : <CantidadUbicaciones cantidad={v.cantidad} ubicaciones={v.ubicaciones ?? []} />}</td>
                 <td className={TDN}>{v.kit ? "—" : v.reservado}</td>
