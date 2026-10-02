@@ -104,11 +104,17 @@ export async function cargarArchivos(org: string, usuarioId: string, a: Archivos
   const cm = a.maestro.columnas;
   const mSku = columna(cm, "código / sku", "codigo", "sku");
   if (!mSku) throw new ErrorErp("En el maestro de productos no encuentro la columna de SKU.");
+  // Fer (2/10): un SKU de DE que no está en el maestro como "SKU…" se busca
+  // como "DE-SKU…", y entra igual sin el "DE-". Si están los dos, gana el de TV.
   const maestro = new Map<string, Record<string, Valor>>();
+  const deDe = new Map<string, Record<string, Valor>>();
   for (const f of a.maestro.filas) {
     const sku = txt(f.datos[mSku]);
-    if (sku && sku !== "-") maestro.set(skuLimpio(sku), f.datos);
+    if (!sku || sku === "-") continue;
+    if (/^DE-/i.test(sku)) deDe.set(skuLimpio(sku), f.datos);
+    else maestro.set(skuLimpio(sku), f.datos);
   }
+  for (const [k, d] of deDe) if (!maestro.has(k)) maestro.set(k, d);
   // Precios.
   const cp = a.precios.columnas;
   const pSku = columna(cp, "código / sku", "codigo", "sku"), pPrecio = columna(cp, "precio");
@@ -117,7 +123,7 @@ export async function cargarArchivos(org: string, usuarioId: string, a: Archivos
   for (const f of a.precios.filas) {
     const sku = txt(f.datos[pSku]);
     const p = numeroVs(f.datos[pPrecio]);
-    if (sku && sku !== "-" && p != null) precios.set(skuLimpio(sku), p);
+    if (sku && sku !== "-" && p != null && (!/^DE-/i.test(sku) || !precios.has(skuLimpio(sku)))) precios.set(skuLimpio(sku), p);
   }
   if (!maestro.size) throw new ErrorErp("El maestro de productos no tiene filas con SKU.");
 
@@ -195,7 +201,7 @@ export async function analizar(org: string, id: number, hastaMs: number): Promis
   await consulta(`
     update importacion_vs_sku s set ml_items = coalesce((
       select jsonb_agg(distinct m.item_id) from meli_item m
-       where m.canal_id = $3 and m.estado in ('active', 'paused') and upper(trim(m.sku)) = s.sku), '[]')
+       where m.canal_id = $3 and m.estado in ('active', 'paused') and upper(regexp_replace(trim(m.sku), '^DE-', '', 'i')) = s.sku), '[]')
      where s.importacion_id = $1 and s.organizacion_id = $2`, [id, org, cuenta.canalId]);
   // Destino de cada SKU y los IVA para comparar.
   const columnas = (imp.resumen.columnas_maestro as string[]) ?? [];
@@ -259,7 +265,7 @@ export async function analizar(org: string, id: number, hastaMs: number): Promis
   });
   const pubs = await una<{ total: number; sin_sku: number; sin_producto: number }>(`
     select count(*)::int total, count(*) filter (where sku is null)::int sin_sku,
-           count(*) filter (where sku is not null and not exists (select 1 from importacion_vs_sku s where s.importacion_id = $1 and s.sku = upper(trim(m.sku)) and s.maestro is not null))::int sin_producto
+           count(*) filter (where sku is not null and not exists (select 1 from importacion_vs_sku s where s.importacion_id = $1 and s.sku = upper(regexp_replace(trim(m.sku), '^DE-', '', 'i')) and s.maestro is not null))::int sin_producto
       from meli_item m where m.canal_id = $2 and m.estado in ('active', 'paused')`, [id, cuenta.canalId]);
   await consulta("update importacion_vs set estado = 'analizado', resumen = resumen || $3::jsonb where id = $1 and organizacion_id = $2",
     [id, org, JSON.stringify({ ...cuenta_, iva_diferencias: difIva, columna_iva: cIva, publicaciones: pubs })]);
