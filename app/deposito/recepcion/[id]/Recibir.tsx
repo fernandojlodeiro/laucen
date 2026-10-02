@@ -113,7 +113,7 @@ export default function Recibir({ recepcion, devolucion, ubicaciones }: { recepc
               <div className="text-[11px] font-semibold text-[#5C6B76] mb-1">
                 Ubicación: <b className="text-base text-[#16577F]">{ubicacion || "general"}</b>
               </div>
-              <Escaner alLeer={leerUbicacion} autoFoco={false} chico placeholder="Escaneá la etiqueta de la ubicación" />
+              <Escaner alLeer={leerUbicacion} autoFoco={false} devolverFoco={false} chico placeholder="Escaneá la etiqueta de la ubicación" />
               <select value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} aria-label="Ubicación"
                 className="mt-2 w-full border border-[#E3E9F0] rounded-lg px-2 py-2.5 text-base bg-white">
                 <option value="">General</option>

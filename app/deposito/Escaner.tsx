@@ -39,10 +39,12 @@ export function pitido(ok: boolean) {
   } catch { /* sin sonido no pasa nada */ }
 }
 
-export default function Escaner({ alLeer, placeholder = "Escaneá o escribí el código", autoFoco = true, campoRef, chico }: {
+export default function Escaner({ alLeer, placeholder = "Escaneá o escribí el código", autoFoco = true, devolverFoco = true, campoRef, chico }: {
   alLeer: (codigo: string) => Promise<boolean | void> | boolean | void;
   placeholder?: string;
   autoFoco?: boolean;
+  /** false: después de leer no se queda con el foco (la pantalla lo mueve a otro campo). */
+  devolverFoco?: boolean;
   /** Para que la pantalla mueva el foco a este campo cuando quiera. */
   campoRef?: React.RefObject<HTMLInputElement | null>;
   /** Versión más baja (para un segundo lector, ej. la ubicación). */
@@ -79,7 +81,7 @@ export default function Escaner({ alLeer, placeholder = "Escaneá o escribí el 
     } finally {
       ocupado.current = false;
       setValor("");
-      campo.current?.focus();
+      if (devolverFoco) campo.current?.focus();
     }
   }
 
