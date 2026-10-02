@@ -15,8 +15,11 @@ import {
 import { fecha, TONO_ESTADO, TIPOS_CLIENTE, CONDICIONES_IVA, DOCUMENTOS, etiqueta } from "@/app/ventas/formato";
 import {
   accionGuardarCliente, accionBorrarCliente, accionAgregarDireccion, accionGuardarDireccion,
-  accionDireccionPrincipal, accionBorrarDireccion, accionQuitarIdentidad,
+  accionDireccionPrincipal, accionBorrarDireccion, accionQuitarIdentidad, accionValidarPadron,
 } from "../acciones";
+import { emisorDe } from "@/lib/arca/facturar";
+import { estadoCredencial } from "@/lib/arca/credenciales";
+
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +54,9 @@ export default async function FichaCliente({ params, searchParams }: { params: P
       from cliente where id = $1 and organizacion_id = $2`, [cid, s.org.id]);
   if (!c) notFound();
   const editar = Number(sp.editar) || 0;
+  // ¿Se puede consultar el padrón de ARCA? Hace falta emisor con certificado.
+  const emisor = c.cuit ? await emisorDe(s.org.id) : null;
+  const conPadron = !!emisor && !!(await estadoCredencial(s.org.id, emisor.ambiente))?.tiene_certificado;
 
   const [direcciones, identidades, pedidos, listas] = await Promise.all([
     consulta<Direccion>(`
@@ -91,8 +97,15 @@ export default async function FichaCliente({ params, searchParams }: { params: P
           </select></label>
         <label className="sm:col-span-2"><span className={ETIQUETA}>Razón social (para facturar)</span>
           <input name="razon_social" defaultValue={c.razon_social ?? ""} className={`${CAMPO} w-full`} /></label>
-        <label><span className={ETIQUETA}>CUIT</span>
+        <div><label><span className={ETIQUETA}>CUIT</span>
           <input name="cuit" defaultValue={c.cuit ?? ""} placeholder="20-12345678-9" className={`${CAMPO} w-full`} /></label>
+          {conPadron && (
+            <span className="block mt-1">
+              {/* Botón del mismo formulario (manda el id del cliente) pero con su propia acción. */}
+              <button formAction={accionValidarPadron} className={SUAVE}>Validar en el padrón de ARCA</button>
+              <span className="block text-[10px] text-[#5C6B76] mt-0.5">Trae razón social, condición IVA y domicilio fiscal del CUIT guardado.</span>
+            </span>
+          )}</div>
         <label><span className={ETIQUETA}>Apellido</span>
           <input name="apellido" defaultValue={c.apellido ?? ""} className={`${CAMPO} w-full`} /></label>
         <label><span className={ETIQUETA}>Nombre de pila</span>

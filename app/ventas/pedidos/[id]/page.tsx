@@ -1,5 +1,6 @@
 // Detalle de un pedido: cabecera, cliente, líneas, envío, historial de estados
-// y los movimientos de stock que generó. Sólo mirar: sin botones de operación.
+// y los movimientos de stock que generó. Sólo mirar: sin botones de operación
+// (salvo "Facturar", en el bloque de facturación).
 
 import Link from "next/link";
 import { formatear } from "@/lib/moneda";
@@ -12,6 +13,11 @@ import {
   entrarErp, Pantalla, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAJA, ETIQUETA,
 } from "@/app/componentes/erp";
 import { fecha, fechaHora, TONO_ESTADO, TONO_PAGO, etiqueta } from "@/app/ventas/formato";
+import { tienePermiso } from "@/lib/permisos";
+import { PRIMARIO, SUAVE } from "@/app/botones";
+import { BotonEnviar } from "@/app/radar/Cliente";
+import { ESTADOS_CBTE, numeroCbte, nombreTipo, type EstadoCbte } from "@/app/administracion/facturacion/comun";
+import { accionFacturar } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +33,10 @@ type Cabecera = {
   documento_numero: string | null; deposito: string | null;
 };
 
-export default async function DetallePedido({ params }: { params: Promise<{ id: string }> }) {
+export default async function DetallePedido({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
   const s = await entrarErp("pedidos_ver");
   const { id } = await params;
+  const sp = await searchParams;
   const pid = Number(id);
   if (!Number.isInteger(pid) || pid <= 0) notFound();
   const p = await pedidoCompleto(s.org.id, pid);
@@ -61,6 +68,14 @@ export default async function DetallePedido({ params }: { params: Promise<{ id: 
   const LOGISTICA: Record<string, string> = { fulfillment: "Full", self_service: "Flex", cross_docking: "Colecta", xd_drop_off: "Colecta", drop_off: "Despacho en correo", custom: "A convenir", not_specified: "A convenir" };
   const ESTADO_ENVIO: Record<string, string> = { ready_to_ship: "Listo para despachar", shipped: "En camino", delivered: "Entregado", not_delivered: "No entregado", cancelled: "Cancelado", pending: "Pendiente", handling: "En preparación" };
   const fechaCorta = (d: Date | null) => d ? d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
+
+  // Facturación: los comprobantes del pedido y si se puede facturar.
+  const comprobantes = await consulta<{ id: number; tipo_cbte: number; punto_venta: number; numero: string | null; estado: EstadoCbte; observaciones: string | null }>(`
+    select id::int, tipo_cbte, punto_venta, numero::text, estado, observaciones from comprobante
+     where pedido_id = $1 and organizacion_id = $2 order by id`, [pid, s.org.id]);
+  const puedeFacturar = tienePermiso(s.permisos, "facturacion_ver");
+  const facturado = comprobantes.some((x) => [1, 6, 11].includes(x.tipo_cbte) && x.estado === "autorizado");
+  const ofrecerFacturar = puedeFacturar && !facturado && !["nuevo", "cancelado"].includes(c.estado);
 
   const v = s.moneda;
   const unidades = lineas.reduce((t, l) => t + l.cantidad, 0);
@@ -157,6 +172,38 @@ export default async function DetallePedido({ params }: { params: Promise<{ id: 
             </table>
           </div>
         </div>
+      </div>
+
+      <h2 className="text-sm font-bold mb-2">Facturación</h2>
+      {(sp.ok || sp.error) && (
+        <p role={sp.error ? "alert" : undefined} className={`text-xs rounded-lg px-3 py-2 mb-2 ${sp.error ? "bg-[#FDF1EF] text-[#C03420]" : "bg-[#EEF7F1] text-[#1F6E4A]"}`}>
+          {sp.error ?? sp.ok}
+          {sp.error && c.cliente_id && <> <Link href={`/ventas/clientes/${c.cliente_id}`} className="font-bold underline">Corregir en la ficha del cliente</Link></>}
+        </p>
+      )}
+      <div className={`${CAJA} mb-4 flex flex-wrap items-start justify-between gap-3`}>
+        <div className="text-xs grid gap-1">
+          {comprobantes.length === 0 && <span className="text-[#5C6B76]">Sin comprobantes.</span>}
+          {comprobantes.map((x) => {
+            const est = ESTADOS_CBTE[x.estado] ?? ESTADOS_CBTE.pendiente;
+            return (
+              <div key={x.id} className="flex flex-wrap items-center gap-2">
+                {puedeFacturar
+                  ? <Link href={`/administracion/facturacion/${x.id}`} className="text-[#16577F] hover:underline">{nombreTipo(x.tipo_cbte)} <span className="font-mono">{numeroCbte(x.punto_venta, x.numero)}</span></Link>
+                  : <span>{nombreTipo(x.tipo_cbte)} <span className="font-mono">{numeroCbte(x.punto_venta, x.numero)}</span></span>}
+                <Estado texto={est.texto} tono={est.tono} />
+                {x.estado === "autorizado" && puedeFacturar && <a href={`/administracion/facturacion/${x.id}/pdf`} target="_blank" rel="noopener" className={SUAVE}>PDF</a>}
+                {x.observaciones && x.estado !== "autorizado" && <span className="text-[11px] text-[#5C6B76]">{x.observaciones}</span>}
+              </div>
+            );
+          })}
+        </div>
+        {ofrecerFacturar && (
+          <form action={accionFacturar}>
+            <input type="hidden" name="pedido_id" value={pid} />
+            <BotonEnviar clase={PRIMARIO} corriendo="Facturando…">Facturar</BotonEnviar>
+          </form>
+        )}
       </div>
 
       <h2 className="text-sm font-bold mb-2">Movimientos de stock</h2>

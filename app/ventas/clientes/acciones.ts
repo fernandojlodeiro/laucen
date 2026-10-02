@@ -11,6 +11,9 @@ import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, id } from "@/lib/erp/acciones";
 import { DOCUMENTOS, CONDICIONES_IVA } from "@/app/ventas/formato";
+import { emisorDe } from "@/lib/arca/facturar";
+import { estadoCredencial } from "@/lib/arca/credenciales";
+import { consultarCuit } from "@/lib/arca/padron";
 
 const LISTADO = "/ventas/clientes";
 const ficha = (n: number) => `/ventas/clientes/${n}`;
@@ -163,5 +166,56 @@ export async function accionQuitarIdentidad(fd: FormData) {
     await consulta("delete from cliente_identidad where id = $2 and cliente_id = $3 and organizacion_id = $1", [s.org.id, id(fd), cid]);
     revalidatePath(ficha(cid));
     return "Identidad quitada.";
+  });
+}
+
+// ── Padrón de ARCA ───────────────────────────────────────
+
+/** Trae del padrón de ARCA la razón social, la condición frente al IVA y el
+ *  domicilio fiscal del CUIT guardado, y los pisa en el cliente (la dirección
+ *  va con etiqueta "Fiscal": si ya hay una, se actualiza). */
+export async function accionValidarPadron(fd: FormData) {
+  const s = await entrarErp("clientes_ver");
+  const cid = id(fd);
+  await intentar(ficha(cid), async () => {
+    const c = await una<{ cuit: string | null; razon_social: string | null; condicion_iva: string | null }>(
+      "select cuit, razon_social, condicion_iva from cliente where id = $1 and organizacion_id = $2", [cid, s.org.id]);
+    if (!c) throw new ErrorErp("El cliente no existe.");
+    if (!c.cuit) throw new ErrorErp("El cliente no tiene CUIT guardado.");
+    const e = await emisorDe(s.org.id);
+    if (!e) throw new ErrorErp("Para consultar el padrón faltan los datos de facturación (Administración → Facturación → Configuración).");
+    const cred = await estadoCredencial(s.org.id, e.ambiente);
+    if (!cred?.tiene_certificado) throw new ErrorErp("Para consultar el padrón falta el certificado de ARCA (Administración → Facturación → Configuración).");
+    const p = await consultarCuit(s.org.id, e.ambiente, e.cuit, c.cuit);
+
+    const cambios: string[] = [];
+    if (p.razonSocial !== c.razon_social) cambios.push(`razón social: ${p.razonSocial}`);
+    if (p.condicionIva !== c.condicion_iva) cambios.push(`condición IVA: ${CONDICIONES_IVA[p.condicionIva]}`);
+    await enTransaccion(async (cx) => {
+      await cx.query("update cliente set razon_social = $3, condicion_iva = $4, cuit = $5 where id = $1 and organizacion_id = $2",
+        [cid, s.org.id, p.razonSocial, p.condicionIva, p.cuit]);
+      if (!p.domicilio && !p.localidad) return;
+      const fiscal = await cx.query<{ id: string; calle: string | null; localidad: string | null; provincia: string | null; codigo_postal: string | null }>(
+        "select id, calle, localidad, provincia, codigo_postal from cliente_direccion where cliente_id = $1 and organizacion_id = $2 and etiqueta = 'Fiscal' order by id limit 1",
+        [cid, s.org.id]);
+      const d = fiscal.rows[0];
+      if (d) {
+        if (d.calle !== p.domicilio || d.localidad !== p.localidad || d.provincia !== p.provincia || d.codigo_postal !== p.codigoPostal) {
+          // El domicilio de ARCA viene en un solo texto (calle y número juntos).
+          await cx.query(`update cliente_direccion set calle = $3, numero = null, piso_depto = null, localidad = $4, provincia = $5, codigo_postal = $6, pais = 'AR'
+                           where id = $1 and organizacion_id = $2`, [d.id, s.org.id, p.domicilio, p.localidad, p.provincia, p.codigoPostal]);
+          cambios.push("domicilio fiscal actualizado");
+        }
+      } else {
+        await cx.query(`
+          insert into cliente_direccion (organizacion_id, cliente_id, etiqueta, calle, localidad, provincia, codigo_postal, pais, principal)
+          values ($1, $2, 'Fiscal', $3, $4, $5, $6, 'AR', not exists (select 1 from cliente_direccion where cliente_id = $2))`,
+          [s.org.id, cid, p.domicilio, p.localidad, p.provincia, p.codigoPostal]);
+        cambios.push("domicilio fiscal agregado");
+      }
+    });
+    revalidatePath(ficha(cid));
+    const estado = p.estado && p.estado !== "ACTIVO" ? ` Ojo: en ARCA figura ${p.estado.toLowerCase()}.` : "";
+    return (cambios.length ? `Validado en ARCA. Cambió: ${cambios.join(" · ")}.` : "Validado en ARCA: los datos ya coincidían.") + estado;
   });
 }
