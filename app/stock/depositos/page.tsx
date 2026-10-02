@@ -52,7 +52,9 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
            (select count(*) from ubicacion u where u.deposito_id = d.id)::int ubicaciones,
            (select coalesce(sum(s.cantidad), 0) from stock s join ubicacion u on u.id = s.ubicacion_id where u.deposito_id = d.id)::int unidades
       from deposito d where d.organizacion_id = $1 order by d.estado, d.nombre`, [s.org.id]);
-  const elegido = depositos.find((d) => d.id === Number(sp.d));
+  // Con un solo depósito activo, sus ubicaciones se ven de entrada.
+  const activos = depositos.filter((d) => d.estado === "activo");
+  const elegido = depositos.find((d) => d.id === Number(sp.d)) ?? (activos.length === 1 ? activos[0] : undefined);
   const aqui = url(BASE, { d: elegido?.id });
   const paraArchivar = depositos.find((d) => d.id === archivar && d.estado === "activo");
 
@@ -70,7 +72,7 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
        and exists (select 1 from stock s where s.ubicacion_id = u.id and s.cantidad <> 0)`, [s.org.id, elegido.id]))[0]?.n ?? 0 : 0;
 
   return (
-    <Pantalla titulo="Depósitos y ubicaciones" subtitulo="Dónde está la mercadería. Tocá un depósito para ver sus ubicaciones.">
+    <Pantalla titulo="Depósitos y ubicaciones" subtitulo="Dónde está la mercadería. Con “Ubicaciones” ves, agregás y editás las de cada depósito.">
       <Avisos sp={sp} />
       {paraArchivar && (
         <form action={accionArchivarDeposito} className="flex flex-wrap items-center gap-2 text-xs rounded-lg px-3 py-2 mb-3 bg-[#FFF8E5] text-[#8a6100]">
@@ -121,7 +123,9 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
                 </td>
                 <td className={TD}>{d.direccion ?? "—"}</td>
                 <td className={TD}><Estado texto={d.estado === "activo" ? "Activo" : "Archivado"} tono={d.estado === "activo" ? "verde" : "gris"} /></td>
-                <td className={TDN}>{d.ubicaciones}</td>
+                <td className={TDN}>
+                  <Link href={url(BASE, { d: d.id })} className={SUAVE} scroll={false}>Ubicaciones ({d.ubicaciones})</Link>
+                </td>
                 <td className={TDN}>{d.unidades}</td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
@@ -152,6 +156,16 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
               Este depósito no usa ubicaciones: todo su stock va a la ubicación general. Si querés ordenarlo por estantes (ej. A-03-2), prendé “Usa ubicaciones” arriba.
               {ocultasConStock > 0 && ` Ojo: ${ocultasConStock} ubicación(es) de antes todavía tienen stock; se ven en la consulta de stock.`}
             </p>
+          )}
+          {elegido.usa_ubicaciones && (
+            <form action={accionCrearUbicacion} className="flex flex-wrap items-center gap-2 mb-3 rounded-lg border border-[#E3E9F0] bg-[#FAFBFC] p-2">
+              <input type="hidden" name="deposito" value={elegido.id} />
+              <input type="hidden" name="volver" value={aqui} />
+              <input name="codigo" placeholder="Código (ej. A-03-2)" className={`${CAMPO} w-36`} />
+              <input name="descripcion" placeholder="Descripción (opcional)" className={`${CAMPO} flex-1 min-w-40`} />
+              <CampoNumero name="orden" valor={null} tipo="entero" placeholder="Orden" className={`${CAMPO} w-20`} />
+              <button className={PRIMARIO}>Agregar ubicación</button>
+            </form>
           )}
           <div className={CAJA_TABLA}>
             <table className={TABLA}>
@@ -196,16 +210,6 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
               </tbody>
             </table>
           </div>
-          {elegido.usa_ubicaciones && (
-            <form action={accionCrearUbicacion} className="flex flex-wrap items-center gap-2 mt-3">
-              <input type="hidden" name="deposito" value={elegido.id} />
-              <input type="hidden" name="volver" value={aqui} />
-              <input name="codigo" placeholder="Código (ej. A-03-2)" className={`${CAMPO} w-36`} />
-              <input name="descripcion" placeholder="Descripción (opcional)" className={`${CAMPO} flex-1 min-w-40`} />
-              <CampoNumero name="orden" valor={null} tipo="entero" placeholder="Orden" className={`${CAMPO} w-20`} />
-              <button className={PRIMARIO}>Agregar ubicación</button>
-            </form>
-          )}
           <p className="text-[11px] text-[#5C6B76] mt-2">El orden de recorrido es el que va a seguir el picking: de menor a mayor.</p>
         </section>
       )}
