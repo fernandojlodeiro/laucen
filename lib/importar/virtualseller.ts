@@ -434,7 +434,7 @@ async function importarSku(ctx: Ctx, f: { sku: string; stock: { ubicacion: strin
     const d = await ml<{ plain_text?: string }>(ctx.cuenta, "GET", `/items/${principal.item_id}/description`);
     descripcion = d.status === 200 ? d.datos.plain_text?.trim() || null : null;
   }
-  descripcion = descripcion || val("descripcion ml") || val("descripcion web", "descripcion");
+  descripcion = descripcion || val("descripcion ml", "descripcion");
   const titulo = it?.title || val("titulo de la publicacion ml") || val("producto: denominacion", "denominacion") || f.sku;
   const ivaVs = f.iva_vs != null ? Number(f.iva_vs) : null;
   const iva = [ivaVs, numeroVs(at("VALUE_ADDED_TAX"))].find((x): x is number => x != null && IVAS.includes(x)) ?? 21;
@@ -444,10 +444,7 @@ async function importarSku(ctx: Ctx, f: { sku: string; stock: { ubicacion: strin
   const kitVs = esKitVs(val("sub tipo")) || esKitVs(val("tipo de producto"));
   const armado = kitVs && !!f.kit_componente && !!f.kit_cantidad;
   const costo = numeroVs(m[columna(cols, "costo") ?? ""] ?? null);
-  // Fotos: las de ML; sin publicación, el "Link Foto 1 ML" de VS si es una dirección.
-  const fotoVs = val("link foto 1 ml");
-  const fotos = (it?.pictures?.length ? it.pictures.map((p) => p.secure_url || p.url) : [fotoVs && /^https?:\/\//i.test(fotoVs) ? fotoVs : null])
-    .filter(Boolean).slice(0, 12) as string[];
+  const fotos = (it?.pictures ?? []).map((p) => p.secure_url || p.url).filter(Boolean).slice(0, 12) as string[];
   const atributos = (it?.attributes ?? []).filter((a) => a.value_name).map((a) => ({ id: a.id, name: a.name ?? a.id, value_name: a.value_name }));
   const estado = f.destino === "activo" ? "activo" : "archivado";
   const peso = it ? dimension(it, "PACKAGE_WEIGHT") : null;
