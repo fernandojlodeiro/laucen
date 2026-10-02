@@ -12,10 +12,12 @@ import { formatearNumero, leerNumero } from "@/lib/numeros";
 import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
 import { TachoConfirmar, BotonConfirmar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
+import BuscadorVivo from "@/app/componentes/BuscadorVivo";
+import AltaNueva from "@/app/componentes/AltaNueva";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, patronBusqueda, coincideBusqueda,
 } from "@/app/componentes/erp";
-import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
+import { verInactivos } from "@/app/componentes/Inactivos";
 import { accionBorrarLista, accionCrearLista, accionGuardarLista, accionGuardarPrecio, accionMasivo } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +26,7 @@ const BASE = "/catalogo/precios";
 const POR_PAGINA = 100;
 
 type SP = {
-  lista?: string; editar?: string; precio?: string; q?: string; p?: string; inactivos?: string; ok?: string; error?: string;
+  lista?: string; editar?: string; precio?: string; q?: string; contiene?: string; ql?: string; qlcontiene?: string; p?: string; inactivos?: string; ok?: string; error?: string;
   // Carga masiva (paso 1: elegir; paso 2: confirmar).
   md?: string; mo?: string; ms?: string; mpct?: string; mr?: string;
 };
@@ -61,12 +63,19 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
   const editarLista = Number(sp.editar) || 0;
   const lista = listas.find((l) => l.id === Number(sp.lista)) ?? listas.find((l) => l.estado === "activa") ?? listas[0];
   const q = sp.q?.trim() || "";
+  const comienza = sp.contiene !== "1";
+  const cont = comienza ? null : "1";
+  // Buscador de listas (arriba): otro parámetro, porque q es el de la grilla.
+  const ql = sp.ql?.trim() || "";
+  const comienzaL = sp.qlcontiene !== "1";
+  const filtrosL = { ql: ql || null, qlcontiene: comienzaL ? null : "1" };
+  const listasVistas = listas.filter((l) => coincideBusqueda(l.nombre, ql, comienzaL));
   const pagina = Math.max(1, Number(sp.p) || 1);
   const editarPrecio = Number(sp.precio) || 0;
   const inactivos = verInactivos(sp);
   const ina = inactivos ? "1" : null;
   // La dirección de esta vista, sin lo que abre una edición: a donde vuelven las acciones.
-  const aqui = url(BASE, { lista: lista?.id, q, p: pagina > 1 ? pagina : null, inactivos: ina });
+  const aqui = url(BASE, { lista: lista?.id, q, contiene: cont, p: pagina > 1 ? pagina : null, inactivos: ina, ...filtrosL });
 
   let filas: Fila[] = [];
   if (lista) {
@@ -83,7 +92,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
          and ($4::text is null or v.sku ilike $4 or p.titulo ilike $4 or v.titulo ilike $4 or v.codigo_barras = $5)
        order by v.sku
        limit ${POR_PAGINA} offset $6`,
-      [s.org.id, lista.id, hoyAR(), q ? `%${q}%` : null, q, (pagina - 1) * POR_PAGINA, inactivos]);
+      [s.org.id, lista.id, hoyAR(), patronBusqueda(q, comienza), q, (pagina - 1) * POR_PAGINA, inactivos]);
   }
   const total = filas[0]?.total ?? 0;
   const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
@@ -105,14 +114,17 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
       <Avisos sp={sp} />
 
       {/* ── Listas ── */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        <BuscadorVivo q={ql} comienza={comienzaL} placeholder="Buscar lista" parametro="ql" limpiar={["editar"]} />
+      </div>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr><th className={TH}>Lista</th><th className={TH}>Moneda base</th><th className={TH}>Se calcula desde</th><th className={THN}>Orden</th><th className={TH}>Estado</th><th className={THN}>Variaciones con precio</th><th /></tr>
           </thead>
           <tbody>
-            {listas.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>Todavía no hay listas. Agregá la primera abajo (ej. Mercado Libre, Web minorista, Mayorista, Local).</td></tr>}
-            {listas.map((l) => editarLista === l.id ? (
+            {listasVistas.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>{ql ? "Ninguna lista coincide." : "Todavía no hay listas. Agregá la primera abajo (ej. Mercado Libre, Web minorista, Mayorista, Local)."}</td></tr>}
+            {listasVistas.map((l) => editarLista === l.id ? (
               <tr key={l.id} className={`${TR} bg-[#FAFBFC]`}>
                 <td colSpan={7} className={TD}>
                   <form action={accionGuardarLista} className="flex flex-wrap items-center gap-2">
@@ -138,7 +150,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                       <option value="activa">Activa</option><option value="archivada">Archivada</option>
                     </select>
                     <button className={VERDE}>Guardar</button>
-                    <Link href={url(BASE, { lista: l.id })} className={SUAVE}>Cancelar</Link>
+                    <Link href={url(BASE, { lista: l.id, ...filtrosL })} className={SUAVE}>Cancelar</Link>
                     <p className="w-full text-[10px] text-[#5C6B76]">
                       Con una lista de base, el precio es el de esa lista por el coeficiente (ej. 0,90 = 10 % menos). Un precio cargado a mano en esta lista gana sobre el calculado.
                       {esBaseDeOtra(l.id) && " Esta lista es base de otra: no puede calcularse a su vez desde una tercera."}
@@ -149,7 +161,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
             ) : (
               <tr key={l.id} className={`${TR} ${lista?.id === l.id ? "bg-[#EEF3F8]" : ""}`}>
                 <td className={TD}>
-                  <Link href={url(BASE, { lista: l.id })} className="font-semibold text-[#16577F] hover:underline">{l.nombre}</Link>
+                  <Link href={url(BASE, { lista: l.id, ...filtrosL })} className="font-semibold text-[#16577F] hover:underline">{l.nombre}</Link>
                   {lista?.id === l.id && <span className="ml-2 text-[10px] text-[#5C6B76]">(viendo abajo)</span>}
                 </td>
                 <td className={TD}>{l.moneda_base === "USD" ? "Dólares" : "Pesos"}</td>
@@ -159,7 +171,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                 <td className={TDN}>{nPrecios.get(l.id) ?? 0}</td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
-                    <Lapiz href={url(BASE, { lista: lista?.id, editar: l.id })} />
+                    <Lapiz href={url(BASE, { lista: lista?.id, editar: l.id, ...filtrosL })} />
                     <TachoConfirmar accion={accionBorrarLista} campos={{ id: String(l.id) }} pregunta="¿Borrar la lista y sus precios?" />
                   </span>
                 </td>
@@ -168,15 +180,17 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
           </tbody>
         </table>
       </div>
-      <form action={accionCrearLista} className="flex flex-wrap items-center gap-2 mt-3">
+      <AltaNueva texto="Nueva lista" className="mt-3">
+      <form action={accionCrearLista} className="flex flex-wrap items-center gap-2">
         <input type="hidden" name="volver" value={aqui} />
-        <input name="nombre" placeholder="Lista nueva (ej. Mayorista)" className={`${CAMPO} flex-1 min-w-48`} />
+        <input name="nombre" placeholder="Nombre (ej. Mayorista)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
         <select name="moneda" defaultValue="ARS" className={CAMPO} aria-label="Moneda base">
           <option value="ARS">Pesos</option><option value="USD">Dólares</option>
         </select>
         <CampoNumero name="orden" valor={null} tipo="entero" placeholder="Orden" className={`${CAMPO} w-16`} />
-        <button className={PRIMARIO}>Agregar</button>
+        <button className={PRIMARIO}>Crear</button>
       </form>
+      </AltaNueva>
 
       {/* ── Grilla de precios ── */}
       {lista && (
@@ -184,13 +198,9 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
           <div className="flex flex-wrap items-end justify-between gap-2 mb-2">
             <h2 className="text-sm font-bold">Precios de “{lista.nombre}” <span className="font-normal text-[#5C6B76]">· se ven en {s.moneda === "USD" ? "dólares" : "pesos"}</span>
               {formula(lista.id) && <span className="font-normal text-[#5C6B76]"> · {formula(lista.id)}</span>}</h2>
-            <form action={BASE} className="flex flex-wrap items-center gap-2">
-              <input type="hidden" name="lista" value={lista.id} />
-              <input name="q" defaultValue={q} placeholder="Buscar SKU, título o código de barras" className={`${CAMPO} w-64`} />
-              <MostrarInactivos activo={inactivos} />
-              <button className={SUAVE}>Buscar</button>
-              {(q || inactivos) && <Link href={url(BASE, { lista: lista.id })} className={SUAVE}>Limpiar</Link>}
-            </form>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <BuscadorVivo q={q} comienza={comienza} inactivos={inactivos} placeholder="Buscar SKU, título o código de barras" limpiar={["p", "precio"]} />
+            </div>
           </div>
           {formula(lista.id) && (
             <p className="text-[11px] text-[#5C6B76] mb-2">
@@ -240,7 +250,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                       {f.moneda_origen ? (f.moneda_origen === "USD" ? "Dólares" : "Pesos") : "—"}
                       {f.precio_id && !f.propio && <span className="ml-1.5"><Estado texto="calculado" tono="azul" /></span>}
                     </td>
-                    <td className={`${TD} text-right`}><Lapiz href={url(BASE, { lista: lista.id, q, p: pagina > 1 ? pagina : null, inactivos: ina, precio: f.id })} etiqueta="Editar precio" /></td>
+                    <td className={`${TD} text-right`}><Lapiz href={url(BASE, { lista: lista.id, q, contiene: cont, p: pagina > 1 ? pagina : null, inactivos: ina, ...filtrosL, precio: f.id })} etiqueta="Editar precio" /></td>
                   </tr>
                 ))}
               </tbody>
@@ -248,9 +258,9 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
           </div>
           {paginas > 1 && (
             <div className="flex items-center justify-end gap-2 mt-2 text-xs">
-              {pagina > 1 && <Link href={url(BASE, { lista: lista.id, q, inactivos: ina, p: pagina - 1 })} className={SUAVE}>← Anterior</Link>}
+              {pagina > 1 && <Link href={url(BASE, { lista: lista.id, q, contiene: cont, inactivos: ina, ...filtrosL, p: pagina - 1 })} className={SUAVE}>← Anterior</Link>}
               <span className="text-[#5C6B76]">Página {pagina} de {paginas} · {total} variaciones</span>
-              {pagina < paginas && <Link href={url(BASE, { lista: lista.id, q, inactivos: ina, p: pagina + 1 })} className={SUAVE}>Siguiente →</Link>}
+              {pagina < paginas && <Link href={url(BASE, { lista: lista.id, q, contiene: cont, inactivos: ina, ...filtrosL, p: pagina + 1 })} className={SUAVE}>Siguiente →</Link>}
             </div>
           )}
         </section>

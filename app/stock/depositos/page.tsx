@@ -13,7 +13,7 @@ import CampoNumero from "@/app/componentes/CampoNumero";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import AltaNueva from "@/app/componentes/AltaNueva";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, CAJA,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, CAJA, patronBusqueda,
 } from "@/app/componentes/erp";
 import {
   accionArchivarDeposito, accionBorrarDeposito, accionBorrarUbicacion, accionCrearDeposito, accionCrearUbicacion,
@@ -26,7 +26,7 @@ const BASE = "/stock/depositos";
 
 const TIPOS: Record<string, string> = { propio: "Propio", full_ml: "Full de Mercado Libre", tercerizado: "Tercerizado", caja_abierta: "Caja abierta" };
 
-type SP = { d?: string; editar?: string; eu?: string; archivar?: string; q?: string; contiene?: string; u?: string; ok?: string; error?: string };
+type SP = { d?: string; editar?: string; eu?: string; archivar?: string; q?: string; contiene?: string; qd?: string; qdcontiene?: string; u?: string; ok?: string; error?: string };
 
 /** Interruptor dentro de un formulario (una casilla dibujada como interruptor):
  *  para el alta y la edición en fila, donde no se guarda al tocarlo. */
@@ -50,7 +50,11 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
   // Buscador de ubicaciones (por código o descripción) y la ubicación abierta (?u=).
   const q = sp.q?.trim() ?? "";
   const comienza = sp.contiene !== "1";
-  const patron = q ? `${comienza ? "" : "%"}${q.replace(/[\\%_]/g, "\\$&")}%` : null;
+  const patron = patronBusqueda(q, comienza);
+  // Buscador de depósitos (por nombre): otro parámetro, porque q es el de ubicaciones.
+  const qd = sp.qd?.trim() ?? "";
+  const comienzaD = sp.qdcontiene !== "1";
+  const patronD = patronBusqueda(qd, comienzaD);
   const abierta = Number(sp.u) || 0;
 
   const depositos = await consulta<{
@@ -59,11 +63,13 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
     select d.id::int, d.nombre, d.tipo, d.usa_ubicaciones, d.direccion, d.estado,
            (select count(*) from ubicacion u where u.deposito_id = d.id)::int ubicaciones,
            (select coalesce(sum(s.cantidad), 0) from stock s join ubicacion u on u.id = s.ubicacion_id where u.deposito_id = d.id)::int unidades
-      from deposito d where d.organizacion_id = $1 order by d.estado, d.nombre`, [s.org.id]);
+      from deposito d where d.organizacion_id = $1 and ($2::text is null or d.nombre ilike $2)
+     order by d.estado, d.nombre`, [s.org.id, patronD]);
   // Con un solo depósito activo, sus ubicaciones se ven de entrada.
   const activos = depositos.filter((d) => d.estado === "activo");
   const elegido = depositos.find((d) => d.id === Number(sp.d)) ?? (activos.length === 1 ? activos[0] : undefined);
-  const aqui = url(BASE, { d: elegido?.id, q: q || null, contiene: comienza ? null : "1" });
+  const filtrosD = { qd: qd || null, qdcontiene: comienzaD ? null : "1" };
+  const aqui = url(BASE, { d: elegido?.id, q: q || null, contiene: comienza ? null : "1", ...filtrosD });
   const paraArchivar = depositos.find((d) => d.id === archivar && d.estado === "activo");
 
   const ubicaciones = elegido ? await consulta<{
@@ -101,6 +107,9 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
         </form>
       )}
 
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        <BuscadorVivo q={qd} comienza={comienzaD} placeholder="Buscar depósito por nombre" parametro="qd" limpiar={["editar"]} />
+      </div>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
@@ -110,7 +119,7 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
             </tr>
           </thead>
           <tbody>
-            {depositos.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>Todavía no hay depósitos. Agregá el primero abajo.</td></tr>}
+            {depositos.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>{qd ? "Ningún depósito coincide." : "Todavía no hay depósitos. Agregá el primero abajo."}</td></tr>}
             {depositos.map((d) => editar === d.id ? (
               <tr key={d.id} className={`${TR} bg-[#FAFBFC]`}>
                 <td colSpan={8} className={TD}>
@@ -133,21 +142,21 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
               </tr>
             ) : (
               <tr key={d.id} className={`${TR} ${elegido?.id === d.id ? "bg-[#EEF3F8]" : ""}`}>
-                <td className={TD}><Link href={url(BASE, { d: d.id })} className="font-semibold text-[#16577F] hover:underline">{d.nombre}</Link></td>
+                <td className={TD}><Link href={url(BASE, { d: d.id, ...filtrosD })} className="font-semibold text-[#16577F] hover:underline">{d.nombre}</Link></td>
                 <td className={TD}>{TIPOS[d.tipo] ?? d.tipo}</td>
                 <td className={TD}>
-                  <Interruptor accion={accionUsaUbicaciones} prendido={d.usa_ubicaciones} campos={{ id: String(d.id), volver: url(BASE, { d: d.id }) }}
+                  <Interruptor accion={accionUsaUbicaciones} prendido={d.usa_ubicaciones} campos={{ id: String(d.id), volver: url(BASE, { d: d.id, ...filtrosD }) }}
                     etiqueta={d.usa_ubicaciones ? "Sí" : "No"} />
                 </td>
                 <td className={TD}>{d.direccion ?? "—"}</td>
                 <td className={TD}><Estado texto={d.estado === "activo" ? "Activo" : "Archivado"} tono={d.estado === "activo" ? "verde" : "gris"} /></td>
                 <td className={TDN}>
-                  <Link href={url(BASE, { d: d.id })} className={SUAVE} scroll={false}>Ubicaciones ({d.ubicaciones})</Link>
+                  <Link href={url(BASE, { d: d.id, ...filtrosD })} className={SUAVE} scroll={false}>Ubicaciones ({d.ubicaciones})</Link>
                 </td>
                 <td className={TDN}>{d.unidades}</td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
-                    <Lapiz href={url(BASE, { d: elegido?.id, editar: d.id })} />
+                    <Lapiz href={url(BASE, { d: elegido?.id, editar: d.id, ...filtrosD })} />
                     <TachoConfirmar accion={accionBorrarDeposito} campos={{ id: String(d.id) }} pregunta="¿Borrar el depósito?" />
                   </span>
                 </td>
@@ -222,7 +231,7 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
                   <Fragment key={u.id}>
                   <tr className={`${TR} ${u.id === abierta ? "bg-[#EEF3F8]" : ""}`}>
                     <td className={`${TD} font-semibold whitespace-nowrap`}>
-                      <Link href={url(BASE, { d: elegido.id, q: q || null, contiene: comienza ? null : "1", u: u.id === abierta ? null : u.id })} scroll={false}
+                      <Link href={url(BASE, { d: elegido.id, q: q || null, contiene: comienza ? null : "1", ...filtrosD, u: u.id === abierta ? null : u.id })} scroll={false}
                         className="text-[#16577F] hover:underline" title="Ver los productos que tiene">{u.codigo}</Link>
                       {u.es_default && <span className="ml-2"><Estado texto="General" tono="azul" /></span>}</td>
                     <td className={TD}>{u.descripcion ?? "—"}</td>
@@ -232,7 +241,7 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
                     <td className={`${TD} text-right whitespace-nowrap`}>
                       {u.es_default ? <span className="text-[10px] text-[#5C6B76]">la crea el sistema</span> : (
                         <span className="inline-flex gap-1">
-                          <Lapiz href={url(BASE, { d: elegido.id, q: q || null, contiene: comienza ? null : "1", eu: u.id })} />
+                          <Lapiz href={url(BASE, { d: elegido.id, q: q || null, contiene: comienza ? null : "1", ...filtrosD, eu: u.id })} />
                           <TachoConfirmar accion={accionBorrarUbicacion} campos={{ id: String(u.id), volver: aqui }} pregunta="¿Borrar?" />
                         </span>
                       )}

@@ -4,8 +4,10 @@
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { PRIMARIO, SUAVE } from "@/app/botones";
+import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
+import AltaNueva from "@/app/componentes/AltaNueva";
 import {
-  entrarErp, Pantalla, Avisos, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO,
+  entrarErp, Pantalla, Avisos, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, patronBusqueda,
 } from "@/app/componentes/erp";
 import { fecha, TIPOS_CLIENTE, CONDICIONES_IVA, DOCUMENTOS, etiqueta } from "@/app/ventas/formato";
 import { accionCrearCliente } from "./acciones";
@@ -14,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 const POR_PAGINA = 50;
 
-type SP = { q?: string; tipo?: string; pagina?: string; ok?: string; error?: string };
+type SP = { q?: string; contiene?: string; tipo?: string; pagina?: string; ok?: string; error?: string };
 
 type Fila = {
   id: number; nombre: string; tipo: string; documento_tipo: string | null; documento_numero: string | null;
@@ -25,6 +27,7 @@ export default async function Clientes({ searchParams }: { searchParams: Promise
   const s = await entrarErp("clientes_ver");
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
+  const comienza = sp.contiene !== "1";
   const tipo = sp.tipo === "mayorista" || sp.tipo === "consumidor_final" ? sp.tipo : "";
   const pagina = Math.max(1, Number(sp.pagina) || 1);
 
@@ -32,11 +35,11 @@ export default async function Clientes({ searchParams }: { searchParams: Promise
   const donde = ["c.organizacion_id = $1"];
   if (tipo) { valores.push(tipo); donde.push(`c.tipo = $${valores.length}`); }
   if (q) {
-    valores.push(`%${q}%`);
+    valores.push(patronBusqueda(q, comienza));
     const p = `$${valores.length}`;
     const digitos = q.replace(/\D/g, "");
     let doc = "";
-    if (digitos.length >= 3) { valores.push(`%${digitos}%`); doc = ` or regexp_replace(coalesce(c.documento_numero, ''), '\\D', '', 'g') like $${valores.length} or regexp_replace(coalesce(c.telefono, ''), '\\D', '', 'g') like $${valores.length}`; }
+    if (digitos.length >= 3) { valores.push(patronBusqueda(digitos, comienza)); doc = ` or regexp_replace(coalesce(c.documento_numero, ''), '\\D', '', 'g') like $${valores.length} or regexp_replace(coalesce(c.telefono, ''), '\\D', '', 'g') like $${valores.length}`; }
     donde.push(`(c.nombre ilike ${p} or c.email ilike ${p} or c.documento_numero ilike ${p} or c.telefono ilike ${p}${doc})`);
   }
   valores.push(POR_PAGINA, (pagina - 1) * POR_PAGINA);
@@ -51,20 +54,18 @@ export default async function Clientes({ searchParams }: { searchParams: Promise
      limit $${valores.length - 1} offset $${valores.length}`, valores);
   const total = filas[0]?.total ?? 0;
   const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
-  const ir = (p: number) => url("/ventas/clientes", { q, tipo, pagina: p > 1 ? p : null });
+  const ir = (p: number) => url("/ventas/clientes", { q, contiene: comienza ? null : "1", tipo, pagina: p > 1 ? p : null });
 
   return (
     <Pantalla titulo="Clientes" subtitulo="Los crean los pedidos; acá se miran y se corrigen sus datos">
       <Avisos sp={sp} />
-      <form className="flex flex-wrap items-center gap-2 mb-3">
-        <input name="q" defaultValue={q} placeholder="Nombre, mail, documento o teléfono" className={`${CAMPO} flex-1 min-w-56`} />
-        <select name="tipo" defaultValue={tipo} className={CAMPO} aria-label="Tipo">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por nombre, mail, documento o teléfono" limpiar={["pagina"]} />
+        <FiltroVivo parametro="tipo" valor={tipo} etiqueta="Tipo" limpiar={["pagina"]}>
           <option value="">Todos los tipos</option>
           {Object.entries(TIPOS_CLIENTE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-        <button className={PRIMARIO}>Buscar</button>
-        {(q || tipo) && <Link href="/ventas/clientes" className={SUAVE}>Limpiar</Link>}
-      </form>
+        </FiltroVivo>
+      </div>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
@@ -98,10 +99,9 @@ export default async function Clientes({ searchParams }: { searchParams: Promise
         </nav>
       )}
 
-      <details className="mt-4">
-        <summary className={`${SUAVE} inline-block cursor-pointer list-none`}>Agregar un cliente a mano</summary>
-        <form action={accionCrearCliente} className="flex flex-wrap items-center gap-2 mt-2">
-          <input name="nombre" placeholder="Nombre o razón social" className={`${CAMPO} flex-1 min-w-48`} />
+      <AltaNueva texto="Nuevo cliente" className="mt-4">
+        <form action={accionCrearCliente} className="flex flex-wrap items-center gap-2">
+          <input name="nombre" placeholder="Nombre o razón social" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
           <select name="tipo" defaultValue="consumidor_final" className={CAMPO} aria-label="Tipo">
             {Object.entries(TIPOS_CLIENTE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
@@ -111,9 +111,9 @@ export default async function Clientes({ searchParams }: { searchParams: Promise
           <input name="documento_numero" placeholder="Número" className={`${CAMPO} w-32`} />
           <input name="email" type="email" placeholder="Mail" className={`${CAMPO} w-48`} />
           <input name="telefono" placeholder="Teléfono" className={`${CAMPO} w-32`} />
-          <button className={PRIMARIO}>Agregar</button>
+          <button className={PRIMARIO}>Crear</button>
         </form>
-      </details>
+      </AltaNueva>
     </Pantalla>
   );
 }

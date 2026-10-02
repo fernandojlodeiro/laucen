@@ -11,15 +11,17 @@ import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
 import CampoNumero from "@/app/componentes/CampoNumero";
+import BuscadorVivo from "@/app/componentes/BuscadorVivo";
+import AltaNueva from "@/app/componentes/AltaNueva";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  entrarErp, Pantalla, Avisos, Lapiz, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, url, coincideBusqueda,
 } from "@/app/componentes/erp";
 import { fecha } from "@/app/ventas/formato";
 import { accionCrearCuenta, accionGuardarCuenta, accionActivarCuenta, accionBorrarCuenta } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
-type SP = { c?: string; editar?: string; ok?: string; error?: string };
+type SP = { c?: string; editar?: string; q?: string; contiene?: string; ok?: string; error?: string };
 
 const TIPOS_CUENTA: Record<string, string> = { caja: "Caja", banco: "Banco", mercadopago: "Mercado Pago", otro: "Otra" };
 
@@ -31,7 +33,7 @@ function Campos({ c, contables }: { c?: CuentaFila; contables: Contable[] }) {
   return (
     <>
       <label className="flex-1 min-w-40"><span className={ETIQUETA}>Nombre</span>
-        <input name="nombre" defaultValue={c?.nombre} placeholder="Ej. Banco Galicia" className={`${CAMPO} w-full`} /></label>
+        <input name="nombre" defaultValue={c?.nombre} placeholder="Ej. Banco Galicia" className={`${CAMPO} w-full`} autoFocus /></label>
       <label><span className={ETIQUETA}>Tipo</span>
         <select name="tipo" defaultValue={c?.tipo ?? "banco"} className={CAMPO}>
           {Object.entries(TIPOS_CUENTA).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -61,25 +63,34 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   if (Number(sp.c)) redirect(`/administracion/tesoreria/${Number(sp.c)}`);
   const editar = Number(sp.editar) || 0;
+  const q = sp.q?.trim() ?? "";
+  const comienza = sp.contiene !== "1";
+  const filtros = { q: q || null, contiene: comienza ? null : "1" };
   await asegurarPlan(s.org.id);
   const [cuentas, contables] = await Promise.all([cuentasConSaldo(s.org.id), cuentasImputables(s.org.id)]);
   const nombreContable = new Map(contables.map((x) => [x.id, `${x.codigo} ${x.nombre}`]));
   const totales = { ARS: 0, USD: 0 };
   for (const c of cuentas) if (c.activa) totales[c.moneda as Moneda] += c.saldo;
+  // El buscador filtra lo que se ve; los totales son de todas.
+  const vistas = cuentas.filter((c) => [c.nombre, c.banco, c.alias, c.cbu].some((t) => coincideBusqueda(t, q, comienza)));
 
   return (
     <Pantalla titulo="Caja y bancos" subtitulo="Las cuentas donde está la plata, con su saldo y lo que falta conciliar con el extracto">
       <Avisos sp={sp} />
-      <form action={accionCrearCuenta} className={`${CAJA} mb-4 flex flex-wrap items-end gap-2`}>
-        <p className="w-full text-xs font-bold">Cuenta nueva</p>
-        <Campos contables={contables} />
-        <button className={PRIMARIO}>Agregar</button>
-      </form>
+      <AltaNueva texto="Nueva cuenta" className="mb-4">
+        <form action={accionCrearCuenta} className="flex flex-wrap items-end gap-2">
+          <Campos contables={contables} />
+          <button className={PRIMARIO}>Crear</button>
+        </form>
+      </AltaNueva>
 
       <p className="text-xs mb-2">
         Total en pesos: <b className="tabular-nums">{formatear(totales.ARS, "ARS")}</b>
         {totales.USD !== 0 && <> · en dólares: <b className="tabular-nums">{formatear(totales.USD, "USD")}</b></>}
       </p>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por nombre, banco, CBU o alias" limpiar={["editar"]} />
+      </div>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
@@ -89,15 +100,15 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
             </tr>
           </thead>
           <tbody>
-            {cuentas.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>Todavía no hay cuentas.</td></tr>}
-            {cuentas.map((c) => editar === c.id ? (
+            {vistas.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>{q ? "Ninguna cuenta coincide." : "Todavía no hay cuentas."}</td></tr>}
+            {vistas.map((c) => editar === c.id ? (
               <tr key={c.id} className={`${TR} bg-[#FAFBFC]`}>
                 <td colSpan={8} className={TD}>
                   <form action={accionGuardarCuenta} className="flex flex-wrap items-end gap-2">
                     <input type="hidden" name="id" value={c.id} />
                     <Campos c={c} contables={contables} />
                     <button className={VERDE}>Guardar</button>
-                    <Link href="/administracion/tesoreria" className={SUAVE}>Cancelar</Link>
+                    <Link href={url("/administracion/tesoreria", filtros)} className={SUAVE}>Cancelar</Link>
                   </form>
                 </td>
               </tr>
@@ -117,7 +128,7 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
                 </td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
-                    <Lapiz href={`/administracion/tesoreria?editar=${c.id}`} />
+                    <Lapiz href={url("/administracion/tesoreria", { ...filtros, editar: c.id })} />
                     <TachoConfirmar accion={accionBorrarCuenta} campos={{ id: String(c.id) }} pregunta="¿Borrar?" />
                   </span>
                 </td>

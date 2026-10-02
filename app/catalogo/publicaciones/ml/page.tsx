@@ -9,8 +9,9 @@ import { formatear, tcDelDia } from "@/lib/moneda";
 import { cuentasDe } from "@/lib/mercadolibre/api";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { TachoConfirmar, BotonEnviar } from "@/app/radar/Cliente";
+import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import {
-  entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, patronBusqueda,
 } from "@/app/componentes/erp";
 import { accionTraerPublicaciones, accionVincular, accionCrearProducto, accionDesvincular } from "./acciones";
 
@@ -21,7 +22,7 @@ export const maxDuration = 300;
 const BASE = "/catalogo/publicaciones/ml";
 const POR_PAGINA = 100;
 
-type SP = { canal?: string; ver?: string; q?: string; pagina?: string; ok?: string; error?: string };
+type SP = { canal?: string; ver?: string; q?: string; contiene?: string; pagina?: string; ok?: string; error?: string };
 type Ver = "sin" | "vinc" | "todas";
 
 type Fila = {
@@ -69,8 +70,10 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
   const canal = canales.find((c) => c.id === Number(sp.canal)) ?? canales[0];
   const ver: Ver = sp.ver === "vinc" || sp.ver === "todas" ? sp.ver : "sin";
   const q = sp.q?.trim() || "";
+  const comienza = sp.contiene !== "1";
+  const cont = comienza ? null : "1";
   const pagina = Math.max(1, Number(sp.pagina) || 1);
-  const aqui = url(BASE, { canal: canal.id, ver: ver === "sin" ? null : ver, q, pagina: pagina > 1 ? pagina : null });
+  const aqui = url(BASE, { canal: canal.id, ver: ver === "sin" ? null : ver, q, contiene: cont, pagina: pagina > 1 ? pagina : null });
 
   const resumen = (await consulta<{ total: number; vinculadas: number }>(`
     select count(*)::int total, count(publicacion_id)::int vinculadas
@@ -78,7 +81,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
 
   const filtroVer = ver === "sin" ? "and mi.publicacion_id is null" : ver === "vinc" ? "and mi.publicacion_id is not null" : "";
   const filtroQ = "and ($3::text is null or mi.titulo ilike $3 or mi.sku ilike $3 or mi.item_id ilike $3)";
-  const params = [org, canal.id, q ? `%${q}%` : null];
+  const params = [org, canal.id, patronBusqueda(q, comienza)];
   const cantidad = (await consulta<{ n: number }>(
     `select count(*)::int n from meli_item mi where mi.organizacion_id = $1 and mi.canal_id = $2 ${filtroVer} ${filtroQ}`, params))[0].n;
   const paginas = Math.max(1, Math.ceil(cantidad / POR_PAGINA));
@@ -109,7 +112,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
 
   const n = (x: number) => x.toLocaleString("es-AR");
   const ir = (cambios: Record<string, string | number | null>) =>
-    url(BASE, { canal: canal.id, ver: ver === "sin" ? null : ver, q, ...cambios });
+    url(BASE, { canal: canal.id, ver: ver === "sin" ? null : ver, q, contiene: cont, ...cambios });
   const pestanas: { ver: Ver; texto: string }[] = [
     { ver: "sin", texto: "Sin vincular" }, { ver: "vinc", texto: "Vinculadas" }, { ver: "todas", texto: "Todas" },
   ];
@@ -119,13 +122,10 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
       <Avisos sp={sp} />
 
       <div className="flex flex-wrap items-end gap-2 mb-3">
-        <form action={BASE} className="flex items-end gap-2">
-          <label><span className={ETIQUETA}>Canal de Mercado Libre</span>
-            <select name="canal" defaultValue={canal.id} className={CAMPO}>
-              {canales.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select></label>
-          {canales.length > 1 && <button className={SUAVE}>Ver</button>}
-        </form>
+        <label><span className={ETIQUETA}>Canal de Mercado Libre</span>
+          <FiltroVivo parametro="canal" valor={String(canal.id)} etiqueta="Canal de Mercado Libre" limpiar={["pagina"]}>
+            {canales.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </FiltroVivo></label>
         <form action={accionTraerPublicaciones} className="ml-auto">
           <input type="hidden" name="canal" value={canal.id} />
           <input type="hidden" name="volver" value={aqui} />
@@ -151,14 +151,9 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
         ))}
       </nav>
 
-      <form action={BASE} className="flex flex-wrap items-end gap-2 mb-3">
-        <input type="hidden" name="canal" value={canal.id} />
-        {ver !== "sin" && <input type="hidden" name="ver" value={ver} />}
-        <label><span className={ETIQUETA}>Buscar</span>
-          <input name="q" defaultValue={q} placeholder="Título, SKU o MLA…" className={`${CAMPO} w-64`} /></label>
-        <button className={SUAVE}>Buscar</button>
-        {q && <Link href={ir({ q: null })} className={SUAVE}>Limpiar</Link>}
-      </form>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por título, SKU o MLA…" limpiar={["pagina"]} />
+      </div>
 
       <div className={CAJA_TABLA}>
         <table className={TABLA}>

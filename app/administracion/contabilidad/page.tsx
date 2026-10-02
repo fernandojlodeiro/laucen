@@ -11,8 +11,10 @@ import {
 } from "@/lib/administracion/contabilidad";
 import { PRIMARIO, SUAVE, VERDE, APAGAR } from "@/app/botones";
 import { TachoConfirmar, BotonConfirmar, BotonEnviar } from "@/app/radar/Cliente";
+import BuscadorVivo from "@/app/componentes/BuscadorVivo";
+import AltaNueva from "@/app/componentes/AltaNueva";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, coincideBusqueda,
 } from "@/app/componentes/erp";
 import { FormAsiento, InterruptorCampo } from "./piezas";
 import {
@@ -39,7 +41,7 @@ const ORIGEN: Record<string, string> = {
 };
 const TIPO: Record<string, string> = { activo: "Activo", pasivo: "Pasivo", patrimonio: "Patrimonio neto", ingreso: "Ingreso", egreso: "Egreso" };
 
-type SP = { p?: string; desde?: string; hasta?: string; cuenta?: string; editar?: string; ok?: string; error?: string };
+type SP = { p?: string; desde?: string; hasta?: string; cuenta?: string; editar?: string; q?: string; contiene?: string; ok?: string; error?: string };
 
 const $ = (x: number) => formatear(x, "ARS");
 const esFecha = (x?: string) => !!x && /^\d{4}-\d{2}-\d{2}$/.test(x);
@@ -75,7 +77,7 @@ export default async function Contabilidad({ searchParams }: { searchParams: Pro
       {p === "mayor" && <Mayor org={org} desde={desde} hasta={hasta} cuenta={Number(sp.cuenta) || 0} />}
       {p === "sumas" && <Sumas org={org} desde={desde} hasta={hasta} />}
       {p === "resultados" && <Resultados org={org} desde={desde} hasta={hasta} />}
-      {p === "plan" && <Plan org={org} editar={Number(sp.editar) || 0} />}
+      {p === "plan" && <Plan org={org} editar={Number(sp.editar) || 0} q={sp.q?.trim() ?? ""} comienza={sp.contiene !== "1"} />}
     </Pantalla>
   );
 }
@@ -332,7 +334,7 @@ async function Resultados({ org, desde, hasta }: { org: string; desde: string; h
 
 // ── 6. Plan de cuentas ─────────────────────────────────────
 
-async function Plan({ org, editar }: { org: string; editar: number }) {
+async function Plan({ org, editar, q, comienza }: { org: string; editar: number; q: string; comienza: boolean }) {
   const [cuentas, enFondos] = await Promise.all([
     planDeCuentas(org),
     // Las cuentas que nombra una cuenta de fondos o un movimiento también están "usadas".
@@ -341,12 +343,14 @@ async function Plan({ org, editar }: { org: string; editar: number }) {
       union select distinct cuenta_contable_id::int from movimiento_fondos where organizacion_id = $1 and cuenta_contable_id is not null`, [org]),
   ]);
   const usadaFondos = new Set(enFondos.map((x) => x.id));
-  const volver = `${BASE}?p=plan`;
+  const volver = url(BASE, { p: "plan", q: q || null, contiene: comienza ? null : "1" });
+  const vistas = cuentas.filter((c) => coincideBusqueda(c.codigo, q, comienza) || coincideBusqueda(c.nombre, q, comienza));
 
   return (
     <>
-      <form action={accionCrearCuenta} className="flex flex-wrap items-end gap-2 mb-3">
-        <label><span className={ETIQUETA}>Código</span><input name="codigo" placeholder="5.2.06" className={`${CAMPO} w-24`} /></label>
+      <AltaNueva texto="Nueva cuenta" className="mb-3">
+      <form action={accionCrearCuenta} className="flex flex-wrap items-end gap-2">
+        <label><span className={ETIQUETA}>Código</span><input name="codigo" placeholder="5.2.06" className={`${CAMPO} w-24`} autoFocus /></label>
         <label className="flex-1 min-w-48"><span className={ETIQUETA}>Nombre</span><input name="nombre" placeholder="Ej. Publicidad" className={`${CAMPO} w-full`} /></label>
         <label><span className={ETIQUETA}>Tipo</span>
           <select name="tipo" defaultValue="egreso" className={CAMPO}>
@@ -354,8 +358,12 @@ async function Plan({ org, editar }: { org: string; editar: number }) {
           </select>
         </label>
         <label className="flex items-center gap-2 text-xs pb-2"><input type="checkbox" name="imputable" defaultChecked className="h-4 w-4" /> Imputable</label>
-        <button className={PRIMARIO}>Agregar</button>
+        <button className={PRIMARIO}>Crear</button>
       </form>
+      </AltaNueva>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar cuenta por código o nombre" limpiar={["editar"]} />
+      </div>
       <p className="text-xs text-[#5C6B76] mb-2">Las imputables reciben asientos; las otras son títulos que agrupan. Las marcadas &quot;automática&quot; las usan los asientos que se generan solos: se pueden renombrar o recodificar, no borrar.</p>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
@@ -363,7 +371,8 @@ async function Plan({ org, editar }: { org: string; editar: number }) {
             <tr><th className={TH}>Código</th><th className={TH}>Cuenta</th><th className={TH}>Tipo</th><th className={TH}>Imputable</th><th className={TH}>Estado</th><th /></tr>
           </thead>
           <tbody>
-            {cuentas.map((c) => editar === c.id ? (
+            {vistas.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>Ninguna cuenta coincide.</td></tr>}
+            {vistas.map((c) => editar === c.id ? (
               <tr key={c.id} className={`${TR} bg-[#FAFBFC]`}>
                 <td colSpan={6} className={TD}>
                   <form action={accionGuardarCuenta} className="flex flex-wrap items-center gap-2">
@@ -390,7 +399,7 @@ async function Plan({ org, editar }: { org: string; editar: number }) {
                 <td className={TD}><Estado texto={c.activa ? "Activa" : "Inactiva"} tono={c.activa ? "verde" : "gris"} /></td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
-                    <Lapiz href={`${volver}&editar=${c.id}`} />
+                    <Lapiz href={url(BASE, { p: "plan", q: q || null, contiene: comienza ? null : "1", editar: c.id })} />
                     {!c.rol && !c.usada && !usadaFondos.has(c.id) && (
                       <TachoConfirmar accion={accionBorrarCuenta} campos={{ id: String(c.id) }} pregunta="¿Borrar?" />
                     )}

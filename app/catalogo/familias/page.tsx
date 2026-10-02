@@ -7,15 +7,17 @@ import { formatearNumero } from "@/lib/numeros";
 import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
+import BuscadorVivo from "@/app/componentes/BuscadorVivo";
+import AltaNueva from "@/app/componentes/AltaNueva";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
+  entrarErp, Pantalla, Avisos, Lapiz, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, coincideBusqueda,
 } from "@/app/componentes/erp";
 import { ordenarArbol } from "@/app/catalogo/productos/comun";
 import { accionBorrarFamilia, accionCrearFamilia, accionGuardarFamilia } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
-type SP = { editar?: string; ok?: string; error?: string };
+type SP = { editar?: string; q?: string; contiene?: string; ok?: string; error?: string };
 type Fila = { id: number; padre_id: number | null; nombre: string; descripcion: string | null; descuento_pct: number | null; productos: number };
 type CucardaFamilia = { familia_id: number; cucarda_id: number; desde: string | null; hasta: string | null };
 
@@ -26,6 +28,9 @@ export default async function Familias({ searchParams }: { searchParams: Promise
   const s = await entrarErp("familias_ver");
   const sp = await searchParams;
   const editar = Number(sp.editar) || 0;
+  const q = sp.q?.trim() ?? "";
+  const comienza = sp.contiene !== "1";
+  const filtros = { q: q || null, contiene: comienza ? null : "1" };
   const [filas, cucardas, asignadas] = await Promise.all([
     consulta<Fila>(`
       select f.id::int, f.padre_id::int, f.nombre, f.descripcion, f.descuento_pct::float8,
@@ -38,6 +43,8 @@ export default async function Familias({ searchParams }: { searchParams: Promise
         from familia_cucarda where organizacion_id = $1`, [s.org.id]),
   ]);
   const arbol = ordenarArbol(filas);
+  // El buscador filtra las filas que se ven; el árbol entero sigue para elegir padre.
+  const visibles = arbol.filter((f) => coincideBusqueda(f.nombre, q, comienza));
   const porId = new Map(filas.map((f) => [f.id, f]));
 
   /** Descuento que hereda (el de la primera familia de arriba que tenga uno). */
@@ -65,6 +72,9 @@ export default async function Familias({ searchParams }: { searchParams: Promise
   return (
     <Pantalla titulo="Familias" subtitulo="Agrupan productos. Lo que se carga en una familia (descuento, cucardas) lo heredan sus productos y subfamilias si no lo cambian">
       <Avisos sp={sp} />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar familia" limpiar={["editar"]} />
+      </div>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
@@ -74,8 +84,8 @@ export default async function Familias({ searchParams }: { searchParams: Promise
             </tr>
           </thead>
           <tbody>
-            {arbol.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>Todavía no hay familias.</td></tr>}
-            {arbol.map((f) => {
+            {visibles.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>{q ? "Ninguna familia coincide." : "Todavía no hay familias."}</td></tr>}
+            {visibles.map((f) => {
               const suyas = asignadas.filter((a) => a.familia_id === f.id);
               if (editar === f.id) {
                 const excluidas = debajo(f.id);
@@ -124,7 +134,7 @@ export default async function Familias({ searchParams }: { searchParams: Promise
                         )}
                         <div className="flex gap-2 justify-end">
                           <button className={VERDE}>Guardar</button>
-                          <Link href="/catalogo/familias" className={SUAVE} scroll={false}>Cancelar</Link>
+                          <Link href={url("/catalogo/familias", filtros)} className={SUAVE} scroll={false}>Cancelar</Link>
                         </div>
                       </form>
                     </td>
@@ -160,7 +170,7 @@ export default async function Familias({ searchParams }: { searchParams: Promise
                   </td>
                   <td className={`${TD} text-right whitespace-nowrap`}>
                     <span className="inline-flex gap-1">
-                      <Lapiz href={`/catalogo/familias?editar=${f.id}`} />
+                      <Lapiz href={url("/catalogo/familias", { ...filtros, editar: f.id })} />
                       <TachoConfirmar accion={accionBorrarFamilia} campos={{ id: String(f.id) }}
                         pregunta={f.productos ? `¿Borrar? (${f.productos} quedan sin familia)` : "¿Borrar?"} />
                     </span>
@@ -171,15 +181,17 @@ export default async function Familias({ searchParams }: { searchParams: Promise
           </tbody>
         </table>
       </div>
-      <form action={accionCrearFamilia} className="flex flex-wrap items-center gap-2 mt-3">
-        <input name="nombre" placeholder="Familia nueva (ej. Cocina)" className={`${CAMPO} flex-1 min-w-48`} />
+      <AltaNueva texto="Nueva familia" className="mt-3">
+      <form action={accionCrearFamilia} className="flex flex-wrap items-center gap-2">
+        <input name="nombre" placeholder="Nombre (ej. Cocina)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
         <select name="padre_id" defaultValue="" className={CAMPO} aria-label="Familia padre">
           <option value="">Sin padre (arriba de todo)</option>
           {arbol.map((o) => <option key={o.id} value={o.id}>Dentro de {o.etiqueta}</option>)}
         </select>
         <CampoNumero name="descuento_pct" valor={null} tipo="pct" placeholder="Desc. %" className={`${CAMPO} w-20`} />
-        <button className={PRIMARIO}>Agregar</button>
+        <button className={PRIMARIO}>Crear</button>
       </form>
+      </AltaNueva>
     </Pantalla>
   );
 }

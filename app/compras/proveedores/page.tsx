@@ -7,15 +7,17 @@ import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
+import BuscadorVivo from "@/app/componentes/BuscadorVivo";
+import AltaNueva from "@/app/componentes/AltaNueva";
 import { CONDICIONES_IVA } from "@/app/ventas/formato";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, CAMPO, ETIQUETA,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, CAMPO, ETIQUETA, patronBusqueda,
 } from "@/app/componentes/erp";
 import { accionBorrarProveedor, accionCrearProveedor, accionGuardarProveedor } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
-type SP = { q?: string; editar?: string; ok?: string; error?: string };
+type SP = { q?: string; contiene?: string; editar?: string; ok?: string; error?: string };
 type Proveedor = {
   id: number; nombre: string; razon_social: string | null; cuit: string | null; condicion_iva: string | null; pais: string;
   email: string | null; telefono: string | null; contacto: string | null; calle: string | null; localidad: string | null;
@@ -26,7 +28,7 @@ type Proveedor = {
 function Campos({ p }: { p?: Proveedor }) {
   const campo = (k: keyof Proveedor, etiqueta: string, ancho = "w-full") => (
     <label><span className={ETIQUETA}>{etiqueta}</span>
-      <input name={k} defaultValue={(p?.[k] as string | null) ?? ""} className={`${CAMPO} ${ancho}`} /></label>
+      <input name={k} defaultValue={(p?.[k] as string | null) ?? ""} className={`${CAMPO} ${ancho}`} autoFocus={k === "nombre"} /></label>
   );
   return (
     <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 items-start">
@@ -61,24 +63,25 @@ export default async function Proveedores({ searchParams }: { searchParams: Prom
   const s = await entrarErp("proveedores_ver");
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
+  const comienza = sp.contiene !== "1";
+  const digitos = q.replace(/\D/g, "");
   const editar = Number(sp.editar) || 0;
   const filas = await consulta<Proveedor>(`
     select id::int, nombre, razon_social, cuit, condicion_iva, pais, email, telefono, contacto, calle, localidad, provincia,
            moneda, condiciones_pago, notas, estado
       from proveedor
      where organizacion_id = $1
-       and ($2 = '' or nombre ilike '%' || $2 || '%' or razon_social ilike '%' || $2 || '%' or email ilike '%' || $2 || '%'
-            or regexp_replace(coalesce(cuit, ''), '\\D', '', 'g') like '%' || nullif(regexp_replace($2, '\\D', '', 'g'), '') || '%')
-     order by estado, nombre limit 300`, [s.org.id, q]);
-  const aqui = (extra: Record<string, string | number | null>) => url("/compras/proveedores", { q: q || null, ...extra });
+       and ($2::text is null or nombre ilike $2 or razon_social ilike $2 or email ilike $2
+            or regexp_replace(coalesce(cuit, ''), '\\D', '', 'g') like $3)
+     order by estado, nombre limit 300`, [s.org.id, patronBusqueda(q, comienza), digitos ? patronBusqueda(digitos, comienza) : null]);
+  const aqui = (extra: Record<string, string | number | null>) => url("/compras/proveedores", { q: q || null, contiene: comienza ? null : "1", ...extra });
 
   return (
     <Pantalla titulo="Proveedores" subtitulo="A quién le comprás. Se cargan a mano o desde el archivo de Virtual Seller (Configuración → Importar datos).">
       <Avisos sp={sp} />
-      <form className="flex gap-2 mb-3">
-        <input name="q" defaultValue={q} placeholder="Buscar por nombre, razón social, CUIT o mail" className={`${CAMPO} flex-1 max-w-md`} />
-        <button className={SUAVE}>Buscar</button>
-      </form>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por nombre, razón social, CUIT o mail" limpiar={["editar"]} />
+      </div>
       <div className={`${CAJA_TABLA} mb-4`}>
         <table className={TABLA}>
           <thead className={THEAD}>
@@ -121,15 +124,12 @@ export default async function Proveedores({ searchParams }: { searchParams: Prom
           </tbody>
         </table>
       </div>
-      <details className={`${CAJA} group`}>
-        <summary className="cursor-pointer list-none text-sm font-bold flex items-center gap-2">
-          <span className={PRIMARIO}>Proveedor nuevo</span>
-        </summary>
-        <form action={accionCrearProveedor} className="grid gap-2 mt-3">
+      <AltaNueva texto="Nuevo proveedor">
+        <form action={accionCrearProveedor} className="grid gap-2">
           <Campos />
-          <div><button className={VERDE}>Crear</button></div>
+          <div><button className={PRIMARIO}>Crear</button></div>
         </form>
-      </details>
+      </AltaNueva>
     </Pantalla>
   );
 }

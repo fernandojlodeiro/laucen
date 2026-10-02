@@ -9,8 +9,10 @@ import { VERDE, SUAVE, PRIMARIO, DESPLEGABLE_CHICO, FLECHA } from "@/app/botones
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
 import CampoNumero from "@/app/componentes/CampoNumero";
+import BuscadorVivo from "@/app/componentes/BuscadorVivo";
+import AltaNueva from "@/app/componentes/AltaNueva";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
+  entrarErp, Pantalla, Avisos, Lapiz, url, patronBusqueda, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
 import { TIPOS_ENVIO, PROVINCIAS, type TipoEnvio } from "./comun";
 import { accionCrearEnvio, accionGuardarEnvio, accionActivarEnvio, accionBorrarEnvio } from "./acciones";
@@ -18,7 +20,7 @@ import { accionCrearEnvio, accionGuardarEnvio, accionActivarEnvio, accionBorrarE
 export const dynamic = "force-dynamic";
 
 const BASE = "/config/envios";
-type SP = { editar?: string; ok?: string; error?: string };
+type SP = { editar?: string; q?: string; contiene?: string; ok?: string; error?: string };
 type Metodo = {
   id: number; tipo: TipoEnvio; nombre: string; activo: boolean; costo: number; gratis: number | null; tarifas: Record<string, number>;
   plazo: string | null; instrucciones: string | null; orden: number;
@@ -49,13 +51,20 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
   const s = await entrarErp("tienda_config");
   const sp = await searchParams;
   const editar = Number(sp.editar) || 0;
+  const q = sp.q?.trim() ?? "";
+  const comienza = sp.contiene !== "1";
+  const filtros = { q: q || null, contiene: comienza ? null : "1" };
   const metodos = await consulta<Metodo>(`
     select id::int, tipo, nombre, activo, costo_ars::float costo, gratis_desde_ars::float gratis, tarifas, plazo, instrucciones, orden
-      from metodo_envio where organizacion_id = $1 and canal_id is null order by orden, id`, [s.org.id]);
+      from metodo_envio where organizacion_id = $1 and canal_id is null and ($2::text is null or nombre ilike $2)
+     order by orden, id`, [s.org.id, patronBusqueda(q, comienza)]);
 
   return (
     <Pantalla titulo="Métodos de envío" subtitulo="Cómo le llega el pedido al comprador de la tienda web. Importes en pesos." ancho="max-w-6xl">
       <Avisos sp={sp} />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar método de envío" limpiar={["editar"]} />
+      </div>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
@@ -65,7 +74,7 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
             </tr>
           </thead>
           <tbody>
-            {metodos.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>Todavía no hay métodos de envío. Agregá uno abajo (ej. Retiro en el local).</td></tr>}
+            {metodos.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>{q ? "Ningún método coincide." : "Todavía no hay métodos de envío. Agregá uno abajo (ej. Retiro en el local)."}</td></tr>}
             {metodos.map((m) => editar === m.id ? (
               <tr key={m.id} className={`${TR} bg-[#FAFBFC]`}>
                 <td colSpan={9} className={TD}>
@@ -99,7 +108,7 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
                     </details>
                     <div className="col-span-2 sm:col-span-6 flex gap-2">
                       <button className={VERDE}>Guardar</button>
-                      <Link href={BASE} className={SUAVE} scroll={false}>Cancelar</Link>
+                      <Link href={url(BASE, filtros)} className={SUAVE} scroll={false}>Cancelar</Link>
                     </div>
                   </form>
                 </td>
@@ -117,7 +126,7 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
                 <td className={TDN}>{m.orden}</td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
-                    <Lapiz href={`${BASE}?editar=${m.id}`} />
+                    <Lapiz href={url(BASE, { ...filtros, editar: m.id })} />
                     <TachoConfirmar accion={accionBorrarEnvio} campos={{ id: String(m.id) }} pregunta="¿Borrar?" />
                   </span>
                 </td>
@@ -127,16 +136,18 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
         </table>
       </div>
 
-      <form action={accionCrearEnvio} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end mt-3">
-        <label className="col-span-2"><span className={ETIQUETA}>Método nuevo</span>
-          <input name="nombre" placeholder="Ej. Envío a domicilio" className={`${CAMPO} w-full`} /></label>
+      <AltaNueva texto="Nuevo método de envío" className="mt-3">
+      <form action={accionCrearEnvio} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end">
+        <label className="col-span-2"><span className={ETIQUETA}>Nombre que ve el comprador</span>
+          <input name="nombre" placeholder="Ej. Envío a domicilio" className={`${CAMPO} w-full`} autoFocus /></label>
         <label className="col-span-2"><span className={ETIQUETA}>Tipo</span><SelectorTipo /></label>
         <label><span className={ETIQUETA}>Costo $</span><CampoNumero name="costo_ars" valor={null} tipo="pesos" className={`${CAMPO} w-full`} /></label>
         <label><span className={ETIQUETA}>Gratis desde $</span><CampoNumero name="gratis_desde_ars" valor={null} tipo="pesos" placeholder="nunca" className={`${CAMPO} w-full`} /></label>
         <label className="col-span-2"><span className={ETIQUETA}>Plazo</span><input name="plazo" placeholder="24 a 72 h" className={`${CAMPO} w-full`} /></label>
         <label className="col-span-2 sm:col-span-3"><span className={ETIQUETA}>Instrucciones</span><input name="instrucciones" className={`${CAMPO} w-full`} /></label>
-        <div><button className={PRIMARIO}>Agregar</button></div>
+        <div><button className={PRIMARIO}>Crear</button></div>
       </form>
+      </AltaNueva>
       <p className="text-[11px] text-[#5C6B76] mt-1">Nace apagado. &quot;Por provincia&quot; se abre para cargar la tarifa de cada provincia.</p>
     </Pantalla>
   );

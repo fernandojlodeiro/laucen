@@ -5,7 +5,7 @@
 // ?contiene=1) busca al principio del texto. Todo ABM lleva su buscador
 // (AGENTS.md): éste es el de siempre.
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 /** Cambia un parámetro de la dirección sin recargar la página entera. */
@@ -21,10 +21,13 @@ export function usarCambiarParametro() {
 
 /** Búsqueda al tipear (desde 2 letras), con una X para borrar, y las cajas
  *  "Comienza por" y "Mostrar inactivos" (ésta sólo si se pasa `inactivos`).
- *  Al buscar se sacan de la dirección los parámetros de `limpiar` (ej. la fila abierta). */
-export default function BuscadorVivo({ q, comienza, inactivos, placeholder, autoFocus = false, limpiar = [] }: {
-  q: string; comienza: boolean; inactivos?: boolean; placeholder: string; autoFocus?: boolean; limpiar?: string[];
+ *  Al buscar se sacan de la dirección los parámetros de `limpiar` (ej. la fila abierta).
+ *  Con dos buscadores en la misma pantalla, el segundo usa otro `parametro`
+ *  (y su "Comienza por" va en `${parametro}contiene`). */
+export default function BuscadorVivo({ q, comienza, inactivos, placeholder, autoFocus = false, limpiar = [], parametro = "q" }: {
+  q: string; comienza: boolean; inactivos?: boolean; placeholder: string; autoFocus?: boolean; limpiar?: string[]; parametro?: string;
 }) {
+  const contiene = parametro === "q" ? "contiene" : `${parametro}contiene`;
   const cambiar = usarCambiarParametro();
   const [texto, setTexto] = useState(q);
   const espera = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -34,7 +37,7 @@ export default function BuscadorVivo({ q, comienza, inactivos, placeholder, auto
     if (espera.current) clearTimeout(espera.current);
     const limpio = t.trim();
     if (limpio.length === 1) return; // con una sola letra no busca todavía
-    espera.current = setTimeout(() => cambiar({ q: limpio || null, ...Object.fromEntries(limpiar.map((k) => [k, null])) }), 300);
+    espera.current = setTimeout(() => cambiar({ [parametro]: limpio || null, ...Object.fromEntries(limpiar.map((k) => [k, null])) }), 300);
   };
 
   return (
@@ -49,7 +52,7 @@ export default function BuscadorVivo({ q, comienza, inactivos, placeholder, auto
         )}
       </span>
       <label className="inline-flex items-center gap-1.5 text-xs text-[#5C6B76] py-1.5 whitespace-nowrap">
-        <input type="checkbox" defaultChecked={comienza} onChange={(e) => cambiar({ contiene: e.target.checked ? null : "1" })}
+        <input type="checkbox" defaultChecked={comienza} onChange={(e) => cambiar({ [contiene]: e.target.checked ? null : "1" })}
           className="h-4 w-4 accent-[#16577F]" />
         Comienza por
       </label>
@@ -59,5 +62,31 @@ export default function BuscadorVivo({ q, comienza, inactivos, placeholder, auto
         Mostrar inactivos
       </label>}
     </>
+  );
+}
+
+/** Desplegable de filtro que cambia la dirección al elegir (va al lado del
+ *  buscador, sin botón Buscar). Las <option> van de hijos. */
+export function FiltroVivo({ parametro, valor, etiqueta, children, limpiar = [] }: {
+  parametro: string; valor: string; etiqueta: string; children: ReactNode; limpiar?: string[];
+}) {
+  const cambiar = usarCambiarParametro();
+  return (
+    <select defaultValue={valor} aria-label={etiqueta} onChange={(e) => cambiar({ [parametro]: e.target.value || null, ...Object.fromEntries(limpiar.map((k) => [k, null])) })}
+      className="border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs bg-white">
+      {children}
+    </select>
+  );
+}
+
+/** Caja para tildar de filtro (pone `parametro=1` o lo saca). */
+export function CasillaViva({ parametro, activo, etiqueta }: { parametro: string; activo: boolean; etiqueta: string }) {
+  const cambiar = usarCambiarParametro();
+  return (
+    <label className="inline-flex items-center gap-1.5 text-xs text-[#5C6B76] py-1.5 whitespace-nowrap">
+      <input type="checkbox" defaultChecked={activo} onChange={(e) => cambiar({ [parametro]: e.target.checked ? "1" : null })}
+        className="h-4 w-4 accent-[#16577F]" />
+      {etiqueta}
+    </label>
   );
 }

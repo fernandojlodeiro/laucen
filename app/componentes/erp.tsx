@@ -83,3 +83,16 @@ export function url(base: string, params: Record<string, string | number | null 
   const s = p.toString();
   return s ? `${base}?${s}` : base;
 }
+
+/** Patrón ILIKE del buscador (BuscadorVivo): `q` al principio del texto, o en
+ *  cualquier parte si "Comienza por" está destildada. Sin texto, null. */
+export function patronBusqueda(q: string, comienza: boolean): string | null {
+  return q ? `${comienza ? "" : "%"}${q.replace(/[\\%_]/g, "\\$&")}%` : null;
+}
+
+/** Lo mismo que patronBusqueda pero en memoria (listas que ya se traen enteras, como un árbol). */
+export function coincideBusqueda(texto: string | null | undefined, q: string, comienza: boolean): boolean {
+  if (!q) return true;
+  const t = (texto ?? "").toLowerCase(), b = q.toLowerCase();
+  return comienza ? t.startsWith(b) : t.includes(b);
+}

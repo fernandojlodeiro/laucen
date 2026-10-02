@@ -8,8 +8,10 @@ import { consulta } from "@/lib/erp/base";
 import { VERDE, SUAVE, PRIMARIO, APAGAR } from "@/app/botones";
 import { TachoConfirmar, BotonConfirmar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
+import BuscadorVivo from "@/app/componentes/BuscadorVivo";
+import AltaNueva from "@/app/componentes/AltaNueva";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, patronBusqueda,
 } from "@/app/componentes/erp";
 import { sembrarEjemploCanales, canalesDeEjemplo } from "./ejemplo";
 import CuentaMl from "./CuentaMl";
@@ -31,7 +33,7 @@ const ESTADOS: Record<string, { texto: string; tono: "verde" | "amarillo" | "gri
   activo: { texto: "Activo", tono: "verde" }, pausado: { texto: "Pausado", tono: "amarillo" }, archivado: { texto: "Archivado", tono: "gris" },
 };
 
-type SP = { c?: string; editar?: string; ok?: string; error?: string };
+type SP = { c?: string; editar?: string; q?: string; contiene?: string; ok?: string; error?: string };
 
 export default async function Canales({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("canales_ver");
@@ -39,6 +41,9 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
   await sembrarEjemploCanales(s.org.id);
   const deEjemplo = await canalesDeEjemplo(s.org.id);
   const editar = Number(sp.editar) || 0;
+  const q = sp.q?.trim() ?? "";
+  const comienza = sp.contiene !== "1";
+  const filtros = { q: q || null, contiene: comienza ? null : "1" };
 
   const canales = await consulta<{
     id: number; nombre: string; tipo: string; lista_id: number | null; lista: string | null; estado: string;
@@ -49,13 +54,14 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
            (select string_agg(d.nombre, ', ' order by cd.prioridad, d.nombre) from canal_deposito cd join deposito d on d.id = cd.deposito_id
              where cd.canal_id = c.id) depositos
       from canal c left join lista_precios l on l.id = c.lista_precios_id
-     where c.organizacion_id = $1 order by c.estado, c.nombre`, [s.org.id]);
+     where c.organizacion_id = $1 and ($2::text is null or c.nombre ilike $2)
+     order by c.estado, c.nombre`, [s.org.id, patronBusqueda(q, comienza)]);
   const listas = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from lista_precios where organizacion_id = $1 and estado = 'activa' order by orden, nombre", [s.org.id]);
   const elegido = canales.find((c) => c.id === Number(sp.c));
   const crudo = (await cookies()).get("token_nuevo")?.value?.match(/^(\d+):([0-9a-f]{64})$/);
   const tokenNuevo = crudo ? { canal: Number(crudo[1]), token: crudo[2] } : null;
-  const aqui = url(BASE, { c: elegido?.id });
+  const aqui = url(BASE, { c: elegido?.id, ...filtros });
 
   const susDepositos = elegido ? await consulta<{ id: number; nombre: string; estado: string; prioridad: number }>(`
     select d.id::int, d.nombre, d.estado, cd.prioridad
@@ -88,6 +94,9 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
         </p>
       )}
 
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar canal" limpiar={["editar"]} />
+      </div>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
@@ -97,7 +106,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
             </tr>
           </thead>
           <tbody>
-            {canales.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>No hay canales. Agregá el primero abajo.</td></tr>}
+            {canales.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>{q ? "Ningún canal coincide." : "No hay canales. Agregá el primero abajo."}</td></tr>}
             {canales.map((c) => editar === c.id ? (
               <tr key={c.id} className={`${TR} bg-[#FAFBFC]`}>
                 <td colSpan={8} className={TD}>
@@ -121,7 +130,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
               </tr>
             ) : (
               <tr key={c.id} className={`${TR} ${elegido?.id === c.id ? "bg-[#EEF3F8]" : ""}`}>
-                <td className={TD}><Link href={url(BASE, { c: c.id })} className="font-semibold text-[#16577F] hover:underline">{c.nombre}</Link></td>
+                <td className={TD}><Link href={url(BASE, { c: c.id, ...filtros })} className="font-semibold text-[#16577F] hover:underline">{c.nombre}</Link></td>
                 <td className={TD}>{TIPOS[c.tipo] ?? c.tipo}</td>
                 <td className={TD}>{c.lista ?? <span className="text-[#C03420]">sin lista</span>}</td>
                 <td className={TD}>{c.depositos ?? <span className="text-[#C03420]">ningún depósito</span>}</td>
@@ -130,7 +139,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
                 <td className={`${TD} whitespace-nowrap`}>{c.token_fin ? `…${c.token_fin}` : <span className="text-[#5C6B76]">sin token</span>}</td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
-                    <Lapiz href={url(BASE, { c: elegido?.id, editar: c.id })} />
+                    <Lapiz href={url(BASE, { c: elegido?.id, ...filtros, editar: c.id })} />
                     <TachoConfirmar accion={accionBorrarCanal} campos={{ id: String(c.id) }} pregunta="¿Borrar el canal?" />
                   </span>
                 </td>
@@ -139,12 +148,14 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
           </tbody>
         </table>
       </div>
-      <form action={accionCrearCanal} className="flex flex-wrap items-center gap-2 mt-3">
-        <input name="nombre" placeholder="Canal nuevo (ej. Mercado Libre cuenta 2)" className={`${CAMPO} flex-1 min-w-48`} />
+      <AltaNueva texto="Nuevo canal" className="mt-3">
+      <form action={accionCrearCanal} className="flex flex-wrap items-center gap-2">
+        <input name="nombre" placeholder="Nombre (ej. Mercado Libre cuenta 2)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
         {selectorTipo("mercadolibre")}
         {selectorLista(null)}
-        <button className={PRIMARIO}>Agregar</button>
+        <button className={PRIMARIO}>Crear</button>
       </form>
+      </AltaNueva>
       <p className="text-[11px] text-[#5C6B76] mt-1">Umbral de pausa: con ese stock disponible o menos, se pausan las publicaciones del canal (vacío = el de la organización, 1).</p>
 
       {elegido && (

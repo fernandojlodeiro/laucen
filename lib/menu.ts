@@ -80,6 +80,13 @@ export const MENU: SeccionMenu[] = [
     ],
   },
   {
+    texto: "Informes",
+    items: [
+      { texto: "Stock valorizado", href: "/informes/stock-valorizado", permiso: "informes_stock_ver" },
+      { texto: "Stock por ubicación", href: "/informes/stock-por-ubicacion", permiso: "informes_stock_ver" },
+    ],
+  },
+  {
     texto: "Sourcing",
     items: [
       { texto: "Radar", href: "/radar", permiso: "radar_ver" },

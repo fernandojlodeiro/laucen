@@ -7,18 +7,20 @@ import { consulta } from "@/lib/erp/base";
 import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
+import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
+import AltaNueva from "@/app/componentes/AltaNueva";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, patronBusqueda,
 } from "@/app/componentes/erp";
 import { accionBorrarPublicacion, accionCrearPublicacion, accionGuardarPublicacion } from "./acciones";
-import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
+import { verInactivos } from "@/app/componentes/Inactivos";
 
 export const dynamic = "force-dynamic";
 
 const BASE = "/catalogo/publicaciones";
 const LIMITE = 200;
 
-type SP = { canal?: string; estado?: string; q?: string; inactivos?: string; editar?: string; ok?: string; error?: string };
+type SP = { canal?: string; estado?: string; q?: string; contiene?: string; inactivos?: string; editar?: string; ok?: string; error?: string };
 
 type Fila = {
   id: number; variacion_id: number; sku: string; titulo_var: string; canal_id: number; canal: string;
@@ -36,9 +38,11 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
   const canalId = Number(sp.canal) || null;
   const estado = sp.estado && TEXTO_ESTADO[sp.estado] ? sp.estado : null;
   const q = sp.q?.trim() || "";
+  const comienza = sp.contiene !== "1";
+  const cont = comienza ? null : "1";
   const editar = Number(sp.editar) || 0;
   const inactivos = verInactivos(sp);
-  const aqui = url(BASE, { canal: canalId, estado, q, inactivos: inactivos ? "1" : null });
+  const aqui = url(BASE, { canal: canalId, estado, q, contiene: cont, inactivos: inactivos ? "1" : null });
 
   const canales = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from canal where organizacion_id = $1 and estado <> 'archivado' order by nombre", [s.org.id]);
@@ -58,12 +62,12 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
        and ($3::text is null or pu.estado = $3)
        and ($4::text is null or v.sku ilike $4 or pu.id_externo ilike $4 or v.codigo_barras = $5)
      order by c.nombre, v.sku, pu.id
-     limit ${LIMITE}`, [s.org.id, canalId, estado, q ? `%${q}%` : null, q, inactivos]);
+     limit ${LIMITE}`, [s.org.id, canalId, estado, patronBusqueda(q, comienza), q, inactivos]);
 
   const campos = (f?: Fila) => (
     <>
       <label><span className={ETIQUETA}>SKU</span>
-        <input name="sku" defaultValue={f?.sku} placeholder="SKU o código de barras" className={`${CAMPO} w-36`} /></label>
+        <input name="sku" defaultValue={f?.sku} placeholder="SKU o código de barras" className={`${CAMPO} w-36`} autoFocus /></label>
       <label><span className={ETIQUETA}>Canal</span>
         <select name="canal" defaultValue={f?.canal_id ?? canalId ?? ""} className={CAMPO}>
           <option value="">Elegí…</option>
@@ -93,22 +97,16 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
     <Pantalla titulo="Publicaciones" subtitulo="Cada variación en cada canal. La sincronización con Mercado Libre llega en otra etapa.">
       <Avisos sp={sp} />
 
-      <form action={BASE} className="flex flex-wrap items-end gap-2 mb-3">
-        <label><span className={ETIQUETA}>Canal</span>
-          <select name="canal" defaultValue={canalId ?? ""} className={CAMPO}>
-            <option value="">Todos</option>
-            {canales.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-          </select></label>
-        <label><span className={ETIQUETA}>Estado</span>
-          <select name="estado" defaultValue={estado ?? ""} className={CAMPO}>
-            <option value="">Todos</option><option value="activa">Activa</option><option value="pausada">Pausada</option><option value="cerrada">Cerrada</option>
-          </select></label>
-        <label><span className={ETIQUETA}>Buscar</span>
-          <input name="q" defaultValue={q} placeholder="SKU o id externo" className={`${CAMPO} w-48`} /></label>
-        <MostrarInactivos activo={inactivos} />
-        <button className={SUAVE}>Filtrar</button>
-        {(canalId || estado || q || inactivos) && <Link href={BASE} className={SUAVE}>Limpiar</Link>}
-      </form>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        <BuscadorVivo q={q} comienza={comienza} inactivos={inactivos} placeholder="Buscar por SKU o id externo" limpiar={["editar"]} />
+        <FiltroVivo parametro="canal" valor={canalId ? String(canalId) : ""} etiqueta="Canal" limpiar={["editar"]}>
+          <option value="">Todos los canales</option>
+          {canales.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+        </FiltroVivo>
+        <FiltroVivo parametro="estado" valor={estado ?? ""} etiqueta="Estado" limpiar={["editar"]}>
+          <option value="">Todos los estados</option><option value="activa">Activa</option><option value="pausada">Pausada</option><option value="cerrada">Cerrada</option>
+        </FiltroVivo>
+      </div>
 
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
@@ -149,7 +147,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                 </td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
-                    <Lapiz href={url(BASE, { canal: canalId, estado, q, editar: f.id })} />
+                    <Lapiz href={url(BASE, { canal: canalId, estado, q, contiene: cont, inactivos: inactivos ? "1" : null, editar: f.id })} />
                     <TachoConfirmar accion={accionBorrarPublicacion} campos={{ id: String(f.id), volver: aqui }} pregunta="¿Borrar?" />
                   </span>
                 </td>
@@ -160,16 +158,17 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
       </div>
       {filas.length === LIMITE && <p className="text-[11px] text-[#5C6B76] mt-1">Se muestran las primeras {LIMITE}: afiná el filtro para ver el resto.</p>}
 
-      <section className={`${CAJA} mt-4`}>
-        <h2 className="text-sm font-bold mb-2">Publicación nueva</h2>
+      <section className="mt-4">
         {canales.length === 0 ? (
           <p className="text-xs text-[#5C6B76]">Primero hace falta un canal: <Link href="/config/canales" className="text-[#16577F] underline">Configuración → Canales</Link>.</p>
         ) : (
+          <AltaNueva texto="Nueva publicación">
           <form action={accionCrearPublicacion} className="flex flex-wrap items-end gap-2">
             <input type="hidden" name="volver" value={aqui} />
             {campos()}
-            <button className={PRIMARIO}>Agregar</button>
+            <button className={PRIMARIO}>Crear</button>
           </form>
+          </AltaNueva>
         )}
         <p className="text-[11px] text-[#5C6B76] mt-2">Disponible: lo que hay para vender en los depósitos del canal. Umbral: con ese disponible o menos, el canal pausa la publicación (vacío = hereda del producto, del canal o de la organización).</p>
       </section>

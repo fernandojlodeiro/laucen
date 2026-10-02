@@ -7,8 +7,9 @@ import { consulta, una } from "@/lib/erp/base";
 import { listasDePrecios } from "@/lib/precios";
 import { enVista } from "@/lib/moneda";
 import { ESTADOS_PEDIDO, type EstadoPedido } from "@/lib/pedidos";
-import { VERDE, SUAVE, DESPLEGABLE, FLECHA } from "@/app/botones";
+import { VERDE, SUAVE, PRIMARIO, DESPLEGABLE, FLECHA } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
+import AltaNueva from "@/app/componentes/AltaNueva";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
@@ -213,11 +214,13 @@ export default async function FichaCliente({ params, searchParams }: { params: P
           </tbody>
         </table>
       </div>
-      <form action={accionAgregarDireccion} className="flex flex-wrap items-center gap-2 mb-5">
+      <AltaNueva texto="Nueva dirección" className="mb-5">
+      <form action={accionAgregarDireccion} className="flex flex-wrap items-center gap-2">
         <input type="hidden" name="cliente_id" value={cid} />
-        {CAMPOS_DIR.map(([k, ph, w]) => <input key={k} name={k} placeholder={ph} aria-label={ph} defaultValue={k === "pais" ? "AR" : ""} className={`${CAMPO} ${w}`} />)}
-        <button className={SUAVE}>Agregar dirección</button>
+        {CAMPOS_DIR.map(([k, ph, w], i) => <input key={k} name={k} placeholder={ph} aria-label={ph} defaultValue={k === "pais" ? "AR" : ""} className={`${CAMPO} ${w}`} autoFocus={i === 0} />)}
+        <button className={PRIMARIO}>Crear</button>
       </form>
+      </AltaNueva>
 
       <h2 className="text-sm font-bold mb-2">Identidades por canal</h2>
       <p className="text-[11px] text-[#5C6B76] mb-2">El id del cliente en cada canal (ej. su usuario de Mercado Libre). Las crean los pedidos.</p>

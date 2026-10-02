@@ -3,15 +3,16 @@
 
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
-import { PRIMARIO, DESPLEGABLE, FLECHA } from "@/app/botones";
+import { PRIMARIO } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
+import AltaNueva from "@/app/componentes/AltaNueva";
 import { entrarErp, Pantalla, Avisos, Estado, CAJA, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fechaHoraAR, GRANDE, TIPO_RECEPCION } from "../formato";
 import { accionCrearRecepcion } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
-type SP = { ok?: string; error?: string; nueva?: string };
+type SP = { ok?: string; error?: string };
 
 type Fila = {
   id: number; tipo: string; estado: string; deposito: string; proveedor: string | null; pedido_id: number | null; documento: string | null;
@@ -42,11 +43,10 @@ export default async function Recepcion({ searchParams }: { searchParams: Promis
     <Pantalla titulo="Recepción" subtitulo="Entrada de mercadería y devoluciones, escaneando" ancho="max-w-2xl">
       <Avisos sp={sp} />
 
-      <details className="group mb-5" open={!abiertas.length || sp.nueva === "1"}>
-        <summary className={`${DESPLEGABLE} text-base py-3`}>➕ Recepción nueva<span className={FLECHA}>▼</span></summary>
-        <form action={accionCrearRecepcion} className={`${CAJA} mt-2 grid gap-3`}>
+      <AltaNueva texto="Nueva recepción" className="mb-5">
+        <form action={accionCrearRecepcion} className="grid gap-3">
           <label><span className={ETIQUETA}>Qué entra</span>
-            <select name="tipo" className={`${CAMPO} w-full text-base py-2.5`} defaultValue="compra">
+            <select name="tipo" className={`${CAMPO} w-full text-base py-2.5`} defaultValue="compra" autoFocus>
               {Object.entries(TIPO_RECEPCION).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select></label>
           <label><span className={ETIQUETA}>Depósito</span>
@@ -64,9 +64,9 @@ export default async function Recepcion({ searchParams }: { searchParams: Promis
             <input name="documento" className={`${CAMPO} w-full text-base py-2.5`} /></label>
           <label><span className={ETIQUETA}>Nota</span>
             <input name="nota" className={`${CAMPO} w-full text-base py-2.5`} /></label>
-          <BotonEnviar clase={`${PRIMARIO} ${GRANDE} w-full`} corriendo="Creando…">Empezar a recibir</BotonEnviar>
+          <BotonEnviar clase={`${PRIMARIO} ${GRANDE} w-full`} corriendo="Creando…">Crear</BotonEnviar>
         </form>
-      </details>
+      </AltaNueva>
 
       <h2 className="text-sm font-bold mb-2">Abiertas ({abiertas.length})</h2>
       {abiertas.length === 0 ? <p className="text-sm text-[#5C6B76] mb-5">No hay recepciones abiertas.</p> : (

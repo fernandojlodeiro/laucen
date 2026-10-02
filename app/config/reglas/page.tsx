@@ -9,8 +9,10 @@ import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
 import CampoNumero from "@/app/componentes/CampoNumero";
+import BuscadorVivo from "@/app/componentes/BuscadorVivo";
+import AltaNueva from "@/app/componentes/AltaNueva";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, patronBusqueda, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
 import { fecha } from "@/app/ventas/formato";
 import { TIPOS_MEDIO } from "@/app/config/medios-pago/comun";
@@ -22,7 +24,7 @@ import { accionCrearRegla, accionGuardarRegla, accionActivarRegla, accionBorrarR
 export const dynamic = "force-dynamic";
 
 const BASE = "/config/reglas";
-type SP = { editar?: string; ok?: string; error?: string };
+type SP = { editar?: string; q?: string; contiene?: string; ok?: string; error?: string };
 type Regla = {
   id: number; nombre: string; activa: boolean; condicion: Condicion; accion: Accion; desde: string | null; hasta: string | null;
   acumulable: boolean; prioridad: number; producto: string | null; sku: string | null; familia: string | null; medio: string | null;
@@ -32,6 +34,9 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
   const s = await entrarErp("reglas_ver");
   const sp = await searchParams;
   const editar = Number(sp.editar) || 0;
+  const q = sp.q?.trim() ?? "";
+  const comienza = sp.contiene !== "1";
+  const filtros = { q: q || null, contiene: comienza ? null : "1" };
   const [reglas, familias, mediosDb] = await Promise.all([
     consulta<Regla>(`
       select r.id::int, r.nombre, r.activa, r.condicion, r.accion, to_char(r.desde, 'YYYY-MM-DD') desde, to_char(r.hasta, 'YYYY-MM-DD') hasta,
@@ -40,7 +45,8 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
         left join producto p on p.id = (r.condicion ->> 'producto_id')::bigint and p.organizacion_id = r.organizacion_id
         left join familia f on f.id = (r.condicion ->> 'familia_id')::bigint and f.organizacion_id = r.organizacion_id
         left join lateral (select nombre from medio_pago where organizacion_id = r.organizacion_id and canal_id is null and tipo = r.condicion ->> 'medio' limit 1) m on true
-       where r.organizacion_id = $1 and r.canal_id is null order by r.prioridad desc, r.id`, [s.org.id]),
+       where r.organizacion_id = $1 and r.canal_id is null and ($2::text is null or r.nombre ilike $2)
+       order by r.prioridad desc, r.id`, [s.org.id, patronBusqueda(q, comienza)]),
     arbolFamilias(s.org.id),
     consulta<{ tipo: string; nombre: string }>("select tipo, nombre from medio_pago where organizacion_id = $1 and canal_id is null order by orden, id", [s.org.id]),
   ]);
@@ -66,13 +72,16 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
   return (
     <Pantalla titulo="Reglas comerciales" subtitulo="Promociones de la tienda web: descuentos por cantidad, por monto, por medio de pago y envío gratis" ancho="max-w-6xl">
       <Avisos sp={sp} />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar regla" limpiar={["editar"]} />
+      </div>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr><th className={TH}>Regla</th><th className={TH}>Qué hace</th><th className={TH}>Activa</th><th className={TH}>Vigencia</th><th className={TH}>Acumulable</th><th className={THN}>Prioridad</th><th /></tr>
           </thead>
           <tbody>
-            {reglas.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>Todavía no hay reglas.</td></tr>}
+            {reglas.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>{q ? "Ninguna regla coincide." : "Todavía no hay reglas."}</td></tr>}
             {reglas.map((r) => editar === r.id ? (
               <tr key={r.id} className={`${TR} bg-[#FAFBFC]`}>
                 <td colSpan={7} className={TD}>
@@ -86,7 +95,7 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
                     <Fechas r={r} />
                     <div className="col-span-2 sm:col-span-6 flex gap-2">
                       <button className={VERDE}>Guardar</button>
-                      <Link href={BASE} className={SUAVE} scroll={false}>Cancelar</Link>
+                      <Link href={url(BASE, filtros)} className={SUAVE} scroll={false}>Cancelar</Link>
                     </div>
                   </form>
                 </td>
@@ -103,7 +112,7 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
                 <td className={TDN}>{r.prioridad}</td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
-                    <Lapiz href={`${BASE}?editar=${r.id}`} />
+                    <Lapiz href={url(BASE, { ...filtros, editar: r.id })} />
                     <TachoConfirmar accion={accionBorrarRegla} campos={{ id: String(r.id) }} pregunta="¿Borrar?" />
                   </span>
                 </td>
@@ -113,14 +122,15 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
         </table>
       </div>
 
-      <h2 className="text-sm font-bold mt-5 mb-2">Regla nueva</h2>
-      <form action={accionCrearRegla} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-start bg-white border border-[#E3E9F0] rounded-xl p-3">
+      <AltaNueva texto="Nueva regla" className="mt-5">
+      <form action={accionCrearRegla} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-start">
         <label className="col-span-2"><span className={ETIQUETA}>Nombre</span>
-          <input name="nombre" placeholder="Ej. 3 placas 10 % off" className={`${CAMPO} w-full`} /></label>
+          <input name="nombre" placeholder="Ej. 3 placas 10 % off" className={`${CAMPO} w-full`} autoFocus /></label>
         <CamposRegla familias={opcFamilias} medios={medios} />
         <Fechas />
-        <div className="col-span-2 sm:col-span-6"><button className={PRIMARIO}>Agregar</button></div>
+        <div className="col-span-2 sm:col-span-6"><button className={PRIMARIO}>Crear</button></div>
       </form>
+      </AltaNueva>
       <p className="text-[11px] text-[#5C6B76] mt-1">Mayor prioridad = se aplica primero. Una regla no acumulable que se cumple corta las demás de descuento.</p>
     </Pantalla>
   );

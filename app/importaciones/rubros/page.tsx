@@ -7,12 +7,15 @@ import { pool } from "@/db";
 import { tienePermiso } from "@/lib/permisos";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
+import BuscadorVivo from "@/app/componentes/BuscadorVivo";
+import AltaNueva from "@/app/componentes/AltaNueva";
+import { patronBusqueda } from "@/app/componentes/erp";
 import { accionAgregarNcm, accionBorrarRubro, accionCrearRubro, accionQuitarNcm, accionRenombrarRubro } from "../actions";
 import { CAJA_TABLA, CAMPO, TABLA, TD, THEAD, TR, entrar } from "../Piezas";
 
 export const dynamic = "force-dynamic";
 
-type Params = { r?: string; editar?: string; q?: string; error?: string };
+type Params = { r?: string; editar?: string; q?: string; qr?: string; qrcontiene?: string; error?: string };
 
 const ERRORES: Record<string, string> = {
   permiso: "No tenés permiso para armar rubros.",
@@ -30,11 +33,15 @@ export default async function Rubros({ searchParams }: { searchParams: Promise<P
   const elegido = sp.r ? Number(sp.r) : undefined;
   const editar = sp.editar ? Number(sp.editar) : undefined;
   const q = sp.q?.trim() ?? "";
+  // Buscador de la lista de rubros: otro parámetro, porque q es el del nomenclador.
+  const qr = sp.qr?.trim() ?? "";
+  const comienzaR = sp.qrcontiene !== "1";
 
   const rubros = (await pool.query<{ id: number; nombre: string; ncms: number }>(`
     select r.id::int, r.nombre, count(rn.ncm)::int ncms
       from rubros r left join rubro_ncm rn on rn.rubro_id = r.id
-     where r.organizacion_id = $1 group by r.id order by r.nombre`, [org])).rows;
+     where r.organizacion_id = $1 and ($2::text is null or r.nombre ilike $2)
+     group by r.id order by r.nombre`, [org, patronBusqueda(qr, comienzaR)])).rows;
   const actual = rubros.find((r) => r.id === elegido);
   const suyas = actual ? (await pool.query<{ ncm: string; descripcion: string | null }>(`
     select rn.ncm, x.descripcion_completa descripcion
@@ -57,7 +64,7 @@ export default async function Rubros({ searchParams }: { searchParams: Promise<P
   const hayNomenclador = q ? true : !!(await pool.query("select 1 from ref_ncm_vigente limit 1")).rowCount;
   const aqui = (extra: Record<string, string | number | undefined>) => {
     const p = new URLSearchParams();
-    for (const [k, v] of Object.entries({ r: elegido, q: q || undefined, ...extra })) if (v !== undefined) p.set(k, String(v));
+    for (const [k, v] of Object.entries({ r: elegido, q: q || undefined, qr: qr || undefined, qrcontiene: comienzaR ? undefined : "1", ...extra })) if (v !== undefined) p.set(k, String(v));
     return `/importaciones/rubros?${p}`;
   };
 
@@ -66,8 +73,11 @@ export default async function Rubros({ searchParams }: { searchParams: Promise<P
       <section>
         {sp.error && ERRORES[sp.error] && <p className="text-xs text-[#C03420] mb-2">{ERRORES[sp.error]}</p>}
         <h2 className="text-sm font-bold mb-2">Mis rubros</h2>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2">
+          <BuscadorVivo q={qr} comienza={comienzaR} placeholder="Buscar rubro" parametro="qr" limpiar={["editar"]} />
+        </div>
         <ul className="bg-white border border-[#E3E9F0] rounded-xl divide-y divide-[#E3E9F0] mb-3">
-          {rubros.length === 0 && <li className="px-3 py-3 text-xs text-[#5C6B76]">Todavía no hay rubros.</li>}
+          {rubros.length === 0 && <li className="px-3 py-3 text-xs text-[#5C6B76]">{qr ? "Ningún rubro coincide." : "Todavía no hay rubros."}</li>}
           {rubros.map((r) => (
             <li key={r.id} className={`px-3 py-2 text-xs flex items-center gap-2 ${r.id === elegido ? "bg-[#EEF3F8]" : ""}`}>
               {editar === r.id && puedeEditar ? (
@@ -89,10 +99,12 @@ export default async function Rubros({ searchParams }: { searchParams: Promise<P
           ))}
         </ul>
         {puedeEditar && (
-          <form action={accionCrearRubro} className="flex gap-1">
-            <input name="nombre" placeholder="Rubro nuevo" className={`${CAMPO} flex-1`} />
-            <button className={PRIMARIO}>Crear</button>
-          </form>
+          <AltaNueva texto="Nuevo rubro">
+            <form action={accionCrearRubro} className="flex gap-1">
+              <input name="nombre" placeholder="Nombre del rubro" className={`${CAMPO} flex-1`} autoFocus />
+              <button className={PRIMARIO}>Crear</button>
+            </form>
+          </AltaNueva>
         )}
       </section>
 
