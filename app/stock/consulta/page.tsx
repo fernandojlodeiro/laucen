@@ -5,12 +5,12 @@
 
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { RecordarDeposito, ElegirDeposito } from "./Deposito";
+import { RecordarDeposito, ElegirDeposito, BuscadorVivo, CantidadUbicaciones } from "./Deposito";
 import { consulta, una } from "@/lib/erp/base";
 import { TIPOS_MOVIMIENTO, type TipoMovimiento } from "@/lib/stock";
 import { SUAVE } from "@/app/botones";
 import { InterruptorFiltro } from "@/app/radar/Piezas";
-import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
+import { verInactivos } from "@/app/componentes/Inactivos";
 import {
   entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, CAJA,
 } from "@/app/componentes/erp";
@@ -124,20 +124,11 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
     <Pantalla titulo="Consulta de stock" subtitulo="Qué hay de cada producto en cada depósito y ubicación. Disponible = cantidad − reservado.">
       <Avisos sp={sp} />
       <RecordarDeposito valor={sp.dep ?? null} />
-      <div className="flex flex-wrap items-center gap-4 mb-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        <BuscadorVivo q={q} inactivos={inactivos} autoFocus={!vId} />
         <InterruptorFiltro href={url(BASE, { q, filtro, inactivos: ina, v: vId || null, dep: todos ? String(depositos[0]?.id ?? "todos") : "todos" })}
           prendido={todos} etiqueta="Todos los depósitos" />
-        {!todos && <ElegirDeposito depositos={depositos} elegido={elegidoDep.id} ocultos={{ q, filtro, inactivos: ina, v: vId ? String(vId) : null }} />}
-      </div>
-      <div className="flex flex-wrap items-center gap-4 mb-3">
-        <form action={BASE} className="flex flex-wrap items-center gap-2">
-          {filtro && <input type="hidden" name="filtro" value={filtro} />}
-          <input type="hidden" name="dep" value={dep} />
-          <input name="q" defaultValue={q} placeholder="SKU, título o código de barras" className={`${CAMPO} w-72`} autoFocus={!vId} />
-          <MostrarInactivos activo={inactivos} />
-          <button className={SUAVE}>Buscar</button>
-          {q && <Link href={url(BASE, { dep, filtro, inactivos: ina })} className={SUAVE}>Limpiar</Link>}
-        </form>
+        {!todos && <ElegirDeposito depositos={depositos} elegido={elegidoDep.id} />}
         <InterruptorFiltro href={url(BASE, { dep, q, inactivos: ina, filtro: filtro === "bajo_minimo" ? null : "bajo_minimo" })} prendido={filtro === "bajo_minimo"} etiqueta="Sólo bajo el mínimo" />
         <InterruptorFiltro href={url(BASE, { dep, q, inactivos: ina, filtro: filtro === "negativo" ? null : "negativo" })} prendido={filtro === "negativo"} etiqueta="Sólo con disponible negativo" />
       </div>
@@ -249,7 +240,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
               <tr key={v.id} className={`${TR} ${v.id === elegida?.id ? "bg-[#EEF3F8]" : ""}`}>
                 <td className={`${TD} whitespace-nowrap`}><Link href={url(BASE, { dep, q, filtro, inactivos: ina, v: v.id })} className="font-semibold text-[#16577F] hover:underline">{v.sku}</Link></td>
                 <td className={TD}>{v.titulo} {v.kit && <Estado texto="Kit" tono="azul" />}</td>
-                <td className={TDN}>{v.kit ? "—" : <Ubicaciones cantidad={v.cantidad} ubicaciones={v.ubicaciones ?? []} />}</td>
+                <td className={TDN}>{v.kit ? "—" : <CantidadUbicaciones cantidad={v.cantidad} ubicaciones={v.ubicaciones ?? []} />}</td>
                 <td className={TDN}>{v.kit ? "—" : v.reservado}</td>
                 <td className={`${TDN} ${negativo(v.disponible)} ${v.stock_minimo != null && v.disponible < v.stock_minimo ? "text-[#8a6100] font-semibold" : ""}`}>{v.disponible}</td>
                 <td className={TDN}>{v.stock_minimo ?? "—"}</td>
@@ -264,25 +255,3 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
   );
 }
 
-// La cantidad de una fila: al tocarla despliega en qué ubicaciones está.
-function Ubicaciones({ cantidad, ubicaciones }: { cantidad: number; ubicaciones: { deposito: string; ubicacion: string; cantidad: number }[] }) {
-  if (ubicaciones.length === 0) return <>{cantidad}</>;
-  const variosDepositos = new Set(ubicaciones.map((u) => u.deposito)).size > 1;
-  return (
-    <details className="relative inline-block text-left">
-      <summary className="list-none cursor-pointer text-[#16577F] underline decoration-dotted text-right [&::-webkit-details-marker]:hidden">{cantidad}</summary>
-      <div className="absolute right-0 z-10 mt-1 min-w-48 rounded-md border border-[#C9D3DD] bg-white p-2 shadow-lg">
-        <table className="w-full text-xs">
-          <tbody>
-            {ubicaciones.map((u, i) => (
-              <tr key={i}>
-                <td className="pr-3 py-0.5 whitespace-nowrap">{variosDepositos ? `${u.deposito} · ` : ""}{u.ubicacion}</td>
-                <td className="py-0.5 text-right">{u.cantidad}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </details>
-  );
-}
