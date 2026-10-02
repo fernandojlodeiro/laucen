@@ -222,29 +222,42 @@ export async function analizar(org: string, id: number, hastaMs: number): Promis
     for (const x of its) ivaMl.set(x.item_id, { iva: ivaDe(x.d), item: x.item_id, titulo: x.titulo });
   }
   const cuenta_ = { con_stock: 0, publicados: 0, sin_publicar: 0, inactivos: 0, notebooks_descartadas: 0, stock_sin_maestro: [] as string[],
-    kits: 0, kits_armados: 0, kits_sin_componente: [] as string[], kits_sin_cantidad: [] as string[] };
+    kits: 0, kits_armados: 0, kits_notebook: 0, kits_sin_componente: [] as string[], kits_sin_cantidad: [] as string[] };
   const difIva: { sku: string; titulo: string; vs: number; ml: number; items: string[] }[] = [];
   const cTipo = columna(columnas, "tipo de producto");
   const cDen = columna(columnas, "producto: denominacion", "denominacion"), cTit = columna(columnas, "titulo de la publicacion ml");
-  const porSku = new Map(filas.map((f) => [f.sku, f]));
-  const stockDe = (sku: string) => porSku.get(sku)?.stock.reduce((a, x) => a + x.cantidad, 0) ?? 0;
+  const porSkuMap = new Map(filas.map((f) => [f.sku, f]));
+  const stockDe = (sku: string) => porSkuMap.get(sku)?.stock.reduce((a, x) => a + x.cantidad, 0) ?? 0;
+  const cSub = columna(columnas, "sub tipo");
   const componentes = new Set<string>();
   await enTransaccion(async (c) => {
     for (const f of filas) {
       const total = stockDe(f.sku);
       const fam = cFam && f.maestro ? norm(String(f.maestro[cFam] ?? "")) : "";
-      const kit = !!f.maestro && !!cTipo && esKitVs(f.maestro[cTipo]);
+      const kit = !!f.maestro && ((!!cSub && esKitVs(f.maestro[cSub])) || (!!cTipo && esKitVs(f.maestro[cTipo])));
       let destino: string;
       let kitComp: string | null = null, kitCant: number | null = null;
       if (!f.maestro) { destino = "sin_maestro"; if (total > 0) cuenta_.stock_sin_maestro.push(f.sku); }
+      else if (kit && fam.startsWith("notebook") && total <= 0) {
+        // Las "configuraciones" de notebook (notebook + memoria/disco) siguen la regla de las notebooks.
+        destino = "descartado"; cuenta_.notebooks_descartadas++; cuenta_.kits_notebook++;
+      }
       else if (kit) {
-        // El kit entra siempre: activo si su componente tiene stock.
+        // El kit entra siempre: activo si su componente tiene stock. El
+        // componente: SKU-U; si no, la base de SKU-X5 o SKU-30 (cantidad del
+        // título y, si no lo dice, del número del SKU).
         cuenta_.kits++;
-        const comp = `${f.sku}-U`;
-        kitCant = cantidadDelTitulo((cDen && txt(f.maestro[cDen])) || null) ?? cantidadDelTitulo((cTit && txt(f.maestro[cTit])) || null);
-        if (!porSku.get(comp)?.maestro) cuenta_.kits_sin_componente.push(f.sku);
+        const titulo = (cDen && txt(f.maestro[cDen])) || (cTit && txt(f.maestro[cTit])) || null;
+        const mx = f.sku.match(/^(.+)-X(\d+)$/i), mn = f.sku.match(/^(.+)-(\d+)$/);
+        let comp: string | null = null, porSku: number | null = null;
+        if (porSkuMap.get(`${f.sku}-U`)?.maestro) comp = `${f.sku}-U`;
+        else if (mx && porSkuMap.get(mx[1])?.maestro) { comp = mx[1]; porSku = Number(mx[2]); }
+        else if (mn && porSkuMap.get(mn[1])?.maestro) { comp = mn[1]; porSku = Number(mn[2]); }
+        kitCant = cantidadDelTitulo(titulo) ?? cantidadDelTitulo(cTit && f.maestro[cTit] ? String(f.maestro[cTit]) : null) ?? (porSku && porSku > 1 ? porSku : null);
+        if (!comp) cuenta_.kits_sin_componente.push(f.sku);
         else if (!kitCant) cuenta_.kits_sin_cantidad.push(f.sku);
         else { kitComp = comp; componentes.add(comp); cuenta_.kits_armados++; }
+        if (!kitComp) kitCant = null;
         destino = (kitComp ? stockDe(kitComp) : total) > 0 ? "activo" : "inactivo";
         if (destino === "activo") { cuenta_.con_stock++; if (f.ml_items.length) cuenta_.publicados++; else cuenta_.sin_publicar++; } else cuenta_.inactivos++;
       }
@@ -390,7 +403,7 @@ async function importarSku(ctx: Ctx, f: { sku: string; stock: { ubicacion: strin
   const familia = it ? await familiaMl(ctx, it.category_id) : await familiaVs(ctx, val("familia"));
   const garantia = it?.sale_terms?.filter((t) => /WARRANTY/.test(t.id)).map((t) => t.value_name).filter(Boolean).join(" · ") || null;
   const condicion = it?.condition === "used" ? "usado" : it?.condition === "refurbished" ? "reacondicionado" : it ? "nuevo" : null;
-  const kitVs = esKitVs(val("tipo de producto"));
+  const kitVs = esKitVs(val("sub tipo")) || esKitVs(val("tipo de producto"));
   const armado = kitVs && !!f.kit_componente && !!f.kit_cantidad;
   const costo = numeroVs(m[columna(cols, "costo") ?? ""] ?? null);
   const fotos = (it?.pictures ?? []).map((p) => p.secure_url || p.url).filter(Boolean).slice(0, 12) as string[];
