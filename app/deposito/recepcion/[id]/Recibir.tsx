@@ -9,6 +9,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Escaner, { pitido } from "@/app/deposito/Escaner";
+import ElegirUbicacion from "@/app/componentes/ElegirUbicacion";
 import { leerNumero } from "@/lib/numeros";
 import { VERDE, SUAVE } from "@/app/botones";
 import { accionBuscarProducto, accionRecibir, type ProductoLeido } from "../acciones";
@@ -114,11 +115,8 @@ export default function Recibir({ recepcion, devolucion, ubicaciones }: { recepc
                 Ubicación: <b className="text-base text-[#16577F]">{ubicacion || "general"}</b>
               </div>
               <Escaner alLeer={leerUbicacion} autoFoco={false} devolverFoco={false} chico placeholder="Escaneá la etiqueta de la ubicación" />
-              <select value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} aria-label="Ubicación"
-                className="mt-2 w-full border border-[#E3E9F0] rounded-lg px-2 py-2.5 text-base bg-white">
-                <option value="">General</option>
-                {ubicaciones.map((u) => <option key={u.codigo} value={u.codigo}>{u.codigo}{u.descripcion ? ` — ${u.descripcion}` : ""}</option>)}
-              </select>
+              <ElegirUbicacion valor={ubicacion} alCambiar={setUbicacion} grande className="mt-2"
+                opciones={[{ valor: "", texto: "General" }, ...ubicaciones.map((u) => ({ valor: u.codigo, texto: u.codigo, detalle: u.descripcion }))]} />
             </div>
           )}
 

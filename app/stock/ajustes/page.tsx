@@ -8,6 +8,7 @@ import { TIPOS_MOVIMIENTO, type TipoMovimiento } from "@/lib/stock";
 import { PRIMARIO } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
+import ElegirUbicacion from "@/app/componentes/ElegirUbicacion";
 import {
   entrarErp, Pantalla, Avisos, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
@@ -19,21 +20,13 @@ type SP = { sku?: string; ok?: string; error?: string };
 
 type Ubic = { id: number; deposito_id: number; deposito: string; codigo: string; es_default: boolean };
 
-/** Depósito → ubicación en un solo desplegable (agrupado por depósito). */
+/** Depósito → ubicación, con buscador (son cientos). */
 function SelectorUbicacion({ name, ubicaciones, etiqueta }: { name: string; ubicaciones: Ubic[]; etiqueta: string }) {
-  const grupos = new Map<number, Ubic[]>();
-  for (const u of ubicaciones) grupos.set(u.deposito_id, [...(grupos.get(u.deposito_id) ?? []), u]);
   return (
-    <label><span className={ETIQUETA}>{etiqueta}</span>
-      <select name={name} defaultValue="" className={`${CAMPO} min-w-48`}>
-        <option value="" disabled>Elegí…</option>
-        {[...grupos.values()].map((us) => (
-          <optgroup key={us[0].deposito_id} label={us[0].deposito}>
-            {us.map((u) => <option key={u.id} value={u.id}>{us[0].deposito} · {u.es_default ? "General" : u.codigo}</option>)}
-          </optgroup>
-        ))}
-      </select>
-    </label>
+    <div><span className={ETIQUETA}>{etiqueta}</span>
+      <ElegirUbicacion name={name} className="w-64"
+        opciones={ubicaciones.map((u) => ({ valor: String(u.id), texto: `${u.deposito} · ${u.es_default ? "General" : u.codigo}` }))} />
+    </div>
   );
 }
 

@@ -11,6 +11,7 @@ import { TachoConfirmar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
+import AltaNueva from "@/app/componentes/AltaNueva";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, CAJA,
 } from "@/app/componentes/erp";
@@ -155,15 +156,17 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
           </tbody>
         </table>
       </div>
-      <form action={accionCrearDeposito} className="flex flex-wrap items-center gap-2 mt-3">
-        <input name="nombre" placeholder="Depósito nuevo (ej. Depósito Once)" className={`${CAMPO} flex-1 min-w-48`} />
+      <AltaNueva texto="Nuevo depósito" className="mt-3">
+      <form action={accionCrearDeposito} className="flex flex-wrap items-center gap-2">
+        <input name="nombre" placeholder="Nombre (ej. Depósito Once)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
         <select name="tipo" defaultValue="propio" className={CAMPO} aria-label="Tipo">
           {Object.entries(TIPOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
         <InterruptorCampo name="usa_ubicaciones" prendido={false} etiqueta="Usa ubicaciones" />
         <input name="direccion" placeholder="Dirección (opcional)" className={`${CAMPO} min-w-40`} />
-        <button className={PRIMARIO}>Agregar</button>
+        <button className={PRIMARIO}>Crear</button>
       </form>
+      </AltaNueva>
 
       {elegido && (
         <section className={`${CAJA} mt-6`}>
@@ -180,14 +183,16 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
             </div>
           )}
           {elegido.usa_ubicaciones && (
-            <form action={accionCrearUbicacion} className="flex flex-wrap items-center gap-2 mb-3 rounded-lg border border-[#E3E9F0] bg-[#FAFBFC] p-2">
+            <AltaNueva texto="Nueva ubicación" className="mb-3">
+            <form action={accionCrearUbicacion} className="flex flex-wrap items-center gap-2">
               <input type="hidden" name="deposito" value={elegido.id} />
               <input type="hidden" name="volver" value={aqui} />
-              <input name="codigo" placeholder="Código (ej. A-03-2)" className={`${CAMPO} w-36`} />
+              <input name="codigo" placeholder="Código (ej. A-03-2)" className={`${CAMPO} w-36`} autoFocus />
               <input name="descripcion" placeholder="Descripción (opcional)" className={`${CAMPO} flex-1 min-w-40`} />
               <CampoNumero name="orden" valor={null} tipo="entero" placeholder="Orden" className={`${CAMPO} w-20`} />
-              <button className={PRIMARIO}>Agregar ubicación</button>
+              <button className={PRIMARIO}>Crear</button>
             </form>
+            </AltaNueva>
           )}
           <div className={CAJA_TABLA}>
             <table className={TABLA}>

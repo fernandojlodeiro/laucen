@@ -92,8 +92,14 @@ Editar y borrar en una lista o tabla:
 - En una grilla o tabla, la edición pasa **adentro de la fila** — el lápiz convierte esa fila en
   sus campos editables ahí mismo, nunca un panel aparte ni una ventana.
 
+Altas (pedido de Fer, 2/10): **ningún ABM da de alta algo sin apretar antes un botón "Nuevo …"**.
+El formulario de alta queda escondido hasta ese botón (`app/componentes/AltaNueva.tsx`); nunca un
+campo suelto que parece un buscador y al dar Enter crea un registro.
+
 Buscadores (pedido de Fer, 2/10):
 - **Todo ABM tiene su buscador.**
+- **Donde se pide una ubicación, se elige con buscador** (`app/componentes/ElegirUbicacion.tsx`),
+  nunca un desplegable: son cientos.
 - Busca mientras se tipea (desde la segunda letra), sin botón "Buscar" ni "Limpiar": una X
   adentro del cuadro borra lo escrito. Con la caja **"Comienza por"**, tildada de entrada
   (coincidencia al principio del texto; destildada, en cualquier parte). Componente:
