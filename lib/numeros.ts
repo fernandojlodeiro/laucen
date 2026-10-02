@@ -16,12 +16,14 @@ export function leerNumero(v: unknown): number | null {
 }
 
 /** Cómo se muestra según el tipo: precios con punto de miles (y hasta 2
- *  decimales), porcentajes con 1 decimal, enteros sin decimales. */
+ *  decimales), porcentajes con 1 decimal, enteros sin decimales, "decimal"
+ *  (costos unitarios, cotizaciones) hasta 4. */
 export function formatearNumero(n: number | null | undefined, tipo: TipoNumero): string {
   if (n == null || !Number.isFinite(n)) return "";
   const opciones: Intl.NumberFormatOptions =
     tipo === "pct" ? { minimumFractionDigits: 1, maximumFractionDigits: 1 }
     : tipo === "entero" ? { maximumFractionDigits: 0 }
+    : tipo === "decimal" ? { maximumFractionDigits: 4 }
     : { maximumFractionDigits: 2 };
   return n.toLocaleString("es-AR", opciones);
 }
