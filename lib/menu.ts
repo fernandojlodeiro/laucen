@@ -56,8 +56,9 @@ export const MENU: SeccionMenu[] = [
     items: [
       { texto: "Depósitos y ubicaciones", href: "/stock/depositos", permiso: "depositos_ver" },
       { texto: "Consulta de stock", href: "/stock/consulta", permiso: "stock_ver", icono: "🔎" },
-      { texto: "Picking" },
-      { texto: "Recepción" },
+      { texto: "Picking", href: "/deposito/picking", permiso: "picking_ver", icono: "🧺" },
+      { texto: "Recepción", href: "/deposito/recepcion", permiso: "recepcion_ver", icono: "📥" },
+      { texto: "Etiquetas", href: "/deposito/etiquetas", permiso: "etiquetas_ver" },
       { texto: "Ajustes", href: "/stock/ajustes", permiso: "stock_ajustar" },
     ],
   },
@@ -72,7 +73,7 @@ export const MENU: SeccionMenu[] = [
   {
     texto: "Administración",
     items: [
-      { texto: "Facturación" },
+      { texto: "Facturación", href: "/administracion/facturacion", permiso: "facturacion_ver" },
       { texto: "Cuentas corrientes" },
       { texto: "Bancos" },
       { texto: "Caja" },
@@ -119,10 +120,10 @@ export const MENU: SeccionMenu[] = [
  *  "Menú", que abre el árbol completo). Las sesiones que llenen pantallas de
  *  celular (picking, recepción) cambian esta lista. */
 export const ACCESOS_CELULAR: (ItemMenu & { href: string })[] = [
-  { texto: "Panel", href: "/panel", permiso: "panel_ver", icono: "🏠" },
   { texto: "Pedidos", href: "/ventas/pedidos", permiso: "pedidos_ver", icono: "🧾" },
+  { texto: "Picking", href: "/deposito/picking", permiso: "picking_ver", icono: "🧺" },
+  { texto: "Recepción", href: "/deposito/recepcion", permiso: "recepcion_ver", icono: "📥" },
   { texto: "Stock", href: "/stock/consulta", permiso: "stock_ver", icono: "🔎" },
-  { texto: "Productos", href: "/catalogo/productos", permiso: "productos_ver", icono: "📦" },
 ];
 
 /** El menú que ve esta persona: sin las secciones de Fer si no es Fer, sin

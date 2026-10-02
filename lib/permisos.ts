@@ -38,7 +38,11 @@ export type PermisoKey =
   | "importar_ver"
   | "proveedores_ver"
   | "envios_ver"
-  | "preguntas_ver";
+  | "preguntas_ver"
+  | "picking_ver"
+  | "recepcion_ver"
+  | "etiquetas_ver"
+  | "facturacion_ver";
 
 export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "gestionar_busquedas", label: "Gestionar búsquedas", ayuda: "Crear, editar y pausar las búsquedas programadas." },
@@ -68,6 +72,10 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "proveedores_ver", label: "Proveedores", ayuda: "Ver y cargar proveedores." },
   { key: "envios_ver", label: "Envíos", ayuda: "Envíos de los pedidos y sus etiquetas." },
   { key: "preguntas_ver", label: "Preguntas y mensajes", ayuda: "Responder preguntas y mensajes de Mercado Libre." },
+  { key: "picking_ver", label: "Picking", ayuda: "Preparar pedidos escaneando cada unidad." },
+  { key: "recepcion_ver", label: "Recepción", ayuda: "Recibir mercadería y devoluciones escaneando." },
+  { key: "etiquetas_ver", label: "Etiquetas", ayuda: "Imprimir etiquetas de producto y de ubicación." },
+  { key: "facturacion_ver", label: "Facturación", ayuda: "Facturas y notas de crédito electrónicas (ARCA)." },
 ];
 
 export type Permisos = Partial<Record<PermisoKey, boolean>>;
@@ -100,7 +108,7 @@ export const FUNCIONES: PermisoKey[] = [
   "panel_ver", "pedidos_ver", "clientes_ver", "productos_ver", "familias_ver", "precios_ver",
   "publicaciones_ver", "cucardas_ver", "depositos_ver", "stock_ver", "stock_ajustar", "canales_ver",
   "tipo_cambio_ver", "usuarios_ver", "importar_ver", "proveedores_ver",
-  "envios_ver", "preguntas_ver",
+  "envios_ver", "preguntas_ver", "picking_ver", "recepcion_ver", "etiquetas_ver", "facturacion_ver",
 ];
 
 /** ¿La membresía tiene el permiso? Los de FUNCIONES, si faltan, valen true;

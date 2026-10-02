@@ -244,3 +244,47 @@ test("venta histórica: nace entregada y no toca stock", async () => {
   const s = await q("select 1 from movimiento_stock where variacion_id = $1", [v]);
   assert.equal(s.length, 0);
 });
+
+test("picking: lote desde las reservas, escaneo por código, terminar deja preparado", async () => {
+  const e = await escenario();
+  const v = await e.producto("PK-1");
+  await q("update variacion set codigo_barras = '7790000000017' where id = $1", [v]);
+  await m.stock.moverStock(e.org, { variacionId: v, tipo: "ingreso", cantidad: 5, destinoId: e.general });
+  const r = await m.pedidos.crearPedido(e.org, { canalId: e.canal, lineas: [{ variacion_id: v, cantidad: 2, precio_unitario: 100 }] }, "sistema");
+  await m.pedidos.cambiarEstado(e.org, r.pedidoId, "pagado", "sistema");
+  const pk = await import("@/lib/deposito/picking");
+  const para = await pk.pedidosParaPreparar(e.org, e.deposito);
+  assert.deepEqual(para.map((p) => p.id), [r.pedidoId]);
+  const lote = await pk.crearLote(e.org, e.deposito, [r.pedidoId], "u1");
+  assert.equal((await q<{ estado: string }>("select estado from pedido where id = $1", [r.pedidoId]))[0].estado, "en_preparacion");
+  await assert.rejects(pk.escanear(e.org, lote, "OTRO"), /no es de este picking/);
+  await pk.escanear(e.org, lote, "7790000000017");
+  const x = await pk.escanear(e.org, lote, "pk-1");
+  assert.equal(x.completo, true);
+  await assert.rejects(pk.escanear(e.org, lote, "PK-1"), /sobra/);
+  const fin = await pk.terminarLote(e.org, lote, "u1");
+  assert.deepEqual(fin.preparados, [r.pedidoId]);
+  assert.equal((await q<{ estado: string }>("select estado from pedido where id = $1", [r.pedidoId]))[0].estado, "preparado");
+});
+
+test("recepción: ingreso a una ubicación por código y devolución que deja el pedido devuelto", async () => {
+  const e = await escenario();
+  const v = await e.producto("RC-1");
+  await q("insert into ubicacion (organizacion_id, deposito_id, codigo, orden_recorrido) values ($1, $2, 'A-01', 1)", [e.org, e.deposito]);
+  const rc = await import("@/lib/deposito/recepcion");
+  const id = await rc.crearRecepcion(e.org, { tipo: "compra", depositoId: e.deposito, documento: "R-0001" }, "u1");
+  const r = await rc.recibir(e.org, id, { codigo: "RC-1", cantidad: 3, ubicacion: "a-01" }, "u1");
+  assert.equal(r.ubicacion, "A-01");
+  assert.equal(await m.stock.disponibleCanal(e.org, v, e.canal), 3);
+  await rc.cerrarRecepcion(e.org, id, "u1");
+  await assert.rejects(rc.recibir(e.org, id, { codigo: "RC-1", cantidad: 1 }, "u1"), /cerrada/);
+  // Devolución de un pedido entregado.
+  const p = await m.pedidos.crearPedido(e.org, { canalId: e.canal, lineas: [{ variacion_id: v, cantidad: 1, precio_unitario: 10 }] }, "sistema");
+  await m.pedidos.cambiarEstado(e.org, p.pedidoId, "pagado", "sistema");
+  await m.pedidos.cambiarEstado(e.org, p.pedidoId, "entregado", "sistema");
+  const dev = await rc.crearRecepcion(e.org, { tipo: "devolucion", depositoId: e.deposito, pedidoId: p.pedidoId }, "u1");
+  await rc.recibir(e.org, dev, { codigo: "RC-1", cantidad: 1 }, "u1");
+  await rc.cerrarRecepcion(e.org, dev, "u1");
+  assert.equal((await q<{ estado: string }>("select estado from pedido where id = $1", [p.pedidoId]))[0].estado, "devuelto");
+  assert.equal(await m.stock.disponibleCanal(e.org, v, e.canal), 3);
+});
