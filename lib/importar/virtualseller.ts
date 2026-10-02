@@ -587,7 +587,8 @@ export async function avanzar(org: string, id: number, hastaMs: number) {
       "select estado, coalesce((resumen ->> 'iva_en_curso')::boolean, false) iva from importacion_vs where id = $1 and organizacion_id = $2", [id, org]);
     if (!imp) return;
     try {
-      if (imp.iva) await corregirIvaMl(org, id, hastaMs);
+      // El IVA en ML comparte el tiempo con la importación (si no, la importación espera ~20 minutos).
+      if (imp.iva) await corregirIvaMl(org, id, imp.estado === "importando" ? Math.min(hastaMs, Date.now() + 35_000) : hastaMs);
       if (imp.estado === "cargando") await analizar(org, id, hastaMs);
       else if (imp.estado === "importando") await importar(org, id, hastaMs);
     } catch (e) {
