@@ -56,11 +56,10 @@ no la primera.
 - **Cron**: Vercel Cron Jobs nativo (`vercel.json`).
 - **Login**: confirmado de punta a punta el 24/9 (Fer entra por `laucen.vercel.app`, con
   organización y rol Admin). Supabase tiene prendida la confirmación por mail.
-- **Dominios**: `laucen.com.ar` (Nic.ar) y `laucen.com` (GoDaddy), agregados al proyecto de
-  Vercel con los nameservers de Vercel. Al 24/9 no habían terminado de propagar (Nic.ar es
-  lento): **antes de tocar nada de dominios, revisar si ya propagó**. Mientras tanto
-  `laucen.com.ar` puede mostrar una landing vieja de CadaMes (Hostmar), y la pantalla de DNS
-  de GoDaddy queda con datos viejos: es esperable, no perder tiempo ahí.
+- **Dominios**: `laucen.com.ar` (Nic.ar) y `laucen.com` (GoDaddy), en Vercel con sus
+  nameservers; ya propagaron (2/10). **Los dos son la tienda pública** (`lib/tienda/dominios.ts`):
+  ahí todo abre la tienda salvo `/api/`. **El panel se usa desde `laucen.vercel.app`**, y las
+  direcciones de la app de Mercado Libre (redirect y notificaciones) también son las de Vercel.
 
 ## Cómo hablarle a Fer
 

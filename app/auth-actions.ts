@@ -10,6 +10,7 @@
 // "nada de la cocina en las pantallas" — el detalle técnico va al log del
 // servidor, no a la persona).
 
+import { urlPanel } from "@/lib/tienda/dominios";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase";
 import { db } from "@/db";
@@ -57,7 +58,7 @@ export async function accionRegistro(_previo: Problema, formData: FormData): Pro
   }
 
   const supabase = await supabaseServer();
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const base = urlPanel();
   const { data, error } = await supabase.auth.signUp({
     email, password,
     options: { data: { nombre }, emailRedirectTo: `${base}/auth/callback?next=/panel` },
@@ -101,7 +102,7 @@ export async function accionOlvide(_previo: Problema, formData: FormData): Promi
   const email = String(formData.get("email") ?? "").trim();
   if (!email) return { texto: "Completá el email." };
   const supabase = await supabaseServer();
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const base = urlPanel();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${base}/auth/callback?next=/reset`,
   });
