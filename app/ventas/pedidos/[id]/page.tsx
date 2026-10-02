@@ -1,6 +1,7 @@
 // Detalle de un pedido: cabecera, cliente, líneas, envío, historial de estados
-// y los movimientos de stock que generó. Sólo mirar: sin botones de operación
-// (salvo "Facturar", en el bloque de facturación).
+// y los movimientos de stock que generó. Botones de operación: "Facturar" (en
+// el bloque de facturación) y, para lo que no es de Mercado Libre, el bloque
+// "Operación" (confirmar pago, estado siguiente, avisar por WhatsApp).
 
 import Link from "next/link";
 import { formatear } from "@/lib/moneda";
@@ -18,6 +19,7 @@ import { PRIMARIO, SUAVE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { ESTADOS_CBTE, numeroCbte, nombreTipo, type EstadoCbte } from "@/app/administracion/facturacion/comun";
 import { accionFacturar } from "./acciones";
+import Operacion from "./Operacion";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +35,7 @@ type Cabecera = {
   documento_numero: string | null; deposito: string | null;
 };
 
-export default async function DetallePedido({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
+export default async function DetallePedido({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string; b?: string }> }) {
   const s = await entrarErp("pedidos_ver");
   const { id } = await params;
   const sp = await searchParams;
@@ -174,8 +176,10 @@ export default async function DetallePedido({ params, searchParams }: { params: 
         </div>
       </div>
 
+      <Operacion org={s.org.id} pid={pid} sp={sp} />
+
       <h2 className="text-sm font-bold mb-2">Facturación</h2>
-      {(sp.ok || sp.error) && (
+      {sp.b !== "op" && (sp.ok || sp.error) && (
         <p role={sp.error ? "alert" : undefined} className={`text-xs rounded-lg px-3 py-2 mb-2 ${sp.error ? "bg-[#FDF1EF] text-[#C03420]" : "bg-[#EEF7F1] text-[#1F6E4A]"}`}>
           {sp.error ?? sp.ok}
           {sp.error && c.cliente_id && <> <Link href={`/ventas/clientes/${c.cliente_id}`} className="font-bold underline">Corregir en la ficha del cliente</Link></>}

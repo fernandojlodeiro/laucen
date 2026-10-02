@@ -1,11 +1,14 @@
 "use server";
 
-// Facturar un pedido desde su detalle: arma la factura y la manda a ARCA.
+// Facturar un pedido desde su detalle: arma la factura y la manda a ARCA. Y
+// operar los pedidos que no son de ML: confirmar el pago y cambiar el estado.
 
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
-import { ErrorErp } from "@/lib/erp/base";
-import { intentar, id } from "@/lib/erp/acciones";
+import { ErrorErp, una } from "@/lib/erp/base";
+import { intentar, id, texto } from "@/lib/erp/acciones";
+import { cambiarEstado, esEstadoPedido, ESTADOS_PEDIDO } from "@/lib/pedidos";
+import { confirmarPago } from "@/lib/tienda/pagos/confirmar";
 import { prepararFactura, emitir } from "@/lib/arca/facturar";
 
 export async function accionFacturar(fd: FormData) {
@@ -21,5 +24,47 @@ export async function accionFacturar(fd: FormData) {
     revalidatePath("/administracion/facturacion");
     if (r.estado !== "autorizado") throw new ErrorErp(r.mensaje);
     return r.mensaje;
+  });
+}
+
+// ── Operación de pedidos que no son de Mercado Libre (los de ML los mueve ML) ──
+
+/** El pedido, verificado contra la organización y que no sea de ML. */
+async function pedidoOperable(org: string, pid: number) {
+  const p = await una<{ estado: string; estado_pago: string; total_ars: number; canal_tipo: string }>(`
+    select p.estado, p.estado_pago, p.total_ars::float, c.tipo canal_tipo
+      from pedido p join canal c on c.id = p.canal_id where p.id = $1 and p.organizacion_id = $2`, [pid, org]);
+  if (!p) throw new ErrorErp("El pedido no existe.");
+  if (p.canal_tipo === "mercadolibre") throw new ErrorErp("Los pedidos de Mercado Libre se mueven solos desde Mercado Libre.");
+  return p;
+}
+
+export async function accionConfirmarPago(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  const volver = `/ventas/pedidos/${pid}?b=op`;
+  await intentar(volver, async () => {
+    const p = await pedidoOperable(s.org.id, pid);
+    if (!["pendiente", "a_convenir"].includes(p.estado_pago)) throw new ErrorErp("Este pedido no tiene un pago pendiente.");
+    if (["cancelado", "devuelto"].includes(p.estado)) throw new ErrorErp("El pedido está cancelado.");
+    const medio = texto(fd, "medio");
+    if (!medio) throw new ErrorErp("Elegí con qué pagó.");
+    await confirmarPago(s.org.id, pid, { medio, importe: p.total_ars }, s.usuario.id);
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    return "Pago confirmado: el pedido quedó pagado.";
+  });
+}
+
+export async function accionCambiarEstadoPedido(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  const volver = `/ventas/pedidos/${pid}?b=op`;
+  await intentar(volver, async () => {
+    await pedidoOperable(s.org.id, pid);
+    const nuevo = fd.get("estado");
+    if (!esEstadoPedido(nuevo)) throw new ErrorErp("Estado desconocido.");
+    await cambiarEstado(s.org.id, pid, nuevo, s.usuario.id, texto(fd, "nota"));
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    return `Pedido ${ESTADOS_PEDIDO[nuevo].toLowerCase()}.`;
   });
 }

@@ -1,0 +1,127 @@
+// Reglas comerciales de la tienda: condición → acción ("3 o más de Familia
+// Placas → 10 % de descuento"). Las aplica cotizar() (lib/tienda/cotizar.ts)
+// en el orden de prioridad (mayor primero).
+
+import Link from "next/link";
+import { consulta } from "@/lib/erp/base";
+import { hoyAR } from "@/lib/moneda";
+import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
+import { TachoConfirmar } from "@/app/radar/Cliente";
+import { Interruptor } from "@/app/radar/Piezas";
+import CampoNumero from "@/app/componentes/CampoNumero";
+import {
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
+} from "@/app/componentes/erp";
+import { fecha } from "@/app/ventas/formato";
+import { TIPOS_MEDIO } from "@/app/config/medios-pago/comun";
+import { arbolFamilias } from "@/app/config/cuotas/familias";
+import CamposRegla from "./CamposRegla";
+import { enCriollo, formaDe, type Condicion, type Accion, type TipoAccion } from "./comun";
+import { accionCrearRegla, accionGuardarRegla, accionActivarRegla, accionBorrarRegla } from "./acciones";
+
+export const dynamic = "force-dynamic";
+
+const BASE = "/config/reglas";
+type SP = { editar?: string; ok?: string; error?: string };
+type Regla = {
+  id: number; nombre: string; activa: boolean; condicion: Condicion; accion: Accion; desde: string | null; hasta: string | null;
+  acumulable: boolean; prioridad: number; producto: string | null; sku: string | null; familia: string | null; medio: string | null;
+};
+
+export default async function Reglas({ searchParams }: { searchParams: Promise<SP> }) {
+  const s = await entrarErp("reglas_ver");
+  const sp = await searchParams;
+  const editar = Number(sp.editar) || 0;
+  const [reglas, familias, mediosDb] = await Promise.all([
+    consulta<Regla>(`
+      select r.id::int, r.nombre, r.activa, r.condicion, r.accion, to_char(r.desde, 'YYYY-MM-DD') desde, to_char(r.hasta, 'YYYY-MM-DD') hasta,
+             r.acumulable, r.prioridad, p.titulo producto, p.sku_base sku, f.nombre familia, m.nombre medio
+        from regla_comercial r
+        left join producto p on p.id = (r.condicion ->> 'producto_id')::bigint and p.organizacion_id = r.organizacion_id
+        left join familia f on f.id = (r.condicion ->> 'familia_id')::bigint and f.organizacion_id = r.organizacion_id
+        left join lateral (select nombre from medio_pago where organizacion_id = r.organizacion_id and canal_id is null and tipo = r.condicion ->> 'medio' limit 1) m on true
+       where r.organizacion_id = $1 and r.canal_id is null order by r.prioridad desc, r.id`, [s.org.id]),
+    arbolFamilias(s.org.id),
+    consulta<{ tipo: string; nombre: string }>("select tipo, nombre from medio_pago where organizacion_id = $1 and canal_id is null order by orden, id", [s.org.id]),
+  ]);
+  // Los cinco medios siempre (con el nombre que les puso la organización, si ya existen).
+  const medios = Object.entries(TIPOS_MEDIO).map(([tipo, t]) => ({ tipo, nombre: mediosDb.find((m) => m.tipo === tipo)?.nombre ?? t.nombre }));
+  const opcFamilias = familias.map((f) => ({ id: f.id, nombre: f.nombre, nivel: f.nivel }));
+  const hoy = hoyAR();
+  const vigencia = (r: Regla) =>
+    !r.desde && !r.hasta ? "Siempre" : r.desde && r.hasta ? `${fecha(r.desde + "T12:00")} al ${fecha(r.hasta + "T12:00")}`
+      : r.desde ? `Desde el ${fecha(r.desde + "T12:00")}` : `Hasta el ${fecha(r.hasta + "T12:00")}`;
+
+  const Fechas = ({ r }: { r?: Regla }) => (
+    <>
+      <label><span className={ETIQUETA}>Vale desde</span><input type="date" name="desde" defaultValue={r?.desde ?? ""} className={`${CAMPO} w-full`} /></label>
+      <label><span className={ETIQUETA}>Hasta</span><input type="date" name="hasta" defaultValue={r?.hasta ?? ""} className={`${CAMPO} w-full`} /></label>
+      <label><span className={ETIQUETA}>Prioridad</span><CampoNumero name="prioridad" valor={r?.prioridad ?? 0} tipo="entero" className={`${CAMPO} w-full`} /></label>
+      <label className="col-span-2 flex items-center gap-1.5 text-xs pt-4">
+        <input type="checkbox" name="acumulable" defaultChecked={r?.acumulable ?? true} className="h-4 w-4" /> Acumulable: se suma con otras promociones
+      </label>
+    </>
+  );
+
+  return (
+    <Pantalla titulo="Reglas comerciales" subtitulo="Promociones de la tienda web: descuentos por cantidad, por monto, por medio de pago y envío gratis" ancho="max-w-6xl">
+      <Avisos sp={sp} />
+      <div className={CAJA_TABLA}>
+        <table className={TABLA}>
+          <thead className={THEAD}>
+            <tr><th className={TH}>Regla</th><th className={TH}>Qué hace</th><th className={TH}>Activa</th><th className={TH}>Vigencia</th><th className={TH}>Acumulable</th><th className={THN}>Prioridad</th><th /></tr>
+          </thead>
+          <tbody>
+            {reglas.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>Todavía no hay reglas.</td></tr>}
+            {reglas.map((r) => editar === r.id ? (
+              <tr key={r.id} className={`${TR} bg-[#FAFBFC]`}>
+                <td colSpan={7} className={TD}>
+                  <form action={accionGuardarRegla} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-start">
+                    <input type="hidden" name="id" value={r.id} />
+                    <label className="col-span-2"><span className={ETIQUETA}>Nombre</span>
+                      <input name="nombre" defaultValue={r.nombre} className={`${CAMPO} w-full`} autoFocus /></label>
+                    <CamposRegla forma={formaDe(r.condicion)} cantidad={r.condicion.cantidad} sku={r.sku} familiaId={r.condicion.familia_id}
+                      monto={r.condicion.monto} medio={r.condicion.medio} accion={r.accion.tipo as TipoAccion} valor={r.accion.valor}
+                      familias={opcFamilias} medios={medios} />
+                    <Fechas r={r} />
+                    <div className="col-span-2 sm:col-span-6 flex gap-2">
+                      <button className={VERDE}>Guardar</button>
+                      <Link href={BASE} className={SUAVE} scroll={false}>Cancelar</Link>
+                    </div>
+                  </form>
+                </td>
+              </tr>
+            ) : (
+              <tr key={r.id} className={TR}>
+                <td className={`${TD} font-semibold`}>{r.nombre}</td>
+                <td className={TD}>{enCriollo(r.condicion, r.accion, { producto: r.producto && `${r.sku} (${r.producto})`, familia: r.familia, medio: r.medio })}</td>
+                <td className={TD}><Interruptor accion={accionActivarRegla} prendido={r.activa} campos={{ id: String(r.id) }} etiqueta={r.activa ? "Sí" : "No"} /></td>
+                <td className={`${TD} whitespace-nowrap`}>{vigencia(r)}
+                  {r.hasta && r.hasta < hoy && <> <Estado texto="Vencida" tono="gris" /></>}
+                  {r.desde && r.desde > hoy && <> <Estado texto="Todavía no" tono="amarillo" /></>}</td>
+                <td className={TD}>{r.acumulable ? "Se suma" : "No se suma"}</td>
+                <td className={TDN}>{r.prioridad}</td>
+                <td className={`${TD} text-right whitespace-nowrap`}>
+                  <span className="inline-flex gap-1">
+                    <Lapiz href={`${BASE}?editar=${r.id}`} />
+                    <TachoConfirmar accion={accionBorrarRegla} campos={{ id: String(r.id) }} pregunta="¿Borrar?" />
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 className="text-sm font-bold mt-5 mb-2">Regla nueva</h2>
+      <form action={accionCrearRegla} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-start bg-white border border-[#E3E9F0] rounded-xl p-3">
+        <label className="col-span-2"><span className={ETIQUETA}>Nombre</span>
+          <input name="nombre" placeholder="Ej. 3 placas 10 % off" className={`${CAMPO} w-full`} /></label>
+        <CamposRegla familias={opcFamilias} medios={medios} />
+        <Fechas />
+        <div className="col-span-2 sm:col-span-6"><button className={PRIMARIO}>Agregar</button></div>
+      </form>
+      <p className="text-[11px] text-[#5C6B76] mt-1">Mayor prioridad = se aplica primero. Una regla no acumulable que se cumple corta las demás de descuento.</p>
+    </Pantalla>
+  );
+}

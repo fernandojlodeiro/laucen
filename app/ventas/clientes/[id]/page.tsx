@@ -15,7 +15,7 @@ import {
 import { fecha, TONO_ESTADO, TIPOS_CLIENTE, CONDICIONES_IVA, DOCUMENTOS, etiqueta } from "@/app/ventas/formato";
 import {
   accionGuardarCliente, accionBorrarCliente, accionAgregarDireccion, accionGuardarDireccion,
-  accionDireccionPrincipal, accionBorrarDireccion, accionQuitarIdentidad, accionValidarPadron,
+  accionDireccionPrincipal, accionBorrarDireccion, accionQuitarIdentidad, accionValidarPadron, accionCuentaCorriente,
 } from "../acciones";
 import { emisorDe } from "@/lib/arca/facturar";
 import { estadoCredencial } from "@/lib/arca/credenciales";
@@ -30,6 +30,7 @@ type Cliente = {
   documento_numero: string | null; condicion_iva: string | null; lista_precios_id: number | null; notas: string | null; creado_ts: Date;
   razon_social: string | null; cuit: string | null; apodo_ml: string | null; telefono_movil: string | null;
   nombre_pila: string | null; apellido: string | null; datos_externos: Record<string, Record<string, unknown>>;
+  cuenta_corriente: boolean;
 };
 type Direccion = {
   id: number; etiqueta: string | null; calle: string | null; numero: string | null; piso_depto: string | null; localidad: string | null;
@@ -50,7 +51,7 @@ export default async function FichaCliente({ params, searchParams }: { params: P
   if (!Number.isInteger(cid) || cid <= 0) notFound();
   const c = await una<Cliente>(`
     select id::int, nombre, tipo, email, telefono, documento_tipo, documento_numero, condicion_iva, lista_precios_id::int, notas, creado_ts,
-           razon_social, cuit, apodo_ml, telefono_movil, nombre_pila, apellido, datos_externos
+           razon_social, cuit, apodo_ml, telefono_movil, nombre_pila, apellido, datos_externos, cuenta_corriente
       from cliente where id = $1 and organizacion_id = $2`, [cid, s.org.id]);
   if (!c) notFound();
   const editar = Number(sp.editar) || 0;
@@ -140,6 +141,16 @@ export default async function FichaCliente({ params, searchParams }: { params: P
         <label className="sm:col-span-3"><span className={ETIQUETA}>Notas</span>
           <textarea name="notas" defaultValue={c.notas ?? ""} rows={2} className={`${CAMPO} w-full`} /></label>
         <div className="sm:col-span-3"><button className={VERDE}>Guardar</button></div>
+      </form>
+
+      <form action={accionCuentaCorriente} className={`${CAJA} flex flex-wrap items-center gap-3 mb-4`}>
+        <input type="hidden" name="id" value={cid} />
+        <label className="flex items-center gap-1.5 text-xs">
+          <input type="checkbox" name="cuenta_corriente" defaultChecked={c.cuenta_corriente} className="h-4 w-4" />
+          Puede comprar en cuenta corriente / a convenir
+        </label>
+        <button className={SUAVE}>Guardar</button>
+        <span className="text-[11px] text-[#5C6B76] basis-full">En la tienda web le aparece el medio &quot;Cuenta corriente&quot; (si está prendido en Medios de pago).</span>
       </form>
 
       {Object.keys(c.datos_externos ?? {}).length > 0 && (

@@ -219,3 +219,16 @@ export async function accionValidarPadron(fd: FormData) {
     return (cambios.length ? `Validado en ARCA. Cambió: ${cambios.join(" · ")}.` : "Validado en ARCA: los datos ya coincidían.") + estado;
   });
 }
+
+/** Si el cliente puede comprar en cuenta corriente / "a convenir" en la tienda. */
+export async function accionCuentaCorriente(fd: FormData) {
+  const s = await entrarErp("clientes_ver");
+  const cid = id(fd);
+  await intentar(ficha(cid), async () => {
+    const puede = fd.get("cuenta_corriente") === "on";
+    const r = await consulta("update cliente set cuenta_corriente = $3 where id = $1 and organizacion_id = $2 returning id", [cid, s.org.id, puede]);
+    if (!r.length) throw new ErrorErp("El cliente no existe.");
+    revalidatePath(ficha(cid));
+    return puede ? "Puede comprar en cuenta corriente." : "Ya no compra en cuenta corriente.";
+  });
+}
