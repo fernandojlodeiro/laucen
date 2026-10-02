@@ -203,13 +203,18 @@ export async function analizar(org: string, id: number, hastaMs: number): Promis
     await consulta("update importacion_vs set resumen = resumen || '{\"ml_completo\": true}'::jsonb where id = $1", [id]);
   }
   // Cruce por SKU con las publicaciones activas o pausadas de la cuenta base.
+  // (De una pasada: por SKU sin "DE-" o por una equivalencia; con subconsulta por fila tardaba minutos.)
+  await consulta("update importacion_vs_sku set ml_items = '[]' where importacion_id = $1 and organizacion_id = $2", [id, org]);
   await consulta(`
-    update importacion_vs_sku s set ml_items = coalesce((
-      select jsonb_agg(distinct m.item_id) from meli_item m
-       where m.canal_id = $3 and m.estado in ('active', 'paused')
-         and (upper(regexp_replace(trim(m.sku), '^DE-', '', 'i')) = s.sku
-              or exists (select 1 from sku_equivalencia e where e.organizacion_id = $2 and e.alias = upper(trim(m.sku)) and upper(e.sku) = s.sku))), '[]')
-     where s.importacion_id = $1 and s.organizacion_id = $2`, [id, org, cuenta.canalId]);
+    with m as (
+      select item_id, upper(regexp_replace(trim(sku), '^DE-', '', 'i')) k1, upper(trim(sku)) k2
+        from meli_item where canal_id = $3 and estado in ('active', 'paused') and sku is not null),
+    mm as (
+      select item_id, k1 sku from m
+      union select m.item_id, upper(e.sku) from m join sku_equivalencia e on e.organizacion_id = $2 and e.alias = m.k2),
+    agg as (select sku, jsonb_agg(distinct item_id) items from mm group by sku)
+    update importacion_vs_sku s set ml_items = agg.items from agg
+     where s.importacion_id = $1 and s.organizacion_id = $2 and s.sku = agg.sku`, [id, org, cuenta.canalId]);
   // Destino de cada SKU y los IVA para comparar.
   const columnas = (imp.resumen.columnas_maestro as string[]) ?? [];
   const cFam = columna(columnas, "familia"), cIva = columna(columnas, "tasa de iva", "iva");
@@ -291,7 +296,8 @@ export async function analizar(org: string, id: number, hastaMs: number): Promis
   });
   const pubs = await una<{ total: number; sin_sku: number; sin_producto: number }>(`
     select count(*)::int total, count(*) filter (where sku is null)::int sin_sku,
-           count(*) filter (where sku is not null and not exists (select 1 from importacion_vs_sku s where s.importacion_id = $1 and s.maestro is not null and s.ml_items ? m.item_id))::int sin_producto
+           count(*) filter (where sku is not null and item_id not in (
+             select jsonb_array_elements_text(s.ml_items) from importacion_vs_sku s where s.importacion_id = $1 and s.maestro is not null))::int sin_producto
       from meli_item m where m.canal_id = $2 and m.estado in ('active', 'paused')`, [id, cuenta.canalId]);
   // Publicaciones cuyo SKU en ML no es el de Laucen (packs renombrados, equivalencias cargadas a mano).
   const skuDif = await consulta<{ item: string; sku_ml: string | null; sku: string }>(`
