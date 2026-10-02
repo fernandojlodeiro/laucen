@@ -171,7 +171,10 @@ create index if not exists meli_item_sin_vincular on meli_item (organizacion_id,
 alter table meli_item enable row level security;
 select erp_politica_org('meli_item');
 
--- La llave del barrido (pg_cron llama a /api/meli/barrido?clave=…).
+-- La llave del barrido. El job de pg_cron (creado a mano en Supabase el 2/10,
+-- nombre 'meli-barrido', cada 2 minutos) llama a
+-- https://laucen.vercel.app/api/meli/barrido?clave=<meli_llave.clave>, sólo
+-- si hay alguna cuenta activa con canal.
 create table if not exists meli_llave (
   id     int primary key check (id = 1),
   clave  text not null
