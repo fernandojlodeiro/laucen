@@ -58,15 +58,15 @@ export default async function Facturacion({ searchParams }: { searchParams: Prom
 
   return (
     <Pantalla titulo="Facturación" subtitulo="Facturas y notas de crédito electrónicas de ARCA"
-      acciones={<Link href="/administracion/facturacion/config" className={SUAVE}>Configuración</Link>}>
+      acciones={<Link href="/config/arca" className={SUAVE}>Configuración</Link>}>
       <Avisos sp={sp} />
       {!emisor && (
         <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#FFF8E5] text-[#8a6100]">
-          Todavía no están cargados los datos para facturar. <Link href="/administracion/facturacion/config" className="font-bold underline">Ir a Configuración</Link>
+          Todavía no están cargados los datos para facturar. <Link href="/config/arca" className="font-bold underline">Ir a Configuración</Link>
         </p>
       )}
       {emisor?.ambiente === "homologacion" && (
-        <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#EEF3F8] text-[#16577F]">Ambiente de homologación: los comprobantes son de prueba, sin validez fiscal.</p>
+        <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#EEF3F8] text-[#16577F]">Modo prueba contra ARCA: los comprobantes salen pero no tienen validez fiscal.</p>
       )}
 
       <form className="flex flex-wrap items-end gap-2 mb-3">

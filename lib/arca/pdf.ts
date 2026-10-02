@@ -2,7 +2,7 @@
 // (RG 4892). Hecho con pdf-lib (sin navegador): sirve para bajarlo,
 // mandarlo por mail o subirlo a Mercado Libre.
 
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import bwipjs from "bwip-js/node";
 import { una, consulta, ErrorErp } from "@/lib/erp/base";
 import { TIPOS_CBTE, DOC_TIPOS, CONDICION_RECEPTOR_TEXTO, emisorDe } from "@/lib/arca/facturar";
@@ -13,6 +13,26 @@ const fecha = (iso: string) => iso.split("-").reverse().join("/");
 
 /** Para que las fuentes estándar (WinAnsi) no rompan con caracteres raros. */
 const limpio = (s: string) => s.normalize("NFC").replace(/[^\x20-\x7E -ÿ]/g, "?");
+
+const cuitConGuiones = (c: string) => { const d = c.replace(/\D/g, ""); return d.length === 11 ? `${d.slice(0, 2)}-${d.slice(2, 10)}-${d.slice(10)}` : c; };
+
+/** El logo de la empresa (link público de Supabase Storage), listo para
+ *  dibujar. PNG o JPG; cualquier otra cosa o una falla de red → sin logo. */
+async function logoDe(doc: PDFDocument, org: string): Promise<PDFImage | null> {
+  try {
+    const fila = await una<{ logo: string | null }>("select logo from empresa where organizacion_id = $1", [org]);
+    if (!fila?.logo || !/^https:\/\//.test(fila.logo)) return null;
+    const r = await fetch(fila.logo, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return null;
+    const b = new Uint8Array(await r.arrayBuffer());
+    if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return await doc.embedPng(b);
+    if (b[0] === 0xff && b[1] === 0xd8) return await doc.embedJpg(b);
+    return null;
+  } catch (err) {
+    console.error("[pdf] no se pudo poner el logo:", err);
+    return null;
+  }
+}
 
 export async function pdfComprobante(org: string, id: number): Promise<Uint8Array> {
   const c = await una<{ tipo_cbte: number; punto_venta: number; numero: string; fecha: string; doc_tipo: number; doc_nro: string; receptor_nombre: string | null;
@@ -45,12 +65,20 @@ export async function pdfComprobante(org: string, id: number): Promise<Uint8Arra
   pagina.drawRectangle({ x: 277, y: 772, width: 40, height: 40, borderWidth: 1, borderColor: rgb(0, 0, 0), color: rgb(1, 1, 1) });
   texto(pagina, tipo.letra, 289, 785, 24, fb);
   texto(pagina, `COD. ${String(c.tipo_cbte).padStart(3, "0")}`, 283, 775, 6, f);
-  texto(pagina, e.razon_social, 40, 790, 13, fb);
-  texto(pagina, `Domicilio: ${e.domicilio ?? "-"}`, 40, 760, 8);
-  texto(pagina, IVA_EMISOR[e.condicion_iva], 40, 748, 8);
-  texto(pagina, `CUIT: ${e.cuit}`, 40, 736, 8);
-  if (e.iibb) texto(pagina, `Ingresos Brutos: ${e.iibb}`, 40, 724, 8);
-  if (e.inicio_actividades) texto(pagina, `Inicio de actividades: ${fecha(e.inicio_actividades)}`, 40, 712, 8);
+  // Con logo (Configuración → Empresa), va arriba a la izquierda y los datos
+  // del emisor bajan un poco y se aprietan.
+  const logo = await logoDe(doc, org);
+  if (logo) {
+    const k = Math.min(150 / logo.width, 34 / logo.height, 1);
+    pagina.drawImage(logo, { x: 40, y: 806 - logo.height * k, width: logo.width * k, height: logo.height * k });
+  }
+  const y0 = logo ? [762, 750, 740, 730, 720, 710] : [790, 760, 748, 736, 724, 712];
+  texto(pagina, e.razon_social, 40, y0[0], logo ? 11 : 13, fb);
+  texto(pagina, `Domicilio: ${e.domicilio ?? "-"}`, 40, y0[1], 8);
+  texto(pagina, IVA_EMISOR[e.condicion_iva], 40, y0[2], 8);
+  texto(pagina, `CUIT: ${cuitConGuiones(e.cuit)}`, 40, y0[3], 8);
+  if (e.iibb) texto(pagina, `Ingresos Brutos: ${e.iibb}`, 40, y0[4], 8);
+  if (e.inicio_actividades) texto(pagina, `Inicio de actividades: ${fecha(e.inicio_actividades)}`, 40, y0[5], 8);
   texto(pagina, tipo.nombre.toUpperCase(), 330, 790, 13, fb);
   texto(pagina, `Punto de venta: ${String(c.punto_venta).padStart(5, "0")}   Comp. Nro: ${String(c.numero).padStart(8, "0")}`, 330, 760, 9, fb);
   texto(pagina, `Fecha de emisión: ${fecha(c.fecha)}`, 330, 746, 9);

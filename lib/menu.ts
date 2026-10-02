@@ -90,6 +90,8 @@ export const MENU: SeccionMenu[] = [
   {
     texto: "Configuración",
     items: [
+      { texto: "Empresa", href: "/config/empresa", permiso: "empresa_config" },
+      { texto: "Facturación (ARCA)", href: "/config/arca", permiso: "facturacion_ver" },
       { texto: "Canales", href: "/config/canales", permiso: "canales_ver" },
       { texto: "Tienda web", href: "/config/tienda", permiso: "tienda_config" },
       { texto: "Medios de pago", href: "/config/medios-pago", permiso: "medios_pago_ver" },

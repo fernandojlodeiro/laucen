@@ -21,15 +21,19 @@ export type Tienda = {
 export const slugDe = (texto: string) =>
   texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "tienda";
 
-type Fila = { organizacion_id: string; id: string; nombre: string; lista_precios_id: string | null; moneda: "ARS" | "USD" | null; config: ConfigTienda; estado: string };
+type Fila = { organizacion_id: string; id: string; nombre: string; lista_precios_id: string | null; moneda: "ARS" | "USD" | null; config: ConfigTienda; estado: string;
+  logo_empresa: string | null };
 
 const aTienda = (f: Fila): Tienda => ({
   organizacionId: f.organizacion_id, canalId: Number(f.id), nombreCanal: f.nombre, listaId: f.lista_precios_id ? Number(f.lista_precios_id) : null,
-  moneda: f.moneda ?? "ARS", slug: f.config?.slug || slugDe(f.nombre), config: f.config ?? {}, estado: f.estado,
+  moneda: f.moneda ?? "ARS", slug: f.config?.slug || slugDe(f.nombre), estado: f.estado,
+  // Sin logo propio, la tienda usa el de la empresa (Configuración → Empresa).
+  config: { ...(f.config ?? {}), logo: f.config?.logo || f.logo_empresa || undefined },
 });
 
-const SQL = `select c.organizacion_id, c.id, c.nombre, c.lista_precios_id, l.moneda_base moneda, c.config, c.estado
+const SQL = `select c.organizacion_id, c.id, c.nombre, c.lista_precios_id, l.moneda_base moneda, c.config, c.estado, e.logo logo_empresa
                from canal c left join lista_precios l on l.id = c.lista_precios_id
+               left join empresa e on e.organizacion_id = c.organizacion_id
               where c.tipo = 'web_minorista' and c.estado <> 'archivado'`;
 
 /** La tienda de ese slug (activa o pausada; una pausada muestra "cerrada"). */
