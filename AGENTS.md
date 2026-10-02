@@ -92,6 +92,13 @@ Editar y borrar en una lista o tabla:
 - En una grilla o tabla, la edición pasa **adentro de la fila** — el lápiz convierte esa fila en
   sus campos editables ahí mismo, nunca un panel aparte ni una ventana.
 
+Buscadores (pedido de Fer, 2/10):
+- **Todo ABM tiene su buscador.**
+- Busca mientras se tipea (desde la segunda letra), sin botón "Buscar" ni "Limpiar": una X
+  adentro del cuadro borra lo escrito. Con la caja **"Comienza por"**, tildada de entrada
+  (coincidencia al principio del texto; destildada, en cualquier parte). Componente:
+  `app/componentes/BuscadorVivo.tsx`.
+
 Campos numéricos (pedido de Fer, 27/9): usar `app/componentes/CampoNumero.tsx` y leer con
 `leerNumero()` de `lib/numeros.ts`.
 - Todo número va **alineado a la derecha**.

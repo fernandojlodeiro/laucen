@@ -4,11 +4,13 @@
 // no se ubicó.
 
 import Link from "next/link";
+import { Fragment } from "react";
 import { consulta } from "@/lib/erp/base";
 import { VERDE, SUAVE, PRIMARIO, APAGAR } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
 import CampoNumero from "@/app/componentes/CampoNumero";
+import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, CAJA,
 } from "@/app/componentes/erp";
@@ -23,7 +25,7 @@ const BASE = "/stock/depositos";
 
 const TIPOS: Record<string, string> = { propio: "Propio", full_ml: "Full de Mercado Libre", tercerizado: "Tercerizado", caja_abierta: "Caja abierta" };
 
-type SP = { d?: string; editar?: string; eu?: string; archivar?: string; ok?: string; error?: string };
+type SP = { d?: string; editar?: string; eu?: string; archivar?: string; q?: string; contiene?: string; u?: string; ok?: string; error?: string };
 
 /** Interruptor dentro de un formulario (una casilla dibujada como interruptor):
  *  para el alta y la edición en fila, donde no se guarda al tocarlo. */
@@ -44,6 +46,11 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
   const editar = Number(sp.editar) || 0;
   const editarUbic = Number(sp.eu) || 0;
   const archivar = Number(sp.archivar) || 0;
+  // Buscador de ubicaciones (por código o descripción) y la ubicación abierta (?u=).
+  const q = sp.q?.trim() ?? "";
+  const comienza = sp.contiene !== "1";
+  const patron = q ? `${comienza ? "" : "%"}${q.replace(/[\\%_]/g, "\\$&")}%` : null;
+  const abierta = Number(sp.u) || 0;
 
   const depositos = await consulta<{
     id: number; nombre: string; tipo: string; usa_ubicaciones: boolean; direccion: string | null; estado: string; ubicaciones: number; unidades: number;
@@ -55,7 +62,7 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
   // Con un solo depósito activo, sus ubicaciones se ven de entrada.
   const activos = depositos.filter((d) => d.estado === "activo");
   const elegido = depositos.find((d) => d.id === Number(sp.d)) ?? (activos.length === 1 ? activos[0] : undefined);
-  const aqui = url(BASE, { d: elegido?.id });
+  const aqui = url(BASE, { d: elegido?.id, q: q || null, contiene: comienza ? null : "1" });
   const paraArchivar = depositos.find((d) => d.id === archivar && d.estado === "activo");
 
   const ubicaciones = elegido ? await consulta<{
@@ -65,7 +72,17 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
            (select coalesce(sum(s.cantidad), 0) from stock s where s.ubicacion_id = u.id)::int unidades
       from ubicacion u where u.deposito_id = $2 and u.organizacion_id = $1
        and (u.es_default or $3::boolean)
-     order by u.es_default desc, u.orden_recorrido, u.codigo`, [s.org.id, elegido.id, elegido.usa_ubicaciones]) : [];
+       and ($4::text is null or u.codigo ilike $4 or u.descripcion ilike $4)
+     order by u.es_default desc, u.orden_recorrido, u.codigo`, [s.org.id, elegido.id, elegido.usa_ubicaciones, patron]) : [];
+
+  // Lo que hay adentro de la ubicación abierta.
+  const contenido = abierta && ubicaciones.some((u) => u.id === abierta) ? await consulta<{
+    variacion_id: number; sku: string; titulo: string; cantidad: number; reservado: number;
+  }>(`
+    select v.id::int variacion_id, v.sku, titulo_variacion(v.id) titulo, st.cantidad, st.reservado
+      from stock st join variacion v on v.id = st.variacion_id
+     where st.ubicacion_id = $2 and st.organizacion_id = $1 and (st.cantidad <> 0 or st.reservado <> 0)
+     order by v.sku`, [s.org.id, abierta]) : [];
   // Ubicaciones que quedaron con algo de cuando el depósito sí las usaba.
   const ocultasConStock = elegido && !elegido.usa_ubicaciones ? (await consulta<{ n: number }>(`
     select count(*)::int n from ubicacion u where u.deposito_id = $2 and u.organizacion_id = $1 and not u.es_default
@@ -158,6 +175,11 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
             </p>
           )}
           {elegido.usa_ubicaciones && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+              <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar ubicación por código o descripción" limpiar={["u", "eu"]} />
+            </div>
+          )}
+          {elegido.usa_ubicaciones && (
             <form action={accionCrearUbicacion} className="flex flex-wrap items-center gap-2 mb-3 rounded-lg border border-[#E3E9F0] bg-[#FAFBFC] p-2">
               <input type="hidden" name="deposito" value={elegido.id} />
               <input type="hidden" name="volver" value={aqui} />
@@ -173,6 +195,7 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
                 <tr><th className={TH}>Código</th><th className={TH}>Descripción</th><th className={THN}>Orden de recorrido</th><th className={TH}>Estado</th><th className={THN}>Unidades</th><th /></tr>
               </thead>
               <tbody>
+                {ubicaciones.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>{q ? "Ninguna ubicación coincide." : "Todavía no hay ubicaciones."}</td></tr>}
                 {ubicaciones.map((u) => editarUbic === u.id && !u.es_default ? (
                   <tr key={u.id} className={`${TR} bg-[#FAFBFC]`}>
                     <td colSpan={6} className={TD}>
@@ -191,8 +214,12 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
                     </td>
                   </tr>
                 ) : (
-                  <tr key={u.id} className={TR}>
-                    <td className={`${TD} font-semibold whitespace-nowrap`}>{u.codigo}{u.es_default && <span className="ml-2"><Estado texto="General" tono="azul" /></span>}</td>
+                  <Fragment key={u.id}>
+                  <tr className={`${TR} ${u.id === abierta ? "bg-[#EEF3F8]" : ""}`}>
+                    <td className={`${TD} font-semibold whitespace-nowrap`}>
+                      <Link href={url(BASE, { d: elegido.id, q: q || null, contiene: comienza ? null : "1", u: u.id === abierta ? null : u.id })} scroll={false}
+                        className="text-[#16577F] hover:underline" title="Ver los productos que tiene">{u.codigo}</Link>
+                      {u.es_default && <span className="ml-2"><Estado texto="General" tono="azul" /></span>}</td>
                     <td className={TD}>{u.descripcion ?? "—"}</td>
                     <td className={TDN}>{u.orden_recorrido}</td>
                     <td className={TD}><Estado texto={u.estado === "activa" ? "Activa" : "Archivada"} tono={u.estado === "activa" ? "verde" : "gris"} /></td>
@@ -200,12 +227,34 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
                     <td className={`${TD} text-right whitespace-nowrap`}>
                       {u.es_default ? <span className="text-[10px] text-[#5C6B76]">la crea el sistema</span> : (
                         <span className="inline-flex gap-1">
-                          <Lapiz href={url(BASE, { d: elegido.id, eu: u.id })} />
+                          <Lapiz href={url(BASE, { d: elegido.id, q: q || null, contiene: comienza ? null : "1", eu: u.id })} />
                           <TachoConfirmar accion={accionBorrarUbicacion} campos={{ id: String(u.id), volver: aqui }} pregunta="¿Borrar?" />
                         </span>
                       )}
                     </td>
                   </tr>
+                  {u.id === abierta && (
+                    <tr className="bg-[#FAFBFC]">
+                      <td colSpan={6} className={TD}>
+                        {contenido.length === 0 ? <span className="text-[#5C6B76]">No tiene nada adentro.</span> : (
+                          <table className="text-xs">
+                            <thead><tr><th className="text-left pr-4 pb-1">SKU</th><th className="text-left pr-4 pb-1">Producto</th><th className="text-right pr-4 pb-1">Cantidad</th><th className="text-right pb-1">Reservado</th></tr></thead>
+                            <tbody>
+                              {contenido.map((c) => (
+                                <tr key={c.variacion_id}>
+                                  <td className="pr-4 py-0.5 whitespace-nowrap"><Link href={url("/stock/consulta", { v: c.variacion_id })} className="text-[#16577F] hover:underline">{c.sku}</Link></td>
+                                  <td className="pr-4 py-0.5">{c.titulo}</td>
+                                  <td className="pr-4 py-0.5 text-right tabular-nums">{c.cantidad}</td>
+                                  <td className="py-0.5 text-right tabular-nums">{c.reservado}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

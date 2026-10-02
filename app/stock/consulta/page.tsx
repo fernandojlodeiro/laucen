@@ -5,7 +5,8 @@
 
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { RecordarDeposito, ElegirDeposito, BuscadorVivo, CantidadUbicaciones } from "./Deposito";
+import { RecordarDeposito, ElegirDeposito, CantidadUbicaciones } from "./Deposito";
+import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import { consulta, una } from "@/lib/erp/base";
 import { TIPOS_MOVIMIENTO, type TipoMovimiento } from "@/lib/stock";
 import { SUAVE } from "@/app/botones";
@@ -128,7 +129,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
       <Avisos sp={sp} />
       <RecordarDeposito valor={sp.dep ?? null} />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
-        <BuscadorVivo q={q} inactivos={inactivos} comienza={comienza} autoFocus={!vId} />
+        <BuscadorVivo q={q} inactivos={inactivos} comienza={comienza} autoFocus={!vId} placeholder="SKU, título o código de barras" limpiar={["v"]} />
         <InterruptorFiltro href={url(BASE, { q, contiene: cont, filtro, inactivos: ina, v: vId || null, dep: todos ? String(depositos[0]?.id ?? "todos") : "todos" })}
           prendido={todos} etiqueta="Todos los depósitos" />
         {!todos && <ElegirDeposito depositos={depositos} elegido={elegidoDep.id} />}
