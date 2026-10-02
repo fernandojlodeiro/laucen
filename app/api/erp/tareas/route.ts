@@ -4,6 +4,7 @@
 // facturadas a cuenta corriente; asientos contables que falten; e
 // importaciones que siguen solas en segundo plano.
 
+import { after } from "next/server";
 import { pool } from "@/db";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { facturarPendientes } from "@/lib/arca/facturar";
@@ -41,20 +42,26 @@ export async function GET(req: Request) {
     }
     informe[organizacion_id] = r;
   }
-  // Importaciones en segundo plano: lo que quede del tiempo, de a una.
+  // Importaciones en segundo plano: después de contestar (con after), así
+  // pg_net no queda esperando ~100 s y no frena las otras llamadas de la base
+  // (el barrido de Mercado Libre usa la misma cola).
   const imps = (await pool.query<{ id: number; organizacion_id: string; usuario_id: string | null }>(
     "select id::int, organizacion_id, usuario_id from importacion where segundo_plano and estado = 'ejecutando' order by id")).rows;
-  for (const i of imps) {
-    const resto = t0 + 105_000 - Date.now();
-    if (resto < 10_000) break;
-    try {
-      const r = await ejecutarImportacion(i.organizacion_id, i.id, i.usuario_id ?? "sistema", resto);
-      if (!r.pendientes) await pool.query("update importacion set segundo_plano = false where id = $1", [i.id]);
-      informe[`importacion_${i.id}`] = r;
-    } catch (e) {
-      // "Ya se está ejecutando": la está procesando la pantalla; la próxima vuelta sigue.
-      informe[`importacion_${i.id}`] = e instanceof Error ? e.message : String(e);
-    }
+  if (imps.length) {
+    informe.importaciones = imps.map((i) => i.id);
+    after(async () => {
+      for (const i of imps) {
+        const resto = t0 + 105_000 - Date.now();
+        if (resto < 10_000) break;
+        try {
+          const r = await ejecutarImportacion(i.organizacion_id, i.id, i.usuario_id ?? "sistema", resto);
+          if (!r.pendientes) await pool.query("update importacion set segundo_plano = false where id = $1", [i.id]);
+        } catch (e) {
+          // "Ya se está ejecutando": la está procesando la pantalla; la próxima vuelta sigue.
+          console.error("[tareas] importación", i.id, e instanceof Error ? e.message : e);
+        }
+      }
+    });
   }
   return Response.json({ ok: true, segundos: Math.round((Date.now() - t0) / 1000), informe });
 }
