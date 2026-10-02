@@ -1,5 +1,7 @@
 "use server";
 
+import { sincronizarStockMl } from "@/lib/mercadolibre/stock";
+
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
@@ -60,6 +62,8 @@ export async function accionAjustar(fd: FormData) {
       referencia: { tipo: "ajuste_manual", id: randomUUID().slice(0, 8) },
       usuarioId: s.usuario.id, nota: motivo,
     });
+    // Si un canal de ML sincroniza stock, que se entere ya (no a los 2 minutos).
+    await sincronizarStockMl(s.org.id, [v.id]).catch((e) => console.error("[meli] stock tras ajuste", e));
     revalidatePath(BASE);
     return `Listo: ${sumar ? "+" : "−"}${cantidad} de ${v.sku}. En ${u.nombre} quedan ${await queda(s.org.id, v.id, u.id)}.`;
   });
@@ -78,6 +82,7 @@ export async function accionTransferir(fd: FormData) {
       referencia: { tipo: "transferencia_manual", id: randomUUID().slice(0, 8) },
       usuarioId: s.usuario.id, nota: texto(fd, "nota"),
     });
+    await sincronizarStockMl(s.org.id, [v.id]).catch((e) => console.error("[meli] stock tras transferencia", e));
     revalidatePath(BASE);
     return `Listo: ${cantidad} de ${v.sku} pasaron de ${o.nombre} a ${d.nombre}.`;
   });

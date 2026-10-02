@@ -62,8 +62,43 @@ export const TARJETAS: Tarjeta[] = [
       return filas.map((f) => ({ texto: `${f.sku} · ${f.titulo}`, valor: f.disponible, href: `/stock/consulta?v=${f.id}`, alerta: true }));
     },
   },
-  { id: "preguntas", titulo: "Preguntas sin responder" },
+  {
+    id: "preguntas", titulo: "Preguntas sin responder", permiso: "preguntas_ver", href: "/ventas/preguntas",
+    calcular: async (org) => {
+      const filas = await consulta<{ texto: string; fecha: Date; titulo: string | null }>(`
+        select q.texto, q.fecha, coalesce(i.titulo, q.item_id) titulo from meli_pregunta q
+          left join lateral (select titulo from meli_item where canal_id = q.canal_id and item_id = q.item_id limit 1) i on true
+         where q.organizacion_id = $1 and q.estado = 'UNANSWERED' order by q.fecha limit 6`, [org]);
+      if (!filas.length) return [{ texto: "Ninguna", valor: "" }];
+      const hace = (d: Date) => { const h = Math.round((Date.now() - d.getTime()) / 3600_000); return h < 1 ? "recién" : h < 24 ? `${h} h` : `${Math.round(h / 24)} d`; };
+      return filas.map((f) => ({ texto: `${f.texto} · ${f.titulo}`, valor: hace(f.fecha), href: "/ventas/preguntas", alerta: Date.now() - f.fecha.getTime() > 3600_000 }));
+    },
+  },
   { id: "facturas", titulo: "Facturas pendientes" },
-  { id: "envios", titulo: "Envíos para despachar hoy" },
+  {
+    id: "envios", titulo: "Envíos para despachar", permiso: "envios_ver", href: "/ventas/envios",
+    calcular: async (org) => {
+      const f = await consulta<{ hoy: number; vencidos: number; total: number; sin_imprimir: number }>(`
+        select count(*) filter (where despachar_antes::date = (now() at time zone 'America/Argentina/Buenos_Aires')::date)::int hoy,
+               count(*) filter (where despachar_antes < now())::int vencidos,
+               count(*)::int total,
+               count(*) filter (where etiqueta_impresa_ts is null)::int sin_imprimir
+          from envio where organizacion_id = $1 and estado in ('ready_to_ship', 'handling') and coalesce(logistica, '') <> 'fulfillment'`, [org]);
+      const x = f[0];
+      return [
+        { texto: "Para despachar", valor: x.total, href: "/ventas/envios" },
+        { texto: "Vencen hoy", valor: x.hoy, href: "/ventas/envios", alerta: x.hoy > 0 },
+        { texto: "Atrasados", valor: x.vencidos, href: "/ventas/envios", alerta: x.vencidos > 0 },
+        { texto: "Etiquetas sin imprimir", valor: x.sin_imprimir, href: "/ventas/envios" },
+      ];
+    },
+  },
+  {
+    id: "sin_vincular", titulo: "Ventas de artículos sin vincular", permiso: "publicaciones_ver", href: "/catalogo/publicaciones/ml",
+    calcular: async (org) => {
+      const f = await consulta<{ n: number }>("select count(*)::int n from pedido where organizacion_id = $1 and sin_vincular and estado not in ('cancelado', 'entregado')", [org]);
+      return [{ texto: "Pedidos abiertos con artículos que no están vinculados a un producto (no descuentan stock)", valor: f[0].n, href: "/ventas/pedidos", alerta: f[0].n > 0 }];
+    },
+  },
   { id: "reclamos", titulo: "Reclamos y devoluciones abiertos" },
 ];

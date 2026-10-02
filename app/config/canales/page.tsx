@@ -12,12 +12,14 @@ import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import { sembrarEjemploCanales, canalesDeEjemplo } from "./ejemplo";
+import CuentaMl from "./CuentaMl";
 import {
   accionAgregarDeposito, accionBorrarCanal, accionCrearCanal, accionGenerarToken, accionGuardarCanal,
   accionPrioridadDeposito, accionQuitarDeposito, accionRevocarToken,
 } from "./acciones";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const BASE = "/config/canales";
 
@@ -189,6 +191,8 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
               <p className="text-[11px] text-[#5C6B76] mt-2">No quedan otros depósitos activos. <Link href="/stock/depositos" className="text-[#16577F] underline">Crear uno</Link>.</p>
             )}
           </section>
+
+          {elegido.tipo === "mercadolibre" && <CuentaMl org={s.org.id} canal={elegido.id} />}
 
           <section className={CAJA}>
             <h2 className="text-sm font-bold mb-1">Token de la API</h2>

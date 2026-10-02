@@ -2,8 +2,9 @@
 // y los movimientos de stock que generó. Sólo mirar: sin botones de operación.
 
 import Link from "next/link";
+import { formatear } from "@/lib/moneda";
 import { notFound } from "next/navigation";
-import { consulta } from "@/lib/erp/base";
+import { una, consulta } from "@/lib/erp/base";
 import { enVista } from "@/lib/moneda";
 import { pedidoCompleto, ESTADOS_PEDIDO, ESTADOS_PAGO, type EstadoPedido, type EstadoPago } from "@/lib/pedidos";
 import { TIPOS_MOVIMIENTO, type TipoMovimiento } from "@/lib/stock";
@@ -49,6 +50,17 @@ export default async function DetallePedido({ params }: { params: Promise<{ id: 
       left join variacion k on k.id = m.kit_variacion_id
      where m.organizacion_id = $1 and m.referencia_tipo = 'pedido' and m.referencia_id = $2
      order by m.fecha, m.id`, [s.org.id, String(pid)]);
+
+  // El envío del canal (Mercado Envíos) y lo propio de ML, si lo hay.
+  const envioMl = await una<{ id: number; logistica: string | null; metodo: string | null; estado: string | null; subestado: string | null;
+    tracking: string | null; receptor: string | null; direccion: Record<string, string | null>; despachar_antes: Date | null; entrega_estimada: Date | null }>(`
+    select id::int, logistica, metodo, estado, subestado, tracking, receptor, direccion, despachar_antes, entrega_estimada
+      from envio where pedido_id = $1 and organizacion_id = $2 order by id desc limit 1`, [pid, s.org.id]);
+  const ml = await una<{ comision: number | null; sin_vincular: boolean; pack: string | null }>(
+    "select comision_ars::float comision, sin_vincular, envio ->> 'pack_id' pack from pedido where id = $1 and organizacion_id = $2", [pid, s.org.id]);
+  const LOGISTICA: Record<string, string> = { fulfillment: "Full", self_service: "Flex", cross_docking: "Colecta", xd_drop_off: "Colecta", drop_off: "Despacho en correo", custom: "A convenir", not_specified: "A convenir" };
+  const ESTADO_ENVIO: Record<string, string> = { ready_to_ship: "Listo para despachar", shipped: "En camino", delivered: "Entregado", not_delivered: "No entregado", cancelled: "Cancelado", pending: "Pendiente", handling: "En preparación" };
+  const fechaCorta = (d: Date | null) => d ? d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
 
   const v = s.moneda;
   const unidades = lineas.reduce((t, l) => t + l.cantidad, 0);
@@ -110,7 +122,19 @@ export default async function DetallePedido({ params }: { params: Promise<{ id: 
         <div>
           <h2 className="text-sm font-bold mb-2">Envío</h2>
           <div className={CAJA}>
-            {envio ? <DatosEnvio datos={envio} /> : <p className="text-xs text-[#5C6B76]">Sin datos de envío.</p>}
+            {envioMl ? (
+              <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                <Dato t="Logística">{LOGISTICA[envioMl.logistica ?? ""] ?? envioMl.logistica ?? "—"}{envioMl.metodo ? ` · ${envioMl.metodo}` : ""}</Dato>
+                <Dato t="Estado">{ESTADO_ENVIO[envioMl.estado ?? ""] ?? envioMl.estado ?? "—"}{envioMl.subestado ? ` (${envioMl.subestado})` : ""}</Dato>
+                <Dato t="Despachar antes de">{fechaCorta(envioMl.despachar_antes)}</Dato>
+                <Dato t="Entrega estimada">{fechaCorta(envioMl.entrega_estimada)}</Dato>
+                <Dato t="Recibe">{envioMl.receptor ?? "—"}</Dato>
+                <Dato t="Seguimiento">{envioMl.tracking ?? "—"}</Dato>
+                <div className="col-span-2"><Dato t="Dirección">{[envioMl.direccion?.linea ?? [envioMl.direccion?.calle, envioMl.direccion?.numero].filter(Boolean).join(" "), envioMl.direccion?.localidad, envioMl.direccion?.provincia, envioMl.direccion?.codigo_postal && `CP ${envioMl.direccion.codigo_postal}`].filter(Boolean).join(", ") || "—"}{envioMl.direccion?.referencia && <span className="block text-[11px] text-[#5C6B76]">{envioMl.direccion.referencia}</span>}</Dato></div>
+              </div>
+            ) : envio ? <DatosEnvio datos={envio} /> : <p className="text-xs text-[#5C6B76]">Sin datos de envío.</p>}
+            {ml?.comision != null && <p className="text-[11px] text-[#5C6B76] mt-1">Comisión de Mercado Libre: {formatear(ml.comision, "ARS")}{ml.pack ? ` · carrito ${ml.pack}` : ""}</p>}
+            {ml?.sin_vincular && <p className="text-[11px] text-[#C03420] mt-1">Tiene artículos que no están vinculados a un producto de Laucen: esas líneas no descuentan stock. Vinculalos en Catálogo → Vincular con Mercado Libre.</p>}
           </div>
         </div>
         <div>

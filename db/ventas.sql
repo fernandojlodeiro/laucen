@@ -50,7 +50,17 @@ create table if not exists publicacion (
   umbral_pausa              int check (umbral_pausa >= 0),
   creado_ts                 timestamptz not null default now()
 );
-create unique index if not exists publicacion_externa on publicacion (canal_id, id_externo) where id_externo is not null;
+-- Mercado Libre (2/10): una publicación con variaciones es un solo item
+-- (MLA…) con varios variation_id, uno por variación nuestra.
+alter table publicacion add column if not exists variacion_externa text;
+-- Lo que la sesión de ML sabe de cada publicación: cuánto stock le informó
+-- y si la pausó ella por stock (para reactivarla sólo en ese caso).
+alter table publicacion add column if not exists cantidad_publicada int;
+alter table publicacion add column if not exists pausada_por_stock boolean not null default false;
+alter table publicacion add column if not exists precio_canal numeric(16, 2);
+alter table publicacion add column if not exists datos_externos jsonb not null default '{}';
+drop index if exists publicacion_externa;
+create unique index if not exists publicacion_externa_var on publicacion (canal_id, id_externo, coalesce(variacion_externa, '')) where id_externo is not null;
 create index if not exists publicacion_variacion on publicacion (variacion_id, canal_id);
 alter table publicacion enable row level security;
 select erp_politica_org('publicacion');
@@ -185,6 +195,10 @@ create table if not exists pedido (
   creado_ts        timestamptz not null default now()
 );
 create unique index if not exists pedido_externo on pedido (canal_id, id_externo) where id_externo is not null;
+-- Mercado Libre (2/10): la orden cruda (nada se pierde) y lo que cobra el canal.
+alter table pedido add column if not exists datos_externos jsonb not null default '{}';
+alter table pedido add column if not exists comision_ars numeric(16, 2);
+alter table pedido add column if not exists sin_vincular boolean not null default false;
 create index if not exists pedido_org_estado on pedido (organizacion_id, estado, fecha desc);
 create index if not exists pedido_cliente on pedido (cliente_id);
 alter table pedido enable row level security;

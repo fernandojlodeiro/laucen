@@ -9,6 +9,7 @@ export const RUTAS_PUBLICAS = [
   "/reset",
   "/auth/callback",
   "/api/meli/notificaciones",
+  "/api/meli/barrido",
   "/api/radar/cron",
   "/api/china/foto",
   "/api/piloto/tanda",

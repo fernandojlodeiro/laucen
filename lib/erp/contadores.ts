@@ -11,8 +11,15 @@ export async function contadoresEstado(org: string): Promise<Contador[]> {
   const pedidos = await una<{ n: number }>(
     "select count(*)::int n from pedido where organizacion_id = $1 and estado in ('nuevo', 'pagado')", [org],
   ).catch(() => null);
+  const preguntas = await una<{ n: number }>(
+    "select count(*)::int n from meli_pregunta where organizacion_id = $1 and estado = 'UNANSWERED'", [org],
+  ).catch(() => null);
+  const mensajes = await una<{ n: number }>(
+    "select coalesce(sum(sin_leer), 0)::int n from meli_conversacion where organizacion_id = $1", [org],
+  ).catch(() => null);
   return [
     { texto: "Pedidos sin preparar", n: pedidos?.n ?? 0, href: "/ventas/pedidos?estado=pendientes" },
-    { texto: "Preguntas sin responder", n: null },
+    { texto: "Preguntas sin responder", n: preguntas?.n ?? 0, href: "/ventas/preguntas" },
+    { texto: "Mensajes sin leer", n: mensajes?.n ?? 0, href: "/ventas/preguntas?ver=mensajes" },
   ];
 }

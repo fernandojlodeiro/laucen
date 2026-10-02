@@ -5,7 +5,8 @@
 
 import { canalDelPedido, noAutorizado, respuestaError } from "@/lib/api/canal";
 import { cambiarEstado, esEstadoPedido } from "@/lib/pedidos";
-import { una } from "@/lib/erp/base";
+import { una, consulta } from "@/lib/erp/base";
+import { sincronizarStockMl } from "@/lib/mercadolibre/stock";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return Response.json({ error: "Estado desconocido. Valen: nuevo, pagado, en_preparacion, preparado, despachado, entregado, cancelado, devuelto." }, { status: 400 });
     }
     const anterior = await cambiarEstado(canal.organizacionId, id, cuerpo.estado, "sistema", cuerpo.nota != null ? String(cuerpo.nota) : null);
+    // Una venta de otro canal que deja el stock en el umbral pausa ya en ML.
+    const vars = await consulta<{ v: number }>("select distinct variacion_id::int v from pedido_linea where pedido_id = $1 and variacion_id is not null", [id]);
+    if (vars.length) await sincronizarStockMl(canal.organizacionId, vars.map((x) => x.v)).catch((e) => console.error("[meli] stock tras pedido", e));
     return Response.json({ pedido_id: id, anterior, estado: cuerpo.estado });
   } catch (e) {
     return respuestaError(e);

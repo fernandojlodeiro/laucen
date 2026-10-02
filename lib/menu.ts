@@ -35,8 +35,8 @@ export const MENU: SeccionMenu[] = [
     items: [
       { texto: "Pedidos", href: "/ventas/pedidos", permiso: "pedidos_ver", icono: "🧾" },
       { texto: "Clientes", href: "/ventas/clientes", permiso: "clientes_ver", icono: "👤" },
-      { texto: "Envíos" },
-      { texto: "Preguntas y mensajes" },
+      { texto: "Envíos", href: "/ventas/envios", permiso: "envios_ver", icono: "🚚" },
+      { texto: "Preguntas y mensajes", href: "/ventas/preguntas", permiso: "preguntas_ver", icono: "💬" },
       { texto: "Reclamos y devoluciones" },
     ],
   },
@@ -47,6 +47,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Familias", href: "/catalogo/familias", permiso: "familias_ver" },
       { texto: "Listas de precios", href: "/catalogo/precios", permiso: "precios_ver" },
       { texto: "Publicaciones", href: "/catalogo/publicaciones", permiso: "publicaciones_ver" },
+      { texto: "Vincular con Mercado Libre", href: "/catalogo/publicaciones/ml", permiso: "publicaciones_ver" },
       { texto: "Cucardas", href: "/catalogo/cucardas", permiso: "cucardas_ver" },
     ],
   },

@@ -103,6 +103,15 @@ export type PedidoEntrada = {
   afecta_stock?: boolean;
   /** Estado con el que nace (las históricas nacen 'entregado'). Por defecto 'nuevo'. */
   estado_inicial?: EstadoPedido;
+  /** Si una línea no encuentra su variación (un artículo de ML que todavía no
+   *  está vinculado a un producto), en vez de rechazar el pedido la guarda
+   *  sin variación (con su título, SKU y precio, sin tocar stock) y marca el
+   *  pedido `sin_vincular`. Exige precio_unitario en esas líneas. */
+  permitir_sin_vincular?: boolean;
+  /** El dato crudo del canal ({"ml": {orden, facturación…}}): nada se pierde. */
+  datos_externos?: Record<string, unknown> | null;
+  /** Lo que cobra el canal por la venta (comisión de ML), en pesos. */
+  comision_ars?: number | null;
 };
 
 export type PedidoCreado = { pedidoId: number; clienteId: number | null; creado: boolean; total: { ars: number; usd: number } };
@@ -131,7 +140,7 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
     const moneda: Moneda = esMoneda(entrada.moneda) ? entrada.moneda : (canal.moneda_base ?? "ARS");
     const fecha = entrada.fecha ? entrada.fecha.slice(0, 10) : undefined;
 
-    type Linea = { variacion_id: number; cantidad: number; lista_ars: number | null; lista_usd: number | null; descuento: number; unit_ars: number; unit_usd: number; titulo: string; sku: string };
+    type Linea = { variacion_id: number | null; cantidad: number; lista_ars: number | null; lista_usd: number | null; descuento: number; unit_ars: number; unit_usd: number; titulo: string; sku: string };
     const lineas: Linea[] = [];
     for (const [i, l] of entrada.lineas.entries()) {
       const n = i + 1;
@@ -140,7 +149,15 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
         select v.id, v.sku, titulo_variacion(v.id) titulo from variacion v
          where v.organizacion_id = $1 and ${l.variacion_id ? "v.id = $2" : "v.sku = $2"}`,
         [org, l.variacion_id ?? l.sku ?? ""])).rows[0];
-      if (!v) throw new ErrorErp(`Línea ${n}: no existe la variación ${l.variacion_id ?? l.sku ?? "(sin id ni SKU)"}.`);
+      if (!v) {
+        if (!entrada.permitir_sin_vincular || l.precio_unitario == null) {
+          throw new ErrorErp(`Línea ${n}: no existe la variación ${l.variacion_id ?? l.sku ?? "(sin id ni SKU)"}.`);
+        }
+        const otro = await convertir(org, l.precio_unitario, moneda, moneda === "ARS" ? "USD" : "ARS", fecha, c);
+        const [ars, usd] = moneda === "ARS" ? [l.precio_unitario, otro] : [otro, l.precio_unitario];
+        lineas.push({ variacion_id: null, cantidad: l.cantidad, lista_ars: null, lista_usd: null, descuento: 0, unit_ars: ars, unit_usd: usd, titulo: l.titulo?.trim() || l.sku || "Artículo sin vincular", sku: l.sku ?? "" });
+        continue;
+      }
       const titulo = l.titulo?.trim() || v.titulo;
       if (l.precio_unitario != null) {
         if (!(l.precio_unitario >= 0)) throw new ErrorErp(`Línea ${n}: el precio no es válido.`);
@@ -167,12 +184,13 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
 
     const p = (await c.query<{ id: string }>(`
       insert into pedido (organizacion_id, canal_id, cliente_id, id_externo, fecha, estado, moneda, total_ars, total_usd,
-                          medio_pago, estado_pago, deposito_id, envio, notas, afecta_stock)
-      values ($1, $2, $3, $4, coalesce($5::timestamptz, now()), $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                          medio_pago, estado_pago, deposito_id, envio, notas, afecta_stock, sin_vincular, datos_externos, comision_ars)
+      values ($1, $2, $3, $4, coalesce($5::timestamptz, now()), $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb, $18)
       returning id`,
       [org, canal.id, clienteId, entrada.id_externo ?? null, entrada.fecha ?? null, estado, moneda, total.ars, total.usd,
         entrada.medio_pago ?? null, estadoPago, entrada.deposito_id ?? null, JSON.stringify(entrada.envio ?? {}),
-        entrada.notas ?? null, entrada.afecta_stock !== false])).rows[0];
+        entrada.notas ?? null, entrada.afecta_stock !== false, lineas.some((l) => l.variacion_id == null),
+        JSON.stringify(entrada.datos_externos ?? {}), entrada.comision_ars ?? null])).rows[0];
     const pedidoId = Number(p.id);
     for (const [i, l] of lineas.entries()) {
       await c.query(`
