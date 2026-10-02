@@ -1,0 +1,48 @@
+// Qué tienda se está mirando: un canal tipo web_minorista identificado por su
+// "slug" (canal.config.slug; si no tiene, el nombre del canal en minúsculas
+// y con guiones). Las rutas públicas son /tienda/<slug>/…; un dominio propio
+// (ej. laucen.com) se apunta a una tienda en DOMINIOS_TIENDA (lib/tienda/dominios.ts).
+
+import { consulta, una } from "@/lib/erp/base";
+
+export type ConfigTienda = {
+  nombre?: string; slug?: string; color?: string; logo?: string; banner?: string; bajada?: string;
+  whatsapp?: string;            // número en formato internacional, sin +: 5493511234567
+  whatsapp_token?: never;       // las credenciales de WhatsApp van en la tabla de credenciales, no acá
+  email?: string; direccion?: string; horario?: string;
+  sin_stock?: "ocultar" | "mostrar";
+};
+
+export type Tienda = {
+  organizacionId: string; canalId: number; nombreCanal: string; listaId: number | null; moneda: "ARS" | "USD";
+  slug: string; config: ConfigTienda; estado: string;
+};
+
+export const slugDe = (texto: string) =>
+  texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "tienda";
+
+type Fila = { organizacion_id: string; id: string; nombre: string; lista_precios_id: string | null; moneda: "ARS" | "USD" | null; config: ConfigTienda; estado: string };
+
+const aTienda = (f: Fila): Tienda => ({
+  organizacionId: f.organizacion_id, canalId: Number(f.id), nombreCanal: f.nombre, listaId: f.lista_precios_id ? Number(f.lista_precios_id) : null,
+  moneda: f.moneda ?? "ARS", slug: f.config?.slug || slugDe(f.nombre), config: f.config ?? {}, estado: f.estado,
+});
+
+const SQL = `select c.organizacion_id, c.id, c.nombre, c.lista_precios_id, l.moneda_base moneda, c.config, c.estado
+               from canal c left join lista_precios l on l.id = c.lista_precios_id
+              where c.tipo = 'web_minorista' and c.estado <> 'archivado'`;
+
+/** La tienda de ese slug (activa o pausada; una pausada muestra "cerrada"). */
+export async function tiendaPorSlug(slug: string): Promise<Tienda | null> {
+  const filas = await consulta<Fila>(SQL);
+  const f = filas.find((x) => (x.config?.slug || slugDe(x.nombre)) === slug);
+  return f ? aTienda(f) : null;
+}
+
+export async function tiendaDelCanal(org: string, canalId: number): Promise<Tienda | null> {
+  const f = await una<Fila>(`${SQL} and c.organizacion_id = $1 and c.id = $2`, [org, canalId]);
+  return f ? aTienda(f) : null;
+}
+
+export const nombreTienda = (t: Tienda) => t.config.nombre || t.nombreCanal;
+export const rutaTienda = (t: Tienda, resto = "") => `/tienda/${t.slug}${resto}`;

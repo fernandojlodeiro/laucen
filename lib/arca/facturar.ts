@@ -85,6 +85,9 @@ export async function prepararFactura(org: string, pedidoId: number, usuarioId: 
       from pedido_linea l left join variacion v on v.id = l.variacion_id left join producto pr on pr.id = v.producto_id
      where l.pedido_id = $1 order by l.orden, l.id`, [pedidoId]);
   if (!lineas.length) throw new ErrorErp("El pedido no tiene líneas.");
+  // El envío que pagó el comprador va como una línea más (IVA 21 %).
+  const envio = (await q<{ costo: string }>("select costo_envio_ars costo from pedido where id = $1", [pedidoId]))[0];
+  if (Number(envio?.costo) > 0) lineas.push({ variacion_id: null, titulo: "Envío", cantidad: 1, unit: envio.costo, iva_pct: "21" });
   const conIva = tipo !== 11;
   const items = lineas.map((l) => {
     const total = r2(Number(l.unit) * l.cantidad);

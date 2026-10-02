@@ -112,6 +112,9 @@ export type PedidoEntrada = {
   datos_externos?: Record<string, unknown> | null;
   /** Lo que cobra el canal por la venta (comisión de ML), en pesos. */
   comision_ars?: number | null;
+  /** Costo de envío que paga el comprador, en la moneda del pedido (se suma al total). */
+  costo_envio?: number | null;
+  metodo_envio_id?: number | null;
 };
 
 export type PedidoCreado = { pedidoId: number; clienteId: number | null; creado: boolean; total: { ars: number; usd: number } };
@@ -171,9 +174,15 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
         lineas.push({ variacion_id: Number(v.id), cantidad: l.cantidad, lista_ars: p.lista.ars, lista_usd: p.lista.usd, descuento: p.descuentoPct, unit_ars: p.venta.ars, unit_usd: p.venta.usd, titulo, sku: v.sku });
       }
     }
+    let envioArs = 0, envioUsd = 0;
+    if (entrada.costo_envio) {
+      if (!(entrada.costo_envio >= 0)) throw new ErrorErp("El costo de envío no es válido.");
+      const otro = await convertir(org, entrada.costo_envio, moneda, moneda === "ARS" ? "USD" : "ARS", fecha, c);
+      [envioArs, envioUsd] = moneda === "ARS" ? [entrada.costo_envio, otro] : [otro, entrada.costo_envio];
+    }
     const total = {
-      ars: Math.round(lineas.reduce((s, l) => s + l.unit_ars * l.cantidad, 0) * 100) / 100,
-      usd: Math.round(lineas.reduce((s, l) => s + l.unit_usd * l.cantidad, 0) * 100) / 100,
+      ars: Math.round((lineas.reduce((s, l) => s + l.unit_ars * l.cantidad, 0) + envioArs) * 100) / 100,
+      usd: Math.round((lineas.reduce((s, l) => s + l.unit_usd * l.cantidad, 0) + envioUsd) * 100) / 100,
     };
     const estado = entrada.estado_inicial ?? "nuevo";
     if (!esEstadoPedido(estado)) throw new ErrorErp("Estado inicial desconocido.");
@@ -184,13 +193,14 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
 
     const p = (await c.query<{ id: string }>(`
       insert into pedido (organizacion_id, canal_id, cliente_id, id_externo, fecha, estado, moneda, total_ars, total_usd,
-                          medio_pago, estado_pago, deposito_id, envio, notas, afecta_stock, sin_vincular, datos_externos, comision_ars)
-      values ($1, $2, $3, $4, coalesce($5::timestamptz, now()), $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb, $18)
+                          medio_pago, estado_pago, deposito_id, envio, notas, afecta_stock, sin_vincular, datos_externos, comision_ars,
+                          costo_envio_ars, metodo_envio_id)
+      values ($1, $2, $3, $4, coalesce($5::timestamptz, now()), $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb, $18, $19, $20)
       returning id`,
       [org, canal.id, clienteId, entrada.id_externo ?? null, entrada.fecha ?? null, estado, moneda, total.ars, total.usd,
         entrada.medio_pago ?? null, estadoPago, entrada.deposito_id ?? null, JSON.stringify(entrada.envio ?? {}),
         entrada.notas ?? null, entrada.afecta_stock !== false, lineas.some((l) => l.variacion_id == null),
-        JSON.stringify(entrada.datos_externos ?? {}), entrada.comision_ars ?? null])).rows[0];
+        JSON.stringify(entrada.datos_externos ?? {}), entrada.comision_ars ?? null, envioArs, entrada.metodo_envio_id ?? null])).rows[0];
     const pedidoId = Number(p.id);
     for (const [i, l] of lineas.entries()) {
       await c.query(`

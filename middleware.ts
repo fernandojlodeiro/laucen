@@ -6,11 +6,23 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { esRutaPublica } from "@/lib/rutas-publicas";
+import { DOMINIOS_TIENDA } from "@/lib/tienda/dominios";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function middleware(req: NextRequest) {
+  // Un dominio propio de una tienda (lib/tienda/dominios.ts): todo va a /tienda/<slug>.
+  const host = req.headers.get("host")?.split(":")[0].toLowerCase() ?? "";
+  const tienda = DOMINIOS_TIENDA[host];
+  if (tienda && !req.nextUrl.pathname.startsWith("/tienda/") && !req.nextUrl.pathname.startsWith("/api/")) {
+    const destino = req.nextUrl.clone();
+    destino.pathname = `/tienda/${tienda}${req.nextUrl.pathname === "/" ? "" : req.nextUrl.pathname}`;
+    const encabezados = new Headers(req.headers);
+    encabezados.set("x-ruta", destino.pathname);
+    return NextResponse.rewrite(destino, { request: { headers: encabezados } });
+  }
+
   // La ruta viaja en un encabezado para que el layout raíz sepa si dibuja el
   // marco del sistema (menú y barra de estado) o una pantalla pública suelta.
   const encabezados = new Headers(req.headers);

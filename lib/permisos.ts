@@ -42,7 +42,10 @@ export type PermisoKey =
   | "picking_ver"
   | "recepcion_ver"
   | "etiquetas_ver"
-  | "facturacion_ver";
+  | "facturacion_ver"
+  | "tienda_config"
+  | "medios_pago_ver"
+  | "reglas_ver";
 
 export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "gestionar_busquedas", label: "Gestionar búsquedas", ayuda: "Crear, editar y pausar las búsquedas programadas." },
@@ -76,6 +79,9 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "recepcion_ver", label: "Recepción", ayuda: "Recibir mercadería y devoluciones escaneando." },
   { key: "etiquetas_ver", label: "Etiquetas", ayuda: "Imprimir etiquetas de producto y de ubicación." },
   { key: "facturacion_ver", label: "Facturación", ayuda: "Facturas y notas de crédito electrónicas (ARCA)." },
+  { key: "tienda_config", label: "Tienda web", ayuda: "Configurar la tienda web y sus métodos de envío." },
+  { key: "medios_pago_ver", label: "Medios de pago", ayuda: "Medios de pago de la tienda y sus credenciales." },
+  { key: "reglas_ver", label: "Reglas comerciales y cuotas", ayuda: "Promociones, descuentos, envío bonificado y planes de cuotas." },
 ];
 
 export type Permisos = Partial<Record<PermisoKey, boolean>>;
@@ -109,6 +115,7 @@ export const FUNCIONES: PermisoKey[] = [
   "publicaciones_ver", "cucardas_ver", "depositos_ver", "stock_ver", "stock_ajustar", "canales_ver",
   "tipo_cambio_ver", "usuarios_ver", "importar_ver", "proveedores_ver",
   "envios_ver", "preguntas_ver", "picking_ver", "recepcion_ver", "etiquetas_ver", "facturacion_ver",
+  "tienda_config", "medios_pago_ver", "reglas_ver",
 ];
 
 /** ¿La membresía tiene el permiso? Los de FUNCIONES, si faltan, valen true;

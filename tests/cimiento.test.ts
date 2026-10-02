@@ -288,3 +288,51 @@ test("recepción: ingreso a una ubicación por código y devolución que deja el
   assert.equal((await q<{ estado: string }>("select estado from pedido where id = $1", [p.pedidoId]))[0].estado, "devuelto");
   assert.equal(await m.stock.disponibleCanal(e.org, v, e.canal), 3);
 });
+
+test("tienda: cotiza con reglas, descuento del medio y envío; la compra queda pendiente hasta confirmar el pago", async () => {
+  const e = await escenario();
+  const a = await e.producto("TW-A");
+  const b = await e.producto("TW-B");
+  for (const v of [a, b]) {
+    await m.precios.guardarPrecio(e.org, { listaId: e.lista, variacionId: v, importe: 1000, moneda: "ARS" });
+    await m.stock.moverStock(e.org, { variacionId: v, tipo: "ingreso", cantidad: 10, destinoId: e.general });
+  }
+  const pa = await q<{ producto_id: number }>("select producto_id::int from variacion where id = $1", [a]);
+  await q(`insert into regla_comercial (organizacion_id, nombre, condicion, accion) values
+           ($1, '3 o más A: 10 %', $2::jsonb, '{"tipo":"descuento_pct","valor":10}'),
+           ($1, 'Envío gratis desde $4.000', '{"tipo":"monto_minimo","monto":4000}', '{"tipo":"envio_bonificado"}')`,
+    [e.org, JSON.stringify({ tipo: "cantidad_minima", cantidad: 3, producto_id: pa[0].producto_id })]);
+  await q("insert into medio_pago (organizacion_id, tipo, nombre, activo, descuento_pct) values ($1, 'transferencia', 'Transferencia', true, 5)", [e.org]);
+  const envio = await id("insert into metodo_envio (organizacion_id, tipo, nombre, activo, tarifas) values ($1, 'por_provincia', 'A domicilio', true, '{\"Córdoba\": 1500, \"*\": 3000}') returning id", [e.org]);
+  await q("update canal set config = '{\"slug\": \"t\"}' where id = $1", [e.canal]);
+  const { tiendaDelCanal } = await import("@/lib/tienda/tienda");
+  const { cotizar } = await import("@/lib/tienda/cotizar");
+  const t = (await tiendaDelCanal(e.org, e.canal))!;
+  const carrito = [{ variacionId: a, cantidad: 3 }, { variacionId: b, cantidad: 1 }];
+  let c = await cotizar(t, carrito, { metodoEnvioId: envio, provincia: "Córdoba" });
+  // 3×1000 −10 % = 2700 + 1000 = 3700 (< 4000: envío se cobra 1500)
+  assert.equal(c.subtotal, 4000);
+  assert.equal(c.envio!.costo, 1500);
+  assert.equal(c.total, 5200);
+  c = await cotizar(t, [{ variacionId: a, cantidad: 3 }, { variacionId: b, cantidad: 2 }], { medio: "transferencia", metodoEnvioId: envio, provincia: "Salta" });
+  // 2700 + 2000 = 4700 (≥ 4000: envío gratis) −5 % por transferencia = 4465
+  assert.equal(c.total, 4465);
+  assert.equal(c.envio!.bonificado, true);
+
+  const { comprar } = await import("@/lib/tienda/checkout");
+  const r = await comprar(t, {
+    carrito, cliente: { nombre: "Ana Comp", email: "ana@example.com", documento: "30111222" },
+    entrega: { metodoEnvioId: envio, calle: "Mitre", numero: "1", localidad: "Córdoba", provincia: "Córdoba" }, medio: "transferencia",
+  }, { origen: "https://x" });
+  const p = await q<{ estado: string; estado_pago: string; total_ars: string; costo_envio_ars: string }>("select estado, estado_pago, total_ars, costo_envio_ars from pedido where id = $1", [r.pedidoId]);
+  assert.deepEqual([p[0].estado, p[0].estado_pago, Number(p[0].total_ars), Number(p[0].costo_envio_ars)], ["nuevo", "pendiente", 5015, 1500]);
+  assert.equal(await m.stock.disponibleCanal(e.org, a, e.canal), 10, "sin pagar no reserva");
+  const { confirmarPago } = await import("@/lib/tienda/pagos/confirmar");
+  await confirmarPago(e.org, r.pedidoId, { medio: "transferencia", importe: 5015 }, "u1");
+  await confirmarPago(e.org, r.pedidoId, { medio: "transferencia", importe: 5015 }, "u1"); // repetir no duplica
+  const p2 = await q<{ estado: string; estado_pago: string }>("select estado, estado_pago from pedido where id = $1", [r.pedidoId]);
+  assert.deepEqual([p2[0].estado, p2[0].estado_pago], ["pagado", "pagado"]);
+  assert.equal(await m.stock.disponibleCanal(e.org, a, e.canal), 7);
+  const pagos = await q("select estado from pago where pedido_id = $1", [r.pedidoId]);
+  assert.equal(pagos.length, 1);
+});

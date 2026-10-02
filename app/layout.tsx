@@ -28,6 +28,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </html>
     );
   }
+  // La tienda dibuja su propio pie.
+  if (ruta.startsWith("/tienda/")) {
+    return (
+      <html lang="es">
+        <body>{children}</body>
+      </html>
+    );
+  }
   return (
     <html lang="es">
       <body>

@@ -11,6 +11,9 @@ export const RUTAS_PUBLICAS = [
   "/api/meli/notificaciones",
   "/api/meli/barrido",
   "/api/erp/tareas",
+  // La tienda web es pública (sus compradores no son usuarios del sistema).
+  "/tienda",
+  "/api/tienda",
   "/api/radar/cron",
   "/api/china/foto",
   "/api/piloto/tanda",

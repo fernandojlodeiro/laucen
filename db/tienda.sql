@@ -1,0 +1,128 @@
+-- Tienda web (sesión 3/10). La tienda es un canal tipo web_minorista: vende
+-- con la lista de precios y el stock de ese canal, y sus pedidos entran por
+-- crearPedido como los de cualquier otro. Acá queda lo propio de la tienda:
+-- medios de pago, métodos de envío, reglas comerciales, pagos y cuentas de
+-- clientes. La configuración visible (nombre, colores, WhatsApp, datos para
+-- transferir) vive en canal.config.
+
+-- Medios de pago (ABM): cada uno se prende o se apaga. Las credenciales (Mercado
+-- Pago, Payway) van aparte, en medio_pago_credencial (sin políticas).
+create table if not exists medio_pago (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint references canal(id) on delete cascade,
+  tipo             text not null check (tipo in ('mercadopago', 'payway', 'transferencia', 'efectivo', 'cuenta_corriente')),
+  nombre           text not null,
+  activo           boolean not null default false,
+  -- Descuento (o recargo, negativo) por pagar con este medio, en %.
+  descuento_pct    numeric(5, 2) not null default 0 check (descuento_pct between -100 and 100),
+  -- Lo que se le muestra al comprador al elegirlo (ej. CBU y alias).
+  instrucciones    text,
+  orden            int not null default 0,
+  creado_ts        timestamptz not null default now(),
+  unique (organizacion_id, canal_id, tipo)
+);
+alter table medio_pago enable row level security;
+select erp_politica_org('medio_pago');
+
+create table if not exists medio_pago_credencial (
+  medio_pago_id    bigint primary key references medio_pago(id) on delete cascade,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  -- mercadopago: {access_token, public_key} · payway: {public_key, private_key, site_id, ambiente}
+  datos            jsonb not null default '{}',
+  actualizado_ts   timestamptz not null default now()
+);
+alter table medio_pago_credencial enable row level security;
+
+-- Métodos de envío (módulo intercambiable): retiro en el local, tarifa fija,
+-- por provincia, y después transportistas por API (OCA, Andreani).
+create table if not exists metodo_envio (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint references canal(id) on delete cascade,
+  tipo             text not null check (tipo in ('retiro', 'tarifa_fija', 'por_provincia', 'a_convenir', 'oca', 'andreani')),
+  nombre           text not null,
+  activo           boolean not null default false,
+  costo_ars        numeric(16, 2) not null default 0,
+  -- Envío gratis desde este total (null = nunca).
+  gratis_desde_ars numeric(16, 2),
+  -- por_provincia: {"Córdoba": 3500, "Buenos Aires": 6000, "*": 8000}
+  tarifas          jsonb not null default '{}',
+  plazo            text,
+  instrucciones    text,
+  orden            int not null default 0,
+  creado_ts        timestamptz not null default now()
+);
+alter table metodo_envio enable row level security;
+select erp_politica_org('metodo_envio');
+
+-- Reglas comerciales: condición → acción.
+--   condicion: {"tipo": "cantidad_minima", "cantidad": 3, "producto_id"?: n, "familia_id"?: n}
+--              {"tipo": "monto_minimo", "monto": 50000}
+--              {"tipo": "medio_pago", "medio": "transferencia"}
+--   accion:    {"tipo": "descuento_pct", "valor": 10} · {"tipo": "descuento_fijo", "valor": 2000}
+--              {"tipo": "envio_bonificado"}
+-- Un descuento por cantidad sobre un producto/familia se aplica a esas
+-- líneas; el resto, al total.
+create table if not exists regla_comercial (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint references canal(id) on delete cascade,
+  nombre           text not null,
+  activa           boolean not null default true,
+  condicion        jsonb not null,
+  accion           jsonb not null,
+  desde            date,
+  hasta            date,
+  -- false = si se cumple, no se suma con otras reglas de descuento.
+  acumulable       boolean not null default true,
+  prioridad        int not null default 0,
+  creado_ts        timestamptz not null default now()
+);
+alter table regla_comercial enable row level security;
+select erp_politica_org('regla_comercial');
+
+-- Los pagos de la tienda (Mercado Pago, Payway, y la confirmación manual de
+-- transferencias y efectivo).
+create table if not exists pago (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  pedido_id        bigint not null references pedido(id) on delete cascade,
+  medio            text not null,
+  estado           text not null default 'pendiente' check (estado in ('pendiente', 'aprobado', 'rechazado', 'cancelado', 'reembolsado')),
+  importe_ars      numeric(16, 2) not null,
+  cuotas           int not null default 1,
+  id_externo       text,
+  detalle          text,
+  datos_externos   jsonb not null default '{}',
+  usuario_id       text,
+  creado_ts        timestamptz not null default now(),
+  actualizado_ts   timestamptz not null default now()
+);
+create index if not exists pago_pedido on pago (pedido_id);
+create unique index if not exists pago_externo on pago (medio, id_externo) where id_externo is not null;
+alter table pago enable row level security;
+select erp_politica_org('pago');
+
+-- Pedido: costo de envío, cómo se entrega y un código para seguirlo sin cuenta.
+alter table pedido add column if not exists costo_envio_ars numeric(16, 2) not null default 0;
+alter table pedido add column if not exists metodo_envio_id bigint references metodo_envio(id) on delete set null;
+alter table pedido add column if not exists codigo_seguimiento text;
+create unique index if not exists pedido_codigo_seguimiento on pedido (codigo_seguimiento) where codigo_seguimiento is not null;
+
+-- Clientes que pueden comprar en cuenta corriente / "a convenir".
+alter table cliente add column if not exists cuenta_corriente boolean not null default false;
+
+-- Cuentas de la tienda (no son usuarios del sistema: no entran al panel).
+-- La contraseña se guarda con scrypt.
+create table if not exists cliente_cuenta (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  cliente_id       bigint not null references cliente(id) on delete cascade,
+  email            text not null,
+  clave_hash       text not null,
+  creado_ts        timestamptz not null default now(),
+  ultimo_ingreso   timestamptz,
+  unique (organizacion_id, email)
+);
+alter table cliente_cuenta enable row level security;
