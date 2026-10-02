@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { slugDe, type ConfigTienda } from "@/lib/tienda/tienda";
+import { dominioDe } from "@/lib/tienda/dominios";
 import { PRIMARIO, VERDE } from "@/app/botones";
 import { entrarErp, Pantalla, Avisos, Estado, CAMPO, ETIQUETA, CAJA } from "@/app/componentes/erp";
 import SubirImagen from "./SubirImagen";
@@ -44,14 +45,16 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
       {tiendas.map((t) => {
         const c = t.config ?? {};
         const slug = c.slug || slugDe(t.nombre);
-        const direccion = `${base}/tienda/${slug}`;
+        const dominio = dominioDe(slug);
+        const direccion = dominio ? `https://${dominio}` : `${base}/tienda/${slug}`;
         const est = ESTADOS[t.estado] ?? { texto: t.estado, tono: "gris" as const };
         return (
           <section key={t.id} className="mb-6">
             {tiendas.length > 1 && <h2 className="text-sm font-bold mb-2">{t.nombre}</h2>}
             <div className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3 text-xs`}>
               <div><span className={ETIQUETA}>Dirección de la tienda</span>
-                <a href={direccion} target="_blank" rel="noopener" className="text-[#16577F] hover:underline break-all">{direccion}</a></div>
+                <a href={direccion} target="_blank" rel="noopener" className="text-[#16577F] hover:underline break-all">{direccion}</a>
+                {dominio && <span className="block text-[11px] text-[#5C6B76] mt-0.5">Dominio propio de esta tienda (si le cambiás el slug, deja de abrir en {dominio}).</span>}</div>
               <div><span className={ETIQUETA}>Estado</span><Estado texto={est.texto} tono={est.tono} />
                 <Link href={`/config/canales?c=${t.id}`} className="block text-[11px] text-[#16577F] hover:underline mt-0.5">Cambiarlo en Canales</Link></div>
               <div><span className={ETIQUETA}>Lista de precios</span>{t.lista ?? <span className="text-[#C03420]">Sin lista</span>}

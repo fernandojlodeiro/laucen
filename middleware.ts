@@ -15,6 +15,13 @@ export async function middleware(req: NextRequest) {
   // Un dominio propio de una tienda (lib/tienda/dominios.ts): todo va a /tienda/<slug>.
   const host = req.headers.get("host")?.split(":")[0].toLowerCase() ?? "";
   const tienda = DOMINIOS_TIENDA[host];
+  // Los links internos de la tienda son /tienda/<slug>/…: en su dominio se
+  // limpian (laucen.com/tienda/tienda/carrito → laucen.com/carrito).
+  if (tienda && (req.nextUrl.pathname === `/tienda/${tienda}` || req.nextUrl.pathname.startsWith(`/tienda/${tienda}/`))) {
+    const limpia = req.nextUrl.clone();
+    limpia.pathname = req.nextUrl.pathname.slice(`/tienda/${tienda}`.length) || "/";
+    return NextResponse.redirect(limpia, 308);
+  }
   if (tienda && !req.nextUrl.pathname.startsWith("/tienda/") && !req.nextUrl.pathname.startsWith("/api/")) {
     const destino = req.nextUrl.clone();
     destino.pathname = `/tienda/${tienda}${req.nextUrl.pathname === "/" ? "" : req.nextUrl.pathname}`;
