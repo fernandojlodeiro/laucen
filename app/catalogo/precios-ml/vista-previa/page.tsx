@@ -11,7 +11,8 @@ import { BotonConfirmar } from "@/app/radar/Cliente";
 import BuscadorVivo, { FiltroVivo, CasillaViva } from "@/app/componentes/BuscadorVivo";
 import { entrarErp, Pantalla, Avisos, url } from "@/app/componentes/erp";
 import { AccionesExcel, TablaVista } from "@/app/listas/piezas";
-import { arbolFamilias } from "@/app/config/cuotas/familias";
+import ElegirFamilia from "@/app/componentes/ElegirFamilia";
+import { caminoDeFamilia } from "@/lib/erp/familias";
 import { camposDe, elegir, ordenarFilas } from "@/lib/listas/tipos";
 import { paginarEnMemoria } from "@/lib/lista";
 import { BarraPml } from "../comun";
@@ -35,7 +36,7 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
   }
   const f = filtrosPrevia(sp);
   const ctx = { org: s.org.id, moneda: s.moneda };
-  const [todas, familias, todos] = await Promise.all([filasPrevia(s.org.id, sp), arbolFamilias(s.org.id), camposDe(LISTA_PRECIOS_ML, ctx)]);
+  const [todas, camino, todos] = await Promise.all([filasPrevia(s.org.id, sp), caminoDeFamilia(s.org.id, f.familia), camposDe(LISTA_PRECIOS_ML, ctx)]);
   const filas = paginarEnMemoria(ordenarFilas(todos, todas, sp), sp);
   const campos = elegir(LISTA_PRECIOS_ML, todos, null);
   const conCambio = todas.filter((x) => x.hay_cambio).length;
@@ -56,10 +57,7 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
       <BarraPml org={s.org.id} canales={canales} canal={canal} ver="previa" />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <BuscadorVivo q={f.q} comienza={f.comienza} placeholder="Buscar por SKU, producto o publicación" />
-        <FiltroVivo parametro="familia" valor={f.familia ? String(f.familia) : ""} etiqueta="Categoría">
-          <option value="">Todas las categorías</option>
-          {familias.map((x) => <option key={x.id} value={x.id}>{"  ".repeat(x.nivel)}{x.nombre}</option>)}
-        </FiltroVivo>
+        <ElegirFamilia parametro="familia" valor={f.familia} etiqueta={camino} vacio="Todas las categorías" placeholder="Buscá la categoría…" className="w-72" limpiar={["p"]} />
         <FiltroVivo parametro="rol" valor={f.rol} etiqueta="Papel">
           <option value="">Todos los papeles</option>
           {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}

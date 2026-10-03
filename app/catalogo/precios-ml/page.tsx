@@ -18,7 +18,7 @@ import {
   CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
-import { arbolFamilias } from "@/app/config/cuotas/familias";
+import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import { fechaHora } from "@/app/ventas/formato";
 import { formatear } from "@/lib/moneda";
 import { formatearNumero } from "@/lib/numeros";
@@ -204,9 +204,9 @@ function CamposExcepcion({ e }: { e?: Excepcion }) {
 }
 
 async function Excepciones({ org, canal, sp, aqui }: { org: string; canal: CanalMl; sp: SP; aqui: string }) {
-  const [todas, familias] = await Promise.all([LISTA_EXCEPCIONES_ML.filas!({ org, moneda: "ARS" }, sp) as Promise<Excepcion[]>, arbolFamilias(org)]);
+  const todas = await (LISTA_EXCEPCIONES_ML.filas!({ org, moneda: "ARS" }, sp) as Promise<Excepcion[]>);
   const vista = paginarEnMemoria(todas, sp);
-  const total = (await excepcionesCanal(org, canal.id)).length;
+  const total = sp.q ? (await excepcionesCanal(org, canal.id)).length : todas.length;
   const base = { canal: String(canal.id), volver: aqui };
   return (
     <>
@@ -215,11 +215,7 @@ async function Excepciones({ org, canal, sp, aqui }: { org: string; canal: Canal
           <input type="hidden" name="canal" value={canal.id} /><input type="hidden" name="volver" value={aqui} />
           <label><span className={ETIQUETA}>Aplica a</span>
             <select name="nivel" defaultValue="familia" className={`${CAMPO} w-full`}><option value="familia">Una categoría (y sus subcategorías)</option><option value="producto">Un producto</option></select></label>
-          <label><span className={ETIQUETA}>Categoría</span>
-            <select name="familia_id" defaultValue="" className={`${CAMPO} w-full`}>
-              <option value="">Elegí la categoría</option>
-              {familias.map((f) => <option key={f.id} value={f.id}>{"  ".repeat(f.nivel)}{f.nombre}</option>)}
-            </select></label>
+          <div><span className={ETIQUETA}>Categoría</span><ElegirFamilia name="familia_id" vacio="Elegí la categoría" /></div>
           <label><span className={ETIQUETA}>o el SKU del producto</span><input name="sku" className={`${CAMPO} w-full font-mono`} placeholder="Si aplica a un producto" /></label>
           <CamposExcepcion />
           <div className="sm:col-span-3"><button className={PRIMARIO}>Crear</button></div>
@@ -301,7 +297,7 @@ function CamposVolumen({ r }: { r?: RangoVolumen }) {
 }
 
 async function Volumen({ org, canal, sp, aqui }: { org: string; canal: CanalMl; sp: SP; aqui: string }) {
-  const [rangos, familias] = await Promise.all([volumenCanal(org, canal.id), arbolFamilias(org)]);
+  const rangos = await volumenCanal(org, canal.id);
   const vista = paginarEnMemoria(rangos, sp);
   const editar = Number(sp.editar) || 0;
   const base = { canal: String(canal.id), volver: aqui };
@@ -314,11 +310,7 @@ async function Volumen({ org, canal, sp, aqui }: { org: string; canal: CanalMl; 
             <select name="nivel" defaultValue="general" className={`${CAMPO} w-full`}>
               <option value="general">Toda la cuenta (general)</option><option value="familia">Una categoría (excepción)</option><option value="producto">Un producto (excepción)</option>
             </select></label>
-          <label><span className={ETIQUETA}>Categoría</span>
-            <select name="familia_id" defaultValue="" className={`${CAMPO} w-full`}>
-              <option value="">Si aplica a una categoría</option>
-              {familias.map((f) => <option key={f.id} value={f.id}>{"  ".repeat(f.nivel)}{f.nombre}</option>)}
-            </select></label>
+          <div><span className={ETIQUETA}>Categoría</span><ElegirFamilia name="familia_id" vacio="Si aplica a una categoría" /></div>
           <label><span className={ETIQUETA}>o el SKU del producto</span><input name="sku" className={`${CAMPO} w-full font-mono`} placeholder="Si aplica a un producto" /></label>
           <CamposVolumen />
           <div className="sm:col-span-3"><button className={PRIMARIO}>Crear</button></div>
