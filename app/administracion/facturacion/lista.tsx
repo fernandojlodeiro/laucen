@@ -8,6 +8,7 @@ import { formatear } from "@/lib/moneda";
 import { TIPOS_CBTE, DOC_TIPOS, CONDICION_RECEPTOR_TEXTO } from "@/lib/arca/facturar";
 import { campoFecha, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { ESTADOS_CBTE, numeroCbte, nombreTipo, type EstadoCbte } from "./comun";
+import { sqlEstadoFacturaMl, ESTADO_FACTURA_ML } from "@/lib/mercadolibre/facturas";
 
 const esFecha = (x?: string) => !!x && /^\d{4}-\d{2}-\d{2}$/.test(x);
 
@@ -73,6 +74,12 @@ const CAMPOS: Campo[] = [
     celda: (f) => f.pedido ? <Link href={`/ventas/pedidos/${f.pedido}`} className="text-[#16577F] hover:underline">{f.pedido}</Link> : "—",
   },
   { clave: "pedido_externo", titulo: "Pedido (id externo)", sql: "p.id_externo" },
+  {
+    clave: "ml", titulo: "Factura en ML", ancho: 22,
+    sql: `(case when ca.tipo = 'mercadolibre' and p.id_externo is not null and c.estado = 'autorizado' then coalesce(${sqlEstadoFacturaMl("c")}, 'falta') end)`,
+    valor: (f) => f.ml ? ESTADO_FACTURA_ML[f.ml]?.texto ?? f.ml : null,
+    celda: (f) => f.ml ? <Estado texto={ESTADO_FACTURA_ML[f.ml]?.texto ?? f.ml} tono={ESTADO_FACTURA_ML[f.ml]?.tono ?? "gris"} /> : <span className="text-[#5C6B76]">—</span>,
+  },
   { clave: "ambiente", titulo: "Ambiente", sql: "c.ambiente", valor: (f) => (f.ambiente === "homologacion" ? "Prueba" : "Producción") },
   campoFecha("autorizado", "Autorizado el", "c.autorizado_ts", { hora: true }),
 ];
@@ -85,7 +92,7 @@ export const LISTA_FACTURACION: Lista = {
   vistas: true,
   porDefecto: "fecha",
   campos: CAMPOS,
-  enPantalla: ["fecha", "tipo", "numero", "receptor", "documento", "total", "estado", "cae", "pedido"],
+  enPantalla: ["fecha", "tipo", "numero", "receptor", "documento", "total", "estado", "cae", "pedido", "ml"],
   siempre: "c.id::int id, c.cliente_id::int cliente_id, c.estado _estado",
   consulta: async (ctx, sp) => {
     const f = filtrosFacturacion(sp);
@@ -103,7 +110,7 @@ export const LISTA_FACTURACION: Lista = {
                   or c.receptor_nombre ilike ${n} or c.doc_nro ilike ${n} or c.cae ilike ${n} or cl.nombre ilike ${n})`);
     }
     return {
-      desde: "comprobante c left join pedido p on p.id = c.pedido_id left join cliente cl on cl.id = c.cliente_id",
+      desde: "comprobante c left join pedido p on p.id = c.pedido_id left join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = c.cliente_id",
       donde: cond.join(" and "),
       valores: vals,
       orden: "c.fecha desc, c.id desc",

@@ -14,7 +14,9 @@ import {
 } from "@/app/componentes/erp";
 import { fecha, fechaHora } from "@/app/ventas/formato";
 import { ESTADOS_CBTE, numeroCbte, nombreTipo, type EstadoCbte } from "../comun";
-import { accionReintentar } from "../acciones";
+import { accionReintentar, accionSubirFacturaMl } from "../acciones";
+import { estadoFacturaMl } from "@/lib/mercadolibre/facturas";
+import { TextoFacturaMl, BotonFacturaMl, puedeSubir } from "../FacturaMl";
 import { accionAnular } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +51,7 @@ export default async function DetalleComprobante({ params, searchParams }: { par
            pedido_a_arca, respuesta_arca, creado_ts, autorizado_ts
       from comprobante where id = $1 and organizacion_id = $2`, [cid, s.org.id]);
   if (!c) notFound();
-  const [lineas, notas, asociado] = await Promise.all([
+  const [lineas, notas, asociado, enMl] = await Promise.all([
     consulta<{ id: number; descripcion: string; cantidad: number; precio_unit: number; iva_pct: number; neto: number; iva: number; total: number }>(`
       select id::int, descripcion, cantidad::float, precio_unit::float, iva_pct::float, neto::float, iva::float, total::float
         from comprobante_linea where comprobante_id = $1 and organizacion_id = $2 order by orden, id`, [cid, s.org.id]),
@@ -57,7 +59,9 @@ export default async function DetalleComprobante({ params, searchParams }: { par
                             where comprobante_asociado_id = $1 and organizacion_id = $2 order by id`, [cid, s.org.id]),
     c.asociado_id ? una<Relacionado>("select id::int, tipo_cbte, punto_venta, numero::text, estado from comprobante where id = $1 and organizacion_id = $2",
       [c.asociado_id, s.org.id]) : null,
+    estadoFacturaMl(s.org.id, cid),
   ]);
+  const esMl = c.estado === "autorizado" && !!enMl?.es_ml;
   const est = ESTADOS_CBTE[c.estado] ?? ESTADOS_CBTE.pendiente;
   const esFactura = [1, 6, 11].includes(c.tipo_cbte);
   const ncViva = notas.some((n) => n.estado !== "rechazado");
@@ -86,6 +90,7 @@ export default async function DetalleComprobante({ params, searchParams }: { par
             <BotonEnviar clase={SUAVE} corriendo="Mandando…">Reintentar</BotonEnviar>
           </form>
         )}
+        {esMl && enMl && puedeSubir(enMl) && <BotonFacturaMl accion={accionSubirFacturaMl} campos={{ id: String(cid), volver }} />}
         {c.estado === "autorizado" && esFactura && !ncViva && (
           <BotonConfirmar accion={accionAnular} campos={{ id: String(cid) }} clase={APAGAR} texto="Anular con nota de crédito"
             pregunta="¿Anular? Se emite una nota de crédito por el total." corriendo="Emitiendo…" />
@@ -105,6 +110,7 @@ export default async function DetalleComprobante({ params, searchParams }: { par
         <Dato t="Documento">{c.doc_tipo === 99 ? "Consumidor final" : `${DOC_TIPOS[c.doc_tipo] ?? c.doc_tipo} ${c.doc_nro}`}</Dato>
         <Dato t="Condición IVA">{c.receptor_condicion_iva ? CONDICION_RECEPTOR_TEXTO[c.receptor_condicion_iva] ?? c.receptor_condicion_iva : "—"}</Dato>
         <Dato t="Creado">{fechaHora(c.creado_ts)}{c.autorizado_ts && <div className="text-[#5C6B76]">autorizado {fechaHora(c.autorizado_ts)}</div>}</Dato>
+        {esMl && enMl && <div className="col-span-2"><Dato t="En Mercado Libre"><TextoFacturaMl x={enMl} /></Dato></div>}
         {asociado && <div className="col-span-2"><Dato t="Anula a"><Rel r={asociado} /></Dato></div>}
         {notas.length > 0 && <div className="col-span-2"><Dato t="Notas de crédito">
           {notas.map((n) => <div key={n.id}><Rel r={n} /> <Estado texto={ESTADOS_CBTE[n.estado]?.texto ?? n.estado} tono={ESTADOS_CBTE[n.estado]?.tono ?? "gris"} /></div>)}

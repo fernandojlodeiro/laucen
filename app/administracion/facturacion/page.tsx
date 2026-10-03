@@ -10,7 +10,7 @@ import { entrarErp, Pantalla, Avisos, url, CAMPO, ETIQUETA } from "@/app/compone
 import { AccionesExcel, TablaVista, paginaDeVista } from "@/app/listas/piezas";
 import { ESTADOS_CBTE } from "./comun";
 import { LISTA_FACTURACION, filtrosFacturacion } from "./lista";
-import { accionReintentar } from "./acciones";
+import { accionReintentar, accionPrepararFacturasMl } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +28,9 @@ export default async function Facturacion({ searchParams }: { searchParams: Prom
 
   return (
     <Pantalla titulo="Facturación" subtitulo="Facturas y notas de crédito electrónicas de ARCA"
-      acciones={<><AccionesExcel lista={LISTA_FACTURACION} org={s.org.id} vista={vista.activa?.id} /><Link href="/config/arca" className={SUAVE}>Configuración</Link></>}>
+      acciones={<>
+        <form action={accionPrepararFacturasMl}><BotonEnviar clase={SUAVE} corriendo="Preparando…">Subir a ML las facturas que faltan</BotonEnviar></form>
+        <AccionesExcel lista={LISTA_FACTURACION} org={s.org.id} vista={vista.activa?.id} /><Link href="/config/arca" className={SUAVE}>Configuración</Link></>}>
       <Avisos sp={sp} />
       {!emisor && (
         <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#FFF8E5] text-[#8a6100]">

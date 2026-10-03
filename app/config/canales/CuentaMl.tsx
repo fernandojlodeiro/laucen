@@ -8,7 +8,7 @@ import { BotonEnviar, BotonConfirmar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
 import { CAJA, Estado } from "@/app/componentes/erp";
 import { estadoColaCanal } from "@/lib/mercadolibre/cola";
-import { accionSincronizarStock, accionSoltarCuenta, accionTraerAhora, accionUsarCuenta } from "./acciones-ml";
+import { accionSincronizarStock, accionSubirFacturas, accionSoltarCuenta, accionTraerAhora, accionUsarCuenta } from "./acciones-ml";
 
 export default async function CuentaMl({ org, canal }: { org: string; canal: number }) {
   const cuenta = await una<{ id: number; nickname: string | null; estado: string; ultimo_error: string | null; pedidos_desde: Date | null }>(
@@ -16,6 +16,7 @@ export default async function CuentaMl({ org, canal }: { org: string; canal: num
   const libres = cuenta ? [] : await consulta<{ id: number; nickname: string | null }>(
     "select id::int, nickname from meli_cuenta where organizacion_id = $1 and canal_id is null order by id", [org]);
   const sincroniza = !!(await una("select 1 from canal where id = $1 and coalesce((config ->> 'sincronizar_stock')::boolean, false)", [canal]));
+  const subeFacturas = !!(await una("select 1 from canal where id = $1 and coalesce((config ->> 'subir_facturas')::boolean, false)", [canal]));
   const pendientes = await una<{ pubs: number; sin: number; preguntas: number }>(`
     select (select count(*) from publicacion where canal_id = $1 and id_externo is not null)::int pubs,
            (select count(*) from meli_item where canal_id = $1 and publicacion_id is null)::int sin,
@@ -76,6 +77,11 @@ export default async function CuentaMl({ org, canal }: { org: string; canal: num
             ayuda={sincroniza
               ? "Prendido: cada publicación vinculada informa el disponible del canal; al llegar al umbral de pausa se pausa (y se reactiva cuando vuelve a haber). Las de Full no se tocan."
               : "Apagado: no se toca nada en ML. Prendelo cuando el stock de Laucen esté cargado y las publicaciones vinculadas — si no, las pausaría a todas por falta de stock."} />
+          <Interruptor accion={accionSubirFacturas} prendido={subeFacturas} campos={campos}
+            etiqueta="Subir facturas a Mercado Libre"
+            ayuda={subeFacturas
+              ? "Prendido: cada factura (y nota de crédito) de una venta de este canal, al autorizarla ARCA, entra a la cola y se sube como PDF a esa venta en ML."
+              : "Apagado: las facturas no se suben solas. Igual podés subir una con el botón de su ficha, o todas las que faltan desde Facturación."} />
         </div>
       )}
     </section>

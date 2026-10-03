@@ -143,6 +143,18 @@ export async function prepararNotaCredito(org: string, facturaId: number, usuari
   });
 }
 
+/** Recién autorizado: si es de una venta de Mercado Libre y el canal tiene
+ *  prendido "Subir facturas a Mercado Libre", entra a la cola para subirse
+ *  (lib/mercadolibre/facturas.ts). Una falla acá no deshace la factura. */
+async function alAutorizar(org: string, comprobanteId: number) {
+  try {
+    const { alAutorizarComprobante } = await import("@/lib/mercadolibre/facturas");
+    await alAutorizarComprobante(org, comprobanteId);
+  } catch (e) {
+    console.error("[factura a ML]", e instanceof Error ? e.message : e);
+  }
+}
+
 /** Manda el comprobante a ARCA y guarda el resultado. */
 export async function emitir(org: string, comprobanteId: number): Promise<{ estado: string; mensaje: string }> {
   const e = await emisorDe(org);
@@ -169,6 +181,7 @@ export async function emitir(org: string, comprobanteId: number): Promise<{ esta
         await consulta("update comprobante set estado = 'autorizado', cae = $3, cae_vto = $4, autorizado_ts = now(), observaciones = null where id = $1 and organizacion_id = $2",
           [comprobanteId, org, previo.cae, previo.vto]);
         await candado.query("commit");
+        await alAutorizar(org, comprobanteId);
         return { estado: "autorizado", mensaje: `Autorizado (CAE ${previo.cae}).` };
       }
     }
@@ -200,6 +213,7 @@ export async function emitir(org: string, comprobanteId: number): Promise<{ esta
                              pedido_a_arca = jsonb_build_object('xml', $6::text), respuesta_arca = jsonb_build_object('xml', $7::text)
                        where id = $1 and organizacion_id = $2`, [comprobanteId, org, r.cae, r.vto, obs, r.pedido, r.respuesta]);
       await candado.query("commit");
+      await alAutorizar(org, comprobanteId);
       return { estado: "autorizado", mensaje: `Autorizado: ${TIPOS_CBTE[cb.tipo_cbte].nombre} ${String(cb.punto_venta).padStart(5, "0")}-${String(numero).padStart(8, "0")}, CAE ${r.cae}.` };
     }
     // Rechazado: el número no se usó, se libera.

@@ -78,3 +78,44 @@ export async function mlOk<T = unknown>(cuenta: CuentaMl, metodo: "GET" | "POST"
     : r.status === 0 ? "Mercado Libre no respondió" : `Mercado Libre contestó ${r.status}`;
   throw new ErrorErp(`${queEs}${detalle ? `: ${detalle}` : ""}`);
 }
+
+/** Un archivo para mandar a ML (ej. el PDF de una factura). */
+export type ArchivoMl = { nombre: string; tipo: string; datos: Uint8Array };
+
+/** El cuerpo multipart/form-data con un solo archivo en el campo `campo`.
+ *  fetch le pone solo el content-type con su boundary. */
+export function armarMultipart(campo: string, archivo: ArchivoMl): FormData {
+  const fd = new FormData();
+  fd.append(campo, new Blob([Buffer.from(archivo.datos)], { type: archivo.tipo }), archivo.nombre);
+  return fd;
+}
+
+/** Como `ml`, pero manda un archivo como multipart/form-data (POST). Mismos
+ *  ritmo; la llave va sólo en el encabezado y no se registra nunca. */
+export async function mlArchivo<T = unknown>(cuenta: CuentaMl, ruta: string, campo: string, archivo: ArchivoMl): Promise<RespuestaMl<T>> {
+  const token = await tokenDeCuenta(cuenta.id);
+  if (!token) return { status: 401, datos: { message: "la cuenta de Mercado Libre está desconectada" } as T };
+  for (let intento = 0; ; intento++) {
+    try {
+      const r = await fetch(`${API}${ruta}`, {
+        method: "POST",
+        headers: { accept: "application/json", authorization: `Bearer ${token}` },
+        body: armarMultipart(campo, archivo),
+        cache: "no-store",
+        signal: AbortSignal.timeout(40_000),
+      });
+      // Sólo se reintenta acá lo que ML cortó sin procesar (429): un 5xx o
+      // un corte pudo haber subido el archivo, y eso lo decide la cola.
+      if (r.status === 429 && intento < 2) {
+        await new Promise((ok) => setTimeout(ok, 1000 * (intento + 1)));
+        continue;
+      }
+      const texto = await r.text();
+      let datos: unknown = texto;
+      try { datos = JSON.parse(texto); } catch { /* queda como texto */ }
+      return { status: r.status, datos: datos as T };
+    } catch (e) {
+      return { status: 0, datos: { message: String(e) } as T };
+    }
+  }
+}

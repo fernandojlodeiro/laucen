@@ -16,8 +16,9 @@
 import { after } from "next/server";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl, type RespuestaMl } from "@/lib/mercadolibre/api";
+import type { SubirArchivo } from "@/lib/mercadolibre/facturas";
 
-export type TipoCambio = "stock" | "estado" | "precio" | "descuento" | "campana" | "atributos" | "crear" | "otro";
+export type TipoCambio = "stock" | "estado" | "precio" | "descuento" | "campana" | "atributos" | "crear" | "factura" | "otro";
 export type OrigenCambio = "automatico" | "boton" | "barrida";
 export type PedidoMl = { metodo: "PUT" | "POST" | "DELETE"; ruta: string; cuerpo?: unknown };
 
@@ -241,8 +242,8 @@ function resumen(r: RespuestaMl): unknown {
   const d = r.datos as Record<string, unknown> | string;
   if (typeof d === "string") return { status: r.status, texto: d.slice(0, 300) };
   if (!d || typeof d !== "object") return { status: r.status };
-  const { id, status, available_quantity, price, message, error, cause } = d as Record<string, unknown>;
-  return { status: r.status, id, estado: status, cantidad: available_quantity, precio: price, message, error, cause };
+  const { id, ids, status, available_quantity, price, message, error, cause } = d as Record<string, unknown>;
+  return { status: r.status, id, ids, estado: status, cantidad: available_quantity, precio: price, message, error, cause };
 }
 
 async function aplicarEfecto(org: string, e: Efecto | null) {
@@ -262,7 +263,7 @@ const dormir = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
 /** Manda lo pendiente hasta `hastaMs`. Cada canal (cuenta) con pendientes va
  *  en paralelo, pero con un solo trabajador a la vez por canal (turno) y su
  *  ritmo. Se puede llamar desde varios lados a la vez sin pisarse. */
-export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; ritmoMs?: number; org?: string } = {}): Promise<ResultadoCola> {
+export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; subir?: SubirArchivo; ritmoMs?: number; org?: string } = {}): Promise<ResultadoCola> {
   const enviar: Enviar = opts.enviar ?? ((c, m, r, b) => ml(c, m, r, b));
   const ritmo = opts.ritmoMs ?? RITMO_MS;
   const res: ResultadoCola = { canales: 0, enviadas: 0, ok: 0, reintentos: 0, errores: 0, frenadas: 0 };
@@ -292,9 +293,30 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; rit
           returning id, organizacion_id, canal_id, item_id, variation_id, tipo, payload, efecto, intentos`, [canal]);
         if (!fila) break;
         if (cuenta === undefined) cuenta = await cuentaDelCanal(organizacion_id, canal);
-        let status = 0, datos: unknown = null, frenar = 0;
+        let status = 0, datos: unknown = null, frenar = 0, mensajeError: string | undefined;
         if (!cuenta || cuenta.estado !== "activa") {
           status = 401; datos = { message: "la cuenta de Mercado Libre del canal no está conectada" }; frenar = 300_000;
+        } else if (fila.tipo === "factura") {
+          // Subir el PDF de un comprobante a la venta (lib/mercadolibre/facturas.ts).
+          const { enviarFactura } = await import("@/lib/mercadolibre/facturas");
+          const espera = ultimo + ritmo - Date.now();
+          if (espera > 0) await dormir(espera);
+          const x = await enviarFactura(fila.organizacion_id, fila.payload, cuenta, opts.subir);
+          if (x.tipo === "esperar") {
+            // Carrito en espera: vuelve a la cola sin contar el intento.
+            await consulta("update ml_cola set estado = 'pendiente', intentos = greatest(intentos - 1, 0), proximo_intento_ts = now() + ($2 || ' milliseconds')::interval where id = $1",
+              [fila.id, String(x.ms)]);
+            continue;
+          }
+          if (x.tipo === "error") {
+            await consulta("update ml_cola set estado = 'error', ultimo_error = $2, enviado_ts = now() where id = $1", [fila.id, x.mensaje]);
+            res.errores++;
+            continue;
+          }
+          if (x.enviado) { ultimo = Date.now(); res.enviadas++; }
+          status = x.r.status; datos = x.r.datos; mensajeError = x.mensajeError;
+          if (status === 429) frenar = 60_000;
+          else if (status === 401) frenar = 300_000;
         } else {
           let pedidos: PedidoMl[];
           try {
@@ -331,7 +353,7 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; rit
           update ml_cola set estado = $2, ultimo_error = $3, respuesta = $4::jsonb,
                  proximo_intento_ts = now() + ($5 || ' milliseconds')::interval, enviado_ts = case when $2 = 'error' then now() else enviado_ts end
            where id = $1`,
-          [fila.id, final ? "error" : "pendiente", errorLegible(status, datos), JSON.stringify(resumen({ status, datos })), String(esperaReintento(fila.intentos))]);
+          [fila.id, final ? "error" : "pendiente", mensajeError ?? errorLegible(status, datos), JSON.stringify(resumen({ status, datos })), String(esperaReintento(fila.intentos))]);
         if (final) res.errores++; else res.reintentos++;
         if (frenar) {
           await consulta("update ml_cola_canal set frenado_hasta = now() + ($2 || ' milliseconds')::interval, motivo_freno = $3 where canal_id = $1",

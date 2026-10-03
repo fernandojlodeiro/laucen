@@ -90,6 +90,10 @@ create table if not exists comprobante (
 create unique index if not exists comprobante_numero on comprobante (organizacion_id, ambiente, punto_venta, tipo_cbte, numero) where numero is not null;
 create index if not exists comprobante_pedido on comprobante (pedido_id);
 create index if not exists comprobante_estado on comprobante (organizacion_id, estado, creado_ts desc);
+-- La factura subida a la venta de Mercado Libre (lib/mercadolibre/facturas.ts):
+-- el id que devolvió ML y cuándo. Con ml_subida_ts no se vuelve a subir.
+alter table comprobante add column if not exists ml_documento_id text;
+alter table comprobante add column if not exists ml_subida_ts timestamptz;
 alter table comprobante enable row level security;
 select erp_politica_org('comprobante');
 

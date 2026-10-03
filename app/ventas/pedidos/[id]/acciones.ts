@@ -10,6 +10,7 @@ import { intentar, id, texto } from "@/lib/erp/acciones";
 import { cambiarEstado, esEstadoPedido, exigirCarritoLibre, ESTADOS_PEDIDO } from "@/lib/pedidos";
 import { confirmarPago } from "@/lib/tienda/pagos/confirmar";
 import { prepararFactura, emitir } from "@/lib/arca/facturar";
+import { subirFacturaDelPedidoConBoton } from "@/lib/mercadolibre/facturas";
 
 export async function accionFacturar(fd: FormData) {
   const s = await entrarErp("facturacion_ver");
@@ -25,6 +26,22 @@ export async function accionFacturar(fd: FormData) {
     revalidatePath("/administracion/facturacion");
     if (r.estado !== "autorizado") throw new ErrorErp(r.mensaje);
     return r.mensaje;
+  });
+}
+
+/** "Subir factura a Mercado Libre" (clic de Fer): la factura (y la nota de
+ *  crédito, si la hay) del pedido van a la cola, aunque el interruptor del
+ *  canal esté apagado. */
+export async function accionSubirFacturaMlPedido(fd: FormData) {
+  const s = await entrarErp("facturacion_ver");
+  const pid = id(fd, "pedido_id");
+  const volver = `/ventas/pedidos/${pid}`;
+  await intentar(volver, async () => {
+    if (!pid) throw new ErrorErp("El pedido no existe.");
+    await exigirCarritoLibre(s.org.id, pid);
+    const r = await subirFacturaDelPedidoConBoton(s.org.id, pid, s.usuario.id);
+    revalidatePath(volver);
+    return r;
   });
 }
 

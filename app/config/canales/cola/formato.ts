@@ -3,7 +3,7 @@
 
 export const TIPOS_COLA: Record<string, string> = {
   stock: "Stock", estado: "Estado", precio: "Precio", descuento: "Descuento", campana: "Campaña",
-  atributos: "Atributos", crear: "Publicación nueva", otro: "Otro",
+  atributos: "Atributos", crear: "Publicación nueva", factura: "Factura", otro: "Otro",
 };
 export const ORIGENES_COLA: Record<string, string> = { automatico: "Automático", boton: "Botón", barrida: "Barrida nocturna" };
 export const ESTADOS_COLA: Record<string, string> = {

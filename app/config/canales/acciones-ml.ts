@@ -62,6 +62,23 @@ export async function accionSincronizarStock(fd: FormData) {
   });
 }
 
+/** Prende o apaga que Laucen suba sola a la venta de ML cada factura (y
+ *  nota de crédito) que ARCA autoriza. Prenderlo es el clic de Fer. */
+export async function accionSubirFacturas(fd: FormData) {
+  const s = await entrarErp("canales_ver");
+  const canal = id(fd, "canal");
+  await intentar(volver(canal), async () => {
+    await canalMl(s.org.id, fd);
+    const prender = fd.get("valor") === "1";
+    await consulta(`update canal set config = config || jsonb_build_object('subir_facturas', $3::boolean) where id = $2 and organizacion_id = $1`,
+      [s.org.id, canal, prender]);
+    revalidatePath("/config/canales");
+    return prender
+      ? "Prendido: cada factura o nota de crédito de este canal que autorice ARCA se sube sola a su venta en Mercado Libre. Las que ya estaban se suben con «Subir a ML las facturas que faltan» (Facturación)."
+      : "Apagado: las facturas ya no se suben solas a Mercado Libre (se puede subir una a mano desde su ficha).";
+  });
+}
+
 /** Trae ya los pedidos y preguntas (sin esperar el barrido de 2 minutos). */
 export async function accionTraerAhora(fd: FormData) {
   const s = await entrarErp("canales_ver");

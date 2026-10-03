@@ -19,7 +19,9 @@ import { tienePermiso } from "@/lib/permisos";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { ESTADOS_CBTE, numeroCbte, nombreTipo, type EstadoCbte } from "@/app/administracion/facturacion/comun";
-import { accionFacturar } from "./acciones";
+import { accionFacturar, accionSubirFacturaMlPedido } from "./acciones";
+import { sqlEstadoFacturaMl } from "@/lib/mercadolibre/facturas";
+import { TextoFacturaMl, BotonFacturaMl, puedeSubir } from "@/app/administracion/facturacion/FacturaMl";
 import Operacion from "./Operacion";
 import { MarcaCarritoEspera, textoEsperaCarrito } from "@/app/componentes/CarritoEspera";
 import { carritoEnEspera, mensajeEsperaCarrito } from "@/lib/pedidos";
@@ -84,9 +86,16 @@ export default async function DetallePedido({ params, searchParams }: { params: 
   const fechaCorta = (d: Date | null) => d ? d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
 
   // Facturación: los comprobantes del pedido y si se puede facturar.
-  const comprobantes = await consulta<{ id: number; tipo_cbte: number; punto_venta: number; numero: string | null; estado: EstadoCbte; observaciones: string | null }>(`
-    select id::int, tipo_cbte, punto_venta, numero::text, estado, observaciones from comprobante
-     where pedido_id = $1 and organizacion_id = $2 order by id`, [pid, s.org.id]);
+  const comprobantes = await consulta<{ id: number; tipo_cbte: number; punto_venta: number; numero: string | null; estado: EstadoCbte; observaciones: string | null;
+    es_ml: boolean; ml_estado: string | null; ml_subida_ts: Date | null; ml_documento_id: string | null; ml_error: string | null; ml_cola_id: number | null }>(`
+    select cb.id::int, cb.tipo_cbte, cb.punto_venta, cb.numero::text, cb.estado, cb.observaciones,
+           (ca.tipo = 'mercadolibre' and p.id_externo is not null) es_ml, ${sqlEstadoFacturaMl("cb")} ml_estado, cb.ml_subida_ts, cb.ml_documento_id,
+           (select q.ultimo_error from ml_cola q where q.tipo = 'factura' and q.item_id = 'cbte:' || cb.id order by q.id desc limit 1) ml_error,
+           (select q.id::int from ml_cola q where q.tipo = 'factura' and q.item_id = 'cbte:' || cb.id order by q.id desc limit 1) ml_cola_id
+      from comprobante cb join pedido p on p.id = cb.pedido_id join canal ca on ca.id = p.canal_id
+     where cb.pedido_id = $1 and cb.organizacion_id = $2 order by cb.id`, [pid, s.org.id]);
+  const enMl = (x: (typeof comprobantes)[number]) => ({ estado: x.ml_estado, subida_ts: x.ml_subida_ts, documento_id: x.ml_documento_id, error: x.ml_error, cola_id: x.ml_cola_id });
+  const subibles = comprobantes.filter((x) => x.estado === "autorizado" && x.es_ml && puedeSubir(enMl(x)));
   const puedeFacturar = tienePermiso(s.permisos, "facturacion_ver");
   const facturado = comprobantes.some((x) => [1, 6, 11].includes(x.tipo_cbte) && x.estado === "autorizado");
   const ofrecerFacturar = puedeFacturar && !facturado && !["nuevo", "cancelado"].includes(c.estado);
@@ -216,10 +225,12 @@ export default async function DetallePedido({ params, searchParams }: { params: 
                 <Estado texto={est.texto} tono={est.tono} />
                 {x.estado === "autorizado" && puedeFacturar && <a href={`/administracion/facturacion/${x.id}/pdf`} target="_blank" rel="noopener" className={SUAVE}>PDF</a>}
                 {x.observaciones && x.estado !== "autorizado" && <span className="text-[11px] text-[#5C6B76]">{x.observaciones}</span>}
+                {x.estado === "autorizado" && x.es_ml && <span className="text-[11px] text-[#5C6B76]">En ML: <TextoFacturaMl x={enMl(x)} /></span>}
               </div>
             );
           })}
         </div>
+        {puedeFacturar && subibles.length > 0 && !espera && <BotonFacturaMl accion={accionSubirFacturaMlPedido} campos={{ pedido_id: String(pid) }} />}
         {ofrecerFacturar && espera && (
           <button type="button" disabled className={`${PRIMARIO} opacity-50 cursor-not-allowed`} title={mensajeEsperaCarrito(espera)}>{textoEsperaCarrito(ml?.espera_ts)}</button>
         )}

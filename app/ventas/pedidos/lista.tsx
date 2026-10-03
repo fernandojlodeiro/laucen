@@ -9,6 +9,10 @@ import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/li
 import { TONO_ESTADO, TONO_PAGO, etiqueta } from "@/app/ventas/formato";
 import type { EstadoPedido, EstadoPago } from "@/lib/pedidos";
 import { MarcaCarritoEspera } from "@/app/componentes/CarritoEspera";
+import { sqlFacturaMlDelPedido, ESTADO_FACTURA_ML } from "@/lib/mercadolibre/facturas";
+
+/** ✓ subida · ⏳ pendiente o preparada · ⚠ con error · ○ falta subirla. */
+const ICONO_FACTURA_ML: Record<string, string> = { subida: "✓", ok: "✓", pendiente: "⏳", enviando: "⏳", preparado: "⏳", error: "⚠", descartado: "○", falta: "○" };
 
 const esFecha = (x?: string) => (x && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : "");
 
@@ -76,6 +80,15 @@ const CAMPOS: Campo[] = [
   { clave: "lineas", titulo: "Líneas", sql: "(select count(*) from pedido_linea l where l.pedido_id = p.id)::int", formato: "entero" },
   { clave: "seguimiento", titulo: "Código de seguimiento", sql: "p.codigo_seguimiento" },
   { clave: "notas", titulo: "Notas", sql: "p.notas", orden: false, ancho: 40 },
+  {
+    clave: "factura_ml", titulo: "Factura en ML", sql: sqlFacturaMlDelPedido("p"), ancho: 18,
+    valor: (f) => f.factura_ml ? ESTADO_FACTURA_ML[f.factura_ml]?.texto ?? f.factura_ml : null,
+    celda: (f) => {
+      if (!f.factura_ml) return <span className="text-[#5C6B76]">—</span>;
+      const e = ESTADO_FACTURA_ML[f.factura_ml] ?? ESTADO_FACTURA_ML.falta;
+      return <Link href={`/ventas/pedidos/${f.id}`} title={e.texto} aria-label={e.texto}><Estado texto={`${ICONO_FACTURA_ML[f.factura_ml] ?? "○"} ${f.factura_ml === "subida" || f.factura_ml === "ok" ? "Subida" : f.factura_ml === "error" ? "Error" : f.factura_ml === "falta" || f.factura_ml === "descartado" ? "Falta" : "Pendiente"}`} tono={e.tono} /></Link>;
+    },
+  },
 ];
 
 export const LISTA_PEDIDOS: Lista = {
@@ -86,7 +99,7 @@ export const LISTA_PEDIDOS: Lista = {
   vistas: true,
   porDefecto: "fecha",
   campos: CAMPOS,
-  enPantalla: ["id", "fecha", "canal", "externo", "cliente", "estado", "pago", "total", "unidades"],
+  enPantalla: ["id", "fecha", "canal", "externo", "cliente", "estado", "pago", "total", "unidades", "factura_ml"],
   siempre: "p.id::int id, p.canal_id::int canal_id, p.cliente_id::int cliente_id, p.carrito_ultimo_evento_ts espera_ts",
   consulta: async (ctx, sp) => {
     const f = filtrosPedidos(sp);
