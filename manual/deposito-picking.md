@@ -107,7 +107,7 @@ En la pestaña **"Etiquetas y hojas"** del lote apretá **"Reimprimir etiquetas 
 
 ### Terminar o cancelar un lote
 
-- **"Terminar lote"**: los pedidos con todo escaneado pasan a "preparado"; los que tienen faltantes o no se cerraron quedan "en preparación" y vuelven a la lista para un próximo lote. Muestra un resumen: "Picking terminado: N preparado(s), N incompleto(s)".
+- **"Terminar lote"**: los pedidos con todo escaneado pasan a "preparado"; los que tienen faltantes o no se cerraron quedan "en preparación" y vuelven a la lista para un próximo lote. Si hay pedidos sin cerrar, antes de terminar pregunta ahí mismo cuáles son ("El #25 no está preparado: queda en preparación y vuelve a la lista. ¿Terminar igual?") con **"Sí"** / **"No"**. Terminar no mueve stock ni toca Mercado Libre: sólo cambia el estado de los pedidos completos a "preparado" (queda en su historial) y cierra el lote. La mercadería sigue reservada; el stock se descuenta recién al despachar. Muestra un resumen: "Picking terminado: N preparado(s), N incompleto(s)".
 - **"Cancelar lote"**: pregunta "¿Cancelar este lote?". Los pedidos quedan "en preparación" y vuelven a la lista para armar otro lote.
 
 ### Mensajes de error típicos

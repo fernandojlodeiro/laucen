@@ -67,6 +67,10 @@ export default async function LotePicking({ params, searchParams }: { params: Pr
   const editar = Number(sp.editar) || 0;
   const ver: ModoLote = esModoLote(sp.ver) ? sp.ver : esModoLote(lote.modo) ? lote.modo : "recorrido";
   const preparados = pedidos.filter((p) => p.preparado_ts).length;
+  // Los que al terminar no pasan a preparado (ni marcados ni con todo escaneado).
+  const completo = new Map<number, boolean>();
+  for (const i of items) completo.set(i.pedido_id, (completo.get(i.pedido_id) ?? true) && i.escaneado >= i.cantidad);
+  const sinCerrar = pedidos.filter((p) => !(p.preparado_ts || completo.get(p.id))).map((p) => `#${p.id}`);
   const impresos = pedidos.filter((p) => p.impreso_ts).length;
   const pestanas: [ModoLote, string][] = [["hojas", "Etiquetas y hojas"], ["empacar", "Empacar escaneando (alternativo)"], ["recorrido", "Recorrer escaneando"]];
 
@@ -125,14 +129,24 @@ export default async function LotePicking({ params, searchParams }: { params: Pr
       )}
 
       <div className="flex flex-wrap items-center gap-2 mb-5">
-        <form action={accionTerminarLote} className="flex-1">
-          <input type="hidden" name="lote" value={loteId} />
-          <button className={`${actual ? SUAVE : VERDE} ${GRANDE} w-full`}>Terminar lote</button>
-        </form>
+        {sinCerrar.length ? (
+          // Avisa ahí mismo qué pedidos no van a quedar preparados.
+          <div className="flex-1">
+            <BotonConfirmar accion={accionTerminarLote} campos={{ lote: String(loteId) }} clase={`${SUAVE} ${GRANDE} w-full`} texto="Terminar lote" corriendo="Terminando…"
+              pregunta={sinCerrar.length === 1
+                ? `El ${sinCerrar[0]} no está preparado: queda en preparación y vuelve a la lista. ¿Terminar igual?`
+                : `${sinCerrar.length} pedidos (${sinCerrar.join(", ")}) no están preparados: quedan en preparación y vuelven a la lista. ¿Terminar igual?`} />
+          </div>
+        ) : (
+          <form action={accionTerminarLote} className="flex-1">
+            <input type="hidden" name="lote" value={loteId} />
+            <button className={`${VERDE} ${GRANDE} w-full`}>Terminar lote</button>
+          </form>
+        )}
         <BotonConfirmar accion={accionCancelarLote} campos={{ lote: String(loteId), d: String(lote.deposito_id) }}
           clase={`${APAGAR} ${GRANDE}`} texto="Cancelar lote" pregunta="¿Cancelar este lote?" corriendo="Cancelando…" />
       </div>
-      {actual && <p className="text-[11px] text-[#5C6B76] -mt-3 mb-5">Si terminás el lote con pedidos sin cerrar, quedan en preparación y vuelven a la lista.</p>}
+      {sinCerrar.length > 0 && <p className="text-[11px] text-[#5C6B76] -mt-3 mb-5">Si terminás el lote con pedidos sin cerrar, quedan en preparación y vuelven a la lista.</p>}
 
       <ListaItems items={items} pedidoDe={pedidoDe} loteId={loteId} editar={editar} abierto />
     </Pantalla>
