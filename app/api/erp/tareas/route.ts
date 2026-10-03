@@ -4,7 +4,8 @@
 // llegaron al estado elegido) y reintento de comprobantes con error; ventas
 // facturadas a cuenta corriente; asientos contables que falten; e
 // importaciones que siguen solas en segundo plano; la cola de salida a
-// Mercado Libre (lib/mercadolibre/cola.ts) y, de 2 a 5, la barrida nocturna.
+// Mercado Libre (lib/mercadolibre/cola.ts) y, de 2 a 5, la barrida nocturna
+// y la lectura de la facturación de ML (lib/mercadolibre/facturacion.ts).
 
 import { after } from "next/server";
 import { revalidateTag } from "next/cache";
@@ -18,6 +19,7 @@ import { avanzar as avanzarVs } from "@/lib/importar/virtualseller";
 import { procesarCola, hayPendientes } from "@/lib/mercadolibre/cola";
 import { procesarCambiosStock, sincronizarStockMl, variacionesConEventos } from "@/lib/mercadolibre/stock";
 import { barridaNocturna, enVentanaBarrida } from "@/lib/mercadolibre/barrida";
+import { traerFacturacionMl, facturacionPendiente } from "@/lib/mercadolibre/facturacion";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -86,11 +88,22 @@ export async function GET(req: Request) {
     informe.importaciones = imps.map((i) => i.id);
     informe.importaciones_vs = vs.map((i) => i.id);
   }
+  // La facturación de ML (sólo lectura): una vez por noche y por cuenta.
+  const facturacionMl = enVentanaBarrida() && await facturacionPendiente().catch(() => false);
   if (cola) informe.cola_ml = true;
   if (barrida) informe.barrida_ml = true;
-  if (imps.length || vs.length || cola || barrida) {
+  if (facturacionMl) informe.facturacion_ml = true;
+  if (imps.length || vs.length || cola || barrida || facturacionMl) {
     after(async () => {
       await Promise.all([
+        (async () => {
+          if (!facturacionMl) return;
+          try {
+            console.log("[tareas] facturación ML", JSON.stringify(await traerFacturacionMl(null, { hastaMs: t0 + 100_000, periodos: 2 })));
+          } catch (e) {
+            console.error("[tareas] facturación ML", e instanceof Error ? e.message : e);
+          }
+        })(),
         (async () => {
           try {
             if (cola) console.log("[tareas] cola ML", JSON.stringify(await procesarCola(t0 + 45_000)));

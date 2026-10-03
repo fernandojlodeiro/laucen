@@ -9,7 +9,7 @@ import path from "node:path";
 import type { Pool } from "pg";
 import { pool } from "@/db";
 
-export const ARCHIVOS_ERP = ["moneda", "eventos", "catalogo", "stock", "ventas", "importar", "compras", "mercadolibre", "deposito", "facturacion", "tienda", "administracion", "archivos", "listas", "precios_ml", "reclamos"] as const;
+export const ARCHIVOS_ERP = ["moneda", "eventos", "catalogo", "stock", "ventas", "importar", "compras", "mercadolibre", "deposito", "facturacion", "tienda", "administracion", "archivos", "listas", "precios_ml", "reclamos", "ml_facturacion"] as const;
 
 /** Corre los .sql del cimiento contra una base (sirve también para los tests). */
 export async function correrEsquemaErp(base: Pool): Promise<void> {
