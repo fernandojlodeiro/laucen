@@ -9,7 +9,7 @@ import { VERDE, SUAVE } from "@/app/botones";
 import { Interruptor } from "@/app/radar/Piezas";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  entrarErp, Pantalla, Avisos, Lapiz, Dato, BotonesFicha, editandoFicha, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import { TIPOS_MEDIO, type TipoMedio } from "./comun";
 import { accionActivarMedio, accionGuardarMedio, accionGuardarCredencial } from "./acciones";
@@ -96,38 +96,82 @@ export default async function MediosPago({ searchParams }: { searchParams: Promi
       </div>
 
       <h2 className="text-sm font-bold mb-2">Credenciales</h2>
-      <p className="text-[11px] text-[#5C6B76] mb-2">Nunca se muestran enteras. Para reemplazar una, escribí la nueva; un campo vacío deja la que estaba.</p>
+      <p className="text-[11px] text-[#5C6B76] mb-2">Nunca se muestran enteras. Se cambian con el lápiz de cada una: escribí la nueva; un campo vacío deja la que estaba.</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {mp && (
-          <form action={accionGuardarCredencial} className={`${CAJA} grid gap-2 content-start`}>
-            <input type="hidden" name="id" value={mp.id} />
-            <h3 className="text-xs font-bold">Mercado Pago</h3>
-            <p className="text-[11px] text-[#5C6B76]">{TIPOS_MEDIO.mercadopago.ayuda}</p>
-            <label><span className={ETIQUETA}>Access token de producción · {mascara(mp.datos?.access_token)}</span>
-              <input name="access_token" autoComplete="off" placeholder="APP_USR-…" className={`${CAMPO} w-full font-mono`} /></label>
-            <label><span className={ETIQUETA}>Public key · {mascara(mp.datos?.public_key)}</span>
-              <input name="public_key" autoComplete="off" placeholder="APP_USR-…" className={`${CAMPO} w-full font-mono`} /></label>
-            <div><button className={VERDE}>Guardar credenciales</button></div>
-          </form>
-        )}
-        {pw && (
-          <form action={accionGuardarCredencial} className={`${CAJA} grid grid-cols-2 gap-2 content-start`}>
-            <input type="hidden" name="id" value={pw.id} />
-            <h3 className="col-span-2 text-xs font-bold">Payway (tarjetas)</h3>
-            <p className="col-span-2 text-[11px] text-[#5C6B76]">{TIPOS_MEDIO.payway.ayuda}</p>
-            <label className="col-span-2"><span className={ETIQUETA}>Llave pública · {mascara(pw.datos?.public_key)}</span>
-              <input name="public_key" autoComplete="off" className={`${CAMPO} w-full font-mono`} /></label>
-            <label className="col-span-2"><span className={ETIQUETA}>Llave privada · {mascara(pw.datos?.private_key)}</span>
-              <input name="private_key" autoComplete="off" className={`${CAMPO} w-full font-mono`} /></label>
-            <label><span className={ETIQUETA}>Site id · {mascara(pw.datos?.site_id)}</span>
-              <input name="site_id" autoComplete="off" className={`${CAMPO} w-full font-mono`} /></label>
-            <label><span className={ETIQUETA}>Ambiente</span>
-              <select name="ambiente" defaultValue={pw.datos?.ambiente ?? "sandbox"} className={`${CAMPO} w-full`}>
-                <option value="sandbox">Prueba (sandbox)</option><option value="produccion">Producción</option>
-              </select></label>
-            <div className="col-span-2"><button className={VERDE}>Guardar credenciales</button></div>
-          </form>
-        )}
+        {mp && (() => {
+          const editando = editandoFicha(sp, "mercadopago");
+          const cuerpo = (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-xs font-bold">Mercado Pago</h3>
+                <span className="inline-flex gap-2">
+                  <BotonesFicha editando={editando} ver={BASE} editar={`${BASE}?editar=mercadopago`} form="ficha-mercadopago" />
+                </span>
+              </div>
+              <p className="text-[11px] text-[#5C6B76]">{TIPOS_MEDIO.mercadopago.ayuda}</p>
+              {editando ? (
+                <>
+                  <label><span className={ETIQUETA}>Access token de producción · {mascara(mp.datos?.access_token)}</span>
+                    <input name="access_token" autoComplete="off" placeholder="APP_USR-…" className={`${CAMPO} w-full font-mono`} autoFocus /></label>
+                  <label><span className={ETIQUETA}>Public key · {mascara(mp.datos?.public_key)}</span>
+                    <input name="public_key" autoComplete="off" placeholder="APP_USR-…" className={`${CAMPO} w-full font-mono`} /></label>
+                </>
+              ) : (
+                <>
+                  <Dato etiqueta="Access token de producción">{mascara(mp.datos?.access_token)}</Dato>
+                  <Dato etiqueta="Public key">{mascara(mp.datos?.public_key)}</Dato>
+                </>
+              )}
+            </>
+          );
+          return editando ? (
+            <form id="ficha-mercadopago" action={accionGuardarCredencial} className={`${CAJA} grid gap-2 content-start`}>
+              <input type="hidden" name="id" value={mp.id} />
+              {cuerpo}
+            </form>
+          ) : <div className={`${CAJA} grid gap-2 content-start`}>{cuerpo}</div>;
+        })()}
+        {pw && (() => {
+          const editando = editandoFicha(sp, "payway");
+          const cuerpo = (
+            <>
+              <div className="col-span-2 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-xs font-bold">Payway (tarjetas)</h3>
+                <span className="inline-flex gap-2">
+                  <BotonesFicha editando={editando} ver={BASE} editar={`${BASE}?editar=payway`} form="ficha-payway" />
+                </span>
+              </div>
+              <p className="col-span-2 text-[11px] text-[#5C6B76]">{TIPOS_MEDIO.payway.ayuda}</p>
+              {editando ? (
+                <>
+                  <label className="col-span-2"><span className={ETIQUETA}>Llave pública · {mascara(pw.datos?.public_key)}</span>
+                    <input name="public_key" autoComplete="off" className={`${CAMPO} w-full font-mono`} autoFocus /></label>
+                  <label className="col-span-2"><span className={ETIQUETA}>Llave privada · {mascara(pw.datos?.private_key)}</span>
+                    <input name="private_key" autoComplete="off" className={`${CAMPO} w-full font-mono`} /></label>
+                  <label><span className={ETIQUETA}>Site id · {mascara(pw.datos?.site_id)}</span>
+                    <input name="site_id" autoComplete="off" className={`${CAMPO} w-full font-mono`} /></label>
+                  <label><span className={ETIQUETA}>Ambiente</span>
+                    <select name="ambiente" defaultValue={pw.datos?.ambiente ?? "sandbox"} className={`${CAMPO} w-full`}>
+                      <option value="sandbox">Prueba (sandbox)</option><option value="produccion">Producción</option>
+                    </select></label>
+                </>
+              ) : (
+                <>
+                  <Dato etiqueta="Llave pública" className="col-span-2">{mascara(pw.datos?.public_key)}</Dato>
+                  <Dato etiqueta="Llave privada" className="col-span-2">{mascara(pw.datos?.private_key)}</Dato>
+                  <Dato etiqueta="Site id">{mascara(pw.datos?.site_id)}</Dato>
+                  <Dato etiqueta="Ambiente">{pw.datos?.ambiente === "produccion" ? "Producción" : "Prueba (sandbox)"}</Dato>
+                </>
+              )}
+            </>
+          );
+          return editando ? (
+            <form id="ficha-payway" action={accionGuardarCredencial} className={`${CAJA} grid grid-cols-2 gap-2 content-start`}>
+              <input type="hidden" name="id" value={pw.id} />
+              {cuerpo}
+            </form>
+          ) : <div className={`${CAJA} grid grid-cols-2 gap-2 content-start`}>{cuerpo}</div>;
+        })()}
       </div>
     </Pantalla>
   );

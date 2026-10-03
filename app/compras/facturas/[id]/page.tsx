@@ -79,15 +79,24 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
       titulo={<>{f.es_nota_credito ? "Nota de crédito de compra" : "Factura de compra"} <span className="font-mono">{numeroFactura(f)}</span></>}
       camino={[{ texto: numeroFactura(f) }]}
       subtitulo={<><Link href={`/compras/proveedores?id=${f.proveedor_id}`} className="text-[#16577F] hover:underline">{f.proveedor}</Link> · {fechaAR(f.fecha)}</>}
-      acciones={borrador ? <TachoConfirmar accion={accionBorrarFactura} campos={{ id: String(fid) }} pregunta="¿Borrar el borrador?" /> : undefined}>
+      acciones={borrador ? (
+        <>
+          {/* La acción final del borrador, arriba a la derecha (AGENTS.md). */}
+          <BotonConfirmar accion={accionRegistrarFactura} campos={{ id: String(fid) }} clase={VERDE} texto="Registrar"
+            pregunta="¿Registrar? Ingresa el stock, actualiza el costo y deja la deuda al proveedor. Después no se puede cambiar." corriendo="Registrando…" />
+          <TachoConfirmar accion={accionBorrarFactura} campos={{ id: String(fid) }} pregunta="¿Borrar el borrador?" />
+        </>
+      ) : <Link href={`/administracion/cuentas-corrientes?tercero=proveedor&id=${f.proveedor_id}`} className={SUAVE}>Estado de cuenta del proveedor</Link>}>
       <Avisos sp={sp} />
 
       {borrador && opciones ? (
-        <form action={accionGuardarCabecera} className={`${CAJA} grid gap-3 mb-4`}>
+        <form id="cabecera" action={accionGuardarCabecera} className={`${CAJA} grid gap-3 mb-4`}>
           <input type="hidden" name="id" value={fid} />
-          <div className="flex items-center gap-2"><h2 className="text-sm font-bold">Cabecera</h2><Estado texto={est.texto} tono={est.tono} /></div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="flex items-center gap-2"><h2 className="text-sm font-bold">Cabecera</h2><Estado texto={est.texto} tono={est.tono} /></span>
+            <button className={PRIMARIO}>Grabar cabecera</button>
+          </div>
           <CamposCabecera o={opciones} conImpuestos d={{ ...f, cotizacion: f.moneda === "USD" ? f.cotizacion : null }} />
-          <div><BotonEnviar clase={PRIMARIO} corriendo="Guardando…">Guardar cabecera</BotonEnviar></div>
         </form>
       ) : (
         <div className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4`}>
@@ -211,14 +220,7 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
       </div>
 
       {borrador && (
-        <div className="grid gap-1 justify-items-start">
-          <BotonConfirmar accion={accionRegistrarFactura} campos={{ id: String(fid) }} clase={VERDE} texto="Registrar"
-            pregunta="¿Registrar? Después no se puede cambiar." corriendo="Registrando…" />
-          <p className="text-[11px] text-[#5C6B76]">Ingresa el stock al depósito, actualiza el costo y deja la deuda en la cuenta corriente del proveedor.</p>
-        </div>
-      )}
-      {!borrador && (
-        <Link href={`/administracion/cuentas-corrientes?tercero=proveedor&id=${f.proveedor_id}`} className={SUAVE}>Estado de cuenta del proveedor</Link>
+        <p className="text-[11px] text-[#5C6B76]">«Registrar» (arriba a la derecha) ingresa el stock al depósito, actualiza el costo y deja la deuda en la cuenta corriente del proveedor.</p>
       )}
     </Pantalla>
   );

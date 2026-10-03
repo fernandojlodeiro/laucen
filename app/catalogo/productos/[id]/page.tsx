@@ -3,7 +3,7 @@
 // sección está en secciones.tsx; las acciones, en ../acciones.ts.
 //
 // AGENTS.md: la ficha abre en modo vista. Datos, Costo y Cucardas se editan
-// con el lápiz de arriba a la derecha (?editar=1), y ahí mismo queda "Grabar"
+// con el lápiz de arriba a la derecha (?editar=ficha), y ahí mismo queda "Grabar"
 // (manda el formulario "ficha" de la sección). En las grillas, el lápiz es de
 // cada fila (?editar=<id>) y el alta va detrás de "Nuevo …" arriba a la derecha.
 
@@ -12,7 +12,7 @@ import { una } from "@/lib/erp/base";
 import Pestanas from "@/app/componentes/Pestanas";
 import { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { TachoConfirmar } from "@/app/radar/Cliente";
-import { entrarErp, Pantalla, Avisos, BotonesFicha, editandoFicha, url } from "@/app/componentes/erp";
+import { entrarErp, Pantalla, Avisos, BotonesFicha, editandoFicha, EDITAR_FICHA, url } from "@/app/componentes/erp";
 import { accionBorrarProducto, accionCambiarEstadoProducto } from "../acciones";
 import { SUAVE } from "@/app/botones";
 import { EstadoProducto, TIPOS_PRODUCTO } from "../comun";
@@ -94,7 +94,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
           {seccion === "variaciones" && p.tipo === "con_variaciones" && <BotonNuevo texto="Nueva variación" />}
           {seccion === "atributos" && <BotonNuevo texto="Nuevo atributo" />}
           {seccion === "kit" && <BotonNuevo texto="Nuevo componente" />}
-          {conFicha && <BotonesFicha editando={editando} ver={aqui()} editar={aqui({ editar: 1 })} />}
+          {conFicha && <BotonesFicha editando={editando} ver={aqui()} editar={aqui({ editar: EDITAR_FICHA })} />}
           {!editando && (
             <>
               {/* Inactivo = archivado: deja de aparecer en listados y buscadores. */}

@@ -140,18 +140,25 @@ export default async function DetalleDespacho({ params, searchParams }: { params
       titulo={<>Despacho <span className="font-mono">{d.numero ?? `#${d.id} (sin número)`}</span></>}
       camino={[{ texto: d.numero ?? `#${d.id}` }]}
       subtitulo={<>{fechaAR(d.fecha)}{d.proveedor ? ` · ${d.proveedor}` : ""}</>}
-      acciones={borrador ? <TachoConfirmar accion={accionBorrarDespacho} campos={{ id: String(did) }} pregunta="¿Borrar el borrador?" /> : undefined}>
+      acciones={borrador ? (
+        <>
+          {/* La acción final del borrador, arriba a la derecha (AGENTS.md). */}
+          <BotonConfirmar accion={accionRegistrarDespacho} campos={{ id: String(did) }} clase={VERDE} texto="Registrar"
+            pregunta="¿Registrar? Ingresa el stock y deja el costo puesto en depósito. Después no se puede cambiar." corriendo="Registrando…" />
+          <TachoConfirmar accion={accionBorrarDespacho} campos={{ id: String(did) }} pregunta="¿Borrar el borrador?" />
+        </>
+      ) : undefined}>
       <Avisos sp={sp} />
 
       {borrador && opciones ? (
         <form action={accionGuardarDespacho} className={`${CAJA} grid gap-3 mb-4`}>
           <input type="hidden" name="id" value={did} />
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-bold">Cabecera</h2><Estado texto={est.texto} tono={est.tono} />
             <span className="ml-auto text-xs text-[#5C6B76]">FOB (suma de las líneas): <b className="tabular-nums">{formatear(calc.fobTotal, "USD")}</b></span>
+            <button className={PRIMARIO}>Grabar cabecera</button>
           </div>
           <CamposDespacho o={opciones} d={d} />
-          <div><BotonEnviar clase={PRIMARIO} corriendo="Guardando…">Guardar cabecera</BotonEnviar></div>
         </form>
       ) : (
         <div className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4`}>
@@ -281,11 +288,7 @@ export default async function DetalleDespacho({ params, searchParams }: { params
       </div>
 
       {borrador && (
-        <div className="grid gap-1 justify-items-start mb-3">
-          <BotonConfirmar accion={accionRegistrarDespacho} campos={{ id: String(did) }} clase={VERDE} texto="Registrar"
-            pregunta="¿Registrar? Después no se puede cambiar." corriendo="Registrando…" />
-          <p className="text-[11px] text-[#5C6B76]">Ingresa el stock al depósito y deja el costo puesto en depósito de cada producto.</p>
-        </div>
+        <p className="text-[11px] text-[#5C6B76] mb-3">«Registrar» (arriba a la derecha) ingresa el stock al depósito y deja el costo puesto en depósito de cada producto.</p>
       )}
       <p className="text-[11px] text-[#5C6B76]">
         La factura del proveedor del exterior y las del despachante se cargan en <Link href="/compras/facturas" className="text-[#16577F] hover:underline">Facturas de compra</Link> (sin

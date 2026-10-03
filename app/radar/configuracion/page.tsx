@@ -8,7 +8,7 @@ import { FUENTES_APIFY, configDe } from "@/lib/radar/config";
 import { estadoDelArbol } from "@/lib/radar/categorias";
 import { situacionDelArbol, ultimosProcesos } from "@/lib/radar/procesos";
 import { cuentaDe } from "@/lib/meli";
-import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
+import { SUAVE, VERDE } from "@/app/botones";
 import { accionCorrerAhora, accionGuardarConfig } from "../actions";
 import { Aviso } from "../Piezas";
 import { BotonConfirmar, BotonEnviar } from "../Cliente";
@@ -31,7 +31,10 @@ function Fila({ titulo, ayuda, children }: { titulo: string; ayuda?: string; chi
   );
 }
 
-function Frecuencia({ prefijo, cada, unidad, desde }: { prefijo: string; cada: number; unidad: string; desde: string }) {
+function Frecuencia({ prefijo, cada, unidad, desde, editando }: { prefijo: string; cada: number; unidad: string; desde: string; editando: boolean }) {
+  if (!editando) {
+    return <span>cada <b className="tabular-nums">{cada}</b> {unidad === "meses" ? "meses" : "días"}, comenzando el {desde ? desde.split("-").reverse().join("/") : "—"}</span>;
+  }
   return (
     <>
       <span>cada</span>
@@ -48,12 +51,14 @@ function Frecuencia({ prefijo, cada, unidad, desde }: { prefijo: string; cada: n
 
 const hora = (d: Date | null) => d ? d.toLocaleString("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
 
-export default async function Configuracion({ searchParams }: { searchParams: Promise<{ ok?: string }> }) {
+export default async function Configuracion({ searchParams }: { searchParams: Promise<{ ok?: string; editar?: string }> }) {
   await asegurarEsquema();
   const sesion = await sesionRequerida();
   const sp = await searchParams;
   if (!(await puede("radar_ver"))) return <Aviso tipo="error">No tenés permiso para ver el Radar.</Aviso>;
   const puedeConfigurar = await puede("radar_configurar");
+  // Abre en vista (AGENTS.md); el lápiz la pasa a edición (?editar=ficha) y "Grabar" queda arriba a la derecha.
+  const editando = puedeConfigurar && sp.editar === "ficha";
 
   const [c, arbol, procesos, cuenta, esFer, situacion] = await Promise.all([
     configDe(sesion.org.id), estadoDelArbol(), ultimosProcesos(sesion.org.id, 12), cuentaDe(sesion.org.id), sosVos(),
@@ -72,41 +77,65 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
         </Aviso>
       )}
 
-      <form action={accionGuardarConfig} className="border border-[#E3E9F0] rounded-lg bg-white px-4">
-        <fieldset disabled={!puedeConfigurar}>
+      <form id="ficha" action={accionGuardarConfig} className="border border-[#E3E9F0] rounded-lg bg-white px-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-3">
+          <h2 className="text-sm font-bold">Configuración</h2>
+          {puedeConfigurar ? (
+            <span className="inline-flex gap-2">
+              {editando ? (
+                <>
+                  <button className={VERDE}>Grabar</button>
+                  <Link href="/radar/configuracion" className={SUAVE} scroll={false}>Cancelar</Link>
+                </>
+              ) : (
+                <Link href="/radar/configuracion?editar=ficha" scroll={false} aria-label="Editar" title="Editar"
+                  className="inline-block text-sm leading-none rounded-lg px-2 py-1.5 bg-white border border-[#E3E9F0] text-[#16577F]">✏️</Link>
+              )}
+            </span>
+          ) : <span className="text-xs text-[#5C6B76]">No tenés permiso para cambiar la configuración.</span>}
+        </div>
+        <fieldset disabled={!editando}>
           <Fila titulo="Tope de gasto en Apify" ayuda="Por semana, sumando búsquedas a mano y automáticas. Al llegar, no corre más hasta el lunes.">
-            <span>USD</span>
-            <CampoNumero name="tope" valor={c.topeSemanalUsd} tipo="usd" className={`${campo} w-24`} />
-            <span>por semana</span>
+            {editando ? (
+              <>
+                <span>USD</span>
+                <CampoNumero name="tope" valor={c.topeSemanalUsd} tipo="usd" className={`${campo} w-24`} />
+                <span>por semana</span>
+              </>
+            ) : <span>USD <b className="tabular-nums">{c.topeSemanalUsd}</b> por semana</span>}
           </Fila>
           <Fila titulo="Leer tendencias" ayuda="La general y las de tus categorías seguidas (gratis). Mercado Libre las cambia una vez por semana.">
-            <Frecuencia prefijo="tendencias" cada={c.tendenciasCada} unidad={c.tendenciasUnidad} desde={c.tendenciasDesde} />
+            <Frecuencia prefijo="tendencias" cada={c.tendenciasCada} unidad={c.tendenciasUnidad} desde={c.tendenciasDesde} editando={editando} />
           </Fila>
           <Fila titulo="Actualizar el árbol de categorías" ayuda="Relee todas las categorías de Mercado Libre (gratis, tarda). Casi no cambia.">
-            <Frecuencia prefijo="arbol" cada={c.arbolCada} unidad={c.arbolUnidad} desde={c.arbolDesde} />
+            <Frecuencia prefijo="arbol" cada={c.arbolCada} unidad={c.arbolUnidad} desde={c.arbolDesde} editando={editando} />
           </Fila>
           <Fila titulo="Profundizar" ayuda="En las categorías con “Profundizar” prendido: cuántas palabras de cada grupo se buscan con Apify.">
-            <CampoNumero name="palabras" valor={c.palabrasAProfundizar} tipo="entero" className={`${campo} w-20`} />
+            {editando
+              ? <CampoNumero name="palabras" valor={c.palabrasAProfundizar} tipo="entero" className={`${campo} w-20`} />
+              : <b className="tabular-nums">{c.palabrasAProfundizar}</b>}
             <span>primeras de cada grupo (× 2 grupos: más deseadas y más populares)</span>
           </Fila>
           <Fila titulo="Fuente de Apify" ayuda="Para “Mejorar con Apify” y para profundizar.">
-            <select name="fuente" defaultValue={c.fuenteApify} className={campo}>
-              {Object.entries(FUENTES_APIFY).map(([k, f]) => (
-                <option key={k} value={k}>{f.label} · ~USD {f.costoPorPalabra.toFixed(2)} por palabra</option>
-              ))}
-            </select>
+            {editando ? (
+              <select name="fuente" defaultValue={c.fuenteApify} className={campo}>
+                {Object.entries(FUENTES_APIFY).map(([k, f]) => (
+                  <option key={k} value={k}>{f.label} · ~USD {f.costoPorPalabra.toFixed(2)} por palabra</option>
+                ))}
+              </select>
+            ) : (() => {
+              const f = FUENTES_APIFY[c.fuenteApify as keyof typeof FUENTES_APIFY];
+              return <span>{f ? `${f.label} · ~USD ${f.costoPorPalabra.toFixed(2)} por palabra` : c.fuenteApify}</span>;
+            })()}
           </Fila>
           <Fila titulo="Mostrar las que salieron" ayuda="Las palabras que estaban la semana anterior y ya no.">
-            <label className="flex items-center gap-2">
-              <input type="checkbox" name="mostrar_salieron" defaultChecked={c.mostrarSalieron} className="h-4 w-4" />
-              <span>Mostrarlas</span>
-            </label>
+            {editando ? (
+              <label className="flex items-center gap-2">
+                <input type="checkbox" name="mostrar_salieron" defaultChecked={c.mostrarSalieron} className="h-4 w-4" />
+                <span>Mostrarlas</span>
+              </label>
+            ) : <span>{c.mostrarSalieron ? "Sí, mostrarlas" : "No"}</span>}
           </Fila>
-          <div className="py-3">
-            {puedeConfigurar
-              ? <BotonEnviar clase={PRIMARIO} corriendo="Guardando…">Guardar</BotonEnviar>
-              : <p className="text-xs text-[#5C6B76]">No tenés permiso para cambiar la configuración.</p>}
-          </div>
         </fieldset>
       </form>
 

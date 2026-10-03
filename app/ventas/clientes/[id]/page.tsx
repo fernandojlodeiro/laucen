@@ -11,12 +11,12 @@ import { VERDE, SUAVE, PRIMARIO, DESPLEGABLE, FLECHA } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, Dato, BotonesFicha, editandoFicha, EDITAR_FICHA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import { fecha, TONO_ESTADO, TIPOS_CLIENTE, CONDICIONES_IVA, DOCUMENTOS, etiqueta } from "@/app/ventas/formato";
 import {
   accionGuardarCliente, accionBorrarCliente, accionAgregarDireccion, accionGuardarDireccion,
-  accionDireccionPrincipal, accionBorrarDireccion, accionQuitarIdentidad, accionValidarPadron, accionCuentaCorriente,
+  accionDireccionPrincipal, accionBorrarDireccion, accionQuitarIdentidad, accionValidarPadron,
 } from "../acciones";
 import { emisorDe } from "@/lib/arca/facturar";
 import { estadoCredencial } from "@/lib/arca/credenciales";
@@ -55,6 +55,8 @@ export default async function FichaCliente({ params, searchParams }: { params: P
            razon_social, cuit, apodo_ml, telefono_movil, nombre_pila, apellido, datos_externos, cuenta_corriente
       from cliente where id = $1 and organizacion_id = $2`, [cid, s.org.id]);
   if (!c) notFound();
+  // La ficha abre en vista; ?editar=ficha la edita (?editar=<id> es el lápiz de una dirección).
+  const editando = editandoFicha(sp);
   const editar = Number(sp.editar) || 0;
   // ¿Se puede consultar el padrón de ARCA? Hace falta emisor con certificado.
   const emisor = c.cuit ? await emisorDe(s.org.id) : null;
@@ -84,15 +86,21 @@ export default async function FichaCliente({ params, searchParams }: { params: P
 
   return (
     <Pantalla titulo={c.nombre} camino={[{ texto: `N.º ${c.id}` }]} subtitulo={<>Cliente N.º {c.id} · cliente desde el {fecha(c.creado_ts)}</>}
-      acciones={pedidos.length > 0
-        ? <span className="text-xs text-[#5C6B76] self-center">No se puede borrar: tiene {pedidos.length} pedido{pedidos.length === 1 ? "" : "s"}.</span>
-        : <TachoConfirmar accion={accionBorrarCliente} campos={{ id: String(cid) }} pregunta="¿Borrar el cliente?" />}>
+      acciones={
+        <>
+          <BotonesFicha editando={editando} ver={volver} editar={`${volver}?editar=${EDITAR_FICHA}`} />
+          {!editando && (pedidos.length > 0
+            ? <span className="text-xs text-[#5C6B76] self-center">No se puede borrar: tiene {pedidos.length} pedido{pedidos.length === 1 ? "" : "s"}.</span>
+            : <TachoConfirmar accion={accionBorrarCliente} campos={{ id: String(cid) }} pregunta="¿Borrar el cliente?" />)}
+        </>
+      }>
       <Avisos sp={sp} />
 
-      <form action={accionGuardarCliente} className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start mb-4`}>
+      {editando ? (
+      <form id="ficha" action={accionGuardarCliente} className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start mb-4`}>
         <input type="hidden" name="id" value={cid} />
         <label className="sm:col-span-2"><span className={ETIQUETA}>Nombre (como se lo conoce)</span>
-          <input name="nombre" defaultValue={c.nombre} className={`${CAMPO} w-full`} /></label>
+          <input name="nombre" defaultValue={c.nombre} className={`${CAMPO} w-full`} autoFocus /></label>
         <label><span className={ETIQUETA}>Tipo</span>
           <select name="tipo" defaultValue={c.tipo} className={`${CAMPO} w-full`}>
             {Object.entries(TIPOS_CLIENTE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -101,13 +109,7 @@ export default async function FichaCliente({ params, searchParams }: { params: P
           <input name="razon_social" defaultValue={c.razon_social ?? ""} className={`${CAMPO} w-full`} /></label>
         <div><label><span className={ETIQUETA}>CUIT</span>
           <input name="cuit" defaultValue={c.cuit ?? ""} placeholder="20-12345678-9" className={`${CAMPO} w-full`} /></label>
-          {conPadron && (
-            <span className="block mt-1">
-              {/* Botón del mismo formulario (manda el id del cliente) pero con su propia acción. */}
-              <button formAction={accionValidarPadron} className={SUAVE}>Validar en el padrón de ARCA</button>
-              <span className="block text-[10px] text-[#5C6B76] mt-0.5">Trae razón social, condición IVA y domicilio fiscal del CUIT guardado.</span>
-            </span>
-          )}</div>
+</div>
         <label><span className={ETIQUETA}>Apellido</span>
           <input name="apellido" defaultValue={c.apellido ?? ""} className={`${CAMPO} w-full`} /></label>
         <label><span className={ETIQUETA}>Nombre de pila</span>
@@ -141,18 +143,45 @@ export default async function FichaCliente({ params, searchParams }: { params: P
           <span className="block text-[10px] text-[#5C6B76] mt-0.5">Para mayoristas. Vacío = la del canal.</span></label>
         <label className="sm:col-span-3"><span className={ETIQUETA}>Notas</span>
           <textarea name="notas" defaultValue={c.notas ?? ""} rows={2} className={`${CAMPO} w-full`} /></label>
-        <div className="sm:col-span-3"><button className={VERDE}>Guardar</button></div>
-      </form>
-
-      <form action={accionCuentaCorriente} className={`${CAJA} flex flex-wrap items-center gap-3 mb-4`}>
-        <input type="hidden" name="id" value={cid} />
-        <label className="flex items-center gap-1.5 text-xs">
+        <input type="hidden" name="con_cc" value="1" />
+        <label className="sm:col-span-3 flex items-center gap-1.5 text-xs">
           <input type="checkbox" name="cuenta_corriente" defaultChecked={c.cuenta_corriente} className="h-4 w-4" />
           Puede comprar en cuenta corriente / a convenir
+          <span className="text-[11px] text-[#5C6B76]">(en la tienda web le aparece el medio &quot;Cuenta corriente&quot;, si está prendido en Medios de pago)</span>
         </label>
-        <button className={SUAVE}>Guardar</button>
-        <span className="text-[11px] text-[#5C6B76] basis-full">En la tienda web le aparece el medio &quot;Cuenta corriente&quot; (si está prendido en Medios de pago).</span>
       </form>
+      ) : (
+        <div className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start mb-4`}>
+          <Dato etiqueta="Nombre (como se lo conoce)" className="sm:col-span-2">{c.nombre}</Dato>
+          <Dato etiqueta="Tipo">{etiqueta(TIPOS_CLIENTE, c.tipo)}</Dato>
+          <Dato etiqueta="Razón social (para facturar)" className="sm:col-span-2">{c.razon_social}</Dato>
+          <div>
+            <Dato etiqueta="CUIT">{c.cuit}</Dato>
+            {conPadron && (
+              <form action={accionValidarPadron} className="mt-1">
+                <input type="hidden" name="id" value={cid} />
+                <button className={SUAVE}>Validar en el padrón de ARCA</button>
+                <span className="block text-[10px] text-[#5C6B76] mt-0.5">Trae razón social, condición IVA y domicilio fiscal del CUIT guardado.</span>
+              </form>
+            )}
+          </div>
+          <Dato etiqueta="Apellido">{c.apellido}</Dato>
+          <Dato etiqueta="Nombre de pila">{c.nombre_pila}</Dato>
+          <Dato etiqueta="Apodo en Mercado Libre">{c.apodo_ml}</Dato>
+          <Dato etiqueta="Mail">{c.email}</Dato>
+          <Dato etiqueta="Teléfono">{c.telefono}</Dato>
+          <Dato etiqueta="Celular">{c.telefono_movil}</Dato>
+          <Dato etiqueta="Documento">{[c.documento_tipo, c.documento_numero].filter(Boolean).join(" ")}</Dato>
+          <Dato etiqueta="Condición IVA">{c.condicion_iva ? etiqueta(CONDICIONES_IVA, c.condicion_iva) : null}</Dato>
+          <Dato etiqueta="Lista de precios propia" ayuda="Para mayoristas. Vacío = la del canal.">
+            {c.lista_precios_id ? listas.find((l) => l.id === c.lista_precios_id)?.nombre ?? null : "La del canal"}
+          </Dato>
+          <Dato etiqueta="Notas" className="sm:col-span-3">{c.notas && <span className="block whitespace-pre-wrap">{c.notas}</span>}</Dato>
+          <Dato etiqueta="Cuenta corriente" className="sm:col-span-3">
+            {c.cuenta_corriente ? "Puede comprar en cuenta corriente / a convenir" : "No compra en cuenta corriente"}
+          </Dato>
+        </div>
+      )}
 
       {Object.keys(c.datos_externos ?? {}).length > 0 && (
         <details className="mb-4 group">

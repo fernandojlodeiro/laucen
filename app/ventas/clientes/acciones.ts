@@ -70,11 +70,14 @@ export async function accionGuardarCliente(fd: FormData) {
     const r = await consulta(`
       update cliente set nombre = $3, tipo = $4, email = $5, telefono = $6, documento_tipo = $7, documento_numero = $8,
                          condicion_iva = $9, lista_precios_id = $10, notas = $11, razon_social = $12, cuit = $13,
-                         apellido = $14, nombre_pila = $15, apodo_ml = $16, telefono_movil = $17
+                         apellido = $14, nombre_pila = $15, apodo_ml = $16, telefono_movil = $17,
+                         cuenta_corriente = coalesce($18, cuenta_corriente)
        where id = $2 and organizacion_id = $1 returning id`,
       [s.org.id, cid, nombre, tipo(fd), texto(fd, "email"), texto(fd, "telefono"), documentoTipo(fd),
         texto(fd, "documento_numero"), condicionIva(fd), lista, texto(fd, "notas"), texto(fd, "razon_social"), cuitDe(fd),
-        texto(fd, "apellido"), texto(fd, "nombre_pila"), texto(fd, "apodo_ml"), texto(fd, "telefono_movil")]);
+        texto(fd, "apellido"), texto(fd, "nombre_pila"), texto(fd, "apodo_ml"), texto(fd, "telefono_movil"),
+        // La ficha manda la casilla de cuenta corriente (con_cc); sin ella, queda como estaba.
+        fd.get("con_cc") === "1" ? fd.get("cuenta_corriente") === "on" : null]);
     if (!r.length) throw new ErrorErp("El cliente no existe.");
     revalidatePath(ficha(cid));
     return "Guardado.";
@@ -220,15 +223,3 @@ export async function accionValidarPadron(fd: FormData) {
   });
 }
 
-/** Si el cliente puede comprar en cuenta corriente / "a convenir" en la tienda. */
-export async function accionCuentaCorriente(fd: FormData) {
-  const s = await entrarErp("clientes_ver");
-  const cid = id(fd);
-  await intentar(ficha(cid), async () => {
-    const puede = fd.get("cuenta_corriente") === "on";
-    const r = await consulta("update cliente set cuenta_corriente = $3 where id = $1 and organizacion_id = $2 returning id", [cid, s.org.id, puede]);
-    if (!r.length) throw new ErrorErp("El cliente no existe.");
-    revalidatePath(ficha(cid));
-    return puede ? "Puede comprar en cuenta corriente." : "Ya no compra en cuenta corriente.";
-  });
-}

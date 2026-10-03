@@ -73,8 +73,20 @@ export function Lapiz({ href, etiqueta = "Editar" }: { href: string; etiqueta?: 
   return <Link href={href} className={LAPIZ} aria-label={etiqueta} title={etiqueta} scroll={false}>✏️</Link>;
 }
 
-/** Las fichas abren en modo vista (AGENTS.md): se edita con `?editar=1`. */
-export const editandoFicha = (sp: { editar?: string }) => sp.editar === "1";
+/** Las fichas abren en modo vista (AGENTS.md): se edita con `?editar=ficha`
+ *  (no un número: en la misma pantalla, `?editar=<id>` es el lápiz de una fila). */
+export const EDITAR_FICHA = "ficha";
+export const editandoFicha = (sp: { editar?: string }, clave: string = EDITAR_FICHA) => sp.editar === clave;
+
+/** El título de una sección de ficha con sus botones (lápiz / Grabar) a la derecha. */
+export function TituloSeccion({ titulo, children }: { titulo: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+      <h2 className="text-sm font-bold">{titulo}</h2>
+      {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
+    </div>
+  );
+}
 
 /** Los botones de una ficha, arriba a la derecha (en `acciones` de Pantalla,
  *  al lado de "Nuevo …"): en vista, el lápiz; editando, "Grabar" —que manda

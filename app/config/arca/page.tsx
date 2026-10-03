@@ -17,7 +17,7 @@ import { PRIMARIO, SUAVE, BORRAR, APAGAR, DESPLEGABLE_CHICO } from "@/app/botone
 import { BotonEnviar, BotonConfirmar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
 import CampoNumero from "@/app/componentes/CampoNumero";
-import { entrarErp, Pantalla, Avisos, Estado, CAMPO, ETIQUETA, CAJA } from "@/app/componentes/erp";
+import { entrarErp, Pantalla, Avisos, Estado, Dato, BotonesFicha, editandoFicha, CAMPO, ETIQUETA, CAJA } from "@/app/componentes/erp";
 import {
   accionPrepararTramite, accionConectar, accionDesconectar, accionFacturarAutomatico, accionFacturarAl, accionProbarConexion,
 } from "./acciones";
@@ -25,7 +25,7 @@ import SubirCertificado from "./SubirCertificado";
 
 export const dynamic = "force-dynamic";
 
-type SP = { ok?: string; error?: string };
+type SP = { editar?: string; ok?: string; error?: string };
 
 const MODO: Record<Ambiente, string> = { produccion: "Facturación real", homologacion: "Prueba contra ARCA" };
 const fechaAR = (d: Date) => d.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
@@ -78,13 +78,20 @@ export default async function ConfigArca({ searchParams }: { searchParams: Promi
               <Interruptor accion={accionFacturarAutomatico} prendido={e.facturar_automatico} campos={{}}
                 etiqueta="Facturar automáticamente"
                 ayuda={`Factura sola cada pedido que llega a "${estadoAl}". Al prenderla, los pedidos que ya habían pasado no se facturan: sólo los que lleguen de ahora en adelante.`} />
-              <form action={accionFacturarAl} className="flex flex-wrap items-end gap-2">
-                <label><span className={ETIQUETA}>Facturar al llegar el pedido a</span>
-                  <select name="facturar_al" defaultValue={e.facturar_al} className={CAMPO}>
-                    {(["pagado", "preparado", "despachado"] as const).map((k) => <option key={k} value={k}>{ESTADOS_PEDIDO[k]}</option>)}
-                  </select></label>
-                <BotonEnviar clase={SUAVE} corriendo="Guardando…">Guardar</BotonEnviar>
-              </form>
+              {/* Se ve; el lápiz lo vuelve editable (?editar=facturar) y "Grabar" queda a su derecha. */}
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                {editandoFicha(sp, "facturar") ? (
+                  <form id="ficha-facturar" action={accionFacturarAl}>
+                    <label><span className={ETIQUETA}>Facturar al llegar el pedido a</span>
+                      <select name="facturar_al" defaultValue={e.facturar_al} className={CAMPO} autoFocus>
+                        {(["pagado", "preparado", "despachado"] as const).map((k) => <option key={k} value={k}>{ESTADOS_PEDIDO[k]}</option>)}
+                      </select></label>
+                  </form>
+                ) : <Dato etiqueta="Facturar al llegar el pedido a">{estadoAl}</Dato>}
+                <span className="inline-flex gap-2">
+                  <BotonesFicha editando={editandoFicha(sp, "facturar")} ver="/config/arca" editar="/config/arca?editar=facturar" form="ficha-facturar" />
+                </span>
+              </div>
             </div>
 
             <details className="group" open={!!pedido}>

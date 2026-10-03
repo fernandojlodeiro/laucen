@@ -37,7 +37,7 @@ type Props = {
   p: Producto;
   sp: { editar?: string };
   seccion: string;
-  /** Datos, Costo y Cucardas: en edición (?editar=1); si no, en vista. */
+  /** Datos, Costo y Cucardas: en edición (?editar=ficha); si no, en vista. */
   editando: boolean;
 };
 

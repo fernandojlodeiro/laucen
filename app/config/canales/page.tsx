@@ -15,7 +15,7 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, TituloSeccion, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import { sembrarEjemploCanales, canalesDeEjemplo } from "./ejemplo";
 import CuentaMl from "./CuentaMl";
@@ -39,7 +39,7 @@ const ESTADOS: Record<string, { texto: string; tono: "verde" | "amarillo" | "gri
   activo: { texto: "Activo", tono: "verde" }, pausado: { texto: "Pausado", tono: "amarillo" }, archivado: { texto: "Archivado", tono: "gris" },
 };
 
-type SP = { c?: string; editar?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+type SP = { c?: string; editar?: string; dep?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 export default async function Canales({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("canales_ver");
@@ -182,7 +182,20 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
       {elegido && (
         <div className="grid gap-4 md:grid-cols-2 mt-6">
           <section className={CAJA}>
-            <h2 className="text-sm font-bold mb-1">Depósitos de “{elegido.nombre}”</h2>
+            <TituloSeccion titulo={<>Depósitos de “{elegido.nombre}”</>}>
+              {otrosDepositos.length > 0 && <BotonNuevo texto="Agregar depósito" />}
+            </TituloSeccion>
+            <AltaNueva texto="Agregar depósito" sinBoton className="mb-2">
+              <form action={accionAgregarDeposito} className="flex flex-wrap items-center gap-2">
+                <input type="hidden" name="canal" value={elegido.id} />
+                <input type="hidden" name="volver" value={aqui} />
+                <select name="deposito" className={CAMPO} aria-label="Depósito">
+                  {otrosDepositos.map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+                </select>
+                <CampoNumero name="prioridad" valor={susDepositos.length + 1} tipo="entero" className={`${CAMPO} w-14`} />
+                <button className={PRIMARIO}>Agregar</button>
+              </form>
+            </AltaNueva>
             <p className="text-[11px] text-[#5C6B76] mb-2">El stock disponible del canal es la suma de estos depósitos. Prioridad: el de número menor se usa primero.</p>
             <div className={CAJA_TABLA}>
               <table className={TABLA}>
@@ -193,33 +206,30 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
                     <tr key={d.id} className={TR}>
                       <td className={TD}>{d.nombre}{d.estado !== "activo" && <span className="ml-1"><Estado texto="Archivado: no suma" /></span>}</td>
                       <td className={TDN}>
-                        <form action={accionPrioridadDeposito} className="inline-flex items-center gap-1 justify-end">
-                          <input type="hidden" name="canal" value={elegido.id} />
-                          <input type="hidden" name="deposito" value={d.id} />
-                          <input type="hidden" name="volver" value={aqui} />
-                          <CampoNumero name="prioridad" valor={d.prioridad} tipo="entero" className={`${CAMPO} w-14`} />
-                          <button className={SUAVE}>Guardar</button>
-                        </form>
+                        {/* La prioridad se ve; el lápiz de la fila la vuelve editable ahí mismo (?dep=<id>). */}
+                        {Number(sp.dep) === d.id ? (
+                          <form action={accionPrioridadDeposito} className="inline-flex items-center gap-1 justify-end">
+                            <input type="hidden" name="canal" value={elegido.id} />
+                            <input type="hidden" name="deposito" value={d.id} />
+                            <input type="hidden" name="volver" value={aqui} />
+                            <CampoNumero name="prioridad" valor={d.prioridad} tipo="entero" className={`${CAMPO} w-14`} />
+                            <button className={VERDE}>Guardar</button>
+                            <Link href={aqui} className={SUAVE} scroll={false}>Cancelar</Link>
+                          </form>
+                        ) : d.prioridad}
                       </td>
-                      <td className={`${TD} text-right`}>
-                        <TachoConfirmar accion={accionQuitarDeposito} campos={{ canal: String(elegido.id), deposito: String(d.id), volver: aqui }} pregunta="¿Quitar?" />
+                      <td className={`${TD} text-right whitespace-nowrap`}>
+                        <span className="inline-flex gap-1">
+                          {Number(sp.dep) !== d.id && <Lapiz href={url(BASE, { c: elegido.id, ...conFiltros, dep: d.id })} etiqueta="Cambiar la prioridad" />}
+                          <TachoConfirmar accion={accionQuitarDeposito} campos={{ canal: String(elegido.id), deposito: String(d.id), volver: aqui }} pregunta="¿Quitar?" />
+                        </span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            {otrosDepositos.length > 0 ? (
-              <form action={accionAgregarDeposito} className="flex flex-wrap items-center gap-2 mt-2">
-                <input type="hidden" name="canal" value={elegido.id} />
-                <input type="hidden" name="volver" value={aqui} />
-                <select name="deposito" className={CAMPO} aria-label="Depósito">
-                  {otrosDepositos.map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}
-                </select>
-                <CampoNumero name="prioridad" valor={susDepositos.length + 1} tipo="entero" className={`${CAMPO} w-14`} />
-                <button className={PRIMARIO}>Agregar depósito</button>
-              </form>
-            ) : (
+            {otrosDepositos.length === 0 && (
               <p className="text-[11px] text-[#5C6B76] mt-2">No quedan otros depósitos activos. <Link href="/stock/depositos" className="text-[#16577F] underline">Crear uno</Link>.</p>
             )}
           </section>

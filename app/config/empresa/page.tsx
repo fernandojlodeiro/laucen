@@ -1,21 +1,20 @@
 // Configuración → Empresa: datos generales (nombre de fantasía, logo,
 // contacto, dirección) y, en otra caja, los datos fiscales de quien factura.
 // El logo sale en las facturas y en la tienda si la tienda no tiene uno propio.
+// Cada caja abre en vista y se edita con su lápiz (?editar=general / fiscal).
 
 import Link from "next/link";
 import { una } from "@/lib/erp/base";
 import { emisorDe } from "@/lib/arca/facturar";
 import { cuitLegible } from "@/lib/cuit";
-import { VERDE } from "@/app/botones";
-import { BotonEnviar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
-import { entrarErp, Pantalla, Avisos, CAMPO, ETIQUETA, CAJA } from "@/app/componentes/erp";
+import { entrarErp, Pantalla, Avisos, Dato, BotonesFicha, TituloSeccion, editandoFicha, CAMPO, ETIQUETA, CAJA } from "@/app/componentes/erp";
 import SubirImagen from "@/app/config/tienda/SubirImagen";
 import { accionGuardarEmpresa, accionGuardarFiscal } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
-type SP = { ok?: string; error?: string };
+type SP = { editar?: string; ok?: string; error?: string };
 type Empresa = {
   nombre_fantasia: string | null; logo: string | null; email: string | null; telefono: string | null; whatsapp: string | null; web: string | null;
   direccion: string | null; localidad: string | null; provincia: string | null; codigo_postal: string | null;
@@ -32,18 +31,40 @@ export default async function ConfigEmpresa({ searchParams }: { searchParams: Pr
     emisorDe(s.org.id),
   ]);
   const v = (k: keyof Empresa) => emp?.[k] ?? "";
+  const VOLVER = "/config/empresa";
+  const general = editandoFicha(sp, "general"), fiscal = editandoFicha(sp, "fiscal");
+  const CONDICION: Record<string, string> = { responsable_inscripto: "Responsable inscripto", monotributo: "Monotributo", exento: "Exento" };
 
   return (
     <Pantalla titulo="Empresa" subtitulo="Los datos de la empresa, el logo y los datos fiscales para facturar" ancho="max-w-4xl">
       <Avisos sp={sp} />
 
-      <h2 className="text-sm font-bold mb-2">Datos generales</h2>
-      <form action={accionGuardarEmpresa} className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start mb-5`}>
+      <TituloSeccion titulo="Datos generales">
+        {!fiscal && <BotonesFicha editando={general} ver={VOLVER} editar={`${VOLVER}?editar=general`} form="ficha-general" />}
+      </TituloSeccion>
+      {!general ? (
+        <div className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start mb-5`}>
+          <Dato etiqueta="Logo" className="sm:row-span-2" ayuda="Sale en las facturas y en la tienda web (si la tienda no tiene uno propio).">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {emp?.logo ? <img src={emp.logo} alt="Logo" className="h-20 object-contain" /> : null}
+          </Dato>
+          <Dato etiqueta="Nombre de fantasía" className="sm:col-span-2">{v("nombre_fantasia") || null}</Dato>
+          <Dato etiqueta="Mail">{v("email")}</Dato>
+          <Dato etiqueta="Teléfono">{v("telefono")}</Dato>
+          <Dato etiqueta="WhatsApp">{v("whatsapp")}</Dato>
+          <Dato etiqueta="Web">{v("web")}</Dato>
+          <Dato etiqueta="Dirección">{v("direccion")}</Dato>
+          <Dato etiqueta="Localidad">{v("localidad")}</Dato>
+          <Dato etiqueta="Provincia">{v("provincia")}</Dato>
+          <Dato etiqueta="Código postal">{v("codigo_postal")}</Dato>
+        </div>
+      ) : (
+      <form id="ficha-general" action={accionGuardarEmpresa} className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start mb-5`}>
         <div className="sm:row-span-2"><span className={ETIQUETA}>Logo</span>
           <SubirImagen name="logo" valor={emp?.logo ?? null} organizacionId={s.org.id} etiqueta="Logo" alto="h-20" />
           <span className={AYUDA}>Sale en las facturas y en la tienda web (si la tienda no tiene uno propio). Mejor PNG o JPG.</span></div>
         <label className="sm:col-span-2"><span className={ETIQUETA}>Nombre de fantasía</span>
-          <input name="nombre_fantasia" defaultValue={v("nombre_fantasia")} placeholder={s.org.nombre ?? ""} className={`${CAMPO} w-full`} /></label>
+          <input name="nombre_fantasia" autoFocus defaultValue={v("nombre_fantasia")} placeholder={s.org.nombre ?? ""} className={`${CAMPO} w-full`} /></label>
         <label><span className={ETIQUETA}>Mail</span>
           <input name="email" type="email" defaultValue={v("email")} className={`${CAMPO} w-full`} /></label>
         <label><span className={ETIQUETA}>Teléfono</span>
@@ -61,13 +82,29 @@ export default async function ConfigEmpresa({ searchParams }: { searchParams: Pr
           <input name="provincia" defaultValue={v("provincia")} className={`${CAMPO} w-full`} /></label>
         <label><span className={ETIQUETA}>Código postal</span>
           <input name="codigo_postal" defaultValue={v("codigo_postal")} className={`${CAMPO} w-full`} /></label>
-        <div className="sm:col-span-3"><BotonEnviar clase={VERDE} corriendo="Guardando…">Guardar</BotonEnviar></div>
       </form>
+      )}
 
-      <h2 className="text-sm font-bold mb-2">Datos fiscales</h2>
-      <form action={accionGuardarFiscal} className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start`}>
+      <TituloSeccion titulo="Datos fiscales">
+        {!general && <BotonesFicha editando={fiscal} ver={VOLVER} editar={`${VOLVER}?editar=fiscal`} form="ficha-fiscal" />}
+      </TituloSeccion>
+      {!fiscal ? (
+        <div className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start`}>
+          <Dato etiqueta="CUIT">{cuitLegible(e?.cuit) || null}</Dato>
+          <Dato etiqueta="Razón social" className="sm:col-span-2" ayuda="Como figura en ARCA.">{e?.razon_social}</Dato>
+          <Dato etiqueta="Condición IVA" ayuda="Responsable inscripto factura A y B; los demás, C.">{e?.condicion_iva ? CONDICION[e.condicion_iva] ?? e.condicion_iva : null}</Dato>
+          <Dato etiqueta="Domicilio comercial" className="sm:col-span-2" ayuda="El que sale en las facturas.">{e?.domicilio}</Dato>
+          <Dato etiqueta="Ingresos Brutos">{e?.iibb}</Dato>
+          <Dato etiqueta="Inicio de actividades">{e?.inicio_actividades ? String(e.inicio_actividades).split("-").reverse().join("/") : null}</Dato>
+          <Dato etiqueta="Punto de venta" numero>{e?.punto_venta != null ? String(e.punto_venta) : null}</Dato>
+          <div className="sm:col-span-3">
+            <Link href="/config/arca" className="text-xs text-[#16577F] hover:underline">Conectar con ARCA para facturar →</Link>
+          </div>
+        </div>
+      ) : (
+      <form id="ficha-fiscal" action={accionGuardarFiscal} className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start`}>
         <label><span className={ETIQUETA}>CUIT</span>
-          <input name="cuit" defaultValue={cuitLegible(e?.cuit)} maxLength={13} inputMode="numeric" placeholder="30-71234567-8" className={`${CAMPO} w-full`} />
+          <input name="cuit" autoFocus defaultValue={cuitLegible(e?.cuit)} maxLength={13} inputMode="numeric" placeholder="30-71234567-8" className={`${CAMPO} w-full`} />
           <span className={AYUDA}>Con guiones o sin.</span></label>
         <label className="sm:col-span-2"><span className={ETIQUETA}>Razón social</span>
           <input name="razon_social" defaultValue={e?.razon_social ?? ""} className={`${CAMPO} w-full`} />
@@ -89,11 +126,8 @@ export default async function ConfigEmpresa({ searchParams }: { searchParams: Pr
         <label><span className={ETIQUETA}>Punto de venta</span>
           <CampoNumero name="punto_venta" valor={e?.punto_venta ?? 1} tipo="entero" className={`${CAMPO} w-full`} />
           <span className={AYUDA}>Habilitado en ARCA para &quot;Factura electrónica – Web services&quot;.</span></label>
-        <div className="sm:col-span-3 flex flex-wrap items-center gap-3">
-          <BotonEnviar clase={VERDE} corriendo="Guardando…">Guardar</BotonEnviar>
-          <Link href="/config/arca" className="text-xs text-[#16577F] hover:underline">Conectar con ARCA para facturar →</Link>
-        </div>
       </form>
+      )}
     </Pantalla>
   );
 }
