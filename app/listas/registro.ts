@@ -12,6 +12,7 @@ import { LISTA_VINCULAR_ML } from "@/app/catalogo/publicaciones/ml/lista";
 import { LISTA_PEDIDOS } from "@/app/ventas/pedidos/lista";
 import { LISTA_CLIENTES } from "@/app/ventas/clientes/lista";
 import { LISTA_ENVIOS } from "@/app/ventas/envios/lista";
+import { LISTA_RECLAMOS } from "@/app/ventas/reclamos/lista";
 import { LISTA_PROVEEDORES } from "@/app/compras/proveedores/lista";
 import { LISTA_FACTURAS_COMPRA } from "@/app/compras/facturas/lista";
 import { LISTA_DESPACHOS } from "@/app/compras/despachos/lista";
@@ -29,7 +30,7 @@ import { LISTA_PRECIOS_ML, LISTA_EXCEPCIONES_ML, LISTA_VOLUMEN_ML } from "@/app/
 export const LISTAS: Record<string, Lista> = Object.fromEntries(
   [
     LISTA_PRODUCTOS, LISTA_FAMILIAS, LISTA_CUCARDAS, LISTA_LISTAS_PRECIOS, LISTA_PRECIOS, LISTA_PUBLICACIONES, LISTA_VINCULAR_ML,
-    LISTA_PEDIDOS, LISTA_CLIENTES, LISTA_ENVIOS,
+    LISTA_PEDIDOS, LISTA_CLIENTES, LISTA_ENVIOS, LISTA_RECLAMOS,
     LISTA_PROVEEDORES, LISTA_FACTURAS_COMPRA, LISTA_DESPACHOS,
     LISTA_FACTURACION, LISTA_TESORERIA, LISTA_CC_CLIENTES, LISTA_CC_PROVEEDORES,
     LISTA_DEPOSITOS, LISTA_UBICACIONES, LISTA_RECEPCIONES,

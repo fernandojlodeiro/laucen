@@ -5,6 +5,7 @@
 
 import { consulta } from "@/lib/erp/base";
 import type { PermisoKey } from "@/lib/permisos";
+import { resumenReclamos } from "@/lib/reclamos";
 
 export type Renglon = { texto: string; valor: string | number; href?: string; alerta?: boolean };
 export type Tarjeta = {
@@ -100,5 +101,16 @@ export const TARJETAS: Tarjeta[] = [
       return [{ texto: "Pedidos abiertos con artículos que no están vinculados a un producto (no descuentan stock)", valor: f[0].n, href: "/ventas/pedidos", alerta: f[0].n > 0 }];
     },
   },
-  { id: "reclamos", titulo: "Reclamos y devoluciones abiertos" },
+  {
+    id: "reclamos", titulo: "Reclamos y devoluciones", permiso: "reclamos_ver", href: "/ventas/reclamos",
+    calcular: async (org) => {
+      const x = await resumenReclamos(org);
+      return [
+        { texto: "Reclamos por responder", valor: x.por_responder, href: "/ventas/reclamos", alerta: x.urgentes > 0 },
+        { texto: "Vencen en menos de 24 h", valor: x.urgentes, href: "/ventas/reclamos", alerta: x.urgentes > 0 },
+        { texto: "En mediación", valor: x.mediacion, href: "/ventas/reclamos?ver=mediacion", alerta: x.mediacion > 0 },
+        { texto: "Devoluciones en camino", valor: x.camino, href: "/ventas/reclamos?ver=camino" },
+      ];
+    },
+  },
 ];

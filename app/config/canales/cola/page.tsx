@@ -131,6 +131,7 @@ async function Cola({ ctx, sp, ver, canales, aqui, filtros }: {
                 <td className={TD}><Link href={url(BASE, { ver: verF, ...filtros, canal: x.canal_id })} className="hover:text-[#16577F] hover:underline">{x.canal}</Link></td>
                 <td className={`${TD} font-mono whitespace-nowrap`}>
                   {x.item_id.startsWith("cbte:") ? <Link href={`/administracion/facturacion/${x.item_id.slice(5)}`} className="text-[#16577F] hover:underline">Comprobante {x.item_id.slice(5)}</Link>
+                    : x.item_id.startsWith("reclamo:") ? <Link href={`/ventas/reclamos/ml/${x.item_id.slice(8)}`} className="text-[#16577F] hover:underline">Reclamo {x.item_id.slice(8)}</Link>
                     : x.item_id ? <Link href={url("/catalogo/publicaciones", { canal: x.canal_id, q: x.item_id })} className="text-[#16577F] hover:underline">{x.item_id}</Link> : "—"}
                   {x.variation_id && <div className="text-[10px] text-[#5C6B76]">var. {x.variation_id}</div>}
                 </td>
@@ -230,6 +231,7 @@ async function Lotes({ org, sp, aqui }: { org: string; sp: SP; aqui: string }) {
                   <tr key={x.id} className={TR}>
                     <td className={`${TD} font-mono whitespace-nowrap`}>
                       {x.item_id.startsWith("cbte:") ? <Link href={`/administracion/facturacion/${x.item_id.slice(5)}`} className="text-[#16577F] hover:underline">Comprobante {x.item_id.slice(5)}</Link>
+                    : x.item_id.startsWith("reclamo:") ? <Link href={`/ventas/reclamos/ml/${x.item_id.slice(8)}`} className="text-[#16577F] hover:underline">Reclamo {x.item_id.slice(8)}</Link>
                     : x.item_id ? <Link href={url("/catalogo/publicaciones", { canal: x.canal_id, q: x.item_id })} className="text-[#16577F] hover:underline">{x.item_id}</Link> : "nueva"}
                       {x.variation_id && <div className="text-[10px] text-[#5C6B76]">var. {x.variation_id}</div>}
                     </td>
