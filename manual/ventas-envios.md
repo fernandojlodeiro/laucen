@@ -68,7 +68,7 @@ Los botones están deshabilitados si en la página no hay ningún envío imprimi
 
 1. En **"Para despachar"**, tildá los envíos.
 2. Elegí el **"Papel"** (10 × 15 para la térmica, o A4).
-3. Apretá **"🖨 Imprimir etiquetas y hojas"**. Se abre en otra pestaña un PDF con, por cada pedido, su etiqueta de Mercado Libre y su hoja de preparación.
+3. Apretá **"🖨 Imprimir etiquetas y hojas"**. Se abre en otra pestaña un PDF con, por cada pedido, su etiqueta de Mercado Libre y su hoja de preparación (en A4, las dos juntas en una sola hoja por pedido: la etiqueta arriba a la izquierda, los datos al costado y los productos abajo; ver [Picking](/deposito/picking)).
 4. Los pedidos que todavía no estaban en preparación **entran en un lote de [Picking](/deposito/picking)**.
 5. Queda marcada la etiqueta como impresa; si se vuelve a imprimir, la hoja sale con "REIMPRESIÓN".
 

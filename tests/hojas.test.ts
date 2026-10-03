@@ -79,9 +79,20 @@ test("PDF: por pedido, primero la etiqueta y enseguida su hoja; 10×15 o A4; só
   const { width, height } = doc.getPage(1).getSize();
   assert.ok(Math.abs(width - 283.46) < 1 && Math.abs(height - 425.2) < 1, "10×15 cm");
 
-  const a4 = await m.hojas.armarPdf(hojas.slice(0, 2), { tam: "a4", bajarEtiquetaMl: etiquetaMlMentira });
+  // A4: etiqueta, encabezado y líneas en una sola página por pedido.
+  const a4 = await m.hojas.armarPdf(hojas, { tam: "a4", bajarEtiquetaMl: etiquetaMlMentira });
+  assert.deepEqual(a4.paginas, ["etiqueta-ml+hoja:11", "etiqueta-propia+hoja:12", "aviso+hoja:13"]);
   const d4 = await PDFDocument.load(a4.pdf);
+  assert.equal(d4.getPageCount(), 3);
   assert.equal(Math.round(d4.getPage(1).getSize().width), 595);
+
+  // El A4 apaisado de ML: sólo la etiqueta (sin la página con la lista de productos de ML).
+  const apaisado = await PDFDocument.create();
+  apaisado.addPage([841.89, 595.28]).drawRectangle({ x: 30, y: 150, width: 250, height: 400 });
+  apaisado.addPage([595.28, 841.89]).drawRectangle({ x: 30, y: 30, width: 100, height: 100 });
+  const pdfApaisado = await apaisado.save();
+  const conLista = await m.hojas.armarPdf([hojas[0]], { tam: "10x15", bajarEtiquetaMl: async () => ({ ok: true, pdf: pdfApaisado }) });
+  assert.deepEqual(conLista.paginas, ["etiqueta-ml:11", "hoja:11"]);
 
   const solo = await m.hojas.armarPdf(hojas.slice(0, 2), { tam: "10x15", bajarEtiquetaMl: etiquetaMlMentira, soloEtiqueta: true });
   assert.deepEqual(solo.paginas, ["etiqueta-ml:11", "etiqueta-propia:12"]);
