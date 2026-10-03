@@ -1,5 +1,6 @@
-// Tareas periódicas del ERP: lo llama pg_cron de Supabase cada 2 minutos con
-// ?clave= (tabla erp_llave). Hoy: facturación automática (pedidos que
+// Tareas periódicas del ERP: pg_cron de Supabase lo revisa cada 2 minutos pero
+// sólo lo llama (?clave=, tabla erp_llave) si hay algo pendiente de verdad, y
+// como red de seguridad cada media hora (Fer, 3/10). Hoy: facturación automática (pedidos que
 // llegaron al estado elegido) y reintento de comprobantes con error; ventas
 // facturadas a cuenta corriente; asientos contables que falten; e
 // importaciones que siguen solas en segundo plano; la cola de salida a
@@ -14,6 +15,7 @@ import { contabilizarPendientes } from "@/lib/administracion/contabilidad";
 import { ejecutarImportacion } from "@/lib/importar/ejecutar";
 import { avanzar as avanzarVs } from "@/lib/importar/virtualseller";
 import { procesarCola, hayPendientes } from "@/lib/mercadolibre/cola";
+import { sincronizarStockMl, variacionesConEventos } from "@/lib/mercadolibre/stock";
 import { barridaNocturna, enVentanaBarrida } from "@/lib/mercadolibre/barrida";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +55,18 @@ export async function GET(req: Request) {
     "select id::int, organizacion_id, usuario_id from importacion where segundo_plano and estado = 'ejecutando' order by id")).rows;
   const vs = (await pool.query<{ id: number; organizacion_id: string }>(
     "select id::int, organizacion_id from importacion_vs where estado in ('cargando', 'importando') or coalesce((resumen ->> 'iva_en_curso')::boolean, false) order by id")).rows;
+  // Stock que cruzó el umbral (eventos de mover_stock): se encola enseguida
+  // la pausa de esas publicaciones, sin esperar al barrido de media hora.
+  const conEventos = (await pool.query<{ organizacion_id: string }>(`
+    select distinct organizacion_id from evento where tipo = 'stock_bajo_umbral' and procesado_ts is null`)).rows;
+  for (const { organizacion_id } of conEventos) {
+    try {
+      const vars = await variacionesConEventos(organizacion_id);
+      if (vars.length) informe[`stock_${organizacion_id}`] = await sincronizarStockMl(organizacion_id, vars, t0 + 50_000);
+    } catch (e) {
+      informe[`stock_${organizacion_id}_error`] = e instanceof Error ? e.message : String(e);
+    }
+  }
   // Mercado Libre: la cola de salida (hasta ~45 s) y, de noche, la barrida.
   // Van en paralelo con las importaciones: son pedidos a ML, no a la base.
   const cola = await hayPendientes();

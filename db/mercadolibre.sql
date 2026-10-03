@@ -288,21 +288,42 @@ create index if not exists ml_barrida_org on ml_barrida (organizacion_id, noche 
 alter table ml_barrida enable row level security;
 select erp_politica_org('ml_barrida');
 
--- El job 'erp-tareas' de pg_cron (creado a mano en Supabase) llama a
--- /api/erp/tareas sólo si hay algo que hacer. Se le suman, una sola vez, la
--- cola de ML con pendientes y la ventana de la barrida nocturna (2 a 5, hora
--- argentina, con algún canal sincronizando stock). Si no hay pg_cron (tests,
--- local) o no se puede, no pasa nada.
+-- Los jobs de pg_cron que llaman a la app (Fer, 3/10: nada de procesos que
+-- corran porque sí). 'erp-tareas' se revisa cada 2 minutos pero sólo llama a
+-- /api/erp/tareas si hay algo pendiente de verdad (facturar un pedido, un
+-- comprobante con error, una importación andando, la cola de ML, stock que
+-- cruzó el umbral en un canal que sincroniza, la barrida nocturna de 2 a 5) y,
+-- como red de seguridad, a los minutos 1 y 31 (asientos y cuenta corriente).
+-- 'meli-barrido' (avisos que fallaron, ventas y preguntas perdidas) pasa a
+-- cada 30 minutos: los avisos de ML se procesan en el momento en que llegan.
+-- La clave se lee de su tabla al correr (no queda escrita en el job). Si no hay
+-- pg_cron (tests, local) o no se puede, no pasa nada.
 do $$
-declare j record;
+declare
+  j record;
+  cmd text := $cmd$
+  select net.http_get(
+    url := 'https://laucen.vercel.app/api/erp/tareas?clave=' || (select clave from public.erp_llave where id = 1),
+    timeout_milliseconds := 130000
+  ) where extract(minute from now()) in (1, 31) -- red de seguridad
+     or exists (select 1 from public.evento e join public.emisor em on em.organizacion_id = e.organizacion_id and em.facturar_automatico
+                 where e.tipo = 'pedido_estado_cambiado' and e.procesado_ts is null and e.payload ->> 'nuevo' = em.facturar_al)
+     or exists (select 1 from public.comprobante where estado = 'error' and intentos < 5)
+     or exists (select 1 from public.importacion where segundo_plano and estado = 'ejecutando')
+     or exists (select 1 from public.importacion_vs where estado in ('cargando', 'importando') or coalesce((resumen ->> 'iva_en_curso')::boolean, false))
+     or exists (select 1 from public.ml_cola where estado = 'pendiente' and proximo_intento_ts <= now())
+     or exists (select 1 from public.evento e join public.canal c on c.id = (e.payload ->> 'canal_id')::bigint
+                 where e.tipo = 'stock_bajo_umbral' and e.procesado_ts is null and c.tipo = 'mercadolibre'
+                   and coalesce((c.config ->> 'sincronizar_stock')::boolean, false))
+     or (extract(hour from now() at time zone 'America/Argentina/Buenos_Aires') between 2 and 4
+         and exists (select 1 from public.canal where tipo = 'mercadolibre' and estado = 'activo' and coalesce((config ->> 'sincronizar_stock')::boolean, false)))
+$cmd$;
 begin
   if to_regclass('cron.job') is null then return; end if;
   select jobid, command into j from cron.job where jobname = 'erp-tareas';
-  if not found or j.command like '%ml_cola%' then return; end if;
-  perform cron.alter_job(j.jobid, command := rtrim(j.command, E' \n\t') || E'\n'
-    || E'     or exists (select 1 from public.ml_cola where estado = ''pendiente'' and proximo_intento_ts <= now())\n'
-    || E'     or (extract(hour from now() at time zone ''America/Argentina/Buenos_Aires'') between 2 and 4\n'
-    || E'         and exists (select 1 from public.canal where tipo = ''mercadolibre'' and estado = ''activo'' and coalesce((config ->> ''sincronizar_stock'')::boolean, false)))\n');
+  if found and j.command is distinct from cmd then perform cron.alter_job(j.jobid, command := cmd); end if;
+  select jobid, schedule into j from cron.job where jobname = 'meli-barrido';
+  if found and j.schedule <> '*/30 * * * *' then perform cron.alter_job(j.jobid, schedule := '*/30 * * * *'); end if;
 exception when others then
-  raise notice 'erp-tareas: no se pudo sumar la cola de Mercado Libre (%)', sqlerrm;
+  raise notice 'pg_cron: no se pudieron ajustar los jobs (%)', sqlerrm;
 end $$;

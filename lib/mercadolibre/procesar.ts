@@ -1,5 +1,5 @@
 // Lo que llega de Mercado Libre (notificaciones) y el barrido de seguridad
-// que corre cada 2 minutos (pg_cron → /api/meli/barrido): procesa las
+// que corre cada 30 minutos (pg_cron → /api/meli/barrido): procesa las
 // notificaciones pendientes, trae las órdenes y preguntas que se hayan
 // perdido y encola los ajustes de stock en ML (lib/mercadolibre/cola.ts).
 

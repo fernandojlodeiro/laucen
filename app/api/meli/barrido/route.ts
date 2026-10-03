@@ -1,5 +1,6 @@
 // Barrido de Mercado Libre (lib/mercadolibre/procesar.ts): lo llama pg_cron
-// de Supabase cada 2 minutos con ?clave= (tabla meli_llave). Procesa las
+// de Supabase cada 30 minutos (red de seguridad: los avisos se procesan al
+// llegar) con ?clave= (tabla meli_llave). Procesa las
 // notificaciones que hayan quedado, trae órdenes y preguntas perdidas y
 // encola los ajustes de stock; después de contestar, manda lo que haya en la
 // cola de ML (también la manda /api/erp/tareas; el turno por canal evita que

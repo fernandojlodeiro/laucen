@@ -1,7 +1,7 @@
 // Receptor de notificaciones (tópicos) de Mercado Libre. ML exige un 200
 // rápido (si no, reintenta y después deja de avisar): se guarda la
 // notificación tal cual y se contesta; el trabajo se hace enseguida, después
-// de contestar (`after`), y si falla lo retoma el barrido de cada 2 minutos.
+// de contestar (`after`), y si falla lo retoma el barrido de cada 30 minutos.
 
 import { after } from "next/server";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";

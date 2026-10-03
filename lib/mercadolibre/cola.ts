@@ -13,6 +13,7 @@
 //     corta (429) o falla de su lado (5xx). Registra qué se mandó, cuándo y
 //     con qué resultado. Las llaves no se guardan ni se muestran nunca.
 
+import { after } from "next/server";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl, type RespuestaMl } from "@/lib/mercadolibre/api";
 
@@ -90,7 +91,18 @@ export async function encolar(org: string, cambios: CambioMl[], opts: { origen: 
     res.reemplazadas += filas.length - nuevas;
     res.sinCambios += tanda.length - filas.length;
   }
+  if (res.encoladas + res.reemplazadas > 0 && !opts.loteId) arrancarCola();
   return res;
+}
+
+/** Lo que entra a la cola sale enseguida, sin esperar al proceso programado
+ *  (Fer, 3/10): se manda después de contestar la página o el aviso (`after`).
+ *  Fuera de un pedido (tests, scripts) `after` no existe y no pasa nada: lo
+ *  levanta el cron de /api/erp/tareas. */
+export function arrancarCola() {
+  try {
+    after(() => procesarCola(Date.now() + 45_000).then(() => undefined).catch((e) => console.error("[cola ML]", e instanceof Error ? e.message : e)));
+  } catch { /* sin pedido en curso */ }
 }
 
 // ── Lotes con botón ─────────────────────────────────────────
@@ -109,13 +121,15 @@ export async function encolarLoteConBoton(org: string, canal: number | null, cam
 
 /** El clic de Fer: el lote pasa a la cola ('pendiente') y lo manda el trabajador. */
 export async function mandarLote(org: string, loteId: number, usuario: string | null): Promise<number> {
-  return enTransaccion(async (c) => {
+  const n = await enTransaccion(async (c) => {
     const l = await c.query("update ml_lote set estado = 'enviado', enviado_por = $3, enviado_ts = now() where id = $2 and organizacion_id = $1 and estado = 'preparado' returning id",
       [org, loteId, usuario]);
     if (!l.rowCount) throw new ErrorErp("Ese lote ya no está preparado (se mandó o se descartó).");
     const r = await c.query("update ml_cola set estado = 'pendiente', proximo_intento_ts = now() where lote_id = $1 and estado = 'preparado'", [loteId]);
     return r.rowCount ?? 0;
   });
+  if (n) arrancarCola();
+  return n;
 }
 
 export async function descartarLote(org: string, loteId: number): Promise<void> {
