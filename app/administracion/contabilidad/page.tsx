@@ -9,6 +9,7 @@ import { formatear, hoyAR } from "@/lib/moneda";
 import {
   asegurarPlan, planDeCuentas, cuentasImputables, libroDiario, libroMayor, sumasYSaldos, estadoDeResultados,
 } from "@/lib/administracion/contabilidad";
+import { proximoCodigo } from "@/lib/administracion/plan-codigos";
 import { PRIMARIO, SUAVE, VERDE, APAGAR } from "@/app/botones";
 import { TachoConfirmar, BotonConfirmar, BotonEnviar } from "@/app/radar/Cliente";
 import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
@@ -345,13 +346,15 @@ async function Plan({ org, editar, q, comienza }: { org: string; editar: number;
   const usadaFondos = new Set(enFondos.map((x) => x.id));
   const volver = url(BASE, { p: "plan", q: q || null, contiene: comienza ? null : "1" });
   const vistas = cuentas.filter((c) => coincideBusqueda(c.codigo, q, comienza) || coincideBusqueda(c.nombre, q, comienza));
+  // El tipo viene en Egreso: el código ya sugerido es el próximo libre de egreso.
+  const sugerido = proximoCodigo(cuentas, "egreso");
 
   return (
     <>
       <AltaNueva texto="Nueva cuenta" sinBoton>
       <form action={accionCrearCuenta} className="flex flex-wrap items-end gap-2">
-        <label><span className={ETIQUETA}>Código</span><input name="codigo" placeholder="5.2.06" className={`${CAMPO} w-24`} autoFocus /></label>
-        <label className="flex-1 min-w-48"><span className={ETIQUETA}>Nombre</span><input name="nombre" placeholder="Ej. Publicidad" className={`${CAMPO} w-full`} /></label>
+        <label><span className={ETIQUETA}>Código</span><input name="codigo" defaultValue={sugerido} placeholder="5.2.06" className={`${CAMPO} w-24`} /></label>
+        <label className="flex-1 min-w-48"><span className={ETIQUETA}>Nombre</span><input name="nombre" placeholder="Ej. Publicidad" className={`${CAMPO} w-full`} autoFocus /></label>
         <label><span className={ETIQUETA}>Tipo</span>
           <select name="tipo" defaultValue="egreso" className={CAMPO}>
             {Object.entries(TIPO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}

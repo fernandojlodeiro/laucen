@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, numero, id, tildado } from "@/lib/erp/acciones";
-import { contabilizarPendientes, asientoManual, anularAsientoManual } from "@/lib/administracion/contabilidad";
+import { contabilizarPendientes, asientoManual, anularAsientoManual, crearCuenta } from "@/lib/administracion/contabilidad";
+import { codigoValido } from "@/lib/administracion/plan-codigos";
 
 const BASE = "/administracion/contabilidad";
 const PLAN = `${BASE}?p=plan`;
@@ -83,25 +84,17 @@ export async function accionAnularAsiento(fd: FormData) {
 
 // ── Plan de cuentas ────────────────────────────────────────
 
-const TIPOS = ["activo", "pasivo", "patrimonio", "ingreso", "egreso"];
-
 function leerCodigo(fd: FormData) {
   const codigo = texto(fd, "codigo");
   if (!codigo) throw new ErrorErp("La cuenta necesita un código.");
-  if (!/^\d+(\.\d+)*$/.test(codigo)) throw new ErrorErp("El código va con números separados por puntos (ej. 5.2.06).");
+  if (!codigoValido(codigo)) throw new ErrorErp("El código va con números separados por puntos (ej. 5.2.06).");
   return codigo;
 }
 
 export async function accionCrearCuenta(fd: FormData) {
   const s = await entrarErp("contabilidad_ver");
   await intentar(PLAN, async () => {
-    const codigo = leerCodigo(fd);
-    const nombre = texto(fd, "nombre");
-    if (!nombre) throw new ErrorErp("La cuenta necesita un nombre.");
-    const tipo = texto(fd, "tipo") ?? "";
-    if (!TIPOS.includes(tipo)) throw new ErrorErp("Elegí el tipo de cuenta.");
-    await consulta("insert into plan_cuenta (organizacion_id, codigo, nombre, tipo, imputable) values ($1, $2, $3, $4, $5)",
-      [s.org.id, codigo, nombre, tipo, tildado(fd, "imputable")]);
+    await crearCuenta(s.org.id, { codigo: texto(fd, "codigo"), nombre: texto(fd, "nombre"), tipo: texto(fd, "tipo"), imputable: tildado(fd, "imputable") });
     revalidatePath(BASE);
     return "Cuenta creada.";
   });

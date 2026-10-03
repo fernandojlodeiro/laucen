@@ -63,7 +63,7 @@ Estado de resultados del período: bloque **Ingresos** (cada cuenta de ingreso c
 
 ### Plan de cuentas
 
-- Botón **"Nueva cuenta"** arriba a la derecha: abre el formulario con **Código** (ej. 5.2.06), **Nombre**, **Tipo** (Activo, Pasivo, Patrimonio neto, Ingreso, Egreso), la caja **Imputable** (tildada de entrada) y el botón **"Crear"**.
+- Botón **"Nueva cuenta"** arriba a la derecha: abre el formulario con **Código** (viene sugerido el próximo libre de egreso, ej. 5.2.06), **Nombre**, **Tipo** (Activo, Pasivo, Patrimonio neto, Ingreso, Egreso), la caja **Imputable** (tildada de entrada) y el botón **"Crear"**.
 - Buscador **"Buscar cuenta por código o nombre"** con "Comienza por".
 - Aclaración: "Las imputables reciben asientos; las otras son títulos que agrupan. Las marcadas "automática" las usan los asientos que se generan solos: se pueden renombrar o recodificar, no borrar."
 - Tabla: **Código** y **Cuenta** (con sangría según el nivel; los títulos en negrita; las automáticas con la etiqueta "automática: <rol>"), **Tipo**, **Imputable** (Sí / Título), **Estado** (Activa / Inactiva), el **lápiz** y el **tacho**.
@@ -106,14 +106,25 @@ Pestaña **Mayor**, elegí la cuenta y el período. Tocando el número de asient
 ### Agregar una cuenta al plan
 
 1. Pestaña **Plan de cuentas** → **"Nueva cuenta"**.
-2. Código con números separados por puntos (ej. 5.2.06), nombre y tipo. Dejá **Imputable** tildado si va a recibir asientos; destildalo si es un título que agrupa.
+2. El **Código** viene sugerido (el próximo libre de egreso, porque el tipo viene en Egreso); cambialo si querés otro o si es de otro tipo. Va con números separados por puntos (ej. 5.2.06). Poné el nombre y el tipo. Dejá **Imputable** tildado si va a recibir asientos; destildalo si es un título que agrupa.
 3. **"Crear"**.
+
+Errores típicos: "La cuenta necesita un código.", "El código va con números separados por puntos (ej. 5.2.06).", "La cuenta necesita un nombre.", "Elegí el tipo de cuenta.", "Ya hay una cuenta con el código 5.2.06 (Publicidad)."
+
+Las cuentas de gasto también se pueden crear sin venir acá, desde la vista previa de la importación de ARCA en [Facturas de compra](/compras/facturas) (botón "Nueva cuenta" de la tabla de cuentas de gasto), con las mismas reglas.
 
 ### Renombrar, recodificar o desactivar una cuenta
 
 Lápiz en la fila, cambiá código o nombre, o apagá **Activa**, y **"Guardar"**. Una cuenta inactiva deja de ofrecerse para asientos manuales, movimientos de caja y bancos y cuentas de fondos.
 
 ## Criterios y reglas
+
+### El código que se sugiere para una cuenta nueva
+
+- Se busca la cuenta **imputable** del tipo (egreso, por defecto) con el código **más alto** y se le suma uno a la última parte, con sus ceros: después de 5.2.05 "Gastos varios" viene **5.2.06**; después de 5.2.09, 5.2.10; después de 5.2.99, 5.2.100. Los códigos se comparan parte por parte como números (5.2.10 va después de 5.2.9).
+- Si ese código ya lo tiene otra cuenta (un título o una de otro tipo), sigue con el próximo.
+- Si todavía no hay ninguna cuenta imputable de ese tipo, sugiere la primera bajo su título (con el título 5 "EGRESOS", 5.01).
+- La cuenta madre sale del código: una cuenta cuelga del código más cercano que existe acortándolo de a una parte (5.2.06 cuelga de 5.2 si existe; si no, de 5).
 
 ### Cuándo se generan los asientos automáticos
 

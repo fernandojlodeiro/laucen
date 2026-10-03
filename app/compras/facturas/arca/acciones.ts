@@ -8,12 +8,35 @@ import { revalidatePath } from "next/cache";
 import ExcelJS from "exceljs";
 import { entrarErp } from "@/app/componentes/erp";
 import { ErrorErp } from "@/lib/erp/base";
-import { intentar, id } from "@/lib/erp/acciones";
+import { intentar, id, texto } from "@/lib/erp/acciones";
+import { tienePermiso } from "@/lib/permisos";
+import { crearCuenta } from "@/lib/administracion/contabilidad";
 import { leerCsvArca, leerTablaArca } from "@/lib/administracion/arca-mc-leer";
 import { guardarLote, importarLote } from "@/lib/administracion/arca-mc";
 
 const LISTA = "/compras/facturas";
 const previa = (lote: number) => `${LISTA}/arca/${lote}`;
+
+/** Las cuentas elegidas en los desplegables (cuenta_<CUIT>). */
+function leerCuentas(fd: FormData) {
+  const cuentas: Record<string, number | null> = {};
+  for (const [k, v] of fd.entries()) {
+    const m = k.match(/^cuenta_(\d{11})$/);
+    if (m) cuentas[m[1]] = Number(v) || null;
+  }
+  return cuentas;
+}
+
+/** La vista previa con las cuentas ya elegidas (?elegidas=CUIT:id,…), para
+ *  no perderlas al volver de crear una cuenta. */
+function previaCon(lote: number, cuentas: Record<string, number | null>, aviso?: string) {
+  const elegidas = Object.entries(cuentas).filter(([, c]) => c).map(([cuit, c]) => `${cuit}:${c}`).join(",");
+  const p = new URLSearchParams();
+  if (elegidas) p.set("elegidas", elegidas);
+  if (aviso) p.set("ok", aviso);
+  const q = p.toString();
+  return q ? `${previa(lote)}?${q}` : previa(lote);
+}
 
 /** El texto del CSV: UTF-8, o Windows-1252 si no es UTF-8 válido (los .csv viejos de ARCA). */
 function decodificar(buf: ArrayBuffer): string {
@@ -63,16 +86,31 @@ export async function accionImportarArca(fd: FormData) {
   const s = await entrarErp("compras_ver");
   const lote = id(fd, "lote");
   await intentar(previa(lote), async () => {
-    const cuentas: Record<string, number | null> = {};
-    for (const [k, v] of fd.entries()) {
-      const m = k.match(/^cuenta_(\d{11})$/);
-      if (m) cuentas[m[1]] = Number(v) || null;
-    }
+    const cuentas = leerCuentas(fd);
     const r = await importarLote(s.org.id, lote, cuentas, s.usuario.id);
     revalidatePath(LISTA);
     const partes = [`${r.cargadas} cargada${r.cargadas === 1 ? "" : "s"}`, `${r.yaEstaban} ya estaba${r.yaEstaban === 1 ? "" : "n"}`];
     if (r.distintas) partes.push(`${r.distintas} cargada${r.distintas === 1 ? "" : "s"} a mano distinta${r.distintas === 1 ? "" : "s"} (no se tocaron)`);
     if (r.errores.length) partes.push(`${r.errores.length} con error`);
     return `Listo: ${partes.join(", ")}.`;
+  });
+}
+
+/** "Nueva cuenta" desde la vista previa: una cuenta de egreso imputable, con
+ *  las mismas reglas que en Contabilidad (crearCuenta). Pide además el
+ *  permiso de Contabilidad. Vuelve con lo elegido y, si se pidió, la cuenta
+ *  nueva ya elegida para ese proveedor. */
+export async function accionCrearCuentaArca(fd: FormData) {
+  const s = await entrarErp("compras_ver");
+  const lote = id(fd, "lote");
+  const cuentas = leerCuentas(fd);
+  await intentar(previaCon(lote, cuentas), async () => {
+    if (!tienePermiso(s.permisos, "contabilidad_ver")) throw new ErrorErp("Para crear cuentas contables hace falta el permiso de Contabilidad.");
+    const codigo = texto(fd, "codigo"), nombre = texto(fd, "nombre");
+    const cuentaId = await crearCuenta(s.org.id, { codigo, nombre, tipo: "egreso", imputable: true });
+    const para = texto(fd, "para");
+    if (para && para in cuentas) cuentas[para] = cuentaId;
+    revalidatePath("/administracion/contabilidad");
+    return { ir: previaCon(lote, cuentas, `Cuenta ${codigo} — ${nombre} creada${para && para in cuentas ? " y elegida para su proveedor" : ": ya está en los desplegables"}.`) };
   });
 }
