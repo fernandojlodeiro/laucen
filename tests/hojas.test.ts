@@ -94,6 +94,12 @@ test("PDF: por pedido, primero la etiqueta y enseguida su hoja; 10×15 o A4; só
   const conLista = await m.hojas.armarPdf([hojas[0]], { tam: "10x15", bajarEtiquetaMl: async () => ({ ok: true, pdf: pdfApaisado }) });
   assert.deepEqual(conLista.paginas, ["etiqueta-ml:11", "hoja:11"]);
 
+  // Retira en el local: sin etiqueta (salvo que se pida sólo la etiqueta).
+  const retira = hojaBase(15, { ...propia, retiro: true, direccion: [] });
+  assert.deepEqual((await m.hojas.armarPdf([retira], { tam: "a4", bajarEtiquetaMl: etiquetaMlMentira })).paginas, ["hoja:15"]);
+  assert.deepEqual((await m.hojas.armarPdf([retira], { tam: "10x15", bajarEtiquetaMl: etiquetaMlMentira })).paginas, ["hoja:15"]);
+  assert.deepEqual((await m.hojas.armarPdf([retira], { tam: "10x15", bajarEtiquetaMl: etiquetaMlMentira, soloEtiqueta: true })).paginas, ["etiqueta-propia:15"]);
+
   const solo = await m.hojas.armarPdf(hojas.slice(0, 2), { tam: "10x15", bajarEtiquetaMl: etiquetaMlMentira, soloEtiqueta: true });
   assert.deepEqual(solo.paginas, ["etiqueta-ml:11", "etiqueta-propia:12"]);
 
@@ -195,7 +201,8 @@ test("imprimir: los pedidos entran en un lote 'hojas', la hoja abre el kit y ord
 
   llamadas.length = 0;
   const pdf = await m.hojas.armarPdf(hojas, { tam: "10x15", bajarEtiquetaMl: etiquetaMlMentira });
-  assert.deepEqual(pdf.paginas, [`etiqueta-ml:${ml}`, `hoja:${ml}`, `etiqueta-propia:${web}`, `hoja:${web}`]);
+  // El web retira en el local: no lleva etiqueta, sólo la hoja.
+  assert.deepEqual(pdf.paginas, [`etiqueta-ml:${ml}`, `hoja:${ml}`, `hoja:${web}`]);
   assert.deepEqual(llamadas, ["4455"]);
   await m.picking.marcarImpreso(e.org, [web, ml]);
   assert.ok((await q<{ ts: Date | null }>("select etiqueta_impresa_ts ts from envio where pedido_id = $1", [ml]))[0].ts);

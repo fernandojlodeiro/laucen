@@ -383,11 +383,11 @@ async function encabezadoAlCostado(l: Lienzo, p: PDFPage, d: DatosHoja, x: numbe
   if (d.aCobrar != null) { const ac = Math.min(ancho, 210); y -= 8; y -= recuadroACobrar(p, l.fb, der - ac, y - 34, ac, d.aCobrar); }
   // Las notas, si entran enteras.
   if (!d.notas?.trim()) return { y, notas: true };
-  const rs = renglones(d.notas, l.f, 9, ancho);
-  if (y - 22 - rs.length * 11 < piso) return { y, notas: false };
+  const rs = renglones(d.notas, l.fb, 11, ancho);
+  if (y - 22 - rs.length * 13 < piso) return { y, notas: false };
   y -= 18;
-  t("Notas del comprador:", 9, l.fb);
-  for (const r of rs) { y -= 11; t(r, 9); }
+  t("Notas del comprador:", 8, l.f, gris);
+  for (const r of rs) { y -= 13; t(r, 11, l.fb); }
   return { y, notas: true };
 }
 
@@ -444,49 +444,65 @@ async function hoja(l: Lienzo, d: DatosHoja, inicio?: { p: PDFPage; y: number; n
     }
     // «A cobrar»: el total, bien grande, para cobrarlo al entregar.
     if (d.aCobrar != null) { y -= 4 * k; y -= recuadroACobrar(p, l.fb, m, y - 34 * k, ancho, d.aCobrar, k); y -= 4 * k; }
+    // Las notas del comprador arriba, en negrita: hay que leerlas al preparar.
+    if (d.notas?.trim()) {
+      y -= 4 * k;
+      t("Notas del comprador:", m, 7 * k, l.f, gris);
+      y -= 11 * k;
+      for (const r of renglones(d.notas, l.fb, 9 * k, ancho)) { t(r, m, 9 * k, l.fb); y -= 11 * k; }
+    }
     y -= 4 * k;
     titulosTabla();
   };
 
   if (inicio) { p = inicio.p; y = inicio.y; titulosTabla(); } else await nueva(false);
-  /** Una fila de la tabla: ubicación, texto (ya con su fuente) y, si va,
-   *  la cantidad con el cuadrado para tildar. `resaltar`: fondo gris y la
-   *  cantidad en blanco sobre negro; `recuadro`: el texto dentro de un marco
-   *  grueso (lo que de verdad hay que juntar de un kit). */
-  const fila = async (o: { ubic: string | null; texto: string; fuente: PDFFont; tam: number; indent?: number; cantidad?: number; resaltar?: boolean; recuadro?: boolean }) => {
-    const xProd = m + COL.prod * k + (o.indent ?? 0);
-    const anchoProd = w - m - (COL.cant + 10) * k - xProd - (o.recuadro ? 8 * k : 0);
-    const tit = renglones(o.texto, o.fuente, o.tam, anchoProd).slice(0, 3);
-    const ubic = o.ubic ? renglones(o.ubic, l.fb, 8.5 * k, (COL.prod - 4) * k).slice(0, 2) : [];
-    const alto = Math.max(tit.length * (o.tam + 2 * k), ubic.length * 10 * k, 11 * k) + 4 * k;
+  /** Corta un texto para que entre en un renglón: primero achica la letra
+   *  (hasta `min`) y si igual no entra, lo corta con "…". */
+  const unRenglon = (s: string, f: PDFFont, tam: number, min: number, ancho: number): [string, number] => {
+    let tx = limpio(s);
+    while (tam > min && f.widthOfTextAtSize(tx, tam) > ancho) tam -= 0.25;
+    if (f.widthOfTextAtSize(tx, tam) <= ancho) return [tx, tam];
+    while (tx.length > 1 && f.widthOfTextAtSize(`${tx}…`, tam) > ancho) tx = tx.slice(0, -1);
+    return [`${tx.trimEnd()}…`, tam];
+  };
+  /** Una fila de la tabla, siempre de un renglón: ubicación, texto (con un
+   *  prefijo en negrita, si va) y, si va, la cantidad con el cuadrado para
+   *  tildar. `resaltar`: fondo gris y la cantidad en blanco sobre negro;
+   *  `baja`: una fila más petisa (los componentes de un kit). */
+  const fila = async (o: { ubic: string | null; texto: string; fuente: PDFFont; prefijo?: string; indent?: number; cantidad?: number; resaltar?: boolean; baja?: boolean }) => {
+    const alto = (o.baja ? 11 : 15) * k;
     if (y - alto < m + 10 * k) await nueva(true);
-    const arriba = y;
+    const arriba = y, medio = arriba - alto / 2;
+    const xProd = m + COL.prod * k + (o.indent ?? 0);
+    const pre = o.prefijo ? limpio(o.prefijo) : "", psz = 8.5 * k, pw = pre ? l.fb.widthOfTextAtSize(pre, psz) + 4 * k : 0;
+    const [tit, tsz] = unRenglon(o.texto, o.fuente, 7.5 * k, 6.25 * k, w - m - (COL.cant + 10) * k - xProd - pw);
     if (o.resaltar) p.drawRectangle({ x: m, y: arriba - alto, width: w - 2 * m, height: alto, color: rgb(0.88, 0.88, 0.88) });
-    if (!o.recuadro) p.drawLine({ start: { x: m, y }, end: { x: w - m, y }, thickness: 0.3, color: rgb(0.7, 0.7, 0.7) });
-    y = arriba - 10 * k;
-    for (const r of ubic) { t(r, m, 8.5 * k, l.fb); y -= 10 * k; }
-    if (o.recuadro) p.drawRectangle({ x: xProd - 3 * k, y: arriba - alto + 2 * k, width: anchoProd + 8 * k, height: alto - 3 * k, borderWidth: 1.6, borderColor: negro });
-    y = arriba - 2.5 * k - o.tam;
-    for (const r of tit) { t(r, xProd + (o.recuadro ? 2 * k : 0), o.tam, o.fuente); y -= o.tam + 2 * k; }
+    if (!o.baja) p.drawLine({ start: { x: m, y }, end: { x: w - m, y }, thickness: 0.3, color: rgb(0.7, 0.7, 0.7) });
+    if (o.ubic) {
+      const [u, usz] = unRenglon(o.ubic, l.fb, 8.5 * k, 6.5 * k, (COL.prod - 4) * k);
+      p.drawText(u, { x: m, y: medio - usz * 0.35, size: usz, font: l.fb });
+    }
+    if (pre) p.drawText(pre, { x: xProd, y: medio - psz * 0.35, size: psz, font: l.fb });
+    p.drawText(tit, { x: xProd + pw, y: medio - tsz * 0.35, size: tsz, font: o.fuente });
     if (o.cantidad != null) {
       const cant = String(o.cantidad), csz = 11 * k, cw = l.fb.widthOfTextAtSize(cant, csz);
-      const xCant = w - m - 16 * k - cw;
-      if (o.resaltar) p.drawRectangle({ x: xCant - 2.5 * k, y: arriba - 14 * k, width: cw + 5 * k, height: 12.5 * k, color: negro });
-      p.drawText(cant, { x: xCant, y: arriba - 11.5 * k, size: csz, font: l.fb, color: o.resaltar ? rgb(1, 1, 1) : negro });
-      p.drawRectangle({ x: w - m - 11 * k, y: arriba - 13 * k, width: 10 * k, height: 10 * k, borderWidth: 1, borderColor: negro, color: rgb(1, 1, 1) });
+      const xCant = w - m - 16 * k - cw, base = medio - 4 * k;
+      if (o.resaltar) p.drawRectangle({ x: xCant - 2.5 * k, y: base - 2.5 * k, width: cw + 5 * k, height: 12.5 * k, color: negro });
+      p.drawText(cant, { x: xCant, y: base, size: csz, font: l.fb, color: o.resaltar ? rgb(1, 1, 1) : negro });
+      p.drawRectangle({ x: w - m - 11 * k, y: medio - 5 * k, width: 10 * k, height: 10 * k, borderWidth: 1, borderColor: negro, color: rgb(1, 1, 1) });
     }
     y = arriba - alto;
   };
 
   // Un kit (pack, combo) va en una fila con lo que se vendió (cuántos kits)
-  // y, debajo, enmarcado, lo que de verdad hay que juntar de cada componente:
-  // "= 10 unidades (2 × 5) de …".
+  // y, debajo, una fila petisa por componente con cuántas unidades juntar:
+  // "20  SKU — título".
   const kitsHechos = new Set<string>();
   for (const ln of d.lineas) {
     if (!ln.kit) {
       // Más de una unidad: la fila resaltada, para que no se junte una sola.
       const varias = ln.cantidad > 1;
-      await fila({ ubic: ln.ubicacion ?? "—", texto: `${ln.sku ?? "s/SKU"} — ${ln.titulo}`, fuente: varias ? l.fb : l.f, tam: 7.5 * k, cantidad: ln.cantidad, resaltar: varias });
+      await fila({ ubic: ln.ubicacion ?? "—", texto: `${ln.sku ?? "s/SKU"} — ${ln.titulo}`, fuente: varias ? l.fb : l.f, cantidad: ln.cantidad, resaltar: varias });
       continue;
     }
     if (kitsHechos.has(ln.kit.sku)) continue;
@@ -494,12 +510,10 @@ async function hoja(l: Lienzo, d: DatosHoja, inicio?: { p: PDFPage; y: number; n
     const comps = d.lineas.filter((x) => x.kit?.sku === ln.kit!.sku);
     const ubics = [...new Set(comps.map((x) => x.ubicacion ?? "—"))];
     const kits = ln.kit.cantidad;
-    await fila({ ubic: ubics.length === 1 ? ubics[0] : null, texto: `KIT ${ln.kit.sku} — ${ln.kit.titulo}`, fuente: l.fb, tam: 7.5 * k, cantidad: kits ?? undefined, resaltar: (kits ?? 0) > 1 });
+    await fila({ ubic: ubics.length === 1 ? ubics[0] : null, texto: `${ln.kit.sku} — ${ln.kit.titulo}`, fuente: l.fb, cantidad: kits ?? undefined, resaltar: (kits ?? 0) > 1 });
     for (const c of comps) {
-      const porKit = kits && c.cantidad % kits === 0 ? c.cantidad / kits : null;
-      const cuenta = kits && kits > 1 && porKit ? ` (${kits} × ${porKit})` : "";
-      await fila({ ubic: ubics.length === 1 ? null : (c.ubicacion ?? "—"), indent: 10 * k, recuadro: true, fuente: l.fb, tam: 8.5 * k,
-        texto: `= ${c.cantidad} ${c.cantidad === 1 ? "unidad" : "unidades"}${cuenta} de ${c.sku ?? "s/SKU"} — ${c.titulo}` });
+      await fila({ ubic: ubics.length === 1 ? null : (c.ubicacion ?? "—"), indent: 8 * k, baja: true, prefijo: String(c.cantidad), fuente: l.f,
+        texto: `${c.sku ?? "s/SKU"} — ${c.titulo}` });
     }
   }
   if (!d.lineas.length) { y -= 12 * k; t("Este pedido no tiene productos para preparar.", m, 8 * k); y -= 4 * k; }
@@ -509,15 +523,16 @@ async function hoja(l: Lienzo, d: DatosHoja, inicio?: { p: PDFPage; y: number; n
   y -= 11 * k;
   t(`${unidades} unidad${unidades === 1 ? "" : "es"} en ${d.lineas.length} línea${d.lineas.length === 1 ? "" : "s"}`
     + (masDeUna ? ` · ojo: ${masDeUna === 1 ? "1 línea lleva" : `${masDeUna} líneas llevan`} más de una unidad` : ""), m, 7.5 * k, l.fb);
-  if (d.notas?.trim() && inicio?.notas !== true) {
+  // Las notas que no entraron al costado de la etiqueta, al final.
+  if (d.notas?.trim() && inicio && !inicio.notas) {
     y -= 14 * k;
     if (y < m + 20 * k) { await nueva(true); y -= 4 * k; }
-    t("Notas del comprador:", m, 7.5 * k, l.fb);
-    y -= 10 * k;
-    for (const r of renglones(d.notas, l.f, 7.5 * k, ancho)) {
+    t("Notas del comprador:", m, 7 * k, l.f, gris);
+    y -= 11 * k;
+    for (const r of renglones(d.notas, l.fb, 9 * k, ancho)) {
       if (y < m) { await nueva(true); }
-      t(r, m, 7.5 * k);
-      y -= 9.5 * k;
+      t(r, m, 9 * k, l.fb);
+      y -= 11 * k;
     }
   }
   return paginas;
@@ -558,6 +573,7 @@ export async function armarPdf(hojas: DatosHoja[], o: { tam: TamHoja; bajarEtiqu
     // En A4 la etiqueta se dibuja en la página única; si no, en la suya.
     let unica: Parameters<typeof paginaUnica>[2];
     let tipo: string;
+    let sinEtiquetaPropia = false;
     if (d.etiqueta.tipo === "ml") {
       const r = await o.bajarEtiquetaMl(d.etiqueta.canalId, d.etiqueta.envioExterno);
       let ml: PDFEmbeddedPage[] = [];
@@ -581,9 +597,11 @@ export async function armarPdf(hojas: DatosHoja[], o: { tam: TamHoja; bajarEtiqu
     } else {
       tipo = "etiqueta-propia";
       unica = { propia: d.etiqueta };
-      if (!juntas) { await paginaPropia(l, d, d.etiqueta); paginas.push(`etiqueta-propia:${d.pedidoId}`); }
+      // Lo que retiran en el local no lleva etiqueta (salvo que se pida sólo la etiqueta).
+      sinEtiquetaPropia = d.etiqueta.retiro && !o.soloEtiqueta;
+      if (!juntas && !sinEtiquetaPropia) { await paginaPropia(l, d, d.etiqueta); paginas.push(`etiqueta-propia:${d.pedidoId}`); }
     }
-    if (juntas) {
+    if (juntas && !sinEtiquetaPropia) {
       const n = await paginaUnica(l, d, unica);
       paginas.push(`${tipo}+hoja:${d.pedidoId}`);
       for (let i = 0; i < n; i++) paginas.push(`hoja:${d.pedidoId}`);
