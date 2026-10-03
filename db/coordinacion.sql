@@ -28,7 +28,10 @@ create table if not exists coordinacion.autores (
 insert into coordinacion.autores (slug, nombre, tipo, color) values
   ('fer',    'Fer',    'humano', '#16577F'),
   ('code',   'Code',   'agente', '#167655'),
-  ('cowork', 'Cowork', 'agente', '#8a6100')
+  ('cowork', 'Cowork', 'agente', '#8a6100'),
+  -- Lo que llega desde el sistema: un pedido al asistente que el
+  -- superadministrador mandó a programar (Configuración › Asistente).
+  ('laucen', 'Laucen', 'humano', '#7A3E9D')
 on conflict (slug) do nothing;
 
 -- El log en orden. `motivo` es la mitad que sirve: el detalle se lee del
@@ -171,3 +174,7 @@ alter table coordinacion.bitacora add column if not exists sesion text;
 -- por defecto sólo lo no archivado; lo archivado queda para profundizar.
 alter table coordinacion.bitacora add column if not exists archivada boolean not null default false;
 create index if not exists bitacora_no_archivada_idx on coordinacion.bitacora (ts desc) where not archivada;
+
+-- Quién lo pidió dentro de Laucen (nombre, mail y organización del usuario),
+-- en las órdenes que llegan desde "Mandar a programar" del asistente.
+alter table coordinacion.bitacora add column if not exists pedido_por_usuario text;

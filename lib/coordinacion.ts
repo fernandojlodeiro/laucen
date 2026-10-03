@@ -70,6 +70,8 @@ export type Entrada = {
   pideLectura?: boolean;
   /** Id de la sesión que la escribió (se muestra con su título). */
   sesion?: string | null;
+  /** Quién lo pidió dentro de Laucen (órdenes de "Mandar a programar"). */
+  pedidoPorUsuario?: string | null;
 };
 
 export type Hilo = Entrada & { respuestas: Entrada[] };
@@ -141,6 +143,7 @@ export async function ultimasEntradas(limite = 60, conArchivadas = false): Promi
       vistoFer: bitacora.vistoFer,
       pideLectura: bitacora.pideLectura,
       sesion: bitacora.sesion,
+      pedidoPorUsuario: bitacora.pedidoPorUsuario,
     })
     .from(bitacora)
     .where(conArchivadas ? undefined : eq(bitacora.archivada, false))

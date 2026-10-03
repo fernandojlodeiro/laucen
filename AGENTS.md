@@ -346,6 +346,10 @@ cambie, Fer lo va a decir explícitamente.
 - **"Para probar"**: una fila por cada cosa distinta que haya que probar, con qué abrir, qué
   hacer y qué tiene que pasar, en pocas frases. Se inserta en el mismo paso que el push. El
   arreglo de algo que falló no es una fila nueva: es una vuelta colgada de la misma fila.
+- **Órdenes que llegan desde Laucen** (autor `laucen`, pedido de un usuario al asistente que un
+  superadministrador mandó a programar; `pedido_por_usuario` dice quién): **ninguna sesión las
+  programa sola**. Fer las repasa desde el chat ("¿qué hay pendiente de Laucen en la bitácora?")
+  y decide cuáles se hacen; recién con su sí se toman como cualquier orden.
 - **Archivos que Cowork le manda a Code**: `NNN-laucen-<tema>.md`, numeración correlativa
   compartida con CadaMes; antes de asignar un número se mira el último usado.
 - **Softrade**: plataforma de datos de aduana a la que Fer accede con la cuenta de un amigo

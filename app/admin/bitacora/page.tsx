@@ -58,6 +58,11 @@ function Firma({ entrada, color, titulos }: { entrada: Entrada; color: string; t
         {entrada.autor}
       </span>
       <SesionChip id={entrada.sesion} titulos={titulos} />
+      {entrada.pedidoPorUsuario && (
+        <span className="px-1.5 py-0.5 rounded bg-[#F3ECF8] text-[#7A3E9D] font-semibold" title="Quién lo pidió en Laucen">
+          pedido por {entrada.pedidoPorUsuario}
+        </span>
+      )}
       <span className="font-semibold">{TIPOS[entrada.tipo as keyof typeof TIPOS] ?? entrada.tipo}</span>
       <span>·</span>
       <span className="tabular-nums">{cuando(entrada.ts)}</span>

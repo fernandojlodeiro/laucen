@@ -40,8 +40,8 @@ async function entrarPendientes() {
 }
 
 async function pendienteDeLaOrg(org: string, id: number) {
-  const p = await una<{ id: number; pedido: string; estado: string; persona: string; conversacion_id: number | null; creado: string }>(`
-    select p.id::int, p.pedido, p.estado, coalesce(nullif(u.nombre, ''), u.email) persona, p.conversacion_id::int,
+  const p = await una<{ id: number; pedido: string; estado: string; persona: string; email: string; conversacion_id: number | null; creado: string }>(`
+    select p.id::int, p.pedido, p.estado, coalesce(nullif(u.nombre, ''), u.email) persona, u.email, p.conversacion_id::int,
            to_char(p.creado_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YYYY HH24:MI') creado
       from asistente_pendiente p join usuarios u on u.id = p.usuario_id where p.id = $1 and p.organizacion_id = $2`, [id, org]);
   if (!p) throw new ErrorErp("Ese pedido no existe.");
@@ -56,10 +56,11 @@ export async function accionMandarAProgramar(fd: FormData) {
     if (p.estado !== "nuevo") throw new ErrorErp("Ese pedido ya se resolvió.");
     const nota = texto(fd, "nota");
     const b = await una<{ id: number }>(`
-      insert into coordinacion.bitacora (autor, tipo, titulo, detalle, pide_lectura)
-      values ('fer', 'orden', $1, $2, true) returning id::int`, [
+      insert into coordinacion.bitacora (autor, tipo, titulo, detalle, pide_lectura, pedido_por_usuario)
+      values ('laucen', 'orden', $1, $2, true, $3) returning id::int`, [
       `Para Code: que el asistente sepa hacer esto — ${p.pedido.slice(0, 90)}`,
-      `Lo pidió ${p.persona} al asistente el ${p.creado} (organización «${s.org.nombre}», conversación N.º ${p.conversacion_id ?? "—"}) y no estaba entre sus acciones:\n\n${p.pedido}${nota ? `\n\nNota de quien lo mandó: ${nota}` : ""}\n\nMandado a programar desde Configuración › Asistente › Pedidos sin resolver. Hacerlo como una acción nueva de lib/asistente/acciones.ts (prepara y se confirma con un botón).`,
+      `Lo pidió ${p.persona} (${p.email}) al asistente el ${p.creado} (organización «${s.org.nombre}», conversación N.º ${p.conversacion_id ?? "—"}) y no estaba entre sus acciones:\n\n${p.pedido}${nota ? `\n\nNota de quien lo mandó: ${nota}` : ""}\n\nLo mandó a programar ${s.usuario.nombre || s.usuario.email} desde Configuración › Asistente › Pedidos sin resolver. Antes de programarlo, Fer decide si se hace. Hacerlo como una acción nueva de lib/asistente/acciones.ts (prepara y se confirma con un botón).`,
+      `${p.persona} <${p.email}> · ${s.org.nombre}`,
     ]);
     await consulta("update asistente_pendiente set estado = 'mandado', bitacora_id = $3, resuelto_ts = now() where id = $1 and organizacion_id = $2", [p.id, s.org.id, b!.id]);
     revalidatePath(PENDIENTES);

@@ -34,6 +34,8 @@ export const bitacora = coordinacion.table("bitacora", {
   vistoFer: timestamp("visto_fer", { withTimezone: true }),
   pideLectura: boolean("pide_lectura").notNull().default(false),
   sesion: text("sesion"),
+  /** Quién lo pidió dentro de Laucen (órdenes de "Mandar a programar"). */
+  pedidoPorUsuario: text("pedido_por_usuario"),
   archivada: boolean("archivada").notNull().default(false),
 }, (t) => [index("bitacora_ts_idx").on(t.ts)]);
 
