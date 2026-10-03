@@ -1,10 +1,11 @@
-// Piezas comunes de las dos pestañas de etiquetas.
+// Piezas comunes de las pestañas de etiquetas.
 
 import { Pestanas } from "@/app/radar/Cliente";
 import { ETIQUETA } from "@/app/componentes/erp";
 
 export function PestanasEtiquetas() {
-  return <Pestanas items={[{ href: "/deposito/etiquetas", texto: "Productos" }, { href: "/deposito/etiquetas/ubicaciones", texto: "Ubicaciones" }]} />;
+  return <Pestanas items={[{ href: "/deposito/etiquetas", texto: "Productos" }, { href: "/deposito/etiquetas/ubicaciones", texto: "Ubicaciones" },
+    { href: "/deposito/etiquetas/full", texto: "Full de Mercado Libre" }]} />;
 }
 
 /** Térmica 50×25 mm (una etiqueta por hoja) u hoja A4 con grilla de 3×8. */
