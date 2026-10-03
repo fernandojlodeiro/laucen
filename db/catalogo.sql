@@ -305,6 +305,14 @@ $$;
 alter table lista_precios add column if not exists base_lista_id bigint references lista_precios(id) on delete set null;
 alter table lista_precios add column if not exists coeficiente numeric(8, 4) check (coeficiente > 0);
 
+-- Precio en dólares (Fer, 3/10): un producto (o una variación, que pisa al
+-- producto) marcado "precio en dólares" guarda su precio en USD y los pesos se
+-- calculan cada día con el tipo de cambio de ESE día (tc_del_dia), sin
+-- cargar filas nuevas. Sin tipo de cambio cargado, quedan los pesos
+-- congelados al cargar el precio.
+alter table producto add column if not exists precio_en_dolares boolean not null default false;
+alter table variacion add column if not exists precio_en_dolares boolean;
+
 create or replace function public.precio_de(p_org text, p_variacion bigint, p_lista bigint, p_fecha date default current_date)
 returns table (
   precio_id bigint, lista_ars numeric, lista_usd numeric, moneda_origen text, vigente_desde date,
@@ -320,11 +328,16 @@ returns table (
       from precio pr cross join l
      where l.base_lista_id is not null and pr.organizacion_id = p_org and pr.variacion_id = p_variacion
        and pr.lista_id = l.base_lista_id and pr.vigente_desde <= p_fecha)
-  select c.id, c.importe_ars, c.importe_usd, c.moneda_origen, c.vigente_desde, d.pct,
-         round(c.importe_ars * (1 - d.pct / 100), 2),
+  , usd as (
+    select coalesce(v.precio_en_dolares, p.precio_en_dolares, false) si, tc_del_dia(p_org, p_fecha) tc
+      from variacion v join producto p on p.id = v.producto_id where v.id = p_variacion and v.organizacion_id = p_org)
+  select c.id, x.ars, c.importe_usd, case when u.si then 'USD' else c.moneda_origen end, c.vigente_desde, d.pct,
+         round(x.ars * (1 - d.pct / 100), 2),
          round(c.importe_usd * (1 - d.pct / 100), 2)
     from c
     cross join lateral (select descuento_efectivo(p_org, p_variacion) pct) d
+    left join usd u on true
+    cross join lateral (select case when u.si and u.tc is not null then round(c.importe_usd * u.tc, 2) else c.importe_ars end ars) x
    order by c.prio, c.vigente_desde desc
    limit 1
 $$;
