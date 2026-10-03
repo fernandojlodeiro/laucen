@@ -5,7 +5,7 @@
 // muestra el mejor plan sin interés y el checkout los respeta (Payway manda
 // las cuotas; en Mercado Pago se limita la cantidad máxima).
 
-import { una } from "@/lib/erp/base";
+import { consulta, una } from "@/lib/erp/base";
 
 export type Plan = { cuotas: number; interes_pct: number };
 
@@ -47,4 +47,31 @@ export async function planesDelCarrito(org: string, variaciones: number[]): Prom
 export function mejorPlanSinInteres(planes: Plan[]): Plan | null {
   const sin = planes.filter((p) => p.interes_pct === 0 && p.cuotas > 1);
   return sin.length ? sin[sin.length - 1] : null;
+}
+
+/** planesDe() de muchas variaciones en una sola consulta (para los listados). */
+export async function planesDeVariaciones(org: string, variaciones: number[]): Promise<Map<number, Plan[]>> {
+  const m = new Map<number, Plan[]>();
+  if (!variaciones.length) return m;
+  const filas = await consulta<{ vid: number; planes: unknown }>(`
+    with recursive v as (
+      select va.id vid, p.planes_cuotas pp, p.familia_id from variacion va join producto p on p.id = va.producto_id
+       where va.id = any($2::bigint[]) and va.organizacion_id = $1
+    ), cadena as (
+      select v.vid, f.id, f.padre_id, f.planes_cuotas, 0 nivel from v join familia f on f.id = v.familia_id
+      union all
+      select c.vid, f.id, f.padre_id, f.planes_cuotas, c.nivel + 1 from familia f join cadena c on f.id = c.padre_id where c.nivel < 20
+    )
+    select v.vid::int, coalesce(v.pp, (select c.planes_cuotas from cadena c where c.vid = v.vid and c.planes_cuotas is not null order by c.nivel limit 1)) planes
+      from v`, [org, variaciones]);
+  for (const f of filas) m.set(f.vid, limpiar(f.planes));
+  return m;
+}
+
+/** El plan que se muestra en una tarjeta: el mejor sin interés o, si no hay, el de más cuotas. */
+export function planParaMostrar(planes: Plan[]): Plan | null {
+  const sin = mejorPlanSinInteres(planes);
+  if (sin) return sin;
+  const con = planes.filter((p) => p.cuotas > 1);
+  return con.length ? con[con.length - 1] : null;
 }

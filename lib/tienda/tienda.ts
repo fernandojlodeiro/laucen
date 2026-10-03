@@ -11,6 +11,16 @@ export type ConfigTienda = {
   whatsapp_token?: never;       // las credenciales de WhatsApp van en la tabla de credenciales, no acá
   email?: string; direccion?: string; horario?: string;
   sin_stock?: "ocultar" | "mostrar";
+  // Colores de la tienda (app/tienda/[slug]/tema.ts): cada uno es una variable
+  // CSS; vacío = el de siempre. `color` es el viejo "color de la marca" (ya no se usa).
+  color_marca?: string;         // franja del encabezado
+  color_marca_texto?: string;   // texto sobre la franja
+  color_boton?: string;         // botones y links
+  color_verde?: string;         // descuentos, cuotas sin interés, envío gratis
+  color_fondo?: string;         // fondo de la página
+  banner_2?: string; banner_3?: string;  // más imágenes para el carrusel de la portada
+  devoluciones?: string;        // política de devoluciones (texto que ve el comprador)
+  garantia?: string;            // garantía (texto que ve el comprador)
 };
 
 export type Tienda = {
