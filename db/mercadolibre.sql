@@ -343,3 +343,69 @@ begin
 exception when others then
   raise notice 'pg_cron: no se pudieron ajustar los jobs (%)', sqlerrm;
 end $$;
+
+-- ── Historia de las publicaciones (informe "Cambios en publicaciones") ────
+-- Cada vez que cambia el estado, el precio o el stock de una fila de
+-- meli_item (la copia local de cada publicación/variación, que mantienen al
+-- día los avisos, el barrido de 30 minutos y la barrida nocturna), un trigger
+-- anota antes → después. La historia arranca con el deploy que la creó (3/10):
+-- de antes no hay nada. Las altas (una publicación nueva en meli_item) no se
+-- anotan: la primera carga de una cuenta serían miles de filas sin "antes".
+-- `origen`: 'laucen' si hace menos de 15 minutos nuestra cola (ml_cola) mandó
+-- (o está mandando) un cambio de ese tipo a esa publicación; si no, 'externo'
+-- (lo cambió alguien en Mercado Libre, o ML mismo). El stock se anota también
+-- (cambia con cada venta); el informe lo esconde salvo que se pida.
+create table if not exists meli_item_cambio (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  item_id          text not null,
+  variation_id     text not null default '',
+  campo            text not null check (campo in ('estado', 'precio', 'stock')),
+  antes            text,
+  despues          text,
+  fecha            timestamptz not null default now(),
+  origen           text not null default 'externo' check (origen in ('laucen', 'externo')),
+  -- {sku, titulo} de ese momento y, si fue Laucen, {cola_id, cola_origen}.
+  datos            jsonb not null default '{}'
+);
+create index if not exists meli_item_cambio_fecha on meli_item_cambio (organizacion_id, fecha desc);
+create index if not exists meli_item_cambio_item on meli_item_cambio (canal_id, item_id, variation_id, fecha);
+alter table meli_item_cambio enable row level security;
+select erp_politica_org('meli_item_cambio');
+-- Para encontrar rápido lo que la cola mandó a una publicación.
+create index if not exists ml_cola_por_item on ml_cola (canal_id, item_id, creado_ts desc);
+
+create or replace function public.meli_item_anotar_cambio() returns trigger
+language plpgsql as $$
+declare
+  x record;
+  q record;
+begin
+  for x in
+    select v.campo, v.antes, v.despues, v.tipos
+      from (values
+        ('estado', old.estado, new.estado, array['estado', 'stock']),
+        ('precio', old.precio::text, new.precio::text, array['precio', 'descuento', 'campana']),
+        ('stock', old.stock::text, new.stock::text, array['stock'])
+      ) v(campo, antes, despues, tipos)
+     where v.antes is distinct from v.despues
+  loop
+    select c.id, c.origen into q
+      from public.ml_cola c
+     where c.canal_id = new.canal_id and c.item_id = new.item_id
+       and (c.variation_id = new.variation_id or c.variation_id = '')
+       and c.tipo = any(x.tipos)
+       and c.estado in ('ok', 'enviando')
+       and coalesce(c.enviado_ts, c.tomado_ts, c.creado_ts) > now() - interval '15 minutes'
+     order by c.id desc limit 1;
+    insert into public.meli_item_cambio (organizacion_id, canal_id, item_id, variation_id, campo, antes, despues, origen, datos)
+    values (new.organizacion_id, new.canal_id, new.item_id, new.variation_id, x.campo, x.antes, x.despues,
+            case when q.id is null then 'externo' else 'laucen' end,
+            jsonb_strip_nulls(jsonb_build_object('sku', new.sku, 'titulo', new.titulo, 'cola_id', q.id, 'cola_origen', q.origen)));
+  end loop;
+  return null;
+end $$;
+create or replace trigger meli_item_anotar_cambio after update of estado, precio, stock on meli_item
+  for each row when (old.estado is distinct from new.estado or old.precio is distinct from new.precio or old.stock is distinct from new.stock)
+  execute function public.meli_item_anotar_cambio();

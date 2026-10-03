@@ -54,7 +54,8 @@ export type PermisoKey =
   | "cuentas_corrientes_ver"
   | "tesoreria_ver"
   | "contabilidad_ver"
-  | "informes_stock_ver";
+  | "informes_stock_ver"
+  | "informes_publicaciones_ver";
 
 export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "gestionar_busquedas", label: "Gestionar búsquedas", ayuda: "Crear, editar y pausar las búsquedas programadas." },
@@ -100,6 +101,7 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "tesoreria_ver", label: "Caja y bancos", ayuda: "Cuentas de fondos, movimientos, transferencias y conciliación." },
   { key: "contabilidad_ver", label: "Contabilidad", ayuda: "Plan de cuentas, asientos, libro diario, mayores y balances." },
   { key: "informes_stock_ver", label: "Informes de inventario", ayuda: "Stock valorizado y stock por ubicación, con descarga a Excel." },
+  { key: "informes_publicaciones_ver", label: "Cambios en publicaciones", ayuda: "Qué publicaciones de Mercado Libre cambiaron de estado, precio o stock, cuándo y si lo hizo Laucen o alguien afuera." },
 ];
 
 export type Permisos = Partial<Record<PermisoKey, boolean>>;
@@ -135,7 +137,7 @@ export const FUNCIONES: PermisoKey[] = [
   "envios_ver", "preguntas_ver", "reclamos_ver", "picking_ver", "recepcion_ver", "etiquetas_ver", "facturacion_ver",
   "tienda_config", "empresa_config", "medios_pago_ver", "reglas_ver",
   "compras_ver", "despachos_ver", "cuentas_corrientes_ver", "tesoreria_ver", "contabilidad_ver",
-  "informes_stock_ver",
+  "informes_stock_ver", "informes_publicaciones_ver",
 ];
 
 /** ¿La membresía tiene el permiso? Los de FUNCIONES, si faltan, valen true;

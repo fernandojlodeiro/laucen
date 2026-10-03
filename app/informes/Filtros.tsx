@@ -33,3 +33,28 @@ export function FiltroUbicacion({ valor, opciones }: { valor: string; opciones: 
     </span>
   );
 }
+
+/** Varias cajas para tildar atadas a un solo parámetro con las claves
+ *  elegidas separadas por coma (ej. ?tipos=estado,precio). Sin el parámetro
+ *  rige `defecto`; si no queda ninguna tildada, va `vacio`. */
+export function CasillasVivas({ parametro, etiqueta, opciones, elegidas, defecto, vacio = "ninguno" }: {
+  parametro: string; etiqueta: string; opciones: { valor: string; texto: string }[]; elegidas: string[]; defecto: string[]; vacio?: string;
+}) {
+  const cambiar = usarCambiarParametro();
+  const alternar = (valor: string, tildada: boolean) => {
+    const nuevas = opciones.map((o) => o.valor).filter((v) => (v === valor ? tildada : elegidas.includes(v)));
+    const esDefecto = nuevas.length === defecto.length && defecto.every((d) => nuevas.includes(d));
+    cambiar({ [parametro]: esDefecto ? null : nuevas.join(",") || vacio });
+  };
+  return (
+    <span className="inline-flex items-center gap-3 text-xs">
+      {etiqueta}
+      {opciones.map((o) => (
+        <label key={o.valor} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+          <input type="checkbox" checked={elegidas.includes(o.valor)} onChange={(e) => alternar(o.valor, e.target.checked)} className="h-4 w-4 accent-[#16577F]" />
+          {o.texto}
+        </label>
+      ))}
+    </span>
+  );
+}
