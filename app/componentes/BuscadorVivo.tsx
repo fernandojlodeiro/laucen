@@ -27,8 +27,10 @@ export function usarCambiarParametro() {
  *  Al buscar se sacan de la dirección los parámetros de `limpiar` (ej. la fila abierta).
  *  Con dos buscadores en la misma pantalla, el segundo usa otro `parametro`
  *  (y su "Comienza por" va en `${parametro}contiene`). */
-export default function BuscadorVivo({ q, comienza, inactivos, placeholder, autoFocus = false, limpiar = [], parametro = "q" }: {
+export default function BuscadorVivo({ q, comienza, inactivos, placeholder, autoFocus = false, limpiar = [], parametro = "q", sinComienza = false }: {
   q: string; comienza: boolean; inactivos?: boolean; placeholder: string; autoFocus?: boolean; limpiar?: string[]; parametro?: string;
+  /** Sin la caja "Comienza por" (buscadores que siempre buscan en cualquier parte, ej. número o cliente). */
+  sinComienza?: boolean;
 }) {
   const contiene = parametro === "q" ? "contiene" : `${parametro}contiene`;
   const cambiar = usarCambiarParametro();
@@ -54,11 +56,11 @@ export default function BuscadorVivo({ q, comienza, inactivos, placeholder, auto
             className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full text-[#5C6B76] hover:bg-[#E3E9F0] leading-none">×</button>
         )}
       </span>
-      <label className="inline-flex items-center gap-1.5 text-xs text-[#5C6B76] py-1.5 whitespace-nowrap">
+      {!sinComienza && <label className="inline-flex items-center gap-1.5 text-xs text-[#5C6B76] py-1.5 whitespace-nowrap">
         <input type="checkbox" defaultChecked={comienza} onChange={(e) => cambiar({ [contiene]: e.target.checked ? null : "1" })}
           className="h-4 w-4 accent-[#16577F]" />
         Comienza por
-      </label>
+      </label>}
       {inactivos !== undefined && <label className="inline-flex items-center gap-1.5 text-xs text-[#5C6B76] py-1.5 whitespace-nowrap">
         <input type="checkbox" defaultChecked={inactivos} onChange={(e) => cambiar({ inactivos: e.target.checked ? "1" : null })}
           className="h-4 w-4 accent-[#16577F]" />
