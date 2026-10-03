@@ -27,6 +27,7 @@ export const dynamic = "force-dynamic";
 type Linea = {
   id: number; variacion_id: number | null; sku: string | null; titulo: string; cantidad: number;
   precio_lista_ars: number | null; precio_lista_usd: number | null; descuento_pct: number; precio_unit_ars: number; precio_unit_usd: number;
+  orden_ml: string | null;
 };
 type Historial = { estado_anterior: string | null; estado_nuevo: string; quien_nombre: string; nota: string | null; fecha: Date };
 type Cabecera = {
@@ -88,6 +89,8 @@ export default async function DetallePedido({ params, searchParams }: { params: 
 
   const v = s.moneda;
   const unidades = lineas.reduce((t, l) => t + l.cantidad, 0);
+  // Un carrito de Mercado Libre: cada línea dice de qué orden de ML vino.
+  const variasOrdenes = new Set(lineas.map((l) => l.orden_ml).filter(Boolean)).size > 1;
   const envio = c.envio && Object.keys(c.envio).length ? c.envio : null;
   const Dato = ({ t, children }: { t: string; children: React.ReactNode }) => (
     <div><span className={ETIQUETA}>{t}</span><div className="text-xs">{children}</div></div>
@@ -129,7 +132,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
                   ? <><Link href={`/catalogo/productos/${productos.get(l.variacion_id)!.producto_id}`} className="text-[#16577F] hover:underline">{l.sku ?? "—"}</Link>{" "}
                     <FotosProducto fotos={productos.get(l.variacion_id)!.fotos} titulo={l.titulo} /></>
                   : l.sku ?? "—"}</td>
-                <td className={TD}>{l.titulo}</td>
+                <td className={TD}>{l.titulo}{variasOrdenes && l.orden_ml && <span className="block text-[10px] text-[#5C6B76] font-mono">Orden ML {l.orden_ml}</span>}</td>
                 <td className={TDN}>{l.cantidad}</td>
                 <td className={TDN}>{l.precio_lista_ars == null && l.precio_lista_usd == null ? "—" : enVista({ ars: l.precio_lista_ars, usd: l.precio_lista_usd }, v)}</td>
                 <td className={TDN}>{l.descuento_pct ? `${l.descuento_pct.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %` : "—"}</td>

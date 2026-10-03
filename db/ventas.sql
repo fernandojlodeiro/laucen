@@ -222,6 +222,13 @@ create table if not exists pedido_linea (
 );
 create index if not exists pedido_linea_pedido on pedido_linea (pedido_id, orden);
 create index if not exists pedido_linea_variacion on pedido_linea (variacion_id);
+-- Lo del canal por línea (3/10): un carrito de Mercado Libre (pack) es UN
+-- pedido con las líneas de todas sus órdenes; cada línea guarda de qué orden
+-- de ML vino ({"ml": {"order_id", "item_id", "variation_id", "sale_fee"}}),
+-- para reclamos, devoluciones y facturación.
+alter table pedido_linea add column if not exists datos_externos jsonb not null default '{}';
+create index if not exists pedido_linea_orden_ml on pedido_linea ((datos_externos #>> '{ml,order_id}')) where datos_externos ? 'ml';
+create index if not exists pedido_pack_ml on pedido (canal_id, (envio ->> 'pack_id')) where envio ? 'pack_id';
 alter table pedido_linea enable row level security;
 select erp_politica_org('pedido_linea');
 
