@@ -181,3 +181,128 @@ create table if not exists meli_llave (
 );
 insert into meli_llave (id, clave) values (1, encode(gen_random_bytes(24), 'hex')) on conflict (id) do nothing;
 alter table meli_llave enable row level security;
+
+-- ── La cola de salida a Mercado Libre (lib/mercadolibre/cola.ts) ──────────
+-- AGENTS.md: todo lo que va a ML pasa por acá. Lo automático (stock que llega
+-- al umbral, reactivar) entra 'pendiente' y lo manda el trabajador
+-- (procesarCola, desde /api/erp/tareas y /api/meli/barrido); lo que pide Fer
+-- (o se prepara desde el chat) entra en un lote 'preparado' y sale recién
+-- cuando Fer aprieta "Mandar a Mercado Libre".
+
+-- Lotes preparados: un grupo de cambios que espera el clic de Fer.
+create table if not exists ml_lote (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint references canal(id) on delete cascade,
+  descripcion      text not null,
+  estado           text not null default 'preparado' check (estado in ('preparado', 'enviado', 'descartado')),
+  creado_por       text,
+  creado_ts        timestamptz not null default now(),
+  enviado_por      text,
+  enviado_ts       timestamptz
+);
+create index if not exists ml_lote_org on ml_lote (organizacion_id, estado, creado_ts desc);
+alter table ml_lote enable row level security;
+select erp_politica_org('ml_lote');
+
+-- Cada cambio a mandar. Una fila por publicación (item y variación) y tipo.
+-- `payload`: lo que se pide (stock: {cantidad, estado}; estado: {estado};
+-- precio: {precio}; los demás: {pedidos: [{metodo, ruta, cuerpo}]}).
+-- `antes`: lo que había (para mostrar antes → después). `efecto`: qué se
+-- graba en Laucen cuando ML lo acepta (ej. la publicación queda pausada).
+create table if not exists ml_cola (
+  id                  bigint generated always as identity primary key,
+  organizacion_id     text not null references organizaciones(id) on delete cascade,
+  canal_id            bigint not null references canal(id) on delete cascade,
+  item_id             text not null default '',
+  variation_id        text not null default '',
+  publicacion_id      bigint references publicacion(id) on delete set null,
+  tipo                text not null check (tipo in ('stock', 'estado', 'precio', 'descuento', 'campana', 'atributos', 'crear', 'otro')),
+  payload             jsonb not null default '{}',
+  antes               jsonb,
+  efecto              jsonb,
+  -- Mayor = antes. Pausar por stock = 100 (lo más urgente).
+  prioridad           int not null default 10,
+  estado              text not null default 'pendiente' check (estado in ('preparado', 'pendiente', 'enviando', 'ok', 'error', 'descartado')),
+  intentos            int not null default 0,
+  proximo_intento_ts  timestamptz not null default now(),
+  ultimo_error        text,
+  origen              text not null default 'automatico' check (origen in ('automatico', 'boton', 'barrida')),
+  usuario_id          text,
+  lote_id             bigint references ml_lote(id) on delete cascade,
+  -- Cuántas veces un cambio más nuevo reemplazó a éste mientras esperaba.
+  reemplazos          int not null default 0,
+  creado_ts           timestamptz not null default now(),
+  tomado_ts           timestamptz,
+  enviado_ts          timestamptz,
+  respuesta           jsonb
+);
+-- Una sola pendiente por publicación y tipo (fuera de lotes): la más nueva
+-- reemplaza a la anterior (sólo importa el último stock o precio).
+create unique index if not exists ml_cola_una_pendiente on ml_cola (canal_id, item_id, variation_id, tipo)
+  where estado = 'pendiente' and lote_id is null;
+create index if not exists ml_cola_por_salir on ml_cola (canal_id, prioridad desc, creado_ts, id) where estado = 'pendiente';
+create index if not exists ml_cola_org on ml_cola (organizacion_id, estado, creado_ts desc);
+create index if not exists ml_cola_lote on ml_cola (lote_id) where lote_id is not null;
+alter table ml_cola enable row level security;
+select erp_politica_org('ml_cola');
+
+-- El turno de cada cuenta: un solo trabajador por canal a la vez
+-- (ocupado_hasta) y, si ML cortó por exceso de pedidos, hasta cuándo se
+-- frena (frenado_hasta).
+create table if not exists ml_cola_canal (
+  canal_id         bigint primary key references canal(id) on delete cascade,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  ocupado_hasta    timestamptz not null default now(),
+  frenado_hasta    timestamptz,
+  motivo_freno     text,
+  ultimo_envio_ts  timestamptz
+);
+alter table ml_cola_canal enable row level security;
+select erp_politica_org('ml_cola_canal');
+
+-- La barrida nocturna (una por canal y noche): lee de ML el estado real de
+-- todas las publicaciones, refresca el espejo y encola las diferencias.
+-- Se retoma entre corridas del cron (fase, scroll y posición).
+create table if not exists ml_barrida (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  noche            date not null,
+  fase             text not null default 'ids' check (fase in ('ids', 'items', 'comparar', 'terminada', 'error')),
+  scroll_id        text,
+  ids              jsonb not null default '[]',
+  posicion         int not null default 0,
+  revisadas        int not null default 0,
+  diferencias      int not null default 0,
+  encoladas        int not null default 0,
+  pausas           int not null default 0,
+  errores          int not null default 0,
+  detalle          jsonb not null default '[]',
+  ocupado_hasta    timestamptz not null default now(),
+  iniciada_ts      timestamptz not null default now(),
+  terminada_ts     timestamptz,
+  unique (canal_id, noche)
+);
+create index if not exists ml_barrida_org on ml_barrida (organizacion_id, noche desc);
+alter table ml_barrida enable row level security;
+select erp_politica_org('ml_barrida');
+
+-- El job 'erp-tareas' de pg_cron (creado a mano en Supabase) llama a
+-- /api/erp/tareas sólo si hay algo que hacer. Se le suman, una sola vez, la
+-- cola de ML con pendientes y la ventana de la barrida nocturna (2 a 5, hora
+-- argentina, con algún canal sincronizando stock). Si no hay pg_cron (tests,
+-- local) o no se puede, no pasa nada.
+do $$
+declare j record;
+begin
+  if to_regclass('cron.job') is null then return; end if;
+  select jobid, command into j from cron.job where jobname = 'erp-tareas';
+  if not found or j.command like '%ml_cola%' then return; end if;
+  perform cron.alter_job(j.jobid, command := rtrim(j.command, E' \n\t') || E'\n'
+    || E'     or exists (select 1 from public.ml_cola where estado = ''pendiente'' and proximo_intento_ts <= now())\n'
+    || E'     or (extract(hour from now() at time zone ''America/Argentina/Buenos_Aires'') between 2 and 4\n'
+    || E'         and exists (select 1 from public.canal where tipo = ''mercadolibre'' and estado = ''activo'' and coalesce((config ->> ''sincronizar_stock'')::boolean, false)))\n');
+exception when others then
+  raise notice 'erp-tareas: no se pudo sumar la cola de Mercado Libre (%)', sqlerrm;
+end $$;

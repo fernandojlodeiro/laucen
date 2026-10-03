@@ -8,23 +8,66 @@
 // Canales). Apagado no toca nada en ML — así se puede conectar una cuenta y
 // cargar el stock tranquilo antes de que Laucen empiece a mandar.
 // Las publicaciones de Full no se tocan (el stock lo maneja ML).
+//
+// Nada se manda acá: los cambios entran a la cola (lib/mercadolibre/cola.ts)
+// y los manda su trabajador, con reintentos y respetando los límites de ML.
+// Lo que se graba en Laucen (pausada, cantidad informada) se graba recién
+// cuando ML lo acepta.
 
 import { consulta, una } from "@/lib/erp/base";
-import { ml, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
+import { cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
+import { encolar, PRIORIDAD, type CambioMl, type OrigenCambio } from "@/lib/mercadolibre/cola";
 
 type Pub = {
   id: number; canal_id: number; variacion_id: number; id_externo: string; variacion_externa: string | null; estado: string;
   pausada_por_stock: boolean; cantidad_publicada: number | null; disponible: number; umbral: number;
 };
 
-export type ResultadoStock = { revisadas: number; cantidades: number; pausadas: number; reactivadas: number; errores: string[] };
+/** Cuántos cambios se calcularon (cantidades, pausas, reactivaciones) y cuántos
+ *  entraron de verdad a la cola (los iguales a uno que ya espera no se repiten). */
+export type ResultadoStock = { revisadas: number; cantidades: number; pausadas: number; reactivadas: number; encoladas: number; errores: string[] };
 
-/** Ajusta en ML las publicaciones que cambiaron. Sin `variaciones`, revisa
- *  todas las de los canales con la sincronización prendida. Para un kit,
- *  pasar también las variaciones de sus componentes no hace falta: se
- *  revisan por la publicación del kit. */
-export async function sincronizarStockMl(org: string, variaciones?: number[], hastaMs = Date.now() + 60_000): Promise<ResultadoStock> {
-  const res: ResultadoStock = { revisadas: 0, cantidades: 0, pausadas: 0, reactivadas: 0, errores: [] };
+/** Lo que hay que mandar a ML para una publicación según su stock (o nada).
+ *  Pausa al llegar al umbral (una variación no se pausa sola en ML: se le
+ *  informa 0); si la pausó Laucen por stock, la reactiva cuando vuelve a
+ *  haber; si no, informa la cantidad. */
+export function cambioDeStock(p: Pub): (CambioMl & { que: "pausa" | "reactivar" | "cantidad" }) | null {
+  const disp = Math.max(0, p.disponible);
+  const base = { canalId: p.canal_id, itemId: p.id_externo, variationId: p.variacion_externa, publicacionId: p.id, tipo: "stock" as const };
+  const antes = { estado: p.estado, cantidad: p.cantidad_publicada };
+  if (disp <= p.umbral) {
+    if (p.estado !== "activa") return null;
+    return {
+      ...base, que: "pausa", prioridad: PRIORIDAD.pausa, antes,
+      payload: p.variacion_externa ? { cantidad: 0 } : { estado: "paused" },
+      efecto: { publicacion: { id: p.id, estado: "pausada", pausada_por_stock: true, ...(p.variacion_externa ? { cantidad_publicada: 0 } : {}) } },
+    };
+  }
+  if (p.pausada_por_stock) {
+    return {
+      ...base, que: "reactivar", prioridad: PRIORIDAD.reactivar, antes,
+      payload: p.variacion_externa ? { cantidad: disp } : { cantidad: disp, estado: "active" },
+      efecto: { publicacion: { id: p.id, estado: "activa", pausada_por_stock: false, cantidad_publicada: disp } },
+    };
+  }
+  if (p.estado === "activa" && p.cantidad_publicada !== disp) {
+    return {
+      ...base, que: "cantidad", prioridad: PRIORIDAD.normal, antes,
+      payload: { cantidad: disp },
+      efecto: { publicacion: { id: p.id, cantidad_publicada: disp } },
+    };
+  }
+  return null;
+}
+
+/** Calcula qué publicaciones cambiaron y lo ENCOLA (lib/mercadolibre/cola.ts):
+ *  nada se manda acá, lo manda el trabajador de la cola. Sin `variaciones`,
+ *  revisa todas las de los canales con la sincronización prendida (o sólo
+ *  `opts.canal`). Para un kit, pasar también las variaciones de sus
+ *  componentes no hace falta: se revisan por la publicación del kit. */
+export async function sincronizarStockMl(org: string, variaciones?: number[], _hastaMs?: number,
+  opts: { canal?: number; origen?: OrigenCambio } = {}): Promise<ResultadoStock> {
+  const res: ResultadoStock = { revisadas: 0, cantidades: 0, pausadas: 0, reactivadas: 0, encoladas: 0, errores: [] };
   // Si cambió un componente, también los kits que lo usan.
   let vars = variaciones;
   if (vars?.length) {
@@ -41,51 +84,30 @@ export async function sincronizarStockMl(org: string, variaciones?: number[], ha
        and p.id_externo is not null and p.estado <> 'cerrada'
        and coalesce(p.datos_externos ->> 'logistica', '') <> 'fulfillment'
        and ($2::bigint[] is null or p.variacion_id = any($2::bigint[]))
-     order by p.canal_id, p.id`, [org, vars?.length ? vars : null]);
+       and ($3::bigint is null or p.canal_id = $3)
+     order by p.canal_id, p.id`, [org, vars?.length ? vars : null, opts.canal ?? null]);
   const cuentas = new Map<number, CuentaMl | null>();
+  const cambios: CambioMl[] = [];
   for (const p of pubs) {
-    if (Date.now() > hastaMs) break;
-    res.revisadas++;
     if (!cuentas.has(p.canal_id)) cuentas.set(p.canal_id, await cuentaDelCanal(org, p.canal_id));
     const cuenta = cuentas.get(p.canal_id);
     if (!cuenta || cuenta.estado !== "activa") continue;
-    const disp = Math.max(0, p.disponible);
+    res.revisadas++;
+    const c = cambioDeStock(p);
+    if (!c) continue;
+    if (c.que === "pausa") res.pausadas++; else if (c.que === "reactivar") res.reactivadas++; else res.cantidades++;
+    const { que: _que, ...cambio } = c;
+    cambios.push(cambio);
+  }
+  if (cambios.length) {
     try {
-      if (disp <= p.umbral) {
-        if (p.estado === "activa") {
-          // Una variación no se pausa sola en ML (se pausa el item entero):
-          // se le informa 0 y ML la deja de ofrecer.
-          await cambiar(cuenta, p, p.variacion_externa ? { available_quantity: 0 } : { status: "paused" });
-          await consulta("update publicacion set estado = 'pausada', pausada_por_stock = true, ultima_sincronizacion_ts = now() where id = $1", [p.id]);
-          res.pausadas++;
-        }
-      } else if (p.pausada_por_stock) {
-        await cambiar(cuenta, p, { available_quantity: disp });
-        if (!p.variacion_externa) await cambiar(cuenta, p, { status: "active" });
-        await consulta("update publicacion set estado = 'activa', pausada_por_stock = false, cantidad_publicada = $2, ultima_sincronizacion_ts = now() where id = $1", [p.id, disp]);
-        res.reactivadas++;
-      } else if (p.estado === "activa" && p.cantidad_publicada !== disp) {
-        await cambiar(cuenta, p, { available_quantity: disp });
-        await consulta("update publicacion set cantidad_publicada = $2, ultima_sincronizacion_ts = now() where id = $1", [p.id, disp]);
-        res.cantidades++;
-      }
+      const r = await encolar(org, cambios, { origen: opts.origen ?? "automatico" });
+      res.encoladas = r.encoladas + r.reemplazadas;
     } catch (e) {
-      res.errores.push(`${p.id_externo}${p.variacion_externa ? `/${p.variacion_externa}` : ""}: ${(e as Error).message}`);
+      res.errores.push((e as Error).message);
     }
   }
   return res;
-}
-
-/** Cambia cantidad o estado de una publicación (o de una de sus variaciones). */
-async function cambiar(cuenta: CuentaMl, p: Pub, que: { available_quantity?: number; status?: "paused" | "active" }) {
-  const cuerpo = que.available_quantity !== undefined && p.variacion_externa
-    ? { variations: [{ id: Number(p.variacion_externa), available_quantity: que.available_quantity }] }
-    : que;
-  const r = await ml(cuenta, "PUT", `/items/${p.id_externo}`, cuerpo);
-  if (r.status < 200 || r.status >= 300) {
-    const d = r.datos as { message?: string; cause?: { message?: string }[] };
-    throw new Error(`ML contestó ${r.status}${d?.message ? ` (${[d.message, ...(d.cause ?? []).map((c) => c.message)].filter(Boolean).join(" · ")})` : ""}`);
-  }
 }
 
 /** Las variaciones con eventos de stock sin procesar (los emite mover_stock

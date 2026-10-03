@@ -58,7 +58,7 @@ export async function accionSincronizarStock(fd: FormData) {
     revalidatePath("/config/canales");
     if (!prender) return "Laucen ya no toca el stock ni las pausas en Mercado Libre.";
     const r = await sincronizarStockMl(s.org.id);
-    return `Prendido. Primera pasada: ${r.revisadas} publicaciones revisadas, ${r.cantidades} cantidades ajustadas, ${r.pausadas} pausadas, ${r.reactivadas} reactivadas${r.errores.length ? `, ${r.errores.length} con error (${r.errores.slice(0, 2).join("; ")})` : ""}.`;
+    return `Prendido. Primera pasada: ${r.revisadas} publicaciones revisadas; quedaron en la cola para mandar a ML ${r.cantidades} cantidades, ${r.pausadas} pausas y ${r.reactivadas} reactivaciones${r.errores.length ? ` (${r.errores.length} con error: ${r.errores.slice(0, 2).join("; ")})` : ""}. Salen solas en los próximos minutos (Configuración → Cola de Mercado Libre).`;
   });
 }
 
