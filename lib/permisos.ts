@@ -57,6 +57,7 @@ export type PermisoKey =
   | "informes_stock_ver"
   | "informes_publicaciones_ver"
   | "facturacion_ml_ver"
+  | "libros_iva_ver"
   | "informes_ventas_ver";
 
 export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
@@ -105,6 +106,7 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "informes_stock_ver", label: "Informes de inventario", ayuda: "Stock valorizado y stock por ubicación, con descarga a Excel." },
   { key: "informes_publicaciones_ver", label: "Cambios en publicaciones", ayuda: "Qué publicaciones de Mercado Libre cambiaron de estado, precio o stock, cuándo y si lo hizo Laucen o alguien afuera." },
   { key: "facturacion_ml_ver", label: "Facturación de Mercado Libre", ayuda: "Lo que cobran ML y Mercado Pago por período (leído de la API), retenciones y percepciones, y el control contra las facturas importadas de ARCA." },
+  { key: "libros_iva_ver", label: "Libros de IVA", ayuda: "Libro IVA Ventas y Compras del mes, saldo técnico, Excel y los archivos del Libro de IVA Digital de ARCA." },
   { key: "informes_ventas_ver", label: "Rentabilidad por venta", ayuda: "Venta, cargos de Mercado Libre, costo y margen por venta o por producto." },
 ];
 
@@ -142,6 +144,7 @@ export const FUNCIONES: PermisoKey[] = [
   "tienda_config", "empresa_config", "medios_pago_ver", "reglas_ver",
   "compras_ver", "despachos_ver", "cuentas_corrientes_ver", "tesoreria_ver", "contabilidad_ver",
   "informes_stock_ver", "informes_publicaciones_ver", "facturacion_ml_ver", "informes_ventas_ver",
+  "libros_iva_ver",
 ];
 
 /** ¿La membresía tiene el permiso? Los de FUNCIONES, si faltan, valen true;

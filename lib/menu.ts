@@ -78,6 +78,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Cuentas corrientes", href: "/administracion/cuentas-corrientes", permiso: "cuentas_corrientes_ver" },
       { texto: "Caja y bancos", href: "/administracion/tesoreria", permiso: "tesoreria_ver" },
       { texto: "Contabilidad", href: "/administracion/contabilidad", permiso: "contabilidad_ver" },
+      { texto: "Libros de IVA", href: "/administracion/libros-iva", permiso: "libros_iva_ver" },
       { texto: "Facturación de Mercado Libre", href: "/administracion/facturacion-ml", permiso: "facturacion_ml_ver" },
     ],
   },
