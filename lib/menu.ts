@@ -58,6 +58,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Recepción", href: "/deposito/recepcion", permiso: "recepcion_ver", icono: "📥" },
       { texto: "Etiquetas", href: "/deposito/etiquetas", permiso: "etiquetas_ver" },
       { texto: "Ajustes", href: "/stock/ajustes", permiso: "stock_ajustar" },
+      { texto: "Movimientos de stock", href: "/stock/movimientos", permiso: "stock_ver" },
     ],
   },
   {

@@ -92,6 +92,10 @@ create table if not exists movimiento_stock (
 );
 create index if not exists movimiento_variacion on movimiento_stock (variacion_id, fecha desc);
 create index if not exists movimiento_referencia on movimiento_stock (organizacion_id, referencia_tipo, referencia_id);
+-- Para /stock/movimientos (todos los de la organización, los más nuevos primero) y
+-- los movimientos que hicieron los componentes de un kit.
+create index if not exists movimiento_org_fecha on movimiento_stock (organizacion_id, fecha desc, id desc);
+create index if not exists movimiento_kit on movimiento_stock (kit_variacion_id, fecha desc) where kit_variacion_id is not null;
 alter table movimiento_stock enable row level security;
 select erp_politica_org('movimiento_stock');
 

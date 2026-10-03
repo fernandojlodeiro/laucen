@@ -20,6 +20,8 @@ export const dynamic = "force-dynamic";
 
 const BASE = "/stock/consulta";
 const LIMITE = 100;
+/** Los últimos movimientos que se ven en la caja; el resto, en /stock/movimientos. */
+const MOVIMIENTOS = 20;
 
 type SP = { q?: string; filtro?: string; v?: string; inactivos?: string; dep?: string; contiene?: string; ok?: string; error?: string };
 
@@ -119,7 +121,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
       join variacion v on v.id = m.variacion_id
       left join usuarios us on us.id = m.usuario_id
      where m.organizacion_id = $1 and (m.variacion_id = $2 or m.kit_variacion_id = $2)
-     order by m.fecha desc, m.id desc limit 50`, [s.org.id, elegida.id]) : [];
+     order by m.fecha desc, m.id desc limit ${MOVIMIENTOS}`, [s.org.id, elegida.id]) : [];
 
   const totDet = detalle.reduce((a, d) => ({ cantidad: a.cantidad + d.cantidad, reservado: a.reservado + d.reservado }), { cantidad: 0, reservado: 0 });
   const totDisp = porDeposito.reduce((a, d) => a + d.disponible, 0);
@@ -199,7 +201,10 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
             </div>
           )}
 
-          <h3 className="text-xs font-bold mt-4 mb-1">Últimos movimientos</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-4 mb-1">
+            <h3 className="text-xs font-bold">Últimos movimientos</h3>
+            <Link href={url("/stock/movimientos", { v: elegida.id })} className={SUAVE}>Ver todos los movimientos</Link>
+          </div>
           <div className={CAJA_TABLA}>
             <table className={TABLA}>
               <thead className={THEAD}>
