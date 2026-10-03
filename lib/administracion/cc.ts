@@ -1,10 +1,13 @@
 // Cuentas corrientes de clientes y proveedores. Cada documento que genera
 // deuda (factura) o la baja (cobro, pago, nota de crédito) deja un renglón en
 // cc_movimiento; las imputaciones cancelan débitos con créditos (por defecto,
-// de la deuda más vieja a la más nueva).
+// de la deuda más vieja a la más nueva). Cada renglón lleva su pendiente en su
+// moneda; entre monedas distintas se convierte con lib/administracion/cc-imputacion.ts.
 
 import type { PoolClient } from "pg";
 import { consulta, enTransaccion, ErrorErp, type Consultor } from "@/lib/erp/base";
+import { formatear } from "@/lib/moneda";
+import { aplicar, repartir, type Imputacion, type RenglonCc } from "@/lib/administracion/cc-imputacion";
 
 export type Tercero = "cliente" | "proveedor";
 
@@ -22,42 +25,59 @@ export async function movimientoCc(c: Consultor, org: string, d: {
   return r.rows[0] ? Number(r.rows[0].id) : 0;
 }
 
-/** Imputa créditos contra débitos de un tercero, de lo más viejo a lo más nuevo. */
-export async function imputarAutomatico(c: PoolClient, org: string, tercero: Tercero, terceroId: number) {
-  const deb = (await c.query<{ id: string; pendiente: string }>(`
-    select id, pendiente from cc_movimiento where organizacion_id = $1 and tercero_tipo = $2 and tercero_id = $3 and pendiente > 0
-     order by coalesce(vencimiento, fecha), id for update`, [org, tercero, terceroId])).rows.map((x) => ({ id: Number(x.id), p: Number(x.pendiente) }));
-  const cre = (await c.query<{ id: string; pendiente: string }>(`
-    select id, pendiente from cc_movimiento where organizacion_id = $1 and tercero_tipo = $2 and tercero_id = $3 and pendiente < 0
-     order by fecha, id for update`, [org, tercero, terceroId])).rows.map((x) => ({ id: Number(x.id), p: -Number(x.pendiente) }));
-  let i = 0;
-  for (const cr of cre) {
-    while (cr.p > 0.004 && i < deb.length) {
-      const d = deb[i];
-      const m = Math.round(Math.min(cr.p, d.p) * 100) / 100;
-      if (m > 0) {
-        await c.query("insert into cc_imputacion (organizacion_id, debito_id, credito_id, importe) values ($1, $2, $3, $4)", [org, d.id, cr.id, m]);
-        await c.query("update cc_movimiento set pendiente = pendiente - $2 where id = $1", [d.id, m]);
-        await c.query("update cc_movimiento set pendiente = pendiente + $2 where id = $1", [cr.id, m]);
-      }
-      d.p -= m; cr.p -= m;
-      if (d.p <= 0.004) i++;
-    }
-  }
+/** Lo que hace falta de cada renglón para imputar: el pendiente en su moneda
+ *  y, para un crédito, la cotización con que cancela deudas de la otra moneda
+ *  (el tipo de cambio de su día; ver lib/administracion/cc-imputacion.ts). */
+const COLUMNAS_IMPUTAR = `id, moneda, pendiente, to_char(fecha, 'YYYY-MM-DD') fecha,
+  coalesce(tc_del_dia(organizacion_id, fecha), abs(importe_ars / nullif(importe_usd, 0))) cot`;
+type FilaImputar = { id: string; moneda: string; pendiente: string; fecha: string; cot: string | null };
+const renglon = (x: FilaImputar, signo: 1 | -1): RenglonCc =>
+  ({ id: Number(x.id), moneda: x.moneda === "USD" ? "USD" : "ARS", p: signo * Number(x.pendiente), cot: x.cot == null ? null : Number(x.cot) });
+
+/** Graba una imputación y baja los dos pendientes, cada uno en su moneda. */
+async function grabarImputacion(c: PoolClient, org: string, i: Imputacion) {
+  await c.query("insert into cc_imputacion (organizacion_id, debito_id, credito_id, importe, importe_credito, cotizacion) values ($1, $2, $3, $4, $5, $6)",
+    [org, i.debitoId, i.creditoId, i.debito, i.credito, i.cotizacion]);
+  await c.query("update cc_movimiento set pendiente = pendiente - $2 where id = $1", [i.debitoId, i.debito]);
+  await c.query("update cc_movimiento set pendiente = pendiente + $2 where id = $1", [i.creditoId, i.credito]);
 }
 
-/** Imputación a mano de un crédito contra un débito. */
-export async function imputar(org: string, debitoId: number, creditoId: number, importe: number) {
-  if (!(importe > 0)) throw new ErrorErp("El importe a imputar tiene que ser mayor que cero.");
-  await enTransaccion(async (c) => {
-    const f = (await c.query<{ id: string; pendiente: string; tercero_tipo: string; tercero_id: string }>(
-      "select id, pendiente, tercero_tipo, tercero_id from cc_movimiento where organizacion_id = $1 and id in ($2, $3) for update", [org, debitoId, creditoId])).rows;
-    const d = f.find((x) => Number(x.id) === debitoId), cr = f.find((x) => Number(x.id) === creditoId);
-    if (!d || !cr || d.tercero_tipo !== cr.tercero_tipo || d.tercero_id !== cr.tercero_id) throw new ErrorErp("Esos movimientos no son de la misma cuenta.");
-    if (Number(d.pendiente) < importe - 0.004 || -Number(cr.pendiente) < importe - 0.004) throw new ErrorErp("El importe pasa lo que queda pendiente.");
-    await c.query("insert into cc_imputacion (organizacion_id, debito_id, credito_id, importe) values ($1, $2, $3, $4)", [org, debitoId, creditoId, importe]);
-    await c.query("update cc_movimiento set pendiente = pendiente - $2 where id = $1", [debitoId, importe]);
-    await c.query("update cc_movimiento set pendiente = pendiente + $2 where id = $1", [creditoId, importe]);
+/** Imputa créditos contra débitos de un tercero, de lo más viejo a lo más nuevo.
+ *  Entre monedas distintas, el crédito cancela al tipo de cambio de su día. */
+export async function imputarAutomatico(c: PoolClient, org: string, tercero: Tercero, terceroId: number) {
+  const deb = (await c.query<FilaImputar>(`
+    select ${COLUMNAS_IMPUTAR} from cc_movimiento where organizacion_id = $1 and tercero_tipo = $2 and tercero_id = $3 and pendiente > 0
+     order by coalesce(vencimiento, fecha), id for update`, [org, tercero, terceroId])).rows.map((x) => renglon(x, 1));
+  const cre = (await c.query<FilaImputar>(`
+    select ${COLUMNAS_IMPUTAR} from cc_movimiento where organizacion_id = $1 and tercero_tipo = $2 and tercero_id = $3 and pendiente < 0
+     order by fecha, id for update`, [org, tercero, terceroId])).rows.map((x) => renglon(x, -1));
+  for (const i of repartir(deb, cre)) await grabarImputacion(c, org, i);
+}
+
+/** Imputación a mano de un crédito contra un débito. `importe` es lo que se
+ *  cancela de la deuda, en la moneda de la deuda; sin importe, lo máximo que
+ *  alcance. Devuelve cuánto bajó cada lado para el aviso. */
+export async function imputar(org: string, debitoId: number, creditoId: number, importe: number | null) {
+  if (importe != null && !(importe > 0)) throw new ErrorErp("El importe a imputar tiene que ser mayor que cero.");
+  return enTransaccion(async (c) => {
+    const f = (await c.query<FilaImputar & { tercero_tipo: string; tercero_id: string }>(
+      `select ${COLUMNAS_IMPUTAR}, tercero_tipo, tercero_id from cc_movimiento where organizacion_id = $1 and id in ($2, $3) for update`,
+      [org, debitoId, creditoId])).rows;
+    const fd = f.find((x) => Number(x.id) === debitoId), fc = f.find((x) => Number(x.id) === creditoId);
+    if (!fd || !fc || fd.tercero_tipo !== fc.tercero_tipo || fd.tercero_id !== fc.tercero_id) throw new ErrorErp("Esos movimientos no son de la misma cuenta.");
+    const d = renglon(fd, 1), cr = renglon(fc, -1);
+    if (!(d.p > 0.004) || !(cr.p > 0.004)) throw new ErrorErp("Elegí una deuda y un crédito que tengan algo pendiente.");
+    if (d.moneda !== cr.moneda && !cr.cot)
+      throw new ErrorErp(`No hay tipo de cambio para el ${fc.fecha.split("-").reverse().join("/")}: cargalo en Configuración → Tipo de cambio.`);
+    const maximo = aplicar(d, cr, cr.cot ?? null);
+    if (!maximo) throw new ErrorErp("Lo que queda pendiente no llega a un centavo: no hay nada para imputar.");
+    if (importe != null && importe > d.p + 0.004) throw new ErrorErp("El importe pasa lo que queda pendiente.");
+    if (importe != null && importe > maximo.debito + 0.004)
+      throw new ErrorErp(`El crédito no alcanza: cancela hasta ${formatear(maximo.debito, d.moneda)} de esa deuda.`);
+    const a = importe == null ? maximo : aplicar(d, cr, cr.cot ?? null, importe);
+    if (!a) throw new ErrorErp("El importe es demasiado chico para imputar.");
+    await grabarImputacion(c, org, { ...a, debitoId, creditoId });
+    return { ...a, monedaDebito: d.moneda, monedaCredito: cr.moneda };
   });
 }
 
@@ -74,12 +94,14 @@ export function saldos(org: string, tercero: Tercero) {
      order by sum(m.importe_ars) desc`, [org, tercero]);
 }
 
-/** El estado de cuenta de un tercero con saldo acumulado. */
+/** El estado de cuenta de un tercero con saldo acumulado (y, para imputar,
+ *  la cotización de cada renglón: el tipo de cambio de su día). */
 export function estadoDeCuenta(org: string, tercero: Tercero, terceroId: number) {
   return consulta<{ id: number; fecha: string; vencimiento: string | null; tipo: string; descripcion: string; moneda: string; importe: number;
-    importe_ars: number; pendiente: number; saldo: number; referencia_tipo: string | null; referencia_id: number | null }>(`
+    importe_ars: number; pendiente: number; saldo: number; referencia_tipo: string | null; referencia_id: number | null; cot: number | null }>(`
     select id::int, to_char(fecha, 'YYYY-MM-DD') fecha, to_char(vencimiento, 'YYYY-MM-DD') vencimiento, tipo, descripcion, moneda,
            importe::float, importe_ars::float, pendiente::float, referencia_tipo, referencia_id::int,
+           coalesce(tc_del_dia(organizacion_id, fecha), abs(importe_ars / nullif(importe_usd, 0)))::float cot,
            sum(importe_ars) over (order by fecha, id)::float saldo
       from cc_movimiento where organizacion_id = $1 and tercero_tipo = $2 and tercero_id = $3 order by fecha, id`, [org, tercero, terceroId]);
 }

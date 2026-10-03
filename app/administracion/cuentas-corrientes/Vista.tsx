@@ -17,6 +17,7 @@ import {
 } from "@/app/componentes/erp";
 import { fecha } from "@/app/ventas/formato";
 import FormRecibo from "./FormRecibo";
+import FormImputar, { type RenglonImputar } from "./FormImputar";
 import { AccionesExcel } from "@/app/listas/piezas";
 import { LISTA_CC_CLIENTES, LISTA_CC_PROVEEDORES } from "./lista";
 import { accionEmitirRecibo, accionAnularRecibo, accionImputar, accionSaldoInicial } from "./acciones";
@@ -30,6 +31,10 @@ const PESTANAS = [
 ];
 
 const ars = (n: number) => formatear(n, "ARS");
+
+/** Un renglón pendiente para "Imputar a mano": en positivo y en su moneda. */
+const paraImputar = (m: { id: number; descripcion: string; moneda: string; pendiente: number; cot: number | null; fecha: string }, signo: 1 | -1): RenglonImputar =>
+  ({ id: m.id, texto: m.descripcion, moneda: m.moneda === "USD" ? "USD" : "ARS", pendiente: signo * m.pendiente, cot: m.cot, fecha: m.fecha });
 
 /** Link al documento que originó el renglón (si tiene pantalla). */
 function linkDocumento(tipo: string | null, id: number | null) {
@@ -211,20 +216,8 @@ async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp }: { org: stri
       </div>
 
       {debitos.length > 0 && creditos.length > 0 && (
-        <form action={accionImputar} className={`${CAJA} mb-4 flex flex-wrap items-end gap-3`}>
-          {Object.entries(campos).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
-          <p className="w-full text-xs font-bold">Imputar a mano</p>
-          <label><span className={ETIQUETA}>Deuda pendiente</span>
-            <select name="debito" className={`${CAMPO} w-64`}>
-              {debitos.map((m) => <option key={m.id} value={m.id}>{fecha(m.fecha)} · {m.descripcion} · {formatear(m.pendiente, m.moneda === "USD" ? "USD" : "ARS")}</option>)}
-            </select></label>
-          <label><span className={ETIQUETA}>Crédito pendiente</span>
-            <select name="credito" className={`${CAMPO} w-64`}>
-              {creditos.map((m) => <option key={m.id} value={m.id}>{fecha(m.fecha)} · {m.descripcion} · {formatear(-m.pendiente, m.moneda === "USD" ? "USD" : "ARS")}</option>)}
-            </select></label>
-          <label><span className={ETIQUETA}>Importe</span><CampoNumero name="importe" valor={null} tipo="pesos" className={`${CAMPO} w-32`} /></label>
-          <button className={VERDE}>Imputar</button>
-        </form>
+        <FormImputar accion={accionImputar} campos={campos}
+          debitos={debitos.map((m) => paraImputar(m, 1))} creditos={creditos.map((m) => paraImputar(m, -1))} />
       )}
 
       <h2 className="text-sm font-bold mb-2">{esCobro ? "Recibos" : "Órdenes de pago"}</h2>
