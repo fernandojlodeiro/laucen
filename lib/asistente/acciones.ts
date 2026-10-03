@@ -6,10 +6,14 @@
 //
 // Pide el permiso «Pedirle al asistente que haga cosas» y, cada acción, el de
 // su pantalla (facturar: «Facturación»; clientes: «Clientes»; pedidos:
-// «Pedidos»). Lo que le piden y no está acá se anota en asistente_pendiente
-// para que el superadministrador lo mande a programar.
+// «Pedidos»). Un superadministrador, además, puede pedirle cualquier otro
+// cambio en los datos de Laucen (proponer_cambio_en_datos, resguardos en
+// lib/asistente/sql.ts; decisión de Fer, 3/10: sólo superadministradores).
+// Lo que no se puede hacer se anota en asistente_pendiente para que el
+// superadministrador lo mande a programar.
 
 import type Anthropic from "@anthropic-ai/sdk";
+import { consultarSql, ensayarCambio, hacerCambio } from "./sql";
 import { consulta, una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { tienePermiso, type Permisos, type PermisoKey } from "@/lib/permisos";
 import { formatear } from "@/lib/moneda";
@@ -18,7 +22,7 @@ import { prepararFactura, emitir } from "@/lib/arca/facturar";
 import { cambiarEstado, esEstadoPedido, exigirCarritoLibre, ESTADOS_PEDIDO } from "@/lib/pedidos";
 import { crearPedidoAMano, validarPedidoAMano, TIPOS_A_MANO, MEDIOS_A_MANO, PAGOS_A_MANO, type PedidoAMano } from "@/lib/pedidos/a-mano";
 
-export type CtxAccion = { org: string; usuarioId: string; permisos: Permisos };
+export type CtxAccion = { org: string; usuarioId: string; permisos: Permisos; authId: string; superadmin: boolean };
 type Preparada = { resumen: string; detalle: string[]; datos: Record<string, unknown> };
 type Accion = {
   permiso: PermisoKey;
@@ -241,7 +245,51 @@ const cambiarEstados: Accion = {
   },
 };
 
-export const ACCIONES: Accion[] = [facturar, crearCliente, crearPedido, cambiarEstados];
+// ── Cualquier otro cambio en los datos (sólo superadministradores) ──
+const cambioEnDatos: Accion = {
+  permiso: "asistente_acciones",
+  herramienta: {
+    name: "proponer_cambio_en_datos",
+    description: "SÓLO SUPERADMINISTRADOR. Para un cambio en los datos de Laucen que no está en tus otras acciones: una sola instrucción SQL INSERT, UPDATE o DELETE (Postgres) sobre una tabla de Laucen. Se ensaya (se corre y se deshace) y la persona ve cuántas filas cambian y cómo quedan antes de confirmar. Corre con los permisos de fila del usuario (sólo su organización); igual filtrá por organizacion_id. Prohibido: Mercado Libre, canales, usuarios/roles, llaves, stock (va por ajuste), asientos, comprobantes de ARCA, cuentas corrientes, caja, estados de pedidos. Antes mirá la estructura con leer_codigo (db/*.sql) y los datos con consultar_sql.",
+    input_schema: {
+      type: "object",
+      properties: {
+        sql: { type: "string", description: "Una sola instrucción INSERT INTO / UPDATE / DELETE FROM, sin punto y coma ni comentarios." },
+        explicacion: { type: "string", description: "Qué hace, en criollo, en una línea (es el título de la tarjeta)." },
+      },
+      required: ["sql", "explicacion"],
+    },
+  },
+  async preparar(e, ctx) {
+    if (!ctx.superadmin) throw new ErrorErp("Los cambios libres en los datos sólo los puede pedir un superadministrador.");
+    const sql = txt(e.sql);
+    if (!sql) throw new ErrorErp("Falta la instrucción.");
+    const r = await ensayarCambio(sql, ctx.authId);
+    const verbo = { insert: "agrega", update: "cambia", delete: "borra" }[r.tipo];
+    const detalle = [
+      `En ${r.tabla}: ${verbo} ${r.filas} fila${r.filas === 1 ? "" : "s"}.`,
+      ...(r.aviso ? [r.aviso] : []),
+      ...r.muestra.slice(0, 8).map((f) => (r.tipo === "delete" ? "Se borra: " : "Queda: ")
+        + Object.entries(f).filter(([, v]) => v != null && v !== "").slice(0, 8).map(([k, v]) => `${k}=${String(v).slice(0, 40)}`).join(", ")),
+      ...(r.filas > 8 ? [`… y ${r.filas - 8} más.`] : []),
+      `Instrucción: ${r.sql.slice(0, 600)}`,
+    ];
+    return { resumen: txt(e.explicacion) ?? `Cambio en ${r.tabla}`, detalle, datos: { sql: r.sql, filas: r.filas, tabla: r.tabla } };
+  },
+  async hacer(d, ctx) {
+    if (!ctx.superadmin) throw new ErrorErp("Sólo un superadministrador.");
+    const n = await hacerCambio(String(d.sql), Number(d.filas), ctx.authId);
+    return `Hecho: ${n} fila${n === 1 ? "" : "s"} en ${d.tabla}.`;
+  },
+};
+
+export const HERRAMIENTA_CONSULTAR_SQL: Anthropic.Beta.BetaTool = {
+  name: "consultar_sql",
+  description: "SÓLO SUPERADMINISTRADOR. Consulta de sólo lectura sobre la base de Laucen: una instrucción SELECT (o WITH … SELECT), hasta 200 filas, con los permisos de fila del usuario (sólo su organización). Para ver datos que las listas no tienen o para preparar un cambio.",
+  input_schema: { type: "object", properties: { sql: { type: "string" } }, required: ["sql"] },
+};
+
+export const ACCIONES: Accion[] = [facturar, crearCliente, crearPedido, cambiarEstados, cambioEnDatos];
 const PORNOMBRE = new Map(ACCIONES.map((a) => [a.herramienta.name, a]));
 
 export const HERRAMIENTA_PENDIENTE: Anthropic.Beta.BetaTool = {
@@ -251,12 +299,14 @@ export const HERRAMIENTA_PENDIENTE: Anthropic.Beta.BetaTool = {
 };
 
 /** Las herramientas de acciones que esta persona puede usar. */
-export function herramientasDeAcciones(permisos: Permisos): Anthropic.Beta.BetaTool[] {
+export function herramientasDeAcciones(permisos: Permisos, superadmin: boolean): Anthropic.Beta.BetaTool[] {
   if (!tienePermiso(permisos, "asistente_acciones")) return [];
-  return [...ACCIONES.filter((a) => tienePermiso(permisos, a.permiso)).map((a) => a.herramienta), HERRAMIENTA_PENDIENTE];
+  const propias = ACCIONES.filter((a) => (a !== cambioEnDatos || superadmin) && tienePermiso(permisos, a.permiso)).map((a) => a.herramienta);
+  return [...propias, ...(superadmin ? [HERRAMIENTA_CONSULTAR_SQL] : []), HERRAMIENTA_PENDIENTE];
 }
 
-export const esHerramientaDeAccion = (nombre: string) => PORNOMBRE.has(nombre) || nombre === HERRAMIENTA_PENDIENTE.name;
+export const esHerramientaDeAccion = (nombre: string) =>
+  PORNOMBRE.has(nombre) || nombre === HERRAMIENTA_PENDIENTE.name || nombre === HERRAMIENTA_CONSULTAR_SQL.name;
 
 function exigirPermisos(a: Accion, permisos: Permisos) {
   if (!tienePermiso(permisos, "asistente_acciones")) throw new ErrorErp("Esta persona no tiene permiso para pedirle al asistente que haga cosas.");
@@ -265,6 +315,10 @@ function exigirPermisos(a: Accion, permisos: Permisos) {
 
 /** Corre una herramienta de acción: prepara la propuesta (o anota el pendiente). Devuelve el texto para el modelo y, si hubo, la propuesta. */
 export async function correrAccion(nombre: string, entrada: Record<string, unknown>, ctx: CtxAccion, conversacionId: number): Promise<{ texto: string; propuesta?: number }> {
+  if (nombre === HERRAMIENTA_CONSULTAR_SQL.name) {
+    if (!ctx.superadmin) throw new ErrorErp("Sólo un superadministrador.");
+    return { texto: (await consultarSql(String(entrada.sql ?? ""), ctx.authId)).slice(0, 60_000) };
+  }
   if (nombre === HERRAMIENTA_PENDIENTE.name) {
     if (!tienePermiso(ctx.permisos, "asistente_acciones")) throw new ErrorErp("Sin permiso.");
     const pedido = txt(entrada.pedido);

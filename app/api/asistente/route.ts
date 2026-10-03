@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       const r = await preguntar({
         nombre: config.nombre, fuera: config.fueraDelSistema, ruta, pregunta, conversacionId: conversacion!,
         historia: historia.reverse(),
-        q: { org, orgNombre: s.org.nombre, usuario: s.usuario.nombre || s.usuario.email, usuarioId: s.usuario.id, superadmin: s.superadmin, esFer, permisos: s.permisos, moneda },
+        q: { org, orgNombre: s.org.nombre, usuario: s.usuario.nombre || s.usuario.email, usuarioId: s.usuario.id, authId: s.usuario.authId ?? "", superadmin: s.superadmin, esFer, permisos: s.permisos, moneda },
         alAvanzar: (estado) => enviar({ tipo: "estado", texto: estado }),
       });
       const [motivo, tecnico] = r.error ? r.error.split("|") : [null, null];
