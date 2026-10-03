@@ -41,3 +41,7 @@ update roles set permisos = permisos || '{"picking_sin_escanear": true}'::jsonb
 -- menú; una vez al Admin de fábrica (el superadministrador lo tiene siempre).
 update roles set permisos = permisos || '{"tienda_dominios": true}'::jsonb
  where protegido and not (permisos ? 'tienda_dominios');
+
+-- «Configurar los mensajes» (3/10, carpeta de mensajes + IA de la tienda): una vez al Admin de fábrica.
+update roles set permisos = permisos || '{"mensajes_config": true}'::jsonb
+ where protegido and not (permisos ? 'mensajes_config');

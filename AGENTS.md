@@ -33,6 +33,11 @@ no la primera.
 - **Asistente** (la carita de abajo a la derecha; `/config/asistente`): contesta en lenguaje
   natural cómo se hace cada cosa, dónde está, criterios y datos (`lib/asistente/`). Lee el
   manual del sistema (`manual/*.md`, formato en `manual/LEEME.md`).
+- **WhatsApp** (`/ventas/mensajes`; orden #290): la carpeta de mensajes tipo WhatsApp Web copiada de
+  la Bandeja de CadaMes (`lib/mensajes/`). Los contesta la IA de la tienda (Sonnet) y deriva a una
+  persona lo que no sabe. Número conectado con coexistencia por el alta embebida de la app de Meta
+  de CadaMes (`META_APP_ID`, `META_APP_SECRET`, `META_ES_CONFIG_ID`, cargadas por Fer el 3/10), cada
+  cuenta con su propia dirección de entrega (`override_callback_uri` → `/api/whatsapp/webhook`).
 - **Coordinación** (`/admin/bitacora`, `/admin/para-probar`): bitácora y "para probar", sólo
   Fer. → sección "Coordinación entre sesiones" de este archivo
 - **Falta**: la búsqueda en China (Alibaba/1688) y el cruce con Mercado Libre.
@@ -278,7 +283,9 @@ cambie, Fer lo va a decir explícitamente.
   permisos como checkboxes, candado anti-encierro: nunca dejar una organización sin nadie que
   pueda administrarla) — `db/tenancy.ts`, `lib/tenancy.ts`, `lib/permisos.ts`, `lib/roles.ts`,
   `app/auth-actions.ts`. Y la coordinación (bitácora + para probar).
-- **No**: vocabulario, marca, WhatsApp como interfaz y todo lo de Meta (decisiones de producto
+- **También** (Fer, 3/10): la Bandeja de mensajes con sus reglas y la conexión con Meta (WhatsApp
+  con coexistencia) — ver el módulo WhatsApp arriba.
+- **No**: vocabulario, marca y WhatsApp como interfaz del usuario del sistema (decisiones de producto
   de CadaMes); módulos desacoplables (arquitectura de CadaMes); login con Google, antibot del
   registro y aceptación de términos (no hacían falta para arrancar; el código de CadaMes sirve
   de modelo, detalle en `README.md`); accesibilidad medida con axe-core (no se pidió).

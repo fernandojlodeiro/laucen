@@ -26,6 +26,8 @@ export const RUTAS_PUBLICAS = [
   // La API del cimiento: se autentica con el token de cada canal, no con la sesión.
   "/api/pedidos",
   "/api/catalogo",
+  // Los avisos de WhatsApp (Meta): se verifican con la firma de la app.
+  "/api/whatsapp/webhook",
 ];
 
 /** La landing ("/") es pública y es la única ruta exacta que no pide login;

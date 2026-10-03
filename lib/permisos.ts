@@ -67,7 +67,10 @@ export type PermisoKey =
   | "asistente_config"
   | "asistente_historial_ver"
   | "asistente_acciones"
-  | "asistente_consultas";
+  | "asistente_consultas"
+  // Mensajes de los clientes (WhatsApp) atendidos por la IA (pedido de Fer, 3/10).
+  | "mensajes_ver"
+  | "mensajes_config";
 
 export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "gestionar_busquedas", label: "Gestionar búsquedas", ayuda: "Crear, editar y pausar las búsquedas programadas." },
@@ -124,6 +127,8 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "asistente_config", label: "Configurar el asistente", ayuda: "Nombre, carita, preguntas fuera del sistema y tope de gasto del asistente." },
   { key: "asistente_historial_ver", label: "Ver el historial del asistente", ayuda: "Leer las preguntas que le hizo cada persona al asistente y sus respuestas." },
   { key: "asistente_acciones", label: "Pedirle al asistente que haga cosas", ayuda: "Que el asistente prepare acciones (facturar pedidos, crear un cliente o un pedido, cambiar estados) para confirmar con un clic. Cada una pide además el permiso de su pantalla." },
+  { key: "mensajes_ver", label: "Mensajes", ayuda: "La carpeta de mensajes de los clientes (WhatsApp): leer, contestar, prender y apagar la IA de cada chat y resolver lo que quedó en espera." },
+  { key: "mensajes_config", label: "Configurar los mensajes", ayuda: "Conectar el WhatsApp, prender o apagar la IA de la tienda, su nombre, lo que sabe para los clientes y su tope de gasto." },
   { key: "asistente_consultas", label: "Consultas libres al asistente", ayuda: "Que el asistente consulte cualquier dato (sólo lectura) y arme listados con Excel. Sólo de las tablas de las pantallas que el rol tiene." },
 ];
 
@@ -161,7 +166,7 @@ export const FUNCIONES: PermisoKey[] = [
   "tienda_config", "empresa_config", "medios_pago_ver", "reglas_ver",
   "compras_ver", "despachos_ver", "cuentas_corrientes_ver", "tesoreria_ver", "contabilidad_ver",
   "informes_stock_ver", "informes_publicaciones_ver", "facturacion_ml_ver", "informes_ventas_ver",
-  "libros_iva_ver",
+  "libros_iva_ver", "mensajes_ver",
   // No es un botón del menú, pero se comporta como función: el asistente
   // está prendido para todos salvo que el rol lo apague.
   "asistente_usar",

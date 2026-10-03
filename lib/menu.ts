@@ -37,6 +37,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Clientes", href: "/ventas/clientes", permiso: "clientes_ver", icono: "👤" },
       { texto: "Envíos", href: "/ventas/envios", permiso: "envios_ver", icono: "🚚" },
       { texto: "Preguntas y mensajes", href: "/ventas/preguntas", permiso: "preguntas_ver", icono: "💬" },
+      { texto: "WhatsApp", href: "/ventas/mensajes", permiso: "mensajes_ver", icono: "🟢" },
       { texto: "Reclamos y devoluciones", href: "/ventas/reclamos", permiso: "reclamos_ver", icono: "↩️" },
     ],
   },

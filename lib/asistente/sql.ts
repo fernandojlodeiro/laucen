@@ -38,6 +38,7 @@ const PROHIBIDAS: [RegExp, string][] = [
   [/^(usuarios|organizaciones|roles|membresias)$/, "son usuarios y permisos: se cambian en Configuración › Usuarios y roles"],
   [/(_llave|_credencial|^arca_ticket|^erp_llave)$/, "son llaves o credenciales"],
   [/^asistente_/, "es del propio asistente"],
+  [/^(chat|chat_mensaje|chat_caso|chat_espera|wa_evento)$/, "son los mensajes de WhatsApp de los clientes (se manejan desde Ventas › WhatsApp)"],
   [/^(stock|movimiento_stock|stock_cambio_pendiente)$/, "el stock se mueve con un ajuste (Stock › Ajustes), así queda el movimiento y se avisa a los canales"],
   [/^(asiento|asiento_linea)$/, "los asientos se hacen con un asiento manual en Contabilidad"],
   [/^(comprobante|comprobante_linea)$/, "los comprobantes de ARCA no se tocan: se anulan con nota de crédito"],
@@ -139,6 +140,7 @@ const TABLAS_PERMISO: [RegExp, Permiso[]][] = [
   [/^(radar_\w+|meli_tendencias|meli_tendencias_lecturas|meli_busquedas|meli_categorias)$/, ["radar_ver"]],
   [/^(arca_cargas|arca_impo_items|arca_depuracion|agg_\w+|softrade_\w+|rubros|rubro_ncm|ncm_clasificaciones|importacion_arca)$/, ["importaciones_ver"]],
   [/^(asistente_conversacion|asistente_mensaje|asistente_accion|asistente_pendiente)$/, ["asistente_historial_ver"]],
+  [/^(chat|chat_mensaje|chat_caso)$/, ["mensajes_ver"]],
   [/^(tipo_cambio|ref_\w+)$/, ["todos"]],
 ];
 const SECRETAS = /(_llave|_credencial|^arca_ticket|^erp_llave|^arca_credencial|^medio_pago_credencial)$/;
