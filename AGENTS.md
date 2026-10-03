@@ -98,7 +98,8 @@ campo suelto que parece un buscador y al dar Enter crea un registro. **El botón
 derecha, a la altura del título** (`BotonNuevo` en `acciones` de `Pantalla`; en una sección, al
 lado de su título) y el formulario se abre debajo del encabezado (`<AltaNueva … sinBoton>`; se
 emparejan por el texto, el estado va en `?nuevo=`). Lo mismo los "Nueva factura" que llevan a otra
-pantalla.
+pantalla. Si el alta falla, vuelve con el error y el formulario abierto (`intentar()` de
+`lib/erp/acciones.ts` conserva el `?nuevo=` de la pantalla de origen).
 
 Listas de los ABM (pedido de Fer, 3/10):
 - **De a una página** (50 filas) con el paginador abajo: "1–50 de 4.509", Anterior / Siguiente
@@ -115,6 +116,19 @@ Listas de los ABM (pedido de Fer, 3/10):
 - **Al lado de un producto, el 📷** que abre sus fotos (`app/componentes/FotosProducto.tsx`); si
   no tiene fotos no aparece.
 - **Clientes y proveedores muestran su "N.º"** (el id interno): primera columna y en la ficha.
+- **Todo ABM tiene "Descargar Excel" con configuraciones** (pedido de Fer, 3/10): arriba a la
+  derecha, al lado de "Nuevo …" (`<AccionesExcel>` de `app/listas/piezas.tsx`). Baja lo que se ve
+  (filtros, búsqueda y orden de la pantalla) pero todas las filas (tope 50.000), con las columnas
+  de la configuración elegida en su desplegable: "Como en pantalla" o una guardada (nombre +
+  columnas en orden, por organización, en `lista_config`; se arman en "Configurar…").
+- **Vistas configurables** (qué columnas se ven y en qué orden; selector "Vista" arriba de la
+  tabla, "Estándar" = la de siempre, la última elegida queda en una cookie) en productos, pedidos,
+  clientes, facturas de compra y facturación. La tabla se dibuja desde el catálogo
+  (`<TablaVista>`).
+- Una pantalla con lista declara **una sola vez** su catálogo de campos y su consulta en un
+  `lista.tsx` al lado de la página (`lib/listas/tipos.ts`: clave, título, SQL, formato y, si va
+  en pantalla, la celda) y se suma a `app/listas/registro.ts`. La pantalla usa esa misma consulta
+  para que el Excel tenga sus mismos filtros; el orden por columna sale del catálogo (lista blanca).
 
 Camino (pedido de Fer, 3/10): **arriba a la izquierda, sobre el título**, "Stock › Depósitos y
 ubicaciones › A127-26"; cada parte se toca para volver a ese nivel. Sección y pantalla salen

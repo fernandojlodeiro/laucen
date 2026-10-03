@@ -17,6 +17,8 @@ import {
 } from "@/app/componentes/erp";
 import { fecha } from "@/app/ventas/formato";
 import FormRecibo from "./FormRecibo";
+import { AccionesExcel } from "@/app/listas/piezas";
+import { LISTA_CC_CLIENTES, LISTA_CC_PROVEEDORES } from "./lista";
 import { accionEmitirRecibo, accionAnularRecibo, accionImputar, accionSaldoInicial } from "./acciones";
 
 const BASE = "/administracion/cuentas-corrientes";
@@ -69,7 +71,8 @@ async function Saldos({ org, tercero, ruta, q, sp }: { org: string; tercero: Ter
   return (
     <>
       <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
-        <div className="flex gap-4 text-xs">
+        <div className="flex flex-wrap items-center gap-4 text-xs">
+          <AccionesExcel lista={tercero === "cliente" ? LISTA_CC_CLIENTES : LISTA_CC_PROVEEDORES} org={org} />
           <p>{tercero === "cliente" ? "Nos deben" : "Les debemos"}: <b className="tabular-nums">{ars(total)}</b></p>
           <p>Vencido: <b className={`tabular-nums ${vencido > 0 ? "text-[#C03420]" : ""}`}>{ars(vencido)}</b></p>
         </div>
