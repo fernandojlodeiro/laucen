@@ -49,6 +49,9 @@ create table if not exists ml_factura_documento (
   unique (cuenta_id, grupo, documento_id)
 );
 create index if not exists ml_factura_documento_org on ml_factura_documento (organizacion_id, clave);
+-- La cuenta (canal) de cada documento, para el filtro "Cuenta" de la pantalla
+-- (3/10). Los ya traídos se completan abajo con el canal de su cuenta.
+alter table ml_factura_documento add column if not exists canal_id bigint references canal(id) on delete set null;
 alter table ml_factura_documento enable row level security;
 select erp_politica_org('ml_factura_documento');
 
@@ -96,3 +99,15 @@ create table if not exists ml_facturacion_lectura (
 );
 alter table ml_facturacion_lectura enable row level security;
 select erp_politica_org('ml_facturacion_lectura');
+
+-- Filtro "Cuenta" (3/10): todo lo guardado lleva el canal de su cuenta. Lo
+-- traído antes sin canal se completa con el de la cuenta (corre en cada
+-- arranque; sólo toca filas sin canal, así que después no hace nada).
+update ml_factura_periodo t set canal_id = mc.canal_id from meli_cuenta mc
+ where t.canal_id is null and mc.id = t.cuenta_id and mc.canal_id is not null;
+update ml_factura_documento t set canal_id = mc.canal_id from meli_cuenta mc
+ where t.canal_id is null and mc.id = t.cuenta_id and mc.canal_id is not null;
+update ml_cargo t set canal_id = mc.canal_id from meli_cuenta mc
+ where t.canal_id is null and mc.id = t.cuenta_id and mc.canal_id is not null;
+create index if not exists ml_factura_documento_canal on ml_factura_documento (organizacion_id, canal_id, clave);
+create index if not exists ml_cargo_canal on ml_cargo (organizacion_id, canal_id, clave);

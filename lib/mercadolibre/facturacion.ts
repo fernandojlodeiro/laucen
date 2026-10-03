@@ -130,17 +130,19 @@ export function mapearDocumento(d: DocumentoMl, tipo: "BILL" | "CREDIT_NOTE"): F
 export type Leer = (cuenta: CuentaMl, ruta: string) => Promise<RespuestaMl>;
 const POR_PAGINA = 150;
 
-type Opciones = { hastaMs: number; leer?: Leer; periodos?: number; cuentaId?: number };
+type Opciones = { hastaMs: number; leer?: Leer; periodos?: number; cuentaId?: number; canalId?: number | null };
 
 /** Lee la facturación de las cuentas de ML (de la organización, o de todas
- *  si `org` es null): los últimos `periodos` meses de cada grupo. Corta al
- *  llegar a `hastaMs` (lo que faltó, la próxima vez). */
+ *  si `org` es null; sólo la del canal `canalId` si viene): los últimos
+ *  `periodos` meses de cada grupo. Corta al llegar a `hastaMs` (lo que faltó,
+ *  la próxima vez). */
 export async function traerFacturacionMl(org: string | null, opts: Opciones) {
   const leer: Leer = opts.leer ?? ((c, r) => ml(c, "GET", r));
   const cuentas = await consulta<{ id: number; organizacion_id: string; canal_id: number | null; meli_user_id: string; nickname: string | null; estado: string }>(`
     select id::int, organizacion_id, canal_id::int, meli_user_id, nickname, estado from meli_cuenta
      where estado = 'activa' and canal_id is not null and ($1::text is null or organizacion_id = $1) and ($2::bigint is null or id = $2)
-     order by id`, [org, opts.cuentaId ?? null]);
+       and ($3::bigint is null or canal_id = $3)
+     order by id`, [org, opts.cuentaId ?? null, opts.canalId ?? null]);
   const informe: Record<string, unknown> = {};
   for (const f of cuentas) {
     if (Date.now() > opts.hastaMs - 3_000) break;
@@ -180,7 +182,7 @@ async function leerCuenta(cuenta: CuentaMl, leer: Leer, opts: Opciones) {
         insert into ml_factura_periodo (organizacion_id, cuenta_id, canal_id, grupo, clave, desde, hasta, vencimiento, monto, impago, datos, leido_ts)
         values ($1, $2, $3, $4, $5, $6::date, $7::date, $8::date, $9, $10, $11::jsonb, now())
         on conflict (cuenta_id, grupo, clave) do update set desde = excluded.desde, hasta = excluded.hasta, vencimiento = excluded.vencimiento,
-          monto = excluded.monto, impago = excluded.impago, datos = excluded.datos, leido_ts = now()`,
+          monto = excluded.monto, impago = excluded.impago, datos = excluded.datos, canal_id = excluded.canal_id, leido_ts = now()`,
         [cuenta.organizacionId, cuenta.id, cuenta.canalId, grupo, p.key, p.period?.date_from?.slice(0, 10) ?? null, p.period?.date_to?.slice(0, 10) ?? null,
           p.expiration_date?.slice(0, 10) ?? null, p.amount ?? null, p.unpaid_amount ?? null, JSON.stringify(p)]);
       res.periodos++;
@@ -219,14 +221,14 @@ async function leerCuenta(cuenta: CuentaMl, leer: Leer, opts: Opciones) {
 async function guardarDocumentos(cuenta: CuentaMl, grupo: Grupo, clave: string, filas: FilaDocumento[]) {
   if (!filas.length) return 0;
   await consulta(`
-    insert into ml_factura_documento (organizacion_id, cuenta_id, grupo, clave, documento_id, tipo, numero, punto_venta, numero_cbte, fecha, monto, moneda, estado, archivos, datos, leido_ts)
-    select $1, $2, $3, $4, x.documento_id, x.tipo, x.numero, x.punto_venta, x.numero_cbte, x.fecha::date, x.monto, x.moneda, x.estado, coalesce(x.archivos, '[]'), coalesce(x.datos, '{}'), now()
+    insert into ml_factura_documento (organizacion_id, cuenta_id, canal_id, grupo, clave, documento_id, tipo, numero, punto_venta, numero_cbte, fecha, monto, moneda, estado, archivos, datos, leido_ts)
+    select $1, $2, $6, $3, $4, x.documento_id, x.tipo, x.numero, x.punto_venta, x.numero_cbte, x.fecha::date, x.monto, x.moneda, x.estado, coalesce(x.archivos, '[]'), coalesce(x.datos, '{}'), now()
       from jsonb_to_recordset($5::jsonb) x(documento_id text, tipo text, numero text, punto_venta int, numero_cbte bigint, fecha text, monto numeric, moneda text,
                                             estado text, archivos jsonb, datos jsonb)
     on conflict (cuenta_id, grupo, documento_id) do update set tipo = excluded.tipo, numero = excluded.numero, punto_venta = excluded.punto_venta,
       numero_cbte = excluded.numero_cbte, fecha = excluded.fecha, monto = excluded.monto, moneda = excluded.moneda, estado = excluded.estado,
-      archivos = excluded.archivos, datos = excluded.datos, clave = excluded.clave, leido_ts = now()`,
-    [cuenta.organizacionId, cuenta.id, grupo, clave, JSON.stringify(filas)]);
+      archivos = excluded.archivos, datos = excluded.datos, clave = excluded.clave, canal_id = excluded.canal_id, leido_ts = now()`,
+    [cuenta.organizacionId, cuenta.id, grupo, clave, JSON.stringify(filas), cuenta.canalId]);
   return filas.length;
 }
 
@@ -243,7 +245,7 @@ async function guardarCargos(cuenta: CuentaMl, grupo: Grupo, clave: string, fila
                                             moneda text, order_id text, item_id text, datos jsonb)
     on conflict (cuenta_id, grupo, detalle_id) do ${notaCredito ? "nothing" : `update set documento_id = excluded.documento_id, fecha = excluded.fecha, tipo = excluded.tipo,
       impuesto = excluded.impuesto, concepto = excluded.concepto, subtipo = excluded.subtipo, monto = excluded.monto, moneda = excluded.moneda,
-      order_id = excluded.order_id, item_id = excluded.item_id, datos = excluded.datos, clave = excluded.clave, leido_ts = now()`}`,
+      order_id = excluded.order_id, item_id = excluded.item_id, datos = excluded.datos, clave = excluded.clave, canal_id = excluded.canal_id, leido_ts = now()`}`,
     [cuenta.organizacionId, cuenta.id, cuenta.canalId, grupo, clave, JSON.stringify(filas)]);
   return filas.length;
 }
@@ -285,35 +287,64 @@ export function cargosDelPedido(org: string, pedidoId: number) {
      where organizacion_id = $1 and pedido_id = $2 order by tipo, fecha, id`, [org, pedidoId]);
 }
 
-/** Los períodos leídos (para elegir), del más nuevo al más viejo. */
-export function periodosLeidos(org: string) {
-  return consulta<{ clave: string; desde: string | null; hasta: string | null; grupos: string[]; monto: number | null }>(`
-    select clave, to_char(min(desde), 'YYYY-MM-DD') desde, to_char(max(hasta), 'YYYY-MM-DD') hasta, array_agg(distinct grupo) grupos, sum(monto)::float monto
-      from ml_factura_periodo where organizacion_id = $1 group by clave order by clave desc`, [org]);
+// Filtro "Cuenta" (3/10): cada consulta de la pantalla recibe `canal` (el
+// canal de ML de la cuenta elegida; null = todas las cuentas). Cada fila trae
+// `canal_id` y `cuenta` (el nombre del canal, o el apodo de la cuenta de ML).
+
+/** Las cuentas de ML de la organización (sus canales), para el filtro. */
+export function cuentasMl(org: string) {
+  return consulta<{ id: number; nombre: string }>(`
+    select ca.id::int, ca.nombre from canal ca where ca.organizacion_id = $1 and ca.tipo = 'mercadolibre' order by ca.nombre, ca.id`, [org]);
 }
 
-/** Totales de cargos del período por grupo y tipo. */
-export function resumenPeriodo(org: string, clave: string) {
-  return consulta<{ grupo: Grupo; tipo: TipoCargo; n: number; monto: number; vinculados: number }>(`
-    select grupo, tipo, count(*)::int n, sum(monto)::float monto, count(pedido_id)::int vinculados from ml_cargo
-     where organizacion_id = $1 and clave = $2 group by grupo, tipo order by grupo, tipo`, [org, clave]);
+/** El canal pedido por la dirección (?canal=), sólo si es una de las cuentas
+ *  de la organización; si no, null (todas las cuentas). */
+export function canalElegido(valor: string | null | undefined, cuentas: { id: number }[]): number | null {
+  const n = Number(valor);
+  return Number.isInteger(n) && n > 0 && cuentas.some((c) => c.id === n) ? n : null;
+}
+
+/** ¿Va la columna "Cuenta"? Con todas las cuentas y más de una conectada. */
+export const mostrarCuenta = (canal: number | null, cuentas: unknown[]) => canal == null && cuentas.length > 1;
+
+const SQL_CUENTA = (t: string) => `coalesce((select ca.nombre from canal ca where ca.id = ${t}.canal_id), (select mc.nickname from meli_cuenta mc where mc.id = ${t}.cuenta_id))`;
+
+/** Los períodos leídos (para elegir), del más nuevo al más viejo. */
+export function periodosLeidos(org: string, canal: number | null = null) {
+  return consulta<{ clave: string; desde: string | null; hasta: string | null; grupos: string[]; monto: number | null }>(`
+    select clave, to_char(min(desde), 'YYYY-MM-DD') desde, to_char(max(hasta), 'YYYY-MM-DD') hasta, array_agg(distinct grupo) grupos, sum(monto)::float monto
+      from ml_factura_periodo where organizacion_id = $1 and ($2::bigint is null or canal_id = $2) group by clave order by clave desc`, [org, canal]);
+}
+
+/** Totales de cargos del período por cuenta, grupo y tipo. */
+export function resumenPeriodo(org: string, clave: string, canal: number | null = null) {
+  return consulta<{ canal_id: number | null; cuenta: string | null; grupo: Grupo; tipo: TipoCargo; n: number; monto: number; vinculados: number }>(`
+    select c.canal_id::int, ${SQL_CUENTA("c")} cuenta, c.grupo, c.tipo, count(*)::int n, sum(c.monto)::float monto, count(c.pedido_id)::int vinculados
+      from ml_cargo c
+     where c.organizacion_id = $1 and c.clave = $2 and ($3::bigint is null or c.canal_id = $3)
+     group by c.canal_id, c.cuenta_id, c.grupo, c.tipo order by cuenta, c.grupo, c.tipo`, [org, clave, canal]);
 }
 
 /** Retenciones y percepciones del período (cargos de tipo impuesto). */
-export function impuestosPeriodo(org: string, clave: string) {
-  return consulta<{ id: number; grupo: Grupo; impuesto: Impuesto | null; concepto: string | null; fecha: Date | null; monto: number; order_id: string | null;
-    pedido_id: number | null; documento: string | null }>(`
-    select id::int, grupo, impuesto, concepto, fecha, monto::float, order_id, pedido_id::int, datos ->> 'documento_legal' documento from ml_cargo
-     where organizacion_id = $1 and clave = $2 and tipo = 'impuesto' order by impuesto, fecha, id`, [org, clave]);
+export function impuestosPeriodo(org: string, clave: string, canal: number | null = null) {
+  return consulta<{ id: number; canal_id: number | null; cuenta: string | null; grupo: Grupo; impuesto: Impuesto | null; concepto: string | null; fecha: Date | null; monto: number;
+    order_id: string | null; pedido_id: number | null; documento: string | null }>(`
+    select c.id::int, c.canal_id::int, ${SQL_CUENTA("c")} cuenta, c.grupo, c.impuesto, c.concepto, c.fecha, c.monto::float, c.order_id, c.pedido_id::int,
+           c.datos ->> 'documento_legal' documento from ml_cargo c
+     where c.organizacion_id = $1 and c.clave = $2 and c.tipo = 'impuesto' and ($3::bigint is null or c.canal_id = $3)
+     order by c.impuesto, c.fecha, c.id`, [org, clave, canal]);
 }
 
 /** Control: cada documento de ML del período contra las facturas de compra
  *  importadas de ARCA con el CUIT de Mercado Libre; y las de ARCA de esas
- *  fechas que la API no trae. */
-export async function controlPeriodo(org: string, clave: string, cuits: string[]) {
-  const docs = await consulta<{ id: number; grupo: Grupo; tipo: string; numero: string | null; punto_venta: number | null; numero_cbte: string | null; fecha: string | null;
-    monto: number; factura_id: number | null; factura_total: number | null }>(`
-    select d.id::int, d.grupo, d.tipo, d.numero, d.punto_venta, d.numero_cbte::text, to_char(d.fecha, 'YYYY-MM-DD') fecha, d.monto::float,
+ *  fechas que la API no trae. Con una cuenta elegida, se ven sus documentos;
+ *  "En ARCA y no en la API" descarta igual las facturas que coinciden con un
+ *  documento de cualquier cuenta (las facturas de compra no dicen de qué
+ *  cuenta son: todas vienen con el mismo CUIT de Mercado Libre). */
+export async function controlPeriodo(org: string, clave: string, cuits: string[], canal: number | null = null) {
+  const todos = await consulta<{ id: number; canal_id: number | null; cuenta: string | null; grupo: Grupo; tipo: string; numero: string | null; punto_venta: number | null;
+    numero_cbte: string | null; fecha: string | null; monto: number; factura_id: number | null; factura_total: number | null }>(`
+    select d.id::int, d.canal_id::int, ${SQL_CUENTA("d")} cuenta, d.grupo, d.tipo, d.numero, d.punto_venta, d.numero_cbte::text, to_char(d.fecha, 'YYYY-MM-DD') fecha, d.monto::float,
            f.id::int factura_id, f.total::float factura_total
       from ml_factura_documento d
       left join lateral (
@@ -322,10 +353,12 @@ export async function controlPeriodo(org: string, clave: string, cuits: string[]
            and f.es_nota_credito = (d.tipo = 'CREDIT_NOTE') and d.numero_cbte is not null and f.numero = d.numero_cbte
            and (d.punto_venta is null or f.punto_venta = d.punto_venta)
          order by f.id limit 1) f on true
-     where d.organizacion_id = $1 and d.clave = $2 order by d.fecha, d.numero`, [org, clave, cuits]);
+     where d.organizacion_id = $1 and d.clave = $2 order by d.fecha, d.numero, cuenta`, [org, clave, cuits]);
+  const docs = canal == null ? todos : todos.filter((d) => d.canal_id === canal);
   const rango = await una<{ desde: string | null; hasta: string | null }>(`
-    select to_char(min(desde), 'YYYY-MM-DD') desde, to_char(max(hasta) + 10, 'YYYY-MM-DD') hasta from ml_factura_periodo where organizacion_id = $1 and clave = $2`, [org, clave]);
-  const usadas = docs.map((d) => d.factura_id).filter((x): x is number => x != null);
+    select to_char(min(desde), 'YYYY-MM-DD') desde, to_char(max(hasta) + 10, 'YYYY-MM-DD') hasta from ml_factura_periodo
+     where organizacion_id = $1 and clave = $2 and ($3::bigint is null or canal_id = $3)`, [org, clave, canal]);
+  const usadas = todos.map((d) => d.factura_id).filter((x): x is number => x != null);
   const sobran = rango?.desde ? await consulta<{ id: number; letra: string; es_nota_credito: boolean; punto_venta: number | null; numero: string | null; fecha: string; total: number }>(`
     select f.id::int, f.letra, f.es_nota_credito, f.punto_venta, f.numero::text, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.total::float
       from factura_compra f join proveedor pr on pr.id = f.proveedor_id
