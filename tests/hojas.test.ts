@@ -190,6 +190,8 @@ test("imprimir: los pedidos entran en un lote 'hojas', la hoja abre el kit y ord
     `A-1 ${await e.sku(e.p1)} 1`,
     `A-1 ${await e.sku(e.p1)} 2 kit:${await e.sku(e.kit)}`,
   ]);
+  // Cada componente sabe cuántos kits se pidieron (la hoja muestra "KIT … 1" y "= 2 unidades de …").
+  assert.ok(hw.lineas.filter((l) => l.kit).every((l) => l.kit!.cantidad === 1));
 
   llamadas.length = 0;
   const pdf = await m.hojas.armarPdf(hojas, { tam: "10x15", bajarEtiquetaMl: etiquetaMlMentira });
