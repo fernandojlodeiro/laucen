@@ -184,4 +184,23 @@ test("lee la facturación: tablas, signos, unión con el pedido, sin duplicar ni
   const fob = await m.rent.rentabilidad(e.org, { desde: "2026-09-01", hasta: "2026-09-30", canal: 0, costo: "fob", agrupar: "producto" });
   assert.equal(fob.length, 1);
   assert.deepEqual([fob[0].unidades, fob[0].ventas, fob[0].venta, fob[0].cargos, fob[0].costo], [2, 2, 25000, 2250, 14000]);
+
+  // Filtro "Cuenta": una segunda cuenta (otro canal) leída sólo por su canal.
+  const canal2 = await id("insert into canal (organizacion_id, nombre, tipo) values ($1, 'ML 2', 'mercadolibre') returning id", [e.org]);
+  await q(`insert into meli_cuenta (organizacion_id, canal_id, meli_user_id, nickname, access_token, refresh_token, expira_el)
+    values ($1, $2, $3, 'OTRA', 'x', 'y', now() + interval '1 day')`, [e.org, canal2, Math.floor(Math.random() * 1e9)]);
+  const solo2 = await m.fac.traerFacturacionMl(e.org, { hastaMs: Date.now() + 60_000, leer: leerFalso([]), canalId: canal2 });
+  assert.deepEqual(Object.keys(solo2), ["OTRA"], "con una cuenta elegida lee sólo ésa");
+  const sinCanal = await q<{ n: number }>(`select ((select count(*) from ml_cargo where organizacion_id = $1 and canal_id is null)
+    + (select count(*) from ml_factura_documento where organizacion_id = $1 and canal_id is null))::int n`, [e.org]);
+  assert.equal(sinCanal[0].n, 0, "todo lo guardado lleva su canal");
+  assert.equal((await m.fac.impuestosPeriodo(e.org, "2026-09-01")).length, 6);
+  const imp2 = await m.fac.impuestosPeriodo(e.org, "2026-09-01", canal2);
+  assert.deepEqual([imp2.length, imp2[0].cuenta], [3, "ML 2"]);
+  assert.equal((await m.fac.resumenPeriodo(e.org, "2026-09-01", e.canal)).reduce((a, x) => a + x.n, 0), 10);
+  const ctl1 = await m.fac.controlPeriodo(e.org, "2026-09-01", m.mc.CUITS_MERCADO_LIBRE, e.canal);
+  assert.equal(ctl1.docs.length, 3);
+  assert.equal((await m.fac.controlPeriodo(e.org, "2026-09-01", m.mc.CUITS_MERCADO_LIBRE)).docs.length, 6);
+  assert.deepEqual(ctl1.sobran.map((f) => f.id), [otra]);
+  assert.deepEqual((await m.fac.periodosLeidos(e.org, canal2)).map((p) => p.clave), ["2026-09-01"]);
 });
