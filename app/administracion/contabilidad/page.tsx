@@ -11,7 +11,8 @@ import {
 } from "@/lib/administracion/contabilidad";
 import { PRIMARIO, SUAVE, VERDE, APAGAR } from "@/app/botones";
 import { TachoConfirmar, BotonConfirmar, BotonEnviar } from "@/app/radar/Cliente";
-import BuscadorVivo from "@/app/componentes/BuscadorVivo";
+import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
+import RangoFechas from "@/app/componentes/RangoFechas";
 import Pestanas from "@/app/componentes/Pestanas";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import {
@@ -85,16 +86,14 @@ export default async function Contabilidad({ searchParams }: { searchParams: Pro
   );
 }
 
-/** Filtro desde/hasta (más lo que la pestaña necesite). */
-function Periodo({ p, desde, hasta, children }: { p: P; desde: string; hasta: string; children?: React.ReactNode }) {
+/** Filtro desde/hasta con atajos (RangoFechas), más lo que la pestaña necesite.
+ *  Todo cambia la dirección al momento; la pestaña (?p=) queda. */
+function Periodo({ desde, hasta, children }: { p: P; desde: string; hasta: string; children?: React.ReactNode }) {
   return (
-    <form method="get" action={BASE} className="flex flex-wrap items-end gap-2 mb-3">
-      <input type="hidden" name="p" value={p} />
+    <div className="flex flex-wrap items-center gap-3 mb-3">
       {children}
-      <label><span className={ETIQUETA}>Desde</span><input type="date" name="desde" defaultValue={desde} className={CAMPO} /></label>
-      <label><span className={ETIQUETA}>Hasta</span><input type="date" name="hasta" defaultValue={hasta} className={CAMPO} /></label>
-      <button className={SUAVE}>Ver</button>
-    </form>
+      <RangoFechas desde={desde} hasta={hasta} etiqueta="Período" />
+    </div>
   );
 }
 
@@ -195,12 +194,10 @@ async function Mayor({ org, desde, hasta, cuenta }: { org: string; desde: string
   return (
     <>
       <Periodo p="mayor" desde={desde} hasta={hasta}>
-        <label><span className={ETIQUETA}>Cuenta</span>
-          <select name="cuenta" defaultValue={elegida?.id ?? ""} className={`${CAMPO} min-w-64`}>
-            <option value="">Elegí una cuenta…</option>
-            {cuentas.map((c) => <option key={c.id} value={c.id}>{c.codigo} — {c.nombre}{c.activa ? "" : " (inactiva)"}</option>)}
-          </select>
-        </label>
+        <FiltroVivo parametro="cuenta" valor={elegida?.id ? String(elegida.id) : ""} etiqueta="Cuenta">
+          <option value="">Elegí una cuenta…</option>
+          {cuentas.map((c) => <option key={c.id} value={c.id}>{c.codigo} — {c.nombre}{c.activa ? "" : " (inactiva)"}</option>)}
+        </FiltroVivo>
       </Periodo>
       {!mayor ? <p className="text-xs text-[#5C6B76]">Elegí una cuenta para ver sus movimientos.</p> : (
         <div className={CAJA_TABLA}>

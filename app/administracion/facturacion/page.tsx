@@ -2,6 +2,7 @@
 // estado en ARCA, filtros y reintento de los rechazados o con error.
 
 import Link from "next/link";
+import RangoFechas from "@/app/componentes/RangoFechas";
 import { emisorDe, TIPOS_CBTE } from "@/lib/arca/facturar";
 import { SUAVE, PRIMARIO } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
@@ -49,8 +50,7 @@ export default async function Facturacion({ searchParams }: { searchParams: Prom
             <option value="">Todos</option>
             {Object.entries(TIPOS_CBTE).map(([k, v]) => <option key={k} value={k}>{v.nombre}</option>)}
           </select></label>
-        <label><span className={ETIQUETA}>Desde</span><input type="date" name="desde" defaultValue={sp.desde ?? ""} className={CAMPO} /></label>
-        <label><span className={ETIQUETA}>Hasta</span><input type="date" name="hasta" defaultValue={sp.hasta ?? ""} className={CAMPO} /></label>
+        <div><span className={ETIQUETA}>Fechas</span><RangoFechas desde={sp.desde ?? ""} hasta={sp.hasta ?? ""} vacio="Todas las fechas" etiqueta="" /></div>
         <label className="flex-1 min-w-48"><span className={ETIQUETA}>Buscar</span>
           <input name="q" defaultValue={sp.q ?? ""} placeholder="Número, receptor, documento o CAE" className={`${CAMPO} w-full`} /></label>
         <button className={PRIMARIO}>Filtrar</button>

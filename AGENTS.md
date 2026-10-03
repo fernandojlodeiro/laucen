@@ -178,6 +178,13 @@ Buscadores (pedido de Fer, 2/10):
   (coincidencia al principio del texto; destildada, en cualquier parte). Componente:
   `app/componentes/BuscadorVivo.tsx`.
 
+Fechas desde/hasta (pedido de Fer, 3/10): **RangoFechas con atajos**
+(`app/componentes/RangoFechas.tsx`) en todo filtro "desde / hasta": en un renglón, un desplegable
+de atajos (Hoy, Ayer, Últimos 7 días, Este mes, Último mes, Último trimestre, Último año;
+"Personalizado" si se tocan las fechas a mano) y las dos fechas chicas. Elegir un atajo llena las
+dos fechas y filtra al momento (cambia la dirección, como el buscador); días en hora argentina
+(`lib/rango-fechas.ts`). Mes, trimestre y año "último" son el anterior entero.
+
 Campos numéricos (pedido de Fer, 27/9): usar `app/componentes/CampoNumero.tsx` y leer con
 `leerNumero()` de `lib/numeros.ts`.
 - Todo número va **alineado a la derecha**.

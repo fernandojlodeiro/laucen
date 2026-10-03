@@ -1,12 +1,12 @@
 // Movimientos de una cuenta de fondos (con saldo acumulado y filtro de
 // fechas), carga de un movimiento suelto y transferencia a otra cuenta.
 
-import Link from "next/link";
+import RangoFechas from "@/app/componentes/RangoFechas";
 import { consulta } from "@/lib/erp/base";
 import { formatear, hoyAR } from "@/lib/moneda";
 import { movimientosDeCuenta } from "@/lib/administracion/tesoreria";
 import { asegurarPlan, cuentasImputables } from "@/lib/administracion/contabilidad";
-import { VERDE, SUAVE } from "@/app/botones";
+import { VERDE } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import {
@@ -79,12 +79,9 @@ export default async function MovimientosCuenta({ params, searchParams }: { para
         </form>
       </div>
 
-      <form className="flex flex-wrap items-end gap-2 mb-3">
-        <label><span className={ETIQUETA}>Desde</span><input type="date" name="desde" defaultValue={desde ?? ""} className={CAMPO} /></label>
-        <label><span className={ETIQUETA}>Hasta</span><input type="date" name="hasta" defaultValue={hasta ?? ""} className={CAMPO} /></label>
-        <button className={SUAVE}>Filtrar</button>
-        {(desde || hasta) && <Link href={`/administracion/tesoreria/${c.id}`} className={SUAVE}>Sacar filtro</Link>}
-      </form>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <RangoFechas desde={desde ?? ""} hasta={hasta ?? ""} vacio="Todas las fechas" />
+      </div>
 
       <div className={CAJA_TABLA}>
         <table className={TABLA}>

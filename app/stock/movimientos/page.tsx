@@ -8,7 +8,7 @@ import { SUAVE, VERDE } from "@/app/botones";
 import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import { entrarErp, Pantalla, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import { TIPOS_MOVIMIENTO } from "@/lib/stock";
-import { FiltroFecha } from "./Filtros";
+import RangoFechas from "@/app/componentes/RangoFechas";
 import { POR_PAGINA, leerFiltroMovimientos, movimientos, opcionesMovimientos, parametrosMovimientos, referencia } from "./consulta";
 
 export const dynamic = "force-dynamic";
@@ -41,8 +41,7 @@ export default async function Movimientos({ searchParams }: { searchParams: Prom
         ) : (
           <BuscadorVivo q={f.q} comienza={f.comienza} placeholder="Producto: SKU o descripción" limpiar={["p", "v"]} />
         )}
-        <FiltroFecha parametro="desde" etiqueta="Desde" valor={f.desde ?? ""} />
-        <FiltroFecha parametro="hasta" etiqueta="Hasta" valor={f.hasta ?? ""} />
+        <RangoFechas desde={f.desde ?? ""} hasta={f.hasta ?? ""} vacio="Todas las fechas" />
         <FiltroVivo parametro="tipo" valor={f.tipo ?? ""} etiqueta="Tipo" limpiar={["p"]}>
           <option value="">Todos los tipos</option>
           {Object.entries(TIPOS_MOVIMIENTO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
