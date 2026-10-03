@@ -196,6 +196,18 @@ criollo, nunca se muestra crudo (`motivoLegible()` en `app/auth-actions.ts`).
 - Esto vale mientras el proyecto esté en desarrollo y lo use sólo Fer; cambia cuando Fer lo
   diga explícitamente.
 
+## Cambios en Mercado Libre: siempre por un clic de Fer (pedido de Fer, 3/10)
+
+- **Ninguna sesión modifica Mercado Libre por su cuenta** (precios, stock, estados, campañas,
+  atributos, publicaciones nuevas), aunque Fer lo pida en el chat. Lo que se pida se **prepara**
+  (se calcula, se muestra qué va a cambiar en cada publicación) y se deja **un botón en el panel**
+  para que Fer lo mande. Así nada sale por un malentendido en el chat. Leer de Mercado Libre sí
+  se puede.
+- Lo automático (stock que llega al umbral → pausar, reactivar, precios que siguen a la Clásica)
+  sólo corre en un canal si Fer prendió su interruptor (`canal.config`); prenderlo es su clic.
+- Todo lo que va a Mercado Libre pasa por la cola (`lib/mercadolibre/cola.ts`): se reintenta,
+  respeta los límites de la API y queda registrado qué se mandó, cuándo y con qué resultado.
+
 ## Disciplina técnica (todo va a main)
 
 - No hay rama de integración que esperar: lo terminado y verificado se mergea a main.
