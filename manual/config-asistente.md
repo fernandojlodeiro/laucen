@@ -59,6 +59,13 @@ Un superadministrador le puede pedir también cambios que no están en esa lista
 - Si el cambio es en precios o productos y en un canal de Mercado Libre está prendido el interruptor de precios o de stock, la tarjeta avisa que se va a reflejar en Mercado Libre.
 - Revisá bien la tarjeta antes de confirmar: la instrucción la arma el asistente en el momento.
 
+### Consultas libres y listados en Excel
+Con el permiso «Consultas libres al asistente» (o siendo superadministrador) le podés preguntar cualquier dato, aunque no esté en una lista de pantalla: "¿cuántas publicaciones de Mercado Libre están para revisar?", "haceme un listado de los productos sin foto con stock". Contesta el número o la tabla, y para un listado largo deja un botón **"⬇ Descargar Excel"** con todas las filas (hasta 50.000).
+- Es sólo lectura: nunca cambia nada.
+- Sólo ve los datos de tu organización y, si no sos superadministrador, sólo los de las pantallas que tu rol tiene (sin «Contabilidad» no ve asientos; sin «Caja y bancos», los movimientos de fondos). Si preguntás por algo de otra pantalla, te dice que lo maneja otro rol.
+- Nadie consulta llaves ni credenciales. Algunos datos compartidos del sistema (el Radar, las importaciones de ARCA) todavía no se consultan desde el chat: se ven en su pantalla.
+- El Excel lo baja sólo quien hizo la pregunta, y se arma con los datos y permisos del momento en que se baja.
+
 ### Mandar a programar algo que no sabe hacer
 Si le piden hacer algo que no está entre sus acciones, explica cómo se hace a mano y lo anota. El superadministrador lo ve en **Pedidos sin resolver**:
 1. Si conviene que el asistente aprenda a hacerlo, escribí una **Nota** si querés y apretá **"Mandar a programar"**: queda como orden en la bitácora del proyecto para que se programe.

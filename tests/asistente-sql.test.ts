@@ -3,7 +3,25 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { tablaDelCambio } from "@/lib/asistente/sql";
+import { tablaDelCambio, revisarConsultaCon } from "@/lib/asistente/sql";
+
+const TABLAS = new Set(["meli_item", "publicacion", "asiento", "asiento_linea", "cliente", "pedido", "variacion", "meli_llave", "config_org", "producto"]);
+const FUNCIONES = new Set(["precio_de", "mis_organizaciones"]);
+
+test("consultas libres: cada tabla con el permiso de su pantalla", () => {
+  const vendedor = { pedidos_ver: true, publicaciones_ver: true, contabilidad_ver: false };
+  assert.ok(revisarConsultaCon("select count(*) from meli_item where status = 'under_review'", vendedor, false, TABLAS, FUNCIONES));
+  assert.ok(revisarConsultaCon("select p.id, c.nombre from pedido p join cliente c on c.id = p.cliente_id", vendedor, false, TABLAS, FUNCIONES));
+  assert.throws(() => revisarConsultaCon("select * from asiento", vendedor, false, TABLAS, FUNCIONES), /otro rol/);
+  assert.throws(() => revisarConsultaCon("select * from config_org", vendedor, false, TABLAS, FUNCIONES), /superadministrador/);
+  assert.throws(() => revisarConsultaCon("select * from precio_de('x', 1, 1)", vendedor, false, TABLAS, FUNCIONES), /sin funciones del sistema/);
+  assert.throws(() => revisarConsultaCon("update cliente set nombre = 'x' where id = 1", vendedor, false, TABLAS, FUNCIONES), /SELECT/);
+  // El superadministrador consulta todo menos lo secreto.
+  assert.ok(revisarConsultaCon("select * from asiento", {}, true, TABLAS, FUNCIONES));
+  assert.throws(() => revisarConsultaCon("select * from meli_llave", {}, true, TABLAS, FUNCIONES), /llaves/);
+  // Una tabla sin política de fila daría vacío: se avisa en vez de contestar "0".
+  assert.throws(() => revisarConsultaCon("select * from producto", {}, true, TABLAS, FUNCIONES, new Set(["producto"])), /datos compartidos/);
+});
 
 test("acepta un cambio simple sobre una tabla de Laucen", () => {
   assert.deepEqual(tablaDelCambio("update cliente set telefono = '351' where id = 5"), { tabla: "cliente", tipo: "update", aviso: null });

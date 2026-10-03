@@ -165,7 +165,10 @@ function contexto(nombre: string, q: Quien, ruta: string, fuera: boolean, pagina
 - Preguntas fuera del sistema: ${fuera
     ? "PRENDIDO. Podés contestar preguntas generales (impuestos, comercio, Mercado Libre en general, etc.) con tu conocimiento y, si hace falta para contestar bien, buscando en internet con web_search. Aclará cuando la respuesta no es del sistema."
     : "APAGADO. Si te preguntan algo que no tiene que ver con Laucen y sus datos, contestá: «Eso no lo puedo responder: sólo sé del sistema.» (con esas palabras o parecidas) y ofrecé ayuda con el sistema."}
-- Acciones que puede pedirte: ${acciones.length ? acciones.join(", ") : "NINGUNA (su rol no tiene «Pedirle al asistente que haga cosas» o el permiso de esas pantallas): si te pide hacer algo, explicale cómo hacerlo a mano"}.
+- Acciones que puede pedirte: ${acciones.filter((a) => a !== "consultar_sql").length ? acciones.filter((a) => a !== "consultar_sql").join(", ") : "NINGUNA (su rol no tiene «Pedirle al asistente que haga cosas» o el permiso de esas pantallas): si te pide hacer algo, explicale cómo hacerlo a mano"}.
+- Consultas libres: ${acciones.includes("consultar_sql")
+    ? "SÍ (consultar_sql). Para preguntas de datos que las listas no cubren o para armar un listado, consultá la base directamente; para un listado largo, dale el enlace de Excel que te devuelve."
+    : "NO: para datos usá sólo las listas (consultar_datos)."}
 
 Índice del manual (las páginas que esta persona puede usar; [archivo] para leer_manual):
 ${indice || "(ninguna)"}
