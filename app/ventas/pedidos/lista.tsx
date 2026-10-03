@@ -15,7 +15,8 @@ const esFecha = (x?: string) => (x && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : "");
 /** Los filtros de la pantalla, leídos de la dirección. */
 export function filtrosPedidos(sp: SP) {
   return {
-    estado: sp.estado === "pendientes" || esEstadoPedido(sp.estado) ? sp.estado! : "",
+    // Sin elegir, los pendientes (Fer, 3/10); "todos" = sin filtro de estado.
+    estado: sp.estado === undefined ? "pendientes" : sp.estado === "pendientes" || esEstadoPedido(sp.estado) ? sp.estado : "",
     pago: esEstadoPago(sp.pago) ? sp.pago! : "",
     canal: Number(sp.canal) || 0,
     desde: esFecha(sp.desde),
@@ -28,7 +29,7 @@ export function filtrosPedidos(sp: SP) {
 /** Los filtros para armar un enlace (los vacíos no van). */
 export function filtrosEnlace(sp: SP) {
   const f = filtrosPedidos(sp);
-  return { ...f, canal: f.canal || null, cliente: f.cliente || null };
+  return { ...f, estado: f.estado || "todos", canal: f.canal || null, cliente: f.cliente || null };
 }
 
 const UNIDADES = "coalesce((select sum(l.cantidad) from pedido_linea l where l.pedido_id = p.id), 0)";
@@ -36,7 +37,11 @@ const AL_PEDIDO = "hover:underline";
 
 const CAMPOS: Campo[] = [
   { clave: "id", titulo: "Nº", sql: "p.id::int", formato: "entero", celda: (f) => <Link href={`/ventas/pedidos/${f.id}`} className="font-semibold text-[#16577F] hover:underline">{f.id}</Link> },
-  { ...campoFecha("fecha", "Fecha", "p.fecha"), celda: (f) => <Link href={`/ventas/pedidos/${f.id}`} className={AL_PEDIDO}>{f.fecha?.split("-").reverse().join("/")}</Link> },
+  // Fecha y hora en que entró (Fer, 3/10).
+  { ...campoFecha("fecha", "Fecha", "p.fecha", { hora: true }), celda: (f) => {
+    const [d, h] = String(f.fecha ?? "").split(" ");
+    return <Link href={`/ventas/pedidos/${f.id}`} className={`${AL_PEDIDO} whitespace-nowrap`}>{d?.split("-").reverse().join("/")} {h}</Link>;
+  } },
   campoFecha("fecha_hora", "Fecha y hora", "p.fecha", { hora: true }),
   {
     clave: "canal", titulo: "Canal", sql: "ca.nombre",
@@ -108,7 +113,8 @@ export const LISTA_PEDIDOS: Lista = {
       desde: "pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id",
       donde: donde.join(" and "),
       valores,
-      orden: "p.fecha desc, p.id desc",
+      // Los pendientes, del más viejo al más nuevo (se preparan en orden de llegada).
+      orden: f.estado === "pendientes" ? "p.fecha, p.id" : "p.fecha desc, p.id desc",
     };
   },
 };

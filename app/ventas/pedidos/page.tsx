@@ -58,7 +58,7 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
           <input name="q" defaultValue={q} placeholder="Nº, id externo o cliente" className={`${CAMPO} w-52`} /></label>
         <label><span className={ETIQUETA}>Estado</span>
           <select name="estado" defaultValue={estado} className={CAMPO}>
-            <option value="">Todos</option>
+            <option value="todos">Todos</option>
             <option value="pendientes">Pendientes (nuevo + pagado)</option>
             {Object.entries(ESTADOS_PEDIDO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select></label>
