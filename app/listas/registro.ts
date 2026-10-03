@@ -21,6 +21,7 @@ import { LISTA_CC_CLIENTES, LISTA_CC_PROVEEDORES } from "@/app/administracion/cu
 import { LISTA_DEPOSITOS, LISTA_UBICACIONES } from "@/app/stock/depositos/lista";
 import { LISTA_RECEPCIONES } from "@/app/deposito/recepcion/lista";
 import { LISTA_CANALES } from "@/app/config/canales/lista";
+import { LISTA_COLA } from "@/app/config/canales/cola/lista";
 import { LISTA_METODOS_ENVIO } from "@/app/config/envios/lista";
 import { LISTA_REGLAS } from "@/app/config/reglas/lista";
 
@@ -31,6 +32,6 @@ export const LISTAS: Record<string, Lista> = Object.fromEntries(
     LISTA_PROVEEDORES, LISTA_FACTURAS_COMPRA, LISTA_DESPACHOS,
     LISTA_FACTURACION, LISTA_TESORERIA, LISTA_CC_CLIENTES, LISTA_CC_PROVEEDORES,
     LISTA_DEPOSITOS, LISTA_UBICACIONES, LISTA_RECEPCIONES,
-    LISTA_CANALES, LISTA_METODOS_ENVIO, LISTA_REGLAS,
+    LISTA_CANALES, LISTA_COLA, LISTA_METODOS_ENVIO, LISTA_REGLAS,
   ].map((l) => [l.pantalla, l]),
 );

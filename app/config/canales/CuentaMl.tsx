@@ -7,6 +7,7 @@ import { PRIMARIO, SUAVE, APAGAR } from "@/app/botones";
 import { BotonEnviar, BotonConfirmar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
 import { CAJA, Estado } from "@/app/componentes/erp";
+import { estadoColaCanal } from "@/lib/mercadolibre/cola";
 import { accionSincronizarStock, accionSoltarCuenta, accionTraerAhora, accionUsarCuenta } from "./acciones-ml";
 
 export default async function CuentaMl({ org, canal }: { org: string; canal: number }) {
@@ -20,6 +21,8 @@ export default async function CuentaMl({ org, canal }: { org: string; canal: num
            (select count(*) from meli_item where canal_id = $1 and publicacion_id is null)::int sin,
            (select count(*) from meli_pregunta where canal_id = $1 and estado = 'UNANSWERED')::int preguntas`, [canal]);
   const campos = { canal: String(canal) };
+  const cola = cuenta ? await estadoColaCanal(canal) : null;
+  const fh = (d: Date) => d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
   return (
     <section className={CAJA}>
@@ -51,6 +54,19 @@ export default async function CuentaMl({ org, canal }: { org: string; canal: num
             {pendientes!.pubs} publicaciones vinculadas{pendientes!.sin ? ` · ${pendientes!.sin} sin vincular` : ""} · {pendientes!.preguntas} preguntas sin responder
             {cuenta.pedidos_desde && ` · pedidos al día hasta el ${cuenta.pedidos_desde.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`}
           </p>
+          {cola && (
+            <p className="text-[11px]">
+              <Link href={`/config/canales/cola?canal=${canal}`} className="text-[#16577F] hover:underline">Cola: {cola.pendientes} pendientes</Link>
+              {", "}
+              <Link href={`/config/canales/cola?ver=errores&canal=${canal}`} className={cola.errores ? "text-[#C03420] font-semibold hover:underline" : "text-[#16577F] hover:underline"}>{cola.errores} con error</Link>
+              {cola.preparados > 0 && <>{", "}<Link href="/config/canales/cola?ver=lotes" className="text-[#8a6100] font-semibold hover:underline">{cola.preparados} preparados esperando tu clic</Link></>}
+              {" · "}
+              <Link href="/config/canales/cola?ver=barridas" className="text-[#16577F] hover:underline">
+                {cola.barrida_ts ? `Última barrida: ${fh(cola.barrida_ts)}, ${cola.barrida_revisadas ?? 0} revisadas, ${cola.barrida_diferencias ?? 0} diferencias`
+                  : cola.barrida_fase ? "Barrida de esta noche en curso" : "Todavía no hubo barrida nocturna"}
+              </Link>
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             <form action={accionTraerAhora}><input type="hidden" name="canal" value={canal} /><BotonEnviar clase={SUAVE} corriendo="Trayendo…">Traer pedidos y preguntas ahora</BotonEnviar></form>
             <Link href={`/catalogo/publicaciones/ml?canal=${canal}`} className={SUAVE}>Vincular publicaciones</Link>

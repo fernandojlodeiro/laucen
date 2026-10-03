@@ -117,6 +117,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Empresa", href: "/config/empresa", permiso: "empresa_config" },
       { texto: "Facturación (ARCA)", href: "/config/arca", permiso: "facturacion_ver" },
       { texto: "Canales", href: "/config/canales", permiso: "canales_ver" },
+      { texto: "Cola de Mercado Libre", href: "/config/canales/cola", permiso: "canales_ver" },
       { texto: "Tipo de cambio", href: "/config/tipo-cambio", permiso: "tipo_cambio_ver" },
       { texto: "Usuarios y roles", href: "/config/usuarios", permiso: "usuarios_ver" },
       { texto: "Importar datos", href: "/importar", permiso: "importar_ver" },
