@@ -6,6 +6,8 @@ import {
   FASES, GRILLAS, cambiosRecientes, cargoFijoVigente, comisionesVigentes, envioGratisVigente, ultimasCorridas,
 } from "@/lib/costos-ml/proceso";
 import { formatearNumero } from "@/lib/numeros";
+import { pool } from "@/db";
+import Pestanas from "@/app/componentes/Pestanas";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { accionCorrerAhora } from "./actions";
@@ -55,6 +57,11 @@ export default async function CostosML({ searchParams }: { searchParams: Promise
   await asegurarEsquema();
   const sp = await searchParams;
   const vista: Vista = VISTAS.some((v) => v.clave === sp.ver) ? (sp.ver as Vista) : "cambios";
+  const { rows: [cuentas] } = await pool.query<{ comisiones: number; cargo: number; envio: number; corridas: number }>(`
+    select (select count(*) from ml_costos_mis_categorias where activa)::int comisiones,
+           (select count(*) from ml_costos_cargo_fijo_vigente where tipo = 'gold_special')::int cargo,
+           (select count(*) from ml_costos_envio_gratis_vigente)::int envio,
+           (select count(*) from ml_costos_corridas)::int corridas`);
 
   return (
     <main className="max-w-5xl mx-auto p-6">
@@ -64,14 +71,11 @@ export default async function CostosML({ searchParams }: { searchParams: Promise
         Todos los días a las 6:30 se le pregunta a la API de Mercado Libre, con tu cuenta, cuánto cuesta vender. Se guarda sólo lo que
         cambia, con la fecha desde la que vale.
       </p>
-      <nav className="flex gap-1 border-b border-[#E3E9F0] mb-4 overflow-x-auto">
-        {VISTAS.map((v) => (
-          <Link key={v.clave} href={`/admin/costos-ml?ver=${v.clave}`}
-            className={`px-3 py-1.5 text-xs font-bold -mb-px border-b-2 rounded-t-lg whitespace-nowrap ${vista === v.clave ? "border-[#16577F] text-[#16577F] bg-white" : "border-transparent text-[#5C6B76] hover:text-[#16577F]"}`}>
-            {v.texto}
-          </Link>
-        ))}
-      </nav>
+      <Pestanas items={VISTAS.map((v) => ({
+        clave: v.clave, texto: v.texto, href: `/admin/costos-ml?ver=${v.clave}`, activa: vista === v.clave,
+        // Cambios sale de una consulta pesada: no se cuenta.
+        cuenta: v.clave === "cambios" ? null : cuentas[v.clave],
+      }))} />
       {vista === "cambios" && <Cambios />}
       {vista === "comisiones" && <Comisiones q={sp.q ?? ""} />}
       {vista === "cargo" && <CargoFijo />}

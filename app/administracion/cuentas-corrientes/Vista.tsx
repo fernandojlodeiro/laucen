@@ -42,9 +42,14 @@ function linkDocumento(tipo: string | null, id: number | null) {
 export async function VistaCc({ org, tercero, sp }: { org: string; tercero: Tercero; sp: SP }) {
   const ruta = tercero === "cliente" ? BASE : `${BASE}/proveedores`;
   const terceroId = Number(sp.id) || 0;
+  // Cada pestaña cuenta los clientes / proveedores que tienen cuenta corriente.
+  const [n] = await consulta<{ cliente: number; proveedor: number }>(`
+    select count(distinct tercero_id) filter (where tercero_tipo = 'cliente')::int cliente,
+           count(distinct tercero_id) filter (where tercero_tipo = 'proveedor')::int proveedor
+      from cc_movimiento where organizacion_id = $1`, [org]);
   return (
     <Pantalla titulo="Cuentas corrientes" subtitulo="Lo que nos deben los clientes y lo que les debemos a los proveedores (en pesos)">
-      <Pestanas items={PESTANAS} />
+      <Pestanas items={PESTANAS.map((x, i) => ({ ...x, cuenta: (i === 0 ? n?.cliente : n?.proveedor) ?? 0 }))} />
       <Avisos sp={sp} />
       {terceroId
         ? <EstadoDeCuenta org={org} tercero={tercero} terceroId={terceroId} ruta={ruta} sp={sp} />

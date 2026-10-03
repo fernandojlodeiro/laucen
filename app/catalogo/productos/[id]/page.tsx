@@ -1,17 +1,23 @@
-// Ficha de un producto, en pestañas (?seccion=): datos, variaciones,
+// Ficha de un producto, en pestañas (?seccion=): datos, costo, variaciones,
 // atributos, fotos, cucardas, kit, precios, stock y publicaciones. Cada
 // sección está en secciones.tsx; las acciones, en ../acciones.ts.
+//
+// AGENTS.md: la ficha abre en modo vista. Datos, Costo y Cucardas se editan
+// con el lápiz de arriba a la derecha (?editar=1), y ahí mismo queda "Grabar"
+// (manda el formulario "ficha" de la sección). En las grillas, el lápiz es de
+// cada fila (?editar=<id>) y el alta va detrás de "Nuevo …" arriba a la derecha.
 
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { una } from "@/lib/erp/base";
+import Pestanas from "@/app/componentes/Pestanas";
+import { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { TachoConfirmar } from "@/app/radar/Cliente";
-import { entrarErp, Pantalla, Avisos } from "@/app/componentes/erp";
+import { entrarErp, Pantalla, Avisos, BotonesFicha, editandoFicha, url } from "@/app/componentes/erp";
 import { accionBorrarProducto, accionCambiarEstadoProducto } from "../acciones";
 import { SUAVE } from "@/app/botones";
 import { EstadoProducto, TIPOS_PRODUCTO } from "../comun";
 import {
-  type Producto, SeccionDatos, SeccionVariaciones, SeccionAtributos, SeccionFotos, SeccionCucardas, SeccionKit,
+  type Producto, SeccionDatos, SeccionCosto, SeccionVariaciones, SeccionAtributos, SeccionFotos, SeccionCucardas, SeccionKit,
   SeccionPrecios, SeccionStock, SeccionPublicaciones,
 } from "./secciones";
 
@@ -41,20 +47,42 @@ export default async function FichaProducto({ params, searchParams }: { params: 
      where p.id = $2 and p.organizacion_id = $1`, [s.org.id, pid]);
   if (!p) notFound();
 
-  const secciones: [string, string][] = [
-    ["datos", "Datos"],
-    ["variaciones", p.tipo === "con_variaciones" ? "Variaciones" : "Variación"],
-    ["atributos", "Atributos"],
-    ["fotos", "Fotos"],
-    ["cucardas", "Cucardas"],
-    ...(p.tipo === "kit" ? [["kit", "Componentes del kit"] as [string, string]] : []),
-    ["precios", "Precios"],
-    ["stock", "Stock"],
-    ["publicaciones", "Publicaciones"],
+  // Lo que cuenta cada pestaña, entre paréntesis.
+  const n = (await una<Record<string, number>>(`
+    select (select count(*) from variacion v where v.producto_id = $2 and v.organizacion_id = $1)::int variaciones,
+           (select count(*) from producto_atributo a where a.producto_id = $2 and a.organizacion_id = $1)::int atributos,
+           ((select count(*) from producto_foto f where f.producto_id = $2 and f.organizacion_id = $1)
+            + (select count(*) from variacion_foto f join variacion v on v.id = f.variacion_id where v.producto_id = $2 and f.organizacion_id = $1))::int fotos,
+           (select count(*) from producto_cucarda pc where pc.producto_id = $2 and pc.organizacion_id = $1)::int cucardas,
+           (select count(*) from kit_componente k join variacion v on v.id = k.variacion_kit_id where v.producto_id = $2 and k.organizacion_id = $1)::int kit,
+           (select count(distinct (pr.lista_id, pr.variacion_id)) from precio pr join variacion v on v.id = pr.variacion_id
+              join lista_precios l on l.id = pr.lista_id and l.estado = 'activa'
+             where v.producto_id = $2 and pr.organizacion_id = $1)::int precios,
+           (select coalesce(sum(stock_disponible_deposito(v.organizacion_id, v.id, d.id)), 0) from variacion v cross join deposito d
+             where v.producto_id = $2 and v.organizacion_id = $1 and d.organizacion_id = $1 and d.estado = 'activo')::int stock,
+           (select count(*) from publicacion pu join variacion v on v.id = pu.variacion_id where v.producto_id = $2 and pu.organizacion_id = $1)::int publicaciones,
+           (select count(*) from cucarda c where c.organizacion_id = $1 and c.estado = 'activa')::int cucardas_activas`,
+    [s.org.id, pid])) ?? {};
+
+  const secciones: [string, string, number | null][] = [
+    ["datos", "Datos", null],
+    ["costo", "Costo", null],
+    ["variaciones", p.tipo === "con_variaciones" ? "Variaciones" : "Variación", n.variaciones ?? 0],
+    ["atributos", "Atributos", n.atributos ?? 0],
+    ["fotos", "Fotos", n.fotos ?? 0],
+    ["cucardas", "Cucardas", n.cucardas ?? 0],
+    ...(p.tipo === "kit" ? [["kit", "Componentes del kit", n.kit ?? 0] as [string, string, number]] : []),
+    ["precios", "Precios", n.precios ?? 0],
+    ["stock", "Stock", n.stock ?? 0],
+    ["publicaciones", "Publicaciones", n.publicaciones ?? 0],
   ];
   const seccion = secciones.some(([k]) => k === sp.seccion) ? sp.seccion! : "datos";
   const base = `/catalogo/productos/${p.id}`;
-  const props = { s, p, sp, seccion };
+  const aqui = (extra: Record<string, string | number> = {}) => url(base, { seccion: seccion === "datos" ? undefined : seccion, ...extra });
+  // Secciones que son un formulario entero: se ven, y se editan con el lápiz.
+  const conFicha = seccion === "datos" || seccion === "costo" || (seccion === "cucardas" && (n.cucardas_activas ?? 0) + (n.cucardas ?? 0) > 0);
+  const editando = conFicha && editandoFicha(sp);
+  const props = { s, p, sp, seccion, editando };
 
   return (
     <Pantalla
@@ -62,27 +90,29 @@ export default async function FichaProducto({ params, searchParams }: { params: 
       subtitulo={<>{TIPOS_PRODUCTO[p.tipo]}{p.familia ? ` · ${p.familia}` : ""}{p.marca ? ` · ${p.marca}` : ""}</>}
       camino={[{ texto: p.sku_base }]}
       acciones={
-        <span className="inline-flex items-center gap-2">
-          {/* Inactivo = archivado: deja de aparecer en listados y buscadores. */}
-          <form action={accionCambiarEstadoProducto}>
-            <input type="hidden" name="producto_id" value={p.id} /><input type="hidden" name="seccion" value={seccion} />
-            <input type="hidden" name="estado" value={p.estado === "archivado" ? "activo" : "archivado"} />
-            <button className={SUAVE}>{p.estado === "archivado" ? "Volver a Activo" : "Pasar a Inactivo"}</button>
-          </form>
-          <TachoConfirmar accion={accionBorrarProducto} campos={{ producto_id: String(p.id), seccion }} pregunta="¿Borrar el producto entero?" />
+        <span className="inline-flex flex-wrap items-center gap-2">
+          {seccion === "variaciones" && p.tipo === "con_variaciones" && <BotonNuevo texto="Nueva variación" />}
+          {seccion === "atributos" && <BotonNuevo texto="Nuevo atributo" />}
+          {seccion === "kit" && <BotonNuevo texto="Nuevo componente" />}
+          {conFicha && <BotonesFicha editando={editando} ver={aqui()} editar={aqui({ editar: 1 })} />}
+          {!editando && (
+            <>
+              {/* Inactivo = archivado: deja de aparecer en listados y buscadores. */}
+              <form action={accionCambiarEstadoProducto}>
+                <input type="hidden" name="producto_id" value={p.id} /><input type="hidden" name="seccion" value={seccion} />
+                <input type="hidden" name="estado" value={p.estado === "archivado" ? "activo" : "archivado"} />
+                <button className={SUAVE}>{p.estado === "archivado" ? "Volver a Activo" : "Pasar a Inactivo"}</button>
+              </form>
+              <TachoConfirmar accion={accionBorrarProducto} campos={{ producto_id: String(p.id), seccion }} pregunta="¿Borrar el producto entero?" />
+            </>
+          )}
         </span>
       }
     >
       <Avisos sp={sp} />
-      <nav className="flex gap-1 border-b border-[#E3E9F0] mb-4 overflow-x-auto">
-        {secciones.map(([k, t]) => (
-          <Link key={k} href={k === "datos" ? base : `${base}?seccion=${k}`} scroll={false}
-            className={`px-3 py-2 text-xs font-bold -mb-px border-b-2 rounded-t-lg whitespace-nowrap ${k === seccion ? "border-[#16577F] text-[#16577F] bg-white" : "border-transparent text-[#5C6B76] hover:text-[#16577F]"}`}>
-            {t}
-          </Link>
-        ))}
-      </nav>
+      <Pestanas items={secciones.map(([k, t, cuenta]) => ({ clave: k, texto: t, cuenta, activa: k === seccion, href: k === "datos" ? base : `${base}?seccion=${k}` }))} />
       {seccion === "datos" && <SeccionDatos {...props} />}
+      {seccion === "costo" && <SeccionCosto {...props} />}
       {seccion === "variaciones" && <SeccionVariaciones {...props} />}
       {seccion === "atributos" && <SeccionAtributos {...props} />}
       {seccion === "fotos" && <SeccionFotos {...props} />}

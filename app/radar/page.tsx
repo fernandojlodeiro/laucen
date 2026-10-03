@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Pestanas from "@/app/componentes/Pestanas";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { radarSeguidas } from "@/db/radar";
@@ -210,13 +211,11 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
               <button name="modo" value="apify" className={`${VERDE} disabled:opacity-60`}>Con Apify ~USD {fuente.costoPorPalabra.toFixed(2)}</button>
             )}
           </form>
-          <nav className="flex gap-1 border-b border-[#E3E9F0] mb-2">
-            {(Object.keys(GRUPOS) as Grupo[]).map((g) => (
-              <span key={g} className="flex items-center -mb-px">
-                <Link href={url({ g })}
-                  className={`pl-3 pr-1 py-2 text-xs font-bold border-b-2 ${g === grupo ? "border-[#16577F] text-[#16577F]" : "border-transparent text-[#5C6B76]"}`}>
-                  {GRUPOS[g].label} <span className="font-normal text-[#9AA7B3]">({actuales.filter((p) => p.grupo === g).length})</span>
-                </Link>
+          <Pestanas desplazable={false} className="mb-2" items={(Object.keys(GRUPOS) as Grupo[]).map((g) => ({
+            clave: g, href: url({ g }), texto: GRUPOS[g].label, activa: g === grupo,
+            cuenta: actuales.filter((p) => p.grupo === g).length,
+            despues: (
+              <>
                 {/* Globo con la regla del ranking: al pasar el mouse o al tocar la "i". */}
                 <span className="relative group mr-2">
                   <button type="button" aria-label={`Cómo se arma “${GRUPOS[g].label}”`}
@@ -230,9 +229,9 @@ export default async function Tendencias({ searchParams }: { searchParams: Promi
                     <span className="block mt-2 text-[10px] text-[#9AA7B3]">{FUENTE_GRUPOS}</span>
                   </span>
                 </span>
-              </span>
-            ))}
-          </nav>
+              </>
+            ),
+          }))} />
           <p className="text-[11px] text-[#5C6B76] mb-2">
             {GRUPOS[grupo].ayuda}
             {!GRUPOS_CONFIRMADOS && " (Grupo deducido por la posición en la lista: supuesto, a confirmar con algunas semanas.)"}

@@ -11,15 +11,16 @@ import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import {
-  Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  Lapiz, Estado, Dato, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import {
   accionGuardarDatos, accionCrearVariacion, accionGuardarVariacion, accionBorrarVariacion,
   accionCrearAtributo, accionGuardarAtributo, accionBorrarAtributo, accionMoverFoto, accionBorrarFoto,
-  accionGuardarCucardas, accionAgregarComponente, accionGuardarComponente, accionBorrarComponente, accionGuardarPrecio,
+  accionGuardarCucardas, accionGuardarCosto, accionAgregarComponente, accionGuardarComponente, accionBorrarComponente, accionGuardarPrecio,
 } from "../acciones";
 import { opcionesFamilias, EstadoProducto, TIPOS_PRODUCTO, ESTADOS_PRODUCTO, ESTADOS_VARIACION, CONDICIONES, condicionDe } from "../comun";
 import SubirFoto from "../SubirFoto";
+import AltaNueva from "@/app/componentes/AltaNueva";
 
 export type Producto = {
   id: number; sku_base: string; titulo: string; descripcion: string | null; familia_id: number | null; familia: string | null;
@@ -36,6 +37,8 @@ type Props = {
   p: Producto;
   sp: { editar?: string };
   seccion: string;
+  /** Datos, Costo y Cucardas: en edición (?editar=1); si no, en vista. */
+  editando: boolean;
 };
 
 const pct = (n: number | null | undefined) => (n == null ? "—" : `${formatearNumero(Number(n), "pct")} %`);
@@ -154,8 +157,8 @@ const atributosMl = (x: unknown): AtributoMl[] => (Array.isArray(x) ? x.filter((
 /** Alícuotas de IVA que acepta ARCA (valor guardado → texto). */
 const ALICUOTAS_IVA = [["21", "21 %"], ["10.5", "10,5 %"], ["27", "27 %"], ["5", "5 %"], ["2.5", "2,5 %"], ["0", "0 %"]] as const;
 
-export async function SeccionDatos({ s, p, seccion }: Props) {
-  const familias = await opcionesFamilias(s.org.id);
+export async function SeccionDatos({ s, p, seccion, editando }: Props) {
+  const familias = editando ? await opcionesFamilias(s.org.id) : [];
   // La alícuota de IVA (facturación) se lee aparte: la consulta del producto está en page.tsx.
   const iva = await consulta<{ iva_pct: string }>("select iva_pct::text from producto where id = $1 and organizacion_id = $2", [p.id, s.org.id]);
   const ivaPct = String(Number(iva[0]?.iva_pct ?? 21));
@@ -166,15 +169,73 @@ export async function SeccionDatos({ s, p, seccion }: Props) {
   const kits = vDefault ? await costosKit(s.org.id, [vDefault.id]) : new Map<number, CostoKit>();
   const esKit = !!vDefault && (p.tipo === "kit" || kits.has(vDefault.id));
   const attrsMl = atributosMl(p.atributos_ml);
+  const num = (n: number | null, tipo: "entero" | "decimal") => (n == null ? null : formatearNumero(Number(n), tipo));
+  const ayudaDescuento = <>Vacío = hereda {p.familia ? "de la familia" : ""}: {pct(heredado)}.{p.descuento_pct != null && <> Rige: {pct(p.descuento_pct)}.</>}</>;
+  const ayudaUmbral = <>Vacío = el del canal o el general ({umbralOrg}).</>;
+  const ayudaIva = "Los precios se cargan con IVA; al facturar se discrimina con esta alícuota.";
+  const costoFob = vDefault && esKit ? (
+    <div className="col-span-2"><span className={ETIQUETA}>Costo FOB</span><CostoKitVer k={kits.get(vDefault.id)} /></div>
+  ) : vDefault ? (
+    editando ? (
+      <div className="col-span-2">
+        <input type="hidden" name="con_costo" value="1" />
+        <label><span className={ETIQUETA}>Costo FOB</span><CampoCosto v={vDefault} /></label>
+        <CostoDeposito v={vDefault} vista={s.moneda} />
+      </div>
+    ) : (
+      <Dato etiqueta="Costo FOB" className="col-span-2" ayuda={<CostoDeposito v={vDefault} vista={s.moneda} />}>
+        {vDefault.costo_fob != null ? <span className="tabular-nums">{formatear(vDefault.costo_fob, vDefault.costo_moneda)}</span> : null}
+      </Dato>
+    )
+  ) : (
+    <div className="col-span-2"><span className={ETIQUETA}>Costo FOB</span><p className="text-[11px] text-[#5C6B76] py-1.5">Va en cada variación.</p></div>
+  );
+
+  // Modo vista: los datos, sin campos. Se edita con el lápiz de arriba a la derecha.
+  if (!editando) {
+    return (
+      <>
+      <div className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 items-start`}>
+        <Dato etiqueta="SKU base"><span className="font-mono">{p.sku_base}</span></Dato>
+        <Dato etiqueta="Título" className="col-span-1 sm:col-span-3">{p.titulo}</Dato>
+        <Dato etiqueta="Familia">{p.familia}</Dato>
+        <Dato etiqueta="Marca">{p.marca}</Dato>
+        <Dato etiqueta="Tipo">{TIPOS_PRODUCTO[p.tipo] ?? p.tipo}</Dato>
+        <Dato etiqueta="Estado"><EstadoProducto estado={p.estado} /></Dato>
+        {conVariaciones
+          ? <Dato etiqueta="Código de barras" ayuda="Va en cada variación." />
+          : <Dato etiqueta="Código de barras">{p.codigo_barras && <span className="font-mono">{p.codigo_barras}</span>}</Dato>}
+        <Dato etiqueta="Modelo">{p.modelo}</Dato>
+        <Dato etiqueta="Línea">{p.linea}</Dato>
+        <Dato etiqueta="Garantía">{p.garantia}</Dato>
+        <Dato etiqueta="Condición">{CONDICIONES[condicionDe(p.condicion)]}</Dato>
+        {costoFob}
+        <Dato etiqueta="Kit en Virtual Seller (armar a mano)" className="col-span-2">{p.kit_vs ? "Sí" : "No"}</Dato>
+        <Dato etiqueta="Peso (g)" numero>{num(p.peso_g, "entero")}</Dato>
+        <Dato etiqueta="Stock mínimo" numero ayuda="Debajo de esto, avisa el panel.">{num(p.stock_minimo, "entero")}</Dato>
+        <Dato etiqueta="Largo (cm)" numero>{num(p.largo_cm, "decimal")}</Dato>
+        <Dato etiqueta="Ancho (cm)" numero>{num(p.ancho_cm, "decimal")}</Dato>
+        <Dato etiqueta="Alto (cm)" numero>{num(p.alto_cm, "decimal")}</Dato>
+        <div />
+        <Dato etiqueta="Descuento %" numero ayuda={ayudaDescuento}>{p.descuento_pct != null ? pct(p.descuento_pct) : null}</Dato>
+        <Dato etiqueta="Umbral de pausa" numero ayuda={ayudaUmbral}>{p.umbral_pausa != null ? String(p.umbral_pausa) : null}</Dato>
+        <Dato etiqueta="IVA" numero ayuda={ayudaIva}>{ALICUOTAS_IVA.find(([v]) => v === ivaPct)?.[1] ?? `${ivaPct} %`}</Dato>
+        <div />
+        <Dato etiqueta="Descripción larga" className="col-span-2 sm:col-span-4">
+          {p.descripcion ? <span className="block whitespace-pre-wrap leading-relaxed">{p.descripcion}</span> : null}
+        </Dato>
+      </div>
+      <AtributosMl p={p} attrsMl={attrsMl} />
+      </>
+    );
+  }
+
   return (
     <>
-    <form action={accionGuardarDatos} className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 items-start`}>
+    <form id="ficha" action={accionGuardarDatos} className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 items-start`}>
       <Ocultos p={p} seccion={seccion} />
       <label><span className={ETIQUETA}>SKU base</span><input name="sku_base" defaultValue={p.sku_base} className={`${CAMPO} w-full font-mono`} /></label>
-      <label className="col-span-1 sm:col-span-3"><span className={ETIQUETA}>Título</span><input name="titulo" defaultValue={p.titulo} className={`${CAMPO} w-full`} /></label>
-      <label className="col-span-2 sm:col-span-4"><span className={ETIQUETA}>Descripción larga</span>
-        <textarea name="descripcion" defaultValue={p.descripcion ?? ""} rows={6} className={`${CAMPO} w-full`} />
-      </label>
+      <label className="col-span-1 sm:col-span-3"><span className={ETIQUETA}>Título</span><input name="titulo" defaultValue={p.titulo} className={`${CAMPO} w-full`} autoFocus /></label>
       <label><span className={ETIQUETA}>Familia</span>
         <select name="familia_id" defaultValue={p.familia_id ?? ""} className={`${CAMPO} w-full`}>
           <option value="">Sin familia</option>
@@ -207,20 +268,7 @@ export async function SeccionDatos({ s, p, seccion }: Props) {
           {Object.entries(CONDICIONES).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
         </select>
       </label>
-      {vDefault && esKit ? (
-        <div className="col-span-2">
-          <span className={ETIQUETA}>Costo FOB</span>
-          <CostoKitVer k={kits.get(vDefault.id)} />
-        </div>
-      ) : vDefault ? (
-        <div className="col-span-2">
-          <input type="hidden" name="con_costo" value="1" />
-          <label><span className={ETIQUETA}>Costo FOB</span><CampoCosto v={vDefault} /></label>
-          <CostoDeposito v={vDefault} vista={s.moneda} />
-        </div>
-      ) : (
-        <div className="col-span-2"><span className={ETIQUETA}>Costo FOB</span><p className="text-[11px] text-[#5C6B76] py-1.5">Va en cada variación.</p></div>
-      )}
+      {costoFob}
       <label className="col-span-2 flex items-center gap-2 text-xs self-end py-1.5">
         <input type="checkbox" name="kit_vs" defaultChecked={p.kit_vs} className="h-4 w-4 accent-[#16577F]" />
         Kit en Virtual Seller (armar a mano)
@@ -229,29 +277,38 @@ export async function SeccionDatos({ s, p, seccion }: Props) {
       <label><span className={ETIQUETA}>Stock mínimo</span><CampoNumero name="stock_minimo" valor={p.stock_minimo} tipo="entero" className={`${CAMPO} w-full`} />
         <span className="block text-[10px] text-[#5C6B76] mt-0.5">Debajo de esto, avisa el panel.</span>
       </label>
-      <div />
       <label><span className={ETIQUETA}>Largo (cm)</span><CampoNumero name="largo_cm" valor={p.largo_cm} tipo="decimal" className={`${CAMPO} w-full`} /></label>
       <label><span className={ETIQUETA}>Ancho (cm)</span><CampoNumero name="ancho_cm" valor={p.ancho_cm} tipo="decimal" className={`${CAMPO} w-full`} /></label>
       <label><span className={ETIQUETA}>Alto (cm)</span><CampoNumero name="alto_cm" valor={p.alto_cm} tipo="decimal" className={`${CAMPO} w-full`} /></label>
       <div />
       <label><span className={ETIQUETA}>Descuento %</span>
         <CampoNumero name="descuento_pct" valor={p.descuento_pct} tipo="pct" placeholder={formatearNumero(heredado, "pct")} className={`${CAMPO} w-full`} />
-        <span className="block text-[10px] text-[#5C6B76] mt-0.5">
-          Vacío = hereda {p.familia ? "de la familia" : ""}: {pct(heredado)}.{p.descuento_pct != null && <> Rige: {pct(p.descuento_pct)}.</>}
-        </span>
+        <span className="block text-[10px] text-[#5C6B76] mt-0.5">{ayudaDescuento}</span>
       </label>
       <label><span className={ETIQUETA}>Umbral de pausa</span>
         <CampoNumero name="umbral_pausa" valor={p.umbral_pausa} tipo="entero" placeholder={String(umbralOrg)} className={`${CAMPO} w-full`} />
-        <span className="block text-[10px] text-[#5C6B76] mt-0.5">Vacío = el del canal o el general ({umbralOrg}).</span>
+        <span className="block text-[10px] text-[#5C6B76] mt-0.5">{ayudaUmbral}</span>
       </label>
       <label><span className={ETIQUETA}>IVA</span>
         <select name="iva_pct" defaultValue={ivaPct} className={`${CAMPO} w-full`}>
           {ALICUOTAS_IVA.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
         </select>
-        <span className="block text-[10px] text-[#5C6B76] mt-0.5">Los precios se cargan con IVA; al facturar se discrimina con esta alícuota.</span>
+        <span className="block text-[10px] text-[#5C6B76] mt-0.5">{ayudaIva}</span>
       </label>
-      <div className="col-span-2 sm:col-span-4 flex justify-end"><button className={VERDE}>Guardar</button></div>
+      <div />
+      {/* La descripción larga, al final y a todo lo ancho. */}
+      <label className="col-span-2 sm:col-span-4"><span className={ETIQUETA}>Descripción larga</span>
+        <textarea name="descripcion" defaultValue={p.descripcion ?? ""} rows={14} className={`${CAMPO} w-full leading-relaxed`} />
+      </label>
     </form>
+    </>
+  );
+}
+
+/** Lo que trajo Mercado Libre: sólo para mirar (debajo de los datos, en vista). */
+function AtributosMl({ p, attrsMl }: { p: Producto; attrsMl: AtributoMl[] }) {
+  return (
+    <>
     {/* Lo que trajo Mercado Libre: sólo para mirar. */}
     <details className={`${CAJA} mt-3`}>
       <summary className="text-sm font-bold cursor-pointer">
@@ -277,6 +334,122 @@ export async function SeccionDatos({ s, p, seccion }: Props) {
   );
 }
 
+// ── Costo de importación ──────────────────────────────────
+
+type CostoImpo = {
+  ncm: string | null; derecho_pct: number | null; tasa_estadistica_pct: number | null; arancel_otros_pct: number | null;
+  iva_pct: number | null; iva_adicional_pct: number | null; percepcion_ganancias_pct: number | null; ingresos_brutos_pct: number | null;
+  notas: string | null; actualizado: string | null;
+};
+
+/** Lo que se suma al costo y lo que es crédito fiscal (AGENTS.md / db/catalogo.sql: producto_costo). */
+const SUMAN: [keyof CostoImpo, string][] = [
+  ["derecho_pct", "Derecho de importación"], ["tasa_estadistica_pct", "Tasa de estadística"], ["arancel_otros_pct", "Arancel / otros"],
+];
+const CREDITO: [keyof CostoImpo, string][] = [
+  ["iva_pct", "IVA"], ["iva_adicional_pct", "IVA adicional"], ["percepcion_ganancias_pct", "Percepción de ganancias"], ["ingresos_brutos_pct", "Ingresos brutos"],
+];
+
+export async function SeccionCosto({ s, p, seccion, editando }: Props) {
+  const [c] = await consulta<CostoImpo>(`
+    select ncm, derecho_pct::float8, tasa_estadistica_pct::float8, arancel_otros_pct::float8, iva_pct::float8, iva_adicional_pct::float8,
+           percepcion_ganancias_pct::float8, ingresos_brutos_pct::float8, notas,
+           to_char(actualizado_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YYYY HH24:MI') actualizado
+      from producto_costo where producto_id = $2 and organizacion_id = $1`, [s.org.id, p.id]);
+  const variaciones = await variacionesDe(s.org.id, p.id);
+  const kits = await costosKit(s.org.id, variaciones.map((v) => v.id));
+  const esKit = (v: Variacion) => p.tipo === "kit" || kits.has(v.id);
+  const val = (k: keyof CostoImpo) => (c?.[k] as number | null | undefined) ?? null;
+  const suman = SUMAN.reduce((t, [k]) => t + (val(k) ?? 0), 0);
+  const credito = CREDITO.reduce((t, [k]) => t + (val(k) ?? 0), 0);
+
+  const campoPct = (k: keyof CostoImpo, t: string) => editando ? (
+    <label key={k}><span className={ETIQUETA}>{t} %</span><CampoNumero name={k} valor={val(k)} tipo="pct" className={`${CAMPO} w-full`} /></label>
+  ) : (
+    <Dato key={k} etiqueta={`${t} %`} numero>{val(k) != null ? pct(val(k)) : null}</Dato>
+  );
+
+  const datos = (
+    <>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-start">
+        {editando ? (
+          <label className="col-span-2"><span className={ETIQUETA}>NCM (posición arancelaria)</span>
+            <input name="ncm" defaultValue={c?.ncm ?? ""} placeholder="ej. 8516.79.90.990X" className={`${CAMPO} w-full font-mono`} autoFocus />
+          </label>
+        ) : (
+          <Dato etiqueta="NCM (posición arancelaria)" className="col-span-2">{c?.ncm && <span className="font-mono">{c.ncm}</span>}</Dato>
+        )}
+        <div className="hidden sm:block col-span-2" />
+        <p className="col-span-2 sm:col-span-4 text-[11px] font-bold text-[#1E2A32] -mb-1">Se suman al costo</p>
+        {SUMAN.map(([k, t]) => campoPct(k, t))}
+        <div className="hidden sm:block" />
+        <p className="col-span-2 sm:col-span-4 text-[11px] font-bold text-[#1E2A32] -mb-1">Crédito fiscal (no son costo)</p>
+        {CREDITO.map(([k, t]) => campoPct(k, t))}
+        {editando ? (
+          <label className="col-span-2 sm:col-span-4"><span className={ETIQUETA}>Notas</span>
+            <textarea name="notas" defaultValue={c?.notas ?? ""} rows={4} className={`${CAMPO} w-full`} />
+          </label>
+        ) : (
+          <Dato etiqueta="Notas" className="col-span-2 sm:col-span-4">{c?.notas && <span className="block whitespace-pre-wrap">{c.notas}</span>}</Dato>
+        )}
+      </div>
+      {!editando && c?.actualizado && <p className="text-[10px] text-[#5C6B76] mt-2">Última modificación: {c.actualizado}.</p>}
+    </>
+  );
+
+  return (
+    <div className="space-y-4">
+      {editando ? (
+        <form id="ficha" action={accionGuardarCosto} className={CAJA}>
+          <Ocultos p={p} seccion={seccion} />
+          {datos}
+        </form>
+      ) : <div className={CAJA}>{datos}</div>}
+
+      <section>
+        <h2 className="text-sm font-bold mb-1">Costo estimado puesto en depósito</h2>
+        <p className="text-xs text-[#5C6B76] mb-2">
+          FOB × (1 + derecho + tasa de estadística + arancel/otros) = FOB × {formatearNumero(1 + suman / 100, "decimal")}.
+          Lo que es crédito fiscal ({pct(credito)} sobre esa base) se muestra aparte y no se suma al costo. El costo real sale de las compras y los despachos.
+        </p>
+        <div className={CAJA_TABLA}>
+          <table className={TABLA}>
+            <thead className={THEAD}>
+              <tr>
+                <th className={TH}>Variación</th><th className={THN}>FOB</th><th className={THN}>Derechos y tasas</th>
+                <th className={THN}>Costo estimado</th><th className={THN}>Crédito fiscal (aparte)</th>
+                <th className={THN}>Último costo real</th><th className={THN}>Costo promedio</th>
+              </tr>
+            </thead>
+            <tbody>
+              {variaciones.map((v) => {
+                const k = kits.get(v.id);
+                const fob = esKit(v) ? k?.total ?? null : v.costo_fob;
+                const moneda: Moneda = esKit(v) ? k?.moneda ?? "USD" : v.costo_moneda;
+                const costo = fob == null ? null : fob * (1 + suman / 100);
+                return (
+                  <tr key={v.id} className={TR}>
+                    <td className={TD}><span className="font-mono">{v.sku}</span>{v.atributos && <span className="text-[#5C6B76]"> · {v.atributos}</span>}</td>
+                    <td className={TDN}>{fob != null ? formatear(fob, moneda) : <span className="text-[#5C6B76]">{esKit(v) ? "suma de componentes" : "sin FOB"}</span>}</td>
+                    <td className={TDN}>{fob != null ? formatear(fob * suman / 100, moneda) : "—"}</td>
+                    <td className={`${TDN} font-semibold`}>{costo != null ? formatear(costo, moneda) : "—"}</td>
+                    <td className={`${TDN} text-[#5C6B76]`}>{costo != null ? formatear(costo * credito / 100, moneda) : "—"}</td>
+                    <td className={TDN}>{v.costo_ultimo_ars != null || v.costo_ultimo_usd != null ? enVista({ ars: v.costo_ultimo_ars, usd: v.costo_ultimo_usd }, s.moneda) : <span className="text-[#5C6B76]">—</span>}</td>
+                    <td className={TDN}>{v.costo_promedio_ars != null || v.costo_promedio_usd != null ? enVista({ ars: v.costo_promedio_ars, usd: v.costo_promedio_usd }, s.moneda) : <span className="text-[#5C6B76]">—</span>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[10px] text-[#5C6B76] mt-1">
+          El FOB se carga en {p.tipo === "con_variaciones" ? "cada variación" : "Datos"}; los costos reales (último y promedio) salen de las facturas de compra y los despachos, en {s.moneda === "USD" ? "dólares" : "pesos"}.
+        </p>
+      </section>
+    </div>
+  );
+}
+
 // ── Variaciones ───────────────────────────────────────────
 
 export async function SeccionVariaciones({ s, p, sp, seccion }: Props) {
@@ -288,6 +461,18 @@ export async function SeccionVariaciones({ s, p, sp, seccion }: Props) {
   const esKit = (v: Variacion) => p.tipo === "kit" || kits.has(v.id);
   return (
     <>
+      {conVariaciones && (
+        <AltaNueva texto="Nueva variación" sinBoton className="mb-3">
+          <form action={accionCrearVariacion} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-start">
+            <Ocultos p={p} seccion={seccion} />
+            <label><span className={ETIQUETA}>SKU</span><input name="sku" className={`${CAMPO} w-full font-mono`} autoFocus /></label>
+            <label><span className={ETIQUETA}>Código de barras</span><input name="codigo_barras" className={`${CAMPO} w-full font-mono`} /></label>
+            <label className="col-span-2"><span className={ETIQUETA}>Atributos</span><input name="atributos" placeholder="color=rojo; talle=M" className={`${CAMPO} w-full`} /></label>
+            <label><span className={ETIQUETA}>Título propio</span><input name="titulo" placeholder="(opcional)" className={`${CAMPO} w-full`} /></label>
+            <div className="self-end"><button className={PRIMARIO}>Agregar variación</button></div>
+          </form>
+        </AltaNueva>
+      )}
       {!conVariaciones && (
         <p className="text-xs text-[#5C6B76] mb-2">
           Un producto {p.tipo === "kit" ? "kit" : "simple"} tiene una sola variación, con el SKU base. El SKU y el código de barras se cambian en Datos.
@@ -370,16 +555,6 @@ export async function SeccionVariaciones({ s, p, sp, seccion }: Props) {
           </tbody>
         </table>
       </div>
-      {conVariaciones && (
-        <form action={accionCrearVariacion} className={`${CAJA} mt-3 grid grid-cols-2 sm:grid-cols-6 gap-2 items-start`}>
-          <Ocultos p={p} seccion={seccion} />
-          <label><span className={ETIQUETA}>SKU</span><input name="sku" className={`${CAMPO} w-full font-mono`} /></label>
-          <label><span className={ETIQUETA}>Código de barras</span><input name="codigo_barras" className={`${CAMPO} w-full font-mono`} /></label>
-          <label className="col-span-2"><span className={ETIQUETA}>Atributos</span><input name="atributos" placeholder="color=rojo; talle=M" className={`${CAMPO} w-full`} /></label>
-          <label><span className={ETIQUETA}>Título propio</span><input name="titulo" placeholder="(opcional)" className={`${CAMPO} w-full`} /></label>
-          <div className="self-end"><button className={PRIMARIO}>Agregar variación</button></div>
-        </form>
-      )}
     </>
   );
 }
@@ -392,6 +567,14 @@ export async function SeccionAtributos({ s, p, sp, seccion }: Props) {
   const editar = Number(sp.editar) || 0;
   return (
     <div className="max-w-2xl">
+      <AltaNueva texto="Nuevo atributo" sinBoton className="mb-3">
+        <form action={accionCrearAtributo} className="flex flex-wrap items-center gap-2">
+          <Ocultos p={p} seccion={seccion} />
+          <input name="nombre" placeholder="Nombre (ej. material)" className={`${CAMPO} w-40`} autoFocus />
+          <input name="valor" placeholder="Valor (ej. acero inoxidable)" className={`${CAMPO} flex-1 min-w-48`} />
+          <button className={PRIMARIO}>Agregar</button>
+        </form>
+      </AltaNueva>
       <p className="text-xs text-[#5C6B76] mb-2">Datos libres del producto (material, origen, garantía…). Los de cada variación (color, talle) van en Variaciones.</p>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
@@ -428,12 +611,6 @@ export async function SeccionAtributos({ s, p, sp, seccion }: Props) {
           </tbody>
         </table>
       </div>
-      <form action={accionCrearAtributo} className="flex flex-wrap items-center gap-2 mt-3">
-        <Ocultos p={p} seccion={seccion} />
-        <input name="nombre" placeholder="Nombre (ej. material)" className={`${CAMPO} w-40`} />
-        <input name="valor" placeholder="Valor (ej. acero inoxidable)" className={`${CAMPO} flex-1 min-w-48`} />
-        <button className={PRIMARIO}>Agregar</button>
-      </form>
     </div>
   );
 }
@@ -508,7 +685,7 @@ export async function SeccionFotos({ s, p, seccion }: Props) {
 
 // ── Cucardas ──────────────────────────────────────────────
 
-export async function SeccionCucardas({ s, p, seccion }: Props) {
+export async function SeccionCucardas({ s, p, seccion, editando }: Props) {
   const filas = await consulta<{ id: number; nombre: string; color: string; estado: string; tiene: boolean; desde: string | null; hasta: string | null }>(`
     select c.id::int, c.nombre, c.color, c.estado, pc.id is not null tiene,
            to_char(pc.desde, 'YYYY-MM-DD') desde, to_char(pc.hasta, 'YYYY-MM-DD') hasta
@@ -518,29 +695,44 @@ export async function SeccionCucardas({ s, p, seccion }: Props) {
   if (!filas.length) {
     return <p className="text-xs text-[#5C6B76]">No hay cucardas cargadas. Se crean en <Link href="/catalogo/cucardas" className="text-[#16577F]">Cucardas</Link>.</p>;
   }
+  const fechaAR = (f: string | null) => (f ? f.split("-").reverse().join("/") : "—");
+  const tabla = (
+    <div className={CAJA_TABLA}>
+      <table className={TABLA}>
+        <thead className={THEAD}><tr><th className={TH}>Lleva</th><th className={TH}>Cucarda</th><th className={TH}>Desde</th><th className={TH}>Hasta</th></tr></thead>
+        <tbody>
+          {filas.map((c) => (
+            <tr key={c.id} className={TR}>
+              <td className={TD}>
+                {editando
+                  ? <input type="checkbox" name={`c${c.id}`} defaultChecked={c.tiene} className="h-4 w-4 accent-[#16577F]" aria-label={c.nombre} />
+                  : c.tiene ? <span className="font-bold text-[#1F6E4A]" title="La lleva">✓</span> : <span className="text-[#5C6B76]">—</span>}
+              </td>
+              <td className={TD}>
+                <span className="inline-block rounded px-2 py-0.5 text-white text-[11px] font-bold" style={{ background: c.color }}>{c.nombre}</span>
+                {c.estado !== "activa" && <span className="ml-2"><Estado texto="Archivada" /></span>}
+              </td>
+              <td className={TD}>{editando ? <input type="date" name={`desde${c.id}`} defaultValue={c.desde ?? ""} className={CAMPO} /> : c.tiene ? fechaAR(c.desde) : ""}</td>
+              <td className={TD}>{editando ? <input type="date" name={`hasta${c.id}`} defaultValue={c.hasta ?? ""} className={CAMPO} /> : c.tiene ? fechaAR(c.hasta) : ""}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+  if (!editando) {
+    return (
+      <div className="max-w-2xl">
+        <p className="text-xs text-[#5C6B76] mb-2">Las que lleva este producto (sin fechas, rige siempre). Además hereda las de su familia. Se cambian con el lápiz.</p>
+        {tabla}
+      </div>
+    );
+  }
   return (
-    <form action={accionGuardarCucardas} className="max-w-2xl">
+    <form id="ficha" action={accionGuardarCucardas} className="max-w-2xl">
       <Ocultos p={p} seccion={seccion} />
       <p className="text-xs text-[#5C6B76] mb-2">Tildá las que lleva este producto. Sin fechas, rige siempre. Además hereda las de su familia.</p>
-      <div className={CAJA_TABLA}>
-        <table className={TABLA}>
-          <thead className={THEAD}><tr><th className={TH}>Lleva</th><th className={TH}>Cucarda</th><th className={TH}>Desde</th><th className={TH}>Hasta</th></tr></thead>
-          <tbody>
-            {filas.map((c) => (
-              <tr key={c.id} className={TR}>
-                <td className={TD}><input type="checkbox" name={`c${c.id}`} defaultChecked={c.tiene} className="h-4 w-4 accent-[#16577F]" aria-label={c.nombre} /></td>
-                <td className={TD}>
-                  <span className="inline-block rounded px-2 py-0.5 text-white text-[11px] font-bold" style={{ background: c.color }}>{c.nombre}</span>
-                  {c.estado !== "activa" && <span className="ml-2"><Estado texto="Archivada" /></span>}
-                </td>
-                <td className={TD}><input type="date" name={`desde${c.id}`} defaultValue={c.desde ?? ""} className={CAMPO} /></td>
-                <td className={TD}><input type="date" name={`hasta${c.id}`} defaultValue={c.hasta ?? ""} className={CAMPO} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="flex justify-end mt-3"><button className={VERDE}>Guardar cucardas</button></div>
+      {tabla}
     </form>
   );
 }
@@ -565,6 +757,14 @@ export async function SeccionKit({ s, p, sp, seccion }: Props) {
   return (
     <div className="space-y-4">
       <div>
+        <AltaNueva texto="Nuevo componente" sinBoton className="mb-3">
+          <form action={accionAgregarComponente} className="flex flex-wrap items-center gap-2">
+            <Ocultos p={p} seccion={seccion} />
+            <input name="sku" placeholder="SKU del componente" className={`${CAMPO} w-48 font-mono`} autoFocus />
+            <CampoNumero name="cantidad" valor={1} tipo="entero" className={`${CAMPO} w-20`} />
+            <button className={PRIMARIO}>Agregar componente</button>
+          </form>
+        </AltaNueva>
         <div className={CAJA_TABLA}>
           <table className={TABLA}>
             <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Componente</th><th className={THN}>Cantidad</th><th className={THN}>Disponible</th><th /></tr></thead>
@@ -601,12 +801,6 @@ export async function SeccionKit({ s, p, sp, seccion }: Props) {
             </tbody>
           </table>
         </div>
-        <form action={accionAgregarComponente} className="flex flex-wrap items-center gap-2 mt-3">
-          <Ocultos p={p} seccion={seccion} />
-          <input name="sku" placeholder="SKU del componente" className={`${CAMPO} w-48 font-mono`} />
-          <CampoNumero name="cantidad" valor={1} tipo="entero" className={`${CAMPO} w-20`} />
-          <button className={PRIMARIO}>Agregar componente</button>
-        </form>
       </div>
       <section className="max-w-md">
         <h2 className="text-sm font-bold mb-1">Stock del kit por depósito</h2>

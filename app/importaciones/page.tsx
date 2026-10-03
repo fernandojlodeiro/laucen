@@ -3,6 +3,7 @@
 // como link y el CSV exporta exactamente lo mismo que se ve.
 
 import Link from "next/link";
+import Pestanas from "@/app/componentes/Pestanas";
 import { pool } from "@/db";
 import { aParams, hayFiltro, leerFiltro, periodoLindo, periodosCargados, usaResumen, type Filtro, type Params } from "@/lib/arca/filtro";
 import {
@@ -99,14 +100,7 @@ function Formulario({ f, periodos, refs, vistos, rubros, vista }: {
 
 function SubPestanas({ f, vista }: { f: Filtro; vista: Vista }) {
   return (
-    <nav className="flex gap-1 border-b border-[#E3E9F0] mb-3 overflow-x-auto">
-      {VISTAS.map((v) => (
-        <Link key={v.clave} href={`/importaciones?${aParams(f, { ver: v.clave })}`}
-          className={`px-3 py-1.5 text-xs font-bold -mb-px border-b-2 rounded-t-lg whitespace-nowrap ${vista === v.clave ? "border-[#16577F] text-[#16577F] bg-white" : "border-transparent text-[#5C6B76] hover:text-[#16577F]"}`}>
-          {v.texto}
-        </Link>
-      ))}
-    </nav>
+    <Pestanas className="mb-3" items={VISTAS.map((v) => ({ clave: v.clave, texto: v.texto, activa: vista === v.clave, href: `/importaciones?${aParams(f, { ver: v.clave })}` }))} />
   );
 }
 

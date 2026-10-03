@@ -13,7 +13,7 @@ import { esMoneda } from "@/lib/moneda";
 import { supabaseServer } from "@/lib/supabase";
 
 const LISTADO = "/catalogo/productos";
-const SECCIONES = ["datos", "variaciones", "atributos", "fotos", "cucardas", "kit", "precios", "stock", "publicaciones"];
+const SECCIONES = ["datos", "costo", "variaciones", "atributos", "fotos", "cucardas", "kit", "precios", "stock", "publicaciones"];
 const TIPOS = ["simple", "con_variaciones", "kit"];
 
 /** Vuelta a la ficha, en la sección de donde vino el formulario. */
@@ -396,6 +396,37 @@ export async function accionGuardarCucardas(fd: FormData) {
     });
     revalidatePath(`${LISTADO}/${pid}`);
     return "Cucardas guardadas.";
+  });
+}
+
+// ── Costo de importación ──────────────────────────────────
+
+const PCT_COSTO = [
+  ["derecho_pct", "derecho de importación"], ["tasa_estadistica_pct", "tasa de estadística"], ["arancel_otros_pct", "arancel / otros"],
+  ["iva_pct", "IVA"], ["iva_adicional_pct", "IVA adicional"], ["percepcion_ganancias_pct", "percepción de ganancias"], ["ingresos_brutos_pct", "ingresos brutos"],
+] as const;
+
+/** Pestaña Costo: NCM, alícuotas del despacho y notas (una fila por producto). */
+export async function accionGuardarCosto(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  await intentar(ficha(pid, fd), async () => {
+    await productoDe(s.org.id, pid);
+    const pcts = PCT_COSTO.map(([k, t]) => {
+      const n = numero(fd, k);
+      if (n != null && (n < 0 || n > 100)) throw new ErrorErp(`El ${t} va de 0 a 100 %.`);
+      return n;
+    });
+    const ncm = texto(fd, "ncm")?.toUpperCase().replace(/\s+/g, "") ?? null;
+    if (ncm && ncm.length > 20) throw new ErrorErp("La posición arancelaria es muy larga (ej. 8516.79.90.990X).");
+    await consulta(`
+      insert into producto_costo (producto_id, organizacion_id, ncm, ${PCT_COSTO.map(([k]) => k).join(", ")}, notas, actualizado_ts)
+      values ($1, $2, $3, ${PCT_COSTO.map((_, i) => `$${i + 4}`).join(", ")}, $${PCT_COSTO.length + 4}, now())
+      on conflict (producto_id) do update set ncm = excluded.ncm, ${PCT_COSTO.map(([k]) => `${k} = excluded.${k}`).join(", ")},
+        notas = excluded.notas, actualizado_ts = now()`,
+      [pid, s.org.id, ncm, ...pcts, texto(fd, "notas")]);
+    revalidatePath(`${LISTADO}/${pid}`);
+    return "Costo de importación guardado.";
   });
 }
 

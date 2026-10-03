@@ -13,6 +13,7 @@ import {
 import { fecha, fechaHora } from "@/app/ventas/formato";
 import { LOGISTICA, ESTADO_ENVIO, SUBESTADO_ENVIO, TONO_ENVIO, PESTANAS, esPestana, type Pestana } from "./formato";
 import { AccionesExcel } from "@/app/listas/piezas";
+import Pestanas from "@/app/componentes/Pestanas";
 import { LISTA_ENVIOS, CONDICION_ENVIOS } from "./lista";
 
 export const dynamic = "force-dynamic";
@@ -37,8 +38,9 @@ export default async function Envios({ searchParams }: { searchParams: Promise<S
 
   const canales = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from canal where organizacion_id = $1 and id in (select canal_id from envio where organizacion_id = $1) order by nombre", [s.org.id]);
-  const cuenta = await consulta<{ despachar: number }>(
-    `select count(*)::int despachar from envio e where e.organizacion_id = $1 and ${CONDICION_ENVIOS.despachar}`, [s.org.id]);
+  const [cuenta] = await consulta<Record<Pestana, number>>(
+    `select ${PESTANAS.map(([k]) => `count(*) filter (where ${CONDICION_ENVIOS[k]})::int ${k}`).join(", ")}
+       from envio e where e.organizacion_id = $1`, [s.org.id]);
 
   const base = await LISTA_ENVIOS.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
   const { filas, total } = await consultaPaginada<Fila>({
@@ -63,14 +65,10 @@ export default async function Envios({ searchParams }: { searchParams: Promise<S
     <Pantalla titulo="Envíos" subtitulo="Los envíos de los pedidos y sus etiquetas"
       acciones={<AccionesExcel lista={LISTA_ENVIOS} org={s.org.id} />}>
       <Avisos sp={sp} />
-      <nav className="flex gap-1 border-b border-[#E3E9F0] mb-3">
-        {PESTANAS.map(([k, texto]) => (
-          <Link key={k} href={url("/ventas/envios", { ver: k === "despachar" ? null : k, canal: canal || null, q })}
-            className={`px-3 py-2 text-xs font-bold -mb-px border-b-2 rounded-t-lg ${ver === k ? "border-[#16577F] text-[#16577F] bg-white" : "border-transparent text-[#5C6B76] hover:text-[#16577F]"}`}>
-            {texto}{k === "despachar" && cuenta[0]?.despachar ? ` (${cuenta[0].despachar})` : ""}
-          </Link>
-        ))}
-      </nav>
+      <Pestanas className="mb-3" items={PESTANAS.map(([k, texto]) => ({
+        clave: k, texto, activa: ver === k, cuenta: cuenta?.[k] ?? 0,
+        href: url("/ventas/envios", { ver: k === "despachar" ? null : k, canal: canal || null, q }),
+      }))} />
 
       <form className="flex flex-wrap items-end gap-2 mb-3">
         {ver !== "despachar" && <input type="hidden" name="ver" value={ver} />}

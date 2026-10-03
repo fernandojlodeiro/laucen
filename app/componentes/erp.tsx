@@ -12,6 +12,7 @@ import { tienePermiso, type PermisoKey } from "@/lib/permisos";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { monedaVista, type Moneda } from "@/lib/moneda";
 import Camino, { type Paso } from "@/app/componentes/Camino";
+import { VERDE, SUAVE } from "@/app/botones";
 
 /** Entrada común a toda pantalla del ERP: tablas aseguradas, sesión, permiso
  *  de la función (si falta, vuelve al panel) y la moneda en que ve el usuario. */
@@ -70,6 +71,40 @@ export const LAPIZ = "inline-block text-sm leading-none rounded-lg px-2 py-1.5 b
 
 export function Lapiz({ href, etiqueta = "Editar" }: { href: string; etiqueta?: string }) {
   return <Link href={href} className={LAPIZ} aria-label={etiqueta} title={etiqueta} scroll={false}>✏️</Link>;
+}
+
+/** Las fichas abren en modo vista (AGENTS.md): se edita con `?editar=1`. */
+export const editandoFicha = (sp: { editar?: string }) => sp.editar === "1";
+
+/** Los botones de una ficha, arriba a la derecha (en `acciones` de Pantalla,
+ *  al lado de "Nuevo …"): en vista, el lápiz; editando, "Grabar" —que manda
+ *  el formulario de la ficha desde el encabezado con el atributo `form`— y
+ *  "Cancelar", que vuelve a la vista sin grabar. */
+export function BotonesFicha({ editando, ver, editar, form = "ficha" }: { editando: boolean; ver: string; editar: string; form?: string }) {
+  if (!editando) return <Lapiz href={editar} />;
+  return (
+    <>
+      <button type="submit" form={form} className={VERDE}>Grabar</button>
+      <Link href={ver} className={SUAVE} scroll={false}>Cancelar</Link>
+    </>
+  );
+}
+
+/** Un dato de una ficha en modo vista: la etiqueta y el valor (sin campos).
+ *  Vacío, una raya. Los números, a la derecha. */
+export function Dato({ etiqueta, children, numero = false, ayuda, className = "" }: {
+  etiqueta: React.ReactNode; children?: React.ReactNode; numero?: boolean; ayuda?: React.ReactNode; className?: string;
+}) {
+  const vacio = children == null || children === "" || children === false;
+  return (
+    <div className={className}>
+      <span className={ETIQUETA}>{etiqueta}</span>
+      <div className={`text-xs py-1.5 min-h-[30px] break-words ${numero ? "text-right tabular-nums" : ""}`}>
+        {vacio ? <span className="text-[#5C6B76]">—</span> : children}
+      </div>
+      {ayuda && <span className="block text-[10px] text-[#5C6B76] mt-0.5">{ayuda}</span>}
+    </div>
+  );
 }
 
 /** Un estado dibujado como etiqueta (no se clickea). */

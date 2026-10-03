@@ -3,6 +3,7 @@
 // ordenable con link a la ficha de la NCM y del importador.
 
 import Link from "next/link";
+import Pestanas from "@/app/componentes/Pestanas";
 import { pool } from "@/db";
 import { periodoLindo, periodosCargados, sumarMeses } from "@/lib/arca/filtro";
 import { VIAS, nombre, referencias, type Refs } from "@/lib/arca/consultas";
@@ -234,14 +235,7 @@ export default async function Descubrir({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <nav className="flex gap-1 border-b border-[#E3E9F0] mb-3 overflow-x-auto">
-        {CONSULTAS.map((c) => (
-          <Link key={c.clave} href={`/importaciones/descubrir?q=${c.clave}`}
-            className={`px-3 py-1.5 text-xs font-bold -mb-px border-b-2 rounded-t-lg whitespace-nowrap ${consulta === c.clave ? "border-[#16577F] text-[#16577F] bg-white" : "border-transparent text-[#5C6B76] hover:text-[#16577F]"}`}>
-            {c.texto}
-          </Link>
-        ))}
-      </nav>
+      <Pestanas className="mb-3" items={CONSULTAS.map((c) => ({ clave: c.clave, texto: c.texto, activa: consulta === c.clave, href: `/importaciones/descubrir?q=${c.clave}` }))} />
       {cuerpo}
     </>
   );

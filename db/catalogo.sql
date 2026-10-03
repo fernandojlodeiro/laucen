@@ -339,3 +339,27 @@ returns text language sql stable as $$
     from variacion v join producto p on p.id = v.producto_id
    where v.id = p_variacion
 $$;
+
+-- Costo de importación estimado de cada producto (pestaña "Costo" de la
+-- ficha): la posición arancelaria y las alícuotas del despacho. Con el FOB de
+-- la variación da el costo puesto en depósito estimado = FOB × (1 + derecho +
+-- tasa de estadística + arancel/otros). IVA, IVA adicional, percepción de
+-- ganancias e ingresos brutos son crédito fiscal: se muestran aparte y NO se
+-- suman al costo (igual que en despacho_importacion, db/administracion.sql).
+create table if not exists producto_costo (
+  producto_id               bigint primary key references producto(id) on delete cascade,
+  organizacion_id           text not null references organizaciones(id) on delete cascade,
+  ncm                       text,                                  -- posición arancelaria (ej. 8516.79.90.990X)
+  derecho_pct               numeric(6, 2) check (derecho_pct between 0 and 100),
+  tasa_estadistica_pct      numeric(6, 2) check (tasa_estadistica_pct between 0 and 100),
+  arancel_otros_pct         numeric(6, 2) check (arancel_otros_pct between 0 and 100),
+  iva_pct                   numeric(6, 2) check (iva_pct between 0 and 100),
+  iva_adicional_pct         numeric(6, 2) check (iva_adicional_pct between 0 and 100),
+  percepcion_ganancias_pct  numeric(6, 2) check (percepcion_ganancias_pct between 0 and 100),
+  ingresos_brutos_pct       numeric(6, 2) check (ingresos_brutos_pct between 0 and 100),
+  notas                     text,
+  actualizado_ts            timestamptz not null default now()
+);
+create index if not exists producto_costo_org on producto_costo (organizacion_id);
+alter table producto_costo enable row level security;
+select erp_politica_org('producto_costo');

@@ -4,27 +4,21 @@
 // están), botón que se bloquea mientras corre, y el tacho que pregunta ahí
 // mismo "Sí / No".
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { BORRAR, SUAVE, ICONO_BORRAR } from "@/app/botones";
+import BarraPestanas from "@/app/componentes/Pestanas";
 
-export function Pestanas({ items }: { items: { href: string; texto: string }[] }) {
+/** Pestañas que saben en qué página están (dibujo: app/componentes/Pestanas.tsx). */
+export function Pestanas({ items }: { items: { href: string; texto: string; cuenta?: number | null }[] }) {
   const ruta = usePathname();
   return (
-    <nav className="flex gap-1 border-b border-[#E3E9F0] mb-4">
-      {items.map((i) => {
-        // La primera pestaña es la raíz de la sección: sólo se prende exacta.
-        const activa = i.href === items[0].href ? ruta === i.href : ruta.startsWith(i.href);
-        return (
-          <Link key={i.href} href={i.href}
-            className={`px-3 py-2 text-xs font-bold -mb-px border-b-2 rounded-t-lg ${activa ? "border-[#16577F] text-[#16577F] bg-white" : "border-transparent text-[#5C6B76] hover:text-[#16577F]"}`}>
-            {i.texto}
-          </Link>
-        );
-      })}
-    </nav>
+    <BarraPestanas items={items.map((i) => ({
+      ...i,
+      // La primera pestaña es la raíz de la sección: sólo se prende exacta.
+      activa: i.href === items[0].href ? ruta === i.href : ruta.startsWith(i.href),
+    }))} />
   );
 }
 

@@ -4,6 +4,7 @@
 // usan el stock, la pausa y los pedidos.
 
 import Link from "next/link";
+import Pestanas from "@/app/componentes/Pestanas";
 import { leerOrden, leerPagina, POR_PAGINA } from "@/lib/lista";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import FotosProducto from "@/app/componentes/FotosProducto";
@@ -142,14 +143,10 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
         <p className="text-xs text-[#5C6B76] mb-3">Todavía no se trajo nada de este canal: apretá &quot;Traer publicaciones de ML&quot;.</p>
       )}
 
-      <nav className="flex gap-1 border-b border-[#E3E9F0] mb-3">
-        {pestanas.map((p) => (
-          <Link key={p.ver} href={ir({ ver: p.ver === "sin" ? null : p.ver })}
-            className={`px-3 py-2 text-xs font-bold -mb-px border-b-2 rounded-t-lg ${ver === p.ver ? "border-[#16577F] text-[#16577F] bg-white" : "border-transparent text-[#5C6B76] hover:text-[#16577F]"}`}>
-            {p.texto}
-          </Link>
-        ))}
-      </nav>
+      <Pestanas className="mb-3" items={pestanas.map((p) => ({
+        clave: p.ver, texto: p.texto, activa: ver === p.ver, href: ir({ ver: p.ver === "sin" ? null : p.ver }),
+        cuenta: p.ver === "sin" ? resumen.total - resumen.vinculadas : p.ver === "vinc" ? resumen.vinculadas : resumen.total,
+      }))} />
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por título, SKU o MLA…" />

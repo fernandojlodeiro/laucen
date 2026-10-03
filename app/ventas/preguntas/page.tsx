@@ -6,6 +6,7 @@ import Link from "next/link";
 import { consulta, una } from "@/lib/erp/base";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
+import Pestanas from "@/app/componentes/Pestanas";
 import { entrarErp, Pantalla, Avisos, Estado, url, CAJA, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
 import {
@@ -28,22 +29,15 @@ function haceCuanto(d: Date | string): string {
   return `hace ${dias} día${dias === 1 ? "" : "s"}`;
 }
 
-function Pestana({ href, activa, chica, children }: { href: string; activa: boolean; chica?: boolean; children: React.ReactNode }) {
-  return (
-    <Link href={href} className={`${chica ? "px-2 py-1 text-[11px]" : "px-3 py-2 text-xs"} font-bold -mb-px border-b-2 rounded-t-lg ${activa ? "border-[#16577F] text-[#16577F] bg-white" : "border-transparent text-[#5C6B76] hover:text-[#16577F]"}`}>
-      {children}
-    </Link>
-  );
-}
-
 export default async function PreguntasYMensajes({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("preguntas_ver");
   const sp = await searchParams;
   const ver = sp.ver === "mensajes" ? "mensajes" : sp.ver === "respondidas" ? "respondidas" : "preguntas";
-  const cuentas = await consulta<{ pendientes: number; sin_leer: number }>(`
+  const cuentas = await consulta<{ pendientes: number; respondidas: number; sin_leer: number }>(`
     select (select count(*) from meli_pregunta where organizacion_id = $1 and estado = 'UNANSWERED')::int pendientes,
+           (select count(*) from meli_pregunta where organizacion_id = $1 and estado = 'ANSWERED')::int respondidas,
            (select count(*) from meli_conversacion where organizacion_id = $1 and sin_leer > 0)::int sin_leer`, [s.org.id]);
-  const { pendientes, sin_leer } = cuentas[0] ?? { pendientes: 0, sin_leer: 0 };
+  const { pendientes, respondidas, sin_leer } = cuentas[0] ?? { pendientes: 0, respondidas: 0, sin_leer: 0 };
 
   return (
     <Pantalla titulo="Preguntas y mensajes" subtitulo="Lo que preguntan y escriben los compradores de Mercado Libre, de todas las cuentas"
@@ -51,17 +45,18 @@ export default async function PreguntasYMensajes({ searchParams }: { searchParam
         <form action={accionTraerPreguntas}><BotonEnviar clase={SUAVE} corriendo="Trayendo…">Traer preguntas ahora</BotonEnviar></form>
       )}>
       <Avisos sp={sp} />
-      <nav className="flex gap-1 border-b border-[#E3E9F0] mb-4">
-        <Pestana href="/ventas/preguntas" activa={ver !== "mensajes"}>Preguntas{pendientes ? ` (${pendientes})` : ""}</Pestana>
-        <Pestana href="/ventas/preguntas?ver=mensajes" activa={ver === "mensajes"}>Mensajes{sin_leer ? ` (${sin_leer})` : ""}</Pestana>
-      </nav>
+      {/* La cuenta de cada pestaña es lo que espera: preguntas sin responder, conversaciones sin leer. */}
+      <Pestanas items={[
+        { href: "/ventas/preguntas", texto: "Preguntas", activa: ver !== "mensajes", cuenta: pendientes },
+        { href: "/ventas/preguntas?ver=mensajes", texto: "Mensajes", activa: ver === "mensajes", cuenta: sin_leer },
+      ]} />
       {ver === "mensajes" ? <Mensajes org={s.org.id} pack={sp.pack} />
         : (
           <>
-            <nav className="flex gap-1 border-b border-[#E3E9F0] mb-3">
-              <Pestana href="/ventas/preguntas" activa={ver === "preguntas"} chica>Sin responder</Pestana>
-              <Pestana href="/ventas/preguntas?ver=respondidas" activa={ver === "respondidas"} chica>Respondidas</Pestana>
-            </nav>
+            <Pestanas chica className="mb-3" items={[
+              { href: "/ventas/preguntas", texto: "Sin responder", activa: ver === "preguntas", cuenta: pendientes },
+              { href: "/ventas/preguntas?ver=respondidas", texto: "Respondidas", activa: ver === "respondidas", cuenta: respondidas },
+            ]} />
             {ver === "preguntas" ? <SinResponder org={s.org.id} /> : <Respondidas org={s.org.id} />}
           </>
         )}

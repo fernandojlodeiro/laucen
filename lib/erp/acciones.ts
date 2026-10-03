@@ -43,7 +43,7 @@ export async function intentar(volver: string, fn: () => Promise<string | { ok: 
   redirect(destino);
 }
 
-/** Si el alta falló, el formulario sigue abierto con el error (AGENTS.md:
+/** Si el alta (o la edición) falló, el formulario sigue abierto con el error (AGENTS.md:
  *  el alta va detrás de "Nuevo …", y su estado está en ?nuevo=). Se toma de
  *  la pantalla desde la que se mandó (la dirección de origen del pedido),
  *  siempre que se vuelva a esa misma pantalla. Vale para todas las acciones
@@ -53,11 +53,14 @@ async function conAltaAbierta(destino: string): Promise<string> {
     const origen = (await headers()).get("referer");
     if (!origen) return destino;
     const de = new URL(origen);
-    const nuevo = de.searchParams.get("nuevo");
     const [base, query = ""] = destino.split("?");
-    if (!nuevo || de.pathname !== base) return destino;
+    if (de.pathname !== base) return destino;
     const p = new URLSearchParams(query);
-    if (!p.has("nuevo")) p.set("nuevo", nuevo);
+    // También la ficha que se estaba editando (?editar=) sigue en edición.
+    for (const k of ["nuevo", "editar"]) {
+      const v = de.searchParams.get(k);
+      if (v && !p.has(k)) p.set(k, v);
+    }
     return `${base}?${p}`;
   } catch {
     return destino;

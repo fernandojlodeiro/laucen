@@ -12,6 +12,7 @@ import {
 import { PRIMARIO, SUAVE, VERDE, APAGAR } from "@/app/botones";
 import { TachoConfirmar, BotonConfirmar, BotonEnviar } from "@/app/radar/Cliente";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
+import Pestanas from "@/app/componentes/Pestanas";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, coincideBusqueda,
@@ -59,18 +60,20 @@ export default async function Contabilidad({ searchParams }: { searchParams: Pro
   const hasta = esFecha(sp.hasta) ? sp.hasta! : hoy;
   // La dirección actual, para volver acá después de una acción.
   const aqui = url(BASE, { p, desde: sp.desde, hasta: sp.hasta, cuenta: sp.cuenta });
+  const [cuentas] = await consulta<{ asientos: number; manuales: number; plan: number }>(`
+    select (select count(*) from asiento where organizacion_id = $1 and fecha between $2 and $3 and estado = 'vigente')::int asientos,
+           (select count(*) from asiento where organizacion_id = $1 and fecha between $2 and $3 and estado = 'vigente' and origen = 'manual')::int manuales,
+           (select count(*) from plan_cuenta where organizacion_id = $1)::int plan`, [org, desde, hasta]);
 
   return (
     <Pantalla titulo="Contabilidad" acciones={p === "plan" ? <BotonNuevo texto="Nueva cuenta" /> : undefined}
       subtitulo="Los asientos se generan solos desde las ventas, compras, despachos, recibos, movimientos de fondos y ajustes de stock; acá se ven los libros y se cargan los ajustes del contador.">
-      <nav className="flex gap-1 border-b border-[#E3E9F0] mb-4 overflow-x-auto">
-        {PESTANAS.map((x) => (
-          <Link key={x.p} href={url(BASE, { p: x.p === "diario" ? null : x.p, desde: sp.desde, hasta: sp.hasta })}
-            className={`px-3 py-2 text-xs font-bold -mb-px border-b-2 rounded-t-lg whitespace-nowrap ${p === x.p ? "border-[#16577F] text-[#16577F] bg-white" : "border-transparent text-[#5C6B76] hover:text-[#16577F]"}`}>
-            {x.texto}
-          </Link>
-        ))}
-      </nav>
+      <Pestanas items={PESTANAS.map((x) => ({
+        clave: x.p, texto: x.texto, activa: p === x.p,
+        href: url(BASE, { p: x.p === "diario" ? null : x.p, desde: sp.desde, hasta: sp.hasta }),
+        // Lo que se cuenta: los asientos del período (diario y manuales) y las cuentas del plan.
+        cuenta: x.p === "diario" ? cuentas.asientos : x.p === "manual" ? cuentas.manuales : x.p === "plan" ? cuentas.plan : null,
+      }))} />
       <Avisos sp={sp} />
       {p === "diario" && <Diario org={org} desde={desde} hasta={hasta} aqui={aqui} />}
       {p === "manual" && <Manual org={org} hoy={hoy} />}
