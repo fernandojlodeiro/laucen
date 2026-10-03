@@ -18,6 +18,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const campo = "border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-sm";
+/** En vista, el mismo marco que el campo (AGENTS.md), gris y sin foco. */
+const vista = `${campo} inline-block bg-[#F7F9FB] cursor-default`;
 
 function Fila({ titulo, ayuda, children }: { titulo: string; ayuda?: string; children: React.ReactNode }) {
   return (
@@ -33,7 +35,15 @@ function Fila({ titulo, ayuda, children }: { titulo: string; ayuda?: string; chi
 
 function Frecuencia({ prefijo, cada, unidad, desde, editando }: { prefijo: string; cada: number; unidad: string; desde: string; editando: boolean }) {
   if (!editando) {
-    return <span>cada <b className="tabular-nums">{cada}</b> {unidad === "meses" ? "meses" : "días"}, comenzando el {desde ? desde.split("-").reverse().join("/") : "—"}</span>;
+    return (
+      <>
+        <span>cada</span>
+        <span className={`${vista} w-20 text-right tabular-nums`}>{cada}</span>
+        <span className={vista}>{unidad === "meses" ? "meses" : "días"}</span>
+        <span>comenzando el</span>
+        <span className={`${vista} w-36`}>{desde ? desde.split("-").reverse().join("/") : "—"}</span>
+      </>
+    );
   }
   return (
     <>
@@ -102,7 +112,13 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
                 <CampoNumero name="tope" valor={c.topeSemanalUsd} tipo="usd" className={`${campo} w-24`} />
                 <span>por semana</span>
               </>
-            ) : <span>USD <b className="tabular-nums">{c.topeSemanalUsd}</b> por semana</span>}
+            ) : (
+              <>
+                <span>USD</span>
+                <span className={`${vista} w-24 text-right tabular-nums`}>{c.topeSemanalUsd}</span>
+                <span>por semana</span>
+              </>
+            )}
           </Fila>
           <Fila titulo="Leer tendencias" ayuda="La general y las de tus categorías seguidas (gratis). Mercado Libre las cambia una vez por semana.">
             <Frecuencia prefijo="tendencias" cada={c.tendenciasCada} unidad={c.tendenciasUnidad} desde={c.tendenciasDesde} editando={editando} />
@@ -113,7 +129,7 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
           <Fila titulo="Profundizar" ayuda="En las categorías con “Profundizar” prendido: cuántas palabras de cada grupo se buscan con Apify.">
             {editando
               ? <CampoNumero name="palabras" valor={c.palabrasAProfundizar} tipo="entero" className={`${campo} w-20`} />
-              : <b className="tabular-nums">{c.palabrasAProfundizar}</b>}
+              : <span className={`${vista} w-20 text-right tabular-nums`}>{c.palabrasAProfundizar}</span>}
             <span>primeras de cada grupo (× 2 grupos: más deseadas y más populares)</span>
           </Fila>
           <Fila titulo="Fuente de Apify" ayuda="Para “Mejorar con Apify” y para profundizar.">
@@ -125,7 +141,7 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
               </select>
             ) : (() => {
               const f = FUENTES_APIFY[c.fuenteApify as keyof typeof FUENTES_APIFY];
-              return <span>{f ? `${f.label} · ~USD ${f.costoPorPalabra.toFixed(2)} por palabra` : c.fuenteApify}</span>;
+              return <span className={vista}>{f ? `${f.label} · ~USD ${f.costoPorPalabra.toFixed(2)} por palabra` : c.fuenteApify}</span>;
             })()}
           </Fila>
           <Fila titulo="Mostrar las que salieron" ayuda="Las palabras que estaban la semana anterior y ya no.">
@@ -134,7 +150,12 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
                 <input type="checkbox" name="mostrar_salieron" defaultChecked={c.mostrarSalieron} className="h-4 w-4" />
                 <span>Mostrarlas</span>
               </label>
-            ) : <span>{c.mostrarSalieron ? "Sí, mostrarlas" : "No"}</span>}
+            ) : (
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={c.mostrarSalieron} readOnly className="h-4 w-4" />
+                <span>Mostrarlas</span>
+              </label>
+            )}
           </Fila>
         </fieldset>
       </form>

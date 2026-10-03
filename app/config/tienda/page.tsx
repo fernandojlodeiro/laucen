@@ -78,7 +78,7 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                 <Dato etiqueta="Nombre que ve el comprador">{c.nombre ?? t.nombre}</Dato>
                 <Dato etiqueta="Dirección (slug)"><span className="font-mono">{slug}</span></Dato>
                 <Dato etiqueta="Color de la marca">
-                  <span className="inline-flex items-center gap-2"><span className="inline-block h-5 w-8 rounded border border-[#E3E9F0]" style={{ background: c.color ?? "#16577F" }} />
+                  <span className="inline-flex items-center gap-2"><span className="inline-block h-4 w-8 rounded border border-[#E3E9F0]" style={{ background: c.color ?? "#16577F" }} />
                     <span className="font-mono">{c.color ?? "#16577F"}</span></span>
                 </Dato>
                 <Dato etiqueta="Productos sin stock">{c.sin_stock === "ocultar" ? "Ocultar" : "Mostrar (como \"sin stock\")"}</Dato>

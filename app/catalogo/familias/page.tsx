@@ -8,6 +8,7 @@ import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
+import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
@@ -37,7 +38,7 @@ export default async function Familias({ searchParams }: { searchParams: Promise
   const q = sp.q?.trim() ?? "";
   const comienza = sp.contiene !== "1";
   const filtros = { q: q || null, contiene: comienza ? null : "1", p: sp.p, orden: sp.orden, dir: sp.dir };
-  const [{ arbol, debajo }, cucardas, asignadas, costos, general] = await Promise.all([
+  const [{ arbol }, cucardas, asignadas, costos, general] = await Promise.all([
     familiasConDatos(s.org.id),
     consulta<{ id: number; nombre: string; color: string; estado: string }>(
       "select id::int, nombre, color, estado from cucarda where organizacion_id = $1 order by orden, nombre", [s.org.id]),
@@ -65,8 +66,9 @@ export default async function Familias({ searchParams }: { searchParams: Promise
   };
   // El buscador filtra las filas que se ven; el árbol entero sigue para elegir padre.
   const visibles = arbol.filter((f) => coincideBusqueda(f.nombre, q, comienza));
-  // Una familia propia sólo cuelga de otra propia (nunca de una de Mercado Libre).
-  const padresPosibles = arbol.filter((o) => o.propia);
+  // Una familia propia sólo cuelga de otra propia (nunca de una de Mercado Libre): ElegirFamilia con `propias`.
+  const etiquetaDe = new Map(arbol.map((o) => [o.id, o.etiqueta]));
+  const nombrePadre = (id: number) => etiquetaDe.get(id) ?? null;
   const cucardaDe = new Map(cucardas.map((c) => [c.id, c]));
   // Sin elegir columna se ve el árbol; ordenada por una columna, la lista plana.
   const ordenadas = ordenarEnMemoria(visibles, sp, {
@@ -82,10 +84,7 @@ export default async function Familias({ searchParams }: { searchParams: Promise
       <AltaNueva texto="Nueva familia" sinBoton>
         <form action={accionCrearFamilia} className="flex flex-wrap items-center gap-2">
           <input name="nombre" placeholder="Nombre (ej. Cocina)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
-          <select name="padre_id" defaultValue="" className={CAMPO} aria-label="Familia padre">
-            <option value="">Sin padre (arriba de todo)</option>
-            {padresPosibles.map((o) => <option key={o.id} value={o.id}>Dentro de {o.etiqueta}</option>)}
-          </select>
+          <ElegirFamilia name="padre_id" propias vacio="Sin padre (arriba de todo)" placeholder="Dentro de… (buscá la familia padre)" className="w-72" />
           <CampoNumero name="descuento_pct" valor={null} tipo="pct" placeholder="Desc. %" className={`${CAMPO} w-20`} />
           <button className={PRIMARIO}>Crear</button>
         </form>
@@ -128,7 +127,6 @@ export default async function Familias({ searchParams }: { searchParams: Promise
                 );
               }
               if (editar === f.id && !f.deMl) {
-                const excluidas = debajo(f.id);
                 return (
                   <tr key={f.id} className={`${TR} bg-[#FAFBFC]`}>
                     <td colSpan={7} className={TD}>
@@ -137,10 +135,8 @@ export default async function Familias({ searchParams }: { searchParams: Promise
                         <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-start">
                           <label className="col-span-2"><span className={ETIQUETA}>Nombre</span><input name="nombre" defaultValue={f.nombre} className={`${CAMPO} w-full`} autoFocus /></label>
                           <label className="col-span-2"><span className={ETIQUETA}>Familia padre</span>
-                            <select name="padre_id" defaultValue={f.padre_id ?? ""} className={`${CAMPO} w-full`}>
-                              <option value="">Ninguna (arriba de todo)</option>
-                              {padresPosibles.filter((o) => !excluidas.has(o.id)).map((o) => <option key={o.id} value={o.id}>{o.etiqueta}</option>)}
-                            </select>
+                            <ElegirFamilia name="padre_id" propias excluir={f.id} valor={f.padre_id} etiqueta={f.padre_id ? nombrePadre(f.padre_id) : null}
+                              vacio="Ninguna (arriba de todo)" />
                           </label>
                           <label><span className={ETIQUETA}>Descuento %</span>
                             <CampoNumero name="descuento_pct" valor={f.descuento_pct} tipo="pct" placeholder={formatearNumero(f.heredado, "pct")} className={`${CAMPO} w-full`} />
@@ -214,8 +210,9 @@ export default async function Familias({ searchParams }: { searchParams: Promise
                     </span>
                   </td>
                   <td className={TDN}>
-                    <Link href={url("/catalogo/productos", { familia: f.id })} className="text-[#16577F]">{f.productos}</Link>
-                    {total !== f.productos && <span className="text-[#5C6B76]"> ({total})</span>}
+                    {/* El filtro de Productos por familia incluye sus subfamilias: el número es el total. */}
+                    <Link href={url("/catalogo/productos", { familia: f.id })} className="text-[#16577F]">{total}</Link>
+                    {total !== f.productos && <span className="text-[#5C6B76]" title="Los que están en esta familia, sin contar las de abajo"> ({f.productos} propios)</span>}
                   </td>
                   <td className={`${TD} text-right whitespace-nowrap`}>
                     {f.deMl

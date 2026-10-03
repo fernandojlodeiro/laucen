@@ -8,7 +8,9 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { entrarErp, Pantalla, Avisos, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { AccionesExcel, TablaVista, paginaDeVista } from "@/app/listas/piezas";
 import { accionCrearProducto } from "./acciones";
-import { opcionesFamilias, TIPOS_PRODUCTO, ESTADOS_PRODUCTO } from "./comun";
+import { TIPOS_PRODUCTO, ESTADOS_PRODUCTO } from "./comun";
+import ElegirFamilia from "@/app/componentes/ElegirFamilia";
+import { caminoDeFamilia } from "@/lib/erp/familias";
 import { LISTA_PRODUCTOS, filtrosProductos } from "./lista";
 import { verInactivos } from "@/app/componentes/Inactivos";
 
@@ -21,7 +23,7 @@ export default async function Productos({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const { q, comienza, estado, tipo, familia, kitVs } = filtrosProductos(sp);
   const ctx = { org: s.org.id, moneda: s.moneda };
-  const [familias, vista] = await Promise.all([opcionesFamilias(s.org.id), paginaDeVista(LISTA_PRODUCTOS, ctx, sp)]);
+  const [caminoFamilia, vista] = await Promise.all([caminoDeFamilia(s.org.id, familia), paginaDeVista(LISTA_PRODUCTOS, ctx, sp)]);
 
   const hayFiltro = q || estado || tipo || familia || verInactivos(sp) || kitVs;
   return (
@@ -38,12 +40,7 @@ export default async function Productos({ searchParams }: { searchParams: Promis
               {Object.entries(TIPOS_PRODUCTO).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
             </select>
           </label>
-          <label><span className={ETIQUETA}>Familia</span>
-            <select name="familia_id" className={CAMPO} defaultValue="">
-              <option value="">Sin familia</option>
-              {familias.map((f) => <option key={f.id} value={f.id}>{f.etiqueta}</option>)}
-            </select>
-          </label>
+          <div className="w-72"><span className={ETIQUETA}>Familia</span><ElegirFamilia name="familia_id" /></div>
           <button className={PRIMARIO}>Crear</button>
           <span className="text-[11px] text-[#5C6B76] self-center">Al crearlo se abre su ficha.</span>
         </form>
@@ -55,10 +52,7 @@ export default async function Productos({ searchParams }: { searchParams: Promis
           <option value="">Todos los estados</option>
           {Object.entries(ESTADOS_PRODUCTO).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
         </FiltroVivo>
-        <FiltroVivo parametro="familia" valor={familia ? String(familia) : ""} etiqueta="Familia">
-          <option value="">Todas las familias</option>
-          {familias.map((f) => <option key={f.id} value={f.id}>{f.etiqueta}</option>)}
-        </FiltroVivo>
+        <ElegirFamilia parametro="familia" valor={familia || null} etiqueta={caminoFamilia} vacio="Todas las familias" className="w-72" />
         <FiltroVivo parametro="tipo" valor={tipo} etiqueta="Tipo">
           <option value="">Todos los tipos</option>
           {Object.entries(TIPOS_PRODUCTO).map(([k, t]) => <option key={k} value={k}>{t}</option>)}

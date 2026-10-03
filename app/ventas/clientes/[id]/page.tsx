@@ -176,7 +176,7 @@ export default async function FichaCliente({ params, searchParams }: { params: P
           <Dato etiqueta="Lista de precios propia" ayuda="Para mayoristas. Vacío = la del canal.">
             {c.lista_precios_id ? listas.find((l) => l.id === c.lista_precios_id)?.nombre ?? null : "La del canal"}
           </Dato>
-          <Dato etiqueta="Notas" className="sm:col-span-3">{c.notas && <span className="block whitespace-pre-wrap">{c.notas}</span>}</Dato>
+          <Dato etiqueta="Notas" className="sm:col-span-3" largo>{c.notas}</Dato>
           <Dato etiqueta="Cuenta corriente" className="sm:col-span-3">
             {c.cuenta_corriente ? "Puede comprar en cuenta corriente / a convenir" : "No compra en cuenta corriente"}
           </Dato>

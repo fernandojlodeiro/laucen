@@ -18,7 +18,7 @@ import {
 } from "@/app/componentes/erp";
 import { fecha } from "@/app/ventas/formato";
 import { TIPOS_MEDIO } from "@/app/config/medios-pago/comun";
-import { arbolFamilias } from "@/app/config/cuotas/familias";
+import { caminoDeFamilia } from "@/lib/erp/familias";
 import CamposRegla from "./CamposRegla";
 import { enCriollo, formaDe, type Condicion, type Accion, type TipoAccion } from "./comun";
 import { AccionesExcel } from "@/app/listas/piezas";
@@ -42,17 +42,18 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
   const comienza = sp.contiene !== "1";
   const filtros = { q: q || null, contiene: comienza ? null : "1", p: sp.p, orden: sp.orden, dir: sp.dir };
   const base = await LISTA_REGLAS.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
-  const [reglas, familias, mediosDb] = await Promise.all([
+  const [reglas, mediosDb] = await Promise.all([
     consulta<Regla>(`
       select r.id::int, r.nombre, r.activa, r.condicion, r.accion, to_char(r.desde, 'YYYY-MM-DD') desde, to_char(r.hasta, 'YYYY-MM-DD') hasta,
              r.acumulable, r.prioridad, p.id::int producto_id, f.id::int familia_id, p.titulo producto, p.sku_base sku, f.nombre familia, m.nombre medio
         from ${base.desde} where ${base.donde} order by ${base.orden}`, base.valores),
-    arbolFamilias(s.org.id),
     consulta<{ tipo: string; nombre: string }>("select tipo, nombre from medio_pago where organizacion_id = $1 and canal_id is null order by orden, id", [s.org.id]),
   ]);
   // Los cinco medios siempre (con el nombre que les puso la organización, si ya existen).
   const medios = Object.entries(TIPOS_MEDIO).map(([tipo, t]) => ({ tipo, nombre: mediosDb.find((m) => m.tipo === tipo)?.nombre ?? t.nombre }));
-  const opcFamilias = familias.map((f) => ({ id: f.id, nombre: f.nombre, nivel: f.nivel }));
+  // La familia de la regla que se está editando, con su camino (el buscador la muestra así).
+  const enEdicion = reglas.find((r) => r.id === editar);
+  const caminoEditada = await caminoDeFamilia(s.org.id, enEdicion?.condicion.familia_id ?? null);
   const hoy = hoyAR();
   const vista = paginarEnMemoria(ordenarEnMemoria(reglas, sp, {
     nombre: (r) => r.nombre, activa: (r) => (r.activa ? 1 : 0), desde: (r) => r.desde, acumulable: (r) => (r.acumulable ? 1 : 0), prioridad: (r) => r.prioridad,
@@ -79,7 +80,7 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
         <form action={accionCrearRegla} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-start">
           <label className="col-span-2"><span className={ETIQUETA}>Nombre</span>
             <input name="nombre" placeholder="Ej. 3 placas 10 % off" className={`${CAMPO} w-full`} autoFocus /></label>
-          <CamposRegla familias={opcFamilias} medios={medios} />
+          <CamposRegla medios={medios} />
           <Fechas />
           <div className="col-span-2 sm:col-span-6"><button className={PRIMARIO}>Crear</button></div>
         </form>
@@ -106,7 +107,7 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
                       <input name="nombre" defaultValue={r.nombre} className={`${CAMPO} w-full`} autoFocus /></label>
                     <CamposRegla forma={formaDe(r.condicion)} cantidad={r.condicion.cantidad} sku={r.sku} familiaId={r.condicion.familia_id}
                       monto={r.condicion.monto} medio={r.condicion.medio} accion={r.accion.tipo as TipoAccion} valor={r.accion.valor}
-                      familias={opcFamilias} medios={medios} />
+                      familiaEtiqueta={caminoEditada} medios={medios} />
                     <Fechas r={r} />
                     <div className="col-span-2 sm:col-span-6 flex gap-2">
                       <button className={VERDE}>Guardar</button>

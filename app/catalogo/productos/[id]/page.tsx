@@ -49,7 +49,11 @@ export default async function FichaProducto({ params, searchParams }: { params: 
 
   // Lo que cuenta cada pestaña, entre paréntesis.
   const n = (await una<Record<string, number>>(`
-    select (select count(*) from variacion v where v.producto_id = $2 and v.organizacion_id = $1)::int variaciones,
+    -- Variaciones: la única default sin atributos no cuenta (el producto se maneja como uno solo).
+    select (select case when count(*) <= 1 and not exists (select 1 from variacion_atributo a join variacion v2 on v2.id = a.variacion_id
+                                                            where v2.producto_id = $2 and v2.organizacion_id = $1)
+                        then 0 else count(*) end
+              from variacion v where v.producto_id = $2 and v.organizacion_id = $1)::int variaciones,
            (select count(*) from producto_atributo a where a.producto_id = $2 and a.organizacion_id = $1)::int atributos,
            ((select count(*) from producto_foto f where f.producto_id = $2 and f.organizacion_id = $1)
             + (select count(*) from variacion_foto f join variacion v on v.id = f.variacion_id where v.producto_id = $2 and f.organizacion_id = $1))::int fotos,
@@ -67,7 +71,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
   const secciones: [string, string, number | null][] = [
     ["datos", "Datos", null],
     ["costo", "Costo", null],
-    ["variaciones", p.tipo === "con_variaciones" ? "Variaciones" : "Variación", n.variaciones ?? 0],
+    ["variaciones", "Variaciones", n.variaciones ?? 0],
     ["atributos", "Atributos", n.atributos ?? 0],
     ["fotos", "Fotos", n.fotos ?? 0],
     ["cucardas", "Cucardas", n.cucardas ?? 0],

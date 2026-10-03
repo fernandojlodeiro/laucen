@@ -93,7 +93,11 @@ Editar y borrar en una lista o tabla:
   sus campos editables ahí mismo, nunca un panel aparte ni una ventana.
 
 Fichas (pedido de Fer, 3/10): **toda ficha abre en modo vista** — los datos a la vista, sin
-campos. Se edita apretando el **lápiz arriba a la derecha**, al lado de "Nuevo …"; en edición, en
+campos editables, pero **en modo vista los datos se ven en los mismos marcos que en edición**
+(mismo borde, alto, relleno y alineación —números a la derecha—, fondo gris claro, sin cursor):
+pasar de vista a edición no mueve nada. Vacío, "—" adentro del marco; un texto largo, en un marco
+como el del textarea, con sus saltos de línea y desplazamiento si es muy largo (`Dato … largo`).
+Un valor suelto fuera de `Dato`, con `ValorVista`; una caja para tildar, deshabilitada. Se edita apretando el **lápiz arriba a la derecha**, al lado de "Nuevo …"; en edición, en
 ese mismo lugar quedan **"Grabar"** y "Cancelar" (vuelve a la vista sin grabar). Nunca un "Guardar"
 al pie del formulario: **Nuevo, Lápiz y Grabar viven siempre arriba a la derecha** (en `acciones`
 de `Pantalla`; si la ficha tiene varias cajas que se graban por separado, en el título de cada caja,
@@ -164,6 +168,11 @@ Buscadores (pedido de Fer, 2/10):
 - **Todo ABM tiene su buscador.**
 - **Donde se pide una ubicación, se elige con buscador** (`app/componentes/ElegirUbicacion.tsx`),
   nunca un desplegable: son cientos.
+- **Donde se elige una categoría (familia), con buscador (`app/componentes/ElegirFamilia.tsx`),
+  nunca desplegable**: son miles (el árbol de Mercado Libre). Busca en el servidor mientras se
+  tipea, por nombre o camino ("Electrónica › Componentes"), y muestra el camino. Sirve para un
+  formulario (`name`), para un filtro de lista (`parametro`) y para elegir padre (`propias`,
+  `excluir`). El filtro por familia incluye sus subfamilias.
 - Busca mientras se tipea (desde la segunda letra), sin botón "Buscar" ni "Limpiar": una X
   adentro del cuadro borra lo escrito. Con la caja **"Comienza por"**, tildada de entrada
   (coincidencia al principio del texto; destildada, en cualquier parte). Componente:

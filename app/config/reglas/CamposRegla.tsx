@@ -5,15 +5,16 @@
 
 import { useState } from "react";
 import CampoNumero from "@/app/componentes/CampoNumero";
+import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import { CONDICIONES, ACCIONES, type FormaCondicion, type TipoAccion } from "./comun";
 
 const CAMPO = "border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs bg-white";
 const ETIQUETA = "block text-[11px] font-semibold text-[#5C6B76] mb-0.5";
 
-export default function CamposRegla({ forma, cantidad, sku, familiaId, monto, medio, accion, valor, familias, medios }: {
-  forma?: FormaCondicion; cantidad?: number | null; sku?: string | null; familiaId?: number | null; monto?: number | null; medio?: string | null;
+export default function CamposRegla({ forma, cantidad, sku, familiaId, familiaEtiqueta, monto, medio, accion, valor, medios }: {
+  forma?: FormaCondicion; cantidad?: number | null; sku?: string | null; familiaId?: number | null; familiaEtiqueta?: string | null; monto?: number | null; medio?: string | null;
   accion?: TipoAccion; valor?: number | null;
-  familias: { id: number; nombre: string; nivel: number }[]; medios: { tipo: string; nombre: string }[];
+  medios: { tipo: string; nombre: string }[];
 }) {
   const [f, setF] = useState<FormaCondicion>(forma ?? "cantidad_familia");
   const [a, setA] = useState<TipoAccion>(accion ?? "descuento_pct");
@@ -33,11 +34,8 @@ export default function CamposRegla({ forma, cantidad, sku, familiaId, monto, me
           <input name="sku" defaultValue={sku ?? ""} placeholder="Ej. PL-001" className={`${CAMPO} w-full font-mono`} /></label>
       )}
       {f === "cantidad_familia" && (
-        <label><span className={ETIQUETA}>Familia</span>
-          <select name="familia_id" defaultValue={familiaId ?? ""} className={`${CAMPO} w-full`}>
-            <option value="">Elegí…</option>
-            {familias.map((x) => <option key={x.id} value={x.id}>{"  ".repeat(x.nivel)}{x.nombre}</option>)}
-          </select></label>
+        <div className="col-span-2"><span className={ETIQUETA}>Familia</span>
+          <ElegirFamilia name="familia_id" valor={familiaId ?? null} etiqueta={familiaEtiqueta} vacio="Elegí…" /></div>
       )}
       {f === "monto_minimo" && (
         <label><span className={ETIQUETA}>Desde $</span>

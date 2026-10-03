@@ -1,6 +1,5 @@
 // Piezas que comparten el listado y la ficha de productos (y Familias).
 
-import { consulta } from "@/lib/erp/base";
 import { Estado } from "@/app/componentes/erp";
 
 export const TIPOS_PRODUCTO: Record<string, string> = { simple: "Simple", con_variaciones: "Con variaciones", kit: "Kit" };
@@ -21,7 +20,6 @@ export function condicionDe(c: string | null | undefined): string {
   return ({ new: "nuevo", used: "usado", refurbished: "reacondicionado" } as Record<string, string>)[k] ?? (Object.hasOwn(CONDICIONES, k) ? k : "");
 }
 
-export type FamiliaArbol = { id: number; padre_id: number | null; nombre: string; nivel: number; etiqueta: string };
 
 /** Ordena las familias como árbol (cada una debajo de su padre) y les pone
  *  nivel y etiqueta ("Padre › Hija"). Una familia cuyo padre no aparece
@@ -47,11 +45,4 @@ export function ordenarArbol<T extends { id: number; padre_id: number | null; no
   recorrer(null, 0, "");
   for (const f of familias) if (!vistos.has(f.id)) salida.push({ ...f, nivel: 0, etiqueta: f.nombre });
   return salida;
-}
-
-/** Las familias de la organización, como árbol, para los desplegables. */
-export async function opcionesFamilias(org: string): Promise<FamiliaArbol[]> {
-  const filas = await consulta<{ id: number; padre_id: number | null; nombre: string }>(
-    "select id::int, padre_id::int, nombre from familia where organizacion_id = $1", [org]);
-  return ordenarArbol(filas);
 }

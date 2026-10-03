@@ -102,18 +102,36 @@ export function BotonesFicha({ editando, ver, editar, form = "ficha" }: { editan
   );
 }
 
-/** Un dato de una ficha en modo vista: la etiqueta y el valor (sin campos).
- *  Vacío, una raya. Los números, a la derecha. */
-export function Dato({ etiqueta, children, numero = false, ayuda, className = "" }: {
-  etiqueta: React.ReactNode; children?: React.ReactNode; numero?: boolean; ayuda?: React.ReactNode; className?: string;
+/** El marco de un dato en modo vista (AGENTS.md: en modo vista los datos se
+ *  ven en los mismos marcos que en edición): mismo borde, radio, alto y
+ *  relleno que CAMPO, con fondo gris claro, sin cursor ni foco. */
+export const VISTA = "block border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs leading-4 bg-[#F7F9FB] min-h-[30px] cursor-default break-words";
+/** El marco de un texto largo en vista (como el textarea): saltos de línea y desplazamiento si es muy largo. */
+export const VISTA_LARGA = `${VISTA} whitespace-pre-wrap leading-relaxed max-h-80 overflow-auto`;
+
+/** Un valor suelto dibujado en su marco de vista (para fichas que no usan Dato).
+ *  Vacío, una raya adentro del marco. */
+export function ValorVista({ children, numero = false, largo = false, className = "" }: {
+  children?: React.ReactNode; numero?: boolean; largo?: boolean; className?: string;
 }) {
   const vacio = children == null || children === "" || children === false;
   return (
+    <div className={`${largo ? VISTA_LARGA : VISTA} ${numero ? "text-right tabular-nums" : ""} ${className}`}>
+      {vacio ? <span className="text-[#5C6B76]">—</span> : children}
+    </div>
+  );
+}
+
+/** Un dato de una ficha en modo vista: la etiqueta y el valor en el mismo
+ *  marco que su campo en edición (sólo lectura). Vacío, una raya adentro del
+ *  marco. Los números, a la derecha. `largo`: texto de varios renglones. */
+export function Dato({ etiqueta, children, numero = false, largo = false, ayuda, className = "" }: {
+  etiqueta: React.ReactNode; children?: React.ReactNode; numero?: boolean; largo?: boolean; ayuda?: React.ReactNode; className?: string;
+}) {
+  return (
     <div className={className}>
       <span className={ETIQUETA}>{etiqueta}</span>
-      <div className={`text-xs py-1.5 min-h-[30px] break-words ${numero ? "text-right tabular-nums" : ""}`}>
-        {vacio ? <span className="text-[#5C6B76]">—</span> : children}
-      </div>
+      <ValorVista numero={numero} largo={largo}>{children}</ValorVista>
       {ayuda && <span className="block text-[10px] text-[#5C6B76] mt-0.5">{ayuda}</span>}
     </div>
   );

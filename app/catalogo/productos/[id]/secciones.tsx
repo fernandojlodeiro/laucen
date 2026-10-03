@@ -13,16 +13,18 @@ import CampoNumero from "@/app/componentes/CampoNumero";
 import { costoDeProducto, resolver, calcular, PCT_CREDITO } from "@/lib/costo-importacion";
 import { CamposCosto, CajaCostoGeneral } from "../../costo-piezas";
 import {
-  Lapiz, Estado, Dato, url, editandoFicha, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  Lapiz, Estado, Dato, ValorVista, url, editandoFicha, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import {
   accionGuardarDatos, accionCrearVariacion, accionGuardarVariacion, accionBorrarVariacion,
   accionCrearAtributo, accionGuardarAtributo, accionBorrarAtributo, accionMoverFoto, accionBorrarFoto,
   accionGuardarCucardas, accionGuardarCosto, accionAgregarComponente, accionGuardarComponente, accionBorrarComponente, accionGuardarPrecio,
 } from "../acciones";
-import { opcionesFamilias, EstadoProducto, TIPOS_PRODUCTO, ESTADOS_PRODUCTO, ESTADOS_VARIACION, CONDICIONES, condicionDe } from "../comun";
+import { EstadoProducto, TIPOS_PRODUCTO, ESTADOS_PRODUCTO, ESTADOS_VARIACION, CONDICIONES, condicionDe } from "../comun";
 import SubirFoto from "../SubirFoto";
 import AltaNueva from "@/app/componentes/AltaNueva";
+import ElegirFamilia from "@/app/componentes/ElegirFamilia";
+import { caminoDeFamilia } from "@/lib/erp/familias";
 
 export type Producto = {
   id: number; sku_base: string; titulo: string; descripcion: string | null; familia_id: number | null; familia: string | null;
@@ -160,7 +162,8 @@ const atributosMl = (x: unknown): AtributoMl[] => (Array.isArray(x) ? x.filter((
 const ALICUOTAS_IVA = [["21", "21 %"], ["10.5", "10,5 %"], ["27", "27 %"], ["5", "5 %"], ["2.5", "2,5 %"], ["0", "0 %"]] as const;
 
 export async function SeccionDatos({ s, p, seccion, editando }: Props) {
-  const familias = editando ? await opcionesFamilias(s.org.id) : [];
+  // La familia se elige con buscador (ElegirFamilia); se muestra con su camino.
+  const caminoFamilia = await caminoDeFamilia(s.org.id, p.familia_id);
   // La alícuota de IVA (facturación) se lee aparte: la consulta del producto está en page.tsx.
   const iva = await consulta<{ iva_pct: string }>("select iva_pct::text from producto where id = $1 and organizacion_id = $2", [p.id, s.org.id]);
   const ivaPct = String(Number(iva[0]?.iva_pct ?? 21));
@@ -185,7 +188,7 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
         <CostoDeposito v={vDefault} vista={s.moneda} />
       </div>
     ) : (
-      <Dato etiqueta="Costo FOB" className="col-span-2" ayuda={<CostoDeposito v={vDefault} vista={s.moneda} />}>
+      <Dato etiqueta="Costo FOB" className="col-span-2" numero ayuda={<CostoDeposito v={vDefault} vista={s.moneda} />}>
         {vDefault.costo_fob != null ? <span className="tabular-nums">{formatear(vDefault.costo_fob, vDefault.costo_moneda)}</span> : null}
       </Dato>
     )
@@ -200,7 +203,7 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
       <div className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 items-start`}>
         <Dato etiqueta="SKU base"><span className="font-mono">{p.sku_base}</span></Dato>
         <Dato etiqueta="Título" className="col-span-1 sm:col-span-3">{p.titulo}</Dato>
-        <Dato etiqueta="Familia">{p.familia}</Dato>
+        <Dato etiqueta="Familia">{p.familia_id && <span className="block truncate" title={caminoFamilia ?? undefined}>{caminoFamilia ?? p.familia}</span>}</Dato>
         <Dato etiqueta="Marca">{p.marca}</Dato>
         <Dato etiqueta="Tipo">{TIPOS_PRODUCTO[p.tipo] ?? p.tipo}</Dato>
         <Dato etiqueta="Estado"><EstadoProducto estado={p.estado} /></Dato>
@@ -212,8 +215,14 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
         <Dato etiqueta="Garantía">{p.garantia}</Dato>
         <Dato etiqueta="Condición">{CONDICIONES[condicionDe(p.condicion)]}</Dato>
         {costoFob}
-        <Dato etiqueta="Kit en Virtual Seller (armar a mano)" className="col-span-2">{p.kit_vs ? "Sí" : "No"}</Dato>
-        <Dato etiqueta="Precio en dólares" className="col-span-2" ayuda="Los pesos siguen al tipo de cambio del día.">{p.precio_en_dolares ? "Sí" : "No"}</Dato>
+        <label className="col-span-2 flex items-center gap-2 text-xs self-end py-1.5">
+          <input type="checkbox" disabled checked={p.kit_vs} className="h-4 w-4 accent-[#16577F]" />
+          Kit en Virtual Seller (armar a mano)
+        </label>
+        <label className="col-span-2 flex items-center gap-2 text-xs self-end py-1.5">
+          <input type="checkbox" disabled checked={p.precio_en_dolares} className="h-4 w-4 accent-[#16577F]" />
+          Precio en dólares (los pesos siguen al tipo de cambio del día)
+        </label>
         <Dato etiqueta="Peso (g)" numero>{num(p.peso_g, "entero")}</Dato>
         <Dato etiqueta="Stock mínimo" numero ayuda="Debajo de esto, avisa el panel.">{num(p.stock_minimo, "entero")}</Dato>
         <Dato etiqueta="Largo (cm)" numero>{num(p.largo_cm, "decimal")}</Dato>
@@ -224,9 +233,7 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
         <Dato etiqueta="Umbral de pausa" numero ayuda={ayudaUmbral}>{p.umbral_pausa != null ? String(p.umbral_pausa) : null}</Dato>
         <Dato etiqueta="IVA" numero ayuda={ayudaIva}>{ALICUOTAS_IVA.find(([v]) => v === ivaPct)?.[1] ?? `${ivaPct} %`}</Dato>
         <div />
-        <Dato etiqueta="Descripción larga" className="col-span-2 sm:col-span-4">
-          {p.descripcion ? <span className="block whitespace-pre-wrap leading-relaxed">{p.descripcion}</span> : null}
-        </Dato>
+        <Dato etiqueta="Descripción larga" className="col-span-2 sm:col-span-4" largo>{p.descripcion}</Dato>
       </div>
       <AtributosMl p={p} attrsMl={attrsMl} />
       </>
@@ -239,12 +246,9 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
       <Ocultos p={p} seccion={seccion} />
       <label><span className={ETIQUETA}>SKU base</span><input name="sku_base" defaultValue={p.sku_base} className={`${CAMPO} w-full font-mono`} /></label>
       <label className="col-span-1 sm:col-span-3"><span className={ETIQUETA}>Título</span><input name="titulo" defaultValue={p.titulo} className={`${CAMPO} w-full`} autoFocus /></label>
-      <label><span className={ETIQUETA}>Familia</span>
-        <select name="familia_id" defaultValue={p.familia_id ?? ""} className={`${CAMPO} w-full`}>
-          <option value="">Sin familia</option>
-          {familias.map((f) => <option key={f.id} value={f.id}>{f.etiqueta}</option>)}
-        </select>
-      </label>
+      <div><span className={ETIQUETA}>Familia</span>
+        <ElegirFamilia name="familia_id" valor={p.familia_id} etiqueta={caminoFamilia} />
+      </div>
       <label><span className={ETIQUETA}>Marca</span><input name="marca" defaultValue={p.marca ?? ""} className={`${CAMPO} w-full`} /></label>
       <label><span className={ETIQUETA}>Tipo</span>
         <select name="tipo" defaultValue={p.tipo} className={`${CAMPO} w-full`}>
@@ -363,7 +367,7 @@ export async function SeccionCosto({ s, p, sp, seccion, editando }: Props) {
             <textarea name="notas" defaultValue={propios?.notas ?? ""} rows={3} className={`${CAMPO} w-full`} />
           </label>
         ) : (
-          <Dato etiqueta="Notas">{propios?.notas && <span className="block whitespace-pre-wrap">{propios.notas}</span>}</Dato>
+          <Dato etiqueta="Notas" largo>{propios?.notas}</Dato>
         )}
       </div>
       <p className="text-[10px] text-[#5C6B76] mt-2">
@@ -440,6 +444,45 @@ export async function SeccionCosto({ s, p, sp, seccion, editando }: Props) {
 
 // ── Variaciones ───────────────────────────────────────────
 
+/** El formulario de una variación (en su fila, o en la caja de la única). */
+function FormVariacion({ s, p, seccion, v, fija, esKit, kit }: {
+  s: Props["s"]; p: Producto; seccion: string; v: Variacion; fija: boolean; esKit: boolean; kit: CostoKit | undefined;
+}) {
+  return (
+    <form action={accionGuardarVariacion} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-start">
+      <Ocultos p={p} seccion={seccion} />
+      <input type="hidden" name="id" value={v.id} />
+      <label><span className={ETIQUETA}>SKU</span>
+        {fija ? <ValorVista className="font-mono">{v.sku}</ValorVista> : <input name="sku" defaultValue={v.sku} className={`${CAMPO} w-full font-mono`} autoFocus />}
+      </label>
+      <label><span className={ETIQUETA}>Código de barras</span>
+        {fija ? <ValorVista className="font-mono">{v.codigo_barras}</ValorVista> : <input name="codigo_barras" defaultValue={v.codigo_barras ?? ""} className={`${CAMPO} w-full font-mono`} />}
+      </label>
+      <label className="col-span-2"><span className={ETIQUETA}>Atributos (nombre=valor; …)</span>
+        <input name="atributos" defaultValue={v.atributos ?? ""} placeholder="color=rojo; talle=M" className={`${CAMPO} w-full`} />
+      </label>
+      <label className="col-span-2"><span className={ETIQUETA}>Título propio (vacío = el del producto + atributos)</span>
+        <input name="titulo" defaultValue={v.titulo ?? ""} className={`${CAMPO} w-full`} />
+      </label>
+      <label><span className={ETIQUETA}>Descuento % (vacío = hereda)</span>
+        <CampoNumero name="descuento_pct" valor={v.descuento_pct} tipo="pct" className={`${CAMPO} w-full`} />
+      </label>
+      <label><span className={ETIQUETA}>Estado</span>
+        <select name="estado" defaultValue={v.estado} className={`${CAMPO} w-full`}>
+          {Object.entries(ESTADOS_VARIACION).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
+        </select>
+      </label>
+      <div className="col-span-2"><span className={ETIQUETA}>Costo FOB</span>
+        {esKit ? <CostoKitVer k={kit} /> : <><CampoCosto v={v} /><CostoDeposito v={v} vista={s.moneda} /></>}
+      </div>
+      <div className="col-span-2 sm:col-span-2 flex gap-2 justify-end self-end">
+        <button className={VERDE}>Guardar</button>
+        <Link href={aqui(p, seccion)} className={SUAVE} scroll={false}>Cancelar</Link>
+      </div>
+    </form>
+  );
+}
+
 export async function SeccionVariaciones({ s, p, sp, seccion }: Props) {
   const filas = await variacionesDe(s.org.id, p.id);
   const editar = Number(sp.editar) || 0;
@@ -447,6 +490,10 @@ export async function SeccionVariaciones({ s, p, sp, seccion }: Props) {
   // Un kit (por tipo o porque tiene componentes) no carga costo: se calcula.
   const kits = await costosKit(s.org.id, filas.map((v) => v.id));
   const esKit = (v: Variacion) => p.tipo === "kit" || kits.has(v.id);
+  // Toda variación vive en la base (SKU, stock y precio van ahí), pero la
+  // única default sin atributos no es una variación de verdad: "Variaciones (0)".
+  const sinVariaciones = filas.length <= 1 && !filas[0]?.atributos;
+  const unica = sinVariaciones ? filas[0] ?? null : null;
   return (
     <>
       {conVariaciones && (
@@ -461,11 +508,23 @@ export async function SeccionVariaciones({ s, p, sp, seccion }: Props) {
           </form>
         </AltaNueva>
       )}
-      {!conVariaciones && (
-        <p className="text-xs text-[#5C6B76] mb-2">
-          Un producto {p.tipo === "kit" ? "kit" : "simple"} tiene una sola variación, con el SKU base. El SKU y el código de barras se cambian en Datos.
-        </p>
-      )}
+      {sinVariaciones ? (
+        <div className={`${CAJA} max-w-3xl`}>
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-xs">
+              Este producto no tiene variaciones: se maneja como uno solo (el SKU, el stock y el precio son los del producto).
+              {!conVariaciones && <span className="block text-[11px] text-[#5C6B76] mt-1">Para agregarle variaciones (color, talle…), cambiá el tipo a «Con variaciones» en Datos.</span>}
+            </p>
+            {/* Con tipo «Con variaciones», el SKU y el costo de la única van acá (en Datos dice «va en cada variación»). */}
+            {conVariaciones && unica && editar !== unica.id && <Lapiz href={aqui(p, seccion, { editar: unica.id })} etiqueta="Editar el SKU, el costo y el estado" />}
+          </div>
+          {conVariaciones && unica && editar === unica.id && (
+            <div className="mt-3 border-t border-[#E3E9F0] pt-3">
+              <FormVariacion s={s} p={p} seccion={seccion} v={unica} fija={false} esKit={esKit(unica)} kit={kits.get(unica.id)} />
+            </div>
+          )}
+        </div>
+      ) : (
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
@@ -480,37 +539,7 @@ export async function SeccionVariaciones({ s, p, sp, seccion }: Props) {
               return editar === v.id ? (
                 <tr key={v.id} className={`${TR} bg-[#FAFBFC]`}>
                   <td colSpan={8} className={TD}>
-                    <form action={accionGuardarVariacion} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-start">
-                      <Ocultos p={p} seccion={seccion} />
-                      <input type="hidden" name="id" value={v.id} />
-                      <label><span className={ETIQUETA}>SKU</span>
-                        {fija ? <span className="block font-mono py-1.5">{v.sku}</span> : <input name="sku" defaultValue={v.sku} className={`${CAMPO} w-full font-mono`} autoFocus />}
-                      </label>
-                      <label><span className={ETIQUETA}>Código de barras</span>
-                        {fija ? <span className="block font-mono py-1.5">{v.codigo_barras ?? "—"}</span> : <input name="codigo_barras" defaultValue={v.codigo_barras ?? ""} className={`${CAMPO} w-full font-mono`} />}
-                      </label>
-                      <label className="col-span-2"><span className={ETIQUETA}>Atributos (nombre=valor; …)</span>
-                        <input name="atributos" defaultValue={v.atributos ?? ""} placeholder="color=rojo; talle=M" className={`${CAMPO} w-full`} />
-                      </label>
-                      <label className="col-span-2"><span className={ETIQUETA}>Título propio (vacío = el del producto + atributos)</span>
-                        <input name="titulo" defaultValue={v.titulo ?? ""} className={`${CAMPO} w-full`} />
-                      </label>
-                      <label><span className={ETIQUETA}>Descuento % (vacío = hereda)</span>
-                        <CampoNumero name="descuento_pct" valor={v.descuento_pct} tipo="pct" className={`${CAMPO} w-full`} />
-                      </label>
-                      <label><span className={ETIQUETA}>Estado</span>
-                        <select name="estado" defaultValue={v.estado} className={`${CAMPO} w-full`}>
-                          {Object.entries(ESTADOS_VARIACION).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
-                        </select>
-                      </label>
-                      <div className="col-span-2"><span className={ETIQUETA}>Costo FOB</span>
-                        {esKit(v) ? <CostoKitVer k={kits.get(v.id)} /> : <><CampoCosto v={v} /><CostoDeposito v={v} vista={s.moneda} /></>}
-                      </div>
-                      <div className="col-span-2 sm:col-span-2 flex gap-2 justify-end self-end">
-                        <button className={VERDE}>Guardar</button>
-                        <Link href={aqui(p, seccion)} className={SUAVE} scroll={false}>Cancelar</Link>
-                      </div>
-                    </form>
+                    <FormVariacion s={s} p={p} seccion={seccion} v={v} fija={fija} esKit={esKit(v)} kit={kits.get(v.id)} />
                   </td>
                 </tr>
               ) : (
@@ -543,6 +572,7 @@ export async function SeccionVariaciones({ s, p, sp, seccion }: Props) {
           </tbody>
         </table>
       </div>
+      )}
     </>
   );
 }
@@ -694,14 +724,14 @@ export async function SeccionCucardas({ s, p, seccion, editando }: Props) {
               <td className={TD}>
                 {editando
                   ? <input type="checkbox" name={`c${c.id}`} defaultChecked={c.tiene} className="h-4 w-4 accent-[#16577F]" aria-label={c.nombre} />
-                  : c.tiene ? <span className="font-bold text-[#1F6E4A]" title="La lleva">✓</span> : <span className="text-[#5C6B76]">—</span>}
+                  : <input type="checkbox" disabled checked={c.tiene} className="h-4 w-4 accent-[#16577F]" aria-label={c.nombre} />}
               </td>
               <td className={TD}>
                 <span className="inline-block rounded px-2 py-0.5 text-white text-[11px] font-bold" style={{ background: c.color }}>{c.nombre}</span>
                 {c.estado !== "activa" && <span className="ml-2"><Estado texto="Archivada" /></span>}
               </td>
-              <td className={TD}>{editando ? <input type="date" name={`desde${c.id}`} defaultValue={c.desde ?? ""} className={CAMPO} /> : c.tiene ? fechaAR(c.desde) : ""}</td>
-              <td className={TD}>{editando ? <input type="date" name={`hasta${c.id}`} defaultValue={c.hasta ?? ""} className={CAMPO} /> : c.tiene ? fechaAR(c.hasta) : ""}</td>
+              <td className={TD}>{editando ? <input type="date" name={`desde${c.id}`} defaultValue={c.desde ?? ""} className={`${CAMPO} w-36`} /> : <ValorVista className="w-36">{c.tiene && c.desde ? fechaAR(c.desde) : null}</ValorVista>}</td>
+              <td className={TD}>{editando ? <input type="date" name={`hasta${c.id}`} defaultValue={c.hasta ?? ""} className={`${CAMPO} w-36`} /> : <ValorVista className="w-36">{c.tiene && c.hasta ? fechaAR(c.hasta) : null}</ValorVista>}</td>
             </tr>
           ))}
         </tbody>

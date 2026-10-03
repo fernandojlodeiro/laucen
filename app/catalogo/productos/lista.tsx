@@ -29,6 +29,7 @@ export function filtrosProductos(sp: SP) {
     comienza: sp.contiene !== "1",
     estado,
     tipo: sp.tipo && Object.hasOwn(TIPOS_PRODUCTO, sp.tipo) ? sp.tipo : "",
+    // La familia elegida y todas las que cuelgan de ella.
     familia: Number(sp.familia) || 0,
     // Los inactivos (archivados) sólo con la caja tildada, o si se los pide por estado.
     inactivos: verInactivos(sp) || estado === "archivado",
@@ -131,7 +132,9 @@ export const LISTA_PRODUCTOS: Lista = {
               or exists (select 1 from variacion v where v.producto_id = p.id and (v.sku ilike $2 or v.codigo_barras ilike $2)))
          and ($3 = '' or p.estado = $3)
          and ($4 = '' or p.tipo = $4)
-         and ($5 = 0 or p.familia_id = $5)
+         and ($5 = 0 or p.familia_id in (
+              with recursive d as (select $5::bigint id union select f.id from familia f join d on f.padre_id = d.id where f.organizacion_id = $1)
+              select id from d))
          and ($6 or p.estado <> 'archivado')
          and (not $7 or p.kit_vs)`,
       valores: [ctx.org, patronBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs],
