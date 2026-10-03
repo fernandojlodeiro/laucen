@@ -61,7 +61,11 @@ Un lote **terminado** muestra **Preparados (N)** con los botones **"🖨 Imprimi
 Para cada pedido, en orden (lo que vence antes primero, después lo más viejo):
 
 1. **La etiqueta de envío**: si es un envío de Mercado Libre, la etiqueta que se baja de Mercado Libre; si es de la tienda web o del local, una etiqueta propia con el número de pedido y su código de barras, "ENVÍO" o "RETIRA EN EL LOCAL", destinatario, dirección y teléfono. Si el pedido es «A cobrar», un recuadro grande "A COBRAR $ total". Si la etiqueta de Mercado Libre no se pudo bajar, en su lugar sale una página de aviso ("falta la etiqueta de Mercado Libre") que dice que se reimprima desde [Envíos](/ventas/envios).
-2. **La hoja de preparación**: "HOJA DE PREPARACIÓN", el número de pedido grande con su código de barras, número externo y pack, cliente (y apodo), canal, fecha, logística (Flex, Colecta, Full, Despacho en correo, A convenir, Retira, envío propio), "Despachar antes de", el recuadro "A COBRAR" si corresponde, y las líneas en orden de recorrido: ubicación, SKU, título, cantidad grande y un cuadrado para tildar a mano. Los kits van abiertos en sus componentes. Al final, las notas del comprador. Si ya se había impreso, la hoja sale marcada **"REIMPRESIÓN"**.
+2. **La hoja de preparación**: "HOJA DE PREPARACIÓN", el número de pedido grande con su código de barras, número externo y pack, cliente (y apodo), canal, fecha, logística (Flex, Colecta, Full, Despacho en correo, A convenir, Retira, envío propio), "Despachar antes de", el recuadro "A COBRAR" si corresponde, y las líneas en orden de recorrido: ubicación, SKU, título, cantidad grande y un cuadrado para tildar a mano. **Las líneas que llevan más de una unidad salen resaltadas** (fondo gris, título en negrita y la cantidad en blanco sobre negro), y abajo dice cuántas son ("ojo: 2 líneas llevan más de una unidad"), para no juntar una sola. Los kits van abiertos en sus componentes. Al final, las notas del comprador. Si ya se había impreso, la hoja sale marcada **"REIMPRESIÓN"**.
+
+**En A4 va todo en una sola hoja por pedido**: arriba a la izquierda la etiqueta (la de Mercado Libre a su tamaño, la propia o el aviso de que falta); al costado, el encabezado de la hoja de preparación (número grande, código de barras, datos, «A cobrar» y las notas si entran); y en la mitad de abajo, las líneas a juntar. Si son muchas líneas, siguen en otra página ("Pedido N.º … (sigue)"). De lo que manda Mercado Libre sólo se usa la etiqueta: su resumen de productos y su hoja "Despachá tus productos" no salen, porque nuestra hoja dice lo mismo y además de qué ubicación sale cada cosa. Para cortar, la etiqueta de Mercado Libre queda con el tamaño de siempre (10 × 15).
+
+En 10 × 15 (la térmica) cada cosa va en su página: primero la etiqueta y después la hoja.
 
 ## Cómo se hace
 
@@ -128,7 +132,7 @@ En la pestaña **"Etiquetas y hojas"** del lote apretá **"Reimprimir etiquetas 
 - **Carrito de Mercado Libre**: un carrito (varias compras del mismo comprador en un pack) es un solo pedido, y sus compras pueden llegar con minutos de diferencia. Durante los **10 minutos** posteriores a su último cambio no se puede tildar, imprimir ni cerrar. Si recibió un cambio mientras estaba en un lote, al terminar el lote no pasa a preparado: vuelve a la lista para prepararlo de nuevo pasada la espera.
 - **Faltantes**: un pedido con faltantes no se cierra solo, ni al empacar ni al terminar el lote; queda en preparación y vuelve a la lista.
 - **Lector**: acepta la pistola lectora (USB o Bluetooth, que tipea el código y Enter), escribir a mano, o la cámara del teléfono (**"📷 Cámara"**, anda en Chrome de Android; el Safari de iPhone no la tiene). Pitido agudo = bien; doble grave = error. Se acepta el código de barras o el SKU. El código de la hoja es el número de pedido (también acepta "#123" o "P123").
-- **Papel**: 10 × 15 cm (la térmica de las etiquetas de Mercado Libre) o A4; el último elegido queda recordado.
+- **Papel**: 10 × 15 cm (la térmica de las etiquetas de Mercado Libre: etiqueta y hoja en páginas separadas) o A4 (etiqueta y hoja juntas en una sola hoja por pedido); el último elegido queda recordado.
 
 ## Preguntas frecuentes
 

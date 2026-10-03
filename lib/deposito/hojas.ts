@@ -6,12 +6,13 @@
 // fecha, logística, "despachar antes de" y las líneas por orden de recorrido
 // (ubicación, SKU, título, cantidad grande y un cuadrado para tildar a mano;
 // los kits abiertos en sus componentes). Tamaño 10×15 cm (la térmica de las
-// etiquetas de ML) o A4.
+// etiquetas de ML) o A4; en A4, todo en una hoja por pedido (Fer, 3/10): la
+// etiqueta arriba a la izquierda, el encabezado al costado y las líneas abajo.
 //
 // Acá: juntar los datos (datosHojas) y dibujar el PDF (armarPdf, sin base:
 // la etiqueta de ML llega por una función, así los tests la reemplazan).
 
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFEmbeddedPage, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import bwipjs from "bwip-js/node";
 import { consulta } from "@/lib/erp/base";
 import { sqlACobrar } from "@/lib/pedidos";
@@ -210,34 +211,63 @@ function codigoBarras(doc: PDFDocument, texto: string): Promise<PDFImage> {
   return png.then((b) => doc.embedPng(b));
 }
 
-/** Una página con un aviso (la etiqueta de ML que no vino). */
-function paginaAviso(l: Lienzo, titulo: string, texto: string) {
-  const [w, h] = PAGINA[l.tam];
-  const p = l.doc.addPage([w, h]);
-  const ancho = Math.min(w, 100 * MM) - 24;
-  p.drawRectangle({ x: 10, y: h - 10 - 150 * MM + 20, width: ancho + 4, height: 150 * MM - 20, borderWidth: 1, borderColor: rgb(0.75, 0.2, 0.15), opacity: 0 });
-  let y = h - 40;
-  for (const r of renglones(titulo, l.fb, 14, ancho - 10)) { p.drawText(r, { x: 18, y, size: 14, font: l.fb, color: rgb(0.75, 0.2, 0.15) }); y -= 18; }
+/** El aviso de la etiqueta de ML que no vino, en un recuadro con la esquina
+ *  de arriba a la izquierda en (x, arriba). */
+function aviso(l: Lienzo, p: PDFPage, x: number, arriba: number, ancho: number, alto: number, titulo: string, texto: string) {
+  const rojo = rgb(0.75, 0.2, 0.15);
+  p.drawRectangle({ x, y: arriba - alto, width: ancho, height: alto, borderWidth: 1, borderColor: rojo, opacity: 0 });
+  let y = arriba - 30;
+  for (const r of renglones(titulo, l.fb, 14, ancho - 16)) { p.drawText(r, { x: x + 8, y, size: 14, font: l.fb, color: rojo }); y -= 18; }
   y -= 6;
-  for (const r of renglones(texto, l.f, 10, ancho - 10)) { p.drawText(r, { x: 18, y, size: 10, font: l.f }); y -= 13; }
+  for (const r of renglones(texto, l.f, 10, ancho - 16)) { p.drawText(r, { x: x + 8, y, size: 10, font: l.f }); y -= 13; }
 }
 
-/** Pega las páginas del PDF de ML, cada una a su tamaño (achicada si no entra). */
-async function paginasMl(l: Lienzo, pdf: Uint8Array): Promise<number> {
+/** Una página con el aviso (la etiqueta de ML que no vino). */
+function paginaAviso(l: Lienzo, titulo: string, texto: string) {
+  const [w, h] = PAGINA[l.tam];
+  aviso(l, l.doc.addPage([w, h]), 10, h - 10, Math.min(w, 100 * MM) - 20, 150 * MM - 20, titulo, texto);
+}
+
+/** Dónde está la etiqueta en el PDF de ML (A4 apaisado, medido el 3/10): a
+ *  la izquierda de la línea de puntos, la etiqueta de 10 × 15 a su tamaño; a
+ *  la derecha, un resumen de productos que no hace falta (nuestra hoja dice
+ *  lo mismo y además de qué ubicación sale). */
+const RECORTE_ML = { left: 22, bottom: 138, right: 290, top: 575 };
+const esA4Apaisada = (w: number, h: number) => Math.abs(w - 841.89) < 4 && Math.abs(h - 595.28) < 4;
+
+/** Las etiquetas del PDF de ML, recortadas. Si vienen en el A4 apaisado de
+ *  siempre, sólo la etiqueta (sin el resumen de al lado ni la página con la
+ *  lista de productos que ML agrega); si viene en otro formato, las páginas
+ *  enteras. */
+async function etiquetasMl(l: Lienzo, pdf: Uint8Array): Promise<PDFEmbeddedPage[]> {
   const origen = await PDFDocument.load(pdf, { ignoreEncryption: true });
   // Una página sin contenido no se puede pegar (y rompería al grabar el PDF).
   const conContenido = origen.getPages().filter((pg) => !!pg.node.Contents());
-  if (!conContenido.length) return 0;
-  const incrustadas = await l.doc.embedPages(conContenido);
+  const etiquetas = conContenido.filter((pg) => { const { width, height } = pg.getSize(); return esA4Apaisada(width, height); });
+  if (etiquetas.length) return l.doc.embedPages(etiquetas, etiquetas.map(() => RECORTE_ML));
+  return conContenido.length ? l.doc.embedPages(conContenido) : [];
+}
+
+/** Pega una etiqueta de ML con la esquina de arriba a la izquierda en (x,
+ *  arriba), achicada si no entra en ancho × alto (nunca agrandada). */
+function pegarEtiqueta(p: PDFPage, e: PDFEmbeddedPage, x: number, arriba: number, ancho: number, alto: number): { ancho: number; alto: number } {
+  const k = Math.min(ancho / e.width, alto / e.height, 1);
+  const ew = e.width * k, eh = e.height * k;
+  p.drawPage(e, { x, y: arriba - eh, width: ew, height: eh });
+  return { ancho: ew, alto: eh };
+}
+
+/** Cada etiqueta de ML en su página: en 10×15 centrada (agrandada si hace
+ *  falta); en A4, arriba a la izquierda, a su tamaño. */
+function paginasMl(l: Lienzo, etiquetas: PDFEmbeddedPage[]) {
   const [w, h] = PAGINA[l.tam];
-  for (const e of incrustadas) {
+  for (const e of etiquetas) {
     const p = l.doc.addPage([w, h]);
-    const k = Math.min(w / e.width, h / e.height, l.tam === "10x15" ? Infinity : 1);
-    const ew = e.width * k, eh = e.height * k;
-    // En 10×15 se centra; en A4 va arriba a la izquierda, a su tamaño.
-    p.drawPage(e, l.tam === "10x15" ? { x: (w - ew) / 2, y: (h - eh) / 2, width: ew, height: eh } : { x: 20, y: h - 20 - eh, width: ew, height: eh });
+    if (l.tam === "10x15") {
+      const k = Math.min(w / e.width, h / e.height);
+      p.drawPage(e, { x: (w - e.width * k) / 2, y: (h - e.height * k) / 2, width: e.width * k, height: e.height * k });
+    } else pegarEtiqueta(p, e, 20, h - 20, w - 40, h - 40);
   }
-  return incrustadas.length;
 }
 
 const pesosPdf = (n: number) => `$ ${n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -255,12 +285,10 @@ function recuadroACobrar(p: PDFPage, fb: PDFFont, x: number, y: number, ancho: n
   return alto;
 }
 
-/** Nuestra etiqueta (web, local): un rectángulo de 10×15 con lo necesario. */
-async function etiquetaPropia(l: Lienzo, d: DatosHoja, e: Extract<EtiquetaHoja, { tipo: "propia" }>) {
-  const [w, h] = PAGINA[l.tam];
-  const p = l.doc.addPage([w, h]);
+/** Nuestra etiqueta (web, local): un rectángulo de 10×15 con lo necesario,
+ *  con la esquina de abajo a la izquierda en (x0, y0). */
+async function etiquetaPropia(l: Lienzo, p: PDFPage, x0: number, y0: number, d: DatosHoja, e: Extract<EtiquetaHoja, { tipo: "propia" }>) {
   const bw = 100 * MM, bh = 150 * MM;
-  const x0 = l.tam === "10x15" ? 0 : 20, y0 = l.tam === "10x15" ? 0 : h - 20 - bh;
   const m = 14, ancho = bw - 2 * m;
   p.drawRectangle({ x: x0 + 6, y: y0 + 6, width: bw - 12, height: bh - 12, borderWidth: 1.2, borderColor: rgb(0, 0, 0) });
   let y = y0 + bh - m;
@@ -292,19 +320,88 @@ async function etiquetaPropia(l: Lienzo, d: DatosHoja, e: Extract<EtiquetaHoja, 
   p.drawText(n, { x: x0 + (bw - l.f.widthOfTextAtSize(n, 9)) / 2, y: y0 + m + 1, size: 9, font: l.f });
 }
 
-/** La hoja de preparación (una o más páginas si tiene muchas líneas). */
-async function hoja(l: Lienzo, d: DatosHoja): Promise<number> {
+/** Una página con nuestra etiqueta: en 10×15, la página entera; en A4,
+ *  arriba a la izquierda. */
+async function paginaPropia(l: Lienzo, d: DatosHoja, e: Extract<EtiquetaHoja, { tipo: "propia" }>) {
+  const [w, h] = PAGINA[l.tam];
+  const p = l.doc.addPage([w, h]);
+  await etiquetaPropia(l, p, l.tam === "10x15" ? 0 : 20, l.tam === "10x15" ? 0 : h - 20 - 150 * MM, d, e);
+}
+
+const negro = rgb(0, 0, 0), gris = rgb(0.35, 0.38, 0.42);
+
+/** Los datos del encabezado de la hoja. */
+const datosEncabezado = (d: DatosHoja): [string, string][] => [
+  ["Externo", [d.idExterno, d.pack && `pack ${d.pack}`].filter(Boolean).join(" · ") || "—"],
+  ["Cliente", [d.cliente, d.apodo && `(${d.apodo})`].filter(Boolean).join(" ") || "—"],
+  ["Canal", d.canal],
+  ["Fecha", fechaHora(d.fecha)],
+  ["Logística", d.logistica ?? "—"],
+  ["Despachar antes de", fechaHora(d.despacharAntes)],
+];
+
+/** «REIMPRESIÓN» en blanco sobre negro, con la base en (x, y). */
+function marcaReimpresion(l: Lienzo, p: PDFPage, x: number, y: number, sz: number) {
+  const s = "REIMPRESIÓN", sw = l.fb.widthOfTextAtSize(s, sz);
+  p.drawRectangle({ x, y: y - 3, width: sw + 6, height: sz + 5, color: negro });
+  p.drawText(s, { x: x + 3, y, size: sz, font: l.fb, color: rgb(1, 1, 1) });
+}
+
+/** El encabezado de la hoja en una columna al costado de la etiqueta (A4,
+ *  todo en una hoja): N.º grande, código de barras, los datos y «A cobrar».
+ *  Si queda lugar arriba de `piso`, también las notas del comprador.
+ *  Devuelve hasta dónde llegó y si entraron las notas. */
+async function encabezadoAlCostado(l: Lienzo, p: PDFPage, d: DatosHoja, x: number, arriba: number, ancho: number, piso: number): Promise<{ y: number; notas: boolean }> {
+  let y = arriba - 9;
+  const t = (s: string, size: number, font = l.f, color = negro) => p.drawText(limpio(s), { x, y, size, font, color });
+  t("HOJA DE PREPARACIÓN", 8, l.fb, gris);
+  if (d.reimpresion) marcaReimpresion(l, p, x + l.fb.widthOfTextAtSize("HOJA DE PREPARACIÓN", 8) + 8, y, 9);
+  y -= 34;
+  t(`#${d.pedidoId}`, 34, l.fb);
+  const img = await codigoBarras(l.doc, String(d.pedidoId));
+  y -= 46;
+  p.drawImage(img, { x, y, width: Math.min(ancho, 220), height: 38 });
+  y -= 8;
+  for (const [et, val] of datosEncabezado(d)) {
+    y -= 10;
+    t(et, 8, l.f, gris);
+    for (const r of renglones(val, l.fb, 11, ancho).slice(0, 2)) { y -= 13; t(r, 11, l.fb); }
+    y -= 4;
+  }
+  if (d.aCobrar != null) { y -= 8; y -= recuadroACobrar(p, l.fb, x, y - 34, ancho, d.aCobrar); }
+  // Las notas, si entran enteras.
+  if (!d.notas?.trim()) return { y, notas: true };
+  const rs = renglones(d.notas, l.f, 9, ancho);
+  if (y - 22 - rs.length * 11 < piso) return { y, notas: false };
+  y -= 18;
+  t("Notas del comprador:", 9, l.fb);
+  for (const r of rs) { y -= 11; t(r, 9); }
+  return { y, notas: true };
+}
+
+/** La hoja de preparación (una o más páginas si tiene muchas líneas). Con
+ *  `inicio`, la tabla arranca en esa página y en esa altura (el encabezado
+ *  ya está al costado de la etiqueta) y `notas: false` las saltea (ya van
+ *  arriba). Devuelve cuántas páginas agregó. */
+async function hoja(l: Lienzo, d: DatosHoja, inicio?: { p: PDFPage; y: number; notas: boolean }): Promise<number> {
   const [w, h] = PAGINA[l.tam];
   const k = l.tam === "a4" ? 1.45 : 1;
-  const m = 12 * k, ancho = w - 2 * m;
-  const img = await codigoBarras(l.doc, String(d.pedidoId));
+  const m = (inicio ? 20 : 12 * k), ancho = w - 2 * m;
   let paginas = 0;
   let p!: PDFPage;
   let y = 0;
-  const negro = rgb(0, 0, 0), gris = rgb(0.35, 0.38, 0.42);
   const t = (s: string, x: number, size: number, font = l.f, color = negro) => p.drawText(limpio(s), { x, y, size, font, color });
+  const COL = { prod: 62, cant: 22 };
 
-  const nueva = (seguida: boolean) => {
+  const titulosTabla = () => {
+    p.drawLine({ start: { x: m, y: y + 2 }, end: { x: w - m, y: y + 2 }, thickness: 0.8 });
+    y -= 8 * k;
+    t("Ubicación", m, 6.5 * k, l.fb, gris);
+    t("Producto", m + COL.prod * k, 6.5 * k, l.fb, gris);
+    t("Cant.", w - m - (COL.cant + 18) * k, 6.5 * k, l.fb, gris);
+    y -= 4 * k;
+  };
+  const nueva = async (seguida: boolean) => {
     p = l.doc.addPage([w, h]);
     paginas++;
     y = h - m;
@@ -317,29 +414,17 @@ async function hoja(l: Lienzo, d: DatosHoja): Promise<number> {
     // Encabezado: título chico, reimpresión, N.º grande y el código de barras.
     y -= 8 * k;
     t("HOJA DE PREPARACIÓN", m, 7 * k, l.fb, gris);
-    if (d.reimpresion) {
-      // Al lado del título (a la derecha va el código de barras).
-      const s = "REIMPRESIÓN", sz = 8 * k, sw = l.fb.widthOfTextAtSize(s, sz);
-      const x = m + l.fb.widthOfTextAtSize("HOJA DE PREPARACIÓN", 7 * k) + 8;
-      p.drawRectangle({ x, y: y - 3, width: sw + 6, height: sz + 5, color: negro });
-      p.drawText(s, { x: x + 3, y, size: sz, font: l.fb, color: rgb(1, 1, 1) });
-    }
+    // Al lado del título (a la derecha va el código de barras).
+    if (d.reimpresion) marcaReimpresion(l, p, m + l.fb.widthOfTextAtSize("HOJA DE PREPARACIÓN", 7 * k) + 8, y, 8 * k);
     y -= 26 * k;
     const num = `#${d.pedidoId}`;
     t(num, m, 26 * k, l.fb);
+    const img = await codigoBarras(l.doc, String(d.pedidoId));
     const iw = Math.min(ancho - l.fb.widthOfTextAtSize(num, 26 * k) - 10, 130 * k), ih = 26 * k;
     p.drawImage(img, { x: w - m - iw, y: y - 2, width: iw, height: ih });
     y -= 12 * k;
-    const datos: [string, string][] = [
-      ["Externo", [d.idExterno, d.pack && `pack ${d.pack}`].filter(Boolean).join(" · ") || "—"],
-      ["Cliente", [d.cliente, d.apodo && `(${d.apodo})`].filter(Boolean).join(" ") || "—"],
-      ["Canal", d.canal],
-      ["Fecha", fechaHora(d.fecha)],
-      ["Logística", d.logistica ?? "—"],
-      ["Despachar antes de", fechaHora(d.despacharAntes)],
-    ];
     const sz = 8 * k;
-    for (const [et, val] of datos) {
+    for (const [et, val] of datosEncabezado(d)) {
       t(`${et}:`, m, sz, l.f, gris);
       const x = m + 82 * k;
       const rs = renglones(val, l.fb, sz, ancho - 82 * k);
@@ -348,51 +433,53 @@ async function hoja(l: Lienzo, d: DatosHoja): Promise<number> {
     // «A cobrar»: el total, bien grande, para cobrarlo al entregar.
     if (d.aCobrar != null) { y -= 4 * k; y -= recuadroACobrar(p, l.fb, m, y - 34 * k, ancho, d.aCobrar, k); y -= 4 * k; }
     y -= 4 * k;
-    // Títulos de la tabla.
-    p.drawLine({ start: { x: m, y: y + 2 }, end: { x: w - m, y: y + 2 }, thickness: 0.8 });
-    y -= 8 * k;
-    t("Ubicación", m, 6.5 * k, l.fb, gris);
-    t("Producto", m + COL.prod * k, 6.5 * k, l.fb, gris);
-    t("Cant.", w - m - (COL.cant + 18) * k, 6.5 * k, l.fb, gris);
-    y -= 4 * k;
+    titulosTabla();
   };
-  const COL = { prod: 62, cant: 22 };
 
-  nueva(false);
+  if (inicio) { p = inicio.p; y = inicio.y; titulosTabla(); } else await nueva(false);
   for (const ln of d.lineas) {
+    // Más de una unidad: la fila resaltada (fondo gris, título en negrita y
+    // la cantidad en blanco sobre negro), para que no se junte una sola.
+    const varias = ln.cantidad > 1;
+    const fuente = varias ? l.fb : l.f;
     const indent = ln.kit ? 8 * k : 0;
     const xProd = m + COL.prod * k + indent;
     const anchoProd = w - m - (COL.cant + 22) * k - xProd;
-    const tit = renglones(`${ln.sku ?? "s/SKU"} — ${ln.titulo}`, l.f, 7.5 * k, anchoProd).slice(0, 3);
+    const tit = renglones(`${ln.sku ?? "s/SKU"} — ${ln.titulo}`, fuente, 7.5 * k, anchoProd).slice(0, 3);
     const kit = ln.kit ? renglones(`kit: ${ln.kit.sku} ${ln.kit.titulo}`, l.f, 6 * k, anchoProd).slice(0, 1) : [];
     const ubic = renglones(ln.ubicacion ?? "—", l.fb, 9 * k, (COL.prod - 4) * k).slice(0, 2);
     const alto = Math.max(tit.length * 9.5 * k + kit.length * 8 * k, ubic.length * 11 * k, 20 * k) + 6 * k;
-    if (y - alto < m + 10 * k) nueva(true);
+    if (y - alto < m + 10 * k) await nueva(true);
     const arriba = y;
+    if (varias) p.drawRectangle({ x: m, y: arriba - alto, width: w - 2 * m, height: alto, color: rgb(0.88, 0.88, 0.88) });
     p.drawLine({ start: { x: m, y }, end: { x: w - m, y }, thickness: 0.3, color: rgb(0.7, 0.7, 0.7) });
     y = arriba - 11 * k;
     for (const r of ubic) { t(r, m, 9 * k, l.fb); y -= 11 * k; }
     y = arriba - 10 * k;
-    for (const r of tit) { t(r, xProd, 7.5 * k, l.f); y -= 9.5 * k; }
+    for (const r of tit) { t(r, xProd, 7.5 * k, fuente); y -= 9.5 * k; }
     for (const r of kit) { t(r, xProd, 6 * k, l.f, gris); y -= 8 * k; }
     // Cantidad grande y el cuadrado para tildar.
-    const cant = String(ln.cantidad), csz = 16 * k;
-    p.drawText(cant, { x: w - m - 22 * k - l.fb.widthOfTextAtSize(cant, csz), y: arriba - 17 * k, size: csz, font: l.fb });
-    p.drawRectangle({ x: w - m - 15 * k, y: arriba - 18 * k, width: 14 * k, height: 14 * k, borderWidth: 1, borderColor: negro });
+    const cant = String(ln.cantidad), csz = 16 * k, cw = l.fb.widthOfTextAtSize(cant, csz);
+    const xCant = w - m - 22 * k - cw;
+    if (varias) p.drawRectangle({ x: xCant - 3 * k, y: arriba - 20 * k, width: cw + 6 * k, height: 17 * k, color: negro });
+    p.drawText(cant, { x: xCant, y: arriba - 17 * k, size: csz, font: l.fb, color: varias ? rgb(1, 1, 1) : negro });
+    p.drawRectangle({ x: w - m - 15 * k, y: arriba - 18 * k, width: 14 * k, height: 14 * k, borderWidth: 1, borderColor: negro, color: rgb(1, 1, 1) });
     y = arriba - alto;
   }
   if (!d.lineas.length) { y -= 12 * k; t("Este pedido no tiene productos para preparar.", m, 8 * k); y -= 4 * k; }
   p.drawLine({ start: { x: m, y }, end: { x: w - m, y }, thickness: 0.8 });
   const unidades = d.lineas.reduce((a, x) => a + x.cantidad, 0);
+  const masDeUna = d.lineas.filter((x) => x.cantidad > 1).length;
   y -= 11 * k;
-  t(`${unidades} unidad${unidades === 1 ? "" : "es"} en ${d.lineas.length} línea${d.lineas.length === 1 ? "" : "s"}`, m, 7.5 * k, l.fb);
-  if (d.notas?.trim()) {
+  t(`${unidades} unidad${unidades === 1 ? "" : "es"} en ${d.lineas.length} línea${d.lineas.length === 1 ? "" : "s"}`
+    + (masDeUna ? ` · ojo: ${masDeUna === 1 ? "1 línea lleva" : `${masDeUna} líneas llevan`} más de una unidad` : ""), m, 7.5 * k, l.fb);
+  if (d.notas?.trim() && inicio?.notas !== true) {
     y -= 14 * k;
-    if (y < m + 20 * k) { nueva(true); y -= 4 * k; }
+    if (y < m + 20 * k) { await nueva(true); y -= 4 * k; }
     t("Notas del comprador:", m, 7.5 * k, l.fb);
     y -= 10 * k;
     for (const r of renglones(d.notas, l.f, 7.5 * k, ancho)) {
-      if (y < m) { nueva(true); }
+      if (y < m) { await nueva(true); }
       t(r, m, 7.5 * k);
       y -= 9.5 * k;
     }
@@ -400,35 +487,71 @@ async function hoja(l: Lienzo, d: DatosHoja): Promise<number> {
   return paginas;
 }
 
+/** A4, todo en una hoja (Fer, 3/10): la etiqueta arriba a la izquierda, el
+ *  encabezado de la hoja al costado, y abajo las líneas a juntar (si no
+ *  entran, siguen en otra página). `etiqueta`: la de ML ya recortada, la
+ *  propia, o el aviso de que falta. Devuelve cuántas páginas de más usó. */
+async function paginaUnica(l: Lienzo, d: DatosHoja, etiqueta: { ml: PDFEmbeddedPage } | { propia: Extract<EtiquetaHoja, { tipo: "propia" }> } | { aviso: string }): Promise<number> {
+  const [w, h] = PAGINA[l.tam];
+  const m = 20, arriba = h - m;
+  const p = l.doc.addPage([w, h]);
+  let ancho: number, alto: number;
+  if ("ml" in etiqueta) ({ ancho, alto } = pegarEtiqueta(p, etiqueta.ml, m, arriba, 100 * MM, 160 * MM));
+  else if ("propia" in etiqueta) { ancho = 100 * MM; alto = 150 * MM; await etiquetaPropia(l, p, m, arriba - alto, d, etiqueta.propia); }
+  else { ancho = 95 * MM; alto = 90 * MM; aviso(l, p, m, arriba, ancho, alto, "Falta la etiqueta de Mercado Libre", etiqueta.aviso); }
+  const x = m + ancho + 16;
+  const piso = arriba - Math.max(alto, 120 * MM);
+  const enc = await encabezadoAlCostado(l, p, d, x, arriba, w - m - x, piso);
+  return hoja(l, d, { p, y: Math.min(arriba - alto, enc.y) - 14, notas: enc.notas });
+}
+
 /** El PDF entero: para cada pedido, su etiqueta y enseguida su hoja (o sólo
- *  la etiqueta, con `soloEtiqueta`). `paginas` dice qué es cada página
- *  ("etiqueta-ml:<pedido>", "etiqueta-propia:<pedido>", "aviso:<pedido>",
- *  "hoja:<pedido>"), para los tests y el registro. */
+ *  la etiqueta, con `soloEtiqueta`). En A4 van juntas en la misma página
+ *  (paginaUnica). `paginas` dice qué es cada página ("etiqueta-ml:<pedido>",
+ *  "etiqueta-propia:<pedido>", "aviso:<pedido>", "hoja:<pedido>", y en A4
+ *  "etiqueta-ml+hoja:<pedido>", "etiqueta-propia+hoja:<pedido>",
+ *  "aviso+hoja:<pedido>"), para los tests y el registro. */
 export async function armarPdf(hojas: DatosHoja[], o: { tam: TamHoja; bajarEtiquetaMl: BajarEtiquetaMl; soloEtiqueta?: boolean }): Promise<{ pdf: Uint8Array; paginas: string[]; sinEtiqueta: number[] }> {
   const doc = await PDFDocument.create();
   doc.setTitle("Etiquetas y hojas de preparación");
   const l: Lienzo = { doc, f: await doc.embedFont(StandardFonts.Helvetica), fb: await doc.embedFont(StandardFonts.HelveticaBold), tam: o.tam };
+  const juntas = o.tam === "a4" && !o.soloEtiqueta;
   const paginas: string[] = [];
   const sinEtiqueta: number[] = [];
   for (const d of hojas) {
+    // En A4 la etiqueta se dibuja en la página única; si no, en la suya.
+    let unica: Parameters<typeof paginaUnica>[2];
+    let tipo: string;
     if (d.etiqueta.tipo === "ml") {
       const r = await o.bajarEtiquetaMl(d.etiqueta.canalId, d.etiqueta.envioExterno);
-      let n = 0;
+      let ml: PDFEmbeddedPage[] = [];
       if (r.ok) {
-        try { n = await paginasMl(l, r.pdf); } catch { n = 0; }
+        try { ml = await etiquetasMl(l, r.pdf); } catch { ml = []; }
       }
-      if (n) for (let i = 0; i < n; i++) paginas.push(`etiqueta-ml:${d.pedidoId}`);
-      else {
+      if (ml.length) {
+        tipo = "etiqueta-ml";
+        unica = { ml: ml[0] };
+        // Si ML mandó más de una, en A4 las de más van antes, cada una en su página.
+        const sueltas = juntas ? ml.slice(1) : ml;
+        paginasMl(l, sueltas);
+        for (const _ of sueltas) paginas.push(`etiqueta-ml:${d.pedidoId}`);
+      } else {
+        tipo = "aviso";
         sinEtiqueta.push(d.pedidoId);
-        paginaAviso(l, `Pedido #${d.pedidoId}: falta la etiqueta de Mercado Libre`,
-          `${r.ok ? "Mercado Libre mandó un PDF que no se pudo leer." : r.motivo} Reimprimí la etiqueta de este pedido desde Ventas → Envíos.`);
-        paginas.push(`aviso:${d.pedidoId}`);
+        const texto = `${r.ok ? "Mercado Libre mandó un PDF que no se pudo leer." : r.motivo} Reimprimí la etiqueta de este pedido desde Ventas › Envíos.`;
+        unica = { aviso: texto };
+        if (!juntas) { paginaAviso(l, `Pedido #${d.pedidoId}: falta la etiqueta de Mercado Libre`, texto); paginas.push(`aviso:${d.pedidoId}`); }
       }
     } else {
-      await etiquetaPropia(l, d, d.etiqueta);
-      paginas.push(`etiqueta-propia:${d.pedidoId}`);
+      tipo = "etiqueta-propia";
+      unica = { propia: d.etiqueta };
+      if (!juntas) { await paginaPropia(l, d, d.etiqueta); paginas.push(`etiqueta-propia:${d.pedidoId}`); }
     }
-    if (!o.soloEtiqueta) {
+    if (juntas) {
+      const n = await paginaUnica(l, d, unica);
+      paginas.push(`${tipo}+hoja:${d.pedidoId}`);
+      for (let i = 0; i < n; i++) paginas.push(`hoja:${d.pedidoId}`);
+    } else if (!o.soloEtiqueta) {
       const n = await hoja(l, d);
       for (let i = 0; i < n; i++) paginas.push(`hoja:${d.pedidoId}`);
     }
