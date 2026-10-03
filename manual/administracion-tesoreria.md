@@ -11,6 +11,8 @@ resumen: Las cuentas donde está la plata (caja, bancos, Mercado Pago) con su sa
 
 Lleva las cuentas de fondos de la empresa: cajas, cuentas bancarias, Mercado Pago u otras, en pesos o en dólares. Por cada cuenta se ve su saldo y sus movimientos, se cargan gastos o ingresos sueltos, se hacen transferencias entre cuentas propias y se concilia contra el extracto del banco.
 
+**Las cuentas de Mercado Pago de Mercado Libre se crean solas**: no hay una "Mercado Pago" general para crear. Cada cuenta de Mercado Libre conectada a un canal trae su propia cuenta de fondos "Mercado Pago — <apodo>" (ver Criterios). Una cuenta de Mercado Pago que no es de ML (por ejemplo, la de la tienda web) se crea a mano con tipo Mercado Pago.
+
 Los cobros y pagos a clientes y proveedores no se cargan acá: se hacen con recibos y órdenes de pago en [Cuentas corrientes](/administracion/cuentas-corrientes), y sus movimientos aparecen solos en la cuenta elegida.
 
 ## Cómo se llega
@@ -26,7 +28,7 @@ Los cobros y pagos a clientes y proveedores no se cargan acá: se hacen con reci
 - **Total en pesos** (y **en dólares**, si hay cuentas en dólares): la suma de los saldos de las cuentas **activas**, sin importar lo que se esté buscando.
 - Buscador **"Buscar por nombre, banco, CBU o alias"**, con la caja **"Comienza por"** y la X para borrar.
 - Tabla, ordenable tocando el título:
-  - **Cuenta**: el nombre (enlace a sus movimientos) y, debajo, "Saldo inicial $ … al dd/mm/aaaa" si tiene.
+  - **Cuenta**: el nombre (enlace a sus movimientos) y, debajo, "Cobra las ventas de <canal>" (enlace al canal) en las de Mercado Pago de una cuenta de ML, y "Saldo inicial $ … al dd/mm/aaaa" si tiene.
   - **Tipo**: Caja, Banco, Mercado Pago u Otra, y la moneda ($ o US$).
   - **Banco · CBU · Alias**.
   - **Cuenta contable**: la elegida (enlace a su mayor en Contabilidad) o "La de su tipo".
@@ -64,7 +66,7 @@ Arriba: "Caja y bancos › Nombre" (y "(desactivada)" si lo está), el **Saldo**
 1. Apretá **"Nueva cuenta"** (arriba a la derecha).
 2. Completá nombre, tipo y moneda; si es un banco, banco, CBU y alias.
 3. Si la cuenta ya tenía plata, poné el **Saldo inicial** y la fecha en **Al día**.
-4. Dejá **Cuenta contable** en "La de su tipo" salvo que el contador quiera otra.
+4. Dejá **Cuenta contable** en "La de su tipo" salvo que el contador quiera otra. En una de tipo Mercado Pago, "La de su tipo" quiere decir que Laucen le crea su propia cuenta contable ("Mercado Pago — <nombre>", en Disponibilidades).
 5. Apretá **"Crear"**.
 
 ### Cargar un gasto o un ingreso suelto
@@ -128,7 +130,14 @@ Tocá el **tacho** del movimiento y confirmá. En una transferencia pregunta "¿
 
 ### Cuenta contable de cada cuenta de fondos
 
-Si no se elige una, los asientos usan la del tipo: Caja → "Caja", Banco → "Bancos", Mercado Pago → "Mercado Pago", Otra → "Caja".
+Si no se elige una, los asientos usan la del tipo: Caja → "Caja", Banco → "Bancos", Otra → "Caja". Una de **Mercado Pago** nunca queda sin cuenta propia: al crearla (o al guardarla) sin cuenta contable, Laucen le crea "Mercado Pago — <nombre>" (si el nombre ya empieza con "Mercado Pago", con ese mismo nombre) con el próximo código libre en Disponibilidades.
+
+### Mercado Pago de cada cuenta de Mercado Libre
+
+- Al **conectar una cuenta de Mercado Libre a un canal** ([Canales](/config/canales)), y una vez para las que ya estaban conectadas, se crea sola la cuenta de fondos **"Mercado Pago — <apodo de la cuenta de ML>"**, tipo Mercado Pago, en pesos, con su cuenta contable propia y atada a ese canal. Si ya había una cuenta de Mercado Pago creada a mano con ese mismo nombre, se usa ésa.
+- Si la cuenta de ML se pasa a otro canal, su cuenta de Mercado Pago pasa a cobrar las ventas del canal nuevo.
+- Lo cobrado de cada venta de ese canal (total − comisión) se asienta en la cuenta contable de esa cuenta de Mercado Pago (ver [Contabilidad](/administracion/contabilidad)). **Ojo**: eso entra en la contabilidad, no como movimiento de esta pantalla, así que el saldo de la cuenta de fondos acá no lo muestra.
+- Si se borra (sin movimientos) una cuenta de Mercado Pago de una cuenta de ML que sigue conectada, se vuelve a crear sola.
 
 ### Conciliación
 

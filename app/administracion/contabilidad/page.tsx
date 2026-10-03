@@ -367,7 +367,7 @@ async function Plan({ org, editar, q, comienza }: { org: string; editar: number;
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar cuenta por código o nombre" limpiar={["editar"]} />
       </div>
-      <p className="text-xs text-[#5C6B76] mb-2">Las imputables reciben asientos; las otras son títulos que agrupan. Las marcadas &quot;automática&quot; las usan los asientos que se generan solos: se pueden renombrar o recodificar, no borrar.</p>
+      <p className="text-xs text-[#5C6B76] mb-2">Las imputables reciben asientos; las otras son títulos que agrupan. Las marcadas &quot;automática&quot; las usan los asientos que se generan solos: se pueden renombrar o recodificar, no borrar. Las &quot;ventas del canal …&quot; y las de Mercado Pago de cada cuenta de Mercado Libre se crean solas.</p>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
@@ -384,6 +384,7 @@ async function Plan({ org, editar, q, comienza }: { org: string; editar: number;
                     <input name="nombre" defaultValue={c.nombre} className={`${CAMPO} flex-1 min-w-40`} aria-label="Nombre" autoFocus />
                     <span className="text-[#5C6B76]">{TIPO[c.tipo]} · {c.imputable ? "imputable" : "título"}</span>
                     {c.rol && <Estado texto={`automática: ${c.rol}`} tono="azul" />}
+                    {c.vinculo && <Estado texto={c.vinculo} tono="azul" />}
                     <InterruptorCampo name="activa" prendido={c.activa} etiqueta="Activa" />
                     <button className={VERDE}>Guardar</button>
                     <Link href={volver} className={SUAVE} scroll={false}>Cancelar</Link>
@@ -396,6 +397,7 @@ async function Plan({ org, editar, q, comienza }: { org: string; editar: number;
                 <td className={`${TD} ${c.imputable ? "" : "font-bold"}`} style={{ paddingLeft: 8 + sangria(c.codigo) }}>
                   {c.nombre}{" "}
                   {c.rol && <Estado texto={`automática: ${c.rol}`} tono="azul" />}
+                  {c.vinculo && <Estado texto={c.vinculo} tono="azul" />}
                 </td>
                 <td className={TD}>{TIPO[c.tipo]}</td>
                 <td className={TD}>{c.imputable ? "Sí" : "Título"}</td>
@@ -403,7 +405,7 @@ async function Plan({ org, editar, q, comienza }: { org: string; editar: number;
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
                     <Lapiz href={url(BASE, { p: "plan", q: q || null, contiene: comienza ? null : "1", editar: c.id })} />
-                    {!c.rol && !c.usada && !usadaFondos.has(c.id) && (
+                    {!c.rol && !c.vinculo && !c.usada && !usadaFondos.has(c.id) && (
                       <TachoConfirmar accion={accionBorrarCuenta} campos={{ id: String(c.id) }} pregunta="¿Borrar?" />
                     )}
                   </span>

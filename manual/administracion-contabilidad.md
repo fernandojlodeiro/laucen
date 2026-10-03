@@ -65,10 +65,10 @@ Estado de resultados del período: bloque **Ingresos** (cada cuenta de ingreso c
 
 - Botón **"Nueva cuenta"** arriba a la derecha: abre el formulario con **Código** (viene sugerido el próximo libre de egreso, ej. 5.2.06), **Nombre**, **Tipo** (Activo, Pasivo, Patrimonio neto, Ingreso, Egreso), la caja **Imputable** (tildada de entrada) y el botón **"Crear"**.
 - Buscador **"Buscar cuenta por código o nombre"** con "Comienza por".
-- Aclaración: "Las imputables reciben asientos; las otras son títulos que agrupan. Las marcadas "automática" las usan los asientos que se generan solos: se pueden renombrar o recodificar, no borrar."
-- Tabla: **Código** y **Cuenta** (con sangría según el nivel; los títulos en negrita; las automáticas con la etiqueta "automática: <rol>"), **Tipo**, **Imputable** (Sí / Título), **Estado** (Activa / Inactiva), el **lápiz** y el **tacho**.
+- Aclaración: "Las imputables reciben asientos; las otras son títulos que agrupan. Las marcadas "automática" las usan los asientos que se generan solos: se pueden renombrar o recodificar, no borrar. Las "ventas del canal …" y las de Mercado Pago de cada cuenta de Mercado Libre se crean solas."
+- Tabla: **Código** y **Cuenta** (con sangría según el nivel; los títulos en negrita; las automáticas con la etiqueta "automática: <rol>"; las que se crearon solas para un canal, con "ventas del canal <nombre>" o "de Mercado Pago — <cuenta>"), **Tipo**, **Imputable** (Sí / Título), **Estado** (Activa / Inactiva), el **lápiz** y el **tacho**.
 - El lápiz abre la fila para editar **código**, **nombre** y el interruptor **Activa**, con **"Guardar"** y **"Cancelar"**. El tipo y si es imputable no se cambian.
-- El tacho sólo aparece en cuentas que no son automáticas y no se usaron nunca.
+- El tacho sólo aparece en cuentas que no son automáticas, no son la cuenta de ventas de un canal ni de una cuenta de fondos, y no se usaron nunca.
 
 ## Cómo se hace
 
@@ -140,10 +140,10 @@ Lápiz en la fila, cambiá código o nombre, o apagá **Activa**, y **"Guardar"*
 
 | Documento | Debe | Haber |
 |---|---|---|
-| **Venta** (factura autorizada por ARCA) | Deudores por ventas (total) | Ventas (neto) + IVA débito fiscal (IVA) |
+| **Venta** (factura autorizada por ARCA) | Deudores por ventas (total) | Ventas del canal del pedido, o Ventas general (neto) + IVA débito fiscal (IVA) |
 | **Nota de crédito de venta** | Al revés que la venta | |
 | **Costo de venta** (por cada factura) | Costo de mercaderías vendidas | Mercaderías |
-| **Cobro de pedido** | Cobros de canales a liquidar (total − comisión) + Comisiones de canales (comisión) | Deudores por ventas (total) |
+| **Cobro de pedido** | Mercado Pago de la cuenta de ML del canal, o Cobros de canales a liquidar (total − comisión) + Comisiones de canales (comisión) | Deudores por ventas (total) |
 | **Compra** (factura de compra registrada) | Mercaderías (neto de líneas con producto) + gasto (neto de líneas sin producto + no gravado) + IVA crédito fiscal + Percepciones de IVA + Percepciones de IIBB + Impuestos y tasas (otros impuestos) | Proveedores (total) |
 | **Nota de crédito de compra** | Al revés que la compra | |
 | **Despacho de importación** (registrado) | Mercaderías (costo puesto en depósito) + cada impuesto del despacho a su cuenta | Importaciones en curso |
@@ -154,12 +154,12 @@ Lápiz en la fila, cambiá código o nombre, o apagá **Activa**, y **"Guardar"*
 | **Ajuste de stock** | Mercaderías (si suma) | Diferencias de inventario (al revés si resta) |
 
 Detalles de cada uno:
-- **Venta / nota de crédito**: se toma del comprobante el total y el IVA; neto = total − IVA. Si el comprobante fuera en otra moneda, se pasa a pesos con su cotización.
+- **Venta / nota de crédito**: se toma del comprobante el total y el IVA; neto = total − IVA. El neto va a la cuenta **"Ventas — <canal>"** del canal del pedido (si la factura es de un pedido y esa cuenta está activa); si no, a la **Ventas** general. La nota de crédito usa la misma cuenta, al revés. Si el comprobante fuera en otra moneda, se pasa a pesos con su cotización.
 - **Costo de venta**: cantidad × costo promedio en pesos de cada producto (si no tiene, el último costo en pesos). Sólo para facturas (no notas de crédito) que tengan al menos un producto con costo. **Las notas de crédito no revierten el costo**: si la mercadería vuelve, vuelve por un ajuste de stock.
-- **Cobro de pedido**: para pedidos con pago "Pagado" cuyo cliente **no** tiene cuenta corriente y que tienen comprobante autorizado (Mercado Libre, tienda…). El total es lo facturado menos las notas de crédito; la comisión es la del pedido (nunca más que el total). Si el total da cero o negativo, no se asienta. Los clientes con cuenta corriente, en cambio, cancelan Deudores con sus recibos.
+- **Cobro de pedido**: para pedidos con pago "Pagado" cuyo cliente **no** tiene cuenta corriente y que tienen comprobante autorizado (Mercado Libre, tienda…). El total es lo facturado menos las notas de crédito; la comisión es la del pedido (nunca más que el total). Si el total da cero o negativo, no se asienta. En un canal de **Mercado Libre**, lo cobrado (total − comisión) va a la cuenta contable de **Mercado Pago de la cuenta de ML de ese canal** (la de la cuenta conectada hoy, si hubo más de una); en los demás canales, o si no tiene, a **Cobros de canales a liquidar**. Los clientes con cuenta corriente, en cambio, cancelan Deudores con sus recibos.
 - **Compra**: si es en dólares, todo se pasa a pesos con la cotización de la factura. El gasto va a la cuenta de gasto elegida en la factura; si no tiene, a **Importaciones en curso** si es una factura E (del exterior) o a **Gastos varios** si no.
 - **Despacho**: cada impuesto va a su cuenta según su nombre: "adicional" o "percepción IVA" → Percepciones de IVA; otro con "IVA" → IVA crédito fiscal; "ganancias" → Retenciones sufridas y anticipos; "IIBB" o "brutos" → Percepciones de IIBB; cualquier otro → Impuestos y tasas. "Importaciones en curso" se cancela con la factura del exterior y las del despachante.
-- **Recibo / orden de pago**: la cuenta de cada medio es la cuenta contable de la cuenta de fondos o, si no tiene, la de su tipo (Caja, Bancos, Mercado Pago; "Otra" va a Caja). Al anular el recibo, su asiento queda anulado.
+- **Recibo / orden de pago**: la cuenta de cada medio es la cuenta contable de la cuenta de fondos o, si no tiene, la de su tipo (Caja, Bancos; "Otra" va a Caja). Las de Mercado Pago tienen siempre su cuenta propia (ver [Caja y bancos](/administracion/tesoreria)). Al anular el recibo, su asiento queda anulado.
 - **Movimiento suelto**: si no se eligió contrapartida, **Gastos varios** si sale plata y **Otros ingresos** si entra. Al borrar el movimiento, su asiento queda anulado.
 - **Transferencia**: si las dos patas en pesos no dan igual (distinta moneda), la diferencia va a **Otros ingresos** o **Gastos varios** como "Diferencia de cotización". Al borrarla, su asiento queda anulado.
 - **Ajuste de stock**: cantidad × costo promedio en pesos (o último costo en pesos). Sólo si el producto tiene costo.
@@ -168,13 +168,24 @@ Detalles de cada uno:
 
 La primera vez Laucen carga este plan (y si después falta alguna cuenta automática, la agrega):
 
-- **1 ACTIVO** › 1.1 Disponibilidades: 1.1.01 Caja, 1.1.02 Bancos, 1.1.03 Mercado Pago, 1.1.04 Cobros de canales a liquidar · 1.2 Créditos: 1.2.01 Deudores por ventas, 1.2.02 IVA crédito fiscal, 1.2.03 Percepciones de IVA, 1.2.04 Percepciones de IIBB, 1.2.05 Retenciones sufridas y anticipos · 1.3 Bienes de cambio: 1.3.01 Mercaderías, 1.3.02 Importaciones en curso.
+- **1 ACTIVO** › 1.1 Disponibilidades: 1.1.01 Caja, 1.1.02 Bancos, 1.1.04 Cobros de canales a liquidar · 1.2 Créditos: 1.2.01 Deudores por ventas, 1.2.02 IVA crédito fiscal, 1.2.03 Percepciones de IVA, 1.2.04 Percepciones de IIBB, 1.2.05 Retenciones sufridas y anticipos · 1.3 Bienes de cambio: 1.3.01 Mercaderías, 1.3.02 Importaciones en curso.
 - **2 PASIVO** › 2.1 Deudas comerciales: 2.1.01 Proveedores · 2.2 Deudas fiscales: 2.2.01 IVA débito fiscal, 2.2.02 Retenciones a depositar.
 - **3 PATRIMONIO NETO** › 3.1.01 Capital, 3.1.02 Resultados acumulados.
 - **4 INGRESOS** › 4.1.01 Ventas, 4.1.02 Otros ingresos.
 - **5 EGRESOS** › 5.1.01 Costo de mercaderías vendidas, 5.1.02 Diferencias de inventario, 5.2.01 Comisiones de canales, 5.2.02 Fletes y envíos, 5.2.03 Gastos bancarios, 5.2.04 Impuestos y tasas, 5.2.05 Gastos varios.
 
+No hay una "Mercado Pago" general: como cada cuenta de Mercado Libre tiene su propio Mercado Pago, esas cuentas se crean solas (ver abajo). En las empresas que ya tenían la "1.1.03 Mercado Pago" del plan viejo, se borró si nunca se había usado; si se usó, queda con su historia.
+
 Todas las de último nivel son **automáticas**: los asientos las buscan por su función, no por su código ni su nombre. Por eso **se pueden renombrar y recodificar sin romper nada**, pero no borrar.
+
+### Cuentas que se crean solas: ventas de cada canal y Mercado Pago de cada cuenta de ML
+
+- **Ventas de cada canal**: al crear un canal (y, una vez, para los que ya estaban) Laucen agrega una cuenta imputable de ingresos **"Ventas — <nombre del canal>"** con el próximo código libre bajo Ventas (por ejemplo 4.1.03, 4.1.04…). Si después se renombra el canal, la cuenta **no** se renombra sola: se la puede renombrar a mano con el lápiz.
+- **Mercado Pago de cada cuenta de Mercado Libre**: al conectar una cuenta de ML a un canal (y, una vez, para las que ya estaban conectadas) Laucen agrega una cuenta imputable de activo **"Mercado Pago — <apodo de la cuenta de ML>"** con el próximo código libre bajo Disponibilidades (por ejemplo 1.1.05) y la cuenta de fondos del mismo nombre en [Caja y bancos](/administracion/tesoreria), atada a esa cuenta contable y a ese canal. Si la cuenta de ML se pasa a otro canal, su Mercado Pago la sigue.
+- "Próximo código libre" es el que sigue al más alto que ya hay bajo esa madre; un código borrado no se vuelve a usar.
+- Si ya había una cuenta con exactamente ese nombre y tipo, sin usar por otro canal ni otra cuenta de fondos, se usa ésa en vez de crear otra.
+- La cuenta de ventas de un canal no se puede borrar (sí renombrar, recodificar o desactivar: "Es la cuenta de ventas de un canal: no se puede borrar…"). Desactivada, los asientos nuevos de ese canal vuelven a la Ventas general.
+- Los asientos ya grabados no cambian: las cuentas propias valen para los asientos que se generen de ahí en adelante.
 
 ### Reglas del plan de cuentas
 

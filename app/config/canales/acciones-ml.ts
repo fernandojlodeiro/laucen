@@ -10,6 +10,7 @@ import { cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { barrerOrdenes } from "@/lib/mercadolibre/pedidos";
 import { barrerPreguntas } from "@/lib/mercadolibre/preguntas";
 import { sincronizarStockMl } from "@/lib/mercadolibre/stock";
+import { asegurarCuentasDeCanalesSinFallar } from "@/lib/administracion/contabilidad";
 
 const volver = (canal: number) => `/config/canales?c=${canal}`;
 
@@ -31,6 +32,8 @@ export async function accionUsarCuenta(fd: FormData) {
     await consulta("update meli_cuenta set canal_id = null where organizacion_id = $1 and canal_id = $2", [s.org.id, canal]);
     const r = await consulta("update meli_cuenta set canal_id = $3 where id = $2 and organizacion_id = $1 returning id", [s.org.id, cuenta, canal]);
     if (!r.length) throw new ErrorErp("Esa cuenta no existe.");
+    // Su cuenta de Mercado Pago (fondos y contable), si todavía no la tiene.
+    await asegurarCuentasDeCanalesSinFallar(s.org.id);
     revalidatePath("/config/canales");
     return "Cuenta asignada al canal. Desde ahora entran sus pedidos y preguntas.";
   });

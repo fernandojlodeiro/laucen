@@ -16,6 +16,7 @@ Un **canal** es un lugar por donde se vende: una cuenta de Mercado Libre, la tie
 - **Su umbral de pausa**: con cuánto stock disponible o menos se pausan sus publicaciones.
 - Si es de Mercado Libre: **qué cuenta de ML tiene conectada** y sus **interruptores** (si Laucen manda el stock y pausa, si sube las facturas).
 - Su **llave API**, para que otro sistema cargue pedidos o lea el catálogo.
+- Su **cuenta de ventas** en la contabilidad ("Ventas — <canal>") y, si es de Mercado Libre, la **cuenta de Mercado Pago** de su cuenta de ML: las dos se crean solas (ver Criterios).
 
 La **Cola de Mercado Libre** ([/config/canales/cola](/config/canales/cola)) es por donde sale TODO lo que Laucen le manda a Mercado Libre: cambios de stock, pausas y reactivaciones, precios, facturas, acciones sobre reclamos. Ahí se ve qué está esperando, qué se mandó, qué dio error, los lotes que esperan tu clic y el resumen de la barrida nocturna.
 
@@ -99,7 +100,7 @@ En **Barridas nocturnas**: una tarjeta por cuenta con la última noche (estado: 
 
 1. Apretá **"Nuevo canal"** (arriba a la derecha).
 2. Escribí el **Nombre** (ej. "Mercado Libre cuenta 2"), elegí el **Tipo** (Mercado Libre, Web minorista, Web mayorista, Local, Histórico, Otro) y la **Lista de precios** (o "Sin lista").
-3. Apretá **"Crear"**. Aparece "Canal creado. Ahora elegí desde qué depósitos vende." y se abre el detalle del canal nuevo.
+3. Apretá **"Crear"**. Aparece "Canal creado. Ahora elegí desde qué depósitos vende." y se abre el detalle del canal nuevo. En el plan de cuentas aparece sola su cuenta **"Ventas — <nombre>"**.
 4. Agregale al menos un depósito (siguiente tarea). Sin depósitos, el canal no tiene stock.
 
 Si falta el nombre: "El canal necesita un nombre." El nombre no se puede repetir dentro de la organización.
@@ -127,7 +128,7 @@ Tacho de la fila → "Sí". Si el canal tiene pedidos, no se puede: "El canal ti
 1. Abrí el canal (tiene que ser de tipo Mercado Libre).
 2. En **Cuenta de Mercado Libre**, apretá **"Conectar una cuenta de Mercado Libre"**.
 3. Mercado Libre te pide autorizar Laucen con la cuenta con la que estás logueado en ese navegador. Si querés conectar otra cuenta, cerrá antes la sesión de ML o usá una ventana privada.
-4. Al volver, la cuenta queda colgada del canal y empiezan a entrar sus pedidos, envíos y preguntas.
+4. Al volver, la cuenta queda colgada del canal y empiezan a entrar sus pedidos, envíos y preguntas. En [Caja y bancos](/administracion/tesoreria) aparece sola la cuenta **"Mercado Pago — <apodo>"** (con su cuenta contable propia), si no estaba.
 
 Si la cuenta ya estaba conectada (por ejemplo desde otra pantalla) y no tiene canal, usá **"Usar la ya conectada: …"**: "Cuenta asignada al canal. Desde ahora entran sus pedidos y preguntas."
 
@@ -194,6 +195,12 @@ En la caja de la cuenta, **"Traer pedidos y preguntas ahora"**. Avisa "Listo: N 
 - **Prioridad de los depósitos**: el de número menor se usa primero. Cuando un pedido de ese canal tiene que reservar stock y no tiene depósito asignado, reserva en el depósito activo de menor prioridad del canal (si el canal no tiene ninguno, en el primer depósito propio activo). Las ventas de ML con logística Full salen del depósito tipo Full del canal (el de menor prioridad).
 - **Umbral de pausa**: con ese stock disponible **o menos**, la publicación se pausa. Se toma, en este orden, el primero que esté cargado: el de la **publicación** → el del **producto** → el del **canal** (el de esta pantalla) → el de la **organización** → **1**. No puede ser negativo.
 - **Datos de ejemplo**: la primera vez que una organización sin canales abre la pantalla, se crean cuatro listas de precios (Mercado Libre, Web minorista, Mayorista, Local), un "Depósito propio" (sólo si no había ningún depósito activo) y cinco canales (Mercado Libre, Web minorista, Web mayorista, Local, Otro), cada uno vendiendo desde ese depósito con prioridad 1. Queda marcado: borrarlos no los vuelve a crear. El cartel amarillo se ve mientras quede algún canal de ejemplo con su nombre original.
+
+### Cuentas contables del canal (se crean solas)
+
+- **Ventas**: cada canal tiene su cuenta de ingresos **"Ventas — <nombre del canal>"** en el plan de cuentas, creada al crear el canal (los que ya estaban la recibieron una vez). El neto de las facturas de los pedidos del canal va ahí; sin canal, a la Ventas general. **Si se renombra el canal, la cuenta no cambia de nombre**: se la renombra a mano en [Contabilidad](/administracion/contabilidad) si se quiere.
+- **Mercado Pago**: cada cuenta de Mercado Libre colgada de un canal tiene su cuenta de fondos y contable **"Mercado Pago — <apodo>"**, creada al conectarla (o al usar "Usar la ya conectada"). Lo cobrado de las ventas del canal (menos la comisión) se asienta ahí en vez de en "Cobros de canales a liquidar". Sacar la cuenta del canal no la borra.
+- Valen para los asientos nuevos; los ya grabados no cambian.
 
 ### Cuenta de Mercado Libre del canal
 

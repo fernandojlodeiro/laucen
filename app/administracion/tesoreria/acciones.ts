@@ -11,6 +11,7 @@ import { hoyAR } from "@/lib/moneda";
 import {
   movimientoManual, transferir, borrarMovimiento, importarExtracto, conciliarAutomatico, conciliar, desconciliar, crearDesdeExtracto,
 } from "@/lib/administracion/tesoreria";
+import { asegurarCuentasDeCanalesSinFallar } from "@/lib/administracion/contabilidad";
 
 const BASE = "/administracion/tesoreria";
 const TIPOS = ["caja", "banco", "mercadopago", "otro"];
@@ -46,6 +47,8 @@ export async function accionCrearCuenta(fd: FormData) {
     await consulta(`insert into cuenta_fondos (organizacion_id, nombre, tipo, moneda, banco, cbu, alias, saldo_inicial, saldo_inicial_fecha, cuenta_contable_id)
                     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [s.org.id, d.nombre, d.tipo, d.moneda, d.banco, d.cbu, d.alias, d.saldoInicial, d.saldoInicialFecha, await cuentaContable(s.org.id, fd)]);
+    // Una de Mercado Pago sin cuenta contable elegida recibe la suya propia.
+    if (d.tipo === "mercadopago") await asegurarCuentasDeCanalesSinFallar(s.org.id);
     revalidatePath(BASE);
     return "Cuenta creada.";
   });
@@ -65,6 +68,7 @@ export async function accionGuardarCuenta(fd: FormData) {
     await consulta(`update cuenta_fondos set nombre = $3, tipo = $4, moneda = $5, banco = $6, cbu = $7, alias = $8, saldo_inicial = $9,
                            saldo_inicial_fecha = $10, cuenta_contable_id = $11 where id = $2 and organizacion_id = $1`,
       [s.org.id, cuentaId, d.nombre, d.tipo, d.moneda, d.banco, d.cbu, d.alias, d.saldoInicial, d.saldoInicialFecha, await cuentaContable(s.org.id, fd)]);
+    if (d.tipo === "mercadopago") await asegurarCuentasDeCanalesSinFallar(s.org.id);
     revalidatePath(BASE);
     return "Guardado.";
   });

@@ -119,14 +119,16 @@ export async function accionBorrarCuenta(fd: FormData) {
   await intentar(PLAN, async () => {
     // Usada = tiene asientos, o la nombra una cuenta de fondos o un movimiento
     // (esas columnas no tienen clave foránea: hay que mirarlas a mano).
-    const c = await una<{ rol: string | null; usada: boolean }>(`
+    const c = await una<{ rol: string | null; usada: boolean; de_canal: boolean }>(`
       select p.rol,
              exists (select 1 from asiento_linea l where l.cuenta_id = p.id)
              or exists (select 1 from cuenta_fondos f where f.organizacion_id = $1 and f.cuenta_contable_id = p.id)
-             or exists (select 1 from movimiento_fondos m where m.organizacion_id = $1 and m.cuenta_contable_id = p.id) usada
+             or exists (select 1 from movimiento_fondos m where m.organizacion_id = $1 and m.cuenta_contable_id = p.id) usada,
+             exists (select 1 from canal ca where ca.organizacion_id = $1 and ca.cuenta_ventas_id = p.id) de_canal
         from plan_cuenta p where p.id = $2 and p.organizacion_id = $1`, [s.org.id, id(fd)]);
     if (!c) throw new ErrorErp("La cuenta no existe.");
     if (c.rol) throw new ErrorErp("La usan los asientos automáticos: no se puede borrar (sí renombrar o recodificar).");
+    if (c.de_canal) throw new ErrorErp("Es la cuenta de ventas de un canal: no se puede borrar (sí renombrar, recodificar o desactivar).");
     if (c.usada) throw new ErrorErp("Está usada (asientos o cuentas de fondos): no se puede borrar. Desactivala.");
     await consulta("delete from plan_cuenta where id = $2 and organizacion_id = $1", [s.org.id, id(fd)]);
     revalidatePath(BASE);

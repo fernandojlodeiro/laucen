@@ -9,6 +9,7 @@ import { sesionActual } from "@/lib/tenancy";
 import { tienePermiso } from "@/lib/permisos";
 import { una } from "@/lib/erp/base";
 import { canjearCodigo } from "@/lib/meli";
+import { asegurarCuentasDeCanalesSinFallar } from "@/lib/administracion/contabilidad";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,8 @@ export async function GET(req: NextRequest) {
   }
   try {
     await canjearCodigo(sesion.org.id, code, verifier, origen, canalId);
+    // Conectada a un canal: su cuenta de Mercado Pago (fondos y contable).
+    if (canalId) await asegurarCuentasDeCanalesSinFallar(sesion.org.id);
   } catch (e) {
     console.error("[meli] canje del código:", e);
     return volver(canalId ? `error=${encodeURIComponent("Mercado Libre no aceptó la conexión. Probá de nuevo en un momento.")}`

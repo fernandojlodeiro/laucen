@@ -61,3 +61,22 @@ export function proximoCodigo(cuentas: { codigo: string; tipo: string; imputable
   while (usados.has(codigo)) codigo = siguiente(codigo);
   return codigo;
 }
+
+/** El próximo código libre BAJO UNA MADRE concreta: el hijo directo más alto
+ *  + 1, con el mismo ancho que los hijos que ya hay (1.1.01…1.1.04 → 1.1.05;
+ *  4.1.01, 4.1.02 → 4.1.03). Sin hijos, madre.01. No rellena huecos (un código
+ *  borrado no se reusa) y no cuentan los nietos ni otras ramas. La madre no
+ *  tiene que existir como título (el plan por defecto no tiene 4.1). Lo usan
+ *  las cuentas que se crean solas ("Ventas — canal", "Mercado Pago — cuenta"). */
+export function proximoCodigoBajo(cuentas: { codigo: string }[], madre: string): string {
+  const prefijo = `${madre}.`;
+  let mayor = 0, ancho = 2;
+  for (const { codigo } of cuentas) {
+    if (!codigo.startsWith(prefijo)) continue;
+    const resto = codigo.slice(prefijo.length);
+    if (!/^\d+$/.test(resto)) continue;
+    mayor = Math.max(mayor, Number(resto));
+    ancho = Math.max(ancho, resto.length);
+  }
+  return prefijo + String(mayor + 1).padStart(ancho, "0");
+}

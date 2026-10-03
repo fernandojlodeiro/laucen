@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, entero, id } from "@/lib/erp/acciones";
+import { asegurarCuentasDeCanalesSinFallar } from "@/lib/administracion/contabilidad";
 
 const BASE = "/config/canales";
 const TIPOS = ["mercadolibre", "web_minorista", "web_mayorista", "local", "historico", "otro"];
@@ -46,6 +47,8 @@ export async function accionCrearCanal(fd: FormData) {
     const [c] = await consulta<{ id: number }>(
       "insert into canal (organizacion_id, nombre, tipo, lista_precios_id) values ($1, $2, $3, $4) returning id::int",
       [s.org.id, nombre, tipo(fd), await listaDe(s.org.id, fd)]);
+    // Su cuenta de ventas "Ventas — <canal>" en el plan de cuentas.
+    await asegurarCuentasDeCanalesSinFallar(s.org.id);
     revalidatePath(BASE);
     return { ir: `${BASE}?c=${c.id}&ok=${encodeURIComponent("Canal creado. Ahora elegí desde qué depósitos vende.")}` };
   });

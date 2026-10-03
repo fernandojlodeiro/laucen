@@ -46,11 +46,13 @@ async function movimiento(c: PoolClient, org: string, d: { cuentaId: number; fec
 /** Cuentas con su saldo (en su moneda) y lo que falta conciliar. */
 export function cuentasConSaldo(org: string) {
   return consulta<{ id: number; nombre: string; tipo: string; moneda: string; banco: string | null; cbu: string | null; alias: string | null;
-    activa: boolean; cuenta_contable_id: number | null; saldo_inicial: number; saldo_inicial_fecha: string | null; saldo: number; sin_conciliar: number }>(`
+    activa: boolean; cuenta_contable_id: number | null; saldo_inicial: number; saldo_inicial_fecha: string | null; saldo: number; sin_conciliar: number;
+    canal_id: number | null; canal: string | null }>(`
     select f.id::int, f.nombre, f.tipo, f.moneda, f.banco, f.cbu, f.alias, f.activa, f.cuenta_contable_id::int, f.saldo_inicial::float,
            to_char(f.saldo_inicial_fecha, 'YYYY-MM-DD') saldo_inicial_fecha,
            (f.saldo_inicial + coalesce((select sum(m.importe) from movimiento_fondos m where m.cuenta_id = f.id), 0))::float saldo,
-           (select count(*) from movimiento_fondos m where m.cuenta_id = f.id and m.conciliado_ts is null)::int sin_conciliar
+           (select count(*) from movimiento_fondos m where m.cuenta_id = f.id and m.conciliado_ts is null)::int sin_conciliar,
+           f.canal_id::int, (select ca.nombre from canal ca where ca.id = f.canal_id) canal
       from cuenta_fondos f where f.organizacion_id = $1 order by f.activa desc, f.tipo, f.nombre`, [org]);
 }
 

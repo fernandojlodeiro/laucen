@@ -6,7 +6,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { formatear, type Moneda } from "@/lib/moneda";
 import { cuentasConSaldo } from "@/lib/administracion/tesoreria";
-import { asegurarPlan, cuentasImputables } from "@/lib/administracion/contabilidad";
+import { asegurarPlan, asegurarCuentasDeCanalesSinFallar, cuentasImputables } from "@/lib/administracion/contabilidad";
 import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
@@ -71,6 +71,8 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
   const comienza = sp.contiene !== "1";
   const filtros = { q: q || null, contiene: comienza ? null : "1", p: sp.p, orden: sp.orden, dir: sp.dir };
   await asegurarPlan(s.org.id);
+  // Las de Mercado Pago de cada cuenta de ML conectada se crean solas.
+  await asegurarCuentasDeCanalesSinFallar(s.org.id);
   const [cuentas, contables] = await Promise.all([cuentasConSaldo(s.org.id), cuentasImputables(s.org.id)]);
   const nombreContable = new Map(contables.map((x) => [x.id, `${x.codigo} ${x.nombre}`]));
   const totales = { ARS: 0, USD: 0 };
@@ -125,6 +127,7 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
               <tr key={c.id} className={`${TR} ${c.activa ? "" : "text-[#9AA7B3]"}`}>
                 <td className={TD}>
                   <Link href={`/administracion/tesoreria/${c.id}`} className="text-[#16577F] font-semibold hover:underline">{c.nombre}</Link>
+                  {c.canal && <span className="block text-[10px] text-[#5C6B76]">Cobra las ventas de <Link href={`/config/canales?c=${c.canal_id}`} className="hover:text-[#16577F] hover:underline">{c.canal}</Link></span>}
                   {c.saldo_inicial_fecha && <span className="block text-[10px] text-[#5C6B76]">Saldo inicial {formatear(c.saldo_inicial, c.moneda as Moneda)} al {fecha(c.saldo_inicial_fecha)}</span>}
                 </td>
                 <td className={TD}>{TIPOS_CUENTA[c.tipo] ?? c.tipo} · {c.moneda === "USD" ? "US$" : "$"}</td>

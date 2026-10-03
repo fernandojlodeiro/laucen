@@ -340,3 +340,29 @@ create table if not exists arca_mc_lote (
 create index if not exists arca_mc_lote_org on arca_mc_lote (organizacion_id, creado_ts desc);
 alter table arca_mc_lote enable row level security;
 select erp_politica_org('arca_mc_lote');
+
+-- ── Cuentas propias de cada canal y de cada Mercado Pago (pedido de Fer, 3/10) ──
+-- Cada canal tiene su cuenta de ingresos "Ventas — <canal>" (el neto de sus
+-- facturas va ahí en vez de a la Ventas general) y cada cuenta de Mercado
+-- Libre colgada de un canal, su cuenta de fondos "Mercado Pago — <apodo>" con
+-- su cuenta contable propia (lo cobrado de sus pedidos va ahí en vez de a
+-- "Cobros de canales a liquidar"). Las crea asegurarCuentasDeCanales()
+-- (lib/administracion/contabilidad.ts) al crear el canal, al conectar la
+-- cuenta de ML y, para las que ya estaban, en la primera vuelta de los asientos.
+alter table canal add column if not exists cuenta_ventas_id bigint references plan_cuenta(id) on delete set null;
+-- De qué cuenta de ML es la cuenta de fondos (el usuario de ML, que no cambia
+-- aunque la cuenta se pase a otro canal) y de qué canal cobra.
+alter table cuenta_fondos add column if not exists meli_user_id bigint;
+alter table cuenta_fondos add column if not exists canal_id bigint references canal(id) on delete set null;
+create unique index if not exists cuenta_fondos_meli on cuenta_fondos (organizacion_id, meli_user_id) where meli_user_id is not null;
+
+-- Ya no hay una "Mercado Pago" genérica en el plan: la que sembraba el plan
+-- por defecto (rol 'mercadopago') se borra si nunca se usó. Si se usó, queda
+-- (con su historia) y sigue siendo el respaldo de una cuenta de fondos de
+-- Mercado Pago sin cuenta contable propia.
+delete from plan_cuenta p where p.rol = 'mercadopago'
+   and not exists (select 1 from asiento_linea l where l.cuenta_id = p.id)
+   and not exists (select 1 from cuenta_fondos f where f.cuenta_contable_id = p.id)
+   and not exists (select 1 from movimiento_fondos m where m.cuenta_contable_id = p.id)
+   and not exists (select 1 from factura_compra fc where fc.cuenta_gasto_id = p.id)
+   and not exists (select 1 from proveedor pr where pr.cuenta_gasto_id = p.id);
