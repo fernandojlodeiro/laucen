@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, entero, id } from "@/lib/erp/acciones";
-import { crearLote, escanear, corregirItem, terminarLote, cancelarLote, marcarPreparado, pedidoDelLotePorCodigo, empacar, esModoLote, pedidoPorNumero, prepararRapido, type FaltaEmpacar } from "@/lib/deposito/picking";
+import { crearLote, escanear, corregirItem, terminarLote, cancelarLote, marcarPreparado, pedidoDelLotePorCodigo, empacar, esModoLote, pedidoPorNumero, prepararRapido, type FaltaEmpacar, type CargaKit } from "@/lib/deposito/picking";
 import { tienePermiso } from "@/lib/permisos";
 
 const LISTA = "/deposito/picking";
@@ -39,7 +39,8 @@ export type ResultadoEscaneo = { ok: true; mensaje: string } | { ok: false; mens
 export async function accionEscanear(loteId: number, codigo: string, cantidad = 1): Promise<ResultadoEscaneo> {
   const s = await entrarErp("picking_ver");
   try {
-    const { item, completo } = await escanear(s.org.id, Number(loteId), String(codigo ?? ""), cant(cantidad));
+    const { item, completo, kit } = await escanear(s.org.id, Number(loteId), String(codigo ?? ""), cant(cantidad));
+    if (kit) return { ok: true, mensaje: `${kit.sku} × ${kit.cantidad}: ${kit.unidades} unidad${kit.unidades === 1 ? "" : "es"} cargada${kit.unidades === 1 ? "" : "s"} (pedido ${kit.pedidoId}).` };
     const resto = item.cantidad - item.escaneado - item.faltante;
     return { ok: true, mensaje: completo ? `${item.sku}: listo (${item.escaneado} de ${item.cantidad}).` : `${item.sku}: ${item.escaneado} de ${item.cantidad}, faltan ${resto}.` };
   } catch (e) {
@@ -120,7 +121,7 @@ export async function accionPreparadoPorCodigo(loteId: number, pedidoId: number)
 }
 
 export type ResultadoEmpaque =
-  | { ok: true; pedidoId: number; sku: string; titulo: string; completo: boolean; preparado: boolean; aviso: string | null; faltan: FaltaEmpacar[]; loteTerminado: boolean }
+  | { ok: true; pedidoId: number; sku: string; titulo: string; completo: boolean; preparado: boolean; aviso: string | null; faltan: FaltaEmpacar[]; loteTerminado: boolean; kit?: CargaKit | null }
   | { ok: false; mensaje: string };
 
 /** Un escaneo en la mesa de empaque. */

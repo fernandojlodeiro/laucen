@@ -78,6 +78,8 @@ En 10 × 15 (la térmica) cada cosa va en su página: primero la etiqueta y desp
 3. En el lector escribí el SKU del producto (el de la unidad, por ejemplo el del diodo suelto, no el del pack) y Enter.
 4. Se cargan las 20 de una. Si al pedido le faltan menos, avisa cuántas le faltan y no carga nada.
 
+**Con el SKU del pack**: también se puede escribir el SKU (o el código de barras) del pack o kit, con la cantidad de packs. Por ejemplo, "Cantidad" 2 y el SKU del pack de 10 diodos carga 20 diodos sueltos (y, si el kit tiene varios componentes, cada uno por lo que lleva el kit). En "Empacar escaneando" van todos al pedido más viejo que pide ese pack; si le faltan menos packs, avisa cuántos y no carga nada.
+
 ### Preparado rápido (sin escanear, con permiso)
 
 Es provisorio, para cuando hay apuro y mientras no todos los productos tienen etiqueta. Pide el permiso **"Preparar sin escanear"** (el rol Admin lo tiene).
@@ -149,7 +151,7 @@ En la pestaña **"Etiquetas y hojas"** del lote apretá **"Reimprimir etiquetas 
 - **Carrito de Mercado Libre**: un carrito (varias compras del mismo comprador en un pack) es un solo pedido, y sus compras pueden llegar con minutos de diferencia. Durante los **10 minutos** posteriores a su último cambio no se puede tildar, imprimir ni cerrar. Si recibió un cambio mientras estaba en un lote, al terminar el lote no pasa a preparado: vuelve a la lista para prepararlo de nuevo pasada la espera.
 - **Faltantes**: un pedido con faltantes no se cierra solo, ni al empacar ni al terminar el lote; queda en preparación y vuelve a la lista.
 - **Preparar sin escanear**: dar un pedido por preparado sin escanear cada producto (el «preparado rápido», el botón "Preparado" y cerrar con el número o la hoja) pide el permiso "Preparar sin escanear". Escanear o escribir cada producto no lo pide. No se puede preparar así un pedido de Full, uno que espera el pago, ni un carrito de Mercado Libre en espera.
-- **Cantidad**: con "Cantidad", todas las unidades van al mismo renglón (al mismo pedido en "Empacar escaneando"); si ese renglón necesita menos, avisa y no carga nada.
+- **Cantidad**: con "Cantidad", todas las unidades van al mismo renglón (al mismo pedido en "Empacar escaneando"); si ese renglón necesita menos, avisa y no carga nada. Con el SKU de un pack, la cantidad es de packs: carga cada componente por las unidades que lleva el pack.
 - **Lector**: acepta la pistola lectora (USB o Bluetooth, que tipea el código y Enter), escribir a mano, o la cámara del teléfono (**"📷 Cámara"**, anda en Chrome de Android; el Safari de iPhone no la tiene). Pitido agudo = bien; doble grave = error. Se acepta el código de barras o el SKU. El código de la hoja es el número de pedido (también acepta "#123" o "P123").
 - **Papel**: 10 × 15 cm (la térmica de las etiquetas de Mercado Libre: etiqueta y hoja en páginas separadas) o A4 (etiqueta y hoja juntas en una sola hoja por pedido); el último elegido queda recordado.
 

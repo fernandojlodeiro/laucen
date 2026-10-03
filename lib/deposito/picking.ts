@@ -115,9 +115,56 @@ export function itemsDelLote(org: string, loteId: number) {
      where i.lote_id = $1 and i.organizacion_id = $2 order by i.orden, i.id`, [loteId, org]);
 }
 
+/** Lo que se cargó con el código o el SKU de un kit (pack, combo). */
+export type CargaKit = { sku: string; titulo: string; cantidad: number; pedidoId: number; unidades: number };
+
+/** El código (de barras o SKU) de un kit del lote: carga `cantidad` kits en
+ *  los renglones de sus componentes (cada componente, por las unidades que
+ *  lleva el kit). En «empacar» (`unPedido`) van todos al pedido más viejo
+ *  que lo necesita; si no, se reparten por orden (lo más viejo primero).
+ *  Devuelve null si el código no es de un kit del lote. */
+async function cargarKit(c: PoolClient, org: string, loteId: number, codigo: string, cantidad: number, unPedido: boolean): Promise<CargaKit | null> {
+  const kit = (await c.query<{ id: string; sku: string; titulo: string }>(`
+    select k.id, k.sku, titulo_variacion(k.id) titulo from picking_item i join variacion k on k.id = i.kit_variacion_id
+     where i.lote_id = $1 and i.organizacion_id = $2 and (k.codigo_barras = $3 or lower(k.sku) = lower($3)) limit 1`, [loteId, org, codigo])).rows[0];
+  if (!kit) return null;
+  const comps = (await c.query<{ id: string; sku: string; por_kit: number }>(`
+    select kc.variacion_componente_id id, v.sku, kc.cantidad::int por_kit from kit_componente kc join variacion v on v.id = kc.variacion_componente_id
+     where kc.variacion_kit_id = $1`, [kit.id])).rows;
+  let items = (await c.query<{ id: string; pedido_id: string; variacion_id: string; resto: number }>(`
+    select i.id, i.pedido_id, i.variacion_id, (i.cantidad - i.escaneado - i.faltante)::int resto
+      from picking_item i join pedido p on p.id = i.pedido_id
+      join picking_pedido pp on pp.lote_id = i.lote_id and pp.pedido_id = i.pedido_id
+     where i.lote_id = $1 and i.organizacion_id = $2 and i.kit_variacion_id = $3
+       and i.escaneado + i.faltante < i.cantidad and pp.preparado_ts is null
+     order by p.fecha, p.id, i.orden, i.id for update of i`, [loteId, org, kit.id])).rows;
+  if (!items.length || !comps.length) throw new ErrorErp(`Ya están todos los ${kit.sku} que pide este ${unPedido ? "lote" : "picking"}: ése sobra.`);
+  // Cuántos kits enteros entran en esos renglones.
+  const entran = (xs: typeof items) => Math.min(...comps.map((k) => Math.floor(xs.filter((i) => String(i.variacion_id) === String(k.id)).reduce((a, i) => a + i.resto, 0) / k.por_kit)));
+  const pedidoId = Number(items[0].pedido_id);
+  if (unPedido) items = items.filter((i) => Number(i.pedido_id) === pedidoId);
+  const hay = entran(items);
+  if (hay < cantidad) {
+    throw new ErrorErp(unPedido ? `Al pedido ${pedidoId} le ${hay === 1 ? "falta 1" : `faltan ${hay}`} de ${kit.sku}: cargá ${hay}${hay > 1 ? " (o menos)" : ""} y el resto, aparte.`
+      : `De ${kit.sku} ${hay === 1 ? "falta 1" : `faltan ${hay}`} en este picking: cargá ${hay}${hay > 1 ? " (o menos)" : ""}.`);
+  }
+  let unidades = 0;
+  for (const k of comps) {
+    let falta = cantidad * k.por_kit;
+    for (const i of items.filter((x) => String(x.variacion_id) === String(k.id))) {
+      if (!falta) break;
+      const n = Math.min(falta, i.resto);
+      await c.query("update picking_item set escaneado = escaneado + $2 where id = $1", [i.id, n]);
+      falta -= n; unidades += n;
+    }
+  }
+  return { sku: kit.sku, titulo: kit.titulo, cantidad, pedidoId, unidades };
+}
+
 /** Un escaneo: busca el código (de barras o SKU) entre lo que falta del
- *  lote y suma una unidad (o `cantidad`). */
-export async function escanear(org: string, loteId: number, codigo: string, cantidad = 1): Promise<{ item: ItemPicking; completo: boolean }> {
+ *  lote y suma una unidad (o `cantidad`). El código de un kit carga sus
+ *  componentes (`kit` dice cuánto). */
+export async function escanear(org: string, loteId: number, codigo: string, cantidad = 1): Promise<{ item: ItemPicking; completo: boolean; kit?: CargaKit }> {
   const t = codigo.trim();
   if (!t) throw new ErrorErp("No llegó ningún código.");
   if (!Number.isInteger(cantidad) || cantidad < 1) throw new ErrorErp("La cantidad tiene que ser un número entero mayor que cero.");
@@ -132,6 +179,11 @@ export async function escanear(org: string, loteId: number, codigo: string, cant
                   order by i.orden limit 1 for update)
     returning id`, [loteId, org, t, cantidad]);
   if (!r) {
+    const kit = await enTransaccion((c) => cargarKit(c, org, loteId, t, cantidad, false));
+    if (kit) {
+      const item = (await itemsDelLote(org, loteId)).find((i) => i.pedido_id === kit.pedidoId && i.kit === kit.sku)!;
+      return { item, completo: item.escaneado + item.faltante >= item.cantidad, kit };
+    }
     const esta = await una(`select 1 from picking_item i join variacion v on v.id = i.variacion_id
                             where i.lote_id = $1 and (v.codigo_barras = $2 or lower(v.sku) = lower($2))`, [loteId, t]);
     if (!esta) throw new ErrorErp(`El código ${t} no es de este picking.`);
@@ -288,6 +340,8 @@ export type ResultadoEmpacar = {
   pedidoId: number; sku: string; titulo: string; completo: boolean; preparado: boolean;
   /** Si quedó completo pero no se pudo cerrar (ej. carrito en espera). */
   aviso: string | null; faltan: FaltaEmpacar[]; loteTerminado: boolean;
+  /** Si se cargó con el código de un kit: cuántos y cuántas unidades. */
+  kit?: CargaKit | null;
 };
 
 /** Lo que le falta a un pedido del lote. */
@@ -322,9 +376,15 @@ export async function empacar(org: string, loteId: number, codigo: string, usuar
     if (cual && cual.resto < cantidad) {
       throw new ErrorErp(`Al pedido ${cual.pedido_id} le faltan ${cual.resto} de ${t}: cargá ${cual.resto}${cual.resto === 1 ? "" : " (o menos)"} y el resto, aparte.`);
     }
-    const r = cual ? (await c.query<{ id: string; pedido_id: string; sku: string; titulo: string }>(`
+    let r = cual ? (await c.query<{ id: string; pedido_id: string; sku: string; titulo: string }>(`
       update picking_item set escaneado = escaneado + $2 where id = $1
       returning id, pedido_id, (select sku from variacion where id = variacion_id) sku, titulo_variacion(variacion_id) titulo`, [cual.id, cantidad])).rows[0] : undefined;
+    // El código de un kit: sus componentes, todos al mismo pedido.
+    let kit: CargaKit | null = null;
+    if (!r) {
+      kit = await cargarKit(c, org, loteId, t, cantidad, true);
+      if (kit) r = { id: "", pedido_id: String(kit.pedidoId), sku: kit.sku, titulo: kit.titulo };
+    }
     if (!r) {
       const esta = (await c.query(`select 1 from picking_item i join variacion v on v.id = i.variacion_id
                                     where i.lote_id = $1 and (v.codigo_barras = $2 or lower(v.sku) = lower($2)) limit 1`, [loteId, t])).rowCount;
@@ -340,7 +400,7 @@ export async function empacar(org: string, loteId: number, codigo: string, usuar
       if (espera) aviso = `El pedido ${pedidoId} está completo, pero es un carrito de Mercado Libre que recibió un cambio hace menos de 10 min: cerralo con "Preparado" pasada la espera.`;
       else { loteTerminado = (await marcarPreparado(org, loteId, pedidoId, usuarioId, c)).loteTerminado; preparado = true; }
     } else if (faltan.length === 0) aviso = `El pedido ${pedidoId} tiene faltantes marcados: no se cierra solo.`;
-    return { pedidoId, sku: r.sku, titulo: r.titulo, completo, preparado, aviso, faltan, loteTerminado };
+    return { pedidoId, sku: r.sku, titulo: r.titulo, completo, preparado, aviso, faltan, loteTerminado, kit };
   });
 }
 

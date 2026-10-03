@@ -46,7 +46,7 @@ export default function Empacar({ lote, tam }: { lote: number; tam: string }) {
         <div role="status" className={`rounded-xl border-2 p-3 ${r.preparado ? "border-[#167655] bg-[#EEF7F1]" : "border-[#16577F] bg-white"}`}>
           <div className="text-[11px] font-semibold text-[#5C6B76] uppercase tracking-wide">Va al pedido</div>
           <div className="text-5xl font-black text-[#16577F] leading-tight">#{r.pedidoId}</div>
-          <div className="text-sm mb-2"><b>{r.sku}</b> {r.titulo}</div>
+          <div className="text-sm mb-2"><b>{r.sku}</b> {r.titulo}{r.kit && <b> × {r.kit.cantidad} = {r.kit.unidades} unidad{r.kit.unidades === 1 ? "" : "es"}</b>}</div>
           {r.preparado ? (
             <>
               <p className="text-lg font-bold text-[#1F6E4A]">Completo ✓ — quedó preparado.{r.loteTerminado ? " Era el último del lote." : ""}</p>
