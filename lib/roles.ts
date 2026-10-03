@@ -93,7 +93,9 @@ export async function habraAlgunAdmin(
     if (cambio.tipo === "estado" && m.id === cambio.membresiaId) estado = cambio.estado;
     if (cambio.tipo === "rol_borrado" && m.rolId === cambio.rolId) rolId = null;
 
-    if (estado === "SUSPENDIDO") return false;
+    // Sólo cuenta quien ya entra: un suspendido no, y un invitado que todavía
+    // no se registró tampoco (si nunca se registra, la organización queda sin nadie).
+    if (estado !== "ACTIVO") return false;
     return tienePermiso(permisosEfectivos({ rolId, permisos }, rolesSimulados), "gestionar_equipo");
   });
 }
