@@ -10,9 +10,11 @@ import { TachoConfirmar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
-import AltaNueva from "@/app/componentes/AltaNueva";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
+import { ThOrden, Paginado } from "@/app/componentes/Lista";
+import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, url, patronBusqueda, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
+  entrarErp, Pantalla, Avisos, Lapiz, url, patronBusqueda, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
 import { TIPOS_ENVIO, PROVINCIAS, type TipoEnvio } from "./comun";
 import { accionCrearEnvio, accionGuardarEnvio, accionActivarEnvio, accionBorrarEnvio } from "./acciones";
@@ -20,7 +22,7 @@ import { accionCrearEnvio, accionGuardarEnvio, accionActivarEnvio, accionBorrarE
 export const dynamic = "force-dynamic";
 
 const BASE = "/config/envios";
-type SP = { editar?: string; q?: string; contiene?: string; ok?: string; error?: string };
+type SP = { editar?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 type Metodo = {
   id: number; tipo: TipoEnvio; nombre: string; activo: boolean; costo: number; gratis: number | null; tarifas: Record<string, number>;
   plazo: string | null; instrucciones: string | null; orden: number;
@@ -53,15 +55,31 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
   const editar = Number(sp.editar) || 0;
   const q = sp.q?.trim() ?? "";
   const comienza = sp.contiene !== "1";
-  const filtros = { q: q || null, contiene: comienza ? null : "1" };
+  const filtros = { q: q || null, contiene: comienza ? null : "1", p: sp.p, orden: sp.orden, dir: sp.dir };
   const metodos = await consulta<Metodo>(`
     select id::int, tipo, nombre, activo, costo_ars::float costo, gratis_desde_ars::float gratis, tarifas, plazo, instrucciones, orden
       from metodo_envio where organizacion_id = $1 and canal_id is null and ($2::text is null or nombre ilike $2)
      order by orden, id`, [s.org.id, patronBusqueda(q, comienza)]);
+  const vista = paginarEnMemoria(ordenarEnMemoria(metodos, sp, {
+    nombre: (m) => m.nombre, tipo: (m) => TIPOS_ENVIO[m.tipo]?.texto ?? m.tipo, activo: (m) => (m.activo ? 1 : 0), costo: (m) => m.costo,
+    gratis: (m) => m.gratis, plazo: (m) => m.plazo, instrucciones: (m) => m.instrucciones, orden: (m) => m.orden,
+  }), sp);
 
   return (
-    <Pantalla titulo="Métodos de envío" subtitulo="Cómo le llega el pedido al comprador de la tienda web. Importes en pesos." ancho="max-w-6xl">
+    <Pantalla acciones={<BotonNuevo texto="Nuevo método de envío" />} titulo="Métodos de envío" subtitulo="Cómo le llega el pedido al comprador de la tienda web. Importes en pesos." ancho="max-w-6xl">
       <Avisos sp={sp} />
+      <AltaNueva texto="Nuevo método de envío" sinBoton>
+        <form action={accionCrearEnvio} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end">
+          <label className="col-span-2"><span className={ETIQUETA}>Nombre que ve el comprador</span>
+            <input name="nombre" placeholder="Ej. Envío a domicilio" className={`${CAMPO} w-full`} autoFocus /></label>
+          <label className="col-span-2"><span className={ETIQUETA}>Tipo</span><SelectorTipo /></label>
+          <label><span className={ETIQUETA}>Costo $</span><CampoNumero name="costo_ars" valor={null} tipo="pesos" className={`${CAMPO} w-full`} /></label>
+          <label><span className={ETIQUETA}>Gratis desde $</span><CampoNumero name="gratis_desde_ars" valor={null} tipo="pesos" placeholder="nunca" className={`${CAMPO} w-full`} /></label>
+          <label className="col-span-2"><span className={ETIQUETA}>Plazo</span><input name="plazo" placeholder="24 a 72 h" className={`${CAMPO} w-full`} /></label>
+          <label className="col-span-2 sm:col-span-3"><span className={ETIQUETA}>Instrucciones</span><input name="instrucciones" className={`${CAMPO} w-full`} /></label>
+          <div><button className={PRIMARIO}>Crear</button></div>
+        </form>
+      </AltaNueva>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar método de envío" limpiar={["editar"]} />
       </div>
@@ -69,13 +87,13 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH}>Nombre</th><th className={TH}>Tipo</th><th className={TH}>Activo</th><th className={THN}>Costo</th>
-              <th className={THN}>Gratis desde</th><th className={TH}>Plazo</th><th className={TH}>Instrucciones</th><th className={THN}>Orden</th><th />
+              <ThOrden col="nombre">Nombre</ThOrden><ThOrden col="tipo">Tipo</ThOrden><ThOrden col="activo">Activo</ThOrden><ThOrden col="costo" n>Costo</ThOrden>
+              <ThOrden col="gratis" n>Gratis desde</ThOrden><ThOrden col="plazo">Plazo</ThOrden><ThOrden col="instrucciones">Instrucciones</ThOrden><ThOrden col="orden" n desc={false} porDefecto>Orden</ThOrden><th />
             </tr>
           </thead>
           <tbody>
-            {metodos.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>{q ? "Ningún método coincide." : "Todavía no hay métodos de envío. Agregá uno abajo (ej. Retiro en el local)."}</td></tr>}
-            {metodos.map((m) => editar === m.id ? (
+            {metodos.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>{q ? "Ningún método coincide." : "Todavía no hay métodos de envío. Agregá uno con «Nuevo método de envío» (ej. Retiro en el local)."}</td></tr>}
+            {vista.map((m) => editar === m.id ? (
               <tr key={m.id} className={`${TR} bg-[#FAFBFC]`}>
                 <td colSpan={9} className={TD}>
                   <form action={accionGuardarEnvio} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-start">
@@ -135,19 +153,7 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
           </tbody>
         </table>
       </div>
-
-      <AltaNueva texto="Nuevo método de envío" className="mt-3">
-      <form action={accionCrearEnvio} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end">
-        <label className="col-span-2"><span className={ETIQUETA}>Nombre que ve el comprador</span>
-          <input name="nombre" placeholder="Ej. Envío a domicilio" className={`${CAMPO} w-full`} autoFocus /></label>
-        <label className="col-span-2"><span className={ETIQUETA}>Tipo</span><SelectorTipo /></label>
-        <label><span className={ETIQUETA}>Costo $</span><CampoNumero name="costo_ars" valor={null} tipo="pesos" className={`${CAMPO} w-full`} /></label>
-        <label><span className={ETIQUETA}>Gratis desde $</span><CampoNumero name="gratis_desde_ars" valor={null} tipo="pesos" placeholder="nunca" className={`${CAMPO} w-full`} /></label>
-        <label className="col-span-2"><span className={ETIQUETA}>Plazo</span><input name="plazo" placeholder="24 a 72 h" className={`${CAMPO} w-full`} /></label>
-        <label className="col-span-2 sm:col-span-3"><span className={ETIQUETA}>Instrucciones</span><input name="instrucciones" className={`${CAMPO} w-full`} /></label>
-        <div><button className={PRIMARIO}>Crear</button></div>
-      </form>
-      </AltaNueva>
+      <Paginado total={metodos.length} />
       <p className="text-[11px] text-[#5C6B76] mt-1">Nace apagado. &quot;Por provincia&quot; se abre para cargar la tarifa de cada provincia.</p>
     </Pantalla>
   );

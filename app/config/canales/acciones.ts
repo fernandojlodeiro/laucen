@@ -129,7 +129,7 @@ export async function accionGenerarToken(fd: FormData) {
       [s.org.id, canal, token]);
     (await cookies()).set("token_nuevo", `${canal}:${token}`, { httpOnly: true, sameSite: "strict", path: BASE, maxAge: 60, secure: true });
     revalidatePath(BASE);
-    return "Token nuevo generado: copialo ahora, no se vuelve a mostrar completo.";
+    return "Llave API nueva: copiala ahora, no se vuelve a mostrar.";
   });
 }
 
@@ -139,6 +139,6 @@ export async function accionRevocarToken(fd: FormData) {
     const canal = await canalDe(s.org.id, fd, "canal");
     await consulta("update canal set config = config - 'token' where id = $2 and organizacion_id = $1", [s.org.id, canal]);
     revalidatePath(BASE);
-    return "Token revocado: quien lo usaba ya no puede entrar a la API.";
+    return "Llave API revocada: quien la usaba ya no puede entrar a la API.";
   });
 }

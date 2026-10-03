@@ -12,7 +12,7 @@ import {
 import { PRIMARIO, SUAVE, VERDE, APAGAR } from "@/app/botones";
 import { TachoConfirmar, BotonConfirmar, BotonEnviar } from "@/app/radar/Cliente";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
-import AltaNueva from "@/app/componentes/AltaNueva";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, coincideBusqueda,
 } from "@/app/componentes/erp";
@@ -61,7 +61,7 @@ export default async function Contabilidad({ searchParams }: { searchParams: Pro
   const aqui = url(BASE, { p, desde: sp.desde, hasta: sp.hasta, cuenta: sp.cuenta });
 
   return (
-    <Pantalla titulo="Contabilidad"
+    <Pantalla titulo="Contabilidad" acciones={p === "plan" ? <BotonNuevo texto="Nueva cuenta" /> : undefined}
       subtitulo="Los asientos se generan solos desde las ventas, compras, despachos, recibos, movimientos de fondos y ajustes de stock; acá se ven los libros y se cargan los ajustes del contador.">
       <nav className="flex gap-1 border-b border-[#E3E9F0] mb-4 overflow-x-auto">
         {PESTANAS.map((x) => (
@@ -348,7 +348,7 @@ async function Plan({ org, editar, q, comienza }: { org: string; editar: number;
 
   return (
     <>
-      <AltaNueva texto="Nueva cuenta" className="mb-3">
+      <AltaNueva texto="Nueva cuenta" sinBoton>
       <form action={accionCrearCuenta} className="flex flex-wrap items-end gap-2">
         <label><span className={ETIQUETA}>Código</span><input name="codigo" placeholder="5.2.06" className={`${CAMPO} w-24`} autoFocus /></label>
         <label className="flex-1 min-w-48"><span className={ETIQUETA}>Nombre</span><input name="nombre" placeholder="Ej. Publicidad" className={`${CAMPO} w-full`} /></label>

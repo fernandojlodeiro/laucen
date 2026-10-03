@@ -8,9 +8,12 @@ import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
-import AltaNueva from "@/app/componentes/AltaNueva";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
+import { ThOrden, Paginado } from "@/app/componentes/Lista";
+import FotosProducto from "@/app/componentes/FotosProducto";
+import { consultaPaginada, leerOrden } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, patronBusqueda,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA, patronBusqueda,
 } from "@/app/componentes/erp";
 import { accionBorrarPublicacion, accionCrearPublicacion, accionGuardarPublicacion } from "./acciones";
 import { verInactivos } from "@/app/componentes/Inactivos";
@@ -18,12 +21,11 @@ import { verInactivos } from "@/app/componentes/Inactivos";
 export const dynamic = "force-dynamic";
 
 const BASE = "/catalogo/publicaciones";
-const LIMITE = 200;
 
-type SP = { canal?: string; estado?: string; q?: string; contiene?: string; inactivos?: string; editar?: string; ok?: string; error?: string };
+type SP = { canal?: string; estado?: string; q?: string; contiene?: string; inactivos?: string; editar?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 type Fila = {
-  id: number; variacion_id: number; sku: string; titulo_var: string; canal_id: number; canal: string;
+  id: number; variacion_id: number; producto_id: number; sku: string; titulo_var: string; fotos: string[] | null; canal_id: number; canal: string;
   id_externo: string | null; titulo: string | null; categoria_externa: string | null; tipo_publicacion: string | null;
   estado: string; umbral_pausa: number | null; atributos: string; disponible: number; umbral_efectivo: number;
   sincronizada: string | null;
@@ -42,27 +44,34 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
   const cont = comienza ? null : "1";
   const editar = Number(sp.editar) || 0;
   const inactivos = verInactivos(sp);
-  const aqui = url(BASE, { canal: canalId, estado, q, contiene: cont, inactivos: inactivos ? "1" : null });
+  const filtros = { canal: canalId, estado, q, contiene: cont, inactivos: inactivos ? "1" : null, p: sp.p, orden: sp.orden, dir: sp.dir };
+  const aqui = url(BASE, filtros);
 
   const canales = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from canal where organizacion_id = $1 and estado <> 'archivado' order by nombre", [s.org.id]);
-  const filas = await consulta<Fila>(`
-    select pu.id::int, v.id::int variacion_id, v.sku, titulo_variacion(v.id) titulo_var, c.id::int canal_id, c.nombre canal,
+  // Lo caro de cada fila (título, disponible, umbral) se calcula sólo para la página.
+  const DISPONIBLE = "stock_disponible_canal($1, v.id, c.id)";
+  const { filas, total } = await consultaPaginada<Fila>({
+    campos: `pu.id::int, v.id::int variacion_id, p.id::int producto_id, v.sku, titulo_variacion(v.id) titulo_var, c.id::int canal_id, c.nombre canal,
            pu.id_externo, pu.titulo, pu.categoria_externa, pu.tipo_publicacion, pu.estado, pu.umbral_pausa,
            case when pu.atributos_externos = '{}'::jsonb then '' else jsonb_pretty(pu.atributos_externos) end atributos,
-           stock_disponible_canal($1, v.id, c.id) disponible, umbral_pausa_de($1, v.id, c.id) umbral_efectivo,
-           to_char(pu.ultima_sincronizacion_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') sincronizada
-      from publicacion pu
+           ${DISPONIBLE} disponible, umbral_pausa_de($1, v.id, c.id) umbral_efectivo,
+           to_char(pu.ultima_sincronizacion_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') sincronizada,
+           (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = p.id) fotos`,
+    desde: `publicacion pu
       join variacion v on v.id = pu.variacion_id
       join producto p on p.id = v.producto_id
-      join canal c on c.id = pu.canal_id
-     where pu.organizacion_id = $1
+      join canal c on c.id = pu.canal_id`,
+    donde: `pu.organizacion_id = $1
        and ($6 or p.estado <> 'archivado')
        and ($2::bigint is null or pu.canal_id = $2)
        and ($3::text is null or pu.estado = $3)
-       and ($4::text is null or v.sku ilike $4 or pu.id_externo ilike $4 or v.codigo_barras = $5)
-     order by c.nombre, v.sku, pu.id
-     limit ${LIMITE}`, [s.org.id, canalId, estado, patronBusqueda(q, comienza), q, inactivos]);
+       and ($4::text is null or v.sku ilike $4 or pu.id_externo ilike $4 or v.codigo_barras = $5)`,
+    orden: leerOrden(sp, {
+      sku: "v.sku", titulo: "coalesce(pu.titulo, p.titulo)", canal: "c.nombre", externo: "pu.id_externo", categoria: "pu.categoria_externa",
+      estado: "pu.estado", disponible: DISPONIBLE, umbral: "umbral_pausa_de($1, v.id, c.id)",
+    }, "c.nombre, v.sku, pu.id"),
+  }, [s.org.id, canalId, estado, patronBusqueda(q, comienza), q, inactivos], sp);
 
   const campos = (f?: Fila) => (
     <>
@@ -94,8 +103,20 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
   );
 
   return (
-    <Pantalla titulo="Publicaciones" subtitulo="Cada variación en cada canal. La sincronización con Mercado Libre llega en otra etapa.">
+    <Pantalla titulo="Publicaciones" subtitulo="Cada variación en cada canal. La sincronización con Mercado Libre llega en otra etapa."
+      acciones={canales.length > 0 ? <BotonNuevo texto="Nueva publicación" /> : undefined}>
       <Avisos sp={sp} />
+      {canales.length === 0 ? (
+        <p className="text-xs text-[#5C6B76] mb-3">Primero hace falta un canal: <Link href="/config/canales" className="text-[#16577F] underline">Configuración → Canales</Link>.</p>
+      ) : (
+        <AltaNueva texto="Nueva publicación" sinBoton>
+          <form action={accionCrearPublicacion} className="flex flex-wrap items-end gap-2">
+            <input type="hidden" name="volver" value={aqui} />
+            {campos()}
+            <button className={PRIMARIO}>Crear</button>
+          </form>
+        </AltaNueva>
+      )}
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <BuscadorVivo q={q} comienza={comienza} inactivos={inactivos} placeholder="Buscar por SKU o id externo" limpiar={["editar"]} />
@@ -112,12 +133,12 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH}>SKU</th><th className={TH}>Título</th><th className={TH}>Canal</th><th className={TH}>Id externo</th>
-              <th className={TH}>Categoría · tipo</th><th className={TH}>Estado</th><th className={THN}>Disponible</th><th className={THN}>Umbral</th><th />
+              <ThOrden col="sku">SKU</ThOrden><ThOrden col="titulo">Título</ThOrden><ThOrden col="canal" porDefecto>Canal</ThOrden><ThOrden col="externo">Id externo</ThOrden>
+              <ThOrden col="categoria">Categoría · tipo</ThOrden><ThOrden col="estado">Estado</ThOrden><ThOrden col="disponible" n>Disponible</ThOrden><ThOrden col="umbral" n>Umbral</ThOrden><th />
             </tr>
           </thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>{canalId || estado || q ? "Nada coincide con el filtro." : "Todavía no hay publicaciones. Cargá la primera abajo."}</td></tr>}
+            {filas.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>{canalId || estado || q ? "Nada coincide con el filtro." : "Todavía no hay publicaciones. Cargá la primera con «Nueva publicación»."}</td></tr>}
             {filas.map((f) => editar === f.id ? (
               <tr key={f.id} className={`${TR} bg-[#FAFBFC]`}>
                 <td colSpan={9} className={TD}>
@@ -132,22 +153,29 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
               </tr>
             ) : (
               <tr key={f.id} className={TR}>
-                <td className={`${TD} whitespace-nowrap`}>{f.sku}</td>
-                <td className={TD}>{f.titulo ?? <span className="text-[#5C6B76]">{f.titulo_var}</span>}</td>
-                <td className={TD}>{f.canal}</td>
-                <td className={`${TD} whitespace-nowrap`}>{f.id_externo ?? "—"}</td>
+                <td className={`${TD} whitespace-nowrap`}>
+                  <Link href={`/catalogo/productos/${f.producto_id}`} className="font-semibold text-[#16577F] hover:underline">{f.sku}</Link>{" "}
+                  <FotosProducto fotos={f.fotos} titulo={f.titulo ?? f.titulo_var} />
+                </td>
+                <td className={TD}><Link href={`/catalogo/productos/${f.producto_id}`} className="hover:underline">{f.titulo ?? <span className="text-[#5C6B76]">{f.titulo_var}</span>}</Link></td>
+                <td className={TD}><Link href={url(BASE, { ...filtros, canal: f.canal_id, p: null })} className="hover:text-[#16577F] hover:underline">{f.canal}</Link></td>
+                <td className={`${TD} whitespace-nowrap`}>{f.id_externo && /^MLA\d+$/.test(f.id_externo)
+                  ? <a href={`https://articulo.mercadolibre.com.ar/MLA-${f.id_externo.slice(3)}`} target="_blank" rel="noopener" className="text-[#16577F] hover:underline" title="Ver en Mercado Libre">{f.id_externo}</a>
+                  : f.id_externo ?? "—"}</td>
                 <td className={TD}>{[f.categoria_externa, f.tipo_publicacion].filter(Boolean).join(" · ") || "—"}</td>
                 <td className={TD}>
                   <Estado texto={TEXTO_ESTADO[f.estado] ?? f.estado} tono={TONO_ESTADO[f.estado] ?? "gris"} />
                   {f.sincronizada && <span className="block text-[10px] text-[#5C6B76]">sinc. {f.sincronizada}</span>}
                 </td>
-                <td className={`${TDN} ${f.disponible <= f.umbral_efectivo ? "text-[#C03420] font-semibold" : ""}`}>{f.disponible}</td>
+                <td className={`${TDN} ${f.disponible <= f.umbral_efectivo ? "text-[#C03420] font-semibold" : ""}`}>
+                  <Link href={url("/stock/consulta", { v: f.variacion_id })} className="hover:underline">{f.disponible}</Link>
+                </td>
                 <td className={TDN} title={f.umbral_pausa == null ? "Hereda del producto, del canal o de la organización" : "Propio de esta publicación"}>
                   {f.umbral_efectivo}{f.umbral_pausa == null && <span className="text-[10px] text-[#5C6B76]"> (hereda)</span>}
                 </td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
-                    <Lapiz href={url(BASE, { canal: canalId, estado, q, contiene: cont, inactivos: inactivos ? "1" : null, editar: f.id })} />
+                    <Lapiz href={url(BASE, { ...filtros, editar: f.id })} />
                     <TachoConfirmar accion={accionBorrarPublicacion} campos={{ id: String(f.id), volver: aqui }} pregunta="¿Borrar?" />
                   </span>
                 </td>
@@ -156,20 +184,9 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
           </tbody>
         </table>
       </div>
-      {filas.length === LIMITE && <p className="text-[11px] text-[#5C6B76] mt-1">Se muestran las primeras {LIMITE}: afiná el filtro para ver el resto.</p>}
+      <Paginado total={total} />
 
-      <section className="mt-4">
-        {canales.length === 0 ? (
-          <p className="text-xs text-[#5C6B76]">Primero hace falta un canal: <Link href="/config/canales" className="text-[#16577F] underline">Configuración → Canales</Link>.</p>
-        ) : (
-          <AltaNueva texto="Nueva publicación">
-          <form action={accionCrearPublicacion} className="flex flex-wrap items-end gap-2">
-            <input type="hidden" name="volver" value={aqui} />
-            {campos()}
-            <button className={PRIMARIO}>Crear</button>
-          </form>
-          </AltaNueva>
-        )}
+      <section className="mt-2">
         <p className="text-[11px] text-[#5C6B76] mt-2">Disponible: lo que hay para vender en los depósitos del canal. Umbral: con ese disponible o menos, el canal pausa la publicación (vacío = hereda del producto, del canal o de la organización).</p>
       </section>
     </Pantalla>

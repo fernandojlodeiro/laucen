@@ -50,7 +50,8 @@ export default async function Importacion({ params, searchParams }: { params: Pr
 
   return (
     <Pantalla titulo={`Importar ${destino.nombre.toLowerCase()}`}
-      subtitulo={<><Link href="/importar" className="text-[#16577F] hover:underline">← Importar datos</Link> · {imp.archivo}{imp.hoja ? ` · hoja ${imp.hoja}` : ""} · subido el {fechaHora(imp.creado_ts)}</>}
+      camino={[{ texto: imp.archivo }]}
+      subtitulo={<>{imp.archivo}{imp.hoja ? ` · hoja ${imp.hoja}` : ""} · subido el {fechaHora(imp.creado_ts)}</>}
       acciones={<Estado texto={texto} tono={tono} />}>
       <Avisos sp={sp} />
       <p className="text-xs text-[#5C6B76] mb-3">{destino.ayuda}</p>

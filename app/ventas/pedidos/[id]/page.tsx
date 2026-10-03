@@ -4,6 +4,7 @@
 // "Operación" (confirmar pago, estado siguiente, avisar por WhatsApp).
 
 import Link from "next/link";
+import FotosProducto from "@/app/componentes/FotosProducto";
 import { formatear } from "@/lib/moneda";
 import { notFound } from "next/navigation";
 import { una, consulta } from "@/lib/erp/base";
@@ -46,11 +47,17 @@ export default async function DetallePedido({ params, searchParams }: { params: 
   const c = p as unknown as Cabecera;
   const lineas = p.lineas as unknown as Linea[];
   const historial = p.historial as unknown as Historial[];
+  // El producto (ficha y fotos) de cada variación del pedido.
+  const productos = new Map((await consulta<{ variacion_id: number; producto_id: number; fotos: string[] | null }>(`
+    select v.id::int variacion_id, v.producto_id::int,
+           (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = v.producto_id) fotos
+      from variacion v where v.organizacion_id = $1 and v.id = any($2::bigint[])`,
+    [s.org.id, lineas.map((l) => l.variacion_id).filter((x): x is number => x != null)])).map((x) => [x.variacion_id, x]));
   const movimientos = await consulta<{
-    id: number; fecha: Date; tipo: TipoMovimiento; cantidad: number; sku: string; titulo: string; origen: string | null; destino: string | null;
+    id: number; fecha: Date; tipo: TipoMovimiento; cantidad: number; sku: string; producto_id: number; titulo: string; origen: string | null; destino: string | null;
     kit: string | null; nota: string | null;
   }>(`
-    select m.id::int, m.fecha, m.tipo, m.cantidad, v.sku, titulo_variacion(v.id) titulo,
+    select m.id::int, m.fecha, m.tipo, m.cantidad, v.sku, v.producto_id::int, titulo_variacion(v.id) titulo,
            nullif(concat_ws(' · ', d1.nombre, u1.codigo), '') origen, nullif(concat_ws(' · ', d2.nombre, u2.codigo), '') destino,
            k.sku kit, m.nota
       from movimiento_stock m join variacion v on v.id = m.variacion_id
@@ -88,7 +95,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
 
   return (
     <Pantalla titulo={<>Pedido {c.id}{c.id_externo && <span className="font-mono font-normal text-sm text-[#5C6B76]"> · {c.id_externo}</span>}</>}
-      subtitulo={<><Link href="/ventas/pedidos" className="text-[#16577F] hover:underline">← Pedidos</Link> · {c.canal} · {fechaHora(c.fecha)}</>}>
+      camino={[{ texto: `Pedido ${c.id}` }]} subtitulo={<>{c.canal} · {fechaHora(c.fecha)}</>}>
       <div className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4`}>
         <Dato t="Estado"><Estado texto={etiqueta(ESTADOS_PEDIDO, c.estado)} tono={TONO_ESTADO[c.estado] ?? "gris"} /></Dato>
         <Dato t="Pago"><Estado texto={etiqueta(ESTADOS_PAGO, c.estado_pago)} tono={TONO_PAGO[c.estado_pago] ?? "gris"} />{c.medio_pago && <span className="ml-1">{c.medio_pago}</span>}</Dato>
@@ -118,7 +125,10 @@ export default async function DetallePedido({ params, searchParams }: { params: 
           <tbody>
             {lineas.map((l) => (
               <tr key={l.id} className={TR}>
-                <td className={`${TD} font-mono whitespace-nowrap`}>{l.sku ?? "—"}</td>
+                <td className={`${TD} font-mono whitespace-nowrap`}>{l.variacion_id && productos.has(l.variacion_id)
+                  ? <><Link href={`/catalogo/productos/${productos.get(l.variacion_id)!.producto_id}`} className="text-[#16577F] hover:underline">{l.sku ?? "—"}</Link>{" "}
+                    <FotosProducto fotos={productos.get(l.variacion_id)!.fotos} titulo={l.titulo} /></>
+                  : l.sku ?? "—"}</td>
                 <td className={TD}>{l.titulo}</td>
                 <td className={TDN}>{l.cantidad}</td>
                 <td className={TDN}>{l.precio_lista_ars == null && l.precio_lista_usd == null ? "—" : enVista({ ars: l.precio_lista_ars, usd: l.precio_lista_usd }, v)}</td>
@@ -222,7 +232,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
               <tr key={m.id} className={TR}>
                 <td className={TDN}>{fechaHora(m.fecha)}</td>
                 <td className={TD}>{TIPOS_MOVIMIENTO[m.tipo] ?? m.tipo}</td>
-                <td className={`${TD} font-mono whitespace-nowrap`}>{m.sku}</td>
+                <td className={`${TD} font-mono whitespace-nowrap`}><Link href={`/catalogo/productos/${m.producto_id}`} className="text-[#16577F] hover:underline">{m.sku}</Link></td>
                 <td className={TD}>{m.titulo}{m.kit && <span className="text-[#5C6B76]"> (del kit {m.kit})</span>}</td>
                 <td className={TDN}>{m.cantidad}</td>
                 <td className={TD}>{m.origen ?? "—"}</td>

@@ -4,6 +4,9 @@
 // usan el stock, la pausa y los pedidos.
 
 import Link from "next/link";
+import { leerOrden, leerPagina, POR_PAGINA } from "@/lib/lista";
+import { ThOrden, Paginado } from "@/app/componentes/Lista";
+import FotosProducto from "@/app/componentes/FotosProducto";
 import { consulta } from "@/lib/erp/base";
 import { formatear, tcDelDia } from "@/lib/moneda";
 import { cuentasDe } from "@/lib/mercadolibre/api";
@@ -11,7 +14,7 @@ import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { TachoConfirmar, BotonEnviar } from "@/app/radar/Cliente";
 import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import {
-  entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, patronBusqueda,
+  entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, patronBusqueda,
 } from "@/app/componentes/erp";
 import { accionTraerPublicaciones, accionVincular, accionCrearProducto, accionDesvincular } from "./acciones";
 
@@ -20,9 +23,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const BASE = "/catalogo/publicaciones/ml";
-const POR_PAGINA = 100;
 
-type SP = { canal?: string; ver?: string; q?: string; contiene?: string; pagina?: string; ok?: string; error?: string };
+type SP = { canal?: string; ver?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 type Ver = "sin" | "vinc" | "todas";
 
 type Fila = {
@@ -31,7 +33,7 @@ type Fila = {
   logistica: string | null; permalink: string | null; foto: string | null; publicacion_id: number | null;
   variaciones: number; primera: boolean;
   variacion_id: number | null; var_sku: string | null; var_titulo: string | null; producto_id: number | null; disponible: number | null;
-  inactivo: boolean;
+  inactivo: boolean; fotos: string[] | null;
 };
 
 const ESTADO_ML: Record<string, { texto: string; tono: "verde" | "amarillo" | "gris" | "azul" }> = {
@@ -72,8 +74,8 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
   const q = sp.q?.trim() || "";
   const comienza = sp.contiene !== "1";
   const cont = comienza ? null : "1";
-  const pagina = Math.max(1, Number(sp.pagina) || 1);
-  const aqui = url(BASE, { canal: canal.id, ver: ver === "sin" ? null : ver, q, contiene: cont, pagina: pagina > 1 ? pagina : null });
+  const { desde } = leerPagina(sp);
+  const aqui = url(BASE, { canal: canal.id, ver: ver === "sin" ? null : ver, q, contiene: cont, p: sp.p, orden: sp.orden, dir: sp.dir });
 
   const resumen = (await consulta<{ total: number; vinculadas: number }>(`
     select count(*)::int total, count(publicacion_id)::int vinculadas
@@ -84,7 +86,6 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
   const params = [org, canal.id, patronBusqueda(q, comienza)];
   const cantidad = (await consulta<{ n: number }>(
     `select count(*)::int n from meli_item mi where mi.organizacion_id = $1 and mi.canal_id = $2 ${filtroVer} ${filtroQ}`, params))[0].n;
-  const paginas = Math.max(1, Math.ceil(cantidad / POR_PAGINA));
 
   const filas = await consulta<Fila>(`
     select mi.item_id, mi.variation_id, mi.titulo, mi.atributos, mi.sku, mi.precio, mi.stock, mi.vendidos, mi.estado, mi.tipo,
@@ -92,7 +93,8 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
            mi.variaciones, mi.primera,
            v.id::int variacion_id, v.sku var_sku, case when v.id is null then null else titulo_variacion(v.id) end var_titulo,
            v.producto_id::int, coalesce((select pr.estado = 'archivado' from producto pr where pr.id = v.producto_id), false) inactivo,
-           case when v.id is null then null else stock_disponible_canal($1, v.id, $2) end disponible
+           case when v.id is null then null else stock_disponible_canal($1, v.id, $2) end disponible,
+           (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = v.producto_id) fotos
       from (
         -- Cuántas variaciones tiene el item y cuál es su primera fila sin
         -- vincular (ahí va "Crear producto"), antes de filtrar y paginar.
@@ -103,8 +105,10 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
       left join publicacion pu on pu.id = mi.publicacion_id and pu.organizacion_id = $1
       left join variacion v on v.id = pu.variacion_id
      where mi.organizacion_id = $1 and mi.canal_id = $2 ${filtroVer} ${filtroQ}
-     order by mi.titulo, mi.item_id, mi.variation_id
-     limit ${POR_PAGINA} offset ${(pagina - 1) * POR_PAGINA}`, params);
+     order by ${leerOrden(sp, {
+       titulo: "mi.titulo", sku: "mi.sku", precio: "mi.precio", stock: "mi.stock", vendidos: "mi.vendidos", estado: "mi.estado", tipo: "mi.tipo", vinculo: "v.sku",
+     }, "mi.titulo, mi.item_id, mi.variation_id")}
+     limit ${POR_PAGINA} offset ${desde}`, params);
 
   // ML da los precios en pesos; si el usuario mira en dólares, al TC del día.
   const tc = s.moneda === "USD" ? (await tcDelDia(org))?.venta ?? null : null;
@@ -123,7 +127,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
 
       <div className="flex flex-wrap items-end gap-2 mb-3">
         <label><span className={ETIQUETA}>Canal de Mercado Libre</span>
-          <FiltroVivo parametro="canal" valor={String(canal.id)} etiqueta="Canal de Mercado Libre" limpiar={["pagina"]}>
+          <FiltroVivo parametro="canal" valor={String(canal.id)} etiqueta="Canal de Mercado Libre" >
             {canales.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </FiltroVivo></label>
         <form action={accionTraerPublicaciones} className="ml-auto">
@@ -152,16 +156,16 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
       </nav>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
-        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por título, SKU o MLA…" limpiar={["pagina"]} />
+        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por título, SKU o MLA…" />
       </div>
 
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH} /><th className={TH}>Publicación</th><th className={TH}>SKU en ML</th><th className={THN}>Precio</th>
-              <th className={THN}>Stock ML</th><th className={THN}>Vendidos</th><th className={TH}>Estado</th><th className={TH}>Tipo</th>
-              <th className={TH}>Vinculación</th>
+              <th className={TH} /><ThOrden col="titulo" porDefecto>Publicación</ThOrden><ThOrden col="sku">SKU en ML</ThOrden><ThOrden col="precio" n>Precio</ThOrden>
+              <ThOrden col="stock" n>Stock ML</ThOrden><ThOrden col="vendidos" n>Vendidos</ThOrden><ThOrden col="estado">Estado</ThOrden><ThOrden col="tipo">Tipo</ThOrden>
+              <ThOrden col="vinculo">Vinculación</ThOrden>
             </tr>
           </thead>
           <tbody>
@@ -208,7 +212,8 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
                       <div className="flex items-start gap-2">
                         <div className="flex-1">
                           {f.producto_id
-                            ? <Link href={`/catalogo/productos/${f.producto_id}`} className="text-[#16577F] underline font-semibold">{f.var_sku}</Link>
+                            ? <><Link href={`/catalogo/productos/${f.producto_id}`} className="text-[#16577F] underline font-semibold">{f.var_sku}</Link>{" "}
+                              <FotosProducto fotos={f.fotos} titulo={f.var_titulo ?? f.var_sku ?? ""} /></>
                             : <span className="font-semibold">{f.var_sku}</span>}
                           {f.inactivo && <span className="ml-1.5"><Estado texto="Inactivo" /></span>}
                           <div className="text-[#5C6B76]">{f.var_titulo}</div>
@@ -242,13 +247,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
           </tbody>
         </table>
       </div>
-      {paginas > 1 && (
-        <nav className="flex items-center justify-end gap-2 mt-2 text-xs text-[#5C6B76]">
-          <span>Página {pagina} de {paginas} · {n(cantidad)} filas</span>
-          {pagina > 1 && <Link href={ir({ pagina: pagina - 1 > 1 ? pagina - 1 : null })} className={SUAVE}>← Anterior</Link>}
-          {pagina < paginas && <Link href={ir({ pagina: pagina + 1 })} className={SUAVE}>Siguiente →</Link>}
-        </nav>
-      )}
+      <Paginado total={cantidad} />
       <p className="text-[11px] text-[#5C6B76] mt-2">
         Al traer, las publicaciones cuyo SKU en ML coincide con un SKU de Laucen se vinculan solas. Una publicación con variaciones
         tiene una fila por variación, y cada una se vincula por separado.

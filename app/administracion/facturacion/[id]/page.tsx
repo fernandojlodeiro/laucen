@@ -75,7 +75,8 @@ export default async function DetalleComprobante({ params, searchParams }: { par
   return (
     <Pantalla ancho="max-w-5xl"
       titulo={<>{nombreTipo(c.tipo_cbte)} <span className="font-mono">{numeroCbte(c.punto_venta, c.numero)}</span></>}
-      subtitulo={<><Link href="/administracion/facturacion" className="text-[#16577F] hover:underline">← Facturación</Link> · {fecha(c.fecha)}
+      camino={[{ texto: `${nombreTipo(c.tipo_cbte)} ${numeroCbte(c.punto_venta, c.numero)}` }]}
+      subtitulo={<>{fecha(c.fecha)}
         {c.ambiente === "homologacion" && " · homologación (prueba, sin validez fiscal)"}</>}
       acciones={<>
         {c.estado === "autorizado" && <a href={`/administracion/facturacion/${cid}/pdf`} target="_blank" rel="noopener" className={SUAVE}>PDF</a>}

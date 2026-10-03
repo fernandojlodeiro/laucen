@@ -8,7 +8,7 @@ import { tienePermiso } from "@/lib/permisos";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
-import AltaNueva from "@/app/componentes/AltaNueva";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { patronBusqueda } from "@/app/componentes/erp";
 import { accionAgregarNcm, accionBorrarRubro, accionCrearRubro, accionQuitarNcm, accionRenombrarRubro } from "../actions";
 import { CAJA_TABLA, CAMPO, TABLA, TD, THEAD, TR, entrar } from "../Piezas";
@@ -72,7 +72,18 @@ export default async function Rubros({ searchParams }: { searchParams: Promise<P
     <div className="grid gap-4 md:grid-cols-[18rem_1fr]">
       <section>
         {sp.error && ERRORES[sp.error] && <p className="text-xs text-[#C03420] mb-2">{ERRORES[sp.error]}</p>}
-        <h2 className="text-sm font-bold mb-2">Mis rubros</h2>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h2 className="text-sm font-bold">Mis rubros</h2>
+          {puedeEditar && <BotonNuevo texto="Nuevo rubro" />}
+        </div>
+        {puedeEditar && (
+          <AltaNueva texto="Nuevo rubro" sinBoton className="mb-2">
+            <form action={accionCrearRubro} className="flex gap-1">
+              <input name="nombre" placeholder="Nombre del rubro" className={`${CAMPO} flex-1`} autoFocus />
+              <button className={PRIMARIO}>Crear</button>
+            </form>
+          </AltaNueva>
+        )}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2">
           <BuscadorVivo q={qr} comienza={comienzaR} placeholder="Buscar rubro" parametro="qr" limpiar={["editar"]} />
         </div>
@@ -98,14 +109,6 @@ export default async function Rubros({ searchParams }: { searchParams: Promise<P
             </li>
           ))}
         </ul>
-        {puedeEditar && (
-          <AltaNueva texto="Nuevo rubro">
-            <form action={accionCrearRubro} className="flex gap-1">
-              <input name="nombre" placeholder="Nombre del rubro" className={`${CAMPO} flex-1`} autoFocus />
-              <button className={PRIMARIO}>Crear</button>
-            </form>
-          </AltaNueva>
-        )}
       </section>
 
       <section className="min-w-0">

@@ -11,9 +11,11 @@ import { TachoConfirmar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
-import AltaNueva from "@/app/componentes/AltaNueva";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
+import { ThOrden, Paginado } from "@/app/componentes/Lista";
+import { consultaPaginada, leerOrden, ordenarEnMemoria } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, CAJA, patronBusqueda,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, CAJA, patronBusqueda,
 } from "@/app/componentes/erp";
 import {
   accionArchivarDeposito, accionBorrarDeposito, accionBorrarUbicacion, accionCrearDeposito, accionCrearUbicacion,
@@ -26,7 +28,7 @@ const BASE = "/stock/depositos";
 
 const TIPOS: Record<string, string> = { propio: "Propio", full_ml: "Full de Mercado Libre", tercerizado: "Tercerizado", caja_abierta: "Caja abierta" };
 
-type SP = { d?: string; editar?: string; eu?: string; archivar?: string; q?: string; contiene?: string; qd?: string; qdcontiene?: string; u?: string; ok?: string; error?: string };
+type SP = { d?: string; editar?: string; eu?: string; archivar?: string; q?: string; contiene?: string; qd?: string; qdcontiene?: string; u?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 /** Interruptor dentro de un formulario (una casilla dibujada como interruptor):
  *  para el alta y la edición en fila, donde no se guarda al tocarlo. */
@@ -72,21 +74,32 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
   const aqui = url(BASE, { d: elegido?.id, q: q || null, contiene: comienza ? null : "1", ...filtrosD });
   const paraArchivar = depositos.find((d) => d.id === archivar && d.estado === "activo");
 
-  const ubicaciones = elegido ? await consulta<{
+  // Los depósitos son pocos: se ordenan y paginan en memoria. Las ubicaciones
+  // (pueden ser cientos) en la base; sus columnas de orden llevan "u_".
+  const depositosVista = ordenarEnMemoria(depositos, sp, {
+    nombre: (d) => d.nombre, tipo: (d) => TIPOS[d.tipo] ?? d.tipo, usa: (d) => (d.usa_ubicaciones ? 1 : 0), direccion: (d) => d.direccion,
+    estado: (d) => d.estado, ubicaciones: (d) => d.ubicaciones, unidades: (d) => d.unidades,
+  });
+  const UNIDADES = "(select coalesce(sum(s.cantidad), 0) from stock s where s.ubicacion_id = u.id)";
+  const { filas: ubicaciones, total: totalUbicaciones } = elegido ? await consultaPaginada<{
     id: number; codigo: string; descripcion: string | null; orden_recorrido: number; es_default: boolean; estado: string; unidades: number;
-  }>(`
-    select u.id::int, u.codigo, u.descripcion, u.orden_recorrido, u.es_default, u.estado,
-           (select coalesce(sum(s.cantidad), 0) from stock s where s.ubicacion_id = u.id)::int unidades
-      from ubicacion u where u.deposito_id = $2 and u.organizacion_id = $1
+  }>({
+    campos: `u.id::int, u.codigo, u.descripcion, u.orden_recorrido, u.es_default, u.estado, ${UNIDADES}::int unidades`,
+    desde: "ubicacion u",
+    donde: `u.deposito_id = $2 and u.organizacion_id = $1
        and (u.es_default or $3::boolean)
-       and ($4::text is null or u.codigo ilike $4 or u.descripcion ilike $4)
-     order by u.es_default desc, u.orden_recorrido, u.codigo`, [s.org.id, elegido.id, elegido.usa_ubicaciones, patron]) : [];
+       and ($4::text is null or u.codigo ilike $4 or u.descripcion ilike $4)`,
+    orden: leerOrden(sp, {
+      u_codigo: "u.codigo", u_descripcion: "u.descripcion", u_orden: "u.orden_recorrido", u_estado: "u.estado", u_unidades: UNIDADES,
+    }, "u.es_default desc, u.orden_recorrido, u.codigo"),
+  }, [s.org.id, elegido.id, elegido.usa_ubicaciones, patron], sp) : { filas: [], total: 0 };
+  const ubicAbierta = ubicaciones.find((u) => u.id === abierta);
 
   // Lo que hay adentro de la ubicación abierta.
   const contenido = abierta && ubicaciones.some((u) => u.id === abierta) ? await consulta<{
-    variacion_id: number; sku: string; titulo: string; cantidad: number; reservado: number;
+    variacion_id: number; producto_id: number; sku: string; titulo: string; cantidad: number; reservado: number;
   }>(`
-    select v.id::int variacion_id, v.sku, titulo_variacion(v.id) titulo, st.cantidad, st.reservado
+    select v.id::int variacion_id, v.producto_id::int, v.sku, titulo_variacion(v.id) titulo, st.cantidad, st.reservado
       from stock st join variacion v on v.id = st.variacion_id
      where st.ubicacion_id = $2 and st.organizacion_id = $1 and (st.cantidad <> 0 or st.reservado <> 0)
      order by v.sku`, [s.org.id, abierta]) : [];
@@ -96,8 +109,23 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
        and exists (select 1 from stock s where s.ubicacion_id = u.id and s.cantidad <> 0)`, [s.org.id, elegido.id]))[0]?.n ?? 0 : 0;
 
   return (
-    <Pantalla titulo="Depósitos y ubicaciones" subtitulo="Dónde está la mercadería. Con “Ubicaciones” ves, agregás y editás las de cada depósito.">
+    <Pantalla titulo="Depósitos y ubicaciones" subtitulo="Dónde está la mercadería. Con “Ubicaciones” ves, agregás y editás las de cada depósito."
+      acciones={<BotonNuevo texto="Nuevo depósito" />}
+      camino={elegido ? [
+        ...(ubicAbierta ? [{ texto: elegido.nombre, href: url(BASE, { d: elegido.id, ...filtrosD }) }, { texto: ubicAbierta.codigo }] : [{ texto: elegido.nombre }]),
+      ] : undefined}>
       <Avisos sp={sp} />
+      <AltaNueva texto="Nuevo depósito" sinBoton>
+        <form action={accionCrearDeposito} className="flex flex-wrap items-center gap-2">
+          <input name="nombre" placeholder="Nombre (ej. Depósito Once)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
+          <select name="tipo" defaultValue="propio" className={CAMPO} aria-label="Tipo">
+            {Object.entries(TIPOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <InterruptorCampo name="usa_ubicaciones" prendido={false} etiqueta="Usa ubicaciones" />
+          <input name="direccion" placeholder="Dirección (opcional)" className={`${CAMPO} min-w-40`} />
+          <button className={PRIMARIO}>Crear</button>
+        </form>
+      </AltaNueva>
       {paraArchivar && (
         <form action={accionArchivarDeposito} className="flex flex-wrap items-center gap-2 text-xs rounded-lg px-3 py-2 mb-3 bg-[#FFF8E5] text-[#8a6100]">
           <input type="hidden" name="id" value={paraArchivar.id} />
@@ -114,13 +142,13 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH}>Depósito</th><th className={TH}>Tipo</th><th className={TH}>Usa ubicaciones</th><th className={TH}>Dirección</th>
-              <th className={TH}>Estado</th><th className={THN}>Ubicaciones</th><th className={THN}>Unidades</th><th />
+              <ThOrden col="nombre">Depósito</ThOrden><ThOrden col="tipo">Tipo</ThOrden><ThOrden col="usa">Usa ubicaciones</ThOrden><ThOrden col="direccion">Dirección</ThOrden>
+              <ThOrden col="estado" porDefecto>Estado</ThOrden><ThOrden col="ubicaciones" n>Ubicaciones</ThOrden><ThOrden col="unidades" n>Unidades</ThOrden><th />
             </tr>
           </thead>
           <tbody>
-            {depositos.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>{qd ? "Ningún depósito coincide." : "Todavía no hay depósitos. Agregá el primero abajo."}</td></tr>}
-            {depositos.map((d) => editar === d.id ? (
+            {depositos.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>{qd ? "Ningún depósito coincide." : "Todavía no hay depósitos. Agregá el primero con «Nuevo depósito»."}</td></tr>}
+            {depositosVista.map((d) => editar === d.id ? (
               <tr key={d.id} className={`${TR} bg-[#FAFBFC]`}>
                 <td colSpan={8} className={TD}>
                   <form action={accionGuardarDeposito} className="flex flex-wrap items-center gap-2">
@@ -153,7 +181,7 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
                 <td className={TDN}>
                   <Link href={url(BASE, { d: d.id, ...filtrosD })} className={SUAVE} scroll={false}>Ubicaciones ({d.ubicaciones})</Link>
                 </td>
-                <td className={TDN}>{d.unidades}</td>
+                <td className={TDN}><Link href={url("/stock/consulta", { dep: d.id })} className="text-[#16577F] hover:underline">{d.unidades.toLocaleString("es-AR")}</Link></td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
                     <Lapiz href={url(BASE, { d: elegido?.id, editar: d.id, ...filtrosD })} />
@@ -165,21 +193,13 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
           </tbody>
         </table>
       </div>
-      <AltaNueva texto="Nuevo depósito" className="mt-3">
-      <form action={accionCrearDeposito} className="flex flex-wrap items-center gap-2">
-        <input name="nombre" placeholder="Nombre (ej. Depósito Once)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
-        <select name="tipo" defaultValue="propio" className={CAMPO} aria-label="Tipo">
-          {Object.entries(TIPOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-        <InterruptorCampo name="usa_ubicaciones" prendido={false} etiqueta="Usa ubicaciones" />
-        <input name="direccion" placeholder="Dirección (opcional)" className={`${CAMPO} min-w-40`} />
-        <button className={PRIMARIO}>Crear</button>
-      </form>
-      </AltaNueva>
 
       {elegido && (
         <section className={`${CAJA} mt-6`}>
-          <h2 className="text-sm font-bold mb-1">Ubicaciones de “{elegido.nombre}”</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+            <h2 className="text-sm font-bold">Ubicaciones de “{elegido.nombre}”</h2>
+            {elegido.usa_ubicaciones && <BotonNuevo texto="Nueva ubicación" />}
+          </div>
           {!elegido.usa_ubicaciones && (
             <p className="text-[11px] text-[#5C6B76] mb-2">
               Este depósito no usa ubicaciones: todo su stock va a la ubicación general. Si querés ordenarlo por estantes (ej. A-03-2), prendé “Usa ubicaciones” arriba.
@@ -192,7 +212,7 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
             </div>
           )}
           {elegido.usa_ubicaciones && (
-            <AltaNueva texto="Nueva ubicación" className="mb-3">
+            <AltaNueva texto="Nueva ubicación" sinBoton className="mb-3">
             <form action={accionCrearUbicacion} className="flex flex-wrap items-center gap-2">
               <input type="hidden" name="deposito" value={elegido.id} />
               <input type="hidden" name="volver" value={aqui} />
@@ -206,7 +226,10 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
           <div className={CAJA_TABLA}>
             <table className={TABLA}>
               <thead className={THEAD}>
-                <tr><th className={TH}>Código</th><th className={TH}>Descripción</th><th className={THN}>Orden de recorrido</th><th className={TH}>Estado</th><th className={THN}>Unidades</th><th /></tr>
+                <tr>
+                  <ThOrden col="u_codigo">Código</ThOrden><ThOrden col="u_descripcion">Descripción</ThOrden><ThOrden col="u_orden" n desc={false} porDefecto>Orden de recorrido</ThOrden>
+                  <ThOrden col="u_estado">Estado</ThOrden><ThOrden col="u_unidades" n>Unidades</ThOrden><th />
+                </tr>
               </thead>
               <tbody>
                 {ubicaciones.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>{q ? "Ninguna ubicación coincide." : "Todavía no hay ubicaciones."}</td></tr>}
@@ -237,7 +260,10 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
                     <td className={TD}>{u.descripcion ?? "—"}</td>
                     <td className={TDN}>{u.orden_recorrido}</td>
                     <td className={TD}><Estado texto={u.estado === "activa" ? "Activa" : "Archivada"} tono={u.estado === "activa" ? "verde" : "gris"} /></td>
-                    <td className={TDN}>{u.unidades}</td>
+                    <td className={TDN}>
+                      <Link href={url(BASE, { d: elegido.id, q: q || null, contiene: comienza ? null : "1", ...filtrosD, u: u.id === abierta ? null : u.id })} scroll={false}
+                        className="text-[#16577F] hover:underline" title="Ver los productos que tiene">{u.unidades.toLocaleString("es-AR")}</Link>
+                    </td>
                     <td className={`${TD} text-right whitespace-nowrap`}>
                       {u.es_default ? <span className="text-[10px] text-[#5C6B76]">la crea el sistema</span> : (
                         <span className="inline-flex gap-1">
@@ -256,9 +282,9 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
                             <tbody>
                               {contenido.map((c) => (
                                 <tr key={c.variacion_id}>
-                                  <td className="pr-4 py-0.5 whitespace-nowrap"><Link href={url("/stock/consulta", { v: c.variacion_id })} className="text-[#16577F] hover:underline">{c.sku}</Link></td>
-                                  <td className="pr-4 py-0.5">{c.titulo}</td>
-                                  <td className="pr-4 py-0.5 text-right tabular-nums">{c.cantidad}</td>
+                                  <td className="pr-4 py-0.5 whitespace-nowrap"><Link href={`/catalogo/productos/${c.producto_id}`} className="text-[#16577F] hover:underline">{c.sku}</Link></td>
+                                  <td className="pr-4 py-0.5"><Link href={`/catalogo/productos/${c.producto_id}`} className="hover:underline">{c.titulo}</Link></td>
+                                  <td className="pr-4 py-0.5 text-right tabular-nums"><Link href={url("/stock/consulta", { v: c.variacion_id })} className="text-[#16577F] hover:underline">{c.cantidad}</Link></td>
                                   <td className="py-0.5 text-right tabular-nums">{c.reservado}</td>
                                 </tr>
                               ))}
@@ -273,6 +299,7 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
               </tbody>
             </table>
           </div>
+          <Paginado total={totalUbicaciones} />
           <p className="text-[11px] text-[#5C6B76] mt-2">El orden de recorrido es el que va a seguir el picking: de menor a mayor.</p>
         </section>
       )}

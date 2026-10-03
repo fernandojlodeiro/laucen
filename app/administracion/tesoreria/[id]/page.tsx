@@ -37,7 +37,7 @@ export default async function MovimientosCuenta({ params, searchParams }: { para
   const oculto = <input type="hidden" name="c" value={c.id} />;
 
   return (
-    <Pantalla titulo="Caja y bancos" subtitulo={`Movimientos en ${c.moneda === "USD" ? "dólares" : "pesos"}`}>
+    <Pantalla titulo="Caja y bancos" camino={[{ texto: c.nombre }]} subtitulo={`Movimientos en ${c.moneda === "USD" ? "dólares" : "pesos"}`}>
       <Encabezado c={c} />
       <Avisos sp={sp} />
 

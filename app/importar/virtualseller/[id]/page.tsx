@@ -50,7 +50,8 @@ export default async function CorridaVs({ params, searchParams }: { params: Prom
 
   return (
     <Pantalla titulo="Importación desde Virtual Seller" ancho="max-w-5xl"
-      subtitulo={<><Link href="/importar/virtualseller" className="text-[#16577F] hover:underline">← Corridas</Link> · {fechaHora(imp.creado_ts)} · <Estado texto={texto} tono={tono} /></>}>
+      camino={[{ texto: "Virtual Seller", href: "/importar/virtualseller" }, { texto: `Corrida #${iid}` }]}
+      subtitulo={<>{fechaHora(imp.creado_ts)} · <Estado texto={texto} tono={tono} /></>}>
       <Avisos sp={sp} />
       {andando && <Refrescar />}
       {imp.error && <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#FDECEA] text-[#C03420]">{imp.error} Se reintenta sola en la próxima vuelta.</p>}

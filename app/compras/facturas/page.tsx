@@ -4,44 +4,48 @@
 
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
+import { consultaPaginada, leerOrden } from "@/lib/lista";
+import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { formatear } from "@/lib/moneda";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import {
-  entrarErp, Pantalla, Avisos, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
+  entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
 import { fecha } from "@/app/ventas/formato";
 import { ESTADO_FACTURA, numeroFactura } from "../comun";
 
 export const dynamic = "force-dynamic";
 
-type SP = { proveedor?: string; estado?: string; ok?: string; error?: string };
+type SP = { proveedor?: string; estado?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 type Fila = {
-  id: number; fecha: Date; proveedor: string; letra: string; es_nota_credito: boolean; punto_venta: number | null; numero: string | null;
+  id: number; fecha: Date; proveedor_id: number; proveedor: string; letra: string; es_nota_credito: boolean; punto_venta: number | null; numero: string | null;
   moneda: "ARS" | "USD"; total: string; estado: string; lineas: number;
 };
-
-const LIMITE = 300;
 
 export default async function FacturasCompra({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("compras_ver");
   const sp = await searchParams;
   const proveedorId = Number(sp.proveedor) || 0;
   const estado = sp.estado && Object.hasOwn(ESTADO_FACTURA, sp.estado) ? sp.estado : "";
-  const [proveedores, filas] = await Promise.all([
+  const LINEAS = "(select count(*) from factura_compra_linea l where l.factura_id = f.id)";
+  const [proveedores, { filas, total }] = await Promise.all([
     consulta<{ id: number; nombre: string }>("select id::int, nombre from proveedor where organizacion_id = $1 order by estado, nombre", [s.org.id]),
-    consulta<Fila>(`
-      select f.id::int, f.fecha, p.nombre proveedor, f.letra, f.es_nota_credito, f.punto_venta, f.numero::text, f.moneda, f.total, f.estado,
-             (select count(*) from factura_compra_linea l where l.factura_id = f.id)::int lineas
-        from factura_compra f join proveedor p on p.id = f.proveedor_id
-       where f.organizacion_id = $1 and ($2 = 0 or f.proveedor_id = $2) and ($3 = '' or f.estado = $3)
-       order by f.fecha desc, f.id desc limit ${LIMITE}`, [s.org.id, proveedorId, estado]),
+    consultaPaginada<Fila>({
+      campos: `f.id::int, f.fecha, f.proveedor_id::int, p.nombre proveedor, f.letra, f.es_nota_credito, f.punto_venta, f.numero::text, f.moneda, f.total, f.estado,
+               ${LINEAS}::int lineas`,
+      desde: "factura_compra f join proveedor p on p.id = f.proveedor_id",
+      donde: "f.organizacion_id = $1 and ($2 = 0 or f.proveedor_id = $2) and ($3 = '' or f.estado = $3)",
+      orden: leerOrden(sp, {
+        fecha: "f.fecha", proveedor: "p.nombre", comprobante: "f.numero", lineas: LINEAS, total: "f.total", estado: "f.estado",
+      }, "f.fecha desc, f.id desc"),
+    }, [s.org.id, proveedorId, estado], sp),
   ]);
   const hayFiltro = !!(proveedorId || estado);
 
   return (
     <Pantalla titulo="Facturas de compra" subtitulo="Lo que te facturan los proveedores: mercadería, servicios, el proveedor del exterior y el despachante"
-      acciones={<Link href="/compras/facturas/nueva" className={PRIMARIO}>Nueva factura</Link>}>
+      acciones={<Link href="/compras/facturas/nueva" className={PRIMARIO}>+ Nueva factura</Link>}>
       <Avisos sp={sp} />
       <form className="flex flex-wrap items-end gap-2 mb-3">
         <label><span className={ETIQUETA}>Proveedor</span>
@@ -61,7 +65,10 @@ export default async function FacturasCompra({ searchParams }: { searchParams: P
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={THN}>Fecha</th><th className={TH}>Proveedor</th><th className={TH}>Comprobante</th><th className={THN}>Líneas</th><th className={THN}>Total</th><th className={TH}>Estado</th></tr>
+            <tr>
+              <ThOrden col="fecha" n porDefecto>Fecha</ThOrden><ThOrden col="proveedor">Proveedor</ThOrden><ThOrden col="comprobante">Comprobante</ThOrden>
+              <ThOrden col="lineas" n>Líneas</ThOrden><ThOrden col="total" n>Total</ThOrden><ThOrden col="estado">Estado</ThOrden>
+            </tr>
           </thead>
           <tbody>
             {filas.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>{hayFiltro ? "Nada con esos filtros." : "Todavía no hay facturas de compra."}</td></tr>}
@@ -69,12 +76,12 @@ export default async function FacturasCompra({ searchParams }: { searchParams: P
               const est = ESTADO_FACTURA[f.estado] ?? ESTADO_FACTURA.borrador;
               return (
                 <tr key={f.id} className={TR}>
-                  <td className={TDN}>{fecha(f.fecha)}</td>
-                  <td className={TD}>{f.proveedor}</td>
+                  <td className={TDN}><Link href={`/compras/facturas/${f.id}`} className="hover:underline">{fecha(f.fecha)}</Link></td>
+                  <td className={TD}><Link href={url("/compras/proveedores", { id: f.proveedor_id })} className="text-[#16577F] hover:underline">{f.proveedor}</Link></td>
                   <td className={`${TD} font-mono whitespace-nowrap`}>
                     <Link href={`/compras/facturas/${f.id}`} className="font-semibold text-[#16577F] hover:underline">{numeroFactura(f)}</Link>
                   </td>
-                  <td className={TDN}>{f.lineas}</td>
+                  <td className={TDN}><Link href={`/compras/facturas/${f.id}`} className="hover:underline">{f.lineas}</Link></td>
                   <td className={TDN}>{formatear(f.es_nota_credito ? -Number(f.total) : f.total, f.moneda)}</td>
                   <td className={TD}><Estado texto={est.texto} tono={est.tono} /></td>
                 </tr>
@@ -83,7 +90,7 @@ export default async function FacturasCompra({ searchParams }: { searchParams: P
           </tbody>
         </table>
       </div>
-      {filas.length === LIMITE && <p className="text-[11px] text-[#5C6B76] mt-2">Se muestran las últimas {LIMITE}: usá los filtros para ver más.</p>}
+      <Paginado total={total} />
     </Pantalla>
   );
 }

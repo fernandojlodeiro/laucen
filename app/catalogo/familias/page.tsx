@@ -8,16 +8,18 @@ import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
-import AltaNueva from "@/app/componentes/AltaNueva";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
+import { ThOrden, Paginado } from "@/app/componentes/Lista";
+import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, coincideBusqueda,
+  entrarErp, Pantalla, Avisos, Lapiz, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA, coincideBusqueda,
 } from "@/app/componentes/erp";
 import { ordenarArbol } from "@/app/catalogo/productos/comun";
 import { accionBorrarFamilia, accionCrearFamilia, accionGuardarFamilia } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
-type SP = { editar?: string; q?: string; contiene?: string; ok?: string; error?: string };
+type SP = { editar?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 type Fila = { id: number; padre_id: number | null; nombre: string; descripcion: string | null; descuento_pct: number | null; productos: number };
 type CucardaFamilia = { familia_id: number; cucarda_id: number; desde: string | null; hasta: string | null };
 
@@ -30,7 +32,7 @@ export default async function Familias({ searchParams }: { searchParams: Promise
   const editar = Number(sp.editar) || 0;
   const q = sp.q?.trim() ?? "";
   const comienza = sp.contiene !== "1";
-  const filtros = { q: q || null, contiene: comienza ? null : "1" };
+  const filtros = { q: q || null, contiene: comienza ? null : "1", p: sp.p, orden: sp.orden, dir: sp.dir };
   const [filas, cucardas, asignadas] = await Promise.all([
     consulta<Fila>(`
       select f.id::int, f.padre_id::int, f.nombre, f.descripcion, f.descuento_pct::float8,
@@ -68,10 +70,28 @@ export default async function Familias({ searchParams }: { searchParams: Promise
   };
   const totalProductos = (id: number) => [...debajo(id)].reduce((t, x) => t + (porId.get(x)?.productos ?? 0), 0);
   const cucardaDe = new Map(cucardas.map((c) => [c.id, c]));
+  // Sin elegir columna se ve el árbol; ordenada por una columna, la lista plana.
+  const ordenadas = ordenarEnMemoria(visibles, sp, {
+    nombre: (f) => f.nombre, descripcion: (f) => f.descripcion, descuento: (f) => f.descuento_pct ?? heredado(f), productos: (f) => f.productos,
+  });
+  const pagina = paginarEnMemoria(ordenadas, sp);
+  const plana = ordenadas !== visibles;
 
   return (
-    <Pantalla titulo="Familias" subtitulo="Agrupan productos. Lo que se carga en una familia (descuento, cucardas) lo heredan sus productos y subfamilias si no lo cambian">
+    <Pantalla titulo="Familias" subtitulo="Agrupan productos. Lo que se carga en una familia (descuento, cucardas) lo heredan sus productos y subfamilias si no lo cambian"
+      acciones={<BotonNuevo texto="Nueva familia" />}>
       <Avisos sp={sp} />
+      <AltaNueva texto="Nueva familia" sinBoton>
+        <form action={accionCrearFamilia} className="flex flex-wrap items-center gap-2">
+          <input name="nombre" placeholder="Nombre (ej. Cocina)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
+          <select name="padre_id" defaultValue="" className={CAMPO} aria-label="Familia padre">
+            <option value="">Sin padre (arriba de todo)</option>
+            {arbol.map((o) => <option key={o.id} value={o.id}>Dentro de {o.etiqueta}</option>)}
+          </select>
+          <CampoNumero name="descuento_pct" valor={null} tipo="pct" placeholder="Desc. %" className={`${CAMPO} w-20`} />
+          <button className={PRIMARIO}>Crear</button>
+        </form>
+      </AltaNueva>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar familia" limpiar={["editar"]} />
       </div>
@@ -79,13 +99,13 @@ export default async function Familias({ searchParams }: { searchParams: Promise
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH}>Familia</th><th className={TH}>Descripción</th><th className={THN}>Descuento</th><th className={TH}>Cucardas</th>
-              <th className={THN} title="Propios (con las subfamilias)">Productos</th><th />
+              <ThOrden col="nombre">Familia</ThOrden><ThOrden col="descripcion">Descripción</ThOrden><ThOrden col="descuento" n>Descuento</ThOrden><th className={TH}>Cucardas</th>
+              <ThOrden col="productos" n title="Propios (con las subfamilias)">Productos</ThOrden><th />
             </tr>
           </thead>
           <tbody>
             {visibles.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>{q ? "Ninguna familia coincide." : "Todavía no hay familias."}</td></tr>}
-            {visibles.map((f) => {
+            {pagina.map((f) => {
               const suyas = asignadas.filter((a) => a.familia_id === f.id);
               if (editar === f.id) {
                 const excluidas = debajo(f.id);
@@ -145,9 +165,10 @@ export default async function Familias({ searchParams }: { searchParams: Promise
               return (
                 <tr key={f.id} className={TR}>
                   <td className={TD}>
-                    <span style={{ paddingLeft: `${f.nivel * 1.25}rem` }} className="inline-block">
-                      {f.nivel > 0 && <span className="text-[#9AA7B1] mr-1">└</span>}
-                      <span className={f.nivel === 0 ? "font-semibold" : ""}>{f.nombre}</span>
+                    <span style={{ paddingLeft: `${plana ? 0 : f.nivel * 1.25}rem` }} className="inline-block">
+                      {f.nivel > 0 && !plana && <span className="text-[#9AA7B1] mr-1">└</span>}
+                      <Link href={url("/catalogo/productos", { familia: f.id })} className={`text-[#16577F] hover:underline ${f.nivel === 0 ? "font-semibold" : ""}`}
+                        title={plana ? f.etiqueta : "Ver sus productos"}>{f.nombre}</Link>
                     </span>
                   </td>
                   <td className={`${TD} text-[#5C6B76]`}>{f.descripcion ?? ""}</td>
@@ -181,17 +202,7 @@ export default async function Familias({ searchParams }: { searchParams: Promise
           </tbody>
         </table>
       </div>
-      <AltaNueva texto="Nueva familia" className="mt-3">
-      <form action={accionCrearFamilia} className="flex flex-wrap items-center gap-2">
-        <input name="nombre" placeholder="Nombre (ej. Cocina)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
-        <select name="padre_id" defaultValue="" className={CAMPO} aria-label="Familia padre">
-          <option value="">Sin padre (arriba de todo)</option>
-          {arbol.map((o) => <option key={o.id} value={o.id}>Dentro de {o.etiqueta}</option>)}
-        </select>
-        <CampoNumero name="descuento_pct" valor={null} tipo="pct" placeholder="Desc. %" className={`${CAMPO} w-20`} />
-        <button className={PRIMARIO}>Crear</button>
-      </form>
-      </AltaNueva>
+      <Paginado total={visibles.length} />
     </Pantalla>
   );
 }

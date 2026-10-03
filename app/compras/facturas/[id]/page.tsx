@@ -77,7 +77,8 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
   return (
     <Pantalla ancho="max-w-5xl"
       titulo={<>{f.es_nota_credito ? "Nota de crédito de compra" : "Factura de compra"} <span className="font-mono">{numeroFactura(f)}</span></>}
-      subtitulo={<><Link href="/compras/facturas" className="text-[#16577F] hover:underline">← Facturas de compra</Link> · {f.proveedor} · {fechaAR(f.fecha)}</>}
+      camino={[{ texto: numeroFactura(f) }]}
+      subtitulo={<><Link href={`/compras/proveedores?id=${f.proveedor_id}`} className="text-[#16577F] hover:underline">{f.proveedor}</Link> · {fechaAR(f.fecha)}</>}
       acciones={borrador ? <TachoConfirmar accion={accionBorrarFactura} campos={{ id: String(fid) }} pregunta="¿Borrar el borrador?" /> : undefined}>
       <Avisos sp={sp} />
 

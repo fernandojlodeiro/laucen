@@ -1,6 +1,8 @@
 // Canales de venta (orden 136, §6): cada uno con su lista de precios, los
 // depósitos desde los que vende (el stock disponible del canal es la suma de
-// ellos) y el token con que llama a la API de pedidos.
+// ellos), la llave con que otro sistema llama a la API (pedidos y catálogo) y,
+// si es de Mercado Libre, si su cuenta está conectada. Las llaves no se
+// muestran nunca (sólo si tiene o no); la recién generada, una sola vez.
 
 import Link from "next/link";
 import { cookies } from "next/headers";
@@ -9,7 +11,9 @@ import { VERDE, SUAVE, PRIMARIO, APAGAR } from "@/app/botones";
 import { TachoConfirmar, BotonConfirmar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
-import AltaNueva from "@/app/componentes/AltaNueva";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
+import { ThOrden, Paginado } from "@/app/componentes/Lista";
+import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, patronBusqueda,
 } from "@/app/componentes/erp";
@@ -33,7 +37,7 @@ const ESTADOS: Record<string, { texto: string; tono: "verde" | "amarillo" | "gri
   activo: { texto: "Activo", tono: "verde" }, pausado: { texto: "Pausado", tono: "amarillo" }, archivado: { texto: "Archivado", tono: "gris" },
 };
 
-type SP = { c?: string; editar?: string; q?: string; contiene?: string; ok?: string; error?: string };
+type SP = { c?: string; editar?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 export default async function Canales({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("canales_ver");
@@ -47,21 +51,28 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
 
   const canales = await consulta<{
     id: number; nombre: string; tipo: string; lista_id: number | null; lista: string | null; estado: string;
-    umbral: number | null; token_fin: string | null; depositos: string | null;
+    umbral: number | null; tiene_llave: boolean; depositos: string | null; ml: string | null;
   }>(`
     select c.id::int, c.nombre, c.tipo, c.lista_precios_id::int lista_id, l.nombre lista, c.estado, c.umbral_pausa_default umbral,
-           right(c.config ->> 'token', 4) token_fin,
+           c.config ? 'token' tiene_llave,
            (select string_agg(d.nombre, ', ' order by cd.prioridad, d.nombre) from canal_deposito cd join deposito d on d.id = cd.deposito_id
-             where cd.canal_id = c.id) depositos
+             where cd.canal_id = c.id) depositos,
+           (select mc.estado from meli_cuenta mc where mc.canal_id = c.id) ml
       from canal c left join lista_precios l on l.id = c.lista_precios_id
      where c.organizacion_id = $1 and ($2::text is null or c.nombre ilike $2)
      order by c.estado, c.nombre`, [s.org.id, patronBusqueda(q, comienza)]);
   const listas = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from lista_precios where organizacion_id = $1 and estado = 'activa' order by orden, nombre", [s.org.id]);
   const elegido = canales.find((c) => c.id === Number(sp.c));
+  const ordenados = ordenarEnMemoria(canales, sp, {
+    nombre: (c) => c.nombre, tipo: (c) => TIPOS[c.tipo] ?? c.tipo, lista: (c) => c.lista, depositos: (c) => c.depositos,
+    estado: (c) => c.estado, ml: (c) => c.ml, umbral: (c) => c.umbral, llave: (c) => (c.tiene_llave ? 1 : 0),
+  });
+  const pagina = paginarEnMemoria(ordenados, sp);
   const crudo = (await cookies()).get("token_nuevo")?.value?.match(/^(\d+):([0-9a-f]{64})$/);
   const tokenNuevo = crudo ? { canal: Number(crudo[1]), token: crudo[2] } : null;
-  const aqui = url(BASE, { c: elegido?.id, ...filtros });
+  const aqui = url(BASE, { c: elegido?.id, ...filtros, p: sp.p, orden: sp.orden, dir: sp.dir });
+  const conFiltros = { ...filtros, p: sp.p, orden: sp.orden, dir: sp.dir };
 
   const susDepositos = elegido ? await consulta<{ id: number; nombre: string; estado: string; prioridad: number }>(`
     select d.id::int, d.nombre, d.estado, cd.prioridad
@@ -86,8 +97,17 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
   );
 
   return (
-    <Pantalla titulo="Canales" subtitulo="Por dónde se vende: con qué lista de precios y desde qué depósitos. Tocá un canal para ver sus depósitos y su token.">
+    <Pantalla titulo="Canales" subtitulo="Por dónde se vende: con qué lista de precios y desde qué depósitos. Tocá un canal para ver sus depósitos, su cuenta de Mercado Libre y su llave API."
+      acciones={<BotonNuevo texto="Nuevo canal" />}>
       <Avisos sp={sp} />
+      <AltaNueva texto="Nuevo canal" sinBoton>
+        <form action={accionCrearCanal} className="flex flex-wrap items-center gap-2">
+          <input name="nombre" placeholder="Nombre (ej. Mercado Libre cuenta 2)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
+          {selectorTipo("mercadolibre")}
+          {selectorLista(null)}
+          <button className={PRIMARIO}>Crear</button>
+        </form>
+      </AltaNueva>
       {deEjemplo.length > 0 && (
         <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#FFF8E5] text-[#8a6100]">
           Son datos de ejemplo (un canal por tipo, con sus listas y un depósito propio): borralos o cambialos. No se vuelven a crear.
@@ -101,15 +121,16 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH}>Canal</th><th className={TH}>Tipo</th><th className={TH}>Lista de precios</th><th className={TH}>Vende desde</th>
-              <th className={TH}>Estado</th><th className={THN}>Umbral de pausa</th><th className={TH}>Token</th><th />
+              <ThOrden col="nombre">Canal</ThOrden><ThOrden col="tipo">Tipo</ThOrden><ThOrden col="lista">Lista de precios</ThOrden><ThOrden col="depositos">Vende desde</ThOrden>
+              <ThOrden col="estado" porDefecto>Estado</ThOrden><ThOrden col="ml">Mercado Libre</ThOrden><ThOrden col="umbral" n>Umbral de pausa</ThOrden>
+              <ThOrden col="llave" title="Para que otro sistema cargue pedidos o lea el catálogo por la API; hoy no la usa nadie">Llave API</ThOrden><th />
             </tr>
           </thead>
           <tbody>
-            {canales.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>{q ? "Ningún canal coincide." : "No hay canales. Agregá el primero abajo."}</td></tr>}
-            {canales.map((c) => editar === c.id ? (
+            {canales.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>{q ? "Ningún canal coincide." : "No hay canales. Agregá el primero con «Nuevo canal»."}</td></tr>}
+            {pagina.map((c) => editar === c.id ? (
               <tr key={c.id} className={`${TR} bg-[#FAFBFC]`}>
-                <td colSpan={8} className={TD}>
+                <td colSpan={9} className={TD}>
                   <form action={accionGuardarCanal} className="flex flex-wrap items-end gap-2">
                     <input type="hidden" name="id" value={c.id} />
                     <input type="hidden" name="volver" value={aqui} />
@@ -130,16 +151,21 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
               </tr>
             ) : (
               <tr key={c.id} className={`${TR} ${elegido?.id === c.id ? "bg-[#EEF3F8]" : ""}`}>
-                <td className={TD}><Link href={url(BASE, { c: c.id, ...filtros })} className="font-semibold text-[#16577F] hover:underline">{c.nombre}</Link></td>
+                <td className={TD}><Link href={url(BASE, { ...conFiltros, c: c.id })} className="font-semibold text-[#16577F] hover:underline">{c.nombre}</Link></td>
                 <td className={TD}>{TIPOS[c.tipo] ?? c.tipo}</td>
-                <td className={TD}>{c.lista ?? <span className="text-[#C03420]">sin lista</span>}</td>
-                <td className={TD}>{c.depositos ?? <span className="text-[#C03420]">ningún depósito</span>}</td>
+                <td className={TD}>{c.lista_id
+                  ? <Link href={url("/catalogo/precios", { lista: c.lista_id })} className="text-[#16577F] hover:underline">{c.lista}</Link>
+                  : <span className="text-[#C03420]">sin lista</span>}</td>
+                <td className={TD}><Link href={url(BASE, { ...conFiltros, c: c.id })} className="hover:text-[#16577F] hover:underline">{c.depositos ?? <span className="text-[#C03420]">ningún depósito</span>}</Link></td>
                 <td className={TD}><Estado texto={ESTADOS[c.estado]?.texto ?? c.estado} tono={ESTADOS[c.estado]?.tono ?? "gris"} /></td>
+                <td className={`${TD} whitespace-nowrap`}>{c.tipo === "mercadolibre"
+                  ? <Link href={url(BASE, { ...conFiltros, c: c.id })}><Estado texto={c.ml === "activa" ? "Conectada" : "Desconectada"} tono={c.ml === "activa" ? "verde" : "rojo"} /></Link>
+                  : <span className="text-[#5C6B76]">—</span>}</td>
                 <td className={TDN}>{c.umbral ?? <span className="text-[#5C6B76]">hereda</span>}</td>
-                <td className={`${TD} whitespace-nowrap`}>{c.token_fin ? `…${c.token_fin}` : <span className="text-[#5C6B76]">sin token</span>}</td>
+                <td className={`${TD} whitespace-nowrap`}><Link href={url(BASE, { ...conFiltros, c: c.id })} className="hover:underline">{c.tiene_llave ? "Tiene" : <span className="text-[#5C6B76]">sin llave</span>}</Link></td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
-                    <Lapiz href={url(BASE, { c: elegido?.id, ...filtros, editar: c.id })} />
+                    <Lapiz href={url(BASE, { c: elegido?.id, ...conFiltros, editar: c.id })} />
                     <TachoConfirmar accion={accionBorrarCanal} campos={{ id: String(c.id) }} pregunta="¿Borrar el canal?" />
                   </span>
                 </td>
@@ -148,15 +174,9 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
           </tbody>
         </table>
       </div>
-      <AltaNueva texto="Nuevo canal" className="mt-3">
-      <form action={accionCrearCanal} className="flex flex-wrap items-center gap-2">
-        <input name="nombre" placeholder="Nombre (ej. Mercado Libre cuenta 2)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
-        {selectorTipo("mercadolibre")}
-        {selectorLista(null)}
-        <button className={PRIMARIO}>Crear</button>
-      </form>
-      </AltaNueva>
+      <Paginado total={canales.length} />
       <p className="text-[11px] text-[#5C6B76] mt-1">Umbral de pausa: con ese stock disponible o menos, se pausan las publicaciones del canal (vacío = el de la organización, 1).</p>
+      <p className="text-[11px] text-[#5C6B76] mt-1">Llave API: para que otro sistema cargue pedidos o lea el catálogo por la API; hoy no la usa nadie.</p>
 
       {elegido && (
         <div className="grid gap-4 md:grid-cols-2 mt-6">
@@ -206,29 +226,29 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
           {elegido.tipo === "mercadolibre" && <CuentaMl org={s.org.id} canal={elegido.id} />}
 
           <section className={CAJA}>
-            <h2 className="text-sm font-bold mb-1">Token de la API</h2>
+            <h2 className="text-sm font-bold mb-1">Llave API</h2>
             <p className="text-[11px] text-[#5C6B76] mb-2">
-              La tienda web y la sincronización de Mercado Libre cargan pedidos llamando a <code>/api/pedidos</code> con <code>Authorization: Bearer &lt;token&gt;</code>: el token dice de qué canal es el pedido.
+              Para que otro sistema cargue pedidos o lea el catálogo por la API; hoy no la usa nadie. Se manda como <code>Authorization: Bearer &lt;llave&gt;</code> a <code>/api/pedidos</code> o <code>/api/catalogo</code>: la llave dice de qué canal es.
             </p>
             {tokenNuevo && tokenNuevo.canal === elegido.id && (
               <p className="text-xs rounded-lg px-3 py-2 mb-2 bg-[#FFF8E5] text-[#8a6100] break-all">
-                Token nuevo (copialo ahora, en un minuto deja de mostrarse): <b className="font-mono select-all">{tokenNuevo.token}</b>
+                Llave nueva (copiala ahora, en un minuto deja de mostrarse): <b className="font-mono select-all">{tokenNuevo.token}</b>
               </p>
             )}
-            {elegido.token_fin ? (
+            {elegido.tiene_llave ? (
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span>Tiene token: termina en <b className="font-mono">…{elegido.token_fin}</b></span>
+                <span>Tiene llave (no se muestra).</span>
                 <BotonConfirmar accion={accionGenerarToken} campos={{ canal: String(elegido.id), volver: aqui }} clase={SUAVE}
                   texto="Generar otro" pregunta="¿Reemplazarlo? El actual deja de andar." corriendo="Generando…" />
                 <BotonConfirmar accion={accionRevocarToken} campos={{ canal: String(elegido.id), volver: aqui }} clase={APAGAR}
-                  texto="Revocar" pregunta="¿Revocar el token?" corriendo="Revocando…" />
+                  texto="Revocar" pregunta="¿Revocar la llave?" corriendo="Revocando…" />
               </div>
             ) : (
               <form action={accionGenerarToken} className="flex items-center gap-2 text-xs">
                 <input type="hidden" name="canal" value={elegido.id} />
                 <input type="hidden" name="volver" value={aqui} />
-                <span className="text-[#5C6B76]">Sin token: nadie puede cargar pedidos de este canal por la API.</span>
-                <button className={PRIMARIO}>Generar token</button>
+                <span className="text-[#5C6B76]">Sin llave: nadie puede usar la API con este canal.</span>
+                <button className={PRIMARIO}>Generar llave</button>
               </form>
             )}
           </section>

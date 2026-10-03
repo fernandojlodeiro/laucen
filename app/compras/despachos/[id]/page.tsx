@@ -138,7 +138,8 @@ export default async function DetalleDespacho({ params, searchParams }: { params
   return (
     <Pantalla ancho="max-w-6xl"
       titulo={<>Despacho <span className="font-mono">{d.numero ?? `#${d.id} (sin número)`}</span></>}
-      subtitulo={<><Link href="/compras/despachos" className="text-[#16577F] hover:underline">← Despachos de importación</Link> · {fechaAR(d.fecha)}{d.proveedor ? ` · ${d.proveedor}` : ""}</>}
+      camino={[{ texto: d.numero ?? `#${d.id}` }]}
+      subtitulo={<>{fechaAR(d.fecha)}{d.proveedor ? ` · ${d.proveedor}` : ""}</>}
       acciones={borrador ? <TachoConfirmar accion={accionBorrarDespacho} campos={{ id: String(did) }} pregunta="¿Borrar el borrador?" /> : undefined}>
       <Avisos sp={sp} />
 

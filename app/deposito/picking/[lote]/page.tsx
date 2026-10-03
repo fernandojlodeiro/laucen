@@ -48,7 +48,7 @@ export default async function LotePicking({ params, searchParams }: { params: Pr
   if (lote.estado !== "abierto") {
     return (
       <Pantalla titulo={titulo} subtitulo={`${lote.deposito} · ${lote.estado === "terminado" ? "terminado" : "cancelado"} ${fechaHoraAR(lote.terminado_ts)}`} ancho="max-w-2xl"
-        acciones={<Link href={volverLista} className={SUAVE}>Volver a picking</Link>}>
+        camino={[{ texto: lote.deposito, href: volverLista }, { texto: `#${lote.id}` }]}>
         <Avisos sp={sp} />
         {lote.estado === "terminado" ? <Resultado org={s.org.id} items={items} pedidos={pedidos} /> : (
           <p className="text-sm text-[#5C6B76] mb-4">Este picking se canceló: sus pedidos volvieron a la lista para preparar.</p>
@@ -63,7 +63,7 @@ export default async function LotePicking({ params, searchParams }: { params: Pr
 
   return (
     <Pantalla titulo={titulo} subtitulo={`${lote.deposito} · ${pedidos.length} pedido${pedidos.length === 1 ? "" : "s"}`} ancho="max-w-2xl"
-      acciones={<Link href={volverLista} className={SUAVE}>Volver</Link>}>
+      camino={[{ texto: lote.deposito, href: volverLista }, { texto: `#${lote.id}` }]}>
       <Avisos sp={sp} />
 
       {/* Avance */}

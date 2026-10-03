@@ -13,9 +13,12 @@ import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
 import { TachoConfirmar, BotonConfirmar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
-import AltaNueva from "@/app/componentes/AltaNueva";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
+import { ThOrden, Paginado } from "@/app/componentes/Lista";
+import FotosProducto from "@/app/componentes/FotosProducto";
+import { leerOrden, leerPagina, ordenarEnMemoria, POR_PAGINA } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, patronBusqueda, coincideBusqueda,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, patronBusqueda, coincideBusqueda,
 } from "@/app/componentes/erp";
 import { verInactivos } from "@/app/componentes/Inactivos";
 import { accionBorrarLista, accionCrearLista, accionGuardarLista, accionGuardarPrecio, accionMasivo } from "./acciones";
@@ -23,18 +26,17 @@ import { accionBorrarLista, accionCrearLista, accionGuardarLista, accionGuardarP
 export const dynamic = "force-dynamic";
 
 const BASE = "/catalogo/precios";
-const POR_PAGINA = 100;
 
 type SP = {
-  lista?: string; editar?: string; precio?: string; q?: string; contiene?: string; ql?: string; qlcontiene?: string; p?: string; inactivos?: string; ok?: string; error?: string;
+  lista?: string; editar?: string; precio?: string; q?: string; contiene?: string; ql?: string; qlcontiene?: string; p?: string; orden?: string; dir?: string; inactivos?: string; ok?: string; error?: string;
   // Carga masiva (paso 1: elegir; paso 2: confirmar).
   md?: string; mo?: string; ms?: string; mpct?: string; mr?: string;
 };
 
 type Fila = {
-  id: number; sku: string; titulo: string; precio_id: number | null;
+  id: number; producto_id: number; sku: string; titulo: string; precio_id: number | null; fotos: string[] | null;
   lista_ars: string | null; lista_usd: string | null; moneda_origen: Moneda | null; vigente: string | null;
-  descuento: string; venta_ars: string | null; venta_usd: string | null; total: number;
+  descuento: string; venta_ars: string | null; venta_usd: string | null;
   propio: boolean;
 };
 
@@ -69,33 +71,57 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
   const ql = sp.ql?.trim() || "";
   const comienzaL = sp.qlcontiene !== "1";
   const filtrosL = { ql: ql || null, qlcontiene: comienzaL ? null : "1" };
-  const listasVistas = listas.filter((l) => coincideBusqueda(l.nombre, ql, comienzaL));
-  const pagina = Math.max(1, Number(sp.p) || 1);
+  // Las listas son pocas: se ordenan en memoria (sus columnas llevan "l_"; las de la grilla no).
+  const listasVistas = ordenarEnMemoria(listas.filter((l) => coincideBusqueda(l.nombre, ql, comienzaL)), sp, {
+    l_nombre: (l) => l.nombre, l_moneda: (l) => l.moneda_base, l_formula: (l) => formula(l.id), l_orden: (l) => l.orden,
+    l_estado: (l) => l.estado, l_precios: (l) => nPrecios.get(l.id) ?? 0,
+  });
+  const { desde } = leerPagina(sp);
+  const orden = { p: sp.p, orden: sp.orden, dir: sp.dir };
   const editarPrecio = Number(sp.precio) || 0;
   const inactivos = verInactivos(sp);
   const ina = inactivos ? "1" : null;
   // La dirección de esta vista, sin lo que abre una edición: a donde vuelven las acciones.
-  const aqui = url(BASE, { lista: lista?.id, q, contiene: cont, p: pagina > 1 ? pagina : null, inactivos: ina, ...filtrosL });
+  const aqui = url(BASE, { lista: lista?.id, q, contiene: cont, inactivos: ina, ...filtrosL, ...orden });
 
+  // La grilla: primero la página de variaciones y después precio_de() sólo
+  // para esas 50. Ordenar por precio o descuento lo calcula para todas.
   let filas: Fila[] = [];
+  let total = 0;
   if (lista) {
-    filas = await consulta<Fila>(`
-      select v.id::int, v.sku, titulo_variacion(v.id) titulo, pr.precio_id::int,
+    const donde = `v.organizacion_id = $1 and v.estado = 'activa' and ($7 or p.estado <> 'archivado')
+         and ($4::text is null or v.sku ilike $4 or p.titulo ilike $4 or v.titulo ilike $4 or v.codigo_barras = $5)`;
+    const porPrecio = ["lista", "descuento", "venta", "vigente"].includes(sp.orden ?? "");
+    const ordenSql = leerOrden(sp, {
+      sku: "v.sku", titulo: "coalesce(v.titulo, p.titulo)",
+      lista: "pr.lista_ars", descuento: "descuento_efectivo($1, v.id)", venta: "pr.venta_ars", vigente: "pr.vigente_desde",
+    }, "v.sku, v.id");
+    const valores = [s.org.id, lista.id, hoyAR(), patronBusqueda(q, comienza), q, desde, inactivos];
+    const campos = `v.id::int, v.producto_id::int, v.sku, titulo_variacion(v.id) titulo, pr.precio_id::int,
              pr.lista_ars, pr.lista_usd, pr.moneda_origen, to_char(pr.vigente_desde, 'DD/MM/YYYY') vigente,
              descuento_efectivo($1, v.id) descuento, pr.venta_ars, pr.venta_usd,
              coalesce((select x.lista_id = $2 from precio x where x.id = pr.precio_id), false) propio,
-             count(*) over ()::int total
-        from variacion v
-        join producto p on p.id = v.producto_id
-        left join lateral precio_de($1, v.id, $2, $3::date) pr on true
-       where v.organizacion_id = $1 and v.estado = 'activa' and ($7 or p.estado <> 'archivado')
-         and ($4::text is null or v.sku ilike $4 or p.titulo ilike $4 or v.titulo ilike $4 or v.codigo_barras = $5)
-       order by v.sku
-       limit ${POR_PAGINA} offset $6`,
-      [s.org.id, lista.id, hoyAR(), patronBusqueda(q, comienza), q, (pagina - 1) * POR_PAGINA, inactivos]);
+             (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = v.producto_id) fotos`;
+    const [lasFilas, [n]] = await Promise.all([
+      consulta<Fila>(porPrecio ? `
+        select ${campos}
+          from variacion v join producto p on p.id = v.producto_id
+          left join lateral precio_de($1, v.id, $2, $3::date) pr on true
+         where ${donde} order by ${ordenSql} limit ${POR_PAGINA} offset $6` : `
+        with pagina as (
+          select v.id from variacion v join producto p on p.id = v.producto_id
+           where ${donde} order by ${ordenSql} limit ${POR_PAGINA} offset $6)
+        select ${campos}
+          from pagina pg join variacion v on v.id = pg.id join producto p on p.id = v.producto_id
+          left join lateral precio_de($1, v.id, $2, $3::date) pr on true
+         order by ${ordenSql}`, valores),
+      // El conteo usa los mismos valores: las condiciones de $2, $3 y $6 sólo le dan tipo a esos parámetros.
+      consulta<{ n: number }>(`select count(*)::int n from variacion v join producto p on p.id = v.producto_id where ${donde}
+         and $2::bigint is not null and $3::date is not null and $6::int is not null`, valores),
+    ]);
+    filas = lasFilas;
+    total = n?.n ?? 0;
   }
-  const total = filas[0]?.total ?? 0;
-  const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
 
   // Carga masiva, paso 2: ya eligió destino, origen y porcentaje → resumen y confirmar.
   const md = listas.find((l) => l.id === Number(sp.md));
@@ -110,8 +136,20 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
   }
 
   return (
-    <Pantalla titulo="Listas de precios" subtitulo="El precio de lista (el tachado). El de venta resta el descuento de la variación, del producto o de la familia.">
+    <Pantalla titulo="Listas de precios" subtitulo="El precio de lista (el tachado). El de venta resta el descuento de la variación, del producto o de la familia."
+      acciones={<BotonNuevo texto="Nueva lista" />}>
       <Avisos sp={sp} />
+      <AltaNueva texto="Nueva lista" sinBoton>
+        <form action={accionCrearLista} className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="volver" value={aqui} />
+          <input name="nombre" placeholder="Nombre (ej. Mayorista)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
+          <select name="moneda" defaultValue="ARS" className={CAMPO} aria-label="Moneda base">
+            <option value="ARS">Pesos</option><option value="USD">Dólares</option>
+          </select>
+          <CampoNumero name="orden" valor={null} tipo="entero" placeholder="Orden" className={`${CAMPO} w-16`} />
+          <button className={PRIMARIO}>Crear</button>
+        </form>
+      </AltaNueva>
 
       {/* ── Listas ── */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
@@ -120,10 +158,13 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={TH}>Lista</th><th className={TH}>Moneda base</th><th className={TH}>Se calcula desde</th><th className={THN}>Orden</th><th className={TH}>Estado</th><th className={THN}>Variaciones con precio</th><th /></tr>
+            <tr>
+              <ThOrden col="l_nombre">Lista</ThOrden><ThOrden col="l_moneda">Moneda base</ThOrden><ThOrden col="l_formula">Se calcula desde</ThOrden>
+              <ThOrden col="l_orden" n desc={false}>Orden</ThOrden><ThOrden col="l_estado">Estado</ThOrden><ThOrden col="l_precios" n>Variaciones con precio</ThOrden><th />
+            </tr>
           </thead>
           <tbody>
-            {listasVistas.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>{ql ? "Ninguna lista coincide." : "Todavía no hay listas. Agregá la primera abajo (ej. Mercado Libre, Web minorista, Mayorista, Local)."}</td></tr>}
+            {listasVistas.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>{ql ? "Ninguna lista coincide." : "Todavía no hay listas. Agregá la primera con «Nueva lista» (ej. Mercado Libre, Web minorista, Mayorista, Local)."}</td></tr>}
             {listasVistas.map((l) => editarLista === l.id ? (
               <tr key={l.id} className={`${TR} bg-[#FAFBFC]`}>
                 <td colSpan={7} className={TD}>
@@ -168,7 +209,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                 <td className={`${TD} text-[#5C6B76] whitespace-nowrap`}>{formula(l.id) || "—"}</td>
                 <td className={TDN}>{l.orden}</td>
                 <td className={TD}><Estado texto={l.estado === "activa" ? "Activa" : "Archivada"} tono={l.estado === "activa" ? "verde" : "gris"} /></td>
-                <td className={TDN}>{nPrecios.get(l.id) ?? 0}</td>
+                <td className={TDN}><Link href={url(BASE, { lista: l.id, ...filtrosL })} className="text-[#16577F] hover:underline">{nPrecios.get(l.id) ?? 0}</Link></td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
                     <Lapiz href={url(BASE, { lista: lista?.id, editar: l.id, ...filtrosL })} />
@@ -180,17 +221,6 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
           </tbody>
         </table>
       </div>
-      <AltaNueva texto="Nueva lista" className="mt-3">
-      <form action={accionCrearLista} className="flex flex-wrap items-center gap-2">
-        <input type="hidden" name="volver" value={aqui} />
-        <input name="nombre" placeholder="Nombre (ej. Mayorista)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
-        <select name="moneda" defaultValue="ARS" className={CAMPO} aria-label="Moneda base">
-          <option value="ARS">Pesos</option><option value="USD">Dólares</option>
-        </select>
-        <CampoNumero name="orden" valor={null} tipo="entero" placeholder="Orden" className={`${CAMPO} w-16`} />
-        <button className={PRIMARIO}>Crear</button>
-      </form>
-      </AltaNueva>
 
       {/* ── Grilla de precios ── */}
       {lista && (
@@ -211,8 +241,8 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
             <table className={TABLA}>
               <thead className={THEAD}>
                 <tr>
-                  <th className={TH}>SKU</th><th className={TH}>Variación</th><th className={THN}>Precio de lista</th>
-                  <th className={THN}>Descuento</th><th className={THN}>Precio de venta</th><th className={TH}>Vigente desde</th>
+                  <ThOrden col="sku" porDefecto>SKU</ThOrden><ThOrden col="titulo">Variación</ThOrden><ThOrden col="lista" n>Precio de lista</ThOrden>
+                  <ThOrden col="descuento" n>Descuento</ThOrden><ThOrden col="venta" n>Precio de venta</ThOrden><ThOrden col="vigente" desc>Vigente desde</ThOrden>
                   <th className={TH}>Cargado en</th><th />
                 </tr>
               </thead>
@@ -240,8 +270,11 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                   </tr>
                 ) : (
                   <tr key={f.id} className={TR}>
-                    <td className={`${TD} whitespace-nowrap`}>{f.sku}</td>
-                    <td className={TD}>{f.titulo}</td>
+                    <td className={`${TD} whitespace-nowrap`}>
+                      <Link href={`/catalogo/productos/${f.producto_id}`} className="font-semibold text-[#16577F] hover:underline">{f.sku}</Link>{" "}
+                      <FotosProducto fotos={f.fotos} titulo={f.titulo} />
+                    </td>
+                    <td className={TD}><Link href={`/catalogo/productos/${f.producto_id}`} className="hover:underline">{f.titulo}</Link></td>
                     <td className={TDN}>{f.precio_id ? <span className={Number(f.descuento) > 0 ? "line-through text-[#5C6B76]" : ""}>{enVista({ ars: f.lista_ars, usd: f.lista_usd }, s.moneda)}</span> : <span className="text-[#5C6B76]">sin precio</span>}</td>
                     <td className={TDN}>{Number(f.descuento) > 0 ? `${formatearNumero(Number(f.descuento), "pct")} %` : "—"}</td>
                     <td className={`${TDN} font-semibold`}>{f.precio_id ? enVista({ ars: f.venta_ars, usd: f.venta_usd }, s.moneda) : "—"}</td>
@@ -250,19 +283,13 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                       {f.moneda_origen ? (f.moneda_origen === "USD" ? "Dólares" : "Pesos") : "—"}
                       {f.precio_id && !f.propio && <span className="ml-1.5"><Estado texto="calculado" tono="azul" /></span>}
                     </td>
-                    <td className={`${TD} text-right`}><Lapiz href={url(BASE, { lista: lista.id, q, contiene: cont, p: pagina > 1 ? pagina : null, inactivos: ina, ...filtrosL, precio: f.id })} etiqueta="Editar precio" /></td>
+                    <td className={`${TD} text-right`}><Lapiz href={url(BASE, { lista: lista.id, q, contiene: cont, inactivos: ina, ...filtrosL, ...orden, precio: f.id })} etiqueta="Editar precio" /></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          {paginas > 1 && (
-            <div className="flex items-center justify-end gap-2 mt-2 text-xs">
-              {pagina > 1 && <Link href={url(BASE, { lista: lista.id, q, contiene: cont, inactivos: ina, ...filtrosL, p: pagina - 1 })} className={SUAVE}>← Anterior</Link>}
-              <span className="text-[#5C6B76]">Página {pagina} de {paginas} · {total} variaciones</span>
-              {pagina < paginas && <Link href={url(BASE, { lista: lista.id, q, contiene: cont, inactivos: ina, ...filtrosL, p: pagina + 1 })} className={SUAVE}>Siguiente →</Link>}
-            </div>
-          )}
+          <Paginado total={total} />
         </section>
       )}
 

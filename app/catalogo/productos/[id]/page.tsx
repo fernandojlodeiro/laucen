@@ -59,7 +59,8 @@ export default async function FichaProducto({ params, searchParams }: { params: 
   return (
     <Pantalla
       titulo={<span className="flex flex-wrap items-center gap-2"><span className="font-mono text-[#5C6B76]">{p.sku_base}</span> {p.titulo} <EstadoProducto estado={p.estado} /></span>}
-      subtitulo={<>{TIPOS_PRODUCTO[p.tipo]}{p.familia ? ` · ${p.familia}` : ""}{p.marca ? ` · ${p.marca}` : ""} · <Link href="/catalogo/productos" className="text-[#16577F]">← Volver a productos</Link></>}
+      subtitulo={<>{TIPOS_PRODUCTO[p.tipo]}{p.familia ? ` · ${p.familia}` : ""}{p.marca ? ` · ${p.marca}` : ""}</>}
+      camino={[{ texto: p.sku_base }]}
       acciones={
         <span className="inline-flex items-center gap-2">
           {/* Inactivo = archivado: deja de aparecer en listados y buscadores. */}

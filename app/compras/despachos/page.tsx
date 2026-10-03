@@ -4,47 +4,52 @@
 
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
+import { consultaPaginada, leerOrden } from "@/lib/lista";
+import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { formatear } from "@/lib/moneda";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import {
-  entrarErp, Pantalla, Avisos, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
+  entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
 import { fecha } from "@/app/ventas/formato";
 import { ESTADO_DESPACHO } from "../comun";
 
 export const dynamic = "force-dynamic";
 
-type SP = { proveedor?: string; estado?: string; ok?: string; error?: string };
+type SP = { proveedor?: string; estado?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 type Fila = {
-  id: number; numero: string | null; fecha: Date; proveedor: string | null; fob_usd: number; flete_seguro_usd: number;
+  id: number; numero: string | null; fecha: Date; proveedor_id: number | null; proveedor: string | null; fob_usd: number; flete_seguro_usd: number;
   gastos_ars: number; cotizacion: number; estado: string; lineas: number;
 };
-
-const LIMITE = 300;
 
 export default async function Despachos({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("despachos_ver");
   const sp = await searchParams;
   const proveedorId = Number(sp.proveedor) || 0;
   const estado = sp.estado && Object.hasOwn(ESTADO_DESPACHO, sp.estado) ? sp.estado : "";
-  const [proveedores, filas] = await Promise.all([
+  const GASTOS = "coalesce((select sum((g->>'importe_ars')::numeric) from jsonb_array_elements(d.gastos) g), 0)";
+  const LINEAS = "(select count(*) from despacho_linea l where l.despacho_id = d.id)";
+  const [proveedores, { filas, total }] = await Promise.all([
     consulta<{ id: number; nombre: string }>(`
       select distinct p.id::int, p.nombre from proveedor p join despacho_importacion d on d.proveedor_id = p.id
        where p.organizacion_id = $1 order by p.nombre`, [s.org.id]),
-    consulta<Fila>(`
-      select d.id::int, d.numero, d.fecha, p.nombre proveedor, d.fob_usd::float, (d.flete_usd + d.seguro_usd)::float flete_seguro_usd,
-             coalesce((select sum((g->>'importe_ars')::numeric) from jsonb_array_elements(d.gastos) g), 0)::float gastos_ars,
-             d.cotizacion::float, d.estado, (select count(*) from despacho_linea l where l.despacho_id = d.id)::int lineas
-        from despacho_importacion d left join proveedor p on p.id = d.proveedor_id
-       where d.organizacion_id = $1 and ($2 = 0 or d.proveedor_id = $2) and ($3 = '' or d.estado = $3)
-       order by d.fecha desc, d.id desc limit ${LIMITE}`, [s.org.id, proveedorId, estado]),
+    consultaPaginada<Fila>({
+      campos: `d.id::int, d.numero, d.fecha, d.proveedor_id::int, p.nombre proveedor, d.fob_usd::float, (d.flete_usd + d.seguro_usd)::float flete_seguro_usd,
+               ${GASTOS}::float gastos_ars, d.cotizacion::float, d.estado, ${LINEAS}::int lineas`,
+      desde: "despacho_importacion d left join proveedor p on p.id = d.proveedor_id",
+      donde: "d.organizacion_id = $1 and ($2 = 0 or d.proveedor_id = $2) and ($3 = '' or d.estado = $3)",
+      orden: leerOrden(sp, {
+        fecha: "d.fecha", numero: "d.numero", proveedor: "p.nombre", lineas: LINEAS, fob: "d.fob_usd", flete: "(d.flete_usd + d.seguro_usd)",
+        gastos: GASTOS, costo: `((d.fob_usd + d.flete_usd + d.seguro_usd) * d.cotizacion + ${GASTOS})`, estado: "d.estado",
+      }, "d.fecha desc, d.id desc"),
+    }, [s.org.id, proveedorId, estado], sp),
   ]);
   const hayFiltro = !!(proveedorId || estado);
 
   return (
     <Pantalla titulo="Despachos de importación" subtitulo="La mercadería importada con su FOB, flete, seguro y gastos: queda el costo puesto en depósito"
-      acciones={<Link href="/compras/despachos/nuevo" className={PRIMARIO}>Nuevo despacho</Link>}>
+      acciones={<Link href="/compras/despachos/nuevo" className={PRIMARIO}>+ Nuevo despacho</Link>}>
       <Avisos sp={sp} />
       <form className="flex flex-wrap items-end gap-2 mb-3">
         <label><span className={ETIQUETA}>Proveedor</span>
@@ -65,8 +70,8 @@ export default async function Despachos({ searchParams }: { searchParams: Promis
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={THN}>Fecha</th><th className={TH}>Despacho</th><th className={TH}>Proveedor</th><th className={THN}>Líneas</th>
-              <th className={THN}>FOB</th><th className={THN}>Flete + seguro</th><th className={THN}>Gastos</th><th className={THN}>Costo total</th><th className={TH}>Estado</th>
+              <ThOrden col="fecha" n porDefecto>Fecha</ThOrden><ThOrden col="numero">Despacho</ThOrden><ThOrden col="proveedor">Proveedor</ThOrden><ThOrden col="lineas" n>Líneas</ThOrden>
+              <ThOrden col="fob" n>FOB</ThOrden><ThOrden col="flete" n>Flete + seguro</ThOrden><ThOrden col="gastos" n>Gastos</ThOrden><ThOrden col="costo" n>Costo total</ThOrden><ThOrden col="estado">Estado</ThOrden>
             </tr>
           </thead>
           <tbody>
@@ -75,12 +80,12 @@ export default async function Despachos({ searchParams }: { searchParams: Promis
               const est = ESTADO_DESPACHO[d.estado] ?? ESTADO_DESPACHO.borrador;
               return (
                 <tr key={d.id} className={TR}>
-                  <td className={TDN}>{fecha(d.fecha)}</td>
+                  <td className={TDN}><Link href={`/compras/despachos/${d.id}`} className="hover:underline">{fecha(d.fecha)}</Link></td>
                   <td className={`${TD} font-mono`}>
                     <Link href={`/compras/despachos/${d.id}`} className="font-semibold text-[#16577F] hover:underline">{d.numero ?? `#${d.id} (sin número)`}</Link>
                   </td>
-                  <td className={TD}>{d.proveedor ?? "—"}</td>
-                  <td className={TDN}>{d.lineas}</td>
+                  <td className={TD}>{d.proveedor_id ? <Link href={url("/compras/proveedores", { id: d.proveedor_id })} className="text-[#16577F] hover:underline">{d.proveedor}</Link> : "—"}</td>
+                  <td className={TDN}><Link href={`/compras/despachos/${d.id}`} className="hover:underline">{d.lineas}</Link></td>
                   <td className={TDN}>{formatear(d.fob_usd, "USD")}</td>
                   <td className={TDN}>{formatear(d.flete_seguro_usd, "USD")}</td>
                   <td className={TDN}>{formatear(d.gastos_ars, "ARS")}</td>
@@ -92,7 +97,7 @@ export default async function Despachos({ searchParams }: { searchParams: Promis
           </tbody>
         </table>
       </div>
-      {filas.length === LIMITE && <p className="text-[11px] text-[#5C6B76] mt-2">Se muestran los últimos {LIMITE}: usá los filtros para ver más.</p>}
+      <Paginado total={total} />
     </Pantalla>
   );
 }

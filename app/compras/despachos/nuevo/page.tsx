@@ -1,7 +1,6 @@
 // Alta de un despacho de importación: sólo la cabecera. Queda en borrador y
 // se sigue en el detalle (líneas, gastos, impuestos, prorrateo, registrar).
 
-import Link from "next/link";
 import { hoyAR } from "@/lib/moneda";
 import { VERDE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
@@ -17,8 +16,7 @@ export default async function NuevoDespacho({ searchParams }: { searchParams: Pr
   const o = await opcionesDespacho(s.org.id);
 
   return (
-    <Pantalla titulo="Nuevo despacho de importación" ancho="max-w-4xl"
-      subtitulo={<Link href="/compras/despachos" className="text-[#16577F] hover:underline">← Despachos de importación</Link>}>
+    <Pantalla titulo="Nuevo despacho de importación" ancho="max-w-4xl" camino={[{ texto: "Nuevo despacho" }]}>
       <Avisos sp={sp} />
       {!o.tc && <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#FFF8E5] text-[#8a6100]">No hay tipo de cambio cargado: poné la cotización a mano.</p>}
       <form action={accionCrearDespacho} className={`${CAJA} grid gap-3`}>

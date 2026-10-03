@@ -12,16 +12,18 @@ import { TachoConfirmar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
-import AltaNueva from "@/app/componentes/AltaNueva";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
+import { ThOrden, Paginado } from "@/app/componentes/Lista";
+import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, url, coincideBusqueda,
+  entrarErp, Pantalla, Avisos, Lapiz, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA, url, coincideBusqueda,
 } from "@/app/componentes/erp";
 import { fecha } from "@/app/ventas/formato";
 import { accionCrearCuenta, accionGuardarCuenta, accionActivarCuenta, accionBorrarCuenta } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
-type SP = { c?: string; editar?: string; q?: string; contiene?: string; ok?: string; error?: string };
+type SP = { c?: string; editar?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 const TIPOS_CUENTA: Record<string, string> = { caja: "Caja", banco: "Banco", mercadopago: "Mercado Pago", otro: "Otra" };
 
@@ -65,19 +67,24 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
   const editar = Number(sp.editar) || 0;
   const q = sp.q?.trim() ?? "";
   const comienza = sp.contiene !== "1";
-  const filtros = { q: q || null, contiene: comienza ? null : "1" };
+  const filtros = { q: q || null, contiene: comienza ? null : "1", p: sp.p, orden: sp.orden, dir: sp.dir };
   await asegurarPlan(s.org.id);
   const [cuentas, contables] = await Promise.all([cuentasConSaldo(s.org.id), cuentasImputables(s.org.id)]);
   const nombreContable = new Map(contables.map((x) => [x.id, `${x.codigo} ${x.nombre}`]));
   const totales = { ARS: 0, USD: 0 };
   for (const c of cuentas) if (c.activa) totales[c.moneda as Moneda] += c.saldo;
   // El buscador filtra lo que se ve; los totales son de todas.
-  const vistas = cuentas.filter((c) => [c.nombre, c.banco, c.alias, c.cbu].some((t) => coincideBusqueda(t, q, comienza)));
+  const filtradas = cuentas.filter((c) => [c.nombre, c.banco, c.alias, c.cbu].some((t) => coincideBusqueda(t, q, comienza)));
+  const vistas = paginarEnMemoria(ordenarEnMemoria(filtradas, sp, {
+    nombre: (c) => c.nombre, tipo: (c) => TIPOS_CUENTA[c.tipo] ?? c.tipo, banco: (c) => c.banco, contable: (c) => (c.cuenta_contable_id ? nombreContable.get(c.cuenta_contable_id) : null),
+    saldo: (c) => c.saldo, conciliar: (c) => c.sin_conciliar, activa: (c) => (c.activa ? 1 : 0),
+  }), sp);
 
   return (
-    <Pantalla titulo="Caja y bancos" subtitulo="Las cuentas donde está la plata, con su saldo y lo que falta conciliar con el extracto">
+    <Pantalla titulo="Caja y bancos" subtitulo="Las cuentas donde está la plata, con su saldo y lo que falta conciliar con el extracto"
+      acciones={<BotonNuevo texto="Nueva cuenta" />}>
       <Avisos sp={sp} />
-      <AltaNueva texto="Nueva cuenta" className="mb-4">
+      <AltaNueva texto="Nueva cuenta" sinBoton>
         <form action={accionCrearCuenta} className="flex flex-wrap items-end gap-2">
           <Campos contables={contables} />
           <button className={PRIMARIO}>Crear</button>
@@ -95,8 +102,8 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH}>Cuenta</th><th className={TH}>Tipo</th><th className={TH}>Banco · CBU · Alias</th><th className={TH}>Cuenta contable</th>
-              <th className={THN}>Saldo</th><th className={THN}>Sin conciliar</th><th className={TH}>Activa</th><th />
+              <ThOrden col="nombre">Cuenta</ThOrden><ThOrden col="tipo">Tipo</ThOrden><ThOrden col="banco">Banco · CBU · Alias</ThOrden><ThOrden col="contable">Cuenta contable</ThOrden>
+              <ThOrden col="saldo" n>Saldo</ThOrden><ThOrden col="conciliar" n>Sin conciliar</ThOrden><ThOrden col="activa">Activa</ThOrden><th />
             </tr>
           </thead>
           <tbody>
@@ -120,9 +127,11 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
                 </td>
                 <td className={TD}>{TIPOS_CUENTA[c.tipo] ?? c.tipo} · {c.moneda === "USD" ? "US$" : "$"}</td>
                 <td className={`${TD} text-[#5C6B76]`}>{[c.banco, c.cbu, c.alias].filter(Boolean).join(" · ") || "—"}</td>
-                <td className={`${TD} text-[#5C6B76]`}>{c.cuenta_contable_id ? nombreContable.get(c.cuenta_contable_id) ?? "—" : "La de su tipo"}</td>
-                <td className={`${TDN} font-semibold`}>{formatear(c.saldo, c.moneda as Moneda)}</td>
-                <td className={TDN}>{c.sin_conciliar || "—"}</td>
+                <td className={`${TD} text-[#5C6B76]`}>{c.cuenta_contable_id
+                  ? <Link href={url("/administracion/contabilidad", { p: "mayor", cuenta: c.cuenta_contable_id })} className="hover:text-[#16577F] hover:underline">{nombreContable.get(c.cuenta_contable_id) ?? "—"}</Link>
+                  : "La de su tipo"}</td>
+                <td className={`${TDN} font-semibold`}><Link href={`/administracion/tesoreria/${c.id}`} className="hover:underline">{formatear(c.saldo, c.moneda as Moneda)}</Link></td>
+                <td className={TDN}>{c.sin_conciliar ? <Link href={`/administracion/tesoreria/${c.id}`} className="text-[#16577F] hover:underline">{c.sin_conciliar}</Link> : "—"}</td>
                 <td className={TD}>
                   <Interruptor accion={accionActivarCuenta} prendido={c.activa} campos={{ id: String(c.id) }} etiqueta={c.activa ? "Sí" : "No"} />
                 </td>
@@ -137,6 +146,7 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
           </tbody>
         </table>
       </div>
+      <Paginado total={filtradas.length} />
       <p className="text-[11px] text-[#5C6B76] mt-2">Una cuenta con movimientos no se borra: el tacho la desactiva.</p>
     </Pantalla>
   );

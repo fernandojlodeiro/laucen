@@ -4,25 +4,26 @@
 
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
+import { consultaPaginada, leerOrden } from "@/lib/lista";
+import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import {
-  entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
+  entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
 import { fecha, fechaHora } from "@/app/ventas/formato";
 import { LOGISTICA, ESTADO_ENVIO, SUBESTADO_ENVIO, TONO_ENVIO, PESTANAS, esPestana, type Pestana } from "./formato";
 
 export const dynamic = "force-dynamic";
 
-const POR_PAGINA = 100;
 const ZONA = "America/Argentina/Buenos_Aires";
 
-type SP = { ver?: string; canal?: string; q?: string; pagina?: string; ok?: string; error?: string };
+type SP = { ver?: string; canal?: string; q?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 type Fila = {
   id: number; pedido_id: number | null; pedido_fecha: Date | null; id_externo_pedido: string | null; cliente: string | null;
   canal: string | null; logistica: string | null; metodo: string | null; estado: string | null; subestado: string | null;
   despachar_antes: Date | null; vencido: boolean; tracking: string | null; etiqueta_impresa_ts: Date | null;
-  imprimible: boolean; total: number;
+  imprimible: boolean; cliente_id: number | null; canal_id: number | null;
 };
 
 /** La condición de cada pestaña (sobre la tabla envio, alias e). */
@@ -39,7 +40,6 @@ export default async function Envios({ searchParams }: { searchParams: Promise<S
   const ver: Pestana = esPestana(sp.ver) ? sp.ver : "despachar";
   const canal = Number(sp.canal) || 0;
   const q = sp.q?.trim() ?? "";
-  const pagina = Math.max(1, Number(sp.pagina) || 1);
 
   const canales = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from canal where organizacion_id = $1 and id in (select canal_id from envio where organizacion_id = $1) order by nombre", [s.org.id]);
@@ -57,28 +57,26 @@ export default async function Envios({ searchParams }: { searchParams: Promise<S
     donde.push(`(e.tracking ilike ${p} or e.id_externo ilike ${p} or p.id_externo ilike ${p} or cl.nombre ilike ${p} or e.receptor ilike ${p}${porId})`);
   }
   // Para despachar: lo más urgente primero. El resto: lo más nuevo primero.
-  const orden = ver === "despachar" ? "e.despachar_antes asc nulls last, e.id" : "coalesce(p.fecha, e.creado_ts) desc, e.id desc";
-  valores.push(POR_PAGINA, (pagina - 1) * POR_PAGINA);
-  const filas = await consulta<Fila>(`
-    select e.id::int, e.pedido_id::int, p.fecha pedido_fecha, p.id_externo id_externo_pedido, coalesce(cl.nombre, e.receptor) cliente,
-           ca.nombre canal, e.logistica, e.metodo, e.estado, e.subestado, e.despachar_antes,
+  const defecto = ver === "despachar" ? "e.despachar_antes asc nulls last, e.id" : "coalesce(p.fecha, e.creado_ts) desc, e.id desc";
+  const { filas, total } = await consultaPaginada<Fila>({
+    campos: `e.id::int, e.pedido_id::int, p.fecha pedido_fecha, p.id_externo id_externo_pedido, coalesce(cl.nombre, e.receptor) cliente,
+           p.cliente_id::int, e.canal_id::int, ca.nombre canal, e.logistica, e.metodo, e.estado, e.subestado, e.despachar_antes,
            (e.estado in ('ready_to_ship', 'handling', 'pending') and e.despachar_antes is not null
              and (e.despachar_antes at time zone '${ZONA}')::date <= (now() at time zone '${ZONA}')::date) vencido,
            e.tracking, e.etiqueta_impresa_ts,
-           (coalesce(e.logistica, '') <> 'fulfillment' and e.id_externo is not null) imprimible,
-           count(*) over ()::int total
-      from envio e
+           (coalesce(e.logistica, '') <> 'fulfillment' and e.id_externo is not null) imprimible`,
+    desde: `envio e
       left join pedido p on p.id = e.pedido_id
       left join cliente cl on cl.id = p.cliente_id
-      left join canal ca on ca.id = e.canal_id
-     where ${donde.join(" and ")}
-     order by ${orden}
-     limit $${valores.length - 1} offset $${valores.length}`, valores);
+      left join canal ca on ca.id = e.canal_id`,
+    donde: donde.join(" and "),
+    orden: leerOrden(sp, {
+      pedido: "e.pedido_id", fecha: "coalesce(p.fecha, e.creado_ts)", cliente: "coalesce(cl.nombre, e.receptor)", canal: "ca.nombre",
+      logistica: "e.logistica", metodo: "e.metodo", estado: "e.estado", despachar: "e.despachar_antes", tracking: "e.tracking", impresa: "e.etiqueta_impresa_ts",
+    }, defecto),
+  }, valores, sp);
 
-  const total = filas[0]?.total ?? 0;
-  const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
   const filtros = { ver: ver === "despachar" ? null : ver, canal: canal || null, q };
-  const ir = (p: number) => url("/ventas/envios", { ...filtros, pagina: p > 1 ? p : null });
   const hayImprimibles = filas.some((f) => f.imprimible);
 
   return (
@@ -113,9 +111,9 @@ export default async function Envios({ searchParams }: { searchParams: Promise<S
             <thead className={THEAD}>
               <tr>
                 <th className={TH}><span className="sr-only">Elegir</span></th>
-                <th className={THN}>Pedido</th><th className={THN}>Fecha</th><th className={TH}>Cliente</th><th className={TH}>Canal</th>
-                <th className={TH}>Logística</th><th className={TH}>Método</th><th className={TH}>Estado</th>
-                <th className={THN}>Despachar antes de</th><th className={TH}>Tracking</th><th className={THN}>Etiqueta impresa</th>
+                <ThOrden col="pedido" n>Pedido</ThOrden><ThOrden col="fecha" n porDefecto={ver !== "despachar"}>Fecha</ThOrden><ThOrden col="cliente">Cliente</ThOrden><ThOrden col="canal">Canal</ThOrden>
+                <ThOrden col="logistica">Logística</ThOrden><ThOrden col="metodo">Método</ThOrden><ThOrden col="estado">Estado</ThOrden>
+                <ThOrden col="despachar" n desc={false} porDefecto={ver === "despachar"}>Despachar antes de</ThOrden><ThOrden col="tracking">Tracking</ThOrden><ThOrden col="impresa" n>Etiqueta impresa</ThOrden>
               </tr>
             </thead>
             <tbody>
@@ -135,9 +133,9 @@ export default async function Envios({ searchParams }: { searchParams: Promise<S
                       : "—"}
                     {e.id_externo_pedido && <div className="text-[10px] text-[#5C6B76] font-mono">{e.id_externo_pedido}</div>}
                   </td>
-                  <td className={TDN}>{fecha(e.pedido_fecha)}</td>
-                  <td className={TD}>{e.cliente ?? "—"}</td>
-                  <td className={TD}>{e.canal ?? "—"}</td>
+                  <td className={TDN}>{e.pedido_id ? <Link href={`/ventas/pedidos/${e.pedido_id}`} className="hover:underline">{fecha(e.pedido_fecha)}</Link> : fecha(e.pedido_fecha)}</td>
+                  <td className={TD}>{e.cliente_id ? <Link href={`/ventas/clientes/${e.cliente_id}`} className="text-[#16577F] hover:underline">{e.cliente}</Link> : e.cliente ?? "—"}</td>
+                  <td className={TD}>{e.canal_id ? <Link href={url("/ventas/envios", { ...filtros, canal: e.canal_id })} className="hover:text-[#16577F] hover:underline">{e.canal}</Link> : "—"}</td>
                   <td className={TD}>{e.logistica ? (LOGISTICA[e.logistica] ?? e.logistica) : "—"}</td>
                   <td className={TD}>{e.metodo ?? "—"}</td>
                   <td className={TD}>
@@ -161,13 +159,7 @@ export default async function Envios({ searchParams }: { searchParams: Promise<S
         </div>
       </form>
 
-      {total > 0 && (
-        <nav className="flex items-center justify-end gap-2 mt-2 text-xs text-[#5C6B76]">
-          <span>{total} envío{total === 1 ? "" : "s"}{paginas > 1 ? ` · página ${pagina} de ${paginas}` : ""}</span>
-          {pagina > 1 && <Link href={ir(pagina - 1)} className={SUAVE}>← Anterior</Link>}
-          {pagina < paginas && <Link href={ir(pagina + 1)} className={SUAVE}>Siguiente →</Link>}
-        </nav>
-      )}
+      <Paginado total={total} />
     </Pantalla>
   );
 }

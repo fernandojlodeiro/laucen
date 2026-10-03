@@ -10,6 +10,8 @@ import { saldos, estadoDeCuenta, type Tercero } from "@/lib/administracion/cc";
 import { PRIMARIO, SUAVE, VERDE, BORRAR } from "@/app/botones";
 import { Pestanas, BotonConfirmar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
+import { ThOrden, Paginado } from "@/app/componentes/Lista";
+import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
   Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
@@ -18,7 +20,7 @@ import FormRecibo from "./FormRecibo";
 import { accionEmitirRecibo, accionAnularRecibo, accionImputar, accionSaldoInicial } from "./acciones";
 
 const BASE = "/administracion/cuentas-corrientes";
-export type SP = { id?: string; q?: string; form?: string; tercero?: string; ok?: string; error?: string };
+export type SP = { id?: string; q?: string; form?: string; tercero?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 const PESTANAS = [
   { href: BASE, texto: "Clientes" },
@@ -44,13 +46,17 @@ export async function VistaCc({ org, tercero, sp }: { org: string; tercero: Terc
       <Avisos sp={sp} />
       {terceroId
         ? <EstadoDeCuenta org={org} tercero={tercero} terceroId={terceroId} ruta={ruta} sp={sp} />
-        : <Saldos org={org} tercero={tercero} ruta={ruta} q={sp.q} />}
+        : <Saldos org={org} tercero={tercero} ruta={ruta} q={sp.q} sp={sp} />}
     </Pantalla>
   );
 }
 
-async function Saldos({ org, tercero, ruta, q }: { org: string; tercero: Tercero; ruta: string; q?: string }) {
-  const filas = await saldos(org, tercero);
+async function Saldos({ org, tercero, ruta, q, sp }: { org: string; tercero: Tercero; ruta: string; q?: string; sp: SP }) {
+  const todas = await saldos(org, tercero);
+  const filas = todas;
+  const vista = paginarEnMemoria(ordenarEnMemoria(todas, sp, {
+    nombre: (f) => f.nombre, saldo: (f) => f.saldo, vencido: (f) => f.vencido, ultimo: (f) => f.ultimo,
+  }), sp);
   const total = filas.reduce((a, f) => a + f.saldo, 0), vencido = filas.reduce((a, f) => a + f.vencido, 0);
   const tabla = tercero === "cliente" ? "cliente" : "proveedor";
   const buscar = q?.trim();
@@ -85,11 +91,14 @@ async function Saldos({ org, tercero, ruta, q }: { org: string; tercero: Tercero
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={TH}>{tercero === "cliente" ? "Cliente" : "Proveedor"}</th><th className={THN}>Saldo</th><th className={THN}>Vencido</th><th className={TH}>Último movimiento</th></tr>
+            <tr>
+              <ThOrden col="nombre">{tercero === "cliente" ? "Cliente" : "Proveedor"}</ThOrden><ThOrden col="saldo" n>Saldo</ThOrden>
+              <ThOrden col="vencido" n>Vencido</ThOrden><ThOrden col="ultimo" desc>Último movimiento</ThOrden>
+            </tr>
           </thead>
           <tbody>
             {filas.length === 0 && <tr><td colSpan={4} className={`${TD} text-[#5C6B76]`}>No hay cuentas con saldo ni movimientos recientes.</td></tr>}
-            {filas.map((f) => (
+            {vista.map((f) => (
               <tr key={f.id} className={TR}>
                 <td className={TD}><Link href={`${ruta}?id=${f.id}`} className="text-[#16577F] font-semibold hover:underline">{f.nombre}</Link></td>
                 <td className={TDN}>{ars(f.saldo)}</td>
@@ -100,6 +109,7 @@ async function Saldos({ org, tercero, ruta, q }: { org: string; tercero: Tercero
           </tbody>
         </table>
       </div>
+      <Paginado total={todas.length} />
     </>
   );
 }

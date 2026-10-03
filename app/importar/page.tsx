@@ -2,9 +2,10 @@
 // previsualizar, ejecutar e informe. Acá: subir y la lista de las anteriores.
 
 import Link from "next/link";
-import { consulta } from "@/lib/erp/base";
+import { consultaPaginada, leerOrden } from "@/lib/lista";
+import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { TachoConfirmar } from "@/app/radar/Cliente";
-import { entrarErp, Pantalla, Avisos, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
+import { entrarErp, Pantalla, Avisos, Estado, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
 import { DESTINOS, ESTADOS_IMPORTACION, esDestino } from "@/lib/importar/campos";
 import Subir from "./Subir";
@@ -14,15 +15,19 @@ export const dynamic = "force-dynamic";
 // Leer un Excel de decenas de miles de filas puede tardar.
 export const maxDuration = 300;
 
-export default async function Importar({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
+export default async function Importar({ searchParams }: { searchParams: Promise<{ p?: string; orden?: string; dir?: string; ok?: string; error?: string }> }) {
   const s = await entrarErp("importar_ver");
   const sp = await searchParams;
-  const filas = await consulta<{
+  const { filas, total } = await consultaPaginada<{
     id: number; creado_ts: Date; archivo: string; hoja: string | null; destino: string; estado: keyof typeof ESTADOS_IMPORTACION;
     filas_total: number; filas_ok: number; filas_error: number;
-  }>(`
-    select id::int, creado_ts, archivo, hoja, destino, estado, filas_total, filas_ok, filas_error
-      from importacion where organizacion_id = $1 order by creado_ts desc limit 200`, [s.org.id]);
+  }>({
+    campos: "id::int, creado_ts, archivo, hoja, destino, estado, filas_total, filas_ok, filas_error",
+    desde: "importacion", donde: "organizacion_id = $1",
+    orden: leerOrden(sp, {
+      fecha: "creado_ts", archivo: "archivo", destino: "destino", estado: "estado", total: "filas_total", ok: "filas_ok", error: "filas_error",
+    }, "creado_ts desc, id desc"),
+  }, [s.org.id], sp);
 
   return (
     <Pantalla titulo="Importar datos" subtitulo="Productos, clientes, ventas históricas y stock inicial desde un Excel" ancho="max-w-5xl">
@@ -39,7 +44,10 @@ export default async function Importar({ searchParams }: { searchParams: Promise
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={THN}>Fecha</th><th className={TH}>Archivo</th><th className={TH}>Qué</th><th className={TH}>Estado</th><th className={THN}>Filas</th><th className={THN}>Importadas</th><th className={THN}>Rechazadas</th><th /></tr>
+            <tr>
+              <ThOrden col="fecha" n porDefecto>Fecha</ThOrden><ThOrden col="archivo">Archivo</ThOrden><ThOrden col="destino">Qué</ThOrden><ThOrden col="estado">Estado</ThOrden>
+              <ThOrden col="total" n>Filas</ThOrden><ThOrden col="ok" n>Importadas</ThOrden><ThOrden col="error" n>Rechazadas</ThOrden><th />
+            </tr>
           </thead>
           <tbody>
             {filas.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>Todavía no se importó nada.</td></tr>}
@@ -47,7 +55,7 @@ export default async function Importar({ searchParams }: { searchParams: Promise
               const [texto, tono] = ESTADOS_IMPORTACION[f.estado] ?? [f.estado, "gris"];
               return (
                 <tr key={f.id} className={TR}>
-                  <td className={TDN}>{fechaHora(f.creado_ts)}</td>
+                  <td className={TDN}><Link href={`/importar/${f.id}`} className="hover:underline">{fechaHora(f.creado_ts)}</Link></td>
                   <td className={TD}>
                     <Link href={`/importar/${f.id}`} className="font-semibold text-[#16577F] hover:underline">{f.archivo}</Link>
                     {f.hoja && <span className="text-[#5C6B76]"> · {f.hoja}</span>}
@@ -66,6 +74,7 @@ export default async function Importar({ searchParams }: { searchParams: Promise
           </tbody>
         </table>
       </div>
+      <Paginado total={total} />
     </Pantalla>
   );
 }

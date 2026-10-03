@@ -2,20 +2,21 @@
 // familias (con vigencia) desde la ficha de cada uno.
 
 import Link from "next/link";
-import { consulta } from "@/lib/erp/base";
+import { consultaPaginada, leerOrden } from "@/lib/lista";
+import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
-import AltaNueva from "@/app/componentes/AltaNueva";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, url, patronBusqueda,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, url, patronBusqueda,
 } from "@/app/componentes/erp";
 import { accionBorrarCucarda, accionCrearCucarda, accionGuardarCucarda } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
-type SP = { editar?: string; q?: string; contiene?: string; ok?: string; error?: string };
+type SP = { editar?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 export default async function Cucardas({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("cucardas_ver");
@@ -23,23 +24,36 @@ export default async function Cucardas({ searchParams }: { searchParams: Promise
   const editar = Number(sp.editar) || 0;
   const q = sp.q?.trim() ?? "";
   const comienza = sp.contiene !== "1";
-  const filtros = { q: q || null, contiene: comienza ? null : "1" };
-  const filas = await consulta<{ id: number; nombre: string; color: string; orden: number; estado: string; usos: number }>(`
-    select c.id::int, c.nombre, c.color, c.orden, c.estado,
-           ((select count(*) from producto_cucarda pc where pc.cucarda_id = c.id) + (select count(*) from familia_cucarda fc where fc.cucarda_id = c.id))::int usos
-      from cucarda c where c.organizacion_id = $1 and ($2::text is null or c.nombre ilike $2)
-     order by c.orden, c.nombre`, [s.org.id, patronBusqueda(q, comienza)]);
+  const filtros = { q: q || null, contiene: comienza ? null : "1", p: sp.p, orden: sp.orden, dir: sp.dir };
+  const USOS = "((select count(*) from producto_cucarda pc where pc.cucarda_id = c.id) + (select count(*) from familia_cucarda fc where fc.cucarda_id = c.id))";
+  const { filas, total } = await consultaPaginada<{ id: number; nombre: string; color: string; orden: number; estado: string; usos: number }>({
+    campos: `c.id::int, c.nombre, c.color, c.orden, c.estado, ${USOS}::int usos`,
+    desde: "cucarda c",
+    donde: "c.organizacion_id = $1 and ($2::text is null or c.nombre ilike $2)",
+    orden: leerOrden(sp, { nombre: "c.nombre", color: "c.color", orden: "c.orden", estado: "c.estado", usos: USOS }, "c.orden, c.nombre"),
+  }, [s.org.id, patronBusqueda(q, comienza)], sp);
 
   return (
-    <Pantalla titulo="Cucardas" subtitulo="Las etiquetas que se muestran sobre un producto (nuevo, novedad, última unidad…)" ancho="max-w-3xl">
+    <Pantalla titulo="Cucardas" subtitulo="Las etiquetas que se muestran sobre un producto (nuevo, novedad, última unidad…)" ancho="max-w-3xl"
+      acciones={<BotonNuevo texto="Nueva cucarda" />}>
       <Avisos sp={sp} />
+      <AltaNueva texto="Nueva cucarda" sinBoton>
+        <form action={accionCrearCucarda} className="flex flex-wrap items-center gap-2">
+          <input name="nombre" placeholder="Nombre (ej. Novedad)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
+          <input type="color" name="color" defaultValue="#16577F" className="h-8 w-10 rounded border border-[#E3E9F0]" aria-label="Color" />
+          <button className={PRIMARIO}>Crear</button>
+        </form>
+      </AltaNueva>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar cucarda" limpiar={["editar"]} />
       </div>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={TH}>Cucarda</th><th className={TH}>Color</th><th className={THN}>Orden</th><th className={TH}>Estado</th><th className={THN}>Usos</th><th /></tr>
+            <tr>
+              <ThOrden col="nombre">Cucarda</ThOrden><ThOrden col="color">Color</ThOrden><ThOrden col="orden" n desc={false} porDefecto>Orden</ThOrden>
+              <ThOrden col="estado">Estado</ThOrden><ThOrden col="usos" n>Usos</ThOrden><th />
+            </tr>
           </thead>
           <tbody>
             {filas.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>{q ? "Ninguna cucarda coincide." : "Todavía no hay cucardas."}</td></tr>}
@@ -77,13 +91,7 @@ export default async function Cucardas({ searchParams }: { searchParams: Promise
           </tbody>
         </table>
       </div>
-      <AltaNueva texto="Nueva cucarda" className="mt-3">
-      <form action={accionCrearCucarda} className="flex flex-wrap items-center gap-2">
-        <input name="nombre" placeholder="Nombre (ej. Novedad)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
-        <input type="color" name="color" defaultValue="#16577F" className="h-8 w-10 rounded border border-[#E3E9F0]" aria-label="Color" />
-        <button className={PRIMARIO}>Crear</button>
-      </form>
-      </AltaNueva>
+      <Paginado total={total} />
     </Pantalla>
   );
 }

@@ -17,8 +17,7 @@ export default async function NuevaFactura({ searchParams }: { searchParams: Pro
   const o = await opcionesCabecera(s.org.id);
 
   return (
-    <Pantalla titulo="Nueva factura de compra" ancho="max-w-4xl"
-      subtitulo={<Link href="/compras/facturas" className="text-[#16577F] hover:underline">← Facturas de compra</Link>}>
+    <Pantalla titulo="Nueva factura de compra" ancho="max-w-4xl" camino={[{ texto: "Nueva factura" }]}>
       <Avisos sp={sp} />
       {o.proveedores.length === 0 && (
         <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#FFF8E5] text-[#8a6100]">

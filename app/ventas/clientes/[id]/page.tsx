@@ -9,7 +9,7 @@ import { enVista } from "@/lib/moneda";
 import { ESTADOS_PEDIDO, type EstadoPedido } from "@/lib/pedidos";
 import { VERDE, SUAVE, PRIMARIO, DESPLEGABLE, FLECHA } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
-import AltaNueva from "@/app/componentes/AltaNueva";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
@@ -83,7 +83,7 @@ export default async function FichaCliente({ params, searchParams }: { params: P
   const ORIGENES: Record<string, string> = { virtual_seller: "Virtual Seller", ml: "Mercado Libre" };
 
   return (
-    <Pantalla titulo={c.nombre} subtitulo={<><Link href="/ventas/clientes" className="text-[#16577F] hover:underline">← Clientes</Link> · cliente desde el {fecha(c.creado_ts)}</>}
+    <Pantalla titulo={c.nombre} camino={[{ texto: `N.º ${c.id}` }]} subtitulo={<>Cliente N.º {c.id} · cliente desde el {fecha(c.creado_ts)}</>}
       acciones={pedidos.length > 0
         ? <span className="text-xs text-[#5C6B76] self-center">No se puede borrar: tiene {pedidos.length} pedido{pedidos.length === 1 ? "" : "s"}.</span>
         : <TachoConfirmar accion={accionBorrarCliente} campos={{ id: String(cid) }} pregunta="¿Borrar el cliente?" />}>
@@ -173,8 +173,18 @@ export default async function FichaCliente({ params, searchParams }: { params: P
         </details>
       )}
 
-      <h2 className="text-sm font-bold mb-2">Direcciones</h2>
-      <div className={`${CAJA_TABLA} mb-2`}>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h2 className="text-sm font-bold">Direcciones</h2>
+        <BotonNuevo texto="Nueva dirección" />
+      </div>
+      <AltaNueva texto="Nueva dirección" sinBoton className="mb-2">
+        <form action={accionAgregarDireccion} className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="cliente_id" value={cid} />
+          {CAMPOS_DIR.map(([k, ph, w], i) => <input key={k} name={k} placeholder={ph} aria-label={ph} defaultValue={k === "pais" ? "AR" : ""} className={`${CAMPO} ${w}`} autoFocus={i === 0} />)}
+          <button className={PRIMARIO}>Crear</button>
+        </form>
+      </AltaNueva>
+      <div className={`${CAJA_TABLA} mb-5`}>
         <table className={TABLA}>
           <thead className={THEAD}><tr><th className={TH}>Etiqueta</th><th className={TH}>Dirección</th><th className={TH} /><th /></tr></thead>
           <tbody>
@@ -214,13 +224,6 @@ export default async function FichaCliente({ params, searchParams }: { params: P
           </tbody>
         </table>
       </div>
-      <AltaNueva texto="Nueva dirección" className="mb-5">
-      <form action={accionAgregarDireccion} className="flex flex-wrap items-center gap-2">
-        <input type="hidden" name="cliente_id" value={cid} />
-        {CAMPOS_DIR.map(([k, ph, w], i) => <input key={k} name={k} placeholder={ph} aria-label={ph} defaultValue={k === "pais" ? "AR" : ""} className={`${CAMPO} ${w}`} autoFocus={i === 0} />)}
-        <button className={PRIMARIO}>Crear</button>
-      </form>
-      </AltaNueva>
 
       <h2 className="text-sm font-bold mb-2">Identidades por canal</h2>
       <p className="text-[11px] text-[#5C6B76] mb-2">El id del cliente en cada canal (ej. su usuario de Mercado Libre). Las crean los pedidos.</p>
@@ -253,7 +256,7 @@ export default async function FichaCliente({ params, searchParams }: { params: P
             {pedidos.map((p) => (
               <tr key={p.id} className={TR}>
                 <td className={TDN}><Link href={`/ventas/pedidos/${p.id}`} className="font-semibold text-[#16577F] hover:underline">{p.id}</Link></td>
-                <td className={TDN}>{fecha(p.fecha)}</td>
+                <td className={TDN}><Link href={`/ventas/pedidos/${p.id}`} className="hover:underline">{fecha(p.fecha)}</Link></td>
                 <td className={TD}>{p.canal}</td>
                 <td className={`${TD} font-mono`}>{p.id_externo ?? "—"}</td>
                 <td className={TD}><Estado texto={etiqueta(ESTADOS_PEDIDO, p.estado)} tono={TONO_ESTADO[p.estado] ?? "gris"} /></td>

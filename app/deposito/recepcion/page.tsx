@@ -5,7 +5,7 @@ import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { PRIMARIO } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
-import AltaNueva from "@/app/componentes/AltaNueva";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { entrarErp, Pantalla, Avisos, Estado, CAJA, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fechaHoraAR, GRANDE, TIPO_RECEPCION } from "../formato";
 import { accionCrearRecepcion } from "./acciones";
@@ -40,10 +40,11 @@ export default async function Recepcion({ searchParams }: { searchParams: Promis
   const cerradas = filas.filter((f) => f.estado !== "abierta");
 
   return (
-    <Pantalla titulo="Recepción" subtitulo="Entrada de mercadería y devoluciones, escaneando" ancho="max-w-2xl">
+    <Pantalla titulo="Recepción" subtitulo="Entrada de mercadería y devoluciones, escaneando" ancho="max-w-2xl"
+      acciones={<BotonNuevo texto="Nueva recepción" />}>
       <Avisos sp={sp} />
 
-      <AltaNueva texto="Nueva recepción" className="mb-5">
+      <AltaNueva texto="Nueva recepción" sinBoton className="mb-5">
         <form action={accionCrearRecepcion} className="grid gap-3">
           <label><span className={ETIQUETA}>Qué entra</span>
             <select name="tipo" className={`${CAMPO} w-full text-base py-2.5`} defaultValue="compra" autoFocus>

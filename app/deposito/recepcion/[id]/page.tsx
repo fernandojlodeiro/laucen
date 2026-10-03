@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { consulta, una } from "@/lib/erp/base";
-import { SUAVE, VERDE } from "@/app/botones";
+import { VERDE } from "@/app/botones";
 import { BotonConfirmar } from "@/app/radar/Cliente";
 import { entrarErp, Pantalla, Avisos, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import { fechaHoraAR, GRANDE, TIPO_RECEPCION } from "../../formato";
@@ -33,8 +33,8 @@ export default async function RecepcionTrabajo({ params, searchParams }: { param
   if (!rec) notFound();
 
   const [lineas, ubicaciones, guia] = await Promise.all([
-    consulta<{ id: number; sku: string; titulo: string; ubicacion: string; deposito: string; cantidad: number; condicion: string; creado_ts: Date }>(`
-      select l.id::int, v.sku, titulo_variacion(v.id) titulo, u.codigo ubicacion, d.nombre deposito, l.cantidad, l.condicion, l.creado_ts
+    consulta<{ id: number; sku: string; producto_id: number; titulo: string; ubicacion: string; deposito: string; cantidad: number; condicion: string; creado_ts: Date }>(`
+      select l.id::int, v.sku, v.producto_id::int, titulo_variacion(v.id) titulo, u.codigo ubicacion, d.nombre deposito, l.cantidad, l.condicion, l.creado_ts
         from recepcion_linea l join variacion v on v.id = l.variacion_id join ubicacion u on u.id = l.ubicacion_id join deposito d on d.id = u.deposito_id
        where l.recepcion_id = $1 and l.organizacion_id = $2 order by l.id desc`, [recId, s.org.id]),
     consulta<{ codigo: string; descripcion: string | null }>(`
@@ -54,7 +54,7 @@ export default async function RecepcionTrabajo({ params, searchParams }: { param
   return (
     <Pantalla titulo={`Recepción #${rec.id}`} ancho="max-w-2xl"
       subtitulo={[TIPO_RECEPCION[rec.tipo], rec.deposito, rec.proveedor, rec.documento, abierta ? `desde ${fechaHoraAR(rec.creado_ts)}` : `cerrada ${fechaHoraAR(rec.cerrada_ts)}`].filter(Boolean).join(" · ")}
-      acciones={<Link href="/deposito/recepcion" className={SUAVE}>Volver</Link>}>
+      camino={[{ texto: `#${rec.id}` }]}>
       <Avisos sp={sp} />
       {rec.nota && <p className="text-xs text-[#5C6B76] mb-3">{rec.nota}</p>}
 
@@ -92,7 +92,7 @@ export default async function RecepcionTrabajo({ params, searchParams }: { param
             {lineas.length === 0 && <tr><td colSpan={4} className={`${TD} text-[#5C6B76]`}>Todavía no se recibió nada.</td></tr>}
             {lineas.map((l) => (
               <tr key={l.id} className={TR}>
-                <td className={TD}><b>{l.sku}</b> <span className="text-[#5C6B76]">{l.titulo}</span></td>
+                <td className={TD}><Link href={`/catalogo/productos/${l.producto_id}`} className="font-bold text-[#16577F] hover:underline">{l.sku}</Link> <span className="text-[#5C6B76]">{l.titulo}</span></td>
                 <td className={`${TD} whitespace-nowrap`}>
                   {l.ubicacion}{l.condicion === "caja_abierta" && <> <Estado texto={`caja abierta · ${l.deposito}`} tono="amarillo" /></>}
                 </td>

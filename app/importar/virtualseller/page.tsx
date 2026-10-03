@@ -20,7 +20,7 @@ export default async function ImportarVs({ searchParams }: { searchParams: Promi
       from importacion_vs i where i.organizacion_id = $1 order by i.id desc limit 50`, [s.org.id]);
   return (
     <Pantalla titulo="Importar productos desde Virtual Seller" ancho="max-w-5xl"
-      subtitulo={<><Link href="/importar" className="text-[#16577F] hover:underline">← Importar datos</Link> · con los datos de las publicaciones de Mercado Libre</>}>
+      camino={[{ texto: "Virtual Seller" }]} subtitulo="Con los datos de las publicaciones de Mercado Libre">
       <Avisos sp={sp} />
       <SubirVs organizacionId={s.org.id} />
       <ul className="text-[11px] text-[#5C6B76] mt-2 mb-5 list-disc pl-4 grid gap-0.5">
