@@ -3,6 +3,7 @@
 // arriba; "Descargar Excel" baja lo mismo con los mismos filtros.
 
 import { Fragment } from "react";
+import Link from "next/link";
 import { VERDE } from "@/app/botones";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import { entrarErp, Pantalla, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
@@ -68,7 +69,7 @@ export default async function StockPorUbicacion({ searchParams }: { searchParams
                 </tr>
                 {g.filas.map((r) => (
                   <tr key={r.sku} className={TR}>
-                    <td className={`${TD} whitespace-nowrap pl-6`}>{r.sku}</td>
+                    <td className={`${TD} whitespace-nowrap pl-6`}><Link href={`/catalogo/productos/${r.producto_id}`} className="text-[#16577F] hover:underline">{r.sku}</Link></td>
                     <td className={TD}>{r.titulo}</td>
                     <td className={`${TDN} ${r.cantidad < 0 ? "text-[#C03420] font-semibold" : ""}`}>{entero(r.cantidad)}</td>
                     <td className={TDN}>{r.reservado ? entero(r.reservado) : ""}</td>

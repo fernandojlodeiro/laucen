@@ -13,10 +13,22 @@ export const patron = ({ q, comienza }: Busqueda) => (q ? `${comienza ? "" : "%"
 export const COSTOS = { fob: "Costo FOB", promedio: "Costo promedio (USD)", ultimo: "Último costo (USD)" } as const;
 export type BaseCosto = keyof typeof COSTOS;
 
-export type FiltroValorizado = Busqueda & { depositoId: number | null; conStock: boolean; inactivos: boolean; costo: BaseCosto };
+/** En qué moneda se muestran los importes: cada costo se convierte con el
+ *  tipo de cambio de hoy (lib/moneda.ts, `tcDelDia`). "Ambas" duplica cada
+ *  columna de importe (pesos y dólares). */
+export const MONEDAS = { ars: "Pesos", usd: "Dólares", ambas: "Ambas" } as const;
+export type MonedaInforme = keyof typeof MONEDAS;
+
+export type FiltroValorizado = Busqueda & { depositoId: number | null; conStock: boolean; inactivos: boolean; costo: BaseCosto; moneda: MonedaInforme };
 
 export type FilaValorizado = {
-  sku: string; titulo: string; familia: string | null; moneda: string; costo: number | null; stock: number; valorizado: number | null;
+  producto_id: number; sku: string; titulo: string; familia: string | null; moneda: string; costo: number | null; stock: number; valorizado: number | null;
+};
+
+/** La fila con el costo y el valorizado en las dos monedas (null = sin costo,
+ *  o sin tipo de cambio para pasarlo a la otra moneda). */
+export type FilaValorizadoDoble = FilaValorizado & {
+  costo_ars: number | null; costo_usd: number | null; valorizado_ars: number | null; valorizado_usd: number | null;
 };
 
 export function leerFiltroValorizado(sp: Record<string, string | undefined>): FiltroValorizado {
@@ -24,6 +36,7 @@ export function leerFiltroValorizado(sp: Record<string, string | undefined>): Fi
     q: sp.q?.trim() ?? "", comienza: sp.contiene !== "1",
     depositoId: Number(sp.dep) || null, conStock: sp.todos !== "1", inactivos: sp.inactivos === "1",
     costo: sp.costo === "promedio" || sp.costo === "ultimo" ? sp.costo : "fob",
+    moneda: sp.moneda === "usd" || sp.moneda === "ambas" ? sp.moneda : "ars",
   };
 }
 
@@ -37,7 +50,7 @@ export async function stockValorizado(org: string, f: FiltroValorizado): Promise
        where st.organizacion_id = $1 and d.estado = 'activo' and ($2::bigint is null or d.id = $2)
        group by st.variacion_id
     )
-    select v.sku, titulo_variacion(v.id) titulo, fa.nombre familia, ${moneda} moneda, ${costo}::float8 costo,
+    select p.id::int producto_id, v.sku, titulo_variacion(v.id) titulo, fa.nombre familia, ${moneda} moneda, ${costo}::float8 costo,
            coalesce(s.stock, 0) stock, round(${costo} * coalesce(s.stock, 0), 2)::float8 valorizado
       from variacion v join producto p on p.id = v.producto_id
       left join familia fa on fa.id = p.familia_id
@@ -49,22 +62,46 @@ export async function stockValorizado(org: string, f: FiltroValorizado): Promise
      order by v.sku`, [org, f.depositoId, f.inactivos, f.conStock, patron(f)]);
 }
 
-/** Totales por moneda (un producto puede tener el costo en pesos y otro en dólares). */
-export function totalesValorizado(filas: FilaValorizado[]) {
-  const t = new Map<string, { stock: number; valorizado: number; sinCosto: number }>();
+const redondear = (n: number, dec: number) => Math.round(n * 10 ** dec) / 10 ** dec;
+
+/** Pasa cada costo a pesos y a dólares con el tipo de cambio `tc` (pesos por
+ *  dólar). Sin tipo de cambio, sólo queda la moneda en que está cargado. */
+export function aDobleMoneda(filas: FilaValorizado[], tc: number | null): FilaValorizadoDoble[] {
+  return filas.map((r) => {
+    const enUsd = r.moneda === "USD";
+    const conv = (n: number | null, a: "ARS" | "USD") => {
+      if (n == null) return null;
+      if ((a === "USD") === enUsd) return n;
+      if (!tc) return null;
+      return a === "ARS" ? n * tc : n / tc;
+    };
+    const costo_ars = conv(r.costo, "ARS"), costo_usd = conv(r.costo, "USD");
+    return {
+      ...r,
+      costo_ars: costo_ars == null ? null : redondear(costo_ars, 4),
+      costo_usd: costo_usd == null ? null : redondear(costo_usd, 4),
+      valorizado_ars: costo_ars == null ? null : redondear(costo_ars * r.stock, 2),
+      valorizado_usd: costo_usd == null ? null : redondear(costo_usd * r.stock, 2),
+    };
+  });
+}
+
+/** El total del informe, ya convertido: stock, valorizado en pesos y en
+ *  dólares, y cuántos productos no suman (sin costo o sin tipo de cambio). */
+export function totalesValorizado(filas: FilaValorizadoDoble[]) {
+  const t = { stock: 0, ars: 0, usd: 0, sinCostoArs: 0, sinCostoUsd: 0 };
   for (const r of filas) {
-    const x = t.get(r.moneda) ?? { stock: 0, valorizado: 0, sinCosto: 0 };
-    x.stock += r.stock;
-    if (r.costo == null) x.sinCosto += 1; else x.valorizado += r.valorizado ?? 0;
-    t.set(r.moneda, x);
+    t.stock += r.stock;
+    if (r.valorizado_ars == null) t.sinCostoArs += 1; else t.ars += r.valorizado_ars;
+    if (r.valorizado_usd == null) t.sinCostoUsd += 1; else t.usd += r.valorizado_usd;
   }
-  return [...t.entries()].map(([moneda, x]) => ({ moneda, ...x }));
+  return { ...t, ars: redondear(t.ars, 2), usd: redondear(t.usd, 2) };
 }
 
 export type FiltroUbicacion = Busqueda & { depositoId: number | null; ubicacionId: number | null };
 
 export type FilaUbicacion = {
-  ubicacion_id: number; deposito: string; ubicacion: string; descripcion: string | null; sku: string; titulo: string; cantidad: number; reservado: number;
+  producto_id: number; ubicacion_id: number; deposito: string; ubicacion: string; descripcion: string | null; sku: string; titulo: string; cantidad: number; reservado: number;
 };
 
 export function leerFiltroUbicacion(sp: Record<string, string | undefined>): FiltroUbicacion {
@@ -73,7 +110,7 @@ export function leerFiltroUbicacion(sp: Record<string, string | undefined>): Fil
 
 export async function stockPorUbicacion(org: string, f: FiltroUbicacion): Promise<FilaUbicacion[]> {
   return consulta<FilaUbicacion>(`
-    select u.id::int ubicacion_id, d.nombre deposito, case when u.es_default then 'General' else u.codigo end ubicacion, u.descripcion,
+    select p.id::int producto_id, u.id::int ubicacion_id, d.nombre deposito, case when u.es_default then 'General' else u.codigo end ubicacion, u.descripcion,
            v.sku, titulo_variacion(v.id) titulo, st.cantidad, st.reservado
       from stock st
       join ubicacion u on u.id = st.ubicacion_id join deposito d on d.id = u.deposito_id
