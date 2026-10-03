@@ -53,7 +53,8 @@ no la primera.
   `/admin/diagnostico`.
   También: `MELI_APP_ID`, `MELI_CLIENT_SECRET` (Mercado Libre), `APIFY_TOKEN` (Apify) y
   `ANTHROPIC_API_KEY` (Claude; tiene que ser una llave creada adentro de un workspace, o si no
-  hace falta `ANTHROPIC_WORKSPACE_ID`). **Después de que Fer cambia una variable, se despliega
+  hace falta `ANTHROPIC_WORKSPACE_ID`) y `VERCEL_TOKEN` (API de Vercel, alcance equipo CadaMes:
+  agrega y saca los dominios de las tiendas; la cargó Fer el 3/10). **Después de que Fer cambia una variable, se despliega
   con un push a main, nunca con el botón "Redeploy" de Vercel**: ese botón vuelve a desplegar
   un commit viejo y deja producción atrasada.
 - **Cron**: Vercel Cron Jobs nativo (`vercel.json`).
