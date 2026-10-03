@@ -11,6 +11,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { una } from "@/lib/erp/base";
+import { formatear } from "@/lib/moneda";
 import { itemsDelLote, pedidosDelLote, esModoLote, type ItemPicking, type PedidoDelLote, type ModoLote } from "@/lib/deposito/picking";
 import { SUAVE, VERDE, APAGAR, PRIMARIO } from "@/app/botones";
 import { BotonConfirmar } from "@/app/radar/Cliente";
@@ -152,6 +153,7 @@ function ListaPedidos({ pedidos, loteId, ver, tam }: { pedidos: PedidoLote[]; lo
                 <Link href={`/ventas/pedidos/${p.id}`} className="text-lg font-black text-[#16577F]">#{p.id}</Link>
                 {p.id_externo && <span className="text-xs text-[#5C6B76]">{p.id_externo}</span>}
                 {p.en_espera && <MarcaCarritoEspera ts={p.carrito_ultimo_evento_ts} texto="Carrito: esperando" />}
+                {p.a_cobrar && <Estado texto={`A cobrar ${formatear(p.total_ars, "ARS")}`} tono="ambar" />}
                 {p.impresiones > 1 && <Estado texto={`impreso ${p.impresiones} veces`} tono="gris" />}
                 {p.impresiones === 1 && <Estado texto="impreso" tono="gris" />}
               </div>

@@ -8,7 +8,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { ErrorErp, una } from "@/lib/erp/base";
 import { intentar, id, texto } from "@/lib/erp/acciones";
 import { cambiarEstado, esEstadoPedido, exigirCarritoLibre, ESTADOS_PEDIDO } from "@/lib/pedidos";
-import { confirmarPago } from "@/lib/tienda/pagos/confirmar";
+import { confirmarPago, entregarYCobrar } from "@/lib/tienda/pagos/confirmar";
 import { prepararFactura, emitir } from "@/lib/arca/facturar";
 import { subirFacturaDelPedidoConBoton } from "@/lib/mercadolibre/facturas";
 
@@ -64,13 +64,30 @@ export async function accionConfirmarPago(fd: FormData) {
   const volver = `/ventas/pedidos/${pid}?b=op`;
   await intentar(volver, async () => {
     const p = await pedidoOperable(s.org.id, pid);
-    if (!["pendiente", "a_convenir"].includes(p.estado_pago)) throw new ErrorErp("Este pedido no tiene un pago pendiente.");
+    if (!["pendiente", "a_convenir", "a_cobrar"].includes(p.estado_pago)) throw new ErrorErp("Este pedido no tiene un pago pendiente.");
     if (["cancelado", "devuelto"].includes(p.estado)) throw new ErrorErp("El pedido está cancelado.");
     const medio = texto(fd, "medio");
     if (!medio) throw new ErrorErp("Elegí con qué pagó.");
     await confirmarPago(s.org.id, pid, { medio, importe: p.total_ars }, s.usuario.id);
     revalidatePath(`/ventas/pedidos/${pid}`);
     return "Pago confirmado: el pedido quedó pagado.";
+  });
+}
+
+/** «Entregado y cobrado»: retiro de un pedido «A cobrar» ya preparado; confirma el cobro y lo marca entregado. */
+export async function accionEntregadoYCobrado(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  const volver = `/ventas/pedidos/${pid}?b=op`;
+  await intentar(volver, async () => {
+    const p = await pedidoOperable(s.org.id, pid);
+    if (p.estado_pago === "pagado") throw new ErrorErp("Este pedido ya está cobrado: marcalo entregado.");
+    const medio = texto(fd, "medio");
+    if (!medio) throw new ErrorErp("Elegí con qué pagó.");
+    await entregarYCobrar(s.org.id, pid, medio, s.usuario.id);
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    revalidatePath("/ventas/pedidos");
+    return "Cobrado y entregado.";
   });
 }
 

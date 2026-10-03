@@ -5,7 +5,7 @@ export const TIPOS_MEDIO = {
   mercadopago: { nombre: "Mercado Pago", ayuda: "El access token se saca en mercadopago.com.ar/developers → Tus integraciones → Credenciales de producción." },
   payway: { nombre: "Tarjeta (Payway)", ayuda: "Las llaves te las da Payway al habilitar el e-commerce." },
   transferencia: { nombre: "Transferencia bancaria", ayuda: "En instrucciones poné CBU, alias, titular y CUIT: es lo que ve el comprador." },
-  efectivo: { nombre: "Efectivo", ayuda: "Al retirar en el local: el pedido queda pendiente hasta que confirmás el pago." },
+  efectivo: { nombre: "Efectivo", ayuda: "Al retirar en el local: el pedido queda «A cobrar» (reserva el stock y entra en picking sin esperar el pago); el cobro se confirma al entregarlo." },
   cuenta_corriente: { nombre: "Cuenta corriente / a convenir", ayuda: "Sólo para clientes marcados con cuenta corriente en su ficha." },
 } as const;
 export type TipoMedio = keyof typeof TIPOS_MEDIO;

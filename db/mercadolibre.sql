@@ -317,7 +317,8 @@ declare
     timeout_milliseconds := 130000
   ) where extract(minute from now()) in (1, 31) -- red de seguridad
      or exists (select 1 from public.evento e join public.emisor em on em.organizacion_id = e.organizacion_id and em.facturar_automatico
-                 where e.tipo = 'pedido_estado_cambiado' and e.procesado_ts is null and e.payload ->> 'nuevo' = em.facturar_al)
+                 where e.procesado_ts is null and ((e.tipo = 'pedido_estado_cambiado' and e.payload ->> 'nuevo' = em.facturar_al)
+                                                    or e.tipo = 'pedido_pago_confirmado'))
      or exists (select 1 from public.comprobante where estado = 'error' and intentos < 5)
      or exists (select 1 from public.importacion where segundo_plano and estado = 'ejecutando')
      or exists (select 1 from public.importacion_vs where estado in ('cargando', 'importando') or coalesce((resumen ->> 'iva_en_curso')::boolean, false))

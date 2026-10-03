@@ -8,7 +8,7 @@
 
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
-import { hoyAR } from "@/lib/moneda";
+import { hoyAR, formatear } from "@/lib/moneda";
 import { pedidosParaPreparar } from "@/lib/deposito/picking";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
@@ -101,6 +101,7 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
                       <Link href={`/ventas/pedidos/${p.id}`} className="font-bold text-[#16577F]">#{p.id}</Link>
                       {p.id_externo && <span className="text-xs text-[#5C6B76]">{p.id_externo}</span>}
                       {p.estado === "en_preparacion" && <Estado texto="Ya empezado" tono="amarillo" />}
+                      {p.a_cobrar && <Estado texto={`A cobrar ${formatear(p.total_ars, "ARS")}`} tono="ambar" />}
                       {p.en_espera && <MarcaCarritoEspera ts={p.carrito_ultimo_evento_ts} texto="Carrito: esperando" />}
                     </div>
                     <div className="truncate">{p.cliente ?? "Sin cliente"} · <span className="text-[#5C6B76]">{p.canal}</span></div>

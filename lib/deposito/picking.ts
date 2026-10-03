@@ -5,20 +5,33 @@
 // la reserva, hecha al pagarse el pedido, ya dice de qué ubicación sale cada
 // cosa (y un kit, sus componentes). Al armar el lote los pedidos pasan a
 // "en preparación"; al terminar, los completos pasan a "preparado".
+//
+// Los «A cobrar» (efectivo al retirar, o a convenir; ver lib/pedidos) entran
+// estando 'nuevo', sin esperar el pago: ya reservaron al crearse, y los
+// viejos que nacieron sin reserva reservan al armar el lote (reservar_pedido
+// es idempotente).
 
 import type { PoolClient } from "pg";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
-import { cambiarEstado, exigirCarritoLibre, sqlCarritoEnEspera } from "@/lib/pedidos";
+import { cambiarEstado, exigirCarritoLibre, sqlCarritoEnEspera, sqlACobrar, sqlSinEsperarPago } from "@/lib/pedidos";
+
+/** SQL: el pedido (alias `p`) se prepara: pagado o en preparación, o «A cobrar» / a convenir estando nuevo. */
+const SQL_PARA_PREPARAR = `(p.estado in ('pagado', 'en_preparacion') or (p.estado = 'nuevo' and ${sqlSinEsperarPago("p")}))`;
+/** SQL: el depósito de donde sale (el suyo, o el que le tocaría si todavía no reservó). */
+const SQL_DEPOSITO = "deposito_para_pedido(p.organizacion_id, p.canal_id, p.deposito_id)";
 
 export type PedidoParaPreparar = {
   id: number; id_externo: string | null; fecha: Date; canal: string; cliente: string | null; estado: string;
   unidades: number; lineas: number; despachar_antes: Date | null; logistica: string | null; deposito_id: number | null;
   /** Carrito de ML en espera (ver carritoEnEspera): se muestra, pero no se puede preparar todavía. */
   carrito_ultimo_evento_ts: Date | null; en_espera: boolean;
+  /** «A cobrar»: se cobra al entregar (efectivo al retirar). */
+  a_cobrar: boolean; total_ars: number;
 };
 
 /** Los pedidos que hay que preparar en un depósito: pagados (o que quedaron
- *  en preparación de un lote cancelado), que mueven stock, no de Full, y que
+ *  en preparación de un lote cancelado) o «A cobrar» / a convenir estando
+ *  nuevos, que mueven stock, no de Full, y que
  *  no están en un lote abierto. Lo más urgente primero. Los carritos de ML
  *  en espera (cambio hace menos de 10 min) vienen con en_espera: la pantalla
  *  los muestra sin poder tildarlos, y crearLote los rechaza. */
@@ -27,10 +40,11 @@ export function pedidosParaPreparar(org: string, depositoId: number) {
     select p.id::int, p.id_externo, p.fecha, ca.nombre canal, cl.nombre cliente, p.estado,
            (select coalesce(sum(cantidad), 0)::int from pedido_linea where pedido_id = p.id and variacion_id is not null) unidades,
            (select count(*)::int from pedido_linea where pedido_id = p.id and variacion_id is not null) lineas,
-           e.despachar_antes, e.logistica, p.deposito_id::int, p.carrito_ultimo_evento_ts, ${sqlCarritoEnEspera("p")} en_espera
+           e.despachar_antes, e.logistica, ${SQL_DEPOSITO}::int deposito_id, p.carrito_ultimo_evento_ts, ${sqlCarritoEnEspera("p")} en_espera,
+           ${sqlACobrar("p")} a_cobrar, p.total_ars::float total_ars
       from pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
       left join lateral (select despachar_antes, logistica from envio where pedido_id = p.id order by id desc limit 1) e on true
-     where p.organizacion_id = $1 and p.deposito_id = $2 and p.afecta_stock and p.estado in ('pagado', 'en_preparacion')
+     where p.organizacion_id = $1 and ${SQL_DEPOSITO} = $2 and p.afecta_stock and ${SQL_PARA_PREPARAR}
        and coalesce(e.logistica, '') <> 'fulfillment'
        and not exists (select 1 from picking_pedido pp join picking_lote l on l.id = pp.lote_id where pp.pedido_id = p.id and l.estado = 'abierto')
      order by e.despachar_antes nulls last, p.fecha`, [org, depositoId]);
@@ -43,13 +57,16 @@ export const esModoLote = (x: unknown): x is ModoLote => x === "recorrido" || x 
 export async function crearLote(org: string, depositoId: number, pedidoIds: number[], usuarioId: string, modo: ModoLote = "recorrido", cx?: PoolClient): Promise<number> {
   if (!pedidoIds.length) throw new ErrorErp("Elegí al menos un pedido.");
   const correr = async (c: PoolClient) => {
-    const ok = await c.query<{ id: string; estado: string; deposito_id: string | null }>(`
-      select id, estado, deposito_id from pedido where organizacion_id = $1 and id = any($2::bigint[]) for update`, [org, pedidoIds]);
+    const ok = await c.query<{ id: string; estado: string; deposito_id: string | null; preparable: boolean }>(`
+      select p.id, p.estado, ${SQL_DEPOSITO} deposito_id, ${SQL_PARA_PREPARAR} preparable
+        from pedido p where p.organizacion_id = $1 and p.id = any($2::bigint[]) for update`, [org, pedidoIds]);
     if (ok.rowCount !== pedidoIds.length) throw new ErrorErp("Algún pedido no existe.");
     // Un carrito de ML al que todavía le puede llegar un ítem no se prepara.
     await exigirCarritoLibre(org, pedidoIds, c);
     for (const p of ok.rows) {
-      if (!["pagado", "en_preparacion"].includes(p.estado)) throw new ErrorErp(`El pedido ${p.id} está ${p.estado}: no se prepara.`);
+      if (!p.preparable) {
+        throw new ErrorErp(p.estado === "nuevo" ? `El pedido ${p.id} espera el pago: no se prepara todavía.` : `El pedido ${p.id} está ${p.estado}: no se prepara.`);
+      }
       if (Number(p.deposito_id) !== depositoId) throw new ErrorErp(`El pedido ${p.id} sale de otro depósito.`);
     }
     const ocupado = await c.query(`select pp.pedido_id from picking_pedido pp join picking_lote l on l.id = pp.lote_id
@@ -57,6 +74,8 @@ export async function crearLote(org: string, depositoId: number, pedidoIds: numb
     if (ocupado.rowCount) throw new ErrorErp(`El pedido ${ocupado.rows[0].pedido_id} ya está en otro picking abierto.`);
     const lote = Number((await c.query<{ id: string }>(
       "insert into picking_lote (organizacion_id, deposito_id, usuario_id, modo) values ($1, $2, $3, $4) returning id", [org, depositoId, usuarioId, modo])).rows[0].id);
+    // Un «A cobrar» viejo que nació sin reserva reserva ahora (si ya reservó, no hace nada).
+    for (const p of ok.rows) if (p.estado === "nuevo") await c.query("select reservar_pedido($1, $2, $3)", [org, p.id, usuarioId]);
     for (const pid of pedidoIds) {
       await c.query("insert into picking_pedido (organizacion_id, lote_id, pedido_id) values ($1, $2, $3)", [org, lote, pid]);
       // Lo reservado de cada pedido, por ubicación.
@@ -74,7 +93,7 @@ export async function crearLote(org: string, depositoId: number, pedidoIds: numb
        where i.id = o.id`, [lote]);
     const items = await c.query("select 1 from picking_item where lote_id = $1 limit 1", [lote]);
     if (!items.rowCount) throw new ErrorErp("Esos pedidos no tienen nada reservado para preparar (¿productos sin vincular?).");
-    for (const p of ok.rows) if (p.estado === "pagado") await cambiarEstado(org, Number(p.id), "en_preparacion", usuarioId, `picking #${lote}`, c);
+    for (const p of ok.rows) if (p.estado === "pagado" || p.estado === "nuevo") await cambiarEstado(org, Number(p.id), "en_preparacion", usuarioId, `picking #${lote}`, c);
     return lote;
   };
   return cx ? correr(cx) : enTransaccion(correr);
@@ -174,14 +193,15 @@ export async function cancelarLote(org: string, loteId: number) {
 export type PedidoDelLote = {
   id: number; id_externo: string | null; cliente: string | null; apodo: string | null; canal: string; estado: string; fecha: Date;
   despachar_antes: Date | null; unidades: number; escaneadas: number; impreso_ts: Date | null; impresiones: number; preparado_ts: Date | null;
-  carrito_ultimo_evento_ts: Date | null; en_espera: boolean;
+  carrito_ultimo_evento_ts: Date | null; en_espera: boolean; a_cobrar: boolean; total_ars: number;
 };
 
 export function pedidosDelLote(org: string, loteId: number) {
   return consulta<PedidoDelLote>(`
     select p.id::int, p.id_externo, cl.nombre cliente, cl.apodo_ml apodo, ca.nombre canal, p.estado, p.fecha, e.despachar_antes,
            coalesce(i.unidades, 0)::int unidades, coalesce(i.escaneadas, 0)::int escaneadas,
-           pp.impreso_ts, pp.impresiones, pp.preparado_ts, p.carrito_ultimo_evento_ts, ${sqlCarritoEnEspera("p")} en_espera
+           pp.impreso_ts, pp.impresiones, pp.preparado_ts, p.carrito_ultimo_evento_ts, ${sqlCarritoEnEspera("p")} en_espera,
+           ${sqlACobrar("p")} a_cobrar, p.total_ars::float total_ars
       from picking_pedido pp join pedido p on p.id = pp.pedido_id join canal ca on ca.id = p.canal_id
       left join cliente cl on cl.id = p.cliente_id
       left join lateral (select despachar_antes from envio where pedido_id = p.id order by id desc limit 1) e on true
@@ -192,7 +212,7 @@ export function pedidosDelLote(org: string, loteId: number) {
 }
 
 /** Antes de imprimir: los pedidos tildados que todavía no están en un lote
- *  abierto (pagados o en preparación, de un depósito, no de Full) entran en
+ *  abierto (pagados o en preparación, o «A cobrar» nuevos; de un depósito, no de Full) entran en
  *  uno nuevo modo 'hojas', uno por depósito. Los demás se imprimen igual
  *  (reimpresión) sin tocarlos. Un carrito de ML en espera frena todo. */
 export async function prepararImpresion(org: string, pedidoIds: number[], usuarioId: string): Promise<{ lotes: number[]; enLote: number[] }> {
@@ -201,10 +221,10 @@ export async function prepararImpresion(org: string, pedidoIds: number[], usuari
   return enTransaccion(async (c) => {
     await exigirCarritoLibre(org, ids, c);
     const nuevos = (await c.query<{ id: string; deposito_id: string }>(`
-      select p.id, p.deposito_id from pedido p
+      select p.id, ${SQL_DEPOSITO} deposito_id from pedido p
         left join lateral (select logistica from envio where pedido_id = p.id order by id desc limit 1) e on true
-       where p.organizacion_id = $1 and p.id = any($2::bigint[]) and p.afecta_stock and p.estado in ('pagado', 'en_preparacion')
-         and p.deposito_id is not null and coalesce(e.logistica, '') <> 'fulfillment'
+       where p.organizacion_id = $1 and p.id = any($2::bigint[]) and p.afecta_stock and ${SQL_PARA_PREPARAR}
+         and ${SQL_DEPOSITO} is not null and coalesce(e.logistica, '') <> 'fulfillment'
          and not exists (select 1 from picking_pedido pp join picking_lote l on l.id = pp.lote_id where pp.pedido_id = p.id and l.estado = 'abierto')
        order by p.fecha, p.id`, [org, ids])).rows;
     const porDeposito = new Map<number, number[]>();

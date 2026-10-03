@@ -9,6 +9,7 @@
 -- `procesado_por` (p. ej. 'meli'). Tipos de hoy:
 --   stock_bajo_umbral       {variacion_id, canal_id, publicacion_id, disponible, umbral}
 --   pedido_estado_cambiado  {pedido_id, canal_id, anterior, nuevo, quien}
+--   pedido_pago_confirmado  {pedido_id, canal_id, estado, medio, quien} (cobro de un «A cobrar» ya en marcha)
 --   precio_cambiado         {precio_id, lista_id, variacion_id, importe_ars, importe_usd}
 --   producto_cambiado       {producto_id, variacion_id, que}
 create table if not exists evento (

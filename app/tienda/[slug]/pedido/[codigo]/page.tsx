@@ -74,7 +74,7 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
   const m = p.moneda;
   const estado = estadoCriollo(p.estado, p.estado_pago, p.metodo_tipo);
   const pagado = p.estado_pago === "pagado";
-  const pendiente = p.estado_pago === "pendiente" && p.estado !== "cancelado";
+  const pendiente = (p.estado_pago === "pendiente" || p.estado_pago === "a_cobrar") && p.estado !== "cancelado";
   const cuenta = await cuentaActual(t);
   const fallo = sp.pago === "fallo" && pendiente && p.medio === "mercadopago";
   const pagarConTarjeta = pendiente && p.medio === "payway";
@@ -90,7 +90,7 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
       <AvisosUrl sp={sp} />
       <div className="space-y-2 text-center">
         {fallo ? <h1 className="text-2xl font-bold sm:text-3xl">El pago no se completó</h1>
-          : <h1 className="text-2xl font-bold sm:text-3xl">{pagado || p.estado_pago === "a_convenir" ? "¡Gracias por tu compra!" : "¡Recibimos tu pedido!"}</h1>}
+          : <h1 className="text-2xl font-bold sm:text-3xl">{pagado || p.estado_pago === "a_convenir" || p.estado_pago === "a_cobrar" ? "¡Gracias por tu compra!" : "¡Recibimos tu pedido!"}</h1>}
         <p className="text-gray-500">Pedido <b className="text-gray-800">#{p.id}</b> · {p.fecha}</p>
         <span className={`inline-block rounded-full px-3 py-1 text-sm font-semibold ${estado.color}`}>{estado.texto}</span>
       </div>

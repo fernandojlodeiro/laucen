@@ -281,7 +281,7 @@ export default function NuevoPedido({ canales }: { canales: Canal[] }) {
         <fieldset className="grid gap-2 content-start">
           <span className={ETIQUETA}>Pago</span>
           <div className="flex flex-wrap gap-3">
-            {[["a_convenir", "A convenir"], ["pagado", "Pagado"], ["cuenta_corriente", "Cuenta corriente"]].map(([v, t]) => (
+            {[["a_convenir", "A cobrar (a convenir)"], ["pagado", "Pagado"], ["cuenta_corriente", "Cuenta corriente"]].map(([v, t]) => (
               <label key={v} className="inline-flex items-center gap-1.5">
                 <input type="radio" name="pago" value={v} checked={pago === v} onChange={() => setPago(v)} className="accent-[#16577F]" /> {t}
               </label>
@@ -295,7 +295,7 @@ export default function NuevoPedido({ canales }: { canales: Canal[] }) {
               </select></label>
           )}
           <p className="text-[11px] text-[#5C6B76]">
-            {pago === "pagado" ? "Queda pagado y se reserva el stock." : pago === "cuenta_corriente" ? "Queda confirmado (se reserva el stock) y el pago, a cuenta del cliente." : "Queda nuevo; el pago se confirma después desde la ficha del pedido."}
+            {pago === "pagado" ? "Queda pagado y se reserva el stock." : pago === "cuenta_corriente" ? "Queda confirmado (se reserva el stock) y el pago, a cuenta del cliente." : "Queda «A cobrar»: se reserva el stock y entra en picking sin esperar el pago; el cobro se confirma desde la ficha (se factura al cobrar)."}
           </p>
         </fieldset>
         <fieldset className="grid gap-2 content-start">

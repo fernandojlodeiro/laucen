@@ -12,7 +12,7 @@ import { consulta, una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, numero, texto } from "@/lib/erp/acciones";
 import { crearPedido, cambiarEstado, type LineaEntrada } from "@/lib/pedidos";
 import { precioDe } from "@/lib/precios";
-import { confirmarPago } from "@/lib/tienda/pagos/confirmar";
+import { confirmarPago, avisarStockMl } from "@/lib/tienda/pagos/confirmar";
 import { unirPedidosPartidos } from "@/lib/mercadolibre/carritos";
 import type { Moneda } from "@/lib/moneda";
 
@@ -150,7 +150,8 @@ export async function accionNuevoPedido(fd: FormData): Promise<{ error: string }
       clienteId,
       lineas,
       medio_pago: medio,
-      estado_pago: pago === "pagado" ? "pendiente" : "a_convenir",
+      // «A convenir» a mano = «A cobrar» (Fer, 3/10): reserva ya y entra en picking; se cobra al entregar.
+      estado_pago: pago === "pagado" ? "pendiente" : pago === "cuenta_corriente" ? "a_convenir" : "a_cobrar",
       envio: { metodo: entrega === "envio" ? "Envío" : "Retira", a_mano: true, direccion },
       costo_envio: costoEnvio || null,
       notas: texto(fd, "notas"),
@@ -165,6 +166,7 @@ export async function accionNuevoPedido(fd: FormData): Promise<{ error: string }
       // Venta cerrada a cuenta: el pedido queda confirmado (reserva el stock) y el pago, a convenir.
       await cambiarEstado(org, pedidoId, "pagado", s.usuario.id, "a cuenta corriente");
     }
+    if (creado.reservo && pago !== "pagado") await avisarStockMl(org, pedidoId);
     aviso = `Pedido ${pedidoId} creado.`;
   } catch (e) {
     return { error: motivoErp(e) };

@@ -17,7 +17,7 @@ export function fechaHora(d: Date | string | null | undefined): string {
   return new Date(d).toLocaleString("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-type Tono = "verde" | "gris" | "amarillo" | "rojo" | "azul";
+type Tono = "verde" | "gris" | "amarillo" | "rojo" | "azul" | "ambar";
 
 export const TONO_ESTADO: Record<EstadoPedido, Tono> = {
   nuevo: "azul", pagado: "amarillo", en_preparacion: "amarillo", preparado: "amarillo",
@@ -25,7 +25,7 @@ export const TONO_ESTADO: Record<EstadoPedido, Tono> = {
 };
 
 export const TONO_PAGO: Record<EstadoPago, Tono> = {
-  pendiente: "amarillo", pagado: "verde", a_convenir: "gris", reembolsado: "rojo",
+  pendiente: "amarillo", pagado: "verde", a_cobrar: "ambar", a_convenir: "gris", reembolsado: "rojo",
 };
 
 export const TIPOS_CLIENTE = { consumidor_final: "Consumidor final", mayorista: "Mayorista" } as const;

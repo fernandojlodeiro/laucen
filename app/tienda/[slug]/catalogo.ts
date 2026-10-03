@@ -356,5 +356,6 @@ export function estadoCriollo(estado: string, estadoPago: string, metodoTipo: st
   if (estado === "en_preparacion") return { texto: "En preparación", color: "bg-blue-100 text-blue-800" };
   if (estado === "pagado" || estadoPago === "pagado") return { texto: "Pagado", color: "bg-green-100 text-green-800" };
   if (estadoPago === "a_convenir") return { texto: "Recibido", color: "bg-blue-100 text-blue-800" };
+  if (estadoPago === "a_cobrar") return { texto: "Recibido · lo pagás al retirar", color: "bg-amber-100 text-amber-900" };
   return { texto: "Pendiente de pago", color: "bg-amber-100 text-amber-900" };
 }

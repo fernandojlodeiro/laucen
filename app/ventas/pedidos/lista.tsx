@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { Estado, url } from "@/app/componentes/erp";
 import { enVista } from "@/lib/moneda";
-import { ESTADOS_PEDIDO, ESTADOS_PAGO, esEstadoPedido, esEstadoPago } from "@/lib/pedidos";
+import { ESTADOS_PEDIDO, ESTADOS_PAGO, esEstadoPedido, esEstadoPago, sqlPedidoPendiente, sqlEstadoPago } from "@/lib/pedidos";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { TONO_ESTADO, TONO_PAGO, etiqueta } from "@/app/ventas/formato";
 import type { EstadoPedido, EstadoPago } from "@/lib/pedidos";
@@ -62,7 +62,8 @@ const CAMPOS: Campo[] = [
     celda: (f) => <span className="inline-flex flex-wrap gap-1"><Estado texto={etiqueta(ESTADOS_PEDIDO, f.estado)} tono={TONO_ESTADO[f.estado as EstadoPedido] ?? "gris"} /><MarcaCarritoEspera ts={f.espera_ts} /></span>,
   },
   {
-    clave: "pago", titulo: "Pago", sql: "p.estado_pago", valor: traducido("pago", ESTADOS_PAGO),
+    // «A cobrar» (efectivo al retirar): los viejos con pago pendiente en efectivo también.
+    clave: "pago", titulo: "Pago", sql: sqlEstadoPago("p"), valor: traducido("pago", ESTADOS_PAGO),
     celda: (f) => <Estado texto={etiqueta(ESTADOS_PAGO, f.pago)} tono={TONO_PAGO[f.pago as EstadoPago] ?? "gris"} />,
   },
   { clave: "medio_pago", titulo: "Medio de pago", sql: "p.medio_pago" },
@@ -106,9 +107,10 @@ export const LISTA_PEDIDOS: Lista = {
     const valores: unknown[] = [ctx.org];
     const donde = ["p.organizacion_id = $1"];
     const agregar = (cond: (p: string) => string, v: unknown) => { valores.push(v); donde.push(cond(`$${valores.length}`)); };
-    if (f.estado === "pendientes") donde.push("p.estado in ('nuevo', 'pagado')");
+    // Pendientes: nuevos y pagados, y los «A cobrar» que todavía no se entregaron.
+    if (f.estado === "pendientes") donde.push(sqlPedidoPendiente("p"));
     else if (f.estado) agregar((p) => `p.estado = ${p}`, f.estado);
-    if (f.pago) agregar((p) => `p.estado_pago = ${p}`, f.pago);
+    if (f.pago) agregar((p) => `${sqlEstadoPago("p")} = ${p}`, f.pago);
     if (f.canal) agregar((p) => `p.canal_id = ${p}`, f.canal);
     if (f.cliente) agregar((p) => `p.cliente_id = ${p}`, f.cliente);
     // Las fechas se cortan en el día argentino.

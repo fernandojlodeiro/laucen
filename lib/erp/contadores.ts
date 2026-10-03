@@ -4,12 +4,13 @@
 // ("próximamente").
 
 import { una } from "@/lib/erp/base";
+import { sqlPedidoPendiente } from "@/lib/pedidos";
 
 export type Contador = { texto: string; n: number | null; href?: string };
 
 export async function contadoresEstado(org: string): Promise<Contador[]> {
   const pedidos = await una<{ n: number }>(
-    "select count(*)::int n from pedido where organizacion_id = $1 and estado in ('nuevo', 'pagado')", [org],
+    `select count(*)::int n from pedido p where p.organizacion_id = $1 and ${sqlPedidoPendiente("p")}`, [org],
   ).catch(() => null);
   const preguntas = await una<{ n: number }>(
     "select count(*)::int n from meli_pregunta where organizacion_id = $1 and estado = 'UNANSWERED'", [org],

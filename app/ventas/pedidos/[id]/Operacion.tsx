@@ -5,14 +5,14 @@
 import { consulta, una } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
 import { tiendaDelCanal, nombreTienda, rutaTienda } from "@/lib/tienda/tienda";
-import type { EstadoPedido } from "@/lib/pedidos";
+import { esMedioEfectivo, sqlEstadoPago, sqlSinEsperarPago, type EstadoPedido } from "@/lib/pedidos";
 import { PRIMARIO, SUAVE, VERDE, BORRAR } from "@/app/botones";
 import { BotonEnviar, BotonConfirmar } from "@/app/radar/Cliente";
 import { Estado, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
 import { origen } from "@/app/config/tienda/origen";
 import { TIPOS_MEDIO } from "@/app/config/medios-pago/comun";
-import { accionConfirmarPago, accionCambiarEstadoPedido } from "./acciones";
+import { accionConfirmarPago, accionCambiarEstadoPedido, accionEntregadoYCobrado } from "./acciones";
 
 const ESTADO_PAGO: Record<string, { texto: string; tono: "verde" | "amarillo" | "rojo" | "gris" }> = {
   pendiente: { texto: "Pendiente", tono: "amarillo" }, aprobado: { texto: "Aprobado", tono: "verde" }, rechazado: { texto: "Rechazado", tono: "rojo" },
@@ -34,14 +34,15 @@ export function telefonoWhatsapp(tel: string | null | undefined): string | null 
   return conPais ? `54${n}` : n.length >= 8 ? n : null;
 }
 
-function mensaje(estado: EstadoPedido, d: { nombre: string | null; pedido: number; tienda: string; seguimiento: string | null; despacho: string | null; pagoPendiente: boolean }) {
+function mensaje(estado: EstadoPedido, d: { nombre: string | null; pedido: number; tienda: string; seguimiento: string | null; despacho: string | null; pagoPendiente: boolean; aCobrar: boolean }) {
   const hola = `¡Hola${d.nombre ? ` ${d.nombre.split(" ")[0]}` : ""}!`;
   const n = `tu pedido #${d.pedido}`;
   const cuerpo: Record<EstadoPedido, string> = {
-    nuevo: d.pagoPendiente ? `Recibimos ${n} en ${d.tienda}. Apenas se acredite el pago lo preparamos.` : `Recibimos ${n} en ${d.tienda}.`,
+    nuevo: d.aCobrar ? `Recibimos ${n} en ${d.tienda}. Ya lo estamos preparando; lo pagás al retirarlo.`
+      : d.pagoPendiente ? `Recibimos ${n} en ${d.tienda}. Apenas se acredite el pago lo preparamos.` : `Recibimos ${n} en ${d.tienda}.`,
     pagado: `Confirmamos el pago de ${n}. Ya lo estamos preparando.`,
     en_preparacion: `Estamos preparando ${n}.`,
-    preparado: `${n.charAt(0).toUpperCase() + n.slice(1)} ya está listo.`,
+    preparado: `${n.charAt(0).toUpperCase() + n.slice(1)} ya está listo.${d.aCobrar ? " Lo pagás al retirarlo." : ""}`,
     despachado: `${n.charAt(0).toUpperCase() + n.slice(1)} ya salió.${d.despacho ? ` Seguimiento: ${d.despacho}.` : ""}`,
     entregado: `${n.charAt(0).toUpperCase() + n.slice(1)} figura entregado. ¡Gracias por tu compra!`,
     cancelado: `${n.charAt(0).toUpperCase() + n.slice(1)} quedó cancelado. Cualquier duda, escribinos.`,
@@ -52,6 +53,8 @@ function mensaje(estado: EstadoPedido, d: { nombre: string | null; pedido: numbe
 
 /** Los botones de estado siguiente según el actual (Cancelar va aparte). */
 const SIGUIENTES: Partial<Record<EstadoPedido, { estado: EstadoPedido; texto: string; nota?: boolean }[]>> = {
+  // Sólo un nuevo que no espera el pago («A cobrar» o a convenir): ya tiene su stock reservado.
+  nuevo: [{ estado: "en_preparacion", texto: "En preparación" }, { estado: "preparado", texto: "Preparado" }],
   pagado: [{ estado: "en_preparacion", texto: "En preparación" }, { estado: "preparado", texto: "Preparado" }],
   en_preparacion: [{ estado: "preparado", texto: "Preparado" }],
   preparado: [{ estado: "despachado", texto: "Despachado", nota: true }, { estado: "entregado", texto: "Entregado (retiro)" }],
@@ -63,8 +66,10 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   const p = await una<{
     estado: EstadoPedido; estado_pago: string; total_ars: number; medio_pago: string | null; codigo: string | null; canal_id: number; canal_tipo: string;
     cliente: string | null; telefono: string | null; movil: string | null; envio: string | null; envio_tipo: string | null;
+    sin_esperar: boolean; retiro: boolean;
   }>(`
-    select p.estado, p.estado_pago, p.total_ars::float, p.medio_pago, p.codigo_seguimiento codigo, p.canal_id::int, c.tipo canal_tipo,
+    select p.estado, ${sqlEstadoPago("p")} estado_pago, ${sqlSinEsperarPago("p")} sin_esperar,
+           (me.tipo = 'retiro' or p.envio ->> 'metodo' = 'Retira') is true retiro, p.total_ars::float, p.medio_pago, p.codigo_seguimiento codigo, p.canal_id::int, c.tipo canal_tipo,
            cl.nombre cliente, cl.telefono, cl.telefono_movil movil, me.nombre envio, me.tipo envio_tipo
       from pedido p join canal c on c.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
       left join metodo_envio me on me.id = p.metodo_envio_id
@@ -104,12 +109,15 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
 
   // Medio para confirmar: el del pago pendiente, o el del pedido; si no, se elige.
   const pendiente = [...pagos].reverse().find((x) => x.estado === "pendiente");
-  const medioSugerido = pendiente?.medio ?? p.medio_pago ?? "";
+  const medioSugerido = pendiente?.medio ?? (esMedioEfectivo(p.medio_pago) ? "efectivo" : p.medio_pago) ?? "";
   const activos = await consulta<{ tipo: string; nombre: string }>(
     "select tipo, nombre from medio_pago where organizacion_id = $1 and canal_id is null order by activo desc, orden, id", [org]);
   const opcionesMedio = activos.length ? activos : Object.entries(TIPOS_MEDIO).map(([tipo, t]) => ({ tipo, nombre: t.nombre }));
   if (medioSugerido && !opcionesMedio.some((m) => m.tipo === medioSugerido)) opcionesMedio.unshift({ tipo: medioSugerido, nombre: nombreMedio(medioSugerido) });
-  const pagoPendiente = ["pendiente", "a_convenir"].includes(p.estado_pago) && !CERRADOS.includes(p.estado);
+  const pagoPendiente = ["pendiente", "a_convenir", "a_cobrar"].includes(p.estado_pago) && !CERRADOS.includes(p.estado);
+  const aCobrar = p.estado_pago === "a_cobrar" && !CERRADOS.includes(p.estado);
+  // Retiro de un «A cobrar» ya preparado: se entrega y se cobra en un clic.
+  const entregarYCobrar = aCobrar && p.retiro && p.estado === "preparado";
 
   // WhatsApp: con el link de seguimiento si es un pedido de la tienda.
   const tel = telefonoWhatsapp(p.movil) ?? telefonoWhatsapp(p.telefono);
@@ -120,10 +128,12 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
     const despacho = p.estado === "despachado"
       ? (await una<{ nota: string | null }>("select nota from pedido_estado_historial where pedido_id = $1 and estado_nuevo = 'despachado' order by fecha desc, id desc limit 1", [pid]))?.nota ?? null
       : null;
-    const texto = mensaje(p.estado, { nombre: p.cliente, pedido: pid, tienda: t ? nombreTienda(t) : "nuestra tienda", seguimiento, despacho, pagoPendiente: pagoPendiente });
+    const texto = mensaje(p.estado, { nombre: p.cliente, pedido: pid, tienda: t ? nombreTienda(t) : "nuestra tienda", seguimiento, despacho, pagoPendiente: pagoPendiente, aCobrar });
     wa = `https://wa.me/${tel}?text=${encodeURIComponent(texto)}`;
   }
-  const siguientes = SIGUIENTES[p.estado] ?? [];
+  // Un nuevo sólo avanza solo si no espera el pago; un «A cobrar» que retira se entrega con «Entregado y cobrado».
+  const siguientes = (p.estado === "nuevo" && !p.sin_esperar ? [] : SIGUIENTES[p.estado] ?? [])
+    .filter((x) => !(entregarYCobrar && x.estado === "entregado"));
 
   return (
     <>
@@ -133,7 +143,23 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
       )}
       <div className={`${CAJA} mb-4 grid gap-3`}>
         {p.envio && <p className="text-xs"><span className="text-[#5C6B76]">Entrega:</span> {p.envio}</p>}
-        {pagoPendiente && (
+        {aCobrar && (
+          <p className="text-sm rounded-lg px-3 py-2 bg-[#FDE7B0] text-[#3D2600] border-2 border-[#C98A00]">
+            <b>A COBRAR {formatear(p.total_ars, "ARS")}</b>{p.retiro ? " al retirar" : " al entregar"}.
+          </p>
+        )}
+        {entregarYCobrar && (
+          <form action={accionEntregadoYCobrado} className="flex flex-wrap items-end gap-2">
+            <input type="hidden" name="pedido_id" value={pid} />
+            <label><span className={ETIQUETA}>Cobró con</span>
+              <select name="medio" defaultValue={medioSugerido} className={CAMPO} required>
+                {!medioSugerido && <option value="">Elegí…</option>}
+                {opcionesMedio.map((m) => <option key={m.tipo} value={m.tipo}>{m.nombre}</option>)}
+              </select></label>
+            <BotonEnviar clase={VERDE} corriendo="Entregando…">Entregado y cobrado ({formatear(p.total_ars, "ARS")})</BotonEnviar>
+          </form>
+        )}
+        {pagoPendiente && !entregarYCobrar && (
           <form action={accionConfirmarPago} className="flex flex-wrap items-end gap-2">
             <input type="hidden" name="pedido_id" value={pid} />
             <label><span className={ETIQUETA}>Pagó con</span>
@@ -165,7 +191,8 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
             )}
           </div>
         )}
-        {p.estado === "nuevo" && pagoPendiente && <p className="text-[11px] text-[#5C6B76]">Al confirmar el pago pasa a Pagado y se reserva el stock.</p>}
+        {p.estado === "nuevo" && pagoPendiente && !p.sin_esperar && <p className="text-[11px] text-[#5C6B76]">Al confirmar el pago pasa a Pagado y se reserva el stock.</p>}
+        {aCobrar && <p className="text-[11px] text-[#5C6B76]">El stock ya está reservado y el pedido entra en picking sin esperar el pago. Se factura cuando confirmás el cobro.</p>}
         <div>
           {wa
             ? <a href={wa} target="_blank" rel="noopener" className={SUAVE}>Avisar por WhatsApp</a>

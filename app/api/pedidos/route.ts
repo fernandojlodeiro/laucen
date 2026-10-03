@@ -12,13 +12,16 @@
 //                "direccion": {calle, numero, piso_depto, localidad, provincia, provincia_codigo, codigo_postal, pais},
 //                "direccion_envio": {…lo mismo + receptor, receptor_telefono, referencia, latitud, longitud, id_externo} },
 //   "lineas": [ { "variacion_id": 12 | "sku": "ABC-1", "cantidad": 2, "precio_unitario"?: 1500, "titulo"?: "…" } ],
-//   "moneda"?: "ARS" | "USD", "medio_pago"?: "…", "estado_pago"?: "pendiente" | "pagado" | "a_convenir",
+//   "moneda"?: "ARS" | "USD", "medio_pago"?: "…", "estado_pago"?: "pendiente" | "pagado" | "a_convenir" | "a_cobrar",
+//   (con medio_pago "Efectivo…" y pago pendiente queda "a_cobrar"; "a_cobrar" y "a_convenir" reservan el stock
+//    al crearse y entran en picking sin esperar el pago)
 //   "envio"?: {…}, "notas"?: "…", "fecha"?: "2026-10-01T15:00:00-03:00" }
 // Respuesta: 201 { pedido_id, cliente_id, creado: true, total: { ars, usd } }
 //            200 igual con creado: false si ya existía ese id_externo en el canal.
 
 import { canalDelPedido, noAutorizado, respuestaError } from "@/lib/api/canal";
 import { crearPedido, type PedidoEntrada } from "@/lib/pedidos";
+import { avisarStockMl } from "@/lib/tienda/pagos/confirmar";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +60,7 @@ export async function POST(req: Request) {
       fecha: cuerpo.fecha != null ? String(cuerpo.fecha) : null,
     };
     const r = await crearPedido(canal.organizacionId, entrada, "sistema");
+    if (r.reservo) await avisarStockMl(canal.organizacionId, r.pedidoId);
     return Response.json(
       { pedido_id: r.pedidoId, cliente_id: r.clienteId, creado: r.creado, total: r.total },
       { status: r.creado ? 201 : 200 });

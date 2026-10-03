@@ -186,7 +186,7 @@ create table if not exists pedido (
   total_ars        numeric(16, 2) not null default 0,
   total_usd        numeric(16, 2) not null default 0,
   medio_pago       text,
-  estado_pago      text not null default 'pendiente' check (estado_pago in ('pendiente', 'pagado', 'a_convenir', 'reembolsado')),
+  estado_pago      text not null default 'pendiente' check (estado_pago in ('pendiente', 'pagado', 'a_convenir', 'a_cobrar', 'reembolsado')),
   deposito_id      bigint references deposito(id),
   envio            jsonb not null default '{}',
   notas            text,
@@ -235,6 +235,21 @@ create index if not exists pedido_pack_ml on pedido (canal_id, (envio ->> 'pack_
 -- Durante los 10 minutos siguientes nadie lo toca (ver carritoEnEspera en
 -- lib/pedidos/index.ts), por si todavía falta llegar algún ítem.
 alter table pedido add column if not exists carrito_ultimo_evento_ts timestamptz;
+-- «A cobrar» (Fer, 3/10): los pedidos que se pagan en efectivo al retirar (o
+-- a convenir) no esperan el pago: reservan stock al crearse y entran en
+-- picking estando 'nuevo'. El pago queda 'a_cobrar' hasta que se confirma el
+-- cobro (recién ahí se factura). reservado_ts dice que el pedido ya reservó
+-- su stock sin haber pasado por 'pagado' (lo llena reservar_pedido), así
+-- cambiar_estado no lo reserva dos veces al pasarlo de largo.
+do $$ begin
+  if not exists (select 1 from pg_constraint where conrelid = 'public.pedido'::regclass and conname = 'pedido_estado_pago_check'
+                    and pg_get_constraintdef(oid) like '%a_cobrar%') then
+    alter table pedido drop constraint if exists pedido_estado_pago_check;
+    alter table pedido add constraint pedido_estado_pago_check
+      check (estado_pago in ('pendiente', 'pagado', 'a_convenir', 'a_cobrar', 'reembolsado'));
+  end if;
+end $$;
+alter table pedido add column if not exists reservado_ts timestamptz;
 alter table pedido_linea enable row level security;
 select erp_politica_org('pedido_linea');
 
@@ -309,6 +324,40 @@ language sql immutable as $$
     when 'preparado' then 4 when 'despachado' then 5 when 'entregado' then 6 else null end
 $$;
 
+/** El depósito de donde sale un pedido: el suyo, o el primero activo del
+ *  canal, o el primero activo de la organización (el propio antes). */
+create or replace function public.deposito_para_pedido(p_org text, p_canal bigint, p_deposito bigint)
+returns bigint language sql stable as $$
+  select coalesce(p_deposito,
+    (select cd.deposito_id from canal_deposito cd join deposito d on d.id = cd.deposito_id and d.estado = 'activo'
+      where cd.canal_id = p_canal order by cd.prioridad, cd.deposito_id limit 1),
+    (select id from deposito where organizacion_id = p_org and estado = 'activo' order by (tipo = 'propio') desc, id limit 1))
+$$;
+
+/** Reserva el stock de un pedido que todavía no lo reservó (idempotente):
+ *  lo llama cambiar_estado al pasar por pagado, crearPedido para los «A
+ *  cobrar» y el picking para los «A cobrar» viejos que nacieron sin reserva.
+ *  No hace nada si el pedido no mueve stock, ya reservó (reservado_ts) o ya
+ *  pasó por pagado (los de antes de reservado_ts), o está cerrado. Devuelve
+ *  true si reservó. */
+create or replace function public.reservar_pedido(p_org text, p_pedido bigint, p_quien text)
+returns boolean language plpgsql as $$
+declare p pedido%rowtype; dep bigint; l record;
+begin
+  select * into p from pedido where id = p_pedido and organizacion_id = p_org for update;
+  if not found then raise exception 'el pedido % no existe', p_pedido using errcode = 'P0001'; end if;
+  if not p.afecta_stock or p.reservado_ts is not null or p.estado <> 'nuevo' then return false; end if;
+  dep := deposito_para_pedido(p_org, p.canal_id, p.deposito_id);
+  if dep is null then
+    raise exception 'no hay ningún depósito donde reservar el stock' using errcode = 'P0001', hint = 'sin_deposito';
+  end if;
+  for l in select variacion_id, cantidad from pedido_linea where pedido_id = p.id and variacion_id is not null loop
+    perform reservar_en_deposito(p_org, l.variacion_id, dep, l.cantidad, 'pedido', p.id::text, p_quien);
+  end loop;
+  update pedido set deposito_id = dep, reservado_ts = now() where id = p.id;
+  return true;
+end $$;
+
 /** El único camino para cambiar el estado de un pedido. Valida la transición
  *  (sólo para adelante; cancelado y devuelto desde cualquiera que no esté
  *  cerrado), escribe el historial, emite `pedido_estado_cambiado` y dispara
@@ -343,19 +392,9 @@ begin
   end if;
 
   if p.afecta_stock then
-    -- Reservar al pasar por pagado.
+    -- Reservar al pasar por pagado (salvo que ya haya reservado: «A cobrar»).
     if o_actual < 2 and o_nuevo is not null and o_nuevo >= 2 then
-      dep := coalesce(p.deposito_id,
-        (select cd.deposito_id from canal_deposito cd join deposito d on d.id = cd.deposito_id and d.estado = 'activo'
-          where cd.canal_id = p.canal_id order by cd.prioridad, cd.deposito_id limit 1),
-        (select id from deposito where organizacion_id = p_org and estado = 'activo' order by (tipo = 'propio') desc, id limit 1));
-      if dep is null then
-        raise exception 'no hay ningún depósito donde reservar el stock' using errcode = 'P0001', hint = 'sin_deposito';
-      end if;
-      if p.deposito_id is null then update pedido set deposito_id = dep where id = p.id; end if;
-      for l in select variacion_id, cantidad from pedido_linea where pedido_id = p.id and variacion_id is not null loop
-        perform reservar_en_deposito(p_org, l.variacion_id, dep, l.cantidad, 'pedido', ref, p_quien);
-      end loop;
+      perform reservar_pedido(p_org, p.id, p_quien);
     end if;
     -- Vender al llegar a despachado.
     if o_actual < 5 and o_nuevo is not null and o_nuevo >= 5 then

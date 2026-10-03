@@ -26,9 +26,46 @@ export const ESTADOS_PEDIDO = {
 export type EstadoPedido = keyof typeof ESTADOS_PEDIDO;
 export const esEstadoPedido = (x: unknown): x is EstadoPedido => typeof x === "string" && Object.hasOwn(ESTADOS_PEDIDO, x);
 
-export const ESTADOS_PAGO = { pendiente: "Pendiente", pagado: "Pagado", a_convenir: "A convenir", reembolsado: "Reembolsado" } as const;
+export const ESTADOS_PAGO = { pendiente: "Pendiente", pagado: "Pagado", a_cobrar: "A cobrar", a_convenir: "A convenir", reembolsado: "Reembolsado" } as const;
 export type EstadoPago = keyof typeof ESTADOS_PAGO;
 export const esEstadoPago = (x: unknown): x is EstadoPago => typeof x === "string" && Object.hasOwn(ESTADOS_PAGO, x);
+
+// ── «A cobrar» (Fer, 3/10) ───────────────────────────────
+// Un pedido que se paga en efectivo al retirar (o «a convenir», cargado a
+// mano) no espera el pago: reserva el stock al crearse (reservar_pedido, en
+// db/ventas.sql) y entra en picking estando 'nuevo'. Su pago queda
+// 'a_cobrar' hasta que se confirma el cobro, y recién ahí se factura. Los
+// pedidos de la tienda con «Cuenta corriente / a convenir» (estado_pago
+// 'a_convenir') también reservan y entran en picking, pero se facturan como
+// siempre: la cuenta corriente se arma con la factura.
+// Los pedidos viejos (de antes de 'a_cobrar') con pago pendiente en
+// efectivo se leen como «A cobrar» (sqlACobrar); el picking les reserva el
+// stock al armar el lote si no lo tenían.
+
+/** true si el medio de pago es efectivo (el nombre lo dice). */
+export const esMedioEfectivo = (medio: string | null | undefined) =>
+  !!medio && /efectivo/i.test(medio.normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+
+/** SQL: true si el pedido (alias `a`) está «A cobrar»: 'a_cobrar', o uno
+ *  viejo con el pago pendiente en efectivo (de la tienda, por su medio; de
+ *  otro canal que no sea ML, por el nombre del medio). */
+export const sqlACobrar = (a = "p") =>
+  `(${a}.estado_pago = 'a_cobrar' or (${a}.estado_pago = 'pendiente' and not (${a}.datos_externos ? 'ml')
+     and coalesce(${a}.datos_externos #>> '{tienda,medio}' = 'efectivo', ${a}.medio_pago ilike '%efectivo%', false)))`;
+
+/** SQL: true si el pedido entra en picking (y reserva) sin esperar el pago: «A cobrar» o a convenir. */
+export const sqlSinEsperarPago = (a = "p") => `(${sqlACobrar(a)} or ${a}.estado_pago = 'a_convenir')`;
+
+/** SQL: el estado del pago como se muestra (los viejos en efectivo, «a_cobrar»). */
+export const sqlEstadoPago = (a = "p") => `(case when ${sqlACobrar(a)} then 'a_cobrar' else ${a}.estado_pago end)`;
+
+/** SQL: el pedido está pendiente (filtro «Pendientes»): nuevo o pagado, o
+ *  «A cobrar» todavía sin entregar. */
+export const sqlPedidoPendiente = (a = "p") =>
+  `(${a}.estado in ('nuevo', 'pagado') or (${sqlACobrar(a)} and ${a}.estado in ('en_preparacion', 'preparado', 'despachado')))`;
+
+/** El mensaje cuando se quiere facturar un pedido «A cobrar». */
+export const MENSAJE_A_COBRAR_FACTURA = "Primero confirmá el cobro: el pedido está «A cobrar» y se factura cuando se cobra.";
 
 // ── Espera del carrito de Mercado Libre (Fer, 3/10) ──────
 // Un carrito de ML (varias órdenes con el mismo pack_id) es UN pedido, y sus
@@ -185,7 +222,11 @@ export type PedidoEntrada = {
   metodo_envio_id?: number | null;
 };
 
-export type PedidoCreado = { pedidoId: number; clienteId: number | null; creado: boolean; total: { ars: number; usd: number } };
+export type PedidoCreado = {
+  pedidoId: number; clienteId: number | null; creado: boolean; total: { ars: number; usd: number };
+  /** true si reservó el stock al crearse («A cobrar» o a convenir): quien llama avisa a ML del stock nuevo. */
+  reservo?: boolean;
+};
 
 /** Crea un pedido (o devuelve el que ya existe con el mismo id_externo en ese
  *  canal: llamar dos veces no lo duplica). Todo en una transacción. */
@@ -227,7 +268,11 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
     if (estado !== "nuevo" && entrada.afecta_stock !== false) {
       throw new ErrorErp("Un pedido que mueve stock nace 'nuevo'; después se cambia con su estado.");
     }
-    const estadoPago = esEstadoPago(entrada.estado_pago) ? entrada.estado_pago : "pendiente";
+    let estadoPago: EstadoPago = esEstadoPago(entrada.estado_pago) ? entrada.estado_pago : "pendiente";
+    // Efectivo al retirar: no espera el pago, queda «A cobrar» (sólo un pedido
+    // vivo que mueve stock; no las ventas históricas ni las de ML).
+    const vivo = estado === "nuevo" && entrada.afecta_stock !== false && !(entrada.datos_externos && "ml" in entrada.datos_externos);
+    if (vivo && estadoPago === "pendiente" && esMedioEfectivo(entrada.medio_pago)) estadoPago = "a_cobrar";
 
     const p = (await c.query<{ id: string }>(`
       insert into pedido (organizacion_id, canal_id, cliente_id, id_externo, fecha, estado, moneda, total_ars, total_usd,
@@ -245,7 +290,11 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
                    values ($1, $2, null, $3, $4, 'pedido creado')`, [org, pedidoId, estado, quien]);
     await c.query("select emitir_evento($1, 'pedido_estado_cambiado', $2::jsonb)",
       [org, JSON.stringify({ pedido_id: pedidoId, canal_id: Number(canal.id), anterior: null, nuevo: estado, quien })]);
-    return { pedidoId, clienteId, creado: true, total };
+    // «A cobrar» o a convenir: reserva ya, sin esperar el pago (entra en picking).
+    const reservo = vivo && (estadoPago === "a_cobrar" || estadoPago === "a_convenir")
+      ? (await c.query<{ r: boolean }>("select reservar_pedido($1, $2, $3) r", [org, pedidoId, quien])).rows[0].r
+      : false;
+    return { pedidoId, clienteId, creado: true, total, reservo };
   };
   return cx ? correr(cx) : enTransaccion(correr);
 }
@@ -328,8 +377,8 @@ const CON_RESERVA = ["pagado", "en_preparacion", "preparado", "despachado", "ent
 export async function agregarLineas(org: string, pedidoId: number, entrada: LineaEntrada[], quien: string, c: PoolClient,
   o: { permitir_sin_vincular?: boolean; nota?: string } = {}): Promise<void> {
   if (!entrada.length) return;
-  const p = (await c.query<{ estado: EstadoPedido; moneda: Moneda; afecta_stock: boolean; deposito_id: string | null; canal_id: string; lista: string | null; fecha: string }>(`
-    select p.estado, p.moneda, p.afecta_stock, p.deposito_id, p.canal_id, coalesce(cl.lista_precios_id, ca.lista_precios_id) lista,
+  const p = (await c.query<{ estado: EstadoPedido; moneda: Moneda; afecta_stock: boolean; deposito_id: string | null; canal_id: string; lista: string | null; fecha: string; reservado_ts: Date | null }>(`
+    select p.estado, p.moneda, p.afecta_stock, p.deposito_id, p.canal_id, coalesce(cl.lista_precios_id, ca.lista_precios_id) lista, p.reservado_ts,
            to_char(p.fecha at time zone 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') fecha
       from pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
      where p.id = $1 and p.organizacion_id = $2 for update of p`, [pedidoId, org])).rows[0];
@@ -343,7 +392,7 @@ export async function agregarLineas(org: string, pedidoId: number, entrada: Line
   await c.query(`update pedido set total_ars = total_ars + $2, total_usd = total_usd + $3,
                         sin_vincular = exists (select 1 from pedido_linea where pedido_id = $1 and variacion_id is null) where id = $1`,
     [pedidoId, r2(lineas.reduce((s, l) => s + l.unit_ars * l.cantidad, 0)), r2(lineas.reduce((s, l) => s + l.unit_usd * l.cantidad, 0))]);
-  if (p.afecta_stock && CON_RESERVA.includes(p.estado)) {
+  if (p.afecta_stock && (CON_RESERVA.includes(p.estado) || (p.reservado_ts && p.estado === "nuevo"))) {
     const dep = p.deposito_id ?? (await c.query<{ id: string }>(`
       select coalesce(
         (select cd.deposito_id from canal_deposito cd join deposito d on d.id = cd.deposito_id and d.estado = 'activo'
@@ -372,8 +421,8 @@ export async function agregarLineas(org: string, pedidoId: number, entrada: Line
  *  total. No toca un pedido que ya salió. Corre en la transacción `c`. */
 export async function quitarLineas(org: string, pedidoId: number, lineaIds: number[], quien: string, c: PoolClient, nota?: string): Promise<void> {
   if (!lineaIds.length) return;
-  const p = (await c.query<{ estado: EstadoPedido; afecta_stock: boolean }>(
-    "select estado, afecta_stock from pedido where id = $1 and organizacion_id = $2 for update", [pedidoId, org])).rows[0];
+  const p = (await c.query<{ estado: EstadoPedido; afecta_stock: boolean; reservado_ts: Date | null }>(
+    "select estado, afecta_stock, reservado_ts from pedido where id = $1 and organizacion_id = $2 for update", [pedidoId, org])).rows[0];
   if (!p) throw new ErrorErp("El pedido no existe.");
   if (p.estado === "despachado" || p.estado === "entregado") throw new ErrorErp("El pedido ya salió: no se le sacan líneas.");
   const lineas = (await c.query<{ id: string; variacion_id: string | null; cantidad: number; unit_ars: string; unit_usd: string }>(`
@@ -381,7 +430,7 @@ export async function quitarLineas(org: string, pedidoId: number, lineaIds: numb
      where pedido_id = $1 and id = any($2::bigint[])`, [pedidoId, lineaIds])).rows;
   if (!lineas.length) return;
   const ref = String(pedidoId);
-  if (p.afecta_stock && CON_RESERVA.includes(p.estado)) {
+  if (p.afecta_stock && (CON_RESERVA.includes(p.estado) || (p.reservado_ts && p.estado === "nuevo"))) {
     for (const l of lineas) {
       if (!l.variacion_id) continue;
       // Lo que hay que liberar: la variación, o los componentes si es un kit.
@@ -498,7 +547,7 @@ const normalDoc = (x?: string | null) => {
 export async function pedidoCompleto(org: string, pedidoId: number) {
   const pedido = await una<Record<string, unknown>>(`
     select p.id::int, p.id_externo, p.fecha, p.estado, p.moneda, p.total_ars::float, p.total_usd::float, p.medio_pago,
-           p.estado_pago, p.envio, p.notas, p.afecta_stock, p.canal_id::int, ca.nombre canal, p.cliente_id::int,
+           ${sqlEstadoPago("p")} estado_pago, p.envio, p.notas, p.afecta_stock, p.canal_id::int, ca.nombre canal, p.cliente_id::int,
            cl.nombre cliente, cl.email cliente_email, cl.documento_tipo, cl.documento_numero,
            p.deposito_id::int, d.nombre deposito
       from pedido p join canal ca on ca.id = p.canal_id

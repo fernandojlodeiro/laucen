@@ -3,8 +3,9 @@
 // cuenta) y deja el pago pendiente. Según el medio:
 //   mercadopago → devuelve la dirección de pago de MP
 //   payway      → el cobro con tarjeta lo hace cobrarConPayway (token del navegador)
-//   transferencia / efectivo → pendiente hasta que el operador lo confirma
-//   cuenta_corriente → "a convenir" (sólo clientes habilitados)
+//   transferencia → pendiente hasta que el operador lo confirma
+//   efectivo → «A cobrar»: reserva el stock ya y entra en picking; se cobra al retirar
+//   cuenta_corriente → "a convenir" (sólo clientes habilitados): también reserva ya
 
 import { randomBytes } from "node:crypto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
@@ -13,7 +14,7 @@ import { cotizar, type LineaCarrito } from "@/lib/tienda/cotizar";
 import { planesDelCarrito } from "@/lib/tienda/cuotas";
 import { crearPreferencia } from "@/lib/tienda/pagos/mercadopago";
 import { cobrar } from "@/lib/tienda/pagos/payway";
-import { confirmarPago, pagoFallido } from "@/lib/tienda/pagos/confirmar";
+import { confirmarPago, pagoFallido, avisarStockMl } from "@/lib/tienda/pagos/confirmar";
 import { nombreTienda, rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 
 export type DatosCompra = {
@@ -78,7 +79,7 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { origen: string; c
     moneda: t.moneda,
     lineas: cot.lineas.map((l) => ({ variacion_id: l.variacionId, cantidad: l.cantidad, precio_unitario: l.finalUnit, titulo: l.titulo })),
     medio_pago: medio.nombre,
-    estado_pago: d.medio === "cuenta_corriente" ? "a_convenir" : "pendiente",
+    estado_pago: d.medio === "cuenta_corriente" ? "a_convenir" : d.medio === "efectivo" ? "a_cobrar" : "pendiente",
     costo_envio: cot.envio.costo,
     metodo_envio_id: cot.envio.metodoId,
     envio: { metodo: cot.envio.nombre, a_convenir: cot.envio.aConvenir, bonificado: cot.envio.bonificado, direccion: metodo?.tipo === "retiro" ? null : {
@@ -88,6 +89,7 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { origen: string; c
     datos_externos: { tienda: { descuentos: cot.descuentos, medio: d.medio, subtotal: cot.subtotal } },
   }, op.clienteId ? `cliente:${op.clienteId}` : "tienda");
   await consulta("update pedido set codigo_seguimiento = $3 where id = $1 and organizacion_id = $2", [pedido.pedidoId, org, codigo]);
+  if (pedido.reservo) await avisarStockMl(org, pedido.pedidoId);
   await consulta(`insert into pago (organizacion_id, pedido_id, medio, estado, importe_ars) values ($1, $2, $3, 'pendiente', $4)`,
     [org, pedido.pedidoId, d.medio, cot.total]);
 

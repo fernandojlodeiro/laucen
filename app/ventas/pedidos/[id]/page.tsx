@@ -24,7 +24,7 @@ import { sqlEstadoFacturaMl } from "@/lib/mercadolibre/facturas";
 import { TextoFacturaMl, BotonFacturaMl, puedeSubir } from "@/app/administracion/facturacion/FacturaMl";
 import Operacion from "./Operacion";
 import { MarcaCarritoEspera, textoEsperaCarrito } from "@/app/componentes/CarritoEspera";
-import { carritoEnEspera, mensajeEsperaCarrito } from "@/lib/pedidos";
+import { carritoEnEspera, mensajeEsperaCarrito, MENSAJE_A_COBRAR_FACTURA } from "@/lib/pedidos";
 
 export const dynamic = "force-dynamic";
 
@@ -116,6 +116,11 @@ export default async function DetallePedido({ params, searchParams }: { params: 
         <Dato t="Estado"><Estado texto={etiqueta(ESTADOS_PEDIDO, c.estado)} tono={TONO_ESTADO[c.estado] ?? "gris"} />{espera && <> <MarcaCarritoEspera ts={ml?.espera_ts} /></>}</Dato>
         {espera && <p className="col-span-2 sm:col-span-4 text-xs rounded-lg px-3 py-2 bg-[#FFF1D6] text-[#8a5a00] border border-[#F2D08A]">{mensajeEsperaCarrito(espera)}</p>}
         <Dato t="Pago"><Estado texto={etiqueta(ESTADOS_PAGO, c.estado_pago)} tono={TONO_PAGO[c.estado_pago] ?? "gris"} />{c.medio_pago && <span className="ml-1">{c.medio_pago}</span>}</Dato>
+        {c.estado_pago === "a_cobrar" && !["cancelado", "devuelto"].includes(c.estado) && (
+          <p className="col-span-2 sm:col-span-4 text-sm rounded-lg px-3 py-2 bg-[#FDE7B0] text-[#3D2600] border-2 border-[#C98A00]">
+            <b>A COBRAR {formatear(c.total_ars, "ARS")}</b> · el stock ya está reservado y el pedido entra en picking sin esperar el pago; se cobra al entregar y se factura cuando se confirma el cobro.
+          </p>
+        )}
         <Dato t="Total"><span className="font-bold tabular-nums">{enVista({ ars: c.total_ars, usd: c.total_usd }, v)}</span>
           {c.moneda !== v && <span className="text-[#5C6B76]"> (cargado en {c.moneda === "USD" ? "dólares" : "pesos"})</span>}</Dato>
         <Dato t="Depósito">{c.deposito ?? "—"}{!c.afecta_stock && <span className="text-[#5C6B76]"> · no mueve stock</span>}</Dato>
@@ -234,7 +239,14 @@ export default async function DetallePedido({ params, searchParams }: { params: 
         {ofrecerFacturar && espera && (
           <button type="button" disabled className={`${PRIMARIO} opacity-50 cursor-not-allowed`} title={mensajeEsperaCarrito(espera)}>{textoEsperaCarrito(ml?.espera_ts)}</button>
         )}
-        {ofrecerFacturar && !espera && (
+        {ofrecerFacturar && !espera && c.estado_pago === "a_cobrar" && (
+          // «A cobrar»: se factura cuando se confirma el cobro (en «Operación»).
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <button type="button" disabled className={`${PRIMARIO} opacity-50 cursor-not-allowed`} title={MENSAJE_A_COBRAR_FACTURA}>Facturar</button>
+            <span className="text-xs text-[#8a5a00]">{MENSAJE_A_COBRAR_FACTURA}</span>
+          </span>
+        )}
+        {ofrecerFacturar && !espera && c.estado_pago !== "a_cobrar" && (
           <form action={accionFacturar}>
             <input type="hidden" name="pedido_id" value={pid} />
             <BotonEnviar clase={PRIMARIO} corriendo="Facturando…">Facturar</BotonEnviar>

@@ -14,6 +14,7 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import bwipjs from "bwip-js/node";
 import { consulta } from "@/lib/erp/base";
+import { sqlACobrar } from "@/lib/pedidos";
 import { cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import { bajarEtiquetas } from "@/lib/mercadolibre/envios";
 
@@ -45,6 +46,8 @@ export type DatosHoja = {
   pedidoId: number; idExterno: string | null; pack: string | null; cliente: string | null; apodo: string | null; canal: string;
   fecha: Date; logistica: string | null; despacharAntes: Date | null; notas: string | null;
   reimpresion: boolean; etiqueta: EtiquetaHoja; lineas: LineaHoja[];
+  /** «A cobrar» (efectivo al retirar): el total en pesos que hay que cobrar al entregar; null si no se cobra. */
+  aCobrar?: number | null;
 };
 
 /** Orden de recorrido: ubicación (orden_recorrido, código), SKU; lo que no
@@ -78,8 +81,10 @@ export async function datosHojas(org: string, pedidoIds: number[]): Promise<Dato
     id: number; id_externo: string | null; fecha: Date; notas: string | null; envio_json: Record<string, unknown>; canal: string; canal_tipo: string;
     cliente: string | null; apodo_ml: string | null; telefono: string | null; e_id_externo: string | null; e_canal: number | null;
     logistica: string | null; despachar_antes: Date | null; receptor: string | null; e_direccion: Record<string, unknown> | null; impreso: boolean;
+    a_cobrar: boolean; total_ars: number;
   }>(`
     select p.id::int, p.id_externo, p.fecha, p.notas, p.envio envio_json, ca.nombre canal, ca.tipo canal_tipo,
+           ${sqlACobrar("p")} a_cobrar, p.total_ars::float total_ars,
            cl.nombre cliente, cl.apodo_ml, coalesce(cl.telefono_movil, cl.telefono) telefono,
            e.id_externo e_id_externo, e.canal_id::int e_canal, e.logistica, e.despachar_antes, e.receptor, e.direccion e_direccion,
            (exists (select 1 from picking_pedido pp where pp.pedido_id = p.id and pp.impreso_ts is not null)
@@ -135,6 +140,7 @@ export async function datosHojas(org: string, pedidoIds: number[]): Promise<Dato
       pedidoId: p.id, idExterno: p.id_externo, pack, cliente: p.cliente, apodo: p.apodo_ml, canal: p.canal, fecha: p.fecha,
       logistica: p.logistica ? (LOGISTICA_TEXTO[p.logistica] ?? p.logistica) : etiqueta.tipo === "propia" ? (etiqueta.retiro ? "Retira" : (etiqueta.metodo ?? "Envío propio")) : null,
       despacharAntes: p.despachar_antes, notas: p.notas, reimpresion: p.impreso, etiqueta, lineas: ordenarLineas(crudas),
+      aCobrar: p.a_cobrar ? p.total_ars : null,
     };
   });
 }
@@ -234,6 +240,21 @@ async function paginasMl(l: Lienzo, pdf: Uint8Array): Promise<number> {
   return incrustadas.length;
 }
 
+const pesosPdf = (n: number) => `$ ${n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** El recuadro grande «A COBRAR $ total» (fondo ámbar, borde negro). Lo
+ *  dibuja con la base en `y` (de abajo) y devuelve su alto. */
+function recuadroACobrar(p: PDFPage, fb: PDFFont, x: number, y: number, ancho: number, total: number, k = 1): number {
+  const alto = 34 * k;
+  p.drawRectangle({ x, y, width: ancho, height: alto, color: rgb(1, 0.85, 0.45), borderWidth: 2, borderColor: rgb(0, 0, 0) });
+  const titulo = "A COBRAR", importe = pesosPdf(total);
+  let tam = 18 * k;
+  while (tam > 8 && fb.widthOfTextAtSize(`${titulo}  ${importe}`, tam) > ancho - 12) tam -= 1;
+  const texto = limpio(`${titulo}  ${importe}`);
+  p.drawText(texto, { x: x + (ancho - fb.widthOfTextAtSize(texto, tam)) / 2, y: y + (alto - tam * 0.72) / 2, size: tam, font: fb, color: rgb(0, 0, 0) });
+  return alto;
+}
+
 /** Nuestra etiqueta (web, local): un rectángulo de 10×15 con lo necesario. */
 async function etiquetaPropia(l: Lienzo, d: DatosHoja, e: Extract<EtiquetaHoja, { tipo: "propia" }>) {
   const [w, h] = PAGINA[l.tam];
@@ -261,6 +282,8 @@ async function etiquetaPropia(l: Lienzo, d: DatosHoja, e: Extract<EtiquetaHoja, 
   y -= 4;
   t(`Teléfono: ${e.telefono ?? "—"}`, 11);
   t(`Canal: ${d.canal}`, 9);
+  // «A cobrar»: el total, bien grande, para cobrarlo al entregar.
+  if (d.aCobrar != null) { y -= 8; y -= recuadroACobrar(p, l.fb, x0 + m, y - 34, ancho, d.aCobrar); }
   // El código del pedido abajo.
   const img = await codigoBarras(l.doc, String(d.pedidoId));
   const iw = Math.min(ancho, 160), ih = 42;
@@ -322,6 +345,8 @@ async function hoja(l: Lienzo, d: DatosHoja): Promise<number> {
       const rs = renglones(val, l.fb, sz, ancho - 82 * k);
       for (const r of rs.slice(0, 2)) { t(r, x, sz, l.fb); y -= sz * 1.3; }
     }
+    // «A cobrar»: el total, bien grande, para cobrarlo al entregar.
+    if (d.aCobrar != null) { y -= 4 * k; y -= recuadroACobrar(p, l.fb, m, y - 34 * k, ancho, d.aCobrar, k); y -= 4 * k; }
     y -= 4 * k;
     // Títulos de la tabla.
     p.drawLine({ start: { x: m, y: y + 2 }, end: { x: w - m, y: y + 2 }, thickness: 0.8 });

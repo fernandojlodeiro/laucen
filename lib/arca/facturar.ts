@@ -13,7 +13,7 @@ import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { pool } from "@/db";
 import type { Ambiente } from "@/lib/arca/credenciales";
 import { ultimoAutorizado, solicitarCae, consultarComprobante } from "@/lib/arca/wsfe";
-import { exigirCarritoLibre, sqlCarritoEnEspera } from "@/lib/pedidos";
+import { exigirCarritoLibre, sqlCarritoEnEspera, sqlACobrar, MENSAJE_A_COBRAR_FACTURA } from "@/lib/pedidos";
 
 export type Emisor = {
   cuit: string; razon_social: string; condicion_iva: "responsable_inscripto" | "monotributo" | "exento"; domicilio: string | null;
@@ -64,13 +64,16 @@ export async function prepararFactura(org: string, pedidoId: number, usuarioId: 
     return ya[0].id; // pendiente o con error: se reintenta el mismo
   }
   const p = (await q<{ cliente_id: number | null; total_ars: string; estado: string; nombre: string | null; razon_social: string | null; cuit: string | null;
-    documento_tipo: string | null; documento_numero: string | null; condicion_iva: string | null; domicilio: string | null }>(`
-    select p.cliente_id::int, p.total_ars, p.estado, cl.nombre, cl.razon_social, cl.cuit, cl.documento_tipo, cl.documento_numero, cl.condicion_iva,
+    documento_tipo: string | null; documento_numero: string | null; condicion_iva: string | null; domicilio: string | null; a_cobrar: boolean }>(`
+    select p.cliente_id::int, p.total_ars, p.estado, ${sqlACobrar("p")} a_cobrar, cl.nombre, cl.razon_social, cl.cuit, cl.documento_tipo, cl.documento_numero, cl.condicion_iva,
            (select concat_ws(', ', concat_ws(' ', d.calle, d.numero), d.localidad, d.provincia) from cliente_direccion d
              where d.cliente_id = cl.id order by (d.etiqueta = 'Fiscal') desc, d.principal desc, d.id limit 1) domicilio
       from pedido p left join cliente cl on cl.id = p.cliente_id where p.id = $1 and p.organizacion_id = $2`, [pedidoId, org]))[0];
   if (!p) throw new ErrorErp("El pedido no existe.");
-  if (["cancelado", "nuevo"].includes(p.estado)) throw new ErrorErp(`Un pedido ${p.estado} no se factura.`);
+  if (p.estado === "cancelado") throw new ErrorErp("Un pedido cancelado no se factura.");
+  // «A cobrar» (efectivo al retirar): se factura cuando se confirma el cobro.
+  if (p.a_cobrar) throw new ErrorErp(MENSAJE_A_COBRAR_FACTURA);
+  if (p.estado === "nuevo") throw new ErrorErp("Un pedido nuevo no se factura.");
 
   // Tipo de comprobante y receptor.
   const condRec = p.condicion_iva ?? "consumidor_final";
@@ -231,7 +234,10 @@ export async function emitir(org: string, comprobanteId: number): Promise<{ esta
 }
 
 /** Facturación automática: los pedidos que llegaron al estado elegido y no
- *  tienen factura, y los comprobantes con error para reintentar. Un carrito
+ *  tienen factura, y los comprobantes con error para reintentar. Un pedido
+ *  «A cobrar» que llega al estado elegido se saltea (su evento se consume):
+ *  cuando se confirma el cobro, `pedido_pago_confirmado` lo trae de vuelta y
+ *  se factura si ya está en el estado elegido o más adelante. Un carrito
  *  de ML en espera (ver carritoEnEspera en lib/pedidos) se saltea SIN marcar
  *  su evento como procesado: el evento sigue pendiente, la condición del job
  *  'erp-tareas' (db/mercadolibre.sql) sigue dando verdadero y la próxima
@@ -244,10 +250,15 @@ export async function facturarPendientes(org: string, hastaMs: number): Promise<
     const eventos = await consulta<{ pedido_id: number }>(`
       with ev as (
         update evento set procesado_ts = now(), procesado_por = 'facturacion'
-         where organizacion_id = $1 and tipo = 'pedido_estado_cambiado' and procesado_ts is null and payload ->> 'nuevo' = $2
+         where organizacion_id = $1 and procesado_ts is null
+           and ((tipo = 'pedido_estado_cambiado' and payload ->> 'nuevo' = $2) or tipo = 'pedido_pago_confirmado')
            and not exists (select 1 from pedido p where p.id = (evento.payload ->> 'pedido_id')::bigint and ${sqlCarritoEnEspera("p")})
-        returning (payload ->> 'pedido_id')::int pedido_id)
-      select distinct pedido_id from ev`, [org, e.facturar_al]);
+        returning (payload ->> 'pedido_id')::bigint pedido_id, tipo)
+      select distinct ev.pedido_id::int from ev join pedido p on p.id = ev.pedido_id
+       where not ${sqlACobrar("p")}
+         and (ev.tipo = 'pedido_estado_cambiado' or estado_pedido_orden(p.estado) >= estado_pedido_orden($2))
+         and not exists (select 1 from comprobante cb where cb.pedido_id = p.id and cb.tipo_cbte in (1, 6, 11) and cb.estado = 'autorizado')
+       order by 1`, [org, e.facturar_al]);
     for (const { pedido_id } of eventos) {
       if (Date.now() > hastaMs) break;
       try {

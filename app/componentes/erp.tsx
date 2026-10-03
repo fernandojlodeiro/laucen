@@ -138,10 +138,12 @@ export function Dato({ etiqueta, children, numero = false, largo = false, ayuda,
 }
 
 /** Un estado dibujado como etiqueta (no se clickea). */
-export function Estado({ texto, tono = "gris" }: { texto: string; tono?: "verde" | "gris" | "amarillo" | "rojo" | "azul" }) {
+export function Estado({ texto, tono = "gris" }: { texto: string; tono?: "verde" | "gris" | "amarillo" | "rojo" | "azul" | "ambar" }) {
   const colores = {
     verde: "bg-[#EEF7F1] text-[#1F6E4A]", gris: "bg-[#EEF1F4] text-[#5C6B76]", amarillo: "bg-[#FFF8E5] text-[#8a6100]",
     rojo: "bg-[#FDF1EF] text-[#C03420]", azul: "bg-[#EEF3F8] text-[#16577F]",
+    // Ámbar fuerte: lo que hay que cobrar al entregar («A cobrar»), que se vea de lejos.
+    ambar: "bg-[#F5B82E] text-[#3D2600] ring-1 ring-[#C98A00]",
   };
   return <span className={`inline-block text-[10px] font-bold rounded px-1.5 py-0.5 whitespace-nowrap ${colores[tono]}`}>{texto}</span>;
 }
