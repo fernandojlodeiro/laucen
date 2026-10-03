@@ -92,6 +92,28 @@ Editar y borrar en una lista o tabla:
 - En una grilla o tabla, la edición pasa **adentro de la fila** — el lápiz convierte esa fila en
   sus campos editables ahí mismo, nunca un panel aparte ni una ventana.
 
+Fichas (pedido de Fer, 3/10): **toda ficha abre en modo vista** — los datos a la vista, sin
+campos. Se edita apretando el **lápiz arriba a la derecha**, al lado de "Nuevo …"; en edición, en
+ese mismo lugar quedan **"Grabar"** y "Cancelar" (vuelve a la vista sin grabar). Nunca un "Guardar"
+al pie del formulario: **Nuevo, Lápiz y Grabar viven siempre arriba a la derecha** (en `acciones`
+de `Pantalla`; si la ficha tiene varias cajas que se graban por separado, en el título de cada caja,
+alineados a la derecha, `TituloSeccion`). El modo va en la dirección (`?editar=ficha`, o el nombre
+de la caja), así anda del lado del servidor; "Grabar" manda el formulario desde el encabezado con
+el atributo `form` (`<button form="ficha">`). Grabar bien vuelve a la vista; si falla, sigue en
+edición con el error. Piezas: `BotonesFicha`, `Dato`, `TituloSeccion` y `editandoFicha()` de
+`app/componentes/erp.tsx`. Las grillas con lápiz por fila siguen como están (la fila se edita ahí
+mismo), y un documento que se está escribiendo (borrador de factura o despacho) no se bloquea:
+sólo su acción final ("Registrar") va arriba a la derecha.
+
+Pestañas (pedido de Fer, 3/10): **una sola barra de pestañas para todo el panel**
+(`app/componentes/Pestanas.tsx`; la que se prende sola según la ruta, `Pestanas` de
+`app/radar/Cliente.tsx`, dibuja con ésa). Las no elegidas se ven como pestañas igual (degradé gris
+suave, tipo Excel, esquinas de arriba redondeadas); la elegida, blanca, con texto y raya azul, unida
+al contenido. **Cada pestaña muestra entre paréntesis cuántas cosas tiene**: "Variaciones (2)",
+"Fotos (0)" — el cero también. Sin cuenta sólo las que no cuentan cosas (pantallas de navegación,
+informes, un formulario como "Datos"). La barra nunca muestra una barra de desplazamiento vertical;
+si no entran a lo ancho, se desplaza de costado.
+
 Altas (pedido de Fer, 2/10): **ningún ABM da de alta algo sin apretar antes un botón "Nuevo …"**.
 El formulario de alta queda escondido hasta ese botón (`app/componentes/AltaNueva.tsx`); nunca un
 campo suelto que parece un buscador y al dar Enter crea un registro. **El botón va arriba a la
