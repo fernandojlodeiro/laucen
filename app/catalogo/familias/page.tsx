@@ -14,7 +14,9 @@ import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA, coincideBusqueda,
 } from "@/app/componentes/erp";
+import { AccionesExcel } from "@/app/listas/piezas";
 import { familiasConDatos } from "./datos";
+import { LISTA_FAMILIAS } from "./lista";
 import { accionBorrarFamilia, accionCrearFamilia, accionGuardarFamilia } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -47,14 +49,14 @@ export default async function Familias({ searchParams }: { searchParams: Promise
   const cucardaDe = new Map(cucardas.map((c) => [c.id, c]));
   // Sin elegir columna se ve el árbol; ordenada por una columna, la lista plana.
   const ordenadas = ordenarEnMemoria(visibles, sp, {
-    nombre: (f) => f.nombre, descuento: (f) => f.descuento_pct ?? f.heredado, productos: (f) => f.productos, origen: (f) => (f.deMl ? 1 : 0),
+    nombre: (f) => f.nombre, descuento: (f) => f.descuento_pct ?? f.heredado, productos: (f) => f.productos, origen: (f) => (f.deMl ? "Mercado Libre" : "Propia"),
   });
   const pagina = paginarEnMemoria(ordenadas, sp);
   const plana = ordenadas !== visibles;
 
   return (
     <Pantalla titulo="Familias" subtitulo="Agrupan productos. Lo que se carga en una familia (descuento, cucardas) lo heredan sus productos y subfamilias si no lo cambian"
-      acciones={<BotonNuevo texto="Nueva familia" />}>
+      acciones={<><AccionesExcel lista={LISTA_FAMILIAS} org={s.org.id} /><BotonNuevo texto="Nueva familia" /></>}>
       <Avisos sp={sp} />
       <AltaNueva texto="Nueva familia" sinBoton>
         <form action={accionCrearFamilia} className="flex flex-wrap items-center gap-2">

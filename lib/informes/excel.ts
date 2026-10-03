@@ -3,9 +3,15 @@
 
 import ExcelJS from "exceljs";
 
-export type ColumnaExcel<T> = { titulo: string; valor: (f: T) => string | number | null; ancho?: number; formato?: "entero" | "importe" | "texto" };
+export type ColumnaExcel<T> = {
+  titulo: string; valor: (f: T) => string | number | Date | null; ancho?: number;
+  formato?: "entero" | "importe" | "texto" | "decimal" | "pct" | "fecha" | "fechahora";
+};
 
-const FORMATOS = { entero: "#,##0", importe: "#,##0.00", texto: "@" };
+// Las fechas van como Date en UTC con la fecha/hora argentina ya puesta (Excel no tiene zonas).
+const FORMATOS = {
+  entero: "#,##0", importe: "#,##0.00", texto: "@", decimal: "#,##0.00##", pct: '0.0" %"', fecha: "dd/mm/yyyy", fechahora: "dd/mm/yyyy hh:mm",
+};
 
 export async function respuestaExcel<T>(nombre: string, hoja: string, columnas: ColumnaExcel<T>[], filas: T[], totales: (string | number | null)[][] = []) {
   const libro = new ExcelJS.Workbook();

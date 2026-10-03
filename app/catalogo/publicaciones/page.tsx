@@ -13,8 +13,10 @@ import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import { consultaPaginada, leerOrden } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA, patronBusqueda,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
+import { AccionesExcel } from "@/app/listas/piezas";
+import { LISTA_PUBLICACIONES, DISPONIBLE_PUBLICACION } from "./lista";
 import { accionBorrarPublicacion, accionCrearPublicacion, accionGuardarPublicacion } from "./acciones";
 import { verInactivos } from "@/app/componentes/Inactivos";
 
@@ -50,7 +52,8 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
   const canales = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from canal where organizacion_id = $1 and estado <> 'archivado' order by nombre", [s.org.id]);
   // Lo caro de cada fila (título, disponible, umbral) se calcula sólo para la página.
-  const DISPONIBLE = "stock_disponible_canal($1, v.id, c.id)";
+  const DISPONIBLE = DISPONIBLE_PUBLICACION;
+  const base = await LISTA_PUBLICACIONES.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
   const { filas, total } = await consultaPaginada<Fila>({
     campos: `pu.id::int, v.id::int variacion_id, p.id::int producto_id, v.sku, titulo_variacion(v.id) titulo_var, c.id::int canal_id, c.nombre canal,
            pu.id_externo, pu.titulo, pu.categoria_externa, pu.tipo_publicacion, pu.estado, pu.umbral_pausa,
@@ -58,20 +61,13 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
            ${DISPONIBLE} disponible, umbral_pausa_de($1, v.id, c.id) umbral_efectivo,
            to_char(pu.ultima_sincronizacion_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') sincronizada,
            (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = p.id) fotos`,
-    desde: `publicacion pu
-      join variacion v on v.id = pu.variacion_id
-      join producto p on p.id = v.producto_id
-      join canal c on c.id = pu.canal_id`,
-    donde: `pu.organizacion_id = $1
-       and ($6 or p.estado <> 'archivado')
-       and ($2::bigint is null or pu.canal_id = $2)
-       and ($3::text is null or pu.estado = $3)
-       and ($4::text is null or v.sku ilike $4 or pu.id_externo ilike $4 or v.codigo_barras = $5)`,
+    desde: base.desde,
+    donde: base.donde,
     orden: leerOrden(sp, {
       sku: "v.sku", titulo: "coalesce(pu.titulo, p.titulo)", canal: "c.nombre", externo: "pu.id_externo", categoria: "pu.categoria_externa",
       estado: "pu.estado", disponible: DISPONIBLE, umbral: "umbral_pausa_de($1, v.id, c.id)",
-    }, "c.nombre, v.sku, pu.id"),
-  }, [s.org.id, canalId, estado, patronBusqueda(q, comienza), q, inactivos], sp);
+    }, base.orden),
+  }, base.valores, sp);
 
   const campos = (f?: Fila) => (
     <>
@@ -104,7 +100,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
 
   return (
     <Pantalla titulo="Publicaciones" subtitulo="Cada variación en cada canal. La sincronización con Mercado Libre llega en otra etapa."
-      acciones={canales.length > 0 ? <BotonNuevo texto="Nueva publicación" /> : undefined}>
+      acciones={<><AccionesExcel lista={LISTA_PUBLICACIONES} org={s.org.id} />{canales.length > 0 && <BotonNuevo texto="Nueva publicación" />}</>}>
       <Avisos sp={sp} />
       {canales.length === 0 ? (
         <p className="text-xs text-[#5C6B76] mb-3">Primero hace falta un canal: <Link href="/config/canales" className="text-[#16577F] underline">Configuración → Canales</Link>.</p>

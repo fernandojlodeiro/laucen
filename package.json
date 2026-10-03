@@ -9,7 +9,7 @@
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "TSX_TSCONFIG_PATH=tests/tsconfig.json node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",

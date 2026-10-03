@@ -10,11 +10,15 @@ import CampoNumero from "@/app/componentes/CampoNumero";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, url, patronBusqueda,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, url,
 } from "@/app/componentes/erp";
+import { AccionesExcel } from "@/app/listas/piezas";
+import { LISTA_CUCARDAS } from "./lista";
 import { accionBorrarCucarda, accionCrearCucarda, accionGuardarCucarda } from "./acciones";
 
 export const dynamic = "force-dynamic";
+
+const USOS = "((select count(*) from producto_cucarda pc where pc.cucarda_id = c.id) + (select count(*) from familia_cucarda fc where fc.cucarda_id = c.id))";
 
 type SP = { editar?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
@@ -25,17 +29,16 @@ export default async function Cucardas({ searchParams }: { searchParams: Promise
   const q = sp.q?.trim() ?? "";
   const comienza = sp.contiene !== "1";
   const filtros = { q: q || null, contiene: comienza ? null : "1", p: sp.p, orden: sp.orden, dir: sp.dir };
-  const USOS = "((select count(*) from producto_cucarda pc where pc.cucarda_id = c.id) + (select count(*) from familia_cucarda fc where fc.cucarda_id = c.id))";
+  const c = await LISTA_CUCARDAS.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
   const { filas, total } = await consultaPaginada<{ id: number; nombre: string; color: string; orden: number; estado: string; usos: number }>({
     campos: `c.id::int, c.nombre, c.color, c.orden, c.estado, ${USOS}::int usos`,
-    desde: "cucarda c",
-    donde: "c.organizacion_id = $1 and ($2::text is null or c.nombre ilike $2)",
-    orden: leerOrden(sp, { nombre: "c.nombre", color: "c.color", orden: "c.orden", estado: "c.estado", usos: USOS }, "c.orden, c.nombre"),
-  }, [s.org.id, patronBusqueda(q, comienza)], sp);
+    desde: c.desde, donde: c.donde,
+    orden: leerOrden(sp, { nombre: "c.nombre", color: "c.color", orden: "c.orden", estado: "c.estado", usos: USOS }, c.orden),
+  }, c.valores, sp);
 
   return (
     <Pantalla titulo="Cucardas" subtitulo="Las etiquetas que se muestran sobre un producto (nuevo, novedad, última unidad…)" ancho="max-w-3xl"
-      acciones={<BotonNuevo texto="Nueva cucarda" />}>
+      acciones={<><AccionesExcel lista={LISTA_CUCARDAS} org={s.org.id} /><BotonNuevo texto="Nueva cucarda" /></>}>
       <Avisos sp={sp} />
       <AltaNueva texto="Nueva cucarda" sinBoton>
         <form action={accionCrearCucarda} className="flex flex-wrap items-center gap-2">
