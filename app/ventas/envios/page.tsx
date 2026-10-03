@@ -1,6 +1,8 @@
 // Envíos de los pedidos (hoy, los de Mercado Envíos): qué hay que despachar,
-// qué está en camino y qué se entregó. Desde acá se imprimen las etiquetas,
-// de a varias, en PDF o en ZPL para la impresora térmica.
+// qué está en camino y qué se entregó. Desde acá se imprimen, de los
+// tildados, la etiqueta + hoja de preparación de cada pedido (el camino
+// principal, /deposito/hojas: los pedidos entran en un lote de picking), o
+// sólo las etiquetas en PDF o en ZPL para la impresora térmica.
 
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
@@ -15,6 +17,9 @@ import { LOGISTICA, ESTADO_ENVIO, SUBESTADO_ENVIO, TONO_ENVIO, PESTANAS, esPesta
 import { AccionesExcel } from "@/app/listas/piezas";
 import Pestanas from "@/app/componentes/Pestanas";
 import { LISTA_ENVIOS, CONDICION_ENVIOS } from "./lista";
+import { MarcaCarritoEspera } from "@/app/componentes/CarritoEspera";
+import { SelectorTam, tamElegido } from "@/app/deposito/picking/Tamano";
+import { sqlCarritoEnEspera } from "@/lib/pedidos";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +32,7 @@ type Fila = {
   canal: string | null; logistica: string | null; metodo: string | null; estado: string | null; subestado: string | null;
   despachar_antes: Date | null; vencido: boolean; tracking: string | null; etiqueta_impresa_ts: Date | null;
   imprimible: boolean; cliente_id: number | null; canal_id: number | null;
+  carrito_ultimo_evento_ts: Date | null; en_espera: boolean;
 };
 
 export default async function Envios({ searchParams }: { searchParams: Promise<SP> }) {
@@ -49,7 +55,8 @@ export default async function Envios({ searchParams }: { searchParams: Promise<S
            (e.estado in ('ready_to_ship', 'handling', 'pending') and e.despachar_antes is not null
              and (e.despachar_antes at time zone '${ZONA}')::date <= (now() at time zone '${ZONA}')::date) vencido,
            e.tracking, e.etiqueta_impresa_ts,
-           (coalesce(e.logistica, '') <> 'fulfillment' and e.id_externo is not null) imprimible`,
+           (coalesce(e.logistica, '') <> 'fulfillment' and e.id_externo is not null) imprimible,
+           p.carrito_ultimo_evento_ts, coalesce(${sqlCarritoEnEspera("p")}, false) en_espera`,
     desde: base.desde,
     donde: base.donde,
     orden: leerOrden(sp, {
@@ -59,7 +66,8 @@ export default async function Envios({ searchParams }: { searchParams: Promise<S
   }, base.valores, sp);
 
   const filtros = { ver: ver === "despachar" ? null : ver, canal: canal || null, q };
-  const hayImprimibles = filas.some((f) => f.imprimible);
+  const hayImprimibles = filas.some((f) => f.imprimible && !f.en_espera);
+  const tam = await tamElegido();
 
   return (
     <Pantalla titulo="Envíos" subtitulo="Los envíos de los pedidos y sus etiquetas"
@@ -104,13 +112,14 @@ export default async function Envios({ searchParams }: { searchParams: Promise<S
               {filas.map((e) => (
                 <tr key={e.id} className={TR}>
                   <td className={TD}>
-                    {e.imprimible && <input type="checkbox" name="ids" value={e.id} aria-label={`Elegir el envío del pedido ${e.pedido_id ?? e.id}`} className="h-4 w-4 align-middle" />}
+                    {e.imprimible && <input type="checkbox" name="ids" value={e.id} disabled={e.en_espera} aria-label={`Elegir el envío del pedido ${e.pedido_id ?? e.id}`} className="h-4 w-4 align-middle disabled:opacity-40" />}
                   </td>
                   <td className={TDN}>
                     {e.pedido_id
                       ? <Link href={`/ventas/pedidos/${e.pedido_id}`} className="font-semibold text-[#16577F] hover:underline">{e.pedido_id}</Link>
                       : "—"}
                     {e.id_externo_pedido && <div className="text-[10px] text-[#5C6B76] font-mono">{e.id_externo_pedido}</div>}
+                    {e.en_espera && <div className="mt-0.5"><MarcaCarritoEspera ts={e.carrito_ultimo_evento_ts} texto="Carrito: esperando" /></div>}
                   </td>
                   <td className={TDN}>{e.pedido_id ? <Link href={`/ventas/pedidos/${e.pedido_id}`} className="hover:underline">{fecha(e.pedido_fecha)}</Link> : fecha(e.pedido_fecha)}</td>
                   <td className={TD}>{e.cliente_id ? <Link href={`/ventas/clientes/${e.cliente_id}`} className="text-[#16577F] hover:underline">{e.cliente}</Link> : e.cliente ?? "—"}</td>
@@ -132,9 +141,11 @@ export default async function Envios({ searchParams }: { searchParams: Promise<S
           </table>
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-3">
-          <button name="formato" value="pdf" className={PRIMARIO} disabled={!hayImprimibles}>Imprimir etiquetas (PDF)</button>
+          <button formAction="/deposito/hojas" name="desde" value="envios" className={PRIMARIO} disabled={!hayImprimibles}>🖨 Imprimir etiquetas y hojas</button>
+          <SelectorTam tam={tam} />
+          <button name="formato" value="pdf" className={SUAVE} disabled={!hayImprimibles}>Sólo etiquetas (PDF)</button>
           <button name="formato" value="zpl2" className={SUAVE} disabled={!hayImprimibles}>Etiquetas térmicas (ZPL)</button>
-          <span className="text-[11px] text-[#5C6B76]">Tildá los envíos (de una misma cuenta). Los de Full no llevan etiqueta.</span>
+          <span className="text-[11px] text-[#5C6B76]">Etiqueta + hoja de preparación de cada pedido; los que faltaba preparar entran en un lote de Picking. «Sólo etiquetas»: de una misma cuenta. Los de Full no llevan etiqueta.</span>
         </div>
       </form>
 

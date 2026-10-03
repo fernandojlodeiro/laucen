@@ -4,11 +4,12 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, entero, id } from "@/lib/erp/acciones";
-import { crearLote, escanear, corregirItem, terminarLote, cancelarLote } from "@/lib/deposito/picking";
+import { crearLote, escanear, corregirItem, terminarLote, cancelarLote, marcarPreparado, pedidoDelLotePorCodigo, empacar, esModoLote, type FaltaEmpacar } from "@/lib/deposito/picking";
 
 const LISTA = "/deposito/picking";
 
-/** "Preparar este" (botón con name=solo) o "Armar lote con los tildados" (casillas p). */
+/** "Preparar este" (botón con name=solo), "Recorrer escaneando" o "Empacar
+ *  escaneando (alternativo)" (casillas p; el botón trae name=modo). */
 export async function accionCrearLote(fd: FormData) {
   const s = await entrarErp("picking_ver");
   const deposito = id(fd, "d");
@@ -16,7 +17,8 @@ export async function accionCrearLote(fd: FormData) {
     const solo = id(fd, "solo");
     const ids = solo ? [solo] : [...new Set(fd.getAll("p").map(Number).filter((n) => Number.isInteger(n) && n > 0))];
     if (!deposito) throw new ErrorErp("Elegí un depósito.");
-    const lote = await crearLote(s.org.id, deposito, ids, s.usuario.id);
+    const modo = esModoLote(fd.get("modo")) ? (fd.get("modo") as "recorrido" | "empacar") : "recorrido";
+    const lote = await crearLote(s.org.id, deposito, ids, s.usuario.id, modo === "empacar" ? "empacar" : "recorrido");
     revalidatePath(LISTA);
     return { ir: `${LISTA}/${lote}` };
   });
@@ -65,4 +67,59 @@ export async function accionCancelarLote(fd: FormData) {
     revalidatePath(LISTA);
     return { ir: `${LISTA}?d=${d}&ok=${encodeURIComponent(`Picking #${lote} cancelado: sus pedidos vuelven a la lista.`)}` };
   });
+}
+
+/** "Preparado" en la fila de un pedido del lote. */
+export async function accionPreparado(fd: FormData) {
+  const s = await entrarErp("picking_ver");
+  const lote = id(fd, "lote");
+  const pedido = id(fd, "pedido");
+  const ver = String(fd.get("ver") ?? "");
+  await intentar(`${LISTA}/${lote}${ver ? `?ver=${encodeURIComponent(ver)}` : ""}`, async () => {
+    const r = await marcarPreparado(s.org.id, lote, pedido, s.usuario.id);
+    revalidatePath(LISTA);
+    revalidatePath(`${LISTA}/${lote}`);
+    return r.loteTerminado ? `Pedido ${pedido} preparado. Era el último: el lote quedó terminado.` : `Pedido ${pedido} preparado.`;
+  });
+}
+
+export type PedidoEscaneado = { ok: true; id: number; cliente: string | null; unidades: number; preparado: boolean; enEspera: boolean } | { ok: false; mensaje: string };
+
+/** El código de barras de una hoja: qué pedido es (la pantalla pregunta antes de cerrarlo). */
+export async function accionBuscarPedidoLote(loteId: number, codigo: string): Promise<PedidoEscaneado> {
+  const s = await entrarErp("picking_ver");
+  try {
+    const p = await pedidoDelLotePorCodigo(s.org.id, Number(loteId), String(codigo ?? ""));
+    return { ok: true, id: p.id, cliente: p.apodo ? `${p.cliente ?? ""} (${p.apodo})`.trim() : p.cliente, unidades: p.unidades, preparado: !!p.preparado_ts, enEspera: p.en_espera };
+  } catch (e) {
+    return { ok: false, mensaje: motivoErp(e) };
+  }
+}
+
+/** El "Sí" después de escanear una hoja. */
+export async function accionPreparadoPorCodigo(loteId: number, pedidoId: number): Promise<ResultadoEscaneo> {
+  const s = await entrarErp("picking_ver");
+  try {
+    const r = await marcarPreparado(s.org.id, Number(loteId), Number(pedidoId), s.usuario.id);
+    revalidatePath(LISTA);
+    return { ok: true, mensaje: r.loteTerminado ? `Pedido ${pedidoId} preparado. Era el último: el lote quedó terminado.` : `Pedido ${pedidoId} preparado.` };
+  } catch (e) {
+    return { ok: false, mensaje: motivoErp(e) };
+  }
+}
+
+export type ResultadoEmpaque =
+  | { ok: true; pedidoId: number; sku: string; titulo: string; completo: boolean; preparado: boolean; aviso: string | null; faltan: FaltaEmpacar[]; loteTerminado: boolean }
+  | { ok: false; mensaje: string };
+
+/** Un escaneo en la mesa de empaque. */
+export async function accionEmpacar(loteId: number, codigo: string): Promise<ResultadoEmpaque> {
+  const s = await entrarErp("picking_ver");
+  try {
+    const r = await empacar(s.org.id, Number(loteId), String(codigo ?? ""), s.usuario.id);
+    if (r.preparado) revalidatePath(LISTA);
+    return { ok: true, ...r };
+  } catch (e) {
+    return { ok: false, mensaje: motivoErp(e) };
+  }
 }

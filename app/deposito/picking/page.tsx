@@ -1,6 +1,10 @@
 // Picking: elegir depósito, ver los pedidos para preparar (lo más urgente
-// primero) y armar un picking de uno o de varios. Debajo, los pickings
-// abiertos de ese depósito y los últimos terminados. Pensada para el celular.
+// primero) y, el camino principal, tildarlos e "Imprimir etiquetas y hojas":
+// un PDF con la etiqueta y la hoja de preparación de cada pedido; los
+// impresos entran en un lote abierto, donde cada pedido se cierra con
+// "Preparado" o escaneando su hoja. Alternativos: empacar escaneando cada
+// producto en la mesa, o recorrer el depósito escaneando. Debajo, los lotes
+// abiertos y los últimos terminados. Pensada para el celular.
 
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
@@ -12,12 +16,16 @@ import { entrarErp, Pantalla, Avisos, Estado, CAJA, CAMPO } from "@/app/componen
 import { diaAR, fechaHoraAR, GRANDE } from "../formato";
 import { accionCrearLote } from "./acciones";
 import { MarcaCarritoEspera } from "@/app/componentes/CarritoEspera";
+import { BotonImprimirHojas } from "./Imprimir";
+import { SelectorTam, tamElegido } from "./Tamano";
 
 export const dynamic = "force-dynamic";
 
 type SP = { d?: string; ok?: string; error?: string };
 
-type Lote = { id: number; creado_ts: Date; terminado_ts: Date | null; estado: string; pedidos: number; total: number; hechas: number; faltantes: number };
+type Lote = { id: number; creado_ts: Date; terminado_ts: Date | null; estado: string; modo: string; pedidos: number; preparados: number; total: number; hechas: number; faltantes: number };
+
+const MODO: Record<string, string> = { hojas: "con hojas", empacar: "empacar escaneando", recorrido: "recorrido escaneando" };
 
 export default async function Picking({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("picking_ver");
@@ -34,11 +42,13 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
     );
   }
 
+  const tam = await tamElegido();
   const [pedidos, lotes] = await Promise.all([
     pedidosParaPreparar(s.org.id, dep.id),
     consulta<Lote>(`
-      select l.id::int, l.creado_ts, l.terminado_ts, l.estado,
+      select l.id::int, l.creado_ts, l.terminado_ts, l.estado, l.modo,
              (select count(*)::int from picking_pedido where lote_id = l.id) pedidos,
+             (select count(*)::int from picking_pedido where lote_id = l.id and preparado_ts is not null) preparados,
              coalesce(sum(i.cantidad), 0)::int total, coalesce(sum(least(i.escaneado, i.cantidad)), 0)::int hechas,
              coalesce(sum(i.faltante), 0)::int faltantes
         from picking_lote l left join picking_item i on i.lote_id = l.id
@@ -52,7 +62,7 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
   const terminados = lotes.filter((l) => l.estado !== "abierto");
 
   return (
-    <Pantalla titulo="Picking" subtitulo="Preparar pedidos escaneando cada unidad" ancho="max-w-2xl">
+    <Pantalla titulo="Picking" subtitulo="Imprimir etiqueta y hoja de cada pedido, prepararlo y cerrarlo" ancho="max-w-2xl">
       <Avisos sp={sp} />
 
       {depositos.length > 1 && (
@@ -66,7 +76,7 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
 
       {abiertos.length > 0 && (
         <section className="mb-5">
-          <h2 className="text-sm font-bold mb-2">Pickings abiertos</h2>
+          <h2 className="text-sm font-bold mb-2">Lotes abiertos ({abiertos.length})</h2>
           <div className="space-y-2">
             {abiertos.map((l) => <TarjetaLote key={l.id} l={l} />)}
           </div>
@@ -108,8 +118,16 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
               );
             })}
           </div>
-          <div className="sticky bottom-20 md:bottom-10 mt-3">
-            <BotonEnviar clase={`${PRIMARIO} ${GRANDE} w-full shadow`} corriendo="Armando…">Armar lote con los tildados</BotonEnviar>
+          <div className="sticky bottom-20 md:bottom-10 mt-3 bg-[#F5F7FA]/95 rounded-xl p-2 shadow space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <SelectorTam tam={tam} />
+              <span className="text-[11px] text-[#5C6B76]">Los impresos pasan a un lote abierto.</span>
+            </div>
+            <BotonImprimirHojas clase={`${PRIMARIO} ${GRANDE} w-full`}>🖨 Imprimir etiquetas y hojas</BotonImprimirHojas>
+            <div className="flex flex-wrap gap-2">
+              <BotonEnviar clase={`${SUAVE} flex-1`} corriendo="Armando…" nombre="modo" valor="empacar">Empacar escaneando (alternativo)</BotonEnviar>
+              <BotonEnviar clase={`${SUAVE} flex-1`} corriendo="Armando…" nombre="modo" valor="recorrido">Recorrer escaneando</BotonEnviar>
+            </div>
           </div>
         </form>
       )}
@@ -131,13 +149,13 @@ function TarjetaLote({ l }: { l: Lote }) {
   return (
     <Link href={`/deposito/picking/${l.id}`} className={`${CAJA} block hover:border-[#16577F]`}>
       <div className="flex items-center justify-between gap-2 text-sm">
-        <span className="font-bold text-[#16577F]">Picking #{l.id}</span>
+        <span className="font-bold text-[#16577F]">Lote #{l.id} <span className="font-normal text-xs text-[#5C6B76]">· {MODO[l.modo] ?? l.modo}</span></span>
         <span className="text-xs text-[#5C6B76]">
           {l.estado === "abierto" ? `desde ${fechaHoraAR(l.creado_ts)}` : `terminado ${fechaHoraAR(l.terminado_ts)}`}
         </span>
       </div>
       <div className="text-xs text-[#5C6B76] mb-1">
-        {l.pedidos} pedido{l.pedidos === 1 ? "" : "s"} · {l.hechas} de {l.total} unidades{l.faltantes ? ` · ${l.faltantes} faltante(s)` : ""}
+        {l.pedidos} pedido{l.pedidos === 1 ? "" : "s"}{l.preparados ? ` (${l.preparados} preparado${l.preparados === 1 ? "" : "s"})` : ""} · {l.hechas} de {l.total} unidades{l.faltantes ? ` · ${l.faltantes} faltante(s)` : ""}
       </div>
       <div className="h-2 rounded-full bg-[#EEF1F4] overflow-hidden">
         <div className="h-full bg-[#167655]" style={{ width: `${pct}%` }} />

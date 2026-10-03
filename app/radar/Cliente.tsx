@@ -23,9 +23,13 @@ export function Pestanas({ items }: { items: { href: string; texto: string; cuen
 }
 
 /** Botón de envío que se deshabilita mientras corre (un doble clic no dispara dos veces). */
-export function BotonEnviar({ clase, children, corriendo = "Corriendo…" }: { clase: string; children: React.ReactNode; corriendo?: string }) {
+export function BotonEnviar({ clase, children, corriendo = "Corriendo…", nombre, valor }: {
+  clase: string; children: React.ReactNode; corriendo?: string;
+  /** Para distinguir entre varios botones del mismo formulario (name/value). */
+  nombre?: string; valor?: string;
+}) {
   const { pending } = useFormStatus();
-  return <button disabled={pending} className={`${clase} disabled:opacity-60`}>{pending ? corriendo : children}</button>;
+  return <button disabled={pending} name={nombre} value={valor} className={`${clase} disabled:opacity-60`}>{pending ? corriendo : children}</button>;
 }
 
 /** Tacho que, al tocarlo, pregunta en su lugar "¿…? Sí / No". */

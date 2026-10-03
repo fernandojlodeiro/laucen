@@ -48,6 +48,17 @@ create index if not exists picking_item_lote on picking_item (lote_id, orden);
 alter table picking_item enable row level security;
 select erp_politica_org('picking_item');
 
+-- Etiqueta + hoja de preparación (Fer, 3/10). El modo del lote: 'recorrido'
+-- (escanear mientras se junta, el de siempre), 'hojas' (se imprime etiqueta +
+-- hoja por pedido y cada pedido se cierra con "Preparado" o escaneando el
+-- código de su hoja) o 'empacar' (en la mesa: se escanea cada producto y la
+-- pantalla dice a qué pedido va). Por pedido: cuándo se imprimió por primera
+-- vez su hoja, cuántas veces (más de una = reimpresión) y cuándo se cerró.
+alter table picking_lote add column if not exists modo text not null default 'recorrido';
+alter table picking_pedido add column if not exists impreso_ts timestamptz;
+alter table picking_pedido add column if not exists impresiones int not null default 0;
+alter table picking_pedido add column if not exists preparado_ts timestamptz;
+
 -- Recepción: entrada de mercadería escaneada (compra a un proveedor,
 -- devolución de un pedido, u otra). Cada línea es un ingreso (o devolución)
 -- con mover_stock a la ubicación elegida.

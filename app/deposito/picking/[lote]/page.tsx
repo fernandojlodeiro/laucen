@@ -1,57 +1,61 @@
-// La pantalla de trabajo de un picking: el avance, el ítem que toca (por
-// orden de recorrido) con su ubicación bien grande, el lector, y la lista
-// completa con corrección en la fila. Al terminar muestra qué pedidos
-// quedaron preparados y el link a sus etiquetas de Mercado Libre.
+// La pantalla de un lote, con tres maneras de trabajar (pestañas; la de
+// entrada es la que se eligió al armarlo):
+//   - Hojas (la principal): imprimir/reimprimir etiqueta + hoja de cada
+//     pedido, y cerrar cada pedido con "Preparado" o escaneando su hoja.
+//   - Empacar escaneando (alternativo): en la mesa, cada producto escaneado
+//     dice a qué pedido va; el pedido completo se cierra e imprime su etiqueta.
+//   - Recorrido: el avance, el ítem que toca (por orden de recorrido) con su
+//     ubicación bien grande, el lector, y la lista con corrección en la fila.
+// Al terminar muestra qué pedidos quedaron preparados y sus etiquetas.
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { consulta, una } from "@/lib/erp/base";
-import { itemsDelLote, type ItemPicking } from "@/lib/deposito/picking";
+import { una } from "@/lib/erp/base";
+import { itemsDelLote, pedidosDelLote, esModoLote, type ItemPicking, type PedidoDelLote, type ModoLote } from "@/lib/deposito/picking";
 import { SUAVE, VERDE, APAGAR, PRIMARIO } from "@/app/botones";
 import { BotonConfirmar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { entrarErp, Pantalla, Avisos, Lapiz, Estado, CAJA, CAMPO, ETIQUETA, url } from "@/app/componentes/erp";
 import { fechaHoraAR, GRANDE } from "../../formato";
-import { accionCorregirItem, accionTerminarLote, accionCancelarLote } from "../acciones";
+import { accionCorregirItem, accionTerminarLote, accionCancelarLote, accionPreparado } from "../acciones";
 import Trabajo from "./Trabajo";
+import CerrarPorCodigo from "./CerrarPorCodigo";
+import Empacar from "./Empacar";
+import Pestanas from "@/app/componentes/Pestanas";
+import { MarcaCarritoEspera } from "@/app/componentes/CarritoEspera";
+import { SelectorTam, tamElegido } from "../Tamano";
 
 export const dynamic = "force-dynamic";
 
-type SP = { editar?: string; ok?: string; error?: string };
-type PedidoLote = { id: number; id_externo: string | null; cliente: string | null; estado: string };
+type SP = { editar?: string; ver?: string; ok?: string; error?: string };
+type PedidoLote = PedidoDelLote;
 
 export default async function LotePicking({ params, searchParams }: { params: Promise<{ lote: string }>; searchParams: Promise<SP> }) {
   const s = await entrarErp("picking_ver");
   const loteId = Number((await params).lote);
   const sp = await searchParams;
   if (!Number.isInteger(loteId) || loteId <= 0) notFound();
-  const lote = await una<{ id: number; estado: string; deposito_id: number; deposito: string; creado_ts: Date; terminado_ts: Date | null }>(`
-    select l.id::int, l.estado, l.deposito_id::int, d.nombre deposito, l.creado_ts, l.terminado_ts
+  const lote = await una<{ id: number; estado: string; modo: string; deposito_id: number; deposito: string; creado_ts: Date; terminado_ts: Date | null }>(`
+    select l.id::int, l.estado, l.modo, l.deposito_id::int, d.nombre deposito, l.creado_ts, l.terminado_ts
       from picking_lote l join deposito d on d.id = l.deposito_id where l.id = $1 and l.organizacion_id = $2`, [loteId, s.org.id]);
   if (!lote) notFound();
 
-  const [items, pedidos] = await Promise.all([
-    itemsDelLote(s.org.id, loteId),
-    consulta<PedidoLote>(`
-      select p.id::int, p.id_externo, cl.nombre cliente, p.estado
-        from picking_pedido pp join pedido p on p.id = pp.pedido_id left join cliente cl on cl.id = p.cliente_id
-       where pp.lote_id = $1 and pp.organizacion_id = $2 order by p.id`, [loteId, s.org.id]),
-  ]);
+  const [items, pedidos, tam] = await Promise.all([itemsDelLote(s.org.id, loteId), pedidosDelLote(s.org.id, loteId), tamElegido()]);
   const pedidoDe = new Map(pedidos.map((p) => [p.id, p]));
   const total = items.reduce((a, i) => a + i.cantidad, 0);
   const hechas = items.reduce((a, i) => a + Math.min(i.escaneado, i.cantidad), 0);
   const faltantes = items.reduce((a, i) => a + i.faltante, 0);
   const pct = total ? Math.round((100 * hechas) / total) : 0;
   const volverLista = url("/deposito/picking", { d: lote.deposito_id });
-  const titulo = `Picking #${lote.id}`;
+  const titulo = `Lote #${lote.id}`;
 
   if (lote.estado !== "abierto") {
     return (
       <Pantalla titulo={titulo} subtitulo={`${lote.deposito} · ${lote.estado === "terminado" ? "terminado" : "cancelado"} ${fechaHoraAR(lote.terminado_ts)}`} ancho="max-w-2xl"
         camino={[{ texto: lote.deposito, href: volverLista }, { texto: `#${lote.id}` }]}>
         <Avisos sp={sp} />
-        {lote.estado === "terminado" ? <Resultado org={s.org.id} items={items} pedidos={pedidos} /> : (
-          <p className="text-sm text-[#5C6B76] mb-4">Este picking se canceló: sus pedidos volvieron a la lista para preparar.</p>
+        {lote.estado === "terminado" ? <Resultado loteId={loteId} items={items} pedidos={pedidos} tam={tam} /> : (
+          <p className="text-sm text-[#5C6B76] mb-4">Este lote se canceló: sus pedidos volvieron a la lista para preparar.</p>
         )}
         <ListaItems items={items} pedidoDe={pedidoDe} loteId={loteId} editar={0} abierto={false} />
       </Pantalla>
@@ -60,45 +64,122 @@ export default async function LotePicking({ params, searchParams }: { params: Pr
 
   const actual = items.find((i) => i.escaneado + i.faltante < i.cantidad);
   const editar = Number(sp.editar) || 0;
+  const ver: ModoLote = esModoLote(sp.ver) ? sp.ver : esModoLote(lote.modo) ? lote.modo : "recorrido";
+  const preparados = pedidos.filter((p) => p.preparado_ts).length;
+  const impresos = pedidos.filter((p) => p.impreso_ts).length;
+  const pestanas: [ModoLote, string][] = [["hojas", "Etiquetas y hojas"], ["empacar", "Empacar escaneando (alternativo)"], ["recorrido", "Recorrer escaneando"]];
 
   return (
-    <Pantalla titulo={titulo} subtitulo={`${lote.deposito} · ${pedidos.length} pedido${pedidos.length === 1 ? "" : "s"}`} ancho="max-w-2xl"
+    <Pantalla titulo={titulo} subtitulo={`${lote.deposito} · ${pedidos.length} pedido${pedidos.length === 1 ? "" : "s"} · ${preparados} preparado${preparados === 1 ? "" : "s"}`} ancho="max-w-2xl"
       camino={[{ texto: lote.deposito, href: volverLista }, { texto: `#${lote.id}` }]}>
       <Avisos sp={sp} />
 
-      {/* Avance */}
-      <div className="mb-3">
-        <div className="flex justify-between text-sm mb-1">
-          <span><b className="text-lg">{hechas}</b> de {total} unidades</span>
-          <span className="text-[#5C6B76]">{faltantes ? `${faltantes} faltante(s) · ` : ""}{pct}%</span>
-        </div>
-        <div className="h-3 rounded-full bg-[#EEF1F4] overflow-hidden">
-          <div className="h-full bg-[#167655] transition-all" style={{ width: `${pct}%` }} />
-        </div>
-      </div>
+      <Pestanas className="mb-3" items={pestanas.map(([k, t]) => ({ clave: k, texto: t, activa: ver === k, href: url(`/deposito/picking/${loteId}`, { ver: k }) }))} />
 
-      {/* El ítem que toca */}
-      {actual ? <ItemActual i={actual} pedido={pedidoDe.get(actual.pedido_id)} /> : (
-        <div className={`${CAJA} mb-3 text-center bg-[#EEF7F1] border-[#BFE0CD]`}>
-          <p className="text-lg font-bold text-[#1F6E4A]">Todo escaneado ✓</p>
-          <p className="text-sm text-[#5C6B76]">Apretá "Terminar" para dejar los pedidos preparados.</p>
-        </div>
+      {ver === "hojas" && (
+        <>
+          {/* Imprimir (o reimprimir) etiqueta + hoja de todos los pedidos del lote. */}
+          <form action="/deposito/hojas" method="get" target="_blank" className={`${CAJA} mb-3 flex flex-wrap items-center gap-2`}>
+            <input type="hidden" name="lote" value={loteId} />
+            <button className={`${impresos ? SUAVE : PRIMARIO} ${GRANDE}`}>🖨 {impresos ? "Reimprimir etiquetas y hojas" : "Imprimir etiquetas y hojas"}</button>
+            <SelectorTam tam={tam} />
+            {impresos > 0 && <span className="text-[11px] text-[#5C6B76]">Ya impresas: la hoja sale marcada «REIMPRESIÓN».</span>}
+          </form>
+          <div className="mb-2 text-sm font-bold">Cerrar un pedido escaneando su hoja</div>
+          <div className="mb-4"><CerrarPorCodigo lote={loteId} /></div>
+          <ListaPedidos pedidos={pedidos} loteId={loteId} ver={ver} tam={tam} />
+        </>
       )}
 
-      <div className="mb-4"><Trabajo lote={loteId} /></div>
+      {ver === "empacar" && (
+        <>
+          <div className="mb-4"><Empacar lote={loteId} tam={tam} /></div>
+          <ListaPedidos pedidos={pedidos} loteId={loteId} ver={ver} tam={tam} />
+        </>
+      )}
+
+      {ver === "recorrido" && (
+        <>
+          {/* Avance */}
+          <div className="mb-3">
+            <div className="flex justify-between text-sm mb-1">
+              <span><b className="text-lg">{hechas}</b> de {total} unidades</span>
+              <span className="text-[#5C6B76]">{faltantes ? `${faltantes} faltante(s) · ` : ""}{pct}%</span>
+            </div>
+            <div className="h-3 rounded-full bg-[#EEF1F4] overflow-hidden">
+              <div className="h-full bg-[#167655] transition-all" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+
+          {/* El ítem que toca */}
+          {actual ? <ItemActual i={actual} pedido={pedidoDe.get(actual.pedido_id)} /> : (
+            <div className={`${CAJA} mb-3 text-center bg-[#EEF7F1] border-[#BFE0CD]`}>
+              <p className="text-lg font-bold text-[#1F6E4A]">Todo escaneado ✓</p>
+              <p className="text-sm text-[#5C6B76]">Apretá "Terminar" para dejar los pedidos preparados.</p>
+            </div>
+          )}
+
+          <div className="mb-4"><Trabajo lote={loteId} /></div>
+        </>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 mb-5">
         <form action={accionTerminarLote} className="flex-1">
           <input type="hidden" name="lote" value={loteId} />
-          <button className={`${actual ? PRIMARIO : VERDE} ${GRANDE} w-full`}>Terminar</button>
+          <button className={`${actual ? SUAVE : VERDE} ${GRANDE} w-full`}>Terminar lote</button>
         </form>
         <BotonConfirmar accion={accionCancelarLote} campos={{ lote: String(loteId), d: String(lote.deposito_id) }}
-          clase={`${APAGAR} ${GRANDE}`} texto="Cancelar picking" pregunta="¿Cancelar este picking?" corriendo="Cancelando…" />
+          clase={`${APAGAR} ${GRANDE}`} texto="Cancelar lote" pregunta="¿Cancelar este lote?" corriendo="Cancelando…" />
       </div>
-      {actual && <p className="text-[11px] text-[#5C6B76] -mt-3 mb-5">Si terminás con cosas sin escanear, esos pedidos quedan incompletos (en preparación) para el próximo picking.</p>}
+      {actual && <p className="text-[11px] text-[#5C6B76] -mt-3 mb-5">Si terminás el lote con pedidos sin cerrar, quedan en preparación y vuelven a la lista.</p>}
 
       <ListaItems items={items} pedidoDe={pedidoDe} loteId={loteId} editar={editar} abierto />
     </Pantalla>
+  );
+}
+
+/** Los pedidos del lote: cada uno con su "Preparado" (o la marca de que ya
+ *  está), cuántas veces se imprimió, y la espera del carrito si la tiene. */
+function ListaPedidos({ pedidos, loteId, ver, tam }: { pedidos: PedidoLote[]; loteId: number; ver: string; tam: string }) {
+  return (
+    <section className="mb-5">
+      <h2 className="text-sm font-bold mb-2">Pedidos del lote ({pedidos.length})</h2>
+      <ul className="space-y-2">
+        {pedidos.map((p) => (
+          <li key={p.id} className={`${CAJA} flex flex-wrap items-center gap-3 ${p.preparado_ts ? "bg-[#F4FAF6] border-[#BFE0CD]" : ""}`}>
+            <div className="flex-1 min-w-0 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Link href={`/ventas/pedidos/${p.id}`} className="text-lg font-black text-[#16577F]">#{p.id}</Link>
+                {p.id_externo && <span className="text-xs text-[#5C6B76]">{p.id_externo}</span>}
+                {p.en_espera && <MarcaCarritoEspera ts={p.carrito_ultimo_evento_ts} texto="Carrito: esperando" />}
+                {p.impresiones > 1 && <Estado texto={`impreso ${p.impresiones} veces`} tono="gris" />}
+                {p.impresiones === 1 && <Estado texto="impreso" tono="gris" />}
+              </div>
+              <div className="truncate">{p.cliente ?? "Sin cliente"}{p.apodo ? ` (${p.apodo})` : ""} · <span className="text-[#5C6B76]">{p.canal}</span></div>
+              <div className="text-xs text-[#5C6B76]">
+                {p.unidades} unidad{p.unidades === 1 ? "" : "es"}{ver === "empacar" && !p.preparado_ts ? ` · empacadas ${p.escaneadas}` : ""}
+                {p.despachar_antes && <> · Despachar antes: {fechaHoraAR(p.despachar_antes)}</>}
+              </div>
+            </div>
+            {p.preparado_ts ? (
+              <span className="text-sm font-bold text-[#1F6E4A]">Preparado ✓ <span className="font-normal text-xs">{fechaHoraAR(p.preparado_ts)}</span></span>
+            ) : p.en_espera ? (
+              <button type="button" disabled className={`${SUAVE} ${GRANDE} opacity-50 cursor-not-allowed`} title="Un carrito de Mercado Libre se cierra 10 min después de su último ítem">Esperando</button>
+            ) : (
+              <form action={accionPreparado}>
+                <input type="hidden" name="lote" value={loteId} />
+                <input type="hidden" name="pedido" value={p.id} />
+                <input type="hidden" name="ver" value={ver} />
+                <button className={`${VERDE} ${GRANDE}`}>Preparado</button>
+              </form>
+            )}
+            {ver === "empacar" && p.preparado_ts && (
+              <a href={`/deposito/hojas?lote=${loteId}&p=${p.id}&solo=etiqueta&tam=${encodeURIComponent(tam)}`} target="_blank" rel="noreferrer" className={SUAVE}>🖨 Etiqueta</a>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -173,21 +254,15 @@ function ListaItems({ items, pedidoDe, loteId, editar, abierto }: {
   );
 }
 
-/** Qué pedidos quedaron preparados (todo escaneado) y cuáles incompletos, con
- *  el link a las etiquetas de Mercado Libre de los preparados (sin Full). */
-async function Resultado({ org, items, pedidos }: { org: string; items: ItemPicking[]; pedidos: PedidoLote[] }) {
+/** Qué pedidos quedaron preparados y cuáles incompletos, con sus etiquetas
+ *  (las de Mercado Libre y las nuestras) y la reimpresión de las hojas. */
+function Resultado({ loteId, items, pedidos, tam }: { loteId: number; items: ItemPicking[]; pedidos: PedidoLote[]; tam: string }) {
   const completo = new Map<number, boolean>();
   for (const i of items) completo.set(i.pedido_id, (completo.get(i.pedido_id) ?? true) && i.escaneado >= i.cantidad);
-  const preparados = pedidos.filter((p) => completo.get(p.id));
-  const incompletos = pedidos.filter((p) => !completo.get(p.id));
-  // La ruta de etiquetas imprime de a una cuenta de Mercado Libre: un link por canal.
-  const envios = preparados.length ? await consulta<{ canal: string | null; ids: string }>(`
-    select ca.nombre canal, string_agg(e.id::text, ',' order by e.id) ids
-      from envio e left join canal ca on ca.id = e.canal_id
-     where e.organizacion_id = $1 and e.pedido_id = any($2::bigint[]) and e.id_externo is not null
-       and coalesce(e.logistica, '') <> 'fulfillment'
-     group by ca.nombre order by ca.nombre`, [org, preparados.map((p) => p.id)]) : [];
+  const preparados = pedidos.filter((p) => p.preparado_ts || completo.get(p.id));
+  const incompletos = pedidos.filter((p) => !(p.preparado_ts || completo.get(p.id)));
   const nombre = (p: PedidoLote) => `#${p.id}${p.id_externo ? ` (${p.id_externo})` : ""}${p.cliente ? ` · ${p.cliente}` : ""}`;
+  const t = encodeURIComponent(tam);
 
   return (
     <div className="space-y-3 mb-5">
@@ -195,18 +270,19 @@ async function Resultado({ org, items, pedidos }: { org: string; items: ItemPick
         <h2 className="text-sm font-bold text-[#1F6E4A] mb-1">Preparados ({preparados.length})</h2>
         {preparados.length ? <ul className="text-sm space-y-0.5">{preparados.map((p) => <li key={p.id}>{nombre(p)}</li>)}</ul>
           : <p className="text-sm text-[#5C6B76]">Ninguno.</p>}
-        {envios.map((e) => (
-          <a key={e.canal ?? "-"} href={`/ventas/envios/etiquetas?ids=${e.ids}&formato=pdf`} target="_blank" rel="noreferrer"
-            className={`${PRIMARIO} ${GRANDE} inline-block mt-2 mr-2`}>
-            🖨 Imprimir etiquetas{envios.length > 1 && e.canal ? ` de ${e.canal}` : ""}
-          </a>
-        ))}
+        {preparados.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            <a href={`/deposito/hojas?lote=${loteId}&p=${preparados.map((p) => p.id).join(",")}&solo=etiqueta&tam=${t}`} target="_blank" rel="noreferrer"
+              className={`${PRIMARIO} ${GRANDE} inline-block`}>🖨 Imprimir etiquetas</a>
+            <a href={`/deposito/hojas?lote=${loteId}&tam=${t}`} target="_blank" rel="noreferrer" className={`${SUAVE} ${GRANDE} inline-block`}>Reimprimir etiquetas y hojas</a>
+          </div>
+        )}
       </div>
       {incompletos.length > 0 && (
         <div className={CAJA}>
           <h2 className="text-sm font-bold text-[#C03420] mb-1">Incompletos ({incompletos.length})</h2>
           <ul className="text-sm space-y-0.5">{incompletos.map((p) => <li key={p.id}>{nombre(p)}</li>)}</ul>
-          <p className="text-[11px] text-[#5C6B76] mt-1">Quedan en preparación y vuelven a la lista para el próximo picking.</p>
+          <p className="text-[11px] text-[#5C6B76] mt-1">Quedan en preparación y vuelven a la lista para el próximo lote.</p>
         </div>
       )}
     </div>
