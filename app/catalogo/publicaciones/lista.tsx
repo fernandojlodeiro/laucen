@@ -18,6 +18,15 @@ export function filtrosPublicaciones(sp: SP) {
 }
 
 export const DISPONIBLE_PUBLICACION = "stock_disponible_canal($1, v.id, c.id)";
+
+// Lo que dice Mercado Libre de la publicación (aunque esté pausada): la copia
+// local meli_item, que mantienen al día los avisos y los barridos. Con
+// variaciones, la fila de esa variación. Sin fila: "—".
+export const UNIR_MELI_ITEM = `left join meli_item mi on mi.canal_id = pu.canal_id and mi.item_id = pu.id_externo and mi.variation_id = coalesce(pu.variacion_externa, '')`;
+export const TEXTO_ESTADO_ML: Record<string, string> = {
+  active: "Activa", paused: "Pausada", closed: "Cerrada", under_review: "En revisión", inactive: "Inactiva", payment_required: "Pago pendiente",
+};
+export const textoEstadoMl = (e: string | null | undefined) => (e ? TEXTO_ESTADO_ML[e] ?? e : null);
 const UMBRAL = "umbral_pausa_de($1, v.id, c.id)";
 
 export const LISTA_PUBLICACIONES: Lista = {
@@ -35,6 +44,8 @@ export const LISTA_PUBLICACIONES: Lista = {
     { clave: "categoria", titulo: "Categoría", sql: "pu.categoria_externa" },
     { clave: "tipo", titulo: "Tipo de publicación", sql: "pu.tipo_publicacion" },
     { clave: "estado", titulo: "Estado", sql: "pu.estado", valor: (f) => TEXTO_ESTADO_PUBLICACION[f.estado] ?? f.estado },
+    { clave: "stock_ml", titulo: "Stock en ML", sql: "mi.stock", formato: "entero" },
+    { clave: "estado_ml", titulo: "Estado en ML", sql: "mi.estado", valor: (f) => textoEstadoMl(f.estado_ml) },
     { clave: "disponible", titulo: "Disponible", sql: `${DISPONIBLE_PUBLICACION}::int`, orden: DISPONIBLE_PUBLICACION, formato: "entero" },
     { clave: "umbral", titulo: "Umbral de pausa", sql: `${UMBRAL}::int`, orden: UMBRAL, formato: "entero" },
     { clave: "umbral_propio", titulo: "Umbral propio", sql: "pu.umbral_pausa", formato: "entero" },
@@ -43,14 +54,15 @@ export const LISTA_PUBLICACIONES: Lista = {
     campoFecha("sincronizada", "Última sincronización", "pu.ultima_sincronizacion_ts", { hora: true }),
     { clave: "atributos", titulo: "Atributos externos", sql: "case when pu.atributos_externos = '{}'::jsonb then null else pu.atributos_externos::text end", orden: false, ancho: 50 },
   ],
-  enPantalla: ["sku", "titulo", "canal", "externo", "categoria", "tipo", "estado", "disponible", "umbral"],
+  enPantalla: ["sku", "titulo", "canal", "externo", "categoria", "tipo", "estado", "estado_ml", "disponible", "stock_ml", "umbral"],
   consulta: async (ctx, sp) => {
     const f = filtrosPublicaciones(sp);
     return {
       desde: `publicacion pu
         join variacion v on v.id = pu.variacion_id
         join producto p on p.id = v.producto_id
-        join canal c on c.id = pu.canal_id`,
+        join canal c on c.id = pu.canal_id
+        ${UNIR_MELI_ITEM}`,
       donde: `pu.organizacion_id = $1
          and ($6 or p.estado <> 'archivado')
          and ($2::bigint is null or pu.canal_id = $2)

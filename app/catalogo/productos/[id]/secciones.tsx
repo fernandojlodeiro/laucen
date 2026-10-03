@@ -25,6 +25,7 @@ import SubirFoto from "../SubirFoto";
 import AltaNueva from "@/app/componentes/AltaNueva";
 import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import { caminoDeFamilia } from "@/lib/erp/familias";
+import { UNIR_MELI_ITEM, textoEstadoMl } from "@/app/catalogo/publicaciones/lista";
 
 export type Producto = {
   id: number; sku_base: string; titulo: string; descripcion: string | null; familia_id: number | null; familia: string | null;
@@ -959,11 +960,12 @@ export async function SeccionStock({ s, p }: Props) {
 
 export async function SeccionPublicaciones({ s, p }: Props) {
   const filas = await consulta<{ id: number; sku: string; canal: string; id_externo: string | null; titulo: string; tipo_publicacion: string | null; estado: string; sincro: string | null;
-    precio: number | null; precio_tachado: number | null }>(`
+    precio: number | null; precio_tachado: number | null; stock_ml: number | null; estado_ml: string | null }>(`
     select pu.id::int, v.sku, c.nombre canal, pu.id_externo, coalesce(pu.titulo, titulo_variacion(v.id)) titulo, pu.tipo_publicacion, pu.estado,
-           pu.precio_canal::float8 precio, pu.precio_tachado::float8,
+           pu.precio_canal::float8 precio, pu.precio_tachado::float8, mi.stock stock_ml, mi.estado estado_ml,
            to_char(pu.ultima_sincronizacion_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YYYY HH24:MI') sincro
       from publicacion pu join variacion v on v.id = pu.variacion_id join canal c on c.id = pu.canal_id
+      ${UNIR_MELI_ITEM}
      where v.producto_id = $2 and pu.organizacion_id = $1 order by c.nombre, v.sku`, [s.org.id, p.id]);
   const tono = (e: string) => (e === "activa" ? "verde" : e === "pausada" ? "amarillo" : "gris") as "verde" | "amarillo" | "gris";
   return (
@@ -972,10 +974,10 @@ export async function SeccionPublicaciones({ s, p }: Props) {
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={TH}>Canal</th><th className={TH}>Variación</th><th className={TH}>Id externo</th><th className={TH}>Título</th><th className={TH}>Tipo</th><th className={THN}>Precio</th><th className={TH}>Estado</th><th className={TH}>Última sincronización</th></tr>
+            <tr><th className={TH}>Canal</th><th className={TH}>Variación</th><th className={TH}>Id externo</th><th className={TH}>Título</th><th className={TH}>Tipo</th><th className={THN}>Precio</th><th className={TH}>Estado</th><th className={THN}>Stock en ML</th><th className={TH}>Última sincronización</th></tr>
           </thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>Ninguna variación de este producto está publicada.</td></tr>}
+            {filas.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>Ninguna variación de este producto está publicada.</td></tr>}
             {filas.map((f) => (
               <tr key={f.id} className={TR}>
                 <td className={TD}>{f.canal}</td>
@@ -988,7 +990,12 @@ export async function SeccionPublicaciones({ s, p }: Props) {
                   {f.precio_tachado != null && <span className="line-through text-[#5C6B76] mr-1.5">{formatear(f.precio_tachado, "ARS")}</span>}
                   {f.precio != null ? formatear(f.precio, "ARS") : <span className="text-[#5C6B76]">—</span>}
                 </td>
-                <td className={TD}><Estado texto={f.estado.charAt(0).toUpperCase() + f.estado.slice(1)} tono={tono(f.estado)} /></td>
+                <td className={TD}>
+                  <Estado texto={f.estado.charAt(0).toUpperCase() + f.estado.slice(1)} tono={tono(f.estado)} />
+                  {f.estado_ml && <span className="block text-[10px] text-[#5C6B76]">En ML: {textoEstadoMl(f.estado_ml)}</span>}
+                </td>
+                {/* Lo que ML tiene cargado como disponible (también si está pausada), de la copia local meli_item. */}
+                <td className={TDN}>{f.stock_ml != null ? f.stock_ml : <span className="text-[#5C6B76]">—</span>}</td>
                 <td className={`${TD} text-[#5C6B76] whitespace-nowrap`}>{f.sincro ?? "—"}</td>
               </tr>
             ))}

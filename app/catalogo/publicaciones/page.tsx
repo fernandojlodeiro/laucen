@@ -17,7 +17,7 @@ import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO,
 } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
-import { LISTA_PUBLICACIONES, DISPONIBLE_PUBLICACION } from "./lista";
+import { LISTA_PUBLICACIONES, DISPONIBLE_PUBLICACION, textoEstadoMl } from "./lista";
 import { accionGuardarPublicacion } from "./acciones";
 import { verInactivos } from "@/app/componentes/Inactivos";
 
@@ -31,7 +31,7 @@ type Fila = {
   id: number; variacion_id: number; producto_id: number; sku: string; titulo_var: string; fotos: string[] | null; canal_id: number; canal: string; canal_tipo: string;
   id_externo: string | null; titulo: string | null; categoria_externa: string | null; tipo_publicacion: string | null;
   estado: string; umbral_pausa: number | null; disponible: number; umbral_efectivo: number;
-  sincronizada: string | null;
+  sincronizada: string | null; stock_ml: number | null; estado_ml: string | null;
 };
 
 const TONO_ESTADO: Record<string, "verde" | "amarillo" | "gris"> = { activa: "verde", pausada: "amarillo", cerrada: "gris" };
@@ -58,14 +58,14 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
   const { filas, total } = await consultaPaginada<Fila>({
     campos: `pu.id::int, v.id::int variacion_id, p.id::int producto_id, v.sku, titulo_variacion(v.id) titulo_var, c.id::int canal_id, c.nombre canal, c.tipo canal_tipo,
            pu.id_externo, pu.titulo, pu.categoria_externa, pu.tipo_publicacion, pu.estado, pu.umbral_pausa,
-           ${DISPONIBLE} disponible, umbral_pausa_de($1, v.id, c.id) umbral_efectivo,
+           ${DISPONIBLE} disponible, umbral_pausa_de($1, v.id, c.id) umbral_efectivo, mi.stock stock_ml, mi.estado estado_ml,
            to_char(pu.ultima_sincronizacion_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') sincronizada,
            (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = p.id) fotos`,
     desde: base.desde,
     donde: base.donde,
     orden: leerOrden(sp, {
       sku: "v.sku", titulo: "coalesce(pu.titulo, p.titulo)", canal: "c.nombre", externo: "pu.id_externo", categoria: "pu.categoria_externa",
-      estado: "pu.estado", disponible: DISPONIBLE, umbral: "umbral_pausa_de($1, v.id, c.id)",
+      estado: "pu.estado", disponible: DISPONIBLE, umbral: "umbral_pausa_de($1, v.id, c.id)", stock_ml: "mi.stock",
     }, base.orden),
   }, base.valores, sp);
 
@@ -92,11 +92,11 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
           <thead className={THEAD}>
             <tr>
               <ThOrden col="sku">SKU</ThOrden><ThOrden col="titulo">Título</ThOrden><ThOrden col="canal" porDefecto>Canal</ThOrden><ThOrden col="externo">Id externo</ThOrden>
-              <ThOrden col="categoria">Categoría · tipo</ThOrden><ThOrden col="estado">Estado</ThOrden><ThOrden col="disponible" n>Disponible</ThOrden><ThOrden col="umbral" n>Umbral</ThOrden><th />
+              <ThOrden col="categoria">Categoría · tipo</ThOrden><ThOrden col="estado">Estado</ThOrden><ThOrden col="disponible" n>Disponible</ThOrden><ThOrden col="stock_ml" n>Stock en ML</ThOrden><ThOrden col="umbral" n>Umbral</ThOrden><th />
             </tr>
           </thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>{canalId || estado || q ? "Nada coincide con el filtro." : "Todavía no hay publicaciones: se traen solas de Mercado Libre al vincular la cuenta."}</td></tr>}
+            {filas.length === 0 && <tr><td colSpan={10} className={`${TD} text-[#5C6B76]`}>{canalId || estado || q ? "Nada coincide con el filtro." : "Todavía no hay publicaciones: se traen solas de Mercado Libre al vincular la cuenta."}</td></tr>}
             {filas.map((f) => (
               <tr key={f.id} className={`${TR} ${editar === f.id ? "bg-[#FAFBFC]" : ""}`}>
                 <td className={`${TD} whitespace-nowrap`}>
@@ -118,10 +118,14 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                 <td className={TD}>{[f.categoria_externa, f.tipo_publicacion].filter(Boolean).join(" · ") || "—"}</td>
                 <td className={TD}>
                   <Estado texto={TEXTO_ESTADO[f.estado] ?? f.estado} tono={TONO_ESTADO[f.estado] ?? "gris"} />
+                  {f.estado_ml && <span className="block text-[10px] text-[#5C6B76]">En ML: {textoEstadoMl(f.estado_ml)}</span>}
                   {f.sincronizada && <span className="block text-[10px] text-[#5C6B76]">sinc. {f.sincronizada}</span>}
                 </td>
                 <td className={`${TDN} ${f.disponible <= f.umbral_efectivo ? "text-[#C03420] font-semibold" : ""}`}>
                   <Link href={url("/stock/consulta", { v: f.variacion_id })} className="hover:underline">{f.disponible}</Link>
+                </td>
+                <td className={TDN} title="Lo que Mercado Libre tiene cargado como disponible en la publicación (aunque esté pausada)">
+                  {f.stock_ml != null ? f.stock_ml : <span className="text-[#5C6B76]">—</span>}
                 </td>
                 {editar === f.id ? (
                   <td className={TDN}>
@@ -157,7 +161,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
       <Paginado total={total} />
 
       <section className="mt-2">
-        <p className="text-[11px] text-[#5C6B76] mt-2">Disponible: lo que hay para vender en los depósitos del canal. Umbral: con ese disponible o menos, el canal pausa la publicación (vacío = hereda del producto, del canal o de la organización).</p>
+        <p className="text-[11px] text-[#5C6B76] mt-2">Disponible: lo que hay para vender en los depósitos del canal. Stock en ML: lo que la publicación tiene cargado en Mercado Libre (también si está pausada). Umbral: con ese disponible o menos, el canal pausa la publicación (vacío = hereda del producto, del canal o de la organización).</p>
       </section>
     </Pantalla>
   );
