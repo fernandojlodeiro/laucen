@@ -18,8 +18,6 @@
 // - /users/{id}/shipping_options/free: lo que paga el vendedor por el envío
 //   gratis, igual para todo el país; depende del peso, la logística y el
 //   precio. Debajo del umbral ($33.000) da 0 (lo paga el comprador).
-// - /users/{id}/shipping_options?zip_code=: lo que paga el comprador, por
-//   destino, saliendo del código postal de la cuenta.
 // - No hay API para el almacenamiento de Full ni para el costo de cuotas de
 //   la publicación clásica (quedan en la bitácora #43, relevados a mano).
 
@@ -40,20 +38,11 @@ const PRECIOS_CARGO_FIJO = [1_000, 5_000, 10_000, 12_000, 12_500, 15_000, 18_000
 const PESOS_CARGO_FIJO = [300, 500, 1_000, 2_000, 5_000, 10_000, 20_000, 30_000];
 const PRECIOS_ENVIO = [33_000, 40_000, 50_000, 80_000, 150_000, 500_000];
 const PESOS_ENVIO = [300, 500, 1_000, 2_000, 3_000, 5_000, 7_000, 10_000, 15_000, 20_000, 25_000, 30_000, 40_000, 50_000, 70_000];
-const PRECIO_DESTINO = 20_000;
-const PESOS_DESTINO = [500, 2_000, 5_000, 10_000, 20_000];
-/** Un código postal por ciudad de referencia; cubre todas las provincias. */
-export const DESTINOS: [string, string][] = [
-  ["1414", "CABA"], ["1650", "GBA San Martín"], ["1900", "La Plata"], ["7600", "Mar del Plata"], ["8000", "Bahía Blanca"],
-  ["5000", "Córdoba"], ["5800", "Río Cuarto"], ["2000", "Rosario"], ["3000", "Santa Fe"], ["3100", "Paraná"],
-  ["5500", "Mendoza"], ["5400", "San Juan"], ["5700", "San Luis"], ["5300", "La Rioja"], ["4700", "Catamarca"],
-  ["4000", "Tucumán"], ["4200", "Santiago del Estero"], ["4400", "Salta"], ["4600", "Jujuy"], ["3400", "Corrientes"],
-  ["3300", "Posadas"], ["3500", "Resistencia"], ["3600", "Formosa"], ["6300", "Santa Rosa"], ["8300", "Neuquén"],
-  ["8400", "Bariloche"], ["8500", "Viedma"], ["9103", "Rawson"], ["9000", "Comodoro Rivadavia"], ["9400", "Río Gallegos"],
-  ["9410", "Ushuaia"],
-];
-
-export const FASES = ["referencias", "cargo_fijo", "envio_gratis", "envio_destino", "comisiones"] as const;
+// "Envío por destino" (lo que paga el comprador según el código postal) ya no
+// se consulta (Fer, 3/10): no es plata de Fer y sus "cambios" (ML agrega y saca
+// opciones sin tocar el precio) tapaban los que importan. Su tabla queda con
+// la historia.
+export const FASES = ["referencias", "cargo_fijo", "envio_gratis", "comisiones"] as const;
 type Fase = (typeof FASES)[number];
 
 /** Fecha 'YYYY-MM-DD' en hora argentina. */
@@ -202,29 +191,6 @@ async function envioGratis(c: Corrida, token: string, userId: number, hasta: num
   return true;
 }
 
-async function envioDestino(c: Corrida, token: string, userId: number, hasta: number) {
-  const qs = DESTINOS.flatMap(([cp, lugar]) => PESOS_DESTINO.map((peso) => ({ cp, lugar, peso })));
-  const res = await enParalelo(qs, 8, hasta, async (q) => {
-    const medidas = cajaPara(q.peso);
-    const r = await pedir(`/users/${userId}/shipping_options?zip_code=${q.cp}&dimensions=${medidas},${q.peso}&item_price=${PRECIO_DESTINO}`, token);
-    type Op = { name?: string; shipping_method_type?: string; shipping_method_id?: number; cost?: number };
-    const d = r.datos as { destination?: { state?: { name?: string } }; options?: Op[] } | null;
-    if (r.status !== 200 || !d?.options) return null;
-    const opciones = d.options
-      .map((o) => ({ nombre: o.name ?? null, tipo: o.shipping_method_type ?? null, metodo: o.shipping_method_id ?? null, costo: o.cost ?? null }))
-      .sort((a, b) => (a.metodo ?? 0) - (b.metodo ?? 0));
-    const costos = opciones.map((o) => o.costo).filter((x): x is number => typeof x === "number");
-    return {
-      cp: q.cp, peso_g: q.peso, precio: PRECIO_DESTINO, desde: c.iniciada, corrida_id: c.id, lugar: q.lugar,
-      provincia: d.destination?.state?.name ?? null, medidas, costo_min: costos.length ? Math.min(...costos) : null, opciones,
-    };
-  });
-  if (!res) return false;
-  await guardarCambios(c, "ml_costos_envio_destino", ["cp", "peso_g", "precio"], ["costo_min", "opciones"], res.filter((x) => x !== null));
-  await sumarFallas(c, res.filter((x) => x === null).length);
-  return true;
-}
-
 /** Las categorías donde Fer tiene publicaciones activas (Fer, 30/9: sólo
  *  ésas interesan). Se guardan en ml_costos_mis_categorias. */
 async function misCategorias(token: string, userId: number, hasta: number) {
@@ -301,7 +267,7 @@ async function sumarFallas(c: Corrida, n: number) {
 }
 
 const PASOS: Record<Fase, (c: Corrida, token: string, userId: number, hasta: number) => Promise<boolean>> = {
-  referencias, cargo_fijo: cargoFijo, envio_gratis: envioGratis, envio_destino: envioDestino, comisiones,
+  referencias, cargo_fijo: cargoFijo, envio_gratis: envioGratis, comisiones,
 };
 
 /** Avanza las corridas sin terminar hasta `hasta` (ms). Nunca tira. */
@@ -393,13 +359,7 @@ export async function envioGratisVigente() {
   return r.rows.map((f) => ({ ...f, precio: Number(f.precio), costo: num(f.costo) }));
 }
 
-export async function envioDestinoVigente() {
-  const r = await pool.query<{ cp: string; lugar: string; provincia: string | null; peso_g: number; costo_min: string | null; desde: Date }>(
-    "select cp, lugar, provincia, peso_g, costo_min, desde from ml_costos_envio_destino_vigente");
-  return r.rows.map((f) => ({ ...f, costo_min: num(f.costo_min) }));
-}
-
-export const GRILLAS = { PRECIOS_CARGO_FIJO, PESOS_CARGO_FIJO, PRECIOS_ENVIO, PESOS_ENVIO, PESOS_DESTINO, PRECIO_DESTINO };
+export const GRILLAS = { PRECIOS_CARGO_FIJO, PESOS_CARGO_FIJO, PRECIOS_ENVIO, PESOS_ENVIO };
 
 export type Cambio = { desde: Date; que: string; detalle: string; antes: string; ahora: string };
 
@@ -423,21 +383,11 @@ export async function cambiosRecientes(limite = 300): Promise<Cambio[]> {
        select desde, corrida_id, 'Envío gratis' que, case logistica when 'fulfillment' then 'Full' else 'Colecta' end || ' · ' || peso_g || ' g · a $ ' || replace(to_char(precio, 'FM999,999,990'), ',', '.') detalle,
               lag('$ ' || replace(to_char(costo, 'FM999,999,990'), ',', '.')) over (partition by logistica, tipo, precio, peso_g order by desde) antes, '$ ' || replace(to_char(costo, 'FM999,999,990'), ',', '.') ahora
          from ml_costos_envio_gratis),
-     -- Envío por destino: las opciones que ofrece ML con su precio, no sólo la
-     -- más barata (Fer, 30/9: aparecía "cambio" y se veía igual).
-     edt as (
-       select *, coalesce((select string_agg(coalesce(o->>'nombre', o->>'tipo', '?') || ' $ ' || replace(to_char((o->>'costo')::numeric, 'FM999,999,990'), ',', '.'), ' · ' order by o->>'metodo')
-                             from jsonb_array_elements(coalesce(opciones, '[]'::jsonb)) o), '$ ' || replace(to_char(costo_min, 'FM999,999,990'), ',', '.')) txt
-         from ml_costos_envio_destino),
-     ed as (
-       select desde, corrida_id, 'Envío por destino' que, lugar || ' · ' || peso_g || ' g' detalle,
-              lag(txt) over (partition by cp, peso_g, precio order by desde) antes, txt ahora
-         from edt),
      rf as (
        select desde, corrida_id, 'Referencia' que, clave detalle,
               lag(left(datos::text, 120)) over (partition by clave order by desde) antes, left(datos::text, 120) ahora
          from ml_costos_referencias),
-     todo as (select * from com union all select * from cf union all select * from eg union all select * from ed union all select * from rf)
+     todo as (select * from com union all select * from cf union all select * from eg union all select * from rf)
      select desde, que, detalle, coalesce(antes, '(nuevo)') antes, ahora from todo, primera
       where corrida_id > primera.id order by desde desc, que, detalle limit $1`, [limite]);
   return r.rows;

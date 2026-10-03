@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { sosVos } from "@/lib/admin";
 import { asegurarEsquema } from "@/lib/costos-ml/esquema";
 import {
-  DESTINOS, FASES, GRILLAS, cambiosRecientes, cargoFijoVigente, comisionesVigentes, envioDestinoVigente, envioGratisVigente, ultimasCorridas,
+  FASES, GRILLAS, cambiosRecientes, cargoFijoVigente, comisionesVigentes, envioGratisVigente, ultimasCorridas,
 } from "@/lib/costos-ml/proceso";
 import { formatearNumero } from "@/lib/numeros";
 import { PRIMARIO, SUAVE } from "@/app/botones";
@@ -23,14 +23,13 @@ const VISTAS = [
   { clave: "comisiones", texto: "Comisiones" },
   { clave: "cargo", texto: "Cargo fijo" },
   { clave: "envio", texto: "Envío gratis (vendedor)" },
-  { clave: "destino", texto: "Envío por destino (comprador)" },
   { clave: "corridas", texto: "Corridas" },
 ] as const;
 type Vista = (typeof VISTAS)[number]["clave"];
 
 const NOMBRES: Record<string, string> = {
   referencias: "Referencias", cargo_fijo: "Cargo fijo", envio_gratis: "Envío gratis",
-  envio_destino: "Envío por destino", comisiones: "Comisiones",
+  comisiones: "Comisiones",
 };
 
 const ZONA = "America/Argentina/Buenos_Aires";
@@ -77,7 +76,6 @@ export default async function CostosML({ searchParams }: { searchParams: Promise
       {vista === "comisiones" && <Comisiones q={sp.q ?? ""} />}
       {vista === "cargo" && <CargoFijo />}
       {vista === "envio" && <EnvioGratis />}
-      {vista === "destino" && <EnvioDestino />}
       {vista === "corridas" && <Corridas />}
     </main>
   );
@@ -242,36 +240,6 @@ async function EnvioGratis() {
       </p>
       {tabla("xd_drop_off", "Colecta / punto de despacho")}
       {tabla("fulfillment", "Full")}
-    </section>
-  );
-}
-
-async function EnvioDestino() {
-  const filas = await envioDestinoVigente();
-  return (
-    <section className="overflow-x-auto">
-      <Desde d={ultimo(filas)} />
-      <p className="text-[11px] text-[#9AA7B3] mb-2">
-        Lo que paga el comprador cuando el envío no es gratis (productos de menos de $ 33.000), saliendo desde Córdoba. La opción más barata.
-      </p>
-      <table className="text-sm">
-        <thead>
-          <tr className="text-left text-xs text-[#5C6B76]">
-            <th className={TH}>Destino</th>
-            {GRILLAS.PESOS_DESTINO.map((p) => <th key={p} className={`${TH} text-right`}>{kg(p)}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {DESTINOS.map(([cp, lugar]) => (
-            <tr key={cp} className="border-t border-[#E3E9F0]">
-              <td className={TD}>{lugar} <span className="text-[11px] text-[#9AA7B3]">CP {cp}</span></td>
-              {GRILLAS.PESOS_DESTINO.map((p) => (
-                <td key={p} className={`${TD} text-right`}>{pesos(filas.find((f) => f.cp === cp && f.peso_g === p)?.costo_min)}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </section>
   );
 }
