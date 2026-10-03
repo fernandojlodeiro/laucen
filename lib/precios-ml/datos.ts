@@ -266,3 +266,73 @@ export async function fijarInterruptor(org: string, canal: number, clave: "sincr
   await canalMl(org, canal);
   await consulta("update canal set config = config || jsonb_build_object($3::text, $4::boolean) where id = $2 and organizacion_id = $1", [org, canal, clave, valor]);
 }
+
+// ── Para las pantallas ──────────────────────────────────────
+
+export type Excepcion = {
+  clave: string; nivel: "familia" | "producto"; familia_id: number | null; producto_id: number | null;
+  nombre: string; sku: string | null; tachado_pct: number | null;
+  planes: Record<string, { activo: boolean | null; min: number | null; margen: number | null }>;
+};
+
+/** Las excepciones (categoría o producto) de un canal, con su tachado y sus planes. */
+export async function excepcionesCanal(org: string, canal: number): Promise<Excepcion[]> {
+  const filas = await consulta<Omit<Excepcion, "clave">>(`
+    with k as (
+      select nivel, familia_id, producto_id from ml_regla_precio where organizacion_id = $1 and canal_id = $2 and nivel <> 'general'
+      union
+      select nivel, familia_id, producto_id from ml_plan_config where organizacion_id = $1 and canal_id = $2 and nivel <> 'general')
+    select k.nivel, k.familia_id::int, k.producto_id::int, coalesce(f.nombre, p.titulo, '—') nombre, p.sku_base sku,
+           (select tachado_pct::float8 from ml_regla_precio r where r.canal_id = $2 and r.nivel = k.nivel
+               and r.familia_id is not distinct from k.familia_id and r.producto_id is not distinct from k.producto_id) tachado_pct,
+           coalesce((select jsonb_object_agg(c.plan, jsonb_build_object('activo', c.activo, 'min', c.precio_minimo, 'margen', c.margen_pct))
+              from ml_plan_config c where c.canal_id = $2 and c.nivel = k.nivel
+               and c.familia_id is not distinct from k.familia_id and c.producto_id is not distinct from k.producto_id), '{}') planes
+      from k left join familia f on f.id = k.familia_id left join producto p on p.id = k.producto_id
+     order by k.nivel, coalesce(f.nombre, p.sku_base)`, [org, canal]);
+  return filas.map((f) => ({ ...f, clave: f.nivel === "familia" ? `f${f.familia_id}` : `p${f.producto_id}` }));
+}
+
+export type RangoVolumen = {
+  id: number; nivel: "general" | "familia" | "producto"; familia_id: number | null; producto_id: number | null; nombre: string | null; sku: string | null;
+  desde_precio: number; hasta_precio: number | null; escalones: { cantidad: number; pct: number }[]; sin_descuento: boolean;
+};
+
+export async function volumenCanal(org: string, canal: number): Promise<RangoVolumen[]> {
+  return consulta<RangoVolumen>(`
+    select v.id::int, v.nivel, v.familia_id::int, v.producto_id::int, coalesce(f.nombre, p.titulo) nombre, p.sku_base sku,
+           v.desde_precio::float8, v.hasta_precio::float8, v.escalones, v.sin_descuento
+      from ml_volumen_escala v left join familia f on f.id = v.familia_id left join producto p on p.id = v.producto_id
+     where v.organizacion_id = $1 and v.canal_id = $2
+     order by case v.nivel when 'general' then 0 when 'familia' then 1 else 2 end, coalesce(f.nombre, p.sku_base), v.desde_precio`, [org, canal]);
+}
+
+/** Los destacados que dejaron de ganar. */
+export async function alertasCanal(org: string, canal: number) {
+  return consulta<{ variacion_id: number; producto_id: number; sku: string; titulo: string; plan: string; item_id: string; precio: number; alerta: string; verificado_ts: Date | null }>(`
+    select d.variacion_id::int, v.producto_id::int, v.sku, titulo_variacion(v.id) titulo, d.plan, d.item_id, d.precio::float8, d.alerta, d.verificado_ts
+      from ml_plan_destacado d join variacion v on v.id = d.variacion_id
+     where d.organizacion_id = $1 and d.canal_id = $2 and d.alerta is not null order by v.sku`, [org, canal]);
+}
+
+/** Lo que cuenta cada pestaña. */
+export async function cuentasCanal(org: string, canal: number) {
+  return (await una<{ excepciones: number; volumen: number; alertas: number }>(`
+    select (select count(*) from (
+              select nivel, familia_id, producto_id from ml_regla_precio where organizacion_id = $1 and canal_id = $2 and nivel <> 'general'
+              union select nivel, familia_id, producto_id from ml_plan_config where organizacion_id = $1 and canal_id = $2 and nivel <> 'general') k)::int excepciones,
+           (select count(*) from ml_volumen_escala where organizacion_id = $1 and canal_id = $2)::int volumen,
+           (select count(*) from ml_plan_destacado where organizacion_id = $1 and canal_id = $2 and alerta is not null)::int alertas`, [org, canal]))!;
+}
+
+/** El producto de un SKU (para las excepciones por producto). */
+export async function productoPorSku(org: string, sku: string | null): Promise<number> {
+  if (!sku) throw new ErrorErp("Escribí el SKU del producto.");
+  const p = await una<{ id: number }>(`
+    select p.id::int from producto p where p.organizacion_id = $1 and lower(p.sku_base) = lower($2)
+    union all
+    select v.producto_id::int from variacion v where v.organizacion_id = $1 and lower(v.sku) = lower($2)
+    limit 1`, [org, sku.trim()]);
+  if (!p) throw new ErrorErp(`No hay ningún producto con el SKU ${sku}.`);
+  return p.id;
+}

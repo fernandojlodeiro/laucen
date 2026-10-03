@@ -4,13 +4,18 @@
 // notificaciones que hayan quedado, trae órdenes y preguntas perdidas y
 // encola los ajustes de stock; después de contestar, manda lo que haya en la
 // cola de ML (también la manda /api/erp/tareas; el turno por canal evita que
-// se pisen).
+// se pisen). En paralelo, los precios de ML (lib/precios-ml/): las lecturas
+// de precio para ganar y campañas (sólo lectura) y, en los canales con
+// "Sincronizar precios" prendido, lo automático (precios que cambiaron y una
+// pasada entera por noche).
 
 import { after } from "next/server";
 import { pool } from "@/db";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { barrido } from "@/lib/mercadolibre/procesar";
 import { procesarCola } from "@/lib/mercadolibre/cola";
+import { leerPreciosMl } from "@/lib/precios-ml/lectura";
+import { vueltaAutomatica } from "@/lib/precios-ml/preparar";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -23,12 +28,25 @@ export async function GET(req: Request) {
   const t0 = Date.now();
   const informe = await barrido(t0 + 80_000);
   after(async () => {
-    try {
-      const resto = t0 + 110_000 - Date.now();
-      if (resto > 10_000) console.log("[meli] cola", JSON.stringify(await procesarCola(t0 + 110_000)));
-    } catch (e) {
-      console.error("[meli] cola", e instanceof Error ? e.message : e);
-    }
+    await Promise.all([
+      (async () => {
+        try {
+          const resto = t0 + 110_000 - Date.now();
+          if (resto > 10_000) console.log("[meli] cola", JSON.stringify(await procesarCola(t0 + 110_000)));
+        } catch (e) {
+          console.error("[meli] cola", e instanceof Error ? e.message : e);
+        }
+      })(),
+      (async () => {
+        try {
+          const auto = await vueltaAutomatica();
+          if (Object.keys(auto).length) console.log("[meli] precios automáticos", JSON.stringify(auto));
+          if (t0 + 105_000 - Date.now() > 10_000) console.log("[meli] lecturas de precios", JSON.stringify(await leerPreciosMl(t0 + 105_000, { tanda: 1000 })));
+        } catch (e) {
+          console.error("[meli] precios", e instanceof Error ? e.message : e);
+        }
+      })(),
+    ]);
   });
   return Response.json({ ok: true, segundos: Math.round((Date.now() - t0) / 1000), informe });
 }

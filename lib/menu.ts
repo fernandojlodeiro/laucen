@@ -46,6 +46,8 @@ export const MENU: SeccionMenu[] = [
       { texto: "Productos", href: "/catalogo/productos", permiso: "productos_ver", icono: "📦" },
       { texto: "Familias", href: "/catalogo/familias", permiso: "familias_ver" },
       { texto: "Listas de precios", href: "/catalogo/precios", permiso: "precios_ver" },
+      { texto: "Precios en Mercado Libre", href: "/catalogo/precios-ml", permiso: "precios_ml_ver" },
+      { texto: "Vista previa de precios ML", href: "/catalogo/precios-ml/vista-previa", permiso: "precios_ml_ver" },
       { texto: "Publicaciones", href: "/catalogo/publicaciones", permiso: "publicaciones_ver" },
       { texto: "Vincular con Mercado Libre", href: "/catalogo/publicaciones/ml", permiso: "publicaciones_ver" },
     ],

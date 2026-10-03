@@ -27,6 +27,7 @@ export type PermisoKey =
   | "productos_ver"
   | "familias_ver"
   | "precios_ver"
+  | "precios_ml_ver"
   | "publicaciones_ver"
   | "cucardas_ver"
   | "depositos_ver"
@@ -70,6 +71,7 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "productos_ver", label: "Productos", ayuda: "Productos, variaciones, kits, fotos y cucardas." },
   { key: "familias_ver", label: "Familias", ayuda: "Familias de productos y lo que heredan sus productos." },
   { key: "precios_ver", label: "Listas de precios", ayuda: "Listas de precios y precios por variación." },
+  { key: "precios_ml_ver", label: "Precios en Mercado Libre", ayuda: "Tachado, planes de cuotas, márgenes, descuento por volumen y la vista previa para preparar los cambios en ML." },
   { key: "publicaciones_ver", label: "Publicaciones", ayuda: "Publicaciones de cada variación en cada canal." },
   { key: "cucardas_ver", label: "Cucardas", ayuda: "Las cucardas (nuevo, novedad, última unidad…)." },
   { key: "depositos_ver", label: "Depósitos y ubicaciones", ayuda: "Depósitos y sus ubicaciones." },
@@ -125,7 +127,7 @@ export const PRESETS: Record<PresetKey, { label: string; descripcion: string; pe
  *  Sólo un `false` explícito la apaga. */
 export const FUNCIONES: PermisoKey[] = [
   "radar_ver", "importaciones_ver",
-  "panel_ver", "pedidos_ver", "clientes_ver", "productos_ver", "familias_ver", "precios_ver",
+  "panel_ver", "pedidos_ver", "clientes_ver", "productos_ver", "familias_ver", "precios_ver", "precios_ml_ver",
   "publicaciones_ver", "cucardas_ver", "depositos_ver", "stock_ver", "stock_ajustar", "canales_ver",
   "tipo_cambio_ver", "usuarios_ver", "importar_ver", "proveedores_ver",
   "envios_ver", "preguntas_ver", "picking_ver", "recepcion_ver", "etiquetas_ver", "facturacion_ver",

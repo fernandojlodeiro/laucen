@@ -19,6 +19,8 @@ const n = (x: unknown) => Number(x).toLocaleString("es-AR");
 /** "Pausar", "Cantidad 5", "Cantidad 4 y activar", "Precio $ 1.500"… */
 export function describirCambio(tipo: string, p: Record<string, unknown> | null | undefined): string {
   if (!p) return "—";
+  // Lo que arma quien preparó el cambio, ya en criollo (ej. precios en ML).
+  if (typeof p.descripcion === "string" && p.descripcion) return p.descripcion;
   const partes: string[] = [];
   if (p.cantidad != null) partes.push(`cantidad ${n(p.cantidad)}`);
   if (p.estado) partes.push(p.estado === "paused" ? "pausar" : p.estado === "active" ? "activar" : p.estado === "closed" ? "cerrar" : String(p.estado));
@@ -36,5 +38,6 @@ export function describirAntes(p: Record<string, unknown> | null | undefined): s
   if (p.estado) partes.push(ESTADO_ML[String(p.estado)] ?? String(p.estado));
   if (p.cantidad != null) partes.push(`${n(p.cantidad)} u.`);
   if (p.precio != null) partes.push(`$ ${n(p.precio)}`);
+  if (Array.isArray(p.escalones)) partes.push(p.escalones.length ? `volumen ${p.escalones.map((e: { cantidad: number; precio: number }) => `${e.cantidad}+ $ ${n(e.precio)}`).join(", ")}` : "sin volumen");
   return partes.join(", ") || "—";
 }

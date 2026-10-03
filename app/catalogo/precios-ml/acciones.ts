@@ -1,0 +1,184 @@
+"use server";
+
+// Acciones de "Precios en Mercado Libre": las reglas (tachado, planes,
+// márgenes, excepciones, volumen), los interruptores del canal y "Preparar
+// cambios", que arma lotes preparados: nada sale a ML hasta que Fer aprieta
+// "Mandar a Mercado Libre" en la cola (AGENTS.md).
+
+import { revalidatePath } from "next/cache";
+import { entrarErp } from "@/app/componentes/erp";
+import { intentar, id, texto, numero, entero, tildado } from "@/lib/erp/acciones";
+import { ErrorErp, consulta } from "@/lib/erp/base";
+import {
+  guardarTachado, guardarPlan, borrarExcepcion, guardarVolumen, borrarVolumen, replicarVolumen, fijarInterruptor, productoPorSku, canalMl,
+  type Donde,
+} from "@/lib/precios-ml/datos";
+import { prepararCambios, sincronizarPreciosMl } from "@/lib/precios-ml/preparar";
+import { PLANES } from "@/lib/precios-ml/motor";
+import { BASE_PML, PREVIA } from "./lista";
+
+const volver = (fd: FormData, base = BASE_PML) => {
+  const v = texto(fd, "volver");
+  return v && v.startsWith(BASE_PML) ? v : base;
+};
+const sinEditar = (v: string) => {
+  const [b, q = ""] = v.split("?");
+  const p = new URLSearchParams(q);
+  p.delete("editar"); p.delete("nuevo");
+  const s = p.toString();
+  return s ? `${b}?${s}` : b;
+};
+
+/** Si el canal sincroniza precios solo, lo que cambió de las reglas se encola ya. */
+async function siAutomatico(org: string, canal: number): Promise<string> {
+  const c = await canalMl(org, canal);
+  if (!c.sincronizarPrecios) return "";
+  const r = await sincronizarPreciosMl(org, { canal });
+  return r.encoladas ? ` «Sincronizar precios» está prendido: ${r.encoladas} cambio${r.encoladas === 1 ? "" : "s"} a la cola de ML.` : "";
+}
+
+/** De dónde es la excepción del formulario: categoría o producto (por SKU). */
+async function dondeDe(org: string, fd: FormData): Promise<Donde> {
+  const clave = texto(fd, "excepcion");
+  if (clave) {
+    const n = Number(clave.slice(1));
+    if (clave[0] === "f" && n > 0) return { nivel: "familia", familiaId: n };
+    if (clave[0] === "p" && n > 0) return { nivel: "producto", productoId: n };
+  }
+  const nivel = texto(fd, "nivel");
+  if (nivel === "general") return { nivel: "general" };
+  if (nivel === "familia") return { nivel: "familia", familiaId: id(fd, "familia_id") || null };
+  if (nivel === "producto") return { nivel: "producto", productoId: await productoPorSku(org, texto(fd, "sku")) };
+  throw new ErrorErp("Elegí a qué se aplica: una categoría o un producto.");
+}
+
+const activoDe = (fd: FormData, k: string): boolean | null => {
+  const v = fd.get(k);
+  return v === "si" ? true : v === "no" ? false : null;
+};
+
+/** La caja general del canal: tachado y los planes (activo, mínimo, margen, cuotas que ve el comprador). */
+export async function accionGuardarGeneral(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  const canal = id(fd, "canal");
+  const v = volver(fd);
+  await intentar(sinEditar(v), async () => {
+    await guardarTachado(s.org.id, canal, { nivel: "general" }, numero(fd, "tachado_pct") ?? 0);
+    for (const p of PLANES) {
+      await guardarPlan(s.org.id, canal, p, { nivel: "general" }, {
+        activo: tildado(fd, `${p}_activo`), precioMinimo: numero(fd, `${p}_min`), margenPct: numero(fd, `${p}_margen`), cuotasVisibles: entero(fd, `${p}_cuotas`),
+      });
+    }
+    revalidatePath(BASE_PML);
+    return `Grabado.${await siAutomatico(s.org.id, canal)}`;
+  });
+}
+
+/** Alta o cambio de una excepción (categoría o producto): tachado y planes; vacío = hereda. */
+export async function accionGuardarExcepcion(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  const canal = id(fd, "canal");
+  const v = volver(fd);
+  await intentar(sinEditar(v), async () => {
+    const d = await dondeDe(s.org.id, fd);
+    if (d.nivel === "general") throw new ErrorErp("Elegí una categoría o un producto.");
+    await guardarTachado(s.org.id, canal, d, numero(fd, "tachado_pct"));
+    for (const p of PLANES) {
+      await guardarPlan(s.org.id, canal, p, d, { activo: activoDe(fd, `${p}_activo`), precioMinimo: numero(fd, `${p}_min`), margenPct: numero(fd, `${p}_margen`) });
+    }
+    revalidatePath(BASE_PML);
+    return `Grabado.${await siAutomatico(s.org.id, canal)}`;
+  });
+}
+
+export async function accionBorrarExcepcion(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  const canal = id(fd, "canal");
+  await intentar(volver(fd), async () => {
+    await borrarExcepcion(s.org.id, canal, await dondeDe(s.org.id, fd));
+    revalidatePath(BASE_PML);
+    return `Borrada: vuelve a heredar.${await siAutomatico(s.org.id, canal)}`;
+  });
+}
+
+/** Alta o cambio de un rango de descuento por volumen (hasta 5 escalones). */
+export async function accionGuardarVolumen(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  const canal = id(fd, "canal");
+  const v = volver(fd);
+  await intentar(sinEditar(v), async () => {
+    const fila = id(fd, "id") || null;
+    const d: Donde = fila ? { nivel: "general" } : await dondeDe(s.org.id, fd);
+    const escalones = [1, 2, 3, 4, 5].map((i) => ({ cantidad: entero(fd, `cant${i}`) ?? 0, pct: numero(fd, `pct${i}`) ?? 0 })).filter((e) => e.cantidad || e.pct);
+    if (escalones.some((e) => !(e.cantidad >= 2) || !(e.pct > 0 && e.pct <= 90))) throw new ErrorErp("Cada escalón lleva una cantidad desde 2 y un % entre 0 y 90.");
+    if (fila) {
+      // El nivel no cambia al editar: se graba sobre la misma fila.
+      const [f] = await consulta<{ nivel: Donde["nivel"]; familia_id: number | null; producto_id: number | null }>(
+        "select nivel, familia_id::int, producto_id::int from ml_volumen_escala where id = $1 and organizacion_id = $2", [fila, s.org.id]);
+      if (!f) throw new ErrorErp("Ese rango ya no existe.");
+      await guardarVolumen(s.org.id, canal, { nivel: f.nivel, familiaId: f.familia_id, productoId: f.producto_id },
+        { desde: numero(fd, "desde") ?? 0, hasta: numero(fd, "hasta"), escalones, sinDescuento: tildado(fd, "sin_descuento") }, fila);
+    } else {
+      await guardarVolumen(s.org.id, canal, d, { desde: numero(fd, "desde") ?? 0, hasta: numero(fd, "hasta"), escalones, sinDescuento: tildado(fd, "sin_descuento") });
+    }
+    revalidatePath(BASE_PML);
+    return `Grabado.${await siAutomatico(s.org.id, canal)}`;
+  });
+}
+
+export async function accionBorrarVolumen(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  await intentar(volver(fd), async () => {
+    await borrarVolumen(s.org.id, id(fd, "id"));
+    revalidatePath(BASE_PML);
+    return "Borrado.";
+  });
+}
+
+export async function accionReplicarVolumen(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  await intentar(volver(fd), async () => {
+    const n = await replicarVolumen(s.org.id, id(fd, "canal"));
+    revalidatePath(BASE_PML);
+    return n ? `Copiado a ${n} cuenta${n === 1 ? "" : "s"} más (reemplazó lo que tenía${n === 1 ? "" : "n"}).` : "No hay otras cuentas de Mercado Libre.";
+  });
+}
+
+const INTERRUPTORES = { sincronizar_precios: true, leer_precio_ganar: true, volumen_regla_stock: true } as const;
+
+/** Prende o apaga un interruptor del canal. Prender "Sincronizar precios" es
+ *  el clic de Fer que deja salir lo automático (AGENTS.md). */
+export async function accionInterruptor(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  const canal = id(fd, "canal");
+  const clave = texto(fd, "clave");
+  await intentar(volver(fd), async () => {
+    if (!clave || !Object.hasOwn(INTERRUPTORES, clave)) throw new ErrorErp("Ese interruptor no existe.");
+    const prender = fd.get("valor") === "1";
+    await fijarInterruptor(s.org.id, canal, clave as keyof typeof INTERRUPTORES, prender);
+    revalidatePath(BASE_PML);
+    if (clave === "sincronizar_precios") {
+      if (!prender) return "Apagado: Laucen ya no manda precios solo a esta cuenta (lo preparado sigue esperando tu clic).";
+      const r = await sincronizarPreciosMl(s.org.id, { canal });
+      return `Prendido. Primera pasada: ${r.revisadas} variaciones revisadas, ${r.encoladas} cambios a la cola de ML (salen solos; las publicaciones nuevas de planes siempre esperan tu clic).`;
+    }
+    if (clave === "leer_precio_ganar") return prender ? "Prendido: Laucen lee el precio para ganar y las campañas de esta cuenta (sólo lectura)." : "Apagado: no se lee más el precio para ganar de esta cuenta.";
+    return prender ? "Prendido: un escalón de volumen sólo si hay stock para su cantidad." : "Apagado: los escalones van aunque no haya stock para la cantidad.";
+  });
+}
+
+/** "Preparar cambios": arma los lotes con el filtro de la vista previa. */
+export async function accionPrepararCambios(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  const canal = id(fd, "canal");
+  await intentar(volver(fd, PREVIA), async () => {
+    const lotes = await prepararCambios(s.org.id, canal, {
+      familia: id(fd, "familia") || null, q: texto(fd, "q"), comienza: fd.get("contiene") !== "1",
+    }, s.usuario.id, { precios: fd.get("precios") !== "0", volumen: fd.get("volumen") !== "0", crear: fd.get("crear") !== "0" });
+    if (!lotes.length) return "No hay nada para cambiar: todo está como tiene que estar.";
+    return {
+      ir: `/config/canales/cola?ver=lotes&lote=${lotes[0].id}&ok=${encodeURIComponent(
+        `Preparado, falta tu clic: ${lotes.map((l) => l.descripcion).join("; ")}. Revisá cada lote y apretá «Mandar a Mercado Libre».`)}`,
+    };
+  });
+}
