@@ -6,6 +6,7 @@ import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, numero, id, tildado } from "@/lib/erp/acciones";
 
 const VOLVER = "/catalogo/familias";
+const DE_ML = "Es una categoría de Mercado Libre: no se cambia ni se borra.";
 
 function leerDescuento(fd: FormData) {
   const n = numero(fd, "descuento_pct");
@@ -13,14 +14,22 @@ function leerDescuento(fd: FormData) {
   return n;
 }
 
-/** El padre elegido, verificado: que sea de la organización y que la familia
- *  no quede como su propia ancestra (subiendo desde el padre no tiene que
- *  aparecer ella). */
+/** El padre elegido, verificado: que sea de la organización, que sea propio
+ *  (ni él ni ninguno de arriba viene de Mercado Libre: una familia propia
+ *  cuelga sólo de una raíz propia) y que la familia no quede como su propia
+ *  ancestra (subiendo desde el padre no tiene que aparecer ella). */
 async function padreValido(org: string, padre: number, familia: number | null) {
   if (!padre) return null;
   if (padre === familia) throw new ErrorErp("Una familia no puede ser su propio padre.");
   const ok = await una("select 1 from familia where id = $2 and organizacion_id = $1", [org, padre]);
   if (!ok) throw new ErrorErp("La familia padre no existe.");
+  const deMl = await una(`
+    with recursive arriba as (
+      select id, padre_id, ml_categoria, 0 nivel from familia where id = $2 and organizacion_id = $1
+      union all
+      select f.id, f.padre_id, f.ml_categoria, a.nivel + 1 from familia f join arriba a on f.id = a.padre_id where a.nivel < 50
+    ) select 1 from arriba where ml_categoria is not null limit 1`, [org, padre]);
+  if (deMl) throw new ErrorErp("Las categorías de Mercado Libre no se tocan: una familia propia va arriba de todo o dentro de otra propia.");
   if (familia) {
     const circulo = await una(`
       with recursive arriba as (
@@ -39,8 +48,8 @@ export async function accionCrearFamilia(fd: FormData) {
     const nombre = texto(fd, "nombre");
     if (!nombre) throw new ErrorErp("La familia necesita un nombre.");
     const padre = await padreValido(s.org.id, id(fd, "padre_id"), null);
-    await consulta("insert into familia (organizacion_id, nombre, descripcion, padre_id, descuento_pct) values ($1, $2, $3, $4, $5)",
-      [s.org.id, nombre, texto(fd, "descripcion"), padre, leerDescuento(fd)]);
+    await consulta("insert into familia (organizacion_id, nombre, padre_id, descuento_pct) values ($1, $2, $3, $4)",
+      [s.org.id, nombre, padre, leerDescuento(fd)]);
     revalidatePath(VOLVER);
     return "Familia creada.";
   });
@@ -50,16 +59,17 @@ export async function accionGuardarFamilia(fd: FormData) {
   const s = await entrarErp("familias_ver");
   await intentar(VOLVER, async () => {
     const fid = id(fd);
-    const existe = await una("select 1 from familia where id = $2 and organizacion_id = $1", [s.org.id, fid]);
+    const existe = await una<{ ml_categoria: string | null }>("select ml_categoria from familia where id = $2 and organizacion_id = $1", [s.org.id, fid]);
     if (!existe) throw new ErrorErp("Esa familia no existe.");
+    if (existe.ml_categoria) throw new ErrorErp(DE_ML);
     const nombre = texto(fd, "nombre");
     if (!nombre) throw new ErrorErp("La familia necesita un nombre.");
     const padre = await padreValido(s.org.id, id(fd, "padre_id"), fid);
     const descuento = leerDescuento(fd);
     const cucardas = await consulta<{ id: number }>("select id::int from cucarda where organizacion_id = $1", [s.org.id]);
     await enTransaccion(async (c) => {
-      await c.query("update familia set nombre = $3, descripcion = $4, padre_id = $5, descuento_pct = $6 where id = $2 and organizacion_id = $1",
-        [s.org.id, fid, nombre, texto(fd, "descripcion"), padre, descuento]);
+      await c.query("update familia set nombre = $3, padre_id = $4, descuento_pct = $5 where id = $2 and organizacion_id = $1",
+        [s.org.id, fid, nombre, padre, descuento]);
       // Cucardas de la familia: las tildadas se cargan (con su vigencia), las
       // destildadas se sacan.
       for (const { id: cid } of cucardas) {
@@ -89,6 +99,9 @@ const fecha = (fd: FormData, k: string) => {
 export async function accionBorrarFamilia(fd: FormData) {
   const s = await entrarErp("familias_ver");
   await intentar(VOLVER, async () => {
+    const f = await una<{ ml_categoria: string | null }>("select ml_categoria from familia where id = $2 and organizacion_id = $1", [s.org.id, id(fd)]);
+    if (!f) throw new ErrorErp("Esa familia no existe.");
+    if (f.ml_categoria) throw new ErrorErp(DE_ML);
     await consulta("delete from familia where id = $2 and organizacion_id = $1", [s.org.id, id(fd)]);
     revalidatePath(VOLVER);
     return "Familia borrada.";

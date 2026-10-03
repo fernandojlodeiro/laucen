@@ -11,7 +11,7 @@ import { MENU } from "@/lib/menu";
 import { sosVos } from "@/lib/admin";
 import { PRIMARIO, SUAVE, VERDE, APAGAR } from "@/app/botones";
 import { TachoConfirmar, BotonConfirmar } from "@/app/radar/Cliente";
-import AltaNueva from "@/app/componentes/AltaNueva";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import {
   entrarErp, Pantalla, Avisos, Estado, Lapiz, url, coincideBusqueda, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
@@ -77,7 +77,33 @@ export default async function Usuarios({ searchParams }: { searchParams: Promise
   return (
     <Pantalla titulo="Usuarios y roles" subtitulo="Quién está en la organización y qué puede hacer cada rol" ancho="max-w-5xl"
       acciones={puedeEditar && (
-        <AltaNueva texto="Nuevo rol">
+        <>
+          {roles.length > 0 && <BotonNuevo texto="Invitar persona" />}
+          <BotonNuevo texto="Nuevo rol" />
+        </>
+      )}>
+      <Avisos sp={sp} />
+      {puedeEditar && roles.length > 0 && (
+        <AltaNueva texto="Invitar persona" sinBoton>
+          <form action={accionInvitar} className="flex flex-wrap items-end gap-2">
+            <label><span className={ETIQUETA}>Mail</span><input name="email" type="email" placeholder="nombre@mail.com" className={`${CAMPO} w-60`} autoFocus /></label>
+            <label><span className={ETIQUETA}>Nombre (opcional)</span><input name="nombre" className={`${CAMPO} w-44`} /></label>
+            <label>
+              <span className={ETIQUETA}>Rol</span>
+              <select name="rol" defaultValue={rolDefecto} className={CAMPO}>
+                {roles.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+              </select>
+            </label>
+            <button className={PRIMARIO}>Invitar</button>
+          </form>
+          <p className="text-[11px] text-[#5C6B76] mt-2">
+            No sale ningún mail: avisale vos. Tiene que registrarse en {process.env.NEXT_PUBLIC_SITE_URL ? `${process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "")}/registro` : "la pantalla de registro"} con
+            este mismo mail (en «Organización» puede poner cualquier cosa: no se usa, entra a ésta). Si ya tiene cuenta, entra como siempre y queda adentro.
+          </p>
+        </AltaNueva>
+      )}
+      {puedeEditar && (
+        <AltaNueva texto="Nuevo rol" sinBoton>
           <form action={accionCrearRol} className="flex flex-wrap items-end gap-2">
             <label><span className={ETIQUETA}>Nombre</span><input name="nombre" placeholder="Ej. Depósito" className={`${CAMPO} w-48`} autoFocus /></label>
             <label>
@@ -90,8 +116,7 @@ export default async function Usuarios({ searchParams }: { searchParams: Promise
             <button className={PRIMARIO}>Crear</button>
           </form>
         </AltaNueva>
-      )}>
-      <Avisos sp={sp} />
+      )}
       {!puedeEditar && (
         <p className="text-xs rounded-lg px-3 py-2 mb-4 bg-[#EEF3F8] text-[#16577F]">Podés mirar; para cambiar usuarios y roles hace falta el permiso «Gestionar equipo».</p>
       )}
@@ -156,26 +181,6 @@ export default async function Usuarios({ searchParams }: { searchParams: Promise
           </tbody>
         </table>
       </div>
-      {puedeEditar && roles.length > 0 && (
-        <AltaNueva texto="Invitar persona" className="mb-6">
-          <form action={accionInvitar} className="flex flex-wrap items-end gap-2">
-            <label><span className={ETIQUETA}>Mail</span><input name="email" type="email" placeholder="nombre@mail.com" className={`${CAMPO} w-60`} autoFocus /></label>
-            <label><span className={ETIQUETA}>Nombre (opcional)</span><input name="nombre" className={`${CAMPO} w-44`} /></label>
-            <label>
-              <span className={ETIQUETA}>Rol</span>
-              <select name="rol" defaultValue={rolDefecto} className={CAMPO}>
-                {roles.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
-              </select>
-            </label>
-            <button className={PRIMARIO}>Invitar</button>
-          </form>
-          <p className="text-[11px] text-[#5C6B76] mt-2">
-            No sale ningún mail: avisale vos. Tiene que registrarse en {process.env.NEXT_PUBLIC_SITE_URL ? `${process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "")}/registro` : "la pantalla de registro"} con
-            este mismo mail (en «Organización» puede poner cualquier cosa: no se usa, entra a ésta). Si ya tiene cuenta, entra como siempre y queda adentro.
-          </p>
-        </AltaNueva>
-      )}
-
       <h2 className="text-sm font-bold mb-2 mt-6">Roles y permisos</h2>
       <p className="text-[11px] text-[#5C6B76] mb-2">
         Cada rol tiene sus permisos como cajas para tildar. Una función del menú que un rol todavía no tiene cargada cuenta como prendida (y se ve tildada).

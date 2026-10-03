@@ -2,6 +2,7 @@
 // a la pantalla con un aviso (?ok=… o ?error=… ya en criollo).
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { leerNumero } from "@/lib/numeros";
 import { motivoErp } from "@/lib/erp/base";
 
@@ -37,7 +38,28 @@ export async function intentar(volver: string, fn: () => Promise<string | { ok: 
     const r = await fn();
     destino = typeof r === "string" ? conAviso(volver, "ok", r) : r && "ir" in r ? r.ir : r && "ok" in r ? conAviso(volver, "ok", r.ok) : volver;
   } catch (e) {
-    destino = conAviso(volver, "error", motivoErp(e));
+    destino = await conAltaAbierta(conAviso(volver, "error", motivoErp(e)));
   }
   redirect(destino);
+}
+
+/** Si el alta falló, el formulario sigue abierto con el error (AGENTS.md:
+ *  el alta va detrás de "Nuevo …", y su estado está en ?nuevo=). Se toma de
+ *  la pantalla desde la que se mandó (la dirección de origen del pedido),
+ *  siempre que se vuelva a esa misma pantalla. Vale para todas las acciones
+ *  sin tocar cada formulario. */
+async function conAltaAbierta(destino: string): Promise<string> {
+  try {
+    const origen = (await headers()).get("referer");
+    if (!origen) return destino;
+    const de = new URL(origen);
+    const nuevo = de.searchParams.get("nuevo");
+    const [base, query = ""] = destino.split("?");
+    if (!nuevo || de.pathname !== base) return destino;
+    const p = new URLSearchParams(query);
+    if (!p.has("nuevo")) p.set("nuevo", nuevo);
+    return `${base}?${p}`;
+  } catch {
+    return destino;
+  }
 }

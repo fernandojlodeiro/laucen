@@ -12,15 +12,14 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA, coincideBusqueda,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA, coincideBusqueda,
 } from "@/app/componentes/erp";
-import { ordenarArbol } from "@/app/catalogo/productos/comun";
+import { familiasConDatos } from "./datos";
 import { accionBorrarFamilia, accionCrearFamilia, accionGuardarFamilia } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
 type SP = { editar?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
-type Fila = { id: number; padre_id: number | null; nombre: string; descripcion: string | null; descuento_pct: number | null; productos: number };
 type CucardaFamilia = { familia_id: number; cucarda_id: number; desde: string | null; hasta: string | null };
 
 const pct = (n: number) => `${formatearNumero(n, "pct")} %`;
@@ -33,46 +32,22 @@ export default async function Familias({ searchParams }: { searchParams: Promise
   const q = sp.q?.trim() ?? "";
   const comienza = sp.contiene !== "1";
   const filtros = { q: q || null, contiene: comienza ? null : "1", p: sp.p, orden: sp.orden, dir: sp.dir };
-  const [filas, cucardas, asignadas] = await Promise.all([
-    consulta<Fila>(`
-      select f.id::int, f.padre_id::int, f.nombre, f.descripcion, f.descuento_pct::float8,
-             (select count(*) from producto p where p.familia_id = f.id)::int productos
-        from familia f where f.organizacion_id = $1`, [s.org.id]),
+  const [{ arbol, debajo }, cucardas, asignadas] = await Promise.all([
+    familiasConDatos(s.org.id),
     consulta<{ id: number; nombre: string; color: string; estado: string }>(
       "select id::int, nombre, color, estado from cucarda where organizacion_id = $1 order by orden, nombre", [s.org.id]),
     consulta<CucardaFamilia>(`
       select familia_id::int, cucarda_id::int, to_char(desde, 'YYYY-MM-DD') desde, to_char(hasta, 'YYYY-MM-DD') hasta
         from familia_cucarda where organizacion_id = $1`, [s.org.id]),
   ]);
-  const arbol = ordenarArbol(filas);
   // El buscador filtra las filas que se ven; el árbol entero sigue para elegir padre.
   const visibles = arbol.filter((f) => coincideBusqueda(f.nombre, q, comienza));
-  const porId = new Map(filas.map((f) => [f.id, f]));
-
-  /** Descuento que hereda (el de la primera familia de arriba que tenga uno). */
-  const heredado = (f: Fila) => {
-    let p = f.padre_id != null ? porId.get(f.padre_id) : undefined;
-    for (let i = 0; p && i < 50; i++) {
-      if (p.descuento_pct != null) return p.descuento_pct;
-      p = p.padre_id != null ? porId.get(p.padre_id) : undefined;
-    }
-    return 0;
-  };
-  /** Ella y todas las que cuelgan de ella (no pueden ser su padre). */
-  const debajo = (id: number) => {
-    const salida = new Set([id]);
-    let creció = true;
-    while (creció) {
-      creció = false;
-      for (const f of filas) if (f.padre_id != null && salida.has(f.padre_id) && !salida.has(f.id)) { salida.add(f.id); creció = true; }
-    }
-    return salida;
-  };
-  const totalProductos = (id: number) => [...debajo(id)].reduce((t, x) => t + (porId.get(x)?.productos ?? 0), 0);
+  // Una familia propia sólo cuelga de otra propia (nunca de una de Mercado Libre).
+  const padresPosibles = arbol.filter((o) => o.propia);
   const cucardaDe = new Map(cucardas.map((c) => [c.id, c]));
   // Sin elegir columna se ve el árbol; ordenada por una columna, la lista plana.
   const ordenadas = ordenarEnMemoria(visibles, sp, {
-    nombre: (f) => f.nombre, descripcion: (f) => f.descripcion, descuento: (f) => f.descuento_pct ?? heredado(f), productos: (f) => f.productos,
+    nombre: (f) => f.nombre, descuento: (f) => f.descuento_pct ?? f.heredado, productos: (f) => f.productos, origen: (f) => (f.deMl ? 1 : 0),
   });
   const pagina = paginarEnMemoria(ordenadas, sp);
   const plana = ordenadas !== visibles;
@@ -86,7 +61,7 @@ export default async function Familias({ searchParams }: { searchParams: Promise
           <input name="nombre" placeholder="Nombre (ej. Cocina)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
           <select name="padre_id" defaultValue="" className={CAMPO} aria-label="Familia padre">
             <option value="">Sin padre (arriba de todo)</option>
-            {arbol.map((o) => <option key={o.id} value={o.id}>Dentro de {o.etiqueta}</option>)}
+            {padresPosibles.map((o) => <option key={o.id} value={o.id}>Dentro de {o.etiqueta}</option>)}
           </select>
           <CampoNumero name="descuento_pct" valor={null} tipo="pct" placeholder="Desc. %" className={`${CAMPO} w-20`} />
           <button className={PRIMARIO}>Crear</button>
@@ -99,7 +74,7 @@ export default async function Familias({ searchParams }: { searchParams: Promise
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <ThOrden col="nombre">Familia</ThOrden><ThOrden col="descripcion">Descripción</ThOrden><ThOrden col="descuento" n>Descuento</ThOrden><th className={TH}>Cucardas</th>
+              <ThOrden col="nombre">Familia</ThOrden><ThOrden col="origen">Origen</ThOrden><ThOrden col="descuento" n>Descuento</ThOrden><th className={TH}>Cucardas</th>
               <ThOrden col="productos" n title="Propios (con las subfamilias)">Productos</ThOrden><th />
             </tr>
           </thead>
@@ -107,7 +82,7 @@ export default async function Familias({ searchParams }: { searchParams: Promise
             {visibles.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>{q ? "Ninguna familia coincide." : "Todavía no hay familias."}</td></tr>}
             {pagina.map((f) => {
               const suyas = asignadas.filter((a) => a.familia_id === f.id);
-              if (editar === f.id) {
+              if (editar === f.id && !f.deMl) {
                 const excluidas = debajo(f.id);
                 return (
                   <tr key={f.id} className={`${TR} bg-[#FAFBFC]`}>
@@ -119,15 +94,12 @@ export default async function Familias({ searchParams }: { searchParams: Promise
                           <label className="col-span-2"><span className={ETIQUETA}>Familia padre</span>
                             <select name="padre_id" defaultValue={f.padre_id ?? ""} className={`${CAMPO} w-full`}>
                               <option value="">Ninguna (arriba de todo)</option>
-                              {arbol.filter((o) => !excluidas.has(o.id)).map((o) => <option key={o.id} value={o.id}>{o.etiqueta}</option>)}
+                              {padresPosibles.filter((o) => !excluidas.has(o.id)).map((o) => <option key={o.id} value={o.id}>{o.etiqueta}</option>)}
                             </select>
                           </label>
                           <label><span className={ETIQUETA}>Descuento %</span>
-                            <CampoNumero name="descuento_pct" valor={f.descuento_pct} tipo="pct" placeholder={formatearNumero(heredado(f), "pct")} className={`${CAMPO} w-full`} />
-                            <span className="block text-[10px] text-[#5C6B76] mt-0.5">Vacío = hereda: {pct(heredado(f))}.</span>
-                          </label>
-                          <label className="col-span-2 sm:col-span-6"><span className={ETIQUETA}>Descripción</span>
-                            <input name="descripcion" defaultValue={f.descripcion ?? ""} className={`${CAMPO} w-full`} />
+                            <CampoNumero name="descuento_pct" valor={f.descuento_pct} tipo="pct" placeholder={formatearNumero(f.heredado, "pct")} className={`${CAMPO} w-full`} />
+                            <span className="block text-[10px] text-[#5C6B76] mt-0.5">Vacío = hereda: {pct(f.heredado)}.</span>
                           </label>
                         </div>
                         {cucardas.length > 0 && (
@@ -161,7 +133,7 @@ export default async function Familias({ searchParams }: { searchParams: Promise
                   </tr>
                 );
               }
-              const total = totalProductos(f.id);
+              const total = f.totalProductos;
               return (
                 <tr key={f.id} className={TR}>
                   <td className={TD}>
@@ -171,9 +143,9 @@ export default async function Familias({ searchParams }: { searchParams: Promise
                         title={plana ? f.etiqueta : "Ver sus productos"}>{f.nombre}</Link>
                     </span>
                   </td>
-                  <td className={`${TD} text-[#5C6B76]`}>{f.descripcion ?? ""}</td>
+                  <td className={TD}>{f.deMl ? <Estado texto="Mercado Libre" tono="amarillo" /> : <Estado texto="Propia" tono="azul" />}</td>
                   <td className={TDN}>
-                    {f.descuento_pct != null ? pct(f.descuento_pct) : <span className="text-[#5C6B76]" title="Heredado">{pct(heredado(f))}</span>}
+                    {f.descuento_pct != null ? pct(f.descuento_pct) : <span className="text-[#5C6B76]" title="Heredado">{pct(f.heredado)}</span>}
                   </td>
                   <td className={TD}>
                     <span className="flex flex-wrap gap-1">
@@ -190,11 +162,15 @@ export default async function Familias({ searchParams }: { searchParams: Promise
                     {total !== f.productos && <span className="text-[#5C6B76]"> ({total})</span>}
                   </td>
                   <td className={`${TD} text-right whitespace-nowrap`}>
-                    <span className="inline-flex gap-1">
-                      <Lapiz href={url("/catalogo/familias", { ...filtros, editar: f.id })} />
-                      <TachoConfirmar accion={accionBorrarFamilia} campos={{ id: String(f.id) }}
-                        pregunta={f.productos ? `¿Borrar? (${f.productos} quedan sin familia)` : "¿Borrar?"} />
-                    </span>
+                    {f.deMl
+                      ? <span className="text-[10px] text-[#5C6B76]" title="Viene de las categorías de Mercado Libre: no se cambia ni se borra">De ML</span>
+                      : (
+                        <span className="inline-flex gap-1">
+                          <Lapiz href={url("/catalogo/familias", { ...filtros, editar: f.id })} />
+                          <TachoConfirmar accion={accionBorrarFamilia} campos={{ id: String(f.id) }}
+                            pregunta={f.productos ? `¿Borrar? (${f.productos} quedan sin familia)` : "¿Borrar?"} />
+                        </span>
+                      )}
                   </td>
                 </tr>
               );
