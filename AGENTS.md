@@ -94,7 +94,35 @@ Editar y borrar en una lista o tabla:
 
 Altas (pedido de Fer, 2/10): **ningún ABM da de alta algo sin apretar antes un botón "Nuevo …"**.
 El formulario de alta queda escondido hasta ese botón (`app/componentes/AltaNueva.tsx`); nunca un
-campo suelto que parece un buscador y al dar Enter crea un registro.
+campo suelto que parece un buscador y al dar Enter crea un registro. **El botón va arriba a la
+derecha, a la altura del título** (`BotonNuevo` en `acciones` de `Pantalla`; en una sección, al
+lado de su título) y el formulario se abre debajo del encabezado (`<AltaNueva … sinBoton>`; se
+emparejan por el texto, el estado va en `?nuevo=`). Lo mismo los "Nueva factura" que llevan a otra
+pantalla.
+
+Listas de los ABM (pedido de Fer, 3/10):
+- **De a una página** (50 filas) con el paginador abajo: "1–50 de 4.509", Anterior / Siguiente
+  (`?p=`). Nada de topes fijos tipo "se muestran los primeros 300". Buscar o filtrar vuelve a la
+  página 1. Piezas: `consultaPaginada()` / `paginarEnMemoria()` de `lib/lista.ts` y `<Paginado>`
+  de `app/componentes/Lista.tsx`.
+- **Se ordena tocando el título de la columna** (`<ThOrden>`, ▲/▼, `?orden=&dir=`). El SQL sale
+  de una lista blanca columna → expresión (`leerOrden()`): lo que llega por la dirección nunca se
+  pega en el SQL. Sin elegir, el orden de siempre.
+- **Todo dato tiene su enlace**: el SKU o código del producto → su ficha; el cliente → su ficha;
+  el proveedor → su fila (`/compras/proveedores?id=`); el número de pedido → el pedido. Un número
+  que cuenta cosas (productos de una familia, ubicaciones de un depósito, unidades) → la lista de
+  esas cosas filtrada, sólo las activas salvo que se pida.
+- **Al lado de un producto, el 📷** que abre sus fotos (`app/componentes/FotosProducto.tsx`); si
+  no tiene fotos no aparece.
+- **Clientes y proveedores muestran su "N.º"** (el id interno): primera columna y en la ficha.
+
+Camino (pedido de Fer, 3/10): **arriba a la izquierda, sobre el título**, "Stock › Depósitos y
+ubicaciones › A127-26"; cada parte se toca para volver a ese nivel. Sección y pantalla salen
+solas de `lib/menu.ts` (`Pantalla` dibuja `app/componentes/Camino.tsx`); una ficha suma sus
+partes con `camino={[…]}`. Nada de links "← Volver" sueltos arriba.
+
+Llaves y tokens: **nunca se muestran** en una pantalla (ni pedazos): sólo si hay o no. La llave
+API de un canal se ve completa una sola vez, al generarla.
 
 Buscadores (pedido de Fer, 2/10):
 - **Todo ABM tiene su buscador.**

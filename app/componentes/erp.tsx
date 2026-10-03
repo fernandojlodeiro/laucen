@@ -11,6 +11,7 @@ import { sesionRequerida, type Sesion } from "@/lib/tenancy";
 import { tienePermiso, type PermisoKey } from "@/lib/permisos";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { monedaVista, type Moneda } from "@/lib/moneda";
+import Camino, { type Paso } from "@/app/componentes/Camino";
 
 /** Entrada común a toda pantalla del ERP: tablas aseguradas, sesión, permiso
  *  de la función (si falta, vuelve al panel) y la moneda en que ve el usuario. */
@@ -22,13 +23,17 @@ export async function entrarErp(permiso: PermisoKey): Promise<Sesion & { moneda:
   return { ...sesion, moneda };
 }
 
-export function Pantalla({ titulo, subtitulo, acciones, children, ancho = "max-w-6xl" }: {
-  titulo: React.ReactNode; subtitulo?: React.ReactNode; acciones?: React.ReactNode; children: React.ReactNode; ancho?: string;
+/** El encabezado de toda pantalla: el camino arriba a la izquierda (sección ›
+ *  pantalla, de lib/menu.ts; una ficha suma sus partes en `camino`), el
+ *  título, y a la derecha las acciones (el botón "Nuevo …" va acá). */
+export function Pantalla({ titulo, subtitulo, acciones, camino, children, ancho = "max-w-6xl" }: {
+  titulo: React.ReactNode; subtitulo?: React.ReactNode; acciones?: React.ReactNode; camino?: Paso[]; children: React.ReactNode; ancho?: string;
 }) {
   return (
     <main className={`${ancho} mx-auto p-4 sm:p-6`}>
-      <header className="flex flex-wrap items-start justify-between gap-2 mb-4">
+      <header className="flex flex-wrap items-end justify-between gap-2 mb-4">
         <div>
+          <Camino extra={camino} />
           <h1 className="text-lg font-bold">{titulo}</h1>
           {subtitulo && <p className="text-xs text-[#5C6B76]">{subtitulo}</p>}
         </div>

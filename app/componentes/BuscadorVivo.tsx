@@ -8,11 +8,14 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
-/** Cambia un parámetro de la dirección sin recargar la página entera. */
+/** Cambia un parámetro de la dirección sin recargar la página entera. Todo
+ *  cambio de búsqueda o filtro vuelve a la primera página (saca ?p= si es un
+ *  número de página; en Contabilidad ?p= es la pestaña y queda). */
 export function usarCambiarParametro() {
   const router = useRouter();
   return (cambios: Record<string, string | null>) => {
     const p = new URLSearchParams(window.location.search);
+    if (!("p" in cambios) && /^\d+$/.test(p.get("p") ?? "")) p.delete("p");
     for (const [k, v] of Object.entries(cambios)) if (v) p.set(k, v); else p.delete(k);
     const s = p.toString();
     router.replace(s ? `${window.location.pathname}?${s}` : window.location.pathname, { scroll: false });
