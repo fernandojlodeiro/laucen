@@ -23,6 +23,7 @@ import { accionFacturar, accionSubirFacturaMlPedido } from "./acciones";
 import { sqlEstadoFacturaMl } from "@/lib/mercadolibre/facturas";
 import { TextoFacturaMl, BotonFacturaMl, puedeSubir } from "@/app/administracion/facturacion/FacturaMl";
 import Operacion from "./Operacion";
+import { cargosDelPedido, TIPOS_CARGO, TIPOS_COSTO, IMPUESTOS } from "@/lib/mercadolibre/facturacion";
 import { MarcaCarritoEspera, textoEsperaCarrito } from "@/app/componentes/CarritoEspera";
 import { carritoEnEspera, mensajeEsperaCarrito, MENSAJE_A_COBRAR_FACTURA } from "@/lib/pedidos";
 
@@ -79,6 +80,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
       from envio where pedido_id = $1 and organizacion_id = $2 order by id desc limit 1`, [pid, s.org.id]);
   const ml = await una<{ comision: number | null; sin_vincular: boolean; pack: string | null; espera_ts: Date | null }>(
     "select comision_ars::float comision, sin_vincular, envio ->> 'pack_id' pack, carrito_ultimo_evento_ts espera_ts from pedido where id = $1 and organizacion_id = $2", [pid, s.org.id]);
+  const cargos = await cargosDelPedido(s.org.id, pid);
   // Carrito de ML en espera (10 min desde su último evento): nada se toca todavía.
   const espera = carritoEnEspera({ carrito_ultimo_evento_ts: ml?.espera_ts ?? null });
   const LOGISTICA: Record<string, string> = { fulfillment: "Full", self_service: "Flex", cross_docking: "Colecta", xd_drop_off: "Colecta", drop_off: "Despacho en correo", custom: "A convenir", not_specified: "A convenir" };
@@ -208,6 +210,8 @@ export default async function DetallePedido({ params, searchParams }: { params: 
         </div>
       </div>
 
+      {cargos.length > 0 && <CargosMl cargos={cargos} total={c.total_ars} />}
+
       <Operacion org={s.org.id} pid={pid} sp={sp} />
 
       <h2 className="text-sm font-bold mb-2">Facturación</h2>
@@ -278,6 +282,40 @@ export default async function DetallePedido({ params, searchParams }: { params: 
         </table>
       </div>
     </Pantalla>
+  );
+}
+
+/** Lo que Mercado Libre cobró por esta venta (de su facturación, leída por
+ *  API): por tipo, y lo que queda neto. Los impuestos (percepciones y
+ *  retenciones) se muestran aparte: no son costo, se toman a cuenta. */
+function CargosMl({ cargos, total }: { cargos: Awaited<ReturnType<typeof cargosDelPedido>>; total: number }) {
+  const porTipo = new Map<string, number>();
+  for (const x of cargos) if (TIPOS_COSTO.includes(x.tipo)) porTipo.set(x.tipo, (porTipo.get(x.tipo) ?? 0) + x.monto);
+  const costo = [...porTipo.values()].reduce((a, b) => a + b, 0);
+  const impuestos = cargos.filter((x) => x.tipo === "impuesto");
+  const pesos = (n: number) => formatear(n, "ARS");
+  return (
+    <div className="mb-4">
+      <h2 className="text-sm font-bold mb-2">Cargos de Mercado Libre</h2>
+      <div className={`${CAJA} text-xs`}>
+        <table className="w-full max-w-md">
+          <tbody>
+            <tr><td className="py-0.5">Venta</td><td className="py-0.5 text-right tabular-nums">{pesos(total)}</td></tr>
+            {[...porTipo.entries()].map(([t, m]) => (
+              <tr key={t}><td className="py-0.5 text-[#5C6B76]">− {TIPOS_CARGO[t as keyof typeof TIPOS_CARGO]}</td><td className="py-0.5 text-right tabular-nums">{pesos(-m)}</td></tr>
+            ))}
+            <tr className="border-t border-[#E3E9F0] font-bold"><td className="py-1">Neto de Mercado Libre</td><td className="py-1 text-right tabular-nums">{pesos(total - costo)}</td></tr>
+          </tbody>
+        </table>
+        {impuestos.length > 0 && (
+          <p className="mt-2 text-[11px] text-[#5C6B76]">
+            Además, retenciones y percepciones (no son costo: se toman a cuenta de impuestos):{" "}
+            {impuestos.map((x, i) => <span key={i}>{i ? " · " : ""}{IMPUESTOS[x.impuesto ?? "otro"]} {pesos(x.monto)}</span>)}
+          </p>
+        )}
+        <p className="mt-1 text-[10px] text-[#5C6B76]">Tal como los factura Mercado Libre (con IVA). Salen de su facturación mensual (Administración → Facturación de Mercado Libre).</p>
+      </div>
+    </div>
   );
 }
 
