@@ -15,6 +15,8 @@ export const RUTAS_PUBLICAS = [
   "/api/erp/stock",
   // La tienda web es pública (sus compradores no son usuarios del sistema).
   "/tienda",
+  // Un dominio que apunta a Laucen y ninguna tienda tiene cargado (middleware.ts).
+  "/dominio-no-configurado",
   "/api/tienda",
   "/api/radar/cron",
   "/api/china/foto",

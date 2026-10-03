@@ -59,10 +59,18 @@ no la primera.
 - **Cron**: Vercel Cron Jobs nativo (`vercel.json`).
 - **Login**: confirmado de punta a punta el 24/9 (Fer entra por `laucen.vercel.app`, con
   organización y rol Admin). Supabase tiene prendida la confirmación por mail.
-- **Dominios**: `laucen.com.ar` (Nic.ar) y `laucen.com` (GoDaddy), en Vercel con sus
-  nameservers; ya propagaron (2/10). **Los dos son la tienda pública** (`lib/tienda/dominios.ts`):
-  ahí todo abre la tienda salvo `/api/`. **El panel se usa desde `laucen.vercel.app`**, y las
-  direcciones de la app de Mercado Libre (redirect y notificaciones) también son las de Vercel.
+- **Dominios** (Fer, 3/10, bitácora #275/#281): **el panel es `laucen.com`**; `laucen.com.ar`,
+  `www.laucen.com` y `www.laucen.com.ar` redirigen (308) a `laucen.com`. `laucen.vercel.app` sigue
+  andando, pero ningún link sale con ella: los que salen del sistema usan `urlPanel()`
+  (`lib/tienda/dominios.ts`). `laucen.*` tienen el DNS en Cloudflare (cuenta de Fer).
+  **Los dominios de las tiendas no van en el código**: los carga cada organización en
+  Configuración › Tienda web › Dominios (tabla `tienda_dominio`; Laucen los agrega al proyecto de
+  Vercel por API con `VERCEL_TOKEN`, `lib/tienda/vercel.ts`), y el middleware (en Node) resuelve
+  host → tienda desde la base; un dominio desconocido muestra "dominio no configurado". Hoy:
+  `daitom.com.ar` = tienda pública (marca Daitom); `www.daitom.com.ar`, `tiendavirtual.com(.ar)` y
+  sus www redirigen a daitom; DNS de daitom y tiendavirtual en Cloudflare. App de Mercado Libre:
+  redirect `https://laucen.com/admin/meli/callback`, notificaciones
+  `https://laucen.com/api/meli/notificaciones`.
 
 ## Cómo hablarle a Fer
 

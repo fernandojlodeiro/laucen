@@ -36,3 +36,8 @@ update roles set permisos = permisos || '{"asistente_acciones": true}'::jsonb
 -- «Preparar sin escanear» (3/10, provisorio mientras no todo tiene etiqueta): una vez al Admin de fábrica.
 update roles set permisos = permisos || '{"picking_sin_escanear": true}'::jsonb
  where protegido and not (permisos ? 'picking_sin_escanear');
+
+-- «Configurar dominios de la tienda» (3/10, bitácora #281): no es un botón del
+-- menú; una vez al Admin de fábrica (el superadministrador lo tiene siempre).
+update roles set permisos = permisos || '{"tienda_dominios": true}'::jsonb
+ where protegido and not (permisos ? 'tienda_dominios');

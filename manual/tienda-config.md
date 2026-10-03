@@ -2,16 +2,16 @@
 titulo: Tienda web, métodos de envío y medios de pago
 menu: Tienda web › Tienda web
 ruta: /config/tienda
-rutas: /config/tienda, /config/envios, /config/medios-pago
+rutas: /config/tienda, /config/envios, /config/medios-pago, /dominio-no-configurado
 permiso: tienda_config
-resumen: Configurar lo que ve el comprador en la tienda web (nombre, dirección, colores, logo, banners, textos y contacto), los métodos de envío con sus costos y los medios de pago con sus descuentos y credenciales.
+resumen: Configurar lo que ve el comprador en la tienda web (nombre, dirección, dominio propio, colores, logo, banners, textos y contacto), los métodos de envío con sus costos y los medios de pago con sus descuentos y credenciales.
 ---
 
 ## Para qué sirve
 
-Son las tres pantallas que arman la tienda web pública (laucen.com / laucen.com.ar):
+Son las tres pantallas que arman la tienda web pública:
 
-- **Tienda web** ([/config/tienda](/config/tienda)): cómo se ve la tienda y qué datos de contacto muestra. Permiso «Tienda web».
+- **Tienda web** ([/config/tienda](/config/tienda)): cómo se ve la tienda, qué datos de contacto muestra y con qué **dominio propio** abre (ej. daitom.com.ar). Permiso «Tienda web»; los dominios, además, «Configurar dominios de la tienda».
 - **Métodos de envío** ([/config/envios](/config/envios)): cómo le llega el pedido al comprador y cuánto cuesta. Permiso «Tienda web».
 - **Medios de pago** ([/config/medios-pago](/config/medios-pago)): cómo puede pagar el comprador, con qué descuento o recargo, y las credenciales de Mercado Pago y Payway. Permiso «Medios de pago».
 
@@ -28,7 +28,7 @@ Lo que NO está acá y se cambia en [Canales](/config/canales): si la tienda est
 Si todavía no hay tienda: "Todavía no hay ninguna tienda web (un canal tipo Web minorista)." y el botón **"Crear la tienda web"** ("Se crea pausada, con la lista de precios "Web minorista" si existe.").
 
 Con tienda, una caja de datos que no se editan acá:
-- **Dirección de la tienda**: el enlace a la tienda pública (con dominio propio, https://laucen.com; si no, la dirección del sistema + /tienda/slug). Si tiene dominio propio, avisa que si le cambiás el slug deja de abrir en ese dominio.
+- **Dirección de la tienda**: el enlace a la tienda pública: su dominio principal si ya anda (con certificado), ej. https://daitom.com.ar; si no, laucen.com/tienda/slug. Si el dominio principal todavía no tiene certificado, avisa que la dirección pasa a ser ésa cuando lo tenga.
 - **Estado**: "Activa: toma pedidos" o "Pausada: no toma pedidos", con el enlace "Cambiarlo en Canales".
 - **Lista de precios** (en rojo "Sin lista" si no tiene), con el enlace "Cambiarla en Configuración → Canales".
 - **Feed para Meta (Facebook / Instagram)**: la dirección del feed ("…/feed.xml"), para cargar en Meta Commerce Manager como fuente de datos programada.
@@ -45,6 +45,11 @@ Debajo, la ficha de la tienda, que abre en **modo vista**. Se edita con el **lá
 - **Devoluciones (lo que ve el comprador en la ficha y en Ayuda)** y **Garantía**: textos largos.
 - **WhatsApp**: formato internacional, sin "+" ni espacios: 54 9, la característica sin 0 y el número sin 15.
 - **Mail**, **Dirección del local**, **Horario** (ej. "Lun a vie de 9 a 18").
+
+Debajo de la ficha, la sección **Dominios (N)**, con el botón **"Nuevo dominio"** al lado del título (sólo con el permiso «Configurar dominios de la tienda»). Sin dominios: "Sin dominio propio: la tienda abre en …/tienda/slug.". Con dominios, una tabla:
+- **Dominio** (se toca para abrirlo), **Tipo** ("Principal" o "Redirige a …"), **Estado** ("Sin conectar a Vercel", "Esperando DNS", "Verificado (falta el certificado)" o "Con certificado: anda"; debajo, en rojo, si algo falló), **Registros DNS a cargar** (tipo, nombre y valor de cada registro; "—" cuando ya anda), **Revisado** (la última vez que se le preguntó a Vercel).
+- Al final de cada fila, **"Verificar"** (vuelve a preguntarle a Vercel; no aparece si ya anda) y el tacho ("¿Borrar?" Sí / No).
+- Si falta la llave de Vercel, arriba de la tabla: "Falta la llave de Vercel: los dominios quedan anotados, pero no se conectan hasta que esté."
 
 ### Métodos de envío
 
@@ -88,6 +93,33 @@ Errores típicos:
 - "La dirección "…" ya la usa otra tienda. Elegí otra."
 - "El WhatsApp va en formato internacional, sólo números (ej. 5493511234567)."
 - "El mail no parece válido."
+
+### Conectar un dominio propio a la tienda
+
+1. Comprá el dominio (en NIC Argentina, GoDaddy, Cloudflare, donde sea).
+2. En [Tienda web](/config/tienda), sección **Dominios**, apretá **"Nuevo dominio"**.
+3. Escribí el dominio sin https:// (ej. mitienda.com.ar), dejá **"Principal (abre la tienda)"** y apretá **"Crear"**. Laucen lo agrega en Vercel (el servidor donde corre) y muestra los registros DNS que hay que cargar.
+4. Entrá al lugar donde manejás el DNS del dominio (Cloudflare, DonWeb, NIC…) y cargá esos registros tal cual:
+   - Para el dominio "pelado" (mitienda.com.ar): un registro **A**, nombre **@**, con la dirección IP que muestra la tabla.
+   - Para un subdominio (www.mitienda.com.ar): un **CNAME**, nombre **www**, con el valor que muestra la tabla.
+   - Si aparece un **TXT** (pasa cuando el dominio estuvo en otra cuenta de Vercel), cargalo también: es para demostrar que el dominio es tuyo.
+   - En Cloudflare, con la nube gris (sin proxy).
+   - Si el dominio tiene correo, no toques sus registros MX.
+5. Esperá: el DNS tarda de minutos a unas horas en propagarse (si cambiaste los nameservers, hasta 24-48 horas). Apretá **"Verificar"** cada tanto.
+6. Cuando el estado dice **"Con certificado: anda"**, la tienda ya abre en ese dominio.
+7. Para que también ande con www (o con otro dominio tuyo): **"Nuevo dominio"** → www.mitienda.com.ar → **"Redirige al principal"** → **"Crear"**, y cargá su registro. Quien entre por ahí termina en el principal.
+
+Errores típicos:
+- "Escribí un dominio válido, sin https:// (ej. mitienda.com.ar)."
+- "Ese dominio ya está cargado." / "Ese dominio ya lo usa otra organización."
+- "Ese dominio es del sistema: no se puede usar para una tienda." (laucen.com y los suyos).
+- "La tienda ya tiene dominio principal (…). Para cambiarlo, borralo primero."
+- "Primero cargá el dominio principal de la tienda: los demás redirigen a él."
+- "Ese dominio ya está conectado a otro proyecto de Vercel: hay que sacarlo de allá primero."
+
+### Sacar un dominio
+
+Tacho de la fila → **"Sí"**. Laucen lo saca también de Vercel. Un principal no se puede borrar mientras haya dominios que redirigen a él ("Primero borrá los dominios que redirigen a éste.").
 
 ### Ocultar los productos sin stock
 
@@ -133,7 +165,13 @@ Para un recargo, poné el número en negativo (ej. -10 = 10 % más caro).
 - **Precios**: salen de la lista de precios del canal; un producto sin precio en esa lista no se vende en la tienda.
 - **Stock**: el disponible del canal (la suma de sus depósitos activos).
 - **Slug**: único entre todas las tiendas del sistema (de cualquier organización), porque las direcciones son de todos. Se guarda en minúsculas. Si no tiene slug, se usa el nombre del canal en minúsculas y con guiones.
-- **Dominios propios**: laucen.com y laucen.com.ar abren la tienda de slug **"tienda"**. Ahí todo abre la tienda (incluso /login), salvo lo que es de la API. El panel se usa desde laucen.vercel.app. Si cambiás el slug "tienda" por otro, los dominios dejan de abrir esa tienda.
+- **Dominios propios**: los carga cada organización en la sección Dominios; el sistema no trae ninguno fijo. **Uno principal por tienda** (abre la tienda) y los demás **redirigen** al principal (redirección permanente, conservando la página). En el dominio de una tienda todo abre la tienda (incluso /login), salvo lo que es de la API. Un dominio es de **una sola organización**: no puede estar en dos.
+- **El dominio va con la tienda, no con el slug**: cambiar el slug no lo desconecta.
+- **Dominios del sistema**: el panel es **laucen.com**; laucen.com.ar y los www redirigen a laucen.com. No se pueden cargar como dominio de una tienda.
+- **Estados de un dominio**: "Sin conectar a Vercel" (todavía no se agregó: falta la llave o Vercel no respondió; se reintenta con "Verificar") → "Esperando DNS" (Vercel no ve los registros todavía) → "Verificado (falta el certificado)" → "Con certificado: anda" (abre con https).
+- **Los links que salen** (seguimiento del pedido por WhatsApp, vuelta de Mercado Pago, feed para Meta) usan el dominio principal **sólo cuando ya anda** (con certificado); mientras tanto, laucen.com/tienda/slug. Los avisos de Mercado Pago al sistema van siempre a laucen.com.
+- **Demora**: un dominio nuevo o borrado puede tardar hasta un minuto en empezar (o dejar) de abrir la tienda.
+- **Un dominio que apunta a Laucen y nadie cargó** muestra "Este dominio todavía no está configurado", nunca el panel.
 - **Logo**: si la tienda no tiene logo propio, usa el de [Empresa](/config/empresa).
 - **Colores**: sólo se aceptan colores válidos (formato #RRGGBB); vacío = el de siempre.
 - **Devoluciones y garantía**: hasta 1000 caracteres cada uno; si están cargados, se muestran en la ficha del producto y en la Ayuda de la tienda.
@@ -189,6 +227,12 @@ Poné un descuento negativo en ese medio (ej. -10 = 10 % más caro).
 
 **¿Puedo ver la llave de Mercado Pago que está cargada?**
 No, nunca se muestra. Si dudás, cargala de nuevo.
+
+**Cargué el dominio y sigue en "Esperando DNS".**
+Revisá que los registros estén cargados tal cual en el DNS del dominio (y, en Cloudflare, sin proxy). Puede tardar unas horas: apretá "Verificar" más tarde.
+
+**No me aparece "Nuevo dominio".**
+Falta el permiso «Configurar dominios de la tienda» en tu rol.
 
 **¿Por qué la tienda muestra otro logo que el de la empresa?**
 Porque la tienda tiene logo propio; si lo borrás, usa el de [Empresa](/config/empresa).

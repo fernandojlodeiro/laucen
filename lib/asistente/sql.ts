@@ -124,6 +124,7 @@ const TABLAS_PERMISO: [RegExp, Permiso[]][] = [
   [/^(recepcion|recepcion_linea)$/, ["recepcion_ver"]],
   [/^(canal|canal_deposito)$/, ["canales_ver"]],
   [/^metodo_envio$/, ["tienda_config", "envios_ver"]],
+  [/^tienda_dominio$/, ["tienda_config"]],
   [/^medio_pago$/, ["medios_pago_ver"]],
   [/^proveedor$/, ["proveedores_ver", "compras_ver"]],
   [/^(factura_compra|factura_compra_linea|arca_mc_lote)$/, ["compras_ver"]],

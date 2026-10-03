@@ -4,13 +4,13 @@
 
 import { consulta, una } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
-import { tiendaDelCanal, nombreTienda, rutaTienda } from "@/lib/tienda/tienda";
+import { tiendaDelCanal, nombreTienda } from "@/lib/tienda/tienda";
 import { esMedioEfectivo, sqlEstadoPago, sqlSinEsperarPago, type EstadoPedido } from "@/lib/pedidos";
 import { PRIMARIO, SUAVE, VERDE, BORRAR } from "@/app/botones";
 import { BotonEnviar, BotonConfirmar } from "@/app/radar/Cliente";
 import { Estado, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
-import { origen } from "@/app/config/tienda/origen";
+import { urlTienda } from "@/lib/tienda/dominios-tienda";
 import { TIPOS_MEDIO } from "@/app/config/medios-pago/comun";
 import { accionConfirmarPago, accionCambiarEstadoPedido, accionEntregadoYCobrado } from "./acciones";
 
@@ -124,7 +124,7 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   let wa: string | null = null;
   if (tel) {
     const t = p.canal_tipo === "web_minorista" ? await tiendaDelCanal(org, p.canal_id) : null;
-    const seguimiento = t && p.codigo ? `${await origen()}${rutaTienda(t, `/pedido/${p.codigo}`)}` : null;
+    const seguimiento = t && p.codigo ? await urlTienda(t, `/pedido/${p.codigo}`) : null;
     const despacho = p.estado === "despachado"
       ? (await una<{ nota: string | null }>("select nota from pedido_estado_historial where pedido_id = $1 and estado_nuevo = 'despachado' order by fecha desc, id desc limit 1", [pid]))?.nota ?? null
       : null;

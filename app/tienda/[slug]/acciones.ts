@@ -5,7 +5,7 @@
 // formulario, se verifica contra la tienda (organización y canal) y se vuelve.
 
 import { revalidatePath } from "next/cache";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, texto, id } from "@/lib/erp/acciones";
@@ -21,14 +21,6 @@ import { sinDireccion, CONDICIONES_IVA } from "./comun";
 
 async function tiendaDe(fd: FormData | string): Promise<Tienda> {
   return cargarTienda(typeof fd === "string" ? fd : String(fd.get("slug") ?? ""));
-}
-
-/** https://host de este request (para las direcciones de vuelta de los pagos). */
-async function origen(): Promise<string> {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto.split(",")[0]}://${host.split(",")[0]}`;
 }
 
 const refrescar = (t: Tienda) => revalidatePath(rutaTienda(t), "layout");
@@ -142,7 +134,7 @@ export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { 
       medio,
       notas: texto(fd, "notas"),
     };
-    const r = await comprar(t, datos, { origen: await origen(), clienteId: cuenta?.clienteId ?? null });
+    const r = await comprar(t, datos, { clienteId: cuenta?.clienteId ?? null });
     await vaciarCarrito(t.slug);
     refrescar(t);
     return { ir: r.ir };
@@ -157,7 +149,7 @@ export async function reintentarMercadoPago(fd: FormData) {
   const codigo = String(fd.get("codigo") ?? "");
   let ir: string;
   try {
-    ir = await preferenciaNueva(t, codigo, await origen());
+    ir = await preferenciaNueva(t, codigo);
   } catch (err) {
     redirect(`${rutaTienda(t, `/pedido/${encodeURIComponent(codigo)}`)}?pago=fallo&error=${encodeURIComponent(motivoErp(err))}`);
   }

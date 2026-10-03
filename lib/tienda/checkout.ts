@@ -15,7 +15,9 @@ import { planesDelCarrito } from "@/lib/tienda/cuotas";
 import { crearPreferencia } from "@/lib/tienda/pagos/mercadopago";
 import { cobrar } from "@/lib/tienda/pagos/payway";
 import { confirmarPago, pagoFallido, avisarStockMl } from "@/lib/tienda/pagos/confirmar";
-import { nombreTienda, rutaTienda, type Tienda } from "@/lib/tienda/tienda";
+import { nombreTienda, type Tienda } from "@/lib/tienda/tienda";
+import { urlPanel } from "@/lib/tienda/dominios";
+import { urlTienda } from "@/lib/tienda/dominios-tienda";
 
 export type DatosCompra = {
   carrito: LineaCarrito[];
@@ -42,7 +44,7 @@ async function credencial(t: Tienda, tipo: string): Promise<{ medioId: number; d
 }
 
 /** Crea el pedido. Devuelve a dónde seguir. */
-export async function comprar(t: Tienda, d: DatosCompra, op: { origen: string; clienteId?: number | null }) {
+export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: number | null }) {
   const org = t.organizacionId;
   if (t.estado !== "activo") throw new ErrorErp("La tienda no está tomando pedidos en este momento.");
   if (!d.carrito.length) throw new ErrorErp("El carrito está vacío.");
@@ -93,14 +95,16 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { origen: string; c
   await consulta(`insert into pago (organizacion_id, pedido_id, medio, estado, importe_ars) values ($1, $2, $3, 'pendiente', $4)`,
     [org, pedido.pedidoId, d.medio, cot.total]);
 
-  const seguir = `${op.origen}${rutaTienda(t, `/pedido/${codigo}`)}`;
+  // La vuelta del comprador, a la dirección pública de la tienda; el aviso
+  // de Mercado Pago (de servidor a servidor), al panel, que siempre anda.
+  const seguir = await urlTienda(t, `/pedido/${codigo}`);
   if (d.medio === "mercadopago") {
     const cred = await credencial(t, "mercadopago");
     const planes = await planesDelCarrito(org, cot.lineas.map((l) => l.variacionId));
     const pref = await crearPreferencia(cred.datos.access_token, {
       pedidoId: pedido.pedidoId, titulo: `${nombreTienda(t)} — pedido ${pedido.pedidoId}`, total: cot.total, email: d.cliente.email, nombre: d.cliente.nombre,
       maxCuotas: planes.length ? planes[planes.length - 1].cuotas : null,
-      exito: seguir, fallo: `${seguir}?pago=fallo`, pendiente: seguir, aviso: `${op.origen}/api/tienda/mercadopago?medio=${cred.medioId}`,
+      exito: seguir, fallo: `${seguir}?pago=fallo`, pendiente: seguir, aviso: `${urlPanel()}/api/tienda/mercadopago?medio=${cred.medioId}`,
     });
     return { pedidoId: pedido.pedidoId, codigo, total: cot.total, ir: pref.url };
   }

@@ -323,7 +323,7 @@ test("tienda: cotiza con reglas, descuento del medio y envío; la compra queda p
   const r = await comprar(t, {
     carrito, cliente: { nombre: "Ana Comp", email: "ana@example.com", documento: "30111222" },
     entrega: { metodoEnvioId: envio, calle: "Mitre", numero: "1", localidad: "Córdoba", provincia: "Córdoba" }, medio: "transferencia",
-  }, { origen: "https://x" });
+  }, {});
   const p = await q<{ estado: string; estado_pago: string; total_ars: string; costo_envio_ars: string }>("select estado, estado_pago, total_ars, costo_envio_ars from pedido where id = $1", [r.pedidoId]);
   assert.deepEqual([p[0].estado, p[0].estado_pago, Number(p[0].total_ars), Number(p[0].costo_envio_ars)], ["nuevo", "pendiente", 5015, 1500]);
   assert.equal(await m.stock.disponibleCanal(e.org, a, e.canal), 10, "sin pagar no reserva");

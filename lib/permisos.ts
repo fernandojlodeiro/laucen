@@ -47,6 +47,7 @@ export type PermisoKey =
   | "etiquetas_ver"
   | "facturacion_ver"
   | "tienda_config"
+  | "tienda_dominios"
   | "empresa_config"
   | "medios_pago_ver"
   | "reglas_ver"
@@ -105,6 +106,7 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "facturacion_ver", label: "Facturación", ayuda: "Facturas y notas de crédito electrónicas (ARCA)." },
   { key: "empresa_config", label: "Empresa", ayuda: "Datos de la empresa, logo y datos fiscales." },
   { key: "tienda_config", label: "Tienda web", ayuda: "Configurar la tienda web y sus métodos de envío." },
+  { key: "tienda_dominios", label: "Configurar dominios de la tienda", ayuda: "Conectar dominios propios a la tienda web (los agrega en Vercel) y borrarlos." },
   { key: "medios_pago_ver", label: "Medios de pago", ayuda: "Medios de pago de la tienda y sus credenciales." },
   { key: "reglas_ver", label: "Reglas comerciales y cuotas", ayuda: "Promociones, descuentos, envío bonificado y planes de cuotas." },
   { key: "compras_ver", label: "Facturas de compra", ayuda: "Cargar y registrar facturas de proveedores (ingresan stock y costo)." },

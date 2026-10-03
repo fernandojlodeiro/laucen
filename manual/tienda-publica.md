@@ -4,7 +4,7 @@ menu: Tienda web › Tienda web
 ruta: /tienda/[slug]
 rutas: /tienda/[slug], /tienda/[slug]/ayuda, /tienda/[slug]/buscar, /tienda/[slug]/carrito, /tienda/[slug]/checkout, /tienda/[slug]/cuenta, /tienda/[slug]/familia/[id], /tienda/[slug]/pedido/[codigo], /tienda/[slug]/producto/[id]
 permiso: todos
-resumen: Cómo es la tienda web pública (laucen.com / laucen.com.ar) que ve el comprador, cómo compra paso a paso y cómo llegan esos pedidos y pagos al sistema.
+resumen: Cómo es la tienda web pública (en su dominio propio, ej. daitom.com.ar) que ve el comprador, cómo compra paso a paso y cómo llegan esos pedidos y pagos al sistema.
 ---
 
 ## Para qué sirve
@@ -17,9 +17,9 @@ Cada compra crea un **pedido** en [Pedidos](/ventas/pedidos), en el canal de la 
 
 ## Cómo se llega
 
-- **laucen.com** y **laucen.com.ar** abren directamente la tienda (sin "/tienda" en la dirección).
-- Desde el panel: la dirección figura en [Tienda web](/config/tienda) ("Dirección de la tienda"). También se puede abrir como …/tienda/<slug> desde la dirección del sistema.
-- El panel del sistema NO se usa desde laucen.com: se usa desde laucen.vercel.app. En los dominios de la tienda todo abre la tienda, también /login.
+- Por su **dominio propio** (ej. daitom.com.ar), si la tienda tiene uno cargado en [Tienda web](/config/tienda) › Dominios: abre directamente la tienda (sin "/tienda" en la dirección). Los dominios que "redirigen" (ej. www.daitom.com.ar, tiendavirtual.com) llevan solos al principal.
+- Desde el panel: la dirección figura en [Tienda web](/config/tienda) ("Dirección de la tienda"). Sin dominio propio, la tienda abre en laucen.com/tienda/<slug>.
+- En el dominio de una tienda todo abre la tienda, también /login: el panel se usa desde laucen.com.
 
 ## Qué hay en la pantalla
 
@@ -202,8 +202,11 @@ En la ficha, el carrito y el checkout, en vivo; en los listados y la portada, ha
 **El cliente olvidó su contraseña de la tienda.**
 Hoy no hay recuperación en la tienda: puede comprar sin cuenta igual.
 
-**¿Puedo entrar al panel desde laucen.com?**
-No: laucen.com y laucen.com.ar son la tienda. El panel se usa desde laucen.vercel.app.
+**¿Puedo entrar al panel desde el dominio de la tienda?**
+No: en el dominio de la tienda todo abre la tienda. El panel se usa desde laucen.com.
+
+**Entro por un dominio y dice "Este dominio todavía no está configurado".**
+El dominio apunta a Laucen, pero ninguna tienda lo tiene cargado. Cargalo en [Tienda web](/config/tienda) › Dominios.
 
 ## Relacionado
 

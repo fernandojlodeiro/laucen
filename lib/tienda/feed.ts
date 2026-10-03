@@ -3,11 +3,12 @@
 // entrada por variación con precio en la lista de la tienda.
 
 import { consulta } from "@/lib/erp/base";
-import { rutaTienda, nombreTienda, type Tienda } from "@/lib/tienda/tienda";
+import { nombreTienda, type Tienda } from "@/lib/tienda/tienda";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-export async function feedMeta(t: Tienda, origen: string): Promise<string> {
+/** `base`: la dirección pública de la tienda (https://daitom.com.ar o …/tienda/<slug>). */
+export async function feedMeta(t: Tienda, base: string): Promise<string> {
   const filas = await consulta<{ variacion_id: number; producto_id: number; titulo: string; descripcion: string | null; marca: string | null; foto: string | null;
     lista: string | null; venta: string | null; disponible: number; codigo_barras: string | null }>(`
     select v.id::int variacion_id, p.id::int producto_id, titulo_variacion(v.id) titulo, p.descripcion, p.marca, v.codigo_barras,
@@ -23,7 +24,7 @@ export async function feedMeta(t: Tienda, origen: string): Promise<string> {
       <g:item_group_id>${f.producto_id}</g:item_group_id>
       <g:title>${esc(f.titulo.slice(0, 150))}</g:title>
       <g:description>${esc((f.descripcion || f.titulo).slice(0, 5000))}</g:description>
-      <g:link>${esc(`${origen}${rutaTienda(t, `/producto/${f.producto_id}?v=${f.variacion_id}`)}`)}</g:link>
+      <g:link>${esc(`${base}/producto/${f.producto_id}?v=${f.variacion_id}`)}</g:link>
       <g:image_link>${esc(f.foto!)}</g:image_link>
       <g:availability>${f.disponible > 0 ? "in stock" : "out of stock"}</g:availability>
       <g:condition>new</g:condition>
@@ -36,7 +37,7 @@ export async function feedMeta(t: Tienda, origen: string): Promise<string> {
 <rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
   <channel>
     <title>${esc(nombreTienda(t))}</title>
-    <link>${esc(`${origen}${rutaTienda(t)}`)}</link>
+    <link>${esc(base)}</link>
     <description>Catálogo de ${esc(nombreTienda(t))}</description>${items}
   </channel>
 </rss>`;

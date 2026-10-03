@@ -1,7 +1,8 @@
 // Qué tienda se está mirando: un canal tipo web_minorista identificado por su
 // "slug" (canal.config.slug; si no tiene, el nombre del canal en minúsculas
 // y con guiones). Las rutas públicas son /tienda/<slug>/…; un dominio propio
-// (ej. laucen.com) se apunta a una tienda en DOMINIOS_TIENDA (lib/tienda/dominios.ts).
+// (ej. daitom.com.ar) se carga en Configuración › Tienda web (tienda_dominio,
+// lib/tienda/dominios-tienda.ts).
 
 import { consulta, una } from "@/lib/erp/base";
 

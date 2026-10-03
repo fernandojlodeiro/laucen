@@ -126,3 +126,29 @@ create table if not exists cliente_cuenta (
   unique (organizacion_id, email)
 );
 alter table cliente_cuenta enable row level security;
+
+-- Dominios propios de las tiendas (Fer, 3/10, bitácora #281): los carga cada
+-- organización desde Configuración › Tienda web; el código no tiene ninguno
+-- fijo. Uno principal por tienda (abre la tienda) y los demás redirigen (308)
+-- al principal. Un dominio es de una sola organización (único global). Laucen
+-- lo agrega al proyecto de Vercel por API (lib/tienda/vercel.ts); el
+-- middleware resuelve host → tienda leyendo esta tabla.
+--   estado: sin_conectar (todavía no está en Vercel) · esperando_dns ·
+--           verificado (DNS bien) · con_certificado (abre con https)
+--   dns: los registros que hay que cargar, [{tipo, nombre, valor}]
+create table if not exists tienda_dominio (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  dominio          text not null unique check (dominio = lower(dominio)),
+  principal        boolean not null default false,
+  estado           text not null default 'sin_conectar'
+                   check (estado in ('sin_conectar', 'esperando_dns', 'verificado', 'con_certificado')),
+  dns              jsonb not null default '[]',
+  detalle          text,
+  creado_ts        timestamptz not null default now(),
+  revisado_ts      timestamptz
+);
+create unique index if not exists tienda_dominio_principal on tienda_dominio (canal_id) where principal;
+alter table tienda_dominio enable row level security;
+select erp_politica_org('tienda_dominio');
