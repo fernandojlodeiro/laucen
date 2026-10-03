@@ -48,13 +48,11 @@ export const MENU: SeccionMenu[] = [
       { texto: "Listas de precios", href: "/catalogo/precios", permiso: "precios_ver" },
       { texto: "Publicaciones", href: "/catalogo/publicaciones", permiso: "publicaciones_ver" },
       { texto: "Vincular con Mercado Libre", href: "/catalogo/publicaciones/ml", permiso: "publicaciones_ver" },
-      { texto: "Cucardas", href: "/catalogo/cucardas", permiso: "cucardas_ver" },
     ],
   },
   {
     texto: "Stock",
     items: [
-      { texto: "Depósitos y ubicaciones", href: "/stock/depositos", permiso: "depositos_ver" },
       { texto: "Consulta de stock", href: "/stock/consulta", permiso: "stock_ver", icono: "🔎" },
       { texto: "Picking", href: "/deposito/picking", permiso: "picking_ver", icono: "🧺" },
       { texto: "Recepción", href: "/deposito/recepcion", permiso: "recepcion_ver", icono: "📥" },
@@ -95,16 +93,29 @@ export const MENU: SeccionMenu[] = [
     ],
   },
   {
-    texto: "Configuración",
+    // Maestros que se tocan poco (pedido de Fer, 3/10). Marcas va acá cuando exista.
+    texto: "Tablas generales",
     items: [
-      { texto: "Empresa", href: "/config/empresa", permiso: "empresa_config" },
-      { texto: "Facturación (ARCA)", href: "/config/arca", permiso: "facturacion_ver" },
-      { texto: "Canales", href: "/config/canales", permiso: "canales_ver" },
+      { texto: "Depósitos y ubicaciones", href: "/stock/depositos", permiso: "depositos_ver" },
+      { texto: "Cucardas", href: "/catalogo/cucardas", permiso: "cucardas_ver" },
+    ],
+  },
+  {
+    texto: "Tienda web",
+    items: [
       { texto: "Tienda web", href: "/config/tienda", permiso: "tienda_config" },
       { texto: "Medios de pago", href: "/config/medios-pago", permiso: "medios_pago_ver" },
       { texto: "Métodos de envío", href: "/config/envios", permiso: "tienda_config" },
       { texto: "Reglas comerciales", href: "/config/reglas", permiso: "reglas_ver" },
       { texto: "Cuotas", href: "/config/cuotas", permiso: "reglas_ver" },
+    ],
+  },
+  {
+    texto: "Configuración",
+    items: [
+      { texto: "Empresa", href: "/config/empresa", permiso: "empresa_config" },
+      { texto: "Facturación (ARCA)", href: "/config/arca", permiso: "facturacion_ver" },
+      { texto: "Canales", href: "/config/canales", permiso: "canales_ver" },
       { texto: "Tipo de cambio", href: "/config/tipo-cambio", permiso: "tipo_cambio_ver" },
       { texto: "Usuarios y roles", href: "/config/usuarios", permiso: "usuarios_ver" },
       { texto: "Importar datos", href: "/importar", permiso: "importar_ver" },
