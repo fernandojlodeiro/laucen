@@ -13,8 +13,13 @@
 // y los manda su trabajador, con reintentos y respetando los límites de ML.
 // Lo que se graba en Laucen (pausada, cantidad informada) se graba recién
 // cuando ML lo acepta.
+//
+// Cuándo se revisa: al instante, en cada cambio de stock (la base anota la
+// variación y llama a /api/erp/stock → procesarCambiosStock; ver db/stock.sql);
+// y como red de seguridad, en /api/erp/tareas, el barrido de media hora y la
+// barrida nocturna.
 
-import { consulta, una } from "@/lib/erp/base";
+import { consulta, enTransaccion, una } from "@/lib/erp/base";
 import { cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import { encolar, PRIORIDAD, type CambioMl, type OrigenCambio } from "@/lib/mercadolibre/cola";
 
@@ -126,4 +131,53 @@ export async function variacionesConEventos(org: string): Promise<number[]> {
 /** ¿La organización tiene algún canal de ML sincronizando stock? */
 export async function haySincronizacion(org: string): Promise<boolean> {
   return !!(await una("select 1 from canal where organizacion_id = $1 and tipo = 'mercadolibre' and coalesce((config ->> 'sincronizar_stock')::boolean, false) limit 1", [org]));
+}
+
+export type ResultadoCambios = {
+  variaciones: number;
+  /** Por organización: lo que encoló para ML (si sincroniza) o el error. */
+  organizaciones: Record<string, ResultadoStock | { error: string } | { sinSincronizacion: true }>;
+  /** Canales de tienda web cuya copia del catálogo hay que invalidar. */
+  tiendas: number[];
+};
+
+/** Procesa los cambios de stock anotados en `stock_cambio_pendiente` (ver el
+ *  mecanismo completo en db/stock.sql): los toma (los que otra transacción
+ *  tiene tomados se saltean; esa transacción avisa al confirmar), encola en
+ *  ML la cantidad nueva de cada publicación vinculada —pausa con prioridad
+ *  máxima al llegar al umbral, reactiva lo que pausó Laucen— y devuelve las
+ *  tiendas a invalidar. Si algo falla, las variaciones vuelven a quedar
+ *  pendientes. La llaman /api/erp/stock (al instante, por pg_net) y
+ *  /api/erp/tareas (red de seguridad). */
+export async function procesarCambiosStock(org?: string): Promise<ResultadoCambios> {
+  const filas = await consulta<{ organizacion_id: string; variacion_id: number }>(`
+    delete from stock_cambio_pendiente
+     where (organizacion_id, variacion_id) in (
+       select organizacion_id, variacion_id from stock_cambio_pendiente
+        where $1::text is null or organizacion_id = $1
+        for update skip locked)
+    returning organizacion_id, variacion_id::int`, [org ?? null]);
+  const res: ResultadoCambios = { variaciones: filas.length, organizaciones: {}, tiendas: [] };
+  if (!filas.length) return res;
+  const porOrg = new Map<string, number[]>();
+  for (const f of filas) porOrg.set(f.organizacion_id, [...(porOrg.get(f.organizacion_id) ?? []), f.variacion_id]);
+  for (const [o, vars] of porOrg) {
+    try {
+      res.organizaciones[o] = (await haySincronizacion(o)) ? await sincronizarStockMl(o, vars) : { sinSincronizacion: true };
+    } catch (e) {
+      res.organizaciones[o] = { error: e instanceof Error ? e.message : String(e) };
+      // Que no se pierdan: vuelven a la tabla sin avisar de nuevo (las
+      // levanta 'erp-tareas' al minuto: si no, un error que se repite haría
+      // un ida y vuelta sin fin con pg_net).
+      await enTransaccion(async (c) => {
+        await c.query("select set_config('laucen.stock_avisado', 'si', true)");
+        await c.query(`insert into stock_cambio_pendiente (organizacion_id, variacion_id, creado_ts)
+                       select $1, unnest($2::bigint[]), now() - interval '1 minute' on conflict do nothing`, [o, vars]);
+      }).catch(() => {});
+    }
+  }
+  const tiendas = await consulta<{ id: number }>(
+    "select id::int from canal where organizacion_id = any($1::text[]) and tipo = 'web_minorista' and estado <> 'archivado'", [[...porOrg.keys()]]);
+  res.tiendas = tiendas.map((t) => t.id);
+  return res;
 }

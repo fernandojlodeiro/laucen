@@ -11,6 +11,8 @@ export const RUTAS_PUBLICAS = [
   "/api/meli/notificaciones",
   "/api/meli/barrido",
   "/api/erp/tareas",
+  // La llama la base (pg_net) al cambiar el stock; se autentica con erp_llave.
+  "/api/erp/stock",
   // La tienda web es pública (sus compradores no son usuarios del sistema).
   "/tienda",
   "/api/tienda",

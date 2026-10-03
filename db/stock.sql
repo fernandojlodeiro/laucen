@@ -10,6 +10,9 @@
 -- - Toda variación de stock pasa por `mover_stock()`, nunca un UPDATE directo
 --   a `stock`. Esa función inserta el movimiento y actualiza `stock` en la
 --   misma transacción, resuelve kits y emite `stock_bajo_umbral`.
+-- - Todo cambio de stock se anota en `stock_cambio_pendiente` y la base avisa
+--   a la app al instante para mandarlo a Mercado Libre y a la tienda (ver
+--   "Stock que cambió", al final).
 
 create table if not exists deposito (
   id               bigint generated always as identity primary key,
@@ -237,3 +240,92 @@ begin
 
   return next mov_id;
 end $$;
+
+-- ── Stock que cambió: a Mercado Libre y a la tienda al instante ──────────
+-- (Fer, 3/10: todo cambio del disponible de una variación sale enseguida a
+-- todas las cuentas de ML que sincronizan stock, no sólo al cruzar el umbral.)
+--
+-- Cómo anda, de punta a punta:
+-- 1. Cualquier cambio de stock.cantidad o stock.reservado (mover_stock, que es
+--    el único camino, llamado desde TS o desde reservar_pedido, cambiar_estado,
+--    etc.) dispara `stock_anotar_cambio`, que anota la variación en
+--    `stock_cambio_pendiente` (una fila por variación: si ya estaba, no se
+--    duplica). Sólo si a la organización le sirve: un canal de ML con
+--    sincronizar_stock prendido o una tienda web activa (stock_aviso_necesario).
+--    Un kit no guarda stock: se anota el componente, y la app suma los kits
+--    que lo usan (sincronizarStockMl).
+-- 2. Al anotar, `stock_cambio_avisar` (un trigger por sentencia, y una sola
+--    vez por transacción) encola con pg_net una llamada a
+--    https://laucen.vercel.app/api/erp/stock?clave=<erp_llave>. pg_net la
+--    manda recién cuando la transacción se confirma (si se deshace, no sale)
+--    y no la frena: es asíncrono.
+-- 3. La ruta toma las filas pendientes (delete … returning, saltando las que
+--    otra transacción tiene tomadas: esa transacción hace su propia llamada
+--    al confirmar), llama a sincronizarStockMl(org, variaciones) —que encola
+--    en ml_cola la cantidad nueva de cada publicación (la última reemplaza a
+--    una pendiente vieja), la pausa al llegar al umbral con prioridad máxima
+--    y la reactivación de lo que pausó Laucen— y el trabajador de la cola
+--    arranca enseguida (after). También invalida la copia del catálogo de las
+--    tiendas de la organización (revalidateTag 'tienda-<canal>').
+-- 4. Red de seguridad: si la llamada de pg_net se pierde, el job 'erp-tareas'
+--    (db/mercadolibre.sql) ve filas de más de un minuto y llama a
+--    /api/erp/tareas, que procesa lo mismo. Y siguen el barrido de media hora
+--    y la barrida nocturna.
+-- Sin pg_net (tests, local) las filas quedan y las procesa quien llame a
+-- procesarCambiosStock().
+create table if not exists stock_cambio_pendiente (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  variacion_id     bigint not null references variacion(id) on delete cascade,
+  creado_ts        timestamptz not null default now(),
+  primary key (organizacion_id, variacion_id)
+);
+create index if not exists stock_cambio_pendiente_ts on stock_cambio_pendiente (creado_ts);
+alter table stock_cambio_pendiente enable row level security;
+select erp_politica_org('stock_cambio_pendiente');
+
+/** ¿A la organización le sirve enterarse al instante? Un canal de ML activo
+ *  sincronizando stock o una tienda web activa. (plpgsql: canal se crea en
+ *  ventas.sql, después de éste.) */
+create or replace function public.stock_aviso_necesario(p_org text) returns boolean
+language plpgsql stable as $$
+begin
+  return exists (select 1 from canal where organizacion_id = p_org and estado = 'activo'
+                   and ((tipo = 'mercadolibre' and coalesce((config ->> 'sincronizar_stock')::boolean, false))
+                        or tipo = 'web_minorista'));
+end $$;
+
+create or replace function public.stock_anotar_cambio() returns trigger
+language plpgsql as $$
+begin
+  if stock_aviso_necesario(new.organizacion_id) then
+    -- Si ya estaba, se "toca" igual (sin cambiar la fecha): así queda tomada
+    -- por esta transacción y la ruta no la levanta antes de que confirme.
+    insert into stock_cambio_pendiente (organizacion_id, variacion_id) values (new.organizacion_id, new.variacion_id)
+    on conflict (organizacion_id, variacion_id) do update set creado_ts = stock_cambio_pendiente.creado_ts;
+  end if;
+  return null;
+end $$;
+create or replace trigger stock_anotar_cambio_ins after insert on stock
+  for each row when (new.cantidad <> 0 or new.reservado <> 0) execute function stock_anotar_cambio();
+create or replace trigger stock_anotar_cambio_upd after update of cantidad, reservado on stock
+  for each row when (old.cantidad is distinct from new.cantidad or old.reservado is distinct from new.reservado)
+  execute function stock_anotar_cambio();
+
+create or replace function public.stock_cambio_avisar() returns trigger
+language plpgsql as $$
+begin
+  if to_regclass('net.http_request_queue') is null then return null; end if; -- sin pg_net (tests, local)
+  if current_setting('laucen.stock_avisado', true) = 'si' then return null; end if; -- ya avisó esta transacción
+  perform set_config('laucen.stock_avisado', 'si', true);
+  perform net.http_get(
+    url := 'https://laucen.vercel.app/api/erp/stock?clave=' || (select clave from public.erp_llave where id = 1),
+    timeout_milliseconds := 30000);
+  return null;
+exception when others then
+  raise notice 'stock: no se pudo avisar a la app (%)', sqlerrm; -- lo levanta 'erp-tareas'
+  return null;
+end $$;
+create or replace trigger stock_cambio_avisar_ins after insert on stock_cambio_pendiente
+  for each statement execute function stock_cambio_avisar();
+create or replace trigger stock_cambio_avisar_upd after update on stock_cambio_pendiente
+  for each statement execute function stock_cambio_avisar();

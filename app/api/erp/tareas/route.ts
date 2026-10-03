@@ -7,6 +7,7 @@
 // Mercado Libre (lib/mercadolibre/cola.ts) y, de 2 a 5, la barrida nocturna.
 
 import { after } from "next/server";
+import { revalidateTag } from "next/cache";
 import { pool } from "@/db";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { facturarPendientes } from "@/lib/arca/facturar";
@@ -15,7 +16,7 @@ import { contabilizarPendientes } from "@/lib/administracion/contabilidad";
 import { ejecutarImportacion } from "@/lib/importar/ejecutar";
 import { avanzar as avanzarVs } from "@/lib/importar/virtualseller";
 import { procesarCola, hayPendientes } from "@/lib/mercadolibre/cola";
-import { sincronizarStockMl, variacionesConEventos } from "@/lib/mercadolibre/stock";
+import { procesarCambiosStock, sincronizarStockMl, variacionesConEventos } from "@/lib/mercadolibre/stock";
 import { barridaNocturna, enVentanaBarrida } from "@/lib/mercadolibre/barrida";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +67,15 @@ export async function GET(req: Request) {
     } catch (e) {
       informe[`stock_${organizacion_id}_error`] = e instanceof Error ? e.message : String(e);
     }
+  }
+  // Cambios de stock que no se avisaron al instante (falló la llamada de
+  // pg_net a /api/erp/stock; ver db/stock.sql): lo mismo que haría esa ruta.
+  try {
+    const cambios = await procesarCambiosStock();
+    if (cambios.variaciones) informe.cambios_stock = cambios;
+    for (const canal of cambios.tiendas) revalidateTag(`tienda-${canal}`);
+  } catch (e) {
+    informe.cambios_stock_error = e instanceof Error ? e.message : String(e);
   }
   // Mercado Libre: la cola de salida (hasta ~45 s) y, de noche, la barrida.
   // Van en paralelo con las importaciones: son pedidos a ML, no a la base.

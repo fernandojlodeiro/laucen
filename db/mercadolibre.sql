@@ -304,7 +304,9 @@ select erp_politica_org('ml_barrida');
 -- corran porque sí). 'erp-tareas' se revisa cada 2 minutos pero sólo llama a
 -- /api/erp/tareas si hay algo pendiente de verdad (facturar un pedido, un
 -- comprobante con error, una importación andando, la cola de ML, stock que
--- cruzó el umbral en un canal que sincroniza, la barrida nocturna de 2 a 5) y,
+-- cruzó el umbral en un canal que sincroniza, un cambio de stock que no se
+-- avisó al instante (stock_cambio_pendiente de más de un minuto: falló la
+-- llamada de pg_net, ver db/stock.sql), la barrida nocturna de 2 a 5) y,
 -- como red de seguridad, a los minutos 1 y 31 (asientos y cuenta corriente).
 -- 'meli-barrido' (avisos que fallaron, ventas y preguntas perdidas) pasa a
 -- cada 30 minutos: los avisos de ML se procesan en el momento en que llegan.
@@ -328,6 +330,7 @@ declare
      or exists (select 1 from public.evento e join public.canal c on c.id = (e.payload ->> 'canal_id')::bigint
                  where e.tipo = 'stock_bajo_umbral' and e.procesado_ts is null and c.tipo = 'mercadolibre'
                    and coalesce((c.config ->> 'sincronizar_stock')::boolean, false))
+     or exists (select 1 from public.stock_cambio_pendiente where creado_ts < now() - interval '1 minute')
      or (extract(hour from now() at time zone 'America/Argentina/Buenos_Aires') between 2 and 4
          and exists (select 1 from public.canal where tipo = 'mercadolibre' and estado = 'activo' and coalesce((config ->> 'sincronizar_stock')::boolean, false)))
 $cmd$;
