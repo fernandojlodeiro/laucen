@@ -1,8 +1,11 @@
 // Stock único entre todas las cuentas de ML (orden de la sesión 2): cada
 // publicación vinculada de un canal de ML informa el disponible del canal
 // (suma de sus depósitos) y se PAUSA cuando llega al umbral de pausa
-// (publicación → producto → canal → organización → 1). Si la pausó Laucen
-// por stock, la reactiva cuando vuelve a haber.
+// (publicación → producto → canal → organización → 1). Cuando vuelve a
+// haber stock la reactiva, la haya pausado quien la haya pausado (Fer, 3/10:
+// tener el precio y demás al día al activar es responsabilidad suya). Si ML la
+// pausó por una infracción, ML rechaza la reactivación y queda en la cola
+// "Con error" (no se reintenta en 6 h).
 //
 // Prendido por canal: canal.config.sincronizar_stock = true (Configuración →
 // Canales). Apagado no toca nada en ML — así se puede conectar una cuenta y
@@ -34,8 +37,8 @@ export type ResultadoStock = { revisadas: number; cantidades: number; pausadas: 
 
 /** Lo que hay que mandar a ML para una publicación según su stock (o nada).
  *  Pausa al llegar al umbral (una variación no se pausa sola en ML: se le
- *  informa 0); si la pausó Laucen por stock, la reactiva cuando vuelve a
- *  haber; si no, informa la cantidad. */
+ *  informa 0); si está pausada (por quien sea) y vuelve a haber, la reactiva;
+ *  si no, informa la cantidad. */
 export function cambioDeStock(p: Pub): (CambioMl & { que: "pausa" | "reactivar" | "cantidad" }) | null {
   const disp = Math.max(0, p.disponible);
   const base = { canalId: p.canal_id, itemId: p.id_externo, variationId: p.variacion_externa, publicacionId: p.id, tipo: "stock" as const };
@@ -48,7 +51,7 @@ export function cambioDeStock(p: Pub): (CambioMl & { que: "pausa" | "reactivar" 
       efecto: { publicacion: { id: p.id, estado: "pausada", pausada_por_stock: true, ...(p.variacion_externa ? { cantidad_publicada: 0 } : {}) } },
     };
   }
-  if (p.pausada_por_stock) {
+  if (p.pausada_por_stock || p.estado === "pausada") {
     return {
       ...base, que: "reactivar", prioridad: PRIORIDAD.reactivar, antes,
       payload: p.variacion_externa ? { cantidad: disp } : { cantidad: disp, estado: "active" },
