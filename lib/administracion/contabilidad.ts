@@ -9,7 +9,8 @@
 // Qué asienta cada origen:
 //   venta / nota_credito_venta  Deudores · Ventas (la del canal, si tiene) + IVA débito (comprobante autorizado)
 //   cmv                         CMV · Mercaderías (al costo promedio, por comprobante de venta)
-//   cobro_pedido                Mercado Pago de la cuenta de ML (o Cobros de canales) + Comisiones · Deudores (pedido pagado y facturado, cliente sin cuenta corriente)
+//   cobro_pedido                Mercado Pago de la cuenta de ML o de la tienda (o Cobros de canales) + Comisiones · Deudores (pedido pagado y facturado, cliente sin cuenta corriente);
+//                               si va a una cuenta de fondos, deja también su movimiento ahí (lib/administracion/cobros-fondos.ts)
 //   compra                      Mercaderías / gasto + IVA crédito + percepciones · Proveedores (factura de compra registrada)
 //   despacho                    Mercaderías + crédito fiscal · Importaciones en curso
 //   cobro / pago                Fondos + retenciones · Deudores / Proveedores · Fondos + retenciones a depositar (recibos)
@@ -21,13 +22,16 @@
 // por canal (canal.cuenta_ventas_id) y, por cada cuenta de Mercado Libre
 // colgada de un canal, una cuenta de fondos "Mercado Pago — <apodo>" con su
 // cuenta contable propia en Disponibilidades (cuenta_fondos.meli_user_id y
-// canal_id). No llevan rol: los asientos las encuentran por esos vínculos, y
-// si faltan usan las generales (Ventas, Cobros de canales a liquidar).
+// canal_id); y por el medio de pago Mercado Pago de la tienda con su access
+// token, "Mercado Pago — Tienda web" (cuenta_fondos.medio_pago_id). No llevan
+// rol: los asientos las encuentran por esos vínculos, y si faltan usan las
+// generales (Ventas, Cobros de canales a liquidar).
 
 import type { PoolClient } from "pg";
 import { consulta, una, una as unaBase, enTransaccion, ErrorErp, type Consultor } from "@/lib/erp/base";
 import { codigoValido, proximoCodigo, proximoCodigoBajo, madreDe, TIPOS_CUENTA, type TipoCuenta } from "@/lib/administracion/plan-codigos";
 import { type Linea, nombreContableMercadoPago, lineasVenta, lineasCobroPedido } from "@/lib/administracion/contabilidad-base";
+import { SQL_CUENTA_COBRO, SQL_MEDIOS_MP_SIN_CUENTA, asegurarMercadoPagoTienda, movimientoDeCobro, sincronizarCobrosConFondos } from "@/lib/administracion/cobros-fondos";
 
 export { nombreContableMercadoPago, lineasVenta, lineasCobroPedido, type Linea };
 
@@ -124,6 +128,8 @@ async function cuentaPropia(c: PoolClient, org: string, d: { nombre: string; tip
  *  - por cada cuenta de ML colgada de un canal, su cuenta de fondos "Mercado
  *    Pago — <apodo>" (tipo Mercado Pago) vinculada al canal, con su cuenta
  *    contable propia en Disponibilidades;
+ *  - por el medio de pago Mercado Pago de la tienda con su access token, su
+ *    cuenta de fondos "Mercado Pago — Tienda web" (asegurarMercadoPagoTienda);
  *  - por cada cuenta de fondos de Mercado Pago sin cuenta contable, la suya.
  *  Renombrar el canal o la cuenta no renombra la cuenta contable. */
 export async function asegurarCuentasDeCanales(org: string) {
@@ -132,6 +138,7 @@ export async function asegurarCuentasDeCanales(org: string) {
           + (select count(*) from meli_cuenta m where m.organizacion_id = $1 and m.canal_id is not null
                and not exists (select 1 from cuenta_fondos f where f.organizacion_id = $1 and f.meli_user_id = m.meli_user_id
                                  and f.canal_id = m.canal_id and f.cuenta_contable_id is not null))
+          + (select count(*) from (${SQL_MEDIOS_MP_SIN_CUENTA}) mt)
           + (select count(*) from cuenta_fondos where organizacion_id = $1 and tipo = 'mercadopago' and cuenta_contable_id is null))::int n`, [org]);
   if (!falta?.n) return;
   await asegurarPlan(org);
@@ -166,6 +173,8 @@ export async function asegurarCuentasDeCanales(org: string) {
       }
       await c.query("update cuenta_fondos set canal_id = $2 where id = $1 and canal_id is distinct from $2", [f.id, m.canal_id]);
     }
+    // Mercado Pago de la tienda web (el medio de pago conectado del checkout).
+    await asegurarMercadoPagoTienda(c, org);
     // Toda cuenta de fondos de Mercado Pago, con su cuenta contable propia.
     const sinCuenta = (await c.query<{ id: string; nombre: string }>(
       "select id, nombre from cuenta_fondos where organizacion_id = $1 and tipo = 'mercadopago' and cuenta_contable_id is null order by id", [org])).rows;
@@ -322,16 +331,13 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
   // se facturó a un cliente sin cuenta corriente se da por cobrado, menos la
   // comisión del canal. En un canal de Mercado Libre, lo cobrado va a la
   // cuenta de Mercado Pago de su cuenta de ML (la de la cuenta conectada hoy
-  // primero); si no tiene, a Cobros de canales a liquidar.
+  // primero); pagado con el Mercado Pago de la tienda, a la de la tienda; si
+  // no, a Cobros de canales a liquidar (SQL_CUENTA_COBRO).
   const cobros = await consulta<{ id: number; fecha: string; total: string; comision: string | null; canal: string; id_externo: string | null; cuenta_mp: number | null }>(`
     select p.id::int, to_char(max(cb.fecha), 'YYYY-MM-DD') fecha,
            sum(case when cb.tipo_cbte in (3, 8, 13) then -cb.importe_total else cb.importe_total end * case when cb.moneda = 'PES' then 1 else cb.cotizacion end) total,
            max(p.comision_ars) comision, max(ca.nombre) canal, max(p.id_externo) id_externo,
-           (select pc.id::int from cuenta_fondos f join canal c2 on c2.id = f.canal_id and c2.tipo = 'mercadolibre'
-                   join plan_cuenta pc on pc.id = f.cuenta_contable_id and pc.activa and pc.imputable
-              left join meli_cuenta mc on mc.canal_id = f.canal_id
-             where f.organizacion_id = $1 and f.canal_id = p.canal_id and f.tipo = 'mercadopago'
-             order by (f.meli_user_id = mc.meli_user_id) desc nulls last, f.activa desc, f.id desc limit 1) cuenta_mp
+           ${SQL_CUENTA_COBRO} cuenta_mp
       from pedido p join comprobante cb on cb.pedido_id = p.id and cb.estado = 'autorizado' join canal ca on ca.id = p.canal_id
       left join cliente cl on cl.id = p.cliente_id
      where p.organizacion_id = $1 and p.estado_pago = 'pagado' and not coalesce(cl.cuenta_corriente, false) and ${sinAsiento("cobro_pedido", "p")}
@@ -339,8 +345,12 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
   await correr("cobro_pedido", cobros, async (c, rol, p) => {
     const lineas = lineasCobroPedido({ total: Number(p.total), comision: Number(p.comision ?? 0) }, rol, p.cuenta_mp);
     if (!lineas.length) return;
-    await grabarAsiento(c, org, { fecha: p.fecha, concepto: `Cobro del pedido ${p.id_externo ?? p.id} · ${p.canal}`, origen: "cobro_pedido", referenciaId: p.id, lineas });
+    const asiento = await grabarAsiento(c, org, { fecha: p.fecha, concepto: `Cobro del pedido ${p.id_externo ?? p.id} · ${p.canal}`, origen: "cobro_pedido", referenciaId: p.id, lineas });
+    // Y su movimiento en la cuenta de fondos de Mercado Pago (lib/administracion/cobros-fondos.ts).
+    if (asiento) await movimientoDeCobro(c, org, asiento);
   });
+  // Cobros deshechos, movimientos que faltan (los de antes) y huérfanos.
+  errores.push(...(await sincronizarCobrosConFondos(org, hasta).catch((e) => ({ errores: [`cobro_pedido 0: ${e instanceof Error ? e.message : String(e)}`] }))).errores);
 
   // Facturas de compra.
   const fcs = await consulta<{ id: number; fecha: string; letra: string; es_nota_credito: boolean; es_nota_debito: boolean; cotizacion: string; moneda: string; iva: string; percepcion_iva: string;
@@ -466,7 +476,8 @@ export function planDeCuentas(org: string) {
     select p.id::int, p.codigo, p.nombre, p.tipo, p.imputable, p.activa, p.rol,
            exists (select 1 from asiento_linea l where l.cuenta_id = p.id) usada,
            coalesce((select 'ventas del canal ' || string_agg(ca.nombre, ', ') from canal ca where ca.organizacion_id = $1 and ca.cuenta_ventas_id = p.id),
-                    (select 'de ' || string_agg(f.nombre, ', ') from cuenta_fondos f where f.organizacion_id = $1 and f.cuenta_contable_id = p.id and f.meli_user_id is not null)) vinculo
+                    (select 'de ' || string_agg(f.nombre, ', ') from cuenta_fondos f where f.organizacion_id = $1 and f.cuenta_contable_id = p.id
+                       and (f.meli_user_id is not null or f.medio_pago_id is not null))) vinculo
       from plan_cuenta p where p.organizacion_id = $1
      order by ${orden}`;
   return consulta<Fila>(sql("string_to_array(p.codigo, '.')::int[] nulls last, p.codigo"), [org]).catch(() => consulta<Fila>(sql("p.codigo"), [org]));

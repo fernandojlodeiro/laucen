@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, numero, entero, id } from "@/lib/erp/acciones";
+import { asegurarCuentasDeCanalesSinFallar } from "@/lib/administracion/contabilidad";
 import { TIPOS_MEDIO, CREDENCIALES_REQUERIDAS, type TipoMedio } from "./comun";
 
 const VOLVER = "/config/medios-pago";
@@ -71,6 +72,8 @@ export async function accionGuardarCredencial(fd: FormData) {
     await consulta(`insert into medio_pago_credencial (medio_pago_id, organizacion_id, datos) values ($1, $2, $3::jsonb)
                     on conflict (medio_pago_id) do update set datos = medio_pago_credencial.datos || excluded.datos, actualizado_ts = now()`,
       [m.id, s.org.id, JSON.stringify(datos)]);
+    // Mercado Pago conectado: su cuenta de fondos "Mercado Pago — Tienda web" (con su cuenta contable) se crea sola.
+    if (m.tipo === "mercadopago") await asegurarCuentasDeCanalesSinFallar(s.org.id);
     revalidatePath(VOLVER);
     return "Credenciales guardadas.";
   });

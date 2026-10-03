@@ -199,7 +199,8 @@ En la caja de la cuenta, **"Traer pedidos y preguntas ahora"**. Avisa "Listo: N 
 ### Cuentas contables del canal (se crean solas)
 
 - **Ventas**: cada canal tiene su cuenta de ingresos **"Ventas — <nombre del canal>"** en el plan de cuentas, creada al crear el canal (los que ya estaban la recibieron una vez). El neto de las facturas de los pedidos del canal va ahí; sin canal, a la Ventas general. **Si se renombra el canal, la cuenta no cambia de nombre**: se la renombra a mano en [Contabilidad](/administracion/contabilidad) si se quiere.
-- **Mercado Pago**: cada cuenta de Mercado Libre colgada de un canal tiene su cuenta de fondos y contable **"Mercado Pago — <apodo>"**, creada al conectarla (o al usar "Usar la ya conectada"). Lo cobrado de las ventas del canal (menos la comisión) se asienta ahí en vez de en "Cobros de canales a liquidar". Sacar la cuenta del canal no la borra.
+- **Mercado Pago**: cada cuenta de Mercado Libre colgada de un canal tiene su cuenta de fondos y contable **"Mercado Pago — <apodo>"**, creada al conectarla (o al usar "Usar la ya conectada"). Lo cobrado de las ventas del canal (menos la comisión) se asienta ahí en vez de en "Cobros de canales a liquidar", y entra también como movimiento "Cobro del pedido …" en esa cuenta de [Caja y bancos](/administracion/tesoreria), así su saldo coincide con la contabilidad. Sacar la cuenta del canal no la borra.
+- **Tienda web**: lo que la tienda cobra con Mercado Pago va a la cuenta **"Mercado Pago — Tienda web"**, que se crea sola al cargar el access token en [Medios de pago](/config/medios-pago).
 - Valen para los asientos nuevos; los ya grabados no cambian.
 
 ### Cuenta de Mercado Libre del canal

@@ -366,3 +366,16 @@ delete from plan_cuenta p where p.rol = 'mercadopago'
    and not exists (select 1 from movimiento_fondos m where m.cuenta_contable_id = p.id)
    and not exists (select 1 from factura_compra fc where fc.cuenta_gasto_id = p.id)
    and not exists (select 1 from proveedor pr where pr.cuenta_gasto_id = p.id);
+
+-- ── Cobros de pedidos en Caja y bancos (pedido de Fer, 3/10, «opción a») ──
+-- Cada cobro de pedido que se asienta en una cuenta de Mercado Pago deja
+-- también su movimiento en esa cuenta de fondos (referencia_tipo 'pedido',
+-- referencia_id = el pedido), así el saldo de Caja y bancos da igual que el
+-- mayor. Es la pata de fondos del mismo asiento "Cobro de pedido" (como los
+-- movimientos de un recibo): no genera otro asiento. Uno por pedido.
+create unique index if not exists movimiento_fondos_pedido on movimiento_fondos (organizacion_id, referencia_id) where referencia_tipo = 'pedido';
+-- La cuenta de Mercado Pago de la tienda web: la cuenta de fondos que cobra
+-- lo que entra por el medio de pago Mercado Pago del checkout (la crea sola
+-- asegurarCuentasDeCanales cuando el medio tiene su access token cargado).
+alter table cuenta_fondos add column if not exists medio_pago_id bigint references medio_pago(id) on delete set null;
+create unique index if not exists cuenta_fondos_medio_pago on cuenta_fondos (organizacion_id, medio_pago_id) where medio_pago_id is not null;

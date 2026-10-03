@@ -11,7 +11,9 @@ resumen: Las cuentas donde está la plata (caja, bancos, Mercado Pago) con su sa
 
 Lleva las cuentas de fondos de la empresa: cajas, cuentas bancarias, Mercado Pago u otras, en pesos o en dólares. Por cada cuenta se ve su saldo y sus movimientos, se cargan gastos o ingresos sueltos, se hacen transferencias entre cuentas propias y se concilia contra el extracto del banco.
 
-**Las cuentas de Mercado Pago de Mercado Libre se crean solas**: no hay una "Mercado Pago" general para crear. Cada cuenta de Mercado Libre conectada a un canal trae su propia cuenta de fondos "Mercado Pago — <apodo>" (ver Criterios). Una cuenta de Mercado Pago que no es de ML (por ejemplo, la de la tienda web) se crea a mano con tipo Mercado Pago.
+**Las cuentas de Mercado Pago de Mercado Libre y de la tienda web se crean solas**: no hay una "Mercado Pago" general para crear. Cada cuenta de Mercado Libre conectada a un canal trae su propia cuenta de fondos "Mercado Pago — <apodo>", y el Mercado Pago conectado en el checkout de la tienda trae "Mercado Pago — Tienda web" (ver Criterios). Otra cuenta de Mercado Pago que no sea ninguna de ésas se crea a mano con tipo Mercado Pago.
+
+**Lo que se cobra de los pedidos entra solo** en su cuenta de Mercado Pago, como un movimiento "Cobro del pedido …" con enlace al pedido.
 
 Los cobros y pagos a clientes y proveedores no se cargan acá: se hacen con recibos y órdenes de pago en [Cuentas corrientes](/administracion/cuentas-corrientes), y sus movimientos aparecen solos en la cuenta elegida.
 
@@ -28,7 +30,7 @@ Los cobros y pagos a clientes y proveedores no se cargan acá: se hacen con reci
 - **Total en pesos** (y **en dólares**, si hay cuentas en dólares): la suma de los saldos de las cuentas **activas**, sin importar lo que se esté buscando.
 - Buscador **"Buscar por nombre, banco, CBU o alias"**, con la caja **"Comienza por"** y la X para borrar.
 - Tabla, ordenable tocando el título:
-  - **Cuenta**: el nombre (enlace a sus movimientos) y, debajo, "Cobra las ventas de <canal>" (enlace al canal) en las de Mercado Pago de una cuenta de ML, y "Saldo inicial $ … al dd/mm/aaaa" si tiene.
+  - **Cuenta**: el nombre (enlace a sus movimientos) y, debajo, "Cobra las ventas de <canal>" (enlace al canal) en las de Mercado Pago de una cuenta de ML o de la tienda, y "Saldo inicial $ … al dd/mm/aaaa" si tiene.
   - **Tipo**: Caja, Banco, Mercado Pago u Otra, y la moneda ($ o US$).
   - **Banco · CBU · Alias**.
   - **Cuenta contable**: la elegida (enlace a su mayor en Contabilidad) o "La de su tipo".
@@ -50,14 +52,14 @@ Arriba: "Caja y bancos › Nombre" (y "(desactivada)" si lo está), el **Saldo**
 - Recuadro **Movimiento**: **Fecha**, **Entra** / **Sale** (por defecto Sale), **Importe** (en la moneda de la cuenta), **Concepto** (ej. "Comisión del banco"), **Cuenta contable (contrapartida)** y botón **"Cargar"**.
 - Recuadro **Transferencia**: **Fecha**, **A la cuenta** (las otras cuentas activas), **Sale** (importe en la moneda de esta cuenta), **Entra (si es otra moneda)** (vacío = al tipo de cambio del día) y botón **"Transferir"**.
 - Filtro de fechas desde/hasta con atajos ("Todas las fechas" si no se elige).
-- Tabla: **Fecha**, **Concepto**, **Importe** (verde con "+" si entra, rojo si sale), **Saldo** acumulado, **Conciliado** (✓) y el **tacho** en los movimientos sueltos y transferencias no conciliados. Muestra los últimos 500; para ver más atrás, usá el filtro de fechas.
+- Tabla: **Fecha**, **Concepto** (en el cobro de un pedido, enlace al pedido), **Importe** (verde con "+" si entra, rojo si sale), **Saldo** acumulado, **Conciliado** (✓) y el **tacho** en los movimientos sueltos y transferencias no conciliados. Muestra los últimos 500; para ver más atrás, usá el filtro de fechas.
 
 **Pestaña Conciliación**:
 - **Extracto (CSV)**: elegir el archivo y **"Subir extracto"**.
 - **"Conciliar automático"**.
 - **Extracto sin conciliar (N)**: cada línea del banco, y debajo dos acciones: un desplegable con los movimientos sin conciliar del mismo signo y el botón **"Unir"**; o un desplegable **"— Cuenta contable —"** y el botón **"Crear movimiento"**.
-- **Movimientos sin conciliar (N)**: los de Laucen que todavía no se unieron con una línea del extracto.
-- **Ya conciliadas (N)**: línea del extracto, movimiento unido, importe y el botón **"Desunir"**.
+- **Movimientos sin conciliar (N)**: los de Laucen que todavía no se unieron con una línea del extracto. El cobro de un pedido muestra su concepto como enlace al pedido.
+- **Ya conciliadas (N)**: línea del extracto, movimiento unido (el cobro de un pedido, con enlace al pedido), importe y el botón **"Desunir"**.
 
 ## Cómo se hace
 
@@ -85,7 +87,7 @@ Arriba: "Caja y bancos › Nombre" (y "(desactivada)" si lo está), el **Saldo**
 
 ### Borrar un movimiento
 
-Tocá el **tacho** del movimiento y confirmá. En una transferencia pregunta "¿Borrar las dos patas?" y borra las dos. Sólo se pueden borrar movimientos sueltos y transferencias que **no estén conciliados**; los de un recibo u orden de pago se deshacen anulando el recibo en [Cuentas corrientes](/administracion/cuentas-corrientes).
+Tocá el **tacho** del movimiento y confirmá. En una transferencia pregunta "¿Borrar las dos patas?" y borra las dos. Sólo se pueden borrar movimientos sueltos y transferencias que **no estén conciliados**; los de un recibo u orden de pago se deshacen anulando el recibo en [Cuentas corrientes](/administracion/cuentas-corrientes), y el cobro de un pedido no se borra a mano: se va solo si el pedido deja de estar cobrado.
 
 ### Conciliar con el extracto del banco
 
@@ -136,8 +138,21 @@ Si no se elige una, los asientos usan la del tipo: Caja → "Caja", Banco → "B
 
 - Al **conectar una cuenta de Mercado Libre a un canal** ([Canales](/config/canales)), y una vez para las que ya estaban conectadas, se crea sola la cuenta de fondos **"Mercado Pago — <apodo de la cuenta de ML>"**, tipo Mercado Pago, en pesos, con su cuenta contable propia y atada a ese canal. Si ya había una cuenta de Mercado Pago creada a mano con ese mismo nombre, se usa ésa.
 - Si la cuenta de ML se pasa a otro canal, su cuenta de Mercado Pago pasa a cobrar las ventas del canal nuevo.
-- Lo cobrado de cada venta de ese canal (total − comisión) se asienta en la cuenta contable de esa cuenta de Mercado Pago (ver [Contabilidad](/administracion/contabilidad)). **Ojo**: eso entra en la contabilidad, no como movimiento de esta pantalla, así que el saldo de la cuenta de fondos acá no lo muestra.
+- Lo cobrado de cada venta de ese canal (total − comisión) se asienta en la cuenta contable de esa cuenta de Mercado Pago (ver [Contabilidad](/administracion/contabilidad)) y entra como movimiento en esta cuenta (ver "Cobros de pedidos", abajo).
 - Si se borra (sin movimientos) una cuenta de Mercado Pago de una cuenta de ML que sigue conectada, se vuelve a crear sola.
+
+### Mercado Pago de la tienda web
+
+- Al cargar el **access token** del medio **Mercado Pago** en [Medios de pago](/config/medios-pago) (y una vez, si ya estaba cargado), se crea sola la cuenta de fondos **"Mercado Pago — Tienda web"** (si el medio tiene otro nombre que "Mercado Pago", ése), tipo Mercado Pago, en pesos, con su cuenta contable propia y atada a la tienda. Si ya había una cuenta de Mercado Pago creada a mano con ese mismo nombre (y que no es de una cuenta de ML), se usa ésa.
+- Ahí entra lo cobrado de cada pedido de la tienda **pagado con Mercado Pago**. Los pedidos pagados por transferencia, efectivo o tarjeta (Payway) siguen como siempre: no entran a esta cuenta.
+
+### Cobros de pedidos
+
+- Cada pedido cobrado cuyo cobro se asienta en una cuenta de Mercado Pago (la de su cuenta de Mercado Libre o la de la tienda) deja **un movimiento de entrada** en esa cuenta: fecha y concepto del asiento ("Cobro del pedido <número> · <canal>"), importe = lo cobrado (total − comisión). Así el **saldo de la cuenta coincide con su mayor** en Contabilidad.
+- Es uno solo por pedido y aparece cuando se genera el asiento de cobro (el pedido pagado y facturado; ver [Contabilidad](/administracion/contabilidad)). No genera otro asiento: es la parte de fondos del mismo asiento de cobro.
+- El concepto es un enlace al pedido, en Movimientos y en Conciliación, para saber qué pedido es al conciliar con el extracto de Mercado Pago.
+- No se borra a mano. Si el pedido deja de estar cobrado (por ejemplo, se reembolsó), el movimiento se borra solo y el asiento de cobro queda anulado; si ya estaba conciliado, primero hay que desunirlo (Contabilidad lo avisa al contabilizar).
+- Los cobros que ya estaban asentados antes de esto recibieron su movimiento solos.
 
 ### Conciliación
 
@@ -150,7 +165,7 @@ Si no se elige una, los asientos usan la del tipo: Caja → "Caja", Banco → "B
 
 ### Asientos contables
 
-Los genera solos [Contabilidad](/administracion/contabilidad): un movimiento suelto, fondos contra la contrapartida elegida; una transferencia, fondos destino contra fondos origen. Al borrar un movimiento o una transferencia, su asiento queda anulado.
+Los genera solos [Contabilidad](/administracion/contabilidad): un movimiento suelto, fondos contra la contrapartida elegida; una transferencia, fondos destino contra fondos origen. Al borrar un movimiento o una transferencia, su asiento queda anulado. El cobro de un pedido no tiene asiento propio: es parte del asiento "Cobro de pedido".
 
 ## Preguntas frecuentes
 
@@ -158,7 +173,10 @@ Los genera solos [Contabilidad](/administracion/contabilidad): un movimiento sue
 En [Cuentas corrientes](/administracion/cuentas-corrientes), con "Nuevo recibo". El movimiento aparece solo en la cuenta elegida.
 
 **¿Por qué no puedo borrar un movimiento?**
-Porque está conciliado (desunilo primero en Conciliación) o porque es parte de un recibo u orden de pago (anulá el recibo).
+Porque está conciliado (desunilo primero en Conciliación), porque es parte de un recibo u orden de pago (anulá el recibo) o porque es el cobro de un pedido (se va solo si el pedido deja de estar cobrado).
+
+**¿De dónde salen los movimientos "Cobro del pedido …" en Mercado Pago?**
+De los pedidos cobrados por Mercado Libre o por el Mercado Pago de la tienda: entran solos por lo cobrado menos la comisión. Tocando el concepto vas al pedido.
 
 **¿Por qué no puedo cambiar la moneda de una cuenta?**
 Porque ya tiene movimientos en esa moneda.
@@ -179,4 +197,5 @@ No se borra: queda desactivada, con toda su historia.
 
 - [Cuentas corrientes](/administracion/cuentas-corrientes)
 - [Contabilidad](/administracion/contabilidad)
+- [Medios de pago](/config/medios-pago)
 - [Tipo de cambio](/config/tipo-cambio)

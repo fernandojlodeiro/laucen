@@ -63,7 +63,7 @@ Una tabla con los cinco medios, siempre los mismos (no se agregan ni se borran):
 Al editar (lápiz): **Nombre que ve el comprador**, **Descuento %**, **Orden** e **Instrucciones (lo que ve el comprador al elegirlo)**. Ayuda: "Descuento negativo = recargo (ej. -10 = 10 % más caro)." Botones **"Guardar"** y **"Cancelar"**.
 
 Abajo, **Credenciales** ("Nunca se muestran enteras. Se cambian con el lápiz de cada una: escribí la nueva; un campo vacío deja la que estaba."):
-- **Mercado Pago**: **Access token de producción** y **Public key**. Se muestran sólo como "cargada" o "sin cargar".
+- **Mercado Pago**: **Access token de producción** y **Public key**. Se muestran sólo como "cargada" o "sin cargar". Al guardar el access token, en [Caja y bancos](/administracion/tesoreria) aparece sola la cuenta **"Mercado Pago — Tienda web"** (con su cuenta contable propia), si no estaba.
 - **Payway (tarjetas)**: **Llave pública**, **Llave privada**, **Site id** ("cargada"/"sin cargar") y **Ambiente** ("Prueba (sandbox)" o "Producción").
 Cada caja tiene su lápiz y, en edición, "Grabar" y "Cancelar".
 
@@ -164,7 +164,7 @@ Para un recargo, poné el número en negativo (ej. -10 = 10 % más caro).
 - **Para prender Mercado Pago** hace falta el access token; **para prender Payway**, la llave pública y la privada.
 - **Credenciales**: nunca se muestran, ni en parte; sólo "cargada" o "sin cargar". Un campo vacío al grabar deja la que estaba. Se les sacan los espacios.
 - **Qué pasa con el pedido según el medio**:
-  - **Mercado Pago**: el comprador va a pagar a Mercado Pago (tarjeta, dinero en cuenta o efectivo). Cuando Mercado Pago avisa que el pago se aprobó, el pedido pasa solo a pagado. Las cuotas máximas que ofrece salen de los planes de cuotas que comparten todos los productos del carrito.
+  - **Mercado Pago**: el comprador va a pagar a Mercado Pago (tarjeta, dinero en cuenta o efectivo). Cuando Mercado Pago avisa que el pago se aprobó, el pedido pasa solo a pagado. Una vez facturado, lo cobrado se asienta en la cuenta **"Mercado Pago — Tienda web"** y entra como movimiento "Cobro del pedido …" en esa cuenta de [Caja y bancos](/administracion/tesoreria) (los demás medios no pasan por esa cuenta). Las cuotas máximas que ofrece salen de los planes de cuotas que comparten todos los productos del carrito.
   - **Payway**: paga con tarjeta en la página del pedido; si se aprueba, el pedido queda pagado.
   - **Transferencia**: el pedido queda pendiente de pago hasta que alguien confirma el pago a mano en el pedido.
   - **Efectivo**: el pedido queda «A cobrar»: reserva el stock ya y entra en picking sin esperar el pago; el cobro se confirma al entregarlo.

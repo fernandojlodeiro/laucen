@@ -367,7 +367,7 @@ async function Plan({ org, editar, q, comienza }: { org: string; editar: number;
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar cuenta por código o nombre" limpiar={["editar"]} />
       </div>
-      <p className="text-xs text-[#5C6B76] mb-2">Las imputables reciben asientos; las otras son títulos que agrupan. Las marcadas &quot;automática&quot; las usan los asientos que se generan solos: se pueden renombrar o recodificar, no borrar. Las &quot;ventas del canal …&quot; y las de Mercado Pago de cada cuenta de Mercado Libre se crean solas.</p>
+      <p className="text-xs text-[#5C6B76] mb-2">Las imputables reciben asientos; las otras son títulos que agrupan. Las marcadas &quot;automática&quot; las usan los asientos que se generan solos: se pueden renombrar o recodificar, no borrar. Las &quot;ventas del canal …&quot; y las de Mercado Pago de cada cuenta de Mercado Libre y de la tienda web se crean solas.</p>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>

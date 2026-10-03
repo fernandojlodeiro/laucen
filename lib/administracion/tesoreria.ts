@@ -189,6 +189,7 @@ export async function borrarMovimiento(org: string, movimientoId: number) {
       "select referencia_tipo, referencia_id, conciliado_ts from movimiento_fondos where id = $1 and organizacion_id = $2", [movimientoId, org])).rows[0];
     if (!m) throw new ErrorErp("El movimiento no existe.");
     if (m.referencia_tipo === "recibo") throw new ErrorErp("Es parte de un recibo: anulá el recibo.");
+    if (m.referencia_tipo === "pedido") throw new ErrorErp("Es el cobro de un pedido: se va solo si el pedido deja de estar cobrado.");
     const ids = m.referencia_tipo === "transferencia"
       ? (await c.query<{ id: string; conciliado_ts: string | null }>("select id, conciliado_ts from movimiento_fondos where organizacion_id = $1 and referencia_tipo = 'transferencia' and referencia_id = $2", [org, m.referencia_id])).rows
       : [{ id: String(movimientoId), conciliado_ts: m.conciliado_ts }];
@@ -297,8 +298,10 @@ export async function crearDesdeExtracto(org: string, extractoId: number, cuenta
 }
 
 export function extracto(org: string, cuentaId: number, soloPendientes: boolean) {
-  return consulta<{ id: number; fecha: string; descripcion: string | null; importe: number; referencia: string | null; movimiento_id: number | null; movimiento: string | null }>(`
-    select e.id::int, to_char(e.fecha, 'YYYY-MM-DD') fecha, e.descripcion, e.importe::float, e.referencia, e.movimiento_id::int, m.concepto movimiento
+  return consulta<{ id: number; fecha: string; descripcion: string | null; importe: number; referencia: string | null; movimiento_id: number | null; movimiento: string | null;
+    pedido_id: number | null }>(`
+    select e.id::int, to_char(e.fecha, 'YYYY-MM-DD') fecha, e.descripcion, e.importe::float, e.referencia, e.movimiento_id::int, m.concepto movimiento,
+           case when m.referencia_tipo = 'pedido' then m.referencia_id::int end pedido_id
       from extracto_linea e left join movimiento_fondos m on m.id = e.movimiento_id
      where e.organizacion_id = $1 and e.cuenta_id = $2 and (not $3 or e.movimiento_id is null)
      order by e.fecha desc, e.id desc limit 500`, [org, cuentaId, soloPendientes]);

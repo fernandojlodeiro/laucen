@@ -1,6 +1,7 @@
 // Movimientos de una cuenta de fondos (con saldo acumulado y filtro de
 // fechas), carga de un movimiento suelto y transferencia a otra cuenta.
 
+import Link from "next/link";
 import RangoFechas from "@/app/componentes/RangoFechas";
 import { consulta } from "@/lib/erp/base";
 import { formatear, hoyAR } from "@/lib/moneda";
@@ -93,7 +94,9 @@ export default async function MovimientosCuenta({ params, searchParams }: { para
             {movs.map((m) => (
               <tr key={m.id} className={TR}>
                 <td className={TD}>{fecha(m.fecha)}</td>
-                <td className={TD}>{m.concepto}</td>
+                <td className={TD}>{m.referencia_tipo === "pedido" && m.referencia_id
+                  ? <Link href={`/ventas/pedidos/${m.referencia_id}`} className="hover:text-[#16577F] hover:underline">{m.concepto}</Link>
+                  : m.concepto}</td>
                 <td className={`${TDN} ${m.importe < 0 ? "text-[#C03420]" : "text-[#1F6E4A]"}`}>{m.importe > 0 ? "+" : ""}{formatear(m.importe, c.moneda)}</td>
                 <td className={TDN}>{formatear(m.saldo, c.moneda)}</td>
                 <td className={`${TD} text-[#1F6E4A]`}>{m.conciliado ? "✓" : ""}</td>

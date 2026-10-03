@@ -1,7 +1,9 @@
 // Piezas de la contabilidad que no tocan la base (se prueban solas en
 // tests/contabilidad-canales.test.ts): el nombre de la cuenta de Mercado
 // Pago y los renglones de los asientos de venta y de cobro de pedido, con la
-// elección de la cuenta propia del canal o de la cuenta general.
+// elección de la cuenta propia del canal o de la cuenta general; el nombre de
+// la cuenta de Mercado Pago de la tienda y la pata de fondos de un cobro
+// (tests/cobros-fondos.test.ts).
 
 export type Linea = { cuentaId: number; debe?: number; haber?: number; detalle?: string };
 
@@ -38,4 +40,27 @@ export function lineasCobroPedido(x: { total: number; comision: number }, rol: R
     { cuentaId: rol.comisiones, debe: com },
     { cuentaId: rol.deudores, haber: total },
   ];
+}
+
+/** Nombre de la cuenta de fondos del Mercado Pago de la tienda web (el medio
+ *  de pago Mercado Pago del checkout): con el nombre de siempre ("Mercado
+ *  Pago" a secas, o vacío), "Mercado Pago — Tienda web"; con otro nombre, ése
+ *  con "Mercado Pago — " adelante si no lo tiene (nombreContableMercadoPago). */
+export function nombreFondosMercadoPagoTienda(nombreMedio: string | null | undefined): string {
+  const n = (nombreMedio ?? "").trim();
+  if (!n || /^mercado\s*pago$/i.test(n)) return "Mercado Pago — Tienda web";
+  return nombreContableMercadoPago(n);
+}
+
+/** La pata de fondos de un asiento de cobro de pedido: el renglón al debe de
+ *  una cuenta contable que es de una cuenta de fondos (la de Mercado Pago),
+ *  con lo que tiene que entrar en esa cuenta de fondos. `fondos` dice de qué
+ *  cuenta de fondos es cada cuenta contable. Si lo cobrado fue a "Cobros de
+ *  canales a liquidar" (no es de ninguna cuenta de fondos) o da cero, null:
+ *  no hay movimiento. */
+export function pataDeFondos(lineas: Linea[], fondos: Map<number, number>): { cuentaFondosId: number; importe: number } | null {
+  const l = lineas.find((x) => (x.debe ?? 0) > 0 && fondos.has(x.cuentaId));
+  if (!l) return null;
+  const importe = r2(lineas.filter((x) => x.cuentaId === l.cuentaId).reduce((s, x) => s + (x.debe ?? 0) - (x.haber ?? 0), 0));
+  return importe > 0 ? { cuentaFondosId: fondos.get(l.cuentaId)!, importe } : null;
 }

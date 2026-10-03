@@ -2,6 +2,7 @@
 // que coincide, y a mano lo demás (unir con un movimiento o crear el
 // movimiento desde la línea). Las ya unidas, abajo, se pueden desunir.
 
+import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
 import { extracto } from "@/lib/administracion/tesoreria";
@@ -21,6 +22,12 @@ export const dynamic = "force-dynamic";
 
 type SP = { ok?: string; error?: string };
 
+/** El concepto de un movimiento; el cobro de un pedido, con enlace al pedido. */
+function ConceptoMovimiento({ concepto, pedidoId }: { concepto: string; pedidoId: number | null }) {
+  if (!pedidoId) return <>{concepto}</>;
+  return <Link href={`/ventas/pedidos/${pedidoId}`} className="hover:text-[#16577F] hover:underline">{concepto}</Link>;
+}
+
 export default async function Conciliacion({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SP> }) {
   const s = await entrarErp("tesoreria_ver");
   const [{ id }, sp] = await Promise.all([params, searchParams]);
@@ -28,8 +35,9 @@ export default async function Conciliacion({ params, searchParams }: { params: P
   await asegurarPlan(s.org.id);
   const [lineas, sinConciliar, contables] = await Promise.all([
     extracto(s.org.id, c.id, false),
-    consulta<{ id: number; fecha: string; importe: number; concepto: string }>(`
-      select id::int, to_char(fecha, 'YYYY-MM-DD') fecha, importe::float, concepto from movimiento_fondos
+    consulta<{ id: number; fecha: string; importe: number; concepto: string; pedido_id: number | null }>(`
+      select id::int, to_char(fecha, 'YYYY-MM-DD') fecha, importe::float, concepto,
+             case when referencia_tipo = 'pedido' then referencia_id::int end pedido_id from movimiento_fondos
        where organizacion_id = $1 and cuenta_id = $2 and conciliado_ts is null order by fecha desc, id desc limit 500`, [s.org.id, c.id]),
     cuentasImputables(s.org.id),
   ]);
@@ -115,7 +123,7 @@ export default async function Conciliacion({ params, searchParams }: { params: P
                 {sinConciliar.map((m) => (
                   <tr key={m.id} className={TR}>
                     <td className={TD}>{fecha(m.fecha)}</td>
-                    <td className={TD}>{m.concepto}</td>
+                    <td className={TD}><ConceptoMovimiento concepto={m.concepto} pedidoId={m.pedido_id} /></td>
                     <td className={`${TDN} ${m.importe < 0 ? "text-[#C03420]" : "text-[#1F6E4A]"}`}>{plata(m.importe)}</td>
                   </tr>
                 ))}
@@ -135,7 +143,7 @@ export default async function Conciliacion({ params, searchParams }: { params: P
               <tr key={l.id} className={TR}>
                 <td className={TD}>{fecha(l.fecha)}</td>
                 <td className={TD}>{l.descripcion || "—"}</td>
-                <td className={`${TD} text-[#5C6B76]`}>{l.movimiento ?? "—"}</td>
+                <td className={`${TD} text-[#5C6B76]`}>{l.movimiento ? <ConceptoMovimiento concepto={l.movimiento} pedidoId={l.pedido_id} /> : "—"}</td>
                 <td className={TDN}>{plata(l.importe)}</td>
                 <td className={`${TD} text-right`}>
                   <form action={accionDesconciliar}>
