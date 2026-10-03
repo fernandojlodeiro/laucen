@@ -120,6 +120,7 @@ export function itemsDelLote(org: string, loteId: number) {
 export async function escanear(org: string, loteId: number, codigo: string, cantidad = 1): Promise<{ item: ItemPicking; completo: boolean }> {
   const t = codigo.trim();
   if (!t) throw new ErrorErp("No llegó ningún código.");
+  if (!Number.isInteger(cantidad) || cantidad < 1) throw new ErrorErp("La cantidad tiene que ser un número entero mayor que cero.");
   const lote = await una<{ estado: string }>("select estado from picking_lote where id = $1 and organizacion_id = $2", [loteId, org]);
   if (!lote) throw new ErrorErp("Ese picking no existe.");
   if (lote.estado !== "abierto") throw new ErrorErp("Ese picking ya está cerrado.");
@@ -133,7 +134,8 @@ export async function escanear(org: string, loteId: number, codigo: string, cant
   if (!r) {
     const esta = await una(`select 1 from picking_item i join variacion v on v.id = i.variacion_id
                             where i.lote_id = $1 and (v.codigo_barras = $2 or lower(v.sku) = lower($2))`, [loteId, t]);
-    throw new ErrorErp(esta ? `Ya están todas las unidades de ${t}: ese sobra.` : `El código ${t} no es de este picking.`);
+    if (!esta) throw new ErrorErp(`El código ${t} no es de este picking.`);
+    throw new ErrorErp(cantidad > 1 ? `No hay un renglón de ${t} al que le falten ${cantidad}: cargá menos (mirá cuántas faltan en la lista).` : `Ya están todas las unidades de ${t}: ese sobra.`);
   }
   const item = (await itemsDelLote(org, loteId)).find((i) => i.id === Number(r.id))!;
   return { item, completo: item.escaneado + item.faltante >= item.cantidad };
@@ -300,21 +302,29 @@ export async function faltanDelPedido(org: string, loteId: number, pedidoId: num
  *  producto y va al primer pedido del lote que lo necesita (el más viejo de
  *  los que siguen incompletos). Si con eso el pedido queda completo, se
  *  cierra (preparado) y la pantalla imprime sólo su etiqueta. */
-export async function empacar(org: string, loteId: number, codigo: string, usuarioId: string): Promise<ResultadoEmpacar> {
+export async function empacar(org: string, loteId: number, codigo: string, usuarioId: string, cantidad = 1): Promise<ResultadoEmpacar> {
   const t = codigo.trim();
   if (!t) throw new ErrorErp("No llegó ningún código.");
+  if (!Number.isInteger(cantidad) || cantidad < 1) throw new ErrorErp("La cantidad tiene que ser un número entero mayor que cero.");
   return enTransaccion(async (c) => {
     const l = (await c.query<{ estado: string }>("select estado from picking_lote where id = $1 and organizacion_id = $2 for update", [loteId, org])).rows[0];
     if (!l) throw new ErrorErp("Ese lote no existe.");
     if (l.estado !== "abierto") throw new ErrorErp("Ese lote ya está cerrado.");
-    const r = (await c.query<{ id: string; pedido_id: string; sku: string; titulo: string }>(`
-      update picking_item set escaneado = escaneado + 1
-       where id = (select i.id from picking_item i join variacion v on v.id = i.variacion_id join pedido p on p.id = i.pedido_id
-                     join picking_pedido pp on pp.lote_id = i.lote_id and pp.pedido_id = i.pedido_id
-                    where i.lote_id = $1 and i.organizacion_id = $2 and (v.codigo_barras = $3 or lower(v.sku) = lower($3))
-                      and i.escaneado + i.faltante < i.cantidad and pp.preparado_ts is null
-                    order by p.fecha, p.id, i.orden, i.id limit 1)
-      returning id, pedido_id, (select sku from variacion where id = variacion_id) sku, titulo_variacion(variacion_id) titulo`, [loteId, org, t])).rows[0];
+    // El primer pedido (el más viejo) que necesita ese producto. Con una
+    // cantidad, van todas a ese pedido: si le faltan menos, avisa.
+    const cual = (await c.query<{ id: string; pedido_id: string; resto: number }>(`
+      select i.id, i.pedido_id, (i.cantidad - i.escaneado - i.faltante)::int resto
+        from picking_item i join variacion v on v.id = i.variacion_id join pedido p on p.id = i.pedido_id
+        join picking_pedido pp on pp.lote_id = i.lote_id and pp.pedido_id = i.pedido_id
+       where i.lote_id = $1 and i.organizacion_id = $2 and (v.codigo_barras = $3 or lower(v.sku) = lower($3))
+         and i.escaneado + i.faltante < i.cantidad and pp.preparado_ts is null
+       order by p.fecha, p.id, i.orden, i.id limit 1 for update of i`, [loteId, org, t])).rows[0];
+    if (cual && cual.resto < cantidad) {
+      throw new ErrorErp(`Al pedido ${cual.pedido_id} le faltan ${cual.resto} de ${t}: cargá ${cual.resto}${cual.resto === 1 ? "" : " (o menos)"} y el resto, aparte.`);
+    }
+    const r = cual ? (await c.query<{ id: string; pedido_id: string; sku: string; titulo: string }>(`
+      update picking_item set escaneado = escaneado + $2 where id = $1
+      returning id, pedido_id, (select sku from variacion where id = variacion_id) sku, titulo_variacion(variacion_id) titulo`, [cual.id, cantidad])).rows[0] : undefined;
     if (!r) {
       const esta = (await c.query(`select 1 from picking_item i join variacion v on v.id = i.variacion_id
                                     where i.lote_id = $1 and (v.codigo_barras = $2 or lower(v.sku) = lower($2)) limit 1`, [loteId, t])).rowCount;
@@ -331,5 +341,44 @@ export async function empacar(org: string, loteId: number, codigo: string, usuar
       else { loteTerminado = (await marcarPreparado(org, loteId, pedidoId, usuarioId, c)).loteTerminado; preparado = true; }
     } else if (faltan.length === 0) aviso = `El pedido ${pedidoId} tiene faltantes marcados: no se cierra solo.`;
     return { pedidoId, sku: r.sku, titulo: r.titulo, completo, preparado, aviso, faltan, loteTerminado };
+  });
+}
+
+/** El pedido de un número escrito o escaneado (el N.º de Laucen, con o sin
+ *  "#", o el número del canal, ej. el de la venta de Mercado Libre), para el
+ *  «preparado rápido». */
+export async function pedidoPorNumero(org: string, codigo: string): Promise<{ id: number; cliente: string | null; estado: string; unidades: number; deposito_id: number | null; lote: number | null; preparable: boolean; full: boolean }> {
+  const t = String(codigo ?? "").trim();
+  if (!t) throw new ErrorErp("Escribí el número de pedido.");
+  const n = leerCodigoPedido(t);
+  const p = await una<{ id: number; cliente: string | null; estado: string; unidades: number; deposito_id: number | null; lote: number | null; preparable: boolean; full: boolean }>(`
+    select p.id::int, cl.nombre cliente, p.estado, ${SQL_DEPOSITO}::int deposito_id, ${SQL_PARA_PREPARAR} preparable,
+           coalesce((select logistica from envio where pedido_id = p.id order by id desc limit 1), '') = 'fulfillment' "full",
+           (select coalesce(sum(cantidad), 0)::int from pedido_linea where pedido_id = p.id and variacion_id is not null) unidades,
+           (select pp.lote_id::int from picking_pedido pp join picking_lote l on l.id = pp.lote_id
+             where pp.pedido_id = p.id and l.estado = 'abierto' limit 1) lote
+      from pedido p left join cliente cl on cl.id = p.cliente_id
+     where p.organizacion_id = $1 and (p.id_externo = $2 or ($3::bigint is not null and p.id = $3::bigint))
+     order by (p.id = $3::bigint) desc nulls last, p.id desc limit 1`, [org, t, n != null && n <= Number.MAX_SAFE_INTEGER ? n : null]);
+  if (!p) throw new ErrorErp(`No hay ningún pedido con el número ${t}.`);
+  if (p.full) throw new ErrorErp(`El pedido ${p.id} es de Full: lo prepara Mercado Libre.`);
+  return p;
+}
+
+/** «Preparado rápido» (provisorio, con el permiso picking_sin_escanear):
+ *  el pedido queda preparado de una, con todos sus ítems tildados. Si ya
+ *  está en un lote abierto se cierra ahí; si no, se arma un lote con él solo
+ *  (que queda terminado). */
+export async function prepararRapido(org: string, codigo: string, usuarioId: string): Promise<{ pedidoId: number; loteId: number }> {
+  const p = await pedidoPorNumero(org, codigo);
+  return enTransaccion(async (c) => {
+    let lote = p.lote;
+    if (!lote) {
+      if (p.estado === "preparado") throw new ErrorErp(`El pedido ${p.id} ya está preparado.`);
+      if (!p.deposito_id) throw new ErrorErp(`El pedido ${p.id} no tiene de qué depósito salir.`);
+      lote = await crearLote(org, p.deposito_id, [p.id], usuarioId, "hojas", c);
+    }
+    await marcarPreparado(org, lote, p.id, usuarioId, c);
+    return { pedidoId: p.id, loteId: lote };
   });
 }

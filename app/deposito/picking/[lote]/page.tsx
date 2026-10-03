@@ -25,6 +25,7 @@ import Empacar from "./Empacar";
 import Pestanas from "@/app/componentes/Pestanas";
 import { MarcaCarritoEspera } from "@/app/componentes/CarritoEspera";
 import { SelectorTam, tamElegido } from "../Tamano";
+import { tienePermiso } from "@/lib/permisos";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,8 @@ export default async function LotePicking({ params, searchParams }: { params: Pr
   const editar = Number(sp.editar) || 0;
   const ver: ModoLote = esModoLote(sp.ver) ? sp.ver : esModoLote(lote.modo) ? lote.modo : "recorrido";
   const preparados = pedidos.filter((p) => p.preparado_ts).length;
+  // Cerrar un pedido sin escanear sus productos (provisorio, con permiso).
+  const sinEscanear = tienePermiso(s.permisos, "picking_sin_escanear");
   // Los que al terminar no pasan a preparado (ni marcados ni con todo escaneado).
   const completo = new Map<number, boolean>();
   for (const i of items) completo.set(i.pedido_id, (completo.get(i.pedido_id) ?? true) && i.escaneado >= i.cantidad);
@@ -90,16 +93,25 @@ export default async function LotePicking({ params, searchParams }: { params: Pr
             <SelectorTam tam={tam} />
             {impresos > 0 && <span className="text-[11px] text-[#5C6B76]">Ya impresas: la hoja sale marcada «REIMPRESIÓN».</span>}
           </form>
-          <div className="mb-2 text-sm font-bold">Cerrar un pedido escaneando su hoja</div>
-          <div className="mb-4"><CerrarPorCodigo lote={loteId} /></div>
-          <ListaPedidos pedidos={pedidos} loteId={loteId} ver={ver} tam={tam} />
+          {sinEscanear ? (
+            <>
+              <div className="mb-2 text-sm font-bold">Cerrar un pedido con su número (escaneando la hoja o escribiéndolo)</div>
+              <div className="mb-4"><CerrarPorCodigo lote={loteId} /></div>
+            </>
+          ) : (
+            <p className={`${CAJA} mb-4 text-sm text-[#5C6B76]`}>
+              Para cerrar un pedido, escaneá o escribí cada producto en la pestaña <Link href={url(`/deposito/picking/${loteId}`, { ver: "empacar" })} className="underline">Empacar escaneando</Link>.
+              Darlo por preparado sin escanear pide el permiso «Preparar sin escanear».
+            </p>
+          )}
+          <ListaPedidos pedidos={pedidos} loteId={loteId} ver={ver} tam={tam} sinEscanear={sinEscanear} />
         </>
       )}
 
       {ver === "empacar" && (
         <>
           <div className="mb-4"><Empacar lote={loteId} tam={tam} /></div>
-          <ListaPedidos pedidos={pedidos} loteId={loteId} ver={ver} tam={tam} />
+          <ListaPedidos pedidos={pedidos} loteId={loteId} ver={ver} tam={tam} sinEscanear={sinEscanear} />
         </>
       )}
 
@@ -155,7 +167,7 @@ export default async function LotePicking({ params, searchParams }: { params: Pr
 
 /** Los pedidos del lote: cada uno con su "Preparado" (o la marca de que ya
  *  está), cuántas veces se imprimió, y la espera del carrito si la tiene. */
-function ListaPedidos({ pedidos, loteId, ver, tam }: { pedidos: PedidoLote[]; loteId: number; ver: string; tam: string }) {
+function ListaPedidos({ pedidos, loteId, ver, tam, sinEscanear }: { pedidos: PedidoLote[]; loteId: number; ver: string; tam: string; sinEscanear: boolean }) {
   return (
     <section className="mb-5">
       <h2 className="text-sm font-bold mb-2">Pedidos del lote ({pedidos.length})</h2>
@@ -181,7 +193,7 @@ function ListaPedidos({ pedidos, loteId, ver, tam }: { pedidos: PedidoLote[]; lo
               <span className="text-sm font-bold text-[#1F6E4A]">Preparado ✓ <span className="font-normal text-xs">{fechaHoraAR(p.preparado_ts)}</span></span>
             ) : p.en_espera ? (
               <button type="button" disabled className={`${SUAVE} ${GRANDE} opacity-50 cursor-not-allowed`} title="Un carrito de Mercado Libre se cierra 10 min después de su último ítem">Esperando</button>
-            ) : (
+            ) : !sinEscanear ? null : (
               <form action={accionPreparado}>
                 <input type="hidden" name="lote" value={loteId} />
                 <input type="hidden" name="pedido" value={p.id} />

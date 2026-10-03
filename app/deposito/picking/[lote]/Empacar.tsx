@@ -11,17 +11,20 @@ import { useRouter } from "next/navigation";
 import Escaner from "@/app/deposito/Escaner";
 import { PRIMARIO } from "@/app/botones";
 import { accionEmpacar, type ResultadoEmpaque } from "../acciones";
+import Cantidad, { cantidadDe } from "./Cantidad";
 
 export default function Empacar({ lote, tam }: { lote: number; tam: string }) {
   const router = useRouter();
   const [, transicion] = useTransition();
   const [r, setR] = useState<ResultadoEmpaque | null>(null);
+  const [cantidad, setCantidad] = useState("1");
   const etiqueta = (pedido: number) => `/deposito/hojas?lote=${lote}&p=${pedido}&solo=etiqueta&tam=${encodeURIComponent(tam)}`;
 
   async function alLeer(codigo: string) {
-    const x = await accionEmpacar(lote, codigo);
+    const x = await accionEmpacar(lote, codigo, cantidadDe(cantidad));
     setR(x);
     if (x.ok) {
+      setCantidad("1");
       // La etiqueta del pedido que se completó (si el navegador bloquea la
       // pestaña, queda el botón para abrirla).
       if (x.preparado) window.open(etiqueta(x.pedidoId), "_blank");
@@ -32,7 +35,10 @@ export default function Empacar({ lote, tam }: { lote: number; tam: string }) {
 
   return (
     <div className="space-y-2">
-      <Escaner alLeer={alLeer} placeholder="Escaneá el producto que vas a empacar" />
+      <div className="flex items-end gap-2">
+        <Cantidad valor={cantidad} cambiar={setCantidad} />
+        <div className="flex-1 min-w-0"><Escaner alLeer={alLeer} placeholder="Escaneá o escribí el código o SKU del producto" /></div>
+      </div>
       {r && !r.ok && (
         <p role="alert" className="text-base font-bold rounded-lg px-3 py-3 bg-[#FDF1EF] text-[#C03420]">✗ {r.mensaje}</p>
       )}
