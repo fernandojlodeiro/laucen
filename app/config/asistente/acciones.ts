@@ -10,7 +10,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, numero, tildado, id } from "@/lib/erp/acciones";
 import { sosVos } from "@/lib/admin";
-import { guardarConfigAsistente } from "@/lib/asistente/config";
+import { configAsistente, guardarConfigAsistente } from "@/lib/asistente/config";
 
 const VOLVER = "/config/asistente";
 
@@ -25,6 +25,20 @@ export async function accionGuardarAsistente(fd: FormData) {
     await guardarConfigAsistente(s.org.id, { nombre, carita: tildado(fd, "carita"), fueraDelSistema: tildado(fd, "fuera"), topeUsd: tope });
     revalidatePath("/", "layout");
     return { ir: `${VOLVER}?ok=${encodeURIComponent("Grabado.")}` };
+  });
+}
+
+/** Los interruptores (carita y preguntas fuera del sistema) se prenden y apagan con un clic. */
+export async function accionInterruptorAsistente(fd: FormData) {
+  const s = await entrarErp("asistente_config");
+  await intentar(VOLVER, async () => {
+    const campo = texto(fd, "campo");
+    if (campo !== "carita" && campo !== "fueraDelSistema") throw new ErrorErp("Interruptor desconocido.");
+    const prendido = fd.get("valor") === "1";
+    await guardarConfigAsistente(s.org.id, { ...(await configAsistente(s.org.id)), [campo]: prendido });
+    revalidatePath("/", "layout");
+    return campo === "carita" ? (prendido ? "Carita prendida." : "Carita apagada: se ve un signo de pregunta.")
+      : prendido ? "Prendido: ahora contesta también preguntas fuera del sistema." : "Apagado: sólo contesta sobre el sistema.";
   });
 }
 

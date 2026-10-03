@@ -1,7 +1,8 @@
 // Configuración → Asistente (pedido de Fer, 3/10): cómo se llama el
 // asistente de la organización, si se ve la carita o el signo de pregunta,
 // si contesta preguntas fuera del sistema (buscando en internet) y el tope de
-// gasto por mes. Abre en vista; se edita con el lápiz (?editar=ficha). La
+// gasto por mes. Abre en vista; el nombre y el tope se editan con el lápiz
+// (?editar=ficha) y los dos interruptores se prenden con un clic. La
 // pestaña Historial tiene las conversaciones (./historial).
 
 import { entrarErp, Pantalla, Avisos, Dato, BotonesFicha, editandoFicha, CAMPO, ETIQUETA, CAJA } from "@/app/componentes/erp";
@@ -11,8 +12,9 @@ import { formatear } from "@/lib/moneda";
 import { configAsistente, gastoDelMes } from "@/lib/asistente/config";
 import Carita from "@/app/componentes/asistente/Carita";
 import { sosVos } from "@/lib/admin";
-import { PestanasAsistente, InterruptorVista } from "./comun";
-import { accionGuardarAsistente } from "./acciones";
+import { PestanasAsistente } from "./comun";
+import { Interruptor } from "@/app/radar/Piezas";
+import { accionGuardarAsistente, accionInterruptorAsistente } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +41,7 @@ export default async function ConfigAsistente({ searchParams }: { searchParams: 
             <span className={ETIQUETA}>Cómo se ve</span>
             <div className="flex items-center gap-3">
               <Carita tamano={40} carita={c.carita} />
-              <InterruptorVista prendido={c.carita} etiqueta="Carita (si no, un signo de pregunta)" />
+              <Interruptor accion={accionInterruptorAsistente} campos={{ campo: "carita" }} prendido={c.carita} etiqueta="Carita (si no, un signo de pregunta)" />
             </div>
           </div>
           <Dato etiqueta="Tope de gasto por mes (US$)" numero ayuda={`Este mes van ${formatear(gasto, "USD")}. Al llegar al tope deja de contestar hasta el mes que viene.`}>
@@ -47,9 +49,12 @@ export default async function ConfigAsistente({ searchParams }: { searchParams: 
           </Dato>
           <div className="sm:col-span-3">
             <span className={ETIQUETA}>Preguntas fuera del sistema</span>
-            <InterruptorVista prendido={c.fueraDelSistema} etiqueta={c.fueraDelSistema
-              ? "Prendido: contesta también preguntas generales y busca en internet si hace falta"
-              : "Apagado: sólo contesta sobre el sistema y sus datos"} />
+            <div className="max-w-xl">
+              <Interruptor accion={accionInterruptorAsistente} campos={{ campo: "fueraDelSistema" }} prendido={c.fueraDelSistema} etiqueta={c.fueraDelSistema
+                ? "Prendido: contesta también preguntas generales y busca en internet si hace falta"
+                : "Apagado: sólo contesta sobre el sistema y sus datos"} />
+            </div>
+            <span className={AYUDA}>Se prende y se apaga con un clic (no hace falta el lápiz).</span>
           </div>
         </div>
       ) : (

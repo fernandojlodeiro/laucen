@@ -77,7 +77,7 @@ Si le piden hacer algo que no está entre sus acciones, explica cómo se hace a 
 3. Apretá **"Grabar"**.
 
 ### Dejar que conteste preguntas generales
-Prendé **Preguntas fuera del sistema** y grabá. Prendido, contesta también cosas que no son del sistema (impuestos, comercio, Mercado Libre en general) y busca en internet si hace falta. Apagado, a eso contesta que sólo sabe del sistema.
+Tocá el interruptor **Preguntas fuera del sistema**: se prende (o se apaga) con un clic, sin el lápiz. Lo mismo el de la **Carita**. Prendido, contesta también cosas que no son del sistema (impuestos, comercio, Mercado Libre en general) y busca en internet si hace falta. Apagado, a eso contesta que sólo sabe del sistema.
 
 ### Imprimir una conversación o guardarla en PDF
 1. En el chat, apretá **"PDF"** (arriba, al lado de "Nueva"); o en el **Historial**, abrí la conversación y apretá **"🖨 Imprimir o PDF"**.
