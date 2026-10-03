@@ -342,8 +342,8 @@ $$;
 
 -- Costo de importación estimado de cada producto (pestaña "Costo" de la
 -- ficha): la posición arancelaria y las alícuotas del despacho. Con el FOB de
--- la variación da el costo puesto en depósito estimado = FOB × (1 + derecho +
--- tasa de estadística + arancel/otros). IVA, IVA adicional, percepción de
+-- la variación da el costo puesto en depósito estimado (sobre CIF: ver más
+-- abajo, familia_costo). IVA, IVA adicional, percepción de
 -- ganancias e ingresos brutos son crédito fiscal: se muestran aparte y NO se
 -- suman al costo (igual que en despacho_importacion, db/administracion.sql).
 create table if not exists producto_costo (
@@ -363,3 +363,42 @@ create table if not exists producto_costo (
 create index if not exists producto_costo_org on producto_costo (organizacion_id);
 alter table producto_costo enable row level security;
 select erp_politica_org('producto_costo');
+
+-- Costo puesto sobre CIF (Fer, 3/10; misma cuenta que lib/piloto/costo.ts):
+--   CIF = FOB + flete (% del FOB) + seguro (% del FOB, 1% de entrada)
+--   derechos, estadística y arancel/otros = CIF × su alícuota
+--   despachante (1% del CIF) y depósito fiscal y otros (2% del CIF)
+--   costo puesto = CIF + derechos + estadística + otros + despachante + depósito
+-- Cada valor vacío hereda: producto → su familia → la familia padre → ... →
+-- valores generales de la organización (config_org, clave 'costo_importacion').
+-- La vía (avión / barco / courier) es informativa por ahora.
+alter table producto_costo add column if not exists flete_pct numeric(6, 2) check (flete_pct between 0 and 500);
+alter table producto_costo add column if not exists via text check (via in ('avion', 'barco', 'courier'));
+alter table producto_costo add column if not exists seguro_pct numeric(6, 2) check (seguro_pct between 0 and 100);
+alter table producto_costo add column if not exists despachante_pct numeric(6, 2) check (despachante_pct between 0 and 100);
+alter table producto_costo add column if not exists deposito_pct numeric(6, 2) check (deposito_pct between 0 and 100);
+
+-- Los mismos valores por familia (propia o de Mercado Libre: de una categoría
+-- de ML no se cambia el nombre ni el árbol, pero sí sus costos). Los heredan
+-- sus productos y subfamilias si no los cambian.
+create table if not exists familia_costo (
+  familia_id                bigint primary key references familia(id) on delete cascade,
+  organizacion_id           text not null references organizaciones(id) on delete cascade,
+  ncm                       text,
+  flete_pct                 numeric(6, 2) check (flete_pct between 0 and 500),
+  via                       text check (via in ('avion', 'barco', 'courier')),
+  seguro_pct                numeric(6, 2) check (seguro_pct between 0 and 100),
+  derecho_pct               numeric(6, 2) check (derecho_pct between 0 and 100),
+  tasa_estadistica_pct      numeric(6, 2) check (tasa_estadistica_pct between 0 and 100),
+  arancel_otros_pct         numeric(6, 2) check (arancel_otros_pct between 0 and 100),
+  despachante_pct           numeric(6, 2) check (despachante_pct between 0 and 100),
+  deposito_pct              numeric(6, 2) check (deposito_pct between 0 and 100),
+  iva_pct                   numeric(6, 2) check (iva_pct between 0 and 100),
+  iva_adicional_pct         numeric(6, 2) check (iva_adicional_pct between 0 and 100),
+  percepcion_ganancias_pct  numeric(6, 2) check (percepcion_ganancias_pct between 0 and 100),
+  ingresos_brutos_pct       numeric(6, 2) check (ingresos_brutos_pct between 0 and 100),
+  actualizado_ts            timestamptz not null default now()
+);
+create index if not exists familia_costo_org on familia_costo (organizacion_id);
+alter table familia_costo enable row level security;
+select erp_politica_org('familia_costo');

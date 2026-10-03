@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, numero, id, tildado } from "@/lib/erp/acciones";
+import { TODOS_PCT, CLAVES_GENERAL, CLAVE_CONFIG, esVia, leerPctsCosto, leerNcm, type ClavePct } from "@/lib/costo-importacion";
 
 const VOLVER = "/catalogo/familias";
 const DE_ML = "Es una categoría de Mercado Libre: no se cambia ni se borra.";
@@ -105,5 +106,60 @@ export async function accionBorrarFamilia(fd: FormData) {
     await consulta("delete from familia where id = $2 and organizacion_id = $1", [s.org.id, id(fd)]);
     revalidatePath(VOLVER);
     return "Familia borrada.";
+  });
+}
+
+/** A dónde volver después de guardar costos (sólo dentro del catálogo). */
+const volverCatalogo = (fd: FormData) => {
+  const v = texto(fd, "volver");
+  return v && v.startsWith("/catalogo/") ? v : VOLVER;
+};
+
+/** Costos de importación de una familia (propia o de Mercado Libre: de una
+ *  categoría de ML no se toca el nombre ni el árbol, pero sí sus costos).
+ *  Todo vacío = la familia no tiene costos propios y hereda todo. */
+export async function accionGuardarCostoFamilia(fd: FormData) {
+  const s = await entrarErp("familias_ver");
+  await intentar(volverCatalogo(fd), async () => {
+    const fid = id(fd);
+    const existe = await una("select 1 from familia where id = $2 and organizacion_id = $1", [s.org.id, fid]);
+    if (!existe) throw new ErrorErp("Esa familia no existe.");
+    const cols = TODOS_PCT.map(([k]) => k);
+    const pcts = leerPctsCosto(fd, cols);
+    const via = texto(fd, "via");
+    const ncm = leerNcm(fd);
+    if (ncm == null && !esVia(via) && pcts.every((n) => n == null)) {
+      await consulta("delete from familia_costo where familia_id = $2 and organizacion_id = $1", [s.org.id, fid]);
+    } else {
+      await consulta(`
+        insert into familia_costo (familia_id, organizacion_id, ncm, via, ${cols.join(", ")}, actualizado_ts)
+        values ($1, $2, $3, $4, ${cols.map((_, i) => `$${i + 5}`).join(", ")}, now())
+        on conflict (familia_id) do update set ncm = excluded.ncm, via = excluded.via,
+          ${cols.map((k) => `${k} = excluded.${k}`).join(", ")}, actualizado_ts = now()`,
+        [fid, s.org.id, ncm, esVia(via) ? via : null, ...pcts]);
+    }
+    revalidatePath(VOLVER);
+    return "Costos de la familia guardados.";
+  });
+}
+
+/** Valores generales de importación de la organización (config_org): flete,
+ *  vía, seguro, despachante y depósito. Un campo vacío vuelve al de entrada. */
+export async function accionGuardarCostoGeneral(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  await intentar(volverCatalogo(fd), async () => {
+    const claves = CLAVES_GENERAL.filter((k): k is ClavePct => k !== "via" && k !== "ncm");
+    const pcts = leerPctsCosto(fd, claves);
+    const valor: Record<string, number | string> = {};
+    claves.forEach((k, i) => { if (pcts[i] != null) valor[k] = pcts[i]!; });
+    const via = texto(fd, "via");
+    if (esVia(via)) valor.via = via;
+    await consulta(`
+      insert into config_org (organizacion_id, clave, valor) values ($1, $2, $3::jsonb)
+      on conflict (coalesce(organizacion_id, ''), clave) do update set valor = excluded.valor, actualizado_ts = now()`,
+      [s.org.id, CLAVE_CONFIG, JSON.stringify(valor)]);
+    revalidatePath(VOLVER);
+    revalidatePath("/catalogo/productos", "layout");
+    return "Valores generales de importación guardados.";
   });
 }

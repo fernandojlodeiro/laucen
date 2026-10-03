@@ -10,6 +10,7 @@ import { consulta, una, enTransaccion, ErrorErp, motivoErp, type Consultor } fro
 import { intentar, texto, numero, entero, id, tildado } from "@/lib/erp/acciones";
 import { guardarPrecio } from "@/lib/precios";
 import { esMoneda } from "@/lib/moneda";
+import { TODOS_PCT, esVia, leerPctsCosto, leerNcm } from "@/lib/costo-importacion";
 import { supabaseServer } from "@/lib/supabase";
 
 const LISTADO = "/catalogo/productos";
@@ -401,30 +402,24 @@ export async function accionGuardarCucardas(fd: FormData) {
 
 // ── Costo de importación ──────────────────────────────────
 
-const PCT_COSTO = [
-  ["derecho_pct", "derecho de importación"], ["tasa_estadistica_pct", "tasa de estadística"], ["arancel_otros_pct", "arancel / otros"],
-  ["iva_pct", "IVA"], ["iva_adicional_pct", "IVA adicional"], ["percepcion_ganancias_pct", "percepción de ganancias"], ["ingresos_brutos_pct", "ingresos brutos"],
-] as const;
-
-/** Pestaña Costo: NCM, alícuotas del despacho y notas (una fila por producto). */
+/** Pestaña Costo: NCM, flete, seguro, alícuotas del despacho, gastos de
+ *  importación y notas (una fila por producto; vacío = hereda de la familia o
+ *  de lo general, lib/costo-importacion.ts). */
 export async function accionGuardarCosto(fd: FormData) {
   const s = await entrarErp("productos_ver");
   const pid = id(fd, "producto_id");
   await intentar(ficha(pid, fd), async () => {
     await productoDe(s.org.id, pid);
-    const pcts = PCT_COSTO.map(([k, t]) => {
-      const n = numero(fd, k);
-      if (n != null && (n < 0 || n > 100)) throw new ErrorErp(`El ${t} va de 0 a 100 %.`);
-      return n;
-    });
-    const ncm = texto(fd, "ncm")?.toUpperCase().replace(/\s+/g, "") ?? null;
-    if (ncm && ncm.length > 20) throw new ErrorErp("La posición arancelaria es muy larga (ej. 8516.79.90.990X).");
+    const pcts = leerPctsCosto(fd);
+    const via = texto(fd, "via");
+    const ncm = leerNcm(fd);
+    const cols = TODOS_PCT.map(([k]) => k);
     await consulta(`
-      insert into producto_costo (producto_id, organizacion_id, ncm, ${PCT_COSTO.map(([k]) => k).join(", ")}, notas, actualizado_ts)
-      values ($1, $2, $3, ${PCT_COSTO.map((_, i) => `$${i + 4}`).join(", ")}, $${PCT_COSTO.length + 4}, now())
-      on conflict (producto_id) do update set ncm = excluded.ncm, ${PCT_COSTO.map(([k]) => `${k} = excluded.${k}`).join(", ")},
+      insert into producto_costo (producto_id, organizacion_id, ncm, via, ${cols.join(", ")}, notas, actualizado_ts)
+      values ($1, $2, $3, $4, ${cols.map((_, i) => `$${i + 5}`).join(", ")}, $${cols.length + 5}, now())
+      on conflict (producto_id) do update set ncm = excluded.ncm, via = excluded.via, ${cols.map((k) => `${k} = excluded.${k}`).join(", ")},
         notas = excluded.notas, actualizado_ts = now()`,
-      [pid, s.org.id, ncm, ...pcts, texto(fd, "notas")]);
+      [pid, s.org.id, ncm, esVia(via) ? via : null, ...pcts, texto(fd, "notas")]);
     revalidatePath(`${LISTADO}/${pid}`);
     return "Costo de importación guardado.";
   });

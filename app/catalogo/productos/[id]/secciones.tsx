@@ -10,8 +10,10 @@ import type { Sesion } from "@/lib/tenancy";
 import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
+import { costoDeProducto, resolver, calcular, PCT_CREDITO } from "@/lib/costo-importacion";
+import { CamposCosto, CajaCostoGeneral } from "../../costo-piezas";
 import {
-  Lapiz, Estado, Dato, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  Lapiz, Estado, Dato, url, editandoFicha, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import {
   accionGuardarDatos, accionCrearVariacion, accionGuardarVariacion, accionBorrarVariacion,
@@ -336,64 +338,34 @@ function AtributosMl({ p, attrsMl }: { p: Producto; attrsMl: AtributoMl[] }) {
 
 // ── Costo de importación ──────────────────────────────────
 
-type CostoImpo = {
-  ncm: string | null; derecho_pct: number | null; tasa_estadistica_pct: number | null; arancel_otros_pct: number | null;
-  iva_pct: number | null; iva_adicional_pct: number | null; percepcion_ganancias_pct: number | null; ingresos_brutos_pct: number | null;
-  notas: string | null; actualizado: string | null;
-};
-
-/** Lo que se suma al costo y lo que es crédito fiscal (AGENTS.md / db/catalogo.sql: producto_costo). */
-const SUMAN: [keyof CostoImpo, string][] = [
-  ["derecho_pct", "Derecho de importación"], ["tasa_estadistica_pct", "Tasa de estadística"], ["arancel_otros_pct", "Arancel / otros"],
-];
-const CREDITO: [keyof CostoImpo, string][] = [
-  ["iva_pct", "IVA"], ["iva_adicional_pct", "IVA adicional"], ["percepcion_ganancias_pct", "Percepción de ganancias"], ["ingresos_brutos_pct", "Ingresos brutos"],
-];
-
-export async function SeccionCosto({ s, p, seccion, editando }: Props) {
-  const [c] = await consulta<CostoImpo>(`
-    select ncm, derecho_pct::float8, tasa_estadistica_pct::float8, arancel_otros_pct::float8, iva_pct::float8, iva_adicional_pct::float8,
-           percepcion_ganancias_pct::float8, ingresos_brutos_pct::float8, notas,
-           to_char(actualizado_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YYYY HH24:MI') actualizado
-      from producto_costo where producto_id = $2 and organizacion_id = $1`, [s.org.id, p.id]);
+export async function SeccionCosto({ s, p, sp, seccion, editando }: Props) {
+  const { propios, cadena, general, resuelto } = await costoDeProducto(s.org.id, p.id, p.familia_id);
+  const heredado = resolver(null, cadena, general);
   const variaciones = await variacionesDe(s.org.id, p.id);
   const kits = await costosKit(s.org.id, variaciones.map((v) => v.id));
   const esKit = (v: Variacion) => p.tipo === "kit" || kits.has(v.id);
-  const val = (k: keyof CostoImpo) => (c?.[k] as number | null | undefined) ?? null;
-  const suman = SUMAN.reduce((t, [k]) => t + (val(k) ?? 0), 0);
-  const credito = CREDITO.reduce((t, [k]) => t + (val(k) ?? 0), 0);
-
-  const campoPct = (k: keyof CostoImpo, t: string) => editando ? (
-    <label key={k}><span className={ETIQUETA}>{t} %</span><CampoNumero name={k} valor={val(k)} tipo="pct" className={`${CAMPO} w-full`} /></label>
-  ) : (
-    <Dato key={k} etiqueta={`${t} %`} numero>{val(k) != null ? pct(val(k)) : null}</Dato>
-  );
+  const uno = calcular(1, resuelto);
+  const x = (n: number) => formatearNumero(n, "decimal");
+  const editandoGeneral = !editando && editandoFicha(sp, "general");
+  const sinFlete = resuelto.flete_pct.valor == null;
 
   const datos = (
     <>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-start">
+      <CamposCosto editando={editando} propios={propios} rige={resuelto} heredado={heredado} credito={PCT_CREDITO} autoFocus />
+      <div className="mt-3">
         {editando ? (
-          <label className="col-span-2"><span className={ETIQUETA}>NCM (posición arancelaria)</span>
-            <input name="ncm" defaultValue={c?.ncm ?? ""} placeholder="ej. 8516.79.90.990X" className={`${CAMPO} w-full font-mono`} autoFocus />
+          <label className="block"><span className={ETIQUETA}>Notas</span>
+            <textarea name="notas" defaultValue={propios?.notas ?? ""} rows={3} className={`${CAMPO} w-full`} />
           </label>
         ) : (
-          <Dato etiqueta="NCM (posición arancelaria)" className="col-span-2">{c?.ncm && <span className="font-mono">{c.ncm}</span>}</Dato>
-        )}
-        <div className="hidden sm:block col-span-2" />
-        <p className="col-span-2 sm:col-span-4 text-[11px] font-bold text-[#1E2A32] -mb-1">Se suman al costo</p>
-        {SUMAN.map(([k, t]) => campoPct(k, t))}
-        <div className="hidden sm:block" />
-        <p className="col-span-2 sm:col-span-4 text-[11px] font-bold text-[#1E2A32] -mb-1">Crédito fiscal (no son costo)</p>
-        {CREDITO.map(([k, t]) => campoPct(k, t))}
-        {editando ? (
-          <label className="col-span-2 sm:col-span-4"><span className={ETIQUETA}>Notas</span>
-            <textarea name="notas" defaultValue={c?.notas ?? ""} rows={4} className={`${CAMPO} w-full`} />
-          </label>
-        ) : (
-          <Dato etiqueta="Notas" className="col-span-2 sm:col-span-4">{c?.notas && <span className="block whitespace-pre-wrap">{c.notas}</span>}</Dato>
+          <Dato etiqueta="Notas">{propios?.notas && <span className="block whitespace-pre-wrap">{propios.notas}</span>}</Dato>
         )}
       </div>
-      {!editando && c?.actualizado && <p className="text-[10px] text-[#5C6B76] mt-2">Última modificación: {c.actualizado}.</p>}
+      <p className="text-[10px] text-[#5C6B76] mt-2">
+        {editando
+          ? "Un campo vacío hereda de la categoría del producto (y de las de arriba) o de los valores generales."
+          : <>Cada valor es el del producto o, si no tiene, el de su categoría{p.familia ? ` (${p.familia})` : ""} o el general.{propios?.actualizado && <> Última modificación: {propios.actualizado}.</>}</>}
+      </p>
     </>
   );
 
@@ -409,14 +381,17 @@ export async function SeccionCosto({ s, p, seccion, editando }: Props) {
       <section>
         <h2 className="text-sm font-bold mb-1">Costo estimado puesto en depósito</h2>
         <p className="text-xs text-[#5C6B76] mb-2">
-          FOB × (1 + derecho + tasa de estadística + arancel/otros) = FOB × {formatearNumero(1 + suman / 100, "decimal")}.
-          Lo que es crédito fiscal ({pct(credito)} sobre esa base) se muestra aparte y no se suma al costo. El costo real sale de las compras y los despachos.
+          CIF = FOB + flete + seguro = FOB × {x(uno.cif)}. Costo = CIF + derechos + estadística + arancel/otros + despachante + depósito
+          = FOB × {x(uno.costo)}. El crédito fiscal y los anticipos (IVA, percepciones, IIBB) se calculan sobre CIF + derechos + estadística y no se suman.
+          El costo real sale de las compras y los despachos.
         </p>
+        {sinFlete && <p className="text-[11px] text-[#8a6100] mb-2">Falta el flete: cargalo acá, en la categoría del producto (Familias) o en los valores generales.</p>}
         <div className={CAJA_TABLA}>
           <table className={TABLA}>
             <thead className={THEAD}>
               <tr>
-                <th className={TH}>Variación</th><th className={THN}>FOB</th><th className={THN}>Derechos y tasas</th>
+                <th className={TH}>Variación</th><th className={THN}>FOB</th><th className={THN}>Flete y seguro</th><th className={THN}>CIF</th>
+                <th className={THN}>Derechos y tasas</th><th className={THN}>Despachante y depósito</th>
                 <th className={THN}>Costo estimado</th><th className={THN}>Crédito fiscal (aparte)</th>
                 <th className={THN}>Último costo real</th><th className={THN}>Costo promedio</th>
               </tr>
@@ -426,14 +401,18 @@ export async function SeccionCosto({ s, p, seccion, editando }: Props) {
                 const k = kits.get(v.id);
                 const fob = esKit(v) ? k?.total ?? null : v.costo_fob;
                 const moneda: Moneda = esKit(v) ? k?.moneda ?? "USD" : v.costo_moneda;
-                const costo = fob == null ? null : fob * (1 + suman / 100);
+                const c = fob == null ? null : calcular(fob, resuelto);
+                const m = (n: number | undefined) => (n == null ? "—" : formatear(n, moneda));
                 return (
                   <tr key={v.id} className={TR}>
                     <td className={TD}><span className="font-mono">{v.sku}</span>{v.atributos && <span className="text-[#5C6B76]"> · {v.atributos}</span>}</td>
                     <td className={TDN}>{fob != null ? formatear(fob, moneda) : <span className="text-[#5C6B76]">{esKit(v) ? "suma de componentes" : "sin FOB"}</span>}</td>
-                    <td className={TDN}>{fob != null ? formatear(fob * suman / 100, moneda) : "—"}</td>
-                    <td className={`${TDN} font-semibold`}>{costo != null ? formatear(costo, moneda) : "—"}</td>
-                    <td className={`${TDN} text-[#5C6B76]`}>{costo != null ? formatear(costo * credito / 100, moneda) : "—"}</td>
+                    <td className={TDN}>{m(c ? c.flete + c.seguro : undefined)}</td>
+                    <td className={TDN}>{m(c?.cif)}</td>
+                    <td className={TDN}>{m(c ? c.derechos + c.estadistica + c.otros : undefined)}</td>
+                    <td className={TDN}>{m(c ? c.despachante + c.deposito : undefined)}</td>
+                    <td className={`${TDN} font-semibold`}>{m(c?.costo)}</td>
+                    <td className={`${TDN} text-[#5C6B76]`}>{m(c?.credito)}</td>
                     <td className={TDN}>{v.costo_ultimo_ars != null || v.costo_ultimo_usd != null ? enVista({ ars: v.costo_ultimo_ars, usd: v.costo_ultimo_usd }, s.moneda) : <span className="text-[#5C6B76]">—</span>}</td>
                     <td className={TDN}>{v.costo_promedio_ars != null || v.costo_promedio_usd != null ? enVista({ ars: v.costo_promedio_ars, usd: v.costo_promedio_usd }, s.moneda) : <span className="text-[#5C6B76]">—</span>}</td>
                   </tr>
@@ -446,6 +425,10 @@ export async function SeccionCosto({ s, p, seccion, editando }: Props) {
           El FOB se carga en {p.tipo === "con_variaciones" ? "cada variación" : "Datos"}; los costos reales (último y promedio) salen de las facturas de compra y los despachos, en {s.moneda === "USD" ? "dólares" : "pesos"}.
         </p>
       </section>
+
+      {!editando && (
+        <CajaCostoGeneral general={general} editando={editandoGeneral} ver={aqui(p, seccion)} editar={aqui(p, seccion, { editar: "general" })} />
+      )}
     </div>
   );
 }

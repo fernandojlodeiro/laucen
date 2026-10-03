@@ -39,6 +39,8 @@ export async function familiasConDatos(org: string) {
     return {
       ...f,
       /** Descuento que hereda (el de la primera de arriba que tenga uno). */
+      /** Las de arriba, de la más cercana a la raíz (para heredar costos). */
+      ancestros: ancestros.map((a) => a.id),
       heredado: ancestros.find((a) => a.descuento_pct != null)?.descuento_pct ?? 0,
       deMl: f.ml_categoria != null,
       propia: f.ml_categoria == null && ancestros.every((a) => a.ml_categoria == null),
