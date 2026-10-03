@@ -62,6 +62,7 @@ Apretá **"Suspender"** y confirmá: ya no puede entrar a la organización. **"R
 - Las **funciones del menú** que un rol todavía no tiene cargadas cuentan como prendidas (se ven tildadas). Los demás permisos (como «Administrar roles» o «Ver el historial del asistente») nacen apagados.
 - El permiso **«Asistente»** viene prendido: si lo apagás en un rol, a esas personas no les aparece la carita del asistente.
 - **«Pedirle al asistente que haga cosas»** (nace apagado, salvo en el Admin de fábrica): deja que el asistente prepare acciones (facturar, crear clientes y pedidos, cambiar estados) que la persona confirma con un botón; cada una pide además el permiso de su pantalla.
+- **«Consultas libres al asistente»** (nace apagado en todos los roles): deja que el asistente consulte cualquier dato (sólo lectura) y arme listados con Excel, pero sólo de las pantallas que el rol tiene. El superadministrador lo tiene siempre.
 - Una invitación queda "Invitado" hasta que la persona se registra o entra con ese mail.
 
 ## Preguntas frecuentes

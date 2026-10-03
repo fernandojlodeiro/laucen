@@ -285,9 +285,19 @@ const cambioEnDatos: Accion = {
 
 export const HERRAMIENTA_CONSULTAR_SQL: Anthropic.Beta.BetaTool = {
   name: "consultar_sql",
-  description: "SÓLO SUPERADMINISTRADOR. Consulta de sólo lectura sobre la base de Laucen: una instrucción SELECT (o WITH … SELECT), hasta 200 filas, con los permisos de fila del usuario (sólo su organización). Para ver datos que las listas no tienen o para preparar un cambio.",
-  input_schema: { type: "object", properties: { sql: { type: "string" } }, required: ["sql"] },
+  description: "Consulta libre de sólo lectura sobre la base de Laucen (Postgres): una instrucción SELECT (o WITH … SELECT), sin punto y coma. Devuelve hasta 200 filas y un enlace de Excel con TODAS las filas (hasta 50.000): para un listado largo, poné ese enlace en tu respuesta tal cual ([Descargar Excel](…)). Corre con los permisos del usuario: sólo su organización y, si no es superadministrador, sólo tablas de las pantallas que su rol tiene (y sin funciones del sistema). Mirá la estructura de las tablas con leer_codigo (db/*.sql) antes. Nombrá las columnas en castellano con alias (\"as \\\"Producto\\\"\") para que el Excel salga prolijo.",
+  input_schema: {
+    type: "object",
+    properties: {
+      sql: { type: "string" },
+      titulo: { type: "string", description: "Título corto del listado (va de nombre del Excel)." },
+    },
+    required: ["sql", "titulo"],
+  },
 };
+
+/** ¿Puede hacer consultas libres? El superadministrador, o con «Consultas libres al asistente». */
+export const puedeConsultar = (permisos: Permisos, superadmin: boolean) => superadmin || tienePermiso(permisos, "asistente_consultas");
 
 export const ACCIONES: Accion[] = [facturar, crearCliente, crearPedido, cambiarEstados, cambioEnDatos];
 const PORNOMBRE = new Map(ACCIONES.map((a) => [a.herramienta.name, a]));
@@ -300,9 +310,10 @@ export const HERRAMIENTA_PENDIENTE: Anthropic.Beta.BetaTool = {
 
 /** Las herramientas de acciones que esta persona puede usar. */
 export function herramientasDeAcciones(permisos: Permisos, superadmin: boolean): Anthropic.Beta.BetaTool[] {
-  if (!tienePermiso(permisos, "asistente_acciones")) return [];
+  const consultas = puedeConsultar(permisos, superadmin) ? [HERRAMIENTA_CONSULTAR_SQL] : [];
+  if (!tienePermiso(permisos, "asistente_acciones")) return consultas;
   const propias = ACCIONES.filter((a) => (a !== cambioEnDatos || superadmin) && tienePermiso(permisos, a.permiso)).map((a) => a.herramienta);
-  return [...propias, ...(superadmin ? [HERRAMIENTA_CONSULTAR_SQL] : []), HERRAMIENTA_PENDIENTE];
+  return [...propias, ...consultas, HERRAMIENTA_PENDIENTE];
 }
 
 export const esHerramientaDeAccion = (nombre: string) =>
@@ -316,8 +327,18 @@ function exigirPermisos(a: Accion, permisos: Permisos) {
 /** Corre una herramienta de acción: prepara la propuesta (o anota el pendiente). Devuelve el texto para el modelo y, si hubo, la propuesta. */
 export async function correrAccion(nombre: string, entrada: Record<string, unknown>, ctx: CtxAccion, conversacionId: number): Promise<{ texto: string; propuesta?: number }> {
   if (nombre === HERRAMIENTA_CONSULTAR_SQL.name) {
-    if (!ctx.superadmin) throw new ErrorErp("Sólo un superadministrador.");
-    return { texto: (await consultarSql(String(entrada.sql ?? ""), ctx.authId)).slice(0, 60_000) };
+    if (!puedeConsultar(ctx.permisos, ctx.superadmin)) throw new ErrorErp("Esta persona no tiene permiso para consultas libres.");
+    const r = await consultarSql(String(entrada.sql ?? ""), ctx.authId, ctx.permisos, ctx.superadmin);
+    // Se guarda para que el Excel la vuelva a correr con todas las filas.
+    const g = await una<{ id: number }>(
+      "insert into asistente_consulta (organizacion_id, conversacion_id, usuario_id, titulo, sql) values ($1, $2, $3, $4, $5) returning id::int",
+      [ctx.org, conversacionId, ctx.usuarioId, (txt(entrada.titulo) ?? "Consulta").slice(0, 100), r.sql]);
+    return {
+      texto: JSON.stringify({
+        columnas: r.columnas, filas: r.filas, hay_mas_de_200: r.mas,
+        excel: `[Descargar Excel](/api/asistente/consulta/${g!.id}/excel)`,
+      }).slice(0, 60_000),
+    };
   }
   if (nombre === HERRAMIENTA_PENDIENTE.name) {
     if (!tienePermiso(ctx.permisos, "asistente_acciones")) throw new ErrorErp("Sin permiso.");

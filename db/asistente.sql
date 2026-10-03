@@ -81,3 +81,19 @@ create table if not exists asistente_pendiente (
 create index if not exists asistente_pendiente_org on asistente_pendiente (organizacion_id, creado_ts desc);
 alter table asistente_pendiente enable row level security;
 select erp_politica_org('asistente_pendiente');
+
+-- Las consultas libres del asistente (pedido de Fer, 3/10): se guardan para
+-- que su "Descargar Excel" las vuelva a correr —con los permisos de ese
+-- momento— y baje todas las filas. Sólo las baja quien las pidió.
+create table if not exists asistente_consulta (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  conversacion_id  bigint references asistente_conversacion(id) on delete set null,
+  usuario_id       text not null references usuarios(id),
+  titulo           text not null,
+  sql              text not null,
+  creada_ts        timestamptz not null default now()
+);
+create index if not exists asistente_consulta_org on asistente_consulta (organizacion_id, creada_ts desc);
+alter table asistente_consulta enable row level security;
+select erp_politica_org('asistente_consulta');
