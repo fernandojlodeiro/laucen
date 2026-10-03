@@ -12,7 +12,8 @@ import Carita from "./Carita";
 import Texto from "./Texto";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 
-type Mensaje = { id?: number; rol: "usuario" | "asistente"; texto: string; voto?: number | null; error?: boolean };
+type Accion = { id: number; resumen: string; detalle: string[]; estado: string; resultado: string | null };
+type Mensaje = { id?: number; rol: "usuario" | "asistente"; texto: string; voto?: number | null; error?: boolean; acciones?: Accion[] };
 
 const CLAVE = "asistente_conversacion";
 
@@ -90,13 +91,13 @@ export default function Asistente({ nombre, carita, usuario }: { nombre: string;
         resto = renglones.pop() ?? "";
         for (const renglon of renglones) {
           if (!renglon.trim()) continue;
-          const ev = JSON.parse(renglon) as { tipo: string; texto?: string; id?: number; conversacion?: number };
+          const ev = JSON.parse(renglon) as { tipo: string; texto?: string; id?: number; conversacion?: number; acciones?: Accion[] };
           if (ev.tipo === "conversacion" && ev.conversacion) {
             setConversacion(ev.conversacion);
             try { sessionStorage.setItem(CLAVE, String(ev.conversacion)); } catch { /* nada */ }
           } else if (ev.tipo === "estado") setEstado(ev.texto ?? "Pensando…");
           else if (ev.tipo === "respuesta" || ev.tipo === "error") {
-            setMensajes((m) => [...m, { id: ev.id, rol: "asistente", texto: ev.texto ?? "", error: ev.tipo === "error" }]);
+            setMensajes((m) => [...m, { id: ev.id, rol: "asistente", texto: ev.texto ?? "", error: ev.tipo === "error", acciones: ev.acciones }]);
           }
         }
       }
@@ -113,6 +114,20 @@ export default function Asistente({ nombre, carita, usuario }: { nombre: string;
     const nuevo = m.voto === voto ? null : voto;
     setMensajes((ms) => ms.map((x, j) => (j === i ? { ...x, voto: nuevo } : x)));
     fetch("/api/asistente/voto", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: m.id, voto: nuevo }) }).catch(() => {});
+  }
+
+  /** Confirmar o cancelar una acción preparada: la tarjeta queda con el resultado. */
+  async function resolver(accionId: number, decision: "confirmar" | "cancelar") {
+    const marcar = (cambio: Partial<Accion>) => setMensajes((ms) => ms.map((m) => (m.acciones?.some((a) => a.id === accionId)
+      ? { ...m, acciones: m.acciones.map((a) => (a.id === accionId ? { ...a, ...cambio } : a)) } : m)));
+    marcar({ estado: decision === "confirmar" ? "haciendo" : "cancelando" });
+    try {
+      const r = await fetch("/api/asistente/accion", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: accionId, decision }) });
+      const d = await r.json() as { estado?: string; texto?: string };
+      marcar({ estado: d.estado ?? "error", resultado: d.texto ?? "No se pudo." });
+    } catch {
+      marcar({ estado: "propuesta", resultado: "No me pude conectar: probá de nuevo." });
+    }
   }
 
   function microfono() {
@@ -176,6 +191,7 @@ export default function Asistente({ nombre, carita, usuario }: { nombre: string;
                 <Carita tamano={24} carita={carita} />
                 <div className="max-w-[85%]">
                   <div className={`rounded-2xl rounded-tl-sm px-3 py-2 ${m.error ? "bg-[#FDF0EE] text-[#8A2A1C]" : "bg-[#EEF3F8]"}`}><Texto texto={m.texto} /></div>
+                  {m.acciones?.map((a) => <TarjetaAccion key={a.id} a={a} resolver={resolver} />)}
                   {m.id && !m.error && (
                     <div className="flex gap-1 mt-1">
                       <button type="button" onClick={() => votar(i, 1)} aria-label="Me sirvió" title="Me sirvió"
@@ -213,5 +229,32 @@ export default function Asistente({ nombre, carita, usuario }: { nombre: string;
         </section>
       )}
     </>
+  );
+}
+
+/** Lo que el asistente preparó para hacer: qué va a pasar, y Confirmar / Cancelar. */
+function TarjetaAccion({ a, resolver }: { a: Accion; resolver: (id: number, d: "confirmar" | "cancelar") => void }) {
+  const ESTADO: Record<string, [string, string]> = {
+    hecha: ["Hecho", "text-[#167655]"], cancelada: ["Cancelado", "text-[#5C6B76]"], error: ["No se pudo", "text-[#C03420]"],
+    haciendo: ["Haciendo…", "text-[#16577F]"], cancelando: ["Cancelando…", "text-[#5C6B76]"],
+  };
+  const [texto, tono] = ESTADO[a.estado] ?? ["", ""];
+  return (
+    <div className="mt-2 rounded-xl border border-[#16577F] bg-white px-3 py-2">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-[#16577F]">Para confirmar</p>
+      <p className="font-semibold">{a.resumen}</p>
+      {a.detalle.length > 0 && (
+        <ul className="mt-1 max-h-40 overflow-y-auto list-disc pl-4 text-[11px] text-[#334155] space-y-0.5">
+          {a.detalle.map((d, i) => <li key={i}>{d}</li>)}
+        </ul>
+      )}
+      {a.estado === "propuesta" ? (
+        <div className="flex gap-2 mt-2">
+          <button type="button" onClick={() => resolver(a.id, "confirmar")} className={PRIMARIO}>Confirmar</button>
+          <button type="button" onClick={() => resolver(a.id, "cancelar")} className={SUAVE}>Cancelar</button>
+        </div>
+      ) : <p className={`mt-1 text-[11px] font-semibold ${tono}`}>{texto}</p>}
+      {a.resultado && <div className="mt-1 text-[11px]"><Texto texto={a.resultado} /></div>}
+    </div>
   );
 }

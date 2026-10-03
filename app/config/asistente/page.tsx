@@ -10,6 +10,7 @@ import { InterruptorCampo } from "@/app/administracion/contabilidad/piezas";
 import { formatear } from "@/lib/moneda";
 import { configAsistente, gastoDelMes } from "@/lib/asistente/config";
 import Carita from "@/app/componentes/asistente/Carita";
+import { sosVos } from "@/lib/admin";
 import { PestanasAsistente, InterruptorVista } from "./comun";
 import { accionGuardarAsistente } from "./acciones";
 
@@ -29,7 +30,7 @@ export default async function ConfigAsistente({ searchParams }: { searchParams: 
     <Pantalla titulo="Asistente" subtitulo="La carita de abajo a la derecha: contesta cómo se hace cada cosa, dónde está y datos del sistema" ancho="max-w-4xl"
       acciones={<BotonesFicha editando={editando} ver={VOLVER} editar={`${VOLVER}?editar=ficha`} />}>
       <Avisos sp={sp} />
-      <PestanasAsistente org={s.org.id} permisos={s.permisos} activa="config" />
+      <PestanasAsistente org={s.org.id} permisos={s.permisos} superadmin={s.superadmin || (await sosVos())} activa="config" />
 
       {!editando ? (
         <div className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start`}>

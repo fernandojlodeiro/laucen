@@ -29,6 +29,15 @@ async function entrar() {
   return s;
 }
 
+type AccionVista = { id: number; mensaje_id: number | null; resumen: string; detalle: string[]; estado: string; resultado: string | null };
+
+/** Las propuestas de acción (por número o de una conversación) para dibujar sus tarjetas. */
+async function accionesDe(org: string, de: { ids?: number[]; conversacion?: number }): Promise<AccionVista[]> {
+  return consulta<AccionVista>(`
+    select id::int, mensaje_id::int, resumen, detalle, estado, resultado from asistente_accion
+     where organizacion_id = $1 and ${de.ids ? "id = any($2::bigint[])" : "conversacion_id = $2"} order by id`, [org, de.ids ?? de.conversacion]);
+}
+
 async function conversacionPropia(org: string, usuario: string, id: number) {
   return una<{ id: number }>("select id::int id from asistente_conversacion where id = $1 and organizacion_id = $2 and usuario_id = $3", [id, org, usuario]);
 }
@@ -40,7 +49,8 @@ export async function GET(req: NextRequest) {
   if (!id || !(await conversacionPropia(s.org.id, s.usuario.id, id))) return json({ mensajes: [] });
   const mensajes = await consulta<{ id: number; rol: string; texto: string; voto: number | null }>(
     "select id::int id, rol, texto, voto from asistente_mensaje where conversacion_id = $1 order by id", [id]);
-  return json({ mensajes });
+  const acciones = await accionesDe(s.org.id, { conversacion: id });
+  return json({ mensajes: mensajes.map((m) => ({ ...m, acciones: acciones.filter((a) => a.mensaje_id === m.id) })) });
 }
 
 export async function POST(req: NextRequest) {
@@ -89,9 +99,9 @@ export async function POST(req: NextRequest) {
       }
 
       const r = await preguntar({
-        nombre: config.nombre, fuera: config.fueraDelSistema, ruta, pregunta,
+        nombre: config.nombre, fuera: config.fueraDelSistema, ruta, pregunta, conversacionId: conversacion!,
         historia: historia.reverse(),
-        q: { org, orgNombre: s.org.nombre, usuario: s.usuario.nombre || s.usuario.email, superadmin: s.superadmin, esFer, permisos: s.permisos, moneda },
+        q: { org, orgNombre: s.org.nombre, usuario: s.usuario.nombre || s.usuario.email, usuarioId: s.usuario.id, superadmin: s.superadmin, esFer, permisos: s.permisos, moneda },
         alAvanzar: (estado) => enviar({ tipo: "estado", texto: estado }),
       });
       const [motivo, tecnico] = r.error ? r.error.split("|") : [null, null];
@@ -100,7 +110,10 @@ export async function POST(req: NextRequest) {
         insert into asistente_mensaje (organizacion_id, conversacion_id, rol, texto, ruta, herramientas, tokens_in, tokens_out, busquedas, usd, error)
         values ($1, $2, 'asistente', $3, $4, $5::jsonb, $6, $7, $8, $9, $10) returning id::int id`,
       [org, conversacion, texto, ruta, JSON.stringify(r.herramientas), r.tokensIn, r.tokensOut, r.busquedas, r.usd, tecnico ?? null]).catch(() => null);
-      enviar(r.error ? { tipo: "error", id: m?.id, texto } : { tipo: "respuesta", id: m?.id, texto });
+      // Las propuestas de acción quedan colgadas de esta respuesta (para volver a mostrarlas).
+      if (m?.id && r.propuestas.length) await consulta("update asistente_accion set mensaje_id = $1 where id = any($2::bigint[]) and organizacion_id = $3", [m.id, r.propuestas, org]);
+      const acciones = r.propuestas.length ? await accionesDe(org, { ids: r.propuestas }) : [];
+      enviar(r.error ? { tipo: "error", id: m?.id, texto } : { tipo: "respuesta", id: m?.id, texto, acciones });
       control.close();
     },
   });

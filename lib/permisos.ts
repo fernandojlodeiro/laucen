@@ -63,7 +63,8 @@ export type PermisoKey =
   | "roles_administrar"
   | "asistente_usar"
   | "asistente_config"
-  | "asistente_historial_ver";
+  | "asistente_historial_ver"
+  | "asistente_acciones";
 
 export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "gestionar_busquedas", label: "Gestionar búsquedas", ayuda: "Crear, editar y pausar las búsquedas programadas." },
@@ -117,6 +118,7 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "asistente_usar", label: "Asistente", ayuda: "Preguntarle al asistente (la carita de abajo a la derecha) cómo se hace cada cosa y datos del sistema." },
   { key: "asistente_config", label: "Configurar el asistente", ayuda: "Nombre, carita, preguntas fuera del sistema y tope de gasto del asistente." },
   { key: "asistente_historial_ver", label: "Ver el historial del asistente", ayuda: "Leer las preguntas que le hizo cada persona al asistente y sus respuestas." },
+  { key: "asistente_acciones", label: "Pedirle al asistente que haga cosas", ayuda: "Que el asistente prepare acciones (facturar pedidos, crear un cliente o un pedido, cambiar estados) para confirmar con un clic. Cada una pide además el permiso de su pantalla." },
 ];
 
 export type Permisos = Partial<Record<PermisoKey, boolean>>;

@@ -61,6 +61,7 @@ Apretá **"Suspender"** y confirmá: ya no puede entrar a la organización. **"R
 - El rol **Admin** de fábrica (🔒) no se puede borrar y siempre tiene «Gestionar equipo». Un rol con personas no se borra: primero cambiales el rol.
 - Las **funciones del menú** que un rol todavía no tiene cargadas cuentan como prendidas (se ven tildadas). Los demás permisos (como «Administrar roles» o «Ver el historial del asistente») nacen apagados.
 - El permiso **«Asistente»** viene prendido: si lo apagás en un rol, a esas personas no les aparece la carita del asistente.
+- **«Pedirle al asistente que haga cosas»** (nace apagado, salvo en el Admin de fábrica): deja que el asistente prepare acciones (facturar, crear clientes y pedidos, cambiar estados) que la persona confirma con un botón; cada una pide además el permiso de su pantalla.
 - Una invitación queda "Invitado" hasta que la persona se registra o entra con ese mail.
 
 ## Preguntas frecuentes

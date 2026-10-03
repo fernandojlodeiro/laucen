@@ -10,15 +10,11 @@ import { revalidatePath } from "next/cache";
 import { entrarErp, patronBusqueda } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, numero, texto } from "@/lib/erp/acciones";
-import { crearPedido, cambiarEstado, type LineaEntrada } from "@/lib/pedidos";
+import { crearPedidoAMano, type PedidoAMano } from "@/lib/pedidos/a-mano";
 import { precioDe } from "@/lib/precios";
-import { confirmarPago, avisarStockMl } from "@/lib/tienda/pagos/confirmar";
 import { unirPedidosPartidos } from "@/lib/mercadolibre/carritos";
 import type { Moneda } from "@/lib/moneda";
 
-/** Canales donde se carga un pedido a mano: todos menos Mercado Libre (sus
- *  pedidos entran solos) y las ventas históricas. */
-const TIPOS_A_MANO = ["local", "web_minorista", "web_mayorista", "otro"];
 
 export type ClienteHallado = {
   id: number; nombre: string; documento: string | null; email: string | null; cuentaCorriente: boolean;
@@ -90,89 +86,52 @@ export async function preciosPedido(canalId: number, clienteId: number | null, v
   return { moneda, precios };
 }
 
-const MEDIOS = ["Efectivo", "Transferencia", "Tarjeta de débito", "Tarjeta de crédito", "Mercado Pago", "Cheque", "Otro"];
 
 /** Crea el pedido cargado a mano. Si sale bien va a su ficha; si no, devuelve
  *  el error y el formulario queda como estaba. */
 export async function accionNuevoPedido(fd: FormData): Promise<{ error: string }> {
   const s = await entrarErp("pedidos_ver");
-  const org = s.org.id;
   let pedidoId: number;
-  let aviso = "";
   try {
-    const canalId = Number(fd.get("canal")) || 0;
-    const canal = await una<{ tipo: string; estado: string }>("select tipo, estado from canal where id = $1 and organizacion_id = $2", [canalId, org]);
-    if (!canal) throw new ErrorErp("Elegí el canal.");
-    if (!TIPOS_A_MANO.includes(canal.tipo)) {
-      throw new ErrorErp(canal.tipo === "mercadolibre" ? "Los pedidos de Mercado Libre entran solos: no se cargan a mano." : "En ese canal no se cargan pedidos a mano.");
-    }
-    if (canal.estado !== "activo") throw new ErrorErp("Ese canal no está activo.");
-
     const consumidorFinal = fd.get("quien") !== "cliente";
     const clienteId = consumidorFinal ? null : Number(fd.get("cliente_id")) || null;
     if (!consumidorFinal && !clienteId) throw new ErrorErp("Elegí el cliente (o marcá «Consumidor final»).");
 
-    const lineas: LineaEntrada[] = [];
+    const lineas: PedidoAMano["lineas"] = [];
     for (const [i, clave] of fd.getAll("linea").map(String).entries()) {
-      const n = i + 1;
-      const variacionId = Number(fd.get(`l_${clave}_variacion`)) || 0;
-      const cantidad = numero(fd, `l_${clave}_cantidad`);
       const precio = numero(fd, `l_${clave}_precio`);
       const sugerido = numero(fd, `l_${clave}_sugerido`);
-      const descuento = numero(fd, `l_${clave}_descuento`) ?? 0;
-      if (!variacionId) throw new ErrorErp(`Línea ${n}: falta el producto.`);
-      if (cantidad == null || !Number.isInteger(cantidad) || cantidad <= 0) throw new ErrorErp(`Línea ${n}: la cantidad tiene que ser un entero mayor que cero.`);
-      if (precio == null) throw new ErrorErp(`Línea ${n}: falta el precio.`);
+      if (precio == null) throw new ErrorErp(`Línea ${i + 1}: falta el precio.`);
       // Si el precio es el de la lista, lo pone crearPedido con precioDe (queda
       // registrado el precio de lista y su descuento); si se cambió, va el escrito.
       const deLista = sugerido != null && Math.abs(precio - sugerido) < 0.005;
-      lineas.push({ variacion_id: variacionId, cantidad, precio_unitario: deLista ? null : precio, descuento_pct: descuento || null });
+      lineas.push({
+        variacionId: Number(fd.get(`l_${clave}_variacion`)) || 0, cantidad: numero(fd, `l_${clave}_cantidad`) ?? 0,
+        precio: deLista ? null : precio, descuentoPct: numero(fd, `l_${clave}_descuento`) ?? 0,
+      });
     }
-    if (!lineas.length) throw new ErrorErp("Agregá al menos un producto.");
-
-    const pago = String(fd.get("pago") ?? "a_convenir");
-    if (!["a_convenir", "pagado", "cuenta_corriente"].includes(pago)) throw new ErrorErp("Elegí el estado del pago.");
-    const medio = pago === "cuenta_corriente" ? "Cuenta corriente" : texto(fd, "medio_pago");
-    if (medio && pago !== "cuenta_corriente" && !MEDIOS.includes(medio)) throw new ErrorErp("Medio de pago desconocido.");
-    if (pago === "pagado" && !medio) throw new ErrorErp("Elegí con qué pagó.");
-    if (pago === "cuenta_corriente" && !clienteId) throw new ErrorErp("La cuenta corriente necesita un cliente (no consumidor final).");
-
+    const pago = String(fd.get("pago") ?? "a_convenir") as PedidoAMano["pago"];
     const entrega = fd.get("entrega") === "envio" ? "envio" : "retiro";
-    const direccion = entrega === "envio" ? {
-      calle: texto(fd, "calle"), numero: texto(fd, "numero"), piso_depto: texto(fd, "piso_depto"), localidad: texto(fd, "localidad"),
-      provincia: texto(fd, "provincia"), codigo_postal: texto(fd, "codigo_postal"), referencia: texto(fd, "referencia"),
-    } : null;
-    if (direccion && (!direccion.calle || !direccion.localidad)) throw new ErrorErp("Para el envío completá al menos la calle y la localidad.");
-    const costoEnvio = entrega === "envio" ? numero(fd, "costo_envio") : null;
-
-    const creado = await crearPedido(org, {
-      canalId,
+    const creado = await crearPedidoAMano(s.org.id, s.usuario.id, {
+      canalId: Number(fd.get("canal")) || 0,
       clienteId,
       lineas,
-      medio_pago: medio,
-      // «A convenir» a mano = «A cobrar» (Fer, 3/10): reserva ya y entra en picking; se cobra al entregar.
-      estado_pago: pago === "pagado" ? "pendiente" : pago === "cuenta_corriente" ? "a_convenir" : "a_cobrar",
-      envio: { metodo: entrega === "envio" ? "Envío" : "Retira", a_mano: true, direccion },
-      costo_envio: costoEnvio || null,
+      pago,
+      medio: pago === "cuenta_corriente" ? null : texto(fd, "medio_pago"),
+      entrega,
+      direccion: entrega === "envio" ? {
+        calle: texto(fd, "calle"), numero: texto(fd, "numero"), piso_depto: texto(fd, "piso_depto"), localidad: texto(fd, "localidad"),
+        provincia: texto(fd, "provincia"), codigo_postal: texto(fd, "codigo_postal"), referencia: texto(fd, "referencia"),
+      } : null,
+      costoEnvio: entrega === "envio" ? numero(fd, "costo_envio") : null,
       notas: texto(fd, "notas"),
-      datos_externos: { a_mano: { usuario: s.usuario.id, pago } },
-    }, s.usuario.id);
+    });
     pedidoId = creado.pedidoId;
-
-    if (pago === "pagado") {
-      // Igual que «Confirmar pago» de la ficha: queda el pago, el pedido pagado y la reserva.
-      await confirmarPago(org, pedidoId, { medio: medio!, importe: creado.total.ars }, s.usuario.id);
-    } else if (pago === "cuenta_corriente") {
-      // Venta cerrada a cuenta: el pedido queda confirmado (reserva el stock) y el pago, a convenir.
-      await cambiarEstado(org, pedidoId, "pagado", s.usuario.id, "a cuenta corriente");
-    }
-    if (creado.reservo && pago !== "pagado") await avisarStockMl(org, pedidoId);
-    aviso = `Pedido ${pedidoId} creado.`;
   } catch (e) {
     return { error: motivoErp(e) };
   }
   revalidatePath("/ventas/pedidos");
-  redirect(`/ventas/pedidos/${pedidoId}?ok=${encodeURIComponent(aviso)}`);
+  redirect(`/ventas/pedidos/${pedidoId}?ok=${encodeURIComponent(`Pedido ${pedidoId} creado.`)}`);
 }
 
 /** Une los carritos de Mercado Libre que quedaron partidos en varios pedidos

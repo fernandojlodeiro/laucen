@@ -28,3 +28,7 @@ update membresias m set superadmin = true
 -- se los saca, la clave queda en false y esto no la vuelve a prender.
 update roles set permisos = permisos || '{"roles_administrar": true, "asistente_config": true, "asistente_historial_ver": true}'::jsonb
  where protegido and not (permisos ? 'roles_administrar');
+
+-- «Pedirle al asistente que haga cosas» (3/10): también va una vez al Admin de fábrica.
+update roles set permisos = permisos || '{"asistente_acciones": true}'::jsonb
+ where protegido and not (permisos ? 'asistente_acciones');

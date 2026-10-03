@@ -2,9 +2,9 @@
 titulo: Asistente
 menu: Configuración › Asistente
 ruta: /config/asistente
-rutas: /config/asistente, /config/asistente/historial
+rutas: /config/asistente, /config/asistente/historial, /config/asistente/pendientes
 permiso: asistente_config
-resumen: El asistente del sistema (la carita de abajo a la derecha): cómo usarlo, su nombre, la carita, las preguntas fuera del sistema, el tope de gasto y el historial de preguntas.
+resumen: El asistente del sistema (la carita de abajo a la derecha): cómo usarlo, pedirle que haga cosas, su nombre, la carita, las preguntas fuera del sistema, el tope de gasto, el historial y los pedidos sin resolver.
 ---
 
 ## Para qué sirve
@@ -18,6 +18,7 @@ En esta pantalla se configura (nombre, carita, preguntas fuera del sistema, tope
 - Para usarlo: tocá la carita (o el signo de pregunta) de abajo a la derecha, en cualquier pantalla.
 - Para configurarlo: menú **Configuración › Asistente** ([Asistente](/config/asistente)). Pide el permiso «Configurar el asistente».
 - El historial: pestaña **Historial** ([Historial del asistente](/config/asistente/historial)). Pide el permiso «Ver el historial del asistente».
+- Los pedidos sin resolver: pestaña **Pedidos sin resolver** ([Pedidos sin resolver](/config/asistente/pendientes)). Sólo la ven los superadministradores.
 
 ## Qué hay en la pantalla
 
@@ -28,6 +29,8 @@ En esta pantalla se configura (nombre, carita, preguntas fuera del sistema, tope
 
 **Configuración**: Nombre, Cómo se ve (carita o signo de pregunta), Tope de gasto por mes (US$) con lo gastado en el mes, y Preguntas fuera del sistema. Se edita con el lápiz de arriba a la derecha y se graba con **"Grabar"**.
 
+**Pedidos sin resolver** (sólo superadministradores): lo que le pidieron hacer al asistente y no sabe hacer todavía, con fecha, persona y "ver la conversación". Filtro de estado (Nuevos, Mandados a programar, Descartados, Todos). En cada nuevo: una **Nota** opcional, **"Mandar a programar"** y **"Descartar"** (pregunta Sí/No).
+
 **Historial**: buscador (por pregunta, respuesta o persona), rango de fechas, **"Sólo con 👎"**, y la lista de conversaciones con Última pregunta, Persona, Primera pregunta, Preguntas, 👍, 👎 y Costo US$. Tocando la pregunta se abre la conversación entera abajo, con qué usó para contestar cada respuesta (manual, datos, código, internet) y lo que costó. **"Descargar Excel"** arriba a la derecha.
 
 ## Cómo se hace
@@ -36,6 +39,22 @@ En esta pantalla se configura (nombre, carita, preguntas fuera del sistema, tope
 1. Tocá la carita de abajo a la derecha.
 2. Escribí (o dictá con 🎤) la pregunta y apretá **"Enviar"**.
 3. Mientras trabaja muestra qué está haciendo ("Buscando en el manual…", "Consultando los datos…"). Los lugares que nombra son enlaces: tocándolos vas directo.
+
+### Pedirle que haga algo
+Si tu rol tiene el permiso «Pedirle al asistente que haga cosas», le podés pedir:
+- **Facturar pedidos**: uno o varios (hasta 50), por ejemplo "facturá los pedidos preparados que no tienen factura".
+- **Crear un cliente**: por ejemplo el que está en el mostrador ("creá el cliente Juan Pérez, DNI 30.123.456").
+- **Crear un pedido a mano**: canal, cliente (o consumidor final), productos por SKU y cantidades, cómo paga y si retira o se envía.
+- **Cambiar el estado de pedidos** que no son de Mercado Libre ("pasá a despachados los pedidos 120, 121 y 125").
+
+1. Pedíselo en el chat. Si le falta algo (qué pedidos, qué producto, cómo paga), te lo pregunta o lo busca.
+2. Te muestra una tarjeta **"Para confirmar"** con lo que va a hacer, renglón por renglón.
+3. Apretá **"Confirmar"** para que lo haga, o **"Cancelar"**. Recién ahí se hace; la tarjeta muestra el resultado (con enlaces a lo creado).
+
+### Mandar a programar algo que no sabe hacer
+Si le piden hacer algo que no está entre sus acciones, explica cómo se hace a mano y lo anota. El superadministrador lo ve en **Pedidos sin resolver**:
+1. Si conviene que el asistente aprenda a hacerlo, escribí una **Nota** si querés y apretá **"Mandar a programar"**: queda como orden en la bitácora del proyecto para que se programe.
+2. Si no, **"Descartar"** y confirmá con **Sí**.
 
 ### Cambiarle el nombre o la carita
 1. En [Asistente](/config/asistente), apretá el lápiz.
@@ -52,7 +71,10 @@ Entrá a la pestaña **Historial**. Con **"Sólo con 👎"** ves las respuestas 
 
 - **De dónde saca lo que sabe**: primero del manual del sistema; para datos, de las mismas listas que ves en las pantallas (con sus filtros); y si el manual no alcanza para explicar un criterio, revisa cómo funciona el sistema por dentro. Contesta siempre en palabras, sin mostrar nada técnico.
 - **Respeta los permisos**: a cada persona le explica sólo las pantallas y los datos que su rol le deja ver. Si pregunta por otra cosa, le dice que eso lo maneja otro rol y que lo pida al administrador.
-- **No cambia nada**: no graba, no borra, no manda nada a Mercado Libre ni a ARCA. Explica cómo hacerlo.
+- **Nunca hace nada solo**: para hacer algo prepara la acción y espera que la persona apriete **Confirmar**. Usa las mismas funciones que las pantallas (la factura sale igual que con el botón "Facturar"). Con "Cancelar", no se hace nada. Una propuesta que pasó más de una hora sin confirmar vence: hay que pedirla de nuevo.
+- **Doble permiso**: hace falta «Pedirle al asistente que haga cosas» y además el permiso de la pantalla (facturar: «Facturación»; clientes: «Clientes»; pedidos: «Pedidos»). Sólo confirma quien lo pidió.
+- **Mercado Libre, nunca**: no cambia precios, stock, publicaciones ni el estado de los pedidos de Mercado Libre (esos se mueven solos desde Mercado Libre).
+- Sin el permiso de acciones, no hace nada: explica cómo hacerlo y dónde.
 - **Tope de gasto**: cada respuesta cuesta unos centavos de dólar (más si consulta muchos datos o busca en internet). Cuando lo gastado en el mes llega al tope, deja de contestar hasta el mes siguiente y avisa que se terminó el cupo. 0 lo apaga.
 - **Historial**: cada pregunta y respuesta queda guardada, con la persona, la pantalla desde la que preguntó, qué usó para contestar, lo que costó y el 👍/👎. El chat lo avisa abajo.
 - La conversación sigue mientras cambiás de pantalla y al recargar la página; **"Nueva"** empieza otra.
@@ -60,7 +82,9 @@ Entrá a la pestaña **Historial**. Con **"Sólo con 👎"** ves las respuestas 
 
 ## Preguntas frecuentes
 
-**¿El asistente puede hacer el cambio por mí?** No: te dice dónde y cómo, pero el cambio lo hacés vos.
+**¿El asistente puede hacer el cambio por mí?** Si tu rol tiene «Pedirle al asistente que haga cosas»: facturar pedidos, crear un cliente, crear un pedido o cambiar estados, siempre con tu Confirmar. Lo demás te lo explica y queda anotado para que se programe.
+
+**¿Qué pasa si confirmo y algo falla?** La tarjeta dice qué se hizo y qué no (por ejemplo, "Facturados 10 de 12" y el motivo de los 2).
 
 **¿Por qué me dice que eso lo maneja otro rol?** Porque tu rol no tiene permiso para esa pantalla o esos datos.
 
