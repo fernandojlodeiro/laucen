@@ -170,6 +170,14 @@ create table if not exists cc_imputacion (
 );
 alter table cc_imputacion enable row level security;
 select erp_politica_org('cc_imputacion');
+-- Débito y crédito pueden estar en monedas distintas (una factura en dólares
+-- cancelada con una orden de pago en pesos): `importe` es lo que bajó el
+-- pendiente del débito (en su moneda), `importe_credito` lo que bajó el del
+-- crédito (en la suya) y `cotizacion` el tipo de cambio usado (null si eran de
+-- la misma moneda). Las imputaciones viejas sin importe_credito eran de igual
+-- importe de los dos lados.
+alter table cc_imputacion add column if not exists importe_credito numeric(16, 2);
+alter table cc_imputacion add column if not exists cotizacion numeric(14, 4);
 
 -- ── Tesorería ─────────────────────────────────────────────
 create table if not exists cuenta_fondos (

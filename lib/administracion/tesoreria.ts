@@ -137,11 +137,13 @@ export async function anularRecibo(org: string, reciboId: number) {
 export async function deshacerCc(c: PoolClient, org: string, referenciaTipo: string, referenciaId: number) {
   const movs = (await c.query<{ id: string }>("select id from cc_movimiento where organizacion_id = $1 and referencia_tipo = $2 and referencia_id = $3", [org, referenciaTipo, referenciaId])).rows;
   for (const m of movs) {
-    const imp = (await c.query<{ debito_id: string; credito_id: string; importe: string }>(
-      "select debito_id, credito_id, importe from cc_imputacion where debito_id = $1 or credito_id = $1", [m.id])).rows;
+    // Cada lado vuelve en su moneda: `importe` es lo que había bajado el débito
+    // e `importe_credito` lo del crédito (las viejas, sin él, eran iguales).
+    const imp = (await c.query<{ debito_id: string; credito_id: string; importe: string; importe_credito: string }>(
+      "select debito_id, credito_id, importe, coalesce(importe_credito, importe) importe_credito from cc_imputacion where debito_id = $1 or credito_id = $1", [m.id])).rows;
     for (const i of imp) {
       if (i.debito_id !== m.id) await c.query("update cc_movimiento set pendiente = pendiente + $2 where id = $1", [i.debito_id, i.importe]);
-      if (i.credito_id !== m.id) await c.query("update cc_movimiento set pendiente = pendiente - $2 where id = $1", [i.credito_id, i.importe]);
+      if (i.credito_id !== m.id) await c.query("update cc_movimiento set pendiente = pendiente - $2 where id = $1", [i.credito_id, i.importe_credito]);
     }
     await c.query("delete from cc_movimiento where id = $1", [m.id]);
   }

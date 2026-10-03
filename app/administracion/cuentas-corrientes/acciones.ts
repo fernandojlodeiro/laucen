@@ -7,7 +7,8 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, numero, id } from "@/lib/erp/acciones";
-import { hoyAR } from "@/lib/moneda";
+import { hoyAR, formatear } from "@/lib/moneda";
+import { formatearNumero } from "@/lib/numeros";
 import { imputar, movimientoCc, imputarAutomatico, type Tercero } from "@/lib/administracion/cc";
 import { emitirRecibo, anularRecibo, type Medio, type Retencion } from "@/lib/administracion/tesoreria";
 
@@ -69,9 +70,12 @@ export async function accionImputar(fd: FormData) {
     const debito = id(fd, "debito"), credito = id(fd, "credito");
     if (!debito || !credito) throw new ErrorErp("Elegí el débito y el crédito.");
     // imputar() ya verifica que los dos sean de la organización y del mismo tercero.
-    await imputar(s.org.id, debito, credito, numero(fd, "importe") ?? 0);
+    // Sin importe, cancela lo máximo que alcance.
+    const r = await imputar(s.org.id, debito, credito, numero(fd, "importe"));
     revalidatePath(BASE);
-    return "Imputado.";
+    return r.cotizacion
+      ? `Imputado: la deuda bajó ${formatear(r.debito, r.monedaDebito)} y el crédito ${formatear(r.credito, r.monedaCredito)} (dólar a $ ${formatearNumero(r.cotizacion, "pesos")}).`
+      : `Imputado: ${formatear(r.debito, r.monedaDebito)}.`;
   });
 }
 

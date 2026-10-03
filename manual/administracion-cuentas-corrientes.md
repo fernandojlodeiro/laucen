@@ -38,7 +38,7 @@ Título "Cuentas corrientes" y la aclaración "Lo que nos deben los clientes y l
 - Arriba: "Clientes › Nombre" (o "Proveedores › Nombre"), el **Saldo** con la leyenda "nos debe" o "le debemos", y el **Vencido** si hay.
 - Botones: **"Nuevo recibo"** (clientes) o **"Nueva orden de pago"** (proveedores), y **"Saldo inicial"**. Cada uno abre su formulario debajo; tocándolo de nuevo se cierra.
 - Tabla de movimientos: **Fecha**, **Vence** (en rojo si está vencido y pendiente), **Concepto** (si es una factura de venta o de compra, enlace al documento), **Importe** (en pesos; si el documento es en dólares, debajo el importe en US$), **Pendiente** (lo que falta cancelar de ese renglón, en su moneda; "—" si está saldado) y **Saldo** acumulado.
-- **"Imputar a mano"**: aparece sólo si hay a la vez deudas y créditos pendientes. Campos **Deuda pendiente**, **Crédito pendiente**, **Importe** y botón **"Imputar"**.
+- **"Imputar a mano"**: aparece sólo si hay a la vez deudas y créditos pendientes. Campos **Deuda pendiente** y **Crédito pendiente** (cada uno con lo que le falta, en su moneda: "$" o "US$"), **A cancelar de la deuda** (en la moneda de la deuda) y botón **"Imputar"**. Debajo se va mostrando cuánto baja la deuda y cuánto el crédito; si son de monedas distintas, también el dólar que se usa y de qué día.
 - Tabla **Recibos** (u **Órdenes de pago**): Número ("Recibo 12"), Fecha, Total, Estado (Emitido / Anulado), Notas y el botón **"Anular"**, que pregunta ahí mismo "¿Anular?".
 
 ### Formulario de recibo u orden de pago
@@ -82,9 +82,10 @@ Si alguno de sus movimientos ya está conciliado con el extracto del banco, no d
 Sirve cuando querés que un pago cancele una factura en particular y no la más vieja.
 
 1. En **"Imputar a mano"**, elegí la **Deuda pendiente** y el **Crédito pendiente**.
-2. Poné el **Importe** y apretá **"Imputar"**.
+2. En **A cancelar de la deuda** poné cuánto querés bajar de esa deuda, en su moneda (si la factura es en dólares, en dólares). Si lo dejás vacío, cancela todo lo que alcance el crédito.
+3. Mirá debajo cuánto baja cada uno y apretá **"Imputar"**. Aviso: "Imputado: …" con lo que bajó cada lado (y el dólar usado, si eran de monedas distintas).
 
-Errores: "El importe a imputar tiene que ser mayor que cero.", "El importe pasa lo que queda pendiente.", "Esos movimientos no son de la misma cuenta."
+Errores: "El importe a imputar tiene que ser mayor que cero.", "El importe pasa lo que queda pendiente.", "El crédito no alcanza: cancela hasta … de esa deuda.", "No hay tipo de cambio para el dd/mm/aaaa: …", "Esos movimientos no son de la misma cuenta."
 
 ### Cargar el saldo con que arranca una cuenta
 
@@ -111,6 +112,15 @@ En las dos pestañas, **un saldo positivo es lo "normal"**: en clientes, que nos
 ### Cómo se imputa solo
 
 Cada vez que entra un documento, Laucen cancela los créditos pendientes de esa cuenta contra las deudas pendientes **de la más vieja a la más nueva** (ordenadas por vencimiento, o por fecha si no tienen), y los créditos también del más viejo al más nuevo. Lo que queda sin cancelar se ve en la columna **Pendiente**. La imputación a mano permite elegir otra.
+
+### Pesos contra dólares
+
+- **Cada renglón lleva su pendiente en su moneda**: una factura de compra en dólares, en dólares; un recibo u orden de pago, en pesos (aunque se haya pagado con una cuenta en dólares, el documento se lleva a pesos).
+- Si la deuda y el crédito son de la **misma moneda**, se restan tal cual.
+- Si son de **monedas distintas**, el crédito (el pago o la nota de crédito) se pasa a la moneda de la deuda con el **tipo de cambio oficial venta del día del crédito** (el de [Tipo de cambio](/config/tipo-cambio) que rige esa fecha). Ejemplo: una factura de US$1.000 y una orden de pago de $1.500.000 del día en que el dólar estaba a $1.200: la factura queda saldada (baja US$1.000), la orden de pago usa $1.200.000 y le quedan $300.000 pendientes para otra deuda.
+- Si no hay ningún tipo de cambio cargado hasta esa fecha, se usa la cotización con que quedó guardado el propio crédito; si tampoco tiene, la imputación automática salta esa deuda y sigue con las de su misma moneda, y la manual avisa que falta el tipo de cambio.
+- **Redondeo**: cada lado se redondea al centavo y ninguno baja más de lo que tiene pendiente. Si lo que sobraría del crédito no llega a un centavo en la moneda de la deuda (por ejemplo, $3 contra una deuda en dólares), el crédito se usa entero en esa imputación para que no queden restos de centavos colgados.
+- La diferencia de cambio entre el dólar de la factura y el del pago **no** cambia la columna Pendiente ni genera por ahora ningún asiento: el **Saldo** (en pesos) sigue siendo la suma de los documentos a su cotización, así que una factura en dólares saldada con pesos de otro día puede dejar un saldo en pesos distinto de cero aunque no quede nada pendiente.
 
 ### Saldo y vencido
 
