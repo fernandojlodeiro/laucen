@@ -165,3 +165,9 @@ create table if not exists coordinacion.sesiones (
 alter table coordinacion.sesiones enable row level security;
 
 alter table coordinacion.bitacora add column if not exists sesion text;
+
+-- Archivadas (Fer, 3/10): para ahorrar lectura, al cerrar una sesión larga se
+-- escribe un hilo "Resumen" y se archiva todo lo anterior. Toda sesión lee
+-- por defecto sólo lo no archivado; lo archivado queda para profundizar.
+alter table coordinacion.bitacora add column if not exists archivada boolean not null default false;
+create index if not exists bitacora_no_archivada_idx on coordinacion.bitacora (ts desc) where not archivada;

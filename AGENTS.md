@@ -282,6 +282,15 @@ cambie, Fer lo va a decir explícitamente.
   el id.
 - **La bitácora es el vínculo de coordinación entre Fer y las sesiones de Code y de Cowork.**
   **Toda sesión lee las entradas nuevas de la bitácora antes de empezar.**
+- **Para ahorrar lectura (pedido de Fer, 3/10): al arrancar se lee SÓLO lo no archivado**
+  (`where not archivada`): el último hilo **"Resumen"** (tipo `entrega`, título que empieza con
+  "Resumen") y lo que se anotó después. Lo archivado (`archivada = true`) ya está resumido ahí; se
+  consulta sólo si hace falta profundizar en un tema puntual (buscando por palabra, no leyendo
+  todo). En la app, "Ver archivadas" en `/admin/bitacora`.
+- **Al cerrar una sesión larga** (o cuando Fer lo pide), esa sesión escribe un hilo "Resumen — …"
+  con lo hecho y lo que quedó pendiente (con los ids de los hilos abiertos que siguen vivos), y
+  marca `archivada = true` todo lo anterior a ese resumen. Un hilo que sigue abierto (una orden
+  sin "Terminado", una pregunta sin respuesta) se nombra en el resumen para que no se pierda.
 - **Un tema = un hilo.** La entrada raíz lleva tipo `orden` o `pregunta` y
   `pide_lectura = true`; las respuestas llevan `responde_a` = id de la raíz.
 - **Anotar sin esperar respuesta**: si una sesión hizo algo que no necesita respuesta de nadie,

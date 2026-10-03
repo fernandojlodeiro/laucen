@@ -130,7 +130,9 @@ export function alCambiarEstado(
 
 // ── Consultas ──────────────────────────────────────────
 
-export async function ultimasEntradas(limite = 60): Promise<Entrada[]> {
+/** Las últimas entradas; sin `conArchivadas`, sólo las no archivadas
+ *  (lo archivado ya está resumido en un hilo "Resumen"). */
+export async function ultimasEntradas(limite = 60, conArchivadas = false): Promise<Entrada[]> {
   return db
     .select({
       id: bitacora.id, ts: bitacora.ts, autor: bitacora.autor, tipo: bitacora.tipo,
@@ -141,6 +143,7 @@ export async function ultimasEntradas(limite = 60): Promise<Entrada[]> {
       sesion: bitacora.sesion,
     })
     .from(bitacora)
+    .where(conArchivadas ? undefined : eq(bitacora.archivada, false))
     .orderBy(desc(bitacora.ts), desc(bitacora.id))
     .limit(limite);
 }

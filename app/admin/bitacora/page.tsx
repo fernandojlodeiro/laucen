@@ -188,14 +188,14 @@ export default async function Bitacora({
   searchParams,
 }: {
   searchParams: Promise<{
-    tipo?: string; ver?: string; sinver?: string; ok?: string; error?: string;
+    tipo?: string; ver?: string; sinver?: string; archivadas?: string; ok?: string; error?: string;
   }>;
 }) {
   if (!(await sosVos())) redirect("/");
   const sp = await searchParams;
 
   const [entradas, pendientes, autores, documentos, titulos] = await Promise.all([
-    ultimasEntradas(), losPendientes(), losAutores(), documentosPublicados(), titulosDeSesiones(),
+    ultimasEntradas(sp.archivadas === "1" ? 300 : 60, sp.archivadas === "1"), losPendientes(), losAutores(), documentosPublicados(), titulosDeSesiones(),
   ]);
   const buildActual = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
   const color = Object.fromEntries(autores.map((a) => [a.slug, a.color]));
@@ -249,6 +249,9 @@ export default async function Bitacora({
         <Link href={conFiltros({ sinver: !soloSinVer })}
           className={`${chip(soloSinVer)} ${sinLeer.length > 0 && !soloSinVer ? "ring-2 ring-[#E9B949]" : ""}`}>
           Para vos ({sinLeer.length})
+        </Link>
+        <Link href={sp.archivadas === "1" ? aca : `${aca}${aca.includes("?") ? "&" : "?"}archivadas=1`} className={chip(sp.archivadas === "1")}>
+          {sp.archivadas === "1" ? "Con archivadas" : "Ver archivadas"}
         </Link>
         <Link href="/admin/para-probar" className={SUAVE}>🧪 Para probar</Link>
       </div>
