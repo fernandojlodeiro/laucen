@@ -1,0 +1,165 @@
+---
+titulo: Picking
+menu: Stock › Picking
+ruta: /deposito/picking
+rutas: /deposito/picking, /deposito/picking/[lote]
+permiso: picking_ver
+resumen: Preparar los pedidos: imprimir la etiqueta y la hoja de preparación de cada uno, juntar la mercadería y cerrarlos como preparados (o empacar escaneando).
+---
+
+## Para qué sirve
+
+Es la pantalla del depósito para preparar los pedidos que hay que despachar. El camino principal es: tildar los pedidos, apretar **"Imprimir etiquetas y hojas"** (sale un PDF con la etiqueta de envío y la hoja de preparación de cada pedido), juntar la mercadería con la hoja en la mano y cerrar cada pedido como **"Preparado"**, con el botón o escaneando el código de barras de su hoja.
+
+Hay dos caminos alternativos: **empacar escaneando** (en la mesa se escanea cada producto y el sistema dice a qué pedido va) y **recorrer escaneando** (se recorre el depósito en orden de ubicación escaneando cada unidad).
+
+Está pensada para usarse desde el celular.
+
+## Cómo se llega
+
+- Menú **Stock › Picking**.
+- En el celular, el acceso **"Picking"** (🧺) de la barra de abajo.
+- Un lote se abre tocando su tarjeta en la lista de lotes.
+
+## Qué hay en la pantalla
+
+### La pantalla principal (Picking)
+
+- **Depósito**: si hay más de un depósito activo, un desplegable con el botón **"Ver"** para elegir de cuál se preparan pedidos. No aparecen los depósitos de Full de Mercado Libre. Si no hay ningún depósito activo, la pantalla avisa y manda a crearlo.
+- **Lotes abiertos (N)**: tarjetas de los lotes que se están preparando. Cada una dice el número de lote, el modo ("con hojas", "empacar escaneando" o "recorrido escaneando"), desde cuándo está abierto, cuántos pedidos tiene y cuántos están preparados, cuántas unidades se juntaron de cuántas, los faltantes y una barra de avance.
+- **Para preparar en <depósito> (N)**: los pedidos que esperan preparación, lo más urgente primero. Cada pedido muestra:
+  - una caja para tildarlo;
+  - el número de pedido (enlace al pedido) y el número externo (de Mercado Libre o la tienda);
+  - marcas: **"Ya empezado"** (quedó en preparación de un lote anterior), **"A cobrar $…"** (se cobra al entregar), **"Carrito: esperando"** (carrito de Mercado Libre en espera);
+  - cliente y canal;
+  - unidades y líneas, y **"Despachar antes: …"** (en rojo si vence hoy o ya venció; la tarjeta entera se pinta de rojo suave);
+  - el botón **"Preparar este"** (o **"Esperando"**, deshabilitado, si es un carrito en espera).
+- Abajo, fija, la barra de acciones:
+  - **"Papel"**: el tamaño de la impresión, **"10 × 15 cm (térmica)"** o **"A4"**. Queda recordado para la próxima.
+  - **"🖨 Imprimir etiquetas y hojas"** (el botón principal).
+  - **"Empacar escaneando (alternativo)"** y **"Recorrer escaneando"**.
+  - La aclaración "Los impresos pasan a un lote abierto."
+- **Últimos terminados**: los últimos 10 lotes terminados de ese depósito.
+
+### La pantalla de un lote (Lote #N)
+
+Arriba, el camino "Stock › Picking › <depósito> › #N" y un subtítulo con el depósito, cuántos pedidos tiene y cuántos están preparados. Tiene tres pestañas; abre en la que corresponde al modo con que se armó:
+
+- **"Etiquetas y hojas"**:
+  - **"🖨 Imprimir etiquetas y hojas"** (o **"Reimprimir etiquetas y hojas"** si ya se imprimieron), con el selector **"Papel"**. Si ya se imprimieron, avisa "Ya impresas: la hoja sale marcada «REIMPRESIÓN»".
+  - **"Cerrar un pedido escaneando su hoja"**: un lector para escanear el código de barras de la hoja.
+  - **"Pedidos del lote (N)"**: cada pedido con su número grande, cliente (y apodo de Mercado Libre), canal, unidades, "Despachar antes", las marcas "impreso" o "impreso N veces", "A cobrar" y "Carrito: esperando", y el botón verde **"Preparado"** (o "Preparado ✓" con la hora si ya está, o "Esperando" si es un carrito en espera).
+- **"Empacar escaneando (alternativo)"**: el lector "Escaneá el producto que vas a empacar", el cartel que dice a qué pedido va cada producto, y la lista de pedidos (con "empacadas N" y, en los ya preparados, el botón **"🖨 Etiqueta"**).
+- **"Recorrer escaneando"**: el avance ("N de M unidades", faltantes y porcentaje), una caja grande con el ítem que toca (la **Ubicación** bien grande, la foto, el SKU, el título, "Faltan N de M", si es parte de un kit y de qué pedido es) y el lector. Cuando está todo, dice "Todo escaneado ✓".
+- Debajo de las pestañas, siempre: **"Terminar lote"** y **"Cancelar lote"** (pregunta antes de cancelar).
+- **"Recorrido (N ítems)"**: la lista de todo lo que hay que juntar, en orden de ubicación, con lo escaneado sobre lo pedido y los faltantes. Cada fila tiene el lápiz **"Corregir"**, que la convierte ahí mismo en los campos **"Escaneadas"** y **"Faltantes"** con **"Guardar"** y **"Cancelar"**.
+
+Un lote **terminado** muestra **Preparados (N)** con los botones **"🖨 Imprimir etiquetas"** (sólo las etiquetas de los preparados) y **"Reimprimir etiquetas y hojas"**, e **Incompletos (N)** si quedó alguno. Un lote **cancelado** dice que sus pedidos volvieron a la lista.
+
+### El PDF de etiquetas y hojas
+
+Para cada pedido, en orden (lo que vence antes primero, después lo más viejo):
+
+1. **La etiqueta de envío**: si es un envío de Mercado Libre, la etiqueta que se baja de Mercado Libre; si es de la tienda web o del local, una etiqueta propia con el número de pedido y su código de barras, "ENVÍO" o "RETIRA EN EL LOCAL", destinatario, dirección y teléfono. Si el pedido es «A cobrar», un recuadro grande "A COBRAR $ total". Si la etiqueta de Mercado Libre no se pudo bajar, en su lugar sale una página de aviso ("falta la etiqueta de Mercado Libre") que dice que se reimprima desde [Envíos](/ventas/envios).
+2. **La hoja de preparación**: "HOJA DE PREPARACIÓN", el número de pedido grande con su código de barras, número externo y pack, cliente (y apodo), canal, fecha, logística (Flex, Colecta, Full, Despacho en correo, A convenir, Retira, envío propio), "Despachar antes de", el recuadro "A COBRAR" si corresponde, y las líneas en orden de recorrido: ubicación, SKU, título, cantidad grande y un cuadrado para tildar a mano. Los kits van abiertos en sus componentes. Al final, las notas del comprador. Si ya se había impreso, la hoja sale marcada **"REIMPRESIÓN"**.
+
+## Cómo se hace
+
+### Preparar pedidos con etiqueta y hoja (el camino principal)
+
+1. Entrá a **Stock › Picking** y, si hay varios, elegí el depósito y apretá **"Ver"**.
+2. Tildá los pedidos que vas a preparar.
+3. Elegí el **"Papel"** (térmica 10 × 15 o A4).
+4. Apretá **"🖨 Imprimir etiquetas y hojas"**. Se abre el PDF en otra pestaña; imprimilo. Si no tildaste nada, avisa "Tildá al menos un pedido."
+5. Los pedidos impresos pasan solos a un **lote abierto** (modo "con hojas") y a estado "en preparación". La pantalla se actualiza a los pocos segundos y el lote aparece en **"Lotes abiertos"**.
+6. Con cada hoja, juntá la mercadería de las ubicaciones que dice, tildando a mano en el papel.
+7. Abrí el lote y cerrá cada pedido de una de estas dos formas:
+   - Apretá **"Preparado"** en su fila.
+   - O escaneá el código de barras de la hoja en **"Cerrar un pedido escaneando su hoja"**: aparece el número de pedido, el cliente y las unidades con la pregunta "¿Marcar preparado?" y los botones **"Sí"** / **"No"**. Escanear la misma hoja otra vez también es "Sí" (cómodo con la pistola).
+8. Al cerrar el último pedido, el lote se termina solo.
+
+### Preparar un solo pedido
+
+Apretá **"Preparar este"** en el pedido. Se arma un lote con ese pedido solo, en modo "Recorrer escaneando", y se abre. Desde la pestaña **"Etiquetas y hojas"** podés imprimir su etiqueta y su hoja.
+
+### Reimprimir etiquetas y hojas de un lote
+
+En la pestaña **"Etiquetas y hojas"** del lote apretá **"Reimprimir etiquetas y hojas"**. Salen todas las del lote, con la hoja marcada "REIMPRESIÓN". En un lote terminado están **"🖨 Imprimir etiquetas"** (sólo etiquetas de los preparados) y **"Reimprimir etiquetas y hojas"**.
+
+### Empacar escaneando (alternativo)
+
+1. Tildá los pedidos y apretá **"Empacar escaneando (alternativo)"**. Se arma el lote y se abre en esa pestaña.
+2. En la mesa, escaneá cada producto (con la pistola, escribiendo el código y Enter, o con **"📷 Cámara"** en el celular).
+3. La pantalla dice en grande **"Va al pedido #N"** y qué le falta a ese pedido ("Le falta: …", con cantidad, SKU y ubicación). El producto va siempre al pedido más viejo del lote que todavía lo necesita.
+4. Cuando el pedido queda completo, se cierra solo como preparado ("Completo ✓ — quedó preparado") y se abre su etiqueta en otra pestaña para imprimirla. Si el navegador bloquea la pestaña, está el botón **"🖨 Imprimir su etiqueta"**.
+5. Si el producto no es de ningún pedido del lote o ya están todas sus unidades, suena el pitido de error y dice "ésa sobra, dejala aparte".
+
+### Recorrer escaneando
+
+1. Tildá los pedidos y apretá **"Recorrer escaneando"**.
+2. La caja grande muestra la ubicación a la que tenés que ir, qué producto y cuántos faltan. Escaneá cada unidad: el sistema suma de a una y pasa al siguiente ítem, en orden de recorrido.
+3. Si una unidad no está, corregí la fila con el lápiz **"Corregir"**: poné cuántas **"Escaneadas"** y cuántas **"Faltantes"** y apretá **"Guardar"**.
+4. Cuando dice "Todo escaneado ✓", apretá **"Terminar lote"**.
+
+### Terminar o cancelar un lote
+
+- **"Terminar lote"**: los pedidos con todo escaneado pasan a "preparado"; los que tienen faltantes o no se cerraron quedan "en preparación" y vuelven a la lista para un próximo lote. Muestra un resumen: "Picking terminado: N preparado(s), N incompleto(s)".
+- **"Cancelar lote"**: pregunta "¿Cancelar este lote?". Los pedidos quedan "en preparación" y vuelven a la lista para armar otro lote.
+
+### Mensajes de error típicos
+
+- "El pedido N espera el pago: no se prepara todavía." — está en "nuevo" y no es «A cobrar» ni a convenir.
+- "El pedido N sale de otro depósito." — elegí el depósito correcto arriba.
+- "El pedido N ya está en otro picking abierto."
+- "Esos pedidos no tienen nada reservado para preparar (¿productos sin vincular?)." — las líneas del pedido no están vinculadas a un producto de Laucen.
+- "El código X no es de este picking." / "Ya están todas las unidades de X: ese sobra."
+- Un carrito de Mercado Libre en espera: "cerralo pasados los 10 minutos".
+
+## Criterios y reglas
+
+- **Qué pedidos aparecen para preparar**: los de ese depósito que mueven stock, que no son de Full y que no están en un lote abierto, y que estén "pagado" o "en preparación" (por ejemplo, de un lote cancelado), o que estén "nuevo" pero sean «A cobrar» (efectivo al retirar) o a convenir, que no esperan el pago.
+- **Orden**: primero los que tienen fecha de "despachar antes" (la más cercana primero), después los que no tienen, por fecha del pedido.
+- **Depósito de cada pedido**: el que tiene asignado; si no, el primero activo del canal; si no, el primero activo de la empresa.
+- **Qué hay que juntar** sale de lo que cada pedido tiene **reservado**: la reserva ya dice de qué ubicación sale cada unidad, y los kits vienen abiertos en sus componentes. Un «A cobrar» viejo que nunca reservó, reserva al armar el lote. Lo que no está vinculado a un producto va en la hoja igual, sin ubicación, al final.
+- **Orden de recorrido**: por el orden de recorrido de la ubicación (de menor a mayor), después el código de la ubicación, después el SKU. El orden de cada ubicación se carga en [Depósitos y ubicaciones](/stock/depositos).
+- **Estados del pedido**: al entrar en un lote (por imprimir o por armarlo con un botón) el pedido pasa a **"en preparación"**; al cerrarlo, a **"preparado"**. El picking **no mueve stock**: la venta se descuenta recién cuando el pedido se despacha.
+- **Imprimir arma el lote**: los pedidos tildados que todavía no estaban en un lote abierto entran en uno nuevo (uno por depósito). Así no se imprimen dos veces sin querer. Los que ya estaban en un lote se imprimen igual sin tocarlos (es una reimpresión). Imprimir marca la etiqueta de Mercado Libre como impresa y cuenta cuántas veces se imprimió la hoja de cada pedido.
+- **"Preparado"** da por juntado todo lo del pedido (pone todo como escaneado) y lo pasa a "preparado". Si era el último del lote, el lote queda terminado.
+- **Carrito de Mercado Libre**: un carrito (varias compras del mismo comprador en un pack) es un solo pedido, y sus compras pueden llegar con minutos de diferencia. Durante los **10 minutos** posteriores a su último cambio no se puede tildar, imprimir ni cerrar. Si recibió un cambio mientras estaba en un lote, al terminar el lote no pasa a preparado: vuelve a la lista para prepararlo de nuevo pasada la espera.
+- **Faltantes**: un pedido con faltantes no se cierra solo, ni al empacar ni al terminar el lote; queda en preparación y vuelve a la lista.
+- **Lector**: acepta la pistola lectora (USB o Bluetooth, que tipea el código y Enter), escribir a mano, o la cámara del teléfono (**"📷 Cámara"**, anda en Chrome de Android; el Safari de iPhone no la tiene). Pitido agudo = bien; doble grave = error. Se acepta el código de barras o el SKU. El código de la hoja es el número de pedido (también acepta "#123" o "P123").
+- **Papel**: 10 × 15 cm (la térmica de las etiquetas de Mercado Libre) o A4; el último elegido queda recordado.
+
+## Preguntas frecuentes
+
+**¿Por qué un pedido no aparece para preparar?**
+Puede estar esperando el pago (estado "nuevo"), ser de Full, ser de otro depósito, estar ya en un lote abierto, o no mover stock.
+
+**¿Qué pasa si imprimo y después no lo preparo?**
+El pedido queda en el lote abierto. Si cancelás el lote o lo terminás sin cerrarlo, vuelve a la lista "en preparación" (con la marca "Ya empezado").
+
+**¿Puedo reimprimir una etiqueta?**
+Sí, desde la pantalla del lote ("Reimprimir etiquetas y hojas"). La hoja sale marcada "REIMPRESIÓN".
+
+**¿El picking descuenta el stock?**
+No. El stock ya estaba reservado; se descuenta al despachar el pedido.
+
+**¿Por qué un pedido dice "Esperando" y no lo puedo tildar?**
+Es un carrito de Mercado Libre que tuvo un cambio hace menos de 10 minutos; puede llegarle otro ítem. Esperá.
+
+**¿Qué hago si falta una unidad en el estante?**
+En "Recorrer escaneando", corregí la fila con el lápiz y poné el faltante. El pedido queda en preparación hasta que haya. En el camino con hojas, simplemente no lo marques "Preparado".
+
+**Salió una página que dice que falta la etiqueta de Mercado Libre.**
+Mercado Libre no la entregó en ese momento. Reimprimila desde [Envíos](/ventas/envios) o reimprimí el lote.
+
+**¿La cámara no anda en mi iPhone?**
+El navegador del iPhone no trae el lector de códigos. Usá una pistola lectora o escribí el código.
+
+## Relacionado
+
+- [Pedidos](/ventas/pedidos)
+- [Envíos](/ventas/envios) (también imprime etiquetas y hojas)
+- [Consulta de stock](/stock/consulta)
+- [Depósitos y ubicaciones](/stock/depositos) (orden de recorrido)
+- [Etiquetas](/deposito/etiquetas)

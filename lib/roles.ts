@@ -64,9 +64,11 @@ export type CambioDePermisos =
   | { tipo: "rol_editado"; rolId: string; permisos: Permisos }
   | { tipo: "rol_borrado"; rolId: string }
   | { tipo: "membresia"; membresiaId: string; rolId: string | null; permisos: Permisos }
-  | { tipo: "estado"; membresiaId: string; estado: string };
+  | { tipo: "estado"; membresiaId: string; estado: string }
+  | { tipo: "superadmin"; membresiaId: string };
 
-/** ¿Después de este cambio va a seguir habiendo alguien con "gestionar_equipo"?
+/** ¿Después de este cambio va a seguir habiendo alguien con "gestionar_equipo"
+ *  (un superadministrador activo cuenta siempre)?
  *  Se corre ANTES de aplicar el cambio, para poder rechazarlo. */
 export async function habraAlgunAdmin(
   organizacionId: string,
@@ -96,8 +98,16 @@ export async function habraAlgunAdmin(
     // Sólo cuenta quien ya entra: un suspendido no, y un invitado que todavía
     // no se registró tampoco (si nunca se registra, la organización queda sin nadie).
     if (estado !== "ACTIVO") return false;
+    if (m.superadmin && !(cambio.tipo === "superadmin" && m.id === cambio.membresiaId)) return true;
     return tienePermiso(permisosEfectivos({ rolId, permisos }, rolesSimulados), "gestionar_equipo");
   });
+}
+
+/** Anti-escalada: nadie da un permiso que no tiene. Devuelve las etiquetas de
+ *  los permisos de `pedidos` que `propios` no tiene (vacío = puede darlos).
+ *  El superadministrador tiene todos, así que a él nunca le falta ninguno. */
+export function permisosQueNoTiene(propios: Permisos, pedidos: Permisos): string[] {
+  return PERMISOS.filter((p) => tienePermiso(pedidos, p.key) && !tienePermiso(propios, p.key)).map((p) => p.label);
 }
 
 export async function cuantosUsanElRol(organizacionId: string, rolId: string): Promise<number> {

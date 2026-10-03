@@ -15,7 +15,7 @@ import { db } from "@/db";
 import { usuarios, organizaciones, membresias } from "@/db/tenancy";
 import { and, eq, ne } from "drizzle-orm";
 import { usuarioActual } from "@/lib/supabase";
-import { tienePermiso, type Permisos, type PermisoKey } from "@/lib/permisos";
+import { tienePermiso, todos, type Permisos, type PermisoKey } from "@/lib/permisos";
 import { rolesDeLaOrg, permisosEfectivos } from "@/lib/roles";
 
 const COOKIE_ORG = "org_activa";
@@ -84,6 +84,10 @@ export type Sesion = {
   org: typeof organizaciones.$inferSelect;
   membresia: typeof membresias.$inferSelect;
   permisos: Permisos;
+  /** Superadministrador de la organización: tiene todos los permisos. */
+  superadmin: boolean;
+  /** El dueño (el que la creó): superadministrador que nadie puede sacar. */
+  dueno: boolean;
   cantidadOrgs: number;
 };
 
@@ -106,7 +110,10 @@ export const sesionActual = cache(async function sesionActual(): Promise<Sesion 
     usuario: u,
     org: activa.org,
     membresia: activa.membresia,
-    permisos: permisosEfectivos(activa.membresia, rolesDeEstaOrg),
+    // El superadministrador tiene todo, sin importar el rol (db/equipo.sql).
+    permisos: activa.membresia.superadmin ? todos(true) : permisosEfectivos(activa.membresia, rolesDeEstaOrg),
+    superadmin: activa.membresia.superadmin,
+    dueno: activa.org.duenoUsuarioId === u.id,
     cantidadOrgs: filas.length,
   };
 });

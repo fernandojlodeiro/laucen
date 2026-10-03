@@ -19,11 +19,11 @@ export async function accionCrearOrganizacion(_previo: Problema, formData: FormD
   const u = await asegurarUsuario();
   if (!u) redirect("/login");
 
-  const [org] = await db.insert(organizaciones).values({ nombre }).returning();
+  const [org] = await db.insert(organizaciones).values({ nombre, duenoUsuarioId: u.id }).returning(); // quien la crea es el dueño (db/equipo.sql)
   const roles = await asegurarRolesDeLaOrg(org.id);
   const admin = roles.find((r) => r.protegido) ?? roles[0];
   await db.insert(membresias).values({
-    usuarioId: u.id, organizacionId: org.id, rolId: admin.id, estado: "ACTIVO",
+    usuarioId: u.id, organizacionId: org.id, rolId: admin.id, estado: "ACTIVO", superadmin: true,
   });
   await fijarOrgActiva(org.id);
 

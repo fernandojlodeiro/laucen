@@ -31,6 +31,9 @@ export const usuarios = pgTable("usuarios", {
 export const organizaciones = pgTable("organizaciones", {
   id: id(),
   nombre: text("nombre").notNull(),
+  /** El dueño: el que creó la organización. Es superadministrador y nadie
+   *  se lo puede sacar ni lo puede suspender (db/equipo.sql). */
+  duenoUsuarioId: text("dueno_usuario_id"),
   creadaEl: timestamp("creada_el").notNull().defaultNow(),
 });
 
@@ -59,6 +62,9 @@ export const membresias = pgTable("membresias", {
   rolId: text("rol_id").references(() => roles.id),
   permisos: jsonb("permisos").$type<Record<string, boolean>>().notNull().default({}),
   estado: estadoMembresiaEnum("estado").notNull().default("ACTIVO"),
+  /** Superadministrador: tiene todos los permisos siempre, sin importar el
+   *  rol. Sólo otro superadministrador lo nombra o se lo saca. */
+  superadmin: boolean("superadmin").notNull().default(false),
   invitadoPor: text("invitado_por"),
   creadaEl: timestamp("creada_el").notNull().defaultNow(),
 }, (t) => [

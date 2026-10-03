@@ -78,11 +78,11 @@ export async function accionRegistro(_previo: Problema, formData: FormData): Pro
   // Si ya se registró antes sin confirmar, no le armamos otra organización.
   const [yaTiene] = await db.select().from(membresias).where(eq(membresias.usuarioId, u.id)).limit(1);
   if (!yaTiene) {
-    const [org] = await db.insert(organizaciones).values({ nombre: organizacion }).returning();
+    const [org] = await db.insert(organizaciones).values({ nombre: organizacion, duenoUsuarioId: u.id }).returning(); // quien la crea es el dueño (db/equipo.sql)
     const roles = await asegurarRolesDeLaOrg(org.id);
     const admin = roles.find((r) => r.protegido) ?? roles[0];
     await db.insert(membresias).values({
-      usuarioId: u.id, organizacionId: org.id, rolId: admin.id, estado: "ACTIVO",
+      usuarioId: u.id, organizacionId: org.id, rolId: admin.id, estado: "ACTIVO", superadmin: true,
     });
   }
 

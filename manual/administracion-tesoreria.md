@@ -1,0 +1,173 @@
+---
+titulo: Caja y bancos
+menu: Administración › Caja y bancos
+ruta: /administracion/tesoreria
+rutas: /administracion/tesoreria, /administracion/tesoreria/[id], /administracion/tesoreria/[id]/conciliacion
+permiso: tesoreria_ver
+resumen: Las cuentas donde está la plata (caja, bancos, Mercado Pago) con su saldo; movimientos sueltos, transferencias y conciliación con el extracto.
+---
+
+## Para qué sirve
+
+Lleva las cuentas de fondos de la empresa: cajas, cuentas bancarias, Mercado Pago u otras, en pesos o en dólares. Por cada cuenta se ve su saldo y sus movimientos, se cargan gastos o ingresos sueltos, se hacen transferencias entre cuentas propias y se concilia contra el extracto del banco.
+
+Los cobros y pagos a clientes y proveedores no se cargan acá: se hacen con recibos y órdenes de pago en [Cuentas corrientes](/administracion/cuentas-corrientes), y sus movimientos aparecen solos en la cuenta elegida.
+
+## Cómo se llega
+
+- Menú **Administración › Caja y bancos**.
+- Desde la lista, el nombre, el saldo o el número de "Sin conciliar" de una cuenta abren su detalle. La cuenta contable de cada cuenta de fondos lleva a su mayor en [Contabilidad](/administracion/contabilidad).
+
+## Qué hay en la pantalla
+
+### La lista de cuentas
+
+- Arriba a la derecha: **"Descargar Excel"** (con sus configuraciones) y **"Nueva cuenta"**.
+- **Total en pesos** (y **en dólares**, si hay cuentas en dólares): la suma de los saldos de las cuentas **activas**, sin importar lo que se esté buscando.
+- Buscador **"Buscar por nombre, banco, CBU o alias"**, con la caja **"Comienza por"** y la X para borrar.
+- Tabla, ordenable tocando el título:
+  - **Cuenta**: el nombre (enlace a sus movimientos) y, debajo, "Saldo inicial $ … al dd/mm/aaaa" si tiene.
+  - **Tipo**: Caja, Banco, Mercado Pago u Otra, y la moneda ($ o US$).
+  - **Banco · CBU · Alias**.
+  - **Cuenta contable**: la elegida (enlace a su mayor en Contabilidad) o "La de su tipo".
+  - **Saldo**.
+  - **Sin conciliar**: cuántos movimientos faltan conciliar (enlace a la cuenta).
+  - **Activa**: un interruptor.
+  - El **lápiz** (edita la fila ahí mismo, con **"Guardar"** y **"Cancelar"**) y el **tacho** (pregunta "¿Borrar?" con Sí / No).
+- Al pie: "Una cuenta con movimientos no se borra: el tacho la desactiva."
+
+### Campos de una cuenta (alta y edición)
+
+**Nombre** (ej. Banco Galicia), **Tipo** (Caja, Banco, Mercado Pago, Otra), **Moneda** (Pesos / Dólares), **Banco**, **CBU**, **Alias**, **Saldo inicial**, **Al día** (fecha del saldo inicial) y **Cuenta contable** ("— La de su tipo —" o una cuenta imputable del plan). En el alta, el botón es **"Crear"**.
+
+### El detalle de una cuenta
+
+Arriba: "Caja y bancos › Nombre" (y "(desactivada)" si lo está), el **Saldo** y **Sin conciliar**. Dos pestañas: **Movimientos (N)** y **Conciliación (N)** (N = movimientos sin conciliar).
+
+**Pestaña Movimientos**:
+- Recuadro **Movimiento**: **Fecha**, **Entra** / **Sale** (por defecto Sale), **Importe** (en la moneda de la cuenta), **Concepto** (ej. "Comisión del banco"), **Cuenta contable (contrapartida)** y botón **"Cargar"**.
+- Recuadro **Transferencia**: **Fecha**, **A la cuenta** (las otras cuentas activas), **Sale** (importe en la moneda de esta cuenta), **Entra (si es otra moneda)** (vacío = al tipo de cambio del día) y botón **"Transferir"**.
+- Filtro de fechas desde/hasta con atajos ("Todas las fechas" si no se elige).
+- Tabla: **Fecha**, **Concepto**, **Importe** (verde con "+" si entra, rojo si sale), **Saldo** acumulado, **Conciliado** (✓) y el **tacho** en los movimientos sueltos y transferencias no conciliados. Muestra los últimos 500; para ver más atrás, usá el filtro de fechas.
+
+**Pestaña Conciliación**:
+- **Extracto (CSV)**: elegir el archivo y **"Subir extracto"**.
+- **"Conciliar automático"**.
+- **Extracto sin conciliar (N)**: cada línea del banco, y debajo dos acciones: un desplegable con los movimientos sin conciliar del mismo signo y el botón **"Unir"**; o un desplegable **"— Cuenta contable —"** y el botón **"Crear movimiento"**.
+- **Movimientos sin conciliar (N)**: los de Laucen que todavía no se unieron con una línea del extracto.
+- **Ya conciliadas (N)**: línea del extracto, movimiento unido, importe y el botón **"Desunir"**.
+
+## Cómo se hace
+
+### Dar de alta una cuenta
+
+1. Apretá **"Nueva cuenta"** (arriba a la derecha).
+2. Completá nombre, tipo y moneda; si es un banco, banco, CBU y alias.
+3. Si la cuenta ya tenía plata, poné el **Saldo inicial** y la fecha en **Al día**.
+4. Dejá **Cuenta contable** en "La de su tipo" salvo que el contador quiera otra.
+5. Apretá **"Crear"**.
+
+### Cargar un gasto o un ingreso suelto
+
+1. Abrí la cuenta (tocá su nombre).
+2. En **Movimiento**, elegí **Sale** (gasto) o **Entra** (ingreso), la fecha, el importe y el concepto.
+3. Elegí la **Cuenta contable (contrapartida)**: por ejemplo "Gastos bancarios" para una comisión, "Impuestos y tasas", "Fletes y envíos", etc.
+4. Apretá **"Cargar"**.
+
+### Transferir entre cuentas propias
+
+1. Abrí la cuenta de donde sale la plata.
+2. En **Transferencia**, elegí **A la cuenta**, la fecha y el importe que **Sale**.
+3. Si las dos cuentas son de distinta moneda (por ejemplo, de pesos a dólares), poné en **Entra (si es otra moneda)** lo que efectivamente entró; si lo dejás vacío, se calcula al tipo de cambio del día.
+4. Apretá **"Transferir"**. Se crean dos movimientos: "Transferencia a …" en la de origen y "Transferencia desde …" en la de destino.
+
+### Borrar un movimiento
+
+Tocá el **tacho** del movimiento y confirmá. En una transferencia pregunta "¿Borrar las dos patas?" y borra las dos. Sólo se pueden borrar movimientos sueltos y transferencias que **no estén conciliados**; los de un recibo u orden de pago se deshacen anulando el recibo en [Cuentas corrientes](/administracion/cuentas-corrientes).
+
+### Conciliar con el extracto del banco
+
+1. Bajá del banco (o de Mercado Pago) el extracto en CSV.
+2. En la pestaña **Conciliación**, elegí el archivo y apretá **"Subir extracto"**. Aviso: "Leídas N, nuevas M."
+3. Apretá **"Conciliar automático"**: une solas las líneas que coinciden. Aviso: "Unidas N." o "No encontré ninguna para unir sola."
+4. Para lo que quedó en **Extracto sin conciliar**:
+   - Si el movimiento existe en Laucen pero con otra fecha o no se unió solo: elegilo en el desplegable y apretá **"Unir"**.
+   - Si no existe (una comisión, el impuesto al cheque…): elegí la cuenta contable y apretá **"Crear movimiento"**. Laucen crea el movimiento con la fecha, importe y descripción de la línea y lo deja conciliado.
+5. Si uniste algo mal, en **Ya conciliadas** apretá **"Desunir"**.
+
+### Desactivar o borrar una cuenta
+
+- El interruptor **Activa** la apaga o prende. Una cuenta desactivada no se ofrece en recibos, órdenes de pago ni transferencias.
+- El **tacho**: si la cuenta no tiene movimientos, se borra ("Borrada."); si tiene, queda desactivada ("Tiene movimientos: no se borra, quedó desactivada.").
+
+## Criterios y reglas
+
+### Saldo
+
+- **Saldo de una cuenta** = saldo inicial + la suma de todos sus movimientos, en la moneda de la cuenta.
+- El saldo acumulado de la tabla de movimientos arranca del saldo inicial y suma en orden de fecha.
+- Los totales de arriba suman sólo las cuentas **activas**, separados por moneda.
+
+### Moneda y tipo de cambio
+
+- Cada movimiento se guarda en la moneda de su cuenta, y además se congela su equivalente en pesos y en dólares con el **tipo de cambio del día del movimiento**. Si no hay tipo de cambio para esa fecha, no deja cargar: "No hay tipo de cambio para el dd/mm/aaaa." (se carga en [Tipo de cambio](/config/tipo-cambio)).
+- La **moneda de una cuenta no se puede cambiar si ya tiene movimientos**: "La cuenta ya tiene movimientos: no se le puede cambiar la moneda."
+
+### Movimientos sueltos
+
+- El importe no puede ser cero y el concepto es obligatorio.
+- La cuenta contable elegida tiene que ser una cuenta imputable del plan.
+- Si no se elige contrapartida, el asiento la pone sola: **Gastos varios** si sale plata, **Otros ingresos** si entra.
+
+### Transferencias
+
+- Origen y destino no pueden ser la misma cuenta, y el importe tiene que ser mayor que cero.
+- Misma moneda: entra lo mismo que sale.
+- Distinta moneda: entra lo que se ponga en "Entra"; si se deja vacío, se convierte al tipo de cambio del día (de dólares a pesos multiplica; de pesos a dólares divide).
+- En la contabilidad, si por la conversión los pesos de las dos patas no coinciden, la diferencia va a **Otros ingresos** o **Gastos varios** como "Diferencia de cotización".
+
+### Cuenta contable de cada cuenta de fondos
+
+Si no se elige una, los asientos usan la del tipo: Caja → "Caja", Banco → "Bancos", Mercado Pago → "Mercado Pago", Otra → "Caja".
+
+### Conciliación
+
+- **Lectura del CSV**: acepta separador coma, punto y coma o tabulación; fechas dd/mm/aaaa (o dd/mm/aa) o aaaa-mm-dd; importes "1.234,56" o "1234.56", con signo menos o entre paréntesis para negativos. Busca las columnas por el nombre del encabezado: fecha; descripción / concepto / detalle / movimiento; importe / monto / valor neto; o débito y crédito por separado (débito / debe / egreso y crédito / haber / ingreso); y una referencia opcional (referencia / comprobante / id de operación). Si no encuentra fecha e importe (o débito y crédito): "No encuentro las columnas de fecha e importe (o débito y crédito)." Las filas sin fecha o con importe cero se saltean.
+- Si el archivo no está en UTF-8, se lee como Latin-1 (como exportan muchos bancos). Tope: 4 MB.
+- **No se duplican líneas**: si subís el mismo extracto dos veces, las líneas iguales (misma cuenta, fecha, importe, descripción y referencia) no se vuelven a cargar.
+- **Conciliar automático**: une cada línea del extracto con un movimiento sin conciliar de la misma cuenta con **el mismo importe exacto** y fecha a **±5 días**, uno a uno, eligiendo el de fecha más cercana.
+- **Unir a mano**: sólo ofrece movimientos del mismo signo (entrada con entrada, salida con salida). La línea y el movimiento tienen que ser de la misma cuenta y ninguno puede estar ya conciliado.
+- Un movimiento conciliado no se puede borrar ni anular su recibo hasta desunirlo.
+
+### Asientos contables
+
+Los genera solos [Contabilidad](/administracion/contabilidad): un movimiento suelto, fondos contra la contrapartida elegida; una transferencia, fondos destino contra fondos origen. Al borrar un movimiento o una transferencia, su asiento queda anulado.
+
+## Preguntas frecuentes
+
+**¿Dónde cargo un cobro de un cliente?**
+En [Cuentas corrientes](/administracion/cuentas-corrientes), con "Nuevo recibo". El movimiento aparece solo en la cuenta elegida.
+
+**¿Por qué no puedo borrar un movimiento?**
+Porque está conciliado (desunilo primero en Conciliación) o porque es parte de un recibo u orden de pago (anulá el recibo).
+
+**¿Por qué no puedo cambiar la moneda de una cuenta?**
+Porque ya tiene movimientos en esa moneda.
+
+**El banco me cobró una comisión que no tenía cargada.**
+En Conciliación, en la línea del extracto, elegí la cuenta contable (ej. Gastos bancarios) y apretá "Crear movimiento".
+
+**"Conciliar automático" no unió una línea que es igual.**
+Une sólo si el importe es exactamente igual y la fecha está a 5 días o menos. Si no, unila a mano con "Unir".
+
+**¿Qué formato tiene que tener el extracto?**
+Un CSV con columnas de fecha, descripción e importe (o débito y crédito separados). La mayoría de los bancos y Mercado Pago lo exportan así.
+
+**¿Qué pasa si borro una cuenta con movimientos?**
+No se borra: queda desactivada, con toda su historia.
+
+## Relacionado
+
+- [Cuentas corrientes](/administracion/cuentas-corrientes)
+- [Contabilidad](/administracion/contabilidad)
+- [Tipo de cambio](/config/tipo-cambio)

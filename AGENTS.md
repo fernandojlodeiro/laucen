@@ -30,6 +30,9 @@ no la primera.
   reemplaza a Virtual Seller — menú (`lib/menu.ts`), catálogo, precios, stock, canales,
   clientes, pedidos, API (`/api/pedidos`, `/api/catalogo`), tipo de cambio, importar. El contrato
   de la API y de las funciones únicas está en la bitácora, hilo "136 — Cimiento".
+- **Asistente** (la carita de abajo a la derecha; `/config/asistente`): contesta en lenguaje
+  natural cómo se hace cada cosa, dónde está, criterios y datos (`lib/asistente/`). Lee el
+  manual del sistema (`manual/*.md`, formato en `manual/LEEME.md`).
 - **Coordinación** (`/admin/bitacora`, `/admin/para-probar`): bitácora y "para probar", sólo
   Fer. → sección "Coordinación entre sesiones" de este archivo
 - **Falta**: la búsqueda en China (Alibaba/1688) y el cruce con Mercado Libre.
@@ -211,6 +214,10 @@ criollo, nunca se muestra crudo (`motivoLegible()` en `app/auth-actions.ts`).
   faltan, valen `false`.
 - Esto vale mientras el proyecto esté en desarrollo y lo use sólo Fer; cambia cuando Fer lo
   diga explícitamente.
+- **Superadministrador** (pedido de Fer, 3/10): marcado en la membresía, tiene todos los permisos
+  sin importar el rol; sólo otro superadministrador lo nombra o lo saca. El dueño (quien creó la
+  organización) lo es siempre y nadie lo suspende. Nadie da un permiso que no tiene. Un permiso
+  nuevo que no es de un botón del menú decide en `db/equipo.sql` a qué rol existente se le da.
 
 ## Cambios en Mercado Libre: siempre por un clic de Fer (pedido de Fer, 3/10)
 
@@ -225,6 +232,13 @@ criollo, nunca se muestra crudo (`motivoLegible()` en `app/auth-actions.ts`).
   respeta los límites de la API y queda registrado qué se mandó, cuándo y con qué resultado.
 
 ## Disciplina técnica (todo va a main)
+
+- **Manual del sistema (pedido de Fer, 3/10): toda pantalla nueva o cambiada actualiza su página
+  en `manual/` en el mismo commit** — qué es, dónde está, cómo se hace y, sobre todo, los
+  criterios (fórmulas, estados, automatismos), en criollo y sin nada técnico. Lo lee el
+  asistente para contestarle a la gente. `tests/manual.test.ts` falla si una página
+  (`app/**/page.tsx`) no está en las `rutas` de ningún archivo o si un enlace del manual va a una
+  dirección que no existe. Formato: `manual/LEEME.md`.
 
 - No hay rama de integración que esperar: lo terminado y verificado se mergea a main.
 - **Toda migración que crea una tabla agrega, en el mismo archivo, `ALTER TABLE ... ENABLE ROW

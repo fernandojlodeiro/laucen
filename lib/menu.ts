@@ -126,6 +126,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Cola de Mercado Libre", href: "/config/canales/cola", permiso: "canales_ver" },
       { texto: "Tipo de cambio", href: "/config/tipo-cambio", permiso: "tipo_cambio_ver" },
       { texto: "Usuarios y roles", href: "/config/usuarios", permiso: "usuarios_ver" },
+      { texto: "Asistente", href: "/config/asistente", permiso: "asistente_config" },
       { texto: "Importar datos", href: "/importar", permiso: "importar_ver" },
     ],
   },

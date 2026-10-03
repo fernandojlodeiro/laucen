@@ -6,3 +6,11 @@ body {
   color: #1e2a32;
   background: #f7f8f6;
 }
+
+/* La carita del asistente (app/componentes/asistente/Carita.tsx): parpadea
+   y se mece apenas. */
+@keyframes asistente-parpadeo { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+@keyframes asistente-meceo { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-2px) rotate(-2deg); } }
+.asistente-ojos { transform-box: fill-box; transform-origin: center; animation: asistente-parpadeo 4.5s infinite; }
+.asistente-meceo { animation: asistente-meceo 3.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .asistente-ojos, .asistente-meceo { animation: none; } }

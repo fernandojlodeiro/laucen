@@ -58,7 +58,12 @@ export type PermisoKey =
   | "informes_publicaciones_ver"
   | "facturacion_ml_ver"
   | "libros_iva_ver"
-  | "informes_ventas_ver";
+  | "informes_ventas_ver"
+  // Equipo y asistente (pedido de Fer, 3/10).
+  | "roles_administrar"
+  | "asistente_usar"
+  | "asistente_config"
+  | "asistente_historial_ver";
 
 export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "gestionar_busquedas", label: "Gestionar búsquedas", ayuda: "Crear, editar y pausar las búsquedas programadas." },
@@ -108,13 +113,17 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "facturacion_ml_ver", label: "Facturación de Mercado Libre", ayuda: "Lo que cobran ML y Mercado Pago por período (leído de la API), retenciones y percepciones, y el control contra las facturas importadas de ARCA." },
   { key: "libros_iva_ver", label: "Libros de IVA", ayuda: "Libro IVA Ventas y Compras del mes, saldo técnico, Excel y los archivos del Libro de IVA Digital de ARCA." },
   { key: "informes_ventas_ver", label: "Rentabilidad por venta", ayuda: "Venta, cargos de Mercado Libre, costo y margen por venta o por producto." },
+  { key: "roles_administrar", label: "Administrar roles", ayuda: "Crear, editar y borrar roles y sus permisos (nunca más permisos que los propios)." },
+  { key: "asistente_usar", label: "Asistente", ayuda: "Preguntarle al asistente (la carita de abajo a la derecha) cómo se hace cada cosa y datos del sistema." },
+  { key: "asistente_config", label: "Configurar el asistente", ayuda: "Nombre, carita, preguntas fuera del sistema y tope de gasto del asistente." },
+  { key: "asistente_historial_ver", label: "Ver el historial del asistente", ayuda: "Leer las preguntas que le hizo cada persona al asistente y sus respuestas." },
 ];
 
 export type Permisos = Partial<Record<PermisoKey, boolean>>;
 
 export type PresetKey = "ADMIN" | "COLABORADOR";
 
-const todos = (v: boolean): Record<PermisoKey, boolean> =>
+export const todos = (v: boolean): Record<PermisoKey, boolean> =>
   Object.fromEntries(PERMISOS.map((p) => [p.key, v])) as Record<PermisoKey, boolean>;
 
 export const PRESETS: Record<PresetKey, { label: string; descripcion: string; permisos: Permisos }> = {
@@ -145,6 +154,9 @@ export const FUNCIONES: PermisoKey[] = [
   "compras_ver", "despachos_ver", "cuentas_corrientes_ver", "tesoreria_ver", "contabilidad_ver",
   "informes_stock_ver", "informes_publicaciones_ver", "facturacion_ml_ver", "informes_ventas_ver",
   "libros_iva_ver",
+  // No es un botón del menú, pero se comporta como función: el asistente
+  // está prendido para todos salvo que el rol lo apague.
+  "asistente_usar",
 ];
 
 /** ¿La membresía tiene el permiso? Los de FUNCIONES, si faltan, valen true;

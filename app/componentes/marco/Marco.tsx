@@ -10,6 +10,7 @@
 // El árbol del menú sale de lib/menu.ts.
 
 import Link from "next/link";
+import { Suspense } from "react";
 import { sesionActual } from "@/lib/tenancy";
 import { tienePermiso } from "@/lib/permisos";
 import { sosVos } from "@/lib/admin";
@@ -19,6 +20,8 @@ import { contadoresEstado, type Contador } from "@/lib/erp/contadores";
 import { accionLogout } from "@/app/auth-actions";
 import { BarraMenu, MenuCelular } from "./BarraMenu";
 import { accionMonedaVista } from "./acciones";
+import Asistente from "@/app/componentes/asistente/Asistente";
+import { configAsistente, CONFIG_DEFECTO } from "@/lib/asistente/config";
 
 export default async function Marco({ children, version }: { children: React.ReactNode; version: string }) {
   const sesion = await sesionActual();
@@ -29,10 +32,11 @@ export default async function Marco({ children, version }: { children: React.Rea
   const accesos = ACCESOS_CELULAR.filter((a) => !a.permiso || puede(a.permiso));
 
   // Si la base no responde, el marco se dibuja igual (con lo que haya).
-  const [moneda, tc, contadores] = await Promise.all([
+  const [moneda, tc, contadores, asistente] = await Promise.all([
     monedaVista(sesion.usuario.id, sesion.org.id).catch(() => "ARS" as Moneda),
     tcDelDia(sesion.org.id).catch(() => null),
     contadoresEstado(sesion.org.id).catch(() => [] as Contador[]),
+    configAsistente(sesion.org.id).catch(() => CONFIG_DEFECTO),
   ]);
   const quien = sesion.usuario.nombre || sesion.usuario.email;
 
@@ -74,6 +78,13 @@ export default async function Marco({ children, version }: { children: React.Rea
         <span className="ml-auto opacity-80">{sesion.org.nombre} · {quien}</span>
         <span className="opacity-50 hidden lg:inline">{version}</span>
       </footer>
+
+      {/* El asistente: la carita abajo a la derecha (lib/asistente/motor.ts) */}
+      {puede("asistente_usar") && (
+        <Suspense fallback={null}>
+          <Asistente nombre={asistente.nombre} carita={asistente.carita} usuario={quien} />
+        </Suspense>
+      )}
 
       {/* Celular: accesos directos + menú completo */}
       <MenuCelular menu={menu} accesos={accesos} />
