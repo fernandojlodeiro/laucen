@@ -3,6 +3,7 @@
 // de ML partidos en varios pedidos de antes, el botón para unirlos.
 
 import Link from "next/link";
+import RangoFechas from "@/app/componentes/RangoFechas";
 import { consulta } from "@/lib/erp/base";
 import { ESTADOS_PEDIDO, ESTADOS_PAGO } from "@/lib/pedidos";
 import { PRIMARIO, SUAVE } from "@/app/botones";
@@ -71,8 +72,7 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
             <option value="">Todos</option>
             {Object.entries(ESTADOS_PAGO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select></label>
-        <label><span className={ETIQUETA}>Desde</span><input type="date" name="desde" defaultValue={desde} className={CAMPO} /></label>
-        <label><span className={ETIQUETA}>Hasta</span><input type="date" name="hasta" defaultValue={hasta} className={CAMPO} /></label>
+        <div><span className={ETIQUETA}>Fechas</span><RangoFechas desde={desde} hasta={hasta} vacio="Todas las fechas" etiqueta="" limpiar={["p"]} /></div>
         {cliente > 0 && <input type="hidden" name="cliente" value={cliente} />}
         <button className={PRIMARIO}>Filtrar</button>
         {hayFiltro && <Link href="/ventas/pedidos" className={SUAVE}>Limpiar</Link>}
