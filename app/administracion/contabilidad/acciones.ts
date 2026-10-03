@@ -19,7 +19,7 @@ const volverA = (fd: FormData, porDefecto: string) => {
 const NOMBRE_ORIGEN: Record<string, string> = {
   venta: "Venta", nota_credito_venta: "Nota de crédito", cmv: "Costo de venta", cobro_pedido: "Cobro de pedido",
   compra: "Compra", despacho: "Despacho", recibo: "Recibo", movimiento: "Movimiento", transferencia: "Transferencia",
-  ajuste_stock: "Ajuste de stock",
+  ajuste_stock: "Ajuste de stock", diferencia_cambio: "Diferencia de cambio (imputación)", diferencia_recepcion: "Diferencia con la recepción (factura)",
 };
 
 /** Los errores de contabilizarPendientes vienen como "<origen> <id>: <motivo>".

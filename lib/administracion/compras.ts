@@ -1,6 +1,8 @@
 // Compras: facturas de proveedores y despachos de importación. Registrar una
 // factura de mercadería ingresa el stock (si no entró ya por una recepción),
 // actualiza el costo y deja la deuda en la cuenta corriente del proveedor.
+// Vinculada a una recepción, guarda además la diferencia entre lo facturado y
+// lo recibido (factura_compra.diferencia_recepcion) para su asiento.
 // Registrar un despacho prorratea flete, seguro y gastos sobre las líneas por
 // su FOB, ingresa el stock y actualiza el costo.
 
@@ -8,6 +10,7 @@ import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { moverStock, ubicacionGeneral } from "@/lib/stock";
 import { registrarCosto, excluirPorRecepcion } from "@/lib/administracion/costos";
 import { movimientoCc, imputarAutomatico } from "@/lib/administracion/cc";
+import { diferenciasRecepcion, cubiertoPorFactura, type DiferenciaRecepcion } from "@/lib/administracion/diferencias";
 import { sincronizarStockMl } from "@/lib/mercadolibre/stock";
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
@@ -72,6 +75,7 @@ export async function registrarFactura(org: string, facturaId: number, usuarioId
   // Con recepción, lo recibido ya está en el stock: no se vuelve a ingresar y
   // se descuenta del "stock que había" para el promedio (si no, contaría dos veces).
   let excluir: number[] = conStock.map(() => 0);
+  let difRecepcion: DiferenciaRecepcion[] | null = null;
   if (conStock.length && !f.es_nota_credito && f.recepcion_id) {
     const aMapa = (filas: { variacion_id: number; n: string }[]) => new Map(filas.map((x) => [x.variacion_id, Number(x.n)]));
     const recibido = aMapa(await consulta<{ variacion_id: number; n: string }>(
@@ -82,6 +86,24 @@ export async function registrarFactura(org: string, facturaId: number, usuarioId
        where fc.organizacion_id = $1 and fc.recepcion_id = $2 and fc.id <> $3 and fc.estado = 'registrada' and not fc.es_nota_credito and l.variacion_id is not null
        group by l.variacion_id`, [org, f.recepcion_id, facturaId]));
     excluir = excluirPorRecepcion(conStock.map((l) => ({ variacionId: l.variacion_id!, cantidad: Number(l.cantidad) })), recibido, yaFacturado);
+    // Diferencia entre lo facturado y lo recibido (la asienta la contabilidad
+    // como "Diferencias en recepciones de stock"). Lo que ya cubrió cada
+    // factura anterior de la misma recepción: lo facturado, salvo los
+    // productos en que tuvo diferencia (ésos los cerró con lo que quedaba).
+    const otras = await consulta<{ id: number; diferencia_recepcion: DiferenciaRecepcion[] | null; lineas: { variacion_id: number; cantidad: string }[] }>(`
+      select fc.id::int, fc.diferencia_recepcion,
+             coalesce((select json_agg(json_build_object('variacion_id', l.variacion_id, 'cantidad', l.cantidad)) from factura_compra_linea l
+                        where l.factura_id = fc.id and l.variacion_id is not null), '[]') lineas
+        from factura_compra fc
+       where fc.organizacion_id = $1 and fc.recepcion_id = $2 and fc.id <> $3 and fc.estado = 'registrada' and not fc.es_nota_credito`,
+      [org, f.recepcion_id, facturaId]);
+    const cubiertoAntes = new Map<number, number>();
+    for (const o of otras) {
+      const cub = cubiertoPorFactura(o.lineas.map((l) => ({ variacionId: Number(l.variacion_id), cantidad: Number(l.cantidad) })), o.diferencia_recepcion ?? []);
+      for (const [v, n] of cub) cubiertoAntes.set(v, (cubiertoAntes.get(v) ?? 0) + n);
+    }
+    difRecepcion = diferenciasRecepcion(conStock.map((l) => ({ variacionId: l.variacion_id!, cantidad: Number(l.cantidad), costoUnitArs: r2(Number(l.costo_unit) * cot) })),
+      recibido, cubiertoAntes);
   }
   await enTransaccion(async (c) => {
     if (!f.es_nota_credito) {
@@ -102,8 +124,9 @@ export async function registrarFactura(org: string, facturaId: number, usuarioId
       descripcion: `${f.es_nota_credito ? "Nota de crédito" : f.es_nota_debito ? "Nota de débito" : "Factura"} ${f.letra} ${f.punto_venta != null ? String(f.punto_venta).padStart(5, "0") + "-" : ""}${f.numero ?? "s/n"}`,
       referenciaTipo: "factura_compra", referenciaId: facturaId,
     });
-    await c.query("update factura_compra set estado = 'registrada', registrada_ts = now(), usuario_id = $3, total_ars = $4, total_usd = $5 where id = $1 and organizacion_id = $2",
-      [facturaId, org, usuarioId, totalArs, totalUsd]);
+    await c.query(`update factura_compra set estado = 'registrada', registrada_ts = now(), usuario_id = $3, total_ars = $4, total_usd = $5,
+                          diferencia_recepcion = $6::jsonb where id = $1 and organizacion_id = $2`,
+      [facturaId, org, usuarioId, totalArs, totalUsd, difRecepcion ? JSON.stringify(difRecepcion) : null]);
     await imputarAutomatico(c, org, "proveedor", f.proveedor_id);
   });
   if (conStock.length) await sincronizarStockMl(org, conStock.map((l) => l.variacion_id!)).catch(() => {});

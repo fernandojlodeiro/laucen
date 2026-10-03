@@ -63,6 +63,12 @@ create unique index if not exists factura_compra_numero_tipo on factura_compra (
 -- De dónde vino (null = a mano; 'arca_mc' = "Mis Comprobantes" de ARCA) y su CAE.
 alter table factura_compra add column if not exists origen text;
 alter table factura_compra add column if not exists cae text;
+-- Vinculada a una recepción (3/10): por producto, lo facturado contra lo
+-- recibido y la diferencia valorizada al costo de la factura, como quedó al
+-- registrarla ([{variacion_id, facturado, recibido, diferencia,
+-- costo_unit_ars, importe}]; [] = sin diferencias; null = sin recepción o
+-- registrada antes de esto). La asienta "Diferencias en recepciones de stock".
+alter table factura_compra add column if not exists diferencia_recepcion jsonb;
 alter table factura_compra enable row level security;
 select erp_politica_org('factura_compra');
 

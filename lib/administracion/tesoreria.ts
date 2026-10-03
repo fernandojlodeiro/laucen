@@ -141,8 +141,11 @@ export async function deshacerCc(c: PoolClient, org: string, referenciaTipo: str
   for (const m of movs) {
     // Cada lado vuelve en su moneda: `importe` es lo que había bajado el débito
     // e `importe_credito` lo del crédito (las viejas, sin él, eran iguales).
-    const imp = (await c.query<{ debito_id: string; credito_id: string; importe: string; importe_credito: string }>(
-      "select debito_id, credito_id, importe, coalesce(importe_credito, importe) importe_credito from cc_imputacion where debito_id = $1 or credito_id = $1", [m.id])).rows;
+    const imp = (await c.query<{ id: string; debito_id: string; credito_id: string; importe: string; importe_credito: string }>(
+      "select id, debito_id, credito_id, importe, coalesce(importe_credito, importe) importe_credito from cc_imputacion where debito_id = $1 or credito_id = $1", [m.id])).rows;
+    // La imputación se borra con el renglón: su asiento de diferencia de cambio queda anulado.
+    if (imp.length) await c.query("update asiento set estado = 'anulado' where organizacion_id = $1 and origen = 'diferencia_cambio' and referencia_id = any($2::bigint[]) and estado = 'vigente'",
+      [org, imp.map((i) => i.id)]);
     for (const i of imp) {
       if (i.debito_id !== m.id) await c.query("update cc_movimiento set pendiente = pendiente + $2 where id = $1", [i.debito_id, i.importe]);
       if (i.credito_id !== m.id) await c.query("update cc_movimiento set pendiente = pendiente - $2 where id = $1", [i.credito_id, i.importe_credito]);

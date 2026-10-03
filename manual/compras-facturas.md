@@ -60,6 +60,8 @@ Título: "Factura de compra", "Nota de crédito de compra" o "Nota de débito de
 
 **Registrada (o anulada):** todo en sólo lectura: Estado (con fecha y hora de registro), Proveedor (enlace a su cuenta corriente), Fecha y vencimiento, Moneda y cotización, Depósito (o "Recepción #N" con enlace), Cuenta de gasto ("Mercadería" si no tiene), Notas, las líneas y los totales. Arriba a la derecha, **Estado de cuenta del proveedor**.
 
+Si la factura está vinculada a una recepción y lo recibido no dio igual a lo facturado, aparece además la tabla **Diferencia con la recepción (N)** (N = productos con diferencia): **Producto** (SKU con enlace a su ficha, el 📷 si tiene fotos, y el título), **Facturado**, **Recibido**, **Diferencia** ("faltan 2" o "sobran 2"), **Costo unit. ($)** e **Importe ($)**, y al pie **Egreso por diferencias** (o **Recupero por diferencias** si sobró más de lo que faltó) con el total.
+
 ### Vista previa de la importación de ARCA (/compras/facturas/arca/[id])
 
 Título "Importar de ARCA (Mis Comprobantes)". Debajo, el nombre del archivo, cuántos comprobantes tiene y qué versión de columnas trae ("con IVA por alícuota" o "con el IVA en un solo número (se deduce la alícuota)").
@@ -185,6 +187,7 @@ La importación no la toca. Abrí la factura (el comprobante de la vista previa 
    - **"Stock que había"** es el stock de antes de esta compra. Si la factura está vinculada a una **recepción**, esas unidades ya están en el stock (entraron al recibir), así que se descuentan: no cuentan como "stock que había" a precio viejo, ni se cuentan dos veces. Ejemplo: había 10 a $100, la recepción entró 10 (stock 20) y la factura las cobra a $200 → promedio (10 × 100 + 10 × 200) / 20 = **$150**.
    - **Recepción parcial**: se descuenta lo que efectivamente se recibió de ese producto. Si llegaron 8 de 10 facturadas, se descuentan 8 y el promedio se calcula igual con las 10 facturadas (es lo que se pagó). Si llegaron de más (12 de 10), se descuentan las 12: las 2 de más no tienen costo hasta que se registre su factura (vinculada a la misma recepción); esa segunda factura ya toma como "stock que había" las 10 que costeó la primera.
    - Si un producto de la factura no vino en esa recepción, no se descuenta nada.
+   - **Diferencia con la recepción**: el costo se calcula con lo facturado (es lo que se pagó), pero si lo recibido no da igual a lo facturado, la diferencia de unidades se guarda con la factura y se asienta aparte (ver "Diferencia entre lo facturado y lo recibido", abajo).
 3. **Stock**: si se eligió **depósito** (y no recepción), cada línea con producto ingresa su cantidad a la ubicación general de ese depósito. Si el depósito no tiene ubicación general, no deja registrar y lo avisa. Si se eligió **recepción**, el stock no se mueve nunca (ya entró por la recepción, aunque haya llegado menos o más de lo facturado): sólo se actualiza el costo. Lo que faltó entra cuando se recibe, con otra recepción. Las líneas libres nunca mueven stock. Las notas de crédito no mueven stock. Las cantidades de mercadería tienen que ser enteras.
 4. **Cuenta corriente**: deja el comprobante en la cuenta del proveedor (factura y nota de débito suman deuda; nota de crédito resta), con vencimiento = el de la factura o, si no tiene, la fecha. Enseguida imputa solo los créditos contra las deudas del proveedor, de la más vieja a la más nueva.
 5. Queda **Registrada** con fecha y hora. Ya no se puede modificar ni borrar.
@@ -195,6 +198,15 @@ No se hace a mano: lo genera el sistema solo (las tareas periódicas, enseguida 
 - **Debe**: Mercaderías (el neto de las líneas con producto); la cuenta de gasto elegida (el neto de las líneas libres + no gravado; si no se eligió cuenta, "Gastos varios", o "Importaciones en curso" si la letra es E); IVA crédito fiscal (el IVA); Percepciones de IVA; Percepciones de IIBB; Impuestos (otros impuestos).
 - **Haber**: Proveedores (el total en pesos).
 - Las notas de crédito, al revés.
+
+### Diferencia entre lo facturado y lo recibido
+Cuando la factura está vinculada a una recepción, el asiento de la compra pone en Mercaderías **todo lo facturado**, pero al stock entró **lo recibido**. Si no dan igual, se genera solo un asiento más ("Diferencia de recepción", uno por factura), con la fecha de la factura:
+- **Se facturó de más** (faltan unidades): las que faltan, al costo unitario de la factura en pesos, salen de Mercaderías y van a **Diferencias en recepciones de stock** (egreso). Ejemplo: facturan 10 a $100 y se recibieron 8 → faltan 2 → **Debe** Diferencias en recepciones de stock $200 / **Haber** Mercaderías $200. Así Mercaderías queda con las 8 que de verdad están.
+- **Se recibió de más** (sobran unidades): al revés. Las de más están en el stock pero no pasaron por Mercaderías: entran al costo de la factura → **Debe** Mercaderías / **Haber** Diferencias en recepciones de stock (achica el egreso). Ejemplo: facturan 10 a $100 y llegaron 12 → **Debe** Mercaderías $200 / **Haber** Diferencias en recepciones de stock $200.
+- Cada producto va en su renglón, con el SKU como detalle. Un producto que está en la factura pero no vino en esa recepción cuenta como que faltó entero. Los productos de la recepción que la factura no nombra no cuentan (pueden venir en otra factura).
+- **Una recepción facturada en dos o más facturas**: cada factura mira lo que quedó recibido sin cubrir por las anteriores. Si la primera factura cobra 5 de las 10 recibidas, asienta 5 de sobrante; cuando llega la segunda con las otras 5, ya no queda nada recibido sin cubrir y asienta 5 de faltante: las dos se compensan y queda en cero.
+- La diferencia se calcula y se guarda al registrar la factura (las registradas antes de esto no la tienen). Las notas de crédito no la generan.
+- Si las unidades que faltaron llegan después con otra recepción, entran al stock sin asiento (la recepción no contabiliza): el contador las vuelve a pasar a Mercaderías con un asiento manual (Debe Mercaderías / Haber Diferencias en recepciones de stock).
 
 ### Duplicados
 - No se puede cargar dos veces el mismo comprobante del mismo proveedor: se compara proveedor + letra + si es nota de crédito + si es nota de débito + punto de venta + número, entre las no anuladas.
