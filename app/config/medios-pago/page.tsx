@@ -34,7 +34,8 @@ async function asegurarMedios(org: string) {
 }
 
 /** "cargado (termina en …1234)" o "sin cargar": el secreto nunca entero. */
-const mascara = (v?: string) => (v ? `cargado (termina en …${v.slice(-4)})` : "sin cargar");
+// Una clave nunca se muestra, ni siquiera en parte (AGENTS.md).
+const mascara = (v?: string) => (v ? "cargada" : "sin cargar");
 
 export default async function MediosPago({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("medios_pago_ver");
