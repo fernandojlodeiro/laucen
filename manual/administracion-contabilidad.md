@@ -9,7 +9,7 @@ resumen: Plan de cuentas, asientos automáticos y manuales, libro diario, mayore
 
 ## Para qué sirve
 
-Es la contabilidad de la empresa. Los asientos **se generan solos** a partir de las ventas facturadas, las compras, los despachos de importación, los recibos y órdenes de pago, los movimientos de caja y bancos y los ajustes de stock. Acá se miran los libros (diario, mayor, sumas y saldos, resultados), se cargan los ajustes del contador o el asiento de apertura, y se mantiene el plan de cuentas.
+Es la contabilidad de la empresa. Los asientos **se generan solos** a partir de las ventas facturadas, las compras, los despachos de importación, los recibos y órdenes de pago, las imputaciones de cuenta corriente entre pesos y dólares (diferencia de cambio), los movimientos de caja y bancos y los ajustes de stock. Acá se miran los libros (diario, mayor, sumas y saldos, resultados), se cargan los ajustes del contador o el asiento de apertura, y se mantiene el plan de cuentas.
 
 Todo va **en pesos**, aunque el usuario tenga elegida otra moneda de vista.
 
@@ -38,7 +38,7 @@ En Libro diario, Mayor, Sumas y saldos y Resultados hay un filtro **Período** d
 ### Libro diario
 
 - Botón **"Contabilizar ahora"**: genera en el momento los asientos que falten (normalmente lo hace solo el sistema).
-- Cada asiento: encabezado con **"Asiento N"**, fecha, concepto y una etiqueta con su origen (Venta, Nota de crédito, Costo de venta, Cobro de pedido, Compra, Despacho, Recibo, Orden de pago, Movimiento, Transferencia, Ajuste de stock, Manual, Apertura). Los anulados se ven tachados con la etiqueta "Anulado".
+- Cada asiento: encabezado con **"Asiento N"**, fecha, concepto y una etiqueta con su origen (Venta, Nota de crédito, Costo de venta, Cobro de pedido, Compra, Despacho, Recibo, Orden de pago, Movimiento, Transferencia, Ajuste de stock, Diferencia de cambio, Diferencia de recepción, Manual, Apertura). Los anulados se ven tachados con la etiqueta "Anulado".
 - Debajo, sus renglones: **Código**, **Cuenta** (las del haber, con sangría), **Debe**, **Haber**, **Detalle**.
 - Los asientos **Manual** y **Apertura** vigentes tienen el botón **"Anular"** (pregunta "¿Anular el asiento N?").
 - Al pie: **Totales del período (sin anulados)**; si debe y haber no coinciden, la marca "No coinciden".
@@ -131,7 +131,7 @@ Lápiz en la fila, cambiá código o nombre, o apagá **Activa**, y **"Guardar"*
 - Un proceso periódico de Laucen los genera solos (cuando hay algo pendiente y, como red de seguridad, a los minutos 1 y 31 de cada hora), además del botón "Contabilizar ahora".
 - Hay **un asiento por documento**: si el documento ya tiene su asiento vigente, no se repite.
 - En cada vuelta se procesan hasta 500 documentos de cada tipo (200 despachos); lo que queda sigue en la vuelta siguiente.
-- La fecha del asiento es la del documento.
+- La fecha del asiento es la del documento (en la diferencia de cambio, la de la imputación: la más nueva entre la deuda y el pago).
 - Si a un asiento le falta o le sobra hasta 5 centavos por redondeo, se ajusta el renglón más grande; si la diferencia es mayor, no se graba y queda como error.
 - Los renglones de la misma cuenta y lado se juntan; los de cero se descartan.
 - La numeración de asientos es correlativa por empresa.
@@ -150,8 +150,10 @@ Lápiz en la fila, cambiá código o nombre, o apagá **Activa**, y **"Guardar"*
 | **Recibo** (cobro a cliente) | La cuenta de cada medio de cobro + Retenciones sufridas y anticipos | Deudores por ventas (total del recibo) |
 | **Orden de pago** | Proveedores (total) | La cuenta de cada medio de pago + Retenciones a depositar |
 | **Movimiento suelto** de caja o banco | Cuenta de fondos (si entra) | Contrapartida elegida (al revés si sale) |
-| **Transferencia** | Cuenta de fondos destino | Cuenta de fondos origen (+ diferencia de cotización si la hay) |
+| **Transferencia** | Cuenta de fondos destino | Cuenta de fondos origen (+ diferencia de cambio si la hay) |
 | **Ajuste de stock** | Mercaderías (si suma) | Diferencias de inventario (al revés si resta) |
+| **Diferencia de cambio** (cada imputación de cuenta corriente con un renglón en dólares) | Proveedor: Diferencias de cambio negativas si se pagaron más pesos de lo que valía la deuda · Cliente: Deudores por ventas si se cobraron más | Proveedor: Proveedores · Cliente: Diferencias de cambio positivas (al revés si la diferencia es para el otro lado) |
+| **Diferencia de recepción** (factura de compra vinculada a una recepción, si lo recibido no dio igual a lo facturado) | Diferencias en recepciones de stock (lo facturado de más) | Mercaderías (al revés si se recibió de más) |
 
 Detalles de cada uno:
 - **Venta / nota de crédito**: se toma del comprobante el total y el IVA; neto = total − IVA. El neto va a la cuenta **"Ventas — <canal>"** del canal del pedido (si la factura es de un pedido y esa cuenta está activa); si no, a la **Ventas** general. La nota de crédito usa la misma cuenta, al revés. Si el comprobante fuera en otra moneda, se pasa a pesos con su cotización.
@@ -161,8 +163,16 @@ Detalles de cada uno:
 - **Despacho**: cada impuesto va a su cuenta según su nombre: "adicional" o "percepción IVA" → Percepciones de IVA; otro con "IVA" → IVA crédito fiscal; "ganancias" → Retenciones sufridas y anticipos; "IIBB" o "brutos" → Percepciones de IIBB; cualquier otro → Impuestos y tasas. "Importaciones en curso" se cancela con la factura del exterior y las del despachante.
 - **Recibo / orden de pago**: la cuenta de cada medio es la cuenta contable de la cuenta de fondos o, si no tiene, la de su tipo (Caja, Bancos; "Otra" va a Caja). Las de Mercado Pago tienen siempre su cuenta propia (ver [Caja y bancos](/administracion/tesoreria)). Al anular el recibo, su asiento queda anulado.
 - **Movimiento suelto**: si no se eligió contrapartida, **Gastos varios** si sale plata y **Otros ingresos** si entra. Al borrar el movimiento, su asiento queda anulado.
-- **Transferencia**: si las dos patas en pesos no dan igual (distinta moneda), la diferencia va a **Otros ingresos** o **Gastos varios** como "Diferencia de cotización". Al borrarla, su asiento queda anulado.
+- **Transferencia**: si las dos patas en pesos no dan igual (distinta moneda), la diferencia va a **Diferencias de cambio positivas** (entró más de lo que salió) o **Diferencias de cambio negativas**, con el detalle "Diferencia de cambio". Al borrarla, su asiento queda anulado.
 - **Ajuste de stock**: cantidad × costo promedio en pesos (o último costo en pesos). Sólo si el producto tiene costo.
+- **Diferencia de cambio**: cada factura y cada pago quedaron en la contabilidad en pesos a **su** cotización (la factura en dólares, a la de la factura; el recibo u orden de pago, en pesos). Cuando una imputación de [cuenta corriente](/administracion/cuentas-corrientes) cancela una parte de cada uno, se calcula: **pesos de la deuda** = lo que bajó la deuda × la cotización con que se registró la deuda; **pesos del pago** = lo que bajó el pago × la cotización con que se registró el pago (un pago en pesos, tal cual). **Diferencia = pesos del pago − pesos de la deuda.**
+  - Ejemplo con un proveedor: factura de US$1.000 registrada con el dólar a $1.000 (quedó $1.000.000 en Proveedores). Se paga con una orden de pago de $1.500.000 del día en que el dólar estaba a $1.200: la imputación cancela los US$1.000 usando $1.200.000 de la orden. Pesos de la deuda $1.000.000; pesos del pago $1.200.000; diferencia **$200.000**. Proveedores se debitó $200.000 más de lo que se le había acreditado por esa factura, así que el asiento es **Debe** Diferencias de cambio negativas $200.000 / **Haber** Proveedores $200.000 (pérdida).
+  - Si el dólar hubiera bajado a $900, la imputación usaría $900.000 y quedaría **Debe** Proveedores $100.000 / **Haber** Diferencias de cambio positivas $100.000 (ganancia).
+  - Con un cliente es al revés: cobrar más pesos de lo que valía la deuda es ganancia (**Debe** Deudores por ventas / **Haber** Diferencias de cambio positivas); cobrar menos, pérdida.
+  - Un pago parcial asienta sólo la parte cancelada (US$400 cancelados con $480.000 → $80.000).
+  - También vale entre dos renglones en dólares de distinta cotización (una nota de crédito en dólares de otro día contra la factura en dólares); entre dos en pesos nunca hay diferencia.
+  - Un asiento por imputación. Si se anula el recibo u orden de pago, la imputación se deshace y su asiento de diferencia de cambio queda anulado.
+- **Diferencia de recepción**: en una factura de compra vinculada a una recepción, el asiento de la compra pone en Mercaderías todo lo facturado, pero al stock entró lo recibido. Las unidades de diferencia, al costo unitario de la factura en pesos, van a **Diferencias en recepciones de stock**: lo facturado de más sale de Mercaderías (facturan 10 a $100 y llegaron 8 → Debe Diferencias en recepciones de stock $200 / Haber Mercaderías $200); lo recibido de más entra a Mercaderías (llegaron 12 → Debe Mercaderías $200 / Haber Diferencias en recepciones de stock $200). Un asiento por factura, un renglón por producto con el SKU de detalle. Si la recepción se factura en partes, la factura siguiente compensa lo que la anterior asentó de más. El detalle, en [Facturas de compra](/compras/facturas).
 
 ### El plan de cuentas por defecto
 
@@ -171,8 +181,10 @@ La primera vez Laucen carga este plan (y si después falta alguna cuenta automá
 - **1 ACTIVO** › 1.1 Disponibilidades: 1.1.01 Caja, 1.1.02 Bancos, 1.1.04 Cobros de canales a liquidar · 1.2 Créditos: 1.2.01 Deudores por ventas, 1.2.02 IVA crédito fiscal, 1.2.03 Percepciones de IVA, 1.2.04 Percepciones de IIBB, 1.2.05 Retenciones sufridas y anticipos · 1.3 Bienes de cambio: 1.3.01 Mercaderías, 1.3.02 Importaciones en curso.
 - **2 PASIVO** › 2.1 Deudas comerciales: 2.1.01 Proveedores · 2.2 Deudas fiscales: 2.2.01 IVA débito fiscal, 2.2.02 Retenciones a depositar.
 - **3 PATRIMONIO NETO** › 3.1.01 Capital, 3.1.02 Resultados acumulados.
-- **4 INGRESOS** › 4.1.01 Ventas, 4.1.02 Otros ingresos.
-- **5 EGRESOS** › 5.1.01 Costo de mercaderías vendidas, 5.1.02 Diferencias de inventario, 5.2.01 Comisiones de canales, 5.2.02 Fletes y envíos, 5.2.03 Gastos bancarios, 5.2.04 Impuestos y tasas, 5.2.05 Gastos varios.
+- **4 INGRESOS** › 4.1.01 Ventas, 4.1.02 Otros ingresos, 4.2.01 Diferencias de cambio positivas.
+- **5 EGRESOS** › 5.1.01 Costo de mercaderías vendidas, 5.1.02 Diferencias de inventario, 5.1.03 Diferencias en recepciones de stock, 5.1.04 Diferencias de cambio negativas, 5.2.01 Comisiones de canales, 5.2.02 Fletes y envíos, 5.2.03 Gastos bancarios, 5.2.04 Impuestos y tasas, 5.2.05 Gastos varios.
+
+Las diferencias de cambio van en dos cuentas, una de ganancia y una de pérdida (como se acostumbra para mostrar el resultado financiero), y la de pérdida tiene un código bajo 5.1 para que la cuenta nueva que se sugiere siga siendo la 5.2.06. En las empresas que ya tenían su plan, las tres cuentas nuevas se agregaron solas; si el código ya lo tenía otra cuenta (por ejemplo una "Ventas — canal" o una creada a mano), la nueva toma el próximo código libre bajo la misma madre.
 
 No hay una "Mercado Pago" general: como cada cuenta de Mercado Libre tiene su propio Mercado Pago, esas cuentas se crean solas (ver abajo). En las empresas que ya tenían la "1.1.03 Mercado Pago" del plan viejo, se borró si nunca se había usado; si se usó, queda con su historia.
 

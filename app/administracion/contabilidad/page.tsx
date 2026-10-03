@@ -40,7 +40,8 @@ type P = (typeof PESTANAS)[number]["p"];
 const ORIGEN: Record<string, string> = {
   venta: "Venta", nota_credito_venta: "Nota de crédito", cmv: "Costo de venta", cobro_pedido: "Cobro de pedido",
   compra: "Compra", despacho: "Despacho", cobro: "Recibo", pago: "Orden de pago", movimiento: "Movimiento",
-  transferencia: "Transferencia", ajuste_stock: "Ajuste de stock", manual: "Manual", apertura: "Apertura",
+  transferencia: "Transferencia", ajuste_stock: "Ajuste de stock", diferencia_cambio: "Diferencia de cambio",
+  diferencia_recepcion: "Diferencia de recepción", manual: "Manual", apertura: "Apertura",
 };
 const TIPO: Record<string, string> = { activo: "Activo", pasivo: "Pasivo", patrimonio: "Patrimonio neto", ingreso: "Ingreso", egreso: "Egreso" };
 

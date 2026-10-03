@@ -73,7 +73,7 @@ Igual que el recibo, en la pestaña **Proveedores**, con **"Nueva orden de pago"
 ### Anular un recibo u orden de pago
 
 1. En la tabla de **Recibos** (u **Órdenes de pago**) de la cuenta, apretá **"Anular"** y confirmá con **"Sí"**.
-2. Se borran sus movimientos de fondos, su crédito de la cuenta corriente (devolviendo lo que había cancelado) y se anula su asiento contable.
+2. Se borran sus movimientos de fondos, su crédito de la cuenta corriente (devolviendo lo que había cancelado) y se anula su asiento contable, junto con los asientos de diferencia de cambio de las imputaciones que se deshacen.
 
 Si alguno de sus movimientos ya está conciliado con el extracto del banco, no deja: "Tiene movimientos ya conciliados con el extracto: desconciliálos primero." (se desconcilia en la pestaña Conciliación de la cuenta, en [Caja y bancos](/administracion/tesoreria)).
 
@@ -120,7 +120,8 @@ Cada vez que entra un documento, Laucen cancela los créditos pendientes de esa 
 - Si son de **monedas distintas**, el crédito (el pago o la nota de crédito) se pasa a la moneda de la deuda con el **tipo de cambio oficial venta del día del crédito** (el de [Tipo de cambio](/config/tipo-cambio) que rige esa fecha). Ejemplo: una factura de US$1.000 y una orden de pago de $1.500.000 del día en que el dólar estaba a $1.200: la factura queda saldada (baja US$1.000), la orden de pago usa $1.200.000 y le quedan $300.000 pendientes para otra deuda.
 - Si no hay ningún tipo de cambio cargado hasta esa fecha, se usa la cotización con que quedó guardado el propio crédito; si tampoco tiene, la imputación automática salta esa deuda y sigue con las de su misma moneda, y la manual avisa que falta el tipo de cambio.
 - **Redondeo**: cada lado se redondea al centavo y ninguno baja más de lo que tiene pendiente. Si lo que sobraría del crédito no llega a un centavo en la moneda de la deuda (por ejemplo, $3 contra una deuda en dólares), el crédito se usa entero en esa imputación para que no queden restos de centavos colgados.
-- La diferencia de cambio entre el dólar de la factura y el del pago **no** cambia la columna Pendiente ni genera por ahora ningún asiento: el **Saldo** (en pesos) sigue siendo la suma de los documentos a su cotización, así que una factura en dólares saldada con pesos de otro día puede dejar un saldo en pesos distinto de cero aunque no quede nada pendiente.
+- **Diferencia de cambio**: lo que valía en pesos la deuda cancelada (a la cotización de la factura) casi nunca da igual a los pesos que se usaron para cancelarla (al dólar del día del pago). Esa diferencia **genera sola un asiento** en [Contabilidad](/administracion/contabilidad), uno por imputación, que corrige Proveedores (o Deudores por ventas) contra **Diferencias de cambio positivas** o **negativas**. Ejemplo: factura de US$1.000 con el dólar a $1.000 (quedó en $1.000.000); se paga con el dólar a $1.200 y la imputación usa $1.200.000 → diferencia de **$200.000**, pérdida: **Debe** Diferencias de cambio negativas $200.000 / **Haber** Proveedores $200.000. El detalle, en Contabilidad.
+- La diferencia de cambio **no** cambia la columna Pendiente ni el **Saldo** de esta pantalla: el saldo (en pesos) sigue siendo la suma de los documentos a su cotización, así que una factura en dólares saldada con pesos de otro día puede dejar un saldo en pesos distinto de cero aunque no quede nada pendiente (esa diferencia es justamente la que se asentó).
 
 ### Saldo y vencido
 

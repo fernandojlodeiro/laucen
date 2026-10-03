@@ -16,6 +16,8 @@
 //   movimiento                  Fondos · contrapartida elegida (movimientos sueltos)
 //   transferencia               Fondos destino · Fondos origen
 //   ajuste_stock                Diferencias de inventario · Mercaderías (o al revés)
+//   diferencia_cambio           Diferencias de cambio · Proveedores / Deudores (o al revés), por imputación de cuenta corriente
+//   diferencia_recepcion        Diferencias en recepciones de stock · Mercaderías (o al revés), por factura vinculada a una recepción
 //
 // Cuentas que se crean solas (asegurarCuentasDeCanales): una "Ventas — <canal>"
 // por canal (canal.cuenta_ventas_id) y, por cada cuenta de Mercado Libre
@@ -28,6 +30,7 @@ import type { PoolClient } from "pg";
 import { consulta, una, una as unaBase, enTransaccion, ErrorErp, type Consultor } from "@/lib/erp/base";
 import { codigoValido, proximoCodigo, proximoCodigoBajo, madreDe, TIPOS_CUENTA, type TipoCuenta } from "@/lib/administracion/plan-codigos";
 import { type Linea, nombreContableMercadoPago, lineasVenta, lineasCobroPedido } from "@/lib/administracion/contabilidad-base";
+import { diferenciaDeCambio, lineasDiferenciaCambio, lineaDiferenciaTransferencia, lineasDiferenciaRecepcion, type DiferenciaRecepcion } from "@/lib/administracion/diferencias";
 
 export { nombreContableMercadoPago, lineasVenta, lineasCobroPedido, type Linea };
 
@@ -67,9 +70,17 @@ const PLAN: [codigo: string, nombre: string, tipo: Tipo, rol?: string][] = [
   ["4", "INGRESOS", "ingreso"],
   ["4.1.01", "Ventas", "ingreso", "ventas"],
   ["4.1.02", "Otros ingresos", "ingreso", "otros_ingresos"],
+  // Diferencias de cambio (pedido de Fer, 3/10): resultado financiero, una de
+  // ganancia y una de pérdida (imputaciones entre monedas y transferencias).
+  ["4.2.01", "Diferencias de cambio positivas", "ingreso", "diferencia_cambio_positiva"],
   ["5", "EGRESOS", "egreso"],
   ["5.1.01", "Costo de mercaderías vendidas", "egreso", "cmv"],
   ["5.1.02", "Diferencias de inventario", "egreso", "diferencias_inventario"],
+  // Lo facturado que no se recibió (o al revés), en facturas con recepción.
+  ["5.1.03", "Diferencias en recepciones de stock", "egreso", "diferencias_recepcion"],
+  // Bajo 5.1 y no después de 5.2.05, para que la cuenta nueva que se sugiere
+  // siga siendo la 5.2.06 (proximoCodigo sigue a la imputable más alta).
+  ["5.1.04", "Diferencias de cambio negativas", "egreso", "diferencia_cambio_negativa"],
   ["5.2.01", "Comisiones de canales", "egreso", "comisiones"],
   ["5.2.02", "Fletes y envíos", "egreso", "fletes"],
   ["5.2.03", "Gastos bancarios", "egreso", "gastos_bancarios"],
@@ -77,12 +88,23 @@ const PLAN: [codigo: string, nombre: string, tipo: Tipo, rol?: string][] = [
   ["5.2.05", "Gastos varios", "egreso", "gastos_varios"],
 ];
 
-/** Carga el plan por defecto la primera vez (y agrega los roles que falten). */
+/** Carga el plan por defecto la primera vez (y agrega los roles que falten).
+ *  Si el código de una cuenta automática nueva ya lo tiene otra cuenta (una
+ *  creada a mano, o una "Ventas — canal"), va al próximo libre bajo la misma
+ *  madre; sólo adopta la que está si tiene ese mismo nombre y ningún rol. */
 export async function asegurarPlan(org: string) {
-  const roles = await consulta<{ rol: string }>("select rol from plan_cuenta where organizacion_id = $1 and rol is not null", [org]);
-  const hay = new Set(roles.map((r) => r.rol));
-  const vacio = !(await una("select 1 from plan_cuenta where organizacion_id = $1 limit 1", [org]));
-  const faltan = PLAN.filter(([, , , rol]) => (vacio ? true : rol && !hay.has(rol)));
+  const cuentas = await consulta<{ codigo: string; nombre: string; rol: string | null }>("select codigo, nombre, rol from plan_cuenta where organizacion_id = $1", [org]);
+  const hay = new Set(cuentas.map((r) => r.rol).filter(Boolean));
+  const vacio = !cuentas.length;
+  const faltan = PLAN.filter(([, , , rol]) => (vacio ? true : rol && !hay.has(rol))).map(([codigo, nombre, tipo, rol]) => {
+    const ya = cuentas.find((x) => x.codigo === codigo);
+    if (ya && !(ya.rol == null && ya.nombre === nombre)) {
+      const i = codigo.lastIndexOf(".");
+      codigo = proximoCodigoBajo(cuentas, i > 0 ? codigo.slice(0, i) : codigo);
+    }
+    cuentas.push({ codigo, nombre, rol: rol ?? null });
+    return [codigo, nombre, tipo, rol] as const;
+  });
   if (!faltan.length) return;
   await enTransaccion(async (c) => {
     for (const [codigo, nombre, tipo, rol] of faltan) {
@@ -434,9 +456,9 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
       select m.importe_ars, f.tipo, f.cuenta_contable_id, f.nombre from movimiento_fondos m join cuenta_fondos f on f.id = m.cuenta_id
        where m.organizacion_id = $1 and m.referencia_tipo = 'transferencia' and m.referencia_id = $2`, [org, t.id])).rows;
     const lineas: Linea[] = patas.map((p) => ({ cuentaId: cuentaFondos(rol, p.tipo, p.cuenta_contable_id), debe: Number(p.importe_ars), detalle: p.nombre }));
-    // Si las monedas difieren, la diferencia de cotización va a otros ingresos / gastos varios.
-    const dif = r2(lineas.reduce((s, l) => s + (l.debe ?? 0), 0));
-    if (dif) lineas.push({ cuentaId: dif > 0 ? rol.otros_ingresos : rol.gastos_varios, debe: -dif, detalle: "Diferencia de cotización" });
+    // Si las monedas difieren, la diferencia va a diferencias de cambio (positiva o negativa).
+    const dif = lineaDiferenciaTransferencia(lineas, rol);
+    if (dif) lineas.push(dif);
     await grabarAsiento(c, org, { fecha: t.fecha, concepto: t.concepto, origen: "transferencia", referenciaId: t.id, lineas });
   });
 
@@ -451,6 +473,48 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
     const imp = r2(a.cantidad * Number(a.costo)) * (a.suma ? 1 : -1);
     await grabarAsiento(c, org, { fecha: a.fecha, concepto: `Ajuste de stock ${a.sku ?? ""} (${a.suma ? "+" : "−"}${a.cantidad})`.trim(), origen: "ajuste_stock", referenciaId: a.id,
       lineas: [{ cuentaId: rol.mercaderias, debe: imp }, { cuentaId: rol.diferencias_inventario, haber: imp }] });
+  });
+
+  // Diferencia de cambio de cada imputación de cuenta corriente en que alguno
+  // de los dos renglones es en dólares: lo cancelado de cada lado, en pesos a
+  // la cotización con que se registró ese renglón (ver lib/administracion/
+  // diferencias.ts). Fecha: la del más nuevo de los dos (el día en que se
+  // pudo imputar). Al anular el recibo, deshacerCc() anula este asiento.
+  const imps = await consulta<{ id: number; fecha: string; tercero_tipo: "cliente" | "proveedor"; tercero: string; deb_cancelado: string; deb_importe: string; deb_ars: string;
+    cre_cancelado: string; cre_importe: string; cre_ars: string; deb_desc: string; cre_desc: string }>(`
+    select i.id::int, to_char(greatest(d.fecha, c.fecha), 'YYYY-MM-DD') fecha, d.tercero_tipo, coalesce(cl.nombre, pr.nombre, '') tercero,
+           i.importe deb_cancelado, d.importe deb_importe, d.importe_ars deb_ars,
+           coalesce(i.importe_credito, i.importe) cre_cancelado, c.importe cre_importe, c.importe_ars cre_ars, d.descripcion deb_desc, c.descripcion cre_desc
+      from cc_imputacion i join cc_movimiento d on d.id = i.debito_id join cc_movimiento c on c.id = i.credito_id
+      left join cliente cl on d.tercero_tipo = 'cliente' and cl.id = d.tercero_id left join proveedor pr on d.tercero_tipo = 'proveedor' and pr.id = d.tercero_id
+     where i.organizacion_id = $1 and (d.moneda <> 'ARS' or c.moneda <> 'ARS') and ${sinAsiento("diferencia_cambio", "i")}
+       and abs(abs(coalesce(i.importe_credito, i.importe) * c.importe_ars / nullif(c.importe, 0)) - abs(i.importe * d.importe_ars / nullif(d.importe, 0))) >= 0.006
+     order by i.id limit 500`, [org]);
+  await correr("diferencia_cambio", imps, async (c, rol, i) => {
+    const dif = diferenciaDeCambio({ cancelado: Number(i.deb_cancelado), importe: Number(i.deb_importe), importeArs: Number(i.deb_ars) },
+      { cancelado: Number(i.cre_cancelado), importe: Number(i.cre_importe), importeArs: Number(i.cre_ars) });
+    const lineas = lineasDiferenciaCambio(i.tercero_tipo, dif, rol);
+    if (!lineas.length) return;
+    await grabarAsiento(c, org, { fecha: i.fecha, concepto: `Diferencia de cambio · ${i.deb_desc} con ${i.cre_desc}${i.tercero ? " · " + i.tercero : ""}`,
+      origen: "diferencia_cambio", referenciaId: i.id, lineas });
+  });
+
+  // Diferencia entre lo facturado y lo recibido en las facturas de compra
+  // vinculadas a una recepción (la calcula y guarda registrarFactura()).
+  const difRec = await consulta<{ id: number; fecha: string; diferencia_recepcion: DiferenciaRecepcion[]; nro: string; proveedor: string; skus: Record<string, string> | null }>(`
+    select f.id::int, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.diferencia_recepcion, pr.nombre proveedor,
+           f.letra || ' ' || coalesce(lpad(f.punto_venta::text, 5, '0') || '-', '') || coalesce(f.numero::text, 's/n') nro,
+           (select json_object_agg(v.id, v.sku) from variacion v where v.id in (select (x->>'variacion_id')::bigint from jsonb_array_elements(f.diferencia_recepcion) x)) skus
+      from factura_compra f join proveedor pr on pr.id = f.proveedor_id
+     where f.organizacion_id = $1 and f.estado = 'registrada' and not f.es_nota_credito and jsonb_typeof(f.diferencia_recepcion) = 'array'
+       and exists (select 1 from jsonb_array_elements(f.diferencia_recepcion) x where abs((x->>'importe')::numeric) >= 0.01)
+       and ${sinAsiento("diferencia_recepcion", "f")}
+     order by f.fecha, f.id limit 500`, [org]);
+  await correr("diferencia_recepcion", difRec, async (c, rol, f) => {
+    const lineas = lineasDiferenciaRecepcion(f.diferencia_recepcion.map((d) => ({ ...d, detalle: f.skus?.[String(d.variacion_id)] ?? undefined })), rol);
+    if (!lineas.length) return;
+    await grabarAsiento(c, org, { fecha: f.fecha, concepto: `Diferencia con la recepción · Factura ${f.nro} · ${f.proveedor}`,
+      origen: "diferencia_recepcion", referenciaId: f.id, lineas });
   });
 
   return { hechos, errores };

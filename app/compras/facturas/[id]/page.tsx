@@ -1,7 +1,8 @@
 // Detalle de una factura de compra. En borrador: cabecera editable (con
 // percepciones), líneas (con producto o libres) editables en la fila,
 // totales y "Registrar". Registrada: sólo lectura, con el link a la cuenta
-// corriente del proveedor.
+// corriente del proveedor y, si se vinculó a una recepción y lo recibido no
+// dio igual a lo facturado, la diferencia que se asienta.
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -10,6 +11,7 @@ import { formatear } from "@/lib/moneda";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { TachoConfirmar, BotonConfirmar, BotonEnviar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
+import FotosProducto from "@/app/componentes/FotosProducto";
 import {
   entrarErp, Pantalla, Avisos, Estado, Lapiz, url, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
@@ -17,6 +19,7 @@ import { fecha as fechaAR, fechaHora } from "@/app/ventas/formato";
 import { ESTADO_FACTURA, ALICUOTAS, numeroFactura, pct, buscarVariaciones } from "../../comun";
 import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
 import { CamposCabecera, opcionesCabecera } from "../Cabecera";
+import type { DiferenciaRecepcion } from "@/lib/administracion/diferencias";
 import {
   accionGuardarCabecera, accionAgregarLinea, accionGuardarLinea, accionBorrarLinea, accionBorrarFactura, accionRegistrarFactura,
 } from "../acciones";
@@ -31,6 +34,7 @@ type Factura = {
   iva_detalle: { pct: number; base: number; importe: number }[]; percepcion_iva: number; percepcion_iibb: number; otros_impuestos: number;
   no_gravado: number; total: number; total_ars: number; total_usd: number; deposito_id: number | null; deposito: string | null;
   recepcion_id: number | null; cuenta_gasto_id: number | null; cuenta_gasto: string | null; estado: string; notas: string | null; registrada_ts: Date | null;
+  diferencia_recepcion: DiferenciaRecepcion[] | null;
 };
 type Linea = { id: number; variacion_id: number | null; sku: string | null; descripcion: string; cantidad: number; costo_unit: number; iva_pct: number; neto: number; iva: number };
 
@@ -44,7 +48,8 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
            to_char(f.fecha, 'YYYY-MM-DD') fecha, to_char(f.vencimiento, 'YYYY-MM-DD') vencimiento, f.moneda, f.cotizacion::float,
            f.neto::float, f.iva::float, f.iva_detalle, f.percepcion_iva::float, f.percepcion_iibb::float, f.otros_impuestos::float,
            f.no_gravado::float, f.total::float, f.total_ars::float, f.total_usd::float, f.deposito_id::int, d.nombre deposito,
-           f.recepcion_id::int, f.cuenta_gasto_id::int, (pc.codigo || ' ' || pc.nombre) cuenta_gasto, f.estado, f.notas, f.registrada_ts
+           f.recepcion_id::int, f.cuenta_gasto_id::int, (pc.codigo || ' ' || pc.nombre) cuenta_gasto, f.estado, f.notas, f.registrada_ts,
+           f.diferencia_recepcion
       from factura_compra f join proveedor p on p.id = f.proveedor_id
       left join deposito d on d.id = f.deposito_id
       left join plan_cuenta pc on pc.id = f.cuenta_gasto_id and pc.organizacion_id = f.organizacion_id
@@ -52,14 +57,21 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
   if (!f) notFound();
   const borrador = f.estado === "borrador";
   const q = sp.q?.trim() ?? "";
-  const [lineas, opciones, encontradas] = await Promise.all([
+  const difs = (f.diferencia_recepcion ?? []).filter((d) => d.diferencia);
+  const [lineas, opciones, encontradas, prodDif] = await Promise.all([
     consulta<Linea>(`
       select l.id::int, l.variacion_id::int, v.sku, l.descripcion, l.cantidad::float, l.costo_unit::float, l.iva_pct::float, l.neto::float, l.iva::float
         from factura_compra_linea l left join variacion v on v.id = l.variacion_id
        where l.factura_id = $1 and l.organizacion_id = $2 order by l.orden, l.id`, [fid, s.org.id]),
     borrador ? opcionesCabecera(s.org.id) : null,
     borrador ? buscarVariaciones(s.org.id, q, verInactivos(sp)) : [],
+    difs.length ? consulta<{ id: number; sku: string; producto_id: number; titulo: string; fotos: string[] | null }>(`
+      select v.id::int, v.sku, v.producto_id::int, coalesce(v.titulo, p.titulo) titulo,
+             (select array_agg(pf.url order by pf.orden) from producto_foto pf where pf.producto_id = p.id) fotos from variacion v join producto p on p.id = v.producto_id
+       where v.organizacion_id = $1 and v.id = any($2::bigint[])`, [s.org.id, difs.map((d) => d.variacion_id)]) : [],
   ]);
+  const prod = new Map(prodDif.map((p) => [p.id, p]));
+  const totalDif = Math.round(difs.reduce((t, d) => t + d.importe, 0) * 100) / 100;
   const editar = borrador ? Number(sp.editar) || 0 : 0;
   const aqui = (extra: Record<string, string | number | null> = {}) => url(`/compras/facturas/${fid}`, { q: q || null, ...extra });
   const m = f.moneda;
@@ -218,6 +230,43 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
           </>}
         </div>
       </div>
+
+      {difs.length > 0 && (
+        <div className="mb-4">
+          <h2 className="text-sm font-bold mb-1">Diferencia con la recepción ({difs.length})</h2>
+          <p className="text-[11px] text-[#5C6B76] mb-2">
+            Lo recibido por la recepción no dio igual a lo facturado. La diferencia, al costo de la factura en pesos, va a «Diferencias en recepciones de stock»
+            contra Mercaderías: lo facturado de más sale de Mercaderías (egreso) y lo recibido de más entra (achica el egreso).
+          </p>
+          <div className={CAJA_TABLA}>
+            <table className={TABLA}>
+              <thead className={THEAD}>
+                <tr><th className={TH}>Producto</th><th className={THN}>Facturado</th><th className={THN}>Recibido</th><th className={THN}>Diferencia</th>
+                  <th className={THN}>Costo unit. ($)</th><th className={THN}>Importe ($)</th></tr>
+              </thead>
+              <tbody>
+                {difs.map((d) => {
+                  const p = prod.get(d.variacion_id);
+                  return (
+                    <tr key={d.variacion_id} className={TR}>
+                      <td className={TD}>{p ? <><Link href={`/catalogo/productos/${p.producto_id}`} className="font-mono text-[#16577F] hover:underline">{p.sku}</Link>{" "}<FotosProducto fotos={p.fotos} titulo={p.titulo} /> <span className="text-[#5C6B76]">{p.titulo}</span></> : `#${d.variacion_id}`}</td>
+                      <td className={TDN}>{d.facturado.toLocaleString("es-AR")}</td>
+                      <td className={TDN}>{d.recibido.toLocaleString("es-AR")}</td>
+                      <td className={TDN}>{d.diferencia > 0 ? `faltan ${d.diferencia.toLocaleString("es-AR")}` : `sobran ${(-d.diferencia).toLocaleString("es-AR")}`}</td>
+                      <td className={TDN}>{formatear(d.costo_unit_ars, "ARS")}</td>
+                      <td className={TDN}>{formatear(d.importe, "ARS")}</td>
+                    </tr>
+                  );
+                })}
+                <tr className={TR}>
+                  <td colSpan={5} className={`${TD} font-bold`}>{totalDif >= 0 ? "Egreso por diferencias" : "Recupero por diferencias"}</td>
+                  <td className={`${TDN} font-bold`}>{formatear(Math.abs(totalDif), "ARS")}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {borrador && (
         <p className="text-[11px] text-[#5C6B76]">«Registrar» (arriba a la derecha) ingresa el stock al depósito, actualiza el costo y deja la deuda en la cuenta corriente del proveedor.</p>
