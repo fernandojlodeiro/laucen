@@ -35,8 +35,8 @@ export const LOGISTICA_TEXTO: Record<string, string> = {
 
 export type LineaHoja = {
   ubicacion: string | null; orden_recorrido: number | null; sku: string | null; titulo: string; cantidad: number;
-  /** Si es componente de un kit: el kit (SKU y título). */
-  kit: { sku: string; titulo: string } | null;
+  /** Si es componente de un kit: el kit (SKU, título y cuántos kits pidieron). */
+  kit: { sku: string; titulo: string; cantidad?: number } | null;
 };
 
 export type EtiquetaHoja =
@@ -104,8 +104,8 @@ export async function datosHojas(org: string, pedidoIds: number[]): Promise<Dato
      where p.organizacion_id = $1 and p.id = any($2::bigint[])`, [org, pedidoIds]);
   // Sin reserva (ya despachado, o el artículo de ML sin vincular): las líneas
   // del pedido, con los kits abiertos en sus componentes y sin ubicación.
-  const lineas = await consulta<{ pedido_id: number; sku: string | null; titulo: string; cantidad: number; kit_sku: string | null; kit_titulo: string | null; reservada: boolean }>(`
-    select pl.pedido_id::int, coalesce(c.sku, v.sku, pl.sku) sku,
+  const lineas = await consulta<{ pedido_id: number; sku: string | null; titulo: string; cantidad: number; kit_sku: string | null; kit_titulo: string | null; reservada: boolean; linea_id: number; linea_cantidad: number }>(`
+    select pl.pedido_id::int, pl.id::int linea_id, pl.cantidad::int linea_cantidad, coalesce(c.sku, v.sku, pl.sku) sku,
            case when c.id is not null then titulo_variacion(c.id) when v.id is not null then titulo_variacion(v.id) else pl.titulo end titulo,
            (pl.cantidad * coalesce(kc.cantidad, 1))::int cantidad,
            case when c.id is not null then v.sku end kit_sku, case when c.id is not null then titulo_variacion(v.id) end kit_titulo,
@@ -117,13 +117,17 @@ export async function datosHojas(org: string, pedidoIds: number[]): Promise<Dato
   return pedidos.map((p) => {
     const res = reservado.filter((r) => r.pedido_id === p.id);
     const propias = lineas.filter((l) => l.pedido_id === p.id);
+    // Cuántos de cada kit se pidieron (para la fila del kit en la hoja).
+    const kits = new Map<string, number>(), vistas = new Set<number>();
+    for (const l of propias) if (l.kit_sku && !vistas.has(l.linea_id)) { vistas.add(l.linea_id); kits.set(l.kit_sku, (kits.get(l.kit_sku) ?? 0) + l.linea_cantidad); }
+    const kitDe = (sku: string | null, titulo: string | null) => sku ? { sku, titulo: titulo ?? "", cantidad: kits.get(sku) } : null;
     const crudas: LineaHoja[] = res.length
       ? [...res.map((r) => ({ ubicacion: r.ubicacion, orden_recorrido: r.orden_recorrido, sku: r.sku, titulo: r.titulo, cantidad: r.cantidad,
-          kit: r.kit_sku ? { sku: r.kit_sku, titulo: r.kit_titulo ?? "" } : null })),
+          kit: kitDe(r.kit_sku, r.kit_titulo) })),
         // Lo sin vincular nunca se reserva: va igual, sin ubicación.
         ...propias.filter((l) => !l.reservada).map((l) => ({ ubicacion: null, orden_recorrido: null, sku: l.sku, titulo: l.titulo, cantidad: l.cantidad, kit: null }))]
       : propias.map((l) => ({ ubicacion: null, orden_recorrido: null, sku: l.sku, titulo: l.titulo, cantidad: l.cantidad,
-          kit: l.kit_sku ? { sku: l.kit_sku, titulo: l.kit_titulo ?? "" } : null }));
+          kit: kitDe(l.kit_sku, l.kit_titulo) }));
     const env = (p.envio_json ?? {}) as { metodo?: string | null; direccion?: Record<string, unknown> | null; pack_id?: unknown };
     const ml = p.e_id_externo && p.e_canal && p.logistica !== "fulfillment";
     const dirPropia = env.direccion ?? null;
@@ -348,19 +352,27 @@ function marcaReimpresion(l: Lienzo, p: PDFPage, x: number, y: number, sz: numbe
 }
 
 /** El encabezado de la hoja en una columna al costado de la etiqueta (A4,
- *  todo en una hoja): N.º grande, código de barras, los datos y «A cobrar».
+ *  todo en una hoja): N.º grande, código de barras, los datos y «A cobrar»,
+ *  todo pegado al margen derecho (así queda aire para cortar la etiqueta).
  *  Si queda lugar arriba de `piso`, también las notas del comprador.
  *  Devuelve hasta dónde llegó y si entraron las notas. */
 async function encabezadoAlCostado(l: Lienzo, p: PDFPage, d: DatosHoja, x: number, arriba: number, ancho: number, piso: number): Promise<{ y: number; notas: boolean }> {
+  const der = x + ancho;
   let y = arriba - 9;
-  const t = (s: string, size: number, font = l.f, color = negro) => p.drawText(limpio(s), { x, y, size, font, color });
-  t("HOJA DE PREPARACIÓN", 8, l.fb, gris);
-  if (d.reimpresion) marcaReimpresion(l, p, x + l.fb.widthOfTextAtSize("HOJA DE PREPARACIÓN", 8) + 8, y, 9);
+  /** Texto alineado a la derecha; devuelve su ancho. */
+  const t = (s: string, size: number, font = l.f, color = negro) => {
+    const tx = limpio(s), tw = font.widthOfTextAtSize(tx, size);
+    p.drawText(tx, { x: der - tw, y, size, font, color });
+    return tw;
+  };
+  const tw = t("HOJA DE PREPARACIÓN", 8, l.fb, gris);
+  if (d.reimpresion) marcaReimpresion(l, p, der - tw - 8 - l.fb.widthOfTextAtSize("REIMPRESIÓN", 9) - 6, y, 9);
   y -= 34;
   t(`#${d.pedidoId}`, 34, l.fb);
   const img = await codigoBarras(l.doc, String(d.pedidoId));
+  const iw = Math.min(ancho, 200);
   y -= 46;
-  p.drawImage(img, { x, y, width: Math.min(ancho, 220), height: 38 });
+  p.drawImage(img, { x: der - iw, y, width: iw, height: 38 });
   y -= 8;
   for (const [et, val] of datosEncabezado(d)) {
     y -= 10;
@@ -368,7 +380,7 @@ async function encabezadoAlCostado(l: Lienzo, p: PDFPage, d: DatosHoja, x: numbe
     for (const r of renglones(val, l.fb, 11, ancho).slice(0, 2)) { y -= 13; t(r, 11, l.fb); }
     y -= 4;
   }
-  if (d.aCobrar != null) { y -= 8; y -= recuadroACobrar(p, l.fb, x, y - 34, ancho, d.aCobrar); }
+  if (d.aCobrar != null) { const ac = Math.min(ancho, 210); y -= 8; y -= recuadroACobrar(p, l.fb, der - ac, y - 34, ac, d.aCobrar); }
   // Las notas, si entran enteras.
   if (!d.notas?.trim()) return { y, notas: true };
   const rs = renglones(d.notas, l.f, 9, ancho);
@@ -398,7 +410,7 @@ async function hoja(l: Lienzo, d: DatosHoja, inicio?: { p: PDFPage; y: number; n
     y -= 8 * k;
     t("Ubicación", m, 6.5 * k, l.fb, gris);
     t("Producto", m + COL.prod * k, 6.5 * k, l.fb, gris);
-    t("Cant.", w - m - (COL.cant + 18) * k, 6.5 * k, l.fb, gris);
+    t("Cant.", w - m - (COL.cant + 8) * k, 6.5 * k, l.fb, gris);
     y -= 4 * k;
   };
   const nueva = async (seguida: boolean) => {
@@ -437,39 +449,63 @@ async function hoja(l: Lienzo, d: DatosHoja, inicio?: { p: PDFPage; y: number; n
   };
 
   if (inicio) { p = inicio.p; y = inicio.y; titulosTabla(); } else await nueva(false);
-  for (const ln of d.lineas) {
-    // Más de una unidad: la fila resaltada (fondo gris, título en negrita y
-    // la cantidad en blanco sobre negro), para que no se junte una sola.
-    const varias = ln.cantidad > 1;
-    const fuente = varias ? l.fb : l.f;
-    const indent = ln.kit ? 8 * k : 0;
-    const xProd = m + COL.prod * k + indent;
-    const anchoProd = w - m - (COL.cant + 22) * k - xProd;
-    const tit = renglones(`${ln.sku ?? "s/SKU"} — ${ln.titulo}`, fuente, 7.5 * k, anchoProd).slice(0, 3);
-    const kit = ln.kit ? renglones(`kit: ${ln.kit.sku} ${ln.kit.titulo}`, l.f, 6 * k, anchoProd).slice(0, 1) : [];
-    const ubic = renglones(ln.ubicacion ?? "—", l.fb, 9 * k, (COL.prod - 4) * k).slice(0, 2);
-    const alto = Math.max(tit.length * 9.5 * k + kit.length * 8 * k, ubic.length * 11 * k, 20 * k) + 6 * k;
+  /** Una fila de la tabla: ubicación, texto (ya con su fuente) y, si va,
+   *  la cantidad con el cuadrado para tildar. `resaltar`: fondo gris y la
+   *  cantidad en blanco sobre negro; `recuadro`: el texto dentro de un marco
+   *  grueso (lo que de verdad hay que juntar de un kit). */
+  const fila = async (o: { ubic: string | null; texto: string; fuente: PDFFont; tam: number; indent?: number; cantidad?: number; resaltar?: boolean; recuadro?: boolean }) => {
+    const xProd = m + COL.prod * k + (o.indent ?? 0);
+    const anchoProd = w - m - (COL.cant + 10) * k - xProd - (o.recuadro ? 8 * k : 0);
+    const tit = renglones(o.texto, o.fuente, o.tam, anchoProd).slice(0, 3);
+    const ubic = o.ubic ? renglones(o.ubic, l.fb, 8.5 * k, (COL.prod - 4) * k).slice(0, 2) : [];
+    const alto = Math.max(tit.length * (o.tam + 2 * k), ubic.length * 10 * k, 11 * k) + 4 * k;
     if (y - alto < m + 10 * k) await nueva(true);
     const arriba = y;
-    if (varias) p.drawRectangle({ x: m, y: arriba - alto, width: w - 2 * m, height: alto, color: rgb(0.88, 0.88, 0.88) });
-    p.drawLine({ start: { x: m, y }, end: { x: w - m, y }, thickness: 0.3, color: rgb(0.7, 0.7, 0.7) });
-    y = arriba - 11 * k;
-    for (const r of ubic) { t(r, m, 9 * k, l.fb); y -= 11 * k; }
+    if (o.resaltar) p.drawRectangle({ x: m, y: arriba - alto, width: w - 2 * m, height: alto, color: rgb(0.88, 0.88, 0.88) });
+    if (!o.recuadro) p.drawLine({ start: { x: m, y }, end: { x: w - m, y }, thickness: 0.3, color: rgb(0.7, 0.7, 0.7) });
     y = arriba - 10 * k;
-    for (const r of tit) { t(r, xProd, 7.5 * k, fuente); y -= 9.5 * k; }
-    for (const r of kit) { t(r, xProd, 6 * k, l.f, gris); y -= 8 * k; }
-    // Cantidad grande y el cuadrado para tildar.
-    const cant = String(ln.cantidad), csz = 16 * k, cw = l.fb.widthOfTextAtSize(cant, csz);
-    const xCant = w - m - 22 * k - cw;
-    if (varias) p.drawRectangle({ x: xCant - 3 * k, y: arriba - 20 * k, width: cw + 6 * k, height: 17 * k, color: negro });
-    p.drawText(cant, { x: xCant, y: arriba - 17 * k, size: csz, font: l.fb, color: varias ? rgb(1, 1, 1) : negro });
-    p.drawRectangle({ x: w - m - 15 * k, y: arriba - 18 * k, width: 14 * k, height: 14 * k, borderWidth: 1, borderColor: negro, color: rgb(1, 1, 1) });
+    for (const r of ubic) { t(r, m, 8.5 * k, l.fb); y -= 10 * k; }
+    if (o.recuadro) p.drawRectangle({ x: xProd - 3 * k, y: arriba - alto + 2 * k, width: anchoProd + 8 * k, height: alto - 3 * k, borderWidth: 1.6, borderColor: negro });
+    y = arriba - 2.5 * k - o.tam;
+    for (const r of tit) { t(r, xProd + (o.recuadro ? 2 * k : 0), o.tam, o.fuente); y -= o.tam + 2 * k; }
+    if (o.cantidad != null) {
+      const cant = String(o.cantidad), csz = 11 * k, cw = l.fb.widthOfTextAtSize(cant, csz);
+      const xCant = w - m - 16 * k - cw;
+      if (o.resaltar) p.drawRectangle({ x: xCant - 2.5 * k, y: arriba - 14 * k, width: cw + 5 * k, height: 12.5 * k, color: negro });
+      p.drawText(cant, { x: xCant, y: arriba - 11.5 * k, size: csz, font: l.fb, color: o.resaltar ? rgb(1, 1, 1) : negro });
+      p.drawRectangle({ x: w - m - 11 * k, y: arriba - 13 * k, width: 10 * k, height: 10 * k, borderWidth: 1, borderColor: negro, color: rgb(1, 1, 1) });
+    }
     y = arriba - alto;
+  };
+
+  // Un kit (pack, combo) va en una fila con lo que se vendió (cuántos kits)
+  // y, debajo, enmarcado, lo que de verdad hay que juntar de cada componente:
+  // "= 10 unidades (2 × 5) de …".
+  const kitsHechos = new Set<string>();
+  for (const ln of d.lineas) {
+    if (!ln.kit) {
+      // Más de una unidad: la fila resaltada, para que no se junte una sola.
+      const varias = ln.cantidad > 1;
+      await fila({ ubic: ln.ubicacion ?? "—", texto: `${ln.sku ?? "s/SKU"} — ${ln.titulo}`, fuente: varias ? l.fb : l.f, tam: 7.5 * k, cantidad: ln.cantidad, resaltar: varias });
+      continue;
+    }
+    if (kitsHechos.has(ln.kit.sku)) continue;
+    kitsHechos.add(ln.kit.sku);
+    const comps = d.lineas.filter((x) => x.kit?.sku === ln.kit!.sku);
+    const ubics = [...new Set(comps.map((x) => x.ubicacion ?? "—"))];
+    const kits = ln.kit.cantidad;
+    await fila({ ubic: ubics.length === 1 ? ubics[0] : null, texto: `KIT ${ln.kit.sku} — ${ln.kit.titulo}`, fuente: l.fb, tam: 7.5 * k, cantidad: kits ?? undefined, resaltar: (kits ?? 0) > 1 });
+    for (const c of comps) {
+      const porKit = kits && c.cantidad % kits === 0 ? c.cantidad / kits : null;
+      const cuenta = kits && kits > 1 && porKit ? ` (${kits} × ${porKit})` : "";
+      await fila({ ubic: ubics.length === 1 ? null : (c.ubicacion ?? "—"), indent: 10 * k, recuadro: true, fuente: l.fb, tam: 8.5 * k,
+        texto: `= ${c.cantidad} ${c.cantidad === 1 ? "unidad" : "unidades"}${cuenta} de ${c.sku ?? "s/SKU"} — ${c.titulo}` });
+    }
   }
   if (!d.lineas.length) { y -= 12 * k; t("Este pedido no tiene productos para preparar.", m, 8 * k); y -= 4 * k; }
   p.drawLine({ start: { x: m, y }, end: { x: w - m, y }, thickness: 0.8 });
   const unidades = d.lineas.reduce((a, x) => a + x.cantidad, 0);
-  const masDeUna = d.lineas.filter((x) => x.cantidad > 1).length;
+  const masDeUna = d.lineas.filter((x) => !x.kit && x.cantidad > 1).length;
   y -= 11 * k;
   t(`${unidades} unidad${unidades === 1 ? "" : "es"} en ${d.lineas.length} línea${d.lineas.length === 1 ? "" : "s"}`
     + (masDeUna ? ` · ojo: ${masDeUna === 1 ? "1 línea lleva" : `${masDeUna} líneas llevan`} más de una unidad` : ""), m, 7.5 * k, l.fb);
