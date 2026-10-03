@@ -1,23 +1,24 @@
 // Publicaciones (orden 136, §4.5): cada variación en cada canal, con su id
-// externo (ej. MLA…), categoría, tipo y los atributos que pide el canal.
-// ABM mínimo: la sincronización con Mercado Libre la hace otra sesión.
+// externo (ej. MLA…), categoría, tipo y estado. Es un espejo de lo publicado
+// (decisión de Fer, 3/10): lo escribe la sincronización con Mercado Libre y acá
+// no se crea, no se borra ni se cambia. Sólo se edita lo propio de Laucen: el
+// umbral de pausa (lápiz de la fila) y el vínculo con la variación — el de ML,
+// en "Vincular con Mercado Libre"; el de otros canales, en el lápiz.
 
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
-import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
-import { TachoConfirmar } from "@/app/radar/Cliente";
+import { VERDE, SUAVE } from "@/app/botones";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
-import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import { consultaPaginada, leerOrden } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO,
 } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
 import { LISTA_PUBLICACIONES, DISPONIBLE_PUBLICACION } from "./lista";
-import { accionBorrarPublicacion, accionCrearPublicacion, accionGuardarPublicacion } from "./acciones";
+import { accionGuardarPublicacion } from "./acciones";
 import { verInactivos } from "@/app/componentes/Inactivos";
 
 export const dynamic = "force-dynamic";
@@ -27,9 +28,9 @@ const BASE = "/catalogo/publicaciones";
 type SP = { canal?: string; estado?: string; q?: string; contiene?: string; inactivos?: string; editar?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 type Fila = {
-  id: number; variacion_id: number; producto_id: number; sku: string; titulo_var: string; fotos: string[] | null; canal_id: number; canal: string;
+  id: number; variacion_id: number; producto_id: number; sku: string; titulo_var: string; fotos: string[] | null; canal_id: number; canal: string; canal_tipo: string;
   id_externo: string | null; titulo: string | null; categoria_externa: string | null; tipo_publicacion: string | null;
-  estado: string; umbral_pausa: number | null; atributos: string; disponible: number; umbral_efectivo: number;
+  estado: string; umbral_pausa: number | null; disponible: number; umbral_efectivo: number;
   sincronizada: string | null;
 };
 
@@ -55,9 +56,8 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
   const DISPONIBLE = DISPONIBLE_PUBLICACION;
   const base = await LISTA_PUBLICACIONES.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
   const { filas, total } = await consultaPaginada<Fila>({
-    campos: `pu.id::int, v.id::int variacion_id, p.id::int producto_id, v.sku, titulo_variacion(v.id) titulo_var, c.id::int canal_id, c.nombre canal,
+    campos: `pu.id::int, v.id::int variacion_id, p.id::int producto_id, v.sku, titulo_variacion(v.id) titulo_var, c.id::int canal_id, c.nombre canal, c.tipo canal_tipo,
            pu.id_externo, pu.titulo, pu.categoria_externa, pu.tipo_publicacion, pu.estado, pu.umbral_pausa,
-           case when pu.atributos_externos = '{}'::jsonb then '' else jsonb_pretty(pu.atributos_externos) end atributos,
            ${DISPONIBLE} disponible, umbral_pausa_de($1, v.id, c.id) umbral_efectivo,
            to_char(pu.ultima_sincronizacion_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') sincronizada,
            (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = p.id) fotos`,
@@ -69,50 +69,12 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
     }, base.orden),
   }, base.valores, sp);
 
-  const campos = (f?: Fila) => (
-    <>
-      <label><span className={ETIQUETA}>SKU</span>
-        <input name="sku" defaultValue={f?.sku} placeholder="SKU o código de barras" className={`${CAMPO} w-36`} autoFocus /></label>
-      <label><span className={ETIQUETA}>Canal</span>
-        <select name="canal" defaultValue={f?.canal_id ?? canalId ?? ""} className={CAMPO}>
-          <option value="">Elegí…</option>
-          {canales.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-        </select></label>
-      <label><span className={ETIQUETA}>Id externo</span>
-        <input name="id_externo" defaultValue={f?.id_externo ?? ""} placeholder="MLA123456789" className={`${CAMPO} w-36`} /></label>
-      <label className="flex-1 min-w-48"><span className={ETIQUETA}>Título en el canal (vacío = el de la variación)</span>
-        <input name="titulo" defaultValue={f?.titulo ?? ""} className={`${CAMPO} w-full`} /></label>
-      <label><span className={ETIQUETA}>Categoría externa</span>
-        <input name="categoria" defaultValue={f?.categoria_externa ?? ""} placeholder="MLA1234" className={`${CAMPO} w-28`} /></label>
-      <label><span className={ETIQUETA}>Tipo</span>
-        <input name="tipo" defaultValue={f?.tipo_publicacion ?? ""} placeholder="clásica / premium" className={`${CAMPO} w-32`} /></label>
-      <label><span className={ETIQUETA}>Estado</span>
-        <select name="estado" defaultValue={f?.estado ?? "activa"} className={CAMPO}>
-          <option value="activa">Activa</option><option value="pausada">Pausada</option><option value="cerrada">Cerrada</option>
-        </select></label>
-      <label><span className={ETIQUETA}>Umbral de pausa</span>
-        <CampoNumero name="umbral" valor={f?.umbral_pausa} tipo="entero" placeholder="hereda" className={`${CAMPO} w-20`} /></label>
-      <label className="w-full"><span className={ETIQUETA}>Atributos externos (JSON; los que pide la categoría del canal)</span>
-        <textarea name="atributos" defaultValue={f?.atributos ?? ""} rows={3} placeholder={'{"BRAND": "Laucen", "MODEL": "X1"}'}
-          className={`${CAMPO} w-full font-mono`} /></label>
-    </>
-  );
+  const vincularMl = (f: Fila) => url("/catalogo/publicaciones/ml", { canal: f.canal_id, ver: "todas", q: f.id_externo, contiene: "1" });
 
   return (
-    <Pantalla titulo="Publicaciones" subtitulo="Cada variación en cada canal. La sincronización con Mercado Libre llega en otra etapa."
-      acciones={<><AccionesExcel lista={LISTA_PUBLICACIONES} org={s.org.id} />{canales.length > 0 && <BotonNuevo texto="Nueva publicación" />}</>}>
+    <Pantalla titulo="Publicaciones" subtitulo="Espejo de lo publicado en Mercado Libre; se actualiza solo. Los cambios hacia Mercado Libre salen de la ficha del producto y de las reglas."
+      acciones={<><AccionesExcel lista={LISTA_PUBLICACIONES} org={s.org.id} /><Link href="/catalogo/publicaciones/ml" className={SUAVE}>Vincular con Mercado Libre</Link></>}>
       <Avisos sp={sp} />
-      {canales.length === 0 ? (
-        <p className="text-xs text-[#5C6B76] mb-3">Primero hace falta un canal: <Link href="/config/canales" className="text-[#16577F] underline">Configuración → Canales</Link>.</p>
-      ) : (
-        <AltaNueva texto="Nueva publicación" sinBoton>
-          <form action={accionCrearPublicacion} className="flex flex-wrap items-end gap-2">
-            <input type="hidden" name="volver" value={aqui} />
-            {campos()}
-            <button className={PRIMARIO}>Crear</button>
-          </form>
-        </AltaNueva>
-      )}
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <BuscadorVivo q={q} comienza={comienza} inactivos={inactivos} placeholder="Buscar por SKU o id externo" limpiar={["editar"]} />
@@ -134,24 +96,19 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
             </tr>
           </thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>{canalId || estado || q ? "Nada coincide con el filtro." : "Todavía no hay publicaciones. Cargá la primera con «Nueva publicación»."}</td></tr>}
-            {filas.map((f) => editar === f.id ? (
-              <tr key={f.id} className={`${TR} bg-[#FAFBFC]`}>
-                <td colSpan={9} className={TD}>
-                  <form action={accionGuardarPublicacion} className="flex flex-wrap items-end gap-2">
-                    <input type="hidden" name="id" value={f.id} />
-                    <input type="hidden" name="volver" value={aqui} />
-                    {campos(f)}
-                    <button className={VERDE}>Guardar</button>
-                    <Link href={aqui} className={SUAVE} scroll={false}>Cancelar</Link>
-                  </form>
-                </td>
-              </tr>
-            ) : (
-              <tr key={f.id} className={TR}>
+            {filas.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>{canalId || estado || q ? "Nada coincide con el filtro." : "Todavía no hay publicaciones: se traen solas de Mercado Libre al vincular la cuenta."}</td></tr>}
+            {filas.map((f) => (
+              <tr key={f.id} className={`${TR} ${editar === f.id ? "bg-[#FAFBFC]" : ""}`}>
                 <td className={`${TD} whitespace-nowrap`}>
-                  <Link href={`/catalogo/productos/${f.producto_id}`} className="font-semibold text-[#16577F] hover:underline">{f.sku}</Link>{" "}
-                  <FotosProducto fotos={f.fotos} titulo={f.titulo ?? f.titulo_var} />
+                  {editar === f.id && f.canal_tipo !== "mercadolibre" ? (
+                    <input name="sku" form={`pub-${f.id}`} defaultValue={f.sku} placeholder="SKU o código de barras" title="La variación de Laucen de esta publicación"
+                      className={`${CAMPO} w-36`} autoFocus />
+                  ) : (
+                    <>
+                      <Link href={`/catalogo/productos/${f.producto_id}`} className="font-semibold text-[#16577F] hover:underline">{f.sku}</Link>{" "}
+                      <FotosProducto fotos={f.fotos} titulo={f.titulo ?? f.titulo_var} />
+                    </>
+                  )}
                 </td>
                 <td className={TD}><Link href={`/catalogo/productos/${f.producto_id}`} className="hover:underline">{f.titulo ?? <span className="text-[#5C6B76]">{f.titulo_var}</span>}</Link></td>
                 <td className={TD}><Link href={url(BASE, { ...filtros, canal: f.canal_id, p: null })} className="hover:text-[#16577F] hover:underline">{f.canal}</Link></td>
@@ -166,14 +123,31 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                 <td className={`${TDN} ${f.disponible <= f.umbral_efectivo ? "text-[#C03420] font-semibold" : ""}`}>
                   <Link href={url("/stock/consulta", { v: f.variacion_id })} className="hover:underline">{f.disponible}</Link>
                 </td>
-                <td className={TDN} title={f.umbral_pausa == null ? "Hereda del producto, del canal o de la organización" : "Propio de esta publicación"}>
-                  {f.umbral_efectivo}{f.umbral_pausa == null && <span className="text-[10px] text-[#5C6B76]"> (hereda)</span>}
-                </td>
+                {editar === f.id ? (
+                  <td className={TDN}>
+                    <CampoNumero name="umbral" form={`pub-${f.id}`} valor={f.umbral_pausa} tipo="entero" placeholder={`hereda (${f.umbral_efectivo})`} className={`${CAMPO} w-24`} />
+                  </td>
+                ) : (
+                  <td className={TDN} title={f.umbral_pausa == null ? "Hereda del producto, del canal o de la organización" : "Propio de esta publicación"}>
+                    {f.umbral_efectivo}{f.umbral_pausa == null && <span className="text-[10px] text-[#5C6B76]"> (hereda)</span>}
+                  </td>
+                )}
                 <td className={`${TD} text-right whitespace-nowrap`}>
-                  <span className="inline-flex gap-1">
-                    <Lapiz href={url(BASE, { ...filtros, editar: f.id })} />
-                    <TachoConfirmar accion={accionBorrarPublicacion} campos={{ id: String(f.id), volver: aqui }} pregunta="¿Borrar?" />
-                  </span>
+                  {editar === f.id ? (
+                    <form id={`pub-${f.id}`} action={accionGuardarPublicacion} className="inline-flex gap-1">
+                      <input type="hidden" name="id" value={f.id} />
+                      <input type="hidden" name="volver" value={aqui} />
+                      <button className={VERDE}>Guardar</button>
+                      <Link href={aqui} className={SUAVE} scroll={false}>Cancelar</Link>
+                    </form>
+                  ) : (
+                    <span className="inline-flex gap-1">
+                      {f.canal_tipo === "mercadolibre" && f.id_externo && (
+                        <Link href={vincularMl(f)} className={SUAVE} title="Cambiar a qué variación de Laucen corresponde esta publicación">Re-vincular</Link>
+                      )}
+                      <Lapiz href={url(BASE, { ...filtros, editar: f.id })} etiqueta={f.canal_tipo === "mercadolibre" ? "Editar el umbral de pausa" : "Editar el umbral de pausa y la variación"} />
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}

@@ -7,8 +7,10 @@
 import { useState } from "react";
 import { formatearNumero, leerNumero, type TipoNumero } from "@/lib/numeros";
 
-export default function CampoNumero({ name, valor, tipo, className = "", placeholder }: {
+export default function CampoNumero({ name, valor, tipo, className = "", placeholder, form }: {
   name: string; valor: number | null | undefined; tipo: TipoNumero; className?: string; placeholder?: string;
+  /** Id del formulario, cuando el campo está en otra celda de la fila (edición adentro de la fila). */
+  form?: string;
 }) {
   const [texto, setTexto] = useState(formatearNumero(valor, tipo));
   const ordenar = () => {
@@ -16,7 +18,7 @@ export default function CampoNumero({ name, valor, tipo, className = "", placeho
     if (n != null) setTexto(formatearNumero(n, tipo));
   };
   return (
-    <input name={name} value={texto} placeholder={placeholder} inputMode={tipo === "entero" ? "numeric" : "decimal"}
+    <input name={name} form={form} value={texto} placeholder={placeholder} inputMode={tipo === "entero" ? "numeric" : "decimal"}
       onChange={(e) => setTexto(e.target.value)} onBlur={ordenar}
       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); ordenar(); } }}
       className={`${className} text-right tabular-nums`} />
