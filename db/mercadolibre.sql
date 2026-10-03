@@ -217,7 +217,7 @@ create table if not exists ml_cola (
   item_id             text not null default '',
   variation_id        text not null default '',
   publicacion_id      bigint references publicacion(id) on delete set null,
-  tipo                text not null check (tipo in ('stock', 'estado', 'precio', 'descuento', 'campana', 'atributos', 'crear', 'factura', 'otro')),
+  tipo                text not null check (tipo in ('stock', 'estado', 'precio', 'descuento', 'campana', 'atributos', 'crear', 'factura', 'reclamo', 'otro')),
   payload             jsonb not null default '{}',
   antes               jsonb,
   efecto              jsonb,
@@ -245,12 +245,14 @@ create index if not exists ml_cola_por_salir on ml_cola (canal_id, prioridad des
 create index if not exists ml_cola_org on ml_cola (organizacion_id, estado, creado_ts desc);
 create index if not exists ml_cola_lote on ml_cola (lote_id) where lote_id is not null;
 -- Subir facturas a la venta (3/10): tipo 'factura', item_id = 'cbte:<id del comprobante>'.
+-- Acciones sobre reclamos (3/10): tipo 'reclamo', item_id = 'reclamo:<claim_id de ML>',
+-- variation_id = '<acción>:<huella del pedido>' (dos clics iguales no se duplican).
 do $$ begin
   if exists (select 1 from pg_constraint where conrelid = 'ml_cola'::regclass and conname = 'ml_cola_tipo_check'
-                and pg_get_constraintdef(oid) not like '%factura%') then
+                and pg_get_constraintdef(oid) not like '%reclamo%') then
     alter table ml_cola drop constraint ml_cola_tipo_check;
     alter table ml_cola add constraint ml_cola_tipo_check
-      check (tipo in ('stock', 'estado', 'precio', 'descuento', 'campana', 'atributos', 'crear', 'factura', 'otro'));
+      check (tipo in ('stock', 'estado', 'precio', 'descuento', 'campana', 'atributos', 'crear', 'factura', 'reclamo', 'otro'));
   end if;
 end $$;
 create index if not exists ml_cola_factura on ml_cola (item_id, id desc) where tipo = 'factura';

@@ -18,12 +18,16 @@ import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl, type RespuestaMl } from "@/lib/mercadolibre/api";
 import type { SubirArchivo } from "@/lib/mercadolibre/facturas";
 
-export type TipoCambio = "stock" | "estado" | "precio" | "descuento" | "campana" | "atributos" | "crear" | "factura" | "otro";
+export type TipoCambio = "stock" | "estado" | "precio" | "descuento" | "campana" | "atributos" | "crear" | "factura" | "reclamo" | "otro";
 export type OrigenCambio = "automatico" | "boton" | "barrida";
 export type PedidoMl = { metodo: "PUT" | "POST" | "DELETE"; ruta: string; cuerpo?: unknown };
 
 /** Lo que se graba en Laucen cuando ML acepta el cambio. */
-export type Efecto = { publicacion?: { id: number; estado?: "activa" | "pausada" | "cerrada"; pausada_por_stock?: boolean; cantidad_publicada?: number; precio_canal?: number } };
+export type Efecto = {
+  publicacion?: { id: number; estado?: "activa" | "pausada" | "cerrada"; pausada_por_stock?: boolean; cantidad_publicada?: number; precio_canal?: number };
+  /** Una acción sobre un reclamo (lib/mercadolibre/reclamos.ts): queda en su historia. */
+  reclamo?: { id: number; descripcion: string };
+};
 
 export type CambioMl = {
   canalId: number;
@@ -247,6 +251,7 @@ function resumen(r: RespuestaMl): unknown {
 }
 
 async function aplicarEfecto(org: string, e: Efecto | null) {
+  if (e?.reclamo?.id) await anotarEnReclamo(org, e.reclamo, true);
   const p = e?.publicacion;
   if (!p?.id) return;
   await consulta(`
@@ -254,6 +259,16 @@ async function aplicarEfecto(org: string, e: Efecto | null) {
            cantidad_publicada = coalesce($5, cantidad_publicada), precio_canal = coalesce($6, precio_canal), ultima_sincronizacion_ts = now()
      where id = $2 and organizacion_id = $1`,
     [org, p.id, p.estado ?? null, p.pausada_por_stock ?? null, p.cantidad_publicada ?? null, p.precio_canal ?? null]);
+}
+
+/** Lo que pasó con una acción sobre un reclamo, en su historia. Si salió,
+ *  el reclamo se vuelve a leer de ML en el próximo barrido (o al tocar
+ *  "Actualizar"): se borra su marca de última actualización. */
+async function anotarEnReclamo(org: string, r: { id: number; descripcion: string }, ok: boolean, error?: string) {
+  await consulta(`insert into reclamo_evento (organizacion_id, reclamo_id, tipo, detalle)
+                  select $1, id, $3, $4 from reclamo where id = $2 and organizacion_id = $1`,
+    [org, r.id, ok ? "accion_ok" : "accion_error", ok ? `Mercado Libre aceptó: ${r.descripcion}` : `${r.descripcion}: ${error ?? "con error"}`]);
+  if (ok) await consulta("update reclamo set ml_actualizado = null, actualizado_ts = now() where id = $1 and organizacion_id = $2", [r.id, org]);
 }
 
 export type ResultadoCola = { canales: number; enviadas: number; ok: number; reintentos: number; errores: number; frenadas: number };
@@ -355,6 +370,7 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
            where id = $1`,
           [fila.id, final ? "error" : "pendiente", mensajeError ?? errorLegible(status, datos), JSON.stringify(resumen({ status, datos })), String(esperaReintento(fila.intentos))]);
         if (final) res.errores++; else res.reintentos++;
+        if (final && fila.efecto?.reclamo?.id) await anotarEnReclamo(fila.organizacion_id, fila.efecto.reclamo, false, mensajeError ?? errorLegible(status, datos));
         if (frenar) {
           await consulta("update ml_cola_canal set frenado_hasta = now() + ($2 || ' milliseconds')::interval, motivo_freno = $3 where canal_id = $1",
             [canal, String(frenar), errorLegible(status, datos)]);

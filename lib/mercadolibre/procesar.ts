@@ -1,7 +1,7 @@
 // Lo que llega de Mercado Libre (notificaciones) y el barrido de seguridad
 // que corre cada 30 minutos (pg_cron → /api/meli/barrido): procesa las
 // notificaciones pendientes, trae las órdenes y preguntas que se hayan
-// perdido y encola los ajustes de stock en ML (lib/mercadolibre/cola.ts).
+// perdido (y los reclamos) y encola los ajustes de stock en ML (lib/mercadolibre/cola.ts).
 
 import { consulta, una } from "@/lib/erp/base";
 import { cuentaPorUsuario, cuentasActivas, ml, type CuentaMl } from "@/lib/mercadolibre/api";
@@ -9,6 +9,7 @@ import { importarOrden, barrerOrdenes } from "@/lib/mercadolibre/pedidos";
 import { leerEnvio, guardarEnvio } from "@/lib/mercadolibre/envios";
 import { importarPregunta, barrerPreguntas } from "@/lib/mercadolibre/preguntas";
 import { importarMensaje } from "@/lib/mercadolibre/mensajes";
+import { importarReclamoDeNotificacion, barrerReclamos } from "@/lib/mercadolibre/reclamos";
 import { guardarItem, type ItemMl } from "@/lib/mercadolibre/publicaciones";
 import { sincronizarStockMl, variacionesConEventos } from "@/lib/mercadolibre/stock";
 
@@ -53,8 +54,11 @@ async function procesarUna(cuenta: CuentaMl, topic: string, recurso: string) {
       if (r.status === 200) await guardarItem(cuenta, r.datos);
       return;
     }
+    case "claims":
+    case "claims_actions":
+      return importarReclamoDeNotificacion(cuenta, recurso);
     default:
-      return; // otros tópicos (pagos, reclamos…) quedan guardados para cuando se usen
+      return; // otros tópicos (pagos…) quedan guardados para cuando se usen
   }
 }
 
@@ -102,6 +106,8 @@ export async function barrido(hastaMs: number) {
     const r: Record<string, unknown> = {};
     try { r.ordenes = await barrerOrdenes(c, hastaMs); } catch (e) { r.ordenes_error = (e as Error).message; }
     try { r.preguntas = await barrerPreguntas(c); } catch (e) { r.preguntas_error = (e as Error).message; }
+    // Los reclamos no frenan lo demás ni marcan la cuenta con error (ML puede no dar permiso de posventa).
+    if (Date.now() < hastaMs) { try { r.reclamos = await barrerReclamos(c, hastaMs); } catch (e) { r.reclamos_error = (e as Error).message; } }
     if (r.ordenes_error || r.preguntas_error) {
       await consulta("update meli_cuenta set ultimo_error = $2 where id = $1", [c.id, String(r.ordenes_error ?? r.preguntas_error).slice(0, 300)]);
     }
