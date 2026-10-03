@@ -79,7 +79,7 @@ Errores típicos:
 - "Poné la fecha del despacho." / "Poné la cotización del dólar del despacho." / "El flete y el seguro no pueden ser negativos.".
 - "Poné una cantidad entera mayor a cero." / "Poné el FOB unitario en dólares." / "Una línea sin producto necesita una descripción.".
 - "Poné el concepto." / "Poné el importe en pesos." (en gastos e impuestos).
-- Al registrar: "Elegí a qué depósito entra la mercadería.", "Falta la cotización del dólar del despacho.", "El despacho no tiene líneas con FOB.".
+- Al registrar: "Elegí a qué depósito entra la mercadería.", "El depósito elegido no tiene ubicación general, así que la mercadería no tiene dónde entrar: elegí otro depósito.", "Falta la cotización del dólar del despacho.", "El despacho no tiene líneas con FOB.".
 - "El despacho ya está registrado: no se cambia.".
 
 ### Corregir un borrador

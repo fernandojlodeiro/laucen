@@ -119,7 +119,7 @@ Errores típicos:
 - "Ese comprobante de ese proveedor ya está cargado (factura #N).": mismo proveedor, letra, tipo, punto de venta y número que otra que no está anulada.
 - "El punto de venta y el número no pueden ser negativos." / "Las percepciones e impuestos no pueden ser negativos.".
 - En las líneas: "Poné una cantidad mayor a cero.", "Poné el costo unitario (neto, sin IVA).", "Elegí la alícuota de IVA.", "Una línea sin producto necesita una descripción.".
-- Al registrar: "La factura tiene total cero: cargale líneas o importes.", "Falta la cotización del dólar de la factura.", "No hay tipo de cambio para el dd/mm/aaaa." (factura en pesos y no hay cotización cargada en [Tipo de cambio](/config/tipo-cambio) para esa fecha o antes), "Elegí a qué depósito entra la mercadería (o vinculá la recepción por la que ya entró).", "Las cantidades de mercadería tienen que ser enteras.".
+- Al registrar: "La factura tiene total cero: cargale líneas o importes.", "Falta la cotización del dólar de la factura.", "No hay tipo de cambio para el dd/mm/aaaa." (factura en pesos y no hay cotización cargada en [Tipo de cambio](/config/tipo-cambio) para esa fecha o antes), "Elegí a qué depósito entra la mercadería (o vinculá la recepción por la que ya entró).", "El depósito elegido no tiene ubicación general, así que la mercadería no tiene dónde entrar: elegí otro depósito.", "Las cantidades de mercadería tienen que ser enteras.".
 - "La factura ya está registrada: no se cambia.": se intentó modificar una registrada.
 
 ### Cargar una nota de crédito de un proveedor
@@ -168,7 +168,10 @@ La importación no la toca. Abrí la factura (el comprobante de la vista previa 
 2. **Costo** (sólo facturas y notas de débito, no notas de crédito): por cada línea con producto, costo unitario en pesos = costo unitario × cotización (a centavos); en dólares = el costo tal cual (factura en dólares) o el costo en pesos dividido el dólar del día (a 4 decimales). Con eso se actualiza:
    - el **último costo** del producto (en pesos y en dólares);
    - el **costo promedio ponderado**: (stock que había × promedio anterior + cantidad comprada × costo nuevo) / (stock que había + cantidad comprada). Si el stock que había era cero o negativo, o no había promedio, el promedio pasa a ser el costo nuevo.
-3. **Stock**: si se eligió **depósito** (y no recepción), cada línea con producto ingresa su cantidad a la ubicación general de ese depósito. Si se eligió **recepción**, el stock no se mueve (ya entró por la recepción): sólo se actualiza el costo. Las líneas libres nunca mueven stock. Las notas de crédito no mueven stock. Las cantidades de mercadería tienen que ser enteras.
+   - **"Stock que había"** es el stock de antes de esta compra. Si la factura está vinculada a una **recepción**, esas unidades ya están en el stock (entraron al recibir), así que se descuentan: no cuentan como "stock que había" a precio viejo, ni se cuentan dos veces. Ejemplo: había 10 a $100, la recepción entró 10 (stock 20) y la factura las cobra a $200 → promedio (10 × 100 + 10 × 200) / 20 = **$150**.
+   - **Recepción parcial**: se descuenta lo que efectivamente se recibió de ese producto. Si llegaron 8 de 10 facturadas, se descuentan 8 y el promedio se calcula igual con las 10 facturadas (es lo que se pagó). Si llegaron de más (12 de 10), se descuentan las 12: las 2 de más no tienen costo hasta que se registre su factura (vinculada a la misma recepción); esa segunda factura ya toma como "stock que había" las 10 que costeó la primera.
+   - Si un producto de la factura no vino en esa recepción, no se descuenta nada.
+3. **Stock**: si se eligió **depósito** (y no recepción), cada línea con producto ingresa su cantidad a la ubicación general de ese depósito. Si el depósito no tiene ubicación general, no deja registrar y lo avisa. Si se eligió **recepción**, el stock no se mueve nunca (ya entró por la recepción, aunque haya llegado menos o más de lo facturado): sólo se actualiza el costo. Lo que faltó entra cuando se recibe, con otra recepción. Las líneas libres nunca mueven stock. Las notas de crédito no mueven stock. Las cantidades de mercadería tienen que ser enteras.
 4. **Cuenta corriente**: deja el comprobante en la cuenta del proveedor (factura y nota de débito suman deuda; nota de crédito resta), con vencimiento = el de la factura o, si no tiene, la fecha. Enseguida imputa solo los créditos contra las deudas del proveedor, de la más vieja a la más nueva.
 5. Queda **Registrada** con fecha y hora. Ya no se puede modificar ni borrar.
 6. Si entró stock, se avisa a Mercado Libre el stock nuevo de esos productos (si el canal tiene prendida la sincronización de stock).
@@ -240,7 +243,7 @@ No. Registrar es definitivo. Si estaba mal, cargá una nota de crédito del prov
 Con depósito, al registrar entra el stock a la ubicación general de ese depósito. Con recepción, el stock ya había entrado por la recepción del depósito: la factura sólo pone el costo y la deuda.
 
 **¿Cómo se calcula el costo del producto?**
-Último costo = el costo unitario de esta factura (pasado a pesos con su cotización). Costo promedio = promedio ponderado entre el stock que había con su promedio y lo que entra con su costo.
+Último costo = el costo unitario de esta factura (pasado a pesos con su cotización). Costo promedio = promedio ponderado entre el stock que había con su promedio y lo que entra con su costo. Si la factura está vinculada a una recepción, lo que entró por esa recepción no cuenta como "stock que había" (ya está adentro): así no se cuenta dos veces.
 
 **¿Por qué las facturas B y C no tienen IVA?**
 Porque no discriminan IVA y no dan crédito fiscal: el total entero va a gasto.

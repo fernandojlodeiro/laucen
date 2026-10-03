@@ -6,7 +6,7 @@
 
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { moverStock, ubicacionGeneral } from "@/lib/stock";
-import { registrarCosto } from "@/lib/administracion/costos";
+import { registrarCosto, excluirPorRecepcion } from "@/lib/administracion/costos";
 import { movimientoCc, imputarAutomatico } from "@/lib/administracion/cc";
 import { sincronizarStockMl } from "@/lib/mercadolibre/stock";
 
@@ -65,14 +65,31 @@ export async function registrarFactura(org: string, facturaId: number, usuarioId
   const totalArs = r2(Number(f.total) * cot);
   const totalUsd = f.moneda === "USD" ? Number(f.total) : r2(totalArs / tcUsd);
   const signo = f.es_nota_credito ? -1 : 1;
+  // Sin recepción, entra a la ubicación general del depósito: si no tiene, se avisa (antes no movía el stock y seguía callada).
+  const ubic = conStock.length && !f.es_nota_credito && f.deposito_id && !f.recepcion_id ? await ubicacionGeneral(org, f.deposito_id) : null;
+  if (conStock.length && !f.es_nota_credito && f.deposito_id && !f.recepcion_id && !ubic)
+    throw new ErrorErp("El depósito elegido no tiene ubicación general, así que la mercadería no tiene dónde entrar: elegí otro depósito.");
+  // Con recepción, lo recibido ya está en el stock: no se vuelve a ingresar y
+  // se descuenta del "stock que había" para el promedio (si no, contaría dos veces).
+  let excluir: number[] = conStock.map(() => 0);
+  if (conStock.length && !f.es_nota_credito && f.recepcion_id) {
+    const aMapa = (filas: { variacion_id: number; n: string }[]) => new Map(filas.map((x) => [x.variacion_id, Number(x.n)]));
+    const recibido = aMapa(await consulta<{ variacion_id: number; n: string }>(
+      "select variacion_id::int, sum(cantidad) n from recepcion_linea where recepcion_id = $1 and organizacion_id = $2 group by variacion_id", [f.recepcion_id, org]));
+    // Lo que otras facturas ya registradas costearon de esa misma recepción.
+    const yaFacturado = aMapa(await consulta<{ variacion_id: number; n: string }>(`
+      select l.variacion_id::int, sum(l.cantidad) n from factura_compra_linea l join factura_compra fc on fc.id = l.factura_id
+       where fc.organizacion_id = $1 and fc.recepcion_id = $2 and fc.id <> $3 and fc.estado = 'registrada' and not fc.es_nota_credito and l.variacion_id is not null
+       group by l.variacion_id`, [org, f.recepcion_id, facturaId]));
+    excluir = excluirPorRecepcion(conStock.map((l) => ({ variacionId: l.variacion_id!, cantidad: Number(l.cantidad) })), recibido, yaFacturado);
+  }
   await enTransaccion(async (c) => {
     if (!f.es_nota_credito) {
-      const ubic = f.deposito_id && !f.recepcion_id ? await ubicacionGeneral(org, f.deposito_id) : null;
-      for (const l of conStock) {
+      for (const [i, l] of conStock.entries()) {
         const cant = Number(l.cantidad);
         const costoArs = r2(Number(l.costo_unit) * cot);
         const costoUsd = f.moneda === "USD" ? Number(l.costo_unit) : Math.round((costoArs / tcUsd) * 10000) / 10000;
-        await registrarCosto(c, org, l.variacion_id!, cant, costoArs, costoUsd);
+        await registrarCosto(c, org, l.variacion_id!, cant, costoArs, costoUsd, excluir[i]);
         if (ubic) {
           if (!Number.isInteger(cant)) throw new ErrorErp("Las cantidades de mercadería tienen que ser enteras.");
           await moverStock(org, { variacionId: l.variacion_id!, tipo: "ingreso", cantidad: cant, destinoId: ubic, referencia: { tipo: "factura_compra", id: facturaId }, usuarioId }, c);
@@ -122,6 +139,7 @@ export async function registrarDespacho(org: string, despachoId: number, usuario
   const calc = await calcularDespacho(org, despachoId);
   if (!calc.lineas.length || calc.fobTotal <= 0) throw new ErrorErp("El despacho no tiene líneas con FOB.");
   const ubic = await ubicacionGeneral(org, d.deposito_id);
+  if (!ubic) throw new ErrorErp("El depósito elegido no tiene ubicación general, así que la mercadería no tiene dónde entrar: elegí otro depósito.");
   const vars: number[] = [];
   await enTransaccion(async (c) => {
     for (const l of calc.lineas) {

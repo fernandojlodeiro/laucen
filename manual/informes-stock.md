@@ -90,7 +90,7 @@ En **Stock por ubicación**, dejá "Ubicación" en "Todas" y buscá el producto 
 
 - **Costo FOB**: el que se carga a mano en la ficha del producto, en dólares o en pesos (cada producto en su moneda).
 - **Último costo (USD)**: el costo puesto en depósito de la última compra registrada, en dólares.
-- **Costo promedio (USD)**: el promedio ponderado del costo puesto en depósito, en dólares. Se recalcula en cada compra: (stock que había × promedio anterior + cantidad comprada × costo nuevo) ÷ (stock que había + cantidad comprada). Si el stock que había era cero o negativo (o no había promedio), el promedio pasa a ser el costo de esa compra.
+- **Costo promedio (USD)**: el promedio ponderado del costo puesto en depósito, en dólares. Se recalcula en cada compra: (stock que había × promedio anterior + cantidad comprada × costo nuevo) ÷ (stock que había + cantidad comprada). Si el stock que había era cero o negativo (o no había promedio), el promedio pasa a ser el costo de esa compra. "Stock que había" es el de antes de esa compra: si la factura está vinculada a una recepción, las unidades que ya entraron al recibir no se cuentan (detalle en [Facturas de compra](/compras/facturas)).
 - El último y el promedio se actualizan **sólo** al registrar una [factura de compra](/compras/facturas) o un [despacho de importación](/compras/despachos). En el despacho, el costo de cada línea es su FOB más su parte (proporcional al FOB) del flete, el seguro y los gastos. Los ajustes, las recepciones y las devoluciones no cambian el costo.
 
 ### Conversión de moneda
