@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { ErrorErp, una } from "@/lib/erp/base";
 import { intentar, id, texto } from "@/lib/erp/acciones";
-import { cambiarEstado, esEstadoPedido, ESTADOS_PEDIDO } from "@/lib/pedidos";
+import { cambiarEstado, esEstadoPedido, exigirCarritoLibre, ESTADOS_PEDIDO } from "@/lib/pedidos";
 import { confirmarPago } from "@/lib/tienda/pagos/confirmar";
 import { prepararFactura, emitir } from "@/lib/arca/facturar";
 
@@ -17,7 +17,8 @@ export async function accionFacturar(fd: FormData) {
   const volver = `/ventas/pedidos/${pid}`;
   await intentar(volver, async () => {
     if (!pid) throw new ErrorErp("El pedido no existe.");
-    // prepararFactura verifica que el pedido sea de la organización.
+    // prepararFactura verifica que el pedido sea de la organización (y que no
+    // sea un carrito de ML en espera).
     const cid = await prepararFactura(s.org.id, pid, s.usuario.id);
     const r = await emitir(s.org.id, cid);
     revalidatePath(volver);
@@ -36,6 +37,7 @@ async function pedidoOperable(org: string, pid: number) {
       from pedido p join canal c on c.id = p.canal_id where p.id = $1 and p.organizacion_id = $2`, [pid, org]);
   if (!p) throw new ErrorErp("El pedido no existe.");
   if (p.canal_tipo === "mercadolibre") throw new ErrorErp("Los pedidos de Mercado Libre se mueven solos desde Mercado Libre.");
+  await exigirCarritoLibre(org, pid);
   return p;
 }
 

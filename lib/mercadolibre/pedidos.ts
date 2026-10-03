@@ -10,7 +10,7 @@
 // quedaron de antes los une lib/mercadolibre/carritos.ts (botón en /admin/meli).
 
 import { consulta, una, enTransaccion } from "@/lib/erp/base";
-import { crearPedido, cambiarEstado, agregarLineas, quitarLineas, type ClienteEntrada, type EstadoPedido, type DireccionEntrada, type LineaEntrada } from "@/lib/pedidos";
+import { crearPedido, cambiarEstado, agregarLineas, quitarLineas, marcarEventoCarrito, type ClienteEntrada, type EstadoPedido, type DireccionEntrada, type LineaEntrada } from "@/lib/pedidos";
 import { ml, type CuentaMl } from "@/lib/mercadolibre/api";
 import { guardarEnvio, leerEnvio, type EnvioMl } from "@/lib/mercadolibre/envios";
 
@@ -219,6 +219,12 @@ export async function cargarOrdenes(cuenta: CuentaMl, ordenesLeidas: OrdenMl[], 
         datos_externos: { ml: { orden: primera, ordenes: porId(todasAhora), pack_id: packId, facturacion: facturacion.billing_info ?? null } },
         comision_ars: comisionDe(vivas) || null,
       }, "sistema", c);
+      // Un carrito nuevo arranca su espera de 10 minutos desde la orden más
+      // reciente (si se importa tarde, por el barrido, ya no espera).
+      if (packId) {
+        const ultima = ordenes.map((o) => Date.parse(o.date_closed ?? o.date_created)).filter((x) => !Number.isNaN(x));
+        await marcarEventoCarrito(creado.pedidoId, c, ultima.length ? new Date(Math.max(...ultima)) : null);
+      }
       return { pedidoId: creado.pedidoId, todas: todasAhora };
     }
 
@@ -239,6 +245,11 @@ export async function cargarOrdenes(cuenta: CuentaMl, ordenesLeidas: OrdenMl[], 
     const conocidas: Record<string, OrdenMl> = { ...principal.ordenes, ...porId(ordenes) };
     const todas = Object.values(conocidas);
     const vivasTodas = todas.filter((o) => !cancelada(o));
+
+    // Evento del carrito: llegó una orden que no conocíamos, o una cambió de
+    // estado (pagó, se canceló…). Vuelve a esperar sus 10 minutos (las líneas
+    // que se suman o sacan lo marcan también, en agregarLineas / quitarLineas).
+    if (packId && ordenes.some((o) => principal.ordenes[String(o.id)]?.status !== o.status)) await marcarEventoCarrito(principal.id, c);
 
     const abierto = principal.estado !== "cancelado" && principal.estado !== "devuelto";
     if (abierto) {
@@ -294,7 +305,7 @@ async function llevarEstado(org: string, pedidoId: number, objetivo: EstadoPedid
   const p = await una<{ estado: EstadoPedido }>("select estado from pedido where id = $1 and organizacion_id = $2", [pedidoId, org]);
   if (!p || p.estado === objetivo || p.estado === "cancelado" || p.estado === "devuelto") return;
   if (objetivo !== "cancelado" && ORDEN_ESTADOS.indexOf(objetivo) <= ORDEN_ESTADOS.indexOf(p.estado)) return;
-  await enTransaccion((c) => cambiarEstado(org, pedidoId, objetivo, "sistema", "Mercado Libre", c));
+  await enTransaccion((c) => cambiarEstado(org, pedidoId, objetivo, "sistema", "Mercado Libre", c, { desdeMl: true }));
 }
 
 /** Barrido de seguridad: las órdenes que cambiaron desde la última vez (por

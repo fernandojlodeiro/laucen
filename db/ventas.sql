@@ -229,6 +229,12 @@ create index if not exists pedido_linea_variacion on pedido_linea (variacion_id)
 alter table pedido_linea add column if not exists datos_externos jsonb not null default '{}';
 create index if not exists pedido_linea_orden_ml on pedido_linea ((datos_externos #>> '{ml,order_id}')) where datos_externos ? 'ml';
 create index if not exists pedido_pack_ml on pedido (canal_id, (envio ->> 'pack_id')) where envio ? 'pack_id';
+-- Espera del carrito de ML (Fer, 3/10): cuándo fue el último evento del
+-- carrito (llegó una orden del pack, una cambió de estado o se canceló, se
+-- sumaron o sacaron líneas). Sólo se llena en los pedidos que son carrito.
+-- Durante los 10 minutos siguientes nadie lo toca (ver carritoEnEspera en
+-- lib/pedidos/index.ts), por si todavía falta llegar algún ítem.
+alter table pedido add column if not exists carrito_ultimo_evento_ts timestamptz;
 alter table pedido_linea enable row level security;
 select erp_politica_org('pedido_linea');
 

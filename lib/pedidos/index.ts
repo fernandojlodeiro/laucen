@@ -30,11 +30,73 @@ export const ESTADOS_PAGO = { pendiente: "Pendiente", pagado: "Pagado", a_conven
 export type EstadoPago = keyof typeof ESTADOS_PAGO;
 export const esEstadoPago = (x: unknown): x is EstadoPago => typeof x === "string" && Object.hasOwn(ESTADOS_PAGO, x);
 
+// ── Espera del carrito de Mercado Libre (Fer, 3/10) ──────
+// Un carrito de ML (varias órdenes con el mismo pack_id) es UN pedido, y sus
+// órdenes pueden llegar con minutos de diferencia. Para que nadie prepare ni
+// facture un carrito al que todavía le falta un ítem: mientras el pedido es
+// carrito, NADIE (operador ni proceso automático) lo modifica hasta que pasen
+// 10 minutos desde su ÚLTIMO evento — llegó una orden del pack, una cambió de
+// estado o se canceló, se sumaron o sacaron líneas. El momento del último
+// evento está en pedido.carrito_ultimo_evento_ts (lo llenan cargarOrdenes,
+// agregarLineas y quitarLineas; sólo en los carritos). Lo que llega de ML
+// (cargarOrdenes y su cambio de estado) es el evento mismo: eso sí entra.
+// Todo lo demás pasa por exigirCarritoLibre (o filtra con SQL_CARRITO_EN_ESPERA):
+// cambiarEstado (salvo el de ML), picking, facturación manual y automática,
+// etiquetas de envío, unir carritos, operar el pedido desde su ficha.
+
+export const ESPERA_CARRITO_MIN = 10;
+
+/** SQL: true si el pedido (alias `a`) es un carrito de ML en espera. */
+export const sqlCarritoEnEspera = (a = "p") =>
+  `(${a}.carrito_ultimo_evento_ts is not null and ${a}.carrito_ultimo_evento_ts > now() - interval '${ESPERA_CARRITO_MIN} minutes')`;
+
+export type EsperaCarrito = { haceMin: number; faltanMin: number; desde: Date };
+
+/** Si el carrito está en espera: hace cuánto fue el último evento, cuántos
+ *  minutos faltan (redondeado para arriba) y desde cuándo se puede tocar. */
+export function carritoEnEspera(p: { carrito_ultimo_evento_ts?: Date | string | null }, ahora = Date.now()): EsperaCarrito | null {
+  if (!p.carrito_ultimo_evento_ts) return null;
+  const ts = new Date(p.carrito_ultimo_evento_ts).getTime();
+  const desde = ts + ESPERA_CARRITO_MIN * 60_000;
+  if (!(ahora < desde)) return null;
+  return { haceMin: Math.max(0, Math.floor((ahora - ts) / 60_000)), faltanMin: Math.max(1, Math.ceil((desde - ahora) / 60_000)), desde: new Date(desde) };
+}
+
+const horaAr = (d: Date) => d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Argentina/Buenos_Aires" });
+
+/** El mensaje del carrito en espera (para el error y para la pantalla). */
+export function mensajeEsperaCarrito(e: EsperaCarrito): string {
+  return `Este carrito de Mercado Libre recibió un cambio hace ${e.haceMin} min: se puede tocar desde las ${horaAr(e.desde)} (${ESPERA_CARRITO_MIN} min después del último ítem), por si todavía falta llegar alguno.`;
+}
+
+/** Tira ErrorErp si alguno de esos pedidos es un carrito de ML en espera. */
+export async function exigirCarritoLibre(org: string, pedidoIds: number | number[], c?: Consultor): Promise<void> {
+  const ids = Array.isArray(pedidoIds) ? pedidoIds : [pedidoIds];
+  if (!ids.length) return;
+  const sql = `select id::int, carrito_ultimo_evento_ts, now() ahora from pedido
+                where organizacion_id = $1 and id = any($2::bigint[]) and ${sqlCarritoEnEspera("pedido")} order by id`;
+  const filas = c ? (await c.query<{ id: number; carrito_ultimo_evento_ts: Date; ahora: Date }>(sql, [org, ids])).rows
+    : await consulta<{ id: number; carrito_ultimo_evento_ts: Date; ahora: Date }>(sql, [org, ids]);
+  for (const f of filas) {
+    const e = carritoEnEspera(f, new Date(f.ahora).getTime());
+    if (e) throw new ErrorErp(`${ids.length > 1 ? `Pedido ${f.id}: ` : ""}${mensajeEsperaCarrito(e)}`);
+  }
+}
+
+/** Marca un evento del carrito (si el pedido es carrito): arranca otra vez la espera. */
+export async function marcarEventoCarrito(pedidoId: number, c: Consultor, cuando?: string | Date | null): Promise<void> {
+  await c.query(`update pedido set carrito_ultimo_evento_ts = greatest(coalesce(carrito_ultimo_evento_ts, '-infinity'), least(now(), coalesce($2::timestamptz, now())))
+                  where id = $1 and coalesce(envio ->> 'pack_id', '') not in ('', 'null')`, [pedidoId, cuando ?? null]);
+}
+
 /** Cambia el estado de un pedido. `quien`: id del usuario o 'sistema'.
  *  Devuelve el estado anterior. Tira un error en criollo si la transición no
- *  vale (p. ej. de despachado a pagado, o un pedido cancelado). */
-export async function cambiarEstado(org: string, pedidoId: number, nuevo: EstadoPedido, quien: string, nota?: string | null, c?: Consultor): Promise<EstadoPedido> {
+ *  vale (p. ej. de despachado a pagado, o un pedido cancelado), o si es un
+ *  carrito de ML en espera (salvo `desdeMl`: el cambio que manda el mismo ML). */
+export async function cambiarEstado(org: string, pedidoId: number, nuevo: EstadoPedido, quien: string, nota?: string | null, c?: Consultor,
+  o: { desdeMl?: boolean } = {}): Promise<EstadoPedido> {
   if (!esEstadoPedido(nuevo)) throw new ErrorErp(`Estado desconocido: ${nuevo}.`);
+  if (!o.desdeMl) await exigirCarritoLibre(org, pedidoId, c);
   const sql = "select cambiar_estado($1, $2, $3, $4, $5) anterior";
   const valores = [org, pedidoId, nuevo, quien, nota ?? null];
   const r = c ? (await c.query<{ anterior: EstadoPedido }>(sql, valores)).rows[0] : await una<{ anterior: EstadoPedido }>(sql, valores);
@@ -301,6 +363,8 @@ export async function agregarLineas(org: string, pedidoId: number, entrada: Line
   await c.query(`insert into pedido_estado_historial (organizacion_id, pedido_id, estado_anterior, estado_nuevo, quien, nota)
                  values ($1, $2, $3, $3, $4, $5)`,
     [org, pedidoId, p.estado, quien, o.nota ?? `se sumaron ${lineas.length === 1 ? "1 línea" : `${lineas.length} líneas`}`]);
+  // Un carrito que suma líneas vuelve a esperar sus 10 minutos.
+  await marcarEventoCarrito(pedidoId, c);
 }
 
 /** Saca líneas de un pedido (ej. una orden de un carrito de ML que se canceló
@@ -347,6 +411,7 @@ export async function quitarLineas(org: string, pedidoId: number, lineaIds: numb
   await c.query(`insert into pedido_estado_historial (organizacion_id, pedido_id, estado_anterior, estado_nuevo, quien, nota)
                  values ($1, $2, $3, $3, $4, $5)`,
     [org, pedidoId, p.estado, quien, nota ?? `se sacaron ${lineas.length === 1 ? "1 línea" : `${lineas.length} líneas`}`]);
+  await marcarEventoCarrito(pedidoId, c);
 }
 
 /** Encuentra el cliente del pedido o lo crea. Orden: id dado → identidad en

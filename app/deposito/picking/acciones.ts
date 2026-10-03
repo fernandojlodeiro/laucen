@@ -52,7 +52,7 @@ export async function accionTerminarLote(fd: FormData) {
   await intentar(`${LISTA}/${lote}`, async () => {
     const r = await terminarLote(s.org.id, lote, s.usuario.id);
     revalidatePath(LISTA);
-    return `Picking terminado: ${r.preparados.length} preparado(s)${r.incompletos.length ? `, ${r.incompletos.length} incompleto(s)` : ""}.`;
+    return `Picking terminado: ${r.preparados.length} preparado(s)${r.incompletos.length ? `, ${r.incompletos.length} incompleto(s)` : ""}${r.enEspera.length ? `. ${r.enEspera.length === 1 ? "El pedido" : "Los pedidos"} ${r.enEspera.join(", ")} ${r.enEspera.length === 1 ? "es un carrito" : "son carritos"} de Mercado Libre que recibió un cambio hace menos de 10 min: vuelve a la lista para prepararlo de nuevo pasada la espera` : ""}.`;
   });
 }
 

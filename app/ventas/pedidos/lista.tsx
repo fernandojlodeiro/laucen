@@ -8,6 +8,7 @@ import { ESTADOS_PEDIDO, ESTADOS_PAGO, esEstadoPedido, esEstadoPago } from "@/li
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { TONO_ESTADO, TONO_PAGO, etiqueta } from "@/app/ventas/formato";
 import type { EstadoPedido, EstadoPago } from "@/lib/pedidos";
+import { MarcaCarritoEspera } from "@/app/componentes/CarritoEspera";
 
 const esFecha = (x?: string) => (x && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : "");
 
@@ -48,7 +49,8 @@ const CAMPOS: Campo[] = [
   { clave: "cliente_tel", titulo: "Teléfono del cliente", sql: "cl.telefono" },
   {
     clave: "estado", titulo: "Estado", sql: "p.estado", valor: traducido("estado", ESTADOS_PEDIDO),
-    celda: (f) => <Estado texto={etiqueta(ESTADOS_PEDIDO, f.estado)} tono={TONO_ESTADO[f.estado as EstadoPedido] ?? "gris"} />,
+    // Un carrito de ML en espera (10 min desde su último evento) lo dice al lado.
+    celda: (f) => <span className="inline-flex flex-wrap gap-1"><Estado texto={etiqueta(ESTADOS_PEDIDO, f.estado)} tono={TONO_ESTADO[f.estado as EstadoPedido] ?? "gris"} /><MarcaCarritoEspera ts={f.espera_ts} /></span>,
   },
   {
     clave: "pago", titulo: "Pago", sql: "p.estado_pago", valor: traducido("pago", ESTADOS_PAGO),
@@ -80,7 +82,7 @@ export const LISTA_PEDIDOS: Lista = {
   porDefecto: "fecha",
   campos: CAMPOS,
   enPantalla: ["id", "fecha", "canal", "externo", "cliente", "estado", "pago", "total", "unidades"],
-  siempre: "p.id::int id, p.canal_id::int canal_id, p.cliente_id::int cliente_id",
+  siempre: "p.id::int id, p.canal_id::int canal_id, p.cliente_id::int cliente_id, p.carrito_ultimo_evento_ts espera_ts",
   consulta: async (ctx, sp) => {
     const f = filtrosPedidos(sp);
     const valores: unknown[] = [ctx.org];

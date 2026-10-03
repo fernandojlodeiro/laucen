@@ -11,6 +11,7 @@ import { BotonEnviar } from "@/app/radar/Cliente";
 import { entrarErp, Pantalla, Avisos, Estado, CAJA, CAMPO } from "@/app/componentes/erp";
 import { diaAR, fechaHoraAR, GRANDE } from "../formato";
 import { accionCrearLote } from "./acciones";
+import { MarcaCarritoEspera } from "@/app/componentes/CarritoEspera";
 
 export const dynamic = "force-dynamic";
 
@@ -84,12 +85,13 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
               const urgente = dia !== null && dia <= hoy;
               return (
                 <div key={p.id} className={`${CAJA} flex items-start gap-3 ${urgente ? "border-[#E8B4AA] bg-[#FFF9F7]" : ""}`}>
-                  <input type="checkbox" name="p" value={p.id} className="mt-1 h-6 w-6 shrink-0 accent-[#16577F]" aria-label={`Tildar pedido ${p.id}`} />
+                  <input type="checkbox" name="p" value={p.id} disabled={p.en_espera} className="mt-1 h-6 w-6 shrink-0 accent-[#16577F] disabled:opacity-40" aria-label={`Tildar pedido ${p.id}`} />
                   <div className="flex-1 min-w-0 text-sm">
                     <div className="flex flex-wrap items-center gap-2">
                       <Link href={`/ventas/pedidos/${p.id}`} className="font-bold text-[#16577F]">#{p.id}</Link>
                       {p.id_externo && <span className="text-xs text-[#5C6B76]">{p.id_externo}</span>}
                       {p.estado === "en_preparacion" && <Estado texto="Ya empezado" tono="amarillo" />}
+                      {p.en_espera && <MarcaCarritoEspera ts={p.carrito_ultimo_evento_ts} texto="Carrito: esperando" />}
                     </div>
                     <div className="truncate">{p.cliente ?? "Sin cliente"} · <span className="text-[#5C6B76]">{p.canal}</span></div>
                     <div className="text-xs text-[#5C6B76]">
@@ -99,7 +101,9 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
                       )}
                     </div>
                   </div>
-                  <button name="solo" value={p.id} className={`${SUAVE} shrink-0`}>Preparar este</button>
+                  {p.en_espera
+                    ? <button type="button" disabled className={`${SUAVE} shrink-0 opacity-50 cursor-not-allowed`} title="Un carrito de Mercado Libre se prepara 10 min después de su último ítem">Esperando</button>
+                    : <button name="solo" value={p.id} className={`${SUAVE} shrink-0`}>Preparar este</button>}
                 </div>
               );
             })}

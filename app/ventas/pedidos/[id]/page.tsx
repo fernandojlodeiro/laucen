@@ -21,6 +21,8 @@ import { BotonEnviar } from "@/app/radar/Cliente";
 import { ESTADOS_CBTE, numeroCbte, nombreTipo, type EstadoCbte } from "@/app/administracion/facturacion/comun";
 import { accionFacturar } from "./acciones";
 import Operacion from "./Operacion";
+import { MarcaCarritoEspera, textoEsperaCarrito } from "@/app/componentes/CarritoEspera";
+import { carritoEnEspera, mensajeEsperaCarrito } from "@/lib/pedidos";
 
 export const dynamic = "force-dynamic";
 
@@ -73,8 +75,10 @@ export default async function DetallePedido({ params, searchParams }: { params: 
     tracking: string | null; receptor: string | null; direccion: Record<string, string | null>; despachar_antes: Date | null; entrega_estimada: Date | null }>(`
     select id::int, logistica, metodo, estado, subestado, tracking, receptor, direccion, despachar_antes, entrega_estimada
       from envio where pedido_id = $1 and organizacion_id = $2 order by id desc limit 1`, [pid, s.org.id]);
-  const ml = await una<{ comision: number | null; sin_vincular: boolean; pack: string | null }>(
-    "select comision_ars::float comision, sin_vincular, envio ->> 'pack_id' pack from pedido where id = $1 and organizacion_id = $2", [pid, s.org.id]);
+  const ml = await una<{ comision: number | null; sin_vincular: boolean; pack: string | null; espera_ts: Date | null }>(
+    "select comision_ars::float comision, sin_vincular, envio ->> 'pack_id' pack, carrito_ultimo_evento_ts espera_ts from pedido where id = $1 and organizacion_id = $2", [pid, s.org.id]);
+  // Carrito de ML en espera (10 min desde su último evento): nada se toca todavía.
+  const espera = carritoEnEspera({ carrito_ultimo_evento_ts: ml?.espera_ts ?? null });
   const LOGISTICA: Record<string, string> = { fulfillment: "Full", self_service: "Flex", cross_docking: "Colecta", xd_drop_off: "Colecta", drop_off: "Despacho en correo", custom: "A convenir", not_specified: "A convenir" };
   const ESTADO_ENVIO: Record<string, string> = { ready_to_ship: "Listo para despachar", shipped: "En camino", delivered: "Entregado", not_delivered: "No entregado", cancelled: "Cancelado", pending: "Pendiente", handling: "En preparación" };
   const fechaCorta = (d: Date | null) => d ? d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
@@ -100,7 +104,8 @@ export default async function DetallePedido({ params, searchParams }: { params: 
     <Pantalla titulo={<>Pedido {c.id}{c.id_externo && <span className="font-mono font-normal text-sm text-[#5C6B76]"> · {c.id_externo}</span>}</>}
       camino={[{ texto: `Pedido ${c.id}` }]} subtitulo={<>{c.canal} · {fechaHora(c.fecha)}</>}>
       <div className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4`}>
-        <Dato t="Estado"><Estado texto={etiqueta(ESTADOS_PEDIDO, c.estado)} tono={TONO_ESTADO[c.estado] ?? "gris"} /></Dato>
+        <Dato t="Estado"><Estado texto={etiqueta(ESTADOS_PEDIDO, c.estado)} tono={TONO_ESTADO[c.estado] ?? "gris"} />{espera && <> <MarcaCarritoEspera ts={ml?.espera_ts} /></>}</Dato>
+        {espera && <p className="col-span-2 sm:col-span-4 text-xs rounded-lg px-3 py-2 bg-[#FFF1D6] text-[#8a5a00] border border-[#F2D08A]">{mensajeEsperaCarrito(espera)}</p>}
         <Dato t="Pago"><Estado texto={etiqueta(ESTADOS_PAGO, c.estado_pago)} tono={TONO_PAGO[c.estado_pago] ?? "gris"} />{c.medio_pago && <span className="ml-1">{c.medio_pago}</span>}</Dato>
         <Dato t="Total"><span className="font-bold tabular-nums">{enVista({ ars: c.total_ars, usd: c.total_usd }, v)}</span>
           {c.moneda !== v && <span className="text-[#5C6B76]"> (cargado en {c.moneda === "USD" ? "dólares" : "pesos"})</span>}</Dato>
@@ -215,7 +220,10 @@ export default async function DetallePedido({ params, searchParams }: { params: 
             );
           })}
         </div>
-        {ofrecerFacturar && (
+        {ofrecerFacturar && espera && (
+          <button type="button" disabled className={`${PRIMARIO} opacity-50 cursor-not-allowed`} title={mensajeEsperaCarrito(espera)}>{textoEsperaCarrito(ml?.espera_ts)}</button>
+        )}
+        {ofrecerFacturar && !espera && (
           <form action={accionFacturar}>
             <input type="hidden" name="pedido_id" value={pid} />
             <BotonEnviar clase={PRIMARIO} corriendo="Facturando…">Facturar</BotonEnviar>

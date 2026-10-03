@@ -8,7 +8,7 @@
 
 import type { PoolClient } from "pg";
 import { consulta, enTransaccion } from "@/lib/erp/base";
-import { cambiarEstado } from "@/lib/pedidos";
+import { cambiarEstado, sqlCarritoEnEspera } from "@/lib/pedidos";
 
 export type CarritoUnido = { canalId: number; pack: string; pedidoId: number; absorbidos: number[] };
 export type CarritoSinUnir = { canalId: number; pack: string; pedidos: number[]; motivo: string };
@@ -18,6 +18,7 @@ type FilaPedido = {
   id: string; id_externo: string | null; estado: string; estado_pago: string; deposito_id: string | null; medio_pago: string | null;
   total_ars: string; total_usd: string; costo_envio_ars: string; comision_ars: string | null; sin_vincular: boolean;
   orden: Record<string, unknown> | null; ordenes: Record<string, unknown> | null; facturado: boolean; en_picking: boolean; afecta_stock: boolean;
+  en_espera: boolean;
 };
 
 /** Los grupos de pedidos de ML (de la organización) que comparten carrito. */
@@ -56,11 +57,16 @@ async function unirUno(c: PoolClient, org: string, canalId: number, pack: string
     select p.id, p.id_externo, p.estado, p.estado_pago, p.deposito_id, p.medio_pago, p.total_ars, p.total_usd, p.costo_envio_ars,
            p.comision_ars, p.sin_vincular, p.afecta_stock, p.datos_externos #> '{ml,orden}' orden, p.datos_externos #> '{ml,ordenes}' ordenes,
            exists (select 1 from comprobante cb where cb.pedido_id = p.id and cb.estado <> 'rechazado') facturado,
-           exists (select 1 from picking_pedido pp where pp.pedido_id = p.id) en_picking
+           exists (select 1 from picking_pedido pp where pp.pedido_id = p.id) en_picking,
+           ${sqlCarritoEnEspera("p")} en_espera
       from pedido p
      where p.organizacion_id = $1 and p.canal_id = $2 and p.envio ->> 'pack_id' = $3 and p.estado not in ('cancelado', 'devuelto')
      order by p.id for update of p`, [org, canalId, pack])).rows;
   if (filas.length < 2) return { motivo: "ya no está partido" };
+  // Un carrito que recibió un cambio hace menos de 10 minutos no se toca (ver
+  // carritoEnEspera en lib/pedidos): se une en la próxima pasada.
+  const enEspera = filas.filter((f) => f.en_espera).map((f) => f.id);
+  if (enEspera.length) return { motivo: `recibió un cambio de Mercado Libre hace menos de 10 min (pedido ${enEspera.join(", ")}): se puede unir pasada la espera` };
   const facturados = filas.filter((f) => f.facturado).map((f) => f.id);
   if (facturados.length) return { motivo: `ya tiene factura (pedido ${facturados.join(", ")})` };
   const enPicking = filas.filter((f) => f.en_picking).map((f) => f.id);

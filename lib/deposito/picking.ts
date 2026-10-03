@@ -8,22 +8,26 @@
 
 import type { PoolClient } from "pg";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
-import { cambiarEstado } from "@/lib/pedidos";
+import { cambiarEstado, exigirCarritoLibre, sqlCarritoEnEspera } from "@/lib/pedidos";
 
 export type PedidoParaPreparar = {
   id: number; id_externo: string | null; fecha: Date; canal: string; cliente: string | null; estado: string;
   unidades: number; lineas: number; despachar_antes: Date | null; logistica: string | null; deposito_id: number | null;
+  /** Carrito de ML en espera (ver carritoEnEspera): se muestra, pero no se puede preparar todavía. */
+  carrito_ultimo_evento_ts: Date | null; en_espera: boolean;
 };
 
 /** Los pedidos que hay que preparar en un depósito: pagados (o que quedaron
  *  en preparación de un lote cancelado), que mueven stock, no de Full, y que
- *  no están en un lote abierto. Lo más urgente primero. */
+ *  no están en un lote abierto. Lo más urgente primero. Los carritos de ML
+ *  en espera (cambio hace menos de 10 min) vienen con en_espera: la pantalla
+ *  los muestra sin poder tildarlos, y crearLote los rechaza. */
 export function pedidosParaPreparar(org: string, depositoId: number) {
   return consulta<PedidoParaPreparar>(`
     select p.id::int, p.id_externo, p.fecha, ca.nombre canal, cl.nombre cliente, p.estado,
            (select coalesce(sum(cantidad), 0)::int from pedido_linea where pedido_id = p.id and variacion_id is not null) unidades,
            (select count(*)::int from pedido_linea where pedido_id = p.id and variacion_id is not null) lineas,
-           e.despachar_antes, e.logistica, p.deposito_id::int
+           e.despachar_antes, e.logistica, p.deposito_id::int, p.carrito_ultimo_evento_ts, ${sqlCarritoEnEspera("p")} en_espera
       from pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
       left join lateral (select despachar_antes, logistica from envio where pedido_id = p.id order by id desc limit 1) e on true
      where p.organizacion_id = $1 and p.deposito_id = $2 and p.afecta_stock and p.estado in ('pagado', 'en_preparacion')
@@ -39,6 +43,8 @@ export async function crearLote(org: string, depositoId: number, pedidoIds: numb
     const ok = await c.query<{ id: string; estado: string; deposito_id: string | null }>(`
       select id, estado, deposito_id from pedido where organizacion_id = $1 and id = any($2::bigint[]) for update`, [org, pedidoIds]);
     if (ok.rowCount !== pedidoIds.length) throw new ErrorErp("Algún pedido no existe.");
+    // Un carrito de ML al que todavía le puede llegar un ítem no se prepara.
+    await exigirCarritoLibre(org, pedidoIds, c);
     for (const p of ok.rows) {
       if (!["pagado", "en_preparacion"].includes(p.estado)) throw new ErrorErp(`El pedido ${p.id} está ${p.estado}: no se prepara.`);
       if (Number(p.deposito_id) !== depositoId) throw new ErrorErp(`El pedido ${p.id} sale de otro depósito.`);
@@ -121,22 +127,28 @@ export async function corregirItem(org: string, itemId: number, escaneado: numbe
 
 /** Cierra el lote: los pedidos completos pasan a "preparado"; los que tienen
  *  faltantes quedan "en preparación" (para un próximo picking cuando haya). */
-export async function terminarLote(org: string, loteId: number, usuarioId: string): Promise<{ preparados: number[]; incompletos: number[] }> {
+export async function terminarLote(org: string, loteId: number, usuarioId: string): Promise<{ preparados: number[]; incompletos: number[]; enEspera: number[] }> {
   return enTransaccion(async (c: PoolClient) => {
     const l = (await c.query<{ estado: string }>("select estado from picking_lote where id = $1 and organizacion_id = $2 for update", [loteId, org])).rows[0];
     if (!l) throw new ErrorErp("Ese picking no existe.");
     if (l.estado !== "abierto") throw new ErrorErp("Ese picking ya está cerrado.");
     const estado = await c.query<{ pedido_id: string; completo: boolean }>(`
       select pedido_id, bool_and(escaneado >= cantidad) completo from picking_item where lote_id = $1 group by pedido_id`, [loteId]);
-    const preparados: number[] = [], incompletos: number[] = [];
+    const preparados: number[] = [], incompletos: number[] = [], enEspera: number[] = [];
+    // Un carrito de ML que recibió un cambio mientras se preparaba (le llegó o
+    // se le canceló un ítem) no pasa a preparado: queda en preparación y vuelve
+    // a la lista, para prepararlo de nuevo pasada la espera.
+    const esperando = new Set((await c.query<{ id: string }>(`select id from pedido where id = any($1::bigint[]) and ${sqlCarritoEnEspera("pedido")}`,
+      [estado.rows.map((p) => p.pedido_id)])).rows.map((p) => String(p.id)));
     for (const p of estado.rows) {
-      if (p.completo) {
+      if (esperando.has(String(p.pedido_id))) enEspera.push(Number(p.pedido_id));
+      else if (p.completo) {
         await cambiarEstado(org, Number(p.pedido_id), "preparado", usuarioId, `picking #${loteId}`, c);
         preparados.push(Number(p.pedido_id));
       } else incompletos.push(Number(p.pedido_id));
     }
     await c.query("update picking_lote set estado = 'terminado', terminado_ts = now() where id = $1", [loteId]);
-    return { preparados, incompletos };
+    return { preparados, incompletos, enEspera };
   });
 }
 

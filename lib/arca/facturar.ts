@@ -13,6 +13,7 @@ import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { pool } from "@/db";
 import type { Ambiente } from "@/lib/arca/credenciales";
 import { ultimoAutorizado, solicitarCae, consultarComprobante } from "@/lib/arca/wsfe";
+import { exigirCarritoLibre, sqlCarritoEnEspera } from "@/lib/pedidos";
 
 export type Emisor = {
   cuit: string; razon_social: string; condicion_iva: "responsable_inscripto" | "monotributo" | "exento"; domicilio: string | null;
@@ -55,6 +56,8 @@ export async function prepararFactura(org: string, pedidoId: number, usuarioId: 
   const q = c ? <T,>(s: string, v: unknown[]) => c.query(s, v).then((r) => r.rows as T[]) : <T,>(s: string, v: unknown[]) => consulta(s, v) as Promise<T[]>;
   const e = await emisorDe(org);
   if (!e) throw new ErrorErp("Falta cargar los datos de facturación (Administración → Facturación → Configuración).");
+  // Un carrito de ML al que todavía le puede llegar un ítem no se factura.
+  await exigirCarritoLibre(org, pedidoId, c);
   const ya = await q<{ id: number; estado: string }>("select id::int, estado from comprobante where organizacion_id = $1 and pedido_id = $2 and tipo_cbte in (1, 6, 11) and estado in ('autorizado', 'pendiente', 'error') order by id desc limit 1", [org, pedidoId]);
   if (ya[0]) {
     if (ya[0].estado === "autorizado") throw new ErrorErp("Ese pedido ya está facturado.");
@@ -214,7 +217,11 @@ export async function emitir(org: string, comprobanteId: number): Promise<{ esta
 }
 
 /** Facturación automática: los pedidos que llegaron al estado elegido y no
- *  tienen factura, y los comprobantes con error para reintentar. */
+ *  tienen factura, y los comprobantes con error para reintentar. Un carrito
+ *  de ML en espera (ver carritoEnEspera en lib/pedidos) se saltea SIN marcar
+ *  su evento como procesado: el evento sigue pendiente, la condición del job
+ *  'erp-tareas' (db/mercadolibre.sql) sigue dando verdadero y la próxima
+ *  vuelta, pasada la espera, lo factura. */
 export async function facturarPendientes(org: string, hastaMs: number): Promise<{ emitidos: number; errores: string[] }> {
   const res = { emitidos: 0, errores: [] as string[] };
   const e = await emisorDe(org);
@@ -224,6 +231,7 @@ export async function facturarPendientes(org: string, hastaMs: number): Promise<
       with ev as (
         update evento set procesado_ts = now(), procesado_por = 'facturacion'
          where organizacion_id = $1 and tipo = 'pedido_estado_cambiado' and procesado_ts is null and payload ->> 'nuevo' = $2
+           and not exists (select 1 from pedido p where p.id = (evento.payload ->> 'pedido_id')::bigint and ${sqlCarritoEnEspera("p")})
         returning (payload ->> 'pedido_id')::int pedido_id)
       select distinct pedido_id from ev`, [org, e.facturar_al]);
     for (const { pedido_id } of eventos) {
@@ -237,7 +245,10 @@ export async function facturarPendientes(org: string, hastaMs: number): Promise<
       }
     }
   }
-  const conError = await consulta<{ id: number }>("select id::int from comprobante where organizacion_id = $1 and estado = 'error' and intentos < 5 order by id limit 20", [org]);
+  const conError = await consulta<{ id: number }>(`
+    select cb.id::int from comprobante cb left join pedido p on p.id = cb.pedido_id
+     where cb.organizacion_id = $1 and cb.estado = 'error' and cb.intentos < 5 and not coalesce(${sqlCarritoEnEspera("p")}, false)
+     order by cb.id limit 20`, [org]);
   for (const { id } of conError) {
     if (Date.now() > hastaMs) break;
     try { if ((await emitir(org, id)).estado === "autorizado") res.emitidos++; } catch (err) { res.errores.push(`comprobante ${id}: ${(err as Error).message}`); }
