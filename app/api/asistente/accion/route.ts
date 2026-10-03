@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   if (!s || !tienePermiso(s.permisos, "asistente_usar")) return Response.json({ error: "Sin permiso." }, { status: 403 });
   const { id, decision } = await req.json().catch(() => ({})) as { id?: number; decision?: string };
   try {
-    const r = await resolverPropuesta(Number(id) || 0, decision === "confirmar" ? "confirmar" : "cancelar", { org: s.org.id, usuarioId: s.usuario.id, permisos: s.permisos });
+    const r = await resolverPropuesta(Number(id) || 0, decision === "confirmar" ? "confirmar" : "cancelar", { org: s.org.id, usuarioId: s.usuario.id, permisos: s.permisos, authId: s.usuario.authId ?? "", superadmin: s.superadmin });
     const a = await una<{ conversacion_id: number }>("select conversacion_id::int from asistente_accion where id = $1 and organizacion_id = $2", [Number(id), s.org.id]);
     if (a) {
       await consulta("insert into asistente_mensaje (organizacion_id, conversacion_id, rol, texto) values ($1, $2, 'asistente', $3)",

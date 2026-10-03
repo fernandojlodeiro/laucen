@@ -51,6 +51,14 @@ Si tu rol tiene el permiso «Pedirle al asistente que haga cosas», le podés pe
 2. Te muestra una tarjeta **"Para confirmar"** con lo que va a hacer, renglón por renglón.
 3. Apretá **"Confirmar"** para que lo haga, o **"Cancelar"**. Recién ahí se hace; la tarjeta muestra el resultado (con enlaces a lo creado).
 
+### Pedirle otros cambios en los datos (sólo superadministradores)
+Un superadministrador le puede pedir también cambios que no están en esa lista, siempre en los datos de Laucen (por ejemplo "subile 10 % al precio de lista de los productos de la familia Cables" o "corregí el mail de todos los clientes que dicen gmial.com"). El asistente arma el cambio, lo **ensaya sin grabar** y muestra la tarjeta con cuántas filas cambian y cómo quedan; recién con **"Confirmar"** se hace.
+- Nunca toca Mercado Libre, canales, usuarios y permisos, llaves, ni lo que tiene su propio circuito: el stock (va por un ajuste), los asientos, los comprobantes de ARCA, las cuentas corrientes, la caja ni el estado de los pedidos.
+- Sólo ve y toca los datos de su organización.
+- De a una tabla y hasta 1.000 filas por vez. Si al confirmar cambió la cantidad de filas, no hace nada y avisa.
+- Si el cambio es en precios o productos y en un canal de Mercado Libre está prendido el interruptor de precios o de stock, la tarjeta avisa que se va a reflejar en Mercado Libre.
+- Revisá bien la tarjeta antes de confirmar: la instrucción la arma el asistente en el momento.
+
 ### Mandar a programar algo que no sabe hacer
 Si le piden hacer algo que no está entre sus acciones, explica cómo se hace a mano y lo anota. El superadministrador lo ve en **Pedidos sin resolver**:
 1. Si conviene que el asistente aprenda a hacerlo, escribí una **Nota** si querés y apretá **"Mandar a programar"**: queda como orden en la bitácora del proyecto para que se programe.
