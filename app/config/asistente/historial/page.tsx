@@ -71,6 +71,7 @@ export default async function HistorialAsistente({ searchParams }: { searchParam
       {conv && (
         <section className="mt-5">
           <TituloSeccion titulo={`Conversación N.º ${conv.id} — ${conv.persona}`}>
+            <Link href={`/config/asistente/conversacion/${conv.id}`} className={SUAVE}>🖨 Imprimir o PDF</Link>
             <Link href={url(RUTA_HISTORIAL, { ...filtros, p: sp.p, orden: sp.orden, dir: sp.dir })} scroll={false} className={SUAVE}>Cerrar</Link>
           </TituloSeccion>
           <div className={`${CAJA} space-y-3 text-xs leading-relaxed`}>

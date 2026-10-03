@@ -43,7 +43,7 @@ export default async function Marco({ children, version }: { children: React.Rea
   return (
     <div className="min-h-screen flex flex-col">
       {/* PC: barra de menú */}
-      <header className="hidden md:block sticky top-0 z-30 bg-white border-b border-[#E3E9F0]">
+      <header className="hidden md:block print:!hidden sticky top-0 z-30 bg-white border-b border-[#E3E9F0]">
         <div className="flex items-center gap-3 px-3 h-10">
           <Link href="/panel" className="text-sm font-black text-[#16577F] tracking-tight shrink-0">Laucen</Link>
           <BarraMenu menu={menu} />
@@ -58,7 +58,7 @@ export default async function Marco({ children, version }: { children: React.Rea
       </header>
 
       {/* Celular: franja de arriba */}
-      <header className="md:hidden sticky top-0 z-30 bg-white border-b border-[#E3E9F0] px-3 h-11 flex items-center gap-2">
+      <header className="md:hidden print:hidden sticky top-0 z-30 bg-white border-b border-[#E3E9F0] px-3 h-11 flex items-center gap-2">
         <Link href="/panel" className="text-sm font-black text-[#16577F]">Laucen</Link>
         <span className="text-[11px] text-[#5C6B76] truncate flex-1">{sesion.org.nombre}</span>
         <InterruptorMoneda moneda={moneda} />
@@ -67,7 +67,7 @@ export default async function Marco({ children, version }: { children: React.Rea
       <div className="flex-1 pb-24 md:pb-12">{children}</div>
 
       {/* PC: barra de estado, fija abajo */}
-      <footer className="hidden md:flex fixed bottom-0 inset-x-0 z-30 h-8 items-center gap-4 px-3 bg-[#16577F] text-white text-[11px]">
+      <footer className="hidden md:flex print:!hidden fixed bottom-0 inset-x-0 z-30 h-8 items-center gap-4 px-3 bg-[#16577F] text-white text-[11px]">
         <InterruptorMoneda moneda={moneda} oscuro />
         <span title={tc ? `Oficial venta del ${tc.fecha.split("-").reverse().join("/")} (${tc.origen})` : undefined}>
           Dólar oficial: {tc ? <b>{formatear(tc.venta, "ARS")}</b> : <Link href="/config/tipo-cambio" className="underline">sin cargar</Link>}

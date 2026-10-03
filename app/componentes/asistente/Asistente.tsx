@@ -137,12 +137,17 @@ export default function Asistente({ nombre, carita, usuario }: { nombre: string;
     r.lang = "es-AR"; r.interimResults = true; r.continuous = true;
     baseDictado.current = texto ? `${texto.trim()} ` : "";
     r.onresult = (e) => {
-      let final = "", provisorio = "";
+      // En Chrome de celular cada resultado trae TODO lo dicho hasta ahí (no
+      // sólo el pedazo nuevo): si un resultado empieza con lo ya juntado, lo
+      // reemplaza; si no, se agrega. Así no sale "HolaHola EstelaHola…".
+      let texto = "";
       for (let i = 0; i < e.results.length; i++) {
-        const t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) final += t; else provisorio += t;
+        const t = e.results[i][0].transcript.trim();
+        if (!t) continue;
+        const previo = texto.trim().toLowerCase();
+        texto = previo && t.toLowerCase().startsWith(previo) ? t : texto ? `${texto} ${t}` : t;
       }
-      setTexto(baseDictado.current + final + provisorio);
+      setTexto(baseDictado.current + texto);
     };
     r.onend = () => { setEscuchando(false); reconocedor.current = null; campo.current?.focus(); };
     r.onerror = () => { setEscuchando(false); reconocedor.current = null; };
@@ -157,19 +162,23 @@ export default function Asistente({ nombre, carita, usuario }: { nombre: string;
     <>
       {!abierto && (
         <button type="button" onClick={() => setAbierto(true)} title={`Preguntale a ${nombre}`} aria-label={`Abrir ${nombre}, el asistente`}
-          className="fixed z-40 right-3 bottom-20 md:bottom-11 rounded-full shadow-lg ring-2 ring-white bg-white hover:scale-105 transition-transform">
+          className="print:hidden fixed z-40 right-3 bottom-20 md:bottom-11 rounded-full shadow-lg ring-2 ring-white bg-white hover:scale-105 transition-transform">
           <Carita tamano={56} carita={carita} mecer />
         </button>
       )}
       {abierto && (
         <section aria-label={nombre}
-          className="fixed z-40 inset-x-2 top-14 bottom-20 md:inset-x-auto md:right-3 md:top-auto md:bottom-11 md:w-[400px] md:h-[min(640px,calc(100vh-7rem))] flex flex-col bg-white border border-[#E3E9F0] rounded-2xl shadow-2xl overflow-hidden">
+          className="print:hidden fixed z-40 inset-x-2 top-14 bottom-20 md:inset-x-auto md:right-3 md:top-auto md:bottom-11 md:w-[400px] md:h-[min(640px,calc(100vh-7rem))] flex flex-col bg-white border border-[#E3E9F0] rounded-2xl shadow-2xl overflow-hidden">
           <header className="flex items-center gap-2 px-3 py-2 border-b border-[#E3E9F0] bg-[#F7F9FB]">
             <Carita tamano={36} carita={carita} />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-[#16577F] leading-tight">{nombre}</p>
               <p className="text-[10px] text-[#5C6B76] leading-tight">Te explico dónde está y cómo se hace cada cosa</p>
             </div>
+            {conversacion && mensajes.length > 0 && (
+              <a href={`/config/asistente/conversacion/${conversacion}`} target="_blank" rel="noopener" title="Ver la conversación para imprimir o guardar en PDF"
+                className={`${SUAVE} !px-2 !py-1`}>PDF</a>
+            )}
             {mensajes.length > 0 && <button type="button" onClick={nueva} className={`${SUAVE} !px-2 !py-1`}>Nueva</button>}
             <button type="button" onClick={() => setAbierto(false)} aria-label="Cerrar" className={`${SUAVE} !px-2 !py-1`}>✕</button>
           </header>
