@@ -18,7 +18,7 @@ export function filtrosFacturasCompra(sp: SP) {
 const LINEAS = "(select count(*) from factura_compra_linea l where l.factura_id = f.id)";
 /** Con signo: una nota de crédito resta. */
 const firmado = (col: string) => `(case when f.es_nota_credito then -f.${col} else f.${col} end)::float`;
-const COMPROBANTE = `(case when f.es_nota_credito then 'NC ' else '' end) || f.letra || ' '
+const COMPROBANTE = `(case when f.es_nota_credito then 'NC ' when f.es_nota_debito then 'ND ' else '' end) || f.letra || ' '
   || coalesce(lpad(f.punto_venta::text, 5, '0') || '-', '') || coalesce(lpad(f.numero::text, 8, '0'), 's/n')`;
 
 const CAMPOS: Campo[] = [
@@ -31,6 +31,9 @@ const CAMPOS: Campo[] = [
   },
   { clave: "letra", titulo: "Letra", sql: "f.letra" },
   { clave: "nota_credito", titulo: "Nota de crédito", sql: "f.es_nota_credito", formato: "sino" },
+  { clave: "nota_debito", titulo: "Nota de débito", sql: "f.es_nota_debito", formato: "sino" },
+  { clave: "origen", titulo: "Origen", sql: "f.origen", valor: (f) => (f.origen === "arca_mc" ? "ARCA (Mis Comprobantes)" : "A mano") },
+  { clave: "cae", titulo: "CAE", sql: "f.cae" },
   { clave: "punto_venta", titulo: "Punto de venta", sql: "f.punto_venta", formato: "entero" },
   { clave: "numero", titulo: "Número", sql: "f.numero::text", orden: "f.numero" },
   campoFecha("vencimiento", "Vencimiento", "f.vencimiento", { dia: true }),

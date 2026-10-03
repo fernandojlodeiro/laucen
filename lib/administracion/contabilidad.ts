@@ -228,10 +228,10 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
   });
 
   // Facturas de compra.
-  const fcs = await consulta<{ id: number; fecha: string; letra: string; es_nota_credito: boolean; cotizacion: string; moneda: string; iva: string; percepcion_iva: string;
+  const fcs = await consulta<{ id: number; fecha: string; letra: string; es_nota_credito: boolean; es_nota_debito: boolean; cotizacion: string; moneda: string; iva: string; percepcion_iva: string;
     percepcion_iibb: string; otros_impuestos: string; no_gravado: string; total_ars: string; cuenta_gasto_id: number | null; punto_venta: number | null; numero: string | null;
     proveedor: string; neto_merc: string; neto_otro: string }>(`
-    select f.id::int, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.letra, f.es_nota_credito, f.cotizacion, f.moneda, f.iva, f.percepcion_iva, f.percepcion_iibb,
+    select f.id::int, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.letra, f.es_nota_credito, f.es_nota_debito, f.cotizacion, f.moneda, f.iva, f.percepcion_iva, f.percepcion_iibb,
            f.otros_impuestos, f.no_gravado, f.total_ars, f.cuenta_gasto_id::int, f.punto_venta, f.numero, pr.nombre proveedor,
            coalesce((select sum(neto) from factura_compra_linea l where l.factura_id = f.id and l.variacion_id is not null), 0) neto_merc,
            coalesce((select sum(neto) from factura_compra_linea l where l.factura_id = f.id and l.variacion_id is null), 0) neto_otro
@@ -242,7 +242,7 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
     const destinoOtro = f.cuenta_gasto_id ?? (f.letra === "E" ? rol.importaciones_en_curso : rol.gastos_varios);
     const total = r2(Number(f.total_ars));
     await grabarAsiento(c, org, { fecha: f.fecha, origen: "compra", referenciaId: f.id,
-      concepto: `${f.es_nota_credito ? "Nota de crédito" : "Factura"} ${f.letra} ${f.punto_venta != null ? String(f.punto_venta).padStart(5, "0") + "-" : ""}${f.numero ?? "s/n"} · ${f.proveedor}`,
+      concepto: `${f.es_nota_credito ? "Nota de crédito" : f.es_nota_debito ? "Nota de débito" : "Factura"} ${f.letra} ${f.punto_venta != null ? String(f.punto_venta).padStart(5, "0") + "-" : ""}${f.numero ?? "s/n"} · ${f.proveedor}`,
       lineas: [
         { cuentaId: rol.mercaderias, debe: s * Number(f.neto_merc) * k },
         { cuentaId: destinoOtro, debe: s * (Number(f.neto_otro) + Number(f.no_gravado)) * k },

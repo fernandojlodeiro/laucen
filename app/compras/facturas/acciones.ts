@@ -46,7 +46,7 @@ async function cabecera(org: string, fd: FormData, fid = 0) {
   // El número repetido lo frena el índice único; acá se avisa en criollo.
   if (nro != null) {
     const otra = await una<{ id: number }>(`
-      select id::int from factura_compra where organizacion_id = $1 and proveedor_id = $2 and letra = $3 and es_nota_credito = $4
+      select id::int from factura_compra where organizacion_id = $1 and proveedor_id = $2 and letra = $3 and es_nota_credito = $4 and not es_nota_debito
          and punto_venta is not distinct from $5 and numero = $6 and estado <> 'anulada' and id <> $7`,
       [org, proveedorId, letra, esNc, puntoVenta, nro, fid]);
     if (otra) throw new ErrorErp(`Ese comprobante de ese proveedor ya está cargado (factura #${otra.id}).`);

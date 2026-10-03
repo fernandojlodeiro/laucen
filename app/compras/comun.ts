@@ -21,10 +21,10 @@ export const LETRAS = ["A", "B", "C", "M", "E", "X"] as const;
 export const ALICUOTAS = [21, 10.5, 27, 0] as const;
 
 /** "A 00003-00001234" (o "NC A …" si es nota de crédito). */
-export function numeroFactura(f: { letra: string; es_nota_credito: boolean; punto_venta: number | null; numero: string | number | null }) {
+export function numeroFactura(f: { letra: string; es_nota_credito: boolean; es_nota_debito?: boolean; punto_venta: number | null; numero: string | number | null }) {
   const pv = f.punto_venta != null ? `${String(f.punto_venta).padStart(5, "0")}-` : "";
   const nro = f.numero != null ? String(f.numero).padStart(8, "0") : "s/n";
-  return `${f.es_nota_credito ? "NC " : ""}${f.letra} ${pv}${nro}`;
+  return `${f.es_nota_credito ? "NC " : f.es_nota_debito ? "ND " : ""}${f.letra} ${pv}${nro}`;
 }
 
 export const pct = (n: number | string) => `${Number(n).toLocaleString("es-AR", { maximumFractionDigits: 1 })} %`;

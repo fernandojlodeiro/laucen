@@ -7,10 +7,15 @@ import { consulta } from "@/lib/erp/base";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import { entrarErp, Pantalla, Avisos, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { AccionesExcel, TablaVista, paginaDeVista } from "@/app/listas/piezas";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
+import { BotonEnviar } from "@/app/radar/Cliente";
 import { ESTADO_FACTURA } from "../comun";
+import { accionSubirArca } from "./arca/acciones";
 import { LISTA_FACTURAS_COMPRA, filtrosFacturasCompra } from "./lista";
 
 export const dynamic = "force-dynamic";
+
+const IMPORTAR = "Importar de ARCA (Mis Comprobantes)";
 
 type SP = { proveedor?: string; estado?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
@@ -26,8 +31,16 @@ export default async function FacturasCompra({ searchParams }: { searchParams: P
 
   return (
     <Pantalla titulo="Facturas de compra" subtitulo="Lo que te facturan los proveedores: mercadería, servicios, el proveedor del exterior y el despachante"
-      acciones={<><AccionesExcel lista={LISTA_FACTURAS_COMPRA} org={s.org.id} vista={vista.activa?.id} /><Link href="/compras/facturas/nueva" className={PRIMARIO}>+ Nueva factura</Link></>}>
+      acciones={<><AccionesExcel lista={LISTA_FACTURAS_COMPRA} org={s.org.id} vista={vista.activa?.id} /><BotonNuevo texto={IMPORTAR} /><Link href="/compras/facturas/nueva" className={PRIMARIO}>+ Nueva factura</Link></>}>
       <Avisos sp={sp} />
+      <AltaNueva texto={IMPORTAR} sinBoton>
+        <form action={accionSubirArca} className="flex flex-wrap items-end gap-3">
+          <label><span className={ETIQUETA}>Archivo de ARCA → Mis Comprobantes → Recibidos (.csv o .xlsx)</span>
+            <input type="file" name="archivo" required accept=".csv,.xlsx,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="text-xs" /></label>
+          <BotonEnviar clase={PRIMARIO} corriendo="Leyendo…">Subir y ver</BotonEnviar>
+          <p className="w-full text-[11px] text-[#5C6B76]">Primero se ve cada comprobante con su proveedor y si ya estaba cargado; nada se registra hasta apretar «Importar». Subir dos veces el mismo mes no duplica.</p>
+        </form>
+      </AltaNueva>
       <form className="flex flex-wrap items-end gap-2 mb-3">
         <label><span className={ETIQUETA}>Proveedor</span>
           <select name="proveedor" defaultValue={proveedorId || ""} className={CAMPO}>

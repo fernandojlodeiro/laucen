@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
 type SP = { editar?: string; q?: string; inactivos?: string; ok?: string; error?: string };
 
 type Factura = {
-  id: number; proveedor_id: number; proveedor: string; letra: string; es_nota_credito: boolean; punto_venta: number | null; numero: string | null;
+  id: number; proveedor_id: number; proveedor: string; letra: string; es_nota_credito: boolean; es_nota_debito: boolean; punto_venta: number | null; numero: string | null;
   fecha: string; vencimiento: string | null; moneda: "ARS" | "USD"; cotizacion: number; neto: number; iva: number;
   iva_detalle: { pct: number; base: number; importe: number }[]; percepcion_iva: number; percepcion_iibb: number; otros_impuestos: number;
   no_gravado: number; total: number; total_ars: number; total_usd: number; deposito_id: number | null; deposito: string | null;
@@ -40,7 +40,7 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
   const fid = Number((await params).id);
   if (!Number.isInteger(fid) || fid <= 0) notFound();
   const f = await una<Factura>(`
-    select f.id::int, f.proveedor_id::int, p.nombre proveedor, f.letra, f.es_nota_credito, f.punto_venta, f.numero::text,
+    select f.id::int, f.proveedor_id::int, p.nombre proveedor, f.letra, f.es_nota_credito, f.es_nota_debito, f.punto_venta, f.numero::text,
            to_char(f.fecha, 'YYYY-MM-DD') fecha, to_char(f.vencimiento, 'YYYY-MM-DD') vencimiento, f.moneda, f.cotizacion::float,
            f.neto::float, f.iva::float, f.iva_detalle, f.percepcion_iva::float, f.percepcion_iibb::float, f.otros_impuestos::float,
            f.no_gravado::float, f.total::float, f.total_ars::float, f.total_usd::float, f.deposito_id::int, d.nombre deposito,
@@ -76,7 +76,7 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
 
   return (
     <Pantalla ancho="max-w-5xl"
-      titulo={<>{f.es_nota_credito ? "Nota de crédito de compra" : "Factura de compra"} <span className="font-mono">{numeroFactura(f)}</span></>}
+      titulo={<>{f.es_nota_credito ? "Nota de crédito de compra" : f.es_nota_debito ? "Nota de débito de compra" : "Factura de compra"} <span className="font-mono">{numeroFactura(f)}</span></>}
       camino={[{ texto: numeroFactura(f) }]}
       subtitulo={<><Link href={`/compras/proveedores?id=${f.proveedor_id}`} className="text-[#16577F] hover:underline">{f.proveedor}</Link> · {fechaAR(f.fecha)}</>}
       acciones={borrador ? (

@@ -54,8 +54,15 @@ create table if not exists factura_compra (
   creado_ts        timestamptz not null default now()
 );
 create index if not exists factura_compra_org on factura_compra (organizacion_id, fecha desc);
-create unique index if not exists factura_compra_numero on factura_compra (organizacion_id, proveedor_id, letra, es_nota_credito, punto_venta, numero)
+-- Nota de débito (3/10, importación de ARCA): suma como una factura, pero
+-- lleva su propia numeración, así que entra en el índice único.
+alter table factura_compra add column if not exists es_nota_debito boolean not null default false;
+drop index if exists factura_compra_numero;
+create unique index if not exists factura_compra_numero_tipo on factura_compra (organizacion_id, proveedor_id, letra, es_nota_credito, es_nota_debito, punto_venta, numero)
   where numero is not null and estado <> 'anulada';
+-- De dónde vino (null = a mano; 'arca_mc' = "Mis Comprobantes" de ARCA) y su CAE.
+alter table factura_compra add column if not exists origen text;
+alter table factura_compra add column if not exists cae text;
 alter table factura_compra enable row level security;
 select erp_politica_org('factura_compra');
 
@@ -300,3 +307,28 @@ create index if not exists asiento_linea_cuenta on asiento_linea (cuenta_id);
 create index if not exists asiento_linea_asiento on asiento_linea (asiento_id, orden);
 alter table asiento_linea enable row level security;
 select erp_politica_org('asiento_linea');
+
+-- ── Importar "Mis Comprobantes – Recibidos" de ARCA (3/10) ─────────────
+-- La cuenta de gasto que se recuerda por proveedor (la propone la
+-- importación y la usa el asiento de sus facturas sin líneas de mercadería).
+alter table proveedor add column if not exists cuenta_gasto_id bigint references plan_cuenta(id) on delete set null;
+
+-- Cada archivo subido: los comprobantes leídos (vista previa) y, al
+-- confirmar, el resultado. El estado de cada comprobante (nueva / ya cargada
+-- / distinta) se calcula al mirar, contra lo que haya en ese momento.
+create table if not exists arca_mc_lote (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  archivo          text not null,
+  version          text,
+  comprobantes     jsonb not null default '[]',
+  errores          jsonb not null default '[]',
+  estado           text not null default 'vista_previa' check (estado in ('vista_previa', 'importado')),
+  resultado        jsonb,
+  usuario_id       text,
+  creado_ts        timestamptz not null default now(),
+  importado_ts     timestamptz
+);
+create index if not exists arca_mc_lote_org on arca_mc_lote (organizacion_id, creado_ts desc);
+alter table arca_mc_lote enable row level security;
+select erp_politica_org('arca_mc_lote');
