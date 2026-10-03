@@ -107,7 +107,7 @@ export function MenuCelular({ menu, accesos }: { menu: SeccionMenu[]; accesos: (
           ))}
         </div>
       )}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-[#E3E9F0] grid grid-cols-5 h-16">
+      <nav className="md:hidden print:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-[#E3E9F0] grid grid-cols-5 h-16">
         {accesos.slice(0, 4).map((a) => (
           <Link key={a.href} href={a.href}
             className={`flex flex-col items-center justify-center gap-0.5 text-[11px] ${activa(ruta, a.href) ? "text-[#16577F] font-bold" : "text-[#5C6B76]"}`}>

@@ -2,7 +2,7 @@
 titulo: Asistente
 menu: Configuración › Asistente
 ruta: /config/asistente
-rutas: /config/asistente, /config/asistente/historial, /config/asistente/pendientes
+rutas: /config/asistente, /config/asistente/historial, /config/asistente/pendientes, /config/asistente/conversacion/[id]
 permiso: asistente_config
 resumen: El asistente del sistema (la carita de abajo a la derecha): cómo usarlo, pedirle que haga cosas, su nombre, la carita, las preguntas fuera del sistema, el tope de gasto, el historial y los pedidos sin resolver.
 ---
@@ -78,6 +78,12 @@ Si le piden hacer algo que no está entre sus acciones, explica cómo se hace a 
 
 ### Dejar que conteste preguntas generales
 Prendé **Preguntas fuera del sistema** y grabá. Prendido, contesta también cosas que no son del sistema (impuestos, comercio, Mercado Libre en general) y busca en internet si hace falta. Apagado, a eso contesta que sólo sabe del sistema.
+
+### Imprimir una conversación o guardarla en PDF
+1. En el chat, apretá **"PDF"** (arriba, al lado de "Nueva"); o en el **Historial**, abrí la conversación y apretá **"🖨 Imprimir o PDF"**.
+2. Se abre la conversación con el mismo formato del chat: preguntas, respuestas con sus tablas y las tarjetas de las acciones con su resultado.
+3. Apretá **"🖨 Imprimir o guardar en PDF"** y, en la ventana del navegador, elegí **"Guardar como PDF"** como impresora (o una impresora de verdad).
+Una conversación la puede ver quien la tuvo, o quien tiene «Ver el historial del asistente».
 
 ### Ver qué le preguntan
 Entrá a la pestaña **Historial**. Con **"Sólo con 👎"** ves las respuestas que no sirvieron: sirven para mejorar el manual o una pantalla confusa.
