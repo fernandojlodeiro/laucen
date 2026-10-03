@@ -4,9 +4,18 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, entero, id } from "@/lib/erp/acciones";
-import { crearLote, escanear, corregirItem, terminarLote, cancelarLote, marcarPreparado, pedidoDelLotePorCodigo, empacar, esModoLote, type FaltaEmpacar } from "@/lib/deposito/picking";
+import { crearLote, escanear, corregirItem, terminarLote, cancelarLote, marcarPreparado, pedidoDelLotePorCodigo, empacar, esModoLote, pedidoPorNumero, prepararRapido, type FaltaEmpacar } from "@/lib/deposito/picking";
+import { tienePermiso } from "@/lib/permisos";
 
 const LISTA = "/deposito/picking";
+
+const SIN_PERMISO = "Para dar un pedido por preparado sin escanear sus productos hace falta el permiso «Preparar sin escanear».";
+/** Cerrar un pedido sin escanear cada producto (provisorio, con permiso). */
+const exigirSinEscanear = (s: { permisos: Parameters<typeof tienePermiso>[0] }) => {
+  if (!tienePermiso(s.permisos, "picking_sin_escanear")) throw new ErrorErp(SIN_PERMISO);
+};
+/** Una cantidad que llega de la pantalla (vacía = 1). */
+const cant = (x: unknown) => { const n = Number(x ?? 1); return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1; };
 
 /** "Preparar este" (botón con name=solo), "Recorrer escaneando" o "Empacar
  *  escaneando (alternativo)" (casillas p; el botón trae name=modo). */
@@ -27,10 +36,10 @@ export async function accionCrearLote(fd: FormData) {
 export type ResultadoEscaneo = { ok: true; mensaje: string } | { ok: false; mensaje: string };
 
 /** Un escaneo desde la pantalla de trabajo: devuelve el resultado (no redirige). */
-export async function accionEscanear(loteId: number, codigo: string): Promise<ResultadoEscaneo> {
+export async function accionEscanear(loteId: number, codigo: string, cantidad = 1): Promise<ResultadoEscaneo> {
   const s = await entrarErp("picking_ver");
   try {
-    const { item, completo } = await escanear(s.org.id, Number(loteId), String(codigo ?? ""));
+    const { item, completo } = await escanear(s.org.id, Number(loteId), String(codigo ?? ""), cant(cantidad));
     const resto = item.cantidad - item.escaneado - item.faltante;
     return { ok: true, mensaje: completo ? `${item.sku}: listo (${item.escaneado} de ${item.cantidad}).` : `${item.sku}: ${item.escaneado} de ${item.cantidad}, faltan ${resto}.` };
   } catch (e) {
@@ -76,6 +85,7 @@ export async function accionPreparado(fd: FormData) {
   const pedido = id(fd, "pedido");
   const ver = String(fd.get("ver") ?? "");
   await intentar(`${LISTA}/${lote}${ver ? `?ver=${encodeURIComponent(ver)}` : ""}`, async () => {
+    exigirSinEscanear(s);
     const r = await marcarPreparado(s.org.id, lote, pedido, s.usuario.id);
     revalidatePath(LISTA);
     revalidatePath(`${LISTA}/${lote}`);
@@ -100,6 +110,7 @@ export async function accionBuscarPedidoLote(loteId: number, codigo: string): Pr
 export async function accionPreparadoPorCodigo(loteId: number, pedidoId: number): Promise<ResultadoEscaneo> {
   const s = await entrarErp("picking_ver");
   try {
+    exigirSinEscanear(s);
     const r = await marcarPreparado(s.org.id, Number(loteId), Number(pedidoId), s.usuario.id);
     revalidatePath(LISTA);
     return { ok: true, mensaje: r.loteTerminado ? `Pedido ${pedidoId} preparado. Era el último: el lote quedó terminado.` : `Pedido ${pedidoId} preparado.` };
@@ -113,12 +124,41 @@ export type ResultadoEmpaque =
   | { ok: false; mensaje: string };
 
 /** Un escaneo en la mesa de empaque. */
-export async function accionEmpacar(loteId: number, codigo: string): Promise<ResultadoEmpaque> {
+export async function accionEmpacar(loteId: number, codigo: string, cantidad = 1): Promise<ResultadoEmpaque> {
   const s = await entrarErp("picking_ver");
   try {
-    const r = await empacar(s.org.id, Number(loteId), String(codigo ?? ""), s.usuario.id);
+    const r = await empacar(s.org.id, Number(loteId), String(codigo ?? ""), s.usuario.id, cant(cantidad));
     if (r.preparado) revalidatePath(LISTA);
     return { ok: true, ...r };
+  } catch (e) {
+    return { ok: false, mensaje: motivoErp(e) };
+  }
+}
+
+export type PedidoRapido = { ok: true; id: number; cliente: string | null; unidades: number; estado: string; lote: number | null } | { ok: false; mensaje: string };
+
+/** «Preparado rápido»: qué pedido es ese número (la pantalla pregunta antes). */
+export async function accionBuscarRapido(codigo: string): Promise<PedidoRapido> {
+  const s = await entrarErp("picking_ver");
+  try {
+    exigirSinEscanear(s);
+    const p = await pedidoPorNumero(s.org.id, String(codigo ?? ""));
+    if (p.estado === "preparado" && !p.lote) return { ok: false, mensaje: `El pedido ${p.id} ya está preparado.` };
+    if (!p.lote && !p.preparable) return { ok: false, mensaje: p.estado === "nuevo" ? `El pedido ${p.id} espera el pago: no se prepara todavía.` : `El pedido ${p.id} está ${p.estado.replace("_", " ")}: no se prepara.` };
+    return { ok: true, id: p.id, cliente: p.cliente, unidades: p.unidades, estado: p.estado, lote: p.lote };
+  } catch (e) {
+    return { ok: false, mensaje: motivoErp(e) };
+  }
+}
+
+/** El "Sí" del «preparado rápido»: queda preparado con todo tildado. */
+export async function accionPreparadoRapido(codigo: string): Promise<ResultadoEscaneo> {
+  const s = await entrarErp("picking_ver");
+  try {
+    exigirSinEscanear(s);
+    const r = await prepararRapido(s.org.id, String(codigo ?? ""), s.usuario.id);
+    revalidatePath(LISTA);
+    return { ok: true, mensaje: `Pedido ${r.pedidoId} preparado (lote #${r.loteId}).` };
   } catch (e) {
     return { ok: false, mensaje: motivoErp(e) };
   }

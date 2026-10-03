@@ -18,6 +18,8 @@ import { accionCrearLote } from "./acciones";
 import { MarcaCarritoEspera } from "@/app/componentes/CarritoEspera";
 import { BotonImprimirHojas } from "./Imprimir";
 import { SelectorTam, tamElegido } from "./Tamano";
+import PreparadoRapido from "./PreparadoRapido";
+import { tienePermiso } from "@/lib/permisos";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +74,14 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
           </select>
           <button className={`${SUAVE} ${GRANDE}`}>Ver</button>
         </form>
+      )}
+
+      {tienePermiso(s.permisos, "picking_sin_escanear") && (
+        <section className={`${CAJA} mb-5`}>
+          <h2 className="text-sm font-bold">Preparado rápido</h2>
+          <p className="text-[11px] text-[#5C6B76] mb-2">Escribí o escaneá el número de pedido: queda preparado con todo tildado, sin escanear cada producto.</p>
+          <PreparadoRapido />
+        </section>
       )}
 
       {abiertos.length > 0 && (

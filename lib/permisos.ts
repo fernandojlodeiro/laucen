@@ -42,6 +42,7 @@ export type PermisoKey =
   | "preguntas_ver"
   | "reclamos_ver"
   | "picking_ver"
+  | "picking_sin_escanear"
   | "recepcion_ver"
   | "etiquetas_ver"
   | "facturacion_ver"
@@ -98,6 +99,7 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "preguntas_ver", label: "Preguntas y mensajes", ayuda: "Responder preguntas y mensajes de Mercado Libre." },
   { key: "reclamos_ver", label: "Reclamos y devoluciones", ayuda: "Reclamos de Mercado Libre y de la web o el local, sus mensajes y las devoluciones." },
   { key: "picking_ver", label: "Picking", ayuda: "Preparar pedidos escaneando cada unidad." },
+  { key: "picking_sin_escanear", label: "Preparar sin escanear", ayuda: "Dar un pedido por preparado con sólo su número (o su botón «Preparado», o escaneando su hoja), sin escanear cada producto: tilda todo. Provisorio, mientras no todos los productos tienen etiqueta." },
   { key: "recepcion_ver", label: "Recepción", ayuda: "Recibir mercadería y devoluciones escaneando." },
   { key: "etiquetas_ver", label: "Etiquetas", ayuda: "Imprimir etiquetas de producto y de ubicación." },
   { key: "facturacion_ver", label: "Facturación", ayuda: "Facturas y notas de crédito electrónicas (ARCA)." },

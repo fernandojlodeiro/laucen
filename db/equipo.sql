@@ -32,3 +32,7 @@ update roles set permisos = permisos || '{"roles_administrar": true, "asistente_
 -- «Pedirle al asistente que haga cosas» (3/10): también va una vez al Admin de fábrica.
 update roles set permisos = permisos || '{"asistente_acciones": true}'::jsonb
  where protegido and not (permisos ? 'asistente_acciones');
+
+-- «Preparar sin escanear» (3/10, provisorio mientras no todo tiene etiqueta): una vez al Admin de fábrica.
+update roles set permisos = permisos || '{"picking_sin_escanear": true}'::jsonb
+ where protegido and not (permisos ? 'picking_sin_escanear');
