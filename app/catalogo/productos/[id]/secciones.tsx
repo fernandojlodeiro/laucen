@@ -31,7 +31,7 @@ export type Producto = {
   umbral_pausa: number | null; stock_minimo: number | null; descuento_familia: number | null; umbral_org: string | null;
   variacion_default: number | null;
   modelo: string | null; linea: string | null; garantia: string | null; condicion: string | null;
-  categoria_ml: string | null; atributos_ml: unknown; kit_vs: boolean;
+  categoria_ml: string | null; atributos_ml: unknown; kit_vs: boolean; precio_en_dolares: boolean;
 };
 
 type Props = {
@@ -213,6 +213,7 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
         <Dato etiqueta="Condición">{CONDICIONES[condicionDe(p.condicion)]}</Dato>
         {costoFob}
         <Dato etiqueta="Kit en Virtual Seller (armar a mano)" className="col-span-2">{p.kit_vs ? "Sí" : "No"}</Dato>
+        <Dato etiqueta="Precio en dólares" className="col-span-2" ayuda="Los pesos siguen al tipo de cambio del día.">{p.precio_en_dolares ? "Sí" : "No"}</Dato>
         <Dato etiqueta="Peso (g)" numero>{num(p.peso_g, "entero")}</Dato>
         <Dato etiqueta="Stock mínimo" numero ayuda="Debajo de esto, avisa el panel.">{num(p.stock_minimo, "entero")}</Dato>
         <Dato etiqueta="Largo (cm)" numero>{num(p.largo_cm, "decimal")}</Dato>
@@ -274,6 +275,10 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
       <label className="col-span-2 flex items-center gap-2 text-xs self-end py-1.5">
         <input type="checkbox" name="kit_vs" defaultChecked={p.kit_vs} className="h-4 w-4 accent-[#16577F]" />
         Kit en Virtual Seller (armar a mano)
+      </label>
+      <label className="col-span-2 flex items-center gap-2 text-xs self-end py-1.5" title="Los pesos salen todos los días con el tipo de cambio del día">
+        <input type="checkbox" name="precio_en_dolares" defaultChecked={p.precio_en_dolares} className="h-4 w-4 accent-[#16577F]" />
+        Precio en dólares (los pesos siguen al tipo de cambio del día)
       </label>
       <label><span className={ETIQUETA}>Peso (g)</span><CampoNumero name="peso_g" valor={p.peso_g} tipo="entero" className={`${CAMPO} w-full`} /></label>
       <label><span className={ETIQUETA}>Stock mínimo</span><CampoNumero name="stock_minimo" valor={p.stock_minimo} tipo="entero" className={`${CAMPO} w-full`} />
