@@ -6,7 +6,7 @@
 // app/api/asistente, que va avisando qué está haciendo. La conversación
 // sigue al cambiar de pantalla y se recupera al recargar (sessionStorage).
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Carita from "./Carita";
 import Texto from "./Texto";
@@ -16,6 +16,8 @@ type Accion = { id: number; resumen: string; detalle: string[]; estado: string; 
 type Mensaje = { id?: number; rol: "usuario" | "asistente"; texto: string; voto?: number | null; error?: boolean; acciones?: Accion[] };
 
 const CLAVE = "asistente_conversacion";
+/** Hasta dónde crece el cuadro de escribir (unos 10 renglones), en píxeles. */
+const ALTO_MAXIMO = 180;
 
 // El reconocimiento de voz del navegador (Chrome/Edge: webkitSpeechRecognition).
 type Reconocedor = {
@@ -61,13 +63,18 @@ export default function Asistente({ nombre, carita, usuario }: { nombre: string;
   useEffect(() => { fondo.current?.scrollIntoView({ block: "end" }); }, [mensajes, estado, abierto]);
   useEffect(() => { if (abierto) campo.current?.focus(); }, [abierto]);
   // El cuadro de escribir crece hacia arriba con el texto (hasta unos 10
-  // renglones; después aparece la barra de desplazamiento) y vuelve a su
-  // tamaño al enviar.
-  useEffect(() => {
+  // renglones; recién ahí aparece la barra de desplazamiento) y vuelve a su
+  // tamaño al enviar. Se mide antes de dibujar (useLayoutEffect) y con la
+  // barra escondida: si la barra aparecía al medir, achicaba el ancho, el
+  // texto se reacomodaba y el cuadro titilaba.
+  useLayoutEffect(() => {
     const c = campo.current;
     if (!c) return;
+    c.style.overflowY = "hidden";
     c.style.height = "auto";
-    c.style.height = `${Math.min(c.scrollHeight + 2, 180)}px`;
+    const alto = c.scrollHeight + (c.offsetHeight - c.clientHeight);
+    c.style.height = `${Math.min(alto, ALTO_MAXIMO)}px`;
+    c.style.overflowY = alto > ALTO_MAXIMO ? "auto" : "hidden";
   }, [texto, abierto]);
 
   function nueva() {
@@ -235,7 +242,7 @@ export default function Asistente({ nombre, carita, usuario }: { nombre: string;
               <textarea ref={campo} value={texto} onChange={(e) => setTexto(e.target.value)} rows={2} maxLength={4000}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }}
                 placeholder={escuchando ? "Te escucho…" : "Escribí tu pregunta…"} aria-label="Tu pregunta"
-                className="flex-1 resize-none border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs bg-white max-h-[180px] overflow-y-auto" />
+                className="flex-1 resize-none border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs bg-white" />
               {hayMicrofono && (
                 <button type="button" onClick={microfono} aria-label={escuchando ? "Dejar de escuchar" : "Dictar la pregunta"} title={escuchando ? "Dejar de escuchar" : "Dictar la pregunta"}
                   className={`text-sm leading-none rounded-lg px-2 py-2 border ${escuchando ? "bg-[#FDF0EE] border-[#C03420] animate-pulse" : "bg-[#EEF3F8] border-[#E3E9F0]"}`}>🎤</button>
