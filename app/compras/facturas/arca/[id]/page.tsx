@@ -1,18 +1,22 @@
 // Vista previa de un archivo de "Mis Comprobantes – Recibidos" de ARCA: cada
 // comprobante con su proveedor (por CUIT; "nuevo" si no está), sus importes y
 // su estado contra lo ya cargado; arriba, la cuenta de gasto de cada
-// proveedor (se recuerda). "Importar" (arriba a la derecha) registra sólo las
-// nuevas; lo que ya estaba no se toca.
+// proveedor (se recuerda), con "Nueva cuenta" para crear una de egreso ahí
+// mismo (quien tiene Contabilidad). "Importar" (arriba a la derecha) registra
+// sólo las nuevas; lo que ya estaba no se toca.
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { VERDE } from "@/app/botones";
 import Pestanas from "@/app/componentes/Pestanas";
-import { entrarErp, Pantalla, Avisos, Estado, url, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO } from "@/app/componentes/erp";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
+import { entrarErp, Pantalla, Avisos, Estado, TituloSeccion, url, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { cuitLegible } from "@/lib/cuit";
-import { cuentasImputables } from "@/lib/administracion/contabilidad";
+import { tienePermiso } from "@/lib/permisos";
+import { cuentasImputables, proximoCodigoCuenta } from "@/lib/administracion/contabilidad";
 import { vistaPrevia, contarEstados, ESTADOS_CBTE, type EstadoCbte, type FilaPrevia } from "@/lib/administracion/arca-mc";
-import { accionImportarArca } from "../acciones";
+import { accionImportarArca, accionCrearCuentaArca } from "../acciones";
+import NuevaCuenta from "./NuevaCuenta";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +27,7 @@ const VER: { k: "" | EstadoCbte; texto: string }[] = [
   { k: "distinta", texto: "Cargadas a mano distintas" }, { k: "error", texto: "Con error" }, { k: "repetida", texto: "Repetidas" },
 ];
 
-export default async function VistaPreviaArca({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ver?: string; ok?: string; error?: string }> }) {
+export default async function VistaPreviaArca({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ver?: string; elegidas?: string; ok?: string; error?: string }> }) {
   const s = await entrarErp("compras_ver");
   const { id } = await params;
   const sp = await searchParams;
@@ -31,10 +35,17 @@ export default async function VistaPreviaArca({ params, searchParams }: { params
   if (!v) notFound();
   const cuentas = await cuentasImputables(s.org.id);
   const orden = [...cuentas.filter((c) => c.tipo === "egreso"), ...cuentas.filter((c) => c.tipo !== "egreso")];
+  // Lo elegido antes de crear una cuenta (vuelve en ?elegidas=CUIT:id,…).
+  const validas = new Set(cuentas.map((c) => c.id));
+  const elegidas = new Map((sp.elegidas ?? "").split(",").map((x) => x.split(":")).filter(([cuit, c]) => /^\d{11}$/.test(cuit ?? "") && validas.has(Number(c))).map(([cuit, c]) => [cuit, Number(c)]));
+  // Crear una cuenta desde acá pide además el permiso de Contabilidad.
+  const puedeCrear = tienePermiso(s.permisos, "contabilidad_ver");
+  const sugerida = puedeCrear ? await proximoCodigoCuenta(s.org.id, "egreso") : null;
   const n = contarEstados(v.filas);
   const ver = VER.some((x) => x.k === sp.ver) ? (sp.ver as EstadoCbte) : "";
   const filas = ver ? v.filas.filter((f) => f.estado === ver) : v.filas;
   const base = `/compras/facturas/arca/${v.lote.id}`;
+  const conElegidas = sp.elegidas || null;
   const importado = v.lote.estado === "importado";
 
   return (
@@ -60,10 +71,30 @@ export default async function VistaPreviaArca({ params, searchParams }: { params
       )}
       {!importado && n.nueva === 0 && <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#EEF7F1] text-[#1F6E4A]">No hay nada nuevo para importar: todo lo del archivo ya está cargado.</p>}
 
-      <form id="importar" action={accionImportarArca} className="mb-4">
-        <input type="hidden" name="lote" value={v.lote.id} />
-        <h2 className="text-sm font-bold mb-2">Cuenta de gasto de cada proveedor</h2>
+      <div className="mb-4">
+        <TituloSeccion titulo="Cuenta de gasto de cada proveedor">{sugerida && <BotonNuevo texto="Nueva cuenta" />}</TituloSeccion>
         <p className="text-[11px] text-[#5C6B76] mb-2">Adónde va el neto de sus facturas en la contabilidad. Queda recordada en el proveedor para la próxima vez. En las facturas B y C el total entero es gasto (no hay crédito fiscal).</p>
+        {sugerida && (
+          <AltaNueva texto="Nueva cuenta" sinBoton className="mb-2">
+            {/* Los campos son del formulario "importar" (atributo form): la acción recibe también lo elegido abajo. */}
+            <NuevaCuenta accion={accionCrearCuentaArca}>
+              <label><span className={ETIQUETA}>Código</span><input name="codigo" form="importar" defaultValue={sugerida.codigo} className={`${CAMPO} w-24`} /></label>
+              <label className="flex-1 min-w-48"><span className={ETIQUETA}>Nombre</span><input name="nombre" form="importar" placeholder="Ej. Publicidad" className={`${CAMPO} w-full`} autoFocus /></label>
+              <label><span className={ETIQUETA}>Queda elegida para</span>
+                <select name="para" form="importar" defaultValue="" className={`${CAMPO} max-w-xs`}>
+                  <option value="">— Ningún proveedor —</option>
+                  {v.proveedores.map((p) => <option key={p.cuit} value={p.cuit}>{p.nombre}</option>)}
+                </select>
+              </label>
+            </NuevaCuenta>
+            <p className="text-[11px] text-[#5C6B76] mt-1">
+              Se crea como cuenta de egreso imputable{sugerida.madre ? <>, bajo <b>{sugerida.madre.codigo} {sugerida.madre.nombre}</b> (la cuenta madre sale del código)</> : null}.
+              El código viene sugerido (el próximo libre de egreso) y se puede cambiar.
+            </p>
+          </AltaNueva>
+        )}
+      <form id="importar" action={accionImportarArca}>
+        <input type="hidden" name="lote" value={v.lote.id} />
         <div className={CAJA_TABLA}>
           <table className={TABLA}>
             <thead className={THEAD}><tr><th className={TH}>Proveedor</th><th className={TH}>CUIT</th><th className={THN}>Nuevas</th><th className={TH}>Cuenta de gasto</th></tr></thead>
@@ -77,7 +108,8 @@ export default async function VistaPreviaArca({ params, searchParams }: { params
                   <td className={`${TD} font-mono whitespace-nowrap`}>{cuitLegible(p.cuit)}</td>
                   <td className={TDN}>{p.nuevas}</td>
                   <td className={TD}>
-                    <select name={`cuenta_${p.cuit}`} defaultValue={p.cuentaId ?? ""} className={`${CAMPO} w-full max-w-xs`}>
+                    {/* La clave con el valor: al volver de crear una cuenta, el desplegable toma lo elegido. */}
+                    <select key={elegidas.get(p.cuit) ?? p.cuentaId} name={`cuenta_${p.cuit}`} defaultValue={elegidas.get(p.cuit) ?? p.cuentaId ?? ""} className={`${CAMPO} w-full max-w-xs`}>
                       {orden.map((c) => <option key={c.id} value={c.id}>{c.codigo} — {c.nombre}</option>)}
                     </select>
                   </td>
@@ -87,9 +119,10 @@ export default async function VistaPreviaArca({ params, searchParams }: { params
           </table>
         </div>
       </form>
+      </div>
 
       <Pestanas items={VER.filter((x) => !x.k || n[x.k] > 0 || x.k === "nueva").map((x) => ({
-        clave: x.k || "todos", texto: x.texto, activa: ver === x.k, href: url(base, { ver: x.k || null }), cuenta: x.k ? n[x.k] : v.filas.length,
+        clave: x.k || "todos", texto: x.texto, activa: ver === x.k, href: url(base, { ver: x.k || null, elegidas: conElegidas }), cuenta: x.k ? n[x.k] : v.filas.length,
       }))} />
       <div className={CAJA_TABLA}>
         <table className={TABLA}>

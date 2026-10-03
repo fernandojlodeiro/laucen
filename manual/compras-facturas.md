@@ -69,6 +69,7 @@ Título "Importar de ARCA (Mis Comprobantes)". Debajo, el nombre del archivo, cu
 - Si hubo renglones que no se pudieron leer: "Renglones que no se pudieron leer (N):" con el motivo de cada uno (muestra hasta 30).
 - Si no hay nada nuevo: "No hay nada nuevo para importar: todo lo del archivo ya está cargado."
 - **Cuenta de gasto de cada proveedor**: una fila por proveedor del archivo con Proveedor (los que no existen dicen "Nuevo: se crea al importar"; los de Mercado Libre llevan la etiqueta "Mercado Libre"), CUIT, cuántas **Nuevas** tiene y el desplegable **Cuenta de gasto** (primero las cuentas de egreso, después el resto).
+- A la derecha del título "Cuenta de gasto de cada proveedor", si tenés también el permiso de **Contabilidad**: **+ Nueva cuenta**. Abre debajo un formulario chico con **Código** (ya sugerido), **Nombre**, **Queda elegida para** ("— Ningún proveedor —" o uno de los proveedores del archivo), el botón **Crear** y la aclaración "Se crea como cuenta de egreso imputable, bajo … (la cuenta madre sale del código)"; **Cancelar** lo cierra.
 - Pestañas para filtrar los comprobantes por estado, cada una con su cantidad: **Todos**, **Nuevas**, **Ya cargadas**, **Cargadas a mano distintas**, **Con error**, **Repetidas** (las que tienen cero no se muestran, salvo Todos y Nuevas).
 - La tabla: Fecha, Proveedor (con CUIT; "(nuevo)" si se va a crear), Comprobante (tipo y número; si ya está cargado, enlace a la factura), Neto gravado (y el desglose si tiene varias alícuotas), IVA (y la alícuota), No gravado / exento, Percepciones / otros, Total (y "TC" si es en dólares) y Estado (con el motivo o el aviso). En las facturas B y C, neto, IVA y percepciones se muestran "—": el total entero es gasto.
 
@@ -83,6 +84,7 @@ Es la forma recomendada para cargar todo lo del mes (incluye las facturas de Mer
 3. En "Archivo de ARCA → Mis Comprobantes → Recibidos (.csv o .xlsx)" elegí el archivo y apretá **Subir y ver**. Todavía no se registra nada.
 4. Se abre la **vista previa**. Revisá:
    - la tabla **Cuenta de gasto de cada proveedor**: elegí a qué cuenta contable va el neto de las facturas de cada proveedor (viene propuesta: la que tenía recordada el proveedor; si no tiene, "Gastos varios", y para Mercado Libre, "Comisiones de canales");
+   - si falta la cuenta adecuada, creala ahí mismo (ver "Crear una cuenta de gasto desde la vista previa", abajo);
    - las pestañas **Cargadas a mano distintas** y **Con error**, que son las que no se van a importar y conviene arreglar a mano.
 5. Apretá **Importar N comprobantes nuevos** (arriba a la derecha).
 6. Sale el resumen: "Listo: X cargadas, Y ya estaban, Z cargadas a mano distintas (no se tocaron), N con error." Las nuevas quedan **registradas** (no en borrador).
@@ -98,6 +100,18 @@ Errores típicos al subir:
 - "Este archivo es de comprobantes EMITIDOS. Hay que bajar "Mis Comprobantes – Recibidos".": bajaste los emitidos (tus ventas) en vez de los recibidos.
 - "Al archivo le faltan columnas: …": le faltan columnas obligatorias (Fecha, Tipo, Punto de Venta, Número Desde, Nro. Doc. Emisor, Imp. Total).
 - "El archivo no tiene comprobantes.": no hay renglones válidos.
+
+### Crear una cuenta de gasto desde la vista previa
+
+Sirve cuando un proveedor necesita una cuenta que todavía no está en el plan (por ejemplo "Publicidad"), sin ir a Contabilidad. Hace falta el permiso de **Contabilidad** además del de Facturas de compra; sin él, el botón no aparece.
+
+1. En la vista previa, apretá **+ Nueva cuenta** (a la derecha del título "Cuenta de gasto de cada proveedor").
+2. El **Código** ya viene sugerido: el próximo libre de egreso (en el plan por defecto, después de 5.2.05 "Gastos varios", el 5.2.06). Se puede cambiar.
+3. Escribí el **Nombre**.
+4. Si es para un proveedor en particular, elegilo en **Queda elegida para**.
+5. Apretá **Crear** (o Enter). Vuelve a la misma vista previa con "Cuenta 5.2.06 — Publicidad creada y elegida para su proveedor." (o "…creada: ya está en los desplegables."). La cuenta nueva aparece en todos los desplegables; **lo que ya habías elegido en los otros proveedores se mantiene**.
+
+La cuenta se crea siempre como **egreso** e **imputable**, y queda en el [plan de cuentas](/administracion/contabilidad) como cualquier otra (ahí se puede renombrar, recodificar o desactivar). El código se valida igual que en Contabilidad. Errores típicos: "La cuenta necesita un nombre.", "El código va con números separados por puntos (ej. 5.2.06).", "Ya hay una cuenta con el código 5.2.06 (…).": el formulario sigue abierto con el error.
 
 ### Cargar una factura a mano
 
@@ -221,6 +235,8 @@ Por eso **subir dos veces el mismo mes no duplica**: lo que ya entró aparece co
 ### Cuenta de gasto en la importación
 - Se propone la cuenta recordada en el proveedor; si no tiene, **Gastos varios**; si el proveedor es Mercado Libre / Mercado Pago (por su CUIT o porque el nombre dice Mercado Libre o Mercado Pago), **Comisiones de canales**.
 - La cuenta elegida queda **recordada en el proveedor** para la próxima importación (también en los proveedores existentes que no tenían nada nuevo).
+- **Código sugerido para una cuenta nueva** ("+ Nueva cuenta"): como las facturas de compra casi siempre son gastos, es el próximo código libre de egreso: el de la cuenta imputable de egreso con el código más alto, más uno en la última parte y con sus ceros (después de 5.2.05, 5.2.06; después de 5.2.09, 5.2.10). Si ese código ya está usado, sigue con el próximo. Si cambiaste el código, tiene que ir con números separados por puntos y no existir. La cuenta cuelga de la madre que le corresponde por el código (el código más cercano que existe acortándolo de a una parte). El detalle, en [Contabilidad](/administracion/contabilidad).
+- Crear una cuenta desde la vista previa **no importa nada** y no borra lo elegido en los desplegables: vuelve a la misma vista previa con todo como estaba, más la cuenta nueva.
 
 ## Preguntas frecuentes
 

@@ -19,10 +19,11 @@
 
 import type { PoolClient } from "pg";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
+import { codigoValido, proximoCodigo, madreDe, TIPOS_CUENTA, type TipoCuenta } from "@/lib/administracion/plan-codigos";
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
-type Tipo = "activo" | "pasivo" | "patrimonio" | "ingreso" | "egreso";
+type Tipo = TipoCuenta;
 
 /** El plan por defecto. Los títulos (no imputables) agrupan; `rol` es lo que
  *  buscan los asientos automáticos. Se puede renombrar, recodificar y agregar
@@ -357,6 +358,35 @@ export function planDeCuentas(org: string) {
 export function cuentasImputables(org: string) {
   return consulta<{ id: number; codigo: string; nombre: string; tipo: Tipo }>(
     "select id::int, codigo, nombre, tipo from plan_cuenta where organizacion_id = $1 and imputable and activa order by codigo", [org]);
+}
+
+// ── Alta de cuentas ────────────────────────────────────────
+
+/** El código que se sugiere para una cuenta nueva del tipo (ver proximoCodigo)
+ *  y la cuenta madre de la que va a colgar. */
+export async function proximoCodigoCuenta(org: string, tipo: Tipo = "egreso") {
+  await asegurarPlan(org);
+  const cuentas = await consulta<{ codigo: string; nombre: string; tipo: string; imputable: boolean }>(
+    "select codigo, nombre, tipo, imputable from plan_cuenta where organizacion_id = $1", [org]);
+  const codigo = proximoCodigo(cuentas, tipo);
+  return { codigo, madre: madreDe(codigo, cuentas) };
+}
+
+/** Da de alta una cuenta del plan, con las mismas reglas desde donde se cree
+ *  (Contabilidad, o la vista previa de ARCA): código con números y puntos que
+ *  no exista, nombre y tipo. Cuelga de su madre por el código. Devuelve el id. */
+export async function crearCuenta(org: string, d: { codigo: string | null; nombre: string | null; tipo: string | null; imputable: boolean }) {
+  const codigo = d.codigo?.trim();
+  if (!codigo) throw new ErrorErp("La cuenta necesita un código.");
+  if (!codigoValido(codigo)) throw new ErrorErp("El código va con números separados por puntos (ej. 5.2.06).");
+  const nombre = d.nombre?.trim();
+  if (!nombre) throw new ErrorErp("La cuenta necesita un nombre.");
+  if (!TIPOS_CUENTA.includes(d.tipo as Tipo)) throw new ErrorErp("Elegí el tipo de cuenta.");
+  const ya = await una<{ nombre: string }>("select nombre from plan_cuenta where organizacion_id = $1 and codigo = $2", [org, codigo]);
+  if (ya) throw new ErrorErp(`Ya hay una cuenta con el código ${codigo} (${ya.nombre}).`);
+  const r = await una<{ id: number }>("insert into plan_cuenta (organizacion_id, codigo, nombre, tipo, imputable) values ($1, $2, $3, $4, $5) returning id::int",
+    [org, codigo, nombre, d.tipo, d.imputable]);
+  return r!.id;
 }
 
 /** Libro diario: asientos del período con sus líneas. */
