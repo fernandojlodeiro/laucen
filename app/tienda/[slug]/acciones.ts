@@ -5,7 +5,7 @@
 // formulario, se verifica contra la tienda (organización y canal) y se vuelve.
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, texto, id } from "@/lib/erp/acciones";
@@ -60,8 +60,25 @@ export async function agregarAlCarrito(fd: FormData) {
     }
     await sumarAlCarrito(t.slug, variacionId, cantidad);
     refrescar(t);
-    return { ir: rutaTienda(t, "/carrito") };
+    // "Comprar ahora" va directo a finalizar la compra; "Agregar al carrito", al carrito.
+    return { ir: rutaTienda(t, fd.get("ir") === "checkout" ? "/checkout" : "/carrito") };
   });
+}
+
+/** "Comprar ahora": lo mismo que agregar al carrito, pero sigue al checkout. */
+export async function comprarAhora(fd: FormData) {
+  fd.set("ir", "checkout");
+  await agregarAlCarrito(fd);
+}
+
+/** El código postal del "Enviar a …" del encabezado (cookie de la tienda, un año). */
+export async function guardarCodigoPostal(fd: FormData) {
+  const t = await tiendaDe(fd);
+  const cp = String(fd.get("cp") ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+  const c = await cookies();
+  if (cp.length >= 4) c.set(`cp_${t.slug}`, cp, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 365, secure: true });
+  else c.delete(`cp_${t.slug}`);
+  refrescar(t);
 }
 
 export async function cambiarCantidad(fd: FormData) {

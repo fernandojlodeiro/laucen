@@ -1,15 +1,16 @@
 // Carrito: las líneas cotizadas (precios y reglas del momento), cantidades
-// editables, avisos de stock, descuentos que ya aplican y el total.
+// con − y +, avisos de stock, descuentos que ya aplican y, a la derecha, el
+// "Resumen de compra" con "Continuar compra".
 
 import type { Metadata } from "next";
 import Link from "next/link";
 import { motivoErp } from "@/lib/erp/base";
-import { formatear } from "@/lib/moneda";
+import { formatearNumero } from "@/lib/numeros";
 import { leerCarrito } from "@/lib/tienda/carrito";
 import { cotizar, type Cotizacion } from "@/lib/tienda/cotizar";
 import { rutaTienda } from "@/lib/tienda/tienda";
-import { abierta, cargarTienda } from "../catalogo";
-import { Aviso, AvisosUrl, BOTON, IconoTacho, TITULO } from "../piezas";
+import { abierta, cargarTienda, envioDe } from "../catalogo";
+import { Aviso, AvisosUrl, BOTON, CAJA, IconoCarrito, IconoTacho, LINK, Monto } from "../piezas";
 import { cambiarCantidad } from "../acciones";
 
 export const dynamic = "force-dynamic";
@@ -29,15 +30,19 @@ export default async function Carrito({ params, searchParams }: Props) {
 
   if (!carrito.length || (cot && !cot.lineas.length)) {
     return (
-      <div className="mx-auto max-w-md space-y-4 py-10 text-center">
+      <div className="mx-auto max-w-3xl space-y-4">
         <AvisosUrl sp={sp} />
-        <h1 className={TITULO}>Tu carrito está vacío</h1>
-        {carrito.length > 0 && <p className="text-gray-500">Los productos que tenías ya no están disponibles.</p>}
-        <Link href={rutaTienda(t, "/buscar")} className={BOTON}>Ver productos</Link>
+        <div className={`${CAJA} flex flex-col items-center gap-3 px-6 py-14 text-center`}>
+          <span className="grid h-20 w-20 place-items-center rounded-full bg-[var(--boton-claro)] text-[var(--boton)]"><IconoCarrito clase="h-10 w-10" /></span>
+          <h1 className="text-xl font-semibold text-[var(--texto)]">Tu carrito está vacío</h1>
+          <p className="text-sm text-[var(--texto-2)]">{carrito.length > 0 ? "Los productos que tenías ya no están disponibles." : "Sumá productos y conseguí envío gratis en las compras que califican."}</p>
+          <Link href={rutaTienda(t, "/buscar")} className={LINK}>Descubrir productos</Link>
+        </div>
       </div>
     );
   }
 
+  const envio = await envioDe(t);
   const boton = (variacion: number, cantidad: number, contenido: React.ReactNode, etiqueta: string, clase: string) => (
     <form action={cambiarCantidad}>
       <input type="hidden" name="slug" value={t.slug} />
@@ -46,14 +51,15 @@ export default async function Carrito({ params, searchParams }: Props) {
       <button type="submit" aria-label={etiqueta} className={clase}>{contenido}</button>
     </form>
   );
+  const unidades = cot?.lineas.reduce((s, l) => s + l.cantidad, 0) ?? 0;
+  const faltaParaGratis = cot && envio.gratisDesde != null && envio.gratisDesde > 0 ? envio.gratisDesde - cot.total : null;
 
   return (
-    <div className="space-y-5">
-      <h1 className={TITULO}>Tu carrito</h1>
+    <div className="space-y-4">
       <AvisosUrl sp={sp} />
       {error && <Aviso tipo="error">{error}</Aviso>}
       {cot && (
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_350px]">
           <div className="space-y-3">
             {cot.sinStock.length > 0 && (
               <Aviso tipo="error">
@@ -63,54 +69,83 @@ export default async function Carrito({ params, searchParams }: Props) {
               </Aviso>
             )}
             {cot.lineas.length < carrito.length && <Aviso>Algún producto ya no está disponible y no se cuenta.</Aviso>}
-            <ul className="divide-y divide-gray-100 rounded-2xl border border-gray-100">
-              {cot.lineas.map((l) => (
-                <li key={l.variacionId} className="flex gap-3 p-3 sm:gap-4 sm:p-4">
-                  <Link href={`${rutaTienda(t, `/producto/${l.productoId}`)}?v=${l.variacionId}`} className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-gray-50 sm:h-24 sm:w-24">
-                    {l.foto ? <img src={l.foto} alt="" className="h-full w-full object-contain p-1" /> : null}
-                  </Link>
-                  <div className="flex min-w-0 flex-1 flex-col gap-2">
-                    <div className="flex justify-between gap-2">
-                      <Link href={`${rutaTienda(t, `/producto/${l.productoId}`)}?v=${l.variacionId}`} className="line-clamp-2 text-sm font-medium text-gray-800 hover:text-[var(--acento)]">{l.titulo}</Link>
-                      <div className="shrink-0 text-right font-semibold">{formatear(l.ventaUnit * l.cantidad, m)}</div>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {l.listaUnit > l.ventaUnit && <span className="mr-1 line-through">{formatear(l.listaUnit, m)}</span>}
-                      {formatear(l.ventaUnit, m)} c/u
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center rounded-xl border border-gray-300">
-                        {boton(l.variacionId, l.cantidad - 1, "−", "Una menos", "h-10 w-10 text-lg text-gray-700 disabled:opacity-40")}
-                        <span className="w-10 text-center font-semibold tabular-nums">{l.cantidad}</span>
-                        {l.cantidad < l.disponible
-                          ? boton(l.variacionId, l.cantidad + 1, "+", "Una más", "h-10 w-10 text-lg text-gray-700")
-                          : <span className="grid h-10 w-10 place-items-center text-lg text-gray-300" title="No hay más stock">+</span>}
+            <section className={CAJA}>
+              <h1 className="border-b border-[var(--linea)] px-4 py-4 text-base font-semibold text-[var(--texto)] sm:px-6">Productos</h1>
+              <ul>
+                {cot.lineas.map((l) => {
+                  const href = `${rutaTienda(t, `/producto/${l.productoId}`)}?v=${l.variacionId}`;
+                  return (
+                    <li key={l.variacionId} className="flex gap-4 border-b border-[var(--linea)] px-4 py-5 last:border-b-0 sm:px-6">
+                      <Link href={href} className="h-16 w-16 shrink-0 overflow-hidden rounded-md border border-[var(--linea)] bg-white sm:h-20 sm:w-20">
+                        {l.foto ? <img src={l.foto} alt="" className="h-full w-full object-contain p-1" /> : null}
+                      </Link>
+                      <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-start">
+                        <div className="min-w-0 flex-1">
+                          <Link href={href} className="line-clamp-2 text-sm font-semibold text-[var(--texto)] hover:text-[var(--boton)] sm:text-base">{l.titulo}</Link>
+                          <div className="mt-2">
+                            {boton(l.variacionId, 0, <><IconoTacho /> Eliminar</>, "Eliminar del carrito",
+                              "inline-flex items-center gap-1 text-sm text-[var(--boton)] hover:text-[var(--boton-hover)]")}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-start sm:items-center">
+                          <div className="flex h-9 items-center rounded-md border border-black/25">
+                            {boton(l.variacionId, l.cantidad - 1, "−", "Una menos", "grid h-9 w-9 place-items-center text-lg text-[var(--boton)]")}
+                            <span className="w-8 text-center text-sm tabular-nums text-[var(--texto)]" aria-label={`${l.cantidad} unidades`}>{l.cantidad}</span>
+                            {l.cantidad < l.disponible
+                              ? boton(l.variacionId, l.cantidad + 1, "+", "Una más", "grid h-9 w-9 place-items-center text-lg text-[var(--boton)]")
+                              : <span className="grid h-9 w-9 place-items-center text-lg text-black/25" title="No hay más stock">+</span>}
+                          </div>
+                          <span className="mt-1 text-xs text-[var(--texto-2)]">{l.disponible === 1 ? "1 disponible" : `${formatearNumero(l.disponible, "entero")} disponibles`}</span>
+                        </div>
+                        <div className="text-left sm:w-[130px] sm:text-right">
+                          {l.listaUnit > l.ventaUnit && (
+                            <div className="flex items-center gap-1 sm:justify-end">
+                              <span className="text-xs text-[var(--verde)]">-{Math.round((1 - l.ventaUnit / l.listaUnit) * 100)}%</span>
+                              <Monto n={l.listaUnit * l.cantidad} moneda={m} tachado className="text-xs text-[var(--texto-2)]" />
+                            </div>
+                          )}
+                          <Monto n={l.ventaUnit * l.cantidad} moneda={m} className="text-xl text-[var(--texto)]" />
+                        </div>
                       </div>
-                      {boton(l.variacionId, 0, <><IconoTacho /> Quitar</>, "Quitar del carrito",
-                        "inline-flex h-10 items-center gap-1 rounded-xl border border-gray-200 px-3 text-sm text-gray-600 hover:border-red-300 hover:text-red-700")}
-                    </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              {faltaParaGratis != null && (
+                <div className="border-t border-[var(--linea)] px-4 py-4 text-sm sm:px-6">
+                  {faltaParaGratis <= 0
+                    ? <p className="font-semibold text-[var(--verde)]">¡Tu compra tiene envío gratis!</p>
+                    : <p className="text-[var(--texto)]">Sumá <Monto n={faltaParaGratis} moneda={m} /> más para tener <span className="font-semibold text-[var(--verde)]">envío gratis</span>.</p>}
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/10">
+                    <div className="h-full rounded-full bg-[var(--verde)]" style={{ width: `${Math.min(100, Math.max(4, (cot.total / envio.gratisDesde!) * 100))}%` }} />
                   </div>
-                </li>
-              ))}
-            </ul>
-            <Link href={rutaTienda(t, "/buscar")} className="inline-block text-sm font-semibold text-[var(--acento)] hover:underline">← Seguir comprando</Link>
+                </div>
+              )}
+            </section>
+            <Link href={rutaTienda(t, "/buscar")} className={`${LINK} inline-block text-sm`}>Seguir comprando</Link>
           </div>
 
-          <aside className="h-fit space-y-3 rounded-2xl bg-gray-50 p-4 sm:p-5 lg:sticky lg:top-36">
-            <h2 className="text-lg font-bold">Resumen</h2>
-            <div className="flex justify-between text-sm"><span>Productos</span><span className="tabular-nums">{formatear(cot.subtotal, m)}</span></div>
-            {cot.descuentos.map((d) => (
-              <div key={d.nombre} className="flex justify-between text-sm text-green-700">
-                <span>{d.nombre}</span><span className="tabular-nums">{d.importe ? `− ${formatear(d.importe, m)}` : "Envío bonificado"}</span>
+          <aside className={`${CAJA} lg:sticky lg:top-4`}>
+            <h2 className="border-b border-[var(--linea)] px-6 py-4 text-base font-semibold text-[var(--texto)]">Resumen de compra</h2>
+            <div className="space-y-3 px-6 py-5 text-sm text-[var(--texto)]">
+              <div className="flex justify-between gap-2"><span>{unidades === 1 ? "Producto" : `Productos (${unidades})`}</span><Monto n={cot.subtotal} moneda={m} /></div>
+              {cot.descuentos.map((d) => (
+                <div key={d.nombre} className="flex justify-between gap-2 text-[var(--verde)]">
+                  <span>{d.nombre}</span><span className="tabular-nums">{d.importe ? <>− <Monto n={d.importe} moneda={m} /></> : "Envío bonificado"}</span>
+                </div>
+              ))}
+              <div className="flex justify-between gap-2">
+                <span>Envío</span>
+                <span className="text-right text-[var(--texto-2)]">{faltaParaGratis != null && faltaParaGratis <= 0 ? <span className="text-[var(--verde)]">Gratis</span> : "Se calcula en el paso siguiente"}</span>
               </div>
-            ))}
-            <div className="flex justify-between border-t border-gray-200 pt-3 text-lg font-bold"><span>Total</span><span className="tabular-nums">{formatear(cot.total, m)}</span></div>
-            <p className="text-xs text-gray-500">El envío y los descuentos por medio de pago se calculan en el paso siguiente.</p>
-            {abierta(t)
-              ? (cot.sinStock.length
-                ? <span className={`${BOTON} w-full opacity-50`}>Finalizar compra</span>
-                : <Link href={rutaTienda(t, "/checkout")} className={`${BOTON} w-full`}>Finalizar compra</Link>)
-              : <Aviso>La tienda no está tomando pedidos en este momento.</Aviso>}
+              <div className="flex items-baseline justify-between gap-2 pt-2 text-lg font-semibold"><span>Total</span><Monto n={cot.total} moneda={m} /></div>
+              {abierta(t)
+                ? (cot.sinStock.length
+                  ? <span className={`${BOTON} mt-2 w-full cursor-not-allowed opacity-50`}>Continuar compra</span>
+                  : <Link href={rutaTienda(t, "/checkout")} className={`${BOTON} mt-2 w-full`}>Continuar compra</Link>)
+                : <Aviso>La tienda no está tomando pedidos en este momento.</Aviso>}
+              <p className="text-xs text-[var(--texto-2)]">Los descuentos por medio de pago se aplican en el paso siguiente.</p>
+            </div>
           </aside>
         </div>
       )}

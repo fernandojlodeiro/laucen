@@ -14,8 +14,9 @@ import { confirmarCompra, cotizarAccion } from "../acciones";
 
 export type Precarga = Partial<Record<"nombre" | "email" | "telefono" | "documento" | "razon_social" | "condicion_iva" | "calle" | "numero" | "piso_depto" | "localidad" | "provincia" | "codigo_postal", string>>;
 
-const CAMPO = "w-full h-12 rounded-xl border border-gray-300 bg-white px-3 text-base outline-none focus:border-[var(--acento)] focus:ring-1 focus:ring-[var(--acento)]";
-const ETIQUETA = "block text-sm font-medium text-gray-700 mb-1";
+const CAMPO = "w-full h-12 rounded-md border border-[rgba(0,0,0,.25)] bg-white px-3 text-base outline-none hover:border-[rgba(0,0,0,.4)] focus:border-[var(--boton)] focus:ring-1 focus:ring-[var(--boton)]";
+const ETIQUETA = "block text-sm text-[var(--texto)] mb-1";
+const CAJA = "rounded-md bg-white shadow-[0_1px_2px_0_rgba(0,0,0,.12)]";
 
 const AYUDA_MEDIO: Record<string, string> = {
   mercadopago: "Te llevamos a Mercado Pago para pagar con tarjeta, dinero en cuenta o efectivo.",
@@ -27,11 +28,11 @@ const AYUDA_MEDIO: Record<string, string> = {
 
 function Bloque({ n, titulo, children }: { n: number; titulo: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-gray-100 p-4 sm:p-5">
-      <h2 className="mb-4 flex items-center gap-2 text-lg font-bold">
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--acento)] text-sm text-white">{n}</span>{titulo}
+    <section className={CAJA}>
+      <h2 className="flex items-center gap-3 border-b border-[var(--linea)] px-4 py-4 text-base font-semibold text-[var(--texto)] sm:px-6">
+        <span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--boton-claro)] text-sm font-semibold text-[var(--boton)]">{n}</span>{titulo}
       </h2>
-      <div className="space-y-4">{children}</div>
+      <div className="space-y-4 px-4 py-5 sm:px-6">{children}</div>
     </section>
   );
 }
@@ -113,7 +114,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
   const ocupado = enviando || yendo;
 
   return (
-    <form onSubmit={enviar} className="grid gap-6 lg:grid-cols-[1fr_380px]">
+    <form onSubmit={enviar} className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
       <input type="hidden" name="slug" value={slug} />
       <div className="space-y-4">
         <Bloque n={1} titulo="Tus datos">
@@ -146,13 +147,13 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
           {metodos.length === 0 && <p className="text-sm text-red-700">No hay formas de entrega disponibles. Escribinos para coordinar.</p>}
           <div className="space-y-2">
             {metodos.map((x) => (
-              <label key={x.id} className={`flex items-start gap-3 rounded-xl border-2 p-3 ${!x.disponible ? "cursor-not-allowed opacity-50" : "cursor-pointer"} ${metodo === x.id ? "border-[var(--acento)] bg-gray-50" : "border-gray-200"}`}>
+              <label key={x.id} className={`flex items-start gap-3 rounded-md border p-4 ${!x.disponible ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-[var(--boton)]"} ${metodo === x.id ? "border-[var(--boton)] shadow-[0_0_0_1px_var(--boton)]" : "border-black/20"}`}>
                 <input type="radio" name="metodo_envio" value={x.id} required disabled={!x.disponible} checked={metodo === x.id}
-                  onChange={() => { setMetodo(x.id); recotizar({ metodoEnvioId: x.id }); }} className="mt-1 h-5 w-5 accent-[var(--acento)]" />
+                  onChange={() => { setMetodo(x.id); recotizar({ metodoEnvioId: x.id }); }} className="mt-1 h-5 w-5 accent-[var(--boton)]" />
                 <span className="flex-1">
                   <span className="flex justify-between gap-2">
                     <span className="font-semibold">{x.nombre}</span>
-                    <span className="shrink-0 font-semibold tabular-nums">{x.disponible ? costoMetodo(x.id, x.tipo) : "Próximamente"}</span>
+                    <span className={`shrink-0 font-semibold tabular-nums ${x.disponible && costoMetodo(x.id, x.tipo) === "Gratis" ? "text-[var(--verde)]" : ""}`}>{x.disponible ? costoMetodo(x.id, x.tipo) : "Próximamente"}</span>
                   </span>
                   {x.plazo && <span className="block text-sm text-gray-500">{x.plazo}</span>}
                   {metodo === x.id && x.instrucciones && <span className="mt-1 block whitespace-pre-line text-sm text-gray-600">{x.instrucciones}</span>}
@@ -191,13 +192,13 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
           {medios.length === 0 && <p className="text-sm text-red-700">No hay medios de pago disponibles. Escribinos para coordinar.</p>}
           <div className="space-y-2">
             {medios.map((x) => (
-              <label key={x.tipo} className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 ${medio === x.tipo ? "border-[var(--acento)] bg-gray-50" : "border-gray-200"}`}>
+              <label key={x.tipo} className={`flex cursor-pointer items-start gap-3 rounded-md border p-4 hover:border-[var(--boton)] ${medio === x.tipo ? "border-[var(--boton)] shadow-[0_0_0_1px_var(--boton)]" : "border-black/20"}`}>
                 <input type="radio" name="medio" value={x.tipo} required checked={medio === x.tipo}
-                  onChange={() => { setMedio(x.tipo); recotizar({ medio: x.tipo }); }} className="mt-1 h-5 w-5 accent-[var(--acento)]" />
+                  onChange={() => { setMedio(x.tipo); recotizar({ medio: x.tipo }); }} className="mt-1 h-5 w-5 accent-[var(--boton)]" />
                 <span className="flex-1">
                   <span className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-semibold">{x.nombre}</span>
-                    {x.descuento_pct > 0 && <span className="rounded-md bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">{x.descuento_pct.toLocaleString("es-AR")}% de descuento</span>}
+                    {x.descuento_pct > 0 && <span className="rounded bg-[var(--verde)] px-2 py-0.5 text-xs font-semibold text-white">{x.descuento_pct.toLocaleString("es-AR")}% de descuento</span>}
                     {x.descuento_pct < 0 && <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">{(-x.descuento_pct).toLocaleString("es-AR")}% de recargo</span>}
                   </span>
                   {medio === x.tipo && (
@@ -212,21 +213,21 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
           </div>
         </Bloque>
 
-        <section className="rounded-2xl border border-gray-100 p-4 sm:p-5">
-          <label htmlFor="f-notas" className="mb-2 block text-lg font-bold">Notas <span className="text-sm font-normal text-gray-400">(opcional)</span></label>
+        <section className={`${CAJA} px-4 py-5 sm:px-6`}>
+          <label htmlFor="f-notas" className="mb-2 block text-base font-semibold text-[var(--texto)]">Notas <span className="text-sm font-normal text-[var(--texto-2)]">(opcional)</span></label>
           <textarea id="f-notas" name="notas" rows={3} maxLength={1000} placeholder="¿Algo que tengamos que saber?"
-            className="w-full rounded-xl border border-gray-300 p-3 text-base outline-none focus:border-[var(--acento)] focus:ring-1 focus:ring-[var(--acento)]" />
+            className="w-full rounded-md border border-[rgba(0,0,0,.25)] p-3 text-base outline-none focus:border-[var(--boton)] focus:ring-1 focus:ring-[var(--boton)]" />
         </section>
       </div>
 
-      <aside className="h-fit space-y-3 rounded-2xl bg-gray-50 p-4 sm:p-5 lg:sticky lg:top-36">
-        <h2 className="flex items-center justify-between text-lg font-bold">
-          Resumen {calculando && <span className="text-xs font-normal text-gray-500">Calculando…</span>}
+      <aside className={`${CAJA} space-y-3 p-5 sm:p-6 lg:sticky lg:top-4`}>
+        <h2 className="-mx-5 -mt-5 flex items-center justify-between border-b border-[var(--linea)] px-5 py-4 text-base font-semibold text-[var(--texto)] sm:-mx-6 sm:-mt-6 sm:px-6">
+          Resumen de compra {calculando && <span className="text-xs font-normal text-[var(--texto-2)]">Calculando…</span>}
         </h2>
         <ul className="space-y-2">
           {resumen.lineas.map((l) => (
             <li key={l.variacionId} className="flex items-center gap-3 text-sm">
-              <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-white">
+              <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border border-[var(--linea)] bg-white">
                 {l.foto && <img src={l.foto} alt="" className="h-full w-full object-contain p-0.5" />}
                 <span className="absolute right-0 top-0 rounded-bl-lg bg-gray-700 px-1 text-[10px] font-bold text-white">{l.cantidad}</span>
               </span>
@@ -235,10 +236,10 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
             </li>
           ))}
         </ul>
-        <div className={`space-y-2 border-t border-gray-200 pt-3 text-sm transition-opacity ${calculando ? "opacity-60" : ""}`}>
+        <div className={`space-y-2 border-t border-[var(--linea)] pt-3 text-sm transition-opacity ${calculando ? "opacity-60" : ""}`}>
           <div className="flex justify-between"><span>Productos</span><span className="tabular-nums">{precio(resumen.subtotal, m)}</span></div>
           {resumen.descuentos.map((d) => (
-            <div key={d.nombre} className={`flex justify-between gap-2 ${d.importe < 0 ? "text-gray-700" : "text-green-700"}`}>
+            <div key={d.nombre} className={`flex justify-between gap-2 ${d.importe < 0 ? "text-[var(--texto)]" : "text-[var(--verde)]"}`}>
               <span>{d.nombre}</span>
               <span className="shrink-0 tabular-nums">{d.importe === 0 ? "Envío bonificado" : d.importe > 0 ? `− ${precio(d.importe, m)}` : `+ ${precio(-d.importe, m)}`}</span>
             </div>
@@ -247,7 +248,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
             <span>Envío{resumen.envio?.nombre ? ` (${resumen.envio.nombre})` : ""}</span>
             <span className="shrink-0 tabular-nums">{!resumen.envio ? "—" : resumen.envio.aConvenir ? "A convenir" : resumen.envio.costo === 0 ? "Gratis" : precio(resumen.envio.costo, m)}</span>
           </div>
-          <div className="flex justify-between border-t border-gray-200 pt-3 text-lg font-bold"><span>Total</span><span className="tabular-nums">{precio(resumen.total, m)}</span></div>
+          <div className="flex justify-between pt-3 text-lg font-semibold"><span>Total</span><span className="tabular-nums">{precio(resumen.total, m)}</span></div>
         </div>
         {errorCot && <p className="text-sm text-amber-800">{errorCot} El total final se calcula al confirmar.</p>}
         {resumen.sinStock.length > 0 && (
@@ -257,10 +258,10 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
           {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>}
         </div>
         <button type="submit" disabled={ocupado || !medios.length || !metodos.some((x) => x.disponible)}
-          className="inline-flex h-14 w-full items-center justify-center rounded-xl bg-[var(--acento)] text-lg font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">
+          className="inline-flex h-12 w-full items-center justify-center rounded-md bg-[var(--boton)] text-base font-semibold text-white transition-colors hover:bg-[var(--boton-hover)] disabled:cursor-not-allowed disabled:opacity-50">
           {yendo ? "Te estamos llevando…" : enviando ? "Confirmando…" : "Confirmar compra"}
         </button>
-        <p className="text-center text-xs text-gray-500">Al confirmar se crea tu pedido y te mostramos cómo seguir.</p>
+        <p className="text-center text-xs text-[var(--texto-2)]">Al confirmar se crea tu pedido y te mostramos cómo seguir.</p>
       </aside>
     </form>
   );

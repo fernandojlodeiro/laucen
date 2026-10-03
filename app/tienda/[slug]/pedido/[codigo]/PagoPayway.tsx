@@ -17,7 +17,7 @@ type DecidirSdk = {
 };
 declare global { interface Window { Decidir?: new (url: string, sinCs: boolean) => DecidirSdk } }
 
-const CAMPO = "w-full h-12 rounded-xl border border-gray-300 bg-white px-3 text-base outline-none focus:border-[var(--acento)] focus:ring-1 focus:ring-[var(--acento)]";
+const CAMPO = "w-full h-12 rounded-md border border-gray-300 bg-white px-3 text-base outline-none focus:border-[var(--boton)] focus:ring-1 focus:ring-[var(--boton)]";
 const ETIQUETA = "block text-sm font-medium text-gray-700 mb-1";
 
 export default function PagoPayway({ slug, codigo, publicKey, url, total, moneda, marcas, planes }: {
@@ -65,12 +65,12 @@ export default function PagoPayway({ slug, codigo, publicKey, url, total, moneda
   }
 
   if (estado === "aprobado") {
-    return <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-green-800"><b>¡Pago aprobado!</b> Ya estamos preparando tu pedido.</div>;
+    return <div className="rounded-md border border-green-200 bg-green-50 p-4 text-green-800"><b>¡Pago aprobado!</b> Ya estamos preparando tu pedido.</div>;
   }
 
   const opciones = [{ cuotas: 1, interes_pct: 0 }, ...planes.filter((p) => p.cuotas > 1)];
   return (
-    <section className="rounded-2xl border border-gray-100 p-4 sm:p-5">
+    <section className="rounded-md bg-white shadow-[0_1px_2px_0_rgba(0,0,0,.12)] p-4 sm:p-5">
       <Script src="https://live.decidir.com/static/v2.5/decidir.js" strategy="afterInteractive" onReady={cargarSdk} onError={() => setError("No pudimos cargar el formulario de pago. Recargá la página.")} />
       <h2 className="mb-4 text-lg font-bold">Pagá con tarjeta</h2>
       <form onSubmit={enviar} className="space-y-4" autoComplete="on">
@@ -128,9 +128,9 @@ export default function PagoPayway({ slug, codigo, publicKey, url, total, moneda
             <input id="t-doc" data-decidir="card_holder_doc_number" inputMode="numeric" className={CAMPO} required />
           </div>
         </div>
-        {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>}
+        {error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>}
         <button type="submit" disabled={!listo || estado !== "libre"}
-          className="inline-flex h-14 w-full items-center justify-center rounded-xl bg-[var(--acento)] text-lg font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">
+          className="inline-flex h-14 w-full items-center justify-center rounded-md bg-[var(--boton)] text-lg font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">
           {estado === "procesando" ? "Procesando…" : !listo ? "Cargando…" : `Pagar ${precio(total, moneda)}`}
         </button>
         <p className="text-center text-xs text-gray-500">Pago seguro con Payway. Los datos de tu tarjeta no pasan por nuestro sistema.</p>

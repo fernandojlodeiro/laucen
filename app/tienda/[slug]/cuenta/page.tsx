@@ -23,8 +23,8 @@ export default async function Cuenta({ params, searchParams }: Props) {
 
   if (!cuenta) {
     return (
-      <div className="mx-auto max-w-sm space-y-5 py-4">
-        <h1 className={TITULO}>Ingresá a tu cuenta</h1>
+      <div className="mx-auto max-w-md space-y-5 rounded-md bg-white p-6 shadow-[0_1px_2px_0_rgba(0,0,0,.12)] sm:p-10">
+        <h1 className={TITULO}>Ingresá tu mail y contraseña</h1>
         <AvisosUrl sp={sp} />
         <form action={ingresarAccion} className="space-y-4">
           <input type="hidden" name="slug" value={t.slug} />
@@ -70,7 +70,7 @@ export default async function Cuenta({ params, searchParams }: Props) {
       <AvisosUrl sp={sp} />
       <h2 className="text-lg font-bold">Mis pedidos</h2>
       {pedidos.length ? (
-        <ul className="divide-y divide-gray-100 rounded-2xl border border-gray-100">
+        <ul className="divide-y divide-gray-100 rounded-md bg-white shadow-[0_1px_2px_0_rgba(0,0,0,.12)]">
           {pedidos.map((p) => {
             const e = estadoCriollo(p.estado, p.estado_pago, p.metodo_tipo);
             return (
@@ -90,8 +90,8 @@ export default async function Cuenta({ params, searchParams }: Props) {
           })}
         </ul>
       ) : (
-        <div className="rounded-2xl bg-gray-50 px-4 py-10 text-center text-gray-500">
-          Todavía no tenés pedidos. <Link href={rutaTienda(t, "/buscar")} className="font-semibold text-[var(--acento)] hover:underline">Ver productos</Link>
+        <div className="rounded-md bg-white shadow-[0_1px_2px_0_rgba(0,0,0,.12)] px-4 py-10 text-center text-gray-500">
+          Todavía no tenés pedidos. <Link href={rutaTienda(t, "/buscar")} className="font-semibold text-[var(--boton)] hover:underline">Ver productos</Link>
         </div>
       )}
     </div>

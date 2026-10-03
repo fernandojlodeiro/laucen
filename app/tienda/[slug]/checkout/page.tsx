@@ -4,6 +4,7 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { consulta, una, motivoErp } from "@/lib/erp/base";
 import { leerCarrito } from "@/lib/tienda/carrito";
@@ -50,6 +51,12 @@ export default async function PaginaCheckout({ params }: { params: Promise<{ slu
     };
   }
 
+  // Sin cuenta: el código postal que cargó en "Enviar a …" del encabezado.
+  if (!precarga.codigo_postal) {
+    const cp = (await cookies()).get(`cp_${t.slug}`)?.value;
+    if (cp) precarga = { ...precarga, codigo_postal: cp };
+  }
+
   const primerMetodo = metodos.find((m) => m.disponible)?.id ?? null;
   const primerMedio = mediosVisibles[0]?.tipo ?? null;
   let resumen: Resumen | null = null, error: string | null = null;
@@ -62,7 +69,7 @@ export default async function PaginaCheckout({ params }: { params: Promise<{ slu
     <div className="space-y-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className={TITULO}>Finalizar compra</h1>
-        {!cuenta && <Link href={`${rutaTienda(t, "/cuenta")}?volver=checkout`} className="text-sm font-semibold text-[var(--acento)] hover:underline">¿Ya tenés cuenta? Ingresá</Link>}
+        {!cuenta && <Link href={`${rutaTienda(t, "/cuenta")}?volver=checkout`} className="text-sm text-[var(--boton)] hover:text-[var(--boton-hover)]">¿Ya tenés cuenta? Ingresá</Link>}
       </div>
       {error && <Aviso tipo="error">{error}</Aviso>}
       {resumen && (

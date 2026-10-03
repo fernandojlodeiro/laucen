@@ -96,7 +96,7 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
       </div>
 
       {fallo && (
-        <section className="space-y-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-center sm:p-5">
+        <section className="space-y-3 rounded-md border border-red-200 bg-red-50 p-4 text-center sm:p-5">
           <p className="text-red-800">Tu pedido quedó guardado, pero el pago no se acreditó. Podés intentarlo de nuevo.</p>
           <form action={reintentarMercadoPago}>
             <input type="hidden" name="slug" value={t.slug} />
@@ -117,12 +117,12 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
       )}
 
       {pendiente && (p.medio === "transferencia" || p.medio === "efectivo") && (
-        <section className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
+        <section className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4 sm:p-5">
           <h2 className="text-lg font-bold">{p.medio === "transferencia" ? "Cómo transferir" : "Cómo pagar"}</h2>
           <p className="text-sm">Total a pagar: <b className="text-base">{formatear(p.total, m)}</b></p>
-          {medio?.instrucciones && <div className="whitespace-pre-line rounded-xl bg-white p-3 font-mono text-sm leading-relaxed">{medio.instrucciones}</div>}
+          {medio?.instrucciones && <div className="whitespace-pre-line rounded-md bg-white p-3 font-mono text-sm leading-relaxed">{medio.instrucciones}</div>}
           {p.medio === "transferencia" && wa && (
-            <a href={wa} target="_blank" rel="noopener" className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-5 font-semibold text-white hover:brightness-105 sm:w-auto">
+            <a href={wa} target="_blank" rel="noopener" className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-[#25D366] px-5 font-semibold text-white hover:brightness-105 sm:w-auto">
               <IconoWhatsapp clase="h-5 w-5" /> Avisanos por WhatsApp cuando transfieras
             </a>
           )}
@@ -134,7 +134,7 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
         : <Aviso tipo="error">El pago con tarjeta no está disponible ahora. Escribinos y lo resolvemos.</Aviso>)}
 
       {envios.some((e) => e.estado || e.tracking) && (
-        <section className="rounded-2xl border border-gray-100 p-4 sm:p-5">
+        <section className="rounded-md bg-white shadow-[0_1px_2px_0_rgba(0,0,0,.12)] p-4 sm:p-5">
           <h2 className="mb-3 text-lg font-bold">Seguimiento del envío</h2>
           <ul className="space-y-2 text-sm">
             {envios.map((e, i) => (
@@ -147,14 +147,14 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
         </section>
       )}
 
-      <section className="rounded-2xl border border-gray-100 p-4 sm:p-5">
+      <section className="rounded-md bg-white shadow-[0_1px_2px_0_rgba(0,0,0,.12)] p-4 sm:p-5">
         <h2 className="mb-3 text-lg font-bold">Detalle</h2>
         <ul className="divide-y divide-gray-100">
           {lineas.map((l, i) => (
             <li key={i} className="flex items-center gap-3 py-2 text-sm">
               <span className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-50">{l.foto && <img src={l.foto} alt="" className="h-full w-full object-contain p-0.5" />}</span>
               <span className="flex-1">
-                {l.producto_id ? <Link href={rutaTienda(t, `/producto/${l.producto_id}`)} className="hover:text-[var(--acento)]">{l.titulo}</Link> : l.titulo}
+                {l.producto_id ? <Link href={rutaTienda(t, `/producto/${l.producto_id}`)} className="hover:text-[var(--boton)]">{l.titulo}</Link> : l.titulo}
                 <span className="block text-xs text-gray-500">{l.cantidad} × {formatear(l.unit, m)}</span>
               </span>
               <span className="shrink-0 tabular-nums">{formatear(Number(l.unit) * l.cantidad, m)}</span>
@@ -182,7 +182,7 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
       </section>
 
       {!cuenta && !d.tieneCuenta && p.email && (
-        <section className="rounded-2xl bg-gray-50 p-4 sm:p-5">
+        <section className="rounded-md bg-white shadow-[0_1px_2px_0_rgba(0,0,0,.12)] p-4 sm:p-5">
           <h2 className="text-lg font-bold">Creá tu cuenta en un clic</h2>
           <p className="mb-3 text-sm text-gray-600">Elegí una contraseña y listo: vas a poder ver tus pedidos y comprar más rápido. Tu mail: <b>{p.email}</b></p>
           <form action={crearCuenta} className="flex flex-col gap-3 sm:flex-row sm:items-end">

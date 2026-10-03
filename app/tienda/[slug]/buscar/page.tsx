@@ -1,31 +1,31 @@
-// Búsqueda de la tienda (?q=): sin palabra, todo el catálogo.
+// Búsqueda de la tienda (?q=): sin palabra, todo el catálogo. También
+// "Ofertas" (?ofertas=1) y "Más vendidos" (?orden=vendidos), con los mismos
+// filtros de la columna izquierda (?familia=, ?marca=, ?min=, ?max=, ?envio=gratis).
 
 import type { Metadata } from "next";
 import { rutaTienda } from "@/lib/tienda/tienda";
-import { cargarTienda, esOrden } from "../catalogo";
-import { Listado, TITULO } from "../piezas";
+import { arbolDe, cargarTienda } from "../catalogo";
+import { leerFiltros, Listado, Migas } from "../piezas";
 
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-const leer = (x: unknown) => (typeof x === "string" ? x : "");
+const tituloDe = (f: ReturnType<typeof leerFiltros>) =>
+  f.q ? f.q : f.ofertas ? "Ofertas" : f.orden === "vendidos" ? "Más vendidos" : "Todos los productos";
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
-  const q = leer((await searchParams).q).trim();
-  return { title: q ? `Buscar “${q}”` : "Productos" };
+  const f = leerFiltros(await searchParams);
+  return { title: f.q ? `Buscar “${f.q}”` : tituloDe(f) };
 }
 
 export default async function Buscar({ params, searchParams }: Props) {
   const t = await cargarTienda((await params).slug);
-  const sp = await searchParams;
-  const q = leer(sp.q).trim().slice(0, 100);
-  const orden = esOrden(sp.orden) ? sp.orden : "relevancia";
-  const pagina = Math.max(1, Math.trunc(Number(sp.pagina)) || 1);
-  return (
-    <div className="space-y-4">
-      <h1 className={TITULO}>{q ? <>Resultados para “{q}”</> : "Todos los productos"}</h1>
-      <Listado t={t} base={rutaTienda(t, "/buscar")} q={q || null} orden={orden} pagina={pagina} />
-    </div>
-  );
+  const f = leerFiltros(await searchParams);
+  const arbol = f.familiaId ? await arbolDe(t) : null;
+  const fam = f.familiaId ? arbol?.nodos.get(f.familiaId) : null;
+  const migas = fam
+    ? <Migas t={t} partes={[...arbol!.cadena(fam.id).reverse().map((id) => ({ nombre: arbol!.nodos.get(id)?.nombre ?? "", href: rutaTienda(t, `/familia/${id}`) }))]} />
+    : undefined;
+  return <Listado t={t} base={rutaTienda(t, "/buscar")} titulo={tituloDe(f)} filtros={f} migas={migas} />;
 }
