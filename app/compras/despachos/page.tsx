@@ -13,6 +13,8 @@ import {
 } from "@/app/componentes/erp";
 import { fecha } from "@/app/ventas/formato";
 import { ESTADO_DESPACHO } from "../comun";
+import { AccionesExcel } from "@/app/listas/piezas";
+import { LISTA_DESPACHOS, GASTOS_DESPACHO, LINEAS_DESPACHO, COSTO_DESPACHO } from "./lista";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +30,9 @@ export default async function Despachos({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const proveedorId = Number(sp.proveedor) || 0;
   const estado = sp.estado && Object.hasOwn(ESTADO_DESPACHO, sp.estado) ? sp.estado : "";
-  const GASTOS = "coalesce((select sum((g->>'importe_ars')::numeric) from jsonb_array_elements(d.gastos) g), 0)";
-  const LINEAS = "(select count(*) from despacho_linea l where l.despacho_id = d.id)";
+  const GASTOS = GASTOS_DESPACHO;
+  const LINEAS = LINEAS_DESPACHO;
+  const base = await LISTA_DESPACHOS.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
   const [proveedores, { filas, total }] = await Promise.all([
     consulta<{ id: number; nombre: string }>(`
       select distinct p.id::int, p.nombre from proveedor p join despacho_importacion d on d.proveedor_id = p.id
@@ -37,19 +40,19 @@ export default async function Despachos({ searchParams }: { searchParams: Promis
     consultaPaginada<Fila>({
       campos: `d.id::int, d.numero, d.fecha, d.proveedor_id::int, p.nombre proveedor, d.fob_usd::float, (d.flete_usd + d.seguro_usd)::float flete_seguro_usd,
                ${GASTOS}::float gastos_ars, d.cotizacion::float, d.estado, ${LINEAS}::int lineas`,
-      desde: "despacho_importacion d left join proveedor p on p.id = d.proveedor_id",
-      donde: "d.organizacion_id = $1 and ($2 = 0 or d.proveedor_id = $2) and ($3 = '' or d.estado = $3)",
+      desde: base.desde,
+      donde: base.donde,
       orden: leerOrden(sp, {
         fecha: "d.fecha", numero: "d.numero", proveedor: "p.nombre", lineas: LINEAS, fob: "d.fob_usd", flete: "(d.flete_usd + d.seguro_usd)",
-        gastos: GASTOS, costo: `((d.fob_usd + d.flete_usd + d.seguro_usd) * d.cotizacion + ${GASTOS})`, estado: "d.estado",
-      }, "d.fecha desc, d.id desc"),
-    }, [s.org.id, proveedorId, estado], sp),
+        gastos: GASTOS, costo: COSTO_DESPACHO, estado: "d.estado",
+      }, base.orden),
+    }, base.valores, sp),
   ]);
   const hayFiltro = !!(proveedorId || estado);
 
   return (
     <Pantalla titulo="Despachos de importación" subtitulo="La mercadería importada con su FOB, flete, seguro y gastos: queda el costo puesto en depósito"
-      acciones={<Link href="/compras/despachos/nuevo" className={PRIMARIO}>+ Nuevo despacho</Link>}>
+      acciones={<><AccionesExcel lista={LISTA_DESPACHOS} org={s.org.id} /><Link href="/compras/despachos/nuevo" className={PRIMARIO}>+ Nuevo despacho</Link></>}>
       <Avisos sp={sp} />
       <form className="flex flex-wrap items-end gap-2 mb-3">
         <label><span className={ETIQUETA}>Proveedor</span>

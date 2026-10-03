@@ -12,6 +12,8 @@ import {
 } from "@/app/componentes/erp";
 import { fecha, fechaHora } from "@/app/ventas/formato";
 import { LOGISTICA, ESTADO_ENVIO, SUBESTADO_ENVIO, TONO_ENVIO, PESTANAS, esPestana, type Pestana } from "./formato";
+import { AccionesExcel } from "@/app/listas/piezas";
+import { LISTA_ENVIOS, CONDICION_ENVIOS } from "./lista";
 
 export const dynamic = "force-dynamic";
 
@@ -26,14 +28,6 @@ type Fila = {
   imprimible: boolean; cliente_id: number | null; canal_id: number | null;
 };
 
-/** La condición de cada pestaña (sobre la tabla envio, alias e). */
-const CONDICION: Record<Pestana, string> = {
-  despachar: "e.estado in ('ready_to_ship', 'handling') and coalesce(e.logistica, '') <> 'fulfillment'",
-  camino: "e.estado = 'shipped'",
-  entregados: "e.estado = 'delivered'",
-  todos: "true",
-};
-
 export default async function Envios({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("envios_ver");
   const sp = await searchParams;
@@ -44,20 +38,9 @@ export default async function Envios({ searchParams }: { searchParams: Promise<S
   const canales = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from canal where organizacion_id = $1 and id in (select canal_id from envio where organizacion_id = $1) order by nombre", [s.org.id]);
   const cuenta = await consulta<{ despachar: number }>(
-    `select count(*)::int despachar from envio e where e.organizacion_id = $1 and ${CONDICION.despachar}`, [s.org.id]);
+    `select count(*)::int despachar from envio e where e.organizacion_id = $1 and ${CONDICION_ENVIOS.despachar}`, [s.org.id]);
 
-  const valores: unknown[] = [s.org.id];
-  const donde = ["e.organizacion_id = $1", CONDICION[ver]];
-  if (canal) { valores.push(canal); donde.push(`e.canal_id = $${valores.length}`); }
-  if (q) {
-    valores.push(`%${q}%`);
-    const p = `$${valores.length}`;
-    let porId = "";
-    if (/^\d{1,15}$/.test(q)) { valores.push(Number(q)); porId = ` or p.id = $${valores.length}`; }
-    donde.push(`(e.tracking ilike ${p} or e.id_externo ilike ${p} or p.id_externo ilike ${p} or cl.nombre ilike ${p} or e.receptor ilike ${p}${porId})`);
-  }
-  // Para despachar: lo más urgente primero. El resto: lo más nuevo primero.
-  const defecto = ver === "despachar" ? "e.despachar_antes asc nulls last, e.id" : "coalesce(p.fecha, e.creado_ts) desc, e.id desc";
+  const base = await LISTA_ENVIOS.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
   const { filas, total } = await consultaPaginada<Fila>({
     campos: `e.id::int, e.pedido_id::int, p.fecha pedido_fecha, p.id_externo id_externo_pedido, coalesce(cl.nombre, e.receptor) cliente,
            p.cliente_id::int, e.canal_id::int, ca.nombre canal, e.logistica, e.metodo, e.estado, e.subestado, e.despachar_antes,
@@ -65,22 +48,20 @@ export default async function Envios({ searchParams }: { searchParams: Promise<S
              and (e.despachar_antes at time zone '${ZONA}')::date <= (now() at time zone '${ZONA}')::date) vencido,
            e.tracking, e.etiqueta_impresa_ts,
            (coalesce(e.logistica, '') <> 'fulfillment' and e.id_externo is not null) imprimible`,
-    desde: `envio e
-      left join pedido p on p.id = e.pedido_id
-      left join cliente cl on cl.id = p.cliente_id
-      left join canal ca on ca.id = e.canal_id`,
-    donde: donde.join(" and "),
+    desde: base.desde,
+    donde: base.donde,
     orden: leerOrden(sp, {
       pedido: "e.pedido_id", fecha: "coalesce(p.fecha, e.creado_ts)", cliente: "coalesce(cl.nombre, e.receptor)", canal: "ca.nombre",
       logistica: "e.logistica", metodo: "e.metodo", estado: "e.estado", despachar: "e.despachar_antes", tracking: "e.tracking", impresa: "e.etiqueta_impresa_ts",
-    }, defecto),
-  }, valores, sp);
+    }, base.orden),
+  }, base.valores, sp);
 
   const filtros = { ver: ver === "despachar" ? null : ver, canal: canal || null, q };
   const hayImprimibles = filas.some((f) => f.imprimible);
 
   return (
-    <Pantalla titulo="Envíos" subtitulo="Los envíos de los pedidos y sus etiquetas">
+    <Pantalla titulo="Envíos" subtitulo="Los envíos de los pedidos y sus etiquetas"
+      acciones={<AccionesExcel lista={LISTA_ENVIOS} org={s.org.id} />}>
       <Avisos sp={sp} />
       <nav className="flex gap-1 border-b border-[#E3E9F0] mb-3">
         {PESTANAS.map(([k, texto]) => (

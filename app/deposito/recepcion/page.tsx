@@ -9,6 +9,8 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { entrarErp, Pantalla, Avisos, Estado, CAJA, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fechaHoraAR, GRANDE, TIPO_RECEPCION } from "../formato";
 import { accionCrearRecepcion } from "./acciones";
+import { AccionesExcel } from "@/app/listas/piezas";
+import { LISTA_RECEPCIONES } from "./lista";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +43,7 @@ export default async function Recepcion({ searchParams }: { searchParams: Promis
 
   return (
     <Pantalla titulo="Recepción" subtitulo="Entrada de mercadería y devoluciones, escaneando" ancho="max-w-2xl"
-      acciones={<BotonNuevo texto="Nueva recepción" />}>
+      acciones={<><AccionesExcel lista={LISTA_RECEPCIONES} org={s.org.id} /><BotonNuevo texto="Nueva recepción" /></>}>
       <Avisos sp={sp} />
 
       <AltaNueva texto="Nueva recepción" sinBoton className="mb-5">

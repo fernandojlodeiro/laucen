@@ -61,6 +61,14 @@ async function escenario() {
   await q(`insert into comprobante (organizacion_id, ambiente, tipo_cbte, punto_venta, numero, doc_tipo, doc_nro, importe_total, importe_neto, cliente_id)
            values ($1, 'homologacion', 6, 1, 7, 99, '0', 1000, 826.45, $2)`, [org, cliente]);
   await q("insert into publicacion (organizacion_id, variacion_id, canal_id, id_externo) values ($1, $2, $3, 'MLA123')", [org, variacion, canal]);
+  await q("insert into despacho_importacion (organizacion_id, numero, proveedor_id, cotizacion, fob_usd, gastos) values ($1, '26001IC', $2, 1000, 100, '[{\"concepto\": \"Derechos\", \"importe_ars\": 5000}]')", [org, proveedor]);
+  const pedido = await id("select id from pedido where organizacion_id = $1", [org]);
+  await q("insert into envio (organizacion_id, canal_id, pedido_id, estado, direccion, despachar_antes) values ($1, $2, $3, 'ready_to_ship', '{\"calle\": \"Corrientes\", \"numero\": \"1234\"}', now())", [org, canal, pedido]);
+  await q("insert into meli_item (organizacion_id, canal_id, item_id, titulo, precio) values ($1, $2, 'MLA1', 'Sartén ML', 1000)", [org, canal]);
+  await q("insert into recepcion (organizacion_id, deposito_id, proveedor_id) values ($1, $2, $3)", [org, deposito, proveedor]);
+  await q("insert into metodo_envio (organizacion_id, tipo, nombre, tarifas) values ($1, 'por_provincia', 'Correo', '{\"B\": 1000, \"*\": 2000}')", [org]);
+  await q("insert into regla_comercial (organizacion_id, nombre, condicion, accion) values ($1, '3x2', '{\"tipo\": \"cantidad_minima\", \"cantidad\": 3}', '{\"tipo\": \"descuento_pct\", \"valor\": 10}')", [org]);
+  await q("insert into cuenta_fondos (organizacion_id, nombre, tipo) values ($1, 'Galicia', 'banco')", [org]);
   return { org, canal, deposito, lista };
 }
 

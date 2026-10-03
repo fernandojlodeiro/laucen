@@ -21,6 +21,8 @@ import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, patronBusqueda, coincideBusqueda,
 } from "@/app/componentes/erp";
 import { verInactivos } from "@/app/componentes/Inactivos";
+import { AccionesExcel } from "@/app/listas/piezas";
+import { LISTA_PRECIOS, LISTA_LISTAS_PRECIOS, DONDE_PRECIOS, valoresPrecios } from "./lista";
 import { accionBorrarLista, accionCrearLista, accionGuardarLista, accionGuardarPrecio, accionMasivo } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -89,14 +91,14 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
   let filas: Fila[] = [];
   let total = 0;
   if (lista) {
-    const donde = `v.organizacion_id = $1 and v.estado = 'activa' and ($7 or p.estado <> 'archivado')
-         and ($4::text is null or v.sku ilike $4 or p.titulo ilike $4 or v.titulo ilike $4 or v.codigo_barras = $5)`;
+    // Los mismos filtros que el Excel ($1…$6, lista.tsx); el desplazamiento de la página va en $7.
+    const donde = DONDE_PRECIOS;
     const porPrecio = ["lista", "descuento", "venta", "vigente"].includes(sp.orden ?? "");
     const ordenSql = leerOrden(sp, {
       sku: "v.sku", titulo: "coalesce(v.titulo, p.titulo)",
       lista: "pr.lista_ars", descuento: "descuento_efectivo($1, v.id)", venta: "pr.venta_ars", vigente: "pr.vigente_desde",
     }, "v.sku, v.id");
-    const valores = [s.org.id, lista.id, hoyAR(), patronBusqueda(q, comienza), q, desde, inactivos];
+    const valores = [...valoresPrecios(s.org.id, lista.id, sp), desde];
     const campos = `v.id::int, v.producto_id::int, v.sku, titulo_variacion(v.id) titulo, pr.precio_id::int,
              pr.lista_ars, pr.lista_usd, pr.moneda_origen, to_char(pr.vigente_desde, 'DD/MM/YYYY') vigente,
              descuento_efectivo($1, v.id) descuento, pr.venta_ars, pr.venta_usd,
@@ -107,17 +109,17 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
         select ${campos}
           from variacion v join producto p on p.id = v.producto_id
           left join lateral precio_de($1, v.id, $2, $3::date) pr on true
-         where ${donde} order by ${ordenSql} limit ${POR_PAGINA} offset $6` : `
+         where ${donde} order by ${ordenSql} limit ${POR_PAGINA} offset $7` : `
         with pagina as (
           select v.id from variacion v join producto p on p.id = v.producto_id
-           where ${donde} order by ${ordenSql} limit ${POR_PAGINA} offset $6)
+           where ${donde} order by ${ordenSql} limit ${POR_PAGINA} offset $7)
         select ${campos}
           from pagina pg join variacion v on v.id = pg.id join producto p on p.id = v.producto_id
           left join lateral precio_de($1, v.id, $2, $3::date) pr on true
          order by ${ordenSql}`, valores),
-      // El conteo usa los mismos valores: las condiciones de $2, $3 y $6 sólo le dan tipo a esos parámetros.
+      // El conteo usa los mismos valores: las condiciones de $2, $3 y $7 sólo le dan tipo a esos parámetros.
       consulta<{ n: number }>(`select count(*)::int n from variacion v join producto p on p.id = v.producto_id where ${donde}
-         and $2::bigint is not null and $3::date is not null and $6::int is not null`, valores),
+         and $2::bigint is not null and $3::date is not null and $7::int is not null`, valores),
     ]);
     filas = lasFilas;
     total = n?.n ?? 0;
@@ -137,7 +139,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
 
   return (
     <Pantalla titulo="Listas de precios" subtitulo="El precio de lista (el tachado). El de venta resta el descuento de la variación, del producto o de la familia."
-      acciones={<BotonNuevo texto="Nueva lista" />}>
+      acciones={<><AccionesExcel lista={LISTA_LISTAS_PRECIOS} org={s.org.id} /><BotonNuevo texto="Nueva lista" /></>}>
       <Avisos sp={sp} />
       <AltaNueva texto="Nueva lista" sinBoton>
         <form action={accionCrearLista} className="flex flex-wrap items-center gap-2">
@@ -230,6 +232,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
               {formula(lista.id) && <span className="font-normal text-[#5C6B76]"> · {formula(lista.id)}</span>}</h2>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <BuscadorVivo q={q} comienza={comienza} inactivos={inactivos} placeholder="Buscar SKU, título o código de barras" limpiar={["p", "precio"]} />
+              <AccionesExcel lista={LISTA_PRECIOS} org={s.org.id} extra={{ lista: String(lista.id) }} />
             </div>
           </div>
           {formula(lista.id) && (

@@ -15,10 +15,12 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, patronBusqueda,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import { sembrarEjemploCanales, canalesDeEjemplo } from "./ejemplo";
 import CuentaMl from "./CuentaMl";
+import { AccionesExcel } from "@/app/listas/piezas";
+import { LISTA_CANALES } from "./lista";
 import {
   accionAgregarDeposito, accionBorrarCanal, accionCrearCanal, accionGenerarToken, accionGuardarCanal,
   accionPrioridadDeposito, accionQuitarDeposito, accionRevocarToken,
@@ -49,6 +51,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
   const comienza = sp.contiene !== "1";
   const filtros = { q: q || null, contiene: comienza ? null : "1" };
 
+  const base = await LISTA_CANALES.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
   const canales = await consulta<{
     id: number; nombre: string; tipo: string; lista_id: number | null; lista: string | null; estado: string;
     umbral: number | null; tiene_llave: boolean; depositos: string | null; ml: string | null;
@@ -58,9 +61,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
            (select string_agg(d.nombre, ', ' order by cd.prioridad, d.nombre) from canal_deposito cd join deposito d on d.id = cd.deposito_id
              where cd.canal_id = c.id) depositos,
            (select mc.estado from meli_cuenta mc where mc.canal_id = c.id) ml
-      from canal c left join lista_precios l on l.id = c.lista_precios_id
-     where c.organizacion_id = $1 and ($2::text is null or c.nombre ilike $2)
-     order by c.estado, c.nombre`, [s.org.id, patronBusqueda(q, comienza)]);
+      from ${base.desde} where ${base.donde} order by ${base.orden}`, base.valores);
   const listas = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from lista_precios where organizacion_id = $1 and estado = 'activa' order by orden, nombre", [s.org.id]);
   const elegido = canales.find((c) => c.id === Number(sp.c));
@@ -98,7 +99,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
 
   return (
     <Pantalla titulo="Canales" subtitulo="Por dónde se vende: con qué lista de precios y desde qué depósitos. Tocá un canal para ver sus depósitos, su cuenta de Mercado Libre y su llave API."
-      acciones={<BotonNuevo texto="Nuevo canal" />}>
+      acciones={<><AccionesExcel lista={LISTA_CANALES} org={s.org.id} /><BotonNuevo texto="Nuevo canal" /></>}>
       <Avisos sp={sp} />
       <AltaNueva texto="Nuevo canal" sinBoton>
         <form action={accionCrearCanal} className="flex flex-wrap items-center gap-2">

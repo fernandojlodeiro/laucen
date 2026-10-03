@@ -12,8 +12,10 @@ import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { CONDICIONES_IVA } from "@/app/ventas/formato";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA, patronBusqueda,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
+import { AccionesExcel } from "@/app/listas/piezas";
+import { LISTA_PROVEEDORES, FACTURAS_PROVEEDOR } from "./lista";
 import { accionBorrarProveedor, accionCrearProveedor, accionGuardarProveedor } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -65,28 +67,26 @@ export default async function Proveedores({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const comienza = sp.contiene !== "1";
-  const digitos = q.replace(/\D/g, "");
   const editar = Number(sp.editar) || 0;
   // ?id= muestra un solo proveedor (a donde llevan los enlaces de otras pantallas).
   const soloId = Number(sp.id) || 0;
-  const FACTURAS = "(select count(*) from factura_compra f where f.proveedor_id = pr.id)";
+  const FACTURAS = FACTURAS_PROVEEDOR;
+  const base = await LISTA_PROVEEDORES.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
   const { filas, total } = await consultaPaginada<Proveedor>({
     campos: `pr.id::int, pr.nombre, pr.razon_social, pr.cuit, pr.condicion_iva, pr.pais, pr.email, pr.telefono, pr.contacto, pr.calle,
              pr.localidad, pr.provincia, pr.moneda, pr.condiciones_pago, pr.notas, pr.estado, ${FACTURAS}::int facturas`,
-    desde: "proveedor pr",
-    donde: `pr.organizacion_id = $1 and ($4 = 0 or pr.id = $4)
-       and ($2::text is null or pr.nombre ilike $2 or pr.razon_social ilike $2 or pr.email ilike $2
-            or regexp_replace(coalesce(pr.cuit, ''), '\\D', '', 'g') like $3)`,
+    desde: base.desde,
+    donde: base.donde,
     orden: leerOrden(sp, {
       id: "pr.id", nombre: "pr.nombre", cuit: "pr.cuit", iva: "pr.condicion_iva", contacto: "pr.contacto", moneda: "pr.moneda",
       facturas: FACTURAS, estado: "pr.estado",
-    }, "pr.estado, pr.nombre, pr.id"),
-  }, [s.org.id, patronBusqueda(q, comienza), digitos ? patronBusqueda(digitos, comienza) : null, soloId], sp);
+    }, base.orden),
+  }, base.valores, sp);
   const aqui = (extra: Record<string, string | number | null>) => url("/compras/proveedores", { q: q || null, contiene: comienza ? null : "1", id: soloId || null, p: sp.p, orden: sp.orden, dir: sp.dir, ...extra });
 
   return (
     <Pantalla titulo="Proveedores" subtitulo="A quién le comprás. Se cargan a mano o desde el archivo de Virtual Seller (Configuración → Importar datos)."
-      acciones={<BotonNuevo texto="Nuevo proveedor" />}>
+      acciones={<><AccionesExcel lista={LISTA_PROVEEDORES} org={s.org.id} /><BotonNuevo texto="Nuevo proveedor" /></>}>
       <Avisos sp={sp} />
       <AltaNueva texto="Nuevo proveedor" sinBoton>
         <form action={accionCrearProveedor} className="grid gap-2">

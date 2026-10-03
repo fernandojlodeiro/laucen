@@ -19,13 +19,15 @@ import {
   entrarErp, Pantalla, Avisos, Lapiz, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA, url, coincideBusqueda,
 } from "@/app/componentes/erp";
 import { fecha } from "@/app/ventas/formato";
+import { AccionesExcel } from "@/app/listas/piezas";
+import { LISTA_TESORERIA, TIPOS_CUENTA as TIPOS_CUENTA_LISTA } from "./lista";
 import { accionCrearCuenta, accionGuardarCuenta, accionActivarCuenta, accionBorrarCuenta } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
 type SP = { c?: string; editar?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
-const TIPOS_CUENTA: Record<string, string> = { caja: "Caja", banco: "Banco", mercadopago: "Mercado Pago", otro: "Otra" };
+const TIPOS_CUENTA = TIPOS_CUENTA_LISTA;
 
 type Contable = { id: number; codigo: string; nombre: string };
 type CuentaFila = Awaited<ReturnType<typeof cuentasConSaldo>>[number];
@@ -82,7 +84,7 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
 
   return (
     <Pantalla titulo="Caja y bancos" subtitulo="Las cuentas donde está la plata, con su saldo y lo que falta conciliar con el extracto"
-      acciones={<BotonNuevo texto="Nueva cuenta" />}>
+      acciones={<><AccionesExcel lista={LISTA_TESORERIA} org={s.org.id} /><BotonNuevo texto="Nueva cuenta" /></>}>
       <Avisos sp={sp} />
       <AltaNueva texto="Nueva cuenta" sinBoton>
         <form action={accionCrearCuenta} className="flex flex-wrap items-end gap-2">

@@ -14,9 +14,11 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, url, patronBusqueda, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA,
+  entrarErp, Pantalla, Avisos, Lapiz, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
 import { TIPOS_ENVIO, PROVINCIAS, type TipoEnvio } from "./comun";
+import { AccionesExcel } from "@/app/listas/piezas";
+import { LISTA_METODOS_ENVIO } from "./lista";
 import { accionCrearEnvio, accionGuardarEnvio, accionActivarEnvio, accionBorrarEnvio } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -56,17 +58,17 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
   const q = sp.q?.trim() ?? "";
   const comienza = sp.contiene !== "1";
   const filtros = { q: q || null, contiene: comienza ? null : "1", p: sp.p, orden: sp.orden, dir: sp.dir };
+  const base = await LISTA_METODOS_ENVIO.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
   const metodos = await consulta<Metodo>(`
     select id::int, tipo, nombre, activo, costo_ars::float costo, gratis_desde_ars::float gratis, tarifas, plazo, instrucciones, orden
-      from metodo_envio where organizacion_id = $1 and canal_id is null and ($2::text is null or nombre ilike $2)
-     order by orden, id`, [s.org.id, patronBusqueda(q, comienza)]);
+      from ${base.desde} where ${base.donde} order by ${base.orden}`, base.valores);
   const vista = paginarEnMemoria(ordenarEnMemoria(metodos, sp, {
     nombre: (m) => m.nombre, tipo: (m) => TIPOS_ENVIO[m.tipo]?.texto ?? m.tipo, activo: (m) => (m.activo ? 1 : 0), costo: (m) => m.costo,
     gratis: (m) => m.gratis, plazo: (m) => m.plazo, instrucciones: (m) => m.instrucciones, orden: (m) => m.orden,
   }), sp);
 
   return (
-    <Pantalla acciones={<BotonNuevo texto="Nuevo método de envío" />} titulo="Métodos de envío" subtitulo="Cómo le llega el pedido al comprador de la tienda web. Importes en pesos." ancho="max-w-6xl">
+    <Pantalla acciones={<><AccionesExcel lista={LISTA_METODOS_ENVIO} org={s.org.id} /><BotonNuevo texto="Nuevo método de envío" /></>} titulo="Métodos de envío" subtitulo="Cómo le llega el pedido al comprador de la tienda web. Importes en pesos." ancho="max-w-6xl">
       <Avisos sp={sp} />
       <AltaNueva texto="Nuevo método de envío" sinBoton>
         <form action={accionCrearEnvio} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end">

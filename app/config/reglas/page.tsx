@@ -14,13 +14,15 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, patronBusqueda, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
 import { fecha } from "@/app/ventas/formato";
 import { TIPOS_MEDIO } from "@/app/config/medios-pago/comun";
 import { arbolFamilias } from "@/app/config/cuotas/familias";
 import CamposRegla from "./CamposRegla";
 import { enCriollo, formaDe, type Condicion, type Accion, type TipoAccion } from "./comun";
+import { AccionesExcel } from "@/app/listas/piezas";
+import { LISTA_REGLAS } from "./lista";
 import { accionCrearRegla, accionGuardarRegla, accionActivarRegla, accionBorrarRegla } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -39,16 +41,12 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
   const q = sp.q?.trim() ?? "";
   const comienza = sp.contiene !== "1";
   const filtros = { q: q || null, contiene: comienza ? null : "1", p: sp.p, orden: sp.orden, dir: sp.dir };
+  const base = await LISTA_REGLAS.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
   const [reglas, familias, mediosDb] = await Promise.all([
     consulta<Regla>(`
       select r.id::int, r.nombre, r.activa, r.condicion, r.accion, to_char(r.desde, 'YYYY-MM-DD') desde, to_char(r.hasta, 'YYYY-MM-DD') hasta,
              r.acumulable, r.prioridad, p.id::int producto_id, f.id::int familia_id, p.titulo producto, p.sku_base sku, f.nombre familia, m.nombre medio
-        from regla_comercial r
-        left join producto p on p.id = (r.condicion ->> 'producto_id')::bigint and p.organizacion_id = r.organizacion_id
-        left join familia f on f.id = (r.condicion ->> 'familia_id')::bigint and f.organizacion_id = r.organizacion_id
-        left join lateral (select nombre from medio_pago where organizacion_id = r.organizacion_id and canal_id is null and tipo = r.condicion ->> 'medio' limit 1) m on true
-       where r.organizacion_id = $1 and r.canal_id is null and ($2::text is null or r.nombre ilike $2)
-       order by r.prioridad desc, r.id`, [s.org.id, patronBusqueda(q, comienza)]),
+        from ${base.desde} where ${base.donde} order by ${base.orden}`, base.valores),
     arbolFamilias(s.org.id),
     consulta<{ tipo: string; nombre: string }>("select tipo, nombre from medio_pago where organizacion_id = $1 and canal_id is null order by orden, id", [s.org.id]),
   ]);
@@ -75,7 +73,7 @@ export default async function Reglas({ searchParams }: { searchParams: Promise<S
   );
 
   return (
-    <Pantalla acciones={<BotonNuevo texto="Nueva regla" />} titulo="Reglas comerciales" subtitulo="Promociones de la tienda web: descuentos por cantidad, por monto, por medio de pago y envío gratis" ancho="max-w-6xl">
+    <Pantalla acciones={<><AccionesExcel lista={LISTA_REGLAS} org={s.org.id} /><BotonNuevo texto="Nueva regla" /></>} titulo="Reglas comerciales" subtitulo="Promociones de la tienda web: descuentos por cantidad, por monto, por medio de pago y envío gratis" ancho="max-w-6xl">
       <Avisos sp={sp} />
       <AltaNueva texto="Nueva regla" sinBoton>
         <form action={accionCrearRegla} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-start">

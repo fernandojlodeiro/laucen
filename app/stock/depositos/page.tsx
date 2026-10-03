@@ -15,8 +15,10 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { consultaPaginada, leerOrden, ordenarEnMemoria } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, CAJA, patronBusqueda,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, CAJA,
 } from "@/app/componentes/erp";
+import { AccionesExcel } from "@/app/listas/piezas";
+import { LISTA_DEPOSITOS, LISTA_UBICACIONES, TIPOS_DEPOSITO, UNIDADES_UBICACION } from "./lista";
 import {
   accionArchivarDeposito, accionBorrarDeposito, accionBorrarUbicacion, accionCrearDeposito, accionCrearUbicacion,
   accionGuardarDeposito, accionGuardarUbicacion, accionUsaUbicaciones,
@@ -26,7 +28,7 @@ export const dynamic = "force-dynamic";
 
 const BASE = "/stock/depositos";
 
-const TIPOS: Record<string, string> = { propio: "Propio", full_ml: "Full de Mercado Libre", tercerizado: "Tercerizado", caja_abierta: "Caja abierta" };
+const TIPOS = TIPOS_DEPOSITO;
 
 type SP = { d?: string; editar?: string; eu?: string; archivar?: string; q?: string; contiene?: string; qd?: string; qdcontiene?: string; u?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
@@ -52,21 +54,20 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
   // Buscador de ubicaciones (por código o descripción) y la ubicación abierta (?u=).
   const q = sp.q?.trim() ?? "";
   const comienza = sp.contiene !== "1";
-  const patron = patronBusqueda(q, comienza);
   // Buscador de depósitos (por nombre): otro parámetro, porque q es el de ubicaciones.
   const qd = sp.qd?.trim() ?? "";
   const comienzaD = sp.qdcontiene !== "1";
-  const patronD = patronBusqueda(qd, comienzaD);
   const abierta = Number(sp.u) || 0;
 
+  const ctx = { org: s.org.id, moneda: s.moneda };
+  const baseD = await LISTA_DEPOSITOS.consulta!(ctx, sp);
   const depositos = await consulta<{
     id: number; nombre: string; tipo: string; usa_ubicaciones: boolean; direccion: string | null; estado: string; ubicaciones: number; unidades: number;
   }>(`
     select d.id::int, d.nombre, d.tipo, d.usa_ubicaciones, d.direccion, d.estado,
            (select count(*) from ubicacion u where u.deposito_id = d.id)::int ubicaciones,
            (select coalesce(sum(s.cantidad), 0) from stock s join ubicacion u on u.id = s.ubicacion_id where u.deposito_id = d.id)::int unidades
-      from deposito d where d.organizacion_id = $1 and ($2::text is null or d.nombre ilike $2)
-     order by d.estado, d.nombre`, [s.org.id, patronD]);
+      from ${baseD.desde} where ${baseD.donde} order by ${baseD.orden}`, baseD.valores);
   // Con un solo depósito activo, sus ubicaciones se ven de entrada.
   const activos = depositos.filter((d) => d.estado === "activo");
   const elegido = depositos.find((d) => d.id === Number(sp.d)) ?? (activos.length === 1 ? activos[0] : undefined);
@@ -80,19 +81,18 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
     nombre: (d) => d.nombre, tipo: (d) => TIPOS[d.tipo] ?? d.tipo, usa: (d) => (d.usa_ubicaciones ? 1 : 0), direccion: (d) => d.direccion,
     estado: (d) => d.estado, ubicaciones: (d) => d.ubicaciones, unidades: (d) => d.unidades,
   });
-  const UNIDADES = "(select coalesce(sum(s.cantidad), 0) from stock s where s.ubicacion_id = u.id)";
-  const { filas: ubicaciones, total: totalUbicaciones } = elegido ? await consultaPaginada<{
+  const UNIDADES = UNIDADES_UBICACION;
+  const baseU = elegido ? await LISTA_UBICACIONES.consulta!(ctx, { ...sp, d: String(elegido.id) }) : null;
+  const { filas: ubicaciones, total: totalUbicaciones } = elegido && baseU ? await consultaPaginada<{
     id: number; codigo: string; descripcion: string | null; orden_recorrido: number; es_default: boolean; estado: string; unidades: number;
   }>({
     campos: `u.id::int, u.codigo, u.descripcion, u.orden_recorrido, u.es_default, u.estado, ${UNIDADES}::int unidades`,
-    desde: "ubicacion u",
-    donde: `u.deposito_id = $2 and u.organizacion_id = $1
-       and (u.es_default or $3::boolean)
-       and ($4::text is null or u.codigo ilike $4 or u.descripcion ilike $4)`,
+    desde: baseU.desde,
+    donde: baseU.donde,
     orden: leerOrden(sp, {
       u_codigo: "u.codigo", u_descripcion: "u.descripcion", u_orden: "u.orden_recorrido", u_estado: "u.estado", u_unidades: UNIDADES,
-    }, "u.es_default desc, u.orden_recorrido, u.codigo"),
-  }, [s.org.id, elegido.id, elegido.usa_ubicaciones, patron], sp) : { filas: [], total: 0 };
+    }, baseU.orden),
+  }, baseU.valores, sp) : { filas: [], total: 0 };
   const ubicAbierta = ubicaciones.find((u) => u.id === abierta);
 
   // Lo que hay adentro de la ubicación abierta.
@@ -110,7 +110,7 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
 
   return (
     <Pantalla titulo="Depósitos y ubicaciones" subtitulo="Dónde está la mercadería. Con “Ubicaciones” ves, agregás y editás las de cada depósito."
-      acciones={<BotonNuevo texto="Nuevo depósito" />}
+      acciones={<><AccionesExcel lista={LISTA_DEPOSITOS} org={s.org.id} /><BotonNuevo texto="Nuevo depósito" /></>}
       camino={elegido ? [
         ...(ubicAbierta ? [{ texto: elegido.nombre, href: url(BASE, { d: elegido.id, ...filtrosD }) }, { texto: ubicAbierta.codigo }] : [{ texto: elegido.nombre }]),
       ] : undefined}>
@@ -198,7 +198,10 @@ export default async function Depositos({ searchParams }: { searchParams: Promis
         <section className={`${CAJA} mt-6`}>
           <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
             <h2 className="text-sm font-bold">Ubicaciones de “{elegido.nombre}”</h2>
-            {elegido.usa_ubicaciones && <BotonNuevo texto="Nueva ubicación" />}
+            <span className="flex flex-wrap gap-2">
+              <AccionesExcel lista={LISTA_UBICACIONES} org={s.org.id} extra={{ d: String(elegido.id) }} />
+              {elegido.usa_ubicaciones && <BotonNuevo texto="Nueva ubicación" />}
+            </span>
           </div>
           {!elegido.usa_ubicaciones && (
             <p className="text-[11px] text-[#5C6B76] mb-2">

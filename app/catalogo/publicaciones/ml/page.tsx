@@ -16,6 +16,8 @@ import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import {
   entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, patronBusqueda,
 } from "@/app/componentes/erp";
+import { AccionesExcel } from "@/app/listas/piezas";
+import { LISTA_VINCULAR_ML, ESTADO_ML, TIPO_ML, LOGISTICA_ML, filtroMl, verMl } from "./lista";
 import { accionTraerPublicaciones, accionVincular, accionCrearProducto, accionDesvincular } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -35,13 +37,6 @@ type Fila = {
   variacion_id: number | null; var_sku: string | null; var_titulo: string | null; producto_id: number | null; disponible: number | null;
   inactivo: boolean; fotos: string[] | null;
 };
-
-const ESTADO_ML: Record<string, { texto: string; tono: "verde" | "amarillo" | "gris" | "azul" }> = {
-  active: { texto: "Activa", tono: "verde" }, paused: { texto: "Pausada", tono: "amarillo" },
-  closed: { texto: "Cerrada", tono: "gris" }, under_review: { texto: "En revisión", tono: "azul" },
-};
-const TIPO_ML: Record<string, string> = { gold_pro: "Premium", gold_special: "Clásica", free: "Gratuita" };
-const LOGISTICA_ML: Record<string, string> = { fulfillment: "Full" };
 
 export default async function VincularMl({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("publicaciones_ver");
@@ -70,7 +65,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
   }
 
   const canal = canales.find((c) => c.id === Number(sp.canal)) ?? canales[0];
-  const ver: Ver = sp.ver === "vinc" || sp.ver === "todas" ? sp.ver : "sin";
+  const ver: Ver = verMl(sp);
   const q = sp.q?.trim() || "";
   const comienza = sp.contiene !== "1";
   const cont = comienza ? null : "1";
@@ -81,11 +76,11 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
     select count(*)::int total, count(publicacion_id)::int vinculadas
       from meli_item where organizacion_id = $1 and canal_id = $2`, [org, canal.id]))[0];
 
-  const filtroVer = ver === "sin" ? "and mi.publicacion_id is null" : ver === "vinc" ? "and mi.publicacion_id is not null" : "";
-  const filtroQ = "and ($3::text is null or mi.titulo ilike $3 or mi.sku ilike $3 or mi.item_id ilike $3)";
+  // Los mismos filtros que el Excel (lista.tsx).
+  const filtro = filtroMl(ver);
   const params = [org, canal.id, patronBusqueda(q, comienza)];
   const cantidad = (await consulta<{ n: number }>(
-    `select count(*)::int n from meli_item mi where mi.organizacion_id = $1 and mi.canal_id = $2 ${filtroVer} ${filtroQ}`, params))[0].n;
+    `select count(*)::int n from meli_item mi where ${filtro}`, params))[0].n;
 
   const filas = await consulta<Fila>(`
     select mi.item_id, mi.variation_id, mi.titulo, mi.atributos, mi.sku, mi.precio, mi.stock, mi.vendidos, mi.estado, mi.tipo,
@@ -104,7 +99,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
       ) mi
       left join publicacion pu on pu.id = mi.publicacion_id and pu.organizacion_id = $1
       left join variacion v on v.id = pu.variacion_id
-     where mi.organizacion_id = $1 and mi.canal_id = $2 ${filtroVer} ${filtroQ}
+     where ${filtro}
      order by ${leerOrden(sp, {
        titulo: "mi.titulo", sku: "mi.sku", precio: "mi.precio", stock: "mi.stock", vendidos: "mi.vendidos", estado: "mi.estado", tipo: "mi.tipo", vinculo: "v.sku",
      }, "mi.titulo, mi.item_id, mi.variation_id")}
@@ -122,7 +117,8 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
   ];
 
   return (
-    <Pantalla titulo="Vincular con Mercado Libre" subtitulo="Cada publicación de Mercado Libre con su variación de Laucen">
+    <Pantalla titulo="Vincular con Mercado Libre" subtitulo="Cada publicación de Mercado Libre con su variación de Laucen"
+      acciones={<AccionesExcel lista={LISTA_VINCULAR_ML} org={org} extra={{ canal: String(canal.id) }} />}>
       <Avisos sp={sp} />
 
       <div className="flex flex-wrap items-end gap-2 mb-3">
