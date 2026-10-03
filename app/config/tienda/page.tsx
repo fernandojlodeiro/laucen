@@ -109,6 +109,78 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
               <div><span className={ETIQUETA}>Vende el stock de</span>{t.depositos ?? <span className="text-[#C03420]">Ningún depósito: elegilos en Canales</span>}</div>
             </div>
 
+            <div className="mb-4">
+              <TituloSeccion titulo={`Dominios (${doms.length})`}>
+                {puedeDominios && <BotonNuevo texto="Nuevo dominio" clave={`nuevo-dominio-${t.id}`} />}
+              </TituloSeccion>
+              {puedeDominios && (
+                <AltaNueva texto="Nuevo dominio" clave={`nuevo-dominio-${t.id}`} sinBoton>
+                  <form action={accionNuevoDominio} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end text-xs">
+                    <input type="hidden" name="canal_id" value={t.id} />
+                    <label><span className={ETIQUETA}>Dominio</span>
+                      <input name="dominio" required autoFocus placeholder="mitienda.com.ar" className={`${CAMPO} w-full font-mono`} /></label>
+                    <div><span className={ETIQUETA}>Tipo</span>
+                      <span className="flex flex-wrap gap-3 py-1.5">
+                        <label className="inline-flex items-center gap-1"><input type="radio" name="tipo" value="principal" defaultChecked={!principal} disabled={!!principal} /> Principal (abre la tienda)</label>
+                        <label className="inline-flex items-center gap-1"><input type="radio" name="tipo" value="redirige" defaultChecked={!!principal} disabled={!principal} /> Redirige al principal</label>
+                      </span></div>
+                    <div><BotonEnviar clase={PRIMARIO} corriendo="Conectando…">Crear</BotonEnviar></div>
+                  </form>
+                  <p className="text-[11px] text-[#5C6B76] mt-2">
+                    {principal ? <>Los demás dominios (www, otras marcas) redirigen a <b>{principal}</b>.</> : <>Primero el principal: es el que abre la tienda. Después, los que redirigen a él (www, otras marcas).</>}
+                    {" "}Al crearlo, Laucen lo agrega en Vercel y te muestra los registros DNS que hay que cargar.
+                  </p>
+                </AltaNueva>
+              )}
+              {!llave && puedeDominios && (
+                <p className="text-[11px] text-[#8a6100] mb-2">Falta la llave de Vercel: los dominios quedan anotados, pero no se conectan hasta que esté.</p>
+              )}
+              {doms.length === 0 ? (
+                <p className={`${CAJA} text-xs text-[#5C6B76]`}>Sin dominio propio: la tienda abre en {base}/tienda/{slug}.</p>
+              ) : (
+                <div className={CAJA_TABLA}>
+                  <table className={TABLA}>
+                    <thead className={THEAD}><tr>
+                      <th className={TH}>Dominio</th><th className={TH}>Tipo</th><th className={TH}>Estado</th>
+                      <th className={TH}>Registros DNS a cargar</th><th className={TH}>Revisado</th><th className={TH}></th>
+                    </tr></thead>
+                    <tbody>
+                      {doms.map((d) => {
+                        const e = ESTADOS_DOMINIO[d.estado] ?? { texto: d.estado, tono: "gris" as const };
+                        return (
+                          <tr key={d.id} className={TR}>
+                            <td className={`${TD} font-mono`}><a href={`https://${d.dominio}`} target="_blank" rel="noopener" className="text-[#16577F] hover:underline">{d.dominio}</a></td>
+                            <td className={TD}>{d.principal ? "Principal" : <>Redirige a <span className="font-mono">{principal ?? "—"}</span></>}</td>
+                            <td className={TD}><Estado texto={e.texto} tono={e.tono} />
+                              {d.detalle && <span className="block text-[11px] text-[#C03420] mt-0.5">{d.detalle}</span>}</td>
+                            <td className={TD}>
+                              {d.estado === "con_certificado" || d.dns.length === 0 ? <span className="text-[#5C6B76]">—</span> : (
+                                <ul className="space-y-0.5">
+                                  {d.dns.map((r, i) => (
+                                    <li key={i} className="font-mono text-[11px]"><b>{r.tipo}</b> {r.nombre} → <span className="break-all">{r.valor}</span></li>
+                                  ))}
+                                </ul>
+                              )}</td>
+                            <td className={`${TD} whitespace-nowrap`}>{d.revisado ?? "—"}</td>
+                            <td className={`${TD} whitespace-nowrap`}>
+                              {puedeDominios && (
+                                <span className="flex items-center gap-1 justify-end">
+                                  {d.estado !== "con_certificado" && (
+                                    <form action={accionVerificarDominio}><input type="hidden" name="id" value={d.id} />
+                                      <BotonEnviar clase={SUAVE} corriendo="Verificando…">Verificar</BotonEnviar></form>
+                                  )}
+                                  <TachoConfirmar accion={accionBorrarDominio} campos={{ id: String(d.id) }} pregunta="¿Borrar?" />
+                                </span>
+                              )}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
             {!editando ? (
               <div className={`${CAJA} grid grid-cols-1 sm:grid-cols-2 gap-3 items-start`}>
                 <Dato etiqueta="Nombre que ve el comprador">{c.nombre ?? t.nombre}</Dato>
@@ -188,77 +260,6 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
             </form>
             )}
 
-            <div className="mt-6">
-              <TituloSeccion titulo={`Dominios (${doms.length})`}>
-                {puedeDominios && <BotonNuevo texto="Nuevo dominio" clave={`nuevo-dominio-${t.id}`} />}
-              </TituloSeccion>
-              {puedeDominios && (
-                <AltaNueva texto="Nuevo dominio" clave={`nuevo-dominio-${t.id}`} sinBoton>
-                  <form action={accionNuevoDominio} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end text-xs">
-                    <input type="hidden" name="canal_id" value={t.id} />
-                    <label><span className={ETIQUETA}>Dominio</span>
-                      <input name="dominio" required autoFocus placeholder="mitienda.com.ar" className={`${CAMPO} w-full font-mono`} /></label>
-                    <div><span className={ETIQUETA}>Tipo</span>
-                      <span className="flex flex-wrap gap-3 py-1.5">
-                        <label className="inline-flex items-center gap-1"><input type="radio" name="tipo" value="principal" defaultChecked={!principal} disabled={!!principal} /> Principal (abre la tienda)</label>
-                        <label className="inline-flex items-center gap-1"><input type="radio" name="tipo" value="redirige" defaultChecked={!!principal} disabled={!principal} /> Redirige al principal</label>
-                      </span></div>
-                    <div><BotonEnviar clase={PRIMARIO} corriendo="Conectando…">Crear</BotonEnviar></div>
-                  </form>
-                  <p className="text-[11px] text-[#5C6B76] mt-2">
-                    {principal ? <>Los demás dominios (www, otras marcas) redirigen a <b>{principal}</b>.</> : <>Primero el principal: es el que abre la tienda. Después, los que redirigen a él (www, otras marcas).</>}
-                    {" "}Al crearlo, Laucen lo agrega en Vercel y te muestra los registros DNS que hay que cargar.
-                  </p>
-                </AltaNueva>
-              )}
-              {!llave && puedeDominios && (
-                <p className="text-[11px] text-[#8a6100] mb-2">Falta la llave de Vercel: los dominios quedan anotados, pero no se conectan hasta que esté.</p>
-              )}
-              {doms.length === 0 ? (
-                <p className={`${CAJA} text-xs text-[#5C6B76]`}>Sin dominio propio: la tienda abre en {base}/tienda/{slug}.</p>
-              ) : (
-                <div className={CAJA_TABLA}>
-                  <table className={TABLA}>
-                    <thead className={THEAD}><tr>
-                      <th className={TH}>Dominio</th><th className={TH}>Tipo</th><th className={TH}>Estado</th>
-                      <th className={TH}>Registros DNS a cargar</th><th className={TH}>Revisado</th><th className={TH}></th>
-                    </tr></thead>
-                    <tbody>
-                      {doms.map((d) => {
-                        const e = ESTADOS_DOMINIO[d.estado] ?? { texto: d.estado, tono: "gris" as const };
-                        return (
-                          <tr key={d.id} className={TR}>
-                            <td className={`${TD} font-mono`}><a href={`https://${d.dominio}`} target="_blank" rel="noopener" className="text-[#16577F] hover:underline">{d.dominio}</a></td>
-                            <td className={TD}>{d.principal ? "Principal" : <>Redirige a <span className="font-mono">{principal ?? "—"}</span></>}</td>
-                            <td className={TD}><Estado texto={e.texto} tono={e.tono} />
-                              {d.detalle && <span className="block text-[11px] text-[#C03420] mt-0.5">{d.detalle}</span>}</td>
-                            <td className={TD}>
-                              {d.estado === "con_certificado" || d.dns.length === 0 ? <span className="text-[#5C6B76]">—</span> : (
-                                <ul className="space-y-0.5">
-                                  {d.dns.map((r, i) => (
-                                    <li key={i} className="font-mono text-[11px]"><b>{r.tipo}</b> {r.nombre} → <span className="break-all">{r.valor}</span></li>
-                                  ))}
-                                </ul>
-                              )}</td>
-                            <td className={`${TD} whitespace-nowrap`}>{d.revisado ?? "—"}</td>
-                            <td className={`${TD} whitespace-nowrap`}>
-                              {puedeDominios && (
-                                <span className="flex items-center gap-1 justify-end">
-                                  {d.estado !== "con_certificado" && (
-                                    <form action={accionVerificarDominio}><input type="hidden" name="id" value={d.id} />
-                                      <BotonEnviar clase={SUAVE} corriendo="Verificando…">Verificar</BotonEnviar></form>
-                                  )}
-                                  <TachoConfirmar accion={accionBorrarDominio} campos={{ id: String(d.id) }} pregunta="¿Borrar?" />
-                                </span>
-                              )}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
           </section>
         );
       })}

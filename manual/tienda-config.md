@@ -46,7 +46,7 @@ Debajo, la ficha de la tienda, que abre en **modo vista**. Se edita con el **lá
 - **WhatsApp**: formato internacional, sin "+" ni espacios: 54 9, la característica sin 0 y el número sin 15.
 - **Mail**, **Dirección del local**, **Horario** (ej. "Lun a vie de 9 a 18").
 
-Debajo de la ficha, la sección **Dominios (N)**, con el botón **"Nuevo dominio"** al lado del título (sólo con el permiso «Configurar dominios de la tienda»). Sin dominios: "Sin dominio propio: la tienda abre en …/tienda/slug.". Con dominios, una tabla:
+Justo debajo de esa caja (antes de la ficha), la sección **Dominios (N)**, con el botón **"Nuevo dominio"** al lado del título (sólo con el permiso «Configurar dominios de la tienda»). Sin dominios: "Sin dominio propio: la tienda abre en …/tienda/slug.". Con dominios, una tabla:
 - **Dominio** (se toca para abrirlo), **Tipo** ("Principal" o "Redirige a …"), **Estado** ("Sin conectar a Vercel", "Esperando DNS", "Verificado (falta el certificado)" o "Con certificado: anda"; debajo, en rojo, si algo falló), **Registros DNS a cargar** (tipo, nombre y valor de cada registro; "—" cuando ya anda), **Revisado** (la última vez que se le preguntó a Vercel).
 - Al final de cada fila, **"Verificar"** (vuelve a preguntarle a Vercel; no aparece si ya anda) y el tacho ("¿Borrar?" Sí / No).
 - Si falta la llave de Vercel, arriba de la tabla: "Falta la llave de Vercel: los dominios quedan anotados, pero no se conectan hasta que esté."
