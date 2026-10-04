@@ -133,7 +133,7 @@ En **"Conversación"**, escribí en **"Nota interna"** y apretá **"Anotar nota"
 
 ## Criterios y reglas
 
-- **Cómo entran los de Mercado Libre**: al instante, por el aviso de Mercado Libre, y además cada 30 minutos se revisan todos los abiertos y los últimos cerrados (sólo se vuelven a traer los que cambiaron, y los que en Laucen siguen abiertos pero Mercado Libre ya no lista como abiertos). "Traer reclamos de ML" y "Actualizar desde ML" lo hacen en el momento. **Todo eso sólo lee** de Mercado Libre.
+- **Cómo entran los de Mercado Libre**: al instante, por el aviso de Mercado Libre, y además cada 30 minutos se revisan todos los abiertos y los últimos cerrados (sólo se vuelven a traer los que cambiaron, y los que en Laucen siguen abiertos pero Mercado Libre ya no lista como abiertos). Un reclamo cerrado que Laucen no tenía entra sólo si tuvo movimiento en los últimos 90 días; los más viejos, y los que Mercado Libre ya no deja abrir, se saltean sin aviso. "Traer reclamos de ML" y "Actualizar desde ML" lo hacen en el momento. **Todo eso sólo lee** de Mercado Libre.
 - **Estado de un reclamo de Mercado Libre**: Abierto mientras está abierto en Mercado Libre; Resuelto cuando Mercado Libre lo cierra (con su resolución, por ejemplo "Se devolvió el dinero", y a favor de quién). Los de la web o el local además pueden estar **En proceso**.
 - **"Espera tu respuesta"**: un reclamo de Mercado Libre abierto con alguna acción **obligatoria** para vos.
 - **Plazo ("Para responder")**: la fecha límite de la primera acción obligatoria (o, si no hay obligatorias, la primera con fecha). Se muestra "Quedan …" en rojo si faltan menos de 24 h, en amarillo si faltan menos de 72 h; "Venció hace …" en rojo si ya pasó. Hasta 48 horas se cuenta en horas, después en días.

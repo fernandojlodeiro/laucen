@@ -339,8 +339,12 @@ export async function barrerReclamos(cuenta: CuentaMl, hastaMs: number, leer: Le
     "select id_externo, ml_actualizado, estado from reclamo where organizacion_id = $1 and origen = 'mercadolibre' and canal_id is not distinct from $2::bigint",
     [org, cuenta.canalId])).map((x) => [x.id_externo, x]));
   const aTraer = new Set<string>();
+  // Un cerrado que Laucen no tiene se trae sólo si es reciente: la búsqueda de
+  // ML lista también reclamos viejos que ya no deja abrir de a uno (404).
+  const desde = Date.now() - 90 * 86_400_000;
   for (const c of vistos) {
     const l = locales.get(String(c.id));
+    if (!l && !abiertosMl.has(String(c.id)) && Date.parse(c.last_updated ?? c.date_created) < desde) continue;
     if (!l || l.ml_actualizado !== c.last_updated) aTraer.add(String(c.id));
   }
   for (const [idExt, l] of locales) if (l.estado !== "resuelto" && !abiertosMl.has(idExt)) aTraer.add(idExt);
@@ -353,6 +357,8 @@ export async function barrerReclamos(cuenta: CuentaMl, hastaMs: number, leer: Le
       await importarReclamo(cuenta, idExt, leer);
       importados++;
     } catch (e) {
+      // Uno que Laucen no tiene y ML no deja leer (no existe más o es de otra cuenta) no es un problema: se saltea.
+      if (!locales.has(idExt) && /contestó 404|no da permiso/.test((e as Error).message)) continue;
       console.error("[reclamos] importar", cuenta.id, idExt, e);
       errores.push(`${idExt}: ${(e as Error).message}`.slice(0, 200));
     }
