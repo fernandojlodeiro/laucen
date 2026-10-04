@@ -18,7 +18,7 @@ import {
 import {
   accionGuardarDatos, accionCrearVariacion, accionGuardarVariacion, accionBorrarVariacion,
   accionCrearAtributo, accionGuardarAtributo, accionBorrarAtributo, accionMoverFoto, accionBorrarFoto,
-  accionGuardarCucardas, accionGuardarCosto, accionAgregarComponente, accionGuardarComponente, accionBorrarComponente, accionGuardarPrecio,
+  accionGuardarCucardas, accionGuardarCosto, accionAgregarComponente, accionGuardarComponente, accionBorrarComponente, accionGuardarPrecio, accionPublicarWeb,
 } from "../acciones";
 import { EstadoProducto, TIPOS_PRODUCTO, ESTADOS_PRODUCTO, ESTADOS_VARIACION, CONDICIONES, condicionDe } from "../comun";
 import SubirFoto from "../SubirFoto";
@@ -26,6 +26,8 @@ import AltaNueva from "@/app/componentes/AltaNueva";
 import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import { caminoDeFamilia } from "@/lib/erp/familias";
 import { UNIR_MELI_ITEM, textoEstadoMl } from "@/app/catalogo/publicaciones/lista";
+import { canalesWebDe } from "@/lib/catalogo/web";
+import { Interruptor } from "@/app/radar/Piezas";
 
 export type Producto = {
   id: number; sku_base: string; titulo: string; descripcion: string | null; familia_id: number | null; familia: string | null;
@@ -959,6 +961,7 @@ export async function SeccionStock({ s, p }: Props) {
 // ── Publicaciones ─────────────────────────────────────────
 
 export async function SeccionPublicaciones({ s, p }: Props) {
+  const webs = await canalesWebDe(s.org.id, p.id);
   const filas = await consulta<{ id: number; sku: string; canal: string; id_externo: string | null; titulo: string; tipo_publicacion: string | null; estado: string; sincro: string | null;
     precio: number | null; precio_tachado: number | null; stock_ml: number | null; estado_ml: string | null }>(`
     select pu.id::int, v.sku, c.nombre canal, pu.id_externo, coalesce(pu.titulo, titulo_variacion(v.id)) titulo, pu.tipo_publicacion, pu.estado,
@@ -970,6 +973,17 @@ export async function SeccionPublicaciones({ s, p }: Props) {
   const tono = (e: string) => (e === "activa" ? "verde" : e === "pausada" ? "amarillo" : "gris") as "verde" | "amarillo" | "gris";
   return (
     <>
+      {webs.length > 0 && (
+        <div className={`${CAJA} mb-3 grid gap-2 max-w-md`}>
+          {/* La web es un canal más: el producto se ve en la tienda sólo si está publicado ahí. */}
+          {webs.map((w) => (
+            <Interruptor key={w.id} accion={accionPublicarWeb} prendido={w.publicado}
+              campos={{ producto_id: String(p.id), canal: String(w.id), seccion: "publicaciones" }}
+              etiqueta={`Publicado en ${w.nombre}`}
+              ayuda={w.publicado ? "Se ve en la tienda (si tiene precio en la lista del canal)." : "No se ve en la tienda."} />
+          ))}
+        </div>
+      )}
       <div className="flex justify-end mb-2"><Link href="/catalogo/publicaciones" className={SUAVE}>Ir a Publicaciones</Link></div>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>

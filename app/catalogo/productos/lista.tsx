@@ -40,6 +40,8 @@ export function filtrosProductos(sp: SP) {
     sinFotos: sp.sinfotos === "1",
     // Con stock y sin publicación activa en UNA cuenta de ML (el id de su canal).
     sinPublicarEn: Number(sp.sinpubcanal) || 0,
+    // Sin ninguna publicación activa en ningún canal (ML ni web).
+    sinCanal: sp.sincanal === "1",
   };
 }
 
@@ -145,8 +147,10 @@ export const LISTA_PRODUCTOS: Lista = {
          and (not $7 or p.kit_vs)
          and (not $8 or ${SQL_SIN_PUBLICAR})
          and (not $9 or ${SQL_SIN_FOTOS})
-         and ($10::bigint = 0 or ${sqlSinPublicarEnCanal("$10::bigint")})`,
-      valores: [ctx.org, patronBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn],
+         and ($10::bigint = 0 or ${sqlSinPublicarEnCanal("$10::bigint")})
+         and (not $11 or not exists (select 1 from publicacion pu join variacion v on v.id = pu.variacion_id
+                                      where v.producto_id = p.id and pu.estado = 'activa'))`,
+      valores: [ctx.org, patronBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn, f.sinCanal],
       orden: "p.titulo, p.id",
     };
   },

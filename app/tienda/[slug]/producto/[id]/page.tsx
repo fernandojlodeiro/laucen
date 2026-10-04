@@ -5,6 +5,7 @@
 // el vendedor y los medios de pago. Abajo, relacionados, características y
 // descripción. El precio sale de precio_de (la función única), en vivo.
 
+import { sqlPublicadoEnWeb } from "@/lib/catalogo/web";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
@@ -33,7 +34,7 @@ async function ficha(t: Tienda, productoId: number) {
   const p = await una<{ id: number; titulo: string; descripcion: string | null; marca: string | null; familia_id: number | null; familia: string | null }>(`
     select p.id::int, p.titulo, p.descripcion, p.marca, p.familia_id::int, f.nombre familia
       from producto p left join familia f on f.id = p.familia_id
-     where p.id = $1 and p.organizacion_id = $2 and p.estado = 'activo'`, [productoId, org]);
+     where p.id = $1 and p.organizacion_id = $2 and p.estado = 'activo' and ${sqlPublicadoEnWeb("p", "$3")}`, [productoId, org, t.canalId]);
   if (!p) return null;
   const filas = t.listaId ? await consulta<{ id: number; titulo: string; orden: number; lista: string; venta: string; disponible: number }>(`
     select v.id::int, titulo_variacion(v.id) titulo, v.orden,

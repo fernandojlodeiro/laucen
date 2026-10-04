@@ -12,6 +12,8 @@ import { guardarPrecio } from "@/lib/precios";
 import { esMoneda } from "@/lib/moneda";
 import { TODOS_PCT, esVia, leerPctsCosto, leerNcm } from "@/lib/costo-importacion";
 import { supabaseServer } from "@/lib/supabase";
+import { revalidateTag } from "next/cache";
+import { publicarEnWeb } from "@/lib/catalogo/web";
 
 const LISTADO = "/catalogo/productos";
 const SECCIONES = ["datos", "costo", "variaciones", "atributos", "fotos", "cucardas", "kit", "precios", "stock", "publicaciones"];
@@ -511,5 +513,21 @@ export async function accionGuardarPrecio(fd: FormData) {
     });
     revalidatePath(`${LISTADO}/${pid}`);
     return "Precio guardado.";
+  });
+}
+
+/** El interruptor "Publicado en la web" de la pestaña Publicaciones (la web
+ *  es un canal más): publica todas sus variaciones activas o las pausa. */
+export async function accionPublicarWeb(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  const canal = id(fd, "canal");
+  await intentar(ficha(pid, fd), async () => {
+    await productoDe(s.org.id, pid);
+    const prender = fd.get("valor") === "1";
+    await publicarEnWeb(s.org.id, pid, canal, prender);
+    revalidatePath(`${LISTADO}/${pid}`);
+    revalidateTag(`tienda-${canal}`);
+    return prender ? "Publicado en la web." : "Sacado de la web: ya no se ve en la tienda.";
   });
 }

@@ -16,16 +16,16 @@ import { verInactivos } from "@/app/componentes/Inactivos";
 
 export const dynamic = "force-dynamic";
 
-type SP = { q?: string; estado?: string; familia?: string; tipo?: string; inactivos?: string; kitvs?: string; sinpublicar?: string; sinpubcanal?: string; sinfotos?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+type SP = { q?: string; estado?: string; familia?: string; tipo?: string; inactivos?: string; kitvs?: string; sinpublicar?: string; sinpubcanal?: string; sinfotos?: string; sincanal?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 export default async function Productos({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("productos_ver");
   const sp = await searchParams;
-  const { q, comienza, estado, tipo, familia, kitVs, sinPublicar, sinFotos, sinPublicarEn } = filtrosProductos(sp);
+  const { q, comienza, estado, tipo, familia, kitVs, sinPublicar, sinFotos, sinPublicarEn, sinCanal } = filtrosProductos(sp);
   const ctx = { org: s.org.id, moneda: s.moneda };
   const [caminoFamilia, vista] = await Promise.all([caminoDeFamilia(s.org.id, familia), paginaDeVista(LISTA_PRODUCTOS, ctx, sp)]);
 
-  const hayFiltro = q || estado || tipo || familia || verInactivos(sp) || kitVs || sinPublicar || sinFotos || sinPublicarEn;
+  const hayFiltro = q || estado || tipo || familia || verInactivos(sp) || kitVs || sinPublicar || sinFotos || sinPublicarEn || sinCanal;
   return (
     <Pantalla titulo="Productos" subtitulo="Cada producto con sus variaciones, kits, fotos, cucardas, precios y stock"
       acciones={<><AccionesExcel lista={LISTA_PRODUCTOS} org={s.org.id} vista={vista.activa?.id} /><BotonNuevo texto="Nuevo producto" /></>}>
@@ -65,6 +65,7 @@ export default async function Productos({ searchParams }: { searchParams: Promis
           </span>
         )}
         <CasillaViva parametro="sinfotos" activo={sinFotos} etiqueta="De la web, sin fotos" />
+        <CasillaViva parametro="sincanal" activo={sinCanal} etiqueta="Sin publicar en ningún canal" />
       </div>
 
       <div className="flex justify-end mb-2">{vista.selector}</div>

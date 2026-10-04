@@ -9,6 +9,7 @@
 // categorías filtran ese mismo arreglo en memoria. La ficha del producto, el
 // carrito y el checkout NO usan esa copia: cotizan en vivo.
 
+import { sqlPublicadoEnWeb } from "@/lib/catalogo/web";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { notFound } from "next/navigation";
@@ -64,6 +65,8 @@ async function leerCatalogo(org: string, canalId: number, listaId: number, moned
         join variacion v on v.producto_id = p.id and v.estado = 'activa'
         cross join lateral (select * from precio_de($1, v.id, $3)) pr
        where p.organizacion_id = $1 and p.estado = 'activo'
+         -- Sólo lo publicado en este canal web (la web es un canal más).
+         and ${sqlPublicadoEnWeb("p", "$2")}
     ), a as (
       select producto_id, min(venta) venta, max(venta) venta_max, count(*)::int variaciones, sum(disp)::int stock, string_agg(sku, ' ') skus,
              (array_agg(lista order by venta, orden, variacion_id))[1] lista,

@@ -415,3 +415,8 @@ create table if not exists familia_costo (
 create index if not exists familia_costo_org on familia_costo (organizacion_id);
 alter table familia_costo enable row level security;
 select erp_politica_org('familia_costo');
+
+-- La web es un canal más (Fer, 4/10): un producto está publicado en la Web
+-- minorista o mayorista si tiene una publicación propia (sin id externo) en
+-- ese canal. Una por variación y canal.
+create unique index if not exists publicacion_canal_variacion_propia on publicacion (canal_id, variacion_id) where id_externo is null;
