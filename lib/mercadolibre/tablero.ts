@@ -65,7 +65,7 @@ export async function cuentasTablero(org: string): Promise<CuentaTablero[]> {
 }
 
 /** Las métricas de cada canal de ML (clave: id del canal). */
-export async function metricasPorCanal(org: string, canales: number[]): Promise<Map<number, Metricas>> {
+export async function metricasPorCanal(org: string, canales: number[], { soloMl = true }: { soloMl?: boolean } = {}): Promise<Map<number, Metricas>> {
   const m = new Map<number, Metricas>(canales.map((c) => [c, vacio()]));
   if (!canales.length) return m;
   const poner = (canal: number, f: (x: Metricas) => void) => { const x = m.get(canal); if (x) f(x); };
@@ -109,7 +109,7 @@ export async function metricasPorCanal(org: string, canales: number[]): Promise<
              count(*) filter (where r.tipo = 'devolucion' and r.estado <> 'resuelto')::int dev_abiertas,
              count(*) filter (where r.tipo = 'devolucion' and ${CONDICION_RECLAMOS.camino})::int dev_camino,
              count(*) filter (where r.tipo = 'devolucion')::int dev_total
-        from reclamo r where r.organizacion_id = $1 and r.canal_id = any($2::bigint[]) and r.origen = 'mercadolibre' group by r.canal_id`),
+        from reclamo r where r.organizacion_id = $1 and r.canal_id = any($2::bigint[]) ${soloMl ? "and r.origen = 'mercadolibre'" : ""} group by r.canal_id`),
     q<{ hoy: number; hoy_ars: string; siete: number; siete_ars: string }>(`
       select p.canal_id::int canal,
              count(*) filter (where (p.fecha at time zone '${ZONA}')::date = (now() at time zone '${ZONA}')::date)::int hoy,
@@ -161,3 +161,12 @@ export const sumar = (ms: Metricas[]): Metricas => {
   }
   return t;
 };
+
+/** Los canales que no son de Mercado Libre, en dos grupos: la tienda web (minorista y mayorista) y el resto (local, pedidos manuales, histórico, otros…). */
+export async function gruposNoMl(org: string) {
+  const f = await consulta<{ id: number; tipo: string }>("select id::int, tipo from canal where organizacion_id = $1 and tipo <> 'mercadolibre' order by id", [org]);
+  return {
+    web: f.filter((x) => x.tipo === "web_minorista" || x.tipo === "web_mayorista").map((x) => x.id),
+    otros: f.filter((x) => x.tipo !== "web_minorista" && x.tipo !== "web_mayorista").map((x) => x.id),
+  };
+}

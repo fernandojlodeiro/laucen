@@ -9,7 +9,7 @@ resumen: Todas las cuentas de Mercado Libre en una pantalla: reputación con los
 
 ## Para qué sirve
 
-Para ver de un vistazo cómo está cada cuenta de Mercado Libre y qué hay que hacer hoy, sin entrar cuenta por cuenta. Es una tabla con **una columna por cuenta** (con el apodo de ML y la razón social con la que factura) y una columna **Total** cuando hay más de una. Casi cada número es un **enlace** a la pantalla donde se resuelve, ya filtrada por esa cuenta.
+Para ver de un vistazo cómo está cada cuenta de Mercado Libre y qué hay que hacer hoy, sin entrar cuenta por cuenta. Es una tabla con **una columna por cuenta** (con el apodo de ML y la razón social con la que factura), más dos columnas para lo que no es de Mercado Libre —**Web** (la tienda web, minorista y mayorista) y **Otros** (el local, los pedidos manuales y cualquier otro canal)— y una columna **Total**. En Web y Otros se ven los pedidos, envíos, reclamos, devoluciones y ventas de esos canales; lo propio de Mercado Libre (reputación, publicaciones, preguntas, mensajes, cola y conexión) figura con una raya. Casi cada número es un **enlace** a la pantalla donde se resuelve, ya filtrada por esa cuenta.
 
 ## Cómo se llega
 
@@ -53,7 +53,7 @@ No son de una cuenta en particular:
 El botón **"Actualizar reputación"** (arriba a la derecha) le pregunta a Mercado Libre. Además, al abrir el tablero se actualiza sola si la última lectura tiene más de una hora. Arriba dice cuándo se leyó.
 
 ### Resolver algo
-Tocá el número: te lleva a la pantalla correspondiente con esa cuenta ya elegida.
+Tocá el número: te lleva a la pantalla correspondiente con esa cuenta ya elegida. En Web y Otros, si el grupo tiene varios canales, el enlace lleva a la lista completa (sin filtrar por canal).
 
 ## Criterios y reglas
 

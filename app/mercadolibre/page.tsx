@@ -11,7 +11,7 @@ import { formatear } from "@/lib/moneda";
 import { SUAVE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { entrarErp, Pantalla, Avisos, Estado, url, CAJA } from "@/app/componentes/erp";
-import { cuentasTablero, metricasPorCanal, alertasCatalogo, sumar, type CuentaTablero, type Metricas } from "@/lib/mercadolibre/tablero";
+import { cuentasTablero, metricasPorCanal, alertasCatalogo, gruposNoMl, sumar, type CuentaTablero, type Metricas } from "@/lib/mercadolibre/tablero";
 import { actualizarReputaciones, nivelDe, NIVELES_REPUTACION, LIDER, type Metrica } from "@/lib/mercadolibre/reputacion";
 import { accionActualizarReputacion } from "./acciones";
 
@@ -37,7 +37,7 @@ function Celda({ valor, de, href, tono = "alerta", nota }: { valor: number | str
   const color = tono === "neutro" ? "" : tono === "alerta" ? (Number(valor) > 0 ? "text-[#C03420]" : "text-[#1F6E4A]") : "text-[#1F6E4A]";
   const cuerpo = (
     <>
-      <span className={`text-lg font-bold tabular-nums ${color}`}>{typeof valor === "number" ? n(valor) : valor}</span>
+      <span className={`text-base font-bold tabular-nums ${color}`}>{typeof valor === "number" ? n(valor) : valor}</span>
       {de !== undefined && <span className="ml-1 text-[11px] text-[#5C6B76] tabular-nums">de {typeof de === "number" ? n(de) : de}</span>}
       {nota && <span className="block text-[10px] text-[#5C6B76] leading-3">{nota}</span>}
     </>
@@ -49,7 +49,7 @@ function Termometro({ nivel }: { nivel: string | null }) {
   return (
     <div className="flex gap-0.5" aria-hidden>
       {NIVELES_REPUTACION.map((x) => (
-        <span key={x.id} className="h-2.5 w-6 first:rounded-l last:rounded-r" style={{ background: x.color, opacity: x.id === nivel ? 1 : 0.22 }} />
+        <span key={x.id} className="h-2 w-4 first:rounded-l last:rounded-r" style={{ background: x.color, opacity: x.id === nivel ? 1 : 0.22 }} />
       ))}
     </div>
   );
@@ -78,11 +78,18 @@ function CeldaMetrica({ m, titulo }: { m: Metrica | null; titulo: string }) {
   return <Celda valor={m.valor} tono="neutro" nota={`${(m.tasa * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 })} % · ${periodo(m.periodo)}`} />;
 }
 
+/** Una columna del tablero: una cuenta de ML, la tienda web o "el resto" (los canales que no son de ML). */
+type Col = { clave: string; titulo: string; sub: string; href: string | null; cuenta: CuentaTablero | null; canal: number | null; ids: number[] };
+
 type Fila = {
   titulo: string; ayuda?: string;
-  celda: (c: CuentaTablero, m: Metricas) => React.ReactNode;
-  total?: (t: Metricas, cuentas: CuentaTablero[]) => React.ReactNode;
+  celda: (c: Col, m: Metricas) => React.ReactNode;
+  total?: (t: Metricas, cols: Col[]) => React.ReactNode;
 };
+
+const NA = <span className="text-[11px] text-[#9AA7B3]" title="No aplica a este canal">—</span>;
+/** Para las filas que sólo existen en una cuenta de ML (reputación, publicaciones, preguntas…). */
+const soloMl = (f: (c: CuentaTablero, m: Metricas) => React.ReactNode) => (c: Col, m: Metricas) => (c.cuenta ? f(c.cuenta, m) : NA);
 
 export default async function TableroMl({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("tablero_ml_ver");
@@ -93,42 +100,57 @@ export default async function TableroMl({ searchParams }: { searchParams: Promis
   await Promise.race([actualizarReputaciones(org).catch(() => 0), new Promise((ok) => setTimeout(ok, 8000))]);
 
   const cuentas = await cuentasTablero(org);
-  const [porCanal, catalogo] = await Promise.all([metricasPorCanal(org, cuentas.map((c) => c.canalId)), alertasCatalogo(org)]);
-  const M = (c: CuentaTablero) => porCanal.get(c.canalId)!;
-  const total = sumar(cuentas.map(M));
+  const grupos = await gruposNoMl(org);
+  const [porCanal, porCanalNoMl, catalogo] = await Promise.all([
+    metricasPorCanal(org, cuentas.map((c) => c.canalId)),
+    metricasPorCanal(org, [...grupos.web, ...grupos.otros], { soloMl: false }),
+    alertasCatalogo(org),
+  ]);
+  const columnas: Col[] = [
+    ...cuentas.map((c): Col => ({ clave: `ml${c.cuentaId}`, titulo: c.apodo ?? c.canal, sub: `${c.canal}${c.razonSocial ? ` · ${c.razonSocial}` : ""}`,
+      href: url("/config/canales", { c: c.canalId }), cuenta: c, canal: c.canalId, ids: [c.canalId] })),
+    { clave: "web", titulo: "Web", sub: "Tienda web (minorista y mayorista)", href: "/config/tienda", cuenta: null, canal: grupos.web.length === 1 ? grupos.web[0] : null, ids: grupos.web },
+    { clave: "otros", titulo: "Otros", sub: "Local, pedidos manuales y el resto", href: "/config/canales", cuenta: null, canal: grupos.otros.length === 1 ? grupos.otros[0] : null, ids: grupos.otros },
+  ];
+  const mapa = new Map([...porCanal, ...porCanalNoMl]);
+  const M = (c: Col) => sumar(c.ids.map((i) => mapa.get(i)).filter((x): x is Metricas => !!x));
+  const total = sumar(columnas.map(M));
+  // Las pantallas filtran por UN canal: un grupo con varios canales enlaza a la lista completa.
+  const enlace = (base: string, c: Col, extra: Record<string, string | number | null> = {}) => url(base, { ...extra, canal: c.canal });
 
   const fecha = cuentas.map((c) => c.reputacionTs).filter(Boolean).sort().at(-1) ?? null;
   const pub = (c: CuentaTablero, ver: string) => url("/catalogo/publicaciones/ml", { canal: c.canalId, ver });
+  const suma = (cs: Col[], f: (c: CuentaTablero) => number) => cs.reduce((a, c) => a + (c.cuenta ? f(c.cuenta) : 0), 0);
 
   const secciones: { titulo: string; sub?: string; filas: Fila[] }[] = [
     {
-      titulo: "Reputación", sub: "Lo que informa Mercado Libre; cuenta el período que figura en cada dato.",
+      titulo: "Reputación", sub: "Lo que informa Mercado Libre; cada dato cuenta el período que figura.",
       filas: [
-        { titulo: "Color de la reputación", celda: (c) => <CeldaReputacion c={c} /> },
-        { titulo: "Reclamos que afectan la reputación", celda: (c) => <CeldaMetrica m={c.reputacion?.reclamos ?? null} titulo="reclamos" />,
-          total: (_t, cs) => <Celda valor={cs.reduce((a, c) => a + (c.reputacion?.reclamos?.valor ?? 0), 0)} tono="neutro" /> },
+        { titulo: "Color de la reputación", celda: soloMl((c) => <CeldaReputacion c={c} />) },
+        { titulo: "Reclamos que afectan la reputación", celda: soloMl((c) => <CeldaMetrica m={c.reputacion?.reclamos ?? null} titulo="reclamos" />),
+          total: (_t, cs) => <Celda valor={suma(cs, (c) => c.reputacion?.reclamos?.valor ?? 0)} tono="neutro" /> },
         { titulo: "Entregas demoradas", ayuda: "Despachos fuera del plazo de manipulación",
-          celda: (c) => <CeldaMetrica m={c.reputacion?.demoras ?? null} titulo="demoras" />,
-          total: (_t, cs) => <Celda valor={cs.reduce((a, c) => a + (c.reputacion?.demoras?.valor ?? 0), 0)} tono="neutro" /> },
-        { titulo: "Cancelaciones", celda: (c) => <CeldaMetrica m={c.reputacion?.cancelaciones ?? null} titulo="cancelaciones" />,
-          total: (_t, cs) => <Celda valor={cs.reduce((a, c) => a + (c.reputacion?.cancelaciones?.valor ?? 0), 0)} tono="neutro" /> },
-        { titulo: "Ventas completadas", celda: (c) => c.reputacion?.ventas ? <Celda valor={c.reputacion.ventas.completadas} tono="neutro" nota={periodo(c.reputacion.ventas.periodo)} /> : "—",
-          total: (_t, cs) => <Celda valor={cs.reduce((a, c) => a + (c.reputacion?.ventas?.completadas ?? 0), 0)} tono="neutro" /> },
-        { titulo: "Calificaciones positivas", celda: (c) => c.reputacion?.calificaciones
-          ? <Celda valor={`${Math.round(c.reputacion.calificaciones.positivas * 100)} %`} tono="neutro" nota={`${Math.round(c.reputacion.calificaciones.negativas * 100)} % negativas`} /> : "—" },
+          celda: soloMl((c) => <CeldaMetrica m={c.reputacion?.demoras ?? null} titulo="demoras" />),
+          total: (_t, cs) => <Celda valor={suma(cs, (c) => c.reputacion?.demoras?.valor ?? 0)} tono="neutro" /> },
+        { titulo: "Cancelaciones", celda: soloMl((c) => <CeldaMetrica m={c.reputacion?.cancelaciones ?? null} titulo="cancelaciones" />),
+          total: (_t, cs) => <Celda valor={suma(cs, (c) => c.reputacion?.cancelaciones?.valor ?? 0)} tono="neutro" /> },
+        { titulo: "Ventas completadas", celda: soloMl((c) => c.reputacion?.ventas ? <Celda valor={c.reputacion.ventas.completadas} tono="neutro" nota={periodo(c.reputacion.ventas.periodo)} /> : "—"),
+          total: (_t, cs) => <Celda valor={suma(cs, (c) => c.reputacion?.ventas?.completadas ?? 0)} tono="neutro" /> },
+        { titulo: "Calificaciones positivas", celda: soloMl((c) => c.reputacion?.calificaciones
+          ? <Celda valor={`${Math.round(c.reputacion.calificaciones.positivas * 100)} %`} tono="neutro" nota={`${Math.round(c.reputacion.calificaciones.negativas * 100)} % negativas`} /> : "—") },
       ],
     },
     {
       titulo: "Publicaciones",
       filas: [
-        { titulo: "Activas", celda: (c, m) => <Celda valor={m.publicaciones.activas} de={m.publicaciones.total} tono="ok" href={pub(c, "activas")} />,
+        { titulo: "Activas", celda: soloMl((c, m) => <Celda valor={m.publicaciones.activas} de={m.publicaciones.total} tono="ok" href={pub(c, "activas")} />),
           total: (t) => <Celda valor={t.publicaciones.activas} de={t.publicaciones.total} tono="ok" /> },
-        { titulo: "Pausadas", celda: (c, m) => <Celda valor={m.publicaciones.pausadas} tono="neutro" href={pub(c, "pausadas")} />,
+        { titulo: "Pausadas", celda: soloMl((c, m) => <Celda valor={m.publicaciones.pausadas} tono="neutro" href={pub(c, "pausadas")} />),
           total: (t) => <Celda valor={t.publicaciones.pausadas} tono="neutro" /> },
-        { titulo: "Con cuestiones para resolver", ayuda: "En revisión, inactivas o con el pago pendiente: Mercado Libre las frena hasta que se corrija algo",
-          celda: (c, m) => <Celda valor={m.publicaciones.conCuestiones} href={pub(c, "revision")} />, total: (t) => <Celda valor={t.publicaciones.conCuestiones} /> },
+        { titulo: "Con cuestiones para resolver", ayuda: "En revisión, inactivas o con el pago pendiente: ML las frena hasta que se corrija algo",
+          celda: soloMl((c, m) => <Celda valor={m.publicaciones.conCuestiones} href={pub(c, "revision")} />), total: (t) => <Celda valor={t.publicaciones.conCuestiones} /> },
         { titulo: "Sin producto asociado", ayuda: "Publicaciones de ML que todavía no están vinculadas a un producto de Laucen (su stock no se sincroniza)",
-          celda: (c, m) => <Celda valor={m.publicaciones.sinProducto} de={m.publicaciones.total} href={pub(c, "sin")} nota={m.publicaciones.sinProductoActivas ? `${n(m.publicaciones.sinProductoActivas)} activas` : null} />,
+          celda: soloMl((c, m) => <Celda valor={m.publicaciones.sinProducto} de={m.publicaciones.total} href={pub(c, "sin")} nota={m.publicaciones.sinProductoActivas ? `${n(m.publicaciones.sinProductoActivas)} activas` : null} />),
           total: (t) => <Celda valor={t.publicaciones.sinProducto} de={t.publicaciones.total} nota={t.publicaciones.sinProductoActivas ? `${n(t.publicaciones.sinProductoActivas)} activas` : null} /> },
       ],
     },
@@ -136,92 +158,90 @@ export default async function TableroMl({ searchParams }: { searchParams: Promis
       titulo: "Para hacer hoy", sub: "Lo que espera tu atención; el número chico es el total de esa clase.",
       filas: [
         { titulo: "Etiquetas para imprimir", ayuda: "Envíos por despachar con la etiqueta todavía sin imprimir",
-          celda: (c, m) => <Celda valor={m.etiquetas.sinImprimir} de={m.etiquetas.porDespachar} href={url("/ventas/envios", { canal: c.canalId })} nota={m.etiquetas.vencidos ? `${n(m.etiquetas.vencidos)} para hoy o vencidos` : null} />,
+          celda: (c, m) => <Celda valor={m.etiquetas.sinImprimir} de={m.etiquetas.porDespachar} href={enlace("/ventas/envios", c)} nota={m.etiquetas.vencidos ? `${n(m.etiquetas.vencidos)} para hoy o vencidos` : null} />,
           total: (t) => <Celda valor={t.etiquetas.sinImprimir} de={t.etiquetas.porDespachar} href="/ventas/envios" nota={t.etiquetas.vencidos ? `${n(t.etiquetas.vencidos)} para hoy o vencidos` : null} /> },
-        { titulo: "Pedidos para preparar", celda: (c, m) => <Celda valor={m.pedidosParaPreparar} href={url("/ventas/pedidos", { canal: c.canalId })} />,
+        { titulo: "Pedidos para preparar", celda: (c, m) => <Celda valor={m.pedidosParaPreparar} href={enlace("/ventas/pedidos", c)} />,
           total: (t) => <Celda valor={t.pedidosParaPreparar} href="/ventas/pedidos" /> },
-        { titulo: "Pedidos en camino", celda: (c, m) => <Celda valor={m.enCamino} tono="neutro" href={url("/ventas/envios", { ver: "camino", canal: c.canalId })} />,
+        { titulo: "Pedidos en camino", celda: (c, m) => <Celda valor={m.enCamino} tono="neutro" href={enlace("/ventas/envios", c, { ver: "camino" })} />,
           total: (t) => <Celda valor={t.enCamino} tono="neutro" href="/ventas/envios?ver=camino" /> },
-        { titulo: "Preguntas para responder", celda: (c, m) => <Celda valor={m.preguntas.sinResponder} de={m.preguntas.total} href={url("/ventas/preguntas", { canal: c.canalId })} nota={m.preguntas.masVieja ? `la más vieja, ${haceCuanto(m.preguntas.masVieja)}` : null} />,
+        { titulo: "Preguntas para responder", celda: soloMl((c, m) => <Celda valor={m.preguntas.sinResponder} de={m.preguntas.total} href={url("/ventas/preguntas", { canal: c.canalId })} nota={m.preguntas.masVieja ? `la más vieja, ${haceCuanto(m.preguntas.masVieja)}` : null} />),
           total: (t) => <Celda valor={t.preguntas.sinResponder} de={t.preguntas.total} href="/ventas/preguntas" /> },
         { titulo: "Mensajes para responder", ayuda: "Conversaciones de posventa con mensajes sin leer",
-          celda: (c, m) => <Celda valor={m.mensajes.sinLeer} de={m.mensajes.total} href={url("/ventas/preguntas", { ver: "mensajes", canal: c.canalId })} />,
+          celda: soloMl((c, m) => <Celda valor={m.mensajes.sinLeer} de={m.mensajes.total} href={url("/ventas/preguntas", { ver: "mensajes", canal: c.canalId })} />),
           total: (t) => <Celda valor={t.mensajes.sinLeer} de={t.mensajes.total} href="/ventas/preguntas?ver=mensajes" /> },
         { titulo: "Reclamos para atender", ayuda: "Abiertos; el chico es el total de reclamos. Debajo, los que esperan tu respuesta",
-          celda: (c, m) => <Celda valor={m.reclamos.abiertos} de={m.reclamos.total} href={url("/ventas/reclamos", { ver: "abiertos", canal: c.canalId })}
+          celda: (c, m) => <Celda valor={m.reclamos.abiertos} de={m.reclamos.total} href={enlace("/ventas/reclamos", c, { ver: "abiertos" })}
             nota={m.reclamos.abiertos ? [`${n(m.reclamos.esperanRespuesta)} esperan tu respuesta`, m.reclamos.urgentes ? `${n(m.reclamos.urgentes)} vencen en 24 h` : null, m.reclamos.enMediacion ? `${n(m.reclamos.enMediacion)} en mediación` : null].filter(Boolean).join(" · ") : null} />,
           total: (t) => <Celda valor={t.reclamos.abiertos} de={t.reclamos.total} href="/ventas/reclamos" nota={t.reclamos.abiertos ? `${n(t.reclamos.esperanRespuesta)} esperan tu respuesta` : null} /> },
         { titulo: "Devoluciones", ayuda: "Abiertas; debajo, las que ya vienen en camino",
-          celda: (c, m) => <Celda valor={m.devoluciones.abiertas} de={m.devoluciones.total} href={url("/ventas/reclamos", { ver: "camino", canal: c.canalId })} nota={m.devoluciones.enCamino ? `${n(m.devoluciones.enCamino)} en camino` : null} />,
+          celda: (c, m) => <Celda valor={m.devoluciones.abiertas} de={m.devoluciones.total} href={enlace("/ventas/reclamos", c, { ver: "camino" })} nota={m.devoluciones.enCamino ? `${n(m.devoluciones.enCamino)} en camino` : null} />,
           total: (t) => <Celda valor={t.devoluciones.abiertas} de={t.devoluciones.total} href="/ventas/reclamos?ver=camino" nota={t.devoluciones.enCamino ? `${n(t.devoluciones.enCamino)} en camino` : null} /> },
       ],
     },
     {
-      titulo: "Movimiento y salud de la cuenta",
+      titulo: "Movimiento y salud",
       filas: [
         { titulo: "Ventas de hoy", celda: (_c, m) => <Celda valor={m.ventas.hoy} tono="neutro" nota={formatear(m.ventas.hoyArs, "ARS")} />,
           total: (t) => <Celda valor={t.ventas.hoy} tono="neutro" nota={formatear(t.ventas.hoyArs, "ARS")} /> },
         { titulo: "Ventas de los últimos 7 días", celda: (_c, m) => <Celda valor={m.ventas.sieteDias} tono="neutro" nota={formatear(m.ventas.sieteDiasArs, "ARS")} />,
           total: (t) => <Celda valor={t.ventas.sieteDias} tono="neutro" nota={formatear(t.ventas.sieteDiasArs, "ARS")} /> },
-        { titulo: "Cola de Mercado Libre con error", ayuda: "Cambios que Laucen quiso mandar a ML y no pudo",
-          celda: (c, m) => <Celda valor={m.cola.errores} href={url("/config/canales/cola", { ver: "errores", canal: c.canalId })} nota={m.cola.preparados ? `${n(m.cola.preparados)} lotes esperan tu clic` : null} />,
+        { titulo: "Cola de ML con error", ayuda: "Cambios que Laucen quiso mandar a ML y no pudo",
+          celda: soloMl((c, m) => <Celda valor={m.cola.errores} href={url("/config/canales/cola", { ver: "errores", canal: c.canalId })} nota={m.cola.preparados ? `${n(m.cola.preparados)} lotes esperan tu clic` : null} />),
           total: (t) => <Celda valor={t.cola.errores} href="/config/canales/cola?ver=errores" nota={t.cola.preparados ? `${n(t.cola.preparados)} lotes esperan tu clic` : null} /> },
-        { titulo: "Conexión", celda: (c) => (
+        { titulo: "Conexión", celda: soloMl((c) => (
           <div className="grid gap-0.5">
             <Estado texto={c.estado === "activa" ? "Conectada" : "Desconectada"} tono={c.estado === "activa" ? "verde" : "rojo"} />
             {c.estado !== "activa" && <Link href={url("/config/canales", { c: c.canalId })} className="text-[11px] text-[#16577F] hover:underline">Volver a conectar</Link>}
             {c.ultimoError && <span className="text-[10px] text-[#C03420] leading-3">{c.ultimoError.slice(0, 80)}</span>}
-          </div>) },
+          </div>)) },
       ],
     },
   ];
 
   return (
-    <Pantalla titulo="Tablero de Mercado Libre" ancho="max-w-[1500px]"
-      subtitulo={<>Todas tus cuentas en una pantalla · reputación leída {haceCuanto(fecha)}</>}
+    <Pantalla titulo="Tablero de Mercado Libre" ancho="max-w-[1700px]"
+      subtitulo={<>Todas tus cuentas, la web y el resto en una pantalla · reputación leída {haceCuanto(fecha)}</>}
       acciones={<form action={accionActualizarReputacion}><BotonEnviar clase={SUAVE} corriendo="Preguntando a Mercado Libre…">Actualizar reputación</BotonEnviar></form>}>
       <Avisos sp={sp} />
-      {cuentas.length === 0 ? (
-        <div className={CAJA}>
-          <p className="text-xs">Todavía no hay ninguna cuenta de Mercado Libre conectada a un canal.</p>
-          <p className="text-xs text-[#5C6B76] mt-1">Conectala en <Link href="/config/canales" className="text-[#16577F] underline">Configuración → Canales</Link>.</p>
-        </div>
-      ) : (
-        <div className="bg-white border border-[#E3E9F0] rounded-xl overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
-            <thead className="bg-[#FAFBFC] border-b border-[#E3E9F0] sticky top-0 z-10">
-              <tr>
-                <th className="py-2 px-3 text-left w-64 min-w-48" />
-                {cuentas.map((c) => (
-                  <th key={c.cuentaId} className="py-2 px-3 text-left align-top min-w-44 border-l border-[#E3E9F0]">
-                    <Link href={url("/config/canales", { c: c.canalId })} className="font-bold text-sm text-[#16577F] hover:underline">{c.apodo ?? c.canal}</Link>
-                    <span className="block text-[11px] font-normal text-[#5C6B76]">{c.canal}{c.razonSocial ? ` · factura: ${c.razonSocial}` : ""}</span>
-                  </th>
-                ))}
-                {cuentas.length > 1 && <th className="py-2 px-3 text-left align-top min-w-36 border-l-2 border-[#E3E9F0] bg-[#F3F6F9] font-bold text-sm">Total</th>}
-              </tr>
-            </thead>
-            {secciones.map((sec) => (
-              <tbody key={sec.titulo}>
-                <tr className="bg-[#EEF3F8]">
-                  <td colSpan={cuentas.length + 2} className="py-1.5 px-3 font-bold text-[#16577F]">
-                    {sec.titulo}{sec.sub && <span className="ml-2 font-normal text-[11px] text-[#5C6B76]">{sec.sub}</span>}
-                  </td>
-                </tr>
-                {sec.filas.map((f) => (
-                  <tr key={f.titulo} className="border-t border-[#EEF1F4] align-top">
-                    <th scope="row" className="py-2 px-3 text-left font-semibold">
-                      {f.titulo}{f.ayuda && <span className="block text-[10px] font-normal text-[#5C6B76] leading-3">{f.ayuda}</span>}
-                    </th>
-                    {cuentas.map((c) => <td key={c.cuentaId} className="py-2 px-3 border-l border-[#EEF1F4]">{f.celda(c, M(c))}</td>)}
-                    {cuentas.length > 1 && <td className="py-2 px-3 border-l-2 border-[#E3E9F0] bg-[#F9FAFB]">{f.total ? f.total(total, cuentas) : ""}</td>}
-                  </tr>
-                ))}
-              </tbody>
-            ))}
-          </table>
+      {cuentas.length === 0 && (
+        <div className={`${CAJA} mb-3`}>
+          <p className="text-xs">Todavía no hay ninguna cuenta de Mercado Libre conectada a un canal. Conectala en <Link href="/config/canales" className="text-[#16577F] underline">Configuración → Canales</Link>.</p>
         </div>
       )}
+      <div className="bg-white border border-[#E3E9F0] rounded-xl overflow-x-auto">
+        <table className="w-full text-[11px] border-collapse">
+          <thead className="bg-[#FAFBFC] border-b border-[#E3E9F0] sticky top-0 z-10">
+            <tr>
+              <th className="py-1.5 px-2 text-left w-44 min-w-36" />
+              {columnas.map((c) => (
+                <th key={c.clave} className="py-1.5 px-2 text-left align-top min-w-[6.5rem] border-l border-[#E3E9F0]">
+                  {c.href ? <Link href={c.href} className="font-bold text-xs text-[#16577F] hover:underline break-words">{c.titulo}</Link> : <span className="font-bold text-xs">{c.titulo}</span>}
+                  <span className="block text-[10px] font-normal text-[#5C6B76] leading-3">{c.sub}</span>
+                </th>
+              ))}
+              <th className="py-1.5 px-2 text-left align-top min-w-[6rem] border-l-2 border-[#E3E9F0] bg-[#F3F6F9] font-bold text-xs">Total</th>
+            </tr>
+          </thead>
+          {secciones.map((sec) => (
+            <tbody key={sec.titulo}>
+              <tr className="bg-[#EEF3F8]">
+                <td colSpan={columnas.length + 2} className="py-1 px-2 font-bold text-[#16577F]">
+                  {sec.titulo}{sec.sub && <span className="ml-2 font-normal text-[10px] text-[#5C6B76]">{sec.sub}</span>}
+                </td>
+              </tr>
+              {sec.filas.map((f) => (
+                <tr key={f.titulo} className="border-t border-[#EEF1F4] align-top">
+                  <th scope="row" className="py-1.5 px-2 text-left font-semibold">
+                    {f.titulo}{f.ayuda && <span className="block text-[10px] font-normal text-[#5C6B76] leading-3">{f.ayuda}</span>}
+                  </th>
+                  {columnas.map((c) => <td key={c.clave} className="py-1.5 px-2 border-l border-[#EEF1F4]">{f.celda(c, M(c))}</td>)}
+                  <td className="py-1.5 px-2 border-l-2 border-[#E3E9F0] bg-[#F9FAFB]">{f.total ? f.total(total, columnas) : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          ))}
+        </table>
+      </div>
 
       <h2 className="text-sm font-bold mt-6 mb-2">Alertas del catálogo <span className="font-normal text-[11px] text-[#5C6B76]">(no son de una cuenta en particular)</span></h2>
       <div className="grid gap-3 sm:grid-cols-2">
