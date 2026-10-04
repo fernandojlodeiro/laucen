@@ -86,7 +86,7 @@ export default async function Marco({ children, version }: { children: React.Rea
       </footer>
 
       {/* Lo último que viste: sobre el margen izquierdo, si hay lugar */}
-      <Historial />
+      <Suspense fallback={null}><Historial /></Suspense>
 
       {/* El asistente: la carita abajo a la derecha (lib/asistente/motor.ts) */}
       {puede("asistente_usar") && (
