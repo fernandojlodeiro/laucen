@@ -143,6 +143,14 @@ async function mlConTope(ruta: string, token: string | null, ms = 8000) {
   ]);
 }
 
+/** Las formas de preguntarle a ML por un título, de la más fiel a la más corta. */
+function variantesDelTitulo(titulo: string): string[] {
+  const limpio = titulo.toLowerCase().replace(/[`´"'()\/+*,;:]+/g, " ").replace(/\s+/g, " ").trim();
+  const palabras = limpio.split(" ").filter((w) => w.length > 1);
+  const v = [titulo.slice(0, 120).trim(), limpio.slice(0, 120), palabras.slice(0, 4).join(" ")];
+  return [...new Set(v.filter((x) => x.length >= 3))];
+}
+
 /** Paso 2 (de a lotes): para los que no tienen categoría, el predictor de ML
  *  (domain_discovery) con el título. `desde` = último id procesado. Corta solo
  *  antes de que se acabe el tiempo de la pantalla (devuelve lo que alcanzó). */
@@ -160,10 +168,17 @@ export async function categoriasPorPredictor(org: string, desde: number, lote = 
     const grupo = filas.slice(i, i + tanda);
     await Promise.all(grupo.map(async (f) => {
       try {
-        const r = await mlConTope(`/sites/MLA/domain_discovery/search?q=${encodeURIComponent(f.titulo.slice(0, 120))}&limit=1`, token);
-        estados[String(r.status)] = (estados[String(r.status)] ?? 0) + 1;
-        const cat = (Array.isArray(r.datos) ? r.datos : [])[0] as { category_id?: string } | undefined;
-        if (r.status === 200 && cat?.category_id) { await asignar(org, Number(f.id), cat.category_id, cache, token); asignados++; }
+        // Primero el título tal cual; si ML no dice nada (los títulos viejos en MAYÚSCULAS y con símbolos suelen
+        // fallar), en minúsculas y sin símbolos, y por último sólo las primeras palabras.
+        let categoria: string | null = null;
+        for (const q of variantesDelTitulo(f.titulo)) {
+          const r = await mlConTope(`/sites/MLA/domain_discovery/search?q=${encodeURIComponent(q)}&limit=1`, token);
+          estados[String(r.status)] = (estados[String(r.status)] ?? 0) + 1;
+          const cat = (Array.isArray(r.datos) ? r.datos : [])[0] as { category_id?: string } | undefined;
+          if (r.status === 200 && cat?.category_id) { categoria = cat.category_id; break; }
+          if (r.status !== 200) break;
+        }
+        if (categoria) { await asignar(org, Number(f.id), categoria, cache, token); asignados++; }
         else sinResultado++;
       } catch { sinResultado++; estados.error = (estados.error ?? 0) + 1; }
     }));
