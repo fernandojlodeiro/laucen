@@ -23,8 +23,8 @@ Este capítulo explica lo que es **igual en todas las pantallas** de Laucen: dó
 
 Una franja blanca fija arriba, al estilo de Excel:
 
-- **"Laucen"** a la izquierda: vuelve al [Panel](/panel).
-- Las **secciones del menú**: Panel, Ventas, Catálogo, Stock, Compras, Administración, Informes, Sourcing, Tablas generales, Tienda web, Configuración. Cada sección (salvo Panel, que es un destino directo) despliega sus opciones hacia abajo al hacer clic o al pasar el mouse. La sección donde estás queda subrayada en azul. Escape o un clic afuera cierra el desplegable.
+- **"Laucen"** a la izquierda: vuelve a [Para hacer](/panel).
+- Las **secciones del menú**: Dashboard (Para hacer y Relevamiento completo), Ventas, Catálogo (con las Cucardas), Stock, Compras, Administración, Informes, Sourcing, Tienda web, Configuración (con Depósitos y ubicaciones). Cada sección despliega sus opciones hacia abajo al hacer clic o al pasar el mouse. La sección donde estás queda subrayada en azul. Escape o un clic afuera cierra el desplegable.
 - Una opción que todavía no existe se ve gris con la palabra **"próximamente"** (por ejemplo, **Sourcing › Búsqueda en China**). No se esconde: se muestra deshabilitada.
 - Cada persona ve **sólo las opciones que su rol tiene permitidas** (lo decide [Usuarios y roles](/config/usuarios)). Si una sección queda sin ninguna opción permitida, no aparece.
 - A la derecha, el cuadro **"Buscar producto, MLA, cliente, proveedor…"** (el buscador global: escribís y apretás Enter).
@@ -45,10 +45,10 @@ Una franja azul fija abajo de todo, siempre visible:
 
 ### En el celular: otro modo, no la misma pantalla achicada
 
-- **Arriba**, una franja con **"Laucen"** (vuelve al Panel), el nombre de la organización y el interruptor de moneda.
+- **Arriba**, una franja **fija** (no se va al bajar) con **"Laucen"** (vuelve a Para hacer), el **buscador global** y el interruptor de moneda.
 - **Abajo**, una barra fija con **cuatro accesos directos** y el botón **"Menú"**:
-  - 🧾 **Pedidos**, 🧺 **Picking**, 📥 **Recepción**, 🔎 **Stock** (sólo los que tu rol puede ver).
-  - ☰ **"Menú"**: abre el árbol completo del menú en pantalla entera, con el buscador global arriba. Se cierra con **"Cerrar"** o al elegir una opción.
+  - Los cuatro botones son **los que elegís vos** en [Mis accesos del celular](/config/accesos) (sin elegir, quedan 🧾 Pedidos, 🧺 Picking, 📥 Recepción y 🔎 Stock; sólo los que tu rol puede ver).
+  - ☰ **"Menú"**: abre el árbol completo del menú en pantalla entera, con el botón **"📱 Modo depósito"** ([Modo depósito](/deposito/celular)), el enlace para elegir los botones de la barra y el buscador global. Se cierra con **"Cerrar"** o al elegir una opción.
 - En el celular no están la barra de estado (dólar, contadores) ni el botón "Salir".
 
 ### El camino (arriba a la izquierda, sobre el título)

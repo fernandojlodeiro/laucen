@@ -1,6 +1,6 @@
 ---
 titulo: Cucardas
-menu: Tablas generales › Cucardas
+menu: Catálogo › Cucardas
 ruta: /catalogo/cucardas
 rutas: /catalogo/cucardas
 permiso: cucardas_ver
@@ -16,7 +16,7 @@ Las cucardas son etiquetas de color que se muestran sobre un producto en la tien
 
 ## Cómo se llega
 
-- Menú **Tablas generales › Cucardas**.
+- Menú **Catálogo › Cucardas**.
 - Desde la ficha de un producto, pestaña Cucardas, cuando no hay ninguna creada: enlace a esta pantalla.
 
 ## Qué hay en la pantalla

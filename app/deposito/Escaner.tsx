@@ -3,8 +3,10 @@
 // Lector de códigos del depósito: un campo grande con foco donde se escribe
 // el código o lo "tipea" una pistola lectora (USB/Bluetooth: escriben el
 // código y mandan Enter), y un botón "Cámara" que lee con la cámara trasera
-// del teléfono usando BarcodeDetector del navegador (Chrome/Android; Safari
-// de iPhone no lo tiene). Al leer llama a `alLeer(codigo)`: si devuelve
+// del teléfono. Si el navegador trae BarcodeDetector (Chrome/Android) lo usa;
+// si no (iPhone: Safari y también Chrome, que en iOS usa el mismo motor de
+// Apple), carga un lector hecho en JavaScript/WebAssembly (barcode-detector)
+// la primera vez que se aprieta "Cámara". Al leer llama a `alLeer(codigo)`: si devuelve
 // false suena el pitido de error; si no, el de OK.
 
 import { useEffect, useRef, useState } from "react";
@@ -65,7 +67,8 @@ export default function Escaner({ alLeer, placeholder = "Escaneá o escribí el 
   const [problema, setProblema] = useState<string | null>(null);
 
   useEffect(() => {
-    setHayDetector("BarcodeDetector" in window && !!navigator.mediaDevices?.getUserMedia);
+    // Con cámara disponible siempre hay lector: el del navegador o, si no tiene, el de repuesto.
+    setHayDetector(!!navigator.mediaDevices?.getUserMedia);
     return () => apagar();
   }, []);
 
@@ -110,7 +113,11 @@ export default function Escaner({ alLeer, placeholder = "Escaneá o escribí el 
     if (!v) return;
     v.srcObject = s;
     await v.play().catch(() => {});
-    const D = (window as unknown as { BarcodeDetector: ConstructorDetector }).BarcodeDetector;
+    let D = (window as unknown as { BarcodeDetector?: ConstructorDetector }).BarcodeDetector;
+    if (!D) {
+      try { D = (await import("barcode-detector/ponyfill")).BarcodeDetector as unknown as ConstructorDetector; }
+      catch { setProblema("No se pudo cargar el lector de códigos (¿hay internet?). Escribí el código."); apagar(); return; }
+    }
     let detector: Detector;
     try { detector = new D({ formats: FORMATOS }); } catch { detector = new D({ formats: ["ean_13", "code_128", "qr_code"] }); }
     const vuelta = async () => {

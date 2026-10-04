@@ -29,8 +29,13 @@ export type SeccionMenu = {
 };
 
 export const MENU: SeccionMenu[] = [
-  { texto: "Panel", href: "/panel", permiso: "panel_ver", items: [] },
-  { texto: "Mercado Libre", href: "/mercadolibre", permiso: "tablero_ml_ver", items: [] },
+  {
+    texto: "Dashboard",
+    items: [
+      { texto: "Para hacer", href: "/panel", permiso: "panel_ver", icono: "✅" },
+      { texto: "Relevamiento completo", href: "/mercadolibre", permiso: "tablero_ml_ver", icono: "📊" },
+    ],
+  },
   {
     texto: "Ventas",
     items: [
@@ -47,6 +52,7 @@ export const MENU: SeccionMenu[] = [
     items: [
       { texto: "Productos", href: "/catalogo/productos", permiso: "productos_ver", icono: "📦" },
       { texto: "Familias", href: "/catalogo/familias", permiso: "familias_ver" },
+      { texto: "Cucardas", href: "/catalogo/cucardas", permiso: "cucardas_ver" },
       { texto: "Listas de precios", href: "/catalogo/precios", permiso: "precios_ver" },
       { texto: "Precios en Mercado Libre", href: "/catalogo/precios-ml", permiso: "precios_ml_ver" },
       { texto: "Vista previa de precios ML", href: "/catalogo/precios-ml/vista-previa", permiso: "precios_ml_ver" },
@@ -57,6 +63,7 @@ export const MENU: SeccionMenu[] = [
   {
     texto: "Stock",
     items: [
+      { texto: "Modo depósito (celular)", href: "/deposito/celular", permiso: "picking_ver", icono: "📱" },
       { texto: "Consulta de stock", href: "/stock/consulta", permiso: "stock_ver", icono: "🔎" },
       { texto: "Picking", href: "/deposito/picking", permiso: "picking_ver", icono: "🧺" },
       { texto: "Recepción", href: "/deposito/recepcion", permiso: "recepcion_ver", icono: "📥" },
@@ -102,14 +109,6 @@ export const MENU: SeccionMenu[] = [
     ],
   },
   {
-    // Maestros que se tocan poco (pedido de Fer, 3/10). Marcas va acá cuando exista.
-    texto: "Tablas generales",
-    items: [
-      { texto: "Depósitos y ubicaciones", href: "/stock/depositos", permiso: "depositos_ver" },
-      { texto: "Cucardas", href: "/catalogo/cucardas", permiso: "cucardas_ver" },
-    ],
-  },
-  {
     texto: "Tienda web",
     items: [
       { texto: "Tienda web", href: "/config/tienda", permiso: "tienda_config" },
@@ -125,11 +124,13 @@ export const MENU: SeccionMenu[] = [
       { texto: "Empresa", href: "/config/empresa", permiso: "empresa_config" },
       { texto: "Razones sociales", href: "/config/razones-sociales", permiso: "empresa_config" },
       { texto: "Facturación (ARCA)", href: "/config/arca", permiso: "facturacion_ver" },
+      { texto: "Depósitos y ubicaciones", href: "/stock/depositos", permiso: "depositos_ver" },
       { texto: "Canales", href: "/config/canales", permiso: "canales_ver" },
       { texto: "Cola de Mercado Libre", href: "/config/canales/cola", permiso: "canales_ver" },
       { texto: "Tipo de cambio", href: "/config/tipo-cambio", permiso: "tipo_cambio_ver" },
       { texto: "Usuarios y roles", href: "/config/usuarios", permiso: "usuarios_ver" },
       { texto: "Asistente", href: "/config/asistente", permiso: "asistente_config" },
+      { texto: "Mis accesos del celular", href: "/config/accesos" },
       { texto: "Importar datos", href: "/importar", permiso: "importar_ver" },
     ],
   },

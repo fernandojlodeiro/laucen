@@ -1,6 +1,6 @@
 ---
 titulo: Depósitos y ubicaciones
-menu: Tablas generales › Depósitos y ubicaciones
+menu: Configuración › Depósitos y ubicaciones
 ruta: /stock/depositos
 rutas: /stock/depositos
 permiso: depositos_ver
@@ -15,7 +15,7 @@ Se ve también cuántas unidades hay en cada depósito y en cada ubicación, y q
 
 ## Cómo se llega
 
-- Menú **Tablas generales › Depósitos y ubicaciones**.
+- Menú **Configuración › Depósitos y ubicaciones**.
 - Desde otras pantallas que piden un depósito cuando no hay ninguno (Picking, Etiquetas, Ajustes de stock, Canales), con el enlace para crearlo.
 
 ## Qué hay en la pantalla
