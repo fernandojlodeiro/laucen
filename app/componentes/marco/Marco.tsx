@@ -16,6 +16,7 @@ import { tienePermiso } from "@/lib/permisos";
 import { sosVos } from "@/lib/admin";
 import { menuPara } from "@/lib/menu";
 import { accesosDe } from "@/lib/accesos";
+import { historialDe } from "@/lib/historial";
 import { monedaVista, tcDelDia, formatear, type Moneda } from "@/lib/moneda";
 import { contadoresEstado, type Contador } from "@/lib/erp/contadores";
 import { accionLogout } from "@/app/auth-actions";
@@ -33,12 +34,13 @@ export default async function Marco({ children, version }: { children: React.Rea
   const menu = menuPara(puede, esFer);
 
   // Si la base no responde, el marco se dibuja igual (con lo que haya).
-  const [moneda, tc, contadores, asistente, accesos] = await Promise.all([
+  const [moneda, tc, contadores, asistente, accesos, historial] = await Promise.all([
     monedaVista(sesion.usuario.id, sesion.org.id).catch(() => "ARS" as Moneda),
     tcDelDia(sesion.org.id).catch(() => null),
     contadoresEstado(sesion.org.id).catch(() => [] as Contador[]),
     configAsistente(sesion.org.id).catch(() => CONFIG_DEFECTO),
     accesosDe(sesion.usuario.id, sesion.org.id, puede).catch(() => []),
+    historialDe(sesion.usuario.id, sesion.org.id).catch(() => []),
   ]);
   const quien = sesion.usuario.nombre || sesion.usuario.email;
 
@@ -86,7 +88,7 @@ export default async function Marco({ children, version }: { children: React.Rea
       </footer>
 
       {/* Lo último que viste: sobre el margen izquierdo, si hay lugar */}
-      <Suspense fallback={null}><Historial /></Suspense>
+      <Suspense fallback={null}><Historial inicial={historial} /></Suspense>
 
       {/* El asistente: la carita abajo a la derecha (lib/asistente/motor.ts) */}
       {puede("asistente_usar") && (

@@ -138,3 +138,7 @@ select erp_politica_org('usuario_preferencia');
 -- Los accesos directos de la barra de abajo del celular, a elección de cada
 -- usuario (4/10): lista de direcciones del menú, hasta cuatro. Vacío = los de siempre.
 alter table usuario_preferencia add column if not exists accesos_celular jsonb;
+
+-- "Lo último que viste" (4/10): las últimas fichas que abrió cada usuario
+-- (lista de {href, titulo, tipo}, la última primero). Es de cada usuario, no del navegador.
+alter table usuario_preferencia add column if not exists historial jsonb;
