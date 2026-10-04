@@ -37,7 +37,7 @@ async function slugOcupado(slug: string, canalId: number) {
 }
 
 const CLAVES = ["nombre", "slug", "color_marca", "color_marca_texto", "color_boton", "color_verde", "color_fondo", "logo", "banner", "banner_2", "banner_3", "bajada",
-  "devoluciones", "garantia", "whatsapp", "email", "direccion", "horario", "sin_stock"] as const;
+  "devoluciones", "garantia", "sobre_nosotros", "whatsapp", "email", "direccion", "horario", "sin_stock"] as const;
 
 export async function accionGuardarTienda(fd: FormData) {
   const s = await entrarErp("tienda_config");
@@ -55,6 +55,7 @@ export async function accionGuardarTienda(fd: FormData) {
     if (await slugOcupado(v.slug, canalId)) throw new ErrorErp(`La dirección "${v.slug}" ya la usa otra tienda. Elegí otra.`);
     for (const k of ["color_marca", "color_marca_texto", "color_boton", "color_verde", "color_fondo"] as const) if (v[k] && !/^#[0-9a-fA-F]{6}$/.test(v[k]!)) v[k] = null;
     for (const k of ["devoluciones", "garantia"] as const) if (v[k]) v[k] = v[k]!.slice(0, 1000);
+    if (v.sobre_nosotros) v.sobre_nosotros = v.sobre_nosotros.slice(0, 3000);
     if (v.whatsapp) {
       v.whatsapp = v.whatsapp.replace(/\D/g, "");
       if (v.whatsapp.length < 10 || v.whatsapp.length > 15) throw new ErrorErp("El WhatsApp va en formato internacional, sólo números (ej. 5493511234567).");

@@ -48,7 +48,7 @@ export default async function Marco({ children, version }: { children: React.Rea
           <Link href="/panel" className="text-sm font-black text-[#16577F] tracking-tight shrink-0">Laucen</Link>
           <BarraMenu menu={menu} />
           <form action="/buscar" className="ml-auto flex items-center gap-1">
-            <input name="q" placeholder="Buscar producto, pedido, cliente…" aria-label="Buscar"
+            <input name="q" placeholder="Buscar producto, MLA, cliente, proveedor…" aria-label="Buscar"
               className="w-64 text-xs border border-[#E3E9F0] rounded-lg px-2 py-1.5 bg-[#F7F8F6]" />
           </form>
           <form action={accionLogout}>

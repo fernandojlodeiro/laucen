@@ -8,7 +8,9 @@ import { BotonEnviar, BotonConfirmar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
 import { CAJA, Estado } from "@/app/componentes/erp";
 import { estadoColaCanal } from "@/lib/mercadolibre/cola";
-import { accionSincronizarStock, accionSubirFacturas, accionSoltarCuenta, accionTraerAhora, accionUsarCuenta } from "./acciones-ml";
+import { emisoresDe } from "@/lib/arca/facturar";
+import { CAMPO, ETIQUETA } from "@/app/componentes/erp";
+import { accionAsignarRazonSocial, accionSincronizarStock, accionSubirFacturas, accionSoltarCuenta, accionTraerAhora, accionUsarCuenta } from "./acciones-ml";
 
 export default async function CuentaMl({ org, canal }: { org: string; canal: number }) {
   const cuenta = await una<{ id: number; nickname: string | null; estado: string; ultimo_error: string | null; pedidos_desde: Date | null }>(
@@ -21,6 +23,7 @@ export default async function CuentaMl({ org, canal }: { org: string; canal: num
     select (select count(*) from publicacion where canal_id = $1 and id_externo is not null)::int pubs,
            (select count(*) from meli_item where canal_id = $1 and publicacion_id is null)::int sin,
            (select count(*) from meli_pregunta where canal_id = $1 and estado = 'UNANSWERED')::int preguntas`, [canal]);
+  const [razones, actual] = await Promise.all([emisoresDe(org), una<{ emisor_id: number | null }>("select emisor_id::int from canal where id = $1 and organizacion_id = $2", [canal, org])]);
   const campos = { canal: String(canal) };
   const cola = cuenta ? await estadoColaCanal(canal) : null;
   const fh = (d: Date) => d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -50,6 +53,17 @@ export default async function CuentaMl({ org, canal }: { org: string; canal: num
             {cuenta.estado !== "activa" && <Link href={`/config/canales/meli?canal=${canal}`} className={PRIMARIO}>Volver a conectar</Link>}
             <BotonConfirmar accion={accionSoltarCuenta} campos={campos} clase={APAGAR} texto="Sacarla del canal" pregunta="¿Dejan de entrar sus pedidos?" corriendo="…" />
           </div>
+          {razones.length > 0 && (
+            <form action={accionAsignarRazonSocial} className="flex flex-wrap items-end gap-2 rounded-lg border border-[#E3E9F0] bg-[#FAFBFC] p-2">
+              <input type="hidden" name="canal" value={canal} />
+              <label><span className={ETIQUETA}>Este canal factura con (razón social)</span>
+                <select name="emisor" defaultValue={actual?.emisor_id ?? ""} className={CAMPO}>
+                  <option value="">La principal ({razones.find((r) => r.es_principal)?.nombre ?? razones.find((r) => r.es_principal)?.razon_social})</option>
+                  {razones.map((r) => <option key={r.id} value={r.id}>{r.nombre ?? r.razon_social}</option>)}
+                </select></label>
+              <button className={SUAVE}>Guardar</button>
+            </form>
+          )}
           {cuenta.ultimo_error && <p className="text-[11px] text-[#C03420]">Último problema: {cuenta.ultimo_error}</p>}
           <p className="text-[11px] text-[#5C6B76]">
             {pendientes!.pubs} publicaciones vinculadas{pendientes!.sin ? ` · ${pendientes!.sin} sin vincular` : ""} · {pendientes!.preguntas} preguntas sin responder

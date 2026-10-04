@@ -82,7 +82,7 @@ export function MenuCelular({ menu, accesos }: { menu: SeccionMenu[]; accesos: (
               className="text-xs font-bold rounded-lg px-3 py-2 bg-[#EEF3F8] border border-[#E3E9F0] text-[#16577F]">Cerrar</button>
           </div>
           <form action="/buscar" className="px-3 py-3">
-            <input name="q" placeholder="Buscar producto, pedido, cliente…" aria-label="Buscar"
+            <input name="q" placeholder="Buscar producto, MLA, cliente, proveedor…" aria-label="Buscar"
               className="w-full text-sm border border-[#E3E9F0] rounded-lg px-3 py-2" />
           </form>
           {menu.map((s) => (

@@ -42,7 +42,7 @@ La primera vez que una organización sin ningún canal abre la pantalla, el sist
 ### Buscador y lista
 
 - **"Buscar canal"**: busca por nombre mientras tipeás, con la caja "Comienza por".
-- Columnas (se ordenan tocando el título): **Canal** (el nombre; tocarlo abre sus detalles abajo), **Tipo**, **Lista de precios** (enlace a esa lista; en rojo "sin lista" si no tiene), **Vende desde** (los depósitos, en orden de prioridad; en rojo "ningún depósito"), **Estado** (Activo / Pausado / Archivado), **Mercado Libre** (sólo para canales de ML: "Conectada" en verde o "Desconectada" en rojo; para el resto, "—"), **Factura con** (sólo si hay más de una razón social: con cuál se factura lo que vende el canal; "La principal" si no se eligió), **Umbral de pausa** ("hereda" si está vacío), **Llave API** ("Tiene" o "sin llave").
+- Columnas (se ordenan tocando el título): **Canal** (el nombre; tocarlo abre sus detalles abajo), **Tipo**, **Lista de precios** (enlace a esa lista; en rojo "sin lista" si no tiene), **Vende desde** (los depósitos, en orden de prioridad; en rojo "ningún depósito"), **Estado** (Activo / Pausado / Archivado), **Mercado Libre** (sólo para canales de ML: "Conectada" en verde o "Desconectada" en rojo, **seguido del apodo (nick) de la cuenta de ML conectada**; para el resto, "—"), **Factura con** (aparece apenas hay una razón social cargada: con cuál se factura lo que vende el canal; "La principal" si no se eligió), **Umbral de pausa** ("hereda" si está vacío), **Llave API** ("Tiene" o "sin llave").
 - Al final de cada fila, el **lápiz** (editar la fila ahí mismo) y el **tacho** (borrar, pregunta "¿Borrar el canal?" Sí / No).
 - Abajo, el paginador de 50 en 50 y dos ayudas: qué es el umbral de pausa y qué es la llave API.
 
@@ -182,7 +182,7 @@ En la caja de la cuenta, **"Traer pedidos y preguntas ahora"**. Avisa "Listo: N 
 
 ### Con qué razón social se factura cada canal
 
-Si la organización tiene **más de una razón social** (ver [Razones sociales](/config/razones-sociales)), al editar un canal con el lápiz aparece **"Factura con"**: elegís la razón social con la que se emiten las facturas de lo que vende ese canal (por ejemplo, tres cuentas de Mercado Libre con una razón social y dos con la otra). Sin elegir, el canal factura con la **principal**, que es lo que pasa siempre con la tienda web, el local y el mayorista.
+Una vez cargadas las razones sociales (ver [Razones sociales](/config/razones-sociales)), tocá el canal (su nombre) y, en la caja **"Cuenta de Mercado Libre"**, elegí **"Este canal factura con (razón social)"** y apretá **"Guardar"**. La columna **"Factura con"** de la lista muestra con cuál factura cada canal, y también se cambia con el **lápiz** de su fila (desplegable **"Factura con"**). Elegís la razón social con la que se emiten las facturas de lo que vende ese canal (por ejemplo, tres cuentas de Mercado Libre con una razón social y dos con la otra). Sin elegir, el canal factura con la **principal**, que es lo que pasa siempre con la tienda web, el local y el mayorista.
 
 - Cambiarlo afecta a las facturas **nuevas**; las ya emitidas no se mueven.
 - La cuenta de fondos "Mercado Pago — <apodo>" de la cuenta de ML pasa a ser de la nueva razón social.
