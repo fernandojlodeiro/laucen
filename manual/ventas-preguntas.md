@@ -35,6 +35,7 @@ Para cada una, la **IA puede proponer una respuesta** con los datos de la public
 Dos pestañas chicas: **"Sin responder (N)"** y **"Respondidas (N)"**.
 
 **Sin responder** (las más viejas primero, hasta 200). Cada pregunta es una tarjeta con:
+- Desde el [Tablero de Mercado Libre](/mercadolibre) se llega con una cuenta ya elegida (la dirección lleva el filtro de esa cuenta): se ven sólo sus preguntas y mensajes.
 - La **publicación**: foto, título, la cuenta (canal), el número de publicación (enlace "↗" que abre la publicación en Mercado Libre) y **"Stock del canal: N"** (o "Sin vincular a un producto" si la publicación no está atada a un producto de Laucen).
 - Hace cuánto llegó ("recién", "hace 5 min", "hace 3 h", "hace 2 días"; con el mouse encima, la fecha y hora).
 - El texto de la pregunta.

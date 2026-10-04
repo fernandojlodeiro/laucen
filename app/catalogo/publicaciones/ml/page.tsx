@@ -18,7 +18,7 @@ import {
   entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, patronBusqueda,
 } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
-import { LISTA_VINCULAR_ML, ESTADO_ML, TIPO_ML, LOGISTICA_ML, filtroMl, verMl } from "./lista";
+import { LISTA_VINCULAR_ML, ESTADOS_ML_CON_PROBLEMAS, ESTADO_ML, type VerMl, TIPO_ML, LOGISTICA_ML, filtroMl, verMl } from "./lista";
 import { accionTraerPublicaciones, accionVincular, accionCrearProducto, accionDesvincular } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +28,7 @@ export const maxDuration = 300;
 const BASE = "/catalogo/publicaciones/ml";
 
 type SP = { canal?: string; ver?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
-type Ver = "sin" | "vinc" | "todas";
+type Ver = VerMl;
 
 type Fila = {
   item_id: string; variation_id: string; titulo: string | null; atributos: string | null; sku: string | null;
@@ -73,8 +73,11 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
   const { desde } = leerPagina(sp);
   const aqui = url(BASE, { canal: canal.id, ver: ver === "sin" ? null : ver, q, contiene: cont, p: sp.p, orden: sp.orden, dir: sp.dir });
 
-  const resumen = (await consulta<{ total: number; vinculadas: number }>(`
-    select count(*)::int total, count(publicacion_id)::int vinculadas
+  const resumen = (await consulta<{ total: number; vinculadas: number; activas: number; pausadas: number; con_cuestiones: number }>(`
+    select count(*)::int total, count(publicacion_id)::int vinculadas,
+           count(*) filter (where estado = 'active')::int activas,
+           count(*) filter (where estado = 'paused')::int pausadas,
+           count(*) filter (where estado in ${ESTADOS_ML_CON_PROBLEMAS})::int con_cuestiones
       from meli_item where organizacion_id = $1 and canal_id = $2`, [org, canal.id]))[0];
 
   // Los mismos filtros que el Excel (lista.tsx).
@@ -114,7 +117,8 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
   const ir = (cambios: Record<string, string | number | null>) =>
     url(BASE, { canal: canal.id, ver: ver === "sin" ? null : ver, q, contiene: cont, ...cambios });
   const pestanas: { ver: Ver; texto: string }[] = [
-    { ver: "sin", texto: "Sin vincular" }, { ver: "vinc", texto: "Vinculadas" }, { ver: "todas", texto: "Todas" },
+    { ver: "sin", texto: "Sin vincular" }, { ver: "vinc", texto: "Vinculadas" }, { ver: "activas", texto: "Activas" }, { ver: "pausadas", texto: "Pausadas" },
+    { ver: "revision", texto: "Con cuestiones" }, { ver: "todas", texto: "Todas" },
   ];
 
   return (
@@ -145,7 +149,8 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
 
       <Pestanas className="mb-3" items={pestanas.map((p) => ({
         clave: p.ver, texto: p.texto, activa: ver === p.ver, href: ir({ ver: p.ver === "sin" ? null : p.ver }),
-        cuenta: p.ver === "sin" ? resumen.total - resumen.vinculadas : p.ver === "vinc" ? resumen.vinculadas : resumen.total,
+        cuenta: p.ver === "sin" ? resumen.total - resumen.vinculadas : p.ver === "vinc" ? resumen.vinculadas
+          : p.ver === "activas" ? resumen.activas : p.ver === "pausadas" ? resumen.pausadas : p.ver === "revision" ? resumen.con_cuestiones : resumen.total,
       }))} />
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">

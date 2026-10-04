@@ -9,16 +9,21 @@ import type { Lista, SP } from "@/lib/listas/tipos";
 export const ESTADO_ML: Record<string, { texto: string; tono: "verde" | "amarillo" | "gris" | "azul" }> = {
   active: { texto: "Activa", tono: "verde" }, paused: { texto: "Pausada", tono: "amarillo" },
   closed: { texto: "Cerrada", tono: "gris" }, under_review: { texto: "En revisión", tono: "azul" },
+  inactive: { texto: "Inactiva", tono: "gris" }, payment_required: { texto: "Falta pagar", tono: "amarillo" },
 };
 export const TIPO_ML: Record<string, string> = { gold_pro: "Premium", gold_special: "Clásica", free: "Gratuita" };
 export const LOGISTICA_ML: Record<string, string> = { fulfillment: "Full" };
 
-export type VerMl = "sin" | "vinc" | "todas";
-export const verMl = (sp: SP): VerMl => (sp.ver === "vinc" || sp.ver === "todas" ? sp.ver : "sin");
+export type VerMl = "sin" | "vinc" | "todas" | "activas" | "pausadas" | "revision";
+export const verMl = (sp: SP): VerMl => (sp.ver === "vinc" || sp.ver === "todas" || sp.ver === "activas" || sp.ver === "pausadas" || sp.ver === "revision" ? sp.ver : "sin");
+
+/** Publicaciones que ML frena hasta que se corrija algo: en revisión, inactivas o con el pago pendiente. */
+export const ESTADOS_ML_CON_PROBLEMAS = "('under_review', 'inactive', 'payment_required')";
 
 /** Los filtros de la pantalla sobre meli_item (alias mi): $1 organización, $2 canal, $3 búsqueda. */
 export function filtroMl(ver: VerMl) {
-  const filtroVer = ver === "sin" ? "and mi.publicacion_id is null" : ver === "vinc" ? "and mi.publicacion_id is not null" : "";
+  const filtroVer = ver === "sin" ? "and mi.publicacion_id is null" : ver === "vinc" ? "and mi.publicacion_id is not null"
+    : ver === "activas" ? "and mi.estado = 'active'" : ver === "pausadas" ? "and mi.estado = 'paused'" : ver === "revision" ? `and mi.estado in ${ESTADOS_ML_CON_PROBLEMAS}` : "";
   return `mi.organizacion_id = $1 and mi.canal_id = $2 ${filtroVer}
     and ($3::text is null or mi.titulo ilike $3 or mi.sku ilike $3 or mi.item_id ilike $3)`;
 }

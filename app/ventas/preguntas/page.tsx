@@ -16,7 +16,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type SP = { ver?: string; pack?: string; ok?: string; error?: string };
+type SP = { ver?: string; canal?: string; pack?: string; ok?: string; error?: string };
 
 /** "hace 5 min", "hace 3 h", "hace 2 días". */
 function haceCuanto(d: Date | string): string {
@@ -33,10 +33,12 @@ export default async function PreguntasYMensajes({ searchParams }: { searchParam
   const s = await entrarErp("preguntas_ver");
   const sp = await searchParams;
   const ver = sp.ver === "mensajes" ? "mensajes" : sp.ver === "respondidas" ? "respondidas" : "preguntas";
+  // ?canal= viene del tablero de Mercado Libre: sólo las de esa cuenta.
+  const canal = Number(sp.canal) || null;
   const cuentas = await consulta<{ pendientes: number; respondidas: number; sin_leer: number }>(`
-    select (select count(*) from meli_pregunta where organizacion_id = $1 and estado = 'UNANSWERED')::int pendientes,
-           (select count(*) from meli_pregunta where organizacion_id = $1 and estado = 'ANSWERED')::int respondidas,
-           (select count(*) from meli_conversacion where organizacion_id = $1 and sin_leer > 0)::int sin_leer`, [s.org.id]);
+    select (select count(*) from meli_pregunta where organizacion_id = $1 and estado = 'UNANSWERED' and ($2::bigint is null or canal_id = $2))::int pendientes,
+           (select count(*) from meli_pregunta where organizacion_id = $1 and estado = 'ANSWERED' and ($2::bigint is null or canal_id = $2))::int respondidas,
+           (select count(*) from meli_conversacion where organizacion_id = $1 and sin_leer > 0 and ($2::bigint is null or canal_id = $2))::int sin_leer`, [s.org.id, canal]);
   const { pendientes, respondidas, sin_leer } = cuentas[0] ?? { pendientes: 0, respondidas: 0, sin_leer: 0 };
 
   return (
@@ -47,17 +49,17 @@ export default async function PreguntasYMensajes({ searchParams }: { searchParam
       <Avisos sp={sp} />
       {/* La cuenta de cada pestaña es lo que espera: preguntas sin responder, conversaciones sin leer. */}
       <Pestanas items={[
-        { href: "/ventas/preguntas", texto: "Preguntas", activa: ver !== "mensajes", cuenta: pendientes },
-        { href: "/ventas/preguntas?ver=mensajes", texto: "Mensajes", activa: ver === "mensajes", cuenta: sin_leer },
+        { href: url("/ventas/preguntas", { canal }), texto: "Preguntas", activa: ver !== "mensajes", cuenta: pendientes },
+        { href: url("/ventas/preguntas", { ver: "mensajes", canal }), texto: "Mensajes", activa: ver === "mensajes", cuenta: sin_leer },
       ]} />
-      {ver === "mensajes" ? <Mensajes org={s.org.id} pack={sp.pack} />
+      {ver === "mensajes" ? <Mensajes org={s.org.id} pack={sp.pack} canal={canal} />
         : (
           <>
             <Pestanas chica className="mb-3" items={[
-              { href: "/ventas/preguntas", texto: "Sin responder", activa: ver === "preguntas", cuenta: pendientes },
-              { href: "/ventas/preguntas?ver=respondidas", texto: "Respondidas", activa: ver === "respondidas", cuenta: respondidas },
+              { href: url("/ventas/preguntas", { canal }), texto: "Sin responder", activa: ver === "preguntas", cuenta: pendientes },
+              { href: url("/ventas/preguntas", { ver: "respondidas", canal }), texto: "Respondidas", activa: ver === "respondidas", cuenta: respondidas },
             ]} />
-            {ver === "preguntas" ? <SinResponder org={s.org.id} /> : <Respondidas org={s.org.id} />}
+            {ver === "preguntas" ? <SinResponder org={s.org.id} canal={canal} /> : <Respondidas org={s.org.id} canal={canal} />}
           </>
         )}
     </Pantalla>
@@ -108,8 +110,8 @@ function Publicacion({ q }: { q: Pregunta }) {
   );
 }
 
-async function SinResponder({ org }: { org: string }) {
-  const filas = await consulta<Pregunta>(`${DE_PREGUNTA} where q.organizacion_id = $1 and q.estado = 'UNANSWERED' order by q.fecha asc limit 200`, [org]);
+async function SinResponder({ org, canal }: { org: string; canal: number | null }) {
+  const filas = await consulta<Pregunta>(`${DE_PREGUNTA} where q.organizacion_id = $1 and q.estado = 'UNANSWERED' and ($2::bigint is null or q.canal_id = $2) order by q.fecha asc limit 200`, [org, canal]);
   if (filas.length === 0) return <p className={`${CAJA} text-xs text-[#5C6B76]`}>No hay preguntas sin responder.</p>;
   return (
     <div className="space-y-3">
@@ -137,9 +139,9 @@ async function SinResponder({ org }: { org: string }) {
   );
 }
 
-async function Respondidas({ org }: { org: string }) {
+async function Respondidas({ org, canal }: { org: string; canal: number | null }) {
   const filas = await consulta<Pregunta>(
-    `${DE_PREGUNTA} where q.organizacion_id = $1 and q.estado = 'ANSWERED' order by q.respondida_ts desc nulls last, q.fecha desc limit 100`, [org]);
+    `${DE_PREGUNTA} where q.organizacion_id = $1 and q.estado = 'ANSWERED' and ($2::bigint is null or q.canal_id = $2) order by q.respondida_ts desc nulls last, q.fecha desc limit 100`, [org, canal]);
   if (filas.length === 0) return <p className={`${CAJA} text-xs text-[#5C6B76]`}>Todavía no hay preguntas respondidas.</p>;
   return (
     <div className="space-y-3">
@@ -160,7 +162,7 @@ async function Respondidas({ org }: { org: string }) {
   );
 }
 
-async function Mensajes({ org, pack }: { org: string; pack?: string }) {
+async function Mensajes({ org, pack, canal }: { org: string; pack?: string; canal: number | null }) {
   // Abrir una conversación la da por leída en Laucen (en ML se marca al
   // contestar o al tocar "Actualizar").
   if (pack) await consulta("update meli_conversacion set sin_leer = 0 where organizacion_id = $1 and pack_id = $2 and sin_leer > 0", [org, pack]);
@@ -173,9 +175,9 @@ async function Mensajes({ org, pack }: { org: string; pack?: string }) {
       left join canal ca on ca.id = c.canal_id
       left join pedido p on p.id = c.pedido_id
       left join cliente cl on cl.id = p.cliente_id
-     where c.organizacion_id = $1
+     where c.organizacion_id = $1 and ($2::bigint is null or c.canal_id = $2)
      order by (c.sin_leer > 0) desc, c.ultimo_ts desc nulls last
-     limit 100`, [org]);
+     limit 100`, [org, canal]);
   const elegida = pack ? conversaciones.find((c) => c.pack_id === pack)
     ?? await una<(typeof conversaciones)[number]>(`
       select c.pack_id, ca.nombre canal, c.pedido_id::int, cl.nombre cliente, c.sin_leer, c.ultimo_ts, null ultimo
@@ -187,7 +189,7 @@ async function Mensajes({ org, pack }: { org: string; pack?: string }) {
       <div className="bg-white border border-[#E3E9F0] rounded-xl overflow-hidden self-start">
         {conversaciones.length === 0 && <p className="p-3 text-xs text-[#5C6B76]">Todavía no hay mensajes.</p>}
         {conversaciones.map((c) => (
-          <Link key={c.pack_id} href={url("/ventas/preguntas", { ver: "mensajes", pack: c.pack_id })}
+          <Link key={c.pack_id} href={url("/ventas/preguntas", { ver: "mensajes", pack: c.pack_id, canal })}
             className={`block px-3 py-2 border-t first:border-t-0 border-[#E3E9F0] text-xs ${c.pack_id === pack ? "bg-[#EEF3F8]" : "hover:bg-[#FAFBFC]"}`}>
             <div className="flex items-center justify-between gap-2">
               <span className={`truncate ${c.sin_leer ? "font-bold" : "font-semibold"}`}>{c.cliente ?? `Pack ${c.pack_id}`}</span>

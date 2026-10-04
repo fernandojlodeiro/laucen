@@ -30,6 +30,7 @@ export type SeccionMenu = {
 
 export const MENU: SeccionMenu[] = [
   { texto: "Panel", href: "/panel", permiso: "panel_ver", items: [] },
+  { texto: "Mercado Libre", href: "/mercadolibre", permiso: "tablero_ml_ver", items: [] },
   {
     texto: "Ventas",
     items: [

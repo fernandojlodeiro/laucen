@@ -8,6 +8,7 @@ import { Estado, url, patronBusqueda } from "@/app/componentes/erp";
 import { verInactivos } from "@/app/componentes/Inactivos";
 import { consulta } from "@/lib/erp/base";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
+import { SQL_SIN_PUBLICAR, SQL_SIN_FOTOS } from "@/lib/catalogo-alertas";
 import { EstadoProducto, TIPOS_PRODUCTO, ESTADOS_PRODUCTO } from "./comun";
 
 const ENLACE = "hover:text-[#16577F] hover:underline";
@@ -34,6 +35,9 @@ export function filtrosProductos(sp: SP) {
     // Los inactivos (archivados) sólo con la caja tildada, o si se los pide por estado.
     inactivos: verInactivos(sp) || estado === "archivado",
     kitVs: sp.kitvs === "1",
+    // Desde el tablero de Mercado Libre: con stock y sin publicación activa / sin fotos.
+    sinPublicar: sp.sinpublicar === "1",
+    sinFotos: sp.sinfotos === "1",
   };
 }
 
@@ -136,8 +140,10 @@ export const LISTA_PRODUCTOS: Lista = {
               with recursive d as (select $5::bigint id union select f.id from familia f join d on f.padre_id = d.id where f.organizacion_id = $1)
               select id from d))
          and ($6 or p.estado <> 'archivado')
-         and (not $7 or p.kit_vs)`,
-      valores: [ctx.org, patronBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs],
+         and (not $7 or p.kit_vs)
+         and (not $8 or ${SQL_SIN_PUBLICAR})
+         and (not $9 or ${SQL_SIN_FOTOS})`,
+      valores: [ctx.org, patronBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos],
       orden: "p.titulo, p.id",
     };
   },

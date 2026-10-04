@@ -415,3 +415,9 @@ end $$;
 create or replace trigger meli_item_anotar_cambio after update of estado, precio, stock on meli_item
   for each row when (old.estado is distinct from new.estado or old.precio is distinct from new.precio or old.stock is distinct from new.stock)
   execute function public.meli_item_anotar_cambio();
+
+-- Tablero de Mercado Libre (4/10): la reputación de cada cuenta tal como la
+-- informa ML (seller_reputation de /users/{id}), con cuándo se leyó. Se
+-- actualiza con el botón del tablero y, sola, cuando tiene más de una hora.
+alter table meli_cuenta add column if not exists reputacion jsonb;
+alter table meli_cuenta add column if not exists reputacion_ts timestamptz;

@@ -16,16 +16,16 @@ import { verInactivos } from "@/app/componentes/Inactivos";
 
 export const dynamic = "force-dynamic";
 
-type SP = { q?: string; estado?: string; familia?: string; tipo?: string; inactivos?: string; kitvs?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+type SP = { q?: string; estado?: string; familia?: string; tipo?: string; inactivos?: string; kitvs?: string; sinpublicar?: string; sinfotos?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 export default async function Productos({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("productos_ver");
   const sp = await searchParams;
-  const { q, comienza, estado, tipo, familia, kitVs } = filtrosProductos(sp);
+  const { q, comienza, estado, tipo, familia, kitVs, sinPublicar, sinFotos } = filtrosProductos(sp);
   const ctx = { org: s.org.id, moneda: s.moneda };
   const [caminoFamilia, vista] = await Promise.all([caminoDeFamilia(s.org.id, familia), paginaDeVista(LISTA_PRODUCTOS, ctx, sp)]);
 
-  const hayFiltro = q || estado || tipo || familia || verInactivos(sp) || kitVs;
+  const hayFiltro = q || estado || tipo || familia || verInactivos(sp) || kitVs || sinPublicar || sinFotos;
   return (
     <Pantalla titulo="Productos" subtitulo="Cada producto con sus variaciones, kits, fotos, cucardas, precios y stock"
       acciones={<><AccionesExcel lista={LISTA_PRODUCTOS} org={s.org.id} vista={vista.activa?.id} /><BotonNuevo texto="Nuevo producto" /></>}>
@@ -58,6 +58,8 @@ export default async function Productos({ searchParams }: { searchParams: Promis
           {Object.entries(TIPOS_PRODUCTO).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
         </FiltroVivo>
         <CasillaViva parametro="kitvs" activo={kitVs} etiqueta="Kits de Virtual Seller" />
+        <CasillaViva parametro="sinpublicar" activo={sinPublicar} etiqueta="Con stock y sin publicación activa en ML" />
+        <CasillaViva parametro="sinfotos" activo={sinFotos} etiqueta="De la web, sin fotos" />
       </div>
 
       <div className="flex justify-end mb-2">{vista.selector}</div>

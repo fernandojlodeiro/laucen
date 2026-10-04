@@ -22,6 +22,7 @@ export type PermisoKey =
   | "importaciones_rubros"
   // Funciones del cimiento del ERP (orden 136): una por ítem del menú.
   | "panel_ver"
+  | "tablero_ml_ver"
   | "pedidos_ver"
   | "clientes_ver"
   | "productos_ver"
@@ -83,6 +84,7 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "importaciones_ver", label: "Ver Importaciones", ayuda: "Buscador y consultas sobre los despachos de importación (ARCA + Softrade)." },
   { key: "importaciones_rubros", label: "Armar rubros", ayuda: "Crear, editar y borrar los rubros guardados (grupos de NCM)." },
   { key: "panel_ver", label: "Panel", ayuda: "La pantalla de inicio con lo pendiente." },
+  { key: "tablero_ml_ver", label: "Tablero de Mercado Libre", ayuda: "El tablero con la reputación, las publicaciones y lo pendiente de cada cuenta de Mercado Libre." },
   { key: "pedidos_ver", label: "Pedidos", ayuda: "Listado y detalle de pedidos de todos los canales." },
   { key: "clientes_ver", label: "Clientes", ayuda: "Ver y corregir los datos de los clientes." },
   { key: "productos_ver", label: "Productos", ayuda: "Productos, variaciones, kits, fotos y cucardas." },
@@ -159,7 +161,7 @@ export const PRESETS: Record<PresetKey, { label: string; descripcion: string; pe
  *  Sólo un `false` explícito la apaga. */
 export const FUNCIONES: PermisoKey[] = [
   "radar_ver", "importaciones_ver",
-  "panel_ver", "pedidos_ver", "clientes_ver", "productos_ver", "familias_ver", "precios_ver", "precios_ml_ver",
+  "panel_ver", "tablero_ml_ver", "pedidos_ver", "clientes_ver", "productos_ver", "familias_ver", "precios_ver", "precios_ml_ver",
   "publicaciones_ver", "cucardas_ver", "depositos_ver", "stock_ver", "stock_ajustar", "canales_ver",
   "tipo_cambio_ver", "usuarios_ver", "importar_ver", "proveedores_ver",
   "envios_ver", "preguntas_ver", "reclamos_ver", "picking_ver", "recepcion_ver", "etiquetas_ver", "facturacion_ver",

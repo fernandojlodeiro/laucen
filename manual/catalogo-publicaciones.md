@@ -48,7 +48,7 @@ Si no hay ninguna cuenta de ML conectada a un canal, avisa que primero hay que c
 Si hay:
 - **Canal de Mercado Libre** (si hay más de una cuenta) y el botón **Traer publicaciones de ML** (mientras trabaja: "Trayendo… (puede tardar unos minutos)").
 - Tres recuadros: **Publicaciones**, **Vinculadas**, **Sin vincular**.
-- Pestañas **Sin vincular (n)**, **Vinculadas (n)**, **Todas (n)**.
+- Pestañas **Sin vincular (n)**, **Vinculadas (n)**, **Activas (n)**, **Pausadas (n)**, **Con cuestiones (n)** (en revisión, inactivas o con el pago pendiente) y **Todas (n)**. El [Tablero de Mercado Libre](/mercadolibre) enlaza a estas pestañas.
 - Buscador **"Buscar por título, SKU o MLA…"**.
 - **Descargar Excel** arriba a la derecha (con la misma pestaña y búsqueda).
 - Tabla: foto, **Publicación** (título, atributos de la variación de ML, el MLA con enlace ↗ y la marca "Full" si va por Full), **SKU en ML**, **Precio** (ML da pesos; si mirás en dólares, se pasa al tipo de cambio del día), **Stock ML**, **Vendidos**, **Estado**, **Tipo** (Clásica / Premium / Gratuita), **Vinculación**.
