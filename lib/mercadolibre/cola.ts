@@ -20,7 +20,9 @@ import type { SubirArchivo } from "@/lib/mercadolibre/facturas";
 
 export type TipoCambio = "stock" | "estado" | "precio" | "descuento" | "campana" | "atributos" | "crear" | "factura" | "reclamo" | "otro";
 export type OrigenCambio = "automatico" | "boton" | "barrida";
-export type PedidoMl = { metodo: "PUT" | "POST" | "DELETE"; ruta: string; cuerpo?: unknown };
+/** `seguirSiFalla`: si ML lo rechaza, se sigue con el próximo pedido (ej.
+ *  finalizar una publicación que ya estaba finalizada, antes de eliminarla). */
+export type PedidoMl = { metodo: "PUT" | "POST" | "DELETE"; ruta: string; cuerpo?: unknown; seguirSiFalla?: boolean };
 
 /** Lo que se graba en Laucen cuando ML acepta el cambio. */
 export type Efecto = {
@@ -348,7 +350,7 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
             ultimo = Date.now();
             res.enviadas++;
             r = await enviar(cuenta, p.metodo, p.ruta, p.cuerpo);
-            if (r.status < 200 || r.status >= 300) break;
+            if ((r.status < 200 || r.status >= 300) && !(p.seguirSiFalla && r.status >= 400 && r.status < 500 && r.status !== 429 && r.status !== 401)) break;
           }
           status = r.status; datos = r.datos;
           if (status === 429) frenar = 60_000;

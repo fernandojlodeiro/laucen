@@ -13,7 +13,7 @@ import { formatear, tcDelDia } from "@/lib/moneda";
 import { cuentasDe } from "@/lib/mercadolibre/api";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { TachoConfirmar, BotonEnviar, BotonConfirmar } from "@/app/radar/Cliente";
-import { contarPausadasABorrar } from "@/lib/mercadolibre/publicaciones";
+import { contarPausadasABorrar, contarAEliminarEnMl } from "@/lib/mercadolibre/publicaciones";
 import Todas from "./Todas";
 import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import {
@@ -21,7 +21,7 @@ import {
 } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
 import { LISTA_VINCULAR_ML, ESTADOS_ML_CON_PROBLEMAS, ESTADO_ML, type VerMl, valorVerMl, TIPO_ML, LOGISTICA_ML, filtroMl, verMl } from "./lista";
-import { accionTraerPublicaciones, accionVincular, accionCrearProducto, accionDesvincular, accionBorrarPausadas } from "./acciones";
+import { accionTraerPublicaciones, accionVincular, accionCrearProducto, accionDesvincular, accionBorrarPausadas, accionPrepararEliminarEnMl } from "./acciones";
 
 export const dynamic = "force-dynamic";
 // Traer publicaciones puede tardar (hasta 4 minutos por vuelta).
@@ -89,6 +89,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
       from meli_item where organizacion_id = $1 and canal_id = any($2::bigint[])`, [org, ids]))[0];
 
   const pausadas = todas ? 0 : await contarPausadasABorrar(org, canal.id);
+  const aEliminar = todas ? 0 : await contarAEliminarEnMl(org, canal.id);
 
   // Los mismos filtros que el Excel (lista.tsx).
   const filtro = filtroMl(ver);
@@ -159,6 +160,18 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
           </p>
           <BotonConfirmar accion={accionBorrarPausadas} campos={{ canal: String(canal.id), volver: aqui }} clase={SUAVE}
             texto={`Borrar de Laucen (${n(pausadas)})`} pregunta={`¿Borrar las ${n(pausadas)} de Laucen?`} corriendo="Borrando…" />
+        </div>
+      )}
+
+      {aEliminar > 0 && (
+        <div className={`${CAJA} mb-3 flex flex-wrap items-center gap-3 border-[#EFD3CE]`}>
+          <p className="text-xs flex-1 min-w-60">
+            <b>{n(aEliminar)} publicaciones borradas de Laucen siguen en Mercado Libre.</b> Este botón prepara el lote que las finaliza y las
+            <b> elimina en ML</b> (no tiene vuelta atrás: se pierde su historial de ventas y preguntas). No sale nada hasta que lo revises y aprietes
+            &quot;Mandar a Mercado Libre&quot; en el lote.
+          </p>
+          <BotonConfirmar accion={accionPrepararEliminarEnMl} campos={{ canal: String(canal.id), volver: aqui }} clase={SUAVE}
+            texto={`Preparar eliminación en ML (${n(aEliminar)})`} pregunta={`¿Preparar el lote para eliminar ${n(aEliminar)} en ML?`} corriendo="Preparando…" />
         </div>
       )}
 

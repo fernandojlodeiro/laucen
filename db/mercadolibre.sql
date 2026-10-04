@@ -192,6 +192,10 @@ create table if not exists meli_item_descartado (
 );
 alter table meli_item_descartado enable row level security;
 select erp_politica_org('meli_item_descartado');
+-- Cómo estaba en ML al borrarla, y el lote que la elimina en ML (Fer, 4/10:
+-- "Eliminar en Mercado Libre" sale con su clic, por la cola).
+alter table meli_item_descartado add column if not exists estado text;
+alter table meli_item_descartado add column if not exists eliminar_lote_id bigint;
 
 -- La llave del barrido. El job de pg_cron (creado a mano en Supabase el 2/10,
 -- nombre 'meli-barrido', cada 2 minutos) llama a

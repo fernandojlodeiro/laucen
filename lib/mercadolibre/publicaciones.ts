@@ -5,6 +5,7 @@
 
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { ml, mlOk, type CuentaMl } from "@/lib/mercadolibre/api";
+import { encolarLoteConBoton, type CambioMl } from "@/lib/mercadolibre/cola";
 
 type Atributo = { id: string; value_name: string | null; name?: string };
 type Variacion = {
@@ -196,12 +197,48 @@ export async function contarPausadasABorrar(org: string, canalId: number): Promi
 export async function borrarPausadasSinProducto(org: string, canalId: number): Promise<number> {
   return enTransaccion(async (c) => {
     const r = await c.query<{ item_id: string }>(`
-      insert into meli_item_descartado (organizacion_id, canal_id, item_id, titulo, sku, motivo)
-      select distinct on (m.item_id) m.organizacion_id, m.canal_id, m.item_id, m.titulo, m.sku, 'pausada sin producto'
+      insert into meli_item_descartado (organizacion_id, canal_id, item_id, titulo, sku, motivo, estado)
+      select distinct on (m.item_id) m.organizacion_id, m.canal_id, m.item_id, m.titulo, m.sku, 'pausada sin producto', m.estado
         from meli_item m where ${SQL_PAUSADAS_A_BORRAR}
       on conflict do nothing returning item_id`, [org, canalId]);
     await c.query("delete from meli_item m where m.organizacion_id = $1 and m.canal_id = $2 and m.item_id = any($3::text[]) and m.publicacion_id is null",
       [org, canalId, r.rows.map((x) => x.item_id)]);
     return r.rowCount ?? 0;
   });
+}
+
+/** Las borradas de Laucen del canal que todavía no tienen pedida su
+ *  eliminación en ML (o cuyo lote se descartó). */
+const SQL_A_ELIMINAR_EN_ML = `d.organizacion_id = $1 and d.canal_id = $2
+  and (d.eliminar_lote_id is null or exists (select 1 from ml_lote l where l.id = d.eliminar_lote_id and l.estado = 'descartado'))`;
+
+export async function contarAEliminarEnMl(org: string, canalId: number): Promise<number> {
+  return (await una<{ n: number }>(`select count(*)::int n from meli_item_descartado d where ${SQL_A_ELIMINAR_EN_ML}`, [org, canalId]))?.n ?? 0;
+}
+
+/** Prepara (no manda) el lote que elimina en Mercado Libre las publicaciones
+ *  borradas de Laucen del canal: cada una se finaliza (si ya estaba
+ *  finalizada, ML lo rechaza y se sigue) y se elimina. Sale recién con el
+ *  clic de Fer en "Mandar a Mercado Libre" (lib/mercadolibre/cola.ts).
+ *  Devuelve el lote y cuántas lleva. */
+export async function prepararEliminarEnMl(org: string, canalId: number, usuarioId: string): Promise<{ loteId: number; n: number }> {
+  const filas = await consulta<{ item_id: string; titulo: string | null; estado: string | null }>(
+    `select d.item_id, d.titulo, d.estado from meli_item_descartado d where ${SQL_A_ELIMINAR_EN_ML} order by d.item_id`, [org, canalId]);
+  if (!filas.length) throw new ErrorErp("No queda ninguna publicación borrada de Laucen para eliminar en Mercado Libre.");
+  const cambios: CambioMl[] = filas.map((f) => ({
+    canalId, itemId: f.item_id, tipo: "otro",
+    antes: { titulo: f.titulo, estado: f.estado },
+    payload: {
+      descripcion: `${f.estado === "closed" ? "Eliminar" : "Finalizar y eliminar"} en ML${f.titulo ? `: ${f.titulo}` : ""}`,
+      pedidos: [
+        ...(f.estado === "closed" ? [] : [{ metodo: "PUT", ruta: `/items/${f.item_id}`, cuerpo: { status: "closed" }, seguirSiFalla: true }]),
+        { metodo: "PUT", ruta: `/items/${f.item_id}`, cuerpo: { deleted: "true" } },
+      ],
+    },
+  }));
+  const loteId = await encolarLoteConBoton(org, canalId, cambios,
+    `Eliminar en Mercado Libre ${filas.length.toLocaleString("es-AR")} publicaciones borradas de Laucen (pausadas sin producto)`, usuarioId);
+  await consulta("update meli_item_descartado set eliminar_lote_id = $3 where organizacion_id = $1 and canal_id = $2 and item_id = any($4::text[])",
+    [org, canalId, loteId, filas.map((f) => f.item_id)]);
+  return { loteId, n: filas.length };
 }

@@ -9,7 +9,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, id } from "@/lib/erp/acciones";
 import { cuentaDelCanal } from "@/lib/mercadolibre/api";
-import { traerPublicaciones, vincular, crearProductoDesdeItem, borrarPausadasSinProducto } from "@/lib/mercadolibre/publicaciones";
+import { traerPublicaciones, vincular, crearProductoDesdeItem, borrarPausadasSinProducto, prepararEliminarEnMl } from "@/lib/mercadolibre/publicaciones";
 
 const BASE = "/catalogo/publicaciones/ml";
 
@@ -107,5 +107,17 @@ export async function accionBorrarPausadas(fd: FormData) {
     const n = await borrarPausadasSinProducto(s.org.id, cuenta.canalId!);
     revalidatePath(BASE);
     return `Borradas de Laucen ${n.toLocaleString("es-AR")} publicaciones pausadas sin producto. En Mercado Libre siguen como estaban.`;
+  });
+}
+
+/** Prepara (no manda) el lote que elimina en ML las borradas de Laucen del canal. */
+export async function accionPrepararEliminarEnMl(fd: FormData) {
+  const s = await entrarErp("publicaciones_ver");
+  const volver = volverDe(fd);
+  await intentar(volver, async () => {
+    const cuenta = await cuentaDe(s.org.id, fd);
+    const r = await prepararEliminarEnMl(s.org.id, cuenta.canalId!, s.usuario.id);
+    revalidatePath(BASE);
+    return { ir: `/config/canales/cola?ver=lotes&lote=${r.loteId}&ok=${encodeURIComponent(`Lote preparado: eliminar en Mercado Libre ${r.n.toLocaleString("es-AR")} publicaciones. Todavía no salió nada: revisalo y apretá "Mandar a Mercado Libre".`)}` };
   });
 }
