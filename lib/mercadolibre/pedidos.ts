@@ -109,6 +109,10 @@ export function estadoDelCarrito(ordenes: OrdenMl[], envio: EnvioMl | null): Est
   return null; // payment_required / payment_in_process: sigue 'nuevo'
 }
 
+/** ¿La orden se creó antes del corte de la cuenta? Entonces no entra: ya está en Virtual Seller. */
+const anteriorAlCorte = (cuenta: CuentaMl, o: { date_created: string }): boolean =>
+  !!cuenta.pedidosCorte && Date.parse(o.date_created) < cuenta.pedidosCorte.getTime();
+
 /** Trae una orden de ML y la deja en Laucen (crea o actualiza). Si la orden
  *  es parte de un carrito (pack_id), trae el carrito entero (/packs) y todo
  *  queda en UN pedido. Devuelve el id del pedido. */
@@ -117,6 +121,7 @@ export async function importarOrden(cuenta: CuentaMl, orderId: number | string):
   const r = await ml<OrdenMl>(cuenta, "GET", `/orders/${orderId}`);
   if (r.status !== 200) throw new Error(`orden ${orderId}: ML contestó ${r.status}`);
   const o = r.datos;
+  if (anteriorAlCorte(cuenta, o)) return null;
   const ordenes = [o];
   if (o.pack_id) {
     // Las otras órdenes del carrito. Si ML no da el pack, sigue con ésta: las
@@ -127,6 +132,7 @@ export async function importarOrden(cuenta: CuentaMl, orderId: number | string):
         if (String(id) === String(o.id)) continue;
         const otra = await ml<OrdenMl>(cuenta, "GET", `/orders/${id}`);
         if (otra.status === 200) ordenes.push(otra.datos);
+        if (otra.status === 200 && anteriorAlCorte(cuenta, otra.datos)) return null; // un carrito con una orden vieja no entra
       }
     }
   }
@@ -151,6 +157,7 @@ type PedidoDelCarrito = { id: number; id_externo: string | null; estado: EstadoP
  *  Repetirlo no duplica nada. Devuelve el id del pedido. */
 export async function cargarOrdenes(cuenta: CuentaMl, ordenesLeidas: OrdenMl[], facturacion: Facturacion, envio: EnvioMl | null): Promise<number | null> {
   if (!cuenta.canalId || !ordenesLeidas.length) return null;
+  if (ordenesLeidas.some((o) => anteriorAlCorte(cuenta, o))) return null;
   const canalId = cuenta.canalId;
   const org = cuenta.organizacionId;
   const ordenes = [...ordenesLeidas].sort((a, b) => a.id - b.id);
@@ -318,7 +325,7 @@ export async function barrerOrdenes(cuenta: CuentaMl, hastaMs: number): Promise<
   let n = 0;
   for (let offset = 0; offset < 1000 && Date.now() < hastaMs; offset += 50) {
     const r = await ml<{ results: { id: number }[]; paging: { total: number } }>(cuenta, "GET",
-      `/orders/search?seller=${cuenta.meliUserId}&order.date_last_updated.from=${encodeURIComponent(desde.toISOString())}&sort=date_asc&limit=50&offset=${offset}`);
+      `/orders/search?seller=${cuenta.meliUserId}&order.date_last_updated.from=${encodeURIComponent(desde.toISOString())}${cuenta.pedidosCorte ? `&order.date_created.from=${encodeURIComponent(cuenta.pedidosCorte.toISOString())}` : ""}&sort=date_asc&limit=50&offset=${offset}`);
     if (r.status !== 200) throw new Error(`orders/search: ML contestó ${r.status}`);
     for (const o of r.datos.results) {
       if (Date.now() > hastaMs) return n;

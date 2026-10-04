@@ -24,6 +24,12 @@ create table if not exists meli_cuenta (
 );
 alter table meli_cuenta enable row level security;
 
+-- Corte de pedidos (Fer, 3/10, 21:35 hora argentina): los pedidos creados en ML
+-- antes de esta fecha ya están en Virtual Seller y no entran nunca (ni por
+-- notificación, ni por el barrido, ni al conectar una cuenta nueva: todas
+-- arrancan con el mismo corte).
+alter table meli_cuenta add column if not exists pedidos_corte timestamptz not null default '2026-10-04T00:35:00Z';
+
 -- La cuenta que ya estaba conectada (meli_cuentas, una por organización, la
 -- usan Radar, Costos ML y Ventas ML) pasa acá. Desde ahora la llave vive en
 -- meli_cuenta y meli_cuentas queda como espejo de la principal.

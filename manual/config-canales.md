@@ -182,6 +182,8 @@ En la caja de la cuenta, **"Traer pedidos y preguntas ahora"**. Avisa "Listo: N 
 
 ## Criterios y reglas
 
+- **Corte de pedidos de Mercado Libre.** Los pedidos que se crearon en Mercado Libre antes de las 21:35 del 3/10 (hora argentina) ya están en Virtual Seller y **no entran nunca** a Laucen: ni cuando Mercado Libre avisa un cambio (una entrega, un reclamo), ni en el barrido de cada media hora, ni al conectar una cuenta nueva. Todas las cuentas, incluidas las que se conecten después, usan el mismo corte. Si un carrito tiene alguna orden anterior al corte, no entra entero. Sólo entran los pedidos creados desde ese momento.
+
 ### Canales
 
 - **Tipos**: Mercado Libre, Web minorista (la tienda web), Web mayorista, Local, Histórico, Otro. Sólo los de tipo Mercado Libre pueden tener cuenta de ML y sus interruptores. Un canal Web minorista es una tienda web (se configura en [Tienda web](/config/tienda)).

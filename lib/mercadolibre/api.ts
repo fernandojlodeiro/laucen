@@ -5,14 +5,16 @@
 import { API, tokenDeCuenta } from "@/lib/meli";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 
-export type CuentaMl = { id: number; organizacionId: string; canalId: number | null; meliUserId: number; nickname: string | null; estado: string };
+export type CuentaMl = { id: number; organizacionId: string; canalId: number | null; meliUserId: number; nickname: string | null; estado: string;
+  /** Los pedidos creados en ML antes de esta fecha no entran (ya están en Virtual Seller). */
+  pedidosCorte?: Date | null };
 
-type FilaCuenta = { id: string; organizacion_id: string; canal_id: string | null; meli_user_id: string; nickname: string | null; estado: string };
+type FilaCuenta = { id: string; organizacion_id: string; canal_id: string | null; meli_user_id: string; nickname: string | null; estado: string; pedidos_corte: Date | null };
 const aCuenta = (f: FilaCuenta): CuentaMl => ({
   id: Number(f.id), organizacionId: f.organizacion_id, canalId: f.canal_id ? Number(f.canal_id) : null,
-  meliUserId: Number(f.meli_user_id), nickname: f.nickname, estado: f.estado,
+  meliUserId: Number(f.meli_user_id), nickname: f.nickname, estado: f.estado, pedidosCorte: f.pedidos_corte,
 });
-const COLS = "id, organizacion_id, canal_id, meli_user_id, nickname, estado";
+const COLS = "id, organizacion_id, canal_id, meli_user_id, nickname, estado, pedidos_corte";
 
 export async function cuentasDe(org: string): Promise<CuentaMl[]> {
   return (await consulta<FilaCuenta>(`select ${COLS} from meli_cuenta where organizacion_id = $1 order by id`, [org])).map(aCuenta);
