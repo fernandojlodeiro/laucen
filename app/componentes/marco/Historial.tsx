@@ -4,16 +4,15 @@
 // izquierdo, por fuera del panel, una lista de las fichas que abriste
 // (producto, cliente, pedido, factura, reclamo, proveedor, cucarda, publicación, canal…: cualquier registro de un ABM), la última arriba,
 // para volver con un clic a lo que estabas mirando hace un rato. Guarda las
-// últimas 15 en este navegador (no se comparte con otras personas ni equipos)
+// últimas 15 de CADA usuario (en su preferencia: lo ve desde cualquier equipo y no se mezcla con otro usuario)
 // y sólo se muestra si en la pantalla sobra lugar a la izquierda.
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import type { Visto } from "@/lib/historial";
+import { accionAnotarVisto, accionBorrarHistorial } from "./historial-acciones";
 
-type Visto = { href: string; titulo: string; tipo: string };
-const CLAVE = "laucen_historial_v1";
-const MAX = 15;
 const ANCHO = 176;
 
 /** Las fichas con dirección propia y cómo se llama cada una. */
@@ -53,15 +52,10 @@ function tituloDe(porFila: boolean): string {
   return celda ?? "";
 }
 
-const leer = (): Visto[] => {
-  try { const v = JSON.parse(localStorage.getItem(CLAVE) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; }
-};
-const guardar = (v: Visto[]) => { try { localStorage.setItem(CLAVE, JSON.stringify(v)); } catch { /* sin almacenamiento: no pasa nada */ } };
-
-export default function Historial() {
+export default function Historial({ inicial }: { inicial: Visto[] }) {
   const ruta = usePathname();
   const busquedaActual = useSearchParams().toString();
-  const [lista, setLista] = useState<Visto[]>([]);
+  const [lista, setLista] = useState<Visto[]>(inicial);
   const [hayLugar, setHayLugar] = useState(false);
   const [actual, setActual] = useState("");
 
@@ -71,7 +65,8 @@ export default function Historial() {
   }, []);
 
   useEffect(() => {
-    setLista(leer());
+    // Lo que se guardaba en el navegador (antes de que fuera por usuario) se borra: no es de nadie.
+    try { localStorage.removeItem("laucen_historial_v1"); } catch { /* da igual */ }
     window.addEventListener("resize", medir);
     return () => window.removeEventListener("resize", medir);
   }, [medir]);
@@ -91,9 +86,10 @@ export default function Historial() {
       const pantalla = (document.querySelector("main h1")?.textContent?.trim() ?? "").slice(0, 40);
       const tipo = marca.tipo ?? pantalla;
       const titulo = (nombre || `${tipo} ${marca.href.split(/[/=]/).pop()}`).slice(0, 120);
-      const nueva = [{ href: marca.href, titulo, tipo: tipo || "Ficha" }, ...leer().filter((x) => x.href !== marca.href)].slice(0, MAX);
-      guardar(nueva);
-      setLista(nueva);
+      const visto = { href: marca.href, titulo, tipo: tipo || "Ficha" };
+      // Se ve al toque y se guarda en el usuario; si el servidor contesta otra lista (otro equipo), se toma ésa.
+      setLista((l) => [visto, ...l.filter((x) => x.href !== visto.href)].slice(0, 15));
+      accionAnotarVisto(visto).then(setLista).catch(() => { /* no se pudo guardar: queda lo que se ve */ });
       medir();
     }, 250);
     return () => clearInterval(t);
@@ -105,7 +101,7 @@ export default function Historial() {
       <div className="rounded-xl border border-[#E3E9F0] bg-white/90 backdrop-blur p-2 shadow-sm">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[11px] font-bold text-[#5C6B76]">Lo último que viste</span>
-          <button type="button" onClick={() => { guardar([]); setLista([]); }} title="Borrar la lista" className="text-[11px] text-[#9AA7B3] hover:text-[#C03420]">✕</button>
+          <button type="button" onClick={() => { setLista([]); accionBorrarHistorial().catch(() => { /* ya no se ve; se borra a la próxima */ }); }} title="Borrar la lista" className="text-[11px] text-[#9AA7B3] hover:text-[#C03420]">✕</button>
         </div>
         <ul className="grid gap-0.5">
           {lista.map((v) => (
