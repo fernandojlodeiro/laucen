@@ -4,7 +4,8 @@ import { sosVos } from "@/lib/admin";
 import { orgRequerida } from "@/lib/tenancy";
 import { notebooksSinStock, resumenCategorias, resumenPruebas } from "@/lib/limpieza";
 import { formatearNumero } from "@/lib/numeros";
-import { accionBorrarFamiliasVs, accionBorrarNotebooks, accionBorrarPruebas } from "./actions";
+import { basuraDeVs } from "@/lib/limpieza-listas";
+import { accionBorrarBasura, accionBorrarFamiliasVs, accionBorrarNotebooks, accionBorrarPruebas } from "./actions";
 import { SUAVE } from "@/app/botones";
 import { BotonBorrar, DetectarCategorias } from "./Botones";
 
@@ -22,7 +23,7 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
   if (!(await sosVos())) redirect("/panel");
   const sp = await searchParams;
   const org = (await orgRequerida()).id;
-  const [pruebas, notebooks, cats] = await Promise.all([resumenPruebas(org), notebooksSinStock(org), resumenCategorias(org)]);
+  const [pruebas, notebooks, cats, basura] = await Promise.all([resumenPruebas(org), notebooksSinStock(org), resumenCategorias(org), basuraDeVs(org)]);
 
   return (
     <main className="max-w-3xl mx-auto p-4 space-y-4">
@@ -38,6 +39,12 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
           Las unidades que la carga del 3/10 sacó de ubicaciones reales del depósito, para cotejarlas con lo que hay en las estanterías.
         </p>
         <Link href="/admin/limpieza/ajustes" className={SUAVE}>Ver ajustes a revisar</Link>
+      </section>
+
+      <section className={CAJA}>
+        <h2 className="font-bold text-[#16577F]">Productos sin publicación de Mercado Libre</h2>
+        <p className="text-sm text-[#5C6B76]">Los productos a los que no se les encontró ninguna publicación. Primero los activos, después los inactivos.</p>
+        <Link href="/admin/limpieza/sin-publicacion" className={SUAVE}>Ver productos sin publicación</Link>
       </section>
 
       <section className={CAJA}>
@@ -73,6 +80,25 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
           Tarda unos minutos: no cierres la pantalla.
         </p>
         <DetectarCategorias pendientes={cats.sinCategoria} />
+      </section>
+
+      <section className={CAJA}>
+        <h2 className="font-bold text-[#16577F]">5. Basura que vino del Excel de Virtual Seller</h2>
+        <p className="text-sm text-[#5C6B76]">
+          Filas de relleno que se colaron como productos: el pie del Excel, el envío por OCA, el recargo financiero y los &quot;NO USAR&quot;.
+          Se borran sólo los archivados, sin stock y sin publicaciones. Hoy hay {n(basura.filas.length)}.
+        </p>
+        {basura.filas.length > 0 && (
+          <ul className="text-xs text-[#5C6B76] list-disc pl-5">
+            {basura.filas.map((e) => <li key={e.sku}>{e.sku} — {e.titulo}</li>)}
+          </ul>
+        )}
+        {basura.conStock.length > 0 && (
+          <p className="text-xs text-[#8a6100]">
+            Dicen &quot;no usar&quot; pero tienen stock o están activos (no se borran solos): {basura.conStock.map((e) => `${e.sku} (${e.stock} u.)`).join(", ")}.
+          </p>
+        )}
+        <form action={accionBorrarBasura}><BotonBorrar texto="Borrar basura de Virtual Seller" trabajando="Borrando…" /></form>
       </section>
 
       <section className={CAJA}>
