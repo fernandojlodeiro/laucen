@@ -21,11 +21,13 @@ import {
 import { fecha } from "@/app/ventas/formato";
 import { AccionesExcel } from "@/app/listas/piezas";
 import { LISTA_TESORERIA, TIPOS_CUENTA as TIPOS_CUENTA_LISTA } from "./lista";
+import SelectorRazonSocial from "@/app/componentes/SelectorRazonSocial";
+import { elegirRazonSocial, nombreRs, type EleccionRs } from "@/lib/razon-social";
 import { accionCrearCuenta, accionGuardarCuenta, accionActivarCuenta, accionBorrarCuenta } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
-type SP = { c?: string; editar?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+type SP = { rs?: string; c?: string; editar?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 const TIPOS_CUENTA = TIPOS_CUENTA_LISTA;
 
@@ -33,9 +35,15 @@ type Contable = { id: number; codigo: string; nombre: string };
 type CuentaFila = Awaited<ReturnType<typeof cuentasConSaldo>>[number];
 
 /** Los campos de una cuenta (los mismos en el alta y en la edición en fila). */
-function Campos({ c, contables }: { c?: CuentaFila; contables: Contable[] }) {
+function Campos({ c, contables, rs }: { c?: CuentaFila; contables: Contable[]; rs: EleccionRs }) {
   return (
     <>
+      {rs.multi && (
+        <label><span className={ETIQUETA}>Razón social</span>
+          <select name="emisor" defaultValue={c?.emisor_id ?? rs.id ?? rs.razones.find((x) => x.es_principal)?.id} className={CAMPO}>
+            {rs.razones.map((x) => <option key={x.id} value={x.id}>{nombreRs(x)}</option>)}
+          </select></label>
+      )}
       <label className="flex-1 min-w-40"><span className={ETIQUETA}>Nombre</span>
         <input name="nombre" defaultValue={c?.nombre} placeholder="Ej. Banco Galicia" className={`${CAMPO} w-full`} autoFocus /></label>
       <label><span className={ETIQUETA}>Tipo</span>
@@ -69,18 +77,20 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
   const editar = Number(sp.editar) || 0;
   const q = sp.q?.trim() ?? "";
   const comienza = sp.contiene !== "1";
-  const filtros = { q: q || null, contiene: comienza ? null : "1", p: sp.p, orden: sp.orden, dir: sp.dir };
+  // Cada cuenta (banco, caja, Mercado Pago) es de una razón social: se miran de una o de todas.
+  const rs = await elegirRazonSocial(s.org.id, sp.rs);
+  const filtros = { q: q || null, contiene: comienza ? null : "1", p: sp.p, orden: sp.orden, dir: sp.dir, rs: rs.multi ? String(rs.id ?? "todas") : null };
   await asegurarPlan(s.org.id);
   // Las de Mercado Pago de cada cuenta de ML conectada se crean solas.
   await asegurarCuentasDeCanalesSinFallar(s.org.id);
-  const [cuentas, contables] = await Promise.all([cuentasConSaldo(s.org.id), cuentasImputables(s.org.id)]);
+  const [cuentas, contables] = await Promise.all([cuentasConSaldo(s.org.id, rs.id), cuentasImputables(s.org.id)]);
   const nombreContable = new Map(contables.map((x) => [x.id, `${x.codigo} ${x.nombre}`]));
   const totales = { ARS: 0, USD: 0 };
   for (const c of cuentas) if (c.activa) totales[c.moneda as Moneda] += c.saldo;
   // El buscador filtra lo que se ve; los totales son de todas.
   const filtradas = cuentas.filter((c) => [c.nombre, c.banco, c.alias, c.cbu].some((t) => coincideBusqueda(t, q, comienza)));
   const vistas = paginarEnMemoria(ordenarEnMemoria(filtradas, sp, {
-    nombre: (c) => c.nombre, tipo: (c) => TIPOS_CUENTA[c.tipo] ?? c.tipo, banco: (c) => c.banco, contable: (c) => (c.cuenta_contable_id ? nombreContable.get(c.cuenta_contable_id) : null),
+    nombre: (c) => c.nombre, razon: (c) => c.emisor, tipo: (c) => TIPOS_CUENTA[c.tipo] ?? c.tipo, banco: (c) => c.banco, contable: (c) => (c.cuenta_contable_id ? nombreContable.get(c.cuenta_contable_id) : null),
     saldo: (c) => c.saldo, conciliar: (c) => c.sin_conciliar, activa: (c) => (c.activa ? 1 : 0),
   }), sp);
 
@@ -90,7 +100,7 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
       <Avisos sp={sp} />
       <AltaNueva texto="Nueva cuenta" sinBoton>
         <form action={accionCrearCuenta} className="flex flex-wrap items-end gap-2">
-          <Campos contables={contables} />
+          <Campos contables={contables} rs={rs} />
           <button className={PRIMARIO}>Crear</button>
         </form>
       </AltaNueva>
@@ -100,24 +110,25 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
         {totales.USD !== 0 && <> · en dólares: <b className="tabular-nums">{formatear(totales.USD, "USD")}</b></>}
       </p>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        {rs.multi && <SelectorRazonSocial razones={rs.razones.map((x) => ({ id: x.id, nombre: nombreRs(x) }))} valor={rs.id} />}
         <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por nombre, banco, CBU o alias" limpiar={["editar"]} />
       </div>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <ThOrden col="nombre">Cuenta</ThOrden><ThOrden col="tipo">Tipo</ThOrden><ThOrden col="banco">Banco · CBU · Alias</ThOrden><ThOrden col="contable">Cuenta contable</ThOrden>
+              <ThOrden col="nombre">Cuenta</ThOrden>{rs.multi && <ThOrden col="razon">Razón social</ThOrden>}<ThOrden col="tipo">Tipo</ThOrden><ThOrden col="banco">Banco · CBU · Alias</ThOrden><ThOrden col="contable">Cuenta contable</ThOrden>
               <ThOrden col="saldo" n>Saldo</ThOrden><ThOrden col="conciliar" n>Sin conciliar</ThOrden><ThOrden col="activa">Activa</ThOrden><th />
             </tr>
           </thead>
           <tbody>
-            {vistas.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>{q ? "Ninguna cuenta coincide." : "Todavía no hay cuentas."}</td></tr>}
+            {vistas.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>{q ? "Ninguna cuenta coincide." : "Todavía no hay cuentas."}</td></tr>}
             {vistas.map((c) => editar === c.id ? (
               <tr key={c.id} className={`${TR} bg-[#FAFBFC]`}>
-                <td colSpan={8} className={TD}>
+                <td colSpan={9} className={TD}>
                   <form action={accionGuardarCuenta} className="flex flex-wrap items-end gap-2">
                     <input type="hidden" name="id" value={c.id} />
-                    <Campos c={c} contables={contables} />
+                    <Campos c={c} contables={contables} rs={rs} />
                     <button className={VERDE}>Guardar</button>
                     <Link href={url("/administracion/tesoreria", filtros)} className={SUAVE}>Cancelar</Link>
                   </form>
@@ -130,6 +141,7 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
                   {c.canal && <span className="block text-[10px] text-[#5C6B76]">Cobra las ventas de <Link href={`/config/canales?c=${c.canal_id}`} className="hover:text-[#16577F] hover:underline">{c.canal}</Link></span>}
                   {c.saldo_inicial_fecha && <span className="block text-[10px] text-[#5C6B76]">Saldo inicial {formatear(c.saldo_inicial, c.moneda as Moneda)} al {fecha(c.saldo_inicial_fecha)}</span>}
                 </td>
+                {rs.multi && <td className={TD}>{c.emisor ?? "—"}</td>}
                 <td className={TD}>{TIPOS_CUENTA[c.tipo] ?? c.tipo} · {c.moneda === "USD" ? "US$" : "$"}</td>
                 <td className={`${TD} text-[#5C6B76]`}>{[c.banco, c.cbu, c.alias].filter(Boolean).join(" · ") || "—"}</td>
                 <td className={`${TD} text-[#5C6B76]`}>{c.cuenta_contable_id

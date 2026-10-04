@@ -126,6 +126,10 @@ Los despachos registrados entran al **Libro IVA Compras** como comprobante tipo 
 - Por eso conviene escribir los conceptos con esas palabras (usá las sugerencias).
 - Avisos: despacho sin número ("ARCA lo pide"), sin IVA en sus impuestos, o con IVA que no da 21 ni 10,5 %.
 
+## Con más de una razón social
+
+Cada despacho se registra **a nombre de una razón social** (campo **"A nombre de (razón social)"**, sólo si hay más de una; sin elegir, la principal): de ella son el IVA y las percepciones (crédito fiscal del libro de IVA Compras) y el asiento. **La mercadería entra igual al stock general.** La lista tiene un selector **"Razón social"**.
+
 ## Preguntas frecuentes
 
 **¿Dónde cargo el flete interno o el despachante?**
@@ -158,3 +162,4 @@ Sí, en Facturas de compra, sin productos y con letra E: deja la deuda con el pr
 - [Consulta de stock](/stock/consulta)
 - [Tipo de cambio](/config/tipo-cambio)
 - [Importaciones ARCA](/importaciones)
+- [Razones sociales](/config/razones-sociales)

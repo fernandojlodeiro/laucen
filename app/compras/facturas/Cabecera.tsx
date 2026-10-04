@@ -7,6 +7,7 @@ import { asegurarPlan, cuentasImputables } from "@/lib/administracion/contabilid
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fecha as fechaAR } from "@/app/ventas/formato";
+import { emisoresDe } from "@/lib/arca/facturar";
 import { LETRAS } from "../comun";
 
 export type DatosCabecera = {
@@ -14,12 +15,14 @@ export type DatosCabecera = {
   fecha: string; vencimiento: string | null; moneda: "ARS" | "USD"; cotizacion: number | null;
   deposito_id: number | null; recepcion_id: number | null; cuenta_gasto_id: number | null; notas: string | null;
   percepcion_iva?: number; percepcion_iibb?: number; otros_impuestos?: number; no_gravado?: number;
+  /** A nombre de qué razón social viene facturada (el stock entra igual al general); sin dato, la principal. */
+  emisor_id?: number | null;
 };
 
 /** Las listas para elegir (proveedor, depósito, recepción, cuenta) y la cotización del día. */
 export async function opcionesCabecera(org: string) {
   await asegurarPlan(org);
-  const [proveedores, depositos, recepciones, cuentas, tc] = await Promise.all([
+  const [proveedores, depositos, recepciones, cuentas, tc, razones] = await Promise.all([
     consulta<{ id: number; nombre: string }>("select id::int, nombre from proveedor where organizacion_id = $1 and estado = 'activo' order by nombre", [org]),
     consulta<{ id: number; nombre: string }>("select id::int, nombre from deposito where organizacion_id = $1 and estado = 'activo' and tipo <> 'full_ml' order by id", [org]),
     consulta<{ id: number; creado_ts: Date; deposito: string; proveedor: string | null; documento: string | null }>(`
@@ -28,8 +31,9 @@ export async function opcionesCabecera(org: string) {
        where r.organizacion_id = $1 and r.tipo = 'compra' order by r.id desc limit 100`, [org]),
     cuentasImputables(org),
     tcDelDia(org),
+    emisoresDe(org),
   ]);
-  return { proveedores, depositos, recepciones, cuentas, tc: tc?.venta ?? null };
+  return { proveedores, depositos, recepciones, cuentas, tc: tc?.venta ?? null, razones };
 }
 
 export function CamposCabecera({ d, o, conImpuestos = false }: { d: DatosCabecera; o: Awaited<ReturnType<typeof opcionesCabecera>>; conImpuestos?: boolean }) {
@@ -43,6 +47,13 @@ export function CamposCabecera({ d, o, conImpuestos = false }: { d: DatosCabecer
           {proveedorFuera && <option value={d.proveedor_id!}>(proveedor archivado)</option>}
           {o.proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
         </select></label>
+      {o.razones.length > 1 && (
+        <label className="col-span-2"><span className={ETIQUETA}>A nombre de (razón social)</span>
+          <select name="emisor" defaultValue={d.emisor_id ?? o.razones.find((r) => r.es_principal)?.id} className={`${CAMPO} w-full`}>
+            {o.razones.map((r) => <option key={r.id} value={r.id}>{r.nombre ?? r.razon_social}</option>)}
+          </select>
+          <span className="block text-[10px] text-[#5C6B76] mt-0.5">La mercadería entra al stock general igual, sea a nombre de quien sea.</span></label>
+      )}
       <label><span className={ETIQUETA}>Letra</span>
         <select name="letra" defaultValue={d.letra} className={`${CAMPO} w-full`}>
           {LETRAS.map((l) => <option key={l} value={l}>{l}{l === "E" ? " (exterior)" : l === "X" ? " (otro, sin IVA)" : ""}</option>)}

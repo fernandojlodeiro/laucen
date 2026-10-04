@@ -12,13 +12,15 @@ import {
   entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
 import { fecha } from "@/app/ventas/formato";
+import { elegirRazonSocial, nombreRs } from "@/lib/razon-social";
+import SelectorRazonSocial from "@/app/componentes/SelectorRazonSocial";
 import { ESTADO_DESPACHO } from "../comun";
 import { AccionesExcel } from "@/app/listas/piezas";
 import { LISTA_DESPACHOS, GASTOS_DESPACHO, LINEAS_DESPACHO, COSTO_DESPACHO } from "./lista";
 
 export const dynamic = "force-dynamic";
 
-type SP = { proveedor?: string; estado?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+type SP = { rs?: string; proveedor?: string; estado?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 type Fila = {
   id: number; numero: string | null; fecha: Date; proveedor_id: number | null; proveedor: string | null; fob_usd: number; flete_seguro_usd: number;
@@ -48,13 +50,16 @@ export default async function Despachos({ searchParams }: { searchParams: Promis
       }, base.orden),
     }, base.valores, sp),
   ]);
-  const hayFiltro = !!(proveedorId || estado);
+  const rs = await elegirRazonSocial(s.org.id, sp.rs);
+  const hayFiltro = !!(proveedorId || estado || rs.id);
 
   return (
     <Pantalla titulo="Despachos de importación" subtitulo="La mercadería importada con su FOB, flete, seguro y gastos: queda el costo puesto en depósito"
       acciones={<><AccionesExcel lista={LISTA_DESPACHOS} org={s.org.id} /><Link href="/compras/despachos/nuevo" className={PRIMARIO}>+ Nuevo despacho</Link></>}>
       <Avisos sp={sp} />
       <form className="flex flex-wrap items-end gap-2 mb-3">
+        {rs.multi && rs.id && <input type="hidden" name="rs" value={rs.id} />}
+        {rs.multi && <SelectorRazonSocial razones={rs.razones.map((x) => ({ id: x.id, nombre: nombreRs(x) }))} valor={rs.id} />}
         <label><span className={ETIQUETA}>Proveedor</span>
           <select name="proveedor" defaultValue={proveedorId || ""} className={CAMPO}>
             <option value="">Todos</option>

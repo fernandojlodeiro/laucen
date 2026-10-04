@@ -7,6 +7,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { respuestaExcel, type ColumnaExcel } from "@/lib/informes/excel";
 import { ALICUOTAS, armarLibro, resumenIva, textoComprobante, type FilaLibro, type ImportesLibro } from "@/lib/administracion/libro-iva";
 import { libroIvaPeriodo } from "@/lib/administracion/libro-iva-base";
+import { elegirRazonSocial } from "@/lib/razon-social";
 import { periodoDe, canalDe, type SPLibro } from "../comun";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,9 @@ export async function GET(req: NextRequest) {
   const { desde, hasta, periodo } = periodoDe(sp);
   const compras = sp.libro === "compras";
   const canal = canalDe(sp);
-  const datos = await libroIvaPeriodo(s.org.id, desde, hasta);
+  // El libro de IVA es de una razón social: la de la dirección o, sin elegir, la principal.
+  const rs = await elegirRazonSocial(s.org.id, sp.rs, { todas: false });
+  const datos = await libroIvaPeriodo(s.org.id, desde, hasta, rs.id);
   const libroV = armarLibro(datos.ventas);
   const libroC = armarLibro(datos.compras);
   const libro = compras ? libroC : canal ? armarLibro(datos.ventas.filter((v) => v.canalId === canal)) : libroV;

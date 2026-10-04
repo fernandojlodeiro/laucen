@@ -5,7 +5,7 @@
 import { hoyArgentina } from "@/lib/rango-fechas";
 import { rangoMes, periodoDeRango } from "@/lib/administracion/libro-iva";
 
-export type SPLibro = { libro?: string; mes?: string; desde?: string; hasta?: string; canal?: string; p?: string; ok?: string; error?: string };
+export type SPLibro = { rs?: string; libro?: string; mes?: string; desde?: string; hasta?: string; canal?: string; p?: string; ok?: string; error?: string };
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 

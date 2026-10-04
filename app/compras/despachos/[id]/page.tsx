@@ -31,7 +31,7 @@ type Item = { concepto: string; importe_ars: number };
 type Despacho = {
   id: number; numero: string | null; proveedor_id: number | null; proveedor: string | null; fecha: string; cotizacion: number;
   fob_usd: number; flete_usd: number; seguro_usd: number; gastos: Item[]; impuestos: Item[]; deposito_id: number | null; deposito: string | null;
-  estado: string; notas: string | null; registrado_ts: Date | null;
+  estado: string; notas: string | null; registrado_ts: Date | null; emisor_id: number | null; emisor: string | null;
 };
 type Linea = {
   id: number; variacion_id: number | null; descripcion: string; ncm: string | null; cantidad: number; fob_unit_usd: number;
@@ -51,7 +51,7 @@ export default async function DetalleDespacho({ params, searchParams }: { params
   const d = await una<Despacho>(`
     select d.id::int, d.numero, d.proveedor_id::int, p.nombre proveedor, to_char(d.fecha, 'YYYY-MM-DD') fecha, d.cotizacion::float,
            d.fob_usd::float, d.flete_usd::float, d.seguro_usd::float, d.gastos, d.impuestos, d.deposito_id::int, dep.nombre deposito,
-           d.estado, d.notas, d.registrado_ts
+           d.estado, d.notas, d.registrado_ts, d.emisor_id::int, (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = d.emisor_id) emisor
       from despacho_importacion d left join proveedor p on p.id = d.proveedor_id left join deposito dep on dep.id = d.deposito_id
      where d.id = $1 and d.organizacion_id = $2`, [did, s.org.id]);
   if (!d) notFound();

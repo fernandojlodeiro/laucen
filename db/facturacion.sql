@@ -45,6 +45,15 @@ create unique index if not exists emisor_principal on emisor (organizacion_id) w
 alter table emisor enable row level security;
 select erp_politica_org('emisor');
 
+-- La primera razón social de una organización nace principal (siempre hay una).
+create or replace function emisor_primera_principal() returns trigger language plpgsql as
+$f$ begin
+  if not exists (select 1 from emisor where organizacion_id = new.organizacion_id) then new.es_principal := true; end if;
+  return new;
+end $f$;
+drop trigger if exists emisor_primera on emisor;
+create trigger emisor_primera before insert on emisor for each row execute function emisor_primera_principal();
+
 -- La razón social principal de una organización.
 create or replace function emisor_principal(p_org text) returns bigint language sql stable as
 $f$ select id from emisor where organizacion_id = p_org and es_principal $f$;

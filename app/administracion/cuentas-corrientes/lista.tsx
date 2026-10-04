@@ -19,7 +19,7 @@ function listaCc(tercero: Tercero): Lista {
       { clave: "ultimo", titulo: "Último movimiento", formato: "fecha" },
     ],
     enPantalla: ["nombre", "saldo", "vencido", "ultimo"],
-    filas: (ctx) => saldos(ctx.org, tercero),
+    filas: (ctx, sp) => saldos(ctx.org, tercero, Number(sp.rs) || null),
   };
 }
 

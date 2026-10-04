@@ -57,6 +57,7 @@ const CAMPOS: Campo[] = [
     clave: "estado", titulo: "Estado", sql: "f.estado", valor: (f) => ESTADO_FACTURA[f.estado]?.texto ?? f.estado,
     celda: (f) => { const e = ESTADO_FACTURA[f.estado] ?? ESTADO_FACTURA.borrador; return <Estado texto={e.texto} tono={e.tono} />; },
   },
+  { clave: "emisor", titulo: "Razón social", sql: "(select coalesce(e.nombre, e.razon_social) from emisor e where e.id = f.emisor_id)", ancho: 24 },
   { clave: "notas", titulo: "Notas", sql: "f.notas", orden: false, ancho: 40 },
 ];
 
@@ -74,8 +75,8 @@ export const LISTA_FACTURAS_COMPRA: Lista = {
     const { proveedor, estado } = filtrosFacturasCompra(sp);
     return {
       desde: "factura_compra f join proveedor p on p.id = f.proveedor_id",
-      donde: "f.organizacion_id = $1 and ($2 = 0 or f.proveedor_id = $2) and ($3 = '' or f.estado = $3)",
-      valores: [ctx.org, proveedor, estado],
+      donde: "f.organizacion_id = $1 and ($2 = 0 or f.proveedor_id = $2) and ($3 = '' or f.estado = $3) and ($4::bigint is null or f.emisor_id = $4)",
+      valores: [ctx.org, proveedor, estado, Number(sp.rs) || null],
       orden: "f.fecha desc, f.id desc",
     };
   },

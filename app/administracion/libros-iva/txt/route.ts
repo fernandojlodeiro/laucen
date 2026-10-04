@@ -6,6 +6,7 @@ import type { NextRequest } from "next/server";
 import { entrarErp } from "@/app/componentes/erp";
 import { archivosLibroIvaDigital } from "@/lib/administracion/libro-iva";
 import { libroIvaPeriodo } from "@/lib/administracion/libro-iva-base";
+import { elegirRazonSocial } from "@/lib/razon-social";
 import { armarZip } from "@/lib/zip";
 import { periodoDe, type SPLibro } from "../comun";
 
@@ -20,7 +21,8 @@ export async function GET(req: NextRequest) {
   const sp = Object.fromEntries(req.nextUrl.searchParams) as SPLibro & { archivo?: string };
   const { desde, hasta, periodo } = periodoDe(sp);
   if (!periodo) return new Response("Los archivos del Libro de IVA Digital se arman por mes entero.", { status: 400 });
-  const { ventas, compras } = await libroIvaPeriodo(s.org.id, desde, hasta);
+  const rs = await elegirRazonSocial(s.org.id, sp.rs, { todas: false });
+  const { ventas, compras } = await libroIvaPeriodo(s.org.id, desde, hasta, rs.id);
   const archivos = archivosLibroIvaDigital(periodo, ventas, compras);
   if (sp.archivo) {
     const a = archivos.find((x) => x.nombre === `LIBRO_IVA_DIGITAL_${sp.archivo}_${periodo}.txt`);

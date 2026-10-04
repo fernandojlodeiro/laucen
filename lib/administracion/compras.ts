@@ -50,8 +50,8 @@ export async function agregarLineaFactura(org: string, facturaId: number, d: { v
 /** Registra la factura: stock, costo y cuenta corriente. */
 export async function registrarFactura(org: string, facturaId: number, usuarioId: string) {
   const f = await una<{ estado: string; proveedor_id: number; moneda: "ARS" | "USD"; cotizacion: string; total: string; fecha: string; vencimiento: string | null;
-    deposito_id: number | null; recepcion_id: number | null; letra: string; punto_venta: number | null; numero: string | null; es_nota_credito: boolean; es_nota_debito: boolean }>(`
-    select estado, proveedor_id::int, moneda, cotizacion, total, to_char(fecha, 'YYYY-MM-DD') fecha, to_char(vencimiento, 'YYYY-MM-DD') vencimiento,
+    deposito_id: number | null; recepcion_id: number | null; letra: string; punto_venta: number | null; numero: string | null; es_nota_credito: boolean; es_nota_debito: boolean; emisor_id: number | null }>(`
+    select emisor_id::int, estado, proveedor_id::int, moneda, cotizacion, total, to_char(fecha, 'YYYY-MM-DD') fecha, to_char(vencimiento, 'YYYY-MM-DD') vencimiento,
            deposito_id::int, recepcion_id::int, letra, punto_venta, numero, es_nota_credito, es_nota_debito
       from factura_compra where id = $1 and organizacion_id = $2`, [facturaId, org]);
   if (!f) throw new ErrorErp("La factura no existe.");
@@ -122,7 +122,7 @@ export async function registrarFactura(org: string, facturaId: number, usuarioId
       tercero: "proveedor", terceroId: f.proveedor_id, fecha: f.fecha, vencimiento: f.vencimiento ?? f.fecha, tipo: f.es_nota_credito ? "nota_credito" : f.es_nota_debito ? "nota_debito" : "factura",
       moneda: f.moneda, importe: signo * Number(f.total), importeArs: signo * totalArs, importeUsd: signo * totalUsd,
       descripcion: `${f.es_nota_credito ? "Nota de crédito" : f.es_nota_debito ? "Nota de débito" : "Factura"} ${f.letra} ${f.punto_venta != null ? String(f.punto_venta).padStart(5, "0") + "-" : ""}${f.numero ?? "s/n"}`,
-      referenciaTipo: "factura_compra", referenciaId: facturaId,
+      referenciaTipo: "factura_compra", referenciaId: facturaId, emisorId: f.emisor_id,
     });
     await c.query(`update factura_compra set estado = 'registrada', registrada_ts = now(), usuario_id = $3, total_ars = $4, total_usd = $5,
                           diferencia_recepcion = $6::jsonb where id = $1 and organizacion_id = $2`,

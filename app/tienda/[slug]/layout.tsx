@@ -39,7 +39,7 @@ export default async function LayoutTienda({ children, params }: Props & { child
   const [carrito, arbol, cuenta, galletas, emisor] = await Promise.all([
     leerCarrito(t.slug), arbolDe(t), cuentaActual(t), cookies(),
     una<{ razon_social: string; cuit: string; condicion_iva: string; domicilio: string | null }>(
-      "select razon_social, cuit, condicion_iva, domicilio from emisor where organizacion_id = $1", [t.organizacionId]),
+      "select razon_social, cuit, condicion_iva, domicilio from emisor where organizacion_id = $1 and es_principal", [t.organizacionId]),
   ]);
   const direccion = cuenta ? await una<{ localidad: string | null; codigo_postal: string | null }>(
     "select localidad, codigo_postal from cliente_direccion where cliente_id = $1 and organizacion_id = $2 order by principal desc, id desc limit 1",

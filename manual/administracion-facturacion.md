@@ -219,6 +219,16 @@ Si la conexión con ARCA está en modo prueba ("homologación"), los comprobante
 - Cada comprobante autorizado genera solo su asiento contable (ver [Contabilidad](/administracion/contabilidad)).
 - Si el cliente tiene habilitada la cuenta corriente (o el pedido es «a convenir»), la factura entra sola a su [cuenta corriente](/administracion/cuentas-corrientes) como deuda; la nota de crédito, como crédito.
 
+## Con más de una razón social
+
+Cada comprobante lo emite **una razón social**, con su CUIT, su punto de venta y su propia numeración de ARCA:
+
+- Un pedido se factura con la razón social de su canal (la que se eligió en **"Factura con"** del canal, para las cuentas de Mercado Libre) o, si el canal no tiene una elegida —tienda web, local, mayorista—, con la **principal**. Ver [Razones sociales](/config/razones-sociales).
+- Una nota de crédito sale siempre con la razón social de la factura que anula.
+- El PDF lleva los datos de la razón social que emitió.
+- La lista tiene un selector **"Razón social"** (**"Todas"** o una) y se puede sumar la columna **"Razón social"** en la vista.
+- La **facturación automática** y el estado en que se factura se configuran por razón social en [Facturación (ARCA)](/config/arca); el aviso de "Modo prueba" lo muestra cada una.
+
 ## Preguntas frecuentes
 
 **¿Por qué un pedido no se facturó solo?**
@@ -259,3 +269,4 @@ No: en modo prueba contra ARCA salen pero no tienen validez fiscal.
 - [Cuentas corrientes](/administracion/cuentas-corrientes)
 - [Contabilidad](/administracion/contabilidad)
 - [Libros de IVA](/administracion/libros-iva)
+- [Razones sociales](/config/razones-sociales)

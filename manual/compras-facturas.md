@@ -250,6 +250,15 @@ Por eso **subir dos veces el mismo mes no duplica**: lo que ya entró aparece co
 - **Código sugerido para una cuenta nueva** ("+ Nueva cuenta"): como las facturas de compra casi siempre son gastos, es el próximo código libre de egreso: el de la cuenta imputable de egreso con el código más alto, más uno en la última parte y con sus ceros (después de 5.2.05, 5.2.06; después de 5.2.09, 5.2.10). Si ese código ya está usado, sigue con el próximo. Si cambiaste el código, tiene que ir con números separados por puntos y no existir. La cuenta cuelga de la madre que le corresponde por el código (el código más cercano que existe acortándolo de a una parte). El detalle, en [Contabilidad](/administracion/contabilidad).
 - Crear una cuenta desde la vista previa **no importa nada** y no borra lo elegido en los desplegables: vuelve a la misma vista previa con todo como estaba, más la cuenta nueva.
 
+## Con más de una razón social
+
+La mercadería es de toda la organización, pero **cada factura de compra viene a nombre de una razón social**. Con más de una, el formulario de la factura tiene **"A nombre de (razón social)"** (sin elegir, la principal).
+
+- **El stock entra igual al stock general**, venga a nombre de quien venga: no hay stock separado por razón social.
+- La factura define de qué razón social es el **crédito fiscal** (libro de IVA Compras), la **cuenta corriente con el proveedor** y el **asiento**.
+- **Importar de ARCA (Mis Comprobantes)**: el archivo se baja de ARCA con el CUIT de cada empresa, así que al subirlo se elige **"De la razón social"**. Los comprobantes importados quedan a su nombre, y un comprobante ya cargado a nombre de la otra razón social **no** cuenta como "ya cargado".
+- En la lista hay un selector **"Razón social"** y se puede sumar la columna **"Razón social"** en la vista.
+
 ## Preguntas frecuentes
 
 **¿Cómo importo el archivo de ARCA del libro de IVA compras?**
@@ -293,3 +302,4 @@ En el detalle de una factura registrada, **Estado de cuenta del proveedor**, o e
 - [Recepción](/deposito/recepcion)
 - [Tipo de cambio](/config/tipo-cambio)
 - [Ajustes de stock](/stock/ajustes)
+- [Razones sociales](/config/razones-sociales)

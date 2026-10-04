@@ -16,6 +16,7 @@ export const LISTA_TESORERIA: Lista = {
   permiso: "tesoreria_ver",
   campos: [
     { clave: "nombre", titulo: "Cuenta", ancho: 28 },
+    { clave: "emisor", titulo: "Razón social", ancho: 24 },
     { clave: "tipo", titulo: "Tipo", valor: (f) => TIPOS_CUENTA[f.tipo] ?? f.tipo },
     { clave: "moneda", titulo: "Moneda" },
     { clave: "banco", titulo: "Banco" },
@@ -32,7 +33,7 @@ export const LISTA_TESORERIA: Lista = {
   filas: async (ctx, sp) => {
     const q = sp.q?.trim() ?? "";
     const comienza = sp.contiene !== "1";
-    const [cuentas, contables] = await Promise.all([cuentasConSaldo(ctx.org), cuentasImputables(ctx.org)]);
+    const [cuentas, contables] = await Promise.all([cuentasConSaldo(ctx.org, Number(sp.rs) || null), cuentasImputables(ctx.org)]);
     const nombre = new Map(contables.map((x) => [x.id, `${x.codigo} ${x.nombre}`]));
     return cuentas
       .filter((c) => [c.nombre, c.banco, c.alias, c.cbu].some((t) => coincideBusqueda(t, q, comienza)))

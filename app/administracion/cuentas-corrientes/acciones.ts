@@ -96,7 +96,7 @@ export async function accionSaldoInicial(fd: FormData) {
       if (!tc) throw new ErrorErp(`No hay tipo de cambio para el ${f.split("-").reverse().join("/")}.`);
       const ars = signo * importe;
       await movimientoCc(c, s.org.id, { tercero: t, terceroId, fecha: f, vencimiento: f, tipo: "saldo_inicial", importe: ars, importeArs: ars,
-        importeUsd: Math.round((ars / tc) * 100) / 100, descripcion: "Saldo inicial" });
+        importeUsd: Math.round((ars / tc) * 100) / 100, descripcion: "Saldo inicial", emisorId: id(fd, "emisor") || null });
       await imputarAutomatico(c, s.org.id, t, terceroId);
     });
     revalidatePath(BASE);

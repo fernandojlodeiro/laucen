@@ -31,13 +31,14 @@ export const LISTA_DESPACHOS: Lista = {
     { clave: "deposito", titulo: "Depósito", sql: "(select x.nombre from deposito x where x.id = d.deposito_id)" },
     { clave: "estado", titulo: "Estado", sql: "d.estado", valor: (f) => ESTADO_DESPACHO[f.estado]?.texto ?? f.estado },
     campoFecha("registrado", "Registrado el", "d.registrado_ts", { hora: true }),
+    { clave: "emisor", titulo: "Razón social", sql: "(select coalesce(e.nombre, e.razon_social) from emisor e where e.id = d.emisor_id)", ancho: 24 },
     { clave: "notas", titulo: "Notas", sql: "d.notas", orden: false, ancho: 40 },
   ],
   enPantalla: ["fecha", "numero", "proveedor", "lineas", "fob", "flete", "gastos", "costo", "estado"],
   consulta: async (ctx, sp) => ({
     desde: "despacho_importacion d left join proveedor p on p.id = d.proveedor_id",
-    donde: "d.organizacion_id = $1 and ($2 = 0 or d.proveedor_id = $2) and ($3 = '' or d.estado = $3)",
-    valores: [ctx.org, Number(sp.proveedor) || 0, sp.estado && Object.hasOwn(ESTADO_DESPACHO, sp.estado) ? sp.estado : ""],
+    donde: "d.organizacion_id = $1 and ($2 = 0 or d.proveedor_id = $2) and ($3 = '' or d.estado = $3) and ($4::bigint is null or d.emisor_id = $4)",
+    valores: [ctx.org, Number(sp.proveedor) || 0, sp.estado && Object.hasOwn(ESTADO_DESPACHO, sp.estado) ? sp.estado : "", Number(sp.rs) || null],
     orden: "d.fecha desc, d.id desc",
   }),
 };

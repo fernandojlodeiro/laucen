@@ -144,6 +144,16 @@ Cada vez que entra un documento, Laucen cancela los créditos pendientes de esa 
 
 Se guarda en pesos, con vencimiento en su misma fecha, y se imputa como cualquier otro renglón.
 
+## Con más de una razón social
+
+Cada razón social lleva **su propia cuenta corriente** con cada cliente y cada proveedor (la ficha del cliente o del proveedor es una sola). Con más de una razón social, arriba aparece el selector **"Razón social"**: **"Todas"** o una sola.
+
+- Las **facturas** entran en la cuenta de la razón social que las emitió (ventas) o a cuyo nombre vinieron (compras).
+- Un **recibo u orden de pago** es de la razón social de las cuentas de fondos por las que entra o sale la plata; **todos los medios tienen que ser de la misma razón social** (si no, "Los medios son de cuentas de razones sociales distintas: hacé un recibo por cada una").
+- La **imputación** (automática o a mano) sólo cruza créditos con deudas **de la misma razón social**: un pago hecho por una empresa no cancela la deuda con la otra.
+- En **"Saldo inicial"** se elige a qué razón social corresponde.
+- Mirando **"Todas"**, el estado de cuenta muestra una columna con la razón social de cada renglón.
+
 ## Preguntas frecuentes
 
 **¿Por qué un cliente no aparece en cuenta corriente?**
@@ -176,3 +186,4 @@ No, salvo que el cliente tenga cuenta corriente habilitada. Su cobro se registra
 - [Proveedores](/compras/proveedores)
 - [Contabilidad](/administracion/contabilidad)
 - [Tipo de cambio](/config/tipo-cambio)
+- [Razones sociales](/config/razones-sociales)

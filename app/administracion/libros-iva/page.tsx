@@ -19,6 +19,8 @@ import {
   type FilaLibro, type ImportesLibro, type Alicuota,
 } from "@/lib/administracion/libro-iva";
 import { libroIvaPeriodo, canalesConVentas, type AvisoLibro } from "@/lib/administracion/libro-iva-base";
+import { elegirRazonSocial, nombreRs } from "@/lib/razon-social";
+import SelectorRazonSocial from "@/app/componentes/SelectorRazonSocial";
 import { periodoDe, mesesParaElegir, nombreMes, canalDe, type SPLibro } from "./comun";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +40,9 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
   const { desde, hasta, periodo } = periodoDe(sp);
   const libro = sp.libro === "compras" || sp.libro === "avisos" ? sp.libro : "ventas";
   const canal = canalDe(sp);
-  const [{ ventas, compras, avisos }, canales] = await Promise.all([libroIvaPeriodo(org, desde, hasta), canalesConVentas(org)]);
+  // Cada razón social presenta su libro de IVA: se mira de una sola (la principal, sin elegir).
+  const rs = await elegirRazonSocial(org, sp.rs, { todas: false });
+  const [{ ventas, compras, avisos }, canales] = await Promise.all([libroIvaPeriodo(org, desde, hasta, rs.id), canalesConVentas(org)]);
 
   const libroVentas = armarLibro(ventas);
   const libroCompras = armarLibro(compras);
@@ -46,7 +50,7 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
   const resumen = resumenIva(libroVentas.totales, libroCompras.totales);
   const archivos = periodo && /^\d{6}$/.test(periodo) ? archivosLibroIvaDigital(periodo, ventas, compras) : null;
 
-  const filtros = { mes: sp.mes, desde: sp.desde, hasta: sp.hasta };
+  const filtros = { mes: sp.mes, desde: sp.desde, hasta: sp.hasta, rs: rs.multi && rs.id ? String(rs.id) : undefined };
   const mesElegido = periodo && /^\d{6}$/.test(periodo) ? `${periodo.slice(0, 4)}-${periodo.slice(4)}` : "";
   const meses = mesesParaElegir();
   const titulo = mesElegido ? nombreMes(mesElegido) : `${fechaAr(desde)} al ${fechaAr(hasta)}`;
@@ -57,6 +61,7 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
       acciones={libro !== "avisos" ? <a href={url(`${BASE}/excel`, { ...filtros, libro, canal: libro === "ventas" ? sp.canal : undefined })} className={VERDE}>Descargar Excel</a> : undefined}>
       <Avisos sp={sp} />
       <div className="flex flex-wrap items-center gap-3 mb-3">
+        {rs.multi && <SelectorRazonSocial razones={rs.razones.map((x) => ({ id: x.id, nombre: nombreRs(x) }))} valor={rs.id} todas={false} />}
         <Desplegable parametro="mes" etiqueta="Mes" valor={mesElegido} limpiar={["desde", "hasta", "p"]}
           opciones={[...(mesElegido && meses.includes(mesElegido) ? [] : [{ valor: mesElegido, texto: mesElegido ? nombreMes(mesElegido) : "Personalizado" }]),
             ...meses.map((m) => ({ valor: m, texto: nombreMes(m) }))]} />

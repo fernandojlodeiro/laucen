@@ -13,7 +13,9 @@ Para que Laucen pueda emitir facturas electrónicas a nombre de la empresa. Acá
 
 En pantalla no se habla de "homologación" ni de "producción": la producción se llama **"Facturación real"** y la homologación **"Prueba contra ARCA"**.
 
-Los datos fiscales que van impresos en la factura (condición frente al IVA, domicilio, Ingresos Brutos, inicio de actividades y logo) **no** se cargan acá sino en [Empresa](/config/empresa).
+Con **más de una razón social**, arriba de la pantalla aparece una fila de pestañas con el nombre de cada una: el trámite, la conexión, la prueba y la facturación automática son **de la razón social elegida** (cada CUIT tiene su propio permiso de ARCA).
+
+Los datos fiscales (CUIT, razón social, condición frente al IVA, domicilio, Ingresos Brutos, inicio de actividades y punto de venta) **no** se cargan acá sino en [Razones sociales](/config/razones-sociales); el logo de las facturas, en [Empresa](/config/empresa).
 
 ## Cómo se llega
 
@@ -27,10 +29,7 @@ Título "Facturación electrónica (ARCA)" y, debajo, el enlace **"Ver facturas"
 
 ### Si todavía no está conectado
 
-Un recuadro **"Conectar con ARCA"** con el formulario para empezar el trámite:
-- **Razón social, como figura en ARCA**
-- **CUIT con el que facturás** (con o sin guiones, ej. 30-71234567-8)
-- **Punto de venta** (número entero)
+Un recuadro **"Conectar con ARCA"** que muestra los datos de la razón social (razón social, CUIT y punto de venta, sólo lectura: se corrigen en [Razones sociales](/config/razones-sociales)) y el formulario para empezar el trámite:
 - Botón **"Preparar el trámite en ARCA"** (facturación real).
 - Desplegable **"Sólo para pruebas"** con el botón **"Preparar trámite de prueba contra ARCA"**.
 
@@ -45,13 +44,13 @@ Una vez empezado el trámite, se ve un cartel amarillo ("El trámite está empez
 - **"Facturar al llegar el pedido a"**: se ve en modo vista; el **lápiz** lo vuelve editable (desplegable Pagado / Preparado / Despachado) y en su lugar quedan **"Grabar"** y **"Cancelar"**.
 - Desplegable **"Cambiar o desconectar"**: el formulario para **"Hacer el trámite de nuevo"** (o los pasos, si hay uno empezado) y el botón **"Desconectar ARCA"**, que pregunta ahí mismo "¿Desconectar? Hasta hacer el trámite de nuevo no se puede facturar."
 
-Al pie: "La condición frente al IVA, el domicilio, Ingresos Brutos y el logo de las facturas se cargan en [Empresa](/config/empresa)."
+Al pie: el aviso de dónde se cargan los datos fiscales (Razones sociales) y el logo (Empresa).
 
 ## Cómo se hace
 
 ### Conectar Laucen con ARCA (facturación real)
 
-1. Completá **Razón social, como figura en ARCA**, **CUIT con el que facturás** y **Punto de venta**, y apretá **"Preparar el trámite en ARCA"**. Aviso: "Listo, ya tenés el archivo del trámite. Seguí los pasos."
+1. Si hay más de una razón social, elegí arriba la que vas a conectar. Revisá que su razón social, CUIT y punto de venta estén bien (si no, corregilos primero en [Razones sociales](/config/razones-sociales)) y apretá **"Preparar el trámite en ARCA"**. Aviso: "Listo, ya tenés el archivo del trámite. Seguí los pasos."
 2. **Paso 1 – "Bajá el archivo del trámite"**: apretá **"Bajar el archivo"**. Baja un archivo "laucen-produccion.csr". Es el pedido que ARCA necesita; no tiene nada secreto.
 3. **Paso 2 – "Llevalo a ARCA y traé el permiso"** (lo hace quien tiene la clave fiscal, en el sitio de ARCA):
    - Entrá con la clave fiscal a **Administración de Certificados Digitales**.
@@ -105,7 +104,8 @@ Abrí **"Cambiar o desconectar"**, apretá **"Desconectar ARCA"** y confirmá. A
 
 - **La clave privada nunca sale del servidor.** Laucen la genera (RSA de 2048 bits) junto con el pedido de certificado; lo único que se baja es el pedido (el archivo .csr), que no es secreto.
 - **Un trámite por modo.** Hay un juego clave/certificado para "Facturación real" y otro para "Prueba contra ARCA". Generar un archivo nuevo de un modo **descarta el anterior de ese modo**: el certificado que ARCA haya dado con el archivo viejo deja de servir. Si el trámite nuevo es del mismo modo en el que estás conectado, **la conexión actual se corta** hasta que conectes el nuevo.
-- **Al preparar el trámite** se guardan (o corrigen) la razón social, el CUIT y el punto de venta. Si es la primera vez, la empresa queda en el modo del trámite. Si ya había conexión, el modo **no cambia hasta que conectes** el certificado nuevo: lo que ya factura sigue facturando.
+- **Al preparar el trámite** se usan la razón social, el CUIT y el punto de venta de la razón social elegida. Si ya había conexión, el modo **no cambia hasta que conectes** el certificado nuevo: lo que ya factura sigue facturando.
+- **Cada razón social tiene su propio permiso, su propio modo, su propio ticket y su propia facturación automática.** Conectar, desconectar o prender una no toca a la otra. Cada una factura los pedidos de los canales que la tienen elegida (y la principal, los demás).
 - **Al conectar**, Laucen verifica que el certificado corresponda a la última clave generada y guarda su fecha de vencimiento. La empresa pasa a facturar en el modo de ese certificado.
 - **Vencimiento**: la pantalla marca "Por vencer" cuando faltan menos de 30 días y "Vencido" cuando ya pasó. Con el permiso vencido no se puede facturar: hay que hacer el trámite de nuevo.
 - **Acceso a ARCA**: Laucen pide a ARCA un "ticket" de acceso que dura 12 horas y lo reusa mientras sirve. Al conectar o generar un archivo nuevo se descarta el ticket guardado.
@@ -115,7 +115,7 @@ Abrí **"Cambiar o desconectar"**, apretá **"Desconectar ARCA"** y confirmá. A
   - Al prenderla, todos los cambios de estado de pedidos que estaban sin procesar se marcan como vistos: **no salen de golpe facturas de pedidos viejos**.
   - Corre en la revisión periódica de Laucen (cada 2 minutos, si hay algo pendiente). El detalle de qué pedidos se facturan y cuáles se saltean está en [Facturación](/administracion/facturacion).
   - Apagarla no afecta lo ya facturado.
-- **Datos fiscales**: si todavía no hay datos de la empresa, las acciones que los necesitan avisan "Primero cargá los datos fiscales (CUIT y razón social) en Configuración → Empresa." En la práctica, el CUIT y la razón social se cargan también con el formulario del trámite.
+- **Datos fiscales**: si todavía no hay una razón social cargada, las acciones que la necesitan avisan "Primero cargá la razón social (CUIT, condición de IVA y punto de venta) en Configuración → Razones sociales."
 
 ## Preguntas frecuentes
 
@@ -138,13 +138,17 @@ Lo que ARCA haya puesto en el certificado; la fecha se ve en "El permiso vence".
 No. Sólo los que lleguen al estado elegido de ahí en adelante. Los anteriores se facturan a mano desde cada pedido.
 
 **¿Dónde cargo el domicilio y la condición de IVA que salen en la factura?**
-En [Empresa](/config/empresa).
+En [Razones sociales](/config/razones-sociales) (el logo, en [Empresa](/config/empresa)).
+
+**Tengo dos razones sociales, ¿cómo conecto la segunda?**
+Elegí su pestaña arriba y hacé el trámite completo con ella: cada CUIT tiene su certificado.
 
 **¿Para qué sirve la prueba contra ARCA?**
 Para probar el circuito: las facturas salen pero no tienen validez fiscal.
 
 ## Relacionado
 
+- [Razones sociales](/config/razones-sociales)
 - [Facturación](/administracion/facturacion)
 - [Empresa](/config/empresa)
 - [Pedidos](/ventas/pedidos)

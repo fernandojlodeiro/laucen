@@ -30,7 +30,7 @@ export function numeroFactura(f: { letra: string; es_nota_credito: boolean; es_n
 export const pct = (n: number | string) => `${Number(n).toLocaleString("es-AR", { maximumFractionDigits: 1 })} %`;
 
 /** Tablas que se pueden verificar con `deLaOrg`. */
-type Tabla = "proveedor" | "deposito" | "recepcion" | "plan_cuenta" | "variacion";
+type Tabla = "proveedor" | "deposito" | "recepcion" | "plan_cuenta" | "variacion" | "emisor";
 
 /** Devuelve el id si existe en esa tabla y es de la organización; si no, tira
  *  un error en criollo. null/0 pasa como null (campo opcional vacío). */

@@ -4,15 +4,15 @@ menu: Configuración › Empresa
 ruta: /config/empresa
 rutas: /config/empresa
 permiso: empresa_config
-resumen: Los datos generales de la empresa (nombre de fantasía, logo, contacto, dirección) y los datos fiscales de quien factura (CUIT, razón social, condición IVA, punto de venta).
+resumen: Los datos generales de la empresa (nombre de fantasía, logo, contacto, dirección) y un resumen de sus razones sociales (los datos fiscales se cargan en Razones sociales).
 ---
 
 ## Para qué sirve
 
-Es la ficha de la propia empresa. Tiene dos cajas que se graban por separado:
+Es la ficha de la propia empresa. Tiene:
 
-- **Datos generales**: el nombre de fantasía, el logo y los datos de contacto y dirección.
-- **Datos fiscales**: los datos de quien emite las facturas electrónicas (CUIT, razón social, condición frente al IVA, domicilio comercial, Ingresos Brutos, inicio de actividades y punto de venta).
+- **Datos generales**: el nombre de fantasía, el logo y los datos de contacto y dirección (se edita con su lápiz).
+- **Datos fiscales**: sólo un resumen de las razones sociales (CUIT, condición IVA, punto de venta). Los datos fiscales de cada CUIT —razón social, CUIT, condición frente al IVA, domicilio comercial, Ingresos Brutos, inicio de actividades y punto de venta— se cargan y se editan en [Razones sociales](/config/razones-sociales).
 
 El logo es lo que más se ve: sale en el PDF de las facturas y en la tienda web cuando la tienda no tiene un logo propio. Los datos fiscales salen en las facturas y en el pie de la tienda web (razón social, CUIT, condición IVA y domicilio).
 
@@ -39,22 +39,13 @@ A la derecha del título está el **lápiz** para editarla. Campos:
 - **Web**: ej. laucen.com.ar.
 - **Dirección**, **Localidad**, **Provincia**, **Código postal**.
 
-### Caja "Datos fiscales"
+### Caja "Datos fiscales" (sólo lectura)
 
-A la derecha del título, su propio **lápiz**. Campos:
-
-- **CUIT**: se escribe con guiones o sin; se muestra como 30-71234567-8.
-- **Razón social**: "Como figura en ARCA."
-- **Condición IVA**: Responsable inscripto, Monotributo o Exento. Ayuda: "Responsable inscripto factura A y B; los demás, C."
-- **Domicilio comercial**: "El que sale en las facturas."
-- **Ingresos Brutos**
-- **Inicio de actividades** (fecha)
-- **Punto de venta**: el número habilitado en ARCA para "Factura electrónica – Web services".
-- Abajo, el enlace **"Conectar con ARCA para facturar →"**, que lleva a [Configuración › Facturación (ARCA)](/config/arca).
+Muestra un renglón por cada razón social: nombre, CUIT, condición IVA y punto de venta, y el botón **"Ver razones sociales"**. Para cargar o corregir los datos fiscales (CUIT, razón social, condición IVA, domicilio, Ingresos Brutos, inicio de actividades y punto de venta) se va a [Razones sociales](/config/razones-sociales). Si todavía no hay ninguna, la caja lo avisa.
 
 ### Botones en edición
 
-Al apretar el lápiz de una caja, esa caja pasa a campos editables y en el lugar del lápiz aparecen **"Grabar"** y **"Cancelar"**. Mientras editás una caja, el lápiz de la otra no aparece (se edita una por vez). "Cancelar" vuelve a la vista sin grabar nada.
+Al apretar el lápiz de Datos generales, la caja pasa a campos editables y en el lugar del lápiz aparecen **"Grabar"** y **"Cancelar"**. "Cancelar" vuelve a la vista sin grabar nada.
 
 ## Cómo se hace
 
@@ -78,33 +69,18 @@ Errores típicos:
 
 ### Cargar los datos fiscales para poder facturar
 
-1. Lápiz de **Datos fiscales**.
-2. Completá **CUIT**, **Razón social** (obligatoria), **Condición IVA**, **Domicilio comercial**, **Ingresos Brutos**, **Inicio de actividades** y **Punto de venta**.
-3. **"Grabar"**.
-4. Si todavía no está conectado con ARCA, seguí con el enlace "Conectar con ARCA para facturar →".
-
-Errores típicos:
-- "Falta la razón social."
-- "El punto de venta es un número entre 1 y 99998."
-- "La fecha de inicio de actividades no se pudo leer."
-- Un CUIT mal escrito también se rechaza con su motivo.
-
-### Cambiar el CUIT
-
-Si cambiás el CUIT y ya estaba conectado con ARCA, al grabar aparece: "Guardado. Ojo: cambiaste el CUIT y el permiso de ARCA es del anterior; hacé el trámite de nuevo en Configuración → Facturación (ARCA)." El permiso de ARCA es de un CUIT: con el CUIT nuevo hay que volver a hacer el trámite en [Configuración › Facturación (ARCA)](/config/arca).
+Se hace en [Razones sociales](/config/razones-sociales) (y la conexión con ARCA, en [Facturación (ARCA)](/config/arca)).
 
 ## Criterios y reglas
 
-- **Una sola ficha por organización**: la primera vez que se graba, se crea; después se actualiza.
-- **Las dos cajas son independientes**: grabar los datos generales no toca los fiscales, y al revés. Grabar los datos fiscales tampoco cambia el ambiente de ARCA ni la facturación automática.
+- **Una sola ficha de datos generales por organización**: la primera vez que se graba, se crea; después se actualiza. Los datos fiscales son de cada razón social y se cargan en [Razones sociales](/config/razones-sociales).
 - **Logo**: sólo se acepta una imagen subida (una dirección que empiece con https://); cualquier otra cosa queda vacía.
 - **Web**: si la escribís sin "http://" o "https://", el sistema le agrega "https://" adelante.
 - **WhatsApp**: se le sacan todos los caracteres que no son números; tiene que quedar con entre 10 y 15 dígitos.
-- **Condición IVA**: si llegara un valor raro, queda "Responsable inscripto". La condición decide la letra de las facturas: Responsable inscripto emite A y B; Monotributo y Exento, C.
-- **Punto de venta**: entero entre 1 y 99998. De entrada, en edición, propone 1.
+- **Condición IVA** (en Razones sociales): decide la letra de las facturas: Responsable inscripto emite A y B; Monotributo y Exento, C.
 - **Dónde se usa cada dato hoy**:
   - El **logo** sale en el PDF de las facturas y es el logo de la tienda web si la tienda no tiene uno propio.
-  - Los **datos fiscales** salen en las facturas y en el pie de la tienda web (razón social, CUIT, condición IVA, domicilio). En la ficha de producto de la tienda, si la empresa es Responsable inscripto, se muestra "Hace factura A."
+  - Los **datos fiscales de la razón social principal** salen en el pie de la tienda web (razón social, CUIT, condición IVA, domicilio). En la ficha de producto de la tienda, si la principal es Responsable inscripta, se muestra "Hace factura A." Cada factura lleva los datos de la razón social que la emitió.
   - El nombre de fantasía, mail, teléfono, WhatsApp, web y dirección de "Datos generales" se guardan, pero los datos de contacto que ve el comprador en la tienda se cargan aparte, en [Tienda web](/config/tienda).
 
 ## Preguntas frecuentes
@@ -119,19 +95,17 @@ Porque la tienda tiene su propio logo cargado en [Tienda web](/config/tienda); �
 Depende de la Condición IVA: Responsable inscripto emite A y B; Monotributo y Exento, C.
 
 **¿Acá conecto con ARCA?**
-No. Acá se cargan los datos fiscales; la conexión (certificado, prueba/producción) está en [Configuración › Facturación (ARCA)](/config/arca).
+No. Los datos fiscales están en [Razones sociales](/config/razones-sociales); la conexión (certificado, prueba/producción) está en [Configuración › Facturación (ARCA)](/config/arca).
 
 **Cambié el CUIT y ahora no factura. ¿Qué pasa?**
-El permiso de ARCA es del CUIT anterior: hay que hacer el trámite de nuevo en [Configuración › Facturación (ARCA)](/config/arca).
-
-**¿Puedo editar las dos cajas a la vez?**
-No: mientras editás una, la otra queda en vista sin lápiz. Grabá o cancelá y después editá la otra.
+El permiso de ARCA es del CUIT anterior: hay que hacer el trámite de nuevo en [Configuración › Facturación (ARCA)](/config/arca). El CUIT se cambia en [Razones sociales](/config/razones-sociales).
 
 **¿El mail y el WhatsApp de acá son los que ve el comprador en la tienda?**
 No. Los de la tienda se cargan en [Tienda web](/config/tienda).
 
 ## Relacionado
 
+- [Razones sociales](/config/razones-sociales)
 - [Facturación (ARCA)](/config/arca)
 - [Facturación](/administracion/facturacion)
 - [Tienda web](/config/tienda)
