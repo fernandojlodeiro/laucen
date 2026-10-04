@@ -48,9 +48,10 @@ Si no hay ninguna cuenta de ML conectada a un canal, avisa que primero hay que c
 Si hay:
 - **Canal de Mercado Libre** (si hay más de una cuenta) y el botón **Traer publicaciones de ML** (mientras trabaja: "Trayendo… (puede tardar unos minutos)").
 - Tres recuadros: **Publicaciones**, **Vinculadas**, **Sin vincular**.
-- Pestañas **Sin vincular (n)**, **Vinculadas (n)**, **Activas (n)**, **Pausadas (n)**, **Con cuestiones (n)** (en revisión, inactivas o con el pago pendiente) y **Todas (n)**. El [Tablero de Mercado Libre](/mercadolibre) enlaza a estas pestañas.
+- Si en el canal hay notebooks pausadas (o cerradas) sin producto de Laucen, un recuadro con cuántas son y el botón **"Borrar de Laucen (N)"**, que pregunta "Sí" / "No" ahí mismo. Las borra sólo de Laucen: en Mercado Libre quedan como están, y al traer publicaciones no vuelven.
+- Casillas para filtrar, que se pueden combinar: **Sin vincular (n)**, **Vinculadas (n)** y, aparte, **Activas (n)**, **Pausadas (n)** y **Con cuestiones (n)** (en revisión, inactivas o con el pago pendiente). Entre Activas, Pausadas y Con cuestiones se suman (activas o pausadas); con Sin vincular se cruzan: "Sin vincular" + "Activas" muestra las activas que no tienen producto. Sin ninguna tildada se ven todas. De entrada viene tildada "Sin vincular". El [Tablero de Mercado Libre](/mercadolibre) enlaza a estos filtros.
 - Buscador **"Buscar por título, SKU o MLA…"**.
-- **Descargar Excel** arriba a la derecha (con la misma pestaña y búsqueda).
+- **Descargar Excel** arriba a la derecha (con las mismas casillas y búsqueda).
 - Tabla: foto, **Publicación** (título, atributos de la variación de ML, el MLA con enlace ↗ y la marca "Full" si va por Full), **SKU en ML**, **Precio** (ML da pesos; si mirás en dólares, se pasa al tipo de cambio del día), **Stock ML**, **Vendidos**, **Estado**, **Tipo** (Clásica / Premium / Gratuita), **Vinculación**.
 - En **Vinculación**:
   - Si está vinculada: el SKU de Laucen (lleva a la ficha), "Inactivo" si el producto está inactivo, el título de la variación, "Disponible en Laucen para este canal: N", y un tacho para **desvincular** ("¿Desvincular?").
@@ -66,7 +67,7 @@ Si hay:
 
 ### Vincular una publicación con su variación
 
-1. En la pestaña **Sin vincular**, buscá la publicación.
+1. Con la casilla **Sin vincular** tildada, buscá la publicación.
 2. En **Vinculación** escribí el SKU (o el código de barras) de la variación de Laucen.
 3. Apretá **Vincular**. Avisa "Vinculada a SKU…".
 
@@ -82,7 +83,7 @@ Si ya existe un producto con ese SKU: "Ya hay un producto con el SKU …: vincul
 
 ### Cambiar a qué variación corresponde una publicación de ML
 
-1. En [Publicaciones](/catalogo/publicaciones), apretá **Re-vincular** en su fila (o buscala en Vincular con Mercado Libre, pestaña Vinculadas).
+1. En [Publicaciones](/catalogo/publicaciones), apretá **Re-vincular** en su fila (o buscala en Vincular con Mercado Libre, casilla Vinculadas).
 2. Tacho de la vinculación → **Sí** ("Desvinculada.").
 3. Vinculala de nuevo con el SKU correcto.
 
@@ -103,6 +104,8 @@ Lápiz de la fila → en la columna SKU escribí el SKU o código de barras de L
 - en la barrida nocturna (de 2 a 5, hora argentina) de los canales con la sincronización de stock prendida, que además compara con lo que debería ser y encola las diferencias;
 - al apretar **Traer publicaciones de ML**.
 El estado se traduce así: activa en ML → Activa; pausada → Pausada; cualquier otro → Cerrada. Una variación que Laucen pausó por falta de stock sigue activa en ML con 0 unidades, y acá se ve como Pausada.
+
+**Notebooks borradas de Laucen**: las notebooks (categoría Notebooks de Mercado Libre) pausadas o cerradas que no tienen producto en Laucen se pueden borrar con su botón. Laucen recuerda cuáles se borraron y no las vuelve a guardar al traer publicaciones, ni con los avisos de Mercado Libre. Si alguna se reactiva en Mercado Libre, no aparece sola en Laucen: hay que sacarla de las borradas.
 
 **Vinculación automática por SKU**: al traer (o al llegar un aviso de ML), cada publicación (o cada variación de una publicación) que todavía no está vinculada se vincula sola si su **SKU en ML** coincide con el SKU de una variación de Laucen, sin importar mayúsculas. El "SKU en ML" es el atributo SKU del vendedor de la publicación (o de su variación); si no lo tiene, el campo de código propio del vendedor. También vincula por una **equivalencia** de SKU (un SKU viejo u otro código en ML que la importación de Virtual Seller dejó apuntando a un SKU de Laucen). Lo que ya estaba vinculado no se toca: si querés cambiarlo, desvinculá y volvé a vincular. Si no coincide tal cual y el SKU de ML empieza con **"DE-"** (las cuentas DEIROLAB y TIENDAVIRTUAL S), se prueba también sin el "DE-": en Laucen esos SKU se cargaron sin el prefijo.
 
@@ -126,7 +129,7 @@ El estado se traduce así: activa en ML → Activa; pausada → Pausada; cualqui
 No. Publicaciones es un espejo de Mercado Libre: se crean y se cierran en ML.
 
 **Una venta de ML no descontó stock, ¿por qué?**
-Probablemente la publicación (o esa variación de la publicación) no está vinculada. Fijate en Vincular con Mercado Libre, pestaña Sin vincular.
+Probablemente la publicación (o esa variación de la publicación) no está vinculada. Fijate en Vincular con Mercado Libre, con la casilla Sin vincular.
 
 **¿Por qué una publicación no se vinculó sola?**
 Porque su SKU en ML está vacío o no coincide con ningún SKU de Laucen. Vinculala a mano con el SKU o el código de barras, o corregí el SKU en ML.
