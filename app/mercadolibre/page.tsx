@@ -37,9 +37,9 @@ function Celda({ valor, de, href, tono = "alerta", nota }: { valor: number | str
   const color = tono === "neutro" ? "" : tono === "alerta" ? (Number(valor) > 0 ? "text-[#C03420]" : "text-[#1F6E4A]") : "text-[#1F6E4A]";
   const cuerpo = (
     <>
-      <span className={`text-sm font-bold tabular-nums ${color}`}>{typeof valor === "number" ? n(valor) : valor}</span>
-      {de !== undefined && <span className="ml-1 text-[11px] text-[#5C6B76] tabular-nums">de {typeof de === "number" ? n(de) : de}</span>}
-      {nota && <span className="block text-[9px] text-[#5C6B76] leading-[11px] break-words">{nota}</span>}
+      <span className={`text-lg font-bold tabular-nums ${color}`}>{typeof valor === "number" ? n(valor) : valor}</span>
+      {de !== undefined && <span className="ml-1 text-[13px] text-[#5C6B76] tabular-nums">de {typeof de === "number" ? n(de) : de}</span>}
+      {nota && <span className="block text-[12px] text-[#5C6B76] leading-[14px] break-words">{nota}</span>}
     </>
   );
   return href ? <Link href={href} className="block hover:bg-[#EEF3F8] rounded-md px-1 -mx-1">{cuerpo}</Link> : <div>{cuerpo}</div>;
@@ -49,7 +49,7 @@ function Termometro({ nivel }: { nivel: string | null }) {
   return (
     <div className="flex gap-0.5" aria-hidden>
       {NIVELES_REPUTACION.map((x) => (
-        <span key={x.id} className="h-1.5 w-3 first:rounded-l last:rounded-r" style={{ background: x.color, opacity: x.id === nivel ? 1 : 0.22 }} />
+        <span key={x.id} className="h-2 w-4 first:rounded-l last:rounded-r" style={{ background: x.color, opacity: x.id === nivel ? 1 : 0.22 }} />
       ))}
     </div>
   );
@@ -57,16 +57,16 @@ function Termometro({ nivel }: { nivel: string | null }) {
 
 function CeldaReputacion({ c }: { c: CuentaTablero }) {
   const r = c.reputacion;
-  if (!r) return <span className="text-[11px] text-[#5C6B76]">Sin leer todavía</span>;
+  if (!r) return <span className="text-[13px] text-[#5C6B76]">Sin leer todavía</span>;
   const nivel = nivelDe(r.nivel);
   return (
     <div className="grid gap-1">
       <Termometro nivel={r.nivel} />
       <div className="flex flex-wrap items-center gap-1">
         {nivel
-          ? <span className="rounded px-1.5 py-0.5 text-[11px] font-bold" style={{ background: nivel.color, color: nivel.tinta }}>{nivel.texto}</span>
-          : <span className="rounded bg-[#E3E9F0] px-1.5 py-0.5 text-[11px] font-bold text-[#5C6B76]">Sin reputación todavía</span>}
-        {r.lider && <span className="rounded bg-[#EEF3F8] px-1.5 py-0.5 text-[11px] font-bold text-[#16577F]">{LIDER[r.lider] ?? r.lider}</span>}
+          ? <span className="rounded px-1.5 py-0.5 text-[13px] font-bold" style={{ background: nivel.color, color: nivel.tinta }}>{nivel.texto}</span>
+          : <span className="rounded bg-[#E3E9F0] px-1.5 py-0.5 text-[13px] font-bold text-[#5C6B76]">Sin reputación todavía</span>}
+        {r.lider && <span className="rounded bg-[#EEF3F8] px-1.5 py-0.5 text-[13px] font-bold text-[#16577F]">{LIDER[r.lider] ?? r.lider}</span>}
       </div>
     </div>
   );
@@ -74,7 +74,7 @@ function CeldaReputacion({ c }: { c: CuentaTablero }) {
 
 /** Una métrica de reputación: cuántos en el período que ML cuenta y qué porcentaje es. */
 function CeldaMetrica({ m, titulo }: { m: Metrica | null; titulo: string }) {
-  if (!m) return <span className="text-[11px] text-[#5C6B76]" title={titulo}>—</span>;
+  if (!m) return <span className="text-[13px] text-[#5C6B76]" title={titulo}>—</span>;
   return <Celda valor={m.valor} tono="neutro" nota={`${(m.tasa * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 })} % · ${periodo(m.periodo)}`} />;
 }
 
@@ -87,7 +87,7 @@ type Fila = {
   total?: (t: Metricas, cols: Col[]) => React.ReactNode;
 };
 
-const NA = <span className="text-[11px] text-[#9AA7B3]" title="No aplica a este canal">—</span>;
+const NA = <span className="text-[13px] text-[#9AA7B3]" title="No aplica a este canal">—</span>;
 /** Para las filas que sólo existen en una cuenta de ML (reputación, publicaciones, preguntas…). */
 const soloMl = (f: (c: CuentaTablero, m: Metricas) => React.ReactNode) => (c: Col, m: Metricas) => (c.cuenta ? f(c.cuenta, m) : NA);
 
@@ -191,8 +191,8 @@ export default async function TableroMl({ searchParams }: { searchParams: Promis
         { titulo: "Conexión", celda: soloMl((c) => (
           <div className="grid gap-0.5">
             <Estado texto={c.estado === "activa" ? "Conectada" : "Desconectada"} tono={c.estado === "activa" ? "verde" : "rojo"} />
-            {c.estado !== "activa" && <Link href={url("/config/canales", { c: c.canalId })} className="text-[11px] text-[#16577F] hover:underline">Volver a conectar</Link>}
-            {c.ultimoError && <span className="text-[10px] text-[#C03420] leading-3">{c.ultimoError.slice(0, 80)}</span>}
+            {c.estado !== "activa" && <Link href={url("/config/canales", { c: c.canalId })} className="text-[13px] text-[#16577F] hover:underline">Volver a conectar</Link>}
+            {c.ultimoError && <span className="text-[12px] text-[#C03420] leading-3">{c.ultimoError.slice(0, 80)}</span>}
           </div>)) },
       ],
     },
@@ -209,33 +209,33 @@ export default async function TableroMl({ searchParams }: { searchParams: Promis
         </div>
       )}
       <div className="bg-white border border-[#E3E9F0] rounded-xl overflow-x-auto">
-        <table className="w-auto text-[10px] border-collapse">
+        <table className="w-auto text-[13px] border-collapse">
           <thead className="bg-[#FAFBFC] border-b border-[#E3E9F0] sticky top-0 z-10">
             <tr>
-              <th className="py-1 px-1.5 text-left w-32 min-w-28" />
+              <th className="py-1.5 px-2 text-left w-40 min-w-36" />
               {columnas.map((c) => (
-                <th key={c.clave} className="py-1 px-1.5 text-left align-top w-[5.5rem] min-w-[5.5rem] max-w-[5.5rem] border-l border-[#E3E9F0]">
-                  {c.href ? <Link href={c.href} className="font-bold text-xs text-[#16577F] hover:underline break-words">{c.titulo}</Link> : <span className="font-bold text-xs">{c.titulo}</span>}
-                  <span className="block text-[9px] font-normal text-[#5C6B76] leading-[11px] break-words">{c.sub}</span>
+                <th key={c.clave} className="py-1.5 px-2 text-left align-top w-[7.2rem] min-w-[7.2rem] max-w-[7.2rem] border-l border-[#E3E9F0]">
+                  {c.href ? <Link href={c.href} className="font-bold text-sm text-[#16577F] hover:underline break-words">{c.titulo}</Link> : <span className="font-bold text-sm">{c.titulo}</span>}
+                  <span className="block text-[12px] font-normal text-[#5C6B76] leading-[14px] break-words">{c.sub}</span>
                 </th>
               ))}
-              <th className="py-1 px-1.5 text-left align-top w-[5.5rem] min-w-[5.5rem] border-l-2 border-[#E3E9F0] bg-[#F3F6F9] font-bold text-xs">Total</th>
+              <th className="py-1.5 px-2 text-left align-top w-[7.2rem] min-w-[7.2rem] border-l-2 border-[#E3E9F0] bg-[#F3F6F9] font-bold text-sm">Total</th>
             </tr>
           </thead>
           {secciones.map((sec) => (
             <tbody key={sec.titulo}>
               <tr className="bg-[#EEF3F8]">
                 <td colSpan={columnas.length + 2} className="py-0.5 px-1.5 font-bold text-[#16577F]">
-                  {sec.titulo}{sec.sub && <span className="ml-2 font-normal text-[10px] text-[#5C6B76]">{sec.sub}</span>}
+                  {sec.titulo}{sec.sub && <span className="ml-2 font-normal text-[12px] text-[#5C6B76]">{sec.sub}</span>}
                 </td>
               </tr>
               {sec.filas.map((f) => (
                 <tr key={f.titulo} className="border-t border-[#EEF1F4] align-top">
-                  <th scope="row" className="py-1 px-1.5 text-left font-semibold" title={f.ayuda}>
+                  <th scope="row" className="py-1.5 px-2 text-left font-semibold" title={f.ayuda}>
                     {f.titulo}{f.ayuda && <span className="ml-0.5 font-normal text-[#9AA7B3] cursor-help">ⓘ</span>}
                   </th>
-                  {columnas.map((c) => <td key={c.clave} className="py-1 px-1.5 border-l border-[#EEF1F4] max-w-[5.5rem]">{f.celda(c, M(c))}</td>)}
-                  <td className="py-1 px-1.5 border-l-2 border-[#E3E9F0] bg-[#F9FAFB]">{f.total ? f.total(total, columnas) : ""}</td>
+                  {columnas.map((c) => <td key={c.clave} className="py-1.5 px-2 border-l border-[#EEF1F4] max-w-[7.2rem]">{f.celda(c, M(c))}</td>)}
+                  <td className="py-1.5 px-2 border-l-2 border-[#E3E9F0] bg-[#F9FAFB]">{f.total ? f.total(total, columnas) : ""}</td>
                 </tr>
               ))}
             </tbody>
