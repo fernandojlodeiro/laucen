@@ -1,0 +1,230 @@
+Producto;SKU;Título;Precio antes (Clásicas);Precio nuevo;Cuenta de ML de donde salió;Estado de la publicación;Tipo;Publicación;Nota;Stock
+activo;F412DA-NH77;Notebook Asus VivoBook Ryzen 7 8GB 14" FHD 512Gb V;sin precio;1479999.00;TIENDAVIRTUAL.BAIRES;active;Clásica;MLA1471328469;Cargado (no tenía precio)
+activo;S532FA-SB77;Notebook Asus VivoBook i7 10510U 8GB 512GB SSD 15.;sin precio;1712879.00;TIENDAVIRTUAL.BAIRES;active;Clásica;MLA1707952619;Cargado (no tenía precio)
+activo;SKU00975-30;Pack x 30 Acople Flexible Motor Nema 3d 5x5x25mm;sin precio;129999.00;DEIROLAB_SA;active;Clásica;MLA1985395602;Cargado (no tenía precio)
+activo;SKU00374;Film Protector De Pantalla Hd Samsung Galaxy S6;2376.00;99.00;TIENDAVIRTUAL.;active;Clásica;MLA668297406;Cargado (era distinto)
+activo;SKU00396;Lm 360 Lm-360 Lm360 Lm360n 360n Sop-8 Original;1980.00;213.00;TIENDAVIRTUAL.;active;Clásica;MLA668294791;Cargado (era distinto)
+activo;SKU00542;Pack X10 Unidades Termistor Ntc 100k Impresora 3d ;4809.00;16499.00;DEIROLAB_SAS;active;Clásica;MLA1472042745;Cargado (era distinto)
+activo;SKU00563;Módulo Bluetooth Hc-06 Maestro Serial Para Arduino;7169.00;8573.00;TIENDAVIRTUAL.BAIRES;active;Clásica;MLA668324403;Cargado (era distinto)
+activo;SKU00637;Sensor Ultrasonico Hc-sr04 Para Arduino Robotica P;2789.00;3383.00;TIENDAVIRTUAL.BAIRES;active;Clásica;MLA1996410630;Cargado (era distinto)
+activo;SKU00720;Ap4511gm Ap4511g Ap4511 4511 Ap45 Sop8 20;166.00;2376.00;TIENDAVIRTUAL.BAIRES;active;Clásica;MLA668321816;Cargado (era distinto)
+activo;SKU01221;Pack X 5 Mmbt2907a Kst2907a 2907a 2907 2f 2b K2f S;1650.00;299.00;TIENDAVIRTUAL.;active;Clásica;MLA668297893;Cargado (era distinto)
+activo;SKU01399;Ntd 48 06n Ntd4806 N 4806 Nvd 48 06n Ntd4806nt4g N;2376.00;116.00;TIENDAVIRTUAL.;active;Clásica;MLA668294656;Cargado (era distinto)
+activo;SKU01403;Cable Adaptador De Bateria 9v Jack Arduino Aliment;1542.00;1604.00;DEIROLAB_SAS;active;Clásica;MLA1421056207;Cargado (era distinto)
+activo;SKU01907;Sensor De Temperatura Lm 35 Lm-35 Lm35 To-292 Para;2399.00;4199.00;DEIROLAB_SAS;active;Clásica;MLA2009253328;Cargado (era distinto)
+activo;SKU02186;Interruptor Dip Switch 4 Posiciones 2.5mm 10A Rojo;1299.00;1351.00;DEIROLAB_SAS;active;Clásica;MLA1428498439;Cargado (era distinto)
+activo;SKU02306;74hc4017d 74hc4017 Sop16 Ic;168.00;5068.00;TIENDAVIRTUAL.BAIRES;active;Clásica;MLA1345522537;Cargado (era distinto)
+activo;SKU03274;Botones L1 L2 R1 R2 Control Ps4 Dualshock Repuesto;319.00;7138.00;TIENDAVIRTUAL.BAIRES;active;Clásica;MLA924984235;Cargado (era distinto)
+activo;SKU03275-100;Pack X 100 Resistencias 1/4w 270 Kohm 0.25w Metal ;14299.00;4299.00;TIENDAVIRTUAL.BAIRES;active;Clásica;MLA1975577120;Cargado (era distinto)
+activo;SKU03276-100;Pack X 100 Resistencias 1/4w 330 Ohm 0.25w Metal F;14299.00;4299.00;TIENDAVIRTUAL.BAIRES;active;Clásica;MLA1975429438;Cargado (era distinto)
+activo;SKU03489-100;Pack X 100 Resistencias 1/4w 330 Kohm 0.25w Metal ;14299.00;4299.00;TIENDAVIRTUAL.BAIRES;active;Clásica;MLA1464991577;Cargado (era distinto)
+archivado;CL-BIG;Carpa Armario Cultivo Indoor Mediano Jardineria 15;sin precio;620199.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA1422987959;Cargado (no tenía precio)
+archivado;CL-LONG;Carpa Armario Cultivo Indoor 120x60x150cm Mylar Ox;sin precio;358999.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA1747867754;Cargado (no tenía precio)
+archivado;CL-MINI;Carpa Armario Cultivo Indoor Mediano Jardineria 60;sin precio;195999.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA1747906416;Cargado (no tenía precio)
+archivado;CL-SMALL;Carpa Armario Cultivo Indoor Mediano Jardineria 80;sin precio;204999.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA3374093114;Cargado (no tenía precio)
+archivado;CL-START;Carpa Armario Cultivo Indoor 40x40x120cm Mediano J;sin precio;165999.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA1749206516;Cargado (no tenía precio)
+archivado;GW-MEDIUM;Carpa Armario Cultivo Indoor Mediano Jardineria 10;sin precio;340999.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA1747920746;Cargado (no tenía precio)
+archivado;SKU00125;Pack X 10 Llavero Rfid Programables Proximidad Acc;sin precio;14999.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA679984872;Cargado (no tenía precio)
+archivado;SKU01118-100;Pack x 100 Nfc Rfid 13.56mhz 13.56 Mhz Ntag 213;sin precio;184969.00;DEIROLAB_SAS;paused;Clásica;MLA2059498268;Cargado (no tenía precio)
+archivado;SKU02782-100;Dnfc Tag Nfc Rfid Chip NTAG215 13.56mhz Pack x 100;sin precio;204999.00;DEIROLAB_SAS;paused;Clásica;MLA1912355744;Cargado (no tenía precio)
+archivado;SKU03365-100;Sensor Nivel De Agua ZP 8510 Flotador x 100u;sin precio;689000.00;DEIROLAB_SA;paused;Clásica;MLA1868582834;Cargado (no tenía precio)
+archivado;SKU03532;Calefactor Kit 12v 5k Camion Motorhome Casilla Cal;sin precio;376499.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA1956517314;Cargado (no tenía precio)
+archivado;GP65NB60;Re Grabadora Externa Usb Cd/dvd Conexion A Tv Gp65;0.00;499.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA676401999;Cargado (estaba en cero)
+archivado;KJ-D321-AZUL;Silla Gammer Kanji Kj-d321 Azul Linea Home;0.00;8699.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA674068475;Cargado (estaba en cero)
+archivado;KJ-D321-BLANCO;Silla Sillon Gamer Kanji Blanco Pc Ps4 Xbox Oficin;0.00;8699.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA674074755;Cargado (estaba en cero)
+archivado;KJ-D321-ROJA;Silla Gammer Kanji Kj-d321 Roja Linea Home;0.00;8699.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA674077424;Cargado (estaba en cero)
+archivado;KJ-D321-VERDE;Silla Gammer Kanji Kj-d321 Verde Linea Home;0.00;8699.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA674076433;Cargado (estaba en cero)
+archivado;KJ-D331-AZUL;Silla Sillon Gamer Kanji Azul Premium Pc Ps4 Xbox ;0.00;11999.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA674067328;Cargado (estaba en cero)
+archivado;KJ-D331-ROJA;Silla Sillon Gamer Kanji Roja Premium Pc Ps4 Xbox ;0.00;11999.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA674067574;Cargado (estaba en cero)
+archivado;SKU00078;Par De Transistor 2sa2222 2sc6144 A2222 C6144 A-22;0.00;115.95;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668322846;Cargado (estaba en cero)
+archivado;SKU00497;Nuevos Tda8950th Tda8950 Tda 8950 Td 89 50 Hsop24;0.00;248.95;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668322789;Cargado (estaba en cero)
+archivado;SKU00662;Tda8954j Tda 8954 8954j Nxp Originales Sellados;0.00;228.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668324324;Cargado (estaba en cero)
+archivado;SKU00696;Lente Zoom 8x Clip Universal Para Todos Los Celula;0.00;399.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668322940;Cargado (estaba en cero)
+archivado;SKU00782;Placa De Sonido Usb 7.1 C/ Control Volumen Y Leds.;0.00;58.99;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668323480;Cargado (estaba en cero)
+archivado;SKU00820;Igbt Sgl160n60ufd Sgl160n60 G160n60ufd G160n60;0.00;238.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668322469;Cargado (estaba en cero)
+archivado;SKU00954;Funda Samsung Galaxy S7 De Madera Slicoo Genuino P;0.00;599.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668321436;Cargado (estaba en cero)
+archivado;SKU00969;Programador Usb Tl866 Tl866cs + 6 Adaptadores Full;0.00;1849.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668321297;Cargado (estaba en cero)
+archivado;SKU00969U;Programador Usb Tl866 Tl866cs + 6 Adaptadores;0.00;1749.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA669818863;Cargado (estaba en cero)
+archivado;SKU01973;Transistor Rd70hvf1 Rd70hvf1-101 Rd70 Mosfet Nuevo;0.00;1024.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668322033;Cargado (estaba en cero)
+archivado;SKU02017;Par Mj15024g Mj15025g Mj15025 Mj15024 15024 On Ori;0.00;196.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668322361;Cargado (estaba en cero)
+archivado;SKU02033;Lentes Celulares 3 En 1 + Ojo De Pez + Macro + Gra;0.00;98.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668320911;Cargado (estaba en cero)
+archivado;SKU02053;Chip Dmd Dmd 8060-6038b 8060-6039b Proyectores Ben;0.00;3799.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668320305;Cargado (estaba en cero)
+archivado;SKU02072;Camara Estacionamiento Retroceso Marcha Atras Auto;0.00;489.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668320458;Cargado (estaba en cero)
+archivado;SKU02228;Inversor Inverter Ccfl 2 Lamparas 15-19 Pulgadas;0.00;249.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668324641;Cargado (estaba en cero)
+archivado;SKU02264;Kit Telurimetro Digital Medidor Resistencia De Sue;0.00;3999.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668321175;Cargado (estaba en cero)
+archivado;SKU02268;2sk2611 K2611 2611 To-3p 9a 900 V Toshiba;0.00;89.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668324120;Cargado (estaba en cero)
+archivado;SKU02344;Lector Inalámbrico De Código De Barras Usb Scanner;0.00;1189.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668321972;Cargado (estaba en cero)
+archivado;SKU02358;Batería De Polímero De Litio 402030 3.7 V 042030pl;0.00;299.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668322413;Cargado (estaba en cero)
+archivado;SKU02362;Programador Debugger Arm Cortex-m0 M3 Jtag Coocox ;0.00;1499.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668320139;Cargado (estaba en cero)
+archivado;SKU02375;Circuito Integrado Irs20957strpbf Irs20957s Irs209;0.00;189.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668321164;Cargado (estaba en cero)
+archivado;SKU02389;Kit Gopro 50 Accesorios Arnés Bastón Bici Flotador;0.00;1498.99;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668324419;Cargado (estaba en cero)
+archivado;SKU02400;Sla 6020 Sla-6020 Sla6020 Driver Motor Sanken;0.00;198.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668323579;Cargado (estaba en cero)
+archivado;SKU02414;Medidor Monofasico Digital Luz Electrico Dds238-2 ;0.00;749.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668321247;Cargado (estaba en cero)
+archivado;SKU02415;Medidor Monofásico Digital Luz Eléctrico Dds238-2 ;0.00;899.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668323720;Cargado (estaba en cero)
+archivado;SKU02423;Irg4pc50u Irg4pc50upbf G4pc50u To-247;0.00;99.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668324253;Cargado (estaba en cero)
+archivado;SKU02431;Alicate Knipex 125mm Corte Diagonal Alemania Confo;0.00;994.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668323560;Cargado (estaba en cero)
+archivado;SKU02438;Valvula Solenoide 3/4 + Medidor Digital Lcd +senso;0.00;2049.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668319792;Cargado (estaba en cero)
+archivado;SKU02453;Almohada Inflable Ultra Liviana Afelpada Trekking ;0.00;289.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668320002;Cargado (estaba en cero)
+archivado;SKU02454;Manta Lona Picnic Utex Premium Waterproof Camping ;0.00;649.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668324339;Cargado (estaba en cero)
+archivado;SKU02455;Carpa Icorer Armado Automatico Ultra Liviana Playa;0.00;979.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668322920;Cargado (estaba en cero)
+archivado;SKU02476;Nivel De Burbuja En T Vertical Horizontal;0.00;199.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668324145;Cargado (estaba en cero)
+archivado;SKU02487;Máscara Fotosensible Soldar Soldadora Logimatica L;0.00;699.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668322983;Cargado (estaba en cero)
+archivado;SKU02492;Grabador Voz Digital Sony Icd-bx140 4gb Usb Mp3 Pe;0.00;1799.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA659160020;Cargado (estaba en cero)
+archivado;SKU02493;Grabador Voz Digital Portatil 8gb Mp3 Usb Periodis;0.00;748.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668321026;Cargado (estaba en cero)
+archivado;SKU02494;Stick Analogico Xbox 360 100% Original Marca Alps ;0.00;99.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668323563;Cargado (estaba en cero)
+archivado;SKU02502;Pic 24lc512-i P 24lc512-i 24lc512 Pic24lc512-i Dip;0.00;89.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668321878;Cargado (estaba en cero)
+archivado;SKU02510;Pack X100 Identificador Cables Electrico 0-9 1 A 2;0.00;69.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668323222;Cargado (estaba en cero)
+archivado;SKU02524;Multímetro Digital Owon Bluetooth Android Apple Te;0.00;1790.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668321981;Cargado (estaba en cero)
+archivado;SKU02526;Telurimetro Digital Vici - Medidor De Resistividad;0.00;4490.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668321329;Cargado (estaba en cero)
+archivado;SKU02528;Scanner Automotriz Launch Crp229 + Kit Adaptadores;0.00;16499.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668321310;Cargado (estaba en cero)
+archivado;SKU02529;Escaner Launch Creader X431 Pro Obd2 Config Latino;0.00;31499.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668320184;Cargado (estaba en cero)
+archivado;SKU02531;Joystick Sony Dualshock 4 Ps4 Playstation 4 Origin;0.00;1599.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA659145526;Cargado (estaba en cero)
+archivado;SKU02532;Raspberry Pi Zero Wireless + Essential Kit;0.00;989.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668322204;Cargado (estaba en cero)
+archivado;SKU02540;Programador Codificador Llaves T300 Pin Code Ultim;0.00;5279.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668324138;Cargado (estaba en cero)
+archivado;SKU02554;Rotuladora Impresora Brother Ptouch H100 Portátil ;0.00;698.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668322320;Cargado (estaba en cero)
+archivado;SKU02608;Right Usb Programmer;0.00;189.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668323034;Cargado (estaba en cero)
+archivado;SKU02628;Mecha Carburo De Tungsteno 1.5-6.5mm Vástago Hexag;0.00;698.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668322954;Cargado (estaba en cero)
+archivado;SKU03153;Conector Jst Hx 2.5mm 4 Pines Cable 100mm 26awg 4 ;0.00;29.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA759441185;Cargado (estaba en cero)
+archivado;HD710PRO1TB-BLUE;Externo Adata Hd710 Pro Ahd710p-1tu31 1tb Rojo;8810.00;10528.00;TIENDAVIRTUAL.BAIRES;paused;Premium;MLA3284144428;Cargado (era distinto)
+archivado;SKU00748;Wemos D1 Ch340 Wifi Arduino Uno R3 Dev. Board Esp8;10909.00;11345.00;DEIROLAB_SAS;paused;Clásica;MLA1426661431;Cargado (era distinto)
+archivado;SKU01118;Dnfc Tag Nfc Rfid 13.56mhz 13.56 Mhz Arduino Ntag ;1872.00;1947.00;DEIROLAB_SAS;paused;Clásica;MLA1421166531;Cargado (era distinto)
+archivado;SKU01120;Modulo Amplificador Audio Stereo Clase D Board Pam;59999.00;1899.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668321785;Cargado (era distinto)
+archivado;SKU01645;Led 3w Alta Luminosidad Blanco Warm 3 Watts Pack X;3732.00;3533.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA668322972;Cargado (era distinto)
+archivado;SKU01647-U;Led 5w Alta Luminosidad Blanco Frio 5 Watts Pack X;1980.00;5617.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA706433394;Cargado (era distinto)
+archivado;SKU01649;Velocímetro Odómetro Wireless Touch Lcd 45*70cm;7379.00;3746.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA729151560;Cargado (era distinto)
+archivado;SKU02735;Llavero Tag Rfid 125khz Programables Proximidad Ac;14999.00;1899.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA741686038;Cargado (era distinto)
+archivado;SKU02735-U;Llavero Rfid Programables Proximidad Acceso 125khz;1899.00;1975.00;DEIROLAB_SAS;paused;Clásica;MLA1423745453;Cargado (era distinto)
+archivado;SKU03365;Sensor Nivel De Agua ZP 8510 Flotador 85mm;4299.00;6899.00;DEIROLAB_SA;paused;Clásica;MLA1885140632;Cargado (era distinto)
+archivado;SSD-480-KINGSTON;Disco Estado Solido Ssd Kingston 480gb Sata 3 Ultr;23138.00;35962.00;TIENDAVIRTUAL.BAIRES;paused;Clásica;MLA675396098;Cargado (era distinto)
+activo;9999;PRUEBAS;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;CPM021-ADAP;ADAP. MX7 VGA 15M A DVI 24+5;0.00;;;;;;No encontrado publicado: queda sin precio;4
+activo;CX933C-1.80M;CABLE DVI 24+1 A HDMI 1.80MTS;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;EUGA-66PSX;VOLANTE EURO EUGA-66 INDIANOPOLIS PSX (PS2);0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;EXTV-12245;CARGADOR NOTEBOOK 40W 19V 2.1A HUNT-KEY;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;EXTV-1298;COOLER TT VGA DUORB CL-G0102 UNIVERSAL;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;EXTV-14305;AURICULAR C/MICROFONO GENIUS HS-210U USB;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;EXTV-150167;PARLANTES EURO 2.1 LOIRE II EUS3-325;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;EXTV-18412;PANDA ANTIVIRUS GLOBAL PROTECTION BOX 2015;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;EXTV-210080;GAME PAD EUROCASE WIR EUGA-W540 LARK PS3 MINI SL/B;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;EXTV-21664;FUNDA CX C/TECLADO P/ TABLET 7,85` 8` MICRO USB;0.00;;;;;;No encontrado publicado: queda sin precio;4
+activo;EXTV-23360;CARGADOR NOTEBOOK BELSIC 80W PARA AUTO 3.5AMP MAX;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;EXTV-240008;SOPORTE EURO P/NOTEBOOK EUNS-102 ERGONOMIC TRANSPA;0.00;;;;;;No encontrado publicado: queda sin precio;3
+activo;EXTV-34474;MOUSE GENIUS MICRO TRAVELER USB WHITE;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;EXTV-6425;CARGADOR NOTEBOOK HP PIN FINO ORIGINAL (PTA AMARILL;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;EXTV-7128;PARLANTES GENIUS SP-U115 1.5W;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;EXTV-7669;FLIP COVER PARA SAMSUNG GALAXY S4 BLANCO;0.00;;;;;;No encontrado publicado: queda sin precio;4
+activo;EXTV-8181;CARGADOR NOTEBOOK LENOVO ORIGI 19V 65W;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;EXTV-8308;CARGADOR DE VIAJE SAMSUNG USB GALAXY S 2AMP;0.00;;;;;;No encontrado publicado: queda sin precio;5
+activo;EXTV-8355;CARGADOR NOTEBOOK HP MINI 19V 1.58A 30W;0.00;;;;;;No encontrado publicado: queda sin precio;3
+activo;EXTV-8356;CARGADOR NOTEBOOK SAMSUNG 19V 3.16A ORIGINAL;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;EXTV-8539;CARGADOR NETEBOOK ASUS ORIGINAL 19V 2.1;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;EXTV-8546;CARGADOR NOTEBOOK SAMSUNG 19V 4.74A ORIGINAL;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;EXTV-8910;PAD MOUSE DISNEY VARIOS MOTIVOS;0.00;;;;;;No encontrado publicado: queda sin precio;4
+activo;EXTV-9500;CARGADOR NOTEBOOK GREAT WALL 19V 2.1A PIN FINO;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;GT-BIG;Panel Led Full Spectrum 600w Indoor + Control Comp;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;GT-LONG;Panel Led Full Spectrum 600w Indoor + Control Comp;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;GT-MEDIUM;Panel Led Full Spectrum 600w Indoor + Control Comp;0.00;;;;;;No encontrado publicado: queda sin precio;100
+activo;GT-MINI;Panel Led Full Spectrum 600w Indoor + Control Comp;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;GT-SMALL;Panel Led Full Spectrum 600w Indoor + Control Comp;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;KB-06XEU;TECLADO GENIUS KB-06XE USB;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;KB-C100/PS2;TEC+MOUSE GENIUS C100 PS2 BLACK;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;LN1018;CABLE EXTENSION VGA M/H 3MTS NOGANET BLISTER;0.00;;;;;;No encontrado publicado: queda sin precio;4
+activo;MXUSB3.0;CABLE EXTENSION USB 3.0. MTS MX7;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;PH-FD72-I;Panel Led Full Spectrum 600w Indoor + Control Comp;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;PH-FD80-I;Panel Led Full Spectrum 600w Indoor + Control Comp;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;PH-SF2;Panel Led Full Spectrum 600w Indoor + Control Comp;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;PH-SF45 NO USAR;Panel Led Full Spectrum 600w Indoor + Control Comp;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;PRUEBA-NOTEBOOK-BASE;PRUEBA NOTEBOOK DE 4 GB;0.00;;;;;;No encontrado publicado: queda sin precio;5
+activo;PRUEBA1;Carpa Armario Cultivo Indoor Mediano Jardineria 10;sin precio;;;;;;No encontrado publicado: queda sin precio;31
+activo;RUBYORB/P0391;COOLER TT RUBYORB CL-P0391 UNIVERSAL 775/K8/AM2;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU-APEDIDO2;Seña 30% - Importación a pedido componentes de ele;0.00;;;;;;No encontrado publicado: queda sin precio;99
+activo;SKU00022-U;Transistor 2n5087 5087 To-92 50 V 0.05a x Unidad;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU00041-U;Transistor 2n3905 40 V To-92 Nuevos x Unidad;0.00;;;;;;No encontrado publicado: queda sin precio;24
+activo;SKU00124-U;S8050 S 8050 D331 To-92 Nuevos x Unidad;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU00198-U;Unidades Capacitor 1000v 3a102j 1000pf 1nf x Unida;0.00;;;;;;No encontrado publicado: queda sin precio;7
+activo;SKU00301-U;Mpsa92 Mpsa 92 Mpsa-92 Transistor Pnp 300v 0.5a x ;0.00;;;;;;No encontrado publicado: queda sin precio;5
+activo;SKU00310-U;Unidades 2n2222 Npn Transitor Bipolar Arduino x Un;0.00;;;;;;No encontrado publicado: queda sin precio;5
+activo;SKU00319-U;Mpsa13 Mpsa A13 0.5a 30v Npn Darlington To-92 Dip ;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU00428-U;Npn S9013 Ss9013 9013 C9013 To-92 x Unidad;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU00529-U;3a222j 1kv 1000v 0.0022uf 2200pf 2.2nf 5% x Unidad;0.00;;;;;;No encontrado publicado: queda sin precio;270
+activo;SKU00584-U;Diodo Schottky 1n4148 Do-35 Axial x Unidad;0.00;;;;;;No encontrado publicado: queda sin precio;3
+activo;SKU00589-U;Diodo Schottky 1n5408 3a 1000 V Do-27 x Unidad;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU00659-U;Sr5200 Sr5200 Sr520 5a 200v Do-201ad/do-27 x Unida;0.00;;;;;;No encontrado publicado: queda sin precio;3
+activo;SKU00663-U;Mcr100-6 100-6 Mcr100 To-92 Scrs 400v 800ma x Unid;0.00;;;;;;No encontrado publicado: queda sin precio;3
+activo;SKU00675-U;Bav99 Bav 70v 200ma A7 Sot23-3 x Unidad;0.00;;;;;;No encontrado publicado: queda sin precio;3
+activo;SKU00914-U;G473j 400v 400 V 47nf 47 Nf 0.047 Uf x Unidad;0.00;;;;;;No encontrado publicado: queda sin precio;3
+activo;SKU00950;Funda Samsung Galaxy S7 Edge Transparente Enther A;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU00991-U;Diodo Rectificador 2a 60 V Do-214ac Ss26 Smd x Uni;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU01006-U;Mmsz5242bt3g 12 V 500 Mw Sod-123 Mmsz5242bt x Unid;0.00;;;;;;No encontrado publicado: queda sin precio;26
+activo;SKU01125-U;Cbb 102 250 V 102 K 250 V 1000pf 1nf P10 Cbb21 x U;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU01178-U;Transistor To92 Npn C1815 C1815y C1815 C18 15 15y ;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU01200-U;Diode Zener Mmsz16t1g 16v 500 Mw Sod123 Mmsz 16t1g;0.00;;;;;;No encontrado publicado: queda sin precio;4
+activo;SKU01261-U;Diodo Schottky 100v 2a Sr2100 Sb2100 Do-15;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU01326-U;Lamina de aislamiento de mica para Transistor To-2;0.00;;;;;;No encontrado publicado: queda sin precio;9
+activo;SKU01376-U;Ws2811 Ws2811s Ws 2811 Constant Current Led Drive;0.00;;;;;;No encontrado publicado: queda sin precio;3
+activo;SKU01426;Funda Protectora Case Estuche Blu Vivo Air Case;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU01682-U;Mmbt3904 2n3904 3904 Mmbt3904 Mmbt 3904 1am 1a 7a ;0.00;;;;;;No encontrado publicado: queda sin precio;265
+activo;SKU01831-U;Mpsa18 To-92 Mpsa18 To92 A18;0.00;;;;;;No encontrado publicado: queda sin precio;3
+activo;SKU01918;5 W 22 K Ohm 5% 5 W Metal Oxido Film Resistor;0.00;;;;;;No encontrado publicado: queda sin precio;10
+activo;SKU01985-U;Resistencia 1 K ( 1001 ) + - 1% 1 / 4 W;0.00;;;;;;No encontrado publicado: queda sin precio;320
+activo;SKU02192;Cable conector pin hembra - hembra;0.00;;;;;;No encontrado publicado: queda sin precio;5
+activo;SKU02222-U;BAV16W- Diodos Smd 1n4148w;0.00;;;;;;No encontrado publicado: queda sin precio;6
+activo;SKU02441;Router Linksys SPA3102 Voice Gateway;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU02544 NO USAR;Modulo De Rele Wifi ESP8266 Automatizacion Arduino;0.00;;;;;;No encontrado publicado: queda sin precio;19
+activo;SKU02556;Kit adaptadores ADP-030 ADP-006 ADP-005 + pinza ex;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02587-1;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02587-10;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;4
+activo;SKU02587-11;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02587-12;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02587-15;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02587-19;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU02587-2;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;3
+activo;SKU02587-21;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02587-22;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02587-23;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02587-24;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;4
+activo;SKU02587-25;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU02587-26;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU02587-27;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02587-28;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;5
+activo;SKU02587-29;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU02587-31;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02587-32;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02587-33;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;3
+activo;SKU02587-4;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU02587-40;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02587-5;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU02587-6;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU02587-7;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02587-8;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU02587-9;Remera Lacoste Hombre Manga Corta Algodón Escote V;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU02588;Funda LG X Power Protector Ultra Resistente Negra ;0.00;;;;;;No encontrado publicado: queda sin precio;5
+activo;SKU02661;D-Link AirPremier N PoE Access Point DAP-2360;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02764;teclado SPA Para ThinkPad T400S T410S T410 T410i X;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02785;Zepp Tennis Pro Mount;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02787;Tile and Grout Blade Pack Oscillating Multitool Bl;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02811;Plantilla herramienta para ángulos;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU02821;TA7205AP;0.00;;;;;;No encontrado publicado: queda sin precio;7
+activo;SKU02847;Victorinox Swiss Champ ( Super Campeon Suizo) 33 U;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU02961;ROUTER INTELLINET 4PUERTOS 10/100 MBPS;0.00;;;;;;No encontrado publicado: queda sin precio;4
+activo;SKU02968;PARLANTES EURO 2.0 EUS-502 ZAIRE PARA NOTEBOOK;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02973;SOBRE P/NETBOOK NEOPRENE 10.2 NEGRO Y ROJO (5281);0.00;;;;;;No encontrado publicado: queda sin precio;8
+activo;SKU02974;FUNDA BAGS TABLET 7` SIMIL NEOPRENE PRINT;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU02986;COOLER TITAN 80X80X25;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU02987;CPU COOLER EVERCOOL AMD/ATHLON/OPTERON/SEMPRON;0.00;;;;;;No encontrado publicado: queda sin precio;1
+activo;SKU03168;Mini gafas de lectura Universal Ultra Ligeras;0.00;;;;;;No encontrado publicado: queda sin precio;10
+activo;SKU03302;Memoria Intel Optane 16GB;0.00;;;;;;No encontrado publicado: queda sin precio;4
+activo;SKU03327;Fuente Adaptador 12v 2A Tira Leds Camara Seguridad;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU03360;Mainboard Anet V1.7 Repuesto;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU03377;Resistencia metal film 560 ohm Metal Film 1/4W 1%;0.00;;;;;;No encontrado publicado: queda sin precio;1107
+activo;SKU03377-1;Resistencia 560 ohm Metal Film 1/4W 1% Pack x10;sin precio;;;;;;No encontrado publicado: queda sin precio;110
+activo;SKU03383;Anet A8 mainboard repuesto;0.00;;;;;;No encontrado publicado: queda sin precio;4
+activo;SKU03385;Anet ET5 mainboard repuesto;0.00;;;;;;No encontrado publicado: queda sin precio;2
+activo;SKU03453;Disco Kingston 120G A400 Internal SSD M.2;0.00;;;;;;No encontrado publicado: queda sin precio;10
+activo;SKU03495;Boton Pulsador Tact Switch SMD 6x6xmm Push Arduino;sin precio;;;;;;No encontrado publicado: queda sin precio;2702
+activo;SKU03499-U;474J 100V 6 Mm Capacitor x Unidad;sin precio;;;;;;No encontrado publicado: queda sin precio;4
+activo;SKU03501;Condensador PHE841E / 0.033 uf 33nf 333 / 330VAC;sin precio;;;;;;No encontrado publicado: queda sin precio;15
+activo;TECNICOS;GASTOS TECNICOS;0.00;;;;;;No encontrado publicado: queda sin precio;930
+activo;TV06-CU-SM;CABLE EXTENSION TECLADO DIN05-DIN M/M MANHATTAH 1.;0.00;;;;;;No encontrado publicado: queda sin precio;6
+activo;TV07090-2FEET;CABLE DE RED, CAT 5/6 - 2 FEET ( 0.61CM) DERECHO- ;0.00;;;;;;No encontrado publicado: queda sin precio;6
+activo;TV08256;Manhattan DisplayPort Male to HDMI Female Adapter;0.00;;;;;;No encontrado publicado: queda sin precio;1
