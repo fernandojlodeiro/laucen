@@ -211,6 +211,7 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                 <Dato etiqueta="Bajada (el texto sobre el banner)" className="sm:col-span-2">{c.bajada}</Dato>
                 <Dato etiqueta="Devoluciones (lo que ve el comprador en la ficha y en Ayuda)" largo className="sm:col-span-2">{c.devoluciones}</Dato>
                 <Dato etiqueta="Garantía" largo className="sm:col-span-2">{c.garantia}</Dato>
+                <Dato etiqueta="Sobre nosotros (lo que ve el comprador en la página «Sobre nosotros»)" largo className="sm:col-span-2">{c.sobre_nosotros}</Dato>
                 <Dato etiqueta="WhatsApp">{c.whatsapp}</Dato>
                 <Dato etiqueta="Mail">{c.email}</Dato>
                 <Dato etiqueta="Dirección del local">{c.direccion}</Dato>
@@ -248,6 +249,8 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                 <textarea name="devoluciones" rows={2} defaultValue={c.devoluciones ?? ""} placeholder="Ej. Tenés 30 días desde que lo recibís para devolverlo." className={`${CAMPO} w-full h-auto py-1.5`} /></label>
               <label className="sm:col-span-2"><span className={ETIQUETA}>Garantía</span>
                 <textarea name="garantia" rows={2} defaultValue={c.garantia ?? ""} placeholder="Ej. 6 meses de garantía de fábrica." className={`${CAMPO} w-full h-auto py-1.5`} /></label>
+              <label className="sm:col-span-2"><span className={ETIQUETA}>Sobre nosotros (lo que ve el comprador en la página «Sobre nosotros»)</span>
+                <textarea name="sobre_nosotros" rows={4} defaultValue={c.sobre_nosotros ?? ""} placeholder="Quiénes son, desde cuándo, qué venden. Sin texto, se muestra una presentación general con los datos de la tienda." className={`${CAMPO} w-full h-auto py-1.5`} /></label>
               <label><span className={ETIQUETA}>WhatsApp</span>
                 <input name="whatsapp" defaultValue={c.whatsapp ?? ""} inputMode="numeric" placeholder="5493511234567" className={`${CAMPO} w-full`} />
                 <span className="block text-[11px] text-[#5C6B76] mt-0.5">Formato internacional, sin + ni espacios: 54 9, la característica sin 0 y el número sin 15.</span></label>

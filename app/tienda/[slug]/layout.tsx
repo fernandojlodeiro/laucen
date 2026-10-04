@@ -133,7 +133,7 @@ export default async function LayoutTienda({ children, params }: Props & { child
       <main className="mx-auto w-full max-w-[1200px] flex-1 px-3 py-4 sm:px-4 sm:py-6">{children}</main>
 
       <footer className="mt-10 bg-white text-sm shadow-[0_-1px_0_rgba(0,0,0,.1)]" id="contacto">
-        <div className="mx-auto grid max-w-[1200px] grid-cols-2 gap-8 px-4 py-8 text-[var(--texto-2)] md:grid-cols-4">
+        <div className="mx-auto grid max-w-[1200px] grid-cols-2 gap-8 px-4 py-8 text-[var(--texto-2)] md:grid-cols-5">
           <div className="col-span-2 md:col-span-1">
             <p className="text-base font-semibold text-[var(--texto)]">{nombre}</p>
             {c.bajada && <p className="mt-1">{c.bajada}</p>}
@@ -145,6 +145,15 @@ export default async function LayoutTienda({ children, params }: Props & { child
               <li><Link href={`${r("/ayuda")}#envios`} className="hover:text-[var(--texto)]">Envíos y retiros</Link></li>
               <li><Link href={`${r("/ayuda")}#pagos`} className="hover:text-[var(--texto)]">Medios de pago</Link></li>
               {(c.devoluciones || c.garantia) && <li><Link href={`${r("/ayuda")}#devoluciones`} className="hover:text-[var(--texto)]">Devoluciones y garantía</Link></li>}
+            </ul>
+          </div>
+          <div>
+            <p className="mb-2 font-semibold text-[var(--texto)]">Sobre {nombre}</p>
+            <ul className="space-y-1.5">
+              <li><Link href={r("/nosotros")} className="hover:text-[var(--texto)]">Sobre nosotros</Link></li>
+              <li><Link href={r("/terminos")} className="hover:text-[var(--texto)]">Términos y condiciones</Link></li>
+              <li><Link href={r("/privacidad")} className="hover:text-[var(--texto)]">Política de privacidad</Link></li>
+              <li><Link href={r("/arrepentimiento")} className="hover:text-[var(--texto)]">Botón de arrepentimiento</Link></li>
             </ul>
           </div>
           <div>
@@ -171,6 +180,11 @@ export default async function LayoutTienda({ children, params }: Props & { child
             {emisor && (
               <p>{[emisor.razon_social, `CUIT ${emisor.cuit}`, CONDICION_IVA[emisor.condicion_iva], emisor.domicilio].filter(Boolean).join(" · ")}</p>
             )}
+            <p>
+              <a href="https://www.argentina.gob.ar/produccion/defensadelconsumidor/formulario" target="_blank" rel="noopener" className="underline hover:text-[var(--texto)]">Defensa de las y los Consumidores. Para reclamos ingresá acá</a>
+              {" · "}<Link href={r("/arrepentimiento")} className="underline hover:text-[var(--texto)]">Botón de arrepentimiento</Link>
+              {" · "}<Link href={r("/terminos")} className="underline hover:text-[var(--texto)]">Términos y condiciones</Link>
+            </p>
           </div>
         </div>
       </footer>

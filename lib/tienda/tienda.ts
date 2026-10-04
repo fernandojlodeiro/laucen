@@ -22,6 +22,7 @@ export type ConfigTienda = {
   banner_2?: string; banner_3?: string;  // más imágenes para el carrusel de la portada
   devoluciones?: string;        // política de devoluciones (texto que ve el comprador)
   garantia?: string;            // garantía (texto que ve el comprador)
+  sobre_nosotros?: string;      // texto de la página "Sobre nosotros"
 };
 
 export type Tienda = {

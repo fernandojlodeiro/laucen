@@ -42,7 +42,8 @@ Debajo, la ficha de la tienda, que abre en **modo vista**. Se edita con el **lá
 - **Productos sin stock**: "Mostrar (como "sin stock")" u "Ocultar".
 - **Logo**, **Banner (la imagen grande de arriba)**, **Banner 2**, **Banner 3**.
 - **Bajada (el texto sobre el banner)**: ej. "Envíos a todo el país".
-- **Devoluciones (lo que ve el comprador en la ficha y en Ayuda)** y **Garantía**: textos largos.
+- **Devoluciones (lo que ve el comprador en la ficha y en Ayuda)** y **Garantía**: textos largos; también salen en Términos y condiciones.
+- **Sobre nosotros**: el texto de la página "Sobre nosotros" del pie de la tienda (párrafos separados por una línea en blanco). Vacío, se muestra una presentación general.
 - **WhatsApp**: formato internacional, sin "+" ni espacios: 54 9, la característica sin 0 y el número sin 15.
 - **Mail**, **Dirección del local**, **Horario** (ej. "Lun a vie de 9 a 18").
 

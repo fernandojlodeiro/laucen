@@ -2,7 +2,7 @@
 titulo: La tienda que ve el cliente
 menu: Tienda web › Tienda web
 ruta: /tienda/[slug]
-rutas: /tienda/[slug], /tienda/[slug]/ayuda, /tienda/[slug]/buscar, /tienda/[slug]/carrito, /tienda/[slug]/checkout, /tienda/[slug]/cuenta, /tienda/[slug]/familia/[id], /tienda/[slug]/pedido/[codigo], /tienda/[slug]/producto/[id]
+rutas: /tienda/[slug], /tienda/[slug]/ayuda, /tienda/[slug]/nosotros, /tienda/[slug]/terminos, /tienda/[slug]/privacidad, /tienda/[slug]/arrepentimiento, /tienda/[slug]/buscar, /tienda/[slug]/carrito, /tienda/[slug]/checkout, /tienda/[slug]/cuenta, /tienda/[slug]/familia/[id], /tienda/[slug]/pedido/[codigo], /tienda/[slug]/producto/[id]
 permiso: todos
 resumen: Cómo es la tienda web pública (en su dominio propio, ej. daitom.com.ar) que ve el comprador, cómo compra paso a paso y cómo llegan esos pedidos y pagos al sistema.
 ---
@@ -35,7 +35,7 @@ Cada compra crea un **pedido** en [Pedidos](/ventas/pedidos), en el canal de la 
 
 ### Pie
 
-Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devoluciones y garantía), **Mi cuenta** y **Contacto** (mail, WhatsApp, dirección, horario). Abajo, el copyright con la razón social, el CUIT, la condición frente al IVA y el domicilio (de [Empresa](/config/empresa)).
+Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devoluciones y garantía), **Sobre <tienda>** (Sobre nosotros, Términos y condiciones, Política de privacidad, Botón de arrepentimiento), **Mi cuenta** y **Contacto** (mail, WhatsApp, dirección, horario). Abajo, el copyright con la razón social, el CUIT, la condición frente al IVA y el domicilio (de la razón social principal, en [Razones sociales](/config/razones-sociales)), y los enlaces a Defensa del Consumidor, Botón de arrepentimiento y Términos y condiciones.
 
 ### Portada
 
@@ -91,6 +91,18 @@ Sin sesión: **"Ingresá tu mail y contraseña"** con **"Ingresar"** (y "Seguir 
 ### Ayuda
 
 "¿Con qué podemos ayudarte?": **Cómo comprar**, **Envíos y retiros**, **Medios de pago**, **Devoluciones y garantía** (si están cargadas) y **Contacto**.
+
+### Páginas institucionales y legales
+
+Se llega desde el pie de la tienda (columna **"Sobre <tienda>"** y la línea de abajo):
+
+- **Sobre nosotros**: el texto que la tienda carga en [Tienda web](/config/tienda) (campo "Sobre nosotros"); sin texto, una presentación general. Siempre muestra los datos de quién vende (razón social, CUIT, domicilio, mail) y el horario.
+- **Términos y condiciones**: quién vende, precios y stock, cómo se compra, medios de pago, facturación, envíos, **derecho de arrepentimiento (10 días corridos)**, devoluciones y garantía (con lo cargado en Tienda web, o la garantía legal si no hay), propiedad intelectual, responsabilidad, ley aplicable y defensa del consumidor.
+- **Política de privacidad**: datos que se recolectan, para qué, con quién se comparten, derechos del titular (Ley 25.326) y cookies.
+- **Botón de arrepentimiento**: el comprador pide revocar la compra; se abre un mail (o un WhatsApp) a la tienda con el asunto y los datos a completar.
+- El pie también lleva el cartel **"Defensa de las y los Consumidores. Para reclamos ingresá acá"** (enlace al organismo oficial), obligatorio para los comercios.
+
+Los datos del vendedor salen de la **razón social principal** (ver [Razones sociales](/config/razones-sociales)). Los textos legales son un modelo general para comercio electrónico en Argentina: conviene que los revise quien asesora legalmente a la empresa.
 
 ## Cómo se hace
 
