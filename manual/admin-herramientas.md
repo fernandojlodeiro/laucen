@@ -2,7 +2,7 @@
 titulo: Herramientas internas
 menu: Coordinación › Bitácora · Para probar · Mercado Libre · Costos ML · Ventas ML por categoría · China — pruebas · Piloto · Diagnóstico · Limpieza de datos
 ruta: /admin/bitacora
-rutas: /admin/bitacora, /admin/para-probar, /admin/meli, /admin/meli/apify, /admin/costos-ml, /admin/ventas-ml, /admin/china, /admin/piloto, /admin/piloto/[id], /admin/piloto/[id]/revision, /admin/piloto/[id]/validacion, /admin/diagnostico, /admin/limpieza, /admin/limpieza/ajustes
+rutas: /admin/bitacora, /admin/para-probar, /admin/meli, /admin/meli/apify, /admin/costos-ml, /admin/ventas-ml, /admin/china, /admin/piloto, /admin/piloto/[id], /admin/piloto/[id]/revision, /admin/piloto/[id]/validacion, /admin/diagnostico, /admin/limpieza, /admin/limpieza/ajustes, /admin/limpieza/sin-publicacion
 permiso: fer
 resumen: Herramientas internas sólo de Fer: bitácora y "para probar" (coordinación con las sesiones de Claude), conexión y bancos de prueba de Mercado Libre y Apify, costos de vender en ML, ventas por categoría, pruebas de búsqueda en China, el piloto ML → China → juez y el diagnóstico de la base.
 ---
@@ -337,5 +337,9 @@ Pantalla [Limpieza de datos](/admin/limpieza) (menú **Coordinación**). Cuatro 
 4. **Borrar familias de Virtual Seller**: borra las familias que no son de Mercado Libre. Hacerlo después del paso 3.
 
 Arriba de las tareas hay un botón **Ver ajustes a revisar** que abre [Ajustes de la carga de stock](/admin/limpieza/ajustes): la lista de unidades que la carga de stock del 3/10 sacó de ubicaciones reales del depósito (el archivo de Virtual Seller no traía ubicaciones), con lo que había, lo que se sacó y lo que queda en cada una, para cotejarla con las estanterías.
+
+5. **Borrar basura de Virtual Seller**: borra las filas de relleno que se colaron como productos desde el Excel (el pie con "COPYRIGHT…" y "GENERADO POR…", el envío por OCA, el recargo financiero y los "NO USAR"). Sólo borra los archivados, sin stock y sin publicaciones, y muestra la lista antes. Los que dicen "no usar" pero tienen stock se avisan aparte y no se borran solos.
+
+El botón **Ver productos sin publicación** abre [Productos sin publicación](/admin/limpieza/sin-publicacion): los productos a los que no se les encontró ninguna publicación de Mercado Libre vinculada en ninguna cuenta, primero los activos y después los inactivos, con su stock y su familia.
 
 Criterio: nada de esto cambia Mercado Libre; sólo lee de él.

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { sosVos } from "@/lib/admin";
 import { orgRequerida } from "@/lib/tenancy";
 import { motivoErp } from "@/lib/erp/base";
+import { borrarBasuraDeVs } from "@/lib/limpieza-listas";
 import {
   borrarFamiliasVs, borrarNotebooksSinStock, borrarPruebas, categoriasPorPredictor, categoriasPorPublicacion,
 } from "@/lib/limpieza";
@@ -53,4 +54,11 @@ export async function accionCategorias(desde: number) {
   } catch (e) {
     return { ok: false as const, error: motivoErp(e) };
   }
+}
+
+export async function accionBorrarBasura() {
+  const org = await portero();
+  let n;
+  try { n = await borrarBasuraDeVs(org); } catch (e) { volver(motivoErp(e), true); }
+  volver(`Basura de Virtual Seller borrada: ${n} productos.`);
 }
