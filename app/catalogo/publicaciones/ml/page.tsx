@@ -11,9 +11,9 @@ import FotosProducto from "@/app/componentes/FotosProducto";
 import { consulta } from "@/lib/erp/base";
 import { formatear, tcDelDia } from "@/lib/moneda";
 import { cuentasDe } from "@/lib/mercadolibre/api";
-import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
+import { PRIMARIO, SUAVE, VERDE, DESPLEGABLE_CHICO, FLECHA } from "@/app/botones";
 import { TachoConfirmar, BotonEnviar, BotonConfirmar } from "@/app/radar/Cliente";
-import { contarPausadasABorrar, contarAEliminarEnMl } from "@/lib/mercadolibre/publicaciones";
+import { pausadasABorrar, aEliminarEnMl, type PublicacionABorrar } from "@/lib/mercadolibre/publicaciones";
 import Todas from "./Todas";
 import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import {
@@ -88,8 +88,10 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
            count(*) filter (where estado in ${ESTADOS_ML_CON_PROBLEMAS})::int con_cuestiones
       from meli_item where organizacion_id = $1 and canal_id = any($2::bigint[])`, [org, ids]))[0];
 
-  const pausadas = todas ? 0 : await contarPausadasABorrar(org, canal.id);
-  const aEliminar = todas ? 0 : await contarAEliminarEnMl(org, canal.id);
+  // Las de los recuadros de borrar, para mostrarlas antes de apretar.
+  const listaPausadas = todas ? [] : await pausadasABorrar(org, canal.id);
+  const listaAEliminar = todas ? [] : await aEliminarEnMl(org, canal.id);
+  const pausadas = listaPausadas.length, aEliminar = listaAEliminar.length;
 
   // Los mismos filtros que el Excel (lista.tsx).
   const filtro = filtroMl(ver);
@@ -160,6 +162,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
           </p>
           <BotonConfirmar accion={accionBorrarPausadas} campos={{ canal: String(canal.id), volver: aqui }} clase={SUAVE}
             texto={`Borrar de Laucen (${n(pausadas)})`} pregunta={`¿Borrar las ${n(pausadas)} de Laucen?`} corriendo="Borrando…" />
+          <VerCuales filas={listaPausadas} />
         </div>
       )}
 
@@ -172,6 +175,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
           </p>
           <BotonConfirmar accion={accionPrepararEliminarEnMl} campos={{ canal: String(canal.id), volver: aqui }} clase={SUAVE}
             texto={`Preparar eliminación en ML (${n(aEliminar)})`} pregunta={`¿Preparar el lote para eliminar ${n(aEliminar)} en ML?`} corriendo="Preparando…" />
+          <VerCuales filas={listaAEliminar} />
         </div>
       )}
 
@@ -277,5 +281,34 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
         tiene una fila por variación, y cada una se vincula por separado.
       </p>
     </Pantalla>
+  );
+}
+
+/** "Ver cuáles (N)": la lista desplegable de lo que tocaría el botón del
+ *  recuadro, para revisarla antes de apretar. */
+function VerCuales({ filas }: { filas: PublicacionABorrar[] }) {
+  return (
+    <details className="group w-full">
+      <summary className={DESPLEGABLE_CHICO}>Ver cuáles ({filas.length.toLocaleString("es-AR")}) <span className={FLECHA}>▾</span></summary>
+      <div className="mt-2 max-h-80 overflow-y-auto border border-[#E3E9F0] rounded-lg bg-white">
+        <table className={TABLA}>
+          <thead className={THEAD}><tr><th className={TH}>Publicación</th><th className={TH}>Título</th><th className={TH}>SKU en ML</th><th className={TH}>Estado</th></tr></thead>
+          <tbody>
+            {filas.map((f) => {
+              const est = f.estado ? ESTADO_ML[f.estado] : null;
+              const enlace = f.permalink ?? `https://articulo.mercadolibre.com.ar/${f.item_id.replace(/^([A-Z]{3})(\d+)$/, "$1-$2")}`;
+              return (
+                <tr key={f.item_id} className={TR}>
+                  <td className={`${TD} whitespace-nowrap`}><a href={enlace} target="_blank" rel="noopener noreferrer" className="text-[#16577F] underline">{f.item_id} ↗</a></td>
+                  <td className={TD}>{f.titulo ?? "—"}</td>
+                  <td className={`${TD} whitespace-nowrap`}>{f.sku ?? "—"}</td>
+                  <td className={TD}>{est ? <Estado texto={est.texto} tono={est.tono} /> : f.estado ? <Estado texto={f.estado} /> : "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </details>
   );
 }

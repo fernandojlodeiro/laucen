@@ -242,3 +242,19 @@ export async function prepararEliminarEnMl(org: string, canalId: number, usuario
     [org, canalId, loteId, filas.map((f) => f.item_id)]);
   return { loteId, n: filas.length };
 }
+
+/** Una publicación de las listas "Ver cuáles" (borrar de Laucen / eliminar en ML). */
+export type PublicacionABorrar = { item_id: string; titulo: string | null; sku: string | null; estado: string | null; permalink: string | null };
+
+/** Cuáles son las pausadas sin producto del canal (las que borra "Borrar de Laucen"). */
+export async function pausadasABorrar(org: string, canalId: number): Promise<PublicacionABorrar[]> {
+  return consulta<PublicacionABorrar>(`
+    select distinct on (m.item_id) m.item_id, m.titulo, m.sku, m.estado, m.permalink
+      from meli_item m where ${SQL_PAUSADAS_A_BORRAR} order by m.item_id`, [org, canalId]);
+}
+
+/** Cuáles son las borradas de Laucen que se eliminarían en ML. */
+export async function aEliminarEnMl(org: string, canalId: number): Promise<PublicacionABorrar[]> {
+  return consulta<PublicacionABorrar>(`
+    select d.item_id, d.titulo, d.sku, d.estado, null::text permalink from meli_item_descartado d where ${SQL_A_ELIMINAR_EN_ML} order by d.titulo, d.item_id`, [org, canalId]);
+}
