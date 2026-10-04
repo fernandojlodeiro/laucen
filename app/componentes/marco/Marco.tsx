@@ -20,6 +20,7 @@ import { monedaVista, tcDelDia, formatear, type Moneda } from "@/lib/moneda";
 import { contadoresEstado, type Contador } from "@/lib/erp/contadores";
 import { accionLogout } from "@/app/auth-actions";
 import { BarraMenu, MenuCelular } from "./BarraMenu";
+import Historial from "./Historial";
 import { accionMonedaVista } from "./acciones";
 import Asistente from "@/app/componentes/asistente/Asistente";
 import { configAsistente, CONFIG_DEFECTO } from "@/lib/asistente/config";
@@ -83,6 +84,9 @@ export default async function Marco({ children, version }: { children: React.Rea
         <span className="ml-auto opacity-80">{sesion.org.nombre} · {quien}</span>
         <span className="opacity-50 hidden lg:inline">{version}</span>
       </footer>
+
+      {/* Lo último que viste: sobre el margen izquierdo, si hay lugar */}
+      <Historial />
 
       {/* El asistente: la carita abajo a la derecha (lib/asistente/motor.ts) */}
       {puede("asistente_usar") && (

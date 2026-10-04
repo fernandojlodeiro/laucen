@@ -21,7 +21,7 @@ Pasando el mouse por el ⓘ de cada fila se lee qué cuenta. Cada número en gra
 
 ### Reputación
 Lo que informa Mercado Libre; cada dato cuenta el período que se muestra al lado (por ejemplo "60 días").
-- **Color de la reputación**: el termómetro de cinco colores de ML (rojo, naranja, amarillo, verde claro y verde) con el color actual resaltado, y si la cuenta es **MercadoLíder** (y de qué nivel). Una cuenta nueva figura "Sin reputación todavía".
+- **Color de la reputación**: el termómetro de cinco colores de ML (rojo, naranja, amarillo, verde claro y verde) con el color actual más alto y marcado con una flechita (pasando el mouse se lee el nombre del color), y si la cuenta es **MercadoLíder**, una **escarapela con forma de escudo**: gris plata (MercadoLíder), amarilla (Gold) o platino (Platinum). Una cuenta nueva figura "Sin reputación".
 - **Reclamos que afectan la reputación**: cuántos y qué porcentaje de las ventas, en el período que cuenta ML.
 - **Entregas demoradas**: despachos hechos fuera del plazo de manipulación, en el período que cuenta ML.
 - **Cancelaciones**, **Ventas completadas** y **Calificaciones positivas**.

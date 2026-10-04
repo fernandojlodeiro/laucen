@@ -39,29 +39,48 @@ function Celda({ valor, de, href, tono = "alerta", nota }: { valor: number | str
   return href ? <Link href={href} className="block hover:bg-[#EEF3F8] rounded-md px-1 -mx-1">{cuerpo}</Link> : <div>{cuerpo}</div>;
 }
 
+/** El termómetro de ML: los cinco colores, el actual más alto y marcado con una flechita encima. */
 function Termometro({ nivel }: { nivel: string | null }) {
   return (
-    <div className="flex gap-0.5" aria-hidden>
-      {NIVELES_REPUTACION.map((x) => (
-        <span key={x.id} className="h-2 w-4 first:rounded-l last:rounded-r" style={{ background: x.color, opacity: x.id === nivel ? 1 : 0.22 }} />
-      ))}
+    <div className="flex items-end gap-0.5 pt-1.5" aria-hidden>
+      {NIVELES_REPUTACION.map((x) => {
+        const actual = x.id === nivel;
+        return (
+          <span key={x.id} className="relative block first:rounded-l last:rounded-r" style={{ background: x.color, opacity: actual ? 1 : 0.25, height: actual ? 11 : 7, width: 17 }}>
+            {actual && <span className="absolute left-1/2 -top-[7px] -translate-x-1/2 text-[8px] leading-none" style={{ color: "#333" }}>▼</span>}
+          </span>
+        );
+      })}
     </div>
+  );
+}
+
+// Colores de la escarapela de MercadoLíder (el nombre que da la API: silver, gold, platinum).
+const COLOR_LIDER: Record<string, { relleno: string; borde: string }> = {
+  silver: { relleno: "#B4BEC9", borde: "#8794A1" },
+  gold: { relleno: "#FFD21F", borde: "#C79A00" },
+  platinum: { relleno: "#9FB3CC", borde: "#5F7898" },
+};
+
+function Escudo({ nivel }: { nivel: string }) {
+  const c = COLOR_LIDER[nivel] ?? COLOR_LIDER.silver;
+  return (
+    <svg width="15" height="17" viewBox="0 0 16 18" role="img" aria-label={LIDER[nivel] ?? nivel}>
+      <title>{LIDER[nivel] ?? nivel}</title>
+      <path d="M8 1 15 3.5V9c0 4-3.5 7-7 8.5C4.5 16 1 13 1 9V3.5Z" fill={c.relleno} stroke={c.borde} strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="m5 9 2.2 2.2L11 6.8" fill="none" stroke={c.borde} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
 function CeldaReputacion({ c }: { c: CuentaTablero }) {
   const r = c.reputacion;
-  if (!r) return <span className="text-[13px] text-[#5C6B76]">Sin leer todavía</span>;
+  if (!r) return <span className="text-[11px] text-[#5C6B76]">Sin leer</span>;
   const nivel = nivelDe(r.nivel);
   return (
-    <div className="grid gap-1">
-      <Termometro nivel={r.nivel} />
-      <div className="flex flex-wrap items-center gap-1">
-        {nivel
-          ? <span className="rounded px-1.5 py-0.5 text-[13px] font-bold" style={{ background: nivel.color, color: nivel.tinta }}>{nivel.texto}</span>
-          : <span className="rounded bg-[#E3E9F0] px-1.5 py-0.5 text-[13px] font-bold text-[#5C6B76]">Sin reputación todavía</span>}
-        {r.lider && <span className="rounded bg-[#EEF3F8] px-1.5 py-0.5 text-[13px] font-bold text-[#16577F]">{LIDER[r.lider] ?? r.lider}</span>}
-      </div>
+    <div className="flex items-center gap-1.5" title={`${nivel ? nivel.texto : "Sin reputación todavía"}${r.lider ? ` · ${LIDER[r.lider] ?? r.lider}` : ""}`}>
+      {nivel ? <Termometro nivel={r.nivel} /> : <span className="text-[11px] text-[#5C6B76]">Sin reputación</span>}
+      {r.lider && <Escudo nivel={r.lider} />}
     </div>
   );
 }
@@ -208,9 +227,9 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
             <tr>
               <th className="py-1.5 px-2 text-left w-40 min-w-36" />
               {columnas.map((c) => (
-                <th key={c.clave} className="py-1.5 px-2 text-left align-top w-[7.2rem] min-w-[7.2rem] max-w-[7.2rem] border-l border-[#E3E9F0]">
-                  {c.href ? <Link href={c.href} className="font-bold text-sm text-[#16577F] hover:underline break-words">{c.titulo}</Link> : <span className="font-bold text-sm">{c.titulo}</span>}
-                  <span className="block text-[12px] font-normal text-[#5C6B76] leading-[14px] break-words">{c.sub}</span>
+                <th key={c.clave} title={`${c.titulo} · ${c.sub}`} className="py-1 px-2 text-left align-top w-[7.2rem] min-w-[7.2rem] max-w-[7.2rem] border-l border-[#E3E9F0]">
+                  {c.href ? <Link href={c.href} className="block truncate font-bold text-[11px] leading-4 text-[#16577F] hover:underline">{c.titulo}</Link> : <span className="block truncate font-bold text-[11px] leading-4">{c.titulo}</span>}
+                  <span className="block truncate text-[9px] font-normal text-[#5C6B76] leading-3">{c.sub}</span>
                 </th>
               ))}
               <th className="py-1.5 px-2 text-left align-top w-[7.2rem] min-w-[7.2rem] border-l-2 border-[#E3E9F0] bg-[#F3F6F9] font-bold text-sm">Total</th>

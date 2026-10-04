@@ -51,6 +51,10 @@ Una franja azul fija abajo de todo, siempre visible:
   - ☰ **"Menú"**: abre el árbol completo del menú en pantalla entera, con el botón **"📱 Modo depósito"** ([Modo depósito](/deposito/celular)), el enlace para elegir los botones de la barra y el buscador global. Se cierra con **"Cerrar"** o al elegir una opción.
 - En el celular no están la barra de estado (dólar, contadores) ni el botón "Salir".
 
+### Lo último que viste (margen izquierdo)
+
+En la PC, si la pantalla tiene lugar a la izquierda del contenido, aparece una lista **"Lo último que viste"** por fuera del panel: cada ficha que abrís (**producto, cliente, pedido, factura, factura de compra, despacho, reclamo, proveedor o cuenta de fondos**) queda anotada con su tipo y su título, **la última arriba**. Tocándola volvés a esa ficha. Guarda las **últimas 15** (las más viejas se van pisando) y se anota sola; la **✕** de arriba borra la lista. Se guarda **en ese navegador**: no la ven otras personas ni aparece en otro equipo. Si la ventana es angosta y no hay lugar, no se muestra (no tapa nada).
+
 ### El camino (arriba a la izquierda, sobre el título)
 
 Encima del título de cada pantalla hay un "camino", por ejemplo **"Ventas ▾ › Pedidos › Pedido 1234"**:
