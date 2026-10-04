@@ -173,6 +173,24 @@ export async function reintentarErrores(org: string, canal?: number | null, ids?
 }
 
 /** Descarta pendientes o con error (no se mandan). */
+/** Saca un cambio de un lote que todavía espera el clic (el tacho de la
+ *  fila): queda descartado y no sale. Si el lote se queda sin nada, se
+ *  descarta entero. Devuelve cuántos quedan en el lote. */
+export async function sacarDelLote(org: string, colaId: number): Promise<number> {
+  return enTransaccion(async (c) => {
+    const r = await c.query<{ lote_id: string }>(`
+      update ml_cola q set estado = 'descartado', ultimo_error = 'Sacado del lote a mano'
+       where q.organizacion_id = $1 and q.id = $2 and q.estado = 'preparado'
+         and exists (select 1 from ml_lote l where l.id = q.lote_id and l.estado = 'preparado')
+      returning q.lote_id`, [org, colaId]);
+    if (!r.rowCount) throw new ErrorErp("Ese cambio ya no está en un lote preparado (se mandó o se descartó).");
+    const lote = r.rows[0].lote_id;
+    const quedan = Number((await c.query<{ n: string }>("select count(*) n from ml_cola where lote_id = $1 and estado = 'preparado'", [lote])).rows[0].n);
+    if (!quedan) await c.query("update ml_lote set estado = 'descartado' where id = $1 and estado = 'preparado'", [lote]);
+    return quedan;
+  });
+}
+
 export async function descartar(org: string, ids: number[]): Promise<number> {
   const r = await consulta(`update ml_cola set estado = 'descartado', ultimo_error = coalesce(ultimo_error, 'Descartado a mano')
      where organizacion_id = $1 and id = any($2::bigint[]) and estado in ('pendiente', 'error') returning id`, [org, ids]);

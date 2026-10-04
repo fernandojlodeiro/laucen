@@ -8,7 +8,7 @@ import { consulta } from "@/lib/erp/base";
 import { consultaPaginada, leerPagina } from "@/lib/lista";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { SUAVE, VERDE, APAGAR } from "@/app/botones";
-import { BotonConfirmar } from "@/app/radar/Cliente";
+import { BotonConfirmar, TachoConfirmar } from "@/app/radar/Cliente";
 import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import Pestanas from "@/app/componentes/Pestanas";
 import {
@@ -19,7 +19,7 @@ import { AccionesExcel } from "@/app/listas/piezas";
 import { camposDe, ordenDe } from "@/lib/listas/tipos";
 import { LISTA_COLA, PESTANAS_COLA, CONDICION_COLA, filtrosCola, type PestanaCola } from "./lista";
 import { TIPOS_COLA, ORIGENES_COLA, ESTADOS_COLA, TONO_COLA, describirCambio, describirAntes } from "./formato";
-import { accionReintentarErrores, accionDescartar, accionMandarLote, accionDescartarLote } from "./acciones";
+import { accionReintentarErrores, accionDescartar, accionMandarLote, accionDescartarLote, accionSacarDelLote } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -171,9 +171,10 @@ async function Cola({ ctx, sp, ver, canales, aqui, filtros }: {
 }
 
 async function Lotes({ org, sp, aqui }: { org: string; sp: SP; aqui: string }) {
-  const lotes = await consulta<{ id: number; descripcion: string; canal: string | null; estado: string; creado_ts: Date; enviado_ts: Date | null; cambios: number; ok: number; errores: number }>(`
+  const lotes = await consulta<{ id: number; descripcion: string; canal: string | null; estado: string; creado_ts: Date; enviado_ts: Date | null; cambios: number; preparados: number; ok: number; errores: number }>(`
     select l.id::int, l.descripcion, c.nombre canal, l.estado, l.creado_ts, l.enviado_ts,
            (select count(*) from ml_cola q where q.lote_id = l.id)::int cambios,
+           (select count(*) from ml_cola q where q.lote_id = l.id and q.estado = 'preparado')::int preparados,
            (select count(*) from ml_cola q where q.lote_id = l.id and q.estado = 'ok')::int ok,
            (select count(*) from ml_cola q where q.lote_id = l.id and q.estado = 'error')::int errores
       from ml_lote l left join canal c on c.id = l.canal_id
@@ -216,7 +217,7 @@ async function Lotes({ org, sp, aqui }: { org: string; sp: SP; aqui: string }) {
               <>
                 <BotonConfirmar accion={accionDescartarLote} campos={{ lote: String(elegido.id), volver: aqui }} clase={APAGAR} texto="Descartar lote" pregunta="¿Descartarlo sin mandar nada?" corriendo="…" />
                 <BotonConfirmar accion={accionMandarLote} campos={{ lote: String(elegido.id), volver: aqui }} clase={VERDE}
-                  texto="Mandar a Mercado Libre" pregunta={`¿Mandar los ${elegido.cambios} cambios a Mercado Libre?`} corriendo="Mandando…" />
+                  texto="Mandar a Mercado Libre" pregunta={`¿Mandar los ${elegido.preparados} cambios a Mercado Libre?`} corriendo="Mandando…" />
               </>
             )}
           </TituloSeccion>
@@ -225,7 +226,7 @@ async function Lotes({ org, sp, aqui }: { org: string; sp: SP; aqui: string }) {
             : "El resultado de cada cambio está en su fila."}</p>
           <div className={CAJA_TABLA}>
             <table className={TABLA}>
-              <thead className={THEAD}><tr><th className={TH}>Publicación</th><th className={TH}>SKU</th><th className={TH}>Tipo</th><th className={TH}>Antes</th><th className={TH}>Después</th><th className={TH}>Estado</th><th className={TH}>Problema</th></tr></thead>
+              <thead className={THEAD}><tr><th className={TH}>Publicación</th><th className={TH}>SKU</th><th className={TH}>Tipo</th><th className={TH}>Antes</th><th className={TH}>Después</th><th className={TH}>Estado</th><th className={TH}>Problema</th>{elegido.estado === "preparado" && <th className={TH} />}</tr></thead>
               <tbody>
                 {detalle.map((x) => (
                   <tr key={x.id} className={TR}>
@@ -240,7 +241,12 @@ async function Lotes({ org, sp, aqui }: { org: string; sp: SP; aqui: string }) {
                     <td className={`${TD} text-[#5C6B76]`}>{describirAntes(x.antes)}</td>
                     <td className={TD}><b>{describirCambio(x.tipo, x.payload)}</b></td>
                     <td className={TD}><Estado texto={ESTADOS_COLA[x.estado] ?? x.estado} tono={TONO_COLA[x.estado] ?? "gris"} /></td>
-                    <td className={`${TD} text-[11px] text-[#C03420]`}>{x.ultimo_error ?? ""}</td>
+                    <td className={`${TD} text-[11px] ${x.estado === "descartado" ? "text-[#5C6B76]" : "text-[#C03420]"}`}>{x.ultimo_error ?? ""}</td>
+                    {elegido.estado === "preparado" && (
+                      <td className={`${TD} text-right`}>
+                        {x.estado === "preparado" && <TachoConfirmar accion={accionSacarDelLote} campos={{ id: String(x.id), volver: aqui }} pregunta="¿Sacarlo del lote?" />}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

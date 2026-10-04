@@ -63,6 +63,7 @@ Las filas con cambios se ven con fondo amarillo clarito. Abajo hay una nota sobr
 2. Apretá **«Preparar cambios»**. Pregunta «¿Preparar los cambios de N publicaciones…? No sale nada hasta tu clic.» → confirmá.
 3. Te lleva a la [Cola de Mercado Libre](/config/canales/cola), pestaña «Lotes preparados», con el aviso «Preparado, falta tu clic: …».
 4. Revisá cada lote y apretá **«Mandar a Mercado Libre»** (o «Descartar lote»).
+   Para mandar sólo algunas publicaciones: «Preparar cambios» toma sólo lo que muestra el filtro (búsqueda por SKU, producto o número de publicación, y categoría), y en el lote podés sacar las que no quieras con el tacho de su fila antes de mandarlo.
 
 Si no hay nada para cambiar, avisa «No hay nada para cambiar: todo está como tiene que estar.».
 

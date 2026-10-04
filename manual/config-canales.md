@@ -180,6 +180,7 @@ En la caja de la cuenta, **"Traer pedidos y preguntas ahora"**. Avisa "Listo: N 
 2. Revisá en el detalle qué cambia en cada publicación (Antes / Después).
 3. Apretá **"Mandar a Mercado Libre"** (pregunta "¿Mandar los N cambios a Mercado Libre?"). Los cambios pasan a Pendientes y salen solos en los próximos minutos; el resultado de cada uno queda en Enviados o Con error.
 4. Si no querés mandarlo: **"Descartar lote"** ("Lote descartado: no se mandó nada.").
+   - O, para mandar sólo algunas: en el detalle del lote, el **tacho** de cada fila saca esa publicación del lote (pregunta "¿Sacarlo del lote?" Sí / No ahí mismo). Queda "Descartado" y no sale; el resto sí, con "Mandar a Mercado Libre". Si sacás todas, el lote queda descartado.
 
 ### Con qué razón social se factura cada canal
 

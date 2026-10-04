@@ -6,7 +6,7 @@
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, id, texto } from "@/lib/erp/acciones";
-import { reintentarErrores, descartar, mandarLote, descartarLote } from "@/lib/mercadolibre/cola";
+import { reintentarErrores, descartar, mandarLote, descartarLote, sacarDelLote } from "@/lib/mercadolibre/cola";
 
 const BASE = "/config/canales/cola";
 const volver = (fd: FormData) => {
@@ -48,5 +48,15 @@ export async function accionDescartarLote(fd: FormData) {
     await descartarLote(s.org.id, id(fd, "lote"));
     revalidatePath(BASE);
     return "Lote descartado: no se mandó nada.";
+  });
+}
+
+/** El tacho de una fila de un lote preparado: ese cambio no sale. */
+export async function accionSacarDelLote(fd: FormData) {
+  const s = await entrarErp("canales_ver");
+  await intentar(volver(fd), async () => {
+    const quedan = await sacarDelLote(s.org.id, id(fd, "id"));
+    revalidatePath(BASE);
+    return quedan ? `Sacado del lote: no se manda. Quedan ${quedan} en el lote.` : "Sacado del lote. No quedaba nada más: el lote quedó descartado.";
   });
 }
