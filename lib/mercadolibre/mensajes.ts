@@ -86,7 +86,7 @@ export async function sugerirMensaje(org: string, packId: string): Promise<strin
 }
 
 /** Manda un mensaje al comprador del pack. */
-export async function enviarMensaje(org: string, packId: string, texto: string) {
+export async function enviarMensaje(org: string, packId: string, texto: string, usuarioId: string | null = null) {
   const t = texto.trim();
   if (!t) throw new ErrorErp("El mensaje está vacío.");
   if (t.length > 350) throw new ErrorErp("Mercado Libre acepta hasta 350 caracteres por mensaje.");
@@ -101,5 +101,10 @@ export async function enviarMensaje(org: string, packId: string, texto: string) 
   await mlOk(cuenta, "POST", `/messages/packs/${packId}/sellers/${cuenta.meliUserId}?tag=post_sale`,
     { from: { user_id: cuenta.meliUserId }, to: { user_id: Number(comprador) }, text: t });
   await importarConversacion(cuenta, packId, true);
+  // Quién lo mandó: el mensaje recién vuelto de ML con ese mismo texto.
+  if (usuarioId) await consulta(`
+    update meli_mensaje set usuario_id = $3 where id = (
+      select id from meli_mensaje where organizacion_id = $1 and pack_id = $2 and de_vendedor and usuario_id is null
+         and trim(texto) = $4 and fecha > now() - interval '30 minutes' order by fecha desc limit 1)`, [org, packId, usuarioId, t]);
   await consulta("update meli_conversacion set sugerencia = null where organizacion_id = $1 and pack_id = $2", [org, packId]);
 }

@@ -47,7 +47,7 @@ Dos pestañas chicas: **"Sin responder (N)"** y **"Respondidas (N)"**.
 ### Pestaña Mensajes
 
 - **A la izquierda**, la lista de conversaciones (las que tienen mensajes sin leer primero, después por el último mensaje; hasta 100): el cliente (o "Pack …"), la marca **"N sin leer"**, la cuenta, el Nº de pedido, hace cuánto y el último mensaje.
-- **A la derecha**, la conversación elegida: el comprador, la cuenta y el enlace **"Pedido N"** (o "Pack … (sin pedido en Laucen)"), el botón **"Actualizar"**, los mensajes (los tuyos a la derecha, "Vos"; los del comprador a la izquierda) y abajo el cuadro **"Mensaje"** con **"Proponer con IA"** y **"Enviar"**.
+- **A la derecha**, la conversación elegida: el comprador, la cuenta y el enlace **"Pedido N"** (o "Pack … (sin pedido en Laucen)"), el botón **"Actualizar"**, los mensajes (los de la tienda a la derecha, con **"Respondió <nombre>"** de quien lo mandó desde Laucen, o "Respondió alguien desde Mercado Libre" si se escribió fuera de Laucen; los del comprador a la izquierda) y abajo el cuadro **"Mensaje"** con **"Proponer con IA"** y **"Enviar"**.
 - Sin conversación elegida: "Elegí una conversación para verla y contestar."
 
 ## Cómo se hace

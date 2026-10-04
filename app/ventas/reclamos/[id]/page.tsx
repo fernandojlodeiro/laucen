@@ -210,7 +210,7 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
                     <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${color}`}>
                       <div className="whitespace-pre-wrap break-words">{m.texto ?? <i className="text-[#5C6B76]">(adjunto)</i>}</div>
                       {Array.isArray(m.adjuntos) && m.adjuntos.length > 0 && <div className="text-[10px] text-[#5C6B76]">+ {m.adjuntos.length} adjunto{m.adjuntos.length === 1 ? "" : "s"} (se ven en Mercado Libre)</div>}
-                      <div className="text-[10px] text-[#5C6B76] mt-0.5 text-right">{DE[m.de] ?? m.de}{m.usuario ? ` (${m.usuario})` : ""} · {fechaHora(m.fecha)}</div>
+                      <div className="text-[10px] text-[#5C6B76] mt-0.5 text-right">{m.de === "vendedor" ? (m.usuario ? `Respondió ${m.usuario}` : "Respondió alguien desde Mercado Libre") : `${DE[m.de] ?? m.de}${m.usuario ? ` (${m.usuario})` : ""}`} · {fechaHora(m.fecha)}</div>
                     </div>
                   </div>
                 );

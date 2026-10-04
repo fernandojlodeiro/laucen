@@ -131,6 +131,8 @@ create table if not exists meli_mensaje (
 create index if not exists meli_mensaje_pack on meli_mensaje (organizacion_id, pack_id, fecha);
 alter table meli_mensaje enable row level security;
 select erp_politica_org('meli_mensaje');
+-- Quién del panel mandó el mensaje (null: lo escribieron desde Mercado Libre o es del comprador).
+alter table meli_mensaje add column if not exists usuario_id text;
 
 -- Borradores de respuesta a mensajes que propone la IA, por conversación.
 create table if not exists meli_conversacion (

@@ -208,8 +208,9 @@ async function Mensajes({ org, pack, canal }: { org: string; pack?: string; cana
 }
 
 async function Hilo({ org, conv }: { org: string; conv: { pack_id: string; canal: string | null; pedido_id: number | null; cliente: string | null } }) {
-  const mensajes = await consulta<{ id: string; de_vendedor: boolean; texto: string | null; fecha: Date; adjuntos: unknown[] }>(
-    "select id, de_vendedor, texto, fecha, adjuntos from meli_mensaje where organizacion_id = $1 and pack_id = $2 order by fecha", [org, conv.pack_id]);
+  const mensajes = await consulta<{ id: string; de_vendedor: boolean; texto: string | null; fecha: Date; adjuntos: unknown[]; usuario: string | null }>(
+    `select m.id, m.de_vendedor, m.texto, m.fecha, m.adjuntos, u.nombre usuario from meli_mensaje m left join usuarios u on u.id = m.usuario_id
+      where m.organizacion_id = $1 and m.pack_id = $2 order by m.fecha`, [org, conv.pack_id]);
   const sug = await una<{ sugerencia: string | null }>(
     "select sugerencia from meli_conversacion where organizacion_id = $1 and pack_id = $2", [org, conv.pack_id]);
 
@@ -236,7 +237,7 @@ async function Hilo({ org, conv }: { org: string; conv: { pack_id: string; canal
             <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${m.de_vendedor ? "bg-[#EEF3F8] text-[#16577F]" : "bg-[#FAFBFC] border border-[#E3E9F0]"}`}>
               <div className="whitespace-pre-wrap break-words">{m.texto ?? <i className="text-[#5C6B76]">(adjunto)</i>}</div>
               {m.texto && Array.isArray(m.adjuntos) && m.adjuntos.length > 0 && <div className="text-[10px] text-[#5C6B76]">+ {m.adjuntos.length} adjunto{m.adjuntos.length === 1 ? "" : "s"}</div>}
-              <div className="text-[10px] text-[#5C6B76] mt-0.5 text-right">{m.de_vendedor ? "Vos" : "Comprador"} · {fechaHora(m.fecha)}</div>
+              <div className="text-[10px] text-[#5C6B76] mt-0.5 text-right">{m.de_vendedor ? (m.usuario ? `Respondió ${m.usuario}` : "Respondió alguien desde Mercado Libre") : "Comprador"} · {fechaHora(m.fecha)}</div>
             </div>
           </div>
         ))}

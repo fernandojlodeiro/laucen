@@ -76,7 +76,7 @@ Si Mercado Libre espera tu respuesta, arriba aparece el cartel **"Mercado Libre 
 **Columna izquierda**:
 - **"Datos"**: Pedido (enlace), Comprador o Cliente, Estado, Tipo, Motivo, Etapa (ML), Fecha, Para responder (ML), Monto, Devuelto (web/local), Resolución y Notas (web/local). En los de ML, además, **"Qué pide cada parte"** (por ejemplo "El comprador: Que le devuelvan el dinero (pendiente)").
 - **"Productos (N)"**: las líneas del pedido de esa orden (en un carrito de ML, sólo las de esa orden): SKU (enlace y 📷), Producto, Cantidad, Precio.
-- **"Conversación (N)"**: los mensajes del comprador, tuyos ("Vos"), de Mercado Libre y las notas internas, con fecha. Abajo, **"Nota interna"** y **"Anotar nota"**.
+- **"Conversación (N)"**: los mensajes del comprador, los de la tienda (con **"Respondió <nombre>"**: quién lo mandó desde Laucen; "Respondió alguien desde Mercado Libre" si se escribió fuera de Laucen), los de Mercado Libre y las notas internas (con quién las anotó), con fecha. En **"Historia"** cada acción mandada también dice quién la mandó. Abajo, **"Nota interna"** y **"Anotar nota"**.
 
 **Columna derecha**:
 - Reclamos de Mercado Libre: **"Qué podés hacer (N)"** con un botón por cada acción que ofrece Mercado Libre ahora, con su plazo ("Obligatoria · Quedan …" o "Sin plazo"), y debajo **"Mandado a Mercado Libre"** con lo que salió por la cola y su estado.

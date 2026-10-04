@@ -84,7 +84,7 @@ export async function accionEnviarMensaje(fd: FormData) {
   const s = await entrarErp("preguntas_ver");
   const p = texto(fd, "pack") ?? "";
   await intentar(volverMensajes(p), async () => {
-    await enviarMensaje(s.org.id, pack(fd), texto(fd, "texto") ?? "");
+    await enviarMensaje(s.org.id, pack(fd), texto(fd, "texto") ?? "", s.usuario.id);
     revalidatePath(VOLVER);
     return "Mensaje enviado.";
   });

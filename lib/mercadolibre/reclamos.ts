@@ -282,10 +282,16 @@ export async function importarReclamo(cuenta: CuentaMl, claimId: string, leer: L
     for (const m of lista) {
       const x = mapearMensaje(m);
       await consulta(`
-        insert into reclamo_mensaje (organizacion_id, reclamo_id, clave, de, para, texto, adjuntos, fecha, datos_externos)
-        values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb)
-        on conflict (reclamo_id, clave) where clave is not null do update set texto = excluded.texto, adjuntos = excluded.adjuntos`,
-        [org, id, x.clave, x.de, x.para, x.texto, JSON.stringify(x.adjuntos), x.fecha, JSON.stringify({ ml: m })]);
+        insert into reclamo_mensaje (organizacion_id, reclamo_id, clave, de, para, texto, adjuntos, fecha, datos_externos, usuario_id)
+        values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb,
+                -- Quién lo mandó desde el panel: la acción de la cola con ese mismo texto.
+                case when $4 = 'vendedor' then (
+                  select q.usuario_id from ml_cola q where q.organizacion_id = $1 and q.tipo = 'reclamo' and q.item_id = 'reclamo:' || $10
+                     and q.estado = 'ok' and q.usuario_id is not null and trim(q.payload #>> '{pedidos,0,cuerpo,message}') = trim($6)
+                   order by q.id desc limit 1) end)
+        on conflict (reclamo_id, clave) where clave is not null do update set texto = excluded.texto, adjuntos = excluded.adjuntos,
+          usuario_id = coalesce(reclamo_mensaje.usuario_id, excluded.usuario_id)`,
+        [org, id, x.clave, x.de, x.para, x.texto, JSON.stringify(x.adjuntos), x.fecha, JSON.stringify({ ml: m }), String(c.id)]);
     }
   }
   return id;
