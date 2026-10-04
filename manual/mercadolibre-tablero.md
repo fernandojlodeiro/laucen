@@ -9,7 +9,9 @@ resumen: Todas las cuentas de Mercado Libre en una pantalla: reputación con los
 
 ## Para qué sirve
 
-Para ver de un vistazo cómo está cada cuenta de Mercado Libre y qué hay que hacer hoy, sin entrar cuenta por cuenta. Es una tabla centrada, con **una columna por cuenta** (con el apodo de ML y la razón social con la que factura), más dos columnas para lo que no es de Mercado Libre —**Web** (la tienda web, minorista y mayorista) y **Otros** (el local, los pedidos manuales y cualquier otro canal)— y una columna **Total**. En Web y Otros se ven los pedidos, envíos, reclamos, devoluciones y ventas de esos canales; lo propio de Mercado Libre (reputación, publicaciones, preguntas, mensajes, cola y conexión) figura con una raya. Casi cada número es un **enlace** a la pantalla donde se resuelve, ya filtrada por esa cuenta.
+Para ver de un vistazo cómo está cada cuenta de Mercado Libre y qué hay que hacer hoy, sin entrar cuenta por cuenta. Es una tabla centrada, con **una columna por cuenta** (con el apodo de ML y la razón social con la que factura), más tres columnas para lo que no es de Mercado Libre —**Web minorista**, **Web mayorista** (aparece siempre, aunque todavía no exista la tienda mayorista) y **Otros** (el local, los pedidos manuales y cualquier otro canal)— y una columna **Total**. En las columnas de la web y en Otros se ven los pedidos, envíos, reclamos, devoluciones y ventas de esos canales; lo propio de Mercado Libre (reputación, preguntas, mensajes, cola y conexión) figura con una raya.
+
+**En la web, Publicaciones y "Productos con stock sin publicar" usan el interruptor "Publicado en Web" de cada producto** (pestaña Publicaciones de la ficha): **Activas** son los productos activos con el interruptor prendido ("N de M productos activos"); **Pausadas** son los productos activos con el interruptor apagado (o que nunca se publicaron); y **Productos con stock sin publicar** son, de éstos, los que además tienen stock disponible. Cada número lleva a Productos filtrado. Casi cada número es un **enlace** a la pantalla donde se resuelve, ya filtrada por esa cuenta.
 
 ## Cómo se llega
 
@@ -44,8 +46,8 @@ Lo que informa Mercado Libre; cada dato cuenta el período que se muestra al lad
 
 ### Alertas del catálogo
 No son de una cuenta en particular:
-- **Productos con stock disponible y sin publicación activa en Mercado Libre**: mercadería parada. Cuenta los que no están publicados en **ninguna** cuenta; el detalle por cuenta está en la fila "Productos con stock sin publicar" de la tabla. Enlace: [Productos](/catalogo/productos) filtrado ("Con stock y sin publicación activa en ML").
-- **Productos de la tienda web sin fotos**: activos, con precio en la tienda y ninguna foto. Enlace: [Productos](/catalogo/productos) filtrado ("De la web, sin fotos").
+- **Productos con stock disponible y sin publicación activa en Mercado Libre**: mercadería parada. El número chico es **cuántos productos activos tienen stock disponible** (no el total del catálogo: los activos sin stock no cuentan). Cuenta los que no están publicados en **ninguna** cuenta; el detalle por cuenta está en la fila "Productos con stock sin publicar" de la tabla. Enlace: [Productos](/catalogo/productos) filtrado ("Con stock y sin publicación activa en ML").
+- **Productos de la tienda web sin fotos**: publicados en la web (interruptor prendido), con precio en la tienda y ninguna foto. El número chico es **cuántos productos están publicados en la web**. Enlace: [Productos](/catalogo/productos) filtrado ("De la web, sin fotos").
 
 ## Cómo se hace
 
