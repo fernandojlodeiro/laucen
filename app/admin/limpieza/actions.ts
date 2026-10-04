@@ -48,7 +48,7 @@ export async function accionCategorias(desde: number) {
   try {
     let previo = { porPublicacion: 0, reubicados: 0 };
     if (desde === 0) previo = await categoriasPorPublicacion(org);
-    const r = await categoriasPorPredictor(org, desde, 40);
+    const r = await categoriasPorPredictor(org, desde, 20);
     return { ok: true as const, ...r, ...previo };
   } catch (e) {
     return { ok: false as const, error: motivoErp(e) };

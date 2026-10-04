@@ -135,29 +135,43 @@ export async function categoriasPorPublicacion(org: string) {
   return { porPublicacion: filas.length, reubicados: resto.length };
 }
 
+/** Una llamada a ML con tope de tiempo: si ML no contesta, no se cuelga todo el lote. */
+async function mlConTope(ruta: string, token: string | null, ms = 8000) {
+  return Promise.race([
+    ml(ruta, token),
+    new Promise<{ ruta: string; status: number; datos: unknown }>((r) => setTimeout(() => r({ ruta, status: 0, datos: "sin respuesta de ML" }), ms)),
+  ]);
+}
+
 /** Paso 2 (de a lotes): para los que no tienen categoría, el predictor de ML
- *  (domain_discovery) con el título. `desde` = último id procesado. */
-export async function categoriasPorPredictor(org: string, desde: number, lote = 40) {
+ *  (domain_discovery) con el título. `desde` = último id procesado. Corta solo
+ *  antes de que se acabe el tiempo de la pantalla (devuelve lo que alcanzó). */
+export async function categoriasPorPredictor(org: string, desde: number, lote = 20) {
+  const inicio = Date.now();
   const token = await tokenML();
   const filas = await consulta<{ id: string; titulo: string }>(
     "select id::text, titulo from producto where organizacion_id = $1 and categoria_ml is null and id > $2 order by id limit $3", [org, desde, lote]);
   const cache: Cache = new Map();
-  let asignados = 0, sinResultado = 0;
-  const detalles: string[] = [];
+  let asignados = 0, sinResultado = 0, procesados = 0, siguiente = desde;
+  const estados: Record<string, number> = {};
   const tanda = 5;
   for (let i = 0; i < filas.length; i += tanda) {
-    await Promise.all(filas.slice(i, i + tanda).map(async (f) => {
+    if (Date.now() - inicio > 35_000) break;
+    const grupo = filas.slice(i, i + tanda);
+    await Promise.all(grupo.map(async (f) => {
       try {
-        const r = await ml(`/sites/MLA/domain_discovery/search?q=${encodeURIComponent(f.titulo.slice(0, 120))}&limit=1`, token);
+        const r = await mlConTope(`/sites/MLA/domain_discovery/search?q=${encodeURIComponent(f.titulo.slice(0, 120))}&limit=1`, token);
+        estados[String(r.status)] = (estados[String(r.status)] ?? 0) + 1;
         const cat = (Array.isArray(r.datos) ? r.datos : [])[0] as { category_id?: string } | undefined;
         if (r.status === 200 && cat?.category_id) { await asignar(org, Number(f.id), cat.category_id, cache, token); asignados++; }
-        else { sinResultado++; if (detalles.length < 5) detalles.push(`${f.titulo.slice(0, 40)} (ML ${r.status})`); }
-      } catch { sinResultado++; }
+        else sinResultado++;
+      } catch { sinResultado++; estados.error = (estados.error ?? 0) + 1; }
     }));
+    procesados += grupo.length;
+    siguiente = Number(grupo[grupo.length - 1].id);
   }
   const pendientes = await una<{ n: string }>("select count(*) n from producto where organizacion_id = $1 and categoria_ml is null", [org]);
-  return { procesados: filas.length, asignados, sinResultado, detalles, siguiente: filas.length ? Number(filas[filas.length - 1].id) : desde,
-    hecho: filas.length < lote, pendientes: Number(pendientes?.n ?? 0) };
+  return { procesados, asignados, sinResultado, estados, siguiente, hecho: filas.length < lote, pendientes: Number(pendientes?.n ?? 0) };
 }
 
 export async function resumenCategorias(org: string) {
