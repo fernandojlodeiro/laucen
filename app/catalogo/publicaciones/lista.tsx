@@ -28,6 +28,15 @@ export const TEXTO_ESTADO_ML: Record<string, string> = {
 };
 export const textoEstadoMl = (e: string | null | undefined) => (e ? TEXTO_ESTADO_ML[e] ?? e : null);
 const UMBRAL = "umbral_pausa_de($1, v.id, c.id)";
+export const PLAN_ML: Record<string, string> = { gold_pro: "Premium", gold_special: "Clásica", free: "Gratuita", gold: "Oro", silver: "Plata", bronze: "Bronce" };
+/** El precio publicado (con la campaña ya aplicada: el que paga el cliente), el tachado (si lo hay y es mayor) y la campaña activa. */
+export const PRECIO_PUBLICACION = "coalesce(mi.precio, pu.precio_canal)::float8";
+export const TACHADO_PUBLICACION = `(case when coalesce(nullif(mi.datos_externos -> 'ml' ->> 'original_price', '')::numeric, pu.precio_tachado) > coalesce(mi.precio, pu.precio_canal)
+  then coalesce(nullif(mi.datos_externos -> 'ml' ->> 'original_price', '')::numeric, pu.precio_tachado)::float8 end)`;
+export const PRECIO_CAMPANA_PUBLICACION = `(select min(x.precio)::float8 from ml_promo_item x
+   where x.canal_id = pu.canal_id and x.item_id = pu.id_externo and x.estado = 'started' and x.precio > 0 and (x.hasta is null or x.hasta > now()))`;
+export const CAMPANA_PUBLICACION = `(select string_agg(distinct coalesce(x.nombre, x.tipo), ' · ') from ml_promo_item x
+   where x.canal_id = pu.canal_id and x.item_id = pu.id_externo and x.estado = 'started' and (x.hasta is null or x.hasta > now()))`;
 
 export const LISTA_PUBLICACIONES: Lista = {
   pantalla: "publicaciones",
@@ -44,6 +53,12 @@ export const LISTA_PUBLICACIONES: Lista = {
     { clave: "categoria", titulo: "Categoría", sql: "pu.categoria_externa" },
     { clave: "tipo", titulo: "Tipo de publicación", sql: "pu.tipo_publicacion" },
     { clave: "estado", titulo: "Estado", sql: "pu.estado", valor: (f) => TEXTO_ESTADO_PUBLICACION[f.estado] ?? f.estado },
+    { clave: "plan", titulo: "Plan", sql: "coalesce(mi.tipo, pu.tipo_publicacion)", valor: (f) => (f.plan ? PLAN_ML[f.plan] ?? f.plan : null) },
+    { clave: "precio", titulo: "Precio $", sql: PRECIO_PUBLICACION, orden: PRECIO_PUBLICACION, formato: "pesos" },
+    { clave: "tachado", titulo: "Precio tachado $", sql: TACHADO_PUBLICACION, orden: false, formato: "pesos" },
+    { clave: "campana", titulo: "Campaña activa", sql: CAMPANA_PUBLICACION, orden: false, ancho: 30 },
+    { clave: "precio_campana", titulo: "Precio con campaña $", sql: PRECIO_CAMPANA_PUBLICACION, orden: false, formato: "pesos" },
+    { clave: "pausada_manual", titulo: "Pausada por el usuario", sql: "case when pu.pausada_manual then 'Sí' end" },
     { clave: "stock_ml", titulo: "Stock en ML", sql: "mi.stock", formato: "entero" },
     { clave: "estado_ml", titulo: "Estado en ML", sql: "mi.estado", valor: (f) => textoEstadoMl(f.estado_ml) },
     { clave: "disponible", titulo: "Disponible", sql: `${DISPONIBLE_PUBLICACION}::int`, orden: DISPONIBLE_PUBLICACION, formato: "entero" },
@@ -54,7 +69,7 @@ export const LISTA_PUBLICACIONES: Lista = {
     campoFecha("sincronizada", "Última sincronización", "pu.ultima_sincronizacion_ts", { hora: true }),
     { clave: "atributos", titulo: "Atributos externos", sql: "case when pu.atributos_externos = '{}'::jsonb then null else pu.atributos_externos::text end", orden: false, ancho: 50 },
   ],
-  enPantalla: ["sku", "titulo", "canal", "externo", "categoria", "tipo", "estado", "estado_ml", "disponible", "stock_ml", "umbral"],
+  enPantalla: ["titulo", "canal", "externo", "categoria", "plan", "precio", "tachado", "campana", "precio_campana", "estado", "estado_ml", "disponible", "stock_ml", "umbral"],
   consulta: async (ctx, sp) => {
     const f = filtrosPublicaciones(sp);
     return {

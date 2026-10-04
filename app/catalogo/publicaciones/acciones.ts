@@ -12,6 +12,8 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, entero, id } from "@/lib/erp/acciones";
+import { cuentaDelCanal } from "@/lib/mercadolibre/api";
+import { encolar, PRIORIDAD } from "@/lib/mercadolibre/cola";
 
 const BASE = "/catalogo/publicaciones";
 
@@ -46,5 +48,60 @@ export async function accionGuardarPublicacion(fd: FormData) {
       [org, pub.id, umbral, variacion]);
     revalidatePath(BASE);
     return "Guardado.";
+  });
+}
+
+type PubMl = { id: number; canal_id: number; variacion_id: number; id_externo: string; variacion_externa: string | null; estado: string; disponible: number; umbral: number };
+
+async function publicacionMl(org: string, publicacion: number): Promise<PubMl> {
+  const p = await una<PubMl>(`
+    select pu.id::int, pu.canal_id::int, pu.variacion_id::int, pu.id_externo, pu.variacion_externa, pu.estado,
+           stock_disponible_canal(pu.organizacion_id, pu.variacion_id, pu.canal_id)::int disponible,
+           umbral_pausa_de(pu.organizacion_id, pu.variacion_id, pu.canal_id)::int umbral
+      from publicacion pu join canal c on c.id = pu.canal_id
+     where pu.id = $2 and pu.organizacion_id = $1 and c.tipo = 'mercadolibre' and pu.id_externo is not null`, [org, publicacion]);
+  if (!p) throw new ErrorErp("Esa publicación no es de Mercado Libre o ya no existe.");
+  const cuenta = await cuentaDelCanal(org, p.canal_id);
+  if (!cuenta || cuenta.estado !== "activa") throw new ErrorErp("La cuenta de Mercado Libre de esa publicación está desconectada.");
+  return p;
+}
+
+/** "Pausar" (clic de Fer, 4/10): pausa la publicación en Mercado Libre y la marca como pausada a mano:
+ *  la automatización de stock no la reactiva nunca, sólo "Sacar la pausa". Sale por la cola. */
+export async function accionPausarPublicacion(fd: FormData) {
+  const s = await entrarErp("publicaciones_ver");
+  await intentar(volverDe(fd), async () => {
+    const p = await publicacionMl(s.org.id, id(fd));
+    if (p.estado !== "activa") throw new ErrorErp("Esa publicación no está activa.");
+    // Primero la marca (así ninguna revisión de stock la pisa) y después el pedido a ML.
+    await consulta("update publicacion set pausada_manual = true where id = $2 and organizacion_id = $1", [s.org.id, p.id]);
+    await encolar(s.org.id, [{
+      canalId: p.canal_id, itemId: p.id_externo, variationId: p.variacion_externa, publicacionId: p.id, tipo: "stock", prioridad: PRIORIDAD.pausa,
+      antes: { estado: p.estado },
+      // Una variación no se pausa sola en ML: se le informa 0 (igual que la pausa por stock).
+      payload: p.variacion_externa ? { cantidad: 0 } : { estado: "paused" },
+      efecto: { publicacion: { id: p.id, estado: "pausada", pausada_por_stock: false, pausada_manual: true, ...(p.variacion_externa ? { cantidad_publicada: 0 } : {}) } },
+    }], { origen: "boton", usuarioId: s.usuario.id });
+    revalidatePath(BASE);
+    return "Listo: la pausa salió a Mercado Libre. Queda pausada hasta que vos le saques la pausa.";
+  });
+}
+
+/** "Sacar la pausa" (clic de Fer): saca la marca de pausada a mano y, si hay stock, la reactiva en ML. */
+export async function accionSacarPausa(fd: FormData) {
+  const s = await entrarErp("publicaciones_ver");
+  await intentar(volverDe(fd), async () => {
+    const p = await publicacionMl(s.org.id, id(fd));
+    await consulta("update publicacion set pausada_manual = false where id = $2 and organizacion_id = $1", [s.org.id, p.id]);
+    revalidatePath(BASE);
+    if (p.estado === "activa") return "Listo: se sacó la marca de pausada.";
+    if (p.disponible <= p.umbral) return "Se sacó la marca. Sigue pausada porque no hay stock disponible: se reactiva sola cuando lo haya.";
+    await encolar(s.org.id, [{
+      canalId: p.canal_id, itemId: p.id_externo, variationId: p.variacion_externa, publicacionId: p.id, tipo: "stock", prioridad: PRIORIDAD.boton,
+      antes: { estado: p.estado },
+      payload: p.variacion_externa ? { cantidad: p.disponible } : { cantidad: p.disponible, estado: "active" },
+      efecto: { publicacion: { id: p.id, estado: "activa", pausada_por_stock: false, pausada_manual: false, cantidad_publicada: p.disponible } },
+    }], { origen: "boton", usuarioId: s.usuario.id });
+    return "Listo: se sacó la marca y la reactivación salió a Mercado Libre.";
   });
 }

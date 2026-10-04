@@ -28,7 +28,7 @@ import { encolar, PRIORIDAD, type CambioMl, type OrigenCambio } from "@/lib/merc
 
 type Pub = {
   id: number; canal_id: number; variacion_id: number; id_externo: string; variacion_externa: string | null; estado: string;
-  pausada_por_stock: boolean; cantidad_publicada: number | null; disponible: number; umbral: number;
+  pausada_por_stock: boolean; pausada_manual: boolean; cantidad_publicada: number | null; disponible: number; umbral: number;
 };
 
 /** Cuántos cambios se calcularon (cantidades, pausas, reactivaciones) y cuántos
@@ -40,6 +40,8 @@ export type ResultadoStock = { revisadas: number; cantidades: number; pausadas: 
  *  informa 0); si está pausada (por quien sea) y vuelve a haber, la reactiva;
  *  si no, informa la cantidad. */
 export function cambioDeStock(p: Pub): (CambioMl & { que: "pausa" | "reactivar" | "cantidad" }) | null {
+  // Pausada a mano por el usuario: no se toca (ni se reactiva) hasta que él le saque la marca.
+  if (p.pausada_manual) return null;
   const disp = Math.max(0, p.disponible);
   const base = { canalId: p.canal_id, itemId: p.id_externo, variationId: p.variacion_externa, publicacionId: p.id, tipo: "stock" as const };
   const antes = { estado: p.estado, cantidad: p.cantidad_publicada };
@@ -83,7 +85,7 @@ export async function sincronizarStockMl(org: string, variaciones?: number[], _h
     vars = [...new Set([...vars, ...kits.map((k) => k.id)])];
   }
   const pubs = await consulta<Pub>(`
-    select p.id::int, p.canal_id::int, p.variacion_id::int, p.id_externo, p.variacion_externa, p.estado, p.pausada_por_stock,
+    select p.id::int, p.canal_id::int, p.variacion_id::int, p.id_externo, p.variacion_externa, p.estado, p.pausada_por_stock, p.pausada_manual,
            p.cantidad_publicada, stock_disponible_canal(p.organizacion_id, p.variacion_id, p.canal_id) disponible,
            umbral_pausa_de(p.organizacion_id, p.variacion_id, p.canal_id) umbral
       from publicacion p join canal c on c.id = p.canal_id
