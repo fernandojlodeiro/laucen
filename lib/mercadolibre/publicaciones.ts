@@ -58,13 +58,19 @@ export async function guardarItem(cuenta: CuentaMl, it: ItemMl): Promise<number>
       [cuenta.canalId, it.id, f.variation_id]);
     let pubId = pub ? Number(pub.id) : null;
     if (!pubId && f.sku) {
-      // Por SKU, o por una equivalencia (SKU viejo o con otro código en ML → SKU de Laucen).
+      // Por SKU, o por una equivalencia (SKU viejo o con otro código en ML →
+      // SKU de Laucen). Las cuentas DEIROLAB y TIENDAVIRTUAL S tienen en ML
+      // los SKU con "DE-" adelante y en Laucen se les sacó (Fer, 4/10): si
+      // no está tal cual, se prueba sin el "DE-".
       const v = await una<{ id: string }>(`
-        select id from variacion where organizacion_id = $1 and lower(sku) = lower($2)
-        union all
-        select v.id from sku_equivalencia e join variacion v on v.organizacion_id = e.organizacion_id and lower(v.sku) = lower(e.sku)
-         where e.organizacion_id = $1 and e.alias = upper($2)
-        limit 1`, [org, f.sku]);
+        select id from (
+          select id, 1 o from variacion where organizacion_id = $1 and lower(sku) = lower($2)
+          union all
+          select v.id, 2 from sku_equivalencia e join variacion v on v.organizacion_id = e.organizacion_id and lower(v.sku) = lower(e.sku)
+           where e.organizacion_id = $1 and e.alias = upper($2)
+          union all
+          select id, 3 from variacion where organizacion_id = $1 and $2 ~* '^DE-.' and lower(sku) = lower(substr($2, 4))
+        ) x order by o limit 1`, [org, f.sku]);
       if (v) { pubId = await vincular(cuenta, it.id, f.variation_id, Number(v.id)); vinculadas++; }
     }
     if (pubId) await refrescarPublicacion(cuenta, pubId, it, f);
