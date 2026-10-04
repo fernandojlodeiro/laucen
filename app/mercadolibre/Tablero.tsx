@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { formatear } from "@/lib/moneda";
 import { Estado, url, CAJA } from "@/app/componentes/erp";
-import { cuentasTablero, metricasPorCanal, alertasCatalogo, gruposNoMl, sinPublicarPorCanal, sumar, type CuentaTablero, type Metricas } from "@/lib/mercadolibre/tablero";
+import { cuentasTablero, metricasPorCanal, alertasCatalogo, gruposNoMl, sinPublicarPorCanal, estadoWebPorCanal, sumar, type CuentaTablero, type Metricas } from "@/lib/mercadolibre/tablero";
 import { nivelDe, NIVELES_REPUTACION, LIDER, type Metrica } from "@/lib/mercadolibre/reputacion";
 
 
@@ -92,7 +92,7 @@ function CeldaMetrica({ m, titulo }: { m: Metrica | null; titulo: string }) {
 }
 
 /** Una columna del tablero: una cuenta de ML, la tienda web o "el resto" (los canales que no son de ML). */
-type Col = { clave: string; titulo: string; sub: string; href: string | null; cuenta: CuentaTablero | null; canal: number | null; ids: number[] };
+type Col = { clave: string; titulo: string; sub: string; href: string | null; cuenta: CuentaTablero | null; canal: number | null; ids: number[]; web?: boolean };
 
 type Fila = {
   titulo: string; ayuda?: string;
@@ -114,16 +114,21 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
 
   const cuentas = await cuentasTablero(org);
   const grupos = await gruposNoMl(org);
-  const [porCanal, porCanalNoMl, catalogo, sinPub] = await Promise.all([
+  const [porCanal, porCanalNoMl, catalogo, sinPub, webEstado] = await Promise.all([
     metricasPorCanal(org, cuentas.map((c) => c.canalId)),
-    metricasPorCanal(org, [...grupos.web, ...grupos.otros], { soloMl: false }),
-    modo === "completo" ? alertasCatalogo(org) : Promise.resolve({ sinPublicar: 0, sinFotos: 0, productosActivos: 0 }),
+    metricasPorCanal(org, [...grupos.minorista, ...grupos.mayorista, ...grupos.otros], { soloMl: false }),
+    modo === "completo" ? alertasCatalogo(org) : Promise.resolve({ sinPublicar: 0, sinFotos: 0, productosActivos: 0, conStock: 0, publicadosWeb: 0 }),
     sinPublicarPorCanal(org, cuentas.map((c) => c.canalId)),
+    modo === "completo" ? estadoWebPorCanal(org, [...grupos.minorista, ...grupos.mayorista]) : Promise.resolve(new Map<number, { publicados: number; apagados: number; apagadosConStock: number }>()),
   ]);
+  // La web de una columna (una tienda; si hubiera varias del mismo tipo, suman).
+  const webDe = (c: Col) => c.ids.reduce((a, i) => { const e = webEstado.get(i); return e ? { publicados: a.publicados + e.publicados, apagados: a.apagados + e.apagados, apagadosConStock: a.apagadosConStock + e.apagadosConStock } : a; }, { publicados: 0, apagados: 0, apagadosConStock: 0 });
+  const enlaceWeb = (c: Col, ver: string) => (c.ids.length === 1 ? url("/catalogo/productos", { webcanal: c.ids[0], webver: ver }) : null);
   const columnas: Col[] = [
     ...cuentas.map((c): Col => ({ clave: `ml${c.cuentaId}`, titulo: c.apodo ?? c.canal, sub: `${c.canal}${c.razonSocial ? ` · ${c.razonSocial}` : ""}`,
       href: url("/config/canales", { c: c.canalId }), cuenta: c, canal: c.canalId, ids: [c.canalId] })),
-    { clave: "web", titulo: "Web", sub: "Tienda web (minorista y mayorista)", href: "/config/tienda", cuenta: null, canal: grupos.web.length === 1 ? grupos.web[0] : null, ids: grupos.web },
+    { clave: "web_min", titulo: "Web minorista", sub: "Tienda web minorista", href: "/config/tienda", cuenta: null, canal: grupos.minorista.length === 1 ? grupos.minorista[0] : null, ids: grupos.minorista, web: true },
+    { clave: "web_may", titulo: "Web mayorista", sub: "Tienda web mayorista", href: grupos.mayorista.length ? "/config/canales" : null, cuenta: null, canal: grupos.mayorista.length === 1 ? grupos.mayorista[0] : null, ids: grupos.mayorista, web: true },
     { clave: "otros", titulo: "Otros", sub: "Local, pedidos manuales y el resto", href: "/config/canales", cuenta: null, canal: grupos.otros.length === 1 ? grupos.otros[0] : null, ids: grupos.otros },
   ];
   const mapa = new Map([...porCanal, ...porCanalNoMl]);
@@ -157,17 +162,19 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
     {
       titulo: "Publicaciones",
       filas: [
-        { titulo: "Activas", celda: soloMl((c, m) => <Celda valor={m.publicaciones.activas} de={m.publicaciones.total} tono="ok" href={pub(c, "activas")} />),
+        { titulo: "Activas", ayuda: "En Mercado Libre, las publicaciones activas. En la web, los productos con \"Publicado en Web\" prendido",
+          celda: (c, m) => c.web ? (c.ids.length ? <Celda valor={webDe(c).publicados} de={catalogo.productosActivos} tono="ok" href={enlaceWeb(c, "activa")} /> : NA) : c.cuenta ? <Celda valor={m.publicaciones.activas} de={m.publicaciones.total} tono="ok" href={pub(c.cuenta, "activas")} /> : NA,
           total: (t) => <Celda valor={t.publicaciones.activas} de={t.publicaciones.total} tono="ok" /> },
-        { titulo: "Pausadas", celda: soloMl((c, m) => <Celda valor={m.publicaciones.pausadas} tono="neutro" href={pub(c, "pausadas")} />),
+        { titulo: "Pausadas", ayuda: "En Mercado Libre, las publicaciones pausadas. En la web, los productos activos con \"Publicado en Web\" apagado",
+          celda: (c, m) => c.web ? (c.ids.length ? <Celda valor={webDe(c).apagados} tono="neutro" href={enlaceWeb(c, "apagado")} /> : NA) : c.cuenta ? <Celda valor={m.publicaciones.pausadas} tono="neutro" href={pub(c.cuenta, "pausadas")} /> : NA,
           total: (t) => <Celda valor={t.publicaciones.pausadas} tono="neutro" /> },
         { titulo: "Con cuestiones para resolver", ayuda: "En revisión, inactivas o con el pago pendiente: ML las frena hasta que se corrija algo",
           celda: soloMl((c, m) => <Celda valor={m.publicaciones.conCuestiones} href={pub(c, "revision")} />), total: (t) => <Celda valor={t.publicaciones.conCuestiones} /> },
         { titulo: "Sin producto asociado", ayuda: "Publicaciones de ML que todavía no están vinculadas a un producto de Laucen (su stock no se sincroniza)",
           celda: soloMl((c, m) => <Celda valor={m.publicaciones.sinProducto} de={m.publicaciones.total} href={pub(c, "sin")} nota={m.publicaciones.sinProductoActivas ? `${n(m.publicaciones.sinProductoActivas)} activas` : null} />),
           total: (t) => <Celda valor={t.publicaciones.sinProducto} de={t.publicaciones.total} nota={t.publicaciones.sinProductoActivas ? `${n(t.publicaciones.sinProductoActivas)} activas` : null} /> },
-        { titulo: "Productos con stock sin publicar", ayuda: "Productos activos con stock disponible que no tienen publicación activa en ESTA cuenta (pueden estar publicados en otra). El total es el de los que no están en ninguna cuenta.",
-          celda: soloMl((c) => <Celda valor={sinPub.get(c.canalId) ?? 0} href={url("/catalogo/productos", { sinpubcanal: c.canalId })} />),
+        { titulo: "Productos con stock sin publicar", ayuda: "Productos activos con stock disponible que no tienen publicación activa en ESTA cuenta (pueden estar publicados en otra). En la web: los que tienen stock y el interruptor \"Publicado en Web\" apagado. El total es el de los que no están en ninguna cuenta de ML.",
+          celda: (c) => c.web ? (c.ids.length ? <Celda valor={webDe(c).apagadosConStock} href={enlaceWeb(c, "apagado_stock")} /> : NA) : c.cuenta ? <Celda valor={sinPub.get(c.cuenta.canalId) ?? 0} href={url("/catalogo/productos", { sinpubcanal: c.cuenta.canalId })} /> : NA,
           total: () => <Celda valor={catalogo.sinPublicar} href="/catalogo/productos?sinpublicar=1" nota="en ninguna cuenta" /> },
       ],
     },
@@ -270,12 +277,12 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
             <div className={CAJA}>
               <div className="text-xs font-semibold">Productos con stock disponible y sin publicación activa en Mercado Libre</div>
               <p className="text-[11px] text-[#5C6B76]">Mercadería parada: hay unidades y no se está vendiendo por ML.</p>
-              <div className="mt-1"><Celda valor={catalogo.sinPublicar} de={catalogo.productosActivos} href="/catalogo/productos?sinpublicar=1" /></div>
+              <div className="mt-1"><Celda valor={catalogo.sinPublicar} de={catalogo.conStock} href="/catalogo/productos?sinpublicar=1" nota="de los productos activos con stock disponible" /></div>
             </div>
             <div className={CAJA}>
               <div className="text-xs font-semibold">Productos de la tienda web sin fotos</div>
-              <p className="text-[11px] text-[#5C6B76]">Activos, con precio en la tienda y ninguna foto cargada.</p>
-              <div className="mt-1"><Celda valor={catalogo.sinFotos} de={catalogo.productosActivos} href="/catalogo/productos?sinfotos=1" /></div>
+              <p className="text-[11px] text-[#5C6B76]">Publicados en la web (interruptor prendido), con precio en la tienda y ninguna foto cargada.</p>
+              <div className="mt-1"><Celda valor={catalogo.sinFotos} de={catalogo.publicadosWeb} href="/catalogo/productos?sinfotos=1" nota="de los productos publicados en la web" /></div>
             </div>
           </div>
         </div>

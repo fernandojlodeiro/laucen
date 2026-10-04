@@ -8,7 +8,8 @@ import { Estado, url, patronBusqueda } from "@/app/componentes/erp";
 import { verInactivos } from "@/app/componentes/Inactivos";
 import { consulta } from "@/lib/erp/base";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
-import { SQL_SIN_PUBLICAR, SQL_SIN_FOTOS, sqlSinPublicarEnCanal } from "@/lib/catalogo-alertas";
+import { SQL_SIN_PUBLICAR, SQL_SIN_FOTOS, SQL_DISPONIBLE, sqlSinPublicarEnCanal } from "@/lib/catalogo-alertas";
+import { sqlPublicadoEnWeb } from "@/lib/catalogo/web";
 import { EstadoProducto, TIPOS_PRODUCTO, ESTADOS_PRODUCTO } from "./comun";
 
 const ENLACE = "hover:text-[#16577F] hover:underline";
@@ -40,6 +41,9 @@ export function filtrosProductos(sp: SP) {
     sinFotos: sp.sinfotos === "1",
     // Con stock y sin publicación activa en UNA cuenta de ML (el id de su canal).
     sinPublicarEn: Number(sp.sinpubcanal) || 0,
+    // Desde el tablero: los productos de una tienda web según su interruptor "Publicado en Web".
+    webCanal: Number(sp.webcanal) || 0,
+    webVer: sp.webver === "activa" || sp.webver === "apagado" || sp.webver === "apagado_stock" ? sp.webver : "",
     // Sin ninguna publicación activa en ningún canal (ML ni web).
     sinCanal: sp.sincanal === "1",
   };
