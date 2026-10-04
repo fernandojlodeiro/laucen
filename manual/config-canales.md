@@ -182,7 +182,7 @@ En la caja de la cuenta, **"Traer pedidos y preguntas ahora"**. Avisa "Listo: N 
 
 ### Con qué razón social se factura cada canal
 
-Una vez cargadas las razones sociales (ver [Razones sociales](/config/razones-sociales)), la lista de canales tiene la columna **"Factura con"** y, al editar un canal con el **lápiz** de su fila, el desplegable **"Factura con"**: elegís la razón social con la que se emiten las facturas de lo que vende ese canal (por ejemplo, tres cuentas de Mercado Libre con una razón social y dos con la otra). Sin elegir, el canal factura con la **principal**, que es lo que pasa siempre con la tienda web, el local y el mayorista.
+Una vez cargadas las razones sociales (ver [Razones sociales](/config/razones-sociales)), tocá el canal (su nombre) y, en la caja **"Cuenta de Mercado Libre"**, elegí **"Este canal factura con (razón social)"** y apretá **"Guardar"**. La columna **"Factura con"** de la lista muestra con cuál factura cada canal, y también se cambia con el **lápiz** de su fila (desplegable **"Factura con"**). Elegís la razón social con la que se emiten las facturas de lo que vende ese canal (por ejemplo, tres cuentas de Mercado Libre con una razón social y dos con la otra). Sin elegir, el canal factura con la **principal**, que es lo que pasa siempre con la tienda web, el local y el mayorista.
 
 - Cambiarlo afecta a las facturas **nuevas**; las ya emitidas no se mueven.
 - La cuenta de fondos "Mercado Pago — <apodo>" de la cuenta de ML pasa a ser de la nueva razón social.
