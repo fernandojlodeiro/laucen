@@ -11,6 +11,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import type { Visto } from "@/lib/historial";
+import { claveVisto } from "@/lib/historial-clave";
 import { accionAnotarVisto, accionBorrarHistorial } from "./historial-acciones";
 
 const ANCHO = 176;
@@ -32,19 +33,28 @@ const FICHA_GENERICA = /^\/(?!tienda\/|admin\/|api\/)[a-z\-/]+\/\d+$/;
 /** Pantallas de ABM que abren un registro por la dirección: `?id=` (lista filtrada a uno), `?c=` (canal) o `?editar=<número>` (el lápiz de una fila). */
 const PARAM_REGISTRO = /[?&](id|c|editar)=(\d+)/;
 
-type Marca = { tipo: string | null; href: string; porFila: boolean };
+type Marca = { tipo: string | null; href: string; porFila: boolean; registro?: string };
 function marcaDe(ruta: string, busqueda: string): Marca | null {
   for (const [re, tipo] of FICHAS) if (re.test(ruta)) return { tipo, href: ruta, porFila: false };
   if (FICHA_GENERICA.test(ruta)) return { tipo: null, href: ruta, porFila: false };
   const m = busqueda.match(PARAM_REGISTRO);
-  if (m) return { tipo: null, href: `${ruta}?${m[1]}=${m[2]}`, porFila: true };
+  if (m) return { tipo: null, href: `${ruta}?${m[1]}=${m[2]}`, porFila: true, registro: m[2] };
   return null;
 }
 
-/** El nombre del registro abierto: lo que dice su ficha, o el campo de la fila que se está editando, o la primera celda con letras. */
-function tituloDe(porFila: boolean): string {
+/** El nombre del registro abierto: lo que dice su ficha; en una lista, el
+ *  texto del enlace de la fila que abre ese mismo registro (?c=7, ?id=7…),
+ *  o el campo de la fila que se está editando, o la primera celda con letras. */
+function tituloDe(porFila: boolean, registro?: string): string {
   const h1 = document.querySelector("main h1")?.textContent?.trim() ?? "";
   if (!porFila) return h1;
+  if (registro) {
+    const enlace = Array.from(document.querySelectorAll<HTMLAnchorElement>("main tbody a[href]")).find((a) => {
+      const q = new URL(a.href, location.href).searchParams;
+      return ["c", "id"].some((k) => q.get(k) === registro) && /[A-Za-zÁ-ú]/.test(a.textContent ?? "");
+    });
+    if (enlace?.textContent?.trim()) return enlace.textContent.trim();
+  }
   const campo = Array.from(document.querySelectorAll<HTMLInputElement>("main tbody input:not([type=hidden]):not([type=color]):not([type=checkbox]), main form input:not([type=hidden]):not([type=color]):not([type=checkbox])"))
     .find((i) => /[A-Za-zÁ-ú]/.test(i.value));
   if (campo) return campo.value.trim();
@@ -74,13 +84,13 @@ export default function Historial({ inicial }: { inicial: Visto[] }) {
   // Al entrar a una ficha o abrir un registro: se espera a que dibuje y se anota arriba de todo.
   useEffect(() => {
     const marca = marcaDe(ruta, `?${busquedaActual}`);
-    setActual(marca?.href ?? "");
+    setActual(marca ? claveVisto(marca.href) : "");
     medir();
     if (!marca) return;
     let intentos = 0;
     const t = setInterval(() => {
       intentos++;
-      const nombre = tituloDe(marca.porFila);
+      const nombre = tituloDe(marca.porFila, marca.registro);
       if (!nombre && intentos < 8) return;
       clearInterval(t);
       const pantalla = (document.querySelector("main h1")?.textContent?.trim() ?? "").slice(0, 40);
@@ -88,7 +98,7 @@ export default function Historial({ inicial }: { inicial: Visto[] }) {
       const titulo = (nombre || `${tipo} ${marca.href.split(/[/=]/).pop()}`).slice(0, 120);
       const visto = { href: marca.href, titulo, tipo: tipo || "Ficha" };
       // Se ve al toque y se guarda en el usuario; si el servidor contesta otra lista (otro equipo), se toma ésa.
-      setLista((l) => [visto, ...l.filter((x) => x.href !== visto.href)].slice(0, 15));
+      setLista((l) => [visto, ...l.filter((x) => claveVisto(x.href) !== claveVisto(visto.href))].slice(0, 15));
       accionAnotarVisto(visto).then(setLista).catch(() => { /* no se pudo guardar: queda lo que se ve */ });
       medir();
     }, 250);
@@ -106,9 +116,9 @@ export default function Historial({ inicial }: { inicial: Visto[] }) {
         <ul className="grid gap-0.5">
           {lista.map((v) => (
             <li key={v.href}>
-              <Link href={v.href} className={`block rounded-md px-1.5 py-1 hover:bg-[#EEF3F8] ${v.href === actual ? "bg-[#EEF3F8]" : ""}`} title={v.titulo}>
+              <Link href={v.href} className={`block rounded-md px-1.5 py-1 hover:bg-[#EEF3F8] ${claveVisto(v.href) === actual ? "bg-[#EEF3F8]" : ""}`} title={v.titulo}>
                 <span className="block text-[9px] uppercase tracking-wide text-[#9AA7B3] leading-3">{v.tipo}</span>
-                <span className={`block text-[11px] leading-4 line-clamp-2 ${v.href === actual ? "font-bold text-[#16577F]" : "text-[#1E2A32]"}`}>{v.titulo}</span>
+                <span className={`block text-[11px] leading-4 line-clamp-2 ${claveVisto(v.href) === actual ? "font-bold text-[#16577F]" : "text-[#1E2A32]"}`}>{v.titulo}</span>
               </Link>
             </li>
           ))}

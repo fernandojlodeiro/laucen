@@ -213,7 +213,7 @@ const ETIQUETA_ESTADO: Record<string, string> = { abierto: "Abierto", en_proceso
 export async function importarReclamo(cuenta: CuentaMl, claimId: string, leer: Leer = leerDe(cuenta)): Promise<number> {
   const org = cuenta.organizacionId;
   const r = await leer(`/post-purchase/v1/claims/${claimId}`);
-  if (r.status !== 200) throw new Error(`reclamo ${claimId}: ML contestó ${r.status}`);
+  if (r.status !== 200) throw new Error(`reclamo ${claimId}: ${motivoMl(r)}`);
   const c = r.datos as ReclamoMl;
   const antes = await una<{ id: string; estado: string; etapa: string | null; motivo_id: string | null; motivo: string | null; devolucion_estado: string | null; pedido_id: string | null }>(
     "select id, estado, etapa, motivo_id, motivo, devolucion_estado, pedido_id from reclamo where organizacion_id = $1 and origen = 'mercadolibre' and id_externo = $2",
@@ -306,13 +306,22 @@ export async function importarReclamoDeNotificacion(cuenta: CuentaMl, recurso: s
 /** El barrido de seguridad: los reclamos abiertos (todas las páginas) y los
  *  últimos cerrados. Sólo se vuelve a traer entero el que cambió en ML. Los
  *  que en Laucen siguen abiertos y ML ya no lista como abiertos, también. */
-export async function barrerReclamos(cuenta: CuentaMl, hastaMs: number, leer: Leer = leerDe(cuenta)): Promise<{ revisados: number; importados: number }> {
+/** Lo que contestó ML, corto, para decir por qué falló. */
+function motivoMl(r: RespuestaMl): string {
+  const d = r.datos as { message?: string; error?: string } | string | null;
+  const txt = typeof d === "string" ? d : d?.message || d?.error || "";
+  const que = r.status === 401 ? "la cuenta está desconectada" : r.status === 403 ? "ML no da permiso de reclamos a esta cuenta"
+    : r.status === 0 ? "ML no respondió" : `ML contestó ${r.status}`;
+  return `${que}${txt ? ` (${String(txt).slice(0, 120)})` : ""}`;
+}
+
+export async function barrerReclamos(cuenta: CuentaMl, hastaMs: number, leer: Leer = leerDe(cuenta)): Promise<{ revisados: number; importados: number; errores: string[] }> {
   const org = cuenta.organizacionId;
   const vistos: ReclamoMl[] = [];
   const abiertosMl = new Set<string>();
   for (let offset = 0; offset < 1000; offset += 50) {
     const r = await leer(`/post-purchase/v1/claims/search?status=opened&offset=${offset}&limit=50`);
-    if (r.status !== 200) throw new Error(`reclamos abiertos: ML contestó ${r.status}`);
+    if (r.status !== 200) throw new Error(`al buscar los reclamos, ${motivoMl(r)}`);
     const d = r.datos as { data?: ReclamoMl[]; paging?: { total?: number } };
     for (const c of d.data ?? []) { vistos.push(c); abiertosMl.add(String(c.id)); }
     if (!d.data?.length || offset + 50 >= (d.paging?.total ?? 0)) break;
@@ -329,13 +338,20 @@ export async function barrerReclamos(cuenta: CuentaMl, hastaMs: number, leer: Le
     if (!l || l.ml_actualizado !== c.last_updated) aTraer.add(String(c.id));
   }
   for (const [idExt, l] of locales) if (l.estado !== "resuelto" && !abiertosMl.has(idExt)) aTraer.add(idExt);
+  // Un reclamo que falla no frena a los demás: se anota y se sigue.
   let importados = 0;
+  const errores: string[] = [];
   for (const idExt of aTraer) {
     if (Date.now() > hastaMs) break;
-    await importarReclamo(cuenta, idExt, leer);
-    importados++;
+    try {
+      await importarReclamo(cuenta, idExt, leer);
+      importados++;
+    } catch (e) {
+      console.error("[reclamos] importar", cuenta.id, idExt, e);
+      errores.push(`${idExt}: ${(e as Error).message}`.slice(0, 200));
+    }
   }
-  return { revisados: vistos.length, importados };
+  return { revisados: vistos.length, importados, errores };
 }
 
 /** "Actualizar" de la ficha: vuelve a leer el reclamo de ML (sólo lectura). */

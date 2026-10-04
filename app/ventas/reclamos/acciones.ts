@@ -20,14 +20,27 @@ export async function accionTraerReclamos() {
   await intentar(LISTA, async () => {
     const cuentas = (await cuentasDe(s.org.id)).filter((c) => c.canalId && c.estado === "activa");
     if (cuentas.length === 0) throw new ErrorErp("No hay ninguna cuenta de Mercado Libre conectada a un canal.");
+    // Las cuentas en paralelo; cada una dice qué le pasó, sin esconder el motivo.
     let importados = 0;
-    const fallaron: string[] = [];
-    for (const c of cuentas) {
-      try { importados += (await barrerReclamos(c, Date.now() + 50_000)).importados; }
-      catch (e) { console.error("[reclamos] barrido", c.id, e); fallaron.push(c.nickname ?? `cuenta ${c.id}`); }
-    }
+    const problemas: string[] = [];
+    let fallaronTodas = true;
+    await Promise.all(cuentas.map(async (c) => {
+      const nombre = c.nickname ?? `cuenta ${c.id}`;
+      try {
+        const r = await barrerReclamos(c, Date.now() + 45_000);
+        importados += r.importados;
+        fallaronTodas = false;
+        if (r.errores.length) problemas.push(`${nombre}: ${r.errores.length} reclamo${r.errores.length === 1 ? "" : "s"} no se pudo traer (${r.errores[0]})`);
+      } catch (e) {
+        console.error("[reclamos] barrido", c.id, e);
+        problemas.push(`${nombre}: ${(e as Error).message}`);
+      }
+    }));
     revalidatePath(LISTA);
-    if (fallaron.length) throw new ErrorErp(`No se pudieron traer los reclamos de ${fallaron.join(", ")}.`);
+    if (fallaronTodas) throw new ErrorErp(`No se pudieron traer los reclamos. ${problemas.join(" · ")}`);
+    if (problemas.length) {
+      return `Traídos ${importados} reclamo${importados === 1 ? "" : "s"} nuevo${importados === 1 ? "" : "s"} o con cambios. Con problemas: ${problemas.join(" · ")}`;
+    }
     return importados ? `Listo: ${importados} reclamo${importados === 1 ? "" : "s"} nuevo${importados === 1 ? "" : "s"} o con cambios.` : "Listo: no hay reclamos nuevos.";
   });
 }

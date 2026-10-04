@@ -3,6 +3,7 @@
 // no se mezcla con el de otra persona que use la misma computadora).
 
 import { consulta, una } from "@/lib/erp/base";
+import { claveVisto } from "@/lib/historial-clave";
 
 export type Visto = { href: string; titulo: string; tipo: string };
 export const MAX_HISTORIAL = 15;
@@ -15,7 +16,9 @@ const limpio = (v: unknown): Visto[] =>
 
 export async function historialDe(usuarioId: string, org: string): Promise<Visto[]> {
   const f = await una<{ historial: unknown }>("select historial from usuario_preferencia where usuario_id = $1 and organizacion_id = $2", [usuarioId, org]);
-  return limpio(f?.historial);
+  // Sin repetidos (lo guardado antes del arreglo podía tener el mismo registro dos veces): queda el más nuevo.
+  const vistas = new Set<string>();
+  return limpio(f?.historial).filter((x) => { const k = claveVisto(x.href); if (vistas.has(k)) return false; vistas.add(k); return true; });
 }
 
 async function guardar(usuarioId: string, org: string, lista: Visto[]) {
@@ -30,7 +33,8 @@ export async function anotarVisto(usuarioId: string, org: string, visto: Visto):
   const [v] = limpio([visto]);
   const actual = await historialDe(usuarioId, org);
   if (!v) return actual;
-  const nueva = [v, ...actual.filter((x) => x.href !== v.href)].slice(0, MAX_HISTORIAL);
+  // Si ya estaba (aunque se haya abierto de otra manera), sube arriba de todo: nunca se repite.
+  const nueva = [v, ...actual.filter((x) => claveVisto(x.href) !== claveVisto(v.href))].slice(0, MAX_HISTORIAL);
   await guardar(usuarioId, org, nueva);
   return nueva;
 }

@@ -104,7 +104,7 @@ Las acciones que Mercado Libre ofrece pero Laucen todavía no hace (mandar archi
 
 ### Ver lo último de un reclamo de Mercado Libre
 
-Apretá **"Actualizar desde ML"** (en la ficha) o **"Traer reclamos de ML"** (en la lista, para todos). Sólo leen: no cambian nada en Mercado Libre.
+Apretá **"Actualizar desde ML"** (en la ficha) o **"Traer reclamos de ML"** (en la lista, para todos). Sólo leen: no cambian nada en Mercado Libre. "Traer reclamos de ML" revisa todas las cuentas a la vez; si alguna no se pudo traer (o algún reclamo puntual), el aviso dice cuál y por qué (por ejemplo "ML no da permiso de reclamos a esta cuenta" o "la cuenta está desconectada"), y lo de las demás cuentas entra igual.
 
 ### Cargar un reclamo de la web o el local
 
