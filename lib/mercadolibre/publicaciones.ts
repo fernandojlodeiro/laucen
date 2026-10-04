@@ -87,8 +87,9 @@ async function refrescarPublicacion(cuenta: CuentaMl, pubId: number, it: ItemMl,
     update publicacion set titulo = $3, categoria_externa = $4, tipo_publicacion = $5, precio_canal = $7,
            cantidad_publicada = $8, ultima_sincronizacion_ts = now(),
            -- Una variación "pausada" por Laucen sigue activa en ML con 0 unidades.
-           estado = case when pausada_por_stock and variacion_externa is not null and $8 = 0 and $6 = 'activa' then 'pausada' else $6 end,
+           estado = case when (pausada_por_stock or pausada_manual) and variacion_externa is not null and $8 = 0 and $6 = 'activa' then 'pausada' else $6 end,
            pausada_por_stock = pausada_por_stock and ($6 = 'pausada' or (variacion_externa is not null and $8 = 0)),
+           pausada_manual = pausada_manual and ($6 = 'pausada' or (variacion_externa is not null and $8 = 0)),
            datos_externos = jsonb_build_object('logistica', $9::text, 'permalink', $10::text, 'catalogo', $11::boolean, 'user_product_id', $12::text)
      where id = $2 and organizacion_id = $1`,
     [cuenta.organizacionId, pubId, f.titulo, f.categoria, f.tipo, estado, f.precio, f.stock, f.logistica, f.permalink, !!it.catalog_listing, it.user_product_id ?? null]);

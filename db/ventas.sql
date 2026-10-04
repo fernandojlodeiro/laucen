@@ -58,6 +58,9 @@ alter table publicacion add column if not exists variacion_externa text;
 alter table publicacion add column if not exists cantidad_publicada int;
 alter table publicacion add column if not exists pausada_por_stock boolean not null default false;
 alter table publicacion add column if not exists precio_canal numeric(16, 2);
+-- Pausada A MANO por el usuario (botón "Pausar" de Publicaciones, 4/10): la automatización
+-- de stock no la reactiva nunca; sólo la saca de ahí el usuario ("Sacar la pausa").
+alter table publicacion add column if not exists pausada_manual boolean not null default false;
 alter table publicacion add column if not exists datos_externos jsonb not null default '{}';
 drop index if exists publicacion_externa;
 create unique index if not exists publicacion_externa_var on publicacion (canal_id, id_externo, coalesce(variacion_externa, '')) where id_externo is not null;

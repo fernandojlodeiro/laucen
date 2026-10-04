@@ -26,7 +26,7 @@ export type PedidoMl = { metodo: "PUT" | "POST" | "DELETE"; ruta: string; cuerpo
 
 /** Lo que se graba en Laucen cuando ML acepta el cambio. */
 export type Efecto = {
-  publicacion?: { id: number; estado?: "activa" | "pausada" | "cerrada"; pausada_por_stock?: boolean; cantidad_publicada?: number; precio_canal?: number };
+  publicacion?: { id: number; estado?: "activa" | "pausada" | "cerrada"; pausada_por_stock?: boolean; pausada_manual?: boolean; cantidad_publicada?: number; precio_canal?: number };
   /** Una acción sobre un reclamo (lib/mercadolibre/reclamos.ts): queda en su historia. */
   reclamo?: { id: number; descripcion: string };
 };
@@ -257,10 +257,10 @@ async function aplicarEfecto(org: string, e: Efecto | null) {
   const p = e?.publicacion;
   if (!p?.id) return;
   await consulta(`
-    update publicacion set estado = coalesce($3, estado), pausada_por_stock = coalesce($4, pausada_por_stock),
+    update publicacion set estado = coalesce($3, estado), pausada_por_stock = coalesce($4, pausada_por_stock), pausada_manual = coalesce($7, pausada_manual),
            cantidad_publicada = coalesce($5, cantidad_publicada), precio_canal = coalesce($6, precio_canal), ultima_sincronizacion_ts = now()
      where id = $2 and organizacion_id = $1`,
-    [org, p.id, p.estado ?? null, p.pausada_por_stock ?? null, p.cantidad_publicada ?? null, p.precio_canal ?? null]);
+    [org, p.id, p.estado ?? null, p.pausada_por_stock ?? null, p.cantidad_publicada ?? null, p.precio_canal ?? null, p.pausada_manual ?? null]);
 }
 
 /** Lo que pasó con una acción sobre un reclamo, en su historia. Si salió,
