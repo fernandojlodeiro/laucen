@@ -385,3 +385,18 @@ create unique index if not exists movimiento_fondos_pedido on movimiento_fondos 
 -- asegurarCuentasDeCanales cuando el medio tiene su access token cargado).
 alter table cuenta_fondos add column if not exists medio_pago_id bigint references medio_pago(id) on delete set null;
 create unique index if not exists cuenta_fondos_medio_pago on cuenta_fondos (organizacion_id, medio_pago_id) where medio_pago_id is not null;
+
+-- ── Varias razones sociales en una organización (4/10) ────────────────
+-- Stock, catálogo, clientes, proveedores y plan de cuentas se comparten. Cada
+-- documento y cada cuenta lleva la razón social (emisor) a la que pertenece:
+-- compras y despachos (a nombre de quién), cuentas corrientes, cuentas de
+-- fondos (el banco o la Mercado Pago es de un CUIT), recibos, asientos
+-- (de ahí salen los libros por razón social) y lotes de Mis Comprobantes.
+-- Una fila que nace sin razón social toma la principal (disparador).
+select emisor_columna('factura_compra');
+select emisor_columna('despacho_importacion');
+select emisor_columna('cc_movimiento');
+select emisor_columna('cuenta_fondos');
+select emisor_columna('recibo');
+select emisor_columna('asiento');
+select emisor_columna('arca_mc_lote');

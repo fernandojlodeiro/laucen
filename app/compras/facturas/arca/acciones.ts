@@ -13,6 +13,7 @@ import { tienePermiso } from "@/lib/permisos";
 import { crearCuenta } from "@/lib/administracion/contabilidad";
 import { leerCsvArca, leerTablaArca } from "@/lib/administracion/arca-mc-leer";
 import { guardarLote, importarLote } from "@/lib/administracion/arca-mc";
+import { emisorDe } from "@/lib/arca/facturar";
 
 const LISTA = "/compras/facturas";
 const previa = (lote: number) => `${LISTA}/arca/${lote}`;
@@ -77,7 +78,9 @@ export async function accionSubirArca(fd: FormData) {
     const esExcel = /\.xlsx$/i.test(archivo.name);
     if (!esExcel && !/\.(csv|txt)$/i.test(archivo.name)) throw new ErrorErp("Tiene que ser el .csv (o el .xlsx) de \"Mis Comprobantes – Recibidos\".");
     const lectura = esExcel ? leerTablaArca(await tablaDeExcel(buf)) : leerCsvArca(decodificar(buf));
-    const lote = await guardarLote(s.org.id, archivo.name, lectura, s.usuario.id);
+    // El archivo es del CUIT con el que se bajó de ARCA: la razón social elegida (o la principal).
+    const emisor = await emisorDe(s.org.id, id(fd, "emisor") || null);
+    const lote = await guardarLote(s.org.id, archivo.name, lectura, s.usuario.id, emisor?.id ?? null);
     return { ir: previa(lote) };
   });
 }

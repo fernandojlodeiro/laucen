@@ -34,10 +34,11 @@ export const ESTADOS_CBTE: Record<EstadoCbte, { texto: string; tono: "verde" | "
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
-export async function guardarLote(org: string, archivo: string, l: LecturaArca, usuarioId: string): Promise<number> {
+/** El lote es de una razón social (`emisorId`): Mis Comprobantes se baja de ARCA con el CUIT de cada una. */
+export async function guardarLote(org: string, archivo: string, l: LecturaArca, usuarioId: string, emisorId: number | null = null): Promise<number> {
   if (!l.comprobantes.length) throw new ErrorErp(l.errores[0] ?? "El archivo no tiene comprobantes.");
-  const r = await una<{ id: number }>(`insert into arca_mc_lote (organizacion_id, archivo, version, comprobantes, errores, usuario_id)
-    values ($1, $2, $3, $4::jsonb, $5::jsonb, $6) returning id::int`, [org, archivo.slice(0, 200), l.version, JSON.stringify(l.comprobantes), JSON.stringify(l.errores), usuarioId]);
+  const r = await una<{ id: number }>(`insert into arca_mc_lote (organizacion_id, archivo, version, comprobantes, errores, usuario_id, emisor_id)
+    values ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7) returning id::int`, [org, archivo.slice(0, 200), l.version, JSON.stringify(l.comprobantes), JSON.stringify(l.errores), usuarioId, emisorId]);
   return r!.id;
 }
 
@@ -53,8 +54,10 @@ const clave = (c: { cuit: string; letra: string; nc: boolean; nd: boolean; punto
 /** Los comprobantes del lote con su estado de hoy y los proveedores con su cuenta. */
 export async function vistaPrevia(org: string, loteId: number) {
   const lote = await una<{ id: number; archivo: string; version: string | null; comprobantes: CbteArca[]; errores: string[]; estado: string;
-    resultado: Resultado | null; creado_ts: Date }>(
-    "select id::int, archivo, version, comprobantes, errores, estado, resultado, creado_ts from arca_mc_lote where id = $1 and organizacion_id = $2", [loteId, org]);
+    resultado: Resultado | null; creado_ts: Date; emisor_id: number | null; emisor: string | null }>(
+    `select id::int, archivo, version, comprobantes, errores, estado, resultado, creado_ts, emisor_id::int,
+            (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = arca_mc_lote.emisor_id) emisor
+       from arca_mc_lote where id = $1 and organizacion_id = $2`, [loteId, org]);
   if (!lote) return null;
   await asegurarPlan(org);
   const cbtes = lote.comprobantes;
@@ -69,7 +72,7 @@ export async function vistaPrevia(org: string, loteId: number) {
     select f.id::int, regexp_replace(p.cuit, '\\D', '', 'g') cuit, f.letra, f.es_nota_credito, f.es_nota_debito, f.punto_venta, f.numero::text, f.total, f.moneda, f.estado
       from factura_compra f join proveedor p on p.id = f.proveedor_id
      where f.organizacion_id = $1 and f.estado <> 'anulada' and regexp_replace(p.cuit, '\\D', '', 'g') = any($2::text[])
-       and f.numero = any($3::bigint[])`, [org, cuits, [...new Set(cbtes.map((c) => c.numero))]]);
+       and f.numero = any($3::bigint[]) and f.emisor_id is not distinct from $4`, [org, cuits, [...new Set(cbtes.map((c) => c.numero))], lote.emisor_id]);
   const existentes = new Map(ya.map((f) => [clave({ cuit: f.cuit, letra: f.letra, nc: f.es_nota_credito, nd: f.es_nota_debito, puntoVenta: f.punto_venta, numero: Number(f.numero) }), f]));
   const roles = Object.fromEntries((await consulta<{ rol: string; id: number }>(
     "select rol, id::int from plan_cuenta where organizacion_id = $1 and rol in ('gastos_varios', 'comisiones')", [org])).map((r) => [r.rol, r.id]));
@@ -145,10 +148,10 @@ export async function importarLote(org: string, loteId: number, cuentas: Record<
       const notas = ["Importada de ARCA (Mis Comprobantes).", f.c.numeroHasta ? `Números ${f.c.numero} a ${f.c.numeroHasta}.` : null, a.aviso].filter(Boolean).join(" ");
       const r = await una<{ id: number }>(`
         insert into factura_compra (organizacion_id, proveedor_id, letra, es_nota_credito, es_nota_debito, punto_venta, numero, fecha, vencimiento, moneda, cotizacion,
-                                    percepcion_iva, percepcion_iibb, otros_impuestos, no_gravado, cuenta_gasto_id, notas, usuario_id, origen, cae)
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'arca_mc', $18) returning id::int`,
+                                    percepcion_iva, percepcion_iibb, otros_impuestos, no_gravado, cuenta_gasto_id, notas, usuario_id, origen, cae, emisor_id)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'arca_mc', $18, $19) returning id::int`,
         [org, pid, f.c.letra, f.c.nc, f.c.nd, f.c.puntoVenta, f.c.numero, f.c.fecha, f.c.moneda, f.c.moneda === "USD" ? f.c.cotizacion : 1,
-          a.percepcionIva, a.percepcionIibb, a.otrosImpuestos, a.noGravado, cuentas[f.c.cuit] ?? null, notas, usuarioId, f.c.cae]);
+          a.percepcionIva, a.percepcionIibb, a.otrosImpuestos, a.noGravado, cuentas[f.c.cuit] ?? null, notas, usuarioId, f.c.cae, v.lote.emisor_id]);
       fid = r!.id;
       let orden = 0;
       for (const l of a.lineas) {

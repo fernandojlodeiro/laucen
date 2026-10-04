@@ -217,6 +217,15 @@ Todas las de último nivel son **automáticas**: los asientos las buscan por su 
 - **Resultados**: sólo cuentas de ingreso y egreso, del período. Ingresos = haber − debe; egresos = debe − haber. Resultado = ingresos − egresos (ganancia si da positivo, pérdida si da negativo).
 - El diario muestra hasta 2.000 asientos por período, y el mayor hasta 3.000 movimientos.
 
+## Con más de una razón social
+
+El **plan de cuentas es uno solo**, compartido. Lo que pertenece a una razón social es cada **asiento**: los automáticos toman la razón social del documento que los origina (la factura de venta, la compra, el despacho, el recibo, el movimiento de la cuenta de fondos…) y el asiento manual la lleva en el campo **"Razón social"** del formulario.
+
+- Arriba de **Libro diario, Mayor, Sumas y saldos y Resultados** hay un selector **"Razón social"**: **"Todas"** (la suma de las empresas) o una sola. Cada una se ve como su propio juego de libros.
+- La **numeración de los asientos es una sola** para toda la organización (no se reinicia por razón social); en cada libro filtrado se ven sólo los de esa razón social.
+- Los ajustes de stock (inventario) se asientan en la razón social principal, porque el stock es compartido.
+- Una transferencia entre cuentas de fondos de razones sociales distintas no existe en Caja y bancos; si hace falta (un préstamo entre las empresas), se asienta a mano.
+
 ## Preguntas frecuentes
 
 **¿Tengo que cargar los asientos de las ventas?**
@@ -252,3 +261,4 @@ Con un asiento manual tildando "Es el asiento de apertura".
 - [Caja y bancos](/administracion/tesoreria)
 - [Ajustes de stock](/stock/ajustes)
 - [Libros de IVA](/administracion/libros-iva)
+- [Razones sociales](/config/razones-sociales)

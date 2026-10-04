@@ -8,13 +8,14 @@ import { useState } from "react";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 
-export default function SubirCertificado({ accion, ambiente }: { accion: (fd: FormData) => Promise<void>; ambiente: string }) {
+export default function SubirCertificado({ accion, ambiente, rs }: { accion: (fd: FormData) => Promise<void>; ambiente: string; rs: number }) {
   const [pem, setPem] = useState("");
   const [archivo, setArchivo] = useState<string | null>(null);
   const leer = async (f: File | undefined) => { if (f) { setPem(await f.text()); setArchivo(f.name); } };
   return (
     <form action={accion} className="grid gap-2">
       <input type="hidden" name="ambiente" value={ambiente} />
+      <input type="hidden" name="rs" value={rs} />
       <div className="flex flex-wrap items-center gap-2">
         <label className={`${SUAVE} cursor-pointer`}>
           Elegir el archivo que te dio ARCA

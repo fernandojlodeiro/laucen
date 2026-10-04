@@ -17,6 +17,7 @@ import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, TituloSeccion, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
+import { emisoresDe } from "@/lib/arca/facturar";
 import { sembrarEjemploCanales, canalesDeEjemplo } from "./ejemplo";
 import CuentaMl from "./CuentaMl";
 import { AccionesExcel } from "@/app/listas/piezas";
@@ -54,20 +55,24 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
   const base = await LISTA_CANALES.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
   const canales = await consulta<{
     id: number; nombre: string; tipo: string; lista_id: number | null; lista: string | null; estado: string;
-    umbral: number | null; tiene_llave: boolean; depositos: string | null; ml: string | null;
+    umbral: number | null; tiene_llave: boolean; depositos: string | null; ml: string | null; emisor_id: number | null; emisor: string | null;
   }>(`
     select c.id::int, c.nombre, c.tipo, c.lista_precios_id::int lista_id, l.nombre lista, c.estado, c.umbral_pausa_default umbral,
            c.config ? 'token' tiene_llave,
            (select string_agg(d.nombre, ', ' order by cd.prioridad, d.nombre) from canal_deposito cd join deposito d on d.id = cd.deposito_id
              where cd.canal_id = c.id) depositos,
-           (select mc.estado from meli_cuenta mc where mc.canal_id = c.id) ml
+           (select mc.estado from meli_cuenta mc where mc.canal_id = c.id) ml,
+           c.emisor_id::int, (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = c.emisor_id) emisor
       from ${base.desde} where ${base.donde} order by ${base.orden}`, base.valores);
   const listas = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from lista_precios where organizacion_id = $1 and estado = 'activa' order by orden, nombre", [s.org.id]);
+  const razones = await emisoresDe(s.org.id);
+  const multi = razones.length > 1;
+  const principal = razones.find((x) => x.es_principal);
   const elegido = canales.find((c) => c.id === Number(sp.c));
   const ordenados = ordenarEnMemoria(canales, sp, {
     nombre: (c) => c.nombre, tipo: (c) => TIPOS[c.tipo] ?? c.tipo, lista: (c) => c.lista, depositos: (c) => c.depositos,
-    estado: (c) => c.estado, ml: (c) => c.ml, umbral: (c) => c.umbral, llave: (c) => (c.tiene_llave ? 1 : 0),
+    estado: (c) => c.estado, ml: (c) => c.ml, emisor: (c) => c.emisor ?? principal?.nombre ?? principal?.razon_social, umbral: (c) => c.umbral, llave: (c) => (c.tiene_llave ? 1 : 0),
   });
   const pagina = paginarEnMemoria(ordenados, sp);
   const crudo = (await cookies()).get("token_nuevo")?.value?.match(/^(\d+):([0-9a-f]{64})$/);
@@ -123,15 +128,15 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
           <thead className={THEAD}>
             <tr>
               <ThOrden col="nombre">Canal</ThOrden><ThOrden col="tipo">Tipo</ThOrden><ThOrden col="lista">Lista de precios</ThOrden><ThOrden col="depositos">Vende desde</ThOrden>
-              <ThOrden col="estado" porDefecto>Estado</ThOrden><ThOrden col="ml">Mercado Libre</ThOrden><ThOrden col="umbral" n>Umbral de pausa</ThOrden>
+              <ThOrden col="estado" porDefecto>Estado</ThOrden><ThOrden col="ml">Mercado Libre</ThOrden>{multi && <ThOrden col="emisor" title="La razón social con la que se factura lo que vende este canal; sin elegir, la principal">Factura con</ThOrden>}<ThOrden col="umbral" n>Umbral de pausa</ThOrden>
               <ThOrden col="llave" title="Para que otro sistema cargue pedidos o lea el catálogo por la API; hoy no la usa nadie">Llave API</ThOrden><th />
             </tr>
           </thead>
           <tbody>
-            {canales.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>{q ? "Ningún canal coincide." : "No hay canales. Agregá el primero con «Nuevo canal»."}</td></tr>}
+            {canales.length === 0 && <tr><td colSpan={multi ? 10 : 9} className={`${TD} text-[#5C6B76]`}>{q ? "Ningún canal coincide." : "No hay canales. Agregá el primero con «Nuevo canal»."}</td></tr>}
             {pagina.map((c) => editar === c.id ? (
               <tr key={c.id} className={`${TR} bg-[#FAFBFC]`}>
-                <td colSpan={9} className={TD}>
+                <td colSpan={multi ? 10 : 9} className={TD}>
                   <form action={accionGuardarCanal} className="flex flex-wrap items-end gap-2">
                     <input type="hidden" name="id" value={c.id} />
                     <input type="hidden" name="volver" value={aqui} />
@@ -139,6 +144,13 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
                       <input name="nombre" defaultValue={c.nombre} className={`${CAMPO} w-full`} autoFocus /></label>
                     <label><span className={ETIQUETA}>Tipo</span>{selectorTipo(c.tipo)}</label>
                     <label><span className={ETIQUETA}>Lista de precios</span>{selectorLista(c.lista_id)}</label>
+                    {multi && (
+                      <label><span className={ETIQUETA}>Factura con</span>
+                        <select name="emisor" defaultValue={c.emisor_id ?? ""} className={CAMPO}>
+                          <option value="">La principal ({principal?.nombre ?? principal?.razon_social})</option>
+                          {razones.map((x) => <option key={x.id} value={x.id}>{x.nombre ?? x.razon_social}</option>)}
+                        </select></label>
+                    )}
                     <label><span className={ETIQUETA}>Estado</span>
                       <select name="estado" defaultValue={c.estado} className={CAMPO}>
                         <option value="activo">Activo</option><option value="pausado">Pausado</option><option value="archivado">Archivado</option>
@@ -162,6 +174,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
                 <td className={`${TD} whitespace-nowrap`}>{c.tipo === "mercadolibre"
                   ? <Link href={url(BASE, { ...conFiltros, c: c.id })}><Estado texto={c.ml === "activa" ? "Conectada" : "Desconectada"} tono={c.ml === "activa" ? "verde" : "rojo"} /></Link>
                   : <span className="text-[#5C6B76]">—</span>}</td>
+                {multi && <td className={TD}>{c.emisor ?? <span className="text-[#5C6B76]">La principal</span>}</td>}
                 <td className={TDN}>{c.umbral ?? <span className="text-[#5C6B76]">hereda</span>}</td>
                 <td className={`${TD} whitespace-nowrap`}><Link href={url(BASE, { ...conFiltros, c: c.id })} className="hover:underline">{c.tiene_llave ? "Tiene" : <span className="text-[#5C6B76]">sin llave</span>}</Link></td>
                 <td className={`${TD} text-right whitespace-nowrap`}>

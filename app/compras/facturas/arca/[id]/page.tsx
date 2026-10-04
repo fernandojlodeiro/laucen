@@ -50,7 +50,7 @@ export default async function VistaPreviaArca({ params, searchParams }: { params
 
   return (
     <Pantalla titulo="Importar de ARCA (Mis Comprobantes)" camino={[{ texto: "Importar de ARCA" }]}
-      subtitulo={<>{v.lote.archivo} · {v.filas.length} comprobante{v.filas.length === 1 ? "" : "s"} · columnas {v.lote.version === "nueva" ? "con IVA por alícuota" : "con el IVA en un solo número (se deduce la alícuota)"}</>}
+      subtitulo={<>{v.lote.archivo} · {v.lote.emisor && <>a nombre de {v.lote.emisor} · </>}{v.filas.length} comprobante{v.filas.length === 1 ? "" : "s"} · columnas {v.lote.version === "nueva" ? "con IVA por alícuota" : "con el IVA en un solo número (se deduce la alícuota)"}</>}
       acciones={n.nueva > 0 ? <button type="submit" form="importar" className={VERDE}>Importar {n.nueva} comprobante{n.nueva === 1 ? "" : "s"} nuevo{n.nueva === 1 ? "" : "s"}</button> : undefined}>
       <Avisos sp={sp} />
       {v.lote.resultado && (

@@ -18,8 +18,7 @@ import {
   accionGuardarCliente, accionBorrarCliente, accionAgregarDireccion, accionGuardarDireccion,
   accionDireccionPrincipal, accionBorrarDireccion, accionQuitarIdentidad, accionValidarPadron,
 } from "../acciones";
-import { emisorDe } from "@/lib/arca/facturar";
-import { estadoCredencial } from "@/lib/arca/credenciales";
+import { emisorConPadron } from "@/lib/arca/facturar";
 
 
 export const dynamic = "force-dynamic";
@@ -58,9 +57,8 @@ export default async function FichaCliente({ params, searchParams }: { params: P
   // La ficha abre en vista; ?editar=ficha la edita (?editar=<id> es el lápiz de una dirección).
   const editando = editandoFicha(sp);
   const editar = Number(sp.editar) || 0;
-  // ¿Se puede consultar el padrón de ARCA? Hace falta emisor con certificado.
-  const emisor = c.cuit ? await emisorDe(s.org.id) : null;
-  const conPadron = !!emisor && !!(await estadoCredencial(s.org.id, emisor.ambiente))?.tiene_certificado;
+  // ¿Se puede consultar el padrón de ARCA? Hace falta una razón social conectada.
+  const conPadron = c.cuit ? !!(await emisorConPadron(s.org.id)) : false;
 
   const [direcciones, identidades, pedidos, listas] = await Promise.all([
     consulta<Direccion>(`

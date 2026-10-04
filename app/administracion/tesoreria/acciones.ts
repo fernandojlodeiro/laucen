@@ -29,6 +29,14 @@ async function cuentaContable(org: string, fd: FormData, k = "cuenta_contable_id
   return c;
 }
 
+/** La razón social elegida en el formulario (vacía o sin la caja: la principal). */
+async function emisorDelForm(org: string, fd: FormData): Promise<number | null> {
+  const e = id(fd, "emisor");
+  if (!e) return (await una<{ id: number }>("select id::int from emisor where organizacion_id = $1 and es_principal", [org]))?.id ?? null;
+  if (!(await una("select 1 from emisor where id = $1 and organizacion_id = $2", [e, org]))) throw new ErrorErp("Esa razón social no existe.");
+  return e;
+}
+
 function datosCuenta(fd: FormData) {
   const nombre = texto(fd, "nombre");
   if (!nombre) throw new ErrorErp("La cuenta necesita un nombre.");
@@ -44,9 +52,9 @@ export async function accionCrearCuenta(fd: FormData) {
   const s = await entrarErp("tesoreria_ver");
   await intentar(BASE, async () => {
     const d = datosCuenta(fd);
-    await consulta(`insert into cuenta_fondos (organizacion_id, nombre, tipo, moneda, banco, cbu, alias, saldo_inicial, saldo_inicial_fecha, cuenta_contable_id)
-                    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [s.org.id, d.nombre, d.tipo, d.moneda, d.banco, d.cbu, d.alias, d.saldoInicial, d.saldoInicialFecha, await cuentaContable(s.org.id, fd)]);
+    await consulta(`insert into cuenta_fondos (organizacion_id, nombre, tipo, moneda, banco, cbu, alias, saldo_inicial, saldo_inicial_fecha, cuenta_contable_id, emisor_id)
+                    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [s.org.id, d.nombre, d.tipo, d.moneda, d.banco, d.cbu, d.alias, d.saldoInicial, d.saldoInicialFecha, await cuentaContable(s.org.id, fd), await emisorDelForm(s.org.id, fd)]);
     // Una de Mercado Pago sin cuenta contable elegida recibe la suya propia.
     if (d.tipo === "mercadopago") await asegurarCuentasDeCanalesSinFallar(s.org.id);
     revalidatePath(BASE);
@@ -60,14 +68,17 @@ export async function accionGuardarCuenta(fd: FormData) {
     const d = datosCuenta(fd);
     const cuentaId = id(fd);
     // La moneda no cambia si ya tiene movimientos (los importes están en esa moneda).
-    const actual = await una<{ moneda: string; movs: number }>(`
-      select moneda, (select count(*) from movimiento_fondos m where m.cuenta_id = f.id)::int movs
+    const actual = await una<{ moneda: string; movs: number; emisor_id: number | null }>(`
+      select moneda, emisor_id::int, (select count(*) from movimiento_fondos m where m.cuenta_id = f.id)::int movs
         from cuenta_fondos f where id = $1 and organizacion_id = $2`, [cuentaId, s.org.id]);
     if (!actual) throw new ErrorErp("Esa cuenta no existe.");
     if (actual.movs && actual.moneda !== d.moneda) throw new ErrorErp("La cuenta ya tiene movimientos: no se le puede cambiar la moneda.");
+    // La razón social: sólo cambia si el formulario la trae y la cuenta todavía no tiene movimientos.
+    const emisor = fd.has("emisor") ? await emisorDelForm(s.org.id, fd) : actual.emisor_id;
+    if (actual.movs && emisor !== actual.emisor_id) throw new ErrorErp("La cuenta ya tiene movimientos: no se le puede cambiar la razón social.");
     await consulta(`update cuenta_fondos set nombre = $3, tipo = $4, moneda = $5, banco = $6, cbu = $7, alias = $8, saldo_inicial = $9,
-                           saldo_inicial_fecha = $10, cuenta_contable_id = $11 where id = $2 and organizacion_id = $1`,
-      [s.org.id, cuentaId, d.nombre, d.tipo, d.moneda, d.banco, d.cbu, d.alias, d.saldoInicial, d.saldoInicialFecha, await cuentaContable(s.org.id, fd)]);
+                           saldo_inicial_fecha = $10, cuenta_contable_id = $11, emisor_id = $12 where id = $2 and organizacion_id = $1`,
+      [s.org.id, cuentaId, d.nombre, d.tipo, d.moneda, d.banco, d.cbu, d.alias, d.saldoInicial, d.saldoInicialFecha, await cuentaContable(s.org.id, fd), emisor]);
     if (d.tipo === "mercadopago") await asegurarCuentasDeCanalesSinFallar(s.org.id);
     revalidatePath(BASE);
     return "Guardado.";

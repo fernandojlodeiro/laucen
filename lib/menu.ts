@@ -122,6 +122,7 @@ export const MENU: SeccionMenu[] = [
     texto: "Configuración",
     items: [
       { texto: "Empresa", href: "/config/empresa", permiso: "empresa_config" },
+      { texto: "Razones sociales", href: "/config/razones-sociales", permiso: "empresa_config" },
       { texto: "Facturación (ARCA)", href: "/config/arca", permiso: "facturacion_ver" },
       { texto: "Canales", href: "/config/canales", permiso: "canales_ver" },
       { texto: "Cola de Mercado Libre", href: "/config/canales/cola", permiso: "canales_ver" },

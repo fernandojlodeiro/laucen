@@ -29,7 +29,8 @@ export async function canalesConVentas(org: string) {
 }
 
 /** Los comprobantes de venta del período. */
-export async function ventasDelPeriodo(org: string, desde: string, hasta: string, canalId?: number | null): Promise<CbteIva[]> {
+/** Los libros son de una razón social (`emisorId`): cada CUIT presenta el suyo. Sin ella (null), de todas. */
+export async function ventasDelPeriodo(org: string, desde: string, hasta: string, canalId?: number | null, emisorId: number | null = null): Promise<CbteIva[]> {
   const filas = await consulta<{ id: number; fecha: string; tipo_cbte: number; punto_venta: number; numero: string; doc_tipo: number; doc_nro: string;
     receptor_nombre: string | null; receptor_condicion_iva: number | null; moneda: string; cotizacion: string; importe_total: string; importe_neto: string;
     importe_iva: string; iva_detalle: { id?: number; pct?: number; base: number; importe: number }[] | null; canal: string | null; canal_id: number | null }>(`
@@ -40,7 +41,7 @@ export async function ventasDelPeriodo(org: string, desde: string, hasta: string
       left join canal ca on ca.id = p.canal_id
      where c.organizacion_id = $1 and c.estado = 'autorizado' and c.ambiente = 'produccion' and c.numero is not null
        and c.fecha between $2::date and $3::date
-       and ($4::bigint is null or p.canal_id = $4)`, [org, desde, hasta, canalId ?? null]);
+       and ($4::bigint is null or p.canal_id = $4) and ($5::bigint is null or c.emisor_id = $5)`, [org, desde, hasta, canalId ?? null, emisorId]);
   return filas.map((f) => {
     const letraC = [11, 12, 13].includes(f.tipo_cbte);
     const total = Number(f.importe_total), neto = Number(f.importe_neto), iva = Number(f.importe_iva);
@@ -66,14 +67,14 @@ type FilaCompra = { id: number; fecha: string; letra: string; es_nota_credito: b
   proveedor_id: number; nombre: string; cuit: string | null; condicion_iva: string | null };
 
 /** Los comprobantes de compra del período (facturas y despachos) y los avisos que salen al armarlos. */
-export async function comprasDelPeriodo(org: string, desde: string, hasta: string): Promise<{ compras: CbteIva[]; avisos: AvisoLibro[] }> {
+export async function comprasDelPeriodo(org: string, desde: string, hasta: string, emisorId: number | null = null): Promise<{ compras: CbteIva[]; avisos: AvisoLibro[] }> {
   const avisos: AvisoLibro[] = [];
   const facturas = await consulta<FilaCompra>(`
     select f.id::int, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.letra, f.es_nota_credito, f.es_nota_debito, f.punto_venta, f.numero::text numero,
            f.moneda, f.cotizacion, f.neto, f.iva, f.iva_detalle, f.percepcion_iva, f.percepcion_iibb, f.otros_impuestos, f.no_gravado, f.total,
            p.id::int proveedor_id, coalesce(nullif(p.razon_social, ''), p.nombre) nombre, p.cuit, p.condicion_iva
       from factura_compra f join proveedor p on p.id = f.proveedor_id
-     where f.organizacion_id = $1 and f.estado = 'registrada' and f.fecha between $2::date and $3::date`, [org, desde, hasta]);
+     where f.organizacion_id = $1 and f.estado = 'registrada' and f.fecha between $2::date and $3::date and ($4::bigint is null or f.emisor_id = $4)`, [org, desde, hasta, emisorId]);
   const compras: CbteIva[] = [];
   for (const f of facturas) {
     const enlace = `/compras/facturas/${f.id}`;
@@ -118,7 +119,7 @@ export async function comprasDelPeriodo(org: string, desde: string, hasta: strin
     select d.id::int, to_char(d.fecha, 'YYYY-MM-DD') fecha, d.numero, d.cotizacion, d.fob_usd, d.flete_usd, d.seguro_usd, d.gastos, d.impuestos,
            coalesce(nullif(p.razon_social, ''), p.nombre) proveedor
       from despacho_importacion d left join proveedor p on p.id = d.proveedor_id
-     where d.organizacion_id = $1 and d.estado = 'registrado' and d.fecha between $2::date and $3::date`, [org, desde, hasta]);
+     where d.organizacion_id = $1 and d.estado = 'registrado' and d.fecha between $2::date and $3::date and ($4::bigint is null or d.emisor_id = $4)`, [org, desde, hasta, emisorId]);
   for (const d of despachos) {
     const enlace = `/compras/despachos/${d.id}`;
     const cot = Number(d.cotizacion);
@@ -144,7 +145,7 @@ export async function comprasDelPeriodo(org: string, desde: string, hasta: strin
 
 /** Los avisos que no salen de armar las filas: duplicados, cargados en el
  *  período con fecha de otro, borradores, ventas sin autorizar, etc. */
-export async function avisosDelPeriodo(org: string, desde: string, hasta: string, ventas: CbteIva[], compras: CbteIva[]): Promise<AvisoLibro[]> {
+export async function avisosDelPeriodo(org: string, desde: string, hasta: string, ventas: CbteIva[], compras: CbteIva[], emisorId: number | null = null): Promise<AvisoLibro[]> {
   const avisos: AvisoLibro[] = [];
   const fechaAr = (f: string) => f.split("-").reverse().join("/");
 
@@ -172,8 +173,8 @@ export async function avisosDelPeriodo(org: string, desde: string, hasta: string
       from factura_compra f join proveedor p on p.id = f.proveedor_id
      where f.organizacion_id = $1 and f.estado = 'registrada'
        and (coalesce(f.registrada_ts, f.creado_ts) at time zone 'America/Argentina/Buenos_Aires')::date between $2::date and $3::date
-       and f.fecha not between $2::date and $3::date
-     order by f.fecha`, [org, desde, hasta]);
+       and f.fecha not between $2::date and $3::date and ($4::bigint is null or f.emisor_id = $4)
+     order by f.fecha`, [org, desde, hasta, emisorId]);
   for (const f of otras) {
     avisos.push({ texto: `${f.es_nota_credito ? "NC" : "Factura"} ${f.letra} ${f.punto_venta != null ? String(f.punto_venta).padStart(5, "0") + "-" : ""}${f.numero ?? "s/n"} de ${f.nombre}: se cargó en este período pero tiene fecha ${fechaAr(f.fecha)}; está en el libro de ese mes (si ya se presentó, consultalo con el contador).`, enlace: `/compras/facturas/${f.id}` });
   }
@@ -181,19 +182,19 @@ export async function avisosDelPeriodo(org: string, desde: string, hasta: string
     select id::int, to_char(fecha, 'YYYY-MM-DD') fecha, numero from despacho_importacion
      where organizacion_id = $1 and estado = 'registrado'
        and (coalesce(registrado_ts, creado_ts) at time zone 'America/Argentina/Buenos_Aires')::date between $2::date and $3::date
-       and fecha not between $2::date and $3::date`, [org, desde, hasta]);
+       and fecha not between $2::date and $3::date and ($4::bigint is null or emisor_id = $4)`, [org, desde, hasta, emisorId]);
   for (const d of otrosDesp) avisos.push({ texto: `Despacho ${d.numero ?? "s/n"}: se registró en este período pero tiene fecha ${fechaAr(d.fecha)}.`, enlace: `/compras/despachos/${d.id}` });
 
   // Lo que tiene fecha del período y no entra.
   const [borr] = await consulta<{ facturas: number; despachos: number }>(`
-    select (select count(*)::int from factura_compra where organizacion_id = $1 and estado = 'borrador' and fecha between $2::date and $3::date) facturas,
-           (select count(*)::int from despacho_importacion where organizacion_id = $1 and estado = 'borrador' and fecha between $2::date and $3::date) despachos`, [org, desde, hasta]);
+    select (select count(*)::int from factura_compra where organizacion_id = $1 and estado = 'borrador' and fecha between $2::date and $3::date and ($4::bigint is null or emisor_id = $4)) facturas,
+           (select count(*)::int from despacho_importacion where organizacion_id = $1 and estado = 'borrador' and fecha between $2::date and $3::date and ($4::bigint is null or emisor_id = $4)) despachos`, [org, desde, hasta, emisorId]);
   if (borr.facturas) avisos.push({ texto: `${borr.facturas} factura(s) de compra del período siguen en borrador: no entran hasta registrarlas.`, enlace: "/compras/facturas" });
   if (borr.despachos) avisos.push({ texto: `${borr.despachos} despacho(s) del período siguen en borrador: no entran hasta registrarlos.`, enlace: "/compras/despachos" });
   const vent = await consulta<{ estado: string; ambiente: string; n: number }>(`
     select estado, ambiente, count(*)::int n from comprobante
-     where organizacion_id = $1 and fecha between $2::date and $3::date and not (estado = 'autorizado' and ambiente = 'produccion')
-     group by 1, 2`, [org, desde, hasta]);
+     where organizacion_id = $1 and fecha between $2::date and $3::date and not (estado = 'autorizado' and ambiente = 'produccion') and ($4::bigint is null or emisor_id = $4)
+     group by 1, 2`, [org, desde, hasta, emisorId]);
   const homo = vent.filter((v) => v.ambiente !== "produccion" && v.estado === "autorizado").reduce((s, v) => s + v.n, 0);
   const sinCae = vent.filter((v) => v.ambiente === "produccion" && v.estado !== "autorizado").reduce((s, v) => s + v.n, 0);
   if (homo) avisos.push({ texto: `${homo} comprobante(s) de venta de homologación (prueba) no entran en el libro.`, enlace: "/administracion/facturacion" });
@@ -201,9 +202,9 @@ export async function avisosDelPeriodo(org: string, desde: string, hasta: string
   return avisos;
 }
 
-/** Todo lo del período: ventas (de todos los canales), compras y avisos. */
-export async function libroIvaPeriodo(org: string, desde: string, hasta: string) {
-  const [ventas, { compras, avisos: avisosCompras }] = await Promise.all([ventasDelPeriodo(org, desde, hasta), comprasDelPeriodo(org, desde, hasta)]);
-  const avisos = [...avisosCompras, ...(await avisosDelPeriodo(org, desde, hasta, ventas, compras))];
+/** Todo lo del período de una razón social: ventas (de todos los canales), compras y avisos. */
+export async function libroIvaPeriodo(org: string, desde: string, hasta: string, emisorId: number | null = null) {
+  const [ventas, { compras, avisos: avisosCompras }] = await Promise.all([ventasDelPeriodo(org, desde, hasta, null, emisorId), comprasDelPeriodo(org, desde, hasta, emisorId)]);
+  const avisos = [...avisosCompras, ...(await avisosDelPeriodo(org, desde, hasta, ventas, compras, emisorId))];
   return { ventas, compras, avisos };
 }

@@ -43,6 +43,7 @@ async function cabecera(org: string, fd: FormData) {
   const seguro = numero(fd, "seguro_usd") ?? 0;
   if (flete < 0 || seguro < 0) throw new ErrorErp("El flete y el seguro no pueden ser negativos.");
   return {
+    emisorId: await deLaOrg(org, "emisor", id(fd, "emisor"), "La razón social"),
     numero: texto(fd, "numero"), proveedorId: await deLaOrg(org, "proveedor", id(fd, "proveedor"), "El proveedor"),
     fecha: fecha!, cot, flete, seguro, depositoId: await deLaOrg(org, "deposito", id(fd, "deposito"), "El depósito"), notas: texto(fd, "notas"),
   };
@@ -53,9 +54,9 @@ export async function accionCrearDespacho(fd: FormData) {
   await intentar(`${LISTA}/nuevo`, async () => {
     const c = await cabecera(s.org.id, fd);
     const r = await una<{ id: number }>(`
-      insert into despacho_importacion (organizacion_id, numero, proveedor_id, fecha, cotizacion, flete_usd, seguro_usd, deposito_id, notas, usuario_id)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) returning id::int`,
-      [s.org.id, c.numero, c.proveedorId, c.fecha, c.cot, c.flete, c.seguro, c.depositoId, c.notas, s.usuario.id]);
+      insert into despacho_importacion (organizacion_id, numero, proveedor_id, fecha, cotizacion, flete_usd, seguro_usd, deposito_id, notas, usuario_id, emisor_id)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) returning id::int`,
+      [s.org.id, c.numero, c.proveedorId, c.fecha, c.cot, c.flete, c.seguro, c.depositoId, c.notas, s.usuario.id, c.emisorId]);
     revalidatePath(LISTA);
     return { ir: `${detalle(r!.id)}?ok=${encodeURIComponent("Despacho creado: cargale las líneas y los gastos.")}` };
   });
@@ -68,9 +69,9 @@ export async function accionGuardarDespacho(fd: FormData) {
     await borrador(s.org.id, did);
     const c = await cabecera(s.org.id, fd);
     await consulta(`
-      update despacho_importacion set numero = $3, proveedor_id = $4, fecha = $5, cotizacion = $6, flete_usd = $7, seguro_usd = $8, deposito_id = $9, notas = $10
+      update despacho_importacion set numero = $3, proveedor_id = $4, fecha = $5, cotizacion = $6, flete_usd = $7, seguro_usd = $8, deposito_id = $9, notas = $10, emisor_id = coalesce($11, emisor_id)
        where id = $2 and organizacion_id = $1 and estado = 'borrador'`,
-      [s.org.id, did, c.numero, c.proveedorId, c.fecha, c.cot, c.flete, c.seguro, c.depositoId, c.notas]);
+      [s.org.id, did, c.numero, c.proveedorId, c.fecha, c.cot, c.flete, c.seguro, c.depositoId, c.notas, c.emisorId]);
     revalidatePath(detalle(did));
     return "Cabecera guardada.";
   });

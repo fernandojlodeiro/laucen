@@ -42,7 +42,7 @@ La primera vez que una organización sin ningún canal abre la pantalla, el sist
 ### Buscador y lista
 
 - **"Buscar canal"**: busca por nombre mientras tipeás, con la caja "Comienza por".
-- Columnas (se ordenan tocando el título): **Canal** (el nombre; tocarlo abre sus detalles abajo), **Tipo**, **Lista de precios** (enlace a esa lista; en rojo "sin lista" si no tiene), **Vende desde** (los depósitos, en orden de prioridad; en rojo "ningún depósito"), **Estado** (Activo / Pausado / Archivado), **Mercado Libre** (sólo para canales de ML: "Conectada" en verde o "Desconectada" en rojo; para el resto, "—"), **Umbral de pausa** ("hereda" si está vacío), **Llave API** ("Tiene" o "sin llave").
+- Columnas (se ordenan tocando el título): **Canal** (el nombre; tocarlo abre sus detalles abajo), **Tipo**, **Lista de precios** (enlace a esa lista; en rojo "sin lista" si no tiene), **Vende desde** (los depósitos, en orden de prioridad; en rojo "ningún depósito"), **Estado** (Activo / Pausado / Archivado), **Mercado Libre** (sólo para canales de ML: "Conectada" en verde o "Desconectada" en rojo; para el resto, "—"), **Factura con** (sólo si hay más de una razón social: con cuál se factura lo que vende el canal; "La principal" si no se eligió), **Umbral de pausa** ("hereda" si está vacío), **Llave API** ("Tiene" o "sin llave").
 - Al final de cada fila, el **lápiz** (editar la fila ahí mismo) y el **tacho** (borrar, pregunta "¿Borrar el canal?" Sí / No).
 - Abajo, el paginador de 50 en 50 y dos ayudas: qué es el umbral de pausa y qué es la llave API.
 
@@ -180,6 +180,14 @@ En la caja de la cuenta, **"Traer pedidos y preguntas ahora"**. Avisa "Listo: N 
 3. Apretá **"Mandar a Mercado Libre"** (pregunta "¿Mandar los N cambios a Mercado Libre?"). Los cambios pasan a Pendientes y salen solos en los próximos minutos; el resultado de cada uno queda en Enviados o Con error.
 4. Si no querés mandarlo: **"Descartar lote"** ("Lote descartado: no se mandó nada.").
 
+### Con qué razón social se factura cada canal
+
+Si la organización tiene **más de una razón social** (ver [Razones sociales](/config/razones-sociales)), al editar un canal con el lápiz aparece **"Factura con"**: elegís la razón social con la que se emiten las facturas de lo que vende ese canal (por ejemplo, tres cuentas de Mercado Libre con una razón social y dos con la otra). Sin elegir, el canal factura con la **principal**, que es lo que pasa siempre con la tienda web, el local y el mayorista.
+
+- Cambiarlo afecta a las facturas **nuevas**; las ya emitidas no se mueven.
+- La cuenta de fondos "Mercado Pago — <apodo>" de la cuenta de ML pasa a ser de la nueva razón social.
+- Los asientos ya hechos quedan con la razón social con la que se hicieron.
+
 ## Criterios y reglas
 
 - **Corte de pedidos de Mercado Libre.** Los pedidos que se crearon en Mercado Libre antes de las 21:35 del 3/10 (hora argentina) ya están en Virtual Seller y **no entran nunca** a Laucen: ni cuando Mercado Libre avisa un cambio (una entrega, un reclamo), ni en el barrido de cada media hora, ni al conectar una cuenta nueva. Todas las cuentas, incluidas las que se conecten después, usan el mismo corte. Si un carrito tiene alguna orden anterior al corte, no entra entero. Sólo entran los pedidos creados desde ese momento.
@@ -302,3 +310,4 @@ Creá un canal nuevo tipo Mercado Libre y conectá la cuenta desde su caja, habi
 - [Facturación](/administracion/facturacion)
 - [Tienda web](/config/tienda)
 - [Pedidos](/ventas/pedidos)
+- [Razones sociales](/config/razones-sociales)

@@ -99,7 +99,7 @@ export default async function Producto({ params, searchParams }: Props) {
   const [planes, envio, medios, catalogo, arbol, emisor, h] = await Promise.all([
     v ? planesDe(t.organizacionId, v.id) : Promise.resolve([]),
     envioDe(t), mediosActivos(t), catalogoDe(t), arbolDe(t),
-    una<{ condicion_iva: string }>("select condicion_iva from emisor where organizacion_id = $1", [t.organizacionId]),
+    una<{ condicion_iva: string }>("select condicion_iva from emisor where organizacion_id = $1 and es_principal", [t.organizacionId]),
     headers(),
   ]);
   const base = catalogo.find((x) => x.id === p.id);

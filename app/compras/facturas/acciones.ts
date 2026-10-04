@@ -26,6 +26,7 @@ async function borrador(org: string, fid: number) {
 
 /** Lee y valida la cabecera del formulario (alta y edición). */
 async function cabecera(org: string, fd: FormData, fid = 0) {
+  const emisorId = await deLaOrg(org, "emisor", id(fd, "emisor"), "La razón social");
   const proveedorId = await deLaOrg(org, "proveedor", id(fd, "proveedor"), "El proveedor");
   if (!proveedorId) throw new ErrorErp("Elegí el proveedor.");
   const letra = String(fd.get("letra") ?? "A");
@@ -51,7 +52,7 @@ async function cabecera(org: string, fd: FormData, fid = 0) {
       [org, proveedorId, letra, esNc, puntoVenta, nro, fid]);
     if (otra) throw new ErrorErp(`Ese comprobante de ese proveedor ya está cargado (factura #${otra.id}).`);
   }
-  return { proveedorId, letra, esNc, puntoVenta, nro, fecha: fecha!, venc: esFecha(venc) ? venc : null, moneda, cot: cot!, depositoId, recepcionId, cuentaId, notas: texto(fd, "notas") };
+  return { emisorId, proveedorId, letra, esNc, puntoVenta, nro, fecha: fecha!, venc: esFecha(venc) ? venc : null, moneda, cot: cot!, depositoId, recepcionId, cuentaId, notas: texto(fd, "notas") };
 }
 
 export async function accionCrearFactura(fd: FormData) {
@@ -60,9 +61,9 @@ export async function accionCrearFactura(fd: FormData) {
     const c = await cabecera(s.org.id, fd);
     const r = await una<{ id: number }>(`
       insert into factura_compra (organizacion_id, proveedor_id, letra, es_nota_credito, punto_venta, numero, fecha, vencimiento, moneda, cotizacion,
-                                  deposito_id, recepcion_id, cuenta_gasto_id, notas, usuario_id)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) returning id::int`,
-      [s.org.id, c.proveedorId, c.letra, c.esNc, c.puntoVenta, c.nro, c.fecha, c.venc, c.moneda, c.cot, c.depositoId, c.recepcionId, c.cuentaId, c.notas, s.usuario.id]);
+                                  deposito_id, recepcion_id, cuenta_gasto_id, notas, usuario_id, emisor_id)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) returning id::int`,
+      [s.org.id, c.proveedorId, c.letra, c.esNc, c.puntoVenta, c.nro, c.fecha, c.venc, c.moneda, c.cot, c.depositoId, c.recepcionId, c.cuentaId, c.notas, s.usuario.id, c.emisorId]);
     revalidatePath(LISTA);
     return { ir: `${detalle(r!.id)}?ok=${encodeURIComponent("Factura creada: cargale las líneas.")}` };
   });
@@ -82,10 +83,10 @@ export async function accionGuardarCabecera(fd: FormData) {
     await consulta(`
       update factura_compra set proveedor_id = $3, letra = $4, es_nota_credito = $5, punto_venta = $6, numero = $7, fecha = $8, vencimiento = $9,
              moneda = $10, cotizacion = $11, deposito_id = $12, recepcion_id = $13, cuenta_gasto_id = $14, notas = $15,
-             percepcion_iva = $16, percepcion_iibb = $17, otros_impuestos = $18, no_gravado = $19
+             percepcion_iva = $16, percepcion_iibb = $17, otros_impuestos = $18, no_gravado = $19, emisor_id = coalesce($20, emisor_id)
        where id = $2 and organizacion_id = $1 and estado = 'borrador'`,
       [s.org.id, fid, c.proveedorId, c.letra, c.esNc, c.puntoVenta, c.nro, c.fecha, c.venc, c.moneda, c.cot, c.depositoId, c.recepcionId, c.cuentaId, c.notas,
-        imp("percepcion_iva"), imp("percepcion_iibb"), imp("otros_impuestos"), imp("no_gravado")]);
+        imp("percepcion_iva"), imp("percepcion_iibb"), imp("otros_impuestos"), imp("no_gravado"), c.emisorId]);
     await recalcularFactura(s.org.id, fid);
     revalidatePath(detalle(fid));
     return "Cabecera guardada.";

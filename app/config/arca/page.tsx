@@ -9,14 +9,13 @@
 
 import Link from "next/link";
 import { una } from "@/lib/erp/base";
-import { emisorDe, type Emisor } from "@/lib/arca/facturar";
+import { emisorDe, emisoresDe, type Emisor } from "@/lib/arca/facturar";
 import { estadoCredencial, type Ambiente } from "@/lib/arca/credenciales";
 import { cuitLegible } from "@/lib/cuit";
 import { ESTADOS_PEDIDO } from "@/lib/pedidos";
 import { PRIMARIO, SUAVE, BORRAR, APAGAR, DESPLEGABLE_CHICO } from "@/app/botones";
 import { BotonEnviar, BotonConfirmar } from "@/app/radar/Cliente";
 import { Interruptor } from "@/app/radar/Piezas";
-import CampoNumero from "@/app/componentes/CampoNumero";
 import { entrarErp, Pantalla, Avisos, Estado, Dato, BotonesFicha, editandoFicha, CAMPO, ETIQUETA, CAJA } from "@/app/componentes/erp";
 import {
   accionPrepararTramite, accionConectar, accionDesconectar, accionFacturarAutomatico, accionFacturarAl, accionProbarConexion,
@@ -25,7 +24,7 @@ import SubirCertificado from "./SubirCertificado";
 
 export const dynamic = "force-dynamic";
 
-type SP = { editar?: string; ok?: string; error?: string };
+type SP = { rs?: string; editar?: string; ok?: string; error?: string };
 
 const MODO: Record<Ambiente, string> = { produccion: "Facturación real", homologacion: "Prueba contra ARCA" };
 const fechaAR = (d: Date) => d.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
@@ -33,13 +32,15 @@ const fechaAR = (d: Date) => d.toLocaleDateString("es-AR", { timeZone: "America/
 export default async function ConfigArca({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("facturacion_ver");
   const sp = await searchParams;
-  const e = await emisorDe(s.org.id);
-  const cred = e ? await estadoCredencial(s.org.id, e.ambiente) : null;
+  const razones = await emisoresDe(s.org.id);
+  const e = await emisorDe(s.org.id, Number(sp.rs) || null);
+  const rs = e?.id ?? 0;
+  const cred = e ? await estadoCredencial(e.id, e.ambiente) : null;
   const conectado = !!e && !!cred?.tiene_certificado;
   // El trámite empezado (pedido generado, falta el certificado), si lo hay:
   // el más reciente, de cualquier ambiente.
   const pend = await una<{ ambiente: Ambiente }>(
-    "select ambiente from arca_credencial where organizacion_id = $1 and certificado is null order by actualizado_ts desc limit 1", [s.org.id]);
+    "select ambiente from arca_credencial where emisor_id = $1 and certificado is null order by actualizado_ts desc limit 1", [rs]);
   const pedido = pend && e ? { ambiente: pend.ambiente, cuit: e.cuit, razon: e.razon_social } : null;
 
   const vence = cred?.cert_vence ? new Date(cred.cert_vence) : null;
@@ -51,6 +52,18 @@ export default async function ConfigArca({ searchParams }: { searchParams: Promi
     <Pantalla titulo="Facturación electrónica (ARCA)" ancho="max-w-3xl"
       subtitulo={<>Para emitir facturas a tu nombre desde Laucen · <Link href="/administracion/facturacion" className="text-[#16577F] hover:underline">Ver facturas</Link></>}>
       <Avisos sp={sp} />
+
+      {/* Cada razón social tiene su permiso de ARCA: se elige a cuál se refiere esta pantalla. */}
+      {razones.length > 1 && e && (
+        <div className="flex flex-wrap gap-1 mb-3 text-xs" role="tablist" aria-label="Razón social">
+          {razones.map((x) => (
+            <Link key={x.id} href={`/config/arca?rs=${x.id}`} role="tab" aria-selected={x.id === e.id}
+              className={`px-3 py-1.5 rounded-t-lg border border-[#E3E9F0] ${x.id === e.id ? "bg-white font-semibold text-[#16577F] border-b-white" : "bg-[#EEF3F8] text-[#5C6B76] hover:text-[#16577F]"}`}>
+              {x.nombre ?? x.razon_social}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <section className={CAJA}>
         {conectado && e ? (
@@ -71,17 +84,19 @@ export default async function ConfigArca({ searchParams }: { searchParams: Promi
             </dl>
 
             <form action={accionProbarConexion} className="mb-4">
+              <input type="hidden" name="rs" value={rs} />
               <BotonEnviar clase={SUAVE} corriendo="Preguntando a ARCA…">Probar conexión con ARCA</BotonEnviar>
             </form>
 
             <div className="border-t border-[#E3E9F0] pt-3 mb-3 grid gap-3">
-              <Interruptor accion={accionFacturarAutomatico} prendido={e.facturar_automatico} campos={{}}
+              <Interruptor accion={accionFacturarAutomatico} prendido={e.facturar_automatico} campos={{ rs: String(rs) }}
                 etiqueta="Facturar automáticamente"
                 ayuda={`Factura sola cada pedido que llega a "${estadoAl}". Al prenderla, los pedidos que ya habían pasado no se facturan: sólo los que lleguen de ahora en adelante.`} />
               {/* Se ve; el lápiz lo vuelve editable (?editar=facturar) y "Grabar" queda a su derecha. */}
               <div className="flex flex-wrap items-end justify-between gap-2">
                 {editandoFicha(sp, "facturar") ? (
                   <form id="ficha-facturar" action={accionFacturarAl}>
+                    <input type="hidden" name="rs" value={rs} />
                     <label><span className={ETIQUETA}>Facturar al llegar el pedido a</span>
                       <select name="facturar_al" defaultValue={e.facturar_al} className={CAMPO} autoFocus>
                         {(["pagado", "preparado", "despachado"] as const).map((k) => <option key={k} value={k}>{ESTADOS_PEDIDO[k]}</option>)}
@@ -89,7 +104,7 @@ export default async function ConfigArca({ searchParams }: { searchParams: Promi
                   </form>
                 ) : <Dato etiqueta="Facturar al llegar el pedido a">{estadoAl}</Dato>}
                 <span className="inline-flex gap-2">
-                  <BotonesFicha editando={editandoFicha(sp, "facturar")} ver="/config/arca" editar="/config/arca?editar=facturar" form="ficha-facturar" />
+                  <BotonesFicha editando={editandoFicha(sp, "facturar")} ver={`/config/arca?rs=${rs}`} editar={`/config/arca?rs=${rs}&editar=facturar`} form="ficha-facturar" />
                 </span>
               </div>
             </div>
@@ -97,21 +112,22 @@ export default async function ConfigArca({ searchParams }: { searchParams: Promi
             <details className="group" open={!!pedido}>
               <summary className={DESPLEGABLE_CHICO}>Cambiar o desconectar</summary>
               <div className="mt-3 grid gap-4">
-                <Tramite emisor={e} pedido={pedido} conectado />
+                <Tramite emisor={e} pedido={pedido} conectado rs={rs} />
                 <div className="border-t border-[#E3E9F0] pt-3">
-                  <BotonConfirmar accion={accionDesconectar} campos={{}} clase={BORRAR} texto="Desconectar ARCA"
+                  <BotonConfirmar accion={accionDesconectar} campos={{ rs: String(rs) }} clase={BORRAR} texto="Desconectar ARCA"
                     pregunta="¿Desconectar? Hasta hacer el trámite de nuevo no se puede facturar." corriendo="Desconectando…" />
                 </div>
               </div>
             </details>
           </>
         ) : (
-          <Tramite emisor={e} pedido={pedido} conectado={false} />
+          <Tramite emisor={e} pedido={pedido} conectado={false} rs={rs} />
         )}
       </section>
 
       <p className="text-xs text-[#5C6B76] mt-4">
-        La condición frente al IVA, el domicilio, Ingresos Brutos y el logo de las facturas se cargan en{" "}
+        El CUIT, la condición frente al IVA, el domicilio y Ingresos Brutos de cada razón social se cargan en{" "}
+        <Link href="/config/razones-sociales" className="font-bold underline">Razones sociales</Link>; el logo de las facturas, en{" "}
         <Link href="/config/empresa" className="font-bold underline">Empresa</Link>.
       </p>
     </Pantalla>
@@ -120,7 +136,8 @@ export default async function ConfigArca({ searchParams }: { searchParams: Promi
 
 /** El trámite de ARCA, en tres pasos. Sin trámite empezado, el formulario
  *  para empezarlo; con uno empezado, los pasos y "Empezar de nuevo". */
-function Tramite({ emisor, pedido, conectado }: {
+function Tramite({ emisor, pedido, conectado, rs }: {
+  rs: number;
   emisor: Emisor | null;
   pedido: { ambiente: Ambiente; cuit: string; razon: string } | null;
   conectado: boolean;
@@ -155,7 +172,7 @@ function Tramite({ emisor, pedido, conectado }: {
         <div className="min-w-0">
           <div className="text-sm font-semibold">Bajá el archivo del trámite</div>
           <p className="text-xs text-[#5C6B76] mt-0.5 mb-2">Es el pedido que ARCA necesita para darte el permiso. No tiene nada secreto.</p>
-          <a href={`/config/arca/csr?ambiente=${pedido.ambiente}`} download className={SUAVE}>Bajar el archivo</a>
+          <a href={`/config/arca/csr?ambiente=${pedido.ambiente}&rs=${rs}`} download className={SUAVE}>Bajar el archivo</a>
         </div>
       </div>
 
@@ -184,7 +201,7 @@ function Tramite({ emisor, pedido, conectado }: {
         <span className={numero}>3</span>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold mb-2">Subí acá lo que te dio ARCA</div>
-          <SubirCertificado accion={accionConectar} ambiente={pedido.ambiente} />
+          <SubirCertificado accion={accionConectar} ambiente={pedido.ambiente} rs={rs} />
         </div>
       </div>
 
@@ -202,20 +219,22 @@ function Tramite({ emisor, pedido, conectado }: {
   );
 }
 
-/** Razón social, CUIT y punto de venta (precargados del emisor) y el botón
- *  del trámite de facturación real. El de prueba contra ARCA es el mismo
- *  formulario con otro botón, escondido en "Sólo para pruebas". */
+/** Los datos de la razón social (de Configuración → Razones sociales, sólo
+ *  lectura) y el botón del trámite de facturación real. El de prueba contra
+ *  ARCA es el mismo formulario con otro botón, escondido en "Sólo para pruebas". */
 function FormTramite({ emisor, boton }: { emisor: Emisor | null; boton: string }) {
+  if (!emisor) {
+    return <p className="text-xs text-[#C03420]">Primero cargá la razón social (CUIT, condición de IVA y punto de venta) en <Link href="/config/razones-sociales" className="font-bold underline">Razones sociales</Link>.</p>;
+  }
   return (
     <form action={accionPrepararTramite} className="grid gap-3">
+      <input type="hidden" name="rs" value={emisor.id} />
       <div className="grid sm:grid-cols-4 gap-3 items-start">
-        <label className="sm:col-span-2"><span className={ETIQUETA}>Razón social, como figura en ARCA</span>
-          <input name="razon_social" defaultValue={emisor?.razon_social ?? ""} className={`${CAMPO} w-full`} /></label>
-        <label><span className={ETIQUETA}>CUIT con el que facturás</span>
-          <input name="cuit" defaultValue={cuitLegible(emisor?.cuit)} maxLength={13} inputMode="numeric" placeholder="30-71234567-8" className={`${CAMPO} w-full`} /></label>
-        <label><span className={ETIQUETA}>Punto de venta</span>
-          <CampoNumero name="punto_venta" valor={emisor?.punto_venta ?? 1} tipo="entero" className={`${CAMPO} w-full`} /></label>
+        <Dato etiqueta="Razón social" className="sm:col-span-2">{emisor.razon_social}</Dato>
+        <Dato etiqueta="CUIT con el que facturás">{cuitLegible(emisor.cuit)}</Dato>
+        <Dato etiqueta="Punto de venta" numero>{String(emisor.punto_venta)}</Dato>
       </div>
+      <p className="text-[11px] text-[#5C6B76] -mt-1">Si algo no está bien, corregilo en <Link href="/config/razones-sociales" className="font-bold underline">Razones sociales</Link> antes de seguir.</p>
       {/* El primer botón es el que dispara Enter: el trámite de facturación real. */}
       <div><button name="ambiente" value="produccion" className={PRIMARIO}>{boton}</button></div>
       <details>

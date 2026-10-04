@@ -121,6 +121,15 @@ En la pestaña IVA Ventas, elegí el **Canal**. Aparece la aclaración "Filtrado
 - A un comprobante que discrimina IVA sin ninguna alícuota se le informa una de 0 % con base cero (ARCA pide al menos una).
 - **Hay que validarlos importándolos en ARCA** antes de presentar.
 
+## Con más de una razón social
+
+**Cada razón social presenta su propio libro de IVA**, así que esta pantalla se mira de **una sola** (no hay "Todas"): arriba aparece el selector **"Razón social"** y, sin elegir, se ve la principal.
+
+- **IVA Ventas** muestra los comprobantes emitidos por esa razón social (por el CUIT con el que se facturó, sin importar el canal).
+- **IVA Compras** muestra las facturas de compra y los despachos registrados **a nombre de esa razón social**.
+- El resumen, los **Avisos**, el **Excel** y los **archivos de ARCA** (Libro de IVA Digital) salen de la razón social elegida.
+- Una factura de compra cargada a nombre de la otra razón social no entra acá; entra en el libro de la otra.
+
 ## Preguntas frecuentes
 
 **¿Cómo importo el archivo de ARCA del libro de IVA compras?**
@@ -155,3 +164,4 @@ Sí, los registrados, en IVA Compras, a nombre de la Aduana.
 - [Facturación de Mercado Libre](/administracion/facturacion-ml)
 - [Contabilidad](/administracion/contabilidad)
 - [Proveedores](/compras/proveedores)
+- [Razones sociales](/config/razones-sociales)

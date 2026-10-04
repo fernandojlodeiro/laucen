@@ -16,6 +16,8 @@ import {
   Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import { fecha } from "@/app/ventas/formato";
+import SelectorRazonSocial from "@/app/componentes/SelectorRazonSocial";
+import { elegirRazonSocial, nombreRs, type EleccionRs } from "@/lib/razon-social";
 import FormRecibo from "./FormRecibo";
 import FormImputar, { type RenglonImputar } from "./FormImputar";
 import { AccionesExcel } from "@/app/listas/piezas";
@@ -23,7 +25,7 @@ import { LISTA_CC_CLIENTES, LISTA_CC_PROVEEDORES } from "./lista";
 import { accionEmitirRecibo, accionAnularRecibo, accionImputar, accionSaldoInicial } from "./acciones";
 
 const BASE = "/administracion/cuentas-corrientes";
-export type SP = { id?: string; q?: string; form?: string; tercero?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+export type SP = { rs?: string; id?: string; q?: string; form?: string; tercero?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 const PESTANAS = [
   { href: BASE, texto: "Clientes" },
@@ -47,6 +49,8 @@ function linkDocumento(tipo: string | null, id: number | null) {
 export async function VistaCc({ org, tercero, sp }: { org: string; tercero: Tercero; sp: SP }) {
   const ruta = tercero === "cliente" ? BASE : `${BASE}/proveedores`;
   const terceroId = Number(sp.id) || 0;
+  // Cada razón social lleva su propia cuenta corriente con cada cliente o proveedor: se mira de una o de todas.
+  const rs = await elegirRazonSocial(org, sp.rs);
   // Cada pestaña cuenta los clientes / proveedores que tienen cuenta corriente.
   const [n] = await consulta<{ cliente: number; proveedor: number }>(`
     select count(distinct tercero_id) filter (where tercero_tipo = 'cliente')::int cliente,
@@ -54,17 +58,23 @@ export async function VistaCc({ org, tercero, sp }: { org: string; tercero: Terc
       from cc_movimiento where organizacion_id = $1`, [org]);
   return (
     <Pantalla titulo="Cuentas corrientes" subtitulo="Lo que nos deben los clientes y lo que les debemos a los proveedores (en pesos)">
-      <Pestanas items={PESTANAS.map((x, i) => ({ ...x, cuenta: (i === 0 ? n?.cliente : n?.proveedor) ?? 0 }))} />
+      <Pestanas items={PESTANAS.map((x, i) => ({ ...x, href: url(x.href, { rs: rs.multi ? (rs.id ?? "todas") : null }), cuenta: (i === 0 ? n?.cliente : n?.proveedor) ?? 0 }))} />
       <Avisos sp={sp} />
+      {rs.multi && (
+        <div className="mb-3">
+          <SelectorRazonSocial razones={rs.razones.map((x) => ({ id: x.id, nombre: nombreRs(x) }))} valor={rs.id} />
+        </div>
+      )}
       {terceroId
-        ? <EstadoDeCuenta org={org} tercero={tercero} terceroId={terceroId} ruta={ruta} sp={sp} />
-        : <Saldos org={org} tercero={tercero} ruta={ruta} q={sp.q} sp={sp} />}
+        ? <EstadoDeCuenta org={org} tercero={tercero} terceroId={terceroId} ruta={ruta} sp={sp} rs={rs} />
+        : <Saldos org={org} tercero={tercero} ruta={ruta} q={sp.q} sp={sp} rs={rs} />}
     </Pantalla>
   );
 }
 
-async function Saldos({ org, tercero, ruta, q, sp }: { org: string; tercero: Tercero; ruta: string; q?: string; sp: SP }) {
-  const todas = await saldos(org, tercero);
+async function Saldos({ org, tercero, ruta, q, sp, rs }: { org: string; tercero: Tercero; ruta: string; q?: string; sp: SP; rs: EleccionRs }) {
+  const todas = await saldos(org, tercero, rs.id);
+  const rsUrl = rs.multi ? (rs.id ?? "todas") : null;
   const filas = todas;
   const vista = paginarEnMemoria(ordenarEnMemoria(todas, sp, {
     nombre: (f) => f.nombre, saldo: (f) => f.saldo, vencido: (f) => f.vencido, ultimo: (f) => f.ultimo,
@@ -87,6 +97,7 @@ async function Saldos({ org, tercero, ruta, q, sp }: { org: string; tercero: Ter
           <p>Vencido: <b className={`tabular-nums ${vencido > 0 ? "text-[#C03420]" : ""}`}>{ars(vencido)}</b></p>
         </div>
         <form className="flex items-end gap-2">
+          {rsUrl && <input type="hidden" name="rs" value={rsUrl} />}
           <label><span className={ETIQUETA}>Abrir la cuenta de otro {quien}</span>
             <input name="q" defaultValue={buscar} placeholder="Nombre" className={`${CAMPO} w-56`} /></label>
           <button className={SUAVE}>Buscar</button>
@@ -96,7 +107,7 @@ async function Saldos({ org, tercero, ruta, q, sp }: { org: string; tercero: Ter
         <div className={`${CAJA} mb-3 text-xs`}>
           {encontrados.length === 0 ? <p className="text-[#5C6B76]">No encontré ningún {quien} con “{buscar}”.</p> : (
             <ul className="flex flex-wrap gap-x-4 gap-y-1">
-              {encontrados.map((e) => <li key={e.id}><Link href={`${ruta}?id=${e.id}`} className="text-[#16577F] underline">{e.nombre}</Link></li>)}
+              {encontrados.map((e) => <li key={e.id}><Link href={url(ruta, { id: e.id, rs: rsUrl })} className="text-[#16577F] underline">{e.nombre}</Link></li>)}
             </ul>
           )}
         </div>
@@ -113,7 +124,7 @@ async function Saldos({ org, tercero, ruta, q, sp }: { org: string; tercero: Ter
             {filas.length === 0 && <tr><td colSpan={4} className={`${TD} text-[#5C6B76]`}>No hay cuentas con saldo ni movimientos recientes.</td></tr>}
             {vista.map((f) => (
               <tr key={f.id} className={TR}>
-                <td className={TD}><Link href={`${ruta}?id=${f.id}`} className="text-[#16577F] font-semibold hover:underline">{f.nombre}</Link></td>
+                <td className={TD}><Link href={url(ruta, { id: f.id, rs: rsUrl })} className="text-[#16577F] font-semibold hover:underline">{f.nombre}</Link></td>
                 <td className={TDN}>{ars(f.saldo)}</td>
                 <td className={`${TDN} ${f.vencido > 0 ? "text-[#C03420]" : "text-[#5C6B76]"}`}>{f.vencido ? ars(f.vencido) : "—"}</td>
                 <td className={TD}>{fecha(f.ultimo)}</td>
@@ -127,18 +138,21 @@ async function Saldos({ org, tercero, ruta, q, sp }: { org: string; tercero: Ter
   );
 }
 
-async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp }: { org: string; tercero: Tercero; terceroId: number; ruta: string; sp: SP }) {
+async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp, rs }: { org: string; tercero: Tercero; terceroId: number; ruta: string; sp: SP; rs: EleccionRs }) {
+  const rsUrl = rs.multi ? (rs.id ?? "todas") : null;
+  const nombreDe = new Map(rs.razones.map((x) => [x.id, nombreRs(x)]));
   const tabla = tercero === "cliente" ? "cliente" : "proveedor";
   const t = await una<{ nombre: string }>(`select nombre from ${tabla} where id = $1 and organizacion_id = $2`, [terceroId, org]);
   if (!t) notFound();
   const esCobro = tercero === "cliente";
   const [movs, recibos, cuentas, tc] = await Promise.all([
-    estadoDeCuenta(org, tercero, terceroId),
+    estadoDeCuenta(org, tercero, terceroId, rs.id),
     consulta<{ id: number; numero: number; fecha: string; total_ars: number; estado: string; notas: string | null }>(`
       select id::int, numero::int, to_char(fecha, 'YYYY-MM-DD') fecha, total_ars::float, estado, notas
-        from recibo where organizacion_id = $1 and tercero_tipo = $2 and tercero_id = $3 order by fecha desc, numero desc limit 200`, [org, tercero, terceroId]),
+        from recibo where organizacion_id = $1 and tercero_tipo = $2 and tercero_id = $3 and ($4::bigint is null or emisor_id = $4) order by fecha desc, numero desc limit 200`, [org, tercero, terceroId, rs.id]),
     consulta<{ id: number; nombre: string; moneda: "ARS" | "USD" }>(
-      "select id::int, nombre, moneda from cuenta_fondos where organizacion_id = $1 and activa order by tipo, nombre", [org]),
+      `select id::int, case when $2::boolean then nombre || ' · ' || coalesce((select coalesce(e.nombre, e.razon_social) from emisor e where e.id = cuenta_fondos.emisor_id), '') else nombre end nombre, moneda
+         from cuenta_fondos where organizacion_id = $1 and activa and ($3::bigint is null or emisor_id = $3) order by emisor_id, tipo, nombre`, [org, rs.multi, rs.id]),
     tcDelDia(org),
   ]);
   const saldo = movs.length ? movs[movs.length - 1].saldo : 0;
@@ -146,7 +160,7 @@ async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp }: { org: stri
   const vencido = movs.reduce((a, m) => a + (m.pendiente > 0 && (m.vencimiento ?? m.fecha) < hoy ? m.pendiente * (m.importe ? m.importe_ars / m.importe : 1) : 0), 0);
   const debitos = movs.filter((m) => m.pendiente > 0.004), creditos = movs.filter((m) => m.pendiente < -0.004);
   const nombreDoc = esCobro ? "Recibo" : "Orden de pago";
-  const campos = { tercero, id: String(terceroId) };
+  const campos = { tercero, id: String(terceroId), ...(rsUrl ? { rs: String(rsUrl) } : {}) };
   const form = sp.form;
   const leyenda = (n: number) => (n > 0.004 ? (esCobro ? "nos debe" : "le debemos") : n < -0.004 ? (esCobro ? "le debemos" : "nos debe") : "");
 
@@ -155,7 +169,7 @@ async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp }: { org: stri
       <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
         <div>
           <p className="text-sm font-bold">
-            <Link href={ruta} className="text-[#16577F] font-normal hover:underline">{esCobro ? "Clientes" : "Proveedores"}</Link> › {t.nombre}
+            <Link href={url(ruta, { rs: rsUrl })} className="text-[#16577F] font-normal hover:underline">{esCobro ? "Clientes" : "Proveedores"}</Link> › {t.nombre}
           </p>
           <p className="text-xs mt-1">
             Saldo: <b className="tabular-nums">{ars(saldo)}</b> <span className="text-[#5C6B76]">{leyenda(saldo)}</span>
@@ -163,10 +177,10 @@ async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp }: { org: stri
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href={url(ruta, { id: terceroId, form: form === "recibo" ? undefined : "recibo" })} className={PRIMARIO} scroll={false}>
+          <Link href={url(ruta, { id: terceroId, rs: rsUrl, form: form === "recibo" ? undefined : "recibo" })} className={PRIMARIO} scroll={false}>
             {esCobro ? "Nuevo recibo" : "Nueva orden de pago"}
           </Link>
-          <Link href={url(ruta, { id: terceroId, form: form === "saldo" ? undefined : "saldo" })} className={SUAVE} scroll={false}>Saldo inicial</Link>
+          <Link href={url(ruta, { id: terceroId, rs: rsUrl, form: form === "saldo" ? undefined : "saldo" })} className={SUAVE} scroll={false}>Saldo inicial</Link>
         </div>
       </div>
 
@@ -178,6 +192,12 @@ async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp }: { org: stri
         <form action={accionSaldoInicial} className={`${CAJA} mb-4 flex flex-wrap items-end gap-3`}>
           {Object.entries(campos).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
           <label><span className={ETIQUETA}>Fecha</span><input type="date" name="fecha" defaultValue={hoy} className={CAMPO} /></label>
+          {rs.multi && (
+            <label><span className={ETIQUETA}>Razón social</span>
+              <select name="emisor" defaultValue={rs.id ?? rs.razones.find((x) => x.es_principal)?.id} className={CAMPO}>
+                {rs.razones.map((x) => <option key={x.id} value={x.id}>{nombreRs(x)}</option>)}
+              </select></label>
+          )}
           <label><span className={ETIQUETA}>Importe (pesos)</span><CampoNumero name="importe" valor={null} tipo="pesos" className={`${CAMPO} w-32`} /></label>
           <fieldset className="flex items-center gap-3 text-xs pb-1.5">
             <label className="flex items-center gap-1"><input type="radio" name="signo" value="nos_debe" defaultChecked={esCobro} /> Nos debe</label>
@@ -190,10 +210,10 @@ async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp }: { org: stri
       <div className={`${CAJA_TABLA} mb-4`}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={TH}>Fecha</th><th className={TH}>Vence</th><th className={TH}>Concepto</th><th className={THN}>Importe</th><th className={THN}>Pendiente</th><th className={THN}>Saldo</th></tr>
+            <tr><th className={TH}>Fecha</th><th className={TH}>Vence</th><th className={TH}>Concepto</th>{rs.multi && !rs.id && <th className={TH}>Razón social</th>}<th className={THN}>Importe</th><th className={THN}>Pendiente</th><th className={THN}>Saldo</th></tr>
           </thead>
           <tbody>
-            {movs.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>Sin movimientos.</td></tr>}
+            {movs.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>Sin movimientos.</td></tr>}
             {movs.map((m) => {
               const href = linkDocumento(m.referencia_tipo, m.referencia_id);
               const mon = m.moneda === "USD" ? "USD" : "ARS";
@@ -202,6 +222,7 @@ async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp }: { org: stri
                   <td className={TD}>{fecha(m.fecha)}</td>
                   <td className={`${TD} ${m.pendiente > 0 && (m.vencimiento ?? m.fecha) < hoy ? "text-[#C03420]" : ""}`}>{m.vencimiento ? fecha(m.vencimiento) : "—"}</td>
                   <td className={TD}>{href ? <Link href={href} className="text-[#16577F] hover:underline">{m.descripcion}</Link> : m.descripcion}</td>
+                  {rs.multi && !rs.id && <td className={TD}>{(m.emisor_id && nombreDe.get(m.emisor_id)) ?? "—"}</td>}
                   <td className={TDN}>
                     {ars(m.importe_ars)}
                     {mon === "USD" && <span className="block text-[10px] text-[#5C6B76]">{formatear(m.importe, "USD")}</span>}

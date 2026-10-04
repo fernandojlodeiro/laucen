@@ -34,7 +34,7 @@ type Factura = {
   iva_detalle: { pct: number; base: number; importe: number }[]; percepcion_iva: number; percepcion_iibb: number; otros_impuestos: number;
   no_gravado: number; total: number; total_ars: number; total_usd: number; deposito_id: number | null; deposito: string | null;
   recepcion_id: number | null; cuenta_gasto_id: number | null; cuenta_gasto: string | null; estado: string; notas: string | null; registrada_ts: Date | null;
-  diferencia_recepcion: DiferenciaRecepcion[] | null;
+  diferencia_recepcion: DiferenciaRecepcion[] | null; emisor_id: number | null; emisor: string | null;
 };
 type Linea = { id: number; variacion_id: number | null; sku: string | null; descripcion: string; cantidad: number; costo_unit: number; iva_pct: number; neto: number; iva: number };
 
@@ -49,7 +49,7 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
            f.neto::float, f.iva::float, f.iva_detalle, f.percepcion_iva::float, f.percepcion_iibb::float, f.otros_impuestos::float,
            f.no_gravado::float, f.total::float, f.total_ars::float, f.total_usd::float, f.deposito_id::int, d.nombre deposito,
            f.recepcion_id::int, f.cuenta_gasto_id::int, (pc.codigo || ' ' || pc.nombre) cuenta_gasto, f.estado, f.notas, f.registrada_ts,
-           f.diferencia_recepcion
+           f.diferencia_recepcion, f.emisor_id::int, (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = f.emisor_id) emisor
       from factura_compra f join proveedor p on p.id = f.proveedor_id
       left join deposito d on d.id = f.deposito_id
       left join plan_cuenta pc on pc.id = f.cuenta_gasto_id and pc.organizacion_id = f.organizacion_id

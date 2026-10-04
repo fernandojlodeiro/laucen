@@ -12,7 +12,7 @@ import { movimientoCc, imputarAutomatico, type Tercero } from "@/lib/administrac
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
-type Cuenta = { id: number; nombre: string; moneda: "ARS" | "USD" };
+type Cuenta = { id: number; nombre: string; moneda: "ARS" | "USD"; emisor_id: number | null };
 
 async function tc(c: PoolClient, org: string, fecha: string): Promise<number> {
   const v = Number((await c.query<{ v: string | null }>("select tc_del_dia($1, $2::date) v", [org, fecha])).rows[0]?.v ?? 0);
@@ -27,7 +27,7 @@ async function doble(c: PoolClient, org: string, fecha: string, moneda: "ARS" | 
 }
 
 async function cuenta(c: PoolClient, org: string, id: number): Promise<Cuenta> {
-  const r = (await c.query<Cuenta>("select id::int, nombre, moneda from cuenta_fondos where id = $1 and organizacion_id = $2 and activa", [id, org])).rows[0];
+  const r = (await c.query<Cuenta>("select id::int, nombre, moneda, emisor_id::int from cuenta_fondos where id = $1 and organizacion_id = $2 and activa", [id, org])).rows[0];
   if (!r) throw new ErrorErp("Esa cuenta de fondos no existe o está desactivada.");
   return r;
 }
@@ -44,16 +44,16 @@ async function movimiento(c: PoolClient, org: string, d: { cuentaId: number; fec
 }
 
 /** Cuentas con su saldo (en su moneda) y lo que falta conciliar. */
-export function cuentasConSaldo(org: string) {
+export function cuentasConSaldo(org: string, emisorId: number | null = null) {
   return consulta<{ id: number; nombre: string; tipo: string; moneda: string; banco: string | null; cbu: string | null; alias: string | null;
     activa: boolean; cuenta_contable_id: number | null; saldo_inicial: number; saldo_inicial_fecha: string | null; saldo: number; sin_conciliar: number;
-    canal_id: number | null; canal: string | null }>(`
-    select f.id::int, f.nombre, f.tipo, f.moneda, f.banco, f.cbu, f.alias, f.activa, f.cuenta_contable_id::int, f.saldo_inicial::float,
+    canal_id: number | null; canal: string | null; emisor_id: number | null; emisor: string | null }>(`
+    select f.id::int, f.emisor_id::int, (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = f.emisor_id) emisor, f.nombre, f.tipo, f.moneda, f.banco, f.cbu, f.alias, f.activa, f.cuenta_contable_id::int, f.saldo_inicial::float,
            to_char(f.saldo_inicial_fecha, 'YYYY-MM-DD') saldo_inicial_fecha,
            (f.saldo_inicial + coalesce((select sum(m.importe) from movimiento_fondos m where m.cuenta_id = f.id), 0))::float saldo,
            (select count(*) from movimiento_fondos m where m.cuenta_id = f.id and m.conciliado_ts is null)::int sin_conciliar,
            f.canal_id::int, (select ca.nombre from canal ca where ca.id = f.canal_id) canal
-      from cuenta_fondos f where f.organizacion_id = $1 order by f.activa desc, f.tipo, f.nombre`, [org]);
+      from cuenta_fondos f where f.organizacion_id = $1 and ($2::bigint is null or f.emisor_id = $2) order by f.activa desc, f.tipo, f.nombre`, [org, emisorId]);
 }
 
 /** Movimientos de una cuenta con saldo acumulado (el saldo inicial incluido). */
@@ -96,24 +96,28 @@ export async function emitirRecibo(org: string, d: { tipo: "cobro" | "pago"; ter
       const x = await doble(c, org, d.fecha, cta.moneda, m.importe);
       totalArs += x.ars; totalUsd += x.usd;
     }
+    // La razón social del recibo es la de las cuentas de fondos por donde entra o sale la plata:
+    // todas tienen que ser de la misma (cada empresa lleva su caja y su cuenta corriente).
+    const emisorId = cuentas[0].emisor_id;
+    if (cuentas.some((x) => x.emisor_id !== emisorId)) throw new ErrorErp("Los medios son de cuentas de razones sociales distintas: hacé un recibo por cada una.");
     const t0 = await tc(c, org, d.fecha);
     for (const r of ret) { totalArs += r.importe; totalUsd += r.importe / t0; }
     totalArs = r2(totalArs); totalUsd = r2(totalUsd);
     await c.query("select pg_advisory_xact_lock(hashtext('recibo:' || $1 || ':' || $2))", [org, d.tipo]);
     const numero = Number((await c.query<{ n: string }>("select coalesce(max(numero), 0) + 1 n from recibo where organizacion_id = $1 and tipo = $2", [org, d.tipo])).rows[0].n);
     const id = Number((await c.query<{ id: string }>(`
-      insert into recibo (organizacion_id, tipo, numero, tercero_tipo, tercero_id, fecha, moneda, total, total_ars, total_usd, medios, retenciones, notas, usuario_id)
-      values ($1, $2, $3, $4, $5, $6, 'ARS', $7, $7, $8, $9::jsonb, $10::jsonb, $11, $12) returning id`,
+      insert into recibo (organizacion_id, tipo, numero, tercero_tipo, tercero_id, fecha, moneda, total, total_ars, total_usd, medios, retenciones, notas, usuario_id, emisor_id)
+      values ($1, $2, $3, $4, $5, $6, 'ARS', $7, $7, $8, $9::jsonb, $10::jsonb, $11, $12, $13) returning id`,
       [org, d.tipo, numero, tercero, d.terceroId, d.fecha, totalArs, totalUsd,
         JSON.stringify(medios.map((m) => ({ cuenta_id: m.cuentaId, importe: r2(m.importe) }))),
-        JSON.stringify(ret.map((r) => ({ concepto: r.concepto.trim(), importe: r2(r.importe) }))), d.notas || null, d.usuarioId])).rows[0].id);
+        JSON.stringify(ret.map((r) => ({ concepto: r.concepto.trim(), importe: r2(r.importe) }))), d.notas || null, d.usuarioId, emisorId])).rows[0].id);
     const nombre = d.tipo === "cobro" ? `Recibo ${numero}` : `Orden de pago ${numero}`;
     for (const m of medios) {
       await movimiento(c, org, { cuentaId: m.cuentaId, fecha: d.fecha, importe: d.tipo === "cobro" ? m.importe : -m.importe,
         concepto: `${nombre} · ${t.nombre}`, referenciaTipo: "recibo", referenciaId: id, usuarioId: d.usuarioId });
     }
     await movimientoCc(c, org, { tercero, terceroId: d.terceroId, fecha: d.fecha, tipo: d.tipo, importe: -totalArs, importeArs: -totalArs,
-      importeUsd: -totalUsd, descripcion: nombre, referenciaTipo: "recibo", referenciaId: id });
+      importeUsd: -totalUsd, descripcion: nombre, referenciaTipo: "recibo", referenciaId: id, emisorId });
     await imputarAutomatico(c, org, tercero, d.terceroId);
     return { id, numero, totalArs };
   });
@@ -170,6 +174,7 @@ export async function transferir(org: string, d: { origenId: number; destinoId: 
   if (!(d.importe > 0)) throw new ErrorErp("El importe tiene que ser mayor que cero.");
   return enTransaccion(async (c) => {
     const o = await cuenta(c, org, d.origenId), de = await cuenta(c, org, d.destinoId);
+    if (o.emisor_id !== de.emisor_id) throw new ErrorErp("Las dos cuentas son de razones sociales distintas: no se transfiere entre empresas (sería un préstamo entre ellas, que se asienta aparte).");
     let entra = d.importeDestino ?? null;
     if (o.moneda === de.moneda) entra = d.importe;
     else if (!(entra && entra > 0)) {

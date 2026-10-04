@@ -62,9 +62,22 @@ export async function accionGuardarCanal(fd: FormData) {
     const umbral = entero(fd, "umbral");
     if (umbral != null && umbral < 0) throw new ErrorErp("El umbral de pausa no puede ser negativo.");
     const estado = String(fd.get("estado"));
-    await consulta(`update canal set nombre = $3, tipo = $4, lista_precios_id = $5, estado = $6, umbral_pausa_default = $7
+    // Razón social con la que factura el canal (vacío = la principal). Si el formulario no la trae
+    // (una sola razón social), no se toca.
+    const emisor = fd.has("emisor") ? id(fd, "emisor") || null : undefined;
+    if (emisor) {
+      const e = await una("select 1 from emisor where id = $1 and organizacion_id = $2", [emisor, s.org.id]);
+      if (!e) throw new ErrorErp("Esa razón social no existe.");
+    }
+    await consulta(`update canal set nombre = $3, tipo = $4, lista_precios_id = $5, estado = $6, umbral_pausa_default = $7,
+                           emisor_id = case when $8::boolean then $9::bigint else emisor_id end
                      where id = $2 and organizacion_id = $1`,
-      [s.org.id, id(fd), nombre, tipo(fd), await listaDe(s.org.id, fd), ESTADOS.includes(estado) ? estado : "activo", umbral]);
+      [s.org.id, id(fd), nombre, tipo(fd), await listaDe(s.org.id, fd), ESTADOS.includes(estado) ? estado : "activo", umbral,
+        emisor !== undefined, emisor ?? null]);
+    // La cuenta de Mercado Pago del canal es de la razón social que factura el canal.
+    if (emisor !== undefined) {
+      await consulta("update cuenta_fondos set emisor_id = coalesce($3::bigint, emisor_principal($1)) where canal_id = $2 and organizacion_id = $1", [s.org.id, id(fd), emisor ?? null]);
+    }
     revalidatePath(BASE);
     return "Guardado.";
   });

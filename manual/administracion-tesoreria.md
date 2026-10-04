@@ -167,6 +167,15 @@ Si no se elige una, los asientos usan la del tipo: Caja → "Caja", Banco → "B
 
 Los genera solos [Contabilidad](/administracion/contabilidad): un movimiento suelto, fondos contra la contrapartida elegida; una transferencia, fondos destino contra fondos origen. Al borrar un movimiento o una transferencia, su asiento queda anulado. El cobro de un pedido no tiene asiento propio: es parte del asiento "Cobro de pedido".
 
+## Con más de una razón social
+
+Cada **cuenta de fondos** (caja, banco, Mercado Pago) pertenece a **una razón social**: el banco es de un CUIT. Al crear o editar una cuenta hay un campo **"Razón social"** (sólo si hay más de una) y, arriba de la lista, un selector **"Razón social"** (**"Todas"** o una sola); la lista suma una columna con la razón social de cada cuenta.
+
+- La cuenta de **Mercado Pago de cada cuenta de ML** es de la razón social con la que factura su canal.
+- **No se puede cambiar la razón social de una cuenta que ya tiene movimientos.**
+- **No hay transferencias entre cuentas de razones sociales distintas** ("Las dos cuentas son de razones sociales distintas…"): sería un préstamo entre empresas, que se asienta aparte.
+- Los **recibos y órdenes de pago** usan cuentas de una sola razón social (ver [Cuentas corrientes](/administracion/cuentas-corrientes)).
+
 ## Preguntas frecuentes
 
 **¿Dónde cargo un cobro de un cliente?**
@@ -199,3 +208,4 @@ No se borra: queda desactivada, con toda su historia.
 - [Contabilidad](/administracion/contabilidad)
 - [Medios de pago](/config/medios-pago)
 - [Tipo de cambio](/config/tipo-cambio)
+- [Razones sociales](/config/razones-sociales)

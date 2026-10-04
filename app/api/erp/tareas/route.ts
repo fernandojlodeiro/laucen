@@ -31,7 +31,7 @@ export async function GET(req: Request) {
   if (!ok?.rowCount) return new Response("No", { status: 403 });
   const t0 = Date.now();
   const informe: Record<string, unknown> = {};
-  const orgs = (await pool.query<{ organizacion_id: string }>("select organizacion_id from emisor")).rows;
+  const orgs = (await pool.query<{ organizacion_id: string }>("select distinct organizacion_id from emisor")).rows;
   for (const { organizacion_id } of orgs) {
     if (Date.now() - t0 > 60_000) break;
     informe[organizacion_id] = { facturacion: await facturarPendientes(organizacion_id, t0 + 60_000) };

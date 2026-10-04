@@ -17,10 +17,10 @@ export type Persona = {
   domicilio: string | null; localidad: string | null; provincia: string | null; codigoPostal: string | null; estado: string | null;
 };
 
-export async function consultarCuit(org: string, ambiente: Ambiente, cuitEmisor: string, cuit: string): Promise<Persona> {
+export async function consultarCuit(emisorId: number, ambiente: Ambiente, cuitEmisor: string, cuit: string): Promise<Persona> {
   const c = cuit.replace(/\D/g, "");
   if (c.length !== 11) throw new ErrorErp("El CUIT tiene que tener 11 dígitos.");
-  const t = await ticket(org, ambiente, "ws_sr_constancia_inscripcion");
+  const t = await ticket(emisorId, ambiente, "ws_sr_constancia_inscripcion");
   const sobre = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:a5="http://a5.soap.ws.server.puc.sr/"><soapenv:Header/><soapenv:Body>` +
     `<a5:getPersona_v2><token>${t.token}</token><sign>${t.sign}</sign><cuitRepresentada>${cuitEmisor.replace(/\D/g, "")}</cuitRepresentada><idPersona>${c}</idPersona></a5:getPersona_v2>` +
     `</soapenv:Body></soapenv:Envelope>`;

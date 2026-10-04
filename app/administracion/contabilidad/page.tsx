@@ -19,6 +19,8 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, coincideBusqueda,
 } from "@/app/componentes/erp";
+import SelectorRazonSocial from "@/app/componentes/SelectorRazonSocial";
+import { elegirRazonSocial, nombreRs, type EleccionRs } from "@/lib/razon-social";
 import { FormAsiento, InterruptorCampo } from "./piezas";
 import {
   accionContabilizar, accionAsientoManual, accionAnularAsiento, accionCrearCuenta, accionGuardarCuenta, accionBorrarCuenta,
@@ -45,7 +47,7 @@ const ORIGEN: Record<string, string> = {
 };
 const TIPO: Record<string, string> = { activo: "Activo", pasivo: "Pasivo", patrimonio: "Patrimonio neto", ingreso: "Ingreso", egreso: "Egreso" };
 
-type SP = { p?: string; desde?: string; hasta?: string; cuenta?: string; editar?: string; q?: string; contiene?: string; ok?: string; error?: string };
+type SP = { rs?: string; p?: string; desde?: string; hasta?: string; cuenta?: string; editar?: string; q?: string; contiene?: string; ok?: string; error?: string };
 
 const $ = (x: number) => formatear(x, "ARS");
 const esFecha = (x?: string) => !!x && /^\d{4}-\d{2}-\d{2}$/.test(x);
@@ -62,27 +64,30 @@ export default async function Contabilidad({ searchParams }: { searchParams: Pro
   const desde = esFecha(sp.desde) ? sp.desde! : `${hoy.slice(0, 8)}01`;
   const hasta = esFecha(sp.hasta) ? sp.hasta! : hoy;
   // La dirección actual, para volver acá después de una acción.
-  const aqui = url(BASE, { p, desde: sp.desde, hasta: sp.hasta, cuenta: sp.cuenta });
+  // Los libros son de cada razón social (el plan de cuentas es uno solo): se miran de una o de todas.
+  const rs = await elegirRazonSocial(org, sp.rs);
+  const rsParam = rs.multi ? (rs.id ?? "todas") : null;
+  const aqui = url(BASE, { p, desde: sp.desde, hasta: sp.hasta, cuenta: sp.cuenta, rs: rsParam });
   const [cuentas] = await consulta<{ asientos: number; manuales: number; plan: number }>(`
-    select (select count(*) from asiento where organizacion_id = $1 and fecha between $2 and $3 and estado = 'vigente')::int asientos,
-           (select count(*) from asiento where organizacion_id = $1 and fecha between $2 and $3 and estado = 'vigente' and origen = 'manual')::int manuales,
-           (select count(*) from plan_cuenta where organizacion_id = $1)::int plan`, [org, desde, hasta]);
+    select (select count(*) from asiento where organizacion_id = $1 and fecha between $2 and $3 and estado = 'vigente' and ($4::bigint is null or emisor_id = $4))::int asientos,
+           (select count(*) from asiento where organizacion_id = $1 and fecha between $2 and $3 and estado = 'vigente' and origen = 'manual' and ($4::bigint is null or emisor_id = $4))::int manuales,
+           (select count(*) from plan_cuenta where organizacion_id = $1)::int plan`, [org, desde, hasta, rs.id]);
 
   return (
     <Pantalla titulo="Contabilidad" acciones={p === "plan" ? <BotonNuevo texto="Nueva cuenta" /> : undefined}
       subtitulo="Los asientos se generan solos desde las ventas, compras, despachos, recibos, movimientos de fondos y ajustes de stock; acá se ven los libros y se cargan los ajustes del contador.">
       <Pestanas items={PESTANAS.map((x) => ({
         clave: x.p, texto: x.texto, activa: p === x.p,
-        href: url(BASE, { p: x.p === "diario" ? null : x.p, desde: sp.desde, hasta: sp.hasta }),
+        href: url(BASE, { p: x.p === "diario" ? null : x.p, desde: sp.desde, hasta: sp.hasta, rs: rsParam }),
         // Lo que se cuenta: los asientos del período (diario y manuales) y las cuentas del plan.
         cuenta: x.p === "diario" ? cuentas.asientos : x.p === "manual" ? cuentas.manuales : x.p === "plan" ? cuentas.plan : null,
       }))} />
       <Avisos sp={sp} />
-      {p === "diario" && <Diario org={org} desde={desde} hasta={hasta} aqui={aqui} />}
-      {p === "manual" && <Manual org={org} hoy={hoy} />}
-      {p === "mayor" && <Mayor org={org} desde={desde} hasta={hasta} cuenta={Number(sp.cuenta) || 0} />}
-      {p === "sumas" && <Sumas org={org} desde={desde} hasta={hasta} />}
-      {p === "resultados" && <Resultados org={org} desde={desde} hasta={hasta} />}
+      {p === "diario" && <Diario org={org} desde={desde} hasta={hasta} aqui={aqui} rs={rs} />}
+      {p === "manual" && <Manual org={org} hoy={hoy} rs={rs} />}
+      {p === "mayor" && <Mayor org={org} desde={desde} hasta={hasta} cuenta={Number(sp.cuenta) || 0} rs={rs} />}
+      {p === "sumas" && <Sumas org={org} desde={desde} hasta={hasta} rs={rs} />}
+      {p === "resultados" && <Resultados org={org} desde={desde} hasta={hasta} rs={rs} />}
       {p === "plan" && <Plan org={org} editar={Number(sp.editar) || 0} q={sp.q?.trim() ?? ""} comienza={sp.contiene !== "1"} />}
     </Pantalla>
   );
@@ -90,9 +95,10 @@ export default async function Contabilidad({ searchParams }: { searchParams: Pro
 
 /** Filtro desde/hasta con atajos (RangoFechas), más lo que la pestaña necesite.
  *  Todo cambia la dirección al momento; la pestaña (?p=) queda. */
-function Periodo({ desde, hasta, children }: { p: P; desde: string; hasta: string; children?: React.ReactNode }) {
+function Periodo({ desde, hasta, rs, children }: { p: P; desde: string; hasta: string; rs: EleccionRs; children?: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-center gap-3 mb-3">
+      {rs.multi && <SelectorRazonSocial razones={rs.razones.map((x) => ({ id: x.id, nombre: nombreRs(x) }))} valor={rs.id} />}
       {children}
       <RangoFechas desde={desde} hasta={hasta} etiqueta="Período" />
     </div>
@@ -101,8 +107,8 @@ function Periodo({ desde, hasta, children }: { p: P; desde: string; hasta: strin
 
 // ── 1. Libro diario ────────────────────────────────────────
 
-async function Diario({ org, desde, hasta, aqui }: { org: string; desde: string; hasta: string; aqui: string }) {
-  const asientos = await libroDiario(org, desde, hasta);
+async function Diario({ org, desde, hasta, aqui, rs }: { org: string; desde: string; hasta: string; aqui: string; rs: EleccionRs }) {
+  const asientos = await libroDiario(org, desde, hasta, rs.id);
   const vigentes = asientos.filter((a) => a.estado === "vigente");
   const totDebe = vigentes.reduce((t, a) => t + a.lineas.reduce((u, l) => u + l.debe, 0), 0);
   const totHaber = vigentes.reduce((t, a) => t + a.lineas.reduce((u, l) => u + l.haber, 0), 0);
@@ -110,7 +116,7 @@ async function Diario({ org, desde, hasta, aqui }: { org: string; desde: string;
   return (
     <>
       <div className="flex flex-wrap items-end justify-between gap-2">
-        <Periodo p="diario" desde={desde} hasta={hasta} />
+        <Periodo p="diario" desde={desde} hasta={hasta} rs={rs} />
         <form action={accionContabilizar} className="mb-3">
           <input type="hidden" name="volver" value={aqui} />
           <BotonEnviar clase={PRIMARIO} corriendo="Contabilizando…">Contabilizar ahora</BotonEnviar>
@@ -174,28 +180,29 @@ async function Diario({ org, desde, hasta, aqui }: { org: string; desde: string;
 
 // ── 2. Asiento manual ──────────────────────────────────────
 
-async function Manual({ org, hoy }: { org: string; hoy: string }) {
+async function Manual({ org, hoy, rs }: { org: string; hoy: string; rs: EleccionRs }) {
   const cuentas = await cuentasImputables(org);
   return (
     <>
       <p className="text-xs text-[#5C6B76] mb-2">Para ajustes del contador o el asiento de apertura. Cada renglón lleva debe o haber (no los dos), y el total del debe tiene que dar igual al del haber.</p>
-      <FormAsiento accion={accionAsientoManual} cuentas={cuentas} hoy={hoy} />
+      <FormAsiento accion={accionAsientoManual} cuentas={cuentas} hoy={hoy}
+        razones={rs.multi ? rs.razones.map((x) => ({ id: x.id, nombre: nombreRs(x) })) : []} razonInicial={rs.id ?? rs.razones.find((x) => x.es_principal)?.id ?? null} />
     </>
   );
 }
 
 // ── 3. Mayor ───────────────────────────────────────────────
 
-async function Mayor({ org, desde, hasta, cuenta }: { org: string; desde: string; hasta: string; cuenta: number }) {
+async function Mayor({ org, desde, hasta, cuenta, rs }: { org: string; desde: string; hasta: string; cuenta: number; rs: EleccionRs }) {
   const cuentas = (await planDeCuentas(org)).filter((c) => c.imputable);
   const elegida = cuentas.find((c) => c.id === cuenta);
-  const mayor = elegida ? await libroMayor(org, elegida.id, desde, hasta) : null;
+  const mayor = elegida ? await libroMayor(org, elegida.id, desde, hasta, rs.id) : null;
   const totDebe = mayor?.movimientos.reduce((t, m) => t + m.debe, 0) ?? 0;
   const totHaber = mayor?.movimientos.reduce((t, m) => t + m.haber, 0) ?? 0;
 
   return (
     <>
-      <Periodo p="mayor" desde={desde} hasta={hasta}>
+      <Periodo p="mayor" desde={desde} hasta={hasta} rs={rs}>
         <FiltroVivo parametro="cuenta" valor={elegida?.id ? String(elegida.id) : ""} etiqueta="Cuenta">
           <option value="">Elegí una cuenta…</option>
           {cuentas.map((c) => <option key={c.id} value={c.id}>{c.codigo} — {c.nombre}{c.activa ? "" : " (inactiva)"}</option>)}
@@ -217,7 +224,7 @@ async function Mayor({ org, desde, hasta, cuenta }: { org: string; desde: string
                 <tr key={i} className={TR}>
                   <td className={`${TD} tabular-nums`}>{fechaAR(m.fecha)}</td>
                   <td className={TD}>
-                    <Link href={`${url(BASE, { desde: m.fecha, hasta: m.fecha })}#a${m.asiento_id}`} className="text-[#16577F] underline">{m.numero}</Link>
+                    <Link href={`${url(BASE, { desde: m.fecha, hasta: m.fecha, rs: rs.multi ? (rs.id ?? "todas") : null })}#a${m.asiento_id}`} className="text-[#16577F] underline">{m.numero}</Link>
                   </td>
                   <td className={TD}>{m.concepto}{m.detalle && <span className="text-[#5C6B76]"> · {m.detalle}</span>}</td>
                   <td className={TDN}>{m.debe ? $(m.debe) : ""}</td>
@@ -243,8 +250,8 @@ async function Mayor({ org, desde, hasta, cuenta }: { org: string; desde: string
 
 // ── 4. Sumas y saldos ──────────────────────────────────────
 
-async function Sumas({ org, desde, hasta }: { org: string; desde: string; hasta: string }) {
-  const filas = await sumasYSaldos(org, desde, hasta);
+async function Sumas({ org, desde, hasta, rs }: { org: string; desde: string; hasta: string; rs: EleccionRs }) {
+  const filas = await sumasYSaldos(org, desde, hasta, rs.id);
   const t = filas.reduce((a, f) => ({
     debe: a.debe + f.debe, haber: a.haber + f.haber,
     deudor: a.deudor + (f.saldo > 0 ? f.saldo : 0), acreedor: a.acreedor + (f.saldo < 0 ? -f.saldo : 0),
@@ -253,7 +260,7 @@ async function Sumas({ org, desde, hasta }: { org: string; desde: string; hasta:
 
   return (
     <>
-      <Periodo p="sumas" desde={desde} hasta={hasta} />
+      <Periodo p="sumas" desde={desde} hasta={hasta} rs={rs} />
       <p className="text-xs text-[#5C6B76] mb-2">Debe y haber son los del período; el saldo es el acumulado al {fechaAR(hasta)}.</p>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
@@ -295,8 +302,8 @@ async function Sumas({ org, desde, hasta }: { org: string; desde: string; hasta:
 
 // ── 5. Resultados ──────────────────────────────────────────
 
-async function Resultados({ org, desde, hasta }: { org: string; desde: string; hasta: string }) {
-  const r = await estadoDeResultados(org, desde, hasta);
+async function Resultados({ org, desde, hasta, rs }: { org: string; desde: string; hasta: string; rs: EleccionRs }) {
+  const r = await estadoDeResultados(org, desde, hasta, rs.id);
   const bloque = (titulo: string, filas: typeof r.ingresos, total: number) => (
     <>
       <tr className="bg-[#FAFBFC]"><td colSpan={3} className={`${TD} font-bold`}>{titulo}</td></tr>
@@ -315,7 +322,7 @@ async function Resultados({ org, desde, hasta }: { org: string; desde: string; h
 
   return (
     <>
-      <Periodo p="resultados" desde={desde} hasta={hasta} />
+      <Periodo p="resultados" desde={desde} hasta={hasta} rs={rs} />
       <div className={`${CAJA_TABLA} max-w-2xl`}>
         <table className={TABLA}>
           <tbody>

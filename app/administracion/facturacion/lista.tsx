@@ -80,6 +80,7 @@ const CAMPOS: Campo[] = [
     valor: (f) => f.ml ? ESTADO_FACTURA_ML[f.ml]?.texto ?? f.ml : null,
     celda: (f) => f.ml ? <Estado texto={ESTADO_FACTURA_ML[f.ml]?.texto ?? f.ml} tono={ESTADO_FACTURA_ML[f.ml]?.tono ?? "gris"} /> : <span className="text-[#5C6B76]">—</span>,
   },
+  { clave: "emisor", titulo: "Razón social", sql: "(select coalesce(e.nombre, e.razon_social) from emisor e where e.id = c.emisor_id)", ancho: 24 },
   { clave: "ambiente", titulo: "Ambiente", sql: "c.ambiente", valor: (f) => (f.ambiente === "homologacion" ? "Prueba" : "Producción") },
   campoFecha("autorizado", "Autorizado el", "c.autorizado_ts", { hora: true }),
 ];
@@ -99,6 +100,7 @@ export const LISTA_FACTURACION: Lista = {
     const cond = ["c.organizacion_id = $1"];
     const vals: unknown[] = [ctx.org];
     const sumar = (sql: string, v: unknown) => { vals.push(v); cond.push(sql.replace("?", `$${vals.length}`)); };
+    if (Number(sp.rs)) sumar("c.emisor_id = ?", Number(sp.rs));
     if (f.estado) sumar("c.estado = ?", f.estado);
     if (f.tipo) sumar("c.tipo_cbte = ?", Number(f.tipo));
     if (f.desde) sumar("c.fecha >= ?::date", f.desde);
