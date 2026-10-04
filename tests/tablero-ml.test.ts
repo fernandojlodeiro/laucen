@@ -131,3 +131,24 @@ test("alertas del catálogo: con stock y sin publicación activa; de la web sin 
   assert.equal(a.sinFotos, 1);      // P1 (en la web, sin fotos)
   assert.equal(a.productosActivos, 4);
 });
+
+test("la web y el resto: canales que no son de ML, con sus pedidos, envíos y reclamos propios", async () => {
+  const e = await escenario();
+  const web = await id("insert into canal (organizacion_id, nombre, tipo) values ($1, 'Web', 'web_minorista') returning id", [e.org]);
+  const mayor = await id("insert into canal (organizacion_id, nombre, tipo) values ($1, 'Mayorista', 'web_mayorista') returning id", [e.org]);
+  const local = await id("insert into canal (organizacion_id, nombre, tipo) values ($1, 'Local', 'local') returning id", [e.org]);
+  const manual = await id("insert into canal (organizacion_id, nombre, tipo) values ($1, 'Otro', 'otro') returning id", [e.org]);
+  const g = await m.t.gruposNoMl(e.org);
+  assert.deepEqual(g.web.sort(), [web, mayor].sort());
+  assert.deepEqual(g.otros.sort(), [local, manual].sort());
+  await q("insert into pedido (organizacion_id, canal_id, estado, total_ars) values ($1, $2, 'pagado', 1000), ($1, $3, 'pagado', 500), ($1, $4, 'pagado', 200)", [e.org, web, mayor, manual]);
+  await q("insert into reclamo (organizacion_id, canal_id, origen, tipo, estado) values ($1, $2, 'web', 'reclamo', 'abierto')", [e.org, web]);
+  const mapa = await m.t.metricasPorCanal(e.org, [...g.web, ...g.otros], { soloMl: false });
+  const W = m.t.sumar(g.web.map((c) => mapa.get(c)!)), O = m.t.sumar(g.otros.map((c) => mapa.get(c)!));
+  assert.equal(W.pedidosParaPreparar, 2);
+  assert.equal(O.pedidosParaPreparar, 1);
+  assert.equal(W.ventas.hoyArs, 1500);
+  assert.equal(W.reclamos.abiertos, 1);
+  // Con soloMl (lo de las cuentas de ML) un reclamo de la web no cuenta.
+  assert.equal((await m.t.metricasPorCanal(e.org, [web])).get(web)!.reclamos.abiertos, 0);
+});
