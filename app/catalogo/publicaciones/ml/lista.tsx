@@ -40,12 +40,12 @@ export const valorVerMl = (ver: VerMl) => (ver.length ? ver.join(",") : "-");
 /** Publicaciones que ML frena hasta que se corrija algo: en revisión, inactivas o con el pago pendiente. */
 export const ESTADOS_ML_CON_PROBLEMAS = "('under_review', 'inactive', 'payment_required')";
 
-/** Los filtros de la pantalla sobre meli_item (alias mi): $1 organización, $2 canal, $3 búsqueda. */
+/** Los filtros de la pantalla sobre meli_item (alias mi): $1 organización, $2 canales (uno, o todos con "Todas"), $3 búsqueda. */
 export function filtroMl(ver: VerMl) {
   const t = (c: CasillaMl) => ver.includes(c);
   const vinculo = t("sin") === t("vinc") ? "" : t("sin") ? "and mi.publicacion_id is null" : "and mi.publicacion_id is not null";
   const estados = [t("activas") && "mi.estado = 'active'", t("pausadas") && "mi.estado = 'paused'", t("revision") && `mi.estado in ${ESTADOS_ML_CON_PROBLEMAS}`].filter(Boolean);
-  return `mi.organizacion_id = $1 and mi.canal_id = $2 ${vinculo} ${estados.length ? `and (${estados.join(" or ")})` : ""}
+  return `mi.organizacion_id = $1 and mi.canal_id = any($2::bigint[]) ${vinculo} ${estados.length ? `and (${estados.join(" or ")})` : ""}
     and ($3::text is null or mi.titulo ilike $3 or mi.sku ilike $3 or mi.item_id ilike $3)`;
 }
 
@@ -55,6 +55,7 @@ export const LISTA_VINCULAR_ML: Lista = {
   ruta: "/catalogo/publicaciones/ml",
   permiso: "publicaciones_ver",
   campos: [
+    { clave: "canal", titulo: "Canal", sql: "(select nombre from canal where id = mi.canal_id)", ancho: 18 },
     { clave: "item", titulo: "Publicación (MLA)", sql: "mi.item_id", orden: "mi.item_id", ancho: 16 },
     { clave: "variacion_ml", titulo: "Variación de ML", sql: "nullif(mi.variation_id, '')" },
     { clave: "titulo", titulo: "Título", sql: "mi.titulo", ancho: 50 },
@@ -69,23 +70,21 @@ export const LISTA_VINCULAR_ML: Lista = {
     { clave: "permalink", titulo: "Enlace", sql: "mi.permalink", orden: false, ancho: 40 },
     { clave: "vinculo", titulo: "Vinculada a (SKU)", sql: "v.sku", ancho: 18 },
     { clave: "vinculo_titulo", titulo: "Vinculada a (variación)", sql: "case when v.id is null then null else titulo_variacion(v.id) end", orden: false, ancho: 40 },
-    { clave: "disponible", titulo: "Disponible en Laucen", sql: "case when v.id is null then null else stock_disponible_canal($1, v.id, $2) end", formato: "entero" },
+    { clave: "disponible", titulo: "Disponible en Laucen", sql: "case when v.id is null then null else stock_disponible_canal($1, v.id, mi.canal_id) end", formato: "entero" },
   ],
   enPantalla: ["item", "titulo", "sku", "precio", "stock", "vendidos", "estado", "tipo", "vinculo"],
   consulta: async (ctx, sp) => {
-    let canal = Number(sp.canal) || 0;
-    if (!canal) {
-      const [c] = await consulta<{ id: number }>(`
-        select c.id::int from canal c where c.organizacion_id = $1 and c.tipo = 'mercadolibre'
-           and exists (select 1 from meli_cuenta mc where mc.canal_id = c.id) order by c.nombre limit 1`, [ctx.org]);
-      canal = c?.id ?? 0;
-    }
+    // Los canales de ML con cuenta: todos con "Todas" (?todas=1), si no el elegido (o el primero).
+    const conCuenta = (await consulta<{ id: number }>(`
+      select c.id::int from canal c where c.organizacion_id = $1 and c.tipo = 'mercadolibre'
+         and exists (select 1 from meli_cuenta mc where mc.canal_id = c.id) order by c.nombre`, [ctx.org])).map((c) => c.id);
+    const canales = sp.todas === "1" ? conCuenta : [conCuenta.find((c) => c === Number(sp.canal)) ?? conCuenta[0] ?? 0];
     return {
       desde: `meli_item mi
         left join publicacion pu on pu.id = mi.publicacion_id and pu.organizacion_id = $1
         left join variacion v on v.id = pu.variacion_id`,
       donde: filtroMl(verMl(sp)),
-      valores: [ctx.org, canal, patronBusqueda(sp.q?.trim() || "", sp.contiene !== "1")],
+      valores: [ctx.org, canales, patronBusqueda(sp.q?.trim() || "", sp.contiene !== "1")],
       orden: "mi.titulo, mi.item_id, mi.variation_id",
     };
   },

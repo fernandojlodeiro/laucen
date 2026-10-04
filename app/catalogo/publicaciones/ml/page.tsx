@@ -13,14 +13,15 @@ import { formatear, tcDelDia } from "@/lib/moneda";
 import { cuentasDe } from "@/lib/mercadolibre/api";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { TachoConfirmar, BotonEnviar, BotonConfirmar } from "@/app/radar/Cliente";
-import { contarNotebooksABorrar } from "@/lib/mercadolibre/publicaciones";
+import { contarPausadasABorrar } from "@/lib/mercadolibre/publicaciones";
+import Todas from "./Todas";
 import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import {
   entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, patronBusqueda,
 } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
 import { LISTA_VINCULAR_ML, ESTADOS_ML_CON_PROBLEMAS, ESTADO_ML, type VerMl, valorVerMl, TIPO_ML, LOGISTICA_ML, filtroMl, verMl } from "./lista";
-import { accionTraerPublicaciones, accionVincular, accionCrearProducto, accionDesvincular, accionBorrarNotebooks } from "./acciones";
+import { accionTraerPublicaciones, accionVincular, accionCrearProducto, accionDesvincular, accionBorrarPausadas } from "./acciones";
 
 export const dynamic = "force-dynamic";
 // Traer publicaciones puede tardar (hasta 4 minutos por vuelta).
@@ -28,11 +29,11 @@ export const maxDuration = 300;
 
 const BASE = "/catalogo/publicaciones/ml";
 
-type SP = { canal?: string; ver?: string; f?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+type SP = { canal?: string; todas?: string; ver?: string; f?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 type Ver = VerMl;
 
 type Fila = {
-  item_id: string; variation_id: string; titulo: string | null; atributos: string | null; sku: string | null;
+  canal_id: number; item_id: string; variation_id: string; titulo: string | null; atributos: string | null; sku: string | null;
   precio: string | null; stock: number | null; vendidos: number | null; estado: string | null; tipo: string | null;
   logistica: string | null; permalink: string | null; foto: string | null; publicacion_id: number | null;
   variaciones: number; primera: boolean;
@@ -67,6 +68,10 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
   }
 
   const canal = canales.find((c) => c.id === Number(sp.canal)) ?? canales[0];
+  // "Todas las cuentas": la lista junta todos los canales (y suma la columna Canal).
+  const todas = sp.todas === "1";
+  const ids = todas ? canales.map((c) => c.id) : [canal.id];
+  const nombreCanal = new Map(canales.map((c) => [c.id, c.nombre]));
   const ver: Ver = verMl(sp);
   const q = sp.q?.trim() || "";
   const comienza = sp.contiene !== "1";
@@ -74,43 +79,43 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
   const { desde } = leerPagina(sp);
   // ?f= sólo si no es lo de siempre ("Sin vincular").
   const f = ver.length === 1 && ver[0] === "sin" ? null : valorVerMl(ver);
-  const aqui = url(BASE, { canal: canal.id, f, q, contiene: cont, p: sp.p, orden: sp.orden, dir: sp.dir });
+  const aqui = url(BASE, { canal: canal.id, todas: todas ? "1" : null, f, q, contiene: cont, p: sp.p, orden: sp.orden, dir: sp.dir });
 
   const resumen = (await consulta<{ total: number; vinculadas: number; activas: number; pausadas: number; con_cuestiones: number }>(`
     select count(*)::int total, count(publicacion_id)::int vinculadas,
            count(*) filter (where estado = 'active')::int activas,
            count(*) filter (where estado = 'paused')::int pausadas,
            count(*) filter (where estado in ${ESTADOS_ML_CON_PROBLEMAS})::int con_cuestiones
-      from meli_item where organizacion_id = $1 and canal_id = $2`, [org, canal.id]))[0];
+      from meli_item where organizacion_id = $1 and canal_id = any($2::bigint[])`, [org, ids]))[0];
 
-  const notebooks = await contarNotebooksABorrar(org, canal.id);
+  const pausadas = todas ? 0 : await contarPausadasABorrar(org, canal.id);
 
   // Los mismos filtros que el Excel (lista.tsx).
   const filtro = filtroMl(ver);
-  const params = [org, canal.id, patronBusqueda(q, comienza)];
+  const params = [org, ids, patronBusqueda(q, comienza)];
   const cantidad = (await consulta<{ n: number }>(
     `select count(*)::int n from meli_item mi where ${filtro}`, params))[0].n;
 
   const filas = await consulta<Fila>(`
-    select mi.item_id, mi.variation_id, mi.titulo, mi.atributos, mi.sku, mi.precio, mi.stock, mi.vendidos, mi.estado, mi.tipo,
+    select mi.canal_id::int, mi.item_id, mi.variation_id, mi.titulo, mi.atributos, mi.sku, mi.precio, mi.stock, mi.vendidos, mi.estado, mi.tipo,
            mi.logistica, mi.permalink, mi.foto, mi.publicacion_id::int,
            mi.variaciones, mi.primera,
            v.id::int variacion_id, v.sku var_sku, case when v.id is null then null else titulo_variacion(v.id) end var_titulo,
            v.producto_id::int, coalesce((select pr.estado = 'archivado' from producto pr where pr.id = v.producto_id), false) inactivo,
-           case when v.id is null then null else stock_disponible_canal($1, v.id, $2) end disponible,
+           case when v.id is null then null else stock_disponible_canal($1, v.id, mi.canal_id) end disponible,
            (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = v.producto_id) fotos
       from (
         -- Cuántas variaciones tiene el item y cuál es su primera fila sin
         -- vincular (ahí va "Crear producto"), antes de filtrar y paginar.
         select m.*, count(*) over (partition by m.item_id)::int variaciones,
                (row_number() over (partition by m.item_id order by m.publicacion_id is not null, m.variation_id) = 1) primera
-          from meli_item m where m.organizacion_id = $1 and m.canal_id = $2
+          from meli_item m where m.organizacion_id = $1 and m.canal_id = any($2::bigint[])
       ) mi
       left join publicacion pu on pu.id = mi.publicacion_id and pu.organizacion_id = $1
       left join variacion v on v.id = pu.variacion_id
      where ${filtro}
      order by ${leerOrden(sp, {
-       titulo: "mi.titulo", sku: "mi.sku", precio: "mi.precio", stock: "mi.stock", vendidos: "mi.vendidos", estado: "mi.estado", tipo: "mi.tipo", vinculo: "v.sku",
+       canal: "mi.canal_id", titulo: "mi.titulo", sku: "mi.sku", precio: "mi.precio", stock: "mi.stock", vendidos: "mi.vendidos", estado: "mi.estado", tipo: "mi.tipo", vinculo: "v.sku",
      }, "mi.titulo, mi.item_id, mi.variation_id")}
      limit ${POR_PAGINA} offset ${desde}`, params);
 
@@ -121,19 +126,20 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
   const n = (x: number) => x.toLocaleString("es-AR");
   return (
     <Pantalla titulo="Vincular con Mercado Libre" subtitulo="Cada publicación de Mercado Libre con su variación de Laucen"
-      acciones={<AccionesExcel lista={LISTA_VINCULAR_ML} org={org} extra={{ canal: String(canal.id) }} />}>
+      acciones={<AccionesExcel lista={LISTA_VINCULAR_ML} org={org} extra={todas ? { canal: String(canal.id), todas: "1" } : { canal: String(canal.id) }} />}>
       <Avisos sp={sp} />
 
       <div className="flex flex-wrap items-end gap-2 mb-3">
-        <label><span className={ETIQUETA}>Canal de Mercado Libre</span>
+        <label className={todas ? "opacity-50" : ""}><span className={ETIQUETA}>Canal de Mercado Libre</span>
           <FiltroVivo parametro="canal" valor={String(canal.id)} etiqueta="Canal de Mercado Libre" >
             {canales.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </FiltroVivo></label>
-        <form action={accionTraerPublicaciones} className="ml-auto">
+        <Todas prendido={todas} />
+        {!todas && <form action={accionTraerPublicaciones} className="ml-auto">
           <input type="hidden" name="canal" value={canal.id} />
           <input type="hidden" name="volver" value={aqui} />
           <BotonEnviar clase={PRIMARIO} corriendo="Trayendo… (puede tardar unos minutos)">Traer publicaciones de ML</BotonEnviar>
-        </form>
+        </form>}
       </div>
 
       <div className="grid grid-cols-3 gap-3 mb-4 max-w-xl">
@@ -145,14 +151,14 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
         <p className="text-xs text-[#5C6B76] mb-3">Todavía no se trajo nada de este canal: apretá &quot;Traer publicaciones de ML&quot;.</p>
       )}
 
-      {notebooks > 0 && (
+      {pausadas > 0 && (
         <div className={`${CAJA} mb-3 flex flex-wrap items-center gap-3`}>
           <p className="text-xs flex-1 min-w-60">
-            <b>{n(notebooks)} notebooks pausadas sin producto</b> en este canal (de la categoría Notebooks de ML). Se pueden borrar de Laucen:
+            <b>{n(pausadas)} publicaciones pausadas sin producto</b> en este canal. Se pueden borrar de Laucen:
             en Mercado Libre quedan como están, y al traer publicaciones no vuelven.
           </p>
-          <BotonConfirmar accion={accionBorrarNotebooks} campos={{ canal: String(canal.id), volver: aqui }} clase={SUAVE}
-            texto={`Borrar de Laucen (${n(notebooks)})`} pregunta={`¿Borrar las ${n(notebooks)} de Laucen?`} corriendo="Borrando…" />
+          <BotonConfirmar accion={accionBorrarPausadas} campos={{ canal: String(canal.id), volver: aqui }} clase={SUAVE}
+            texto={`Borrar de Laucen (${n(pausadas)})`} pregunta={`¿Borrar las ${n(pausadas)} de Laucen?`} corriendo="Borrando…" />
         </div>
       )}
 
@@ -167,14 +173,14 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH} /><ThOrden col="titulo" porDefecto>Publicación</ThOrden><ThOrden col="sku">SKU en ML</ThOrden><ThOrden col="precio" n>Precio</ThOrden>
+              <th className={TH} />{todas && <ThOrden col="canal">Canal</ThOrden>}<ThOrden col="titulo" porDefecto>Publicación</ThOrden><ThOrden col="sku">SKU en ML</ThOrden><ThOrden col="precio" n>Precio</ThOrden>
               <ThOrden col="stock" n>Stock ML</ThOrden><ThOrden col="vendidos" n>Vendidos</ThOrden><ThOrden col="estado">Estado</ThOrden><ThOrden col="tipo">Tipo</ThOrden>
               <ThOrden col="vinculo">Vinculación</ThOrden>
             </tr>
           </thead>
           <tbody>
             {filas.length === 0 && (
-              <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>
+              <tr><td colSpan={todas ? 10 : 9} className={`${TD} text-[#5C6B76]`}>
                 {q ? "Nada coincide con la búsqueda." : ver.length === 1 && ver[0] === "sin" && resumen.total > 0 ? "No queda ninguna sin vincular." : "No hay publicaciones para mostrar."}
               </td></tr>
             )}
@@ -182,7 +188,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
               const est = f.estado ? ESTADO_ML[f.estado] : null;
               const comunes = (
                 <>
-                  <input type="hidden" name="canal" value={canal.id} />
+                  <input type="hidden" name="canal" value={f.canal_id} />
                   <input type="hidden" name="item_id" value={f.item_id} />
                   <input type="hidden" name="volver" value={aqui} />
                 </>
@@ -195,6 +201,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
                       ? <img src={f.foto} alt="" className="w-10 h-10 object-contain rounded border border-[#E3E9F0] bg-white" loading="lazy" />
                       : <div className="w-10 h-10 rounded border border-[#E3E9F0] bg-[#FAFBFC]" />}
                   </td>
+                  {todas && <td className={`${TD} whitespace-nowrap`}>{nombreCanal.get(f.canal_id) ?? "—"}</td>}
                   <td className={`${TD} min-w-56`}>
                     <div className="font-semibold">{f.titulo ?? "—"}</div>
                     {f.atributos && <div className="text-[#5C6B76]">{f.atributos}</div>}
@@ -211,7 +218,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
                   <td className={TDN}>{f.vendidos ?? "—"}</td>
                   <td className={TD}>{est ? <Estado texto={est.texto} tono={est.tono} /> : <Estado texto={f.estado ?? "—"} />}</td>
                   <td className={`${TD} whitespace-nowrap`}>{f.tipo ? TIPO_ML[f.tipo] ?? f.tipo : "—"}</td>
-                  <td className={`${TD} min-w-72`}>
+                  <td className={`${TD} min-w-48 max-w-64`}>
                     {f.publicacion_id ? (
                       <div className="flex items-start gap-2">
                         <div className="flex-1">
@@ -230,15 +237,15 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
                         <form action={accionVincular} className="flex items-center gap-1">
                           {comunes}
                           <input type="hidden" name="variation_id" value={f.variation_id} />
-                          <input name="codigo" placeholder="SKU o código de barras de Laucen" aria-label="SKU o código de barras de Laucen"
-                            className={`${CAMPO} flex-1 min-w-40`} />
-                          <BotonEnviar clase={VERDE} corriendo="Vinculando…">Vincular</BotonEnviar>
+                          <input name="codigo" placeholder="SKU de Laucen" aria-label="SKU o código de barras de Laucen" title="SKU o código de barras de Laucen"
+                            className={`${CAMPO} flex-1 min-w-0 w-24 !py-1 !text-[11px]`} />
+                          <BotonEnviar clase={`${VERDE} !px-2 !py-1 !text-[11px]`} corriendo="…">Vincular</BotonEnviar>
                         </form>
                         {f.primera && (
                           <form action={accionCrearProducto}>
                             {comunes}
-                            <BotonEnviar clase={SUAVE} corriendo="Creando…">
-                              {f.variaciones > 1 ? `Crear producto con sus ${f.variaciones} variaciones` : "Crear producto"}
+                            <BotonEnviar clase={`${SUAVE} !px-2 !py-1 !text-[11px]`} corriendo="Creando…">
+                              {f.variaciones > 1 ? `Crear producto (${f.variaciones} variaciones)` : "Crear producto"}
                             </BotonEnviar>
                           </form>
                         )}

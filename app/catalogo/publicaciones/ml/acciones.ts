@@ -9,7 +9,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, id } from "@/lib/erp/acciones";
 import { cuentaDelCanal } from "@/lib/mercadolibre/api";
-import { traerPublicaciones, vincular, crearProductoDesdeItem, borrarNotebooksSinProducto } from "@/lib/mercadolibre/publicaciones";
+import { traerPublicaciones, vincular, crearProductoDesdeItem, borrarPausadasSinProducto } from "@/lib/mercadolibre/publicaciones";
 
 const BASE = "/catalogo/publicaciones/ml";
 
@@ -98,14 +98,14 @@ export async function accionDesvincular(fd: FormData) {
   });
 }
 
-/** Borra de Laucen (no de ML) las notebooks pausadas sin producto del canal. */
-export async function accionBorrarNotebooks(fd: FormData) {
+/** Borra de Laucen (no de ML) las publicaciones pausadas sin producto del canal. */
+export async function accionBorrarPausadas(fd: FormData) {
   const s = await entrarErp("publicaciones_ver");
   const volver = volverDe(fd);
   await intentar(volver, async () => {
     const cuenta = await cuentaDe(s.org.id, fd);
-    const n = await borrarNotebooksSinProducto(s.org.id, cuenta.canalId!);
+    const n = await borrarPausadasSinProducto(s.org.id, cuenta.canalId!);
     revalidatePath(BASE);
-    return `Borradas de Laucen ${n.toLocaleString("es-AR")} notebooks pausadas sin producto. En Mercado Libre siguen como estaban.`;
+    return `Borradas de Laucen ${n.toLocaleString("es-AR")} publicaciones pausadas sin producto. En Mercado Libre siguen como estaban.`;
   });
 }

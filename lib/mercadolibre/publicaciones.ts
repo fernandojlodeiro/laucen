@@ -180,27 +180,25 @@ export async function traerPublicaciones(cuenta: CuentaMl, hastaMs: number): Pro
   }
 }
 
-/** SQL: la fila de meli_item (`m`) es una notebook: la categoría Notebooks
- *  de ML (por el título se colaban cargadores "para ultrabook"). */
-export const SQL_ES_NOTEBOOK = "m.categoria = 'MLA1652'";
-/** SQL: notebooks pausadas (o cerradas) sin producto de Laucen: las que se
- *  pueden borrar de Laucen (Fer, 4/10). $1 organización, $2 canal. */
-const SQL_NOTEBOOKS_A_BORRAR = `m.organizacion_id = $1 and m.canal_id = $2 and m.publicacion_id is null and m.estado in ('paused', 'closed') and ${SQL_ES_NOTEBOOK}
+/** SQL: publicaciones pausadas (o cerradas) sin producto de Laucen: las que
+ *  se pueden borrar de Laucen (Fer, 4/10; primero fueron sólo las notebooks).
+ *  $1 organización, $2 canal. */
+const SQL_PAUSADAS_A_BORRAR = `m.organizacion_id = $1 and m.canal_id = $2 and m.publicacion_id is null and m.estado in ('paused', 'closed')
   and not exists (select 1 from meli_item o where o.canal_id = m.canal_id and o.item_id = m.item_id and o.publicacion_id is not null)`;
 
-/** Cuántas notebooks pausadas sin producto hay en el canal. */
-export async function contarNotebooksABorrar(org: string, canalId: number): Promise<number> {
-  return (await una<{ n: number }>(`select count(distinct m.item_id)::int n from meli_item m where ${SQL_NOTEBOOKS_A_BORRAR}`, [org, canalId]))?.n ?? 0;
+/** Cuántas publicaciones pausadas sin producto hay en el canal. */
+export async function contarPausadasABorrar(org: string, canalId: number): Promise<number> {
+  return (await una<{ n: number }>(`select count(distinct m.item_id)::int n from meli_item m where ${SQL_PAUSADAS_A_BORRAR}`, [org, canalId]))?.n ?? 0;
 }
 
-/** Borra de Laucen (no de ML) las notebooks pausadas sin producto del canal
- *  y las anota como descartadas, para que no vuelvan al traer. */
-export async function borrarNotebooksSinProducto(org: string, canalId: number): Promise<number> {
+/** Borra de Laucen (no de ML) las publicaciones pausadas sin producto del
+ *  canal y las anota como descartadas, para que no vuelvan al traer. */
+export async function borrarPausadasSinProducto(org: string, canalId: number): Promise<number> {
   return enTransaccion(async (c) => {
     const r = await c.query<{ item_id: string }>(`
       insert into meli_item_descartado (organizacion_id, canal_id, item_id, titulo, sku, motivo)
-      select distinct on (m.item_id) m.organizacion_id, m.canal_id, m.item_id, m.titulo, m.sku, 'notebook pausada sin producto'
-        from meli_item m where ${SQL_NOTEBOOKS_A_BORRAR}
+      select distinct on (m.item_id) m.organizacion_id, m.canal_id, m.item_id, m.titulo, m.sku, 'pausada sin producto'
+        from meli_item m where ${SQL_PAUSADAS_A_BORRAR}
       on conflict do nothing returning item_id`, [org, canalId]);
     await c.query("delete from meli_item m where m.organizacion_id = $1 and m.canal_id = $2 and m.item_id = any($3::text[]) and m.publicacion_id is null",
       [org, canalId, r.rows.map((x) => x.item_id)]);
