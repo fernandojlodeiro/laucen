@@ -37,9 +37,9 @@ function Celda({ valor, de, href, tono = "alerta", nota }: { valor: number | str
   const color = tono === "neutro" ? "" : tono === "alerta" ? (Number(valor) > 0 ? "text-[#C03420]" : "text-[#1F6E4A]") : "text-[#1F6E4A]";
   const cuerpo = (
     <>
-      <span className={`text-base font-bold tabular-nums ${color}`}>{typeof valor === "number" ? n(valor) : valor}</span>
+      <span className={`text-sm font-bold tabular-nums ${color}`}>{typeof valor === "number" ? n(valor) : valor}</span>
       {de !== undefined && <span className="ml-1 text-[11px] text-[#5C6B76] tabular-nums">de {typeof de === "number" ? n(de) : de}</span>}
-      {nota && <span className="block text-[10px] text-[#5C6B76] leading-3">{nota}</span>}
+      {nota && <span className="block text-[9px] text-[#5C6B76] leading-[11px] break-words">{nota}</span>}
     </>
   );
   return href ? <Link href={href} className="block hover:bg-[#EEF3F8] rounded-md px-1 -mx-1">{cuerpo}</Link> : <div>{cuerpo}</div>;
@@ -49,7 +49,7 @@ function Termometro({ nivel }: { nivel: string | null }) {
   return (
     <div className="flex gap-0.5" aria-hidden>
       {NIVELES_REPUTACION.map((x) => (
-        <span key={x.id} className="h-2 w-4 first:rounded-l last:rounded-r" style={{ background: x.color, opacity: x.id === nivel ? 1 : 0.22 }} />
+        <span key={x.id} className="h-1.5 w-3 first:rounded-l last:rounded-r" style={{ background: x.color, opacity: x.id === nivel ? 1 : 0.22 }} />
       ))}
     </div>
   );
@@ -209,33 +209,33 @@ export default async function TableroMl({ searchParams }: { searchParams: Promis
         </div>
       )}
       <div className="bg-white border border-[#E3E9F0] rounded-xl overflow-x-auto">
-        <table className="w-full text-[11px] border-collapse">
+        <table className="w-auto text-[10px] border-collapse">
           <thead className="bg-[#FAFBFC] border-b border-[#E3E9F0] sticky top-0 z-10">
             <tr>
-              <th className="py-1.5 px-2 text-left w-44 min-w-36" />
+              <th className="py-1 px-1.5 text-left w-32 min-w-28" />
               {columnas.map((c) => (
-                <th key={c.clave} className="py-1.5 px-2 text-left align-top min-w-[6.5rem] border-l border-[#E3E9F0]">
+                <th key={c.clave} className="py-1 px-1.5 text-left align-top w-[5.5rem] min-w-[5.5rem] max-w-[5.5rem] border-l border-[#E3E9F0]">
                   {c.href ? <Link href={c.href} className="font-bold text-xs text-[#16577F] hover:underline break-words">{c.titulo}</Link> : <span className="font-bold text-xs">{c.titulo}</span>}
-                  <span className="block text-[10px] font-normal text-[#5C6B76] leading-3">{c.sub}</span>
+                  <span className="block text-[9px] font-normal text-[#5C6B76] leading-[11px] break-words">{c.sub}</span>
                 </th>
               ))}
-              <th className="py-1.5 px-2 text-left align-top min-w-[6rem] border-l-2 border-[#E3E9F0] bg-[#F3F6F9] font-bold text-xs">Total</th>
+              <th className="py-1 px-1.5 text-left align-top w-[5.5rem] min-w-[5.5rem] border-l-2 border-[#E3E9F0] bg-[#F3F6F9] font-bold text-xs">Total</th>
             </tr>
           </thead>
           {secciones.map((sec) => (
             <tbody key={sec.titulo}>
               <tr className="bg-[#EEF3F8]">
-                <td colSpan={columnas.length + 2} className="py-1 px-2 font-bold text-[#16577F]">
+                <td colSpan={columnas.length + 2} className="py-0.5 px-1.5 font-bold text-[#16577F]">
                   {sec.titulo}{sec.sub && <span className="ml-2 font-normal text-[10px] text-[#5C6B76]">{sec.sub}</span>}
                 </td>
               </tr>
               {sec.filas.map((f) => (
                 <tr key={f.titulo} className="border-t border-[#EEF1F4] align-top">
-                  <th scope="row" className="py-1.5 px-2 text-left font-semibold">
-                    {f.titulo}{f.ayuda && <span className="block text-[10px] font-normal text-[#5C6B76] leading-3">{f.ayuda}</span>}
+                  <th scope="row" className="py-1 px-1.5 text-left font-semibold" title={f.ayuda}>
+                    {f.titulo}{f.ayuda && <span className="ml-0.5 font-normal text-[#9AA7B3] cursor-help">ⓘ</span>}
                   </th>
-                  {columnas.map((c) => <td key={c.clave} className="py-1.5 px-2 border-l border-[#EEF1F4]">{f.celda(c, M(c))}</td>)}
-                  <td className="py-1.5 px-2 border-l-2 border-[#E3E9F0] bg-[#F9FAFB]">{f.total ? f.total(total, columnas) : ""}</td>
+                  {columnas.map((c) => <td key={c.clave} className="py-1 px-1.5 border-l border-[#EEF1F4] max-w-[5.5rem]">{f.celda(c, M(c))}</td>)}
+                  <td className="py-1 px-1.5 border-l-2 border-[#E3E9F0] bg-[#F9FAFB]">{f.total ? f.total(total, columnas) : ""}</td>
                 </tr>
               ))}
             </tbody>

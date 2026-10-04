@@ -17,7 +17,7 @@ Menú **Mercado Libre** (arriba, al lado de Panel). Sólo lo ve quien tiene el p
 
 ## Qué hay en la pantalla
 
-Cada número en grande es lo que **hay para atender** (en rojo si es mayor que cero, en verde si es cero) y el chico, "de N", es el **total** de esa clase.
+Pasando el mouse por el ⓘ de cada fila se lee qué cuenta. Cada número en grande es lo que **hay para atender** (en rojo si es mayor que cero, en verde si es cero) y el chico, "de N", es el **total** de esa clase.
 
 ### Reputación
 Lo que informa Mercado Libre; cada dato cuenta el período que se muestra al lado (por ejemplo "60 días").
