@@ -53,7 +53,7 @@ Una franja azul fija abajo de todo, siempre visible:
 
 ### Lo último que viste (margen izquierdo)
 
-En la PC, si la pantalla tiene lugar a la izquierda del contenido, aparece una lista **"Lo último que viste"** por fuera del panel: cada ficha que abrís (**producto, cliente, pedido, factura, factura de compra, despacho, reclamo, proveedor o cuenta de fondos**) queda anotada con su tipo y su título, **la última arriba**. Tocándola volvés a esa ficha. Guarda las **últimas 15** (las más viejas se van pisando) y se anota sola; la **✕** de arriba borra la lista. Se guarda **en ese navegador**: no la ven otras personas ni aparece en otro equipo. Si la ventana es angosta y no hay lugar, no se muestra (no tapa nada).
+En la PC, si la pantalla tiene lugar a la izquierda del contenido, aparece una lista **"Lo último que viste"** por fuera del panel: cada registro que abrís en **cualquier pantalla de altas, bajas y modificaciones** (producto, cliente, pedido, factura, despacho, reclamo, proveedor, cuenta de fondos, **cucarda, publicación, canal, familia**…; también cuando apretás el lápiz de una fila) queda anotado con su tipo y su nombre, **la última arriba**. Tocándola volvés a esa ficha. Guarda las **últimas 15** (las más viejas se van pisando) y se anota sola; la **✕** de arriba borra la lista. Se guarda **en ese navegador**: no la ven otras personas ni aparece en otro equipo. Si la ventana es angosta y no hay lugar, no se muestra (no tapa nada).
 
 ### El camino (arriba a la izquierda, sobre el título)
 

@@ -2,13 +2,13 @@
 
 // Lo último que estuviste viendo (pedido de Fer, 4/10): sobre el margen
 // izquierdo, por fuera del panel, una lista de las fichas que abriste
-// (producto, cliente, pedido, factura, reclamo, proveedor…), la última arriba,
+// (producto, cliente, pedido, factura, reclamo, proveedor, cucarda, publicación, canal…: cualquier registro de un ABM), la última arriba,
 // para volver con un clic a lo que estabas mirando hace un rato. Guarda las
 // últimas 15 en este navegador (no se comparte con otras personas ni equipos)
 // y sólo se muestra si en la pantalla sobra lugar a la izquierda.
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 type Visto = { href: string; titulo: string; tipo: string };
@@ -16,26 +16,41 @@ const CLAVE = "laucen_historial_v1";
 const MAX = 15;
 const ANCHO = 176;
 
-/** Qué direcciones son una "ficha" y cómo se llama cada una. */
+/** Las fichas con dirección propia y cómo se llama cada una. */
 const FICHAS: [RegExp, string][] = [
   [/^\/catalogo\/productos\/\d+/, "Producto"],
   [/^\/ventas\/clientes\/\d+/, "Cliente"],
   [/^\/ventas\/pedidos\/\d+/, "Pedido"],
   [/^\/ventas\/reclamos\/(ml\/)?[^/]+$/, "Reclamo"],
   [/^\/administracion\/facturacion\/\d+/, "Factura"],
-  [/^\/compras\/facturas\/\d+/, "Factura de compra"],
+  [/^\/compras\/facturas\/(arca\/)?\d+/, "Factura de compra"],
   [/^\/compras\/despachos\/\d+/, "Despacho"],
   [/^\/administracion\/tesoreria\/\d+/, "Cuenta"],
-  [/^\/compras\/proveedores$/, "Proveedor"],
+  [/^\/deposito\/(recepcion|picking)\/[^/]+$/, "Depósito"],
 ];
+/** Cualquier otra pantalla del panel que termine en un número (y no sea de la tienda pública ni de administración interna). */
+const FICHA_GENERICA = /^\/(?!tienda\/|admin\/|api\/)[a-z\-/]+\/\d+$/;
+/** Pantallas de ABM que abren un registro por la dirección: `?id=` (lista filtrada a uno), `?c=` (canal) o `?editar=<número>` (el lápiz de una fila). */
+const PARAM_REGISTRO = /[?&](id|c|editar)=(\d+)/;
 
-function tipoDe(ruta: string, busqueda: string): string | null {
-  for (const [re, tipo] of FICHAS) {
-    if (!re.test(ruta)) continue;
-    if (tipo === "Proveedor" && !/[?&]id=\d+/.test(busqueda)) return null;
-    return tipo;
-  }
+type Marca = { tipo: string | null; href: string; porFila: boolean };
+function marcaDe(ruta: string, busqueda: string): Marca | null {
+  for (const [re, tipo] of FICHAS) if (re.test(ruta)) return { tipo, href: ruta, porFila: false };
+  if (FICHA_GENERICA.test(ruta)) return { tipo: null, href: ruta, porFila: false };
+  const m = busqueda.match(PARAM_REGISTRO);
+  if (m) return { tipo: null, href: `${ruta}?${m[1]}=${m[2]}`, porFila: true };
   return null;
+}
+
+/** El nombre del registro abierto: lo que dice su ficha, o el campo de la fila que se está editando, o la primera celda con letras. */
+function tituloDe(porFila: boolean): string {
+  const h1 = document.querySelector("main h1")?.textContent?.trim() ?? "";
+  if (!porFila) return h1;
+  const campo = Array.from(document.querySelectorAll<HTMLInputElement>("main tbody input:not([type=hidden]):not([type=color]):not([type=checkbox]), main form input:not([type=hidden]):not([type=color]):not([type=checkbox])"))
+    .find((i) => /[A-Za-zÁ-ú]/.test(i.value));
+  if (campo) return campo.value.trim();
+  const celda = Array.from(document.querySelectorAll("main tbody tr:first-child td")).map((t) => t.textContent?.trim() ?? "").find((t) => /[A-Za-zÁ-ú]{2}/.test(t));
+  return celda ?? "";
 }
 
 const leer = (): Visto[] => {
@@ -45,6 +60,7 @@ const guardar = (v: Visto[]) => { try { localStorage.setItem(CLAVE, JSON.stringi
 
 export default function Historial() {
   const ruta = usePathname();
+  const busquedaActual = useSearchParams().toString();
   const [lista, setLista] = useState<Visto[]>([]);
   const [hayLugar, setHayLugar] = useState(false);
   const [actual, setActual] = useState("");
@@ -60,28 +76,28 @@ export default function Historial() {
     return () => window.removeEventListener("resize", medir);
   }, [medir]);
 
-  // Al entrar a una ficha: se espera a que dibuje su título y se anota arriba de todo.
+  // Al entrar a una ficha o abrir un registro: se espera a que dibuje y se anota arriba de todo.
   useEffect(() => {
-    const busqueda = window.location.search;
-    const tipo = tipoDe(ruta, busqueda);
-    const href = ruta + (tipo === "Proveedor" ? (busqueda.match(/[?&]id=\d+/)?.[0].replace(/^&/, "?") ?? "") : "");
-    setActual(tipo ? href : "");
+    const marca = marcaDe(ruta, `?${busquedaActual}`);
+    setActual(marca?.href ?? "");
     medir();
-    if (!tipo) return;
+    if (!marca) return;
     let intentos = 0;
     const t = setInterval(() => {
       intentos++;
-      const h1 = document.querySelector("main h1")?.textContent?.trim();
-      if (!h1 && intentos < 8) return;
+      const nombre = tituloDe(marca.porFila);
+      if (!nombre && intentos < 8) return;
       clearInterval(t);
-      const titulo = (h1 || `${tipo} ${href.split("/").pop()}`).slice(0, 120);
-      const nueva = [{ href, titulo, tipo }, ...leer().filter((x) => x.href !== href)].slice(0, MAX);
+      const pantalla = (document.querySelector("main h1")?.textContent?.trim() ?? "").slice(0, 40);
+      const tipo = marca.tipo ?? pantalla;
+      const titulo = (nombre || `${tipo} ${marca.href.split(/[/=]/).pop()}`).slice(0, 120);
+      const nueva = [{ href: marca.href, titulo, tipo: tipo || "Ficha" }, ...leer().filter((x) => x.href !== marca.href)].slice(0, MAX);
       guardar(nueva);
       setLista(nueva);
       medir();
     }, 250);
     return () => clearInterval(t);
-  }, [ruta, medir]);
+  }, [ruta, busquedaActual, medir]);
 
   if (!hayLugar || lista.length === 0) return null;
   return (
