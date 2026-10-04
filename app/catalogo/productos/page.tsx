@@ -16,12 +16,12 @@ import { verInactivos } from "@/app/componentes/Inactivos";
 
 export const dynamic = "force-dynamic";
 
-type SP = { q?: string; estado?: string; familia?: string; tipo?: string; inactivos?: string; kitvs?: string; sinpublicar?: string; sinpubcanal?: string; sinfotos?: string; sincanal?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+type SP = { q?: string; estado?: string; familia?: string; tipo?: string; inactivos?: string; kitvs?: string; sinpublicar?: string; sinpubcanal?: string; webcanal?: string; webver?: string; sinfotos?: string; sincanal?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 export default async function Productos({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("productos_ver");
   const sp = await searchParams;
-  const { q, comienza, estado, tipo, familia, kitVs, sinPublicar, sinFotos, sinPublicarEn, sinCanal } = filtrosProductos(sp);
+  const { q, comienza, estado, tipo, familia, kitVs, sinPublicar, sinFotos, sinPublicarEn, sinCanal, webCanal, webVer } = filtrosProductos(sp);
   const ctx = { org: s.org.id, moneda: s.moneda };
   const [caminoFamilia, vista] = await Promise.all([caminoDeFamilia(s.org.id, familia), paginaDeVista(LISTA_PRODUCTOS, ctx, sp)]);
 
@@ -62,6 +62,12 @@ export default async function Productos({ searchParams }: { searchParams: Promis
         {sinPublicarEn > 0 && (
           <span className="text-xs bg-[#EEF3F8] rounded-md px-2 py-1">
             Con stock y sin publicar en una cuenta de ML <a href="/catalogo/productos" className="ml-1 text-[#16577F] font-bold" title="Quitar este filtro">✕</a>
+          </span>
+        )}
+        {webCanal > 0 && webVer && (
+          <span className="text-xs bg-[#EEF3F8] rounded-md px-2 py-1">
+            {webVer === "activa" ? "Publicados en la web" : webVer === "apagado" ? "Con \"Publicado en Web\" apagado" : "Con stock y \"Publicado en Web\" apagado"}
+            <a href="/catalogo/productos" className="ml-1 text-[#16577F] font-bold" title="Quitar este filtro">✕</a>
           </span>
         )}
         <CasillaViva parametro="sinfotos" activo={sinFotos} etiqueta="De la web, sin fotos" />

@@ -16,6 +16,7 @@ import { sqlPedidoPendiente, sqlCarritoEnEspera } from "@/lib/pedidos";
 import { estadoColaCanal } from "@/lib/mercadolibre/cola";
 import { ESTADOS_ML_CON_PROBLEMAS } from "@/app/catalogo/publicaciones/ml/lista";
 import { SQL_SIN_PUBLICAR, SQL_SIN_FOTOS, SQL_DISPONIBLE } from "@/lib/catalogo-alertas";
+import { sqlPublicadoEnWeb } from "@/lib/catalogo/web";
 import type { Reputacion } from "@/lib/mercadolibre/reputacion";
 
 const ZONA = "America/Argentina/Buenos_Aires";
@@ -135,14 +136,38 @@ export async function metricasPorCanal(org: string, canales: number[], { soloMl 
   return m;
 }
 
-/** Las alertas del catálogo (no son de ninguna cuenta): con stock y sin publicación activa en ML, y de la web sin fotos. */
+/** Las alertas del catálogo (no son de ninguna cuenta): con stock y sin publicación activa en ML, y de la web sin fotos.
+ *  `productosActivos` = todos los productos activos (tengan o no stock); `conStock` = los activos con stock disponible;
+ *  `publicadosWeb` = los activos con el interruptor "Publicado en Web" prendido en alguna tienda. */
 export async function alertasCatalogo(org: string) {
-  const [x] = await consulta<{ sin_publicar: number; sin_fotos: number; con_stock: number }>(`
+  const [x] = await consulta<{ sin_publicar: number; sin_fotos: number; activos: number; con_stock: number; publicados_web: number }>(`
     select count(*) filter (where ${SQL_SIN_PUBLICAR})::int sin_publicar,
            count(*) filter (where ${SQL_SIN_FOTOS})::int sin_fotos,
-           count(*) filter (where p.estado = 'activo')::int con_stock
+           count(*) filter (where p.estado = 'activo')::int activos,
+           count(*) filter (where p.estado = 'activo' and ${SQL_DISPONIBLE} > 0)::int con_stock,
+           count(*) filter (where p.estado = 'activo' and exists (
+             select 1 from publicacion pw join variacion vw on vw.id = pw.variacion_id join canal cw on cw.id = pw.canal_id
+              where vw.producto_id = p.id and pw.estado = 'activa' and pw.id_externo is null
+                and cw.tipo in ('web_minorista', 'web_mayorista') and cw.estado = 'activo'))::int publicados_web
       from producto p where p.organizacion_id = $1`, [org]);
-  return { sinPublicar: x?.sin_publicar ?? 0, sinFotos: x?.sin_fotos ?? 0, productosActivos: x?.con_stock ?? 0 };
+  return { sinPublicar: x?.sin_publicar ?? 0, sinFotos: x?.sin_fotos ?? 0, productosActivos: x?.activos ?? 0, conStock: x?.con_stock ?? 0, publicadosWeb: x?.publicados_web ?? 0 };
+}
+
+/** La web como canal (interruptor "Publicado en Web" de cada producto), por tienda (clave: id del canal):
+ *  productos activos publicados, con el interruptor apagado (pausados o nunca publicados) y, de éstos, los que tienen stock. */
+export type EstadoWeb = { publicados: number; apagados: number; apagadosConStock: number };
+export async function estadoWebPorCanal(org: string, canales: number[]): Promise<Map<number, EstadoWeb>> {
+  const m = new Map<number, EstadoWeb>(canales.map((c) => [c, { publicados: 0, apagados: 0, apagadosConStock: 0 }]));
+  if (!canales.length) return m;
+  const f = await consulta<{ canal: number; publicados: number; apagados: number; apagados_stock: number }>(`
+    select c.id::int canal,
+           count(*) filter (where ${sqlPublicadoEnWeb("p", "c.id")})::int publicados,
+           count(*) filter (where not ${sqlPublicadoEnWeb("p", "c.id")})::int apagados,
+           count(*) filter (where not ${sqlPublicadoEnWeb("p", "c.id")} and ${SQL_DISPONIBLE} > 0)::int apagados_stock
+      from unnest($2::bigint[]) c(id) cross join producto p
+     where p.organizacion_id = $1 and p.estado = 'activo' group by c.id`, [org, canales]);
+  for (const x of f) m.set(x.canal, { publicados: x.publicados, apagados: x.apagados, apagadosConStock: x.apagados_stock });
+  return m;
 }
 
 /** Por cada cuenta de ML (clave: id del canal): productos activos con stock que no tienen publicación activa en ESA cuenta. */
@@ -177,11 +202,12 @@ export const sumar = (ms: Metricas[]): Metricas => {
   return t;
 };
 
-/** Los canales que no son de Mercado Libre, en dos grupos: la tienda web (minorista y mayorista) y el resto (local, pedidos manuales, histórico, otros…). */
+/** Los canales que no son de Mercado Libre, en tres grupos: la tienda web minorista, la web mayorista (aunque todavía no exista) y el resto (local, pedidos manuales, histórico, otros…). */
 export async function gruposNoMl(org: string) {
   const f = await consulta<{ id: number; tipo: string }>("select id::int, tipo from canal where organizacion_id = $1 and tipo <> 'mercadolibre' order by id", [org]);
   return {
-    web: f.filter((x) => x.tipo === "web_minorista" || x.tipo === "web_mayorista").map((x) => x.id),
+    minorista: f.filter((x) => x.tipo === "web_minorista").map((x) => x.id),
+    mayorista: f.filter((x) => x.tipo === "web_mayorista").map((x) => x.id),
     otros: f.filter((x) => x.tipo !== "web_minorista" && x.tipo !== "web_mayorista").map((x) => x.id),
   };
 }

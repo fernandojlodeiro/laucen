@@ -112,24 +112,30 @@ test("alertas del catálogo: con stock y sin publicación activa; de la web sin 
   const ubic = await id("select id from ubicacion where deposito_id = $1 limit 1", [deposito]);
   const lista = await id("insert into lista_precios (organizacion_id, nombre) values ($1, 'Web') returning id", [e.org]);
   const web = await id("insert into canal (organizacion_id, nombre, tipo, lista_precios_id) values ($1, 'Web', 'web_minorista', $2) returning id", [e.org, lista]);
-  const producto = async (sku: string, { stock = 0, foto = false, publicada = false, precio = true } = {}) => {
+  const producto = async (sku: string, { stock = 0, foto = false, publicada = false, precio = true, enWeb = null as null | "activa" | "pausada" } = {}) => {
     const p = await id("insert into producto (organizacion_id, sku_base, titulo, tipo) values ($1, $2, $2, 'simple') returning id", [e.org, sku]);
     const v = await id("select id from variacion where producto_id = $1 and es_default", [p]);
     if (stock) await q("insert into stock (organizacion_id, variacion_id, ubicacion_id, cantidad) values ($1, $2, $3, $4)", [e.org, v, ubic, stock]);
     if (foto) await q("insert into producto_foto (organizacion_id, producto_id, url) values ($1, $2, 'https://x/y.jpg')", [e.org, p]);
     if (publicada) await q("insert into publicacion (organizacion_id, variacion_id, canal_id, id_externo, estado) values ($1, $2, $3, $4, 'activa')", [e.org, v, e.a, `MLA${p}`]);
+    if (enWeb) await q("insert into publicacion (organizacion_id, variacion_id, canal_id, estado) values ($1, $2, $3, $4)", [e.org, v, web, enWeb]);
     if (precio) await q("insert into precio (organizacion_id, lista_id, variacion_id, importe_ars, importe_usd, moneda_origen) values ($1, $2, $3, 100, 0.1, 'ARS')", [e.org, lista, v]);
     return p;
   };
-  await producto("P1", { stock: 5 });                        // con stock, sin publicar, sin fotos, en la web
+  await producto("P1", { stock: 5, enWeb: "activa" });       // con stock, sin publicar en ML, sin fotos, publicado en la web
   await producto("P2", { stock: 5, foto: true, publicada: true });  // publicada, con fotos
   await producto("P3", { stock: 0, foto: true });            // sin stock: no es alerta de publicar
-  await producto("P4", { stock: 3, foto: true, precio: false }); // sin publicar; con fotos
+  await producto("P4", { stock: 3, foto: true, precio: false }); // sin publicar; con fotos; no está en la web
+  await producto("P5", { stock: 2, foto: true, enWeb: "pausada" }); // con stock, interruptor de la web apagado
   void web;
   const a = await m.t.alertasCatalogo(e.org);
-  assert.equal(a.sinPublicar, 2);   // P1 y P4
+  assert.equal(a.sinPublicar, 3);   // P1, P4 y P5
   assert.equal(a.sinFotos, 1);      // P1 (en la web, sin fotos)
-  assert.equal(a.productosActivos, 4);
+  assert.equal(a.productosActivos, 5);   // todos los activos, con o sin stock
+  assert.equal(a.conStock, 4);           // P1, P2, P4 y P5
+  assert.equal(a.publicadosWeb, 1);      // sólo P1 (P5 está pausado)
+  const w = (await m.t.estadoWebPorCanal(e.org, [web])).get(web)!;
+  assert.deepEqual(w, { publicados: 1, apagados: 4, apagadosConStock: 3 }); // apagados: P2, P3, P4, P5; con stock: P2, P4, P5
 });
 
 test("la web y el resto: canales que no son de ML, con sus pedidos, envíos y reclamos propios", async () => {
@@ -139,12 +145,13 @@ test("la web y el resto: canales que no son de ML, con sus pedidos, envíos y re
   const local = await id("insert into canal (organizacion_id, nombre, tipo) values ($1, 'Local', 'local') returning id", [e.org]);
   const manual = await id("insert into canal (organizacion_id, nombre, tipo) values ($1, 'Otro', 'otro') returning id", [e.org]);
   const g = await m.t.gruposNoMl(e.org);
-  assert.deepEqual(g.web.sort(), [web, mayor].sort());
+  assert.deepEqual(g.minorista, [web]);
+  assert.deepEqual(g.mayorista, [mayor]);
   assert.deepEqual(g.otros.sort(), [local, manual].sort());
   await q("insert into pedido (organizacion_id, canal_id, estado, total_ars) values ($1, $2, 'pagado', 1000), ($1, $3, 'pagado', 500), ($1, $4, 'pagado', 200)", [e.org, web, mayor, manual]);
   await q("insert into reclamo (organizacion_id, canal_id, origen, tipo, estado) values ($1, $2, 'web', 'reclamo', 'abierto')", [e.org, web]);
-  const mapa = await m.t.metricasPorCanal(e.org, [...g.web, ...g.otros], { soloMl: false });
-  const W = m.t.sumar(g.web.map((c) => mapa.get(c)!)), O = m.t.sumar(g.otros.map((c) => mapa.get(c)!));
+  const mapa = await m.t.metricasPorCanal(e.org, [...g.minorista, ...g.mayorista, ...g.otros], { soloMl: false });
+  const W = m.t.sumar([...g.minorista, ...g.mayorista].map((c) => mapa.get(c)!)), O = m.t.sumar(g.otros.map((c) => mapa.get(c)!));
   assert.equal(W.pedidosParaPreparar, 2);
   assert.equal(O.pedidosParaPreparar, 1);
   assert.equal(W.ventas.hoyArs, 1500);
