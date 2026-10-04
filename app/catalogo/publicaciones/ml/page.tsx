@@ -170,7 +170,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
         <div className={`${CAJA} mb-3 flex flex-wrap items-center gap-3 border-[#EFD3CE]`}>
           <p className="text-xs flex-1 min-w-60">
             <b>{n(aEliminar)} publicaciones borradas de Laucen siguen en Mercado Libre.</b> Este botón prepara el lote que las finaliza y las
-            <b> elimina en ML</b> (no tiene vuelta atrás: se pierde su historial de ventas y preguntas). No sale nada hasta que lo revises y aprietes
+            <b> elimina en ML</b> (no tiene vuelta atrás: se pierde su historial de ventas y preguntas). Sólo entran las que en ML siguen pausadas o finalizadas (se consulta en el momento). No sale nada hasta que lo revises y aprietes
             &quot;Mandar a Mercado Libre&quot; en el lote.
           </p>
           <BotonConfirmar accion={accionPrepararEliminarEnMl} campos={{ canal: String(canal.id), volver: aqui }} clase={SUAVE}

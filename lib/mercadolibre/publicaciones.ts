@@ -4,7 +4,7 @@
 // stock, la pausa y los pedidos.
 
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
-import { ml, mlOk, type CuentaMl } from "@/lib/mercadolibre/api";
+import { ml, mlOk, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import { encolarLoteConBoton, type CambioMl } from "@/lib/mercadolibre/cola";
 
 type Atributo = { id: string; value_name: string | null; name?: string };
@@ -221,10 +221,24 @@ export async function contarAEliminarEnMl(org: string, canalId: number): Promise
  *  finalizada, ML lo rechaza y se sigue) y se elimina. Sale recién con el
  *  clic de Fer en "Mandar a Mercado Libre" (lib/mercadolibre/cola.ts).
  *  Devuelve el lote y cuántas lleva. */
-export async function prepararEliminarEnMl(org: string, canalId: number, usuarioId: string): Promise<{ loteId: number; n: number }> {
-  const filas = await consulta<{ item_id: string; titulo: string | null; estado: string | null }>(
+export async function prepararEliminarEnMl(org: string, canalId: number, usuarioId: string): Promise<{ loteId: number; n: number; afuera: number }> {
+  const todas = await consulta<{ item_id: string; titulo: string | null; estado: string | null }>(
     `select d.item_id, d.titulo, d.estado from meli_item_descartado d where ${SQL_A_ELIMINAR_EN_ML} order by d.item_id`, [org, canalId]);
-  if (!filas.length) throw new ErrorErp("No queda ninguna publicación borrada de Laucen para eliminar en Mercado Libre.");
+  if (!todas.length) throw new ErrorErp("No queda ninguna publicación borrada de Laucen para eliminar en Mercado Libre.");
+  // Seguro: el estado de ahora en ML (sólo lectura). Una que se reactivó
+  // desde que se borró de Laucen (o que ML no contesta) no entra al lote.
+  const cuenta = await cuentaDelCanal(org, canalId);
+  if (!cuenta) throw new ErrorErp("El canal no tiene una cuenta de Mercado Libre conectada.");
+  const ahora = new Map<string, string>();
+  for (let i = 0; i < todas.length; i += 20) {
+    const ids = todas.slice(i, i + 20).map((f) => f.item_id);
+    const r = await ml<{ code: number; body: { id: string; status: string } }[]>(cuenta, "GET", `/items?ids=${ids.join(",")}&attributes=id,status`);
+    if (r.status !== 200 || !Array.isArray(r.datos)) throw new ErrorErp("Mercado Libre no contestó el estado de las publicaciones: probá de nuevo en un momento.");
+    for (const x of r.datos) if (x.code === 200 && x.body?.id) ahora.set(x.body.id, x.body.status);
+  }
+  const filas = todas.filter((f) => ["paused", "closed"].includes(ahora.get(f.item_id) ?? "")).map((f) => ({ ...f, estado: ahora.get(f.item_id)! }));
+  const afuera = todas.length - filas.length;
+  if (!filas.length) throw new ErrorErp(`Ninguna está pausada o finalizada en Mercado Libre ahora (${afuera} quedaron afuera): no se preparó nada.`);
   const cambios: CambioMl[] = filas.map((f) => ({
     canalId, itemId: f.item_id, tipo: "otro",
     antes: { titulo: f.titulo, estado: f.estado },
@@ -240,7 +254,7 @@ export async function prepararEliminarEnMl(org: string, canalId: number, usuario
     `Eliminar en Mercado Libre ${filas.length.toLocaleString("es-AR")} publicaciones borradas de Laucen (pausadas sin producto)`, usuarioId);
   await consulta("update meli_item_descartado set eliminar_lote_id = $3 where organizacion_id = $1 and canal_id = $2 and item_id = any($4::text[])",
     [org, canalId, loteId, filas.map((f) => f.item_id)]);
-  return { loteId, n: filas.length };
+  return { loteId, n: filas.length, afuera };
 }
 
 /** Una publicación de las listas "Ver cuáles" (borrar de Laucen / eliminar en ML). */

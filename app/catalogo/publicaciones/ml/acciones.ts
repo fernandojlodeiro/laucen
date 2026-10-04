@@ -118,6 +118,6 @@ export async function accionPrepararEliminarEnMl(fd: FormData) {
     const cuenta = await cuentaDe(s.org.id, fd);
     const r = await prepararEliminarEnMl(s.org.id, cuenta.canalId!, s.usuario.id);
     revalidatePath(BASE);
-    return { ir: `/config/canales/cola?ver=lotes&lote=${r.loteId}&ok=${encodeURIComponent(`Lote preparado: eliminar en Mercado Libre ${r.n.toLocaleString("es-AR")} publicaciones. Todavía no salió nada: revisalo y apretá "Mandar a Mercado Libre".`)}` };
+    return { ir: `/config/canales/cola?ver=lotes&lote=${r.loteId}&ok=${encodeURIComponent(`Lote preparado: eliminar en Mercado Libre ${r.n.toLocaleString("es-AR")} publicaciones (todas pausadas o finalizadas en ML ahora${r.afuera ? `; ${r.afuera} quedaron afuera porque están activas o ML no las encontró` : ""}). Todavía no salió nada: revisalo y apretá "Mandar a Mercado Libre".`)}` };
   });
 }
