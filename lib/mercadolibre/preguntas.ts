@@ -13,7 +13,12 @@ type PreguntaMl = {
   from?: { id: number }; answer?: { text: string; date_created: string } | null;
 };
 
+/** ¿La pregunta se hizo antes del corte de la cuenta (el mismo de los
+ *  pedidos)? Entonces no entra: ya está en Virtual Seller. */
+const anteriorAlCorte = (cuenta: CuentaMl, q: PreguntaMl) => !!cuenta.pedidosCorte && Date.parse(q.date_created) < cuenta.pedidosCorte.getTime();
+
 export async function guardarPregunta(cuenta: CuentaMl, q: PreguntaMl) {
+  if (anteriorAlCorte(cuenta, q)) return;
   const org = cuenta.organizacionId;
   await consulta(`
     insert into meli_pregunta (id, organizacion_id, canal_id, item_id, publicacion_id, comprador_id, texto, estado, fecha, respuesta, respondida_ts, datos_externos)
@@ -41,7 +46,7 @@ export async function barrerPreguntas(cuenta: CuentaMl): Promise<number> {
   const r = await ml<{ questions: PreguntaMl[] }>(cuenta, "GET", `/questions/search?seller_id=${cuenta.meliUserId}&status=UNANSWERED&api_version=4&limit=50&sort_fields=date_created&sort_types=DESC`);
   if (r.status !== 200) throw new Error(`questions/search: ML contestó ${r.status}`);
   const vivas = new Set<number>();
-  for (const q of r.datos.questions ?? []) { await guardarPregunta(cuenta, q); vivas.add(q.id); }
+  for (const q of r.datos.questions ?? []) { if (anteriorAlCorte(cuenta, q)) continue; await guardarPregunta(cuenta, q); vivas.add(q.id); }
   const viejas = await consulta<{ id: string }>("select id from meli_pregunta where canal_id = $1 and estado = 'UNANSWERED'", [cuenta.canalId]);
   for (const v of viejas) if (!vivas.has(Number(v.id))) await importarPregunta(cuenta, v.id);
   return vivas.size;

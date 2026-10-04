@@ -18,6 +18,11 @@ export async function importarConversacion(cuenta: CuentaMl, packId: string, mar
   const r = await ml<{ messages: MensajeMl[] }>(cuenta, "GET",
     `/messages/packs/${packId}/sellers/${cuenta.meliUserId}?tag=post_sale&mark_as_read=${marcarLeida}&limit=100`);
   if (r.status !== 200) throw new Error(`mensajes del pack ${packId}: ML contestó ${r.status}`);
+  // Corte (el de los pedidos): una conversación sin ningún mensaje posterior
+  // al corte de la cuenta no entra (ya está en Virtual Seller). Si tiene uno
+  // nuevo, entra entera, para contestar con la historia a la vista.
+  const fechaDe = (m: MensajeMl) => m.message_date?.created ?? m.message_date?.received ?? null;
+  if (cuenta.pedidosCorte && !(r.datos.messages ?? []).some((m) => { const f = fechaDe(m); return !f || Date.parse(f) >= cuenta.pedidosCorte!.getTime(); })) return 0;
   const pedido = await una<{ id: string }>(`
     select id from pedido where organizacion_id = $1 and canal_id = $2 and (envio ->> 'pack_id' = $3 or id_externo = $3) order by id limit 1`,
     [org, cuenta.canalId, packId]);

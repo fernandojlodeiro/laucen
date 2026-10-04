@@ -80,6 +80,8 @@ Apretá **"Actualizar"** en la conversación: la vuelve a leer entera desde Merc
 
 ## Criterios y reglas
 
+- **Corte**: las preguntas hechas en Mercado Libre antes de las 21:35 del 3/10 y las conversaciones sin ningún mensaje posterior a esa hora no entran (están en Virtual Seller). Es el mismo corte de los pedidos.
+
 - **Cómo entran**: Mercado Libre avisa cada pregunta y cada mensaje nuevo al instante, y además cada 30 minutos se revisan las preguntas pendientes por si se perdió algún aviso. Con **"Traer preguntas ahora"** se fuerza en el momento.
 - **Sin responder** = preguntas que Mercado Libre tiene como no respondidas. Si alguien la contesta desde Mercado Libre, o el interesado la borra, sale de la lista cuando se actualiza.
 - **La IA nunca contesta sola**: sólo propone cuando apretás "Proponer con IA". La propuesta queda guardada en el cuadro hasta que respondas.

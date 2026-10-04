@@ -190,7 +190,7 @@ Una vez cargadas las razones sociales (ver [Razones sociales](/config/razones-so
 
 ## Criterios y reglas
 
-- **Corte de pedidos de Mercado Libre.** Los pedidos que se crearon en Mercado Libre antes de las 21:35 del 3/10 (hora argentina) ya están en Virtual Seller y **no entran nunca** a Laucen: ni cuando Mercado Libre avisa un cambio (una entrega, un reclamo), ni en el barrido de cada media hora, ni al conectar una cuenta nueva. Todas las cuentas, incluidas las que se conecten después, usan el mismo corte. Si un carrito tiene alguna orden anterior al corte, no entra entero. Sólo entran los pedidos creados desde ese momento.
+- **Corte de pedidos de Mercado Libre.** Los pedidos que se crearon en Mercado Libre antes de las 21:35 del 3/10 (hora argentina) ya están en Virtual Seller y **no entran nunca** a Laucen: ni cuando Mercado Libre avisa un cambio (una entrega, un reclamo), ni en el barrido de cada media hora, ni al conectar una cuenta nueva. Todas las cuentas, incluidas las que se conecten después, usan el mismo corte. Si un carrito tiene alguna orden anterior al corte, no entra entero. Sólo entran los pedidos creados desde ese momento. **Lo mismo con las preguntas y los mensajes**: una pregunta hecha antes del corte no entra, y una conversación con el comprador sólo entra si tiene algún mensaje posterior al corte (en ese caso entra entera, para contestar con la historia a la vista).
 
 ### Canales
 
