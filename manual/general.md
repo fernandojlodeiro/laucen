@@ -27,7 +27,7 @@ Una franja blanca fija arriba, al estilo de Excel:
 - Las **secciones del menú**: Panel, Ventas, Catálogo, Stock, Compras, Administración, Informes, Sourcing, Tablas generales, Tienda web, Configuración. Cada sección (salvo Panel, que es un destino directo) despliega sus opciones hacia abajo al hacer clic o al pasar el mouse. La sección donde estás queda subrayada en azul. Escape o un clic afuera cierra el desplegable.
 - Una opción que todavía no existe se ve gris con la palabra **"próximamente"** (por ejemplo, **Sourcing › Búsqueda en China**). No se esconde: se muestra deshabilitada.
 - Cada persona ve **sólo las opciones que su rol tiene permitidas** (lo decide [Usuarios y roles](/config/usuarios)). Si una sección queda sin ninguna opción permitida, no aparece.
-- A la derecha, el cuadro **"Buscar producto, pedido, cliente…"** (el buscador global: escribís y apretás Enter).
+- A la derecha, el cuadro **"Buscar producto, MLA, cliente, proveedor…"** (el buscador global: escribís y apretás Enter).
 - El botón **"Salir"**, que cierra la sesión y vuelve a [Entrar](/login).
 
 ### En la PC: la barra de estado (abajo)
@@ -62,13 +62,15 @@ Encima del título de cada pantalla hay un "camino", por ejemplo **"Ventas ▾ �
 
 ### El buscador global ([Buscar](/buscar))
 
-Busca a la vez en **productos, pedidos y clientes**. Se llega escribiendo en el cuadro de la barra de arriba y apretando Enter, o entrando directo a la pantalla. Ahí hay:
+Busca a la vez en **productos, publicaciones, pedidos, clientes y proveedores**. Se llega escribiendo en el cuadro de la barra de arriba y apretando Enter, o entrando directo a la pantalla. Ahí hay:
 
-- El cuadro **"SKU, título, código de barras, nº de pedido, cliente, mail, documento…"**, la caja **"Mostrar inactivos"** y el botón **"Buscar"**.
-- Los resultados, en tres bloques (cada uno sólo si tu rol puede ver esa pantalla):
+- El cuadro **"SKU, título, MLA, código de barras, nº de pedido, cliente o proveedor (nombre, razón social, CUIT, DNI)…"**, la caja **"Mostrar inactivos"** y el botón **"Buscar"**.
+- Los resultados, en bloques (cada uno sólo si tu rol puede ver esa pantalla):
   - **Productos**: busca en el SKU, el título, el código de barras y el número interno del producto, y también en el SKU, código de barras y título de sus variaciones. Columnas: SKU, Título, "Variación encontrada" (si lo que coincidió fue una variación), Estado. Los productos inactivos no salen salvo que tildes "Mostrar inactivos". Primero salen los de SKU exacto.
+  - **Publicaciones**: busca por **título** y por **código de la publicación (MLA…)**; el código exacto sale primero. Columnas: Código, Título (lleva al producto), Canal, SKU, Estado. Sólo con el permiso de publicaciones.
   - **Pedidos**: busca en el id externo (por ejemplo, el número de venta de Mercado Libre) y, si escribiste un número, en el Nº de pedido de Laucen. Columnas: Nº, Fecha, Canal, Id externo, Cliente, Estado, Total.
-  - **Clientes**: busca en nombre, mail, número de documento y N.º de cliente; si escribiste 6 dígitos o más, también compara el documento sin puntos ni guiones. Columnas: Nombre, Documento, Mail.
+  - **Clientes**: busca en nombre, **razón social**, mail, **CUIT**, **DNI / número de documento** y N.º de cliente; si escribiste 4 dígitos o más, también compara el CUIT y el documento sin puntos ni guiones. Columnas: Nombre (con la razón social debajo), Documento, Mail.
+  - **Proveedores**: busca en nombre, **razón social** y **CUIT** (con o sin guiones) y N.º de proveedor; lleva a la ficha en [Proveedores](/compras/proveedores). Columnas: Nombre, Razón social, CUIT, Mail. Sólo con el permiso de proveedores.
 - Cada bloque muestra **hasta 20 resultados**; si hay más dice "Se muestran los primeros 20; afiná la búsqueda para ver otros."
 - Acá la búsqueda es "en cualquier parte del texto" (no hay caja "Comienza por").
 - Para usar el buscador global hace falta el permiso «Panel»; sin él, la pantalla devuelve al Panel.

@@ -1,5 +1,6 @@
-// El buscador de la barra de arriba: productos, pedidos y clientes, hasta 20
-// de cada uno. Si lo buscado es un número, también busca por id.
+// El buscador de la barra de arriba: productos, publicaciones (por título o
+// MLA), pedidos, clientes y proveedores (por CUIT, razón social o DNI), hasta
+// 20 de cada uno. Si lo buscado es un número, también busca por id.
 
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
@@ -27,9 +28,14 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
     productos: tienePermiso(s.permisos, "productos_ver"),
     pedidos: tienePermiso(s.permisos, "pedidos_ver"),
     clientes: tienePermiso(s.permisos, "clientes_ver"),
+    publicaciones: tienePermiso(s.permisos, "publicaciones_ver"),
+    proveedores: tienePermiso(s.permisos, "proveedores_ver"),
   };
+  // Documentos escritos con puntos o guiones: se comparan sólo los dígitos.
+  const digitos = q.replace(/\D/g, "");
+  const patronDigitos = digitos.length >= 4 ? `%${digitos}%` : "";
 
-  const [productos, pedidos, clientes] = q ? await Promise.all([
+  const [productos, pedidos, clientes, publicaciones, proveedores] = q ? await Promise.all([
     ver.productos ? consulta<{ id: number; sku_base: string; titulo: string; estado: string; donde: string | null }>(`
       select p.id::int, p.sku_base, p.titulo, p.estado,
              (select string_agg(distinct v.sku, ', ') from variacion v
@@ -47,23 +53,38 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
        where p.organizacion_id = $1 and (p.id_externo ilike $2 or p.id = $3)
        order by (p.id = $3) desc nulls last, p.fecha desc
        limit ${TOPE}`, [s.org.id, patron, n]) : [],
-    ver.clientes ? consulta<{ id: number; nombre: string; email: string | null; documento_tipo: string | null; documento_numero: string | null }>(`
-      select c.id::int, c.nombre, c.email, c.documento_tipo, c.documento_numero
+    ver.clientes ? consulta<{ id: number; nombre: string; razon_social: string | null; email: string | null; documento_tipo: string | null; documento_numero: string | null; cuit: string | null }>(`
+      select c.id::int, c.nombre, c.razon_social, c.email, c.documento_tipo, c.documento_numero, c.cuit
         from cliente c
        where c.organizacion_id = $1
-         and (c.nombre ilike $2 or c.email ilike $2 or c.documento_numero ilike $2 or c.id = $3
-              or ($4 <> '' and regexp_replace(coalesce(c.documento_numero, ''), '\\D', '', 'g') = $4))
+         and (c.nombre ilike $2 or c.razon_social ilike $2 or c.email ilike $2 or c.documento_numero ilike $2 or c.cuit ilike $2 or c.id = $3
+              or ($4 <> '' and (regexp_replace(coalesce(c.documento_numero, ''), '\\D', '', 'g') like $4
+                                or regexp_replace(coalesce(c.cuit, ''), '\\D', '', 'g') like $4)))
        order by c.nombre
-       limit ${TOPE}`, [s.org.id, patron, n, q.replace(/\D/g, "").length >= 6 ? q.replace(/\D/g, "") : ""]) : [],
-  ]) : [[], [], []];
+       limit ${TOPE}`, [s.org.id, patron, n, patronDigitos]) : [],
+    ver.publicaciones ? consulta<{ id: number; id_externo: string | null; titulo: string | null; estado: string; canal: string; producto_id: number; sku: string }>(`
+      select pu.id::int, pu.id_externo, coalesce(pu.titulo, v.titulo, p.titulo) titulo, pu.estado, ca.nombre canal, p.id::int producto_id, v.sku
+        from publicacion pu join canal ca on ca.id = pu.canal_id join variacion v on v.id = pu.variacion_id join producto p on p.id = v.producto_id
+       where pu.organizacion_id = $1 and (pu.titulo ilike $2 or pu.id_externo ilike $2)
+       order by (upper(pu.id_externo) = upper($3)) desc, pu.titulo
+       limit ${TOPE}`, [s.org.id, patron, q]) : [],
+    ver.proveedores ? consulta<{ id: number; nombre: string; razon_social: string | null; cuit: string | null; email: string | null }>(`
+      select pr.id::int, pr.nombre, pr.razon_social, pr.cuit, pr.email
+        from proveedor pr
+       where pr.organizacion_id = $1
+         and (pr.nombre ilike $2 or pr.razon_social ilike $2 or pr.cuit ilike $2 or pr.id = $3
+              or ($4 <> '' and regexp_replace(coalesce(pr.cuit, ''), '\\D', '', 'g') like $4))
+       order by pr.nombre
+       limit ${TOPE}`, [s.org.id, patron, n, patronDigitos]) : [],
+  ]) : [[], [], [], [], []];
 
-  const nada = q && !productos.length && !pedidos.length && !clientes.length;
+  const nada = q && !productos.length && !pedidos.length && !clientes.length && !publicaciones.length && !proveedores.length;
   const Tope = ({ filas }: { filas: unknown[] }) => filas.length >= TOPE ? <p className="text-[11px] text-[#5C6B76] mt-1">Se muestran los primeros {TOPE}; afiná la búsqueda para ver otros.</p> : null;
 
   return (
-    <Pantalla titulo="Buscar" subtitulo="Productos, pedidos y clientes" ancho="max-w-5xl">
+    <Pantalla titulo="Buscar" subtitulo="Productos, publicaciones, pedidos, clientes y proveedores" ancho="max-w-5xl">
       <form className="flex flex-wrap items-center gap-2 mb-4">
-        <input name="q" defaultValue={q} autoFocus placeholder="SKU, título, código de barras, nº de pedido, cliente, mail, documento…" className={`${CAMPO} flex-1`} />
+        <input name="q" defaultValue={q} autoFocus placeholder="SKU, título, MLA, código de barras, nº de pedido, cliente o proveedor (nombre, razón social, CUIT, DNI)…" className={`${CAMPO} flex-1`} />
         <MostrarInactivos activo={inactivos} />
         <button className={PRIMARIO}>Buscar</button>
       </form>
@@ -89,6 +110,29 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
             </table>
           </div>
           <Tope filas={productos} />
+        </section>
+      )}
+
+      {publicaciones.length > 0 && (
+        <section className="mb-5">
+          <h2 className="text-sm font-bold mb-2">Publicaciones</h2>
+          <div className={CAJA_TABLA}>
+            <table className={TABLA}>
+              <thead className={THEAD}><tr><th className={TH}>Código</th><th className={TH}>Título</th><th className={TH}>Canal</th><th className={TH}>SKU</th><th className={TH}>Estado</th></tr></thead>
+              <tbody>
+                {publicaciones.map((x) => (
+                  <tr key={x.id} className={TR}>
+                    <td className={`${TD} font-mono whitespace-nowrap`}>{x.id_externo ?? "—"}</td>
+                    <td className={TD}><Link href={`/catalogo/productos/${x.producto_id}`} className="font-semibold text-[#16577F] hover:underline">{x.titulo}</Link></td>
+                    <td className={TD}>{x.canal}</td>
+                    <td className={`${TD} font-mono`}>{x.sku}</td>
+                    <td className={TD}><Estado texto={x.estado === "activa" ? "Activa" : x.estado === "pausada" ? "Pausada" : "Cerrada"} tono={x.estado === "activa" ? "verde" : "gris"} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Tope filas={publicaciones} />
         </section>
       )}
 
@@ -126,8 +170,8 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
               <tbody>
                 {clientes.map((c) => (
                   <tr key={c.id} className={TR}>
-                    <td className={TD}><Link href={`/ventas/clientes/${c.id}`} className="font-semibold text-[#16577F] hover:underline">{c.nombre}</Link></td>
-                    <td className={`${TD} whitespace-nowrap`}>{c.documento_numero ? `${c.documento_tipo ?? ""} ${c.documento_numero}`.trim() : "—"}</td>
+                    <td className={TD}><Link href={`/ventas/clientes/${c.id}`} className="font-semibold text-[#16577F] hover:underline">{c.nombre}</Link>{c.razon_social && c.razon_social !== c.nombre && <span className="block text-[11px] text-[#5C6B76]">{c.razon_social}</span>}</td>
+                    <td className={`${TD} whitespace-nowrap`}>{[c.cuit ? `CUIT ${c.cuit}` : null, c.documento_numero ? `${c.documento_tipo ?? ""} ${c.documento_numero}`.trim() : null].filter(Boolean).join(" · ") || "—"}</td>
                     <td className={TD}>{c.email ?? "—"}</td>
                   </tr>
                 ))}
@@ -135,6 +179,28 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
             </table>
           </div>
           <Tope filas={clientes} />
+        </section>
+      )}
+
+      {proveedores.length > 0 && (
+        <section className="mb-5">
+          <h2 className="text-sm font-bold mb-2">Proveedores</h2>
+          <div className={CAJA_TABLA}>
+            <table className={TABLA}>
+              <thead className={THEAD}><tr><th className={TH}>Nombre</th><th className={TH}>Razón social</th><th className={TH}>CUIT</th><th className={TH}>Mail</th></tr></thead>
+              <tbody>
+                {proveedores.map((x) => (
+                  <tr key={x.id} className={TR}>
+                    <td className={TD}><Link href={`/compras/proveedores?id=${x.id}`} className="font-semibold text-[#16577F] hover:underline">{x.nombre}</Link></td>
+                    <td className={TD}>{x.razon_social ?? "—"}</td>
+                    <td className={`${TD} whitespace-nowrap`}>{x.cuit ?? "—"}</td>
+                    <td className={TD}>{x.email ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Tope filas={proveedores} />
         </section>
       )}
     </Pantalla>

@@ -16,7 +16,7 @@ El sistema trabaja en tres capas: **familia → producto → variación**. Todo 
 ## Cómo se llega
 
 - Menú **Catálogo › Productos**.
-- El buscador de la barra de arriba ("Buscar producto, pedido, cliente…") encuentra productos por SKU, título o código de barras y lleva a su ficha.
+- El buscador de la barra de arriba ("Buscar producto, MLA, cliente, proveedor…") encuentra productos por SKU, título o código de barras y lleva a su ficha.
 - Desde casi cualquier lista del sistema, tocando el SKU o el título de un producto (pedidos, stock, listas de precios, publicaciones, vincular con Mercado Libre…).
 - Desde [Familias](/catalogo/familias): el nombre de la familia o el número de productos abre esta lista filtrada por esa familia (con sus subfamilias).
 - Al crear un producto desde [Vincular con Mercado Libre](/catalogo/publicaciones/ml) ("Crear producto"), se abre su ficha.
