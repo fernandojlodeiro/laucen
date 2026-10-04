@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { formatear } from "@/lib/moneda";
 import { Estado, url, CAJA } from "@/app/componentes/erp";
-import { cuentasTablero, metricasPorCanal, alertasCatalogo, gruposNoMl, sumar, type CuentaTablero, type Metricas } from "@/lib/mercadolibre/tablero";
+import { cuentasTablero, metricasPorCanal, alertasCatalogo, gruposNoMl, sinPublicarPorCanal, sumar, type CuentaTablero, type Metricas } from "@/lib/mercadolibre/tablero";
 import { nivelDe, NIVELES_REPUTACION, LIDER, type Metrica } from "@/lib/mercadolibre/reputacion";
 
 
@@ -36,7 +36,7 @@ function Celda({ valor, de, href, tono = "alerta", nota }: { valor: number | str
       {nota && <span className="block text-[12px] text-[#5C6B76] leading-[14px] break-words">{nota}</span>}
     </>
   );
-  return href ? <Link href={href} className="block hover:bg-[#EEF3F8] rounded-md px-1 -mx-1">{cuerpo}</Link> : <div>{cuerpo}</div>;
+  return href ? <Link href={href} className="block text-right hover:bg-[#EEF3F8] rounded-md px-1 -mx-1">{cuerpo}</Link> : <div className="text-right">{cuerpo}</div>;
 }
 
 /** El termómetro de ML: los cinco colores, el actual más alto y marcado con una flechita encima. */
@@ -75,10 +75,10 @@ function Escudo({ nivel }: { nivel: string }) {
 
 function CeldaReputacion({ c }: { c: CuentaTablero }) {
   const r = c.reputacion;
-  if (!r) return <span className="text-[11px] text-[#5C6B76]">Sin leer</span>;
+  if (!r) return <span className="block text-right text-[11px] text-[#5C6B76]">Sin leer</span>;
   const nivel = nivelDe(r.nivel);
   return (
-    <div className="flex items-center gap-1.5" title={`${nivel ? nivel.texto : "Sin reputación todavía"}${r.lider ? ` · ${LIDER[r.lider] ?? r.lider}` : ""}`}>
+    <div className="flex items-center justify-end gap-1.5" title={`${nivel ? nivel.texto : "Sin reputación todavía"}${r.lider ? ` · ${LIDER[r.lider] ?? r.lider}` : ""}`}>
       {nivel ? <Termometro nivel={r.nivel} /> : <span className="text-[11px] text-[#5C6B76]">Sin reputación</span>}
       {r.lider && <Escudo nivel={r.lider} />}
     </div>
@@ -87,7 +87,7 @@ function CeldaReputacion({ c }: { c: CuentaTablero }) {
 
 /** Una métrica de reputación: cuántos en el período que ML cuenta y qué porcentaje es. */
 function CeldaMetrica({ m, titulo }: { m: Metrica | null; titulo: string }) {
-  if (!m) return <span className="text-[13px] text-[#5C6B76]" title={titulo}>—</span>;
+  if (!m) return <span className="block text-right text-[13px] text-[#5C6B76]" title={titulo}>—</span>;
   return <Celda valor={m.valor} tono="neutro" nota={`${(m.tasa * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 })} % · ${periodo(m.periodo)}`} />;
 }
 
@@ -100,7 +100,9 @@ type Fila = {
   total?: (t: Metricas, cols: Col[]) => React.ReactNode;
 };
 
-const NA = <span className="text-[13px] text-[#9AA7B3]" title="No aplica a este canal">—</span>;
+/** El apodo se achica hasta que entra entero en la columna (≈ 7 rem). */
+const tamanoTitulo = (t: string) => `${Math.max(7, Math.min(11, Math.floor(1700 / Math.max(t.length, 1)) / 10)).toFixed(1)}px`;
+const NA = <span className="block text-right text-[13px] text-[#9AA7B3]" title="No aplica a este canal">—</span>;
 /** Para las filas que sólo existen en una cuenta de ML (reputación, publicaciones, preguntas…). */
 const soloMl = (f: (c: CuentaTablero, m: Metricas) => React.ReactNode) => (c: Col, m: Metricas) => (c.cuenta ? f(c.cuenta, m) : NA);
 
@@ -112,10 +114,11 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
 
   const cuentas = await cuentasTablero(org);
   const grupos = await gruposNoMl(org);
-  const [porCanal, porCanalNoMl, catalogo] = await Promise.all([
+  const [porCanal, porCanalNoMl, catalogo, sinPub] = await Promise.all([
     metricasPorCanal(org, cuentas.map((c) => c.canalId)),
     metricasPorCanal(org, [...grupos.web, ...grupos.otros], { soloMl: false }),
     modo === "completo" ? alertasCatalogo(org) : Promise.resolve({ sinPublicar: 0, sinFotos: 0, productosActivos: 0 }),
+    sinPublicarPorCanal(org, cuentas.map((c) => c.canalId)),
   ]);
   const columnas: Col[] = [
     ...cuentas.map((c): Col => ({ clave: `ml${c.cuentaId}`, titulo: c.apodo ?? c.canal, sub: `${c.canal}${c.razonSocial ? ` · ${c.razonSocial}` : ""}`,
@@ -163,6 +166,9 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
         { titulo: "Sin producto asociado", ayuda: "Publicaciones de ML que todavía no están vinculadas a un producto de Laucen (su stock no se sincroniza)",
           celda: soloMl((c, m) => <Celda valor={m.publicaciones.sinProducto} de={m.publicaciones.total} href={pub(c, "sin")} nota={m.publicaciones.sinProductoActivas ? `${n(m.publicaciones.sinProductoActivas)} activas` : null} />),
           total: (t) => <Celda valor={t.publicaciones.sinProducto} de={t.publicaciones.total} nota={t.publicaciones.sinProductoActivas ? `${n(t.publicaciones.sinProductoActivas)} activas` : null} /> },
+        { titulo: "Productos con stock sin publicar", ayuda: "Productos activos con stock disponible que no tienen publicación activa en ESTA cuenta (pueden estar publicados en otra). El total es el de los que no están en ninguna cuenta.",
+          celda: soloMl((c) => <Celda valor={sinPub.get(c.canalId) ?? 0} href={url("/catalogo/productos", { sinpubcanal: c.canalId })} />),
+          total: () => <Celda valor={catalogo.sinPublicar} href="/catalogo/productos?sinpublicar=1" nota="en ninguna cuenta" /> },
       ],
     },
     {
@@ -200,7 +206,7 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
           celda: soloMl((c, m) => <Celda valor={m.cola.errores} href={url("/config/canales/cola", { ver: "errores", canal: c.canalId })} nota={m.cola.preparados ? `${n(m.cola.preparados)} lotes esperan tu clic` : null} />),
           total: (t) => <Celda valor={t.cola.errores} href="/config/canales/cola?ver=errores" nota={t.cola.preparados ? `${n(t.cola.preparados)} lotes esperan tu clic` : null} /> },
         { titulo: "Conexión", celda: soloMl((c) => (
-          <div className="grid gap-0.5">
+          <div className="grid gap-0.5 justify-items-end">
             <Estado texto={c.estado === "activa" ? "Conectada" : "Desconectada"} tono={c.estado === "activa" ? "verde" : "rojo"} />
             {c.estado !== "activa" && <Link href={url("/config/canales", { c: c.canalId })} className="text-[13px] text-[#16577F] hover:underline">Volver a conectar</Link>}
             {c.ultimoError && <span className="text-[12px] text-[#C03420] leading-3">{c.ultimoError.slice(0, 80)}</span>}
@@ -220,15 +226,16 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
           <p className="text-xs">Todavía no hay ninguna cuenta de Mercado Libre conectada a un canal. Conectala en <Link href="/config/canales" className="text-[#16577F] underline">Configuración → Canales</Link>.</p>
         </div>
       )}
-      {/* Centrado y un 20 % más grande (zoom): la tabla ocupa lo que necesita, no el ancho de la pantalla. */}
-      <div className="mx-auto w-fit max-w-full overflow-x-auto bg-white border border-[#E3E9F0] rounded-xl" style={{ zoom: 1.2 }}>
+      {/* Centrado y un 32 % más grande (zoom): la tabla ocupa lo que necesita, no el ancho de la pantalla. */}
+      <div className="mx-auto w-fit max-w-full" style={{ zoom: 1.32 }}>
+      <div className="overflow-x-auto bg-white border border-[#E3E9F0] rounded-xl">
         <table className="w-auto text-[13px] border-collapse">
           <thead className="bg-[#FAFBFC] border-b border-[#E3E9F0] sticky top-0 z-10">
             <tr>
               <th className="py-1.5 px-2 text-left w-40 min-w-36" />
               {columnas.map((c) => (
                 <th key={c.clave} title={`${c.titulo} · ${c.sub}`} className="py-1 px-2 text-left align-top w-[7.2rem] min-w-[7.2rem] max-w-[7.2rem] border-l border-[#E3E9F0]">
-                  {c.href ? <Link href={c.href} className="block truncate font-bold text-[11px] leading-4 text-[#16577F] hover:underline">{c.titulo}</Link> : <span className="block truncate font-bold text-[11px] leading-4">{c.titulo}</span>}
+                  {c.href ? <Link href={c.href} className="block whitespace-nowrap overflow-hidden font-bold leading-4 text-[#16577F] hover:underline" style={{ fontSize: tamanoTitulo(c.titulo) }}>{c.titulo}</Link> : <span className="block whitespace-nowrap overflow-hidden font-bold leading-4" style={{ fontSize: tamanoTitulo(c.titulo) }}>{c.titulo}</span>}
                   <span className="block truncate text-[9px] font-normal text-[#5C6B76] leading-3">{c.sub}</span>
                 </th>
               ))}
@@ -257,9 +264,9 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
       </div>
 
       {modo === "completo" && (
-        <>
-          <h2 className="text-sm font-bold mt-6 mb-2">Alertas del catálogo <span className="font-normal text-[11px] text-[#5C6B76]">(no son de una cuenta en particular)</span></h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <h2 className="text-sm font-bold mt-4 mb-2">Alertas del catálogo <span className="font-normal text-[11px] text-[#5C6B76]">(no son de una cuenta en particular)</span></h2>
+          <div className="grid gap-3 sm:grid-cols-2 w-full">
             <div className={CAJA}>
               <div className="text-xs font-semibold">Productos con stock disponible y sin publicación activa en Mercado Libre</div>
               <p className="text-[11px] text-[#5C6B76]">Mercadería parada: hay unidades y no se está vendiendo por ML.</p>
@@ -271,8 +278,9 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
               <div className="mt-1"><Celda valor={catalogo.sinFotos} de={catalogo.productosActivos} href="/catalogo/productos?sinfotos=1" /></div>
             </div>
           </div>
-        </>
+        </div>
       )}
+      </div>
     </>
   );
 }

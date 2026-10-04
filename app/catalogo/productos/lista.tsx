@@ -8,7 +8,7 @@ import { Estado, url, patronBusqueda } from "@/app/componentes/erp";
 import { verInactivos } from "@/app/componentes/Inactivos";
 import { consulta } from "@/lib/erp/base";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
-import { SQL_SIN_PUBLICAR, SQL_SIN_FOTOS } from "@/lib/catalogo-alertas";
+import { SQL_SIN_PUBLICAR, SQL_SIN_FOTOS, sqlSinPublicarEnCanal } from "@/lib/catalogo-alertas";
 import { EstadoProducto, TIPOS_PRODUCTO, ESTADOS_PRODUCTO } from "./comun";
 
 const ENLACE = "hover:text-[#16577F] hover:underline";
@@ -38,6 +38,8 @@ export function filtrosProductos(sp: SP) {
     // Desde el tablero de Mercado Libre: con stock y sin publicación activa / sin fotos.
     sinPublicar: sp.sinpublicar === "1",
     sinFotos: sp.sinfotos === "1",
+    // Con stock y sin publicación activa en UNA cuenta de ML (el id de su canal).
+    sinPublicarEn: Number(sp.sinpubcanal) || 0,
   };
 }
 
@@ -142,8 +144,9 @@ export const LISTA_PRODUCTOS: Lista = {
          and ($6 or p.estado <> 'archivado')
          and (not $7 or p.kit_vs)
          and (not $8 or ${SQL_SIN_PUBLICAR})
-         and (not $9 or ${SQL_SIN_FOTOS})`,
-      valores: [ctx.org, patronBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos],
+         and (not $9 or ${SQL_SIN_FOTOS})
+         and ($10::bigint = 0 or ${sqlSinPublicarEnCanal("$10::bigint")})`,
+      valores: [ctx.org, patronBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn],
       orden: "p.titulo, p.id",
     };
   },

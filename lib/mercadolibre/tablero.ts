@@ -15,7 +15,7 @@ import { CONDICION_RECLAMOS } from "@/lib/reclamos";
 import { sqlPedidoPendiente, sqlCarritoEnEspera } from "@/lib/pedidos";
 import { estadoColaCanal } from "@/lib/mercadolibre/cola";
 import { ESTADOS_ML_CON_PROBLEMAS } from "@/app/catalogo/publicaciones/ml/lista";
-import { SQL_SIN_PUBLICAR, SQL_SIN_FOTOS } from "@/lib/catalogo-alertas";
+import { SQL_SIN_PUBLICAR, SQL_SIN_FOTOS, SQL_DISPONIBLE } from "@/lib/catalogo-alertas";
 import type { Reputacion } from "@/lib/mercadolibre/reputacion";
 
 const ZONA = "America/Argentina/Buenos_Aires";
@@ -143,6 +143,21 @@ export async function alertasCatalogo(org: string) {
            count(*) filter (where p.estado = 'activo')::int con_stock
       from producto p where p.organizacion_id = $1`, [org]);
   return { sinPublicar: x?.sin_publicar ?? 0, sinFotos: x?.sin_fotos ?? 0, productosActivos: x?.con_stock ?? 0 };
+}
+
+/** Por cada cuenta de ML (clave: id del canal): productos activos con stock que no tienen publicación activa en ESA cuenta. */
+export async function sinPublicarPorCanal(org: string, canales: number[]): Promise<Map<number, number>> {
+  const m = new Map<number, number>(canales.map((c) => [c, 0]));
+  if (!canales.length) return m;
+  const f = await consulta<{ canal: number; n: number }>(`
+    with con_stock as (select p.id from producto p where p.organizacion_id = $1 and p.estado = 'activo' and ${SQL_DISPONIBLE} > 0)
+    select c.id::int canal, count(*)::int n
+      from unnest($2::bigint[]) c(id) cross join con_stock s
+     where not exists (select 1 from publicacion pu join variacion v on v.id = pu.variacion_id
+                        where v.producto_id = s.id and pu.estado = 'activa' and pu.canal_id = c.id)
+     group by c.id`, [org, canales]);
+  for (const x of f) m.set(x.canal, x.n);
+  return m;
 }
 
 export const sumar = (ms: Metricas[]): Metricas => {
