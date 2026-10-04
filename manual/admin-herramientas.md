@@ -1,8 +1,8 @@
 ---
 titulo: Herramientas internas
-menu: Coordinación › Bitácora · Para probar · Mercado Libre · Costos ML · Ventas ML por categoría · China — pruebas · Piloto · Diagnóstico
+menu: Coordinación › Bitácora · Para probar · Mercado Libre · Costos ML · Ventas ML por categoría · China — pruebas · Piloto · Diagnóstico · Limpieza de datos
 ruta: /admin/bitacora
-rutas: /admin/bitacora, /admin/para-probar, /admin/meli, /admin/meli/apify, /admin/costos-ml, /admin/ventas-ml, /admin/china, /admin/piloto, /admin/piloto/[id], /admin/piloto/[id]/revision, /admin/piloto/[id]/validacion, /admin/diagnostico
+rutas: /admin/bitacora, /admin/para-probar, /admin/meli, /admin/meli/apify, /admin/costos-ml, /admin/ventas-ml, /admin/china, /admin/piloto, /admin/piloto/[id], /admin/piloto/[id]/revision, /admin/piloto/[id]/validacion, /admin/diagnostico, /admin/limpieza, /admin/limpieza/ajustes
 permiso: fer
 resumen: Herramientas internas sólo de Fer: bitácora y "para probar" (coordinación con las sesiones de Claude), conexión y bancos de prueba de Mercado Libre y Apify, costos de vender en ML, ventas por categoría, pruebas de búsqueda en China, el piloto ML → China → juez y el diagnóstico de la base.
 ---
@@ -19,6 +19,7 @@ La sección **Coordinación** del menú agrupa las herramientas internas del pro
 - **China — pruebas**: banco de pruebas de buscadores de 1688, Alibaba y AliExpress.
 - **Piloto**: rastrillaje experimental Mercado Libre → China → juez, con el costo puesto en Argentina.
 - **Diagnóstico**: revisa la conexión a la base de datos.
+- **Limpieza de datos**: tareas de una sola vez para dejar la base lista tras la carga de Virtual Seller (ver más abajo).
 
 La pantalla definitiva de **Búsqueda en China** (menú Sourcing) todavía no existe: figura como **próximamente**. El Piloto y China — pruebas son los ensayos previos.
 
@@ -325,3 +326,16 @@ Todavía no existe: figura como próximamente en el menú Sourcing. El Piloto y 
 - [Diagnóstico](/admin/diagnostico)
 - [Canales](/config/canales): conexión de Mercado Libre para el sistema de gestión.
 - [Radar](/radar) e [Importaciones ARCA](/importaciones)
+
+## Limpieza de datos
+
+Pantalla [Limpieza de datos](/admin/limpieza) (menú **Coordinación**). Cuatro tareas de una sola vez, para hacer en este orden. Cada botón de borrar pregunta ahí mismo **¿Seguro? Sí / No**.
+
+1. **Borrar pruebas**: borra todos los pedidos y lo que cuelga de ellos (renglones, historial, envíos, pagos, reclamos, cargos y mensajes de Mercado Libre), los lotes de picking y los movimientos de stock de prueba. La carga de stock inicial se conserva. Deja el reservado en cero.
+2. **Borrar notebooks sin stock**: borra las notebooks (y sus kits) sin stock. Se reconocen por la categoría de Mercado Libre "Notebooks", la familia "Notebook(s)" o un título que empieza con "Notebook". Muestra cuántas son y ejemplos antes de borrar.
+3. **Detectar categorías**: a cada producto sin categoría le pone la de su publicación en Mercado Libre, aunque esté pausada (busca por el código, por el código base sin "-U" ni "-X10", o por el del componente si es un kit). Al que no tiene publicación le pone la que sugiere el predictor de Mercado Libre por el título. Después lo ubica en la familia de esa categoría, creando el camino si falta. Sigue solo de a lotes; hay que dejar la pantalla abierta. Si se corta, se aprieta de nuevo y sigue donde quedó.
+4. **Borrar familias de Virtual Seller**: borra las familias que no son de Mercado Libre. Hacerlo después del paso 3.
+
+Arriba de las tareas hay un botón **Ver ajustes a revisar** que abre [Ajustes de la carga de stock](/admin/limpieza/ajustes): la lista de unidades que la carga de stock del 3/10 sacó de ubicaciones reales del depósito (el archivo de Virtual Seller no traía ubicaciones), con lo que había, lo que se sacó y lo que queda en cada una, para cotejarla con las estanterías.
+
+Criterio: nada de esto cambia Mercado Libre; sólo lee de él.

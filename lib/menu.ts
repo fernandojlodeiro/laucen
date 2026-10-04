@@ -144,6 +144,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "China — pruebas", href: "/admin/china" },
       { texto: "Piloto", href: "/admin/piloto" },
       { texto: "Diagnóstico", href: "/admin/diagnostico" },
+      { texto: "Limpieza de datos", href: "/admin/limpieza" },
     ],
   },
 ];
