@@ -81,6 +81,12 @@ export function MenuCelular({ menu, accesos }: { menu: SeccionMenu[]; accesos: (
             <button type="button" onClick={() => setAbierto(false)}
               className="text-xs font-bold rounded-lg px-3 py-2 bg-[#EEF3F8] border border-[#E3E9F0] text-[#16577F]">Cerrar</button>
           </div>
+          {menu.some((s) => s.items.some((i) => i.href === "/deposito/celular")) && (
+            <Link href="/deposito/celular" className="mx-3 mt-3 flex items-center justify-center gap-2 rounded-xl bg-[#16577F] text-white text-base font-bold py-3">
+              <span className="text-2xl">📱</span> Modo depósito
+            </Link>
+          )}
+          <Link href="/config/accesos" className="mx-3 mt-2 block text-center text-xs text-[#16577F] underline">Elegir los botones de la barra de abajo</Link>
           <form action="/buscar" className="px-3 py-3">
             <input name="q" placeholder="Buscar producto, MLA, cliente, proveedor…" aria-label="Buscar"
               className="w-full text-sm border border-[#E3E9F0] rounded-lg px-3 py-2" />

@@ -14,7 +14,8 @@ import { Suspense } from "react";
 import { sesionActual } from "@/lib/tenancy";
 import { tienePermiso } from "@/lib/permisos";
 import { sosVos } from "@/lib/admin";
-import { ACCESOS_CELULAR, menuPara } from "@/lib/menu";
+import { menuPara } from "@/lib/menu";
+import { accesosDe } from "@/lib/accesos";
 import { monedaVista, tcDelDia, formatear, type Moneda } from "@/lib/moneda";
 import { contadoresEstado, type Contador } from "@/lib/erp/contadores";
 import { accionLogout } from "@/app/auth-actions";
@@ -29,14 +30,14 @@ export default async function Marco({ children, version }: { children: React.Rea
   const esFer = await sosVos();
   const puede = (p: Parameters<typeof tienePermiso>[1]) => tienePermiso(sesion.permisos, p);
   const menu = menuPara(puede, esFer);
-  const accesos = ACCESOS_CELULAR.filter((a) => !a.permiso || puede(a.permiso));
 
   // Si la base no responde, el marco se dibuja igual (con lo que haya).
-  const [moneda, tc, contadores, asistente] = await Promise.all([
+  const [moneda, tc, contadores, asistente, accesos] = await Promise.all([
     monedaVista(sesion.usuario.id, sesion.org.id).catch(() => "ARS" as Moneda),
     tcDelDia(sesion.org.id).catch(() => null),
     contadoresEstado(sesion.org.id).catch(() => [] as Contador[]),
     configAsistente(sesion.org.id).catch(() => CONFIG_DEFECTO),
+    accesosDe(sesion.usuario.id, sesion.org.id, puede).catch(() => []),
   ]);
   const quien = sesion.usuario.nombre || sesion.usuario.email;
 
@@ -57,12 +58,16 @@ export default async function Marco({ children, version }: { children: React.Rea
         </div>
       </header>
 
-      {/* Celular: franja de arriba */}
-      <header className="md:hidden print:hidden sticky top-0 z-30 bg-white border-b border-[#E3E9F0] px-3 h-11 flex items-center gap-2">
+      {/* Celular: franja de arriba, FIJA (con el buscador siempre a mano) */}
+      <header className="md:hidden print:hidden fixed top-0 inset-x-0 z-30 bg-white border-b border-[#E3E9F0] px-3 h-12 flex items-center gap-2">
         <Link href="/panel" className="text-sm font-black text-[#16577F]">Laucen</Link>
-        <span className="text-[11px] text-[#5C6B76] truncate flex-1">{sesion.org.nombre}</span>
+        <form action="/buscar" className="flex-1 min-w-0">
+          <input name="q" placeholder="Buscar producto, MLA, cliente…" aria-label="Buscar" enterKeyHint="search"
+            className="w-full text-sm border border-[#E3E9F0] rounded-lg px-3 py-1.5 bg-[#F7F8F6]" />
+        </form>
         <InterruptorMoneda moneda={moneda} />
       </header>
+      <div className="md:hidden print:hidden h-12" aria-hidden />
 
       <div className="flex-1 pb-24 md:pb-12">{children}</div>
 

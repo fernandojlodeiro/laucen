@@ -152,7 +152,7 @@ En la pestaña **"Etiquetas y hojas"** del lote apretá **"Reimprimir etiquetas 
 - **Faltantes**: un pedido con faltantes no se cierra solo, ni al empacar ni al terminar el lote; queda en preparación y vuelve a la lista.
 - **Preparar sin escanear**: dar un pedido por preparado sin escanear cada producto (el «preparado rápido», el botón "Preparado" y cerrar con el número o la hoja) pide el permiso "Preparar sin escanear". Escanear o escribir cada producto no lo pide. No se puede preparar así un pedido de Full, uno que espera el pago, ni un carrito de Mercado Libre en espera.
 - **Cantidad**: con "Cantidad", todas las unidades van al mismo renglón (al mismo pedido en "Empacar escaneando"); si ese renglón necesita menos, avisa y no carga nada. Con el SKU de un pack, la cantidad es de packs: carga cada componente por las unidades que lleva el pack.
-- **Lector**: acepta la pistola lectora (USB o Bluetooth, que tipea el código y Enter), escribir a mano, o la cámara del teléfono (**"📷 Cámara"**, anda en Chrome de Android; el Safari de iPhone no la tiene). Pitido agudo = bien; doble grave = error. Se acepta el código de barras o el SKU. El código de la hoja es el número de pedido (también acepta "#123" o "P123").
+- **Lector**: acepta la pistola lectora (USB o Bluetooth, que tipea el código y Enter), escribir a mano, o la cámara del teléfono (**"📷 Cámara"**; anda en Android y en iPhone: en iPhone la primera vez carga un lector de repuesto, así que hace falta internet). Pitido agudo = bien; doble grave = error. Se acepta el código de barras o el SKU. El código de la hoja es el número de pedido (también acepta "#123" o "P123").
 - **Papel**: 10 × 15 cm (la térmica de las etiquetas de Mercado Libre: etiqueta y hoja en páginas separadas) o A4 (etiqueta y hoja juntas en una sola hoja por pedido); el último elegido queda recordado.
 
 ## Preguntas frecuentes
@@ -179,7 +179,7 @@ En "Recorrer escaneando", corregí la fila con el lápiz y poné el faltante. El
 Mercado Libre no la entregó en ese momento. Reimprimila desde [Envíos](/ventas/envios) o reimprimí el lote.
 
 **¿La cámara no anda en mi iPhone?**
-El navegador del iPhone no trae el lector de códigos. Usá una pistola lectora o escribí el código.
+Sí: el navegador del iPhone (Safari y también Chrome, que en iPhone usa el mismo motor) no trae lector de códigos, pero Laucen carga uno propio la primera vez que apretás "📷 Cámara"; tarda un par de segundos y hace falta internet. Si igual no anda, usá una pistola lectora o escribí el código.
 
 ## Relacionado
 

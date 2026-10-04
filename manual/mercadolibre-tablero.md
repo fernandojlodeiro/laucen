@@ -1,6 +1,6 @@
 ---
-titulo: Tablero de Mercado Libre
-menu: Mercado Libre
+titulo: Relevamiento completo
+menu: Dashboard › Relevamiento completo
 ruta: /mercadolibre
 rutas: /mercadolibre
 permiso: tablero_ml_ver
@@ -9,11 +9,11 @@ resumen: Todas las cuentas de Mercado Libre en una pantalla: reputación con los
 
 ## Para qué sirve
 
-Para ver de un vistazo cómo está cada cuenta de Mercado Libre y qué hay que hacer hoy, sin entrar cuenta por cuenta. Es una tabla con **una columna por cuenta** (con el apodo de ML y la razón social con la que factura), más dos columnas para lo que no es de Mercado Libre —**Web** (la tienda web, minorista y mayorista) y **Otros** (el local, los pedidos manuales y cualquier otro canal)— y una columna **Total**. En Web y Otros se ven los pedidos, envíos, reclamos, devoluciones y ventas de esos canales; lo propio de Mercado Libre (reputación, publicaciones, preguntas, mensajes, cola y conexión) figura con una raya. Casi cada número es un **enlace** a la pantalla donde se resuelve, ya filtrada por esa cuenta.
+Para ver de un vistazo cómo está cada cuenta de Mercado Libre y qué hay que hacer hoy, sin entrar cuenta por cuenta. Es una tabla centrada, con **una columna por cuenta** (con el apodo de ML y la razón social con la que factura), más dos columnas para lo que no es de Mercado Libre —**Web** (la tienda web, minorista y mayorista) y **Otros** (el local, los pedidos manuales y cualquier otro canal)— y una columna **Total**. En Web y Otros se ven los pedidos, envíos, reclamos, devoluciones y ventas de esos canales; lo propio de Mercado Libre (reputación, publicaciones, preguntas, mensajes, cola y conexión) figura con una raya. Casi cada número es un **enlace** a la pantalla donde se resuelve, ya filtrada por esa cuenta.
 
 ## Cómo se llega
 
-Menú **Mercado Libre** (arriba, al lado de Panel). Sólo lo ve quien tiene el permiso «Tablero de Mercado Libre».
+Menú **Dashboard › Relevamiento completo**. Sólo lo ve quien tiene el permiso «Tablero de Mercado Libre». La versión resumida, con lo que hay para hacer, es [Para hacer](/panel).
 
 ## Qué hay en la pantalla
 

@@ -134,3 +134,7 @@ create table if not exists usuario_preferencia (
 );
 alter table usuario_preferencia enable row level security;
 select erp_politica_org('usuario_preferencia');
+
+-- Los accesos directos de la barra de abajo del celular, a elección de cada
+-- usuario (4/10): lista de direcciones del menú, hasta cuatro. Vacío = los de siempre.
+alter table usuario_preferencia add column if not exists accesos_celular jsonb;
