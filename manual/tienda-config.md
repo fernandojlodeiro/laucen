@@ -15,7 +15,7 @@ Son las tres pantallas que arman la tienda web pública:
 - **Métodos de envío** ([/config/envios](/config/envios)): cómo le llega el pedido al comprador y cuánto cuesta. Permiso «Tienda web».
 - **Medios de pago** ([/config/medios-pago](/config/medios-pago)): cómo puede pagar el comprador, con qué descuento o recargo, y las credenciales de Mercado Pago y Payway. Permiso «Medios de pago».
 
-Lo que NO está acá y se cambia en [Canales](/config/canales): si la tienda está activa o pausada, con qué lista de precios vende y de qué depósitos toma el stock. Las promociones (reglas comerciales) y las cuotas tienen sus propias pantallas: [Reglas comerciales](/config/reglas) y [Cuotas](/config/cuotas).
+Lo que NO está acá y se cambia en [Canales](/config/canales): si la tienda está activa o pausada, con qué lista de precios vende y de qué depósitos toma el stock. Los productos de las filas **Destacados** y **Novedades** de la portada se eligen en [Portada de la tienda](/config/tienda/portada). Las promociones (reglas comerciales) y las cuotas tienen sus propias pantallas: [Reglas comerciales](/config/reglas) y [Cuotas](/config/cuotas).
 
 ## Cómo se llega
 
