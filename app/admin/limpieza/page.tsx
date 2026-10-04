@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sosVos } from "@/lib/admin";
 import { orgRequerida } from "@/lib/tenancy";
 import { notebooksSinStock, resumenCategorias, resumenPruebas } from "@/lib/limpieza";
 import { formatearNumero } from "@/lib/numeros";
 import { accionBorrarFamiliasVs, accionBorrarNotebooks, accionBorrarPruebas } from "./actions";
+import { SUAVE } from "@/app/botones";
 import { BotonBorrar, DetectarCategorias } from "./Botones";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +31,14 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
 
       {sp.ok && <p className="text-sm bg-[#E8F5EE] border border-[#BFE3CF] rounded-lg p-3 text-[#167655]">{sp.ok}</p>}
       {sp.error && <p className="text-sm bg-[#FDF0EE] border border-[#EFD3CE] rounded-lg p-3 text-[#C03420]">{sp.error}</p>}
+
+      <section className={CAJA}>
+        <h2 className="font-bold text-[#16577F]">Para revisar el lunes: ajustes de la carga de stock</h2>
+        <p className="text-sm text-[#5C6B76]">
+          Las unidades que la carga del 3/10 sacó de ubicaciones reales del depósito, para cotejarlas con lo que hay en las estanterías.
+        </p>
+        <Link href="/admin/limpieza/ajustes" className={SUAVE}>Ver ajustes a revisar</Link>
+      </section>
 
       <section className={CAJA}>
         <h2 className="font-bold text-[#16577F]">1. Pedidos, reservas y picking de prueba</h2>
