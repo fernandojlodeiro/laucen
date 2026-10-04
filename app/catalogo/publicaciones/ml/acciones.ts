@@ -13,10 +13,11 @@ import { traerPublicaciones, vincular, crearProductoDesdeItem } from "@/lib/merc
 
 const BASE = "/catalogo/publicaciones/ml";
 
-/** A dónde volver (sólo dentro de esta pantalla). */
+/** A dónde volver: esta pantalla, o la del canal (el "Traer publicaciones
+ *  de ML" de Configuración › Canales). */
 const volverDe = (fd: FormData) => {
   const v = texto(fd, "volver");
-  return v && v.startsWith(BASE) ? v : BASE;
+  return v && (v.startsWith(BASE) || v.startsWith("/config/canales?")) ? v : BASE;
 };
 
 async function cuentaDe(org: string, fd: FormData) {

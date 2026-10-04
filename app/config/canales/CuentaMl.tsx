@@ -10,6 +10,7 @@ import { CAJA, Estado } from "@/app/componentes/erp";
 import { estadoColaCanal } from "@/lib/mercadolibre/cola";
 import { emisoresDe } from "@/lib/arca/facturar";
 import { CAMPO, ETIQUETA } from "@/app/componentes/erp";
+import { accionTraerPublicaciones } from "@/app/catalogo/publicaciones/ml/acciones";
 import { accionAsignarRazonSocial, accionSincronizarStock, accionSubirFacturas, accionSoltarCuenta, accionTraerAhora, accionUsarCuenta } from "./acciones-ml";
 
 export default async function CuentaMl({ org, canal }: { org: string; canal: number }) {
@@ -83,6 +84,10 @@ export default async function CuentaMl({ org, canal }: { org: string; canal: num
             </p>
           )}
           <div className="flex flex-wrap gap-2">
+            <form action={accionTraerPublicaciones}>
+              <input type="hidden" name="canal" value={canal} /><input type="hidden" name="volver" value={`/config/canales?c=${canal}`} />
+              <BotonEnviar clase={SUAVE} corriendo="Trayendo publicaciones… (puede tardar unos minutos)">Traer publicaciones de ML</BotonEnviar>
+            </form>
             <form action={accionTraerAhora}><input type="hidden" name="canal" value={canal} /><BotonEnviar clase={SUAVE} corriendo="Trayendo…">Traer pedidos y preguntas ahora</BotonEnviar></form>
             <Link href={`/catalogo/publicaciones/ml?canal=${canal}`} className={SUAVE}>Vincular publicaciones</Link>
           </div>

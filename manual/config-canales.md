@@ -68,6 +68,7 @@ Con cuenta:
 - "Último problema: …" si ML devolvió un error.
 - Un renglón con: cuántas publicaciones vinculadas y sin vincular, preguntas sin responder y "pedidos al día hasta el …".
 - El renglón de la cola: "Cola: N pendientes", "N con error" (en rojo si hay), "N preparados esperando tu clic" y la última barrida nocturna (fecha, revisadas y diferencias; o "Barrida de esta noche en curso" / "Todavía no hubo barrida nocturna"). Cada parte lleva a la Cola filtrada.
+- **"Traer publicaciones de ML"**: trae (o actualiza) las publicaciones de esa cuenta de Mercado Libre y vincula solas las que coinciden por SKU. Trabaja hasta unos 4 minutos; si no llegó a traer todas, avisa que se apriete de nuevo y sigue desde donde quedó. Apretarlo de más no duplica nada. Es el mismo botón que está en [Vincular con Mercado Libre](/catalogo/publicaciones/ml).
 - **"Traer pedidos y preguntas ahora"**: no espera el barrido automático.
 - **"Vincular publicaciones"**: lleva a [Vincular con Mercado Libre](/catalogo/publicaciones/ml) con este canal.
 - Interruptor **"Laucen manda el stock a ML y pausa al llegar al umbral"**.
