@@ -4,7 +4,7 @@
 // usan el stock, la pausa y los pedidos.
 
 import Link from "next/link";
-import Pestanas from "@/app/componentes/Pestanas";
+import Casillas from "./Casillas";
 import { leerOrden, leerPagina, POR_PAGINA } from "@/lib/lista";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import FotosProducto from "@/app/componentes/FotosProducto";
@@ -12,14 +12,15 @@ import { consulta } from "@/lib/erp/base";
 import { formatear, tcDelDia } from "@/lib/moneda";
 import { cuentasDe } from "@/lib/mercadolibre/api";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
-import { TachoConfirmar, BotonEnviar } from "@/app/radar/Cliente";
+import { TachoConfirmar, BotonEnviar, BotonConfirmar } from "@/app/radar/Cliente";
+import { contarNotebooksABorrar } from "@/lib/mercadolibre/publicaciones";
 import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import {
   entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, patronBusqueda,
 } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
-import { LISTA_VINCULAR_ML, ESTADOS_ML_CON_PROBLEMAS, ESTADO_ML, type VerMl, TIPO_ML, LOGISTICA_ML, filtroMl, verMl } from "./lista";
-import { accionTraerPublicaciones, accionVincular, accionCrearProducto, accionDesvincular } from "./acciones";
+import { LISTA_VINCULAR_ML, ESTADOS_ML_CON_PROBLEMAS, ESTADO_ML, type VerMl, valorVerMl, TIPO_ML, LOGISTICA_ML, filtroMl, verMl } from "./lista";
+import { accionTraerPublicaciones, accionVincular, accionCrearProducto, accionDesvincular, accionBorrarNotebooks } from "./acciones";
 
 export const dynamic = "force-dynamic";
 // Traer publicaciones puede tardar (hasta 4 minutos por vuelta).
@@ -27,7 +28,7 @@ export const maxDuration = 300;
 
 const BASE = "/catalogo/publicaciones/ml";
 
-type SP = { canal?: string; ver?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+type SP = { canal?: string; ver?: string; f?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 type Ver = VerMl;
 
 type Fila = {
@@ -71,7 +72,9 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
   const comienza = sp.contiene !== "1";
   const cont = comienza ? null : "1";
   const { desde } = leerPagina(sp);
-  const aqui = url(BASE, { canal: canal.id, ver: ver === "sin" ? null : ver, q, contiene: cont, p: sp.p, orden: sp.orden, dir: sp.dir });
+  // ?f= sólo si no es lo de siempre ("Sin vincular").
+  const f = ver.length === 1 && ver[0] === "sin" ? null : valorVerMl(ver);
+  const aqui = url(BASE, { canal: canal.id, f, q, contiene: cont, p: sp.p, orden: sp.orden, dir: sp.dir });
 
   const resumen = (await consulta<{ total: number; vinculadas: number; activas: number; pausadas: number; con_cuestiones: number }>(`
     select count(*)::int total, count(publicacion_id)::int vinculadas,
@@ -79,6 +82,8 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
            count(*) filter (where estado = 'paused')::int pausadas,
            count(*) filter (where estado in ${ESTADOS_ML_CON_PROBLEMAS})::int con_cuestiones
       from meli_item where organizacion_id = $1 and canal_id = $2`, [org, canal.id]))[0];
+
+  const notebooks = await contarNotebooksABorrar(org, canal.id);
 
   // Los mismos filtros que el Excel (lista.tsx).
   const filtro = filtroMl(ver);
@@ -114,13 +119,6 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
   const precio = (p: string | null) => p == null ? "—" : tc ? formatear(Number(p) / tc, "USD") : formatear(p, "ARS");
 
   const n = (x: number) => x.toLocaleString("es-AR");
-  const ir = (cambios: Record<string, string | number | null>) =>
-    url(BASE, { canal: canal.id, ver: ver === "sin" ? null : ver, q, contiene: cont, ...cambios });
-  const pestanas: { ver: Ver; texto: string }[] = [
-    { ver: "sin", texto: "Sin vincular" }, { ver: "vinc", texto: "Vinculadas" }, { ver: "activas", texto: "Activas" }, { ver: "pausadas", texto: "Pausadas" },
-    { ver: "revision", texto: "Con cuestiones" }, { ver: "todas", texto: "Todas" },
-  ];
-
   return (
     <Pantalla titulo="Vincular con Mercado Libre" subtitulo="Cada publicación de Mercado Libre con su variación de Laucen"
       acciones={<AccionesExcel lista={LISTA_VINCULAR_ML} org={org} extra={{ canal: String(canal.id) }} />}>
@@ -147,11 +145,19 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
         <p className="text-xs text-[#5C6B76] mb-3">Todavía no se trajo nada de este canal: apretá &quot;Traer publicaciones de ML&quot;.</p>
       )}
 
-      <Pestanas className="mb-3" items={pestanas.map((p) => ({
-        clave: p.ver, texto: p.texto, activa: ver === p.ver, href: ir({ ver: p.ver === "sin" ? null : p.ver }),
-        cuenta: p.ver === "sin" ? resumen.total - resumen.vinculadas : p.ver === "vinc" ? resumen.vinculadas
-          : p.ver === "activas" ? resumen.activas : p.ver === "pausadas" ? resumen.pausadas : p.ver === "revision" ? resumen.con_cuestiones : resumen.total,
-      }))} />
+      {notebooks > 0 && (
+        <div className={`${CAJA} mb-3 flex flex-wrap items-center gap-3`}>
+          <p className="text-xs flex-1 min-w-60">
+            <b>{n(notebooks)} notebooks pausadas sin producto</b> en este canal (de la categoría Notebooks de ML). Se pueden borrar de Laucen:
+            en Mercado Libre quedan como están, y al traer publicaciones no vuelven.
+          </p>
+          <BotonConfirmar accion={accionBorrarNotebooks} campos={{ canal: String(canal.id), volver: aqui }} clase={SUAVE}
+            texto={`Borrar de Laucen (${n(notebooks)})`} pregunta={`¿Borrar las ${n(notebooks)} de Laucen?`} corriendo="Borrando…" />
+        </div>
+      )}
+
+      <Casillas ver={ver} cuentas={{ sin: resumen.total - resumen.vinculadas, vinc: resumen.vinculadas, activas: resumen.activas,
+        pausadas: resumen.pausadas, revision: resumen.con_cuestiones }} />
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por título, SKU o MLA…" />
@@ -169,7 +175,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
           <tbody>
             {filas.length === 0 && (
               <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>
-                {q ? "Nada coincide con la búsqueda." : ver === "sin" && resumen.total > 0 ? "No queda ninguna sin vincular." : "No hay publicaciones para mostrar."}
+                {q ? "Nada coincide con la búsqueda." : ver.length === 1 && ver[0] === "sin" && resumen.total > 0 ? "No queda ninguna sin vincular." : "No hay publicaciones para mostrar."}
               </td></tr>
             )}
             {filas.map((f) => {

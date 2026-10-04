@@ -177,6 +177,22 @@ create index if not exists meli_item_sin_vincular on meli_item (organizacion_id,
 alter table meli_item enable row level security;
 select erp_politica_org('meli_item');
 
+-- Publicaciones de ML que se borraron de Laucen a propósito (Fer, 4/10:
+-- notebooks pausadas sin producto): traer publicaciones, los avisos y la
+-- barrida no las vuelven a guardar. Siguen en ML como estaban.
+create table if not exists meli_item_descartado (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  item_id          text not null,
+  titulo           text,
+  sku              text,
+  motivo           text,
+  creado_ts        timestamptz not null default now(),
+  primary key (canal_id, item_id)
+);
+alter table meli_item_descartado enable row level security;
+select erp_politica_org('meli_item_descartado');
+
 -- La llave del barrido. El job de pg_cron (creado a mano en Supabase el 2/10,
 -- nombre 'meli-barrido', cada 2 minutos) llama a
 -- https://laucen.vercel.app/api/meli/barrido?clave=<meli_llave.clave>, sólo

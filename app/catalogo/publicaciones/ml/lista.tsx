@@ -1,6 +1,6 @@
 // Vincular con Mercado Libre como lista configurable (lib/listas/tipos.ts):
 // "Descargar Excel" de las publicaciones traídas de ML del canal elegido, con
-// la misma pestaña (sin vincular / vinculadas / todas) y búsqueda que la pantalla.
+// las mismas casillas (sin vincular, activas…) y búsqueda que la pantalla.
 
 import { patronBusqueda } from "@/app/componentes/erp";
 import { consulta } from "@/lib/erp/base";
@@ -14,17 +14,38 @@ export const ESTADO_ML: Record<string, { texto: string; tono: "verde" | "amarill
 export const TIPO_ML: Record<string, string> = { gold_pro: "Premium", gold_special: "Clásica", free: "Gratuita" };
 export const LOGISTICA_ML: Record<string, string> = { fulfillment: "Full" };
 
-export type VerMl = "sin" | "vinc" | "todas" | "activas" | "pausadas" | "revision";
-export const verMl = (sp: SP): VerMl => (sp.ver === "vinc" || sp.ver === "todas" || sp.ver === "activas" || sp.ver === "pausadas" || sp.ver === "revision" ? sp.ver : "sin");
+/** Las casillas para filtrar (Fer, 4/10: en vez de pestañas, para
+ *  combinarlas, ej. "Sin vincular" + "Activas"). Dentro de cada grupo suman
+ *  (Activas o Pausadas); entre grupos se cruzan (sin vincular y activas). Un
+ *  grupo sin nada tildado no filtra. */
+export const CASILLAS_ML = [
+  { clave: "sin", texto: "Sin vincular", grupo: "vinculo" }, { clave: "vinc", texto: "Vinculadas", grupo: "vinculo" },
+  { clave: "activas", texto: "Activas", grupo: "estado" }, { clave: "pausadas", texto: "Pausadas", grupo: "estado" },
+  { clave: "revision", texto: "Con cuestiones", grupo: "estado" },
+] as const;
+export type CasillaMl = (typeof CASILLAS_ML)[number]["clave"];
+export type VerMl = CasillaMl[];
+const esCasilla = (x: string): x is CasillaMl => CASILLAS_ML.some((c) => c.clave === x);
+
+/** Lo tildado: ?f=sin,activas ("-" = nada tildado, todas). Sin ?f, el ?ver=
+ *  de antes (los enlaces viejos) y si tampoco, "Sin vincular". */
+export function verMl(sp: SP): VerMl {
+  if (sp.f != null) return sp.f.split(",").filter(esCasilla);
+  if (sp.ver === "todas") return [];
+  return sp.ver && esCasilla(sp.ver) ? [sp.ver] : ["sin"];
+}
+/** Lo tildado como valor de ?f. */
+export const valorVerMl = (ver: VerMl) => (ver.length ? ver.join(",") : "-");
 
 /** Publicaciones que ML frena hasta que se corrija algo: en revisión, inactivas o con el pago pendiente. */
 export const ESTADOS_ML_CON_PROBLEMAS = "('under_review', 'inactive', 'payment_required')";
 
 /** Los filtros de la pantalla sobre meli_item (alias mi): $1 organización, $2 canal, $3 búsqueda. */
 export function filtroMl(ver: VerMl) {
-  const filtroVer = ver === "sin" ? "and mi.publicacion_id is null" : ver === "vinc" ? "and mi.publicacion_id is not null"
-    : ver === "activas" ? "and mi.estado = 'active'" : ver === "pausadas" ? "and mi.estado = 'paused'" : ver === "revision" ? `and mi.estado in ${ESTADOS_ML_CON_PROBLEMAS}` : "";
-  return `mi.organizacion_id = $1 and mi.canal_id = $2 ${filtroVer}
+  const t = (c: CasillaMl) => ver.includes(c);
+  const vinculo = t("sin") === t("vinc") ? "" : t("sin") ? "and mi.publicacion_id is null" : "and mi.publicacion_id is not null";
+  const estados = [t("activas") && "mi.estado = 'active'", t("pausadas") && "mi.estado = 'paused'", t("revision") && `mi.estado in ${ESTADOS_ML_CON_PROBLEMAS}`].filter(Boolean);
+  return `mi.organizacion_id = $1 and mi.canal_id = $2 ${vinculo} ${estados.length ? `and (${estados.join(" or ")})` : ""}
     and ($3::text is null or mi.titulo ilike $3 or mi.sku ilike $3 or mi.item_id ilike $3)`;
 }
 
