@@ -41,7 +41,7 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 
 - Los **banners** que pasan solos (si no hay ninguno, una franja con el nombre, la bajada y "Ver todos los productos").
 - Cinco **atajos**: Ingresá a tu cuenta / Mis compras, Medios de pago, Envíos (o "Envío gratis desde $ …"), Más vendidos y Ayuda.
-- Carruseles: **Ofertas**, **Más vendidos**, **Novedades**, la grilla de **Categorías** con foto y **Destacados en …** de las tres categorías con más productos.
+- Carruseles: **Destacados** (primero; los elegís vos en [Portada de la tienda](/config/tienda/portada)), **Ofertas**, **Más vendidos** (ventas de todos los canales), **Novedades** (los últimos cargados, o los que elijas), la grilla de **Categorías** con foto y **Destacados en …** de las tres categorías con más productos.
 
 ### Listados (buscar, categoría, ofertas, más vendidos)
 

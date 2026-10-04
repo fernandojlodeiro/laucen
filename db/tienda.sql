@@ -152,3 +152,21 @@ create table if not exists tienda_dominio (
 create unique index if not exists tienda_dominio_principal on tienda_dominio (canal_id) where principal;
 alter table tienda_dominio enable row level security;
 select erp_politica_org('tienda_dominio');
+
+-- Portada de la tienda (4/10): los productos que Fer elige a mano para las filas
+-- "Destacados" y "Novedades" de la portada, en el orden que les pone. Una fila por
+-- tienda (canal), lista y producto. Destacados vacío = la fila no se muestra;
+-- Novedades vacío = salen los últimos cargados.
+create table if not exists tienda_portada_producto (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  lista            text not null check (lista in ('destacados', 'novedades')),
+  producto_id      bigint not null references producto(id) on delete cascade,
+  orden            int not null default 0,
+  creado_ts        timestamptz not null default now(),
+  unique (canal_id, lista, producto_id)
+);
+create index if not exists tienda_portada_orden on tienda_portada_producto (canal_id, lista, orden);
+alter table tienda_portada_producto enable row level security;
+select erp_politica_org('tienda_portada_producto');

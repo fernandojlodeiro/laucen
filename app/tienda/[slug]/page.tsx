@@ -1,5 +1,5 @@
 // Portada de la tienda: banners que pasan solos, atajos, carruseles de
-// productos (Ofertas, Más vendidos, Novedades y lo destacado de las categorías
+// productos (Destacados a mano, Ofertas, Más vendidos, Novedades y lo destacado de las categorías
 // con más productos) y las categorías con foto. Todo sale del mismo catálogo
 // (catalogo.ts) en memoria: una sola cuenta de precios por request.
 
@@ -8,6 +8,7 @@ import { mediosActivos } from "@/lib/tienda/checkout";
 import { cuentaActual } from "@/lib/tienda/cuentas";
 import { formatearNumero } from "@/lib/numeros";
 import { nombreTienda, rutaTienda } from "@/lib/tienda/tienda";
+import { idsDe } from "@/lib/tienda/portada";
 import { aTarjetas, arbolDe, cargarTienda, catalogoDe, envioDe, type ProductoBase, type Tarjeta } from "./catalogo";
 import { CAJA, IconoCamion, IconoCharla, IconoPersona, IconoTarjeta, IconoTienda, TarjetaProducto } from "./piezas";
 import Banners from "./Banners";
@@ -34,22 +35,26 @@ function Fila({ titulo, ver, productos, t }: { titulo: string; ver?: { texto: st
 
 export default async function InicioTienda({ params }: { params: Promise<{ slug: string }> }) {
   const t = await cargarTienda((await params).slug);
-  const [catalogo, arbol, envio, medios, cuenta] = await Promise.all([catalogoDe(t), arbolDe(t), envioDe(t), mediosActivos(t), cuentaActual(t)]);
+  const [catalogo, arbol, envio, medios, cuenta, idsDestacados, idsNovedades] = await Promise.all([catalogoDe(t), arbolDe(t), envioDe(t), mediosActivos(t), cuentaActual(t), idsDe(t.canalId, "destacados"), idsDe(t.canalId, "novedades")]);
   const nombre = nombreTienda(t);
   const c = t.config;
   const r = (x = "") => rutaTienda(t, x);
   const conStock = catalogo.filter((p) => p.stock > 0);
 
-  // Las filas, del mismo catálogo.
+  // Las filas, del mismo catálogo. Destacados y Novedades las elige Fer a mano (Configuración › Portada
+  // de la tienda), en su orden; Novedades, sin elegir, son los últimos cargados.
+  const porId = new Map(conStock.map((p) => [p.id, p]));
+  const elegidos = (ids: number[]) => ids.map((i) => porId.get(i)).filter((p): p is ProductoBase => !!p);
+  const destacados = elegidos(idsDestacados);
   const ofertas = conStock.filter((p) => p.lista > p.venta).sort((a, b) => b.lista / b.venta - a.lista / a.venta).slice(0, CANTIDAD);
   const vendidos = conStock.filter((p) => p.vendidos > 0).sort((a, b) => b.vendidos - a.vendidos).slice(0, CANTIDAD);
-  const novedades = [...conStock].sort((a, b) => b.creado - a.creado || b.id - a.id).slice(0, CANTIDAD);
+  const novedades = idsNovedades.length ? elegidos(idsNovedades) : [...conStock].sort((a, b) => b.creado - a.creado || b.id - a.id).slice(0, CANTIDAD);
   const principales = [...arbol.raices].sort((a, b) => b.total - a.total).slice(0, 3);
   const porCategoria = principales.map((f) => ({
     f, productos: conStock.filter((p) => arbol.cadena(p.familiaId).includes(f.id)).sort((a, b) => b.vendidos - a.vendidos || b.creado - a.creado).slice(0, CANTIDAD),
   }));
   const todos = new Map<number, ProductoBase>();
-  for (const l of [ofertas, vendidos, novedades, ...porCategoria.map((x) => x.productos)]) for (const p of l) todos.set(p.id, p);
+  for (const l of [destacados, ofertas, vendidos, novedades, ...porCategoria.map((x) => x.productos)]) for (const p of l) todos.set(p.id, p);
   const tarjetas = new Map((await aTarjetas(t, [...todos.values()])).map((x) => [x.id, x]));
   const de = (l: ProductoBase[]) => l.map((p) => tarjetas.get(p.id)!).filter(Boolean);
 
@@ -107,6 +112,7 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
         <div className={`${CAJA} px-4 py-12 text-center text-[var(--texto-2)]`}>Pronto vas a encontrar productos acá.</div>
       )}
 
+      <Fila t={t} titulo="Destacados" productos={de(destacados)} />
       <Fila t={t} titulo="Ofertas" ver={{ texto: "Ver todas", href: `${r("/buscar")}?ofertas=1` }} productos={de(ofertas)} />
       <Fila t={t} titulo="Más vendidos" ver={{ texto: "Ver más", href: `${r("/buscar")}?orden=vendidos` }} productos={de(vendidos)} />
       <Fila t={t} titulo="Novedades" ver={{ texto: "Ver todo", href: r("/buscar") }} productos={de(novedades)} />
