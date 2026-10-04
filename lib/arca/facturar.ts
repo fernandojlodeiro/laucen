@@ -16,6 +16,7 @@ import { ultimoAutorizado, solicitarCae, consultarComprobante } from "@/lib/arca
 import { exigirCarritoLibre, sqlCarritoEnEspera, sqlACobrar, MENSAJE_A_COBRAR_FACTURA } from "@/lib/pedidos";
 
 export type Emisor = {
+  id: number; nombre: string | null; es_principal: boolean;
   cuit: string; razon_social: string; condicion_iva: "responsable_inscripto" | "monotributo" | "exento"; domicilio: string | null;
   iibb: string | null; inicio_actividades: string | null; punto_venta: number; ambiente: Ambiente;
   facturar_automatico: boolean; facturar_al: string;
@@ -31,10 +32,40 @@ export const CONDICION_RECEPTOR: Record<string, number> = { responsable_inscript
 export const CONDICION_RECEPTOR_TEXTO: Record<number, string> = { 1: "IVA Responsable Inscripto", 4: "IVA Sujeto Exento", 5: "Consumidor Final", 6: "Responsable Monotributo", 15: "IVA No Alcanzado" };
 const ALICUOTA_ID: Record<string, number> = { "0": 3, "2.5": 9, "5": 8, "10.5": 4, "21": 5, "27": 6 };
 
-export async function emisorDe(org: string): Promise<Emisor | null> {
-  return una<Emisor>(`select cuit, razon_social, condicion_iva, domicilio, iibb, to_char(inicio_actividades, 'YYYY-MM-DD') inicio_actividades,
-                             punto_venta, ambiente, facturar_automatico, facturar_al from emisor where organizacion_id = $1`, [org]);
+const COLUMNAS_EMISOR = `id::int, nombre, es_principal, cuit, razon_social, condicion_iva, domicilio, iibb, to_char(inicio_actividades, 'YYYY-MM-DD') inicio_actividades,
+                             punto_venta, ambiente, facturar_automatico, facturar_al`;
+
+/** Una razón social de la organización: la que se pide por id o, sin id, la principal. */
+export async function emisorDe(org: string, id?: number | null): Promise<Emisor | null> {
+  if (id) return una<Emisor>(`select ${COLUMNAS_EMISOR} from emisor where organizacion_id = $1 and id = $2`, [org, id]);
+  return una<Emisor>(`select ${COLUMNAS_EMISOR} from emisor where organizacion_id = $1 and es_principal`, [org]);
 }
+
+/** La razón social que puede consultar el padrón de ARCA (cualquiera que esté
+ *  conectada; la principal primero). */
+export async function emisorConPadron(org: string): Promise<Emisor | null> {
+  return una<Emisor>(`select ${COLUMNAS_EMISOR} from emisor
+                       where organizacion_id = $1 and exists (select 1 from arca_credencial a where a.emisor_id = emisor.id and a.ambiente = emisor.ambiente and a.certificado is not null)
+                       order by es_principal desc, id limit 1`, [org]);
+}
+
+/** Todas las razones sociales de la organización, la principal primero. */
+export async function emisoresDe(org: string): Promise<Emisor[]> {
+  return consulta<Emisor>(`select ${COLUMNAS_EMISOR} from emisor where organizacion_id = $1 order by es_principal desc, id`, [org]);
+}
+
+/** Con qué razón social se factura lo que vende un canal: la de su cuenta de
+ *  Mercado Libre si tiene una asignada y, si no (tienda web, local,
+ *  mayorista…), la principal. */
+export async function emisorDeCanal(org: string, canalId: number | null, c?: PoolClient): Promise<Emisor | null> {
+  const q = c ? <T,>(s: string, v: unknown[]) => c.query(s, v).then((r) => r.rows as T[]) : <T,>(s: string, v: unknown[]) => consulta(s, v) as Promise<T[]>;
+  const id = canalId ? (await q<{ emisor_id: string | null }>("select emisor_id from canal where id = $1 and organizacion_id = $2", [canalId, org]))[0]?.emisor_id : null;
+  return (await q<Emisor>(`select ${COLUMNAS_EMISOR} from emisor where organizacion_id = $1 and ${id ? "id = $2" : "es_principal"}`, id ? [org, Number(id)] : [org]))[0] ?? null;
+}
+
+/** SQL: la razón social con la que se factura un pedido (alias de pedido `p`). */
+export const sqlEmisorDePedido = (p: string) =>
+  `coalesce((select ca.emisor_id from canal ca where ca.id = ${p}.canal_id), emisor_principal(${p}.organizacion_id))`;
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
@@ -54,8 +85,9 @@ function discriminar(lineas: { total: number; iva_pct: number }[], conIva: boole
 /** Arma (sin mandar) la factura de un pedido. Tira ErrorErp si falta algo. */
 export async function prepararFactura(org: string, pedidoId: number, usuarioId: string | null, c?: PoolClient): Promise<number> {
   const q = c ? <T,>(s: string, v: unknown[]) => c.query(s, v).then((r) => r.rows as T[]) : <T,>(s: string, v: unknown[]) => consulta(s, v) as Promise<T[]>;
-  const e = await emisorDe(org);
-  if (!e) throw new ErrorErp("Falta cargar los datos de facturación (Administración → Facturación → Configuración).");
+  const canalDelPedido = (await q<{ canal_id: string }>("select canal_id from pedido where id = $1 and organizacion_id = $2", [pedidoId, org]))[0]?.canal_id;
+  const e = await emisorDeCanal(org, canalDelPedido ? Number(canalDelPedido) : null, c);
+  if (!e) throw new ErrorErp("Falta cargar los datos de facturación (Configuración → Razones sociales).");
   // Un carrito de ML al que todavía le puede llegar un ítem no se factura.
   await exigirCarritoLibre(org, pedidoId, c);
   const ya = await q<{ id: number; estado: string }>("select id::int, estado from comprobante where organizacion_id = $1 and pedido_id = $2 and tipo_cbte in (1, 6, 11) and estado in ('autorizado', 'pendiente', 'error') order by id desc limit 1", [org, pedidoId]);
@@ -106,12 +138,12 @@ export async function prepararFactura(org: string, pedidoId: number, usuarioId: 
   const correr = async (cx: PoolClient) => {
     const cb = await cx.query<{ id: string }>(`
       insert into comprobante (organizacion_id, pedido_id, cliente_id, ambiente, tipo_cbte, punto_venta, doc_tipo, doc_nro, receptor_nombre,
-                               receptor_condicion_iva, receptor_domicilio, importe_total, importe_neto, importe_iva, iva_detalle, usuario_id, fecha)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16, (now() at time zone 'America/Argentina/Buenos_Aires')::date)
+                               receptor_condicion_iva, receptor_domicilio, importe_total, importe_neto, importe_iva, iva_detalle, usuario_id, fecha, emisor_id)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16, (now() at time zone 'America/Argentina/Buenos_Aires')::date, $17)
       returning id`,
       [org, pedidoId, p.cliente_id, e.ambiente, tipo, e.punto_venta, docTipo, docNro, p.razon_social ?? p.nombre ?? "Consumidor final",
         CONDICION_RECEPTOR[condRec] ?? 5, p.domicilio, t.total, conIva ? t.neto : t.total, conIva ? t.iva : 0,
-        JSON.stringify(conIva ? t.alicuotas.map((a) => ({ id: a.id, pct: a.pct, base: a.base, importe: a.importe })) : []), usuarioId]);
+        JSON.stringify(conIva ? t.alicuotas.map((a) => ({ id: a.id, pct: a.pct, base: a.base, importe: a.importe })) : []), usuarioId, e.id]);
     const id = Number(cb.rows[0].id);
     for (const [i, l] of items.entries()) {
       await cx.query(`insert into comprobante_linea (organizacion_id, comprobante_id, variacion_id, descripcion, cantidad, precio_unit, iva_pct, neto, iva, total, orden)
@@ -135,9 +167,9 @@ export async function prepararNotaCredito(org: string, facturaId: number, usuari
     const r = await c.query<{ id: string }>(`
       insert into comprobante (organizacion_id, pedido_id, cliente_id, ambiente, tipo_cbte, punto_venta, doc_tipo, doc_nro, receptor_nombre,
                                receptor_condicion_iva, receptor_domicilio, importe_total, importe_neto, importe_iva, iva_detalle,
-                               comprobante_asociado_id, usuario_id, fecha)
+                               comprobante_asociado_id, usuario_id, fecha, emisor_id)
       select organizacion_id, pedido_id, cliente_id, ambiente, $3, punto_venta, doc_tipo, doc_nro, receptor_nombre, receptor_condicion_iva,
-             receptor_domicilio, importe_total, importe_neto, importe_iva, iva_detalle, id, $4, (now() at time zone 'America/Argentina/Buenos_Aires')::date
+             receptor_domicilio, importe_total, importe_neto, importe_iva, iva_detalle, id, $4, (now() at time zone 'America/Argentina/Buenos_Aires')::date, emisor_id
         from comprobante where id = $1 and organizacion_id = $2 returning id`, [facturaId, org, tipoNc, usuarioId]);
     const id = Number(r.rows[0].id);
     await c.query(`insert into comprobante_linea (organizacion_id, comprobante_id, variacion_id, descripcion, cantidad, precio_unit, iva_pct, neto, iva, total, orden)
@@ -160,26 +192,27 @@ async function alAutorizar(org: string, comprobanteId: number) {
 
 /** Manda el comprobante a ARCA y guarda el resultado. */
 export async function emitir(org: string, comprobanteId: number): Promise<{ estado: string; mensaje: string }> {
-  const e = await emisorDe(org);
-  if (!e) throw new ErrorErp("Falta cargar los datos de facturación.");
-  const cb = await una<{ estado: string; ambiente: Ambiente; tipo_cbte: number; punto_venta: number; numero: string | null; fecha: string; concepto: number;
+  const cb = await una<{ emisor_id: string | null; estado: string; ambiente: Ambiente; tipo_cbte: number; punto_venta: number; numero: string | null; fecha: string; concepto: number;
     doc_tipo: number; doc_nro: string; importe_total: string; importe_neto: string; importe_iva: string; iva_detalle: { id: number; base: number; importe: number }[];
     receptor_condicion_iva: number; asociado_id: string | null }>(`
-    select estado, ambiente, tipo_cbte, punto_venta, numero, to_char(fecha, 'YYYY-MM-DD') fecha, concepto, doc_tipo, doc_nro, importe_total, importe_neto,
+    select emisor_id, estado, ambiente, tipo_cbte, punto_venta, numero, to_char(fecha, 'YYYY-MM-DD') fecha, concepto, doc_tipo, doc_nro, importe_total, importe_neto,
            importe_iva, iva_detalle, receptor_condicion_iva, comprobante_asociado_id asociado_id
       from comprobante where id = $1 and organizacion_id = $2`, [comprobanteId, org]);
   if (!cb) throw new ErrorErp("El comprobante no existe.");
+  // La razón social que lo emite es la del comprobante (la de su canal al armarlo).
+  const e = await emisorDe(org, cb.emisor_id ? Number(cb.emisor_id) : null);
+  if (!e) throw new ErrorErp("Falta cargar los datos de facturación.");
   if (cb.estado === "autorizado") return { estado: "autorizado", mensaje: "Ya estaba autorizado." };
 
   // Candado por punto de venta y tipo, en una conexión aparte durante todo el pedido a ARCA.
   const candado = await pool.connect();
   try {
     await candado.query("begin");
-    await candado.query("select pg_advisory_xact_lock(hashtext($1))", [`cbte:${org}:${cb.ambiente}:${cb.punto_venta}:${cb.tipo_cbte}`]);
+    await candado.query("select pg_advisory_xact_lock(hashtext($1))", [`cbte:${e.id}:${cb.ambiente}:${cb.punto_venta}:${cb.tipo_cbte}`]);
 
     // ¿Un intento anterior llegó a ARCA y se perdió la respuesta?
     if (cb.numero) {
-      const previo = await consultarComprobante(org, cb.ambiente, e.cuit, cb.punto_venta, cb.tipo_cbte, Number(cb.numero)).catch(() => null);
+      const previo = await consultarComprobante(e.id, cb.ambiente, e.cuit, cb.punto_venta, cb.tipo_cbte, Number(cb.numero)).catch(() => null);
       if (previo?.cae && Math.abs(previo.total - Number(cb.importe_total)) < 0.01 && previo.docNro.replace(/\D/g, "") === cb.doc_nro.replace(/\D/g, "")) {
         await consulta("update comprobante set estado = 'autorizado', cae = $3, cae_vto = $4, autorizado_ts = now(), observaciones = null where id = $1 and organizacion_id = $2",
           [comprobanteId, org, previo.cae, previo.vto]);
@@ -188,7 +221,7 @@ export async function emitir(org: string, comprobanteId: number): Promise<{ esta
         return { estado: "autorizado", mensaje: `Autorizado (CAE ${previo.cae}).` };
       }
     }
-    const numero = (await ultimoAutorizado(org, cb.ambiente, e.cuit, cb.punto_venta, cb.tipo_cbte)) + 1;
+    const numero = (await ultimoAutorizado(e.id, cb.ambiente, e.cuit, cb.punto_venta, cb.tipo_cbte)) + 1;
     let asociado = null;
     if (cb.asociado_id) {
       const a = await una<{ tipo_cbte: number; punto_venta: number; numero: string; fecha: string }>(
@@ -200,7 +233,7 @@ export async function emitir(org: string, comprobanteId: number): Promise<{ esta
     await consulta("update comprobante set numero = $3, fecha = $4, intentos = intentos + 1 where id = $1 and organizacion_id = $2", [comprobanteId, org, numero, hoy]);
     let r;
     try {
-      r = await solicitarCae(org, cb.ambiente, e.cuit, {
+      r = await solicitarCae(e.id, cb.ambiente, e.cuit, {
         puntoVenta: cb.punto_venta, tipo: cb.tipo_cbte, numero, fecha: hoy, concepto: cb.concepto, docTipo: cb.doc_tipo, docNro: cb.doc_nro,
         total: Number(cb.importe_total), neto: Number(cb.importe_neto), iva: Number(cb.importe_iva), condicionIvaReceptor: cb.receptor_condicion_iva,
         alicuotas: cb.iva_detalle.map((a) => ({ id: a.id, base: Number(a.base), importe: Number(a.importe) })), asociado,
@@ -244,21 +277,24 @@ export async function emitir(org: string, comprobanteId: number): Promise<{ esta
  *  vuelta, pasada la espera, lo factura. */
 export async function facturarPendientes(org: string, hastaMs: number): Promise<{ emitidos: number; errores: string[] }> {
   const res = { emitidos: 0, errores: [] as string[] };
-  const e = await emisorDe(org);
-  if (!e) return res;
-  if (e.facturar_automatico) {
+  const emisores = await emisoresDe(org);
+  if (!emisores.length) return res;
+  // Cada razón social tiene su propio interruptor y su propio estado de facturación;
+  // un pedido lo atiende la razón social de su canal (o la principal).
+  for (const e of emisores.filter((x) => x.facturar_automatico)) {
     const eventos = await consulta<{ pedido_id: number }>(`
       with ev as (
         update evento set procesado_ts = now(), procesado_por = 'facturacion'
          where organizacion_id = $1 and procesado_ts is null
            and ((tipo = 'pedido_estado_cambiado' and payload ->> 'nuevo' = $2) or tipo = 'pedido_pago_confirmado')
+           and exists (select 1 from pedido pe where pe.id = (evento.payload ->> 'pedido_id')::bigint and ${sqlEmisorDePedido("pe")} = $3)
            and not exists (select 1 from pedido p where p.id = (evento.payload ->> 'pedido_id')::bigint and ${sqlCarritoEnEspera("p")})
         returning (payload ->> 'pedido_id')::bigint pedido_id, tipo)
       select distinct ev.pedido_id::int from ev join pedido p on p.id = ev.pedido_id
        where not ${sqlACobrar("p")}
          and (ev.tipo = 'pedido_estado_cambiado' or estado_pedido_orden(p.estado) >= estado_pedido_orden($2))
          and not exists (select 1 from comprobante cb where cb.pedido_id = p.id and cb.tipo_cbte in (1, 6, 11) and cb.estado = 'autorizado')
-       order by 1`, [org, e.facturar_al]);
+       order by 1`, [org, e.facturar_al, e.id]);
     for (const { pedido_id } of eventos) {
       if (Date.now() > hastaMs) break;
       try {

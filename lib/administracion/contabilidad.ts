@@ -189,8 +189,9 @@ export async function asegurarCuentasDeCanales(org: string) {
           f = { id: igual.id };
         } else {
           if (igual) nombre = `${nombre} (${m.meli_user_id})`;
-          f = (await c.query<{ id: string }>(`insert into cuenta_fondos (organizacion_id, nombre, tipo, moneda, meli_user_id, canal_id)
-                                               values ($1, $2, 'mercadopago', 'ARS', $3, $4) returning id`, [org, nombre, m.meli_user_id, m.canal_id])).rows[0];
+          f = (await c.query<{ id: string }>(`insert into cuenta_fondos (organizacion_id, nombre, tipo, moneda, meli_user_id, canal_id, emisor_id)
+                                               values ($1, $2, 'mercadopago', 'ARS', $3, $4,
+                                                       (select coalesce(emisor_id, emisor_principal($1)) from canal where id = $4)) returning id`, [org, nombre, m.meli_user_id, m.canal_id])).rows[0];
         }
       }
       await c.query("update cuenta_fondos set canal_id = $2 where id = $1 and canal_id is distinct from $2", [f.id, m.canal_id]);
@@ -222,7 +223,9 @@ async function cuentasPorRol(c: PoolClient, org: string): Promise<Record<string,
  *  descarta las de cero y, si por redondeo no cierra por centavos, ajusta la
  *  línea más grande. Devuelve 0 si ya existía (o si quedó vacío). */
 export async function grabarAsiento(c: PoolClient, org: string, a: { fecha: string; concepto: string; origen: string; referenciaId: number | null;
-  lineas: Linea[]; usuarioId?: string | null }): Promise<number> {
+  lineas: Linea[]; usuarioId?: string | null;
+  /** La razón social a la que pertenece el asiento (la del documento que lo origina); sin ella, la principal. */
+  emisorId?: number | null }): Promise<number> {
   const junt = new Map<string, Linea>();
   for (const l of a.lineas) {
     const d = r2(l.debe ?? 0), h = r2(l.haber ?? 0);
@@ -248,9 +251,9 @@ export async function grabarAsiento(c: PoolClient, org: string, a: { fecha: stri
     if (ya.rowCount) return 0;
   }
   const numero = Number((await c.query<{ n: string }>("select coalesce(max(numero), 0) + 1 n from asiento where organizacion_id = $1", [org])).rows[0].n);
-  const id = Number((await c.query<{ id: string }>(`insert into asiento (organizacion_id, numero, fecha, concepto, origen, referencia_id, usuario_id)
-                                                     values ($1, $2, $3, $4, $5, $6, $7) returning id`,
-    [org, numero, a.fecha, a.concepto.slice(0, 300), a.origen, a.referenciaId, a.usuarioId ?? null])).rows[0].id);
+  const id = Number((await c.query<{ id: string }>(`insert into asiento (organizacion_id, numero, fecha, concepto, origen, referencia_id, usuario_id, emisor_id)
+                                                     values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
+    [org, numero, a.fecha, a.concepto.slice(0, 300), a.origen, a.referenciaId, a.usuarioId ?? null, a.emisorId ?? null])).rows[0].id);
   let orden = 0;
   for (const l of ls.sort((x, y) => (y.debe ?? 0) - (x.debe ?? 0))) {
     await c.query("insert into asiento_linea (organizacion_id, asiento_id, cuenta_id, debe, haber, detalle, orden) values ($1, $2, $3, $4, $5, $6, $7)",
@@ -260,16 +263,17 @@ export async function grabarAsiento(c: PoolClient, org: string, a: { fecha: stri
 }
 
 /** Asiento manual (ajustes del contador, apertura). */
-export async function asientoManual(org: string, d: { fecha: string; concepto: string; lineas: Linea[]; usuarioId: string; apertura?: boolean }) {
+export async function asientoManual(org: string, d: { fecha: string; concepto: string; lineas: Linea[]; usuarioId: string; apertura?: boolean; emisorId?: number | null }) {
   const ls = d.lineas.filter((l) => (l.debe ?? 0) > 0 || (l.haber ?? 0) > 0);
   if (ls.length < 2) throw new ErrorErp("Un asiento lleva al menos dos líneas.");
   const dif = r2(ls.reduce((s, l) => s + (l.debe ?? 0) - (l.haber ?? 0), 0));
   if (dif) throw new ErrorErp(`El asiento no balancea: el debe y el haber difieren en ${Math.abs(dif).toLocaleString("es-AR", { minimumFractionDigits: 2 })}.`);
   if (!d.concepto.trim()) throw new ErrorErp("Poné un concepto.");
   return enTransaccion(async (c) => {
+    if (d.emisorId && !(await c.query("select 1 from emisor where id = $1 and organizacion_id = $2", [d.emisorId, org])).rowCount) throw new ErrorErp("Esa razón social no existe.");
     const ok = (await c.query("select id from plan_cuenta where organizacion_id = $1 and imputable and id = any($2::bigint[])", [org, ls.map((l) => l.cuentaId)])).rowCount;
     if (ok !== new Set(ls.map((l) => l.cuentaId)).size) throw new ErrorErp("Alguna cuenta no existe o es un título (no imputable).");
-    return grabarAsiento(c, org, { fecha: d.fecha, concepto: d.concepto.trim(), origen: d.apertura ? "apertura" : "manual", referenciaId: null, lineas: ls, usuarioId: d.usuarioId });
+    return grabarAsiento(c, org, { fecha: d.fecha, concepto: d.concepto.trim(), origen: d.apertura ? "apertura" : "manual", referenciaId: null, lineas: ls, usuarioId: d.usuarioId, emisorId: d.emisorId });
   });
 }
 
@@ -314,9 +318,9 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
   // Ventas y notas de crédito (comprobantes de ARCA autorizados).
   // La cuenta de ventas del canal del pedido, si tiene una propia y activa.
   const cbtes = await consulta<{ id: number; tipo_cbte: number; fecha: string; total: string; neto: string; iva: string; cotizacion: string; moneda: string;
-    punto_venta: number; numero: string; nombre: string | null; ventas_canal: number | null }>(`
+    punto_venta: number; numero: string; nombre: string | null; ventas_canal: number | null; emisor_id: number | null }>(`
     select cb.id::int, cb.tipo_cbte, to_char(cb.fecha, 'YYYY-MM-DD') fecha, cb.importe_total total, cb.importe_neto neto, cb.importe_iva iva, cb.cotizacion, cb.moneda,
-           cb.punto_venta, cb.numero, cb.receptor_nombre nombre,
+           cb.punto_venta, cb.numero, cb.receptor_nombre nombre, cb.emisor_id::int emisor_id,
            (select pc.id::int from pedido p join canal ca on ca.id = p.canal_id join plan_cuenta pc on pc.id = ca.cuenta_ventas_id and pc.activa and pc.imputable
              where p.id = cb.pedido_id) ventas_canal
       from comprobante cb where cb.organizacion_id = $1 and cb.estado = 'autorizado'
@@ -328,14 +332,14 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
     const total = r2(Number(cb.total) * k), iva = r2(Number(cb.iva) * k);
     const nro = `${String(cb.punto_venta).padStart(5, "0")}-${String(cb.numero).padStart(8, "0")}`;
     await grabarAsiento(c, org, { fecha: cb.fecha, concepto: `${nc ? "Nota de crédito" : "Factura"} ${nro}${cb.nombre ? " · " + cb.nombre : ""}`,
-      origen: nc ? "nota_credito_venta" : "venta", referenciaId: cb.id,
+      origen: nc ? "nota_credito_venta" : "venta", referenciaId: cb.id, emisorId: cb.emisor_id,
       lineas: lineasVenta({ total, iva, nc }, rol, cb.ventas_canal) });
   });
 
   // Costo de lo vendido, por factura (las notas de crédito no lo revierten: si
   // la mercadería vuelve, vuelve por un ajuste de stock).
-  const cmv = await consulta<{ id: number; fecha: string; costo: string | null; nro: string }>(`
-    select cb.id::int, to_char(cb.fecha, 'YYYY-MM-DD') fecha,
+  const cmv = await consulta<{ id: number; fecha: string; costo: string | null; nro: string; emisor_id: number | null }>(`
+    select cb.id::int, cb.emisor_id::int emisor_id, to_char(cb.fecha, 'YYYY-MM-DD') fecha,
            (select sum(l.cantidad * coalesce(v.costo_promedio_ars, v.costo_ultimo_ars, 0)) from comprobante_linea l join variacion v on v.id = l.variacion_id
              where l.comprobante_id = cb.id) costo,
            lpad(cb.punto_venta::text, 5, '0') || '-' || lpad(cb.numero::text, 8, '0') nro
@@ -345,7 +349,7 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
      order by cb.fecha, cb.id limit 500`, [org]);
   await correr("cmv", cmv, async (c, rol, x) => {
     const costo = r2(Number(x.costo ?? 0));
-    await grabarAsiento(c, org, { fecha: x.fecha, concepto: `Costo de la factura ${x.nro}`, origen: "cmv", referenciaId: x.id,
+    await grabarAsiento(c, org, { fecha: x.fecha, concepto: `Costo de la factura ${x.nro}`, origen: "cmv", referenciaId: x.id, emisorId: x.emisor_id,
       lineas: [{ cuentaId: rol.cmv, debe: costo }, { cuentaId: rol.mercaderias, haber: costo }] });
   });
 
@@ -355,8 +359,8 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
   // cuenta de Mercado Pago de su cuenta de ML (la de la cuenta conectada hoy
   // primero); pagado con el Mercado Pago de la tienda, a la de la tienda; si
   // no, a Cobros de canales a liquidar (SQL_CUENTA_COBRO).
-  const cobros = await consulta<{ id: number; fecha: string; total: string; comision: string | null; canal: string; id_externo: string | null; cuenta_mp: number | null }>(`
-    select p.id::int, to_char(max(cb.fecha), 'YYYY-MM-DD') fecha,
+  const cobros = await consulta<{ id: number; fecha: string; total: string; comision: string | null; canal: string; id_externo: string | null; cuenta_mp: number | null; emisor_id: number | null }>(`
+    select p.id::int, max(cb.emisor_id)::int emisor_id, to_char(max(cb.fecha), 'YYYY-MM-DD') fecha,
            sum(case when cb.tipo_cbte in (3, 8, 13) then -cb.importe_total else cb.importe_total end * case when cb.moneda = 'PES' then 1 else cb.cotizacion end) total,
            max(p.comision_ars) comision, max(ca.nombre) canal, max(p.id_externo) id_externo,
            ${SQL_CUENTA_COBRO} cuenta_mp
@@ -367,7 +371,7 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
   await correr("cobro_pedido", cobros, async (c, rol, p) => {
     const lineas = lineasCobroPedido({ total: Number(p.total), comision: Number(p.comision ?? 0) }, rol, p.cuenta_mp);
     if (!lineas.length) return;
-    const asiento = await grabarAsiento(c, org, { fecha: p.fecha, concepto: `Cobro del pedido ${p.id_externo ?? p.id} · ${p.canal}`, origen: "cobro_pedido", referenciaId: p.id, lineas });
+    const asiento = await grabarAsiento(c, org, { fecha: p.fecha, concepto: `Cobro del pedido ${p.id_externo ?? p.id} · ${p.canal}`, origen: "cobro_pedido", referenciaId: p.id, lineas, emisorId: p.emisor_id });
     // Y su movimiento en la cuenta de fondos de Mercado Pago (lib/administracion/cobros-fondos.ts).
     if (asiento) await movimientoDeCobro(c, org, asiento);
   });
@@ -377,8 +381,8 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
   // Facturas de compra.
   const fcs = await consulta<{ id: number; fecha: string; letra: string; es_nota_credito: boolean; es_nota_debito: boolean; cotizacion: string; moneda: string; iva: string; percepcion_iva: string;
     percepcion_iibb: string; otros_impuestos: string; no_gravado: string; total_ars: string; cuenta_gasto_id: number | null; punto_venta: number | null; numero: string | null;
-    proveedor: string; neto_merc: string; neto_otro: string }>(`
-    select f.id::int, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.letra, f.es_nota_credito, f.es_nota_debito, f.cotizacion, f.moneda, f.iva, f.percepcion_iva, f.percepcion_iibb,
+    proveedor: string; neto_merc: string; neto_otro: string; emisor_id: number | null }>(`
+    select f.id::int, f.emisor_id::int emisor_id, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.letra, f.es_nota_credito, f.es_nota_debito, f.cotizacion, f.moneda, f.iva, f.percepcion_iva, f.percepcion_iibb,
            f.otros_impuestos, f.no_gravado, f.total_ars, f.cuenta_gasto_id::int, f.punto_venta, f.numero, pr.nombre proveedor,
            coalesce((select sum(neto) from factura_compra_linea l where l.factura_id = f.id and l.variacion_id is not null), 0) neto_merc,
            coalesce((select sum(neto) from factura_compra_linea l where l.factura_id = f.id and l.variacion_id is null), 0) neto_otro
@@ -388,7 +392,7 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
     const k = f.moneda === "USD" ? Number(f.cotizacion) : 1, s = f.es_nota_credito ? -1 : 1;
     const destinoOtro = f.cuenta_gasto_id ?? (f.letra === "E" ? rol.importaciones_en_curso : rol.gastos_varios);
     const total = r2(Number(f.total_ars));
-    await grabarAsiento(c, org, { fecha: f.fecha, origen: "compra", referenciaId: f.id,
+    await grabarAsiento(c, org, { fecha: f.fecha, origen: "compra", referenciaId: f.id, emisorId: f.emisor_id,
       concepto: `${f.es_nota_credito ? "Nota de crédito" : f.es_nota_debito ? "Nota de débito" : "Factura"} ${f.letra} ${f.punto_venta != null ? String(f.punto_venta).padStart(5, "0") + "-" : ""}${f.numero ?? "s/n"} · ${f.proveedor}`,
       lineas: [
         { cuentaId: rol.mercaderias, debe: s * Number(f.neto_merc) * k },
@@ -404,8 +408,8 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
   // Despachos de importación: la mercadería entra a su costo puesto en
   // depósito y los impuestos que son crédito fiscal, contra "Importaciones en
   // curso" (que se cancela con la factura del exterior y las del despachante).
-  const desp = await consulta<{ id: number; fecha: string; numero: string | null; costo: string; impuestos: { concepto: string; importe_ars: number }[] }>(`
-    select d.id::int, to_char(d.fecha, 'YYYY-MM-DD') fecha, d.numero, d.impuestos,
+  const desp = await consulta<{ id: number; fecha: string; numero: string | null; costo: string; impuestos: { concepto: string; importe_ars: number }[]; emisor_id: number | null }>(`
+    select d.id::int, d.emisor_id::int emisor_id, to_char(d.fecha, 'YYYY-MM-DD') fecha, d.numero, d.impuestos,
            coalesce((select sum(l.cantidad * l.costo_unit_ars) from despacho_linea l where l.despacho_id = d.id), 0) costo
       from despacho_importacion d where d.organizacion_id = $1 and d.estado = 'registrado' and ${sinAsiento("despacho", "d")} order by d.fecha, d.id limit 200`, [org]);
   await correr("despacho", desp, async (c, rol, d) => {
@@ -420,12 +424,12 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
       tot += imp;
     }
     lineas.push({ cuentaId: rol.importaciones_en_curso, haber: tot });
-    await grabarAsiento(c, org, { fecha: d.fecha, concepto: `Despacho ${d.numero ?? d.id}`, origen: "despacho", referenciaId: d.id, lineas });
+    await grabarAsiento(c, org, { fecha: d.fecha, concepto: `Despacho ${d.numero ?? d.id}`, origen: "despacho", referenciaId: d.id, lineas, emisorId: d.emisor_id });
   });
 
   // Recibos de cobro y órdenes de pago.
-  const recs = await consulta<{ id: number; tipo: "cobro" | "pago"; numero: number; fecha: string; total_ars: string; retenciones: { concepto: string; importe: number }[]; tercero: string }>(`
-    select r.id::int, r.tipo, r.numero::int, to_char(r.fecha, 'YYYY-MM-DD') fecha, r.total_ars, r.retenciones,
+  const recs = await consulta<{ id: number; tipo: "cobro" | "pago"; numero: number; fecha: string; total_ars: string; retenciones: { concepto: string; importe: number }[]; tercero: string; emisor_id: number | null }>(`
+    select r.id::int, r.emisor_id::int emisor_id, r.tipo, r.numero::int, to_char(r.fecha, 'YYYY-MM-DD') fecha, r.total_ars, r.retenciones,
            coalesce(cl.nombre, pr.nombre, '') tercero
       from recibo r left join cliente cl on r.tercero_tipo = 'cliente' and cl.id = r.tercero_id left join proveedor pr on r.tercero_tipo = 'proveedor' and pr.id = r.tercero_id
      where r.organizacion_id = $1 and r.estado = 'emitido'
@@ -442,12 +446,12 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
     } else {
       lineas.push({ cuentaId: rol.retenciones_a_depositar, haber: ret }, { cuentaId: rol.proveedores, debe: Number(r.total_ars) });
     }
-    await grabarAsiento(c, org, { fecha: r.fecha, concepto: `${r.tipo === "cobro" ? "Recibo" : "Orden de pago"} ${r.numero} · ${r.tercero}`, origen: r.tipo, referenciaId: r.id, lineas });
+    await grabarAsiento(c, org, { fecha: r.fecha, concepto: `${r.tipo === "cobro" ? "Recibo" : "Orden de pago"} ${r.numero} · ${r.tercero}`, origen: r.tipo, referenciaId: r.id, lineas, emisorId: r.emisor_id });
   });
 
   // Movimientos sueltos y transferencias.
-  const movs = await consulta<{ id: number; fecha: string; importe_ars: string; concepto: string; tipo: string; cuenta_fondo: string | null; contra: number | null; referencia_tipo: string }>(`
-    select m.id::int, to_char(m.fecha, 'YYYY-MM-DD') fecha, m.importe_ars, m.concepto, f.tipo, f.cuenta_contable_id::text cuenta_fondo,
+  const movs = await consulta<{ id: number; fecha: string; importe_ars: string; concepto: string; tipo: string; cuenta_fondo: string | null; contra: number | null; referencia_tipo: string; emisor_id: number | null }>(`
+    select m.id::int, f.emisor_id::int emisor_id, to_char(m.fecha, 'YYYY-MM-DD') fecha, m.importe_ars, m.concepto, f.tipo, f.cuenta_contable_id::text cuenta_fondo,
            m.cuenta_contable_id::int contra, m.referencia_tipo
       from movimiento_fondos m join cuenta_fondos f on f.id = m.cuenta_id
      where m.organizacion_id = $1 and m.referencia_tipo = 'manual' and ${sinAsiento("movimiento", "m")} order by m.fecha, m.id limit 500`, [org]);
@@ -455,11 +459,11 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
     const imp = Number(m.importe_ars);
     const fondos = cuentaFondos(rol, m.tipo, m.cuenta_fondo);
     const contra = m.contra ?? (imp < 0 ? rol.gastos_varios : rol.otros_ingresos);
-    await grabarAsiento(c, org, { fecha: m.fecha, concepto: m.concepto, origen: "movimiento", referenciaId: m.id,
+    await grabarAsiento(c, org, { fecha: m.fecha, concepto: m.concepto, origen: "movimiento", referenciaId: m.id, emisorId: m.emisor_id,
       lineas: [{ cuentaId: fondos, debe: imp }, { cuentaId: contra, haber: imp }] });
   });
-  const transf = await consulta<{ id: number; fecha: string; concepto: string }>(`
-    select m.id::int, to_char(m.fecha, 'YYYY-MM-DD') fecha, m.concepto from movimiento_fondos m
+  const transf = await consulta<{ id: number; fecha: string; concepto: string; emisor_id: number | null }>(`
+    select m.id::int, (select f.emisor_id::int from cuenta_fondos f where f.id = m.cuenta_id) emisor_id, to_char(m.fecha, 'YYYY-MM-DD') fecha, m.concepto from movimiento_fondos m
      where m.organizacion_id = $1 and m.referencia_tipo = 'transferencia' and m.referencia_id = m.id and ${sinAsiento("transferencia", "m")} order by m.fecha, m.id limit 500`, [org]);
   await correr("transferencia", transf, async (c, rol, t) => {
     const patas = (await c.query<{ importe_ars: string; tipo: string; cuenta_contable_id: string | null; nombre: string }>(`
@@ -469,7 +473,7 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
     // Si las monedas difieren, la diferencia va a diferencias de cambio (positiva o negativa).
     const dif = lineaDiferenciaTransferencia(lineas, rol);
     if (dif) lineas.push(dif);
-    await grabarAsiento(c, org, { fecha: t.fecha, concepto: t.concepto, origen: "transferencia", referenciaId: t.id, lineas });
+    await grabarAsiento(c, org, { fecha: t.fecha, concepto: t.concepto, origen: "transferencia", referenciaId: t.id, lineas, emisorId: t.emisor_id });
   });
 
   // Ajustes de stock (inventario): al costo promedio.
@@ -491,8 +495,8 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
   // diferencias.ts). Fecha: la del más nuevo de los dos (el día en que se
   // pudo imputar). Al anular el recibo, deshacerCc() anula este asiento.
   const imps = await consulta<{ id: number; fecha: string; tercero_tipo: "cliente" | "proveedor"; tercero: string; deb_cancelado: string; deb_importe: string; deb_ars: string;
-    cre_cancelado: string; cre_importe: string; cre_ars: string; deb_desc: string; cre_desc: string }>(`
-    select i.id::int, to_char(greatest(d.fecha, c.fecha), 'YYYY-MM-DD') fecha, d.tercero_tipo, coalesce(cl.nombre, pr.nombre, '') tercero,
+    cre_cancelado: string; cre_importe: string; cre_ars: string; deb_desc: string; cre_desc: string; emisor_id: number | null }>(`
+    select i.id::int, d.emisor_id::int emisor_id, to_char(greatest(d.fecha, c.fecha), 'YYYY-MM-DD') fecha, d.tercero_tipo, coalesce(cl.nombre, pr.nombre, '') tercero,
            i.importe deb_cancelado, d.importe deb_importe, d.importe_ars deb_ars,
            coalesce(i.importe_credito, i.importe) cre_cancelado, c.importe cre_importe, c.importe_ars cre_ars, d.descripcion deb_desc, c.descripcion cre_desc
       from cc_imputacion i join cc_movimiento d on d.id = i.debito_id join cc_movimiento c on c.id = i.credito_id
@@ -506,13 +510,13 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
     const lineas = lineasDiferenciaCambio(i.tercero_tipo, dif, rol);
     if (!lineas.length) return;
     await grabarAsiento(c, org, { fecha: i.fecha, concepto: `Diferencia de cambio · ${i.deb_desc} con ${i.cre_desc}${i.tercero ? " · " + i.tercero : ""}`,
-      origen: "diferencia_cambio", referenciaId: i.id, lineas });
+      origen: "diferencia_cambio", referenciaId: i.id, lineas, emisorId: i.emisor_id });
   });
 
   // Diferencia entre lo facturado y lo recibido en las facturas de compra
   // vinculadas a una recepción (la calcula y guarda registrarFactura()).
-  const difRec = await consulta<{ id: number; fecha: string; diferencia_recepcion: DiferenciaRecepcion[]; nro: string; proveedor: string; skus: Record<string, string> | null }>(`
-    select f.id::int, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.diferencia_recepcion, pr.nombre proveedor,
+  const difRec = await consulta<{ id: number; fecha: string; diferencia_recepcion: DiferenciaRecepcion[]; nro: string; proveedor: string; skus: Record<string, string> | null; emisor_id: number | null }>(`
+    select f.id::int, f.emisor_id::int emisor_id, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.diferencia_recepcion, pr.nombre proveedor,
            f.letra || ' ' || coalesce(lpad(f.punto_venta::text, 5, '0') || '-', '') || coalesce(f.numero::text, 's/n') nro,
            (select json_object_agg(v.id, v.sku) from variacion v where v.id in (select (x->>'variacion_id')::bigint from jsonb_array_elements(f.diferencia_recepcion) x)) skus
       from factura_compra f join proveedor pr on pr.id = f.proveedor_id
@@ -524,7 +528,7 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
     const lineas = lineasDiferenciaRecepcion(f.diferencia_recepcion.map((d) => ({ ...d, detalle: f.skus?.[String(d.variacion_id)] ?? undefined })), rol);
     if (!lineas.length) return;
     await grabarAsiento(c, org, { fecha: f.fecha, concepto: `Diferencia con la recepción · Factura ${f.nro} · ${f.proveedor}`,
-      origen: "diferencia_recepcion", referenciaId: f.id, lineas });
+      origen: "diferencia_recepcion", referenciaId: f.id, lineas, emisorId: f.emisor_id });
   });
 
   return { hechos, errores };
@@ -584,11 +588,11 @@ export async function crearCuenta(org: string, d: { codigo: string | null; nombr
   return r!.id;
 }
 
-/** Libro diario: asientos del período con sus líneas. */
-export async function libroDiario(org: string, desde: string, hasta: string) {
+/** Libro diario: asientos del período con sus líneas. Los libros se pueden pedir de una razón social (`emisorId`) o de todas (null). */
+export async function libroDiario(org: string, desde: string, hasta: string, emisorId: number | null = null) {
   const asientos = await consulta<{ id: number; numero: number; fecha: string; concepto: string; origen: string; estado: string }>(`
     select id::int, numero::int, to_char(fecha, 'YYYY-MM-DD') fecha, concepto, origen, estado from asiento
-     where organizacion_id = $1 and fecha between $2 and $3 order by fecha, numero limit 2000`, [org, desde, hasta]);
+     where organizacion_id = $1 and fecha between $2 and $3 and ($4::bigint is null or emisor_id = $4) order by fecha, numero limit 2000`, [org, desde, hasta, emisorId]);
   const lineas = asientos.length ? await consulta<{ asiento_id: number; codigo: string; nombre: string; debe: number; haber: number; detalle: string | null }>(`
     select l.asiento_id::int, p.codigo, p.nombre, l.debe::float, l.haber::float, l.detalle
       from asiento_linea l join plan_cuenta p on p.id = l.cuenta_id where l.asiento_id = any($1::bigint[]) order by l.asiento_id, l.orden`, [asientos.map((a) => a.id)]) : [];
@@ -598,36 +602,36 @@ export async function libroDiario(org: string, desde: string, hasta: string) {
 }
 
 /** Mayor de una cuenta: saldo anterior y movimientos del período con saldo acumulado. */
-export async function libroMayor(org: string, cuentaId: number, desde: string, hasta: string) {
+export async function libroMayor(org: string, cuentaId: number, desde: string, hasta: string, emisorId: number | null = null) {
   const ant = await una<{ s: number }>(`
     select coalesce(sum(l.debe - l.haber), 0)::float s from asiento_linea l join asiento a on a.id = l.asiento_id
-     where l.cuenta_id = $1 and a.organizacion_id = $2 and a.estado = 'vigente' and a.fecha < $3`, [cuentaId, org, desde]);
+     where l.cuenta_id = $1 and a.organizacion_id = $2 and a.estado = 'vigente' and a.fecha < $3 and ($4::bigint is null or a.emisor_id = $4)`, [cuentaId, org, desde, emisorId]);
   const movs = await consulta<{ asiento_id: number; numero: number; fecha: string; concepto: string; debe: number; haber: number; detalle: string | null }>(`
     select a.id::int asiento_id, a.numero::int, to_char(a.fecha, 'YYYY-MM-DD') fecha, a.concepto, l.debe::float, l.haber::float, l.detalle
       from asiento_linea l join asiento a on a.id = l.asiento_id
-     where l.cuenta_id = $1 and a.organizacion_id = $2 and a.estado = 'vigente' and a.fecha between $3 and $4 order by a.fecha, a.numero limit 3000`,
-    [cuentaId, org, desde, hasta]);
+     where l.cuenta_id = $1 and a.organizacion_id = $2 and a.estado = 'vigente' and a.fecha between $3 and $4 and ($5::bigint is null or a.emisor_id = $5) order by a.fecha, a.numero limit 3000`,
+    [cuentaId, org, desde, hasta, emisorId]);
   let s = ant?.s ?? 0;
   return { anterior: s, movimientos: movs.map((m) => ({ ...m, saldo: (s = r2(s + m.debe - m.haber)) })) };
 }
 
 /** Sumas y saldos al `hasta` (desde el `desde`, para el período; el saldo es acumulado). */
-export function sumasYSaldos(org: string, desde: string, hasta: string) {
+export function sumasYSaldos(org: string, desde: string, hasta: string, emisorId: number | null = null) {
   return consulta<{ id: number; codigo: string; nombre: string; tipo: Tipo; debe: number; haber: number; saldo: number }>(`
     select p.id::int, p.codigo, p.nombre, p.tipo,
            coalesce(sum(l.debe) filter (where a.fecha >= $2), 0)::float debe,
            coalesce(sum(l.haber) filter (where a.fecha >= $2), 0)::float haber,
            coalesce(sum(l.debe - l.haber), 0)::float saldo
-      from plan_cuenta p join asiento_linea l on l.cuenta_id = p.id join asiento a on a.id = l.asiento_id and a.estado = 'vigente' and a.fecha <= $3
-     where p.organizacion_id = $1 group by p.id order by p.codigo`, [org, desde, hasta]);
+      from plan_cuenta p join asiento_linea l on l.cuenta_id = p.id join asiento a on a.id = l.asiento_id and a.estado = 'vigente' and a.fecha <= $3 and ($4::bigint is null or a.emisor_id = $4)
+     where p.organizacion_id = $1 group by p.id order by p.codigo`, [org, desde, hasta, emisorId]);
 }
 
 /** Estado de resultados del período: ingresos y egresos por cuenta. */
-export async function estadoDeResultados(org: string, desde: string, hasta: string) {
+export async function estadoDeResultados(org: string, desde: string, hasta: string, emisorId: number | null = null) {
   const filas = await consulta<{ codigo: string; nombre: string; tipo: Tipo; importe: number }>(`
     select p.codigo, p.nombre, p.tipo, sum(case when p.tipo = 'ingreso' then l.haber - l.debe else l.debe - l.haber end)::float importe
-      from plan_cuenta p join asiento_linea l on l.cuenta_id = p.id join asiento a on a.id = l.asiento_id and a.estado = 'vigente' and a.fecha between $2 and $3
-     where p.organizacion_id = $1 and p.tipo in ('ingreso', 'egreso') group by p.id having sum(l.debe - l.haber) <> 0 order by p.codigo`, [org, desde, hasta]);
+      from plan_cuenta p join asiento_linea l on l.cuenta_id = p.id join asiento a on a.id = l.asiento_id and a.estado = 'vigente' and a.fecha between $2 and $3 and ($4::bigint is null or a.emisor_id = $4)
+     where p.organizacion_id = $1 and p.tipo in ('ingreso', 'egreso') group by p.id having sum(l.debe - l.haber) <> 0 order by p.codigo`, [org, desde, hasta, emisorId]);
   const ingresos = filas.filter((f) => f.tipo === "ingreso"), egresos = filas.filter((f) => f.tipo === "egreso");
   const ti = r2(ingresos.reduce((s, f) => s + f.importe, 0)), te = r2(egresos.reduce((s, f) => s + f.importe, 0));
   return { ingresos, egresos, totalIngresos: ti, totalEgresos: te, resultado: r2(ti - te) };

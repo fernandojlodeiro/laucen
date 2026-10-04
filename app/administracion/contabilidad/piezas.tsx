@@ -16,10 +16,13 @@ const RENGLONES = 10;
 
 const pesos = (n: number) => `$ ${n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function FormAsiento({ accion, cuentas, hoy }: {
+export function FormAsiento({ accion, cuentas, hoy, razones = [], razonInicial = null }: {
   accion: (fd: FormData) => Promise<void>;
   cuentas: { id: number; codigo: string; nombre: string }[];
   hoy: string;
+  /** Con más de una razón social, a cuál pertenece el asiento. */
+  razones?: { id: number; nombre: string }[];
+  razonInicial?: number | null;
 }) {
   const [tot, setTot] = useState({ debe: 0, haber: 0 });
   // Suma en cada tecla lo que hay escrito en los campos debe_N / haber_N.
@@ -39,6 +42,12 @@ export function FormAsiento({ accion, cuentas, hoy }: {
       className="bg-white border border-[#E3E9F0] rounded-xl p-3 space-y-3">
       <div className="flex flex-wrap items-end gap-3">
         <label><span className={ETIQUETA}>Fecha</span><input type="date" name="fecha" defaultValue={hoy} className={CAMPO} /></label>
+        {razones.length > 1 && (
+          <label><span className={ETIQUETA}>Razón social</span>
+            <select name="emisor" defaultValue={razonInicial ?? ""} className={CAMPO}>
+              {razones.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+            </select></label>
+        )}
         <label className="flex-1 min-w-60"><span className={ETIQUETA}>Concepto</span><input name="concepto" className={`${CAMPO} w-full`} placeholder="Ej. Ajuste de saldo bancario" /></label>
         <label className="flex items-center gap-2 text-xs pb-1.5">
           <input type="checkbox" name="apertura" className="h-4 w-4" /> Es el asiento de apertura

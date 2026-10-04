@@ -37,14 +37,14 @@ async function logoDe(doc: PDFDocument, org: string): Promise<PDFImage | null> {
 export async function pdfComprobante(org: string, id: number): Promise<Uint8Array> {
   const c = await una<{ tipo_cbte: number; punto_venta: number; numero: string; fecha: string; doc_tipo: number; doc_nro: string; receptor_nombre: string | null;
     receptor_condicion_iva: number | null; receptor_domicilio: string | null; importe_total: string; importe_neto: string; importe_iva: string;
-    iva_detalle: { pct: number; base: number; importe: number }[]; cae: string | null; cae_vto: string | null; estado: string; pedido_id: string | null; ambiente: string }>(`
+    iva_detalle: { pct: number; base: number; importe: number }[]; cae: string | null; cae_vto: string | null; estado: string; pedido_id: string | null; ambiente: string; emisor_id: string | null }>(`
     select tipo_cbte, punto_venta, numero, to_char(fecha, 'YYYY-MM-DD') fecha, doc_tipo, doc_nro, receptor_nombre, receptor_condicion_iva,
            receptor_domicilio, importe_total, importe_neto, importe_iva, iva_detalle, cae, to_char(cae_vto, 'YYYY-MM-DD') cae_vto, estado,
-           pedido_id, ambiente
+           pedido_id, ambiente, emisor_id
       from comprobante where id = $1 and organizacion_id = $2`, [id, org]);
   if (!c) throw new ErrorErp("El comprobante no existe.");
   if (c.estado !== "autorizado") throw new ErrorErp("El comprobante todavía no tiene CAE.");
-  const e = await emisorDe(org);
+  const e = await emisorDe(org, c.emisor_id ? Number(c.emisor_id) : null);
   if (!e) throw new ErrorErp("Faltan los datos del emisor.");
   const lineas = await consulta<{ descripcion: string; cantidad: string; precio_unit: string; iva_pct: string; neto: string; total: string }>(
     "select descripcion, cantidad, precio_unit, iva_pct, neto, total from comprobante_linea where comprobante_id = $1 order by orden, id", [id]);

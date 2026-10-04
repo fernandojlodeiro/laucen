@@ -5,6 +5,7 @@
 import { sesionActual } from "@/lib/tenancy";
 import { tienePermiso } from "@/lib/permisos";
 import { estadoCredencial } from "@/lib/arca/credenciales";
+import { emisorDe } from "@/lib/arca/facturar";
 import { motivoErp } from "@/lib/erp/base";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,10 @@ export async function GET(req: Request) {
   if (!tienePermiso(sesion.permisos, "facturacion_ver")) return texto("No tenés permiso de facturación.", 403);
   const ambiente = new URL(req.url).searchParams.get("ambiente") === "produccion" ? "produccion" : "homologacion";
   try {
-    const cred = await estadoCredencial(sesion.org.id, ambiente);
+    const rs = Number(new URL(req.url).searchParams.get("rs")) || null;
+    const e = await emisorDe(sesion.org.id, rs);
+    if (!e) return texto("Primero cargá la razón social en Configuración → Razones sociales.", 404);
+    const cred = await estadoCredencial(e.id, ambiente);
     if (!cred) return texto("Todavía no preparaste el trámite: tocá Preparar el trámite en ARCA.", 404);
     return new Response(cred.csr, {
       headers: { "content-type": "application/pkcs10", "content-disposition": `attachment; filename="laucen-${ambiente}.csr"` },

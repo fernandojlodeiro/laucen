@@ -65,7 +65,7 @@ export async function accionAsientoManual(fd: FormData) {
       lineas.push({ cuentaId, debe, haber, detalle: texto(fd, `detalle_${i}`) ?? undefined });
     }
     const asientoId = await asientoManual(s.org.id, {
-      fecha, concepto: texto(fd, "concepto") ?? "", lineas, usuarioId: s.usuario.id, apertura: tildado(fd, "apertura"),
+      fecha, concepto: texto(fd, "concepto") ?? "", lineas, usuarioId: s.usuario.id, apertura: tildado(fd, "apertura"), emisorId: id(fd, "emisor") || null,
     });
     revalidatePath(BASE);
     const numeroAsiento = await una<{ numero: number }>("select numero::int from asiento where id = $1 and organizacion_id = $2", [asientoId, s.org.id]);

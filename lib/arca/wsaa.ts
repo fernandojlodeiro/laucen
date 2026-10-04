@@ -40,14 +40,14 @@ function firmarTra(servicio: string, clavePem: string, certPem: string): string 
 }
 
 /** El ticket vigente para un servicio (wsfe, ws_sr_constancia_inscripcion). */
-export async function ticket(org: string, ambiente: Ambiente, servicio: string): Promise<Ticket> {
+export async function ticket(emisorId: number, ambiente: Ambiente, servicio: string): Promise<Ticket> {
   const guardado = await una<{ token: string; sign: string }>(
-    "select token, sign from arca_ticket where organizacion_id = $1 and ambiente = $2 and servicio = $3 and vence > now() + interval '5 minutes'",
-    [org, ambiente, servicio]);
+    "select token, sign from arca_ticket where emisor_id = $1 and ambiente = $2 and servicio = $3 and vence > now() + interval '5 minutes'",
+    [emisorId, ambiente, servicio]);
   if (guardado) return guardado;
   const cred = await una<{ clave_privada: string; certificado: string | null }>(
-    "select clave_privada, certificado from arca_credencial where organizacion_id = $1 and ambiente = $2", [org, ambiente]);
-  if (!cred?.certificado) throw new ErrorErp(`Falta el certificado de ARCA (${ambiente === "produccion" ? "producción" : "homologación"}): cargalo en Facturación → Configuración.`);
+    "select clave_privada, certificado from arca_credencial where emisor_id = $1 and ambiente = $2", [emisorId, ambiente]);
+  if (!cred?.certificado) throw new ErrorErp(`Falta el certificado de ARCA (${ambiente === "produccion" ? "producción" : "homologación"}): cargalo en Configuración → Facturación (ARCA).`);
   const cms = firmarTra(servicio, cred.clave_privada, cred.certificado);
   const sobre = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:wsaa="http://wsaa.view.sua.dvadac.desein.afip.gov">` +
     `<soapenv:Header/><soapenv:Body><wsaa:loginCms><wsaa:in0>${cms}</wsaa:in0></wsaa:loginCms></soapenv:Body></soapenv:Envelope>`;
@@ -70,9 +70,10 @@ export async function ticket(org: string, ambiente: Ambiente, servicio: string):
   const token = extraer(ta, "token"), sign = extraer(ta, "sign"), vence = extraer(ta, "expirationTime");
   if (!token || !sign || !vence) throw new ErrorErp("ARCA contestó el login sin ticket.");
   await consulta(`
-    insert into arca_ticket (organizacion_id, ambiente, servicio, token, sign, vence) values ($1, $2, $3, $4, $5, $6)
-    on conflict (organizacion_id, ambiente, servicio) do update set token = excluded.token, sign = excluded.sign, vence = excluded.vence`,
-    [org, ambiente, servicio, token, sign, vence]);
+    insert into arca_ticket (organizacion_id, emisor_id, ambiente, servicio, token, sign, vence)
+    values ((select organizacion_id from emisor where id = $1), $1, $2, $3, $4, $5, $6)
+    on conflict (emisor_id, ambiente, servicio) do update set token = excluded.token, sign = excluded.sign, vence = excluded.vence`,
+    [emisorId, ambiente, servicio, token, sign, vence]);
   return { token, sign };
 }
 

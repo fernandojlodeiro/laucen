@@ -11,8 +11,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, id } from "@/lib/erp/acciones";
 import { DOCUMENTOS, CONDICIONES_IVA } from "@/app/ventas/formato";
-import { emisorDe } from "@/lib/arca/facturar";
-import { estadoCredencial } from "@/lib/arca/credenciales";
+import { emisorConPadron } from "@/lib/arca/facturar";
 import { consultarCuit } from "@/lib/arca/padron";
 
 const LISTADO = "/ventas/clientes";
@@ -185,11 +184,10 @@ export async function accionValidarPadron(fd: FormData) {
       "select cuit, razon_social, condicion_iva from cliente where id = $1 and organizacion_id = $2", [cid, s.org.id]);
     if (!c) throw new ErrorErp("El cliente no existe.");
     if (!c.cuit) throw new ErrorErp("El cliente no tiene CUIT guardado.");
-    const e = await emisorDe(s.org.id);
-    if (!e) throw new ErrorErp("Para consultar el padrón faltan los datos de facturación (Administración → Facturación → Configuración).");
-    const cred = await estadoCredencial(s.org.id, e.ambiente);
-    if (!cred?.tiene_certificado) throw new ErrorErp("Para consultar el padrón falta el certificado de ARCA (Administración → Facturación → Configuración).");
-    const p = await consultarCuit(s.org.id, e.ambiente, e.cuit, c.cuit);
+    // Cualquier razón social conectada con ARCA sirve para consultar el padrón.
+    const e = await emisorConPadron(s.org.id);
+    if (!e) throw new ErrorErp("Para consultar el padrón hace falta una razón social conectada con ARCA (Configuración → Facturación (ARCA)).");
+    const p = await consultarCuit(e.id, e.ambiente, e.cuit, c.cuit);
 
     const cambios: string[] = [];
     if (p.razonSocial !== c.razon_social) cambios.push(`razón social: ${p.razonSocial}`);

@@ -38,8 +38,8 @@ function errores(xml: string): string[] {
   return [...xml.matchAll(/<Err>\s*<Code>(\d+)<\/Code>\s*<Msg>([\s\S]*?)<\/Msg>\s*<\/Err>/g)].map((m) => `${m[1]}: ${m[2]}`);
 }
 
-export async function ultimoAutorizado(org: string, ambiente: Ambiente, cuit: string, puntoVenta: number, tipo: number): Promise<number> {
-  const t = await ticket(org, ambiente, "wsfe");
+export async function ultimoAutorizado(emisorId: number, ambiente: Ambiente, cuit: string, puntoVenta: number, tipo: number): Promise<number> {
+  const t = await ticket(emisorId, ambiente, "wsfe");
   const xml = await soap(ambiente, "FECompUltimoAutorizado", `${auth(t, cuit)}<ar:PtoVta>${puntoVenta}</ar:PtoVta><ar:CbteTipo>${tipo}</ar:CbteTipo>`);
   const e = errores(xml);
   if (e.length) throw new ErrorErp(`ARCA: ${e.join(" · ")}`);
@@ -58,8 +58,8 @@ export type RespuestaCae = { resultado: "A" | "R"; cae: string | null; vto: stri
 const n2 = (x: number) => x.toFixed(2);
 
 /** Pide el CAE de un comprobante. */
-export async function solicitarCae(org: string, ambiente: Ambiente, cuit: string, d: DatosCae): Promise<RespuestaCae> {
-  const t = await ticket(org, ambiente, "wsfe");
+export async function solicitarCae(emisorId: number, ambiente: Ambiente, cuit: string, d: DatosCae): Promise<RespuestaCae> {
+  const t = await ticket(emisorId, ambiente, "wsfe");
   const det = `<ar:Concepto>${d.concepto}</ar:Concepto><ar:DocTipo>${d.docTipo}</ar:DocTipo><ar:DocNro>${esc(d.docNro)}</ar:DocNro>` +
     `<ar:CbteDesde>${d.numero}</ar:CbteDesde><ar:CbteHasta>${d.numero}</ar:CbteHasta><ar:CbteFch>${d.fecha.replace(/-/g, "")}</ar:CbteFch>` +
     `<ar:ImpTotal>${n2(d.total)}</ar:ImpTotal><ar:ImpTotConc>0.00</ar:ImpTotConc><ar:ImpNeto>${n2(d.neto)}</ar:ImpNeto>` +
@@ -83,8 +83,8 @@ export async function solicitarCae(org: string, ambiente: Ambiente, cuit: string
 }
 
 /** Consulta un comprobante ya emitido (para no duplicar si una respuesta se perdió). */
-export async function consultarComprobante(org: string, ambiente: Ambiente, cuit: string, puntoVenta: number, tipo: number, numero: number) {
-  const t = await ticket(org, ambiente, "wsfe");
+export async function consultarComprobante(emisorId: number, ambiente: Ambiente, cuit: string, puntoVenta: number, tipo: number, numero: number) {
+  const t = await ticket(emisorId, ambiente, "wsfe");
   const xml = await soap(ambiente, "FECompConsultar",
     `${auth(t, cuit)}<ar:FeCompConsReq><ar:CbteTipo>${tipo}</ar:CbteTipo><ar:CbteNro>${numero}</ar:CbteNro><ar:PtoVta>${puntoVenta}</ar:PtoVta></ar:FeCompConsReq>`);
   if (errores(xml).length) return null;

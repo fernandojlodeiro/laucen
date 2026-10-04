@@ -1,5 +1,5 @@
 // Clave privada, pedido de certificado (CSR) y certificado de ARCA, por
-// organización y ambiente (homologación / producción).
+// razón social (emisor) y ambiente (homologación / producción).
 //
 // Flujo: Laucen genera la clave y el CSR → quien tiene la clave fiscal sube
 // el CSR en ARCA ("Administración de certificados digitales", o WSASS en
@@ -12,7 +12,7 @@ import { consulta, una, ErrorErp } from "@/lib/erp/base";
 export type Ambiente = "homologacion" | "produccion";
 
 /** Genera clave y CSR nuevos (reemplaza los anteriores de ese ambiente). Devuelve el CSR en PEM. */
-export async function generarCsr(org: string, ambiente: Ambiente, cuit: string, razonSocial: string): Promise<string> {
+export async function generarCsr(emisorId: number, ambiente: Ambiente, cuit: string, razonSocial: string): Promise<string> {
   const c = cuit.replace(/\D/g, "");
   if (c.length !== 11) throw new ErrorErp("El CUIT tiene que tener 11 dígitos.");
   const claves = forge.pki.rsa.generateKeyPair({ bits: 2048, e: 0x10001 });
@@ -27,17 +27,18 @@ export async function generarCsr(org: string, ambiente: Ambiente, cuit: string, 
   csr.sign(claves.privateKey, forge.md.sha256.create());
   const csrPem = forge.pki.certificationRequestToPem(csr);
   await consulta(`
-    insert into arca_credencial (organizacion_id, ambiente, clave_privada, csr, certificado, cert_vence) values ($1, $2, $3, $4, null, null)
-    on conflict (organizacion_id, ambiente) do update set clave_privada = excluded.clave_privada, csr = excluded.csr,
+    insert into arca_credencial (organizacion_id, emisor_id, ambiente, clave_privada, csr, certificado, cert_vence)
+    values ((select organizacion_id from emisor where id = $1), $1, $2, $3, $4, null, null)
+    on conflict (emisor_id, ambiente) do update set clave_privada = excluded.clave_privada, csr = excluded.csr,
       certificado = null, cert_vence = null, actualizado_ts = now()`,
-    [org, ambiente, forge.pki.privateKeyToPem(claves.privateKey), csrPem]);
-  await consulta("delete from arca_ticket where organizacion_id = $1 and ambiente = $2", [org, ambiente]);
+    [emisorId, ambiente, forge.pki.privateKeyToPem(claves.privateKey), csrPem]);
+  await consulta("delete from arca_ticket where emisor_id = $1 and ambiente = $2", [emisorId, ambiente]);
   return csrPem;
 }
 
 /** Guarda el certificado que dio ARCA (verifica que sea de la clave guardada). */
-export async function guardarCertificado(org: string, ambiente: Ambiente, pem: string): Promise<Date> {
-  const fila = await una<{ clave_privada: string }>("select clave_privada from arca_credencial where organizacion_id = $1 and ambiente = $2", [org, ambiente]);
+export async function guardarCertificado(emisorId: number, ambiente: Ambiente, pem: string): Promise<Date> {
+  const fila = await una<{ clave_privada: string }>("select clave_privada from arca_credencial where emisor_id = $1 and ambiente = $2", [emisorId, ambiente]);
   if (!fila) throw new ErrorErp("Primero generá el pedido de certificado (CSR).");
   let cert: forge.pki.Certificate;
   try { cert = forge.pki.certificateFromPem(pem.trim()); }
@@ -45,13 +46,13 @@ export async function guardarCertificado(org: string, ambiente: Ambiente, pem: s
   const clave = forge.pki.privateKeyFromPem(fila.clave_privada) as forge.pki.rsa.PrivateKey;
   const pub = cert.publicKey as forge.pki.rsa.PublicKey;
   if (pub.n.compareTo(clave.n) !== 0) throw new ErrorErp("Ese certificado no es del último pedido (CSR) generado en Laucen.");
-  await consulta("update arca_credencial set certificado = $3, cert_vence = $4, actualizado_ts = now() where organizacion_id = $1 and ambiente = $2",
-    [org, ambiente, forge.pki.certificateToPem(cert), cert.validity.notAfter]);
-  await consulta("delete from arca_ticket where organizacion_id = $1 and ambiente = $2", [org, ambiente]);
+  await consulta("update arca_credencial set certificado = $3, cert_vence = $4, actualizado_ts = now() where emisor_id = $1 and ambiente = $2",
+    [emisorId, ambiente, forge.pki.certificateToPem(cert), cert.validity.notAfter]);
+  await consulta("delete from arca_ticket where emisor_id = $1 and ambiente = $2", [emisorId, ambiente]);
   return cert.validity.notAfter;
 }
 
-export async function estadoCredencial(org: string, ambiente: Ambiente) {
+export async function estadoCredencial(emisorId: number, ambiente: Ambiente) {
   return una<{ csr: string; tiene_certificado: boolean; cert_vence: Date | null }>(
-    "select csr, certificado is not null tiene_certificado, cert_vence from arca_credencial where organizacion_id = $1 and ambiente = $2", [org, ambiente]);
+    "select csr, certificado is not null tiene_certificado, cert_vence from arca_credencial where emisor_id = $1 and ambiente = $2", [emisorId, ambiente]);
 }
