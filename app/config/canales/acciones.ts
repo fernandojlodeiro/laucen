@@ -32,6 +32,18 @@ async function canalDe(org: string, fd: FormData, k = "id") {
   return r.id;
 }
 
+/** La razón social elegida para el canal (Fer, 4/10: cada canal elige la
+ *  suya, no hay "principal"). Obligatoria si la organización tiene alguna. */
+async function razonDe(org: string, fd: FormData): Promise<number | null> {
+  const e = id(fd, "emisor");
+  if (e) {
+    if (!(await una("select 1 from emisor where id = $1 and organizacion_id = $2", [e, org]))) throw new ErrorErp("Esa razón social no existe.");
+    return e;
+  }
+  if (await una("select 1 from emisor where organizacion_id = $1 limit 1", [org])) throw new ErrorErp("Elegí con qué razón social factura el canal.");
+  return null;
+}
+
 const tipo = (fd: FormData) => {
   const t = String(fd.get("tipo"));
   return TIPOS.includes(t) ? t : "otro";
@@ -45,8 +57,8 @@ export async function accionCrearCanal(fd: FormData) {
     const nombre = texto(fd, "nombre");
     if (!nombre) throw new ErrorErp("El canal necesita un nombre.");
     const [c] = await consulta<{ id: number }>(
-      "insert into canal (organizacion_id, nombre, tipo, lista_precios_id) values ($1, $2, $3, $4) returning id::int",
-      [s.org.id, nombre, tipo(fd), await listaDe(s.org.id, fd)]);
+      "insert into canal (organizacion_id, nombre, tipo, lista_precios_id, emisor_id) values ($1, $2, $3, $4, $5) returning id::int",
+      [s.org.id, nombre, tipo(fd), await listaDe(s.org.id, fd), await razonDe(s.org.id, fd)]);
     // Su cuenta de ventas "Ventas — <canal>" en el plan de cuentas.
     await asegurarCuentasDeCanalesSinFallar(s.org.id);
     revalidatePath(BASE);
@@ -62,13 +74,8 @@ export async function accionGuardarCanal(fd: FormData) {
     const umbral = entero(fd, "umbral");
     if (umbral != null && umbral < 0) throw new ErrorErp("El umbral de pausa no puede ser negativo.");
     const estado = String(fd.get("estado"));
-    // Razón social con la que factura el canal (vacío = la principal). Si el formulario no la trae
-    // (una sola razón social), no se toca.
-    const emisor = fd.has("emisor") ? id(fd, "emisor") || null : undefined;
-    if (emisor) {
-      const e = await una("select 1 from emisor where id = $1 and organizacion_id = $2", [emisor, s.org.id]);
-      if (!e) throw new ErrorErp("Esa razón social no existe.");
-    }
+    // Razón social con la que factura el canal: obligatoria si hay alguna cargada (no hay "principal").
+    const emisor = fd.has("emisor") ? await razonDe(s.org.id, fd) : undefined;
     await consulta(`update canal set nombre = $3, tipo = $4, lista_precios_id = $5, estado = $6, umbral_pausa_default = $7,
                            emisor_id = case when $8::boolean then $9::bigint else emisor_id end
                      where id = $2 and organizacion_id = $1`,

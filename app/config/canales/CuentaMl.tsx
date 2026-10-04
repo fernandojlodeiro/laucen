@@ -58,8 +58,8 @@ export default async function CuentaMl({ org, canal }: { org: string; canal: num
             <form action={accionAsignarRazonSocial} className="flex flex-wrap items-end gap-2 rounded-lg border border-[#E3E9F0] bg-[#FAFBFC] p-2">
               <input type="hidden" name="canal" value={canal} />
               <label><span className={ETIQUETA}>Este canal factura con (razón social)</span>
-                <select name="emisor" defaultValue={actual?.emisor_id ?? ""} className={CAMPO}>
-                  <option value="">La principal ({razones.find((r) => r.es_principal)?.nombre ?? razones.find((r) => r.es_principal)?.razon_social})</option>
+                <select name="emisor" defaultValue={actual?.emisor_id ?? ""} required className={CAMPO}>
+                  {!actual?.emisor_id && <option value="" disabled>Elegí la razón social…</option>}
                   {razones.map((r) => <option key={r.id} value={r.id}>{r.nombre ?? r.razon_social}</option>)}
                 </select></label>
               <button className={SUAVE}>Guardar</button>

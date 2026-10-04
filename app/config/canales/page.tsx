@@ -18,6 +18,8 @@ import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, TituloSeccion, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import { emisoresDe } from "@/lib/arca/facturar";
+import InterruptorConfirmar from "./InterruptorConfirmar";
+import { accionSincronizarStock, accionSubirFacturas } from "./acciones-ml";
 import { sembrarEjemploCanales, canalesDeEjemplo } from "./ejemplo";
 import CuentaMl from "./CuentaMl";
 import { AccionesExcel } from "@/app/listas/piezas";
@@ -56,6 +58,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
   const canales = await consulta<{
     id: number; nombre: string; tipo: string; lista_id: number | null; lista: string | null; estado: string;
     umbral: number | null; tiene_llave: boolean; depositos: string | null; ml: string | null; apodo: string | null; emisor_id: number | null; emisor: string | null;
+    sincroniza: boolean; sube_facturas: boolean;
   }>(`
     select c.id::int, c.nombre, c.tipo, c.lista_precios_id::int lista_id, l.nombre lista, c.estado, c.umbral_pausa_default umbral,
            c.config ? 'token' tiene_llave,
@@ -63,18 +66,18 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
              where cd.canal_id = c.id) depositos,
            (select mc.estado from meli_cuenta mc where mc.canal_id = c.id) ml,
            (select mc.nickname from meli_cuenta mc where mc.canal_id = c.id) apodo,
-           c.emisor_id::int, (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = c.emisor_id) emisor
+           c.emisor_id::int, (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = c.emisor_id) emisor,
+           coalesce((c.config ->> 'sincronizar_stock')::boolean, false) sincroniza, coalesce((c.config ->> 'subir_facturas')::boolean, false) sube_facturas
       from ${base.desde} where ${base.donde} order by ${base.orden}`, base.valores);
   const listas = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from lista_precios where organizacion_id = $1 and estado = 'activa' order by orden, nombre", [s.org.id]);
   const razones = await emisoresDe(s.org.id);
-  // El campo "Factura con" aparece apenas hay una razón social cargada (con una sola, es la principal).
+  // "Factura con": cada canal elige su razón social (no hay "principal", Fer 4/10).
   const multi = razones.length > 0;
-  const principal = razones.find((x) => x.es_principal);
   const elegido = canales.find((c) => c.id === Number(sp.c));
   const ordenados = ordenarEnMemoria(canales, sp, {
     nombre: (c) => c.nombre, tipo: (c) => TIPOS[c.tipo] ?? c.tipo, lista: (c) => c.lista, depositos: (c) => c.depositos,
-    estado: (c) => c.estado, ml: (c) => c.apodo ?? c.ml, emisor: (c) => c.emisor ?? principal?.nombre ?? principal?.razon_social, umbral: (c) => c.umbral, llave: (c) => (c.tiene_llave ? 1 : 0),
+    estado: (c) => c.estado, ml: (c) => c.apodo ?? c.ml, emisor: (c) => c.emisor, umbral: (c) => c.umbral, stockml: (c) => (c.sincroniza ? 1 : 0), facturasml: (c) => (c.sube_facturas ? 1 : 0), llave: (c) => (c.tiene_llave ? 1 : 0),
   });
   const pagina = paginarEnMemoria(ordenados, sp);
   const crudo = (await cookies()).get("token_nuevo")?.value?.match(/^(\d+):([0-9a-f]{64})$/);
@@ -98,6 +101,19 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
       {listas.map((l) => <option key={l.id} value={l.id}>{l.nombre}</option>)}
     </select>
   );
+  const selectorRazon = (valor: number | null) => (
+    <select name="emisor" defaultValue={valor ?? ""} required className={CAMPO} aria-label="Factura con (razón social)">
+      {valor == null && <option value="" disabled>Elegí la razón social…</option>}
+      {razones.map((x) => <option key={x.id} value={x.id}>{x.nombre ?? x.razon_social}</option>)}
+    </select>
+  );
+  // Los interruptores de Mercado Libre de la fila (stock y facturas).
+  const interruptoresMl = (c: { id: number; sincroniza: boolean; sube_facturas: boolean }) => ({
+    stock: <InterruptorConfirmar accion={accionSincronizarStock} prendido={c.sincroniza} campos={{ canal: String(c.id) }} etiqueta="Laucen manda el stock a ML y pausa al llegar al umbral"
+      preguntaPrender="¿Prender? Laucen manda el stock y pausa en ML" preguntaApagar="¿Apagar el stock a ML?" />,
+    facturas: <InterruptorConfirmar accion={accionSubirFacturas} prendido={c.sube_facturas} campos={{ canal: String(c.id) }} etiqueta="Subir facturas a Mercado Libre"
+      preguntaPrender="¿Prender? Cada factura se sube a su venta" preguntaApagar="¿Apagar la subida de facturas?" />,
+  });
   const selectorTipo = (valor: string) => (
     <select name="tipo" defaultValue={valor} className={CAMPO} aria-label="Tipo">
       {Object.entries(TIPOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -113,6 +129,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
           <input name="nombre" placeholder="Nombre (ej. Mercado Libre cuenta 2)" className={`${CAMPO} flex-1 min-w-48`} autoFocus />
           {selectorTipo("mercadolibre")}
           {selectorLista(null)}
+          {multi && selectorRazon(null)}
           <button className={PRIMARIO}>Crear</button>
         </form>
       </AltaNueva>
@@ -130,15 +147,17 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
           <thead className={THEAD}>
             <tr>
               <ThOrden col="nombre">Canal</ThOrden><ThOrden col="tipo">Tipo</ThOrden><ThOrden col="lista">Lista de precios</ThOrden><ThOrden col="depositos">Vende desde</ThOrden>
-              <ThOrden col="estado" porDefecto>Estado</ThOrden><ThOrden col="ml" title="La cuenta de Mercado Libre conectada (su apodo)">Mercado Libre</ThOrden>{multi && <ThOrden col="emisor" title="La razón social con la que se factura lo que vende este canal; sin elegir, la principal">Factura con</ThOrden>}<ThOrden col="umbral" n>Umbral de pausa</ThOrden>
+              <ThOrden col="estado" porDefecto>Estado</ThOrden><ThOrden col="ml" title="La cuenta de Mercado Libre conectada (su apodo)">Mercado Libre</ThOrden>{multi && <ThOrden col="emisor" title="La razón social con la que se factura lo que vende este canal">Factura con</ThOrden>}<ThOrden col="umbral" n>Umbral de pausa</ThOrden>
+              <ThOrden col="stockml" title="Laucen manda el stock a Mercado Libre y pausa al llegar al umbral (sólo cuentas de ML)">Stock a ML</ThOrden>
+              <ThOrden col="facturasml" title="Cada factura que autoriza ARCA se sube sola a su venta en Mercado Libre (sólo cuentas de ML)">Facturas a ML</ThOrden>
               <ThOrden col="llave" title="Para que otro sistema cargue pedidos o lea el catálogo por la API; hoy no la usa nadie">Llave API</ThOrden><th />
             </tr>
           </thead>
           <tbody>
-            {canales.length === 0 && <tr><td colSpan={multi ? 10 : 9} className={`${TD} text-[#5C6B76]`}>{q ? "Ningún canal coincide." : "No hay canales. Agregá el primero con «Nuevo canal»."}</td></tr>}
+            {canales.length === 0 && <tr><td colSpan={multi ? 12 : 11} className={`${TD} text-[#5C6B76]`}>{q ? "Ningún canal coincide." : "No hay canales. Agregá el primero con «Nuevo canal»."}</td></tr>}
             {pagina.map((c) => editar === c.id ? (
               <tr key={c.id} className={`${TR} bg-[#FAFBFC]`}>
-                <td colSpan={multi ? 10 : 9} className={TD}>
+                <td colSpan={multi ? 12 : 11} className={TD}>
                   <form action={accionGuardarCanal} className="flex flex-wrap items-end gap-2">
                     <input type="hidden" name="id" value={c.id} />
                     <input type="hidden" name="volver" value={aqui} />
@@ -148,10 +167,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
                     <label><span className={ETIQUETA}>Lista de precios</span>{selectorLista(c.lista_id)}</label>
                     {multi && (
                       <label><span className={ETIQUETA}>Factura con</span>
-                        <select name="emisor" defaultValue={c.emisor_id ?? ""} className={CAMPO}>
-                          <option value="">La principal ({principal?.nombre ?? principal?.razon_social})</option>
-                          {razones.map((x) => <option key={x.id} value={x.id}>{x.nombre ?? x.razon_social}</option>)}
-                        </select></label>
+                        {selectorRazon(c.emisor_id)}</label>
                     )}
                     <label><span className={ETIQUETA}>Estado</span>
                       <select name="estado" defaultValue={c.estado} className={CAMPO}>
@@ -162,6 +178,13 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
                     <button className={VERDE}>Guardar</button>
                     <Link href={aqui} className={SUAVE} scroll={false}>Cancelar</Link>
                   </form>
+                  {c.tipo === "mercadolibre" && (
+                    // Fuera del formulario: cada interruptor se guarda solo (con su Sí / No).
+                    <div className="flex flex-wrap items-center gap-4 mt-2 text-xs">
+                      <span className="inline-flex items-center gap-2">Stock a ML {interruptoresMl(c).stock}</span>
+                      <span className="inline-flex items-center gap-2">Facturas a ML {interruptoresMl(c).facturas}</span>
+                    </div>
+                  )}
                 </td>
               </tr>
             ) : (
@@ -176,8 +199,10 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
                 <td className={`${TD} whitespace-nowrap`}>{c.tipo === "mercadolibre"
                   ? <Link href={url(BASE, { ...conFiltros, c: c.id })}><Estado texto={c.ml === "activa" ? "Conectada" : "Desconectada"} tono={c.ml === "activa" ? "verde" : "rojo"} />{c.apodo && <span className="ml-1 font-semibold">{c.apodo}</span>}</Link>
                   : <span className="text-[#5C6B76]">—</span>}</td>
-                {multi && <td className={TD}>{c.emisor ?? <span className="text-[#5C6B76]">La principal</span>}</td>}
+                {multi && <td className={TD}>{c.emisor ?? <span className="text-[#C03420]">sin razón social</span>}</td>}
                 <td className={TDN}>{c.umbral ?? <span className="text-[#5C6B76]">hereda</span>}</td>
+                <td className={TD}>{c.tipo === "mercadolibre" ? interruptoresMl(c).stock : <span className="text-[#5C6B76]">—</span>}</td>
+                <td className={TD}>{c.tipo === "mercadolibre" ? interruptoresMl(c).facturas : <span className="text-[#5C6B76]">—</span>}</td>
                 <td className={`${TD} whitespace-nowrap`}><Link href={url(BASE, { ...conFiltros, c: c.id })} className="hover:underline">{c.tiene_llave ? "Tiene" : <span className="text-[#5C6B76]">sin llave</span>}</Link></td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">

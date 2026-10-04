@@ -25,7 +25,7 @@ export const LISTA_CANALES: Lista = {
     { clave: "estado", titulo: "Estado", sql: "c.estado", valor: traducido("estado", ESTADOS) },
     { clave: "apodo", titulo: "Apodo de la cuenta de ML", sql: "(select mc.nickname from meli_cuenta mc where mc.canal_id = c.id)" },
     { clave: "ml", titulo: "Mercado Libre", sql: "(select mc.estado from meli_cuenta mc where mc.canal_id = c.id)" },
-    { clave: "emisor", titulo: "Factura con", sql: "coalesce((select coalesce(e.nombre, e.razon_social) from emisor e where e.id = c.emisor_id), (select coalesce(e.nombre, e.razon_social) from emisor e where e.organizacion_id = c.organizacion_id and e.es_principal))" },
+    { clave: "emisor", titulo: "Factura con", sql: "(select coalesce(e.nombre, e.razon_social) from emisor e where e.id = c.emisor_id)" },
     { clave: "umbral", titulo: "Umbral de pausa", sql: "c.umbral_pausa_default", formato: "entero" },
     { clave: "llave", titulo: "Llave API", sql: "c.config ? 'token'", formato: "sino" },
     { clave: "publicaciones", titulo: "Publicaciones", sql: "(select count(*) from publicacion pu where pu.canal_id = c.id)::int", formato: "entero" },

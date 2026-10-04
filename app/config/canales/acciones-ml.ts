@@ -50,19 +50,20 @@ export async function accionSoltarCuenta(fd: FormData) {
 }
 
 /** Prende o apaga que Laucen mande el stock y pause en ML. */
-/** Con qué razón social se factura lo que vende este canal (vacío = la principal). */
+/** Con qué razón social se factura lo que vende este canal (obligatoria: no hay "principal"). */
 export async function accionAsignarRazonSocial(fd: FormData) {
   const s = await entrarErp("canales_ver");
   const canal = id(fd, "canal");
   await intentar(volver(canal), async () => {
     await canalMl(s.org.id, fd);
     const emisor = id(fd, "emisor") || null;
-    if (emisor && !(await una("select 1 from emisor where id = $1 and organizacion_id = $2", [emisor, s.org.id]))) throw new ErrorErp("Esa razón social no existe.");
+    if (!emisor) throw new ErrorErp("Elegí con qué razón social factura el canal.");
+    if (!(await una("select 1 from emisor where id = $1 and organizacion_id = $2", [emisor, s.org.id]))) throw new ErrorErp("Esa razón social no existe.");
     await consulta("update canal set emisor_id = $3 where id = $2 and organizacion_id = $1", [s.org.id, canal, emisor]);
     // La cuenta de Mercado Pago del canal es de la razón social que factura el canal.
     await consulta("update cuenta_fondos set emisor_id = coalesce($3::bigint, emisor_principal($1)) where canal_id = $2 and organizacion_id = $1", [s.org.id, canal, emisor]);
     revalidatePath("/config/canales");
-    return emisor ? "Listo: este canal factura con esa razón social." : "Listo: este canal factura con la razón social principal.";
+    return "Listo: este canal factura con esa razón social.";
   });
 }
 

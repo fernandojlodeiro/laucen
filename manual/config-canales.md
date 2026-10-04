@@ -42,7 +42,7 @@ La primera vez que una organización sin ningún canal abre la pantalla, el sist
 ### Buscador y lista
 
 - **"Buscar canal"**: busca por nombre mientras tipeás, con la caja "Comienza por".
-- Columnas (se ordenan tocando el título): **Canal** (el nombre; tocarlo abre sus detalles abajo), **Tipo**, **Lista de precios** (enlace a esa lista; en rojo "sin lista" si no tiene), **Vende desde** (los depósitos, en orden de prioridad; en rojo "ningún depósito"), **Estado** (Activo / Pausado / Archivado), **Mercado Libre** (sólo para canales de ML: "Conectada" en verde o "Desconectada" en rojo, **seguido del apodo (nick) de la cuenta de ML conectada**; para el resto, "—"), **Factura con** (aparece apenas hay una razón social cargada: con cuál se factura lo que vende el canal; "La principal" si no se eligió), **Umbral de pausa** ("hereda" si está vacío), **Llave API** ("Tiene" o "sin llave").
+- Columnas (se ordenan tocando el título): **Canal** (el nombre; tocarlo abre sus detalles abajo), **Tipo**, **Lista de precios** (enlace a esa lista; en rojo "sin lista" si no tiene), **Vende desde** (los depósitos, en orden de prioridad; en rojo "ningún depósito"), **Estado** (Activo / Pausado / Archivado), **Mercado Libre** (sólo para canales de ML: "Conectada" en verde o "Desconectada" en rojo, **seguido del apodo (nick) de la cuenta de ML conectada**; para el resto, "—"), **Factura con** (aparece apenas hay una razón social cargada: con cuál se factura lo que vende el canal; en rojo "sin razón social" si falta elegirla), **Umbral de pausa** ("hereda" si está vacío), **Stock a ML** y **Facturas a ML** (sólo en las cuentas de Mercado Libre: los interruptores "Laucen manda el stock a ML y pausa al llegar al umbral" y "Subir facturas a Mercado Libre", ahí mismo; al tocarlos preguntan "Sí" / "No" antes de cambiar; para el resto de los canales, "—"), **Llave API** ("Tiene" o "sin llave").
 - Al final de cada fila, el **lápiz** (editar la fila ahí mismo) y el **tacho** (borrar, pregunta "¿Borrar el canal?" Sí / No).
 - Abajo, el paginador de 50 en 50 y dos ayudas: qué es el umbral de pausa y qué es la llave API.
 
@@ -117,8 +117,9 @@ Si falta el nombre: "El canal necesita un nombre." El nombre no se puede repetir
 ### Cambiar la lista de precios, el estado o el umbral de un canal
 
 1. Apretá el **lápiz** de la fila del canal. La fila se convierte en campos.
-2. Cambiá **Nombre**, **Tipo**, **Lista de precios**, **Estado** (Activo / Pausado / Archivado) o **Umbral de pausa** (vacío = "hereda").
+2. Cambiá **Nombre**, **Tipo**, **Lista de precios** (de ahí sale el precio con que vende el canal), **Factura con** (la razón social, obligatoria), **Estado** (Activo / Pausado / Archivado) o **Umbral de pausa** (vacío = "hereda").
 3. **"Guardar"** (o "Cancelar").
+4. En una cuenta de Mercado Libre, debajo de los campos están también los interruptores **Stock a ML** y **Facturas a ML**: se prenden o apagan ahí mismo (con su "Sí" / "No"), sin tocar "Guardar".
 
 ### Borrar un canal
 
@@ -184,7 +185,7 @@ En la caja de la cuenta, **"Traer pedidos y preguntas ahora"**. Avisa "Listo: N 
 
 ### Con qué razón social se factura cada canal
 
-Una vez cargadas las razones sociales (ver [Razones sociales](/config/razones-sociales)), tocá el canal (su nombre) y, en la caja **"Cuenta de Mercado Libre"**, elegí **"Este canal factura con (razón social)"** y apretá **"Guardar"**. La columna **"Factura con"** de la lista muestra con cuál factura cada canal, y también se cambia con el **lápiz** de su fila (desplegable **"Factura con"**). Elegís la razón social con la que se emiten las facturas de lo que vende ese canal (por ejemplo, tres cuentas de Mercado Libre con una razón social y dos con la otra). Sin elegir, el canal factura con la **principal**, que es lo que pasa siempre con la tienda web, el local y el mayorista.
+Una vez cargadas las razones sociales (ver [Razones sociales](/config/razones-sociales)), tocá el canal (su nombre) y, en la caja **"Cuenta de Mercado Libre"**, elegí **"Este canal factura con (razón social)"** y apretá **"Guardar"**. La columna **"Factura con"** de la lista muestra con cuál factura cada canal, y también se cambia con el **lápiz** de su fila (desplegable **"Factura con"**). Elegís la razón social con la que se emiten las facturas de lo que vende ese canal (por ejemplo, tres cuentas de Mercado Libre con una razón social y dos con la otra). **No hay "principal"**: cada canal (Mercado Libre, tienda web, local, mayorista) tiene que tener elegida su razón social; al crear un canal se elige ahí mismo, y el lápiz no deja guardar sin ella. Los que no la tenían (4/10) quedaron con la que era la principal (Virtual Argentina S.A).
 
 - Cambiarlo afecta a las facturas **nuevas**; las ya emitidas no se mueven.
 - La cuenta de fondos "Mercado Pago — <apodo>" de la cuenta de ML pasa a ser de la nueva razón social.
