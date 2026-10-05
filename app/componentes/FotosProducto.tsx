@@ -1,13 +1,13 @@
 "use client";
 
-// El 📷 al lado de un producto en una lista (pedido de Fer, 3/10): abre sus
-// fotos (producto_foto, por `orden`) en una ventanita liviana. Si el producto
-// no tiene fotos no se muestra. La lista trae las direcciones con
+// La foto principal al lado de un producto en una lista (pedido de Fer, 3/10; 5/10: la foto
+// misma en lugar del 📷): al tocarla abre todas (producto_foto, por `orden`) en una ventanita
+// liviana. Si el producto no tiene fotos no se muestra. La lista trae las direcciones con
 //   (select array_agg(url order by orden) from producto_foto where producto_id = p.id) fotos
 
 import { useEffect, useState } from "react";
 
-export default function FotosProducto({ fotos, titulo }: { fotos: string[] | null | undefined; titulo: string }) {
+export default function FotosProducto({ fotos, titulo, tamano = 40 }: { fotos: string[] | null | undefined; titulo: string; tamano?: number }) {
   const [abierta, setAbierta] = useState(false);
   const [grande, setGrande] = useState(0);
   useEffect(() => {
@@ -25,7 +25,10 @@ export default function FotosProducto({ fotos, titulo }: { fotos: string[] | nul
   return (
     <>
       <button type="button" onClick={() => { setGrande(0); setAbierta(true); }} aria-label={`Ver fotos de ${titulo}`} title={`Ver fotos (${fotos.length})`}
-        className="inline-block align-middle text-[11px] leading-none rounded-md px-1 py-0.5 bg-white border border-[#E3E9F0] hover:bg-[#EEF3F8]">📷</button>
+        className="inline-block align-middle rounded-md border border-[#E3E9F0] bg-white hover:border-[#16577F] overflow-hidden shrink-0 p-0">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={fotos[0]} alt="" loading="lazy" className="object-cover block" style={{ width: tamano, height: tamano }} />
+      </button>
       {abierta && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setAbierta(false)}>
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-3" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Fotos de ${titulo}`}>

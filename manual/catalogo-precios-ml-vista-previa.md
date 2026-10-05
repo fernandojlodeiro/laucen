@@ -35,7 +35,7 @@ Un renglón de resumen: cuántas filas, cuántas **con cambios** (y cuántas son
 
 **Columnas** (se ordena tocando el título; de a 50 filas con paginador):
 - **Publicación**: el número de ML (enlace a [Publicaciones](/catalogo/publicaciones)) o «nueva».
-- **SKU** (enlace a la ficha del producto, con el 📷 si tiene fotos) y **Producto**.
+- **SKU** (enlace a la ficha del producto, con su foto si tiene) y **Producto**.
 - **Plan**: Clásica, 3, 6, 9 o 12 cuotas.
 - **Papel**: qué rol tiene esa publicación (ver «Criterios y reglas»).
 - **Clásica**: el precio base.

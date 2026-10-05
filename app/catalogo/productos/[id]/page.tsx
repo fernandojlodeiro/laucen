@@ -8,7 +8,8 @@
 // cada fila (?editar=<id>) y el alta va detrás de "Nuevo …" arriba a la derecha.
 
 import { notFound } from "next/navigation";
-import { una } from "@/lib/erp/base";
+import { una, consulta } from "@/lib/erp/base";
+import FotosProducto from "@/app/componentes/FotosProducto";
 import Pestanas from "@/app/componentes/Pestanas";
 import { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { TachoConfirmar } from "@/app/radar/Cliente";
@@ -68,6 +69,14 @@ export default async function FichaProducto({ params, searchParams }: { params: 
            (select count(*) from cucarda c where c.organizacion_id = $1 and c.estado = 'activa')::int cucardas_activas`,
     [s.org.id, pid])) ?? {};
 
+  // Fotos del producto (las de sus variaciones si no tiene propias): la principal se ve en "Datos".
+  const fotosUrls = (!sp.seccion || sp.seccion === "datos") ? (await consulta<{ url: string }>(`
+    select url from (
+      select url, 0 g, orden, id from producto_foto where producto_id = $2 and organizacion_id = $1
+      union all
+      select f.url, 1, f.orden, f.id from variacion_foto f join variacion v on v.id = f.variacion_id where v.producto_id = $2 and f.organizacion_id = $1
+    ) x order by g, orden, id`, [s.org.id, pid])).map((f) => f.url) : [];
+
   const secciones: [string, string, number | null][] = [
     ["datos", "Datos", null],
     ["costo", "Costo", null],
@@ -120,6 +129,12 @@ export default async function FichaProducto({ params, searchParams }: { params: 
     >
       <Avisos sp={sp} />
       <Pestanas items={secciones.map(([k, t, cuenta]) => ({ clave: k, texto: t, cuenta, activa: k === seccion, href: k === "datos" ? base : `${base}?seccion=${k}` }))} />
+      {seccion === "datos" && fotosUrls.length > 0 && (
+        <div className="flex flex-wrap items-start gap-2">
+          <FotosProducto fotos={fotosUrls} titulo={p.titulo} tamano={160} />
+          {fotosUrls.slice(1, 5).map((u, i) => <FotosProducto key={u} fotos={[u, ...fotosUrls.filter((x) => x !== u)]} titulo={`${p.titulo} (foto ${i + 2})`} tamano={72} />)}
+        </div>
+      )}
       {seccion === "datos" && <SeccionDatos {...props} />}
       {seccion === "costo" && <SeccionCosto {...props} />}
       {seccion === "variaciones" && <SeccionVariaciones {...props} />}

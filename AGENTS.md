@@ -156,8 +156,9 @@ Listas de los ABM (pedido de Fer, 3/10):
   el proveedor → su fila (`/compras/proveedores?id=`); el número de pedido → el pedido. Un número
   que cuenta cosas (productos de una familia, ubicaciones de un depósito, unidades) → la lista de
   esas cosas filtrada, sólo las activas salvo que se pida.
-- **Al lado de un producto, el 📷** que abre sus fotos (`app/componentes/FotosProducto.tsx`); si
-  no tiene fotos no aparece.
+- **Al lado de un producto, su foto principal** (no un ícono; `app/componentes/FotosProducto.tsx`,
+  pedido de Fer 5/10): al tocarla abre todas; si no tiene fotos no aparece. Vale también en el
+  buscador general y en la ficha (Datos muestra la principal).
 - **Clientes y proveedores muestran su "N.º"** (el id interno): primera columna y en la ficha.
 - **Todo ABM tiene "Descargar Excel" con configuraciones** (pedido de Fer, 3/10): arriba a la
   derecha, al lado de "Nuevo …" (`<AccionesExcel>` de `app/listas/piezas.tsx`). Baja lo que se ve

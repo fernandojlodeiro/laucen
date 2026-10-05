@@ -42,7 +42,7 @@ Filtros (filtran al momento, sin botón "Buscar"):
 Arriba de la tabla, el selector **Vista** ("Estándar" o una vista guardada) elige qué columnas se ven y en qué orden; la última elegida queda recordada.
 
 Columnas de la vista Estándar (todas se ordenan tocando el título):
-- **SKU base**: lleva a la ficha. Al lado, el 📷 abre las fotos (si no tiene fotos, no aparece).
+- **SKU base**: lleva a la ficha. Al lado se ve la **foto principal** del producto (si no tiene fotos, no aparece); al tocarla se abren todas.
 - **Título**: lleva a la ficha. Si es un kit de Virtual Seller, muestra la marca "Kit VS".
 - **Familia**: filtra la lista por esa familia.
 - **Tipo**: filtra la lista por ese tipo.
@@ -114,6 +114,7 @@ Datos libres del producto (material, origen…): Nombre, Valor y Orden, con láp
 
 #### Pestaña Fotos
 
+- En la pestaña **Datos** se ve arriba la foto principal grande y las siguientes chicas (tocando una se abre la galería).
 - Caja **Fotos del producto** con el botón **📷 Subir fotos** (se pueden elegir varias a la vez). La primera foto es la principal.
 - En un producto con variaciones, una caja por variación con **📷 Fotos propias**. Si una variación no tiene fotos propias, "usa las del producto".
 - Cada foto tiene ◀ / ▶ para moverla un lugar antes o después y un tacho para borrarla.

@@ -39,7 +39,7 @@ Sirve para responder preguntas como "¿quién pausó esta publicación?", "¿cu�
 - **Fecha y hora** del cambio.
 - **Cuenta** de Mercado Libre.
 - **Publicación**: el número (MLA…), con enlace a la publicación en Mercado Libre; si es una variación, debajo "var. …".
-- **SKU**: enlace a la ficha del producto, con el 📷 para ver sus fotos.
+- **SKU**: enlace a la ficha del producto, con su foto (al tocarla se abren todas).
 - **Título**.
 - **Qué cambió**: Estado, Precio o Stock.
 - **Cambio**: "antes → después". Los estados en criollo (Activa, Pausada, Cerrada, En revisión, Inactiva, Pago pendiente), los precios con punto de miles y, en un cambio de precio, el porcentaje (verde si subió, rojo si bajó).

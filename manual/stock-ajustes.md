@@ -18,12 +18,12 @@ Para corregir el stock cuando no coincide con lo que hay de verdad (un conteo, u
 
 ## Qué hay en la pantalla
 
-Dos cajas, una al lado de la otra (una debajo de la otra en el celular):
+Dos cajas, una al lado de la otra (una debajo de la otra en el celular). Los campos tienen borde grueso y oscuro y letra más grande, para que se vean bien.
 
 ### Ajuste
 
-- **"SKU o código de barras"**.
-- **"Depósito · ubicación"**: se elige con buscador (se escribe y filtra). Se muestra como "Depósito · código" o "Depósito · General".
+- **"Producto"**: se busca mientras se escribe (desde la segunda letra) por SKU, código de barras o **descripción**: se buscan todas las palabras escritas, en cualquier parte, y primero salen los que empiezan igual. Cada resultado muestra su foto, el SKU y el título. Al elegir el producto, abajo aparecen **las ubicaciones donde está**: si está en una sola, queda elegida sola; si está en varias, se toca la que corresponde.
+- **"Depósito · ubicación"**: se elige con buscador (se escribe y filtra por depósito, código o descripción de la ubicación, en cualquier parte). Se muestra como "Depósito · código" o "Depósito · General". Se puede elegir cualquiera, también una donde el producto todavía no tiene stock (para sumarle).
 - **"Sumar o restar"**: **"Sumar (+)"** o **"Restar (−)"**.
 - **"Cantidad"**.
 - **"Motivo (obligatorio)"** (por ejemplo: conteo físico, rotura, apareció en otro estante).
@@ -31,7 +31,7 @@ Dos cajas, una al lado de la otra (una debajo de la otra en el celular):
 
 ### Transferencia
 
-- **"SKU o código de barras"**.
+- **"Producto"**: igual que en el ajuste; **"Desde"** se completa con la ubicación donde está.
 - **"Cantidad"**.
 - **"Desde"** y **"Hacia"**: depósito y ubicación, con buscador.
 - **"Nota (opcional)"**.
@@ -71,7 +71,7 @@ Igual que el anterior, con **"Restar (−)"** y motivo "rotura" (o el que corres
 ### Errores típicos
 
 - "Falta el SKU o el código de barras."
-- "No hay ninguna variación con SKU o código de barras “X”." — el SKU tiene que estar escrito exacto (respeta mayúsculas) o el código de barras completo.
+- "No hay ninguna variación con SKU o código de barras “X”." — hay que elegir el producto de la lista que aparece al escribir (o escribir el SKU exacto).
 - "Es un kit: el stock de un kit se mueve con sus componentes. Ajustá cada componente."
 - "Elegí el depósito y la ubicación."
 - "La cantidad tiene que ser un entero mayor que cero."

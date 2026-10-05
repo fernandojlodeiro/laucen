@@ -12,9 +12,9 @@ export type OpcionUbicacion = { valor: string; texto: string; detalle?: string |
 
 const MAX = 60;
 
-export default function ElegirUbicacion({ opciones, name, valor, alCambiar, placeholder = "Buscá la ubicación…", grande = false, className = "" }: {
+export default function ElegirUbicacion({ opciones, name, valor, alCambiar, placeholder = "Buscá la ubicación…", grande = false, firme = false, className = "" }: {
   opciones: OpcionUbicacion[]; name?: string; valor?: string; alCambiar?: (v: string) => void;
-  placeholder?: string; grande?: boolean; className?: string;
+  placeholder?: string; grande?: boolean; /** Borde grueso y oscuro, letra más grande (para quien ve poco). */ firme?: boolean; className?: string;
 }) {
   const [propio, setPropio] = useState("");
   const elegido = valor ?? propio;
@@ -42,7 +42,7 @@ export default function ElegirUbicacion({ opciones, name, valor, alCambiar, plac
     setAbierto(false);
   };
 
-  const tamano = grande ? "px-2 py-2.5 text-base" : "px-2 py-1.5 text-xs";
+  const tamano = grande ? "px-2 py-2.5 text-base" : firme ? "px-3 py-2 text-sm" : "px-2 py-1.5 text-xs";
   return (
     <div ref={caja} className={`relative ${className}`}
       onBlur={(e) => { if (!caja.current?.contains(e.relatedTarget as Node)) { setAbierto(false); setTexto(actual?.texto ?? ""); } }}>
@@ -56,7 +56,7 @@ export default function ElegirUbicacion({ opciones, name, valor, alCambiar, plac
           else if (e.key === "Enter") { e.preventDefault(); if (abierto && filtradas[marca]) elegir(filtradas[marca]); }
           else if (e.key === "Escape") { setAbierto(false); }
         }}
-        className={`w-full border border-[#E3E9F0] rounded-lg bg-white ${tamano}`} />
+        className={`w-full rounded-lg bg-white ${firme ? "border-2 border-[#5C6B76] text-[#16212B] focus:border-[#16577F] focus:outline-none" : "border border-[#E3E9F0]"} ${tamano}`} />
       {abierto && (
         <ul className="absolute left-0 right-0 z-50 mt-1 max-h-64 overflow-auto rounded-lg border border-[#C9D3DD] bg-white shadow-lg">
           {filtradas.length === 0 && <li className={`${tamano} text-[#5C6B76]`}>Ninguna coincide.</li>}
