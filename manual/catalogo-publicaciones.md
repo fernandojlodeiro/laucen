@@ -26,7 +26,9 @@ Hay dos pantallas, las dos del menú **Catálogo**:
 
 Arriba a la derecha: **Descargar Excel** (trae además título en el canal, enlace, umbral propio, código de barras, estado del producto, última sincronización y atributos externos) y **Vincular con Mercado Libre**.
 
-Filtros: buscador **"Buscar por título, SKU o id externo"** (busca en el título de la publicación y en el del producto; el SKU ya no es una columna, pero se sigue buscando por él) (con "Comienza por": tildada busca al principio del título; destildala para encontrar una palabra del medio. El código de barras se busca exacto) y **Mostrar inactivos**, **Canal** (Todos los canales o uno) y **Estado** (Activa / Pausada / Cerrada).
+Filtros: buscador **"Buscar por título, SKU o id externo"** (busca en el título de la publicación y en el del producto; el SKU ya no es una columna, pero se sigue buscando por él) (con "Comienza por": tildada busca al principio del título; destildala para encontrar una palabra del medio. El código de barras se busca exacto) y **Mostrar inactivos**, **Canal** (Todos los canales o uno), **Estado** (Activa / Pausada / Cerrada) y **En revisión en ML** (todas las que están en revisión, sólo las que están **por precio**, o las que están por otro motivo).
+
+Arriba a la derecha, **Leer motivos de revisión**: le pregunta a Mercado Libre por qué está en revisión cada publicación (sólo lee, no cambia nada). Laucen también lo hace solo, de fondo, una vez por día cada publicación; el botón es para no esperar.
 
 Columnas (todas se ordenan tocando el título; sin elegir, por canal):
 - **Foto**: la foto principal, grande (lleva a la ficha del producto; si el producto no tiene fotos, la de la publicación de ML).
@@ -36,7 +38,7 @@ Columnas (todas se ordenan tocando el título; sin elegir, por canal):
 - **Categoría**.
 - **Plan**: Clásica o Premium (el plan de la publicación en Mercado Libre).
 - **Precio**: (en pesos o en dólares según el interruptor de abajo a la izquierda; los precios de Mercado Libre son en pesos y, en dólares, se convierten al tipo de cambio de hoy) el que tiene publicada (en Mercado Libre, el precio de lista de la publicación). Si tiene **precio tachado**, va arriba, tachado. Si está en una **campaña activa**, debajo se ve "Campaña: nombre · precio con la campaña" (el precio de campaña es el que paga el cliente).
-- **Estado**: Activa / Pausada / Cerrada (o **Pausada por vos**, si la pausaste con el botón); debajo, "En ML: …" (lo que dice ML: Activa, Pausada, Cerrada, En revisión, Inactiva, Pago pendiente) y "sinc. dd/mm hh:mm".
+- **Estado**: Activa / Pausada / Cerrada (o **Pausada por vos**, si la pausaste con el botón); debajo, "En ML: …" (lo que dice ML: Activa, Pausada, Cerrada, En revisión, Inactiva, Pago pendiente) y "sinc. dd/mm hh:mm". Si está **En revisión**, dice si está **esperando corrección** (se puede corregir y ML la vuelve a revisar) o **prohibida** (no se levanta), la marca **Por precio** si el motivo es el precio, y el **motivo** que informa Mercado Libre (pasando el mouse se ve entero, con la solución que sugiere ML). En las que están esperando corrección aparece el botón **Corregir precio**.
 - **Disponible**: lo que hay para vender en los depósitos del canal. En rojo cuando está en el umbral o por debajo. Lleva a [Consulta de stock](/stock/consulta).
 - **Stock en ML**: lo que la publicación tiene cargado en Mercado Libre (también si está pausada).
 - **Vendidos ML** (para agregar en la vista o el Excel): unidades vendidas que informa Mercado Libre de esa publicación; 0 si no vendió.
@@ -93,6 +95,13 @@ Si ya existe un producto con ese SKU: "Ya hay un producto con el SKU …: vincul
 2. Tacho de la vinculación → **Sí** ("Desvinculada.").
 3. Vinculala de nuevo con el SKU correcto.
 
+### Levantar una publicación en revisión por precio
+
+1. En [Publicaciones](/catalogo/publicaciones), elegí **En revisión en ML › En revisión por precio** (si no aparece el motivo, apretá **Leer motivos de revisión**).
+2. En la fila, apretá **Corregir precio**: en la columna Precio aparece el cuadro con el precio actual.
+3. Escribí el precio nuevo y apretá **Mandar a ML**. Sale a Mercado Libre con ese clic.
+4. Queda la nota "Precio corregido el …: esperando que ML la revise". Mercado Libre la vuelve a revisar y, si el precio era el problema, la reactiva (puede tardar). Una **prohibida** no se levanta corrigiendo.
+
 ### Cambiar el umbral de pausa de una publicación
 
 1. En [Publicaciones](/catalogo/publicaciones), lápiz de la fila.
@@ -104,6 +113,8 @@ Si ya existe un producto con ese SKU: "Ya hay un producto con el SKU …: vincul
 Lápiz de la fila → en la columna SKU escribí el SKU o código de barras de Laucen → **Guardar**.
 
 ## Criterios y reglas
+
+- **En revisión en Mercado Libre**: "esperando corrección" quiere decir que ML la frenó hasta que se corrija lo que marcó (se puede modificar; ML la vuelve a revisar). "Prohibida" es una falta a sus reglas y no se levanta corrigiendo. El motivo y la solución sugerida salen de las infracciones que informa Mercado Libre de cada cuenta; si ML no informa nada, dice "ML no informa el motivo". Es **por precio** cuando el motivo, la solución o el tipo de infracción hablan del precio.
 
 **Espejo de Mercado Libre**: el título, la categoría, el tipo, el precio, la cantidad publicada y el estado de cada publicación los escribe el sistema con lo que dice ML. Se actualizan:
 - cada vez que ML avisa un cambio (notificaciones);

@@ -461,3 +461,24 @@ create or replace trigger meli_item_anotar_cambio after update of estado, precio
 -- actualiza con el botón del tablero y, sola, cuando tiene más de una hora.
 alter table meli_cuenta add column if not exists reputacion jsonb;
 alter table meli_cuenta add column if not exists reputacion_ts timestamptz;
+
+-- Por qué una publicación está en revisión en ML (Fer, 5/10): lo que dice ML en
+-- /moderations/infractions (motivo y solución sugerida, sin HTML). Se lee sólo para
+-- las publicaciones "under_review" (lib/mercadolibre/moderaciones.ts), a lo sumo una
+-- vez por día cada una. `por_precio`: el motivo o la solución hablan del precio.
+-- `precio_corregido_ts`: cuándo se mandó un precio nuevo desde Laucen para levantarla.
+create table if not exists meli_moderacion (
+  organizacion_id      text not null references organizaciones(id) on delete cascade,
+  canal_id             bigint not null references canal(id) on delete cascade,
+  item_id              text not null,
+  motivo               text,
+  solucion             text,
+  grupo                text,
+  por_precio           boolean not null default false,
+  datos                jsonb,
+  leido_ts             timestamptz not null default now(),
+  precio_corregido_ts  timestamptz,
+  primary key (canal_id, item_id)
+);
+alter table meli_moderacion enable row level security;
+select erp_politica_org('meli_moderacion');

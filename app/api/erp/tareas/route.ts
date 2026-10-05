@@ -19,6 +19,7 @@ import { avanzar as avanzarVs } from "@/lib/importar/virtualseller";
 import { procesarCola, hayPendientes } from "@/lib/mercadolibre/cola";
 import { procesarCambiosStock, sincronizarStockMl, variacionesConEventos } from "@/lib/mercadolibre/stock";
 import { barridaNocturna, enVentanaBarrida } from "@/lib/mercadolibre/barrida";
+import { hayMotivosPendientes, leerMotivosPendientes } from "@/lib/mercadolibre/moderaciones";
 import { traerFacturacionMl, facturacionPendiente } from "@/lib/mercadolibre/facturacion";
 
 export const dynamic = "force-dynamic";
@@ -93,7 +94,10 @@ export async function GET(req: Request) {
   if (cola) informe.cola_ml = true;
   if (barrida) informe.barrida_ml = true;
   if (facturacionMl) informe.facturacion_ml = true;
-  if (imps.length || vs.length || cola || barrida || facturacionMl) {
+  // Por qué está en revisión cada publicación (sólo lectura, una vez por día cada una).
+  const motivos = await hayMotivosPendientes().catch(() => false);
+  if (motivos) informe.motivos_revision_ml = true;
+  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos) {
     after(async () => {
       await Promise.all([
         (async () => {
@@ -114,6 +118,14 @@ export async function GET(req: Request) {
             }
           } catch (e) {
             console.error("[tareas] Mercado Libre", e instanceof Error ? e.message : e);
+          }
+        })(),
+        (async () => {
+          if (!motivos) return;
+          try {
+            console.log("[tareas] motivos de revisión ML", JSON.stringify(await leerMotivosPendientes(null, t0 + 40_000)));
+          } catch (e) {
+            console.error("[tareas] motivos de revisión ML", e instanceof Error ? e.message : e);
           }
         })(),
         (async () => {

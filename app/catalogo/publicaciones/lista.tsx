@@ -4,6 +4,7 @@
 import { patronBusqueda } from "@/app/componentes/erp";
 import { verInactivos } from "@/app/componentes/Inactivos";
 import { campoFecha, type Lista, type SP } from "@/lib/listas/tipos";
+import { UNIR_MODERACION } from "@/lib/mercadolibre/moderaciones";
 
 export const TEXTO_ESTADO_PUBLICACION: Record<string, string> = { activa: "Activa", pausada: "Pausada", cerrada: "Cerrada" };
 
@@ -14,6 +15,8 @@ export function filtrosPublicaciones(sp: SP) {
     q: sp.q?.trim() || "",
     comienza: sp.contiene !== "1",
     inactivos: verInactivos(sp),
+    // En revisión en ML (Fer, 5/10): todas, sólo las que son por el precio, o por otro motivo.
+    revision: sp.revision === "todas" || sp.revision === "precio" || sp.revision === "otro" ? sp.revision : null,
   };
 }
 
@@ -60,6 +63,9 @@ export const LISTA_PUBLICACIONES: Lista = {
     { clave: "precio_campana", titulo: "Precio con campaña $", sql: PRECIO_CAMPANA_PUBLICACION, orden: false, formato: "pesos" },
     { clave: "pausada_manual", titulo: "Pausada por el usuario", sql: "case when pu.pausada_manual then 'Sí' end" },
     { clave: "stock_ml", titulo: "Stock en ML", sql: "mi.stock", formato: "entero" },
+    { clave: "motivo_revision", titulo: "Motivo de la revisión en ML", sql: "mm.motivo", orden: false, ancho: 60 },
+    { clave: "solucion_revision", titulo: "Solución que sugiere ML", sql: "mm.solucion", orden: false, ancho: 60 },
+    { clave: "revision_precio", titulo: "En revisión por precio", sql: "case when mm.por_precio then 'Sí' end" },
     { clave: "vendidos_ml", titulo: "Vendidos ML", sql: "case when c.tipo = 'mercadolibre' then coalesce(mi.vendidos, 0) end", orden: "coalesce(mi.vendidos, 0)", formato: "entero" },
     { clave: "estado_ml", titulo: "Estado en ML", sql: "mi.estado", valor: (f) => textoEstadoMl(f.estado_ml) },
     { clave: "disponible", titulo: "Disponible", sql: `${DISPONIBLE_PUBLICACION}::int`, orden: DISPONIBLE_PUBLICACION, formato: "entero" },
@@ -78,14 +84,16 @@ export const LISTA_PUBLICACIONES: Lista = {
         join variacion v on v.id = pu.variacion_id
         join producto p on p.id = v.producto_id
         join canal c on c.id = pu.canal_id
-        ${UNIR_MELI_ITEM}`,
+        ${UNIR_MELI_ITEM}
+        ${UNIR_MODERACION}`,
       donde: `pu.organizacion_id = $1
          and ($6 or p.estado <> 'archivado')
          and ($2::bigint is null or pu.canal_id = $2)
          and ($3::text is null or pu.estado = $3)
          and ($4::text is null or v.sku ilike $4 or pu.id_externo ilike $4 or v.codigo_barras = $5
-              or coalesce(pu.titulo, titulo_variacion(v.id)) ilike $4 or p.titulo ilike $4)`,
-      valores: [ctx.org, f.canal, f.estado, patronBusqueda(f.q, f.comienza), f.q, f.inactivos],
+              or coalesce(pu.titulo, titulo_variacion(v.id)) ilike $4 or p.titulo ilike $4)
+         and ($7::text is null or (mi.estado = 'under_review' and ($7 = 'todas' or ($7 = 'precio') = coalesce(mm.por_precio, false))))`,
+      valores: [ctx.org, f.canal, f.estado, patronBusqueda(f.q, f.comienza), f.q, f.inactivos, f.revision],
       orden: "c.nombre, v.sku, pu.id",
     };
   },
