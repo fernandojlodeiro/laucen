@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { Estado, url } from "@/app/componentes/erp";
-import { enVista, formatear } from "@/lib/moneda";
+import { enMoneda, enVista } from "@/lib/moneda";
 import { ESTADOS_PEDIDO, ESTADOS_PAGO, esEstadoPedido, esEstadoPago, sqlPedidoPendiente, sqlEstadoPago } from "@/lib/pedidos";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { TONO_ESTADO, TONO_PAGO, etiqueta } from "@/app/ventas/formato";
@@ -80,8 +80,8 @@ const CAMPOS: Campo[] = [
   { clave: "cargos_ml", titulo: "Cargos ML", sql: `${CARGOS_ML}::float`, orden: CARGOS_ML, formato: "pesos" },
   {
     clave: "neto_ml", titulo: "Neto ML", sql: `(p.total_ars - ${CARGOS_ML})::float`, orden: `(p.total_ars - ${CARGOS_ML})`, formato: "pesos",
-    celda: (f) => f.neto_ml == null ? <span className="text-[#5C6B76]" title="Todavía no hay cargos de la facturación de ML para esta venta">—</span>
-      : <Link href={`/ventas/pedidos/${f.id}`} className={AL_PEDIDO}>{formatear(Number(f.neto_ml), "ARS")}</Link>,
+    celda: (f, c) => f.neto_ml == null ? <span className="text-[#5C6B76]" title="Todavía no hay cargos de la facturación de ML para esta venta">—</span>
+      : <Link href={`/ventas/pedidos/${f.id}`} className={AL_PEDIDO}>{enMoneda(Number(f.neto_ml), c.moneda, c.tc ?? null)}</Link>,
   },
   {
     clave: "unidades", titulo: "Unidades", sql: `${UNIDADES}::int`, orden: UNIDADES, formato: "entero",

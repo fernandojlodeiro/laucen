@@ -5,10 +5,10 @@
 
 import Link from "next/link";
 import FotosProducto from "@/app/componentes/FotosProducto";
-import { formatear } from "@/lib/moneda";
+import { formatear, enMoneda, tcDelDia } from "@/lib/moneda";
 import { notFound } from "next/navigation";
 import { una, consulta } from "@/lib/erp/base";
-import { enVista } from "@/lib/moneda";
+import { enVista, type Moneda } from "@/lib/moneda";
 import { pedidoCompleto, ESTADOS_PEDIDO, ESTADOS_PAGO, type EstadoPedido, type EstadoPago } from "@/lib/pedidos";
 import { TIPOS_MOVIMIENTO, type TipoMovimiento } from "@/lib/stock";
 import {
@@ -103,6 +103,8 @@ export default async function DetallePedido({ params, searchParams }: { params: 
   const ofrecerFacturar = puedeFacturar && !facturado && !["nuevo", "cancelado"].includes(c.estado);
 
   const v = s.moneda;
+  // Lo que la base guarda sólo en pesos (comisión y cargos de ML) se ve, en dólares, al tipo de cambio del día del pedido.
+  const tcPedido = v === "USD" ? (await tcDelDia(s.org.id, new Date(c.fecha).toISOString().slice(0, 10)))?.venta ?? null : null;
   const unidades = lineas.reduce((t, l) => t + l.cantidad, 0);
   // Un carrito de Mercado Libre: cada línea dice de qué orden de ML vino.
   const variasOrdenes = new Set(lineas.map((l) => l.orden_ml).filter(Boolean)).size > 1;
@@ -184,7 +186,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
                 <div className="col-span-2"><Dato t="Dirección">{[envioMl.direccion?.linea ?? [envioMl.direccion?.calle, envioMl.direccion?.numero].filter(Boolean).join(" "), envioMl.direccion?.localidad, envioMl.direccion?.provincia, envioMl.direccion?.codigo_postal && `CP ${envioMl.direccion.codigo_postal}`].filter(Boolean).join(", ") || "—"}{envioMl.direccion?.referencia && <span className="block text-[11px] text-[#5C6B76]">{envioMl.direccion.referencia}</span>}</Dato></div>
               </div>
             ) : envio ? <DatosEnvio datos={envio} /> : <p className="text-xs text-[#5C6B76]">Sin datos de envío.</p>}
-            {ml?.comision != null && <p className="text-[11px] text-[#5C6B76] mt-1">Comisión de Mercado Libre: {formatear(ml.comision, "ARS")}{ml.pack ? ` · carrito ${ml.pack}` : ""}</p>}
+            {ml?.comision != null && <p className="text-[11px] text-[#5C6B76] mt-1">Comisión de Mercado Libre: {enMoneda(ml.comision, v, tcPedido)}{ml.pack ? ` · carrito ${ml.pack}` : ""}</p>}
             {ml?.sin_vincular && <p className="text-[11px] text-[#C03420] mt-1">Tiene artículos que no están vinculados a un producto de Laucen: esas líneas no descuentan stock. Vinculalos en Catálogo → Vincular con Mercado Libre.</p>}
           </div>
         </div>
@@ -210,7 +212,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
         </div>
       </div>
 
-      {cargos.length > 0 && <CargosMl cargos={cargos} total={c.total_ars} />}
+      {cargos.length > 0 && <CargosMl cargos={cargos} total={c.total_ars} moneda={v} tc={tcPedido} />}
 
       <Operacion org={s.org.id} pid={pid} sp={sp} />
 
@@ -288,12 +290,12 @@ export default async function DetallePedido({ params, searchParams }: { params: 
 /** Lo que Mercado Libre cobró por esta venta (de su facturación, leída por
  *  API): por tipo, y lo que queda neto. Los impuestos (percepciones y
  *  retenciones) se muestran aparte: no son costo, se toman a cuenta. */
-function CargosMl({ cargos, total }: { cargos: Awaited<ReturnType<typeof cargosDelPedido>>; total: number }) {
+function CargosMl({ cargos, total, moneda, tc }: { cargos: Awaited<ReturnType<typeof cargosDelPedido>>; total: number; moneda: Moneda; tc: number | null }) {
   const porTipo = new Map<string, number>();
   for (const x of cargos) if (TIPOS_COSTO.includes(x.tipo)) porTipo.set(x.tipo, (porTipo.get(x.tipo) ?? 0) + x.monto);
   const costo = [...porTipo.values()].reduce((a, b) => a + b, 0);
   const impuestos = cargos.filter((x) => x.tipo === "impuesto");
-  const pesos = (n: number) => formatear(n, "ARS");
+  const pesos = (n: number) => enMoneda(n, moneda, tc);
   return (
     <div className="mb-4">
       <h2 className="text-sm font-bold mb-2">Cargos de Mercado Libre</h2>

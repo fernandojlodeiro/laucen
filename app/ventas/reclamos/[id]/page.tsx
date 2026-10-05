@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { consulta, una } from "@/lib/erp/base";
-import { formatear } from "@/lib/moneda";
+import { enMoneda, tcParaVista } from "@/lib/moneda";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import FotosProducto from "@/app/componentes/FotosProducto";
@@ -55,6 +55,8 @@ const ESTADO_ESPERADA: Record<string, string> = { pending: "pendiente", accepted
 export default async function FichaReclamo({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SP> }) {
   const s = await entrarErp("reclamos_ver");
   const sp = await searchParams;
+  // Los montos de los reclamos están en pesos: en dólares, al tipo de cambio de hoy.
+  const tc = await tcParaVista(s.org.id, s.moneda);
   const rid = Number((await params).id);
   if (!Number.isInteger(rid) || rid <= 0) notFound();
   const r = await una<Reclamo>(`
@@ -153,8 +155,8 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
                 {esMl && <Dato etiqueta="Etapa">{r.etapa ? ETAPAS_ML[r.etapa] ?? r.etapa : null}</Dato>}
                 <Dato etiqueta="Fecha">{fechaHora(r.fecha)}</Dato>
                 {esMl && <Dato etiqueta="Para responder">{vence ? <Estado texto={`${vence.texto} · ${fechaHora(r.vence_ts)}`} tono={r.espera_respuesta ? vence.tono : "gris"} /> : null}</Dato>}
-                <Dato etiqueta="Monto" numero>{r.monto != null ? formatear(r.monto, "ARS") : null}</Dato>
-                {!esMl && <Dato etiqueta="Devuelto" numero>{r.reembolso_ars != null ? formatear(r.reembolso_ars, "ARS") : null}</Dato>}
+                <Dato etiqueta="Monto" numero>{r.monto != null ? enMoneda(r.monto, s.moneda, tc) : null}</Dato>
+                {!esMl && <Dato etiqueta="Devuelto" numero>{r.reembolso_ars != null ? enMoneda(r.reembolso_ars, s.moneda, tc) : null}</Dato>}
                 {(esMl || r.estado === "resuelto") && <Dato etiqueta="Resolución" className="sm:col-span-2">{r.resolucion}</Dato>}
                 {!esMl && <Dato etiqueta="Notas" largo className="sm:col-span-2 lg:col-span-3">{r.notas}</Dato>}
               </div>
@@ -187,7 +189,7 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
                           : l.sku ?? "—"}</td>
                         <td className={TD}>{l.titulo}</td>
                         <td className={TDN}>{l.cantidad}</td>
-                        <td className={TDN}>{formatear(l.precio, "ARS")}</td>
+                        <td className={TDN}>{enMoneda(l.precio, s.moneda, tc)}</td>
                       </tr>
                     ))}
                   </tbody>

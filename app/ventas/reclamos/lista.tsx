@@ -9,7 +9,7 @@ import {
   CONDICION_RECLAMOS, ORDEN_ABIERTOS, ESTADOS_RECLAMO, TIPOS_RECLAMO, ORIGENES_RECLAMO, esPestanaReclamos, type PestanaReclamos, type EstadoReclamo,
 } from "@/lib/reclamos";
 import { ETAPAS_ML, ESTADOS_DEVOLUCION } from "@/lib/mercadolibre/reclamos";
-import { formatear } from "@/lib/moneda";
+import { enMoneda } from "@/lib/moneda";
 import { tiempoParaResponder, TONO_RECLAMO } from "./formato";
 
 const esFecha = (x?: string) => (x && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : "");
@@ -69,7 +69,7 @@ const CAMPOS: Campo[] = [
     celda: (f) => <Estado texto={ESTADOS_RECLAMO[f.estado as EstadoReclamo] ?? f.estado} tono={TONO_RECLAMO[f.estado as EstadoReclamo] ?? "gris"} />,
   },
   { clave: "devolucion", titulo: "Devolución", sql: "coalesce(r.devolucion_envio_estado, r.devolucion_estado)", valor: traducido("devolucion", ESTADOS_DEVOLUCION) },
-  { clave: "monto", titulo: "Monto", sql: "r.monto::float", orden: "r.monto", formato: "pesos", celda: (f) => f.monto == null ? "—" : formatear(f.monto, "ARS") },
+  { clave: "monto", titulo: "Monto", sql: "r.monto::float", orden: "r.monto", formato: "pesos", celda: (f, c) => f.monto == null ? "—" : enMoneda(f.monto, c.moneda, c.tc ?? null) },
   { clave: "reembolso", titulo: "Devuelto $", sql: "r.reembolso_ars::float", orden: "r.reembolso_ars", formato: "pesos" },
   { clave: "resolucion", titulo: "Resolución", sql: "r.resolucion", ancho: 36 },
   { clave: "id_externo", titulo: "Id del reclamo (ML)", sql: "r.id_externo", ancho: 16 },

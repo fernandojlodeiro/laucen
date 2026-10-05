@@ -88,8 +88,8 @@ const CAMPOS: Campo[] = [
   { clave: "estado", titulo: "Estado", sql: "p.estado", valor: traducido("estado", ESTADOS_PRODUCTO), celda: (f) => <EstadoProducto estado={f.estado} /> },
   { clave: "costo_fob", titulo: "Costo FOB", sql: `${deVdef("costo_fob")}::float`, formato: "decimal" },
   { clave: "costo_moneda", titulo: "Moneda del costo", sql: deVdef("costo_moneda") },
-  { clave: "costo_promedio_ars", titulo: "Costo promedio $", sql: `${deVdef("costo_promedio_ars")}::float`, formato: "pesos" },
-  { clave: "costo_ultimo_ars", titulo: "Último costo $", sql: `${deVdef("costo_ultimo_ars")}::float`, formato: "pesos" },
+  { clave: "costo_promedio_ars", titulo: "Costo promedio $", sql: `${deVdef("costo_promedio_ars")}::float`, sqlUsd: `${deVdef("costo_promedio_usd")}::float`, formato: "pesos" },
+  { clave: "costo_ultimo_ars", titulo: "Último costo $", sql: `${deVdef("costo_ultimo_ars")}::float`, sqlUsd: `${deVdef("costo_ultimo_usd")}::float`, formato: "pesos" },
   { clave: "codigo_barras", titulo: "Código de barras", sql: "coalesce(p.codigo_barras, " + deVdef("codigo_barras") + ")", ancho: 16 },
   { clave: "iva", titulo: "IVA %", sql: "p.iva_pct::float", formato: "pct" },
   { clave: "descuento", titulo: "Descuento %", sql: "p.descuento_pct::float", formato: "pct" },
@@ -131,6 +131,7 @@ export const LISTA_PRODUCTOS: Lista = {
     const precios: Campo[] = listas.map((l) => ({
       clave: `precio_${l.id}`, titulo: `Precio ${l.nombre}`, formato: "pesos",
       sql: `(select pr.lista_ars::float from precio_de(p.organizacion_id, ${VDEF}, ${Math.trunc(l.id)}, (now() at time zone 'America/Argentina/Buenos_Aires')::date) pr)`,
+      sqlUsd: `(select pr.lista_usd::float from precio_de(p.organizacion_id, ${VDEF}, ${Math.trunc(l.id)}, (now() at time zone 'America/Argentina/Buenos_Aires')::date) pr)`,
     }));
     const i = CAMPOS.findIndex((c) => c.clave === "costo_ultimo_ars") + 1;
     return [...CAMPOS.slice(0, i), ...precios, ...CAMPOS.slice(i)];
