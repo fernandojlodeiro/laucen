@@ -38,6 +38,25 @@ function filasDeItem(it: ItemMl) {
   }));
 }
 
+/** La variación de Laucen que corresponde a un SKU de ML: igual, por equivalencia, o sin el "DE-" de adelante. */
+export async function variacionPorSku(org: string, sku: string): Promise<number | null> {
+  const v = await una<{ id: string }>(`
+    select id from (
+      select id, 1 o from variacion where organizacion_id = $1 and lower(sku) = lower($2)
+      union all
+      select v.id, 2 from sku_equivalencia e join variacion v on v.organizacion_id = e.organizacion_id and lower(v.sku) = lower(e.sku)
+       where e.organizacion_id = $1 and e.alias = upper($2)
+      union all
+      select id, 3 from variacion where organizacion_id = $1 and $2 ~* '^DE-.' and lower(sku) = lower(substr($2, 4))
+    ) x order by o limit 1`, [org, sku]);
+  return v ? Number(v.id) : null;
+}
+
+/** Los SKU que tiene un item de ML (el suyo, o el de cada variación). */
+export function skusDeItem(it: ItemMl): string[] {
+  return filasDeItem(it).map((f) => f.sku).filter((x): x is string => !!x);
+}
+
 /** Guarda un item en meli_item y, si su SKU coincide con una variación de
  *  Laucen y no estaba vinculado, lo vincula. Devuelve cuántas filas vinculó. */
 export async function guardarItem(cuenta: CuentaMl, it: ItemMl): Promise<number> {
@@ -65,16 +84,8 @@ export async function guardarItem(cuenta: CuentaMl, it: ItemMl): Promise<number>
       // SKU de Laucen). Las cuentas DEIROLAB y TIENDAVIRTUAL S tienen en ML
       // los SKU con "DE-" adelante y en Laucen se les sacó (Fer, 4/10): si
       // no está tal cual, se prueba sin el "DE-".
-      const v = await una<{ id: string }>(`
-        select id from (
-          select id, 1 o from variacion where organizacion_id = $1 and lower(sku) = lower($2)
-          union all
-          select v.id, 2 from sku_equivalencia e join variacion v on v.organizacion_id = e.organizacion_id and lower(v.sku) = lower(e.sku)
-           where e.organizacion_id = $1 and e.alias = upper($2)
-          union all
-          select id, 3 from variacion where organizacion_id = $1 and $2 ~* '^DE-.' and lower(sku) = lower(substr($2, 4))
-        ) x order by o limit 1`, [org, f.sku]);
-      if (v) { pubId = await vincular(cuenta, it.id, f.variation_id, Number(v.id)); vinculadas++; }
+      const v = await variacionPorSku(org, f.sku);
+      if (v) { pubId = await vincular(cuenta, it.id, f.variation_id, v); vinculadas++; }
     }
     if (pubId) await refrescarPublicacion(cuenta, pubId, it, f);
   }

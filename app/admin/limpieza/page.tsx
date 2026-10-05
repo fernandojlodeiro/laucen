@@ -10,6 +10,7 @@ import { SUAVE } from "@/app/botones";
 import { BotonBorrar, DetectarCategorias } from "./Botones";
 import { Fantasmas } from "./Fantasmas";
 import { NotebooksMl } from "./NotebooksMl";
+import { Recuperar } from "./Recuperar";
 import { consulta } from "@/lib/erp/base";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,16 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
           Las unidades que la carga del 3/10 sacó de ubicaciones reales del depósito, para cotejarlas con lo que hay en las estanterías.
         </p>
         <Link href="/admin/limpieza/ajustes" className={SUAVE}>Ver ajustes a revisar</Link>
+      </section>
+
+      <section className={CAJA}>
+        <h2 className="font-bold text-[#16577F]">Recuperar en Laucen las publicaciones pausadas de Mercado Libre</h2>
+        <p className="text-sm text-[#5C6B76]">
+          Trae a Laucen las publicaciones que en Mercado Libre están <b>pausadas</b> y Laucen no guarda, y las vincula por SKU con su producto
+          (aunque el producto esté Inactivo). <b>No se recuperan</b>: las cerradas, en revisión o inactivas, las que no tienen producto en Laucen,
+          las notebooks, ni las que descartaste vos. No cambia nada en Mercado Libre ni borra nada. Tarda unos minutos por cuenta.
+        </p>
+        <Recuperar cuentas={cuentasMl} />
       </section>
 
       <section className={CAJA}>
