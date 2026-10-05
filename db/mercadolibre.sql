@@ -352,7 +352,8 @@ select erp_politica_org('ml_barrida');
 -- comprobante con error, una importación andando, la cola de ML, stock que
 -- cruzó el umbral en un canal que sincroniza, un cambio de stock que no se
 -- avisó al instante (stock_cambio_pendiente de más de un minuto: falló la
--- llamada de pg_net, ver db/stock.sql), la barrida nocturna de 2 a 5) y,
+-- llamada de pg_net, ver db/stock.sql), publicaciones en revisión en ML sin el
+-- motivo leído en el último día, la barrida nocturna de 2 a 5) y,
 -- como red de seguridad, a los minutos 1 y 31 (asientos y cuenta corriente).
 -- 'meli-barrido' (avisos que fallaron, ventas y preguntas perdidas) pasa a
 -- cada 30 minutos: los avisos de ML se procesan en el momento en que llegan.
@@ -377,6 +378,9 @@ declare
                  where e.tipo = 'stock_bajo_umbral' and e.procesado_ts is null and c.tipo = 'mercadolibre'
                    and coalesce((c.config ->> 'sincronizar_stock')::boolean, false))
      or exists (select 1 from public.stock_cambio_pendiente where creado_ts < now() - interval '1 minute')
+     -- Motivos de revisión de ML sin leer en el último día (lib/mercadolibre/moderaciones.ts).
+     or exists (select 1 from public.meli_item m left join public.meli_moderacion mm on mm.canal_id = m.canal_id and mm.item_id = m.item_id
+                 where m.estado = 'under_review' and (mm.leido_ts is null or mm.leido_ts < now() - interval '1 day'))
      or (extract(hour from now() at time zone 'America/Argentina/Buenos_Aires') between 2 and 4
          and exists (select 1 from public.canal where tipo = 'mercadolibre' and estado = 'activo' and coalesce((config ->> 'sincronizar_stock')::boolean, false)))
 $cmd$;

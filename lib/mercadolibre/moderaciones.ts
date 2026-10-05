@@ -15,11 +15,19 @@ type Infraccion = Record<string, unknown> & {
   filter_subgroup?: string; subgroup?: string; type?: string; element_type?: string;
 };
 
-/** Texto sin HTML ni espacios de más. */
+const ENTIDADES: Record<string, string> = {
+  nbsp: " ", amp: "&", quot: "\"", lt: "<", gt: ">", apos: "'",
+  aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú", ntilde: "ñ", uuml: "ü",
+  Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú", Ntilde: "Ñ", Uuml: "Ü", iexcl: "¡", iquest: "¿",
+};
+
+/** Texto sin HTML, con los acentos de las entidades (&aacute; → á) y sin espacios de más. */
 export function sinHtml(t: unknown): string {
   return typeof t === "string"
-    ? t.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, "\"")
-      .replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").trim()
+    ? t.replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n").replace(/<[^>]+>/g, " ")
+      .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+      .replace(/&([a-zA-Z]+);/g, (m, e) => ENTIDADES[e] ?? m)
+      .replace(/[ \t]+/g, " ").replace(/ +([.,;:])/g, "$1").replace(/\s*\n\s*/g, "\n").trim()
     : "";
 }
 
