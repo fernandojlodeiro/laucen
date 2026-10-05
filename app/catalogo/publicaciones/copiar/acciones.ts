@@ -29,7 +29,10 @@ export async function accionPrepararCopia(fd: FormData) {
     const rechazos = r.rechazadas.length
       ? ` No entraron ${r.rechazadas.length}: ${r.rechazadas.slice(0, 5).map((x) => `${x.titulo ?? x.item_id} (${x.motivo})`).join("; ")}${r.rechazadas.length > 5 ? "; …" : ""}.`
       : "";
+    const avisos = r.conAvisos.length
+      ? ` ${r.conAvisos.length} entraron con avisos de Mercado Libre (no frenan; los resuelve ML al crear): ${r.conAvisos.slice(0, 3).map((x) => `${x.titulo ?? x.item_id} → ${x.avisos}`).join("; ")}${r.conAvisos.length > 3 ? "; …" : ""}.`
+      : "";
     if (!r.loteId) throw new ErrorErp(`No se preparó nada.${rechazos}`);
-    return { ir: `/config/canales/cola?ver=lotes&lote=${r.loteId}&ok=${encodeURIComponent(`Lote preparado: crear ${r.preparadas} publicaciones. Todavía no salió nada: revisalo y apretá "Mandar a Mercado Libre".${rechazos}`)}` };
+    return { ir: `/config/canales/cola?ver=lotes&lote=${r.loteId}&ok=${encodeURIComponent(`Lote preparado: crear ${r.preparadas} publicaciones. Todavía no salió nada: revisalo y apretá "Mandar a Mercado Libre".${avisos}${rechazos}`)}` };
   });
 }

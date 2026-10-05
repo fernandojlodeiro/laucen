@@ -108,6 +108,14 @@ const causasDe = (datos: unknown): CausaMl[] => {
   return Array.isArray(c) ? (c as CausaMl[]) : [];
 };
 
+/** ¿La comprobación de ML sirve? Sí si dio 2xx, o si dio 400 pero sólo con avisos (ningún error): los avisos
+ *  (envío gratis obligatorio, costo del envío, modo me1) los resuelve ML al crear la publicación. */
+export function aceptable(r: { status: number; datos: unknown }): boolean {
+  if (r.status >= 200 && r.status < 300) return true;
+  const causas = causasDe(r.datos);
+  return r.status === 400 && causas.length > 0 && causas.every((c) => c.type === "warning");
+}
+
 /** Los atributos que ML dice que se ignoran por no ser modificables. */
 export function atributosNoModificables(datos: unknown): string[] {
   return causasDe(datos).flatMap((c) => [...(c.message ?? "").matchAll(/Attribute \[([A-Z0-9_]+)\] ignored because it is not modifiable/g)].map((m) => m[1]));
@@ -134,7 +142,7 @@ async function modeloDeLaucen(org: string, sku: string): Promise<string | null> 
 }
 
 export type Rechazo = { item_id: string; titulo: string | null; motivo: string };
-export type PreparacionCopia = { loteId: number | null; preparadas: number; rechazadas: Rechazo[] };
+export type PreparacionCopia = { loteId: number | null; preparadas: number; rechazadas: Rechazo[]; conAvisos: { item_id: string; titulo: string | null; avisos: string }[] };
 
 const MAX_POR_LOTE = 40;
 
@@ -159,6 +167,7 @@ export async function prepararCopia(org: string, origen: number, destino: number
     "select sku, titulo from meli_item where organizacion_id = $1 and canal_id = $2 and estado <> 'closed'", [org, destino])).map((f) => claveProducto(f.sku, f.titulo)));
 
   const rechazadas: Rechazo[] = [];
+  const conAvisos: { item_id: string; titulo: string | null; avisos: string }[] = [];
   const cambios: CambioMl[] = [];
   const encontrados = new Set(filas.map((f) => f.item_id));
   for (const i of ids) if (!encontrados.has(i)) rechazadas.push({ item_id: i, titulo: null, motivo: "no está en la cuenta de origen" });
@@ -181,12 +190,15 @@ export async function prepararCopia(org: string, origen: number, destino: number
       cuerpo = armarCuerpoCopia(f.ml, sku, opciones, { modelo, sacar });
       comprobacion = await ml(cDestino, "POST", "/items/validate", cuerpo);
     }
-    // Si ML protesta por el envío, se vuelve a comprobar sin el bloque de envío (usa el que tiene la cuenta).
-    if (comprobacion.status === 400 && /mode me1|free shipping|shipping/i.test(JSON.stringify(comprobacion.datos))) {
+    // Si ML rechaza por algo del envío, se vuelve a comprobar sin el bloque de envío (usa el que tiene la cuenta).
+    if (!aceptable(comprobacion) && /mode me1|free shipping|shipping/i.test(JSON.stringify(comprobacion.datos))) {
       cuerpo = armarCuerpoCopia(f.ml, sku, opciones, { modelo, sacar, sinEnvio: true });
       comprobacion = await ml(cDestino, "POST", "/items/validate", cuerpo);
     }
-    if (comprobacion.status < 200 || comprobacion.status >= 300) { rech(`Mercado Libre no la acepta: ${motivoValidacion(comprobacion.status, comprobacion.datos)}`); continue; }
+    if (!aceptable(comprobacion)) { rech(`Mercado Libre no la acepta: ${motivoValidacion(comprobacion.status, comprobacion.datos)}`); continue; }
+    // Entra, pero ML dejó avisos (ej. "envío gratis obligatorio agregado"): se cuentan aparte.
+    const avisosMl = causasDe(comprobacion.datos).filter((c) => (c.message ?? "").trim() && !/not modifiable/.test(c.message ?? ""));
+    if (avisosMl.length) conAvisos.push({ item_id: f.item_id, titulo: f.titulo, avisos: motivoValidacion(comprobacion.status, { cause: avisosMl }) });
     const desc = await ml<{ plain_text?: string }>(cOrigen, "GET", `/items/${f.item_id}/description`);
     const texto = desc.status === 200 ? desc.datos.plain_text?.trim() : "";
     const pedidos: PedidoMl[] = [
@@ -199,8 +211,8 @@ export async function prepararCopia(org: string, origen: number, destino: number
       payload: { descripcion: `Crear en ${nombreDestino}: ${String(cuerpo.family_name ?? cuerpo.title)} (copia de ${f.item_id})`, origen: { canal: origen, item_id: f.item_id }, pedidos },
     });
   }
-  if (!cambios.length) return { loteId: null, preparadas: 0, rechazadas };
+  if (!cambios.length) return { loteId: null, preparadas: 0, rechazadas, conAvisos };
   const loteId = await encolarLoteConBoton(org, destino, cambios,
     `Crear en ${nombreDestino} ${cambios.length} publicaciones copiadas de otra cuenta`, usuarioId);
-  return { loteId, preparadas: cambios.length, rechazadas };
+  return { loteId, preparadas: cambios.length, rechazadas, conAvisos };
 }
