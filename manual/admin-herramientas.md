@@ -329,7 +329,7 @@ Todavía no existe: figura como próximamente en el menú Sourcing. El Piloto y 
 
 ## Limpieza de datos
 
-Pantalla [Limpieza de datos](/admin/limpieza) (menú **Coordinación**). Cuatro tareas de una sola vez, para hacer en este orden. Cada botón de borrar pregunta ahí mismo **¿Seguro? Sí / No**.
+Pantalla [Limpieza de datos](/admin/limpieza) (menú **Coordinación**). Tareas de una sola vez, para hacer en este orden. Cada botón de borrar pregunta ahí mismo **¿Seguro? Sí / No**.
 
 1. **Borrar pruebas**: borra todos los pedidos y lo que cuelga de ellos (renglones, historial, envíos, pagos, reclamos, cargos y mensajes de Mercado Libre), los lotes de picking y los movimientos de stock de prueba. La carga de stock inicial se conserva. Deja el reservado en cero.
 2. **Borrar notebooks sin stock**: borra las notebooks (y sus kits) sin stock. Se reconocen por la categoría de Mercado Libre "Notebooks", la familia "Notebook(s)" o un título que empieza con "Notebook". Muestra cuántas son y ejemplos antes de borrar.
@@ -339,6 +339,8 @@ Pantalla [Limpieza de datos](/admin/limpieza) (menú **Coordinación**). Cuatro 
 Arriba de las tareas hay un botón **Ver ajustes a revisar** que abre [Ajustes de la carga de stock](/admin/limpieza/ajustes): la lista de unidades que la carga de stock del 3/10 sacó de ubicaciones reales del depósito (el archivo de Virtual Seller no traía ubicaciones), con lo que había, lo que se sacó y lo que queda en cada una, para cotejarla con las estanterías.
 
 5. **Borrar basura de Virtual Seller**: borra las filas de relleno que se colaron como productos desde el Excel (el pie con "COPYRIGHT…" y "GENERADO POR…", el envío por OCA, el recargo financiero y los "NO USAR"). Sólo borra los archivados, sin stock y sin publicaciones, y muestra la lista antes. Los que dicen "no usar" pero tienen stock se avisan aparte y no se borran solos.
+
+6. **Publicaciones de Laucen que ya no existen en Mercado Libre** (arriba de las tareas, una fila por cuenta de ML): el botón **Revisar contra Mercado Libre** lee toda la cuenta y compara con lo que Laucen tiene guardado (sin cambiar nada; tarda unos segundos, hay que dejar la pantalla abierta). Muestra cuántas publicaciones tiene cada lado y cuántas están en Laucen pero ya no existen en ML, con ejemplos. Si hay, aparece **Borrar de Laucen las que ya no existen** (pregunta **¿Seguro? Sí / No**): vuelve a leer ML en ese momento y borra de Laucen sólo esas publicaciones y sus vínculos con productos; el producto, su stock y todo lo demás quedan, y en Mercado Libre no se toca nada. Si la lectura de ML no terminó o no coincide con lo que ML dice que hay, no borra nada y lo avisa. Sirve para que Laucen no muestre publicaciones que en ML ya no están (por ejemplo después de eliminar pausadas desde ML).
 
 El botón **Ver productos sin publicación** abre [Productos sin publicación](/admin/limpieza/sin-publicacion): los productos a los que no se les encontró ninguna publicación de Mercado Libre vinculada en ninguna cuenta, primero los activos y después los inactivos, con su stock y su familia.
 
