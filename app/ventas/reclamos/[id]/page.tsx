@@ -20,6 +20,7 @@ import {
   CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, url,
 } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
+import type { OrdenMlResumen } from "@/lib/mercadolibre/reclamos";
 import { ESTADOS_RECLAMO, TIPOS_RECLAMO, ORIGENES_RECLAMO, type EstadoReclamo, type TipoReclamo } from "@/lib/reclamos";
 import {
   ACCIONES_RECLAMO, ETAPAS_ML, ESTADOS_DEVOLUCION, textoAccion, type AccionMl, type ResolucionEsperadaMl,
@@ -42,7 +43,7 @@ type Reclamo = {
   fecha: Date; vence_ts: Date | null; espera_respuesta: boolean; acciones_disponibles: AccionMl[]; resolucion: string | null;
   monto: number | null; reembolso_ars: number | null; tc_dia: number | null; devolucion_id: string | null; devolucion_estado: string | null;
   devolucion_envio_estado: string | null; devolucion_tracking: string | null; recepcion_id: number | null; recepcion_estado: string | null;
-  notas: string | null; datos_externos: { resoluciones_esperadas?: ResolucionEsperadaMl[] | null } | null; actualizado_ts: Date;
+  notas: string | null; datos_externos: { resoluciones_esperadas?: ResolucionEsperadaMl[] | null; orden_ml?: OrdenMlResumen } | null; actualizado_ts: Date;
 };
 
 const DE: Record<string, string> = { comprador: "Comprador", vendedor: "Vos", ml: "Mercado Libre", interno: "Nota interna" };
@@ -97,6 +98,8 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
        where organizacion_id = $1 and tipo = 'reclamo' and item_id = $2 order by id desc limit 10`, [s.org.id, `reclamo:${r.id_externo}`]) : Promise.resolve([]),
   ]);
 
+  // Sin pedido en Laucen: la orden que trajo ML (comprador y productos).
+  const ordenMl = r.datos_externos?.orden_ml ?? null;
   const vence = r.estado !== "resuelto" ? tiempoParaResponder(r.vence_ts) : null;
   const esperadas = Array.isArray(r.datos_externos?.resoluciones_esperadas) ? r.datos_externos!.resoluciones_esperadas! : [];
   const acciones = esMl && r.estado !== "resuelto" ? (r.acciones_disponibles ?? []) : [];
@@ -148,7 +151,9 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
                   : r.orden_externa ? <span>Orden de ML {r.orden_externa} (sin pedido en Laucen)</span> : null}</Dato>
                 <Dato etiqueta={r.origen === "mercadolibre" ? "Comprador" : "Cliente"}>{r.cliente_id
                   ? <Link href={`/ventas/clientes/${r.cliente_id}`} className="text-[#16577F] hover:underline">{r.cliente}</Link>
-                  : r.comprador_externo ? `Usuario de ML ${r.comprador_externo}` : null}</Dato>
+                  : ordenMl?.comprador.nombre || ordenMl?.comprador.nickname
+                    ? `${ordenMl.comprador.nombre ?? ordenMl.comprador.nickname}${ordenMl.comprador.nombre && ordenMl.comprador.nickname ? ` (${ordenMl.comprador.nickname})` : ""} · usuario de ML ${r.comprador_externo}`
+                    : r.comprador_externo ? `Usuario de ML ${r.comprador_externo}` : null}</Dato>
                 <Dato etiqueta="Estado"><Estado texto={ESTADOS_RECLAMO[r.estado]} tono={TONO_RECLAMO[r.estado]} /></Dato>
                 <Dato etiqueta="Tipo">{TIPOS_RECLAMO[r.tipo] ?? r.tipo}</Dato>
                 <Dato etiqueta="Motivo" className="sm:col-span-2">{r.motivo}</Dato>
@@ -176,8 +181,37 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
 
           {/* Productos */}
           <section className={CAJA}>
-            <TituloSeccion titulo={`Productos (${lineas.length})`} />
-            {lineas.length === 0 ? <p className="text-xs text-[#5C6B76]">{r.pedido_id ? "El pedido no tiene líneas." : "Sin pedido en Laucen: no se sabe qué productos son."}</p> : (
+            <TituloSeccion titulo={`Productos (${lineas.length || ordenMl?.items.length || 0})`} />
+            {lineas.length === 0 && ordenMl && ordenMl.items.length > 0 && (
+              <>
+                <p className="text-[11px] text-[#5C6B76] mb-1">Sin pedido en Laucen (venta anterior): los productos vienen de la orden de Mercado Libre{ordenMl.fecha ? `, del ${fechaHora(new Date(ordenMl.fecha))}` : ""}.</p>
+                <div className={CAJA_TABLA}>
+                  <table className={TABLA}>
+                    <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Producto</th><th className={THN}>Cantidad</th><th className={THN}>Precio</th></tr></thead>
+                    <tbody>
+                      {ordenMl.items.map((x) => (
+                        <tr key={x.item_id} className={TR}>
+                          <td className={`${TD} font-mono whitespace-nowrap`}>{x.sku ?? "—"}</td>
+                          <td className={TD}>
+                            <span className="inline-flex items-center gap-2">
+                              {x.foto
+                                // eslint-disable-next-line @next/next/no-img-element
+                                ? <img src={x.foto} alt="" className="w-10 h-10 object-contain rounded border border-[#E3E9F0] bg-white" loading="lazy" />
+                                : null}
+                              <span>{x.permalink ? <a href={x.permalink} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline">{x.titulo ?? x.item_id} ↗</a> : x.titulo ?? x.item_id}
+                                {x.reclamado && ordenMl.items.length > 1 && <span className="ml-1 text-[10px] text-[#C03420]">(el reclamado)</span>}</span>
+                            </span>
+                          </td>
+                          <td className={TDN}>{x.cantidad}</td>
+                          <td className={TDN}>{x.precio != null ? enMoneda(x.precio, s.moneda, tc) : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+            {lineas.length === 0 && !(ordenMl && ordenMl.items.length > 0) ? <p className="text-xs text-[#5C6B76]">{r.pedido_id ? "El pedido no tiene líneas." : "Sin pedido en Laucen: no se sabe qué productos son. Tocá «Actualizar» para pedírselos a Mercado Libre."}</p> : lineas.length === 0 ? null : (
               <div className={CAJA_TABLA}>
                 <table className={TABLA}>
                   <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Producto</th><th className={THN}>Cantidad</th><th className={THN}>Precio</th></tr></thead>

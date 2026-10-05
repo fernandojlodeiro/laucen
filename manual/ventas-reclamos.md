@@ -133,7 +133,7 @@ En **"Conversación"**, escribí en **"Nota interna"** y apretá **"Anotar nota"
 
 ### Devolución de una venta anterior a Laucen (Virtual Seller)
 
-Un reclamo de Mercado Libre de una venta hecha antes de Laucen entra igual, pero sin pedido ("Orden de ML … (sin pedido en Laucen)").
+Un reclamo de Mercado Libre de una venta hecha antes de Laucen entra igual, pero sin pedido ("Orden de ML … (sin pedido en Laucen)"). En ese caso Laucen le pide a Mercado Libre la orden y muestra **quién compró** (nombre, apodo y usuario de ML) y **qué productos** (foto, título con enlace a la publicación, SKU, cantidad y precio; si la orden tenía varios, marca el reclamado). Se trae solo con el barrido de los reclamos abiertos (cada 30 minutos) o al tocar **"Actualizar"**. Si Mercado Libre ya no da esa orden, queda el aviso "Sin pedido en Laucen: no se sabe qué productos son". En cambio, cuando la venta fue de Laucen, el comprador y los productos salen del pedido.
 
 1. **"Recibir devolución"**: abre una recepción de devolución **sin pedido**, con la orden de ML de referencia. Ahí se escanea lo que vuelve (como nuevo o caja abierta).
 2. **"Nota de crédito"**: lleva a [Nota de crédito de una factura de afuera](/administracion/facturacion/nota-credito) con la orden de ML, el monto del reclamo y el cliente ya puestos. Falta poner el tipo, punto de venta y número de la factura vieja (están en la factura de Virtual Seller) y apretar "Buscar en ARCA".

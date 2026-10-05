@@ -58,6 +58,52 @@ export type ResolucionEsperadaMl = { player_role: string; expected_resolution: s
 
 /** Cómo se lee de ML (GET): por defecto la API con la llave de la cuenta. Los tests pasan otro. */
 export type Leer = (ruta: string) => Promise<RespuestaMl>;
+
+/** Lo que se guarda de la orden de ML de un reclamo sin pedido en Laucen (venta de Virtual Seller): quién compró y qué. */
+export type OrdenMlResumen = {
+  comprador: { id: number | null; nickname: string | null; nombre: string | null };
+  fecha: string | null; estado: string | null; total: number | null; envio_id: string | null;
+  items: { item_id: string; titulo: string | null; cantidad: number; precio: number | null; sku: string | null; foto: string | null; permalink: string | null; reclamado: boolean }[];
+};
+
+type OrdenMl = {
+  date_created?: string; status?: string; total_amount?: number; shipping?: { id?: number | string | null };
+  buyer?: { id?: number; nickname?: string; first_name?: string; last_name?: string };
+  order_items?: { item?: { id?: string; title?: string; seller_sku?: string | null; seller_custom_field?: string | null }; quantity?: number; unit_price?: number }[];
+};
+
+/** Resume una orden de ML. `devueltos` = los item_id de la devolución (si el reclamo es de una parte de la orden). Puro. */
+export function resumirOrdenMl(o: OrdenMl | null | undefined, devueltos: string[] = []): OrdenMlResumen | null {
+  if (!o || typeof o !== "object" || !Array.isArray(o.order_items)) return null;
+  const nombre = [o.buyer?.first_name, o.buyer?.last_name].filter(Boolean).join(" ").trim();
+  return {
+    comprador: { id: o.buyer?.id ?? null, nickname: o.buyer?.nickname ?? null, nombre: nombre || null },
+    fecha: o.date_created ?? null, estado: o.status ?? null, total: o.total_amount ?? null, envio_id: o.shipping?.id != null ? String(o.shipping.id) : null,
+    items: o.order_items.filter((x) => x.item?.id).map((x) => ({
+      item_id: x.item!.id!, titulo: x.item!.title ?? null, cantidad: x.quantity ?? 1, precio: x.unit_price ?? null,
+      sku: x.item!.seller_sku?.trim() || x.item!.seller_custom_field?.trim() || null, foto: null, permalink: null,
+      reclamado: devueltos.length === 0 || devueltos.includes(x.item!.id!),
+    })),
+  };
+}
+
+/** Pide a ML la orden del reclamo (comprador y productos) y la foto de cada producto. Si ML no la da (ya no la guarda, error), null. */
+async function traerOrdenMl(leer: Leer, orden: string, devueltos: string[]): Promise<OrdenMlResumen | null> {
+  try {
+    const r = await leer(`/orders/${orden}`);
+    if (r.status !== 200) return null;
+    const res = resumirOrdenMl(r.datos as OrdenMl, devueltos);
+    if (!res?.items.length) return res;
+    const it = await leer(`/items?ids=${[...new Set(res.items.map((x) => x.item_id))].slice(0, 20).join(",")}&attributes=id,secure_thumbnail,permalink`);
+    if (it.status === 200 && Array.isArray(it.datos)) {
+      const por = new Map((it.datos as { code: number; body: { id: string; secure_thumbnail?: string; permalink?: string } }[]).filter((x) => x.code === 200).map((x) => [x.body.id, x.body]));
+      for (const x of res.items) { x.foto = por.get(x.item_id)?.secure_thumbnail ?? null; x.permalink = por.get(x.item_id)?.permalink ?? null; }
+    }
+    return res;
+  } catch {
+    return null;
+  }
+}
 const leerDe = (cuenta: CuentaMl): Leer => (ruta) => ml(cuenta, "GET", ruta);
 
 // ── En criollo ─────────────────────────────────────────────
@@ -215,8 +261,8 @@ export async function importarReclamo(cuenta: CuentaMl, claimId: string, leer: L
   const r = await leer(`/post-purchase/v1/claims/${claimId}`);
   if (r.status !== 200) throw new Error(`reclamo ${claimId}: ${motivoMl(r)}`);
   const c = r.datos as ReclamoMl;
-  const antes = await una<{ id: string; estado: string; etapa: string | null; motivo_id: string | null; motivo: string | null; devolucion_estado: string | null; pedido_id: string | null }>(
-    "select id, estado, etapa, motivo_id, motivo, devolucion_estado, pedido_id from reclamo where organizacion_id = $1 and origen = 'mercadolibre' and id_externo = $2",
+  const antes = await una<{ id: string; estado: string; etapa: string | null; motivo_id: string | null; motivo: string | null; devolucion_estado: string | null; pedido_id: string | null; orden_ml: OrdenMlResumen | null }>(
+    "select id, estado, etapa, motivo_id, motivo, devolucion_estado, pedido_id, datos_externos -> 'orden_ml' orden_ml from reclamo where organizacion_id = $1 and origen = 'mercadolibre' and id_externo = $2",
     [org, String(c.id)]);
 
   const [mens, dev, esperadas] = await Promise.all([
@@ -244,8 +290,12 @@ export async function importarReclamo(cuenta: CuentaMl, claimId: string, leer: L
                     case when not bool_or(l.datos_externos #>> '{ml,order_id}' = $2) then sum(l.cantidad * l.precio_unit_ars) end) m
       from pedido_linea l where l.pedido_id = $1`, [pedidoId, f.orden_externa ?? ""]) : null;
 
+  // Sin pedido en Laucen (venta anterior, de Virtual Seller): quién compró y qué, directo de la orden de ML.
+  const ordenMl = !pedidoId && f.orden_externa
+    ? (await traerOrdenMl(leer, f.orden_externa, (devolucion?.orders ?? []).map((x) => x.item_id).filter((x): x is string => !!x))) ?? antes?.orden_ml ?? null
+    : null;
   const datos = {
-    ml: c, devolucion, resoluciones_esperadas: esperadas.status === 200 ? esperadas.datos : null,
+    ml: c, devolucion, resoluciones_esperadas: esperadas.status === 200 ? esperadas.datos : null, ...(ordenMl ? { orden_ml: ordenMl } : {}),
   };
   const fila = await una<{ id: string }>(`
     insert into reclamo (organizacion_id, canal_id, origen, id_externo, pedido_id, cliente_id, orden_externa, comprador_externo, tipo, motivo_id, motivo,
