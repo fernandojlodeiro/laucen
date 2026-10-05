@@ -38,12 +38,27 @@ type EnvioCrudo = {
 
 const limpio = (x?: string | null) => (x && !/^X+$/.test(x.trim()) ? x.trim() : undefined); // ML tapa datos con "XXXXXXX"
 
+/** "Despachar antes de" (lo que dice la etiqueta): en Colecta y punto de
+ *  despacho no viene en el envío, sale del plazo de despacho del envío
+ *  (/sla; si no, /lead_time). Sólo mientras falta despacharlo. */
+async function plazoDespacho(cuenta: CuentaMl, e: EnvioCrudo): Promise<string | null> {
+  if (!["pending", "handling", "ready_to_ship"].includes(e.status ?? "") || e.logistic_type === "fulfillment") return null;
+  try {
+    const sla = await ml<{ expected_date?: string | null }>(cuenta, "GET", `/shipments/${e.id}/sla`);
+    if (sla.status === 200 && sla.datos?.expected_date) return sla.datos.expected_date;
+    const lt = await ml<{ estimated_handling_limit?: { date?: string | null } }>(cuenta, "GET", `/shipments/${e.id}/lead_time`);
+    if (lt.status === 200 && lt.datos?.estimated_handling_limit?.date) return lt.datos.estimated_handling_limit.date;
+  } catch { /* sin plazo: queda "—" */ }
+  return null;
+}
+
 /** Lee el envío (formato clásico de /shipments/{id}). null si ML no lo da. */
 export async function leerEnvio(cuenta: CuentaMl, id: number | string): Promise<EnvioMl | null> {
   const r = await ml<EnvioCrudo>(cuenta, "GET", `/shipments/${id}`);
   if (r.status !== 200) return null;
   const e = r.datos;
   const d = e.receiver_address ?? {};
+  const despacharAntes = e.shipping_option?.estimated_handling_limit?.date ?? await plazoDespacho(cuenta, e);
   const provincia = d.state?.id?.match(/^AR-(\w)$/)?.[1];
   return {
     idExterno: String(e.id),
@@ -66,7 +81,7 @@ export async function leerEnvio(cuenta: CuentaMl, id: number | string): Promise<
       longitud: d.longitude || undefined, id_externo: d.id ? String(d.id) : undefined,
     } : null,
     costo: e.shipping_option?.cost ?? null,
-    despacharAntes: e.shipping_option?.estimated_handling_limit?.date ?? null,
+    despacharAntes,
     entregaEstimada: e.shipping_option?.estimated_delivery_time?.date ?? null,
     crudo: e,
   };
@@ -81,7 +96,7 @@ export async function guardarEnvio(org: string, canalId: number, pedidoId: numbe
       pedido_id = coalesce(excluded.pedido_id, envio.pedido_id), logistica = excluded.logistica, metodo = excluded.metodo,
       estado = excluded.estado, subestado = excluded.subestado, tracking = excluded.tracking, transportista = excluded.transportista,
       receptor = coalesce(excluded.receptor, envio.receptor), direccion = excluded.direccion, costo_ars = excluded.costo_ars,
-      despachar_antes = excluded.despachar_antes, entrega_estimada = excluded.entrega_estimada,
+      despachar_antes = coalesce(excluded.despachar_antes, envio.despachar_antes), entrega_estimada = excluded.entrega_estimada,
       datos_externos = excluded.datos_externos, actualizado_ts = now()`,
     [org, canalId, pedidoId, e.idExterno, e.logistica, e.metodo, e.estado, e.subestado, e.tracking, e.transportista,
       e.receptor, JSON.stringify(e.direccion), e.costo, e.despacharAntes, e.entregaEstimada, JSON.stringify({ ml: e.crudo })]);
@@ -101,4 +116,21 @@ export async function bajarEtiquetas(cuenta: CuentaMl, envios: string[], formato
     return { ok: false, motivo: ya ? "Mercado Libre no da la etiqueta de ese envío (ya despachado, cancelado o todavía no listo para enviar)." : `Mercado Libre no dio la etiqueta (${r.status}).` };
   }
   return { ok: true, tipo: r.headers.get("content-type") ?? (formato === "pdf" ? "application/pdf" : "application/zip"), datos: await r.arrayBuffer() };
+}
+
+/** Los envíos por despachar que todavía no tienen "despachar antes de"
+ *  (los que entraron antes de leer el plazo): se completan de a pocos en
+ *  cada barrido. Sólo lee de ML. */
+export async function completarPlazosDespacho(cuenta: CuentaMl, tope = 30): Promise<number> {
+  const filas = await consulta<{ id: string; id_externo: string; estado: string | null; logistica: string | null }>(`
+    select id, id_externo, estado, logistica from envio
+     where canal_id = $1 and id_externo is not null and despachar_antes is null
+       and estado in ('pending', 'handling', 'ready_to_ship') and coalesce(logistica, '') <> 'fulfillment'
+     order by id desc limit $2`, [cuenta.canalId, tope]);
+  let n = 0;
+  for (const f of filas) {
+    const d = await plazoDespacho(cuenta, { id: Number(f.id_externo), status: f.estado ?? undefined, logistic_type: f.logistica ?? undefined });
+    if (d) { await consulta("update envio set despachar_antes = $2 where id = $1", [f.id, d]); n++; }
+  }
+  return n;
 }

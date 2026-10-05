@@ -188,15 +188,28 @@ export default async function DetallePedido({ params, searchParams }: { params: 
               <div className="grid grid-cols-2 gap-2 text-xs mb-2">
                 <Dato t="Logística">{LOGISTICA[envioMl.logistica ?? ""] ?? envioMl.logistica ?? "—"}{envioMl.metodo ? ` · ${envioMl.metodo}` : ""}</Dato>
                 <Dato t="Estado">{ESTADO_ENVIO[envioMl.estado ?? ""] ?? envioMl.estado ?? "—"}{envioMl.subestado ? ` (${envioMl.subestado})` : ""}</Dato>
-                <Dato t="Despachar antes de">{fechaCorta(envioMl.despachar_antes)}</Dato>
+                <Dato t="Despachar antes de">{envioMl.despachar_antes
+                  ? <Estado texto={fechaCorta(envioMl.despachar_antes)} tono={envioMl.en_camino || envioMl.entregado ? "gris" : new Date(envioMl.despachar_antes) < new Date() ? "rojo" : "azul"} />
+                  : "—"}</Dato>
                 <Dato t="Entrega estimada">{fechaCorta(envioMl.entrega_estimada)}</Dato>
-                <Dato t="Etiqueta impresa">{fechaCorta(envioMl.impresa)}</Dato>
-                <Dato t="Lista para despachar">{fechaCorta(envioMl.lista)}</Dato>
-                <Dato t="En camino">{fechaCorta(envioMl.en_camino)}</Dato>
-                <Dato t="Entregado">{fechaCorta(envioMl.entregado)}</Dato>
-                {envioMl.no_entregado && <Dato t="No entregado">{fechaCorta(envioMl.no_entregado)}</Dato>}
-                {envioMl.devuelto && <Dato t="Devuelto">{fechaCorta(envioMl.devuelto)}</Dato>}
-                {envioMl.cancelado && <Dato t="Cancelado">{fechaCorta(envioMl.cancelado)}</Dato>}
+                {/* Los hitos del envío: verde con la fecha cuando pasó, "Pendiente" en amarillo mientras no. */}
+                {(() => {
+                  const cortado = envioMl.cancelado ?? envioMl.devuelto;
+                  const hito = (t: string, d: Date | null) => (
+                    <Dato t={t}>{d ? <Estado texto={fechaCorta(d)} tono="verde" /> : cortado ? "—" : <Estado texto="Pendiente" tono="amarillo" />}</Dato>
+                  );
+                  return (
+                    <>
+                      {hito("Etiqueta impresa", envioMl.impresa)}
+                      {hito("Lista para despachar", envioMl.lista)}
+                      {hito("En camino", envioMl.en_camino)}
+                      {hito("Entregado", envioMl.entregado)}
+                      {envioMl.no_entregado && <Dato t="No entregado"><Estado texto={fechaCorta(envioMl.no_entregado)} tono="rojo" /></Dato>}
+                      {envioMl.devuelto && <Dato t="Devuelto"><Estado texto={fechaCorta(envioMl.devuelto)} tono="rojo" /></Dato>}
+                      {envioMl.cancelado && <Dato t="Cancelado"><Estado texto={fechaCorta(envioMl.cancelado)} tono="rojo" /></Dato>}
+                    </>
+                  );
+                })()}
                 <Dato t="Recibe">{envioMl.receptor ?? "—"}</Dato>
                 <Dato t="Seguimiento">{envioMl.tracking ?? "—"}</Dato>
                 <div className="col-span-2"><Dato t="Dirección">{[envioMl.direccion?.linea ?? [envioMl.direccion?.calle, envioMl.direccion?.numero].filter(Boolean).join(" "), envioMl.direccion?.localidad, envioMl.direccion?.provincia, envioMl.direccion?.codigo_postal && `CP ${envioMl.direccion.codigo_postal}`].filter(Boolean).join(", ") || "—"}{envioMl.direccion?.referencia && <span className="block text-[11px] text-[#5C6B76]">{envioMl.direccion.referencia}</span>}</Dato></div>
