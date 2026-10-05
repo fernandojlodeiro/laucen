@@ -20,9 +20,13 @@ export async function accionLeerPromociones(fd: FormData) {
     let campanas = 0, nuevas = 0, items = 0, eventos = 0;
     const errores: string[] = [];
     for (const c of cuentas) {
-      const r = await leerCampanas(s.org.id, c.canalId!, c.meliUserId, (ruta) => ml(c, "GET", ruta), Date.now() + 50_000, { historico });
-      campanas += r.campanas; nuevas += r.nuevas; items += r.items; eventos += r.eventos;
-      for (const e of r.errores.slice(0, 3)) errores.push(`${c.nickname ?? c.id}: ${e}`);
+      try {
+        const r = await leerCampanas(s.org.id, c.canalId!, c.meliUserId, (ruta) => ml(c, "GET", ruta), Date.now() + 50_000, { historico });
+        campanas += r.campanas; nuevas += r.nuevas; items += r.items; eventos += r.eventos;
+        for (const e of r.errores.slice(0, 3)) errores.push(`${c.nickname ?? c.id}: ${e}`);
+      } catch (e) {
+        errores.push(`${c.nickname ?? c.id}: ${(e as Error).message.slice(0, 200)}`);
+      }
     }
     revalidatePath(BASE);
     const n = (x: number) => x.toLocaleString("es-AR");

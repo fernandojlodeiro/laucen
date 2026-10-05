@@ -41,6 +41,17 @@ export async function leerPreciosMl(hastaMs: number, opts: { leer?: Leer; org?: 
       ultimo = Date.now();
       return leer(cuenta, ruta);
     };
+    // 0. Las campañas de la cuenta (y las publicaciones que están adentro de las que están en curso), cada hora, PRIMERO
+    // (el precio para ganar puede ocupar todo el tiempo del barrido y las campañas quedarían sin leer):
+    // la historia de promociones (lib/precios-ml/promos.ts). Un error acá no frena lo demás.
+    try {
+      const ult = await consulta<{ t: Date | null }>("select max(leido_ts) t from ml_promo_campana where canal_id = $1", [canal]);
+      if (!ult[0]?.t || Date.now() - ult[0].t.getTime() > 3_600_000) {
+        const c = await leerCampanas(org, canal, cuenta.meliUserId, pedir, hastaMs - 2_000);
+        res.campanas += c.campanas; res.eventos_promo += c.eventos;
+        if (c.errores.length) { res.errores++; console.error("[promos] campañas", canal, c.errores.join(" | ")); }
+      }
+    } catch (e) { res.errores++; console.error("[promos] campañas", canal, (e as Error).message); }
     // 1. Precio para ganar: las de catálogo activas, la más vieja primero (los destacados antes).
     const ptw = await consulta<{ item: string }>(`
       select item from (
@@ -67,16 +78,6 @@ export async function leerPreciosMl(hastaMs: number, opts: { leer?: Leer; org?: 
           ok ? d.winner?.price ?? null : null, ok ? null : `ML contestó ${r.status}`]);
       if (ok) res.ptw++; else res.errores++;
     }
-    // 2a. Las campañas de la cuenta (y las publicaciones que están adentro de las que están en curso), cada hora:
-    // la historia de promociones (lib/precios-ml/promos.ts). Un error acá no frena lo demás.
-    try {
-      const ult = await consulta<{ t: Date | null }>("select max(leido_ts) t from ml_promo_campana where canal_id = $1", [canal]);
-      if (!ult[0]?.t || Date.now() - ult[0].t.getTime() > 3_600_000) {
-        const c = await leerCampanas(org, canal, cuenta.meliUserId, pedir, hastaMs - 2_000);
-        res.campanas += c.campanas; res.eventos_promo += c.eventos;
-        if (c.errores.length) { res.errores++; console.error("[promos] campañas", canal, c.errores.join(" | ")); }
-      }
-    } catch (e) { res.errores++; console.error("[promos] campañas", canal, (e as Error).message); }
     // 2b. Campañas a las que puede entrar cada publicación: cada 12 h.
     const promos = await consulta<{ item: string; primera: boolean }>(`
       select distinct p.id_externo item, (l.item_id is null) primera from publicacion p

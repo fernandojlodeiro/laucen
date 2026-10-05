@@ -187,45 +187,55 @@ export async function leerCampanas(org: string, canal: number, userId: number, p
     }
   }
   // 2. Cada campaña: su detalle (si es nueva, cambió de estado o hace más de un día), guardarla y anotar qué cambió.
-  const conocidas = new Map((await consulta<FilaCampana & { leido_ts: string }>(
-    `select promocion_id, tipo, subtipo, nombre, estado, desde::text, hasta::text, limite::text, pct_meli::float, pct_vendedor::float, leido_ts::text from ml_promo_campana where canal_id = $1`, [canal]))
+  const conocidas = new Map((await consulta<FilaCampana & { edad_s: number }>(
+    `select promocion_id, tipo, subtipo, nombre, estado, desde::text, hasta::text, limite::text, pct_meli::float, pct_vendedor::float,
+            extract(epoch from (now() - leido_ts))::float edad_s from ml_promo_campana where canal_id = $1`, [canal]))
     .map((c) => [c.promocion_id, c]));
   const eventos: EventoPromo[] = [];
   const enCurso: FilaCampana[] = [];
   for (const x of vistas.values()) {
     if (Date.now() > hastaMs) { res.errores.push("se cortó por tiempo"); break; }
-    const previa = conocidas.get(String(x.id)) ?? null;
-    const basica = filaDeCampana(x);
-    if (!basica) continue;
-    let detalle: PromoMl | null = null;
-    const viejo = !previa || (previa.estado ?? "") !== (basica.estado ?? "") || Date.now() - Date.parse(previa.leido_ts) > 24 * 3_600_000;
-    if (viejo) {
-      const d = await pedir(`/seller-promotions/promotions/${x.id}?promotion_type=${encodeURIComponent(x.type!)}&app_version=v2`);
-      if (d.status === 200 && d.datos && typeof d.datos === "object") detalle = d.datos as PromoMl;
+    try {
+      const previa = conocidas.get(String(x.id)) ?? null;
+      const basica = filaDeCampana(x);
+      if (!basica) continue;
+      let detalle: PromoMl | null = null;
+      const viejo = !previa || (previa.estado ?? "") !== (basica.estado ?? "") || previa.edad_s > 24 * 3600;
+      if (viejo) {
+        const d = await pedir(`/seller-promotions/promotions/${x.id}?promotion_type=${encodeURIComponent(x.type!)}&app_version=v2`);
+        if (d.status === 200 && d.datos && typeof d.datos === "object") detalle = d.datos as PromoMl;
+      }
+      const fila = filaDeCampana(x, detalle)!;
+      await consulta(`
+        insert into ml_promo_campana (organizacion_id, canal_id, promocion_id, tipo, subtipo, nombre, estado, desde, hasta, limite, pct_meli, pct_vendedor, datos, leido_ts)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, now())
+        on conflict (canal_id, promocion_id) do update set tipo = excluded.tipo, subtipo = coalesce(excluded.subtipo, ml_promo_campana.subtipo), nombre = excluded.nombre,
+          estado = excluded.estado, desde = excluded.desde, hasta = excluded.hasta, limite = excluded.limite,
+          pct_meli = coalesce(excluded.pct_meli, ml_promo_campana.pct_meli), pct_vendedor = coalesce(excluded.pct_vendedor, ml_promo_campana.pct_vendedor),
+          datos = case when $14::boolean then excluded.datos else ml_promo_campana.datos || jsonb_build_object('lista', excluded.datos -> 'lista') end, leido_ts = now()`,
+        [org, canal, fila.promocion_id, fila.tipo, fila.subtipo, fila.nombre, fila.estado, fila.desde, fila.hasta, fila.limite, fila.pct_meli, fila.pct_vendedor,
+          JSON.stringify({ lista: x, ...(detalle ? { detalle } : {}) }), !!detalle]);
+      // Recién guardada: ahora sí se anota qué cambió (si falló el guardado, no queda un evento sin campaña).
+      eventos.push(...diferenciasCampana(previa, fila));
+      res.campanas++;
+      if (!previa) res.nuevas++;
+      if (enPromocion(fila.estado)) enCurso.push(fila);
+    } catch (e) {
+      res.errores.push(`campaña ${x.id}: ${(e as Error).message.slice(0, 160)}`);
     }
-    const fila = filaDeCampana(x, detalle)!;
-    eventos.push(...diferenciasCampana(previa, fila));
-    await consulta(`
-      insert into ml_promo_campana (organizacion_id, canal_id, promocion_id, tipo, subtipo, nombre, estado, desde, hasta, limite, pct_meli, pct_vendedor, datos, leido_ts)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, now())
-      on conflict (canal_id, promocion_id) do update set tipo = excluded.tipo, subtipo = coalesce(excluded.subtipo, ml_promo_campana.subtipo), nombre = excluded.nombre,
-        estado = excluded.estado, desde = excluded.desde, hasta = excluded.hasta, limite = excluded.limite,
-        pct_meli = coalesce(excluded.pct_meli, ml_promo_campana.pct_meli), pct_vendedor = coalesce(excluded.pct_vendedor, ml_promo_campana.pct_vendedor),
-        datos = case when $14::boolean then excluded.datos else ml_promo_campana.datos || jsonb_build_object('lista', excluded.datos -> 'lista') end, leido_ts = now()`,
-      [org, canal, fila.promocion_id, fila.tipo, fila.subtipo, fila.nombre, fila.estado, fila.desde, fila.hasta, fila.limite, fila.pct_meli, fila.pct_vendedor,
-        JSON.stringify({ lista: x, ...(detalle ? { detalle } : {}) }), !!detalle]);
-    res.campanas++;
-    if (!previa) res.nuevas++;
-    if (enPromocion(fila.estado)) enCurso.push(fila);
   }
   await guardarEventos(org, canal, eventos);
   res.eventos += eventos.length;
   // 3. Las publicaciones que están adentro de las campañas en curso.
   for (const c of enCurso) {
     if (Date.now() > hastaMs - 3_000) { res.errores.push("se cortó por tiempo"); break; }
-    const r = await leerItemsDeCampana(org, canal, c, pedir, hastaMs);
-    res.items += r.items; res.eventos += r.eventos;
-    if (r.error) res.errores.push(`${c.nombre ?? c.promocion_id}: ${r.error}`);
+    try {
+      const r = await leerItemsDeCampana(org, canal, c, pedir, hastaMs);
+      res.items += r.items; res.eventos += r.eventos;
+      if (r.error) res.errores.push(`${c.nombre ?? c.promocion_id}: ${r.error}`);
+    } catch (e) {
+      res.errores.push(`${c.nombre ?? c.promocion_id}: ${(e as Error).message.slice(0, 160)}`);
+    }
   }
   return res;
 }

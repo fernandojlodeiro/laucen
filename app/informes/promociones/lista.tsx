@@ -115,11 +115,12 @@ const CAMPOS_PUBLICACIONES: Campo[] = [
     usa: ["precio", "precio_original"], valor: (f) => descuentoPct(f.precio_original, f.precio) },
   { clave: "min_precio", titulo: "Mínimo que acepta ML", sql: "i.min_precio", formato: "pesos", fiscal: true, ancho: 16 },
   { clave: "max_precio", titulo: "Máximo con descuento", sql: "i.max_precio", formato: "pesos", fiscal: true, ancho: 16 },
-  { clave: "pct_meli", titulo: "% que pone ML", sql: "i.pct_meli", formato: "pct" },
-  { clave: "pct_vendedor", titulo: "% que ponés vos", sql: "i.pct_vendedor", formato: "pct" },
-  campoFecha("desde", "Desde", "i.desde", { hora: true }),
-  campoFecha("hasta", "Hasta", "i.hasta", { hora: true }),
-  campoFecha("limite", "Se puede entrar hasta", "i.limite", { hora: true }),
+  { clave: "pct_meli", titulo: "% que pone ML", sql: "coalesce(i.pct_meli, cp.pct_meli)", formato: "pct" },
+  { clave: "pct_vendedor", titulo: "% que ponés vos", sql: "coalesce(i.pct_vendedor, cp.pct_vendedor)", formato: "pct" },
+  // Si la publicación no trae sus fechas (las campañas tradicionales no las dan por publicación), las de la campaña.
+  campoFecha("desde", "Desde", "coalesce(i.desde, cp.desde)", { hora: true }),
+  campoFecha("hasta", "Hasta", "coalesce(i.hasta, cp.hasta)", { hora: true }),
+  campoFecha("limite", "Se puede entrar hasta", "coalesce(i.limite, cp.limite)", { hora: true }),
   campoFecha("visto", "Visto por primera vez", "i.visto_ts", { hora: true }),
   campoFecha("leido", "Última lectura", "i.leido_ts", { hora: true }),
 ];
@@ -143,7 +144,10 @@ export const LISTA_PROMO_PUBLICACIONES: Lista = {
     if (f.promo) donde.push(`i.promocion_id = ${p(f.promo)}`);
     if (f.tipo) donde.push(`i.tipo = ${p(f.tipo)}`);
     if (f.q) donde.push(condBusqueda("i", p(patronBusqueda(f.q, f.comienza))));
-    return { desde: `ml_promo_item i ${JOIN_PUBLICACION("i")}`, donde: donde.join(" and "), valores, orden: "i.hasta nulls last, i.item_id" };
+    return {
+      desde: `ml_promo_item i left join ml_promo_campana cp on cp.canal_id = i.canal_id and cp.promocion_id = i.promocion_id ${JOIN_PUBLICACION("i")}`,
+      donde: donde.join(" and "), valores, orden: "coalesce(i.hasta, cp.hasta) nulls last, i.item_id",
+    };
   },
 };
 
