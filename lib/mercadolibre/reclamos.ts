@@ -63,6 +63,8 @@ export type Leer = (ruta: string) => Promise<RespuestaMl>;
 export type OrdenMlResumen = {
   comprador: { id: number | null; nickname: string | null; nombre: string | null };
   fecha: string | null; estado: string | null; total: number | null; envio_id: string | null;
+  /** Si ML no dio la orden: por qué. Entonces el comprador y los productos son lo poco que se sabe por la devolución. */
+  error?: string | null;
   items: { item_id: string; titulo: string | null; cantidad: number; precio: number | null; sku: string | null; foto: string | null; permalink: string | null; reclamado: boolean }[];
 };
 
@@ -87,23 +89,39 @@ export function resumirOrdenMl(o: OrdenMl | null | undefined, devueltos: string[
   };
 }
 
-/** Pide a ML la orden del reclamo (comprador y productos) y la foto de cada producto. Si ML no la da (ya no la guarda, error), null. */
-async function traerOrdenMl(leer: Leer, orden: string, devueltos: string[]): Promise<OrdenMlResumen | null> {
+/** Pide a ML la orden del reclamo (comprador y productos) y los datos de cada producto (título, foto, enlace). Si ML no da la
+ *  orden, se arma lo que se puede con el artículo de la devolución y se anota por qué (`error`). */
+async function traerOrdenMl(leer: Leer, orden: string, devueltos: { item_id: string; cantidad: number }[], compradorId: string | null): Promise<OrdenMlResumen | null> {
   try {
     const r = await leer(`/orders/${orden}`);
-    if (r.status !== 200) return null;
-    const res = resumirOrdenMl(r.datos as OrdenMl, devueltos);
-    if (!res?.items.length) return res;
-    const it = await leer(`/items?ids=${[...new Set(res.items.map((x) => x.item_id))].slice(0, 20).join(",")}&attributes=id,secure_thumbnail,permalink`);
+    let res = r.status === 200 ? resumirOrdenMl(r.datos as OrdenMl, devueltos.map((x) => x.item_id)) : null;
+    let error: string | null = null;
+    if (!res) {
+      const d = r.datos as { message?: string; error?: string } | string | null;
+      const detalle = typeof d === "string" ? d.slice(0, 120) : d?.message ?? d?.error ?? "";
+      error = `Mercado Libre no dio la orden (${r.status === 0 ? "sin respuesta" : r.status}${detalle ? `: ${detalle}` : ""}).`;
+      if (!devueltos.length) return { comprador: { id: compradorId ? Number(compradorId) : null, nickname: null, nombre: null }, fecha: null, estado: null, total: null, envio_id: null, items: [], error };
+      res = {
+        comprador: { id: compradorId ? Number(compradorId) : null, nickname: null, nombre: null }, fecha: null, estado: null, total: null, envio_id: null,
+        items: devueltos.map((x) => ({ item_id: x.item_id, titulo: null, cantidad: x.cantidad, precio: null, sku: null, foto: null, permalink: null, reclamado: true })),
+      };
+    }
+    res.error = error;
+    if (!res.items.length) return res;
+    const it = await leer(`/items?ids=${[...new Set(res.items.map((x) => x.item_id))].slice(0, 20).join(",")}&attributes=id,title,secure_thumbnail,permalink,seller_custom_field`);
     if (it.status === 200 && Array.isArray(it.datos)) {
-      const por = new Map((it.datos as { code: number; body: { id: string; secure_thumbnail?: string; permalink?: string } }[]).filter((x) => x.code === 200).map((x) => [x.body.id, x.body]));
-      for (const x of res.items) { x.foto = por.get(x.item_id)?.secure_thumbnail ?? null; x.permalink = por.get(x.item_id)?.permalink ?? null; }
+      const por = new Map((it.datos as { code: number; body: { id: string; title?: string; secure_thumbnail?: string; permalink?: string; seller_custom_field?: string | null } }[]).filter((x) => x.code === 200).map((x) => [x.body.id, x.body]));
+      for (const x of res.items) {
+        const b = por.get(x.item_id);
+        x.titulo = x.titulo ?? b?.title ?? null; x.foto = b?.secure_thumbnail ?? null; x.permalink = b?.permalink ?? null; x.sku = x.sku ?? b?.seller_custom_field?.trim() ?? null;
+      }
     }
     return res;
-  } catch {
-    return null;
+  } catch (e) {
+    return { comprador: { id: compradorId ? Number(compradorId) : null, nickname: null, nombre: null }, fecha: null, estado: null, total: null, envio_id: null, items: [], error: `No se pudo pedir la orden a Mercado Libre (${(e as Error).message.slice(0, 100)}).` };
   }
 }
+
 const leerDe = (cuenta: CuentaMl): Leer => (ruta) => ml(cuenta, "GET", ruta);
 
 // ── En criollo ─────────────────────────────────────────────
@@ -292,7 +310,9 @@ export async function importarReclamo(cuenta: CuentaMl, claimId: string, leer: L
 
   // Sin pedido en Laucen (venta anterior, de Virtual Seller): quién compró y qué, directo de la orden de ML.
   const ordenMl = !pedidoId && f.orden_externa
-    ? (await traerOrdenMl(leer, f.orden_externa, (devolucion?.orders ?? []).map((x) => x.item_id).filter((x): x is string => !!x))) ?? antes?.orden_ml ?? null
+    ? (await traerOrdenMl(leer, f.orden_externa,
+        (devolucion?.orders ?? []).filter((x) => x.item_id).map((x) => ({ item_id: x.item_id!, cantidad: Number(x.return_quantity ?? x.total_quantity ?? 1) || 1 })), f.comprador_externo))
+      ?? antes?.orden_ml ?? null
     : null;
   const datos = {
     ml: c, devolucion, resoluciones_esperadas: esperadas.status === 200 ? esperadas.datos : null, ...(ordenMl ? { orden_ml: ordenMl } : {}),

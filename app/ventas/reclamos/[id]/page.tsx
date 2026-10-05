@@ -182,9 +182,10 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
           {/* Productos */}
           <section className={CAJA}>
             <TituloSeccion titulo={`Productos (${lineas.length || ordenMl?.items.length || 0})`} />
+            {lineas.length === 0 && ordenMl?.error && <p className="text-[11px] text-[#8a6100] mb-1">{ordenMl.error} Se muestra lo que se sabe por la devolución.</p>}
             {lineas.length === 0 && ordenMl && ordenMl.items.length > 0 && (
               <>
-                <p className="text-[11px] text-[#5C6B76] mb-1">Sin pedido en Laucen (venta anterior): los productos vienen de la orden de Mercado Libre{ordenMl.fecha ? `, del ${fechaHora(new Date(ordenMl.fecha))}` : ""}.</p>
+                <p className="text-[11px] text-[#5C6B76] mb-1">Sin pedido en Laucen (venta anterior): {ordenMl.error ? "el producto viene de la devolución" : "los productos vienen de la orden de Mercado Libre"}{ordenMl.fecha ? `, del ${fechaHora(new Date(ordenMl.fecha))}` : ""}.</p>
                 <div className={CAJA_TABLA}>
                   <table className={TABLA}>
                     <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Producto</th><th className={THN}>Cantidad</th><th className={THN}>Precio</th></tr></thead>
@@ -211,7 +212,7 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
                 </div>
               </>
             )}
-            {lineas.length === 0 && !(ordenMl && ordenMl.items.length > 0) ? <p className="text-xs text-[#5C6B76]">{r.pedido_id ? "El pedido no tiene líneas." : "Sin pedido en Laucen: no se sabe qué productos son. Tocá «Actualizar» para pedírselos a Mercado Libre."}</p> : lineas.length === 0 ? null : (
+            {lineas.length === 0 && !(ordenMl && ordenMl.items.length > 0) ? <p className="text-xs text-[#5C6B76]">{r.pedido_id ? "El pedido no tiene líneas." : `Sin pedido en Laucen: no se sabe qué productos son.${ordenMl?.error ? ` ${ordenMl.error}` : " Tocá «Actualizar» para pedírselos a Mercado Libre."}`}</p> : lineas.length === 0 ? null : (
               <div className={CAJA_TABLA}>
                 <table className={TABLA}>
                   <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Producto</th><th className={THN}>Cantidad</th><th className={THN}>Precio</th></tr></thead>
