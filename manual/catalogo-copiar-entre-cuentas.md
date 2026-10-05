@@ -39,7 +39,7 @@ Menú **Catálogo › Copiar entre cuentas**.
 ## Criterios y reglas
 
 - **Nada sale a Mercado Libre sin tu clic** en el lote.
-- **Qué se copia**: título (o su variante), categoría, precio, cantidad, tipo de publicación, condición, fotos, atributos, descripción, envío y condiciones de venta. **No se copia** lo propio de cada cuenta: tienda oficial, catálogo, Full/Flex, historial de ventas, opiniones ni preguntas. La publicación nueva arranca de cero.
+- **Qué se copia**: título (o su variante), categoría, precio, cantidad, condición, fotos, atributos, descripción, envío y condiciones de venta. **No se copia** lo propio de cada cuenta: tienda oficial, catálogo, Full/Flex, historial de ventas, opiniones ni preguntas. La publicación nueva arranca de cero. El **tipo de publicación** es siempre **Clásica**, aunque la de origen sea Premium.
 - **Todas las publicaciones de estas cuentas son del modelo nuevo de Mercado Libre**: el título lo arma ML a partir del nombre de familia, por eso variar el título es variar ese nombre.
 - **SKU**: la copia lleva **el mismo SKU** que la de origen, en todas las cuentas (sin prefijos). Para saber si un producto ya está en la otra cuenta se compara el SKU, ignorando un "DE-" viejo de adelante.
 - **Envío**: la copia sale con Mercado Envíos 2 y nada más: el envío gratis (obligatorio por precio), su costo y el resto los decide Mercado Libre para esa cuenta. Si ML protesta por el envío, se vuelve a comprobar sin ese bloque. Los datos que ML calcula solo (medidas del paquete que fija ML, marca propia) no se mandan.

@@ -204,7 +204,8 @@ export async function prepararCopia(org: string, origen: number, destino: number
     if (yaEnDestino.has(claveProducto(f.sku, f.titulo))) { rech(`ya está en ${nombreDestino}`); continue; }
     const sku = f.sku?.trim() || null; // el SKU es el mismo en todas las cuentas
     const modelo = f.sku ? await modeloDeLaucen(org, f.sku) : null;
-    const c = await comprobarAlta(cDestino, (x) => armarCuerpoCopia(f.ml!, sku, opciones, { modelo, ...x }));
+    // Siempre Clásica, aunque la de origen sea Premium (Fer, 5/10).
+    const c = await comprobarAlta(cDestino, (x) => armarCuerpoCopia({ ...f.ml!, listing_type_id: "gold_special" }, sku, opciones, { modelo, ...x }));
     if (!c.ok) { rech(`Mercado Libre no la acepta: ${c.motivo}`); continue; }
     const cuerpo = c.cuerpo;
     // Entra, pero ML dejó avisos (ej. "envío gratis obligatorio agregado"): se cuentan aparte.
