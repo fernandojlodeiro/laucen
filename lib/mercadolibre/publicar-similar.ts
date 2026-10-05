@@ -221,7 +221,8 @@ export async function armarBorrador(org: string, productoId: number, itemId: str
     origen: { item_id: itemId, canal: g.canal_id, cuenta: g.cuenta, estado: g.estado, precio: g.precio, permalink: g.permalink },
     titulo: ((it.family_name ?? it.title) ?? "").trim(), categoria: it.category_id ?? "",
     precio: precioLaucen ?? it.price ?? g.precio, cantidad: Math.max(1, disponible),
-    tipo: it.listing_type_id ?? "gold_special", condicion: it.condition ?? "new",
+    // Siempre Clásica de entrada, aunque la copiada sea Premium (Fer, 5/10); se cambia en el formulario.
+    tipo: "gold_special", condicion: it.condition ?? "new",
     fotos, atributos: editables(it.attributes).map((x) => deLaucen.has(x.id) ? { ...x, valor: deLaucen.get(x.id)! } : x), garantia: editables(it.sale_terms), descripcion, descripcionLeida,
     variaciones, variacion, cuentas, cuenta,
   };

@@ -58,7 +58,7 @@ Tres pestañas. Las dos primeras tienen un buscador (si está vacío, busca por 
 ### Copiar una publicación tuya
 
 1. En la pestaña **Tus publicaciones**, apretá **Copiar ésta** en la que te sirve.
-2. Cambiá lo que quieras: cuenta, variación, título (hasta 60 letras), precio, cantidad, tipo, condición, fotos (destildar, mover con las flechas; la primera es la principal; al final están las del producto en Laucen), características, garantía y descripción.
+2. Cambiá lo que quieras: cuenta, variación, título (hasta 60 letras), precio, cantidad, tipo (viene siempre en Clásica, aunque la copiada sea Premium), condición, fotos (destildar, mover con las flechas; la primera es la principal; al final están las del producto en Laucen), características, garantía y descripción.
 3. **Preparar publicación** y después **Mandar a Mercado Libre** en la cola, como arriba.
 
 ## Criterios y reglas
