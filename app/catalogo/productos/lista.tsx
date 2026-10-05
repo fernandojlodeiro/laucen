@@ -61,6 +61,10 @@ export function filtrosProductos(sp: SP) {
     sinCanal: sp.sincanal === "1",
     // Los marcados "No publicable" (insumos, unidades que sólo se venden en pack).
     noPublicable: sp.nopub === "1",
+    // Sólo los publicables (sin los "No publicable").
+    publicables: sp.pub === "1",
+    // En cuántas cuentas de ML está publicado (0 = en ninguna), como la columna Publicaciones.
+    enCuentas: /^[0-9]$/.test(sp.encuentas ?? "") ? Number(sp.encuentas) : null,
   };
 }
 
@@ -184,8 +188,10 @@ export const LISTA_PRODUCTOS: Lista = {
          and ($10::bigint = 0 or ${sqlSinPublicarEnCanal("$10::bigint")})
          and (not $11 or (not p.no_publicable and not exists (select 1 from publicacion pu join variacion v on v.id = pu.variacion_id
                                       where v.producto_id = p.id and pu.estado = 'activa')))
-         and (not $12 or p.no_publicable)`,
-      valores: [ctx.org, patronBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn, f.sinCanal, f.noPublicable],
+         and (not $12 or p.no_publicable)
+         and (not $13 or not p.no_publicable)
+         and ($14::int is null or ${PUBLICADO_ML} = $14::int)`,
+      valores: [ctx.org, patronBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn, f.sinCanal, f.noPublicable, f.publicables, f.enCuentas],
       orden: "p.titulo, p.id",
     };
   },

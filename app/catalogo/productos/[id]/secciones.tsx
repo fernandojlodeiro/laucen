@@ -965,12 +965,14 @@ export async function SeccionPublicaciones({ s, p }: Props) {
   // Los precios de las publicaciones son en pesos: en dólares, al tipo de cambio de hoy.
   const tcHoy = await tcParaVista(s.org.id, s.moneda);
   const filas = await consulta<{ id: number; sku: string; canal: string; id_externo: string | null; titulo: string; tipo_publicacion: string | null; estado: string; sincro: string | null;
-    precio: number | null; precio_tachado: number | null; stock_ml: number | null; estado_ml: string | null; enlace: string | null }>(`
+    precio: number | null; precio_tachado: number | null; stock_ml: number | null; estado_ml: string | null; enlace: string | null; disp_web: number | null }>(`
     select pu.id::int, v.sku, c.nombre canal, pu.id_externo,
            -- La publicación en ML (Fer, 5/10): su dirección, o la que arma ML con el número.
            case when c.tipo = 'mercadolibre' and pu.id_externo is not null
                 then coalesce(mi.permalink, 'https://articulo.mercadolibre.com.ar/' || regexp_replace(pu.id_externo, '^([A-Z]{3})(\\d+)$', '\\1-\\2')) end enlace, coalesce(pu.titulo, titulo_variacion(v.id)) titulo, pu.tipo_publicacion, pu.estado,
            pu.precio_canal::float8 precio, pu.precio_tachado::float8, mi.stock stock_ml, mi.estado estado_ml,
+           -- En la web: lo disponible para ese canal (con 0, la publicación activa se muestra "Sin stock").
+           case when c.tipo in ('web_minorista', 'web_mayorista') then stock_disponible_canal(pu.organizacion_id, v.id, pu.canal_id)::int end disp_web,
            to_char(pu.ultima_sincronizacion_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YYYY HH24:MI') sincro
       from publicacion pu join variacion v on v.id = pu.variacion_id join canal c on c.id = pu.canal_id
       ${UNIR_MELI_ITEM}
@@ -1026,7 +1028,10 @@ export async function SeccionPublicaciones({ s, p }: Props) {
                   {f.precio != null ? enMoneda(f.precio, s.moneda, tcHoy) : <span className="text-[#5C6B76]">—</span>}
                 </td>
                 <td className={TD}>
-                  <Estado texto={f.estado.charAt(0).toUpperCase() + f.estado.slice(1)} tono={tono(f.estado)} />
+                  {/* Web (Fer, 5/10): activa pero sin stock disponible → "Sin stock"; con el interruptor apagado, "Pausada". */}
+                  {f.disp_web != null && f.estado === "activa" && f.disp_web <= 0
+                    ? <Estado texto="Sin stock" tono="ambar" />
+                    : <Estado texto={f.estado.charAt(0).toUpperCase() + f.estado.slice(1)} tono={tono(f.estado)} />}
                   {f.estado_ml && <span className="block text-[10px] text-[#5C6B76]">En ML: {textoEstadoMl(f.estado_ml)}</span>}
                 </td>
                 {/* Lo que ML tiene cargado como disponible (también si está pausada), de la copia local meli_item. */}
