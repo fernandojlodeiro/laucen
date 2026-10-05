@@ -69,6 +69,9 @@ export default async function DetalleDespacho({ params, searchParams }: { params
   const aqui = (extra: Record<string, string | number | null> = {}) => url(`/compras/despachos/${did}`, { q: q || null, ...extra });
   const est = ESTADO_DESPACHO[d.estado] ?? ESTADO_DESPACHO.borrador;
   const cot = d.cotizacion;
+  // En dólares, los pesos del despacho se dividen por su cotización (la del despacho).
+  const enUsd = s.moneda === "USD" && cot > 0;
+  const aMon = (ars: number) => (enUsd ? formatear(ars / cot, "USD") : formatear(ars, "ARS"));
   const gastosArs = d.gastos.reduce((t, g) => t + Number(g.importe_ars || 0), 0);
   const impuestosArs = d.impuestos.reduce((t, g) => t + Number(g.importe_ars || 0), 0);
   // Registrado: el costo que quedó guardado; borrador: el cálculo en vivo.
@@ -107,7 +110,7 @@ export default async function DetalleDespacho({ params, searchParams }: { params
               ) : (
                 <tr key={i} className={TR}>
                   <td className={TD}>{g.concepto}</td>
-                  <td className={TDN}>{formatear(g.importe_ars, "ARS")}</td>
+                  <td className={TDN}>{aMon(g.importe_ars)}</td>
                   {borrador && (
                     <td className={`${TD} text-right whitespace-nowrap`}>
                       <span className="inline-flex gap-1">
@@ -118,7 +121,7 @@ export default async function DetalleDespacho({ params, searchParams }: { params
                   )}
                 </tr>
               ))}
-              <tr className={`${TR} font-bold`}><td className={TD}>Total</td><td className={TDN}>{formatear(total, "ARS")}</td>{borrador && <td />}</tr>
+              <tr className={`${TR} font-bold`}><td className={TD}>Total</td><td className={TDN}>{aMon(total)}</td>{borrador && <td />}</tr>
             </tbody>
           </table>
         </div>
@@ -267,9 +270,9 @@ export default async function DetalleDespacho({ params, searchParams }: { params
                 <td className={TD}>{l.descripcion}</td>
                 <td className={TDN}>{l.cantidad.toLocaleString("es-AR")}</td>
                 <td className={TDN}>{calc.fobTotal > 0 ? pct((l.cantidad * l.fob_unit_usd * 100) / calc.fobTotal) : "—"}</td>
-                <td className={TDN}>{formatear(unitArs(l), "ARS")}</td>
+                <td className={TDN}>{aMon(unitArs(l))}</td>
                 <td className={TDN}>{formatear(unitUsd(l), "USD")}</td>
-                <td className={TDN}>{formatear(unitArs(l) * l.cantidad, "ARS")}</td>
+                <td className={TDN}>{aMon(unitArs(l) * l.cantidad)}</td>
               </tr>
             ))}
           </tbody>
@@ -277,14 +280,14 @@ export default async function DetalleDespacho({ params, searchParams }: { params
       </div>
       <div className={`${CAJA} text-xs grid grid-cols-[1fr_auto] gap-y-1 max-w-md mb-4`}>
         <span className="text-[#5C6B76]">FOB {formatear(calc.fobTotal, "USD")} × {cot.toLocaleString("es-AR")}</span>
-        <span className="text-right tabular-nums">{formatear(calc.fobTotal * cot, "ARS")}</span>
+        <span className="text-right tabular-nums">{aMon(calc.fobTotal * cot)}</span>
         <span className="text-[#5C6B76]">Flete y seguro {formatear(d.flete_usd + d.seguro_usd, "USD")}</span>
-        <span className="text-right tabular-nums">{formatear((d.flete_usd + d.seguro_usd) * cot, "ARS")}</span>
-        <span className="text-[#5C6B76]">Gastos</span><span className="text-right tabular-nums">{formatear(gastosArs, "ARS")}</span>
+        <span className="text-right tabular-nums">{aMon((d.flete_usd + d.seguro_usd) * cot)}</span>
+        <span className="text-[#5C6B76]">Gastos</span><span className="text-right tabular-nums">{aMon(gastosArs)}</span>
         <span className="font-bold">Costo total puesto en depósito</span>
-        <span className="text-right tabular-nums font-bold">{formatear(calc.costoTotalArs, "ARS")}</span>
+        <span className="text-right tabular-nums font-bold">{aMon(calc.costoTotalArs)}</span>
         <span className="text-[#5C6B76]">En dólares</span><span className="text-right tabular-nums">{formatear(cot ? calc.costoTotalArs / cot : null, "USD")}</span>
-        <span className="text-[#5C6B76]">Impuestos (crédito fiscal, aparte)</span><span className="text-right tabular-nums">{formatear(impuestosArs, "ARS")}</span>
+        <span className="text-[#5C6B76]">Impuestos (crédito fiscal, aparte)</span><span className="text-right tabular-nums">{aMon(impuestosArs)}</span>
       </div>
 
       {borrador && (
