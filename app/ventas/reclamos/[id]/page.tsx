@@ -43,7 +43,7 @@ type Reclamo = {
   fecha: Date; vence_ts: Date | null; espera_respuesta: boolean; acciones_disponibles: AccionMl[]; resolucion: string | null;
   monto: number | null; reembolso_ars: number | null; tc_dia: number | null; devolucion_id: string | null; devolucion_estado: string | null;
   devolucion_envio_estado: string | null; devolucion_tracking: string | null; recepcion_id: number | null; recepcion_estado: string | null;
-  notas: string | null; datos_externos: { resoluciones_esperadas?: ResolucionEsperadaMl[] | null; orden_ml?: OrdenMlResumen } | null; actualizado_ts: Date;
+  notas: string | null; datos_externos: { resoluciones_esperadas?: ResolucionEsperadaMl[] | null; orden_ml?: OrdenMlResumen; orden_ml_diag?: { ts: string; orden: string | null; pedido_en_laucen: number | null; resultado: string } } | null; actualizado_ts: Date;
 };
 
 const DE: Record<string, string> = { comprador: "Comprador", vendedor: "Vos", ml: "Mercado Libre", interno: "Nota interna" };
@@ -182,6 +182,9 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
           {/* Productos */}
           <section className={CAJA}>
             <TituloSeccion titulo={`Productos (${lineas.length || ordenMl?.items.length || 0})`} />
+            {lineas.length === 0 && !ordenMl && r.datos_externos?.orden_ml_diag && (
+              <p className="text-[11px] text-[#8a6100] mb-1">Última lectura de la orden de ML ({fechaHora(new Date(r.datos_externos.orden_ml_diag.ts))}): {r.datos_externos.orden_ml_diag.resultado}.</p>
+            )}
             {lineas.length === 0 && ordenMl?.error && <p className="text-[11px] text-[#8a6100] mb-1">{ordenMl.error} Se muestra lo que se sabe por la devolución.</p>}
             {lineas.length === 0 && ordenMl && ordenMl.items.length > 0 && (
               <>

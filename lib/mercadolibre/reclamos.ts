@@ -316,6 +316,8 @@ export async function importarReclamo(cuenta: CuentaMl, claimId: string, leer: L
     : null;
   const datos = {
     ml: c, devolucion, resoluciones_esperadas: esperadas.status === 200 ? esperadas.datos : null, ...(ordenMl ? { orden_ml: ordenMl } : {}),
+    // Qué se intentó con la orden en esta lectura (para ver por qué falta, si falta).
+    orden_ml_diag: { ts: new Date().toISOString(), orden: f.orden_externa, pedido_en_laucen: pedidoId, resultado: ordenMl ? (ordenMl.error ? "error" : "ok") : pedidoId ? "no hace falta (hay pedido)" : f.orden_externa ? "sin dato" : "sin orden" },
   };
   const fila = await una<{ id: string }>(`
     insert into reclamo (organizacion_id, canal_id, origen, id_externo, pedido_id, cliente_id, orden_externa, comprador_externo, tipo, motivo_id, motivo,
