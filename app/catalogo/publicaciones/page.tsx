@@ -83,7 +83,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
       <Avisos sp={sp} />
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
-        <BuscadorVivo q={q} comienza={comienza} inactivos={inactivos} placeholder="Buscar por SKU o id externo" limpiar={["editar"]} />
+        <BuscadorVivo q={q} comienza={comienza} inactivos={inactivos} placeholder="Buscar por título, SKU o id externo" limpiar={["editar"]} />
         <FiltroVivo parametro="canal" valor={canalId ? String(canalId) : ""} etiqueta="Canal" limpiar={["editar"]}>
           <option value="">Todos los canales</option>
           {canales.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}

@@ -82,7 +82,8 @@ export const LISTA_PUBLICACIONES: Lista = {
          and ($6 or p.estado <> 'archivado')
          and ($2::bigint is null or pu.canal_id = $2)
          and ($3::text is null or pu.estado = $3)
-         and ($4::text is null or v.sku ilike $4 or pu.id_externo ilike $4 or v.codigo_barras = $5)`,
+         and ($4::text is null or v.sku ilike $4 or pu.id_externo ilike $4 or v.codigo_barras = $5
+              or coalesce(pu.titulo, titulo_variacion(v.id)) ilike $4 or p.titulo ilike $4)`,
       valores: [ctx.org, f.canal, f.estado, patronBusqueda(f.q, f.comienza), f.q, f.inactivos],
       orden: "c.nombre, v.sku, pu.id",
     };

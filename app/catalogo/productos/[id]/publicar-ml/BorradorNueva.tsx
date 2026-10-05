@@ -180,7 +180,7 @@ export default function BorradorNueva({ productoId, b, tipos, condiciones, garan
 
         <section className={CAJA}>
           <h2 className={TITULO_CAJA}>Características ({principales.length})</h2>
-          <p className="text-[11px] text-[#5C6B76] mb-2">Las que pide Mercado Libre para esta categoría. <b>*</b> = obligatoria. <Origen o="laucen" /> sale del producto; <Origen o="ia" /> lo propuso la IA: revisalo. Lo que dejes vacío no se manda. La marca tiene que ser la del producto o &quot;Genérica&quot;.</p>
+          <p className="text-[11px] text-[#5C6B76] mb-2">Las que pide Mercado Libre para esta categoría. <b>*</b> = obligatoria. <Origen o="laucen" /> sale del producto; <Origen o="ia" /> lo propuso la IA: revisalo. Lo que dejes vacío no se manda. La marca tiene que ser la del producto o Daitom (la que se pone si no tiene).</p>
           <Atributos lista={principales} />
           {otros.length > 0 && (
             <details className="mt-3">

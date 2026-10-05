@@ -63,7 +63,7 @@ Tres pestañas. Las dos primeras tienen un buscador (si está vacío, busca por 
 ## Criterios y reglas
 
 - **Nada sale a Mercado Libre sin tu clic** en el lote de la cola.
-- **La marca en el catálogo**: el que creó un producto de catálogo a veces tiene una marca propia, y publicar con su marca trae denuncias. Por eso sólo se puede publicar en uno cuya marca sea **nuestra** (una de las marcas cargadas en los productos de Laucen) o **genérica** ("Genérica", "Sin marca"). Con **marca de otro** dice "No se puede" y el sistema no lo deja preparar. Sin marca cargada en ML se puede, pero revisala.
+- **La marca en el catálogo**: el que creó un producto de catálogo a veces tiene una marca propia, y publicar con su marca trae denuncias. Por eso sólo se puede publicar en uno cuya marca sea **nuestra** (una de las marcas cargadas en los productos de Laucen) o **genérica** ("Genérica", "Sin marca"). **Daitom** cuenta siempre como nuestra. Con **marca de otro** dice "No se puede" y el sistema no lo deja preparar. Sin marca cargada en ML se puede, pero revisala.
 - **El catálogo se busca** por las palabras del título (o lo escrito) y, si el producto tiene código de barras, también por ese código. Un producto de catálogo con variantes (color, etc.) se reemplaza por sus variantes. Lo leído de ML se guarda una hora.
 - **La publicación de catálogo** lleva el título, las fotos y las características del catálogo; de Laucen van el SKU de la variación, el precio, la cantidad, el tipo (Clásica o Premium), la garantía, condición nuevo y Mercado Envíos 2.
 - **Tus publicaciones** se buscan entre todas las que Laucen guardó de tus cuentas, en cualquier estado. No sirven de modelo las de catálogo, las que tienen variaciones (todavía no), las que no tienen fotos o las incompletas.
@@ -74,7 +74,7 @@ Tres pestañas. Las dos primeras tienen un buscador (si está vacío, busca por 
 - **Cantidad propuesta**: el stock disponible del producto en Laucen (como mínimo 1).
 - **Al copiar una publicación tuya**: un valor de característica que no se toca se manda tal cual; uno cambiado se manda como texto; uno borrado no se manda. Si falta el Modelo, se usa el del producto de Laucen. Sólo se pueden usar las fotos de la publicación y las del producto en Laucen.
 - **Nueva desde Laucen, de dónde sale cada dato**: primero lo del producto en Laucen (las características que trajo de Mercado Libre o Virtual Seller, la marca, el modelo, la línea, el código de barras y el peso y las medidas como medidas del paquete). Si no tiene código de barras, se pone el motivo "no tiene código registrado". Lo que sigue faltando, el título y (si no hay) la descripción los propone la IA. Lo propuesto se guarda un día: volver a entrar no lo vuelve a pedir.
-- **La IA nunca inventa una marca ni un código de barras**: si el producto no tiene marca, propone "Genérica". Al preparar, la marca tiene que ser la del producto o "Genérica"; si no, no deja.
+- **La marca, en una nueva**: la del producto en Laucen; si no tiene, **Daitom** (la marca propia). La IA nunca propone marca ni inventa un código de barras. Al preparar, la marca tiene que ser la del producto, Daitom o "Genérica"; si no, no deja.
 - **Obligatorias**: si falta alguna característica obligatoria para la categoría, no se prepara y se avisa cuáles faltan.
 - **Título**: hasta 60 letras. La IA lo arma como lo buscaría un comprador (qué es, marca, modelo y un par de datos clave), sin palabras de promoción.
 - **Fotos de una publicación nueva**: sólo las del producto en Laucen. Si no tiene, subilas primero en su ficha.

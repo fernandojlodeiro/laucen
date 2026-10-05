@@ -42,7 +42,8 @@ export function estadoMarca(marca: string | null | undefined, propias: Set<strin
 /** Las marcas nuestras: las cargadas en los productos de Laucen. */
 export async function marcasPropias(org: string): Promise<Set<string>> {
   const filas = await consulta<{ marca: string }>("select distinct marca from producto where organizacion_id = $1 and marca is not null and marca <> ''", [org]);
-  return new Set(filas.map((f) => normal(f.marca)).filter((m) => m && !GENERICAS.has(m)));
+  // Daitom es la marca propia aunque ningún producto la tenga cargada.
+  return new Set([...filas.map((f) => normal(f.marca)), "daitom"].filter((m) => m && !GENERICAS.has(m)));
 }
 
 // ── Lo que devuelve ML ──────────────────────────────────────

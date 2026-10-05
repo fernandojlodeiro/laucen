@@ -26,7 +26,7 @@ Hay dos pantallas, las dos del menú **Catálogo**:
 
 Arriba a la derecha: **Descargar Excel** (trae además título en el canal, enlace, umbral propio, código de barras, estado del producto, última sincronización y atributos externos) y **Vincular con Mercado Libre**.
 
-Filtros: buscador **"Buscar por SKU o id externo"** (el SKU ya no es una columna, pero se sigue buscando por él) (con "Comienza por"; el código de barras se busca exacto) y **Mostrar inactivos**, **Canal** (Todos los canales o uno) y **Estado** (Activa / Pausada / Cerrada).
+Filtros: buscador **"Buscar por título, SKU o id externo"** (busca en el título de la publicación y en el del producto; el SKU ya no es una columna, pero se sigue buscando por él) (con "Comienza por": tildada busca al principio del título; destildala para encontrar una palabra del medio. El código de barras se busca exacto) y **Mostrar inactivos**, **Canal** (Todos los canales o uno) y **Estado** (Activa / Pausada / Cerrada).
 
 Columnas (todas se ordenan tocando el título; sin elegir, por canal):
 - **Foto**: la foto principal, grande (lleva a la ficha del producto; si el producto no tiene fotos, la de la publicación de ML).

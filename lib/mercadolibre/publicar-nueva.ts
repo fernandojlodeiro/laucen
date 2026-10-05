@@ -8,7 +8,8 @@
 //     Se llenan con lo de Laucen (atributos importados, marca, modelo, línea,
 //     código de barras, medidas del paquete) y lo que falta lo PROPONE la IA
 //     (Claude, el modelo del medio), igual que el título y, si el producto no
-//     tiene, la descripción. Lo propuesto se marca "IA" para que Fer lo revise.
+//     tiene, la descripción. Lo propuesto se marca "IA" para que Fer lo revise. Sin
+//     marca, Daitom (la propia).
 //   · "Preparar publicación": se comprueba con ML (validate) y queda en un lote
 //     esperando el clic de Fer, como todo lo que va a ML.
 
@@ -106,6 +107,10 @@ export function valoresDeLaucen(p: Pick<ProductoLaucen, "atributos_ml" | "marca"
   return v;
 }
 
+/** La marca de lo que no tiene marca: la propia (Fer, 5/10). Nunca la de otro. */
+export const MARCA_POR_DEFECTO = "Daitom";
+const MARCA_POR_DEFECTO_RE = /^(daitom|gen[eé]ric[ao])$/i;
+
 // ── Lo que propone la IA ────────────────────────────────────
 
 type Propuesta = { titulo: string | null; descripcion: string | null; atributos: Record<string, string> };
@@ -116,7 +121,7 @@ Devolvé SOLO un JSON: {"titulo": "...", "descripcion": "..." o null, "atributos
 Reglas:
 - titulo: como lo buscaría un comprador: qué es + marca (si tiene) + modelo + 1 a 3 datos clave (tensión, capacidad, medida, cantidad si es pack). Hasta 60 letras. Sin palabras de promoción ("oferta", "envío gratis", "original", "el mejor"), sin signos raros, sin todo en mayúsculas.
 - atributos: sólo los que se puedan deducir con seguridad del título, la descripción o los datos. Si hay opciones, usá exactamente una de ellas. Si lleva unidad, poné número y unidad ("5 V", "10 mm").
-- NUNCA inventes una marca: si el producto no tiene marca, BRAND = "Genérica". NUNCA inventes un código de barras (GTIN): dejalo afuera.
+- NUNCA inventes una marca: si el producto no tiene marca, BRAND = "Daitom" (la marca propia de la tienda). NUNCA inventes un código de barras (GTIN): dejalo afuera.
 - Lo que no se sabe, no lo pongas.
 - descripcion: sólo si te digo que falta. Texto plano en castellano rioplatense, claro, con las características en renglones, sin emojis ni datos de contacto ni links. Si no falta, null.`;
 
@@ -208,10 +213,12 @@ export async function armarBorradorNueva(org: string, productoId: number, cat: s
   const ia = categoria ? await proponer(p, faltan, faltaDescripcion, Object.fromEntries(Object.entries(valores).map(([k, v]) => [k, v.valor]))) : null;
   for (const a of faltan) {
     const v = ia?.atributos[a.id];
-    // Nunca una marca inventada ni un código de barras de la IA.
-    if (!v || a.id === "GTIN" || (a.id === "BRAND" && !/^gen[eé]ric[ao]$/i.test(v))) continue;
+    // Nunca una marca ni un código de barras de la IA (la marca, si falta, es la propia: abajo).
+    if (!v || a.id === "GTIN" || a.id === "BRAND") continue;
     valores[a.id] = { valor: v, origen: "ia" };
   }
+  // Sin marca en Laucen ni propuesta: la marca propia (Fer, 5/10).
+  if (!valores.BRAND && cargables.some((a) => a.id === "BRAND")) valores.BRAND = { valor: MARCA_POR_DEFECTO, origen: "ia" };
 
   const atributos: AtributoForm[] = cargables.map((a) => ({
     id: a.id, nombre: a.name, requerido: esRequerido(a), tipo: a.value_type ?? "string",
@@ -301,11 +308,11 @@ export async function prepararPublicacionNueva(org: string, e: EntradaNueva, usu
 
   const { categoria, atributos: meta } = await leerCategoria(org, e.categoria);
   if (!categoria.hoja) throw new ErrorErp("Esa categoría tiene subcategorías: elegí una más específica.");
-  // La marca nunca es la de otro: o la del producto, o genérica (Fer: las marcas ajenas traen denuncias).
+  // La marca nunca es la de otro: la del producto, Daitom o genérica (Fer: las marcas ajenas traen denuncias).
   const marca = e.atributos.BRAND?.trim();
   const p = await productoLaucen(org, e.productoId);
-  if (marca && !/^gen[eé]ric[ao]$/i.test(marca) && marca.toLowerCase() !== (p.marca ?? "").trim().toLowerCase()) {
-    throw new ErrorErp(`La marca "${marca}" no es la del producto (${p.marca ?? "sin marca"}). Usá la del producto o "Genérica".`);
+  if (marca && !MARCA_POR_DEFECTO_RE.test(marca) && marca.toLowerCase() !== (p.marca ?? "").trim().toLowerCase()) {
+    throw new ErrorErp(`La marca "${marca}" no es la del producto (${p.marca ?? "sin marca"}). Usá la del producto, ${MARCA_POR_DEFECTO} o "Genérica".`);
   }
   const atributos = atributosParaMl(atributosCargables(meta), e.atributos);
   const faltan = atributosCargables(meta).filter((a) => a.tags?.required && !atributos.some((x) => x.id === a.id) && !(a.id === "GTIN" && atributos.some((x) => x.id === "EMPTY_GTIN_REASON")));
