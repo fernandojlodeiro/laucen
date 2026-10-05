@@ -11,7 +11,8 @@
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
-import { intentar, texto, entero, id } from "@/lib/erp/acciones";
+import { intentar, texto, entero, numero, id } from "@/lib/erp/acciones";
+import { leerMotivosPendientes } from "@/lib/mercadolibre/moderaciones";
 import { cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolar, PRIORIDAD } from "@/lib/mercadolibre/cola";
 
@@ -103,5 +104,37 @@ export async function accionSacarPausa(fd: FormData) {
       efecto: { publicacion: { id: p.id, estado: "activa", pausada_por_stock: false, pausada_manual: false, cantidad_publicada: p.disponible } },
     }], { origen: "boton", usuarioId: s.usuario.id });
     return "Listo: se sacó la marca y la reactivación salió a Mercado Libre.";
+  });
+}
+
+/** "Corregir precio" de una publicación en revisión (Fer, 5/10): el precio nuevo sale a ML con
+ *  este clic (por la cola). Si el motivo era el precio, ML la vuelve a revisar y la levanta. */
+export async function accionCorregirPrecio(fd: FormData) {
+  const s = await entrarErp("publicaciones_ver");
+  await intentar(volverDe(fd), async () => {
+    const p = await publicacionMl(s.org.id, id(fd));
+    const precio = numero(fd, "precio");
+    if (!precio || precio <= 0) throw new ErrorErp("Escribí el precio nuevo.");
+    await encolar(s.org.id, [{
+      canalId: p.canal_id, itemId: p.id_externo, variationId: p.variacion_externa, publicacionId: p.id, tipo: "precio", prioridad: PRIORIDAD.boton,
+      payload: { precio: Math.round(precio) },
+      efecto: { publicacion: { id: p.id, precio_canal: Math.round(precio) } },
+    }], { origen: "boton", usuarioId: s.usuario.id });
+    await consulta("update meli_moderacion set precio_corregido_ts = now() where organizacion_id = $1 and canal_id = $2 and item_id = $3",
+      [s.org.id, p.canal_id, p.id_externo]);
+    revalidatePath(BASE);
+    return "Listo: el precio nuevo salió a Mercado Libre. Si el motivo era el precio, ML la vuelve a revisar (puede tardar).";
+  });
+}
+
+/** "Leer motivos de revisión": pregunta a ML (sólo lectura) por qué está en revisión cada
+ *  publicación que no se leyó en el último día. Hasta ~50 segundos por clic. */
+export async function accionLeerMotivos(fd: FormData) {
+  const s = await entrarErp("publicaciones_ver");
+  await intentar(volverDe(fd), async () => {
+    const r = await leerMotivosPendientes(s.org.id, Date.now() + 50_000);
+    revalidatePath(BASE);
+    if (!r.leidas && !r.quedan) return "Todos los motivos están al día (se vuelven a leer una vez por día).";
+    return `Leídas ${r.leidas} publicaciones en revisión (${r.conMotivo} con motivo informado por ML).${r.quedan ? ` Faltan ${r.quedan}: apretá de nuevo.` : ""}`;
   });
 }

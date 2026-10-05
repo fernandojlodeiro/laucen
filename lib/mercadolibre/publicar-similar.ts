@@ -3,7 +3,9 @@
 // activa en ML", el botón "Buscar en ML" abre /catalogo/productos/[id]/publicar-ml:
 //   1. busca publicaciones parecidas entre TODAS las de las cuentas de Fer que
 //      Laucen tiene guardadas (meli_item, en cualquier estado: cerradas, pausadas,
-//      inactivas): primero las del mismo SKU, después por palabras del título;
+//      inactivas): por SKU y por palabras del título se eligen hasta 30, y el
+//      juez (Claude, lib/mercadolibre/juez-similar.ts) saca las que son otro producto;
+//      (la otra pestaña, el catálogo de ML, está en catalogo-similar.ts);
 //   2. Fer elige una y Laucen arma el borrador con todos sus datos (título,
 //      precio, cantidad, tipo, fotos, atributos, garantía, descripción) para
 //      que los cambie;
@@ -19,6 +21,7 @@ import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolarLoteConBoton, type PedidoMl } from "@/lib/mercadolibre/cola";
 import { armarCuerpoCopia, claveProducto, comprobarAlta, modeloDeLaucen, NO_MODIFICABLE, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { canalesMl } from "@/lib/precios-ml/datos";
+import { juzgar, PESO_VEREDICTO, type Juicio, type Referencia } from "@/lib/mercadolibre/juez-similar";
 
 // ── Buscar parecidas ────────────────────────────────────────
 
@@ -55,7 +58,7 @@ export function puntaje(cand: { sku: string | null; titulo: string | null }, sku
 export type Parecida = {
   item_id: string; canal_id: number; cuenta: string; titulo: string | null; sku: string | null; estado: string | null;
   precio: number | null; vendidos: number | null; foto: string | null; permalink: string | null; actualizado: string | null;
-  puntaje: number; noSirve: string | null;
+  puntaje: number; noSirve: string | null; juicio: Juicio | null;
 };
 
 /** Por qué una publicación guardada no sirve de modelo (o null si sirve). */
@@ -67,16 +70,26 @@ export function motivoNoSirve(it: { catalogo: boolean; variaciones: number; foto
   return null;
 }
 
-/** Las publicaciones de las cuentas de Fer parecidas al producto (o a lo que se busca en `q`). */
-export async function parecidas(org: string, productoId: number, q: string | null, max = 40): Promise<Parecida[]> {
-  const p = await una<{ titulo: string; sku_base: string; skus: string[] }>(`
-    select p.titulo, p.sku_base, coalesce(array_agg(v.sku) filter (where v.sku is not null), '{}') skus
+/** Lo que se le pasa al juez del producto de Laucen: título, marca, modelo y sus características de ML. */
+export async function referenciaDe(org: string, productoId: number): Promise<Referencia & { sku_base: string; skus: string[]; codigo_barras: string | null }> {
+  const p = await una<{ titulo: string; sku_base: string; marca: string | null; modelo: string | null; codigo_barras: string | null; atributos_ml: { name?: string; value_name?: string | null }[] | null; skus: string[] }>(`
+    select p.titulo, p.sku_base, p.marca, p.modelo, p.codigo_barras, p.atributos_ml, coalesce(array_agg(v.sku) filter (where v.sku is not null), '{}') skus
       from producto p left join variacion v on v.producto_id = p.id
      where p.organizacion_id = $1 and p.id = $2 group by p.id`, [org, productoId]);
   if (!p) throw new ErrorErp("Ese producto no existe.");
-  const skus = new Set([p.sku_base, ...p.skus].map(skuComparable).filter(Boolean));
-  const buscadas = palabras(q ?? p.titulo);
-  const filas = await consulta<Omit<Parecida, "puntaje" | "noSirve"> & { catalogo: boolean; variaciones: number; fotos: number; categoria: string | null }>(`
+  const datos = (Array.isArray(p.atributos_ml) ? p.atributos_ml : [])
+    .filter((a) => a.name && a.value_name && !/paquete|SKU|IVA|impuesto/i.test(a.name)).slice(0, 15).map((a) => `${a.name}: ${a.value_name}`).join("; ");
+  return { titulo: p.titulo, marca: p.marca, modelo: p.modelo, datos: datos || null, sku_base: p.sku_base, skus: p.skus, codigo_barras: p.codigo_barras };
+}
+
+/** Las publicaciones de las cuentas de Fer parecidas al producto (o a lo que se busca en `q`):
+ *  por SKU y por palabras se eligen hasta 30 y el juez (Claude) descarta las que son otro
+ *  producto. `conJuez` = false si no se le pudo preguntar (queda sólo el orden por palabras). */
+export async function parecidas(org: string, productoId: number, q: string | null, max = 30): Promise<{ lista: Parecida[]; conJuez: boolean }> {
+  const ref = await referenciaDe(org, productoId);
+  const skus = new Set([ref.sku_base, ...ref.skus].map(skuComparable).filter(Boolean));
+  const buscadas = palabras(q ?? ref.titulo);
+  const filas = await consulta<Omit<Parecida, "puntaje" | "noSirve" | "juicio"> & { catalogo: boolean; variaciones: number; fotos: number; categoria: string | null }>(`
     select distinct on (m.item_id) m.item_id, m.canal_id::int, c.nombre cuenta, m.titulo, m.sku, m.estado, m.precio::float8 precio, m.vendidos,
            m.foto, m.permalink, to_char(m.actualizado_ts at time zone 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') actualizado,
            coalesce((m.datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false) catalogo,
@@ -86,13 +99,24 @@ export async function parecidas(org: string, productoId: number, q: string | nul
       from meli_item m join canal c on c.id = m.canal_id
      where m.organizacion_id = $1 and m.datos_externos ? 'ml'
      order by m.item_id, m.variation_id`, [org]);
-  return filas
-    .map((f) => ({ ...f, puntaje: puntaje(f, skus, buscadas), noSirve: motivoNoSirve(f) }))
+  const candidatas = filas
+    .map((f) => ({ ...f, puntaje: puntaje(f, skus, buscadas), noSirve: motivoNoSirve(f), juicio: null as Juicio | null }))
     .filter((f) => f.puntaje >= (buscadas.length > 2 ? 34 : 50))
-    // Primero las que sirven, las más parecidas, y entre iguales las más vendidas.
-    .sort((a, b) => Number(!!a.noSirve) - Number(!!b.noSirve) || b.puntaje - a.puntaje || (b.vendidos ?? 0) - (a.vendidos ?? 0))
+    .sort((a, b) => b.puntaje - a.puntaje || (b.vendidos ?? 0) - (a.vendidos ?? 0))
     .slice(0, max)
     .map(({ catalogo: _c, variaciones: _v, fotos: _f, categoria: _g, ...r }) => r);
+  // El mismo título en varias cuentas se pregunta una sola vez.
+  const titulos = [...new Set(candidatas.filter((c) => c.puntaje < MISMO_SKU).map((c) => c.titulo ?? ""))];
+  const juicios = await juzgar({ titulo: q ?? ref.titulo, marca: ref.marca, modelo: ref.modelo, datos: q ? null : ref.datos },
+    titulos.map((t, i) => ({ id: String(i), titulo: t, datos: null })));
+  const porTitulo = new Map(titulos.map((t, i) => [t, juicios?.[String(i)] ?? null]));
+  for (const c of candidatas) c.juicio = c.puntaje >= MISMO_SKU ? { veredicto: "mismo", motivo: "Tiene el mismo SKU." } : porTitulo.get(c.titulo ?? "") ?? null;
+  const lista = (juicios ? candidatas.filter((c) => c.juicio?.veredicto !== "distinto") : candidatas)
+    // Primero las que sirven; después lo que dijo el juez (mismo, parecido), el parecido por palabras y las más vendidas.
+    .sort((a, b) => Number(!!a.noSirve) - Number(!!b.noSirve)
+      || PESO_VEREDICTO[a.juicio?.veredicto ?? "parecido"] - PESO_VEREDICTO[b.juicio?.veredicto ?? "parecido"]
+      || b.puntaje - a.puntaje || (b.vendidos ?? 0) - (a.vendidos ?? 0));
+  return { lista, conJuez: !!juicios };
 }
 
 // ── El borrador ─────────────────────────────────────────────
@@ -123,6 +147,44 @@ const editables = (lista: Av[] | undefined) => (lista ?? [])
   .filter((a) => a.id !== "SELLER_SKU" && !NO_MODIFICABLE(a.id) && (a.value_name != null || (a.value_id != null && a.value_id !== "-1")))
   .map((a) => ({ id: a.id, nombre: a.name ?? a.id, valor: a.value_name ?? "" }));
 
+/** Las variaciones (no archivadas), las fotos y el stock disponible del producto. */
+export async function datosDelProducto(org: string, productoId: number) {
+  const [variaciones, fotos, disp] = await Promise.all([
+    consulta<{ id: number; sku: string; titulo: string | null }>(
+      "select id::int, sku, titulo from variacion where organizacion_id = $1 and producto_id = $2 and estado <> 'archivada' order by es_default desc, orden, id", [org, productoId]),
+    consulta<{ url: string }>("select url from producto_foto where organizacion_id = $1 and producto_id = $2 order by orden, id", [org, productoId]),
+    una<{ n: number }>(`select coalesce(sum(stock_disponible_deposito($1, v.id, d.id)), 0)::int n from variacion v cross join deposito d
+                         where v.producto_id = $2 and v.organizacion_id = $1 and d.organizacion_id = $1 and d.estado = 'activo'`, [org, productoId]),
+  ]);
+  if (!variaciones.length) throw new ErrorErp("El producto no tiene variaciones activas.");
+  return { variaciones, fotosLaucen: fotos.map((f) => f.url), disponible: disp?.n ?? 0 };
+}
+
+/** Las cuentas de ML conectadas, con el precio de su Clásica para cada variación y si ya
+ *  tienen el producto (por SKU o, si se pasa, por el producto de catálogo). */
+export async function cuentasDestino(org: string, variaciones: { id: number; sku: string }[], catalogoId?: string): Promise<CuentaDestino[]> {
+  const cuentas: CuentaDestino[] = [];
+  for (const c of await canalesMl(org)) {
+    const cuenta = await cuentaDelCanal(org, c.id);
+    if (!cuenta || cuenta.estado !== "activa") continue;
+    const precios: Record<number, number | null> = {};
+    if (c.listaId) {
+      const filas = await consulta<{ v: number; p: number | null }>(
+        `select v.id::int v, (select pr.lista_ars::float8 from precio_de($1, v.id, $3::bigint, (now() at time zone 'America/Argentina/Buenos_Aires')::date) pr) p
+           from variacion v where v.organizacion_id = $1 and v.id = any($2::bigint[])`, [org, variaciones.map((v) => v.id), c.listaId]);
+      for (const f of filas) precios[f.v] = f.p && f.p > 0 ? f.p : null;
+    }
+    cuentas.push({ canal: c.id, nombre: c.nombre, yaTiene: await yaTiene(org, c.id, variaciones.map((v) => v.sku), catalogoId), precios });
+  }
+  return cuentas;
+}
+
+/** La cuenta que se propone: la preferida si no tiene ya el producto; si no, la primera libre. */
+export function cuentaPropuesta(cuentas: CuentaDestino[], preferida?: number | null): number | null {
+  const libre = (x: CuentaDestino) => !x.yaTiene;
+  return (cuentas.find((x) => x.canal === preferida && libre(x)) ?? cuentas.find(libre) ?? cuentas[0])?.canal ?? null;
+}
+
 /** Todo lo que necesita el formulario: los datos de la publicación elegida, las fotos
  *  (las de ella y las del producto en Laucen), la descripción (se lee de ML), las cuentas
  *  donde se puede publicar con el precio de la Clásica de cada una, y el stock. */
@@ -133,37 +195,17 @@ export async function armarBorrador(org: string, productoId: number, itemId: str
   const no = motivoNoSirve({ catalogo: !!it.catalog_listing, variaciones: it.variations?.length ?? 0, fotos: it.pictures?.length ?? 0, categoria: it.category_id ?? null });
   if (no) throw new ErrorErp(`Esa publicación no sirve de modelo: ${no}.`);
 
-  const variaciones = await consulta<{ id: number; sku: string; titulo: string | null }>(
-    "select id::int, sku, titulo from variacion where organizacion_id = $1 and producto_id = $2 and estado <> 'archivada' order by es_default desc, orden, id", [org, productoId]);
-  if (!variaciones.length) throw new ErrorErp("El producto no tiene variaciones activas.");
+  const { variaciones, fotosLaucen, disponible } = await datosDelProducto(org, productoId);
+  // Las características de ML que el producto de Laucen tiene cargadas mandan sobre las copiadas
+  // (Fer, 5/10: copiar la de 8 GB para publicar la de 12 GB, con la RAM del producto).
+  const propias = await una<{ a: { id?: string; value_name?: string | null }[] | null }>(
+    "select atributos_ml a from producto where organizacion_id = $1 and id = $2", [org, productoId]);
+  const deLaucen = new Map((Array.isArray(propias?.a) ? propias.a : []).filter((x) => x.id && x.value_name?.trim()).map((x) => [x.id!, x.value_name!.trim()]));
   const variacion = variaciones.find((v) => skuComparable(v.sku) === skuComparable(g.sku))?.id ?? variaciones[0].id;
-
-  const [fotosLaucen, disp, canales] = await Promise.all([
-    consulta<{ url: string }>("select url from producto_foto where organizacion_id = $1 and producto_id = $2 order by orden, id", [org, productoId]),
-    una<{ n: number }>(`select coalesce(sum(stock_disponible_deposito($1, v.id, d.id)), 0)::int n from variacion v cross join deposito d
-                         where v.producto_id = $2 and v.organizacion_id = $1 and d.organizacion_id = $1 and d.estado = 'activo'`, [org, productoId]),
-    canalesMl(org),
-  ]);
   const deMl = fotosDe(it);
-  const fotos = [...deMl.map((url) => ({ url, deLaucen: false })), ...fotosLaucen.filter((f) => !deMl.includes(f.url)).map((f) => ({ url: f.url, deLaucen: true }))];
-
-  // Las cuentas conectadas, con el precio de su Clásica para cada variación y si ya tienen este producto.
-  const cuentas: CuentaDestino[] = [];
-  for (const c of canales) {
-    const cuenta = await cuentaDelCanal(org, c.id);
-    if (!cuenta || cuenta.estado !== "activa") continue;
-    const precios: Record<number, number | null> = {};
-    if (c.listaId) {
-      const filas = await consulta<{ v: number; p: number | null }>(
-        `select v.id::int v, (select pr.lista_ars::float8 from precio_de($1, v.id, $3::bigint, (now() at time zone 'America/Argentina/Buenos_Aires')::date) pr) p
-           from variacion v where v.organizacion_id = $1 and v.id = any($2::bigint[])`, [org, variaciones.map((v) => v.id), c.listaId]);
-      for (const f of filas) precios[f.v] = f.p && f.p > 0 ? f.p : null;
-    }
-    cuentas.push({ canal: c.id, nombre: c.nombre, yaTiene: await yaTiene(org, c.id, variaciones.map((v) => v.sku)), precios });
-  }
-  // Se propone la cuenta de la publicación elegida si no tiene ya el producto; si no, la primera libre.
-  const libre = (x: CuentaDestino) => !x.yaTiene;
-  const cuenta = (cuentas.find((x) => x.canal === g.canal_id && libre(x)) ?? cuentas.find(libre) ?? cuentas[0])?.canal ?? null;
+  const fotos = [...deMl.map((url) => ({ url, deLaucen: false })), ...fotosLaucen.filter((u) => !deMl.includes(u)).map((url) => ({ url, deLaucen: true }))];
+  const cuentas = await cuentasDestino(org, variaciones);
+  const cuenta = cuentaPropuesta(cuentas, g.canal_id);
   const precioLaucen = cuentas.find((x) => x.canal === cuenta)?.precios[variacion] ?? null;
 
   // La descripción no se guarda en Laucen: se lee de ML con la cuenta de la publicación.
@@ -178,19 +220,23 @@ export async function armarBorrador(org: string, productoId: number, itemId: str
   return {
     origen: { item_id: itemId, canal: g.canal_id, cuenta: g.cuenta, estado: g.estado, precio: g.precio, permalink: g.permalink },
     titulo: ((it.family_name ?? it.title) ?? "").trim(), categoria: it.category_id ?? "",
-    precio: precioLaucen ?? it.price ?? g.precio, cantidad: Math.max(1, disp?.n ?? 1),
-    tipo: it.listing_type_id ?? "gold_special", condicion: it.condition ?? "new",
-    fotos, atributos: editables(it.attributes), garantia: editables(it.sale_terms), descripcion, descripcionLeida,
+    precio: precioLaucen ?? it.price ?? g.precio, cantidad: Math.max(1, disponible),
+    // Siempre Clásica de entrada, aunque la copiada sea Premium (Fer, 5/10); se cambia en el formulario.
+    tipo: "gold_special", condicion: it.condition ?? "new",
+    fotos, atributos: editables(it.attributes).map((x) => deLaucen.has(x.id) ? { ...x, valor: deLaucen.get(x.id)! } : x), garantia: editables(it.sale_terms), descripcion, descripcionLeida,
     variaciones, variacion, cuentas, cuenta,
   };
 }
 
-/** La publicación (no cerrada) que la cuenta ya tiene con alguno de estos SKU, para no duplicar. */
-async function yaTiene(org: string, canal: number, skus: string[]): Promise<string | null> {
+/** La publicación (no cerrada) que la cuenta ya tiene con alguno de estos SKU (o en ese
+ *  producto de catálogo), para no duplicar. */
+export async function yaTiene(org: string, canal: number, skus: string[], catalogoId?: string): Promise<string | null> {
   const claves = new Set(skus.map((s) => claveProducto(s, null)));
-  const filas = await consulta<{ item_id: string; sku: string | null; estado: string }>(
-    "select item_id, sku, estado from meli_item where organizacion_id = $1 and canal_id = $2 and estado <> 'closed' and sku is not null", [org, canal]);
-  const f = filas.find((x) => claves.has(claveProducto(x.sku, null)));
+  const filas = await consulta<{ item_id: string; sku: string | null; estado: string; catalogo: string | null }>(
+    `select item_id, sku, estado, datos_externos -> 'ml' ->> 'catalog_product_id' catalogo from meli_item
+      where organizacion_id = $1 and canal_id = $2 and estado <> 'closed' and (sku is not null or datos_externos -> 'ml' ->> 'catalog_product_id' = $3)`,
+    [org, canal, catalogoId ?? ""]);
+  const f = filas.find((x) => (x.sku && claves.has(claveProducto(x.sku, null))) || (catalogoId && x.catalogo === catalogoId));
   return f ? `${f.item_id} (${ESTADOS_ML[f.estado] ?? f.estado})` : null;
 }
 
@@ -235,10 +281,11 @@ export async function prepararPublicacion(org: string, e: Entrada, usuarioId: st
   if (!Object.hasOwn(TIPOS_PUBLICACION, e.tipo)) throw new ErrorErp("Elegí el tipo de publicación.");
   if (!Object.hasOwn(CONDICIONES, e.condicion)) throw new ErrorErp("Elegí la condición.");
 
-  const v = await una<{ sku: string; modelo: string | null }>(
-    `select v.sku, p.modelo from variacion v join producto p on p.id = v.producto_id
+  const v = await una<{ sku: string; modelo: string | null; no_publicable: boolean }>(
+    `select v.sku, p.modelo, p.no_publicable from variacion v join producto p on p.id = v.producto_id
       where v.organizacion_id = $1 and v.id = $2 and v.producto_id = $3`, [org, e.variacion, e.productoId]);
   if (!v) throw new ErrorErp("Elegí la variación del producto que se publica.");
+  if (v.no_publicable) throw new ErrorErp("El producto está marcado como No publicable.");
   const cuenta = await cuentaDelCanal(org, e.canal);
   if (!cuenta || cuenta.estado !== "activa") throw new ErrorErp("Esa cuenta de Mercado Libre no está conectada.");
   const nombreCuenta = (await una<{ nombre: string }>("select nombre from canal where id = $2 and organizacion_id = $1", [org, e.canal]))?.nombre ?? `canal ${e.canal}`;

@@ -114,6 +114,10 @@ create table if not exists meli_pregunta (
 alter table meli_pregunta add column if not exists respondida_con_ia boolean not null default false;
 -- La IA propone sola la respuesta (Fer, 5/10): cuándo se intentó por última vez, para no repetir una que falla.
 alter table meli_pregunta add column if not exists sugerencia_intento_ts timestamptz;
+-- Respuesta automática (Fer, 5/10): qué dijo la IA de su propuesta ('ok', 'persona' = pide hablar con una
+-- persona, 'falta_dato') y si la respuesta la mandó la IA sola (interruptor de Preguntas prendido).
+alter table meli_pregunta add column if not exists ia_estado text;
+alter table meli_pregunta add column if not exists respondida_auto boolean not null default false;
 create index if not exists meli_pregunta_pendientes on meli_pregunta (organizacion_id, fecha) where estado = 'UNANSWERED';
 alter table meli_pregunta enable row level security;
 select erp_politica_org('meli_pregunta');
@@ -139,6 +143,8 @@ select erp_politica_org('meli_mensaje');
 alter table meli_mensaje add column if not exists usuario_id text;
 -- El mensaje fue exactamente la sugerencia de la IA, sin cambios (Fer, 5/10): "Respondió <usuario> con la IA".
 alter table meli_mensaje add column if not exists con_ia boolean not null default false;
+-- Lo mandó la IA sola (interruptor de Mensajes prendido, Fer, 5/10).
+alter table meli_mensaje add column if not exists auto boolean not null default false;
 
 -- Borradores de respuesta a mensajes que propone la IA, por conversación.
 create table if not exists meli_conversacion (
@@ -156,6 +162,10 @@ alter table meli_conversacion enable row level security;
 select erp_politica_org('meli_conversacion');
 -- La IA propone sola la respuesta (Fer, 5/10): cuándo se intentó por última vez, para no repetir una que falla.
 alter table meli_conversacion add column if not exists sugerencia_intento_ts timestamptz;
+-- Respuesta automática (Fer, 5/10): qué dijo la IA de su última propuesta ('ok', 'persona', 'falta_dato') y
+-- desde cuándo el comprador pidió hablar con una persona: desde ahí la IA no contesta más sola esa conversación.
+alter table meli_conversacion add column if not exists ia_estado text;
+alter table meli_conversacion add column if not exists pidio_persona_ts timestamptz;
 
 -- Las publicaciones de cada cuenta tal como están en ML (una fila por item
 -- y variación). Sirve para vincularlas con las variaciones de Laucen: las
@@ -451,3 +461,24 @@ create or replace trigger meli_item_anotar_cambio after update of estado, precio
 -- actualiza con el botón del tablero y, sola, cuando tiene más de una hora.
 alter table meli_cuenta add column if not exists reputacion jsonb;
 alter table meli_cuenta add column if not exists reputacion_ts timestamptz;
+
+-- Por qué una publicación está en revisión en ML (Fer, 5/10): lo que dice ML en
+-- /moderations/infractions (motivo y solución sugerida, sin HTML). Se lee sólo para
+-- las publicaciones "under_review" (lib/mercadolibre/moderaciones.ts), a lo sumo una
+-- vez por día cada una. `por_precio`: el motivo o la solución hablan del precio.
+-- `precio_corregido_ts`: cuándo se mandó un precio nuevo desde Laucen para levantarla.
+create table if not exists meli_moderacion (
+  organizacion_id      text not null references organizaciones(id) on delete cascade,
+  canal_id             bigint not null references canal(id) on delete cascade,
+  item_id              text not null,
+  motivo               text,
+  solucion             text,
+  grupo                text,
+  por_precio           boolean not null default false,
+  datos                jsonb,
+  leido_ts             timestamptz not null default now(),
+  precio_corregido_ts  timestamptz,
+  primary key (canal_id, item_id)
+);
+alter table meli_moderacion enable row level security;
+select erp_politica_org('meli_moderacion');

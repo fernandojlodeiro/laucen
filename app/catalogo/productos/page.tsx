@@ -13,19 +13,22 @@ import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import { caminoDeFamilia } from "@/lib/erp/familias";
 import { LISTA_PRODUCTOS, filtrosProductos } from "./lista";
 import { verInactivos } from "@/app/componentes/Inactivos";
+import { una } from "@/lib/erp/base";
 
 export const dynamic = "force-dynamic";
 
-type SP = { q?: string; estado?: string; familia?: string; tipo?: string; inactivos?: string; kitvs?: string; sinpublicar?: string; sinpubcanal?: string; webcanal?: string; webver?: string; sinfotos?: string; sincanal?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+type SP = { q?: string; estado?: string; familia?: string; tipo?: string; inactivos?: string; kitvs?: string; sinpublicar?: string; sinpubcanal?: string; webcanal?: string; webver?: string; sinfotos?: string; sincanal?: string; nopub?: string; pub?: string; encuentas?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 export default async function Productos({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("productos_ver");
   const sp = await searchParams;
-  const { q, comienza, estado, tipo, familia, kitVs, sinPublicar, sinFotos, sinPublicarEn, sinCanal, webCanal, webVer } = filtrosProductos(sp);
+  const { q, comienza, estado, tipo, familia, kitVs, sinPublicar, sinFotos, sinPublicarEn, sinCanal, webCanal, webVer, noPublicable, publicables, enCuentas } = filtrosProductos(sp);
   const ctx = { org: s.org.id, moneda: s.moneda };
-  const [caminoFamilia, vista] = await Promise.all([caminoDeFamilia(s.org.id, familia), paginaDeVista(LISTA_PRODUCTOS, ctx, sp)]);
+  const [caminoFamilia, vista, cuentas] = await Promise.all([caminoDeFamilia(s.org.id, familia), paginaDeVista(LISTA_PRODUCTOS, ctx, sp),
+    una<{ n: number }>("select count(*)::int n from canal where organizacion_id = $1 and tipo = 'mercadolibre' and estado = 'activo'", [s.org.id])]);
+  const cuentasMl = cuentas?.n ?? 0;
 
-  const hayFiltro = q || estado || tipo || familia || verInactivos(sp) || kitVs || sinPublicar || sinFotos || sinPublicarEn || sinCanal;
+  const hayFiltro = q || estado || tipo || familia || verInactivos(sp) || kitVs || sinPublicar || sinFotos || sinPublicarEn || sinCanal || noPublicable || publicables || enCuentas != null;
   return (
     <Pantalla titulo="Productos" subtitulo="Cada producto con sus variaciones, kits, fotos, cucardas, precios y stock"
       acciones={<><AccionesExcel lista={LISTA_PRODUCTOS} org={s.org.id} vista={vista.activa?.id} /><BotonNuevo texto="Nuevo producto" /></>}>
@@ -72,6 +75,15 @@ export default async function Productos({ searchParams }: { searchParams: Promis
         )}
         <CasillaViva parametro="sinfotos" activo={sinFotos} etiqueta="De la web, sin fotos" />
         <CasillaViva parametro="sincanal" activo={sinCanal} etiqueta="Sin publicar en ningún canal" />
+        <CasillaViva parametro="pub" activo={publicables} etiqueta="Publicables" />
+        <CasillaViva parametro="nopub" activo={noPublicable} etiqueta="No publicables" />
+        {/* En cuántas cuentas de ML está publicado (activa o pausada), como la columna Publicaciones. */}
+        <FiltroVivo parametro="encuentas" valor={enCuentas == null ? "" : String(enCuentas)} etiqueta="Cuentas de ML">
+          <option value="">En cualquier cantidad de cuentas de ML</option>
+          {Array.from({ length: cuentasMl + 1 }, (_, n) => (
+            <option key={n} value={n}>{n === 0 ? "En ninguna cuenta de ML" : n === cuentasMl ? `En las ${n} cuentas de ML` : `En ${n} cuenta${n > 1 ? "s" : ""} de ML`}</option>
+          ))}
+        </FiltroVivo>
       </div>
 
       <div className="flex justify-end mb-2">{vista.selector}</div>

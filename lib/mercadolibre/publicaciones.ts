@@ -16,7 +16,7 @@ export type ItemMl = {
   id: string; title: string; status: string; price: number; available_quantity: number; sold_quantity?: number;
   listing_type_id?: string; category_id?: string; permalink?: string; thumbnail?: string; secure_thumbnail?: string;
   seller_custom_field?: string | null; attributes?: Atributo[]; variations?: Variacion[];
-  shipping?: { logistic_type?: string }; catalog_listing?: boolean; user_product_id?: string | null;
+  shipping?: { logistic_type?: string }; catalog_listing?: boolean; user_product_id?: string | null; sub_status?: string[];
 };
 
 const skuDe = (attrs?: Atributo[], custom?: string | null) =>
@@ -64,6 +64,8 @@ export async function guardarItem(cuenta: CuentaMl, it: ItemMl): Promise<number>
   let vinculadas = 0;
   // Las que se borraron de Laucen a propósito no vuelven (meli_item_descartado).
   if (await una("select 1 from meli_item_descartado where canal_id = $1 and item_id = $2", [cuenta.canalId, it.id])) return 0;
+  // Eliminada en ML (sub_status "deleted"): ML la sigue devolviendo y avisando, pero ya no existe para nadie.
+  if (it.sub_status?.includes("deleted")) { await olvidarEliminada(cuenta, it); return 0; }
   for (const f of filasDeItem(it)) {
     await consulta(`
       insert into meli_item (organizacion_id, canal_id, item_id, variation_id, titulo, atributos, sku, precio, stock, vendidos, estado, tipo,
@@ -91,6 +93,20 @@ export async function guardarItem(cuenta: CuentaMl, it: ItemMl): Promise<number>
   }
   return vinculadas;
 }
+
+/** Una publicación eliminada en ML sale de Laucen (sus filas de meli_item y su vínculo con el
+ *  producto) y queda anotada como descartada, para que no vuelva al traer ni con los avisos de ML. */
+export async function olvidarEliminada(cuenta: CuentaMl, it: Pick<ItemMl, "id" | "title" | "status" | "attributes" | "seller_custom_field">): Promise<void> {
+  await enTransaccion(async (c) => {
+    await c.query(`
+      insert into meli_item_descartado (organizacion_id, canal_id, item_id, titulo, sku, motivo, estado)
+      values ($1, $2, $3, $4, $5, $6, $7) on conflict do nothing`,
+      [cuenta.organizacionId, cuenta.canalId, it.id, it.title ?? null, skuDe(it.attributes, it.seller_custom_field), MOTIVO_ELIMINADA, it.status ?? null]);
+    await c.query("delete from meli_item where organizacion_id = $1 and canal_id = $2 and item_id = $3", [cuenta.organizacionId, cuenta.canalId, it.id]);
+    await c.query("delete from publicacion where organizacion_id = $1 and canal_id = $2 and id_externo = $3", [cuenta.organizacionId, cuenta.canalId, it.id]);
+  });
+}
+export const MOTIVO_ELIMINADA = "eliminada en ML";
 
 async function refrescarPublicacion(cuenta: CuentaMl, pubId: number, it: ItemMl, f: ReturnType<typeof filasDeItem>[number]) {
   const estado = it.status === "active" ? "activa" : it.status === "paused" ? "pausada" : "cerrada";
@@ -227,7 +243,7 @@ export async function borrarPausadasSinProducto(org: string, canalId: number): P
 
 /** Las borradas de Laucen del canal que todavía no tienen pedida su
  *  eliminación en ML (o cuyo lote se descartó). */
-const SQL_A_ELIMINAR_EN_ML = `d.organizacion_id = $1 and d.canal_id = $2
+const SQL_A_ELIMINAR_EN_ML = `d.organizacion_id = $1 and d.canal_id = $2 and coalesce(d.motivo, '') <> 'eliminada en ML'
   and (d.eliminar_lote_id is null or exists (select 1 from ml_lote l where l.id = d.eliminar_lote_id and l.estado = 'descartado'))`;
 
 export async function contarAEliminarEnMl(org: string, canalId: number): Promise<number> {

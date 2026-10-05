@@ -75,6 +75,28 @@ alter table producto add column if not exists atributos_ml jsonb not null defaul
 -- "Kit" según Virtual Seller (packs y combinaciones): sólo una marca para
 -- filtrarlos y armarlos a mano; no es un kit del sistema (sin componentes).
 alter table producto add column if not exists kit_vs boolean not null default false;
+-- No publicable (Fer, 5/10): insumo o parte de otro (ej. la unidad "-U" que sólo
+-- se vende en pack). No va a Mercado Libre ni a la web y no cuenta en las alertas
+-- de "sin publicar". Al crear la columna se prende sola en los "-U" que no tienen
+-- ninguna publicación de ML (ni vinculada ni guardada con su SKU).
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'producto' and column_name = 'no_publicable') then
+    alter table producto add column no_publicable boolean not null default false;
+    -- En una base nueva todavía no hay publicaciones: no hay nada que marcar.
+    if to_regclass('public.meli_item') is null then return; end if;
+    update producto p set no_publicable = true
+     where (p.sku_base ~* '-U$' or exists (select 1 from variacion v where v.producto_id = p.id and v.sku ~* '-U$'))
+       and not exists (select 1 from publicacion pu join variacion v on v.id = pu.variacion_id join canal c on c.id = pu.canal_id
+                        where v.producto_id = p.id and c.tipo = 'mercadolibre')
+       and not exists (select 1 from meli_item m join variacion v on v.producto_id = p.id
+                        where m.organizacion_id = p.organizacion_id and upper(regexp_replace(coalesce(m.sku, ''), '^DE-', '', 'i')) = upper(v.sku));
+    -- Y salen de la web.
+    update publicacion pu set estado = 'pausada' from variacion v, producto p, canal c
+     where v.id = pu.variacion_id and p.id = v.producto_id and c.id = pu.canal_id and p.no_publicable
+       and c.tipo in ('web_minorista', 'web_mayorista') and pu.id_externo is null and pu.estado = 'activa';
+  end if;
+end $$;
 -- Costo de cada producto: FOB, en la moneda que se elija (por ahora USD).
 -- El costo puesto en depósito sale de compras/despachos (costo_ultimo/promedio).
 alter table variacion add column if not exists costo_fob numeric(16, 4);

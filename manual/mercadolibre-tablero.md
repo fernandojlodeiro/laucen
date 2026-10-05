@@ -65,7 +65,7 @@ Tocá el número: te lleva a la pantalla correspondiente con esa cuenta ya elegi
 - Cada número usa **la misma condición que la pantalla a la que enlaza**, para que coincidan.
 - **Reclamos y entregas demoradas**: ML sólo informa cuántos y el porcentaje del período; Laucen no los recalcula. Para ver cuáles son, usá [Reclamos y devoluciones](/ventas/reclamos) y [Envíos](/ventas/envios).
 - **Etiquetas**: los envíos de Full no tienen etiqueta para imprimir y no cuentan.
-- **Con stock y sin publicación activa**: cuenta productos activos con stock disponible (un kit se calcula desde sus componentes) que no tienen ninguna publicación activa vinculada en ninguna cuenta de ML. Una publicación de ML sin vincular **no** cuenta como publicación del producto.
+- **Con stock y sin publicación activa**: cuenta productos activos (y publicables: los marcados **No publicable** no cuentan) con stock disponible (un kit se calcula desde sus componentes) que no tienen ninguna publicación activa vinculada en ninguna cuenta de ML. Una publicación de ML sin vincular **no** cuenta como publicación del producto.
 - **De la web sin fotos**: sólo productos activos que la tienda web muestra con precio (el precio que ve el cliente, que sale de la lista principal) y que no tienen ninguna foto.
 - **Productos con stock sin publicar (fila de cada cuenta)**: productos activos con stock disponible que no tienen publicación activa en **esa** cuenta (pueden estar publicados en otra). La columna Total muestra los que no están en ninguna. Enlace: [Productos](/catalogo/productos) filtrado por esa cuenta.
 - Sólo se muestran las cuentas conectadas a un canal.
