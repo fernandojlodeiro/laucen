@@ -10,12 +10,11 @@ import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { consulta } from "@/lib/erp/base";
 import { PRIMARIO, SUAVE } from "@/app/botones";
-import { prefijoSkuDe } from "@/lib/mercadolibre/copiar";
 import {
   entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, CAMPO, ETIQUETA, CAJA, patronBusqueda,
 } from "@/app/componentes/erp";
 import MarcarTodas from "./MarcarTodas";
-import { accionGuardarPrefijo, accionPrepararCopia } from "./acciones";
+import { accionPrepararCopia } from "./acciones";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -55,7 +54,6 @@ export default async function CopiarEntreCuentas({ searchParams }: { searchParam
   const tipo = sp.tipo === "catalogo" || sp.tipo === "normal" ? sp.tipo : "";
   const q = sp.q?.trim() || "";
   const comienza = sp.contiene !== "1";
-  const prefijo = await prefijoSkuDe(org, destino.id);
 
   // Una fila por producto (SKU sin "DE-" o, si no tiene, título sin tildes) con lo que tiene cada cuenta.
   const desde = `(
@@ -119,7 +117,7 @@ export default async function CopiarEntreCuentas({ searchParams }: { searchParam
         <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por título o SKU…" />
       </div>
 
-      <div className="grid gap-3 mb-3 md:grid-cols-2">
+      <div className="grid gap-3 mb-3">
         <form id="copiar" action={accionPrepararCopia} className={`${CAJA} space-y-2`}>
           <input type="hidden" name="origen" value={origen.id} /><input type="hidden" name="destino" value={destino.id} /><input type="hidden" name="volver" value={aqui} />
           <p className="text-xs">Marcá las publicaciones y apretá <b>Preparar copia</b>: se comprueban con Mercado Libre (sin publicar nada) y queda un lote para revisar. No sale nada hasta que lo mandes.</p>
@@ -128,14 +126,6 @@ export default async function CopiarEntreCuentas({ searchParams }: { searchParam
             <label className="inline-flex items-center gap-1.5"><input type="checkbox" name="rotar_fotos" className="h-4 w-4 accent-[#16577F]" /> Cambiar la foto principal (la primera pasa al final)</label>
           </div>
           <BotonEnviar clase={PRIMARIO} corriendo="Comprobando con Mercado Libre… (no cierres la pantalla)">Preparar copia hacia {destino.nombre}</BotonEnviar>
-        </form>
-        <form action={accionGuardarPrefijo} className={`${CAJA} space-y-2`}>
-          <input type="hidden" name="canal" value={destino.id} /><input type="hidden" name="volver" value={aqui} />
-          <p className="text-xs">En <b>{destino.nombre}</b> los SKU llevan este prefijo (en las DEIROLAB, <b>DE-</b>; en las otras, ninguno). Se saca el &quot;DE-&quot; del SKU de origen y se pone éste.</p>
-          <div className="flex items-center gap-2">
-            <input name="prefijo" defaultValue={prefijo} placeholder="sin prefijo" aria-label="Prefijo de SKU de la cuenta de destino" className={`${CAMPO} w-28`} />
-            <button className={SUAVE}>Grabar prefijo</button>
-          </div>
         </form>
       </div>
 

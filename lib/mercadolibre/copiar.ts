@@ -46,11 +46,6 @@ export function rotarFotos<T>(fotos: T[]): T[] {
   return fotos.length < 2 ? [...fotos] : [...fotos.slice(1), fotos[0]];
 }
 
-/** El SKU para la cuenta de destino: se saca el "DE-" de adelante y se pone el prefijo de esa cuenta. */
-export function skuDestino(sku: string, prefijo: string | null | undefined): string {
-  return `${prefijo ?? ""}${sku.trim().replace(/^DE-/i, "")}`;
-}
-
 /** Por qué una publicación no se puede copiar todavía (o null si se puede). */
 export function motivoNoCopiable(it: ItemGuardado): string | null {
   if (it.status !== "active") return "no está activa";
@@ -67,7 +62,7 @@ export function motivoNoCopiable(it: ItemGuardado): string | null {
 /** Atributos que ML calcula o fija él: mandarlos da aviso ("ignored because it is not modifiable"). */
 export const NO_MODIFICABLE = (id: string) => /^PACKAGE_/.test(id) || id === "IS_TOM_BRAND";
 
-export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones: OpcionesCopia, extra: { modelo?: string | null; sacar?: string[] } = {}): Record<string, unknown> {
+export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones: OpcionesCopia, extra: { modelo?: string | null; sacar?: string[]; sinEnvio?: boolean } = {}): Record<string, unknown> {
   const nombre = ((it.family_name ?? it.title) ?? "").trim();
   const nuevoNombre = opciones.variarTitulo ? variarTitulo(nombre) : nombre;
   const fotos = (it.pictures ?? []).map((f) => f.secure_url ?? f.url).filter((u): u is string => !!u);
@@ -91,8 +86,9 @@ export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones:
     ...(it.channels?.length ? { channels: it.channels } : {}),
     pictures: (opciones.rotarFotos ? rotarFotos(fotos) : fotos).map((source) => ({ source })),
     attributes: atributos,
-    // Siempre Mercado Envíos 2 (me2): una cuenta puede no tener el modo viejo (me1) que traía la de origen.
-    shipping: { mode: "me2", local_pick_up: !!it.shipping?.local_pick_up, free_shipping: !!it.shipping?.free_shipping },
+    // Mercado Envíos 2 y nada más: el envío gratis obligatorio, el costo y el resto los decide ML para esa cuenta
+    // (si ML protesta por el envío, se reintenta sin este bloque y usa lo que tiene la cuenta).
+    ...(extra.sinEnvio ? {} : { shipping: { mode: "me2" } }),
     ...(condiciones.length ? { sale_terms: condiciones } : {}),
     ...(it.video_id ? { video_id: it.video_id } : {}),
   };
@@ -117,12 +113,17 @@ export function atributosNoModificables(datos: unknown): string[] {
   return causasDe(datos).flatMap((c) => [...(c.message ?? "").matchAll(/Attribute \[([A-Z0-9_]+)\] ignored because it is not modifiable/g)].map((m) => m[1]));
 }
 
-/** Por qué ML rechaza un alta, sólo con los errores (sin los avisos) y sin repetir. */
+/** Por qué ML rechaza un alta: cada causa con su tipo (error / aviso) y su código, sin repetir. Si hay errores, van primero. */
 export function motivoValidacion(status: number, datos: unknown): string {
-  const errores = [...new Set(causasDe(datos).filter((c) => c.type === "error").map((c) => (c.message ?? "").trim()).filter(Boolean))];
-  if (!errores.length) return errorLegible(status, datos);
-  const t = errores.join(" · ");
-  return t.length > 600 ? `${t.slice(0, 600)}…` : t;
+  const causas = causasDe(datos).filter((c) => (c.message ?? "").trim());
+  if (!causas.length) return errorLegible(status, datos);
+  const orden = (c: CausaMl) => (c.type === "error" ? 0 : c.type === "warning" ? 2 : 1);
+  const lineas = [...new Map([...causas].sort((a, b) => orden(a) - orden(b)).map((c) => {
+    const t = `${c.type ? (c.type === "warning" ? "aviso" : c.type) : "?"}${c.code ? ` ${c.code}` : ""}: ${(c.message ?? "").trim()}`;
+    return [t, t] as const;
+  })).values()];
+  const t = lineas.join(" · ");
+  return t.length > 700 ? `${t.slice(0, 700)}…` : t;
 }
 
 /** El Modelo cargado en el producto de Laucen que tiene ese SKU (para completar el que falta en ML). */
@@ -134,18 +135,6 @@ async function modeloDeLaucen(org: string, sku: string): Promise<string | null> 
 
 export type Rechazo = { item_id: string; titulo: string | null; motivo: string };
 export type PreparacionCopia = { loteId: number | null; preparadas: number; rechazadas: Rechazo[] };
-
-/** El prefijo de SKU de una cuenta (canal.config.prefijo_sku): "DE-" en las DEIROLAB, vacío en las otras. */
-export async function prefijoSkuDe(org: string, canalId: number): Promise<string> {
-  const c = await una<{ p: string | null }>("select config ->> 'prefijo_sku' p from canal where id = $2 and organizacion_id = $1", [org, canalId]);
-  return c?.p ?? "";
-}
-
-export async function guardarPrefijoSku(org: string, canalId: number, prefijo: string): Promise<void> {
-  const limpio = prefijo.trim().toUpperCase();
-  if (limpio.length > 10 || /\s/.test(limpio)) throw new ErrorErp("El prefijo va sin espacios y de hasta 10 caracteres (ej. DE-).");
-  await consulta("update canal set config = jsonb_set(config, '{prefijo_sku}', to_jsonb($3::text)) where id = $2 and organizacion_id = $1", [org, canalId, limpio]);
-}
 
 const MAX_POR_LOTE = 40;
 
@@ -160,7 +149,6 @@ export async function prepararCopia(org: string, origen: number, destino: number
   const cOrigen = await cuentaDelCanal(org, origen), cDestino = await cuentaDelCanal(org, destino);
   if (!cOrigen || cOrigen.estado !== "activa") throw new ErrorErp("La cuenta de origen no está conectada.");
   if (!cDestino || cDestino.estado !== "activa") throw new ErrorErp("La cuenta de destino no está conectada.");
-  const prefijo = await prefijoSkuDe(org, destino);
   const nombreDestino = (await una<{ nombre: string }>("select nombre from canal where id = $2 and organizacion_id = $1", [org, destino]))?.nombre ?? `canal ${destino}`;
 
   const filas = await consulta<{ item_id: string; titulo: string | null; sku: string | null; ml: ItemGuardado | null }>(
@@ -181,7 +169,7 @@ export async function prepararCopia(org: string, origen: number, destino: number
     const no = motivoNoCopiable(f.ml);
     if (no) { rech(no); continue; }
     if (yaEnDestino.has(claveProducto(f.sku, f.titulo))) { rech(`ya está en ${nombreDestino}`); continue; }
-    const sku = f.sku ? skuDestino(f.sku, prefijo) : null;
+    const sku = f.sku?.trim() || null; // el SKU es el mismo en todas las cuentas
     const modelo = f.sku ? await modeloDeLaucen(org, f.sku) : null;
     let sacar: string[] = [];
     let cuerpo = armarCuerpoCopia(f.ml, sku, opciones, { modelo, sacar });
@@ -191,6 +179,11 @@ export async function prepararCopia(org: string, origen: number, destino: number
     if (comprobacion.status === 400 && nuevos.length) {
       sacar = [...sacar, ...nuevos];
       cuerpo = armarCuerpoCopia(f.ml, sku, opciones, { modelo, sacar });
+      comprobacion = await ml(cDestino, "POST", "/items/validate", cuerpo);
+    }
+    // Si ML protesta por el envío, se vuelve a comprobar sin el bloque de envío (usa el que tiene la cuenta).
+    if (comprobacion.status === 400 && /mode me1|free shipping|shipping/i.test(JSON.stringify(comprobacion.datos))) {
+      cuerpo = armarCuerpoCopia(f.ml, sku, opciones, { modelo, sacar, sinEnvio: true });
       comprobacion = await ml(cDestino, "POST", "/items/validate", cuerpo);
     }
     if (comprobacion.status < 200 || comprobacion.status >= 300) { rech(`Mercado Libre no la acepta: ${motivoValidacion(comprobacion.status, comprobacion.datos)}`); continue; }
