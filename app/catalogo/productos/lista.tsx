@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import FotosProducto from "@/app/componentes/FotosProducto";
+import { SUAVE } from "@/app/botones";
 import { Estado, url, patronBusqueda } from "@/app/componentes/erp";
 import { verInactivos } from "@/app/componentes/Inactivos";
 import { consulta } from "@/lib/erp/base";
@@ -61,9 +62,15 @@ const CAMPOS: Campo[] = [
   },
   {
     clave: "titulo", titulo: "Título", sql: "p.titulo", ancho: 50,
-    celda: (f) => (
-      <><Link href={`/catalogo/productos/${f.id}`} className="hover:underline">{f.titulo}</Link>
-        {f.kit_vs && <span className="ml-1.5"><Estado texto="Kit VS" tono="azul" /></span>}</>
+    celda: (f, ctx) => (
+      <span className="flex items-center justify-between gap-2">
+        <span><Link href={`/catalogo/productos/${f.id}`} className="hover:underline">{f.titulo}</Link>
+          {f.kit_vs && <span className="ml-1.5"><Estado texto="Kit VS" tono="azul" /></span>}</span>
+        {/* Con el filtro de "sin publicación activa en ML": publicarlo copiando una publicación parecida. */}
+        {(ctx.sp.sinpublicar === "1" || Number(ctx.sp.sinpubcanal) > 0) && (
+          <Link href={`/catalogo/productos/${f.id}/publicar-ml`} className={`${SUAVE} !py-1 whitespace-nowrap`} title="Buscar publicaciones parecidas en tus cuentas de Mercado Libre y copiar una">Buscar en ML</Link>
+        )}
+      </span>
     ),
   },
   { clave: "marca", titulo: "Marca", sql: "p.marca", celda: (f) => f.marca ? <Link href={url("/catalogo/productos", { q: f.marca, contiene: null })} className={ENLACE}>{f.marca}</Link> : "—" },

@@ -986,7 +986,11 @@ export async function SeccionPublicaciones({ s, p }: Props) {
           ))}
         </div>
       )}
-      <div className="flex justify-end mb-2"><Link href="/catalogo/publicaciones" className={SUAVE}>Ir a Publicaciones</Link></div>
+      <div className="flex justify-end gap-2 mb-2">
+        {/* Publicarlo en una cuenta de ML copiando una publicación parecida (queda esperando el clic en la cola). */}
+        <Link href={`/catalogo/productos/${p.id}/publicar-ml`} className={SUAVE}>Publicar en ML copiando otra</Link>
+        <Link href="/catalogo/publicaciones" className={SUAVE}>Ir a Publicaciones</Link>
+      </div>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
