@@ -28,6 +28,10 @@ const VARIACIONES = "(select count(*) from variacion v where v.producto_id = p.i
 // tiene en una misma cuenta (cuotas, variaciones), ni la web.
 const PUBLICADO_ML = `(select count(distinct pu.canal_id) from publicacion pu join variacion v on v.id = pu.variacion_id join canal c on c.id = pu.canal_id
             where v.producto_id = p.id and c.tipo = 'mercadolibre' and c.estado = 'activo' and pu.estado <> 'cerrada')`;
+// Ventas en Mercado Libre (Fer, 5/10): lo vendido que informa ML de cada publicación vinculada al
+// producto (todas las cuentas y estados; en una con variaciones, lo de cada variación). Sin ventas, 0.
+const VENDIDOS_ML = `(select coalesce(sum(mi.vendidos), 0) from meli_item mi join publicacion pu on pu.id = mi.publicacion_id
+            join variacion v on v.id = pu.variacion_id where v.producto_id = p.id)`;
 const CUENTAS_ML = "(select count(*) from canal c where c.organizacion_id = p.organizacion_id and c.tipo = 'mercadolibre' and c.estado = 'activo')";
 
 /** "ML 3/5": en cuántas de las cuentas de Mercado Libre está publicado. */
@@ -113,6 +117,10 @@ const CAMPOS: Campo[] = [
     celda: (f) => <Link href={url("/catalogo/publicaciones", { q: f.sku })} className="text-[#16577F] hover:underline" title="Cuentas de Mercado Libre donde está publicado (activa o pausada)">{f.publicaciones}</Link>,
   },
   {
+    clave: "vendidos_ml", titulo: "Vendidos ML", sql: `${VENDIDOS_ML}::int`, orden: VENDIDOS_ML, formato: "entero",
+    celda: (f) => <Link href={`/catalogo/productos/${f.id}?seccion=publicaciones`} className="hover:underline" title="Unidades vendidas en Mercado Libre (lo que informa ML, sumando todas sus publicaciones)">{Number(f.vendidos_ml).toLocaleString("es-AR")}</Link>,
+  },
+  {
     clave: "disponible", titulo: "Disponible", sql: `${DISPONIBLE}::int`, orden: DISPONIBLE, formato: "entero", usa: ["sku"],
     celda: (f) => <Link href={url("/stock/consulta", { q: f.sku })} className={`hover:underline ${f.disponible < 0 ? "text-[#C03420]" : ""}`}>{Number(f.disponible).toLocaleString("es-AR")}</Link>,
   },
@@ -153,7 +161,7 @@ export const LISTA_PRODUCTOS: Lista = {
   permiso: "productos_ver",
   vistas: true,
   porDefecto: "titulo",
-  enPantalla: ["sku", "titulo", "familia", "tipo", "variaciones", "publicaciones", "disponible", "estado"],
+  enPantalla: ["sku", "titulo", "familia", "tipo", "variaciones", "publicaciones", "vendidos_ml", "disponible", "estado"],
   siempre: `p.id::int id, p.familia_id::int familia_id, p.kit_vs, p.no_publicable, p.estado _estado,
             ${PUBLICADO_ML}::int ml_n, ${CUENTAS_ML}::int ml_total,
             (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = p.id) fotos`,

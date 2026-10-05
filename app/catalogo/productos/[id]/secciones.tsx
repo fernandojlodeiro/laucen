@@ -965,12 +965,14 @@ export async function SeccionPublicaciones({ s, p }: Props) {
   // Los precios de las publicaciones son en pesos: en dólares, al tipo de cambio de hoy.
   const tcHoy = await tcParaVista(s.org.id, s.moneda);
   const filas = await consulta<{ id: number; sku: string; canal: string; id_externo: string | null; titulo: string; tipo_publicacion: string | null; estado: string; sincro: string | null;
-    precio: number | null; precio_tachado: number | null; stock_ml: number | null; estado_ml: string | null; enlace: string | null; disp_web: number | null }>(`
+    precio: number | null; precio_tachado: number | null; stock_ml: number | null; estado_ml: string | null; enlace: string | null; disp_web: number | null; vendidos: number | null }>(`
     select pu.id::int, v.sku, c.nombre canal, pu.id_externo,
            -- La publicación en ML (Fer, 5/10): su dirección, o la que arma ML con el número.
            case when c.tipo = 'mercadolibre' and pu.id_externo is not null
                 then coalesce(mi.permalink, 'https://articulo.mercadolibre.com.ar/' || regexp_replace(pu.id_externo, '^([A-Z]{3})(\\d+)$', '\\1-\\2')) end enlace, coalesce(pu.titulo, titulo_variacion(v.id)) titulo, pu.tipo_publicacion, pu.estado,
            pu.precio_canal::float8 precio, pu.precio_tachado::float8, mi.stock stock_ml, mi.estado estado_ml,
+           -- Vendidos en ML (lo que informa ML de la publicación); sin ventas, 0. La web no tiene.
+           case when c.tipo = 'mercadolibre' then coalesce(mi.vendidos, 0) end::int vendidos,
            -- En la web: lo disponible para ese canal (con 0, la publicación activa se muestra "Sin stock").
            case when c.tipo in ('web_minorista', 'web_mayorista') then stock_disponible_canal(pu.organizacion_id, v.id, pu.canal_id)::int end disp_web,
            to_char(pu.ultima_sincronizacion_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YYYY HH24:MI') sincro
@@ -998,7 +1000,9 @@ export async function SeccionPublicaciones({ s, p }: Props) {
           ))}
         </div>
       )}
-      <div className="flex justify-end gap-2 mb-2">
+      <div className="flex items-center justify-end gap-2 mb-2">
+        {/* El total de ventas en ML del producto (Fer, 5/10): la suma de lo vendido de sus publicaciones; sin ventas, 0. */}
+        <span className="mr-auto text-xs text-[#5C6B76]">Vendidos en Mercado Libre: <b className="text-[#1F2A33] tabular-nums">{filas.reduce((t, f) => t + (f.vendidos ?? 0), 0).toLocaleString("es-AR")}</b></span>
         {/* Publicarlo en una cuenta de ML copiando una publicación parecida (queda esperando el clic en la cola). */}
         {!p.no_publicable && <Link href={`/catalogo/productos/${p.id}/publicar-ml`} className={SUAVE}>Publicar en ML copiando otra</Link>}
         {/* Directo a la publicación nueva armada con los datos de Laucen y la IA (Fer, 5/10). */}
@@ -1008,10 +1012,10 @@ export async function SeccionPublicaciones({ s, p }: Props) {
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={TH}>Canal</th><th className={TH}>Variación</th><th className={TH}>Id externo</th><th className={TH}>Título</th><th className={TH}>Tipo</th><th className={THN}>Precio</th><th className={TH}>Estado</th><th className={THN}>Stock en ML</th><th className={TH}>Última sincronización</th></tr>
+            <tr><th className={TH}>Canal</th><th className={TH}>Variación</th><th className={TH}>Id externo</th><th className={TH}>Título</th><th className={TH}>Tipo</th><th className={THN}>Precio</th><th className={TH}>Estado</th><th className={THN}>Stock en ML</th><th className={THN}>Vendidos en ML</th><th className={TH}>Última sincronización</th></tr>
           </thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>Ninguna variación de este producto está publicada.</td></tr>}
+            {filas.length === 0 && <tr><td colSpan={10} className={`${TD} text-[#5C6B76]`}>Ninguna variación de este producto está publicada.</td></tr>}
             {filas.map((f) => (
               <tr key={f.id} className={TR}>
                 <td className={TD}>{f.canal}</td>
@@ -1038,6 +1042,7 @@ export async function SeccionPublicaciones({ s, p }: Props) {
                 </td>
                 {/* Lo que ML tiene cargado como disponible (también si está pausada), de la copia local meli_item. */}
                 <td className={TDN}>{f.stock_ml != null ? f.stock_ml : <span className="text-[#5C6B76]">—</span>}</td>
+                <td className={TDN}>{f.vendidos != null ? f.vendidos.toLocaleString("es-AR") : <span className="text-[#5C6B76]">—</span>}</td>
                 <td className={`${TD} text-[#5C6B76] whitespace-nowrap`}>{f.sincro ?? "—"}</td>
               </tr>
             ))}

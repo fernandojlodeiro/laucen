@@ -39,6 +39,7 @@ Columnas (todas se ordenan tocando el título; sin elegir, por canal):
 - **Estado**: Activa / Pausada / Cerrada (o **Pausada por vos**, si la pausaste con el botón); debajo, "En ML: …" (lo que dice ML: Activa, Pausada, Cerrada, En revisión, Inactiva, Pago pendiente) y "sinc. dd/mm hh:mm".
 - **Disponible**: lo que hay para vender en los depósitos del canal. En rojo cuando está en el umbral o por debajo. Lleva a [Consulta de stock](/stock/consulta).
 - **Stock en ML**: lo que la publicación tiene cargado en Mercado Libre (también si está pausada).
+- **Vendidos ML** (para agregar en la vista o el Excel): unidades vendidas que informa Mercado Libre de esa publicación; 0 si no vendió.
 - **Umbral**: el que rige; "(hereda)" si no tiene uno propio.
 - A la derecha: **Pausar** (sólo publicaciones de Mercado Libre activas; pregunta "¿Pausar en Mercado Libre?" Sí / No), **Sacar la pausa** (sólo las que pausaste vos), **Re-vincular** (sólo publicaciones de ML: lleva a Vincular con Mercado Libre filtrado por ese MLA) y el **lápiz** ("Editar el umbral de pausa", y en canales que no son de ML también la variación).
 

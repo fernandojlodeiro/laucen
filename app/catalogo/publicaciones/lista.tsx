@@ -60,6 +60,7 @@ export const LISTA_PUBLICACIONES: Lista = {
     { clave: "precio_campana", titulo: "Precio con campaña $", sql: PRECIO_CAMPANA_PUBLICACION, orden: false, formato: "pesos" },
     { clave: "pausada_manual", titulo: "Pausada por el usuario", sql: "case when pu.pausada_manual then 'Sí' end" },
     { clave: "stock_ml", titulo: "Stock en ML", sql: "mi.stock", formato: "entero" },
+    { clave: "vendidos_ml", titulo: "Vendidos ML", sql: "case when c.tipo = 'mercadolibre' then coalesce(mi.vendidos, 0) end", orden: "coalesce(mi.vendidos, 0)", formato: "entero" },
     { clave: "estado_ml", titulo: "Estado en ML", sql: "mi.estado", valor: (f) => textoEstadoMl(f.estado_ml) },
     { clave: "disponible", titulo: "Disponible", sql: `${DISPONIBLE_PUBLICACION}::int`, orden: DISPONIBLE_PUBLICACION, formato: "entero" },
     { clave: "umbral", titulo: "Umbral de pausa", sql: `${UMBRAL}::int`, orden: UMBRAL, formato: "entero" },
