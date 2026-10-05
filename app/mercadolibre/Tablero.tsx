@@ -139,6 +139,20 @@ const NA = <span className="block text-right text-[13px] text-[#9AA7B3]" title="
 const soloMl = (f: (c: CuentaTablero, m: Metricas) => React.ReactNode) => (c: Col, m: Metricas) => (c.cuenta ? f(c.cuenta, m) : NA);
 
 /** "completo": todo (reputación, publicaciones, pendientes, movimiento y alertas). "hacer": sólo lo que hay para hacer. */
+/** "antes de hoy 16:30" (y cuántos ya vencieron) para la fila de despacho. */
+function notaDespacho(m: Metricas): string | null {
+  if (!m.paraDespachar || !m.despacharAntes) return null;
+  const zona = "America/Argentina/Buenos_Aires";
+  const dia = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: zona });
+  const d = new Date(m.despacharAntes);
+  const hoy = new Date();
+  const manana = new Date(hoy.getTime() + 86_400_000);
+  const hora = d.toLocaleTimeString("es-AR", { timeZone: zona, hour: "2-digit", minute: "2-digit" });
+  const cuando = dia(d) === dia(hoy) ? `hoy ${hora}` : dia(d) === dia(manana) ? `mañana ${hora}`
+    : `${d.toLocaleDateString("es-AR", { timeZone: zona, day: "2-digit", month: "2-digit" })} ${hora}`;
+  return m.despacharVencidos ? `${n(m.despacharVencidos)} vencido${m.despacharVencidos === 1 ? "" : "s"} · antes de ${cuando}` : `antes de ${cuando}`;
+}
+
 export type ModoTablero = "completo" | "hacer";
 
 export async function Tablero({ org, modo, moneda = "ARS" }: { org: string; modo: ModoTablero; moneda?: Moneda }) {
@@ -218,8 +232,12 @@ export async function Tablero({ org, modo, moneda = "ARS" }: { org: string; modo
         { titulo: "Etiquetas para imprimir", ayuda: "Envíos por despachar con la etiqueta todavía sin imprimir",
           celda: (c, m) => <Celda valor={m.etiquetas.sinImprimir} de={m.etiquetas.porDespachar} href={enlace("/ventas/envios", c)} nota={m.etiquetas.vencidos ? `${n(m.etiquetas.vencidos)} para hoy o vencidos` : null} />,
           total: (t) => <Celda valor={t.etiquetas.sinImprimir} de={t.etiquetas.porDespachar} href="/ventas/envios" nota={t.etiquetas.vencidos ? `${n(t.etiquetas.vencidos)} para hoy o vencidos` : null} /> },
-        { titulo: "Pedidos para preparar", celda: (c, m) => <Celda valor={m.pedidosParaPreparar} href={enlace("/ventas/pedidos", c)} />,
-          total: (t) => <Celda valor={t.pedidosParaPreparar} href="/ventas/pedidos" /> },
+        { titulo: "Pedidos para preparar", ayuda: "Nuevos o pagados que todavía no entraron a un lote; el chico es el total sin despachar (incluye los en preparación y los preparados)",
+          celda: (c, m) => <Celda valor={m.pedidosParaPreparar} de={m.pedidosSinDespachar} href={enlace("/ventas/pedidos", c)} nota={m.enPreparacion ? `${n(m.enPreparacion)} en preparación` : null} />,
+          total: (t) => <Celda valor={t.pedidosParaPreparar} de={t.pedidosSinDespachar} href="/ventas/pedidos" nota={t.enPreparacion ? `${n(t.enPreparacion)} en preparación` : null} /> },
+        { titulo: "Pedidos para despachar", ayuda: "Preparados que todavía no salieron; debajo, el plazo más cercano para entregarlos (el \"despachar antes de\" de Mercado Libre)",
+          celda: (c, m) => <Celda valor={m.paraDespachar} href={enlace("/ventas/pedidos", c, { estado: "preparado" })} nota={notaDespacho(m)} />,
+          total: (t) => <Celda valor={t.paraDespachar} href="/ventas/pedidos?estado=preparado" nota={notaDespacho(t)} /> },
         { titulo: "Preguntas para responder", celda: soloMl((c, m) => <Celda valor={m.preguntas.sinResponder} de={m.preguntas.total} href={url("/ventas/preguntas", { canal: c.canalId })} nota={m.preguntas.masVieja ? `la más vieja, ${haceCuanto(m.preguntas.masVieja)}` : null} />),
           total: (t) => <Celda valor={t.preguntas.sinResponder} de={t.preguntas.total} href="/ventas/preguntas" /> },
         { titulo: "Mensajes para responder", ayuda: "Conversaciones de posventa con mensajes sin leer",

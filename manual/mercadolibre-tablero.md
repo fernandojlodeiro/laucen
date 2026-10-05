@@ -37,7 +37,8 @@ Lo que informa Mercado Libre; cada dato cuenta el período que se muestra al lad
 ### Para hacer (sólo en el tablero "Para hacer")
 Estas filas **no están en el Relevamiento completo**: viven en [Dashboard › Para hacer](/panel), para no repetir información. Son seis:
 - **Etiquetas para imprimir**: envíos por despachar con la etiqueta sin imprimir (de los envíos por despachar), y cuántos son para hoy o están vencidos. Enlace: [Envíos](/ventas/envios).
-- **Pedidos para preparar**: los pendientes de [Pedidos](/ventas/pedidos), sin los carritos que todavía esperan. 
+- **Pedidos para preparar**: los pendientes de [Pedidos](/ventas/pedidos) (nuevos o pagados), sin los carritos que todavía esperan. El número chico es el total sin despachar (los para preparar, los en preparación y los preparados); debajo, cuántos están "en preparación".
+- **Pedidos para despachar**: los **preparados** que todavía no salieron (tocándolo, la lista de pedidos en estado Preparado). Debajo, el plazo más cercano para entregarlos, por ejemplo "antes de hoy 16:30" (es el "despachar antes de" de la etiqueta de Mercado Libre; cada cuenta tiene el suyo), y cuántos ya vencieron. 
 - **Preguntas para responder** (y cuánto hace de la más vieja) y **Mensajes para responder** (conversaciones con mensajes sin leer). Enlace: [Preguntas y mensajes](/ventas/preguntas).
 - **Reclamos para atender**: los abiertos, con cuántos esperan tu respuesta, cuántos vencen en 24 horas y cuántos están en mediación. Enlace: [Reclamos y devoluciones](/ventas/reclamos).
 - **Devoluciones**: las abiertas y cuántas vienen en camino.

@@ -31,6 +31,10 @@ export type Metricas = {
   publicaciones: { total: number; activas: number; pausadas: number; conCuestiones: number; sinProducto: number; sinProductoActivas: number };
   etiquetas: { sinImprimir: number; porDespachar: number; vencidos: number };
   pedidosParaPreparar: number;
+  /** Sin terminar de preparar (nuevos + en preparación) y en preparación. */
+  pedidosSinDespachar: number; enPreparacion: number;
+  /** Preparados que falta despachar, y el plazo más cercano ("despachar antes de" de ML). */
+  paraDespachar: number; despacharAntes: Date | null; despacharVencidos: number;
   enCamino: number;
   preguntas: { sinResponder: number; total: number; masVieja: Date | null };
   mensajes: { sinLeer: number; total: number };
@@ -43,7 +47,7 @@ export type Metricas = {
 const vacio = (): Metricas => ({
   publicaciones: { total: 0, activas: 0, pausadas: 0, conCuestiones: 0, sinProducto: 0, sinProductoActivas: 0 },
   etiquetas: { sinImprimir: 0, porDespachar: 0, vencidos: 0 },
-  pedidosParaPreparar: 0, enCamino: 0,
+  pedidosParaPreparar: 0, enCamino: 0, pedidosSinDespachar: 0, enPreparacion: 0, paraDespachar: 0, despacharAntes: null, despacharVencidos: 0,
   preguntas: { sinResponder: 0, total: 0, masVieja: null },
   mensajes: { sinLeer: 0, total: 0 },
   reclamos: { abiertos: 0, esperanRespuesta: 0, urgentes: 0, enMediacion: 0, total: 0 },
@@ -89,10 +93,20 @@ export async function metricasPorCanal(org: string, canales: number[], { soloMl 
                                and (e.despachar_antes at time zone '${ZONA}')::date <= (now() at time zone '${ZONA}')::date)::int vencidos,
              count(*) filter (where ${CONDICION_ENVIOS.camino})::int en_camino
         from envio e where e.organizacion_id = $1 and e.canal_id = any($2::bigint[]) group by e.canal_id`),
-    q<{ para_preparar: number }>(`
-      select p.canal_id::int canal, count(*)::int para_preparar
-        from pedido p where p.organizacion_id = $1 and p.canal_id = any($2::bigint[])
-         and ${sqlPedidoPendiente("p")} and not ${sqlCarritoEnEspera("p")} group by p.canal_id`),
+    q<{ para_preparar: number; en_preparacion: number; sin_despachar: number; para_despachar: number; antes: Date | null; vencidos: number }>(`
+      select p.canal_id::int canal,
+             count(*) filter (where ${sqlPedidoPendiente("p")} and not ${sqlCarritoEnEspera("p")})::int para_preparar,
+             count(*) filter (where p.estado = 'en_preparacion')::int en_preparacion,
+             count(*) filter (where p.estado in ('nuevo', 'pagado', 'en_preparacion', 'preparado'))::int sin_despachar,
+             count(*) filter (where p.estado = 'preparado')::int para_despachar,
+             min(e.despachar_antes) filter (where p.estado = 'preparado') antes,
+             count(*) filter (where p.estado = 'preparado' and e.despachar_antes < now())::int vencidos
+        from pedido p
+        left join lateral (select despachar_antes from envio e where e.pedido_id = p.id and coalesce(e.logistica, '') <> 'fulfillment'
+                            order by e.id desc limit 1) e on true
+       where p.organizacion_id = $1 and p.canal_id = any($2::bigint[])
+         and p.estado in ('nuevo', 'pagado', 'en_preparacion', 'preparado', 'despachado')
+       group by p.canal_id`),
     q<{ sin_responder: number; total: number; mas_vieja: Date | null }>(`
       select canal_id::int canal, count(*) filter (where estado = 'UNANSWERED')::int sin_responder, count(*)::int total,
              min(fecha) filter (where estado = 'UNANSWERED') mas_vieja
@@ -122,7 +136,10 @@ export async function metricasPorCanal(org: string, canales: number[], { soloMl 
   ]);
   for (const f of pubs) poner(f.canal, (x) => { x.publicaciones = { total: f.total, activas: f.activas, pausadas: f.pausadas, conCuestiones: f.con_cuestiones, sinProducto: f.sin_producto, sinProductoActivas: f.sin_producto_activas }; });
   for (const f of envios) poner(f.canal, (x) => { x.etiquetas = { sinImprimir: f.sin_imprimir, porDespachar: f.por_despachar, vencidos: f.vencidos }; x.enCamino = f.en_camino; });
-  for (const f of pedidos) poner(f.canal, (x) => { x.pedidosParaPreparar = f.para_preparar; });
+  for (const f of pedidos) poner(f.canal, (x) => {
+    x.pedidosParaPreparar = f.para_preparar; x.enPreparacion = f.en_preparacion; x.pedidosSinDespachar = f.sin_despachar;
+    x.paraDespachar = f.para_despachar; x.despacharAntes = f.antes; x.despacharVencidos = f.vencidos;
+  });
   for (const f of preguntas) poner(f.canal, (x) => { x.preguntas = { sinResponder: f.sin_responder, total: f.total, masVieja: f.mas_vieja }; });
   for (const f of mensajes) poner(f.canal, (x) => { x.mensajes = { sinLeer: f.sin_leer, total: f.total }; });
   for (const f of reclamos) poner(f.canal, (x) => {
@@ -192,6 +209,9 @@ export const sumar = (ms: Metricas[]): Metricas => {
     for (const k of Object.keys(t.publicaciones) as (keyof Metricas["publicaciones"])[]) t.publicaciones[k] += m.publicaciones[k];
     for (const k of Object.keys(t.etiquetas) as (keyof Metricas["etiquetas"])[]) t.etiquetas[k] += m.etiquetas[k];
     t.pedidosParaPreparar += m.pedidosParaPreparar; t.enCamino += m.enCamino;
+    t.enPreparacion += m.enPreparacion; t.pedidosSinDespachar += m.pedidosSinDespachar;
+    t.paraDespachar += m.paraDespachar; t.despacharVencidos += m.despacharVencidos;
+    if (m.despacharAntes && (!t.despacharAntes || m.despacharAntes < t.despacharAntes)) t.despacharAntes = m.despacharAntes;
     t.preguntas.sinResponder += m.preguntas.sinResponder; t.preguntas.total += m.preguntas.total;
     if (m.preguntas.masVieja && (!t.preguntas.masVieja || m.preguntas.masVieja < t.preguntas.masVieja)) t.preguntas.masVieja = m.preguntas.masVieja;
     t.mensajes.sinLeer += m.mensajes.sinLeer; t.mensajes.total += m.mensajes.total;
