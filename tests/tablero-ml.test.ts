@@ -148,13 +148,14 @@ test("la web y el resto: canales que no son de ML, con sus pedidos, envíos y re
   assert.deepEqual(g.minorista, [web]);
   assert.deepEqual(g.mayorista, [mayor]);
   assert.deepEqual(g.otros.sort(), [local, manual].sort());
-  await q("insert into pedido (organizacion_id, canal_id, estado, total_ars) values ($1, $2, 'pagado', 1000), ($1, $3, 'pagado', 500), ($1, $4, 'pagado', 200)", [e.org, web, mayor, manual]);
+  await q("insert into pedido (organizacion_id, canal_id, estado, total_ars, total_usd) values ($1, $2, 'pagado', 1000, 10), ($1, $3, 'pagado', 500, 5), ($1, $4, 'pagado', 200, 2)", [e.org, web, mayor, manual]);
   await q("insert into reclamo (organizacion_id, canal_id, origen, tipo, estado) values ($1, $2, 'web', 'reclamo', 'abierto')", [e.org, web]);
   const mapa = await m.t.metricasPorCanal(e.org, [...g.minorista, ...g.mayorista, ...g.otros], { soloMl: false });
   const W = m.t.sumar([...g.minorista, ...g.mayorista].map((c) => mapa.get(c)!)), O = m.t.sumar(g.otros.map((c) => mapa.get(c)!));
   assert.equal(W.pedidosParaPreparar, 2);
   assert.equal(O.pedidosParaPreparar, 1);
   assert.equal(W.ventas.hoyArs, 1500);
+  assert.equal(W.ventas.hoyUsd, 15);   // cada venta guarda su total en dólares al tipo de cambio de su día
   assert.equal(W.reclamos.abiertos, 1);
   // Con soloMl (lo de las cuentas de ML) un reclamo de la web no cuenta.
   assert.equal((await m.t.metricasPorCanal(e.org, [web])).get(web)!.reclamos.abiertos, 0);
