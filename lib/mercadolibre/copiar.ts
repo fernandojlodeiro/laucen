@@ -16,6 +16,7 @@
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolarLoteConBoton, errorLegible, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { variacionPorSku } from "@/lib/mercadolibre/publicaciones";
 
 export type OpcionesCopia = { variarTitulo: boolean; rotarFotos: boolean };
 
@@ -63,14 +64,19 @@ export function motivoNoCopiable(it: ItemGuardado): string | null {
 /** El cuerpo de POST /items para crear la copia en la otra cuenta. No lleva lo
  *  propio de la cuenta de origen: tienda oficial, catálogo, logística (Full /
  *  Flex), ids de ML ni el SKU viejo. */
-export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones: OpcionesCopia): Record<string, unknown> {
+/** Atributos que ML calcula o fija él: mandarlos da aviso ("ignored because it is not modifiable"). */
+export const NO_MODIFICABLE = (id: string) => /^PACKAGE_/.test(id) || id === "IS_TOM_BRAND";
+
+export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones: OpcionesCopia, extra: { modelo?: string | null; sacar?: string[] } = {}): Record<string, unknown> {
   const nombre = ((it.family_name ?? it.title) ?? "").trim();
   const nuevoNombre = opciones.variarTitulo ? variarTitulo(nombre) : nombre;
   const fotos = (it.pictures ?? []).map((f) => f.secure_url ?? f.url).filter((u): u is string => !!u);
   const atributos = (it.attributes ?? [])
-    .filter((a) => a.id !== "SELLER_SKU" && (a.value_name != null || (a.value_id != null && a.value_id !== "-1")))
+    .filter((a) => a.id !== "SELLER_SKU" && !NO_MODIFICABLE(a.id) && !(extra.sacar ?? []).includes(a.id) && (a.value_name != null || (a.value_id != null && a.value_id !== "-1")))
     .map((a) => ({ id: a.id, ...(a.value_id && a.value_id !== "-1" ? { value_id: a.value_id } : {}), ...(a.value_name != null ? { value_name: a.value_name } : {}) }));
   if (sku) atributos.push({ id: "SELLER_SKU", value_name: sku } as (typeof atributos)[number]);
+  // Muchas publicaciones viejas no tienen Modelo en ML y ML hoy lo exige en algunas categorías: se usa el del producto de Laucen.
+  if (extra.modelo && !atributos.some((a) => a.id === "MODEL")) atributos.push({ id: "MODEL", value_name: extra.modelo } as (typeof atributos)[number]);
   const condiciones = (it.sale_terms ?? []).filter((t) => t.value_name != null || t.value_id != null)
     .map((t) => ({ id: t.id, ...(t.value_id ? { value_id: t.value_id } : {}), ...(t.value_name != null ? { value_name: t.value_name } : {}) }));
   return {
@@ -85,7 +91,8 @@ export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones:
     ...(it.channels?.length ? { channels: it.channels } : {}),
     pictures: (opciones.rotarFotos ? rotarFotos(fotos) : fotos).map((source) => ({ source })),
     attributes: atributos,
-    shipping: { mode: it.shipping?.mode ?? "me2", local_pick_up: !!it.shipping?.local_pick_up, free_shipping: !!it.shipping?.free_shipping },
+    // Siempre Mercado Envíos 2 (me2): una cuenta puede no tener el modo viejo (me1) que traía la de origen.
+    shipping: { mode: "me2", local_pick_up: !!it.shipping?.local_pick_up, free_shipping: !!it.shipping?.free_shipping },
     ...(condiciones.length ? { sale_terms: condiciones } : {}),
     ...(it.video_id ? { video_id: it.video_id } : {}),
   };
@@ -98,6 +105,32 @@ export const claveProducto = (sku: string | null | undefined, titulo: string | n
   if (s) return `S:${s}`;
   return `T:${(titulo ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()}`;
 };
+
+type CausaMl = { type?: string; code?: string; message?: string };
+const causasDe = (datos: unknown): CausaMl[] => {
+  const c = (datos as { cause?: unknown } | null)?.cause;
+  return Array.isArray(c) ? (c as CausaMl[]) : [];
+};
+
+/** Los atributos que ML dice que se ignoran por no ser modificables. */
+export function atributosNoModificables(datos: unknown): string[] {
+  return causasDe(datos).flatMap((c) => [...(c.message ?? "").matchAll(/Attribute \[([A-Z0-9_]+)\] ignored because it is not modifiable/g)].map((m) => m[1]));
+}
+
+/** Por qué ML rechaza un alta, sólo con los errores (sin los avisos) y sin repetir. */
+export function motivoValidacion(status: number, datos: unknown): string {
+  const errores = [...new Set(causasDe(datos).filter((c) => c.type === "error").map((c) => (c.message ?? "").trim()).filter(Boolean))];
+  if (!errores.length) return errorLegible(status, datos);
+  const t = errores.join(" · ");
+  return t.length > 600 ? `${t.slice(0, 600)}…` : t;
+}
+
+/** El Modelo cargado en el producto de Laucen que tiene ese SKU (para completar el que falta en ML). */
+async function modeloDeLaucen(org: string, sku: string): Promise<string | null> {
+  const v = await variacionPorSku(org, sku);
+  if (!v) return null;
+  return (await una<{ modelo: string | null }>("select p.modelo from variacion x join producto p on p.id = x.producto_id where x.id = $1", [v]))?.modelo?.trim() || null;
+}
 
 export type Rechazo = { item_id: string; titulo: string | null; motivo: string };
 export type PreparacionCopia = { loteId: number | null; preparadas: number; rechazadas: Rechazo[] };
@@ -149,9 +182,18 @@ export async function prepararCopia(org: string, origen: number, destino: number
     if (no) { rech(no); continue; }
     if (yaEnDestino.has(claveProducto(f.sku, f.titulo))) { rech(`ya está en ${nombreDestino}`); continue; }
     const sku = f.sku ? skuDestino(f.sku, prefijo) : null;
-    const cuerpo = armarCuerpoCopia(f.ml, sku, opciones);
-    const comprobacion = await ml(cDestino, "POST", "/items/validate", cuerpo);
-    if (comprobacion.status < 200 || comprobacion.status >= 300) { rech(`Mercado Libre no la acepta: ${errorLegible(comprobacion.status, comprobacion.datos)}`); continue; }
+    const modelo = f.sku ? await modeloDeLaucen(org, f.sku) : null;
+    let sacar: string[] = [];
+    let cuerpo = armarCuerpoCopia(f.ml, sku, opciones, { modelo, sacar });
+    let comprobacion = await ml(cDestino, "POST", "/items/validate", cuerpo);
+    // ML avisa qué atributos no se pueden mandar: se sacan y se vuelve a comprobar una vez.
+    const nuevos = atributosNoModificables(comprobacion.datos).filter((x) => !sacar.includes(x));
+    if (comprobacion.status === 400 && nuevos.length) {
+      sacar = [...sacar, ...nuevos];
+      cuerpo = armarCuerpoCopia(f.ml, sku, opciones, { modelo, sacar });
+      comprobacion = await ml(cDestino, "POST", "/items/validate", cuerpo);
+    }
+    if (comprobacion.status < 200 || comprobacion.status >= 300) { rech(`Mercado Libre no la acepta: ${motivoValidacion(comprobacion.status, comprobacion.datos)}`); continue; }
     const desc = await ml<{ plain_text?: string }>(cOrigen, "GET", `/items/${f.item_id}/description`);
     const texto = desc.status === 200 ? desc.datos.plain_text?.trim() : "";
     const pedidos: PedidoMl[] = [

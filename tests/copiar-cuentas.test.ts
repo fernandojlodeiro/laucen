@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { armarCuerpoCopia, claveProducto, motivoNoCopiable, rotarFotos, skuDestino, variarTitulo, type ItemGuardado } from "@/lib/mercadolibre/copiar";
+import { armarCuerpoCopia, atributosNoModificables, claveProducto, motivoValidacion, motivoNoCopiable, rotarFotos, skuDestino, variarTitulo, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 
 // Un item de verdad (BAIRES, 5/10), recortado.
 const ITEM: ItemGuardado = {
@@ -66,4 +66,32 @@ test("armarCuerpoCopia: sin opciones, el título y las fotos quedan como están;
   assert.equal(c.title, ITEM.title);
   assert.equal(c.pictures[0].source, "https://http2.mlstatic.com/a.webp");
   assert.equal(c.attributes.some((a) => a.id === "SELLER_SKU"), false);
+});
+
+test("armarCuerpoCopia: no manda los atributos que ML fija (PACKAGE_*, IS_TOM_BRAND) y el envío es siempre me2", () => {
+  const item: ItemGuardado = { ...ITEM, shipping: { mode: "me1", free_shipping: true }, attributes: [
+    ...ITEM.attributes!, { id: "PACKAGE_HEIGHT", value_name: "2 cm" }, { id: "IS_TOM_BRAND", value_id: "242084", value_name: "No" }, { id: "SELLER_PACKAGE_HEIGHT", value_name: "12 cm" }] };
+  const c = armarCuerpoCopia(item, null, { variarTitulo: false, rotarFotos: false }) as { attributes: { id: string }[]; shipping: { mode: string; free_shipping: boolean } };
+  const ids = c.attributes.map((a) => a.id);
+  assert.equal(ids.includes("PACKAGE_HEIGHT") || ids.includes("IS_TOM_BRAND"), false);
+  assert.equal(ids.includes("SELLER_PACKAGE_HEIGHT"), true);
+  assert.deepEqual(c.shipping, { mode: "me2", local_pick_up: false, free_shipping: true });
+});
+
+test("armarCuerpoCopia: si la publicación no tiene Modelo, usa el del producto de Laucen; si ya lo tiene, no lo pisa", () => {
+  const sin = armarCuerpoCopia(ITEM, null, { variarTitulo: false, rotarFotos: false }, { modelo: "ABC-1" }) as { attributes: { id: string; value_name?: string }[] };
+  assert.deepEqual(sin.attributes.filter((a) => a.id === "MODEL"), [{ id: "MODEL", value_name: "ABC-1" }]);
+  const con = armarCuerpoCopia({ ...ITEM, attributes: [...ITEM.attributes!, { id: "MODEL", value_name: "X9" }] }, null, { variarTitulo: false, rotarFotos: false }, { modelo: "ABC-1" }) as { attributes: { id: string; value_name?: string }[] };
+  assert.deepEqual(con.attributes.filter((a) => a.id === "MODEL").map((a) => a.value_name), ["X9"]);
+});
+
+test("respuesta de validate de ML: los avisos de no modificables se sacan y el motivo muestra sólo los errores", () => {
+  const datos = { message: "Validation error", cause: [
+    { type: "warning", message: "Attribute [IS_TOM_BRAND] ignored because it is not modifiable." },
+    { type: "warning", message: "Attribute [PACKAGE_HEIGHT] ignored because it is not modifiable." },
+    { type: "error", message: 'El campo "Modelo" es obligatorio y no está cargado.' },
+    { type: "error", message: 'El campo "Modelo" es obligatorio y no está cargado.' },
+  ] };
+  assert.deepEqual(atributosNoModificables(datos), ["IS_TOM_BRAND", "PACKAGE_HEIGHT"]);
+  assert.equal(motivoValidacion(400, datos), 'El campo "Modelo" es obligatorio y no está cargado.');
 });
