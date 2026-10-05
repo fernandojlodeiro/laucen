@@ -16,16 +16,24 @@ export async function accionCrearRecepcion(fd: FormData) {
     // El nº de pedido puede ser el nuestro o el de Mercado Libre / la tienda.
     let pedidoId: number | null = null;
     const nro = texto(fd, "pedido")?.replace(/^#/, "");
-    if (nro) {
+    // Devolución de una venta anterior a Laucen (Virtual Seller): no hay pedido acá; el número queda de referencia.
+    const anterior = tipo === "devolucion" && fd.get("anterior") === "on";
+    if (nro && !anterior) {
       const p = await una<{ id: number }>(`select id::int from pedido where organizacion_id = $1 and (id::text = $2 or id_externo = $2)
                                             order by (id::text = $2) desc limit 1`, [s.org.id, nro]);
-      if (!p) throw new ErrorErp(`No hay ningún pedido con el número ${nro}.`);
+      if (!p) {
+        throw new ErrorErp(tipo === "devolucion"
+          ? `No hay ningún pedido con el número ${nro}. Si es una venta anterior a Laucen, tildá «Venta anterior a Laucen».`
+          : `No hay ningún pedido con el número ${nro}.`);
+      }
       pedidoId = p.id;
     }
-    if (tipo === "devolucion" && !pedidoId) throw new ErrorErp("En una devolución poné el número del pedido que vuelve.");
+    if (tipo === "devolucion" && !pedidoId && !nro) {
+      throw new ErrorErp(anterior ? "Poné el número de la venta (el de Mercado Libre o el de la factura) para saber qué vuelve." : "En una devolución poné el número del pedido que vuelve.");
+    }
     const r = await crearRecepcion(s.org.id, {
       tipo, depositoId: id(fd, "d"), proveedorId: id(fd, "proveedor") || null, pedidoId,
-      documento: texto(fd, "documento"), nota: texto(fd, "nota"),
+      documento: texto(fd, "documento"), nota: texto(fd, "nota"), ventaExterna: anterior ? nro : null,
     }, s.usuario.id);
     revalidatePath(LISTA);
     return { ir: `${LISTA}/${r}` };

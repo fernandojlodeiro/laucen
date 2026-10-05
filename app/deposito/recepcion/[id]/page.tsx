@@ -23,10 +23,10 @@ export default async function RecepcionTrabajo({ params, searchParams }: { param
   if (!Number.isInteger(recId) || recId <= 0) notFound();
   const rec = await una<{
     id: number; tipo: string; estado: string; deposito_id: number; deposito: string; proveedor: string | null; pedido_id: number | null;
-    pedido_externo: string | null; pedido_estado: string | null; documento: string | null; nota: string | null; creado_ts: Date; cerrada_ts: Date | null;
+    pedido_externo: string | null; venta_externa: string | null; pedido_estado: string | null; documento: string | null; nota: string | null; creado_ts: Date; cerrada_ts: Date | null;
   }>(`
     select r.id::int, r.tipo, r.estado, r.deposito_id::int, d.nombre deposito, pr.nombre proveedor, r.pedido_id::int,
-           p.id_externo pedido_externo, p.estado pedido_estado, r.documento, r.nota, r.creado_ts, r.cerrada_ts
+           p.id_externo pedido_externo, r.venta_externa, p.estado pedido_estado, r.documento, r.nota, r.creado_ts, r.cerrada_ts
       from recepcion r join deposito d on d.id = r.deposito_id left join proveedor pr on pr.id = r.proveedor_id
       left join pedido p on p.id = r.pedido_id
      where r.id = $1 and r.organizacion_id = $2`, [recId, s.org.id]);
@@ -57,6 +57,12 @@ export default async function RecepcionTrabajo({ params, searchParams }: { param
       camino={[{ texto: `#${rec.id}` }]}>
       <Avisos sp={sp} />
       {rec.nota && <p className="text-xs text-[#5C6B76] mb-3">{rec.nota}</p>}
+      {rec.venta_externa && (
+        <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#EEF3F8] text-[#16577F]">
+          Devolución de una venta anterior a Laucen: <b>{rec.venta_externa}</b>. No hay pedido acá; lo que se recibe entra igual como devolución.
+          La nota de crédito se hace en <Link href="/administracion/facturacion/nota-credito" className="font-bold underline">Facturación › Nueva nota de crédito</Link>.
+        </p>
+      )}
 
       {rec.pedido_id && (
         <section className="mb-4">

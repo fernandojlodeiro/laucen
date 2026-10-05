@@ -17,7 +17,7 @@ import FotosProducto from "@/app/componentes/FotosProducto";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import {
   entrarErp, Pantalla, Avisos, Estado, Dato, TituloSeccion, BotonesFicha, editandoFicha, CAJA, CAMPO, ETIQUETA,
-  CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN,
+  CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, url,
 } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
 import { ESTADOS_RECLAMO, TIPOS_RECLAMO, ORIGENES_RECLAMO, type EstadoReclamo, type TipoReclamo } from "@/lib/reclamos";
@@ -312,7 +312,13 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
           {/* La devolución física */}
           <section className={CAJA}>
             <TituloSeccion titulo="Devolución">
-              {r.pedido_id && (r.recepcion_id
+              {/* Sin pedido en Laucen (venta anterior, de Virtual Seller): la nota de crédito se hace sobre la factura vieja. */}
+              {!r.pedido_id && (
+                <Link className={SUAVE} href={url("/administracion/facturacion/nota-credito", {
+                  ref: r.orden_externa ? `orden de ML ${r.orden_externa}` : `reclamo ${rid}`, monto: r.monto ?? null, cliente: r.cliente_id ?? null, reclamo: rid,
+                })}>Nota de crédito</Link>
+              )}
+              {(r.pedido_id || r.orden_externa) && (r.recepcion_id
                 ? <Link href={`/deposito/recepcion/${r.recepcion_id}`} className={SUAVE}>Ver recepción {r.recepcion_id}</Link>
                 : <form action={accionRecibirDevolucion}><input type="hidden" name="id" value={rid} /><BotonEnviar clase={PRIMARIO} corriendo="Abriendo…">Recibir devolución</BotonEnviar></form>)}
             </TituloSeccion>
@@ -325,7 +331,13 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
                 ? <Link href={`/deposito/recepcion/${r.recepcion_id}`} className="text-[#16577F] hover:underline">Recepción {r.recepcion_id} ({r.recepcion_estado === "cerrada" ? "cerrada" : "abierta"})</Link>
                 : null}</Dato>
             </div>
-            {!r.pedido_id && <p className="mt-2 text-[11px] text-[#5C6B76]">Sin pedido en Laucen no se puede recibir la devolución desde acá.</p>}
+            {!r.pedido_id && (
+              <p className="mt-2 text-[11px] text-[#5C6B76]">
+                {r.orden_externa
+                  ? "Sin pedido en Laucen (venta anterior a Laucen): «Recibir devolución» abre una recepción sin pedido, con la orden de ML de referencia. «Nota de crédito» la hace sobre la factura vieja: pedí su número."
+                  : "Sin pedido en Laucen: la mercadería se recibe en Recepción (devolución, «Venta anterior a Laucen») y la nota de crédito, con «Nota de crédito»."}
+              </p>
+            )}
             {r.pedido_id && !r.recepcion_id && <p className="mt-2 text-[11px] text-[#5C6B76]">Abre la recepción de devolución del pedido: se escanea lo que vuelve y se elige si es nuevo o caja abierta.</p>}
           </section>
 

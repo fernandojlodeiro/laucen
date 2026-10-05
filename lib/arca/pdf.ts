@@ -37,10 +37,14 @@ async function logoDe(doc: PDFDocument, org: string): Promise<PDFImage | null> {
 export async function pdfComprobante(org: string, id: number): Promise<Uint8Array> {
   const c = await una<{ tipo_cbte: number; punto_venta: number; numero: string; fecha: string; doc_tipo: number; doc_nro: string; receptor_nombre: string | null;
     receptor_condicion_iva: number | null; receptor_domicilio: string | null; importe_total: string; importe_neto: string; importe_iva: string;
-    iva_detalle: { pct: number; base: number; importe: number }[]; cae: string | null; cae_vto: string | null; estado: string; pedido_id: string | null; ambiente: string; emisor_id: string | null }>(`
+    iva_detalle: { pct: number; base: number; importe: number }[]; cae: string | null; cae_vto: string | null; estado: string; pedido_id: string | null; ambiente: string; emisor_id: string | null;
+    asociado: { tipo: number; punto_venta: number; numero: number; fecha: string } | null }>(`
     select tipo_cbte, punto_venta, numero, to_char(fecha, 'YYYY-MM-DD') fecha, doc_tipo, doc_nro, receptor_nombre, receptor_condicion_iva,
            receptor_domicilio, importe_total, importe_neto, importe_iva, iva_detalle, cae, to_char(cae_vto, 'YYYY-MM-DD') cae_vto, estado,
-           pedido_id, ambiente, emisor_id
+           pedido_id, ambiente, emisor_id,
+           -- La factura que anula una nota de crédito: la de Laucen o una de afuera (asociado_externo).
+           coalesce((select jsonb_build_object('tipo', a.tipo_cbte, 'punto_venta', a.punto_venta, 'numero', a.numero, 'fecha', to_char(a.fecha, 'YYYY-MM-DD'))
+                       from comprobante a where a.id = comprobante.comprobante_asociado_id), asociado_externo) asociado
       from comprobante where id = $1 and organizacion_id = $2`, [id, org]);
   if (!c) throw new ErrorErp("El comprobante no existe.");
   if (c.estado !== "autorizado") throw new ErrorErp("El comprobante todavía no tiene CAE.");
@@ -89,8 +93,13 @@ export async function pdfComprobante(org: string, id: number): Promise<Uint8Arra
   texto(pagina, `${DOC_TIPOS[c.doc_tipo] ?? "Doc."}: ${c.doc_tipo === 99 ? "-" : c.doc_nro}`, 40, 678, 9);
   texto(pagina, `Apellido y nombre / Razón social: ${c.receptor_nombre ?? "-"}`, 200, 678, 9);
   texto(pagina, `Condición frente al IVA: ${CONDICION_RECEPTOR_TEXTO[c.receptor_condicion_iva ?? 5] ?? "-"}`, 40, 662, 9);
-  texto(pagina, `Domicilio: ${(c.receptor_domicilio ?? "-").slice(0, 70)}`, 40, 648, 9);
+  // Con comprobante asociado (nota de crédito), el domicilio se corta antes para dejarle lugar a la derecha.
+  texto(pagina, `Domicilio: ${(c.receptor_domicilio ?? "-").slice(0, c.asociado && tipo.nc ? 40 : 70)}`, 40, 648, 9);
   if (c.pedido_id) derecha(pagina, `Pedido ${c.pedido_id}`, 555, 662, 8);
+  if (c.asociado && tipo.nc) {
+    const a = c.asociado;
+    derecha(pagina, `Comprobante asociado: ${TIPOS_CBTE[a.tipo]?.nombre ?? "Factura"} ${String(a.punto_venta).padStart(5, "0")}-${String(a.numero).padStart(8, "0")}${a.fecha ? ` del ${fecha(a.fecha)}` : ""}`, 555, 648, 8);
+  }
 
   // Detalle.
   let y = 620;

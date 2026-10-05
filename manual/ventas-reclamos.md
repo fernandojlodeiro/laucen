@@ -81,7 +81,7 @@ Si Mercado Libre espera tu respuesta, arriba aparece el cartel **"Mercado Libre 
 **Columna derecha**:
 - Reclamos de Mercado Libre: **"Qué podés hacer (N)"** con un botón por cada acción que ofrece Mercado Libre ahora, con su plazo ("Obligatoria · Quedan …" o "Sin plazo"), y debajo **"Mandado a Mercado Libre"** con lo que salió por la cola y su estado.
 - Reclamos de la web o el local: **"Estado y reembolso"** con los botones **"Volver a abrir"**, **"Pasar a en proceso"**, **"Marcar resuelto"** (los que no son el estado actual) y **"Reembolso $ (sólo se anota)"** con **"Anotar reembolso"**.
-- **"Devolución"**: el botón **"Recibir devolución"** (o **"Ver recepción N"** si ya se abrió), el envío de vuelta y su seguimiento (ML) y la recepción en el depósito.
+- **"Devolución"**: el botón **"Recibir devolución"** (o **"Ver recepción N"** si ya se abrió), el envío de vuelta y su seguimiento (ML) y la recepción en el depósito. Si el reclamo **no tiene pedido en Laucen** (una venta anterior a Laucen, de Virtual Seller), aparece además **"Nota de crédito"**.
 - **"Historia (N)"**: todo lo que pasó (alta, cambios de etapa y estado, acciones mandadas, resultados, devolución, reembolsos), lo más nuevo arriba.
 
 ## Cómo se hace
@@ -131,6 +131,13 @@ En **"Conversación"**, escribí en **"Nota interna"** y apretá **"Anotar nota"
 2. Se abre la recepción de devolución del pedido en [Recepción](/deposito/recepcion): ahí se escanea lo que vuelve y se elige si entra como nuevo o caja abierta.
 3. El reclamo queda enlazado ("Ver recepción N"). Al **cerrar** esa recepción, el pedido pasa a **Devuelto**.
 
+### Devolución de una venta anterior a Laucen (Virtual Seller)
+
+Un reclamo de Mercado Libre de una venta hecha antes de Laucen entra igual, pero sin pedido ("Orden de ML … (sin pedido en Laucen)").
+
+1. **"Recibir devolución"**: abre una recepción de devolución **sin pedido**, con la orden de ML de referencia. Ahí se escanea lo que vuelve (como nuevo o caja abierta).
+2. **"Nota de crédito"**: lleva a [Nota de crédito de una factura de afuera](/administracion/facturacion/nota-credito) con la orden de ML, el monto del reclamo y el cliente ya puestos. Falta poner el tipo, punto de venta y número de la factura vieja (están en la factura de Virtual Seller) y apretar "Buscar en ARCA".
+
 ## Criterios y reglas
 
 - **Cómo entran los de Mercado Libre**: al instante, por el aviso de Mercado Libre, y además cada 30 minutos se revisan todos los abiertos y los últimos cerrados (sólo se vuelven a traer los que cambiaron, y los que en Laucen siguen abiertos pero Mercado Libre ya no lista como abiertos). Un reclamo cerrado que Laucen no tenía entra sólo si tuvo movimiento en los últimos 90 días; los más viejos, y los que Mercado Libre ya no deja abrir, se saltean sin aviso. "Traer reclamos de ML" y "Actualizar desde ML" lo hacen en el momento. **Todo eso sólo lee** de Mercado Libre.
@@ -144,7 +151,7 @@ En **"Conversación"**, escribí en **"Nota interna"** y apretá **"Anotar nota"
 - **Mensajes en un reclamo**: hasta 2.000 caracteres.
 - **Devolución parcial**: porcentaje entero entre 1 y 99.
 - **Reclamos de la web o el local**: si se cargan con pedido, toman el canal, el cliente y el origen del pedido (local si el canal es el local; si no, web), y el monto es el total del pedido salvo que pongas otro. El reembolso **sólo se anota**: no mueve plata ni genera nota de crédito.
-- **"Recibir devolución"**: usa la recepción de devolución abierta de ese pedido si ya hay una; si no, abre una nueva en el depósito del pedido (o en el primer depósito propio o tercerizado activo). Hace falta que el reclamo tenga un pedido de Laucen.
+- **"Recibir devolución"**: usa la recepción de devolución abierta de ese pedido si ya hay una; si no, abre una nueva en el depósito del pedido (o en el primer depósito propio o tercerizado activo). Sin pedido de Laucen pero con orden de ML (venta anterior a Laucen), abre una recepción sin pedido en el primer depósito propio activo, con "ML <orden>" de referencia. Sin pedido ni orden (un reclamo cargado a mano sin pedido), no anda: la devolución se recibe en Recepción tildando "Venta anterior a Laucen".
 - **Pedido Devuelto**: el pedido pasa a Devuelto al cerrar la recepción de la devolución.
 - **Panel**: "Reclamos por responder" cuenta los de Mercado Libre que esperan tu respuesta más los de la web o el local en estado Abierto.
 
@@ -170,6 +177,9 @@ No: sólo queda anotado. La devolución de plata se hace por fuera.
 
 **¿Cómo entra al stock lo que devuelven?**
 Con "Recibir devolución": se abre la recepción en el depósito, donde se escanea lo que vuelve.
+
+**El reclamo es de una venta que hice con Virtual Seller, ¿cómo hago la nota de crédito?**
+Con "Nota de crédito" en el bloque Devolución: poné el tipo, punto de venta y número de la factura vieja y Laucen la busca en ARCA.
 
 **¿Las notas internas las ve el comprador?**
 No, sólo se ven en Laucen.

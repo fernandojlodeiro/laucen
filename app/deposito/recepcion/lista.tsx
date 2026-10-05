@@ -16,6 +16,7 @@ export const LISTA_RECEPCIONES: Lista = {
     { clave: "deposito", titulo: "Depósito", sql: "d.nombre" },
     { clave: "proveedor", titulo: "Proveedor", sql: "pr.nombre", ancho: 28 },
     { clave: "pedido", titulo: "Pedido", sql: "r.pedido_id::int", formato: "entero" },
+    { clave: "venta_externa", titulo: "Venta anterior a Laucen", sql: "r.venta_externa" },
     { clave: "documento", titulo: "Remito o factura", sql: "r.documento" },
     { clave: "lineas", titulo: "Líneas", sql: "(select count(*) from recepcion_linea where recepcion_id = r.id)::int", formato: "entero" },
     { clave: "unidades", titulo: "Unidades", sql: "coalesce((select sum(cantidad) from recepcion_linea where recepcion_id = r.id), 0)::int", formato: "entero" },

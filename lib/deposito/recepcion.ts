@@ -9,15 +9,18 @@ import { sincronizarStockMl } from "@/lib/mercadolibre/stock";
 
 export type TipoRecepcion = "compra" | "devolucion" | "otro";
 
-export async function crearRecepcion(org: string, d: { tipo: TipoRecepcion; depositoId: number; proveedorId?: number | null; pedidoId?: number | null; documento?: string | null; nota?: string | null }, usuarioId: string): Promise<number> {
+export async function crearRecepcion(org: string, d: { tipo: TipoRecepcion; depositoId: number; proveedorId?: number | null; pedidoId?: number | null; documento?: string | null; nota?: string | null;
+  /** Devolución de una venta anterior a Laucen (sin pedido acá): la referencia que se escribió. */
+  ventaExterna?: string | null }, usuarioId: string): Promise<number> {
   const dep = await una("select 1 from deposito where id = $1 and organizacion_id = $2 and estado = 'activo'", [d.depositoId, org]);
   if (!dep) throw new ErrorErp("Elegí un depósito.");
   if (d.proveedorId && !(await una("select 1 from proveedor where id = $1 and organizacion_id = $2", [d.proveedorId, org]))) throw new ErrorErp("El proveedor no existe.");
   if (d.pedidoId && !(await una("select 1 from pedido where id = $1 and organizacion_id = $2", [d.pedidoId, org]))) throw new ErrorErp("El pedido no existe.");
   const r = await una<{ id: string }>(`
-    insert into recepcion (organizacion_id, tipo, deposito_id, proveedor_id, pedido_id, documento, nota, usuario_id)
-    values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
-    [org, d.tipo, d.depositoId, d.proveedorId ?? null, d.pedidoId ?? null, d.documento ?? null, d.nota ?? null, usuarioId]);
+    insert into recepcion (organizacion_id, tipo, deposito_id, proveedor_id, pedido_id, documento, nota, usuario_id, venta_externa)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`,
+    [org, d.tipo, d.depositoId, d.proveedorId ?? null, d.pedidoId ?? null, d.documento ?? null, d.nota ?? null, usuarioId,
+      d.tipo === "devolucion" && !d.pedidoId ? d.ventaExterna?.trim().slice(0, 100) || null : null]);
   return Number(r!.id);
 }
 

@@ -70,7 +70,7 @@ export const sqlEmisorDePedido = (p: string) =>
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
 /** Neto e IVA de cada alícuota a partir de totales con IVA. */
-function discriminar(lineas: { total: number; iva_pct: number }[], conIva: boolean) {
+export function discriminar(lineas: { total: number; iva_pct: number }[], conIva: boolean) {
   const porAlicuota = new Map<number, number>();
   for (const l of lineas) porAlicuota.set(l.iva_pct, (porAlicuota.get(l.iva_pct) ?? 0) + l.total);
   const alicuotas = [...porAlicuota.entries()].map(([pct, total]) => {
@@ -194,9 +194,10 @@ async function alAutorizar(org: string, comprobanteId: number) {
 export async function emitir(org: string, comprobanteId: number): Promise<{ estado: string; mensaje: string }> {
   const cb = await una<{ emisor_id: string | null; estado: string; ambiente: Ambiente; tipo_cbte: number; punto_venta: number; numero: string | null; fecha: string; concepto: number;
     doc_tipo: number; doc_nro: string; importe_total: string; importe_neto: string; importe_iva: string; iva_detalle: { id: number; base: number; importe: number }[];
-    receptor_condicion_iva: number; asociado_id: string | null }>(`
+    receptor_condicion_iva: number; asociado_id: string | null;
+    asociado_externo: { tipo: number; punto_venta: number; numero: number; fecha: string } | null }>(`
     select emisor_id, estado, ambiente, tipo_cbte, punto_venta, numero, to_char(fecha, 'YYYY-MM-DD') fecha, concepto, doc_tipo, doc_nro, importe_total, importe_neto,
-           importe_iva, iva_detalle, receptor_condicion_iva, comprobante_asociado_id asociado_id
+           importe_iva, iva_detalle, receptor_condicion_iva, comprobante_asociado_id asociado_id, asociado_externo
       from comprobante where id = $1 and organizacion_id = $2`, [comprobanteId, org]);
   if (!cb) throw new ErrorErp("El comprobante no existe.");
   // La razón social que lo emite es la del comprobante (la de su canal al armarlo).
@@ -236,6 +237,10 @@ export async function emitir(org: string, comprobanteId: number): Promise<{ esta
       const a = await una<{ tipo_cbte: number; punto_venta: number; numero: string; fecha: string }>(
         "select tipo_cbte, punto_venta, numero, to_char(fecha, 'YYYY-MM-DD') fecha from comprobante where id = $1", [cb.asociado_id]);
       if (a) asociado = { tipo: a.tipo_cbte, puntoVenta: a.punto_venta, numero: Number(a.numero), cuit: e.cuit, fecha: a.fecha };
+    } else if (cb.asociado_externo) {
+      // Nota de crédito de una factura emitida fuera de Laucen (lib/arca/nota-credito-externa.ts).
+      const x = cb.asociado_externo;
+      asociado = { tipo: x.tipo, puntoVenta: x.punto_venta, numero: x.numero, cuit: e.cuit, fecha: x.fecha };
     }
     // La fecha del comprobante: hoy (ARCA acepta hasta 5 días para atrás en bienes, pero no hace falta).
     const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
