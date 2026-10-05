@@ -78,7 +78,7 @@ Después, cuando llega la factura, se carga en [Facturas de compra](/compras/fac
 5. Apretá **"Recibir"**.
 6. Al terminar, **"Cerrar recepción"**: pregunta "El pedido #N queda "devuelto". ¿Cerrar?" y, al confirmar, el pedido pasa a "devuelto".
 
-### Recibir la devolución de una venta anterior a Laucen (Virtual Seller)
+### Me devolvieron un producto vendido antes de Laucen (Virtual Seller): recibir la devolución
 
 1. **"Nueva recepción"** → **"Devolución de un pedido"**.
 2. En **"Nº de pedido"** poné el número de la venta vieja (el de Mercado Libre o el de la factura) y tildá **"Venta anterior a Laucen"**.
@@ -118,6 +118,9 @@ Para cualquier entrada que no sea compra ni devolución (por ejemplo, mercaderí
 - No se puede borrar una línea ya recibida. Para corregir un error, hacé un [ajuste](/stock/ajustes) con el motivo.
 
 ## Preguntas frecuentes
+
+**Me devolvieron un producto que se vendió antes de Laucen (con Virtual Seller), ¿qué hago?**
+Dos pasos. El producto: "Nueva recepción" → "Devolución de un pedido", el número de la venta vieja y tildá "Venta anterior a Laucen"; se escanea como cualquier devolución. La plata: la nota de crédito al cliente se hace en [Facturación](/administracion/facturacion) › "+ Nueva nota de crédito", con el tipo, punto de venta y número de la factura vieja.
 
 **¿El stock entra cuando cierro la recepción?**
 No, entra en cada "Recibir". Cerrar sólo da por terminada la recepción (y en una devolución marca el pedido como devuelto).

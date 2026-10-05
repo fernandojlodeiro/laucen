@@ -112,7 +112,7 @@ Ojo: el reintento vuelve a mandar el mismo comprobante tal como se armó (mismo 
 2. Apretá **"Anular con nota de crédito"** y confirmá con **"Sí"**.
 3. Laucen arma una nota de crédito por el total (misma letra, mismo receptor, mismas líneas), la manda a ARCA y te lleva a la ficha de la nota de crédito, con el resultado arriba (verde si salió, rojo si no). Si no salió, se reintenta desde ahí.
 
-### Hacer la nota de crédito de una venta anterior a Laucen (Virtual Seller)
+### Nota de crédito de un producto vendido antes de Laucen (Virtual Seller): venta anterior, sin pedido ni factura en Laucen
 
 Para cuando vuelve algo que se vendió y facturó antes de usar Laucen: no hay pedido ni factura acá.
 
