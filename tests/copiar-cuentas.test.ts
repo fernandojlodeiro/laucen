@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { armarCuerpoCopia, atributosNoModificables, claveProducto, motivoNoCopiable, motivoValidacion, rotarFotos, variarTitulo, type ItemGuardado } from "@/lib/mercadolibre/copiar";
+import { aceptable, armarCuerpoCopia, atributosNoModificables, claveProducto, motivoNoCopiable, motivoValidacion, rotarFotos, variarTitulo, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 
 // Un item de verdad (BAIRES, 5/10), recortado.
 const ITEM: ItemGuardado = {
@@ -99,4 +99,13 @@ test("armarCuerpoCopia: con sinEnvio no manda el bloque de envío", () => {
 test("armarCuerpoCopia: el SKU va tal cual, sin prefijo", () => {
   const c = armarCuerpoCopia(ITEM, "SKU00040", { variarTitulo: false, rotarFotos: false }) as { attributes: { id: string; value_name?: string }[] };
   assert.deepEqual(c.attributes.filter((a) => a.id === "SELLER_SKU"), [{ id: "SELLER_SKU", value_name: "SKU00040" }]);
+});
+
+test("aceptable: 2xx, o 400 con sólo avisos; con un error, o sin causas, no", () => {
+  const aviso = { type: "warning", code: "shipping.lost_me1_by_user", message: "User has not mode me1" };
+  assert.equal(aceptable({ status: 204, datos: null }), true);
+  assert.equal(aceptable({ status: 400, datos: { cause: [aviso, { ...aviso, code: "item.shipping.mandatory_free_shipping" }] } }), true);
+  assert.equal(aceptable({ status: 400, datos: { cause: [aviso, { type: "error", message: "falta Modelo" }] } }), false);
+  assert.equal(aceptable({ status: 400, datos: { message: "x" } }), false);
+  assert.equal(aceptable({ status: 401, datos: { cause: [aviso] } }), false);
 });
