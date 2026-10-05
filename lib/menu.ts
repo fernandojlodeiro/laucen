@@ -58,6 +58,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Vista previa de precios ML", href: "/catalogo/precios-ml/vista-previa", permiso: "precios_ml_ver" },
       { texto: "Publicaciones", href: "/catalogo/publicaciones", permiso: "publicaciones_ver" },
       { texto: "Vincular con Mercado Libre", href: "/catalogo/publicaciones/ml", permiso: "publicaciones_ver" },
+      { texto: "Copiar entre cuentas", href: "/catalogo/publicaciones/copiar", permiso: "publicaciones_ver" },
     ],
   },
   {

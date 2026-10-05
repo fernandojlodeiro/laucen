@@ -34,8 +34,12 @@ export async function idsEnMl(cuenta: CuentaMl, hastaMs: number): Promise<{ ids:
   }
 }
 
+/** Lo que ML devuelve y Laucen no guarda: las que se descartaron a propósito (meli_item_descartado,
+ *  borradas de Laucen o eliminadas desde acá) y las demás, con una muestra de cómo están en ML. */
+export type SoloEnMl = { total: number; descartadas: number; otras: number; muestra: { item_id: string; titulo: string | null; estado: string | null }[] };
+
 export type RevisionFantasmas = {
-  enLaucen: number; enMl: number; fantasmas: string[];
+  enLaucen: number; enMl: number; fantasmas: string[]; soloEnMl: SoloEnMl;
   ejemplos: { item_id: string; titulo: string | null; sku: string | null; estado: string | null }[];
   /** Verdadero si la lectura de ML quedó completa y coincide con lo que ML dice que hay. */
   confiable: boolean; motivo?: string;
@@ -62,8 +66,23 @@ export async function revisarFantasmas(org: string, canalId: number, hastaMs: nu
     motivo = `Mercado Libre dice que hay ${lectura.total} publicaciones pero la lectura trajo ${lectura.ids.size}. Probá de nuevo.`;
   }
   const marcados = new Set(fantasmas);
+  // La otra dirección (sólo informa; no se borra nada): lo que ML tiene y Laucen no.
+  const enLaucen = new Set(filas.map((f) => f.item_id));
+  const descartadas = new Set((await consulta<{ item_id: string }>("select item_id from meli_item_descartado where organizacion_id = $1 and canal_id = $2", [org, canalId])).map((f) => f.item_id));
+  const soloMl = [...lectura.ids].filter((i) => !enLaucen.has(i));
+  const otras = soloMl.filter((i) => !descartadas.has(i));
+  const muestra: SoloEnMl["muestra"] = [];
+  if (lectura.completo) {
+    for (let i = 0; i < Math.min(otras.length, 60); i += 20) {
+      const r = await ml<{ code: number; body: { id: string; title?: string; status?: string; sub_status?: string[] } }[]>(cuenta, "GET",
+        `/items?ids=${otras.slice(i, i + 20).join(",")}&attributes=id,title,status,sub_status`);
+      if (r.status !== 200 || !Array.isArray(r.datos)) break;
+      for (const x of r.datos) if (x.code === 200 && x.body?.id) muestra.push({ item_id: x.body.id, titulo: x.body.title ?? null, estado: [x.body.status, ...(x.body.sub_status ?? [])].filter(Boolean).join(" / ") });
+    }
+  }
   return {
     enLaucen: filas.length, enMl: lectura.ids.size, fantasmas,
+    soloEnMl: { total: soloMl.length, descartadas: soloMl.length - otras.length, otras: otras.length, muestra },
     ejemplos: filas.filter((f) => marcados.has(f.item_id)).slice(0, 15),
     confiable: !motivo, motivo,
   };

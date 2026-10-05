@@ -62,7 +62,7 @@ export async function accionRevisarFantasmas(canalId: number) {
   const org = await portero();
   try {
     const r = await revisarFantasmas(org, canalId, Date.now() + 50_000);
-    return { ok: true as const, enLaucen: r.enLaucen, enMl: r.enMl, faltan: r.fantasmas.length, ejemplos: r.ejemplos, confiable: r.confiable, motivo: r.motivo };
+    return { ok: true as const, enLaucen: r.enLaucen, enMl: r.enMl, faltan: r.fantasmas.length, soloEnMl: r.soloEnMl, ejemplos: r.ejemplos, confiable: r.confiable, motivo: r.motivo };
   } catch (e) {
     return { ok: false as const, error: motivoErp(e) };
   }

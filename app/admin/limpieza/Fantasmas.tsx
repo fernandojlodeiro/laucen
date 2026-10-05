@@ -5,7 +5,8 @@ import { BORRAR, SUAVE } from "@/app/botones";
 import { accionBorrarFantasmas, accionRevisarFantasmas } from "./actions";
 
 type Cuenta = { id: number; nombre: string; enLaucen: number };
-type Revision = { enLaucen: number; enMl: number; faltan: number; ejemplos: { item_id: string; titulo: string | null; sku: string | null; estado: string | null }[];
+type Revision = { enLaucen: number; enMl: number; faltan: number;
+  soloEnMl: { total: number; descartadas: number; otras: number; muestra: { item_id: string; titulo: string | null; estado: string | null }[] }; ejemplos: { item_id: string; titulo: string | null; sku: string | null; estado: string | null }[];
   confiable: boolean; motivo?: string };
 
 /** Una fila por cuenta de ML: "Revisar" compara con Mercado Libre (sólo lectura);
@@ -59,9 +60,24 @@ function FilaCuenta({ cuenta }: { cuenta: Cuenta }) {
           <p className="text-xs text-[#5C6B76]">
             Laucen tiene {rev.enLaucen.toLocaleString("es-AR")} publicaciones y Mercado Libre {rev.enMl.toLocaleString("es-AR")}.{" "}
             {rev.confiable
-              ? rev.faltan ? <b>{rev.faltan.toLocaleString("es-AR")} están en Laucen y ya no existen en Mercado Libre.</b> : "Coinciden: no hay nada para borrar."
+              ? rev.faltan ? <b>{rev.faltan.toLocaleString("es-AR")} están en Laucen y ya no existen en Mercado Libre.</b> : "Laucen no tiene ninguna de más: no hay nada para borrar."
               : <span className="text-[#C03420]">{rev.motivo}</span>}
           </p>
+          {rev.confiable && rev.soloEnMl.total > 0 && (
+            <div className="text-xs text-[#5C6B76] space-y-1">
+              <p>
+                Del otro lado, Mercado Libre tiene <b>{rev.soloEnMl.total.toLocaleString("es-AR")}</b> que Laucen no guarda:{" "}
+                {rev.soloEnMl.descartadas.toLocaleString("es-AR")} las sacaste de Laucen vos (borrar pausadas / eliminar en ML) y
+                {" "}{rev.soloEnMl.otras.toLocaleString("es-AR")} son otras. Esto sólo informa: no se borra nada.
+              </p>
+              {rev.soloEnMl.muestra.length > 0 && (
+                <ul className="list-disc pl-5">
+                  {rev.soloEnMl.muestra.slice(0, 8).map((e) => <li key={e.item_id}>{e.item_id} — {e.titulo ?? "sin título"}{e.estado ? ` (${e.estado})` : ""}</li>)}
+                  {rev.soloEnMl.otras > 8 && <li>…muestra de {rev.soloEnMl.muestra.length} de las {rev.soloEnMl.otras.toLocaleString("es-AR")} otras</li>}
+                </ul>
+              )}
+            </div>
+          )}
           {rev.confiable && rev.ejemplos.length > 0 && (
             <ul className="text-xs text-[#5C6B76] list-disc pl-5">
               {rev.ejemplos.map((e) => <li key={e.item_id}>{e.item_id}{e.sku ? ` · ${e.sku}` : ""} — {e.titulo ?? "sin título"}{e.estado ? ` (${e.estado})` : ""}</li>)}

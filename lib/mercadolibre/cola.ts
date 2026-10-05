@@ -329,6 +329,7 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
         if (!fila) break;
         if (cuenta === undefined) cuenta = await cuentaDelCanal(organizacion_id, canal);
         let status = 0, datos: unknown = null, frenar = 0, mensajeError: string | undefined;
+        let creada: string | null = null, notaCreada: string | null = null;
         if (!cuenta || cuenta.estado !== "activa") {
           status = 401; datos = { message: "la cuenta de Mercado Libre del canal no está conectada" }; frenar = 300_000;
         } else if (fila.tipo === "factura") {
@@ -363,20 +364,33 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
           }
           let r: RespuestaMl = { status: 200, datos: null };
           for (const p of pedidos) {
+            // Un alta (POST /items) devuelve el id nuevo: los pedidos que siguen lo usan en "{id}".
+            const ruta = p.ruta.replace("{id}", creada ?? "{id}");
+            if (ruta.includes("{id}")) { r = { status: 400, datos: { message: "falta el id de la publicación recién creada" } }; break; }
             const espera = ultimo + ritmo - Date.now();
             if (espera > 0) await dormir(espera);
             ultimo = Date.now();
             res.enviadas++;
-            r = await enviar(cuenta, p.metodo, p.ruta, p.cuerpo);
+            r = await enviar(cuenta, p.metodo, ruta, p.cuerpo);
+            if (fila.tipo === "crear" && p.metodo === "POST" && p.ruta === "/items" && r.status >= 200 && r.status < 300) {
+              creada = (r.datos as { id?: string } | null)?.id ?? null;
+            }
             if ((r.status < 200 || r.status >= 300) && !(p.seguirSiFalla && r.status >= 400 && r.status < 500 && r.status !== 429 && r.status !== 401)) break;
           }
           status = r.status; datos = r.datos;
+          // Una publicación creada NUNCA se reintenta (saldría duplicada): si un paso posterior falló
+          // (ej. la descripción), queda como enviada con el aviso, y se trae a Laucen igual.
+          if (creada) {
+            if (status < 200 || status >= 300) notaCreada = `Se creó ${creada}, pero un paso posterior falló: ${errorLegible(status, datos)}`;
+            status = 200; datos = { id: creada };
+            try { await (await import("@/lib/mercadolibre/publicaciones")).importarItem(cuenta, creada); } catch { /* la barrida la trae */ }
+          }
           if (status === 429) frenar = 60_000;
           else if (status === 401) frenar = 300_000;
         }
         if (status >= 200 && status < 300) {
-          await consulta("update ml_cola set estado = 'ok', enviado_ts = now(), ultimo_error = null, respuesta = $2::jsonb where id = $1",
-            [fila.id, JSON.stringify(resumen({ status, datos }))]);
+          await consulta("update ml_cola set estado = 'ok', enviado_ts = now(), ultimo_error = $3, respuesta = $2::jsonb where id = $1",
+            [fila.id, JSON.stringify(resumen({ status, datos })), notaCreada]);
           await aplicarEfecto(fila.organizacion_id, fila.efecto);
           res.ok++;
           continue;
