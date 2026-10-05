@@ -12,7 +12,7 @@ import CampoNumero from "@/app/componentes/CampoNumero";
 import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { BotonConfirmar } from "@/app/radar/Cliente";
-import { formatear } from "@/lib/moneda";
+import { formatear, tcDelDia } from "@/lib/moneda";
 import { consultaPaginada, leerOrden } from "@/lib/lista";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO,
@@ -72,6 +72,9 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
     }, base.orden),
   }, base.valores, sp);
 
+  // Los precios de las publicaciones son en pesos; si se mira en dólares, al tipo de cambio de hoy (igual que en Vincular con Mercado Libre).
+  const tc = s.moneda === "USD" ? (await tcDelDia(s.org.id))?.venta ?? null : null;
+  const plata = (x: number) => (tc ? formatear(x / tc, "USD") : formatear(x, "ARS"));
   const vincularMl = (f: Fila) => url("/catalogo/publicaciones/ml", { canal: f.canal_id, ver: "todas", q: f.id_externo, contiene: "1" });
 
   return (
@@ -126,9 +129,9 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                 <td className={TDN}>
                   {f.precio != null ? (
                     <>
-                      {f.tachado != null && <span className="block text-[10px] text-[#5C6B76] line-through">{formatear(f.tachado, "ARS")}</span>}
-                      <span className="font-semibold">{formatear(f.precio, "ARS")}</span>
-                      {f.campana && <span className="mt-0.5 block whitespace-normal text-left text-[10px] leading-3 text-[#1F6E4A]" title="Campaña activa de Mercado Libre">Campaña: {f.campana}{f.precio_campana != null && <> · {formatear(f.precio_campana, "ARS")}</>}</span>}
+                      {f.tachado != null && <span className="block text-[10px] text-[#5C6B76] line-through">{plata(f.tachado)}</span>}
+                      <span className="font-semibold">{plata(f.precio)}</span>
+                      {f.campana && <span className="mt-0.5 block whitespace-normal text-left text-[10px] leading-3 text-[#1F6E4A]" title="Campaña activa de Mercado Libre">Campaña: {f.campana}{f.precio_campana != null && <> · {plata(f.precio_campana)}</>}</span>}
                     </>
                   ) : <span className="text-[#5C6B76]">—</span>}
                 </td>

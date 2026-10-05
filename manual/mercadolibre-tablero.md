@@ -43,7 +43,7 @@ Estas filas **no están en el Relevamiento completo**: viven en [Dashboard › P
 - **Devoluciones**: las abiertas y cuántas vienen en camino.
 
 ### Movimiento y salud de la cuenta
-**Pedidos en camino** (envíos despachados que todavía no se entregaron), **Ventas de hoy** y **de los últimos 7 días** (cantidad e importe), **Cola de Mercado Libre con error** (cambios que Laucen quiso mandar a ML y no pudo; enlace a la [Cola](/config/canales/cola)) y el estado de la **Conexión** (si se desconectó, el enlace para volver a conectar).
+**Pedidos en camino** (envíos despachados que todavía no se entregaron), **Ventas de hoy** y **de los últimos 7 días** (cantidad e importe, en pesos o en dólares según el interruptor de abajo a la izquierda: cada venta guarda su total en dólares al tipo de cambio del día en que se hizo, y se suman esos), **Cola de Mercado Libre con error** (cambios que Laucen quiso mandar a ML y no pudo; enlace a la [Cola](/config/canales/cola)) y el estado de la **Conexión** (si se desconectó, el enlace para volver a conectar).
 
 ### Alertas del catálogo
 No son de una cuenta en particular:
