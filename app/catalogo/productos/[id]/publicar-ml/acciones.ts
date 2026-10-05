@@ -11,6 +11,7 @@ import { motivoErp } from "@/lib/erp/base";
 import { texto, numero, entero, id } from "@/lib/erp/acciones";
 import { prepararPublicacion } from "@/lib/mercadolibre/publicar-similar";
 import { prepararPublicacionCatalogo } from "@/lib/mercadolibre/catalogo-similar";
+import { prepararPublicacionNueva } from "@/lib/mercadolibre/publicar-nueva";
 
 export type ResultadoPreparar = { error: string } | null;
 
@@ -55,6 +56,27 @@ export async function accionPrepararCatalogo(_antes: ResultadoPreparar, fd: Form
     revalidatePath("/config/canales/cola");
     const avisos = r.avisos ? ` Mercado Libre dejó avisos (no frenan; los resuelve al crearla): ${r.avisos}` : "";
     destino = `/config/canales/cola?ver=lotes&lote=${r.loteId}&ok=${encodeURIComponent(`Publicación en el catálogo preparada. Todavía no salió nada: revisala y apretá "Mandar a Mercado Libre".${avisos}`)}`;
+  } catch (e) {
+    return { error: motivoErp(e) };
+  }
+  redirect(destino);
+}
+
+/** Publicación nueva desde los datos de Laucen: preparar el lote (queda esperando el clic). */
+export async function accionPrepararNueva(_antes: ResultadoPreparar, fd: FormData): Promise<ResultadoPreparar> {
+  const s = await entrarErp("publicaciones_ver");
+  let destino: string;
+  try {
+    const r = await prepararPublicacionNueva(s.org.id, {
+      productoId: id(fd, "producto"), categoria: texto(fd, "categoria") ?? "", canal: id(fd, "canal"), variacion: id(fd, "variacion"),
+      titulo: String(fd.get("titulo") ?? ""), precio: numero(fd, "precio"), cantidad: entero(fd, "cantidad"),
+      tipo: texto(fd, "tipo") ?? "", condicion: texto(fd, "condicion") ?? "", fotos: fd.getAll("foto").map(String),
+      atributos: conPrefijo(fd, "attr:"), garantiaTipo: texto(fd, "garantia_tipo") ?? "", garantiaTiempo: texto(fd, "garantia_tiempo") ?? "",
+      descripcion: String(fd.get("descripcion") ?? ""),
+    }, s.usuario.id);
+    revalidatePath("/config/canales/cola");
+    const avisos = r.avisos ? ` Mercado Libre dejó avisos (no frenan; los resuelve al crearla): ${r.avisos}` : "";
+    destino = `/config/canales/cola?ver=lotes&lote=${r.loteId}&ok=${encodeURIComponent(`Publicación nueva preparada. Todavía no salió nada: revisala y apretá "Mandar a Mercado Libre".${avisos}`)}`;
   } catch (e) {
     return { error: motivoErp(e) };
   }

@@ -82,3 +82,43 @@ test("cuerpoCatalogo: catálogo + SKU + garantía; sin tiempo si es 'Sin garant�
   assert.equal(sin.shipping, undefined);
   assert.equal(sin.family_name, "Placa X");
 });
+
+test("publicar nueva: valores de Laucen (marca del producto manda, medidas del paquete, GTIN sólo si son números)", async () => {
+  const { valoresDeLaucen } = await import("@/lib/mercadolibre/publicar-nueva");
+  const v = valoresDeLaucen({
+    atributos_ml: [{ id: "BRAND", value_name: "Otra" }, { id: "VOLTAGE", value_name: "5 V" }, { id: "VACIO", value_name: " " }],
+    marca: "Daitom", modelo: "X1", linea: null, codigo_barras: "SIN-CODIGO", peso_g: 120, largo_cm: 10.5, ancho_cm: null, alto_cm: 3,
+  });
+  assert.deepEqual(v, { BRAND: "Daitom", VOLTAGE: "5 V", MODEL: "X1", SELLER_PACKAGE_WEIGHT: "120 g", SELLER_PACKAGE_LENGTH: "10,5 cm", SELLER_PACKAGE_HEIGHT: "3 cm" });
+  assert.equal(valoresDeLaucen({ atributos_ml: null, marca: null, modelo: null, linea: null, codigo_barras: "7790001234567", peso_g: null, largo_cm: null, ancho_cm: null, alto_cm: null }).GTIN, "7790001234567");
+});
+
+test("publicar nueva: atributos cargables y para ML (opción con su código; texto si no coincide; vacío no va)", async () => {
+  const { atributosCargables, atributosParaMl } = await import("@/lib/mercadolibre/publicar-nueva");
+  const meta = [
+    { id: "BRAND", name: "Marca" },
+    { id: "COLOR", name: "Color", values: [{ id: "1", name: "Rojo" }] },
+    { id: "OCULTO", name: "x", tags: { hidden: true } },
+    { id: "SELLER_SKU", name: "SKU" },
+    { id: "PACKAGE_WEIGHT", name: "Peso" },
+  ];
+  assert.deepEqual(atributosCargables(meta).map((a) => a.id), ["BRAND", "COLOR"]);
+  assert.deepEqual(atributosParaMl(atributosCargables(meta), { BRAND: "Genérica", COLOR: "rojo", OCULTO: "y", SELLER_SKU: "z" }),
+    [{ id: "BRAND", value_name: "Genérica" }, { id: "COLOR", value_id: "1", value_name: "Rojo" }]);
+  assert.deepEqual(atributosParaMl(atributosCargables(meta), { COLOR: "Azul", BRAND: "" }), [{ id: "COLOR", value_name: "Azul" }]);
+});
+
+test("publicar nueva: cuerpo con family_name (o title), fotos, SKU al final y sin envío si se pide", async () => {
+  const { cuerpoNueva } = await import("@/lib/mercadolibre/publicar-nueva");
+  const e = { titulo: "Modulo Rele 5v", categoria: "MLA1", precio: 999.5, cantidad: 2, tipo: "gold_special", condicion: "new", fotos: ["https://a/1.jpg"], sku: "SKU9", garantiaTipo: "", garantiaTiempo: "" };
+  const c = cuerpoNueva(e, [{ id: "BRAND", value_name: "Genérica" }]);
+  assert.equal(c.family_name, "Modulo Rele 5v");
+  assert.equal(c.title, undefined);
+  assert.equal(c.price, 1000);
+  assert.deepEqual(c.pictures, [{ source: "https://a/1.jpg" }]);
+  assert.deepEqual(c.attributes, [{ id: "BRAND", value_name: "Genérica" }, { id: "SELLER_SKU", value_name: "SKU9" }]);
+  assert.equal(c.sale_terms, undefined);
+  const t = cuerpoNueva(e, [], { conTitle: true, sinEnvio: true, sacar: ["BRAND"] });
+  assert.equal(t.title, "Modulo Rele 5v");
+  assert.equal(t.shipping, undefined);
+});

@@ -5,6 +5,8 @@
 //     ?catalogo= abre el formulario para publicar ahí.
 //   · Tus publicaciones (?ver=propias): una publicación de las cuentas de Fer para
 //     copiar (lib/mercadolibre/publicar-similar.ts); ?item= abre el borrador.
+//   · Nueva desde Laucen (?ver=nueva, ?cat= otra categoría): desde cero, con los datos
+//     del producto y lo que propone la IA (lib/mercadolibre/publicar-nueva.ts).
 // En los dos, "Preparar publicación" lo comprueba con ML y queda esperando el clic en la cola.
 
 import Link from "next/link";
@@ -20,10 +22,12 @@ import { buscarEnCatalogo, armarBorradorCatalogo, TEXTO_MARCA, TIPOS_GARANTIA, t
 import type { Juicio } from "@/lib/mercadolibre/juez-similar";
 import Borrador from "./Borrador";
 import BorradorCatalogo from "./BorradorCatalogo";
+import BorradorNueva from "./BorradorNueva";
+import { armarBorradorNueva, type BorradorNueva as DatosNueva } from "@/lib/mercadolibre/publicar-nueva";
 
 export const dynamic = "force-dynamic";
 
-type SP = { q?: string; ver?: string; item?: string; catalogo?: string; ok?: string; error?: string };
+type SP = { q?: string; ver?: string; item?: string; catalogo?: string; cat?: string; ok?: string; error?: string };
 
 const TONO: Record<string, "verde" | "gris" | "amarillo" | "rojo" | "azul" | "ambar"> = { active: "verde", paused: "amarillo", closed: "gris", inactive: "gris", under_review: "rojo" };
 const pesos = (n: number | null | undefined) => (n == null ? "—" : `$ ${formatearNumero(n, "pesos")}`);
@@ -52,6 +56,7 @@ export default async function PublicarEnMl({ params, searchParams }: { params: P
   const titulo = `Publicar ${p.sku_base} en Mercado Libre`;
   const q = sp.q?.trim() || null;
   const propias = sp.ver === "propias";
+  const nueva = sp.ver === "nueva";
 
   if (p.no_publicable) {
     return (
@@ -104,26 +109,37 @@ export default async function PublicarEnMl({ params, searchParams }: { params: P
     } catch (e) { errorElegido = motivoErp(e); }
   }
 
-  // Sin elegir: las dos búsquedas (las pestañas muestran cuántas hay en cada una).
-  const [cat, prop] = await Promise.all([
+  // Sin elegir: las dos búsquedas (las pestañas muestran cuántas hay en cada una) y, en su pestaña, la nueva.
+  const cat_ = sp.cat && /^MLA\d+$/.test(sp.cat) ? sp.cat : null;
+  const [nuevaR, cat, prop] = await Promise.all([
+    nueva ? armarBorradorNueva(s.org.id, p.id, cat_).then((b) => ({ b, error: null as string | null }), (e) => ({ b: null as DatosNueva | null, error: motivoErp(e) })) : null,
     buscarEnCatalogo(s.org.id, p.id, q).then((r) => ({ ...r, error: null as string | null }), (e) => ({ lista: [] as ProductoCatalogo[], conJuez: true, error: motivoErp(e) })),
     parecidas(s.org.id, p.id, q).then((r) => ({ ...r, error: null as string | null }), (e) => ({ lista: [] as Parecida[], conJuez: true, error: motivoErp(e) })),
   ]);
-  const actual = propias ? prop : cat;
+  const actual = nueva ? { error: nuevaR?.error ?? null, conJuez: true } : propias ? prop : cat;
   return (
-    <Pantalla titulo={titulo} camino={camino} subtitulo={<>{p.titulo}{p.marca ? ` · marca ${p.marca}` : ""}</>}>
+    <Pantalla titulo={titulo} camino={camino} subtitulo={<>{p.titulo}{p.marca ? ` · marca ${p.marca}` : ""}</>}
+      acciones={nueva && nuevaR?.b?.categoria ? <button form="publicar" className={PRIMARIO}>Preparar publicación</button> : undefined}>
       <Avisos sp={{ ...sp, error: errorElegido ?? actual.error ?? sp.error }} />
-      <div className="flex flex-wrap items-center gap-3 mb-3">
-        <div className="w-full sm:w-[28rem]"><BuscadorVivo q={q ?? ""} comienza={false} sinComienza placeholder={`Otras palabras (si no, busca por: ${p.titulo})`} /></div>
-      </div>
+      {!nueva && (
+        <div className="flex flex-wrap items-center gap-3 mb-3">
+          <div className="w-full sm:w-[28rem]"><BuscadorVivo q={q ?? ""} comienza={false} sinComienza placeholder={`Otras palabras (si no, busca por: ${p.titulo})`} /></div>
+        </div>
+      )}
       <Pestanas items={[
         { clave: "catalogo", texto: "Catálogo de Mercado Libre", cuenta: cat.lista.length, activa: !propias, href: url(base, { q }) },
         { clave: "propias", texto: "Tus publicaciones", cuenta: prop.lista.length, activa: propias, href: url(base, { ver: "propias", q }) },
+        // Un formulario: sin cuenta (AGENTS.md).
+        { clave: "nueva", texto: "Nueva desde Laucen", activa: nueva, href: url(base, { ver: "nueva" }) },
       ]} />
       {!actual.conJuez && (
         <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#FFF8E5] text-[#8a6100]">No se pudo pedir a la IA que revise cuáles son el mismo producto: se muestran por parecido de palabras.</p>
       )}
-      {propias ? <ListaPropias lista={prop.lista} base={base} q={q} /> : <ListaCatalogo lista={cat.lista} base={base} q={q} />}
+      {nueva
+        ? nuevaR?.b && (nuevaR.b.cuentas.length
+          ? <BorradorNueva key={nuevaR.b.categoria?.id ?? "-"} productoId={p.id} b={nuevaR.b} tipos={TIPOS_PUBLICACION} condiciones={CONDICIONES} garantias={TIPOS_GARANTIA} />
+          : <p className="text-sm text-[#C03420]">No hay ninguna cuenta de Mercado Libre conectada.</p>)
+        : propias ? <ListaPropias lista={prop.lista} base={base} q={q} /> : <ListaCatalogo lista={cat.lista} base={base} q={q} />}
     </Pantalla>
   );
 }

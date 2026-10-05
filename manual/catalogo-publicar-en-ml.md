@@ -4,7 +4,7 @@ menu: Catálogo › Productos › un producto › Publicar en ML copiando otra
 ruta: /catalogo/productos/[id]/publicar-ml
 rutas: /catalogo/productos/[id]/publicar-ml
 permiso: publicaciones_ver
-resumen: Publicar en una cuenta de Mercado Libre un producto que no está publicado: en el producto del catálogo de ML que es el mismo (cuidando la marca) o copiando una publicación tuya.
+resumen: Publicar en una cuenta de Mercado Libre un producto que no está publicado: en el producto del catálogo de ML que es el mismo (cuidando la marca), copiando una publicación tuya o desde cero con los datos de Laucen y la ayuda de la IA.
 ---
 
 ## Para qué sirve
@@ -13,6 +13,7 @@ Para los productos que tienen stock y no están publicados en ninguna cuenta de 
 
 - **Catálogo de Mercado Libre** (lo primero que se ve): buscar el producto del catálogo de ML que es el mismo y publicar ahí. ML pone el título, las fotos y las características; vos ponés la cuenta, el precio, la cantidad, el tipo y la garantía.
 - **Tus publicaciones**: copiar una publicación de tus cuentas (también las cerradas o pausadas) con todos sus datos, y cambiar lo que haga falta.
+- **Nueva desde Laucen**: para un producto nuevo que no está en el catálogo de ML (o sólo con la marca de otro) ni lo publicaste nunca. Se arma desde cero con los datos del producto en Laucen, y lo que falta lo propone la IA para que lo revises.
 
 ## Cómo se llega
 
@@ -21,10 +22,17 @@ Para los productos que tienen stock y no están publicados en ninguna cuenta de 
 
 ## Qué hay en la pantalla
 
-Un buscador (si está vacío, busca por el título del producto; escribí otras palabras si no aparece) y dos pestañas, cada una con cuántos encontró:
+Tres pestañas. Las dos primeras tienen un buscador (si está vacío, busca por el título del producto; escribí otras palabras si no aparece) y muestran cuántos encontraron:
 
 - **Catálogo de Mercado Libre**: los productos del catálogo que pueden ser el mismo, con su foto, nombre (se abre en ML), modelo, **marca** y si se puede usar, **¿Es el mismo?**, el **precio que gana** hoy y cuántos **vendedores** tiene. Botón **Publicar en éste**.
 - **Tus publicaciones**: tus publicaciones que pueden ser el mismo producto, con cuenta, estado, SKU, precio, vendidos y **¿Es el mismo?**. Botón **Copiar ésta**.
+
+- **Nueva desde Laucen**: el formulario de la publicación nueva, ya lleno:
+  - **Categoría de Mercado Libre**: la del producto (o la de su familia). Si no tiene, o no es la última de la rama, la que sugiere Mercado Libre por el título. Al lado, un desplegable para cambiarla por otra de las que sugiere ML (al cambiarla cambian las características que pide).
+  - **Cuenta**, **variación**, **tipo de publicación**, **título** (con la cuenta de letras, hasta 60), **precio** (la Clásica de Laucen para esa cuenta, con "usar"), **cantidad** (lo disponible), **condición** y **garantía**.
+  - **Fotos**: las del producto en Laucen (y de sus variaciones), todas tildadas; se destildan y se mueven con las flechas.
+  - **Características**: las que pide Mercado Libre para esa categoría, primero las obligatorias (con **\***) y las que tienen valor; las demás, desplegando "Más características". Cada valor dice de dónde salió: **Laucen** (datos del producto) o **IA** (propuesto, con fondo amarillo: revisalo). Donde ML tiene opciones, al escribir se despliegan.
+  - **Descripción**: la del producto; si no tiene, la propone la IA (marcada **IA**).
 
 **¿Es el mismo?** lo decide una IA comparando tu producto (título, marca, modelo y características) con cada candidata: **El mismo**, **Parecido** (mismo tipo con alguna diferencia, como el pack o el color) o distinto. Los distintos no se muestran. Debajo va el motivo en una frase. Una publicación tuya con el mismo SKU es siempre "El mismo".
 
@@ -37,6 +45,14 @@ Un buscador (si está vacío, busca por el título del producto; escribí otras 
 3. Revisá el producto de catálogo (fotos, título, marca, modelo y, desplegando, sus características). Elegí la cuenta, el precio (abajo tenés la Clásica de Laucen y el que gana hoy, con "usar" para ponerlos), la cantidad, el tipo y la garantía.
 4. Apretá **Preparar publicación** (arriba a la derecha). Se comprueba con Mercado Libre sin publicar nada; si lo rechaza, el motivo aparece arriba y lo escrito queda.
 5. Se abre el lote en la [Cola de Mercado Libre](/config/canales/cola), **"Preparado, falta tu clic"**. Revisalo y apretá **Mandar a Mercado Libre**.
+
+### Publicar un producto nuevo desde cero
+
+1. Abrí **Buscar en ML** al lado del producto y andá a la pestaña **Nueva desde Laucen**.
+2. Revisá la categoría; si no es la correcta, elegí otra en el desplegable.
+3. Revisá el título y todo lo marcado **IA** (sobre todo las obligatorias). Completá lo que quedó vacío y borrá lo que no corresponde.
+4. Elegí la cuenta, el precio, la cantidad, las fotos, la garantía y revisá la descripción.
+5. Apretá **Preparar publicación** (arriba a la derecha) y después **Mandar a Mercado Libre** en la cola, como siempre.
 
 ### Copiar una publicación tuya
 
@@ -57,6 +73,11 @@ Un buscador (si está vacío, busca por el título del producto; escribí otras 
 - **Precio propuesto**: el de la Clásica de Laucen para esa cuenta (la lista de precios del canal). Copiando, si no hay, el de la publicación elegida.
 - **Cantidad propuesta**: el stock disponible del producto en Laucen (como mínimo 1).
 - **Al copiar una publicación tuya**: un valor de característica que no se toca se manda tal cual; uno cambiado se manda como texto; uno borrado no se manda. Si falta el Modelo, se usa el del producto de Laucen. Sólo se pueden usar las fotos de la publicación y las del producto en Laucen.
+- **Nueva desde Laucen, de dónde sale cada dato**: primero lo del producto en Laucen (las características que trajo de Mercado Libre o Virtual Seller, la marca, el modelo, la línea, el código de barras y el peso y las medidas como medidas del paquete). Si no tiene código de barras, se pone el motivo "no tiene código registrado". Lo que sigue faltando, el título y (si no hay) la descripción los propone la IA. Lo propuesto se guarda un día: volver a entrar no lo vuelve a pedir.
+- **La IA nunca inventa una marca ni un código de barras**: si el producto no tiene marca, propone "Genérica". Al preparar, la marca tiene que ser la del producto o "Genérica"; si no, no deja.
+- **Obligatorias**: si falta alguna característica obligatoria para la categoría, no se prepara y se avisa cuáles faltan.
+- **Título**: hasta 60 letras. La IA lo arma como lo buscaría un comprador (qué es, marca, modelo y un par de datos clave), sin palabras de promoción.
+- **Fotos de una publicación nueva**: sólo las del producto en Laucen. Si no tiene, subilas primero en su ficha.
 - **No publicables**: un producto marcado No publicable no se puede publicar desde acá (apagá la marca en su ficha si sí se vende solo).
 - Si la IA no contesta, se avisa y las candidatas se muestran por parecido de palabras.
 
