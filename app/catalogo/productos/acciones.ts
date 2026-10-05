@@ -13,7 +13,7 @@ import { esMoneda } from "@/lib/moneda";
 import { TODOS_PCT, esVia, leerPctsCosto, leerNcm } from "@/lib/costo-importacion";
 import { supabaseServer } from "@/lib/supabase";
 import { revalidateTag } from "next/cache";
-import { publicarEnWeb } from "@/lib/catalogo/web";
+import { publicarEnWeb, marcarNoPublicable } from "@/lib/catalogo/web";
 import { duplicarProducto } from "@/lib/catalogo/duplicar";
 
 const LISTADO = "/catalogo/productos";
@@ -543,5 +543,18 @@ export async function accionPublicarWeb(fd: FormData) {
     revalidatePath(`${LISTADO}/${pid}`);
     revalidateTag(`tienda-${canal}`);
     return prender ? "Publicado en la web." : "Sacado de la web: ya no se ve en la tienda.";
+  });
+}
+
+/** El interruptor "No publicable" de la pestaña Publicaciones. */
+export async function accionNoPublicable(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  await intentar(ficha(pid, fd), async () => {
+    await productoDe(s.org.id, pid);
+    const prender = fd.get("valor") === "1";
+    await marcarNoPublicable(s.org.id, pid, prender);
+    revalidatePath(`${LISTADO}/${pid}`);
+    return prender ? "Marcado como No publicable: no va a Mercado Libre ni a la web." : "Vuelve a ser publicable.";
   });
 }

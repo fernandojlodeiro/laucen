@@ -54,3 +54,31 @@ test("aplicarCambios: igual queda con su código; cambiado va como texto; vacío
     { id: "LINE", name: "Línea", value_id: null, value_name: "X" },
   ]);
 });
+
+test("estadoMarca: nuestra o genérica se puede; la de otro no; sin marca, a revisar", async () => {
+  const { estadoMarca } = await import("@/lib/mercadolibre/catalogo-similar");
+  const propias = new Set(["daitom", "deirolab"]);
+  assert.equal(estadoMarca("Daitom", propias), "propia");
+  assert.equal(estadoMarca("DEIROLAB", propias), "propia");
+  assert.equal(estadoMarca("Genérica", propias), "generica");
+  assert.equal(estadoMarca("Sin marca", propias), "generica");
+  assert.equal(estadoMarca("Arduino", propias), "ajena");
+  assert.equal(estadoMarca(null, propias), "sin_dato");
+});
+
+test("cuerpoCatalogo: catálogo + SKU + garantía; sin tiempo si es 'Sin garantía'", async () => {
+  const { cuerpoCatalogo } = await import("@/lib/mercadolibre/catalogo-similar");
+  const base = { catalogoId: "MLA123", categoria: "MLA1", precio: 1234.6, cantidad: 3.7, tipo: "gold_special", sku: "SKU01", garantiaTipo: "Garantía del vendedor", garantiaTiempo: "30 días" };
+  const c = cuerpoCatalogo(base);
+  assert.equal(c.catalog_product_id, "MLA123");
+  assert.equal(c.catalog_listing, true);
+  assert.equal(c.price, 1235);
+  assert.equal(c.available_quantity, 3);
+  assert.deepEqual(c.attributes, [{ id: "SELLER_SKU", value_name: "SKU01" }]);
+  assert.deepEqual(c.sale_terms, [{ id: "WARRANTY_TYPE", value_name: "Garantía del vendedor" }, { id: "WARRANTY_TIME", value_name: "30 días" }]);
+  assert.equal(c.family_name, undefined);
+  const sin = cuerpoCatalogo({ ...base, garantiaTipo: "Sin garantía" }, { sinEnvio: true, nombre: "Placa X" });
+  assert.deepEqual(sin.sale_terms, [{ id: "WARRANTY_TYPE", value_name: "Sin garantía" }]);
+  assert.equal(sin.shipping, undefined);
+  assert.equal(sin.family_name, "Placa X");
+});

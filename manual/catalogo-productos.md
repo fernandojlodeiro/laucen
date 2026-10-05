@@ -36,14 +36,15 @@ Filtros (filtran al momento, sin botón "Buscar"):
 - **Familia**: buscador de familias (tipeás parte del nombre o del camino, ej. "Electrónica › Componentes"). Incluye las subfamilias de la elegida.
 - **Tipo**: Todos los tipos / Simple / Con variaciones / Kit.
 - **Kits de Virtual Seller**: sólo los marcados como kit que vino de Virtual Seller y hay que armar a mano.
-- **Sin publicar en ningún canal**: productos que no tienen ninguna publicación activa en ningún canal (ninguna cuenta de Mercado Libre ni la web).
-- **Con stock y sin publicación activa en ML** y **De la web, sin fotos**: las dos alertas del [Tablero de Mercado Libre](/mercadolibre) (productos activos con stock que no se están vendiendo por ML; productos de la tienda web sin ninguna foto). Con el filtro **Con stock y sin publicación activa en ML**, cada fila tiene el botón **Buscar en ML**, que abre **Publicar en Mercado Libre copiando otra** para ese producto.
+- **Sin publicar en ningún canal**: productos que no tienen ninguna publicación activa en ningún canal (ninguna cuenta de Mercado Libre ni la web). Los **No publicables** no aparecen.
+- **No publicables**: sólo los marcados como No publicable (insumos o partes de otro, como la unidad "-U" que se vende sólo en pack).
+- **Con stock y sin publicación activa en ML** y **De la web, sin fotos**: las dos alertas del [Tablero de Mercado Libre](/mercadolibre) (productos activos con stock que no se están vendiendo por ML; productos de la tienda web sin ninguna foto). Con el filtro **Con stock y sin publicación activa en ML**, cada fila tiene el botón **Buscar en ML**, que abre **Publicar en Mercado Libre** para ese producto. Los **No publicables** no aparecen en estas dos alertas.
 
 Arriba de la tabla, el selector **Vista** ("Estándar" o una vista guardada) elige qué columnas se ven y en qué orden; la última elegida queda recordada.
 
 Columnas de la vista Estándar (todas se ordenan tocando el título):
 - **SKU base**: lleva a la ficha. Al lado, el 📷 abre las fotos (si no tiene fotos, no aparece).
-- **Título**: lleva a la ficha. Si es un kit de Virtual Seller, muestra la marca "Kit VS".
+- **Título**: lleva a la ficha. Si es un kit de Virtual Seller, muestra la marca "Kit VS"; si está marcado como No publicable, "No publicable".
 - **Familia**: filtra la lista por esa familia.
 - **Tipo**: filtra la lista por ese tipo.
 - **Variaciones**: cuántas variaciones tiene (un producto simple cuenta 1, su variación única). Lleva a la ficha.
@@ -140,7 +141,9 @@ Disponible (lo que hay menos lo reservado) de cada variación en cada depósito 
 
 Arriba, un interruptor por cada web: **"Publicado en Web minorista"** y **"Publicado en Web mayorista"** (la web es un canal más). Prendido, el producto se ve en esa tienda (si tiene precio en la lista del canal); apagado, no. Prenderlo publica todas sus variaciones activas en ese canal; apagarlo las deja pausadas. No toca Mercado Libre.
 
-Debajo, las publicaciones de las variaciones de este producto en cada canal (también las de la web, sin id externo): Canal, Variación, Id externo, Título, Tipo, Precio (con el tachado si está en campaña), Estado (y debajo, el estado en ML), Stock en ML, Última sincronización. El botón **Ir a Publicaciones** lleva a [Publicaciones](/catalogo/publicaciones).
+Debajo, las publicaciones de las variaciones de este producto en cada canal (también las de la web, sin id externo): Canal, Variación, Id externo, Título, Tipo, Precio (con el tachado si está en campaña), Estado (y debajo, el estado en ML), Stock en ML, Última sincronización. El botón **Ir a Publicaciones** lleva a [Publicaciones](/catalogo/publicaciones), y **Publicar en ML copiando otra** abre la pantalla para publicarlo en Mercado Libre (en el catálogo o copiando una publicación tuya).
+
+Arriba de todo, el interruptor **No publicable (insumo o parte de otro)**: prendido, el producto no va a Mercado Libre ni a la web (sale de las tiendas y no se puede volver a prender "Publicado en Web"), no aparece en las alertas de "sin publicar" del tablero ni en esos filtros, y la ficha muestra la marca "No publicable" junto al título. Sus publicaciones de Mercado Libre, si tiene, no se tocan.
 
 ## Cómo se hace
 
@@ -234,6 +237,10 @@ En la ficha, botón **Pasar a Inactivo** (arriba a la derecha). Avisa "Pasó a I
 Tacho de arriba a la derecha → "¿Borrar el producto entero?" → **Sí**. Se borra con sus variaciones, fotos, atributos, cucardas y precios. Si una de sus variaciones es componente de un kit, el sistema no deja borrarlo. Si sólo querés que no aparezca más, conviene **Pasar a Inactivo**.
 
 ## Criterios y reglas
+
+**No publicable**
+- Es para lo que no se vende solo: insumos o partes de otro producto, como la unidad "-U" que se vende sólo en pack. Se prende y apaga en la pestaña Publicaciones de la ficha.
+- Al crearse esta marca (5/10) se prendió sola en todos los productos con SKU terminado en "-U" que no tenían ninguna publicación de Mercado Libre (ni vinculada ni con su SKU en ninguna cuenta, en ningún estado), y esos salieron de la web. Los "-U" que sí tienen alguna publicación quedaron como estaban: si tampoco se venden solos, prendé la marca a mano.
 
 **Tipos de producto**
 - **Simple**: una sola variación, creada sola con el SKU base y el código de barras del producto. Si cambiás el SKU base o el código de barras del producto, la variación única se actualiza sola.

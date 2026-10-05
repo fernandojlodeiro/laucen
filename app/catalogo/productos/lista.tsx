@@ -47,6 +47,8 @@ export function filtrosProductos(sp: SP) {
     webVer: sp.webver === "activa" || sp.webver === "apagado" || sp.webver === "apagado_stock" ? sp.webver : "",
     // Sin ninguna publicación activa en ningún canal (ML ni web).
     sinCanal: sp.sincanal === "1",
+    // Los marcados "No publicable" (insumos, unidades que sólo se venden en pack).
+    noPublicable: sp.nopub === "1",
   };
 }
 
@@ -65,7 +67,8 @@ const CAMPOS: Campo[] = [
     celda: (f, ctx) => (
       <span className="flex items-center justify-between gap-2">
         <span><Link href={`/catalogo/productos/${f.id}`} className="hover:underline">{f.titulo}</Link>
-          {f.kit_vs && <span className="ml-1.5"><Estado texto="Kit VS" tono="azul" /></span>}</span>
+          {f.kit_vs && <span className="ml-1.5"><Estado texto="Kit VS" tono="azul" /></span>}
+          {f.no_publicable && <span className="ml-1.5"><Estado texto="No publicable" tono="gris" /></span>}</span>
         {/* Con el filtro de "sin publicación activa en ML": publicarlo copiando una publicación parecida. */}
         {(ctx.sp.sinpublicar === "1" || Number(ctx.sp.sinpubcanal) > 0) && (
           <Link href={`/catalogo/productos/${f.id}/publicar-ml`} className={`${SUAVE} !py-1 whitespace-nowrap`} title="Buscar publicaciones parecidas en tus cuentas de Mercado Libre y copiar una">Buscar en ML</Link>
@@ -114,6 +117,7 @@ const CAMPOS: Campo[] = [
   { clave: "stock_minimo", titulo: "Stock mínimo", sql: "p.stock_minimo", formato: "entero" },
   { clave: "umbral_pausa", titulo: "Umbral de pausa", sql: "p.umbral_pausa", formato: "entero" },
   { clave: "kit_vs", titulo: "Kit de Virtual Seller", sql: "p.kit_vs", formato: "sino" },
+  { clave: "no_publicable", titulo: "No publicable", sql: "p.no_publicable", formato: "sino" },
   { clave: "fotos_n", titulo: "Fotos", sql: "(select count(*) from producto_foto pf where pf.producto_id = p.id)::int", formato: "entero" },
   { clave: "foto", titulo: "Foto principal (dirección)", sql: "(select pf.url from producto_foto pf where pf.producto_id = p.id order by pf.orden, pf.id limit 1)", orden: false, ancho: 40 },
   { clave: "descripcion", titulo: "Descripción", sql: "p.descripcion", orden: false, ancho: 60 },
@@ -129,7 +133,7 @@ export const LISTA_PRODUCTOS: Lista = {
   vistas: true,
   porDefecto: "titulo",
   enPantalla: ["sku", "titulo", "familia", "tipo", "variaciones", "disponible", "estado"],
-  siempre: `p.id::int id, p.familia_id::int familia_id, p.kit_vs, p.estado _estado,
+  siempre: `p.id::int id, p.familia_id::int familia_id, p.kit_vs, p.no_publicable, p.estado _estado,
             (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = p.id) fotos`,
   // Un precio por cada lista de precios (el de lista, de la variación principal, hoy).
   campos: async (ctx) => {
@@ -160,9 +164,10 @@ export const LISTA_PRODUCTOS: Lista = {
          and (not $8 or ${SQL_SIN_PUBLICAR})
          and (not $9 or ${SQL_SIN_FOTOS})
          and ($10::bigint = 0 or ${sqlSinPublicarEnCanal("$10::bigint")})
-         and (not $11 or not exists (select 1 from publicacion pu join variacion v on v.id = pu.variacion_id
-                                      where v.producto_id = p.id and pu.estado = 'activa'))`,
-      valores: [ctx.org, patronBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn, f.sinCanal],
+         and (not $11 or (not p.no_publicable and not exists (select 1 from publicacion pu join variacion v on v.id = pu.variacion_id
+                                      where v.producto_id = p.id and pu.estado = 'activa')))
+         and (not $12 or p.no_publicable)`,
+      valores: [ctx.org, patronBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn, f.sinCanal, f.noPublicable],
       orden: "p.titulo, p.id",
     };
   },

@@ -12,7 +12,7 @@ import { una } from "@/lib/erp/base";
 import Pestanas from "@/app/componentes/Pestanas";
 import { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { TachoConfirmar } from "@/app/radar/Cliente";
-import { entrarErp, Pantalla, Avisos, BotonesFicha, editandoFicha, EDITAR_FICHA, url } from "@/app/componentes/erp";
+import { entrarErp, Pantalla, Avisos, BotonesFicha, editandoFicha, EDITAR_FICHA, url, Estado } from "@/app/componentes/erp";
 import { accionBorrarProducto, accionCambiarEstadoProducto, accionDuplicarProducto } from "../acciones";
 import { SUAVE } from "@/app/botones";
 import { EstadoProducto, TIPOS_PRODUCTO } from "../comun";
@@ -34,7 +34,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
 
   const p = await una<Producto>(`
     select p.id::int, p.sku_base, p.titulo, p.descripcion, p.familia_id::int, f.nombre familia, p.marca, p.tipo, p.estado, p.codigo_barras,
-           p.modelo, p.linea, p.garantia, p.condicion, p.categoria_ml, p.atributos_ml, p.kit_vs, p.precio_en_dolares,
+           p.modelo, p.linea, p.garantia, p.condicion, p.categoria_ml, p.atributos_ml, p.kit_vs, p.precio_en_dolares, p.no_publicable,
            p.peso_g, p.largo_cm::float8, p.ancho_cm::float8, p.alto_cm::float8, p.descuento_pct::float8, p.umbral_pausa, p.stock_minimo,
            (with recursive cadena as (
               select fa.id, fa.padre_id, fa.descuento_pct, 0 nivel from familia fa where fa.id = p.familia_id
@@ -90,7 +90,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
 
   return (
     <Pantalla
-      titulo={<span className="flex flex-wrap items-center gap-2"><span className="font-mono text-[#5C6B76]">{p.sku_base}</span> {p.titulo} <EstadoProducto estado={p.estado} /></span>}
+      titulo={<span className="flex flex-wrap items-center gap-2"><span className="font-mono text-[#5C6B76]">{p.sku_base}</span> {p.titulo} <EstadoProducto estado={p.estado} />{p.no_publicable && <Estado texto="No publicable" tono="gris" />}</span>}
       subtitulo={<>{TIPOS_PRODUCTO[p.tipo]}{p.familia ? ` · ${p.familia}` : ""}{p.marca ? ` · ${p.marca}` : ""}</>}
       camino={[{ texto: p.sku_base }]}
       acciones={

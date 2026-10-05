@@ -10,6 +10,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { motivoErp } from "@/lib/erp/base";
 import { texto, numero, entero, id } from "@/lib/erp/acciones";
 import { prepararPublicacion } from "@/lib/mercadolibre/publicar-similar";
+import { prepararPublicacionCatalogo } from "@/lib/mercadolibre/catalogo-similar";
 
 export type ResultadoPreparar = { error: string } | null;
 
@@ -33,6 +34,27 @@ export async function accionPrepararPublicacion(_antes: ResultadoPreparar, fd: F
     revalidatePath("/config/canales/cola");
     const avisos = r.avisos ? ` Mercado Libre dejó avisos (no frenan; los resuelve al crearla): ${r.avisos}` : "";
     destino = `/config/canales/cola?ver=lotes&lote=${r.loteId}&ok=${encodeURIComponent(`Publicación preparada. Todavía no salió nada: revisala y apretá "Mandar a Mercado Libre".${avisos}`)}`;
+  } catch (e) {
+    return { error: motivoErp(e) };
+  }
+  redirect(destino);
+}
+
+/** Publicar en el catálogo de ML: preparar el lote (queda esperando el clic). */
+export async function accionPrepararCatalogo(_antes: ResultadoPreparar, fd: FormData): Promise<ResultadoPreparar> {
+  const s = await entrarErp("publicaciones_ver");
+  let destino: string;
+  try {
+    const catalogoId = texto(fd, "catalogo") ?? "";
+    if (!/^MLA\d+$/.test(catalogoId)) return { error: "Falta el producto de catálogo." };
+    const r = await prepararPublicacionCatalogo(s.org.id, {
+      productoId: id(fd, "producto"), catalogoId, canal: id(fd, "canal"), variacion: id(fd, "variacion"),
+      precio: numero(fd, "precio"), cantidad: entero(fd, "cantidad"), tipo: texto(fd, "tipo") ?? "",
+      garantiaTipo: texto(fd, "garantia_tipo") ?? "", garantiaTiempo: texto(fd, "garantia_tiempo") ?? "",
+    }, s.usuario.id);
+    revalidatePath("/config/canales/cola");
+    const avisos = r.avisos ? ` Mercado Libre dejó avisos (no frenan; los resuelve al crearla): ${r.avisos}` : "";
+    destino = `/config/canales/cola?ver=lotes&lote=${r.loteId}&ok=${encodeURIComponent(`Publicación en el catálogo preparada. Todavía no salió nada: revisala y apretá "Mandar a Mercado Libre".${avisos}`)}`;
   } catch (e) {
     return { error: motivoErp(e) };
   }

@@ -163,7 +163,7 @@ export async function alertasCatalogo(org: string) {
     select count(*) filter (where ${SQL_SIN_PUBLICAR})::int sin_publicar,
            count(*) filter (where ${SQL_SIN_FOTOS})::int sin_fotos,
            count(*) filter (where p.estado = 'activo')::int activos,
-           count(*) filter (where p.estado = 'activo' and ${SQL_DISPONIBLE} > 0)::int con_stock,
+           count(*) filter (where p.estado = 'activo' and not p.no_publicable and ${SQL_DISPONIBLE} > 0)::int con_stock,
            count(*) filter (where p.estado = 'activo' and exists (
              select 1 from publicacion pw join variacion vw on vw.id = pw.variacion_id join canal cw on cw.id = pw.canal_id
               where vw.producto_id = p.id and pw.estado = 'activa' and pw.id_externo is null
@@ -184,7 +184,7 @@ export async function estadoWebPorCanal(org: string, canales: number[]): Promise
            count(*) filter (where not ${sqlPublicadoEnWeb("p", "c.id")})::int apagados,
            count(*) filter (where not ${sqlPublicadoEnWeb("p", "c.id")} and ${SQL_DISPONIBLE} > 0)::int apagados_stock
       from unnest($2::bigint[]) c(id) cross join producto p
-     where p.organizacion_id = $1 and p.estado = 'activo' group by c.id`, [org, canales]);
+     where p.organizacion_id = $1 and p.estado = 'activo' and not p.no_publicable group by c.id`, [org, canales]);
   for (const x of f) m.set(x.canal, { publicados: x.publicados, apagados: x.apagados, apagadosConStock: x.apagados_stock });
   return m;
 }
@@ -194,7 +194,7 @@ export async function sinPublicarPorCanal(org: string, canales: number[]): Promi
   const m = new Map<number, number>(canales.map((c) => [c, 0]));
   if (!canales.length) return m;
   const f = await consulta<{ canal: number; n: number }>(`
-    with con_stock as (select p.id from producto p where p.organizacion_id = $1 and p.estado = 'activo' and ${SQL_DISPONIBLE} > 0)
+    with con_stock as (select p.id from producto p where p.organizacion_id = $1 and p.estado = 'activo' and not p.no_publicable and ${SQL_DISPONIBLE} > 0)
     select c.id::int canal, count(*)::int n
       from unnest($2::bigint[]) c(id) cross join con_stock s
      where not exists (select 1 from publicacion pu join variacion v on v.id = pu.variacion_id
