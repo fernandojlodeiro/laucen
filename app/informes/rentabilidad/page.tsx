@@ -19,7 +19,6 @@ export const dynamic = "force-dynamic";
 
 const BASE = "/informes/rentabilidad";
 type SP = Record<string, string | undefined>;
-const pesos = (n: number | null) => (n == null ? "—" : formatear(n, "ARS"));
 const pct = (n: number | null) => (n == null ? "—" : `${n.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`);
 
 const ORDEN: Record<string, (f: FilaRentabilidad) => string | number | null> = {
@@ -30,10 +29,12 @@ const ORDEN: Record<string, (f: FilaRentabilidad) => string | number | null> = {
 export default async function Rentabilidad({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("informes_ventas_ver");
   const sp = await searchParams;
+  // El informe se calcula en la moneda que se mira: en dólares, cada venta y su costo al dólar de su día.
+  const pesos = (n: number | null) => (n == null ? "—" : formatear(n, s.moneda));
   const f = leerFiltroRentabilidad(sp, hoyArgentina());
   const [canales, filas] = await Promise.all([
     consulta<{ id: number; nombre: string }>("select id::int, nombre from canal where organizacion_id = $1 order by nombre", [s.org.id]),
-    rentabilidad(s.org.id, f),
+    rentabilidad(s.org.id, f, s.moneda),
   ]);
   const t = totalesRentabilidad(filas);
   const porVenta = f.agrupar === "venta";

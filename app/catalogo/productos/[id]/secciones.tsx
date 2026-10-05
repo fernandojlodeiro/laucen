@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { precioDe, listasDePrecios } from "@/lib/precios";
-import { enVista, formatear, tcDelDia, type Moneda } from "@/lib/moneda";
+import { enVista, enMoneda, formatear, tcDelDia, tcParaVista, type Moneda } from "@/lib/moneda";
 import { formatearNumero } from "@/lib/numeros";
 import type { Sesion } from "@/lib/tenancy";
 import { VERDE, SUAVE, PRIMARIO } from "@/app/botones";
@@ -962,6 +962,8 @@ export async function SeccionStock({ s, p }: Props) {
 
 export async function SeccionPublicaciones({ s, p }: Props) {
   const webs = await canalesWebDe(s.org.id, p.id);
+  // Los precios de las publicaciones son en pesos: en dólares, al tipo de cambio de hoy.
+  const tcHoy = await tcParaVista(s.org.id, s.moneda);
   const filas = await consulta<{ id: number; sku: string; canal: string; id_externo: string | null; titulo: string; tipo_publicacion: string | null; estado: string; sincro: string | null;
     precio: number | null; precio_tachado: number | null; stock_ml: number | null; estado_ml: string | null }>(`
     select pu.id::int, v.sku, c.nombre canal, pu.id_externo, coalesce(pu.titulo, titulo_variacion(v.id)) titulo, pu.tipo_publicacion, pu.estado,
@@ -1001,8 +1003,8 @@ export async function SeccionPublicaciones({ s, p }: Props) {
                 <td className={TD}>{f.tipo_publicacion ?? "—"}</td>
                 <td className={TDN}>
                   {/* El precio de la publicación es el de venta; el tachado, el de antes de la campaña. */}
-                  {f.precio_tachado != null && <span className="line-through text-[#5C6B76] mr-1.5">{formatear(f.precio_tachado, "ARS")}</span>}
-                  {f.precio != null ? formatear(f.precio, "ARS") : <span className="text-[#5C6B76]">—</span>}
+                  {f.precio_tachado != null && <span className="line-through text-[#5C6B76] mr-1.5">{enMoneda(f.precio_tachado, s.moneda, tcHoy)}</span>}
+                  {f.precio != null ? enMoneda(f.precio, s.moneda, tcHoy) : <span className="text-[#5C6B76]">—</span>}
                 </td>
                 <td className={TD}>
                   <Estado texto={f.estado.charAt(0).toUpperCase() + f.estado.slice(1)} tono={tono(f.estado)} />

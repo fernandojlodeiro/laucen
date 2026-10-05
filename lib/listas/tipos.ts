@@ -35,6 +35,10 @@ export type Campo = {
    *  columna tal cual: ej. un código traducido a su nombre. */
   valor?: (f: Fila) => unknown;
   formato?: Formato;
+  /** El mismo importe en dólares, al tipo de cambio de su día, si la base lo guarda (pantalla en dólares). Sin esto, un importe en pesos se convierte al tipo de cambio de hoy. */
+  sqlUsd?: string;
+  /** Importe fiscal o contable que queda siempre en pesos (facturas de ARCA, libros), aunque se mire en dólares. */
+  fiscal?: boolean;
   /** Ancho de la columna en el Excel (en caracteres). */
   ancho?: number;
   /** Por qué expresión SQL se ordena (por defecto, `sql`); false = no se ordena. */
@@ -48,7 +52,8 @@ export type Campo = {
 };
 
 /** Lo que una celda puede necesitar además de su fila. */
-export type CtxCelda = { moneda: Moneda; sp: SP };
+/** `tc`: el tipo de cambio de hoy si se mira en dólares (lo completa TablaVista). */
+export type CtxCelda = { moneda: Moneda; sp: SP; tc?: number | null };
 
 /** La consulta base de una lista: de dónde, con qué filtros y su orden de siempre. */
 export type Consulta = { desde: string; donde: string; valores: unknown[]; orden: string };
@@ -101,7 +106,8 @@ export function seleccion(campos: Campo[], todos: Campo[], siempre?: string): st
   const porClave = new Map(todos.map((c) => [c.clave, c]));
   const claves = new Set<string>();
   for (const c of campos) { claves.add(c.clave); for (const u of c.usa ?? []) claves.add(u); }
-  const partes = [...claves].map((k) => porClave.get(k)).filter((c): c is Campo => !!c?.sql).map((c) => `${c.sql} as "${c.clave}"`);
+  const elegidas = [...claves].map((k) => porClave.get(k)).filter((c): c is Campo => !!c?.sql);
+  const partes = elegidas.flatMap((c) => [`${c.sql} as "${c.clave}"`, ...(c.sqlUsd ? [`${c.sqlUsd} as "${c.clave}__usd"`] : [])]);
   if (siempre) partes.unshift(siempre);
   return partes.join(", ") || "1 as _";
 }

@@ -68,10 +68,19 @@ export async function excelDeLista(lista: Lista, ctx: Ctx, sp: SP, claves: strin
   const campos = elegir(lista, todos, claves);
   const filas = await filasDeLista(lista, ctx, sp, campos, todos, TOPE_EXCEL + 1);
   const pasado = filas.length > TOPE_EXCEL;
-  const columnas: ColumnaExcel<Fila>[] = campos.map((c) => ({
-    titulo: c.titulo, valor: (f) => valorExcel(c, f), ancho: c.ancho ?? Math.min(40, Math.max(10, c.titulo.length + 2)),
-    formato: c.formato ? FORMATO_EXCEL[c.formato] : undefined,
-  }));
+  const columnas: ColumnaExcel<Fila>[] = campos.flatMap((c) => {
+    const col: ColumnaExcel<Fila> = {
+      titulo: c.titulo, valor: (f) => valorExcel(c, f), ancho: c.ancho ?? Math.min(40, Math.max(10, c.titulo.length + 2)),
+      formato: c.formato ? FORMATO_EXCEL[c.formato] : undefined,
+    };
+    // Los importes en pesos que la base guarda también en dólares (al dólar de su día) bajan con su columna en dólares al lado.
+    if (c.formato === "pesos" && c.sqlUsd) {
+      const titulo = `${c.titulo.replace(/\s*\$$/, "")} (US$ al dólar del día)`;
+      return [col, { titulo, ancho: Math.min(40, Math.max(14, titulo.length + 2)), formato: "importe" as const,
+        valor: (f: Fila) => (f[`${c.clave}__usd`] == null ? null : Number(f[`${c.clave}__usd`])) }];
+    }
+    return [col];
+  });
   const pie = pasado ? [[`Sólo las primeras ${TOPE_EXCEL.toLocaleString("es-AR")} filas: filtrá para bajar el resto.`]] : [];
   return respuestaExcel(nombreConfig ? `${lista.titulo} - ${nombreConfig}` : lista.titulo, lista.titulo, columnas, pasado ? filas.slice(0, TOPE_EXCEL) : filas, pie);
 }

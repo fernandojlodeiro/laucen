@@ -11,5 +11,5 @@ export default async function CuentasCorrientes({ searchParams }: { searchParams
   const sp = await searchParams;
   // ?tercero=proveedor&id=N (link desde otra pantalla) → la pestaña de proveedores.
   if (sp.tercero === "proveedor") redirect(`/administracion/cuentas-corrientes/proveedores${sp.id ? `?id=${encodeURIComponent(sp.id)}` : ""}`);
-  return <VistaCc org={s.org.id} tercero="cliente" sp={sp} />;
+  return <VistaCc org={s.org.id} tercero="cliente" sp={sp} moneda={s.moneda} />;
 }

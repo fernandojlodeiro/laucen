@@ -50,7 +50,7 @@ const CAMPOS: Campo[] = [
     clave: "total", titulo: "Total", sql: firmado("total"), orden: "f.total", formato: "decimal", usa: ["moneda"],
     celda: (f) => formatear(f.total, f.moneda),
   },
-  { clave: "total_ars", titulo: "Total $", sql: firmado("total_ars"), orden: "f.total_ars", formato: "pesos" },
+  { clave: "total_ars", titulo: "Total $", sql: firmado("total_ars"), sqlUsd: firmado("total_usd"), orden: "f.total_ars", formato: "pesos" },
   { clave: "total_usd", titulo: "Total US$", sql: firmado("total_usd"), orden: "f.total_usd", formato: "usd" },
   { clave: "deposito", titulo: "Depósito", sql: "(select d.nombre from deposito d where d.id = f.deposito_id)" },
   {

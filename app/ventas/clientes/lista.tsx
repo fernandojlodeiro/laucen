@@ -49,6 +49,7 @@ const CAMPOS: Campo[] = [
   {
     clave: "comprado", titulo: "Total comprado", formato: "pesos",
     sql: "(select coalesce(sum(p.total_ars), 0)::float from pedido p where p.cliente_id = c.id and p.estado not in ('cancelado', 'devuelto'))",
+    sqlUsd: "(select coalesce(sum(p.total_usd), 0)::float from pedido p where p.cliente_id = c.id and p.estado not in ('cancelado', 'devuelto'))",
   },
   campoFecha("ultimo", "Último pedido", ULTIMO),
   campoFecha("creado", "Alta", "c.creado_ts"),

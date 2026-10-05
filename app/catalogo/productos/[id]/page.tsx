@@ -13,7 +13,7 @@ import Pestanas from "@/app/componentes/Pestanas";
 import { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import { entrarErp, Pantalla, Avisos, BotonesFicha, editandoFicha, EDITAR_FICHA, url } from "@/app/componentes/erp";
-import { accionBorrarProducto, accionCambiarEstadoProducto } from "../acciones";
+import { accionBorrarProducto, accionCambiarEstadoProducto, accionDuplicarProducto } from "../acciones";
 import { SUAVE } from "@/app/botones";
 import { EstadoProducto, TIPOS_PRODUCTO } from "../comun";
 import {
@@ -101,6 +101,11 @@ export default async function FichaProducto({ params, searchParams }: { params: 
           {conFicha && <BotonesFicha editando={editando} ver={aqui()} editar={aqui({ editar: EDITAR_FICHA })} />}
           {!editando && (
             <>
+              {/* Duplicar: copia exacta, pausada y con SKU nuevo, abierta en edición. */}
+              <form action={accionDuplicarProducto}>
+                <input type="hidden" name="producto_id" value={p.id} /><input type="hidden" name="seccion" value={seccion} />
+                <button className={SUAVE}>Duplicar</button>
+              </form>
               {/* Inactivo = archivado: deja de aparecer en listados y buscadores. */}
               <form action={accionCambiarEstadoProducto}>
                 <input type="hidden" name="producto_id" value={p.id} /><input type="hidden" name="seccion" value={seccion} />

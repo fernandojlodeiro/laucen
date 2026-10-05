@@ -36,7 +36,7 @@ export const LISTA_ENVIOS: Lista = {
     campoFecha("entrega", "Entrega estimada", "e.entrega_estimada", { hora: true }),
     { clave: "tracking", titulo: "Tracking", sql: "e.tracking", ancho: 18 },
     { clave: "transportista", titulo: "Transportista", sql: "e.transportista" },
-    { clave: "costo", titulo: "Costo $", sql: "e.costo_ars::float", orden: "e.costo_ars", formato: "pesos" },
+    { clave: "costo", titulo: "Costo $", sql: "e.costo_ars::float", sqlUsd: "(e.costo_ars / nullif(e.tc_dia, 0))::float", orden: "e.costo_ars", formato: "pesos" },
     {
       clave: "direccion", titulo: "Dirección", orden: false, ancho: 40,
       sql: `nullif(concat_ws(', ', coalesce(e.direccion->>'linea', nullif(concat_ws(' ', e.direccion->>'calle', e.direccion->>'numero'), '')),

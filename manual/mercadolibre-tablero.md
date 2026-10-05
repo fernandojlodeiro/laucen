@@ -9,7 +9,7 @@ resumen: Todas las cuentas de Mercado Libre en una pantalla: reputación con los
 
 ## Para qué sirve
 
-Para ver de un vistazo cómo está cada cuenta de Mercado Libre y qué hay que hacer hoy, sin entrar cuenta por cuenta. Es una tabla centrada, con **una columna por cuenta** (con el apodo de ML y la razón social con la que factura), más tres columnas para lo que no es de Mercado Libre —**Web minorista**, **Web mayorista** (aparece siempre, aunque todavía no exista la tienda mayorista) y **Otros** (el local, los pedidos manuales y cualquier otro canal)— y una columna **Total**. En las columnas de la web y en Otros se ven los pedidos, envíos, reclamos, devoluciones y ventas de esos canales; lo propio de Mercado Libre (reputación, preguntas, mensajes, cola y conexión) figura con una raya.
+Para ver de un vistazo cómo está cada cuenta de Mercado Libre y qué hay que hacer hoy, sin entrar cuenta por cuenta. Es una tabla centrada (un 15 % más chica que antes, para que entre más cómoda), con la **fila de títulos fija**: al bajar con la rueda, siempre se ve a qué cuenta o canal corresponde cada columna, con **una columna por cuenta** (arriba, en azul, el nombre del canal; debajo, chiquito, la razón social con la que factura; el apodo de la cuenta de ML se lee pasando el mouse por el título), más tres columnas para lo que no es de Mercado Libre —**Web minorista**, **Web mayorista** (aparece siempre, aunque todavía no exista la tienda mayorista) y **Otros** (el local, los pedidos manuales y cualquier otro canal)— y una columna **Total**. En las columnas de la web y en Otros se ven los pedidos, envíos, reclamos, devoluciones y ventas de esos canales; lo propio de Mercado Libre (reputación, preguntas, mensajes, cola y conexión) figura con una raya.
 
 **En la web, Publicaciones y "Productos con stock sin publicar" usan el interruptor "Publicado en Web" de cada producto** (pestaña Publicaciones de la ficha): **Activas** son los productos activos con el interruptor prendido ("N de M productos activos"); **Pausadas** son los productos activos con el interruptor apagado (o que nunca se publicaron); y **Productos con stock sin publicar** son, de éstos, los que además tienen stock disponible. Cada número lleva a Productos filtrado. Casi cada número es un **enlace** a la pantalla donde se resuelve, ya filtrada por esa cuenta.
 
@@ -23,7 +23,8 @@ Pasando el mouse por el ⓘ de cada fila se lee qué cuenta. Cada número en gra
 
 ### Reputación
 Lo que informa Mercado Libre; cada dato cuenta el período que se muestra al lado (por ejemplo "60 días").
-- **Color de la reputación**: el termómetro de cinco colores de ML (rojo, naranja, amarillo, verde claro y verde) con el color actual más alto y marcado con una flechita (pasando el mouse se lee el nombre del color), y si la cuenta es **MercadoLíder**, una **escarapela con forma de escudo**: gris plata (MercadoLíder), amarilla (Gold) o platino (Platinum). Una cuenta nueva figura "Sin reputación".
+- **Color de la reputación**: el termómetro de cinco colores de ML (rojo, naranja, amarillo, verde claro y verde) con el color actual más alto y marcado con una flechita. Al lado hay un **?**: pasando el mouse se lee el nivel actual, cuál es el siguiente y tus números de reclamos, demoras, cancelaciones y ventas. Mercado Libre **no informa los límites exactos que faltan** para subir de nivel, por eso se muestran los números de hoy. Una cuenta nueva figura "Sin reputación" hasta que ML le da una.
+- **MercadoLíder** (segundo renglón): la medalla con forma de escudo: gris plata (MercadoLíder), amarilla (Gold) o platino (Platinum); con una raya si la cuenta no es MercadoLíder.
 - **Reclamos que afectan la reputación**: cuántos y qué porcentaje de las ventas, en el período que cuenta ML.
 - **Entregas demoradas**: despachos hechos fuera del plazo de manipulación, en el período que cuenta ML.
 - **Cancelaciones**, **Ventas completadas** y **Calificaciones positivas**.
@@ -33,16 +34,16 @@ Lo que informa Mercado Libre; cada dato cuenta el período que se muestra al lad
 - **Con cuestiones para resolver**: en revisión, inactivas o con el pago pendiente; ML las frena hasta que se corrija algo.
 - **Sin producto asociado**: publicaciones de ML que todavía no están vinculadas a un producto de Laucen (con la cantidad de activas). Enlace: [Vincular con Mercado Libre](/catalogo/publicaciones/ml).
 
-### Para hacer hoy
+### Para hacer (sólo en el tablero "Para hacer")
+Estas filas **no están en el Relevamiento completo**: viven en [Dashboard › Para hacer](/panel), para no repetir información. Son seis:
 - **Etiquetas para imprimir**: envíos por despachar con la etiqueta sin imprimir (de los envíos por despachar), y cuántos son para hoy o están vencidos. Enlace: [Envíos](/ventas/envios).
 - **Pedidos para preparar**: los pendientes de [Pedidos](/ventas/pedidos), sin los carritos que todavía esperan. 
-- **Pedidos en camino**: envíos despachados que todavía no se entregaron.
 - **Preguntas para responder** (y cuánto hace de la más vieja) y **Mensajes para responder** (conversaciones con mensajes sin leer). Enlace: [Preguntas y mensajes](/ventas/preguntas).
 - **Reclamos para atender**: los abiertos, con cuántos esperan tu respuesta, cuántos vencen en 24 horas y cuántos están en mediación. Enlace: [Reclamos y devoluciones](/ventas/reclamos).
 - **Devoluciones**: las abiertas y cuántas vienen en camino.
 
 ### Movimiento y salud de la cuenta
-**Ventas de hoy** y **de los últimos 7 días** (cantidad e importe), **Cola de Mercado Libre con error** (cambios que Laucen quiso mandar a ML y no pudo; enlace a la [Cola](/config/canales/cola)) y el estado de la **Conexión** (si se desconectó, el enlace para volver a conectar).
+**Pedidos en camino** (envíos despachados que todavía no se entregaron), **Ventas de hoy** y **de los últimos 7 días** (cantidad e importe, en pesos o en dólares según el interruptor de abajo a la izquierda: cada venta guarda su total en dólares al tipo de cambio del día en que se hizo, y se suman esos), **Cola de Mercado Libre con error** (cambios que Laucen quiso mandar a ML y no pudo; enlace a la [Cola](/config/canales/cola)) y el estado de la **Conexión** (si se desconectó, el enlace para volver a conectar).
 
 ### Alertas del catálogo
 No son de una cuenta en particular:

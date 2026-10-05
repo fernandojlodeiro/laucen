@@ -30,6 +30,7 @@
 // generales (Ventas, Cobros de canales a liquidar).
 
 import type { PoolClient } from "pg";
+import type { Moneda } from "@/lib/moneda";
 import { consulta, una, una as unaBase, enTransaccion, ErrorErp, type Consultor } from "@/lib/erp/base";
 import { codigoValido, proximoCodigo, proximoCodigoBajo, madreDe, TIPOS_CUENTA, type TipoCuenta } from "@/lib/administracion/plan-codigos";
 import { type Linea, nombreContableMercadoPago, lineasVenta, lineasCobroPedido } from "@/lib/administracion/contabilidad-base";
@@ -588,26 +589,29 @@ export async function crearCuenta(org: string, d: { codigo: string | null; nombr
   return r!.id;
 }
 
+/** En dólares, cada línea se divide por el dólar de su asiento (asiento.tc_dia); `a` es el alias del asiento. */
+const enUsd = (moneda: Moneda, expr: string) => (moneda === "USD" ? `(${expr}) / coalesce(nullif(a.tc_dia, 0), 1)` : expr);
+
 /** Libro diario: asientos del período con sus líneas. Los libros se pueden pedir de una razón social (`emisorId`) o de todas (null). */
-export async function libroDiario(org: string, desde: string, hasta: string, emisorId: number | null = null) {
+export async function libroDiario(org: string, desde: string, hasta: string, emisorId: number | null = null, moneda: Moneda = "ARS") {
   const asientos = await consulta<{ id: number; numero: number; fecha: string; concepto: string; origen: string; estado: string }>(`
     select id::int, numero::int, to_char(fecha, 'YYYY-MM-DD') fecha, concepto, origen, estado from asiento
      where organizacion_id = $1 and fecha between $2 and $3 and ($4::bigint is null or emisor_id = $4) order by fecha, numero limit 2000`, [org, desde, hasta, emisorId]);
   const lineas = asientos.length ? await consulta<{ asiento_id: number; codigo: string; nombre: string; debe: number; haber: number; detalle: string | null }>(`
-    select l.asiento_id::int, p.codigo, p.nombre, l.debe::float, l.haber::float, l.detalle
-      from asiento_linea l join plan_cuenta p on p.id = l.cuenta_id where l.asiento_id = any($1::bigint[]) order by l.asiento_id, l.orden`, [asientos.map((a) => a.id)]) : [];
+    select l.asiento_id::int, p.codigo, p.nombre, (${enUsd(moneda, "l.debe")})::float debe, (${enUsd(moneda, "l.haber")})::float haber, l.detalle
+      from asiento_linea l join asiento a on a.id = l.asiento_id join plan_cuenta p on p.id = l.cuenta_id where l.asiento_id = any($1::bigint[]) order by l.asiento_id, l.orden`, [asientos.map((a) => a.id)]) : [];
   const por = new Map<number, typeof lineas>();
   for (const l of lineas) (por.get(l.asiento_id) ?? por.set(l.asiento_id, []).get(l.asiento_id)!).push(l);
   return asientos.map((a) => ({ ...a, lineas: por.get(a.id) ?? [] }));
 }
 
 /** Mayor de una cuenta: saldo anterior y movimientos del período con saldo acumulado. */
-export async function libroMayor(org: string, cuentaId: number, desde: string, hasta: string, emisorId: number | null = null) {
+export async function libroMayor(org: string, cuentaId: number, desde: string, hasta: string, emisorId: number | null = null, moneda: Moneda = "ARS") {
   const ant = await una<{ s: number }>(`
-    select coalesce(sum(l.debe - l.haber), 0)::float s from asiento_linea l join asiento a on a.id = l.asiento_id
+    select coalesce(sum(${enUsd(moneda, "l.debe - l.haber")}), 0)::float s from asiento_linea l join asiento a on a.id = l.asiento_id
      where l.cuenta_id = $1 and a.organizacion_id = $2 and a.estado = 'vigente' and a.fecha < $3 and ($4::bigint is null or a.emisor_id = $4)`, [cuentaId, org, desde, emisorId]);
   const movs = await consulta<{ asiento_id: number; numero: number; fecha: string; concepto: string; debe: number; haber: number; detalle: string | null }>(`
-    select a.id::int asiento_id, a.numero::int, to_char(a.fecha, 'YYYY-MM-DD') fecha, a.concepto, l.debe::float, l.haber::float, l.detalle
+    select a.id::int asiento_id, a.numero::int, to_char(a.fecha, 'YYYY-MM-DD') fecha, a.concepto, (${enUsd(moneda, "l.debe")})::float debe, (${enUsd(moneda, "l.haber")})::float haber, l.detalle
       from asiento_linea l join asiento a on a.id = l.asiento_id
      where l.cuenta_id = $1 and a.organizacion_id = $2 and a.estado = 'vigente' and a.fecha between $3 and $4 and ($5::bigint is null or a.emisor_id = $5) order by a.fecha, a.numero limit 3000`,
     [cuentaId, org, desde, hasta, emisorId]);
@@ -616,20 +620,20 @@ export async function libroMayor(org: string, cuentaId: number, desde: string, h
 }
 
 /** Sumas y saldos al `hasta` (desde el `desde`, para el período; el saldo es acumulado). */
-export function sumasYSaldos(org: string, desde: string, hasta: string, emisorId: number | null = null) {
+export function sumasYSaldos(org: string, desde: string, hasta: string, emisorId: number | null = null, moneda: Moneda = "ARS") {
   return consulta<{ id: number; codigo: string; nombre: string; tipo: Tipo; debe: number; haber: number; saldo: number }>(`
     select p.id::int, p.codigo, p.nombre, p.tipo,
-           coalesce(sum(l.debe) filter (where a.fecha >= $2), 0)::float debe,
-           coalesce(sum(l.haber) filter (where a.fecha >= $2), 0)::float haber,
-           coalesce(sum(l.debe - l.haber), 0)::float saldo
+           coalesce(sum(${enUsd(moneda, "l.debe")}) filter (where a.fecha >= $2), 0)::float debe,
+           coalesce(sum(${enUsd(moneda, "l.haber")}) filter (where a.fecha >= $2), 0)::float haber,
+           coalesce(sum(${enUsd(moneda, "l.debe - l.haber")}), 0)::float saldo
       from plan_cuenta p join asiento_linea l on l.cuenta_id = p.id join asiento a on a.id = l.asiento_id and a.estado = 'vigente' and a.fecha <= $3 and ($4::bigint is null or a.emisor_id = $4)
      where p.organizacion_id = $1 group by p.id order by p.codigo`, [org, desde, hasta, emisorId]);
 }
 
 /** Estado de resultados del período: ingresos y egresos por cuenta. */
-export async function estadoDeResultados(org: string, desde: string, hasta: string, emisorId: number | null = null) {
+export async function estadoDeResultados(org: string, desde: string, hasta: string, emisorId: number | null = null, moneda: Moneda = "ARS") {
   const filas = await consulta<{ codigo: string; nombre: string; tipo: Tipo; importe: number }>(`
-    select p.codigo, p.nombre, p.tipo, sum(case when p.tipo = 'ingreso' then l.haber - l.debe else l.debe - l.haber end)::float importe
+    select p.codigo, p.nombre, p.tipo, sum(${enUsd(moneda, "case when p.tipo = 'ingreso' then l.haber - l.debe else l.debe - l.haber end")})::float importe
       from plan_cuenta p join asiento_linea l on l.cuenta_id = p.id join asiento a on a.id = l.asiento_id and a.estado = 'vigente' and a.fecha between $2 and $3 and ($4::bigint is null or a.emisor_id = $4)
      where p.organizacion_id = $1 and p.tipo in ('ingreso', 'egreso') group by p.id having sum(l.debe - l.haber) <> 0 order by p.codigo`, [org, desde, hasta, emisorId]);
   const ingresos = filas.filter((f) => f.tipo === "ingreso"), egresos = filas.filter((f) => f.tipo === "egreso");

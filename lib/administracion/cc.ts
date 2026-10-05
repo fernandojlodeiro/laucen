@@ -93,8 +93,9 @@ export async function imputar(org: string, debitoId: number, creditoId: number, 
 /** Saldos por tercero (en pesos), con lo vencido. */
 export function saldos(org: string, tercero: Tercero, emisorId: number | null = null) {
   const tabla = tercero === "cliente" ? "cliente" : "proveedor";
-  return consulta<{ id: number; nombre: string; saldo: number; vencido: number; ultimo: string | null }>(`
-    select t.id::int, t.nombre, sum(m.importe_ars)::float saldo,
+  return consulta<{ id: number; nombre: string; saldo: number; vencido: number; saldo_usd: number; vencido_usd: number; ultimo: string | null }>(`
+    select t.id::int, t.nombre, sum(m.importe_ars)::float saldo, sum(m.importe_usd)::float saldo_usd,
+           coalesce(sum(case when m.pendiente > 0 and coalesce(m.vencimiento, m.fecha) < current_date then m.pendiente * (m.importe_usd / nullif(m.importe, 0)) end), 0)::float vencido_usd,
            coalesce(sum(case when m.pendiente > 0 and coalesce(m.vencimiento, m.fecha) < current_date then m.pendiente * (m.importe_ars / nullif(m.importe, 0)) end), 0)::float vencido,
            to_char(max(m.fecha), 'YYYY-MM-DD') ultimo
       from cc_movimiento m join ${tabla} t on t.id = m.tercero_id
@@ -107,11 +108,11 @@ export function saldos(org: string, tercero: Tercero, emisorId: number | null = 
  *  la cotización de cada renglón: el tipo de cambio de su día). */
 export function estadoDeCuenta(org: string, tercero: Tercero, terceroId: number, emisorId: number | null = null) {
   return consulta<{ id: number; fecha: string; vencimiento: string | null; tipo: string; descripcion: string; moneda: string; importe: number;
-    importe_ars: number; pendiente: number; saldo: number; referencia_tipo: string | null; referencia_id: number | null; cot: number | null; emisor_id: number | null }>(`
+    importe_ars: number; importe_usd: number; pendiente: number; saldo: number; saldo_usd: number; referencia_tipo: string | null; referencia_id: number | null; cot: number | null; emisor_id: number | null }>(`
     select id::int, to_char(fecha, 'YYYY-MM-DD') fecha, to_char(vencimiento, 'YYYY-MM-DD') vencimiento, tipo, descripcion, moneda,
-           importe::float, importe_ars::float, pendiente::float, referencia_tipo, referencia_id::int, emisor_id::int,
+           importe::float, importe_ars::float, importe_usd::float, pendiente::float, referencia_tipo, referencia_id::int, emisor_id::int,
            coalesce(tc_del_dia(organizacion_id, fecha), abs(importe_ars / nullif(importe_usd, 0)))::float cot,
-           sum(importe_ars) over (order by fecha, id)::float saldo
+           sum(importe_ars) over (order by fecha, id)::float saldo, sum(importe_usd) over (order by fecha, id)::float saldo_usd
       from cc_movimiento where organizacion_id = $1 and tercero_tipo = $2 and tercero_id = $3 and ($4::bigint is null or emisor_id = $4) order by fecha, id`, [org, tercero, terceroId, emisorId]);
 }
 

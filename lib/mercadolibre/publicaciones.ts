@@ -156,6 +156,12 @@ export async function crearProductoDesdeItem(cuenta: CuentaMl, itemId: string): 
   return productoId;
 }
 
+/** Trae una publicación de ML a meli_item (y la vincula por SKU si corresponde). */
+export async function importarItem(cuenta: CuentaMl, itemId: string): Promise<void> {
+  const it = await mlOk<ItemMl>(cuenta, "GET", `/items/${itemId}?include_attributes=all`);
+  await guardarItem(cuenta, it);
+}
+
 /** Trae TODAS las publicaciones de la cuenta (activas, pausadas y cerradas
  *  recientes) a meli_item. Devuelve cuántas leyó y cuántas vinculó solas. */
 export async function traerPublicaciones(cuenta: CuentaMl, hastaMs: number): Promise<{ leidas: number; vinculadas: number; completo: boolean }> {

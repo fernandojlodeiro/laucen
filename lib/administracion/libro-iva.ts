@@ -48,6 +48,8 @@ export type CbteIva = {
   impuestosInternos: number;
   otros: number;
   total: number;
+  /** El dólar oficial del día del comprobante (para ver el libro en dólares). */
+  tc?: number | null;
   /** Ventas por servicios: vencimiento del pago. */
   vencimientoPago?: string | null;
   canal?: string | null;
@@ -392,4 +394,19 @@ export function periodoDeRango(desde: string, hasta: string): string | null {
   if (!/^\d{4}-\d{2}-01$/.test(desde)) return null;
   const r = rangoMes(desde.slice(0, 7));
   return r.hasta === hasta ? desde.slice(0, 7).replace("-", "") : null;
+}
+
+/** El comprobante en dólares, para mirar el libro en dólares (no es lo que se presenta a ARCA, que va en pesos):
+ *  lo que ya está en dólares queda tal cual; lo que está en pesos se divide por el dólar de su día. */
+export function enDolaresCbte(c: CbteIva): CbteIva {
+  if (c.moneda === "DOL") return { ...c, moneda: "PES", cotizacion: 1 };
+  const k = c.tc && c.tc > 0 ? 1 / c.tc : 1;
+  const d = (x: number) => x * k;
+  return {
+    ...c, moneda: "PES", cotizacion: 1,
+    alicuotas: c.alicuotas.map((a) => ({ ...a, base: d(a.base), iva: d(a.iva) })),
+    noGravado: d(c.noGravado), exento: d(c.exento), sinDiscriminar: d(c.sinDiscriminar),
+    percepcionIva: d(c.percepcionIva), percepcionNacionales: d(c.percepcionNacionales), percepcionIibb: d(c.percepcionIibb),
+    percepcionMunicipal: d(c.percepcionMunicipal), impuestosInternos: d(c.impuestosInternos), otros: d(c.otros), total: d(c.total),
+  };
 }

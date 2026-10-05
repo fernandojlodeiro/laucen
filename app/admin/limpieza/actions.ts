@@ -3,9 +3,11 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { sosVos } from "@/lib/admin";
-import { orgRequerida } from "@/lib/tenancy";
+import { orgRequerida, sesionRequerida } from "@/lib/tenancy";
 import { motivoErp } from "@/lib/erp/base";
 import { borrarBasuraDeVs } from "@/lib/limpieza-listas";
+import { borrarFantasmas, revisarFantasmas, traerFaltantes } from "@/lib/mercadolibre/fantasmas";
+import { prepararEliminarNotebooks } from "@/lib/mercadolibre/notebooks";
 import {
   borrarFamiliasVs, borrarNotebooksSinStock, borrarPruebas, categoriasPorPredictor, categoriasPorPublicacion,
 } from "@/lib/limpieza";
@@ -51,6 +53,54 @@ export async function accionCategorias(desde: number) {
     if (desde === 0) previo = await categoriasPorPublicacion(org);
     const r = await categoriasPorPredictor(org, desde, 20);
     return { ok: true as const, ...r, ...previo };
+  } catch (e) {
+    return { ok: false as const, error: motivoErp(e) };
+  }
+}
+
+/** Compara las publicaciones de una cuenta con las que ML devuelve ahora. Sólo lectura. */
+export async function accionRevisarFantasmas(canalId: number) {
+  const org = await portero();
+  try {
+    const r = await revisarFantasmas(org, canalId, Date.now() + 50_000);
+    return { ok: true as const, enLaucen: r.enLaucen, enMl: r.enMl, faltan: r.fantasmas.length, soloEnMl: r.soloEnMl, ejemplos: r.ejemplos, confiable: r.confiable, motivo: r.motivo };
+  } catch (e) {
+    return { ok: false as const, error: motivoErp(e) };
+  }
+}
+
+/** Trae a Laucen lo que ML tiene y Laucen no (inactivas, pausadas…) y lo vincula por SKU. No borra nada. */
+export async function accionTraerFaltantes(canalId: number) {
+  const org = await portero();
+  try {
+    const r = await traerFaltantes(org, canalId, Date.now() + 50_000);
+    revalidatePath("/admin/limpieza");
+    return { ok: true as const, ...r };
+  } catch (e) {
+    return { ok: false as const, error: motivoErp(e) };
+  }
+}
+
+/** Lee la cuenta en ML y deja preparado (sin mandar) el lote que elimina sus notebooks no activas. */
+export async function accionPrepararNotebooks(canalId: number) {
+  await portero();
+  const s = await sesionRequerida();
+  try {
+    const r = await prepararEliminarNotebooks(s.org.id, canalId, s.usuario.id, Date.now() + 270_000);
+    revalidatePath("/admin/limpieza");
+    return { ok: true as const, ...r };
+  } catch (e) {
+    return { ok: false as const, error: motivoErp(e) };
+  }
+}
+
+/** Borra de Laucen (nunca de ML) las publicaciones que ML ya no tiene. Vuelve a leer ML antes. */
+export async function accionBorrarFantasmas(canalId: number) {
+  const org = await portero();
+  try {
+    const r = await borrarFantasmas(org, canalId, Date.now() + 50_000);
+    revalidatePath("/admin/limpieza");
+    return { ok: true as const, ...r };
   } catch (e) {
     return { ok: false as const, error: motivoErp(e) };
   }

@@ -15,7 +15,7 @@ import { entrarErp, Pantalla, Avisos, url, CAJA, CAJA_TABLA, TABLA, THEAD, TH, T
 import { Desplegable } from "@/app/informes/Filtros";
 import { paginarEnMemoria } from "@/lib/lista";
 import {
-  armarLibro, alicuotasUsadas, resumenIva, archivosLibroIvaDigital, textoComprobante, ivaTotal, netoTotal,
+  armarLibro, enDolaresCbte, alicuotasUsadas, resumenIva, archivosLibroIvaDigital, textoComprobante, ivaTotal, netoTotal,
   type FilaLibro, type ImportesLibro, type Alicuota,
 } from "@/lib/administracion/libro-iva";
 import { libroIvaPeriodo, canalesConVentas, type AvisoLibro } from "@/lib/administracion/libro-iva-base";
@@ -28,7 +28,7 @@ export const maxDuration = 60;
 
 const BASE = "/administracion/libros-iva";
 const n2 = (x: number, cero = "") => (x === 0 ? cero : x.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-const pesos = (x: number) => `$ ${n2(x, "0,00")}`;
+const plata = (signo: string) => (x: number) => `${signo} ${n2(x, "0,00")}`;
 const pct = (k: number) => `${String(k).replace(".", ",")} %`;
 const fechaAr = (f: string) => f.split("-").reverse().join("/");
 const DOC: Record<number, string> = { 80: "CUIT", 86: "CUIL", 96: "DNI", 99: "Sin identificar" };
@@ -44,9 +44,13 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
   const rs = await elegirRazonSocial(org, sp.rs, { todas: false });
   const [{ ventas, compras, avisos }, canales] = await Promise.all([libroIvaPeriodo(org, desde, hasta, rs.id), canalesConVentas(org)]);
 
-  const libroVentas = armarLibro(ventas);
-  const libroCompras = armarLibro(compras);
-  const ventasCanal = canal ? armarLibro(ventas.filter((v) => v.canalId === canal)) : libroVentas;
+  // En dólares se mira el mismo libro con cada comprobante al dólar de su día (los archivos para ARCA siguen en pesos).
+  const enDolares = s.moneda === "USD";
+  const ventasV = enDolares ? ventas.map(enDolaresCbte) : ventas;
+  const comprasV = enDolares ? compras.map(enDolaresCbte) : compras;
+  const libroVentas = armarLibro(ventasV);
+  const libroCompras = armarLibro(comprasV);
+  const ventasCanal = canal ? armarLibro(ventasV.filter((v) => v.canalId === canal)) : libroVentas;
   const resumen = resumenIva(libroVentas.totales, libroCompras.totales);
   const archivos = periodo && /^\d{6}$/.test(periodo) ? archivosLibroIvaDigital(periodo, ventas, compras) : null;
 
@@ -72,7 +76,7 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
         )}
       </div>
 
-      <Resumen r={resumen} titulo={titulo} />
+      <Resumen r={resumen} titulo={titulo} signo={enDolares ? "US$" : "$"} />
 
       <Pestanas items={[
         { clave: "ventas", texto: "IVA Ventas", activa: libro === "ventas", href: url(BASE, { ...filtros, canal: sp.canal }), cuenta: ventasCanal.filas.length },
@@ -83,10 +87,10 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
       {libro === "ventas" && (
         <>
           {canal && <p className="text-[11px] text-[#5C6B76] mb-2">Filtrado por canal: el resumen de arriba y los archivos de ARCA son siempre de todos los canales.</p>}
-          <TablaLibro filas={ventasCanal.filas} totales={ventasCanal.totales} sp={sp} compras={false} />
+          <TablaLibro filas={ventasCanal.filas} totales={ventasCanal.totales} sp={sp} compras={false} enDolares={enDolares} />
         </>
       )}
-      {libro === "compras" && <TablaLibro filas={libroCompras.filas} totales={libroCompras.totales} sp={sp} compras />}
+      {libro === "compras" && <TablaLibro filas={libroCompras.filas} totales={libroCompras.totales} sp={sp} compras enDolares={enDolares} />}
       {libro === "avisos" && <ListaAvisos avisos={avisos} />}
 
       <LibroDigital archivos={archivos} filtros={filtros} />
@@ -94,7 +98,8 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
   );
 }
 
-function Resumen({ r, titulo }: { r: ReturnType<typeof resumenIva>; titulo: string }) {
+function Resumen({ r, titulo, signo }: { r: ReturnType<typeof resumenIva>; titulo: string; signo: string }) {
+  const pesos = plata(signo);
   return (
     <div className="grid gap-3 md:grid-cols-[2fr_1fr] mb-4">
       <div className={CAJA_TABLA}>
@@ -133,7 +138,7 @@ function Resumen({ r, titulo }: { r: ReturnType<typeof resumenIva>; titulo: stri
   );
 }
 
-function TablaLibro({ filas, totales, sp, compras }: { filas: FilaLibro[]; totales: ImportesLibro; sp: SPLibro; compras: boolean }) {
+function TablaLibro({ filas, totales, sp, compras, enDolares }: { filas: FilaLibro[]; totales: ImportesLibro; sp: SPLibro; compras: boolean; enDolares: boolean }) {
   if (!filas.length) return <p className={`${CAJA} text-xs text-[#5C6B76] mb-4`}>No hay comprobantes {compras ? "de compra registrados" : "de venta autorizados"} en el período.</p>;
   const usadas = alicuotasUsadas(totales, filas);
   const conExento = totales.exento !== 0 || filas.some((f) => f.exento !== 0);
@@ -193,7 +198,7 @@ function TablaLibro({ filas, totales, sp, compras }: { filas: FilaLibro[]; total
       </div>
       <Paginado total={filas.length} />
       <p className="text-[10px] text-[#5C6B76] mt-1">
-        Neto gravado {n2(netoTotal(totales), "0,00")} · IVA {n2(ivaTotal(totales), "0,00")}. Importes en pesos. Los totales son de todo el período, no sólo de esta página.
+        Neto gravado {n2(netoTotal(totales), "0,00")} · IVA {n2(ivaTotal(totales), "0,00")}. {enDolares ? "Importes en dólares: cada comprobante al dólar de su día; los archivos para ARCA van en pesos." : "Importes en pesos."} Los totales son de todo el período, no sólo de esta página.
         {compras && " Los despachos de importación van con el CUIT de la Aduana; el IVA adicional suma en «Perc. IVA» y ganancias en «Otros»."}
       </p>
     </div>

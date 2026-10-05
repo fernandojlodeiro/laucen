@@ -36,7 +36,7 @@ export default async function Relevamiento({ searchParams }: { searchParams: Pro
       subtitulo={<>Todas tus cuentas de Mercado Libre, la web y el resto en una pantalla · reputación leída {haceCuanto(ult?.ts ?? null)}</>}
       acciones={<form action={accionActualizarReputacion}><BotonEnviar clase={SUAVE} corriendo="Preguntando a Mercado Libre…">Actualizar reputación</BotonEnviar></form>}>
       <Avisos sp={sp} />
-      <Tablero org={org} modo="completo" />
+      <Tablero org={org} modo="completo" moneda={s.moneda} />
     </Pantalla>
   );
 }
