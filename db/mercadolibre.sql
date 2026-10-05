@@ -112,6 +112,8 @@ create table if not exists meli_pregunta (
 );
 -- La respuesta fue exactamente la sugerencia de la IA, sin cambios (Fer, 5/10).
 alter table meli_pregunta add column if not exists respondida_con_ia boolean not null default false;
+-- La IA propone sola la respuesta (Fer, 5/10): cuándo se intentó por última vez, para no repetir una que falla.
+alter table meli_pregunta add column if not exists sugerencia_intento_ts timestamptz;
 create index if not exists meli_pregunta_pendientes on meli_pregunta (organizacion_id, fecha) where estado = 'UNANSWERED';
 alter table meli_pregunta enable row level security;
 select erp_politica_org('meli_pregunta');
@@ -152,6 +154,8 @@ create table if not exists meli_conversacion (
 );
 alter table meli_conversacion enable row level security;
 select erp_politica_org('meli_conversacion');
+-- La IA propone sola la respuesta (Fer, 5/10): cuándo se intentó por última vez, para no repetir una que falla.
+alter table meli_conversacion add column if not exists sugerencia_intento_ts timestamptz;
 
 -- Las publicaciones de cada cuenta tal como están en ML (una fila por item
 -- y variación). Sirve para vincularlas con las variaciones de Laucen: las

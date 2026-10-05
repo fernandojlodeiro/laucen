@@ -106,6 +106,26 @@ export async function sugerirRespuesta(org: string, preguntaId: number): Promise
   return texto;
 }
 
+/** La IA propone sola la respuesta a las preguntas sin responder que todavía no tienen sugerencia (Fer, 5/10: "no me
+ *  hagas apretar el botón proponer"). Cada pregunta se intenta una vez cada 30 minutos como mucho, para no gastar en una
+ *  que falla; sin llave de Claude no hace nada. Nunca tira: lo que falla queda para la próxima. */
+export async function sugerirPendientes(opts: { org?: string; max?: number; hastaMs?: number } = {}): Promise<{ propuestas: number; errores: number }> {
+  const res = { propuestas: 0, errores: 0 };
+  if (!hayClaude()) return res;
+  const tomadas = await consulta<{ id: string; organizacion_id: string }>(`
+    update meli_pregunta set sugerencia_intento_ts = now()
+     where id in (select id from meli_pregunta
+                   where estado = 'UNANSWERED' and sugerencia is null and ($1::text is null or organizacion_id = $1)
+                     and (sugerencia_intento_ts is null or sugerencia_intento_ts < now() - interval '30 minutes')
+                   order by fecha limit $2 for update skip locked)
+    returning id, organizacion_id`, [opts.org ?? null, opts.max ?? 5]);
+  for (const q of tomadas) {
+    if (opts.hastaMs && Date.now() > opts.hastaMs - 8_000) break;
+    try { await sugerirRespuesta(q.organizacion_id, Number(q.id)); res.propuestas++; } catch { res.errores++; }
+  }
+  return res;
+}
+
 /** Manda la respuesta a ML. */
 export async function responder(org: string, preguntaId: number, texto: string, usuarioId: string) {
   const t = texto.trim();

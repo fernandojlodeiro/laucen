@@ -86,6 +86,24 @@ export async function sugerirMensaje(org: string, packId: string): Promise<strin
   return texto;
 }
 
+/** Lo mismo que las preguntas: la IA propone sola la respuesta a las conversaciones con mensajes del comprador sin leer. */
+export async function sugerirMensajesPendientes(opts: { org?: string; max?: number; hastaMs?: number } = {}): Promise<{ propuestas: number; errores: number }> {
+  const res = { propuestas: 0, errores: 0 };
+  if (!hayClaude()) return res;
+  const tomadas = await consulta<{ pack_id: string; organizacion_id: string }>(`
+    update meli_conversacion c set sugerencia_intento_ts = now()
+     where (c.organizacion_id, c.pack_id) in (select organizacion_id, pack_id from meli_conversacion
+                   where sin_leer > 0 and sugerencia is null and ($1::text is null or organizacion_id = $1)
+                     and (sugerencia_intento_ts is null or sugerencia_intento_ts < now() - interval '30 minutes')
+                   order by ultimo_ts limit $2 for update skip locked)
+    returning c.pack_id, c.organizacion_id`, [opts.org ?? null, opts.max ?? 5]);
+  for (const c of tomadas) {
+    if (opts.hastaMs && Date.now() > opts.hastaMs - 8_000) break;
+    try { await sugerirMensaje(c.organizacion_id, c.pack_id); res.propuestas++; } catch { res.errores++; }
+  }
+  return res;
+}
+
 /** Manda un mensaje al comprador del pack. */
 export async function enviarMensaje(org: string, packId: string, texto: string, usuarioId: string | null = null) {
   const t = texto.trim();

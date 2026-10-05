@@ -7,8 +7,8 @@ import { consulta, una } from "@/lib/erp/base";
 import { cuentaPorUsuario, cuentasActivas, ml, type CuentaMl } from "@/lib/mercadolibre/api";
 import { importarOrden, barrerOrdenes } from "@/lib/mercadolibre/pedidos";
 import { leerEnvio, guardarEnvio } from "@/lib/mercadolibre/envios";
-import { importarPregunta, barrerPreguntas } from "@/lib/mercadolibre/preguntas";
-import { importarMensaje } from "@/lib/mercadolibre/mensajes";
+import { importarPregunta, barrerPreguntas, sugerirPendientes } from "@/lib/mercadolibre/preguntas";
+import { importarMensaje, sugerirMensajesPendientes } from "@/lib/mercadolibre/mensajes";
 import { completarPlazosDespacho } from "@/lib/mercadolibre/envios";
 import { importarReclamoDeNotificacion, barrerReclamos } from "@/lib/mercadolibre/reclamos";
 import { guardarItem, type ItemMl } from "@/lib/mercadolibre/publicaciones";
@@ -47,9 +47,13 @@ async function procesarUna(cuenta: CuentaMl, topic: string, recurso: string) {
       return;
     }
     case "questions":
-      return importarPregunta(cuenta, ultimo(recurso));
+      await importarPregunta(cuenta, ultimo(recurso));
+      await sugerirPendientes({ org: cuenta.organizacionId, max: 3 }); // la IA propone sola la respuesta
+      return;
     case "messages":
-      return importarMensaje(cuenta, recurso);
+      await importarMensaje(cuenta, recurso);
+      await sugerirMensajesPendientes({ org: cuenta.organizacionId, max: 3 });
+      return;
     case "items": {
       const r = await ml<ItemMl>(cuenta, "GET", `/items/${ultimo(recurso)}?include_attributes=all`);
       if (r.status === 200) await guardarItem(cuenta, r.datos);
@@ -107,6 +111,8 @@ export async function barrido(hastaMs: number) {
     const r: Record<string, unknown> = {};
     try { r.ordenes = await barrerOrdenes(c, hastaMs); } catch (e) { r.ordenes_error = (e as Error).message; }
     try { r.preguntas = await barrerPreguntas(c); } catch (e) { r.preguntas_error = (e as Error).message; }
+    // Las que no alcanzaron a tener su respuesta propuesta (notificación perdida, la IA no contestó): se completan acá.
+    if (Date.now() < hastaMs) { try { r.sugerencias = await sugerirPendientes({ org: c.organizacionId, max: 5, hastaMs }); r.sugerencias_mensajes = await sugerirMensajesPendientes({ org: c.organizacionId, max: 5, hastaMs }); } catch { /* no frena el barrido */ } }
     // Los reclamos no frenan lo demás ni marcan la cuenta con error (ML puede no dar permiso de posventa).
     if (Date.now() < hastaMs) { try { r.plazos = await completarPlazosDespacho(c); } catch (e) { r.plazos_error = (e as Error).message; } }
     if (Date.now() < hastaMs) { try { r.reclamos = await barrerReclamos(c, hastaMs); } catch (e) { r.reclamos_error = (e as Error).message; } }
