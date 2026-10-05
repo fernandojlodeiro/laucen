@@ -9,10 +9,11 @@ import { accionBorrarBasura, accionBorrarFamiliasVs, accionBorrarNotebooks, acci
 import { SUAVE } from "@/app/botones";
 import { BotonBorrar, DetectarCategorias } from "./Botones";
 import { Fantasmas } from "./Fantasmas";
+import { NotebooksMl } from "./NotebooksMl";
 import { consulta } from "@/lib/erp/base";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 export const metadata = { title: "Limpieza de datos", robots: { index: false, follow: false } };
 
 // Tareas de una sola vez para dejar la base lista tras la carga de Virtual
@@ -45,6 +46,17 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
           Las unidades que la carga del 3/10 sacó de ubicaciones reales del depósito, para cotejarlas con lo que hay en las estanterías.
         </p>
         <Link href="/admin/limpieza/ajustes" className={SUAVE}>Ver ajustes a revisar</Link>
+      </section>
+
+      <section className={CAJA}>
+        <h2 className="font-bold text-[#16577F]">Notebooks que no están activas en Mercado Libre</h2>
+        <p className="text-sm text-[#5C6B76]">
+          Lee cada cuenta en Mercado Libre (también lo que Laucen no guarda) y deja <b>preparado un lote</b> que finaliza y elimina todas las
+          notebooks que no estén activas (pausadas, finalizadas, inactivas, en revisión). Las activas no se tocan. No sale nada hasta que
+          revises el lote y aprietes &quot;Mandar a Mercado Libre&quot;. Eliminar no tiene vuelta atrás: se pierde su historial de ventas y preguntas.
+          Es una notebook la de categoría Notebooks o con título que empieza con &quot;Notebook&quot;. Tarda unos minutos por cuenta.
+        </p>
+        <NotebooksMl cuentas={cuentasMl} />
       </section>
 
       <section className={CAJA}>

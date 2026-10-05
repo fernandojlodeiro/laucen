@@ -3,10 +3,11 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { sosVos } from "@/lib/admin";
-import { orgRequerida } from "@/lib/tenancy";
+import { orgRequerida, sesionRequerida } from "@/lib/tenancy";
 import { motivoErp } from "@/lib/erp/base";
 import { borrarBasuraDeVs } from "@/lib/limpieza-listas";
 import { borrarFantasmas, revisarFantasmas, traerFaltantes } from "@/lib/mercadolibre/fantasmas";
+import { prepararEliminarNotebooks } from "@/lib/mercadolibre/notebooks";
 import {
   borrarFamiliasVs, borrarNotebooksSinStock, borrarPruebas, categoriasPorPredictor, categoriasPorPublicacion,
 } from "@/lib/limpieza";
@@ -73,6 +74,19 @@ export async function accionTraerFaltantes(canalId: number) {
   const org = await portero();
   try {
     const r = await traerFaltantes(org, canalId, Date.now() + 50_000);
+    revalidatePath("/admin/limpieza");
+    return { ok: true as const, ...r };
+  } catch (e) {
+    return { ok: false as const, error: motivoErp(e) };
+  }
+}
+
+/** Lee la cuenta en ML y deja preparado (sin mandar) el lote que elimina sus notebooks no activas. */
+export async function accionPrepararNotebooks(canalId: number) {
+  await portero();
+  const s = await sesionRequerida();
+  try {
+    const r = await prepararEliminarNotebooks(s.org.id, canalId, s.usuario.id, Date.now() + 270_000);
     revalidatePath("/admin/limpieza");
     return { ok: true as const, ...r };
   } catch (e) {
