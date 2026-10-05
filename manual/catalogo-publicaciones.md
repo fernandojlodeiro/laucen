@@ -35,7 +35,7 @@ Columnas (todas se ordenan tocando el título; sin elegir, por canal):
 - **Id externo**: si es un MLA, enlace a la publicación en Mercado Libre.
 - **Categoría**.
 - **Plan**: Clásica o Premium (el plan de la publicación en Mercado Libre).
-- **Precio**: el que tiene publicada (en Mercado Libre, el precio de lista de la publicación). Si tiene **precio tachado**, va arriba, tachado. Si está en una **campaña activa**, debajo se ve "Campaña: nombre · precio con la campaña" (el precio de campaña es el que paga el cliente).
+- **Precio**: (en pesos o en dólares según el interruptor de abajo a la izquierda; los precios de Mercado Libre son en pesos y, en dólares, se convierten al tipo de cambio de hoy) el que tiene publicada (en Mercado Libre, el precio de lista de la publicación). Si tiene **precio tachado**, va arriba, tachado. Si está en una **campaña activa**, debajo se ve "Campaña: nombre · precio con la campaña" (el precio de campaña es el que paga el cliente).
 - **Estado**: Activa / Pausada / Cerrada (o **Pausada por vos**, si la pausaste con el botón); debajo, "En ML: …" (lo que dice ML: Activa, Pausada, Cerrada, En revisión, Inactiva, Pago pendiente) y "sinc. dd/mm hh:mm".
 - **Disponible**: lo que hay para vender en los depósitos del canal. En rojo cuando está en el umbral o por debajo. Lleva a [Consulta de stock](/stock/consulta).
 - **Stock en ML**: lo que la publicación tiene cargado en Mercado Libre (también si está pausada).

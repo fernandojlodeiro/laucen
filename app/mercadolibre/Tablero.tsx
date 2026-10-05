@@ -8,7 +8,7 @@
 // pantalla donde se resuelve, ya filtrada por la cuenta.
 
 import Link from "next/link";
-import { formatear } from "@/lib/moneda";
+import { formatear, type Moneda } from "@/lib/moneda";
 import { Estado, url, CAJA } from "@/app/componentes/erp";
 import { cuentasTablero, metricasPorCanal, alertasCatalogo, gruposNoMl, sinPublicarPorCanal, estadoWebPorCanal, sumar, type CuentaTablero, type Metricas } from "@/lib/mercadolibre/tablero";
 import { nivelDe, NIVELES_REPUTACION, LIDER, type Metrica, type Reputacion } from "@/lib/mercadolibre/reputacion";
@@ -141,7 +141,9 @@ const soloMl = (f: (c: CuentaTablero, m: Metricas) => React.ReactNode) => (c: Co
 /** "completo": todo (reputación, publicaciones, pendientes, movimiento y alertas). "hacer": sólo lo que hay para hacer. */
 export type ModoTablero = "completo" | "hacer";
 
-export async function Tablero({ org, modo }: { org: string; modo: ModoTablero }) {
+export async function Tablero({ org, modo, moneda = "ARS" }: { org: string; modo: ModoTablero; moneda?: Moneda }) {
+  // Cada venta ya guarda su total en pesos y en dólares, cada uno al tipo de cambio del día en que se vendió: sumar la columna de la moneda elegida da el valor "de cada día".
+  const plata = (ars: number, usd: number) => (moneda === "USD" ? formatear(usd, "USD") : formatear(ars, "ARS"));
 
   const cuentas = await cuentasTablero(org);
   const grupos = await gruposNoMl(org);
@@ -237,10 +239,10 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
       filas: [
         { titulo: "Pedidos en camino", celda: (c, m) => <Celda valor={m.enCamino} tono="neutro" href={enlace("/ventas/envios", c, { ver: "camino" })} />,
           total: (t) => <Celda valor={t.enCamino} tono="neutro" href="/ventas/envios?ver=camino" /> },
-        { titulo: "Ventas de hoy", celda: (_c, m) => <Celda valor={m.ventas.hoy} tono="neutro" nota={formatear(m.ventas.hoyArs, "ARS")} />,
-          total: (t) => <Celda valor={t.ventas.hoy} tono="neutro" nota={formatear(t.ventas.hoyArs, "ARS")} /> },
-        { titulo: "Ventas de los últimos 7 días", celda: (_c, m) => <Celda valor={m.ventas.sieteDias} tono="neutro" nota={formatear(m.ventas.sieteDiasArs, "ARS")} />,
-          total: (t) => <Celda valor={t.ventas.sieteDias} tono="neutro" nota={formatear(t.ventas.sieteDiasArs, "ARS")} /> },
+        { titulo: "Ventas de hoy", celda: (_c, m) => <Celda valor={m.ventas.hoy} tono="neutro" nota={plata(m.ventas.hoyArs, m.ventas.hoyUsd)} />,
+          total: (t) => <Celda valor={t.ventas.hoy} tono="neutro" nota={plata(t.ventas.hoyArs, t.ventas.hoyUsd)} /> },
+        { titulo: "Ventas de los últimos 7 días", celda: (_c, m) => <Celda valor={m.ventas.sieteDias} tono="neutro" nota={plata(m.ventas.sieteDiasArs, m.ventas.sieteDiasUsd)} />,
+          total: (t) => <Celda valor={t.ventas.sieteDias} tono="neutro" nota={plata(t.ventas.sieteDiasArs, t.ventas.sieteDiasUsd)} /> },
         { titulo: "Cola de ML con error", ayuda: "Cambios que Laucen quiso mandar a ML y no pudo",
           celda: soloMl((c, m) => <Celda valor={m.cola.errores} href={url("/config/canales/cola", { ver: "errores", canal: c.canalId })} nota={m.cola.preparados ? `${n(m.cola.preparados)} lotes esperan tu clic` : null} />),
           total: (t) => <Celda valor={t.cola.errores} href="/config/canales/cola?ver=errores" nota={t.cola.preparados ? `${n(t.cola.preparados)} lotes esperan tu clic` : null} /> },

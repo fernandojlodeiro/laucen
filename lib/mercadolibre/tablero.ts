@@ -36,7 +36,7 @@ export type Metricas = {
   mensajes: { sinLeer: number; total: number };
   reclamos: { abiertos: number; esperanRespuesta: number; urgentes: number; enMediacion: number; total: number };
   devoluciones: { abiertas: number; enCamino: number; total: number };
-  ventas: { hoy: number; hoyArs: number; sieteDias: number; sieteDiasArs: number };
+  ventas: { hoy: number; hoyArs: number; hoyUsd: number; sieteDias: number; sieteDiasArs: number; sieteDiasUsd: number };
   cola: { pendientes: number; errores: number; preparados: number };
 };
 
@@ -48,7 +48,7 @@ const vacio = (): Metricas => ({
   mensajes: { sinLeer: 0, total: 0 },
   reclamos: { abiertos: 0, esperanRespuesta: 0, urgentes: 0, enMediacion: 0, total: 0 },
   devoluciones: { abiertas: 0, enCamino: 0, total: 0 },
-  ventas: { hoy: 0, hoyArs: 0, sieteDias: 0, sieteDiasArs: 0 },
+  ventas: { hoy: 0, hoyArs: 0, hoyUsd: 0, sieteDias: 0, sieteDiasArs: 0, sieteDiasUsd: 0 },
   cola: { pendientes: 0, errores: 0, preparados: 0 },
 });
 
@@ -111,11 +111,12 @@ export async function metricasPorCanal(org: string, canales: number[], { soloMl 
              count(*) filter (where r.tipo = 'devolucion' and ${CONDICION_RECLAMOS.camino})::int dev_camino,
              count(*) filter (where r.tipo = 'devolucion')::int dev_total
         from reclamo r where r.organizacion_id = $1 and r.canal_id = any($2::bigint[]) ${soloMl ? "and r.origen = 'mercadolibre'" : ""} group by r.canal_id`),
-    q<{ hoy: number; hoy_ars: string; siete: number; siete_ars: string }>(`
+    q<{ hoy: number; hoy_ars: string; hoy_usd: string; siete: number; siete_ars: string; siete_usd: string }>(`
       select p.canal_id::int canal,
              count(*) filter (where (p.fecha at time zone '${ZONA}')::date = (now() at time zone '${ZONA}')::date)::int hoy,
              coalesce(sum(p.total_ars) filter (where (p.fecha at time zone '${ZONA}')::date = (now() at time zone '${ZONA}')::date), 0) hoy_ars,
-             count(*)::int siete, coalesce(sum(p.total_ars), 0) siete_ars
+             coalesce(sum(p.total_usd) filter (where (p.fecha at time zone '${ZONA}')::date = (now() at time zone '${ZONA}')::date), 0) hoy_usd,
+             count(*)::int siete, coalesce(sum(p.total_ars), 0) siete_ars, coalesce(sum(p.total_usd), 0) siete_usd
         from pedido p where p.organizacion_id = $1 and p.canal_id = any($2::bigint[]) and p.estado <> 'cancelado'
          and p.fecha > now() - interval '7 days' group by p.canal_id`),
   ]);
@@ -128,7 +129,7 @@ export async function metricasPorCanal(org: string, canales: number[], { soloMl 
     x.reclamos = { abiertos: f.abiertos, esperanRespuesta: f.esperan, urgentes: f.urgentes, enMediacion: f.mediacion, total: f.total };
     x.devoluciones = { abiertas: f.dev_abiertas, enCamino: f.dev_camino, total: f.dev_total };
   });
-  for (const f of ventas) poner(f.canal, (x) => { x.ventas = { hoy: f.hoy, hoyArs: Number(f.hoy_ars), sieteDias: f.siete, sieteDiasArs: Number(f.siete_ars) }; });
+  for (const f of ventas) poner(f.canal, (x) => { x.ventas = { hoy: f.hoy, hoyArs: Number(f.hoy_ars), hoyUsd: Number(f.hoy_usd), sieteDias: f.siete, sieteDiasArs: Number(f.siete_ars), sieteDiasUsd: Number(f.siete_usd) }; });
   await Promise.all(canales.map(async (c) => {
     const e = await estadoColaCanal(c);
     if (e) poner(c, (x) => { x.cola = { pendientes: e.pendientes, errores: e.errores, preparados: e.preparados }; });
