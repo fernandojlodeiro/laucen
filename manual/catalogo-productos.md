@@ -44,10 +44,11 @@ Arriba de la tabla, el selector **Vista** ("Estándar" o una vista guardada) eli
 
 Columnas de la vista Estándar (todas se ordenan tocando el título):
 - **SKU base**: lleva a la ficha. Al lado, el 📷 abre las fotos (si no tiene fotos, no aparece).
-- **Título**: lleva a la ficha. Si es un kit de Virtual Seller, muestra la marca "Kit VS"; si está marcado como No publicable, "No publicable".
+- **Título**: lleva a la ficha. Si es un kit de Virtual Seller, muestra la marca "Kit VS"; si está marcado como No publicable, "No publicable"; si no, la marca **"ML n/5"**: en cuántas de las cuentas de Mercado Libre está publicado (verde si está en todas, amarillo si en algunas, gris si en ninguna).
 - **Familia**: filtra la lista por esa familia.
 - **Tipo**: filtra la lista por ese tipo.
 - **Variaciones**: cuántas variaciones tiene (un producto simple cuenta 1, su variación única). Lleva a la ficha.
+- **Publicaciones**: en cuántas cuentas de Mercado Libre distintas está publicado (0 a 5). Cuenta una cuenta si tiene ahí al menos una publicación **activa o pausada** de cualquiera de sus variaciones; no cuenta las cerradas, ni cuántas publicaciones tiene en la misma cuenta (cuotas, variaciones), ni la web. Se ordena tocando el título de la columna. Lleva a [Publicaciones](/catalogo/publicaciones) buscando ese SKU.
 - **Disponible**: suma del disponible (lo que hay menos lo reservado) de todas sus variaciones en todos los depósitos activos. En rojo si es negativo. Lleva a [Consulta de stock](/stock/consulta) buscando ese SKU.
 - **Estado**: Activo (verde), Pausado (amarillo), Inactivo (gris). Las filas de productos inactivos se ven atenuadas.
 
@@ -141,7 +142,7 @@ Disponible (lo que hay menos lo reservado) de cada variación en cada depósito 
 
 Arriba, un interruptor por cada web: **"Publicado en Web minorista"** y **"Publicado en Web mayorista"** (la web es un canal más). Prendido, el producto se ve en esa tienda (si tiene precio en la lista del canal); apagado, no. Prenderlo publica todas sus variaciones activas en ese canal; apagarlo las deja pausadas. No toca Mercado Libre.
 
-Debajo, las publicaciones de las variaciones de este producto en cada canal (también las de la web, sin id externo): Canal, Variación, Id externo, Título, Tipo, Precio (con el tachado si está en campaña), Estado (y debajo, el estado en ML), Stock en ML, Última sincronización. El botón **Ir a Publicaciones** lleva a [Publicaciones](/catalogo/publicaciones), y **Publicar en ML copiando otra** abre la pantalla para publicarlo en Mercado Libre (en el catálogo o copiando una publicación tuya).
+Debajo, las publicaciones de las variaciones de este producto en cada canal (también las de la web, sin id externo): Canal, Variación, Id externo, Título, Tipo, Precio (con el tachado si está en campaña), Estado (y debajo, el estado en ML), Stock en ML, Última sincronización. En las de Mercado Libre, el **Id externo** (con "↗") y el **Título** abren la publicación en Mercado Libre, en otra pestaña. El botón **Ir a Publicaciones** lleva a [Publicaciones](/catalogo/publicaciones), y **Publicar en ML copiando otra** abre la pantalla para publicarlo en Mercado Libre (en el catálogo o copiando una publicación tuya).
 
 Arriba de todo, el interruptor **No publicable (insumo o parte de otro)**: prendido, el producto no va a Mercado Libre ni a la web (sale de las tiendas y no se puede volver a prender "Publicado en Web"), no aparece en las alertas de "sin publicar" del tablero ni en esos filtros, y la ficha muestra la marca "No publicable" junto al título. Sus publicaciones de Mercado Libre, si tiene, no se tocan.
 

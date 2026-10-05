@@ -965,8 +965,11 @@ export async function SeccionPublicaciones({ s, p }: Props) {
   // Los precios de las publicaciones son en pesos: en dólares, al tipo de cambio de hoy.
   const tcHoy = await tcParaVista(s.org.id, s.moneda);
   const filas = await consulta<{ id: number; sku: string; canal: string; id_externo: string | null; titulo: string; tipo_publicacion: string | null; estado: string; sincro: string | null;
-    precio: number | null; precio_tachado: number | null; stock_ml: number | null; estado_ml: string | null }>(`
-    select pu.id::int, v.sku, c.nombre canal, pu.id_externo, coalesce(pu.titulo, titulo_variacion(v.id)) titulo, pu.tipo_publicacion, pu.estado,
+    precio: number | null; precio_tachado: number | null; stock_ml: number | null; estado_ml: string | null; enlace: string | null }>(`
+    select pu.id::int, v.sku, c.nombre canal, pu.id_externo,
+           -- La publicación en ML (Fer, 5/10): su dirección, o la que arma ML con el número.
+           case when c.tipo = 'mercadolibre' and pu.id_externo is not null
+                then coalesce(mi.permalink, 'https://articulo.mercadolibre.com.ar/' || regexp_replace(pu.id_externo, '^([A-Z]{3})(\\d+)$', '\\1-\\2')) end enlace, coalesce(pu.titulo, titulo_variacion(v.id)) titulo, pu.tipo_publicacion, pu.estado,
            pu.precio_canal::float8 precio, pu.precio_tachado::float8, mi.stock stock_ml, mi.estado estado_ml,
            to_char(pu.ultima_sincronizacion_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YYYY HH24:MI') sincro
       from publicacion pu join variacion v on v.id = pu.variacion_id join canal c on c.id = pu.canal_id
@@ -1009,8 +1012,13 @@ export async function SeccionPublicaciones({ s, p }: Props) {
               <tr key={f.id} className={TR}>
                 <td className={TD}>{f.canal}</td>
                 <td className={`${TD} font-mono`}>{f.sku}</td>
-                <td className={`${TD} font-mono`}>{f.id_externo ?? "—"}</td>
-                <td className={TD}>{f.titulo}</td>
+                {/* Un clic abre la publicación en Mercado Libre (en otra pestaña). */}
+                <td className={`${TD} font-mono`}>{f.enlace
+                  ? <a href={f.enlace} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline">{f.id_externo} ↗</a>
+                  : f.id_externo ?? "—"}</td>
+                <td className={TD}>{f.enlace
+                  ? <a href={f.enlace} target="_blank" rel="noopener noreferrer" className="hover:text-[#16577F] hover:underline">{f.titulo}</a>
+                  : f.titulo}</td>
                 <td className={TD}>{f.tipo_publicacion ?? "—"}</td>
                 <td className={TDN}>
                   {/* El precio de la publicación es el de venta; el tachado, el de antes de la campaña. */}
