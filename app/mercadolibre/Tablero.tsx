@@ -11,7 +11,7 @@ import Link from "next/link";
 import { formatear } from "@/lib/moneda";
 import { Estado, url, CAJA } from "@/app/componentes/erp";
 import { cuentasTablero, metricasPorCanal, alertasCatalogo, gruposNoMl, sinPublicarPorCanal, estadoWebPorCanal, sumar, type CuentaTablero, type Metricas } from "@/lib/mercadolibre/tablero";
-import { nivelDe, NIVELES_REPUTACION, LIDER, type Metrica } from "@/lib/mercadolibre/reputacion";
+import { nivelDe, NIVELES_REPUTACION, LIDER, type Metrica, type Reputacion } from "@/lib/mercadolibre/reputacion";
 
 
 const n = (x: number) => x.toLocaleString("es-AR");
@@ -73,14 +73,43 @@ function Escudo({ nivel }: { nivel: string }) {
   );
 }
 
+/** Lo que se puede decir de "qué falta para el siguiente nivel": Mercado Libre no informa los límites, así que se muestran los números de hoy. */
+function textoSiguienteNivel(r: Reputacion): string {
+  const nivel = nivelDe(r.nivel);
+  const i = nivel ? NIVELES_REPUTACION.findIndex((x) => x.id === nivel.id) : -1;
+  const siguiente = i >= 0 && i < NIVELES_REPUTACION.length - 1 ? NIVELES_REPUTACION[i + 1] : null;
+  const pct = (m: Metrica | null) => (m ? `${(m.tasa * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 })} % (${m.valor} en ${periodo(m.periodo)})` : "sin dato");
+  return [
+    nivel ? `Hoy: ${nivel.texto}.` : "Todavía sin reputación.",
+    siguiente ? `El siguiente nivel es ${siguiente.texto}.` : nivel ? "Es el nivel más alto." : "",
+    "Mercado Libre no informa los límites que faltan para subir de nivel; éstos son tus números de hoy:",
+    `· Reclamos: ${pct(r.reclamos)}`, `· Entregas demoradas: ${pct(r.demoras)}`, `· Cancelaciones: ${pct(r.cancelaciones)}`,
+    r.ventas ? `· Ventas completadas: ${r.ventas.completadas.toLocaleString("es-AR")} en ${periodo(r.ventas.periodo)}` : "",
+    "Bajá reclamos, demoras y cancelaciones para mejorar el nivel.",
+  ].filter(Boolean).join("\n");
+}
+
 function CeldaReputacion({ c }: { c: CuentaTablero }) {
   const r = c.reputacion;
   if (!r) return <span className="block text-right text-[11px] text-[#5C6B76]">Sin leer</span>;
   const nivel = nivelDe(r.nivel);
   return (
-    <div className="flex items-center justify-end gap-1.5" title={`${nivel ? nivel.texto : "Sin reputación todavía"}${r.lider ? ` · ${LIDER[r.lider] ?? r.lider}` : ""}`}>
+    <div className="flex items-center justify-end gap-1.5">
       {nivel ? <Termometro nivel={r.nivel} /> : <span className="text-[11px] text-[#5C6B76]">Sin reputación</span>}
-      {r.lider && <Escudo nivel={r.lider} />}
+      <span title={textoSiguienteNivel(r)} className="inline-grid h-3.5 w-3.5 cursor-help place-items-center rounded-full border border-[#9AA7B3] text-[9px] font-bold leading-none text-[#5C6B76]" aria-label="Qué falta para el siguiente nivel">?</span>
+    </div>
+  );
+}
+
+/** La medalla de MercadoLíder (silver / gold / platinum) en su propio renglón. */
+function CeldaMedalla({ c }: { c: CuentaTablero }) {
+  const l = c.reputacion?.lider;
+  if (!c.reputacion) return <span className="block text-right text-[11px] text-[#5C6B76]">Sin leer</span>;
+  if (!l) return <span className="block text-right text-[11px] text-[#9AA7B3]" title="No es MercadoLíder">—</span>;
+  return (
+    <div className="flex items-center justify-end gap-1.5">
+      <span className="text-[11px] font-semibold leading-3">{LIDER[l] ?? l}</span>
+      <Escudo nivel={l} />
     </div>
   );
 }
@@ -101,6 +130,9 @@ type Fila = {
 };
 
 /** El apodo se achica hasta que entra entero en la columna (≈ 7 rem). */
+/** El zoom de la tabla (antes 1,32; un 15 % menos). Los títulos fijos se pegan debajo de la barra de arriba (40 px en la PC, 48 en el celular), que el zoom también escala. */
+const ZOOM = 1.12;
+const FIJA = "sticky top-[calc(48px/1.12)] md:top-[calc(40px/1.12)] z-10 bg-[#FAFBFC] border-b border-[#E3E9F0]";
 const tamanoTitulo = (t: string) => `${Math.max(7, Math.min(11, Math.floor(1700 / Math.max(t.length, 1)) / 10)).toFixed(1)}px`;
 const NA = <span className="block text-right text-[13px] text-[#9AA7B3]" title="No aplica a este canal">—</span>;
 /** Para las filas que sólo existen en una cuenta de ML (reputación, publicaciones, preguntas…). */
@@ -108,7 +140,6 @@ const soloMl = (f: (c: CuentaTablero, m: Metricas) => React.ReactNode) => (c: Co
 
 /** "completo": todo (reputación, publicaciones, pendientes, movimiento y alertas). "hacer": sólo lo que hay para hacer. */
 export type ModoTablero = "completo" | "hacer";
-const NO_ES_PARA_HACER = new Set(["Pedidos en camino"]);
 
 export async function Tablero({ org, modo }: { org: string; modo: ModoTablero }) {
 
@@ -146,6 +177,7 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
       titulo: "Reputación", sub: "Lo que informa Mercado Libre; cada dato cuenta el período que figura.",
       filas: [
         { titulo: "Color de la reputación", celda: soloMl((c) => <CeldaReputacion c={c} />) },
+        { titulo: "MercadoLíder", ayuda: "La medalla: MercadoLíder, Gold o Platinum", celda: soloMl((c) => <CeldaMedalla c={c} />) },
         { titulo: "Reclamos que afectan la reputación", celda: soloMl((c) => <CeldaMetrica m={c.reputacion?.reclamos ?? null} titulo="reclamos" />),
           total: (_t, cs) => <Celda valor={suma(cs, (c) => c.reputacion?.reclamos?.valor ?? 0)} tono="neutro" /> },
         { titulo: "Entregas demoradas", ayuda: "Despachos fuera del plazo de manipulación",
@@ -186,8 +218,6 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
           total: (t) => <Celda valor={t.etiquetas.sinImprimir} de={t.etiquetas.porDespachar} href="/ventas/envios" nota={t.etiquetas.vencidos ? `${n(t.etiquetas.vencidos)} para hoy o vencidos` : null} /> },
         { titulo: "Pedidos para preparar", celda: (c, m) => <Celda valor={m.pedidosParaPreparar} href={enlace("/ventas/pedidos", c)} />,
           total: (t) => <Celda valor={t.pedidosParaPreparar} href="/ventas/pedidos" /> },
-        { titulo: "Pedidos en camino", celda: (c, m) => <Celda valor={m.enCamino} tono="neutro" href={enlace("/ventas/envios", c, { ver: "camino" })} />,
-          total: (t) => <Celda valor={t.enCamino} tono="neutro" href="/ventas/envios?ver=camino" /> },
         { titulo: "Preguntas para responder", celda: soloMl((c, m) => <Celda valor={m.preguntas.sinResponder} de={m.preguntas.total} href={url("/ventas/preguntas", { canal: c.canalId })} nota={m.preguntas.masVieja ? `la más vieja, ${haceCuanto(m.preguntas.masVieja)}` : null} />),
           total: (t) => <Celda valor={t.preguntas.sinResponder} de={t.preguntas.total} href="/ventas/preguntas" /> },
         { titulo: "Mensajes para responder", ayuda: "Conversaciones de posventa con mensajes sin leer",
@@ -205,6 +235,8 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
     {
       titulo: "Movimiento y salud",
       filas: [
+        { titulo: "Pedidos en camino", celda: (c, m) => <Celda valor={m.enCamino} tono="neutro" href={enlace("/ventas/envios", c, { ver: "camino" })} />,
+          total: (t) => <Celda valor={t.enCamino} tono="neutro" href="/ventas/envios?ver=camino" /> },
         { titulo: "Ventas de hoy", celda: (_c, m) => <Celda valor={m.ventas.hoy} tono="neutro" nota={formatear(m.ventas.hoyArs, "ARS")} />,
           total: (t) => <Celda valor={t.ventas.hoy} tono="neutro" nota={formatear(t.ventas.hoyArs, "ARS")} /> },
         { titulo: "Ventas de los últimos 7 días", celda: (_c, m) => <Celda valor={m.ventas.sieteDias} tono="neutro" nota={formatear(m.ventas.sieteDiasArs, "ARS")} />,
@@ -223,8 +255,9 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
   ];
 
   const mostradas = modo === "hacer"
-    ? secciones.filter((x) => x.titulo === "Para hacer hoy").map((x) => ({ ...x, titulo: "Para hacer", filas: x.filas.filter((f) => !NO_ES_PARA_HACER.has(f.titulo)) }))
-    : secciones;
+    ? secciones.filter((x) => x.titulo === "Para hacer hoy").map((x) => ({ ...x, titulo: "Para hacer" }))
+    // El relevamiento completo no repite lo que ya está en "Para hacer".
+    : secciones.filter((x) => x.titulo !== "Para hacer hoy");
 
   return (
     <>
@@ -233,20 +266,21 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
           <p className="text-xs">Todavía no hay ninguna cuenta de Mercado Libre conectada a un canal. Conectala en <Link href="/config/canales" className="text-[#16577F] underline">Configuración → Canales</Link>.</p>
         </div>
       )}
-      {/* Centrado y un 32 % más grande (zoom): la tabla ocupa lo que necesita, no el ancho de la pantalla. */}
-      <div className="mx-auto w-fit max-w-full" style={{ zoom: 1.32 }}>
-      <div className="overflow-x-auto bg-white border border-[#E3E9F0] rounded-xl">
+      {/* Centrado y con zoom: la tabla ocupa lo que necesita, no el ancho de la pantalla. La fila de títulos
+          (la cuenta o el canal de cada columna) queda fija debajo de la barra de arriba al bajar con la rueda. */}
+      <div className="mx-auto w-fit max-w-full" style={{ zoom: ZOOM }}>
+      <div className="max-md:overflow-x-auto md:overflow-x-clip bg-white border border-[#E3E9F0] rounded-xl">
         <table className="w-auto text-[13px] border-collapse">
-          <thead className="bg-[#FAFBFC] border-b border-[#E3E9F0] sticky top-0 z-10">
+          <thead className="bg-[#FAFBFC]">
             <tr>
-              <th className="py-1.5 px-2 text-left w-40 min-w-36" />
+              <th className={`${FIJA} py-1.5 px-2 text-left w-40 min-w-36`} />
               {columnas.map((c) => (
-                <th key={c.clave} title={`${c.titulo} · ${c.sub}`} className="py-1 px-2 text-left align-top w-[7.2rem] min-w-[7.2rem] max-w-[7.2rem] border-l border-[#E3E9F0]">
+                <th key={c.clave} title={`${c.titulo} · ${c.sub}`} className={`${FIJA} py-1 px-2 text-left align-top w-[7.2rem] min-w-[7.2rem] max-w-[7.2rem] border-l border-[#E3E9F0]`}>
                   {c.href ? <Link href={c.href} className="block whitespace-nowrap overflow-hidden font-bold leading-4 text-[#16577F] hover:underline" style={{ fontSize: tamanoTitulo(c.titulo) }}>{c.titulo}</Link> : <span className="block whitespace-nowrap overflow-hidden font-bold leading-4" style={{ fontSize: tamanoTitulo(c.titulo) }}>{c.titulo}</span>}
                   <span className="block truncate text-[9px] font-normal text-[#5C6B76] leading-3">{c.sub}</span>
                 </th>
               ))}
-              <th className="py-1.5 px-2 text-left align-top w-[7.2rem] min-w-[7.2rem] border-l-2 border-[#E3E9F0] bg-[#F3F6F9] font-bold text-sm">Total</th>
+              <th className={`${FIJA} py-1.5 px-2 text-left align-top w-[7.2rem] min-w-[7.2rem] border-l-2 border-[#E3E9F0] !bg-[#F3F6F9] font-bold text-sm`}>Total</th>
             </tr>
           </thead>
           {mostradas.map((sec) => (
