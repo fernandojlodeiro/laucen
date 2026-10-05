@@ -110,6 +110,8 @@ create table if not exists meli_pregunta (
   datos_externos   jsonb not null default '{}',
   actualizado_ts   timestamptz not null default now()
 );
+-- La respuesta fue exactamente la sugerencia de la IA, sin cambios (Fer, 5/10).
+alter table meli_pregunta add column if not exists respondida_con_ia boolean not null default false;
 create index if not exists meli_pregunta_pendientes on meli_pregunta (organizacion_id, fecha) where estado = 'UNANSWERED';
 alter table meli_pregunta enable row level security;
 select erp_politica_org('meli_pregunta');
@@ -133,6 +135,8 @@ alter table meli_mensaje enable row level security;
 select erp_politica_org('meli_mensaje');
 -- Quién del panel mandó el mensaje (null: lo escribieron desde Mercado Libre o es del comprador).
 alter table meli_mensaje add column if not exists usuario_id text;
+-- El mensaje fue exactamente la sugerencia de la IA, sin cambios (Fer, 5/10): "Respondió <usuario> con la IA".
+alter table meli_mensaje add column if not exists con_ia boolean not null default false;
 
 -- Borradores de respuesta a mensajes que propone la IA, por conversación.
 create table if not exists meli_conversacion (

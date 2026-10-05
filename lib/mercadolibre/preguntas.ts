@@ -3,6 +3,7 @@
 // ficha, el stock y los tiempos de envío, y el operador la aprueba o la
 // cambia antes de mandarla.
 
+import { igualALaSugerencia } from "@/lib/mercadolibre/sugerencia";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { pedirClaude, hayClaude } from "@/lib/claude";
 import { ml, mlOk, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
@@ -110,12 +111,12 @@ export async function responder(org: string, preguntaId: number, texto: string, 
   const t = texto.trim();
   if (!t) throw new ErrorErp("La respuesta está vacía.");
   if (t.length > 2000) throw new ErrorErp("Mercado Libre acepta hasta 2.000 caracteres.");
-  const q = await una<{ canal_id: string; estado: string }>("select canal_id, estado from meli_pregunta where id = $1 and organizacion_id = $2", [preguntaId, org]);
+  const q = await una<{ canal_id: string; estado: string; sugerencia: string | null }>("select canal_id, estado, sugerencia from meli_pregunta where id = $1 and organizacion_id = $2", [preguntaId, org]);
   if (!q) throw new ErrorErp("La pregunta no existe.");
   if (q.estado !== "UNANSWERED") throw new ErrorErp("Esa pregunta ya no está pendiente (se respondió o se borró).");
   const cuenta = await cuentaDelCanal(org, Number(q.canal_id));
   if (!cuenta) throw new ErrorErp("La cuenta de Mercado Libre de esta pregunta ya no está conectada.");
   await mlOk(cuenta, "POST", "/answers", { question_id: preguntaId, text: t });
-  await consulta(`update meli_pregunta set estado = 'ANSWERED', respuesta = $3, respondida_ts = now(), respondida_por = $4, actualizado_ts = now()
-                   where id = $1 and organizacion_id = $2`, [preguntaId, org, t, usuarioId]);
+  await consulta(`update meli_pregunta set estado = 'ANSWERED', respuesta = $3, respondida_ts = now(), respondida_por = $4, respondida_con_ia = $5, actualizado_ts = now()
+                   where id = $1 and organizacion_id = $2`, [preguntaId, org, t, usuarioId, igualALaSugerencia(t, q.sugerencia)]);
 }

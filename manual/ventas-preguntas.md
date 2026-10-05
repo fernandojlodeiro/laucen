@@ -42,11 +42,12 @@ Dos pestañas chicas: **"Sin responder (N)"** y **"Respondidas (N)"**.
 - El cuadro **"Respuesta"** (si la IA ya propuso una, viene escrita y la etiqueta dice "(la propuso la IA: revisala)").
 - Los botones **"Proponer con IA"** y **"Responder"**.
 
-**Respondidas** (las últimas 100, lo más reciente primero): la publicación, la pregunta, la respuesta en verde y "Respondió <nombre> · fecha" (o "alguien desde Mercado Libre" si se contestó fuera de Laucen).
+**Respondidas** (las últimas 100, lo más reciente primero): la publicación, la pregunta, la respuesta en verde y "Respondió <nombre> · fecha" (si mandó exactamente lo que propuso la IA, sin cambiar nada, dice "Respondió <nombre> con la IA") (o "alguien desde Mercado Libre" si se contestó fuera de Laucen).
 
 ### Pestaña Mensajes
 
 - **A la izquierda**, la lista de conversaciones (las que tienen mensajes sin leer primero, después por el último mensaje; hasta 100): el cliente (o "Pack …"), la marca **"N sin leer"**, la cuenta, el Nº de pedido, hace cuánto y el último mensaje.
+- **Quién respondió**: debajo de cada mensaje de la tienda dice "Respondió <nombre>". Si mandó **exactamente** lo que había propuesto la IA, sin cambiar nada (ni una coma), dice "Respondió <nombre> con la IA"; si cambió algo, queda sólo el nombre. Igual en las preguntas.
 - **A la derecha**, la conversación elegida: el comprador, la cuenta y el enlace **"Pedido N"** (o "Pack … (sin pedido en Laucen)"), el botón **"Actualizar"**, los mensajes (los de la tienda a la derecha, con **"Respondió <nombre>"** de quien lo mandó desde Laucen, o "Respondió alguien desde Mercado Libre" si se escribió fuera de Laucen; los del comprador a la izquierda) y abajo el cuadro **"Mensaje"** con **"Proponer con IA"** y **"Enviar"**.
 - Sin conversación elegida: "Elegí una conversación para verla y contestar."
 

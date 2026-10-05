@@ -2,6 +2,7 @@
 // un pedido), de todas las cuentas en una bandeja. Igual que las preguntas:
 // la IA propone, el operador aprueba.
 
+import { igualALaSugerencia } from "@/lib/mercadolibre/sugerencia";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { pedirClaude, hayClaude } from "@/lib/claude";
 import { ml, mlOk, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
@@ -90,7 +91,7 @@ export async function enviarMensaje(org: string, packId: string, texto: string, 
   const t = texto.trim();
   if (!t) throw new ErrorErp("El mensaje está vacío.");
   if (t.length > 350) throw new ErrorErp("Mercado Libre acepta hasta 350 caracteres por mensaje.");
-  const conv = await una<{ canal_id: string; pedido_id: string | null }>("select canal_id, pedido_id from meli_conversacion where organizacion_id = $1 and pack_id = $2", [org, packId]);
+  const conv = await una<{ canal_id: string; pedido_id: string | null; sugerencia: string | null }>("select canal_id, pedido_id, sugerencia from meli_conversacion where organizacion_id = $1 and pack_id = $2", [org, packId]);
   if (!conv) throw new ErrorErp("La conversación no existe.");
   const cuenta = await cuentaDelCanal(org, Number(conv.canal_id));
   if (!cuenta) throw new ErrorErp("La cuenta de Mercado Libre ya no está conectada.");
@@ -101,10 +102,10 @@ export async function enviarMensaje(org: string, packId: string, texto: string, 
   await mlOk(cuenta, "POST", `/messages/packs/${packId}/sellers/${cuenta.meliUserId}?tag=post_sale`,
     { from: { user_id: cuenta.meliUserId }, to: { user_id: Number(comprador) }, text: t });
   await importarConversacion(cuenta, packId, true);
-  // Quién lo mandó: el mensaje recién vuelto de ML con ese mismo texto.
+  // Quién lo mandó: el mensaje recién vuelto de ML con ese mismo texto. Si es justo lo que propuso la IA, también "con la IA".
   if (usuarioId) await consulta(`
-    update meli_mensaje set usuario_id = $3 where id = (
+    update meli_mensaje set usuario_id = $3, con_ia = $5 where id = (
       select id from meli_mensaje where organizacion_id = $1 and pack_id = $2 and de_vendedor and usuario_id is null
-         and trim(texto) = $4 and fecha > now() - interval '30 minutes' order by fecha desc limit 1)`, [org, packId, usuarioId, t]);
+         and trim(texto) = $4 and fecha > now() - interval '30 minutes' order by fecha desc limit 1)`, [org, packId, usuarioId, t, igualALaSugerencia(t, conv.sugerencia)]);
   await consulta("update meli_conversacion set sugerencia = null where organizacion_id = $1 and pack_id = $2", [org, packId]);
 }

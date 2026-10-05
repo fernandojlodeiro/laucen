@@ -69,7 +69,7 @@ export default async function PreguntasYMensajes({ searchParams }: { searchParam
 type Pregunta = {
   id: string; canal: string | null; item_id: string; titulo: string | null; foto: string | null; permalink: string | null;
   texto: string; fecha: Date; sugerencia: string | null; vinculada: boolean; disponible: number | null;
-  respuesta: string | null; respondida_ts: Date | null; respondida_por: string | null;
+  respuesta: string | null; respondida_ts: Date | null; respondida_por: string | null; respondida_con_ia: boolean;
 };
 
 /** La publicación de la pregunta: foto y link de meli_item (la primera fila
@@ -78,7 +78,7 @@ const DE_PREGUNTA = `
   select q.id::text, ca.nombre canal, q.item_id, coalesce(mi.titulo, pu.titulo) titulo, mi.foto, mi.permalink, q.texto, q.fecha, q.sugerencia,
          (pu.id is not null) vinculada,
          case when pu.id is not null then greatest(stock_disponible_canal(q.organizacion_id, pu.variacion_id, pu.canal_id), 0)::int end disponible,
-         q.respuesta, q.respondida_ts, u.nombre respondida_por
+         q.respuesta, q.respondida_ts, u.nombre respondida_por, q.respondida_con_ia
     from meli_pregunta q
     left join canal ca on ca.id = q.canal_id
     left join publicacion pu on pu.id = q.publicacion_id and pu.organizacion_id = q.organizacion_id
@@ -154,7 +154,7 @@ async function Respondidas({ org, canal }: { org: string; canal: number | null }
           <p className="mt-2 text-sm"><span className="text-[#5C6B76]">Pregunta: </span>{q.texto}</p>
           <p className="mt-1 text-sm rounded-lg bg-[#EEF7F1] px-3 py-2">{q.respuesta}</p>
           <p className="mt-1 text-[11px] text-[#5C6B76]">
-            Respondió {q.respondida_por ?? "alguien desde Mercado Libre"}{q.respondida_ts ? ` · ${fechaHora(q.respondida_ts)}` : ""}
+            Respondió {q.respondida_por ?? "alguien desde Mercado Libre"}{q.respondida_por && q.respondida_con_ia ? " con la IA" : ""}{q.respondida_ts ? ` · ${fechaHora(q.respondida_ts)}` : ""}
           </p>
         </section>
       ))}
@@ -208,8 +208,8 @@ async function Mensajes({ org, pack, canal }: { org: string; pack?: string; cana
 }
 
 async function Hilo({ org, conv }: { org: string; conv: { pack_id: string; canal: string | null; pedido_id: number | null; cliente: string | null } }) {
-  const mensajes = await consulta<{ id: string; de_vendedor: boolean; texto: string | null; fecha: Date; adjuntos: unknown[]; usuario: string | null }>(
-    `select m.id, m.de_vendedor, m.texto, m.fecha, m.adjuntos, u.nombre usuario from meli_mensaje m left join usuarios u on u.id = m.usuario_id
+  const mensajes = await consulta<{ id: string; de_vendedor: boolean; texto: string | null; fecha: Date; adjuntos: unknown[]; usuario: string | null; con_ia: boolean }>(
+    `select m.id, m.de_vendedor, m.texto, m.fecha, m.adjuntos, u.nombre usuario, m.con_ia from meli_mensaje m left join usuarios u on u.id = m.usuario_id
       where m.organizacion_id = $1 and m.pack_id = $2 order by m.fecha`, [org, conv.pack_id]);
   const sug = await una<{ sugerencia: string | null }>(
     "select sugerencia from meli_conversacion where organizacion_id = $1 and pack_id = $2", [org, conv.pack_id]);
@@ -237,7 +237,7 @@ async function Hilo({ org, conv }: { org: string; conv: { pack_id: string; canal
             <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${m.de_vendedor ? "bg-[#EEF3F8] text-[#16577F]" : "bg-[#FAFBFC] border border-[#E3E9F0]"}`}>
               <div className="whitespace-pre-wrap break-words">{m.texto ?? <i className="text-[#5C6B76]">(adjunto)</i>}</div>
               {m.texto && Array.isArray(m.adjuntos) && m.adjuntos.length > 0 && <div className="text-[10px] text-[#5C6B76]">+ {m.adjuntos.length} adjunto{m.adjuntos.length === 1 ? "" : "s"}</div>}
-              <div className="text-[10px] text-[#5C6B76] mt-0.5 text-right">{m.de_vendedor ? (m.usuario ? `Respondió ${m.usuario}` : "Respondió alguien desde Mercado Libre") : "Comprador"} · {fechaHora(m.fecha)}</div>
+              <div className="text-[10px] text-[#5C6B76] mt-0.5 text-right">{m.de_vendedor ? (m.usuario ? `Respondió ${m.usuario}${m.con_ia ? " con la IA" : ""}` : "Respondió alguien desde Mercado Libre") : "Comprador"} · {fechaHora(m.fecha)}</div>
             </div>
           </div>
         ))}
