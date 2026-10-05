@@ -196,6 +196,11 @@ export async function armarBorrador(org: string, productoId: number, itemId: str
   if (no) throw new ErrorErp(`Esa publicación no sirve de modelo: ${no}.`);
 
   const { variaciones, fotosLaucen, disponible } = await datosDelProducto(org, productoId);
+  // Las características de ML que el producto de Laucen tiene cargadas mandan sobre las copiadas
+  // (Fer, 5/10: copiar la de 8 GB para publicar la de 12 GB, con la RAM del producto).
+  const propias = await una<{ a: { id?: string; value_name?: string | null }[] | null }>(
+    "select atributos_ml a from producto where organizacion_id = $1 and id = $2", [org, productoId]);
+  const deLaucen = new Map((Array.isArray(propias?.a) ? propias.a : []).filter((x) => x.id && x.value_name?.trim()).map((x) => [x.id!, x.value_name!.trim()]));
   const variacion = variaciones.find((v) => skuComparable(v.sku) === skuComparable(g.sku))?.id ?? variaciones[0].id;
   const deMl = fotosDe(it);
   const fotos = [...deMl.map((url) => ({ url, deLaucen: false })), ...fotosLaucen.filter((u) => !deMl.includes(u)).map((url) => ({ url, deLaucen: true }))];
@@ -217,7 +222,7 @@ export async function armarBorrador(org: string, productoId: number, itemId: str
     titulo: ((it.family_name ?? it.title) ?? "").trim(), categoria: it.category_id ?? "",
     precio: precioLaucen ?? it.price ?? g.precio, cantidad: Math.max(1, disponible),
     tipo: it.listing_type_id ?? "gold_special", condicion: it.condition ?? "new",
-    fotos, atributos: editables(it.attributes), garantia: editables(it.sale_terms), descripcion, descripcionLeida,
+    fotos, atributos: editables(it.attributes).map((x) => deLaucen.has(x.id) ? { ...x, valor: deLaucen.get(x.id)! } : x), garantia: editables(it.sale_terms), descripcion, descripcionLeida,
     variaciones, variacion, cuentas, cuenta,
   };
 }
