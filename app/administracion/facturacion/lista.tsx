@@ -24,6 +24,7 @@ export function filtrosFacturacion(sp: SP) {
 
 const RECEPTOR = "coalesce(c.receptor_nombre, cl.nombre)";
 /** Con signo: una nota de crédito resta. */
+const firmadoUsd = (col: string) => `(case when c.tipo_cbte in (3, 8, 13) then -c.${col} else c.${col} end / nullif(c.tc_dia, 0))::float`;
 const firmado = (col: string) => `(case when c.tipo_cbte in (3, 8, 13) then -c.${col} else c.${col} end)::float`;
 
 const CAMPOS: Campo[] = [
@@ -49,10 +50,10 @@ const CAMPOS: Campo[] = [
   { clave: "doc_tipo", titulo: "Tipo de documento", sql: "c.doc_tipo", valor: (f) => DOC_TIPOS[f.doc_tipo] ?? String(f.doc_tipo) },
   { clave: "condicion_iva", titulo: "Condición IVA del receptor", sql: "c.receptor_condicion_iva", valor: (f) => f.condicion_iva == null ? null : CONDICION_RECEPTOR_TEXTO[f.condicion_iva] ?? String(f.condicion_iva) },
   { clave: "domicilio", titulo: "Domicilio del receptor", sql: "c.receptor_domicilio", orden: false, ancho: 30 },
-  { clave: "neto", titulo: "Neto", sql: firmado("importe_neto"), orden: "c.importe_neto", formato: "pesos", fiscal: true },
-  { clave: "iva", titulo: "IVA", sql: firmado("importe_iva"), orden: "c.importe_iva", formato: "pesos", fiscal: true },
-  { clave: "total", titulo: "Total", sql: "c.importe_total::float", orden: "c.importe_total", formato: "pesos", fiscal: true, celda: (f) => formatear(f.total, "ARS") },
-  { clave: "total_firmado", titulo: "Total (NC en negativo)", sql: firmado("importe_total"), orden: false, formato: "pesos", fiscal: true },
+  { clave: "neto", titulo: "Neto", sql: firmado("importe_neto"), sqlUsd: firmadoUsd("importe_neto"), orden: "c.importe_neto", formato: "pesos" },
+  { clave: "iva", titulo: "IVA", sql: firmado("importe_iva"), sqlUsd: firmadoUsd("importe_iva"), orden: "c.importe_iva", formato: "pesos" },
+  { clave: "total", titulo: "Total", sql: "c.importe_total::float", sqlUsd: "(c.importe_total / nullif(c.tc_dia, 0))::float", orden: "c.importe_total", formato: "pesos", celda: (f, c) => (c.moneda === "USD" && f.total__usd != null ? formatear(Number(f.total__usd), "USD") : formatear(f.total, "ARS")) },
+  { clave: "total_firmado", titulo: "Total (NC en negativo)", sql: firmado("importe_total"), sqlUsd: firmadoUsd("importe_total"), orden: false, formato: "pesos" },
   {
     clave: "estado", titulo: "Estado", sql: "c.estado", valor: (f) => ESTADOS_CBTE[f.estado as EstadoCbte]?.texto ?? f.estado, usa: ["observaciones"],
     celda: (f) => {

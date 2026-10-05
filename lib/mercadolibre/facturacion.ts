@@ -280,10 +280,13 @@ export async function facturacionPendiente(): Promise<boolean> {
 /** SQL: lo que costó la venta en ML (alias del pedido `p`), sin impuestos; null si no hay cargos leídos. */
 export const sqlCargosMl = (p = "p") => `(select sum(c.monto) from ml_cargo c where c.pedido_id = ${p}.id and c.tipo in ${SQL_TIPOS_COSTO})`;
 
+/** Igual, en dólares: cada cargo al dólar de su día (ml_cargo.tc_dia). */
+export const sqlCargosMlUsd = (p = "p") => `(select sum(c.monto / nullif(c.tc_dia, 0)) from ml_cargo c where c.pedido_id = ${p}.id and c.tipo in ${SQL_TIPOS_COSTO})`;
+
 /** Los cargos de un pedido, por tipo. */
 export function cargosDelPedido(org: string, pedidoId: number) {
-  return consulta<{ tipo: TipoCargo; impuesto: Impuesto | null; concepto: string | null; monto: number; fecha: Date | null; grupo: Grupo; order_id: string | null }>(`
-    select tipo, impuesto, concepto, monto::float, fecha, grupo, order_id from ml_cargo
+  return consulta<{ tipo: TipoCargo; impuesto: Impuesto | null; concepto: string | null; monto: number; tc_dia: number | null; fecha: Date | null; grupo: Grupo; order_id: string | null }>(`
+    select tipo, impuesto, concepto, monto::float, tc_dia::float, fecha, grupo, order_id from ml_cargo
      where organizacion_id = $1 and pedido_id = $2 order by tipo, fecha, id`, [org, pedidoId]);
 }
 
