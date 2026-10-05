@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { consulta, una } from "@/lib/erp/base";
-import { enMoneda, tcParaVista } from "@/lib/moneda";
+import { enMoneda } from "@/lib/moneda";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import FotosProducto from "@/app/componentes/FotosProducto";
@@ -40,7 +40,7 @@ type Reclamo = {
   pedido_id: number | null; pedido_externo: string | null; cliente_id: number | null; cliente: string | null; orden_externa: string | null;
   comprador_externo: string | null; tipo: TipoReclamo; motivo: string | null; estado: EstadoReclamo; etapa: string | null; estado_externo: string | null;
   fecha: Date; vence_ts: Date | null; espera_respuesta: boolean; acciones_disponibles: AccionMl[]; resolucion: string | null;
-  monto: number | null; reembolso_ars: number | null; devolucion_id: string | null; devolucion_estado: string | null;
+  monto: number | null; reembolso_ars: number | null; tc_dia: number | null; devolucion_id: string | null; devolucion_estado: string | null;
   devolucion_envio_estado: string | null; devolucion_tracking: string | null; recepcion_id: number | null; recepcion_estado: string | null;
   notas: string | null; datos_externos: { resoluciones_esperadas?: ResolucionEsperadaMl[] | null } | null; actualizado_ts: Date;
 };
@@ -55,14 +55,12 @@ const ESTADO_ESPERADA: Record<string, string> = { pending: "pendiente", accepted
 export default async function FichaReclamo({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SP> }) {
   const s = await entrarErp("reclamos_ver");
   const sp = await searchParams;
-  // Los montos de los reclamos están en pesos: en dólares, al tipo de cambio de hoy.
-  const tc = await tcParaVista(s.org.id, s.moneda);
   const rid = Number((await params).id);
   if (!Number.isInteger(rid) || rid <= 0) notFound();
   const r = await una<Reclamo>(`
     select r.id::int, r.origen, r.canal_id::int, ca.nombre canal, r.id_externo, r.pedido_id::int, pe.id_externo pedido_externo,
            r.cliente_id::int, cl.nombre cliente, r.orden_externa, r.comprador_externo, r.tipo, r.motivo, r.estado, r.etapa, r.estado_externo,
-           r.fecha, r.vence_ts, r.espera_respuesta, r.acciones_disponibles, r.resolucion, r.monto::float, r.reembolso_ars::float,
+           r.fecha, r.vence_ts, r.espera_respuesta, r.acciones_disponibles, r.resolucion, r.monto::float, r.reembolso_ars::float, r.tc_dia::float,
            r.devolucion_id, r.devolucion_estado, r.devolucion_envio_estado, r.devolucion_tracking, r.recepcion_id::int, rc.estado recepcion_estado,
            r.notas, r.datos_externos - 'ml' datos_externos, r.actualizado_ts
       from reclamo r
@@ -73,6 +71,8 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
      where r.id = $1 and r.organizacion_id = $2`, [rid, s.org.id]);
   if (!r) notFound();
   const esMl = r.origen === "mercadolibre";
+  // Los montos de los reclamos están en pesos: en dólares, al dólar del día del reclamo (tc_dia).
+  const tc = s.moneda === "USD" ? r.tc_dia : null;
   const editando = !esMl && editandoFicha(sp);
   const VER = `/ventas/reclamos/${rid}`;
 

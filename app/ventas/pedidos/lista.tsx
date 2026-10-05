@@ -3,14 +3,14 @@
 
 import Link from "next/link";
 import { Estado, url } from "@/app/componentes/erp";
-import { enMoneda, enVista } from "@/lib/moneda";
+import { enMoneda, enVista, formatear } from "@/lib/moneda";
 import { ESTADOS_PEDIDO, ESTADOS_PAGO, esEstadoPedido, esEstadoPago, sqlPedidoPendiente, sqlEstadoPago } from "@/lib/pedidos";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { TONO_ESTADO, TONO_PAGO, etiqueta } from "@/app/ventas/formato";
 import type { EstadoPedido, EstadoPago } from "@/lib/pedidos";
 import { MarcaCarritoEspera } from "@/app/componentes/CarritoEspera";
 import { sqlFacturaMlDelPedido, ESTADO_FACTURA_ML } from "@/lib/mercadolibre/facturas";
-import { sqlCargosMl } from "@/lib/mercadolibre/facturacion";
+import { sqlCargosMl, sqlCargosMlUsd } from "@/lib/mercadolibre/facturacion";
 
 /** ✓ subida · ⏳ pendiente o preparada · ⚠ con error · ○ falta subirla. */
 const ICONO_FACTURA_ML: Record<string, string> = { subida: "✓", ok: "✓", pendiente: "⏳", enviando: "⏳", preparado: "⏳", error: "⚠", descartado: "○", falta: "○" };
@@ -38,6 +38,7 @@ export function filtrosEnlace(sp: SP) {
 }
 
 const CARGOS_ML = sqlCargosMl("p");
+const CARGOS_ML_USD = sqlCargosMlUsd("p");
 const UNIDADES = "coalesce((select sum(l.cantidad) from pedido_linea l where l.pedido_id = p.id), 0)";
 const AL_PEDIDO = "hover:underline";
 
@@ -74,14 +75,14 @@ const CAMPOS: Campo[] = [
     celda: (f, c) => enVista({ ars: f.total, usd: f.total_usd }, c.moneda),
   },
   { clave: "total_usd", titulo: "Total US$", sql: "p.total_usd::float", orden: "p.total_usd", formato: "usd" },
-  { clave: "envio_ars", titulo: "Costo de envío", sql: "p.costo_envio_ars::float", orden: "p.costo_envio_ars", formato: "pesos" },
-  { clave: "comision", titulo: "Comisión del canal", sql: "p.comision_ars::float", orden: "p.comision_ars", formato: "pesos" },
+  { clave: "envio_ars", titulo: "Costo de envío", sql: "p.costo_envio_ars::float", sqlUsd: "(p.costo_envio_ars / nullif(p.tc_dia, 0))::float", orden: "p.costo_envio_ars", formato: "pesos" },
+  { clave: "comision", titulo: "Comisión del canal", sql: "p.comision_ars::float", sqlUsd: "(p.comision_ars / nullif(p.tc_dia, 0))::float", orden: "p.comision_ars", formato: "pesos" },
   // De la facturación de ML (lib/mercadolibre/facturacion.ts): comisión, envío, cargo fijo… sin los impuestos.
-  { clave: "cargos_ml", titulo: "Cargos ML", sql: `${CARGOS_ML}::float`, orden: CARGOS_ML, formato: "pesos" },
+  { clave: "cargos_ml", titulo: "Cargos ML", sql: `${CARGOS_ML}::float`, sqlUsd: `${CARGOS_ML_USD}::float`, orden: CARGOS_ML, formato: "pesos" },
   {
-    clave: "neto_ml", titulo: "Neto ML", sql: `(p.total_ars - ${CARGOS_ML})::float`, orden: `(p.total_ars - ${CARGOS_ML})`, formato: "pesos",
+    clave: "neto_ml", titulo: "Neto ML", sql: `(p.total_ars - ${CARGOS_ML})::float`, sqlUsd: `(p.total_usd - ${CARGOS_ML_USD})::float`, orden: `(p.total_ars - ${CARGOS_ML})`, formato: "pesos",
     celda: (f, c) => f.neto_ml == null ? <span className="text-[#5C6B76]" title="Todavía no hay cargos de la facturación de ML para esta venta">—</span>
-      : <Link href={`/ventas/pedidos/${f.id}`} className={AL_PEDIDO}>{enMoneda(Number(f.neto_ml), c.moneda, c.tc ?? null)}</Link>,
+      : <Link href={`/ventas/pedidos/${f.id}`} className={AL_PEDIDO}>{c.moneda === "USD" && f.neto_ml__usd != null ? formatear(Number(f.neto_ml__usd), "USD") : enMoneda(Number(f.neto_ml), c.moneda, c.tc ?? null)}</Link>,
   },
   {
     clave: "unidades", titulo: "Unidades", sql: `${UNIDADES}::int`, orden: UNIDADES, formato: "entero",

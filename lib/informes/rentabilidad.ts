@@ -16,7 +16,8 @@
 // Entran las ventas que no están "nuevo" (sin pagar), canceladas ni devueltas.
 
 import { consulta } from "@/lib/erp/base";
-import { sqlCargosMl } from "@/lib/mercadolibre/facturacion";
+import { sqlCargosMl, sqlCargosMlUsd } from "@/lib/mercadolibre/facturacion";
+import type { Moneda } from "@/lib/moneda";
 
 export const BASES_COSTO = { promedio: "Costo promedio", ultimo: "Último costo", fob: "Costo FOB" } as const;
 export type BaseCosto = keyof typeof BASES_COSTO;
@@ -43,22 +44,31 @@ export type FilaRentabilidad = {
   venta: number; cargos: number; cargos_ml: boolean; costo: number | null; sin_costo: number; margen: number | null; margen_pct: number | null;
 };
 
-function costoUnitario(base: BaseCosto) {
+function costoUnitario(base: BaseCosto, moneda: Moneda) {
   const tc = "tc_del_dia(p.organizacion_id, (p.fecha at time zone 'America/Argentina/Buenos_Aires')::date)";
+  // En dólares, todo al dólar del día de la venta: el costo en dólares tal cual, el que está en pesos dividido por ese dólar.
+  if (moneda === "USD") {
+    if (base === "fob") return `(case when v.costo_moneda = 'ARS' then v.costo_fob / nullif(${tc}, 0) else v.costo_fob end)`;
+    const col = base === "ultimo" ? "ultimo" : "promedio";
+    return `coalesce(v.costo_${col}_usd, v.costo_${col}_ars / nullif(${tc}, 0))`;
+  }
   if (base === "fob") return `(case when v.costo_moneda = 'ARS' then v.costo_fob else v.costo_fob * ${tc} end)`;
   const col = base === "ultimo" ? "ultimo" : "promedio";
   return `coalesce(v.costo_${col}_usd * ${tc}, v.costo_${col}_ars)`;
 }
 
-export async function rentabilidad(org: string, f: FiltroRentabilidad): Promise<FilaRentabilidad[]> {
-  const cargos = sqlCargosMl("p");
+export async function rentabilidad(org: string, f: FiltroRentabilidad, moneda: Moneda = "ARS"): Promise<FilaRentabilidad[]> {
+  const usd = moneda === "USD";
+  const cargos = usd ? sqlCargosMlUsd("p") : sqlCargosMl("p");
+  const precio = usd ? "l.precio_unit_usd" : "l.precio_unit_ars";
+  const comision = usd ? "(p.comision_ars / nullif(p.tc_dia, 0))" : "p.comision_ars";
   const base = `
     with l as (
       select p.id pedido_id, p.fecha, p.id_externo, ca.nombre canal, l.variacion_id, v.producto_id, coalesce(v.sku, l.sku) sku, l.titulo, l.cantidad,
-             l.precio_unit_ars * l.cantidad venta_l,
-             sum(l.precio_unit_ars * l.cantidad) over (partition by p.id) venta_p,
-             ${cargos} cargos_ml, p.comision_ars,
-             l.cantidad * ${costoUnitario(f.costo)} costo_l
+             ${precio} * l.cantidad venta_l,
+             sum(${precio} * l.cantidad) over (partition by p.id) venta_p,
+             ${cargos} cargos_ml, ${comision} comision_ars,
+             l.cantidad * ${costoUnitario(f.costo, moneda)} costo_l
         from pedido p join canal ca on ca.id = p.canal_id
         join pedido_linea l on l.pedido_id = p.id
         left join variacion v on v.id = l.variacion_id

@@ -26,7 +26,7 @@ type SP = { ok?: string; error?: string };
 type Cbte = {
   id: number; pedido_id: number | null; cliente_id: number | null; ambiente: string; tipo_cbte: number; punto_venta: number; numero: string | null;
   fecha: Date; doc_tipo: number; doc_nro: string; receptor_nombre: string | null; receptor_condicion_iva: number | null; receptor_domicilio: string | null;
-  importe_total: number; importe_neto: number; importe_iva: number; iva_detalle: { pct: number; base: number; importe: number }[];
+  importe_total: number; importe_neto: number; importe_iva: number; tc_dia: number | null; iva_detalle: { pct: number; base: number; importe: number }[];
   asociado_id: number | null; estado: EstadoCbte; cae: string | null; cae_vto: Date | null; observaciones: string | null; intentos: number;
   pedido_a_arca: { xml?: string } | null; respuesta_arca: { xml?: string } | null; creado_ts: Date; autorizado_ts: Date | null;
 };
@@ -46,7 +46,7 @@ export default async function DetalleComprobante({ params, searchParams }: { par
   if (!Number.isInteger(cid) || cid <= 0) notFound();
   const c = await una<Cbte>(`
     select id::int, pedido_id::int, cliente_id::int, ambiente, tipo_cbte, punto_venta, numero::text, fecha, doc_tipo, doc_nro, receptor_nombre,
-           receptor_condicion_iva, receptor_domicilio, importe_total::float importe_total, importe_neto::float importe_neto,
+           receptor_condicion_iva, receptor_domicilio, tc_dia::float tc_dia, importe_total::float importe_total, importe_neto::float importe_neto,
            importe_iva::float importe_iva, iva_detalle, comprobante_asociado_id::int asociado_id, estado, cae, cae_vto, observaciones, intentos,
            pedido_a_arca, respuesta_arca, creado_ts, autorizado_ts
       from comprobante where id = $1 and organizacion_id = $2`, [cid, s.org.id]);
@@ -67,6 +67,8 @@ export default async function DetalleComprobante({ params, searchParams }: { par
   const ncViva = notas.some((n) => n.estado !== "rechazado");
   const volver = `/administracion/facturacion/${cid}`;
   const discrimina = c.iva_detalle.length > 0;
+  // La factura es en pesos; en dólares se ve al dólar del día en que se hizo (tc_dia, grabado con el comprobante).
+  const plata = (n: number) => (s.moneda === "USD" && c.tc_dia ? formatear(n / c.tc_dia, "USD") : formatear(n, "ARS"));
   const Dato = ({ t, children }: { t: string; children: React.ReactNode }) => (
     <div><span className={ETIQUETA}>{t}</span><div className="text-xs">{children}</div></div>
   );
@@ -101,7 +103,7 @@ export default async function DetalleComprobante({ params, searchParams }: { par
       <div className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4`}>
         <Dato t="Estado"><Estado texto={est.texto} tono={est.tono} />{c.intentos > 1 && <span className="text-[#5C6B76]"> · {c.intentos} intentos</span>}</Dato>
         <Dato t="CAE"><span className="font-mono">{c.cae ?? "—"}</span>{c.cae_vto && <div className="text-[#5C6B76]">vence {fecha(c.cae_vto)}</div>}</Dato>
-        <Dato t="Total"><span className="font-bold tabular-nums">{formatear(c.importe_total, "ARS")}</span></Dato>
+        <Dato t="Total"><span className="font-bold tabular-nums">{plata(c.importe_total)}</span></Dato>
         <Dato t="Pedido">{c.pedido_id ? <Link href={`/ventas/pedidos/${c.pedido_id}`} className="text-[#16577F] hover:underline">{c.pedido_id}</Link> : "—"}</Dato>
         <Dato t="Receptor">
           {c.cliente_id ? <Link href={`/ventas/clientes/${c.cliente_id}`} className="font-semibold text-[#16577F] hover:underline">{c.receptor_nombre ?? "—"}</Link> : (c.receptor_nombre ?? "—")}
@@ -138,9 +140,9 @@ export default async function DetalleComprobante({ params, searchParams }: { par
               <tr key={l.id} className={TR}>
                 <td className={TD}>{l.descripcion}</td>
                 <td className={TDN}>{l.cantidad.toLocaleString("es-AR")}</td>
-                <td className={TDN}>{formatear(l.precio_unit, "ARS")}</td>
-                {discrimina && <><td className={TDN}>{pct(l.iva_pct)}</td><td className={TDN}>{formatear(l.neto, "ARS")}</td><td className={TDN}>{formatear(l.iva, "ARS")}</td></>}
-                <td className={TDN}>{formatear(l.total, "ARS")}</td>
+                <td className={TDN}>{plata(l.precio_unit)}</td>
+                {discrimina && <><td className={TDN}>{pct(l.iva_pct)}</td><td className={TDN}>{plata(l.neto)}</td><td className={TDN}>{plata(l.iva)}</td></>}
+                <td className={TDN}>{plata(l.total)}</td>
               </tr>
             ))}
           </tbody>
@@ -158,8 +160,8 @@ export default async function DetalleComprobante({ params, searchParams }: { par
                 {c.iva_detalle.map((a, i) => (
                   <tr key={i} className={TR}>
                     <td className={TD}>{pct(a.pct)}</td>
-                    <td className={TDN}>{formatear(a.base, "ARS")}</td>
-                    <td className={TDN}>{formatear(a.importe, "ARS")}</td>
+                    <td className={TDN}>{plata(a.base)}</td>
+                    <td className={TDN}>{plata(a.importe)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -167,9 +169,9 @@ export default async function DetalleComprobante({ params, searchParams }: { par
           </div>
         </div>
         <div className={`${CAJA} text-xs grid grid-cols-[1fr_auto] gap-y-1 self-start`}>
-          <span className="text-[#5C6B76]">Neto</span><span className="text-right tabular-nums">{formatear(c.importe_neto, "ARS")}</span>
-          <span className="text-[#5C6B76]">IVA</span><span className="text-right tabular-nums">{formatear(c.importe_iva, "ARS")}</span>
-          <span className="font-bold">Total</span><span className="text-right tabular-nums font-bold">{formatear(c.importe_total, "ARS")}</span>
+          <span className="text-[#5C6B76]">Neto</span><span className="text-right tabular-nums">{plata(c.importe_neto)}</span>
+          <span className="text-[#5C6B76]">IVA</span><span className="text-right tabular-nums">{plata(c.importe_iva)}</span>
+          <span className="font-bold">Total</span><span className="text-right tabular-nums font-bold">{plata(c.importe_total)}</span>
         </div>
       </div>
 

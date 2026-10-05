@@ -212,7 +212,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
         </div>
       </div>
 
-      {cargos.length > 0 && <CargosMl cargos={cargos} total={c.total_ars} moneda={v} tc={tcPedido} />}
+      {cargos.length > 0 && <CargosMl cargos={cargos} total={v === "USD" ? c.total_usd : c.total_ars} moneda={v} />}
 
       <Operacion org={s.org.id} pid={pid} sp={sp} />
 
@@ -290,12 +290,14 @@ export default async function DetallePedido({ params, searchParams }: { params: 
 /** Lo que Mercado Libre cobró por esta venta (de su facturación, leída por
  *  API): por tipo, y lo que queda neto. Los impuestos (percepciones y
  *  retenciones) se muestran aparte: no son costo, se toman a cuenta. */
-function CargosMl({ cargos, total, moneda, tc }: { cargos: Awaited<ReturnType<typeof cargosDelPedido>>; total: number; moneda: Moneda; tc: number | null }) {
+function CargosMl({ cargos, total, moneda }: { cargos: Awaited<ReturnType<typeof cargosDelPedido>>; total: number; moneda: Moneda }) {
+  // En dólares, cada cargo al dólar de su día (ml_cargo.tc_dia); `total` ya viene en la moneda que se mira.
+  const valor = (x: { monto: number; tc_dia: number | null }) => (moneda === "USD" && x.tc_dia ? x.monto / x.tc_dia : x.monto);
   const porTipo = new Map<string, number>();
-  for (const x of cargos) if (TIPOS_COSTO.includes(x.tipo)) porTipo.set(x.tipo, (porTipo.get(x.tipo) ?? 0) + x.monto);
+  for (const x of cargos) if (TIPOS_COSTO.includes(x.tipo)) porTipo.set(x.tipo, (porTipo.get(x.tipo) ?? 0) + valor(x));
   const costo = [...porTipo.values()].reduce((a, b) => a + b, 0);
   const impuestos = cargos.filter((x) => x.tipo === "impuesto");
-  const pesos = (n: number) => enMoneda(n, moneda, tc);
+  const pesos = (n: number) => formatear(n, moneda);
   return (
     <div className="mb-4">
       <h2 className="text-sm font-bold mb-2">Cargos de Mercado Libre</h2>
@@ -312,7 +314,7 @@ function CargosMl({ cargos, total, moneda, tc }: { cargos: Awaited<ReturnType<ty
         {impuestos.length > 0 && (
           <p className="mt-2 text-[11px] text-[#5C6B76]">
             Además, retenciones y percepciones (no son costo: se toman a cuenta de impuestos):{" "}
-            {impuestos.map((x, i) => <span key={i}>{i ? " · " : ""}{IMPUESTOS[x.impuesto ?? "otro"]} {pesos(x.monto)}</span>)}
+            {impuestos.map((x, i) => <span key={i}>{i ? " · " : ""}{IMPUESTOS[x.impuesto ?? "otro"]} {pesos(valor(x))}</span>)}
           </p>
         )}
         <p className="mt-1 text-[10px] text-[#5C6B76]">Tal como los factura Mercado Libre (con IVA). Salen de su facturación mensual (Administración → Facturación de Mercado Libre).</p>
