@@ -4,7 +4,7 @@ menu: Ventas › Preguntas y mensajes
 ruta: /ventas/preguntas
 rutas: /ventas/preguntas
 permiso: preguntas_ver
-resumen: Las preguntas de los compradores en las publicaciones de Mercado Libre y los mensajes de posventa, de todas las cuentas en una bandeja; la IA propone la respuesta y vos la revisás y la mandás.
+resumen: Las preguntas de los compradores en las publicaciones de Mercado Libre y los mensajes de posventa, de todas las cuentas en una bandeja; la IA propone la respuesta y vos la revisás y la mandás, o con el interruptor prendido la manda sola.
 ---
 
 ## Para qué sirve
@@ -14,7 +14,7 @@ Junta en una sola bandeja, de **todas las cuentas de Mercado Libre**:
 - **Preguntas**: lo que preguntan los interesados en una publicación antes de comprar.
 - **Mensajes**: la conversación de posventa con el comprador de una venta.
 
-Para cada una, la **IA propone sola una respuesta** apenas entra (con los datos de la publicación, la ficha del producto y el stock; en los mensajes, con los datos del pedido y del envío); vos la revisás, la cambiás si hace falta y la mandás. **Nada se contesta solo.** Si todavía no apareció (tarda unos segundos o, como mucho, hasta el próximo barrido de unos minutos), o querés otra, está el botón **"Proponer con IA"**.
+Para cada una, la **IA propone sola una respuesta** apenas entra (con los datos de la publicación, la ficha del producto y el stock; en los mensajes, con los datos del pedido y del envío); vos la revisás, la cambiás si hace falta y la mandás. **Con el interruptor "La IA contesta sola…" apagado, nada se contesta solo** (ver "Respuesta automática" más abajo). Si todavía no apareció (tarda unos segundos o, como mucho, hasta el próximo barrido de unos minutos), o querés otra, está el botón **"Proponer con IA"**.
 
 ## Cómo se llega
 
@@ -24,7 +24,7 @@ Para cada una, la **IA propone sola una respuesta** apenas entra (con los datos 
 
 ## Qué hay en la pantalla
 
-**Arriba a la derecha** (en la pestaña Preguntas): **"Traer preguntas ahora"**.
+**Arriba a la derecha**: el interruptor **"La IA contesta sola las preguntas"** (en la pestaña Preguntas) o **"La IA contesta sola los mensajes"** (en la pestaña Mensajes), y en la pestaña Preguntas el botón **"Traer preguntas ahora"**.
 
 **Pestañas principales**:
 - **"Preguntas (N)"**: N = preguntas sin responder.
@@ -126,3 +126,18 @@ El número de la venta (o del carrito) en Mercado Libre. Si dice "sin pedido en 
 - [Vincular con Mercado Libre](/catalogo/publicaciones/ml)
 - [Canales](/config/canales)
 - [Panel](/panel)
+
+## Respuesta automática
+
+Hay **dos interruptores, uno para preguntas y otro para mensajes**, arriba a la derecha de cada pestaña. Valen para **todas las cuentas** de Mercado Libre a la vez. Vienen apagados.
+
+- **Apagado**: la IA sólo propone la respuesta; la mandás vos.
+- **Prendido**: cuando entra una pregunta o un mensaje, la IA arma la respuesta y **la manda sola** a Mercado Libre, sin que nadie la apruebe. En el historial queda **"Respondió la IA sola"**.
+
+La IA **no** manda sola (deja la respuesta escrita para que la revises vos) cuando:
+- **El comprador pide hablar con una persona** (con un humano, con alguien de la tienda, o dice que no quiere que le conteste un robot). En la pregunta aparece la marca **"Pide hablar con una persona"**. En un mensaje, la conversación queda marcada **"Pidió hablar con una persona: la IA no contesta más sola"** y desde ahí **la IA no vuelve a contestar sola esa conversación**, aunque el comprador escriba de nuevo; la contestás vos.
+- **Le falta un dato** para contestar bien (algo que no está en la publicación, la ficha, el stock o el pedido). Aparece **"La IA no la mandó sola: le falta un dato"**.
+- En mensajes, además: sólo contesta si el último mensaje es del comprador y es de los últimos 3 días.
+
+Al **prender** un interruptor, lo que está pendiente (preguntas sin responder, o conversaciones con mensajes sin leer) se vuelve a pasar por la IA, y en unos minutos (en el próximo barrido) se contesta lo que la IA puede contestar. Abrir una conversación en Laucen la da por leída: si la abrís, esa ya no la contesta la IA sola hasta que el comprador escriba de nuevo.
+
