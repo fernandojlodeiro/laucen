@@ -10,26 +10,22 @@
 
 import { consulta } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl, type RespuestaMl } from "@/lib/mercadolibre/api";
+import { filaDePromoItem, leerCampanas, registrarPromosDeItem, type FilaPromoItem, type PromoMl } from "@/lib/precios-ml/promos";
 
 export type Leer = (cuenta: CuentaMl, ruta: string) => Promise<RespuestaMl>;
 export const RITMO_LECTURA_MS = 150;
 
 type Ptw = { price_to_win?: number | null; current_price?: number | null; status?: string | null; winner?: { price?: number | null } | null };
-type Promo = {
-  id?: string; type?: string; status?: string; name?: string; price?: number | null; deal_price?: number | null;
-  min_discounted_price?: number | null; max_discounted_price?: number | null; finish_date?: string | null;
-};
-
 const dormir = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
 
-export type ResultadoLectura = { canales: number; ptw: number; promos: number; errores: number; alertas: number };
+export type ResultadoLectura = { canales: number; ptw: number; promos: number; campanas: number; eventos_promo: number; errores: number; alertas: number };
 
 /** Lee lo que toque de cada canal hasta `hastaMs`. */
 export async function leerPreciosMl(hastaMs: number, opts: { leer?: Leer; org?: string; ritmoMs?: number; tanda?: number } = {}): Promise<ResultadoLectura> {
   const leer: Leer = opts.leer ?? ((c, r) => ml(c, "GET", r));
   const ritmo = opts.ritmoMs ?? RITMO_LECTURA_MS;
   const tanda = opts.tanda ?? 200;
-  const res: ResultadoLectura = { canales: 0, ptw: 0, promos: 0, errores: 0, alertas: 0 };
+  const res: ResultadoLectura = { canales: 0, ptw: 0, promos: 0, campanas: 0, eventos_promo: 0, errores: 0, alertas: 0 };
   const canales = await consulta<{ id: number; organizacion_id: string }>(`
     select c.id::int, c.organizacion_id from canal c join meli_cuenta m on m.canal_id = c.id and m.estado = 'activa'
      where c.tipo = 'mercadolibre' and c.estado = 'activo' and coalesce((c.config ->> 'leer_precio_ganar')::boolean, true)
@@ -71,14 +67,24 @@ export async function leerPreciosMl(hastaMs: number, opts: { leer?: Leer; org?: 
           ok ? d.winner?.price ?? null : null, ok ? null : `ML contestó ${r.status}`]);
       if (ok) res.ptw++; else res.errores++;
     }
-    // 2. Campañas: las activas, cada 12 h.
-    const promos = await consulta<{ item: string }>(`
-      select distinct p.id_externo item from publicacion p
+    // 2a. Las campañas de la cuenta (y las publicaciones que están adentro de las que están en curso), cada hora:
+    // la historia de promociones (lib/precios-ml/promos.ts). Un error acá no frena lo demás.
+    try {
+      const ult = await consulta<{ t: Date | null }>("select max(leido_ts) t from ml_promo_campana where canal_id = $1", [canal]);
+      if (!ult[0]?.t || Date.now() - ult[0].t.getTime() > 3_600_000) {
+        const c = await leerCampanas(org, canal, cuenta.meliUserId, pedir, hastaMs - 2_000);
+        res.campanas += c.campanas; res.eventos_promo += c.eventos;
+        if (c.errores.length) { res.errores++; console.error("[promos] campañas", canal, c.errores.join(" | ")); }
+      }
+    } catch (e) { res.errores++; console.error("[promos] campañas", canal, (e as Error).message); }
+    // 2b. Campañas a las que puede entrar cada publicación: cada 12 h.
+    const promos = await consulta<{ item: string; primera: boolean }>(`
+      select distinct p.id_externo item, (l.item_id is null) primera from publicacion p
         left join ml_promo_leida l on l.canal_id = p.canal_id and l.item_id = p.id_externo
        where p.canal_id = $1 and p.id_externo is not null and p.estado = 'activa'
          and (l.leido_ts is null or l.leido_ts < now() - interval '12 hours')
        limit $2`, [canal, tanda]);
-    for (const { item } of promos) {
+    for (const { item, primera } of promos) {
       if (Date.now() > hastaMs - 2_000) return;
       const r = await pedir(`/seller-promotions/items/${item}?app_version=v2`);
       if (r.status !== 200 || !Array.isArray(r.datos)) {
@@ -87,19 +93,9 @@ export async function leerPreciosMl(hastaMs: number, opts: { leer?: Leer; org?: 
         res.errores++;
         continue;
       }
-      const lista = (r.datos as Promo[]).filter((x) => x?.id && x?.type).map((x) => ({
-        promocion_id: String(x.id), tipo: x.type, estado: x.status ?? null, nombre: x.name ?? null,
-        precio: x.status === "started" || x.status === "pending" ? x.price ?? x.deal_price ?? null : null,
-        min_precio: x.min_discounted_price ?? null, max_precio: x.max_discounted_price ?? null, hasta: x.finish_date ?? null,
-      }));
-      await consulta("delete from ml_promo_item where canal_id = $1 and item_id = $2", [canal, item]);
-      if (lista.length) {
-        await consulta(`
-          insert into ml_promo_item (organizacion_id, canal_id, item_id, promocion_id, tipo, estado, nombre, precio, min_precio, max_precio, hasta)
-          select $1, $2, $3, x.promocion_id, x.tipo, x.estado, x.nombre, x.precio, x.min_precio, x.max_precio, x.hasta
-            from jsonb_to_recordset($4::jsonb) x(promocion_id text, tipo text, estado text, nombre text, precio numeric, min_precio numeric, max_precio numeric, hasta timestamptz)
-          on conflict do nothing`, [org, canal, item, JSON.stringify(lista)]);
-      }
+      const filas = (r.datos as PromoMl[]).filter((x) => x?.id && x?.type)
+        .map((x) => ({ fila: filaDePromoItem(x), datos: x })).filter((y): y is { fila: FilaPromoItem; datos: PromoMl } => !!y.fila);
+      res.eventos_promo += await registrarPromosDeItem(org, canal, item, filas, primera);
       await consulta(`insert into ml_promo_leida (canal_id, item_id, organizacion_id) values ($1, $2, $3)
         on conflict (canal_id, item_id) do update set leido_ts = now(), error = null`, [canal, item, org]);
       res.promos++;

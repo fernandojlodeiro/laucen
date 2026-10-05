@@ -81,6 +81,8 @@ En un cambio con origen **Laucen**, tocá "Laucen": abre la [Cola de Mercado Lib
 
 ## Criterios y reglas
 
+- **Posible causa (campañas de ML)**: en los cambios de **precio**, esta columna muestra las campañas que, según [Promociones de ML](/informes/promociones), empezaron, terminaron o cambiaron el precio de esa publicación en las 1,5 horas anteriores. Es una pista, no una prueba; vacía quiere decir que no coincide con ninguna campaña anotada.
+
 ### Cómo se anota la historia
 
 - Laucen tiene una copia de cada publicación (y variación) de Mercado Libre, que se mantiene al día con los avisos que manda Mercado Libre en el momento, con un barrido cada 30 minutos y con una barrida nocturna. **Cada vez que esa copia cambia de estado, de precio o de stock**, se anota el valor de antes y el de después, con fecha y hora.

@@ -142,3 +142,63 @@ create table if not exists ml_plan_destacado (
 );
 alter table ml_plan_destacado enable row level security;
 select erp_politica_org('ml_plan_destacado');
+
+-- ── Promociones: campañas e historia (Fer, 5/10) ──────────────────────────
+-- "Quiero controlar todas las promociones y que todo quede registrado en Laucen."
+-- Antes sólo había una foto de las campañas de cada publicación, que se borraba y se
+-- volvía a cargar. Ahora: la campaña misma (ml_promo_campana), más datos de cada
+-- publicación en ella (fechas, % que pone ML y % que pone el vendedor, precio de lista)
+-- y, sobre todo, la HISTORIA de cada cambio (ml_promo_historia): una campaña que
+-- empieza o termina, una publicación que entra, sale o cambia de precio.
+alter table ml_promo_item add column if not exists desde timestamptz;
+alter table ml_promo_item add column if not exists limite timestamptz;
+alter table ml_promo_item add column if not exists precio_original numeric(16, 2);
+alter table ml_promo_item add column if not exists pct_meli numeric(6, 2);
+alter table ml_promo_item add column if not exists pct_vendedor numeric(6, 2);
+alter table ml_promo_item add column if not exists oferta_id text;
+alter table ml_promo_item add column if not exists visto_ts timestamptz not null default now();
+alter table ml_promo_item add column if not exists datos jsonb not null default '{}';
+
+create table if not exists ml_promo_campana (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  promocion_id     text not null,
+  tipo             text not null,           -- DEAL, LIGHTNING, SMART, SELLER_CAMPAIGN, MARKETPLACE_CAMPAIGN…
+  subtipo          text,
+  nombre           text,
+  estado           text,                    -- pending, started, finished, programmed…
+  desde            timestamptz,
+  hasta            timestamptz,
+  limite           timestamptz,             -- hasta cuándo se puede entrar (deadline_date)
+  pct_meli         numeric(6, 2),
+  pct_vendedor     numeric(6, 2),
+  datos            jsonb not null default '{}',   -- lo que contestó ML, entero
+  visto_ts         timestamptz not null default now(),   -- la primera vez que Laucen la vio
+  leido_ts         timestamptz not null default now(),
+  primary key (canal_id, promocion_id)
+);
+alter table ml_promo_campana enable row level security;
+select erp_politica_org('ml_promo_campana');
+
+create table if not exists ml_promo_historia (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  promocion_id     text not null,
+  -- null = cambio de la campaña; con valor = de esa publicación en la campaña.
+  item_id          text,
+  tipo             text,
+  nombre           text,
+  que              text not null check (que in ('campana_alta', 'campana_estado', 'campana_fechas', 'item_alta', 'item_estado', 'item_precio', 'item_baja')),
+  antes            text,
+  despues          text,
+  precio_antes     numeric(16, 2),
+  precio_despues   numeric(16, 2),
+  fecha            timestamptz not null default now(),
+  datos            jsonb not null default '{}'
+);
+create index if not exists ml_promo_historia_item on ml_promo_historia (canal_id, item_id, fecha desc);
+create index if not exists ml_promo_historia_fecha on ml_promo_historia (organizacion_id, fecha desc);
+create index if not exists ml_promo_historia_promo on ml_promo_historia (canal_id, promocion_id, fecha desc);
+alter table ml_promo_historia enable row level security;
+select erp_politica_org('ml_promo_historia');
