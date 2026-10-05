@@ -5,7 +5,7 @@
 
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
-import { formatear, hoyAR } from "@/lib/moneda";
+import { formatear, hoyAR, type Moneda } from "@/lib/moneda";
 import {
   asegurarPlan, planDeCuentas, cuentasImputables, libroDiario, libroMayor, sumasYSaldos, estadoDeResultados,
 } from "@/lib/administracion/contabilidad";
@@ -49,7 +49,6 @@ const TIPO: Record<string, string> = { activo: "Activo", pasivo: "Pasivo", patri
 
 type SP = { rs?: string; p?: string; desde?: string; hasta?: string; cuenta?: string; editar?: string; q?: string; contiene?: string; ok?: string; error?: string };
 
-const $ = (x: number) => formatear(x, "ARS");
 const esFecha = (x?: string) => !!x && /^\d{4}-\d{2}-\d{2}$/.test(x);
 const fechaAR = (f: string) => f.split("-").reverse().join("/");
 const sangria = (codigo: string) => (codigo.split(".").length - 1) * 16;
@@ -83,11 +82,11 @@ export default async function Contabilidad({ searchParams }: { searchParams: Pro
         cuenta: x.p === "diario" ? cuentas.asientos : x.p === "manual" ? cuentas.manuales : x.p === "plan" ? cuentas.plan : null,
       }))} />
       <Avisos sp={sp} />
-      {p === "diario" && <Diario org={org} desde={desde} hasta={hasta} aqui={aqui} rs={rs} />}
+      {p === "diario" && <Diario org={org} desde={desde} hasta={hasta} aqui={aqui} rs={rs} moneda={s.moneda} />}
       {p === "manual" && <Manual org={org} hoy={hoy} rs={rs} />}
-      {p === "mayor" && <Mayor org={org} desde={desde} hasta={hasta} cuenta={Number(sp.cuenta) || 0} rs={rs} />}
-      {p === "sumas" && <Sumas org={org} desde={desde} hasta={hasta} rs={rs} />}
-      {p === "resultados" && <Resultados org={org} desde={desde} hasta={hasta} rs={rs} />}
+      {p === "mayor" && <Mayor org={org} desde={desde} hasta={hasta} cuenta={Number(sp.cuenta) || 0} rs={rs} moneda={s.moneda} />}
+      {p === "sumas" && <Sumas org={org} desde={desde} hasta={hasta} rs={rs} moneda={s.moneda} />}
+      {p === "resultados" && <Resultados org={org} desde={desde} hasta={hasta} rs={rs} moneda={s.moneda} />}
       {p === "plan" && <Plan org={org} editar={Number(sp.editar) || 0} q={sp.q?.trim() ?? ""} comienza={sp.contiene !== "1"} />}
     </Pantalla>
   );
@@ -107,8 +106,10 @@ function Periodo({ desde, hasta, rs, children }: { p: P; desde: string; hasta: s
 
 // ── 1. Libro diario ────────────────────────────────────────
 
-async function Diario({ org, desde, hasta, aqui, rs }: { org: string; desde: string; hasta: string; aqui: string; rs: EleccionRs }) {
-  const asientos = await libroDiario(org, desde, hasta, rs.id);
+async function Diario({ org, desde, hasta, aqui, rs, moneda }: { org: string; desde: string; hasta: string; aqui: string; rs: EleccionRs; moneda: Moneda }) {
+  // Los libros se llevan en pesos; en dólares, cada línea al dólar del día de su asiento.
+  const $ = (x: number) => formatear(x, moneda);
+  const asientos = await libroDiario(org, desde, hasta, rs.id, moneda);
   const vigentes = asientos.filter((a) => a.estado === "vigente");
   const totDebe = vigentes.reduce((t, a) => t + a.lineas.reduce((u, l) => u + l.debe, 0), 0);
   const totHaber = vigentes.reduce((t, a) => t + a.lineas.reduce((u, l) => u + l.haber, 0), 0);
@@ -193,10 +194,12 @@ async function Manual({ org, hoy, rs }: { org: string; hoy: string; rs: Eleccion
 
 // ── 3. Mayor ───────────────────────────────────────────────
 
-async function Mayor({ org, desde, hasta, cuenta, rs }: { org: string; desde: string; hasta: string; cuenta: number; rs: EleccionRs }) {
+async function Mayor({ org, desde, hasta, cuenta, rs, moneda }: { org: string; desde: string; hasta: string; cuenta: number; rs: EleccionRs; moneda: Moneda }) {
+  // Los libros se llevan en pesos; en dólares, cada línea al dólar del día de su asiento.
+  const $ = (x: number) => formatear(x, moneda);
   const cuentas = (await planDeCuentas(org)).filter((c) => c.imputable);
   const elegida = cuentas.find((c) => c.id === cuenta);
-  const mayor = elegida ? await libroMayor(org, elegida.id, desde, hasta, rs.id) : null;
+  const mayor = elegida ? await libroMayor(org, elegida.id, desde, hasta, rs.id, moneda) : null;
   const totDebe = mayor?.movimientos.reduce((t, m) => t + m.debe, 0) ?? 0;
   const totHaber = mayor?.movimientos.reduce((t, m) => t + m.haber, 0) ?? 0;
 
@@ -250,8 +253,10 @@ async function Mayor({ org, desde, hasta, cuenta, rs }: { org: string; desde: st
 
 // ── 4. Sumas y saldos ──────────────────────────────────────
 
-async function Sumas({ org, desde, hasta, rs }: { org: string; desde: string; hasta: string; rs: EleccionRs }) {
-  const filas = await sumasYSaldos(org, desde, hasta, rs.id);
+async function Sumas({ org, desde, hasta, rs, moneda }: { org: string; desde: string; hasta: string; rs: EleccionRs; moneda: Moneda }) {
+  // Los libros se llevan en pesos; en dólares, cada línea al dólar del día de su asiento.
+  const $ = (x: number) => formatear(x, moneda);
+  const filas = await sumasYSaldos(org, desde, hasta, rs.id, moneda);
   const t = filas.reduce((a, f) => ({
     debe: a.debe + f.debe, haber: a.haber + f.haber,
     deudor: a.deudor + (f.saldo > 0 ? f.saldo : 0), acreedor: a.acreedor + (f.saldo < 0 ? -f.saldo : 0),
@@ -302,8 +307,10 @@ async function Sumas({ org, desde, hasta, rs }: { org: string; desde: string; ha
 
 // ── 5. Resultados ──────────────────────────────────────────
 
-async function Resultados({ org, desde, hasta, rs }: { org: string; desde: string; hasta: string; rs: EleccionRs }) {
-  const r = await estadoDeResultados(org, desde, hasta, rs.id);
+async function Resultados({ org, desde, hasta, rs, moneda }: { org: string; desde: string; hasta: string; rs: EleccionRs; moneda: Moneda }) {
+  // Los libros se llevan en pesos; en dólares, cada línea al dólar del día de su asiento.
+  const $ = (x: number) => formatear(x, moneda);
+  const r = await estadoDeResultados(org, desde, hasta, rs.id, moneda);
   const bloque = (titulo: string, filas: typeof r.ingresos, total: number) => (
     <>
       <tr className="bg-[#FAFBFC]"><td colSpan={3} className={`${TD} font-bold`}>{titulo}</td></tr>

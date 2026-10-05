@@ -22,7 +22,7 @@ import { entrarErp, Pantalla, Avisos, Estado, url, CAJA, CAJA_TABLA, TABLA, THEA
 import { Desplegable } from "@/app/informes/Filtros";
 import { FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import { consulta } from "@/lib/erp/base";
-import { formatear } from "@/lib/moneda";
+import { formatear, type Moneda } from "@/lib/moneda";
 import { paginarEnMemoria } from "@/lib/lista";
 import { CUITS_MERCADO_LIBRE } from "@/lib/administracion/arca-mc";
 import { periodosLeidos, resumenPeriodo, impuestosPeriodo, controlPeriodo, cuentasMl, canalElegido, mostrarCuenta, TIPOS_CARGO, IMPUESTOS, type TipoCargo, type Impuesto } from "@/lib/mercadolibre/facturacion";
@@ -32,7 +32,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const BASE = "/administracion/facturacion-ml";
-const pesos = (n: number | null | undefined) => (n == null ? "—" : formatear(n, "ARS"));
+const plata = (moneda: Moneda) => (n: number | null | undefined) => (n == null ? "—" : formatear(n, moneda));
 const fechaAr = (f: string | null) => (f ? f.slice(0, 10).split("-").reverse().join("/") : "—");
 const nombrePeriodo = (clave: string, hasta: string | null) => {
   const d = new Date(`${(hasta ?? clave).slice(0, 10)}T12:00:00Z`);
@@ -44,13 +44,15 @@ type SP = { periodo?: string; ver?: string; canal?: string; p?: string; ok?: str
 
 export default async function FacturacionMl({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("facturacion_ml_ver");
+  // En dólares, cada cargo y documento al dólar de su día (tc_dia grabado con cada uno).
+  const moneda = s.moneda, usd = moneda === "USD", pesos = plata(moneda);
   const sp = await searchParams;
   const org = s.org.id;
   const cuentas = await cuentasMl(org);
   const canal = canalElegido(sp.canal, cuentas);
   const conCuenta = mostrarCuenta(canal, cuentas);
   const [periodos, lecturas] = await Promise.all([
-    periodosLeidos(org, canal),
+    periodosLeidos(org, canal, usd),
     consulta<{ nickname: string | null; ultimo_ts: Date; resultado: { avisos?: string[]; incompleto?: boolean } }>(`
       select coalesce(ca.nombre, mc.nickname) nickname, l.ultimo_ts, l.resultado from ml_facturacion_lectura l join meli_cuenta mc on mc.id = l.cuenta_id
         left join canal ca on ca.id = mc.canal_id
@@ -60,7 +62,7 @@ export default async function FacturacionMl({ searchParams }: { searchParams: Pr
   const ver = sp.ver === "impuestos" || sp.ver === "control" ? sp.ver : "resumen";
   const aqui = url(BASE, { periodo: sp.periodo, canal, ver: sp.ver });
   const [resumen, impuestos, control] = periodo
-    ? await Promise.all([resumenPeriodo(org, periodo.clave, canal), impuestosPeriodo(org, periodo.clave, canal), controlPeriodo(org, periodo.clave, CUITS_MERCADO_LIBRE, canal)])
+    ? await Promise.all([resumenPeriodo(org, periodo.clave, canal, usd), impuestosPeriodo(org, periodo.clave, canal, usd), controlPeriodo(org, periodo.clave, CUITS_MERCADO_LIBRE, canal, usd)])
     : [[], [], { docs: [], sobran: [] }];
   const nombreCuenta = cuentas.find((c) => c.id === canal)?.nombre;
   const faltan = control.docs.filter((d) => !d.factura_id).length;
@@ -109,16 +111,17 @@ export default async function FacturacionMl({ searchParams }: { searchParams: Pr
             { clave: "impuestos", texto: "Retenciones y percepciones", activa: ver === "impuestos", href: url(BASE, { periodo: sp.periodo, canal, ver: "impuestos" }), cuenta: impuestos.length },
             { clave: "control", texto: "Control con ARCA", activa: ver === "control", href: url(BASE, { periodo: sp.periodo, canal, ver: "control" }), cuenta: control.docs.length },
           ]} />
-          {ver === "resumen" && <Resumen filas={resumen} conCuenta={conCuenta} />}
-          {ver === "impuestos" && <Impuestos filas={impuestos} sp={sp} conCuenta={conCuenta} />}
-          {ver === "control" && <Control docs={control.docs} sobran={control.sobran} faltan={faltan} conCuenta={conCuenta} unaCuenta={canal != null} />}
+          {ver === "resumen" && <Resumen filas={resumen} conCuenta={conCuenta} moneda={moneda} />}
+          {ver === "impuestos" && <Impuestos filas={impuestos} sp={sp} conCuenta={conCuenta} moneda={moneda} />}
+          {ver === "control" && <Control docs={control.docs} sobran={control.sobran} faltan={faltan} conCuenta={conCuenta} unaCuenta={canal != null} moneda={moneda} />}
         </>
       )}
     </Pantalla>
   );
 }
 
-function Resumen({ filas, conCuenta }: { filas: Awaited<ReturnType<typeof resumenPeriodo>>; conCuenta: boolean }) {
+function Resumen({ filas, conCuenta, moneda }: { filas: Awaited<ReturnType<typeof resumenPeriodo>>; conCuenta: boolean; moneda: Moneda }) {
+  const pesos = plata(moneda);
   const tipos = Object.keys(TIPOS_CARGO) as TipoCargo[];
   // Sumado entre cuentas (con una cuenta elegida, ya vienen sólo las suyas).
   const de = (g: string, t: string) => {
@@ -148,13 +151,14 @@ function Resumen({ filas, conCuenta }: { filas: Awaited<ReturnType<typeof resume
         </tbody>
       </table>
       <p className="px-2 py-1.5 text-[10px] text-[#5C6B76]">Importes tal como los factura Mercado Libre (con IVA). Las bonificaciones restan. Los cargos unidos a una venta se ven en la ficha del pedido y en el informe de rentabilidad.</p>
-      {conCuenta && <PorCuenta filas={filas} />}
+      {conCuenta && <PorCuenta filas={filas} moneda={moneda} />}
     </div>
   );
 }
 
 /** Con "Todas las cuentas" y más de una: el total de cada cuenta. */
-function PorCuenta({ filas }: { filas: Awaited<ReturnType<typeof resumenPeriodo>> }) {
+function PorCuenta({ filas, moneda }: { filas: Awaited<ReturnType<typeof resumenPeriodo>>; moneda: Moneda }) {
+  const pesos = plata(moneda);
   const cuentas = [...new Set(filas.map((f) => f.cuenta ?? "—"))];
   const de = (c: string, g?: string) => filas.filter((f) => (f.cuenta ?? "—") === c && (!g || f.grupo === g));
   const monto = (c: string, g?: string) => de(c, g).reduce((a, f) => a + f.monto, 0);
@@ -175,7 +179,8 @@ function PorCuenta({ filas }: { filas: Awaited<ReturnType<typeof resumenPeriodo>
   );
 }
 
-function Impuestos({ filas, sp, conCuenta }: { filas: Awaited<ReturnType<typeof impuestosPeriodo>>; sp: SP; conCuenta: boolean }) {
+function Impuestos({ filas, sp, conCuenta, moneda }: { filas: Awaited<ReturnType<typeof impuestosPeriodo>>; sp: SP; conCuenta: boolean; moneda: Moneda }) {
+  const pesos = plata(moneda);
   if (!filas.length) return <p className={`${CAJA} text-xs text-[#5C6B76]`}>El período no tiene retenciones ni percepciones.</p>;
   const claves = Object.keys(IMPUESTOS) as Impuesto[];
   const suma = (i: Impuesto, g?: string) => filas.filter((f) => (f.impuesto ?? "otro") === i && (!g || f.grupo === g)).reduce((a, f) => a + f.monto, 0);
@@ -216,7 +221,8 @@ function Impuestos({ filas, sp, conCuenta }: { filas: Awaited<ReturnType<typeof 
   );
 }
 
-function Control({ docs, sobran, faltan, conCuenta, unaCuenta }: Awaited<ReturnType<typeof controlPeriodo>> & { faltan: number; conCuenta: boolean; unaCuenta: boolean }) {
+function Control({ docs, sobran, faltan, conCuenta, unaCuenta, moneda }: Awaited<ReturnType<typeof controlPeriodo>> & { faltan: number; conCuenta: boolean; unaCuenta: boolean; moneda: Moneda }) {
+  const pesos = plata(moneda);
   return (
     <>
       <p className={`text-xs rounded-lg px-3 py-2 mb-3 ${faltan ? "bg-[#FFF8E5] text-[#8a6100]" : "bg-[#EEF7F1] text-[#1F6E4A]"}`}>

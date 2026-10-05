@@ -313,26 +313,27 @@ export const mostrarCuenta = (canal: number | null, cuentas: unknown[]) => canal
 const SQL_CUENTA = (t: string) => `coalesce((select ca.nombre from canal ca where ca.id = ${t}.canal_id), (select mc.nickname from meli_cuenta mc where mc.id = ${t}.cuenta_id))`;
 
 /** Los períodos leídos (para elegir), del más nuevo al más viejo. */
-export function periodosLeidos(org: string, canal: number | null = null) {
+/** `usd`: los montos en dólares (cada cargo y documento al dólar de su día; el total del período, al de su último día). */
+export function periodosLeidos(org: string, canal: number | null = null, usd = false) {
   return consulta<{ clave: string; desde: string | null; hasta: string | null; grupos: string[]; monto: number | null }>(`
-    select clave, to_char(min(desde), 'YYYY-MM-DD') desde, to_char(max(hasta), 'YYYY-MM-DD') hasta, array_agg(distinct grupo) grupos, sum(monto)::float monto
+    select clave, to_char(min(desde), 'YYYY-MM-DD') desde, to_char(max(hasta), 'YYYY-MM-DD') hasta, array_agg(distinct grupo) grupos, sum(${usd ? "monto / nullif(tc_del_dia(organizacion_id, hasta), 0)" : "monto"})::float monto
       from ml_factura_periodo where organizacion_id = $1 and ($2::bigint is null or canal_id = $2) group by clave order by clave desc`, [org, canal]);
 }
 
 /** Totales de cargos del período por cuenta, grupo y tipo. */
-export function resumenPeriodo(org: string, clave: string, canal: number | null = null) {
+export function resumenPeriodo(org: string, clave: string, canal: number | null = null, usd = false) {
   return consulta<{ canal_id: number | null; cuenta: string | null; grupo: Grupo; tipo: TipoCargo; n: number; monto: number; vinculados: number }>(`
-    select c.canal_id::int, ${SQL_CUENTA("c")} cuenta, c.grupo, c.tipo, count(*)::int n, sum(c.monto)::float monto, count(c.pedido_id)::int vinculados
+    select c.canal_id::int, ${SQL_CUENTA("c")} cuenta, c.grupo, c.tipo, count(*)::int n, sum(${usd ? "c.monto / nullif(c.tc_dia, 0)" : "c.monto"})::float monto, count(c.pedido_id)::int vinculados
       from ml_cargo c
      where c.organizacion_id = $1 and c.clave = $2 and ($3::bigint is null or c.canal_id = $3)
      group by c.canal_id, c.cuenta_id, c.grupo, c.tipo order by cuenta, c.grupo, c.tipo`, [org, clave, canal]);
 }
 
 /** Retenciones y percepciones del período (cargos de tipo impuesto). */
-export function impuestosPeriodo(org: string, clave: string, canal: number | null = null) {
+export function impuestosPeriodo(org: string, clave: string, canal: number | null = null, usd = false) {
   return consulta<{ id: number; canal_id: number | null; cuenta: string | null; grupo: Grupo; impuesto: Impuesto | null; concepto: string | null; fecha: Date | null; monto: number;
     order_id: string | null; pedido_id: number | null; documento: string | null }>(`
-    select c.id::int, c.canal_id::int, ${SQL_CUENTA("c")} cuenta, c.grupo, c.impuesto, c.concepto, c.fecha, c.monto::float, c.order_id, c.pedido_id::int,
+    select c.id::int, c.canal_id::int, ${SQL_CUENTA("c")} cuenta, c.grupo, c.impuesto, c.concepto, c.fecha, (${usd ? "c.monto / nullif(c.tc_dia, 0)" : "c.monto"})::float monto, c.order_id, c.pedido_id::int,
            c.datos ->> 'documento_legal' documento from ml_cargo c
      where c.organizacion_id = $1 and c.clave = $2 and c.tipo = 'impuesto' and ($3::bigint is null or c.canal_id = $3)
      order by c.impuesto, c.fecha, c.id`, [org, clave, canal]);
@@ -344,14 +345,14 @@ export function impuestosPeriodo(org: string, clave: string, canal: number | nul
  *  "En ARCA y no en la API" descarta igual las facturas que coinciden con un
  *  documento de cualquier cuenta (las facturas de compra no dicen de qué
  *  cuenta son: todas vienen con el mismo CUIT de Mercado Libre). */
-export async function controlPeriodo(org: string, clave: string, cuits: string[], canal: number | null = null) {
+export async function controlPeriodo(org: string, clave: string, cuits: string[], canal: number | null = null, usd = false) {
   const todos = await consulta<{ id: number; canal_id: number | null; cuenta: string | null; grupo: Grupo; tipo: string; numero: string | null; punto_venta: number | null;
     numero_cbte: string | null; fecha: string | null; monto: number; factura_id: number | null; factura_total: number | null }>(`
-    select d.id::int, d.canal_id::int, ${SQL_CUENTA("d")} cuenta, d.grupo, d.tipo, d.numero, d.punto_venta, d.numero_cbte::text, to_char(d.fecha, 'YYYY-MM-DD') fecha, d.monto::float,
+    select d.id::int, d.canal_id::int, ${SQL_CUENTA("d")} cuenta, d.grupo, d.tipo, d.numero, d.punto_venta, d.numero_cbte::text, to_char(d.fecha, 'YYYY-MM-DD') fecha, (${usd ? "d.monto / nullif(d.tc_dia, 0)" : "d.monto"})::float monto,
            f.id::int factura_id, f.total::float factura_total
       from ml_factura_documento d
       left join lateral (
-        select f.id, f.total from factura_compra f join proveedor pr on pr.id = f.proveedor_id
+        select f.id, ${usd ? "f.total_usd" : "f.total"} total from factura_compra f join proveedor pr on pr.id = f.proveedor_id
          where f.organizacion_id = d.organizacion_id and f.estado <> 'anulada' and regexp_replace(pr.cuit, '\\D', '', 'g') = any($3::text[])
            and f.es_nota_credito = (d.tipo = 'CREDIT_NOTE') and d.numero_cbte is not null and f.numero = d.numero_cbte
            and (d.punto_venta is null or f.punto_venta = d.punto_venta)
@@ -363,7 +364,7 @@ export async function controlPeriodo(org: string, clave: string, cuits: string[]
      where organizacion_id = $1 and clave = $2 and ($3::bigint is null or canal_id = $3)`, [org, clave, canal]);
   const usadas = todos.map((d) => d.factura_id).filter((x): x is number => x != null);
   const sobran = rango?.desde ? await consulta<{ id: number; letra: string; es_nota_credito: boolean; punto_venta: number | null; numero: string | null; fecha: string; total: number }>(`
-    select f.id::int, f.letra, f.es_nota_credito, f.punto_venta, f.numero::text, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.total::float
+    select f.id::int, f.letra, f.es_nota_credito, f.punto_venta, f.numero::text, to_char(f.fecha, 'YYYY-MM-DD') fecha, (${usd ? "f.total_usd" : "f.total"})::float total
       from factura_compra f join proveedor pr on pr.id = f.proveedor_id
      where f.organizacion_id = $1 and f.estado <> 'anulada' and regexp_replace(pr.cuit, '\\D', '', 'g') = any($2::text[])
        and f.fecha between $3::date and $4::date and not (f.id = any($5::bigint[]))
