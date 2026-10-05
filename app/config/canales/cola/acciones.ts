@@ -13,6 +13,12 @@ const volver = (fd: FormData) => {
   const v = texto(fd, "volver");
   return v && v.startsWith(BASE) ? v : BASE;
 };
+/** Después de mandar o descartar un lote, la pantalla pasa al próximo que espera el clic. */
+const alSiguienteLote = (fd: FormData) => {
+  const u = new URL(volver(fd), "http://x");
+  u.searchParams.delete("lote");
+  return u.pathname + u.search;
+};
 
 export async function accionReintentarErrores(fd: FormData) {
   const s = await entrarErp("canales_ver");
@@ -35,16 +41,16 @@ export async function accionDescartar(fd: FormData) {
 
 export async function accionMandarLote(fd: FormData) {
   const s = await entrarErp("canales_ver");
-  await intentar(volver(fd), async () => {
+  await intentar(alSiguienteLote(fd), async () => {
     const n = await mandarLote(s.org.id, id(fd, "lote"), s.usuario.id);
     revalidatePath(BASE);
-    return `Mandado: ${n} cambio${n === 1 ? "" : "s"} en la cola. Salen solos en los próximos minutos; el resultado de cada uno queda en «Enviados» o «Con error».`;
+    return `Mandado: ${n} cambio${n === 1 ? "" : "s"} en la cola. Salen solos en los próximos minutos; el resultado de cada uno queda en «Enviados» o «Con error». Abajo queda elegido el próximo lote que espera tu clic, si hay.`;
   });
 }
 
 export async function accionDescartarLote(fd: FormData) {
   const s = await entrarErp("canales_ver");
-  await intentar(volver(fd), async () => {
+  await intentar(alSiguienteLote(fd), async () => {
     await descartarLote(s.org.id, id(fd, "lote"));
     revalidatePath(BASE);
     return "Lote descartado: no se mandó nada.";
