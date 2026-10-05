@@ -21,7 +21,8 @@ Es la **pantalla de inicio** de Laucen: muestra únicamente lo que está **pendi
 Una tabla centrada con **una columna por cuenta de Mercado Libre**, una **Web** (la tienda web), una **Otros** (el local, los pedidos manuales y cualquier otro canal) y un **Total**. Las filas:
 
 - **Etiquetas para imprimir**: envíos por despachar con la etiqueta sin imprimir (y cuántos son para hoy o están vencidos). Enlace: [Envíos](/ventas/envios).
-- **Pedidos para preparar**: los pendientes de [Pedidos](/ventas/pedidos), sin los carritos que todavía esperan.
+- **Pedidos para preparar**: los pendientes de [Pedidos](/ventas/pedidos) (nuevos o pagados), sin los carritos que todavía esperan. El número chico es el total sin despachar (los para preparar, los en preparación y los preparados); debajo, cuántos están "en preparación".
+- **Pedidos para despachar**: los **preparados** que todavía no salieron (tocándolo, la lista de pedidos en estado Preparado). Debajo, el plazo más cercano para entregarlos, por ejemplo "antes de hoy 16:30" (es el "despachar antes de" de la etiqueta de Mercado Libre; cada cuenta tiene el suyo), y cuántos ya vencieron.
 - **Preguntas para responder** y **Mensajes para responder** (sólo de Mercado Libre). Enlace: [Preguntas y mensajes](/ventas/preguntas).
 - **Reclamos para atender** y **Devoluciones**. Enlace: [Reclamos y devoluciones](/ventas/reclamos).
 
