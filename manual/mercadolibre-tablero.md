@@ -40,8 +40,8 @@ Estas filas **no están en el Relevamiento completo**: viven en [Dashboard › P
 - **Pedidos para preparar**: los pendientes de [Pedidos](/ventas/pedidos) (nuevos o pagados), sin los carritos que todavía esperan. El número chico es el total sin despachar (los para preparar, los en preparación y los preparados); debajo, cuántos están "en preparación".
 - **Pedidos para despachar**: los **preparados** que todavía no salieron (tocándolo, la lista de pedidos en estado Preparado). Debajo, el plazo más cercano para entregarlos, por ejemplo "antes de hoy 16:30" (es el "despachar antes de" de la etiqueta de Mercado Libre; cada cuenta tiene el suyo), y cuántos ya vencieron. 
 - **Preguntas para responder** (y cuánto hace de la más vieja) y **Mensajes para responder** (conversaciones con mensajes sin leer). Enlace: [Preguntas y mensajes](/ventas/preguntas).
-- **Reclamos para atender**: los abiertos, con cuántos esperan tu respuesta, cuántos vencen en 24 horas y cuántos están en mediación. Enlace: [Reclamos y devoluciones](/ventas/reclamos).
-- **Devoluciones**: las abiertas y cuántas vienen en camino.
+- **Reclamos para atender**: los abiertos, con cuántos esperan tu respuesta, cuántos vencen en 24 horas y cuántos están en mediación. El chico, "de N en 60 días", es cuántos hubo en los últimos 60 días (la ventana de la reputación de Mercado Libre). Enlace: [Reclamos y devoluciones](/ventas/reclamos).
+- **Devoluciones**: las abiertas y cuántas vienen en camino; el chico, cuántas hubo en los últimos 60 días.
 
 ### Movimiento y salud de la cuenta
 **Pedidos en camino** (envíos despachados que todavía no se entregaron), **Ventas de hoy** y **de los últimos 7 días** (cantidad e importe, en pesos o en dólares según el interruptor de abajo a la izquierda: cada venta guarda su total en dólares al tipo de cambio del día en que se hizo, y se suman esos), **Cola de Mercado Libre con error** (cambios que Laucen quiso mandar a ML y no pudo; enlace a la [Cola](/config/canales/cola)) y el estado de la **Conexión** (si se desconectó, el enlace para volver a conectar).

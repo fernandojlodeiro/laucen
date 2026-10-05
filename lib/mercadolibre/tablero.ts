@@ -120,10 +120,11 @@ export async function metricasPorCanal(org: string, canales: number[], { soloMl 
              count(*) filter (where r.estado <> 'resuelto' and r.espera_respuesta)::int esperan,
              count(*) filter (where r.estado <> 'resuelto' and r.espera_respuesta and r.vence_ts < now() + interval '24 hours')::int urgentes,
              count(*) filter (where ${CONDICION_RECLAMOS.mediacion})::int mediacion,
-             count(*)::int total,
+             -- Los totales, de los últimos 60 días (la ventana de la reputación de ML).
+             count(*) filter (where r.fecha > now() - interval '60 days')::int total,
              count(*) filter (where r.tipo = 'devolucion' and r.estado <> 'resuelto')::int dev_abiertas,
              count(*) filter (where r.tipo = 'devolucion' and ${CONDICION_RECLAMOS.camino})::int dev_camino,
-             count(*) filter (where r.tipo = 'devolucion')::int dev_total
+             count(*) filter (where r.tipo = 'devolucion' and r.fecha > now() - interval '60 days')::int dev_total
         from reclamo r where r.organizacion_id = $1 and r.canal_id = any($2::bigint[]) ${soloMl ? "and r.origen = 'mercadolibre'" : ""} group by r.canal_id`),
     q<{ hoy: number; hoy_ars: string; hoy_usd: string; siete: number; siete_ars: string; siete_usd: string }>(`
       select p.canal_id::int canal,

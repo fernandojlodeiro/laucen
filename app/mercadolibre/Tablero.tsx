@@ -15,6 +15,7 @@ import { nivelDe, NIVELES_REPUTACION, LIDER, type Metrica, type Reputacion } fro
 
 
 const n = (x: number) => x.toLocaleString("es-AR");
+const en60 = (x: number) => `${n(x)} en 60 días`;
 const haceCuanto = (d: Date | string | null) => {
   if (!d) return "nunca";
   const min = Math.max(0, Math.round((Date.now() - new Date(d).getTime()) / 60_000));
@@ -243,13 +244,13 @@ export async function Tablero({ org, modo, moneda = "ARS" }: { org: string; modo
         { titulo: "Mensajes para responder", ayuda: "Conversaciones de posventa con mensajes sin leer",
           celda: soloMl((c, m) => <Celda valor={m.mensajes.sinLeer} de={m.mensajes.total} href={url("/ventas/preguntas", { ver: "mensajes", canal: c.canalId })} />),
           total: (t) => <Celda valor={t.mensajes.sinLeer} de={t.mensajes.total} href="/ventas/preguntas?ver=mensajes" /> },
-        { titulo: "Reclamos para atender", ayuda: "Abiertos; el chico es el total de reclamos. Debajo, los que esperan tu respuesta",
-          celda: (c, m) => <Celda valor={m.reclamos.abiertos} de={m.reclamos.total} href={enlace("/ventas/reclamos", c, { ver: "abiertos" })}
+        { titulo: "Reclamos para atender", ayuda: "Abiertos; el chico es cuántos hubo en los últimos 60 días (la ventana de la reputación de ML). Debajo, los que esperan tu respuesta",
+          celda: (c, m) => <Celda valor={m.reclamos.abiertos} de={en60(m.reclamos.total)} href={enlace("/ventas/reclamos", c, { ver: "abiertos" })}
             nota={m.reclamos.abiertos ? [`${n(m.reclamos.esperanRespuesta)} esperan tu respuesta`, m.reclamos.urgentes ? `${n(m.reclamos.urgentes)} vencen en 24 h` : null, m.reclamos.enMediacion ? `${n(m.reclamos.enMediacion)} en mediación` : null].filter(Boolean).join(" · ") : null} />,
-          total: (t) => <Celda valor={t.reclamos.abiertos} de={t.reclamos.total} href="/ventas/reclamos" nota={t.reclamos.abiertos ? `${n(t.reclamos.esperanRespuesta)} esperan tu respuesta` : null} /> },
-        { titulo: "Devoluciones", ayuda: "Abiertas; debajo, las que ya vienen en camino",
-          celda: (c, m) => <Celda valor={m.devoluciones.abiertas} de={m.devoluciones.total} href={enlace("/ventas/reclamos", c, { ver: "camino" })} nota={m.devoluciones.enCamino ? `${n(m.devoluciones.enCamino)} en camino` : null} />,
-          total: (t) => <Celda valor={t.devoluciones.abiertas} de={t.devoluciones.total} href="/ventas/reclamos?ver=camino" nota={t.devoluciones.enCamino ? `${n(t.devoluciones.enCamino)} en camino` : null} /> },
+          total: (t) => <Celda valor={t.reclamos.abiertos} de={en60(t.reclamos.total)} href="/ventas/reclamos" nota={t.reclamos.abiertos ? `${n(t.reclamos.esperanRespuesta)} esperan tu respuesta` : null} /> },
+        { titulo: "Devoluciones", ayuda: "Abiertas; el chico es cuántas hubo en los últimos 60 días. Debajo, las que ya vienen en camino",
+          celda: (c, m) => <Celda valor={m.devoluciones.abiertas} de={en60(m.devoluciones.total)} href={enlace("/ventas/reclamos", c, { ver: "camino" })} nota={m.devoluciones.enCamino ? `${n(m.devoluciones.enCamino)} en camino` : null} />,
+          total: (t) => <Celda valor={t.devoluciones.abiertas} de={en60(t.devoluciones.total)} href="/ventas/reclamos?ver=camino" nota={t.devoluciones.enCamino ? `${n(t.devoluciones.enCamino)} en camino` : null} /> },
       ],
     },
     {

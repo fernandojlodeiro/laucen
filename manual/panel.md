@@ -24,7 +24,7 @@ Una tabla centrada con **una columna por cuenta de Mercado Libre**, una **Web** 
 - **Pedidos para preparar**: los pendientes de [Pedidos](/ventas/pedidos) (nuevos o pagados), sin los carritos que todavía esperan. El número chico es el total sin despachar (los para preparar, los en preparación y los preparados); debajo, cuántos están "en preparación".
 - **Pedidos para despachar**: los **preparados** que todavía no salieron (tocándolo, la lista de pedidos en estado Preparado). Debajo, el plazo más cercano para entregarlos, por ejemplo "antes de hoy 16:30" (es el "despachar antes de" de la etiqueta de Mercado Libre; cada cuenta tiene el suyo), y cuántos ya vencieron.
 - **Preguntas para responder** y **Mensajes para responder** (sólo de Mercado Libre). Enlace: [Preguntas y mensajes](/ventas/preguntas).
-- **Reclamos para atender** y **Devoluciones**. Enlace: [Reclamos y devoluciones](/ventas/reclamos).
+- **Reclamos para atender** y **Devoluciones**: el número grande son los abiertos; el chico, "de N en 60 días", cuántos hubo en los últimos 60 días (la misma ventana con la que Mercado Libre mide la reputación). Enlace: [Reclamos y devoluciones](/ventas/reclamos).
 
 El número grande es lo que hay para atender (rojo si es mayor que cero, verde si es cero) y el chico, "de N", es el total de esa clase. Pasando el mouse por el ⓘ de cada fila se lee qué cuenta. Tocando el nombre de una cuenta se abre su canal.
 
