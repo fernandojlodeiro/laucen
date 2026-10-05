@@ -62,21 +62,25 @@ export async function accionPrepararCatalogo(_antes: ResultadoPreparar, fd: Form
   redirect(destino);
 }
 
-/** Publicación nueva desde los datos de Laucen: preparar el lote (queda esperando el clic). */
+/** Publicación nueva desde los datos de Laucen, en una o varias cuentas a la vez: preparar el
+ *  lote (queda esperando el clic). Cada cuenta elegida manda su título, su precio y sus fotos
+ *  ("titulo:<canal>", "precio:<canal>", "foto:<canal>"). */
 export async function accionPrepararNueva(_antes: ResultadoPreparar, fd: FormData): Promise<ResultadoPreparar> {
   const s = await entrarErp("publicaciones_ver");
   let destino: string;
   try {
+    const canales = [...new Set(fd.getAll("cuenta").map(Number).filter((n) => Number.isInteger(n) && n > 0))];
     const r = await prepararPublicacionNueva(s.org.id, {
-      productoId: id(fd, "producto"), categoria: texto(fd, "categoria") ?? "", canal: id(fd, "canal"), variacion: id(fd, "variacion"),
-      titulo: String(fd.get("titulo") ?? ""), precio: numero(fd, "precio"), cantidad: entero(fd, "cantidad"),
-      tipo: texto(fd, "tipo") ?? "", condicion: texto(fd, "condicion") ?? "", fotos: fd.getAll("foto").map(String),
+      productoId: id(fd, "producto"), categoria: texto(fd, "categoria") ?? "", variacion: id(fd, "variacion"),
+      cantidad: entero(fd, "cantidad"), tipo: texto(fd, "tipo") ?? "", condicion: texto(fd, "condicion") ?? "",
       atributos: conPrefijo(fd, "attr:"), garantiaTipo: texto(fd, "garantia_tipo") ?? "", garantiaTiempo: texto(fd, "garantia_tiempo") ?? "",
       descripcion: String(fd.get("descripcion") ?? ""),
+      cuentas: canales.map((c) => ({ canal: c, titulo: String(fd.get(`titulo:${c}`) ?? ""), precio: numero(fd, `precio:${c}`), fotos: fd.getAll(`foto:${c}`).map(String) })),
     }, s.usuario.id);
     revalidatePath("/config/canales/cola");
-    const avisos = r.avisos ? ` Mercado Libre dejó avisos (no frenan; los resuelve al crearla): ${r.avisos}` : "";
-    destino = `/config/canales/cola?ver=lotes&lote=${r.loteId}&ok=${encodeURIComponent(`Publicación nueva preparada. Todavía no salió nada: revisala y apretá "Mandar a Mercado Libre".${avisos}`)}`;
+    const rech = r.rechazadas.length ? ` No entraron: ${r.rechazadas.map((x) => `${x.cuenta} (${x.motivo})`).join("; ")}.` : "";
+    const avisos = r.avisos.length ? ` Mercado Libre dejó avisos (no frenan; los resuelve al crearlas): ${r.avisos.join("; ")}` : "";
+    destino = `/config/canales/cola?ver=lotes&lote=${r.loteId}&ok=${encodeURIComponent(`Preparadas ${r.preparadas.length} publicaciones nuevas (${r.preparadas.join(", ")}). Todavía no salió nada: revisalas y apretá "Mandar a Mercado Libre".${rech}${avisos}`)}`;
   } catch (e) {
     return { error: motivoErp(e) };
   }

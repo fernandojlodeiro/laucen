@@ -17,10 +17,10 @@ import { createHash } from "node:crypto";
 import { unstable_cache } from "next/cache";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, cuentasDe, type CuentaMl } from "@/lib/mercadolibre/api";
-import { encolarLoteConBoton, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
 import { comprobarAlta, NO_MODIFICABLE } from "@/lib/mercadolibre/copiar";
 import { pedirClaude, jsonDe } from "@/lib/claude";
-import { cuentasDestino, cuentaPropuesta, yaTiene, TIPOS_PUBLICACION, CONDICIONES, type CuentaDestino } from "@/lib/mercadolibre/publicar-similar";
+import { cuentasDestino, yaTiene, TIPOS_PUBLICACION, CONDICIONES, type CuentaDestino } from "@/lib/mercadolibre/publicar-similar";
 import { TIPOS_GARANTIA } from "@/lib/mercadolibre/catalogo-similar";
 
 // ── Lo que dice ML de la categoría ──────────────────────────
@@ -113,13 +113,13 @@ const MARCA_POR_DEFECTO_RE = /^(daitom|gen[eé]ric[ao])$/i;
 
 // ── Lo que propone la IA ────────────────────────────────────
 
-type Propuesta = { titulo: string | null; descripcion: string | null; atributos: Record<string, string> };
+type Propuesta = { titulos: string[]; descripcion: string | null; atributos: Record<string, string> };
 
 const SISTEMA = `Armás publicaciones de Mercado Libre Argentina para una tienda de electrónica, componentes e insumos.
 Te paso el producto (título interno, descripción y datos que ya tiene) y los atributos de la categoría que FALTAN completar, con sus opciones o unidades.
-Devolvé SOLO un JSON: {"titulo": "...", "descripcion": "..." o null, "atributos": {"ID": "valor", ...}}.
+Devolvé SOLO un JSON: {"titulos": ["...", ...], "descripcion": "..." o null, "atributos": {"ID": "valor", ...}}.
 Reglas:
-- titulo: como lo buscaría un comprador: qué es + marca (si tiene) + modelo + 1 a 3 datos clave (tensión, capacidad, medida, cantidad si es pack). Hasta 60 letras. Sin palabras de promoción ("oferta", "envío gratis", "original", "el mejor"), sin signos raros, sin todo en mayúsculas.
+- titulos: los que te pida (uno por cuenta de Mercado Libre donde se publica), TODOS DISTINTOS entre sí pero del mismo producto: cambiá el orden de las palabras, usá sinónimos o el dato clave que va primero. Cada uno, como lo buscaría un comprador: qué es + marca (si tiene) + modelo + 1 a 3 datos clave (tensión, capacidad, medida, cantidad si es pack). Hasta 60 letras. Sin palabras de promoción ("oferta", "envío gratis", "original", "el mejor"), sin signos raros, sin todo en mayúsculas.
 - atributos: sólo los que se puedan deducir con seguridad del título, la descripción o los datos. Si hay opciones, usá exactamente una de ellas. Si lleva unidad, poné número y unidad ("5 V", "10 mm").
 - NUNCA inventes una marca: si el producto no tiene marca, BRAND = "Daitom" (la marca propia de la tienda). NUNCA inventes un código de barras (GTIN): dejalo afuera.
 - Lo que no se sabe, no lo pongas.
@@ -128,16 +128,18 @@ Reglas:
 async function proponerSinCache(entrada: string): Promise<Propuesta> {
   const r = await pedirClaude({ system: SISTEMA, contenido: entrada, maxTokens: 3000, modelo: "medio", effort: "low" });
   if ("error" in r) throw new Error(r.error);
-  const j = jsonDe<{ titulo?: string; descripcion?: string | null; atributos?: Record<string, unknown> }>(r.texto);
+  const j = jsonDe<{ titulos?: unknown; titulo?: string; descripcion?: string | null; atributos?: Record<string, unknown> }>(r.texto);
   if (!j) throw new Error("la IA no devolvió un JSON");
   const atributos: Record<string, string> = {};
   for (const [k, v] of Object.entries(j.atributos ?? {})) if (typeof v === "string" || typeof v === "number") atributos[k] = String(v).trim();
-  return { titulo: j.titulo?.trim() || null, descripcion: j.descripcion?.trim() || null, atributos };
+  const titulos = (Array.isArray(j.titulos) ? j.titulos : [j.titulo]).filter((t): t is string => typeof t === "string" && !!t.trim()).map((t) => t.trim());
+  return { titulos, descripcion: j.descripcion?.trim() || null, atributos };
 }
 
 /** Lo que propone la IA (o null si no se pudo). Se guarda un día por producto + categoría. */
-async function proponer(p: ProductoLaucen, faltan: AtributoCategoria[], faltaDescripcion: boolean, ya: Record<string, string>): Promise<Propuesta | null> {
+async function proponer(p: ProductoLaucen, faltan: AtributoCategoria[], faltaDescripcion: boolean, ya: Record<string, string>, cuantos: number): Promise<Propuesta | null> {
   const entrada = [
+    `TÍTULOS QUE NECESITO: ${Math.max(1, cuantos)}`,
     `PRODUCTO: ${p.titulo}`,
     p.marca ? `Marca: ${p.marca}` : "Marca: (no tiene)",
     p.modelo ? `Modelo: ${p.modelo}` : null,
@@ -160,14 +162,30 @@ async function proponer(p: ProductoLaucen, faltan: AtributoCategoria[], faltaDes
 
 // ── El borrador ─────────────────────────────────────────────
 
+/** Lo de cada cuenta: si se publica ahí, su título y el orden de sus fotos (lo demás es igual en todas). */
+export type CuentaNueva = CuentaDestino & { elegida: boolean; titulo: string; fotos: string[] };
 export type BorradorNueva = {
   categoria: Categoria | null; sugeridas: { id: string; nombre: string }[];
-  titulo: string; tituloIa: boolean; descripcion: string; descripcionIa: boolean; conIa: boolean;
+  tituloIa: boolean; descripcion: string; descripcionIa: boolean; conIa: boolean;
   atributos: AtributoForm[]; fotos: string[];
   variaciones: { id: number; sku: string; titulo: string | null }[]; variacion: number;
-  cuentas: CuentaDestino[]; cuenta: number | null; precio: number | null; cantidad: number;
-  condicion: string; garantia: string;
+  cuentas: CuentaNueva[]; cantidad: number; condicion: string; garantia: string;
 };
+
+/** Un título distinto para la cuenta n (sin IA): la primera palabra queda y las demás se corren n lugares. */
+export function variarTitulo(t: string, n: number): string {
+  const p = t.trim().split(/\s+/);
+  if (p.length < 4) return t.trim();
+  const [primera, ...resto] = p;
+  return [primera, ...rotar(resto, n)].join(" ");
+}
+
+/** Las fotos empezando por la n-ésima: cada cuenta arranca con otra foto principal. */
+export function rotar<T>(lista: T[], n: number): T[] {
+  if (lista.length < 2) return [...lista];
+  const k = ((n % lista.length) + lista.length) % lista.length;
+  return [...lista.slice(k), ...lista.slice(0, k)];
+}
 
 /** Arma el borrador. `cat` = la categoría elegida a mano (si no, la del producto o su familia). */
 export async function armarBorradorNueva(org: string, productoId: number, cat: string | null): Promise<BorradorNueva> {
@@ -210,7 +228,8 @@ export async function armarBorradorNueva(org: string, productoId: number, cat: s
 
   const faltan = cargables.filter((a) => !valores[a.id] && a.id !== "GTIN");
   const faltaDescripcion = !p.descripcion?.trim();
-  const ia = categoria ? await proponer(p, faltan, faltaDescripcion, Object.fromEntries(Object.entries(valores).map(([k, v]) => [k, v.valor]))) : null;
+  const destinos = await cuentasDestino(org, variaciones);
+  const ia = categoria ? await proponer(p, faltan, faltaDescripcion, Object.fromEntries(Object.entries(valores).map(([k, v]) => [k, v.valor])), destinos.length) : null;
   for (const a of faltan) {
     const v = ia?.atributos[a.id];
     // Nunca una marca ni un código de barras de la IA (la marca, si falta, es la propia: abajo).
@@ -228,25 +247,34 @@ export async function armarBorradorNueva(org: string, productoId: number, cat: s
     // Primero los obligatorios, después los que tienen valor, después el resto.
     .sort((x, y) => Number(y.requerido) - Number(x.requerido) || Number(!!y.valor) - Number(!!x.valor));
 
-  const cuentas = await cuentasDestino(org, variaciones);
-  const cuenta = cuentaPropuesta(cuentas);
+  // Cada cuenta con su título (los de la IA en orden; si faltan, el primero con las palabras cambiadas
+  // de lugar) y sus fotos empezando por otra. Se proponen todas las que no tienen ya el producto.
+  const lasFotos = [...new Set(fotos.map((f) => f.url))];
+  const base = (ia?.titulos[0] ?? p.titulo).slice(0, 120);
+  const cuentas: CuentaNueva[] = destinos.map((c, i) => ({
+    ...c, elegida: !c.yaTiene,
+    titulo: (ia?.titulos[i] ?? (i === 0 ? base : variarTitulo(base, i))).slice(0, 120),
+    fotos: rotar(lasFotos, i),
+  }));
   const garantia = Object.keys(TIPOS_GARANTIA).find((g) => g && p.garantia && p.garantia.toLowerCase().includes(g.toLowerCase().replace("garantía ", ""))) ?? "";
   return {
     categoria, sugeridas: sugeridas.filter((s) => s.id !== categoria?.id),
-    titulo: (ia?.titulo ?? p.titulo).slice(0, 120), tituloIa: !!ia?.titulo,
+    tituloIa: !!ia?.titulos.length,
     descripcion: p.descripcion?.trim() || ia?.descripcion || "", descripcionIa: faltaDescripcion && !!ia?.descripcion,
-    conIa: !!ia, atributos, fotos: [...new Set(fotos.map((f) => f.url))],
-    variaciones, variacion: variaciones[0].id, cuentas, cuenta,
-    precio: cuentas.find((x) => x.canal === cuenta)?.precios[variaciones[0].id] ?? null, cantidad: Math.max(1, disp?.n ?? 0),
+    conIa: !!ia, atributos, fotos: lasFotos,
+    variaciones, variacion: variaciones[0].id, cuentas, cantidad: Math.max(1, disp?.n ?? 0),
     condicion: "new", garantia,
   };
 }
 
 // ── Preparar el lote ────────────────────────────────────────
 
+/** Lo de cada cuenta elegida en el formulario. */
+export type CuentaEntrada = { canal: number; titulo: string; precio: number | null; fotos: string[] };
 export type EntradaNueva = {
-  productoId: number; categoria: string; canal: number; variacion: number; titulo: string; precio: number | null; cantidad: number | null;
-  tipo: string; condicion: string; fotos: string[]; atributos: Record<string, string>; garantiaTipo: string; garantiaTiempo: string; descripcion: string;
+  productoId: number; categoria: string; variacion: number; cantidad: number | null;
+  tipo: string; condicion: string; atributos: Record<string, string>; garantiaTipo: string; garantiaTiempo: string; descripcion: string;
+  cuentas: CuentaEntrada[];
 };
 
 /** Los atributos para ML: uno de una lista con su código si coincide con una opción; si no, como texto. */
@@ -281,11 +309,14 @@ export function cuerpoNueva(e: { titulo: string; categoria: string; precio: numb
 
 const LARGO_TITULO = 60;
 
-export async function prepararPublicacionNueva(org: string, e: EntradaNueva, usuarioId: string): Promise<{ loteId: number; avisos: string | null }> {
-  const titulo = e.titulo.replace(/\s+/g, " ").trim();
-  if (!titulo) throw new ErrorErp("Falta el título.");
-  if (titulo.length > LARGO_TITULO) throw new ErrorErp(`El título tiene ${titulo.length} letras; Mercado Libre acepta hasta ${LARGO_TITULO}.`);
-  if (!e.precio || e.precio <= 0) throw new ErrorErp("Falta el precio.");
+export type ResultadoNueva = { loteId: number; preparadas: string[]; rechazadas: { cuenta: string; motivo: string }[]; avisos: string[] };
+
+/** Prepara UN lote con una publicación por cuenta elegida: lo común (categoría, atributos,
+ *  cantidad, tipo, garantía, descripción) es igual en todas; cambian el título, el precio y el
+ *  orden de las fotos. Cada una se comprueba con su cuenta; la que ML rechaza no entra y se
+ *  avisa por qué. Si no entra ninguna, no se prepara nada. */
+export async function prepararPublicacionNueva(org: string, e: EntradaNueva, usuarioId: string): Promise<ResultadoNueva> {
+  if (!e.cuentas.length) throw new ErrorErp("Elegí al menos una cuenta donde publicar.");
   if (!e.cantidad || e.cantidad < 1) throw new ErrorErp("La cantidad tiene que ser 1 o más.");
   if (!Object.hasOwn(TIPOS_PUBLICACION, e.tipo)) throw new ErrorErp("Elegí el tipo de publicación.");
   if (!Object.hasOwn(CONDICIONES, e.condicion)) throw new ErrorErp("Elegí la condición.");
@@ -297,14 +328,6 @@ export async function prepararPublicacionNueva(org: string, e: EntradaNueva, usu
       where v.organizacion_id = $1 and v.id = $2 and v.producto_id = $3`, [org, e.variacion, e.productoId]);
   if (!v) throw new ErrorErp("Elegí la variación del producto que se publica.");
   if (v.no_publicable) throw new ErrorErp("El producto está marcado como No publicable.");
-
-  // Sólo fotos del producto en Laucen.
-  const permitidas = new Set((await consulta<{ url: string }>(`
-    select url from producto_foto where organizacion_id = $1 and producto_id = $2
-    union select f.url from variacion_foto f join variacion x on x.id = f.variacion_id where f.organizacion_id = $1 and x.producto_id = $2`,
-    [org, e.productoId])).map((f) => f.url));
-  const fotos = [...new Set(e.fotos)].filter((u) => permitidas.has(u));
-  if (!fotos.length) throw new ErrorErp("Elegí al menos una foto (el producto tiene que tener fotos en Laucen).");
 
   const { categoria, atributos: meta } = await leerCategoria(org, e.categoria);
   if (!categoria.hoja) throw new ErrorErp("Esa categoría tiene subcategorías: elegí una más específica.");
@@ -318,27 +341,49 @@ export async function prepararPublicacionNueva(org: string, e: EntradaNueva, usu
   const faltan = atributosCargables(meta).filter((a) => a.tags?.required && !atributos.some((x) => x.id === a.id) && !(a.id === "GTIN" && atributos.some((x) => x.id === "EMPTY_GTIN_REASON")));
   if (faltan.length) throw new ErrorErp(`Faltan atributos obligatorios: ${faltan.map((a) => a.name).join(", ")}.`);
 
-  const cuenta = await cuentaDelCanal(org, e.canal);
-  if (!cuenta || cuenta.estado !== "activa") throw new ErrorErp("Esa cuenta de Mercado Libre no está conectada.");
-  const nombreCuenta = (await una<{ nombre: string }>("select nombre from canal where id = $2 and organizacion_id = $1", [org, e.canal]))?.nombre ?? `canal ${e.canal}`;
-  const ya = await yaTiene(org, e.canal, [v.sku]);
-  if (ya) throw new ErrorErp(`${nombreCuenta} ya tiene este producto publicado: ${ya}. Reactivá esa en vez de crear otra.`);
-
-  const datos = { titulo, categoria: e.categoria, precio: e.precio, cantidad: e.cantidad, tipo: e.tipo, condicion: e.condicion, fotos, sku: v.sku, garantiaTipo: e.garantiaTipo, garantiaTiempo: e.garantiaTiempo };
-  let r = await comprobarAlta(cuenta, (x) => cuerpoNueva(datos, atributos, x));
-  // Si ML no acepta el nombre de familia (categoría del modelo viejo), se vuelve a comprobar con título.
-  if (!r.ok && /family_name/i.test(r.motivo)) r = await comprobarAlta(cuenta, (x) => cuerpoNueva(datos, atributos, { ...x, conTitle: true }));
-  if (!r.ok) throw new ErrorErp(`Mercado Libre no la acepta: ${r.motivo}`);
-
+  // Sólo fotos del producto en Laucen.
+  const permitidas = new Set((await consulta<{ url: string }>(`
+    select url from producto_foto where organizacion_id = $1 and producto_id = $2
+    union select f.url from variacion_foto f join variacion x on x.id = f.variacion_id where f.organizacion_id = $1 and x.producto_id = $2`,
+    [org, e.productoId])).map((f) => f.url));
+  const nombres = new Map((await consulta<{ id: number; nombre: string }>("select id::int, nombre from canal where organizacion_id = $1", [org])).map((c) => [c.id, c.nombre]));
   const texto = e.descripcion.trim();
-  const pedidos: PedidoMl[] = [
-    { metodo: "POST", ruta: "/items", cuerpo: r.cuerpo },
-    ...(texto ? [{ metodo: "POST" as const, ruta: "/items/{id}/description", cuerpo: { plain_text: texto } }] : []),
-  ];
-  const loteId = await encolarLoteConBoton(org, e.canal, [{
-    canalId: e.canal, itemId: `nueva:${v.sku}`, tipo: "crear",
-    antes: { estado: "no existe en esta cuenta" },
-    payload: { descripcion: `Crear en ${nombreCuenta}: ${titulo} (${v.sku}, desde Laucen)`, pedidos },
-  }], `Publicar ${v.sku} en ${nombreCuenta} (nueva, desde Laucen)`, usuarioId);
-  return { loteId, avisos: r.avisos };
+
+  const cambios: CambioMl[] = [];
+  const preparadas: string[] = [], avisos: string[] = [];
+  const rechazadas: { cuenta: string; motivo: string }[] = [];
+  for (const c of e.cuentas) {
+    const nombre = nombres.get(c.canal) ?? `canal ${c.canal}`;
+    const rech = (motivo: string) => rechazadas.push({ cuenta: nombre, motivo });
+    const titulo = c.titulo.replace(/\s+/g, " ").trim();
+    if (!titulo) { rech("falta el título"); continue; }
+    if (titulo.length > LARGO_TITULO) { rech(`el título tiene ${titulo.length} letras (hasta ${LARGO_TITULO})`); continue; }
+    if (!c.precio || c.precio <= 0) { rech("falta el precio"); continue; }
+    const fotos = [...new Set(c.fotos)].filter((u) => permitidas.has(u));
+    if (!fotos.length) { rech("no tiene ninguna foto elegida"); continue; }
+    const cuenta = await cuentaDelCanal(org, c.canal);
+    if (!cuenta || cuenta.estado !== "activa") { rech("la cuenta no está conectada"); continue; }
+    const ya = await yaTiene(org, c.canal, [v.sku]);
+    if (ya) { rech(`ya tiene este producto publicado (${ya}): reactivá ésa`); continue; }
+    const datos = { titulo, categoria: e.categoria, precio: c.precio, cantidad: e.cantidad, tipo: e.tipo, condicion: e.condicion, fotos, sku: v.sku, garantiaTipo: e.garantiaTipo, garantiaTiempo: e.garantiaTiempo };
+    let r = await comprobarAlta(cuenta, (x) => cuerpoNueva(datos, atributos, x));
+    // Si ML no acepta el nombre de familia (categoría del modelo viejo), se vuelve a comprobar con título.
+    if (!r.ok && /family_name/i.test(r.motivo)) r = await comprobarAlta(cuenta, (x) => cuerpoNueva(datos, atributos, { ...x, conTitle: true }));
+    if (!r.ok) { rech(`Mercado Libre no la acepta: ${r.motivo}`); continue; }
+    if (r.avisos) avisos.push(`${nombre}: ${r.avisos}`);
+    const pedidos: PedidoMl[] = [
+      { metodo: "POST", ruta: "/items", cuerpo: r.cuerpo },
+      ...(texto ? [{ metodo: "POST" as const, ruta: "/items/{id}/description", cuerpo: { plain_text: texto } }] : []),
+    ];
+    cambios.push({
+      canalId: c.canal, itemId: `nueva:${v.sku}`, tipo: "crear",
+      antes: { estado: "no existe en esta cuenta" },
+      payload: { descripcion: `Crear en ${nombre}: ${titulo} (${v.sku}, desde Laucen)`, pedidos },
+    });
+    preparadas.push(nombre);
+  }
+  if (!cambios.length) throw new ErrorErp(`No se preparó ninguna. ${rechazadas.map((x) => `${x.cuenta}: ${x.motivo}`).join(" · ")}`);
+  const loteId = await encolarLoteConBoton(org, cambios.length === 1 ? cambios[0].canalId : null, cambios,
+    `Publicar ${v.sku} (nueva, desde Laucen) en ${preparadas.join(", ")}`, usuarioId);
+  return { loteId, preparadas, rechazadas, avisos };
 }

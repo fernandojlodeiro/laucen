@@ -122,3 +122,16 @@ test("publicar nueva: cuerpo con family_name (o title), fotos, SKU al final y si
   assert.equal(t.title, "Modulo Rele 5v");
   assert.equal(t.shipping, undefined);
 });
+
+test("publicar nueva en varias cuentas: cada una arranca con otra foto y otro orden de título", async () => {
+  const { rotar, variarTitulo } = await import("@/lib/mercadolibre/publicar-nueva");
+  assert.deepEqual(rotar(["a", "b", "c"], 0), ["a", "b", "c"]);
+  assert.deepEqual(rotar(["a", "b", "c"], 1), ["b", "c", "a"]);
+  assert.deepEqual(rotar(["a", "b", "c"], 4), ["b", "c", "a"]);
+  assert.deepEqual(rotar(["a"], 3), ["a"]);
+  const t = "Modulo Rele 5v 1 Canal Arduino";
+  const vs = [0, 1, 2, 3, 4].map((n) => (n === 0 ? t : variarTitulo(t, n)));
+  for (const v of vs) assert.deepEqual(v.split(" ").sort(), t.split(" ").sort());
+  assert.equal(new Set(vs).size, 5);
+  assert.equal(variarTitulo("Cable USB", 2), "Cable USB");
+});
