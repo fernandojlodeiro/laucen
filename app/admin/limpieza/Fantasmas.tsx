@@ -6,7 +6,7 @@ import { accionBorrarFantasmas, accionRevisarFantasmas, accionTraerFaltantes } f
 
 type Cuenta = { id: number; nombre: string; enLaucen: number };
 type Revision = { enLaucen: number; enMl: number; faltan: number;
-  soloEnMl: { total: number; descartadas: number; otras: number; muestra: { item_id: string; titulo: string | null; estado: string | null }[] }; ejemplos: { item_id: string; titulo: string | null; sku: string | null; estado: string | null }[];
+  soloEnMl: { total: number; descartadas: number; otras: number; muestra: { item_id: string; titulo: string | null; estado: string | null; sku: string | null; producto: string | null }[] }; ejemplos: { item_id: string; titulo: string | null; sku: string | null; estado: string | null }[];
   confiable: boolean; motivo?: string };
 
 /** Una fila por cuenta de ML: "Revisar" compara con Mercado Libre (sólo lectura);
@@ -89,7 +89,7 @@ function FilaCuenta({ cuenta }: { cuenta: Cuenta }) {
               </button>
               {rev.soloEnMl.muestra.length > 0 && (
                 <ul className="list-disc pl-5">
-                  {rev.soloEnMl.muestra.slice(0, 8).map((e) => <li key={e.item_id}>{e.item_id} — {e.titulo ?? "sin título"}{e.estado ? ` (${e.estado})` : ""}</li>)}
+                  {rev.soloEnMl.muestra.slice(0, 15).map((e) => <li key={e.item_id}>{e.item_id} — {e.titulo ?? "sin título"}{e.estado ? ` (${e.estado} en ML)` : ""}{e.sku ? ` · SKU ${e.sku}` : ""}{e.producto ? ` → en Laucen: ${e.producto}` : ""}</li>)}
                   {rev.soloEnMl.otras > 8 && <li>…muestra de {rev.soloEnMl.muestra.length} de las {rev.soloEnMl.otras.toLocaleString("es-AR")} otras</li>}
                 </ul>
               )}

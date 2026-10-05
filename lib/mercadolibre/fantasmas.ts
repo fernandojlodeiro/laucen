@@ -37,7 +37,9 @@ export async function idsEnMl(cuenta: CuentaMl, hastaMs: number): Promise<{ ids:
 
 /** Lo que ML devuelve y Laucen no guarda: las que se descartaron a propósito (meli_item_descartado,
  *  borradas de Laucen o eliminadas desde acá) y las demás, con una muestra de cómo están en ML. */
-export type SoloEnMl = { total: number; descartadas: number; otras: number; muestra: { item_id: string; titulo: string | null; estado: string | null }[] };
+export type SoloEnMl = { total: number; descartadas: number; otras: number;
+  /** `sku` es el que tiene la publicación en ML; `producto` lo que hay en Laucen con ese SKU (si hay). */
+  muestra: { item_id: string; titulo: string | null; estado: string | null; sku: string | null; producto: string | null }[] };
 
 export type RevisionFantasmas = {
   enLaucen: number; enMl: number; fantasmas: string[]; soloEnMl: SoloEnMl;
@@ -74,11 +76,28 @@ export async function revisarFantasmas(org: string, canalId: number, hastaMs: nu
   const otras = soloMl.filter((i) => !descartadas.has(i));
   const muestra: SoloEnMl["muestra"] = [];
   if (lectura.completo) {
+    type Item = { id: string; title?: string; status?: string; sub_status?: string[]; seller_custom_field?: string | null; attributes?: { id: string; value_name?: string | null }[] };
     for (let i = 0; i < Math.min(otras.length, 60); i += 20) {
-      const r = await ml<{ code: number; body: { id: string; title?: string; status?: string; sub_status?: string[] } }[]>(cuenta, "GET",
-        `/items?ids=${otras.slice(i, i + 20).join(",")}&attributes=id,title,status,sub_status`);
+      const r = await ml<{ code: number; body: Item }[]>(cuenta, "GET",
+        `/items?ids=${otras.slice(i, i + 20).join(",")}&attributes=id,title,status,sub_status,seller_custom_field,attributes`);
       if (r.status !== 200 || !Array.isArray(r.datos)) break;
-      for (const x of r.datos) if (x.code === 200 && x.body?.id) muestra.push({ item_id: x.body.id, titulo: x.body.title ?? null, estado: [x.body.status, ...(x.body.sub_status ?? [])].filter(Boolean).join(" / ") });
+      for (const x of r.datos) {
+        if (x.code !== 200 || !x.body?.id) continue;
+        const sku = x.body.attributes?.find((a) => a.id === "SELLER_SKU")?.value_name?.trim() || x.body.seller_custom_field?.trim() || null;
+        muestra.push({ item_id: x.body.id, titulo: x.body.title ?? null, sku, producto: null,
+          estado: [x.body.status, ...(x.body.sub_status ?? [])].filter(Boolean).join(" / ") });
+      }
+    }
+    // Qué hay en Laucen con ese SKU (con o sin el "DE-" de adelante): producto y si está activo o inactivo.
+    const skus = [...new Set(muestra.map((m) => m.sku).filter((x): x is string => !!x).flatMap((x) => [x.toLowerCase(), x.replace(/^DE-/i, "").toLowerCase()]))];
+    if (skus.length) {
+      const prods = await consulta<{ sku: string; estado: string; sku_base: string }>(
+        `select lower(v.sku) sku, p.estado, p.sku_base from variacion v join producto p on p.id = v.producto_id where v.organizacion_id = $1 and lower(v.sku) = any($2::text[])`, [org, skus]);
+      const porSku = new Map(prods.map((p) => [p.sku, p]));
+      for (const m of muestra) {
+        const p = m.sku ? porSku.get(m.sku.toLowerCase()) ?? porSku.get(m.sku.replace(/^DE-/i, "").toLowerCase()) : undefined;
+        m.producto = m.sku ? (p ? `${p.sku_base} (${p.estado === "archivado" ? "inactivo" : p.estado})` : "no hay producto con ese SKU") : "la publicación no tiene SKU";
+      }
     }
   }
   return {
