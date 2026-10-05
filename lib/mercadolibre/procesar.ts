@@ -9,6 +9,7 @@ import { importarOrden, barrerOrdenes } from "@/lib/mercadolibre/pedidos";
 import { leerEnvio, guardarEnvio } from "@/lib/mercadolibre/envios";
 import { importarPregunta, barrerPreguntas } from "@/lib/mercadolibre/preguntas";
 import { importarMensaje } from "@/lib/mercadolibre/mensajes";
+import { completarPlazosDespacho } from "@/lib/mercadolibre/envios";
 import { importarReclamoDeNotificacion, barrerReclamos } from "@/lib/mercadolibre/reclamos";
 import { guardarItem, type ItemMl } from "@/lib/mercadolibre/publicaciones";
 import { sincronizarStockMl, variacionesConEventos } from "@/lib/mercadolibre/stock";
@@ -107,6 +108,7 @@ export async function barrido(hastaMs: number) {
     try { r.ordenes = await barrerOrdenes(c, hastaMs); } catch (e) { r.ordenes_error = (e as Error).message; }
     try { r.preguntas = await barrerPreguntas(c); } catch (e) { r.preguntas_error = (e as Error).message; }
     // Los reclamos no frenan lo demás ni marcan la cuenta con error (ML puede no dar permiso de posventa).
+    if (Date.now() < hastaMs) { try { r.plazos = await completarPlazosDespacho(c); } catch (e) { r.plazos_error = (e as Error).message; } }
     if (Date.now() < hastaMs) { try { r.reclamos = await barrerReclamos(c, hastaMs); } catch (e) { r.reclamos_error = (e as Error).message; } }
     if (r.ordenes_error || r.preguntas_error) {
       await consulta("update meli_cuenta set ultimo_error = $2 where id = $1", [c.id, String(r.ordenes_error ?? r.preguntas_error).slice(0, 300)]);
