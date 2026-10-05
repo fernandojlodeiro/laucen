@@ -77,7 +77,7 @@ returns int language sql stable as $$
 $$;
 
 /** Umbral de pausa de una variación en un canal: el de su publicación → el del
- *  producto → el del canal → el de la organización → 1. */
+ *  producto → el del canal → el de la organización → 0 (Fer, 5/10: sin nada cargado, pausa sólo sin stock). */
 create or replace function public.umbral_pausa_de(p_org text, p_variacion bigint, p_canal bigint)
 returns int language sql stable as $$
   select coalesce(
@@ -86,8 +86,8 @@ returns int language sql stable as $$
       order by id limit 1),
     (select p.umbral_pausa from variacion v join producto p on p.id = v.producto_id where v.id = p_variacion),
     (select umbral_pausa_default from canal where id = p_canal),
-    (config_de(p_org, 'umbral_pausa', '1'))::int,
-    1)
+    (config_de(p_org, 'umbral_pausa', '0'))::int,
+    0)
 $$;
 
 -- ── Clientes ──────────────────────────────────────────────

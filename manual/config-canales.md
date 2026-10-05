@@ -274,7 +274,7 @@ Todas las noches, de 2 a 5 (hora argentina), para cada cuenta con "Laucen manda 
 ## Preguntas frecuentes
 
 **¿Por qué un producto tiene stock pero en Mercado Libre aparece pausado?**
-Porque el disponible **del canal** (la suma de sus depósitos) es menor o igual al umbral de pausa. Revisá desde qué depósitos vende el canal y el umbral (publicación → producto → canal → organización → 1).
+Porque el disponible **del canal** (la suma de sus depósitos) es menor o igual al umbral de pausa. Revisá desde qué depósitos vende el canal y el umbral (publicación → producto → canal → organización → 0).
 
 **Prendí "Laucen manda el stock" y no cambió nada en ML. ¿Por qué?**
 Los cambios salen por la cola en los próximos minutos. Mirá la [Cola de Mercado Libre](/config/canales/cola): Pendientes, Enviados o Con error. Además, el canal tiene que estar Activo, con la cuenta conectada y las publicaciones vinculadas.

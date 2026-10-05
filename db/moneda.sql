@@ -55,7 +55,7 @@ end $$;
 
 -- ── Configuración por organización (clave → valor) ────────
 -- organizacion_id NULL = valor global (vale para todas las que no tengan el
--- suyo). Ej.: 'umbral_pausa' (por defecto 1), 'tipo_cambio_fuente'.
+-- suyo). Ej.: 'umbral_pausa' (por defecto 0), 'tipo_cambio_fuente'.
 create table if not exists config_org (
   id               bigint generated always as identity primary key,
   organizacion_id  text references organizaciones(id) on delete cascade,

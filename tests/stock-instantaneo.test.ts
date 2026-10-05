@@ -142,7 +142,7 @@ test("procesarCambiosStock encola la cantidad nueva en las cuentas que sincroniz
 
 test("al llegar al umbral la pausa entra con prioridad máxima (también el kit que se queda sin stock)", async () => {
   const e = await escenario();
-  await m.stock.moverStock(e.org, { variacionId: e.v, tipo: "egreso", cantidad: 9, origenId: e.general }); // 1 = umbral; kit 0
+  await m.stock.moverStock(e.org, { variacionId: e.v, tipo: "egreso", cantidad: 10, origenId: e.general }); // 0 = umbral (sin nada cargado); kit 0
   await m.sync.procesarCambiosStock(e.org);
   const cola = await e.cola();
   const pausa = cola.find((c) => Number(c.publicacion_id) === e.pubA);

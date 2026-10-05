@@ -41,7 +41,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
               union all
               select fa.id, fa.padre_id, fa.descuento_pct, c.nivel + 1 from familia fa join cadena c on fa.id = c.padre_id where c.nivel < 20
             ) select descuento_pct from cadena where descuento_pct is not null order by nivel limit 1)::float8 descuento_familia,
-           (config_de(p.organizacion_id, 'umbral_pausa', '1'))::text umbral_org,
+           (config_de(p.organizacion_id, 'umbral_pausa', '0'))::text umbral_org,
            (select id::int from variacion v where v.producto_id = p.id and v.es_default) variacion_default
       from producto p left join familia f on f.id = p.familia_id
      where p.id = $2 and p.organizacion_id = $1`, [s.org.id, pid]);
