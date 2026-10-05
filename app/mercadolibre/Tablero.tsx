@@ -121,7 +121,7 @@ function CeldaMetrica({ m, titulo }: { m: Metrica | null; titulo: string }) {
 }
 
 /** Una columna del tablero: una cuenta de ML, la tienda web o "el resto" (los canales que no son de ML). */
-type Col = { clave: string; titulo: string; sub: string; href: string | null; cuenta: CuentaTablero | null; canal: number | null; ids: number[]; web?: boolean };
+type Col = { clave: string; titulo: string; sub: string; href: string | null; cuenta: CuentaTablero | null; canal: number | null; ids: number[]; web?: boolean; nick?: string | null };
 
 type Fila = {
   titulo: string; ayuda?: string;
@@ -156,11 +156,11 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
   const webDe = (c: Col) => c.ids.reduce((a, i) => { const e = webEstado.get(i); return e ? { publicados: a.publicados + e.publicados, apagados: a.apagados + e.apagados, apagadosConStock: a.apagadosConStock + e.apagadosConStock } : a; }, { publicados: 0, apagados: 0, apagadosConStock: 0 });
   const enlaceWeb = (c: Col, ver: string) => (c.ids.length === 1 ? url("/catalogo/productos", { webcanal: c.ids[0], webver: ver }) : null);
   const columnas: Col[] = [
-    ...cuentas.map((c): Col => ({ clave: `ml${c.cuentaId}`, titulo: c.apodo ?? c.canal, sub: `${c.canal}${c.razonSocial ? ` · ${c.razonSocial}` : ""}`,
+    ...cuentas.map((c): Col => ({ clave: `ml${c.cuentaId}`, titulo: c.canal, sub: c.razonSocial ?? "", nick: c.apodo,
       href: url("/config/canales", { c: c.canalId }), cuenta: c, canal: c.canalId, ids: [c.canalId] })),
-    { clave: "web_min", titulo: "Web minorista", sub: "Tienda web minorista", href: "/config/tienda", cuenta: null, canal: grupos.minorista.length === 1 ? grupos.minorista[0] : null, ids: grupos.minorista, web: true },
-    { clave: "web_may", titulo: "Web mayorista", sub: "Tienda web mayorista", href: grupos.mayorista.length ? "/config/canales" : null, cuenta: null, canal: grupos.mayorista.length === 1 ? grupos.mayorista[0] : null, ids: grupos.mayorista, web: true },
-    { clave: "otros", titulo: "Otros", sub: "Local, pedidos manuales y el resto", href: "/config/canales", cuenta: null, canal: grupos.otros.length === 1 ? grupos.otros[0] : null, ids: grupos.otros },
+    { clave: "web_min", titulo: "Web minorista", sub: "", href: "/config/tienda", cuenta: null, canal: grupos.minorista.length === 1 ? grupos.minorista[0] : null, ids: grupos.minorista, web: true },
+    { clave: "web_may", titulo: "Web mayorista", sub: "", href: grupos.mayorista.length ? "/config/canales" : null, cuenta: null, canal: grupos.mayorista.length === 1 ? grupos.mayorista[0] : null, ids: grupos.mayorista, web: true },
+    { clave: "otros", titulo: "Otros", sub: "", href: "/config/canales", cuenta: null, canal: grupos.otros.length === 1 ? grupos.otros[0] : null, ids: grupos.otros },
   ];
   const mapa = new Map([...porCanal, ...porCanalNoMl]);
   const M = (c: Col) => sumar(c.ids.map((i) => mapa.get(i)).filter((x): x is Metricas => !!x));
@@ -275,9 +275,9 @@ export async function Tablero({ org, modo }: { org: string; modo: ModoTablero })
             <tr>
               <th className={`${FIJA} py-1.5 px-2 text-left w-40 min-w-36`} />
               {columnas.map((c) => (
-                <th key={c.clave} title={`${c.titulo} · ${c.sub}`} className={`${FIJA} py-1 px-2 text-left align-top w-[7.2rem] min-w-[7.2rem] max-w-[7.2rem] border-l border-[#E3E9F0]`}>
+                <th key={c.clave} title={[c.titulo, c.sub, c.nick && `Cuenta de ML: ${c.nick}`].filter(Boolean).join(" · ")} className={`${FIJA} py-1 px-2 text-left align-top w-[7.2rem] min-w-[7.2rem] max-w-[7.2rem] border-l border-[#E3E9F0]`}>
                   {c.href ? <Link href={c.href} className="block whitespace-nowrap overflow-hidden font-bold leading-4 text-[#16577F] hover:underline" style={{ fontSize: tamanoTitulo(c.titulo) }}>{c.titulo}</Link> : <span className="block whitespace-nowrap overflow-hidden font-bold leading-4" style={{ fontSize: tamanoTitulo(c.titulo) }}>{c.titulo}</span>}
-                  <span className="block truncate text-[9px] font-normal text-[#5C6B76] leading-3">{c.sub}</span>
+                  <span className="block min-h-3 truncate text-[9px] font-normal text-[#1E2A32] leading-3">{c.sub}</span>
                 </th>
               ))}
               <th className={`${FIJA} py-1.5 px-2 text-left align-top w-[7.2rem] min-w-[7.2rem] border-l-2 border-[#E3E9F0] !bg-[#F3F6F9] font-bold text-sm`}>Total</th>
