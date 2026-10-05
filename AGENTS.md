@@ -242,8 +242,6 @@ criollo, nunca se muestra crudo (`motivoLegible()` en `app/auth-actions.ts`).
   se puede.
 - Lo automático (stock que llega al umbral → pausar, reactivar, precios que siguen a la Clásica)
   sólo corre en un canal si Fer prendió su interruptor (`canal.config`); prenderlo es su clic.
-  Las respuestas que la IA manda sola a preguntas y mensajes tienen dos interruptores generales
-  (no por canal) en Ventas › Preguntas y mensajes (Fer, 5/10; `lib/mercadolibre/respuesta-auto.ts`).
 - Todo lo que va a Mercado Libre pasa por la cola (`lib/mercadolibre/cola.ts`): se reintenta,
   respeta los límites de la API y queda registrado qué se mandó, cuándo y con qué resultado.
 
