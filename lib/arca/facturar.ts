@@ -221,7 +221,16 @@ export async function emitir(org: string, comprobanteId: number): Promise<{ esta
         return { estado: "autorizado", mensaje: `Autorizado (CAE ${previo.cae}).` };
       }
     }
-    const numero = (await ultimoAutorizado(e.id, cb.ambiente, e.cuit, cb.punto_venta, cb.tipo_cbte)) + 1;
+    let numero: number;
+    try {
+      numero = (await ultimoAutorizado(e.id, cb.ambiente, e.cuit, cb.punto_venta, cb.tipo_cbte)) + 1;
+    } catch (err) {
+      // Sin llegar a pedir el CAE: queda "con error" (se reintenta solo, hasta 5 veces) y no "pendiente" para siempre.
+      await consulta("update comprobante set estado = 'error', intentos = intentos + 1, observaciones = $3 where id = $1 and organizacion_id = $2 and estado <> 'autorizado'",
+        [comprobanteId, org, (err as Error).message.slice(0, 500)]);
+      await candado.query("commit");
+      throw err;
+    }
     let asociado = null;
     if (cb.asociado_id) {
       const a = await una<{ tipo_cbte: number; punto_venta: number; numero: string; fecha: string }>(

@@ -4,6 +4,7 @@
 // cliente antes de facturar.
 
 import { ErrorErp } from "@/lib/erp/base";
+import { postXml, motivoRed } from "@/lib/arca/http";
 import { ticket, extraer } from "@/lib/arca/wsaa";
 import type { Ambiente } from "@/lib/arca/credenciales";
 
@@ -26,10 +27,10 @@ export async function consultarCuit(emisorId: number, ambiente: Ambiente, cuitEm
     `</soapenv:Body></soapenv:Envelope>`;
   let xml: string;
   try {
-    const r = await fetch(URL_PADRON[ambiente], { method: "POST", headers: { "content-type": "text/xml; charset=utf-8", soapaction: "" }, body: sobre, cache: "no-store", signal: AbortSignal.timeout(30_000) });
-    xml = await r.text();
-  } catch {
-    throw new ErrorErp("El padrón de ARCA no responde. Probá en un rato.");
+    xml = (await postXml(URL_PADRON[ambiente], sobre, { "content-type": "text/xml; charset=utf-8", soapaction: "" }, 30_000)).texto;
+  } catch (e) {
+    console.error("[arca] padrón", e);
+    throw new ErrorErp(`El padrón de ARCA no responde (${motivoRed(e)}). Probá en un rato.`);
   }
   const falla = extraer(xml, "faultstring");
   if (falla) throw new ErrorErp(/no existe/i.test(falla) ? "Ese CUIT no figura en el padrón de ARCA." : `Padrón de ARCA: ${falla}`);

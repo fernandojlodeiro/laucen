@@ -4,6 +4,7 @@
 import { ErrorErp } from "@/lib/erp/base";
 import { ticket, extraer, type Ticket } from "@/lib/arca/wsaa";
 import type { Ambiente } from "@/lib/arca/credenciales";
+import { postXml, motivoRed } from "@/lib/arca/http";
 
 const URL_WSFE: Record<Ambiente, string> = {
   homologacion: "https://wswhomo.afip.gov.ar/wsfev1/service.asmx",
@@ -18,13 +19,10 @@ async function soap(ambiente: Ambiente, metodo: string, cuerpo: string): Promise
     `<soap:Header/><soap:Body><ar:${metodo}>${cuerpo}</ar:${metodo}></soap:Body></soap:Envelope>`;
   let texto: string;
   try {
-    const r = await fetch(URL_WSFE[ambiente], {
-      method: "POST", headers: { "content-type": "text/xml; charset=utf-8", soapaction: `${NS}${metodo}` }, body: sobre,
-      cache: "no-store", signal: AbortSignal.timeout(45_000),
-    });
-    texto = await r.text();
-  } catch {
-    throw new ErrorErp("ARCA no responde (facturación). Probá en un rato.", "sin_respuesta");
+    texto = (await postXml(URL_WSFE[ambiente], sobre, { "content-type": "text/xml; charset=utf-8", soapaction: `${NS}${metodo}` }, 45_000)).texto;
+  } catch (e) {
+    console.error("[arca] wsfe", metodo, e);
+    throw new ErrorErp(`ARCA no responde (facturación): ${motivoRed(e)}. Probá en un rato.`, "sin_respuesta");
   }
   const falla = extraer(texto, "faultstring");
   if (falla) throw new ErrorErp(`ARCA: ${falla}`);
