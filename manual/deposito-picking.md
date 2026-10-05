@@ -40,7 +40,7 @@ Está pensada para usarse desde el celular.
   - **"🖨 Imprimir etiquetas y hojas"** (el botón principal).
   - **"Empacar escaneando (alternativo)"** y **"Recorrer escaneando"**.
   - La aclaración "Los impresos pasan a un lote abierto."
-- **Últimos terminados**: los últimos 10 lotes terminados de ese depósito.
+- **Últimos terminados**: los últimos 10 lotes terminados de ese depósito. No aparece un lote terminado que no dejó nada (todos sus pedidos quedaron incompletos y se volvieron a armar en un lote posterior).
 
 ### La pantalla de un lote (Lote #N)
 

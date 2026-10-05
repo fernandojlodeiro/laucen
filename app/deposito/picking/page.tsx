@@ -56,7 +56,12 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
         from picking_lote l left join picking_item i on i.lote_id = l.id
        where l.organizacion_id = $1 and l.deposito_id = $2
          and (l.estado = 'abierto' or l.id in (select id from picking_lote where organizacion_id = $1 and deposito_id = $2
-                                                 and estado = 'terminado' order by terminado_ts desc limit 10))
+                                                 and estado = 'terminado'
+                                                 -- Un lote terminado sin nada propio (todos sus pedidos se volvieron a
+                                                 -- armar en un lote posterior) no se lista: no dejó nada.
+                                                 and exists (select 1 from picking_pedido pp where pp.lote_id = picking_lote.id
+                                                               and not exists (select 1 from picking_pedido p2 where p2.pedido_id = pp.pedido_id and p2.lote_id > pp.lote_id))
+                                               order by terminado_ts desc limit 10))
        group by l.id order by l.estado = 'abierto' desc, coalesce(l.terminado_ts, l.creado_ts) desc`, [s.org.id, dep.id]),
   ]);
   const hoy = hoyAR();

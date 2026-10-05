@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 type SP = { ok?: string; error?: string };
 
 type Fila = {
-  id: number; tipo: string; estado: string; deposito: string; proveedor: string | null; pedido_id: number | null; documento: string | null;
+  id: number; tipo: string; estado: string; deposito: string; proveedor: string | null; pedido_id: number | null; venta_externa: string | null; documento: string | null;
   creado_ts: Date; cerrada_ts: Date | null; unidades: number; lineas: number;
 };
 
@@ -30,7 +30,7 @@ export default async function Recepcion({ searchParams }: { searchParams: Promis
     consulta<{ id: number; nombre: string }>(
       "select id::int, nombre from proveedor where organizacion_id = $1 and estado = 'activo' order by nombre", [s.org.id]),
     consulta<Fila>(`
-      select r.id::int, r.tipo, r.estado, d.nombre deposito, pr.nombre proveedor, r.pedido_id::int, r.documento, r.creado_ts, r.cerrada_ts,
+      select r.id::int, r.tipo, r.estado, d.nombre deposito, pr.nombre proveedor, r.pedido_id::int, r.venta_externa, r.documento, r.creado_ts, r.cerrada_ts,
              coalesce((select sum(cantidad) from recepcion_linea where recepcion_id = r.id), 0)::int unidades,
              (select count(*) from recepcion_linea where recepcion_id = r.id)::int lineas
         from recepcion r join deposito d on d.id = r.deposito_id left join proveedor pr on pr.id = r.proveedor_id
@@ -63,6 +63,9 @@ export default async function Recepcion({ searchParams }: { searchParams: Promis
             </select></label>
           <label><span className={ETIQUETA}>Nº de pedido (si es una devolución: el nuestro o el de Mercado Libre)</span>
             <input name="pedido" inputMode="numeric" className={`${CAMPO} w-full text-base py-2.5`} /></label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="anterior" className="h-5 w-5" />
+            Venta anterior a Laucen (no tiene pedido acá: el número queda de referencia)</label>
           <label><span className={ETIQUETA}>Nº de remito o factura</span>
             <input name="documento" className={`${CAMPO} w-full text-base py-2.5`} /></label>
           <label><span className={ETIQUETA}>Nota</span>
@@ -94,7 +97,7 @@ function Tarjeta({ f }: { f: Fila }) {
         <Estado texto={TIPO_RECEPCION[f.tipo] ?? f.tipo} tono={f.tipo === "devolucion" ? "amarillo" : "azul"} />
       </div>
       <div className="text-xs text-[#5C6B76]">
-        {f.deposito}{f.proveedor ? ` · ${f.proveedor}` : ""}{f.pedido_id ? ` · pedido #${f.pedido_id}` : ""}{f.documento ? ` · ${f.documento}` : ""}
+        {f.deposito}{f.proveedor ? ` · ${f.proveedor}` : ""}{f.pedido_id ? ` · pedido #${f.pedido_id}` : ""}{f.venta_externa ? ` · venta anterior a Laucen ${f.venta_externa}` : ""}{f.documento ? ` · ${f.documento}` : ""}
       </div>
       <div className="text-xs text-[#5C6B76]">
         {f.unidades} unidad{f.unidades === 1 ? "" : "es"} en {f.lineas} línea{f.lineas === 1 ? "" : "s"} ·{" "}

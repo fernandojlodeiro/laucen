@@ -171,7 +171,7 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
   const iva = await consulta<{ iva_pct: string }>("select iva_pct::text from producto where id = $1 and organizacion_id = $2", [p.id, s.org.id]);
   const ivaPct = String(Number(iva[0]?.iva_pct ?? 21));
   const heredado = p.descuento_familia ?? 0;
-  const umbralOrg = Number(p.umbral_org ?? 1) || 1;
+  const umbralOrg = Number(p.umbral_org ?? 0) || 0;
   const conVariaciones = p.tipo === "con_variaciones";
   const vDefault = conVariaciones ? null : (await variacionesDe(s.org.id, p.id)).find((v) => v.es_default) ?? null;
   const kits = vDefault ? await costosKit(s.org.id, [vDefault.id]) : new Map<number, CostoKit>();
@@ -986,7 +986,11 @@ export async function SeccionPublicaciones({ s, p }: Props) {
           ))}
         </div>
       )}
-      <div className="flex justify-end mb-2"><Link href="/catalogo/publicaciones" className={SUAVE}>Ir a Publicaciones</Link></div>
+      <div className="flex justify-end gap-2 mb-2">
+        {/* Publicarlo en una cuenta de ML copiando una publicación parecida (queda esperando el clic en la cola). */}
+        <Link href={`/catalogo/productos/${p.id}/publicar-ml`} className={SUAVE}>Publicar en ML copiando otra</Link>
+        <Link href="/catalogo/publicaciones" className={SUAVE}>Ir a Publicaciones</Link>
+      </div>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>

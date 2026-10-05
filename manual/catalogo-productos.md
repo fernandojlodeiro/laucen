@@ -37,7 +37,7 @@ Filtros (filtran al momento, sin botón "Buscar"):
 - **Tipo**: Todos los tipos / Simple / Con variaciones / Kit.
 - **Kits de Virtual Seller**: sólo los marcados como kit que vino de Virtual Seller y hay que armar a mano.
 - **Sin publicar en ningún canal**: productos que no tienen ninguna publicación activa en ningún canal (ninguna cuenta de Mercado Libre ni la web).
-- **Con stock y sin publicación activa en ML** y **De la web, sin fotos**: las dos alertas del [Tablero de Mercado Libre](/mercadolibre) (productos activos con stock que no se están vendiendo por ML; productos de la tienda web sin ninguna foto).
+- **Con stock y sin publicación activa en ML** y **De la web, sin fotos**: las dos alertas del [Tablero de Mercado Libre](/mercadolibre) (productos activos con stock que no se están vendiendo por ML; productos de la tienda web sin ninguna foto). Con el filtro **Con stock y sin publicación activa en ML**, cada fila tiene el botón **Buscar en ML**, que abre **Publicar en Mercado Libre copiando otra** para ese producto.
 
 Arriba de la tabla, el selector **Vista** ("Estándar" o una vista guardada) elige qué columnas se ven y en qué orden; la última elegida queda recordada.
 

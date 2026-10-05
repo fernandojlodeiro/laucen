@@ -42,7 +42,7 @@ La primera vez que una organización sin ningún canal abre la pantalla, el sist
 ### Buscador y lista
 
 - **"Buscar canal"**: busca por nombre mientras tipeás, con la caja "Comienza por".
-- Columnas (se ordenan tocando el título): **Canal** (el nombre; tocarlo abre sus detalles abajo), **Tipo**, **Lista de precios** (enlace a esa lista; en rojo "sin lista" si no tiene), **Vende desde** (los depósitos, en orden de prioridad; en rojo "ningún depósito"), **Estado** (Activo / Pausado / Archivado), **Mercado Libre** (sólo para canales de ML: "Conectada" en verde o "Desconectada" en rojo, **seguido del apodo (nick) de la cuenta de ML conectada**; para el resto, "—"), **Factura con** (aparece apenas hay una razón social cargada: con cuál se factura lo que vende el canal; en rojo "sin razón social" si falta elegirla), **Umbral de pausa** ("hereda" si está vacío), **Stock a ML** y **Facturas a ML** (sólo en las cuentas de Mercado Libre: los interruptores "Laucen manda el stock a ML y pausa al llegar al umbral" y "Subir facturas a Mercado Libre", ahí mismo; al tocarlos preguntan "Sí" / "No" antes de cambiar; para el resto de los canales, "—"), **Llave API** ("Tiene" o "sin llave").
+- Columnas (se ordenan tocando el título): **Canal** (el nombre; tocarlo abre sus detalles abajo), **Tipo**, **Lista de precios** (enlace a esa lista; en rojo "sin lista" si no tiene), **Vende desde** (los depósitos, en orden de prioridad; en rojo "ningún depósito"), **Estado** (Activo / Pausado / Archivado), **Mercado Libre** (sólo para canales de ML: "Conectada" en verde o "Desconectada" en rojo, **seguido del apodo (nick) de la cuenta de ML conectada**; para el resto, "—"), **Factura con** (aparece apenas hay una razón social cargada: con cuál se factura lo que vende el canal; en rojo "sin razón social" si falta elegirla), **Umbral de pausa** ("hereda" si está vacío), **Stock a ML**, **Precios a ML** y **Facturas a ML** (sólo en las cuentas de Mercado Libre: los interruptores "Laucen manda el stock a ML y pausa al llegar al umbral", "Laucen manda los precios a ML solo" —el mismo que "Sincronizar precios" de Precios en ML; apagado, ningún precio sale salvo lo que mandes vos con tu clic— y "Subir facturas a Mercado Libre", ahí mismo; al tocarlos preguntan "Sí" / "No" antes de cambiar; para el resto de los canales, "—"), **Llave API** ("Tiene" o "sin llave").
 - Al final de cada fila, el **lápiz** (editar la fila ahí mismo) y el **tacho** (borrar, pregunta "¿Borrar el canal?" Sí / No).
 - Abajo, el paginador de 50 en 50 y dos ayudas: qué es el umbral de pausa y qué es la llave API.
 
@@ -119,7 +119,7 @@ Si falta el nombre: "El canal necesita un nombre." El nombre no se puede repetir
 1. Apretá el **lápiz** de la fila del canal. La fila se convierte en campos.
 2. Cambiá **Nombre**, **Tipo**, **Lista de precios** (de ahí sale el precio con que vende el canal), **Factura con** (la razón social, obligatoria), **Estado** (Activo / Pausado / Archivado) o **Umbral de pausa** (vacío = "hereda").
 3. **"Guardar"** (o "Cancelar").
-4. En una cuenta de Mercado Libre, debajo de los campos están también los interruptores **Stock a ML** y **Facturas a ML**: se prenden o apagan ahí mismo (con su "Sí" / "No"), sin tocar "Guardar".
+4. En una cuenta de Mercado Libre, debajo de los campos están también los interruptores **Stock a ML**, **Precios a ML** y **Facturas a ML**: se prenden o apagan ahí mismo (con su "Sí" / "No"), sin tocar "Guardar".
 
 ### Borrar un canal
 
@@ -179,7 +179,7 @@ En la caja de la cuenta, **"Traer pedidos y preguntas ahora"**. Avisa "Listo: N 
 
 1. Pestaña **Lotes preparados**. Elegí el lote ("Preparado, falta tu clic").
 2. Revisá en el detalle qué cambia en cada publicación (Antes / Después).
-3. Apretá **"Mandar a Mercado Libre"** (pregunta "¿Mandar los N cambios a Mercado Libre?"). Los cambios pasan a Pendientes y salen solos en los próximos minutos; el resultado de cada uno queda en Enviados o Con error.
+3. Apretá **"Mandar a Mercado Libre"** (pregunta "¿Mandar los N cambios a Mercado Libre?"). Los cambios pasan a Pendientes y salen solos en los próximos minutos; el resultado de cada uno queda en Enviados o Con error. Después de mandar (o descartar) un lote, la pantalla pasa sola al próximo lote que espera tu clic, si hay: fijate en el título cuál es antes de volver a apretar.
 4. Si no querés mandarlo: **"Descartar lote"** ("Lote descartado: no se mandó nada.").
    - O, para mandar sólo algunas: en el detalle del lote, el **tacho** de cada fila saca esa publicación del lote (pregunta "¿Sacarlo del lote?" Sí / No ahí mismo). Queda "Descartado" y no sale; el resto sí, con "Mandar a Mercado Libre". Si sacás todas, el lote queda descartado.
 
@@ -274,7 +274,7 @@ Todas las noches, de 2 a 5 (hora argentina), para cada cuenta con "Laucen manda 
 ## Preguntas frecuentes
 
 **¿Por qué un producto tiene stock pero en Mercado Libre aparece pausado?**
-Porque el disponible **del canal** (la suma de sus depósitos) es menor o igual al umbral de pausa. Revisá desde qué depósitos vende el canal y el umbral (publicación → producto → canal → organización → 1).
+Porque el disponible **del canal** (la suma de sus depósitos) es menor o igual al umbral de pausa. Revisá desde qué depósitos vende el canal y el umbral (publicación → producto → canal → organización → 0).
 
 **Prendí "Laucen manda el stock" y no cambió nada en ML. ¿Por qué?**
 Los cambios salen por la cola en los próximos minutos. Mirá la [Cola de Mercado Libre](/config/canales/cola): Pendientes, Enviados o Con error. Además, el canal tiene que estar Activo, con la cuenta conectada y las publicaciones vinculadas.

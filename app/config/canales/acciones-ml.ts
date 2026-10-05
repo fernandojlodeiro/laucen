@@ -10,6 +10,8 @@ import { cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { barrerOrdenes } from "@/lib/mercadolibre/pedidos";
 import { barrerPreguntas } from "@/lib/mercadolibre/preguntas";
 import { sincronizarStockMl } from "@/lib/mercadolibre/stock";
+import { fijarInterruptor } from "@/lib/precios-ml/datos";
+import { sincronizarPreciosMl } from "@/lib/precios-ml/preparar";
 import { asegurarCuentasDeCanalesSinFallar } from "@/lib/administracion/contabilidad";
 
 const volver = (canal: number) => `/config/canales?c=${canal}`;
@@ -111,5 +113,22 @@ export async function accionTraerAhora(fd: FormData) {
     const preguntas = await barrerPreguntas(cuenta);
     revalidatePath("/config/canales");
     return `Listo: ${pedidos} pedidos revisados, ${preguntas} preguntas sin responder.`;
+  });
+}
+
+/** Prende o apaga que Laucen mande los precios a Mercado Libre solo (el
+ *  mismo interruptor que "Sincronizar precios" de Precios en ML). Apagado,
+ *  ningún precio sale salvo lo que Fer prepare y mande con su clic. */
+export async function accionSincronizarPrecios(fd: FormData) {
+  const s = await entrarErp("canales_ver");
+  const canal = id(fd, "canal");
+  await intentar(volver(canal), async () => {
+    await canalMl(s.org.id, fd);
+    const prender = fd.get("valor") === "1";
+    await fijarInterruptor(s.org.id, canal, "sincronizar_precios", prender);
+    revalidatePath("/config/canales");
+    if (!prender) return "Apagado: Laucen no manda precios solo a esta cuenta (lo preparado sigue esperando tu clic).";
+    const r = await sincronizarPreciosMl(s.org.id, { canal });
+    return `Prendido. Primera pasada: ${r.revisadas} variaciones revisadas, ${r.encoladas} cambios de precio a la cola de ML.`;
   });
 }

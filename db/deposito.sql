@@ -79,6 +79,9 @@ create table if not exists recepcion (
 create index if not exists recepcion_org on recepcion (organizacion_id, creado_ts desc);
 alter table recepcion enable row level security;
 select erp_politica_org('recepcion');
+-- Devolución de una venta anterior a Laucen (Virtual Seller, bitácora #341):
+-- no hay pedido; queda la referencia que se escribió (nº de venta de ML o de factura).
+alter table recepcion add column if not exists venta_externa text;
 
 create table if not exists recepcion_linea (
   id               bigint generated always as identity primary key,

@@ -117,11 +117,24 @@ export async function anotarNota(org: string, id: number, texto: string | null, 
  *  reclamo (la que ya está abierta, o una nueva en el depósito del pedido o
  *  el primero propio). Devuelve el id de la recepción. */
 export async function recibirDevolucion(org: string, id: number, usuario: string): Promise<number> {
-  const r = await una<{ pedido_id: number | null; recepcion_id: number | null; id_externo: string | null; origen: string }>(
-    "select pedido_id::int, recepcion_id::int, id_externo, origen from reclamo where id = $1 and organizacion_id = $2", [id, org]);
+  const r = await una<{ pedido_id: number | null; recepcion_id: number | null; id_externo: string | null; origen: string; orden_externa: string | null }>(
+    "select pedido_id::int, recepcion_id::int, id_externo, origen, orden_externa from reclamo where id = $1 and organizacion_id = $2", [id, org]);
   if (!r) throw new ErrorErp("Ese reclamo no existe.");
-  if (!r.pedido_id) throw new ErrorErp("El reclamo no tiene un pedido de Laucen: no se sabe qué vuelve.");
+  if (!r.pedido_id && !r.orden_externa) throw new ErrorErp("El reclamo no tiene un pedido de Laucen: recibí la devolución en Recepción, como «Venta anterior a Laucen».");
   if (r.recepcion_id && await una("select 1 from recepcion where id = $1 and organizacion_id = $2", [r.recepcion_id, org])) return r.recepcion_id;
+  // Venta anterior a Laucen (Virtual Seller): sin pedido acá, la orden de ML queda de referencia (bitácora #341).
+  if (!r.pedido_id) {
+    const dep = await una<{ id: number }>(`select id::int from deposito where organizacion_id = $1 and estado = 'activo' and tipo in ('propio', 'tercerizado')
+                                            order by (tipo = 'propio') desc, id limit 1`, [org]);
+    if (!dep) throw new ErrorErp("No hay un depósito propio activo donde recibir la devolución.");
+    const recepcion = await crearRecepcion(org, {
+      tipo: "devolucion", depositoId: dep.id, ventaExterna: `ML ${r.orden_externa}`,
+      documento: r.id_externo ? `Reclamo ML ${r.id_externo}` : `Reclamo ${id}`, nota: `Devolución del reclamo #${id} (venta anterior a Laucen)`,
+    }, usuario);
+    await consulta("update reclamo set recepcion_id = $3, actualizado_ts = now() where id = $1 and organizacion_id = $2", [id, org, recepcion]);
+    await evento(org, id, "recepcion", `Recepción de devolución #${recepcion} (venta anterior a Laucen)`, usuario);
+    return recepcion;
+  }
   const abierta = await una<{ id: number }>(`select id::int from recepcion where organizacion_id = $1 and pedido_id = $2 and tipo = 'devolucion' and estado = 'abierta'
                                              order by id desc limit 1`, [org, r.pedido_id]);
   let recepcion = abierta?.id ?? null;
