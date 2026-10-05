@@ -1001,6 +1001,8 @@ export async function SeccionPublicaciones({ s, p }: Props) {
       <div className="flex justify-end gap-2 mb-2">
         {/* Publicarlo en una cuenta de ML copiando una publicación parecida (queda esperando el clic en la cola). */}
         {!p.no_publicable && <Link href={`/catalogo/productos/${p.id}/publicar-ml`} className={SUAVE}>Publicar en ML copiando otra</Link>}
+        {/* Directo a la publicación nueva armada con los datos de Laucen y la IA (Fer, 5/10). */}
+        {!p.no_publicable && <Link href={`/catalogo/productos/${p.id}/publicar-ml?ver=nueva`} className={PRIMARIO}>Nueva desde Laucen con IA</Link>}
         <Link href="/catalogo/publicaciones" className={SUAVE}>Ir a Publicaciones</Link>
       </div>
       <div className={CAJA_TABLA}>

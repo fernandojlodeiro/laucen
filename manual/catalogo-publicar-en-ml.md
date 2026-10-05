@@ -18,7 +18,7 @@ Para los productos que tienen stock y no están publicados en ninguna cuenta de 
 ## Cómo se llega
 
 - Desde [Productos](/catalogo/productos), tildando **Con stock y sin publicación activa en ML**: cada fila tiene el botón **Buscar en ML**. También desde el [Tablero de Mercado Libre](/mercadolibre), tocando el número de "Productos con stock sin publicar".
-- Desde la ficha de un producto, pestaña **Publicaciones**, botón **Publicar en ML copiando otra**.
+- Desde la ficha de un producto, pestaña **Publicaciones**, botón **Publicar en ML copiando otra**, o **Nueva desde Laucen con IA**, que abre directo la pestaña Nueva desde Laucen.
 
 ## Qué hay en la pantalla
 
