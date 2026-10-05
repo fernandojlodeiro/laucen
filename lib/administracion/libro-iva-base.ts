@@ -33,9 +33,9 @@ export async function canalesConVentas(org: string) {
 export async function ventasDelPeriodo(org: string, desde: string, hasta: string, canalId?: number | null, emisorId: number | null = null): Promise<CbteIva[]> {
   const filas = await consulta<{ id: number; fecha: string; tipo_cbte: number; punto_venta: number; numero: string; doc_tipo: number; doc_nro: string;
     receptor_nombre: string | null; receptor_condicion_iva: number | null; moneda: string; cotizacion: string; importe_total: string; importe_neto: string;
-    importe_iva: string; iva_detalle: { id?: number; pct?: number; base: number; importe: number }[] | null; canal: string | null; canal_id: number | null }>(`
+    importe_iva: string; iva_detalle: { id?: number; pct?: number; base: number; importe: number }[] | null; canal: string | null; canal_id: number | null; tc_dia: string | null }>(`
     select c.id::int, to_char(c.fecha, 'YYYY-MM-DD') fecha, c.tipo_cbte, c.punto_venta, c.numero::text numero, c.doc_tipo, c.doc_nro, c.receptor_nombre,
-           c.receptor_condicion_iva, c.moneda, c.cotizacion, c.importe_total, c.importe_neto, c.importe_iva, c.iva_detalle, ca.nombre canal, p.canal_id::int canal_id
+           c.receptor_condicion_iva, c.moneda, c.cotizacion, c.importe_total, c.importe_neto, c.importe_iva, c.iva_detalle, ca.nombre canal, p.canal_id::int canal_id, c.tc_dia
       from comprobante c
       left join pedido p on p.id = c.pedido_id
       left join canal ca on ca.id = p.canal_id
@@ -56,7 +56,7 @@ export async function ventasDelPeriodo(org: string, desde: string, hasta: string
       moneda: f.moneda === "PES" ? "PES" : "DOL", cotizacion: Number(f.cotizacion) || 1, nc: [3, 8, 13].includes(f.tipo_cbte),
       alicuotas, noGravado, exento: 0, sinDiscriminar: letraC ? total : 0,
       percepcionIva: 0, percepcionNacionales: 0, percepcionIibb: 0, percepcionMunicipal: 0, impuestosInternos: 0, otros, total,
-      canal: f.canal, canalId: f.canal_id, enlace: `/administracion/facturacion/${f.id}`,
+      canal: f.canal, canalId: f.canal_id, enlace: `/administracion/facturacion/${f.id}`, tc: f.tc_dia ? Number(f.tc_dia) : null,
     } satisfies CbteIva;
   });
 }
@@ -64,7 +64,7 @@ export async function ventasDelPeriodo(org: string, desde: string, hasta: string
 type FilaCompra = { id: number; fecha: string; letra: string; es_nota_credito: boolean; es_nota_debito: boolean; punto_venta: number | null; numero: string | null;
   moneda: string; cotizacion: string; neto: string; iva: string; iva_detalle: { pct: number; base: number; importe: number }[] | null;
   percepcion_iva: string; percepcion_iibb: string; otros_impuestos: string; no_gravado: string; total: string;
-  proveedor_id: number; nombre: string; cuit: string | null; condicion_iva: string | null };
+  proveedor_id: number; nombre: string; cuit: string | null; condicion_iva: string | null; tc: string | null };
 
 /** Los comprobantes de compra del período (facturas y despachos) y los avisos que salen al armarlos. */
 export async function comprasDelPeriodo(org: string, desde: string, hasta: string, emisorId: number | null = null): Promise<{ compras: CbteIva[]; avisos: AvisoLibro[] }> {
@@ -72,7 +72,8 @@ export async function comprasDelPeriodo(org: string, desde: string, hasta: strin
   const facturas = await consulta<FilaCompra>(`
     select f.id::int, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.letra, f.es_nota_credito, f.es_nota_debito, f.punto_venta, f.numero::text numero,
            f.moneda, f.cotizacion, f.neto, f.iva, f.iva_detalle, f.percepcion_iva, f.percepcion_iibb, f.otros_impuestos, f.no_gravado, f.total,
-           p.id::int proveedor_id, coalesce(nullif(p.razon_social, ''), p.nombre) nombre, p.cuit, p.condicion_iva
+           p.id::int proveedor_id, coalesce(nullif(p.razon_social, ''), p.nombre) nombre, p.cuit, p.condicion_iva,
+           coalesce(f.total_ars / nullif(f.total_usd, 0), tc_del_dia(f.organizacion_id, f.fecha)) tc
       from factura_compra f join proveedor p on p.id = f.proveedor_id
      where f.organizacion_id = $1 and f.estado = 'registrada' and f.fecha between $2::date and $3::date and ($4::bigint is null or f.emisor_id = $4)`, [org, desde, hasta, emisorId]);
   const compras: CbteIva[] = [];
@@ -110,14 +111,14 @@ export async function comprasDelPeriodo(org: string, desde: string, hasta: strin
       moneda: usd ? "DOL" : "PES", cotizacion: usd ? Number(f.cotizacion) || 1 : 1, nc: f.es_nota_credito,
       alicuotas, noGravado, exento: 0, sinDiscriminar,
       percepcionIva: Number(f.percepcion_iva), percepcionNacionales: 0, percepcionIibb: Number(f.percepcion_iibb), percepcionMunicipal: 0,
-      impuestosInternos: 0, otros: Number(f.otros_impuestos), total: Number(f.total), enlace,
+      impuestosInternos: 0, otros: Number(f.otros_impuestos), total: Number(f.total), enlace, tc: f.tc ? Number(f.tc) : null,
     });
   }
 
   const despachos = await consulta<{ id: number; fecha: string; numero: string | null; cotizacion: string; fob_usd: string; flete_usd: string; seguro_usd: string;
-    gastos: ImpuestoDespacho[] | null; impuestos: ImpuestoDespacho[] | null; proveedor: string | null }>(`
+    gastos: ImpuestoDespacho[] | null; impuestos: ImpuestoDespacho[] | null; proveedor: string | null; tc: string | null }>(`
     select d.id::int, to_char(d.fecha, 'YYYY-MM-DD') fecha, d.numero, d.cotizacion, d.fob_usd, d.flete_usd, d.seguro_usd, d.gastos, d.impuestos,
-           coalesce(nullif(p.razon_social, ''), p.nombre) proveedor
+           coalesce(nullif(p.razon_social, ''), p.nombre) proveedor, tc_del_dia(d.organizacion_id, d.fecha) tc
       from despacho_importacion d left join proveedor p on p.id = d.proveedor_id
      where d.organizacion_id = $1 and d.estado = 'registrado' and d.fecha between $2::date and $3::date and ($4::bigint is null or d.emisor_id = $4)`, [org, desde, hasta, emisorId]);
   for (const d of despachos) {
@@ -138,6 +139,7 @@ export async function comprasDelPeriodo(org: string, desde: string, hasta: strin
       alicuotas: imp.iva > 0 ? [{ pct: b.pct, base: b.base, iva: imp.iva }] : [], noGravado: 0, exento: 0, sinDiscriminar: 0,
       percepcionIva: imp.percepcionIva, percepcionNacionales: imp.percepcionNacionales, percepcionIibb: imp.percepcionIibb, percepcionMunicipal: 0,
       impuestosInternos: 0, otros: imp.otros, total: r2(b.base + imp.iva + imp.percepcionIva + imp.percepcionNacionales + imp.percepcionIibb + imp.otros), enlace,
+      tc: d.tc ? Number(d.tc) : null,
     });
   }
   return { compras, avisos };

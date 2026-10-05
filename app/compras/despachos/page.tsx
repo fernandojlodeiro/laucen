@@ -32,6 +32,8 @@ export default async function Despachos({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const proveedorId = Number(sp.proveedor) || 0;
   const estado = sp.estado && Object.hasOwn(ESTADO_DESPACHO, sp.estado) ? sp.estado : "";
+  // El despacho trabaja en dólares (FOB, flete, seguro) y en pesos con su cotización: en dólares, los pesos se dividen por ella.
+  const aMoneda = (ars: number, cot: number) => (s.moneda === "USD" && cot ? formatear(ars / cot, "USD") : formatear(ars, "ARS"));
   const GASTOS = GASTOS_DESPACHO;
   const LINEAS = LINEAS_DESPACHO;
   const base = await LISTA_DESPACHOS.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
@@ -96,8 +98,8 @@ export default async function Despachos({ searchParams }: { searchParams: Promis
                   <td className={TDN}><Link href={`/compras/despachos/${d.id}`} className="hover:underline">{d.lineas}</Link></td>
                   <td className={TDN}>{formatear(d.fob_usd, "USD")}</td>
                   <td className={TDN}>{formatear(d.flete_seguro_usd, "USD")}</td>
-                  <td className={TDN}>{formatear(d.gastos_ars, "ARS")}</td>
-                  <td className={TDN}>{formatear((d.fob_usd + d.flete_seguro_usd) * d.cotizacion + d.gastos_ars, "ARS")}</td>
+                  <td className={TDN}>{aMoneda(d.gastos_ars, d.cotizacion)}</td>
+                  <td className={TDN}>{aMoneda((d.fob_usd + d.flete_seguro_usd) * d.cotizacion + d.gastos_ars, d.cotizacion)}</td>
                   <td className={TD}><Estado texto={est.texto} tono={est.tono} /></td>
                 </tr>
               );
