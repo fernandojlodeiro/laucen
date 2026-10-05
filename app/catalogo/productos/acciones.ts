@@ -5,7 +5,7 @@
 // contra la organización antes de tocar nada.
 
 import { revalidatePath } from "next/cache";
-import { entrarErp } from "@/app/componentes/erp";
+import { entrarErp, EDITAR_FICHA } from "@/app/componentes/erp";
 import { consulta, una, enTransaccion, ErrorErp, motivoErp, type Consultor } from "@/lib/erp/base";
 import { intentar, texto, numero, entero, id, tildado } from "@/lib/erp/acciones";
 import { guardarPrecio } from "@/lib/precios";
@@ -14,6 +14,7 @@ import { TODOS_PCT, esVia, leerPctsCosto, leerNcm } from "@/lib/costo-importacio
 import { supabaseServer } from "@/lib/supabase";
 import { revalidateTag } from "next/cache";
 import { publicarEnWeb } from "@/lib/catalogo/web";
+import { duplicarProducto } from "@/lib/catalogo/duplicar";
 
 const LISTADO = "/catalogo/productos";
 const SECCIONES = ["datos", "costo", "variaciones", "atributos", "fotos", "cucardas", "kit", "precios", "stock", "publicaciones"];
@@ -170,6 +171,19 @@ export async function accionCambiarEstadoProducto(fd: FormData) {
     revalidatePath(`${LISTADO}/${pid}`);
     revalidatePath(LISTADO);
     return estado === "archivado" ? "Pasó a Inactivo: ya no aparece en los listados." : "Volvió a Activo.";
+  });
+}
+
+/** Duplicar (Fer, 5/10): crea una copia exacta, pausada y con SKU nuevo, y abre su ficha en edición
+ *  para cambiar lo que cambia (lib/catalogo/duplicar.ts dice qué trae y qué no). */
+export async function accionDuplicarProducto(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  await intentar(ficha(pid, fd), async () => {
+    await productoDe(s.org.id, pid);
+    const r = await duplicarProducto(s.org.id, pid);
+    revalidatePath(LISTADO);
+    return { ir: `${LISTADO}/${r.id}?editar=${EDITAR_FICHA}&ok=${encodeURIComponent(`Copia creada (${r.sku_base}), pausada. Cambiá el SKU y lo que haga falta, y activala cuando esté lista.`)}` };
   });
 }
 

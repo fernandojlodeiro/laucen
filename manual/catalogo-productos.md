@@ -59,6 +59,7 @@ Arriba a la izquierda, el camino "Catálogo › Productos › SKU". El título m
 Arriba a la derecha (según la pestaña):
 - **Lápiz** (en Datos, Costo y Cucardas): pasa a modo edición. En edición, en el mismo lugar quedan **Grabar** y **Cancelar**.
 - **+ Nueva variación** (pestaña Variaciones, sólo si el tipo es "Con variaciones"), **+ Nuevo atributo** (Atributos), **+ Nuevo componente** (Componentes del kit).
+- **Duplicar**: crea una copia del producto (ver "Duplicar un producto" más abajo).
 - **Pasar a Inactivo** / **Volver a Activo**.
 - **Tacho** para borrar el producto entero: pregunta ahí mismo "¿Borrar el producto entero?" Sí / No.
 
@@ -213,6 +214,16 @@ Si el "hasta" es anterior al "desde": "Una cucarda tiene el "hasta" antes del "d
 2. Escribí el **Precio de lista nuevo**, elegí la moneda y apretá **Guardar**. Rige desde hoy.
 
 Si no hay tipo de cambio cargado para pasar a la otra moneda, avisa que lo cargues en [Tipo de cambio](/config/tipo-cambio).
+
+### Duplicar un producto
+
+Sirve para cargar un producto parecido a uno que ya existe (por ejemplo otra notebook): en la ficha, botón **Duplicar** (arriba a la derecha, al lado de "Pasar a Inactivo"). El sistema crea la copia y abre su ficha **en edición**, con el aviso "Copia creada, pausada". Después cambiás el SKU y lo que haga falta (título, atributos, fotos, precio…) y apretás **Grabar**.
+
+- **La copia trae**: los datos de la ficha (descripción, familia, marca, medidas, garantía, categoría de Mercado Libre y sus atributos, planes de cuotas, IVA…), las variaciones con sus atributos y fotos, las fotos del producto, los atributos, las cucardas, el costo de importación, los componentes si es un kit y el **precio de hoy** de cada lista.
+- **La copia no trae**: el stock (arranca en cero), el código de barras, los costos reales de compra (último y promedio), las publicaciones de la web y de Mercado Libre, ni las reglas de precio de ML. Eso se arma para el producto nuevo.
+- **El SKU** de la copia es el del original más "-COPIA" ("-COPIA2" si ya había una). Las variaciones que empiezan con el SKU del original conservan el resto ("ABC-ROJO" pasa a "ABC-COPIA-ROJO"). Se cambia desde Datos como cualquier SKU.
+- **Queda Pausada**: no se publica en ningún lado hasta que le pongas **Estado: Activo** en Datos.
+- Las fotos copiadas son las mismas imágenes que las del original: si borrás una foto de la copia, la del original sigue ahí.
 
 ### Pasar un producto a Inactivo (o volver a Activo)
 

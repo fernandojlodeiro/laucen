@@ -8,6 +8,8 @@ import { basuraDeVs } from "@/lib/limpieza-listas";
 import { accionBorrarBasura, accionBorrarFamiliasVs, accionBorrarNotebooks, accionBorrarPruebas } from "./actions";
 import { SUAVE } from "@/app/botones";
 import { BotonBorrar, DetectarCategorias } from "./Botones";
+import { Fantasmas } from "./Fantasmas";
+import { consulta } from "@/lib/erp/base";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -24,6 +26,10 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
   const sp = await searchParams;
   const org = (await orgRequerida()).id;
   const [pruebas, notebooks, cats, basura] = await Promise.all([resumenPruebas(org), notebooksSinStock(org), resumenCategorias(org), basuraDeVs(org)]);
+  const cuentasMl = (await consulta<{ id: number; nombre: string; en_laucen: number }>(`
+    select c.id::int, c.nombre, (select count(distinct i.item_id)::int from meli_item i where i.canal_id = c.id) en_laucen
+      from meli_cuenta mc join canal c on c.id = mc.canal_id
+     where mc.organizacion_id = $1 and mc.estado = 'activa' order by c.id`, [org])).map((c) => ({ id: c.id, nombre: c.nombre, enLaucen: c.en_laucen }));
 
   return (
     <main className="max-w-3xl mx-auto p-4 space-y-4">
@@ -39,6 +45,16 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
           Las unidades que la carga del 3/10 sacó de ubicaciones reales del depósito, para cotejarlas con lo que hay en las estanterías.
         </p>
         <Link href="/admin/limpieza/ajustes" className={SUAVE}>Ver ajustes a revisar</Link>
+      </section>
+
+      <section className={CAJA}>
+        <h2 className="font-bold text-[#16577F]">Publicaciones de Laucen que ya no existen en Mercado Libre</h2>
+        <p className="text-sm text-[#5C6B76]">
+          Compara, cuenta por cuenta, lo que Laucen tiene guardado con lo que Mercado Libre devuelve ahora. Lo que ya no existe en ML
+          se puede borrar de Laucen (sólo la publicación; el producto y su stock no se tocan, y en ML no se cambia nada). Cada revisión
+          lee toda la cuenta y tarda unos segundos.
+        </p>
+        <Fantasmas cuentas={cuentasMl} />
       </section>
 
       <section className={CAJA}>
