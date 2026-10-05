@@ -78,3 +78,16 @@ export async function fijarMonedaVista(usuarioId: string, org: string, moneda: M
     on conflict (usuario_id, organizacion_id) do update set moneda_vista = excluded.moneda_vista, actualizado_ts = now()`,
     [usuarioId, org, moneda]);
 }
+
+/** Un importe en pesos mostrado en la moneda que eligió el usuario: en dólares, al tipo de cambio `tc`
+ *  (el de hoy, salvo que se sepa el del día; si no hay ninguno, queda en pesos). Para lo que la base
+ *  guarda sólo en pesos (comisiones, costos de envío, precios de Mercado Libre…). */
+export function enMoneda(ars: number | string | null | undefined, moneda: Moneda, tc: number | null): string {
+  if (ars == null || ars === "") return "—";
+  return moneda === "USD" && tc ? formatear(Number(ars) / tc, "USD") : formatear(ars, "ARS");
+}
+
+/** El tipo de cambio de hoy si el usuario mira en dólares (null en pesos o si no hay). */
+export async function tcParaVista(org: string, moneda: Moneda): Promise<number | null> {
+  return moneda === "USD" ? (await tcDelDia(org))?.venta ?? null : null;
+}

@@ -49,10 +49,10 @@ const CAMPOS: Campo[] = [
   { clave: "doc_tipo", titulo: "Tipo de documento", sql: "c.doc_tipo", valor: (f) => DOC_TIPOS[f.doc_tipo] ?? String(f.doc_tipo) },
   { clave: "condicion_iva", titulo: "Condición IVA del receptor", sql: "c.receptor_condicion_iva", valor: (f) => f.condicion_iva == null ? null : CONDICION_RECEPTOR_TEXTO[f.condicion_iva] ?? String(f.condicion_iva) },
   { clave: "domicilio", titulo: "Domicilio del receptor", sql: "c.receptor_domicilio", orden: false, ancho: 30 },
-  { clave: "neto", titulo: "Neto", sql: firmado("importe_neto"), orden: "c.importe_neto", formato: "pesos" },
-  { clave: "iva", titulo: "IVA", sql: firmado("importe_iva"), orden: "c.importe_iva", formato: "pesos" },
-  { clave: "total", titulo: "Total", sql: "c.importe_total::float", orden: "c.importe_total", formato: "pesos", celda: (f) => formatear(f.total, "ARS") },
-  { clave: "total_firmado", titulo: "Total (NC en negativo)", sql: firmado("importe_total"), orden: false, formato: "pesos" },
+  { clave: "neto", titulo: "Neto", sql: firmado("importe_neto"), orden: "c.importe_neto", formato: "pesos", fiscal: true },
+  { clave: "iva", titulo: "IVA", sql: firmado("importe_iva"), orden: "c.importe_iva", formato: "pesos", fiscal: true },
+  { clave: "total", titulo: "Total", sql: "c.importe_total::float", orden: "c.importe_total", formato: "pesos", fiscal: true, celda: (f) => formatear(f.total, "ARS") },
+  { clave: "total_firmado", titulo: "Total (NC en negativo)", sql: firmado("importe_total"), orden: false, formato: "pesos", fiscal: true },
   {
     clave: "estado", titulo: "Estado", sql: "c.estado", valor: (f) => ESTADOS_CBTE[f.estado as EstadoCbte]?.texto ?? f.estado, usa: ["observaciones"],
     celda: (f) => {

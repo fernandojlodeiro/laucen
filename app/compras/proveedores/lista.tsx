@@ -31,6 +31,7 @@ export const LISTA_PROVEEDORES: Lista = {
     {
       clave: "comprado", titulo: "Total facturado $", formato: "pesos",
       sql: "(select coalesce(sum(case when f.es_nota_credito then -f.total_ars else f.total_ars end), 0)::float from factura_compra f where f.proveedor_id = pr.id and f.estado = 'registrada')",
+      sqlUsd: "(select coalesce(sum(case when f.es_nota_credito then -f.total_usd else f.total_usd end), 0)::float from factura_compra f where f.proveedor_id = pr.id and f.estado = 'registrada')",
     },
     campoFecha("ultima", "Última factura", "(select max(f.fecha) from factura_compra f where f.proveedor_id = pr.id)", { dia: true }),
     { clave: "estado", titulo: "Estado", sql: "pr.estado", valor: (f) => (f.estado === "activo" ? "Activo" : "Archivado") },

@@ -189,6 +189,11 @@ Donde hay un filtro de fechas, se ve en un renglón:
 
 - **Permisos**: cada opción del menú es una "función" con su permiso en el rol. Si tu rol no la tiene, no ves la opción y, si entrás igual por la dirección, el sistema te devuelve al Panel. Mientras el sistema está en desarrollo, una función que el rol no tiene configurada se considera permitida; un "no" explícito sí la cierra.
 - **Moneda**: cada importe se guarda en pesos y en dólares a la vez (al cargarlo en una moneda, la otra se calcula con el dólar oficial venta del día y queda fija). El interruptor de la barra de estado sólo elige **cuál de las dos ves**; no recalcula nada.
+- **Qué cambia con el interruptor de moneda** (revisado pantalla por pantalla el 5/10):
+  - **Importes con dólares guardados** (a lo que valía el dólar el día de cada operación): se ven en dólares **exactos de su día**. Son los pedidos (total, líneas, "Total comprado" del cliente), las facturas de compra, el total facturado por proveedor, los costos y precios de productos, las listas de precios y las ventas del Dashboard.
+  - **Importes que la base guarda sólo en pesos** (comisiones y cargos de Mercado Libre, costos de envío, montos de reclamos, precios de las publicaciones de ML, rentabilidad): en dólares se convierten **al dólar de hoy** (en el pedido, al dólar del día del pedido).
+  - **Se quedan siempre en pesos**, aunque mires en dólares: lo fiscal y contable (facturación, libros de IVA, contabilidad, tesorería, cuentas corrientes, facturación de ML, despachos), lo que se **cobra** al entregar (el "A cobrar"), lo que **se configura** en pesos (métodos de envío, Precios de Mercado Libre y sus reglas, tipo de cambio), la tienda pública, lo que se le contesta al cliente por WhatsApp y las herramientas internas.
+  - El Excel baja siempre los importes en pesos (y las columnas en dólares que existan, aparte).
 - **Dólar oficial**: es el oficial venta del día; si hoy no hay, rige el último cargado. Se levanta solo una vez por día y se puede cargar a mano en [Tipo de cambio](/config/tipo-cambio).
 - **Contadores de la barra de estado**: se recalculan cada vez que cambiás de pantalla.
 - **Buscadores**: con "Comienza por" tildada, coincide sólo el principio del texto; destildada, cualquier parte. No distingue mayúsculas de minúsculas.

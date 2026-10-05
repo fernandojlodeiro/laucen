@@ -5,7 +5,8 @@
 
 import type { ReactNode } from "react";
 import { consultaPaginada } from "@/lib/lista";
-import { formatear } from "@/lib/moneda";
+import { formatear, enMoneda, tcParaVista, type Moneda } from "@/lib/moneda";
+import { sesionActual } from "@/lib/tenancy";
 import { formatearNumero } from "@/lib/numeros";
 import { elegida } from "@/lib/listas/config";
 import {
@@ -53,12 +54,19 @@ export async function paginaDeVista(lista: Lista, ctx: Ctx, sp: SP) {
 const dd = (s: string) => s.split("-").reverse().join("/");
 
 /** Una celda sin dibujo propio: el valor según su formato. */
-export function textoCampo(c: Campo, f: Fila): string {
+export function textoCampo(c: Campo, f: Fila, moneda: Moneda = "ARS", tc: number | null = null): string {
   const v = valorDe(c, f);
   if (v == null || v === "") return "—";
   switch (c.formato) {
     case "entero": return Number(v).toLocaleString("es-AR");
-    case "pesos": return formatear(v as number, "ARS");
+    case "pesos": {
+      // En dólares: el importe en dólares de su día si la base lo guarda; si no, al tipo de cambio de hoy. Lo fiscal queda en pesos.
+      if (moneda === "USD" && !c.fiscal) {
+        const usd = f[`${c.clave}__usd`];
+        return usd != null ? formatear(Number(usd), "USD") : enMoneda(v as number, moneda, tc);
+      }
+      return formatear(v as number, "ARS");
+    }
     case "usd": return formatear(v as number, "USD");
     case "decimal": return formatearNumero(Number(v), "decimal");
     case "pct": return `${formatearNumero(Number(v), "pct")} %`;
@@ -75,13 +83,16 @@ export function textoCampo(c: Campo, f: Fila): string {
 /** La tabla de una lista con vistas, dibujada desde el catálogo. Las
  *  acciones de la fila (lápiz, tacho…) van en la última columna; una fila en
  *  edición la dibuja `fila` (ocupa todo el ancho). */
-export function TablaVista({ lista, campos, filas, total, ctx, vacio, acciones, claseFila, fila, clave = "id" }: {
+export async function TablaVista({ lista, campos, filas, total, ctx, vacio, acciones, claseFila, fila, clave = "id" }: {
   lista: Lista; campos: Campo[]; filas: Fila[]; total: number; ctx: CtxCelda; vacio: ReactNode;
   acciones?: (f: Fila) => ReactNode; claseFila?: (f: Fila) => string;
   /** Reemplaza la fila entera (ej. la fila en edición): recibe cuántas columnas ocupa. */
   fila?: (f: Fila, columnas: number) => ReactNode | null;
   clave?: string;
 }) {
+  const org = ctx.moneda === "USD" ? (await sesionActual())?.org.id : null;
+  const tc = org ? await tcParaVista(org, ctx.moneda) : null;
+  ctx = { ...ctx, tc };
   const columnas = campos.length + (acciones ? 1 : 0);
   const ordenable = (c: Campo) => c.orden !== false && !!(c.orden || c.sql);
   return (
@@ -101,7 +112,7 @@ export function TablaVista({ lista, campos, filas, total, ctx, vacio, acciones, 
             {filas.map((f) => fila?.(f, columnas) ?? (
               <tr key={String(f[clave])} className={`${TR} ${claseFila?.(f) ?? ""}`}>
                 {campos.map((c) => (
-                  <td key={c.clave} className={alaDerecha(c) ? TDN : TD}>{c.celda ? c.celda(f, ctx) : textoCampo(c, f)}</td>
+                  <td key={c.clave} className={alaDerecha(c) ? TDN : TD}>{c.celda ? c.celda(f, ctx) : textoCampo(c, f, ctx.moneda, tc)}</td>
                 ))}
                 {acciones && <td className={`${TD} text-right whitespace-nowrap`}>{acciones(f)}</td>}
               </tr>

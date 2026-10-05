@@ -9,7 +9,7 @@ import RangoFechas from "@/app/componentes/RangoFechas";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { entrarErp, Pantalla, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import { consulta } from "@/lib/erp/base";
-import { formatear } from "@/lib/moneda";
+import { enMoneda, tcParaVista, type Moneda } from "@/lib/moneda";
 import { hoyArgentina } from "@/lib/rango-fechas";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import { AGRUPAR, BASES_COSTO, leerFiltroRentabilidad, rentabilidad, totalesRentabilidad, type FilaRentabilidad } from "@/lib/informes/rentabilidad";
@@ -19,7 +19,6 @@ export const dynamic = "force-dynamic";
 
 const BASE = "/informes/rentabilidad";
 type SP = Record<string, string | undefined>;
-const pesos = (n: number | null) => (n == null ? "—" : formatear(n, "ARS"));
 const pct = (n: number | null) => (n == null ? "—" : `${n.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`);
 
 const ORDEN: Record<string, (f: FilaRentabilidad) => string | number | null> = {
@@ -30,6 +29,9 @@ const ORDEN: Record<string, (f: FilaRentabilidad) => string | number | null> = {
 export default async function Rentabilidad({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("informes_ventas_ver");
   const sp = await searchParams;
+  // El informe está calculado en pesos: en dólares, al tipo de cambio de hoy.
+  const tc = await tcParaVista(s.org.id, s.moneda);
+  const pesos = (n: number | null) => (n == null ? "—" : enMoneda(n, s.moneda, tc));
   const f = leerFiltroRentabilidad(sp, hoyArgentina());
   const [canales, filas] = await Promise.all([
     consulta<{ id: number; nombre: string }>("select id::int, nombre from canal where organizacion_id = $1 order by nombre", [s.org.id]),
