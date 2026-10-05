@@ -6,7 +6,7 @@ import { sosVos } from "@/lib/admin";
 import { orgRequerida, sesionRequerida } from "@/lib/tenancy";
 import { motivoErp } from "@/lib/erp/base";
 import { borrarBasuraDeVs } from "@/lib/limpieza-listas";
-import { borrarFantasmas, revisarFantasmas, traerFaltantes } from "@/lib/mercadolibre/fantasmas";
+import { borrarFantasmas, revisarFantasmas, recuperarPausadas } from "@/lib/mercadolibre/fantasmas";
 import { prepararEliminarNotebooks } from "@/lib/mercadolibre/notebooks";
 import {
   borrarFamiliasVs, borrarNotebooksSinStock, borrarPruebas, categoriasPorPredictor, categoriasPorPublicacion,
@@ -69,11 +69,11 @@ export async function accionRevisarFantasmas(canalId: number) {
   }
 }
 
-/** Trae a Laucen lo que ML tiene y Laucen no (inactivas, pausadas…) y lo vincula por SKU. No borra nada. */
-export async function accionTraerFaltantes(canalId: number) {
+/** Recupera en Laucen las publicaciones PAUSADAS de ML que Laucen no guarda (con producto por SKU, sin notebooks). No toca ML. */
+export async function accionRecuperarPausadas(canalId: number) {
   const org = await portero();
   try {
-    const r = await traerFaltantes(org, canalId, Date.now() + 50_000);
+    const r = await recuperarPausadas(org, canalId, Date.now() + 270_000);
     revalidatePath("/admin/limpieza");
     return { ok: true as const, ...r };
   } catch (e) {

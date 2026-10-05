@@ -8,7 +8,8 @@
 
 import { consulta, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
-import { guardarItem, type ItemMl } from "@/lib/mercadolibre/publicaciones";
+import { guardarItem, skusDeItem, variacionPorSku, type ItemMl } from "@/lib/mercadolibre/publicaciones";
+import { esNotebook } from "@/lib/mercadolibre/es-notebook";
 
 /** Los item_id de Laucen que ML no devolvió. Puro: se prueba sin base ni red. */
 export function faltantesEnMl(enLaucen: string[], enMl: ReadonlySet<string>): string[] {
@@ -121,32 +122,41 @@ export async function borrarFantasmas(org: string, canalId: number, hastaMs: num
   });
 }
 
-export type TraidasFaltantes = { traidas: number; vinculadas: number; sinVincular: number; cerradas: number; porEstado: Record<string, number>; quedan: number; completo: boolean };
+export type RecuperadasPausadas = {
+  recuperadas: number;
+  /** Lo que ML tiene y Laucen no, y no se recuperó, por motivo. */
+  omitidas: { sinProducto: number; notebooks: number; otroEstado: Record<string, number> };
+  quedan: number; completo: boolean;
+};
 
-/** Trae a Laucen lo que ML tiene y Laucen no guarda (inactivas, pausadas, en revisión…), tal como está
- *  en ML, y lo vincula por SKU como siempre. Las cerradas no se traen, y las que se descartaron a
- *  propósito (meli_item_descartado) tampoco. No borra nada. Si no alcanza el tiempo, dice cuántas
- *  quedan: se aprieta de nuevo. */
-export async function traerFaltantes(org: string, canalId: number, hastaMs: number): Promise<TraidasFaltantes> {
+/** Recupera en Laucen las publicaciones que están PAUSADAS en ML y Laucen no guarda (Fer, 5/10),
+ *  vinculadas por SKU a su producto (aunque el producto esté Inactivo). No se recuperan: las que
+ *  no están pausadas (cerradas, en revisión, inactivas…), las que no tienen producto en Laucen,
+ *  las notebooks (se borran de ML aparte) ni las que se descartaron a propósito. No toca ML y no
+ *  borra nada. Si no alcanza el tiempo, dice cuántas quedan: se aprieta de nuevo. */
+export async function recuperarPausadas(org: string, canalId: number, hastaMs: number): Promise<RecuperadasPausadas> {
   const cuenta = await cuentaDe(org, canalId);
   const lectura = await idsEnMl(cuenta, hastaMs);
   if (!lectura.completo || !lectura.ids.size) throw new ErrorErp("La lectura de Mercado Libre no terminó: probá de nuevo.");
   const yaEstan = new Set((await consulta<{ item_id: string }>("select item_id from meli_item where organizacion_id = $1 and canal_id = $2", [org, canalId])).map((f) => f.item_id));
   const descartadas = new Set((await consulta<{ item_id: string }>("select item_id from meli_item_descartado where organizacion_id = $1 and canal_id = $2", [org, canalId])).map((f) => f.item_id));
   const faltan = [...lectura.ids].filter((i) => !yaEstan.has(i) && !descartadas.has(i)).sort();
-  const r: TraidasFaltantes = { traidas: 0, vinculadas: 0, sinVincular: 0, cerradas: 0, porEstado: {}, quedan: 0, completo: true };
+  const r: RecuperadasPausadas = { recuperadas: 0, omitidas: { sinProducto: 0, notebooks: 0, otroEstado: {} }, quedan: 0, completo: true };
   for (let i = 0; i < faltan.length; i += 20) {
     if (Date.now() > hastaMs - 5_000) { r.completo = false; r.quedan = faltan.length - i; break; }
     const m = await ml<{ code: number; body: ItemMl }[]>(cuenta, "GET", `/items?ids=${faltan.slice(i, i + 20).join(",")}&include_attributes=all`);
-    if (m.status !== 200 || !Array.isArray(m.datos)) throw new ErrorErp("Mercado Libre no contestó: probá de nuevo (lo ya traído queda).");
+    if (m.status !== 200 || !Array.isArray(m.datos)) throw new ErrorErp("Mercado Libre no contestó: probá de nuevo (lo ya recuperado queda).");
     for (const x of m.datos) {
-      if (x.code !== 200 || !x.body) continue;
-      if (x.body.status === "closed") { r.cerradas++; continue; }
-      r.vinculadas += await guardarItem(cuenta, x.body);
-      r.traidas++;
-      r.porEstado[x.body.status] = (r.porEstado[x.body.status] ?? 0) + 1;
+      const it = x.body;
+      if (x.code !== 200 || !it) continue;
+      if (it.status !== "paused") { r.omitidas.otroEstado[it.status] = (r.omitidas.otroEstado[it.status] ?? 0) + 1; continue; }
+      if (esNotebook(it.title, it.category_id)) { r.omitidas.notebooks++; continue; }
+      let conProducto = false;
+      for (const sku of skusDeItem(it)) if (await variacionPorSku(org, sku)) { conProducto = true; break; }
+      if (!conProducto) { r.omitidas.sinProducto++; continue; }
+      await guardarItem(cuenta, it);
+      r.recuperadas++;
     }
   }
-  r.sinVincular = r.traidas - r.vinculadas;
   return r;
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { BORRAR, SUAVE } from "@/app/botones";
-import { accionBorrarFantasmas, accionRevisarFantasmas, accionTraerFaltantes } from "./actions";
+import { accionBorrarFantasmas, accionRevisarFantasmas } from "./actions";
 
 type Cuenta = { id: number; nombre: string; enLaucen: number };
 type Revision = { enLaucen: number; enMl: number; faltan: number;
@@ -20,7 +20,7 @@ export function Fantasmas({ cuentas }: { cuentas: Cuenta[] }) {
 }
 
 function FilaCuenta({ cuenta }: { cuenta: Cuenta }) {
-  const [trabajando, setTrabajando] = useState<"" | "revisando" | "borrando" | "trayendo">("");
+  const [trabajando, setTrabajando] = useState<"" | "revisando" | "borrando">("");
   const [rev, setRev] = useState<Revision | null>(null);
   const [error, setError] = useState("");
   const [hecho, setHecho] = useState("");
@@ -31,20 +31,6 @@ function FilaCuenta({ cuenta }: { cuenta: Cuenta }) {
     try {
       const r = await accionRevisarFantasmas(cuenta.id);
       if (!r.ok) setError(r.error); else setRev(r);
-    } catch { setError("Se cortó la conexión con el servidor. Probá de nuevo."); }
-    setTrabajando("");
-  }
-
-  async function traer() {
-    setTrabajando("trayendo"); setError(""); setHecho("");
-    try {
-      const r = await accionTraerFaltantes(cuenta.id);
-      if (!r.ok) setError(r.error);
-      else {
-        const estados = Object.entries(r.porEstado).map(([k, v]) => `${v.toLocaleString("es-AR")} ${k}`).join(", ");
-        setHecho(`Traídas a Laucen: ${r.traidas.toLocaleString("es-AR")}${estados ? ` (${estados})` : ""}; vinculadas por SKU: ${r.vinculadas.toLocaleString("es-AR")}, sin producto en Laucen: ${r.sinVincular.toLocaleString("es-AR")}. Cerradas que no se traen: ${r.cerradas.toLocaleString("es-AR")}.${r.completo ? "" : ` Faltan ${r.quedan.toLocaleString("es-AR")}: apretá de nuevo para seguir.`}`);
-        setRev(null);
-      }
     } catch { setError("Se cortó la conexión con el servidor. Probá de nuevo."); }
     setTrabajando("");
   }
@@ -84,9 +70,6 @@ function FilaCuenta({ cuenta }: { cuenta: Cuenta }) {
                 {rev.soloEnMl.descartadas.toLocaleString("es-AR")} las sacaste de Laucen vos (borrar pausadas / eliminar en ML) y
                 {" "}{rev.soloEnMl.otras.toLocaleString("es-AR")} son otras. Esto sólo informa: no se borra nada.
               </p>
-              <button type="button" disabled={trabajando !== ""} onClick={traer} className={`${SUAVE} disabled:opacity-60`}>
-                {trabajando === "trayendo" ? "Trayendo a Laucen… (no cierres la pantalla)" : "Traer a Laucen las que faltan (menos las cerradas)"}
-              </button>
               {rev.soloEnMl.muestra.length > 0 && (
                 <ul className="list-disc pl-5">
                   {rev.soloEnMl.muestra.slice(0, 15).map((e) => <li key={e.item_id}>{e.item_id} — {e.titulo ?? "sin título"}{e.estado ? ` (${e.estado} en ML)` : ""}{e.sku ? ` · SKU ${e.sku}` : ""}{e.producto ? ` → en Laucen: ${e.producto}` : ""}</li>)}

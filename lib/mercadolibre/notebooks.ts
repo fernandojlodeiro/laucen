@@ -8,15 +8,9 @@ import { consulta, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import { encolar, encolarLoteConBoton, type CambioMl } from "@/lib/mercadolibre/cola";
 import { idsEnMl } from "@/lib/mercadolibre/fantasmas";
+import { esNotebook, hayQueEliminar } from "@/lib/mercadolibre/es-notebook";
 
-/** Notebook = categoría de ML "Notebooks" (MLA1652) o título que empieza con "Notebook"
- *  (la misma regla que Limpieza → "Notebooks sin stock"). */
-export const esNotebook = (titulo: string | null | undefined, categoria: string | null | undefined): boolean =>
-  categoria === "MLA1652" || /^notebook\b/i.test((titulo ?? "").trim());
-
-/** ¿Hay que eliminarla? No activa, y que ML no la tenga ya eliminada. */
-export const hayQueEliminar = (estado: string | null | undefined, subEstados: string[] | null | undefined): boolean =>
-  !!estado && estado !== "active" && !(subEstados ?? []).includes("deleted");
+export { esNotebook, hayQueEliminar };
 
 export type PreparacionNotebooks = {
   loteId: number | null; preparadas: number; revisadas: number; quedan: number; porEstado: Record<string, number>; activas: number;
