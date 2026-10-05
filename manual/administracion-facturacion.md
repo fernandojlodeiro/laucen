@@ -169,6 +169,7 @@ Mensajes típicos si no se puede:
 
 - El número es **"último autorizado en ARCA + 1"**, preguntado a ARCA en el momento, con un candado por punto de venta y tipo para que dos facturas simultáneas no choquen.
 - Si un envío se cortó y no se supo la respuesta, al reintentar Laucen **primero le pregunta a ARCA** si ese número ya quedó autorizado con el mismo total y documento; si es así, lo da por autorizado y no emite otra factura.
+- Si ARCA **no responde** (ni siquiera para decir el último número), la factura pasa a **"Error"** con el motivo y Laucen la reintenta sola en la revisión periódica, hasta 5 veces; después queda el botón "Reintentar".
 - Si ARCA **rechaza**, el número queda libre (se borra del comprobante) y el estado pasa a "Rechazado" con el motivo.
 - Si hay un **error de comunicación** (ARCA no contestó, se cortó), el estado pasa a "Error" con el detalle.
 
