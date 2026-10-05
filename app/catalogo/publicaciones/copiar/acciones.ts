@@ -1,14 +1,13 @@
 "use server";
 
 // Acciones de "Copiar entre cuentas": preparar el lote que crea en otra cuenta las
-// publicaciones elegidas (queda esperando el clic en la cola) y el prefijo de SKU
-// de cada cuenta.
+// publicaciones elegidas (queda esperando el clic en la cola).
 
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, id, tildado } from "@/lib/erp/acciones";
-import { guardarPrefijoSku, prepararCopia } from "@/lib/mercadolibre/copiar";
+import { prepararCopia } from "@/lib/mercadolibre/copiar";
 
 const BASE = "/catalogo/publicaciones/copiar";
 
@@ -32,17 +31,5 @@ export async function accionPrepararCopia(fd: FormData) {
       : "";
     if (!r.loteId) throw new ErrorErp(`No se preparó nada.${rechazos}`);
     return { ir: `/config/canales/cola?ver=lotes&lote=${r.loteId}&ok=${encodeURIComponent(`Lote preparado: crear ${r.preparadas} publicaciones. Todavía no salió nada: revisalo y apretá "Mandar a Mercado Libre".${rechazos}`)}` };
-  });
-}
-
-export async function accionGuardarPrefijo(fd: FormData) {
-  const s = await entrarErp("publicaciones_ver");
-  const volver = volverDe(fd);
-  await intentar(volver, async () => {
-    const canal = id(fd, "canal");
-    if (!canal) throw new ErrorErp("Elegí la cuenta.");
-    await guardarPrefijoSku(s.org.id, canal, texto(fd, "prefijo") ?? "");
-    revalidatePath(BASE);
-    return "Prefijo de SKU guardado.";
   });
 }

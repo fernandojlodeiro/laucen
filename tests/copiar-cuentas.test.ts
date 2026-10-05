@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { armarCuerpoCopia, atributosNoModificables, claveProducto, motivoValidacion, motivoNoCopiable, rotarFotos, skuDestino, variarTitulo, type ItemGuardado } from "@/lib/mercadolibre/copiar";
+import { armarCuerpoCopia, atributosNoModificables, claveProducto, motivoNoCopiable, motivoValidacion, rotarFotos, variarTitulo, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 
 // Un item de verdad (BAIRES, 5/10), recortado.
 const ITEM: ItemGuardado = {
@@ -31,12 +31,6 @@ test("rotarFotos: la primera pasa al final", () => {
   assert.deepEqual(rotarFotos(["a"]), ["a"]);
 });
 
-test("skuDestino: saca el DE- y pone el prefijo de la cuenta", () => {
-  assert.equal(skuDestino("DE-SKU1", ""), "SKU1");
-  assert.equal(skuDestino("SKU1", "DE-"), "DE-SKU1");
-  assert.equal(skuDestino("de-SKU1", "DE-"), "DE-SKU1");
-});
-
 test("claveProducto: el SKU sin DE- manda; sin SKU, el título sin tildes ni signos", () => {
   assert.equal(claveProducto("DE-SKU1", "x"), claveProducto("sku1", "y"));
   assert.equal(claveProducto(null, "Cable  Ñandú, USB"), claveProducto("", "cable nandu usb"));
@@ -57,7 +51,7 @@ test("armarCuerpoCopia: family_name (no title), sin lo propio de la cuenta, SKU 
   assert.deepEqual(c.attributes.filter((a) => a.id === "SELLER_SKU"), [{ id: "SELLER_SKU", value_name: "DE-SKU00040" }]);
   assert.equal(c.attributes.some((a) => a.id === "GTIN" || a.id === "VACIO"), false);
   for (const k of ["official_store_id", "catalog_product_id", "catalog_listing", "user_product_id", "id", "seller_custom_field"]) assert.equal(k in c, false);
-  assert.deepEqual(c.shipping, { mode: "me2", local_pick_up: false, free_shipping: false });
+  assert.deepEqual(c.shipping, { mode: "me2" });
   assert.equal(c.price, 2551);
 });
 
@@ -75,7 +69,7 @@ test("armarCuerpoCopia: no manda los atributos que ML fija (PACKAGE_*, IS_TOM_BR
   const ids = c.attributes.map((a) => a.id);
   assert.equal(ids.includes("PACKAGE_HEIGHT") || ids.includes("IS_TOM_BRAND"), false);
   assert.equal(ids.includes("SELLER_PACKAGE_HEIGHT"), true);
-  assert.deepEqual(c.shipping, { mode: "me2", local_pick_up: false, free_shipping: true });
+  assert.deepEqual(c.shipping, { mode: "me2" }); // el envío gratis lo decide ML para esa cuenta
 });
 
 test("armarCuerpoCopia: si la publicación no tiene Modelo, usa el del producto de Laucen; si ya lo tiene, no lo pisa", () => {
@@ -85,7 +79,7 @@ test("armarCuerpoCopia: si la publicación no tiene Modelo, usa el del producto 
   assert.deepEqual(con.attributes.filter((a) => a.id === "MODEL").map((a) => a.value_name), ["X9"]);
 });
 
-test("respuesta de validate de ML: los avisos de no modificables se sacan y el motivo muestra sólo los errores", () => {
+test("respuesta de validate de ML: los avisos de no modificables se sacan y el motivo muestra cada causa con su tipo, los errores primero", () => {
   const datos = { message: "Validation error", cause: [
     { type: "warning", message: "Attribute [IS_TOM_BRAND] ignored because it is not modifiable." },
     { type: "warning", message: "Attribute [PACKAGE_HEIGHT] ignored because it is not modifiable." },
@@ -93,5 +87,16 @@ test("respuesta de validate de ML: los avisos de no modificables se sacan y el m
     { type: "error", message: 'El campo "Modelo" es obligatorio y no está cargado.' },
   ] };
   assert.deepEqual(atributosNoModificables(datos), ["IS_TOM_BRAND", "PACKAGE_HEIGHT"]);
-  assert.equal(motivoValidacion(400, datos), 'El campo "Modelo" es obligatorio y no está cargado.');
+  // Primero los errores, después los avisos; sin repetir, con su tipo.
+  assert.equal(motivoValidacion(400, datos), 'error: El campo "Modelo" es obligatorio y no está cargado. · aviso: Attribute [IS_TOM_BRAND] ignored because it is not modifiable. · aviso: Attribute [PACKAGE_HEIGHT] ignored because it is not modifiable.');
+});
+
+test("armarCuerpoCopia: con sinEnvio no manda el bloque de envío", () => {
+  const c = armarCuerpoCopia(ITEM, null, { variarTitulo: false, rotarFotos: false }, { sinEnvio: true });
+  assert.equal("shipping" in c, false);
+});
+
+test("armarCuerpoCopia: el SKU va tal cual, sin prefijo", () => {
+  const c = armarCuerpoCopia(ITEM, "SKU00040", { variarTitulo: false, rotarFotos: false }) as { attributes: { id: string; value_name?: string }[] };
+  assert.deepEqual(c.attributes.filter((a) => a.id === "SELLER_SKU"), [{ id: "SELLER_SKU", value_name: "SKU00040" }]);
 });

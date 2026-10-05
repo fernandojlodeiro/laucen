@@ -24,7 +24,6 @@ Menú **Catálogo › Copiar entre cuentas**.
 - **Buscador** por título o SKU, y títulos de columna que ordenan.
 - **La grilla**: una casilla por producto (sólo se puede marcar si está activa en el origen, no es de catálogo, no tiene variaciones y todavía no está en el destino), el título, el SKU y una columna por cuenta. Un producto es el mismo en todas las cuentas si tiene el mismo SKU (sin el "DE-" de adelante) o, si no tiene SKU, el mismo título.
 - **Variar el título** y **Cambiar la foto principal**: opciones para que la copia no sea idéntica. Variar el título deja la primera palabra donde está y pasa la segunda mitad del resto adelante. Cambiar la foto principal pasa la primera foto al final.
-- **Prefijo de SKU** de la cuenta de destino: en las DEIROLAB, "DE-"; en las demás, ninguno. Al copiar se saca el "DE-" del SKU de origen y se pone el de esa cuenta.
 
 ## Cómo se hace
 
@@ -42,9 +41,10 @@ Menú **Catálogo › Copiar entre cuentas**.
 - **Nada sale a Mercado Libre sin tu clic** en el lote.
 - **Qué se copia**: título (o su variante), categoría, precio, cantidad, tipo de publicación, condición, fotos, atributos, descripción, envío y condiciones de venta. **No se copia** lo propio de cada cuenta: tienda oficial, catálogo, Full/Flex, historial de ventas, opiniones ni preguntas. La publicación nueva arranca de cero.
 - **Todas las publicaciones de estas cuentas son del modelo nuevo de Mercado Libre**: el título lo arma ML a partir del nombre de familia, por eso variar el título es variar ese nombre.
-- **Envío**: la copia sale siempre con Mercado Envíos 2 (me2), aunque la de origen tuviera otro modo, porque no todas las cuentas tienen el modo viejo. Los datos que Mercado Libre calcula solo (medidas del paquete que fija ML, marca propia) no se mandan.
+- **SKU**: la copia lleva **el mismo SKU** que la de origen, en todas las cuentas (sin prefijos). Para saber si un producto ya está en la otra cuenta se compara el SKU, ignorando un "DE-" viejo de adelante.
+- **Envío**: la copia sale con Mercado Envíos 2 y nada más: el envío gratis (obligatorio por precio), su costo y el resto los decide Mercado Libre para esa cuenta. Si ML protesta por el envío, se vuelve a comprobar sin ese bloque. Los datos que ML calcula solo (medidas del paquete que fija ML, marca propia) no se mandan.
 - **Modelo**: muchas publicaciones viejas no tienen el atributo Modelo en ML, y hoy ML lo exige en algunas categorías. Si falta, se usa el **Modelo del producto de Laucen** (pestaña Datos). Si tampoco está ahí, ML rechaza la copia con "El campo Modelo es obligatorio": cargalo en el producto y volvé a preparar.
-- **Por qué rechaza ML**: al preparar la copia se muestra, publicación por publicación, el motivo que da Mercado Libre (sólo los errores; los avisos se ignoran). Lo que ML rechaza no entra al lote.
+- **Por qué rechaza ML**: al preparar la copia se muestra, publicación por publicación, lo que contesta Mercado Libre: cada causa con su tipo (error o aviso), los errores primero. Lo que ML rechaza no entra al lote.
 - **No se duplica en una misma cuenta**: si el destino ya tiene un producto con ese SKU o ese título, la publicación no entra al lote.
 - **Una publicación creada no se reintenta**: si el paso de la descripción falla después de crearla, queda como enviada con el aviso y se trae igual.
 - **Por ahora no se copian** las de catálogo ni las que tienen variaciones: se arman aparte, porque cada cuenta tiene que ganar con un plan de cuotas distinto.
