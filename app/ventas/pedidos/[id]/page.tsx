@@ -75,8 +75,17 @@ export default async function DetallePedido({ params, searchParams }: { params: 
 
   // El envío del canal (Mercado Envíos) y lo propio de ML, si lo hay.
   const envioMl = await una<{ id: number; logistica: string | null; metodo: string | null; estado: string | null; subestado: string | null;
-    tracking: string | null; receptor: string | null; direccion: Record<string, string | null>; despachar_antes: Date | null; entrega_estimada: Date | null }>(`
-    select id::int, logistica, metodo, estado, subestado, tracking, receptor, direccion, despachar_antes, entrega_estimada
+    tracking: string | null; receptor: string | null; direccion: Record<string, string | null>; despachar_antes: Date | null; entrega_estimada: Date | null;
+    impresa: Date | null; lista: Date | null; en_camino: Date | null; entregado: Date | null; no_entregado: Date | null; devuelto: Date | null; cancelado: Date | null }>(`
+    select id::int, logistica, metodo, estado, subestado, tracking, receptor, direccion, despachar_antes, entrega_estimada,
+           -- Los hitos del envío, como los cuenta Mercado Libre (status_history).
+           coalesce((datos_externos #>> '{ml,date_first_printed}')::timestamptz, etiqueta_impresa_ts) impresa,
+           (datos_externos #>> '{ml,status_history,date_ready_to_ship}')::timestamptz lista,
+           (datos_externos #>> '{ml,status_history,date_shipped}')::timestamptz en_camino,
+           (datos_externos #>> '{ml,status_history,date_delivered}')::timestamptz entregado,
+           (datos_externos #>> '{ml,status_history,date_not_delivered}')::timestamptz no_entregado,
+           (datos_externos #>> '{ml,status_history,date_returned}')::timestamptz devuelto,
+           (datos_externos #>> '{ml,status_history,date_cancelled}')::timestamptz cancelado
       from envio where pedido_id = $1 and organizacion_id = $2 order by id desc limit 1`, [pid, s.org.id]);
   const ml = await una<{ comision: number | null; sin_vincular: boolean; pack: string | null; espera_ts: Date | null }>(
     "select comision_ars::float comision, sin_vincular, envio ->> 'pack_id' pack, carrito_ultimo_evento_ts espera_ts from pedido where id = $1 and organizacion_id = $2", [pid, s.org.id]);
@@ -181,6 +190,13 @@ export default async function DetallePedido({ params, searchParams }: { params: 
                 <Dato t="Estado">{ESTADO_ENVIO[envioMl.estado ?? ""] ?? envioMl.estado ?? "—"}{envioMl.subestado ? ` (${envioMl.subestado})` : ""}</Dato>
                 <Dato t="Despachar antes de">{fechaCorta(envioMl.despachar_antes)}</Dato>
                 <Dato t="Entrega estimada">{fechaCorta(envioMl.entrega_estimada)}</Dato>
+                <Dato t="Etiqueta impresa">{fechaCorta(envioMl.impresa)}</Dato>
+                <Dato t="Lista para despachar">{fechaCorta(envioMl.lista)}</Dato>
+                <Dato t="En camino">{fechaCorta(envioMl.en_camino)}</Dato>
+                <Dato t="Entregado">{fechaCorta(envioMl.entregado)}</Dato>
+                {envioMl.no_entregado && <Dato t="No entregado">{fechaCorta(envioMl.no_entregado)}</Dato>}
+                {envioMl.devuelto && <Dato t="Devuelto">{fechaCorta(envioMl.devuelto)}</Dato>}
+                {envioMl.cancelado && <Dato t="Cancelado">{fechaCorta(envioMl.cancelado)}</Dato>}
                 <Dato t="Recibe">{envioMl.receptor ?? "—"}</Dato>
                 <Dato t="Seguimiento">{envioMl.tracking ?? "—"}</Dato>
                 <div className="col-span-2"><Dato t="Dirección">{[envioMl.direccion?.linea ?? [envioMl.direccion?.calle, envioMl.direccion?.numero].filter(Boolean).join(" "), envioMl.direccion?.localidad, envioMl.direccion?.provincia, envioMl.direccion?.codigo_postal && `CP ${envioMl.direccion.codigo_postal}`].filter(Boolean).join(", ") || "—"}{envioMl.direccion?.referencia && <span className="block text-[11px] text-[#5C6B76]">{envioMl.direccion.referencia}</span>}</Dato></div>

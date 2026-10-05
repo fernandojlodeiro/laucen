@@ -284,7 +284,7 @@ function ListaItems({ items, pedidoDe, loteId, editar, abierto }: {
 
 /** Qué pedidos quedaron preparados y cuáles incompletos, con sus etiquetas
  *  (las de Mercado Libre y las nuestras) y la reimpresión de las hojas. */
-function Resultado({ loteId, items, pedidos, tam }: { loteId: number; items: ItemPicking[]; pedidos: PedidoLote[]; tam: string }) {
+function Resultado({ loteId, items, pedidos, tam }: { loteId: number; items: ItemPicking[]; pedidos: PedidoLote[]; tam: Awaited<ReturnType<typeof tamElegido>> }) {
   const completo = new Map<number, boolean>();
   for (const i of items) completo.set(i.pedido_id, (completo.get(i.pedido_id) ?? true) && i.escaneado >= i.cantidad);
   const preparados = pedidos.filter((p) => p.preparado_ts || completo.get(p.id));
@@ -299,11 +299,14 @@ function Resultado({ loteId, items, pedidos, tam }: { loteId: number; items: Ite
         {preparados.length ? <ul className="text-sm space-y-0.5">{preparados.map((p) => <li key={p.id}>{nombre(p)}</li>)}</ul>
           : <p className="text-sm text-[#5C6B76]">Ninguno.</p>}
         {preparados.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-2">
+          <form action="/deposito/hojas" method="get" target="_blank" className="flex flex-wrap items-center gap-2 mt-2">
+            <input type="hidden" name="lote" value={loteId} />
+            <input type="hidden" name="p" value={preparados.map((p) => p.id).join(",")} />
+            <button className={`${PRIMARIO} ${GRANDE}`}>🖨 Imprimir etiquetas y hojas</button>
+            <SelectorTam tam={tam} />
             <a href={`/deposito/hojas?lote=${loteId}&p=${preparados.map((p) => p.id).join(",")}&solo=etiqueta&tam=${t}`} target="_blank" rel="noreferrer"
-              className={`${PRIMARIO} ${GRANDE} inline-block`}>🖨 Imprimir etiquetas</a>
-            <a href={`/deposito/hojas?lote=${loteId}&tam=${t}`} target="_blank" rel="noreferrer" className={`${SUAVE} ${GRANDE} inline-block`}>Reimprimir etiquetas y hojas</a>
-          </div>
+              className={`${SUAVE} ${GRANDE} inline-block`}>Sólo las etiquetas</a>
+          </form>
         )}
       </div>
       {incompletos.length > 0 && (

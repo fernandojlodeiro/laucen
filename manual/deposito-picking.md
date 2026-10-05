@@ -56,7 +56,7 @@ Arriba, el camino "Stock › Picking › <depósito> › #N" y un subtítulo con
 - Debajo de las pestañas, siempre: **"Terminar lote"** y **"Cancelar lote"** (pregunta antes de cancelar).
 - **"Recorrido (N ítems)"**: la lista de todo lo que hay que juntar, en orden de ubicación, con lo escaneado sobre lo pedido y los faltantes. Cada fila tiene el lápiz **"Corregir"**, que la convierte ahí mismo en los campos **"Escaneadas"** y **"Faltantes"** con **"Guardar"** y **"Cancelar"**.
 
-Un lote **terminado** muestra **Preparados (N)** con los botones **"🖨 Imprimir etiquetas"** (sólo las etiquetas de los preparados) y **"Reimprimir etiquetas y hojas"**, e **Incompletos (N)** si quedó alguno. Un lote **cancelado** dice que sus pedidos volvieron a la lista.
+Un lote **terminado** muestra **Preparados (N)** con **"🖨 Imprimir etiquetas y hojas"** (la etiqueta junto con la hoja de preparación de cada preparado, con el selector **"Papel"**) y **"Sólo las etiquetas"**, e **Incompletos (N)** si quedó alguno. Un lote **cancelado** dice que sus pedidos volvieron a la lista.
 
 ### El PDF de etiquetas y hojas
 
@@ -107,7 +107,7 @@ Apretá **"Preparar este"** en el pedido. Se arma un lote con ese pedido solo, e
 
 ### Reimprimir etiquetas y hojas de un lote
 
-En la pestaña **"Etiquetas y hojas"** del lote apretá **"Reimprimir etiquetas y hojas"**. Salen todas las del lote, con la hoja marcada "REIMPRESIÓN". En un lote terminado están **"🖨 Imprimir etiquetas"** (sólo etiquetas de los preparados) y **"Reimprimir etiquetas y hojas"**.
+En la pestaña **"Etiquetas y hojas"** del lote apretá **"Reimprimir etiquetas y hojas"**. Salen todas las del lote, con la hoja marcada "REIMPRESIÓN". En un lote terminado están **"🖨 Imprimir etiquetas y hojas"** (etiqueta + hoja de los preparados) y **"Sólo las etiquetas"**.
 
 ### Empacar escaneando (alternativo)
 
