@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { consulta, una } from "@/lib/erp/base";
-import { formatear, hoyAR, tcDelDia } from "@/lib/moneda";
+import { formatear, hoyAR, tcDelDia, type Moneda } from "@/lib/moneda";
 import { saldos, estadoDeCuenta, type Tercero } from "@/lib/administracion/cc";
 import { PRIMARIO, SUAVE, VERDE, BORRAR } from "@/app/botones";
 import { Pestanas, BotonConfirmar } from "@/app/radar/Cliente";
@@ -32,7 +32,8 @@ const PESTANAS = [
   { href: `${BASE}/proveedores`, texto: "Proveedores" },
 ];
 
-const ars = (n: number) => formatear(n, "ARS");
+/** Un importe de la cuenta corriente: en pesos, o en dólares exactos de su día (cada renglón guarda los dos). */
+const plata = (moneda: Moneda, ars: number, usd: number | null | undefined) => (moneda === "USD" && usd != null ? formatear(usd, "USD") : formatear(ars, "ARS"));
 
 /** Un renglón pendiente para "Imputar a mano": en positivo y en su moneda. */
 const paraImputar = (m: { id: number; descripcion: string; moneda: string; pendiente: number; cot: number | null; fecha: string }, signo: 1 | -1): RenglonImputar =>
@@ -46,7 +47,7 @@ function linkDocumento(tipo: string | null, id: number | null) {
   return null;
 }
 
-export async function VistaCc({ org, tercero, sp }: { org: string; tercero: Tercero; sp: SP }) {
+export async function VistaCc({ org, tercero, sp, moneda = "ARS" }: { org: string; tercero: Tercero; sp: SP; moneda?: Moneda }) {
   const ruta = tercero === "cliente" ? BASE : `${BASE}/proveedores`;
   const terceroId = Number(sp.id) || 0;
   // Cada razón social lleva su propia cuenta corriente con cada cliente o proveedor: se mira de una o de todas.
@@ -66,13 +67,13 @@ export async function VistaCc({ org, tercero, sp }: { org: string; tercero: Terc
         </div>
       )}
       {terceroId
-        ? <EstadoDeCuenta org={org} tercero={tercero} terceroId={terceroId} ruta={ruta} sp={sp} rs={rs} />
-        : <Saldos org={org} tercero={tercero} ruta={ruta} q={sp.q} sp={sp} rs={rs} />}
+        ? <EstadoDeCuenta org={org} tercero={tercero} terceroId={terceroId} ruta={ruta} sp={sp} rs={rs} vista={moneda} />
+        : <Saldos org={org} tercero={tercero} ruta={ruta} q={sp.q} sp={sp} rs={rs} vista={moneda} />}
     </Pantalla>
   );
 }
 
-async function Saldos({ org, tercero, ruta, q, sp, rs }: { org: string; tercero: Tercero; ruta: string; q?: string; sp: SP; rs: EleccionRs }) {
+async function Saldos({ org, tercero, ruta, q, sp, rs, vista: moneda }: { org: string; tercero: Tercero; ruta: string; q?: string; sp: SP; rs: EleccionRs; vista: Moneda }) {
   const todas = await saldos(org, tercero, rs.id);
   const rsUrl = rs.multi ? (rs.id ?? "todas") : null;
   const filas = todas;
@@ -80,6 +81,7 @@ async function Saldos({ org, tercero, ruta, q, sp, rs }: { org: string; tercero:
     nombre: (f) => f.nombre, saldo: (f) => f.saldo, vencido: (f) => f.vencido, ultimo: (f) => f.ultimo,
   }), sp);
   const total = filas.reduce((a, f) => a + f.saldo, 0), vencido = filas.reduce((a, f) => a + f.vencido, 0);
+  const totalUsd = filas.reduce((a, f) => a + f.saldo_usd, 0), vencidoUsd = filas.reduce((a, f) => a + f.vencido_usd, 0);
   const tabla = tercero === "cliente" ? "cliente" : "proveedor";
   const buscar = q?.trim();
   const encontrados = buscar
@@ -93,8 +95,8 @@ async function Saldos({ org, tercero, ruta, q, sp, rs }: { org: string; tercero:
       <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
         <div className="flex flex-wrap items-center gap-4 text-xs">
           <AccionesExcel lista={tercero === "cliente" ? LISTA_CC_CLIENTES : LISTA_CC_PROVEEDORES} org={org} />
-          <p>{tercero === "cliente" ? "Nos deben" : "Les debemos"}: <b className="tabular-nums">{ars(total)}</b></p>
-          <p>Vencido: <b className={`tabular-nums ${vencido > 0 ? "text-[#C03420]" : ""}`}>{ars(vencido)}</b></p>
+          <p>{tercero === "cliente" ? "Nos deben" : "Les debemos"}: <b className="tabular-nums">{plata(moneda, total, totalUsd)}</b></p>
+          <p>Vencido: <b className={`tabular-nums ${vencido > 0 ? "text-[#C03420]" : ""}`}>{plata(moneda, vencido, vencidoUsd)}</b></p>
         </div>
         <form className="flex items-end gap-2">
           {rsUrl && <input type="hidden" name="rs" value={rsUrl} />}
@@ -125,8 +127,8 @@ async function Saldos({ org, tercero, ruta, q, sp, rs }: { org: string; tercero:
             {vista.map((f) => (
               <tr key={f.id} className={TR}>
                 <td className={TD}><Link href={url(ruta, { id: f.id, rs: rsUrl })} className="text-[#16577F] font-semibold hover:underline">{f.nombre}</Link></td>
-                <td className={TDN}>{ars(f.saldo)}</td>
-                <td className={`${TDN} ${f.vencido > 0 ? "text-[#C03420]" : "text-[#5C6B76]"}`}>{f.vencido ? ars(f.vencido) : "—"}</td>
+                <td className={TDN}>{plata(moneda, f.saldo, f.saldo_usd)}</td>
+                <td className={`${TDN} ${f.vencido > 0 ? "text-[#C03420]" : "text-[#5C6B76]"}`}>{f.vencido ? plata(moneda, f.vencido, f.vencido_usd) : "—"}</td>
                 <td className={TD}>{fecha(f.ultimo)}</td>
               </tr>
             ))}
@@ -138,7 +140,7 @@ async function Saldos({ org, tercero, ruta, q, sp, rs }: { org: string; tercero:
   );
 }
 
-async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp, rs }: { org: string; tercero: Tercero; terceroId: number; ruta: string; sp: SP; rs: EleccionRs }) {
+async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp, rs, vista: moneda }: { org: string; tercero: Tercero; terceroId: number; ruta: string; sp: SP; rs: EleccionRs; vista: Moneda }) {
   const rsUrl = rs.multi ? (rs.id ?? "todas") : null;
   const nombreDe = new Map(rs.razones.map((x) => [x.id, nombreRs(x)]));
   const tabla = tercero === "cliente" ? "cliente" : "proveedor";
@@ -147,8 +149,8 @@ async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp, rs }: { org: 
   const esCobro = tercero === "cliente";
   const [movs, recibos, cuentas, tc] = await Promise.all([
     estadoDeCuenta(org, tercero, terceroId, rs.id),
-    consulta<{ id: number; numero: number; fecha: string; total_ars: number; estado: string; notas: string | null }>(`
-      select id::int, numero::int, to_char(fecha, 'YYYY-MM-DD') fecha, total_ars::float, estado, notas
+    consulta<{ id: number; numero: number; fecha: string; total_ars: number; total_usd: number; estado: string; notas: string | null }>(`
+      select id::int, numero::int, to_char(fecha, 'YYYY-MM-DD') fecha, total_ars::float, total_usd::float, estado, notas
         from recibo where organizacion_id = $1 and tercero_tipo = $2 and tercero_id = $3 and ($4::bigint is null or emisor_id = $4) order by fecha desc, numero desc limit 200`, [org, tercero, terceroId, rs.id]),
     consulta<{ id: number; nombre: string; moneda: "ARS" | "USD" }>(
       `select id::int, case when $2::boolean then nombre || ' · ' || coalesce((select coalesce(e.nombre, e.razon_social) from emisor e where e.id = cuenta_fondos.emisor_id), '') else nombre end nombre, moneda
@@ -156,8 +158,10 @@ async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp, rs }: { org: 
     tcDelDia(org),
   ]);
   const saldo = movs.length ? movs[movs.length - 1].saldo : 0;
+  const saldoUsd = movs.length ? movs[movs.length - 1].saldo_usd : 0;
   const hoy = hoyAR();
   const vencido = movs.reduce((a, m) => a + (m.pendiente > 0 && (m.vencimiento ?? m.fecha) < hoy ? m.pendiente * (m.importe ? m.importe_ars / m.importe : 1) : 0), 0);
+  const vencidoUsd = movs.reduce((a, m) => a + (m.pendiente > 0 && (m.vencimiento ?? m.fecha) < hoy ? m.pendiente * (m.importe ? m.importe_usd / m.importe : 1) : 0), 0);
   const debitos = movs.filter((m) => m.pendiente > 0.004), creditos = movs.filter((m) => m.pendiente < -0.004);
   const nombreDoc = esCobro ? "Recibo" : "Orden de pago";
   const campos = { tercero, id: String(terceroId), ...(rsUrl ? { rs: String(rsUrl) } : {}) };
@@ -172,8 +176,8 @@ async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp, rs }: { org: 
             <Link href={url(ruta, { rs: rsUrl })} className="text-[#16577F] font-normal hover:underline">{esCobro ? "Clientes" : "Proveedores"}</Link> › {t.nombre}
           </p>
           <p className="text-xs mt-1">
-            Saldo: <b className="tabular-nums">{ars(saldo)}</b> <span className="text-[#5C6B76]">{leyenda(saldo)}</span>
-            {vencido > 0.004 && <> · Vencido: <b className="tabular-nums text-[#C03420]">{ars(vencido)}</b></>}
+            Saldo: <b className="tabular-nums">{plata(moneda, saldo, saldoUsd)}</b> <span className="text-[#5C6B76]">{leyenda(saldo)}</span>
+            {vencido > 0.004 && <> · Vencido: <b className="tabular-nums text-[#C03420]">{plata(moneda, vencido, vencidoUsd)}</b></>}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -224,11 +228,11 @@ async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp, rs }: { org: 
                   <td className={TD}>{href ? <Link href={href} className="text-[#16577F] hover:underline">{m.descripcion}</Link> : m.descripcion}</td>
                   {rs.multi && !rs.id && <td className={TD}>{(m.emisor_id && nombreDe.get(m.emisor_id)) ?? "—"}</td>}
                   <td className={TDN}>
-                    {ars(m.importe_ars)}
+                    {plata(moneda, m.importe_ars, m.importe_usd)}
                     {mon === "USD" && <span className="block text-[10px] text-[#5C6B76]">{formatear(m.importe, "USD")}</span>}
                   </td>
                   <td className={`${TDN} ${Math.abs(m.pendiente) > 0.004 ? "" : "text-[#5C6B76]"}`}>{Math.abs(m.pendiente) > 0.004 ? formatear(m.pendiente, mon) : "—"}</td>
-                  <td className={TDN}>{ars(m.saldo)}</td>
+                  <td className={TDN}>{plata(moneda, m.saldo, m.saldo_usd)}</td>
                 </tr>
               );
             })}
@@ -253,7 +257,7 @@ async function EstadoDeCuenta({ org, tercero, terceroId, ruta, sp, rs }: { org: 
               <tr key={r.id} className={TR}>
                 <td className={TD}>{nombreDoc} {r.numero}</td>
                 <td className={TD}>{fecha(r.fecha)}</td>
-                <td className={TDN}>{ars(r.total_ars)}</td>
+                <td className={TDN}>{plata(moneda, r.total_ars, r.total_usd)}</td>
                 <td className={TD}><Estado texto={r.estado === "anulado" ? "Anulado" : "Emitido"} tono={r.estado === "anulado" ? "rojo" : "verde"} /></td>
                 <td className={`${TD} text-[#5C6B76]`}>{r.notas ?? ""}</td>
                 <td className={`${TD} text-right`}>
