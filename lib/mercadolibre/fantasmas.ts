@@ -8,6 +8,7 @@
 
 import { consulta, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
+import { guardarItem, type ItemMl } from "@/lib/mercadolibre/publicaciones";
 
 /** Los item_id de Laucen que ML no devolvió. Puro: se prueba sin base ni red. */
 export function faltantesEnMl(enLaucen: string[], enMl: ReadonlySet<string>): string[] {
@@ -99,4 +100,34 @@ export async function borrarFantasmas(org: string, canalId: number, hastaMs: num
     const m = await c.query("delete from meli_item where organizacion_id = $1 and canal_id = $2 and item_id = any($3::text[])", [org, canalId, r.fantasmas]);
     return { publicaciones: p.rowCount ?? 0, filas: m.rowCount ?? 0 };
   });
+}
+
+export type TraidasFaltantes = { traidas: number; vinculadas: number; sinVincular: number; cerradas: number; porEstado: Record<string, number>; quedan: number; completo: boolean };
+
+/** Trae a Laucen lo que ML tiene y Laucen no guarda (inactivas, pausadas, en revisión…), tal como está
+ *  en ML, y lo vincula por SKU como siempre. Las cerradas no se traen, y las que se descartaron a
+ *  propósito (meli_item_descartado) tampoco. No borra nada. Si no alcanza el tiempo, dice cuántas
+ *  quedan: se aprieta de nuevo. */
+export async function traerFaltantes(org: string, canalId: number, hastaMs: number): Promise<TraidasFaltantes> {
+  const cuenta = await cuentaDe(org, canalId);
+  const lectura = await idsEnMl(cuenta, hastaMs);
+  if (!lectura.completo || !lectura.ids.size) throw new ErrorErp("La lectura de Mercado Libre no terminó: probá de nuevo.");
+  const yaEstan = new Set((await consulta<{ item_id: string }>("select item_id from meli_item where organizacion_id = $1 and canal_id = $2", [org, canalId])).map((f) => f.item_id));
+  const descartadas = new Set((await consulta<{ item_id: string }>("select item_id from meli_item_descartado where organizacion_id = $1 and canal_id = $2", [org, canalId])).map((f) => f.item_id));
+  const faltan = [...lectura.ids].filter((i) => !yaEstan.has(i) && !descartadas.has(i)).sort();
+  const r: TraidasFaltantes = { traidas: 0, vinculadas: 0, sinVincular: 0, cerradas: 0, porEstado: {}, quedan: 0, completo: true };
+  for (let i = 0; i < faltan.length; i += 20) {
+    if (Date.now() > hastaMs - 5_000) { r.completo = false; r.quedan = faltan.length - i; break; }
+    const m = await ml<{ code: number; body: ItemMl }[]>(cuenta, "GET", `/items?ids=${faltan.slice(i, i + 20).join(",")}&include_attributes=all`);
+    if (m.status !== 200 || !Array.isArray(m.datos)) throw new ErrorErp("Mercado Libre no contestó: probá de nuevo (lo ya traído queda).");
+    for (const x of m.datos) {
+      if (x.code !== 200 || !x.body) continue;
+      if (x.body.status === "closed") { r.cerradas++; continue; }
+      r.vinculadas += await guardarItem(cuenta, x.body);
+      r.traidas++;
+      r.porEstado[x.body.status] = (r.porEstado[x.body.status] ?? 0) + 1;
+    }
+  }
+  r.sinVincular = r.traidas - r.vinculadas;
+  return r;
 }

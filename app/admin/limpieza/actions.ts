@@ -6,7 +6,7 @@ import { sosVos } from "@/lib/admin";
 import { orgRequerida } from "@/lib/tenancy";
 import { motivoErp } from "@/lib/erp/base";
 import { borrarBasuraDeVs } from "@/lib/limpieza-listas";
-import { borrarFantasmas, revisarFantasmas } from "@/lib/mercadolibre/fantasmas";
+import { borrarFantasmas, revisarFantasmas, traerFaltantes } from "@/lib/mercadolibre/fantasmas";
 import {
   borrarFamiliasVs, borrarNotebooksSinStock, borrarPruebas, categoriasPorPredictor, categoriasPorPublicacion,
 } from "@/lib/limpieza";
@@ -63,6 +63,18 @@ export async function accionRevisarFantasmas(canalId: number) {
   try {
     const r = await revisarFantasmas(org, canalId, Date.now() + 50_000);
     return { ok: true as const, enLaucen: r.enLaucen, enMl: r.enMl, faltan: r.fantasmas.length, soloEnMl: r.soloEnMl, ejemplos: r.ejemplos, confiable: r.confiable, motivo: r.motivo };
+  } catch (e) {
+    return { ok: false as const, error: motivoErp(e) };
+  }
+}
+
+/** Trae a Laucen lo que ML tiene y Laucen no (inactivas, pausadas…) y lo vincula por SKU. No borra nada. */
+export async function accionTraerFaltantes(canalId: number) {
+  const org = await portero();
+  try {
+    const r = await traerFaltantes(org, canalId, Date.now() + 50_000);
+    revalidatePath("/admin/limpieza");
+    return { ok: true as const, ...r };
   } catch (e) {
     return { ok: false as const, error: motivoErp(e) };
   }
