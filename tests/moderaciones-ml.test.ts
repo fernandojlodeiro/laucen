@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import { sinHtml, listaDe, resumir } from "@/lib/mercadolibre/moderaciones";
 
 test("sinHtml: saca etiquetas y entidades, respeta los renglones", () => {
-  assert.equal(sinHtml("<p>El precio&nbsp;es <b>muy bajo</b>.</p><br/>Corregilo"), "El precio es muy bajo .\nCorregilo");
+  assert.equal(sinHtml("<p>El precio&nbsp;es <b>muy bajo</b>.</p><br/>Corregilo"), "El precio es muy bajo.\nCorregilo");
+  assert.equal(sinHtml("Modific&aacute; el valor de la categor&iacute;a &#191;s&iacute;?"), "Modificá el valor de la categoría ¿sí?");
   assert.equal(sinHtml(null), "");
 });
 
