@@ -234,6 +234,8 @@ export function hitoDe(estado: string): "entregado" | "devuelto" | "anulado" | "
   if (/anulad|cancelad/.test(e)) return "anulado";
   if (/no entregad|sin entregar/.test(e)) return "en_camino";
   if (/entregad/.test(e)) return "entregado";
-  if (/pendiente|generad|ingresad[ao] (en|al) sistema|preimpos|orden de retiro/.test(e)) return null;
+  // Antes de que OCA tenga el paquete: "En proceso de Retiro" (la orden de retiro está creada y
+  // OCA todavía no pasó a buscarlo; Fer, 6/10), pendiente, generada, preimpuesta…
+  if (/pendiente|generad|ingresad[ao] (en|al) sistema|preimpos|orden de retiro|proceso de retiro|a retirar|retiro programad/.test(e)) return null;
   return "en_camino";
 }
