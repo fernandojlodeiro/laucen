@@ -73,9 +73,9 @@ export async function accionCancelarLote(fd: FormData) {
   const lote = id(fd, "lote");
   const d = id(fd, "d");
   await intentar(`${LISTA}/${lote}`, async () => {
-    await cancelarLote(s.org.id, lote);
+    await cancelarLote(s.org.id, lote, s.usuario.id);
     revalidatePath(LISTA);
-    return { ir: `${LISTA}?d=${d}&ok=${encodeURIComponent(`Picking #${lote} cancelado: sus pedidos vuelven a la lista.`)}` };
+    return { ir: `${LISTA}?d=${d}&ok=${encodeURIComponent(`Lote #${lote} desarmado: sus pedidos volvieron a la lista como estaban.`)}` };
   });
 }
 

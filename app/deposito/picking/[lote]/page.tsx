@@ -57,7 +57,7 @@ export default async function LotePicking({ params, searchParams }: { params: Pr
         camino={[{ texto: lote.deposito, href: volverLista }, { texto: `#${lote.id}` }]}>
         <Avisos sp={sp} />
         {lote.estado === "terminado" ? <Resultado loteId={loteId} items={items} pedidos={pedidos} tam={tam} /> : (
-          <p className="text-sm text-[#5C6B76] mb-4">Este lote se canceló: sus pedidos volvieron a la lista para preparar.</p>
+          <p className="text-sm text-[#5C6B76] mb-4">Este lote se desarmó: sus pedidos volvieron a la lista para preparar.</p>
         )}
         <ListaItems items={items} pedidoDe={pedidoDe} loteId={loteId} editar={0} abierto={false} />
       </Pantalla>
@@ -79,7 +79,10 @@ export default async function LotePicking({ params, searchParams }: { params: Pr
 
   return (
     <Pantalla titulo={titulo} subtitulo={`${lote.deposito} · ${pedidos.length} pedido${pedidos.length === 1 ? "" : "s"} · ${preparados} preparado${preparados === 1 ? "" : "s"}`} ancho="max-w-2xl"
-      camino={[{ texto: lote.deposito, href: volverLista }, { texto: `#${lote.id}` }]}>
+      camino={[{ texto: lote.deposito, href: volverLista }, { texto: `#${lote.id}` }]}
+      acciones={<BotonConfirmar accion={accionCancelarLote} campos={{ lote: String(loteId), d: String(lote.deposito_id) }}
+        clase={APAGAR} texto="Desarmar lote" corriendo="Desarmando…"
+        pregunta={preparados ? `¿Desarmar el lote? Los ${preparados} preparados quedan preparados; el resto vuelve a la lista como estaba.` : "¿Desarmar el lote? Sus pedidos vuelven a la lista como estaban."} />}>
       <Avisos sp={sp} />
 
       <Pestanas className="mb-3" items={pestanas.map(([k, t]) => ({ clave: k, texto: t, activa: ver === k, href: url(`/deposito/picking/${loteId}`, { ver: k }) }))} />
@@ -155,8 +158,7 @@ export default async function LotePicking({ params, searchParams }: { params: Pr
             <button className={`${VERDE} ${GRANDE} w-full`}>Terminar lote</button>
           </form>
         )}
-        <BotonConfirmar accion={accionCancelarLote} campos={{ lote: String(loteId), d: String(lote.deposito_id) }}
-          clase={`${APAGAR} ${GRANDE}`} texto="Cancelar lote" pregunta="¿Cancelar este lote?" corriendo="Cancelando…" />
+
       </div>
       {sinCerrar.length > 0 && <p className="text-[11px] text-[#5C6B76] -mt-3 mb-5">Si terminás el lote con pedidos sin cerrar, quedan en preparación y vuelven a la lista.</p>}
 

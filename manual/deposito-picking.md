@@ -53,10 +53,10 @@ Arriba, el camino "Stock › Picking › <depósito> › #N" y un subtítulo con
 - **"Empacar escaneando (alternativo)"**: el lector "Escaneá el producto que vas a empacar", el cartel que dice a qué pedido va cada producto, y la lista de pedidos (con "empacadas N" y, en los ya preparados, el botón **"🖨 Etiqueta"**).
 - **"Recorrer escaneando"**: el avance ("N de M unidades", faltantes y porcentaje), una caja grande con el ítem que toca (la **Ubicación** bien grande, la foto, el SKU, el título, "Faltan N de M", si es parte de un kit y de qué pedido es) y el lector. Cuando está todo, dice "Todo escaneado ✓".
 - En **"Empacar escaneando"** y **"Recorrer escaneando"**, al lado del lector, el campo **"Cantidad"** (viene en 1): para lo que no tiene etiqueta (diodos, packs que se arman al vender) se escribe cuántas unidades, después el SKU y Enter, y se cargan todas de una. Después de cada carga vuelve a 1.
-- Debajo de las pestañas, siempre: **"Terminar lote"** y **"Cancelar lote"** (pregunta antes de cancelar).
+- Arriba a la derecha, **"Desarmar lote"** (pregunta antes). Debajo de las pestañas, **"Terminar lote"**.
 - **"Recorrido (N ítems)"**: la lista de todo lo que hay que juntar, en orden de ubicación, con lo escaneado sobre lo pedido y los faltantes. Cada fila tiene el lápiz **"Corregir"**, que la convierte ahí mismo en los campos **"Escaneadas"** y **"Faltantes"** con **"Guardar"** y **"Cancelar"**.
 
-Un lote **terminado** muestra **Preparados (N)** con **"🖨 Imprimir etiquetas y hojas"** (la etiqueta junto con la hoja de preparación de cada preparado, con el selector **"Papel"**) y **"Sólo las etiquetas"**, e **Incompletos (N)** si quedó alguno. Un lote **cancelado** dice que sus pedidos volvieron a la lista.
+Un lote **terminado** muestra **Preparados (N)** con **"🖨 Imprimir etiquetas y hojas"** (la etiqueta junto con la hoja de preparación de cada preparado, con el selector **"Papel"**) y **"Sólo las etiquetas"**, e **Incompletos (N)** si quedó alguno. Un lote **desarmado** dice que sus pedidos volvieron a la lista.
 
 ### El PDF de etiquetas y hojas
 
@@ -93,7 +93,7 @@ Es provisorio, para cuando hay apuro y mientras no todos los productos tienen et
 1. Entrá a **Stock › Picking** y, si hay varios, elegí el depósito y apretá **"Ver"**.
 2. Tildá los pedidos que vas a preparar.
 3. Elegí el **"Papel"** (térmica 10 × 15 o A4).
-4. Apretá **"🖨 Imprimir etiquetas y hojas"**. Se abre el PDF en otra pestaña; imprimilo. Si no tildaste nada, avisa "Tildá al menos un pedido."
+4. Apretá **"🖨 Imprimir etiquetas y hojas"**. Se abre el PDF en otra pestaña; imprimilo. Si no tildaste nada, avisa "Tildá al menos un pedido." Para tildar todos los de la lista de una, **"Tildar todos (N)"** arriba de la lista (los carritos de Mercado Libre en espera no se tildan).
 5. Los pedidos impresos pasan solos a un **lote abierto** (modo "con hojas") y a estado "en preparación". La pantalla se actualiza a los pocos segundos y el lote aparece en **"Lotes abiertos"**.
 6. Con cada hoja, juntá la mercadería de las ubicaciones que dice, tildando a mano en el papel.
 7. Abrí el lote y cerrá cada pedido de una de estas dos formas:
@@ -124,10 +124,10 @@ En la pestaña **"Etiquetas y hojas"** del lote apretá **"Reimprimir etiquetas 
 3. Si una unidad no está, corregí la fila con el lápiz **"Corregir"**: poné cuántas **"Escaneadas"** y cuántas **"Faltantes"** y apretá **"Guardar"**.
 4. Cuando dice "Todo escaneado ✓", apretá **"Terminar lote"**.
 
-### Terminar o cancelar un lote
+### Terminar o desarmar un lote
 
 - **"Terminar lote"**: los pedidos con todo escaneado pasan a "preparado"; los que tienen faltantes o no se cerraron quedan "en preparación" y vuelven a la lista para un próximo lote. Si hay pedidos sin cerrar, antes de terminar pregunta ahí mismo cuáles son ("El #25 no está preparado: queda en preparación y vuelve a la lista. ¿Terminar igual?") con **"Sí"** / **"No"**. Terminar no mueve stock ni toca Mercado Libre: sólo cambia el estado de los pedidos completos a "preparado" (queda en su historial) y cierra el lote. La mercadería sigue reservada; el stock se descuenta recién al despachar. Muestra un resumen: "Picking terminado: N preparado(s), N incompleto(s)".
-- **"Cancelar lote"**: pregunta "¿Cancelar este lote?". Los pedidos quedan "en preparación" y vuelven a la lista para armar otro lote.
+- **"Desarmar lote"** (arriba a la derecha): pregunta "¿Desarmar el lote?". Los pedidos sin preparar vuelven a la lista **como estaban antes del lote** (por ejemplo "pagado"), para armar otro; los que ya estaban preparados quedan preparados. Sirve, por ejemplo, si se tildó un pedido por error.
 
 ### Mensajes de error típicos
 
@@ -140,7 +140,7 @@ En la pestaña **"Etiquetas y hojas"** del lote apretá **"Reimprimir etiquetas 
 
 ## Criterios y reglas
 
-- **Qué pedidos aparecen para preparar**: los de ese depósito que mueven stock, que no son de Full y que no están en un lote abierto, y que estén "pagado" o "en preparación" (por ejemplo, de un lote cancelado), o que estén "nuevo" pero sean «A cobrar» (efectivo al retirar) o a convenir, que no esperan el pago.
+- **Qué pedidos aparecen para preparar**: los de ese depósito que mueven stock, que no son de Full y que no están en un lote abierto, y que estén "pagado" o "en preparación" (por ejemplo, de un lote terminado sin cerrarlos), o que estén "nuevo" pero sean «A cobrar» (efectivo al retirar) o a convenir, que no esperan el pago.
 - **Orden**: primero los que tienen fecha de "despachar antes" (la más cercana primero), después los que no tienen, por fecha del pedido.
 - **Depósito de cada pedido**: el que tiene asignado; si no, el primero activo del canal; si no, el primero activo de la empresa.
 - **Qué hay que juntar** sale de lo que cada pedido tiene **reservado**: la reserva ya dice de qué ubicación sale cada unidad, y los kits vienen abiertos en sus componentes. Un «A cobrar» viejo que nunca reservó, reserva al armar el lote. Lo que no está vinculado a un producto va en la hoja igual, sin ubicación, al final.
@@ -162,7 +162,7 @@ En la pestaña **"Etiquetas y hojas"** del lote apretá **"Reimprimir etiquetas 
 Puede estar esperando el pago (estado "nuevo"), ser de Full, ser de otro depósito, estar ya en un lote abierto, o no mover stock.
 
 **¿Qué pasa si imprimo y después no lo preparo?**
-El pedido queda en el lote abierto. Si cancelás el lote o lo terminás sin cerrarlo, vuelve a la lista "en preparación" (con la marca "Ya empezado").
+El pedido queda en el lote abierto. Si desarmás el lote, vuelve a la lista como estaba; si lo terminás sin cerrarlo, vuelve "en preparación" (con la marca "Ya empezado").
 
 **¿Puedo reimprimir una etiqueta?**
 Sí, desde la pantalla del lote ("Reimprimir etiquetas y hojas"). La hoja sale marcada "REIMPRESIÓN".
