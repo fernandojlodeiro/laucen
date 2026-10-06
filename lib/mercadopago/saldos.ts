@@ -22,6 +22,19 @@ const FUENTES = (uid: number) => [
   { fuente: "Mercado Pago · saldo de la cuenta", url: `https://api.mercadopago.com/users/${uid}/mercadopago_account/balance` },
 ];
 
+/** Lo que se prueba si no hay saldo directo (sólo lectura). */
+const PRUEBAS = [
+  { fuente: "Pagos recibidos", ruta: "/v1/payments/search?sort=date_created&criteria=desc&limit=1" },
+  { fuente: "Reporte de dinero liberado", ruta: "/v1/account/release_report/list" },
+  { fuente: "Reporte de movimientos (liquidaciones)", ruta: "/v1/account/settlement_report/list" },
+];
+const resumenPrueba = (d: unknown) => {
+  const x = d as { paging?: { total?: number }; results?: unknown[] } | unknown[] | null;
+  if (Array.isArray(x)) return `${x.length} reporte${x.length === 1 ? "" : "s"}`;
+  if (x && typeof x === "object" && "paging" in x && x.paging?.total != null) return `${x.paging.total.toLocaleString("es-AR")} pagos`;
+  return "ok";
+};
+
 async function pedir(url: string, token: string): Promise<{ status: number; datos: unknown }> {
   try {
     const r = await fetch(url, { headers: { authorization: `Bearer ${token}`, accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(15_000) });
@@ -53,6 +66,11 @@ export async function leerSaldo(cuenta: CuentaMl): Promise<Lectura> {
   const mlTok = await tokenDeCuenta(cuenta.id);
   if (mlTok) llaves.push({ llave: "ml", token: mlTok });
   if (mp?.t) llaves.push({ llave: "mp", token: mp.t });
+  // La llave de Mercado Pago de la tienda web, si es de esta misma cuenta (el número del final de la llave es el usuario).
+  const web = await una<{ t: string }>(`
+    select cr.datos ->> 'access_token' t from medio_pago_credencial cr join medio_pago m on m.id = cr.medio_pago_id
+     where m.organizacion_id = $1 and m.tipo = 'mercadopago' and cr.datos ->> 'access_token' like '%-' || $2::text`, [cuenta.organizacionId, String(cuenta.meliUserId)]);
+  if (web?.t && web.t !== mp?.t) llaves.push({ llave: "mp", token: web.t });
   const intentos: Intento[] = [];
   let fuente: string | null = null;
   let datos: Record<string, unknown> | null = null;
@@ -65,6 +83,17 @@ export async function leerSaldo(cuenta: CuentaMl): Promise<Lectura> {
     }
   }
   if (!llaves.length) intentos.push({ fuente: "—", llave: "ml", status: 401, motivo: "la cuenta de Mercado Libre está desconectada y no hay llave de Mercado Pago" });
+  // Sin saldo directo: qué otras cosas de Mercado Pago deja leer cada llave
+  // (pagos, reportes de dinero liberado y de movimientos), para armar el
+  // saldo con eso. Queda anotado en los intentos.
+  if (!datos) {
+    for (const { llave, token } of llaves) {
+      for (const p of PRUEBAS) {
+        const r = await pedir(`https://api.mercadopago.com${p.ruta}`, token);
+        intentos.push({ fuente: p.fuente, llave, status: r.status, motivo: r.status === 200 ? `deja leer (${resumenPrueba(r.datos)})` : motivoDe(r.status, r.datos) });
+      }
+    }
+  }
   const fila = await una<{ leido_ts: Date }>(`
     insert into mp_saldo (organizacion_id, canal_id, fuente, datos, intentos) values ($1, $2, $3, $4::jsonb, $5::jsonb) returning leido_ts`,
     [cuenta.organizacionId, cuenta.canalId, fuente, datos ? JSON.stringify(datos) : null, JSON.stringify(intentos)]);

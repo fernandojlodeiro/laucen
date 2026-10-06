@@ -39,6 +39,6 @@ La llave nunca se vuelve a mostrar: sólo dice si está cargada.
 
 ## Criterios
 
-- **De dónde lee**: primero con la conexión de Mercado Libre de la cuenta (la cuenta de Mercado Pago es el mismo usuario); si no alcanza, con la llave de Mercado Pago cargada para esa cuenta. Se prueban las dos direcciones del saldo que da Mercado Pago y se usa la primera que contesta con números.
+- **De dónde lee**: primero con la conexión de Mercado Libre de la cuenta (la cuenta de Mercado Pago es el mismo usuario); si no alcanza, con la llave de Mercado Pago cargada para esa cuenta, o con la de cobrar en la tienda web (Configuración › Medios de pago) si es de esa misma cuenta. Se prueban las dos direcciones del saldo que da Mercado Pago y se usa la primera que contesta con números.
 - **Total**: la suma de las cuentas (en pesos).
 - Cada lectura queda guardada, para poder ver más adelante cómo fue cambiando el saldo y hacer análisis.
