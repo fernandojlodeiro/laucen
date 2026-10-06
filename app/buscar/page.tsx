@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { enVista, buscarInactivos, fijarBuscarInactivos } from "@/lib/moneda";
+import { terminosBusqueda, patronesBusqueda, digitosBusqueda, numeroBusqueda, sqlBusqueda, type CampoBusqueda } from "@/lib/busqueda";
 import { tienePermiso } from "@/lib/permisos";
 import { ESTADOS_PEDIDO, type EstadoPedido } from "@/lib/pedidos";
 import { PRIMARIO } from "@/app/botones";
@@ -34,32 +35,16 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
     publicaciones: tienePermiso(s.permisos, "publicaciones_ver"),
     proveedores: tienePermiso(s.permisos, "proveedores_ver"),
   };
-  // Cómo se busca (Fer, 6/10): la frase escrita, entera y tal cual (con sus espacios), en cualquier
-  // parte de cada dato. El "?" separa condiciones que tienen que cumplirse TODAS en el mismo
-  // resultado (cada una en cualquiera de sus datos): "note?12gb" trae lo que dice "note" y "12gb".
-  const terminos = [...new Set(q.split("?").map((t) => t.trim()).filter(Boolean))].slice(0, 10);
-  const patrones = terminos.map((t) => `%${t.replace(/[\\%_]/g, (x) => `\\${x}`)}%`);
-  // Un término de sólo números (con o sin puntos y guiones, sin letras) también se compara con los
-  // CUIT y DNI sin puntos ni guiones: "02252" puede ser un pedazo de CUIT; "SKU02252" no. Va en un
-  // arreglo alineado con los términos ("" = no se compara por dígitos).
-  const digitosDe = terminos.map((t) => {
-    const d = /\p{L}/u.test(t) ? "" : t.replace(/\D/g, "");
-    return d.length >= 4 ? `%${d}%` : "";
-  });
-  // El número interno (pedido, cliente, proveedor, producto) sólo si se buscó un número solo.
-  const numeros = terminos.length === 1 && /^\d{1,15}$/.test(terminos[0]) ? [Number(terminos[0])] : [];
-  /** Todos los términos ($2) están en el mismo resultado, cada uno en alguno de los campos. Con
-   *  `digitos` (y $4 = digitosDe), un término de sólo números vale también si está en los dígitos
-   *  de esos campos. */
-  const todas = (campos: string[], digitos: string[] = []) => {
-    const conds = [...campos.map((c) => c.includes(" w") ? c : `${c} ilike w`),
-      ...digitos.map((c) => `(d <> '' and regexp_replace(coalesce(${c}, ''), '\\D', '', 'g') like d)`)];
-    const desde = digitos.length ? "unnest($2::text[], $4::text[]) t(w, d)" : "unnest($2::text[]) w";
-    return `not exists (select 1 from ${desde} where not coalesce(${conds.join(" or ")}, false))`;
-  };
+  // Cómo se busca: la regla de todo el panel (lib/busqueda.ts). La frase tal cual; "?" separa
+  // condiciones que tienen que estar todas en un mismo dato; números solos también contra CUIT/DNI.
+  const terminos = terminosBusqueda(q);
+  const patrones = patronesBusqueda(q);
+  const digitosDe = digitosBusqueda(q);
+  const n = numeroBusqueda(q);
+  const numeros = n == null ? [] : [n];
   // Del producto: sus datos y los de sus variaciones.
-  const CAMPOS_PRODUCTO = ["p.sku_base", "p.titulo", "p.marca", "p.codigo_barras",
-    "exists (select 1 from variacion v where v.producto_id = p.id and (v.sku ilike w or v.titulo ilike w or v.codigo_barras ilike w))"];
+  const CAMPOS_PRODUCTO: CampoBusqueda[] = ["p.sku_base", "p.titulo", "p.marca", "p.codigo_barras",
+    { de: "select 1 from variacion v where v.producto_id = p.id", campos: ["v.sku", "v.titulo", "v.codigo_barras"] }];
 
   // Productos y publicaciones, con o sin los inactivos (los de producto archivado).
   const buscarProductos = (inc: boolean) =>
@@ -70,7 +55,7 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
              (select array_agg(url order by orden, id) from producto_foto where producto_id = p.id) fotos
         from producto p
        where p.organizacion_id = $1 and ($5 or p.estado <> 'archivado')
-         and (${todas(CAMPOS_PRODUCTO)} or p.id = any($4::bigint[]))
+         and (${sqlBusqueda("$2", CAMPOS_PRODUCTO)} or p.id = any($4::bigint[]))
        order by (lower(p.sku_base) = any(select lower(x) from unnest($3::text[]) x)) desc, p.titulo
        limit ${TOPE}`, [s.org.id, patrones, terminos, numeros, inc]) : [];
   const buscarPublicaciones = (inc: boolean) =>
@@ -78,7 +63,7 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
       select pu.id::int, pu.id_externo, coalesce(pu.titulo, v.titulo, p.titulo) titulo, pu.estado, ca.nombre canal, p.id::int producto_id, v.sku
         from publicacion pu join canal ca on ca.id = pu.canal_id join variacion v on v.id = pu.variacion_id join producto p on p.id = v.producto_id
        where pu.organizacion_id = $1 and ($4 or p.estado <> 'archivado')
-         and ${todas(["pu.titulo", "pu.id_externo", "v.sku"])}
+         and ${sqlBusqueda("$2", ["pu.titulo", "pu.id_externo", "v.sku"])}
        order by (upper(pu.id_externo) = any(select upper(x) from unnest($3::text[]) x)) desc, pu.titulo
        limit ${TOPE}`, [s.org.id, patrones, terminos, inc]) : [];
 
@@ -87,14 +72,14 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
     ver.pedidos ? consulta<{ id: number; id_externo: string | null; fecha: Date; canal: string; cliente: string | null; estado: EstadoPedido; total_ars: number; total_usd: number }>(`
       select p.id::int, p.id_externo, p.fecha, ca.nombre canal, cl.nombre cliente, p.estado, p.total_ars::float, p.total_usd::float
         from pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
-       where p.organizacion_id = $1 and (${todas(["p.id_externo"])} or p.id = any($3::bigint[]))
+       where p.organizacion_id = $1 and (${sqlBusqueda("$2", ["p.id_externo"])} or p.id = any($3::bigint[]))
        order by (p.id = any($3::bigint[])) desc, p.fecha desc
        limit ${TOPE}`, [s.org.id, patrones, numeros]) : [],
     ver.clientes ? consulta<{ id: number; nombre: string; razon_social: string | null; email: string | null; documento_tipo: string | null; documento_numero: string | null; cuit: string | null }>(`
       select c.id::int, c.nombre, c.razon_social, c.email, c.documento_tipo, c.documento_numero, c.cuit
         from cliente c
        where c.organizacion_id = $1
-         and (${todas(["c.nombre", "c.razon_social", "c.email", "c.documento_numero", "c.cuit"], ["c.documento_numero", "c.cuit"])} or c.id = any($3::bigint[]))
+         and (${sqlBusqueda("$2", ["c.nombre", "c.razon_social", "c.email", "c.documento_numero", "c.cuit"], { param: "$4", campos: ["c.documento_numero", "c.cuit"] })} or c.id = any($3::bigint[]))
        order by c.nombre
        limit ${TOPE}`, [s.org.id, patrones, numeros, digitosDe]) : [],
     buscarPublicaciones(inactivos),
@@ -102,14 +87,14 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
       select pr.id::int, pr.nombre, pr.razon_social, pr.cuit, pr.email
         from proveedor pr
        where pr.organizacion_id = $1
-         and (${todas(["pr.nombre", "pr.razon_social", "pr.cuit"], ["pr.cuit"])} or pr.id = any($3::bigint[]))
+         and (${sqlBusqueda("$2", ["pr.nombre", "pr.razon_social", "pr.cuit"], { param: "$4", campos: ["pr.cuit"] })} or pr.id = any($3::bigint[]))
        order by pr.nombre
        limit ${TOPE}`, [s.org.id, patrones, numeros, digitosDe]) : [],
     // Sin la caja tildada: cuántos productos inactivos coinciden, para avisarlo.
     ver.productos && !inactivos ? consulta<{ n: number }>(`
       select count(*)::int n from producto p
        where p.organizacion_id = $1 and p.estado = 'archivado'
-         and ${todas(CAMPOS_PRODUCTO)}`, [s.org.id, patrones]).then((r) => r[0]?.n ?? 0) : 0,
+         and ${sqlBusqueda("$2", CAMPOS_PRODUCTO)}`, [s.org.id, patrones]).then((r) => r[0]?.n ?? 0) : 0,
   ]) : [[], [], [], [], [], 0];
   // Si lo único que coincide es inactivo, se muestra igual aunque la caja no esté tildada (Fer, 6/10).
   // Con cualquier cosa activa encontrada, los inactivos siguen escondidos salvo con la caja.
@@ -131,7 +116,7 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
         <button className={PRIMARIO}>Buscar</button>
       </form>
       <p className="-mt-2 mb-4 text-[11px] text-[#5C6B76]">
-        Busca lo que escribiste <b>tal cual</b>, entero (con sus espacios), en cualquier parte. Para pedir <b>varias condiciones a la vez</b>, separalas con <b className="font-mono text-[#16577F]">?</b>: trae lo que cumple <b>todas</b> en el mismo resultado (por ejemplo <span className="font-mono">note?12gb</span> trae lo que dice “note” y también “12gb”). Los <b>inactivos</b> salen sólo si es lo único que coincide, salvo que tildes “Mostrar inactivos”: ahí salen siempre.
+        Busca lo que escribiste <b>tal cual</b>, entero (con sus espacios), en cualquier parte. Para pedir <b>varias condiciones a la vez</b>, separalas con <b className="font-mono text-[#16577F]">?</b>: trae lo que las cumple <b>todas en un mismo dato</b> (por ejemplo <span className="font-mono">note?12gb</span> trae lo que en el título, o en otro mismo dato, dice “note” y también “12gb”). Los <b>inactivos</b> salen sólo si es lo único que coincide, salvo que tildes “Mostrar inactivos”: ahí salen siempre.
       </p>
       {!q && <p className="text-xs text-[#5C6B76]">Escribí qué buscar.</p>}
       {nada && <p className="text-xs text-[#5C6B76]">No se encontró nada con “{q}”.</p>}
