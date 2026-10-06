@@ -17,7 +17,7 @@ import { sosVos } from "@/lib/admin";
 import { menuPara } from "@/lib/menu";
 import { accesosDe } from "@/lib/accesos";
 import { historialDe } from "@/lib/historial";
-import { monedaVista, tcDelDia, formatear, type Moneda } from "@/lib/moneda";
+import { monedaVista, buscarInactivos, tcDelDia, formatear, type Moneda } from "@/lib/moneda";
 import { contadoresEstado, type Contador } from "@/lib/erp/contadores";
 import { accionLogout } from "@/app/auth-actions";
 import { BarraMenu, MenuCelular } from "./BarraMenu";
@@ -34,13 +34,14 @@ export default async function Marco({ children, version }: { children: React.Rea
   const menu = menuPara(puede, esFer);
 
   // Si la base no responde, el marco se dibuja igual (con lo que haya).
-  const [moneda, tc, contadores, asistente, accesos, historial] = await Promise.all([
+  const [moneda, tc, contadores, asistente, accesos, historial, inactivos] = await Promise.all([
     monedaVista(sesion.usuario.id, sesion.org.id).catch(() => "ARS" as Moneda),
     tcDelDia(sesion.org.id).catch(() => null),
     contadoresEstado(sesion.org.id).catch(() => [] as Contador[]),
     configAsistente(sesion.org.id).catch(() => CONFIG_DEFECTO),
     accesosDe(sesion.usuario.id, sesion.org.id, puede).catch(() => []),
     historialDe(sesion.usuario.id, sesion.org.id).catch(() => []),
+    buscarInactivos(sesion.usuario.id, sesion.org.id).catch(() => false),
   ]);
   const quien = sesion.usuario.nombre || sesion.usuario.email;
 
@@ -52,10 +53,13 @@ export default async function Marco({ children, version }: { children: React.Rea
           <Link href="/panel" className="text-sm font-black text-[#16577F] tracking-tight shrink-0">Laucen</Link>
           <BarraMenu menu={menu} />
           <form action="/buscar" className="ml-auto flex items-center gap-1">
-            <input name="q" placeholder="Buscar producto, MLA, cliente, proveedor…" aria-label="Buscar"
+            <input name="q" placeholder="Buscar producto, MLA, cliente, proveedor…" aria-label="Buscar" title={AYUDA_BUSCAR}
               className="w-64 text-xs border border-[#E3E9F0] rounded-lg px-2 py-1.5 bg-[#F7F8F6]" />
+            {/* El globito con cómo se busca (al pasar el mouse o tocarlo). */}
+            <span title={AYUDA_BUSCAR} aria-label={AYUDA_BUSCAR} tabIndex={0}
+              className="inline-flex items-center justify-center h-4 w-4 rounded-full border border-[#9AA7B3] text-[10px] font-bold text-[#5C6B76] cursor-help shrink-0">?</span>
             {/* Incluir los inactivos (Fer, 6/10): chico, una caja con el ícono del archivo; apagada de entrada. */}
-            <CajaInactivos />
+            <CajaInactivos activo={inactivos} />
           </form>
           <form action={accionLogout}>
             <button className="text-xs font-bold rounded-lg px-2 py-1.5 bg-[#EEF3F8] border border-[#E3E9F0] text-[#16577F]">Salir</button>
@@ -67,9 +71,9 @@ export default async function Marco({ children, version }: { children: React.Rea
       <header data-reinicia-recorrido className="md:hidden print:hidden fixed top-0 inset-x-0 z-30 bg-white border-b border-[#E3E9F0] px-3 h-12 flex items-center gap-2">
         <Link href="/panel" className="text-sm font-black text-[#16577F]">Laucen</Link>
         <form action="/buscar" className="flex-1 min-w-0 flex items-center gap-1">
-          <input name="q" placeholder="Buscar producto, MLA, cliente…" aria-label="Buscar" enterKeyHint="search"
+          <input name="q" placeholder="Buscar producto, MLA, cliente…" aria-label="Buscar" enterKeyHint="search" title={AYUDA_BUSCAR}
             className="flex-1 min-w-0 text-sm border border-[#E3E9F0] rounded-lg px-3 py-1.5 bg-[#F7F8F6]" />
-          <CajaInactivos />
+          <CajaInactivos activo={inactivos} />
         </form>
         <InterruptorMoneda moneda={moneda} />
       </header>
@@ -131,12 +135,17 @@ function InterruptorMoneda({ moneda, oscuro }: { moneda: Moneda; oscuro?: boolea
 }
 
 /** "Incluir inactivos" en el buscador de arriba: una caja para tildar con el ícono del archivo (🗃) y
- *  la explicación al pasar el mouse. Apagada de entrada; tildada, el buscador trae también los inactivos. */
-function CajaInactivos() {
+ *  la explicación al pasar el mouse. Viene como la dejó el usuario la última vez (apagada si nunca la
+ *  tocó); "ci" avisa que el formulario trae la caja, así /buscar guarda lo elegido. */
+function CajaInactivos({ activo }: { activo: boolean }) {
   return (
     <label title="Incluir inactivos (productos archivados)" className="inline-flex items-center gap-0.5 text-xs text-[#5C6B76] cursor-pointer select-none shrink-0">
-      <input type="checkbox" name="inactivos" value="1" aria-label="Incluir inactivos" className="h-3.5 w-3.5 accent-[#16577F]" />
+      <input type="hidden" name="ci" value="1" />
+      <input type="checkbox" name="inactivos" value="1" defaultChecked={activo} aria-label="Incluir inactivos" className="h-3.5 w-3.5 accent-[#16577F]" />
       <span aria-hidden>🗃</span>
     </label>
   );
 }
+
+/** Cómo busca el buscador de arriba (Fer, 6/10), para el globito. */
+const AYUDA_BUSCAR = "Busca lo que escribís tal cual, entero (con sus espacios), en cualquier parte. Para buscar varias cosas a la vez, separalas con ? — por ejemplo SKU1340?SKU1341 trae lo que tenga una o la otra.";

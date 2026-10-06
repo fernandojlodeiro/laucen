@@ -91,3 +91,16 @@ export function enMoneda(ars: number | string | null | undefined, moneda: Moneda
 export async function tcParaVista(org: string, moneda: Moneda): Promise<number | null> {
   return moneda === "USD" ? (await tcDelDia(org))?.venta ?? null : null;
 }
+
+/** El buscador de arriba incluye los inactivos: lo que dejó tildado este usuario (Fer, 6/10). */
+export async function buscarInactivos(usuarioId: string, org: string): Promise<boolean> {
+  const r = await una<{ b: boolean }>("select buscar_inactivos b from usuario_preferencia where usuario_id = $1 and organizacion_id = $2", [usuarioId, org]);
+  return !!r?.b;
+}
+
+export async function fijarBuscarInactivos(usuarioId: string, org: string, valor: boolean): Promise<void> {
+  await consulta(`
+    insert into usuario_preferencia (usuario_id, organizacion_id, buscar_inactivos) values ($1, $2, $3)
+    on conflict (usuario_id, organizacion_id) do update set buscar_inactivos = excluded.buscar_inactivos, actualizado_ts = now()`,
+    [usuarioId, org, valor]);
+}
