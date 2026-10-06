@@ -5,6 +5,7 @@
 // app/radar/Cliente.tsx (TachoConfirmar, BotonEnviar, Pestanas) y
 // app/componentes/CampoNumero.tsx.
 
+import { coincideBusqueda as coincideTodas } from "@/lib/busqueda";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sesionRequerida, type Sesion } from "@/lib/tenancy";
@@ -169,13 +170,14 @@ export function url(base: string, params: Record<string, string | number | null 
 
 /** Patrón ILIKE del buscador (BuscadorVivo): `q` al principio del texto, o en
  *  cualquier parte si "Comienza por" está destildada. Sin texto, null. */
+/** VIEJO: un solo patrón, sin la regla del "?". Las pantallas usan patronesBusqueda + sqlBusqueda de lib/busqueda.ts. */
 export function patronBusqueda(q: string, comienza: boolean): string | null {
   return q ? `${comienza ? "" : "%"}${q.replace(/[\\%_]/g, "\\$&")}%` : null;
 }
 
-/** Lo mismo que patronBusqueda pero en memoria (listas que ya se traen enteras, como un árbol). */
-export function coincideBusqueda(texto: string | null | undefined, q: string, comienza: boolean): boolean {
-  if (!q) return true;
-  const t = (texto ?? "").toLowerCase(), b = q.toLowerCase();
-  return comienza ? t.startsWith(b) : t.includes(b);
+/** En memoria (listas que ya se traen enteras, como un árbol), con la regla de lib/busqueda.ts:
+ *  pasale TODOS los textos del resultado juntos (cada condición separada por "?" puede estar en
+ *  cualquiera de ellos), no uno por uno con "||". */
+export function coincideBusqueda(textos: string | null | undefined | (string | null | undefined)[], q: string, comienza: boolean): boolean {
+  return coincideTodas(textos, q, comienza);
 }

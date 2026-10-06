@@ -7,6 +7,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { AYUDA_BUSQUEDA } from "@/lib/busqueda";
 
 /** Cambia un parámetro de la dirección sin recargar la página entera. Todo
  *  cambio de búsqueda o filtro vuelve a la primera página (saca ?p= si es un
@@ -49,13 +50,16 @@ export default function BuscadorVivo({ q, comienza, inactivos, placeholder, auto
     <>
       <span className="relative inline-flex">
         <input value={texto} onChange={(e) => buscar(e.target.value)} onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
-          placeholder={placeholder} autoFocus={autoFocus}
+          placeholder={placeholder} autoFocus={autoFocus} title={AYUDA_BUSQUEDA}
           className="border border-[#E3E9F0] rounded-lg pl-2 pr-7 py-1.5 text-xs bg-white w-72" />
         {texto && (
           <button type="button" onClick={() => buscar("")} aria-label="Borrar la búsqueda"
             className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full text-[#5C6B76] hover:bg-[#E3E9F0] leading-none">×</button>
         )}
       </span>
+      {/* El globito con cómo se busca (lib/busqueda.ts), igual en todo el panel. */}
+      <span title={AYUDA_BUSQUEDA} aria-label={AYUDA_BUSQUEDA} tabIndex={0}
+        className="inline-flex items-center justify-center h-4 w-4 rounded-full border border-[#9AA7B3] text-[10px] font-bold text-[#5C6B76] cursor-help shrink-0 self-center">?</span>
       {!sinComienza && <label className="inline-flex items-center gap-1.5 text-xs text-[#5C6B76] py-1.5 whitespace-nowrap">
         <input type="checkbox" defaultChecked={comienza} onChange={(e) => cambiar({ [contiene]: e.target.checked ? null : "1" })}
           className="h-4 w-4 accent-[#16577F]" />
