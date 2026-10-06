@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="f" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1E6FA0"/>
+      <stop offset="1" stop-color="#0F3F5E"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#f)"/>
+  <!-- Conexiones (integraciones): tres nodos unidos -->
+  <g stroke="#7FC4EA" stroke-width="10" stroke-linecap="round" opacity="0.9">
+    <line x1="352" y1="150" x2="410" y2="110"/>
+    <line x1="352" y1="150" x2="414" y2="196"/>
+  </g>
+  <circle cx="410" cy="110" r="20" fill="#FFE600"/>
+  <circle cx="414" cy="196" r="20" fill="#7FC4EA"/>
+  <circle cx="352" cy="150" r="24" fill="#FFFFFF"/>
+  <!-- La L de Laucen -->
+  <path d="M150 112 h70 v222 h150 v66 h-220 z" fill="#FFFFFF"/>
+  <!-- Chispa (IA) -->
+  <path d="M330 250 l10 30 l30 10 l-30 10 l-10 30 l-10 -30 l-30 -10 l30 -10 z" fill="#FFE600"/>
+</svg>
