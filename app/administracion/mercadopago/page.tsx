@@ -27,22 +27,22 @@ type Renglon = { titulo: string; ayuda?: string; nivel?: number; valor: (d: Nume
   /** En negrita y con los montos pintados según cuál tiene más (Fer, 6/10). */
   destacar?: boolean };
 
-// Colores del renglón destacado, de mayor a menor: el más grande en verde
-// fuerte, el que le sigue en verde suave, los del medio sin color y los dos
-// más chicos en ámbar. Las columnas no cambian de lugar.
-const PRIMERO = "bg-[#CDEFD9] text-[#14532D] ring-1 ring-[#86CFA3]";
-const SEGUNDO = "bg-[#EAF7EF] text-[#1F6E4A]";
-const ULTIMOS = "bg-[#FFF1D6] text-[#8a5a00]";
+// Colores del renglón destacado (Fer, 6/10): cada cuenta con el suyo, de
+// mayor a menor, del verde fuerte al ámbar fuerte (con menos de cinco cuentas
+// se reparten a lo largo de la escala). Las columnas no cambian de lugar.
+const ESCALA = [
+  "bg-[#BFE9CF] text-[#14532D] ring-1 ring-[#7CC79A]",
+  "bg-[#E3F5EA] text-[#1F6E4A]",
+  "bg-[#F1F5D6] text-[#55650F]",
+  "bg-[#FFF1D6] text-[#8a5a00]",
+  "bg-[#FFDDA8] text-[#7A3E00] ring-1 ring-[#F0B860]",
+];
 function coloresPorMonto(vals: (number | null | undefined)[]): (string | null)[] {
   const conMonto = vals.map((v, i) => ({ v, i })).filter((x): x is { v: number; i: number } => x.v != null).sort((a, b) => b.v - a.v);
   const out: (string | null)[] = vals.map(() => null);
-  if (conMonto.length < 2) return out;
   const n = conMonto.length;
-  conMonto.forEach((x, rango) => {
-    if (rango === 0) out[x.i] = PRIMERO;
-    else if (rango === 1 && n >= 4) out[x.i] = SEGUNDO;
-    else if (rango >= 2 && rango >= n - 2) out[x.i] = ULTIMOS;
-  });
+  if (n < 2) return out;
+  conMonto.forEach((x, rango) => { out[x.i] = ESCALA[Math.round((rango * (ESCALA.length - 1)) / (n - 1))]; });
   return out;
 }
 

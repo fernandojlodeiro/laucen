@@ -114,9 +114,14 @@ export function soloCp(cp: string): string {
 export type Sucursal = { id: string; nombre: string; direccion: string; localidad: string; provincia: string; cp: string; entrega: boolean };
 
 export async function sucursales(cp: string): Promise<Resultado<Sucursal[]>> {
-  const r = await llamar("GetCentrosImposicionConServiciosByCP", { CodigoPostal: soloCp(cp) });
+  let r = await llamar("GetCentrosImposicionConServiciosByCP", { CodigoPostal: soloCp(cp) });
+  // Esta consulta contesta <CentrosDeImposicion><Centro>…; la vieja (sin servicios), filas <Table>.
+  let filas = r.ok ? [...bloques(r.texto, "Centro"), ...bloques(r.texto, "Table")] : [];
+  if (!filas.length) {
+    const vieja = await llamar("GetCentrosImposicionPorCP", { CodigoPostal: soloCp(cp) });
+    if (vieja.ok) { r = vieja; filas = [...bloques(vieja.texto, "Table"), ...bloques(vieja.texto, "Centro")]; }
+  }
   if (!r.ok) return { ok: false, motivo: r.motivo, crudo: r.texto };
-  const filas = bloques(r.texto, "Table");
   const lista = filas.map((f) => {
     const servicios = f.servicios ?? "";
     return {

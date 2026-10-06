@@ -146,9 +146,17 @@ export async function probarOca(org: string, cpDestino = "5000"): Promise<string
   return texto;
 }
 
-export async function sucursalesOca(cp: string): Promise<api.Sucursal[]> {
+export async function sucursalesOca(cp: string, org?: string): Promise<api.Sucursal[]> {
   const r = await api.sucursales(cp);
-  return r.ok ? r.datos.filter((s) => s.entrega) : [];
+  const todas = r.ok ? r.datos : [];
+  // Para revisar qué contestó OCA cuando no salió ninguna (no se muestra en pantalla).
+  if (!todas.length && org) {
+    await consulta("update oca_config set diagnostico = $2 where organizacion_id = $1",
+      [org, JSON.stringify({ ts: new Date().toISOString(), cp, motivo: r.ok ? "sin sucursales" : r.motivo, crudo: (r.crudo ?? "").slice(0, 3000) })]).catch(() => {});
+  }
+  // Las que entregan paquetes; si OCA describe los servicios de otra forma y no queda ninguna, todas.
+  const entregan = todas.filter((s) => s.entrega);
+  return entregan.length ? entregan : todas;
 }
 
 // ── Alta del envío desde el pedido ───────────────────────

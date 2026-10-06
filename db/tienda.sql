@@ -193,6 +193,8 @@ create table if not exists oca_config (
   actualizado_ts       timestamptz not null default now()
 );
 alter table oca_config enable row level security;
+-- Lo último que contestó OCA cuando no dio sucursales (para revisar; no se muestra).
+alter table oca_config add column if not exists diagnostico jsonb;
 
 -- Método de envío "OCA a sucursal" (el comprador elige la sucursal donde retira).
 do $$ begin

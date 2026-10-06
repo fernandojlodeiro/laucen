@@ -57,3 +57,15 @@ test("fechaOca en hora argentina", () => {
   assert.equal(fechaOca("2026-10-06T14:35:00"), "2026-10-06T17:35:00.000Z");
   assert.equal(fechaOca(""), null);
 });
+
+test("bloques lee las sucursales (<Centro>) con sus servicios", () => {
+  const xml = `<CentrosDeImposicion><Centro><IdCentroImposicion>44</IdCentroImposicion><Sigla>ROS</Sigla><Sucursal>ROSARIO</Sucursal>
+    <Calle>CORRIENTES</Calle><Numero>1234</Numero><Localidad>ROSARIO</Localidad><Provincia>SANTA FE</Provincia><CodigoPostal>2000</CodigoPostal>
+    <Servicios><Servicio><IdTipoServicio>1</IdTipoServicio><ServicioDesc>Admision de paquetes</ServicioDesc></Servicio>
+    <Servicio><IdTipoServicio>2</IdTipoServicio><ServicioDesc>Entrega de paquetes</ServicioDesc></Servicio></Servicios></Centro></CentrosDeImposicion>`;
+  const f = bloques(xml, "Centro");
+  assert.equal(f.length, 1);
+  assert.equal(f[0].idcentroimposicion, "44");
+  assert.equal(f[0].sucursal, "ROSARIO");
+  assert.match(f[0].servicios, /Entrega de paquetes/);
+});

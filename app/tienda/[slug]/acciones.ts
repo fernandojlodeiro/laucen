@@ -102,8 +102,8 @@ export async function cotizarAccion(slug: string, e: Eleccion): Promise<{ resume
 /** Las sucursales de OCA que entregan paquetes en ese código postal (para "OCA a sucursal"). */
 export async function sucursalesOcaAccion(slug: string, cp: string): Promise<{ id: string; texto: string }[]> {
   try {
-    await tiendaDe(slug);
-    const lista = await sucursalesOca(String(cp ?? "").slice(0, 10));
+    const t = await tiendaDe(slug);
+    const lista = await sucursalesOca(String(cp ?? "").slice(0, 10), t.organizacionId);
     return lista.map((x) => ({ id: x.id, texto: [x.nombre, [x.direccion, x.localidad].filter(Boolean).join(", ")].filter(Boolean).join(" — ") }));
   } catch {
     return [];
