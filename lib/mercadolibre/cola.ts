@@ -223,11 +223,20 @@ export function pedidosDe(f: { item_id: string; variation_id: string; tipo: Tipo
   const salida: PedidoMl[] = [];
   switch (f.tipo) {
     case "stock": {
-      if (p.cantidad != null) {
+      const cantidad = (seguir: boolean): PedidoMl => {
         const n = Math.max(0, Math.trunc(Number(p.cantidad)));
-        salida.push({ metodo: "PUT", ruta, cuerpo: variacion ? { variations: [{ id: variacion, available_quantity: n }] } : { available_quantity: n } });
+        return { metodo: "PUT", ruta, cuerpo: variacion ? { variations: [{ id: variacion, available_quantity: n }] } : { available_quantity: n }, ...(seguir ? { seguirSiFalla: true } : {}) };
+      };
+      if (p.estado === "paused") {
+        // Pausar: primero la pausa (lo que importa) y enseguida la cantidad; si ML rechaza la
+        // cantidad (ej. 0 en una pausada), la pausa ya quedó.
+        salida.push({ metodo: "PUT", ruta, cuerpo: { status: p.estado } });
+        if (p.cantidad != null) salida.push(cantidad(true));
+      } else {
+        // Reactivar: primero la cantidad (para que tenga stock) y después el estado.
+        if (p.cantidad != null) salida.push(cantidad(false));
+        if (p.estado) salida.push({ metodo: "PUT", ruta, cuerpo: { status: p.estado } });
       }
-      if (p.estado) salida.push({ metodo: "PUT", ruta, cuerpo: { status: p.estado } });
       break;
     }
     case "estado":
