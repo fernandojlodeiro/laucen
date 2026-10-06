@@ -18,12 +18,17 @@ export default function AjusteAncho({ maximo = 1, minimo = 0.6, className = "", 
   const ajustar = useCallback(() => {
     const el = caja.current, padre = el?.parentElement;
     if (!el || !padre) return;
-    // A tamaño normal y sin tope, cuánto mide; después, el zoom que hace falta.
+    // A tamaño normal y con el ancho que pide su contenido (max-content: w-fit
+    // solo se recorta al ancho disponible y adentro hay overflow recortado,
+    // así que no alcanza con scrollWidth); después, el zoom que hace falta.
     el.style.setProperty("zoom", "1");
     el.style.maxWidth = "none";
-    const natural = el.scrollWidth;
+    el.style.width = "max-content";
+    const natural = el.getBoundingClientRect().width;
+    el.style.width = "";
     el.style.maxWidth = "";
-    const disponible = padre.clientWidth;
+    const cs = getComputedStyle(padre);
+    const disponible = padre.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const z = natural > 0 ? Math.max(minimo, Math.min(maximo, disponible / natural)) : maximo;
     el.style.setProperty("zoom", String(Math.floor(z * 1000) / 1000));
     el.style.setProperty("--zoom", String(z));
