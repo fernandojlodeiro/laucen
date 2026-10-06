@@ -9,7 +9,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { consulta } from "@/lib/erp/base";
 import { enVista, buscarInactivos, fijarBuscarInactivos } from "@/lib/moneda";
-import { parametroBusqueda, sqlBusqueda, AYUDA_BUSQUEDA, type CampoBusqueda, type CampoSimple } from "@/lib/busqueda";
+import { gruposBusqueda, parametroBusqueda, sqlBusqueda, AYUDA_BUSQUEDA, type CampoBusqueda, type CampoSimple } from "@/lib/busqueda";
 import { tienePermiso } from "@/lib/permisos";
 import { ESTADOS_PEDIDO, type EstadoPedido } from "@/lib/pedidos";
 import { cuitLegible } from "@/lib/cuit";
@@ -26,40 +26,83 @@ export const dynamic = "force-dynamic";
 const TOPE = 20;
 const ENLACE = "text-[#16577F] hover:underline";
 
-// ── Piezas para armar los campos ─────────────────────────────
+// ── Cómo se busca rápido ─────────────────────────────────────
+// La regla es la de lib/busqueda.ts, pero aplicarla campo por campo a cada fila de tablas de
+// 100.000 filas (clientes, sus direcciones) tarda segundos. Entonces cada sección busca en dos
+// pasos:
+//   1. Candidatos (rápido): las filas donde cada condición escrita aparece en algún dato de la
+//      fila o de sus filas relacionadas. Por cada tabla de donde salen datos ("fuente"), se juntan
+//      todos sus datos en un solo texto (separados por un carácter que no se puede escribir) y se
+//      compara una vez por condición; en los campos numéricos (CUIT, teléfonos…) también lo
+//      escrito sin lo que no sea número.
+//   2. Si se usó "?" (varias condiciones en un MISMO dato), la regla exacta (sqlBusqueda) sobre
+//      esos candidatos. Sin "?", el paso 1 ya es exacto: cada condición en algún dato de la fila.
+// Parámetros de todas las consultas: $1 organización · $2 lo escrito (parametroBusqueda) · $3 lo
+// escrito en minúsculas (lo exacto sale primero) · $4 las condiciones (patrones ilike) · $5 cada
+// condición sólo con sus números ('' si no tiene) · $6 incluir inactivos (productos).
 
-/** Los datos de un cliente (alias `a`): nombre, razón social, apodo, mail, CUIT, documento, teléfonos. */
+/** De dónde salen datos de una sección: `id` = la clave de la fila de la sección (bigint o texto),
+ *  `de` = tablas (con sus alias), `donde` = el filtro de la organización, `campos` = los datos. */
+type Fuente = { id: string; de: string; donde: string; campos: CampoSimple[] };
+
+const juntos = (xs: string[]) => `concat_ws(chr(1), ${xs.join(", ")})`;
+function filasDe(f: Fuente): string {
+  const todos = f.campos.map((c) => (typeof c === "string" ? c : c.num));
+  const nums = f.campos.flatMap((c) => (typeof c === "string" ? [] : [c.num]));
+  return `select ${f.id} id, bq.pi from ${f.de}, unnest($4::text[], $5::text[]) with ordinality bq(px, pd, pi)
+           where ${f.donde} and (${juntos(todos)} ilike bq.px${nums.length ? ` or (bq.pd <> '' and ${juntos(nums)} like bq.pd)` : ""})`;
+}
+/** El CTE `cand`: las filas de `tabla` (por su `clave`) con todas las condiciones en algún dato de sus fuentes. */
+const candidatos = (tabla: string, clave: string, fuentes: Fuente[]) => `cand as materialized (
+    select * from ${tabla} where organizacion_id = $1 and ${clave} in (
+      select id from (${fuentes.map(filasDe).join("\n union all ")}) bs group by id having count(distinct pi) = cardinality($4::text[])))`;
+
+/** Los datos de un cliente (alias `a`): nombre, razón social, apodo, mail, CUIT, documento, teléfonos, notas. */
 const camposCliente = (a: string): CampoSimple[] => [
   `${a}.id::text`, `${a}.nombre`, `${a}.razon_social`, `${a}.apodo_ml`, `${a}.email`, `${a}.nombre_pila`, `${a}.apellido`, `${a}.notas`,
   { num: `${a}.cuit` }, { num: `${a}.documento_numero` }, { num: `${a}.telefono` }, { num: `${a}.telefono_movil` }, `${a}.telefono_aclaracion`, `${a}.telefono_movil_aclaracion`,
 ];
-/** El cliente de la fila (por su id). */
-const deCliente = (id: string): CampoBusqueda => ({ de: `select 1 from cliente bc where bc.id = ${id}`, campos: camposCliente("bc") });
-/** El proveedor de la fila (por su id). */
-const deProveedor = (id: string): CampoBusqueda => ({
-  de: `select 1 from proveedor bp where bp.id = ${id}`,
-  campos: ["bp.nombre", "bp.razon_social", "bp.contacto", "bp.email", { num: "bp.cuit" }],
-});
-/** El cliente o el proveedor de un movimiento de cuenta corriente o un recibo (alias `a`). */
-const deTercero = (a: string): CampoBusqueda[] => [
-  { de: `select 1 from cliente bc where ${a}.tercero_tipo = 'cliente' and bc.id = ${a}.tercero_id`, campos: camposCliente("bc") },
-  { de: `select 1 from proveedor bp where ${a}.tercero_tipo = 'proveedor' and bp.id = ${a}.tercero_id`, campos: ["bp.nombre", "bp.razon_social", { num: "bp.cuit" }] },
-];
-/** Cada dato (texto o número) de un jsonb: una dirección de envío, retenciones… */
-const hojasJson = (x: string): CampoBusqueda => ({
-  de: `select 1 from jsonb_path_query(coalesce(${x}, 'null'::jsonb), 'strict $.** ? (@.type() == "string" || @.type() == "number")') bh(j) where true`,
-  campos: ["(bh.j #>> '{}')"],
-});
+/** Los datos de un proveedor que lo nombran en otra sección (alias `a`). */
+const camposProveedor = (a: string): CampoSimple[] => [`${a}.nombre`, `${a}.razon_social`, `${a}.contacto`, `${a}.email`, { num: `${a}.cuit` }];
 /** La dirección de una fila de cliente_direccion (alias `d`), dato por dato y "calle número" junto. */
 const camposDireccion = (d: string): CampoSimple[] => [
   `${d}.etiqueta`, `${d}.calle`, `${d}.numero`, `concat_ws(' ', ${d}.calle, ${d}.numero)`, `${d}.piso_depto`, `${d}.localidad`, `${d}.provincia`,
   `${d}.codigo_postal`, `${d}.pais`, `${d}.receptor`, { num: `${d}.receptor_telefono` }, `${d}.referencia`,
 ];
+const HOJAS = `'strict $.** ? (@.type() == "string" || @.type() == "number")'`;
+/** Cada dato (texto o número) de un jsonb (una dirección de envío, retenciones…), para la regla exacta. */
+const hojasJson = (x: string): CampoBusqueda => ({
+  de: `select 1 from jsonb_path_query(coalesce(${x}, 'null'::jsonb), ${HOJAS}) bh(j) where true`,
+  campos: ["(bh.j #>> '{}')"],
+});
+/** Lo mismo, juntado en un texto, para los candidatos. */
+const hojasTexto = (x: string) => `(select string_agg(bh.j #>> '{}', chr(1)) from jsonb_path_query(coalesce(${x}, 'null'::jsonb), ${HOJAS}) bh(j))`;
+
+/** Para la regla exacta: el cliente o el proveedor de la fila por su id. */
+const deCliente = (id: string): CampoBusqueda => ({ de: `select 1 from cliente bc where bc.id = ${id}`, campos: camposCliente("bc") });
+const deProveedor = (id: string): CampoBusqueda => ({ de: `select 1 from proveedor bp where bp.id = ${id}`, campos: camposProveedor("bp") });
+const dePedido = (id: string): CampoBusqueda => ({ de: `select 1 from pedido bpe where bpe.id = ${id}`, campos: ["bpe.id::text", "bpe.id_externo"] });
+/** El cliente o el proveedor de un movimiento de cuenta corriente o un recibo (alias `a`). */
+const deTercero = (a: string): CampoBusqueda[] => [
+  { de: `select 1 from cliente bc where ${a}.tercero_tipo = 'cliente' and bc.id = ${a}.tercero_id`, campos: camposCliente("bc") },
+  { de: `select 1 from proveedor bp where ${a}.tercero_tipo = 'proveedor' and bp.id = ${a}.tercero_id`, campos: camposProveedor("bp") },
+];
+/** Para los candidatos: la fuente "cliente / proveedor / pedido de la fila" (`t` tabla con alias, `fk` su columna). */
+const fuenteCliente = (id: string, t: string, fk: string, donde: string): Fuente =>
+  ({ id, de: `${t} join cliente fc on fc.id = ${fk}`, donde, campos: camposCliente("fc") });
+const fuenteProveedor = (id: string, t: string, fk: string, donde: string): Fuente =>
+  ({ id, de: `${t} join proveedor fp on fp.id = ${fk}`, donde, campos: camposProveedor("fp") });
+const fuentePedido = (id: string, t: string, fk: string, donde: string): Fuente =>
+  ({ id, de: `${t} join pedido fpe on fpe.id = ${fk}`, donde, campos: ["fpe.id::text", "fpe.id_externo"] });
+const fuentesTercero = (id: string, t: string, a: string, donde: string): Fuente[] => [
+  { id, de: `${t} join cliente fc on ${a}.tercero_tipo = 'cliente' and fc.id = ${a}.tercero_id`, donde, campos: camposCliente("fc") },
+  { id, de: `${t} join proveedor fp on ${a}.tercero_tipo = 'proveedor' and fp.id = ${a}.tercero_id`, donde, campos: camposProveedor("fp") },
+];
+
 const nombreTercero = (a: string) =>
   `case when ${a}.tercero_tipo = 'cliente' then (select nombre from cliente where id = ${a}.tercero_id) else (select nombre from proveedor where id = ${a}.tercero_id) end`;
 /** Un texto de la fila (`campo`) donde aparece alguna de las condiciones: para mostrar qué coincidió. */
-const conAlguna = (campo: string) =>
-  `exists (select 1 from jsonb_array_elements($2::jsonb) bg(v), jsonb_array_elements_text(bg.v) bt(x) where ${campo} ilike bt.x)`;
+const conAlguna = (campo: string) => `${campo} ilike any($4::text[])`;
 
 /** "en_proceso" → "En proceso". */
 const legible = (x: string | null | undefined) => (x ? (x.charAt(0).toUpperCase() + x.slice(1)).replace(/_/g, " ") : "—");
@@ -133,13 +176,25 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
     envios: p("envios_ver"), facturacion: p("facturacion_ver"), compras: p("compras_ver"), despachos: p("despachos_ver"),
     recepciones: p("recepcion_ver"), cc: p("cuentas_corrientes_ver"), tesoreria: p("tesoreria_ver"),
   };
-  // $1 organización · $2 lo escrito (lib/busqueda.ts) · $3 lo escrito en minúsculas (lo exacto sale primero).
-  const base = [s.org.id, parametroBusqueda(q), q.toLowerCase()];
+  const grupos = gruposBusqueda(q);
+  const patrones = [...new Set((JSON.parse(parametroBusqueda(q)) as string[][]).flat())];
+  const digitos = patrones.map((x) => { const d = x.replace(/\D/g, ""); return d ? `%${d}%` : ""; });
+  // Con "?" (varias condiciones en un mismo dato) hace falta la regla exacta; si no, los candidatos ya lo son.
+  const exacta = (campos: CampoBusqueda[]) => (grupos.some((g) => g.length > 1) ? sqlBusqueda("$2", campos) : "true");
+  const base = [s.org.id, parametroBusqueda(q), q.toLowerCase(), patrones, digitos];
   const buscar = <T,>(si: boolean, sql: string, extra: unknown[] = []): Promise<T[]> =>
-    si && q ? consulta<T & Record<string, unknown>>(sql, [...base, ...extra]) as Promise<T[]> : Promise.resolve([]);
+    si && grupos.length ? consulta<T & Record<string, unknown>>(sql, [...base, ...extra]) as Promise<T[]> : Promise.resolve([]);
 
-  // Del producto: todos sus datos de texto, su familia, sus atributos, sus variaciones (y los
+  // Productos: todos sus datos de texto, su familia, sus atributos, sus variaciones (y los
   // atributos de cada una) y los SKU viejos que lo nombran.
+  const FUENTES_PRODUCTO: Fuente[] = [
+    { id: "p.id", de: "producto p left join familia f on f.id = p.familia_id", donde: "p.organizacion_id = $1",
+      campos: ["p.id::text", "p.sku_base", "p.titulo", "p.descripcion", "p.marca", "p.modelo", "p.linea", "p.garantia", "p.categoria_ml", "p.codigo_barras", "f.nombre"] },
+    { id: "a.producto_id", de: "producto_atributo a", donde: "a.organizacion_id = $1", campos: ["a.nombre", "a.valor"] },
+    { id: "v.producto_id", de: "variacion v", donde: "v.organizacion_id = $1", campos: ["v.id::text", "v.sku", "v.titulo", "v.codigo_barras"] },
+    { id: "v.producto_id", de: "variacion_atributo va join variacion v on v.id = va.variacion_id", donde: "va.organizacion_id = $1", campos: ["va.nombre", "va.valor"] },
+    { id: "p.id", de: "sku_equivalencia e join producto p on p.organizacion_id = e.organizacion_id and p.sku_base = e.sku", donde: "e.organizacion_id = $1", campos: ["e.alias"] },
+  ];
   const CAMPOS_PRODUCTO: CampoBusqueda[] = [
     "p.id::text", "p.sku_base", "p.titulo", "p.descripcion", "p.marca", "p.modelo", "p.linea", "p.garantia", "p.categoria_ml", "p.codigo_barras",
     { de: "select 1 from familia bf where bf.id = p.familia_id", campos: ["bf.nombre"] },
@@ -149,23 +204,40 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
     { de: "select 1 from sku_equivalencia be where be.organizacion_id = p.organizacion_id and be.sku = p.sku_base", campos: ["be.alias"] },
   ];
   const buscarProductos = (inc: boolean) => buscar<Producto>(ver.productos, `
+    with ${candidatos("producto", "id", FUENTES_PRODUCTO)}
     select p.id::int, p.sku_base, p.titulo, p.estado, p.marca,
            (select string_agg(distinct v.sku, ', ') from variacion v
              where v.producto_id = p.id and v.sku <> p.sku_base and (${conAlguna("v.sku")} or ${conAlguna("v.titulo")} or ${conAlguna("v.codigo_barras")})) donde,
            (select array_agg(url order by orden, id) from producto_foto where producto_id = p.id) fotos
-      from producto p
-     where p.organizacion_id = $1 and ($4 or p.estado <> 'archivado') and ${sqlBusqueda("$2", CAMPOS_PRODUCTO)}
+      from cand p
+     where ($6 or p.estado <> 'archivado') and ${exacta(CAMPOS_PRODUCTO)}
      order by (lower(p.sku_base) = $3 or p.id::text = $3) desc, p.titulo
      limit ${TOPE}`, [inc]);
-  // La publicación: sus datos, los de su variación y producto, y lo que trae Mercado Libre de ella.
+  // Publicaciones: sus datos, los de su variación y producto, y lo que trae Mercado Libre de ella.
   const buscarPublicaciones = (inc: boolean) => buscar<Publicacion>(ver.publicaciones, `
+    with ${candidatos("publicacion", "id", [
+      { id: "pu.id", de: "publicacion pu join variacion v on v.id = pu.variacion_id join producto p on p.id = v.producto_id", donde: "pu.organizacion_id = $1",
+        campos: ["pu.id::text", "pu.id_externo", "pu.titulo", "pu.categoria_externa", "pu.variacion_externa", "v.sku", "v.titulo", "p.sku_base", "p.titulo"] },
+      { id: "pu.id", de: "meli_item m join publicacion pu on pu.canal_id = m.canal_id and pu.id_externo = m.item_id", donde: "m.organizacion_id = $1",
+        campos: ["m.item_id", "m.variation_id", "m.titulo", "m.sku", "m.atributos", "m.categoria", "m.permalink"] },
+    ])}
     select pu.id::int, pu.id_externo, coalesce(pu.titulo, v.titulo, p.titulo) titulo, pu.estado, ca.nombre canal, p.id::int producto_id, v.sku
-      from publicacion pu join canal ca on ca.id = pu.canal_id join variacion v on v.id = pu.variacion_id join producto p on p.id = v.producto_id
-     where pu.organizacion_id = $1 and ($4 or p.estado <> 'archivado')
-       and ${sqlBusqueda("$2", ["pu.id::text", "pu.id_externo", "pu.titulo", "pu.categoria_externa", "pu.variacion_externa", "v.sku", "v.titulo", "p.sku_base", "p.titulo",
-         { de: "select 1 from meli_item bm where bm.publicacion_id = pu.id", campos: ["bm.item_id", "bm.variation_id", "bm.titulo", "bm.sku", "bm.atributos", "bm.categoria", "bm.permalink"] }])}
+      from cand pu join canal ca on ca.id = pu.canal_id join variacion v on v.id = pu.variacion_id join producto p on p.id = v.producto_id
+     where ($6 or p.estado <> 'archivado')
+       and ${exacta(["pu.id::text", "pu.id_externo", "pu.titulo", "pu.categoria_externa", "pu.variacion_externa", "v.sku", "v.titulo", "p.sku_base", "p.titulo",
+         { de: "select 1 from meli_item bm where bm.canal_id = pu.canal_id and bm.item_id = pu.id_externo", campos: ["bm.item_id", "bm.variation_id", "bm.titulo", "bm.sku", "bm.atributos", "bm.categoria", "bm.permalink"] }])}
      order by (lower(pu.id_externo) = $3) desc, pu.titulo
      limit ${TOPE}`, [inc]);
+
+  const CAMPOS_ITEM_ML = (a: string): CampoSimple[] => [`${a}.item_id`, `${a}.variation_id`, `${a}.titulo`, `${a}.sku`, `${a}.atributos`, `${a}.categoria`, `${a}.permalink`];
+  const CAMPOS_PROVEEDOR: CampoSimple[] = ["pr.id::text", "pr.nombre", "pr.razon_social", { num: "pr.cuit" }, "pr.pais", "pr.email", { num: "pr.telefono" }, { num: "pr.telefono_movil" },
+    "pr.telefono_aclaracion", "pr.telefono_movil_aclaracion", "pr.contacto", "pr.calle", "pr.localidad", "pr.provincia", "pr.codigo_postal", "pr.condiciones_pago", "pr.notas"];
+  const CAMPOS_RECLAMO: CampoSimple[] = ["r.id::text", "r.id_externo", "r.orden_externa", "r.comprador_externo", "r.motivo_id", "r.motivo", "r.resolucion",
+    "r.devolucion_id", "r.devolucion_tracking", "r.notas"];
+  const CAMPOS_ENVIO: CampoSimple[] = ["e.id::text", "e.id_externo", "e.tracking", "e.transportista", "e.receptor", "e.metodo", "e.logistica"];
+  const CAMPOS_COMPROBANTE: CampoSimple[] = ["cb.id::text", "lpad(cb.punto_venta::text, 5, '0') || '-' || lpad(cb.numero::text, 8, '0')", "cb.numero::text",
+    { num: "cb.doc_nro" }, "cb.receptor_nombre", "cb.receptor_domicilio", "cb.cae", "cb.observaciones", "cb.ml_documento_id"];
+  const CAMPOS_FACTURA_COMPRA: CampoSimple[] = ["f.id::text", "lpad(f.punto_venta::text, 5, '0') || '-' || lpad(f.numero::text, 8, '0')", "f.numero::text", "f.cae", "f.notas"];
 
   const [
     productos0, publicaciones0, itemsMl, pedidos, clientes, proveedores, preguntas, convMl, chats, reclamos, envios,
@@ -175,78 +247,105 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
     buscarPublicaciones(inactivos),
     // Lo que está en Mercado Libre y todavía no se vinculó a una publicación de Laucen.
     buscar<ItemMl>(ver.publicaciones, `
+      with ${candidatos("meli_item", "canal_id || ':' || item_id || ':' || variation_id", [
+        { id: "m.canal_id || ':' || m.item_id || ':' || m.variation_id", de: "meli_item m", donde: "m.organizacion_id = $1 and m.publicacion_id is null", campos: CAMPOS_ITEM_ML("m") },
+      ])}
       select mi.item_id, mi.variation_id, mi.canal_id::int, ca.nombre canal, mi.titulo, mi.sku, mi.estado
-        from meli_item mi join canal ca on ca.id = mi.canal_id
-       where mi.organizacion_id = $1 and mi.publicacion_id is null
-         and ${sqlBusqueda("$2", ["mi.item_id", "mi.variation_id", "mi.titulo", "mi.sku", "mi.atributos", "mi.categoria", "mi.permalink"])}
+        from cand mi join canal ca on ca.id = mi.canal_id
+       where mi.publicacion_id is null and ${exacta(CAMPOS_ITEM_ML("mi"))}
        order by (lower(mi.item_id) = $3) desc, mi.titulo
        limit ${TOPE}`),
-    // El pedido: sus datos, sus líneas, su cliente, sus pagos y su envío (con la dirección).
+    // Pedidos: sus datos (con la dirección de envío), sus líneas, su cliente, sus pagos y su envío.
     buscar<Pedido>(ver.pedidos, `
+      with ${candidatos("pedido", "id", [
+        { id: "p.id", de: "pedido p", donde: "p.organizacion_id = $1", campos: ["p.id::text", "p.id_externo", "p.notas", "p.codigo_seguimiento", "p.medio_pago", hojasTexto("p.envio")] },
+        { id: "l.pedido_id", de: "pedido_linea l", donde: "l.organizacion_id = $1", campos: ["l.titulo", "l.sku"] },
+        fuenteCliente("p.id", "pedido p", "p.cliente_id", "p.organizacion_id = $1"),
+        { id: "pa.pedido_id", de: "pago pa", donde: "pa.organizacion_id = $1", campos: ["pa.id_externo", "pa.medio", "pa.detalle"] },
+        { id: "e.pedido_id", de: "envio e", donde: "e.organizacion_id = $1 and e.pedido_id is not null",
+          campos: ["e.id_externo", "e.tracking", "e.transportista", "e.receptor", "e.metodo", hojasTexto("e.direccion")] },
+      ])}
       select p.id::int, p.id_externo, p.fecha, ca.nombre canal, cl.nombre cliente, p.cliente_id::int, p.estado, p.total_ars::float, p.total_usd::float
-        from pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
-       where p.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["p.id::text", "p.id_externo", "p.notas", "p.codigo_seguimiento", "p.medio_pago", hojasJson("p.envio"),
+        from cand p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
+       where ${exacta(["p.id::text", "p.id_externo", "p.notas", "p.codigo_seguimiento", "p.medio_pago", hojasJson("p.envio"),
            { de: "select 1 from pedido_linea bl where bl.pedido_id = p.id", campos: ["bl.titulo", "bl.sku"] },
            deCliente("p.cliente_id"),
            { de: "select 1 from pago bpa where bpa.pedido_id = p.id", campos: ["bpa.id_externo", "bpa.medio", "bpa.detalle"] },
            { de: "select 1 from envio be where be.pedido_id = p.id", campos: ["be.id_externo", "be.tracking", "be.transportista", "be.receptor", "be.metodo"] },
-           { de: `select 1 from envio be, jsonb_path_query(coalesce(be.direccion, 'null'::jsonb), 'strict $.** ? (@.type() == "string" || @.type() == "number")') bh(j) where be.pedido_id = p.id`, campos: ["(bh.j #>> '{}')"] }])}
+           { de: `select 1 from envio be, jsonb_path_query(coalesce(be.direccion, 'null'::jsonb), ${HOJAS}) bh(j) where be.pedido_id = p.id`, campos: ["(bh.j #>> '{}')"] }])}
        order by (p.id::text = $3 or lower(p.id_externo) = $3) desc, p.fecha desc
        limit ${TOPE}`),
-    // El cliente: todos sus datos, sus direcciones, su id en cada canal y su cuenta de la tienda.
+    // Clientes: todos sus datos, sus direcciones, su id en cada canal y su cuenta de la tienda.
     buscar<Cliente>(ver.clientes, `
+      with ${candidatos("cliente", "id", [
+        { id: "c.id", de: "cliente c", donde: "c.organizacion_id = $1", campos: camposCliente("c") },
+        { id: "d.cliente_id", de: "cliente_direccion d", donde: "d.organizacion_id = $1", campos: camposDireccion("d") },
+        { id: "i.cliente_id", de: "cliente_identidad i", donde: "i.organizacion_id = $1", campos: ["i.id_externo"] },
+        { id: "k.cliente_id", de: "cliente_cuenta k", donde: "k.organizacion_id = $1", campos: ["k.email"] },
+      ])}
       select c.id::int, c.nombre, c.razon_social, c.email, c.documento_tipo, c.documento_numero, c.cuit,
              array[c.telefono_movil, c.telefono_movil_aclaracion, c.telefono, c.telefono_aclaracion] telefonos,
              (select d.localidad from cliente_direccion d where d.cliente_id = c.id order by d.principal desc, d.id limit 1) localidad
-        from cliente c
-       where c.organizacion_id = $1
-         and ${sqlBusqueda("$2", [...camposCliente("c"),
+        from cand c
+       where ${exacta([...camposCliente("c"),
            { de: "select 1 from cliente_direccion bd where bd.cliente_id = c.id", campos: camposDireccion("bd") },
            { de: "select 1 from cliente_identidad bi where bi.cliente_id = c.id", campos: ["bi.id_externo"] },
            { de: "select 1 from cliente_cuenta bcc where bcc.cliente_id = c.id", campos: ["bcc.email"] }])}
        order by (c.id::text = $3 or lower(c.nombre) = $3) desc, c.nombre
        limit ${TOPE}`),
+    // Proveedores: todos sus datos.
     buscar<Proveedor>(ver.proveedores, `
+      with ${candidatos("proveedor", "id", [{ id: "pr.id", de: "proveedor pr", donde: "pr.organizacion_id = $1", campos: CAMPOS_PROVEEDOR }])}
       select pr.id::int, pr.nombre, pr.razon_social, pr.cuit, pr.email,
              array[pr.telefono_movil, pr.telefono_movil_aclaracion, pr.telefono, pr.telefono_aclaracion] telefonos, pr.localidad
-        from proveedor pr
-       where pr.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["pr.id::text", "pr.nombre", "pr.razon_social", { num: "pr.cuit" }, "pr.pais", "pr.email", { num: "pr.telefono" }, { num: "pr.telefono_movil" }, "pr.telefono_aclaracion", "pr.telefono_movil_aclaracion",
-           "pr.contacto", "pr.calle", "pr.localidad", "pr.provincia", "pr.codigo_postal", "pr.condiciones_pago", "pr.notas"])}
+        from cand pr
+       where ${exacta(CAMPOS_PROVEEDOR)}
        order by (pr.id::text = $3 or lower(pr.nombre) = $3) desc, pr.nombre
        limit ${TOPE}`),
-    // Preguntas de Mercado Libre: la pregunta, la respuesta, la publicación y el comprador.
+    // Preguntas de Mercado Libre: la pregunta, la respuesta, el comprador y la publicación.
     buscar<Pregunta>(ver.preguntas, `
+      with ${candidatos("meli_pregunta", "id", [
+        { id: "q.id", de: "meli_pregunta q", donde: "q.organizacion_id = $1", campos: ["q.id::text", "q.item_id", "q.texto", "q.respuesta", "q.sugerencia", "q.comprador_id::text"] },
+        { id: "q.id", de: "meli_pregunta q join meli_item m on m.canal_id = q.canal_id and m.item_id = q.item_id", donde: "q.organizacion_id = $1", campos: ["m.titulo", "m.sku"] },
+      ])}
       select q.id::int, q.fecha, q.texto, q.respuesta, q.estado, q.item_id,
-             (select mi.titulo from meli_item mi where mi.organizacion_id = q.organizacion_id and mi.item_id = q.item_id limit 1) publicacion
-        from meli_pregunta q
-       where q.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["q.id::text", "q.item_id", "q.texto", "q.respuesta", "q.sugerencia", "q.comprador_id::text",
-           { de: "select 1 from meli_item bm where bm.organizacion_id = q.organizacion_id and bm.item_id = q.item_id", campos: ["bm.titulo", "bm.sku"] }])}
+             (select mi.titulo from meli_item mi where mi.canal_id = q.canal_id and mi.item_id = q.item_id limit 1) publicacion
+        from cand q
+       where ${exacta(["q.id::text", "q.item_id", "q.texto", "q.respuesta", "q.sugerencia", "q.comprador_id::text",
+           { de: "select 1 from meli_item bm where bm.canal_id = q.canal_id and bm.item_id = q.item_id", campos: ["bm.titulo", "bm.sku"] }])}
        order by q.fecha desc nulls last
        limit ${TOPE}`),
     // Mensajes de posventa de Mercado Libre: por conversación (pack), con su pedido y su cliente.
     buscar<ConvMl>(ver.preguntas, `
+      with ${candidatos("meli_conversacion", "pack_id", [
+        { id: "mc.pack_id", de: "meli_conversacion mc", donde: "mc.organizacion_id = $1", campos: ["mc.pack_id", "mc.sugerencia"] },
+        { id: "m.pack_id", de: "meli_mensaje m", donde: "m.organizacion_id = $1", campos: ["m.id", "m.texto"] },
+        fuentePedido("mc.pack_id", "meli_conversacion mc", "mc.pedido_id", "mc.organizacion_id = $1"),
+        { id: "mc.pack_id", de: "meli_conversacion mc join pedido pe on pe.id = mc.pedido_id join cliente fc on fc.id = pe.cliente_id", donde: "mc.organizacion_id = $1", campos: camposCliente("fc") },
+      ])}
       select mc.pack_id, ca.nombre canal, mc.ultimo_ts, cl.nombre cliente, mc.pedido_id::int,
              (select m.texto from meli_mensaje m where m.organizacion_id = mc.organizacion_id and m.pack_id = mc.pack_id and ${conAlguna("m.texto")}
                order by m.fecha desc limit 1) texto
-        from meli_conversacion mc left join canal ca on ca.id = mc.canal_id
+        from cand mc left join canal ca on ca.id = mc.canal_id
              left join pedido pe on pe.id = mc.pedido_id left join cliente cl on cl.id = pe.cliente_id
-       where mc.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["mc.pack_id", "mc.sugerencia",
+       where ${exacta(["mc.pack_id", "mc.sugerencia",
            { de: "select 1 from meli_mensaje bm where bm.organizacion_id = mc.organizacion_id and bm.pack_id = mc.pack_id", campos: ["bm.id", "bm.texto"] },
-           { de: "select 1 from pedido bpe where bpe.id = mc.pedido_id", campos: ["bpe.id::text", "bpe.id_externo"] },
+           dePedido("mc.pedido_id"),
            { de: "select 1 from pedido bpe join cliente bc on bc.id = bpe.cliente_id where bpe.id = mc.pedido_id", campos: camposCliente("bc") }])}
        order by mc.ultimo_ts desc nulls last
        limit ${TOPE}`),
     // WhatsApp: el chat (nombre, teléfono, notas), sus mensajes, sus casos y su cliente.
     buscar<Chat>(ver.whatsapp, `
+      with ${candidatos("chat", "id", [
+        { id: "ch.id", de: "chat ch", donde: "ch.organizacion_id = $1", campos: ["ch.id::text", "ch.nombre", { num: "ch.externo" }, "ch.notas"] },
+        { id: "m.chat_id", de: "chat_mensaje m", donde: "m.organizacion_id = $1", campos: ["m.texto"] },
+        { id: "k.chat_id", de: "chat_caso k", donde: "k.organizacion_id = $1", campos: ["k.asunto", "k.motivo", "k.resolucion"] },
+        fuenteCliente("ch.id", "chat ch", "ch.cliente_id", "ch.organizacion_id = $1"),
+      ])}
       select ch.id::int, ch.nombre, ch.externo, ch.canal, ch.ultimo_ts,
-             (select m.texto from chat_mensaje m where m.chat_id = ch.id and ${conAlguna("m.texto")} order by m.ts desc limit 1) texto
-        from chat ch
-       where ch.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["ch.id::text", "ch.nombre", { num: "ch.externo" }, "ch.notas",
+             (select m.texto from chat_mensaje m where m.chat_id = ch.id and ${conAlguna("m.texto")} order by m.id desc limit 1) texto
+        from cand ch
+       where ${exacta(["ch.id::text", "ch.nombre", { num: "ch.externo" }, "ch.notas",
            { de: "select 1 from chat_mensaje bm where bm.chat_id = ch.id", campos: ["bm.texto"] },
            { de: "select 1 from chat_caso bk where bk.chat_id = ch.id", campos: ["bk.asunto", "bk.motivo", "bk.resolucion"] },
            deCliente("ch.cliente_id")])}
@@ -254,98 +353,126 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
        limit ${TOPE}`),
     // Reclamos y devoluciones: el reclamo, sus mensajes, su pedido y su cliente.
     buscar<Reclamo>(ver.reclamos, `
+      with ${candidatos("reclamo", "id", [
+        { id: "r.id", de: "reclamo r", donde: "r.organizacion_id = $1", campos: CAMPOS_RECLAMO },
+        { id: "rm.reclamo_id", de: "reclamo_mensaje rm", donde: "rm.organizacion_id = $1", campos: ["rm.texto"] },
+        fuentePedido("r.id", "reclamo r", "r.pedido_id", "r.organizacion_id = $1"),
+        fuenteCliente("r.id", "reclamo r", "r.cliente_id", "r.organizacion_id = $1"),
+      ])}
       select r.id::int, r.fecha, r.tipo, r.motivo, r.estado, cl.nombre cliente, r.pedido_id::int
-        from reclamo r left join cliente cl on cl.id = r.cliente_id
-       where r.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["r.id::text", "r.id_externo", "r.orden_externa", "r.comprador_externo", "r.motivo_id", "r.motivo", "r.resolucion",
-           "r.devolucion_id", "r.devolucion_tracking", "r.notas",
+        from cand r left join cliente cl on cl.id = r.cliente_id
+       where ${exacta([...CAMPOS_RECLAMO,
            { de: "select 1 from reclamo_mensaje brm where brm.reclamo_id = r.id", campos: ["brm.texto"] },
-           { de: "select 1 from pedido bpe where bpe.id = r.pedido_id", campos: ["bpe.id::text", "bpe.id_externo"] },
-           deCliente("r.cliente_id")])}
+           dePedido("r.pedido_id"), deCliente("r.cliente_id")])}
        order by (r.id::text = $3 or lower(r.id_externo) = $3) desc, r.fecha desc nulls last
        limit ${TOPE}`),
-    // Envíos: tracking, transportista, receptor y la dirección de entrega.
+    // Envíos: tracking, transportista, receptor, la dirección de entrega y el pedido.
     buscar<Envio>(ver.envios, `
+      with ${candidatos("envio", "id", [
+        { id: "e.id", de: "envio e", donde: "e.organizacion_id = $1", campos: [...CAMPOS_ENVIO, hojasTexto("e.direccion")] },
+        fuentePedido("e.id", "envio e", "e.pedido_id", "e.organizacion_id = $1"),
+      ])}
       select e.id::int, e.pedido_id::int, e.tracking, e.transportista, e.receptor, e.estado,
              concat_ws(', ', e.direccion ->> 'linea', e.direccion ->> 'localidad', e.direccion ->> 'provincia') destino
-        from envio e
-       where e.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["e.id::text", "e.id_externo", "e.tracking", "e.transportista", "e.receptor", "e.metodo", "e.logistica", hojasJson("e.direccion"),
-           { de: "select 1 from pedido bpe where bpe.id = e.pedido_id", campos: ["bpe.id::text", "bpe.id_externo"] }])}
+        from cand e
+       where ${exacta([...CAMPOS_ENVIO, hojasJson("e.direccion"), dePedido("e.pedido_id")])}
        order by (lower(e.tracking) = $3 or lower(e.id_externo) = $3) desc, e.creado_ts desc
        limit ${TOPE}`),
-    // Facturas emitidas (y notas de crédito): número, receptor, CAE, observaciones y sus líneas.
+    // Facturas emitidas (y notas de crédito): número, receptor, CAE, observaciones, sus líneas, su pedido y su cliente.
     buscar<Comprobante>(ver.facturacion, `
-      select c.id::int, c.fecha, c.tipo_cbte::int, c.punto_venta::int, c.numero::int, c.receptor_nombre, c.doc_nro, c.estado, c.importe_total::float
-        from comprobante c
-       where c.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["c.id::text", "lpad(c.punto_venta::text, 5, '0') || '-' || lpad(c.numero::text, 8, '0')", "c.numero::text",
-           { num: "c.doc_nro" }, "c.receptor_nombre", "c.receptor_domicilio", "c.cae", "c.observaciones", "c.ml_documento_id",
-           { de: "select 1 from comprobante_linea bl where bl.comprobante_id = c.id", campos: ["bl.descripcion"] },
-           { de: "select 1 from pedido bpe where bpe.id = c.pedido_id", campos: ["bpe.id::text", "bpe.id_externo"] },
-           deCliente("c.cliente_id")])}
-       order by c.fecha desc nulls last, c.id desc
+      with ${candidatos("comprobante", "id", [
+        { id: "cb.id", de: "comprobante cb", donde: "cb.organizacion_id = $1", campos: CAMPOS_COMPROBANTE },
+        { id: "l.comprobante_id", de: "comprobante_linea l", donde: "l.organizacion_id = $1", campos: ["l.descripcion"] },
+        fuentePedido("cb.id", "comprobante cb", "cb.pedido_id", "cb.organizacion_id = $1"),
+        fuenteCliente("cb.id", "comprobante cb", "cb.cliente_id", "cb.organizacion_id = $1"),
+      ])}
+      select cb.id::int, cb.fecha, cb.tipo_cbte::int, cb.punto_venta::int, cb.numero::int, cb.receptor_nombre, cb.doc_nro, cb.estado, cb.importe_total::float
+        from cand cb
+       where ${exacta([...CAMPOS_COMPROBANTE,
+           { de: "select 1 from comprobante_linea bl where bl.comprobante_id = cb.id", campos: ["bl.descripcion"] },
+           dePedido("cb.pedido_id"), deCliente("cb.cliente_id")])}
+       order by cb.fecha desc nulls last, cb.id desc
        limit ${TOPE}`),
     // Facturas de compra: número, CAE, notas, sus líneas y el proveedor.
     buscar<FacturaCompra>(ver.compras, `
+      with ${candidatos("factura_compra", "id", [
+        { id: "f.id", de: "factura_compra f", donde: "f.organizacion_id = $1", campos: CAMPOS_FACTURA_COMPRA },
+        { id: "l.factura_id", de: "factura_compra_linea l", donde: "l.organizacion_id = $1", campos: ["l.descripcion"] },
+        fuenteProveedor("f.id", "factura_compra f", "f.proveedor_id", "f.organizacion_id = $1"),
+      ])}
       select f.id::int, f.fecha, f.proveedor_id::int, pr.nombre proveedor, f.estado, f.total::float, f.moneda,
              (case when f.es_nota_credito then 'NC ' when f.es_nota_debito then 'ND ' else '' end) || f.letra || ' '
                || coalesce(lpad(f.punto_venta::text, 5, '0') || '-', '') || coalesce(lpad(f.numero::text, 8, '0'), 's/n') comprobante
-        from factura_compra f left join proveedor pr on pr.id = f.proveedor_id
-       where f.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["f.id::text", "lpad(f.punto_venta::text, 5, '0') || '-' || lpad(f.numero::text, 8, '0')", "f.numero::text", "f.cae", "f.notas",
+        from cand f left join proveedor pr on pr.id = f.proveedor_id
+       where ${exacta([...CAMPOS_FACTURA_COMPRA,
            { de: "select 1 from factura_compra_linea bl where bl.factura_id = f.id", campos: ["bl.descripcion"] },
            deProveedor("f.proveedor_id")])}
        order by f.fecha desc nulls last, f.id desc
        limit ${TOPE}`),
     // Despachos de importación: número, notas, sus líneas (descripción, NCM) y el proveedor.
     buscar<Despacho>(ver.despachos, `
+      with ${candidatos("despacho_importacion", "id", [
+        { id: "d.id", de: "despacho_importacion d", donde: "d.organizacion_id = $1", campos: ["d.id::text", "d.numero", "d.notas"] },
+        { id: "l.despacho_id", de: "despacho_linea l", donde: "l.organizacion_id = $1", campos: ["l.descripcion", "l.ncm"] },
+        fuenteProveedor("d.id", "despacho_importacion d", "d.proveedor_id", "d.organizacion_id = $1"),
+      ])}
       select d.id::int, d.fecha, d.numero, pr.nombre proveedor, d.estado
-        from despacho_importacion d left join proveedor pr on pr.id = d.proveedor_id
-       where d.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["d.id::text", "d.numero", "d.notas",
+        from cand d left join proveedor pr on pr.id = d.proveedor_id
+       where ${exacta(["d.id::text", "d.numero", "d.notas",
            { de: "select 1 from despacho_linea bl where bl.despacho_id = d.id", campos: ["bl.descripcion", "bl.ncm"] },
            deProveedor("d.proveedor_id")])}
        order by d.fecha desc nulls last, d.id desc
        limit ${TOPE}`),
     // Recepciones de mercadería y devoluciones: documento, nota, proveedor, pedido.
     buscar<Recepcion>(ver.recepciones, `
+      with ${candidatos("recepcion", "id", [
+        { id: "r.id", de: "recepcion r", donde: "r.organizacion_id = $1", campos: ["r.id::text", "r.documento", "r.nota", "r.venta_externa"] },
+        fuenteProveedor("r.id", "recepcion r", "r.proveedor_id", "r.organizacion_id = $1"),
+        fuentePedido("r.id", "recepcion r", "r.pedido_id", "r.organizacion_id = $1"),
+      ])}
       select r.id::int, r.creado_ts, r.tipo, r.documento, pr.nombre proveedor, r.estado
-        from recepcion r left join proveedor pr on pr.id = r.proveedor_id
-       where r.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["r.id::text", "r.documento", "r.nota", "r.venta_externa", deProveedor("r.proveedor_id"),
-           { de: "select 1 from pedido bpe where bpe.id = r.pedido_id", campos: ["bpe.id::text", "bpe.id_externo"] }])}
+        from cand r left join proveedor pr on pr.id = r.proveedor_id
+       where ${exacta(["r.id::text", "r.documento", "r.nota", "r.venta_externa", deProveedor("r.proveedor_id"), dePedido("r.pedido_id")])}
        order by r.creado_ts desc
        limit ${TOPE}`),
     // Movimientos de cuenta corriente (de clientes y proveedores): descripción y a quién.
     buscar<MovCc>(ver.cc, `
+      with ${candidatos("cc_movimiento", "id", [
+        { id: "m.id", de: "cc_movimiento m", donde: "m.organizacion_id = $1", campos: ["m.id::text", "m.descripcion"] },
+        ...fuentesTercero("m.id", "cc_movimiento m", "m", "m.organizacion_id = $1"),
+      ])}
       select m.id::int, m.fecha, m.tercero_tipo, m.tercero_id::int, ${nombreTercero("m")} tercero, m.descripcion, m.importe::float, m.moneda
-        from cc_movimiento m
-       where m.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["m.id::text", "m.descripcion", ...deTercero("m")])}
+        from cand m
+       where ${exacta(["m.id::text", "m.descripcion", ...deTercero("m")])}
        order by m.fecha desc nulls last, m.id desc
        limit ${TOPE}`),
     // Recibos (cobros) y órdenes de pago: número, notas, retenciones y a quién.
     buscar<Recibo>(ver.cc, `
+      with ${candidatos("recibo", "id", [
+        { id: "r.id", de: "recibo r", donde: "r.organizacion_id = $1", campos: ["r.numero::text", "r.notas", hojasTexto("r.retenciones")] },
+        ...fuentesTercero("r.id", "recibo r", "r", "r.organizacion_id = $1"),
+      ])}
       select r.id::int, r.fecha, r.tipo, r.numero::int, r.tercero_tipo, r.tercero_id::int, ${nombreTercero("r")} tercero, r.total::float, r.moneda, r.estado
-        from recibo r
-       where r.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["r.numero::text", "r.notas", hojasJson("r.retenciones"), ...deTercero("r")])}
+        from cand r
+       where ${exacta(["r.numero::text", "r.notas", hojasJson("r.retenciones"), ...deTercero("r")])}
        order by r.fecha desc nulls last, r.id desc
        limit ${TOPE}`),
     // Tesorería: movimientos de fondos (concepto) y la línea del extracto bancario con que se concilió.
     buscar<MovFondos>(ver.tesoreria, `
+      with ${candidatos("movimiento_fondos", "id", [
+        { id: "m.id", de: "movimiento_fondos m", donde: "m.organizacion_id = $1", campos: ["m.id::text", "m.concepto"] },
+        { id: "m.id", de: "movimiento_fondos m join extracto_linea xl on xl.id = m.extracto_linea_id", donde: "m.organizacion_id = $1", campos: ["xl.descripcion", "xl.referencia"] },
+      ])}
       select m.id::int, m.fecha, m.cuenta_id::int, cf.nombre cuenta, m.concepto, m.importe::float
-        from movimiento_fondos m join cuenta_fondos cf on cf.id = m.cuenta_id
-       where m.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["m.id::text", "m.concepto",
+        from cand m join cuenta_fondos cf on cf.id = m.cuenta_id
+       where ${exacta(["m.id::text", "m.concepto",
            { de: "select 1 from extracto_linea bx where bx.id = m.extracto_linea_id", campos: ["bx.descripcion", "bx.referencia"] }])}
        order by m.fecha desc nulls last, m.id desc
        limit ${TOPE}`),
     // Sin la caja tildada: cuántos productos inactivos coinciden, para avisarlo.
-    ver.productos && !inactivos && q ? consulta<{ n: number }>(`
-      select count(*)::int n from producto p
-       where p.organizacion_id = $1 and p.estado = 'archivado' and ${sqlBusqueda("$2", CAMPOS_PRODUCTO)}`, base.slice(0, 2)).then((r) => r[0]?.n ?? 0) : Promise.resolve(0),
+    ver.productos && !inactivos && grupos.length ? consulta<{ n: number }>(`
+      with ${candidatos("producto", "id", FUENTES_PRODUCTO)}
+      select count(*)::int n from cand p where p.estado = 'archivado' and ${exacta(CAMPOS_PRODUCTO)}`, base).then((r) => r[0]?.n ?? 0) : Promise.resolve(0),
   ]);
   const otros = [itemsMl, pedidos, clientes, proveedores, preguntas, convMl, chats, reclamos, envios, comprobantes, facturasCompra, despachos, recepciones, movCc, recibos, movFondos];
   // Si lo único que coincide es inactivo, se muestra igual aunque la caja no esté tildada (Fer, 6/10).

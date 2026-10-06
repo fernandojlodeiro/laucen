@@ -170,10 +170,6 @@ export function url(base: string, params: Record<string, string | number | null 
 
 /** Patrón ILIKE del buscador (BuscadorVivo): `q` al principio del texto, o en
  *  cualquier parte si "Comienza por" está destildada. Sin texto, null. */
-/** VIEJO: un solo patrón, sin la regla del "?". Las pantallas usan patronesBusqueda + sqlBusqueda de lib/busqueda.ts. */
-export function patronBusqueda(q: string, comienza: boolean): string | null {
-  return q ? `${comienza ? "" : "%"}${q.replace(/[\\%_]/g, "\\$&")}%` : null;
-}
 
 /** En memoria (listas que ya se traen enteras, como un árbol), con la regla de lib/busqueda.ts:
  *  pasale TODOS los textos del resultado juntos (cada condición separada por "?" puede estar en
