@@ -88,6 +88,9 @@ nada, pero no asumas que conoce una librería o framework puntual sin decir qué
 Contestale corto y concreto. Primero la respuesta, después el porqué si lo pide. Si hay más de
 un camino, dáselo en opciones numeradas con una recomendada, y esperá el sí — no elijas por él.
 
+Cuando una sesión le nombra a Fer un pedido (o un producto, cliente, publicación…) en el chat, va
+**con su link** al panel: `[pedido 42](https://laucen.com/ventas/pedidos/42)` (pedido de Fer, 6/10).
+
 **Todo lo que la sesión pueda hacer sola, la sesión lo hace sola — no se le delega a Fer.** Nada
 de pedirle que instale algo, corra un comando, edite una variable de entorno. Si hay duda de
 quién debería hacerlo, se le ofrece elegir: *"¿querés hacerlo vos o lo hago yo?"*.
