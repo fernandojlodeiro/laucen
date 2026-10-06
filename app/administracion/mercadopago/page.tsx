@@ -23,11 +23,32 @@ const hora = (d: Date | string) => new Date(d).toLocaleString("es-AR", { timeZon
 const dia = (d: string) => new Date(d).toLocaleDateString("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit" });
 const plata = (n: number | null | undefined) => (n == null ? "—" : formatear(n, "ARS"));
 
-type Renglon = { titulo: string; ayuda?: string; nivel?: number; valor: (d: Numeros) => number | null | undefined; texto?: (d: Numeros) => string | null; suma?: boolean; cantidad?: boolean };
+type Renglon = { titulo: string; ayuda?: string; nivel?: number; valor: (d: Numeros) => number | null | undefined; texto?: (d: Numeros) => string | null; suma?: boolean; cantidad?: boolean;
+  /** En negrita y con los montos pintados según cuál tiene más (Fer, 6/10). */
+  destacar?: boolean };
+
+// Colores del renglón destacado, de mayor a menor: el más grande en verde
+// fuerte, el que le sigue en verde suave, los del medio sin color y los dos
+// más chicos en ámbar. Las columnas no cambian de lugar.
+const PRIMERO = "bg-[#CDEFD9] text-[#14532D] ring-1 ring-[#86CFA3]";
+const SEGUNDO = "bg-[#EAF7EF] text-[#1F6E4A]";
+const ULTIMOS = "bg-[#FFF1D6] text-[#8a5a00]";
+function coloresPorMonto(vals: (number | null | undefined)[]): (string | null)[] {
+  const conMonto = vals.map((v, i) => ({ v, i })).filter((x): x is { v: number; i: number } => x.v != null).sort((a, b) => b.v - a.v);
+  const out: (string | null)[] = vals.map(() => null);
+  if (conMonto.length < 2) return out;
+  const n = conMonto.length;
+  conMonto.forEach((x, rango) => {
+    if (rango === 0) out[x.i] = PRIMERO;
+    else if (rango === 1 && n >= 4) out[x.i] = SEGUNDO;
+    else if (rango >= 2 && rango >= n - 2) out[x.i] = ULTIMOS;
+  });
+  return out;
+}
 
 const RENGLONES: Renglon[] = [
   { titulo: "Saldo total", ayuda: "Disponible + a liberar", valor: (d) => (d.disponible && d.aLiberar ? d.disponible.monto + d.aLiberar.monto : null), suma: true },
-  { titulo: "Disponible", ayuda: "Según el último Reporte de Liquidaciones de Mercado Pago", nivel: 1, valor: (d) => d.disponible?.monto, suma: true,
+  { titulo: "Disponible", ayuda: "Según el último Reporte de Liquidaciones de Mercado Pago", nivel: 1, valor: (d) => d.disponible?.monto, suma: true, destacar: true,
     texto: (d) => (d.disponible ? null : d.reportePedido ? "pedido a MP, actualizá en unos minutos" : null) },
   { titulo: "A liberar", ayuda: "Cobros aprobados que todavía no se liberaron (neto)", nivel: 1, valor: (d) => d.aLiberar?.monto, suma: true },
   { titulo: "Pagos a liberar", nivel: 2, valor: (d) => d.aLiberar?.pagos, suma: true, cantidad: true },
@@ -87,12 +108,15 @@ export default async function MercadoPago({ searchParams }: { searchParams: Prom
                   const vals = conexiones.map((c) => r.valor(datosDe(c.id)));
                   const total = vals.some((v) => v != null) ? vals.reduce<number>((a, v) => a + (v ?? 0), 0) : null;
                   const fmt = (v: number | null | undefined) => (v == null ? "—" : r.cantidad ? v.toLocaleString("es-AR") : plata(v));
+                  const colores = r.destacar ? coloresPorMonto(vals) : [];
                   return (
-                    <tr key={r.titulo} className={`${TR} ${!r.nivel ? "font-semibold" : ""}`}>
+                    <tr key={r.titulo} className={`${TR} ${!r.nivel || r.destacar ? "font-semibold" : ""} ${r.destacar ? "font-bold text-[13px]" : ""}`}>
                       <td className={TD} style={{ paddingLeft: 8 + (r.nivel ?? 0) * 16 }} title={r.ayuda}>{r.titulo}</td>
                       {conexiones.map((c, i) => {
                         const t = r.texto?.(datosDe(c.id));
-                        return <td key={c.id} className={TDN}>{t ?? fmt(vals[i])}</td>;
+                        return <td key={c.id} className={TDN}>{t ?? (colores[i]
+                          ? <span className={`inline-block rounded-md px-2 py-0.5 ${colores[i]}`}>{fmt(vals[i])}</span>
+                          : fmt(vals[i]))}</td>;
                       })}
                       {conexiones.length > 1 && <td className={`${TDN} font-semibold`}>{r.suma ? fmt(total) : ""}</td>}
                     </tr>

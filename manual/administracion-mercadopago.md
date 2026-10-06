@@ -19,7 +19,7 @@ Menú **Administración › Mercado Pago**. Las cuentas se conectan desde [Canal
 
 - **Resumen**: una columna por cuenta de Mercado Pago (con los canales en que está debajo del nombre) y una de **Total**. Renglones:
   - **Saldo total** = disponible + a liberar.
-  - **Disponible**: la plata liberada, según el último Reporte de Liquidaciones de Mercado Pago.
+  - **Disponible** (en negrita): la plata liberada, según el último Reporte de Liquidaciones de Mercado Pago. Para ver de un golpe quién tiene más, los montos se pintan: el más grande en verde fuerte, el segundo en verde suave (si hay 4 cuentas o más), los del medio sin color y los dos más chicos en ámbar. Las columnas no cambian de lugar.
   - Si el reporte de una cuenta no trae la columna de saldo, Laucen se la agrega a la configuración del Reporte de Liquidaciones de esa cuenta en Mercado Pago (sólo suma esa columna; lo demás queda igual) y pide uno nuevo.
 - **A liberar**: los cobros aprobados que todavía no se liberaron (lo neto, ya descontadas las comisiones), con cuántos pagos son, cuánto se libera en los próximos 7 días y la próxima liberación (monto y día).
   - **Cobrado en los últimos 30 días**: el bruto, cuántos pagos, las comisiones y cargos (lo que se quedan Mercado Pago y Mercado Libre: bruto menos neto recibido menos devuelto), lo neto recibido y lo devuelto.
