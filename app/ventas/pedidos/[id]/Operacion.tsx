@@ -3,6 +3,7 @@
 // al cliente por WhatsApp. Y los pagos del pedido (de cualquier canal).
 
 import CancelarPedido from "./CancelarPedido";
+import CancelarMl from "./CancelarMl";
 import { queArrastraCancelar, motivoNoCancelable } from "@/lib/pedidos/cancelar";
 import { consulta, una } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
@@ -66,11 +67,11 @@ const CERRADOS: EstadoPedido[] = ["entregado", "cancelado", "devuelto"];
 
 export default async function Operacion({ org, pid, sp }: { org: string; pid: number; sp: { ok?: string; error?: string; b?: string } }) {
   const p = await una<{
-    estado: EstadoPedido; estado_pago: string; total_ars: number; medio_pago: string | null; codigo: string | null; canal_id: number; canal_tipo: string;
+    estado: EstadoPedido; estado_pago: string; total_ars: number; id_externo: string | null; medio_pago: string | null; codigo: string | null; canal_id: number; canal_tipo: string;
     cliente: string | null; telefono: string | null; movil: string | null; envio: string | null; envio_tipo: string | null;
     sin_esperar: boolean; retiro: boolean;
   }>(`
-    select p.estado, ${sqlEstadoPago("p")} estado_pago, ${sqlSinEsperarPago("p")} sin_esperar,
+    select p.estado, p.id_externo, ${sqlEstadoPago("p")} estado_pago, ${sqlSinEsperarPago("p")} sin_esperar,
            (me.tipo = 'retiro' or p.envio ->> 'metodo' = 'Retira') is true retiro, p.total_ars::float, p.medio_pago, p.codigo_seguimiento codigo, p.canal_id::int, c.tipo canal_tipo,
            cl.nombre cliente, cl.telefono, cl.telefono_movil movil, me.nombre envio, me.tipo envio_tipo
       from pedido p join canal c on c.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
@@ -108,7 +109,15 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   );
 
   if (esMl) {
-    return pagos.length ? <><h2 className="text-sm font-bold mb-2">Pagos</h2><div className="mb-4">{TablaPagos}</div></> : null;
+    // Laucen no cancela ventas de ML: el botón explica que se hace en ML (Fer, 6/10).
+    const cancelable = !CERRADOS.includes(p.estado) && p.estado !== "despachado";
+    const enlaceMl = p.id_externo && /^\d+$/.test(p.id_externo) ? `https://www.mercadolibre.com.ar/ventas/${p.id_externo}/detalle` : null;
+    return (
+      <>
+        {cancelable && <div className="mb-4"><CancelarMl enlace={enlaceMl} /></div>}
+        {pagos.length > 0 && <><h2 className="text-sm font-bold mb-2">Pagos</h2><div className="mb-4">{TablaPagos}</div></>}
+      </>
+    );
   }
 
   // Medio para confirmar: el del pago pendiente, o el del pedido; si no, se elige.
