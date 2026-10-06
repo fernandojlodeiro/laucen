@@ -330,13 +330,17 @@ const SQL_CON_ETIQUETA = `e.estado is distinct from 'cancelled' and coalesce(e.e
 
 // El envío `e` es el de la etiqueta escaneada ($t: el texto en mayúsculas; $d: sólo sus números):
 // de ML, su id (el código de barras o el QR) o su tracking; de OCA, su número de envío o un código
-// que lo trae adentro (el de la pieza, el QR).
+// que lo trae adentro (el de la pieza o el QR, aunque cambie la cantidad de ceros del medio).
 const sqlEtiquetaEs = (t: string, d: string) => `(upper(e.tracking) = ${t}
          or (e.logistica is distinct from 'oca' and ${d} <> '' and e.id_externo = ${d})
          or (e.logistica = 'oca' and ${d} <> '' and (
                e.datos_externos #>> '{oca,numero_envio}' = ${d}
             or (length(coalesce(e.datos_externos #>> '{oca,numero_envio}', e.tracking)) >= 8
-                and ${d} like '%' || regexp_replace(coalesce(e.datos_externos #>> '{oca,numero_envio}', e.tracking), '\\D', '', 'g') || '%'))))`;
+                and (${d} like '%' || regexp_replace(coalesce(e.datos_externos #>> '{oca,numero_envio}', e.tracking), '\\D', '', 'g') || '%'
+                  -- El QR de OCA trae el número con otro relleno de ceros y la pieza al final:
+                  -- envío 4960400000000012762 → QR 0170104960400000000001276 21 (Fer, 6/10).
+                  or ${d} ~ (regexp_replace(regexp_replace(coalesce(e.datos_externos #>> '{oca,numero_envio}', e.tracking), '\\D', '', 'g'),
+                                            '^([0-9]*?[1-9])0{3,}([1-9][0-9]*)$', '\\10+\\2') || '[0-9]{0,3}$'))))))`;
 
 /** Cerrar un pedido del lote escaneando la ETIQUETA (Fer, 6/10): así el paquete
  *  que se cierra es el que lleva la etiqueta de su comprador. Vale el código de
