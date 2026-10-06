@@ -32,8 +32,9 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
     publicaciones: tienePermiso(s.permisos, "publicaciones_ver"),
     proveedores: tienePermiso(s.permisos, "proveedores_ver"),
   };
-  // Documentos escritos con puntos o guiones: se comparan sólo los dígitos.
-  const digitos = q.replace(/\D/g, "");
+  // Documentos escritos con puntos o guiones: se comparan sólo los dígitos. Sólo si lo buscado
+  // parece un documento (sin letras): "SKU02252" no tiene que traer clientes con 02252 en el CUIT.
+  const digitos = /\p{L}/u.test(q) ? "" : q.replace(/\D/g, "");
   const patronDigitos = digitos.length >= 4 ? `%${digitos}%` : "";
 
   const [productos, pedidos, clientes, publicaciones, proveedores] = q ? await Promise.all([
@@ -43,7 +44,10 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
                where v.producto_id = p.id and v.sku <> p.sku_base and (v.sku ilike $2 or v.codigo_barras = $3)) donde,
              (select array_agg(url order by orden, id) from producto_foto where producto_id = p.id) fotos
         from producto p
-       where p.organizacion_id = $1 and ($5 or p.estado <> 'archivado')
+       where p.organizacion_id = $1
+         -- Un inactivo se ve con la caja tildada, o si lo buscado es justo su SKU (Fer, 6/10).
+         and ($5 or p.estado <> 'archivado' or lower(p.sku_base) = lower($3)
+              or exists (select 1 from variacion v where v.producto_id = p.id and lower(v.sku) = lower($3)))
          and (p.sku_base ilike $2 or p.titulo ilike $2 or p.codigo_barras = $3 or p.id = $4
               or exists (select 1 from variacion v where v.producto_id = p.id
                            and (v.sku ilike $2 or v.codigo_barras = $3 or v.titulo ilike $2)))
@@ -67,7 +71,7 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
     ver.publicaciones ? consulta<{ id: number; id_externo: string | null; titulo: string | null; estado: string; canal: string; producto_id: number; sku: string }>(`
       select pu.id::int, pu.id_externo, coalesce(pu.titulo, v.titulo, p.titulo) titulo, pu.estado, ca.nombre canal, p.id::int producto_id, v.sku
         from publicacion pu join canal ca on ca.id = pu.canal_id join variacion v on v.id = pu.variacion_id join producto p on p.id = v.producto_id
-       where pu.organizacion_id = $1 and (pu.titulo ilike $2 or pu.id_externo ilike $2)
+       where pu.organizacion_id = $1 and (pu.titulo ilike $2 or pu.id_externo ilike $2 or v.sku ilike $2)
        order by (upper(pu.id_externo) = upper($3)) desc, pu.titulo
        limit ${TOPE}`, [s.org.id, patron, q]) : [],
     ver.proveedores ? consulta<{ id: number; nombre: string; razon_social: string | null; cuit: string | null; email: string | null }>(`
