@@ -80,9 +80,24 @@ async function disponible(token: string, intentos: Intento[]): Promise<{ disponi
       intentos.push({ fuente: "Reporte de Liquidaciones (bajar)", status: 200, ...(resultado ? {} : { motivo: `el reporte ${ultimo.file_name} no trae el saldo; columnas: ${cabecera}` }) });
     } else intentos.push({ fuente: "Reporte de Liquidaciones (bajar)", status: csv.status, motivo: motivoDe(csv.status, csv.datos) });
   }
-  // Uno nuevo si el último tiene más de una hora (Mercado Pago lo arma en unos minutos).
+  // Si el reporte no trae el saldo, se agrega la columna BALANCE_AMOUNT a la
+  // configuración del reporte de la cuenta (Fer dijo que sí, 6/10: sólo suma
+  // esa columna; lo demás queda como estaba) y se pide uno nuevo enseguida.
+  let sinSaldo = false;
+  if (ultimo?.file_name && !resultado) {
+    const conf = await mpPedir<Record<string, unknown> & { columns?: { key: string }[] }>(token, "GET", "/v1/account/release_report/config");
+    if (conf.status === 200 && conf.datos && Array.isArray(conf.datos.columns) && !conf.datos.columns.some((c) => c.key === "BALANCE_AMOUNT")) {
+      const { columns, ...resto } = conf.datos;
+      delete (resto as Record<string, unknown>).scheduled;
+      const put = await mpPedir(token, "PUT", "/v1/account/release_report/config", { ...resto, columns: [...columns!, { key: "BALANCE_AMOUNT" }] });
+      intentos.push({ fuente: "Reporte de Liquidaciones (agregar la columna de saldo)", status: put.status, ...(put.status < 300 ? {} : { motivo: motivoDe(put.status, put.datos) }) });
+      sinSaldo = put.status < 300;
+    } else if (conf.status !== 200) intentos.push({ fuente: "Reporte de Liquidaciones (leer configuración)", status: conf.status, motivo: motivoDe(conf.status, conf.datos) });
+  }
+  // Uno nuevo si el último tiene más de una hora (Mercado Pago lo arma en unos
+  // minutos), o enseguida si recién se agregó la columna de saldo.
   let pedido: string | null = null;
-  const viejo = !ultimo?.date_created || Date.now() - new Date(ultimo.date_created).getTime() > 3600_000;
+  const viejo = sinSaldo || !ultimo?.date_created || Date.now() - new Date(ultimo.date_created).getTime() > 3600_000;
   if (viejo) {
     const cuerpo = { begin_date: new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 19) + "Z", end_date: new Date().toISOString().slice(0, 19) + "Z" };
     let r = await mpPedir(token, "POST", "/v1/account/release_report", cuerpo);
