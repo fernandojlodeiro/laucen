@@ -20,7 +20,7 @@ Los pedidos de Mercado Libre **entran solos** y se mueven solos según lo que pa
 ## Cómo se llega
 
 - Menú **Ventas › Pedidos** (o 🧾 **Pedidos** en la barra de abajo del celular).
-- Contador **"Pedidos sin preparar"** de la barra de estado (abre la lista con el filtro Pendientes).
+- Contador **"Pedidos a preparar"** de la barra de estado (abre la lista con el filtro Pendientes).
 - Tarjeta **"Pedidos abiertos"** del [Panel](/panel): cada renglón abre la lista filtrada por ese estado.
 - El [buscador global](/buscar): por Nº de pedido o por id externo (número de venta de Mercado Libre).
 - Desde la ficha de un cliente (su lista de pedidos), desde [Envíos](/ventas/envios), [Reclamos](/ventas/reclamos), [Preguntas y mensajes](/ventas/preguntas) y [Facturación](/administracion/facturacion): el número de pedido es un enlace a su ficha.
@@ -238,7 +238,7 @@ Los pedidos de Mercado Libre **no tienen botones de estado** en la ficha: los mu
 - **Se factura recién cuando se cobra**: mientras esté «A cobrar», el botón "Facturar" está deshabilitado y la facturación automática no lo toma. Al confirmar el cobro, si el pedido ya llegó al estado en que se factura, la facturación automática lo factura.
 - **«A convenir»** (cuenta corriente): los pedidos de la tienda con "Cuenta corriente / a convenir" y los cargados a mano con **"Cuenta corriente"**. También reservan y entran en picking sin esperar el pago, pero **se facturan como siempre** (la cuenta corriente se arma con la factura).
 - En la ficha, un «A cobrar» muestra el cartel ámbar **"A COBRAR $ …"** con el total en pesos.
-- El filtro **Pendientes** y el contador "Pedidos sin preparar" incluyen los Nuevos, los Pagados y los «A cobrar» que todavía no se entregaron (aunque estén en preparación, preparados o despachados).
+- El filtro **Pendientes** y el contador "Pedidos a preparar" incluyen los Nuevos, los Pagados y los «A cobrar» que todavía no se entregaron (aunque estén en preparación, preparados o despachados).
 
 ### Precios de un pedido
 

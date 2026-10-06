@@ -19,7 +19,7 @@ Para cada una, la **IA propone sola una respuesta** apenas entra (con los datos 
 ## Cómo se llega
 
 - Menú **Ventas › Preguntas y mensajes**.
-- Contadores de la barra de estado: **"Preguntas sin responder"** (abre la pestaña Preguntas) y **"Mensajes sin leer"** (abre la pestaña Mensajes).
+- Contadores de la barra de estado: **"Preguntas"** (abre la pestaña Preguntas) y **"Mensajes"** (abre la pestaña Mensajes).
 - La tarjeta **"Preguntas sin responder"** del [Panel](/panel).
 
 ## Qué hay en la pantalla

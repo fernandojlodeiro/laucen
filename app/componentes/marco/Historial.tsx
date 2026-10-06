@@ -5,11 +5,14 @@
 // (producto, cliente, pedido, factura, reclamo, proveedor, cucarda, publicación, canal…: cualquier registro de un ABM), la última arriba,
 // para volver con un clic a lo que estabas mirando hace un rato. Guarda las
 // últimas 15 de CADA usuario (en su preferencia: lo ve desde cualquier equipo y no se mezcla con otro usuario)
-// y sólo se muestra si en la pantalla sobra lugar a la izquierda.
+// Siempre está en la barra de abajo: «Historial» despliega hacia arriba la
+// lista, sólo con el nombre de cada cosa (Fer, 6/10: a 1920×1080 no había
+// lugar al costado). Si en la pantalla sobra lugar a la izquierda, además se
+// ve la lista completa ahí.
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Visto } from "@/lib/historial";
 import { claveVisto } from "@/lib/historial-clave";
 import { accionAnotarVisto, accionBorrarHistorial } from "./historial-acciones";
@@ -68,6 +71,18 @@ export default function Historial({ inicial }: { inicial: Visto[] }) {
   const [lista, setLista] = useState<Visto[]>(inicial);
   const [hayLugar, setHayLugar] = useState(false);
   const [actual, setActual] = useState("");
+  const [abierto, setAbierto] = useState(false);
+  const caja = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!abierto) return;
+    const cerrar = (e: MouseEvent) => { if (!caja.current?.contains(e.target as Node)) setAbierto(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setAbierto(false); };
+    document.addEventListener("mousedown", cerrar);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", cerrar); document.removeEventListener("keydown", esc); };
+  }, [abierto]);
+  // Al cambiar de pantalla, se cierra.
+  useEffect(() => { setAbierto(false); }, [ruta, busquedaActual]);
 
   const medir = useCallback(() => {
     const m = document.querySelector("main");
@@ -105,13 +120,38 @@ export default function Historial({ inicial }: { inicial: Visto[] }) {
     return () => clearInterval(t);
   }, [ruta, busquedaActual, medir]);
 
-  if (!hayLugar || lista.length === 0) return null;
+  const borrar = () => { setLista([]); setAbierto(false); accionBorrarHistorial().catch(() => { /* ya no se ve; se borra a la próxima */ }); };
+  const enBarra = (
+    <span ref={caja} data-reinicia-recorrido className="relative">
+      <button type="button" onClick={() => setAbierto((x) => !x)} aria-expanded={abierto} disabled={!lista.length}
+        className="hover:underline disabled:opacity-50 disabled:no-underline">Historial {abierto ? "▾" : "▴"}</button>
+      {abierto && lista.length > 0 && (
+        <div className="absolute bottom-full left-0 mb-2 w-72 max-h-[70vh] overflow-y-auto rounded-xl border border-[#E3E9F0] bg-white text-[#1E2A32] shadow-lg p-1.5">
+          <div className="flex items-center justify-between px-1.5 pb-1">
+            <span className="text-[11px] font-bold text-[#5C6B76]">Lo último que viste</span>
+            <button type="button" onClick={borrar} title="Borrar la lista" className="text-[11px] text-[#9AA7B3] hover:text-[#C03420]">✕</button>
+          </div>
+          <ul className="grid">
+            {lista.map((v) => (
+              <li key={v.href}>
+                <Link href={v.href} title={`${v.tipo}: ${v.titulo}`}
+                  className={`block truncate rounded-md px-1.5 py-1 text-[12px] hover:bg-[#EEF3F8] ${claveVisto(v.href) === actual ? "bg-[#EEF3F8] font-bold text-[#16577F]" : ""}`}>{v.titulo}</Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </span>
+  );
+  if (!hayLugar || lista.length === 0) return enBarra;
   return (
+    <>
+    {enBarra}
     <aside data-reinicia-recorrido aria-label="Lo último que viste" className="hidden md:block print:hidden fixed left-2 top-14 bottom-12 z-20 overflow-y-auto" style={{ width: ANCHO }}>
       <div className="rounded-xl border border-[#E3E9F0] bg-white/90 backdrop-blur p-2 shadow-sm">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[11px] font-bold text-[#5C6B76]">Lo último que viste</span>
-          <button type="button" onClick={() => { setLista([]); accionBorrarHistorial().catch(() => { /* ya no se ve; se borra a la próxima */ }); }} title="Borrar la lista" className="text-[11px] text-[#9AA7B3] hover:text-[#C03420]">✕</button>
+          <button type="button" onClick={borrar} title="Borrar la lista" className="text-[11px] text-[#9AA7B3] hover:text-[#C03420]">✕</button>
         </div>
         <ul className="grid gap-0.5">
           {lista.map((v) => (
@@ -125,5 +165,6 @@ export default function Historial({ inicial }: { inicial: Visto[] }) {
         </ul>
       </div>
     </aside>
+    </>
   );
 }

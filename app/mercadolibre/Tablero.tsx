@@ -10,6 +10,7 @@
 import Link from "next/link";
 import { formatear, type Moneda } from "@/lib/moneda";
 import { Estado, url, CAJA } from "@/app/componentes/erp";
+import AjusteAncho from "@/app/componentes/AjusteAncho";
 import { cuentasTablero, metricasPorCanal, alertasCatalogo, gruposNoMl, sinPublicarPorCanal, estadoWebPorCanal, sumar, type CuentaTablero, type Metricas } from "@/lib/mercadolibre/tablero";
 import { nivelDe, NIVELES_REPUTACION, LIDER, type Metrica, type Reputacion } from "@/lib/mercadolibre/reputacion";
 
@@ -133,7 +134,7 @@ type Fila = {
 /** El apodo se achica hasta que entra entero en la columna (≈ 7 rem). */
 /** El zoom de la tabla (antes 1,32; un 15 % menos). Los títulos fijos se pegan debajo de la barra de arriba (40 px en la PC, 48 en el celular), que el zoom también escala. */
 const ZOOM = 1.12;
-const FIJA = "sticky top-[calc(48px/1.12)] md:top-[calc(40px/1.12)] z-10 bg-[#FAFBFC] border-b border-[#E3E9F0]";
+const FIJA = "sticky top-[calc(48px/var(--zoom,1.12))] md:top-[calc(40px/var(--zoom,1.12))] z-10 bg-[#FAFBFC] border-b border-[#E3E9F0]";
 const tamanoTitulo = (t: string) => `${Math.max(7, Math.min(11, Math.floor(1700 / Math.max(t.length, 1)) / 10)).toFixed(1)}px`;
 const NA = <span className="block text-right text-[13px] text-[#9AA7B3]" title="No aplica a este canal">—</span>;
 /** Para las filas que sólo existen en una cuenta de ML (reputación, publicaciones, preguntas…). */
@@ -287,9 +288,10 @@ export async function Tablero({ org, modo, moneda = "ARS" }: { org: string; modo
           <p className="text-xs">Todavía no hay ninguna cuenta de Mercado Libre conectada a un canal. Conectala en <Link href="/config/canales" className="text-[#16577F] underline">Configuración → Canales</Link>.</p>
         </div>
       )}
-      {/* Centrado y con zoom: la tabla ocupa lo que necesita, no el ancho de la pantalla. La fila de títulos
+      {/* Centrado y con zoom: la tabla ocupa lo que necesita, no el ancho de la pantalla; si no entra
+          (ej. 1920×1080 con muchas cuentas), se achica sola hasta entrar (AjusteAncho). La fila de títulos
           (la cuenta o el canal de cada columna) queda fija debajo de la barra de arriba al bajar con la rueda. */}
-      <div className="mx-auto w-fit max-w-full" style={{ zoom: ZOOM }}>
+      <AjusteAncho maximo={ZOOM} className="mx-auto w-fit max-w-full">
       <div className="max-md:overflow-x-auto md:overflow-x-clip bg-white border border-[#E3E9F0] rounded-xl">
         <table className="w-auto text-[13px] border-collapse">
           <thead className="bg-[#FAFBFC]">
@@ -342,7 +344,7 @@ export async function Tablero({ org, modo, moneda = "ARS" }: { org: string; modo
           </div>
         </div>
       )}
-      </div>
+      </AjusteAncho>
     </>
   );
 }

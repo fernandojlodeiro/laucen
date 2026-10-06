@@ -19,8 +19,8 @@ export async function contadoresEstado(org: string): Promise<Contador[]> {
     "select coalesce(sum(sin_leer), 0)::int n from meli_conversacion where organizacion_id = $1", [org],
   ).catch(() => null);
   return [
-    { texto: "Pedidos sin preparar", n: pedidos?.n ?? 0, href: "/ventas/pedidos?estado=pendientes" },
-    { texto: "Preguntas sin responder", n: preguntas?.n ?? 0, href: "/ventas/preguntas" },
-    { texto: "Mensajes sin leer", n: mensajes?.n ?? 0, href: "/ventas/preguntas?ver=mensajes" },
+    { texto: "Pedidos a preparar", n: pedidos?.n ?? 0, href: "/ventas/pedidos?estado=pendientes" },
+    { texto: "Preguntas", n: preguntas?.n ?? 0, href: "/ventas/preguntas" },
+    { texto: "Mensajes", n: mensajes?.n ?? 0, href: "/ventas/preguntas?ver=mensajes" },
   ];
 }

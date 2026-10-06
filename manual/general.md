@@ -35,11 +35,11 @@ Una franja blanca fija arriba, al estilo de Excel:
 Una franja azul fija abajo de todo, siempre visible:
 
 - **El interruptor de moneda** ("$" ↔ "US$"): un interruptor de verdad. Tocándolo cambiás si **vos** ves los importes en pesos o en dólares en todas las pantallas. Es una preferencia de cada usuario (y de cada organización): no cambia nada para los demás. De entrada se ve en pesos.
-- **"Dólar oficial: $ …"**: el tipo de cambio oficial venta que rige hoy. Si pasás el mouse dice de qué fecha es y de dónde salió. Si no hay ninguno cargado dice **"sin cargar"** y es un enlace a [Tipo de cambio](/config/tipo-cambio).
+- **"Dólar: $ …"**: el tipo de cambio oficial venta que rige hoy. Si pasás el mouse dice de qué fecha es y de dónde salió. Si no hay ninguno cargado dice **"sin cargar"** y es un enlace a [Tipo de cambio](/config/tipo-cambio).
 - **Contadores** (cada uno es un enlace):
-  - **"Pedidos sin preparar"** → [Pedidos](/ventas/pedidos?estado=pendientes) con el filtro Pendientes. Cuenta los pedidos nuevos y pagados, más los «A cobrar» que todavía no se entregaron (ver [Pedidos](/ventas/pedidos)).
-  - **"Preguntas sin responder"** → [Preguntas y mensajes](/ventas/preguntas): las preguntas de Mercado Libre pendientes.
-  - **"Mensajes sin leer"** → la pestaña Mensajes de [Preguntas y mensajes](/ventas/preguntas?ver=mensajes): la suma de mensajes de posventa sin leer.
+  - **"Pedidos a preparar"** → [Pedidos](/ventas/pedidos?estado=pendientes) con el filtro Pendientes. Cuenta los pedidos nuevos y pagados, más los «A cobrar» que todavía no se entregaron (ver [Pedidos](/ventas/pedidos)).
+  - **"Preguntas"** → [Preguntas y mensajes](/ventas/preguntas): las preguntas de Mercado Libre pendientes.
+  - **"Mensajes"** → la pestaña Mensajes de [Preguntas y mensajes](/ventas/preguntas?ver=mensajes): la suma de mensajes de posventa sin leer.
   - Cuando un contador es mayor que cero, el número se resalta en blanco.
 - A la derecha: **el nombre de la organización y el tuyo** (o tu mail), y la versión del sistema.
 
@@ -51,9 +51,9 @@ Una franja azul fija abajo de todo, siempre visible:
   - ☰ **"Menú"**: abre el árbol completo del menú en pantalla entera, con el botón **"📱 Modo depósito"** ([Modo depósito](/deposito/celular)), el enlace para elegir los botones de la barra y el buscador global. Se cierra con **"Cerrar"** o al elegir una opción.
 - En el celular no están la barra de estado (dólar, contadores) ni el botón "Salir".
 
-### Lo último que viste (margen izquierdo)
+### Lo último que viste (Historial)
 
-En la PC, si la pantalla tiene lugar a la izquierda del contenido, aparece una lista **"Lo último que viste"** por fuera del panel: cada registro que abrís en **cualquier pantalla de altas, bajas y modificaciones** (producto, cliente, pedido, factura, despacho, reclamo, proveedor, cuenta de fondos, **cucarda, publicación, canal, familia**…; también cuando apretás el lápiz de una fila) queda anotado con su tipo y su nombre, **la última arriba**. Un mismo registro aparece **una sola vez**: si lo volvés a abrir (aunque sea de otra manera, tocando su nombre o con el lápiz), no se repite, sube arriba de todo. Tocándola volvés a esa ficha. Guarda las **últimas 15** (las más viejas se van pisando) y se anota sola; la **✕** de arriba borra la lista. Es **de cada usuario**: se guarda en su cuenta, así que la ve igual desde cualquier equipo o celular y no se mezcla con la de otra persona, aunque usen la misma computadora. No se anotan las pantallas de la tienda pública, las de administración interna (bitácora, para probar) ni las listas sueltas: solo los registros que abrís dentro de una pantalla del panel. Si la ventana es angosta y no hay lugar, no se muestra (no tapa nada).
+En la PC, en la barra de abajo, **"Historial ▴"** despliega hacia arriba la lista **"Lo último que viste"**, sólo con el nombre de cada cosa (el producto, el cliente, el número de pedido…). Si además la pantalla tiene lugar a la izquierda del contenido, la misma lista se ve completa por fuera del panel: cada registro que abrís en **cualquier pantalla de altas, bajas y modificaciones** (producto, cliente, pedido, factura, despacho, reclamo, proveedor, cuenta de fondos, **cucarda, publicación, canal, familia**…; también cuando apretás el lápiz de una fila) queda anotado con su tipo y su nombre, **la última arriba**. Un mismo registro aparece **una sola vez**: si lo volvés a abrir (aunque sea de otra manera, tocando su nombre o con el lápiz), no se repite, sube arriba de todo. Tocándola volvés a esa ficha. Guarda las **últimas 15** (las más viejas se van pisando) y se anota sola; la **✕** de arriba borra la lista. Es **de cada usuario**: se guarda en su cuenta, así que la ve igual desde cualquier equipo o celular y no se mezcla con la de otra persona, aunque usen la misma computadora. No se anotan las pantallas de la tienda pública, las de administración interna (bitácora, para probar) ni las listas sueltas: solo los registros que abrís dentro de una pantalla del panel. Al costado, si la ventana es angosta y no hay lugar, no se muestra (no tapa nada); en la barra de abajo está siempre.
 
 ### Botones que demoran
 

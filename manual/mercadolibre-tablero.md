@@ -61,6 +61,7 @@ Tocá el número: te lleva a la pantalla correspondiente con esa cuenta ya elegi
 
 ## Criterios y reglas
 
+- **Siempre entra en la pantalla**: la tabla se achica sola (letra más chica) lo justo para entrar en el ancho de la ventana, por ejemplo en 1920 × 1080 con muchas cuentas; nunca hace falta correrla de costado. Si agrandás la ventana, vuelve a su tamaño.
 - **Todo, salvo la reputación, sale de lo que Laucen ya tiene guardado** (pedidos, envíos, preguntas, reclamos, publicaciones traídas); no llama a Mercado Libre. Si algo parece desactualizado, se trae desde su pantalla ("Traer preguntas ahora", "Traer reclamos de ML", "Traer publicaciones de ML").
 - Cada número usa **la misma condición que la pantalla a la que enlaza**, para que coincidan.
 - **Reclamos y entregas demoradas**: ML sólo informa cuántos y el porcentaje del período; Laucen no los recalcula. Para ver cuáles son, usá [Reclamos y devoluciones](/ventas/reclamos) y [Envíos](/ventas/envios).

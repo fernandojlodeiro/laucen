@@ -87,17 +87,17 @@ export default async function Marco({ children, version }: { children: React.Rea
       <footer className="hidden md:flex print:!hidden fixed bottom-0 inset-x-0 z-30 h-8 items-center gap-4 px-3 bg-[#16577F] text-white text-[11px]">
         <InterruptorMoneda moneda={moneda} oscuro />
         <span title={tc ? `Oficial venta del ${tc.fecha.split("-").reverse().join("/")} (${tc.origen})` : undefined}>
-          Dólar oficial: {tc ? <b>{formatear(tc.venta, "ARS")}</b> : <Link href="/config/tipo-cambio" className="underline">sin cargar</Link>}
+          Dólar: {tc ? <b>{formatear(tc.venta, "ARS")}</b> : <Link href="/config/tipo-cambio" className="underline">sin cargar</Link>}
         </span>
         <span className="flex items-center gap-3">
           {contadores.map((c) => <ContadorEstado key={c.texto} c={c} />)}
         </span>
+        {/* Lo último que viste: «Historial» en la barra (se despliega hacia arriba) y, si sobra lugar, también al costado. */}
+        <Suspense fallback={null}><Historial inicial={historial} /></Suspense>
         <span className="ml-auto opacity-80">{sesion.org.nombre} · {quien}</span>
         <span className="opacity-50 hidden lg:inline">{version}</span>
       </footer>
 
-      {/* Lo último que viste: sobre el margen izquierdo, si hay lugar */}
-      <Suspense fallback={null}><Historial inicial={historial} /></Suspense>
       <AvisosTareas />
 
       {/* El asistente: la carita abajo a la derecha (lib/asistente/motor.ts) */}
