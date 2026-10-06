@@ -323,3 +323,22 @@ test("desarmar el lote: los pedidos sin preparar vuelven al estado de antes; los
   const { lotes: [otro] } = await m.picking.prepararImpresion(e.org, [a], "operador");
   assert.ok(otro);
 });
+
+test("cancelar un pedido: libera el stock; sin credenciales de Payway avisa que falló y el pedido queda cancelado igual", async () => {
+  const cancelar = await import("@/lib/pedidos/cancelar");
+  const e = await escenario();
+  const a = await e.pedido([{ v: e.p1, c: 2 }]);
+  const disp = async () => (await q<{ n: number }>("select coalesce(sum(cantidad - reservado), 0)::int n from stock where variacion_id = $1", [e.p1]))[0].n;
+  const antes = await disp();
+  // Un pago aprobado de Payway de hoy: se anula (sin llave cargada, falla y se avisa).
+  await q("insert into pago (organizacion_id, pedido_id, medio, estado, importe_ars, id_externo) values ($1, $2, 'payway', 'aprobado', 200, $3)", [e.org, a, `pw-${a}`]);
+  const que = await cancelar.queArrastraCancelar(e.org, a);
+  assert.deepEqual([que.oca, que.payway?.mismoDia, que.payway?.importe, que.factura], [null, true, 200, null]);
+  const r = await cancelar.cancelarPedido(e.org, a, "operador", { notaCredito: true });
+  assert.deepEqual(r.hecho, ["Pedido cancelado (el stock vuelve)"]);
+  assert.equal(r.fallo.length, 1);
+  assert.match(r.fallo[0], /^Payway: .*llave/);
+  assert.equal((await q<{ estado: string }>("select estado from pedido where id = $1", [a]))[0].estado, "cancelado");
+  assert.equal(await disp(), antes + 2);
+  await assert.rejects(cancelar.cancelarPedido(e.org, a, "operador", { notaCredito: false }), /cancelado: no se cancela/);
+});

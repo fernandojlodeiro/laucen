@@ -13,6 +13,7 @@ import { prepararFactura, emitir } from "@/lib/arca/facturar";
 import { subirFacturaDelPedidoConBoton } from "@/lib/mercadolibre/facturas";
 import { deFondo } from "@/lib/tareas-fondo";
 import { altaOca, anularOca, envioOcaDe, seguirEnvio } from "@/lib/oca/envios";
+import { cancelarPedido } from "@/lib/pedidos/cancelar";
 
 export async function accionFacturar(fd: FormData) {
   const s = await entrarErp("facturacion_ver");
@@ -145,3 +146,19 @@ export async function accionAnularOca(fd: FormData) {
 }
 
 const ESTADO_OCA: Record<string, string> = { ready_to_ship: "todavía no salió", shipped: "en camino", delivered: "entregado", returned: "devuelto", cancelled: "anulado" };
+
+/** "Cancelar pedido" (Fer, 6/10): cancela y anula lo que arrastra (OCA, Payway y, si se pidió, la
+ *  factura con nota de crédito), de fondo. Si algo falló, el cartel sale en rojo diciendo qué. */
+export async function accionCancelarPedido(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  const nc = fd.get("nc") === "1";
+  return deFondo(s, `cancelar-${pid}`, `Cancelar el pedido ${pid}`, async () => {
+    await pedidoOperable(s.org.id, pid);
+    const r = await cancelarPedido(s.org.id, pid, s.usuario.id, { notaCredito: nc });
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    const listo = r.hecho.join(" · ");
+    if (r.fallo.length) throw new ErrorErp(`${listo}. Falló: ${r.fallo.join(" · ")}. Eso hay que hacerlo a mano desde el pedido.`);
+    return `${listo}.`;
+  });
+}

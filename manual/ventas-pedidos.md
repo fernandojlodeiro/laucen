@@ -98,7 +98,7 @@ Aparece en los pedidos que no son de Mercado Libre. Según el estado y el pago m
 - **"Confirmar pago de $ …"** con el desplegable **"Pagó con"**: cuando el pago está Pendiente, A convenir o A cobrar y el pedido no está cerrado.
 - **"Entregado y cobrado ($ …)"** con **"Cobró con"**: en lugar del anterior, cuando el pedido es «A cobrar», **retira** en el local y ya está **Preparado**.
 - Los botones del **estado siguiente** (ver la tabla de "Criterios").
-- **"Cancelar pedido"**: pregunta ahí mismo "¿Cancelar el pedido? Libera el stock reservado." con **"Sí"** / **"No"**. No aparece en pedidos entregados, cancelados o devueltos.
+- **"Cancelar pedido"**: pregunta ahí mismo "¿Cancelar el pedido?" y dice qué más va a hacer (liberar el stock, anular el envío de OCA, anular o devolver el pago de Payway), con **"Sí"** / **"No"**. Si el pedido tiene factura, pregunta aparte "¿Emitir la nota de crédito…?". No aparece en pedidos entregados, cancelados o devueltos.
 - **"Avisar por WhatsApp"**: abre WhatsApp con un mensaje armado para el cliente según el estado. Si el cliente no tiene teléfono: "El cliente no tiene teléfono cargado: no se le puede avisar por WhatsApp."
 
 ## Cómo se hace
@@ -145,8 +145,16 @@ Errores típicos: "Elegí el cliente (o marcá «Consumidor final»).", "Línea 
 
 ### Cancelar un pedido
 
-1. En **"Operación"**, apretá **"Cancelar pedido"** y confirmá con **"Sí"**.
-2. El pedido queda **Cancelado** y se libera el stock que tenía reservado. Un pedido cancelado no cambia más de estado.
+1. En **"Operación"**, apretá **"Cancelar pedido"**. Pregunta "¿Cancelar el pedido?" y dice qué más va a pasar. Confirmá con **"Sí"**.
+2. Si el pedido tiene una factura autorizada, pregunta aparte **"¿Emitir la nota de crédito de la Factura …?"**: **"Sí, cancelar con nota de crédito"**, **"No, cancelar sin nota de crédito"** o **"No cancelar"**.
+3. Corre de fondo (el botón dice "Trabajando…") y al terminar aparece el cartel abajo a la derecha con lo que se hizo. En orden:
+   - El pedido queda **Cancelado** y se libera el stock que tenía reservado (las publicaciones de Mercado Libre que se habían pausado por falta de stock se reactivan solas).
+   - Si tiene un **envío de OCA** que todavía no salió, se **anula en OCA**. Si ya salió, avisa que no se pudo.
+   - Si se pagó con **Payway**, se le pide a Payway la devolución total: si el pago es **del mismo día** (antes del cierre de lote) Payway lo toma como **anulación**; si es de **otro día**, como **devolución** (el dinero vuelve al resumen de la tarjeta). El pago queda "Reembolsado".
+   - Si elegiste la nota de crédito, se emite por el total de la factura.
+4. Si algún paso falla (por ejemplo OCA o Payway no responden), el cartel sale en rojo diciendo cuál. El pedido queda cancelado igual; lo que falló se hace a mano: "Anular en OCA" en el pedido, la devolución en el panel de Payway, o "Anular con nota de crédito" en la factura.
+
+Un pedido cancelado no cambia más de estado.
 
 ### Facturar un pedido
 
