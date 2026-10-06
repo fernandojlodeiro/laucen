@@ -148,7 +148,7 @@ function CajaInactivos({ activo }: { activo: boolean }) {
 }
 
 /** Cómo busca el buscador de arriba (Fer, 6/10), para el globito. */
-const AYUDA_BUSCAR = "Busca lo que escribís tal cual, entero (con sus espacios), en cualquier parte. Para buscar varias cosas a la vez, separalas con ? — por ejemplo SKU1340?SKU1341 trae lo que tenga una o la otra.";
+const AYUDA_BUSCAR = "Busca lo que escribís tal cual, entero (con sus espacios), en cualquier parte. Para pedir varias condiciones a la vez, separalas con ?: trae lo que cumple todas en el mismo resultado — por ejemplo note?12gb trae lo que dice “note” y también “12gb”.";
 
 /** Cuándo salen los inactivos (Fer, 6/10), para el globito de la cajita 🗃. */
 const AYUDA_INACTIVOS = "Incluir inactivos (productos archivados). Sin tildar, los inactivos aparecen sólo cuando lo único que coincide es inactivo. Tildada, aparecen siempre. Queda como la dejes.";
