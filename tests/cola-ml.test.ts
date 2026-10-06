@@ -284,3 +284,20 @@ test("de 0 a algo: la cantidad y la activación van juntas", async () => {
   assert.deepEqual(cambioDeStock({ ...pub, cantidad_publicada: 2 })!.payload, { cantidad: 1 });
   assert.deepEqual(cambioDeStock({ ...pub, variacion_externa: "9" })!.payload, { cantidad: 1 });
 });
+
+test("encolar: lo mismo que se está mandando o se acaba de mandar no se repite; algo distinto sí", async () => {
+  const e = await escenario();
+  const base = { canalId: e.canal, itemId: "MLA77", tipo: "stock" as const };
+  const pausa = { estado: "paused", cantidad: 0 };
+  assert.equal((await m.cola.encolar(e.org, [{ ...base, payload: pausa }], { origen: "automatico" })).encoladas, 1);
+  await q("update ml_cola set estado = 'enviando' where organizacion_id = $1", [e.org]);
+  // Otro aviso de stock casi junto: no se duplica.
+  assert.deepEqual(await m.cola.encolar(e.org, [{ ...base, payload: pausa }], { origen: "automatico" }), { encoladas: 0, reemplazadas: 0, sinCambios: 1 });
+  await q("update ml_cola set estado = 'ok', enviado_ts = now() where organizacion_id = $1", [e.org]);
+  assert.equal((await m.cola.encolar(e.org, [{ ...base, payload: pausa }], { origen: "automatico" })).encoladas, 0);
+  // Algo distinto sale; y lo mismo, pasados 2 minutos, también.
+  assert.equal((await m.cola.encolar(e.org, [{ ...base, payload: { cantidad: 3, estado: "active" } }], { origen: "automatico" })).encoladas, 1);
+  await q("delete from ml_cola where organizacion_id = $1 and estado = 'pendiente'", [e.org]);
+  await q("update ml_cola set enviado_ts = now() - interval '3 minutes' where organizacion_id = $1", [e.org]);
+  assert.equal((await m.cola.encolar(e.org, [{ ...base, payload: pausa }], { origen: "automatico" })).encoladas, 1);
+});
