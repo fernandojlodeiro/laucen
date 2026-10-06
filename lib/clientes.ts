@@ -5,11 +5,12 @@
 
 const digitos = (s: string | null | undefined) => (s ? s.replace(/\D/g, "") : "");
 
-/** CUIT/CUIL como "20-12345678-9" (venga con guiones, puntos o espacios).
+/** CUIT/CUIL como 11 números (venga con guiones, puntos o espacios).
  *  null si no tiene 11 dígitos. */
 export function normalizarCuit(v: string | null | undefined): string | null {
+  // Se guarda sólo con números (Fer, 6/10); se muestra con guiones con cuitLegible (lib/cuit.ts).
   const d = digitos(v);
-  return d.length === 11 ? `${d.slice(0, 2)}-${d.slice(2, 10)}-${d.slice(10)}` : null;
+  return d.length === 11 ? d : null;
 }
 
 /** Un número de documento de verdad: sin puntos; null si está vacío o es de

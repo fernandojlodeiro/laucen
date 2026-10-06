@@ -400,3 +400,32 @@ select emisor_columna('cuenta_fondos');
 select emisor_columna('recibo');
 select emisor_columna('asiento');
 select emisor_columna('arca_mc_lote');
+
+-- ── CUIT y CBU: sólo números (Fer, 6/10) ──────────────────
+-- El operador los carga como quiera (con guiones, puntos o espacios); la base
+-- guarda sólo los números y las pantallas los muestran formateados
+-- (lib/numeros-doc.ts). Así el buscador los encuentra escritos de cualquier forma.
+create or replace function erp_solo_digitos() returns trigger language plpgsql as $$
+declare c text; v text;
+begin
+  foreach c in array TG_ARGV loop
+    v := to_jsonb(new) ->> c;
+    if v is not null and v ~ '[^0-9]' then
+      new := jsonb_populate_record(new, jsonb_build_object(c, nullif(regexp_replace(v, '[^0-9]', '', 'g'), '')));
+    end if;
+  end loop;
+  return new;
+end $$;
+drop trigger if exists cliente_solo_digitos on cliente;
+create trigger cliente_solo_digitos before insert or update of cuit on cliente for each row execute function erp_solo_digitos('cuit');
+drop trigger if exists proveedor_solo_digitos on proveedor;
+create trigger proveedor_solo_digitos before insert or update of cuit on proveedor for each row execute function erp_solo_digitos('cuit');
+drop trigger if exists emisor_solo_digitos on emisor;
+create trigger emisor_solo_digitos before insert or update of cuit on emisor for each row execute function erp_solo_digitos('cuit');
+drop trigger if exists cuenta_fondos_solo_digitos on cuenta_fondos;
+create trigger cuenta_fondos_solo_digitos before insert or update of cbu on cuenta_fondos for each row execute function erp_solo_digitos('cbu');
+-- Lo cargado antes, también (no hace nada si ya está limpio).
+update cliente set cuit = cuit where cuit ~ '[^0-9]';
+update proveedor set cuit = cuit where cuit ~ '[^0-9]';
+update emisor set cuit = cuit where cuit ~ '[^0-9]';
+update cuenta_fondos set cbu = cbu where cbu ~ '[^0-9]';

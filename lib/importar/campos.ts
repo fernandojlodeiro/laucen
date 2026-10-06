@@ -48,7 +48,7 @@ export const DESTINOS: Record<Destino, { nombre: string; ayuda: string; campos: 
       { clave: "razon_social", etiqueta: "Razón social", alias: ["denominacion y razon social", "razon social", "denominacion"] },
       { clave: "tipo", etiqueta: "Tipo", ayuda: "Cliente / Cliente mayorista / Proveedor (Virtual Seller). Los proveedores van a su propia tabla.", alias: ["tipo", "tipo cliente"] },
       { clave: "condicion_iva", etiqueta: "Condición IVA", ayuda: "CF, RI, M (monotributo), E (exento), NR, o el texto completo.", alias: ["categoria iva", "condicion iva", "iva", "cond iva", "situacion iva"] },
-      { clave: "cuit", etiqueta: "CUIT (identificación tributaria)", ayuda: "Con o sin guiones: queda como 20-12345678-9.", alias: ["identificacion tributaria", "cuit", "cuil"] },
+      { clave: "cuit", etiqueta: "CUIT (identificación tributaria)", ayuda: "Con o sin guiones: se guarda sólo con los números y se muestra como 20-12345678-9.", alias: ["identificacion tributaria", "cuit", "cuil"] },
       { clave: "documento_tipo", etiqueta: "Tipo de documento", ayuda: "DNI, CUIT, CUIL, PASAPORTE u OTRO. Vacío = se deduce del número.", alias: ["tipo documento", "tipo doc"] },
       { clave: "documento_numero", etiqueta: "Número de documento", ayuda: "Los de relleno (1111111, 0) se ignoran.", alias: ["nro documento", "documento", "dni", "numero documento", "doc"] },
       { clave: "apodo_ml", etiqueta: "Apodo de Mercado Libre", ayuda: "Sirve para reconocerlo cuando vuelva a comprar en ML.", alias: ["apodo mlibre", "apodo ml", "nickname", "apodo"] },

@@ -2,78 +2,91 @@
 // arriba y todos los buscadores de las pantallas:
 //
 //   · Lo escrito se busca TAL CUAL, entero (con sus espacios), en cualquier parte
-//     del dato. "SKU02252" busca "SKU02252"; "Mini Elm" busca "Mini Elm" junto.
-//     Con "Comienza por" tildada, al principio del dato.
-//   · El "?" separa condiciones que tienen que cumplirse TODAS en el MISMO
-//     DATO (el mismo campo: por ejemplo, las dos en el título): "note?12gb"
-//     trae lo que en un mismo dato dice "note" y además "12gb". No es "o", y no
-//     vale una en el título y otra en el SKU (Fer, 6/10).
-//   · Un CUIT o DNI escrito con puntos o guiones: una condición de sólo números
-//     (sin letras, 4 o más dígitos) se compara también contra los dígitos del
-//     documento. "02252" puede ser un pedazo de CUIT; "SKU02252" no.
+//     del campo. Números y letras son lo mismo: todo es texto ("SKU02252", "2022",
+//     "Mini Elm"). Con "Comienza por" tildada, al principio del campo.
+//   · "?" separa condiciones que tienen que estar TODAS en el MISMO CAMPO:
+//     "note?12gb" trae lo que en un mismo campo (ej. el título) dice "note" y "12gb".
+//   · "*" separa condiciones que tienen que estar todas en la MISMA FILA (el
+//     mismo producto, cliente…), aunque sea en campos distintos: "note*F412".
+//     Se combinan: "note?12gb*asus" = "note" y "12gb" en un mismo campo, y
+//     "asus" en cualquier campo de esa fila.
+//   · CUIT, teléfonos y CBU se guardan sólo con números (los disparadores de la
+//     base, db/moneda.sql): en esos campos ("campos numéricos") se compara también
+//     lo escrito sin lo que no sea número, así "20-10225274-9" encuentra
+//     "20102252749".
+//   · Cada pantalla busca en TODOS los campos de su tabla; el buscador de arriba,
+//     en todas las tablas.
 //
 // Pura (sin base): la usan las consultas SQL y los filtros en memoria.
 
 /** Lo que explica el globito "?" de los buscadores. */
-export const AYUDA_BUSQUEDA = "Busca lo que escribís tal cual, entero (con sus espacios), en cualquier parte. Para pedir varias condiciones a la vez, separalas con ?: trae lo que las cumple todas en un mismo dato — por ejemplo note?12gb trae lo que en el mismo dato (como el título) dice “note” y también “12gb”.";
+export const AYUDA_BUSQUEDA = "Busca lo que escribís tal cual (números y letras por igual, con sus espacios) en cualquier parte. Con ? pedís varias cosas en un mismo dato: note?12gb trae lo que en el mismo dato (como el título) dice “note” y también “12gb”. Con * pedís varias cosas en el mismo registro aunque estén en datos distintos: note*F412 trae lo que dice “note” en un dato y “F412” en otro.";
 
-/** Las condiciones de lo escrito: separadas por "?", sin espacios en los extremos, sin vacías ni repetidas (hasta 10). */
+/** Lo escrito en grupos (separados por "*") de condiciones (separadas por "?"), sin vacíos (hasta 10 condiciones en total). */
+export function gruposBusqueda(q: string | null | undefined): string[][] {
+  let n = 0;
+  return (q ?? "").split("*")
+    .map((g) => [...new Set(g.split("?").map((t) => t.trim()).filter(Boolean))].filter(() => ++n <= 10))
+    .filter((g) => g.length);
+}
+
+/** Todas las condiciones, sin agrupar. */
 export function terminosBusqueda(q: string | null | undefined): string[] {
-  return [...new Set((q ?? "").split("?").map((t) => t.trim()).filter(Boolean))].slice(0, 10);
+  return [...new Set(gruposBusqueda(q).flat())];
 }
 
 const escapar = (t: string) => t.replace(/[\\%_]/g, (x) => `\\${x}`);
 
-/** Los patrones para `ilike` de cada condición: "%x%" (con `comienza`, la primera "x%": el dato empieza
- *  con ella y las demás van en cualquier parte del mismo dato). [] si no se escribió nada. */
-export function patronesBusqueda(q: string | null | undefined, comienza = false): string[] {
-  return terminosBusqueda(q).map((t, i) => `${comienza && i === 0 ? "" : "%"}${escapar(t)}%`);
+/** El valor para el parámetro de sqlBusqueda: JSON con los grupos de patrones para `ilike`
+ *  ("%x%"; con `comienza`, la primera condición de cada grupo "x%"). "[]" si no se escribió nada. */
+export function parametroBusqueda(q: string | null | undefined, comienza = false): string {
+  return JSON.stringify(gruposBusqueda(q).map((g) => g.map((t, i) => `${comienza && i === 0 ? "" : "%"}${escapar(t)}%`)));
 }
 
-/** Alineado con patronesBusqueda: el patrón de dígitos de cada condición que es sólo números
- *  (sin letras, 4 o más dígitos), o "" si no lo es. Para comparar CUIT y DNI sin puntos ni guiones. */
-export function digitosBusqueda(q: string | null | undefined): string[] {
-  return terminosBusqueda(q).map((t) => {
-    const d = /\p{L}/u.test(t) ? "" : t.replace(/\D/g, "");
-    return d.length >= 4 ? `%${d}%` : "";
-  });
+/** Un campo donde buscar:
+ *  - una columna o expresión de texto ("p.titulo", "c.id::text");
+ *  - { num: "c.cuit" }: un campo que se guarda sólo con números (CUIT, teléfono, CBU): se compara
+ *    también lo escrito sin lo que no sea número;
+ *  - { de: "select 1 from variacion v where v.producto_id = p.id", campos: [...] }: los campos de
+ *    otra tabla relacionada (vale si alguna de sus filas cumple). */
+export type CampoSimple = string | { num: string };
+export type CampoBusqueda = CampoSimple | { de: string; campos: CampoSimple[] };
+
+/** Todas las condiciones del grupo `g` (jsonb de patrones) en el campo `c`. */
+function todasEnCampo(c: CampoSimple, g: string): string {
+  if (typeof c === "string") {
+    if (/(^|[^\w.])_[pg]([^\w]|$)/.test(c)) throw new Error(`sqlBusqueda: "${c}" no puede usar _p ni _g`);
+    return `not exists (select 1 from jsonb_array_elements_text(${g}) _p where not coalesce(${c} ilike _p, false))`;
+  }
+  const f = c.num;
+  // Lo escrito sin lo que no sea número (si tiene algún número) contra el campo numérico.
+  return `not exists (select 1 from jsonb_array_elements_text(${g}) _p where not coalesce(${f} ilike _p`
+    + ` or (regexp_replace(_p, '[^0-9]', '', 'g') <> '' and ${f} like '%' || regexp_replace(_p, '[^0-9]', '', 'g') || '%'), false))`;
 }
 
-/** El número interno (id) a buscar: sólo si lo escrito es un número solo; si no, null. */
-export function numeroBusqueda(q: string | null | undefined): number | null {
-  const t = terminosBusqueda(q);
-  return t.length === 1 && /^\d{1,15}$/.test(t[0]) ? Number(t[0]) : null;
+/** La condición SQL: cada grupo de `param` (el jsonb de parametroBusqueda) tiene todas sus
+ *  condiciones en un mismo campo de la fila. Con "[]" (nada escrito) es verdadera: no filtra. */
+export function sqlBusqueda(param: string, campos: CampoBusqueda[]): string {
+  const g = "_g";
+  const enAlguno = campos.map((c) => typeof c === "object" && "de" in c
+    ? `exists (${c.de} and (${c.campos.map((x) => todasEnCampo(x, g)).join(" or ")}))`
+    : todasEnCampo(c, g));
+  if (!enAlguno.length) return "true";
+  return `not exists (select 1 from jsonb_array_elements(${param}::jsonb) _g where not (${enAlguno.join(" or ")}))`;
 }
 
-/** Un campo donde buscar: una columna o expresión (ej. "p.titulo"), o los campos de otra tabla
- *  relacionada: { de: "select 1 from variacion v where v.producto_id = p.id", campos: ["v.sku", "v.titulo"] }
- *  (vale si alguna fila de esa tabla tiene alguno de esos campos con todas las condiciones). */
-export type CampoBusqueda = string | { de: string; campos: string[] };
-
-/** La condición SQL: algún campo tiene TODAS las condiciones de `param` (un text[] con
- *  patronesBusqueda) — todas en el mismo campo. Con `digitos` (otro text[] con digitosBusqueda,
- *  alineado) en esos campos una condición de sólo números vale también si está en sus dígitos.
- *  Con el arreglo vacío (nada escrito) es verdadera: no filtra. */
-export function sqlBusqueda(param: string, campos: CampoBusqueda[], digitos?: { param: string; campos: string[] }): string {
-  const enDigitos = new Set(digitos?.campos ?? []);
-  /** Todas las condiciones en el campo `c`. */
-  const todas = (c: string) => {
-    if (/(^|[^\w.])w([^\w]|$)/.test(c)) throw new Error(`sqlBusqueda: "${c}" usa w; para otra tabla usá { de, campos }`);
-    if (digitos && enDigitos.has(c)) {
-      return `not exists (select 1 from unnest(${param}::text[], ${digitos.param}::text[]) t(w, d) where not coalesce(${c} ilike w or (d <> '' and regexp_replace(coalesce(${c}, ''), '\\D', '', 'g') like d), false))`;
-    }
-    return `not exists (select 1 from unnest(${param}::text[]) w where not coalesce(${c} ilike w, false))`;
-  };
-  const extra = [...enDigitos].filter((c) => !campos.includes(c));
-  const partes = [...campos, ...extra].map((c) => typeof c === "string" ? todas(c) : `exists (${c.de} and (${c.campos.map(todas).join(" or ")}))`);
-  return partes.length ? `(${partes.join(" or ")})` : "true";
-}
-
-/** Lo mismo en memoria: algún texto tiene todas las condiciones (al principio, con `comienza`: la
- *  primera al principio del texto y las demás en cualquier parte). */
-export function coincideBusqueda(textos: string | null | undefined | (string | null | undefined)[], q: string | null | undefined, comienza = false): boolean {
-  const terminos = terminosBusqueda(q).map((t) => t.toLowerCase());
-  if (!terminos.length) return true;
+/** Lo mismo en memoria: cada grupo tiene todas sus condiciones en alguno de los `textos` (con
+ *  `comienza`, la primera condición de cada grupo al principio). `numericos`: textos que se guardan
+ *  sólo con números (CUIT, CBU…): se comparan también contra lo escrito sin lo que no sea número. */
+export function coincideBusqueda(
+  textos: string | null | undefined | (string | null | undefined)[], q: string | null | undefined, comienza = false,
+  numericos: (string | null | undefined)[] = [],
+): boolean {
+  const grupos = gruposBusqueda(q).map((g) => g.map((t) => t.toLowerCase()));
+  if (!grupos.length) return true;
   const lista = (Array.isArray(textos) ? textos : [textos]).map((t) => (t ?? "").toLowerCase());
-  return lista.some((x) => terminos.every((b, i) => (comienza && i === 0 ? x.startsWith(b) : x.includes(b))));
+  const nums = numericos.map((t) => (t ?? "").replace(/\D/g, ""));
+  const cumple = (x: string, g: string[]) => g.every((b, i) => (comienza && i === 0 ? x.startsWith(b) : x.includes(b)));
+  const cumpleNum = (x: string, g: string[]) => g.every((b) => { const d = b.replace(/\D/g, ""); return (!!d && x.includes(d)) || x.includes(b); });
+  return grupos.every((g) => lista.some((x) => cumple(x, g)) || nums.some((x) => cumpleNum(x, g)));
 }
