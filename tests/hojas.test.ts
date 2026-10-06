@@ -342,3 +342,15 @@ test("cancelar un pedido: libera el stock; sin credenciales de Payway avisa que 
   assert.equal(await disp(), antes + 2);
   await assert.rejects(cancelar.cancelarPedido(e.org, a, "operador", { notaCredito: false }), /cancelado: no se cancela/);
 });
+
+test("cancelar: un pedido despachado (o con OCA en camino) no se cancela", async () => {
+  const cancelar = await import("@/lib/pedidos/cancelar");
+  const e = await escenario();
+  const a = await e.pedido([{ v: e.p1, c: 1 }]);
+  await m.pedidos.cambiarEstado(e.org, a, "despachado", "sistema");
+  await assert.rejects(cancelar.cancelarPedido(e.org, a, "operador", { notaCredito: false }), /Ya salió/);
+  assert.equal((await q<{ estado: string }>("select estado from pedido where id = $1", [a]))[0].estado, "despachado");
+  assert.equal(cancelar.motivoNoCancelable("preparado", { oca: { envioId: 1, tracking: "x", anulable: false } }), "Ya salió: no se cancela. Si la mercadería vuelve, hacé la devolución.");
+  assert.equal(cancelar.motivoNoCancelable("preparado", { oca: { envioId: 1, tracking: "x", anulable: true } }), null);
+  assert.equal(cancelar.motivoNoCancelable("pagado", { oca: null }), null);
+});

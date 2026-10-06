@@ -102,6 +102,8 @@ export async function accionCambiarEstadoPedido(fd: FormData) {
     await pedidoOperable(s.org.id, pid);
     const nuevo = fd.get("estado");
     if (!esEstadoPedido(nuevo)) throw new ErrorErp("Estado desconocido.");
+    // Cancelar va por "Cancelar pedido" (anula OCA, Payway y la factura): nunca por acá.
+    if (nuevo === "cancelado") throw new ErrorErp("Para cancelar usá el botón «Cancelar pedido».");
     await cambiarEstado(s.org.id, pid, nuevo, s.usuario.id, texto(fd, "nota"));
     revalidatePath(`/ventas/pedidos/${pid}`);
     return `Pedido ${ESTADOS_PEDIDO[nuevo].toLowerCase()}.`;

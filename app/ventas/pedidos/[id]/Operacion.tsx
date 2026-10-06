@@ -3,7 +3,7 @@
 // al cliente por WhatsApp. Y los pagos del pedido (de cualquier canal).
 
 import CancelarPedido from "./CancelarPedido";
-import { queArrastraCancelar } from "@/lib/pedidos/cancelar";
+import { queArrastraCancelar, motivoNoCancelable } from "@/lib/pedidos/cancelar";
 import { consulta, una } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
 import { tiendaDelCanal, nombreTienda } from "@/lib/tienda/tienda";
@@ -189,7 +189,10 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
                 <BotonEnviar clase={PRIMARIO} corriendo="Guardando…">{x.texto}</BotonEnviar>
               </form>
             ))}
-            {cancelar && (
+            {cancelar && motivoNoCancelable(p.estado, cancelar) && (
+              <span className="text-xs text-[#5C6B76]">{motivoNoCancelable(p.estado, cancelar)}</span>
+            )}
+            {cancelar && !motivoNoCancelable(p.estado, cancelar) && (
               <CancelarPedido pid={pid} oca={cancelar.oca} factura={cancelar.factura?.texto ?? null}
                 payway={cancelar.payway ? { importe: formatear(cancelar.payway.importe, "ARS"), mismoDia: cancelar.payway.mismoDia } : null} />
             )}
