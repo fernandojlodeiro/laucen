@@ -80,7 +80,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
                   <Foto src={x.foto} />
                   <div>
                     <p className="font-bold">Mercado Libre</p>
-                    {x.url ? <a href={x.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{x.titulo}</a> : x.titulo}
+                    {x.url ? <a href={x.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{x.titulo} ↗</a> : x.titulo}
                     <p className="text-[#5C6B76]">{pesos(x.precio)}{x.precio != null && ` (US$ ${formatearNumero(x.precio / c.parametros.dolar, "usd")})`}{x.vendidos_texto && ` · ${x.vendidos_texto}`}</p>
                     {x.caja && (
                       <p className="mt-1">
@@ -106,7 +106,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
                     <p className="font-bold">Candidato del juez</p>
                     {elegido ? (
                       <>
-                        {elegido.url ? <a href={elegido.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{elegido.titulo}</a> : elegido.titulo}
+                        {elegido.url ? <a href={elegido.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{elegido.titulo} ↗</a> : elegido.titulo}
                         <p className="text-[#5C6B76]">
                           {SITIOS[elegido.sitio] ?? elegido.sitio}
                           {elegido.proveedor && ` · ${elegido.proveedor}`}{elegido.anios ? `, ${elegido.anios} años` : ""}
@@ -175,7 +175,7 @@ export default async function Revision({ params, searchParams }: { params: Promi
                               )}
                             </td>
                             <td className="py-1 pr-2">
-                              {k.url ? <a href={k.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{k.titulo}</a> : k.titulo}
+                              {k.url ? <a href={k.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{k.titulo} ↗</a> : k.titulo}
                               <span className="block text-[#5C6B76]">{k.sitio} · {k.usd != null ? `US$ ${k.usd}` : "—"} · mín. {k.minimo ?? "?"}</span>
                             </td>
                             <td className={`py-1 w-56 ${v ? COLOR[v.v] : ""}`}>{v ? <><b>{VEREDICTO[v.v]}</b>{v.unidades && v.unidades > 1 ? ` (× ${v.unidades})` : ""}{v.falta && !/^(ninguno|nada|-)$/i.test(v.falta.trim()) ? `, falta ${v.falta}` : ""}{v.variante ? `, variante: ${v.variante}` : ""} — {v.motivo}

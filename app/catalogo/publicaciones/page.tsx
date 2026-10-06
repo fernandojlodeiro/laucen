@@ -5,6 +5,7 @@
 // umbral de pausa (lápiz de la fila) y el vínculo con la variación — el de ML,
 // en "Vincular con Mercado Libre"; el de otros canales, en el lápiz.
 
+import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
@@ -139,7 +140,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                 </td>
                 <td className={TD}><Link href={url(BASE, { ...filtros, canal: f.canal_id, p: null })} className="hover:text-[#16577F] hover:underline">{f.canal}</Link></td>
                 <td className={`${TD} whitespace-nowrap`}>{f.id_externo && /^MLA\d+$/.test(f.id_externo)
-                  ? <a href={`https://articulo.mercadolibre.com.ar/MLA-${f.id_externo.slice(3)}`} target="_blank" rel="noopener" className="text-[#16577F] hover:underline" title="Ver en Mercado Libre">{f.id_externo}</a>
+                  ? <><Link href={historialPublicacion(f.id_externo)} className="text-[#16577F] hover:underline" title="Historial de esta publicación">{f.id_externo}</Link> <a href={enlaceMl(f.id_externo)} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline" title="Ver en Mercado Libre">↗</a></>
                   : f.id_externo ?? "—"}</td>
                 <td className={TD}>{f.categoria_externa || "—"}</td>
                 <td className={`${TD} whitespace-nowrap`}>{f.plan ? PLAN_ML[f.plan] ?? f.plan : "—"}</td>

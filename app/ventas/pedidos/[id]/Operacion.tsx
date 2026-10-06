@@ -195,7 +195,7 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
         {aCobrar && <p className="text-[11px] text-[#5C6B76]">El stock ya está reservado y el pedido entra en picking sin esperar el pago. Se factura cuando confirmás el cobro.</p>}
         <div>
           {wa
-            ? <a href={wa} target="_blank" rel="noopener" className={SUAVE}>Avisar por WhatsApp</a>
+            ? <a href={wa} target="_blank" rel="noopener" className={SUAVE}>Avisar por WhatsApp ↗</a>
             : <span className="text-[11px] text-[#5C6B76]">El cliente no tiene teléfono cargado: no se le puede avisar por WhatsApp.</span>}
         </div>
       </div>

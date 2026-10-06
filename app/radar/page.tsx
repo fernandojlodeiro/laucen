@@ -70,7 +70,7 @@ function TablaPublicaciones({ b, pubs }: { b: Busqueda; pubs: Publicacion[] }) {
                   ) : <span className="inline-block w-14 h-14 rounded border border-dashed border-[#E3E9F0]" />}
                 </td>
                 <td className="py-1">
-                  {p.url ? <a href={p.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{p.titulo}</a> : p.titulo}
+                  {p.url ? <a href={p.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{p.titulo} ↗</a> : p.titulo}
                   {p.stockTexto && <span className="text-[#5C6B76]"> · {p.stockTexto}</span>}
                 </td>
                 <td className="py-1 text-right whitespace-nowrap">

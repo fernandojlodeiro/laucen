@@ -8,7 +8,7 @@ export default function SesionChip({ id, titulos }: { id: string | null | undefi
   if (!id.startsWith("session_")) return <span className={clase}>{titulo ?? id}</span>;
   return (
     <a href={`https://claude.ai/code/${id}`} target="_blank" rel="noreferrer" title={id} className={`${clase} hover:underline`}>
-      {titulo ?? id}
+      {titulo ?? id} ↗
     </a>
   );
 }

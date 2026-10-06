@@ -15,7 +15,7 @@ import FotosProducto from "@/app/componentes/FotosProducto";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { hoyArgentina, rangoDeAtajo } from "@/lib/rango-fechas";
 import { QUE_PROMO } from "@/app/informes/promociones/formato";
-import { CAMPOS_CAMBIO, ORIGENES_CAMBIO, describirCambioMl, esCampoCambio, textoPct, valorCambio, variacionPct, type CampoCambio } from "./formato";
+import { CAMPOS_CAMBIO, ORIGENES_CAMBIO, describirCambioMl, enlaceMl, esCampoCambio, historialPublicacion, textoPct, valorCambio, variacionPct, type CampoCambio } from "./formato";
 
 export const BASE_CAMBIOS = "/informes/cambios-publicaciones";
 const ZONA = "'America/Argentina/Buenos_Aires'";
@@ -69,7 +69,9 @@ const CAMPOS: Campo[] = [
     clave: "item", titulo: "Publicación", sql: "c.item_id", ancho: 16, usa: ["permalink", "variacion"],
     celda: (f) => (
       <span className="font-mono whitespace-nowrap">
-        {f.permalink ? <a href={f.permalink} target="_blank" rel="noreferrer" className={ENLACE}>{f.item}</a> : f.item}
+        {/* El número abre el historial de la publicación; la flechita, Mercado Libre en otra pestaña (Fer, 6/10). */}
+        <Link href={historialPublicacion(f.item)} className={ENLACE} title="Historial de esta publicación">{f.item}</Link>
+        <a href={enlaceMl(f.item, f.permalink)} target="_blank" rel="noopener noreferrer" className={`${ENLACE} ml-1`} title="Ver en Mercado Libre">↗</a>
         {f.variacion && <span className="block text-[10px] text-[#5C6B76]">var. {f.variacion}</span>}
       </span>
     ),

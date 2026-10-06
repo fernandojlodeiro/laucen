@@ -97,14 +97,14 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
             {tiendas.length > 1 && <TituloSeccion titulo={t.nombre}>{botones(t.id)}</TituloSeccion>}
             <div className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3 text-xs`}>
               <div><span className={ETIQUETA}>Dirección de la tienda</span>
-                <a href={direccion} target="_blank" rel="noopener" className="text-[#16577F] hover:underline break-all">{direccion}</a>
+                <a href={direccion} target="_blank" rel="noopener" className="text-[#16577F] hover:underline break-all">{direccion} ↗</a>
                 {principal && !direccion.startsWith(`https://${principal}`) && <span className="block text-[11px] text-[#5C6B76] mt-0.5">Cuando {principal} tenga certificado, la dirección pasa a ser ésa (abajo, en Dominios).</span>}</div>
               <div><span className={ETIQUETA}>Estado</span><Estado texto={est.texto} tono={est.tono} />
                 <Link href={`/config/canales?c=${t.id}`} className="block text-[11px] text-[#16577F] hover:underline mt-0.5">Cambiarlo en Canales</Link></div>
               <div><span className={ETIQUETA}>Lista de precios</span>{t.lista ?? <span className="text-[#C03420]">Sin lista</span>}
                 <Link href={`/config/canales?c=${t.id}`} className="block text-[11px] text-[#16577F] hover:underline mt-0.5">Cambiarla en Configuración → Canales</Link></div>
               <div className="sm:col-span-2"><span className={ETIQUETA}>Feed para Meta (Facebook / Instagram)</span>
-                <a href={`${direccion}/feed.xml`} target="_blank" rel="noopener" className="text-[#16577F] hover:underline break-all">{direccion}/feed.xml</a>
+                <a href={`${direccion}/feed.xml`} target="_blank" rel="noopener" className="text-[#16577F] hover:underline break-all">{direccion}/feed.xml ↗</a>
                 <span className="block text-[11px] text-[#5C6B76]">Cargalo en Meta Commerce Manager como fuente de datos programada.</span></div>
               <div><span className={ETIQUETA}>Vende el stock de</span>{t.depositos ?? <span className="text-[#C03420]">Ningún depósito: elegilos en Canales</span>}</div>
             </div>
@@ -149,7 +149,7 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                         const e = ESTADOS_DOMINIO[d.estado] ?? { texto: d.estado, tono: "gris" as const };
                         return (
                           <tr key={d.id} className={TR}>
-                            <td className={`${TD} font-mono`}><a href={`https://${d.dominio}`} target="_blank" rel="noopener" className="text-[#16577F] hover:underline">{d.dominio}</a></td>
+                            <td className={`${TD} font-mono`}><a href={`https://${d.dominio}`} target="_blank" rel="noopener" className="text-[#16577F] hover:underline">{d.dominio} ↗</a></td>
                             <td className={TD}>{d.principal ? "Principal" : <>Redirige a <span className="font-mono">{principal ?? "—"}</span></>}</td>
                             <td className={TD}><Estado texto={e.texto} tono={e.tono} />
                               {d.detalle && <span className="block text-[11px] text-[#C03420] mt-0.5">{d.detalle}</span>}</td>

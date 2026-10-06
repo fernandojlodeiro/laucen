@@ -18,7 +18,7 @@ function enLinea(texto: string, clave: string): ReactNode[] {
       // Un archivo para bajar (el Excel de una consulta) va como enlace común.
       if (href.startsWith("/api/")) salida.push(<a key={k} href={href} download className="inline-block mt-1 text-xs font-bold rounded-lg px-3 py-1.5 bg-white border border-[#16577F] text-[#16577F] no-underline">⬇ {m[1]}</a>);
       else if (href.startsWith("/")) salida.push(<Link key={k} href={href} className="text-[#16577F] font-semibold underline">{m[1]}</Link>);
-      else if (/^https?:\/\//.test(href)) salida.push(<a key={k} href={href} target="_blank" rel="noopener noreferrer" className="text-[#16577F] underline">{m[1]}</a>);
+      else if (/^https?:\/\//.test(href)) salida.push(<a key={k} href={href} target="_blank" rel="noopener noreferrer" className="text-[#16577F] underline">{m[1]} ↗</a>);
       else salida.push(m[1]);
     } else if (m[3]) salida.push(<b key={k}>{enLinea(m[3], k)}</b>);
     else if (m[4]) salida.push(<code key={k} className="px-1 rounded bg-[#EEF3F8] text-[11px]">{m[4]}</code>);

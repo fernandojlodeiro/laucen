@@ -74,7 +74,7 @@ export default async function PublicarEnMl({ params, searchParams }: { params: P
       const b = await armarBorradorCatalogo(s.org.id, p.id, catalogo);
       return (
         <Pantalla titulo={titulo} camino={[...camino, { texto: catalogo }]}
-          subtitulo={<>En el catálogo: <a href={b.producto.permalink} target="_blank" rel="noreferrer" className="underline">{b.producto.nombre}</a>. Al preparar se comprueba con Mercado Libre y queda esperando tu clic en la cola.</>}
+          subtitulo={<>En el catálogo: <a href={b.producto.permalink} target="_blank" rel="noreferrer" className="underline">{b.producto.nombre} ↗</a>. Al preparar se comprueba con Mercado Libre y queda esperando tu clic en la cola.</>}
           acciones={<>
             <Link href={url(base, { q })} className={SUAVE}>Elegir otro</Link>
             {b.producto.estadoMarca !== "ajena" && <button form="publicar" className={PRIMARIO}>Preparar publicación</button>}
@@ -95,7 +95,7 @@ export default async function PublicarEnMl({ params, searchParams }: { params: P
       const b = await armarBorrador(s.org.id, p.id, item);
       return (
         <Pantalla titulo={titulo} camino={[...camino, { texto: item }]}
-          subtitulo={<>Copia de <a href={b.origen.permalink ?? "#"} target="_blank" rel="noreferrer" className="underline">{item}</a> ({b.origen.cuenta}, {ESTADOS_ML[b.origen.estado ?? ""] ?? b.origen.estado}). Cambiá lo que quieras: al preparar se comprueba con Mercado Libre y queda esperando tu clic en la cola.</>}
+          subtitulo={<>Copia de <a href={b.origen.permalink ?? "#"} target="_blank" rel="noreferrer" className="underline">{item} ↗</a> ({b.origen.cuenta}, {ESTADOS_ML[b.origen.estado ?? ""] ?? b.origen.estado}). Cambiá lo que quieras: al preparar se comprueba con Mercado Libre y queda esperando tu clic en la cola.</>}
           acciones={<>
             <Link href={url(base, { ver: "propias", q })} className={SUAVE}>Elegir otra</Link>
             <button form="publicar" className={PRIMARIO}>Preparar publicación</button>
@@ -163,7 +163,7 @@ function ListaCatalogo({ lista, base, q }: { lista: ProductoCatalogo[]; base: st
                 </td>
                 <td className={TD}>
                   <div>{x.nombre}</div>
-                  <div className="text-[11px] text-[#5C6B76]"><a href={x.permalink} target="_blank" rel="noreferrer" className="underline">{x.id}</a>{x.modelo ? ` · modelo ${x.modelo}` : ""}</div>
+                  <div className="text-[11px] text-[#5C6B76]"><a href={x.permalink} target="_blank" rel="noreferrer" className="underline">{x.id} ↗</a>{x.modelo ? ` · modelo ${x.modelo}` : ""}</div>
                 </td>
                 <td className={TD}>
                   <div>{x.marca ?? "—"}</div>
@@ -207,7 +207,7 @@ function ListaPropias({ lista, base, q }: { lista: Parecida[]; base: string; q: 
                 <td className={TD}>
                   <div>{x.titulo}</div>
                   <div className="text-[11px] text-[#5C6B76]">
-                    {x.permalink ? <a href={x.permalink} target="_blank" rel="noreferrer" className="underline">{x.item_id}</a> : x.item_id}
+                    {x.permalink ? <a href={x.permalink} target="_blank" rel="noreferrer" className="underline">{x.item_id} ↗</a> : x.item_id}
                     {x.actualizado ? ` · leída el ${x.actualizado}` : ""}
                   </div>
                 </td>
