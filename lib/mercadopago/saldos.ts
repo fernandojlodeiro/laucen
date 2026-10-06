@@ -21,6 +21,7 @@ export type Numeros = {
   cobrado30?: { pagos: number; bruto: number; comisiones: number; neto: number; devuelto: number; completo: boolean };
   disponible?: { monto: number; al: string | null; reporte: string } | null;
   reportePedido?: string | null;
+  aLiberarDetalle?: { id: number; neto: number; bruto: number; devuelto: number; libera: string | null; estadoLiberacion: string | null; detalle: string | null; tipo: string | null; descripcion: string }[];
 };
 export type Lectura = { conexionId: number; leidoTs: Date; datos: Numeros; intentos: Intento[] };
 
@@ -34,7 +35,8 @@ const motivoDe = (status: number, d: unknown) => {
 };
 
 type Pago = {
-  id: number; status: string; date_approved?: string | null; money_release_date?: string | null; money_release_status?: string | null;
+  id: number; status: string; status_detail?: string | null; operation_type?: string | null; description?: string | null;
+  date_approved?: string | null; money_release_date?: string | null; money_release_status?: string | null;
   transaction_amount?: number; transaction_amount_refunded?: number;
   transaction_details?: { net_received_amount?: number; total_paid_amount?: number };
   fee_details?: { amount?: number }[];
@@ -149,6 +151,12 @@ export async function leerCuenta(org: string, c: ConexionMp): Promise<Lectura> {
         proximaMonto: redondo(pend.filter((p) => p.money_release_date?.slice(0, 10) === dia).reduce((a, p) => a + neto(p), 0)),
         en7dias: redondo(pend.filter((p) => p.money_release_date && new Date(p.money_release_date).getTime() <= en7).reduce((a, p) => a + neto(p), 0)),
       };
+      // El detalle de cada pago a liberar (para comparar con lo que muestra Mercado Pago y para análisis).
+      datos.aLiberarDetalle = pend.map((p) => ({
+        id: p.id, neto: neto(p), bruto: Number(p.transaction_amount ?? 0), devuelto: Number(p.transaction_amount_refunded ?? 0),
+        libera: p.money_release_date ?? null, estadoLiberacion: p.money_release_status ?? null, detalle: p.status_detail ?? null,
+        tipo: p.operation_type ?? null, descripcion: (p.description ?? "").slice(0, 60),
+      }));
     }
     if (intentos.some((x) => x.fuente === "Pagos de los últimos 30 días" && x.status === 200)) {
       const l = cobrado.lista;
