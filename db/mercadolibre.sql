@@ -486,3 +486,30 @@ create table if not exists meli_moderacion (
 );
 alter table meli_moderacion enable row level security;
 select erp_politica_org('meli_moderacion');
+
+-- Mercado Pago de cada cuenta de ML (Fer, 6/10). Sólo lectura.
+-- Llave de Mercado Pago propia de la cuenta (opcional): si la conexión de
+-- Mercado Libre no alcanza para leer algo de Mercado Pago, se usa ésta.
+-- Nunca se muestra (sólo si hay o no).
+create table if not exists mp_credencial (
+  canal_id         bigint primary key references canal(id) on delete cascade,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  access_token     text not null,
+  actualizado_ts   timestamptz not null default now()
+);
+alter table mp_credencial enable row level security;
+
+-- Cada lectura del saldo de Mercado Pago (para ver cómo fue cambiando y
+-- para los análisis): lo que contestó tal cual, de dónde y con qué llave.
+create table if not exists mp_saldo (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  leido_ts         timestamptz not null default now(),
+  fuente           text,
+  datos            jsonb,
+  intentos         jsonb not null default '[]'
+);
+create index if not exists mp_saldo_canal on mp_saldo (canal_id, leido_ts desc);
+alter table mp_saldo enable row level security;
+select erp_politica_org('mp_saldo');

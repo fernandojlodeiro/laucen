@@ -60,6 +60,7 @@ export type PermisoKey =
   | "informes_stock_ver"
   | "informes_publicaciones_ver"
   | "facturacion_ml_ver"
+  | "mercadopago_ver"
   | "libros_iva_ver"
   | "informes_ventas_ver"
   // Equipo y asistente (pedido de Fer, 3/10).
@@ -122,6 +123,7 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "informes_stock_ver", label: "Informes de inventario", ayuda: "Stock valorizado y stock por ubicación, con descarga a Excel." },
   { key: "informes_publicaciones_ver", label: "Cambios en publicaciones", ayuda: "Qué publicaciones de Mercado Libre cambiaron de estado, precio o stock, cuándo y si lo hizo Laucen o alguien afuera." },
   { key: "facturacion_ml_ver", label: "Facturación de Mercado Libre", ayuda: "Lo que cobran ML y Mercado Pago por período (leído de la API), retenciones y percepciones, y el control contra las facturas importadas de ARCA." },
+  { key: "mercadopago_ver", label: "Mercado Pago", ayuda: "El saldo de Mercado Pago de cada cuenta de Mercado Libre (disponible, a liberar y sus desgloses), leído en el momento. Sólo lectura." },
   { key: "libros_iva_ver", label: "Libros de IVA", ayuda: "Libro IVA Ventas y Compras del mes, saldo técnico, Excel y los archivos del Libro de IVA Digital de ARCA." },
   { key: "informes_ventas_ver", label: "Rentabilidad por venta", ayuda: "Venta, cargos de Mercado Libre, costo y margen por venta o por producto." },
   { key: "roles_administrar", label: "Administrar roles", ayuda: "Crear, editar y borrar roles y sus permisos (nunca más permisos que los propios)." },
@@ -167,7 +169,7 @@ export const FUNCIONES: PermisoKey[] = [
   "envios_ver", "preguntas_ver", "reclamos_ver", "picking_ver", "recepcion_ver", "etiquetas_ver", "facturacion_ver",
   "tienda_config", "empresa_config", "medios_pago_ver", "reglas_ver",
   "compras_ver", "despachos_ver", "cuentas_corrientes_ver", "tesoreria_ver", "contabilidad_ver",
-  "informes_stock_ver", "informes_publicaciones_ver", "facturacion_ml_ver", "informes_ventas_ver",
+  "informes_stock_ver", "informes_publicaciones_ver", "facturacion_ml_ver", "mercadopago_ver", "informes_ventas_ver",
   "libros_iva_ver", "mensajes_ver",
   // No es un botón del menú, pero se comporta como función: el asistente
   // está prendido para todos salvo que el rol lo apague.
