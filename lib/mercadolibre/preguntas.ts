@@ -1,8 +1,11 @@
 // Preguntas de Mercado Libre de todas las cuentas, en una bandeja: se traen
 // (notificación "questions" o barrido), la IA propone la respuesta con la
 // ficha, el stock y los tiempos de envío, y el operador la aprueba o la
-// cambia antes de mandarla.
+// cambia antes de mandarla. Con el interruptor de Preguntas prendido (Fer,
+// 5/10), lo que la IA puede contestar sola lo manda sola.
 
+import { igualALaSugerencia, leerPropuesta, FORMATO_IA, type EstadoIa } from "@/lib/mercadolibre/sugerencia";
+import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { pedirClaude, hayClaude } from "@/lib/claude";
 import { ml, mlOk, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
@@ -84,10 +87,11 @@ async function contexto(cuenta: CuentaMl, itemId: string, publicacionId: number 
 const INSTRUCCIONES = `Sos quien atiende las preguntas de una tienda argentina en Mercado Libre. Escribí la respuesta a la pregunta del comprador, en castellano rioplatense, cordial y breve (1 a 3 oraciones, nunca más de 600 caracteres), empezando con "Hola" y terminando con un saludo corto ("Saludos!").
 Reglas de Mercado Libre que no se pueden romper: nada de teléfonos, mails, direcciones, links, redes sociales ni nombres de otras tiendas; no invitar a comprar por fuera de ML.
 Usá SOLO los datos que te paso (publicación, ficha y stock). Si el dato no está, no lo inventes: decí que lo consultás o sugerí ver la descripción. Si preguntan por stock, usá el disponible. Si preguntan por envío, decí lo que figura (envío gratis o Full) sin prometer fechas exactas.
-Devolvé sólo el texto de la respuesta, sin comillas ni explicaciones.`;
+${FORMATO_IA}`;
 
-/** La IA propone una respuesta y queda guardada como sugerencia. */
-export async function sugerirRespuesta(org: string, preguntaId: number): Promise<string> {
+/** La IA propone una respuesta y queda guardada como sugerencia, con lo que
+ *  la IA dice de ella (si se puede mandar sola). */
+export async function sugerirRespuesta(org: string, preguntaId: number): Promise<{ texto: string; estado: EstadoIa }> {
   const q = await una<{ id: string; canal_id: string; item_id: string; publicacion_id: string | null; texto: string }>(
     "select id, canal_id, item_id, publicacion_id, texto from meli_pregunta where id = $1 and organizacion_id = $2", [preguntaId, org]);
   if (!q) throw new ErrorErp("La pregunta no existe.");
@@ -100,22 +104,52 @@ export async function sugerirRespuesta(org: string, preguntaId: number): Promise
     contenido: `DATOS:\n${JSON.stringify(ctx, null, 1)}\n\nPREGUNTA DEL COMPRADOR:\n${q.texto}`,
   });
   if ("error" in r) throw new ErrorErp(`La IA no pudo proponer una respuesta (${r.error.slice(0, 120)}).`);
-  const texto = r.texto.trim().replace(/^"|"$/g, "").slice(0, 1990);
-  await consulta("update meli_pregunta set sugerencia = $3, sugerencia_ts = now() where id = $1 and organizacion_id = $2", [preguntaId, org, texto]);
-  return texto;
+  const p = leerPropuesta(r.texto);
+  const texto = p.texto.slice(0, 1990);
+  await consulta("update meli_pregunta set sugerencia = $3, sugerencia_ts = now(), ia_estado = $4 where id = $1 and organizacion_id = $2", [preguntaId, org, texto, p.estado]);
+  return { texto, estado: p.estado };
 }
 
-/** Manda la respuesta a ML. */
-export async function responder(org: string, preguntaId: number, texto: string, usuarioId: string) {
+/** La IA propone sola la respuesta a las preguntas sin responder que todavía no tienen sugerencia (Fer, 5/10: "no me
+ *  hagas apretar el botón proponer"). Cada pregunta se intenta una vez cada 30 minutos como mucho, para no gastar en una
+ *  que falla; sin llave de Claude no hace nada. Nunca tira: lo que falla queda para la próxima. Con el interruptor de
+ *  Preguntas prendido, la que la IA da por buena ("ok") se manda sola; las demás quedan para una persona. */
+export async function sugerirPendientes(opts: { org?: string; max?: number; hastaMs?: number } = {}): Promise<{ propuestas: number; errores: number; enviadas: number }> {
+  const res = { propuestas: 0, errores: 0, enviadas: 0 };
+  if (!hayClaude()) return res;
+  const tomadas = await consulta<{ id: string; organizacion_id: string }>(`
+    update meli_pregunta set sugerencia_intento_ts = now()
+     where id in (select id from meli_pregunta
+                   where estado = 'UNANSWERED' and sugerencia is null and ($1::text is null or organizacion_id = $1)
+                     and (sugerencia_intento_ts is null or sugerencia_intento_ts < now() - interval '30 minutes')
+                   order by fecha limit $2 for update skip locked)
+    returning id, organizacion_id`, [opts.org ?? null, opts.max ?? 5]);
+  for (const q of tomadas) {
+    if (opts.hastaMs && Date.now() > opts.hastaMs - 8_000) break;
+    try {
+      const p = await sugerirRespuesta(q.organizacion_id, Number(q.id));
+      res.propuestas++;
+      if (p.estado === "ok" && (await respuestaAuto(q.organizacion_id)).preguntas) {
+        await responder(q.organizacion_id, Number(q.id), p.texto, null, { auto: true });
+        res.enviadas++;
+      }
+    } catch { res.errores++; }
+  }
+  return res;
+}
+
+/** Manda la respuesta a ML. Sin usuario y con `auto`: la mandó la IA sola. */
+export async function responder(org: string, preguntaId: number, texto: string, usuarioId: string | null, o: { auto?: boolean } = {}) {
   const t = texto.trim();
   if (!t) throw new ErrorErp("La respuesta está vacía.");
   if (t.length > 2000) throw new ErrorErp("Mercado Libre acepta hasta 2.000 caracteres.");
-  const q = await una<{ canal_id: string; estado: string }>("select canal_id, estado from meli_pregunta where id = $1 and organizacion_id = $2", [preguntaId, org]);
+  const q = await una<{ canal_id: string; estado: string; sugerencia: string | null }>("select canal_id, estado, sugerencia from meli_pregunta where id = $1 and organizacion_id = $2", [preguntaId, org]);
   if (!q) throw new ErrorErp("La pregunta no existe.");
   if (q.estado !== "UNANSWERED") throw new ErrorErp("Esa pregunta ya no está pendiente (se respondió o se borró).");
   const cuenta = await cuentaDelCanal(org, Number(q.canal_id));
   if (!cuenta) throw new ErrorErp("La cuenta de Mercado Libre de esta pregunta ya no está conectada.");
   await mlOk(cuenta, "POST", "/answers", { question_id: preguntaId, text: t });
-  await consulta(`update meli_pregunta set estado = 'ANSWERED', respuesta = $3, respondida_ts = now(), respondida_por = $4, actualizado_ts = now()
-                   where id = $1 and organizacion_id = $2`, [preguntaId, org, t, usuarioId]);
+  await consulta(`update meli_pregunta set estado = 'ANSWERED', respuesta = $3, respondida_ts = now(), respondida_por = $4, respondida_con_ia = $5,
+                          respondida_auto = $6, actualizado_ts = now()
+                   where id = $1 and organizacion_id = $2`, [preguntaId, org, t, usuarioId, !!o.auto || igualALaSugerencia(t, q.sugerencia), !!o.auto]);
 }

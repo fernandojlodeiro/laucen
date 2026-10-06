@@ -10,6 +10,7 @@ import { ESTADOS_PEDIDO, type EstadoPedido } from "@/lib/pedidos";
 import { PRIMARIO } from "@/app/botones";
 import { entrarErp, Pantalla, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO } from "@/app/componentes/erp";
 import { fecha, TONO_ESTADO, etiqueta } from "@/app/ventas/formato";
+import FotosProducto from "@/app/componentes/FotosProducto";
 import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
 
 export const dynamic = "force-dynamic";
@@ -36,10 +37,11 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
   const patronDigitos = digitos.length >= 4 ? `%${digitos}%` : "";
 
   const [productos, pedidos, clientes, publicaciones, proveedores] = q ? await Promise.all([
-    ver.productos ? consulta<{ id: number; sku_base: string; titulo: string; estado: string; donde: string | null }>(`
+    ver.productos ? consulta<{ id: number; sku_base: string; titulo: string; estado: string; donde: string | null; fotos: string[] | null }>(`
       select p.id::int, p.sku_base, p.titulo, p.estado,
              (select string_agg(distinct v.sku, ', ') from variacion v
-               where v.producto_id = p.id and v.sku <> p.sku_base and (v.sku ilike $2 or v.codigo_barras = $3)) donde
+               where v.producto_id = p.id and v.sku <> p.sku_base and (v.sku ilike $2 or v.codigo_barras = $3)) donde,
+             (select array_agg(url order by orden, id) from producto_foto where producto_id = p.id) fotos
         from producto p
        where p.organizacion_id = $1 and ($5 or p.estado <> 'archivado')
          and (p.sku_base ilike $2 or p.titulo ilike $2 or p.codigo_barras = $3 or p.id = $4
@@ -100,7 +102,7 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
               <tbody>
                 {productos.map((p) => (
                   <tr key={p.id} className={TR}>
-                    <td className={`${TD} font-mono whitespace-nowrap`}><Link href={`/catalogo/productos/${p.id}`} className="text-[#16577F] hover:underline">{p.sku_base}</Link></td>
+                    <td className={`${TD} font-mono whitespace-nowrap`}><span className="inline-flex items-center gap-2"><FotosProducto fotos={p.fotos} titulo={p.titulo} tamano={48} /><Link href={`/catalogo/productos/${p.id}`} className="text-[#16577F] hover:underline">{p.sku_base}</Link></span></td>
                     <td className={TD}><Link href={`/catalogo/productos/${p.id}`} className="font-semibold text-[#16577F] hover:underline">{p.titulo}</Link></td>
                     <td className={`${TD} font-mono`}>{p.donde ?? ""}</td>
                     <td className={TD}><Estado texto={p.estado === "activo" ? "Activo" : p.estado === "pausado" ? "Pausado" : "Inactivo"} tono={p.estado === "activo" ? "verde" : "gris"} /></td>

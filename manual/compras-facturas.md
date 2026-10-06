@@ -60,7 +60,7 @@ Título: "Factura de compra", "Nota de crédito de compra" o "Nota de débito de
 
 **Registrada (o anulada):** todo en sólo lectura: Estado (con fecha y hora de registro), Proveedor (enlace a su cuenta corriente), Fecha y vencimiento, Moneda y cotización, Depósito (o "Recepción #N" con enlace), Cuenta de gasto ("Mercadería" si no tiene), Notas, las líneas y los totales. Arriba a la derecha, **Estado de cuenta del proveedor**.
 
-Si la factura está vinculada a una recepción y lo recibido no dio igual a lo facturado, aparece además la tabla **Diferencia con la recepción (N)** (N = productos con diferencia): **Producto** (SKU con enlace a su ficha, el 📷 si tiene fotos, y el título), **Facturado**, **Recibido**, **Diferencia** ("faltan 2" o "sobran 2"), **Costo unit. ($)** e **Importe ($)**, y al pie **Egreso por diferencias** (o **Recupero por diferencias** si sobró más de lo que faltó) con el total.
+Si la factura está vinculada a una recepción y lo recibido no dio igual a lo facturado, aparece además la tabla **Diferencia con la recepción (N)** (N = productos con diferencia): **Producto** (SKU con enlace a su ficha, su foto si tiene, y el título), **Facturado**, **Recibido**, **Diferencia** ("faltan 2" o "sobran 2"), **Costo unit. ($)** e **Importe ($)**, y al pie **Egreso por diferencias** (o **Recupero por diferencias** si sobró más de lo que faltó) con el total.
 
 ### Vista previa de la importación de ARCA (/compras/facturas/arca/[id])
 

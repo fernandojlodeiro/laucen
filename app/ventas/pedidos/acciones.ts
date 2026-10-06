@@ -14,12 +14,46 @@ import { crearPedidoAMano, type PedidoAMano } from "@/lib/pedidos/a-mano";
 import { precioDe } from "@/lib/precios";
 import { unirPedidosPartidos } from "@/lib/mercadolibre/carritos";
 import type { Moneda } from "@/lib/moneda";
+import { normalizarCuit } from "@/lib/clientes";
+import { DOCUMENTOS } from "@/app/ventas/formato";
 
 
 export type ClienteHallado = {
   id: number; nombre: string; documento: string | null; email: string | null; cuentaCorriente: boolean;
   direccion: { calle: string | null; numero: string | null; localidad: string | null; provincia: string | null; codigo_postal: string | null } | null;
 };
+
+/** Alta rápida de un cliente desde el pedido (no lo encontraron en el buscador). Devuelve el cliente
+ *  ya listo para elegirlo, o el motivo por el que no se pudo. */
+export async function crearClienteDesdePedido(d: {
+  nombre: string; tipo: string; documentoTipo: string; documentoNumero: string; email: string; telefono: string;
+}): Promise<{ cliente?: ClienteHallado; error?: string }> {
+  const s = await entrarErp("pedidos_ver");
+  try {
+    const nombre = d.nombre.trim().slice(0, 200);
+    if (!nombre) return { error: "El cliente necesita un nombre." };
+    const docTipo = (DOCUMENTOS as readonly string[]).includes(d.documentoTipo) ? d.documentoTipo : null;
+    const docNum = d.documentoNumero.trim().slice(0, 30) || null;
+    let cuit: string | null = null;
+    if (docNum && docTipo === "CUIT") {
+      cuit = normalizarCuit(docNum);
+      if (!cuit) return { error: "El CUIT tiene que tener 11 dígitos." };
+    }
+    if (docNum) {
+      const repetido = await una<{ id: number; nombre: string }>(
+        "select id::int, nombre from cliente where organizacion_id = $1 and documento_numero = $2 limit 1", [s.org.id, docNum]);
+      if (repetido) return { error: `Ya hay un cliente con ese documento: N.º ${repetido.id} · ${repetido.nombre}. Buscalo en el cuadro.` };
+    }
+    const r = await una<{ id: number }>(`
+      insert into cliente (organizacion_id, nombre, tipo, email, telefono, documento_tipo, documento_numero, cuit)
+      values ($1, $2, $3, $4, $5, $6, $7, $8) returning id::int`,
+      [s.org.id, nombre, d.tipo === "mayorista" ? "mayorista" : "consumidor_final", d.email.trim() || null, d.telefono.trim() || null, docTipo, docNum, cuit]);
+    revalidatePath("/ventas/clientes");
+    return { cliente: { id: r!.id, nombre, documento: docNum ? `${docTipo ?? ""} ${docNum}`.trim() : null, email: d.email.trim() || null, cuentaCorriente: false, direccion: null } };
+  } catch (e) {
+    return { error: motivoErp(e) };
+  }
+}
 
 /** Clientes que coinciden con lo tipeado (nombre, razón social, documento,
  *  CUIT, mail o apodo de ML), hasta 20. */

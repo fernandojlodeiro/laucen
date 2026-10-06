@@ -14,7 +14,7 @@
 // que variar el título es variar el family_name.
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
-import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
+import { ml, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import { encolarLoteConBoton, errorLegible, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
 import { variacionPorSku } from "@/lib/mercadolibre/publicaciones";
 
@@ -134,8 +134,32 @@ export function motivoValidacion(status: number, datos: unknown): string {
   return t.length > 700 ? `${t.slice(0, 700)}…` : t;
 }
 
+export type Comprobacion = { ok: true; cuerpo: Record<string, unknown>; avisos: string | null } | { ok: false; motivo: string };
+
+/** Comprueba un alta con ML (POST /items/validate: no publica nada). Si ML avisa que hay
+ *  atributos que no se pueden mandar, los saca y vuelve a comprobar; si protesta por el
+ *  envío, vuelve a comprobar sin el bloque de envío (usa el que tiene la cuenta). */
+export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string[]; sinEnvio?: boolean }) => Record<string, unknown>): Promise<Comprobacion> {
+  let sacar: string[] = [];
+  let cuerpo = armar({ sacar });
+  let r = await ml(cuenta, "POST", "/items/validate", cuerpo);
+  const nuevos = atributosNoModificables(r.datos).filter((x) => !sacar.includes(x));
+  if (r.status === 400 && nuevos.length) {
+    sacar = [...sacar, ...nuevos];
+    cuerpo = armar({ sacar });
+    r = await ml(cuenta, "POST", "/items/validate", cuerpo);
+  }
+  if (!aceptable(r) && /mode me1|free shipping|shipping/i.test(JSON.stringify(r.datos))) {
+    cuerpo = armar({ sacar, sinEnvio: true });
+    r = await ml(cuenta, "POST", "/items/validate", cuerpo);
+  }
+  if (!aceptable(r)) return { ok: false, motivo: motivoValidacion(r.status, r.datos) };
+  const avisos = causasDe(r.datos).filter((c) => (c.message ?? "").trim() && !/not modifiable/.test(c.message ?? ""));
+  return { ok: true, cuerpo, avisos: avisos.length ? motivoValidacion(r.status, { cause: avisos }) : null };
+}
+
 /** El Modelo cargado en el producto de Laucen que tiene ese SKU (para completar el que falta en ML). */
-async function modeloDeLaucen(org: string, sku: string): Promise<string | null> {
+export async function modeloDeLaucen(org: string, sku: string): Promise<string | null> {
   const v = await variacionPorSku(org, sku);
   if (!v) return null;
   return (await una<{ modelo: string | null }>("select p.modelo from variacion x join producto p on p.id = x.producto_id where x.id = $1", [v]))?.modelo?.trim() || null;
@@ -180,25 +204,12 @@ export async function prepararCopia(org: string, origen: number, destino: number
     if (yaEnDestino.has(claveProducto(f.sku, f.titulo))) { rech(`ya está en ${nombreDestino}`); continue; }
     const sku = f.sku?.trim() || null; // el SKU es el mismo en todas las cuentas
     const modelo = f.sku ? await modeloDeLaucen(org, f.sku) : null;
-    let sacar: string[] = [];
-    let cuerpo = armarCuerpoCopia(f.ml, sku, opciones, { modelo, sacar });
-    let comprobacion = await ml(cDestino, "POST", "/items/validate", cuerpo);
-    // ML avisa qué atributos no se pueden mandar: se sacan y se vuelve a comprobar una vez.
-    const nuevos = atributosNoModificables(comprobacion.datos).filter((x) => !sacar.includes(x));
-    if (comprobacion.status === 400 && nuevos.length) {
-      sacar = [...sacar, ...nuevos];
-      cuerpo = armarCuerpoCopia(f.ml, sku, opciones, { modelo, sacar });
-      comprobacion = await ml(cDestino, "POST", "/items/validate", cuerpo);
-    }
-    // Si ML rechaza por algo del envío, se vuelve a comprobar sin el bloque de envío (usa el que tiene la cuenta).
-    if (!aceptable(comprobacion) && /mode me1|free shipping|shipping/i.test(JSON.stringify(comprobacion.datos))) {
-      cuerpo = armarCuerpoCopia(f.ml, sku, opciones, { modelo, sacar, sinEnvio: true });
-      comprobacion = await ml(cDestino, "POST", "/items/validate", cuerpo);
-    }
-    if (!aceptable(comprobacion)) { rech(`Mercado Libre no la acepta: ${motivoValidacion(comprobacion.status, comprobacion.datos)}`); continue; }
+    // Siempre Clásica, aunque la de origen sea Premium (Fer, 5/10).
+    const c = await comprobarAlta(cDestino, (x) => armarCuerpoCopia({ ...f.ml!, listing_type_id: "gold_special" }, sku, opciones, { modelo, ...x }));
+    if (!c.ok) { rech(`Mercado Libre no la acepta: ${c.motivo}`); continue; }
+    const cuerpo = c.cuerpo;
     // Entra, pero ML dejó avisos (ej. "envío gratis obligatorio agregado"): se cuentan aparte.
-    const avisosMl = causasDe(comprobacion.datos).filter((c) => (c.message ?? "").trim() && !/not modifiable/.test(c.message ?? ""));
-    if (avisosMl.length) conAvisos.push({ item_id: f.item_id, titulo: f.titulo, avisos: motivoValidacion(comprobacion.status, { cause: avisosMl }) });
+    if (c.avisos) conAvisos.push({ item_id: f.item_id, titulo: f.titulo, avisos: c.avisos });
     const desc = await ml<{ plain_text?: string }>(cOrigen, "GET", `/items/${f.item_id}/description`);
     const texto = desc.status === 200 ? desc.datos.plain_text?.trim() : "";
     const pedidos: PedidoMl[] = [

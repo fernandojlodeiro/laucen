@@ -11,7 +11,7 @@ import CampoNumero from "@/app/componentes/CampoNumero";
 import { leerNumero, formatearNumero } from "@/lib/numeros";
 import { PRIMARIO, SUAVE, ICONO_BORRAR } from "@/app/botones";
 import {
-  accionNuevoPedido, buscarClientesPedido, buscarProductosPedido, preciosPedido,
+  accionNuevoPedido, buscarClientesPedido, crearClienteDesdePedido, buscarProductosPedido, preciosPedido,
   type ClienteHallado, type ProductoHallado,
 } from "./acciones";
 
@@ -75,6 +75,53 @@ function CuadroBusqueda({ b, placeholder, alEnter }: { b: ReturnType<typeof usar
   );
 }
 
+/** Alta rápida de un cliente que no apareció en el buscador: pide los datos ahí mismo. */
+function ClienteNuevo({ nombreInicial, alCrear, alCerrar }: { nombreInicial: string; alCrear: (c: ClienteHallado) => void; alCerrar: () => void }) {
+  const [v, setV] = useState({ nombre: nombreInicial, tipo: "consumidor_final", documentoTipo: "DNI", documentoNumero: "", email: "", telefono: "" });
+  const [error, setError] = useState("");
+  const [grabando, grabar] = useTransition();
+  const poner = (k: keyof typeof v) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }));
+  const guardar = () => {
+    setError("");
+    grabar(async () => {
+      const r = await crearClienteDesdePedido(v);
+      if (r.cliente) alCrear(r.cliente); else setError(r.error ?? "No se pudo crear el cliente.");
+    });
+  };
+  return (
+    <div className="mt-2 max-w-xl rounded-xl border border-[#C9D3DD] bg-[#FAFBFC] p-3 grid gap-2">
+      <div className="flex items-center justify-between"><b className="text-sm">Cliente nuevo</b>
+        <button type="button" onClick={alCerrar} aria-label="Cerrar" className="h-6 w-6 rounded-full text-[#5C6B76] hover:bg-[#E3E9F0] leading-none">×</button></div>
+      {error && <p role="alert" className="rounded-lg px-2 py-1.5 bg-[#FDF1EF] text-[#C03420]">{error}</p>}
+      <label><span className={ETIQUETA}>Nombre o razón social</span>
+        <input value={v.nombre} onChange={poner("nombre")} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className={`${CAMPO} w-full`} autoFocus /></label>
+      <div className="grid grid-cols-3 gap-2">
+        <label><span className={ETIQUETA}>Documento</span>
+          <select value={v.documentoTipo} onChange={poner("documentoTipo")} className={`${CAMPO} w-full`}>
+            {["DNI", "CUIT", "CUIL", "PASAPORTE", "OTRO"].map((d) => <option key={d}>{d}</option>)}
+          </select></label>
+        <label className="col-span-2"><span className={ETIQUETA}>Número</span>
+          <input value={v.documentoNumero} onChange={poner("documentoNumero")} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className={`${CAMPO} w-full`} /></label>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <label><span className={ETIQUETA}>Mail</span>
+          <input value={v.email} onChange={poner("email")} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className={`${CAMPO} w-full`} /></label>
+        <label><span className={ETIQUETA}>Teléfono</span>
+          <input value={v.telefono} onChange={poner("telefono")} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className={`${CAMPO} w-full`} /></label>
+      </div>
+      <label><span className={ETIQUETA}>Tipo</span>
+        <select value={v.tipo} onChange={poner("tipo")} className={`${CAMPO} w-full`}>
+          <option value="consumidor_final">Consumidor final</option><option value="mayorista">Mayorista</option>
+        </select></label>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={guardar} disabled={grabando} className={`${PRIMARIO} disabled:opacity-60`}>{grabando ? "Grabando…" : "Grabar y elegir"}</button>
+        <button type="button" onClick={alCerrar} className={SUAVE}>Cancelar</button>
+        <a href="/ventas/clientes" target="_blank" rel="noreferrer" className="text-[#16577F] underline">Cargarlo con todos los datos (se abre aparte)</a>
+      </div>
+    </div>
+  );
+}
+
 export default function NuevoPedido({ canales }: { canales: Canal[] }) {
   const [canal, setCanal] = useState<number>(canales[0]?.id ?? 0);
   const [moneda, setMoneda] = useState<"ARS" | "USD">(canales[0]?.moneda ?? "ARS");
@@ -85,6 +132,7 @@ export default function NuevoPedido({ canales }: { canales: Canal[] }) {
   const [pago, setPago] = useState("a_convenir");
   const [entrega, setEntrega] = useState("retiro");
   const [error, setError] = useState("");
+  const [altaCliente, setAltaCliente] = useState(false);
   const [total, setTotal] = useState(0);
   const [subtotales, setSubtotales] = useState<Record<number, number>>({});
   const [enviando, empezar] = useTransition();
@@ -201,6 +249,11 @@ export default function NuevoPedido({ canales }: { canales: Canal[] }) {
                   ))}
                 </ul>
               )}
+              {bCliente.texto.trim().length >= 2 && !bCliente.buscando && !altaCliente && (
+                <button type="button" className={`${SUAVE} mt-2`} onClick={() => setAltaCliente(true)}>+ Cargar cliente nuevo</button>
+              )}
+              {altaCliente && <ClienteNuevo nombreInicial={/\d/.test(bCliente.texto) && !/[a-z]/i.test(bCliente.texto) ? "" : bCliente.texto}
+                alCerrar={() => setAltaCliente(false)} alCrear={(c) => { setAltaCliente(false); elegirCliente(c); }} />}
             </div>
           )}
         </div>

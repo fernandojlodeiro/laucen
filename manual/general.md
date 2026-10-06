@@ -212,7 +212,7 @@ Donde hay un filtro de fechas, se ve en un renglón:
 - **Configuraciones y vistas**: se guardan por organización y por lista. La que cada uno eligió se recuerda en su navegador (un año), así que en otra computadora puede verse otra.
 - **Fechas**: los días se cuentan en hora argentina. "Último mes", "Último trimestre" y "Último año" son el período anterior **entero** (por ejemplo, el mes pasado completo), no los últimos 30, 90 o 365 días.
 - **Errores**: los errores se muestran en castellano, en un recuadro rojo arriba de la pantalla; los avisos de que algo salió bien, en un recuadro verde.
-- **Fotos de producto**: al lado de un producto en una lista aparece 📷 si tiene fotos; tocándolo se abren (con las flechas del teclado se pasa de una a otra, Escape cierra).
+- **Fotos de producto**: al lado de un producto en una lista aparece su foto principal si tiene; tocándola se abren todas (con las flechas del teclado se pasa de una a otra, Escape cierra).
 - **Pestañas**: cada pestaña muestra entre paréntesis cuántas cosas tiene, también "(0)". Si no entran a lo ancho, se desplazan de costado.
 - **Ubicaciones y familias**: donde hay que elegir una ubicación del depósito o una familia (categoría), se elige con un buscador (se escribe parte del código, nombre o camino, y se elige con las flechas y Enter), nunca con un desplegable, porque son cientos o miles.
 

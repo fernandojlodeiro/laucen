@@ -7,7 +7,7 @@ export const LOGISTICA: Record<string, string> = {
 };
 
 export const ESTADO_ENVIO: Record<string, string> = {
-  pending: "Pendiente", handling: "En preparación", ready_to_ship: "Listo para despachar", shipped: "En camino",
+  pending: "Pendiente", handling: "En preparación", ready_to_ship: "Etiqueta lista", shipped: "En camino",
   delivered: "Entregado", not_delivered: "No entregado", cancelled: "Cancelado",
 };
 

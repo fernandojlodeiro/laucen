@@ -92,3 +92,36 @@ export async function consultarComprobante(emisorId: number, ambiente: Ambiente,
     vto: vto ? `${vto.slice(0, 4)}-${vto.slice(4, 6)}-${vto.slice(6, 8)}` : null,
   };
 }
+
+export type FacturaArca = {
+  tipo: number; puntoVenta: number; numero: number; fecha: string; docTipo: number; docNro: string;
+  total: number; neto: number; iva: number; condicionIvaReceptor: number | null; cae: string | null;
+  alicuotas: { id: number; base: number; importe: number }[];
+};
+
+/** Un comprobante ya emitido, con todos sus datos (para hacerle una nota de
+ *  crédito aunque no lo haya emitido Laucen). null = ARCA no lo tiene. */
+export async function consultarFactura(emisorId: number, ambiente: Ambiente, cuit: string, puntoVenta: number, tipo: number, numero: number): Promise<FacturaArca | null> {
+  const t = await ticket(emisorId, ambiente, "wsfe");
+  const xml = await soap(ambiente, "FECompConsultar",
+    `${auth(t, cuit)}<ar:FeCompConsReq><ar:CbteTipo>${tipo}</ar:CbteTipo><ar:CbteNro>${numero}</ar:CbteNro><ar:PtoVta>${puntoVenta}</ar:PtoVta></ar:FeCompConsReq>`);
+  return leerFactura(xml, tipo, puntoVenta, numero);
+}
+
+/** Lee la respuesta de FECompConsultar (aparte, para probarla sin ARCA). */
+export function leerFactura(xml: string, tipo: number, puntoVenta: number, numero: number): FacturaArca | null {
+  if (errores(xml).length) return null;
+  const r = extraer(xml, "ResultGet");
+  if (!r) return null;
+  const f = extraer(r, "CbteFch") ?? "";
+  const cond = extraer(r, "CondicionIVAReceptorId");
+  return {
+    tipo, puntoVenta, numero, fecha: f.length === 8 ? `${f.slice(0, 4)}-${f.slice(4, 6)}-${f.slice(6, 8)}` : "",
+    docTipo: Number(extraer(r, "DocTipo") ?? 99), docNro: extraer(r, "DocNro") ?? "0",
+    total: Number(extraer(r, "ImpTotal") ?? 0), neto: Number(extraer(r, "ImpNeto") ?? 0), iva: Number(extraer(r, "ImpIVA") ?? 0),
+    condicionIvaReceptor: cond ? Number(cond) : null, cae: extraer(r, "CodAutorizacion"),
+    alicuotas: [...r.matchAll(/<AlicIva>([\s\S]*?)<\/AlicIva>/g)].map((m) => ({
+      id: Number(extraer(m[1], "Id") ?? 5), base: Number(extraer(m[1], "BaseImp") ?? 0), importe: Number(extraer(m[1], "Importe") ?? 0),
+    })),
+  };
+}

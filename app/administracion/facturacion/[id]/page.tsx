@@ -27,7 +27,7 @@ type Cbte = {
   id: number; pedido_id: number | null; cliente_id: number | null; ambiente: string; tipo_cbte: number; punto_venta: number; numero: string | null;
   fecha: Date; doc_tipo: number; doc_nro: string; receptor_nombre: string | null; receptor_condicion_iva: number | null; receptor_domicilio: string | null;
   importe_total: number; importe_neto: number; importe_iva: number; tc_dia: number | null; iva_detalle: { pct: number; base: number; importe: number }[];
-  asociado_id: number | null; estado: EstadoCbte; cae: string | null; cae_vto: Date | null; observaciones: string | null; intentos: number;
+  asociado_id: number | null; asociado_externo: { tipo: number; punto_venta: number; numero: number; fecha: string } | null; emisor_id: number | null; estado: EstadoCbte; cae: string | null; cae_vto: Date | null; observaciones: string | null; intentos: number;
   pedido_a_arca: { xml?: string } | null; respuesta_arca: { xml?: string } | null; creado_ts: Date; autorizado_ts: Date | null;
 };
 type Relacionado = { id: number; tipo_cbte: number; punto_venta: number; numero: string | null; estado: EstadoCbte };
@@ -47,7 +47,7 @@ export default async function DetalleComprobante({ params, searchParams }: { par
   const c = await una<Cbte>(`
     select id::int, pedido_id::int, cliente_id::int, ambiente, tipo_cbte, punto_venta, numero::text, fecha, doc_tipo, doc_nro, receptor_nombre,
            receptor_condicion_iva, receptor_domicilio, tc_dia::float tc_dia, importe_total::float importe_total, importe_neto::float importe_neto,
-           importe_iva::float importe_iva, iva_detalle, comprobante_asociado_id::int asociado_id, estado, cae, cae_vto, observaciones, intentos,
+           importe_iva::float importe_iva, iva_detalle, comprobante_asociado_id::int asociado_id, asociado_externo, emisor_id::int, estado, cae, cae_vto, observaciones, intentos,
            pedido_a_arca, respuesta_arca, creado_ts, autorizado_ts
       from comprobante where id = $1 and organizacion_id = $2`, [cid, s.org.id]);
   if (!c) notFound();
@@ -114,6 +114,14 @@ export default async function DetalleComprobante({ params, searchParams }: { par
         <Dato t="Creado">{fechaHora(c.creado_ts)}{c.autorizado_ts && <div className="text-[#5C6B76]">autorizado {fechaHora(c.autorizado_ts)}</div>}</Dato>
         {esMl && enMl && <div className="col-span-2"><Dato t="En Mercado Libre"><TextoFacturaMl x={enMl} /></Dato></div>}
         {asociado && <div className="col-span-2"><Dato t="Anula a"><Rel r={asociado} /></Dato></div>}
+        {c.asociado_externo && (
+          <div className="col-span-2"><Dato t="Anula a">
+            {nombreTipo(c.asociado_externo.tipo)} {numeroCbte(c.asociado_externo.punto_venta, c.asociado_externo.numero)}
+            {c.asociado_externo.fecha && <> del {fecha(new Date(`${c.asociado_externo.fecha}T12:00:00`))}</>} (emitida fuera de Laucen){" "}
+            <Link href={`/administracion/facturacion/nota-credito?rs=${c.emisor_id ?? ""}&tipo=${c.asociado_externo.tipo}&pv=${c.asociado_externo.punto_venta}&nro=${c.asociado_externo.numero}`}
+              className="text-[#16577F] hover:underline">ver sus notas de crédito</Link>
+          </Dato></div>
+        )}
         {notas.length > 0 && <div className="col-span-2"><Dato t="Notas de crédito">
           {notas.map((n) => <div key={n.id}><Rel r={n} /> <Estado texto={ESTADOS_CBTE[n.estado]?.texto ?? n.estado} tono={ESTADOS_CBTE[n.estado]?.tono ?? "gris"} /></div>)}
         </Dato></div>}

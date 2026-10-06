@@ -19,14 +19,14 @@ import {
 } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
 import { LISTA_PUBLICACIONES, DISPONIBLE_PUBLICACION, textoEstadoMl, PLAN_ML, PRECIO_PUBLICACION, TACHADO_PUBLICACION, CAMPANA_PUBLICACION, PRECIO_CAMPANA_PUBLICACION } from "./lista";
-import { accionGuardarPublicacion, accionPausarPublicacion, accionSacarPausa } from "./acciones";
+import { accionGuardarPublicacion, accionPausarPublicacion, accionSacarPausa, accionCorregirPrecio, accionLeerMotivos } from "./acciones";
 import { verInactivos } from "@/app/componentes/Inactivos";
 
 export const dynamic = "force-dynamic";
 
 const BASE = "/catalogo/publicaciones";
 
-type SP = { canal?: string; estado?: string; q?: string; contiene?: string; inactivos?: string; editar?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+type SP = { canal?: string; estado?: string; revision?: string; precio?: string; q?: string; contiene?: string; inactivos?: string; editar?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 type Fila = {
   id: number; variacion_id: number; producto_id: number; sku: string; titulo_var: string; foto: string | null; canal_id: number; canal: string; canal_tipo: string;
@@ -34,6 +34,7 @@ type Fila = {
   estado: string; umbral_pausa: number | null; disponible: number; umbral_efectivo: number;
   sincronizada: string | null; stock_ml: number | null; estado_ml: string | null;
   precio: number | null; tachado: number | null; campana: string | null; precio_campana: number | null; plan: string | null; pausada_manual: boolean;
+  motivo: string | null; solucion: string | null; por_precio: boolean | null; corregido: string | null; prohibida: boolean; motivo_leido: boolean;
 };
 
 const TONO_ESTADO: Record<string, "verde" | "amarillo" | "gris"> = { activa: "verde", pausada: "amarillo", cerrada: "gris" };
@@ -48,8 +49,11 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
   const comienza = sp.contiene !== "1";
   const cont = comienza ? null : "1";
   const editar = Number(sp.editar) || 0;
+  // En revisión en ML: filtro y la fila donde se está corrigiendo el precio (?precio=<id>).
+  const revision = sp.revision === "todas" || sp.revision === "precio" || sp.revision === "otro" ? sp.revision : null;
+  const corrigiendo = Number(sp.precio) || 0;
   const inactivos = verInactivos(sp);
-  const filtros = { canal: canalId, estado, q, contiene: cont, inactivos: inactivos ? "1" : null, p: sp.p, orden: sp.orden, dir: sp.dir };
+  const filtros = { canal: canalId, estado, revision, q, contiene: cont, inactivos: inactivos ? "1" : null, p: sp.p, orden: sp.orden, dir: sp.dir };
   const aqui = url(BASE, filtros);
 
   const canales = await consulta<{ id: number; nombre: string }>(
@@ -63,7 +67,10 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
            ${DISPONIBLE} disponible, umbral_pausa_de($1, v.id, c.id) umbral_efectivo, mi.stock stock_ml, mi.estado estado_ml, pu.pausada_manual,
            ${PRECIO_PUBLICACION} precio, ${TACHADO_PUBLICACION} tachado, ${CAMPANA_PUBLICACION} campana, ${PRECIO_CAMPANA_PUBLICACION} precio_campana, coalesce(mi.tipo, pu.tipo_publicacion) plan,
            to_char(pu.ultima_sincronizacion_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') sincronizada,
-           coalesce((select pf.url from producto_foto pf where pf.producto_id = p.id order by pf.orden, pf.id limit 1), mi.foto) foto`,
+           coalesce((select pf.url from producto_foto pf where pf.producto_id = p.id order by pf.orden, pf.id limit 1), mi.foto) foto,
+           mm.motivo, mm.solucion, mm.por_precio, mm.item_id is not null motivo_leido,
+           to_char(mm.precio_corregido_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') corregido,
+           coalesce((mi.datos_externos -> 'ml' -> 'sub_status') ? 'forbidden', false) prohibida`,
     desde: base.desde,
     donde: base.donde,
     orden: leerOrden(sp, {
@@ -79,17 +86,24 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
 
   return (
     <Pantalla titulo="Publicaciones" subtitulo="Espejo de lo publicado en Mercado Libre; se actualiza solo. Los cambios hacia Mercado Libre salen de la ficha del producto y de las reglas."
-      acciones={<><AccionesExcel lista={LISTA_PUBLICACIONES} org={s.org.id} /><Link href="/catalogo/publicaciones/ml" className={SUAVE}>Vincular con Mercado Libre</Link></>}>
+      acciones={<>
+        {/* Sólo lectura: por qué está en revisión cada publicación (también lo hace solo, de fondo, una vez por día). */}
+        <form action={accionLeerMotivos}><input type="hidden" name="volver" value={aqui} /><button className={SUAVE}>Leer motivos de revisión</button></form>
+        <AccionesExcel lista={LISTA_PUBLICACIONES} org={s.org.id} /><Link href="/catalogo/publicaciones/ml" className={SUAVE}>Vincular con Mercado Libre</Link></>}>
       <Avisos sp={sp} />
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
-        <BuscadorVivo q={q} comienza={comienza} inactivos={inactivos} placeholder="Buscar por SKU o id externo" limpiar={["editar"]} />
+        <BuscadorVivo q={q} comienza={comienza} inactivos={inactivos} placeholder="Buscar por título, SKU o id externo" limpiar={["editar"]} />
         <FiltroVivo parametro="canal" valor={canalId ? String(canalId) : ""} etiqueta="Canal" limpiar={["editar"]}>
           <option value="">Todos los canales</option>
           {canales.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
         </FiltroVivo>
         <FiltroVivo parametro="estado" valor={estado ?? ""} etiqueta="Estado" limpiar={["editar"]}>
           <option value="">Todos los estados</option><option value="activa">Activa</option><option value="pausada">Pausada</option><option value="cerrada">Cerrada</option>
+        </FiltroVivo>
+        <FiltroVivo parametro="revision" valor={revision ?? ""} etiqueta="En revisión en ML" limpiar={["editar", "precio"]}>
+          <option value="">En revisión o no</option><option value="todas">En revisión en ML</option>
+          <option value="precio">En revisión por precio</option><option value="otro">En revisión por otro motivo</option>
         </FiltroVivo>
       </div>
 
@@ -102,7 +116,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
             </tr>
           </thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={12} className={`${TD} text-[#5C6B76]`}>{canalId || estado || q ? "Nada coincide con el filtro." : "Todavía no hay publicaciones: se traen solas de Mercado Libre al vincular la cuenta."}</td></tr>}
+            {filas.length === 0 && <tr><td colSpan={12} className={`${TD} text-[#5C6B76]`}>{canalId || estado || revision || q ? "Nada coincide con el filtro." : "Todavía no hay publicaciones: se traen solas de Mercado Libre al vincular la cuenta."}</td></tr>}
             {filas.map((f) => (
               <tr key={f.id} className={`${TR} ${editar === f.id ? "bg-[#FAFBFC]" : ""}`}>
                 <td className={`${TD} w-[60px]`}>
@@ -127,7 +141,17 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                 <td className={TD}>{f.categoria_externa || "—"}</td>
                 <td className={`${TD} whitespace-nowrap`}>{f.plan ? PLAN_ML[f.plan] ?? f.plan : "—"}</td>
                 <td className={TDN}>
-                  {f.precio != null ? (
+                  {corrigiendo === f.id ? (
+                    // Corregir el precio de una en revisión: sale a ML con este clic (por la cola).
+                    <form action={accionCorregirPrecio} className="inline-flex flex-col items-end gap-1">
+                      <input type="hidden" name="id" value={f.id} /><input type="hidden" name="volver" value={url(BASE, { ...filtros, precio: null })} />
+                      <CampoNumero name="precio" valor={f.precio} tipo="pesos" className={`${CAMPO} w-28`} />
+                      <span className="inline-flex gap-1">
+                        <button className={VERDE}>Mandar a ML</button>
+                        <Link href={url(BASE, { ...filtros, precio: null })} className={SUAVE} scroll={false}>Cancelar</Link>
+                      </span>
+                    </form>
+                  ) : f.precio != null ? (
                     <>
                       {f.tachado != null && <span className="block text-[10px] text-[#5C6B76] line-through">{plata(f.tachado)}</span>}
                       <span className="font-semibold">{plata(f.precio)}</span>
@@ -138,7 +162,16 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                 <td className={TD}>
                   {f.pausada_manual && <span className="mb-0.5 block"><Estado texto={f.estado === "pausada" ? "Pausada por vos" : "Pausa pedida"} tono="amarillo" /></span>}
                   {!(f.pausada_manual && f.estado === "pausada") && <Estado texto={TEXTO_ESTADO[f.estado] ?? f.estado} tono={TONO_ESTADO[f.estado] ?? "gris"} />}
-                  {f.estado_ml && <span className="block text-[10px] text-[#5C6B76]">En ML: {textoEstadoMl(f.estado_ml)}</span>}
+                  {f.estado_ml && <span className="block text-[10px] text-[#5C6B76]">En ML: {textoEstadoMl(f.estado_ml)}{f.estado_ml === "under_review" && (f.prohibida ? " (prohibida)" : " (esperando corrección)")}</span>}
+                  {/* El motivo de la revisión (Fer, 5/10), leído de las infracciones de ML. */}
+                  {f.estado_ml === "under_review" && (
+                    <span className="mt-0.5 block max-w-64 whitespace-normal text-[10px] leading-3" title={[f.motivo, f.solucion && `Solución: ${f.solucion}`].filter(Boolean).join("\n\n")}>
+                      {f.por_precio && <span className="mr-1"><Estado texto="Por precio" tono="rojo" /></span>}
+                      {f.motivo ? <span className="text-[#8a6100]">{f.motivo.length > 140 ? `${f.motivo.slice(0, 140)}…` : f.motivo}</span>
+                        : <span className="text-[#5C6B76]">{f.motivo_leido ? "ML no informa el motivo" : "Motivo todavía no leído"}</span>}
+                      {f.corregido && <span className="block text-[#1F6E4A]">Precio corregido el {f.corregido}: esperando que ML la revise.</span>}
+                    </span>
+                  )}
                   {f.sincronizada && <span className="block text-[10px] text-[#5C6B76]">sinc. {f.sincronizada}</span>}
                 </td>
                 <td className={`${TDN} ${f.disponible <= f.umbral_efectivo ? "text-[#C03420] font-semibold" : ""}`}>
@@ -173,6 +206,9 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                       {f.canal_tipo === "mercadolibre" && f.pausada_manual && (
                         <BotonConfirmar accion={accionSacarPausa} campos={{ id: String(f.id), volver: aqui }} clase={SUAVE}
                           texto="Sacar la pausa" pregunta="¿Sacar la pausa?" corriendo="Activando…" />
+                      )}
+                      {f.canal_tipo === "mercadolibre" && f.id_externo && f.estado_ml === "under_review" && !f.prohibida && (
+                        <Link href={url(BASE, { ...filtros, precio: f.id })} className={SUAVE} scroll={false} title="Cambiar el precio en Mercado Libre para que la vuelva a revisar">Corregir precio</Link>
                       )}
                       {f.canal_tipo === "mercadolibre" && f.id_externo && (
                         <Link href={vincularMl(f)} className={SUAVE} title="Cambiar a qué variación de Laucen corresponde esta publicación">Re-vincular</Link>

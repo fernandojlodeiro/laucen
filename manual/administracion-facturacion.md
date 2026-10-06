@@ -2,14 +2,14 @@
 titulo: Facturación
 menu: Administración › Facturación
 ruta: /administracion/facturacion
-rutas: /administracion/facturacion, /administracion/facturacion/[id], /administracion/facturacion/config
+rutas: /administracion/facturacion, /administracion/facturacion/[id], /administracion/facturacion/config, /administracion/facturacion/nota-credito
 permiso: facturacion_ver
-resumen: Las facturas y notas de crédito electrónicas emitidas a ARCA: su estado, CAE, PDF, reintento, anulación y subida de la factura a la venta de Mercado Libre.
+resumen: Las facturas y notas de crédito electrónicas emitidas a ARCA: su estado, CAE, PDF, reintento, anulación, nota de crédito de una factura hecha fuera de Laucen (Virtual Seller) y subida de la factura a la venta de Mercado Libre.
 ---
 
 ## Para qué sirve
 
-Es el listado de todos los comprobantes electrónicos que Laucen emitió contra ARCA: facturas A, B y C y notas de crédito A, B y C. Desde acá se ve si cada uno quedó autorizado (con su CAE), se baja el PDF, se reintenta uno rechazado o con error, se anula una factura con una nota de crédito y se sube la factura a la venta de Mercado Libre.
+Es el listado de todos los comprobantes electrónicos que Laucen emitió contra ARCA: facturas A, B y C y notas de crédito A, B y C. Desde acá se ve si cada uno quedó autorizado (con su CAE), se baja el PDF, se reintenta uno rechazado o con error, se anula una factura con una nota de crédito, se hace la nota de crédito de una factura emitida **fuera de Laucen** (por ejemplo, una venta de Virtual Seller que vuelve) y se sube la factura a la venta de Mercado Libre.
 
 Las facturas no se cargan desde esta pantalla: nacen de un pedido (con el botón **"Facturar"** del pedido, o solas si está prendida la facturación automática). Esta pantalla es para mirarlas y operarlas después.
 
@@ -28,6 +28,7 @@ Las facturas no se cargan desde esta pantalla: nacen de un pedido (con el botón
 - **"Subir a ML las facturas que faltan"**: prepara, en la cola de Mercado Libre, un lote con todas las facturas autorizadas de ventas de Mercado Libre que todavía no están subidas (ver "Criterios y reglas"). No manda nada: te lleva a la [Cola de Mercado Libre](/config/canales/cola) para que revises y aprietes **"Mandar a Mercado Libre"**.
 - **"Descargar Excel"** con su desplegable de configuraciones ("Como en pantalla" o una guardada) y **"Configurar…"**: baja todos los comprobantes con los filtros que tenés puestos.
 - **"Configuración"**: lleva a [Configuración › Facturación (ARCA)](/config/arca).
+- **"+ Nueva nota de crédito"**: lleva a [Nota de crédito de una factura de afuera](/administracion/facturacion/nota-credito), para una factura que **no emitió Laucen** (las de Laucen se anulan desde su ficha).
 
 ### Avisos
 
@@ -110,6 +111,28 @@ Ojo: el reintento vuelve a mandar el mismo comprobante tal como se armó (mismo 
 1. Abrí la factura autorizada.
 2. Apretá **"Anular con nota de crédito"** y confirmá con **"Sí"**.
 3. Laucen arma una nota de crédito por el total (misma letra, mismo receptor, mismas líneas), la manda a ARCA y te lleva a la ficha de la nota de crédito, con el resultado arriba (verde si salió, rojo si no). Si no salió, se reintenta desde ahí.
+
+### Nota de crédito de un producto vendido antes de Laucen (Virtual Seller): venta anterior, sin pedido ni factura en Laucen
+
+Para cuando vuelve algo que se vendió y facturó antes de usar Laucen: no hay pedido ni factura acá.
+
+1. En Facturación, apretá **"+ Nueva nota de crédito"** (o, desde un reclamo de Mercado Libre sin pedido en Laucen, **"Nota de crédito"**: llega con la orden de ML, el monto y el cliente ya puestos).
+2. Elegí la **razón social que la emitió** (si hay más de una), el tipo de **Factura** (A, B o C), el **Punto de venta** y el **Número**, y apretá **"Buscar en ARCA"**. Están impresos en la factura vieja (ej. 00003-00001234: punto de venta 3, número 1234).
+3. Laucen la trae de ARCA y muestra **"La factura, según ARCA"**: fecha, documento del comprador, total, lo **ya devuelto** con notas de crédito, lo que **queda por devolver** y la condición frente al IVA. Si ya tiene notas de crédito, se listan con su estado.
+4. Completá:
+   - **N.º de cliente (opcional)**: si un cliente de Laucen tiene ese documento, ya viene puesto. Con cuenta corriente, la nota de crédito le entra como crédito.
+   - **Nombre del receptor**: el del cliente, o vacío para "Consumidor final".
+   - **Condición frente al IVA**: sólo si la factura vieja no la tiene.
+   - Las **líneas** ("Qué se devuelve", Cantidad, Precio unitario con IVA, IVA): de entrada, la factura entera (una línea por alícuota) o lo que queda por devolver. Para una **devolución parcial**, cambiá cantidades o precios; hay seis renglones.
+5. Apretá **"Emitir nota de crédito"** (arriba a la derecha). Sale a ARCA asociada a la factura vieja y te lleva a su ficha, con el resultado arriba. Si no salió, se reintenta desde ahí.
+6. La mercadería que vuelve se recibe aparte, en [Recepción](/deposito/recepcion) (devolución, tildando "Venta anterior a Laucen").
+
+Errores típicos:
+- "ARCA no tiene la Factura B 00003-00001234 de …. Revisá el tipo, el punto de venta, el número y la razón social."
+- "Esa factura la emitió Laucen: anulala desde su ficha (comprobante N)."
+- "La nota de crédito ($ …) pasa el total de la factura ($ …)." / "… pasa lo que queda por devolver …"
+- "Cargá al menos una línea con descripción, cantidad y precio."
+- "No hay ningún cliente con el N.º …"
 
 ### Bajar o ver el PDF
 
@@ -198,7 +221,17 @@ En esa misma revisión periódica se reintentan solos los comprobantes en estado
 
 - Sólo se anula una **factura autorizada**. La nota de crédito es **por el total**: copia receptor, importes, IVA y líneas de la factura, con la misma letra (A→NC A, B→NC B, C→NC C), y va asociada a la factura en ARCA.
 - Una factura con una nota de crédito autorizada, pendiente o con error no se puede volver a anular ("Esa factura ya tiene una nota de crédito."). Si la NC fue rechazada, se puede intentar de nuevo.
-- No hay notas de crédito parciales.
+- La anulación desde la ficha es **por el total**. Una nota de crédito **parcial** sólo se hace para facturas de afuera (abajo).
+
+### Nota de crédito de una factura de afuera
+
+- Sirve para facturas emitidas **fuera de Laucen** con la misma razón social (CUIT), por ejemplo desde Virtual Seller. La factura se lee de **ARCA** (no se escribe a mano): tiene que existir y estar autorizada. Si la emitió Laucen, hay que anularla desde su ficha.
+- Sale con la **misma letra** (Factura A→NC A, B→NC B, C→NC C), el **mismo documento del comprador** que la factura, y **asociada** a ella en ARCA. La condición frente al IVA es la de la factura; si la factura vieja no la tiene, la que se elige.
+- Sale con el **punto de venta actual** de la razón social (no hace falta que sea el de la factura vieja) y la fecha del día.
+- Puede ser **total o parcial**, y puede haber varias para la misma factura, pero **la suma de las vivas** (autorizadas, pendientes o con error) **nunca pasa el total de la factura**. Una rechazada no cuenta.
+- Precio con IVA; IVA por línea entre 0 %, 2,5 %, 5 %, 10,5 %, 21 % y 27 % (en una Factura C, sin IVA).
+- No mueve stock (eso lo hace la recepción de la devolución) y no tiene pedido. Entra al Libro IVA, a la contabilidad y, si el cliente tiene cuenta corriente, a su cuenta, como cualquier nota de crédito.
+- En su ficha y en el PDF figura "Anula a" / "Comprobante asociado" con la factura vieja ("emitida fuera de Laucen").
 
 ### Subida de la factura a Mercado Libre
 
@@ -245,7 +278,10 @@ No. Se anula con "Anular con nota de crédito" y se vuelve a facturar el pedido.
 Porque el cliente no figura como Responsable Inscripto o Monotributista en su ficha. Corregí su condición de IVA y su CUIT antes de facturar.
 
 **¿Puedo hacer una nota de crédito parcial?**
-No, hoy sólo hay anulación por el total.
+De una factura de Laucen, no: se anula por el total. De una factura hecha fuera de Laucen, sí, con "+ Nueva nota de crédito".
+
+**Vuelve algo que vendí con Virtual Seller, ¿cómo le hago la nota de crédito?**
+"+ Nueva nota de crédito", con el tipo, punto de venta y número de la factura vieja: Laucen la busca en ARCA. La mercadería, en Recepción, como devolución de una "Venta anterior a Laucen".
 
 **¿La factura se sube sola a Mercado Libre?**
 Sólo si la cuenta tiene prendido "Subir facturas a Mercado Libre" en Canales. Si no, con el botón de la ficha o con "Subir a ML las facturas que faltan" y después "Mandar a Mercado Libre" en la cola.

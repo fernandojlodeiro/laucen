@@ -18,7 +18,7 @@ import {
 import {
   accionGuardarDatos, accionCrearVariacion, accionGuardarVariacion, accionBorrarVariacion,
   accionCrearAtributo, accionGuardarAtributo, accionBorrarAtributo, accionMoverFoto, accionBorrarFoto,
-  accionGuardarCucardas, accionGuardarCosto, accionAgregarComponente, accionGuardarComponente, accionBorrarComponente, accionGuardarPrecio, accionPublicarWeb,
+  accionGuardarCucardas, accionGuardarCosto, accionAgregarComponente, accionGuardarComponente, accionBorrarComponente, accionGuardarPrecio, accionPublicarWeb, accionNoPublicable,
 } from "../acciones";
 import { EstadoProducto, TIPOS_PRODUCTO, ESTADOS_PRODUCTO, ESTADOS_VARIACION, CONDICIONES, condicionDe } from "../comun";
 import SubirFoto from "../SubirFoto";
@@ -26,6 +26,7 @@ import AltaNueva from "@/app/componentes/AltaNueva";
 import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import { caminoDeFamilia } from "@/lib/erp/familias";
 import { UNIR_MELI_ITEM, textoEstadoMl } from "@/app/catalogo/publicaciones/lista";
+import { UNIR_MODERACION } from "@/lib/mercadolibre/moderaciones";
 import { canalesWebDe } from "@/lib/catalogo/web";
 import { Interruptor } from "@/app/radar/Piezas";
 
@@ -36,7 +37,7 @@ export type Producto = {
   umbral_pausa: number | null; stock_minimo: number | null; descuento_familia: number | null; umbral_org: string | null;
   variacion_default: number | null;
   modelo: string | null; linea: string | null; garantia: string | null; condicion: string | null;
-  categoria_ml: string | null; atributos_ml: unknown; kit_vs: boolean; precio_en_dolares: boolean;
+  categoria_ml: string | null; atributos_ml: unknown; kit_vs: boolean; precio_en_dolares: boolean; no_publicable: boolean;
 };
 
 type Props = {
@@ -965,17 +966,34 @@ export async function SeccionPublicaciones({ s, p }: Props) {
   // Los precios de las publicaciones son en pesos: en dólares, al tipo de cambio de hoy.
   const tcHoy = await tcParaVista(s.org.id, s.moneda);
   const filas = await consulta<{ id: number; sku: string; canal: string; id_externo: string | null; titulo: string; tipo_publicacion: string | null; estado: string; sincro: string | null;
-    precio: number | null; precio_tachado: number | null; stock_ml: number | null; estado_ml: string | null }>(`
-    select pu.id::int, v.sku, c.nombre canal, pu.id_externo, coalesce(pu.titulo, titulo_variacion(v.id)) titulo, pu.tipo_publicacion, pu.estado,
+    precio: number | null; precio_tachado: number | null; stock_ml: number | null; estado_ml: string | null; enlace: string | null; disp_web: number | null; vendidos: number | null; motivo: string | null; por_precio: boolean | null }>(`
+    select pu.id::int, v.sku, c.nombre canal, pu.id_externo,
+           -- La publicación en ML (Fer, 5/10): su dirección, o la que arma ML con el número.
+           case when c.tipo = 'mercadolibre' and pu.id_externo is not null
+                then coalesce(mi.permalink, 'https://articulo.mercadolibre.com.ar/' || regexp_replace(pu.id_externo, '^([A-Z]{3})(\\d+)$', '\\1-\\2')) end enlace, coalesce(pu.titulo, titulo_variacion(v.id)) titulo, pu.tipo_publicacion, pu.estado,
            pu.precio_canal::float8 precio, pu.precio_tachado::float8, mi.stock stock_ml, mi.estado estado_ml,
+           -- Vendidos en ML (lo que informa ML de la publicación); sin ventas, 0. La web no tiene.
+           case when c.tipo = 'mercadolibre' then coalesce(mi.vendidos, 0) end::int vendidos,
+           -- En revisión en ML: el motivo que informa ML (lib/mercadolibre/moderaciones.ts).
+           mm.motivo, mm.por_precio,
+           -- En la web: lo disponible para ese canal (con 0, la publicación activa se muestra "Sin stock").
+           case when c.tipo in ('web_minorista', 'web_mayorista') then stock_disponible_canal(pu.organizacion_id, v.id, pu.canal_id)::int end disp_web,
            to_char(pu.ultima_sincronizacion_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YYYY HH24:MI') sincro
       from publicacion pu join variacion v on v.id = pu.variacion_id join canal c on c.id = pu.canal_id
       ${UNIR_MELI_ITEM}
+      ${UNIR_MODERACION}
      where v.producto_id = $2 and pu.organizacion_id = $1 order by c.nombre, v.sku`, [s.org.id, p.id]);
   const tono = (e: string) => (e === "activa" ? "verde" : e === "pausada" ? "amarillo" : "gris") as "verde" | "amarillo" | "gris";
   return (
     <>
-      {webs.length > 0 && (
+      <div className={`${CAJA} mb-3 grid gap-2 max-w-md`}>
+        {/* Insumo o parte de otro (ej. la unidad "-U" que sólo se vende en pack): no va a ML ni a la web. */}
+        <Interruptor accion={accionNoPublicable} prendido={p.no_publicable}
+          campos={{ producto_id: String(p.id), seccion: "publicaciones" }}
+          etiqueta="No publicable (insumo o parte de otro)"
+          ayuda={p.no_publicable ? "No va a Mercado Libre ni a la web y no aparece en \"sin publicar\"." : "Prendelo si este producto no se vende solo (ej. la unidad de un pack)."} />
+      </div>
+      {webs.length > 0 && !p.no_publicable && (
         <div className={`${CAJA} mb-3 grid gap-2 max-w-md`}>
           {/* La web es un canal más: el producto se ve en la tienda sólo si está publicado ahí. */}
           {webs.map((w) => (
@@ -986,20 +1004,33 @@ export async function SeccionPublicaciones({ s, p }: Props) {
           ))}
         </div>
       )}
-      <div className="flex justify-end mb-2"><Link href="/catalogo/publicaciones" className={SUAVE}>Ir a Publicaciones</Link></div>
+      <div className="flex items-center justify-end gap-2 mb-2">
+        {/* El total de ventas en ML del producto (Fer, 5/10): la suma de lo vendido de sus publicaciones; sin ventas, 0. */}
+        <span className="mr-auto text-xs text-[#5C6B76]">Vendidos en Mercado Libre: <b className="text-[#1F2A33] tabular-nums">{filas.reduce((t, f) => t + (f.vendidos ?? 0), 0).toLocaleString("es-AR")}</b></span>
+        {/* Publicarlo en una cuenta de ML copiando una publicación parecida (queda esperando el clic en la cola). */}
+        {!p.no_publicable && <Link href={`/catalogo/productos/${p.id}/publicar-ml`} className={SUAVE}>Publicar en ML copiando otra</Link>}
+        {/* Directo a la publicación nueva armada con los datos de Laucen y la IA (Fer, 5/10). */}
+        {!p.no_publicable && <Link href={`/catalogo/productos/${p.id}/publicar-ml?ver=nueva`} className={PRIMARIO}>Nueva desde Laucen con IA</Link>}
+        <Link href="/catalogo/publicaciones" className={SUAVE}>Ir a Publicaciones</Link>
+      </div>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={TH}>Canal</th><th className={TH}>Variación</th><th className={TH}>Id externo</th><th className={TH}>Título</th><th className={TH}>Tipo</th><th className={THN}>Precio</th><th className={TH}>Estado</th><th className={THN}>Stock en ML</th><th className={TH}>Última sincronización</th></tr>
+            <tr><th className={TH}>Canal</th><th className={TH}>Variación</th><th className={TH}>Id externo</th><th className={TH}>Título</th><th className={TH}>Tipo</th><th className={THN}>Precio</th><th className={TH}>Estado</th><th className={THN}>Stock en ML</th><th className={THN}>Vendidos en ML</th><th className={TH}>Última sincronización</th></tr>
           </thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>Ninguna variación de este producto está publicada.</td></tr>}
+            {filas.length === 0 && <tr><td colSpan={10} className={`${TD} text-[#5C6B76]`}>Ninguna variación de este producto está publicada.</td></tr>}
             {filas.map((f) => (
               <tr key={f.id} className={TR}>
                 <td className={TD}>{f.canal}</td>
                 <td className={`${TD} font-mono`}>{f.sku}</td>
-                <td className={`${TD} font-mono`}>{f.id_externo ?? "—"}</td>
-                <td className={TD}>{f.titulo}</td>
+                {/* Un clic abre la publicación en Mercado Libre (en otra pestaña). */}
+                <td className={`${TD} font-mono`}>{f.enlace
+                  ? <a href={f.enlace} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline">{f.id_externo} ↗</a>
+                  : f.id_externo ?? "—"}</td>
+                <td className={TD}>{f.enlace
+                  ? <a href={f.enlace} target="_blank" rel="noopener noreferrer" className="hover:text-[#16577F] hover:underline">{f.titulo}</a>
+                  : f.titulo}</td>
                 <td className={TD}>{f.tipo_publicacion ?? "—"}</td>
                 <td className={TDN}>
                   {/* El precio de la publicación es el de venta; el tachado, el de antes de la campaña. */}
@@ -1007,11 +1038,21 @@ export async function SeccionPublicaciones({ s, p }: Props) {
                   {f.precio != null ? enMoneda(f.precio, s.moneda, tcHoy) : <span className="text-[#5C6B76]">—</span>}
                 </td>
                 <td className={TD}>
-                  <Estado texto={f.estado.charAt(0).toUpperCase() + f.estado.slice(1)} tono={tono(f.estado)} />
+                  {/* Web (Fer, 5/10): activa pero sin stock disponible → "Sin stock"; con el interruptor apagado, "Pausada". */}
+                  {f.disp_web != null && f.estado === "activa" && f.disp_web <= 0
+                    ? <Estado texto="Sin stock" tono="ambar" />
+                    : <Estado texto={f.estado.charAt(0).toUpperCase() + f.estado.slice(1)} tono={tono(f.estado)} />}
                   {f.estado_ml && <span className="block text-[10px] text-[#5C6B76]">En ML: {textoEstadoMl(f.estado_ml)}</span>}
+                  {f.estado_ml === "under_review" && (
+                    <span className="mt-0.5 block max-w-64 whitespace-normal text-[10px] leading-3 text-[#8a6100]" title={f.motivo ?? undefined}>
+                      {f.por_precio && <span className="mr-1"><Estado texto="Por precio" tono="rojo" /></span>}
+                      {f.motivo ? (f.motivo.length > 140 ? `${f.motivo.slice(0, 140)}…` : f.motivo) : "Motivo todavía no leído"}
+                    </span>
+                  )}
                 </td>
                 {/* Lo que ML tiene cargado como disponible (también si está pausada), de la copia local meli_item. */}
                 <td className={TDN}>{f.stock_ml != null ? f.stock_ml : <span className="text-[#5C6B76]">—</span>}</td>
+                <td className={TDN}>{f.vendidos != null ? f.vendidos.toLocaleString("es-AR") : <span className="text-[#5C6B76]">—</span>}</td>
                 <td className={`${TD} text-[#5C6B76] whitespace-nowrap`}>{f.sincro ?? "—"}</td>
               </tr>
             ))}

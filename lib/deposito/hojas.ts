@@ -18,6 +18,7 @@ import { consulta } from "@/lib/erp/base";
 import { sqlACobrar } from "@/lib/pedidos";
 import { cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import { bajarEtiquetas } from "@/lib/mercadolibre/envios";
+import { recorteEtiquetaMl } from "@/lib/deposito/recorte-ml";
 
 export type TamHoja = "10x15" | "a4";
 export const TAMANOS: [TamHoja, string][] = [["10x15", "10 × 15 cm (térmica)"], ["a4", "A4"]];
@@ -235,7 +236,9 @@ function paginaAviso(l: Lienzo, titulo: string, texto: string) {
 /** Dónde está la etiqueta en el PDF de ML (A4 apaisado, medido el 3/10): a
  *  la izquierda de la línea de puntos, la etiqueta de 10 × 15 a su tamaño; a
  *  la derecha, un resumen de productos que no hace falta (nuestra hoja dice
- *  lo mismo y además de qué ubicación sale). */
+ *  lo mismo y además de qué ubicación sale). La etiqueta no cae siempre en el
+ *  mismo lugar (5/10: a algunas se les cortaba el QR), así que se mide en cada
+ *  página (recorteEtiquetaMl); éste es el de reserva si no se puede medir. */
 const RECORTE_ML = { left: 22, bottom: 138, right: 290, top: 575 };
 const esA4Apaisada = (w: number, h: number) => Math.abs(w - 841.89) < 4 && Math.abs(h - 595.28) < 4;
 
@@ -248,7 +251,7 @@ async function etiquetasMl(l: Lienzo, pdf: Uint8Array): Promise<PDFEmbeddedPage[
   // Una página sin contenido no se puede pegar (y rompería al grabar el PDF).
   const conContenido = origen.getPages().filter((pg) => !!pg.node.Contents());
   const etiquetas = conContenido.filter((pg) => { const { width, height } = pg.getSize(); return esA4Apaisada(width, height); });
-  if (etiquetas.length) return l.doc.embedPages(etiquetas, etiquetas.map(() => RECORTE_ML));
+  if (etiquetas.length) return l.doc.embedPages(etiquetas, etiquetas.map((pg) => recorteEtiquetaMl(pg) ?? RECORTE_ML));
   return conContenido.length ? l.doc.embedPages(conContenido) : [];
 }
 

@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
-import { una, ErrorErp } from "@/lib/erp/base";
+import { una, consulta, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, id } from "@/lib/erp/acciones";
 import { cuentasDe, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { barrerPreguntas, sugerirRespuesta, responder } from "@/lib/mercadolibre/preguntas";
 import { importarConversacion, sugerirMensaje, enviarMensaje } from "@/lib/mercadolibre/mensajes";
+import { guardarRespuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 
 const VOLVER = "/ventas/preguntas";
 const volverMensajes = (pack: string) => `${VOLVER}?ver=mensajes&pack=${encodeURIComponent(pack)}`;
@@ -39,9 +40,10 @@ export async function accionTraerPreguntas() {
 export async function accionProponerRespuesta(fd: FormData) {
   const s = await entrarErp("preguntas_ver");
   await intentar(VOLVER, async () => {
-    await sugerirRespuesta(s.org.id, id(fd));
+    const p = await sugerirRespuesta(s.org.id, id(fd));
     revalidatePath(VOLVER);
-    return "La IA propuso una respuesta: revisala antes de mandarla.";
+    return p.estado === "persona" ? "La IA propuso una respuesta, pero el comprador pide hablar con una persona: revisala vos."
+      : "La IA propuso una respuesta: revisala antes de mandarla.";
   });
 }
 
@@ -74,9 +76,10 @@ export async function accionProponerMensaje(fd: FormData) {
   const s = await entrarErp("preguntas_ver");
   const p = texto(fd, "pack") ?? "";
   await intentar(volverMensajes(p), async () => {
-    await sugerirMensaje(s.org.id, pack(fd));
+    const r = await sugerirMensaje(s.org.id, pack(fd));
     revalidatePath(VOLVER);
-    return "La IA propuso una respuesta: revisala antes de mandarla.";
+    return r.estado === "persona" ? "La IA propuso una respuesta, pero el comprador pidió hablar con una persona: revisala vos."
+      : "La IA propuso una respuesta: revisala antes de mandarla.";
   });
 }
 
@@ -87,5 +90,28 @@ export async function accionEnviarMensaje(fd: FormData) {
     await enviarMensaje(s.org.id, pack(fd), texto(fd, "texto") ?? "", s.usuario.id);
     revalidatePath(VOLVER);
     return "Mensaje enviado.";
+  });
+}
+
+/** Los interruptores "Responde sola la IA" (Fer, 5/10): uno para Preguntas y otro para Mensajes, generales de la
+ *  organización. Al prenderlo, lo pendiente se vuelve a proponer para que la IA lo pueda mandar sola (en el próximo
+ *  barrido, a los pocos minutos, o cuando entra algo nuevo). */
+export async function accionRespuestaAuto(fd: FormData) {
+  const s = await entrarErp("preguntas_ver");
+  const cual = texto(fd, "cual") === "mensajes" ? "mensajes" : "preguntas";
+  const prendido = fd.get("valor") === "1";
+  await intentar(cual === "mensajes" ? `${VOLVER}?ver=mensajes` : VOLVER, async () => {
+    await guardarRespuestaAuto(s.org.id, cual, prendido);
+    if (prendido && cual === "preguntas") {
+      await consulta("update meli_pregunta set sugerencia = null, sugerencia_intento_ts = null where organizacion_id = $1 and estado = 'UNANSWERED'", [s.org.id]);
+    }
+    if (prendido && cual === "mensajes") {
+      await consulta(`update meli_conversacion set sugerencia = null, sugerencia_intento_ts = null
+                       where organizacion_id = $1 and sin_leer > 0 and pidio_persona_ts is null`, [s.org.id]);
+    }
+    revalidatePath(VOLVER);
+    const que = cual === "mensajes" ? "los mensajes" : "las preguntas";
+    return prendido ? `Prendido: la IA contesta sola ${que} (lo que no sabe, o si piden una persona, queda para vos).`
+      : `Apagado: la IA sólo propone la respuesta de ${que}; la mandás vos.`;
   });
 }

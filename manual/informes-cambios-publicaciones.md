@@ -40,7 +40,7 @@ Sirve para responder preguntas como "¿quién pausó esta publicación?", "¿cu�
 - **Fecha y hora** del cambio.
 - **Cuenta** de Mercado Libre.
 - **Publicación**: el número (MLA…), con enlace a la publicación en Mercado Libre; si es una variación, debajo "var. …".
-- **SKU**: enlace a la ficha del producto, con el 📷 para ver sus fotos.
+- **SKU**: enlace a la ficha del producto, con su foto (al tocarla se abren todas).
 - **Título**.
 - **Qué cambió**: Estado, Precio o Stock.
 - **Cambio**: "antes → después". Los estados en criollo (Activa, Pausada, Cerrada, En revisión, Inactiva, Pago pendiente), los precios con punto de miles y, en un cambio de precio, el porcentaje (verde si subió, rojo si bajó).
@@ -81,6 +81,8 @@ En **Ver** elegí **"Una fila por publicación"**: cada publicación (y variaci�
 En un cambio con origen **Laucen**, tocá "Laucen": abre la [Cola de Mercado Libre](/config/canales/cola) con lo enviado a esa publicación.
 
 ## Criterios y reglas
+
+- **Posible causa (campañas de ML)**: en los cambios de **precio**, esta columna muestra las campañas que, según [Promociones de ML](/informes/promociones), empezaron, terminaron o cambiaron el precio de esa publicación en las 1,5 horas anteriores. Es una pista, no una prueba; vacía quiere decir que no coincide con ninguna campaña anotada.
 
 ### Cómo se anota la historia
 

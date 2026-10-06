@@ -4,7 +4,7 @@ menu: Ventas › Preguntas y mensajes
 ruta: /ventas/preguntas
 rutas: /ventas/preguntas
 permiso: preguntas_ver
-resumen: Las preguntas de los compradores en las publicaciones de Mercado Libre y los mensajes de posventa, de todas las cuentas en una bandeja; la IA propone la respuesta y vos la revisás y la mandás.
+resumen: Las preguntas de los compradores en las publicaciones de Mercado Libre y los mensajes de posventa, de todas las cuentas en una bandeja; la IA propone la respuesta y vos la revisás y la mandás, o con el interruptor prendido la manda sola.
 ---
 
 ## Para qué sirve
@@ -14,7 +14,7 @@ Junta en una sola bandeja, de **todas las cuentas de Mercado Libre**:
 - **Preguntas**: lo que preguntan los interesados en una publicación antes de comprar.
 - **Mensajes**: la conversación de posventa con el comprador de una venta.
 
-Para cada una, la **IA puede proponer una respuesta** con los datos de la publicación, la ficha del producto y el stock; vos la revisás, la cambiás si hace falta y la mandás. **Nada se contesta solo.**
+Para cada una, la **IA propone sola una respuesta** apenas entra (con los datos de la publicación, la ficha del producto y el stock; en los mensajes, con los datos del pedido y del envío); vos la revisás, la cambiás si hace falta y la mandás. **Con el interruptor "La IA contesta sola…" apagado, nada se contesta solo** (ver "Respuesta automática" más abajo). Si todavía no apareció (tarda unos segundos o, como mucho, hasta el próximo barrido de unos minutos), o querés otra, está el botón **"Proponer con IA"**.
 
 ## Cómo se llega
 
@@ -24,7 +24,7 @@ Para cada una, la **IA puede proponer una respuesta** con los datos de la public
 
 ## Qué hay en la pantalla
 
-**Arriba a la derecha** (en la pestaña Preguntas): **"Traer preguntas ahora"**.
+**Arriba a la derecha**: el interruptor **"La IA contesta sola las preguntas"** (en la pestaña Preguntas) o **"La IA contesta sola los mensajes"** (en la pestaña Mensajes), y en la pestaña Preguntas el botón **"Traer preguntas ahora"**.
 
 **Pestañas principales**:
 - **"Preguntas (N)"**: N = preguntas sin responder.
@@ -42,11 +42,12 @@ Dos pestañas chicas: **"Sin responder (N)"** y **"Respondidas (N)"**.
 - El cuadro **"Respuesta"** (si la IA ya propuso una, viene escrita y la etiqueta dice "(la propuso la IA: revisala)").
 - Los botones **"Proponer con IA"** y **"Responder"**.
 
-**Respondidas** (las últimas 100, lo más reciente primero): la publicación, la pregunta, la respuesta en verde y "Respondió <nombre> · fecha" (o "alguien desde Mercado Libre" si se contestó fuera de Laucen).
+**Respondidas** (las últimas 100, lo más reciente primero): la publicación, la pregunta, la respuesta en verde y "Respondió <nombre> · fecha" (si mandó exactamente lo que propuso la IA, sin cambiar nada, dice "Respondió <nombre> con la IA") (o "alguien desde Mercado Libre" si se contestó fuera de Laucen).
 
 ### Pestaña Mensajes
 
 - **A la izquierda**, la lista de conversaciones (las que tienen mensajes sin leer primero, después por el último mensaje; hasta 100): el cliente (o "Pack …"), la marca **"N sin leer"**, la cuenta, el Nº de pedido, hace cuánto y el último mensaje.
+- **Quién respondió**: debajo de cada mensaje de la tienda dice "Respondió <nombre>". Si mandó **exactamente** lo que había propuesto la IA, sin cambiar nada (ni una coma), dice "Respondió <nombre> con la IA"; si cambió algo, queda sólo el nombre. Igual en las preguntas.
 - **A la derecha**, la conversación elegida: el comprador, la cuenta y el enlace **"Pedido N"** (o "Pack … (sin pedido en Laucen)"), el botón **"Actualizar"**, los mensajes (los de la tienda a la derecha, con **"Respondió <nombre>"** de quien lo mandó desde Laucen, o "Respondió alguien desde Mercado Libre" si se escribió fuera de Laucen; los del comprador a la izquierda) y abajo el cuadro **"Mensaje"** con **"Proponer con IA"** y **"Enviar"**.
 - Sin conversación elegida: "Elegí una conversación para verla y contestar."
 
@@ -55,7 +56,7 @@ Dos pestañas chicas: **"Sin responder (N)"** y **"Respondidas (N)"**.
 ### Responder una pregunta
 
 1. En **Preguntas › Sin responder**, buscá la tarjeta.
-2. Si querés que la IA arme la respuesta, apretá **"Proponer con IA"**. Al rato la pantalla vuelve con el texto escrito en **"Respuesta"** y el aviso "La IA propuso una respuesta: revisala antes de mandarla."
+2. La IA ya deja propuesta la respuesta en **"Respuesta"** (si no está, o querés otra, apretá **"Proponer con IA"**: al rato la pantalla vuelve con el texto y el aviso "La IA propuso una respuesta: revisala antes de mandarla.").
 3. Leé y corregí el texto (o escribilo vos de cero).
 4. Apretá **"Responder"**. La respuesta se manda a Mercado Libre y la pregunta pasa a **Respondidas**. Aviso: "Respuesta enviada."
 
@@ -70,7 +71,7 @@ Errores típicos: "La respuesta está vacía.", "Mercado Libre acepta hasta 2.00
 ### Contestar un mensaje de posventa
 
 1. Andá a la pestaña **Mensajes** y elegí la conversación de la izquierda. Al abrirla, queda leída en Laucen.
-2. Si querés, apretá **"Proponer con IA"**: la IA arma una respuesta con los datos del pedido y del envío.
+2. La IA ya deja propuesta una respuesta con los datos del pedido y del envío; si no está o querés otra, apretá **"Proponer con IA"**.
 3. Revisá o escribí el texto en **"Mensaje"** (hasta 350 caracteres; sin teléfonos, mails ni links).
 4. Apretá **"Enviar"**. El mensaje sale a Mercado Libre, la conversación se vuelve a leer y queda marcada como leída también en Mercado Libre. Aviso: "Mensaje enviado."
 
@@ -84,7 +85,7 @@ Apretá **"Actualizar"** en la conversación: la vuelve a leer entera desde Merc
 
 - **Cómo entran**: Mercado Libre avisa cada pregunta y cada mensaje nuevo al instante, y además cada 30 minutos se revisan las preguntas pendientes por si se perdió algún aviso. Con **"Traer preguntas ahora"** se fuerza en el momento.
 - **Sin responder** = preguntas que Mercado Libre tiene como no respondidas. Si alguien la contesta desde Mercado Libre, o el interesado la borra, sale de la lista cuando se actualiza.
-- **La IA nunca contesta sola**: sólo propone cuando apretás "Proponer con IA". La propuesta queda guardada en el cuadro hasta que respondas.
+- **La IA nunca contesta sola**: propone sola el texto apenas entra la pregunta o el mensaje (una vez; si falla, reintenta cada 30 minutos como mucho), pero lo mandás vos. La propuesta queda guardada en el cuadro hasta que respondas. "Proponer con IA" arma otra a pedido.
 - **Qué sabe la IA para una pregunta**: el título, precio, stock en Mercado Libre, estado, si tiene envío gratis o es Full, los atributos, las variaciones y la descripción de la publicación; la ficha del producto en Laucen (descripción, marca, medidas, peso, atributos) y el **stock disponible del canal**; y las últimas 8 preguntas ya respondidas de esa misma publicación.
 - **Cómo escribe la IA una respuesta a una pregunta**: castellano rioplatense, cordial y breve (1 a 3 oraciones, nunca más de 600 caracteres), empieza con "Hola" y termina con un saludo corto. Respeta las reglas de Mercado Libre: nada de teléfonos, mails, direcciones, links, redes ni nombres de otras tiendas, y no invita a comprar por fuera. Usa sólo los datos que tiene: si un dato no está, no lo inventa (dice que lo consulta o sugiere ver la descripción); si preguntan por stock usa el disponible; si preguntan por envío dice lo que figura sin prometer fechas.
 - **Mensajes de posventa con IA**: usa el estado del pedido, sus líneas y el envío (estado, logística, tracking, entrega estimada) y la conversación. Hasta 350 caracteres (el límite de Mercado Libre), 1 a 4 oraciones, sin teléfonos, mails, links ni redes, sin arreglos por fuera de Mercado Libre y sin prometer fechas que no figuran; si el comprador reclama, primero empatía y una solución concreta.
@@ -97,7 +98,7 @@ Apretá **"Actualizar"** en la conversación: la vuelve a leer entera desde Merc
 ## Preguntas frecuentes
 
 **¿La IA contesta sola las preguntas?**
-No. Sólo propone un texto cuando apretás "Proponer con IA"; lo mandás vos con "Responder".
+No. Propone un texto (solo, o cuando apretás "Proponer con IA"); lo mandás vos con "Responder".
 
 **La IA dijo algo que no es cierto.**
 Corregí el texto antes de responder. La IA usa sólo los datos de la publicación y de la ficha: si la ficha está incompleta o mal, conviene corregirla.
@@ -125,3 +126,18 @@ El número de la venta (o del carrito) en Mercado Libre. Si dice "sin pedido en 
 - [Vincular con Mercado Libre](/catalogo/publicaciones/ml)
 - [Canales](/config/canales)
 - [Panel](/panel)
+
+## Respuesta automática
+
+Hay **dos interruptores, uno para preguntas y otro para mensajes**, arriba a la derecha de cada pestaña. Valen para **todas las cuentas** de Mercado Libre a la vez. Vienen apagados.
+
+- **Apagado**: la IA sólo propone la respuesta; la mandás vos.
+- **Prendido**: cuando entra una pregunta o un mensaje, la IA arma la respuesta y **la manda sola** a Mercado Libre, sin que nadie la apruebe. En el historial queda **"Respondió la IA sola"**.
+
+La IA **no** manda sola (deja la respuesta escrita para que la revises vos) cuando:
+- **El comprador pide hablar con una persona** (con un humano, con alguien de la tienda, o dice que no quiere que le conteste un robot). En la pregunta aparece la marca **"Pide hablar con una persona"**. En un mensaje, la conversación queda marcada **"Pidió hablar con una persona: la IA no contesta más sola"** y desde ahí **la IA no vuelve a contestar sola esa conversación**, aunque el comprador escriba de nuevo; la contestás vos.
+- **Le falta un dato** para contestar bien (algo que no está en la publicación, la ficha, el stock o el pedido). Aparece **"La IA no la mandó sola: le falta un dato"**.
+- En mensajes, además: sólo contesta si el último mensaje es del comprador y es de los últimos 3 días.
+
+Al **prender** un interruptor, lo que está pendiente (preguntas sin responder, o conversaciones con mensajes sin leer) se vuelve a pasar por la IA, y en unos minutos (en el próximo barrido) se contesta lo que la IA puede contestar. Abrir una conversación en Laucen la da por leída: si la abrís, esa ya no la contesta la IA sola hasta que el comprador escriba de nuevo.
+

@@ -13,6 +13,7 @@ import { patronBusqueda, url } from "@/app/componentes/erp";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { hoyArgentina, rangoDeAtajo } from "@/lib/rango-fechas";
+import { QUE_PROMO } from "@/app/informes/promociones/formato";
 import { CAMPOS_CAMBIO, ORIGENES_CAMBIO, describirCambioMl, esCampoCambio, textoPct, valorCambio, variacionPct, type CampoCambio } from "./formato";
 
 export const BASE_CAMBIOS = "/informes/cambios-publicaciones";
@@ -105,6 +106,16 @@ const CAMPOS: Campo[] = [
   },
   { clave: "cambios", titulo: "Cambios", sql: "c.cambios", formato: "entero", desc: true },
   {
+    // Qué anotó Laucen de las campañas de ML alrededor de un cambio de precio: una campaña que empezó o terminó, la
+    // publicación que entró, salió o cambió de precio en ella (lib/precios-ml/promos.ts). Sirve de pista, no de prueba.
+    clave: "causa", titulo: "Posible causa (campañas de ML)", orden: false, ancho: 60,
+    sql: `case when c.campo = 'precio' then (
+      select string_agg(distinct coalesce(p.nombre, p.promocion_id) || '|' || p.que, '; ') from ml_promo_historia p
+       where p.canal_id = c.canal_id and p.fecha between c.fecha - interval '90 minutes' and c.fecha + interval '10 minutes'
+         and (p.item_id = c.item_id or (p.item_id is null and p.promocion_id in (select i.promocion_id from ml_promo_item i where i.canal_id = c.canal_id and i.item_id = c.item_id)))) end`,
+    valor: (f) => !f.causa ? null : String(f.causa).split("; ").map((x) => { const [nombre, que] = x.split("|"); return `${nombre}: ${QUE_PROMO[que] ?? que}`; }).join("; "),
+  },
+  {
     clave: "origen", titulo: "Origen", sql: "c.origen", valor: traducido("origen", ORIGENES_CAMBIO), usa: ["item"],
     celda: (f) => f.origen === "externo" ? <span>{ORIGENES_CAMBIO.externo}</span> : (
       <Link href={url("/config/canales/cola", { ver: "enviados", q: f.item })} className={ENLACE} title="Lo que mandó la cola a esta publicación">
@@ -120,7 +131,7 @@ export const LISTA_CAMBIOS_PUBLICACIONES: Lista = {
   ruta: BASE_CAMBIOS,
   permiso: "informes_publicaciones_ver",
   campos: CAMPOS,
-  enPantalla: ["fecha", "cuenta", "item", "sku", "titulo", "campo", "cambio", "cambios", "origen"],
+  enPantalla: ["fecha", "cuenta", "item", "sku", "titulo", "campo", "cambio", "cambios", "origen", "causa"],
   siempre: "c.id::int as id, v.producto_id::int as producto_id, (select array_agg(pf.url order by pf.orden) from producto_foto pf where pf.producto_id = v.producto_id) as fotos",
   porDefecto: "fecha",
   consulta: async (ctx, sp) => {

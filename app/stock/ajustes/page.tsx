@@ -9,8 +9,9 @@ import { PRIMARIO } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import ElegirUbicacion from "@/app/componentes/ElegirUbicacion";
+import ProductoYUbicacion, { FIRME } from "./ProductoYUbicacion";
 import {
-  entrarErp, Pantalla, Avisos, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  entrarErp, Pantalla, Avisos, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAJA,
 } from "@/app/componentes/erp";
 import { accionAjustar, accionTransferir } from "./acciones";
 
@@ -18,13 +19,15 @@ export const dynamic = "force-dynamic";
 
 type SP = { sku?: string; ok?: string; error?: string };
 
-type Ubic = { id: number; deposito_id: number; deposito: string; codigo: string; es_default: boolean };
+const ETQ = "block text-xs font-semibold text-[#3D4A54] mb-0.5";
+
+type Ubic = { id: number; deposito_id: number; deposito: string; codigo: string; es_default: boolean; descripcion: string | null };
 
 /** Depósito → ubicación, con buscador (son cientos). */
 function SelectorUbicacion({ name, ubicaciones, etiqueta }: { name: string; ubicaciones: Ubic[]; etiqueta: string }) {
   return (
-    <div><span className={ETIQUETA}>{etiqueta}</span>
-      <ElegirUbicacion name={name} className="w-64"
+    <div><span className="block text-xs font-semibold text-[#3D4A54] mb-0.5">{etiqueta}</span>
+      <ElegirUbicacion name={name} className="w-72" firme
         opciones={ubicaciones.map((u) => ({ valor: String(u.id), texto: `${u.deposito} · ${u.es_default ? "General" : u.codigo}` }))} />
     </div>
   );
@@ -37,10 +40,12 @@ export default async function Ajustes({ searchParams }: { searchParams: Promise<
   // Ubicaciones activas de depósitos activos; si el depósito no usa
   // ubicaciones, sólo su general.
   const ubicaciones = await consulta<Ubic>(`
-    select u.id::int, d.id::int deposito_id, d.nombre deposito, u.codigo, u.es_default
+    select u.id::int, d.id::int deposito_id, d.nombre deposito, u.codigo, u.es_default, u.descripcion
       from ubicacion u join deposito d on d.id = u.deposito_id
      where u.organizacion_id = $1 and u.estado = 'activa' and d.estado = 'activo' and (u.es_default or d.usa_ubicaciones)
      order by d.nombre, u.es_default desc, u.orden_recorrido, u.codigo`, [s.org.id]);
+
+  const opcionesUbic = ubicaciones.map((u) => ({ valor: String(u.id), texto: `${u.deposito} · ${u.es_default ? "General" : u.codigo}`, detalle: u.descripcion }));
 
   const ultimos = await consulta<{
     id: number; fecha: string; tipo: TipoMovimiento; variacion_id: number; sku: string; origen: string | null; destino: string | null;
@@ -67,17 +72,15 @@ export default async function Ajustes({ searchParams }: { searchParams: Promise<
           <section className={CAJA}>
             <h2 className="text-sm font-bold mb-2">Ajuste</h2>
             <form action={accionAjustar} className="flex flex-wrap items-end gap-2">
-              <label><span className={ETIQUETA}>SKU o código de barras</span>
-                <input name="sku" defaultValue={sp.sku ?? ""} className={`${CAMPO} w-44`} autoFocus /></label>
-              <SelectorUbicacion name="ubicacion" ubicaciones={ubicaciones} etiqueta="Depósito · ubicación" />
-              <label><span className={ETIQUETA}>Sumar o restar</span>
-                <select name="sentido" defaultValue="sumar" className={CAMPO}>
+              <ProductoYUbicacion nombreUbicacion="ubicacion" etiquetaUbicacion="Depósito · ubicación" skuInicial={sp.sku ?? ""} opciones={opcionesUbic} />
+              <label><span className={ETQ}>Sumar o restar</span>
+                <select name="sentido" defaultValue="sumar" className={FIRME}>
                   <option value="sumar">Sumar (+)</option><option value="restar">Restar (−)</option>
                 </select></label>
-              <label><span className={ETIQUETA}>Cantidad</span>
-                <CampoNumero name="cantidad" valor={null} tipo="entero" className={`${CAMPO} w-20`} /></label>
-              <label className="w-full"><span className={ETIQUETA}>Motivo (obligatorio)</span>
-                <input name="motivo" placeholder="Ej. conteo físico, rotura, apareció en otro estante" className={`${CAMPO} w-full`} /></label>
+              <label><span className={ETQ}>Cantidad</span>
+                <CampoNumero name="cantidad" valor={null} tipo="entero" className={`${FIRME} w-24`} /></label>
+              <label className="w-full"><span className={ETQ}>Motivo (obligatorio)</span>
+                <input name="motivo" placeholder="Ej. conteo físico, rotura, apareció en otro estante" className={`${FIRME} w-full`} /></label>
               <BotonEnviar clase={PRIMARIO} corriendo="Guardando…">Ajustar</BotonEnviar>
             </form>
           </section>
@@ -85,14 +88,12 @@ export default async function Ajustes({ searchParams }: { searchParams: Promise<
           <section className={CAJA}>
             <h2 className="text-sm font-bold mb-2">Transferencia</h2>
             <form action={accionTransferir} className="flex flex-wrap items-end gap-2">
-              <label><span className={ETIQUETA}>SKU o código de barras</span>
-                <input name="sku" defaultValue={sp.sku ?? ""} className={`${CAMPO} w-44`} /></label>
-              <label><span className={ETIQUETA}>Cantidad</span>
-                <CampoNumero name="cantidad" valor={null} tipo="entero" className={`${CAMPO} w-20`} /></label>
-              <SelectorUbicacion name="origen" ubicaciones={ubicaciones} etiqueta="Desde" />
+              <ProductoYUbicacion nombreUbicacion="origen" etiquetaUbicacion="Desde" skuInicial={sp.sku ?? ""} opciones={opcionesUbic} />
+              <label><span className={ETQ}>Cantidad</span>
+                <CampoNumero name="cantidad" valor={null} tipo="entero" className={`${FIRME} w-24`} /></label>
               <SelectorUbicacion name="destino" ubicaciones={ubicaciones} etiqueta="Hacia" />
-              <label className="w-full"><span className={ETIQUETA}>Nota (opcional)</span>
-                <input name="nota" className={`${CAMPO} w-full`} /></label>
+              <label className="w-full"><span className={ETQ}>Nota (opcional)</span>
+                <input name="nota" className={`${FIRME} w-full`} /></label>
               <BotonEnviar clase={PRIMARIO} corriendo="Guardando…">Transferir</BotonEnviar>
             </form>
           </section>

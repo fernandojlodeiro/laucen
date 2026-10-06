@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import FotosProducto from "@/app/componentes/FotosProducto";
+import { SUAVE } from "@/app/botones";
 import { Estado, url, patronBusqueda } from "@/app/componentes/erp";
 import { verInactivos } from "@/app/componentes/Inactivos";
 import { consulta } from "@/lib/erp/base";
@@ -22,6 +23,22 @@ const DISPONIBLE = `(select coalesce(sum(stock_disponible_deposito(p.organizacio
             from variacion v cross join deposito d
            where v.producto_id = p.id and d.organizacion_id = p.organizacion_id and d.estado = 'activo')`;
 const VARIACIONES = "(select count(*) from variacion v where v.producto_id = p.id)";
+// En cuántas cuentas de Mercado Libre (canales distintos, activos) tiene publicado el producto (Fer, 5/10): una
+// publicación activa o pausada de cualquiera de sus variaciones; no cuenta las cerradas, ni cuántas publicaciones
+// tiene en una misma cuenta (cuotas, variaciones), ni la web.
+const PUBLICADO_ML = `(select count(distinct pu.canal_id) from publicacion pu join variacion v on v.id = pu.variacion_id join canal c on c.id = pu.canal_id
+            where v.producto_id = p.id and c.tipo = 'mercadolibre' and c.estado = 'activo' and pu.estado <> 'cerrada')`;
+// Ventas en Mercado Libre (Fer, 5/10): lo vendido que informa ML de cada publicación vinculada al
+// producto (todas las cuentas y estados; en una con variaciones, lo de cada variación). Sin ventas, 0.
+const VENDIDOS_ML = `(select coalesce(sum(mi.vendidos), 0) from meli_item mi join publicacion pu on pu.id = mi.publicacion_id
+            join variacion v on v.id = pu.variacion_id where v.producto_id = p.id)`;
+const CUENTAS_ML = "(select count(*) from canal c where c.organizacion_id = p.organizacion_id and c.tipo = 'mercadolibre' and c.estado = 'activo')";
+
+/** "ML 3/5": en cuántas de las cuentas de Mercado Libre está publicado. */
+function MarcaMl({ n, total }: { n: number; total: number }) {
+  if (!total) return null;
+  return <Estado texto={`ML ${n}/${total}`} tono={n === 0 ? "gris" : n >= total ? "verde" : "amarillo"} />;
+}
 
 /** Los filtros de la pantalla, leídos de la dirección. */
 export function filtrosProductos(sp: SP) {
@@ -46,6 +63,12 @@ export function filtrosProductos(sp: SP) {
     webVer: sp.webver === "activa" || sp.webver === "apagado" || sp.webver === "apagado_stock" ? sp.webver : "",
     // Sin ninguna publicación activa en ningún canal (ML ni web).
     sinCanal: sp.sincanal === "1",
+    // Los marcados "No publicable" (insumos, unidades que sólo se venden en pack).
+    noPublicable: sp.nopub === "1",
+    // Sólo los publicables (sin los "No publicable").
+    publicables: sp.pub === "1",
+    // En cuántas cuentas de ML está publicado (0 = en ninguna), como la columna Publicaciones.
+    enCuentas: /^[0-9]$/.test(sp.encuentas ?? "") ? Number(sp.encuentas) : null,
   };
 }
 
@@ -61,9 +84,17 @@ const CAMPOS: Campo[] = [
   },
   {
     clave: "titulo", titulo: "Título", sql: "p.titulo", ancho: 50,
-    celda: (f) => (
-      <><Link href={`/catalogo/productos/${f.id}`} className="hover:underline">{f.titulo}</Link>
-        {f.kit_vs && <span className="ml-1.5"><Estado texto="Kit VS" tono="azul" /></span>}</>
+    celda: (f, ctx) => (
+      <span className="flex items-center justify-between gap-2">
+        <span><Link href={`/catalogo/productos/${f.id}`} className="hover:underline">{f.titulo}</Link>
+          {f.kit_vs && <span className="ml-1.5"><Estado texto="Kit VS" tono="azul" /></span>}
+          {f.no_publicable ? <span className="ml-1.5"><Estado texto="No publicable" tono="gris" /></span>
+            : <span className="ml-1.5" title="En cuántas cuentas de Mercado Libre está publicado (activa o pausada)"><MarcaMl n={f.ml_n} total={f.ml_total} /></span>}</span>
+        {/* Con el filtro de "sin publicación activa en ML": publicarlo copiando una publicación parecida. */}
+        {(ctx.sp.sinpublicar === "1" || Number(ctx.sp.sinpubcanal) > 0) && (
+          <Link href={`/catalogo/productos/${f.id}/publicar-ml`} className={`${SUAVE} !py-1 whitespace-nowrap`} title="Buscar publicaciones parecidas en tus cuentas de Mercado Libre y copiar una">Buscar en ML</Link>
+        )}
+      </span>
     ),
   },
   { clave: "marca", titulo: "Marca", sql: "p.marca", celda: (f) => f.marca ? <Link href={url("/catalogo/productos", { q: f.marca, contiene: null })} className={ENLACE}>{f.marca}</Link> : "—" },
@@ -80,6 +111,14 @@ const CAMPOS: Campo[] = [
   {
     clave: "variaciones", titulo: "Variaciones", sql: `${VARIACIONES}::int`, orden: VARIACIONES, formato: "entero",
     celda: (f) => <Link href={`/catalogo/productos/${f.id}`} className="text-[#16577F] hover:underline">{f.variaciones}</Link>,
+  },
+  {
+    clave: "publicaciones", titulo: "Publicaciones", sql: `${PUBLICADO_ML}::int`, orden: PUBLICADO_ML, formato: "entero", usa: ["sku"],
+    celda: (f) => <Link href={url("/catalogo/publicaciones", { q: f.sku })} className="text-[#16577F] hover:underline" title="Cuentas de Mercado Libre donde está publicado (activa o pausada)">{f.publicaciones}</Link>,
+  },
+  {
+    clave: "vendidos_ml", titulo: "Vendidos ML", sql: `${VENDIDOS_ML}::int`, orden: VENDIDOS_ML, formato: "entero",
+    celda: (f) => <Link href={`/catalogo/productos/${f.id}?seccion=publicaciones`} className="hover:underline" title="Unidades vendidas en Mercado Libre (lo que informa ML, sumando todas sus publicaciones)">{Number(f.vendidos_ml).toLocaleString("es-AR")}</Link>,
   },
   {
     clave: "disponible", titulo: "Disponible", sql: `${DISPONIBLE}::int`, orden: DISPONIBLE, formato: "entero", usa: ["sku"],
@@ -107,6 +146,7 @@ const CAMPOS: Campo[] = [
   { clave: "stock_minimo", titulo: "Stock mínimo", sql: "p.stock_minimo", formato: "entero" },
   { clave: "umbral_pausa", titulo: "Umbral de pausa", sql: "p.umbral_pausa", formato: "entero" },
   { clave: "kit_vs", titulo: "Kit de Virtual Seller", sql: "p.kit_vs", formato: "sino" },
+  { clave: "no_publicable", titulo: "No publicable", sql: "p.no_publicable", formato: "sino" },
   { clave: "fotos_n", titulo: "Fotos", sql: "(select count(*) from producto_foto pf where pf.producto_id = p.id)::int", formato: "entero" },
   { clave: "foto", titulo: "Foto principal (dirección)", sql: "(select pf.url from producto_foto pf where pf.producto_id = p.id order by pf.orden, pf.id limit 1)", orden: false, ancho: 40 },
   { clave: "descripcion", titulo: "Descripción", sql: "p.descripcion", orden: false, ancho: 60 },
@@ -121,8 +161,9 @@ export const LISTA_PRODUCTOS: Lista = {
   permiso: "productos_ver",
   vistas: true,
   porDefecto: "titulo",
-  enPantalla: ["sku", "titulo", "familia", "tipo", "variaciones", "disponible", "estado"],
-  siempre: `p.id::int id, p.familia_id::int familia_id, p.kit_vs, p.estado _estado,
+  enPantalla: ["sku", "titulo", "familia", "tipo", "variaciones", "publicaciones", "vendidos_ml", "disponible", "estado"],
+  siempre: `p.id::int id, p.familia_id::int familia_id, p.kit_vs, p.no_publicable, p.estado _estado,
+            ${PUBLICADO_ML}::int ml_n, ${CUENTAS_ML}::int ml_total,
             (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = p.id) fotos`,
   // Un precio por cada lista de precios (el de lista, de la variación principal, hoy).
   campos: async (ctx) => {
@@ -153,9 +194,12 @@ export const LISTA_PRODUCTOS: Lista = {
          and (not $8 or ${SQL_SIN_PUBLICAR})
          and (not $9 or ${SQL_SIN_FOTOS})
          and ($10::bigint = 0 or ${sqlSinPublicarEnCanal("$10::bigint")})
-         and (not $11 or not exists (select 1 from publicacion pu join variacion v on v.id = pu.variacion_id
-                                      where v.producto_id = p.id and pu.estado = 'activa'))`,
-      valores: [ctx.org, patronBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn, f.sinCanal],
+         and (not $11 or (not p.no_publicable and not exists (select 1 from publicacion pu join variacion v on v.id = pu.variacion_id
+                                      where v.producto_id = p.id and pu.estado = 'activa')))
+         and (not $12 or p.no_publicable)
+         and (not $13 or not p.no_publicable)
+         and ($14::int is null or ${PUBLICADO_ML} = $14::int)`,
+      valores: [ctx.org, patronBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn, f.sinCanal, f.noPublicable, f.publicables, f.enCuentas],
       orden: "p.titulo, p.id",
     };
   },

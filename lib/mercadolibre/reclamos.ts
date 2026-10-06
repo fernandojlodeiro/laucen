@@ -58,6 +58,70 @@ export type ResolucionEsperadaMl = { player_role: string; expected_resolution: s
 
 /** Cómo se lee de ML (GET): por defecto la API con la llave de la cuenta. Los tests pasan otro. */
 export type Leer = (ruta: string) => Promise<RespuestaMl>;
+
+/** Lo que se guarda de la orden de ML de un reclamo sin pedido en Laucen (venta de Virtual Seller): quién compró y qué. */
+export type OrdenMlResumen = {
+  comprador: { id: number | null; nickname: string | null; nombre: string | null };
+  fecha: string | null; estado: string | null; total: number | null; envio_id: string | null;
+  /** Si ML no dio la orden: por qué. Entonces el comprador y los productos son lo poco que se sabe por la devolución. */
+  error?: string | null;
+  items: { item_id: string; titulo: string | null; cantidad: number; precio: number | null; sku: string | null; foto: string | null; permalink: string | null; reclamado: boolean }[];
+};
+
+type OrdenMl = {
+  date_created?: string; status?: string; total_amount?: number; shipping?: { id?: number | string | null };
+  buyer?: { id?: number; nickname?: string; first_name?: string; last_name?: string };
+  order_items?: { item?: { id?: string; title?: string; seller_sku?: string | null; seller_custom_field?: string | null }; quantity?: number; unit_price?: number }[];
+};
+
+/** Resume una orden de ML. `devueltos` = los item_id de la devolución (si el reclamo es de una parte de la orden). Puro. */
+export function resumirOrdenMl(o: OrdenMl | null | undefined, devueltos: string[] = []): OrdenMlResumen | null {
+  if (!o || typeof o !== "object" || !Array.isArray(o.order_items)) return null;
+  const nombre = [o.buyer?.first_name, o.buyer?.last_name].filter(Boolean).join(" ").trim();
+  return {
+    comprador: { id: o.buyer?.id ?? null, nickname: o.buyer?.nickname ?? null, nombre: nombre || null },
+    fecha: o.date_created ?? null, estado: o.status ?? null, total: o.total_amount ?? null, envio_id: o.shipping?.id != null ? String(o.shipping.id) : null,
+    items: o.order_items.filter((x) => x.item?.id).map((x) => ({
+      item_id: x.item!.id!, titulo: x.item!.title ?? null, cantidad: x.quantity ?? 1, precio: x.unit_price ?? null,
+      sku: x.item!.seller_sku?.trim() || x.item!.seller_custom_field?.trim() || null, foto: null, permalink: null,
+      reclamado: devueltos.length === 0 || devueltos.includes(x.item!.id!),
+    })),
+  };
+}
+
+/** Pide a ML la orden del reclamo (comprador y productos) y los datos de cada producto (título, foto, enlace). Si ML no da la
+ *  orden, se arma lo que se puede con el artículo de la devolución y se anota por qué (`error`). */
+async function traerOrdenMl(leer: Leer, orden: string, devueltos: { item_id: string; cantidad: number }[], compradorId: string | null): Promise<OrdenMlResumen | null> {
+  try {
+    const r = await leer(`/orders/${orden}`);
+    let res = r.status === 200 ? resumirOrdenMl(r.datos as OrdenMl, devueltos.map((x) => x.item_id)) : null;
+    let error: string | null = null;
+    if (!res) {
+      const d = r.datos as { message?: string; error?: string } | string | null;
+      const detalle = typeof d === "string" ? d.slice(0, 120) : d?.message ?? d?.error ?? "";
+      error = `Mercado Libre no dio la orden (${r.status === 0 ? "sin respuesta" : r.status}${detalle ? `: ${detalle}` : ""}).`;
+      if (!devueltos.length) return { comprador: { id: compradorId ? Number(compradorId) : null, nickname: null, nombre: null }, fecha: null, estado: null, total: null, envio_id: null, items: [], error };
+      res = {
+        comprador: { id: compradorId ? Number(compradorId) : null, nickname: null, nombre: null }, fecha: null, estado: null, total: null, envio_id: null,
+        items: devueltos.map((x) => ({ item_id: x.item_id, titulo: null, cantidad: x.cantidad, precio: null, sku: null, foto: null, permalink: null, reclamado: true })),
+      };
+    }
+    res.error = error;
+    if (!res.items.length) return res;
+    const it = await leer(`/items?ids=${[...new Set(res.items.map((x) => x.item_id))].slice(0, 20).join(",")}&attributes=id,title,secure_thumbnail,permalink,seller_custom_field`);
+    if (it.status === 200 && Array.isArray(it.datos)) {
+      const por = new Map((it.datos as { code: number; body: { id: string; title?: string; secure_thumbnail?: string; permalink?: string; seller_custom_field?: string | null } }[]).filter((x) => x.code === 200).map((x) => [x.body.id, x.body]));
+      for (const x of res.items) {
+        const b = por.get(x.item_id);
+        x.titulo = x.titulo ?? b?.title ?? null; x.foto = b?.secure_thumbnail ?? null; x.permalink = b?.permalink ?? null; x.sku = x.sku ?? b?.seller_custom_field?.trim() ?? null;
+      }
+    }
+    return res;
+  } catch (e) {
+    return { comprador: { id: compradorId ? Number(compradorId) : null, nickname: null, nombre: null }, fecha: null, estado: null, total: null, envio_id: null, items: [], error: `No se pudo pedir la orden a Mercado Libre (${(e as Error).message.slice(0, 100)}).` };
+  }
+}
+
 const leerDe = (cuenta: CuentaMl): Leer => (ruta) => ml(cuenta, "GET", ruta);
 
 // ── En criollo ─────────────────────────────────────────────
@@ -215,8 +279,8 @@ export async function importarReclamo(cuenta: CuentaMl, claimId: string, leer: L
   const r = await leer(`/post-purchase/v1/claims/${claimId}`);
   if (r.status !== 200) throw new Error(`reclamo ${claimId}: ${motivoMl(r)}`);
   const c = r.datos as ReclamoMl;
-  const antes = await una<{ id: string; estado: string; etapa: string | null; motivo_id: string | null; motivo: string | null; devolucion_estado: string | null; pedido_id: string | null }>(
-    "select id, estado, etapa, motivo_id, motivo, devolucion_estado, pedido_id from reclamo where organizacion_id = $1 and origen = 'mercadolibre' and id_externo = $2",
+  const antes = await una<{ id: string; estado: string; etapa: string | null; motivo_id: string | null; motivo: string | null; devolucion_estado: string | null; pedido_id: string | null; orden_ml: OrdenMlResumen | null }>(
+    "select id, estado, etapa, motivo_id, motivo, devolucion_estado, pedido_id, datos_externos -> 'orden_ml' orden_ml from reclamo where organizacion_id = $1 and origen = 'mercadolibre' and id_externo = $2",
     [org, String(c.id)]);
 
   const [mens, dev, esperadas] = await Promise.all([
@@ -244,8 +308,16 @@ export async function importarReclamo(cuenta: CuentaMl, claimId: string, leer: L
                     case when not bool_or(l.datos_externos #>> '{ml,order_id}' = $2) then sum(l.cantidad * l.precio_unit_ars) end) m
       from pedido_linea l where l.pedido_id = $1`, [pedidoId, f.orden_externa ?? ""]) : null;
 
+  // Sin pedido en Laucen (venta anterior, de Virtual Seller): quién compró y qué, directo de la orden de ML.
+  const ordenMl = !pedidoId && f.orden_externa
+    ? (await traerOrdenMl(leer, f.orden_externa,
+        (devolucion?.orders ?? []).filter((x) => x.item_id).map((x) => ({ item_id: x.item_id!, cantidad: Number(x.return_quantity ?? x.total_quantity ?? 1) || 1 })), f.comprador_externo))
+      ?? antes?.orden_ml ?? null
+    : null;
   const datos = {
-    ml: c, devolucion, resoluciones_esperadas: esperadas.status === 200 ? esperadas.datos : null,
+    ml: c, devolucion, resoluciones_esperadas: esperadas.status === 200 ? esperadas.datos : null, ...(ordenMl ? { orden_ml: ordenMl } : {}),
+    // Qué se intentó con la orden en esta lectura (para ver por qué falta, si falta).
+    orden_ml_diag: { ts: new Date().toISOString(), orden: f.orden_externa, pedido_en_laucen: pedidoId, resultado: ordenMl ? (ordenMl.error ? "error" : "ok") : pedidoId ? "no hace falta (hay pedido)" : f.orden_externa ? "sin dato" : "sin orden" },
   };
   const fila = await una<{ id: string }>(`
     insert into reclamo (organizacion_id, canal_id, origen, id_externo, pedido_id, cliente_id, orden_externa, comprador_externo, tipo, motivo_id, motivo,

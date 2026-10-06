@@ -24,7 +24,7 @@ Muestra los **envíos de los pedidos** —hoy, los de **Mercado Envíos** (las v
 
 | Pestaña | Qué muestra |
 |---|---|
-| **Para despachar** (la de entrada) | envíos "Listo para despachar" o "En preparación", **sin los de Full** |
+| **Para despachar** (la de entrada) | envíos "Etiqueta lista" o "En preparación", **sin los de Full** |
 | **En camino** | envíos "En camino" |
 | **Entregados** | envíos entregados |
 | **Todos** | todos |
@@ -42,7 +42,7 @@ Muestra los **envíos de los pedidos** —hoy, los de **Mercado Envíos** (las v
 | **Canal** | tocándolo filtra por ese canal |
 | **Logística** | Full, Flex, Colecta, Despacho en correo/punto, A convenir |
 | **Método** | el método de envío que informa Mercado Libre |
-| **Estado** | Pendiente, En preparación, Listo para despachar, En camino, Entregado, No entregado, Cancelado; debajo, el subestado ("Etiqueta lista para imprimir", "Etiqueta impresa") |
+| **Estado** | Pendiente, En preparación, Etiqueta lista, En camino, Entregado, No entregado, Cancelado; debajo, el subestado ("Etiqueta lista para imprimir", "Etiqueta impresa") |
 | **Despachar antes de** | fecha y hora límite para despacharlo; **en rojo** si vence hoy o ya venció |
 | **Tracking** | el número de seguimiento |
 | **Etiqueta impresa** | cuándo se imprimió la etiqueta desde Laucen |
@@ -92,8 +92,10 @@ Errores típicos (se ven como texto en la pestaña nueva):
 
 ## Criterios y reglas
 
+- **"Etiqueta lista" no quiere decir que el pedido esté preparado.** Es el estado del envío en Mercado Libre: lo pone ML solo cuando el pago está aprobado y la etiqueta ya está generada (en general, a los pocos segundos de pagar). Si el pedido todavía figura como **Pagado**, falta prepararlo: el avance de armado lo dice el estado del pedido (Pagado → En preparación → Preparado), no el del envío.
+
 - **De dónde salen los envíos**: de Mercado Envíos. Se crean y actualizan solos cuando Mercado Libre avisa un cambio en un envío o en una venta. Los pedidos cargados a mano o de la tienda web con envío propio **no** aparecen acá (sus datos de entrega se ven en la ficha del pedido).
-- **"Para despachar"** = envíos "Listo para despachar" o "En preparación" que **no son Full**. Los de **Full** los despacha Mercado Libre desde su depósito: no llevan etiqueta ni se tildan.
+- **"Para despachar"** = envíos "Etiqueta lista" o "En preparación" que **no son Full**. Los de **Full** los despacha Mercado Libre desde su depósito: no llevan etiqueta ni se tildan.
 - **Orden**: en "Para despachar", por la hora límite de despacho (lo más urgente arriba; los que no tienen hora, al final). En las demás pestañas, por fecha del pedido, lo más nuevo primero.
 - **En rojo**: la hora límite se pinta de rojo si el envío todavía no salió y su día límite es hoy o ya pasó (día argentino).
 - **Imprimibles**: sólo envíos con id de Mercado Envíos y que no sean de Full.
@@ -120,7 +122,7 @@ Es el formato de las impresoras térmicas de etiquetas: se baja un archivo para 
 **Un envío de la tienda web no aparece.**
 Esta pantalla muestra los envíos de Mercado Envíos. Los datos de entrega de otros pedidos están en la ficha del pedido.
 
-**Imprimí la etiqueta pero el envío sigue "Listo para despachar".**
+**Imprimí la etiqueta pero el envío sigue "Etiqueta lista".**
 Es normal: cambia a "En camino" cuando Mercado Libre registra que salió.
 
 ## Relacionado
