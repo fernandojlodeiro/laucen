@@ -5,9 +5,10 @@
 //   · lo que le mandó Laucen por la cola (ml_cola: estado, precio, stock,
 //     atributos, campañas…) con su resultado;
 //   · lo que pasó con ella en las campañas de ML (ml_promo_historia);
-//   · sus ventas y las del mismo producto en otras publicaciones o canales
-//     (pedido_linea), con enlace al pedido: explican los cambios de stock y
-//     las pausas que vienen de una venta.
+//   · sus ventas (pedido_linea), con enlace al pedido.
+// Columna "Por qué" (Fer, 6/10): una baja de stock o una pausa que llega hasta
+// 30 minutos después de una venta del mismo producto (en ésta u otra
+// publicación o canal) dice "Venta del pedido N" en el mismo renglón.
 // Arriba, "Ver en Mercado Libre ↗" (en otra pestaña).
 
 import Link from "next/link";
@@ -38,7 +39,11 @@ const ESTADO_COLA: Record<string, string> = {
   preparado: "esperando tu clic", pendiente: "en la cola", enviando: "enviándose", ok: "enviado bien", error: "con error", descartado: "descartado",
 };
 
-type Linea = { fecha: Date; variacion: string; tipo: "cambio" | "cola" | "campana" | "venta"; que: string; detalle: string; origen: string; pedido?: number };
+type Linea = { fecha: Date; variacion: string; tipo: "cambio" | "cola" | "campana" | "venta"; que: string; detalle: string; origen: string; pedido?: number;
+  /** Por qué: la venta que lo explica. */
+  porque?: { texto: string; pedido: number } };
+
+const VENTANA_MS = 30 * 60 * 1000;
 
 /** Lo que mandó la cola, en una línea: "Pausada", "$ 19.836", "12 u.", o los datos tal cual. */
 function textoPayload(tipo: string, p: Record<string, unknown> | null): string {
@@ -87,10 +92,25 @@ export default async function HistorialPublicacion({ params, searchParams }: { p
              select pu.variacion_id from meli_item mi join publicacion pu on pu.id = mi.publicacion_id where mi.organizacion_id = $1 and mi.item_id = $2))`, [org, item]),
   ]);
 
+  // La venta más reciente del mismo producto hasta 30 minutos antes de un cambio.
+  const ventaAntes = (f: Date) => {
+    const t = new Date(f).getTime();
+    return ventas.filter((v) => v.estado !== "cancelado" && t - new Date(v.fecha).getTime() >= 0 && t - new Date(v.fecha).getTime() <= VENTANA_MS)
+      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())[0];
+  };
+  const porque = (c: (typeof cambios)[number]): Linea["porque"] => {
+    const baja = c.campo === "stock" && Number(c.despues) < Number(c.antes);
+    const pausa = c.campo === "estado" && c.despues === "paused";
+    if (!baja && !pausa) return undefined;
+    const v = ventaAntes(c.fecha);
+    if (!v) return undefined;
+    return { pedido: v.pedido, texto: baja ? "Venta del pedido" : "Sin stock por la venta del pedido" };
+  };
+
   const lineas: Linea[] = [
     ...cambios.map((c): Linea => ({
       fecha: c.fecha, variacion: c.variation_id, tipo: "cambio", que: CAMPOS_CAMBIO[c.campo as keyof typeof CAMPOS_CAMBIO] ?? c.campo,
-      detalle: describirCambioMl(c.campo, c.antes, c.despues), origen: ORIGENES_CAMBIO[c.origen] ?? c.origen,
+      detalle: describirCambioMl(c.campo, c.antes, c.despues), origen: ORIGENES_CAMBIO[c.origen] ?? c.origen, porque: porque(c),
     })),
     ...cola.map((c): Linea => ({
       fecha: c.fecha, variacion: c.variation_id, tipo: "cola", que: `Laucen mandó: ${TIPO_COLA[c.tipo] ?? c.tipo}`,
@@ -107,11 +127,10 @@ export default async function HistorialPublicacion({ params, searchParams }: { p
         detalle: [QUE_PROMO[c.que] ?? c.que, det].filter(Boolean).join(" · "), origen: "Mercado Libre",
       };
     }),
-    ...ventas.map((v): Linea => ({
-      fecha: v.fecha, variacion: "", tipo: "venta", pedido: v.pedido,
-      que: v.item === item ? "Venta" : "Venta del mismo producto",
-      detalle: `${v.cantidad} u.${v.item === item ? "" : v.item ? ` en ${v.item}` : ` en ${v.canal}`}${v.estado === "cancelado" ? " (cancelado)" : ""}`,
-      origen: v.canal,
+    // Sólo las ventas de ESTA publicación; las del mismo producto en otras aparecen como "Por qué".
+    ...ventas.filter((v) => v.item === item).map((v): Linea => ({
+      fecha: v.fecha, variacion: "", tipo: "venta", pedido: v.pedido, que: "Venta",
+      detalle: `${v.cantidad} u.${v.estado === "cancelado" ? " (cancelado)" : ""}`, origen: v.canal,
     })),
   ].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
   const pagina = paginarEnMemoria(lineas, sp);
@@ -120,7 +139,7 @@ export default async function HistorialPublicacion({ params, searchParams }: { p
   return (
     <Pantalla titulo={`Historial de ${item}`}
       camino={[{ texto: item }]}
-      subtitulo="Todo lo que le cambió a esta publicación, lo más nuevo arriba: estado, precio y stock (desde el 3/10/2026), lo que le mandó Laucen, sus ventas y las del mismo producto en otras publicaciones, y lo que pasó con ella en las campañas de Mercado Libre."
+      subtitulo="Todo lo que le cambió a esta publicación, lo más nuevo arriba: estado, precio y stock (desde el 3/10/2026), lo que le mandó Laucen, sus ventas y lo que pasó con ella en las campañas de Mercado Libre. «Por qué» dice la venta que explica una baja de stock o una pausa."
       acciones={<a href={enlaceMl(item, pub?.permalink)} target="_blank" rel="noopener noreferrer" className={SUAVE}>Ver en Mercado Libre ↗</a>}>
       {existe ? (
         <div className={`${CAJA} mb-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm`}>
@@ -149,6 +168,7 @@ export default async function HistorialPublicacion({ params, searchParams }: { p
               <th className={TH}>Qué</th>
               <th className={TH}>Detalle</th>
               <th className={TH}>Quién</th>
+              <th className={TH}>Por qué</th>
             </tr>
           </thead>
           <tbody>
@@ -162,9 +182,12 @@ export default async function HistorialPublicacion({ params, searchParams }: { p
                   {l.pedido && l.detalle ? " · " : ""}{l.detalle || (l.pedido ? "" : "—")}
                 </td>
                 <td className={`${TD} whitespace-nowrap text-[#5C6B76]`}>{l.origen}</td>
+                <td className={`${TD} whitespace-nowrap`}>
+                  {l.porque ? <>{l.porque.texto} <Link href={`/ventas/pedidos/${l.porque.pedido}`} className={`${ENLACE} font-semibold`}>{l.porque.pedido}</Link></> : ""}
+                </td>
               </tr>
             ))}
-            {!lineas.length && <tr><td colSpan={5} className={`${TD} text-center text-[#5C6B76] py-6`}>No hay nada anotado de esta publicación.</td></tr>}
+            {!lineas.length && <tr><td colSpan={6} className={`${TD} text-center text-[#5C6B76] py-6`}>No hay nada anotado de esta publicación.</td></tr>}
           </tbody>
         </table>
       </div>
