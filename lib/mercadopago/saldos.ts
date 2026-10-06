@@ -253,3 +253,12 @@ export async function ultimoDisponible(org: string): Promise<Map<number, NonNull
      order by conexion_id, leido_ts desc`, [org]);
   return new Map(f.map((x) => [x.conexion_id, x.d]));
 }
+
+/** La última lectura guardada de cada cuenta (sin pedir nada a Mercado Pago). */
+export async function lecturasGuardadas(org: string): Promise<{ conexiones: ConexionMp[]; lecturas: Map<number, Lectura> }> {
+  const conexiones = await conexionesDe(org);
+  const f = await consulta<{ conexion_id: number; leido_ts: Date; datos: Numeros; intentos: Intento[] }>(`
+    select distinct on (conexion_id) conexion_id::int, leido_ts, datos, intentos from mp_saldo
+     where organizacion_id = $1 and conexion_id is not null order by conexion_id, leido_ts desc`, [org]);
+  return { conexiones, lecturas: new Map(f.map((x) => [x.conexion_id, { conexionId: x.conexion_id, leidoTs: x.leido_ts, datos: x.datos ?? {}, intentos: x.intentos ?? [] }])) };
+}

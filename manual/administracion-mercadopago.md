@@ -33,7 +33,7 @@ Una misma cuenta de Mercado Pago puede estar en varios canales (por ejemplo, la 
 
 ### Ver los números de ahora
 
-Abrí la pantalla: lee todas las cuentas en ese momento. Para volver a leer, **"↻ Actualizar"** (arriba a la derecha).
+Abrí la pantalla: muestra lo último leído al instante y, si esa lectura tiene más de 10 minutos, lee de nuevo sola, de fondo. Para leer en el momento, **"↻ Actualizar"** (arriba a la derecha): el botón dice **"Trabajando…"**, podés seguir usando Laucen y, cuando termina, aparece un cartel verde ("Se leyeron N de N cuentas correctamente") y la pantalla se actualiza sola.
 
 ### Conectar una cuenta de Mercado Pago
 

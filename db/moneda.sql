@@ -145,3 +145,22 @@ alter table usuario_preferencia add column if not exists historial jsonb;
 
 -- El buscador de arriba incluye los inactivos (Fer, 6/10): la caja queda como la dejó cada usuario.
 alter table usuario_preferencia add column if not exists buscar_inactivos boolean not null default false;
+
+-- Tareas que corren de fondo (Fer, 6/10): un botón que demora no deja la
+-- pantalla esperando: lanza la tarea, el botón dice "Trabajando…" y, al
+-- terminar, aparece un cartel (verde si salió bien) y la pantalla se
+-- actualiza sola, aunque la persona esté en otra pantalla.
+create table if not exists tarea_fondo (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  usuario_id       text not null,
+  tipo             text not null,
+  titulo           text not null,
+  estado           text not null default 'corriendo' check (estado in ('corriendo', 'ok', 'error')),
+  mensaje          text,
+  creado_ts        timestamptz not null default now(),
+  terminado_ts     timestamptz,
+  avisado          boolean not null default false
+);
+create index if not exists tarea_fondo_usuario on tarea_fondo (usuario_id, avisado, creado_ts desc);
+alter table tarea_fondo enable row level security;

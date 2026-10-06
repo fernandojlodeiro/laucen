@@ -25,6 +25,7 @@ import { BarraMenu, MenuCelular } from "./BarraMenu";
 import Historial from "./Historial";
 import { accionMonedaVista } from "./acciones";
 import Asistente from "@/app/componentes/asistente/Asistente";
+import { AvisosTareas } from "@/app/componentes/TareasFondo";
 import { configAsistente, CONFIG_DEFECTO } from "@/lib/asistente/config";
 
 export default async function Marco({ children, version }: { children: React.ReactNode; version: string }) {
@@ -97,6 +98,7 @@ export default async function Marco({ children, version }: { children: React.Rea
 
       {/* Lo último que viste: sobre el margen izquierdo, si hay lugar */}
       <Suspense fallback={null}><Historial inicial={historial} /></Suspense>
+      <AvisosTareas />
 
       {/* El asistente: la carita abajo a la derecha (lib/asistente/motor.ts) */}
       {puede("asistente_usar") && (

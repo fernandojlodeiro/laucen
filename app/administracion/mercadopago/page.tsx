@@ -10,12 +10,14 @@ import { SUAVE } from "@/app/botones";
 import { entrarErp, Pantalla, Avisos, Estado, TituloSeccion, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import { consulta } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
-import { leerTodas, ultimoDisponible, type Numeros } from "@/lib/mercadopago/saldos";
+import { lecturasGuardadas, ultimoDisponible, type Numeros } from "@/lib/mercadopago/saldos";
+import { BotonTarea } from "@/app/componentes/TareasFondo";
+import { accionLeerMercadoPago } from "./acciones";
+import LeerSolo from "./LeerSolo";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const BASE = "/administracion/mercadopago";
 const ZONA = "America/Argentina/Buenos_Aires";
 const hora = (d: Date | string) => new Date(d).toLocaleString("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 const dia = (d: string) => new Date(d).toLocaleDateString("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit" });
@@ -41,7 +43,10 @@ const RENGLONES: Renglon[] = [
 export default async function MercadoPago({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
   const s = await entrarErp("mercadopago_ver");
   const sp = await searchParams;
-  const { conexiones, lecturas } = await leerTodas(s.org.id);
+  // Lo guardado se ve al instante; la lectura nueva corre de fondo ("↻ Actualizar", o sola si la última tiene más de 10 minutos).
+  const { conexiones, lecturas } = await lecturasGuardadas(s.org.id);
+  const masNueva = Math.max(0, ...[...lecturas.values()].map((l) => new Date(l.leidoTs).getTime()));
+  const vieja = conexiones.length > 0 && Date.now() - masNueva > 10 * 60_000;
   const ultimos = await ultimoDisponible(s.org.id);
   // Si esta lectura no trajo reporte nuevo, vale el último disponible conocido.
   const datosDe = (id: number): Numeros => {
@@ -54,7 +59,8 @@ export default async function MercadoPago({ searchParams }: { searchParams: Prom
 
   return (
     <Pantalla titulo="Mercado Pago" subtitulo="Los números de cada cuenta de Mercado Pago conectada, leídos en este momento. Sólo lectura: no mueve plata ni cambia nada."
-      acciones={<Link href={BASE} className={SUAVE} prefetch={false}>↻ Actualizar</Link>}>
+      acciones={<BotonTarea accion={accionLeerMercadoPago} tipo="mercadopago" texto="↻ Actualizar" clase={SUAVE} />}>
+      <LeerSolo vieja={vieja} />
       <Avisos sp={sp} />
 
       {conexiones.length === 0 ? (

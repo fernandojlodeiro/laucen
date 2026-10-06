@@ -212,6 +212,13 @@ Campos numéricos (pedido de Fer, 27/9): usar `app/componentes/CampoNumero.tsx` 
 - Campos de una misma fila, alineados aunque una ayuda ocupe dos renglones.
 - Una opción que todavía no se usa se muestra deshabilitada ("próximamente"), no se esconde.
 
+Botones que demoran (pedido de Fer, 6/10): **todo botón que lanza algo que tarda (leer de Mercado
+Libre o Mercado Pago, traer reclamos, facturación, barridas, importaciones) corre de fondo**: el
+botón pasa a "Trabajando…", la pantalla queda libre (se puede ir a otra) y al terminar aparece un
+cartel abajo a la derecha —verde si salió bien, rojo con el motivo si no— y la pantalla se
+actualiza sola. Piezas: `lanzarTarea()` de `lib/tareas-fondo.ts` en la acción y `<BotonTarea>` de
+`app/componentes/TareasFondo.tsx` en la pantalla (los carteles los pone `<AvisosTareas>` del marco).
+
 "Nada de la cocina en las pantallas": un error técnico (de Supabase, de la base) se traduce a
 criollo, nunca se muestra crudo (`motivoLegible()` en `app/auth-actions.ts`).
 
