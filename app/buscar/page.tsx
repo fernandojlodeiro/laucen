@@ -32,27 +32,32 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
     publicaciones: tienePermiso(s.permisos, "publicaciones_ver"),
     proveedores: tienePermiso(s.permisos, "proveedores_ver"),
   };
-  // Documentos escritos con puntos o guiones: se comparan sólo los dígitos. Sólo si lo buscado
-  // parece un documento (sin letras): "SKU02252" no tiene que traer clientes con 02252 en el CUIT.
+  // Documentos escritos con puntos o guiones: se comparan sólo los dígitos, y sólo si lo buscado
+  // no tiene letras (Fer, 6/10: "SKU02252" no tiene que traer clientes con 02252 en el CUIT).
   const digitos = /\p{L}/u.test(q) ? "" : q.replace(/\D/g, "");
   const patronDigitos = digitos.length >= 4 ? `%${digitos}%` : "";
+  // Sin espacios se busca la cadena entera, tal cual; con espacios, cada palabra por separado y
+  // todas tienen que estar (cada una en cualquiera de los campos) (Fer, 6/10).
+  const palabras = [...new Set(q.split(/\s+/).filter(Boolean))].slice(0, 8).map((w) => `%${w.replace(/[\\%_]/g, (x) => `\\${x}`)}%`);
+  /** Cada palabra ($2, el arreglo de palabras) aparece en alguno de los campos. */
+  const todas = (campos: string[]) =>
+    `not exists (select 1 from unnest($2::text[]) w where not coalesce(${campos.map((c) => c.includes(" w") ? c : `${c} ilike w`).join(" or ")}, false))`;
+  // Del producto: sus datos y los de sus variaciones.
+  const CAMPOS_PRODUCTO = ["p.sku_base", "p.titulo", "p.marca", "p.codigo_barras",
+    "exists (select 1 from variacion v where v.producto_id = p.id and (v.sku ilike w or v.titulo ilike w or v.codigo_barras ilike w))"];
 
-  const [productos, pedidos, clientes, publicaciones, proveedores] = q ? await Promise.all([
+  const [productos, pedidos, clientes, publicaciones, proveedores, inactivosOcultos] = q ? await Promise.all([
     ver.productos ? consulta<{ id: number; sku_base: string; titulo: string; estado: string; donde: string | null; fotos: string[] | null }>(`
       select p.id::int, p.sku_base, p.titulo, p.estado,
              (select string_agg(distinct v.sku, ', ') from variacion v
-               where v.producto_id = p.id and v.sku <> p.sku_base and (v.sku ilike $2 or v.codigo_barras = $3)) donde,
+               where v.producto_id = p.id and v.sku <> p.sku_base and (v.sku ilike any($2::text[]) or v.codigo_barras = $3)) donde,
              (select array_agg(url order by orden, id) from producto_foto where producto_id = p.id) fotos
         from producto p
-       where p.organizacion_id = $1
-         -- Un inactivo se ve con la caja tildada, o si lo buscado es justo su SKU (Fer, 6/10).
-         and ($5 or p.estado <> 'archivado' or lower(p.sku_base) = lower($3)
-              or exists (select 1 from variacion v where v.producto_id = p.id and lower(v.sku) = lower($3)))
-         and (p.sku_base ilike $2 or p.titulo ilike $2 or p.codigo_barras = $3 or p.id = $4
-              or exists (select 1 from variacion v where v.producto_id = p.id
-                           and (v.sku ilike $2 or v.codigo_barras = $3 or v.titulo ilike $2)))
-       order by (p.sku_base ilike $3) desc, p.titulo
-       limit ${TOPE}`, [s.org.id, patron, q, n, inactivos]) : [],
+       where p.organizacion_id = $1 and ($5 or p.estado <> 'archivado')
+         and (${todas(CAMPOS_PRODUCTO)}
+              or p.codigo_barras = $3 or p.id = $4)
+       order by (lower(p.sku_base) = lower($3)) desc, p.titulo
+       limit ${TOPE}`, [s.org.id, palabras, q, n, inactivos]) : [],
     ver.pedidos ? consulta<{ id: number; id_externo: string | null; fecha: Date; canal: string; cliente: string | null; estado: EstadoPedido; total_ars: number; total_usd: number }>(`
       select p.id::int, p.id_externo, p.fecha, ca.nombre canal, cl.nombre cliente, p.estado, p.total_ars::float, p.total_usd::float
         from pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
@@ -63,26 +68,33 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
       select c.id::int, c.nombre, c.razon_social, c.email, c.documento_tipo, c.documento_numero, c.cuit
         from cliente c
        where c.organizacion_id = $1
-         and (c.nombre ilike $2 or c.razon_social ilike $2 or c.email ilike $2 or c.documento_numero ilike $2 or c.cuit ilike $2 or c.id = $3
+         and (${todas(["c.nombre", "c.razon_social", "c.email", "c.documento_numero", "c.cuit"])} or c.id = $3
               or ($4 <> '' and (regexp_replace(coalesce(c.documento_numero, ''), '\\D', '', 'g') like $4
                                 or regexp_replace(coalesce(c.cuit, ''), '\\D', '', 'g') like $4)))
        order by c.nombre
-       limit ${TOPE}`, [s.org.id, patron, n, patronDigitos]) : [],
+       limit ${TOPE}`, [s.org.id, palabras, n, patronDigitos]) : [],
     ver.publicaciones ? consulta<{ id: number; id_externo: string | null; titulo: string | null; estado: string; canal: string; producto_id: number; sku: string }>(`
       select pu.id::int, pu.id_externo, coalesce(pu.titulo, v.titulo, p.titulo) titulo, pu.estado, ca.nombre canal, p.id::int producto_id, v.sku
         from publicacion pu join canal ca on ca.id = pu.canal_id join variacion v on v.id = pu.variacion_id join producto p on p.id = v.producto_id
-       where pu.organizacion_id = $1 and (pu.titulo ilike $2 or pu.id_externo ilike $2 or v.sku ilike $2)
+       where pu.organizacion_id = $1 and ($4 or p.estado <> 'archivado')
+         and ${todas(["pu.titulo", "pu.id_externo", "v.sku"])}
        order by (upper(pu.id_externo) = upper($3)) desc, pu.titulo
-       limit ${TOPE}`, [s.org.id, patron, q]) : [],
+       limit ${TOPE}`, [s.org.id, palabras, q, inactivos]) : [],
     ver.proveedores ? consulta<{ id: number; nombre: string; razon_social: string | null; cuit: string | null; email: string | null }>(`
       select pr.id::int, pr.nombre, pr.razon_social, pr.cuit, pr.email
         from proveedor pr
        where pr.organizacion_id = $1
-         and (pr.nombre ilike $2 or pr.razon_social ilike $2 or pr.cuit ilike $2 or pr.id = $3
+         and (${todas(["pr.nombre", "pr.razon_social", "pr.cuit"])} or pr.id = $3
               or ($4 <> '' and regexp_replace(coalesce(pr.cuit, ''), '\\D', '', 'g') like $4))
        order by pr.nombre
-       limit ${TOPE}`, [s.org.id, patron, n, patronDigitos]) : [],
-  ]) : [[], [], [], [], []];
+       limit ${TOPE}`, [s.org.id, palabras, n, patronDigitos]) : [],
+    // Sin la caja tildada: cuántos productos inactivos coinciden, para avisarlo.
+    ver.productos && !inactivos ? consulta<{ n: number }>(`
+      select count(*)::int n from producto p
+       where p.organizacion_id = $1 and p.estado = 'archivado'
+         and (${todas(CAMPOS_PRODUCTO)}
+              or p.codigo_barras = $3)`, [s.org.id, palabras, q]).then((r) => r[0]?.n ?? 0) : 0,
+  ]) : [[], [], [], [], [], 0];
 
   const nada = q && !productos.length && !pedidos.length && !clientes.length && !publicaciones.length && !proveedores.length;
   const Tope = ({ filas }: { filas: unknown[] }) => filas.length >= TOPE ? <p className="text-[11px] text-[#5C6B76] mt-1">Se muestran los primeros {TOPE}; afiná la búsqueda para ver otros.</p> : null;
@@ -96,6 +108,11 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
       </form>
       {!q && <p className="text-xs text-[#5C6B76]">Escribí qué buscar.</p>}
       {nada && <p className="text-xs text-[#5C6B76]">No se encontró nada con “{q}”.</p>}
+      {inactivosOcultos > 0 && (
+        <p className="text-xs text-[#5C6B76] mb-3">
+          {inactivosOcultos === 1 ? "Hay 1 producto inactivo" : `Hay ${inactivosOcultos} productos inactivos`} que coincide{inactivosOcultos === 1 ? "" : "n"}: tildá “Mostrar inactivos” para verlo{inactivosOcultos === 1 ? "" : "s"}.
+        </p>
+      )}
 
       {productos.length > 0 && (
         <section className="mb-5">

@@ -54,6 +54,8 @@ export default async function Marco({ children, version }: { children: React.Rea
           <form action="/buscar" className="ml-auto flex items-center gap-1">
             <input name="q" placeholder="Buscar producto, MLA, cliente, proveedor…" aria-label="Buscar"
               className="w-64 text-xs border border-[#E3E9F0] rounded-lg px-2 py-1.5 bg-[#F7F8F6]" />
+            {/* Incluir los inactivos (Fer, 6/10): chico, una caja con el ícono del archivo; apagada de entrada. */}
+            <CajaInactivos />
           </form>
           <form action={accionLogout}>
             <button className="text-xs font-bold rounded-lg px-2 py-1.5 bg-[#EEF3F8] border border-[#E3E9F0] text-[#16577F]">Salir</button>
@@ -64,9 +66,10 @@ export default async function Marco({ children, version }: { children: React.Rea
       {/* Celular: franja de arriba, FIJA (con el buscador siempre a mano) */}
       <header data-reinicia-recorrido className="md:hidden print:hidden fixed top-0 inset-x-0 z-30 bg-white border-b border-[#E3E9F0] px-3 h-12 flex items-center gap-2">
         <Link href="/panel" className="text-sm font-black text-[#16577F]">Laucen</Link>
-        <form action="/buscar" className="flex-1 min-w-0">
+        <form action="/buscar" className="flex-1 min-w-0 flex items-center gap-1">
           <input name="q" placeholder="Buscar producto, MLA, cliente…" aria-label="Buscar" enterKeyHint="search"
-            className="w-full text-sm border border-[#E3E9F0] rounded-lg px-3 py-1.5 bg-[#F7F8F6]" />
+            className="flex-1 min-w-0 text-sm border border-[#E3E9F0] rounded-lg px-3 py-1.5 bg-[#F7F8F6]" />
+          <CajaInactivos />
         </form>
         <InterruptorMoneda moneda={moneda} />
       </header>
@@ -124,5 +127,16 @@ function InterruptorMoneda({ moneda, oscuro }: { moneda: Moneda; oscuro?: boolea
       </button>
       <span className={usd ? "font-bold" : "opacity-60"}>US$</span>
     </form>
+  );
+}
+
+/** "Incluir inactivos" en el buscador de arriba: una caja para tildar con el ícono del archivo (🗃) y
+ *  la explicación al pasar el mouse. Apagada de entrada; tildada, el buscador trae también los inactivos. */
+function CajaInactivos() {
+  return (
+    <label title="Incluir inactivos (productos archivados)" className="inline-flex items-center gap-0.5 text-xs text-[#5C6B76] cursor-pointer select-none shrink-0">
+      <input type="checkbox" name="inactivos" value="1" aria-label="Incluir inactivos" className="h-3.5 w-3.5 accent-[#16577F]" />
+      <span aria-hidden>🗃</span>
+    </label>
   );
 }
