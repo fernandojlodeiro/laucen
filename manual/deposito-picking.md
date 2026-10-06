@@ -26,7 +26,7 @@ Está pensada para usarse desde el celular.
 ### La pantalla principal (Picking)
 
 - **Depósito**: si hay más de un depósito activo, un desplegable con el botón **"Ver"** para elegir de cuál se preparan pedidos. No aparecen los depósitos de Full de Mercado Libre. Si no hay ningún depósito activo, la pantalla avisa y manda a crearlo.
-- **"Preparado rápido"** (sólo con el permiso **"Preparar sin escanear"**): un lector donde se escribe o escanea el número de pedido (el de Laucen, con o sin "#", o el de Mercado Libre). Muestra el pedido, cliente y unidades y pregunta "¿Marcar preparado con todo juntado?" con **"Sí"** / **"No"** (escribir el mismo número otra vez también es "Sí"). Ver "Preparado rápido" más abajo.
+- **"Preparado rápido"** (sólo con el permiso **"Preparar sin escanear"**): un lector donde se escribe o escanea el número de pedido (el de Laucen, con o sin "#", o el de Mercado Libre) **o la etiqueta del envío** (Mercado Libre u OCA: el código de barras o el QR). Muestra el pedido, cliente y unidades y pregunta "¿Marcar preparado con todo juntado?" con **"Sí"** / **"No"** (escribir el mismo número otra vez también es "Sí"). Ver "Preparado rápido" más abajo.
 - **Lotes abiertos (N)**: tarjetas de los lotes que se están preparando. Cada una dice el número de lote, el modo ("con hojas", "empacar escaneando" o "recorrido escaneando"), desde cuándo está abierto, cuántos pedidos tiene y cuántos están preparados, cuántas unidades se juntaron de cuántas, los faltantes y una barra de avance.
 - **Para preparar en <depósito> (N)**: los pedidos que esperan preparación, lo más urgente primero. Cada pedido muestra:
   - una caja para tildarlo;
@@ -84,7 +84,7 @@ En 10 × 15 (la térmica) cada cosa va en su página: primero la etiqueta y desp
 
 Es provisorio, para cuando hay apuro y mientras no todos los productos tienen etiqueta. Pide el permiso **"Preparar sin escanear"** (el rol Admin lo tiene).
 
-1. En **Stock › Picking**, en **"Preparado rápido"**, escribí o escaneá el número de pedido y Enter.
+1. En **Stock › Picking**, en **"Preparado rápido"**, escribí o escaneá el número de pedido, o escaneá la etiqueta de envío (código de barras o QR, de Mercado Libre u OCA), y Enter.
 2. Aparece el pedido: revisá que sea ése y apretá **"Sí"**.
 3. El pedido queda **preparado** con todos sus productos tildados como juntados. Si ya estaba en un lote abierto, se cierra en ese lote; si no, se arma un lote con él solo, que queda terminado.
 
