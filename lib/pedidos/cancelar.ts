@@ -46,12 +46,22 @@ export async function queArrastraCancelar(org: string, pedidoId: number): Promis
   };
 }
 
+/** Ya salió (Fer, 6/10): un pedido despachado, o con el envío de OCA ya en camino aunque el pedido
+ *  todavía no lo diga, no se cancela (ni se devuelve el pago ni se anula la factura): si vuelve, va
+ *  por la devolución. null si se puede cancelar. */
+export function motivoNoCancelable(estado: string, q: Pick<QueArrastra, "oca">): string | null {
+  if (estado === "despachado" || (q.oca && !q.oca.anulable)) return "Ya salió: no se cancela. Si la mercadería vuelve, hacé la devolución.";
+  return null;
+}
+
 /** Cancela el pedido y hace lo que arrastra. Devuelve qué se hizo y qué falló, en criollo. */
 export async function cancelarPedido(org: string, pedidoId: number, usuarioId: string, o: { notaCredito: boolean }): Promise<{ hecho: string[]; fallo: string[] }> {
   const p = await una<{ estado: string }>("select estado from pedido where id = $1 and organizacion_id = $2", [pedidoId, org]);
   if (!p) throw new ErrorErp("El pedido no existe.");
   if (["cancelado", "devuelto", "entregado"].includes(p.estado)) throw new ErrorErp(`El pedido está ${p.estado}: no se cancela.`);
   const q = await queArrastraCancelar(org, pedidoId);
+  const salio = motivoNoCancelable(p.estado, q);
+  if (salio) throw new ErrorErp(salio);
   const hecho: string[] = [], fallo: string[] = [];
   const motivo = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -61,8 +71,6 @@ export async function cancelarPedido(org: string, pedidoId: number, usuarioId: s
   if (q.oca?.anulable) {
     try { await anularOca(org, q.oca.envioId); hecho.push(`envío de OCA ${q.oca.tracking ?? ""} anulado`.trim()); }
     catch (e) { fallo.push(`OCA: ${motivo(e)}`); }
-  } else if (q.oca) {
-    fallo.push("OCA: el envío ya salió, no se puede anular");
   }
 
   if (q.payway) {
