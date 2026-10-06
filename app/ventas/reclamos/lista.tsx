@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import { Estado } from "@/app/componentes/erp";
+import { patronesBusqueda, numeroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import {
   CONDICION_RECLAMOS, ORDEN_ABIERTOS, ESTADOS_RECLAMO, TIPOS_RECLAMO, ORIGENES_RECLAMO, esPestanaReclamos, type PestanaReclamos, type EstadoReclamo,
@@ -94,12 +95,10 @@ export const LISTA_RECLAMOS: Lista = {
     if (f.desde) agregar((p) => `r.fecha >= (${p}::date)::timestamp at time zone 'America/Argentina/Buenos_Aires'`, f.desde);
     if (f.hasta) agregar((p) => `r.fecha < (${p}::date + 1)::timestamp at time zone 'America/Argentina/Buenos_Aires'`, f.hasta);
     if (f.q) {
-      valores.push(`%${f.q}%`);
-      const p = `$${valores.length}`;
-      const n = /^\d+$/.test(f.q) && f.q.length <= 15 ? Number(f.q) : null;
-      let porId = "";
-      if (n) { valores.push(n); porId = ` or r.id = $${valores.length} or r.pedido_id = $${valores.length}`; }
-      donde.push(`(r.id_externo ilike ${p} or r.orden_externa ilike ${p} or pe.id_externo ilike ${p} or cl.nombre ilike ${p} or r.comprador_externo ilike ${p}${porId})`);
+      valores.push(patronesBusqueda(f.q));
+      const cond = sqlBusqueda(`$${valores.length}`, ["r.id_externo", "r.orden_externa", "pe.id_externo", "cl.nombre", "r.comprador_externo"]);
+      const n = numeroBusqueda(f.q);
+      if (n !== null) { valores.push(n); donde.push(`(${cond} or r.id = $${valores.length} or r.pedido_id = $${valores.length})`); } else donde.push(cond);
     }
     return {
       desde: `reclamo r

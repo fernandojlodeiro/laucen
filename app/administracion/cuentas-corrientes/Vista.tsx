@@ -2,6 +2,7 @@
 // tercero elegido, la tabla de saldos; con `?id=N`, su estado de cuenta con
 // recibos / órdenes de pago, imputación a mano y saldo inicial.
 
+import { digitosBusqueda, patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { consulta, una } from "@/lib/erp/base";
@@ -85,8 +86,9 @@ async function Saldos({ org, tercero, ruta, q, sp, rs, vista: moneda }: { org: s
   const tabla = tercero === "cliente" ? "cliente" : "proveedor";
   const buscar = q?.trim();
   const encontrados = buscar
-    ? await consulta<{ id: number; nombre: string }>(`select id::int, nombre from ${tabla} where organizacion_id = $1 and nombre ilike $2 order by nombre limit 20`,
-        [org, `%${buscar}%`])
+    ? await consulta<{ id: number; nombre: string }>(`select id::int, nombre from ${tabla}
+         where organizacion_id = $1 and ${sqlBusqueda("$2", ["nombre", "cuit"], { param: "$3", campos: ["cuit"] })} order by nombre limit 20`,
+        [org, patronesBusqueda(buscar), digitosBusqueda(buscar)])
     : [];
   const quien = tercero === "cliente" ? "cliente" : "proveedor";
 

@@ -8,6 +8,7 @@ import { cookies } from "next/headers";
 import { RecordarDeposito, ElegirDeposito, CantidadUbicaciones } from "./Deposito";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import { consulta, una } from "@/lib/erp/base";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { TIPOS_MOVIMIENTO, type TipoMovimiento } from "@/lib/stock";
 import { SUAVE } from "@/app/botones";
 import { InterruptorFiltro } from "@/app/radar/Piezas";
@@ -39,11 +40,20 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
   const q = sp.q?.trim() || "";
   const filtro = sp.filtro === "bajo_minimo" || sp.filtro === "negativo" ? sp.filtro : null;
   const vId = Number(sp.v) || 0;
-  const inactivos = verInactivos(sp);
+  const cajaInactivos = verInactivos(sp);
   // "Comienza por" (tildado salvo ?contiene=1): la búsqueda coincide al principio del texto.
   const comienza = sp.contiene !== "1";
   const cont = comienza ? null : "1";
-  const ina = inactivos ? "1" : null;
+  const ina = cajaInactivos ? "1" : null;
+  const patrones = patronesBusqueda(q, comienza);
+  // Lo escrito (regla común, lib/busqueda.ts) o el código de barras exacto.
+  const coincide = `(v.codigo_barras = $3 or p.codigo_barras = $3 or ${sqlBusqueda("$2", ["v.sku", "p.titulo", "v.titulo", "p.sku_base"])})`;
+  // Regla de inactivos (Fer): con algo escrito y la caja apagada, si ningún activo
+  // coincide pero sí alguno inactivo, se muestran los inactivos igual.
+  const inactivos = cajaInactivos || (!!q && !(await una<{ hay: boolean }>(`
+    select exists (select 1 from variacion v join producto p on p.id = v.producto_id
+                    where v.organizacion_id = $1 and v.estado <> 'archivada' and p.estado <> 'archivado' and ${coincide}) hay`,
+    [s.org.id, patrones, q]))?.hay);
 
   // Depósito: "todos" o uno. Si la dirección no lo dice, el último elegido
   // (cookie que guarda RecordarDeposito); si nunca se eligió, todos.
@@ -62,7 +72,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
       select v.id, v.sku, v.codigo_barras, titulo_variacion(v.id) titulo, es_kit(v.id) kit, p.stock_minimo, p.id producto_id
         from variacion v join producto p on p.id = v.producto_id
        where v.organizacion_id = $1 and v.estado <> 'archivada' and ($5 or p.estado <> 'archivado')
-         and ($2::text is null or v.sku ilike $2 or p.titulo ilike $2 or v.titulo ilike $2 or v.codigo_barras = $3 or p.codigo_barras = $3)
+         and ${coincide}
     ), t as (
       select v.*,
              coalesce((select sum(st.cantidad) from stock st join ubicacion u on u.id = st.ubicacion_id join deposito d on d.id = u.deposito_id
@@ -81,7 +91,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
      where ($4::text is null
             or ($4 = 'bajo_minimo' and stock_minimo is not null and disponible < stock_minimo)
             or ($4 = 'negativo' and disponible < 0))
-     order by sku limit ${LIMITE}`, [s.org.id, q ? `${comienza ? "" : "%"}${q.replace(/[\\%_]/g, "\\$&")}%` : null, q, filtro, inactivos, depId]);
+     order by sku limit ${LIMITE}`, [s.org.id, patrones, q, filtro, inactivos, depId]);
 
   // Una variación abierta: detalle por depósito y ubicación + movimientos.
   const elegida = vId ? await una<Variacion>(`
@@ -131,7 +141,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
       <Avisos sp={sp} />
       <RecordarDeposito valor={sp.dep ?? null} />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
-        <BuscadorVivo q={q} inactivos={inactivos} comienza={comienza} autoFocus={!vId} placeholder="SKU, título o código de barras" limpiar={["v"]} />
+        <BuscadorVivo q={q} inactivos={cajaInactivos} comienza={comienza} autoFocus={!vId} placeholder="SKU, título o código de barras" limpiar={["v"]} />
         <InterruptorFiltro href={url(BASE, { q, contiene: cont, filtro, inactivos: ina, v: vId || null, dep: todos ? String(depositos[0]?.id ?? "todos") : "todos" })}
           prendido={todos} etiqueta="Todos los depósitos" />
         {!todos && <ElegirDeposito depositos={depositos} elegido={elegidoDep.id} />}

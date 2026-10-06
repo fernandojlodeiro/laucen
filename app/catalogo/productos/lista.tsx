@@ -5,9 +5,10 @@
 import Link from "next/link";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import { SUAVE } from "@/app/botones";
-import { Estado, url, patronBusqueda } from "@/app/componentes/erp";
+import { Estado, url } from "@/app/componentes/erp";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { verInactivos } from "@/app/componentes/Inactivos";
-import { consulta } from "@/lib/erp/base";
+import { consulta, una } from "@/lib/erp/base";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { SQL_SIN_PUBLICAR, SQL_SIN_FOTOS, SQL_DISPONIBLE, sqlSinPublicarEnCanal } from "@/lib/catalogo-alertas";
 import { sqlPublicadoEnWeb } from "@/lib/catalogo/web";
@@ -179,11 +180,11 @@ export const LISTA_PRODUCTOS: Lista = {
   },
   consulta: async (ctx, sp) => {
     const f = filtrosProductos(sp);
-    return {
-      desde: "producto p left join familia f on f.id = p.familia_id",
-      donde: `p.organizacion_id = $1
-         and ($2::text is null or p.sku_base ilike $2 or p.titulo ilike $2 or p.marca ilike $2 or p.codigo_barras ilike $2
-              or exists (select 1 from variacion v where v.producto_id = p.id and (v.sku ilike $2 or v.codigo_barras ilike $2)))
+    const desde = "producto p left join familia f on f.id = p.familia_id";
+    // Lo escrito, con la regla de lib/busqueda.ts: todas las condiciones ("?") en un mismo dato del producto o de una de sus variaciones.
+    const donde = `p.organizacion_id = $1
+         and ${sqlBusqueda("$2", ["p.sku_base", "p.titulo", "p.marca", "p.codigo_barras",
+              { de: "select 1 from variacion v where v.producto_id = p.id", campos: ["v.sku", "v.codigo_barras"] }])}
          and ($3 = '' or p.estado = $3)
          and ($4 = '' or p.tipo = $4)
          and ($5 = 0 or p.familia_id in (
@@ -198,9 +199,15 @@ export const LISTA_PRODUCTOS: Lista = {
                                       where v.producto_id = p.id and pu.estado = 'activa')))
          and (not $12 or p.no_publicable)
          and (not $13 or not p.no_publicable)
-         and ($14::int is null or ${PUBLICADO_ML} = $14::int)`,
-      valores: [ctx.org, patronBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn, f.sinCanal, f.noPublicable, f.publicables, f.enCuentas],
-      orden: "p.titulo, p.id",
-    };
+         and ($14::int is null or ${PUBLICADO_ML} = $14::int)`;
+    const valores: unknown[] = [ctx.org, patronesBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn, f.sinCanal, f.noPublicable, f.publicables, f.enCuentas];
+    // Con algo escrito y la caja "Mostrar inactivos" apagada: si ningún activo coincide pero sí algún inactivo, se muestran igual (Fer).
+    if (f.q && !f.inactivos) {
+      const hay = await una<{ activos: boolean; todos: boolean }>(
+        `select exists (select 1 from ${desde} where ${donde}) activos,
+                exists (select 1 from ${desde} where ${donde.replace("($6 or p.estado <> 'archivado')", "($6 or true)")}) todos`, valores);
+      if (hay && !hay.activos && hay.todos) valores[5] = true;
+    }
+    return { desde, donde, valores, orden: "p.titulo, p.id" };
   },
 };

@@ -3,6 +3,7 @@
 // SKU o título, y cómo se escribe un número de comprobante.
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 
 type Tono = "verde" | "gris" | "amarillo" | "rojo" | "azul";
 
@@ -44,16 +45,20 @@ export async function deLaOrg(org: string, tabla: Tabla, id: number | null, nomb
 export type VariacionEncontrada = { id: number; sku: string; titulo: string };
 
 /** Variaciones de la organización que coinciden con el texto (SKU, código de
- *  barras o título). Hasta 30. Las de productos inactivos (archivados), sólo
- *  si se pide `inactivos`. */
-export function buscarVariaciones(org: string, q: string, inactivos = false) {
-  if (!q.trim()) return Promise.resolve([] as VariacionEncontrada[]);
-  return consulta<VariacionEncontrada>(`
+ *  barras o título), con la regla común de búsqueda (lib/busqueda.ts). Hasta 30.
+ *  Las de productos inactivos (archivados), sólo si se pide `inactivos`, o si
+ *  ningún activo coincide pero sí alguno inactivo (regla de inactivos de Fer). */
+export async function buscarVariaciones(org: string, q: string, inactivos = false): Promise<VariacionEncontrada[]> {
+  const t = q.trim();
+  if (!t) return [];
+  const buscar = (conInactivos: boolean) => consulta<VariacionEncontrada>(`
     select v.id::int, v.sku, titulo_variacion(v.id) titulo
       from variacion v join producto p on p.id = v.producto_id
      where v.organizacion_id = $1 and v.estado <> 'archivada' and ($3 or p.estado <> 'archivado')
-       and (v.sku ilike '%' || $2 || '%' or v.codigo_barras = $2 or titulo_variacion(v.id) ilike '%' || $2 || '%')
-     order by (v.sku ilike $2) desc, v.sku limit 30`, [org, q.trim(), inactivos]);
+       and (v.codigo_barras = $4 or ${sqlBusqueda("$2", ["v.sku", "titulo_variacion(v.id)", "p.sku_base", "v.codigo_barras", "p.codigo_barras"])})
+     order by (v.codigo_barras = $4) desc, (v.sku ilike $4) desc, v.sku limit 30`, [org, patronesBusqueda(t), conInactivos, t]);
+  const filas = await buscar(inactivos);
+  return filas.length || inactivos ? filas : buscar(true);
 }
 
 /** El título de una variación (para la descripción por defecto de una línea). */

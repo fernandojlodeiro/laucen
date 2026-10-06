@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Estado, url } from "@/app/componentes/erp";
 import { enMoneda, enVista, formatear } from "@/lib/moneda";
 import { ESTADOS_PEDIDO, ESTADOS_PAGO, esEstadoPedido, esEstadoPago, sqlPedidoPendiente, sqlEstadoPago } from "@/lib/pedidos";
+import { patronesBusqueda, digitosBusqueda, numeroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { TONO_ESTADO, TONO_PAGO, etiqueta } from "@/app/ventas/formato";
 import type { EstadoPedido, EstadoPago } from "@/lib/pedidos";
@@ -127,12 +128,12 @@ export const LISTA_PEDIDOS: Lista = {
     if (f.desde) agregar((p) => `p.fecha >= (${p}::date)::timestamp at time zone 'America/Argentina/Buenos_Aires'`, f.desde);
     if (f.hasta) agregar((p) => `p.fecha < (${p}::date + 1)::timestamp at time zone 'America/Argentina/Buenos_Aires'`, f.hasta);
     if (f.q) {
-      valores.push(`%${f.q}%`);
-      const p = `$${valores.length}`;
-      const n = /^\d+$/.test(f.q) && f.q.length <= 15 ? Number(f.q) : null;
-      let porId = "";
-      if (n) { valores.push(n); porId = ` or p.id = $${valores.length}`; }
-      donde.push(`(p.id_externo ilike ${p} or cl.nombre ilike ${p} or cl.email ilike ${p} or cl.documento_numero ilike ${p}${porId})`);
+      valores.push(patronesBusqueda(f.q), digitosBusqueda(f.q));
+      const p = `$${valores.length - 1}`, d = `$${valores.length}`;
+      const cond = sqlBusqueda(p, ["p.id_externo", "cl.nombre", "cl.razon_social", "cl.email", "cl.apodo_ml", "cl.documento_numero", "cl.cuit"],
+        { param: d, campos: ["cl.cuit", "cl.documento_numero"] });
+      const n = numeroBusqueda(f.q);
+      if (n !== null) { valores.push(n); donde.push(`(${cond} or p.id = $${valores.length})`); } else donde.push(cond);
     }
     return {
       desde: "pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id",

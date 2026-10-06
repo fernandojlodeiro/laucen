@@ -1,7 +1,7 @@
 // Métodos de envío como lista configurable (lib/listas/tipos.ts): "Descargar
 // Excel" con la misma búsqueda que la pantalla.
 
-import { patronBusqueda } from "@/app/componentes/erp";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import type { Lista } from "@/lib/listas/tipos";
 import { TIPOS_ENVIO } from "./comun";
 
@@ -27,8 +27,8 @@ export const LISTA_METODOS_ENVIO: Lista = {
   enPantalla: ["nombre", "tipo", "activo", "costo", "gratis", "plazo", "instrucciones", "orden"],
   consulta: async (ctx, sp) => ({
     desde: "metodo_envio",
-    donde: "organizacion_id = $1 and canal_id is null and ($2::text is null or nombre ilike $2)",
-    valores: [ctx.org, patronBusqueda(sp.q?.trim() ?? "", sp.contiene !== "1")],
+    donde: `organizacion_id = $1 and canal_id is null and ${sqlBusqueda("$2", ["nombre"])}`,
+    valores: [ctx.org, patronesBusqueda(sp.q, sp.contiene !== "1")],
     orden: "orden, id",
   }),
 };

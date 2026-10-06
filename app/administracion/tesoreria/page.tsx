@@ -88,7 +88,7 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
   const totales = { ARS: 0, USD: 0 };
   for (const c of cuentas) if (c.activa) totales[c.moneda as Moneda] += c.saldo;
   // El buscador filtra lo que se ve; los totales son de todas.
-  const filtradas = cuentas.filter((c) => [c.nombre, c.banco, c.alias, c.cbu].some((t) => coincideBusqueda(t, q, comienza)));
+  const filtradas = cuentas.filter((c) => coincideBusqueda([c.nombre, c.banco, c.alias, c.cbu, (c.cbu ?? "").replace(/\D/g, "")], q, comienza));
   const vistas = paginarEnMemoria(ordenarEnMemoria(filtradas, sp, {
     nombre: (c) => c.nombre, razon: (c) => c.emisor, tipo: (c) => TIPOS_CUENTA[c.tipo] ?? c.tipo, banco: (c) => c.banco, contable: (c) => (c.cuenta_contable_id ? nombreContable.get(c.cuenta_contable_id) : null),
     saldo: (c) => c.saldo, conciliar: (c) => c.sin_conciliar, activa: (c) => (c.activa ? 1 : 0),

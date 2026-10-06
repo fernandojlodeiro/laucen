@@ -2,6 +2,7 @@
 // "Novedades" (tienda_portada_producto). Se cargan en Configuración › Portada
 // de la tienda; la portada (app/tienda/[slug]/page.tsx) las lee con idsDe().
 
+import { sqlBusqueda } from "@/lib/busqueda";
 import type { QueryResultRow } from "pg";
 import { consulta, una, ErrorErp, enTransaccion } from "@/lib/erp/base";
 
@@ -64,14 +65,15 @@ export async function mover(org: string, canalId: number, lista: ListaPortada, p
 }
 
 export type ProductoHallado = { id: number; sku: string; titulo: string; foto: string | null };
-/** Productos activos por SKU, título o marca que todavía no están en esa fila. Hasta 20. */
-export async function buscarParaPortada(org: string, canalId: number, lista: ListaPortada, patron: string): Promise<ProductoHallado[]> {
+/** Productos activos por SKU, título o marca que todavía no están en esa fila. Hasta 20.
+ *  `patrones`: los de patronesBusqueda (lib/busqueda.ts, la regla común de búsqueda). */
+export async function buscarParaPortada(org: string, canalId: number, lista: ListaPortada, patrones: string[]): Promise<ProductoHallado[]> {
   return consulta<ProductoHallado>(`
     select p.id::int, p.sku_base sku, p.titulo,
            (select url from producto_foto f where f.producto_id = p.id order by f.orden, f.id limit 1) foto
       from producto p
      where p.organizacion_id = $1 and p.estado = 'activo'
-       and (p.sku_base ilike $4 or p.titulo ilike $4 or p.marca ilike $4)
+       and ${sqlBusqueda("$4", ["p.sku_base", "p.titulo", "p.marca"])}
        and not exists (select 1 from tienda_portada_producto t where t.canal_id = $2 and t.lista = $3 and t.producto_id = p.id)
-     order by p.titulo limit 20`, [org, canalId, lista, patron]);
+     order by p.titulo limit 20`, [org, canalId, lista, patrones]);
 }

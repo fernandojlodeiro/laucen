@@ -10,6 +10,7 @@
 // El árbol del menú sale de lib/menu.ts.
 
 import Link from "next/link";
+import { AYUDA_BUSQUEDA } from "@/lib/busqueda";
 import { Suspense } from "react";
 import { sesionActual } from "@/lib/tenancy";
 import { tienePermiso } from "@/lib/permisos";
@@ -147,8 +148,7 @@ function CajaInactivos({ activo }: { activo: boolean }) {
   );
 }
 
-/** Cómo busca el buscador de arriba (Fer, 6/10), para el globito. */
-const AYUDA_BUSCAR = "Busca lo que escribís tal cual, entero (con sus espacios), en cualquier parte. Para buscar varias cosas a la vez, separalas con ? — por ejemplo SKU1340?SKU1341 trae lo que tenga una o la otra.";
+const AYUDA_BUSCAR = AYUDA_BUSQUEDA;
 
 /** Cuándo salen los inactivos (Fer, 6/10), para el globito de la cajita 🗃. */
 const AYUDA_INACTIVOS = "Incluir inactivos (productos archivados). Sin tildar, los inactivos aparecen sólo cuando lo único que coincide es inactivo. Tildada, aparecen siempre. Queda como la dejes.";

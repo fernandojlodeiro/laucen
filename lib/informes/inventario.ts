@@ -4,11 +4,12 @@
 // sus componentes), por eso no entra.
 
 import { consulta } from "@/lib/erp/base";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 
 type Busqueda = { q: string; comienza: boolean };
 
-/** Patrón ILIKE: al principio del texto ("Comienza por") o en cualquier parte. */
-export const patron = ({ q, comienza }: Busqueda) => (q ? `${comienza ? "" : "%"}${q.replace(/[\\%_]/g, "\\$&")}%` : null);
+/** Los patrones de lo escrito, con la regla común de búsqueda (lib/busqueda.ts). */
+export const patron = ({ q, comienza }: Busqueda) => patronesBusqueda(q, comienza);
 
 export const COSTOS = { fob: "Costo FOB", promedio: "Costo promedio (USD)", ultimo: "Último costo (USD)" } as const;
 export type BaseCosto = keyof typeof COSTOS;
@@ -23,6 +24,8 @@ export type FiltroValorizado = Busqueda & { depositoId: number | null; conStock:
 
 export type FilaValorizado = {
   producto_id: number; sku: string; titulo: string; familia: string | null; moneda: string; costo: number | null; stock: number; valorizado: number | null;
+  /** El producto está archivado (sólo aparece con "Mostrar inactivos", o si lo buscado no está en ningún activo). */
+  inactivo: boolean;
 };
 
 /** La fila con el costo y el valorizado en las dos monedas (null = sin costo,
@@ -40,7 +43,15 @@ export function leerFiltroValorizado(sp: Record<string, string | undefined>): Fi
   };
 }
 
+/** Regla de inactivos (Fer): con algo escrito y "Mostrar inactivos" apagada, si ningún activo
+ *  coincide pero sí inactivos, se muestran los inactivos igual (cada fila dice `inactivo`). */
 export async function stockValorizado(org: string, f: FiltroValorizado): Promise<FilaValorizado[]> {
+  const filas = await stockValorizadoCon(org, f);
+  if (filas.length || !f.q || f.inactivos) return filas;
+  return stockValorizadoCon(org, { ...f, inactivos: true });
+}
+
+async function stockValorizadoCon(org: string, f: FiltroValorizado): Promise<FilaValorizado[]> {
   const costo = f.costo === "fob" ? "v.costo_fob" : f.costo === "promedio" ? "v.costo_promedio_usd" : "v.costo_ultimo_usd";
   const moneda = f.costo === "fob" ? "v.costo_moneda" : "'USD'";
   return consulta<FilaValorizado>(`
@@ -51,14 +62,15 @@ export async function stockValorizado(org: string, f: FiltroValorizado): Promise
        group by st.variacion_id
     )
     select p.id::int producto_id, v.sku, titulo_variacion(v.id) titulo, fa.nombre familia, ${moneda} moneda, ${costo}::float8 costo,
-           coalesce(s.stock, 0) stock, round(${costo} * coalesce(s.stock, 0), 2)::float8 valorizado
+           coalesce(s.stock, 0) stock, round(${costo} * coalesce(s.stock, 0), 2)::float8 valorizado,
+           p.estado = 'archivado' inactivo
       from variacion v join producto p on p.id = v.producto_id
       left join familia fa on fa.id = p.familia_id
       left join s on s.variacion_id = v.id
      where v.organizacion_id = $1 and v.estado <> 'archivada' and not es_kit(v.id)
        and ($3 or p.estado <> 'archivado')
        and (not $4 or coalesce(s.stock, 0) <> 0)
-       and ($5::text is null or v.sku ilike $5 or p.titulo ilike $5 or v.titulo ilike $5)
+       and ${sqlBusqueda("$5", ["v.sku", "p.titulo", "v.titulo"])}
      order by v.sku`, [org, f.depositoId, f.inactivos, f.conStock, patron(f)]);
 }
 
@@ -117,7 +129,7 @@ export async function stockPorUbicacion(org: string, f: FiltroUbicacion): Promis
       join variacion v on v.id = st.variacion_id join producto p on p.id = v.producto_id
      where st.organizacion_id = $1 and d.estado = 'activo' and (st.cantidad <> 0 or st.reservado <> 0)
        and ($2::bigint is null or d.id = $2) and ($3::bigint is null or u.id = $3)
-       and ($4::text is null or v.sku ilike $4 or p.titulo ilike $4 or v.titulo ilike $4)
+       and ${sqlBusqueda("$4", ["v.sku", "p.titulo", "v.titulo"])}
      order by d.nombre, u.es_default desc, u.orden_recorrido, u.codigo, v.sku`, [org, f.depositoId, f.ubicacionId, patron(f)]);
 }
 

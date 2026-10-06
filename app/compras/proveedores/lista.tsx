@@ -1,7 +1,7 @@
 // Proveedores como lista configurable (lib/listas/tipos.ts): "Descargar
 // Excel" con los mismos filtros que la pantalla.
 
-import { patronBusqueda } from "@/app/componentes/erp";
+import { patronesBusqueda, digitosBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { CONDICIONES_IVA } from "@/app/ventas/formato";
 import { campoFecha, traducido, type Lista } from "@/lib/listas/tipos";
 
@@ -41,13 +41,11 @@ export const LISTA_PROVEEDORES: Lista = {
   consulta: async (ctx, sp) => {
     const q = sp.q?.trim() ?? "";
     const comienza = sp.contiene !== "1";
-    const digitos = q.replace(/\D/g, "");
     return {
       desde: "proveedor pr",
       donde: `pr.organizacion_id = $1 and ($4 = 0 or pr.id = $4)
-         and ($2::text is null or pr.nombre ilike $2 or pr.razon_social ilike $2 or pr.email ilike $2
-              or regexp_replace(coalesce(pr.cuit, ''), '\\D', '', 'g') like $3)`,
-      valores: [ctx.org, patronBusqueda(q, comienza), digitos ? patronBusqueda(digitos, comienza) : null, Number(sp.id) || 0],
+         and ${sqlBusqueda("$2", ["pr.nombre", "pr.razon_social", "pr.email", "pr.cuit"], { param: "$3", campos: ["pr.cuit"] })}`,
+      valores: [ctx.org, patronesBusqueda(q, comienza), digitosBusqueda(q), Number(sp.id) || 0],
       orden: "pr.estado, pr.nombre, pr.id",
     };
   },

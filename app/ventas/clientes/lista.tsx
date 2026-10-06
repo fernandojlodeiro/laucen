@@ -2,7 +2,8 @@
 // la consulta con los filtros de la pantalla (la comparten la pantalla y su Excel).
 
 import Link from "next/link";
-import { url, patronBusqueda } from "@/app/componentes/erp";
+import { url } from "@/app/componentes/erp";
+import { patronesBusqueda, digitosBusqueda, numeroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { TIPOS_CLIENTE, CONDICIONES_IVA, etiqueta } from "@/app/ventas/formato";
 
@@ -72,15 +73,12 @@ export const LISTA_CLIENTES: Lista = {
     const donde = ["c.organizacion_id = $1"];
     if (tipo) { valores.push(tipo); donde.push(`c.tipo = $${valores.length}`); }
     if (q) {
-      valores.push(patronBusqueda(q, comienza));
-      const p = `$${valores.length}`;
-      const digitos = q.replace(/\D/g, "");
-      let doc = "";
-      if (digitos.length >= 3) {
-        valores.push(patronBusqueda(digitos, comienza));
-        doc = ` or regexp_replace(coalesce(c.documento_numero, ''), '\\D', '', 'g') like $${valores.length} or regexp_replace(coalesce(c.telefono, ''), '\\D', '', 'g') like $${valores.length}`;
-      }
-      donde.push(`(c.nombre ilike ${p} or c.email ilike ${p} or c.documento_numero ilike ${p} or c.telefono ilike ${p}${doc})`);
+      valores.push(patronesBusqueda(q, comienza), digitosBusqueda(q));
+      const p = `$${valores.length - 1}`, d = `$${valores.length}`;
+      const cond = sqlBusqueda(p, ["c.nombre", "c.razon_social", "c.email", "c.documento_numero", "c.cuit", "c.telefono", "c.telefono_movil", "c.apodo_ml"],
+        { param: d, campos: ["c.cuit", "c.documento_numero", "c.telefono", "c.telefono_movil"] });
+      const n = numeroBusqueda(q);
+      if (n !== null) { valores.push(n); donde.push(`(${cond} or c.id = $${valores.length})`); } else donde.push(cond);
     }
     return { desde: "cliente c", donde: donde.join(" and "), valores, orden: "c.nombre, c.id" };
   },

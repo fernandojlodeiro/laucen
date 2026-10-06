@@ -7,6 +7,7 @@
 // `valor`/`alCambiar` lo maneja quien lo usa.
 
 import { useMemo, useRef, useState } from "react";
+import { coincideBusqueda } from "@/lib/busqueda";
 
 export type OpcionUbicacion = { valor: string; texto: string; detalle?: string | null };
 
@@ -28,10 +29,12 @@ export default function ElegirUbicacion({ opciones, name, valor, alCambiar, plac
   if (visto !== elegido) { setVisto(elegido); setTexto(actual?.texto ?? ""); }
 
   const filtradas = useMemo(() => {
-    const t = texto.trim().toLowerCase();
+    // Regla común de búsqueda (lib/busqueda.ts): lo escrito tal cual; "?" separa condiciones.
+    // Primero las que empiezan igual (el texto entero o el código después de " · ").
+    const t = texto.trim();
     if (!t || (actual && texto === actual.texto)) return opciones.slice(0, MAX);
-    const comienzan = opciones.filter((o) => o.texto.toLowerCase().startsWith(t) || o.texto.toLowerCase().includes(` · ${t}`));
-    const resto = opciones.filter((o) => !comienzan.includes(o) && `${o.texto} ${o.detalle ?? ""}`.toLowerCase().includes(t));
+    const comienzan = opciones.filter((o) => coincideBusqueda([o.texto, o.texto.split(" · ").pop()], t, true));
+    const resto = opciones.filter((o) => !comienzan.includes(o) && coincideBusqueda([o.texto, o.detalle], t));
     return [...comienzan, ...resto].slice(0, MAX);
   }, [texto, opciones, actual]);
 

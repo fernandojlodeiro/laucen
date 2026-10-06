@@ -36,7 +36,7 @@ export const LISTA_TESORERIA: Lista = {
     const [cuentas, contables] = await Promise.all([cuentasConSaldo(ctx.org, Number(sp.rs) || null), cuentasImputables(ctx.org)]);
     const nombre = new Map(contables.map((x) => [x.id, `${x.codigo} ${x.nombre}`]));
     return cuentas
-      .filter((c) => [c.nombre, c.banco, c.alias, c.cbu].some((t) => coincideBusqueda(t, q, comienza)))
+      .filter((c) => coincideBusqueda([c.nombre, c.banco, c.alias, c.cbu, (c.cbu ?? "").replace(/\D/g, "")], q, comienza))
       .map((c) => ({ ...c, contable: c.cuenta_contable_id ? nombre.get(c.cuenta_contable_id) ?? null : null }));
   },
 };

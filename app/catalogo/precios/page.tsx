@@ -18,7 +18,7 @@ import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import { leerOrden, leerPagina, ordenarEnMemoria, POR_PAGINA } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, patronBusqueda, coincideBusqueda,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA, CAJA, coincideBusqueda,
 } from "@/app/componentes/erp";
 import { verInactivos } from "@/app/componentes/Inactivos";
 import { AccionesExcel } from "@/app/listas/piezas";
@@ -91,7 +91,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
   let filas: Fila[] = [];
   let total = 0;
   if (lista) {
-    // Los mismos filtros que el Excel ($1…$6, lista.tsx); el desplazamiento de la página va en $7.
+    // Los mismos filtros que el Excel ($1…$5, lista.tsx); el desplazamiento de la página va en $6.
     const donde = DONDE_PRECIOS;
     const porPrecio = ["lista", "descuento", "venta", "vigente"].includes(sp.orden ?? "");
     const ordenSql = leerOrden(sp, {
@@ -109,17 +109,17 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
         select ${campos}
           from variacion v join producto p on p.id = v.producto_id
           left join lateral precio_de($1, v.id, $2, $3::date) pr on true
-         where ${donde} order by ${ordenSql} limit ${POR_PAGINA} offset $7` : `
+         where ${donde} order by ${ordenSql} limit ${POR_PAGINA} offset $6` : `
         with pagina as (
           select v.id from variacion v join producto p on p.id = v.producto_id
-           where ${donde} order by ${ordenSql} limit ${POR_PAGINA} offset $7)
+           where ${donde} order by ${ordenSql} limit ${POR_PAGINA} offset $6)
         select ${campos}
           from pagina pg join variacion v on v.id = pg.id join producto p on p.id = v.producto_id
           left join lateral precio_de($1, v.id, $2, $3::date) pr on true
          order by ${ordenSql}`, valores),
-      // El conteo usa los mismos valores: las condiciones de $2, $3 y $7 sólo le dan tipo a esos parámetros.
+      // El conteo usa los mismos valores: las condiciones de $2, $3 y $6 sólo le dan tipo a esos parámetros.
       consulta<{ n: number }>(`select count(*)::int n from variacion v join producto p on p.id = v.producto_id where ${donde}
-         and $2::bigint is not null and $3::date is not null and $7::int is not null`, valores),
+         and $2::bigint is not null and $3::date is not null and $6::int is not null`, valores),
     ]);
     filas = lasFilas;
     total = n?.n ?? 0;

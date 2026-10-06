@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import { Estado } from "@/app/componentes/erp";
+import { digitosBusqueda, patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { formatear } from "@/lib/moneda";
 import { TIPOS_CBTE, DOC_TIPOS, CONDICION_RECEPTOR_TEXTO } from "@/lib/arca/facturar";
 import { campoFecha, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
@@ -107,10 +108,13 @@ export const LISTA_FACTURACION: Lista = {
     if (f.desde) sumar("c.fecha >= ?::date", f.desde);
     if (f.hasta) sumar("c.fecha <= ?::date", f.hasta);
     if (f.q) {
-      vals.push(`%${f.q}%`);
-      const n = `$${vals.length}`;
-      cond.push(`(lpad(c.punto_venta::text, 5, '0') || '-' || lpad(c.numero::text, 8, '0') ilike ${n} or c.numero::text = regexp_replace(${n}, '[^0-9]', '', 'g')
-                  or c.receptor_nombre ilike ${n} or c.doc_nro ilike ${n} or c.cae ilike ${n} or cl.nombre ilike ${n})`);
+      // Regla común de búsqueda (lib/busqueda.ts); una condición de sólo números se compara
+      // también contra los dígitos del documento (CUIT/DNI).
+      vals.push(patronesBusqueda(f.q), digitosBusqueda(f.q));
+      cond.push(sqlBusqueda(`$${vals.length - 1}`, [
+        "lpad(c.punto_venta::text, 5, '0') || '-' || lpad(c.numero::text, 8, '0')",
+        "c.receptor_nombre", "c.doc_nro", "c.cae", "cl.nombre",
+      ], { param: `$${vals.length}`, campos: ["c.doc_nro"] }));
     }
     return {
       desde: "comprobante c left join pedido p on p.id = c.pedido_id left join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = c.cliente_id",

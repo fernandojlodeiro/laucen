@@ -30,7 +30,7 @@ Arriba a la derecha:
 - **+ Nuevo producto**: abre el formulario de alta debajo del título.
 
 Filtros (filtran al momento, sin botón "Buscar"):
-- Buscador **"Buscar por SKU, título, marca o código de barras"**. También encuentra un producto por el SKU o el código de barras de cualquiera de sus variaciones. Con la caja **"Comienza por"** tildada (viene así) busca al principio del texto; destildada, en cualquier parte. La X adentro del cuadro borra lo escrito.
+- Buscador **"Buscar por SKU, título, marca o código de barras"**. También encuentra un producto por el SKU o el código de barras de cualquiera de sus variaciones. Con la caja **"Comienza por"** tildada (viene así) busca al principio del texto; destildada, en cualquier parte. Si con algo escrito ningún producto activo coincide pero sí alguno inactivo, se muestran los inactivos igual. La X adentro del cuadro borra lo escrito.
 - **Mostrar inactivos**: sin tildar, los productos inactivos no aparecen.
 - **Estado**: Todos los estados / Activo / Pausado / Inactivo. Elegir "Inactivo" los muestra aunque no esté tildado "Mostrar inactivos".
 - **Familia**: buscador de familias (tipeás parte del nombre o del camino, ej. "Electrónica › Componentes"). Incluye las subfamilias de la elegida.

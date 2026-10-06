@@ -84,7 +84,7 @@ En **Stock por ubicación**, dejá "Ubicación" en "Todas" y buscá el producto 
 - **Valorizado = costo × stock**, por producto (variación). El total es la suma de los valorizados de los productos que tienen costo.
 - **Stock** = la cantidad física (sin descontar lo reservado) de los depósitos activos, o del depósito elegido. Un producto con stock negativo resta.
 - **Los kits no entran**: su stock está en los componentes, que sí entran con su propio costo.
-- Los productos archivados no entran salvo con "Mostrar inactivos"; las variaciones archivadas no entran nunca.
+- Los productos archivados no entran salvo con "Mostrar inactivos" (o si, con algo escrito, ningún producto activo coincide pero sí uno archivado: se muestran igual, con un aviso); las variaciones archivadas no entran nunca.
 
 ### Las tres bases de costo
 

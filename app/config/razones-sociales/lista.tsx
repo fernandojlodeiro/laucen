@@ -1,7 +1,7 @@
 // Razones sociales como lista configurable (lib/listas/tipos.ts): "Descargar
 // Excel" con la misma búsqueda que la pantalla.
 
-import { patronBusqueda } from "@/app/componentes/erp";
+import { digitosBusqueda, patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { traducido, type Lista } from "@/lib/listas/tipos";
 
 export const CONDICIONES_RS: Record<string, string> = { responsable_inscripto: "Responsable inscripto", monotributo: "Monotributo", exento: "Exento" };
@@ -27,8 +27,8 @@ export const LISTA_RAZONES_SOCIALES: Lista = {
   enPantalla: ["id", "nombre", "razon_social", "cuit", "condicion_iva", "punto_venta", "principal", "conectada", "canales"],
   consulta: async (ctx, sp) => ({
     desde: "emisor e",
-    donde: "e.organizacion_id = $1 and ($2::text is null or coalesce(e.nombre, '') ilike $2 or e.razon_social ilike $2 or e.cuit ilike $2)",
-    valores: [ctx.org, patronBusqueda(sp.q?.trim() ?? "", sp.contiene !== "1")],
+    donde: `e.organizacion_id = $1 and ${sqlBusqueda("$2", ["e.nombre", "e.razon_social", "e.cuit"], { param: "$3", campos: ["e.cuit"] })}`,
+    valores: [ctx.org, patronesBusqueda(sp.q, sp.contiene !== "1"), digitosBusqueda(sp.q)],
     orden: "e.es_principal desc, e.id",
   }),
 };

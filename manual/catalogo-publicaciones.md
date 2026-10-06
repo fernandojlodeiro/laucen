@@ -26,7 +26,7 @@ Hay dos pantallas, las dos del menú **Catálogo**:
 
 Arriba a la derecha: **Descargar Excel** (trae además título en el canal, enlace, umbral propio, código de barras, estado del producto, última sincronización y atributos externos) y **Vincular con Mercado Libre**.
 
-Filtros: buscador **"Buscar por título, SKU o id externo"** (busca en el título de la publicación y en el del producto; el SKU ya no es una columna, pero se sigue buscando por él) (con "Comienza por": tildada busca al principio del título; destildala para encontrar una palabra del medio. El código de barras se busca exacto) y **Mostrar inactivos**, **Canal** (Todos los canales o uno), **Estado** (Activa / Pausada / Cerrada) y **En revisión en ML** (todas las que están en revisión, sólo las que están **por precio**, o las que están por otro motivo).
+Filtros: buscador **"Buscar por título, SKU o id externo"** (busca en el título de la publicación y en el del producto; el SKU ya no es una columna, pero se sigue buscando por él) (con "Comienza por": tildada busca al principio del título; destildala para encontrar una palabra del medio; también por código de barras. Si con algo escrito no hay ninguna activa que coincida pero sí de productos inactivos, se muestran igual) y **Mostrar inactivos**, **Canal** (Todos los canales o uno), **Estado** (Activa / Pausada / Cerrada) y **En revisión en ML** (todas las que están en revisión, sólo las que están **por precio**, o las que están por otro motivo).
 
 Arriba a la derecha, **Leer motivos de revisión**: le pregunta a Mercado Libre por qué está en revisión cada publicación (sólo lee, no cambia nada). Laucen también lo hace solo, de fondo, una vez por día cada publicación; el botón es para no esperar.
 

@@ -1,7 +1,7 @@
 // Cucardas como lista configurable (lib/listas/tipos.ts): "Descargar Excel"
 // con los mismos filtros que la pantalla.
 
-import { patronBusqueda } from "@/app/componentes/erp";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import type { Lista } from "@/lib/listas/tipos";
 
 const USOS = "((select count(*) from producto_cucarda pc where pc.cucarda_id = c.id) + (select count(*) from familia_cucarda fc where fc.cucarda_id = c.id))";
@@ -23,8 +23,8 @@ export const LISTA_CUCARDAS: Lista = {
   enPantalla: ["nombre", "color", "orden", "estado", "usos"],
   consulta: async (ctx, sp) => ({
     desde: "cucarda c",
-    donde: "c.organizacion_id = $1 and ($2::text is null or c.nombre ilike $2)",
-    valores: [ctx.org, patronBusqueda(sp.q?.trim() ?? "", sp.contiene !== "1")],
+    donde: `c.organizacion_id = $1 and ${sqlBusqueda("$2", ["c.nombre"])}`,
+    valores: [ctx.org, patronesBusqueda(sp.q, sp.contiene !== "1")],
     orden: "c.orden, c.nombre",
   }),
 };
