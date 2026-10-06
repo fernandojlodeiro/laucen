@@ -27,7 +27,28 @@ export type PedidoParaPreparar = {
   carrito_ultimo_evento_ts: Date | null; en_espera: boolean;
   /** «A cobrar»: se cobra al entregar (efectivo al retirar). */
   a_cobrar: boolean; total_ars: number;
+  /** Cómo sale (para filtrar el picking por tipo de envío): el tipo de canal, el método de envío de la tienda y su nombre. */
+  canal_tipo: string; metodo_tipo: string | null; metodo_nombre: string | null; retira: boolean;
 };
+
+export type GrupoEnvio = "meli" | "oca" | "retiro" | "otros";
+/** Los grupos del filtro del picking, con el texto corto de su pestaña (se usa en el celular). */
+export const GRUPOS_ENVIO: { clave: GrupoEnvio; texto: string }[] = [
+  { clave: "meli", texto: "Meli" }, { clave: "oca", texto: "OCA" }, { clave: "retiro", texto: "Retiran" }, { clave: "otros", texto: "Otros" },
+];
+const LOGISTICA_CORTA: Record<string, string> = {
+  self_service: "Flex", cross_docking: "Colecta", xd_drop_off: "Colecta", drop_off: "Correo", custom: "A convenir", not_specified: "A convenir",
+};
+
+/** Por dónde sale un pedido (Fer, 6/10): su grupo y una marca corta ("Colecta", "Flex", "OCA sucursal", "Retira"…). */
+export function envioDe(p: Pick<PedidoParaPreparar, "canal_tipo" | "logistica" | "metodo_tipo" | "metodo_nombre" | "retira">): { grupo: GrupoEnvio; marca: string } {
+  if (p.canal_tipo === "mercadolibre") return { grupo: "meli", marca: LOGISTICA_CORTA[p.logistica ?? ""] ?? "Meli" };
+  if (p.logistica === "oca" || p.metodo_tipo === "oca" || p.metodo_tipo === "oca_sucursal") {
+    return { grupo: "oca", marca: p.metodo_tipo === "oca_sucursal" ? "OCA sucursal" : "OCA domicilio" };
+  }
+  if (p.retira || p.metodo_tipo === "retiro") return { grupo: "retiro", marca: "Retira" };
+  return { grupo: "otros", marca: p.metodo_tipo === "a_convenir" ? "A convenir" : p.metodo_nombre ? p.metodo_nombre.slice(0, 18) : "Envío" };
+}
 
 /** Los pedidos que hay que preparar en un depósito: pagados (o que quedaron
  *  en preparación de un lote cancelado) o «A cobrar» / a convenir estando
@@ -41,9 +62,11 @@ export function pedidosParaPreparar(org: string, depositoId: number) {
            (select coalesce(sum(cantidad), 0)::int from pedido_linea where pedido_id = p.id and variacion_id is not null) unidades,
            (select count(*)::int from pedido_linea where pedido_id = p.id and variacion_id is not null) lineas,
            e.despachar_antes, e.logistica, ${SQL_DEPOSITO}::int deposito_id, p.carrito_ultimo_evento_ts, ${sqlCarritoEnEspera("p")} en_espera,
-           ${sqlACobrar("p")} a_cobrar, p.total_ars::float total_ars
+           ${sqlACobrar("p")} a_cobrar, p.total_ars::float total_ars,
+           ca.tipo canal_tipo, me.tipo metodo_tipo, me.nombre metodo_nombre, coalesce(p.envio ->> 'metodo' = 'Retira', false) retira
       from pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
-      left join lateral (select despachar_antes, logistica from envio where pedido_id = p.id order by id desc limit 1) e on true
+      left join metodo_envio me on me.id = p.metodo_envio_id
+      left join lateral (select despachar_antes, logistica from envio where pedido_id = p.id and coalesce(estado, '') <> 'cancelled' order by id desc limit 1) e on true
      where p.organizacion_id = $1 and ${SQL_DEPOSITO} = $2 and p.afecta_stock and ${SQL_PARA_PREPARAR}
        and coalesce(e.logistica, '') <> 'fulfillment'
        and not exists (select 1 from picking_pedido pp join picking_lote l on l.id = pp.lote_id where pp.pedido_id = p.id and l.estado = 'abierto')
