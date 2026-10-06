@@ -23,7 +23,7 @@ Dos cajas, **Destacados** y **Novedades**, cada una con su lista numerada de pro
 
 ### Agregar un producto
 1. En la caja que quieras, apretá **Agregar producto**.
-2. Escribí el SKU, parte del título o la marca (busca desde la segunda letra; "Comienza por" viene tildada, destildala para buscar en cualquier parte del texto).
+2. Escribí el SKU, parte del título, la marca o cualquier otro dato del producto o de sus variaciones (busca desde la segunda letra; "Comienza por" viene tildada, destildala para buscar en cualquier parte del texto).
 3. Tocá **+ Agregar** en el que quieras. Va al final de la lista.
 
 ### Cambiar el orden o sacar uno

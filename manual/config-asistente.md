@@ -31,7 +31,7 @@ En esta pantalla se configura (nombre, carita, preguntas fuera del sistema, tope
 
 **Pedidos sin resolver** (sólo superadministradores): lo que le pidieron hacer al asistente y no sabe hacer todavía, con fecha, persona y "ver la conversación". Filtro de estado (Nuevos, Mandados a programar, Descartados, Todos). En cada nuevo: una **Nota** opcional, **"Mandar a programar"** y **"Descartar"** (pregunta Sí/No).
 
-**Historial**: buscador (por pregunta, respuesta o persona), rango de fechas, **"Sólo con 👎"**, y la lista de conversaciones con Última pregunta, Persona, Primera pregunta, Preguntas, 👍, 👎 y Costo US$. Tocando la pregunta se abre la conversación entera abajo, con qué usó para contestar cada respuesta (manual, datos, código, internet) y lo que costó. **"Descargar Excel"** arriba a la derecha.
+**Historial**: buscador (por N.º, pregunta, respuesta, pantalla o persona), rango de fechas, **"Sólo con 👎"**, y la lista de conversaciones con Última pregunta, Persona, Primera pregunta, Preguntas, 👍, 👎 y Costo US$. Tocando la pregunta se abre la conversación entera abajo, con qué usó para contestar cada respuesta (manual, datos, código, internet) y lo que costó. **"Descargar Excel"** arriba a la derecha.
 
 ## Cómo se hace
 

@@ -27,7 +27,7 @@ Se ve también cuántas unidades hay en cada depósito y en cada ubicación, y q
 
 ### La lista de depósitos
 
-- Buscador **"Buscar depósito por nombre"** (busca mientras escribís, con "Comienza por").
+- Buscador **"Buscar depósito por nombre"** (por nombre, dirección o número; busca mientras escribís, con "Comienza por").
 - Columnas (se ordenan tocando el título): **Depósito** (enlace que abre sus ubicaciones), **Tipo**, **Usa ubicaciones** (un interruptor que se prende o apaga ahí mismo, "Sí"/"No"), **Dirección**, **Estado** (Activo / Archivado), **Ubicaciones** (botón "Ubicaciones (N)" que abre la lista de ubicaciones), **Unidades** (enlace a la [Consulta de stock](/stock/consulta) filtrada por ese depósito).
 - En cada fila, el lápiz (convierte la fila en sus campos editables: nombre, tipo, "Usa ubicaciones", dirección y estado Activo/Archivado, con **"Guardar"** y **"Cancelar"**) y el tacho (pregunta "¿Borrar el depósito?" con Sí / No ahí mismo).
 
@@ -37,7 +37,7 @@ Al tocar un depósito (o si hay uno solo activo, de entrada) se abre la caja **U
 
 - Arriba a la derecha de la caja: **"Descargar Excel"** de sus ubicaciones (puede traer "Es la general" y "Productos distintos") y **"Nueva ubicación"** (sólo si el depósito usa ubicaciones). El alta pide **Código** ("ej. A-03-2"), **Descripción (opcional)**, **Orden** y **"Crear"**.
 - Si el depósito no usa ubicaciones, aparece la explicación de que todo va a la general, y un aviso si quedaron ubicaciones viejas con stock.
-- Buscador **"Buscar ubicación por código o descripción"**.
+- Buscador **"Buscar ubicación por código o descripción"** (también por número).
 - Columnas (ordenables): **Código** (la general lleva la marca "General"), **Descripción**, **Orden de recorrido**, **Estado** (Activa / Archivada) y **Unidades**.
 - Tocando el código o las unidades se despliega debajo lo que tiene adentro: SKU, Producto, Cantidad y Reservado (o "No tiene nada adentro.").
 - Lápiz (código, descripción, orden y estado Activa/Archivada, con "Guardar"/"Cancelar") y tacho ("¿Borrar?") en cada ubicación, salvo en la general, que dice "la crea el sistema".

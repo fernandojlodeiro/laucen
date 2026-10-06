@@ -28,7 +28,7 @@ Los cobros y pagos a clientes y proveedores no se cargan acá: se hacen con reci
 
 - Arriba a la derecha: **"Descargar Excel"** (con sus configuraciones) y **"Nueva cuenta"**.
 - **Total en pesos** (y **en dólares**, si hay cuentas en dólares): la suma de los saldos de las cuentas **activas**, sin importar lo que se esté buscando.
-- Buscador **"Buscar por nombre, banco, CBU o alias"**, con la caja **"Comienza por"** y la X para borrar.
+- Buscador **"Buscar por nombre, banco, CBU o alias"**, con la caja **"Comienza por"** y la X para borrar. Busca en todos los datos de la cuenta (N.º, nombre, tipo, moneda, banco, CBU —con o sin guiones—, alias, razón social, canal y cuenta contable).
 - Tabla, ordenable tocando el título:
   - **Cuenta**: el nombre (enlace a sus movimientos) y, debajo, "Cobra las ventas de <canal>" (enlace al canal) en las de Mercado Pago de una cuenta de ML o de la tienda, y "Saldo inicial $ … al dd/mm/aaaa" si tiene.
   - **Tipo**: Caja, Banco, Mercado Pago u Otra, y la moneda ($ o US$).

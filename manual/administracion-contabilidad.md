@@ -64,7 +64,7 @@ Estado de resultados del período: bloque **Ingresos** (cada cuenta de ingreso c
 ### Plan de cuentas
 
 - Botón **"Nueva cuenta"** arriba a la derecha: abre el formulario con **Código** (viene sugerido el próximo libre de egreso, ej. 5.2.06), **Nombre**, **Tipo** (Activo, Pasivo, Patrimonio neto, Ingreso, Egreso), la caja **Imputable** (tildada de entrada) y el botón **"Crear"**.
-- Buscador **"Buscar cuenta por código o nombre"** con "Comienza por".
+- Buscador **"Buscar cuenta por código o nombre"** con "Comienza por" (también por N.º, tipo, para qué la usan los asientos automáticos y a qué canal o cuenta está atada).
 - Aclaración: "Las imputables reciben asientos; las otras son títulos que agrupan. Las marcadas "automática" las usan los asientos que se generan solos: se pueden renombrar o recodificar, no borrar. Las "ventas del canal …" y las de Mercado Pago de cada cuenta de Mercado Libre y de la tienda web se crean solas."
 - Tabla: **Código** y **Cuenta** (con sangría según el nivel; los títulos en negrita; las automáticas con la etiqueta "automática: <rol>"; las que se crearon solas para un canal, con "ventas del canal <nombre>" o "de Mercado Pago — <cuenta>"), **Tipo**, **Imputable** (Sí / Título), **Estado** (Activa / Inactiva), el **lápiz** y el **tacho**.
 - El lápiz abre la fila para editar **código**, **nombre** y el interruptor **Activa**, con **"Guardar"** y **"Cancelar"**. El tipo y si es imputable no se cambian.

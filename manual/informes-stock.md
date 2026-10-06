@@ -28,7 +28,7 @@ Los dos tienen **"Descargar Excel"**, que baja exactamente lo mismo con los mism
 - Subtítulo: aclara que los kits no entran y con qué tipo de cambio se convierte ("Convertido con el tipo de cambio oficial de <fecha>: $ … por dólar"), o avisa que no hay tipo de cambio cargado.
 - Arriba a la derecha: **"Descargar Excel"**.
 - Filtros:
-  - Buscador "SKU o descripción" (busca mientras escribís, con **"Comienza por"** y **"Mostrar inactivos"**).
+  - Buscador "SKU o descripción" (busca en todos los datos de la variación, de su producto y en la familia; mientras escribís, con **"Comienza por"** y **"Mostrar inactivos"**).
   - **"Depósito"**: Todos o uno.
   - **"Costo"**: **"Costo FOB"** (el de entrada), **"Costo promedio (USD)"** o **"Último costo (USD)"**.
   - **"Moneda"**: **"Pesos"** (el de entrada), **"Dólares"** o **"Ambas"**.
@@ -46,7 +46,7 @@ Los dos tienen **"Descargar Excel"**, que baja exactamente lo mismo con los mism
 - Filtros:
   - **"Depósito"** (sólo si hay más de uno): Todos o uno. Al cambiarlo se borra la ubicación elegida.
   - **"Ubicación"**: con buscador; "Todas" o una (de los depósitos activos que usan ubicaciones, más la general de cada uno).
-  - Buscador "Producto: SKU o descripción", con "Comienza por".
+  - Buscador "Producto: SKU o descripción" (todos los datos de la variación y de su producto, más depósito, código y descripción de la ubicación), con "Comienza por".
 - La tabla, agrupada por ubicación en el orden de recorrido: una fila de título por ubicación (depósito si hay varios, código y descripción) con el total de unidades, y debajo cada producto con **Código** (enlace a la ficha), **Producto**, **Cantidad** y **Reservado**.
 - Fila final **"Total (N ubicaciones)"** con el total de unidades.
 - En pantalla, las primeras 2.000 filas; el total es de todas y el Excel trae todas.

@@ -27,14 +27,14 @@ Subtítulo: "Los crean los pedidos; acá se miran y se corrigen sus datos".
 **Arriba a la derecha**: el desplegable de columnas del Excel, **"⬇ Descargar Excel"**, **"⚙ Configurar…"** y **"+ Nuevo cliente"**.
 
 **Filtros**:
-- Buscador **"Buscar en todos los datos del cliente"**, con la caja **"Comienza por"** (tildada de entrada). Busca en todos sus datos: N.º, nombre, razón social, nombre de pila, apellido, mail, apodo de Mercado Libre, tipo y número de documento, CUIT, teléfono, celular, notas y los datos de sus direcciones (calle, número, piso, localidad, provincia, código postal, quién recibe y su teléfono, referencia). El CUIT, el documento y los teléfonos se encuentran escritos con o sin guiones, puntos o espacios.
+- Buscador **"Buscar en todos los datos del cliente"**, con la caja **"Comienza por"** (tildada de entrada). Busca en todos sus datos: N.º, nombre, razón social, nombre de pila, apellido, mail, apodo de Mercado Libre, tipo y número de documento, CUIT, teléfono, celular, sus internos / aclaraciones, notas y los datos de sus direcciones (calle, número, piso, localidad, provincia, código postal, quién recibe y su teléfono, referencia). El CUIT, el documento y los teléfonos se encuentran escritos con o sin guiones, puntos o espacios.
 - Desplegable **"Todos los tipos"** / **"Consumidor final"** / **"Mayorista"**.
 
 **"Vista"** (arriba de la tabla): elegí qué columnas ver o armá otras con **"⚙ Configurar vistas…"**.
 
 **Columnas de la vista "Estándar"**: **N.º** (el número interno del cliente), **Nombre** (enlace a la ficha), **Tipo** (tocándolo filtra por ese tipo), **Documento**, **Condición IVA**, **Mail** (abre el correo), **Teléfono**, **Pedidos** (cantidad; tocándolo abre [Pedidos](/ventas/pedidos) filtrado por ese cliente) y **Último pedido**.
 
-**Otras columnas** disponibles para vistas y Excel: Razón social, Nombre de pila, Apellido, Número de documento, CUIT, Celular, Apodo en Mercado Libre, Lista de precios, Cuenta corriente (Sí/No), Dirección, Localidad, Provincia, Código postal, **Total comprado**, Alta y Notas.
+**Otras columnas** disponibles para vistas y Excel: Razón social, Nombre de pila, Apellido, Número de documento, CUIT, Celular, los internos / aclaraciones de cada teléfono, Apodo en Mercado Libre, Lista de precios, Cuenta corriente (Sí/No), Dirección, Localidad, Provincia, Código postal, **Total comprado**, Alta y Notas.
 
 **Orden** de entrada: por nombre. Se ordena tocando el título de la columna.
 
@@ -52,7 +52,7 @@ Título: el nombre del cliente; debajo "Cliente N.º … · cliente desde el …
 - **"Nombre (como se lo conoce)"** y **"Tipo"** (Consumidor final / Mayorista).
 - **"Razón social (para facturar)"** y **"CUIT"**. Debajo del CUIT, si se puede consultar ARCA, el botón **"Validar en el padrón de ARCA"**.
 - **"Apellido"**, **"Nombre de pila"**, **"Apodo en Mercado Libre"**.
-- **"Mail"**, **"Teléfono"**, **"Celular"**.
+- **"Mail"**, **"Teléfono"**, **"Celular"**, cada teléfono con su **"Interno / aclaración"** al lado (ej. "INT 32"). El teléfono se escribe como quieras: se guarda sólo con sus números y se muestra ordenado ("011 4613-0698 (INT 32)"); si escribís el interno pegado al número, Laucen lo pasa solo a la aclaración.
 - **"Documento"** (tipo y número) y **"Condición IVA"** (Consumidor final, Responsable inscripto, Monotributo, Exento, No responsable, o "Sin cargar").
 - **"Lista de precios propia"** ("Para mayoristas. Vacío = la del canal.").
 - **"Notas"**.

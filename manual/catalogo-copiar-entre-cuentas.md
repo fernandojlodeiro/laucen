@@ -21,7 +21,7 @@ Menú **Catálogo › Copiar entre cuentas**.
 - **Publicaciones de origen**: sólo las activas (lo de siempre) o también las pausadas.
 - **Mostrar**: sólo las que faltan en la cuenta de destino (lo de siempre) o todas.
 - **Tipo**: todas, las que no son de catálogo o las de catálogo.
-- **Buscador** por título o SKU, y títulos de columna que ordenan.
+- **Buscador** por título, SKU o número de publicación (MLA…), y títulos de columna que ordenan.
 - **La grilla**: una casilla por producto (sólo se puede marcar si está activa en el origen, no es de catálogo, no tiene variaciones y todavía no está en el destino), el título, el SKU y una columna por cuenta. Un producto es el mismo en todas las cuentas si tiene el mismo SKU (sin el "DE-" de adelante) o, si no tiene SKU, el mismo título.
 - **Variar el título** y **Cambiar la foto principal**: opciones para que la copia no sea idéntica. Variar el título deja la primera palabra donde está y pasa la segunda mitad del resto adelante. Cambiar la foto principal pasa la primera foto al final.
 

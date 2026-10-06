@@ -25,7 +25,7 @@ Es el historial completo del stock: cada vez que algo entra, sale, se reserva, s
 
 ### Filtros
 
-- **Producto**: un buscador ("Producto: SKU o descripción") que busca mientras escribís, con la caja **"Comienza por"** (tildada de entrada) y la X para borrar. Busca en el SKU, en el título y en el SKU del kit. Si entraste desde la Consulta con un producto, en lugar del buscador aparece "Producto: SKU · título" con una **"×"** para sacar ese filtro.
+- **Producto**: un buscador ("Producto: SKU o descripción") que busca mientras escribís, con la caja **"Comienza por"** (tildada de entrada) y la X para borrar. Busca en el SKU, en el título, en el SKU del kit y en los datos del movimiento (número, tipo, referencia y nota). Si entraste desde la Consulta con un producto, en lugar del buscador aparece "Producto: SKU · título" con una **"×"** para sacar ese filtro.
 - **Fechas**: el selector de rango con atajos (Hoy, Ayer, Últimos 7 días, Este mes, Último mes, Último trimestre, Último año) y las dos fechas; de entrada, **"Todas las fechas"**. Los días se toman en hora argentina y la fecha "hasta" se incluye entera.
 - **"Tipo"**: Todos los tipos, Ingreso, Egreso, Transferencia, Ajuste, Reserva, Liberación, Venta, Devolución.
 - **"Usuario"**: todos los que alguna vez movieron stock, incluido "Sistema".

@@ -27,7 +27,7 @@ Sirve para responder preguntas como "¿quién pausó esta publicación?", "¿cu�
 
 ### Filtros (cambian la pantalla al momento)
 
-- Buscador **"Publicación (MLA…), SKU o título"**, con la caja **"Comienza por"** y la X para borrar.
+- Buscador **"Publicación (MLA…), SKU o título"**, con la caja **"Comienza por"** y la X para borrar. Busca en todos los datos del cambio (publicación, variación, qué cambió, antes, después, origen, la cuenta, el SKU y el título).
 - **Fechas** desde/hasta con atajos. Si no se elige, **los últimos 7 días**.
 - **Cuenta**: "Todas las cuentas" o una cuenta de Mercado Libre.
 - **"Qué cambió:"** cajas para tildar **Estado**, **Precio** y **Stock**. De entrada están tildados Estado y Precio (el stock cambia con cada venta y llenaría la lista).

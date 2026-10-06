@@ -25,7 +25,7 @@ Menú **Configuración › Razones sociales**. Sólo la ve quien tiene el permis
 
 ## Qué hay en la pantalla
 
-Una lista con: **N.º**, **Razón social** (con su nombre corto y la marca "Principal"), **CUIT**, **Condición IVA**, **Pto. de venta**, **Cuentas de ML y canales** (los canales que facturan con ella) y **ARCA** ("Conectada" o "Sin conectar"; tocarlo lleva a la conexión de esa razón social). Tiene buscador, orden por columna, "Descargar Excel" y el botón **"+ Nueva razón social"** arriba a la derecha.
+Una lista con: **N.º**, **Razón social** (con su nombre corto y la marca "Principal"), **CUIT**, **Condición IVA**, **Pto. de venta**, **Cuentas de ML y canales** (los canales que facturan con ella) y **ARCA** ("Conectada" o "Sin conectar"; tocarlo lleva a la conexión de esa razón social). Tiene buscador (en todos sus datos: N.º, nombre, razón social, CUIT con o sin guiones, condición IVA, domicilio, ingresos brutos), orden por columna, "Descargar Excel" y el botón **"+ Nueva razón social"** arriba a la derecha.
 
 En cada fila: **"Hacer principal"** (si no lo es), el **lápiz** (la fila se vuelve editable ahí mismo) y el **tacho** (pregunta "¿Borrar?" Sí / No).
 

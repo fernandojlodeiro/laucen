@@ -27,7 +27,7 @@ Arriba a la derecha:
 - **Descargar Excel** con sus configuraciones. Trae además columnas que no están en pantalla: camino completo, nivel, familia padre, categoría de ML, descuento propio, productos con las subfamilias, descripción.
 - **+ Nueva familia**: abre el formulario de alta.
 
-Buscador **"Buscar familia"** (por nombre, con la caja **"Comienza por"**; filtra mientras tipeás).
+Buscador **"Buscar familia"** (por nombre, descripción, categoría de Mercado Libre o número, con la caja **"Comienza por"**; filtra mientras tipeás).
 
 Tabla (de a 50 filas, con paginador abajo):
 - **Familia**: sin elegir orden se ve como árbol, cada una con sangría debajo de su padre (└). El nombre lleva a [Productos](/catalogo/productos) filtrado por esa familia.

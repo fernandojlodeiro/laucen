@@ -30,7 +30,7 @@ Título "Cuentas corrientes" y la aclaración "Lo que nos deben los clientes y l
 - **"Descargar Excel"** con sus configuraciones (columnas: N.º, Cliente/Proveedor, Saldo $, Vencido $, Último movimiento).
 - **"Nos deben"** (clientes) o **"Les debemos"** (proveedores): la suma de todos los saldos.
 - **"Vencido"**: la suma de lo vencido (en rojo si hay).
-- **"Abrir la cuenta de otro cliente/proveedor"**: un cuadro para escribir el nombre y el botón **"Buscar"**. Muestra hasta 20 coincidencias como enlaces; tocando uno se abre su cuenta (aunque todavía no tenga movimientos).
+- **"Abrir la cuenta de otro cliente/proveedor"**: un cuadro para escribir el nombre (o cualquier dato: N.º, razón social, CUIT, documento, mail, teléfono…; el CUIT y los teléfonos con o sin guiones) y el botón **"Buscar"**. Muestra hasta 20 coincidencias como enlaces; tocando uno se abre su cuenta (aunque todavía no tenga movimientos).
 - Tabla, ordenable tocando el título: **Cliente/Proveedor** (enlace a su cuenta), **Saldo**, **Vencido**, **Último movimiento**. De a 50 filas con paginador.
 
 ### El estado de cuenta (con un cliente o proveedor elegido)

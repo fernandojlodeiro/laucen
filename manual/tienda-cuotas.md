@@ -27,7 +27,7 @@ Dos tablas.
 - **Planes**: en negrita los planes propios (por ejemplo «3, 6 y 12 sin interés · 18 con 20 %»); en gris «Hereda de <familia>: …» si los toma de una familia de arriba; o «Sin cuotas (un pago)».
 - El **lápiz** para editar esa fila.
 
-**«Por producto»**: un buscador «Buscar por SKU o título» con los botones «Buscar» y «Limpiar». Sin buscar, muestra los productos que tienen planes propios (hasta 100); buscando, hasta 40 resultados (primero los que tienen planes propios). Columnas: **SKU**, **Producto**, **Planes** (igual que arriba: propios, «Hereda de …» o «Sin cuotas (un pago)») y el **lápiz**.
+**«Por producto»**: un buscador «Buscar por SKU o título» (busca en todos los datos del producto y en el SKU, título y código de barras de sus variaciones) con los botones «Buscar» y «Limpiar». Sin buscar, muestra los productos que tienen planes propios (hasta 100); buscando, hasta 40 resultados (primero los que tienen planes propios). Columnas: **SKU**, **Producto**, **Planes** (igual que arriba: propios, «Hereda de …» o «Sin cuotas (un pago)») y el **lápiz**.
 
 **Al editar una fila** (se edita ahí mismo):
 - Una fila por plan con **«Cuotas»** e **«Interés %»**, y el botón «Quitar».

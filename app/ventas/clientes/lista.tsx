@@ -5,6 +5,7 @@ import Link from "next/link";
 import { url } from "@/app/componentes/erp";
 import { parametroBusqueda, sqlBusqueda, type CampoBusqueda } from "@/lib/busqueda";
 import { cuitLegible } from "@/lib/cuit";
+import { telefonoConAclaracion } from "@/lib/telefono";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { TIPOS_CLIENTE, CONDICIONES_IVA, etiqueta } from "@/app/ventas/formato";
 
@@ -21,8 +22,8 @@ export function filtrosClientes(sp: SP) {
 export function camposCliente(a: string): CampoBusqueda[] {
   return [
     `${a}.id::text`, `${a}.nombre`, `${a}.razon_social`, `${a}.nombre_pila`, `${a}.apellido`, `${a}.email`, `${a}.apodo_ml`,
-    `${a}.documento_tipo`, { num: `${a}.documento_numero` }, { num: `${a}.cuit` }, { num: `${a}.telefono` }, { num: `${a}.telefono_movil` },
-    `${a}.notas`,
+    `${a}.documento_tipo`, { num: `${a}.documento_numero` }, { num: `${a}.cuit` }, { num: `${a}.telefono` }, `${a}.telefono_aclaracion`,
+    { num: `${a}.telefono_movil` }, `${a}.telefono_movil_aclaracion`, `${a}.notas`,
   ];
 }
 
@@ -55,8 +56,17 @@ const CAMPOS: Campo[] = [
   { clave: "cuit", titulo: "CUIT", sql: "c.cuit", valor: (f) => (f.cuit ? cuitLegible(f.cuit as string) : null) },
   { clave: "iva", titulo: "Condición IVA", sql: "c.condicion_iva", valor: traducido("iva", CONDICIONES_IVA) },
   { clave: "email", titulo: "Mail", sql: "c.email", ancho: 28, celda: (f) => f.email ? <a href={`mailto:${f.email}`} className="hover:text-[#16577F] hover:underline">{f.email}</a> : "—" },
-  { clave: "telefono", titulo: "Teléfono", sql: "c.telefono", celda: (f) => <span className="whitespace-nowrap">{f.telefono ?? "—"}</span> },
-  { clave: "telefono_movil", titulo: "Celular", sql: "c.telefono_movil" },
+  {
+    clave: "telefono", titulo: "Teléfono", sql: "c.telefono", usa: ["telefono_aclaracion"],
+    valor: (f) => telefonoConAclaracion(f.telefono, f.telefono_aclaracion) || null,
+    celda: (f) => <span className="whitespace-nowrap">{telefonoConAclaracion(f.telefono, f.telefono_aclaracion) || "—"}</span>,
+  },
+  { clave: "telefono_aclaracion", titulo: "Interno / aclaración del teléfono", sql: "c.telefono_aclaracion" },
+  {
+    clave: "telefono_movil", titulo: "Celular", sql: "c.telefono_movil", usa: ["telefono_movil_aclaracion"],
+    valor: (f) => telefonoConAclaracion(f.telefono_movil, f.telefono_movil_aclaracion) || null,
+  },
+  { clave: "telefono_movil_aclaracion", titulo: "Interno / aclaración del celular", sql: "c.telefono_movil_aclaracion" },
   { clave: "apodo_ml", titulo: "Apodo en Mercado Libre", sql: "c.apodo_ml" },
   { clave: "lista", titulo: "Lista de precios", sql: "(select l.nombre from lista_precios l where l.id = c.lista_precios_id)" },
   { clave: "cuenta_corriente", titulo: "Cuenta corriente", sql: "c.cuenta_corriente", formato: "sino" },

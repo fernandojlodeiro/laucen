@@ -40,7 +40,7 @@ Las facturas no se cargan desde esta pantalla: nacen de un pedido (con el botón
 - **Estado**: Todos, Autorizado, Pendiente, Rechazado, Error.
 - **Tipo**: Todos, Factura A, Factura B, Factura C, Nota de crédito A, Nota de crédito B, Nota de crédito C.
 - **Fechas**: desde/hasta con atajos (Hoy, Ayer, Últimos 7 días, Este mes, etc.). Sin fechas, "Todas las fechas".
-- **Buscar**: por número (por ejemplo "00003-00000042" o sólo "42"), nombre del receptor, número de documento o CAE.
+- **Buscar**: en todos los datos del comprobante: N.º, número (por ejemplo "00003-00000042" o sólo "42"), receptor, documento (el CUIT con o sin guiones), domicilio, CAE, observaciones de ARCA, estado, el cliente y el id externo del pedido.
 - **"Filtrar"** aplica los filtros y **"Limpiar"** (aparece si hay alguno puesto) los saca.
 
 ### Selector "Vista"

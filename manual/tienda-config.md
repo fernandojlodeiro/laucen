@@ -54,7 +54,7 @@ Justo debajo de esa caja (antes de la ficha), la sección **Dominios (N)**, con 
 
 ### Métodos de envío
 
-Arriba a la derecha, **"Descargar Excel"** y **"Nuevo método de envío"**. Buscador **"Buscar método de envío"**.
+Arriba a la derecha, **"Descargar Excel"** y **"Nuevo método de envío"**. Buscador **"Buscar método de envío"** (en todos sus datos: N.º, nombre, tipo, provincias de las tarifas, plazo e instrucciones).
 
 Columnas (se ordenan tocando el título; de entrada por **Orden**): **Nombre**, **Tipo**, **Activo** (un interruptor Sí/No), **Costo** ("Sin cargo" para retiro, "A convenir", "N provincias · resto $ …" para por provincia, o el importe), **Gratis desde** ("Nunca", el importe, o "—" para retiro y a convenir), **Plazo**, **Instrucciones**, **Orden**, y el lápiz y el tacho ("¿Borrar?").
 

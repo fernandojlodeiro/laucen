@@ -20,7 +20,7 @@ Mirar la pantalla pide el permiso «Usuarios y roles». Para cambiar algo (invit
 ## Qué hay en la pantalla
 
 - Arriba a la derecha: **"Invitar persona"** y **"Nuevo rol"** (este último sólo si tenés «Administrar roles»).
-- **Personas**: buscador por nombre o mail y la tabla con Nombre, Mail, Rol, Estado (Activo, Invitado, Suspendido) y Desde.
+- **Personas**: buscador (por nombre, mail, rol, estado o "Superadministrador") y la tabla con Nombre, Mail, Rol, Estado (Activo, Invitado, Suspendido) y Desde.
   - Al lado del nombre: **👑 Dueño** o **⭐ Superadministrador**.
   - En cada fila: el lápiz (cambiar el rol), **"Suspender"** o **"Reactivar"**, el tacho para borrar una invitación que todavía no se usó y, si sos superadministrador, **"Hacer superadministrador"** o **"Quitar superadministrador"**.
 - **Roles y permisos**: cada rol con cuántas personas lo tienen y cuántas funciones del menú tiene prendidas. El lápiz abre el rol en la misma fila con sus permisos como cajas para tildar, agrupados como el menú.

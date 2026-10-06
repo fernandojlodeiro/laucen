@@ -26,7 +26,7 @@ Se imprime en impresora térmica (una etiqueta de 50 × 25 mm por hoja) o en hoj
 
 ### Pestaña "Productos"
 
-- El buscador ("SKU, título o código de barras"), la caja **"Mostrar inactivos"** y el botón **"Buscar"**. El SKU y el título se buscan en cualquier parte del texto; el código de barras tiene que ser completo. Trae hasta 60 resultados. No aparecen los kits (un kit no tiene un código propio para pegar: se etiquetan sus componentes).
+- El buscador ("SKU, título o código de barras"), la caja **"Mostrar inactivos"** y el botón **"Buscar"**. El SKU, el título y los demás datos del producto (marca, modelo, descripción, número…) se buscan en cualquier parte del texto; el código de barras tiene que ser completo. Trae hasta 60 resultados. No aparecen los kits (un kit no tiene un código propio para pegar: se etiquetan sus componentes).
 - La lista de productos encontrados: SKU, título, el código de barras (o "sin código de barras: va el SKU") y el campo **"Etiquetas"** con cuántas imprimir de cada uno. Si se encontró uno solo, viene con 1; si no, con 0.
 - **"Formato"**: **"Térmica 50×25 mm"** o **"Hoja A4 (3×8)"**.
 - La caja **"Con precio"** y el desplegable **"De la lista"** (las listas de precios activas). Si no hay listas activas, están deshabilitados y avisa "No hay listas de precios activas: las etiquetas van sin precio."
@@ -42,7 +42,7 @@ Se imprime en impresora térmica (una etiqueta de 50 × 25 mm por hoja) o en hoj
 ### Pestaña "Full de Mercado Libre"
 
 - Si hay más de una cuenta de Mercado Libre, el desplegable para elegirla (cambiarla vacía la lista).
-- El buscador "SKU, título o Código ML" (busca mientras se escribe, desde la segunda letra; la X lo borra; la caja **"Comienza por"**). Busca por nuestro SKU, el SKU de Mercado Libre, el título de la publicación, el número de publicación (MLA…) o el Código ML. Cada resultado muestra el **Código ML** (o "sin Código ML guardado"), el título de Mercado Libre, el SKU, el número de publicación, la variante si tiene, "en Full" si ya está en Full, y el botón **"Agregar"**.
+- El buscador "SKU, título o Código ML" (busca mientras se escribe, desde la segunda letra; la X lo borra; la caja **"Comienza por"**). Busca por nuestro SKU, el SKU de Mercado Libre, el título de la publicación, el número de publicación (MLA…) o de variante, los atributos, la categoría o el Código ML. Cada resultado muestra el **Código ML** (o "sin Código ML guardado"), el título de Mercado Libre, el SKU, el número de publicación, la variante si tiene, "en Full" si ya está en Full, y el botón **"Agregar"**.
 - **"Para imprimir (N)"**: lo agregado, en el orden en que se cargó. Cada renglón muestra el Código ML y el título que van a salir en la etiqueta, el campo **"Etiquetas"** (cuántas, viene en 1; agregar de nuevo la misma suma 1) y el tacho para sacarla (pregunta "Sí" / "No" ahí mismo). Si la publicación no tiene Código ML, el renglón lo dice en rojo ("Sin Código ML: no se imprime").
 - **"Impresora"**: **"Térmica 50×25"**, **"A4 (impresora común)"** o **"Térmica ZPL (próximamente)"**, todavía deshabilitada. Queda recordada para la próxima. Con A4 aparece **"Empezar en la etiqueta N.º"** (1 a 30), para aprovechar una hoja ya empezada.
 - Botón **"🖨 Imprimir N etiquetas"**: abre el PDF en otra pestaña.

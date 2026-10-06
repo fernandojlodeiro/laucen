@@ -22,7 +22,7 @@ No afectan a Mercado Libre (allá el descuento por volumen está en [Precios en 
 
 **Arriba a la derecha:** «Descargar Excel» y **«Nueva regla»**.
 
-**Buscador** «Buscar regla» (por nombre, con la caja «Comienza por»).
+**Buscador** «Buscar regla» (por N.º, nombre, el producto, la familia o el medio de pago de la condición, con la caja «Comienza por»).
 
 **Tabla** (de a 50, se ordena tocando el título; de entrada, por prioridad):
 - **Regla**: el nombre.

@@ -12,6 +12,7 @@ import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { CONDICIONES_IVA } from "@/app/ventas/formato";
 import { cuitLegible } from "@/lib/cuit";
+import { telefonoConAclaracion, telefonoLegible } from "@/lib/telefono";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
@@ -24,7 +25,8 @@ export const dynamic = "force-dynamic";
 type SP = { q?: string; contiene?: string; editar?: string; id?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 type Proveedor = {
   id: number; nombre: string; razon_social: string | null; cuit: string | null; condicion_iva: string | null; pais: string;
-  email: string | null; telefono: string | null; contacto: string | null; calle: string | null; localidad: string | null;
+  email: string | null; telefono: string | null; telefono_aclaracion: string | null; telefono_movil: string | null;
+  telefono_movil_aclaracion: string | null; contacto: string | null; calle: string | null; localidad: string | null;
   provincia: string | null; moneda: string; condiciones_pago: string | null; notas: string | null; estado: string; facturas?: number;
 };
 
@@ -32,7 +34,7 @@ type Proveedor = {
 function Campos({ p }: { p?: Proveedor }) {
   const campo = (k: keyof Proveedor, etiqueta: string, ancho = "w-full") => (
     <label><span className={ETIQUETA}>{etiqueta}</span>
-      <input name={k} defaultValue={k === "cuit" ? cuitLegible(p?.cuit) : (p?.[k] as string | null) ?? ""} className={`${CAMPO} ${ancho}`} autoFocus={k === "nombre"} /></label>
+      <input name={k} defaultValue={k === "cuit" ? cuitLegible(p?.cuit) : k === "telefono" || k === "telefono_movil" ? telefonoLegible(p?.[k]) : (p?.[k] as string | null) ?? ""} className={`${CAMPO} ${ancho}`} autoFocus={k === "nombre"} /></label>
   );
   return (
     <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 items-start">
@@ -47,6 +49,9 @@ function Campos({ p }: { p?: Proveedor }) {
       {campo("contacto", "Contacto")}
       {campo("email", "Mail")}
       {campo("telefono", "Teléfono")}
+      {campo("telefono_aclaracion", "Interno / aclaración")}
+      {campo("telefono_movil", "Celular")}
+      {campo("telefono_movil_aclaracion", "Interno / aclaración del celular")}
       {campo("pais", "País (AR, CN…)")}
       {campo("calle", "Dirección")}
       {campo("localidad", "Localidad")}
@@ -74,7 +79,7 @@ export default async function Proveedores({ searchParams }: { searchParams: Prom
   const FACTURAS = FACTURAS_PROVEEDOR;
   const base = await LISTA_PROVEEDORES.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
   const { filas, total } = await consultaPaginada<Proveedor>({
-    campos: `pr.id::int, pr.nombre, pr.razon_social, pr.cuit, pr.condicion_iva, pr.pais, pr.email, pr.telefono, pr.contacto, pr.calle,
+    campos: `pr.id::int, pr.nombre, pr.razon_social, pr.cuit, pr.condicion_iva, pr.pais, pr.email, pr.telefono, pr.telefono_aclaracion, pr.telefono_movil, pr.telefono_movil_aclaracion, pr.contacto, pr.calle,
              pr.localidad, pr.provincia, pr.moneda, pr.condiciones_pago, pr.notas, pr.estado, ${FACTURAS}::int facturas`,
     desde: base.desde,
     donde: base.donde,
@@ -132,7 +137,7 @@ export default async function Proveedores({ searchParams }: { searchParams: Prom
                 <td className={TD}><Link href={aqui({ id: p.id, q: null, p: null })} className="font-semibold text-[#16577F] hover:underline">{p.nombre}</Link>{p.razon_social && p.razon_social !== p.nombre && <span className="block text-[11px] text-[#5C6B76]">{p.razon_social}</span>}</td>
                 <td className={`${TD} whitespace-nowrap`}>{p.cuit ? cuitLegible(p.cuit) : "—"}{p.pais !== "AR" && <span className="text-[#5C6B76]"> · {p.pais}</span>}</td>
                 <td className={TD}>{p.condicion_iva ? CONDICIONES_IVA[p.condicion_iva as keyof typeof CONDICIONES_IVA] ?? p.condicion_iva : "—"}</td>
-                <td className={TD}>{[p.contacto, p.telefono].filter(Boolean).join(" · ")}{p.email && <>{p.contacto || p.telefono ? " · " : ""}<a href={`mailto:${p.email}`} className="hover:text-[#16577F] hover:underline">{p.email}</a></>}{!p.contacto && !p.email && !p.telefono && "—"}</td>
+                <td className={TD}>{[p.contacto, telefonoConAclaracion(p.telefono, p.telefono_aclaracion), telefonoConAclaracion(p.telefono_movil, p.telefono_movil_aclaracion)].filter(Boolean).join(" · ")}{p.email && <>{p.contacto || p.telefono || p.telefono_movil ? " · " : ""}<a href={`mailto:${p.email}`} className="hover:text-[#16577F] hover:underline">{p.email}</a></>}{!p.contacto && !p.email && !p.telefono && !p.telefono_movil && "—"}</td>
                 <td className={TD}>{p.moneda === "USD" ? "Dólares" : "Pesos"}</td>
                 <td className={TDN}>{p.facturas ? <Link href={url("/compras/facturas", { proveedor: p.id })} className="text-[#16577F] hover:underline">{p.facturas}</Link> : 0}</td>
                 <td className={TD}><Estado texto={p.estado === "activo" ? "Activo" : "Archivado"} tono={p.estado === "activo" ? "verde" : "gris"} /></td>

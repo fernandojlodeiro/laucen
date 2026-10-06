@@ -22,7 +22,7 @@ Dos cajas, una al lado de la otra (una debajo de la otra en el celular). Los cam
 
 ### Ajuste
 
-- **"Producto"**: se busca mientras se escribe (desde la segunda letra) por SKU, código de barras o **descripción**: lo escrito se busca tal cual, entero, en cualquier parte (con **?** se piden varias condiciones a la vez), y primero salen los que empiezan igual. Cada resultado muestra su foto, el SKU y el título. Al elegir el producto, abajo aparecen **las ubicaciones donde está**: si está en una sola, queda elegida sola; si está en varias, se toca la que corresponde.
+- **"Producto"**: se busca mientras se escribe (desde la segunda letra) por SKU, código de barras, **descripción** o cualquier otro dato del producto (marca, modelo, número…): lo escrito se busca tal cual, entero, en cualquier parte (con **?** se piden varias condiciones a la vez), y primero salen los que empiezan igual. Cada resultado muestra su foto, el SKU y el título. Al elegir el producto, abajo aparecen **las ubicaciones donde está**: si está en una sola, queda elegida sola; si está en varias, se toca la que corresponde.
 - **"Depósito · ubicación"**: se elige con buscador (se escribe y filtra por depósito, código o descripción de la ubicación, en cualquier parte). Se muestra como "Depósito · código" o "Depósito · General". Se puede elegir cualquiera, también una donde el producto todavía no tiene stock (para sumarle).
 - **"Sumar o restar"**: **"Sumar (+)"** o **"Restar (−)"**.
 - **"Cantidad"**.

@@ -7,6 +7,7 @@ import { enMoneda, enVista, formatear } from "@/lib/moneda";
 import { ESTADOS_PEDIDO, ESTADOS_PAGO, esEstadoPedido, esEstadoPago, sqlPedidoPendiente, sqlEstadoPago } from "@/lib/pedidos";
 import { parametroBusqueda, sqlBusqueda, type CampoBusqueda } from "@/lib/busqueda";
 import { camposCliente } from "@/app/ventas/clientes/lista";
+import { telefonoConAclaracion } from "@/lib/telefono";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { TONO_ESTADO, TONO_PAGO, etiqueta } from "@/app/ventas/formato";
 import type { EstadoPedido, EstadoPago } from "@/lib/pedidos";
@@ -60,7 +61,8 @@ const CAMPOS: Campo[] = [
   { clave: "cliente", titulo: "Cliente", sql: "cl.nombre", ancho: 28, celda: (f) => f.cliente_id ? <Link href={`/ventas/clientes/${f.cliente_id}`} className="text-[#16577F] hover:underline">{f.cliente}</Link> : "—" },
   { clave: "cliente_doc", titulo: "Documento del cliente", sql: "nullif(concat_ws(' ', cl.documento_tipo, cl.documento_numero), '')", orden: "cl.documento_numero" },
   { clave: "cliente_email", titulo: "Mail del cliente", sql: "cl.email" },
-  { clave: "cliente_tel", titulo: "Teléfono del cliente", sql: "cl.telefono" },
+  { clave: "cliente_tel", titulo: "Teléfono del cliente", sql: "cl.telefono", usa: ["cliente_tel_aclaracion"], valor: (f) => telefonoConAclaracion(f.cliente_tel, f.cliente_tel_aclaracion) || null },
+  { clave: "cliente_tel_aclaracion", titulo: "Interno / aclaración del teléfono del cliente", sql: "cl.telefono_aclaracion" },
   {
     clave: "estado", titulo: "Estado", sql: "p.estado", valor: traducido("estado", ESTADOS_PEDIDO),
     // Un carrito de ML en espera (10 min desde su último evento) lo dice al lado.

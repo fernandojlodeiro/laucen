@@ -17,7 +17,7 @@ Menú **Informes › Promociones de ML**.
 
 ## Qué hay en la pantalla
 
-Tres pestañas, cada una con su buscador, filtros y **Descargar Excel**:
+Tres pestañas, cada una con su buscador (en todos los datos de la fila: publicación, SKU, título, campaña y su número, tipo, estado, cuenta…), filtros y **Descargar Excel**:
 
 - **Historia**: cada cambio anotado, lo más nuevo arriba: campaña nueva, campaña que cambió de estado (por ejemplo, de "Por empezar" a "En curso" o "Terminada") o de fechas, publicación que apareció en una campaña, que cambió de estado o de precio dentro de ella, o que salió. Se filtra por fechas (los últimos 7 días de entrada), cuenta, tipo de campaña y "Ver": todo, sólo cambios de campañas, sólo de publicaciones o sólo cambios de precio. Tocando el nombre de una campaña se ve toda su historia.
 - **Publicaciones en promoción**: las publicaciones que están adentro de una campaña (en curso o por empezar), con el precio de hoy en ML, el precio en la campaña, el descuento, lo mínimo y máximo que acepta ML, el % que pone ML y el que ponés vos, y desde cuándo y hasta cuándo. El filtro "Estado" también muestra las que **pueden entrar** y todas.

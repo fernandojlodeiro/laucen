@@ -3,6 +3,7 @@
 
 import { parametroBusqueda, sqlBusqueda, type CampoBusqueda } from "@/lib/busqueda";
 import { cuitLegible } from "@/lib/cuit";
+import { telefonoConAclaracion } from "@/lib/telefono";
 import { CONDICIONES_IVA } from "@/app/ventas/formato";
 import { campoFecha, traducido, type Lista } from "@/lib/listas/tipos";
 
@@ -10,7 +11,8 @@ export const FACTURAS_PROVEEDOR = "(select count(*) from factura_compra f where 
 
 /** Dónde busca el buscador: todos los campos de texto del proveedor. */
 const BUSCA_EN: CampoBusqueda[] = [
-  "pr.id::text", "pr.nombre", "pr.razon_social", { num: "pr.cuit" }, "pr.pais", "pr.email", { num: "pr.telefono" }, { num: "pr.telefono_movil" },
+  "pr.id::text", "pr.nombre", "pr.razon_social", { num: "pr.cuit" }, "pr.pais", "pr.email", { num: "pr.telefono" }, "pr.telefono_aclaracion",
+  { num: "pr.telefono_movil" }, "pr.telefono_movil_aclaracion",
   "pr.contacto", "pr.calle", "pr.localidad", "pr.provincia", "pr.codigo_postal", "pr.condiciones_pago", "pr.notas",
 ];
 
@@ -28,7 +30,10 @@ export const LISTA_PROVEEDORES: Lista = {
     { clave: "pais", titulo: "País", sql: "pr.pais" },
     { clave: "contacto", titulo: "Contacto", sql: "pr.contacto" },
     { clave: "email", titulo: "Mail", sql: "pr.email", ancho: 28 },
-    { clave: "telefono", titulo: "Teléfono", sql: "pr.telefono" },
+    { clave: "telefono", titulo: "Teléfono", sql: "pr.telefono", usa: ["telefono_aclaracion"], valor: (f) => telefonoConAclaracion(f.telefono, f.telefono_aclaracion) || null },
+    { clave: "telefono_aclaracion", titulo: "Interno / aclaración del teléfono", sql: "pr.telefono_aclaracion" },
+    { clave: "telefono_movil", titulo: "Celular", sql: "pr.telefono_movil", usa: ["telefono_movil_aclaracion"], valor: (f) => telefonoConAclaracion(f.telefono_movil, f.telefono_movil_aclaracion) || null },
+    { clave: "telefono_movil_aclaracion", titulo: "Interno / aclaración del celular", sql: "pr.telefono_movil_aclaracion" },
     { clave: "calle", titulo: "Dirección", sql: "pr.calle", ancho: 28 },
     { clave: "localidad", titulo: "Localidad", sql: "pr.localidad" },
     { clave: "provincia", titulo: "Provincia", sql: "pr.provincia" },

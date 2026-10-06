@@ -54,7 +54,7 @@ Caja **«Interruptores de la cuenta»** (tres interruptores):
 
 ### Pestaña «Excepciones»
 
-Excepciones por **categoría** (vale también para sus subcategorías) o por **producto**. Arriba a la derecha: «Descargar Excel» y **«Nueva excepción»**. Buscador por categoría o SKU.
+Excepciones por **categoría** (vale también para sus subcategorías) o por **producto**. Arriba a la derecha: «Descargar Excel» y **«Nueva excepción»**. Buscador por categoría, producto, SKU o número.
 
 Columnas: «Aplica a» (Categoría / Producto), «Categoría o producto» (con enlace), «Tachado» y una columna por plan («6 cuotas», «3 cuotas», «9 cuotas», «12 cuotas») con un resumen: «hereda», o por ejemplo «activo · desde $ 30.000 · margen 2 %». Cada fila tiene el **lápiz** (se edita ahí mismo, con «Guardar» y «Cancelar») y el **tacho** (pregunta «¿Borrar? Vuelve a heredar» con Sí / No).
 

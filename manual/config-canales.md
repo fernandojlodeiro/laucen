@@ -41,7 +41,7 @@ La primera vez que una organización sin ningún canal abre la pantalla, el sist
 
 ### Buscador y lista
 
-- **"Buscar canal"**: busca por nombre mientras tipeás, con la caja "Comienza por".
+- **"Buscar canal"**: busca mientras tipeás, con la caja "Comienza por", en todos los datos del canal: N.º, nombre, tipo, estado y lista de precios.
 - Columnas (se ordenan tocando el título): **Canal** (el nombre; tocarlo abre sus detalles abajo), **Tipo**, **Lista de precios** (enlace a esa lista; en rojo "sin lista" si no tiene), **Vende desde** (los depósitos, en orden de prioridad; en rojo "ningún depósito"), **Estado** (Activo / Pausado / Archivado), **Mercado Libre** (sólo para canales de ML: "Conectada" en verde o "Desconectada" en rojo, **seguido del apodo (nick) de la cuenta de ML conectada**; para el resto, "—"), **Factura con** (aparece apenas hay una razón social cargada: con cuál se factura lo que vende el canal; en rojo "sin razón social" si falta elegirla), **Umbral de pausa** ("hereda" si está vacío), **Stock a ML**, **Precios a ML** y **Facturas a ML** (sólo en las cuentas de Mercado Libre: los interruptores "Laucen manda el stock a ML y pausa al llegar al umbral", "Laucen manda los precios a ML solo" —el mismo que "Sincronizar precios" de Precios en ML; apagado, ningún precio sale salvo lo que mandes vos con tu clic— y "Subir facturas a Mercado Libre", ahí mismo; al tocarlos preguntan "Sí" / "No" antes de cambiar; para el resto de los canales, "—"), **Llave API** ("Tiene" o "sin llave").
 - Al final de cada fila, el **lápiz** (editar la fila ahí mismo) y el **tacho** (borrar, pregunta "¿Borrar el canal?" Sí / No).
 - Abajo, el paginador de 50 en 50 y dos ayudas: qué es el umbral de pausa y qué es la llave API.
@@ -86,7 +86,7 @@ Arriba a la derecha, **"Descargar Excel"** (en las pestañas de la cola, no en L
 - **Barridas nocturnas**: el resumen de cada noche.
 
 En las cuatro primeras pestañas:
-- Filtros: buscador **"Buscar por publicación (MLA…) o SKU"**, **Canal** ("Todas las cuentas" o una), **Tipo** (Stock, Estado, Precio, Descuento, Campaña, Atributos, Publicación nueva, Factura, Reclamo, Otro) y **Origen** (Automático, Botón, Barrida nocturna).
+- Filtros: buscador **"Buscar por publicación (MLA…) o SKU"** (busca en todos los datos del envío: N.º, publicación, variación, tipo, estado, origen, el problema, la cuenta y el SKU), **Canal** ("Todas las cuentas" o una), **Tipo** (Stock, Estado, Precio, Descuento, Campaña, Atributos, Publicación nueva, Factura, Reclamo, Otro) y **Origen** (Automático, Botón, Barrida nocturna).
 - Columnas: **N.º**, **Creado**, **Canal**, **Publicación** (el MLA, enlace a la publicación; o "Comprobante N" que lleva a la factura; o "Reclamo N"), **SKU** (enlace al producto), **Tipo** (y "lote N" si vino en un lote), **Antes → después** (ej. "activa, 3 u. → Cantidad 0"; con la marca roja "Urgente" si es una pausa por stock; y "reemplazó N cambios anteriores" si corresponde), **Origen**, **Estado**, **Intentos**, **Sale** (en Pendientes: la hora del próximo intento o "ya") o **Enviado** (en las otras), y **Problema** (el error en criollo).
 - Por fila: **"Reintentar"** (sólo con error) y **"Descartar"** (pendiente o con error). Los dos preguntan antes.
 - En **Con error**, arriba a la derecha: **"Reintentar errores"** (o "Reintentar los errores de esta cuenta" si filtraste por canal).

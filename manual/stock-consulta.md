@@ -25,7 +25,7 @@ También es el punto de partida para corregir un stock: desde un producto abiert
 
 ### Filtros (arriba)
 
-- **Buscador** ("SKU, título o código de barras"): busca mientras escribís, desde la segunda letra. Con la caja **"Comienza por"** tildada (viene tildada) busca lo que empieza con lo escrito; destildada, lo que lo contiene en cualquier parte. El código de barras tiene que coincidir completo. La X adentro del cuadro borra lo escrito. **"Mostrar inactivos"** suma los productos archivados; si lo escrito no está en ningún activo pero sí en alguno archivado, salen igual aunque la caja esté apagada.
+- **Buscador** ("SKU, título o código de barras"): busca mientras escribís, desde la segunda letra, en todos los datos de la variación y de su producto (SKU, título, código de barras, marca, modelo, descripción, número…). Con la caja **"Comienza por"** tildada (viene tildada) busca lo que empieza con lo escrito; destildada, lo que lo contiene en cualquier parte. El código de barras tiene que coincidir completo. La X adentro del cuadro borra lo escrito. **"Mostrar inactivos"** suma los productos archivados; si lo escrito no está en ningún activo pero sí en alguno archivado, salen igual aunque la caja esté apagada.
 - Interruptor **"Todos los depósitos"**: prendido, suma todos los depósitos activos. Apagado, aparece el desplegable **"Depósito"** para ver uno solo. La elección queda recordada en ese navegador: la próxima vez la pantalla abre con el último depósito elegido.
 - Interruptor **"Sólo bajo el mínimo"**: deja sólo los productos cuyo disponible está por debajo del stock mínimo cargado en el producto.
 - Interruptor **"Sólo con disponible negativo"**: deja sólo los que tienen disponible menor que cero (se vendió más de lo que había).

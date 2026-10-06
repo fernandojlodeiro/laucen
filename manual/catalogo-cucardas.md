@@ -23,7 +23,7 @@ Las cucardas son etiquetas de color que se muestran sobre un producto en la tien
 
 Arriba a la derecha: **Descargar Excel** (trae también cuántos productos y cuántas familias la usan, por separado) y **+ Nueva cucarda**.
 
-Buscador **"Buscar cucarda"** (por nombre, con "Comienza por").
+Buscador **"Buscar cucarda"** (por nombre, color o número, con "Comienza por").
 
 Tabla (se ordena tocando el título; sin elegir, por Orden):
 - **Cucarda**: el nombre dibujado con su color.

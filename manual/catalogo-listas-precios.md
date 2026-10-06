@@ -116,7 +116,7 @@ También se puede desde la ficha del producto, pestaña **Precios**.
 - Lo carga como precio propio de la lista destino, desde hoy y en la misma moneda que en la origen; pisa lo que el destino tuviera cargado hoy. Queda fijo: si después cambia la lista origen, el destino no cambia (para que siga sola, usá "Se calcula desde").
 - Origen y destino tienen que ser distintas.
 
-**Qué variaciones aparecen en la grilla**: sólo las variaciones **activas**; las de productos inactivos sólo con "Mostrar inactivos". El buscador busca lo escrito tal cual (entero, con espacios) en el SKU, el título o el código de barras (al principio o en cualquier parte, según "Comienza por"; con "?" separás condiciones que tienen que estar todas en el mismo dato). Con algo escrito, si ningún producto activo coincide pero sí uno inactivo, se muestra igual.
+**Qué variaciones aparecen en la grilla**: sólo las variaciones **activas**; las de productos inactivos sólo con "Mostrar inactivos". El buscador busca lo escrito tal cual (entero, con espacios) en todos los datos de la variación y de su producto: SKU, título, código de barras, marca, modelo, descripción, número… (al principio o en cualquier parte, según "Comienza por"; con "?" separás condiciones que tienen que estar todas en el mismo dato). Con algo escrito, si ningún producto activo coincide pero sí uno inactivo, se muestra igual.
 
 **Precio negativo**: no se acepta ("El precio tiene que ser un número mayor o igual a cero.").
 

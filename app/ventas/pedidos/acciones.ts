@@ -35,11 +35,13 @@ export async function crearClienteDesdePedido(d: {
     const nombre = d.nombre.trim().slice(0, 200);
     if (!nombre) return { error: "El cliente necesita un nombre." };
     const docTipo = (DOCUMENTOS as readonly string[]).includes(d.documentoTipo) ? d.documentoTipo : null;
-    const docNum = d.documentoNumero.trim().slice(0, 30) || null;
+    // CUIT, CUIL y DNI se guardan sólo con números (el pasaporte u otro, tal cual).
+    const docTxt = d.documentoNumero.trim().slice(0, 30);
+    const docNum = (docTipo === "CUIT" || docTipo === "CUIL" || docTipo === "DNI" ? docTxt.replace(/\D/g, "") : docTxt) || null;
     let cuit: string | null = null;
     if (docNum && docTipo === "CUIT") {
       cuit = normalizarCuit(docNum);
-      if (!cuit) return { error: "El CUIT tiene que tener 11 dígitos." };
+      if (!cuit) return { error: "El CUIT tiene que tener 11 números." };
     }
     if (docNum) {
       const repetido = await una<{ id: number; nombre: string }>(

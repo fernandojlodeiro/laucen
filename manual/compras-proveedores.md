@@ -31,7 +31,7 @@ Arriba a la derecha:
 - **Nuevo proveedor**: abre el formulario de alta debajo del título.
 
 Debajo:
-- Un buscador ("Buscar en todos los datos del proveedor": N.º, nombre, razón social, CUIT, país, mail, teléfonos, contacto, dirección, localidad, provincia, código postal, condiciones de pago y notas) que busca mientras escribís, desde la segunda letra, con la caja **Comienza por** (tildada: el texto tiene que estar al principio; destildada: en cualquier parte). El CUIT y los teléfonos se encuentran escritos con o sin guiones o espacios. La X adentro del cuadro borra lo escrito.
+- Un buscador ("Buscar en todos los datos del proveedor": N.º, nombre, razón social, CUIT, país, mail, teléfonos y sus internos / aclaraciones, contacto, dirección, localidad, provincia, código postal, condiciones de pago y notas) que busca mientras escribís, desde la segunda letra, con la caja **Comienza por** (tildada: el texto tiene que estar al principio; destildada: en cualquier parte). El CUIT y los teléfonos se encuentran escritos con o sin guiones o espacios. La X adentro del cuadro borra lo escrito.
 - Si estás viendo un solo proveedor (llegaste por un enlace), aparece **Ver todos los proveedores** para volver a la lista completa.
 
 La tabla, de a 50 filas con paginador abajo ("1–50 de …", Anterior / Siguiente). Se ordena tocando el título de cada columna:
@@ -39,7 +39,7 @@ La tabla, de a 50 filas con paginador abajo ("1–50 de …", Anterior / Siguien
 - **Proveedor**: el nombre (y abajo, en gris, la razón social si es distinta). También es enlace al proveedor solo.
 - **CUIT**: si el país no es Argentina, se agrega el código de país (ej. "· CN").
 - **IVA**: condición frente al IVA.
-- **Contacto**: contacto, teléfono y mail (el mail se puede tocar para escribirle).
+- **Contacto**: contacto, teléfono y celular (con su interno / aclaración) y mail (el mail se puede tocar para escribirle).
 - **Moneda**: Pesos o Dólares (la moneda habitual).
 - **Facturas**: cuántas facturas de compra tiene (de cualquier estado). El número lleva a [Facturas de compra](/compras/facturas) filtrada por ese proveedor.
 - **Estado**: Activo o Archivado.
@@ -51,7 +51,7 @@ Sin orden elegido, la lista sale primero los activos y después los archivados, 
 
 ### Dar de alta un proveedor
 1. Apretá **Nuevo proveedor** (arriba a la derecha).
-2. Completá los campos: **Nombre**, **Razón social**, **CUIT**, **Condición IVA** (Sin cargar, Consumidor final, Responsable inscripto, Monotributo, Exento, No responsable), **Contacto**, **Mail**, **Teléfono**, **País (AR, CN…)**, **Dirección**, **Localidad**, **Provincia**, **Moneda habitual** (Pesos / Dólares), **Condiciones de pago** (texto libre, ej. "30 % anticipo, saldo contra embarque") y **Notas**.
+2. Completá los campos: **Nombre**, **Razón social**, **CUIT**, **Condición IVA** (Sin cargar, Consumidor final, Responsable inscripto, Monotributo, Exento, No responsable), **Contacto**, **Mail**, **Teléfono** y **Celular** (cada uno con su **Interno / aclaración**; se escriben como quieras, se guardan sólo con números y se muestran ordenados con el interno entre paréntesis), **País (AR, CN…)**, **Dirección**, **Localidad**, **Provincia**, **Moneda habitual** (Pesos / Dólares), **Condiciones de pago** (texto libre, ej. "30 % anticipo, saldo contra embarque") y **Notas**.
 3. Apretá **Crear**. Aparece "Proveedor creado.".
 
 Errores típicos:
