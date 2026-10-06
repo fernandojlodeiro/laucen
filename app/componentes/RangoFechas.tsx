@@ -14,12 +14,14 @@ import { ATAJOS_FECHAS, atajoDeRango, rangoDeAtajo, type Atajo } from "@/lib/ran
 
 const CAJA = "border border-[#E3E9F0] rounded-lg py-1.5 text-xs bg-white";
 
-export default function RangoFechas({ desde = "", hasta = "", parametroDesde = "desde", parametroHasta = "hasta", vacio, etiqueta = "Fechas", limpiar = [] }: {
+export default function RangoFechas({ desde = "", hasta = "", parametroDesde = "desde", parametroHasta = "hasta", vacio, valorVacio, etiqueta = "Fechas", limpiar = [] }: {
   /** Las fechas que rigen (AAAA-MM-DD); vacías = sin filtro. */
   desde?: string; hasta?: string;
   parametroDesde?: string; parametroHasta?: string;
   /** Si se puede ver sin fechas, el texto de esa opción ("Todas las fechas"). Sin esto, siempre hay un rango. */
   vacio?: string;
+  /** Si la pantalla tiene fechas de entrada (ej. la última semana), lo que va en `desde` al elegir «vacio» (ej. "todas"). */
+  valorVacio?: string;
   etiqueta?: string;
   /** Parámetros de la dirección que se sacan al cambiar (ej. la fila abierta). */
   limpiar?: string[];
@@ -37,7 +39,7 @@ export default function RangoFechas({ desde = "", hasta = "", parametroDesde = "
   const aplicar = (nd: string, nh: string, demora = 0) => {
     setD(nd); setH(nh);
     if (espera.current) clearTimeout(espera.current);
-    espera.current = setTimeout(() => cambiar({ [parametroDesde]: nd || null, [parametroHasta]: nh || null, ...Object.fromEntries(limpiar.map((k) => [k, null])) }), demora);
+    espera.current = setTimeout(() => cambiar({ [parametroDesde]: nd || (!nh && valorVacio ? valorVacio : null), [parametroHasta]: nh || null, ...Object.fromEntries(limpiar.map((k) => [k, null])) }), demora);
   };
 
   return (

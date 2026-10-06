@@ -9,20 +9,20 @@ import { consulta } from "@/lib/erp/base";
 import { ESTADOS_PEDIDO, ESTADOS_PAGO } from "@/lib/pedidos";
 import { SUAVE } from "@/app/botones";
 import { entrarErp, Pantalla, Avisos, ETIQUETA } from "@/app/componentes/erp";
-import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
+import BuscadorVivo, { FiltroVivo, CasillaViva } from "@/app/componentes/BuscadorVivo";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import NuevoPedido from "./NuevoPedido";
 import { AccionesExcel, TablaVista, paginaDeVista } from "@/app/listas/piezas";
-import { LISTA_PEDIDOS, filtrosPedidos } from "./lista";
+import { LISTA_PEDIDOS, filtrosPedidos, TODAS_LAS_FECHAS } from "./lista";
 
 export const dynamic = "force-dynamic";
 
-type SP = { ok?: string; error?: string; estado?: string; canal?: string; pago?: string; desde?: string; hasta?: string; q?: string; cliente?: string; p?: string; orden?: string; dir?: string };
+type SP = { ok?: string; error?: string; estado?: string; canal?: string; pago?: string; desde?: string; hasta?: string; q?: string; cliente?: string; p?: string; orden?: string; dir?: string; pend?: string; canc?: string };
 
 export default async function Pedidos({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("pedidos_ver");
   const sp = await searchParams;
-  const { estado, pago, canal, desde, hasta, q, cliente } = filtrosPedidos(sp);
+  const { estado, pago, canal, desde, hasta, q, cliente, conPendiente, canceladas } = filtrosPedidos(sp);
   const ctx = { org: s.org.id, moneda: s.moneda };
   const [canales, vista, aMano] = await Promise.all([
     consulta<{ id: number; nombre: string }>("select id::int, nombre from canal where organizacion_id = $1 order by nombre", [s.org.id]),
@@ -33,7 +33,8 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
        where ca.organizacion_id = $1 and ca.estado = 'activo' and ca.tipo in ('local', 'web_minorista', 'web_mayorista', 'otro')
        order by (ca.tipo = 'local') desc, ca.nombre`, [s.org.id]),
   ]);
-  const hayFiltro = !!((estado && estado !== "pendientes") || pago || canal || desde || hasta || q || cliente);
+  // Las fechas de entrada (la última semana) no cuentan como filtro.
+  const hayFiltro = !!(estado || pago || canal || sp.desde !== undefined || sp.hasta !== undefined || q || cliente || conPendiente || canceladas);
 
   return (
     <Pantalla titulo="Pedidos" subtitulo="Los pedidos de todos los canales"
@@ -43,10 +44,10 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
         <NuevoPedido canales={aMano} />
       </AltaNueva>
       <div className="flex flex-wrap items-end gap-2 mb-3">
-        <div><span className={ETIQUETA}>Buscar</span><BuscadorVivo q={q} comienza={false} sinComienza placeholder="Nº, id externo o cliente" limpiar={["p"]} /></div>
+        <div><span className={ETIQUETA}>Buscar</span><BuscadorVivo q={q} comienza={false} sinComienza placeholder="Nº, cliente, producto, canal, factura…" limpiar={["p"]} /></div>
         <div><span className={ETIQUETA}>Estado</span>
-          <FiltroVivo key={`e${estado}`} parametro="estado" valor={estado || "todos"} etiqueta="Estado" limpiar={["p"]}>
-            <option value="todos">Todos</option>
+          <FiltroVivo key={`e${estado}`} parametro="estado" valor={estado} etiqueta="Estado" limpiar={["p"]}>
+            <option value="">Todos</option>
             <option value="pendientes">Pendientes (nuevo + pagado)</option>
             {Object.entries(ESTADOS_PEDIDO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </FiltroVivo></div>
@@ -60,11 +61,15 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
             <option value="">Todos</option>
             {Object.entries(ESTADOS_PAGO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </FiltroVivo></div>
-        <div><span className={ETIQUETA}>Fechas</span><RangoFechas desde={desde} hasta={hasta} vacio="Todas las fechas" etiqueta="" limpiar={["p"]} /></div>
+        <div><span className={ETIQUETA}>Fechas</span><RangoFechas desde={desde} hasta={hasta} vacio="Todas las fechas" valorVacio={TODAS_LAS_FECHAS} etiqueta="" limpiar={["p"]} /></div>
+        <CasillaViva parametro="pend" activo={conPendiente} etiqueta="Con algo pendiente"
+          ayuda="Lo que todavía no terminó: sin entregar, sin cobrar o sin facturar (no los cancelados ni devueltos)." />
+        <CasillaViva parametro="canc" activo={canceladas} etiqueta="Incluye canceladas" />
         {hayFiltro && <Link href="/ventas/pedidos" className={SUAVE}>Limpiar filtros</Link>}
       </div>
       <div className="flex justify-end mb-2">{vista.selector}</div>
       <TablaVista lista={LISTA_PEDIDOS} campos={vista.campos} filas={vista.filas} total={vista.total} ctx={{ moneda: s.moneda, sp }}
+        claseFila={() => "!align-top [&>td]:!py-1"}
         vacio={hayFiltro ? "No hay pedidos con esos filtros." : "Todavía no hay pedidos."} />
     </Pantalla>
   );

@@ -34,33 +34,34 @@ Los pedidos de Mercado Libre **entran solos** y se mueven solos según lo que pa
 
 **Filtros** (todos aplican al momento, sin botón "Filtrar"):
 
-- **"Buscar"** (cuadro "Nº, id externo o cliente"): busca en los datos del pedido (Nº, id externo, medio de pago, código de seguimiento, notas) y en todos los del cliente (N.º, nombre, razón social, mail, apodo de ML, documento, CUIT, teléfonos, notas). Busca en cualquier parte del texto (no tiene "Comienza por"). **Si escribís el número de un pedido** (el de Laucen, con o sin "#", o el número de venta de Mercado Libre), ese pedido aparece siempre, aunque el filtro de estado, pago, cuenta o fechas lo dejaría afuera (por ejemplo, buscando un pedido despachado con el filtro en "Pendientes").
-- **"Estado"**: **"Todos"**, **"Pendientes (nuevo + pagado)"** o un estado puntual (Nuevo, Pagado, En preparación, Preparado, Despachado, Entregado, Cancelado, Devuelto). **Si no elegís nada, la lista abre en Pendientes.**
+- **"Buscar"** (cuadro "Nº, cliente, producto, canal, factura…"): busca en todo lo que se ve en la pantalla —Nº, id externo, canal, estado, los productos (título y SKU), el número de la factura— y además en el medio de pago, el código de seguimiento, las notas y todos los datos del cliente (N.º, nombre, razón social, mail, apodo de ML, documento, CUIT, teléfonos, notas). Busca en cualquier parte del texto (no tiene "Comienza por"). **Si escribís el número de un pedido** (el de Laucen, con o sin "#", o el número de venta de Mercado Libre), ese pedido aparece siempre, aunque los filtros lo dejarían afuera.
+- **"Estado"**: **"Todos"** (de entrada), **"Pendientes (nuevo + pagado)"** o un estado puntual (Nuevo, Pagado, En preparación, Preparado, Despachado, Entregado, Cancelado, Devuelto).
 - **"Canal"**: todos o uno.
 - **"Pago"**: Pendiente, Pagado, A cobrar, A convenir, Reembolsado.
-- **"Fechas"**: rango con atajos (Hoy, Ayer, Últimos 7 días…) o **"Todas las fechas"**.
-- **"Limpiar filtros"**: aparece cuando hay algún filtro puesto; vuelve a la lista de entrada (Pendientes).
+- **"Fechas"**: rango con atajos (Hoy, Ayer, Últimos 7 días…) o **"Todas las fechas"**. **De entrada, la última semana** ("Últimos 7 días"). Si se entra con un estado elegido (por ejemplo desde el contador "Pedidos a preparar") o desde un cliente, sin fechas: todas.
+- **"Con algo pendiente"** (caja para tildar): sólo los pedidos que todavía no terminaron: los que no están entregados, o están entregados pero sin cobrar o sin facturar. Los cancelados y devueltos nunca entran.
+- **"Incluye canceladas"** (caja para tildar): de entrada **los cancelados no se muestran**; tildándola, sí. Si elegís el estado "Cancelado", se muestran igual.
+- **"Limpiar filtros"**: aparece cuando hay algún filtro puesto; vuelve a la lista de entrada (todos los estados, última semana, sin cancelados).
 
 **"Vista"** (arriba de la tabla, a la derecha): elegí qué columnas ver; **"⚙ Configurar vistas…"** para armar otras.
 
-**Columnas de la vista "Estándar"**:
+**Columnas de la vista "Estándar"**, en este orden:
 
 | Columna | Qué muestra |
 |---|---|
 | **Nº** | el número del pedido en Laucen (enlace a la ficha) |
 | **Fecha** | fecha y hora en que entró (enlace a la ficha) |
-| **Canal** | el canal; tocándolo filtra la lista por ese canal |
-| **Id externo** | el número en el canal de origen (en Mercado Libre, el de la venta o el del carrito) |
 | **Cliente** | enlace a la ficha del cliente |
-| **Estado** | el estado del pedido; si es un carrito de Mercado Libre en espera, al lado dice **"Carrito en espera · faltan N min"** |
-| **Pago** | Pendiente, Pagado, **A cobrar** (en ámbar fuerte, para que se vea de lejos), A convenir, Reembolsado |
+| **Cant.** · **Producto** · **Precio** | lo que se vendió, **un renglón por producto** (un carrito con tres productos ocupa tres renglones, bien juntos): la cantidad, el producto con su foto (tocándola se ven todas; el nombre abre la ficha del producto) y el precio unitario |
 | **Total** | en la moneda que estés viendo |
-| **Unidades** | suma de las cantidades de todas las líneas |
-| **Factura en ML** | sólo en ventas de Mercado Libre ya facturadas: **"✓ Subida"**, **"⏳ Pendiente"**, **"⚠ Error"** u **"○ Falta"** |
+| **Canal** | el canal; tocándolo filtra la lista por ese canal |
+| **Estado** | el estado del pedido; si es un carrito de Mercado Libre en espera, al lado dice **"Carrito en espera · faltan N min"** |
+| **Pago** | un **✓ verde** si está pagado; si no, una **✗ roja** (al pasar el mouse dice cuál: Pendiente, A cobrar, A convenir, Reembolsado) |
+| **Factura** | si está facturado, el tipo y número de la factura (ej. "Factura B 00002-00001234"), con enlace para verla; si no, "—" |
 
-**Otras columnas** que se pueden sumar en una vista o en el Excel: Fecha y hora, Documento del cliente, Mail del cliente, Teléfono del cliente, Medio de pago, Total US$, Costo de envío, Comisión del canal, **Cargos ML**, **Neto ML**, Líneas, Código de seguimiento, Notas.
+**Otras columnas** que se pueden sumar en una vista o en el Excel: Id externo, Fecha y hora, Documento del cliente, Mail del cliente, Teléfono del cliente, **Estado del pago** (el texto), Medio de pago, Total US$, Costo de envío, Comisión del canal, **Cargos ML**, **Neto ML**, Unidades, Líneas, Código de seguimiento, Notas y **Factura en ML** (sólo en ventas de Mercado Libre: "✓ Subida", "⏳ Pendiente", "⚠ Error" u "○ Falta"). En el Excel, los productos de un carrito van en una misma celda separados por " | ".
 
-**Orden**: con el filtro Pendientes, **del más viejo al más nuevo** (se preparan en orden de llegada). Con cualquier otro filtro, del más nuevo al más viejo. Se puede ordenar tocando el título de cualquier columna (salvo Notas).
+**Orden**: con el filtro Pendientes, **del más viejo al más nuevo** (se preparan en orden de llegada). Con cualquier otro filtro, del más nuevo al más viejo. Se puede ordenar tocando el título de cualquier columna (salvo Notas, Cant., Producto, Precio y Factura).
 
 ### El formulario "Nuevo pedido"
 
@@ -300,8 +301,11 @@ Si una venta de Mercado Libre trae un artículo que no está vinculado a un prod
 
 ## Preguntas frecuentes
 
-**¿Por qué la lista no me muestra los pedidos entregados?**
-Porque abre con el filtro Pendientes. Elegí "Todos" o "Entregado" en "Estado".
+**¿Por qué no veo un pedido viejo?**
+Porque la lista abre con la última semana. Elegí otras fechas o "Todas las fechas" en "Fechas", o escribí su número en "Buscar" (por número aparece siempre).
+
+**¿Dónde están los cancelados?**
+De entrada no se muestran: tildá "Incluye canceladas" o elegí "Cancelado" en "Estado".
 
 **¿Puedo cargar a mano un pedido de Mercado Libre?**
 No: entran solos. El canal de Mercado Libre ni aparece en "Nuevo pedido".
