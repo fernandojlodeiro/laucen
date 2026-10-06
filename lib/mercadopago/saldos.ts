@@ -53,6 +53,11 @@ export async function leerSaldo(cuenta: CuentaMl): Promise<Lectura> {
   const mlTok = await tokenDeCuenta(cuenta.id);
   if (mlTok) llaves.push({ llave: "ml", token: mlTok });
   if (mp?.t) llaves.push({ llave: "mp", token: mp.t });
+  // La llave de Mercado Pago de la tienda web, si es de esta misma cuenta (el número del final de la llave es el usuario).
+  const web = await una<{ t: string }>(`
+    select cr.datos ->> 'access_token' t from medio_pago_credencial cr join medio_pago m on m.id = cr.medio_pago_id
+     where m.organizacion_id = $1 and m.tipo = 'mercadopago' and cr.datos ->> 'access_token' like '%-' || $2::text`, [cuenta.organizacionId, String(cuenta.meliUserId)]);
+  if (web?.t && web.t !== mp?.t) llaves.push({ llave: "mp", token: web.t });
   const intentos: Intento[] = [];
   let fuente: string | null = null;
   let datos: Record<string, unknown> | null = null;
