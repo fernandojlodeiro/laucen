@@ -142,3 +142,6 @@ alter table usuario_preferencia add column if not exists accesos_celular jsonb;
 -- "Lo último que viste" (4/10): las últimas fichas que abrió cada usuario
 -- (lista de {href, titulo, tipo}, la última primero). Es de cada usuario, no del navegador.
 alter table usuario_preferencia add column if not exists historial jsonb;
+
+-- El buscador de arriba incluye los inactivos (Fer, 6/10): la caja queda como la dejó cada usuario.
+alter table usuario_preferencia add column if not exists buscar_inactivos boolean not null default false;

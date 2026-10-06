@@ -1,10 +1,10 @@
-// El buscador de la barra de arriba: productos, publicaciones (por título o
-// MLA), pedidos, clientes y proveedores (por CUIT, razón social o DNI), hasta
+// El buscador de la barra de arriba: productos, publicaciones (por título, MLA
+// o SKU), pedidos, clientes y proveedores (por CUIT, razón social o DNI), hasta
 // 20 de cada uno. Si lo buscado es un número, también busca por id.
 
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
-import { enVista } from "@/lib/moneda";
+import { enVista, buscarInactivos, fijarBuscarInactivos } from "@/lib/moneda";
 import { tienePermiso } from "@/lib/permisos";
 import { ESTADOS_PEDIDO, type EstadoPedido } from "@/lib/pedidos";
 import { PRIMARIO } from "@/app/botones";
@@ -17,13 +17,15 @@ export const dynamic = "force-dynamic";
 
 const TOPE = 20;
 
-export default async function Buscar({ searchParams }: { searchParams: Promise<{ q?: string; inactivos?: string }> }) {
+export default async function Buscar({ searchParams }: { searchParams: Promise<{ q?: string; inactivos?: string; ci?: string }> }) {
   const s = await entrarErp("panel_ver");
   const sp = await searchParams;
-  const q = (sp.q ?? "").trim().slice(0, 100);
-  const inactivos = verInactivos(sp);
-  const n = /^\d{1,15}$/.test(q) ? Number(q) : null;
-  const patron = `%${q.replace(/[\\%_]/g, (x) => `\\${x}`)}%`;
+  const q = (sp.q ?? "").trim().slice(0, 200);
+  // "Mostrar inactivos" queda como la dejó cada usuario (Fer, 6/10): si el formulario trae la caja
+  // (ci=1) manda lo tildado y se guarda; si no (un enlace), vale lo último que eligió.
+  const guardado = await buscarInactivos(s.usuario.id, s.org.id).catch(() => false);
+  const inactivos = sp.ci === "1" ? verInactivos(sp) : guardado;
+  if (sp.ci === "1" && inactivos !== guardado) await fijarBuscarInactivos(s.usuario.id, s.org.id, inactivos).catch(() => {});
   // Cada bloque se muestra sólo si la persona puede ver esa función.
   const ver = {
     productos: tienePermiso(s.permisos, "productos_ver"),
@@ -32,69 +34,84 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
     publicaciones: tienePermiso(s.permisos, "publicaciones_ver"),
     proveedores: tienePermiso(s.permisos, "proveedores_ver"),
   };
-  // Documentos escritos con puntos o guiones: se comparan sólo los dígitos, y sólo si lo buscado
-  // no tiene letras (Fer, 6/10: "SKU02252" no tiene que traer clientes con 02252 en el CUIT).
-  const digitos = /\p{L}/u.test(q) ? "" : q.replace(/\D/g, "");
-  const patronDigitos = digitos.length >= 4 ? `%${digitos}%` : "";
-  // Sin espacios se busca la cadena entera, tal cual; con espacios, cada palabra por separado y
-  // todas tienen que estar (cada una en cualquiera de los campos) (Fer, 6/10).
-  const palabras = [...new Set(q.split(/\s+/).filter(Boolean))].slice(0, 8).map((w) => `%${w.replace(/[\\%_]/g, (x) => `\\${x}`)}%`);
-  /** Cada palabra ($2, el arreglo de palabras) aparece en alguno de los campos. */
-  const todas = (campos: string[]) =>
-    `not exists (select 1 from unnest($2::text[]) w where not coalesce(${campos.map((c) => c.includes(" w") ? c : `${c} ilike w`).join(" or ")}, false))`;
+  // Cómo se busca (Fer, 6/10): la frase escrita, entera y tal cual (con sus espacios), en cualquier
+  // parte de cada dato. Para buscar varias cosas a la vez se separan con "?": trae lo que tenga una
+  // u otra ("SKU1340?SKU1341").
+  const terminos = [...new Set(q.split("?").map((t) => t.trim()).filter(Boolean))].slice(0, 10);
+  const patrones = terminos.map((t) => `%${t.replace(/[\\%_]/g, (x) => `\\${x}`)}%`);
+  // Un término de sólo números (con o sin puntos y guiones, sin letras) también se compara con los
+  // CUIT y DNI sin puntos ni guiones: "02252" puede ser un pedazo de CUIT; "SKU02252" no.
+  const patronesDigitos = terminos.filter((t) => !/\p{L}/u.test(t)).map((t) => t.replace(/\D/g, "")).filter((d) => d.length >= 4).map((d) => `%${d}%`);
+  const numeros = terminos.filter((t) => /^\d{1,15}$/.test(t)).map(Number);
+  /** Alguno de los términos ($2) aparece en alguno de los campos. */
+  const alguno = (campos: string[]) =>
+    `exists (select 1 from unnest($2::text[]) w where coalesce(${campos.map((c) => c.includes(" w") ? c : `${c} ilike w`).join(" or ")}, false))`;
+  /** Algún término de sólo números ($4) aparece en los dígitos de alguno de los campos. */
+  const digitosEn = (campos: string[]) =>
+    `exists (select 1 from unnest($4::text[]) d where ${campos.map((c) => `regexp_replace(coalesce(${c}, ''), '\\D', '', 'g') like d`).join(" or ")})`;
   // Del producto: sus datos y los de sus variaciones.
   const CAMPOS_PRODUCTO = ["p.sku_base", "p.titulo", "p.marca", "p.codigo_barras",
     "exists (select 1 from variacion v where v.producto_id = p.id and (v.sku ilike w or v.titulo ilike w or v.codigo_barras ilike w))"];
 
-  const [productos, pedidos, clientes, publicaciones, proveedores, inactivosOcultos] = q ? await Promise.all([
+  // Productos y publicaciones, con o sin los inactivos (los de producto archivado).
+  const buscarProductos = (inc: boolean) =>
     ver.productos ? consulta<{ id: number; sku_base: string; titulo: string; estado: string; donde: string | null; fotos: string[] | null }>(`
       select p.id::int, p.sku_base, p.titulo, p.estado,
              (select string_agg(distinct v.sku, ', ') from variacion v
-               where v.producto_id = p.id and v.sku <> p.sku_base and (v.sku ilike any($2::text[]) or v.codigo_barras = $3)) donde,
+               where v.producto_id = p.id and v.sku <> p.sku_base and (v.sku ilike any($2::text[]) or v.codigo_barras = any($3::text[]))) donde,
              (select array_agg(url order by orden, id) from producto_foto where producto_id = p.id) fotos
         from producto p
        where p.organizacion_id = $1 and ($5 or p.estado <> 'archivado')
-         and (${todas(CAMPOS_PRODUCTO)}
-              or p.codigo_barras = $3 or p.id = $4)
-       order by (lower(p.sku_base) = lower($3)) desc, p.titulo
-       limit ${TOPE}`, [s.org.id, palabras, q, n, inactivos]) : [],
-    ver.pedidos ? consulta<{ id: number; id_externo: string | null; fecha: Date; canal: string; cliente: string | null; estado: EstadoPedido; total_ars: number; total_usd: number }>(`
-      select p.id::int, p.id_externo, p.fecha, ca.nombre canal, cl.nombre cliente, p.estado, p.total_ars::float, p.total_usd::float
-        from pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
-       where p.organizacion_id = $1 and (p.id_externo ilike $2 or p.id = $3)
-       order by (p.id = $3) desc nulls last, p.fecha desc
-       limit ${TOPE}`, [s.org.id, patron, n]) : [],
-    ver.clientes ? consulta<{ id: number; nombre: string; razon_social: string | null; email: string | null; documento_tipo: string | null; documento_numero: string | null; cuit: string | null }>(`
-      select c.id::int, c.nombre, c.razon_social, c.email, c.documento_tipo, c.documento_numero, c.cuit
-        from cliente c
-       where c.organizacion_id = $1
-         and (${todas(["c.nombre", "c.razon_social", "c.email", "c.documento_numero", "c.cuit"])} or c.id = $3
-              or ($4 <> '' and (regexp_replace(coalesce(c.documento_numero, ''), '\\D', '', 'g') like $4
-                                or regexp_replace(coalesce(c.cuit, ''), '\\D', '', 'g') like $4)))
-       order by c.nombre
-       limit ${TOPE}`, [s.org.id, palabras, n, patronDigitos]) : [],
+         and (${alguno(CAMPOS_PRODUCTO)} or p.id = any($4::bigint[]))
+       order by (lower(p.sku_base) = any(select lower(x) from unnest($3::text[]) x)) desc, p.titulo
+       limit ${TOPE}`, [s.org.id, patrones, terminos, numeros, inc]) : [];
+  const buscarPublicaciones = (inc: boolean) =>
     ver.publicaciones ? consulta<{ id: number; id_externo: string | null; titulo: string | null; estado: string; canal: string; producto_id: number; sku: string }>(`
       select pu.id::int, pu.id_externo, coalesce(pu.titulo, v.titulo, p.titulo) titulo, pu.estado, ca.nombre canal, p.id::int producto_id, v.sku
         from publicacion pu join canal ca on ca.id = pu.canal_id join variacion v on v.id = pu.variacion_id join producto p on p.id = v.producto_id
        where pu.organizacion_id = $1 and ($4 or p.estado <> 'archivado')
-         and ${todas(["pu.titulo", "pu.id_externo", "v.sku"])}
-       order by (upper(pu.id_externo) = upper($3)) desc, pu.titulo
-       limit ${TOPE}`, [s.org.id, palabras, q, inactivos]) : [],
+         and ${alguno(["pu.titulo", "pu.id_externo", "v.sku"])}
+       order by (upper(pu.id_externo) = any(select upper(x) from unnest($3::text[]) x)) desc, pu.titulo
+       limit ${TOPE}`, [s.org.id, patrones, terminos, inc]) : [];
+
+  const [productos0, pedidos, clientes, publicaciones0, proveedores, inactivosOcultos] = q ? await Promise.all([
+    buscarProductos(inactivos),
+    ver.pedidos ? consulta<{ id: number; id_externo: string | null; fecha: Date; canal: string; cliente: string | null; estado: EstadoPedido; total_ars: number; total_usd: number }>(`
+      select p.id::int, p.id_externo, p.fecha, ca.nombre canal, cl.nombre cliente, p.estado, p.total_ars::float, p.total_usd::float
+        from pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
+       where p.organizacion_id = $1 and (${alguno(["p.id_externo"])} or p.id = any($3::bigint[]))
+       order by (p.id = any($3::bigint[])) desc, p.fecha desc
+       limit ${TOPE}`, [s.org.id, patrones, numeros]) : [],
+    ver.clientes ? consulta<{ id: number; nombre: string; razon_social: string | null; email: string | null; documento_tipo: string | null; documento_numero: string | null; cuit: string | null }>(`
+      select c.id::int, c.nombre, c.razon_social, c.email, c.documento_tipo, c.documento_numero, c.cuit
+        from cliente c
+       where c.organizacion_id = $1
+         and (${alguno(["c.nombre", "c.razon_social", "c.email", "c.documento_numero", "c.cuit"])} or c.id = any($3::bigint[])
+              or ${digitosEn(["c.documento_numero", "c.cuit"])})
+       order by c.nombre
+       limit ${TOPE}`, [s.org.id, patrones, numeros, patronesDigitos]) : [],
+    buscarPublicaciones(inactivos),
     ver.proveedores ? consulta<{ id: number; nombre: string; razon_social: string | null; cuit: string | null; email: string | null }>(`
       select pr.id::int, pr.nombre, pr.razon_social, pr.cuit, pr.email
         from proveedor pr
        where pr.organizacion_id = $1
-         and (${todas(["pr.nombre", "pr.razon_social", "pr.cuit"])} or pr.id = $3
-              or ($4 <> '' and regexp_replace(coalesce(pr.cuit, ''), '\\D', '', 'g') like $4))
+         and (${alguno(["pr.nombre", "pr.razon_social", "pr.cuit"])} or pr.id = any($3::bigint[])
+              or ${digitosEn(["pr.cuit"])})
        order by pr.nombre
-       limit ${TOPE}`, [s.org.id, palabras, n, patronDigitos]) : [],
+       limit ${TOPE}`, [s.org.id, patrones, numeros, patronesDigitos]) : [],
     // Sin la caja tildada: cuántos productos inactivos coinciden, para avisarlo.
     ver.productos && !inactivos ? consulta<{ n: number }>(`
       select count(*)::int n from producto p
        where p.organizacion_id = $1 and p.estado = 'archivado'
-         and (${todas(CAMPOS_PRODUCTO)}
-              or p.codigo_barras = $3)`, [s.org.id, palabras, q]).then((r) => r[0]?.n ?? 0) : 0,
+         and ${alguno(CAMPOS_PRODUCTO)}`, [s.org.id, patrones]).then((r) => r[0]?.n ?? 0) : 0,
   ]) : [[], [], [], [], [], 0];
+  // Si lo único que coincide es inactivo, se muestra igual aunque la caja no esté tildada (Fer, 6/10).
+  // Con cualquier cosa activa encontrada, los inactivos siguen escondidos salvo con la caja.
+  const soloInactivos = !!q && !inactivos && inactivosOcultos > 0
+    && !productos0.length && !pedidos.length && !clientes.length && !publicaciones0.length && !proveedores.length;
+  const [productos, publicaciones] = soloInactivos
+    ? await Promise.all([buscarProductos(true), buscarPublicaciones(true)])
+    : [productos0, publicaciones0];
 
   const nada = q && !productos.length && !pedidos.length && !clientes.length && !publicaciones.length && !proveedores.length;
   const Tope = ({ filas }: { filas: unknown[] }) => filas.length >= TOPE ? <p className="text-[11px] text-[#5C6B76] mt-1">Se muestran los primeros {TOPE}; afiná la búsqueda para ver otros.</p> : null;
@@ -103,12 +120,17 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
     <Pantalla titulo="Buscar" subtitulo="Productos, publicaciones, pedidos, clientes y proveedores" ancho="max-w-5xl">
       <form className="flex flex-wrap items-center gap-2 mb-4">
         <input name="q" defaultValue={q} autoFocus placeholder="SKU, título, MLA, código de barras, nº de pedido, cliente o proveedor (nombre, razón social, CUIT, DNI)…" className={`${CAMPO} flex-1`} />
-        <MostrarInactivos activo={inactivos} />
+        <input type="hidden" name="ci" value="1" />
+        <MostrarInactivos activo={inactivos} ayuda="Sin tildar, los inactivos aparecen sólo cuando lo único que coincide es inactivo. Tildada, aparecen siempre. Queda como la dejes." />
         <button className={PRIMARIO}>Buscar</button>
       </form>
+      <p className="-mt-2 mb-4 text-[11px] text-[#5C6B76]">
+        Busca lo que escribiste <b>tal cual</b>, entero (con sus espacios), en cualquier parte. Para buscar <b>varias cosas a la vez</b>, separalas con <b className="font-mono text-[#16577F]">?</b>: <span className="font-mono">SKU1340?SKU1341</span> trae lo que tenga una <b>o</b> la otra. Los <b>inactivos</b> salen sólo si es lo único que coincide, salvo que tildes “Mostrar inactivos”: ahí salen siempre.
+      </p>
       {!q && <p className="text-xs text-[#5C6B76]">Escribí qué buscar.</p>}
       {nada && <p className="text-xs text-[#5C6B76]">No se encontró nada con “{q}”.</p>}
-      {inactivosOcultos > 0 && (
+      {soloInactivos && <p className="text-xs text-[#5C6B76] mb-3">No hay nada activo con “{q}”: se muestran los inactivos que coinciden.</p>}
+      {inactivosOcultos > 0 && !soloInactivos && (
         <p className="text-xs text-[#5C6B76] mb-3">
           {inactivosOcultos === 1 ? "Hay 1 producto inactivo" : `Hay ${inactivosOcultos} productos inactivos`} que coincide{inactivosOcultos === 1 ? "" : "n"}: tildá “Mostrar inactivos” para verlo{inactivosOcultos === 1 ? "" : "s"}.
         </p>
