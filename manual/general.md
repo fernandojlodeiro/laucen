@@ -55,6 +55,16 @@ Una franja azul fija abajo de todo, siempre visible:
 
 En la PC, si la pantalla tiene lugar a la izquierda del contenido, aparece una lista **"Lo último que viste"** por fuera del panel: cada registro que abrís en **cualquier pantalla de altas, bajas y modificaciones** (producto, cliente, pedido, factura, despacho, reclamo, proveedor, cuenta de fondos, **cucarda, publicación, canal, familia**…; también cuando apretás el lápiz de una fila) queda anotado con su tipo y su nombre, **la última arriba**. Un mismo registro aparece **una sola vez**: si lo volvés a abrir (aunque sea de otra manera, tocando su nombre o con el lápiz), no se repite, sube arriba de todo. Tocándola volvés a esa ficha. Guarda las **últimas 15** (las más viejas se van pisando) y se anota sola; la **✕** de arriba borra la lista. Es **de cada usuario**: se guarda en su cuenta, así que la ve igual desde cualquier equipo o celular y no se mezcla con la de otra persona, aunque usen la misma computadora. No se anotan las pantallas de la tienda pública, las de administración interna (bitácora, para probar) ni las listas sueltas: solo los registros que abrís dentro de una pantalla del panel. Si la ventana es angosta y no hay lugar, no se muestra (no tapa nada).
 
+### El recorrido (arriba de todo, con ↩)
+
+Cuando vas pasando de una pantalla a otra por los enlaces (por ejemplo de **Cambios en publicaciones** a un producto, y de ahí a una publicación), arriba de todo, encima del camino, se va armando el **recorrido**: "↩ Cambios en publicaciones › SKU01485 Polea… › …". Cada parte se toca para **volver a esa pantalla tal como la dejaste**, con sus filtros, su búsqueda y su página.
+
+- Si volvés a una pantalla que ya está en el recorrido, se corta ahí.
+- Cambiar filtros o página en la misma pantalla no suma un paso.
+- Entrar por el **menú de arriba** (o la barra del celular, o "Lo último que viste") arranca un recorrido nuevo.
+- Es **de cada pestaña**: si abrís un enlace en una pestaña nueva (Ctrl + clic), esa pestaña arranca sin recorrido.
+- Con una sola pantalla no se muestra (no hay adónde volver).
+
 ### El camino (arriba a la izquierda, sobre el título)
 
 Encima del título de cada pantalla hay un "camino", por ejemplo **"Ventas ▾ › Pedidos › Pedido 1234"**:

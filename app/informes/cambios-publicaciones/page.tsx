@@ -13,7 +13,8 @@ import { entrarErp, Pantalla } from "@/app/componentes/erp";
 import { AccionesExcel, TablaVista } from "@/app/listas/piezas";
 import { camposDe, elegir, ordenDe, seleccion, type Fila } from "@/lib/listas/tipos";
 import { CasillasVivas, Desplegable } from "../Filtros";
-import { LISTA_CAMBIOS_PUBLICACIONES as LISTA, filtrosCambios } from "./lista";
+import { LISTA_CAMBIOS_PUBLICACIONES as LISTA, filtrosCambios, ESTADOS_DESTINO } from "./lista";
+import { TEXTO_ESTADO_ML } from "@/app/catalogo/publicaciones/lista";
 import { CAMPOS_CAMBIO } from "./formato";
 
 export const dynamic = "force-dynamic";
@@ -56,12 +57,17 @@ export default async function CambiosPublicaciones({ searchParams }: { searchPar
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-3">
         <CasillasVivas parametro="tipos" etiqueta="Qué cambió:" elegidas={f.tipos} defecto={["estado", "precio"]}
           opciones={Object.entries(CAMPOS_CAMBIO).map(([valor, texto]) => ({ valor, texto }))} />
+        {f.tipos.includes("estado") && (
+          <CasillasVivas parametro="estados" etiqueta="Estado: pasó a" elegidas={f.estados} defecto={[...ESTADOS_DESTINO]}
+            opciones={ESTADOS_DESTINO.map((e) => ({ valor: e, texto: TEXTO_ESTADO_ML[e] ?? e }))} />
+        )}
         <CasillaViva parametro="externos" activo={f.externos} etiqueta="Sólo los que hizo alguien fuera de Laucen" />
         <Desplegable parametro="agrupar" etiqueta="Ver" valor={f.agrupar ? "1" : ""}
           opciones={[{ valor: "", texto: "Cada cambio" }, { valor: "1", texto: "Una fila por publicación" }]} />
       </div>
       <TablaVista lista={LISTA} campos={campos} filas={filas} total={total} ctx={{ moneda: s.moneda, sp }}
         vacio={f.tipos.length === 0 ? "Tildá al menos un tipo de cambio (estado, precio o stock)."
+          : f.tipos.length === 1 && f.tipos[0] === "estado" && f.estados.length === 0 ? "Tildá al menos un estado en «pasó a»."
           : hayFiltro ? "Nada coincide con los filtros en esas fechas." : "No hubo cambios en esas fechas."} />
       <p className="text-[11px] text-[#5C6B76] mt-1">
         {f.agrupar

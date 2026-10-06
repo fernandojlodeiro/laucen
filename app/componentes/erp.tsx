@@ -12,6 +12,8 @@ import { tienePermiso, type PermisoKey } from "@/lib/permisos";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { monedaVista, type Moneda } from "@/lib/moneda";
 import Camino, { type Paso } from "@/app/componentes/Camino";
+import Recorrido from "@/app/componentes/Recorrido";
+import { Suspense } from "react";
 import { VERDE, SUAVE } from "@/app/botones";
 
 /** Entrada común a toda pantalla del ERP: tablas aseguradas, sesión, permiso
@@ -34,6 +36,7 @@ export function Pantalla({ titulo, subtitulo, acciones, camino, children, ancho 
     <main className={`${ancho} mx-auto p-4 sm:p-6`}>
       <header className="flex flex-wrap items-end justify-between gap-2 mb-4">
         <div>
+          <Suspense fallback={null}><Recorrido /></Suspense>
           <Camino extra={camino} />
           <h1 className="text-lg font-bold">{titulo}</h1>
           {subtitulo && <p className="text-xs text-[#5C6B76]">{subtitulo}</p>}

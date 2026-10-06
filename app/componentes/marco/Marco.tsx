@@ -47,7 +47,7 @@ export default async function Marco({ children, version }: { children: React.Rea
   return (
     <div className="min-h-screen flex flex-col">
       {/* PC: barra de menú */}
-      <header className="hidden md:block print:!hidden sticky top-0 z-30 bg-white border-b border-[#E3E9F0]">
+      <header data-reinicia-recorrido className="hidden md:block print:!hidden sticky top-0 z-30 bg-white border-b border-[#E3E9F0]">
         <div className="flex items-center gap-3 px-3 h-10">
           <Link href="/panel" className="text-sm font-black text-[#16577F] tracking-tight shrink-0">Laucen</Link>
           <BarraMenu menu={menu} />
@@ -62,7 +62,7 @@ export default async function Marco({ children, version }: { children: React.Rea
       </header>
 
       {/* Celular: franja de arriba, FIJA (con el buscador siempre a mano) */}
-      <header className="md:hidden print:hidden fixed top-0 inset-x-0 z-30 bg-white border-b border-[#E3E9F0] px-3 h-12 flex items-center gap-2">
+      <header data-reinicia-recorrido className="md:hidden print:hidden fixed top-0 inset-x-0 z-30 bg-white border-b border-[#E3E9F0] px-3 h-12 flex items-center gap-2">
         <Link href="/panel" className="text-sm font-black text-[#16577F]">Laucen</Link>
         <form action="/buscar" className="flex-1 min-w-0">
           <input name="q" placeholder="Buscar producto, MLA, cliente…" aria-label="Buscar" enterKeyHint="search"

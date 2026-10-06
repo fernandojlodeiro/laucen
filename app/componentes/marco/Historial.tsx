@@ -107,7 +107,7 @@ export default function Historial({ inicial }: { inicial: Visto[] }) {
 
   if (!hayLugar || lista.length === 0) return null;
   return (
-    <aside aria-label="Lo último que viste" className="hidden md:block print:hidden fixed left-2 top-14 bottom-12 z-20 overflow-y-auto" style={{ width: ANCHO }}>
+    <aside data-reinicia-recorrido aria-label="Lo último que viste" className="hidden md:block print:hidden fixed left-2 top-14 bottom-12 z-20 overflow-y-auto" style={{ width: ANCHO }}>
       <div className="rounded-xl border border-[#E3E9F0] bg-white/90 backdrop-blur p-2 shadow-sm">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[11px] font-bold text-[#5C6B76]">Lo último que viste</span>

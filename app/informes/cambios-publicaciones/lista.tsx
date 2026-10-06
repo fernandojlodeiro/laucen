@@ -19,6 +19,8 @@ export const BASE_CAMBIOS = "/informes/cambios-publicaciones";
 const ZONA = "'America/Argentina/Buenos_Aires'";
 const esFecha = (x?: string) => (x && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : "");
 const TIPOS_DEFECTO: CampoCambio[] = ["estado", "precio"];
+/** Los estados a los que puede pasar una publicación (filtro "Pasó a"; sin el parámetro, todos). */
+export const ESTADOS_DESTINO = ["active", "paused", "under_review", "inactive", "closed", "payment_required"] as const;
 
 /** Los filtros de la pantalla, leídos de la dirección. Sin fechas: los últimos 7 días.
  *  `tipos`: los campos separados por coma (sin el parámetro, estado y precio). */
@@ -31,6 +33,8 @@ export function filtrosCambios(sp: SP, hoy: string = hoyArgentina()) {
     hasta: hasta || (desde ? "" : defecto.hasta),
     canal: Number(sp.canal) || 0,
     tipos,
+    // Sin el parámetro, todos; "ninguno" = ninguno tildado.
+    estados: sp.estados == null ? [...ESTADOS_DESTINO] as string[] : sp.estados.split(",").filter((e) => (ESTADOS_DESTINO as readonly string[]).includes(e)),
     externos: sp.externos === "1",
     agrupar: sp.agrupar === "1",
     q: sp.q?.trim() ?? "",
@@ -45,6 +49,7 @@ export function parametrosCambios(f: FiltrosCambios) {
   return {
     desde: f.desde || null, hasta: f.hasta || null, canal: f.canal || null,
     tipos: tiposDefecto ? null : f.tipos.join(",") || "ninguno",
+    estados: f.estados.length === ESTADOS_DESTINO.length ? null : f.estados.join(",") || "ninguno",
     externos: f.externos ? "1" : null, agrupar: f.agrupar ? "1" : null,
     q: f.q || null, contiene: f.comienza ? null : "1",
   };
@@ -127,6 +132,8 @@ export const LISTA_CAMBIOS_PUBLICACIONES: Lista = {
     if (f.hasta) adentro.push(`h.fecha < (${p(f.hasta)}::date + 1)::timestamp at time zone ${ZONA}`);
     if (f.canal) adentro.push(`h.canal_id = ${p(f.canal)}`);
     adentro.push(`h.campo = any(${p(f.tipos)}::text[])`);
+    // "Pasó a": sólo filtra los cambios de estado (los de precio y stock pasan igual).
+    if (f.estados.length < ESTADOS_DESTINO.length) adentro.push(`(h.campo <> 'estado' or h.despues = any(${p(f.estados)}::text[]))`);
     if (f.externos) adentro.push("h.origen = 'externo'");
     const donde = adentro.join(" and ");
     const base = f.agrupar

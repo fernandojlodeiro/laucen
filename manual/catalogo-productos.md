@@ -42,7 +42,7 @@ Filtros (filtran al momento, sin botón "Buscar"):
 Arriba de la tabla, el selector **Vista** ("Estándar" o una vista guardada) elige qué columnas se ven y en qué orden; la última elegida queda recordada.
 
 Columnas de la vista Estándar (todas se ordenan tocando el título):
-- **SKU base**: lleva a la ficha. Al lado, el 📷 abre las fotos (si no tiene fotos, no aparece).
+- **SKU base**: lleva a la ficha. Al lado, el 📷 abre las fotos, todas del mismo tamaño; tocando una se ve grande (y tocándola de nuevo, o con las flechas ◀ ▶ del teclado, se vuelve o se pasa a otra). Si no tiene fotos, no aparece.
 - **Título**: lleva a la ficha. Si es un kit de Virtual Seller, muestra la marca "Kit VS".
 - **Familia**: filtra la lista por esa familia.
 - **Tipo**: filtra la lista por ese tipo.
