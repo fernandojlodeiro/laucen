@@ -154,7 +154,9 @@ Arriba muestra la publicación como está hoy: título, cuenta, SKU (con enlace 
 La tabla junta, en orden de fecha:
 - **Estado, Precio y Stock**: cada cambio que tuvo (antes → después) y si lo hizo Laucen o alguien fuera de Laucen. «Fuera de Laucen» quiere decir que Laucen no le mandó nada en los 15 minutos anteriores: pudo ser alguien en Mercado Libre, Mercado Libre mismo u otro programa conectado a la cuenta. Se anotan desde el 3/10/2026.
 - **"Laucen mandó: …"**: cada cosa que le mandó Laucen por la cola (estado, precio, stock, atributos, campañas…), con cómo salió: enviado bien, con error (y el motivo), esperando tu clic, en la cola o descartado; y si fue por tu clic, automático o una barrida.
-- **"Venta"** y **"Venta del mismo producto"**: cada venta de esta publicación, y las del mismo producto en otras publicaciones o canales, con el enlace al pedido. Sirven para entender por qué bajó el stock o se pausó: si el mismo producto se vendió en otra publicación y se quedó sin stock, las demás se pausan.
+- **"Venta"**: cada venta de esta publicación, con el enlace al pedido.
 - **"Campaña: …"**: lo que pasó con ella en las campañas de Mercado Libre (entró, salió, cambió el precio o el estado).
+
+La columna **"Por qué"** explica una baja de stock o una pausa que llegó hasta 30 minutos después de una venta del mismo producto (en esta publicación o en otra, de cualquier cuenta o canal): dice "Venta del pedido N" o "Sin stock por la venta del pedido N", con el enlace al pedido, en el mismo renglón del cambio.
 
 Si tiene variaciones, una columna dice de cuál variación es cada cambio. Va de a 50 renglones, con el paginador abajo.
