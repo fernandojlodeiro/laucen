@@ -157,6 +157,18 @@ type MovFondos = { id: number; fecha: Date | null; cuenta_id: number; cuenta: st
 const telefonos = (t: (string | null)[]) =>
   [telefonoConAclaracion(t[0], t[1]), telefonoConAclaracion(t[2], t[3])].filter(Boolean).join(" · ") || "—";
 const enlaceCc = (tipo: string, id: number) => url("/administracion/cuentas-corrientes", { tercero: tipo, id });
+// La base no acepta un parámetro que la consulta no usa ("could not determine data type of
+// parameter $2"): sin "?" la regla exacta no se arma y $2 queda sin usar. Los que falten se nombran
+// en un WITH que no se lee (sólo les da el tipo).
+const TIPO_PARAM: Record<number, string> = { 1: "text", 2: "text", 3: "text", 4: "text[]", 5: "text[]", 6: "boolean" };
+function conTipos(sql: string, n: number): string {
+  const faltan = Array.from({ length: n }, (_, i) => i + 1).filter((k) => !new RegExp(`\\$${k}(?!\\d)`).test(sql));
+  if (!faltan.length) return sql;
+  const tipos = `_tipos as (select ${faltan.map((k) => `$${k}::${TIPO_PARAM[k] ?? "text"}`).join(", ")})`;
+  const t = sql.trimStart();
+  return /^with\s/i.test(t) ? `with ${tipos}, ${t.replace(/^with\s+/i, "")}` : `with ${tipos} ${t}`;
+}
+
 const pesos = (n: number, moneda = "ARS") => `${moneda === "USD" ? "US$" : "$"} ${Number(n ?? 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default async function Buscar({ searchParams }: { searchParams: Promise<{ q?: string; inactivos?: string; ci?: string }> }) {
@@ -183,7 +195,7 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
   const exacta = (campos: CampoBusqueda[]) => (grupos.some((g) => g.length > 1) ? sqlBusqueda("$2", campos) : "true");
   const base = [s.org.id, parametroBusqueda(q), q.toLowerCase(), patrones, digitos];
   const buscar = <T,>(si: boolean, sql: string, extra: unknown[] = []): Promise<T[]> =>
-    si && grupos.length ? consulta<T & Record<string, unknown>>(sql, [...base, ...extra]) as Promise<T[]> : Promise.resolve([]);
+    si && grupos.length ? consulta<T & Record<string, unknown>>(conTipos(sql, base.length + extra.length), [...base, ...extra]) as Promise<T[]> : Promise.resolve([]);
 
   // Productos: todos sus datos de texto, su familia, sus atributos, sus variaciones (y los
   // atributos de cada una) y los SKU viejos que lo nombran.
@@ -470,9 +482,9 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
        order by m.fecha desc nulls last, m.id desc
        limit ${TOPE}`),
     // Sin la caja tildada: cuántos productos inactivos coinciden, para avisarlo.
-    ver.productos && !inactivos && grupos.length ? consulta<{ n: number }>(`
+    buscar<{ n: number }>(ver.productos && !inactivos, `
       with ${candidatos("producto", "id", FUENTES_PRODUCTO)}
-      select count(*)::int n from cand p where p.estado = 'archivado' and ${exacta(CAMPOS_PRODUCTO)}`, base).then((r) => r[0]?.n ?? 0) : Promise.resolve(0),
+      select count(*)::int n from cand p where p.estado = 'archivado' and ${exacta(CAMPOS_PRODUCTO)}`).then((r) => r[0]?.n ?? 0),
   ]);
   const otros = [itemsMl, pedidos, clientes, proveedores, preguntas, convMl, chats, reclamos, envios, comprobantes, facturasCompra, despachos, recepciones, movCc, recibos, movFondos];
   // Si lo único que coincide es inactivo, se muestra igual aunque la caja no esté tildada (Fer, 6/10).
