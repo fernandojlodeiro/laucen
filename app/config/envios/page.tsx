@@ -1,6 +1,7 @@
 // Métodos de envío de la tienda (valen para todas las tiendas de la
-// organización): retiro en el local, tarifa fija, por provincia, a convenir.
-// OCA y Andreani se ven deshabilitados hasta que exista su conexión.
+// organización): retiro en el local, tarifa fija, por provincia, a convenir,
+// OCA a domicilio y a sucursal (cotizan con la cuenta de OCA, que se carga en
+// /config/envios/oca). Andreani se ve deshabilitado hasta que exista su conexión.
 
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
@@ -43,6 +44,7 @@ const pesos = (n: number | null) => (n == null ? "—" : formatear(n, "ARS"));
 function costoTexto(m: Metodo) {
   if (m.tipo === "retiro") return "Sin cargo";
   if (m.tipo === "a_convenir") return "A convenir";
+  if (m.tipo === "oca" || m.tipo === "oca_sucursal") return m.costo ? `Lo de OCA + ${pesos(m.costo)}` : "Lo que cotiza OCA";
   if (m.tipo === "por_provincia") {
     const provs = Object.keys(m.tarifas ?? {}).filter((k) => k !== "*").length;
     const resto = m.tarifas?.["*"] ?? m.costo;
@@ -68,7 +70,7 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
   }), sp);
 
   return (
-    <Pantalla acciones={<><AccionesExcel lista={LISTA_METODOS_ENVIO} org={s.org.id} /><BotonNuevo texto="Nuevo método de envío" /></>} titulo="Métodos de envío" subtitulo="Cómo le llega el pedido al comprador de la tienda web. Importes en pesos." ancho="max-w-6xl">
+    <Pantalla acciones={<><Link href="/config/envios/oca" className={SUAVE}>Cuenta de OCA</Link><AccionesExcel lista={LISTA_METODOS_ENVIO} org={s.org.id} /><BotonNuevo texto="Nuevo método de envío" /></>} titulo="Métodos de envío" subtitulo="Cómo le llega el pedido al comprador de la tienda web. Importes en pesos." ancho="max-w-6xl">
       <Avisos sp={sp} />
       <AltaNueva texto="Nuevo método de envío" sinBoton>
         <form action={accionCrearEnvio} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end">
@@ -156,7 +158,7 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
         </table>
       </div>
       <Paginado total={metodos.length} />
-      <p className="text-[11px] text-[#5C6B76] mt-1">Nace apagado. &quot;Por provincia&quot; se abre para cargar la tarifa de cada provincia.</p>
+      <p className="text-[11px] text-[#5C6B76] mt-1">Nace apagado. &quot;Por provincia&quot; se abre para cargar la tarifa de cada provincia. En los de OCA, el costo lo calcula OCA con el peso y las medidas del carrito; &quot;Costo $&quot; se le suma (embalaje, por ejemplo).</p>
     </Pantalla>
   );
 }

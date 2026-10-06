@@ -31,7 +31,7 @@ const PAGINA: Record<TamHoja, [number, number]> = { "10x15": [100 * MM, 150 * MM
 
 export const LOGISTICA_TEXTO: Record<string, string> = {
   fulfillment: "Full", self_service: "Flex", cross_docking: "Colecta", xd_drop_off: "Colecta",
-  drop_off: "Despacho en correo", custom: "A convenir", not_specified: "A convenir",
+  drop_off: "Despacho en correo", custom: "A convenir", not_specified: "A convenir", oca: "OCA",
 };
 
 export type LineaHoja = {
@@ -42,6 +42,8 @@ export type LineaHoja = {
 
 export type EtiquetaHoja =
   | { tipo: "ml"; canalId: number; envioExterno: string }
+  /** La de OCA (Fer, 6/10): el envío ya dado de alta en OCA; el PDF lo baja OCA. */
+  | { tipo: "oca"; envioId: number }
   | { tipo: "propia"; retiro: boolean; metodo: string | null; receptor: string | null; direccion: string[]; telefono: string | null; referencia: string | null };
 
 export type DatosHoja = {
@@ -83,12 +85,13 @@ export async function datosHojas(org: string, pedidoIds: number[]): Promise<Dato
     id: number; id_externo: string | null; fecha: Date; notas: string | null; envio_json: Record<string, unknown>; canal: string; canal_tipo: string;
     cliente: string | null; apodo_ml: string | null; telefono: string | null; e_id_externo: string | null; e_canal: number | null;
     logistica: string | null; despachar_antes: Date | null; receptor: string | null; e_direccion: Record<string, unknown> | null; impreso: boolean;
+    e_envio_id: number | null; e_estado: string | null;
     a_cobrar: boolean; total_ars: number;
   }>(`
     select p.id::int, p.id_externo, p.fecha, p.notas, p.envio envio_json, ca.nombre canal, ca.tipo canal_tipo,
            ${sqlACobrar("p")} a_cobrar, p.total_ars::float total_ars,
            cl.nombre cliente, cl.apodo_ml, coalesce(cl.telefono_movil, cl.telefono) telefono,
-           e.id_externo e_id_externo, e.canal_id::int e_canal, e.logistica, e.despachar_antes, e.receptor, e.direccion e_direccion,
+           e.id_externo e_id_externo, e.canal_id::int e_canal, e.id::int e_envio_id, e.estado e_estado, e.logistica, e.despachar_antes, e.receptor, e.direccion e_direccion,
            (exists (select 1 from picking_pedido pp where pp.pedido_id = p.id and pp.impreso_ts is not null)
              or exists (select 1 from envio e2 where e2.pedido_id = p.id and e2.etiqueta_impresa_ts is not null)) impreso
       from pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
@@ -132,8 +135,10 @@ export async function datosHojas(org: string, pedidoIds: number[]): Promise<Dato
     const env = (p.envio_json ?? {}) as { metodo?: string | null; direccion?: Record<string, unknown> | null; pack_id?: unknown };
     const ml = p.e_id_externo && p.e_canal && p.logistica !== "fulfillment";
     const dirPropia = env.direccion ?? null;
+    const oca = p.logistica === "oca" && p.e_envio_id && p.e_estado !== "cancelled";
     const etiqueta: EtiquetaHoja = ml
       ? { tipo: "ml", canalId: p.e_canal!, envioExterno: p.e_id_externo! }
+      : oca ? { tipo: "oca", envioId: p.e_envio_id! }
       : {
           tipo: "propia", retiro: !dirPropia || !textoDireccion(dirPropia).length, metodo: env.metodo ?? null,
           receptor: (typeof dirPropia?.receptor === "string" && dirPropia.receptor) || p.cliente,
@@ -144,7 +149,7 @@ export async function datosHojas(org: string, pedidoIds: number[]): Promise<Dato
     const pack = env.pack_id != null && String(env.pack_id) !== p.id_externo ? String(env.pack_id) : null;
     return {
       pedidoId: p.id, idExterno: p.id_externo, pack, cliente: p.cliente, apodo: p.apodo_ml, canal: p.canal, fecha: p.fecha,
-      logistica: p.logistica ? (LOGISTICA_TEXTO[p.logistica] ?? p.logistica) : etiqueta.tipo === "propia" ? (etiqueta.retiro ? "Retira" : (etiqueta.metodo ?? "Envío propio")) : null,
+      logistica: p.logistica && p.e_estado !== "cancelled" ? (LOGISTICA_TEXTO[p.logistica] ?? p.logistica) : etiqueta.tipo === "propia" ? (etiqueta.retiro ? "Retira" : (etiqueta.metodo ?? "Envío propio")) : null,
       despacharAntes: p.despachar_antes, notas: p.notas, reimpresion: p.impreso, etiqueta, lineas: ordenarLineas(crudas),
       aCobrar: p.a_cobrar ? p.total_ars : null,
     };
@@ -152,6 +157,9 @@ export async function datosHojas(org: string, pedidoIds: number[]): Promise<Dato
 }
 
 // ── El PDF ───────────────────────────────────────────────
+
+/** La etiqueta de OCA de un envío (por el id del envío en Laucen). */
+export type BajarEtiquetaOca = (envioId: number) => Promise<{ ok: true; pdf: Uint8Array } | { ok: false; motivo: string }>;
 
 /** La etiqueta de ML de un envío: el PDF de ML, o por qué no vino. */
 export type BajarEtiquetaMl = (canalId: number, envioExterno: string) => Promise<{ ok: true; pdf: Uint8Array } | { ok: false; motivo: string }>;
@@ -552,7 +560,7 @@ async function paginaUnica(l: Lienzo, d: DatosHoja, etiqueta: { ml: PDFEmbeddedP
   let ancho: number, alto: number;
   if ("ml" in etiqueta) ({ ancho, alto } = pegarEtiqueta(p, etiqueta.ml, m, arriba, 100 * MM, 160 * MM));
   else if ("propia" in etiqueta) { ancho = 100 * MM; alto = 150 * MM; await etiquetaPropia(l, p, m, arriba - alto, d, etiqueta.propia); }
-  else { ancho = 95 * MM; alto = 90 * MM; aviso(l, p, m, arriba, ancho, alto, "Falta la etiqueta de Mercado Libre", etiqueta.aviso); }
+  else { ancho = 95 * MM; alto = 90 * MM; aviso(l, p, m, arriba, ancho, alto, d.etiqueta.tipo === "oca" ? "Falta la etiqueta de OCA" : "Falta la etiqueta de Mercado Libre", etiqueta.aviso); }
   const x = m + ancho + 16;
   const piso = arriba - Math.max(alto, 120 * MM);
   const enc = await encabezadoAlCostado(l, p, d, x, arriba, w - m - x, piso);
@@ -565,7 +573,7 @@ async function paginaUnica(l: Lienzo, d: DatosHoja, etiqueta: { ml: PDFEmbeddedP
  *  "etiqueta-propia:<pedido>", "aviso:<pedido>", "hoja:<pedido>", y en A4
  *  "etiqueta-ml+hoja:<pedido>", "etiqueta-propia+hoja:<pedido>",
  *  "aviso+hoja:<pedido>"), para los tests y el registro. */
-export async function armarPdf(hojas: DatosHoja[], o: { tam: TamHoja; bajarEtiquetaMl: BajarEtiquetaMl; soloEtiqueta?: boolean }): Promise<{ pdf: Uint8Array; paginas: string[]; sinEtiqueta: number[] }> {
+export async function armarPdf(hojas: DatosHoja[], o: { tam: TamHoja; bajarEtiquetaMl: BajarEtiquetaMl; bajarEtiquetaOca?: BajarEtiquetaOca; soloEtiqueta?: boolean }): Promise<{ pdf: Uint8Array; paginas: string[]; sinEtiqueta: number[] }> {
   const doc = await PDFDocument.create();
   doc.setTitle("Etiquetas y hojas de preparación");
   const l: Lienzo = { doc, f: await doc.embedFont(StandardFonts.Helvetica), fb: await doc.embedFont(StandardFonts.HelveticaBold), tam: o.tam };
@@ -577,8 +585,11 @@ export async function armarPdf(hojas: DatosHoja[], o: { tam: TamHoja; bajarEtiqu
     let unica: Parameters<typeof paginaUnica>[2];
     let tipo: string;
     let sinEtiquetaPropia = false;
-    if (d.etiqueta.tipo === "ml") {
-      const r = await o.bajarEtiquetaMl(d.etiqueta.canalId, d.etiqueta.envioExterno);
+    if (d.etiqueta.tipo === "ml" || d.etiqueta.tipo === "oca") {
+      const deOca = d.etiqueta.tipo === "oca";
+      const quien = deOca ? "OCA" : "Mercado Libre";
+      const r = d.etiqueta.tipo === "ml" ? await o.bajarEtiquetaMl(d.etiqueta.canalId, d.etiqueta.envioExterno)
+        : o.bajarEtiquetaOca ? await o.bajarEtiquetaOca(d.etiqueta.envioId) : { ok: false as const, motivo: "No se pudo bajar la etiqueta de OCA." };
       let ml: PDFEmbeddedPage[] = [];
       if (r.ok) {
         try { ml = await etiquetasMl(l, r.pdf); } catch { ml = []; }
@@ -593,9 +604,9 @@ export async function armarPdf(hojas: DatosHoja[], o: { tam: TamHoja; bajarEtiqu
       } else {
         tipo = "aviso";
         sinEtiqueta.push(d.pedidoId);
-        const texto = `${r.ok ? "Mercado Libre mandó un PDF que no se pudo leer." : r.motivo} Reimprimí la etiqueta de este pedido desde Ventas › Envíos.`;
+        const texto = `${r.ok ? `${quien} mandó un PDF que no se pudo leer.` : r.motivo} Reimprimí la etiqueta de este pedido desde ${deOca ? "la ficha del pedido" : "Ventas › Envíos"}.`;
         unica = { aviso: texto };
-        if (!juntas) { paginaAviso(l, `Pedido #${d.pedidoId}: falta la etiqueta de Mercado Libre`, texto); paginas.push(`aviso:${d.pedidoId}`); }
+        if (!juntas) { paginaAviso(l, `Pedido #${d.pedidoId}: falta la etiqueta de ${quien}`, texto); paginas.push(`aviso:${d.pedidoId}`); }
       }
     } else {
       tipo = "etiqueta-propia";

@@ -6,6 +6,8 @@
 import { consulta, ErrorErp } from "@/lib/erp/base";
 import { precioDe } from "@/lib/precios";
 import type { Tienda } from "@/lib/tienda/tienda";
+import { cotizarOca } from "@/lib/oca/envios";
+import { tcDelDia } from "@/lib/moneda";
 
 export type LineaCarrito = { variacionId: number; cantidad: number };
 
@@ -20,7 +22,8 @@ export type Cotizacion = {
   subtotal: number;
   /** Descuentos de reglas y del medio de pago, para mostrar. */
   descuentos: { nombre: string; importe: number }[];
-  envio: { metodoId: number | null; nombre: string | null; costo: number; bonificado: boolean; aConvenir: boolean } | null;
+  /** sinCp: es de OCA y falta el código postal para calcularlo. plazoDias: lo que tarda, según OCA. */
+  envio: { metodoId: number | null; nombre: string | null; costo: number; bonificado: boolean; aConvenir: boolean; sinCp?: boolean; plazoDias?: number | null } | null;
   total: number;
   sinStock: string[];
 };
@@ -29,7 +32,7 @@ type Regla = { id: number; nombre: string; condicion: Record<string, unknown>; a
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
-export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: string | null; metodoEnvioId?: number | null; provincia?: string | null } = {}): Promise<Cotizacion> {
+export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: string | null; metodoEnvioId?: number | null; provincia?: string | null; codigoPostal?: string | null } = {}): Promise<Cotizacion> {
   const org = t.organizacionId;
   if (!t.listaId) throw new ErrorErp("La tienda no tiene lista de precios.");
   const ids = [...new Set(carrito.filter((l) => l.cantidad > 0).map((l) => l.variacionId))];
@@ -126,12 +129,29 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
       "select id::int, tipo, nombre, costo_ars, gratis_desde_ars, tarifas from metodo_envio where id = $1 and organizacion_id = $2 and activo and (canal_id is null or canal_id = $3)",
       [op.metodoEnvioId, org, t.canalId]))[0];
     if (!m) throw new ErrorErp("Ese método de envío no está disponible.");
-    if (m.tipo === "oca" || m.tipo === "andreani") throw new ErrorErp("Ese método de envío todavía no está disponible.");
+    if (m.tipo === "andreani") throw new ErrorErp("Ese método de envío todavía no está disponible.");
+    const esOca = m.tipo === "oca" || m.tipo === "oca_sucursal";
     let costo = m.tipo === "tarifa_fija" ? Number(m.costo_ars)
       : m.tipo === "por_provincia" ? Number(m.tarifas?.[op.provincia ?? ""] ?? m.tarifas?.["*"] ?? m.costo_ars) : 0;
+    let sinCp = false, plazoDias: number | null = null;
     const gratis = envioBonificado || (m.gratis_desde_ars != null && productos >= Number(m.gratis_desde_ars));
+    if (esOca && !gratis) {
+      // OCA cotiza en pesos con el peso y las medidas del carrito; "Costo $" del método se suma (embalaje).
+      if (!op.codigoPostal?.trim()) sinCp = true;
+      else {
+        const tc = t.moneda === "USD" ? (await tcDelDia(org))?.venta ?? null : 1;
+        if (!tc) throw new ErrorErp("No pudimos calcular el envío ahora. Probá en un rato.");
+        const r = await cotizarOca(org, m.tipo, lineas.map((l) => ({ variacionId: l.variacionId, cantidad: l.cantidad })), op.codigoPostal, productos * tc);
+        if (!r.ok) {
+          console.error("[oca] cotizar", r.motivo);
+          throw new ErrorErp("No pudimos calcular el envío de OCA a ese código postal. Revisalo o elegí otra forma de entrega.");
+        }
+        costo = (r.datos.total + Number(m.costo_ars || 0)) / tc;
+        plazoDias = r.datos.plazoDias;
+      }
+    }
     if (gratis) costo = 0;
-    envio = { metodoId: m.id, nombre: m.nombre, costo: r2(costo), bonificado: gratis && m.tipo !== "retiro", aConvenir: m.tipo === "a_convenir" };
+    envio = { metodoId: m.id, nombre: m.nombre, costo: r2(costo), bonificado: gratis && m.tipo !== "retiro", aConvenir: m.tipo === "a_convenir", sinCp, plazoDias };
   }
   return {
     lineas: lineas.map(({ familias: _f, montoFinal: _m, ...l }) => ({ ...l, subtotal: r2(l.finalUnit * l.cantidad) })),

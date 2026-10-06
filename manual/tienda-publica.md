@@ -69,7 +69,7 @@ Las líneas con foto, título, **"Eliminar"**, cantidad con **−** y **+** (el 
 Una sola página con tres bloques y el resumen al costado:
 
 1. **Tus datos**: Nombre y apellido, Mail, Teléfono, DNI o CUIT; si es un CUIT, Razón social y Condición frente al IVA (para factura A).
-2. **Entrega**: los métodos de envío activos, cada uno con su costo ("Gratis", "A convenir", "Según provincia"…); los que piden dirección muestran Calle, Número, Piso / depto, Localidad, Provincia, Código postal y Referencia para el envío. OCA y Andreani aparecen como "Próximamente".
+2. **Entrega**: los métodos de envío activos, cada uno con su costo ("Gratis", "A convenir", "Según provincia"…); los que piden dirección muestran Calle, Número, Piso / depto, Localidad, Provincia, Código postal y Referencia para el envío. Los de OCA se cotizan con el código postal ("Según código postal" mientras no esté) y muestran en cuántos días hábiles llega; con **OCA a sucursal** aparece **"Sucursal de OCA donde lo retirás"** con las sucursales de ese código postal. Andreani aparece como "Próximamente".
 3. **Medio de pago**: los medios activos, con su descuento y su explicación.
 4. **Notas** (opcional).
 

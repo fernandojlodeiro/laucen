@@ -7,7 +7,7 @@
 // se pisen). En paralelo, los precios de ML (lib/precios-ml/): las lecturas
 // de precio para ganar y campañas (sólo lectura) y, en los canales con
 // "Sincronizar precios" prendido, lo automático (precios que cambiaron y una
-// pasada entera por noche).
+// pasada entera por noche). Y el seguimiento de los envíos de OCA (lib/oca/envios.ts).
 
 import { after } from "next/server";
 import { pool } from "@/db";
@@ -16,6 +16,7 @@ import { barrido } from "@/lib/mercadolibre/procesar";
 import { procesarCola } from "@/lib/mercadolibre/cola";
 import { leerPreciosMl } from "@/lib/precios-ml/lectura";
 import { vueltaAutomatica } from "@/lib/precios-ml/preparar";
+import { barrerOca } from "@/lib/oca/envios";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -44,6 +45,14 @@ export async function GET(req: Request) {
           if (t0 + 105_000 - Date.now() > 10_000) console.log("[meli] lecturas de precios", JSON.stringify(await leerPreciosMl(t0 + 105_000, { tanda: 1000 })));
         } catch (e) {
           console.error("[meli] precios", e instanceof Error ? e.message : e);
+        }
+      })(),
+      (async () => {
+        try {
+          const r = await barrerOca(t0 + 110_000);
+          if (r.revisados) console.log("[oca] seguimiento", JSON.stringify(r));
+        } catch (e) {
+          console.error("[oca] seguimiento", e instanceof Error ? e.message : e);
         }
       })(),
     ]);

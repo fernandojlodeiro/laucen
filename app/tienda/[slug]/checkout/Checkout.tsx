@@ -6,11 +6,11 @@
 // igual vuelve a cotizar todo en el servidor (comprar). El formulario no se
 // limpia si la compra da error.
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import type { Medio } from "@/lib/tienda/checkout";
 import type { MetodoEnvio, Resumen } from "../resumen";
 import { CONDICIONES_IVA, PROVINCIAS, precio, sinDireccion } from "../comun";
-import { confirmarCompra, cotizarAccion } from "../acciones";
+import { confirmarCompra, cotizarAccion, sucursalesOcaAccion } from "../acciones";
 
 export type Precarga = Partial<Record<"nombre" | "email" | "telefono" | "documento" | "razon_social" | "condicion_iva" | "calle" | "numero" | "piso_depto" | "localidad" | "provincia" | "codigo_postal", string>>;
 
@@ -48,11 +48,14 @@ function Campo({ nombre, etiqueta, opcional, ...resto }: { nombre: string; etiqu
 
 export default function Checkout({ slug, medios, metodos, inicial, precarga, eleccion }: {
   slug: string; medios: Medio[]; metodos: MetodoEnvio[]; inicial: Resumen; precarga: Precarga;
-  eleccion: { metodoEnvioId: number | null; medio: string | null; provincia: string };
+  eleccion: { metodoEnvioId: number | null; medio: string | null; provincia: string; codigoPostal: string };
 }) {
   const [metodo, setMetodo] = useState(eleccion.metodoEnvioId);
   const [medio, setMedio] = useState(eleccion.medio);
   const [provincia, setProvincia] = useState(eleccion.provincia);
+  const [cp, setCp] = useState(eleccion.codigoPostal);
+  const cpCotizado = useRef(eleccion.codigoPostal);
+  const [sucursales, setSucursales] = useState<{ id: string; texto: string }[] | null>(null);
   const [documento, setDocumento] = useState(precarga.documento ?? "");
   const [resumen, setResumen] = useState(inicial);
   const [errorCot, setErrorCot] = useState<string | null>(null);
@@ -67,13 +70,23 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
   const conDireccion = !!elegido && !sinDireccion(elegido.tipo);
   const esCuit = documento.replace(/\D/g, "").length === 11;
   const m = resumen.moneda;
+  const aSucursal = elegido?.tipo === "oca_sucursal";
 
-  function recotizar(cambio: Partial<{ metodoEnvioId: number | null; medio: string | null; provincia: string }>) {
-    const e = { metodoEnvioId: metodo, medio, provincia, ...cambio };
+  // OCA a sucursal: las sucursales del código postal.
+  useEffect(() => {
+    if (!aSucursal || cp.replace(/\D/g, "").length < 4) { setSucursales(null); return; }
+    let vivo = true;
+    sucursalesOcaAccion(slug, cp).then((l) => { if (vivo) setSucursales(l); }).catch(() => { if (vivo) setSucursales([]); });
+    return () => { vivo = false; };
+  }, [aSucursal, cp, slug]);
+
+  function recotizar(cambio: Partial<{ metodoEnvioId: number | null; medio: string | null; provincia: string; codigoPostal: string }>) {
+    const e = { metodoEnvioId: metodo, medio, provincia, codigoPostal: cp, ...cambio };
+    cpCotizado.current = e.codigoPostal;
     const n = ++ultimo.current;
     empezarCalculo(async () => {
       try {
-        const r = await cotizarAccion(slug, { metodoEnvioId: e.metodoEnvioId, medio: e.medio, provincia: e.provincia || null });
+        const r = await cotizarAccion(slug, { metodoEnvioId: e.metodoEnvioId, medio: e.medio, provincia: e.provincia || null, codigoPostal: e.codigoPostal || null });
         if (n !== ultimo.current) return; // llegó una respuesta vieja
         if ("error" in r) setErrorCot(r.error);
         else { setResumen(r.resumen); setErrorCot(null); }
@@ -105,7 +118,9 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
 
   const costoMetodo = (id: number, tipo: string) => {
     const c = resumen.costos[id];
-    if (!c) return tipo === "por_provincia" && !provincia ? "Según provincia" : "—";
+    const esOca = tipo === "oca" || tipo === "oca_sucursal";
+    if (!c) return tipo === "por_provincia" && !provincia ? "Según provincia" : esOca ? "Según código postal" : "—";
+    if (c.sinCp) return "Según código postal";
     if (c.aConvenir) return "A convenir";
     if (c.costo === 0) return "Gratis";
     return precio(c.costo, m);
@@ -155,7 +170,9 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
                     <span className="font-semibold">{x.nombre}</span>
                     <span className={`shrink-0 font-semibold tabular-nums ${x.disponible && costoMetodo(x.id, x.tipo) === "Gratis" ? "text-[var(--verde)]" : ""}`}>{x.disponible ? costoMetodo(x.id, x.tipo) : "Próximamente"}</span>
                   </span>
-                  {x.plazo && <span className="block text-sm text-gray-500">{x.plazo}</span>}
+                  {resumen.costos[x.id]?.plazoDias
+                    ? <span className="block text-sm text-gray-500">Llega en {resumen.costos[x.id]!.plazoDias} días hábiles</span>
+                    : x.plazo && <span className="block text-sm text-gray-500">{x.plazo}</span>}
                   {metodo === x.id && x.instrucciones && <span className="mt-1 block whitespace-pre-line text-sm text-gray-600">{x.instrucciones}</span>}
                 </span>
               </label>
@@ -181,8 +198,22 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
                     {provincia && !(PROVINCIAS as readonly string[]).includes(provincia) && <option value={provincia}>{provincia}</option>}
                   </select>
                 </div>
-                <Campo nombre="codigo_postal" etiqueta="Código postal" autoComplete="postal-code" defaultValue={precarga.codigo_postal} />
+                <div>
+                  <label htmlFor="f-codigo_postal" className={ETIQUETA}>Código postal</label>
+                  <input id="f-codigo_postal" name="codigo_postal" required autoComplete="postal-code" maxLength={8} className={CAMPO} value={cp}
+                    onChange={(e) => setCp(e.target.value)}
+                    onBlur={() => { if (cp.trim() !== cpCotizado.current.trim()) recotizar({ codigoPostal: cp.trim() }); }} />
+                </div>
               </div>
+              {aSucursal && (
+                <div>
+                  <label htmlFor="f-sucursal_oca" className={ETIQUETA}>Sucursal de OCA donde lo retirás</label>
+                  <select id="f-sucursal_oca" name="sucursal_oca" required className={CAMPO} defaultValue="">
+                    <option value="" disabled>{cp.replace(/\D/g, "").length < 4 ? "Poné tu código postal" : sucursales == null ? "Buscando sucursales…" : sucursales.length ? "Elegí la sucursal…" : "No hay sucursales para ese código postal"}</option>
+                    {(sucursales ?? []).map((x) => <option key={x.id} value={x.id}>{x.texto}</option>)}
+                  </select>
+                </div>
+              )}
               <Campo nombre="referencia" etiqueta="Referencia para el envío" opcional placeholder="Entre calles, timbre, etc." />
             </div>
           )}
@@ -246,7 +277,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
           ))}
           <div className="flex justify-between gap-2">
             <span>Envío{resumen.envio?.nombre ? ` (${resumen.envio.nombre})` : ""}</span>
-            <span className="shrink-0 tabular-nums">{!resumen.envio ? "—" : resumen.envio.aConvenir ? "A convenir" : resumen.envio.costo === 0 ? "Gratis" : precio(resumen.envio.costo, m)}</span>
+            <span className="shrink-0 tabular-nums">{!resumen.envio ? "—" : resumen.envio.sinCp ? "Según código postal" : resumen.envio.aConvenir ? "A convenir" : resumen.envio.costo === 0 ? "Gratis" : precio(resumen.envio.costo, m)}</span>
           </div>
           <div className="flex justify-between pt-3 text-lg font-semibold"><span>Total</span><span className="tabular-nums">{precio(resumen.total, m)}</span></div>
         </div>

@@ -3,12 +3,12 @@
 
 export const LOGISTICA: Record<string, string> = {
   fulfillment: "Full", self_service: "Flex", cross_docking: "Colecta", xd_drop_off: "Colecta",
-  drop_off: "Despacho en correo/punto", custom: "A convenir", not_specified: "A convenir",
+  drop_off: "Despacho en correo/punto", custom: "A convenir", not_specified: "A convenir", oca: "OCA",
 };
 
 export const ESTADO_ENVIO: Record<string, string> = {
   pending: "Pendiente", handling: "En preparación", ready_to_ship: "Etiqueta lista", shipped: "En camino",
-  delivered: "Entregado", not_delivered: "No entregado", cancelled: "Cancelado",
+  delivered: "Entregado", not_delivered: "No entregado", cancelled: "Cancelado", returned: "Devuelto",
 };
 
 export const SUBESTADO_ENVIO: Record<string, string> = {
@@ -17,7 +17,7 @@ export const SUBESTADO_ENVIO: Record<string, string> = {
 
 export const TONO_ENVIO: Record<string, "verde" | "gris" | "amarillo" | "rojo" | "azul"> = {
   pending: "gris", handling: "amarillo", ready_to_ship: "amarillo", shipped: "azul",
-  delivered: "verde", not_delivered: "rojo", cancelled: "rojo",
+  delivered: "verde", not_delivered: "rojo", cancelled: "rojo", returned: "rojo",
 };
 
 export const PESTANAS = [

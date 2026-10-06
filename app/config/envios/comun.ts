@@ -7,7 +7,8 @@ export const TIPOS_ENVIO = {
   tarifa_fija: { texto: "Tarifa fija", disponible: true },
   por_provincia: { texto: "Por provincia", disponible: true },
   a_convenir: { texto: "A convenir", disponible: true },
-  oca: { texto: "OCA (próximamente)", disponible: false },
+  oca: { texto: "OCA a domicilio", disponible: true },
+  oca_sucursal: { texto: "OCA a sucursal", disponible: true },
   andreani: { texto: "Andreani (próximamente)", disponible: false },
 } as const;
 export type TipoEnvio = keyof typeof TIPOS_ENVIO;

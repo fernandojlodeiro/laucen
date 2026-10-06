@@ -54,11 +54,11 @@ Justo debajo de esa caja (antes de la ficha), la sección **Dominios (N)**, con 
 
 ### Métodos de envío
 
-Arriba a la derecha, **"Descargar Excel"** y **"Nuevo método de envío"**. Buscador **"Buscar método de envío"** (en todos sus datos: N.º, nombre, tipo, provincias de las tarifas, plazo e instrucciones).
+Arriba a la derecha, **"Cuenta de OCA"**, **"Descargar Excel"** y **"Nuevo método de envío"**. Buscador **"Buscar método de envío"** (en todos sus datos: N.º, nombre, tipo, provincias de las tarifas, plazo e instrucciones).
 
 Columnas (se ordenan tocando el título; de entrada por **Orden**): **Nombre**, **Tipo**, **Activo** (un interruptor Sí/No), **Costo** ("Sin cargo" para retiro, "A convenir", "N provincias · resto $ …" para por provincia, o el importe), **Gratis desde** ("Nunca", el importe, o "—" para retiro y a convenir), **Plazo**, **Instrucciones**, **Orden**, y el lápiz y el tacho ("¿Borrar?").
 
-Tipos: **Retiro en el local**, **Tarifa fija**, **Por provincia**, **A convenir**; **OCA (próximamente)** y **Andreani (próximamente)** se ven deshabilitados.
+Tipos: **Retiro en el local**, **Tarifa fija**, **Por provincia**, **A convenir**, **OCA a domicilio** y **OCA a sucursal** (cotizan con la cuenta de OCA: botón **"Cuenta de OCA"** arriba a la derecha, ver [OCA](/config/envios/oca)); **Andreani (próximamente)** se ve deshabilitado. En los de OCA, la columna Costo dice "Lo que cotiza OCA" (o "Lo de OCA + $ …" si tiene Costo $).
 
 Al editar una fila (lápiz): Nombre, Tipo, **Costo $**, **Gratis desde $** (vacío = "nunca"), **Plazo**, **Instrucciones**, **Orden**, y el desplegable **"Tarifas por provincia (para el tipo "Por provincia")"** con un campo por cada una de las 24 provincias y **"Resto del país"**. Botones **"Guardar"** y **"Cancelar"**.
 
@@ -192,7 +192,8 @@ Para un recargo, poné el número en negativo (ej. -10 = 10 % más caro).
   - **A convenir**: $ 0 en el pedido; se muestra "A convenir".
 - **Gratis desde $**: si el total de los productos (después de descuentos de reglas y del medio de pago) llega a ese importe, el envío es gratis. Vacío = nunca. Una regla comercial de "envío bonificado" también lo deja gratis.
 - **Retiro y A convenir no piden dirección** en el checkout; los demás exigen calle, localidad y provincia.
-- **OCA y Andreani**: "próximamente": no se pueden elegir ni prender.
+- **OCA a domicilio / a sucursal**: lo que cotiza OCA con el código postal del comprador y el peso y las medidas del carrito, más el **Costo $** si tiene. Ver [OCA](/config/envios/oca).
+- **Andreani**: "próximamente": no se puede elegir ni prender.
 - Los importes son en pesos y no pueden ser negativos.
 - La tienda anuncia "Envío gratis desde $ …" con el menor "Gratis desde" de los métodos de tarifa fija o por provincia activos (o "Envío gratis" si una tarifa fija cuesta 0). Sólo si la tienda vende en pesos.
 
@@ -239,7 +240,7 @@ Falta el permiso «Configurar dominios de la tienda» en tu rol.
 Porque la tienda tiene logo propio; si lo borrás, usa el de [Empresa](/config/empresa).
 
 **¿OCA y Andreani funcionan?**
-Todavía no: figuran como "próximamente".
+OCA sí: se conecta en [OCA](/config/envios/oca). Andreani todavía no: figura como "próximamente".
 
 **Cambié un precio y la tienda sigue mostrando el viejo en el listado.**
 El listado se actualiza cada minuto; en la ficha del producto ya se ve el nuevo.

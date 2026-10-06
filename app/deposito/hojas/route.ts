@@ -13,6 +13,7 @@ import { tienePermiso } from "@/lib/permisos";
 import { consulta, motivoErp } from "@/lib/erp/base";
 import { exigirCarritoLibre } from "@/lib/pedidos";
 import { prepararImpresion, marcarImpreso } from "@/lib/deposito/picking";
+import { etiquetaOca } from "@/lib/oca/envios";
 import { datosHojas, armarPdf, bajarEtiquetaMlDe, esTamHoja, COOKIE_TAM } from "@/lib/deposito/hojas";
 
 export const dynamic = "force-dynamic";
@@ -58,7 +59,7 @@ export async function GET(req: Request) {
     }
 
     const hojas = await datosHojas(org, pedidos);
-    const { pdf } = await armarPdf(hojas, { tam, soloEtiqueta, bajarEtiquetaMl: bajarEtiquetaMlDe(org) });
+    const { pdf } = await armarPdf(hojas, { tam, soloEtiqueta, bajarEtiquetaMl: bajarEtiquetaMlDe(org), bajarEtiquetaOca: (envioId) => etiquetaOca(org, envioId) });
     await marcarImpreso(org, pedidos);
 
     const nombre = `${soloEtiqueta ? "etiqueta" : "etiquetas-y-hojas"}-${new Date().toISOString().slice(0, 10)}.pdf`;

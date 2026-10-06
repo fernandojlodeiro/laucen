@@ -4,6 +4,7 @@
 // comprador. Toda la lógica de negocio está en lib/tienda/*; acá se lee el
 // formulario, se verifica contra la tienda (organización y canal) y se vuelve.
 
+import { sucursalesOca } from "@/lib/oca/envios";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -91,9 +92,21 @@ export async function cotizarAccion(slug: string, e: Eleccion): Promise<{ resume
     const medio = typeof e.medio === "string" ? e.medio.slice(0, 30) : null;
     const provincia = typeof e.provincia === "string" ? e.provincia.slice(0, 60) : null;
     const metodoEnvioId = Number.isInteger(e.metodoEnvioId) ? e.metodoEnvioId : null;
-    return { resumen: await resumir(t, carrito, { medio, provincia, metodoEnvioId }) };
+    const codigoPostal = typeof e.codigoPostal === "string" ? e.codigoPostal.slice(0, 10) : null;
+    return { resumen: await resumir(t, carrito, { medio, provincia, metodoEnvioId, codigoPostal }) };
   } catch (err) {
     return { error: motivoErp(err) };
+  }
+}
+
+/** Las sucursales de OCA que entregan paquetes en ese código postal (para "OCA a sucursal"). */
+export async function sucursalesOcaAccion(slug: string, cp: string): Promise<{ id: string; texto: string }[]> {
+  try {
+    await tiendaDe(slug);
+    const lista = await sucursalesOca(String(cp ?? "").slice(0, 10));
+    return lista.map((x) => ({ id: x.id, texto: [x.nombre, [x.direccion, x.localidad].filter(Boolean).join(", ")].filter(Boolean).join(" — ") }));
+  } catch {
+    return [];
   }
 }
 
@@ -130,6 +143,7 @@ export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { 
         piso_depto: conDireccion ? texto(fd, "piso_depto") : null, localidad: conDireccion ? texto(fd, "localidad") : null,
         provincia: conDireccion ? texto(fd, "provincia") : null, codigo_postal: conDireccion ? texto(fd, "codigo_postal") : null,
         referencia: conDireccion ? texto(fd, "referencia") : null,
+        sucursalOca: metodo.tipo === "oca_sucursal" ? texto(fd, "sucursal_oca") : null,
       },
       medio,
       notas: texto(fd, "notas"),

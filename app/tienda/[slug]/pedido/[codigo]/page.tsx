@@ -25,7 +25,7 @@ type Props = { params: Promise<{ slug: string; codigo: string }>; searchParams: 
 
 type Pedido = {
   id: number; fecha: string; estado: string; estado_pago: string; moneda: Moneda; total: string; costo_envio_ars: string;
-  envio: { metodo?: string | null; a_convenir?: boolean; bonificado?: boolean; direccion?: Record<string, string | null> | null };
+  envio: { metodo?: string | null; a_convenir?: boolean; bonificado?: boolean; direccion?: Record<string, string | null> | null; sucursal_oca?: { id: string; nombre: string; direccion: string } | null };
   medio_pago: string | null; medio: string | null; cliente_id: number | null; email: string | null; nombre: string | null;
   metodo_tipo: string | null; descuentos: { nombre: string; importe: number }[] | null;
 };
@@ -61,7 +61,7 @@ async function cargarPedido(t: Tienda, codigo: string) {
 
 const ESTADO_ENVIO: Record<string, string> = {
   pending: "Pendiente", handling: "En preparación", ready_to_ship: "Listo para despachar", shipped: "En camino", delivered: "Entregado",
-  not_delivered: "No entregado", cancelled: "Cancelado",
+  not_delivered: "No entregado", cancelled: "Cancelado", returned: "Devuelto",
 };
 
 export default async function PaginaPedido({ params, searchParams }: Props) {
@@ -173,7 +173,10 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
           </div>
           <div className="flex justify-between pt-1 text-lg font-bold"><span>Total</span><span className="tabular-nums">{formatear(p.total, m)}</span></div>
           {(medio?.nombre || p.medio_pago) && <div className="text-gray-500">Pago: {medio?.nombre ?? p.medio_pago}</div>}
-          {direccion?.calle && (
+          {p.envio?.sucursal_oca?.nombre && (
+            <div className="text-gray-500">Retirás en la sucursal de OCA: {p.envio.sucursal_oca.nombre}{p.envio.sucursal_oca.direccion ? ` (${p.envio.sucursal_oca.direccion})` : ""}</div>
+          )}
+          {direccion?.calle && !p.envio?.sucursal_oca && (
             <div className="text-gray-500">
               Entrega en: {[direccion.calle, direccion.numero].filter(Boolean).join(" ")}{direccion.piso_depto ? `, ${direccion.piso_depto}` : ""}, {direccion.localidad}, {direccion.provincia}{direccion.codigo_postal ? ` (${direccion.codigo_postal})` : ""}
             </div>

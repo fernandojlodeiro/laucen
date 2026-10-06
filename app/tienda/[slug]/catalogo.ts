@@ -208,18 +208,18 @@ export type InfoEnvio = {
   retiro: { nombre: string; plazo: string | null } | null;
 };
 
-/** Lo que dicen los métodos de envío activos de la tienda (sin OCA ni Andreani, que todavía no cotizan). */
+/** Lo que dicen los métodos de envío activos de la tienda (sin Andreani, que todavía no cotiza; OCA cuenta como envío a domicilio, sin costo fijo). */
 export const envioDe = cache(async (t: Tienda): Promise<InfoEnvio> => {
   const ms = await consulta<{ tipo: string; nombre: string; plazo: string | null; costo_ars: string; gratis_desde_ars: string | null }>(`
     select tipo, nombre, plazo, costo_ars, gratis_desde_ars from metodo_envio
-     where organizacion_id = $1 and activo and (canal_id is null or canal_id = $2) and tipo not in ('oca', 'andreani') order by orden, id`,
+     where organizacion_id = $1 and activo and (canal_id is null or canal_id = $2) and tipo <> 'andreani' order by orden, id`,
   [t.organizacionId, t.canalId]);
   const envios = ms.filter((m) => m.tipo === "tarifa_fija" || m.tipo === "por_provincia");
   const umbrales = envios.flatMap((m) => [
     ...(m.gratis_desde_ars != null ? [Number(m.gratis_desde_ars)] : []),
     ...(m.tipo === "tarifa_fija" && Number(m.costo_ars) === 0 ? [0] : []),
   ]);
-  const dom = envios[0] ?? ms.find((m) => m.tipo === "a_convenir");
+  const dom = envios[0] ?? ms.find((m) => m.tipo === "oca" || m.tipo === "oca_sucursal") ?? ms.find((m) => m.tipo === "a_convenir");
   const ret = ms.find((m) => m.tipo === "retiro");
   return {
     gratisDesde: t.moneda === "ARS" && umbrales.length ? Math.min(...umbrales) : null,

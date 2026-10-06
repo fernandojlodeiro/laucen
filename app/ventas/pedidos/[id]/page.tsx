@@ -23,11 +23,14 @@ import { accionFacturar, accionSubirFacturaMlPedido } from "./acciones";
 import { sqlEstadoFacturaMl } from "@/lib/mercadolibre/facturas";
 import { TextoFacturaMl, BotonFacturaMl, puedeSubir } from "@/app/administracion/facturacion/FacturaMl";
 import Operacion from "./Operacion";
+import EnvioOca from "./EnvioOca";
+import { envioOcaDe } from "@/lib/oca/envios";
 import { cargosDelPedido, TIPOS_CARGO, TIPOS_COSTO, IMPUESTOS } from "@/lib/mercadolibre/facturacion";
 import { MarcaCarritoEspera, textoEsperaCarrito } from "@/app/componentes/CarritoEspera";
 import { carritoEnEspera, mensajeEsperaCarrito, MENSAJE_A_COBRAR_FACTURA } from "@/lib/pedidos";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type Linea = {
   id: number; variacion_id: number | null; sku: string | null; titulo: string; cantidad: number;
@@ -78,22 +81,31 @@ export default async function DetallePedido({ params, searchParams }: { params: 
     tracking: string | null; receptor: string | null; direccion: Record<string, string | null>; despachar_antes: Date | null; entrega_estimada: Date | null;
     impresa: Date | null; lista: Date | null; en_camino: Date | null; entregado: Date | null; no_entregado: Date | null; devuelto: Date | null; cancelado: Date | null }>(`
     select id::int, logistica, metodo, estado, subestado, tracking, receptor, direccion, despachar_antes, entrega_estimada,
-           -- Los hitos del envío, como los cuenta Mercado Libre (status_history).
+           -- Los hitos del envío, como los cuenta Mercado Libre (status_history) u OCA (datos_externos.oca).
            coalesce((datos_externos #>> '{ml,date_first_printed}')::timestamptz, etiqueta_impresa_ts) impresa,
-           (datos_externos #>> '{ml,status_history,date_ready_to_ship}')::timestamptz lista,
-           (datos_externos #>> '{ml,status_history,date_shipped}')::timestamptz en_camino,
-           (datos_externos #>> '{ml,status_history,date_delivered}')::timestamptz entregado,
+           coalesce((datos_externos #>> '{ml,status_history,date_ready_to_ship}')::timestamptz, (datos_externos #>> '{oca,alta}')::timestamptz) lista,
+           coalesce((datos_externos #>> '{ml,status_history,date_shipped}')::timestamptz, (datos_externos #>> '{oca,en_camino}')::timestamptz) en_camino,
+           coalesce((datos_externos #>> '{ml,status_history,date_delivered}')::timestamptz, (datos_externos #>> '{oca,entregado}')::timestamptz) entregado,
            (datos_externos #>> '{ml,status_history,date_not_delivered}')::timestamptz no_entregado,
-           (datos_externos #>> '{ml,status_history,date_returned}')::timestamptz devuelto,
-           (datos_externos #>> '{ml,status_history,date_cancelled}')::timestamptz cancelado
+           coalesce((datos_externos #>> '{ml,status_history,date_returned}')::timestamptz, (datos_externos #>> '{oca,devuelto}')::timestamptz) devuelto,
+           coalesce((datos_externos #>> '{ml,status_history,date_cancelled}')::timestamptz, (datos_externos #>> '{oca,anulado}')::timestamptz) cancelado
       from envio where pedido_id = $1 and organizacion_id = $2 order by id desc limit 1`, [pid, s.org.id]);
   const ml = await una<{ comision: number | null; sin_vincular: boolean; pack: string | null; espera_ts: Date | null }>(
     "select comision_ars::float comision, sin_vincular, envio ->> 'pack_id' pack, carrito_ultimo_evento_ts espera_ts from pedido where id = $1 and organizacion_id = $2", [pid, s.org.id]);
   const cargos = await cargosDelPedido(s.org.id, pid);
+  // OCA: los pedidos que no son de ML, con dirección, se pueden despachar por OCA desde acá.
+  const oca = await (async () => {
+    const envioOca = await envioOcaDe(s.org.id, pid);
+    const x = await una<{ canal_tipo: string; tiene_dir: boolean; sucursal: string | null }>(`
+      select ca.tipo canal_tipo, coalesce(p.envio -> 'direccion' ->> 'codigo_postal', '') <> '' tiene_dir, p.envio #>> '{sucursal_oca,nombre}' sucursal
+        from pedido p join canal ca on ca.id = p.canal_id where p.id = $1 and p.organizacion_id = $2`, [pid, s.org.id]);
+    const ofrecer = !!envioOca || (!!x && x.canal_tipo !== "mercadolibre" && x.tiene_dir && !["cancelado", "devuelto", "despachado", "entregado"].includes(c.estado));
+    return { ofrecer, envio: envioOca, sucursal: x?.sucursal ?? null };
+  })();
   // Carrito de ML en espera (10 min desde su último evento): nada se toca todavía.
   const espera = carritoEnEspera({ carrito_ultimo_evento_ts: ml?.espera_ts ?? null });
-  const LOGISTICA: Record<string, string> = { fulfillment: "Full", self_service: "Flex", cross_docking: "Colecta", xd_drop_off: "Colecta", drop_off: "Despacho en correo", custom: "A convenir", not_specified: "A convenir" };
-  const ESTADO_ENVIO: Record<string, string> = { ready_to_ship: "Etiqueta lista", shipped: "En camino", delivered: "Entregado", not_delivered: "No entregado", cancelled: "Cancelado", pending: "Pendiente", handling: "En preparación" };
+  const LOGISTICA: Record<string, string> = { oca: "OCA", fulfillment: "Full", self_service: "Flex", cross_docking: "Colecta", xd_drop_off: "Colecta", drop_off: "Despacho en correo", custom: "A convenir", not_specified: "A convenir" };
+  const ESTADO_ENVIO: Record<string, string> = { ready_to_ship: "Etiqueta lista", shipped: "En camino", delivered: "Entregado", not_delivered: "No entregado", cancelled: "Cancelado", returned: "Devuelto", pending: "Pendiente", handling: "En preparación" };
   const fechaCorta = (d: Date | null) => d ? d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
 
   // Facturación: los comprobantes del pedido y si se puede facturar.
@@ -215,6 +227,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
                 <div className="col-span-2"><Dato t="Dirección">{[envioMl.direccion?.linea ?? [envioMl.direccion?.calle, envioMl.direccion?.numero].filter(Boolean).join(" "), envioMl.direccion?.localidad, envioMl.direccion?.provincia, envioMl.direccion?.codigo_postal && `CP ${envioMl.direccion.codigo_postal}`].filter(Boolean).join(", ") || "—"}{envioMl.direccion?.referencia && <span className="block text-[11px] text-[#5C6B76]">{envioMl.direccion.referencia}</span>}</Dato></div>
               </div>
             ) : envio ? <DatosEnvio datos={envio} /> : <p className="text-xs text-[#5C6B76]">Sin datos de envío.</p>}
+            {oca.ofrecer && <EnvioOca pid={pid} envio={oca.envio} sucursal={oca.sucursal} />}
             {ml?.comision != null && <p className="text-[11px] text-[#5C6B76] mt-1">Comisión de Mercado Libre: {enMoneda(ml.comision, v, tcPedido)}{ml.pack ? ` · carrito ${ml.pack}` : ""}</p>}
             {ml?.sin_vincular && <p className="text-[11px] text-[#C03420] mt-1">Tiene artículos que no están vinculados a un producto de Laucen: esas líneas no descuentan stock. Vinculalos en Catálogo → Vincular con Mercado Libre.</p>}
           </div>

@@ -11,6 +11,8 @@ import { cambiarEstado, esEstadoPedido, exigirCarritoLibre, ESTADOS_PEDIDO } fro
 import { confirmarPago, entregarYCobrar } from "@/lib/tienda/pagos/confirmar";
 import { prepararFactura, emitir } from "@/lib/arca/facturar";
 import { subirFacturaDelPedidoConBoton } from "@/lib/mercadolibre/facturas";
+import { deFondo } from "@/lib/tareas-fondo";
+import { altaOca, anularOca, envioOcaDe, seguirEnvio } from "@/lib/oca/envios";
 
 export async function accionFacturar(fd: FormData) {
   const s = await entrarErp("facturacion_ver");
@@ -104,3 +106,42 @@ export async function accionCambiarEstadoPedido(fd: FormData) {
     return `Pedido ${ESTADOS_PEDIDO[nuevo].toLowerCase()}.`;
   });
 }
+
+// ── OCA (Fer, 6/10): alta del envío, seguimiento y anular, de fondo ──
+
+export async function accionAltaOca(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  return deFondo(s, `oca-alta-${pid}`, `Alta en OCA del pedido ${pid}`, async () => {
+    await pedidoOperable(s.org.id, pid);
+    const n = await altaOca(s.org.id, pid);
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    return `Pedido ${pid}: envío de OCA ${n}. Ya podés imprimir la etiqueta.`;
+  });
+}
+
+export async function accionSeguirOca(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  return deFondo(s, `oca-seguir-${pid}`, `Seguimiento de OCA del pedido ${pid}`, async () => {
+    const e = await envioOcaDe(s.org.id, pid);
+    if (!e) throw new ErrorErp("Este pedido no tiene un envío de OCA.");
+    const estado = await seguirEnvio(s.org.id, e.id);
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    return `Pedido ${pid}: ${ESTADO_OCA[estado ?? ""] ?? "sin novedades"}.`;
+  });
+}
+
+export async function accionAnularOca(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  return deFondo(s, `oca-anular-${pid}`, `Anular el envío de OCA del pedido ${pid}`, async () => {
+    const e = await envioOcaDe(s.org.id, pid);
+    if (!e) throw new ErrorErp("Este pedido no tiene un envío de OCA.");
+    const r = await anularOca(s.org.id, e.id);
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    return r;
+  });
+}
+
+const ESTADO_OCA: Record<string, string> = { ready_to_ship: "todavía no salió", shipped: "en camino", delivered: "entregado", returned: "devuelto", cancelled: "anulado" };

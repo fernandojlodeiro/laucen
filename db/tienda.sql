@@ -170,3 +170,35 @@ create table if not exists tienda_portada_producto (
 create index if not exists tienda_portada_orden on tienda_portada_producto (canal_id, lista, orden);
 alter table tienda_portada_producto enable row level security;
 select erp_politica_org('tienda_portada_producto');
+
+-- OCA (ePak), Fer 6/10: la cuenta de OCA de la organización (una sola). El
+-- usuario y la contraseña de ePak nunca se muestran; sin políticas: sólo el
+-- servidor la lee. origen = de dónde sale la mercadería; centro_origen = la
+-- sucursal donde se entrega a OCA (vacío = OCA retira en el origen). Los
+-- productos sin peso o medidas viajan con el peso y la caja estándar.
+create table if not exists oca_config (
+  organizacion_id      text primary key references organizaciones(id) on delete cascade,
+  usuario              text,
+  clave                text,
+  cuit                 text,
+  nro_cuenta           text,
+  operativa_domicilio  text,
+  operativa_sucursal   text,
+  origen               jsonb not null default '{}',
+  centro_origen        text,
+  franja               int not null default 1,
+  peso_std_g           int not null default 500 check (peso_std_g > 0),
+  caja_std             jsonb not null default '{"largo": 20, "ancho": 15, "alto": 10}',
+  ultima_prueba        jsonb,
+  actualizado_ts       timestamptz not null default now()
+);
+alter table oca_config enable row level security;
+
+-- Método de envío "OCA a sucursal" (el comprador elige la sucursal donde retira).
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'metodo_envio_tipo_check' and pg_get_constraintdef(oid) like '%oca_sucursal%') then
+    alter table metodo_envio drop constraint if exists metodo_envio_tipo_check;
+    alter table metodo_envio add constraint metodo_envio_tipo_check
+      check (tipo in ('retiro', 'tarifa_fija', 'por_provincia', 'a_convenir', 'oca', 'oca_sucursal', 'andreani'));
+  end if;
+end $$;

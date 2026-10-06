@@ -10,6 +10,7 @@
 import { randomBytes } from "node:crypto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { crearPedido } from "@/lib/pedidos";
+import { sucursalesOca } from "@/lib/oca/envios";
 import { cotizar, type LineaCarrito } from "@/lib/tienda/cotizar";
 import { planesDelCarrito } from "@/lib/tienda/cuotas";
 import { crearPreferencia } from "@/lib/tienda/pagos/mercadopago";
@@ -22,7 +23,7 @@ import { urlTienda } from "@/lib/tienda/dominios-tienda";
 export type DatosCompra = {
   carrito: LineaCarrito[];
   cliente: { nombre: string; email: string; telefono?: string | null; documento?: string | null; cuit?: string | null; razon_social?: string | null; condicion_iva?: string | null };
-  entrega: { metodoEnvioId: number; calle?: string | null; numero?: string | null; piso_depto?: string | null; localidad?: string | null; provincia?: string | null; codigo_postal?: string | null; referencia?: string | null };
+  entrega: { metodoEnvioId: number; calle?: string | null; numero?: string | null; piso_depto?: string | null; localidad?: string | null; provincia?: string | null; codigo_postal?: string | null; referencia?: string | null; sucursalOca?: string | null };
   medio: "mercadopago" | "payway" | "transferencia" | "efectivo" | "cuenta_corriente";
   notas?: string | null;
 };
@@ -56,13 +57,21 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
     const ok = op.clienteId ? await una("select 1 from cliente where id = $1 and organizacion_id = $2 and cuenta_corriente", [op.clienteId, org]) : null;
     if (!ok) throw new ErrorErp("La cuenta corriente es sólo para clientes habilitados: ingresá con tu cuenta o elegí otro medio.");
   }
-  const cot = await cotizar(t, d.carrito, { medio: d.medio, metodoEnvioId: d.entrega.metodoEnvioId, provincia: d.entrega.provincia });
+  const cot = await cotizar(t, d.carrito, { medio: d.medio, metodoEnvioId: d.entrega.metodoEnvioId, provincia: d.entrega.provincia, codigoPostal: d.entrega.codigo_postal });
   if (!cot.lineas.length) throw new ErrorErp("Ninguno de los productos del carrito está disponible.");
   if (cot.sinStock.length) throw new ErrorErp(`No alcanza el stock: ${cot.sinStock.join("; ")}. Ajustá las cantidades.`);
   if (!cot.envio) throw new ErrorErp("Elegí cómo lo recibís.");
   const metodo = await una<{ tipo: string }>("select tipo from metodo_envio where id = $1", [d.entrega.metodoEnvioId]);
   if (metodo?.tipo !== "retiro" && metodo?.tipo !== "a_convenir" && (!d.entrega.calle || !d.entrega.localidad || !d.entrega.provincia)) {
     throw new ErrorErp("Completá la dirección de entrega (calle, localidad y provincia).");
+  }
+  if (cot.envio.sinCp) throw new ErrorErp("Poné tu código postal para calcular el envío.");
+  // OCA a sucursal: la sucursal elegida tiene que ser una de las de ese código postal.
+  let sucursalOca: { id: string; nombre: string; direccion: string } | null = null;
+  if (metodo?.tipo === "oca_sucursal") {
+    const s = (await sucursalesOca(d.entrega.codigo_postal ?? "")).find((x) => x.id === d.entrega.sucursalOca);
+    if (!s) throw new ErrorErp("Elegí la sucursal de OCA donde lo retirás.");
+    sucursalOca = { id: s.id, nombre: s.nombre, direccion: [s.direccion, s.localidad, s.provincia].filter(Boolean).join(", ") };
   }
 
   const codigo = randomBytes(6).toString("base64url");
@@ -86,7 +95,7 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
     metodo_envio_id: cot.envio.metodoId,
     envio: { metodo: cot.envio.nombre, a_convenir: cot.envio.aConvenir, bonificado: cot.envio.bonificado, direccion: metodo?.tipo === "retiro" ? null : {
       calle: d.entrega.calle, numero: d.entrega.numero, piso_depto: d.entrega.piso_depto, localidad: d.entrega.localidad,
-      provincia: d.entrega.provincia, codigo_postal: d.entrega.codigo_postal, referencia: d.entrega.referencia } },
+      provincia: d.entrega.provincia, codigo_postal: d.entrega.codigo_postal, referencia: d.entrega.referencia }, sucursal_oca: sucursalOca },
     notas: d.notas?.trim() || null,
     datos_externos: { tienda: { descuentos: cot.descuentos, medio: d.medio, subtotal: cot.subtotal } },
   }, op.clienteId ? `cliente:${op.clienteId}` : "tienda");

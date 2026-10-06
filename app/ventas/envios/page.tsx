@@ -55,7 +55,7 @@ export default async function Envios({ searchParams }: { searchParams: Promise<S
            (e.estado in ('ready_to_ship', 'handling', 'pending') and e.despachar_antes is not null
              and (e.despachar_antes at time zone '${ZONA}')::date <= (now() at time zone '${ZONA}')::date) vencido,
            e.tracking, e.etiqueta_impresa_ts,
-           (coalesce(e.logistica, '') <> 'fulfillment' and e.id_externo is not null) imprimible,
+           ((coalesce(e.logistica, '') <> 'fulfillment' and e.id_externo is not null) or (e.logistica = 'oca' and coalesce(e.estado, '') <> 'cancelled')) imprimible,
            p.carrito_ultimo_evento_ts, coalesce(${sqlCarritoEnEspera("p")}, false) en_espera`,
     desde: base.desde,
     donde: base.donde,

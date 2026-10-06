@@ -60,9 +60,15 @@ export default async function PaginaCheckout({ params }: { params: Promise<{ slu
   const primerMetodo = metodos.find((m) => m.disponible)?.id ?? null;
   const primerMedio = mediosVisibles[0]?.tipo ?? null;
   let resumen: Resumen | null = null, error: string | null = null;
+  let metodoInicial = primerMetodo;
+  const eleccionInicial = { medio: primerMedio, provincia: precarga.provincia || null, codigoPostal: precarga.codigo_postal || null };
   try {
-    resumen = await resumir(t, carrito, { metodoEnvioId: primerMetodo, medio: primerMedio, provincia: precarga.provincia || null }, metodos);
-  } catch (e) { error = motivoErp(e); }
+    resumen = await resumir(t, carrito, { ...eleccionInicial, metodoEnvioId: metodoInicial }, metodos);
+  } catch (e) {
+    // El primer envío no se pudo calcular (ej. OCA a un código postal raro): se arranca sin envío elegido.
+    try { metodoInicial = null; resumen = await resumir(t, carrito, { ...eleccionInicial, metodoEnvioId: null }, metodos); }
+    catch { error = motivoErp(e); }
+  }
   if (resumen && !resumen.lineas.length) redirect(rutaTienda(t, "/carrito"));
 
   return (
@@ -74,7 +80,7 @@ export default async function PaginaCheckout({ params }: { params: Promise<{ slu
       {error && <Aviso tipo="error">{error}</Aviso>}
       {resumen && (
         <Checkout slug={t.slug} medios={mediosVisibles} metodos={metodos} inicial={resumen} precarga={precarga}
-          eleccion={{ metodoEnvioId: primerMetodo, medio: primerMedio, provincia: precarga.provincia || "" }} />
+          eleccion={{ metodoEnvioId: metodoInicial, medio: primerMedio, provincia: precarga.provincia || "", codigoPostal: precarga.codigo_postal || "" }} />
       )}
     </div>
   );
