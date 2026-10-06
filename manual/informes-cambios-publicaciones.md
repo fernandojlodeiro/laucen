@@ -32,6 +32,7 @@ Sirve para responder preguntas como "¿quién pausó esta publicación?", "¿cu�
 - **Cuenta**: "Todas las cuentas" o una cuenta de Mercado Libre.
 - **"Qué cambió:"** cajas para tildar **Estado**, **Precio** y **Stock**. De entrada están tildados Estado y Precio (el stock cambia con cada venta y llenaría la lista).
 - **"Estado: pasó a"** (aparece cuando Estado está tildado): cajas para elegir a qué estado pasó la publicación: **Activa**, **Pausada**, **En revisión**, **Inactiva**, **Cerrada** y **Pago pendiente**. De entrada, todas. Por ejemplo, tildando sólo Pausada ves las que se pausaron; sólo Activa, las que se activaron. Filtra sólo los cambios de estado: los de precio y stock se siguen viendo si están tildados.
+- **"Sólo si sigue en ese estado"** (aparece cuando Estado está tildado; **tildada de entrada**): un cambio de estado se muestra sólo si la publicación **hoy** está en el estado al que pasó. Por ejemplo, con "pasó a Pausada", salen las que se pausaron y siguen pausadas; una que se pausó y ya volvió a estar activa no sale. Destildándola se ven todos los cambios, sigan o no. No toca los cambios de precio ni de stock.
 - **"Sólo los que hizo alguien fuera de Laucen"**: caja para tildar.
 - **Ver**: **Cada cambio** (una fila por cambio) o **Una fila por publicación**.
 

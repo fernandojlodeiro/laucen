@@ -89,11 +89,13 @@ export function FiltroVivo({ parametro, valor, etiqueta, children, limpiar = [] 
 }
 
 /** Caja para tildar de filtro (pone `parametro=1` o lo saca). */
-export function CasillaViva({ parametro, activo, etiqueta }: { parametro: string; activo: boolean; etiqueta: string }) {
+/** `tildadaDeEntrada`: la casilla viene tildada sin el parámetro; destildarla manda "0". */
+export function CasillaViva({ parametro, activo, etiqueta, tildadaDeEntrada = false, ayuda }: { parametro: string; activo: boolean; etiqueta: string; tildadaDeEntrada?: boolean; ayuda?: string }) {
   const cambiar = usarCambiarParametro();
   return (
-    <label className="inline-flex items-center gap-1.5 text-xs text-[#5C6B76] py-1.5 whitespace-nowrap">
-      <input type="checkbox" defaultChecked={activo} onChange={(e) => cambiar({ [parametro]: e.target.checked ? "1" : null })}
+    <label className="inline-flex items-center gap-1.5 text-xs text-[#5C6B76] py-1.5 whitespace-nowrap" title={ayuda}>
+      <input type="checkbox" defaultChecked={activo}
+        onChange={(e) => cambiar({ [parametro]: tildadaDeEntrada ? (e.target.checked ? null : "0") : (e.target.checked ? "1" : null) })}
         className="h-4 w-4 accent-[#16577F]" />
       {etiqueta}
     </label>

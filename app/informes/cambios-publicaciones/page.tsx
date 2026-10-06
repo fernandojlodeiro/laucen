@@ -61,6 +61,10 @@ export default async function CambiosPublicaciones({ searchParams }: { searchPar
           <CasillasVivas parametro="estados" etiqueta="Estado: pasó a" elegidas={f.estados} defecto={[...ESTADOS_DESTINO]}
             opciones={ESTADOS_DESTINO.map((e) => ({ valor: e, texto: TEXTO_ESTADO_ML[e] ?? e }))} />
         )}
+        {f.tipos.includes("estado") && (
+          <CasillaViva parametro="sigue" activo={f.sigue} tildadaDeEntrada etiqueta="Sólo si sigue en ese estado"
+            ayuda="Muestra un cambio de estado sólo si la publicación hoy está en el estado al que pasó (pasó a pausada y sigue pausada)." />
+        )}
         <CasillaViva parametro="externos" activo={f.externos} etiqueta="Sólo los que hizo alguien fuera de Laucen" />
         <Desplegable parametro="agrupar" etiqueta="Ver" valor={f.agrupar ? "1" : ""}
           opciones={[{ valor: "", texto: "Cada cambio" }, { valor: "1", texto: "Una fila por publicación" }]} />
