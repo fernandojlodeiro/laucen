@@ -231,9 +231,31 @@ export async function terminarLote(org: string, loteId: number, usuarioId: strin
 
 /** Cancela un lote sin preparar (los pedidos quedan "en preparación" y
  *  vuelven a la lista para armar otro). */
-export async function cancelarLote(org: string, loteId: number) {
-  const r = await consulta("update picking_lote set estado = 'cancelado', terminado_ts = now() where id = $1 and organizacion_id = $2 and estado = 'abierto' returning id", [loteId, org]);
-  if (!r.length) throw new ErrorErp("Ese picking no está abierto.");
+/** Desarmar el lote (Fer, 6/10): queda cancelado y sus pedidos sin preparar
+ *  vuelven a la lista como estaban: si el lote los había pasado a "en
+ *  preparación", vuelven al estado de antes (pagado, o nuevo si era «A cobrar»).
+ *  La reserva de stock no cambia (en los dos estados está reservado). Los ya
+ *  preparados quedan preparados. */
+export async function cancelarLote(org: string, loteId: number, quien = "sistema") {
+  await enTransaccion(async (c) => {
+    const r = await c.query("update picking_lote set estado = 'cancelado', terminado_ts = now() where id = $1 and organizacion_id = $2 and estado = 'abierto' returning id", [loteId, org]);
+    if (!r.rowCount) throw new ErrorErp("Ese picking no está abierto.");
+    const volver = await c.query<{ id: string; anterior: string }>(`
+      select p.id, h.estado_anterior anterior
+        from picking_pedido pp join pedido p on p.id = pp.pedido_id
+        join lateral (select estado_anterior from pedido_estado_historial
+                       where pedido_id = p.id and estado_nuevo = 'en_preparacion' order by id desc limit 1) h on true
+       where pp.lote_id = $1 and pp.preparado_ts is null and p.estado = 'en_preparacion' and h.estado_anterior in ('nuevo', 'pagado')
+         and not exists (select 1 from picking_pedido o join picking_lote ol on ol.id = o.lote_id
+                          where o.pedido_id = p.id and ol.estado = 'abierto' and ol.id <> $1)`, [loteId]);
+    for (const p of volver.rows) {
+      await c.query("update pedido set estado = $2 where id = $1", [p.id, p.anterior]);
+      await c.query(`insert into pedido_estado_historial (organizacion_id, pedido_id, estado_anterior, estado_nuevo, quien, nota)
+                     values ($1, $2, 'en_preparacion', $3, $4, $5)`, [org, p.id, p.anterior, quien, `lote #${loteId} desarmado`]);
+      await c.query("select emitir_evento($1, 'pedido_estado_cambiado', $2::jsonb)",
+        [org, JSON.stringify({ pedido_id: Number(p.id), anterior: "en_preparacion", nuevo: p.anterior, quien })]);
+    }
+  });
 }
 
 // ── Etiqueta + hoja de preparación (Fer, 3/10) ──────────────────────────

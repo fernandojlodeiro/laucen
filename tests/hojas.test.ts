@@ -305,3 +305,21 @@ test("cerrar escaneando la etiqueta: ML (código, QR o tracking) y OCA; la hoja 
   await assert.rejects(m.picking.pedidosDelLotePorEtiqueta(e.org, lote, `#${oca}`), /etiqueta de OCA: escaneá/);
   await assert.rejects(m.picking.pedidosDelLotePorEtiqueta(e.org, lote, "99999999999"), /no es la etiqueta/);
 });
+
+test("desarmar el lote: los pedidos sin preparar vuelven al estado de antes; los preparados quedan", async () => {
+  const e = await escenario();
+  const a = await e.pedido([{ v: e.p1, c: 1 }]);
+  const b = await e.pedido([{ v: e.p2, c: 1 }]);
+  const antes = (await q<{ estado: string }>("select estado from pedido where id = $1", [a]))[0].estado;
+  const { lotes: [lote] } = await m.picking.prepararImpresion(e.org, [a, b], "operador");
+  await m.picking.marcarPreparado(e.org, lote, b, "operador");
+  await m.picking.cancelarLote(e.org, lote, "operador");
+  const estado = async (id: number) => (await q<{ estado: string }>("select estado from pedido where id = $1", [id]))[0].estado;
+  assert.equal(await estado(a), antes);
+  assert.equal(await estado(b), "preparado");
+  assert.equal((await q<{ estado: string }>("select estado from picking_lote where id = $1", [lote]))[0].estado, "cancelado");
+  await assert.rejects(m.picking.cancelarLote(e.org, lote), /no está abierto/);
+  // Vuelve a la lista para preparar.
+  const { lotes: [otro] } = await m.picking.prepararImpresion(e.org, [a], "operador");
+  assert.ok(otro);
+});
