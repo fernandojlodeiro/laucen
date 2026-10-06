@@ -2,7 +2,7 @@
 // subfamilias y productos) o en un producto puntual. Sin planes propios =
 // hereda (planes_cuotas null). Forma: lib/tienda/cuotas.ts.
 
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { VERDE, SUAVE } from "@/app/botones";
@@ -49,11 +49,13 @@ export default async function Cuotas({ searchParams }: { searchParams: Promise<S
   const productos = await consulta<{ id: number; sku: string; titulo: string; familia_id: number | null; planes: unknown }>(
     q ? `select id::int, sku_base sku, titulo, familia_id::int, planes_cuotas planes from producto
           where organizacion_id = $1 and estado <> 'archivado'
-            and ${sqlBusqueda("$2", ["sku_base", "titulo", { de: "select 1 from variacion v where v.producto_id = producto.id", campos: ["v.sku"] }])}
+            and ${sqlBusqueda("$2", ["id::text", "sku_base", "titulo", "descripcion", "marca", "modelo", "linea", "codigo_barras", "garantia",
+              "condicion", "categoria_ml", "tipo", "estado",
+              { de: "select 1 from variacion v where v.producto_id = producto.id", campos: ["v.sku", "v.titulo", "v.codigo_barras"] }])}
           order by planes_cuotas is null, titulo limit 40`
       : `select id::int, sku_base sku, titulo, familia_id::int, planes_cuotas planes from producto
           where organizacion_id = $1 and planes_cuotas is not null order by titulo limit 100`,
-    q ? [s.org.id, patronesBusqueda(q)] : [s.org.id]);
+    q ? [s.org.id, parametroBusqueda(q)] : [s.org.id]);
 
   const Planes = ({ propios, hereda }: { propios: Plan[] | null; hereda: { planes: Plan[]; de: string } | null }) =>
     propios ? <span className="font-semibold">{textoPlanes(propios)}</span>

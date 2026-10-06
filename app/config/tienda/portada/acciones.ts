@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
-import { patronesBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda } from "@/lib/busqueda";
 import { ErrorErp } from "@/lib/erp/base";
 import { intentar, id } from "@/lib/erp/acciones";
 import { agregar, quitar, mover, buscarParaPortada, esLista, type ProductoHallado } from "@/lib/tienda/portada";
@@ -15,7 +15,7 @@ export async function accionBuscarParaPortada(canalId: number, lista: string, q:
   const s = await entrarErp("tienda_config");
   const t = String(q ?? "").trim();
   if (t.length < 2 || !esLista(lista)) return [];
-  return buscarParaPortada(s.org.id, Number(canalId) || 0, lista, patronesBusqueda(t, comienza));
+  return buscarParaPortada(s.org.id, Number(canalId) || 0, lista, parametroBusqueda(t, comienza));
 }
 
 export async function accionAgregarPortada(canalId: number, lista: string, productoId: number): Promise<{ error?: string }> {

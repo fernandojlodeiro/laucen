@@ -1,7 +1,7 @@
 // Publicaciones como lista configurable (lib/listas/tipos.ts): "Descargar
 // Excel" con los mismos filtros que la pantalla.
 
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { una } from "@/lib/erp/base";
 import { verInactivos } from "@/app/componentes/Inactivos";
 import { campoFecha, type Lista, type SP } from "@/lib/listas/tipos";
@@ -87,14 +87,15 @@ export const LISTA_PUBLICACIONES: Lista = {
         ${UNIR_MELI_ITEM}
         ${UNIR_MODERACION}`;
     const INACTIVOS = "($5 or p.estado <> 'archivado')";
-    // Lo escrito, con la regla de lib/busqueda.ts ($4: los patrones).
+    // Lo escrito, con la regla de lib/busqueda.ts ($4): los datos de la publicación, y SKU, código de barras y título de su producto.
     const donde = `pu.organizacion_id = $1
          and ${INACTIVOS}
          and ($2::bigint is null or pu.canal_id = $2)
          and ($3::text is null or pu.estado = $3)
-         and ${sqlBusqueda("$4", ["v.sku", "pu.id_externo", "v.codigo_barras", "coalesce(pu.titulo, titulo_variacion(v.id))", "p.titulo"])}
+         and ${sqlBusqueda("$4", ["pu.id::text", "pu.id_externo", "pu.variacion_externa", "coalesce(pu.titulo, titulo_variacion(v.id))", "pu.categoria_externa", "pu.tipo_publicacion",
+              "v.sku", "v.codigo_barras", "p.sku_base", "p.titulo"])}
          and ($6::text is null or (mi.estado = 'under_review' and ($6 = 'todas' or ($6 = 'precio') = coalesce(mm.por_precio, false))))`;
-    const valores: unknown[] = [ctx.org, f.canal, f.estado, patronesBusqueda(f.q, f.comienza), f.inactivos, f.revision];
+    const valores: unknown[] = [ctx.org, f.canal, f.estado, parametroBusqueda(f.q, f.comienza), f.inactivos, f.revision];
     // Con algo escrito y la caja "Mostrar inactivos" apagada: si ninguna de un producto activo coincide pero sí
     // alguna de uno inactivo, se muestran igual (Fer).
     if (f.q && !f.inactivos) {

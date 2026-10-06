@@ -8,7 +8,8 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
-import { patronesBusqueda, digitosBusqueda, numeroBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { camposCliente } from "@/app/ventas/clientes/lista";
 import { consulta, una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, numero, texto } from "@/lib/erp/acciones";
 import { crearPedidoAMano, type PedidoAMano } from "@/lib/pedidos/a-mano";
@@ -56,8 +57,8 @@ export async function crearClienteDesdePedido(d: {
   }
 }
 
-/** Clientes que coinciden con lo tipeado (nombre, razón social, documento,
- *  CUIT, mail o apodo de ML), hasta 20. */
+/** Clientes que coinciden con lo tipeado (en todos sus datos: N.º, nombre, razón social,
+ *  documento, CUIT, mail, teléfonos, apodo de ML, notas), hasta 20. */
 export async function buscarClientesPedido(q: string, comienza: boolean): Promise<ClienteHallado[]> {
   const s = await entrarErp("pedidos_ver");
   const t = q.trim();
@@ -69,9 +70,8 @@ export async function buscarClientesPedido(q: string, comienza: boolean): Promis
               from cliente_direccion d where d.cliente_id = cl.id order by (d.etiqueta = 'Envío') desc, d.principal desc, d.id limit 1) direccion
       from cliente cl
      where cl.organizacion_id = $1
-       and (${sqlBusqueda("$2", ["cl.nombre", "cl.razon_social", "cl.email", "cl.apodo_ml", "cl.documento_numero", "cl.cuit"],
-              { param: "$3", campos: ["cl.cuit", "cl.documento_numero"] })} or cl.id = $4)
-     order by cl.nombre limit 20`, [s.org.id, patronesBusqueda(t, comienza), digitosBusqueda(t), numeroBusqueda(t)]);
+       and ${sqlBusqueda("$2", camposCliente("cl"))}
+     order by cl.nombre limit 20`, [s.org.id, parametroBusqueda(t, comienza)]);
   return filas.map((f) => ({ id: f.id, nombre: f.nombre, documento: f.documento, email: f.email, cuentaCorriente: f.cuenta_corriente, direccion: f.direccion }));
 }
 
@@ -105,7 +105,7 @@ export async function buscarProductosPedido(q: string, comienza: boolean, canalI
       from variacion v join producto p on p.id = v.producto_id
      where v.organizacion_id = $1 and v.estado <> 'archivada' and p.estado <> 'archivado'
        and (v.codigo_barras = $3 or ${sqlBusqueda("$2", ["v.sku", "titulo_variacion(v.id)", "p.sku_base", "v.codigo_barras", "p.codigo_barras"])})
-     order by (v.codigo_barras = $3) desc, (v.sku ilike $3) desc, v.sku limit 20`, [s.org.id, patronesBusqueda(t, comienza), t, canalId]);
+     order by (v.codigo_barras = $3) desc, (v.sku ilike $3) desc, v.sku limit 20`, [s.org.id, parametroBusqueda(t, comienza), t, canalId]);
   const { listaId, moneda } = await listaDelPedido(s.org.id, canalId, clienteId);
   return Promise.all(filas.map(async (f) => ({ ...f, precio: await precioSugerido(s.org.id, f.id, listaId, moneda) })));
 }

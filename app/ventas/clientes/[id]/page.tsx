@@ -1,6 +1,8 @@
 // Ficha de un cliente: datos (sobre todo los fiscales, que es lo que más se
 // corrige), direcciones, identidades por canal y sus pedidos.
 
+import { cuitLegible } from "@/lib/cuit";
+import { telefonoLegible } from "@/lib/telefono";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { consulta, una } from "@/lib/erp/base";
@@ -29,6 +31,7 @@ type Cliente = {
   id: number; nombre: string; tipo: string; email: string | null; telefono: string | null; documento_tipo: string | null;
   documento_numero: string | null; condicion_iva: string | null; lista_precios_id: number | null; notas: string | null; creado_ts: Date;
   razon_social: string | null; cuit: string | null; apodo_ml: string | null; telefono_movil: string | null;
+  telefono_aclaracion: string | null; telefono_movil_aclaracion: string | null;
   nombre_pila: string | null; apellido: string | null; datos_externos: Record<string, Record<string, unknown>>;
   cuenta_corriente: boolean;
 };
@@ -51,7 +54,7 @@ export default async function FichaCliente({ params, searchParams }: { params: P
   if (!Number.isInteger(cid) || cid <= 0) notFound();
   const c = await una<Cliente>(`
     select id::int, nombre, tipo, email, telefono, documento_tipo, documento_numero, condicion_iva, lista_precios_id::int, notas, creado_ts,
-           razon_social, cuit, apodo_ml, telefono_movil, nombre_pila, apellido, datos_externos, cuenta_corriente
+           razon_social, cuit, apodo_ml, telefono_movil, telefono_aclaracion, telefono_movil_aclaracion, nombre_pila, apellido, datos_externos, cuenta_corriente
       from cliente where id = $1 and organizacion_id = $2`, [cid, s.org.id]);
   if (!c) notFound();
   // La ficha abre en vista; ?editar=ficha la edita (?editar=<id> es el lápiz de una dirección).
@@ -79,7 +82,7 @@ export default async function FichaCliente({ params, searchParams }: { params: P
     [[d.calle, d.numero].filter(Boolean).join(" "), d.piso_depto, d.localidad, d.provincia, d.codigo_postal && `CP ${d.codigo_postal}`, d.pais !== "AR" ? d.pais : null]
       .filter(Boolean).join(", ") || "—";
   const extrasDireccion = (d: Direccion) =>
-    [d.receptor && `Recibe: ${d.receptor}${d.receptor_telefono ? ` (${d.receptor_telefono})` : ""}`, d.referencia && `Referencia: ${d.referencia}`].filter(Boolean).join(" · ");
+    [d.receptor && `Recibe: ${d.receptor}${d.receptor_telefono ? ` (${telefonoLegible(d.receptor_telefono)})` : ""}`, d.referencia && `Referencia: ${d.referencia}`].filter(Boolean).join(" · ");
   const ORIGENES: Record<string, string> = { virtual_seller: "Virtual Seller", ml: "Mercado Libre" };
 
   return (
@@ -106,7 +109,7 @@ export default async function FichaCliente({ params, searchParams }: { params: P
         <label className="sm:col-span-2"><span className={ETIQUETA}>Razón social (para facturar)</span>
           <input name="razon_social" defaultValue={c.razon_social ?? ""} className={`${CAMPO} w-full`} /></label>
         <div><label><span className={ETIQUETA}>CUIT</span>
-          <input name="cuit" defaultValue={c.cuit ?? ""} placeholder="20-12345678-9" className={`${CAMPO} w-full`} /></label>
+          <input name="cuit" defaultValue={cuitLegible(c.cuit)} placeholder="20-12345678-9" className={`${CAMPO} w-full`} /></label>
 </div>
         <label><span className={ETIQUETA}>Apellido</span>
           <input name="apellido" defaultValue={c.apellido ?? ""} className={`${CAMPO} w-full`} /></label>
@@ -117,9 +120,13 @@ export default async function FichaCliente({ params, searchParams }: { params: P
         <label><span className={ETIQUETA}>Mail</span>
           <input name="email" type="email" defaultValue={c.email ?? ""} className={`${CAMPO} w-full`} /></label>
         <label><span className={ETIQUETA}>Teléfono</span>
-          <input name="telefono" defaultValue={c.telefono ?? ""} className={`${CAMPO} w-full`} /></label>
+          <input name="telefono" defaultValue={telefonoLegible(c.telefono)} className={`${CAMPO} w-full`} /></label>
+        <label><span className={ETIQUETA}>Interno / aclaración</span>
+          <input name="telefono_aclaracion" defaultValue={c.telefono_aclaracion ?? ""} placeholder="Ej. INT 32" className={`${CAMPO} w-full`} /></label>
         <label><span className={ETIQUETA}>Celular</span>
-          <input name="telefono_movil" defaultValue={c.telefono_movil ?? ""} className={`${CAMPO} w-full`} /></label>
+          <input name="telefono_movil" defaultValue={telefonoLegible(c.telefono_movil)} className={`${CAMPO} w-full`} /></label>
+        <label><span className={ETIQUETA}>Interno / aclaración del celular</span>
+          <input name="telefono_movil_aclaracion" defaultValue={c.telefono_movil_aclaracion ?? ""} className={`${CAMPO} w-full`} /></label>
         <div><span className={ETIQUETA}>Documento</span>
           <div className="flex gap-1">
             <select name="documento_tipo" defaultValue={c.documento_tipo ?? ""} className={CAMPO} aria-label="Tipo de documento">
@@ -154,7 +161,7 @@ export default async function FichaCliente({ params, searchParams }: { params: P
           <Dato etiqueta="Tipo">{etiqueta(TIPOS_CLIENTE, c.tipo)}</Dato>
           <Dato etiqueta="Razón social (para facturar)" className="sm:col-span-2">{c.razon_social}</Dato>
           <div>
-            <Dato etiqueta="CUIT">{c.cuit}</Dato>
+            <Dato etiqueta="CUIT">{c.cuit ? cuitLegible(c.cuit) : null}</Dato>
             {conPadron && (
               <form action={accionValidarPadron} className="mt-1">
                 <input type="hidden" name="id" value={cid} />
@@ -167,8 +174,10 @@ export default async function FichaCliente({ params, searchParams }: { params: P
           <Dato etiqueta="Nombre de pila">{c.nombre_pila}</Dato>
           <Dato etiqueta="Apodo en Mercado Libre">{c.apodo_ml}</Dato>
           <Dato etiqueta="Mail">{c.email}</Dato>
-          <Dato etiqueta="Teléfono">{c.telefono}</Dato>
-          <Dato etiqueta="Celular">{c.telefono_movil}</Dato>
+          <Dato etiqueta="Teléfono">{c.telefono ? telefonoLegible(c.telefono) : null}</Dato>
+          <Dato etiqueta="Interno / aclaración">{c.telefono_aclaracion}</Dato>
+          <Dato etiqueta="Celular">{c.telefono_movil ? telefonoLegible(c.telefono_movil) : null}</Dato>
+          <Dato etiqueta="Interno / aclaración del celular">{c.telefono_movil_aclaracion}</Dato>
           <Dato etiqueta="Documento">{[c.documento_tipo, c.documento_numero].filter(Boolean).join(" ")}</Dato>
           <Dato etiqueta="Condición IVA">{c.condicion_iva ? etiqueta(CONDICIONES_IVA, c.condicion_iva) : null}</Dato>
           <Dato etiqueta="Lista de precios propia" ayuda="Para mayoristas. Vacío = la del canal.">

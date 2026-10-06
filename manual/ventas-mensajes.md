@@ -22,7 +22,7 @@ Menú **Ventas › WhatsApp** ([WhatsApp](/ventas/mensajes)). Tiene tres pestañ
 
 ## Qué hay en la pantalla
 
-**Chats**: a la izquierda la lista de chats, del más nuevo al más viejo, con un buscador (por nombre o teléfono) y las pestañas **Todos**, **Sin responder** (el último mensaje es del cliente), **En espera** (tienen algo que la IA pasó a una persona) y **Con persona** (la IA de ese chat está apagada). A la derecha, el chat abierto:
+**Chats**: a la izquierda la lista de chats, del más nuevo al más viejo, con un buscador (por nombre del chat o del cliente, teléfono —con o sin guiones o espacios— o notas) y las pestañas **Todos**, **Sin responder** (el último mensaje es del cliente), **En espera** (tienen algo que la IA pasó a una persona) y **Con persona** (la IA de ese chat está apagada). A la derecha, el chat abierto:
 - Arriba: el nombre (si es un cliente cargado, es un enlace a su ficha), el teléfono, **📝 Notas** (notas internas que el cliente no ve) y el **interruptor de la IA de ese chat**.
 - Los casos **En espera**, con su motivo y el botón **"Resolver"**.
 - Los mensajes: los del cliente a la izquierda; los nuestros a la derecha, marcados 🤖 (la IA), con el nombre de quien lo mandó desde el panel, o 📱 Desde el teléfono. ✓ enviado, ✓✓ entregado, ✓✓ celeste leído; **NO ENTREGADO** con el motivo.

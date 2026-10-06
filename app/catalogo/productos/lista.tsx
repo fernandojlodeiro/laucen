@@ -6,7 +6,8 @@ import Link from "next/link";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import { SUAVE } from "@/app/botones";
 import { Estado, url } from "@/app/componentes/erp";
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { camposProductoConVariaciones } from "@/app/catalogo/busqueda";
 import { verInactivos } from "@/app/componentes/Inactivos";
 import { consulta, una } from "@/lib/erp/base";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
@@ -181,10 +182,9 @@ export const LISTA_PRODUCTOS: Lista = {
   consulta: async (ctx, sp) => {
     const f = filtrosProductos(sp);
     const desde = "producto p left join familia f on f.id = p.familia_id";
-    // Lo escrito, con la regla de lib/busqueda.ts: todas las condiciones ("?") en un mismo dato del producto o de una de sus variaciones.
+    // Lo escrito, con la regla de lib/busqueda.ts: en todos los datos de texto del producto y de sus variaciones.
     const donde = `p.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["p.sku_base", "p.titulo", "p.marca", "p.codigo_barras",
-              { de: "select 1 from variacion v where v.producto_id = p.id", campos: ["v.sku", "v.codigo_barras"] }])}
+         and ${sqlBusqueda("$2", camposProductoConVariaciones())}
          and ($3 = '' or p.estado = $3)
          and ($4 = '' or p.tipo = $4)
          and ($5 = 0 or p.familia_id in (
@@ -200,7 +200,7 @@ export const LISTA_PRODUCTOS: Lista = {
          and (not $12 or p.no_publicable)
          and (not $13 or not p.no_publicable)
          and ($14::int is null or ${PUBLICADO_ML} = $14::int)`;
-    const valores: unknown[] = [ctx.org, patronesBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn, f.sinCanal, f.noPublicable, f.publicables, f.enCuentas];
+    const valores: unknown[] = [ctx.org, parametroBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn, f.sinCanal, f.noPublicable, f.publicables, f.enCuentas];
     // Con algo escrito y la caja "Mostrar inactivos" apagada: si ningún activo coincide pero sí algún inactivo, se muestran igual (Fer).
     if (f.q && !f.inactivos) {
       const hay = await una<{ activos: boolean; todos: boolean }>(

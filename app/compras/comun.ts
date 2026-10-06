@@ -3,7 +3,8 @@
 // SKU o título, y cómo se escribe un número de comprobante.
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { camposVariacionYProducto } from "@/app/catalogo/busqueda";
 
 type Tono = "verde" | "gris" | "amarillo" | "rojo" | "azul";
 
@@ -44,8 +45,8 @@ export async function deLaOrg(org: string, tabla: Tabla, id: number | null, nomb
 
 export type VariacionEncontrada = { id: number; sku: string; titulo: string };
 
-/** Variaciones de la organización que coinciden con el texto (SKU, código de
- *  barras o título), con la regla común de búsqueda (lib/busqueda.ts). Hasta 30.
+/** Variaciones de la organización que coinciden con el texto (en cualquier dato
+ *  de texto de la variación o de su producto: SKU, código de barras, título…), con la regla común de búsqueda (lib/busqueda.ts). Hasta 30.
  *  Las de productos inactivos (archivados), sólo si se pide `inactivos`, o si
  *  ningún activo coincide pero sí alguno inactivo (regla de inactivos de Fer). */
 export async function buscarVariaciones(org: string, q: string, inactivos = false): Promise<VariacionEncontrada[]> {
@@ -55,8 +56,8 @@ export async function buscarVariaciones(org: string, q: string, inactivos = fals
     select v.id::int, v.sku, titulo_variacion(v.id) titulo
       from variacion v join producto p on p.id = v.producto_id
      where v.organizacion_id = $1 and v.estado <> 'archivada' and ($3 or p.estado <> 'archivado')
-       and (v.codigo_barras = $4 or ${sqlBusqueda("$2", ["v.sku", "titulo_variacion(v.id)", "p.sku_base", "v.codigo_barras", "p.codigo_barras"])})
-     order by (v.codigo_barras = $4) desc, (v.sku ilike $4) desc, v.sku limit 30`, [org, patronesBusqueda(t), conInactivos, t]);
+       and (v.codigo_barras = $4 or ${sqlBusqueda("$2", ["titulo_variacion(v.id)", ...camposVariacionYProducto("v", "p")])})
+     order by (v.codigo_barras = $4) desc, (v.sku ilike $4) desc, v.sku limit 30`, [org, parametroBusqueda(t), conInactivos, t]);
   const filas = await buscar(inactivos);
   return filas.length || inactivos ? filas : buscar(true);
 }

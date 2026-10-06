@@ -10,7 +10,7 @@
 
 import Link from "next/link";
 import { url } from "@/app/componentes/erp";
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { hoyArgentina, rangoDeAtajo } from "@/lib/rango-fechas";
@@ -162,7 +162,9 @@ export const LISTA_CAMBIOS_PUBLICACIONES: Lista = {
             from meli_item_cambio h where ${donde}) c`;
     let fuera = "true";
     if (f.q) {
-      fuera = sqlBusqueda(p(patronesBusqueda(f.q, f.comienza)), ["c.item_id", "v.sku", "mi.sku", "mi.titulo", "c.datos ->> 'titulo'"]);
+      // Regla común (lib/busqueda.ts): los campos de texto del cambio, la cuenta y la publicación.
+      fuera = sqlBusqueda(p(parametroBusqueda(f.q, f.comienza)), ["c.id::text", "c.item_id", "c.variation_id", "c.campo", "c.antes", "c.despues",
+        "c.origen", "c.datos ->> 'sku'", "c.datos ->> 'titulo'", "ca.nombre", "v.sku", "mi.sku", "mi.titulo"]);
     }
     return {
       desde: `${base}

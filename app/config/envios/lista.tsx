@@ -1,9 +1,12 @@
 // Métodos de envío como lista configurable (lib/listas/tipos.ts): "Descargar
 // Excel" con la misma búsqueda que la pantalla.
 
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import type { Lista } from "@/lib/listas/tipos";
 import { TIPOS_ENVIO } from "./comun";
+
+/** El tipo como lo ve la pantalla, para buscarlo en SQL. */
+const TIPO_TEXTO = `case tipo ${Object.entries(TIPOS_ENVIO).map(([k, v]) => `when '${k}' then '${v.texto.replace(/'/g, "''")}'`).join(" ")} end`;
 
 export const LISTA_METODOS_ENVIO: Lista = {
   pantalla: "metodos_envio",
@@ -27,8 +30,8 @@ export const LISTA_METODOS_ENVIO: Lista = {
   enPantalla: ["nombre", "tipo", "activo", "costo", "gratis", "plazo", "instrucciones", "orden"],
   consulta: async (ctx, sp) => ({
     desde: "metodo_envio",
-    donde: `organizacion_id = $1 and canal_id is null and ${sqlBusqueda("$2", ["nombre"])}`,
-    valores: [ctx.org, patronesBusqueda(sp.q, sp.contiene !== "1")],
+    donde: `organizacion_id = $1 and canal_id is null and ${sqlBusqueda("$2", ["id::text", "nombre", "tipo", TIPO_TEXTO, "tarifas::text", "plazo", "instrucciones"])}`,
+    valores: [ctx.org, parametroBusqueda(sp.q, sp.contiene !== "1")],
     orden: "orden, id",
   }),
 };

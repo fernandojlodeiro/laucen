@@ -39,7 +39,7 @@ export const LISTA_FAMILIAS: Lista = {
     ]);
     const nombre = new Map(arbol.map((f) => [f.id, f.nombre]));
     const deCucardas = new Map(cucardas.map((c) => [c.familia_id, c.nombres]));
-    return arbol.filter((f) => coincideBusqueda(f.nombre, q, comienza)).map((f) => ({
+    return arbol.filter((f) => coincideBusqueda([String(f.id), f.nombre, f.descripcion, f.ml_categoria], q, comienza)).map((f) => ({
       ...f, padre: f.padre_id != null ? nombre.get(f.padre_id) ?? null : null, cucardas: deCucardas.get(f.id) ?? null,
     }));
   },

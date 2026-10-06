@@ -10,7 +10,8 @@ import { entrarErp, Pantalla, CAJA, CAMPO, ETIQUETA } from "@/app/componentes/er
 import { GRANDE } from "../formato";
 import { PestanasEtiquetas, ElegirFormato } from "./piezas";
 import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { camposVariacionYProducto } from "@/app/catalogo/busqueda";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +29,8 @@ export default async function EtiquetasProductos({ searchParams }: { searchParam
        where v.organizacion_id = $1 and v.estado <> 'archivada' and not es_kit(v.id)
          -- Inactivos sólo con la caja tildada (o si se llegó con ?v= desde la ficha).
          and ($4 or v.id = $2 or p.estado <> 'archivado')
-         and (v.id = $2 or ($3 <> '' and (v.codigo_barras = $3 or ${sqlBusqueda("$5", ["v.sku", "titulo_variacion(v.id)", "p.sku_base", "v.codigo_barras"])})))
-       order by v.id = $2 desc, v.sku limit 60`, [s.org.id, v, q, inactivos, patronesBusqueda(q)]);
+         and (v.id = $2 or ($3 <> '' and (v.codigo_barras = $3 or ${sqlBusqueda("$5", ["titulo_variacion(v.id)", ...camposVariacionYProducto("v", "p")])})))
+       order by v.id = $2 desc, v.sku limit 60`, [s.org.id, v, q, inactivos, parametroBusqueda(q)]);
   // Regla de inactivos (Fer): con algo escrito y la caja apagada, si ningún activo
   // coincide pero sí alguno inactivo, se muestran los inactivos igual.
   const buscarConRegla = async () => {

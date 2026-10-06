@@ -7,7 +7,8 @@
 
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta } from "@/lib/erp/base";
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { camposVariacionYProducto } from "@/app/catalogo/busqueda";
 
 export type VariacionHallada = { id: number; sku: string; titulo: string; estado: string; foto: string | null };
 export type UbicacionConStock = { id: number; texto: string; cantidad: number };
@@ -24,10 +25,10 @@ export async function buscarVariaciones(q: string): Promise<VariacionHallada[]> 
                     (select url from producto_foto f where f.producto_id = p.id order by orden, id limit 1)) foto
       from variacion v join producto p on p.id = v.producto_id
      where v.organizacion_id = $1 and not es_kit(v.id)
-       and (v.codigo_barras = $2 or ${sqlBusqueda("$3", ["v.sku", "v.titulo", "p.titulo", "p.sku_base", "v.codigo_barras"])})
+       and (v.codigo_barras = $2 or ${sqlBusqueda("$3", camposVariacionYProducto("v", "p"))})
      order by (v.sku ilike $2) desc, (v.codigo_barras = $2) desc, (p.estado = 'archivado'),
               (v.sku ilike $4) desc, (coalesce(v.titulo, p.titulo) ilike $4) desc, v.sku
-     limit 15`, [s.org.id, t, patronesBusqueda(t), `${escapar(t)}%`]);
+     limit 15`, [s.org.id, t, parametroBusqueda(t), `${escapar(t)}%`]);
 }
 
 export async function ubicacionesDe(variacionId: number): Promise<UbicacionConStock[]> {

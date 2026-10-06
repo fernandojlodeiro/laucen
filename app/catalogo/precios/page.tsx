@@ -74,7 +74,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
   const comienzaL = sp.qlcontiene !== "1";
   const filtrosL = { ql: ql || null, qlcontiene: comienzaL ? null : "1" };
   // Las listas son pocas: se ordenan en memoria (sus columnas llevan "l_"; las de la grilla no).
-  const listasVistas = ordenarEnMemoria(listas.filter((l) => coincideBusqueda(l.nombre, ql, comienzaL)), sp, {
+  const listasVistas = ordenarEnMemoria(listas.filter((l) => coincideBusqueda([String(l.id), l.nombre, l.moneda_base], ql, comienzaL)), sp, {
     l_nombre: (l) => l.nombre, l_moneda: (l) => l.moneda_base, l_formula: (l) => formula(l.id), l_orden: (l) => l.orden,
     l_estado: (l) => l.estado, l_precios: (l) => nPrecios.get(l.id) ?? 0,
   });

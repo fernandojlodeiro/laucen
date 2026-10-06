@@ -2,6 +2,7 @@
 // contestó ARCA y el XML de ida y vuelta. Desde acá se anula una factura con
 // nota de crédito o se reintenta un rechazado.
 
+import { cuitLegible } from "@/lib/cuit";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { una, consulta } from "@/lib/erp/base";
@@ -109,7 +110,7 @@ export default async function DetalleComprobante({ params, searchParams }: { par
           {c.cliente_id ? <Link href={`/ventas/clientes/${c.cliente_id}`} className="font-semibold text-[#16577F] hover:underline">{c.receptor_nombre ?? "—"}</Link> : (c.receptor_nombre ?? "—")}
           {c.receptor_domicilio && <div className="text-[#5C6B76]">{c.receptor_domicilio}</div>}
         </Dato>
-        <Dato t="Documento">{c.doc_tipo === 99 ? "Consumidor final" : `${DOC_TIPOS[c.doc_tipo] ?? c.doc_tipo} ${c.doc_nro}`}</Dato>
+        <Dato t="Documento">{c.doc_tipo === 99 ? "Consumidor final" : `${DOC_TIPOS[c.doc_tipo] ?? c.doc_tipo} ${c.doc_tipo === 80 || c.doc_tipo === 86 ? cuitLegible(c.doc_nro) : c.doc_nro}`}</Dato>
         <Dato t="Condición IVA">{c.receptor_condicion_iva ? CONDICION_RECEPTOR_TEXTO[c.receptor_condicion_iva] ?? c.receptor_condicion_iva : "—"}</Dato>
         <Dato t="Creado">{fechaHora(c.creado_ts)}{c.autorizado_ts && <div className="text-[#5C6B76]">autorizado {fechaHora(c.autorizado_ts)}</div>}</Dato>
         {esMl && enMl && <div className="col-span-2"><Dato t="En Mercado Libre"><TextoFacturaMl x={enMl} /></Dato></div>}

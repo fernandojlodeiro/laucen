@@ -4,12 +4,16 @@
 
 import Link from "next/link";
 import { Estado } from "@/app/componentes/erp";
-import { digitosBusqueda, patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { formatear } from "@/lib/moneda";
+import { cuitLegible } from "@/lib/cuit";
 import { TIPOS_CBTE, DOC_TIPOS, CONDICION_RECEPTOR_TEXTO } from "@/lib/arca/facturar";
-import { campoFecha, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
+import { campoFecha, type Campo, type Fila, type Lista, type SP } from "@/lib/listas/tipos";
 import { ESTADOS_CBTE, numeroCbte, nombreTipo, type EstadoCbte } from "./comun";
 import { sqlEstadoFacturaMl, ESTADO_FACTURA_ML } from "@/lib/mercadolibre/facturas";
+
+/** El documento: un CUIT/CUIL (tipo 80/86) con sus guiones. */
+const docLegible = (f: Fila) => (f.doc_tipo === 80 || f.doc_tipo === 86 ? cuitLegible(f.documento) : f.documento);
 
 const esFecha = (x?: string) => !!x && /^\d{4}-\d{2}-\d{2}$/.test(x);
 
@@ -45,8 +49,8 @@ const CAMPOS: Campo[] = [
   },
   {
     clave: "documento", titulo: "Documento", sql: "c.doc_nro", usa: ["doc_tipo"],
-    valor: (f) => (f.doc_tipo === 99 ? "Consumidor final" : `${DOC_TIPOS[f.doc_tipo] ?? ""} ${f.documento}`.trim()),
-    celda: (f) => <span className="whitespace-nowrap">{f.doc_tipo === 99 ? "Consumidor final" : `${DOC_TIPOS[f.doc_tipo] ?? ""} ${f.documento}`}</span>,
+    valor: (f) => (f.doc_tipo === 99 ? "Consumidor final" : `${DOC_TIPOS[f.doc_tipo] ?? ""} ${docLegible(f)}`.trim()),
+    celda: (f) => <span className="whitespace-nowrap">{f.doc_tipo === 99 ? "Consumidor final" : `${DOC_TIPOS[f.doc_tipo] ?? ""} ${docLegible(f)}`}</span>,
   },
   { clave: "doc_tipo", titulo: "Tipo de documento", sql: "c.doc_tipo", valor: (f) => DOC_TIPOS[f.doc_tipo] ?? String(f.doc_tipo) },
   { clave: "condicion_iva", titulo: "Condición IVA del receptor", sql: "c.receptor_condicion_iva", valor: (f) => f.condicion_iva == null ? null : CONDICION_RECEPTOR_TEXTO[f.condicion_iva] ?? String(f.condicion_iva) },
@@ -108,13 +112,14 @@ export const LISTA_FACTURACION: Lista = {
     if (f.desde) sumar("c.fecha >= ?::date", f.desde);
     if (f.hasta) sumar("c.fecha <= ?::date", f.hasta);
     if (f.q) {
-      // Regla común de búsqueda (lib/busqueda.ts); una condición de sólo números se compara
-      // también contra los dígitos del documento (CUIT/DNI).
-      vals.push(patronesBusqueda(f.q), digitosBusqueda(f.q));
-      cond.push(sqlBusqueda(`$${vals.length - 1}`, [
-        "lpad(c.punto_venta::text, 5, '0') || '-' || lpad(c.numero::text, 8, '0')",
-        "c.receptor_nombre", "c.doc_nro", "c.cae", "cl.nombre",
-      ], { param: `$${vals.length}`, campos: ["c.doc_nro"] }));
+      // Regla común de búsqueda (lib/busqueda.ts): todos los campos de texto del comprobante
+      // (el documento, campo numérico) más el cliente y el pedido que ya se unen.
+      vals.push(parametroBusqueda(f.q));
+      cond.push(sqlBusqueda(`$${vals.length}`, [
+        "c.id::text", "lpad(c.punto_venta::text, 5, '0') || '-' || lpad(c.numero::text, 8, '0')", "c.numero::text",
+        "c.receptor_nombre", { num: "c.doc_nro" }, "c.receptor_domicilio", "c.cae", "c.observaciones", "c.estado",
+        "c.moneda", "c.ambiente", "c.ml_documento_id", "cl.nombre", "p.id_externo",
+      ]));
     }
     return {
       desde: "comprobante c left join pedido p on p.id = c.pedido_id left join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = c.cliente_id",

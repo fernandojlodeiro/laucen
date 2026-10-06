@@ -2,7 +2,7 @@
 // "Descargar Excel" de las publicaciones traídas de ML del canal elegido, con
 // las mismas casillas (sin vincular, activas…) y búsqueda que la pantalla.
 
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { consulta } from "@/lib/erp/base";
 import type { Lista, SP } from "@/lib/listas/tipos";
 
@@ -40,13 +40,13 @@ export const valorVerMl = (ver: VerMl) => (ver.length ? ver.join(",") : "-");
 /** Publicaciones que ML frena hasta que se corrija algo: en revisión, inactivas o con el pago pendiente. */
 export const ESTADOS_ML_CON_PROBLEMAS = "('under_review', 'inactive', 'payment_required')";
 
-/** Los filtros de la pantalla sobre meli_item (alias mi): $1 organización, $2 canales (uno, o todos con "Todas"), $3 búsqueda (los patrones de lib/busqueda.ts). */
+/** Los filtros de la pantalla sobre meli_item (alias mi): $1 organización, $2 canales (uno, o todos con "Todas"), $3 búsqueda (parametroBusqueda de lib/busqueda.ts). */
 export function filtroMl(ver: VerMl) {
   const t = (c: CasillaMl) => ver.includes(c);
   const vinculo = t("sin") === t("vinc") ? "" : t("sin") ? "and mi.publicacion_id is null" : "and mi.publicacion_id is not null";
   const estados = [t("activas") && "mi.estado = 'active'", t("pausadas") && "mi.estado = 'paused'", t("revision") && `mi.estado in ${ESTADOS_ML_CON_PROBLEMAS}`].filter(Boolean);
   return `mi.organizacion_id = $1 and mi.canal_id = any($2::bigint[]) ${vinculo} ${estados.length ? `and (${estados.join(" or ")})` : ""}
-    and ${sqlBusqueda("$3", ["mi.titulo", "mi.sku", "mi.item_id"])}`;
+    and ${sqlBusqueda("$3", ["mi.item_id", "mi.variation_id", "mi.titulo", "mi.atributos", "mi.sku", "mi.categoria"])}`;
 }
 
 export const LISTA_VINCULAR_ML: Lista = {
@@ -84,7 +84,7 @@ export const LISTA_VINCULAR_ML: Lista = {
         left join publicacion pu on pu.id = mi.publicacion_id and pu.organizacion_id = $1
         left join variacion v on v.id = pu.variacion_id`,
       donde: filtroMl(verMl(sp)),
-      valores: [ctx.org, canales, patronesBusqueda(sp.q, sp.contiene !== "1")],
+      valores: [ctx.org, canales, parametroBusqueda(sp.q, sp.contiene !== "1")],
       orden: "mi.titulo, mi.item_id, mi.variation_id",
     };
   },

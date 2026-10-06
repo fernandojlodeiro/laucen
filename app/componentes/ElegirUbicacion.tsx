@@ -34,7 +34,7 @@ export default function ElegirUbicacion({ opciones, name, valor, alCambiar, plac
     const t = texto.trim();
     if (!t || (actual && texto === actual.texto)) return opciones.slice(0, MAX);
     const comienzan = opciones.filter((o) => coincideBusqueda([o.texto, o.texto.split(" · ").pop()], t, true));
-    const resto = opciones.filter((o) => !comienzan.includes(o) && coincideBusqueda([o.texto, o.detalle], t));
+    const resto = opciones.filter((o) => !comienzan.includes(o) && coincideBusqueda([o.texto, o.detalle, o.valor], t));
     return [...comienzan, ...resto].slice(0, MAX);
   }, [texto, opciones, actual]);
 

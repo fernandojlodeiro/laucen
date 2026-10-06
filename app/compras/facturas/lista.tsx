@@ -2,6 +2,7 @@
 // de campos y la consulta con los filtros de la pantalla (la comparten la
 // pantalla y su Excel).
 
+import { cuitLegible } from "@/lib/cuit";
 import Link from "next/link";
 import { Estado, url } from "@/app/componentes/erp";
 import { formatear } from "@/lib/moneda";
@@ -24,7 +25,7 @@ const COMPROBANTE = `(case when f.es_nota_credito then 'NC ' when f.es_nota_debi
 const CAMPOS: Campo[] = [
   { ...campoFecha("fecha", "Fecha", "f.fecha", { dia: true }), celda: (f) => <Link href={`/compras/facturas/${f.id}`} className="hover:underline">{f.fecha?.split("-").reverse().join("/")}</Link> },
   { clave: "proveedor", titulo: "Proveedor", sql: "p.nombre", ancho: 28, celda: (f) => <Link href={url("/compras/proveedores", { id: f.proveedor_id })} className="text-[#16577F] hover:underline">{f.proveedor}</Link> },
-  { clave: "proveedor_cuit", titulo: "CUIT del proveedor", sql: "p.cuit" },
+  { clave: "proveedor_cuit", titulo: "CUIT del proveedor", sql: "p.cuit", valor: (f) => (f.proveedor_cuit ? cuitLegible(f.proveedor_cuit as string) : null) },
   {
     clave: "comprobante", titulo: "Comprobante", sql: COMPROBANTE, orden: "f.numero", ancho: 20,
     celda: (f) => <Link href={`/compras/facturas/${f.id}`} className="font-mono whitespace-nowrap font-semibold text-[#16577F] hover:underline">{f.comprobante}</Link>,

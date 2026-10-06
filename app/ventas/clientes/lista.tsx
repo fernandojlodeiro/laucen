@@ -3,7 +3,8 @@
 
 import Link from "next/link";
 import { url } from "@/app/componentes/erp";
-import { patronesBusqueda, digitosBusqueda, numeroBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda, type CampoBusqueda } from "@/lib/busqueda";
+import { cuitLegible } from "@/lib/cuit";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { TIPOS_CLIENTE, CONDICIONES_IVA, etiqueta } from "@/app/ventas/formato";
 
@@ -14,6 +15,26 @@ export function filtrosClientes(sp: SP) {
     tipo: sp.tipo === "mayorista" || sp.tipo === "consumidor_final" ? sp.tipo : "",
   };
 }
+
+/** Los campos de texto del cliente (alias `a`) donde buscan los buscadores: Clientes, Pedidos y el
+ *  "Cliente" de Nuevo pedido. CUIT, documento y teléfonos, como números (lib/busqueda.ts). */
+export function camposCliente(a: string): CampoBusqueda[] {
+  return [
+    `${a}.id::text`, `${a}.nombre`, `${a}.razon_social`, `${a}.nombre_pila`, `${a}.apellido`, `${a}.email`, `${a}.apodo_ml`,
+    `${a}.documento_tipo`, { num: `${a}.documento_numero` }, { num: `${a}.cuit` }, { num: `${a}.telefono` }, { num: `${a}.telefono_movil` },
+    `${a}.notas`,
+  ];
+}
+
+/** Además, en la pantalla Clientes: los datos de sus direcciones. */
+const BUSCA_EN: CampoBusqueda[] = [
+  ...camposCliente("c"),
+  {
+    de: "select 1 from cliente_direccion d where d.cliente_id = c.id",
+    campos: ["d.etiqueta", "d.calle", "d.numero", "d.piso_depto", "d.localidad", "d.provincia", "d.codigo_postal", "d.pais",
+      "d.receptor", { num: "d.receptor_telefono" }, "d.referencia"],
+  },
+];
 
 const PEDIDOS = "(select count(*) from pedido p where p.cliente_id = c.id)";
 const ULTIMO = "(select max(p.fecha) from pedido p where p.cliente_id = c.id)";
@@ -31,7 +52,7 @@ const CAMPOS: Campo[] = [
   },
   { clave: "documento", titulo: "Documento", sql: "nullif(concat_ws(' ', c.documento_tipo, c.documento_numero), '')", orden: "c.documento_numero", celda: (f) => <span className="whitespace-nowrap">{f.documento ?? "—"}</span> },
   { clave: "documento_numero", titulo: "Número de documento", sql: "c.documento_numero" },
-  { clave: "cuit", titulo: "CUIT", sql: "c.cuit" },
+  { clave: "cuit", titulo: "CUIT", sql: "c.cuit", valor: (f) => (f.cuit ? cuitLegible(f.cuit as string) : null) },
   { clave: "iva", titulo: "Condición IVA", sql: "c.condicion_iva", valor: traducido("iva", CONDICIONES_IVA) },
   { clave: "email", titulo: "Mail", sql: "c.email", ancho: 28, celda: (f) => f.email ? <a href={`mailto:${f.email}`} className="hover:text-[#16577F] hover:underline">{f.email}</a> : "—" },
   { clave: "telefono", titulo: "Teléfono", sql: "c.telefono", celda: (f) => <span className="whitespace-nowrap">{f.telefono ?? "—"}</span> },
@@ -72,14 +93,7 @@ export const LISTA_CLIENTES: Lista = {
     const valores: unknown[] = [ctx.org];
     const donde = ["c.organizacion_id = $1"];
     if (tipo) { valores.push(tipo); donde.push(`c.tipo = $${valores.length}`); }
-    if (q) {
-      valores.push(patronesBusqueda(q, comienza), digitosBusqueda(q));
-      const p = `$${valores.length - 1}`, d = `$${valores.length}`;
-      const cond = sqlBusqueda(p, ["c.nombre", "c.razon_social", "c.email", "c.documento_numero", "c.cuit", "c.telefono", "c.telefono_movil", "c.apodo_ml"],
-        { param: d, campos: ["c.cuit", "c.documento_numero", "c.telefono", "c.telefono_movil"] });
-      const n = numeroBusqueda(q);
-      if (n !== null) { valores.push(n); donde.push(`(${cond} or c.id = $${valores.length})`); } else donde.push(cond);
-    }
+    if (q) { valores.push(parametroBusqueda(q, comienza)); donde.push(sqlBusqueda(`$${valores.length}`, BUSCA_EN)); }
     return { desde: "cliente c", donde: donde.join(" and "), valores, orden: "c.nombre, c.id" };
   },
 };

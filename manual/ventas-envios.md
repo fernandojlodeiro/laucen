@@ -29,7 +29,7 @@ Muestra los **envíos de los pedidos** —hoy, los de **Mercado Envíos** (las v
 | **Entregados** | envíos entregados |
 | **Todos** | todos |
 
-**Filtros**: **"Buscar"** ("Nº de pedido, tracking o cliente": busca en el tracking, el id del envío, el id externo del pedido, el nombre del cliente o de quien recibe y, si es un número, el Nº de pedido) y **"Canal"**. Acá se aplican con el botón **"Filtrar"**; **"Limpiar"** los saca.
+**Filtros**: **"Buscar"** ("Nº de pedido, tracking o cliente": busca en todos los datos del envío —id, id del envío en ML, método, tracking, transportista, quien recibe y la dirección— y en el Nº y el id externo del pedido y el nombre del cliente) y **"Canal"**. Acá se aplican con el botón **"Filtrar"**; **"Limpiar"** los saca.
 
 **Columnas**:
 

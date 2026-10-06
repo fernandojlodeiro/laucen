@@ -2,12 +2,20 @@
 // memoria (el saldo sale de cuentasConSaldo): "Descargar Excel" con la misma
 // búsqueda que la pantalla.
 
-import { coincideBusqueda } from "@/app/componentes/erp";
+import { coincideBusqueda } from "@/lib/busqueda";
 import { cuentasConSaldo } from "@/lib/administracion/tesoreria";
 import { cuentasImputables } from "@/lib/administracion/contabilidad";
 import type { Lista } from "@/lib/listas/tipos";
 
 export const TIPOS_CUENTA: Record<string, string> = { caja: "Caja", banco: "Banco", mercadopago: "Mercado Pago", otro: "Otra" };
+
+type CuentaBuscable = { id: number; nombre: string; tipo: string; moneda: string; banco: string | null; cbu: string | null; alias: string | null; emisor: string | null; canal: string | null };
+
+/** ¿La cuenta coincide con lo buscado? Regla común (lib/busqueda.ts) en todos sus datos de texto;
+ *  el CBU es un campo numérico (se compara también lo escrito sin guiones). */
+export function cuentaCoincide(c: CuentaBuscable, contable: string | null | undefined, q: string, comienza: boolean): boolean {
+  return coincideBusqueda([String(c.id), c.nombre, c.tipo, TIPOS_CUENTA[c.tipo], c.moneda, c.banco, c.cbu, c.alias, c.emisor, c.canal, contable], q, comienza, [c.cbu]);
+}
 
 export const LISTA_TESORERIA: Lista = {
   pantalla: "tesoreria",
@@ -36,7 +44,7 @@ export const LISTA_TESORERIA: Lista = {
     const [cuentas, contables] = await Promise.all([cuentasConSaldo(ctx.org, Number(sp.rs) || null), cuentasImputables(ctx.org)]);
     const nombre = new Map(contables.map((x) => [x.id, `${x.codigo} ${x.nombre}`]));
     return cuentas
-      .filter((c) => coincideBusqueda([c.nombre, c.banco, c.alias, c.cbu, (c.cbu ?? "").replace(/\D/g, "")], q, comienza))
+      .filter((c) => cuentaCoincide(c, c.cuenta_contable_id ? nombre.get(c.cuenta_contable_id) : null, q, comienza))
       .map((c) => ({ ...c, contable: c.cuenta_contable_id ? nombre.get(c.cuenta_contable_id) ?? null : null }));
   },
 };

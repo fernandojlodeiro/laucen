@@ -1,7 +1,7 @@
 // Canales como lista configurable (lib/listas/tipos.ts): "Descargar Excel"
 // con la misma búsqueda que la pantalla. La llave API nunca sale: sólo si hay.
 
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { traducido, type Lista } from "@/lib/listas/tipos";
 
 export const TIPOS_CANAL: Record<string, string> = {
@@ -11,6 +11,9 @@ export const TIPOS_CANAL: Record<string, string> = {
 const ESTADOS: Record<string, string> = { activo: "Activo", pausado: "Pausado", archivado: "Archivado" };
 const DEPOSITOS = `(select string_agg(d.nombre, ', ' order by cd.prioridad, d.nombre) from canal_deposito cd join deposito d on d.id = cd.deposito_id
                      where cd.canal_id = c.id)`;
+
+/** El tipo como se ve, para buscarlo. La configuración (con la llave API) nunca entra en la búsqueda. */
+const TIPO_TEXTO = `case c.tipo ${Object.entries(TIPOS_CANAL).map(([k, v]) => `when '${k}' then '${v}'`).join(" ")} end`;
 
 export const LISTA_CANALES: Lista = {
   pantalla: "canales",
@@ -34,8 +37,8 @@ export const LISTA_CANALES: Lista = {
   enPantalla: ["nombre", "tipo", "lista", "depositos", "estado", "ml", "umbral", "llave"],
   consulta: async (ctx, sp) => ({
     desde: "canal c left join lista_precios l on l.id = c.lista_precios_id",
-    donde: `c.organizacion_id = $1 and ${sqlBusqueda("$2", ["c.nombre"])}`,
-    valores: [ctx.org, patronesBusqueda(sp.q, sp.contiene !== "1")],
+    donde: `c.organizacion_id = $1 and ${sqlBusqueda("$2", ["c.id::text", "c.nombre", "c.tipo", TIPO_TEXTO, "c.estado", "l.nombre"])}`,
+    valores: [ctx.org, parametroBusqueda(sp.q, sp.contiene !== "1")],
     orden: "c.estado, c.nombre",
   }),
 };

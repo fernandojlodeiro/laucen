@@ -2,7 +2,7 @@
 // tercero elegido, la tabla de saldos; con `?id=N`, su estado de cuenta con
 // recibos / órdenes de pago, imputación a mano y saldo inicial.
 
-import { digitosBusqueda, patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda, type CampoBusqueda } from "@/lib/busqueda";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { consulta, una } from "@/lib/erp/base";
@@ -74,6 +74,14 @@ export async function VistaCc({ org, tercero, sp, moneda = "ARS" }: { org: strin
   );
 }
 
+/** Dónde se busca el cliente o proveedor (regla común, lib/busqueda.ts): todos sus campos de texto. */
+const CAMPOS_TERCERO: Record<Tercero, CampoBusqueda[]> = {
+  cliente: ["id::text", "nombre", "razon_social", "nombre_pila", "apellido", "apodo_ml", "email", "tipo", "documento_tipo",
+    { num: "documento_numero" }, { num: "cuit" }, { num: "telefono" }, { num: "telefono_movil" }, "condicion_iva", "notas"],
+  proveedor: ["id::text", "nombre", "razon_social", { num: "cuit" }, "condicion_iva", "pais", "email", { num: "telefono" },
+    { num: "telefono_movil" }, "contacto", "calle", "localidad", "provincia", "codigo_postal", "moneda", "condiciones_pago", "notas", "estado"],
+};
+
 async function Saldos({ org, tercero, ruta, q, sp, rs, vista: moneda }: { org: string; tercero: Tercero; ruta: string; q?: string; sp: SP; rs: EleccionRs; vista: Moneda }) {
   const todas = await saldos(org, tercero, rs.id);
   const rsUrl = rs.multi ? (rs.id ?? "todas") : null;
@@ -87,8 +95,8 @@ async function Saldos({ org, tercero, ruta, q, sp, rs, vista: moneda }: { org: s
   const buscar = q?.trim();
   const encontrados = buscar
     ? await consulta<{ id: number; nombre: string }>(`select id::int, nombre from ${tabla}
-         where organizacion_id = $1 and ${sqlBusqueda("$2", ["nombre", "cuit"], { param: "$3", campos: ["cuit"] })} order by nombre limit 20`,
-        [org, patronesBusqueda(buscar), digitosBusqueda(buscar)])
+         where organizacion_id = $1 and ${sqlBusqueda("$2", CAMPOS_TERCERO[tercero])} order by nombre limit 20`,
+        [org, parametroBusqueda(buscar)])
     : [];
   const quien = tercero === "cliente" ? "cliente" : "proveedor";
 

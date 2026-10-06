@@ -429,3 +429,38 @@ update cliente set cuit = cuit where cuit ~ '[^0-9]';
 update proveedor set cuit = cuit where cuit ~ '[^0-9]';
 update emisor set cuit = cuit where cuit ~ '[^0-9]';
 update cuenta_fondos set cbu = cbu where cbu ~ '[^0-9]';
+
+-- ── Teléfonos de clientes y proveedores: el número sólo con números y, aparte, el
+-- interno o la aclaración (Fer, 6/10). Lo que se cargue como "(011) 4613-0698 INT 32"
+-- queda número "01146130698" y aclaración "INT 32": lo que empieza en la primera
+-- letra o "/" pasa a la aclaración (si la aclaración ya tiene algo, no se pisa).
+alter table cliente add column if not exists telefono_aclaracion text;
+alter table cliente add column if not exists telefono_movil_aclaracion text;
+alter table proveedor add column if not exists telefono_aclaracion text;
+alter table proveedor add column if not exists telefono_movil_aclaracion text;
+create or replace function erp_telefono() returns trigger language plpgsql as $$
+declare i int := 1; c text; ca text; v text; m text[]; acl text;
+begin
+  while i < coalesce(array_length(TG_ARGV, 1), 0) loop
+    c := TG_ARGV[i - 1]; ca := TG_ARGV[i]; i := i + 2;
+    v := to_jsonb(new) ->> c;
+    if v is not null and v ~ '[^0-9]' then
+      m := regexp_match(v, '^([^A-Za-z/]*)(.*)$', 's');
+      acl := nullif(btrim(regexp_replace(m[2], '^[\s/,;:>-]+', '')), '');
+      new := jsonb_populate_record(new, jsonb_build_object(
+        c, nullif(regexp_replace(m[1], '[^0-9]', '', 'g'), ''),
+        ca, coalesce(nullif(btrim(to_jsonb(new) ->> ca), ''), acl)));
+    end if;
+  end loop;
+  return new;
+end $$;
+drop trigger if exists cliente_telefono on cliente;
+create trigger cliente_telefono before insert or update of telefono, telefono_movil on cliente for each row
+  execute function erp_telefono('telefono', 'telefono_aclaracion', 'telefono_movil', 'telefono_movil_aclaracion');
+drop trigger if exists proveedor_telefono on proveedor;
+create trigger proveedor_telefono before insert or update of telefono, telefono_movil on proveedor for each row
+  execute function erp_telefono('telefono', 'telefono_aclaracion', 'telefono_movil', 'telefono_movil_aclaracion');
+update cliente set telefono = telefono where telefono ~ '[^0-9]';
+update cliente set telefono_movil = telefono_movil where telefono_movil ~ '[^0-9]';
+update proveedor set telefono = telefono where telefono ~ '[^0-9]';
+update proveedor set telefono_movil = telefono_movil where telefono_movil ~ '[^0-9]';

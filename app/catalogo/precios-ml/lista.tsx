@@ -168,7 +168,7 @@ export const LISTA_EXCEPCIONES_ML: Lista = {
     const { canal } = await canalElegido(ctx.org, sp);
     if (!canal) return [];
     const comienza = sp.contiene !== "1";
-    return (await excepcionesCanal(ctx.org, canal.id)).filter((e) => coincideBusqueda([e.nombre, e.sku], sp.q, comienza));
+    return (await excepcionesCanal(ctx.org, canal.id)).filter((e) => coincideBusqueda([String(e.familia_id ?? e.producto_id ?? ""), e.nombre, e.sku], sp.q, comienza));
   },
 };
 

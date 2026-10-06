@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { Estado } from "@/app/componentes/erp";
-import { patronesBusqueda, numeroBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda, type CampoBusqueda } from "@/lib/busqueda";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import {
   CONDICION_RECLAMOS, ORDEN_ABIERTOS, ESTADOS_RECLAMO, TIPOS_RECLAMO, ORIGENES_RECLAMO, esPestanaReclamos, type PestanaReclamos, type EstadoReclamo,
@@ -76,6 +76,13 @@ const CAMPOS: Campo[] = [
   { clave: "id_externo", titulo: "Id del reclamo (ML)", sql: "r.id_externo", ancho: 16 },
 ];
 
+/** Dónde busca el buscador: los campos de texto del reclamo y, como antes, el N.º y el id externo
+ *  del pedido y el nombre del cliente. */
+const BUSCA_EN: CampoBusqueda[] = [
+  "r.id::text", "r.id_externo", "r.orden_externa", "r.comprador_externo", "r.motivo", "r.resolucion", "r.devolucion_id",
+  "r.devolucion_tracking", "r.notas", "r.pedido_id::text", "pe.id_externo", "cl.nombre",
+];
+
 export const LISTA_RECLAMOS: Lista = {
   pantalla: "reclamos",
   titulo: "Reclamos y devoluciones",
@@ -94,12 +101,7 @@ export const LISTA_RECLAMOS: Lista = {
     if (f.motivo) agregar((p) => `r.motivo = ${p}`, f.motivo);
     if (f.desde) agregar((p) => `r.fecha >= (${p}::date)::timestamp at time zone 'America/Argentina/Buenos_Aires'`, f.desde);
     if (f.hasta) agregar((p) => `r.fecha < (${p}::date + 1)::timestamp at time zone 'America/Argentina/Buenos_Aires'`, f.hasta);
-    if (f.q) {
-      valores.push(patronesBusqueda(f.q));
-      const cond = sqlBusqueda(`$${valores.length}`, ["r.id_externo", "r.orden_externa", "pe.id_externo", "cl.nombre", "r.comprador_externo"]);
-      const n = numeroBusqueda(f.q);
-      if (n !== null) { valores.push(n); donde.push(`(${cond} or r.id = $${valores.length} or r.pedido_id = $${valores.length})`); } else donde.push(cond);
-    }
+    if (f.q) agregar((p) => sqlBusqueda(p, BUSCA_EN), parametroBusqueda(f.q));
     return {
       desde: `reclamo r
         left join canal ca on ca.id = r.canal_id

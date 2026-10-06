@@ -9,7 +9,7 @@ import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { accionAgregarNcm, accionBorrarRubro, accionCrearRubro, accionQuitarNcm, accionRenombrarRubro } from "../actions";
 import { CAJA_TABLA, CAMPO, TABLA, TD, THEAD, TR, entrar } from "../Piezas";
 
@@ -40,8 +40,8 @@ export default async function Rubros({ searchParams }: { searchParams: Promise<P
   const rubros = (await pool.query<{ id: number; nombre: string; ncms: number }>(`
     select r.id::int, r.nombre, count(rn.ncm)::int ncms
       from rubros r left join rubro_ncm rn on rn.rubro_id = r.id
-     where r.organizacion_id = $1 and ${sqlBusqueda("$2", ["r.nombre"])}
-     group by r.id order by r.nombre`, [org, patronesBusqueda(qr, comienzaR)])).rows;
+     where r.organizacion_id = $1 and ${sqlBusqueda("$2", ["r.id::text", "r.nombre", { de: "select 1 from rubro_ncm b where b.rubro_id = r.id", campos: ["b.ncm"] }])}
+     group by r.id order by r.nombre`, [org, parametroBusqueda(qr, comienzaR)])).rows;
   const actual = rubros.find((r) => r.id === elegido);
   const suyas = actual ? (await pool.query<{ ncm: string; descripcion: string | null }>(`
     select rn.ncm, x.descripcion_completa descripcion
@@ -51,10 +51,11 @@ export default async function Rubros({ searchParams }: { searchParams: Promise<P
 
   let encontradas: { codigo: string; tipo: string | null; nivel: number | null; descripcion: string | null; descripcion_completa: string | null }[] = [];
   if (q) {
-    // Regla común de búsqueda (lib/busqueda.ts): lo escrito tal cual; "?" separa condiciones.
+    // Regla común de búsqueda (lib/busqueda.ts): lo escrito tal cual; "?" en un mismo campo, "*" en la misma fila.
     encontradas = (await pool.query(`
       select codigo, tipo, nivel, descripcion, descripcion_completa from ref_ncm_vigente x
-       where ${sqlBusqueda("$1", ["x.descripcion_completa", "x.codigo"])} order by codigo limit 200`, [patronesBusqueda(q)])).rows;
+       where ${sqlBusqueda("$1", ["x.codigo", "x.tipo", "x.padre", "x.descripcion", "x.descripcion_completa", "x.unidad", "x.uso_economico"])}
+       order by codigo limit 200`, [parametroBusqueda(q)])).rows;
   }
   const hayNomenclador = q ? true : !!(await pool.query("select 1 from ref_ncm_vigente limit 1")).rowCount;
   const aqui = (extra: Record<string, string | number | undefined>) => {

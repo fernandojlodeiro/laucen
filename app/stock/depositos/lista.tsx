@@ -2,7 +2,7 @@
 // "Descargar Excel" de cada una con la misma búsqueda que la pantalla (la de
 // depósitos va en ?qd=, la de ubicaciones en ?q= con el depósito en ?d=).
 
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { traducido, type Lista } from "@/lib/listas/tipos";
 
 export const TIPOS_DEPOSITO: Record<string, string> = { propio: "Propio", full_ml: "Full de Mercado Libre", tercerizado: "Tercerizado", caja_abierta: "Caja abierta" };
@@ -28,8 +28,8 @@ export const LISTA_DEPOSITOS: Lista = {
   enPantalla: ["nombre", "tipo", "usa", "direccion", "estado", "ubicaciones", "unidades"],
   consulta: async (ctx, sp) => ({
     desde: "deposito d",
-    donde: `d.organizacion_id = $1 and ${sqlBusqueda("$2", ["d.nombre", "d.direccion"])}`,
-    valores: [ctx.org, patronesBusqueda(sp.qd, sp.qdcontiene !== "1")],
+    donde: `d.organizacion_id = $1 and ${sqlBusqueda("$2", ["d.id::text", "d.nombre", "d.direccion"])}`,
+    valores: [ctx.org, parametroBusqueda(sp.qd, sp.qdcontiene !== "1")],
     orden: "d.estado, d.nombre",
   }),
 };
@@ -54,8 +54,8 @@ export const LISTA_UBICACIONES: Lista = {
     desde: "ubicacion u join deposito dp on dp.id = u.deposito_id",
     donde: `u.organizacion_id = $1 and u.deposito_id = $2
        and (u.es_default or dp.usa_ubicaciones)
-       and ${sqlBusqueda("$3", ["u.codigo", "u.descripcion"])}`,
-    valores: [ctx.org, Number(sp.d) || 0, patronesBusqueda(sp.q, sp.contiene !== "1")],
+       and ${sqlBusqueda("$3", ["u.id::text", "u.codigo", "u.descripcion"])}`,
+    valores: [ctx.org, Number(sp.d) || 0, parametroBusqueda(sp.q, sp.contiene !== "1")],
     orden: "u.es_default desc, u.orden_recorrido, u.codigo",
   }),
 };

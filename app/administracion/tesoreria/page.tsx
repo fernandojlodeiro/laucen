@@ -16,11 +16,11 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA, url, coincideBusqueda,
+  entrarErp, Pantalla, Avisos, Lapiz, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA, url,
 } from "@/app/componentes/erp";
 import { fecha } from "@/app/ventas/formato";
 import { AccionesExcel } from "@/app/listas/piezas";
-import { LISTA_TESORERIA, TIPOS_CUENTA as TIPOS_CUENTA_LISTA } from "./lista";
+import { LISTA_TESORERIA, TIPOS_CUENTA as TIPOS_CUENTA_LISTA, cuentaCoincide } from "./lista";
 import SelectorRazonSocial from "@/app/componentes/SelectorRazonSocial";
 import { elegirRazonSocial, nombreRs, type EleccionRs } from "@/lib/razon-social";
 import { accionCrearCuenta, accionGuardarCuenta, accionActivarCuenta, accionBorrarCuenta } from "./acciones";
@@ -88,7 +88,7 @@ export default async function Tesoreria({ searchParams }: { searchParams: Promis
   const totales = { ARS: 0, USD: 0 };
   for (const c of cuentas) if (c.activa) totales[c.moneda as Moneda] += c.saldo;
   // El buscador filtra lo que se ve; los totales son de todas.
-  const filtradas = cuentas.filter((c) => coincideBusqueda([c.nombre, c.banco, c.alias, c.cbu, (c.cbu ?? "").replace(/\D/g, "")], q, comienza));
+  const filtradas = cuentas.filter((c) => cuentaCoincide(c, c.cuenta_contable_id ? nombreContable.get(c.cuenta_contable_id) : null, q, comienza));
   const vistas = paginarEnMemoria(ordenarEnMemoria(filtradas, sp, {
     nombre: (c) => c.nombre, razon: (c) => c.emisor, tipo: (c) => TIPOS_CUENTA[c.tipo] ?? c.tipo, banco: (c) => c.banco, contable: (c) => (c.cuenta_contable_id ? nombreContable.get(c.cuenta_contable_id) : null),
     saldo: (c) => c.saldo, conciliar: (c) => c.sin_conciliar, activa: (c) => (c.activa ? 1 : 0),

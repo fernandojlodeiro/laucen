@@ -1,11 +1,18 @@
 // Proveedores como lista configurable (lib/listas/tipos.ts): "Descargar
 // Excel" con los mismos filtros que la pantalla.
 
-import { patronesBusqueda, digitosBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda, type CampoBusqueda } from "@/lib/busqueda";
+import { cuitLegible } from "@/lib/cuit";
 import { CONDICIONES_IVA } from "@/app/ventas/formato";
 import { campoFecha, traducido, type Lista } from "@/lib/listas/tipos";
 
 export const FACTURAS_PROVEEDOR = "(select count(*) from factura_compra f where f.proveedor_id = pr.id)";
+
+/** Dónde busca el buscador: todos los campos de texto del proveedor. */
+const BUSCA_EN: CampoBusqueda[] = [
+  "pr.id::text", "pr.nombre", "pr.razon_social", { num: "pr.cuit" }, "pr.pais", "pr.email", { num: "pr.telefono" }, { num: "pr.telefono_movil" },
+  "pr.contacto", "pr.calle", "pr.localidad", "pr.provincia", "pr.codigo_postal", "pr.condiciones_pago", "pr.notas",
+];
 
 export const LISTA_PROVEEDORES: Lista = {
   pantalla: "proveedores",
@@ -16,7 +23,7 @@ export const LISTA_PROVEEDORES: Lista = {
     { clave: "id", titulo: "N.º", sql: "pr.id::int", formato: "entero" },
     { clave: "nombre", titulo: "Proveedor", sql: "pr.nombre", ancho: 28 },
     { clave: "razon_social", titulo: "Razón social", sql: "pr.razon_social", ancho: 28 },
-    { clave: "cuit", titulo: "CUIT", sql: "pr.cuit" },
+    { clave: "cuit", titulo: "CUIT", sql: "pr.cuit", valor: (f) => (f.cuit ? cuitLegible(f.cuit as string) : null) },
     { clave: "iva", titulo: "Condición IVA", sql: "pr.condicion_iva", valor: traducido("iva", CONDICIONES_IVA) },
     { clave: "pais", titulo: "País", sql: "pr.pais" },
     { clave: "contacto", titulo: "Contacto", sql: "pr.contacto" },
@@ -43,9 +50,9 @@ export const LISTA_PROVEEDORES: Lista = {
     const comienza = sp.contiene !== "1";
     return {
       desde: "proveedor pr",
-      donde: `pr.organizacion_id = $1 and ($4 = 0 or pr.id = $4)
-         and ${sqlBusqueda("$2", ["pr.nombre", "pr.razon_social", "pr.email", "pr.cuit"], { param: "$3", campos: ["pr.cuit"] })}`,
-      valores: [ctx.org, patronesBusqueda(q, comienza), digitosBusqueda(q), Number(sp.id) || 0],
+      donde: `pr.organizacion_id = $1 and ($3 = 0 or pr.id = $3)
+         and ${sqlBusqueda("$2", BUSCA_EN)}`,
+      valores: [ctx.org, parametroBusqueda(q, comienza), Number(sp.id) || 0],
       orden: "pr.estado, pr.nombre, pr.id",
     };
   },

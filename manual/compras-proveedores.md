@@ -31,7 +31,7 @@ Arriba a la derecha:
 - **Nuevo proveedor**: abre el formulario de alta debajo del título.
 
 Debajo:
-- Un buscador ("Buscar por nombre, razón social, CUIT o mail") que busca mientras escribís, desde la segunda letra, con la caja **Comienza por** (tildada: el texto tiene que estar al principio; destildada: en cualquier parte). Si escribís sólo números (4 o más, sin letras), el CUIT se compara sin guiones, así que da lo mismo escribirlo con o sin ellos. La X adentro del cuadro borra lo escrito.
+- Un buscador ("Buscar en todos los datos del proveedor": N.º, nombre, razón social, CUIT, país, mail, teléfonos, contacto, dirección, localidad, provincia, código postal, condiciones de pago y notas) que busca mientras escribís, desde la segunda letra, con la caja **Comienza por** (tildada: el texto tiene que estar al principio; destildada: en cualquier parte). El CUIT y los teléfonos se encuentran escritos con o sin guiones o espacios. La X adentro del cuadro borra lo escrito.
 - Si estás viendo un solo proveedor (llegaste por un enlace), aparece **Ver todos los proveedores** para volver a la lista completa.
 
 La tabla, de a 50 filas con paginador abajo ("1–50 de …", Anterior / Siguiente). Se ordena tocando el título de cada columna:

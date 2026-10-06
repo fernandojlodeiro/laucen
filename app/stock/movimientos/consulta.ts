@@ -2,7 +2,7 @@
 // (de a 50, los más nuevos primero) y a la descarga en Excel (todos).
 
 import { consulta } from "@/lib/erp/base";
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { TIPOS_MOVIMIENTO, type TipoMovimiento } from "@/lib/stock";
 
 export const POR_PAGINA = 50;
@@ -57,7 +57,7 @@ export async function movimientos(org: string, f: FiltroMovimientos, limite: num
       left join usuarios us on us.id = m.usuario_id
      where m.organizacion_id = $1
        and ($2::bigint is null or m.variacion_id = $2 or m.kit_variacion_id = $2)
-       and ${sqlBusqueda("$3", ["v.sku", "p.titulo", "v.titulo", "k.sku"])}
+       and ${sqlBusqueda("$3", ["m.id::text", "m.tipo", "m.referencia_tipo", "m.referencia_id", "m.nota", "v.sku", "p.titulo", "v.titulo", "k.sku"])}
        and ($4::date is null or m.fecha >= ($4::date)::timestamp at time zone 'America/Argentina/Buenos_Aires')
        and ($5::date is null or m.fecha < ($5::date + 1)::timestamp at time zone 'America/Argentina/Buenos_Aires')
        and ($6::text is null or m.tipo = $6)
@@ -65,7 +65,7 @@ export async function movimientos(org: string, f: FiltroMovimientos, limite: num
        and ($8::bigint is null or exists (select 1 from ubicacion u where u.deposito_id = $8 and u.id in (m.ubicacion_origen_id, m.ubicacion_destino_id)))
      order by m.fecha desc, m.id desc
      limit ${Math.trunc(limite)} offset ${Math.trunc(desplazamiento)}`,
-    [org, f.variacionId, patronesBusqueda(f.q, f.comienza), f.desde, f.hasta, f.tipo, f.usuario, f.depositoId]);
+    [org, f.variacionId, parametroBusqueda(f.q, f.comienza), f.desde, f.hasta, f.tipo, f.usuario, f.depositoId]);
 }
 
 /** Para los desplegables: depósitos, quienes movieron stock y, si viene ?v=, esa variación. */

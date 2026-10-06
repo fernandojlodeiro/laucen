@@ -2,7 +2,7 @@
 // buscador) y el chat abierto. `sello` cambia cuando algo cambió, así la
 // pantalla pregunta cada pocos segundos y sólo baja todo si hace falta.
 
-import { patronesBusqueda, digitosBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { consulta, una } from "@/lib/erp/base";
 import { configMensajes } from "./config";
 import { credencialDeOrg } from "./chats";
@@ -21,8 +21,8 @@ export async function selloDe(org: string): Promise<string> {
 
 export async function fotoBandeja(org: string, filtro: FiltroBandeja, q: string, abierto: number | null): Promise<FotoBandeja> {
   const [sello, c, cred] = await Promise.all([selloDe(org), configMensajes(org), credencialDeOrg(org)]);
-  // La regla de búsqueda de todo el panel (lib/busqueda.ts); un número sólo, también contra los dígitos del teléfono.
-  const patrones = patronesBusqueda(q), digitos = digitosBusqueda(q);
+  // La regla de búsqueda de todo el panel (lib/busqueda.ts); el teléfono, como número (lo escrito con
+  // guiones o espacios igual lo encuentra).
   const filas = await consulta<{
     id: number; canal: "whatsapp" | "prueba"; nombre: string; externo: string; cliente_id: number | null; cliente_nombre: string | null;
     ultimo: string | null; ultimo_clase: string | null; ultimo_ts: string; sin_responder: boolean; casos: number; atiende_persona: boolean;
@@ -36,9 +36,9 @@ export async function fotoBandeja(org: string, filtro: FiltroBandeja, q: string,
         left join cliente cl on cl.id = ch.cliente_id
         left join lateral (select texto, clase from chat_mensaje m where m.chat_id = ch.id and m.texto <> '' order by id desc limit 1) u on true
        where ch.organizacion_id = $1
-         and ${sqlBusqueda("$2", ["ch.nombre", "ch.externo", "cl.nombre"], { param: "$3", campos: ["ch.externo"] })}
+         and ${sqlBusqueda("$2", ["ch.nombre", { num: "ch.externo" }, "ch.notas", "cl.nombre"])}
     )
-    select * from base order by ultimo_ts desc limit 300`, [org, patrones, digitos]);
+    select * from base order by ultimo_ts desc limit 300`, [org, parametroBusqueda(q)]);
   const todas: FilaBandeja[] = filas.map((f) => ({
     id: f.id, canal: f.canal, nombre: f.cliente_nombre || f.nombre || (f.canal === "prueba" ? "Prueba" : telefonoLindo(f.externo)),
     telefono: f.canal === "whatsapp" ? telefonoLindo(f.externo) : "Prueba desde el panel",

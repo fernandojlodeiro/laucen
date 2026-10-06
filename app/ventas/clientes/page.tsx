@@ -40,7 +40,7 @@ export default async function Clientes({ searchParams }: { searchParams: Promise
         </form>
       </AltaNueva>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
-        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por nombre, mail, documento o teléfono" />
+        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar en todos los datos del cliente" />
         <FiltroVivo parametro="tipo" valor={tipo} etiqueta="Tipo">
           <option value="">Todos los tipos</option>
           {Object.entries(TIPOS_CLIENTE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}

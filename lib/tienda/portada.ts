@@ -65,15 +65,20 @@ export async function mover(org: string, canalId: number, lista: ListaPortada, p
 }
 
 export type ProductoHallado = { id: number; sku: string; titulo: string; foto: string | null };
-/** Productos activos por SKU, título o marca que todavía no están en esa fila. Hasta 20.
- *  `patrones`: los de patronesBusqueda (lib/busqueda.ts, la regla común de búsqueda). */
-export async function buscarParaPortada(org: string, canalId: number, lista: ListaPortada, patrones: string[]): Promise<ProductoHallado[]> {
+/** Productos activos que todavía no están en esa fila, buscados en todos sus campos de texto y
+ *  los de sus variaciones. Hasta 20. `busqueda`: el de parametroBusqueda (lib/busqueda.ts, la
+ *  regla común de búsqueda). */
+export async function buscarParaPortada(org: string, canalId: number, lista: ListaPortada, busqueda: string): Promise<ProductoHallado[]> {
   return consulta<ProductoHallado>(`
     select p.id::int, p.sku_base sku, p.titulo,
            (select url from producto_foto f where f.producto_id = p.id order by f.orden, f.id limit 1) foto
       from producto p
      where p.organizacion_id = $1 and p.estado = 'activo'
-       and ${sqlBusqueda("$4", ["p.sku_base", "p.titulo", "p.marca"])}
+       and ${sqlBusqueda("$4", [
+         "p.id::text", "p.sku_base", "p.titulo", "p.descripcion", "p.marca", "p.modelo", "p.linea", "p.codigo_barras", "p.garantia",
+         "p.condicion", "p.categoria_ml", "p.tipo",
+         { de: "select 1 from variacion v where v.producto_id = p.id", campos: ["v.sku", "v.titulo", "v.codigo_barras"] },
+       ])}}
        and not exists (select 1 from tienda_portada_producto t where t.canal_id = $2 and t.lista = $3 and t.producto_id = p.id)
-     order by p.titulo limit 20`, [org, canalId, lista, patrones]);
+     order by p.titulo limit 20`, [org, canalId, lista, busqueda]);
 }

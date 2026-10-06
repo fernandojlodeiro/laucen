@@ -3,7 +3,7 @@
 // (lib/precios-ml/promos.ts, db/precios_ml.sql). Cada una sirve a la pantalla y a "Descargar Excel".
 
 import Link from "next/link";
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda, type CampoBusqueda } from "@/lib/busqueda";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { hoyArgentina, rangoDeAtajo } from "@/lib/rango-fechas";
 import { ESTADOS_PROMO, QUE_PROMO, TIPOS_PROMO, descuentoPct, textoValorPromo } from "./formato";
@@ -51,8 +51,14 @@ const JOIN_PUBLICACION = (alias: string) => `
                       where m.canal_id = ${alias}.canal_id and m.item_id = ${alias}.item_id order by m.variation_id limit 1) mi on true
   left join publicacion pu on pu.id = mi.publicacion_id
   left join variacion v on v.id = pu.variacion_id`;
-const condBusqueda = (alias: string, b: string) =>
-  sqlBusqueda(b, [`${alias}.item_id`, "v.sku", "mi.sku", "mi.titulo", `${alias}.promocion_id`, `${alias}.nombre`]);
+/** Un código traducido como se ve en pantalla, para buscarlo en SQL. */
+const enCriolloSql = (col: string, mapa: Record<string, string>) =>
+  `case ${col} ${Object.entries(mapa).map(([k, v]) => `when '${k}' then '${v.replace(/'/g, "''")}'`).join(" ")} end`;
+/** Regla común de búsqueda (lib/busqueda.ts): los campos de texto de la fila (`propios`), la cuenta
+ *  y la publicación. */
+const condBusqueda = (alias: string, b: string, propios: CampoBusqueda[]) =>
+  sqlBusqueda(b, [`${alias}.item_id`, `${alias}.promocion_id`, `${alias}.nombre`, `${alias}.tipo`, enCriolloSql(`${alias}.tipo`, TIPOS_PROMO),
+    ...propios, "ca.nombre", "v.sku", "mi.sku", "mi.titulo"]);
 
 // ── 1. Historia ────────────────────────────────────────────
 
@@ -92,7 +98,7 @@ export const LISTA_PROMO_HISTORIA: Lista = {
     if (f.grupo === "publicaciones") donde.push("h.item_id is not null");
     if (f.grupo === "precios") donde.push("(h.que = 'item_precio' or h.precio_antes is distinct from h.precio_despues)");
     if (f.tipo) donde.push(`h.tipo = ${p(f.tipo)}`);
-    if (f.q) donde.push(condBusqueda("h", p(patronesBusqueda(f.q, f.comienza))));
+    if (f.q) donde.push(condBusqueda("h", p(parametroBusqueda(f.q, f.comienza)), ["h.id::text", "h.que", "h.antes", "h.despues"]));
     return { desde: `ml_promo_historia h ${JOIN_PUBLICACION("h")}`, donde: donde.join(" and "), valores, orden: "h.fecha desc, h.id desc" };
   },
 };
@@ -143,7 +149,7 @@ export const LISTA_PROMO_PUBLICACIONES: Lista = {
     if (f.canal) donde.push(`i.canal_id = ${p(f.canal)}`);
     if (f.promo) donde.push(`i.promocion_id = ${p(f.promo)}`);
     if (f.tipo) donde.push(`i.tipo = ${p(f.tipo)}`);
-    if (f.q) donde.push(condBusqueda("i", p(patronesBusqueda(f.q, f.comienza))));
+    if (f.q) donde.push(condBusqueda("i", p(parametroBusqueda(f.q, f.comienza)), ["i.estado", enCriolloSql("i.estado", ESTADOS_PROMO), "i.oferta_id", "cp.nombre"]));
     return {
       desde: `ml_promo_item i left join ml_promo_campana cp on cp.canal_id = i.canal_id and cp.promocion_id = i.promocion_id ${JOIN_PUBLICACION("i")}`,
       donde: donde.join(" and "), valores, orden: "coalesce(i.hasta, cp.hasta) nulls last, i.item_id",
@@ -191,7 +197,10 @@ export const LISTA_PROMO_CAMPANAS: Lista = {
     else donde.push("c.estado in ('started', 'pending', 'programmed')");
     if (f.canal) donde.push(`c.canal_id = ${p(f.canal)}`);
     if (f.tipo) donde.push(`c.tipo = ${p(f.tipo)}`);
-    if (f.q) donde.push(sqlBusqueda(p(patronesBusqueda(f.q, f.comienza)), ["c.nombre", "c.promocion_id"]));
+    if (f.q) {
+      donde.push(sqlBusqueda(p(parametroBusqueda(f.q, f.comienza)), ["c.nombre", "c.promocion_id", "c.tipo", enCriolloSql("c.tipo", TIPOS_PROMO),
+        "c.subtipo", "c.estado", enCriolloSql("c.estado", ESTADOS_PROMO), "ca.nombre"]));
+    }
     return { desde: "ml_promo_campana c join canal ca on ca.id = c.canal_id", donde: donde.join(" and "), valores, orden: "c.desde desc nulls last, c.promocion_id" };
   },
 };

@@ -1,7 +1,7 @@
 // Envíos como lista configurable (lib/listas/tipos.ts): "Descargar Excel" con
 // la misma pestaña, filtros y orden que la pantalla.
 
-import { patronesBusqueda, numeroBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda, type CampoBusqueda } from "@/lib/busqueda";
 import { campoFecha, traducido, type Lista, type SP } from "@/lib/listas/tipos";
 import { LOGISTICA, ESTADO_ENVIO, SUBESTADO_ENVIO, esPestana, type Pestana } from "./formato";
 
@@ -16,6 +16,14 @@ export const CONDICION_ENVIOS: Record<Pestana, string> = {
 export function filtrosEnvios(sp: SP) {
   return { ver: (esPestana(sp.ver) ? sp.ver : "despachar") as Pestana, canal: Number(sp.canal) || 0, q: sp.q?.trim() ?? "" };
 }
+
+/** Dónde busca el buscador: los campos de texto del envío (con su dirección) y, como antes, el
+ *  N.º y el id externo del pedido y el nombre del cliente. */
+const BUSCA_EN: CampoBusqueda[] = [
+  "e.id::text", "e.id_externo", "e.metodo", "e.tracking", "e.transportista", "e.receptor",
+  ...["linea", "calle", "numero", "piso_depto", "localidad", "provincia", "codigo_postal", "referencia"].map((k) => `e.direccion->>'${k}'`),
+  "p.id::text", "p.id_externo", "cl.nombre",
+];
 
 export const LISTA_ENVIOS: Lista = {
   pantalla: "envios",
@@ -52,12 +60,7 @@ export const LISTA_ENVIOS: Lista = {
     const valores: unknown[] = [ctx.org];
     const donde = ["e.organizacion_id = $1", CONDICION_ENVIOS[ver]];
     if (canal) { valores.push(canal); donde.push(`e.canal_id = $${valores.length}`); }
-    if (q) {
-      valores.push(patronesBusqueda(q));
-      const cond = sqlBusqueda(`$${valores.length}`, ["e.tracking", "e.id_externo", "p.id_externo", "cl.nombre", "e.receptor"]);
-      const n = numeroBusqueda(q);
-      if (n !== null) { valores.push(n); donde.push(`(${cond} or p.id = $${valores.length})`); } else donde.push(cond);
-    }
+    if (q) { valores.push(parametroBusqueda(q)); donde.push(sqlBusqueda(`$${valores.length}`, BUSCA_EN)); }
     return {
       desde: `envio e
         left join pedido p on p.id = e.pedido_id

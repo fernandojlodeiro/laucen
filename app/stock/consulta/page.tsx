@@ -8,7 +8,8 @@ import { cookies } from "next/headers";
 import { RecordarDeposito, ElegirDeposito, CantidadUbicaciones } from "./Deposito";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import { consulta, una } from "@/lib/erp/base";
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { camposVariacionYProducto } from "@/app/catalogo/busqueda";
 import { TIPOS_MOVIMIENTO, type TipoMovimiento } from "@/lib/stock";
 import { SUAVE } from "@/app/botones";
 import { InterruptorFiltro } from "@/app/radar/Piezas";
@@ -45,9 +46,9 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
   const comienza = sp.contiene !== "1";
   const cont = comienza ? null : "1";
   const ina = cajaInactivos ? "1" : null;
-  const patrones = patronesBusqueda(q, comienza);
-  // Lo escrito (regla común, lib/busqueda.ts) o el código de barras exacto.
-  const coincide = `(v.codigo_barras = $3 or p.codigo_barras = $3 or ${sqlBusqueda("$2", ["v.sku", "p.titulo", "v.titulo", "p.sku_base"])})`;
+  const patrones = parametroBusqueda(q, comienza);
+  // Lo escrito (regla común, lib/busqueda.ts: todos los datos de la variación y de su producto) o el código de barras exacto.
+  const coincide = `(v.codigo_barras = $3 or p.codigo_barras = $3 or ${sqlBusqueda("$2", camposVariacionYProducto("v", "p"))})`;
   // Regla de inactivos (Fer): con algo escrito y la caja apagada, si ningún activo
   // coincide pero sí alguno inactivo, se muestran los inactivos igual.
   const inactivos = cajaInactivos || (!!q && !(await una<{ hay: boolean }>(`

@@ -47,7 +47,7 @@ export async function accionCrearCliente(fd: FormData) {
   });
 }
 
-/** CUIT con guiones; si no tiene 11 dígitos, avisa en vez de guardarlo mal. */
+/** CUIT sólo con números (se muestra con guiones, cuitLegible); si no tiene 11 dígitos, avisa en vez de guardarlo mal. */
 function cuitDe(fd: FormData): string | null {
   const t = texto(fd, "cuit");
   if (!t) return null;
@@ -70,13 +70,15 @@ export async function accionGuardarCliente(fd: FormData) {
       update cliente set nombre = $3, tipo = $4, email = $5, telefono = $6, documento_tipo = $7, documento_numero = $8,
                          condicion_iva = $9, lista_precios_id = $10, notas = $11, razon_social = $12, cuit = $13,
                          apellido = $14, nombre_pila = $15, apodo_ml = $16, telefono_movil = $17,
-                         cuenta_corriente = coalesce($18, cuenta_corriente)
+                         cuenta_corriente = coalesce($18, cuenta_corriente),
+                         telefono_aclaracion = $19, telefono_movil_aclaracion = $20
        where id = $2 and organizacion_id = $1 returning id`,
       [s.org.id, cid, nombre, tipo(fd), texto(fd, "email"), texto(fd, "telefono"), documentoTipo(fd),
         texto(fd, "documento_numero"), condicionIva(fd), lista, texto(fd, "notas"), texto(fd, "razon_social"), cuitDe(fd),
         texto(fd, "apellido"), texto(fd, "nombre_pila"), texto(fd, "apodo_ml"), texto(fd, "telefono_movil"),
         // La ficha manda la casilla de cuenta corriente (con_cc); sin ella, queda como estaba.
-        fd.get("con_cc") === "1" ? fd.get("cuenta_corriente") === "on" : null]);
+        fd.get("con_cc") === "1" ? fd.get("cuenta_corriente") === "on" : null,
+        texto(fd, "telefono_aclaracion"), texto(fd, "telefono_movil_aclaracion")]);
     if (!r.length) throw new ErrorErp("El cliente no existe.");
     revalidatePath(ficha(cid));
     return "Guardado.";

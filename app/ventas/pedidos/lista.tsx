@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Estado, url } from "@/app/componentes/erp";
 import { enMoneda, enVista, formatear } from "@/lib/moneda";
 import { ESTADOS_PEDIDO, ESTADOS_PAGO, esEstadoPedido, esEstadoPago, sqlPedidoPendiente, sqlEstadoPago } from "@/lib/pedidos";
-import { patronesBusqueda, digitosBusqueda, numeroBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda, type CampoBusqueda } from "@/lib/busqueda";
+import { camposCliente } from "@/app/ventas/clientes/lista";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { TONO_ESTADO, TONO_PAGO, etiqueta } from "@/app/ventas/formato";
 import type { EstadoPedido, EstadoPago } from "@/lib/pedidos";
@@ -103,6 +104,11 @@ const CAMPOS: Campo[] = [
   },
 ];
 
+/** Dónde busca el buscador: los campos de texto del pedido y los de su cliente. */
+const BUSCA_EN: CampoBusqueda[] = [
+  "p.id::text", "p.id_externo", "p.medio_pago", "p.codigo_seguimiento", "p.notas", ...camposCliente("cl"),
+];
+
 export const LISTA_PEDIDOS: Lista = {
   pantalla: "pedidos",
   titulo: "Pedidos",
@@ -127,14 +133,7 @@ export const LISTA_PEDIDOS: Lista = {
     // Las fechas se cortan en el día argentino.
     if (f.desde) agregar((p) => `p.fecha >= (${p}::date)::timestamp at time zone 'America/Argentina/Buenos_Aires'`, f.desde);
     if (f.hasta) agregar((p) => `p.fecha < (${p}::date + 1)::timestamp at time zone 'America/Argentina/Buenos_Aires'`, f.hasta);
-    if (f.q) {
-      valores.push(patronesBusqueda(f.q), digitosBusqueda(f.q));
-      const p = `$${valores.length - 1}`, d = `$${valores.length}`;
-      const cond = sqlBusqueda(p, ["p.id_externo", "cl.nombre", "cl.razon_social", "cl.email", "cl.apodo_ml", "cl.documento_numero", "cl.cuit"],
-        { param: d, campos: ["cl.cuit", "cl.documento_numero"] });
-      const n = numeroBusqueda(f.q);
-      if (n !== null) { valores.push(n); donde.push(`(${cond} or p.id = $${valores.length})`); } else donde.push(cond);
-    }
+    if (f.q) agregar((p) => sqlBusqueda(p, BUSCA_EN), parametroBusqueda(f.q));
     return {
       desde: "pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id",
       donde: donde.join(" and "),

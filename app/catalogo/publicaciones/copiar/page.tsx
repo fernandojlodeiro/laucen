@@ -13,7 +13,7 @@ import { PRIMARIO, SUAVE } from "@/app/botones";
 import {
   entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import MarcarTodas from "./MarcarTodas";
 import { accionPrepararCopia } from "./acciones";
 
@@ -77,11 +77,11 @@ export default async function CopiarEntreCuentas({ searchParams }: { searchParam
   const donde = `(x.cuentas -> $3::text) is not null
     and ($4::boolean is false or x.cuentas -> $3::text ->> 'e' = 'active')
     and ($5::boolean is false or not (x.cuentas ? $6::text))
-    and ${sqlBusqueda("$7", ["x.titulo", "x.sku"])}
+    and ${sqlBusqueda("$7", ["x.titulo", "x.sku", "(select string_agg(e.value ->> 'i', ' ') from jsonb_each(x.cuentas) e)"])}
     and ($8::text = '' or ($8::text = 'catalogo' and x.catalogo) or ($8::text = 'normal' and not x.catalogo))`;
   const { filas, total } = await consultaPaginada<Fila>(
     { campos: "x.*", desde, donde, orden: leerOrden(sp, { titulo: "x.titulo", sku: "x.sku" }, "x.titulo, x.clave") },
-    [org, cuentas.map((c) => c.id), String(origen.id), soloActivas, soloFaltan, String(destino.id), patronesBusqueda(q, comienza), tipo], sp);
+    [org, cuentas.map((c) => c.id), String(origen.id), soloActivas, soloFaltan, String(destino.id), parametroBusqueda(q, comienza), tipo], sp);
 
   const aqui = url(BASE, { origen: origen.id, destino: destino.id, est: sp.est, ver: sp.ver, tipo: tipo || null, q, contiene: sp.contiene, p: sp.p, orden: sp.orden, dir: sp.dir });
   const n = (x: number) => x.toLocaleString("es-AR");

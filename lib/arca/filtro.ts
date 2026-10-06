@@ -10,7 +10,7 @@
 // escribe una sola vez.
 
 import { pool } from "@/db";
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 
 export type Filtro = {
   desde?: string;           // AAAAMM
@@ -127,7 +127,7 @@ async function condiciones(f: Filtro, sql: Sql, a: string, resumen: boolean, org
   if (f.rubro !== undefined) w.push(condNcm(`${a}.ncm`, await ncmDelRubro(f.rubro, organizacionId), sql));
   if (f.paisOrigen) w.push(`${pais} = ${sql.p(f.paisOrigen)}`);
   if (f.transporte) w.push(`${via} = ${sql.p(f.transporte === "-" ? "" : f.transporte)}`);
-  if (f.importador) w.push(sqlBusqueda(sql.p(patronesBusqueda(f.importador)), [`${a}.importador`]));
+  if (f.importador) w.push(sqlBusqueda(sql.p(parametroBusqueda(f.importador)), [`${a}.importador`]));
   if (f.importadorExacto) w.push(`${a}.importador = ${sql.p(f.importadorExacto)}`);
   if (resumen) return w;
   if (f.paisProc) w.push(`${a}.pais_procedencia = ${sql.p(f.paisProc)}`);
@@ -139,8 +139,8 @@ async function condiciones(f: Filtro, sql: Sql, a: string, resumen: boolean, org
   if (f.cantMax !== undefined) w.push(`${a}.cantidad <= ${sql.p(f.cantMax)}`);
   if (f.marca || f.codigo) {
     const s: string[] = [];
-    if (f.marca) s.push(sqlBusqueda(sql.p(patronesBusqueda(f.marca)), ["x.marca"]));
-    if (f.codigo) s.push(sqlBusqueda(sql.p(patronesBusqueda(f.codigo)), ["x.codigo_articulo"]));
+    if (f.marca) s.push(sqlBusqueda(sql.p(parametroBusqueda(f.marca)), ["x.marca"]));
+    if (f.codigo) s.push(sqlBusqueda(sql.p(parametroBusqueda(f.codigo)), ["x.codigo_articulo"]));
     w.push(`exists (select 1 from softrade_subitems x where x.destinacion = ${a}.destinacion
                      and x.num_item = ${a}.num_item and ${s.join(" and ")})`);
   }

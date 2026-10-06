@@ -4,12 +4,13 @@
 // sus componentes), por eso no entra.
 
 import { consulta } from "@/lib/erp/base";
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { camposVariacionYProducto } from "@/app/catalogo/busqueda";
 
 type Busqueda = { q: string; comienza: boolean };
 
-/** Los patrones de lo escrito, con la regla común de búsqueda (lib/busqueda.ts). */
-export const patron = ({ q, comienza }: Busqueda) => patronesBusqueda(q, comienza);
+/** Lo escrito, para sqlBusqueda (regla común de búsqueda, lib/busqueda.ts). */
+export const patron = ({ q, comienza }: Busqueda) => parametroBusqueda(q, comienza);
 
 export const COSTOS = { fob: "Costo FOB", promedio: "Costo promedio (USD)", ultimo: "Último costo (USD)" } as const;
 export type BaseCosto = keyof typeof COSTOS;
@@ -70,7 +71,7 @@ async function stockValorizadoCon(org: string, f: FiltroValorizado): Promise<Fil
      where v.organizacion_id = $1 and v.estado <> 'archivada' and not es_kit(v.id)
        and ($3 or p.estado <> 'archivado')
        and (not $4 or coalesce(s.stock, 0) <> 0)
-       and ${sqlBusqueda("$5", ["v.sku", "p.titulo", "v.titulo"])}
+       and ${sqlBusqueda("$5", [...camposVariacionYProducto("v", "p"), "fa.nombre"])}
      order by v.sku`, [org, f.depositoId, f.inactivos, f.conStock, patron(f)]);
 }
 
@@ -129,7 +130,7 @@ export async function stockPorUbicacion(org: string, f: FiltroUbicacion): Promis
       join variacion v on v.id = st.variacion_id join producto p on p.id = v.producto_id
      where st.organizacion_id = $1 and d.estado = 'activo' and (st.cantidad <> 0 or st.reservado <> 0)
        and ($2::bigint is null or d.id = $2) and ($3::bigint is null or u.id = $3)
-       and ${sqlBusqueda("$4", ["v.sku", "p.titulo", "v.titulo"])}
+       and ${sqlBusqueda("$4", [...camposVariacionYProducto("v", "p"), "d.nombre", "u.codigo", "u.descripcion"])}
      order by d.nombre, u.es_default desc, u.orden_recorrido, u.codigo, v.sku`, [org, f.depositoId, f.ubicacionId, patron(f)]);
 }
 

@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { url } from "@/app/componentes/erp";
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { campoFecha, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 
 export const RUTA_HISTORIAL = "/config/asistente/historial";
@@ -55,9 +55,10 @@ export const LISTA_ASISTENTE_HISTORIAL: Lista = {
     const valores: unknown[] = [ctx.org];
     const donde = ["c.organizacion_id = $1"];
     if (f.q) {
-      valores.push(patronesBusqueda(f.q, f.comienza));
-      donde.push(sqlBusqueda(`$${valores.length}`, ["c.titulo", "u.nombre", "u.email",
-        { de: "select 1 from asistente_mensaje m where m.conversacion_id = c.id", campos: ["m.texto"] }]));
+      // Regla común (lib/busqueda.ts): la conversación, quién preguntó y sus mensajes.
+      valores.push(parametroBusqueda(f.q, f.comienza));
+      donde.push(sqlBusqueda(`$${valores.length}`, ["c.id::text", "c.titulo", "c.ruta", "u.nombre", "u.email",
+        { de: "select 1 from asistente_mensaje m where m.conversacion_id = c.id", campos: ["m.texto", "m.ruta", "m.error"] }]));
     }
     const dia = "(c.actualizada_ts at time zone 'America/Argentina/Buenos_Aires')::date";
     if (f.desde) { valores.push(f.desde); donde.push(`${dia} >= $${valores.length}::date`); }

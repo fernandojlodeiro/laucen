@@ -27,7 +27,7 @@ Subtítulo: "Los crean los pedidos; acá se miran y se corrigen sus datos".
 **Arriba a la derecha**: el desplegable de columnas del Excel, **"⬇ Descargar Excel"**, **"⚙ Configurar…"** y **"+ Nuevo cliente"**.
 
 **Filtros**:
-- Buscador **"Buscar por nombre, mail, documento o teléfono"**, con la caja **"Comienza por"** (tildada de entrada). Busca también en razón social, CUIT, celular y apodo de Mercado Libre; si escribís sólo números (4 o más, sin letras), también compara el CUIT, el documento y los teléfonos sin puntos, guiones ni espacios, y un número solo busca además el N.º de cliente.
+- Buscador **"Buscar en todos los datos del cliente"**, con la caja **"Comienza por"** (tildada de entrada). Busca en todos sus datos: N.º, nombre, razón social, nombre de pila, apellido, mail, apodo de Mercado Libre, tipo y número de documento, CUIT, teléfono, celular, notas y los datos de sus direcciones (calle, número, piso, localidad, provincia, código postal, quién recibe y su teléfono, referencia). El CUIT, el documento y los teléfonos se encuentran escritos con o sin guiones, puntos o espacios.
 - Desplegable **"Todos los tipos"** / **"Consumidor final"** / **"Mayorista"**.
 
 **"Vista"** (arriba de la tabla): elegí qué columnas ver o armá otras con **"⚙ Configurar vistas…"**.
@@ -70,7 +70,7 @@ Título: el nombre del cliente; debajo "Cliente N.º … · cliente desde el …
 
 ### Buscar un cliente
 
-1. Escribí en el buscador parte del nombre, el mail, el documento o el teléfono (desde la segunda letra busca solo).
+1. Escribí en el buscador cualquier dato del cliente: parte del nombre, el mail, el documento, el CUIT, el teléfono, la localidad… (desde la segunda letra busca solo).
 2. Si no aparece, destildá **"Comienza por"** para buscar en cualquier parte del texto.
 
 ### Corregir los datos fiscales de un cliente

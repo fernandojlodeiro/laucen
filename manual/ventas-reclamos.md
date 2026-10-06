@@ -37,7 +37,7 @@ En los dos casos, cuando el producto vuelve, **"Recibir devolución"** abre la r
 | **Devoluciones en camino** | no resueltos con el producto volviendo (etiqueta generada, lista para despachar o en camino) |
 | **Cerrados** | resueltos |
 
-**Filtros** (aplican al momento): **"Buscar"** ("Nº de pedido, orden de ML o comprador"; busca también por Nº de reclamo), **"Canal / cuenta"**, **"Motivo"** y **"Fechas"** (con atajos o "Todas las fechas"). **"Limpiar filtros"** cuando hay alguno.
+**Filtros** (aplican al momento): **"Buscar"** ("Nº de pedido, orden de ML o comprador"; busca en todos los datos del reclamo —Nº, id y orden de ML, comprador, motivo, resolución, devolución y su tracking, notas— y en el Nº y el id externo del pedido y el nombre del cliente), **"Canal / cuenta"**, **"Motivo"** y **"Fechas"** (con atajos o "Todas las fechas"). **"Limpiar filtros"** cuando hay alguno.
 
 **Columnas de pantalla**:
 

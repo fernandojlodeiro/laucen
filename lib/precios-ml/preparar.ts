@@ -16,13 +16,13 @@ import { PLAN_INFO, pedidoCrear, pedidosPrecio, pedidoVolumen, queCambia, cadena
 export type FiltroPrecios = { familia?: number | null; q?: string | null; comienza?: boolean };
 
 /** ¿La variación entra en el filtro de la pantalla? (categoría con sus
- *  subcategorías, y búsqueda por SKU, título o publicación). */
+ *  subcategorías, y búsqueda por SKU, título, publicación o número interno). */
 export function filtrarCalculo(c: Calculo, f: FiltroPrecios): Calculo["propuestas"] {
   const q = f.q?.trim() ?? "";
   return c.propuestas.filter(({ info, propuesta }) => {
     if (f.familia && !cadenaFamilias(info.familiaId, c.familias.padres).includes(f.familia)) return false;
     // La regla de búsqueda de todo el panel (lib/busqueda.ts).
-    return coincideBusqueda([info.sku, info.titulo, ...propuesta.pubs.map((p) => p.pub.itemId)], q, f.comienza !== false);
+    return coincideBusqueda([String(info.variacionId), String(info.productoId), info.sku, info.titulo, ...propuesta.pubs.map((p) => p.pub.itemId)], q, f.comienza !== false);
   });
 }
 

@@ -11,6 +11,7 @@ import { TachoConfirmar } from "@/app/radar/Cliente";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { CONDICIONES_IVA } from "@/app/ventas/formato";
+import { cuitLegible } from "@/lib/cuit";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
@@ -31,7 +32,7 @@ type Proveedor = {
 function Campos({ p }: { p?: Proveedor }) {
   const campo = (k: keyof Proveedor, etiqueta: string, ancho = "w-full") => (
     <label><span className={ETIQUETA}>{etiqueta}</span>
-      <input name={k} defaultValue={(p?.[k] as string | null) ?? ""} className={`${CAMPO} ${ancho}`} autoFocus={k === "nombre"} /></label>
+      <input name={k} defaultValue={k === "cuit" ? cuitLegible(p?.cuit) : (p?.[k] as string | null) ?? ""} className={`${CAMPO} ${ancho}`} autoFocus={k === "nombre"} /></label>
   );
   return (
     <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 items-start">
@@ -95,7 +96,7 @@ export default async function Proveedores({ searchParams }: { searchParams: Prom
         </form>
       </AltaNueva>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
-        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por nombre, razón social, CUIT o mail" limpiar={["editar", "id"]} />
+        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar en todos los datos del proveedor" limpiar={["editar", "id"]} />
         {soloId > 0 && <Link href="/compras/proveedores" className="text-xs text-[#16577F] hover:underline">Ver todos los proveedores</Link>}
       </div>
       <div className={CAJA_TABLA}>
@@ -129,7 +130,7 @@ export default async function Proveedores({ searchParams }: { searchParams: Prom
               <tr key={p.id} className={TR}>
                 <td className={`${TDN} text-[#5C6B76]`}><Link href={aqui({ id: p.id, q: null, p: null })} className="hover:underline">{p.id}</Link></td>
                 <td className={TD}><Link href={aqui({ id: p.id, q: null, p: null })} className="font-semibold text-[#16577F] hover:underline">{p.nombre}</Link>{p.razon_social && p.razon_social !== p.nombre && <span className="block text-[11px] text-[#5C6B76]">{p.razon_social}</span>}</td>
-                <td className={`${TD} whitespace-nowrap`}>{p.cuit ?? "—"}{p.pais !== "AR" && <span className="text-[#5C6B76]"> · {p.pais}</span>}</td>
+                <td className={`${TD} whitespace-nowrap`}>{p.cuit ? cuitLegible(p.cuit) : "—"}{p.pais !== "AR" && <span className="text-[#5C6B76]"> · {p.pais}</span>}</td>
                 <td className={TD}>{p.condicion_iva ? CONDICIONES_IVA[p.condicion_iva as keyof typeof CONDICIONES_IVA] ?? p.condicion_iva : "—"}</td>
                 <td className={TD}>{[p.contacto, p.telefono].filter(Boolean).join(" · ")}{p.email && <>{p.contacto || p.telefono ? " · " : ""}<a href={`mailto:${p.email}`} className="hover:text-[#16577F] hover:underline">{p.email}</a></>}{!p.contacto && !p.email && !p.telefono && "—"}</td>
                 <td className={TD}>{p.moneda === "USD" ? "Dólares" : "Pesos"}</td>

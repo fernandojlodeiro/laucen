@@ -19,7 +19,7 @@ import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import {
   entrarErp, Pantalla, Avisos, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
-import { patronesBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda } from "@/lib/busqueda";
 import { AccionesExcel } from "@/app/listas/piezas";
 import { LISTA_VINCULAR_ML, ESTADOS_ML_CON_PROBLEMAS, ESTADO_ML, type VerMl, valorVerMl, TIPO_ML, LOGISTICA_ML, filtroMl, verMl } from "./lista";
 import { accionTraerPublicaciones, accionVincular, accionCrearProducto, accionDesvincular, accionBorrarPausadas, accionPrepararEliminarEnMl } from "./acciones";
@@ -96,7 +96,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
 
   // Los mismos filtros que el Excel (lista.tsx).
   const filtro = filtroMl(ver);
-  const params = [org, ids, patronesBusqueda(q, comienza)];
+  const params = [org, ids, parametroBusqueda(q, comienza)];
   const cantidad = (await consulta<{ n: number }>(
     `select count(*)::int n from meli_item mi where ${filtro}`, params))[0].n;
 

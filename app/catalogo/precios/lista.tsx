@@ -4,28 +4,28 @@
 //     misma búsqueda (?q=) que la pantalla. Los precios salen de precio_de().
 
 import { coincideBusqueda } from "@/app/componentes/erp";
-import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { camposVariacionYProducto } from "@/app/catalogo/busqueda";
 import { verInactivos } from "@/app/componentes/Inactivos";
 import { consulta } from "@/lib/erp/base";
 import { hoyAR } from "@/lib/moneda";
 import { campoFecha, type Lista, type SP } from "@/lib/listas/tipos";
 
-/** Lo escrito (regla de lib/busqueda.ts, patrones en $4) sobre una variación `v` y su producto `p`. */
-const buscarPrecio = (v: string, p: string) =>
-  sqlBusqueda("$4", [`${v}.sku`, `${p}.titulo`, `${v}.titulo`, `${v}.codigo_barras`]);
+/** Lo escrito (regla de lib/busqueda.ts, en $4) sobre los datos de una variación `v` y de su producto `p`. */
+const buscarPrecio = (v: string, p: string) => sqlBusqueda("$4", camposVariacionYProducto(v, p));
 
 /** La grilla: variaciones activas (los productos inactivos, sólo si se piden; o, con algo escrito,
  *  si ningún producto activo coincide pero sí alguno inactivo — Fer). */
 export const DONDE_PRECIOS = `v.organizacion_id = $1 and v.estado = 'activa'
      and ($5 or p.estado <> 'archivado'
-          or (cardinality($4::text[]) > 0 and not exists (
+          or ($4::jsonb <> '[]'::jsonb and not exists (
                 select 1 from variacion v2 join producto p2 on p2.id = v2.producto_id
                  where v2.organizacion_id = $1 and v2.estado = 'activa' and p2.estado <> 'archivado' and ${buscarPrecio("v2", "p2")})))
      and ${buscarPrecio("v", "p")}`;
 
 /** Los valores de DONDE_PRECIOS ($1…$5): organización, lista, hoy, búsqueda e inactivos. */
 export function valoresPrecios(org: string, lista: number, sp: SP): unknown[] {
-  return [org, lista, hoyAR(), patronesBusqueda(sp.q, sp.contiene !== "1"), verInactivos(sp)];
+  return [org, lista, hoyAR(), parametroBusqueda(sp.q, sp.contiene !== "1"), verInactivos(sp)];
 }
 
 export const LISTA_PRECIOS: Lista = {
@@ -84,7 +84,7 @@ export const LISTA_LISTAS_PRECIOS: Lista = {
        where l.organizacion_id = $1 order by l.orden, l.nombre`, [ctx.org]);
     const ql = sp.ql?.trim() ?? "";
     const comienza = sp.qlcontiene !== "1";
-    return filas.filter((l) => coincideBusqueda(l.nombre, ql, comienza)).map((l) => ({
+    return filas.filter((l) => coincideBusqueda([String(l.id), l.nombre, l.moneda_base], ql, comienza)).map((l) => ({
       ...l, formula: l.base ? `= ${l.base} × ${(l.coeficiente ?? 1).toLocaleString("es-AR", { maximumFractionDigits: 4 })}` : null,
     }));
   },

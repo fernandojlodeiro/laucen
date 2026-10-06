@@ -65,7 +65,7 @@ export default async function Familias({ searchParams }: { searchParams: Promise
     return partes;
   };
   // El buscador filtra las filas que se ven; el árbol entero sigue para elegir padre.
-  const visibles = arbol.filter((f) => coincideBusqueda(f.nombre, q, comienza));
+  const visibles = arbol.filter((f) => coincideBusqueda([String(f.id), f.nombre, f.descripcion, f.ml_categoria], q, comienza));
   // Una familia propia sólo cuelga de otra propia (nunca de una de Mercado Libre): ElegirFamilia con `propias`.
   const etiquetaDe = new Map(arbol.map((o) => [o.id, o.etiqueta]));
   const nombrePadre = (id: number) => etiquetaDe.get(id) ?? null;
