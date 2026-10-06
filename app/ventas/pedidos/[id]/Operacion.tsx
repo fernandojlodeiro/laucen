@@ -2,12 +2,14 @@
 // de ML los mueve ML): confirmar el pago, pasarlo al estado siguiente, avisar
 // al cliente por WhatsApp. Y los pagos del pedido (de cualquier canal).
 
+import CancelarPedido from "./CancelarPedido";
+import { queArrastraCancelar } from "@/lib/pedidos/cancelar";
 import { consulta, una } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
 import { tiendaDelCanal, nombreTienda } from "@/lib/tienda/tienda";
 import { esMedioEfectivo, sqlEstadoPago, sqlSinEsperarPago, type EstadoPedido } from "@/lib/pedidos";
-import { PRIMARIO, SUAVE, VERDE, BORRAR } from "@/app/botones";
-import { BotonEnviar, BotonConfirmar } from "@/app/radar/Cliente";
+import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
+import { BotonEnviar } from "@/app/radar/Cliente";
 import { Estado, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
 import { urlTienda } from "@/lib/tienda/dominios-tienda";
@@ -78,6 +80,8 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   const pagos = await consulta<{ id: number; medio: string; estado: string; importe: number; cuotas: number; detalle: string | null; fecha: Date }>(`
     select id::int, medio, estado, importe_ars::float importe, cuotas, detalle, creado_ts fecha from pago
      where pedido_id = $1 and organizacion_id = $2 order by creado_ts, id`, [pid, org]);
+  // Lo que arrastra cancelar (OCA, Payway, la factura), para las preguntas del botón.
+  const cancelar = p.canal_tipo !== "mercadolibre" && !CERRADOS.includes(p.estado) ? await queArrastraCancelar(org, pid) : null;
   const nombreMedio = (m: string) => (Object.hasOwn(TIPOS_MEDIO, m) ? TIPOS_MEDIO[m as keyof typeof TIPOS_MEDIO].nombre : m);
   const esMl = p.canal_tipo === "mercadolibre";
 
@@ -185,9 +189,9 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
                 <BotonEnviar clase={PRIMARIO} corriendo="Guardando…">{x.texto}</BotonEnviar>
               </form>
             ))}
-            {!CERRADOS.includes(p.estado) && (
-              <BotonConfirmar accion={accionCambiarEstadoPedido} campos={{ pedido_id: String(pid), estado: "cancelado" }} clase={BORRAR}
-                texto="Cancelar pedido" pregunta="¿Cancelar el pedido? Libera el stock reservado." corriendo="Cancelando…" />
+            {cancelar && (
+              <CancelarPedido pid={pid} oca={cancelar.oca} factura={cancelar.factura?.texto ?? null}
+                payway={cancelar.payway ? { importe: formatear(cancelar.payway.importe, "ARS"), mismoDia: cancelar.payway.mismoDia } : null} />
             )}
           </div>
         )}
