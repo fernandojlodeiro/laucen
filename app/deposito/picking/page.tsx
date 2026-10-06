@@ -17,6 +17,7 @@ import { diaAR, fechaHoraAR, GRANDE } from "../formato";
 import { accionCrearLote } from "./acciones";
 import { MarcaCarritoEspera } from "@/app/componentes/CarritoEspera";
 import { BotonImprimirHojas } from "./Imprimir";
+import TildarTodos from "./TildarTodos";
 import { SelectorTam, tamElegido } from "./Tamano";
 import PreparadoRapido from "./PreparadoRapido";
 import { tienePermiso } from "@/lib/permisos";
@@ -104,6 +105,7 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
       ) : (
         <form action={accionCrearLote} className="mb-5">
           <input type="hidden" name="d" value={dep.id} />
+          <TildarTodos total={pedidos.filter((p) => !p.en_espera).length} />
           <div className="space-y-2">
             {pedidos.map((p) => {
               const dia = diaAR(p.despachar_antes);

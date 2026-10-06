@@ -38,7 +38,9 @@ async function llamar(metodo: string, campos: Record<string, string>): Promise<{
 
 /** El error de un servicio .asmx viene como texto o HTML: la primera línea útil. */
 function limpiarError(t: string): string {
-  const s = t.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const s = desescapar(t.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+  // OCA limita las consultas (50 cada 10 segundos): es pasajero, se reintenta solo (Fer, 6/10).
+  if (/consultas permitidas/i.test(s)) return "OCA está recibiendo muchas consultas en este momento; se vuelve a intentar sola en la próxima vuelta (o probá en un minuto).";
   return s.slice(0, 300) || "sin detalle";
 }
 
