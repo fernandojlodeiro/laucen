@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
-import { ErrorErp, motivoErp } from "@/lib/erp/base";
+import { ErrorErp, motivoErp, enTransaccion } from "@/lib/erp/base";
 import { intentar, entero, id } from "@/lib/erp/acciones";
-import { crearLote, escanear, corregirItem, terminarLote, cancelarLote, marcarPreparado, pedidoDelLotePorCodigo, empacar, esModoLote, pedidoPorNumero, prepararRapido, type FaltaEmpacar, type CargaKit } from "@/lib/deposito/picking";
+import { crearLote, escanear, corregirItem, terminarLote, cancelarLote, marcarPreparado, pedidosDelLotePorEtiqueta, empacar, esModoLote, pedidoPorNumero, prepararRapido, type FaltaEmpacar, type CargaKit } from "@/lib/deposito/picking";
 import { tienePermiso } from "@/lib/permisos";
 
 const LISTA = "/deposito/picking";
@@ -94,27 +94,43 @@ export async function accionPreparado(fd: FormData) {
   });
 }
 
-export type PedidoEscaneado = { ok: true; id: number; cliente: string | null; unidades: number; preparado: boolean; enEspera: boolean } | { ok: false; mensaje: string };
+export type PedidoEscaneado = {
+  ok: true; id: number; cliente: string | null; unidades: number; preparado: boolean; enEspera: boolean;
+  /** Todos los pedidos de esa etiqueta (un carrito de ML lleva una sola) y de quién es la etiqueta. */
+  ids: number[]; etiqueta: "ml" | "oca" | null;
+} | { ok: false; mensaje: string };
 
-/** El código de barras de una hoja: qué pedido es (la pantalla pregunta antes de cerrarlo). */
+/** El código de barras de la etiqueta (ML u OCA): qué pedido es (la pantalla pregunta antes de cerrarlo). */
 export async function accionBuscarPedidoLote(loteId: number, codigo: string): Promise<PedidoEscaneado> {
   const s = await entrarErp("picking_ver");
   try {
-    const p = await pedidoDelLotePorCodigo(s.org.id, Number(loteId), String(codigo ?? ""));
-    return { ok: true, id: p.id, cliente: p.apodo ? `${p.cliente ?? ""} (${p.apodo})`.trim() : p.cliente, unidades: p.unidades, preparado: !!p.preparado_ts, enEspera: p.en_espera };
+    const { pedidos, etiqueta } = await pedidosDelLotePorEtiqueta(s.org.id, Number(loteId), String(codigo ?? ""));
+    const pendientes = pedidos.filter((p) => !p.preparado_ts);
+    const p = pendientes[0] ?? pedidos[0];
+    return {
+      ok: true, id: p.id, cliente: p.apodo ? `${p.cliente ?? ""} (${p.apodo})`.trim() : p.cliente,
+      unidades: pendientes.reduce((t, x) => t + x.unidades, 0) || p.unidades,
+      preparado: !pendientes.length, enEspera: pendientes.some((x) => x.en_espera), ids: pendientes.map((x) => x.id), etiqueta,
+    };
   } catch (e) {
     return { ok: false, mensaje: motivoErp(e) };
   }
 }
 
-/** El "Sí" después de escanear una hoja. */
-export async function accionPreparadoPorCodigo(loteId: number, pedidoId: number): Promise<ResultadoEscaneo> {
+/** El "Sí" después de escanear una etiqueta (todos los pedidos que van en ella). */
+export async function accionPreparadoPorCodigo(loteId: number, pedidoIds: number[]): Promise<ResultadoEscaneo> {
   const s = await entrarErp("picking_ver");
   try {
     exigirSinEscanear(s);
-    const r = await marcarPreparado(s.org.id, Number(loteId), Number(pedidoId), s.usuario.id);
+    const ids = pedidoIds.map(Number);
+    const r = await enTransaccion(async (c) => {
+      let ultimo = { loteTerminado: false };
+      for (const id of ids) ultimo = await marcarPreparado(s.org.id, Number(loteId), id, s.usuario.id, c);
+      return ultimo;
+    });
     revalidatePath(LISTA);
-    return { ok: true, mensaje: r.loteTerminado ? `Pedido ${pedidoId} preparado. Era el último: el lote quedó terminado.` : `Pedido ${pedidoId} preparado.` };
+    const cuales = ids.length === 1 ? `Pedido ${ids[0]} preparado` : `Pedidos ${ids.join(", ")} preparados`;
+    return { ok: true, mensaje: r.loteTerminado ? `${cuales}. Era el último: el lote quedó terminado.` : `${cuales}.` };
   } catch (e) {
     return { ok: false, mensaje: motivoErp(e) };
   }

@@ -239,6 +239,11 @@ test("cerrar escaneando la hoja: el N.º de pedido lo deja preparado; con el úl
   assert.equal(p.id, a);
   assert.equal(p.unidades, 1);
 
+  // Sin etiqueta de transportista, la hoja (N.º de pedido) sirve; un código ajeno, no.
+  const sinEtiqueta = await m.picking.pedidosDelLotePorEtiqueta(e.org, lote, `#${a}`);
+  assert.deepEqual([sinEtiqueta.pedidos.map((x: { id: number }) => x.id), sinEtiqueta.etiqueta], [[a], null]);
+  await assert.rejects(m.picking.pedidosDelLotePorEtiqueta(e.org, lote, String(otro)), /no es la etiqueta de ningún pedido/);
+
   assert.deepEqual(await m.picking.marcarPreparado(e.org, lote, a, "operador"), { loteTerminado: false });
   assert.equal((await q<{ estado: string }>("select estado from pedido where id = $1", [a]))[0].estado, "preparado");
   await assert.rejects(m.picking.marcarPreparado(e.org, lote, a, "operador"), /ya está preparado/);
@@ -270,4 +275,28 @@ test("empacar escaneando: dos pedidos con el mismo SKU, va al más viejo; comple
   r = await m.picking.empacar(e.org, lote, sku2, "operador");
   assert.equal(r.preparado, true);
   assert.equal(r.loteTerminado, true);
+});
+
+test("cerrar escaneando la etiqueta: ML (código, QR o tracking) y OCA; la hoja no sirve si hay etiqueta", async () => {
+  const e = await escenario();
+  const ml1 = await e.pedido([{ v: e.p1, c: 1 }], { canal: e.canalMl });
+  const ml2 = await e.pedido([{ v: e.p2, c: 1 }], { canal: e.canalMl });
+  const oca = await e.pedido([{ v: e.p3, c: 1 }]);
+  const s = `${Date.now()}`.slice(-9);
+  for (const [p, k] of [[ml1, 1], [ml2, 2]]) await q(`insert into envio (organizacion_id, canal_id, pedido_id, id_externo, logistica, estado, tracking)
+    values ($1, $2, $3, $4, 'xd_drop_off', 'ready_to_ship', $5)`, [e.org, e.canalMl, p, `4${k}${s}`, `MEL4${k}${s}FMDOF01`]);
+  await q(`insert into envio (organizacion_id, canal_id, pedido_id, logistica, estado, tracking, datos_externos)
+    values ($1, $2, $3, 'oca', 'alta', $4, jsonb_build_object('oca', jsonb_build_object('numero_envio', $4::text)))`, [e.org, e.canal, oca, `38675${s}`]);
+  const { lotes: [lote] } = await m.picking.prepararImpresion(e.org, [ml1, ml2, oca], "operador");
+  const ids = (r: { pedidos: { id: number }[] }) => r.pedidos.map((x) => x.id).sort((x, y) => x - y);
+
+  assert.deepEqual(ids(await m.picking.pedidosDelLotePorEtiqueta(e.org, lote, `41${s}`)), [ml1]);
+  const qr = await m.picking.pedidosDelLotePorEtiqueta(e.org, lote, JSON.stringify({ id: `42${s}`, t: "lm" }));
+  assert.deepEqual([ids(qr), qr.etiqueta], [[ml2], "ml"]);
+  assert.deepEqual(ids(await m.picking.pedidosDelLotePorEtiqueta(e.org, lote, `mel42${s}fmdof01`)), [ml2]);
+  const o = await m.picking.pedidosDelLotePorEtiqueta(e.org, lote, `38675${s}0001`);
+  assert.deepEqual([ids(o), o.etiqueta], [[oca], "oca"]);
+  await assert.rejects(m.picking.pedidosDelLotePorEtiqueta(e.org, lote, String(ml1)), /etiqueta de Mercado Libre: escaneá/);
+  await assert.rejects(m.picking.pedidosDelLotePorEtiqueta(e.org, lote, `#${oca}`), /etiqueta de OCA: escaneá/);
+  await assert.rejects(m.picking.pedidosDelLotePorEtiqueta(e.org, lote, "99999999999"), /no es la etiqueta/);
 });
