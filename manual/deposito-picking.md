@@ -32,12 +32,14 @@ Está pensada para usarse desde el celular.
 - **Pestañas por tipo de envío** (cortas, para el celular), cada una con cuántos tiene: **Todos**, **Meli** (Mercado Libre: Colecta, Flex, Correo, A convenir), **OCA** (a domicilio y a sucursal), **Retiran** (retiro en el local) y **Otros** (envío propio, a convenir). La lista muestra sólo los de la pestaña elegida, y "Tildar todos" e "Imprimir etiquetas y hojas" trabajan con esos. La última pestaña elegida queda recordada.
 - **"Orden"**: **"Despachar antes"** (de entrada: lo que vence primero arriba, sirve para Mercado Libre) o **"Más viejos primero"** (por fecha de compra, para OCA y retiros).
 - **"Tildar todos (N)"**: tilda de una todos los de la lista que se ve (menos los carritos en espera).
+- **"Sólo carritos (N)"** (al lado de "Orden"): caja para tildar; muestra sólo los pedidos que llevan **más de un producto**.
 - Cada pedido muestra:
   - una caja para tildarlo;
   - el número de pedido (enlace al pedido), el número externo (de Mercado Libre o la tienda) y **una marca con el tipo de envío** ("Colecta", "Flex", "Correo", "OCA sucursal", "OCA domicilio", "Retira"…);
   - marcas: **"Ya empezado"** (quedó en preparación de un lote anterior), **"A cobrar $…"** (se cobra al entregar), **"Carrito: esperando"** (carrito de Mercado Libre en espera);
   - cliente y canal;
   - unidades y líneas, y **"Despachar antes: …"** (en rojo si vence hoy o ya venció; la tarjeta entera se pinta de rojo suave);
+  - en letra chica, **qué lleva**: hasta 5 productos con su cantidad ("2× Botón interruptor…") y, si son más, **"y N más"**, para darse una idea de un vistazo (por ejemplo, que es un carrito largo);
   - el botón **"Preparar este"** (o **"Esperando"**, deshabilitado, si es un carrito en espera).
 - Abajo, fija, la barra de acciones:
   - **"Papel"**: el tamaño de la impresión, **"10 × 15 cm (térmica)"** o **"A4"**. Queda recordado para la próxima.
