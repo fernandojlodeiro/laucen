@@ -188,7 +188,7 @@ test("sincronizarStockMl encola (no manda): pausa al llegar al umbral, reactiva 
   assert.equal(r.encoladas, 4);
   const f = await filas(e.org);
   const de = (item: string) => f.find((x) => x.item_id === item)!;
-  assert.deepEqual(de("MLA40").payload, { estado: "paused" });
+  assert.deepEqual(de("MLA40").payload, { estado: "paused", cantidad: 0 });
   assert.equal(de("MLA40").prioridad, 100);
   assert.deepEqual(de("MLA42").payload, { cantidad: 0 });
   assert.deepEqual(de("MLA41").payload, { cantidad: 5 });
@@ -201,14 +201,16 @@ test("sincronizarStockMl encola (no manda): pausa al llegar al umbral, reactiva 
   // El trabajador las manda: pausas primero, la reactivación con cantidad y después estado.
   const falso = falsoMl();
   await m.cola.procesarCola(Date.now() + 20_000, { enviar: falso.enviar, ritmoMs: 0, org: e.org });
-  assert.deepEqual(falso.llamadas.slice(0, 2).map((l) => l.ruta).sort(), ["/items/MLA40", "/items/MLA42"]);
-  assert.deepEqual(falso.llamadas[1].ruta === "/items/MLA42" ? falso.llamadas[1].cuerpo : falso.llamadas[0].cuerpo, { variations: [{ id: 777, available_quantity: 0 }] });
+  assert.deepEqual([...new Set(falso.llamadas.slice(0, 3).map((l) => l.ruta))].sort(), ["/items/MLA40", "/items/MLA42"]);
+  // La pausa va con la cantidad, la pausa primero.
+  assert.deepEqual(falso.llamadas.filter((l) => l.ruta === "/items/MLA40").map((l) => l.cuerpo), [{ status: "paused" }, { available_quantity: 0 }]);
+  assert.deepEqual(falso.llamadas.find((l) => l.ruta === "/items/MLA42")!.cuerpo, { variations: [{ id: 777, available_quantity: 0 }] });
   const reac = falso.llamadas.filter((l) => l.ruta === "/items/MLA43").map((l) => l.cuerpo);
   assert.deepEqual(reac, [{ available_quantity: 4 }, { status: "active" }]);
   const pubs = await q<{ id: string; estado: string; pausada_por_stock: boolean; cantidad_publicada: number }>(
     "select id, estado, pausada_por_stock, cantidad_publicada from publicacion where organizacion_id = $1 order by id", [e.org]);
   assert.deepEqual(pubs.map((x) => [x.estado, x.pausada_por_stock, x.cantidad_publicada]),
-    [["pausada", true, 3], ["activa", false, 5], ["pausada", true, 0], ["activa", false, 4]]);
+    [["pausada", true, 0], ["activa", false, 5], ["pausada", true, 0], ["activa", false, 4]]);
   // Ya está todo al día: no hay nada nuevo para encolar.
   assert.equal((await m.sync.sincronizarStockMl(e.org)).encoladas, 0);
 
@@ -247,7 +249,7 @@ test("barrida nocturna: lee de ML, refresca el espejo y encola las diferencias (
   const f = await filas(e.org);
   assert.ok(f.every((x) => x.estado === "pendiente"));
   const pausa = f.find((x) => x.item_id === "MLA50")!;
-  assert.deepEqual(pausa.payload, { estado: "paused" });
+  assert.deepEqual(pausa.payload, { estado: "paused", cantidad: 0 });
   assert.equal(pausa.prioridad, 100);
   assert.deepEqual(f.find((x) => x.item_id === "MLA51")!.payload, { cantidad: 7 });
   const [orig] = await q<{ origen: string }>("select distinct origen from ml_cola where organizacion_id = $1", [e.org]);
@@ -257,4 +259,28 @@ test("barrida nocturna: lee de ML, refresca el espejo y encola las diferencias (
   await m.barrida.barridaNocturna(Date.now() + 30_000, { leer, org: e.org, ahora, forzar: true });
   assert.equal(rutas.length, antes);
   void a;
+});
+
+test("pausar por stock: la pausa y la cantidad van juntas (la pausa primero); reactivar, la cantidad primero", async () => {
+  const { pedidosDe } = await import("@/lib/mercadolibre/cola");
+  const { cambioDeStock } = await import("@/lib/mercadolibre/stock");
+  const pub = { id: 1, canal_id: 1, variacion_id: 1, id_externo: "MLA1", variacion_externa: null, estado: "activa",
+    pausada_por_stock: false, pausada_manual: false, cantidad_publicada: 3, disponible: 1, umbral: 1 };
+  // Umbral 1 con 1 disponible: se pausa informando 1, en el mismo envío.
+  const c = cambioDeStock(pub)!;
+  assert.equal(c.que, "pausa");
+  assert.deepEqual(c.payload, { estado: "paused", cantidad: 1 });
+  assert.deepEqual(pedidosDe({ item_id: "MLA1", variation_id: "", tipo: "stock", payload: c.payload }).map((x) => [x.cuerpo, !!x.seguirSiFalla]),
+    [[{ status: "paused" }, false], [{ available_quantity: 1 }, true]]);
+  assert.deepEqual(pedidosDe({ item_id: "MLA1", variation_id: "", tipo: "stock", payload: { cantidad: 4, estado: "active" } }).map((x) => x.cuerpo),
+    [{ available_quantity: 4 }, { status: "active" }]);
+});
+
+test("de 0 a algo: la cantidad y la activación van juntas", async () => {
+  const { cambioDeStock } = await import("@/lib/mercadolibre/stock");
+  const pub = { id: 1, canal_id: 1, variacion_id: 1, id_externo: "MLA1", variacion_externa: null, estado: "activa",
+    pausada_por_stock: false, pausada_manual: false, cantidad_publicada: 0, disponible: 1, umbral: 0 };
+  assert.deepEqual(cambioDeStock(pub)!.payload, { cantidad: 1, estado: "active" });
+  assert.deepEqual(cambioDeStock({ ...pub, cantidad_publicada: 2 })!.payload, { cantidad: 1 });
+  assert.deepEqual(cambioDeStock({ ...pub, variacion_externa: "9" })!.payload, { cantidad: 1 });
 });
