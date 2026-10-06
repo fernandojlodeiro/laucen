@@ -83,12 +83,14 @@ export function textoCampo(c: Campo, f: Fila, moneda: Moneda = "ARS", tc: number
 /** La tabla de una lista con vistas, dibujada desde el catálogo. Las
  *  acciones de la fila (lápiz, tacho…) van en la última columna; una fila en
  *  edición la dibuja `fila` (ocupa todo el ancho). */
-export async function TablaVista({ lista, campos, filas, total, ctx, vacio, acciones, claseFila, fila, clave = "id" }: {
+export async function TablaVista({ lista, campos, filas, total, ctx, vacio, acciones, claseFila, fila, clave = "id", titulosFijos = false }: {
   lista: Lista; campos: Campo[]; filas: Fila[]; total: number; ctx: CtxCelda; vacio: ReactNode;
   acciones?: (f: Fila) => ReactNode; claseFila?: (f: Fila) => string;
   /** Reemplaza la fila entera (ej. la fila en edición): recibe cuántas columnas ocupa. */
   fila?: (f: Fila, columnas: number) => ReactNode | null;
   clave?: string;
+  /** La fila de títulos queda fija al bajar (Fer, 6/10): la tabla baja dentro de su caja, del alto de la ventana. */
+  titulosFijos?: boolean;
 }) {
   const org = ctx.moneda === "USD" ? (await sesionActual())?.org.id : null;
   const tc = org ? await tcParaVista(org, ctx.moneda) : null;
@@ -97,9 +99,9 @@ export async function TablaVista({ lista, campos, filas, total, ctx, vacio, acci
   const ordenable = (c: Campo) => c.orden !== false && !!(c.orden || c.sql);
   return (
     <>
-      <div className={CAJA_TABLA}>
+      <div className={`${CAJA_TABLA} ${titulosFijos ? "overflow-y-auto max-h-[calc(100vh-7rem)]" : ""}`}>
         <table className={TABLA}>
-          <thead className={THEAD}>
+          <thead className={`${THEAD} ${titulosFijos ? "sticky top-0 z-10 shadow-[0_1px_0_#E3E9F0]" : ""}`}>
             <tr>
               {campos.map((c) => ordenable(c)
                 ? <ThOrden key={c.clave} col={c.clave} n={alaDerecha(c)} desc={c.desc ?? alaDerecha(c)} porDefecto={lista.porDefecto === c.clave}>{c.titulo}</ThOrden>

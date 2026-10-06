@@ -69,7 +69,7 @@ export default async function CambiosPublicaciones({ searchParams }: { searchPar
         <Desplegable parametro="agrupar" etiqueta="Ver" valor={f.agrupar ? "1" : ""}
           opciones={[{ valor: "", texto: "Cada cambio" }, { valor: "1", texto: "Una fila por publicación" }]} />
       </div>
-      <TablaVista lista={LISTA} campos={campos} filas={filas} total={total} ctx={{ moneda: s.moneda, sp }}
+      <TablaVista lista={LISTA} campos={campos} filas={filas} total={total} ctx={{ moneda: s.moneda, sp }} titulosFijos
         vacio={f.tipos.length === 0 ? "Tildá al menos un tipo de cambio (estado, precio o stock)."
           : f.tipos.length === 1 && f.tipos[0] === "estado" && f.estados.length === 0 ? "Tildá al menos un estado en «pasó a»."
           : hayFiltro ? "Nada coincide con los filtros en esas fechas." : "No hubo cambios en esas fechas."} />

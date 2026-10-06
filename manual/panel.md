@@ -30,6 +30,7 @@ El número grande es lo que hay para atender (rojo si es mayor que cero, verde s
 
 ## Criterios y reglas
 
+- **La fila con los nombres de las cuentas queda fija** arriba al bajar con la rueda, sólo en la PC (en el celular se mueve con la tabla).
 - **Siempre entra en la pantalla**: la tabla se achica sola (letra más chica) lo justo para entrar en el ancho de la ventana, por ejemplo en 1920 × 1080 con muchas cuentas; nunca hace falta correrla de costado. Si agrandás la ventana, vuelve a su tamaño.
 - Todo sale de lo que Laucen ya tiene guardado; se calcula al abrir o recargar la pantalla. No se refresca sola.
 - Cada número usa la misma condición que la pantalla a la que enlaza, para que coincidan.

@@ -134,7 +134,8 @@ type Fila = {
 /** El apodo se achica hasta que entra entero en la columna (≈ 7 rem). */
 /** El zoom de la tabla (antes 1,32; un 15 % menos). Los títulos fijos se pegan debajo de la barra de arriba (40 px en la PC, 48 en el celular), que el zoom también escala. */
 const ZOOM = 1.12;
-const FIJA = "sticky top-[calc(48px/var(--zoom,1.12))] md:top-[calc(40px/var(--zoom,1.12))] z-10 bg-[#FAFBFC] border-b border-[#E3E9F0]";
+// Fija sólo en la PC (Fer, 6/10: en el celular se leía cortada).
+const FIJA = "md:sticky md:top-[calc(40px/var(--zoom,1.12))] z-10 bg-[#FAFBFC] border-b border-[#E3E9F0]";
 const tamanoTitulo = (t: string) => `${Math.max(7, Math.min(11, Math.floor(1700 / Math.max(t.length, 1)) / 10)).toFixed(1)}px`;
 const NA = <span className="block text-right text-[13px] text-[#9AA7B3]" title="No aplica a este canal">—</span>;
 /** Para las filas que sólo existen en una cuenta de ML (reputación, publicaciones, preguntas…). */

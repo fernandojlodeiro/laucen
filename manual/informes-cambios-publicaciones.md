@@ -83,6 +83,7 @@ En un cambio con origen **Laucen**, tocá "Laucen": abre la [Cola de Mercado Lib
 
 ## Criterios y reglas
 
+- **Los títulos de las columnas quedan fijos**: la tabla baja dentro de su caja (del alto de la ventana) y la fila de títulos queda siempre a la vista; los filtros de arriba se van al bajar la página.
 - **Posible causa (campañas de ML)**: en los cambios de **precio**, esta columna muestra las campañas que, según [Promociones de ML](/informes/promociones), empezaron, terminaron o cambiaron el precio de esa publicación en las 1,5 horas anteriores. Es una pista, no una prueba; vacía quiere decir que no coincide con ninguna campaña anotada.
 
 ### Cómo se anota la historia
