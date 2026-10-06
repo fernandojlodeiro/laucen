@@ -38,6 +38,8 @@ export function filtrosCambios(sp: SP, hoy: string = hoyArgentina()) {
     // Sin el parámetro, todos; "ninguno" = ninguno tildado.
     estados: sp.estados == null ? [...ESTADOS_DESTINO] as string[] : sp.estados.split(",").filter((e) => (ESTADOS_DESTINO as readonly string[]).includes(e)),
     externos: sp.externos === "1",
+    // "Sólo si sigue en ese estado" (Fer, 6/10): tildada de entrada; "sigue=0" la destilda.
+    sigue: sp.sigue !== "0",
     agrupar: sp.agrupar === "1",
     q: sp.q?.trim() ?? "",
     comienza: sp.contiene !== "1",
@@ -52,7 +54,7 @@ export function parametrosCambios(f: FiltrosCambios) {
     desde: f.desde || null, hasta: f.hasta || null, canal: f.canal || null,
     tipos: tiposDefecto ? null : f.tipos.join(",") || "ninguno",
     estados: f.estados.length === ESTADOS_DESTINO.length ? null : f.estados.join(",") || "ninguno",
-    externos: f.externos ? "1" : null, agrupar: f.agrupar ? "1" : null,
+    externos: f.externos ? "1" : null, sigue: f.sigue ? null : "0", agrupar: f.agrupar ? "1" : null,
     q: f.q || null, contiene: f.comienza ? null : "1",
   };
 }
@@ -160,6 +162,9 @@ export const LISTA_CAMBIOS_PUBLICACIONES: Lista = {
            group by h.canal_id, h.item_id, h.variation_id, h.campo) c`
       : `(select h.id, h.canal_id, h.item_id, h.variation_id, h.campo, h.antes, h.despues, h.fecha, h.fecha primera, 1 cambios, h.origen, h.datos
             from meli_item_cambio h where ${donde}) c`;
+    // Un cambio de estado se muestra sólo si la publicación sigue en el estado al que pasó
+    // (pasó a pausada y hoy está pausada); los de precio y stock pasan igual.
+    const fueraY = f.sigue ? ["(c.campo <> 'estado' or c.despues = mi.estado)"] : [];
     let fuera = "true";
     if (f.q) {
       // Regla común (lib/busqueda.ts): los campos de texto del cambio, la cuenta y la publicación.
@@ -172,7 +177,7 @@ export const LISTA_CAMBIOS_PUBLICACIONES: Lista = {
         left join meli_item mi on mi.canal_id = c.canal_id and mi.item_id = c.item_id and mi.variation_id = c.variation_id
         left join publicacion pu on pu.id = mi.publicacion_id
         left join variacion v on v.id = pu.variacion_id`,
-      donde: fuera,
+      donde: [fuera, ...fueraY].join(" and "),
       valores,
       orden: "c.fecha desc, c.id desc",
     };

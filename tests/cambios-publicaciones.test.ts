@@ -125,8 +125,15 @@ test("informe: filtra por tipo (estado y precio de entrada), origen y búsqueda,
            values ($1, $2, 'MLA1', 'estado', '{"estado": "active"}', 'ok', now())`, [e.org, e.canal]);
   await e.actualizar("estado = 'active'");
 
-  // De entrada: estado y precio de los últimos 7 días, lo más nuevo primero.
-  const filas = await informe(e.org, {});
+  // De entrada, "sólo si sigue en ese estado": el paso a pausada no sale (hoy está activa).
+  const siguen = await informe(e.org, {});
+  assert.deepEqual(siguen.map((f) => [f.campo, f.despues]).filter(([c]) => c === "estado"), [["estado", "active"]]);
+  assert.equal(siguen.length, 3);
+  assert.equal((await informe(e.org, { estados: "paused" })).filter((f) => f.campo === "estado").length, 0);
+  assert.equal((await informe(e.org, { estados: "paused", sigue: "0" })).filter((f) => f.campo === "estado").length, 1);
+
+  // Destildada: estado y precio de los últimos 7 días, lo más nuevo primero.
+  const filas = await informe(e.org, { sigue: "0" });
   assert.equal(filas.length, 4);
   assert.deepEqual(filas.map((f) => f.campo), ["estado", "precio", "estado", "precio"]);
   assert.equal(filas[0].origen, "laucen");
@@ -136,11 +143,11 @@ test("informe: filtra por tipo (estado y precio de entrada), origen y búsqueda,
   assert.equal(Number(filas[3].pct), 1);
 
   assert.equal((await informe(e.org, { tipos: "stock" })).length, 1);
-  assert.equal((await informe(e.org, { tipos: "estado,precio,stock" })).length, 5);
+  assert.equal((await informe(e.org, { tipos: "estado,precio,stock", sigue: "0" })).length, 5);
   assert.equal((await informe(e.org, { tipos: "ninguno" })).length, 0);
-  assert.equal((await informe(e.org, { externos: "1" })).length, 3);
-  assert.equal((await informe(e.org, { q: "SKU-CAM" })).length, 4);
-  assert.equal((await informe(e.org, { q: "MLA1" })).length, 4);
+  assert.equal((await informe(e.org, { externos: "1", sigue: "0" })).length, 3);
+  assert.equal((await informe(e.org, { q: "SKU-CAM", sigue: "0" })).length, 4);
+  assert.equal((await informe(e.org, { q: "MLA1", sigue: "0" })).length, 4);
   assert.equal((await informe(e.org, { q: "nada" })).length, 0);
   // Fechas de otro rango: nada.
   assert.equal((await informe(e.org, { desde: "2020-01-01", hasta: "2020-01-31" })).length, 0);
