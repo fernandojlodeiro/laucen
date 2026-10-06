@@ -33,7 +33,7 @@ const RENGLONES: Renglon[] = [
   { titulo: "Próxima liberación", nivel: 2, valor: (d) => d.aLiberar?.proximaMonto, texto: (d) => (d.aLiberar?.proxima ? `${plata(d.aLiberar.proximaMonto)} el ${dia(d.aLiberar.proxima)}` : null) },
   { titulo: "Cobrado en los últimos 30 días (bruto)", valor: (d) => d.cobrado30?.bruto, suma: true },
   { titulo: "Pagos", nivel: 1, valor: (d) => d.cobrado30?.pagos, suma: true, cantidad: true },
-  { titulo: "Comisiones y cargos de Mercado Pago", nivel: 1, valor: (d) => (d.cobrado30 ? -d.cobrado30.comisiones : null), suma: true },
+  { titulo: "Comisiones y cargos (Mercado Pago y Mercado Libre)", ayuda: "Bruto − neto recibido − devuelto", nivel: 1, valor: (d) => (d.cobrado30 ? -d.cobrado30.comisiones : null), suma: true },
   { titulo: "Neto recibido", nivel: 1, valor: (d) => d.cobrado30?.neto, suma: true },
   { titulo: "Devuelto", nivel: 1, valor: (d) => (d.cobrado30 ? -d.cobrado30.devuelto : null), suma: true },
 ];

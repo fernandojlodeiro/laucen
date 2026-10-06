@@ -73,7 +73,9 @@ async function disponible(token: string, intentos: Intento[]): Promise<{ disponi
     const csv = await mpPedir<string>(token, "GET", `/v1/account/release_report/${enc(ultimo.file_name)}`);
     if (csv.status === 200 && typeof csv.datos === "string") {
       resultado = saldoDelReporte(csv.datos, ultimo.file_name);
-      intentos.push({ fuente: "Reporte de Liquidaciones (bajar)", status: 200, ...(resultado ? {} : { motivo: "el reporte no trae el saldo" }) });
+      // Sin saldo: se anota la cabecera del archivo, para ver qué columnas trae.
+      const cabecera = csv.datos.split(/\r?\n/)[0]?.slice(0, 400) ?? "";
+      intentos.push({ fuente: "Reporte de Liquidaciones (bajar)", status: 200, ...(resultado ? {} : { motivo: `el reporte ${ultimo.file_name} no trae el saldo; columnas: ${cabecera}` }) });
     } else intentos.push({ fuente: "Reporte de Liquidaciones (bajar)", status: csv.status, motivo: motivoDe(csv.status, csv.datos) });
   }
   // Uno nuevo si el último tiene más de una hora (Mercado Pago lo arma en unos minutos).
@@ -153,7 +155,8 @@ export async function leerCuenta(org: string, c: ConexionMp): Promise<Lectura> {
       datos.cobrado30 = {
         pagos: l.length, completo: cobrado.completo,
         bruto: redondo(l.reduce((a, p) => a + Number(p.transaction_amount ?? 0), 0)),
-        comisiones: redondo(l.reduce((a, p) => a + (p.fee_details ?? []).reduce((b, f) => b + Number(f.amount ?? 0), 0), 0)),
+        // Lo que se queda Mercado Pago (y Mercado Libre, en las ventas de ML): bruto − neto − devuelto.
+        comisiones: redondo(l.reduce((a, p) => a + Math.max(0, Number(p.transaction_amount ?? 0) - neto(p) - Number(p.transaction_amount_refunded ?? 0)), 0)),
         neto: redondo(l.reduce((a, p) => a + neto(p), 0)),
         devuelto: redondo(l.reduce((a, p) => a + Number(p.transaction_amount_refunded ?? 0), 0)),
       };

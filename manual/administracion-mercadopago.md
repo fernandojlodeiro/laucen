@@ -21,7 +21,7 @@ Menú **Administración › Mercado Pago**. Las cuentas se conectan desde [Canal
   - **Saldo total** = disponible + a liberar.
   - **Disponible**: la plata liberada, según el último Reporte de Liquidaciones de Mercado Pago.
   - **A liberar**: los cobros aprobados que todavía no se liberaron (lo neto, ya descontadas las comisiones), con cuántos pagos son, cuánto se libera en los próximos 7 días y la próxima liberación (monto y día).
-  - **Cobrado en los últimos 30 días**: el bruto, cuántos pagos, las comisiones y cargos de Mercado Pago, lo neto recibido y lo devuelto.
+  - **Cobrado en los últimos 30 días**: el bruto, cuántos pagos, las comisiones y cargos (lo que se quedan Mercado Pago y Mercado Libre: bruto menos neto recibido menos devuelto), lo neto recibido y lo devuelto.
   - **Leído**: cuándo se leyó cada cuenta y a qué fecha es el disponible.
 - **Qué contestó Mercado Pago**: por cada cuenta, "Todo leído" en verde, "Con problemas" en amarillo o "Desconectada" en rojo, y el resultado de cada consulta.
 - Abajo, los **canales sin cuenta de Mercado Pago**, con su enlace para conectarla.
