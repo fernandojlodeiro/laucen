@@ -314,6 +314,54 @@ export async function pedidoDelLotePorCodigo(org: string, loteId: number, codigo
   return p;
 }
 
+/** Lo que dice el código de barras (o el QR) de una etiqueta: el QR de ML es un
+ *  JSON con el id del envío; el código de barras, el número tal cual. */
+export function leerCodigoEtiqueta(codigo: string): { texto: string; digitos: string } {
+  let t = String(codigo ?? "").trim();
+  if (t.startsWith("{")) {
+    try { const j = JSON.parse(t) as { id?: unknown }; if (j?.id != null) t = String(j.id); } catch { /* no era JSON */ }
+  }
+  return { texto: t.toUpperCase(), digitos: t.replace(/\D/g, "") };
+}
+
+// Un envío con etiqueta de transportista: la de Mercado Libre (no Full) o la de OCA.
+const SQL_CON_ETIQUETA = `e.estado is distinct from 'cancelled' and coalesce(e.estado, '') <> 'cancelado'
+  and ((e.id_externo is not null and coalesce(e.logistica, '') not in ('fulfillment', 'oca')) or (e.logistica = 'oca' and coalesce(e.tracking, e.datos_externos #>> '{oca,numero_envio}') is not null))`;
+
+/** Cerrar un pedido del lote escaneando la ETIQUETA (Fer, 6/10): así el paquete
+ *  que se cierra es el que lleva la etiqueta de su comprador. Vale el código de
+ *  barras o el QR de la etiqueta de Mercado Libre (id del envío o su tracking) y
+ *  el de OCA (número de envío; el de la pieza lo trae adentro). Un carrito de ML
+ *  con varios pedidos lleva una sola etiqueta: devuelve todos los de esa etiqueta.
+ *  El N.º de pedido (la hoja) sirve sólo para los pedidos sin etiqueta de
+ *  transportista (retiro, envío propio, venta del local). */
+export async function pedidosDelLotePorEtiqueta(org: string, loteId: number, codigo: string): Promise<{ pedidos: PedidoDelLote[]; etiqueta: "ml" | "oca" | null }> {
+  const { texto, digitos } = leerCodigoEtiqueta(codigo);
+  if (!texto) throw new ErrorErp("No llegó ningún código.");
+  const del = await pedidosDelLote(org, loteId);
+  const enLote = del.map((p) => p.id);
+  const hallados = await consulta<{ pedido_id: number; oca: boolean }>(`
+    select distinct e.pedido_id::int, e.logistica = 'oca' oca from envio e
+     where e.organizacion_id = $1 and e.pedido_id = any($2::bigint[]) and ${SQL_CON_ETIQUETA}
+       and (upper(e.tracking) = $3
+         or (e.logistica is distinct from 'oca' and $4 <> '' and e.id_externo = $4)
+         or (e.logistica = 'oca' and $4 <> '' and (
+               e.datos_externos #>> '{oca,numero_envio}' = $4
+            or (length(coalesce(e.datos_externos #>> '{oca,numero_envio}', e.tracking)) >= 8
+                and $4 like '%' || regexp_replace(coalesce(e.datos_externos #>> '{oca,numero_envio}', e.tracking), '\\D', '', 'g') || '%'))))`,
+    [org, enLote, texto, digitos]);
+  if (hallados.length) {
+    const ids = new Set(hallados.map((h) => h.pedido_id));
+    return { pedidos: del.filter((p) => ids.has(p.id)), etiqueta: hallados.some((h) => h.oca) ? "oca" : "ml" };
+  }
+  const n = leerCodigoPedido(codigo);
+  const p = n == null ? null : del.find((x) => x.id === n);
+  if (!p) throw new ErrorErp(`"${String(codigo).trim()}" no es la etiqueta de ningún pedido de este lote.`);
+  const con = await una<{ oca: boolean }>(`select e.logistica = 'oca' oca from envio e where e.organizacion_id = $1 and e.pedido_id = $2 and ${SQL_CON_ETIQUETA} limit 1`, [org, p.id]);
+  if (con) throw new ErrorErp(`El pedido ${p.id} lleva etiqueta de ${con.oca ? "OCA" : "Mercado Libre"}: escaneá el código de barras de la etiqueta, no el de la hoja.`);
+  return { pedidos: [p], etiqueta: null };
+}
+
 /** Cierra un pedido del lote: queda "preparado" (todo lo suyo, juntado). Si
  *  era el último del lote, el lote se termina solo. */
 export async function marcarPreparado(org: string, loteId: number, pedidoId: number, usuarioId: string, cx?: PoolClient): Promise<{ loteTerminado: boolean }> {

@@ -95,7 +95,7 @@ export default async function LotePicking({ params, searchParams }: { params: Pr
           </form>
           {sinEscanear ? (
             <>
-              <div className="mb-2 text-sm font-bold">Cerrar un pedido con su número (escaneando la hoja o escribiéndolo)</div>
+              <div className="mb-2 text-sm font-bold">Cerrar un pedido escaneando su etiqueta (Mercado Libre u OCA; sin etiqueta, el N.º de la hoja)</div>
               <div className="mb-4"><CerrarPorCodigo lote={loteId} /></div>
             </>
           ) : (

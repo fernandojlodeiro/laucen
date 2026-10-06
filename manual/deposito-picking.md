@@ -9,7 +9,7 @@ resumen: Preparar los pedidos: imprimir la etiqueta y la hoja de preparación de
 
 ## Para qué sirve
 
-Es la pantalla del depósito para preparar los pedidos que hay que despachar. El camino principal es: tildar los pedidos, apretar **"Imprimir etiquetas y hojas"** (sale un PDF con la etiqueta de envío y la hoja de preparación de cada pedido), juntar la mercadería con la hoja en la mano y cerrar cada pedido como **"Preparado"**, con el botón o escaneando el código de barras de su hoja.
+Es la pantalla del depósito para preparar los pedidos que hay que despachar. El camino principal es: tildar los pedidos, apretar **"Imprimir etiquetas y hojas"** (sale un PDF con la etiqueta de envío y la hoja de preparación de cada pedido), juntar la mercadería con la hoja en la mano y cerrar cada pedido como **"Preparado"**, con el botón o escaneando el código de barras de su **etiqueta** (Mercado Libre u OCA).
 
 Hay dos caminos alternativos: **empacar escaneando** (en la mesa se escanea cada producto y el sistema dice a qué pedido va) y **recorrer escaneando** (se recorre el depósito en orden de ubicación escaneando cada unidad).
 
@@ -48,7 +48,7 @@ Arriba, el camino "Stock › Picking › <depósito> › #N" y un subtítulo con
 
 - **"Etiquetas y hojas"**:
   - **"🖨 Imprimir etiquetas y hojas"** (o **"Reimprimir etiquetas y hojas"** si ya se imprimieron), con el selector **"Papel"**. Si ya se imprimieron, avisa "Ya impresas: la hoja sale marcada «REIMPRESIÓN»".
-  - **"Cerrar un pedido con su número (escaneando la hoja o escribiéndolo)"**: un lector para escanear el código de barras de la hoja o escribir el número. Sólo con el permiso **"Preparar sin escanear"**; sin ese permiso, en su lugar dice que cada producto se escanea o escribe en "Empacar escaneando". El botón **"Preparado"** de cada pedido también pide ese permiso.
+  - **"Cerrar un pedido escaneando su etiqueta (Mercado Libre u OCA; sin etiqueta, el N.º de la hoja)"**: un lector para escanear el código de barras (o el QR) de la etiqueta de envío ya pegada en el paquete. Los pedidos sin etiqueta de transportista (retiro en el local, envío propio) se cierran con el código de la hoja o escribiendo el número. Sólo con el permiso **"Preparar sin escanear"**; sin ese permiso, en su lugar dice que cada producto se escanea o escribe en "Empacar escaneando". El botón **"Preparado"** de cada pedido también pide ese permiso.
   - **"Pedidos del lote (N)"**: cada pedido con su número grande, cliente (y apodo de Mercado Libre), canal, unidades, "Despachar antes", las marcas "impreso" o "impreso N veces", "A cobrar" y "Carrito: esperando", y el botón verde **"Preparado"** (o "Preparado ✓" con la hora si ya está, o "Esperando" si es un carrito en espera).
 - **"Empacar escaneando (alternativo)"**: el lector "Escaneá el producto que vas a empacar", el cartel que dice a qué pedido va cada producto, y la lista de pedidos (con "empacadas N" y, en los ya preparados, el botón **"🖨 Etiqueta"**).
 - **"Recorrer escaneando"**: el avance ("N de M unidades", faltantes y porcentaje), una caja grande con el ítem que toca (la **Ubicación** bien grande, la foto, el SKU, el título, "Faltan N de M", si es parte de un kit y de qué pedido es) y el lector. Cuando está todo, dice "Todo escaneado ✓".
@@ -98,7 +98,7 @@ Es provisorio, para cuando hay apuro y mientras no todos los productos tienen et
 6. Con cada hoja, juntá la mercadería de las ubicaciones que dice, tildando a mano en el papel.
 7. Abrí el lote y cerrá cada pedido de una de estas dos formas:
    - Apretá **"Preparado"** en su fila.
-   - O escaneá el código de barras de la hoja en **"Cerrar un pedido escaneando su hoja"**: aparece el número de pedido, el cliente y las unidades con la pregunta "¿Marcar preparado?" y los botones **"Sí"** / **"No"**. Escanear la misma hoja otra vez también es "Sí" (cómodo con la pistola).
+   - O pegá la etiqueta en el paquete y escaneá **el código de barras de la etiqueta** (Mercado Libre u OCA) en **"Cerrar un pedido escaneando su etiqueta"**: aparece el número de pedido, el cliente, las unidades y de quién es la etiqueta, con la pregunta "¿Marcar preparado?" y los botones **"Sí"** / **"No"**. Escanear la misma etiqueta otra vez también es "Sí" (cómodo con la pistola). Así se asegura que lo que compró cada cliente va en el paquete con su etiqueta.
 8. Al cerrar el último pedido, el lote se termina solo.
 
 ### Preparar un solo pedido
@@ -152,7 +152,8 @@ En la pestaña **"Etiquetas y hojas"** del lote apretá **"Reimprimir etiquetas 
 - **Faltantes**: un pedido con faltantes no se cierra solo, ni al empacar ni al terminar el lote; queda en preparación y vuelve a la lista.
 - **Preparar sin escanear**: dar un pedido por preparado sin escanear cada producto (el «preparado rápido», el botón "Preparado" y cerrar con el número o la hoja) pide el permiso "Preparar sin escanear". Escanear o escribir cada producto no lo pide. No se puede preparar así un pedido de Full, uno que espera el pago, ni un carrito de Mercado Libre en espera.
 - **Cantidad**: con "Cantidad", todas las unidades van al mismo renglón (al mismo pedido en "Empacar escaneando"); si ese renglón necesita menos, avisa y no carga nada. Con el SKU de un pack, la cantidad es de packs: carga cada componente por las unidades que lleva el pack.
-- **Lector**: acepta la pistola lectora (USB o Bluetooth, que tipea el código y Enter), escribir a mano, o la cámara del teléfono (**"📷 Cámara"**; anda en Android y en iPhone: en iPhone la primera vez carga un lector de repuesto, así que hace falta internet). Pitido agudo = bien; doble grave = error. Se acepta el código de barras o el SKU. El código de la hoja es el número de pedido (también acepta "#123" o "P123").
+- **Cerrar con la etiqueta**: un pedido que lleva etiqueta de Mercado Libre (no Full) o de OCA se cierra **sólo** escaneando su etiqueta: si se escanea la hoja, avisa "El pedido N lleva etiqueta de …: escaneá el código de barras de la etiqueta, no el de la hoja". De Mercado Libre vale el código de barras, el QR o el número de seguimiento; de OCA, el número de envío (o el código de la pieza, que lo trae adentro). Un carrito de Mercado Libre con varios pedidos lleva una sola etiqueta: escanearla cierra todos juntos ("#12 + #13"). Lo que no lleva etiqueta de transportista (retiro, envío propio, local) se cierra con el número de la hoja. Una etiqueta que no es de ningún pedido del lote avisa y no cierra nada.
+- **Lector**: acepta la pistola lectora (USB o Bluetooth, que tipea el código y Enter), escribir a mano, o la cámara del teléfono (**"📷 Cámara"**; anda en Android y en iPhone: en iPhone la primera vez carga un lector de repuesto, así que hace falta internet). Pitido agudo = bien; doble grave = error. Se acepta el código de barras o el SKU. El código de la hoja es el número de pedido (también acepta "#123" o "P123"); para cerrar en el lote, ver "Cerrar con la etiqueta".
 - **Papel**: 10 × 15 cm (la térmica de las etiquetas de Mercado Libre: etiqueta y hoja en páginas separadas) o A4 (etiqueta y hoja juntas en una sola hoja por pedido); el último elegido queda recordado.
 
 ## Preguntas frecuentes

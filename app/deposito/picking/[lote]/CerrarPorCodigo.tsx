@@ -1,8 +1,10 @@
 "use client";
 
-// Cerrar pedidos escaneando el código de barras de su hoja de preparación:
-// el lector dice qué pedido es y pregunta ahí mismo "¿Marcar preparado? Sí /
-// No". Escanear el mismo código otra vez es el "Sí" (cómodo con la pistola).
+// Cerrar pedidos escaneando el código de barras de su ETIQUETA (Mercado Libre
+// u OCA; Fer, 6/10): así se cierra el paquete que lleva la etiqueta de su
+// comprador. El lector dice qué pedido es y pregunta ahí mismo "¿Marcar
+// preparado? Sí / No". Escanear la misma etiqueta otra vez es el "Sí".
+// Los pedidos sin etiqueta de transportista se cierran con el N.º de la hoja.
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -21,7 +23,7 @@ export default function CerrarPorCodigo({ lote }: { lote: number }) {
 
   async function confirmar(p: Encontrado) {
     setMandando(true);
-    const r = await accionPreparadoPorCodigo(lote, p.id);
+    const r = await accionPreparadoPorCodigo(lote, p.ids);
     setMandando(false);
     setPregunta(null);
     setUltimo(r);
@@ -43,13 +45,13 @@ export default function CerrarPorCodigo({ lote }: { lote: number }) {
 
   return (
     <div className="space-y-2">
-      <Escaner alLeer={alLeer} placeholder="Escaneá el código de la hoja (N.º de pedido)" />
+      <Escaner alLeer={alLeer} placeholder="Escaneá el código de barras de la etiqueta (Mercado Libre u OCA)" />
       {pregunta && (
         <div className="rounded-xl border-2 border-[#16577F] bg-white p-3 flex flex-wrap items-center gap-3">
           <div className="flex-1 min-w-0">
-            <div className="text-3xl font-black text-[#16577F] leading-tight">#{pregunta.id}</div>
-            <div className="text-sm truncate">{pregunta.cliente ?? "Sin cliente"} · {pregunta.unidades} unidad{pregunta.unidades === 1 ? "" : "es"}</div>
-            <div className="text-xs text-[#5C6B76]">¿Marcar preparado? (o escaneá la hoja otra vez)</div>
+            <div className="text-3xl font-black text-[#16577F] leading-tight">{pregunta.ids.map((i) => `#${i}`).join(" + ")}</div>
+            <div className="text-sm truncate">{pregunta.cliente ?? "Sin cliente"} · {pregunta.unidades} unidad{pregunta.unidades === 1 ? "" : "es"}{pregunta.etiqueta ? ` · etiqueta de ${pregunta.etiqueta === "oca" ? "OCA" : "Mercado Libre"}` : " · sin etiqueta de transportista"}</div>
+            <div className="text-xs text-[#5C6B76]">{pregunta.ids.length > 1 ? "Carrito: van todos en este paquete. " : ""}¿Marcar preparado? (o escaneá la etiqueta otra vez)</div>
           </div>
           <button type="button" disabled={mandando} onClick={() => confirmar(pregunta)} className={`${VERDE} text-base px-5 py-3 disabled:opacity-60`}>Sí</button>
           <button type="button" onClick={() => setPregunta(null)} className={`${SUAVE} text-base px-5 py-3`}>No</button>
