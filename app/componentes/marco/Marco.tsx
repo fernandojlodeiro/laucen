@@ -139,7 +139,7 @@ function InterruptorMoneda({ moneda, oscuro }: { moneda: Moneda; oscuro?: boolea
  *  tocó); "ci" avisa que el formulario trae la caja, así /buscar guarda lo elegido. */
 function CajaInactivos({ activo }: { activo: boolean }) {
   return (
-    <label title="Incluir inactivos (productos archivados)" className="inline-flex items-center gap-0.5 text-xs text-[#5C6B76] cursor-pointer select-none shrink-0">
+    <label title={AYUDA_INACTIVOS} className="inline-flex items-center gap-0.5 text-xs text-[#5C6B76] cursor-pointer select-none shrink-0">
       <input type="hidden" name="ci" value="1" />
       <input type="checkbox" name="inactivos" value="1" defaultChecked={activo} aria-label="Incluir inactivos" className="h-3.5 w-3.5 accent-[#16577F]" />
       <span aria-hidden>🗃</span>
@@ -149,3 +149,6 @@ function CajaInactivos({ activo }: { activo: boolean }) {
 
 /** Cómo busca el buscador de arriba (Fer, 6/10), para el globito. */
 const AYUDA_BUSCAR = "Busca lo que escribís tal cual, entero (con sus espacios), en cualquier parte. Para buscar varias cosas a la vez, separalas con ? — por ejemplo SKU1340?SKU1341 trae lo que tenga una o la otra.";
+
+/** Cuándo salen los inactivos (Fer, 6/10), para el globito de la cajita 🗃. */
+const AYUDA_INACTIVOS = "Incluir inactivos (productos archivados). Sin tildar, los inactivos aparecen sólo cuando lo único que coincide es inactivo. Tildada, aparecen siempre. Queda como la dejes.";

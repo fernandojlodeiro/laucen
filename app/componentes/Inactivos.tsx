@@ -6,9 +6,9 @@
 export const verInactivos = (sp: { inactivos?: string | string[] }) => sp.inactivos === "1";
 
 /** La caja para tildar (va adentro del <form> del buscador). */
-export function MostrarInactivos({ activo }: { activo: boolean }) {
+export function MostrarInactivos({ activo, ayuda }: { activo: boolean; ayuda?: string }) {
   return (
-    <label className="inline-flex items-center gap-1.5 text-xs text-[#5C6B76] py-1.5 whitespace-nowrap">
+    <label title={ayuda} className="inline-flex items-center gap-1.5 text-xs text-[#5C6B76] py-1.5 whitespace-nowrap">
       <input type="checkbox" name="inactivos" value="1" defaultChecked={activo} className="h-4 w-4 accent-[#16577F]" />
       Mostrar inactivos
     </label>
