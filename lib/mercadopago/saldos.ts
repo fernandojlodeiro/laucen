@@ -133,26 +133,46 @@ async function disponible(token: string, intentos: Intento[]): Promise<{ disponi
   return { disponible: resultado, pedido, muestra: muestraReporte };
 }
 
-/** El saldo de un Reporte de Liquidaciones (CSV): el BALANCE_AMOUNT de la
- *  última fila que lo tenga (o la fila de saldo disponible / total). */
+/** Parte una línea de CSV respetando las comillas (un texto entre comillas
+ *  puede tener el separador adentro; "" es una comilla). */
+export function partirCsv(linea: string, sep: string): string[] {
+  const salida: string[] = [];
+  let actual = "", entre = false;
+  for (let i = 0; i < linea.length; i++) {
+    const ch = linea[i];
+    if (entre) {
+      if (ch === '"' && linea[i + 1] === '"') { actual += '"'; i++; }
+      else if (ch === '"') entre = false;
+      else actual += ch;
+    } else if (ch === '"') entre = true;
+    else if (ch === sep) { salida.push(actual.trim()); actual = ""; }
+    else actual += ch;
+  }
+  salida.push(actual.trim());
+  return salida;
+}
+
+/** El saldo de un Reporte de Liquidaciones (CSV): el BALANCE_AMOUNT del
+ *  último movimiento (con fecha). La fila de totales del final (sin fecha,
+ *  RECORD_TYPE "total") no cuenta: trae el saldo en cero. */
 export function saldoDelReporte(csv: string, archivo: string): Numeros["disponible"] {
   const filas = csv.split(/\r?\n/).filter((l) => l.trim());
   if (filas.length < 2) return null;
   const sep = filas[0].includes(";") ? ";" : ",";
-  const partir = (l: string) => l.split(sep).map((x) => x.replace(/^"|"$/g, "").trim());
-  const cab = partir(filas[0]).map((h) => h.toUpperCase());
+  const cab = partirCsv(filas[0], sep).map((h) => h.toUpperCase());
   const iSaldo = cab.findIndex((h) => h === "BALANCE_AMOUNT" || h.includes("SALDO"));
   const iTipo = cab.findIndex((h) => h === "RECORD_TYPE");
   const iFecha = cab.findIndex((h) => h === "DATE" || h === "FECHA");
   if (iSaldo < 0) return null;
   let monto: number | null = null, al: string | null = null;
   for (const l of filas.slice(1)) {
-    const c = partir(l);
-    const v = Number((c[iSaldo] ?? "").replace(/\s/g, ""));
-    if (c[iSaldo] === "" || !Number.isFinite(v)) continue;
+    const c = partirCsv(l, sep);
     const tipo = iTipo >= 0 ? (c[iTipo] ?? "").toLowerCase() : "";
-    if (tipo === "available_balance" || tipo === "total") { monto = v; al = iFecha >= 0 ? c[iFecha] || al : al; continue; }
-    monto = v; al = iFecha >= 0 ? c[iFecha] || al : al;
+    const fecha = iFecha >= 0 ? c[iFecha] ?? "" : "";
+    if (tipo === "total" || (iFecha >= 0 && !fecha)) continue;
+    const v = Number((c[iSaldo] ?? "").replace(/\s/g, ""));
+    if (c[iSaldo] === "" || c[iSaldo] == null || !Number.isFinite(v)) continue;
+    monto = v; al = fecha || al;
   }
   return monto == null ? null : { monto: redondo(monto), al, reporte: archivo };
 }
