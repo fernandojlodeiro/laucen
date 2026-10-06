@@ -29,11 +29,19 @@ export async function entrarErp(permiso: PermisoKey): Promise<Sesion & { moneda:
 /** El encabezado de toda pantalla: el camino arriba a la izquierda (sección ›
  *  pantalla, de lib/menu.ts; una ficha suma sus partes en `camino`), el
  *  título, y a la derecha las acciones (el botón "Nuevo …" va acá). */
+/** Todas las pantallas un 20 % más anchas (Fer, 6/10): cada ancho de Tailwind se cambia por su
+ *  equivalente +20 % (escrito entero, así Tailwind lo encuentra). Un ancho que no está acá queda igual. */
+const MAS_ANCHO: Record<string, string> = {
+  "max-w-xl": "max-w-[43rem]", "max-w-2xl": "max-w-[50rem]", "max-w-3xl": "max-w-[58rem]", "max-w-4xl": "max-w-[67rem]",
+  "max-w-5xl": "max-w-[77rem]", "max-w-6xl": "max-w-[86rem]", "max-w-7xl": "max-w-[96rem]",
+  "max-w-[1400px]": "max-w-[1680px]", "max-w-[1500px]": "max-w-[1800px]",
+};
+
 export function Pantalla({ titulo, subtitulo, acciones, camino, children, ancho = "max-w-6xl" }: {
   titulo: React.ReactNode; subtitulo?: React.ReactNode; acciones?: React.ReactNode; camino?: Paso[]; children: React.ReactNode; ancho?: string;
 }) {
   return (
-    <main className={`${ancho} mx-auto p-4 sm:p-6`}>
+    <main className={`${MAS_ANCHO[ancho] ?? ancho} mx-auto p-4 sm:p-6`}>
       <header className="flex flex-wrap items-end justify-between gap-2 mb-4">
         <div>
           <Suspense fallback={null}><Recorrido /></Suspense>

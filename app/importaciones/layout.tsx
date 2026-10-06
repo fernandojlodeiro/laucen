@@ -8,7 +8,7 @@ export const metadata = { title: "Importaciones", robots: { index: false, follow
 
 export default function ImportacionesLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="max-w-6xl mx-auto p-4 sm:p-6">
+    <main className="max-w-[86rem] mx-auto p-4 sm:p-6">
       <Link href="/panel" className={`inline-block mb-2 ${SUAVE}`}>← Panel</Link>
       <h1 className="text-lg font-bold">🚢 Importaciones</h1>
       <p className="text-xs text-[#5C6B76] mb-3">Despachos de importación argentinos (ARCA), enriquecidos con Softrade</p>
