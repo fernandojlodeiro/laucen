@@ -15,7 +15,8 @@ import { condicionIva, documentoValido, normalizarCuit } from "@/lib/clientes";
 
 export const ESTADOS_PEDIDO = {
   nuevo: "Nuevo",
-  pagado: "Pagado",
+  // Pagado y esperando que lo preparen: se muestra «A preparar» (Fer, 6/10); el pago se ve aparte.
+  pagado: "A preparar",
   en_preparacion: "En preparación",
   preparado: "Preparado",
   despachado: "Despachado",

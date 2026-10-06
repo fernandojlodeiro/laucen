@@ -105,7 +105,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
   // Carrito de ML en espera (10 min desde su último evento): nada se toca todavía.
   const espera = carritoEnEspera({ carrito_ultimo_evento_ts: ml?.espera_ts ?? null });
   const LOGISTICA: Record<string, string> = { oca: "OCA", fulfillment: "Full", self_service: "Flex", cross_docking: "Colecta", xd_drop_off: "Colecta", drop_off: "Despacho en correo", custom: "A convenir", not_specified: "A convenir" };
-  const ESTADO_ENVIO: Record<string, string> = { ready_to_ship: "Etiqueta lista", shipped: "En camino", delivered: "Entregado", not_delivered: "No entregado", cancelled: "Cancelado", returned: "Devuelto", pending: "Pendiente", handling: "En preparación" };
+  const ESTADO_ENVIO: Record<string, string> = { ready_to_ship: "Etiqueta lista", shipped: "En camino", delivered: "Recibido por el cliente", not_delivered: "No entregado", cancelled: "Cancelado", returned: "Devuelto", pending: "Pendiente", handling: "En preparación" };
   const fechaCorta = (d: Date | null) => d ? d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
 
   // Facturación: los comprobantes del pedido y si se puede facturar.
@@ -213,9 +213,9 @@ export default async function DetallePedido({ params, searchParams }: { params: 
                   return (
                     <>
                       {hito("Etiqueta impresa", envioMl.impresa)}
-                      {hito("Lista para despachar", envioMl.lista)}
+                      {hito("Lista para preparar", envioMl.lista)}
                       {hito("En camino", envioMl.en_camino)}
-                      {hito("Entregado", envioMl.entregado)}
+                      {hito("Recibido por el cliente", envioMl.entregado)}
                       {envioMl.no_entregado && <Dato t="No entregado"><Estado texto={fechaCorta(envioMl.no_entregado)} tono="rojo" /></Dato>}
                       {envioMl.devuelto && <Dato t="Devuelto"><Estado texto={fechaCorta(envioMl.devuelto)} tono="rojo" /></Dato>}
                       {envioMl.cancelado && <Dato t="Cancelado"><Estado texto={fechaCorta(envioMl.cancelado)} tono="rojo" /></Dato>}

@@ -48,7 +48,7 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
         <div><span className={ETIQUETA}>Estado</span>
           <FiltroVivo key={`e${estado}`} parametro="estado" valor={estado} etiqueta="Estado" limpiar={["p"]}>
             <option value="">Todos</option>
-            <option value="pendientes">Pendientes (nuevo + pagado)</option>
+            <option value="pendientes">Pendientes (nuevo + a preparar)</option>
             {Object.entries(ESTADOS_PEDIDO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </FiltroVivo></div>
         <div><span className={ETIQUETA}>Canal</span>

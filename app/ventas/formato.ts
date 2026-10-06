@@ -17,10 +17,10 @@ export function fechaHora(d: Date | string | null | undefined): string {
   return new Date(d).toLocaleString("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-type Tono = "verde" | "gris" | "amarillo" | "rojo" | "azul" | "ambar";
+type Tono = "verde" | "gris" | "amarillo" | "rojo" | "azul" | "ambar" | "naranja";
 
 export const TONO_ESTADO: Record<EstadoPedido, Tono> = {
-  nuevo: "azul", pagado: "amarillo", en_preparacion: "amarillo", preparado: "amarillo",
+  nuevo: "azul", pagado: "naranja", en_preparacion: "amarillo", preparado: "amarillo",
   despachado: "azul", entregado: "verde", cancelado: "rojo", devuelto: "gris",
 };
 

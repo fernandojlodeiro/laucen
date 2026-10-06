@@ -35,7 +35,7 @@ Los pedidos de Mercado Libre **entran solos** y se mueven solos según lo que pa
 **Filtros** (todos aplican al momento, sin botón "Filtrar"):
 
 - **"Buscar"** (cuadro "Nº, cliente, producto, canal, factura…"): busca en todo lo que se ve en la pantalla —Nº, id externo, canal, estado, los productos (título y SKU), el número de la factura— y además en el medio de pago, el código de seguimiento, las notas y todos los datos del cliente (N.º, nombre, razón social, mail, apodo de ML, documento, CUIT, teléfonos, notas). Busca en cualquier parte del texto (no tiene "Comienza por"). **Si escribís el número de un pedido** (el de Laucen, con o sin "#", o el número de venta de Mercado Libre), ese pedido aparece siempre, aunque los filtros lo dejarían afuera.
-- **"Estado"**: **"Todos"** (de entrada), **"Pendientes (nuevo + pagado)"** o un estado puntual (Nuevo, Pagado, En preparación, Preparado, Despachado, Entregado, Cancelado, Devuelto).
+- **"Estado"**: **"Todos"** (de entrada), **"Pendientes (nuevo + a preparar)"** o un estado puntual (Nuevo, **A preparar**, En preparación, Preparado, Despachado, Entregado, Cancelado, Devuelto).
 - **"Canal"**: todos o uno.
 - **"Pago"**: Pendiente, Pagado, A cobrar, A convenir, Reembolsado.
 - **"Fechas"**: rango con atajos (Hoy, Ayer, Últimos 7 días…) o **"Todas las fechas"**. **De entrada, la última semana** ("Últimos 7 días"). Si se entra con un estado elegido (por ejemplo desde el contador "Pedidos a preparar") o desde un cliente, sin fechas: todas.
@@ -82,7 +82,7 @@ Título "Pedido 1234 · id externo", con el canal y la fecha y hora debajo. Bloq
 
 1. **Cabecera**: Estado (y la marca de carrito en espera, con un recuadro que explica desde qué hora se puede tocar), Pago (con el medio), el cartel **"A COBRAR $ …"** si corresponde, Total (y "cargado en dólares/pesos" si se cargó en la otra moneda), Depósito (o "no mueve stock"), Cliente (con documento y mail), Canal, Fecha, Unidades y Notas.
 2. **"Líneas"**: SKU (enlace al producto, con su foto si tiene), Título (en un carrito de Mercado Libre con varias órdenes, debajo dice "Orden ML …"), Cantidad, Lista, Descuento, Unitario, Subtotal y el Total.
-3. **"Envío"**: si es de Mercado Envíos, Logística (Full, Flex, Colecta, Despacho en correo, A convenir), Estado del envío, "Despachar antes de", "Entrega estimada", las fechas del envío según Mercado Libre (**"Etiqueta impresa"**, **"Lista para despachar"**, **"En camino"**, **"Entregado"**: en verde con la fecha y hora cuando pasó, **"Pendiente"** en amarillo mientras no; "No entregado", "Devuelto" o "Cancelado" en rojo si pasó). "Despachar antes de" es el plazo que figura en la etiqueta (en azul; en rojo si ya venció sin despachar), "Recibe", "Seguimiento" y "Dirección". Si no, los datos de entrega cargados ("Sin datos de envío." si no hay). En los pedidos que no son de Mercado Libre y tienen dirección con código postal, el botón **"🚚 Despachar por OCA"**; ya dado de alta en OCA, el número de envío, **"🖨 Etiqueta de OCA"**, **"↻ Actualizar seguimiento"**, **"Anular en OCA"** (mientras no salió) y los últimos movimientos que informó OCA. Ver [OCA](/config/envios/oca). Debajo, la **"Comisión de Mercado Libre"** (y el número de carrito) y, en rojo, el aviso si tiene artículos sin vincular.
+3. **"Envío"**: si es de Mercado Envíos, Logística (Full, Flex, Colecta, Despacho en correo, A convenir), Estado del envío, "Despachar antes de", "Entrega estimada", las fechas del envío según Mercado Libre (**"Etiqueta impresa"**, **"Lista para preparar"**, **"En camino"**, **"Recibido por el cliente"**: en verde con la fecha y hora cuando pasó, **"Pendiente"** en amarillo mientras no; "No entregado", "Devuelto" o "Cancelado" en rojo si pasó). "Despachar antes de" es el plazo que figura en la etiqueta (en azul; en rojo si ya venció sin despachar), "Recibe", "Seguimiento" y "Dirección". Si no, los datos de entrega cargados ("Sin datos de envío." si no hay). En los pedidos que no son de Mercado Libre y tienen dirección con código postal, el botón **"🚚 Despachar por OCA"**; ya dado de alta en OCA, el número de envío, **"🖨 Etiqueta de OCA"**, **"↻ Actualizar seguimiento"**, **"Anular en OCA"** (mientras no salió) y los últimos movimientos que informó OCA. Ver [OCA](/config/envios/oca). Debajo, la **"Comisión de Mercado Libre"** (y el número de carrito) y, en rojo, el aviso si tiene artículos sin vincular.
 4. **"Historial de estados"**: fecha, cambio ("Pagado → **En preparación**"), quién (o "Sistema") y nota.
 5. **"Cargos de Mercado Libre"** (sólo si ya están): la venta, cada cargo restado por tipo y el **"Neto de Mercado Libre"**; aparte, las retenciones y percepciones.
 6. **"Operación"** (sólo pedidos que **no** son de Mercado Libre): ver más abajo.
@@ -131,7 +131,7 @@ Errores típicos: "Elegí el cliente (o marcá «Consumidor final»).", "Línea 
 1. Abrí la ficha del pedido.
 2. En **"Operación"**, elegí en **"Pagó con"** el medio.
 3. Apretá **"Confirmar pago de $ …"**. Aviso: "Pago confirmado: el pedido quedó pagado."
-4. Si el pedido estaba Nuevo, pasa a **Pagado** y se reserva el stock. Si era «A cobrar» y ya venía avanzando (en preparación, preparado…), el estado no cambia: sólo el pago queda Pagado, y desde ahí se puede facturar.
+4. Si el pedido estaba Nuevo, pasa a **A preparar** (pagado) y se reserva el stock. Si era «A cobrar» y ya venía avanzando (en preparación, preparado…), el estado no cambia: sólo el pago queda Pagado, y desde ahí se puede facturar.
 
 ### Entregar y cobrar un pedido «A cobrar» que retira el cliente
 
@@ -195,6 +195,8 @@ Un mismo pedido nunca se duplica: si llega dos veces con el mismo id externo en 
 
 ### Estados del pedido y cómo pasan
 
+El estado «pagado y esperando que lo preparen» se muestra como **A preparar**, en naranja (distinto del amarillo de En preparación y Preparado). Que esté pago se ve aparte, en la columna Pago (✓).
+
 Los estados, en orden: **Nuevo → Pagado → En preparación → Preparado → Despachado → Entregado**. Aparte: **Cancelado** y **Devuelto**.
 
 - **Sólo se avanza**, nunca se vuelve atrás (por ejemplo, un Despachado no puede volver a Pagado). Se puede saltar estados hacia adelante.
@@ -206,7 +208,7 @@ Los estados, en orden: **Nuevo → Pagado → En preparación → Preparado → 
 
 | Paso | Pedido de Mercado Libre | Otros canales |
 |---|---|---|
-| → **Pagado** | solo, cuando Mercado Libre informa que todas las órdenes del carrito que siguen en pie están pagas | al confirmar el pago (**"Confirmar pago"**, o el pago online de la tienda); con **"Cuenta corriente"** pasa a Pagado al crearse |
+| → **A preparar** (pagado) | solo, cuando Mercado Libre informa que todas las órdenes del carrito que siguen en pie están pagas | al confirmar el pago (**"Confirmar pago"**, o el pago online de la tienda); con **"Cuenta corriente"** pasa a A preparar al crearse |
 | → **En preparación** | [Picking](/deposito/picking), al armar el lote | Picking, o el botón **"En preparación"** |
 | → **Preparado** | Picking, al terminar | Picking, o el botón **"Preparado"** |
 | → **Despachado** | solo, cuando Mercado Envíos marca el envío "en camino" | botón **"Despachado"** |
@@ -229,7 +231,7 @@ Los pedidos de Mercado Libre **no tienen botones de estado** en la ficha: los mu
 
 ### Reservas de stock: cuándo se aparta y cuándo se descuenta
 
-- **Al pasar a Pagado** (o al saltearlo hacia un estado posterior) el pedido **reserva** su stock: lo aparta para que no se venda dos veces. El disponible baja, pero las unidades siguen en el estante.
+- **Al pasar a A preparar** (o al saltearlo hacia un estado posterior) el pedido **reserva** su stock: lo aparta para que no se venda dos veces. El disponible baja, pero las unidades siguen en el estante.
 - **Al llegar a Despachado** (o directamente a Entregado), la reserva se convierte en **venta**: ahí sale del stock.
 - **Al cancelar o devolver**, se **libera** lo que siga reservado (vuelve a estar disponible). Lo que ya se había vendido (un pedido despachado) no vuelve solo: la mercadería que regresa entra por la recepción de la devolución.
 - **De qué depósito sale**: el que tenga el pedido; si no tiene, el primer depósito activo asignado al canal (por prioridad); si el canal no tiene, el primer depósito activo de la organización (los propios primero). Las ventas de Mercado Libre por **Full** salen del depósito Full del canal.
@@ -289,7 +291,7 @@ Si una venta de Mercado Libre trae un artículo que no está vinculado a un prod
 - **Qué tipo de factura**: si la empresa no es Responsable Inscripta, **C**. Si es Responsable Inscripta: **A** si el cliente es Responsable Inscripto o Monotributista (y entonces el cliente **necesita CUIT**), **B** para el resto (consumidor final, exento…). Un cliente sin condición de IVA cargada se toma como consumidor final.
 - **Documento del receptor**: el CUIT si tiene 11 dígitos; si no, el DNI (7 u 8 dígitos); si no hay ninguno, consumidor final sin identificar.
 - **Líneas**: las del pedido, con el IVA de cada producto (21 % si el producto no tiene otro). El **costo de envío** que pagó el comprador va como una línea más "Envío", con IVA 21 %. En una factura C no se discrimina IVA.
-- **Facturación automática**: si está prendida en [Facturación (ARCA)](/config/arca), cada pedido se factura solo al llegar al estado elegido ahí (**Pagado**, **Preparado** o **Despachado**). Al prenderla no se facturan los pedidos que ya habían pasado. Los «A cobrar» esperan al cobro.
+- **Facturación automática**: si está prendida en [Facturación (ARCA)](/config/arca), cada pedido se factura solo al llegar al estado elegido ahí (**Pagado**, que en la lista se ve como «A preparar»; **Preparado** o **Despachado**). Al prenderla no se facturan los pedidos que ya habían pasado. Los «A cobrar» esperan al cobro.
 - Un comprobante que quedó con error se reintenta solo, hasta 5 veces.
 - **Subida a Mercado Libre**: la factura de una venta de Mercado Libre se sube sola a la venta si el canal tiene prendido "Subir facturas a Mercado Libre" (es un clic de Fer en la configuración del canal); si no, con el botón **"Subir factura a Mercado Libre"** de la ficha. Todo sale por la [cola de Mercado Libre](/config/canales/cola). Una factura ya subida no se vuelve a subir.
 - Estados de "Factura en ML": **Subida a ML** (✓), **Pendiente de subir**, **Subiendo** o **Preparada, falta tu clic** (⏳), **Con error** (⚠), **Falta subirla** o **No se subió (descartada)** (○).
