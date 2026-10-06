@@ -488,6 +488,7 @@ alter table meli_moderacion enable row level security;
 select erp_politica_org('meli_moderacion');
 
 -- Mercado Pago de cada cuenta de ML (Fer, 6/10). Sólo lectura.
+-- (En desuso desde la conexión por OAuth, mp_conexion; se puede borrar.)
 -- Llave de Mercado Pago propia de la cuenta (opcional): si la conexión de
 -- Mercado Libre no alcanza para leer algo de Mercado Pago, se usa ésta.
 -- Nunca se muestra (sólo si hay o no).
@@ -513,3 +514,46 @@ create table if not exists mp_saldo (
 create index if not exists mp_saldo_canal on mp_saldo (canal_id, leido_ts desc);
 alter table mp_saldo enable row level security;
 select erp_politica_org('mp_saldo');
+
+-- Conexión con Mercado Pago (Fer, 6/10): como la de Mercado Libre, con el
+-- botón "Conectar Mercado Pago" de cada canal (OAuth). Toda cuenta de
+-- Mercado Pago conectada va con al menos un canal; una misma cuenta puede ir
+-- en varios canales (ej. la de la tienda web y la de una cuenta de ML), y
+-- en los saldos cuenta una sola vez.
+-- La aplicación de Mercado Pago de Laucen (una sola, para todas las
+-- organizaciones): la carga Fer en /admin/mercadopago. Nunca se muestra.
+create table if not exists plataforma_mp (
+  id               int primary key default 1 check (id = 1),
+  client_id        text not null,
+  client_secret    text not null,
+  actualizado_ts   timestamptz not null default now()
+);
+alter table plataforma_mp enable row level security;
+
+create table if not exists mp_conexion (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  mp_user_id       bigint not null,
+  nombre           text,
+  email            text,
+  access_token     text not null,
+  refresh_token    text,
+  expira_el        timestamptz not null,
+  estado           text not null default 'activa' check (estado in ('activa', 'desconectada')),
+  ultimo_error     text,
+  creado_ts        timestamptz not null default now(),
+  actualizado_ts   timestamptz not null default now(),
+  unique (organizacion_id, mp_user_id)
+);
+alter table mp_conexion enable row level security;
+
+create table if not exists canal_mp (
+  canal_id         bigint primary key references canal(id) on delete cascade,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  conexion_id      bigint not null references mp_conexion(id) on delete cascade
+);
+alter table canal_mp enable row level security;
+
+-- Las lecturas de saldo pasan a ser por cuenta de Mercado Pago.
+alter table mp_saldo add column if not exists conexion_id bigint references mp_conexion(id) on delete cascade;
+alter table mp_saldo alter column canal_id drop not null;

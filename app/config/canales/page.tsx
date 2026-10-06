@@ -22,6 +22,7 @@ import InterruptorConfirmar from "./InterruptorConfirmar";
 import { accionSincronizarStock, accionSubirFacturas, accionSincronizarPrecios } from "./acciones-ml";
 import { sembrarEjemploCanales, canalesDeEjemplo } from "./ejemplo";
 import CuentaMl from "./CuentaMl";
+import CuentaMp from "./CuentaMp";
 import { AccionesExcel } from "@/app/listas/piezas";
 import { LISTA_CANALES } from "./lista";
 import {
@@ -281,6 +282,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
           </section>
 
           {elegido.tipo === "mercadolibre" && <CuentaMl org={s.org.id} canal={elegido.id} />}
+          <CuentaMp org={s.org.id} canal={elegido.id} />
 
           <section className={CAJA}>
             <h2 className="text-sm font-bold mb-1">Llave API</h2>

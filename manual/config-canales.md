@@ -52,7 +52,16 @@ Debajo de la lista aparecen las cajas del canal elegido (su fila queda resaltada
 
 1. **Depósitos de "…"**: la tabla **Depósito / Prioridad**, con el botón **"Agregar depósito"** (si quedan depósitos activos que el canal no usa). Cada fila tiene el lápiz "Cambiar la prioridad" y el tacho ("¿Quitar?"). Un depósito archivado se marca "Archivado: no suma". Si no quedan depósitos para agregar, el enlace "Crear uno" lleva a [Depósitos y ubicaciones](/stock/depositos).
 2. **Cuenta de Mercado Libre** (sólo canales tipo Mercado Libre). Ver más abajo.
-3. **Llave API**: si tiene, "Tiene llave (no se muestra)." con los botones **"Generar otro"** y **"Revocar"**; si no tiene, "Sin llave: nadie puede usar la API con este canal." y el botón **"Generar llave"**.
+3. **Cuenta de Mercado Pago** (en todos los canales). Ver más abajo.
+4. **Llave API**: si tiene, "Tiene llave (no se muestra)." con los botones **"Generar otro"** y **"Revocar"**; si no tiene, "Sin llave: nadie puede usar la API con este canal." y el botón **"Generar llave"**.
+
+### Caja "Cuenta de Mercado Pago"
+
+Toda cuenta de Mercado Pago que se conecta a Laucen va con un canal (de Mercado Libre, la tienda web minorista o mayorista, etc.). Una misma cuenta puede ir en varios canales: por ejemplo, la que cobra en la web y la de una cuenta de Mercado Libre.
+
+- Sin cuenta: el botón **"Conectar Mercado Pago"** (Mercado Pago pide entrar con la cuenta que querés conectar y aprobar a Laucen; al volver queda conectada) y, si hay cuentas ya conectadas en otros canales, **"Usar la ya conectada: …"**. Mercado Pago conecta la cuenta con la que estés logueado en el navegador: para conectar otra, cerrá antes esa sesión o usá una ventana privada.
+- Con cuenta: su nombre, "Conectada" en verde (o "Desconectada" en rojo con **"Volver a conectar"**), **"Sacarla del canal"** (pregunta Sí / No; si la cuenta no queda en ningún otro canal, se borra la conexión), en qué otros canales está y el enlace a sus números en [Mercado Pago](/administracion/mercadopago).
+- Laucen sólo **lee** (saldos, cobros, liberaciones): no mueve plata. La llave de la cuenta nunca se ve y se renueva sola.
 
 ### Caja "Cuenta de Mercado Libre"
 

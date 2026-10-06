@@ -2,7 +2,7 @@
 titulo: Herramientas internas
 menu: Coordinación › Bitácora · Para probar · Mercado Libre · Costos ML · Ventas ML por categoría · China — pruebas · Piloto · Diagnóstico · Limpieza de datos
 ruta: /admin/bitacora
-rutas: /admin/bitacora, /admin/para-probar, /admin/meli, /admin/meli/apify, /admin/costos-ml, /admin/ventas-ml, /admin/china, /admin/piloto, /admin/piloto/[id], /admin/piloto/[id]/revision, /admin/piloto/[id]/validacion, /admin/diagnostico, /admin/limpieza, /admin/limpieza/ajustes, /admin/limpieza/sin-publicacion
+rutas: /admin/bitacora, /admin/para-probar, /admin/meli, /admin/meli/apify, /admin/mercadopago, /admin/costos-ml, /admin/ventas-ml, /admin/china, /admin/piloto, /admin/piloto/[id], /admin/piloto/[id]/revision, /admin/piloto/[id]/validacion, /admin/diagnostico, /admin/limpieza, /admin/limpieza/ajustes, /admin/limpieza/sin-publicacion
 permiso: fer
 resumen: Herramientas internas sólo de Fer: bitácora y "para probar" (coordinación con las sesiones de Claude), conexión y bancos de prueba de Mercado Libre y Apify, costos de vender en ML, ventas por categoría, pruebas de búsqueda en China, el piloto ML → China → juez y el diagnóstico de la base.
 ---
@@ -66,6 +66,10 @@ Título "Mercado Libre — qué trae la API". Cinco bloques:
 5. **Leer la página con Apify**: hasta 5 links o códigos (MLA… / MLAU…), uno por renglón, y el botón **Leer** ("Leyendo… (uno o dos minutos)"). Debajo, la tabla de las últimas corridas: **Corrida**, **Páginas**, **Costo final USD**, **Por página**, y el desglose del cobro.
 
 Abajo de todo, el resultado: una línea por cada consulta a la API, con el código de respuesta (verde si salió bien, rojo si no) y el contenido desplegable.
+
+### Aplicación de Mercado Pago (/admin/mercadopago)
+
+La aplicación de Mercado Pago de Laucen, una sola para todo el sistema: con ella cada organización conecta sus cuentas de Mercado Pago desde [Canales](/config/canales) ("Conectar Mercado Pago"). Muestra si está cargada y la **URL de redireccionamiento** que hay que poner en la aplicación de Mercado Pago (en developers de Mercado Pago), y dos campos: **Client ID** y **Client Secret**, que se graban con **"Grabar"** (arriba a la derecha) y nunca se vuelven a mostrar.
 
 ### Apify — scrapers de Mercado Libre
 

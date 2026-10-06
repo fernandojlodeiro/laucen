@@ -1,168 +1,146 @@
-// Administración → Mercado Pago (Fer, 6/10): el saldo de Mercado Pago de cada
-// cuenta de Mercado Libre, leído en este momento (cada vez que se abre o con
-// "Actualizar"): total, disponible, a liberar y todos los desgloses que mande
-// Mercado Pago, una columna por cuenta y una de total. Debajo, cómo se
-// conectó cada una (o por qué no) y la llave de Mercado Pago propia de cada
-// cuenta, opcional. Sólo lee: no mueve plata ni cambia nada.
+// Administración → Mercado Pago (Fer, 6/10): los números de cada cuenta de
+// Mercado Pago conectada (Configuración › Canales › "Conectar Mercado Pago"),
+// leídos al abrir o con "Actualizar": disponible, a liberar, saldo total,
+// próxima liberación y lo cobrado en los últimos 30 días; una columna por
+// cuenta y una de total. Una misma cuenta en varios canales es una columna.
+// Debajo, qué contestó Mercado Pago a cada consulta. Sólo lee.
 
 import Link from "next/link";
-import { SUAVE, VERDE } from "@/app/botones";
-import { TachoConfirmar } from "@/app/radar/Cliente";
-import { entrarErp, Pantalla, Avisos, Estado, Lapiz, TituloSeccion, CAJA, CAJA_TABLA, CAMPO, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
+import { SUAVE } from "@/app/botones";
+import { entrarErp, Pantalla, Avisos, Estado, TituloSeccion, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import { consulta } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
-import { cuentasDe } from "@/lib/mercadolibre/api";
-import { leerSaldo, ultimasLecturas, numeros, type Lectura } from "@/lib/mercadopago/saldos";
-import { accionGuardarLlaveMp, accionBorrarLlaveMp } from "./acciones";
+import { leerTodas, ultimoDisponible, type Numeros } from "@/lib/mercadopago/saldos";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const BASE = "/administracion/mercadopago";
-const hora = (d: Date) => new Date(d).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const ZONA = "America/Argentina/Buenos_Aires";
+const hora = (d: Date | string) => new Date(d).toLocaleString("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+const dia = (d: string) => new Date(d).toLocaleDateString("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit" });
+const plata = (n: number | null | undefined) => (n == null ? "—" : formatear(n, "ARS"));
 
-export default async function MercadoPago({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string; editar?: string }> }) {
+type Renglon = { titulo: string; ayuda?: string; nivel?: number; valor: (d: Numeros) => number | null | undefined; texto?: (d: Numeros) => string | null; suma?: boolean; cantidad?: boolean };
+
+const RENGLONES: Renglon[] = [
+  { titulo: "Saldo total", ayuda: "Disponible + a liberar", valor: (d) => (d.disponible && d.aLiberar ? d.disponible.monto + d.aLiberar.monto : null), suma: true },
+  { titulo: "Disponible", ayuda: "Según el último Reporte de Liquidaciones de Mercado Pago", nivel: 1, valor: (d) => d.disponible?.monto, suma: true,
+    texto: (d) => (d.disponible ? null : d.reportePedido ? "pedido a MP, actualizá en unos minutos" : null) },
+  { titulo: "A liberar", ayuda: "Cobros aprobados que todavía no se liberaron (neto)", nivel: 1, valor: (d) => d.aLiberar?.monto, suma: true },
+  { titulo: "Pagos a liberar", nivel: 2, valor: (d) => d.aLiberar?.pagos, suma: true, cantidad: true },
+  { titulo: "Se libera en los próximos 7 días", nivel: 2, valor: (d) => d.aLiberar?.en7dias, suma: true },
+  { titulo: "Próxima liberación", nivel: 2, valor: (d) => d.aLiberar?.proximaMonto, texto: (d) => (d.aLiberar?.proxima ? `${plata(d.aLiberar.proximaMonto)} el ${dia(d.aLiberar.proxima)}` : null) },
+  { titulo: "Cobrado en los últimos 30 días (bruto)", valor: (d) => d.cobrado30?.bruto, suma: true },
+  { titulo: "Pagos", nivel: 1, valor: (d) => d.cobrado30?.pagos, suma: true, cantidad: true },
+  { titulo: "Comisiones y cargos de Mercado Pago", nivel: 1, valor: (d) => (d.cobrado30 ? -d.cobrado30.comisiones : null), suma: true },
+  { titulo: "Neto recibido", nivel: 1, valor: (d) => d.cobrado30?.neto, suma: true },
+  { titulo: "Devuelto", nivel: 1, valor: (d) => (d.cobrado30 ? -d.cobrado30.devuelto : null), suma: true },
+];
+
+export default async function MercadoPago({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
   const s = await entrarErp("mercadopago_ver");
   const sp = await searchParams;
-  const cuentas = (await cuentasDe(s.org.id)).filter((c) => c.canalId);
-  const canales = new Map((await consulta<{ id: number; nombre: string }>(
-    "select id::int, nombre from canal where organizacion_id = $1 and tipo = 'mercadolibre'", [s.org.id])).map((c) => [c.id, c.nombre]));
-  const conLlave = new Set((await consulta<{ canal_id: number }>("select canal_id::int from mp_credencial where organizacion_id = $1", [s.org.id])).map((x) => x.canal_id));
-
-  // El saldo de este momento: se lee al abrir; si una cuenta no contesta, queda la última lectura guardada.
-  const anteriores = await ultimasLecturas(s.org.id);
-  const lecturas = new Map<number, Lectura & { vieja?: boolean }>();
-  await Promise.all(cuentas.map(async (c) => {
-    try { lecturas.set(c.canalId!, await leerSaldo(c)); }
-    catch (e) {
-      console.error("[mercadopago] saldo", c.id, e);
-      const v = anteriores.get(c.canalId!);
-      if (v) lecturas.set(c.canalId!, { ...v, vieja: true });
-    }
-  }));
-
-  // Los renglones: todos los números que mandó Mercado Pago, en el orden en que aparecen.
-  const porCuenta = new Map(cuentas.map((c) => [c.canalId!, numeros(lecturas.get(c.canalId!)?.datos ?? null)]));
-  const renglones = new Map<string, { titulo: string; nivel: number }>();
-  for (const m of porCuenta.values()) for (const [k, v] of m) if (!renglones.has(k)) renglones.set(k, { titulo: v.titulo, nivel: v.nivel });
-  const moneda = (c: number) => String((lecturas.get(c)?.datos as { currency_id?: string } | null)?.currency_id ?? "ARS");
-  const plata = (n: number | undefined, cur = "ARS") => (n == null ? "—" : cur === "ARS" ? formatear(n, "ARS") : `${cur} ${n.toLocaleString("es-AR", { minimumFractionDigits: 2 })}`);
-  const conDatos = cuentas.filter((c) => lecturas.get(c.canalId!)?.datos);
-  const editar = Number(sp.editar) || 0;
+  const { conexiones, lecturas } = await leerTodas(s.org.id);
+  const ultimos = await ultimoDisponible(s.org.id);
+  // Si esta lectura no trajo reporte nuevo, vale el último disponible conocido.
+  const datosDe = (id: number): Numeros => {
+    const d = lecturas.get(id)?.datos ?? {};
+    return d.disponible ? d : { ...d, disponible: ultimos.get(id) ?? null };
+  };
+  const sinConectar = await consulta<{ id: number; nombre: string }>(`
+    select c.id::int, c.nombre from canal c where c.organizacion_id = $1 and c.estado = 'activo'
+       and not exists (select 1 from canal_mp x where x.canal_id = c.id) order by c.nombre`, [s.org.id]);
 
   return (
-    <Pantalla titulo="Mercado Pago" subtitulo="El saldo de Mercado Pago de cada cuenta de Mercado Libre, leído en este momento. Sólo lectura: no mueve plata ni cambia nada."
+    <Pantalla titulo="Mercado Pago" subtitulo="Los números de cada cuenta de Mercado Pago conectada, leídos en este momento. Sólo lectura: no mueve plata ni cambia nada."
       acciones={<Link href={BASE} className={SUAVE} prefetch={false}>↻ Actualizar</Link>}>
       <Avisos sp={sp} />
 
-      <section className="mb-6">
-        <TituloSeccion titulo="Saldos" />
-        {conDatos.length === 0 && (
-          <p className={`${CAJA} text-sm text-[#C03420] mb-3`}>
-            Mercado Pago no dio el saldo de ninguna cuenta. En «Conexión» (abajo) está qué contestó cada una; si dice que falta permiso, cargá la llave de Mercado Pago de esa cuenta.
-          </p>
-        )}
-        <div className={CAJA_TABLA}>
-          <table className={TABLA}>
-            <thead className={THEAD}>
-              <tr>
-                <th className={TH}>Concepto</th>
-                {cuentas.map((c) => <th key={c.id} className={THN}>{canales.get(c.canalId!) ?? c.nickname}</th>)}
-                {cuentas.length > 1 && <th className={THN}>Total</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {renglones.size === 0 && <tr><td colSpan={cuentas.length + 2} className={`${TD} text-[#5C6B76]`}>Sin datos.</td></tr>}
-              {[...renglones].map(([k, r]) => {
-                const valores = cuentas.map((c) => porCuenta.get(c.canalId!)?.get(k)?.valor);
-                const total = valores.reduce<number>((a, v) => a + (v ?? 0), 0);
-                const principal = r.nivel === 0;
-                return (
-                  <tr key={k} className={`${TR} ${principal ? "font-semibold" : ""}`}>
-                    <td className={TD} style={{ paddingLeft: 8 + r.nivel * 16 }}>{r.titulo}</td>
-                    {cuentas.map((c, i) => <td key={c.id} className={TDN}>{plata(valores[i], moneda(c.canalId!))}</td>)}
-                    {cuentas.length > 1 && <td className={`${TDN} font-semibold`}>{plata(total)}</td>}
-                  </tr>
-                );
-              })}
-              <tr className={`${TR} text-[11px] text-[#5C6B76]`}>
-                <td className={TD}>Leído</td>
-                {cuentas.map((c) => {
-                  const l = lecturas.get(c.canalId!);
-                  return <td key={c.id} className={TDN}>{l ? <>{hora(l.leidoTs)}{l.vieja && <span className="block text-[#C03420]">(lectura anterior)</span>}</> : "—"}</td>;
+      {conexiones.length === 0 ? (
+        <p className={`${CAJA} text-sm mb-4`}>
+          Todavía no hay ninguna cuenta de Mercado Pago conectada. Se conectan desde <Link href="/config/canales" className="text-[#16577F] underline">Configuración › Canales</Link>: elegí un canal y apretá <b>“Conectar Mercado Pago”</b>.
+        </p>
+      ) : (
+        <section className="mb-6">
+          <TituloSeccion titulo="Resumen" />
+          <div className={CAJA_TABLA}>
+            <table className={TABLA}>
+              <thead className={THEAD}>
+                <tr>
+                  <th className={TH}>Concepto</th>
+                  {conexiones.map((c) => (
+                    <th key={c.id} className={THN}>{c.nombre ?? c.email ?? `Cuenta ${c.mpUserId}`}
+                      <span className="block text-[10px] font-normal text-[#5C6B76]">{c.canales.map((x) => x.nombre).join(" · ")}</span></th>
+                  ))}
+                  {conexiones.length > 1 && <th className={THN}>Total</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {RENGLONES.map((r) => {
+                  const vals = conexiones.map((c) => r.valor(datosDe(c.id)));
+                  const total = vals.some((v) => v != null) ? vals.reduce<number>((a, v) => a + (v ?? 0), 0) : null;
+                  const fmt = (v: number | null | undefined) => (v == null ? "—" : r.cantidad ? v.toLocaleString("es-AR") : plata(v));
+                  return (
+                    <tr key={r.titulo} className={`${TR} ${!r.nivel ? "font-semibold" : ""}`}>
+                      <td className={TD} style={{ paddingLeft: 8 + (r.nivel ?? 0) * 16 }} title={r.ayuda}>{r.titulo}</td>
+                      {conexiones.map((c, i) => {
+                        const t = r.texto?.(datosDe(c.id));
+                        return <td key={c.id} className={TDN}>{t ?? fmt(vals[i])}</td>;
+                      })}
+                      {conexiones.length > 1 && <td className={`${TDN} font-semibold`}>{r.suma ? fmt(total) : ""}</td>}
+                    </tr>
+                  );
                 })}
-                {cuentas.length > 1 && <td />}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p className="text-[11px] text-[#5C6B76] mt-1">
-          Cada renglón es un número que manda Mercado Pago, con su nombre en castellano cuando se conoce (si no, el original). «No disponible» es la plata cobrada que todavía no se liberó; debajo, por qué motivo.
-        </p>
-      </section>
-
-      <section className="mb-6">
-        <TituloSeccion titulo="Conexión" />
-        <div className={CAJA_TABLA}>
-          <table className={TABLA}>
-            <thead className={THEAD}><tr><th className={TH}>Cuenta</th><th className={TH}>Estado</th><th className={TH}>De dónde salió / qué contestó</th></tr></thead>
-            <tbody>
-              {cuentas.map((c) => {
-                const l = lecturas.get(c.canalId!);
-                return (
-                  <tr key={c.id} className={TR}>
-                    <td className={TD}>{canales.get(c.canalId!) ?? c.nickname}</td>
-                    <td className={TD}>{l?.datos ? <Estado texto="Leído" tono="verde" /> : <Estado texto="Sin saldo" tono="rojo" />}</td>
-                    <td className={`${TD} text-[11px]`}>
-                      {l?.fuente ?? (l?.intentos ?? []).map((x, i) => (
-                        <span key={i} className="block">{x.fuente} (llave de {x.llave === "ml" ? "Mercado Libre" : "Mercado Pago"}): {x.motivo ?? `contestó ${x.status}`}</span>
-                      ))}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section>
-        <TituloSeccion titulo="Llave de Mercado Pago de cada cuenta (opcional)" />
-        <p className="text-[11px] text-[#5C6B76] mb-2">
-          Laucen lee Mercado Pago con la conexión de Mercado Libre. Si para alguna cuenta no alcanza, cargá acá el <b>Access Token de producción</b> de su Mercado Pago (developers de Mercado Pago, con esa cuenta → tu aplicación → Credenciales productivas). Nunca se vuelve a mostrar.
-        </p>
-        <div className={CAJA_TABLA}>
-          <table className={TABLA}>
-            <thead className={THEAD}><tr><th className={TH}>Cuenta</th><th className={TH}>Llave de Mercado Pago</th><th /></tr></thead>
-            <tbody>
-              {cuentas.map((c) => editar === c.canalId ? (
-                <tr key={c.id} className={`${TR} bg-[#FAFBFC]`}>
-                  <td className={TD}>{canales.get(c.canalId!) ?? c.nickname}</td>
-                  <td className={TD} colSpan={2}>
-                    <form action={accionGuardarLlaveMp} className="flex flex-wrap items-center gap-2">
-                      <input type="hidden" name="canal" value={c.canalId!} />
-                      <input name="access_token" autoComplete="off" placeholder="APP_USR-…" className={`${CAMPO} w-96 font-mono`} autoFocus />
-                      <button className={VERDE}>Grabar</button>
-                      <Link href={BASE} className={SUAVE}>Cancelar</Link>
-                    </form>
-                  </td>
+                <tr className={`${TR} text-[11px] text-[#5C6B76]`}>
+                  <td className={TD}>Leído</td>
+                  {conexiones.map((c) => {
+                    const l = lecturas.get(c.id);
+                    const d = datosDe(c.id);
+                    return <td key={c.id} className={TDN}>{l ? hora(l.leidoTs) : "—"}{d.disponible?.al && <span className="block">disponible al {d.disponible.al.slice(0, 16).replace("T", " ")}</span>}</td>;
+                  })}
+                  {conexiones.length > 1 && <td />}
                 </tr>
-              ) : (
-                <tr key={c.id} className={TR}>
-                  <td className={TD}>{canales.get(c.canalId!) ?? c.nickname}</td>
-                  <td className={TD}>{conLlave.has(c.canalId!) ? <Estado texto="Cargada" tono="verde" /> : <span className="text-[#5C6B76]">Sin cargar</span>}</td>
-                  <td className={`${TD} text-right whitespace-nowrap`}>
-                    <span className="inline-flex gap-1">
-                      <Lapiz href={`${BASE}?editar=${c.canalId}`} />
-                      {conLlave.has(c.canalId!) && <TachoConfirmar accion={accionBorrarLlaveMp} campos={{ canal: String(c.canalId) }} pregunta="¿Borrar la llave?" />}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[11px] text-[#5C6B76] mt-1">
+            El disponible sale del Reporte de Liquidaciones que Laucen le pide a Mercado Pago (lo arma en unos minutos; se pide uno nuevo cada hora). Lo «a liberar» y lo cobrado salen de los pagos de la cuenta.
+          </p>
+        </section>
+      )}
+
+      {conexiones.length > 0 && (
+        <section className="mb-6">
+          <TituloSeccion titulo="Qué contestó Mercado Pago" />
+          <div className={CAJA_TABLA}>
+            <table className={TABLA}>
+              <thead className={THEAD}><tr><th className={TH}>Cuenta</th><th className={TH}>Estado</th><th className={TH}>Consultas</th></tr></thead>
+              <tbody>
+                {conexiones.map((c) => {
+                  const l = lecturas.get(c.id);
+                  const mal = (l?.intentos ?? []).filter((x) => x.status >= 300 || x.motivo);
+                  return (
+                    <tr key={c.id} className={TR}>
+                      <td className={TD}>{c.nombre ?? c.email ?? `Cuenta ${c.mpUserId}`}</td>
+                      <td className={TD}>{c.estado !== "activa" ? <Estado texto="Desconectada" tono="rojo" /> : mal.length ? <Estado texto="Con problemas" tono="amarillo" /> : <Estado texto="Todo leído" tono="verde" />}</td>
+                      <td className={`${TD} text-[11px]`}>{(l?.intentos ?? []).map((x, i) => (
+                        <span key={i} className={`block ${x.status >= 300 || x.motivo ? "text-[#C03420]" : "text-[#5C6B76]"}`}>{x.fuente}: {x.motivo ?? "ok"}</span>
+                      ))}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {sinConectar.length > 0 && (
+        <p className="text-[11px] text-[#5C6B76]">
+          Canales sin cuenta de Mercado Pago: {sinConectar.map((c, i) => <span key={c.id}>{i ? ", " : ""}<Link href={`/config/canales?c=${c.id}`} className="text-[#16577F] hover:underline">{c.nombre}</Link></span>)}.
+        </p>
+      )}
     </Pantalla>
   );
 }

@@ -1,160 +1,193 @@
-// Mercado Pago de cada cuenta de Mercado Libre (Fer, 6/10): el saldo de este
-// momento (total, disponible, a liberar y sus desgloses). Sólo LEE.
-//
-// La cuenta de Mercado Pago es el mismo usuario que la de Mercado Libre, así
-// que primero se prueba con la llave de la conexión de ML; si Mercado Libre
-// no la deja leer Mercado Pago, con la llave de Mercado Pago propia de la
-// cuenta (mp_credencial, se carga en la pantalla). Se prueban las dos
-// direcciones conocidas del saldo y queda anotado qué contestó cada una
-// (mp_saldo.intentos), así se ve por qué no anduvo.
-//
-// Cada lectura se guarda entera (mp_saldo.datos) para los análisis que vengan.
+// Mercado Pago de cada cuenta conectada (Fer, 6/10): los números de este
+// momento. Sólo LEE. Mercado Pago no tiene una consulta pública del saldo
+// (documentación leída por Cowork, bitácora #378), así que se arma con lo
+// que sí da con la llave de la cuenta:
+//   · A liberar: los pagos aprobados con fecha de liberación de hoy en
+//     adelante (/v1/payments/search, por money_release_date), sumando lo neto.
+//   · Cobrado en los últimos 30 días: pagos aprobados (bruto, comisiones,
+//     neto, devuelto).
+//   · Disponible: el saldo que trae el último Reporte de Liquidaciones
+//     (release_report): Laucen lo pide a Mercado Pago, que lo arma en unos
+//     minutos, y lo baja en la lectura siguiente.
+// Cada lectura se guarda entera en mp_saldo (por cuenta de Mercado Pago),
+// con los intentos, para análisis y para ver qué contestó cada consulta.
 
 import { consulta, una } from "@/lib/erp/base";
-import { tokenDeCuenta } from "@/lib/meli";
-import type { CuentaMl } from "@/lib/mercadolibre/api";
+import { conexionesDe, tokenDeConexion, mpPedir, type ConexionMp } from "@/lib/mercadopago/conexion";
 
-export type Intento = { fuente: string; llave: "ml" | "mp"; status: number; motivo?: string };
-export type Lectura = { canalId: number; leidoTs: Date; fuente: string | null; datos: Record<string, unknown> | null; intentos: Intento[] };
-
-const FUENTES = (uid: number) => [
-  { fuente: "Mercado Libre · saldo de Mercado Pago", url: `https://api.mercadolibre.com/users/${uid}/mercadopago_account/balance` },
-  { fuente: "Mercado Pago · saldo de la cuenta", url: `https://api.mercadopago.com/users/${uid}/mercadopago_account/balance` },
-];
-
-/** Lo que se prueba si no hay saldo directo (sólo lectura). */
-const PRUEBAS = [
-  { fuente: "Pagos recibidos", ruta: "/v1/payments/search?sort=date_created&criteria=desc&limit=1" },
-  { fuente: "Reporte de dinero liberado", ruta: "/v1/account/release_report/list" },
-  { fuente: "Reporte de movimientos (liquidaciones)", ruta: "/v1/account/settlement_report/list" },
-];
-const resumenPrueba = (d: unknown) => {
-  const x = d as { paging?: { total?: number }; results?: unknown[] } | unknown[] | null;
-  if (Array.isArray(x)) return `${x.length} reporte${x.length === 1 ? "" : "s"}`;
-  if (x && typeof x === "object" && "paging" in x && x.paging?.total != null) return `${x.paging.total.toLocaleString("es-AR")} pagos`;
-  return "ok";
+export type Intento = { fuente: string; status: number; motivo?: string };
+export type Numeros = {
+  aLiberar?: { monto: number; pagos: number; proxima: string | null; proximaMonto: number; en7dias: number; completo: boolean };
+  cobrado30?: { pagos: number; bruto: number; comisiones: number; neto: number; devuelto: number; completo: boolean };
+  disponible?: { monto: number; al: string | null; reporte: string } | null;
+  reportePedido?: string | null;
 };
+export type Lectura = { conexionId: number; leidoTs: Date; datos: Numeros; intentos: Intento[] };
 
-async function pedir(url: string, token: string): Promise<{ status: number; datos: unknown }> {
-  try {
-    const r = await fetch(url, { headers: { authorization: `Bearer ${token}`, accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(15_000) });
-    const texto = await r.text();
-    let datos: unknown = texto;
-    try { datos = JSON.parse(texto); } catch { /* texto */ }
-    return { status: r.status, datos };
-  } catch (e) {
-    return { status: 0, datos: { message: String(e) } };
-  }
-}
-
-/** ¿La respuesta trae algún número? (un 200 vacío no sirve). */
-const tieneNumeros = (d: unknown): boolean =>
-  typeof d === "number" || (!!d && typeof d === "object" && Object.values(d as object).some(tieneNumeros));
-
+const enc = encodeURIComponent;
+const isoAr = (d: Date) => new Date(d.getTime() - 3 * 3600_000).toISOString().replace("Z", "-03:00");
 const motivoDe = (status: number, d: unknown) => {
   const x = d as { message?: string; error?: string } | null;
   const txt = typeof d === "string" ? d.slice(0, 120) : [x?.message, x?.error].filter(Boolean).join(" · ").slice(0, 160);
-  const que = status === 401 ? "sin permiso con esta llave" : status === 403 ? "no autorizado" : status === 404 ? "no existe esa dirección"
-    : status === 0 ? "no respondió" : `contestó ${status}`;
+  const que = status === 401 ? "sin permiso (volvé a conectar la cuenta)" : status === 403 ? "no autorizado" : status === 404 ? "no existe" : status === 0 ? "no respondió" : `contestó ${status}`;
   return txt ? `${que}: ${txt}` : que;
 };
 
-/** Lee el saldo de una cuenta y guarda la lectura. */
-export async function leerSaldo(cuenta: CuentaMl): Promise<Lectura> {
-  const llaves: { llave: "ml" | "mp"; token: string }[] = [];
-  const mp = await una<{ t: string }>("select access_token t from mp_credencial where canal_id = $1 and organizacion_id = $2", [cuenta.canalId, cuenta.organizacionId]);
-  const mlTok = await tokenDeCuenta(cuenta.id);
-  if (mlTok) llaves.push({ llave: "ml", token: mlTok });
-  if (mp?.t) llaves.push({ llave: "mp", token: mp.t });
-  // La llave de Mercado Pago de la tienda web, si es de esta misma cuenta (el número del final de la llave es el usuario).
-  const web = await una<{ t: string }>(`
-    select cr.datos ->> 'access_token' t from medio_pago_credencial cr join medio_pago m on m.id = cr.medio_pago_id
-     where m.organizacion_id = $1 and m.tipo = 'mercadopago' and cr.datos ->> 'access_token' like '%-' || $2::text`, [cuenta.organizacionId, String(cuenta.meliUserId)]);
-  if (web?.t && web.t !== mp?.t) llaves.push({ llave: "mp", token: web.t });
+type Pago = {
+  id: number; status: string; date_approved?: string | null; money_release_date?: string | null; money_release_status?: string | null;
+  transaction_amount?: number; transaction_amount_refunded?: number;
+  transaction_details?: { net_received_amount?: number; total_paid_amount?: number };
+  fee_details?: { amount?: number }[];
+};
+
+/** Todos los pagos de una búsqueda (de a 100, hasta `tope`). */
+async function pagos(token: string, filtros: string, tope: number, intentos: Intento[], fuente: string): Promise<{ lista: Pago[]; completo: boolean }> {
+  const lista: Pago[] = [];
+  let total = 0;
+  for (let offset = 0; offset < tope; offset += 100) {
+    const r = await mpPedir<{ results?: Pago[]; paging?: { total?: number } }>(token, "GET", `/v1/payments/search?${filtros}&limit=100&offset=${offset}`);
+    if (r.status !== 200) { intentos.push({ fuente, status: r.status, motivo: motivoDe(r.status, r.datos) }); return { lista, completo: false }; }
+    total = r.datos.paging?.total ?? 0;
+    lista.push(...(r.datos.results ?? []));
+    if (!r.datos.results?.length || lista.length >= total) break;
+  }
+  intentos.push({ fuente, status: 200 });
+  return { lista, completo: lista.length >= total };
+}
+
+const neto = (p: Pago) => Number(p.transaction_details?.net_received_amount ?? 0);
+const redondo = (n: number) => Math.round(n * 100) / 100;
+
+/** El Reporte de Liquidaciones: si hay uno reciente, lo baja y saca el saldo;
+ *  si no hay uno de la última hora, pide uno nuevo (últimos 7 días). */
+async function disponible(token: string, intentos: Intento[]): Promise<{ disponible: Numeros["disponible"]; pedido: string | null }> {
+  const lista = await mpPedir<{ file_name?: string; date_created?: string; end_date?: string }[]>(token, "GET", "/v1/account/release_report/list");
+  if (lista.status !== 200 || !Array.isArray(lista.datos)) {
+    intentos.push({ fuente: "Reporte de Liquidaciones (lista)", status: lista.status, motivo: motivoDe(lista.status, lista.datos) });
+    return { disponible: null, pedido: null };
+  }
+  const archivos = lista.datos.filter((f) => f.file_name).sort((a, b) => String(b.date_created ?? "").localeCompare(String(a.date_created ?? "")));
+  let resultado: Numeros["disponible"] = null;
+  const ultimo = archivos[0];
+  if (ultimo?.file_name) {
+    const csv = await mpPedir<string>(token, "GET", `/v1/account/release_report/${enc(ultimo.file_name)}`);
+    if (csv.status === 200 && typeof csv.datos === "string") {
+      resultado = saldoDelReporte(csv.datos, ultimo.file_name);
+      intentos.push({ fuente: "Reporte de Liquidaciones (bajar)", status: 200, ...(resultado ? {} : { motivo: "el reporte no trae el saldo" }) });
+    } else intentos.push({ fuente: "Reporte de Liquidaciones (bajar)", status: csv.status, motivo: motivoDe(csv.status, csv.datos) });
+  }
+  // Uno nuevo si el último tiene más de una hora (Mercado Pago lo arma en unos minutos).
+  let pedido: string | null = null;
+  const viejo = !ultimo?.date_created || Date.now() - new Date(ultimo.date_created).getTime() > 3600_000;
+  if (viejo) {
+    const cuerpo = { begin_date: new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 19) + "Z", end_date: new Date().toISOString().slice(0, 19) + "Z" };
+    let r = await mpPedir(token, "POST", "/v1/account/release_report", cuerpo);
+    if (r.status === 404 || r.status === 400) {
+      // Sin configuración todavía: se crea una (español no: claves en inglés, estables) y se reintenta.
+      const conf = await mpPedir(token, "POST", "/v1/account/release_report/config", {
+        file_name_prefix: "laucen-liquidaciones", display_timezone: "GMT-03", report_translation: "en", include_withdrawal_at_end: true,
+        columns: ["DATE", "SOURCE_ID", "EXTERNAL_REFERENCE", "RECORD_TYPE", "DESCRIPTION", "NET_CREDIT_AMOUNT", "NET_DEBIT_AMOUNT", "GROSS_AMOUNT",
+          "MP_FEE_AMOUNT", "FINANCING_FEE_AMOUNT", "SHIPPING_FEE_AMOUNT", "TAXES_AMOUNT", "COUPON_AMOUNT", "BALANCE_AMOUNT", "TRANSACTION_DATE",
+          "PAYMENT_METHOD", "ORDER_ID", "SHIPPING_ID"].map((key) => ({ key })),
+      });
+      intentos.push({ fuente: "Reporte de Liquidaciones (configurar)", status: conf.status, ...(conf.status < 300 ? {} : { motivo: motivoDe(conf.status, conf.datos) }) });
+      r = await mpPedir(token, "POST", "/v1/account/release_report", cuerpo);
+    }
+    intentos.push({ fuente: "Reporte de Liquidaciones (pedir uno nuevo)", status: r.status, ...(r.status < 300 ? {} : { motivo: motivoDe(r.status, r.datos) }) });
+    if (r.status < 300) pedido = new Date().toISOString();
+  }
+  return { disponible: resultado, pedido };
+}
+
+/** El saldo de un Reporte de Liquidaciones (CSV): el BALANCE_AMOUNT de la
+ *  última fila que lo tenga (o la fila de saldo disponible / total). */
+export function saldoDelReporte(csv: string, archivo: string): Numeros["disponible"] {
+  const filas = csv.split(/\r?\n/).filter((l) => l.trim());
+  if (filas.length < 2) return null;
+  const sep = filas[0].includes(";") ? ";" : ",";
+  const partir = (l: string) => l.split(sep).map((x) => x.replace(/^"|"$/g, "").trim());
+  const cab = partir(filas[0]).map((h) => h.toUpperCase());
+  const iSaldo = cab.findIndex((h) => h === "BALANCE_AMOUNT" || h.includes("SALDO"));
+  const iTipo = cab.findIndex((h) => h === "RECORD_TYPE");
+  const iFecha = cab.findIndex((h) => h === "DATE" || h === "FECHA");
+  if (iSaldo < 0) return null;
+  let monto: number | null = null, al: string | null = null;
+  for (const l of filas.slice(1)) {
+    const c = partir(l);
+    const v = Number((c[iSaldo] ?? "").replace(/\s/g, ""));
+    if (c[iSaldo] === "" || !Number.isFinite(v)) continue;
+    const tipo = iTipo >= 0 ? (c[iTipo] ?? "").toLowerCase() : "";
+    if (tipo === "available_balance" || tipo === "total") { monto = v; al = iFecha >= 0 ? c[iFecha] || al : al; continue; }
+    monto = v; al = iFecha >= 0 ? c[iFecha] || al : al;
+  }
+  return monto == null ? null : { monto: redondo(monto), al, reporte: archivo };
+}
+
+/** Lee los números de una cuenta de Mercado Pago y guarda la lectura. */
+export async function leerCuenta(org: string, c: ConexionMp): Promise<Lectura> {
   const intentos: Intento[] = [];
-  let fuente: string | null = null;
-  let datos: Record<string, unknown> | null = null;
-  fuera: for (const { llave, token } of llaves) {
-    for (const f of FUENTES(cuenta.meliUserId)) {
-      const r = await pedir(f.url, token);
-      const ok = r.status === 200 && tieneNumeros(r.datos);
-      intentos.push({ fuente: f.fuente, llave, status: r.status, ...(ok ? {} : { motivo: motivoDe(r.status, r.datos) }) });
-      if (ok) { fuente = `${f.fuente} (llave de ${llave === "ml" ? "Mercado Libre" : "Mercado Pago"})`; datos = r.datos as Record<string, unknown>; break fuera; }
+  const datos: Numeros = {};
+  const token = await tokenDeConexion(c.id);
+  if (!token) intentos.push({ fuente: "Conexión", status: 401, motivo: "la cuenta de Mercado Pago está desconectada: volvé a conectarla desde su canal" });
+  else {
+    const ahora = new Date();
+    const [liberar, cobrado, disp] = await Promise.all([
+      pagos(token, `status=approved&sort=money_release_date&criteria=asc&range=money_release_date&begin_date=${enc(isoAr(ahora))}&end_date=${enc(isoAr(new Date(ahora.getTime() + 365 * 86400_000)))}`, 2000, intentos, "Pagos a liberar"),
+      pagos(token, `status=approved&sort=date_approved&criteria=desc&range=date_approved&begin_date=${enc(isoAr(new Date(ahora.getTime() - 30 * 86400_000)))}&end_date=${enc(isoAr(ahora))}`, 3000, intentos, "Pagos de los últimos 30 días"),
+      disponible(token, intentos),
+    ]);
+    const pend = liberar.lista.filter((p) => p.money_release_status !== "released");
+    if (intentos.some((x) => x.fuente === "Pagos a liberar" && x.status === 200)) {
+      const proximo = pend.find((p) => p.money_release_date);
+      const dia = proximo?.money_release_date?.slice(0, 10) ?? null;
+      const en7 = ahora.getTime() + 7 * 86400_000;
+      datos.aLiberar = {
+        monto: redondo(pend.reduce((a, p) => a + neto(p), 0)), pagos: pend.length, completo: liberar.completo,
+        proxima: proximo?.money_release_date ?? null,
+        proximaMonto: redondo(pend.filter((p) => p.money_release_date?.slice(0, 10) === dia).reduce((a, p) => a + neto(p), 0)),
+        en7dias: redondo(pend.filter((p) => p.money_release_date && new Date(p.money_release_date).getTime() <= en7).reduce((a, p) => a + neto(p), 0)),
+      };
     }
-  }
-  if (!llaves.length) intentos.push({ fuente: "—", llave: "ml", status: 401, motivo: "la cuenta de Mercado Libre está desconectada y no hay llave de Mercado Pago" });
-  // Sin saldo directo: qué otras cosas de Mercado Pago deja leer cada llave
-  // (pagos, reportes de dinero liberado y de movimientos), para armar el
-  // saldo con eso. Queda anotado en los intentos.
-  if (!datos) {
-    for (const { llave, token } of llaves) {
-      for (const p of PRUEBAS) {
-        const r = await pedir(`https://api.mercadopago.com${p.ruta}`, token);
-        intentos.push({ fuente: p.fuente, llave, status: r.status, motivo: r.status === 200 ? `deja leer (${resumenPrueba(r.datos)})` : motivoDe(r.status, r.datos) });
-      }
+    if (intentos.some((x) => x.fuente === "Pagos de los últimos 30 días" && x.status === 200)) {
+      const l = cobrado.lista;
+      datos.cobrado30 = {
+        pagos: l.length, completo: cobrado.completo,
+        bruto: redondo(l.reduce((a, p) => a + Number(p.transaction_amount ?? 0), 0)),
+        comisiones: redondo(l.reduce((a, p) => a + (p.fee_details ?? []).reduce((b, f) => b + Number(f.amount ?? 0), 0), 0)),
+        neto: redondo(l.reduce((a, p) => a + neto(p), 0)),
+        devuelto: redondo(l.reduce((a, p) => a + Number(p.transaction_amount_refunded ?? 0), 0)),
+      };
     }
+    datos.disponible = disp.disponible;
+    datos.reportePedido = disp.pedido;
   }
-  const fila = await una<{ leido_ts: Date }>(`
-    insert into mp_saldo (organizacion_id, canal_id, fuente, datos, intentos) values ($1, $2, $3, $4::jsonb, $5::jsonb) returning leido_ts`,
-    [cuenta.organizacionId, cuenta.canalId, fuente, datos ? JSON.stringify(datos) : null, JSON.stringify(intentos)]);
-  return { canalId: cuenta.canalId!, leidoTs: fila!.leido_ts, fuente, datos, intentos };
+  const f = await una<{ leido_ts: Date }>(`
+    insert into mp_saldo (organizacion_id, conexion_id, fuente, datos, intentos) values ($1, $2, 'mercadopago', $3::jsonb, $4::jsonb) returning leido_ts`,
+    [org, c.id, JSON.stringify(datos), JSON.stringify(intentos)]);
+  return { conexionId: c.id, leidoTs: f!.leido_ts, datos, intentos };
 }
 
-/** La última lectura de cada canal (sin volver a pedir). */
-export async function ultimasLecturas(org: string): Promise<Map<number, Lectura>> {
-  const filas = await consulta<{ canal_id: number; leido_ts: Date; fuente: string | null; datos: Record<string, unknown> | null; intentos: Intento[] }>(`
-    select distinct on (canal_id) canal_id::int, leido_ts, fuente, datos, intentos from mp_saldo
-     where organizacion_id = $1 order by canal_id, leido_ts desc`, [org]);
-  return new Map(filas.map((f) => [f.canal_id, { canalId: f.canal_id, leidoTs: f.leido_ts, fuente: f.fuente, datos: f.datos, intentos: f.intentos ?? [] }]));
+/** Lee todas las cuentas conectadas de la organización. */
+export async function leerTodas(org: string): Promise<{ conexiones: ConexionMp[]; lecturas: Map<number, Lectura> }> {
+  const conexiones = await conexionesDe(org);
+  const lecturas = new Map<number, Lectura>();
+  await Promise.all(conexiones.map(async (c) => {
+    try { lecturas.set(c.id, await leerCuenta(org, c)); }
+    catch (e) {
+      console.error("[mercadopago] lectura", c.id, e);
+      const v = await una<{ leido_ts: Date; datos: Numeros; intentos: Intento[] }>(
+        "select leido_ts, datos, intentos from mp_saldo where conexion_id = $1 order by leido_ts desc limit 1", [c.id]);
+      if (v) lecturas.set(c.id, { conexionId: c.id, leidoTs: v.leido_ts, datos: v.datos ?? {}, intentos: v.intentos ?? [] });
+    }
+  }));
+  return { conexiones, lecturas };
 }
 
-// ── De la respuesta a renglones ───────────────────────────────
-
-/** Nombres en criollo de lo que manda Mercado Pago; lo que no está acá se muestra con su nombre original. */
-const NOMBRES: Record<string, string> = {
-  total_amount: "Saldo total",
-  available_balance: "Disponible",
-  unavailable_balance: "No disponible (a liberar)",
-  unavailable_balance_by_reason: "No disponible por",
-  available_balance_by_transaction_type: "Disponible por tipo",
-  pending_amount: "Pendiente",
-  blocked_amount: "Bloqueado",
-  available_to_withdraw: "Disponible para retirar",
-};
-const MOTIVOS: Record<string, string> = {
-  dispute: "reclamos o disputas", fraud: "revisión por fraude", time_period: "plazo de liberación", payment_review: "pago en revisión",
-  restriction: "restricción de la cuenta", money_in_transit: "dinero en tránsito", collection: "cobros", shipping: "envíos",
-  mediation: "mediaciones", chargeback: "contracargos", withdraw: "retiros",
-  payment: "pagos recibidos", money_transfer: "transferencias", account_fund: "ingresos de dinero", regular_payment: "pagos",
-};
-const nombre = (k: string) => NOMBRES[k] ?? k.replace(/_/g, " ");
-const motivo = (k: string) => MOTIVOS[k] ?? k.replace(/_/g, " ");
-
-export type Renglon = { clave: string; titulo: string; nivel: number };
-
-/** Todos los números de la respuesta, en orden y con nombre: "Disponible",
- *  "No disponible por · reclamos o disputas"… Una lista de objetos se nombra
- *  por su primer texto (reason, transaction_type…). */
-export function numeros(d: unknown, base = "", nivel = 0, salida = new Map<string, { titulo: string; nivel: number; valor: number }>()) {
-  if (!d || typeof d !== "object") return salida;
-  for (const [k, v] of Object.entries(d as Record<string, unknown>)) {
-    if (k === "user_id" || k === "id") continue;
-    const clave = base ? `${base}.${k}` : k;
-    const titulo = base ? `${salida.get(base)?.titulo ?? nombre(base)} · ${nombre(k)}` : nombre(k);
-    if (typeof v === "number") salida.set(clave, { titulo, nivel, valor: v });
-    else if (Array.isArray(v)) {
-      for (const el of v) {
-        if (!el || typeof el !== "object") continue;
-        const e = el as Record<string, unknown>;
-        const etiqueta = Object.values(e).find((x) => typeof x === "string") as string | undefined;
-        for (const [k2, v2] of Object.entries(e)) {
-          if (typeof v2 !== "number") continue;
-          const c2 = `${clave}[${etiqueta ?? "?"}].${k2}`;
-          const extra = k2 === "amount" ? "" : ` (${nombre(k2)})`;
-          salida.set(c2, { titulo: `${nombre(k)} · ${motivo(etiqueta ?? "?")}${extra}`, nivel: nivel + 1, valor: v2 });
-        }
-      }
-    } else if (v && typeof v === "object") numeros(v, clave, nivel + 1, salida);
-  }
-  return salida;
+/** El último disponible conocido de cada cuenta (aunque la lectura de ahora no haya traído reporte nuevo). */
+export async function ultimoDisponible(org: string): Promise<Map<number, NonNullable<Numeros["disponible"]>>> {
+  const f = await consulta<{ conexion_id: number; d: NonNullable<Numeros["disponible"]> }>(`
+    select distinct on (conexion_id) conexion_id::int, datos -> 'disponible' d from mp_saldo
+     where organizacion_id = $1 and conexion_id is not null and jsonb_typeof(datos -> 'disponible') = 'object'
+     order by conexion_id, leido_ts desc`, [org]);
+  return new Map(f.map((x) => [x.conexion_id, x.d]));
 }
