@@ -4,6 +4,7 @@
 // (app/componentes/ElegirFamilia.tsx) pide de a poco lo que coincide.
 
 import { consulta } from "@/lib/erp/base";
+import { patronesBusqueda, sqlBusqueda, terminosBusqueda } from "@/lib/busqueda";
 
 export type FamiliaEncontrada = { id: number; nombre: string; camino: string };
 
@@ -21,23 +22,23 @@ const ARBOL = `
      where f.organizacion_id = $1 and a.nivel < 30 and not f.id = any(a.ids)
   )`;
 
-/** Hasta `limite` familias cuyo nombre o camino tiene todas las palabras
- *  escritas (en cualquier orden). Primero las que empiezan con lo escrito.
+/** Hasta `limite` familias cuyo camino (que termina en su nombre) tiene lo escrito, con la regla de
+ *  lib/busqueda.ts: tal cual, en cualquier parte; "?" separa condiciones que se cumplen todas.
+ *  Primero las que empiezan con lo escrito (la primera condición).
  *  `propias`: sólo las propias. `excluir`: saca esa familia y todo lo que
  *  cuelga de ella (para elegir padre sin armar un círculo). */
 export async function buscarFamilias(org: string, texto: string, opciones: { propias?: boolean; excluir?: number; limite?: number } = {}): Promise<FamiliaEncontrada[]> {
-  const t = texto.trim();
-  const palabras = t.split(/\s+/).filter(Boolean).slice(0, 8).map((p) => `%${p.replace(/[\\%_]/g, "\\$&")}%`);
-  const inicio = t ? `${t.replace(/[\\%_]/g, "\\$&")}%` : "%";
+  const primera = terminosBusqueda(texto)[0];
+  const inicio = primera ? `${primera.replace(/[\\%_]/g, "\\$&")}%` : "%";
   const limite = Math.min(Math.max(Math.trunc(opciones.limite ?? 50), 1), 200);
   return consulta<FamiliaEncontrada>(`${ARBOL}
     select id::int, nombre, camino from arbol
      where (not $3 or propia)
        and ($4::bigint is null or not ($4::bigint = any(ids)))
-       and (select bool_and(camino ilike p) from unnest($2::text[]) p) is not false
+       and ${sqlBusqueda("$2", ["camino"])}
      order by (nombre ilike $5) desc, (camino ilike $5) desc, nivel, camino
      limit ${limite}`,
-    [org, palabras, !!opciones.propias, opciones.excluir || null, inicio]);
+    [org, patronesBusqueda(texto), !!opciones.propias, opciones.excluir || null, inicio]);
 }
 
 /** El camino de una familia ("Padre › Hija"), o null si no existe. */

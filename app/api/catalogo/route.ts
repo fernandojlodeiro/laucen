@@ -3,7 +3,7 @@
 // tienda web. Autenticación: token del canal.
 //
 // Parámetros: ?canal= (opcional; si viene tiene que ser el del token)
-//             ?q= (busca en título, SKU, marca)  ?familia=<id>
+//             ?q= (busca en título, SKU, marca; regla de lib/busqueda.ts)  ?familia=<id>
 //             ?pagina=1  ?por_pagina=50 (máx. 200)
 // Respuesta: { canal, pagina, por_pagina, total, productos: [ { id, sku_base, titulo, descripcion, marca,
 //   familia: {id, nombre} | null, tipo, peso_g, largo_cm, ancho_cm, alto_cm, fotos: [url], cucardas: [{nombre, color}],
@@ -14,6 +14,7 @@
 import { canalDelPedido, noAutorizado, respuestaError } from "@/lib/api/canal";
 import { consulta } from "@/lib/erp/base";
 import { hoyAR } from "@/lib/moneda";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 
 export const dynamic = "force-dynamic";
 
@@ -27,13 +28,13 @@ export async function GET(req: Request) {
     }
     const pagina = Math.max(1, Number(u.searchParams.get("pagina")) || 1);
     const porPagina = Math.min(200, Math.max(1, Number(u.searchParams.get("por_pagina")) || 50));
-    const q = u.searchParams.get("q")?.trim() || null;
+    // Lo escrito, con la regla de lib/busqueda.ts (tal cual, en cualquier parte; "?" separa condiciones).
+    const q = patronesBusqueda(u.searchParams.get("q"));
     const familia = Number(u.searchParams.get("familia")) || null;
     const org = canal.organizacionId;
 
     const filtros = `p.organizacion_id = $1 and p.estado = 'activo'
-      and ($2::text is null or p.titulo ilike '%' || $2 || '%' or p.sku_base ilike $2 || '%' or p.marca ilike '%' || $2 || '%'
-           or exists (select 1 from variacion vv where vv.producto_id = p.id and vv.sku ilike $2 || '%'))
+      and ${sqlBusqueda("$2", ["p.titulo", "p.sku_base", "p.marca", { de: "select 1 from variacion vv where vv.producto_id = p.id", campos: ["vv.sku"] }])}
       and ($3::bigint is null or p.familia_id = $3)`;
     const total = (await consulta<{ n: number }>(`select count(*)::int n from producto p where ${filtros}`, [org, q, familia]))[0].n;
     const productos = await consulta(`

@@ -3,7 +3,7 @@
 // (lib/precios-ml/promos.ts, db/precios_ml.sql). Cada una sirve a la pantalla y a "Descargar Excel".
 
 import Link from "next/link";
-import { patronBusqueda } from "@/app/componentes/erp";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { hoyArgentina, rangoDeAtajo } from "@/lib/rango-fechas";
 import { ESTADOS_PROMO, QUE_PROMO, TIPOS_PROMO, descuentoPct, textoValorPromo } from "./formato";
@@ -51,8 +51,8 @@ const JOIN_PUBLICACION = (alias: string) => `
                       where m.canal_id = ${alias}.canal_id and m.item_id = ${alias}.item_id order by m.variation_id limit 1) mi on true
   left join publicacion pu on pu.id = mi.publicacion_id
   left join variacion v on v.id = pu.variacion_id`;
-const buscar = (b: string) => `(%I.item_id ilike ${b} or v.sku ilike ${b} or mi.sku ilike ${b} or mi.titulo ilike ${b} or %I.promocion_id ilike ${b} or %I.nombre ilike ${b})`;
-const condBusqueda = (alias: string, b: string) => buscar(b).replaceAll("%I", alias);
+const condBusqueda = (alias: string, b: string) =>
+  sqlBusqueda(b, [`${alias}.item_id`, "v.sku", "mi.sku", "mi.titulo", `${alias}.promocion_id`, `${alias}.nombre`]);
 
 // ── 1. Historia ────────────────────────────────────────────
 
@@ -92,7 +92,7 @@ export const LISTA_PROMO_HISTORIA: Lista = {
     if (f.grupo === "publicaciones") donde.push("h.item_id is not null");
     if (f.grupo === "precios") donde.push("(h.que = 'item_precio' or h.precio_antes is distinct from h.precio_despues)");
     if (f.tipo) donde.push(`h.tipo = ${p(f.tipo)}`);
-    if (f.q) donde.push(condBusqueda("h", p(patronBusqueda(f.q, f.comienza))));
+    if (f.q) donde.push(condBusqueda("h", p(patronesBusqueda(f.q, f.comienza))));
     return { desde: `ml_promo_historia h ${JOIN_PUBLICACION("h")}`, donde: donde.join(" and "), valores, orden: "h.fecha desc, h.id desc" };
   },
 };
@@ -143,7 +143,7 @@ export const LISTA_PROMO_PUBLICACIONES: Lista = {
     if (f.canal) donde.push(`i.canal_id = ${p(f.canal)}`);
     if (f.promo) donde.push(`i.promocion_id = ${p(f.promo)}`);
     if (f.tipo) donde.push(`i.tipo = ${p(f.tipo)}`);
-    if (f.q) donde.push(condBusqueda("i", p(patronBusqueda(f.q, f.comienza))));
+    if (f.q) donde.push(condBusqueda("i", p(patronesBusqueda(f.q, f.comienza))));
     return {
       desde: `ml_promo_item i left join ml_promo_campana cp on cp.canal_id = i.canal_id and cp.promocion_id = i.promocion_id ${JOIN_PUBLICACION("i")}`,
       donde: donde.join(" and "), valores, orden: "coalesce(i.hasta, cp.hasta) nulls last, i.item_id",
@@ -191,7 +191,7 @@ export const LISTA_PROMO_CAMPANAS: Lista = {
     else donde.push("c.estado in ('started', 'pending', 'programmed')");
     if (f.canal) donde.push(`c.canal_id = ${p(f.canal)}`);
     if (f.tipo) donde.push(`c.tipo = ${p(f.tipo)}`);
-    if (f.q) { const b = p(patronBusqueda(f.q, f.comienza)); donde.push(`(c.nombre ilike ${b} or c.promocion_id ilike ${b})`); }
+    if (f.q) donde.push(sqlBusqueda(p(patronesBusqueda(f.q, f.comienza)), ["c.nombre", "c.promocion_id"]));
     return { desde: "ml_promo_campana c join canal ca on ca.id = c.canal_id", donde: donde.join(" and "), valores, orden: "c.desde desc nulls last, c.promocion_id" };
   },
 };

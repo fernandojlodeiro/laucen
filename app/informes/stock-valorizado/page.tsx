@@ -56,6 +56,9 @@ export default async function StockValorizado({ searchParams }: { searchParams: 
         <InterruptorFiltro href={url(BASE, { ...params, todos: f.conStock ? "1" : null })} prendido={f.conStock} etiqueta="Sólo con stock" />
       </div>
 
+      {f.q && !f.inactivos && filas.some((r) => r.inactivo) && (
+        <p className="text-[12px] text-[#5C6B76] mb-2">Ningún producto activo coincide con lo buscado: se muestran los inactivos que coinciden.</p>
+      )}
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>

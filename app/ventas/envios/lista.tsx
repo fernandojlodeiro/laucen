@@ -1,6 +1,7 @@
 // Envíos como lista configurable (lib/listas/tipos.ts): "Descargar Excel" con
 // la misma pestaña, filtros y orden que la pantalla.
 
+import { patronesBusqueda, numeroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { campoFecha, traducido, type Lista, type SP } from "@/lib/listas/tipos";
 import { LOGISTICA, ESTADO_ENVIO, SUBESTADO_ENVIO, esPestana, type Pestana } from "./formato";
 
@@ -52,11 +53,10 @@ export const LISTA_ENVIOS: Lista = {
     const donde = ["e.organizacion_id = $1", CONDICION_ENVIOS[ver]];
     if (canal) { valores.push(canal); donde.push(`e.canal_id = $${valores.length}`); }
     if (q) {
-      valores.push(`%${q}%`);
-      const p = `$${valores.length}`;
-      let porId = "";
-      if (/^\d{1,15}$/.test(q)) { valores.push(Number(q)); porId = ` or p.id = $${valores.length}`; }
-      donde.push(`(e.tracking ilike ${p} or e.id_externo ilike ${p} or p.id_externo ilike ${p} or cl.nombre ilike ${p} or e.receptor ilike ${p}${porId})`);
+      valores.push(patronesBusqueda(q));
+      const cond = sqlBusqueda(`$${valores.length}`, ["e.tracking", "e.id_externo", "p.id_externo", "cl.nombre", "e.receptor"]);
+      const n = numeroBusqueda(q);
+      if (n !== null) { valores.push(n); donde.push(`(${cond} or p.id = $${valores.length})`); } else donde.push(cond);
     }
     return {
       desde: `envio e

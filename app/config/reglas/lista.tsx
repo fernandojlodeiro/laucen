@@ -1,7 +1,7 @@
 // Reglas comerciales como lista configurable (lib/listas/tipos.ts): "Descargar
 // Excel" con la misma búsqueda que la pantalla.
 
-import { patronBusqueda } from "@/app/componentes/erp";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { campoFecha, type Lista } from "@/lib/listas/tipos";
 import { enCriollo } from "./comun";
 
@@ -32,8 +32,8 @@ export const LISTA_REGLAS: Lista = {
       left join producto p on p.id = (r.condicion ->> 'producto_id')::bigint and p.organizacion_id = r.organizacion_id
       left join familia f on f.id = (r.condicion ->> 'familia_id')::bigint and f.organizacion_id = r.organizacion_id
       left join lateral (select nombre from medio_pago where organizacion_id = r.organizacion_id and canal_id is null and tipo = r.condicion ->> 'medio' limit 1) m on true`,
-    donde: "r.organizacion_id = $1 and r.canal_id is null and ($2::text is null or r.nombre ilike $2)",
-    valores: [ctx.org, patronBusqueda(sp.q?.trim() ?? "", sp.contiene !== "1")],
+    donde: `r.organizacion_id = $1 and r.canal_id is null and ${sqlBusqueda("$2", ["r.nombre"])}`,
+    valores: [ctx.org, patronesBusqueda(sp.q, sp.contiene !== "1")],
     orden: "r.prioridad desc, r.id",
   }),
 };

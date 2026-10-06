@@ -3,20 +3,29 @@
 //   · "precios": la grilla de precios de la lista elegida (?lista=), con la
 //     misma búsqueda (?q=) que la pantalla. Los precios salen de precio_de().
 
-import { patronBusqueda, coincideBusqueda } from "@/app/componentes/erp";
+import { coincideBusqueda } from "@/app/componentes/erp";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { verInactivos } from "@/app/componentes/Inactivos";
 import { consulta } from "@/lib/erp/base";
 import { hoyAR } from "@/lib/moneda";
 import { campoFecha, type Lista, type SP } from "@/lib/listas/tipos";
 
-/** La grilla: variaciones activas (los productos inactivos, sólo si se piden). */
-export const DONDE_PRECIOS = `v.organizacion_id = $1 and v.estado = 'activa' and ($6 or p.estado <> 'archivado')
-     and ($4::text is null or v.sku ilike $4 or p.titulo ilike $4 or v.titulo ilike $4 or v.codigo_barras = $5)`;
+/** Lo escrito (regla de lib/busqueda.ts, patrones en $4) sobre una variación `v` y su producto `p`. */
+const buscarPrecio = (v: string, p: string) =>
+  sqlBusqueda("$4", [`${v}.sku`, `${p}.titulo`, `${v}.titulo`, `${v}.codigo_barras`]);
 
-/** Los valores de DONDE_PRECIOS ($1…$6): organización, lista, hoy, búsqueda e inactivos. */
+/** La grilla: variaciones activas (los productos inactivos, sólo si se piden; o, con algo escrito,
+ *  si ningún producto activo coincide pero sí alguno inactivo — Fer). */
+export const DONDE_PRECIOS = `v.organizacion_id = $1 and v.estado = 'activa'
+     and ($5 or p.estado <> 'archivado'
+          or (cardinality($4::text[]) > 0 and not exists (
+                select 1 from variacion v2 join producto p2 on p2.id = v2.producto_id
+                 where v2.organizacion_id = $1 and v2.estado = 'activa' and p2.estado <> 'archivado' and ${buscarPrecio("v2", "p2")})))
+     and ${buscarPrecio("v", "p")}`;
+
+/** Los valores de DONDE_PRECIOS ($1…$5): organización, lista, hoy, búsqueda e inactivos. */
 export function valoresPrecios(org: string, lista: number, sp: SP): unknown[] {
-  const q = sp.q?.trim() || "";
-  return [org, lista, hoyAR(), patronBusqueda(q, sp.contiene !== "1"), q, verInactivos(sp)];
+  return [org, lista, hoyAR(), patronesBusqueda(sp.q, sp.contiene !== "1"), verInactivos(sp)];
 }
 
 export const LISTA_PRECIOS: Lista = {

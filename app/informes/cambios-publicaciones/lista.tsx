@@ -9,7 +9,8 @@
 // del rango y cuántos cambios hubo.
 
 import Link from "next/link";
-import { patronBusqueda, url } from "@/app/componentes/erp";
+import { url } from "@/app/componentes/erp";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { hoyArgentina, rangoDeAtajo } from "@/lib/rango-fechas";
@@ -161,8 +162,7 @@ export const LISTA_CAMBIOS_PUBLICACIONES: Lista = {
             from meli_item_cambio h where ${donde}) c`;
     let fuera = "true";
     if (f.q) {
-      const b = p(patronBusqueda(f.q, f.comienza));
-      fuera = `(c.item_id ilike ${b} or v.sku ilike ${b} or mi.sku ilike ${b} or mi.titulo ilike ${b} or c.datos ->> 'titulo' ilike ${b})`;
+      fuera = sqlBusqueda(p(patronesBusqueda(f.q, f.comienza)), ["c.item_id", "v.sku", "mi.sku", "mi.titulo", "c.datos ->> 'titulo'"]);
     }
     return {
       desde: `${base}

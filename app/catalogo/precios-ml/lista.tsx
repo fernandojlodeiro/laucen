@@ -8,6 +8,7 @@
 
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
+import { coincideBusqueda } from "@/lib/busqueda";
 import { formatear } from "@/lib/moneda";
 import type { Campo, Lista, SP } from "@/lib/listas/tipos";
 import { calcularCanal, canalesMl, excepcionesCanal, volumenCanal, type CanalMl } from "@/lib/precios-ml/datos";
@@ -166,9 +167,8 @@ export const LISTA_EXCEPCIONES_ML: Lista = {
   filas: async (ctx, sp) => {
     const { canal } = await canalElegido(ctx.org, sp);
     if (!canal) return [];
-    const q = sp.q?.trim().toLowerCase() ?? "";
     const comienza = sp.contiene !== "1";
-    return (await excepcionesCanal(ctx.org, canal.id)).filter((e) => !q || [e.nombre, e.sku ?? ""].some((t) => (comienza ? t.toLowerCase().startsWith(q) : t.toLowerCase().includes(q))));
+    return (await excepcionesCanal(ctx.org, canal.id)).filter((e) => coincideBusqueda([e.nombre, e.sku], sp.q, comienza));
   },
 };
 

@@ -74,7 +74,7 @@ export default async function Usuarios({ searchParams }: { searchParams: Promise
              (select count(*) from membresias m where m.rol_id = r.id)::int miembros
         from roles r where r.organizacion_id = $1 order by r.nombre`, [s.org.id]),
   ]);
-  const miembros = q ? todos.filter((m) => coincideBusqueda(m.nombre, q, comienza) || coincideBusqueda(m.email, q, comienza)) : todos;
+  const miembros = q ? todos.filter((m) => coincideBusqueda([m.nombre, m.email], q, comienza)) : todos;
   const grupos = gruposDePermisos();
   const funciones = FUNCIONES.filter((k) => ETIQUETA_PERMISO.has(k));
   const rolDefecto = roles.find((r) => !r.protegido)?.id ?? roles[0]?.id ?? "";

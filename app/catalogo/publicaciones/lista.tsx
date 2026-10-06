@@ -1,7 +1,8 @@
 // Publicaciones como lista configurable (lib/listas/tipos.ts): "Descargar
 // Excel" con los mismos filtros que la pantalla.
 
-import { patronBusqueda } from "@/app/componentes/erp";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
+import { una } from "@/lib/erp/base";
 import { verInactivos } from "@/app/componentes/Inactivos";
 import { campoFecha, type Lista, type SP } from "@/lib/listas/tipos";
 import { UNIR_MODERACION } from "@/lib/mercadolibre/moderaciones";
@@ -79,22 +80,29 @@ export const LISTA_PUBLICACIONES: Lista = {
   enPantalla: ["titulo", "canal", "externo", "categoria", "plan", "precio", "tachado", "campana", "precio_campana", "estado", "estado_ml", "disponible", "stock_ml", "umbral"],
   consulta: async (ctx, sp) => {
     const f = filtrosPublicaciones(sp);
-    return {
-      desde: `publicacion pu
+    const desde = `publicacion pu
         join variacion v on v.id = pu.variacion_id
         join producto p on p.id = v.producto_id
         join canal c on c.id = pu.canal_id
         ${UNIR_MELI_ITEM}
-        ${UNIR_MODERACION}`,
-      donde: `pu.organizacion_id = $1
-         and ($6 or p.estado <> 'archivado')
+        ${UNIR_MODERACION}`;
+    const INACTIVOS = "($5 or p.estado <> 'archivado')";
+    // Lo escrito, con la regla de lib/busqueda.ts ($4: los patrones).
+    const donde = `pu.organizacion_id = $1
+         and ${INACTIVOS}
          and ($2::bigint is null or pu.canal_id = $2)
          and ($3::text is null or pu.estado = $3)
-         and ($4::text is null or v.sku ilike $4 or pu.id_externo ilike $4 or v.codigo_barras = $5
-              or coalesce(pu.titulo, titulo_variacion(v.id)) ilike $4 or p.titulo ilike $4)
-         and ($7::text is null or (mi.estado = 'under_review' and ($7 = 'todas' or ($7 = 'precio') = coalesce(mm.por_precio, false))))`,
-      valores: [ctx.org, f.canal, f.estado, patronBusqueda(f.q, f.comienza), f.q, f.inactivos, f.revision],
-      orden: "c.nombre, v.sku, pu.id",
-    };
+         and ${sqlBusqueda("$4", ["v.sku", "pu.id_externo", "v.codigo_barras", "coalesce(pu.titulo, titulo_variacion(v.id))", "p.titulo"])}
+         and ($6::text is null or (mi.estado = 'under_review' and ($6 = 'todas' or ($6 = 'precio') = coalesce(mm.por_precio, false))))`;
+    const valores: unknown[] = [ctx.org, f.canal, f.estado, patronesBusqueda(f.q, f.comienza), f.inactivos, f.revision];
+    // Con algo escrito y la caja "Mostrar inactivos" apagada: si ninguna de un producto activo coincide pero sí
+    // alguna de uno inactivo, se muestran igual (Fer).
+    if (f.q && !f.inactivos) {
+      const hay = await una<{ activos: boolean; todos: boolean }>(
+        `select exists (select 1 from ${desde} where ${donde}) activos,
+                exists (select 1 from ${desde} where ${donde.replace(INACTIVOS, "($5 or true)")}) todos`, valores);
+      if (hay && !hay.activos && hay.todos) valores[4] = true;
+    }
+    return { desde, donde, valores, orden: "c.nombre, v.sku, pu.id" };
   },
 };

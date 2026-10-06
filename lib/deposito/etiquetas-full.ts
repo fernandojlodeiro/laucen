@@ -21,6 +21,7 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import bwipjs from "bwip-js/node";
 import { consulta, ErrorErp } from "@/lib/erp/base";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { cuentaDelCanal, ml } from "@/lib/mercadolibre/api";
 
 import { POR_HOJA_FULL, type PublicacionFull } from "./etiquetas-full-tipos";
@@ -34,17 +35,16 @@ const SQL_CODIGO = `case when coalesce(m.variation_id, '') = '' then m.datos_ext
 const SQL_SKU = "coalesce((select v.sku from publicacion pu join variacion v on v.id = pu.variacion_id where pu.id = m.publicacion_id), m.sku)";
 
 /** Buscar publicaciones de ML del canal por SKU (el nuestro o el de ML),
- *  título de ML o Código ML. `comienza`: al principio del texto. */
+ *  título de ML o Código ML, con la regla común de lib/busqueda.ts. `comienza`: al principio del texto. */
 export async function buscarPublicacionesFull(org: string, canalId: number, q: string, comienza: boolean): Promise<PublicacionFull[]> {
   const t = q.trim();
   if (t.length < 2) return [];
-  const patron = `${comienza ? "" : "%"}${t.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   return consulta<PublicacionFull>(`
     select m.item_id, coalesce(m.variation_id, '') variation_id, m.titulo, m.atributos, ${SQL_SKU} sku, ${SQL_CODIGO} codigo, m.logistica
       from meli_item m
      where m.organizacion_id = $1 and m.canal_id = $2 and coalesce(m.estado, '') <> 'closed'
-       and (${SQL_SKU} ilike $3 or m.sku ilike $3 or m.titulo ilike $3 or m.item_id ilike $3 or ${SQL_CODIGO} ilike $3)
-     order by (${SQL_CODIGO}) is null, m.titulo limit 40`, [org, canalId, patron]);
+       and ${sqlBusqueda("$3", [SQL_SKU, "m.sku", "m.titulo", "m.item_id", SQL_CODIGO])}
+     order by (${SQL_CODIGO}) is null, m.titulo limit 40`, [org, canalId, patronesBusqueda(t, comienza)]);
 }
 
 /** Esas publicaciones (claves "item~variación"), con su código. */

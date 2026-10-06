@@ -360,7 +360,7 @@ async function Plan({ org, editar, q, comienza }: { org: string; editar: number;
   ]);
   const usadaFondos = new Set(enFondos.map((x) => x.id));
   const volver = url(BASE, { p: "plan", q: q || null, contiene: comienza ? null : "1" });
-  const vistas = cuentas.filter((c) => coincideBusqueda(c.codigo, q, comienza) || coincideBusqueda(c.nombre, q, comienza));
+  const vistas = cuentas.filter((c) => coincideBusqueda([c.codigo, c.nombre], q, comienza));
   // El tipo viene en Egreso: el código ya sugerido es el próximo libre de egreso.
   const sugerido = proximoCodigo(cuentas, "egreso");
 

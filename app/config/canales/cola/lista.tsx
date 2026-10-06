@@ -1,7 +1,7 @@
 // La cola de Mercado Libre como lista configurable (lib/listas/tipos.ts):
 // "Descargar Excel" con la misma pestaña, filtros y orden que la pantalla.
 
-import { patronBusqueda } from "@/app/componentes/erp";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { campoFecha, traducido, type Lista, type SP } from "@/lib/listas/tipos";
 import { TIPOS_COLA, ORIGENES_COLA, ESTADOS_COLA, describirCambio, describirAntes } from "./formato";
 
@@ -64,8 +64,8 @@ export const LISTA_COLA: Lista = {
     if (f.tipo) { valores.push(f.tipo); donde.push(`q.tipo = $${valores.length}`); }
     if (f.origen) { valores.push(f.origen); donde.push(`q.origen = $${valores.length}`); }
     if (f.q) {
-      valores.push(patronBusqueda(f.q, f.comienza));
-      donde.push(`(q.item_id ilike $${valores.length} or v.sku ilike $${valores.length})`);
+      valores.push(patronesBusqueda(f.q, f.comienza));
+      donde.push(sqlBusqueda(`$${valores.length}`, ["q.item_id", "v.sku"]));
     }
     return {
       desde: `ml_cola q

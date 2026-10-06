@@ -41,8 +41,8 @@ test("buscar familias por nombre y camino", async () => {
 
   const r1 = await familias.buscarFamilias(org, "resist");
   assert.deepEqual(r1.map((f) => f.camino), ["Electrónica › Componentes › Resistencias"]);
-  // Por el camino, con palabras sueltas en cualquier orden.
-  const r2 = await familias.buscarFamilias(org, "compo electr");
+  // Por el camino: con "?", varias condiciones en el mismo dato (el camino), en cualquier orden.
+  const r2 = await familias.buscarFamilias(org, "compo?electr");
   assert.deepEqual(r2.map((f) => f.nombre).sort(), ["Componentes", "Resistencias"]);
   // Las que empiezan con lo escrito, primero.
   const r3 = await familias.buscarFamilias(org, "co");

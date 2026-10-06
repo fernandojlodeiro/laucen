@@ -27,7 +27,7 @@ Subtítulo: "Los crean los pedidos; acá se miran y se corrigen sus datos".
 **Arriba a la derecha**: el desplegable de columnas del Excel, **"⬇ Descargar Excel"**, **"⚙ Configurar…"** y **"+ Nuevo cliente"**.
 
 **Filtros**:
-- Buscador **"Buscar por nombre, mail, documento o teléfono"**, con la caja **"Comienza por"** (tildada de entrada). Si escribís 3 dígitos o más, también compara el documento y el teléfono sin puntos, guiones ni espacios.
+- Buscador **"Buscar por nombre, mail, documento o teléfono"**, con la caja **"Comienza por"** (tildada de entrada). Busca también en razón social, CUIT, celular y apodo de Mercado Libre; si escribís sólo números (4 o más, sin letras), también compara el CUIT, el documento y los teléfonos sin puntos, guiones ni espacios, y un número solo busca además el N.º de cliente.
 - Desplegable **"Todos los tipos"** / **"Consumidor final"** / **"Mayorista"**.
 
 **"Vista"** (arriba de la tabla): elegí qué columnas ver o armá otras con **"⚙ Configurar vistas…"**.

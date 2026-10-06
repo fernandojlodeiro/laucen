@@ -78,7 +78,7 @@ Un **rubro** es un grupo de NCM con nombre (por ejemplo "Calefacción"), propio 
 
 - Columna izquierda, **Mis rubros**: botón **Nuevo rubro** arriba a la derecha; buscador **Buscar rubro** (busca mientras escribís, con la caja "Comienza por"); la lista con el nombre, cuántas NCM tiene, el **lápiz** ✏️ (cambiar el nombre) y el **tacho** 🗑 (pregunta "¿Borrar?" **Sí** / **No**).
 - Al elegir un rubro: su nombre, el botón **Buscar con este rubro** y la tabla de sus NCM (NCM · Descripción · tacho "¿Quitar?"). Nota al pie: "Una partida o prefijo (ej. 85.16) incluye todas las NCM que empiezan así."
-- **Buscar en el nomenclador**: cuadro de texto ("ej. calentador, radiador, 8516.29") y botón **Buscar**. Muestra hasta 200 posiciones con una caja para tildar cada una (las que ya están en el rubro aparecen tildadas y bloqueadas). Abajo: **Agregar las tildadas a "rubro"** si hay un rubro elegido, o un campo **Nombre del rubro nuevo** y **Crear rubro con las tildadas** si no.
+- **Buscar en el nomenclador**: cuadro de texto ("ej. calentador, radiador, 8516.29") y botón **Buscar** (busca lo escrito tal cual, entero, en la descripción o el código; con "?" separás condiciones que tienen que estar todas en el mismo dato). Muestra hasta 200 posiciones con una caja para tildar cada una (las que ya están en el rubro aparecen tildadas y bloqueadas). Abajo: **Agregar las tildadas a "rubro"** si hay un rubro elegido, o un campo **Nombre del rubro nuevo** y **Crear rubro con las tildadas** si no.
 
 ### Pestaña Cargas
 

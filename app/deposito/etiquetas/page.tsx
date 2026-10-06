@@ -10,6 +10,7 @@ import { entrarErp, Pantalla, CAJA, CAMPO, ETIQUETA } from "@/app/componentes/er
 import { GRANDE } from "../formato";
 import { PestanasEtiquetas, ElegirFormato } from "./piezas";
 import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 
 export const dynamic = "force-dynamic";
 
@@ -20,15 +21,23 @@ export default async function EtiquetasProductos({ searchParams }: { searchParam
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const v = Number(sp.v) || 0;
-  const [variaciones, listas] = await Promise.all([
-    q || v ? consulta<{ id: number; sku: string; titulo: string; codigo_barras: string | null }>(`
+  type Hallada = { id: number; sku: string; titulo: string; codigo_barras: string | null };
+  const buscar = (inactivos: boolean) => consulta<Hallada>(`
       select v.id::int, v.sku, titulo_variacion(v.id) titulo, v.codigo_barras
         from variacion v join producto p on p.id = v.producto_id
        where v.organizacion_id = $1 and v.estado <> 'archivada' and not es_kit(v.id)
          -- Inactivos sólo con la caja tildada (o si se llegó con ?v= desde la ficha).
          and ($4 or v.id = $2 or p.estado <> 'archivado')
-         and (v.id = $2 or ($3 <> '' and (v.sku ilike '%' || $3 || '%' or v.codigo_barras = $3 or titulo_variacion(v.id) ilike '%' || $3 || '%')))
-       order by v.id = $2 desc, v.sku limit 60`, [s.org.id, v, q, verInactivos(sp)]) : Promise.resolve([]),
+         and (v.id = $2 or ($3 <> '' and (v.codigo_barras = $3 or ${sqlBusqueda("$5", ["v.sku", "titulo_variacion(v.id)", "p.sku_base", "v.codigo_barras"])})))
+       order by v.id = $2 desc, v.sku limit 60`, [s.org.id, v, q, inactivos, patronesBusqueda(q)]);
+  // Regla de inactivos (Fer): con algo escrito y la caja apagada, si ningún activo
+  // coincide pero sí alguno inactivo, se muestran los inactivos igual.
+  const buscarConRegla = async () => {
+    const filas = await buscar(verInactivos(sp));
+    return filas.length || !q || verInactivos(sp) ? filas : buscar(true);
+  };
+  const [variaciones, listas] = await Promise.all([
+    q || v ? buscarConRegla() : Promise.resolve([] as Hallada[]),
     listasDePrecios(s.org.id),
   ]);
   const activas = listas.filter((l) => l.estado === "activa");

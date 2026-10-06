@@ -1,7 +1,7 @@
 // Canales como lista configurable (lib/listas/tipos.ts): "Descargar Excel"
 // con la misma búsqueda que la pantalla. La llave API nunca sale: sólo si hay.
 
-import { patronBusqueda } from "@/app/componentes/erp";
+import { patronesBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { traducido, type Lista } from "@/lib/listas/tipos";
 
 export const TIPOS_CANAL: Record<string, string> = {
@@ -34,8 +34,8 @@ export const LISTA_CANALES: Lista = {
   enPantalla: ["nombre", "tipo", "lista", "depositos", "estado", "ml", "umbral", "llave"],
   consulta: async (ctx, sp) => ({
     desde: "canal c left join lista_precios l on l.id = c.lista_precios_id",
-    donde: "c.organizacion_id = $1 and ($2::text is null or c.nombre ilike $2)",
-    valores: [ctx.org, patronBusqueda(sp.q?.trim() ?? "", sp.contiene !== "1")],
+    donde: `c.organizacion_id = $1 and ${sqlBusqueda("$2", ["c.nombre"])}`,
+    valores: [ctx.org, patronesBusqueda(sp.q, sp.contiene !== "1")],
     orden: "c.estado, c.nombre",
   }),
 };

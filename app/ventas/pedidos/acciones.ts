@@ -7,7 +7,8 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { entrarErp, patronBusqueda } from "@/app/componentes/erp";
+import { entrarErp } from "@/app/componentes/erp";
+import { patronesBusqueda, digitosBusqueda, numeroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { consulta, una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, numero, texto } from "@/lib/erp/acciones";
 import { crearPedidoAMano, type PedidoAMano } from "@/lib/pedidos/a-mano";
@@ -61,7 +62,6 @@ export async function buscarClientesPedido(q: string, comienza: boolean): Promis
   const s = await entrarErp("pedidos_ver");
   const t = q.trim();
   if (t.length < 2) return [];
-  const patron = patronBusqueda(t, comienza);
   const filas = await consulta<{ id: number; nombre: string; documento: string | null; email: string | null; cuenta_corriente: boolean; direccion: ClienteHallado["direccion"] }>(`
     select cl.id::int, cl.nombre, nullif(concat_ws(' ', cl.documento_tipo, cl.documento_numero), '') documento, cl.email,
            coalesce(cl.cuenta_corriente, false) cuenta_corriente,
@@ -69,9 +69,9 @@ export async function buscarClientesPedido(q: string, comienza: boolean): Promis
               from cliente_direccion d where d.cliente_id = cl.id order by (d.etiqueta = 'Envío') desc, d.principal desc, d.id limit 1) direccion
       from cliente cl
      where cl.organizacion_id = $1
-       and (cl.nombre ilike $2 or cl.razon_social ilike $2 or cl.email ilike $2 or cl.apodo_ml ilike $2
-            or cl.documento_numero ilike $2 or cl.cuit ilike $2 or cl.id::text = $3)
-     order by cl.nombre limit 20`, [s.org.id, patron, t]);
+       and (${sqlBusqueda("$2", ["cl.nombre", "cl.razon_social", "cl.email", "cl.apodo_ml", "cl.documento_numero", "cl.cuit"],
+              { param: "$3", campos: ["cl.cuit", "cl.documento_numero"] })} or cl.id = $4)
+     order by cl.nombre limit 20`, [s.org.id, patronesBusqueda(t, comienza), digitosBusqueda(t), numeroBusqueda(t)]);
   return filas.map((f) => ({ id: f.id, nombre: f.nombre, documento: f.documento, email: f.email, cuentaCorriente: f.cuenta_corriente, direccion: f.direccion }));
 }
 
@@ -100,13 +100,12 @@ export async function buscarProductosPedido(q: string, comienza: boolean, canalI
   const s = await entrarErp("pedidos_ver");
   const t = q.trim();
   if (t.length < 2 || !canalId) return [];
-  const patron = patronBusqueda(t, comienza);
   const filas = await consulta<{ id: number; sku: string; titulo: string; disponible: number }>(`
     select v.id::int, v.sku, titulo_variacion(v.id) titulo, stock_disponible_canal($1, v.id, $4) disponible
       from variacion v join producto p on p.id = v.producto_id
      where v.organizacion_id = $1 and v.estado <> 'archivada' and p.estado <> 'archivado'
-       and (v.sku ilike $2 or v.codigo_barras = $3 or titulo_variacion(v.id) ilike $2)
-     order by (v.codigo_barras = $3) desc, v.sku limit 20`, [s.org.id, patron, t, canalId]);
+       and (v.codigo_barras = $3 or ${sqlBusqueda("$2", ["v.sku", "titulo_variacion(v.id)", "p.sku_base", "v.codigo_barras", "p.codigo_barras"])})
+     order by (v.codigo_barras = $3) desc, (v.sku ilike $3) desc, v.sku limit 20`, [s.org.id, patronesBusqueda(t, comienza), t, canalId]);
   const { listaId, moneda } = await listaDelPedido(s.org.id, canalId, clienteId);
   return Promise.all(filas.map(async (f) => ({ ...f, precio: await precioSugerido(s.org.id, f.id, listaId, moneda) })));
 }
