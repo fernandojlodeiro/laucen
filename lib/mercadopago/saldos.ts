@@ -21,6 +21,7 @@ export type Numeros = {
   cobrado30?: { pagos: number; bruto: number; comisiones: number; neto: number; devuelto: number; completo: boolean };
   disponible?: { monto: number; al: string | null; reporte: string } | null;
   reportePedido?: string | null;
+  muestraReporte?: string[] | null;
   aLiberarDetalle?: { id: number; neto: number; bruto: number; devuelto: number; libera: string | null; estadoLiberacion: string | null; detalle: string | null; tipo: string | null; descripcion: string }[];
 };
 export type Lectura = { conexionId: number; leidoTs: Date; datos: Numeros; intentos: Intento[] };
@@ -62,7 +63,7 @@ const redondo = (n: number) => Math.round(n * 100) / 100;
 
 /** El Reporte de Liquidaciones: si hay uno reciente, lo baja y saca el saldo;
  *  si no hay uno de la última hora, pide uno nuevo (últimos 7 días). */
-async function disponible(token: string, intentos: Intento[]): Promise<{ disponible: Numeros["disponible"]; pedido: string | null }> {
+async function disponible(token: string, intentos: Intento[]): Promise<{ disponible: Numeros["disponible"]; pedido: string | null; muestra?: string[] | null }> {
   const lista = await mpPedir<{ file_name?: string; date_created?: string; end_date?: string }[]>(token, "GET", "/v1/account/release_report/list");
   if (lista.status !== 200 || !Array.isArray(lista.datos)) {
     intentos.push({ fuente: "Reporte de Liquidaciones (lista)", status: lista.status, motivo: motivoDe(lista.status, lista.datos) });
@@ -70,11 +71,15 @@ async function disponible(token: string, intentos: Intento[]): Promise<{ disponi
   }
   const archivos = lista.datos.filter((f) => f.file_name).sort((a, b) => String(b.date_created ?? "").localeCompare(String(a.date_created ?? "")));
   let resultado: Numeros["disponible"] = null;
+  let muestraReporte: string[] | null = null;
   const ultimo = archivos[0];
   if (ultimo?.file_name) {
     const csv = await mpPedir<string>(token, "GET", `/v1/account/release_report/${enc(ultimo.file_name)}`);
     if (csv.status === 200 && typeof csv.datos === "string") {
       resultado = saldoDelReporte(csv.datos, ultimo.file_name);
+      // Para revisar cómo viene (cabecera + últimas filas): queda en la lectura.
+      const lineas = csv.datos.split(/\r?\n/).filter((l) => l.trim());
+      muestraReporte = [lineas[0], ...lineas.slice(-8)].map((l) => l.slice(0, 600));
       // Sin saldo: se anota la cabecera del archivo, para ver qué columnas trae.
       const cabecera = csv.datos.split(/\r?\n/)[0]?.slice(0, 400) ?? "";
       intentos.push({ fuente: "Reporte de Liquidaciones (bajar)", status: 200, ...(resultado ? {} : { motivo: `el reporte ${ultimo.file_name} no trae el saldo; columnas: ${cabecera}` }) });
@@ -125,7 +130,7 @@ async function disponible(token: string, intentos: Intento[]): Promise<{ disponi
     intentos.push({ fuente: "Reporte de Liquidaciones (pedir uno nuevo)", status: r.status, ...(r.status < 300 ? {} : { motivo: motivoDe(r.status, r.datos) }) });
     if (r.status < 300) pedido = new Date().toISOString();
   }
-  return { disponible: resultado, pedido };
+  return { disponible: resultado, pedido, muestra: muestraReporte };
 }
 
 /** El saldo de un Reporte de Liquidaciones (CSV): el BALANCE_AMOUNT de la
@@ -196,6 +201,7 @@ export async function leerCuenta(org: string, c: ConexionMp): Promise<Lectura> {
     }
     datos.disponible = disp.disponible;
     datos.reportePedido = disp.pedido;
+    datos.muestraReporte = disp.muestra ?? null;
   }
   const f = await una<{ leido_ts: Date }>(`
     insert into mp_saldo (organizacion_id, conexion_id, fuente, datos, intentos) values ($1, $2, 'mercadopago', $3::jsonb, $4::jsonb) returning leido_ts`,
