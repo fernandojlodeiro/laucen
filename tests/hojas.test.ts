@@ -296,6 +296,11 @@ test("cerrar escaneando la etiqueta: ML (código, QR o tracking) y OCA; la hoja 
   assert.deepEqual(ids(await m.picking.pedidosDelLotePorEtiqueta(e.org, lote, `mel42${s}fmdof01`)), [ml2]);
   const o = await m.picking.pedidosDelLotePorEtiqueta(e.org, lote, `38675${s}0001`);
   assert.deepEqual([ids(o), o.etiqueta], [[oca], "oca"]);
+  // El QR de OCA: el número con otro relleno de ceros, un prefijo y la pieza al final.
+  await q(`update envio set tracking = '4960400000000012762', datos_externos = '{"oca": {"numero_envio": "4960400000000012762"}}' where pedido_id = $1`, [oca]);
+  assert.deepEqual(ids(await m.picking.pedidosDelLotePorEtiqueta(e.org, lote, "017010496040000000000127621")), [oca]);
+  await assert.rejects(m.picking.pedidosDelLotePorEtiqueta(e.org, lote, "017010496040000000000999991"), /no es la etiqueta/);
+  assert.equal((await m.picking.pedidoPorNumero(e.org, "017010496040000000000127621")).id, oca);
   await assert.rejects(m.picking.pedidosDelLotePorEtiqueta(e.org, lote, String(ml1)), /etiqueta de Mercado Libre: escaneá/);
   await assert.rejects(m.picking.pedidosDelLotePorEtiqueta(e.org, lote, `#${oca}`), /etiqueta de OCA: escaneá/);
   await assert.rejects(m.picking.pedidosDelLotePorEtiqueta(e.org, lote, "99999999999"), /no es la etiqueta/);
