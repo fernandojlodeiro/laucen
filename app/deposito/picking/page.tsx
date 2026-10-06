@@ -9,22 +9,27 @@
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { hoyAR, formatear } from "@/lib/moneda";
-import { pedidosParaPreparar } from "@/lib/deposito/picking";
+import { pedidosParaPreparar, envioDe, GRUPOS_ENVIO } from "@/lib/deposito/picking";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
-import { entrarErp, Pantalla, Avisos, Estado, CAJA, CAMPO } from "@/app/componentes/erp";
+import { entrarErp, Pantalla, Avisos, Estado, CAJA, CAMPO, url } from "@/app/componentes/erp";
 import { diaAR, fechaHoraAR, GRANDE } from "../formato";
 import { accionCrearLote } from "./acciones";
 import { MarcaCarritoEspera } from "@/app/componentes/CarritoEspera";
 import { BotonImprimirHojas } from "./Imprimir";
 import TildarTodos from "./TildarTodos";
+import RecordarEnvio from "./RecordarEnvio";
+import { COOKIE_ENVIO } from "@/lib/deposito/picking-envio";
+import Pestanas from "@/app/componentes/Pestanas";
+import { FiltroVivo } from "@/app/componentes/BuscadorVivo";
+import { cookies } from "next/headers";
 import { SelectorTam, tamElegido } from "./Tamano";
 import PreparadoRapido from "./PreparadoRapido";
 import { tienePermiso } from "@/lib/permisos";
 
 export const dynamic = "force-dynamic";
 
-type SP = { d?: string; ok?: string; error?: string };
+type SP = { d?: string; ok?: string; error?: string; envio?: string; orden?: string };
 
 type Lote = { id: number; creado_ts: Date; terminado_ts: Date | null; estado: string; modo: string; pedidos: number; preparados: number; total: number; hechas: number; faltantes: number };
 
@@ -66,6 +71,17 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
        group by l.id order by l.estado = 'abierto' desc, coalesce(l.terminado_ts, l.creado_ts) desc`, [s.org.id, dep.id]),
   ]);
   const hoy = hoyAR();
+  // Filtro por tipo de envío (Fer, 6/10): pestañas cortas (se usa en el celular); la última queda recordada.
+  const guardado = (await cookies()).get(COOKIE_ENVIO)?.value;
+  const envio = [sp.envio, guardado].find((x) => x === "todos" || GRUPOS_ENVIO.some((g) => g.clave === x)) ?? "todos";
+  const conEnvio = pedidos.map((p) => ({ ...p, ...envioDe(p) }));
+  const cuenta = (g: string) => conEnvio.filter((p) => p.grupo === g).length;
+  // Orden: "Despachar antes" (lo que vence primero; como venía) o "Más viejos primero" (por fecha de compra).
+  const porFecha = sp.orden === "fecha";
+  const visibles = conEnvio.filter((p) => envio === "todos" || p.grupo === envio)
+    .sort((a, b) => porFecha ? +new Date(a.fecha) - +new Date(b.fecha)
+      : (a.despachar_antes ? +new Date(a.despachar_antes) : Infinity) - (b.despachar_antes ? +new Date(b.despachar_antes) : Infinity) || +new Date(a.fecha) - +new Date(b.fecha));
+  const conParam = (x: Record<string, string | null>) => url("/deposito/picking", { d: depositos.length > 1 ? String(dep.id) : null, envio: envio === "todos" ? null : envio, orden: porFecha ? "fecha" : null, ...x });
   const abiertos = lotes.filter((l) => l.estado === "abierto");
   const terminados = lotes.filter((l) => l.estado !== "abierto");
 
@@ -100,14 +116,29 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
       )}
 
       <h2 className="text-sm font-bold mb-2">Para preparar en {dep.nombre} ({pedidos.length})</h2>
-      {pedidos.length === 0 ? (
-        <p className="text-sm text-[#5C6B76] mb-5">No hay pedidos para preparar.</p>
+      <RecordarEnvio valor={envio} />
+      {pedidos.length > 0 && (
+        <>
+          <Pestanas chica className="mb-2" items={[
+            { href: conParam({ envio: "todos" }), texto: "Todos", cuenta: pedidos.length, activa: envio === "todos", clave: "todos" },
+            ...GRUPOS_ENVIO.map((g) => ({ href: conParam({ envio: g.clave }), texto: g.texto, cuenta: cuenta(g.clave), activa: envio === g.clave, clave: g.clave })),
+          ]} />
+          <div className="mb-2">
+            <FiltroVivo parametro="orden" valor={porFecha ? "fecha" : ""} etiqueta="Orden">
+              <option value="">Despachar antes</option>
+              <option value="fecha">Más viejos primero</option>
+            </FiltroVivo>
+          </div>
+        </>
+      )}
+      {visibles.length === 0 ? (
+        <p className="text-sm text-[#5C6B76] mb-5">{pedidos.length ? "No hay pedidos de este tipo de envío para preparar." : "No hay pedidos para preparar."}</p>
       ) : (
         <form action={accionCrearLote} className="mb-5">
           <input type="hidden" name="d" value={dep.id} />
-          <TildarTodos total={pedidos.filter((p) => !p.en_espera).length} />
+          <TildarTodos total={visibles.filter((p) => !p.en_espera).length} />
           <div className="space-y-2">
-            {pedidos.map((p) => {
+            {visibles.map((p) => {
               const dia = diaAR(p.despachar_antes);
               const urgente = dia !== null && dia <= hoy;
               return (
@@ -117,6 +148,7 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
                     <div className="flex flex-wrap items-center gap-2">
                       <Link href={`/ventas/pedidos/${p.id}`} className="font-bold text-[#16577F]">#{p.id}</Link>
                       {p.id_externo && <span className="text-xs text-[#5C6B76]">{p.id_externo}</span>}
+                      <Estado texto={p.marca} tono={p.grupo === "meli" ? "amarillo" : p.grupo === "oca" ? "azul" : p.grupo === "retiro" ? "verde" : "gris"} />
                       {p.estado === "en_preparacion" && <Estado texto="Ya empezado" tono="amarillo" />}
                       {p.a_cobrar && <Estado texto={`A cobrar ${formatear(p.total_ars, "ARS")}`} tono="ambar" />}
                       {p.en_espera && <MarcaCarritoEspera ts={p.carrito_ultimo_evento_ts} texto="Carrito: esperando" />}

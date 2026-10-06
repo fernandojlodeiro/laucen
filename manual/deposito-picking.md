@@ -28,9 +28,13 @@ Está pensada para usarse desde el celular.
 - **Depósito**: si hay más de un depósito activo, un desplegable con el botón **"Ver"** para elegir de cuál se preparan pedidos. No aparecen los depósitos de Full de Mercado Libre. Si no hay ningún depósito activo, la pantalla avisa y manda a crearlo.
 - **"Preparado rápido"** (sólo con el permiso **"Preparar sin escanear"**): un lector donde se escribe o escanea el número de pedido (el de Laucen, con o sin "#", o el de Mercado Libre) **o la etiqueta del envío** (Mercado Libre u OCA: el código de barras o el QR). Muestra el pedido, cliente y unidades y pregunta "¿Marcar preparado con todo juntado?" con **"Sí"** / **"No"** (escribir el mismo número otra vez también es "Sí"). Ver "Preparado rápido" más abajo.
 - **Lotes abiertos (N)**: tarjetas de los lotes que se están preparando. Cada una dice el número de lote, el modo ("con hojas", "empacar escaneando" o "recorrido escaneando"), desde cuándo está abierto, cuántos pedidos tiene y cuántos están preparados, cuántas unidades se juntaron de cuántas, los faltantes y una barra de avance.
-- **Para preparar en <depósito> (N)**: los pedidos que esperan preparación, lo más urgente primero. Cada pedido muestra:
+- **Para preparar en <depósito> (N)**: los pedidos que esperan preparación, lo más urgente primero.
+- **Pestañas por tipo de envío** (cortas, para el celular), cada una con cuántos tiene: **Todos**, **Meli** (Mercado Libre: Colecta, Flex, Correo, A convenir), **OCA** (a domicilio y a sucursal), **Retiran** (retiro en el local) y **Otros** (envío propio, a convenir). La lista muestra sólo los de la pestaña elegida, y "Tildar todos" e "Imprimir etiquetas y hojas" trabajan con esos. La última pestaña elegida queda recordada.
+- **"Orden"**: **"Despachar antes"** (de entrada: lo que vence primero arriba, sirve para Mercado Libre) o **"Más viejos primero"** (por fecha de compra, para OCA y retiros).
+- **"Tildar todos (N)"**: tilda de una todos los de la lista que se ve (menos los carritos en espera).
+- Cada pedido muestra:
   - una caja para tildarlo;
-  - el número de pedido (enlace al pedido) y el número externo (de Mercado Libre o la tienda);
+  - el número de pedido (enlace al pedido), el número externo (de Mercado Libre o la tienda) y **una marca con el tipo de envío** ("Colecta", "Flex", "Correo", "OCA sucursal", "OCA domicilio", "Retira"…);
   - marcas: **"Ya empezado"** (quedó en preparación de un lote anterior), **"A cobrar $…"** (se cobra al entregar), **"Carrito: esperando"** (carrito de Mercado Libre en espera);
   - cliente y canal;
   - unidades y líneas, y **"Despachar antes: …"** (en rojo si vence hoy o ya venció; la tarjeta entera se pinta de rojo suave);

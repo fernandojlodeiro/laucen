@@ -13,6 +13,7 @@ import { prepararFactura, emitir } from "@/lib/arca/facturar";
 import { subirFacturaDelPedidoConBoton } from "@/lib/mercadolibre/facturas";
 import { deFondo } from "@/lib/tareas-fondo";
 import { altaOca, anularOca, envioOcaDe, seguirEnvio } from "@/lib/oca/envios";
+import { cancelarPedido } from "@/lib/pedidos/cancelar";
 
 export async function accionFacturar(fd: FormData) {
   const s = await entrarErp("facturacion_ver");
@@ -55,7 +56,7 @@ async function pedidoOperable(org: string, pid: number) {
     select p.estado, p.estado_pago, p.total_ars::float, c.tipo canal_tipo
       from pedido p join canal c on c.id = p.canal_id where p.id = $1 and p.organizacion_id = $2`, [pid, org]);
   if (!p) throw new ErrorErp("El pedido no existe.");
-  if (p.canal_tipo === "mercadolibre") throw new ErrorErp("Los pedidos de Mercado Libre se mueven solos desde Mercado Libre.");
+  if (p.canal_tipo === "mercadolibre") throw new ErrorErp("Los pedidos de Mercado Libre se manejan desde Mercado Libre (también cancelarlos): Laucen lee el cambio enseguida y lo deja igual.");
   await exigirCarritoLibre(org, pid);
   return p;
 }
@@ -101,6 +102,8 @@ export async function accionCambiarEstadoPedido(fd: FormData) {
     await pedidoOperable(s.org.id, pid);
     const nuevo = fd.get("estado");
     if (!esEstadoPedido(nuevo)) throw new ErrorErp("Estado desconocido.");
+    // Cancelar va por "Cancelar pedido" (anula OCA, Payway y la factura): nunca por acá.
+    if (nuevo === "cancelado") throw new ErrorErp("Para cancelar usá el botón «Cancelar pedido».");
     await cambiarEstado(s.org.id, pid, nuevo, s.usuario.id, texto(fd, "nota"));
     revalidatePath(`/ventas/pedidos/${pid}`);
     return `Pedido ${ESTADOS_PEDIDO[nuevo].toLowerCase()}.`;
@@ -145,3 +148,19 @@ export async function accionAnularOca(fd: FormData) {
 }
 
 const ESTADO_OCA: Record<string, string> = { ready_to_ship: "todavía no salió", shipped: "en camino", delivered: "entregado", returned: "devuelto", cancelled: "anulado" };
+
+/** "Cancelar pedido" (Fer, 6/10): cancela y anula lo que arrastra (OCA, Payway y, si se pidió, la
+ *  factura con nota de crédito), de fondo. Si algo falló, el cartel sale en rojo diciendo qué. */
+export async function accionCancelarPedido(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  const nc = fd.get("nc") === "1";
+  return deFondo(s, `cancelar-${pid}`, `Cancelar el pedido ${pid}`, async () => {
+    await pedidoOperable(s.org.id, pid);
+    const r = await cancelarPedido(s.org.id, pid, s.usuario.id, { notaCredito: nc });
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    const listo = r.hecho.join(" · ");
+    if (r.fallo.length) throw new ErrorErp(`${listo}. Falló: ${r.fallo.join(" · ")}. Eso hay que hacerlo a mano desde el pedido.`);
+    return `${listo}.`;
+  });
+}
