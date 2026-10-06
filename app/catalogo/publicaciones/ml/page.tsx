@@ -3,6 +3,7 @@
 // corresponde cada una. Lo vinculado queda en `publicacion`, que es lo que
 // usan el stock, la pausa y los pedidos.
 
+import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
 import Casillas from "./Casillas";
@@ -222,7 +223,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
                     {f.atributos && <div className="text-[#5C6B76]">{f.atributos}</div>}
                     <div className="text-[10px] text-[#5C6B76]">
                       {f.permalink
-                        ? <a href={f.permalink} target="_blank" rel="noopener noreferrer" className="text-[#16577F] underline">{f.item_id} ↗</a>
+                        ? <><Link href={historialPublicacion(f.item_id)} className="text-[#16577F] underline" title="Historial de esta publicación">{f.item_id}</Link> <a href={f.permalink} target="_blank" rel="noopener noreferrer" className="text-[#16577F] underline" title="Ver en Mercado Libre">↗</a></>
                         : f.item_id}
                       {f.logistica && LOGISTICA_ML[f.logistica] && <> · <Estado texto={LOGISTICA_ML[f.logistica]} tono="verde" /></>}
                     </div>
@@ -297,7 +298,7 @@ function VerCuales({ filas }: { filas: PublicacionABorrar[] }) {
               const enlace = f.permalink ?? `https://articulo.mercadolibre.com.ar/${f.item_id.replace(/^([A-Z]{3})(\d+)$/, "$1-$2")}`;
               return (
                 <tr key={f.item_id} className={TR}>
-                  <td className={`${TD} whitespace-nowrap`}><a href={enlace} target="_blank" rel="noopener noreferrer" className="text-[#16577F] underline">{f.item_id} ↗</a></td>
+                  <td className={`${TD} whitespace-nowrap`}><Link href={historialPublicacion(f.item_id)} className="text-[#16577F] underline" title="Historial de esta publicación">{f.item_id}</Link> <a href={enlace} target="_blank" rel="noopener noreferrer" className="text-[#16577F] underline" title="Ver en Mercado Libre">↗</a></td>
                   <td className={TD}>{f.titulo ?? "—"}</td>
                   <td className={`${TD} whitespace-nowrap`}>{f.sku ?? "—"}</td>
                   <td className={TD}>{est ? <Estado texto={est.texto} tono={est.tono} /> : f.estado ? <Estado texto={f.estado} /> : "—"}</td>

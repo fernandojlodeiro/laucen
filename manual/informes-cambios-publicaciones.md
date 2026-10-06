@@ -2,7 +2,7 @@
 titulo: Cambios en publicaciones
 menu: Informes › Cambios en publicaciones
 ruta: /informes/cambios-publicaciones
-rutas: /informes/cambios-publicaciones
+rutas: /informes/cambios-publicaciones, /informes/cambios-publicaciones/[item]
 permiso: informes_publicaciones_ver
 resumen: Qué publicaciones de Mercado Libre cambiaron de estado, precio o stock, cuándo, y si el cambio lo mandó Laucen o alguien fuera de Laucen.
 ---
@@ -144,3 +144,16 @@ Si tiene variaciones, el estado se anota en cada variación.
 - [Precios en Mercado Libre](/catalogo/precios-ml)
 - [Cola de Mercado Libre](/config/canales/cola)
 - [Canales](/config/canales)
+
+## Historial de una publicación
+
+Tocando el **número de publicación** (MLA…) se abre su historial: todo lo que le cambió, lo más nuevo arriba. Se llega desde este informe, desde Promociones de ML, desde [Publicaciones](/catalogo/publicaciones) y desde la pestaña de publicaciones de la ficha de un producto. Al lado del número, la flechita **↗** abre la publicación en Mercado Libre en otra pestaña.
+
+Arriba muestra la publicación como está hoy: título, cuenta, SKU (con enlace al producto), estado, precio y stock. Arriba a la derecha, **"Ver en Mercado Libre ↗"** la abre en Mercado Libre, en otra pestaña.
+
+La tabla junta, en orden de fecha:
+- **Estado, Precio y Stock**: cada cambio que tuvo (antes → después) y si lo hizo Laucen o alguien fuera de Laucen. Se anotan desde el 3/10/2026.
+- **"Laucen mandó: …"**: cada cosa que le mandó Laucen por la cola (estado, precio, stock, atributos, campañas…), con cómo salió: enviado bien, con error (y el motivo), esperando tu clic, en la cola o descartado; y si fue por tu clic, automático o una barrida.
+- **"Campaña: …"**: lo que pasó con ella en las campañas de Mercado Libre (entró, salió, cambió el precio o el estado).
+
+Si tiene variaciones, una columna dice de cuál variación es cada cambio. Va de a 50 renglones, con el paginador abajo.

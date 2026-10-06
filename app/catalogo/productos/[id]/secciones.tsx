@@ -1,6 +1,7 @@
 // Las secciones de la ficha de producto. Todas de servidor; la edición en
 // fila va con ?editar=<id> (el lápiz convierte la fila en sus campos).
 
+import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { precioDe, listasDePrecios } from "@/lib/precios";
@@ -1024,12 +1025,12 @@ export async function SeccionPublicaciones({ s, p }: Props) {
               <tr key={f.id} className={TR}>
                 <td className={TD}>{f.canal}</td>
                 <td className={`${TD} font-mono`}>{f.sku}</td>
-                {/* Un clic abre la publicación en Mercado Libre (en otra pestaña). */}
-                <td className={`${TD} font-mono`}>{f.enlace
-                  ? <a href={f.enlace} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline">{f.id_externo} ↗</a>
+                {/* El número abre el historial de la publicación; la flechita, Mercado Libre en otra pestaña. */}
+                <td className={`${TD} font-mono whitespace-nowrap`}>{f.enlace && f.id_externo
+                  ? <><Link href={historialPublicacion(f.id_externo)} className="text-[#16577F] hover:underline" title="Historial de esta publicación">{f.id_externo}</Link> <a href={f.enlace} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline" title="Ver en Mercado Libre">↗</a></>
                   : f.id_externo ?? "—"}</td>
                 <td className={TD}>{f.enlace
-                  ? <a href={f.enlace} target="_blank" rel="noopener noreferrer" className="hover:text-[#16577F] hover:underline">{f.titulo}</a>
+                  ? <a href={f.enlace} target="_blank" rel="noopener noreferrer" className="hover:text-[#16577F] hover:underline">{f.titulo} ↗</a>
                   : f.titulo}</td>
                 <td className={TD}>{f.tipo_publicacion ?? "—"}</td>
                 <td className={TDN}>

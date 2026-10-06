@@ -109,7 +109,7 @@ function Vistazo({ items: crudos, es }: { items: unknown[]; es?: string[] }) {
               )}
             </td>
             <td className="py-1 pr-2">
-              {f.url ? <a href={f.url.startsWith("//") ? `https:${f.url}` : f.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{f.titulo ?? "(sin título)"}</a> : f.titulo ?? "(sin título)"}
+              {f.url ? <a href={f.url.startsWith("//") ? `https:${f.url}` : f.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{f.titulo ?? "(sin título)"} ↗</a> : f.titulo ?? "(sin título)"}
               {f.original && <span className="block text-[#9AA7B3]">{f.original}</span>}
             </td>
             <td className="py-1 px-2 whitespace-nowrap">{f.precio ?? "—"}</td>

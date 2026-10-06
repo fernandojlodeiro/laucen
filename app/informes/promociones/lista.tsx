@@ -7,6 +7,7 @@ import { parametroBusqueda, sqlBusqueda, type CampoBusqueda } from "@/lib/busque
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
 import { hoyArgentina, rangoDeAtajo } from "@/lib/rango-fechas";
 import { ESTADOS_PROMO, QUE_PROMO, TIPOS_PROMO, descuentoPct, textoValorPromo } from "./formato";
+import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 
 export const BASE_PROMOS = "/informes/promociones";
 const ZONA = "'America/Argentina/Buenos_Aires'";
@@ -35,7 +36,7 @@ export type FiltrosPromos = ReturnType<typeof filtrosPromos>;
 
 const campoItem = (alias: string): Campo => ({
   clave: "item", titulo: "Publicación", sql: `${alias}.item_id`, ancho: 16, usa: ["permalink"],
-  celda: (f) => <span className="font-mono whitespace-nowrap">{f.permalink ? <a href={f.permalink} target="_blank" rel="noreferrer" className={ENLACE}>{f.item}</a> : f.item ?? "—"}</span>,
+  celda: (f) => <span className="font-mono whitespace-nowrap">{f.item ? <><Link href={historialPublicacion(f.item)} className={ENLACE} title="Historial de esta publicación">{f.item}</Link> <a href={enlaceMl(f.item, f.permalink)} target="_blank" rel="noopener noreferrer" className={ENLACE} title="Ver en Mercado Libre">↗</a></> : "—"}</span>,
 });
 const CAMPOS_PUBLICACION: Campo[] = [
   { clave: "permalink", titulo: "Enlace en ML", sql: "mi.permalink", orden: false, ancho: 40 },

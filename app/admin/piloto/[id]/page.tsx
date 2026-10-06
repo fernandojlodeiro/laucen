@@ -19,7 +19,7 @@ function Tarjeta({ p, extra, marca, dolar }: { p: Pick<PubML, "titulo" | "url" |
       ) : <span className="w-12 h-12 shrink-0 rounded bg-[#EEF3F8]" />}
       <div className="text-[11px] min-w-0">
         {marca && <span className="font-bold text-[#8a6100] mr-1">{marca}</span>}
-        {p.url ? <a href={p.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{p.titulo}</a> : p.titulo}
+        {p.url ? <a href={p.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{p.titulo} ↗</a> : p.titulo}
         <span className="block text-[#5C6B76]">{pesos(p.precio)}{p.precio != null && dolar > 0 && ` (US$ ${formatearNumero(p.precio / dolar, "usd")})`}{p.vendidosTexto && ` · ${p.vendidosTexto}`}{extra && ` · ${extra}`}</span>
       </div>
     </div>
@@ -47,7 +47,7 @@ export default async function PilotoML({ params }: { params: Promise<{ id: strin
             ) : (
               <>
                 <div className="text-[11px] text-[#5C6B76] mt-1 mb-3 grid gap-0.5">
-                  {av.urlListado && <span>Listado: <a href={av.urlListado} target="_blank" rel="noreferrer" className="underline break-all">{av.urlListado}</a></span>}
+                  {av.urlListado && <span>Listado: <a href={av.urlListado} target="_blank" rel="noreferrer" className="underline break-all">{av.urlListado} ↗</a></span>}
                   {av.actores?.map((a) => (
                     <span key={a.actor}>
                       <code>{a.actor.replace("~", "/")}</code>: {a.ok ? `${a.cantidad} publicaciones` : `no anduvo (${a.error})`}

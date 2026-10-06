@@ -40,3 +40,10 @@ export function describirCambioMl(campo: string, antes: string | null | undefine
   const p = variacionPct(antes, despues);
   return p == null ? base : `${base} (${textoPct(p)})`;
 }
+
+/** El enlace a la publicación en ML: el que trae ML o el armado con el número. */
+export const enlaceMl = (item: string, permalink?: string | null) =>
+  permalink || `https://articulo.mercadolibre.com.ar/${item.replace(/^([A-Z]{3})(\d+)$/, "$1-$2")}`;
+
+/** La pantalla con el historial de una publicación. */
+export const historialPublicacion = (item: string) => `/informes/cambios-publicaciones/${encodeURIComponent(item)}`;

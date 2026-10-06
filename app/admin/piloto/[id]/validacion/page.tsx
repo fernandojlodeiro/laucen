@@ -68,7 +68,7 @@ export default async function Validacion({ params }: { params: Promise<{ id: str
             {filas.map(({ x, el, ventaUsd, fob, fletePctFob, veces }) => (
               <tr key={x.id} className={`border-b last:border-0 border-[#E3E9F0] align-top ${x.franja === "gris" ? "bg-[#FFF7E6]" : ""}`}>
                 <td className="px-3 py-2">
-                  {x.url ? <a href={x.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{x.titulo}</a> : x.titulo}
+                  {x.url ? <a href={x.url} target="_blank" rel="noreferrer" className="text-[#16577F] underline">{x.titulo} ↗</a> : x.titulo}
                   {x.campeon && <b className="text-[#8a6100]"> ★</b>}
                 </td>
                 <td className="py-2 px-2 whitespace-nowrap">{x.franja === "gris" ? <b className="text-[#8a6100]">gris</b> : x.franja ?? "—"}{x.flete_pct != null && ` (${x.flete_pct}%)`}</td>
