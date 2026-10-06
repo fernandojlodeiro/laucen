@@ -4,7 +4,10 @@
 //     trigger sobre la copia local desde el 3/10);
 //   · lo que le mandó Laucen por la cola (ml_cola: estado, precio, stock,
 //     atributos, campañas…) con su resultado;
-//   · lo que pasó con ella en las campañas de ML (ml_promo_historia).
+//   · lo que pasó con ella en las campañas de ML (ml_promo_historia);
+//   · sus ventas y las del mismo producto en otras publicaciones o canales
+//     (pedido_linea), con enlace al pedido: explican los cambios de stock y
+//     las pausas que vienen de una venta.
 // Arriba, "Ver en Mercado Libre ↗" (en otra pestaña).
 
 import Link from "next/link";
@@ -35,7 +38,7 @@ const ESTADO_COLA: Record<string, string> = {
   preparado: "esperando tu clic", pendiente: "en la cola", enviando: "enviándose", ok: "enviado bien", error: "con error", descartado: "descartado",
 };
 
-type Linea = { fecha: Date; variacion: string; tipo: "cambio" | "cola" | "campana"; que: string; detalle: string; origen: string };
+type Linea = { fecha: Date; variacion: string; tipo: "cambio" | "cola" | "campana" | "venta"; que: string; detalle: string; origen: string; pedido?: number };
 
 /** Lo que mandó la cola, en una línea: "Pausada", "$ 19.836", "12 u.", o los datos tal cual. */
 function textoPayload(tipo: string, p: Record<string, unknown> | null): string {
@@ -67,7 +70,7 @@ export default async function HistorialPublicacion({ params, searchParams }: { p
      where mi.organizacion_id = $1 and mi.item_id = $2`, [org, item]);
   const existe = !!pub?.cuenta;
 
-  const [cambios, cola, campanas] = await Promise.all([
+  const [cambios, cola, campanas, ventas] = await Promise.all([
     consulta<{ fecha: Date; variation_id: string; campo: string; antes: string | null; despues: string | null; origen: string }>(`
       select fecha, variation_id, campo, antes, despues, origen from meli_item_cambio
        where organizacion_id = $1 and item_id = $2`, [org, item]),
@@ -77,6 +80,11 @@ export default async function HistorialPublicacion({ params, searchParams }: { p
     consulta<{ fecha: Date; nombre: string | null; promocion_id: string; que: string; antes: string | null; despues: string | null; precio_antes: string | null; precio_despues: string | null }>(`
       select fecha, nombre, promocion_id, que, antes, despues, precio_antes::text, precio_despues::text from ml_promo_historia
        where organizacion_id = $1 and item_id = $2`, [org, item]),
+    consulta<{ fecha: Date; pedido: number; canal: string; cantidad: number; item: string | null; estado: string }>(`
+      select p.fecha, p.id::int pedido, ca.nombre canal, l.cantidad::int, l.datos_externos #>> '{ml,item_id}' item, p.estado
+        from pedido_linea l join pedido p on p.id = l.pedido_id join canal ca on ca.id = p.canal_id
+       where l.organizacion_id = $1 and (l.datos_externos #>> '{ml,item_id}' = $2 or l.variacion_id in (
+             select pu.variacion_id from meli_item mi join publicacion pu on pu.id = mi.publicacion_id where mi.organizacion_id = $1 and mi.item_id = $2))`, [org, item]),
   ]);
 
   const lineas: Linea[] = [
@@ -99,6 +107,12 @@ export default async function HistorialPublicacion({ params, searchParams }: { p
         detalle: [QUE_PROMO[c.que] ?? c.que, det].filter(Boolean).join(" · "), origen: "Mercado Libre",
       };
     }),
+    ...ventas.map((v): Linea => ({
+      fecha: v.fecha, variacion: "", tipo: "venta", pedido: v.pedido,
+      que: v.item === item ? "Venta" : "Venta del mismo producto",
+      detalle: `${v.cantidad} u.${v.item === item ? "" : v.item ? ` en ${v.item}` : ` en ${v.canal}`}${v.estado === "cancelado" ? " (cancelado)" : ""}`,
+      origen: v.canal,
+    })),
   ].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
   const pagina = paginarEnMemoria(lineas, sp);
   const conVariacion = lineas.some((l) => l.variacion);
@@ -106,7 +120,7 @@ export default async function HistorialPublicacion({ params, searchParams }: { p
   return (
     <Pantalla titulo={`Historial de ${item}`}
       camino={[{ texto: item }]}
-      subtitulo="Todo lo que le cambió a esta publicación, lo más nuevo arriba: estado, precio y stock (desde el 3/10/2026), lo que le mandó Laucen y lo que pasó con ella en las campañas de Mercado Libre."
+      subtitulo="Todo lo que le cambió a esta publicación, lo más nuevo arriba: estado, precio y stock (desde el 3/10/2026), lo que le mandó Laucen, sus ventas y las del mismo producto en otras publicaciones, y lo que pasó con ella en las campañas de Mercado Libre."
       acciones={<a href={enlaceMl(item, pub?.permalink)} target="_blank" rel="noopener noreferrer" className={SUAVE}>Ver en Mercado Libre ↗</a>}>
       {existe ? (
         <div className={`${CAJA} mb-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm`}>
@@ -143,7 +157,10 @@ export default async function HistorialPublicacion({ params, searchParams }: { p
                 <td className={`${TD} whitespace-nowrap`}>{fechaHora(l.fecha)}</td>
                 {conVariacion && <td className={`${TD} font-mono whitespace-nowrap`}>{l.variacion || "—"}</td>}
                 <td className={`${TD} whitespace-nowrap font-semibold`}>{l.que}</td>
-                <td className={TD}>{l.detalle || "—"}</td>
+                <td className={TD}>
+                  {l.pedido && <Link href={`/ventas/pedidos/${l.pedido}`} className={`${ENLACE} font-semibold`}>Pedido {l.pedido}</Link>}
+                  {l.pedido && l.detalle ? " · " : ""}{l.detalle || (l.pedido ? "" : "—")}
+                </td>
                 <td className={`${TD} whitespace-nowrap text-[#5C6B76]`}>{l.origen}</td>
               </tr>
             ))}
