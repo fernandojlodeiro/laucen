@@ -36,8 +36,8 @@ type Pub = {
 export type ResultadoStock = { revisadas: number; cantidades: number; pausadas: number; reactivadas: number; encoladas: number; errores: string[] };
 
 /** Lo que hay que mandar a ML para una publicación según su stock (o nada).
- *  Pausa al llegar al umbral (una variación no se pausa sola en ML: se le
- *  informa 0); si está pausada (por quien sea) y vuelve a haber, la reactiva;
+ *  Pausa al llegar al umbral, informando también la cantidad en el mismo envío
+ *  (una variación no se pausa sola en ML: se le informa 0); si está pausada (por quien sea) y vuelve a haber, la reactiva;
  *  si no, informa la cantidad. */
 export function cambioDeStock(p: Pub): (CambioMl & { que: "pausa" | "reactivar" | "cantidad" }) | null {
   // Pausada a mano por el usuario: no se toca (ni se reactiva) hasta que él le saque la marca.
@@ -49,8 +49,10 @@ export function cambioDeStock(p: Pub): (CambioMl & { que: "pausa" | "reactivar" 
     if (p.estado !== "activa") return null;
     return {
       ...base, que: "pausa", prioridad: PRIORIDAD.pausa, antes,
-      payload: p.variacion_externa ? { cantidad: 0 } : { estado: "paused" },
-      efecto: { publicacion: { id: p.id, estado: "pausada", pausada_por_stock: true, ...(p.variacion_externa ? { cantidad_publicada: 0 } : {}) } },
+      // Pausa y cantidad juntas, en el mismo envío (Fer, 6/10): nunca queda activa con 0, y ML
+      // también ve la cantidad real (con umbral 1 y 1 disponible: pausada con 1).
+      payload: p.variacion_externa ? { cantidad: 0 } : { estado: "paused", cantidad: disp },
+      efecto: { publicacion: { id: p.id, estado: "pausada", pausada_por_stock: true, cantidad_publicada: p.variacion_externa ? 0 : disp } },
     };
   }
   if (p.pausada_por_stock || p.estado === "pausada") {
@@ -61,9 +63,12 @@ export function cambioDeStock(p: Pub): (CambioMl & { que: "pausa" | "reactivar" 
     };
   }
   if (p.estado === "activa" && p.cantidad_publicada !== disp) {
+    // De 0 a algo: además de la cantidad, que se active en el mismo envío (Fer, 6/10), por si ML
+    // la había pausado al quedar sin stock.
+    const activar = !p.variacion_externa && (p.cantidad_publicada ?? 0) === 0;
     return {
       ...base, que: "cantidad", prioridad: PRIORIDAD.normal, antes,
-      payload: { cantidad: disp },
+      payload: activar ? { cantidad: disp, estado: "active" } : { cantidad: disp },
       efecto: { publicacion: { id: p.id, cantidad_publicada: disp } },
     };
   }

@@ -83,9 +83,17 @@ export async function encolar(org: string, cambios: CambioMl[], opts: { origen: 
         from jsonb_to_recordset($4::jsonb) as x(canal_id bigint, item_id text, variation_id text, publicacion_id bigint, tipo text,
                                                  payload jsonb, antes jsonb, efecto jsonb, prioridad int)
         join canal c on c.id = x.canal_id and c.organizacion_id = $1
-       where $2 <> 'automatico' or not exists (
+       where ($2 <> 'automatico' or not exists (
                select 1 from ml_cola e where e.canal_id = x.canal_id and e.item_id = x.item_id and e.variation_id = x.variation_id
-                  and e.tipo = x.tipo and e.estado = 'error' and e.payload = x.payload and e.creado_ts > now() - interval '6 hours')
+                  and e.tipo = x.tipo and e.estado = 'error' and e.payload = x.payload and e.creado_ts > now() - interval '6 hours'))
+         -- Lo mismo que se está mandando o se acaba de mandar (el último de esa publicación y tipo, hace
+         -- menos de 2 minutos) no se repite: dos avisos de stock casi juntos lo duplicaban (Fer, 6/10).
+         and ($5::bigint is not null or not exists (
+               select 1 from (select e.payload, e.estado, coalesce(e.enviado_ts, e.creado_ts) ts from ml_cola e
+                               where e.canal_id = x.canal_id and e.item_id = x.item_id and e.variation_id = x.variation_id and e.tipo = x.tipo
+                                 and e.lote_id is null and e.estado <> 'pendiente'
+                               order by e.id desc limit 1) u
+                where u.payload = x.payload and u.estado in ('enviando', 'ok') and u.ts > now() - interval '2 minutes'))
       on conflict (canal_id, item_id, variation_id, tipo) where estado = 'pendiente' and lote_id is null
       do update set payload = excluded.payload, efecto = excluded.efecto, prioridad = excluded.prioridad, origen = excluded.origen,
                     usuario_id = excluded.usuario_id, publicacion_id = coalesce(excluded.publicacion_id, ml_cola.publicacion_id),
@@ -223,11 +231,20 @@ export function pedidosDe(f: { item_id: string; variation_id: string; tipo: Tipo
   const salida: PedidoMl[] = [];
   switch (f.tipo) {
     case "stock": {
-      if (p.cantidad != null) {
+      const cantidad = (seguir: boolean): PedidoMl => {
         const n = Math.max(0, Math.trunc(Number(p.cantidad)));
-        salida.push({ metodo: "PUT", ruta, cuerpo: variacion ? { variations: [{ id: variacion, available_quantity: n }] } : { available_quantity: n } });
+        return { metodo: "PUT", ruta, cuerpo: variacion ? { variations: [{ id: variacion, available_quantity: n }] } : { available_quantity: n }, ...(seguir ? { seguirSiFalla: true } : {}) };
+      };
+      if (p.estado === "paused") {
+        // Pausar: primero la pausa (lo que importa) y enseguida la cantidad; si ML rechaza la
+        // cantidad (ej. 0 en una pausada), la pausa ya quedó.
+        salida.push({ metodo: "PUT", ruta, cuerpo: { status: p.estado } });
+        if (p.cantidad != null) salida.push(cantidad(true));
+      } else {
+        // Reactivar: primero la cantidad (para que tenga stock) y después el estado.
+        if (p.cantidad != null) salida.push(cantidad(false));
+        if (p.estado) salida.push({ metodo: "PUT", ruta, cuerpo: { status: p.estado } });
       }
-      if (p.estado) salida.push({ metodo: "PUT", ruta, cuerpo: { status: p.estado } });
       break;
     }
     case "estado":

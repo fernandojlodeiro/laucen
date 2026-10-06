@@ -140,7 +140,7 @@ export async function sucursales(cp: string): Promise<Resultado<Sucursal[]>> {
 export type Alta = { ordenRetiro: string; numeroEnvio: string };
 
 export async function ingresar(usuario: string, clave: string, xml: string): Promise<Resultado<Alta>> {
-  const r = await llamar("IngresoORMultiplesRetiros", { usr: usuario, psw: clave, xml_Datos: xml, ConfirmarRetiro: "true" });
+  const r = await llamar("IngresoORMultiplesRetiros", { usr: usuario, psw: clave, xml_Datos: xml, ConfirmarRetiro: "true", ArchivoCliente: "", ArchivoProceso: "" });
   if (!r.ok) return { ok: false, motivo: r.motivo, crudo: r.texto };
   const errores = [...bloques(r.texto, "Error"), ...bloques(r.texto, "Errores")].map((e) => e.descripcion || e.mensaje).filter(Boolean);
   const det = bloques(r.texto, "DetalleIngresos")[0];

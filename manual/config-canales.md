@@ -204,6 +204,8 @@ Una vez cargadas las razones sociales (ver [Razones sociales](/config/razones-so
 
 - **Corte de pedidos de Mercado Libre.** Los pedidos que se crearon en Mercado Libre antes de las 21:35 del 3/10 (hora argentina) ya están en Virtual Seller y **no entran nunca** a Laucen: ni cuando Mercado Libre avisa un cambio (una entrega, un reclamo), ni en el barrido de cada media hora, ni al conectar una cuenta nueva. Todas las cuentas, incluidas las que se conecten después, usan el mismo corte. Si un carrito tiene alguna orden anterior al corte, no entra entero. Sólo entran los pedidos creados desde ese momento. **Lo mismo con las preguntas y los mensajes**: una pregunta hecha antes del corte no entra, y una conversación con el comprador sólo entra si tiene algún mensaje posterior al corte (en ese caso entra entera, para contestar con la historia a la vista).
 
+- **Pausar y activar van con la cantidad, en el mismo envío.** Cuando el stock llega al umbral, Laucen manda a Mercado Libre la pausa y enseguida la cantidad disponible, juntas: primero la pausa (así nunca queda activa sin stock) y después la cantidad (con umbral 1 y 1 disponible, queda pausada con 1). Cuando vuelve a haber stock, manda la cantidad y la activación juntas: primero la cantidad y después "activa". Si una publicación estaba en 0 y pasa a tener stock, además de la cantidad se manda que se active. Las publicaciones con variaciones no se pausan enteras: a la variación sin stock se le informa 0.
+
 ### Canales
 
 - **Tipos**: Mercado Libre, Web minorista (la tienda web), Web mayorista, Local, Histórico, Otro. Sólo los de tipo Mercado Libre pueden tener cuenta de ML y sus interruptores. Un canal Web minorista es una tienda web (se configura en [Tienda web](/config/tienda)).

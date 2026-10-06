@@ -328,6 +328,20 @@ export function leerCodigoEtiqueta(codigo: string): { texto: string; digitos: st
 const SQL_CON_ETIQUETA = `e.estado is distinct from 'cancelled' and coalesce(e.estado, '') <> 'cancelado'
   and ((e.id_externo is not null and coalesce(e.logistica, '') not in ('fulfillment', 'oca')) or (e.logistica = 'oca' and coalesce(e.tracking, e.datos_externos #>> '{oca,numero_envio}') is not null))`;
 
+// El envío `e` es el de la etiqueta escaneada ($t: el texto en mayúsculas; $d: sólo sus números):
+// de ML, su id (el código de barras o el QR) o su tracking; de OCA, su número de envío o un código
+// que lo trae adentro (el de la pieza o el QR, aunque cambie la cantidad de ceros del medio).
+const sqlEtiquetaEs = (t: string, d: string) => `(upper(e.tracking) = ${t}
+         or (e.logistica is distinct from 'oca' and ${d} <> '' and e.id_externo = ${d})
+         or (e.logistica = 'oca' and ${d} <> '' and (
+               e.datos_externos #>> '{oca,numero_envio}' = ${d}
+            or (length(coalesce(e.datos_externos #>> '{oca,numero_envio}', e.tracking)) >= 8
+                and (${d} like '%' || regexp_replace(coalesce(e.datos_externos #>> '{oca,numero_envio}', e.tracking), '\\D', '', 'g') || '%'
+                  -- El QR de OCA trae el número con otro relleno de ceros y la pieza al final:
+                  -- envío 4960400000000012762 → QR 0170104960400000000001276 21 (Fer, 6/10).
+                  or ${d} ~ (regexp_replace(regexp_replace(coalesce(e.datos_externos #>> '{oca,numero_envio}', e.tracking), '\\D', '', 'g'),
+                                            '^([0-9]*?[1-9])0{3,}([1-9][0-9]*)$', '\\10+\\2') || '[0-9]{0,3}$'))))))`;
+
 /** Cerrar un pedido del lote escaneando la ETIQUETA (Fer, 6/10): así el paquete
  *  que se cierra es el que lleva la etiqueta de su comprador. Vale el código de
  *  barras o el QR de la etiqueta de Mercado Libre (id del envío o su tracking) y
@@ -343,12 +357,7 @@ export async function pedidosDelLotePorEtiqueta(org: string, loteId: number, cod
   const hallados = await consulta<{ pedido_id: number; oca: boolean }>(`
     select distinct e.pedido_id::int, e.logistica = 'oca' oca from envio e
      where e.organizacion_id = $1 and e.pedido_id = any($2::bigint[]) and ${SQL_CON_ETIQUETA}
-       and (upper(e.tracking) = $3
-         or (e.logistica is distinct from 'oca' and $4 <> '' and e.id_externo = $4)
-         or (e.logistica = 'oca' and $4 <> '' and (
-               e.datos_externos #>> '{oca,numero_envio}' = $4
-            or (length(coalesce(e.datos_externos #>> '{oca,numero_envio}', e.tracking)) >= 8
-                and $4 like '%' || regexp_replace(coalesce(e.datos_externos #>> '{oca,numero_envio}', e.tracking), '\\D', '', 'g') || '%'))))`,
+       and ${sqlEtiquetaEs("$3", "$4")}`,
     [org, enLote, texto, digitos]);
   if (hallados.length) {
     const ids = new Set(hallados.map((h) => h.pedido_id));
@@ -466,9 +475,13 @@ export async function pedidoPorNumero(org: string, codigo: string): Promise<{ id
            (select pp.lote_id::int from picking_pedido pp join picking_lote l on l.id = pp.lote_id
              where pp.pedido_id = p.id and l.estado = 'abierto' limit 1) lote
       from pedido p left join cliente cl on cl.id = p.cliente_id
-     where p.organizacion_id = $1 and (p.id_externo = $2 or ($3::bigint is not null and p.id = $3::bigint))
-     order by (p.id = $3::bigint) desc nulls last, p.id desc limit 1`, [org, t, n != null && n <= Number.MAX_SAFE_INTEGER ? n : null]);
-  if (!p) throw new ErrorErp(`No hay ningún pedido con el número ${t}.`);
+     where p.organizacion_id = $1 and (p.id_externo = $2 or ($3::bigint is not null and p.id = $3::bigint)
+       -- O la etiqueta del envío (ML u OCA, código de barras o QR; Fer, 6/10).
+       or p.id = (select e.pedido_id from envio e where e.organizacion_id = $1 and e.pedido_id is not null
+                   and ${SQL_CON_ETIQUETA} and ${sqlEtiquetaEs("$4", "$5")} order by e.id desc limit 1))
+     order by (p.id = $3::bigint) desc nulls last, p.id desc limit 1`,
+    [org, t, n != null && n <= Number.MAX_SAFE_INTEGER ? n : null, leerCodigoEtiqueta(t).texto, leerCodigoEtiqueta(t).digitos]);
+  if (!p) throw new ErrorErp(`No hay ningún pedido con el número o la etiqueta ${t}.`);
   if (p.full) throw new ErrorErp(`El pedido ${p.id} es de Full: lo prepara Mercado Libre.`);
   return p;
 }
