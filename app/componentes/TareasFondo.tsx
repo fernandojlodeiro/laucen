@@ -63,10 +63,13 @@ export function AvisosTareas() {
 }
 
 /** El botón de algo que demora: lanza la tarea de fondo y dice "Trabajando…" mientras corre. */
-export function BotonTarea({ accion, tipo, texto, clase, campos = {} }: {
+export function BotonTarea({ accion, tipo, texto, clase, campos = {}, pregunta }: {
   accion: (fd: FormData) => Promise<{ ok: boolean; mensaje?: string }>;
   tipo: string; texto: React.ReactNode; clase: string; campos?: Record<string, string>;
+  /** Si viene, antes de lanzar pregunta ahí mismo "¿…? Sí / No". */
+  pregunta?: string;
 }) {
+  const [preguntando, setPreguntando] = useState(false);
   const [corriendo, setCorriendo] = useState(false);
   const [pendiente, empezar] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -77,18 +80,29 @@ export function BotonTarea({ accion, tipo, texto, clase, campos = {} }: {
     return () => window.removeEventListener(CORRIENDO, f);
   }, [tipo]);
   const ocupado = corriendo || pendiente;
+  const lanzar = () => empezar(async () => {
+    setError(null);
+    setPreguntando(false);
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(campos)) fd.set(k, v);
+    const r = await accion(fd).catch(() => ({ ok: false, mensaje: "No se pudo empezar. Probá de nuevo." }));
+    if (!r.ok) { setError(r.mensaje ?? "No se pudo empezar."); return; }
+    setCorriendo(true);
+    window.dispatchEvent(new Event(LANZADA));
+  });
+  if (preguntando && !ocupado) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs">
+        <span>{pregunta}</span>
+        <button type="button" onClick={lanzar} className={clase}>Sí</button>
+        <button type="button" onClick={() => setPreguntando(false)} className={clase}>No</button>
+      </span>
+    );
+  }
   return (
     <span className="inline-flex flex-col items-end">
       <button type="button" disabled={ocupado} className={`${clase} disabled:opacity-60`}
-        onClick={() => empezar(async () => {
-          setError(null);
-          const fd = new FormData();
-          for (const [k, v] of Object.entries(campos)) fd.set(k, v);
-          const r = await accion(fd).catch(() => ({ ok: false, mensaje: "No se pudo empezar. Probá de nuevo." }));
-          if (!r.ok) { setError(r.mensaje ?? "No se pudo empezar."); return; }
-          setCorriendo(true);
-          window.dispatchEvent(new Event(LANZADA));
-        })}>
+        onClick={() => (pregunta ? setPreguntando(true) : lanzar())}>
         {ocupado ? "Trabajando…" : texto}
       </button>
       {error && <span className="text-[11px] text-[#C03420] mt-0.5">{error}</span>}

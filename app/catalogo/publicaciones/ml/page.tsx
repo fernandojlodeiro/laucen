@@ -3,6 +3,7 @@
 // corresponde cada una. Lo vinculado queda en `publicacion`, que es lo que
 // usan el stock, la pausa y los pedidos.
 
+import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
 import Casillas from "./Casillas";
 import { leerOrden, leerPagina, POR_PAGINA } from "@/lib/lista";
@@ -139,11 +140,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
             {canales.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </FiltroVivo></label>
         <Todas prendido={todas} />
-        {!todas && <form action={accionTraerPublicaciones} className="ml-auto">
-          <input type="hidden" name="canal" value={canal.id} />
-          <input type="hidden" name="volver" value={aqui} />
-          <BotonEnviar clase={PRIMARIO} corriendo="Trayendo… (puede tardar unos minutos)">Traer publicaciones de ML</BotonEnviar>
-        </form>}
+        {!todas && <span className="ml-auto"><BotonTarea accion={accionTraerPublicaciones} tipo={`publicaciones-ml:${canal.id}`} campos={{ canal: String(canal.id) }} clase={PRIMARIO} texto="Traer publicaciones de ML" /></span>}
       </div>
 
       <div className="grid grid-cols-3 gap-3 mb-4 max-w-xl">

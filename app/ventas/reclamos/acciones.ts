@@ -1,5 +1,6 @@
 "use server";
 
+import { deFondo } from "@/lib/tareas-fondo";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { una, ErrorErp } from "@/lib/erp/base";
@@ -17,7 +18,7 @@ const ficha = (r: number) => `${LISTA}/${r}`;
 /** Trae ahora los reclamos de todas las cuentas de ML con canal (sólo lectura). */
 export async function accionTraerReclamos() {
   const s = await entrarErp("reclamos_ver");
-  await intentar(LISTA, async () => {
+  return deFondo(s, "reclamos-ml", "Reclamos de Mercado Libre", async () => {
     const cuentas = (await cuentasDe(s.org.id)).filter((c) => c.canalId && c.estado === "activa");
     if (cuentas.length === 0) throw new ErrorErp("No hay ninguna cuenta de Mercado Libre conectada a un canal.");
     // Las cuentas en paralelo; cada una dice qué le pasó, sin esconder el motivo.
@@ -123,7 +124,7 @@ export async function accionRecibirDevolucion(fd: FormData) {
 export async function accionActualizarReclamo(fd: FormData) {
   const s = await entrarErp("reclamos_ver");
   const r = id(fd);
-  await intentar(ficha(r), async () => {
+  return deFondo(s, `reclamo:${r}`, "Reclamo actualizado desde Mercado Libre", async () => {
     await actualizarReclamo(s.org.id, r);
     return "Actualizado desde Mercado Libre.";
   });

@@ -5,6 +5,7 @@
 // umbral de pausa (lápiz de la fila) y el vínculo con la variación — el de ML,
 // en "Vincular con Mercado Libre"; el de otros canales, en el lápiz.
 
+import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { VERDE, SUAVE } from "@/app/botones";
@@ -23,6 +24,8 @@ import { accionGuardarPublicacion, accionPausarPublicacion, accionSacarPausa, ac
 import { verInactivos } from "@/app/componentes/Inactivos";
 
 export const dynamic = "force-dynamic";
+// Las tareas de fondo de sus botones corren hasta este tope.
+export const maxDuration = 120;
 
 const BASE = "/catalogo/publicaciones";
 
@@ -88,7 +91,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
     <Pantalla titulo="Publicaciones" subtitulo="Espejo de lo publicado en Mercado Libre; se actualiza solo. Los cambios hacia Mercado Libre salen de la ficha del producto y de las reglas."
       acciones={<>
         {/* Sólo lectura: por qué está en revisión cada publicación (también lo hace solo, de fondo, una vez por día). */}
-        <form action={accionLeerMotivos}><input type="hidden" name="volver" value={aqui} /><button className={SUAVE}>Leer motivos de revisión</button></form>
+        <BotonTarea accion={accionLeerMotivos} tipo="motivos-revision" clase={SUAVE} texto="Leer motivos de revisión" />
         <AccionesExcel lista={LISTA_PUBLICACIONES} org={s.org.id} /><Link href="/catalogo/publicaciones/ml" className={SUAVE}>Vincular con Mercado Libre</Link></>}>
       <Avisos sp={sp} />
 

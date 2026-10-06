@@ -7,6 +7,7 @@
 //     estados abierto / en proceso / resuelto, y el reembolso sólo se anota.
 // En los dos, "Recibir devolución" abre la recepción de devolución del pedido.
 
+import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { consulta, una } from "@/lib/erp/base";
@@ -33,6 +34,8 @@ import {
 } from "../acciones";
 
 export const dynamic = "force-dynamic";
+// Las tareas de fondo de sus botones corren hasta este tope.
+export const maxDuration = 120;
 
 type SP = { ok?: string; error?: string; editar?: string };
 
@@ -109,7 +112,7 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
     <Pantalla titulo={`Reclamo ${rid}`} camino={[{ texto: `Reclamo ${rid}` }]}
       subtitulo={<>{ORIGENES_RECLAMO[r.origen]}{r.canal ? ` · ${r.canal}` : ""}{r.id_externo ? ` · reclamo de ML ${r.id_externo}` : ""}</>}
       acciones={esMl
-        ? <form action={accionActualizarReclamo}><input type="hidden" name="id" value={rid} /><BotonEnviar clase={SUAVE} corriendo="Actualizando…">Actualizar desde ML</BotonEnviar></form>
+        ? <BotonTarea accion={accionActualizarReclamo} tipo={`reclamo:${rid}`} campos={{ id: String(rid) }} clase={SUAVE} texto="Actualizar desde ML" />
         : <BotonesFicha editando={editando} ver={VER} editar={`${VER}?editar=ficha`} />}>
       <Avisos sp={sp} />
 

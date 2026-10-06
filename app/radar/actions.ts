@@ -3,6 +3,7 @@
 // Acciones del Radar. Cada una verifica el permiso (hoy lo tiene el Admin de
 // cada organización; cuando existan los roles, se reparte con checkboxes).
 
+import { deFondo } from "@/lib/tareas-fondo";
 import { redirect } from "next/navigation";
 import { leerNumero } from "@/lib/numeros";
 import { and, eq } from "drizzle-orm";
@@ -141,4 +142,20 @@ export async function accionSeguirPalabra(fd: FormData) {
   const cat = texto(fd, "cat");
   await seguirPalabra(s.org.id, texto(fd, "palabra"), cat && cat !== SITIO ? cat : null, s.usuario.id, fd.get("valor") === "1");
   volver(fd);
+}
+
+/** Lo mismo que «Correr ahora», de fondo (botón "Trabajando…" y cartel al terminar). */
+export async function accionCorrerAhoraFondo(fd: FormData): Promise<{ ok: boolean; mensaje?: string }> {
+  const s = await contexto("radar_configurar");
+  const arbol = texto(fd, "tipo") === "arbol";
+  return deFondo(s, arbol ? "radar-arbol" : "radar-tendencias", arbol ? "Radar: árbol de categorías" : "Radar: tendencias", async () => {
+    const hasta = Date.now() + 240_000;
+    if (arbol) {
+      const e = await estadoDelArbol();
+      await procesoArbol("manual", hasta, e.total > 0 && e.pendientes === 0);
+      return "Árbol de categorías leído.";
+    }
+    await procesoTendencias(s.org.id, "manual", hasta);
+    return "Tendencias leídas.";
+  });
 }

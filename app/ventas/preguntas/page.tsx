@@ -3,6 +3,7 @@
 // revisa, la cambia si hace falta y la manda. Con el interruptor "Responde
 // sola la IA" de cada pestaña prendido (Fer, 5/10), la IA la manda sola.
 
+import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
 import { consulta, una } from "@/lib/erp/base";
 import { PRIMARIO, SUAVE } from "@/app/botones";
@@ -18,6 +19,8 @@ import {
 } from "./acciones";
 
 export const dynamic = "force-dynamic";
+// Las tareas de fondo de sus botones corren hasta este tope.
+export const maxDuration = 120;
 
 type SP = { ver?: string; canal?: string; pack?: string; ok?: string; error?: string };
 
@@ -54,7 +57,7 @@ export default async function PreguntasYMensajes({ searchParams }: { searchParam
           <Interruptor accion={accionRespuestaAuto} campos={{ cual }} prendido={auto[cual]}
             etiqueta={cual === "mensajes" ? "La IA contesta sola los mensajes" : "La IA contesta sola las preguntas"} />
           {ver !== "mensajes" && (
-            <form action={accionTraerPreguntas}><BotonEnviar clase={SUAVE} corriendo="Trayendo…">Traer preguntas ahora</BotonEnviar></form>
+            <BotonTarea accion={accionTraerPreguntas} tipo="preguntas-ml" clase={SUAVE} texto="Traer preguntas ahora" />
           )}
         </div>
       )}>
@@ -250,10 +253,7 @@ async function Hilo({ org, conv, auto }: { org: string; conv: { pack_id: string;
               : <span>Pack {conv.pack_id} (sin pedido en Laucen)</span>}
           </div>
         </div>
-        <form action={accionActualizarConversacion}>
-          <input type="hidden" name="pack" value={conv.pack_id} />
-          <BotonEnviar clase={SUAVE} corriendo="Actualizando…">Actualizar</BotonEnviar>
-        </form>
+        <BotonTarea accion={accionActualizarConversacion} tipo={`conversacion:${conv.pack_id}`} campos={{ pack: String(conv.pack_id) }} clase={SUAVE} texto="Actualizar" />
       </header>
       <div className="space-y-2 mb-3">
         {mensajes.length === 0 && <p className="text-xs text-[#5C6B76]">No hay mensajes en esta conversación.</p>}

@@ -13,6 +13,7 @@
 // más de una cuenta, las filas dicen de qué cuenta son.
 // Acá no se registra ninguna factura: entran por la importación de ARCA.
 
+import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
 import { PRIMARIO, VERDE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
@@ -72,11 +73,7 @@ export default async function FacturacionMl({ searchParams }: { searchParams: Pr
       subtitulo="Lo que cobran Mercado Libre y Mercado Pago, leído de su API (sólo lectura): costo de cada venta, retenciones y percepciones, y el control contra las facturas importadas de ARCA. Las facturas se registran sólo por «Importar de ARCA»."
       acciones={<>
         {periodo && ver === "impuestos" && <a href={url(`${BASE}/excel`, { periodo: periodo.clave, canal })} className={VERDE}>Descargar Excel</a>}
-        <form action={accionTraerFacturacionMl}>
-          <input type="hidden" name="volver" value={aqui} />
-          {canal && <input type="hidden" name="canal" value={canal} />}
-          <BotonEnviar clase={PRIMARIO} corriendo="Leyendo de Mercado Libre…">Traer facturación de ML</BotonEnviar>
-        </form>
+        <BotonTarea accion={accionTraerFacturacionMl} tipo={`facturacion-ml:${canal ?? "todas"}`} campos={canal ? { canal: String(canal) } : {}} clase={PRIMARIO} texto="Traer facturación de ML" />
       </>}>
       <Avisos sp={sp} />
       {cuentas.length > 0 && (

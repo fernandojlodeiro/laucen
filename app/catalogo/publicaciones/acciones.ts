@@ -8,6 +8,7 @@
 // Mercado Libre, a qué variación corresponde. El vínculo de una publicación de
 // ML se cambia en "Vincular con Mercado Libre" (/catalogo/publicaciones/ml).
 
+import { deFondo } from "@/lib/tareas-fondo";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
@@ -131,7 +132,7 @@ export async function accionCorregirPrecio(fd: FormData) {
  *  publicación que no se leyó en el último día. Hasta ~50 segundos por clic. */
 export async function accionLeerMotivos(fd: FormData) {
   const s = await entrarErp("publicaciones_ver");
-  await intentar(volverDe(fd), async () => {
+  return deFondo(s, "motivos-revision", "Motivos de revisión de Mercado Libre", async () => {
     const r = await leerMotivosPendientes(s.org.id, Date.now() + 50_000);
     revalidatePath(BASE);
     if (!r.leidas && !r.quedan) return "Todos los motivos están al día (se vuelven a leer una vez por día).";

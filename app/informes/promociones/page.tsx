@@ -3,6 +3,7 @@
 // cambio (una campaña que empieza o termina, una publicación que entra, sale o cambia de precio). Es lo que explica
 // por qué cambió un precio. La lectura de ML es sólo de lectura y corre cada hora desde el barrido.
 
+import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { consultaPaginada } from "@/lib/lista";
@@ -56,13 +57,8 @@ export default async function Promociones({ searchParams }: { searchParams: Prom
       acciones={
         <span className="inline-flex flex-wrap items-center gap-2">
           <AccionesExcel lista={LISTA} org={s.org.id} />
-          <form action={accionLeerPromociones}>
-            <BotonEnviar clase={SUAVE} corriendo="Leyendo Mercado Libre… (puede tardar unos minutos)">Leer ahora de Mercado Libre</BotonEnviar>
-          </form>
-          <form action={accionLeerPromociones}>
-            <input type="hidden" name="historial" value="1" />
-            <BotonEnviar clase={SUAVE} corriendo="Trayendo el historial… (puede tardar unos minutos)">Traer historial de campañas</BotonEnviar>
-          </form>
+          <BotonTarea accion={accionLeerPromociones} tipo="promociones" clase={SUAVE} texto="Leer ahora de Mercado Libre" />
+          <BotonTarea accion={accionLeerPromociones} tipo="promociones-historial" campos={{ historial: "1" }} clase={SUAVE} texto="Traer historial de campañas" />
         </span>
       }>
       <Avisos sp={sp} />

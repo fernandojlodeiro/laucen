@@ -2,6 +2,7 @@
 
 // Acciones de la cuenta de Mercado Libre de un canal (sesión 2).
 
+import { deFondo } from "@/lib/tareas-fondo";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
@@ -105,7 +106,7 @@ export async function accionSubirFacturas(fd: FormData) {
 export async function accionTraerAhora(fd: FormData) {
   const s = await entrarErp("canales_ver");
   const canal = id(fd, "canal");
-  await intentar(volver(canal), async () => {
+  return deFondo(s, `traer-ml:${canal}`, "Pedidos y preguntas de Mercado Libre", async () => {
     await canalMl(s.org.id, fd);
     const cuenta = await cuentaDelCanal(s.org.id, canal);
     if (!cuenta) throw new ErrorErp("El canal no tiene una cuenta de Mercado Libre.");

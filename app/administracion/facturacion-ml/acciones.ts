@@ -5,6 +5,7 @@
 // filtro "Cuenta", o de todas si está en "Todas las cuentas". Lo mismo corre
 // solo de noche (de todas).
 
+import { deFondo } from "@/lib/tareas-fondo";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { ErrorErp } from "@/lib/erp/base";
@@ -16,7 +17,7 @@ const BASE = "/administracion/facturacion-ml";
 export async function accionTraerFacturacionMl(fd: FormData) {
   const s = await entrarErp("facturacion_ml_ver");
   const v = texto(fd, "volver");
-  await intentar(v && v.startsWith(BASE) ? v : BASE, async () => {
+  return deFondo(s, `facturacion-ml:${texto(fd, "canal") ?? "todas"}`, "Facturación de Mercado Libre", async () => {
     const cuentas = await cuentasMl(s.org.id);
     const canal = canalElegido(texto(fd, "canal"), cuentas);
     const informe = await traerFacturacionMl(s.org.id, { hastaMs: Date.now() + 50_000, periodos: 3, canalId: canal });

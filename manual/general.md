@@ -57,7 +57,7 @@ En la PC, si la pantalla tiene lugar a la izquierda del contenido, aparece una l
 
 ### Botones que demoran
 
-Un botón que lanza algo que tarda (por ejemplo **"↻ Actualizar"** en [Mercado Pago](/administracion/mercadopago)) no te deja esperando: el botón pasa a **"Trabajando…"** y podés seguir usando esa pantalla o irte a otra. Cuando termina, aparece un **cartel abajo a la derecha**, verde si salió bien (por ejemplo "Se leyeron 5 de 5 cuentas correctamente") o rojo con el motivo si no, y la pantalla que estés viendo se actualiza sola. Mientras corre, el mismo botón no se puede volver a apretar (y si otra persona lo lanzó, también dice "Trabajando…").
+Un botón que lanza algo que tarda (por ejemplo **"↻ Actualizar"** en [Mercado Pago](/administracion/mercadopago)) no te deja esperando: el botón pasa a **"Trabajando…"** y podés seguir usando esa pantalla o irte a otra. Cuando termina, aparece un **cartel abajo a la derecha**, verde si salió bien (por ejemplo "Se leyeron 5 de 5 cuentas correctamente") o rojo con el motivo si no, y la pantalla que estés viendo se actualiza sola. Mientras corre, el mismo botón no se puede volver a apretar (y si otra persona lo lanzó, también dice "Trabajando…"). Funcionan así: "↻ Actualizar" de Mercado Pago, "Traer reclamos de ML" y "Actualizar desde ML" de un reclamo, "Traer preguntas ahora" y "Actualizar" de una conversación, "Traer facturación de ML", "Subir a ML las facturas que faltan", "Traer publicaciones de ML", "Traer pedidos y preguntas ahora" (en un canal), "Leer motivos de revisión", "Leer ahora de Mercado Libre" y "Traer historial de campañas" (Promociones), y los del Radar ("Leer tendencias ahora", "Releer el árbol").
 
 ### El recorrido (arriba de todo, con ↩)
 

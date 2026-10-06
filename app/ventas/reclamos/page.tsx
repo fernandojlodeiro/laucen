@@ -3,6 +3,7 @@
 // con "Nuevo reclamo"). Pestañas: Abiertos (los que esperan tu respuesta
 // primero, por vencimiento), En mediación, Devoluciones en camino, Cerrados.
 
+import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { SUAVE, PRIMARIO } from "@/app/botones";
@@ -19,6 +20,8 @@ import { LISTA_RECLAMOS, filtrosReclamos } from "./lista";
 import { accionTraerReclamos, accionNuevoReclamo } from "./acciones";
 
 export const dynamic = "force-dynamic";
+// Las tareas de fondo de sus botones corren hasta este tope.
+export const maxDuration = 120;
 
 type SP = { ver?: string; canal?: string; motivo?: string; desde?: string; hasta?: string; q?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string; nuevo?: string };
 
@@ -43,7 +46,7 @@ export default async function Reclamos({ searchParams }: { searchParams: Promise
   return (
     <Pantalla titulo="Reclamos y devoluciones" subtitulo="Los reclamos de Mercado Libre y los de la web o el local, con el plazo para responder"
       acciones={<>
-        {hayMl.length > 0 && <form action={accionTraerReclamos}><BotonEnviar clase={SUAVE} corriendo="Trayendo…">Traer reclamos de ML</BotonEnviar></form>}
+        {hayMl.length > 0 && <BotonTarea accion={accionTraerReclamos} tipo="reclamos-ml" clase={SUAVE} texto="Traer reclamos de ML" />}
         <AccionesExcel lista={LISTA_RECLAMOS} org={s.org.id} />
         <BotonNuevo texto="Nuevo reclamo" />
       </>}>

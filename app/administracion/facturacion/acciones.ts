@@ -3,6 +3,7 @@
 // Reintentar un comprobante rechazado o con error (lo vuelve a mandar a ARCA),
 // y subir facturas a la venta de Mercado Libre (por la cola).
 
+import { deFondo } from "@/lib/tareas-fondo";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { una, ErrorErp } from "@/lib/erp/base";
@@ -49,10 +50,8 @@ export async function accionSubirFacturaMl(fd: FormData) {
  *  cuando Fer aprieta "Mandar a Mercado Libre" en la cola. */
 export async function accionPrepararFacturasMl() {
   const s = await entrarErp("facturacion_ver");
-  await intentar(LISTADO, async () => {
+  return deFondo(s, "facturas-a-ml", "Facturas para subir a Mercado Libre", async () => {
     const r = await prepararLoteFacturasFaltantes(s.org.id, s.usuario.id);
-    const destino = r.lotes.length === 1 ? `/config/canales/cola?ver=lotes&lote=${r.lotes[0]}` : "/config/canales/cola?ver=lotes";
-    const aviso = `Preparado: ${r.facturas} factura${r.facturas === 1 ? "" : "s"} para subir a Mercado Libre. Revisalas y apretá «Mandar a Mercado Libre».`;
-    return { ir: `${destino}&ok=${encodeURIComponent(aviso)}` };
+    return `Preparado: ${r.facturas} factura${r.facturas === 1 ? "" : "s"} para subir a Mercado Libre${r.lotes.length ? ` (lote${r.lotes.length === 1 ? "" : "s"} ${r.lotes.join(", ")})` : ""}. Revisalas en Configuración › Cola de Mercado Libre › Lotes y apretá «Mandar a Mercado Libre».`;
   });
 }

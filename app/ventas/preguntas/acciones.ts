@@ -1,5 +1,6 @@
 "use server";
 
+import { deFondo } from "@/lib/tareas-fondo";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { una, consulta, ErrorErp } from "@/lib/erp/base";
@@ -21,7 +22,7 @@ const pack = (fd: FormData) => {
 /** Trae ahora las preguntas sin responder de todas las cuentas con canal. */
 export async function accionTraerPreguntas() {
   const s = await entrarErp("preguntas_ver");
-  await intentar(VOLVER, async () => {
+  return deFondo(s, "preguntas-ml", "Preguntas de Mercado Libre", async () => {
     const cuentas = (await cuentasDe(s.org.id)).filter((c) => c.canalId && c.estado === "activa");
     if (cuentas.length === 0) throw new ErrorErp("No hay ninguna cuenta de Mercado Libre conectada a un canal.");
     let pendientes = 0;
@@ -59,7 +60,7 @@ export async function accionResponder(fd: FormData) {
 export async function accionActualizarConversacion(fd: FormData) {
   const s = await entrarErp("preguntas_ver");
   const p = texto(fd, "pack") ?? "";
-  await intentar(volverMensajes(p), async () => {
+  return deFondo(s, `conversacion:${p}`, "Conversación de Mercado Libre", async () => {
     const conv = await una<{ canal_id: string | null }>(
       "select canal_id from meli_conversacion where organizacion_id = $1 and pack_id = $2", [s.org.id, pack(fd)]);
     if (!conv?.canal_id) throw new ErrorErp("La conversación no existe.");

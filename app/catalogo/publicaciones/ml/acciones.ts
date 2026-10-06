@@ -4,6 +4,7 @@
 // cuenta, vincular cada fila de meli_item con una variación, crear el
 // producto desde la publicación, desvincular.
 
+import { deFondo } from "@/lib/tareas-fondo";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { una, enTransaccion, ErrorErp } from "@/lib/erp/base";
@@ -30,7 +31,7 @@ async function cuentaDe(org: string, fd: FormData) {
 export async function accionTraerPublicaciones(fd: FormData) {
   const s = await entrarErp("publicaciones_ver");
   const volver = volverDe(fd);
-  await intentar(volver, async () => {
+  return deFondo(s, `publicaciones-ml:${texto(fd, "canal") ?? ""}`, "Publicaciones de Mercado Libre", async () => {
     const cuenta = await cuentaDe(s.org.id, fd);
     // Hasta 4 minutos; lo que falte se trae apretando de nuevo.
     const r = await traerPublicaciones(cuenta, Date.now() + 240_000);

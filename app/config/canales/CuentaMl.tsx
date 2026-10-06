@@ -1,6 +1,7 @@
 // La cuenta de Mercado Libre de un canal: conectarla (o usar una ya
 // conectada), prender la sincronización de stock y traer ya los pedidos.
 
+import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
 import { consulta, una } from "@/lib/erp/base";
 import { PRIMARIO, SUAVE, APAGAR } from "@/app/botones";
@@ -84,11 +85,8 @@ export default async function CuentaMl({ org, canal }: { org: string; canal: num
             </p>
           )}
           <div className="flex flex-wrap gap-2">
-            <form action={accionTraerPublicaciones}>
-              <input type="hidden" name="canal" value={canal} /><input type="hidden" name="volver" value={`/config/canales?c=${canal}`} />
-              <BotonEnviar clase={SUAVE} corriendo="Trayendo publicaciones… (puede tardar unos minutos)">Traer publicaciones de ML</BotonEnviar>
-            </form>
-            <form action={accionTraerAhora}><input type="hidden" name="canal" value={canal} /><BotonEnviar clase={SUAVE} corriendo="Trayendo…">Traer pedidos y preguntas ahora</BotonEnviar></form>
+            <BotonTarea accion={accionTraerPublicaciones} tipo={`publicaciones-ml:${canal}`} campos={{ canal: String(canal) }} clase={SUAVE} texto="Traer publicaciones de ML" />
+            <BotonTarea accion={accionTraerAhora} tipo={`traer-ml:${canal}`} campos={{ canal: String(canal) }} clase={SUAVE} texto="Traer pedidos y preguntas ahora" />
             <Link href={`/catalogo/publicaciones/ml?canal=${canal}`} className={SUAVE}>Vincular publicaciones</Link>
           </div>
           <Interruptor accion={accionSincronizarStock} prendido={sincroniza} campos={campos}

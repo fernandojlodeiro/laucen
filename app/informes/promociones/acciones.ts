@@ -4,6 +4,7 @@
 // curso) y las registra, sin esperar a la lectura de cada hora. Con "historial", pide también las ya terminadas y las
 // programadas. Sólo lectura: no cambia nada en Mercado Libre.
 
+import { deFondo } from "@/lib/tareas-fondo";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar } from "@/lib/erp/acciones";
@@ -15,7 +16,7 @@ const BASE = "/informes/promociones";
 export async function accionLeerPromociones(fd: FormData) {
   const s = await entrarErp("informes_publicaciones_ver");
   const historico = fd.get("historial") === "1";
-  await intentar(`${BASE}?ver=campanas`, async () => {
+  return deFondo(s, historico ? "promociones-historial" : "promociones", historico ? "Historial de campañas de Mercado Libre" : "Campañas de Mercado Libre", async () => {
     const cuentas = (await cuentasDe(s.org.id)).filter((c) => c.canalId != null && c.estado === "activa");
     let campanas = 0, nuevas = 0, items = 0, eventos = 0;
     const errores: string[] = [];

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BotonTarea } from "@/app/componentes/TareasFondo";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { sesionRequerida, puede } from "@/lib/tenancy";
 import { sosVos } from "@/lib/admin";
@@ -9,7 +10,7 @@ import { estadoDelArbol } from "@/lib/radar/categorias";
 import { situacionDelArbol, ultimosProcesos } from "@/lib/radar/procesos";
 import { cuentaDe } from "@/lib/meli";
 import { SUAVE, VERDE } from "@/app/botones";
-import { accionCorrerAhora, accionGuardarConfig } from "../actions";
+import { accionCorrerAhora, accionCorrerAhoraFondo, accionGuardarConfig } from "../actions";
 import { Aviso } from "../Piezas";
 import { BotonConfirmar, BotonEnviar } from "../Cliente";
 
@@ -180,19 +181,12 @@ export default async function Configuracion({ searchParams }: { searchParams: Pr
         )}
         {puedeConfigurar && (
           <div className="flex flex-wrap gap-2 mb-4">
-            <form action={accionCorrerAhora}>
-              <input type="hidden" name="tipo" value="tendencias" />
-              <BotonEnviar clase={VERDE} corriendo="Corriendo…">Leer tendencias ahora</BotonEnviar>
-            </form>
+            <BotonTarea accion={accionCorrerAhoraFondo} tipo="radar-tendencias" campos={{ tipo: "tendencias" }} clase={VERDE} texto="Leer tendencias ahora" />
             {arbolCompleto ? (
-              <BotonConfirmar accion={accionCorrerAhora} campos={{ tipo: "arbol" }} clase={SUAVE} texto="Releer el árbol ahora"
-                pregunta={`¿Releer las ${arbol.total.toLocaleString("es-AR")} categorías? Casi nunca hace falta.`}
-                corriendo="Releyendo… (hasta 4 min)" />
+              <BotonTarea accion={accionCorrerAhoraFondo} tipo="radar-arbol" campos={{ tipo: "arbol" }} clase={SUAVE} texto="Releer el árbol ahora"
+                pregunta={`¿Releer las ${arbol.total.toLocaleString("es-AR")} categorías? Casi nunca hace falta.`} />
             ) : (
-              <form action={accionCorrerAhora}>
-                <input type="hidden" name="tipo" value="arbol" />
-                <BotonEnviar clase={SUAVE} corriendo="Cargando… (hasta 4 min)">Seguir cargando el árbol</BotonEnviar>
-              </form>
+              <BotonTarea accion={accionCorrerAhoraFondo} tipo="radar-arbol" campos={{ tipo: "arbol" }} clase={SUAVE} texto="Seguir cargando el árbol" />
             )}
           </div>
         )}

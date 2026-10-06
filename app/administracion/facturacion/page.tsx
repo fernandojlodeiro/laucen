@@ -1,6 +1,7 @@
 // Facturación: los comprobantes emitidos (facturas y notas de crédito) con su
 // estado en ARCA, filtros y reintento de los rechazados o con error.
 
+import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
 import RangoFechas from "@/app/componentes/RangoFechas";
 import { emisoresDe, TIPOS_CBTE } from "@/lib/arca/facturar";
@@ -15,6 +16,8 @@ import { LISTA_FACTURACION, filtrosFacturacion } from "./lista";
 import { accionReintentar, accionPrepararFacturasMl } from "./acciones";
 
 export const dynamic = "force-dynamic";
+// Las tareas de fondo de sus botones corren hasta este tope.
+export const maxDuration = 120;
 
 type SP = { rs?: string; estado?: string; tipo?: string; desde?: string; hasta?: string; q?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
@@ -33,7 +36,7 @@ export default async function Facturacion({ searchParams }: { searchParams: Prom
   return (
     <Pantalla titulo="Facturación" subtitulo="Facturas y notas de crédito electrónicas de ARCA"
       acciones={<>
-        <form action={accionPrepararFacturasMl}><BotonEnviar clase={SUAVE} corriendo="Preparando…">Subir a ML las facturas que faltan</BotonEnviar></form>
+        <BotonTarea accion={accionPrepararFacturasMl} tipo="facturas-a-ml" clase={SUAVE} texto="Subir a ML las facturas que faltan" />
         <AccionesExcel lista={LISTA_FACTURACION} org={s.org.id} vista={vista.activa?.id} /><Link href="/config/arca" className={SUAVE}>Configuración</Link>
         {/* Para una factura hecha fuera de Laucen (Virtual Seller); las de Laucen se anulan desde su ficha. */}
         <Link href="/administracion/facturacion/nota-credito" className={PRIMARIO}>+ Nueva nota de crédito</Link></>}>

@@ -45,3 +45,18 @@ export async function marcarAvisadas(org: string, usuarioId: string, ids: number
   if (!ids.length) return;
   await consulta("update tarea_fondo set avisado = true where organizacion_id = $1 and usuario_id = $2 and id = any($3::bigint[])", [org, usuarioId, ids]);
 }
+
+/** Para una acción de botón: la lanza de fondo con lo que antes iba en
+ *  intentar() (devuelve el mensaje del cartel; un error tira ErrorErp). */
+export async function deFondo(s: { org: { id: string }; usuario: { id: string } }, tipo: string, titulo: string,
+  trabajo: () => Promise<string | void | { ir: string }>): Promise<{ ok: boolean; mensaje?: string }> {
+  try {
+    await lanzarTarea(s.org.id, s.usuario.id, tipo, titulo, async () => {
+      const r = await trabajo();
+      return typeof r === "string" ? r : "Listo.";
+    });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, mensaje: motivoErp(e) };
+  }
+}
