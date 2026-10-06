@@ -145,6 +145,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Bitácora", href: "/admin/bitacora" },
       { texto: "Para probar", href: "/admin/para-probar" },
       { texto: "Mercado Libre", href: "/admin/meli" },
+      { texto: "Aplicación de Mercado Pago", href: "/admin/mercadopago" },
       { texto: "Costos ML", href: "/admin/costos-ml" },
       { texto: "Ventas ML por categoría", href: "/admin/ventas-ml" },
       { texto: "China — pruebas", href: "/admin/china" },

@@ -13,7 +13,7 @@ import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { urlPanel } from "@/lib/tienda/dominios";
 
 export const API_MP = "https://api.mercadopago.com";
-const AUTORIZAR = "https://auth.mercadopago.com/authorization";
+const AUTORIZAR = "https://auth.mercadopago.com.ar/authorization";
 export const RUTA_VUELTA = "/config/canales/mercadopago/callback";
 
 export async function appMp(): Promise<{ clientId: string; secreto: string } | null> {
@@ -36,8 +36,8 @@ export async function nuevoPkce() {
 export function urlDeAutorizacion(clientId: string, state: string, challenge: string) {
   const q = new URLSearchParams({
     client_id: clientId, response_type: "code", platform_id: "mp", state, redirect_uri: urlVuelta(),
-    code_challenge: challenge, code_challenge_method: "S256",
   });
+  void challenge; // PKCE apagado: Mercado Pago lo rechaza si la aplicación no lo tiene prendido.
   return `${AUTORIZAR}?${q}`;
 }
 
@@ -59,8 +59,9 @@ export async function canjearCodigoMp(org: string, canalId: number, code: string
   if (!app) throw new ErrorErp("Falta configurar la aplicación de Mercado Pago de Laucen.");
   const t = await pedirToken({
     grant_type: "authorization_code", client_id: app.clientId, client_secret: app.secreto,
-    code, redirect_uri: urlVuelta(), code_verifier: verifier,
+    code, redirect_uri: urlVuelta(),
   });
+  void verifier;
   const yo = await fetch(`${API_MP}/users/me`, { headers: { authorization: `Bearer ${t.access_token}` }, cache: "no-store" })
     .then((r) => r.json()).catch(() => null) as { id?: number; nickname?: string; email?: string; first_name?: string; last_name?: string } | null;
   const nombre = yo?.nickname ?? ([yo?.first_name, yo?.last_name].filter(Boolean).join(" ") || null);

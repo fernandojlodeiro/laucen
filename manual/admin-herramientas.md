@@ -69,7 +69,7 @@ Abajo de todo, el resultado: una línea por cada consulta a la API, con el códi
 
 ### Aplicación de Mercado Pago (/admin/mercadopago)
 
-La aplicación de Mercado Pago de Laucen, una sola para todo el sistema: con ella cada organización conecta sus cuentas de Mercado Pago desde [Canales](/config/canales) ("Conectar Mercado Pago"). Muestra si está cargada y la **URL de redireccionamiento** que hay que poner en la aplicación de Mercado Pago (en developers de Mercado Pago), y dos campos: **Client ID** y **Client Secret**, que se graban con **"Grabar"** (arriba a la derecha) y nunca se vuelven a mostrar.
+En el menú de herramientas internas, **"Aplicación de Mercado Pago"**. La aplicación de Mercado Pago de Laucen, una sola para todo el sistema: con ella cada organización conecta sus cuentas de Mercado Pago desde [Canales](/config/canales) ("Conectar Mercado Pago"). Muestra si está cargada y la **URL de redireccionamiento** que hay que poner en la aplicación de Mercado Pago (en developers de Mercado Pago), y dos campos: **Client ID** y **Client Secret**, que se graban con **"Grabar"** (arriba a la derecha) y nunca se vuelven a mostrar.
 
 ### Apify — scrapers de Mercado Libre
 
