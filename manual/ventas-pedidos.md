@@ -34,7 +34,7 @@ Los pedidos de Mercado Libre **entran solos** y se mueven solos según lo que pa
 
 **Filtros** (todos aplican al momento, sin botón "Filtrar"):
 
-- **"Buscar"** (cuadro "Nº, id externo o cliente"): busca en los datos del pedido (Nº, id externo, medio de pago, código de seguimiento, notas) y en todos los del cliente (N.º, nombre, razón social, mail, apodo de ML, documento, CUIT, teléfonos, notas). Busca en cualquier parte del texto (no tiene "Comienza por").
+- **"Buscar"** (cuadro "Nº, id externo o cliente"): busca en los datos del pedido (Nº, id externo, medio de pago, código de seguimiento, notas) y en todos los del cliente (N.º, nombre, razón social, mail, apodo de ML, documento, CUIT, teléfonos, notas). Busca en cualquier parte del texto (no tiene "Comienza por"). **Si escribís el número de un pedido** (el de Laucen, con o sin "#", o el número de venta de Mercado Libre), ese pedido aparece siempre, aunque el filtro de estado, pago, cuenta o fechas lo dejaría afuera (por ejemplo, buscando un pedido despachado con el filtro en "Pendientes").
 - **"Estado"**: **"Todos"**, **"Pendientes (nuevo + pagado)"** o un estado puntual (Nuevo, Pagado, En preparación, Preparado, Despachado, Entregado, Cancelado, Devuelto). **Si no elegís nada, la lista abre en Pendientes.**
 - **"Canal"**: todos o uno.
 - **"Pago"**: Pendiente, Pagado, A cobrar, A convenir, Reembolsado.

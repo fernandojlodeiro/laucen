@@ -136,9 +136,17 @@ export const LISTA_PEDIDOS: Lista = {
     if (f.desde) agregar((p) => `p.fecha >= (${p}::date)::timestamp at time zone 'America/Argentina/Buenos_Aires'`, f.desde);
     if (f.hasta) agregar((p) => `p.fecha < (${p}::date + 1)::timestamp at time zone 'America/Argentina/Buenos_Aires'`, f.hasta);
     if (f.q) agregar((p) => sqlBusqueda(p, BUSCA_EN), parametroBusqueda(f.q));
+    // Buscar un pedido por su número (el nuestro, "#42", o el de Mercado Libre) lo trae aunque
+    // los filtros (estado, pago, cuenta, fechas) no lo dejarían ver (Fer, 6/10).
+    const numero = f.q.replace(/^(#|p|pedido)\s*/i, "").trim();
+    let condicion = donde.join(" and ");
+    if (/^\d{1,20}$/.test(numero)) {
+      valores.push(numero);
+      condicion = `p.organizacion_id = $1 and ((${donde.slice(1).join(" and ")}) or p.id::text = $${valores.length} or p.id_externo = $${valores.length})`;
+    }
     return {
       desde: "pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id",
-      donde: donde.join(" and "),
+      donde: condicion,
       valores,
       // Los pendientes, del más viejo al más nuevo (se preparan en orden de llegada).
       orden: f.estado === "pendientes" ? "p.fecha, p.id" : "p.fecha desc, p.id desc",
