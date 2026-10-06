@@ -87,10 +87,20 @@ async function disponible(token: string, intentos: Intento[]): Promise<{ disponi
   if (ultimo?.file_name && !resultado) {
     const conf = await mpPedir<Record<string, unknown> & { columns?: { key: string }[] }>(token, "GET", "/v1/account/release_report/config");
     if (conf.status === 200 && conf.datos && Array.isArray(conf.datos.columns) && !conf.datos.columns.some((c) => c.key === "BALANCE_AMOUNT")) {
-      const { columns, ...resto } = conf.datos;
-      delete (resto as Record<string, unknown>).scheduled;
-      const put = await mpPedir(token, "PUT", "/v1/account/release_report/config", { ...resto, columns: [...columns!, { key: "BALANCE_AMOUNT" }] });
-      intentos.push({ fuente: "Reporte de Liquidaciones (agregar la columna de saldo)", status: put.status, ...(put.status < 300 ? {} : { motivo: motivoDe(put.status, put.datos) }) });
+      // Sólo los campos que la documentación dice que se pueden mandar (sin vacíos): la configuración
+      // que devuelve Mercado Pago trae otros que, mandados de vuelta, le dan error.
+      const PERMITIDOS = ["file_name_prefix", "frequency", "separator", "display_timezone", "report_translation", "notification_email_list",
+        "include_withdrawal_at_end", "execute_after_withdrawal", "check_available_balance", "compensate_detail", "sftp_info"];
+      const cuerpo: Record<string, unknown> = { columns: [...conf.datos.columns!.map((c) => ({ key: c.key })), { key: "BALANCE_AMOUNT" }] };
+      for (const k of PERMITIDOS) {
+        const v = conf.datos[k];
+        if (v != null && !(Array.isArray(v) && v.length === 0) && !(typeof v === "object" && !Array.isArray(v) && Object.keys(v as object).length === 0)) cuerpo[k] = v;
+      }
+      let put = await mpPedir(token, "PUT", "/v1/account/release_report/config", cuerpo);
+      // Si igual falla, con lo mínimo: las columnas y la zona horaria.
+      if (put.status >= 500) put = await mpPedir(token, "PUT", "/v1/account/release_report/config", { columns: cuerpo.columns, file_name_prefix: cuerpo.file_name_prefix ?? "laucen-liquidaciones", display_timezone: cuerpo.display_timezone ?? "GMT-03" });
+      intentos.push({ fuente: "Reporte de Liquidaciones (agregar la columna de saldo)", status: put.status,
+        ...(put.status < 300 ? {} : { motivo: `${motivoDe(put.status, put.datos)} (campos de la configuración: ${Object.keys(conf.datos).join(", ")})` }) });
       sinSaldo = put.status < 300;
     } else if (conf.status !== 200) intentos.push({ fuente: "Reporte de Liquidaciones (leer configuración)", status: conf.status, motivo: motivoDe(conf.status, conf.datos) });
   }
