@@ -50,6 +50,8 @@ test("hitoDe entiende los estados de OCA", () => {
   assert.equal(hitoDe("En tránsito"), "en_camino");
   assert.equal(hitoDe("Devuelto al remitente"), "devuelto");
   assert.equal(hitoDe("Pendiente de admisión"), null);
+  // La orden de retiro creada, sin que OCA haya pasado a buscarlo: todavía no salió.
+  assert.equal(hitoDe("En proceso de Retiro"), null);
 });
 
 test("fechaOca en hora argentina", () => {
