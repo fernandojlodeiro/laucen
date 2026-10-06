@@ -179,6 +179,12 @@ ubicaciones › A127-26"; cada parte se toca para volver a ese nivel. Sección y
 solas de `lib/menu.ts` (`Pantalla` dibuja `app/componentes/Camino.tsx`); una ficha suma sus
 partes con `camino={[…]}`. Nada de links "← Volver" sueltos arriba.
 
+Enlaces que salen de Laucen (pedido de Fer, 6/10): **siempre en otra pestaña** (`target="_blank"`)
+y con la flechita **↗** al lado del texto, para que se sepa antes de tocarlo (Mercado Libre, la tienda,
+WhatsApp, cualquier sitio de afuera). Un número de publicación (MLA…) abre su historial en Laucen
+(`historialPublicacion()`); la ↗ de al lado, Mercado Libre. Excepción: los pasos de una conexión
+(OAuth: "Conectar Mercado Pago"…), que vuelven solos a Laucen.
+
 Llaves y tokens: **nunca se muestran** en una pantalla (ni pedazos): sólo si hay o no. La llave
 API de un canal se ve completa una sola vez, al generarla.
 
