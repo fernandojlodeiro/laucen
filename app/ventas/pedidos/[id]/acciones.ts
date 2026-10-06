@@ -56,7 +56,7 @@ async function pedidoOperable(org: string, pid: number) {
     select p.estado, p.estado_pago, p.total_ars::float, c.tipo canal_tipo
       from pedido p join canal c on c.id = p.canal_id where p.id = $1 and p.organizacion_id = $2`, [pid, org]);
   if (!p) throw new ErrorErp("El pedido no existe.");
-  if (p.canal_tipo === "mercadolibre") throw new ErrorErp("Los pedidos de Mercado Libre se mueven solos desde Mercado Libre.");
+  if (p.canal_tipo === "mercadolibre") throw new ErrorErp("Los pedidos de Mercado Libre se manejan desde Mercado Libre (también cancelarlos): Laucen lee el cambio enseguida y lo deja igual.");
   await exigirCarritoLibre(org, pid);
   return p;
 }
