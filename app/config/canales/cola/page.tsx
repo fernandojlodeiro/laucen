@@ -187,6 +187,7 @@ async function Lotes({ org, sp, aqui }: { org: string; sp: SP; aqui: string }) {
            q.origen, q.estado, q.intentos, q.reemplazos, q.proximo_intento_ts, q.enviado_ts, q.ultimo_error, q.lote_id::int, q.prioridad
       from ml_cola q join canal ca on ca.id = q.canal_id left join publicacion pu on pu.id = q.publicacion_id left join variacion v on v.id = pu.variacion_id
      where q.lote_id = $1 order by q.id limit 50 offset ${desde}`, [elegido.id]) : [];
+  const conAccion = elegido?.estado === "preparado" || detalle.some((x) => x.estado === "pendiente" || x.estado === "error");
   const estadoLote = (e: string) => e === "preparado" ? <Estado texto="Preparado, falta tu clic" tono="amarillo" /> : e === "enviado" ? <Estado texto="Mandado" tono="verde" /> : <Estado texto="Descartado" />;
   return (
     <div className="grid gap-4">
@@ -226,7 +227,7 @@ async function Lotes({ org, sp, aqui }: { org: string; sp: SP; aqui: string }) {
             : "El resultado de cada cambio está en su fila."}</p>
           <div className={CAJA_TABLA}>
             <table className={TABLA}>
-              <thead className={THEAD}><tr><th className={TH}>Publicación</th><th className={TH}>SKU</th><th className={TH}>Tipo</th><th className={TH}>Antes</th><th className={TH}>Después</th><th className={TH}>Estado</th><th className={TH}>Problema</th>{elegido.estado === "preparado" && <th className={TH} />}</tr></thead>
+              <thead className={THEAD}><tr><th className={TH}>Publicación</th><th className={TH}>SKU</th><th className={TH}>Tipo</th><th className={TH}>Antes</th><th className={TH}>Después</th><th className={TH}>Estado</th><th className={TH}>Problema</th>{conAccion && <th className={TH} />}</tr></thead>
               <tbody>
                 {detalle.map((x) => (
                   <tr key={x.id} className={TR}>
@@ -242,9 +243,12 @@ async function Lotes({ org, sp, aqui }: { org: string; sp: SP; aqui: string }) {
                     <td className={TD}><b>{describirCambio(x.tipo, x.payload)}</b></td>
                     <td className={TD}><Estado texto={ESTADOS_COLA[x.estado] ?? x.estado} tono={TONO_COLA[x.estado] ?? "gris"} /></td>
                     <td className={`${TD} text-[11px] ${x.estado === "descartado" ? "text-[#5C6B76]" : "text-[#C03420]"}`}>{x.ultimo_error ?? ""}</td>
-                    {elegido.estado === "preparado" && (
-                      <td className={`${TD} text-right`}>
+                    {conAccion && (
+                      <td className={`${TD} text-right whitespace-nowrap`}>
                         {x.estado === "preparado" && <TachoConfirmar accion={accionSacarDelLote} campos={{ id: String(x.id), volver: aqui }} pregunta="¿Sacarlo del lote?" />}
+                        {(x.estado === "pendiente" || x.estado === "error") && (
+                          <BotonConfirmar accion={accionDescartar} campos={{ id: String(x.id), volver: aqui }} clase={APAGAR} texto="Descartar" pregunta="¿No mandarlo?" corriendo="…" />
+                        )}
                       </td>
                     )}
                   </tr>
