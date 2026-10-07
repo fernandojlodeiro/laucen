@@ -93,6 +93,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
   const ml = await una<{ comision: number | null; sin_vincular: boolean; pack: string | null; espera_ts: Date | null }>(
     "select comision_ars::float comision, sin_vincular, envio ->> 'pack_id' pack, carrito_ultimo_evento_ts espera_ts from pedido where id = $1 and organizacion_id = $2", [pid, s.org.id]);
   const cargos = await cargosDelPedido(s.org.id, pid);
+  const listaPedido = (await una<{ nombre: string }>("select l.nombre from pedido p join lista_precios l on l.id = p.lista_precios_id where p.id = $1 and p.organizacion_id = $2", [pid, s.org.id]))?.nombre ?? null;
   // OCA: los pedidos que no son de ML, con dirección, se pueden despachar por OCA desde acá.
   const oca = await (async () => {
     const envioOca = await envioOcaDe(s.org.id, pid);
@@ -136,7 +137,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
 
   return (
     <Pantalla titulo={<>{c.estado === "presupuesto" ? "Presupuesto" : "Pedido"} {c.id}{c.id_externo && <span className="font-mono font-normal text-sm text-[#5C6B76]"> · {c.id_externo}</span>}</>}
-      camino={[{ texto: `${c.estado === "presupuesto" ? "Presupuesto" : "Pedido"} ${c.id}` }]} subtitulo={<>{c.canal} · {fechaHora(c.fecha)}</>}>
+      camino={[{ texto: `${c.estado === "presupuesto" ? "Presupuesto" : "Pedido"} ${c.id}` }]} subtitulo={<>{c.canal} · {fechaHora(c.fecha)} · hecho en <b>{c.moneda === "USD" ? "dólares" : "pesos"}</b>{listaPedido ? <> · lista {listaPedido}</> : null}</>}>
       <div className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4`}>
         <Dato t="Estado"><Estado texto={etiqueta(ESTADOS_PEDIDO, c.estado)} tono={TONO_ESTADO[c.estado] ?? "gris"} />{espera && <> <MarcaCarritoEspera ts={ml?.espera_ts} /></>}</Dato>
         {espera && <p className="col-span-2 sm:col-span-4 text-xs rounded-lg px-3 py-2 bg-[#FFF1D6] text-[#8a5a00] border border-[#F2D08A]">{mensajeEsperaCarrito(espera)}</p>}

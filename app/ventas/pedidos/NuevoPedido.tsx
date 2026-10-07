@@ -125,7 +125,7 @@ function ClienteNuevo({ nombreInicial, alCrear, alCerrar }: { nombreInicial: str
   );
 }
 
-export default function NuevoPedido({ canales }: { canales: Canal[] }) {
+export default function NuevoPedido({ canales, listas }: { canales: Canal[]; listas: { id: number; nombre: string; moneda: "ARS" | "USD" }[] }) {
   const [canal, setCanal] = useState<number>(canales[0]?.id ?? 0);
   const [moneda, setMoneda] = useState<"ARS" | "USD">(canales[0]?.moneda ?? "ARS");
   const [quien, setQuien] = useState<"consumidor" | "cliente">("consumidor");
@@ -133,6 +133,8 @@ export default function NuevoPedido({ canales }: { canales: Canal[] }) {
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [borrando, setBorrando] = useState<number | null>(null);
   const [pago, setPago] = useState("a_convenir");
+  // La lista de precios (null = la del cliente o la del canal) y la moneda, elegidas de entrada (Fer, 7/10).
+  const [listaId, setListaId] = useState<number | null>(null);
   // Pedido o presupuesto (Fer, 7/10): el presupuesto no reserva stock y va sólo por el canal local.
   const [tipo, setTipo] = useState<"pedido" | "presupuesto">("pedido");
   const locales = canales.filter((c) => c.tipo === "local");
@@ -152,7 +154,7 @@ export default function NuevoPedido({ canales }: { canales: Canal[] }) {
 
   const clienteId = quien === "cliente" ? cliente?.id ?? null : null;
   const bCliente = usarBusqueda<ClienteHallado>((q, c) => buscarClientesPedido(q, c));
-  const bProducto = usarBusqueda<ProductoHallado>((q, c) => buscarProductosPedido(q, c, canal, clienteId));
+  const bProducto = usarBusqueda<ProductoHallado>((q, c) => buscarProductosPedido(q, c, canal, clienteId, { listaId, moneda }));
   const tipoPrecio = moneda === "USD" ? "usd" : "pesos";
 
   /** Subtotales y total, leídos de los campos del formulario. */
@@ -176,8 +178,9 @@ export default function NuevoPedido({ canales }: { canales: Canal[] }) {
 
   /** Cambió el canal o el cliente: la lista de precios puede ser otra. Los
    *  precios de las líneas vuelven al de la lista nueva. */
-  const reprecio = async (nuevoCanal: number, nuevoCliente: number | null) => {
-    const r = await preciosPedido(nuevoCanal, nuevoCliente, lineas.map((l) => l.variacion));
+  const reprecio = async (nuevoCanal: number, nuevoCliente: number | null, o: { listaId?: number | null; moneda?: "ARS" | "USD" } = {}) => {
+    const r = await preciosPedido(nuevoCanal, nuevoCliente, lineas.map((l) => l.variacion),
+      { listaId: o.listaId !== undefined ? o.listaId : listaId, moneda: o.moneda ?? moneda });
     setMoneda(r.moneda);
     setLineas((ls) => ls.map((l) => ({ ...l, sugerido: r.precios[l.variacion] ?? null, version: l.version + 1 })));
     bProducto.limpiar();
@@ -216,6 +219,27 @@ export default function NuevoPedido({ canales }: { canales: Canal[] }) {
         <label className="inline-flex items-center gap-1.5"><input type="radio" checked={tipo === "pedido"} onChange={() => elegirTipo("pedido")} className="accent-[#16577F]" /> Pedido <span className="text-[#5C6B76]">(reserva stock)</span></label>
         <label className={`inline-flex items-center gap-1.5 ${locales.length ? "" : "opacity-50"}`}><input type="radio" checked={tipo === "presupuesto"} disabled={!locales.length} onChange={() => elegirTipo("presupuesto")} className="accent-[#16577F]" /> Presupuesto <span className="text-[#5C6B76]">(no reserva stock; sólo canal local)</span></label>
       </fieldset>
+
+      <div className="flex flex-wrap items-end gap-4">
+        <fieldset>
+          <span className={ETIQUETA}>Moneda</span>
+          <input type="hidden" name="moneda" value={moneda} />
+          <div className="flex items-center gap-3 py-1.5">
+            {([["ARS", "Pesos"], ["USD", "Dólares"]] as const).map(([m, t]) => (
+              <label key={m} className="inline-flex items-center gap-1.5">
+                <input type="radio" checked={moneda === m} onChange={() => { setMoneda(m); void reprecio(canal, clienteId, { moneda: m }); }} className="accent-[#16577F]" /> {t}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <label><span className={ETIQUETA}>Lista de precios</span>
+          <input type="hidden" name="lista_id" value={listaId ?? ""} />
+          <select value={listaId ?? ""} className={CAMPO}
+            onChange={(e) => { const l = Number(e.target.value) || null; setListaId(l); void reprecio(canal, clienteId, { listaId: l }); }}>
+            <option value="">La del cliente o del canal</option>
+            {listas.map((l) => <option key={l.id} value={l.id}>{l.nombre}</option>)}
+          </select></label>
+      </div>
 
       <div className="flex flex-wrap items-end gap-4">
         <label><span className={ETIQUETA}>Canal</span>
@@ -279,25 +303,7 @@ export default function NuevoPedido({ canales }: { canales: Canal[] }) {
 
       <div className="grid gap-2">
         <span className={ETIQUETA}>Productos</span>
-        <div className="relative">
-          <CuadroBusqueda b={bProducto as ReturnType<typeof usarBusqueda<unknown>>} placeholder="SKU, título o código de barras"
-            alEnter={() => bProducto.hallados[0] && agregar(bProducto.hallados[0])} />
-          {bProducto.texto.trim().length >= 2 && !bProducto.buscando && (
-            <ul className="mt-1 max-w-3xl max-h-72 overflow-auto rounded-lg border border-[#C9D3DD] bg-white shadow-sm">
-              {bProducto.hallados.length === 0 && <li className="px-2 py-1.5 text-[#5C6B76]">Ningún producto coincide.</li>}
-              {bProducto.hallados.map((p) => (
-                <li key={p.id}>
-                  <button type="button" onClick={() => agregar(p)} className="w-full text-left px-2 py-1.5 hover:bg-[#EEF3F8] flex gap-3">
-                    <span className="font-mono">{p.sku}</span>
-                    <span className="flex-1 truncate">{p.titulo}</span>
-                    <span className="tabular-nums text-right w-28">{p.precio == null ? <span className="text-[#C03420]">sin precio</span> : `${moneda === "USD" ? "US$" : "$"} ${formatearNumero(p.precio, tipoPrecio)}`}</span>
-                    <span className={`tabular-nums text-right w-24 ${p.disponible > 0 ? "text-[#5C6B76]" : "text-[#C03420]"}`}>{p.disponible} disp.</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {/* Los elegidos arriba y el buscador abajo, siempre a mano (Fer, 7/10). */}
         {lineas.length > 0 && (
           <div className="bg-white border border-[#E3E9F0] rounded-xl overflow-x-auto">
             <table className="w-full text-xs">
@@ -346,6 +352,25 @@ export default function NuevoPedido({ canales }: { canales: Canal[] }) {
             </table>
           </div>
         )}
+        <div className="relative">
+          <CuadroBusqueda b={bProducto as ReturnType<typeof usarBusqueda<unknown>>} placeholder="SKU, título o código de barras"
+            alEnter={() => bProducto.hallados[0] && agregar(bProducto.hallados[0])} />
+          {bProducto.texto.trim().length >= 2 && !bProducto.buscando && (
+            <ul className="mt-1 max-w-3xl max-h-72 overflow-auto rounded-lg border border-[#C9D3DD] bg-white shadow-sm">
+              {bProducto.hallados.length === 0 && <li className="px-2 py-1.5 text-[#5C6B76]">Ningún producto coincide.</li>}
+              {bProducto.hallados.map((p) => (
+                <li key={p.id}>
+                  <button type="button" onClick={() => agregar(p)} className="w-full text-left px-2 py-1.5 hover:bg-[#EEF3F8] flex gap-3">
+                    <span className="font-mono">{p.sku}</span>
+                    <span className="flex-1 truncate">{p.titulo}</span>
+                    <span className="tabular-nums text-right w-28">{p.precio == null ? <span className="text-[#C03420]">sin precio</span> : `${moneda === "USD" ? "US$" : "$"} ${formatearNumero(p.precio, tipoPrecio)}`}</span>
+                    <span className={`tabular-nums text-right w-24 ${p.disponible > 0 ? "text-[#5C6B76]" : "text-[#C03420]"}`}>{p.disponible} disp.</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

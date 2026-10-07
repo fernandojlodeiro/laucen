@@ -223,6 +223,8 @@ export type PedidoEntrada = {
   /** Costo de envío que paga el comprador, en la moneda del pedido (se suma al total). */
   costo_envio?: number | null;
   metodo_envio_id?: number | null;
+  /** La lista de precios elegida a mano (Fer, 7/10); sin esto, la del cliente o la del canal. Queda en el pedido. */
+  lista_precios_id?: number | null;
 };
 
 export type PedidoCreado = {
@@ -251,7 +253,11 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
     const listaCliente = clienteId
       ? (await c.query<{ lista_precios_id: string | null }>("select lista_precios_id from cliente where id = $1", [clienteId])).rows[0]?.lista_precios_id
       : null;
-    const listaId = listaCliente ? Number(listaCliente) : canal.lista_precios_id ? Number(canal.lista_precios_id) : null;
+    const elegida = entrada.lista_precios_id
+      ? (await c.query<{ id: string }>("select id from lista_precios where id = $1 and organizacion_id = $2", [entrada.lista_precios_id, org])).rows[0]
+      : null;
+    if (entrada.lista_precios_id && !elegida) throw new ErrorErp("Esa lista de precios no existe.");
+    const listaId = elegida ? Number(elegida.id) : listaCliente ? Number(listaCliente) : canal.lista_precios_id ? Number(canal.lista_precios_id) : null;
     const moneda: Moneda = esMoneda(entrada.moneda) ? entrada.moneda : (canal.moneda_base ?? "ARS");
     const fecha = entrada.fecha ? entrada.fecha.slice(0, 10) : undefined;
 
@@ -280,13 +286,13 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
     const p = (await c.query<{ id: string }>(`
       insert into pedido (organizacion_id, canal_id, cliente_id, id_externo, fecha, estado, moneda, total_ars, total_usd,
                           medio_pago, estado_pago, deposito_id, envio, notas, afecta_stock, sin_vincular, datos_externos, comision_ars,
-                          costo_envio_ars, metodo_envio_id)
-      values ($1, $2, $3, $4, coalesce($5::timestamptz, now()), $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb, $18, $19, $20)
+                          costo_envio_ars, metodo_envio_id, lista_precios_id)
+      values ($1, $2, $3, $4, coalesce($5::timestamptz, now()), $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb, $18, $19, $20, $21)
       returning id`,
       [org, canal.id, clienteId, entrada.id_externo ?? null, entrada.fecha ?? null, estado, moneda, total.ars, total.usd,
         entrada.medio_pago ?? null, estadoPago, entrada.deposito_id ?? null, JSON.stringify(entrada.envio ?? {}),
         entrada.notas ?? null, entrada.afecta_stock !== false, lineas.some((l) => l.variacion_id == null),
-        JSON.stringify(entrada.datos_externos ?? {}), entrada.comision_ars ?? null, envioArs, entrada.metodo_envio_id ?? null])).rows[0];
+        JSON.stringify(entrada.datos_externos ?? {}), entrada.comision_ars ?? null, envioArs, entrada.metodo_envio_id ?? null, listaId])).rows[0];
     const pedidoId = Number(p.id);
     await insertarLineas(c, org, pedidoId, lineas, 0);
     await c.query(`insert into pedido_estado_historial (organizacion_id, pedido_id, estado_anterior, estado_nuevo, quien, nota)
@@ -381,7 +387,7 @@ export async function agregarLineas(org: string, pedidoId: number, entrada: Line
   o: { permitir_sin_vincular?: boolean; nota?: string } = {}): Promise<void> {
   if (!entrada.length) return;
   const p = (await c.query<{ estado: EstadoPedido; moneda: Moneda; afecta_stock: boolean; deposito_id: string | null; canal_id: string; lista: string | null; fecha: string; reservado_ts: Date | null }>(`
-    select p.estado, p.moneda, p.afecta_stock, p.deposito_id, p.canal_id, coalesce(cl.lista_precios_id, ca.lista_precios_id) lista, p.reservado_ts,
+    select p.estado, p.moneda, p.afecta_stock, p.deposito_id, p.canal_id, coalesce(p.lista_precios_id, cl.lista_precios_id, ca.lista_precios_id) lista, p.reservado_ts,
            to_char(p.fecha at time zone 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') fecha
       from pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
      where p.id = $1 and p.organizacion_id = $2 for update of p`, [pedidoId, org])).rows[0];

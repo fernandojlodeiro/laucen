@@ -436,6 +436,19 @@ update cuenta_fondos set cbu = cbu where cbu ~ '[^0-9]';
 -- letra o "/" pasa a la aclaración (si la aclaración ya tiene algo, no se pisa).
 alter table cliente add column if not exists telefono_aclaracion text;
 alter table cliente add column if not exists telefono_movil_aclaracion text;
+
+-- Buscar clientes rápido (Fer, 7/10: son más de 100.000; va acá porque usa las aclaraciones de los teléfonos): todos los datos que mira el buscador
+-- (camposCliente) en un solo texto en minúsculas, con documento, CUIT y teléfonos también sólo
+-- en números, y un índice de trigramas. prefiltroCliente() (app/ventas/clientes/lista.tsx) lo usa.
+create extension if not exists pg_trgm with schema extensions;
+alter table cliente add column if not exists busqueda text generated always as (lower(
+  id::text || ' ' || coalesce(nombre, '') || ' ' || coalesce(razon_social, '') || ' ' || coalesce(nombre_pila, '') || ' ' || coalesce(apellido, '') || ' ' ||
+  coalesce(email, '') || ' ' || coalesce(apodo_ml, '') || ' ' || coalesce(documento_tipo, '') || ' ' || coalesce(documento_numero, '') || ' ' || coalesce(cuit, '') || ' ' ||
+  coalesce(telefono, '') || ' ' || coalesce(telefono_aclaracion, '') || ' ' || coalesce(telefono_movil, '') || ' ' || coalesce(telefono_movil_aclaracion, '') || ' ' ||
+  coalesce(notas, '') || ' ' ||
+  regexp_replace(coalesce(documento_numero, ''), '[^0-9]', '', 'g') || ' ' || regexp_replace(coalesce(cuit, ''), '[^0-9]', '', 'g') || ' ' ||
+  regexp_replace(coalesce(telefono, ''), '[^0-9]', '', 'g') || ' ' || regexp_replace(coalesce(telefono_movil, ''), '[^0-9]', '', 'g'))) stored;
+create index if not exists cliente_busqueda_trgm on cliente using gin (busqueda extensions.gin_trgm_ops);
 alter table proveedor add column if not exists telefono_aclaracion text;
 alter table proveedor add column if not exists telefono_movil_aclaracion text;
 create or replace function erp_telefono() returns trigger language plpgsql as $$

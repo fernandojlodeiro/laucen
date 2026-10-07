@@ -9,7 +9,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
-import { camposCliente } from "@/app/ventas/clientes/lista";
+import { camposCliente, prefiltroCliente } from "@/app/ventas/clientes/lista";
 import { consulta, una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, numero, texto } from "@/lib/erp/acciones";
 import { crearPedidoAMano, type PedidoAMano } from "@/lib/pedidos/a-mano";
@@ -65,6 +65,9 @@ export async function buscarClientesPedido(q: string, comienza: boolean): Promis
   const s = await entrarErp("pedidos_ver");
   const t = q.trim();
   if (t.length < 2) return [];
+  // El filtro previo usa el índice de cliente.busqueda (rápido aunque haya miles de clientes).
+  const valores: unknown[] = [s.org.id, parametroBusqueda(t, comienza)];
+  const prefiltro = prefiltroCliente("cl", t, valores);
   const filas = await consulta<{ id: number; nombre: string; documento: string | null; email: string | null; cuenta_corriente: boolean; direccion: ClienteHallado["direccion"] }>(`
     select cl.id::int, cl.nombre, nullif(concat_ws(' ', cl.documento_tipo, cl.documento_numero), '') documento, cl.email,
            coalesce(cl.cuenta_corriente, false) cuenta_corriente,
@@ -72,8 +75,9 @@ export async function buscarClientesPedido(q: string, comienza: boolean): Promis
               from cliente_direccion d where d.cliente_id = cl.id order by (d.etiqueta = 'Envío') desc, d.principal desc, d.id limit 1) direccion
       from cliente cl
      where cl.organizacion_id = $1
+       and ${prefiltro}
        and ${sqlBusqueda("$2", camposCliente("cl"))}
-     order by cl.nombre limit 20`, [s.org.id, parametroBusqueda(t, comienza)]);
+     order by cl.nombre limit 20`, valores);
   return filas.map((f) => ({ id: f.id, nombre: f.nombre, documento: f.documento, email: f.email, cuentaCorriente: f.cuenta_corriente, direccion: f.direccion }));
 }
 
@@ -81,13 +85,18 @@ export type ProductoHallado = { id: number; sku: string; titulo: string; precio:
 
 /** La lista de precios que usa el pedido: la del cliente si tiene, si no la
  *  del canal (lo mismo que hace crearPedido). */
-async function listaDelPedido(org: string, canalId: number, clienteId: number | null) {
+async function listaDelPedido(org: string, canalId: number, clienteId: number | null, o: { listaId?: number | null; moneda?: Moneda | null } = {}) {
+  // Elegidas a mano en el formulario (Fer, 7/10): la lista y la moneda.
+  if (o.listaId) {
+    const l = await una<{ id: number; moneda: Moneda }>("select id::int, moneda_base moneda from lista_precios where id = $1 and organizacion_id = $2", [o.listaId, org]);
+    if (l) return { listaId: l.id, moneda: o.moneda ?? l.moneda };
+  }
   const r = await una<{ lista: string | null; moneda: Moneda | null }>(`
     select coalesce(cl.lista_precios_id, ca.lista_precios_id) lista, l.moneda_base moneda
       from canal ca left join cliente cl on cl.id = $3 and cl.organizacion_id = $1
       left join lista_precios l on l.id = coalesce(cl.lista_precios_id, ca.lista_precios_id)
      where ca.id = $2 and ca.organizacion_id = $1`, [org, canalId, clienteId]);
-  return { listaId: r?.lista ? Number(r.lista) : null, moneda: (r?.moneda ?? "ARS") as Moneda };
+  return { listaId: r?.lista ? Number(r.lista) : null, moneda: o.moneda ?? ((r?.moneda ?? "ARS") as Moneda) };
 }
 
 async function precioSugerido(org: string, variacionId: number, listaId: number | null, moneda: Moneda) {
@@ -98,7 +107,7 @@ async function precioSugerido(org: string, variacionId: number, listaId: number 
 
 /** Productos por SKU, código de barras o título, con el precio de la lista
  *  del pedido (precioDe) y lo disponible para el canal. Hasta 20. */
-export async function buscarProductosPedido(q: string, comienza: boolean, canalId: number, clienteId: number | null): Promise<ProductoHallado[]> {
+export async function buscarProductosPedido(q: string, comienza: boolean, canalId: number, clienteId: number | null, elegido: { listaId?: number | null; moneda?: Moneda | null } = {}): Promise<ProductoHallado[]> {
   const s = await entrarErp("pedidos_ver");
   const t = q.trim();
   if (t.length < 2 || !canalId) return [];
@@ -108,14 +117,14 @@ export async function buscarProductosPedido(q: string, comienza: boolean, canalI
      where v.organizacion_id = $1 and v.estado <> 'archivada' and p.estado <> 'archivado'
        and (v.codigo_barras = $3 or ${sqlBusqueda("$2", ["v.sku", "titulo_variacion(v.id)", "p.sku_base", "v.codigo_barras", "p.codigo_barras"])})
      order by (v.codigo_barras = $3) desc, (v.sku ilike $3) desc, v.sku limit 20`, [s.org.id, parametroBusqueda(t, comienza), t, canalId]);
-  const { listaId, moneda } = await listaDelPedido(s.org.id, canalId, clienteId);
+  const { listaId, moneda } = await listaDelPedido(s.org.id, canalId, clienteId, elegido);
   return Promise.all(filas.map(async (f) => ({ ...f, precio: await precioSugerido(s.org.id, f.id, listaId, moneda) })));
 }
 
 /** El precio de lista de varias variaciones (cuando cambia el canal o el cliente). */
-export async function preciosPedido(canalId: number, clienteId: number | null, variaciones: number[]): Promise<{ moneda: Moneda; precios: Record<number, number | null> }> {
+export async function preciosPedido(canalId: number, clienteId: number | null, variaciones: number[], elegido: { listaId?: number | null; moneda?: Moneda | null } = {}): Promise<{ moneda: Moneda; precios: Record<number, number | null> }> {
   const s = await entrarErp("pedidos_ver");
-  const { listaId, moneda } = await listaDelPedido(s.org.id, canalId, clienteId);
+  const { listaId, moneda } = await listaDelPedido(s.org.id, canalId, clienteId, elegido);
   const precios: Record<number, number | null> = {};
   for (const v of variaciones.slice(0, 200)) precios[v] = await precioSugerido(s.org.id, v, listaId, moneda);
   return { moneda, precios };
@@ -162,6 +171,8 @@ export async function accionNuevoPedido(fd: FormData): Promise<{ error: string }
       costoEnvio: entrega === "envio" ? numero(fd, "costo_envio") : null,
       notas: texto(fd, "notas"),
       presupuesto: esPresupuesto ? { vigencia: texto(fd, "vigencia") } : null,
+      moneda: fd.get("moneda") === "USD" ? "USD" : fd.get("moneda") === "ARS" ? "ARS" : null,
+      listaId: Number(fd.get("lista_id")) || null,
     });
     pedidoId = creado.pedidoId;
   } catch (e) {

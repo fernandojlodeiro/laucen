@@ -35,6 +35,10 @@ export type PedidoAMano = {
   notas?: string | null;
   /** Presupuesto (Fer, 7/10): no reserva stock y sólo se carga en el canal local. vigencia = hasta cuándo vale (AAAA-MM-DD). */
   presupuesto?: { vigencia: string | null } | null;
+  /** En qué moneda se arma (Fer, 7/10); sin esto, la de la lista. Queda grabada en el pedido. */
+  moneda?: "ARS" | "USD" | null;
+  /** La lista de precios elegida; sin esto, la del cliente o la del canal. */
+  listaId?: number | null;
 };
 
 /** Valida lo que no depende de la base (para mostrarlo antes de confirmar). */
@@ -81,7 +85,7 @@ export async function crearPedidoAMano(org: string, usuarioId: string, p: Pedido
   }));
   if (p.presupuesto) {
     const pr = await crearPedido(org, {
-      canalId: p.canalId, clienteId: p.clienteId, lineas, estado_inicial: "presupuesto", estado_pago: "pendiente", medio_pago: null,
+      canalId: p.canalId, clienteId: p.clienteId, lineas, estado_inicial: "presupuesto", moneda: p.moneda ?? null, lista_precios_id: p.listaId ?? null, estado_pago: "pendiente", medio_pago: null,
       envio: { metodo: p.entrega === "envio" ? "Envío" : "Retira", a_mano: true, direccion: p.entrega === "envio" ? p.direccion ?? null : null },
       costo_envio: p.entrega === "envio" ? p.costoEnvio || null : null,
       notas: p.notas ?? null,
@@ -93,6 +97,8 @@ export async function crearPedidoAMano(org: string, usuarioId: string, p: Pedido
   }
   const creado = await crearPedido(org, {
     canalId: p.canalId,
+    moneda: p.moneda ?? null,
+    lista_precios_id: p.listaId ?? null,
     clienteId: p.clienteId,
     lineas,
     medio_pago: p.pago === "cuenta_corriente" ? "Cuenta corriente" : p.medio,

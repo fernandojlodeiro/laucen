@@ -147,8 +147,10 @@ const CAMPOS: Campo[] = [
   { clave: "medio_pago", titulo: "Medio de pago", sql: "p.medio_pago" },
   {
     clave: "total", titulo: "Total", sql: "p.total_ars::float", orden: "p.total_ars", formato: "pesos", usa: ["total_usd"],
-    celda: (f, c) => enVista({ ars: f.total, usd: f.total_usd }, c.moneda),
+    // Hecho en dólares (Fer, 7/10): se ve en la moneda que se mira, con la marca de en qué moneda se armó.
+    celda: (f, c) => <span className="whitespace-nowrap">{enVista({ ars: f.total, usd: f.total_usd }, c.moneda)}{f.moneda_pedido === "USD" && <span className="ml-1 text-[10px] font-semibold text-[#167655]" title="Hecho en dólares">US$</span>}</span>,
   },
+  { clave: "moneda", titulo: "Moneda en que se hizo", sql: "case p.moneda when 'USD' then 'Dólares' else 'Pesos' end", orden: "p.moneda" },
   { clave: "total_usd", titulo: "Total US$", sql: "p.total_usd::float", orden: "p.total_usd", formato: "usd" },
   { clave: "envio_ars", titulo: "Costo de envío", sql: "p.costo_envio_ars::float", sqlUsd: "(p.costo_envio_ars / nullif(p.tc_dia, 0))::float", orden: "p.costo_envio_ars", formato: "pesos" },
   { clave: "comision", titulo: "Comisión del canal", sql: "p.comision_ars::float", sqlUsd: "(p.comision_ars / nullif(p.tc_dia, 0))::float", orden: "p.comision_ars", formato: "pesos" },
@@ -196,7 +198,7 @@ export const LISTA_PEDIDOS: Lista = {
   campos: CAMPOS,
   // Nº, fecha, cliente, lo que compró (cantidad, producto, precio), total, canal, estado, pago y factura (Fer, 6/10).
   enPantalla: ["id", "fecha", "cliente", "cantidades", "productos", "precios", "total", "canal", "estado", "pago", "factura"],
-  siempre: "p.id::int id, p.canal_id::int canal_id, p.cliente_id::int cliente_id, p.carrito_ultimo_evento_ts espera_ts",
+  siempre: "p.id::int id, p.canal_id::int canal_id, p.cliente_id::int cliente_id, p.carrito_ultimo_evento_ts espera_ts, p.moneda moneda_pedido",
   consulta: async (ctx, sp) => {
     const f = filtrosPedidos(sp);
     const valores: unknown[] = [ctx.org];

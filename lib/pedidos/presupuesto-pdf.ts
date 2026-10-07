@@ -64,7 +64,7 @@ async function imagen(doc: PDFDocument, url: string | null | undefined, lado: nu
   }
 }
 
-type Linea = { cantidad: number; titulo: string; sku: string | null; ars: number; usd: number; foto: string | null };
+type Linea = { cantidad: number; titulo: string; sku: string | null; ars: number; usd: number; foto: string | null; iva_pct: number };
 
 export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Moneda): Promise<{ pdf: Uint8Array; nombre: string }> {
   const p = await una<{ id: number; fecha: string; vigencia: string | null; estado: string; canal_id: number; total_ars: number; total_usd: number;
@@ -79,13 +79,19 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
   if (!p) throw new ErrorErp("El presupuesto no existe.");
   const lineas = await consulta<Linea>(`
     select l.cantidad::int, coalesce(titulo_variacion(v.id), l.titulo) titulo, coalesce(v.sku, l.sku) sku, l.precio_unit_ars::float ars, l.precio_unit_usd::float usd,
+           coalesce(pr.iva_pct, 21)::float iva_pct,
            coalesce((select url from variacion_foto where variacion_id = v.id order by orden limit 1),
                     (select url from producto_foto where producto_id = v.producto_id order by orden, id limit 1)) foto
-      from pedido_linea l left join variacion v on v.id = l.variacion_id where l.pedido_id = $1 order by l.orden, l.id`, [pedidoId]);
+      from pedido_linea l left join variacion v on v.id = l.variacion_id left join producto pr on pr.id = v.producto_id
+     where l.pedido_id = $1 order by l.orden, l.id`, [pedidoId]);
   const emp = await una<{ nombre_fantasia: string | null; logo: string | null; email: string | null; telefono: string | null; whatsapp: string | null; web: string | null;
     direccion: string | null; localidad: string | null; provincia: string | null; codigo_postal: string | null }>(
     "select nombre_fantasia, logo, email, telefono, whatsapp, web, direccion, localidad, provincia, codigo_postal from empresa where organizacion_id = $1", [org]);
   const emisor = await emisorDeCanal(org, p.canal_id).catch(() => null);
+  // Cliente Responsable Inscripto y nosotros también (Fer, 7/10): precios sin IVA y el IVA abajo, como en la factura A.
+  const discrimina = emisor?.condicion_iva === "responsable_inscripto" && p.cond_iva === "responsable_inscripto";
+  const neto = (x: number, pct: number) => Math.round((x / (1 + pct / 100)) * 100) / 100;
+  const ivas = new Map<number, number>();
   const dirCliente = p.envio?.direccion ?? (p.cliente_id ? await una<Record<string, string | null>>(
     "select calle, numero, piso_depto, localidad, provincia, codigo_postal from cliente_direccion where cliente_id = $1 order by principal desc, id desc limit 1", [p.cliente_id]) : null);
 
@@ -156,7 +162,7 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
     const blanco = rgb(1, 1, 1);
     texto(pg, "Cant.", COL.cant, y - 12.5, 8.5, fb, blanco);
     texto(pg, "Descripción", COL.desc, y - 12.5, 8.5, fb, blanco);
-    derecha(pg, "Precio unit.", COL.unit, y - 12.5, 8.5, fb, blanco);
+    derecha(pg, discrimina ? "Precio unit. s/IVA" : "Precio unit.", COL.unit, y - 12.5, 8.5, fb, blanco);
     derecha(pg, "Subtotal", COL.sub - 6, y - 12.5, 8.5, fb, blanco);
     y -= 18;
   };
@@ -166,9 +172,11 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
   let subtotal = 0;
   lineas.forEach((l, i) => {
     if (y - FILA < M + 40) nuevaPagina();
-    const unit = moneda === "USD" ? l.usd : l.ars;
+    const conIva = moneda === "USD" ? l.usd : l.ars;
+    const unit = discrimina ? neto(conIva, l.iva_pct) : conIva;
     const sub = Math.round(unit * l.cantidad * 100) / 100;
     subtotal += sub;
+    if (discrimina) ivas.set(l.iva_pct, (ivas.get(l.iva_pct) ?? 0) + Math.round(conIva * l.cantidad * 100) / 100 - sub);
     if (i % 2 === 1) pg.drawRectangle({ x: M, y: y - FILA, width: W - 2 * M, height: FILA, color: FONDO });
     const foto = fotos[i];
     if (foto) {
@@ -191,7 +199,10 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
   // ── Totales ──
   const total = moneda === "USD" ? Number(p.total_usd) : Number(p.total_ars);
   // El envío: en pesos, el que se cargó; en dólares, lo que queda del total.
-  const envio = moneda === "ARS" ? Number(p.envio_ars || 0) : Math.max(0, Math.round((total - subtotal) * 100) / 100);
+  const lineasConIva = lineas.reduce((s, l) => s + Math.round((moneda === "USD" ? l.usd : l.ars) * l.cantidad * 100) / 100, 0);
+  const envioConIva = moneda === "ARS" ? Number(p.envio_ars || 0) : Math.max(0, Math.round((total - lineasConIva) * 100) / 100);
+  const envio = discrimina ? neto(envioConIva, 21) : envioConIva;
+  if (discrimina && envioConIva > 0) ivas.set(21, (ivas.get(21) ?? 0) + envioConIva - envio);
   if (y - 110 < M + 40) { pg = doc.addPage([W, H]); y = H - M; }
   y -= 10;
   const filaTotal = (t: string, v: string, fuerte = false) => {
@@ -199,8 +210,17 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
     derecha(pg, v, W - M - 6, y - 12, fuerte ? 12 : 9.5, fuerte ? fb : f);
     y -= fuerte ? 20 : 15;
   };
-  filaTotal("Subtotal", plata(subtotal, moneda));
-  if (envio > 0.004) filaTotal(`Envío${p.envio?.metodo && !/^env[ií]o$/i.test(p.envio.metodo) ? ` (${p.envio.metodo})` : ""}`, plata(envio, moneda));
+  filaTotal(discrimina ? "Subtotal neto" : "Subtotal", plata(subtotal, moneda));
+  if (envio > 0.004) filaTotal(`Envío${p.envio?.metodo && !/^env[ií]o$/i.test(p.envio.metodo) ? ` (${p.envio.metodo})` : ""}${discrimina ? " s/IVA" : ""}`, plata(envio, moneda));
+  // Los centavos de redondeo van al IVA de la alícuota más alta, así la suma da justo el total.
+  if (discrimina && ivas.size) {
+    const mayor = Math.max(...ivas.keys());
+    const suma = subtotal + envio + [...ivas.values()].reduce((x, v) => x + Math.round(v * 100) / 100, 0);
+    ivas.set(mayor, ivas.get(mayor)! + Math.round((total - suma) * 100) / 100);
+  }
+  for (const [pct, importe] of [...ivas.entries()].sort((a, b) => b[0] - a[0])) {
+    filaTotal(`IVA ${pct.toLocaleString("es-AR")} %`, plata(Math.round(importe * 100) / 100, moneda));
+  }
   pg.drawLine({ start: { x: W - M - 220, y: y - 2 }, end: { x: W - M, y: y - 2 }, thickness: 1, color: AZUL });
   y -= 4;
   filaTotal("TOTAL", plata(total, moneda), true);
@@ -216,7 +236,7 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
     ...(p.notas ? [`Observaciones: ${p.notas}`] : []),
     esPresupuesto ? `Presupuesto válido hasta el ${fecha(p.vigencia)}. Pasada esa fecha, los precios pueden cambiar.` : null,
     esPresupuesto ? "Precios sujetos a disponibilidad de stock al momento de confirmar la compra." : null,
-    moneda === "ARS" ? "Precios en pesos argentinos, con IVA incluido." : "Precios en dólares estadounidenses, con IVA incluido.",
+    `Precios en ${moneda === "ARS" ? "pesos argentinos" : "dólares estadounidenses"}${discrimina ? ", sin IVA; el IVA se discrimina abajo" : ", con IVA incluido"}.`,
     "Este documento no es válido como factura.",
   ].filter((x): x is string => !!x);
   for (const c of condiciones) {

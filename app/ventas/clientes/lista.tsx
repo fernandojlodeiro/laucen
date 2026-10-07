@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { url } from "@/app/componentes/erp";
-import { parametroBusqueda, sqlBusqueda, type CampoBusqueda } from "@/lib/busqueda";
+import { parametroBusqueda, sqlBusqueda, terminosBusqueda, type CampoBusqueda } from "@/lib/busqueda";
 import { cuitLegible } from "@/lib/cuit";
 import { telefonoConAclaracion } from "@/lib/telefono";
 import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/listas/tipos";
@@ -25,6 +25,23 @@ export function camposCliente(a: string): CampoBusqueda[] {
     `${a}.documento_tipo`, { num: `${a}.documento_numero` }, { num: `${a}.cuit` }, { num: `${a}.telefono` }, `${a}.telefono_aclaracion`,
     { num: `${a}.telefono_movil` }, `${a}.telefono_movil_aclaracion`, `${a}.notas`,
   ];
+}
+
+/** Un filtro previo rápido (Fer, 7/10: 105.000 clientes): cada término tiene que aparecer en
+ *  cliente.busqueda (todos los datos de camposCliente juntos, en minúsculas, con los números
+ *  también sin guiones), que tiene un índice de trigramas. Va además de sqlBusqueda, que decide
+ *  el criterio fino: sólo achica las filas que hay que revisar. Agrega sus valores a `valores`. */
+export function prefiltroCliente(a: string, q: string, valores: unknown[]): string {
+  const conds = terminosBusqueda(q).map((t) => {
+    const esc = (x: string) => `%${x.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    valores.push(esc(t));
+    const texto = `${a}.busqueda like $${valores.length}`;
+    const digitos = t.replace(/\D/g, "");
+    if (!digitos || digitos === t) return texto;
+    valores.push(esc(digitos));
+    return `(${texto} or ${a}.busqueda like $${valores.length})`;
+  });
+  return conds.length ? conds.join(" and ") : "true";
 }
 
 /** Además, en la pantalla Clientes: los datos de sus direcciones. */

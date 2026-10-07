@@ -119,6 +119,7 @@ alter table cliente add column if not exists razon_social text;
 alter table cliente add column if not exists cuit text;
 alter table cliente add column if not exists apodo_ml text;
 alter table cliente add column if not exists telefono_movil text;
+
 -- Lo que trae Mercado Libre (billing_info de la orden, 1/10): nombre y
 -- apellido por separado (los pide la factura) y, para no perder nada, el
 -- dato crudo de cada origen en `datos_externos` ({"ml": {...}, "virtual_seller": {...}}).
@@ -259,6 +260,8 @@ alter table pedido add column if not exists reservado_ts timestamptz;
 -- con el pago pendiente, y reserva; «Pasar a presupuesto» libera la reserva
 -- (sólo si no está pago ni en preparación). vigencia = hasta cuándo vale.
 alter table pedido add column if not exists vigencia date;
+-- La lista de precios con que se armó (Fer, 7/10: se elige al cargarlo a mano).
+alter table pedido add column if not exists lista_precios_id bigint references lista_precios(id) on delete set null;
 do $$ begin
   if not exists (select 1 from pg_constraint where conrelid = 'public.pedido'::regclass and conname = 'pedido_estado_check'
                   and pg_get_constraintdef(oid) like '%presupuesto%') then

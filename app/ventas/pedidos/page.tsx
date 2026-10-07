@@ -24,7 +24,7 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
   const sp = await searchParams;
   const { estado, pago, canal, desde, hasta, q, cliente, conPendiente, canceladas } = filtrosPedidos(sp);
   const ctx = { org: s.org.id, moneda: s.moneda };
-  const [canales, vista, aMano] = await Promise.all([
+  const [canales, vista, aMano, listas] = await Promise.all([
     consulta<{ id: number; nombre: string }>("select id::int, nombre from canal where organizacion_id = $1 order by nombre", [s.org.id]),
     paginaDeVista(LISTA_PEDIDOS, ctx, sp),
     // Los canales donde se carga un pedido a mano (Mercado Libre no: entran solos).
@@ -32,6 +32,8 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
       select ca.id::int, ca.nombre, coalesce(l.moneda_base, 'ARS') moneda, ca.tipo from canal ca left join lista_precios l on l.id = ca.lista_precios_id
        where ca.organizacion_id = $1 and ca.estado = 'activo' and ca.tipo in ('local', 'web_minorista', 'web_mayorista', 'otro')
        order by (ca.tipo = 'local') desc, ca.nombre`, [s.org.id]),
+    consulta<{ id: number; nombre: string; moneda: "ARS" | "USD" }>(
+      "select id::int, nombre, moneda_base moneda from lista_precios where organizacion_id = $1 and estado = 'activa' order by orden, nombre", [s.org.id]),
   ]);
   // Las fechas de entrada (la última semana) no cuentan como filtro.
   const hayFiltro = !!(estado || pago || canal || sp.desde !== undefined || sp.hasta !== undefined || q || cliente || conPendiente || canceladas);
@@ -41,7 +43,7 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
       acciones={<><AccionesExcel lista={LISTA_PEDIDOS} org={s.org.id} vista={vista.activa?.id} /><BotonNuevo texto="Nuevo pedido o presupuesto" /></>}>
       <Avisos sp={sp} />
       <AltaNueva texto="Nuevo pedido o presupuesto" sinBoton>
-        <NuevoPedido canales={aMano} />
+        <NuevoPedido canales={aMano} listas={listas} />
       </AltaNueva>
       <div className="flex flex-wrap items-end gap-2 mb-3">
         <div><span className={ETIQUETA}>Buscar</span><BuscadorVivo q={q} comienza={false} sinComienza placeholder="Nº, cliente, producto, canal, factura…" limpiar={["p"]} /></div>
