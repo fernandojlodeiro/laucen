@@ -476,9 +476,11 @@ export async function accionAgregarComponente(fd: FormData) {
         select k.variacion_componente_id, d.nivel + 1 from kit_componente k join dentro d on k.variacion_kit_id = d.v where d.nivel < 10
       ) select 1 from dentro where v = $2 limit 1`, [comp.id, kit]);
     if (circulo) throw new ErrorErp("Ese componente es un kit que ya lleva a éste adentro: quedaría en círculo.");
-    await consulta(`insert into kit_componente (organizacion_id, variacion_kit_id, variacion_componente_id, cantidad) values ($1, $2, $3, $4)
-                    on conflict (variacion_kit_id, variacion_componente_id) do update set cantidad = kit_componente.cantidad + excluded.cantidad`,
-      [s.org.id, kit, comp.id, cantidad]);
+    // «Sobra al armarlo»: la pieza que se le saca al equipo para armar el kit (entra al stock al venderlo).
+    const sobrante = fd.get("sobrante") === "1";
+    await consulta(`insert into kit_componente (organizacion_id, variacion_kit_id, variacion_componente_id, cantidad, sobrante) values ($1, $2, $3, $4, $5)
+                    on conflict (variacion_kit_id, variacion_componente_id) do update set cantidad = kit_componente.cantidad + excluded.cantidad, sobrante = excluded.sobrante`,
+      [s.org.id, kit, comp.id, cantidad, sobrante]);
     revalidatePath(`${LISTADO}/${pid}`);
     return "Componente agregado.";
   });

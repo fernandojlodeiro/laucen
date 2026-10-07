@@ -117,8 +117,9 @@ type CostoKit = {
 async function costosKit(org: string, variaciones: number[]): Promise<Map<number, CostoKit>> {
   const salida = new Map<number, CostoKit>();
   if (!variaciones.length) return salida;
+  // La pieza que sobra al armar el kit (vuelve al stock) resta: cantidad negativa.
   const filas = await consulta<{ kit: number; sku: string; cantidad: number; costo: number | null; moneda: Moneda }>(`
-    select k.variacion_kit_id::int kit, v.sku, k.cantidad, v.costo_fob::float8 costo, v.costo_moneda moneda
+    select k.variacion_kit_id::int kit, v.sku, case when k.sobrante then -k.cantidad else k.cantidad end cantidad, v.costo_fob::float8 costo, v.costo_moneda moneda
       from kit_componente k join variacion v on v.id = k.variacion_componente_id
      where k.organizacion_id = $1 and k.variacion_kit_id = any($2::bigint[]) order by v.sku`, [org, variaciones]);
   let tc: number | null | undefined;
@@ -767,12 +768,12 @@ export async function SeccionKit({ s, p, sp, seccion }: Props) {
   if (!kit) return <p className="text-xs text-[#5C6B76]">El kit no tiene su variación todavía.</p>;
   const editar = Number(sp.editar) || 0;
   const [componentes, depositos] = await Promise.all([
-    consulta<{ id: number; cantidad: number; variacion_id: number; producto_id: number; sku: string; titulo: string; disponible: number }>(`
-      select k.id::int, k.cantidad, v.id::int variacion_id, v.producto_id::int, v.sku, titulo_variacion(v.id) titulo,
+    consulta<{ id: number; cantidad: number; sobrante: boolean; variacion_id: number; producto_id: number; sku: string; titulo: string; disponible: number }>(`
+      select k.id::int, k.cantidad, k.sobrante, v.id::int variacion_id, v.producto_id::int, v.sku, titulo_variacion(v.id) titulo,
              (select coalesce(sum(stock_disponible_deposito(k.organizacion_id, v.id, d.id)), 0) from deposito d
                where d.organizacion_id = k.organizacion_id and d.estado = 'activo')::int disponible
         from kit_componente k join variacion v on v.id = k.variacion_componente_id
-       where k.variacion_kit_id = $2 and k.organizacion_id = $1 order by v.sku`, [s.org.id, kit]),
+       where k.variacion_kit_id = $2 and k.organizacion_id = $1 order by k.sobrante, v.sku`, [s.org.id, kit]),
     consulta<{ id: number; nombre: string; disponible: number }>(`
       select d.id::int, d.nombre, stock_disponible_deposito(d.organizacion_id, $2, d.id) disponible
         from deposito d where d.organizacion_id = $1 and d.estado = 'activo' order by d.nombre, d.id`, [s.org.id, kit]),
@@ -785,6 +786,10 @@ export async function SeccionKit({ s, p, sp, seccion }: Props) {
             <Ocultos p={p} seccion={seccion} />
             <input name="sku" placeholder="SKU del componente" className={`${CAMPO} w-48 font-mono`} autoFocus />
             <CampoNumero name="cantidad" valor={1} tipo="entero" className={`${CAMPO} w-20`} />
+            <label className="flex items-center gap-1.5 text-xs text-[#5C6B76]">
+              <input type="checkbox" name="sobrante" value="1" />
+              Sobra al armarlo (entra al stock al vender el kit)
+            </label>
             <button className={PRIMARIO}>Agregar componente</button>
           </form>
         </AltaNueva>
@@ -810,9 +815,9 @@ export async function SeccionKit({ s, p, sp, seccion }: Props) {
               ) : (
                 <tr key={c.id} className={TR}>
                   <td className={`${TD} font-mono`}><Link href={`/catalogo/productos/${c.producto_id}`} className="text-[#16577F]">{c.sku}</Link></td>
-                  <td className={TD}>{c.titulo}</td>
-                  <td className={TDN}>{c.cantidad}</td>
-                  <td className={TDN}>{c.disponible.toLocaleString("es-AR")}</td>
+                  <td className={TD}>{c.titulo}{c.sobrante && <span className="block text-[11px] text-[#167655]">Sobra al armarlo: entra al stock cuando se vende el kit</span>}</td>
+                  <td className={TDN}>{c.sobrante ? `+${c.cantidad}` : c.cantidad}</td>
+                  <td className={TDN}>{c.sobrante ? "—" : c.disponible.toLocaleString("es-AR")}</td>
                   <td className={`${TD} text-right whitespace-nowrap`}>
                     <span className="inline-flex gap-1">
                       <Lapiz href={aqui(p, seccion, { editar: c.id })} />

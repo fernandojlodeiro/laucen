@@ -131,7 +131,11 @@ La tabla de cucardas activas (y las archivadas que el producto ya tenga): **Llev
 #### Pestaña Componentes del kit
 
 - Tabla: SKU del componente (lleva a su ficha), Componente, Cantidad, Disponible; lápiz para cambiar la cantidad y tacho ("¿Sacar?").
-- **+ Nuevo componente**: SKU del componente y cantidad, botón **Agregar componente**.
+- **+ Nuevo componente**: SKU del componente y cantidad, la caja **"Sobra al armarlo (entra al stock al vender el kit)"** y el botón **Agregar componente**.
+- **Pieza que sobra al armarlo** (Fer, 7/10): la que se le saca al equipo para armar el kit. Ejemplo: la Asus de 12 GB se arma sacándole una memoria de 4 GB y poniéndole una de 8; el kit es "equipo + memoria de 8 GB" y la de 4 GB (SODIMM-4DDR4) va tildada como que sobra. No es una cantidad negativa: es una marca. La fila dice "Sobra al armarlo: entra al stock cuando se vende el kit", con la cantidad en "+1" y sin disponible.
+  - No cuenta para el disponible del kit, no se reserva y no aparece en el picking.
+  - Cuando el kit se vende (sale del depósito), entra al stock en la misma ubicación de donde salió el equipo, con el movimiento "sobra al armar el kit: entra al venderlo".
+  - En el costo FOB del kit, resta.
 - Caja **Stock del kit por depósito**: cuántos kits completos se pueden armar en cada depósito activo.
 
 #### Pestaña Precios

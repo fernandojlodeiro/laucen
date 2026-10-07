@@ -117,7 +117,7 @@ begin
   if p_nivel > 5 then return 0; end if;
   if es_kit(p_variacion) then
     select greatest(0, min(floor(stock_disponible_deposito(p_org, k.variacion_componente_id, p_deposito, p_nivel + 1)::numeric / k.cantidad)))::int
-      into r from kit_componente k where k.variacion_kit_id = p_variacion and k.organizacion_id = p_org;
+      into r from kit_componente k where k.variacion_kit_id = p_variacion and k.organizacion_id = p_org and not k.sobrante;
     return coalesce(r, 0);
   end if;
   select coalesce(sum(s.cantidad - s.reservado), 0)::int into r
@@ -144,6 +144,7 @@ create or replace function public.mover_stock(
 ) returns setof bigint language plpgsql as $$
 declare
   k record;
+  primero record;
   afectadas bigint[];
   canales bigint[];
   antes jsonb := '{}';
@@ -182,7 +183,7 @@ begin
 
   -- Kit: se mueven los componentes.
   if es_kit(p_variacion) then
-    for k in select variacion_componente_id, cantidad from kit_componente where variacion_kit_id = p_variacion loop
+    for k in select variacion_componente_id, cantidad from kit_componente where variacion_kit_id = p_variacion and not sobrante loop
       return query select mover_stock(p_org, k.variacion_componente_id, p_tipo, p_cantidad * k.cantidad,
         p_origen, p_destino, p_ref_tipo, p_ref_id, p_usuario, p_nota, coalesce(p_kit, p_variacion), p_nivel + 1);
     end loop;
@@ -239,6 +240,20 @@ begin
   end loop;
 
   return next mov_id;
+
+  -- Kit con una pieza que sobra al armarlo (kit_componente.sobrante): al vender
+  -- el kit, cuando sale su primer componente, la que sobra entra al stock en la
+  -- misma ubicación (ej. la memoria de 4 GB que se le saca a la Asus de 12 GB).
+  if p_tipo = 'venta' and p_kit is not null then
+    select variacion_componente_id, cantidad into primero from kit_componente
+     where variacion_kit_id = p_kit and not sobrante order by id limit 1;
+    if primero.variacion_componente_id = p_variacion and p_cantidad >= primero.cantidad then
+      for k in select variacion_componente_id, cantidad from kit_componente where variacion_kit_id = p_kit and sobrante loop
+        return query select mover_stock(p_org, k.variacion_componente_id, 'ingreso', (p_cantidad / primero.cantidad) * k.cantidad,
+          null, p_origen, p_ref_tipo, p_ref_id, p_usuario, 'sobra al armar el kit: entra al venderlo', p_kit, p_nivel + 1);
+      end loop;
+    end if;
+  end if;
 end $$;
 
 -- ── Stock que cambió: a Mercado Libre y a la tienda al instante ──────────

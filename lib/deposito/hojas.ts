@@ -115,7 +115,7 @@ export async function datosHojas(org: string, pedidoIds: number[]): Promise<Dato
            case when c.id is not null then v.sku end kit_sku, case when c.id is not null then titulo_variacion(v.id) end kit_titulo,
            pl.variacion_id is not null reservada
       from pedido_linea pl left join variacion v on v.id = pl.variacion_id
-      left join kit_componente kc on kc.variacion_kit_id = v.id left join variacion c on c.id = kc.variacion_componente_id
+      left join kit_componente kc on kc.variacion_kit_id = v.id and not kc.sobrante left join variacion c on c.id = kc.variacion_componente_id
      where pl.organizacion_id = $1 and pl.pedido_id = any($2::bigint[]) order by pl.orden, pl.id, c.sku`, [org, pedidoIds]);
 
   return pedidos.map((p) => {

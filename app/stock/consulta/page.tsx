@@ -112,10 +112,10 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
     select d.id::int, d.nombre, stock_disponible_deposito($1, $2, d.id) disponible
       from deposito d where d.organizacion_id = $1 and d.estado = 'activo' order by d.nombre`, [s.org.id, elegida.id]) : [];
 
-  const componentes = elegida?.kit ? await consulta<{ id: number; sku: string; titulo: string; cantidad: number }>(`
-    select v.id::int, v.sku, titulo_variacion(v.id) titulo, k.cantidad
+  const componentes = elegida?.kit ? await consulta<{ id: number; sku: string; titulo: string; cantidad: number; sobrante: boolean }>(`
+    select v.id::int, v.sku, titulo_variacion(v.id) titulo, k.cantidad, k.sobrante
       from kit_componente k join variacion v on v.id = k.variacion_componente_id
-     where k.variacion_kit_id = $2 and k.organizacion_id = $1 order by v.sku`, [s.org.id, elegida.id]) : [];
+     where k.variacion_kit_id = $2 and k.organizacion_id = $1 order by k.sobrante, v.sku`, [s.org.id, elegida.id]) : [];
 
   // Movimientos: los de la variación y, si es un kit, los que hicieron sus
   // componentes al venderlo o reservarlo.
@@ -171,7 +171,7 @@ export default async function ConsultaStock({ searchParams }: { searchParams: Pr
             <>
               <p className="text-[11px] text-[#5C6B76] mb-2">
                 Un kit no tiene stock propio: el disponible se calcula de sus componentes (cuántos kits se pueden armar en cada depósito) y, al venderlo, se mueve el stock de cada componente.
-                Componentes: {componentes.map((c, i) => <span key={c.id}>{i > 0 && ", "}<Link href={url(BASE, { dep, contiene: cont, v: c.id })} className="text-[#16577F] underline">{c.cantidad} × {c.sku}</Link></span>)}.
+                Componentes: {componentes.map((c, i) => <span key={c.id}>{i > 0 && ", "}<Link href={url(BASE, { dep, contiene: cont, v: c.id })} className="text-[#16577F] underline">{c.cantidad} × {c.sku}</Link>{c.sobrante && " (sobra: entra al vender)"}</span>)}.
               </p>
               <div className={CAJA_TABLA}>
                 <table className={TABLA}>

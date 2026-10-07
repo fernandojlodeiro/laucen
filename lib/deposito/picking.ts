@@ -167,7 +167,7 @@ async function cargarKit(c: PoolClient, org: string, loteId: number, codigo: str
   if (!kit) return null;
   const comps = (await c.query<{ id: string; sku: string; por_kit: number }>(`
     select kc.variacion_componente_id id, v.sku, kc.cantidad::int por_kit from kit_componente kc join variacion v on v.id = kc.variacion_componente_id
-     where kc.variacion_kit_id = $1`, [kit.id])).rows;
+     where kc.variacion_kit_id = $1 and not kc.sobrante`, [kit.id])).rows;
   let items = (await c.query<{ id: string; pedido_id: string; variacion_id: string; resto: number }>(`
     select i.id, i.pedido_id, i.variacion_id, (i.cantidad - i.escaneado - i.faltante)::int resto
       from picking_item i join pedido p on p.id = i.pedido_id

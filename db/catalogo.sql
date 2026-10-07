@@ -177,6 +177,11 @@ create table if not exists kit_componente (
 );
 alter table kit_componente enable row level security;
 select erp_politica_org('kit_componente');
+-- Pieza que SOBRA al armar el kit (Fer, 7/10: la Asus de 12 GB se arma sacándole
+-- una memoria de 4 GB y poniéndole una de 8; la de 4 vuelve al stock). No cuenta
+-- para el disponible del kit, no se reserva ni se pickea: al venderse el kit,
+-- entra al stock en la ubicación de donde salió el equipo (mover_stock).
+alter table kit_componente add column if not exists sobrante boolean not null default false;
 
 -- ── La variación default, sola ────────────────────────────
 -- Producto simple o kit → exactamente una variación default (con el SKU base).

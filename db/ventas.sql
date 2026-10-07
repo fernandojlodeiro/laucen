@@ -305,7 +305,7 @@ declare k record; u record; resta int := p_cantidad; toma int; general bigint;
 begin
   if p_nivel > 5 then raise exception 'el kit tiene demasiados niveles' using errcode = 'P0001'; end if;
   if es_kit(p_variacion) then
-    for k in select variacion_componente_id, cantidad from kit_componente where variacion_kit_id = p_variacion loop
+    for k in select variacion_componente_id, cantidad from kit_componente where variacion_kit_id = p_variacion and not sobrante loop
       perform reservar_en_deposito(p_org, k.variacion_componente_id, p_deposito, p_cantidad * k.cantidad,
         p_ref_tipo, p_ref_id, p_usuario, coalesce(p_kit, p_variacion), p_nivel + 1);
     end loop;

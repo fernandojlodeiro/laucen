@@ -455,7 +455,7 @@ export async function quitarLineas(org: string, pedidoId: number, lineaIds: numb
       if (!l.variacion_id) continue;
       // Lo que hay que liberar: la variación, o los componentes si es un kit.
       const partes = (await c.query<{ variacion_id: string; cantidad: number; kit: string | null }>(`
-        select k.variacion_componente_id variacion_id, k.cantidad * $2 cantidad, $1::bigint kit from kit_componente k where k.variacion_kit_id = $1
+        select k.variacion_componente_id variacion_id, k.cantidad * $2 cantidad, $1::bigint kit from kit_componente k where k.variacion_kit_id = $1 and not k.sobrante
         union all
         select $1::bigint, $2, null where not exists (select 1 from kit_componente where variacion_kit_id = $1)`, [l.variacion_id, l.cantidad])).rows;
       for (const parte of partes) {
