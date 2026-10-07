@@ -99,7 +99,8 @@ export const catalogoDe = cache(async (t: Tienda): Promise<ProductoBase[]> => {
   if (!t.listaId) return [];
   const todos = await unstable_cache(
     () => leerCatalogo(t.organizacionId, t.canalId, t.listaId!, t.moneda),
-    ["tienda-catalogo", String(t.canalId), String(t.listaId), t.moneda],
+    // "v2": descuentos de la web cargados el 7/10 (la copia guardada no se renovaba sola).
+    ["tienda-catalogo", "v2", String(t.canalId), String(t.listaId), t.moneda],
     { revalidate: 60, tags: [`tienda-${t.canalId}`] },
   )();
   return ocultaSinStock(t) ? todos.filter((p) => p.stock > 0) : todos;
