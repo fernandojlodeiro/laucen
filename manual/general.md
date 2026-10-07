@@ -51,6 +51,10 @@ Una franja azul fija abajo de todo, siempre visible:
   - ☰ **"Menú"**: abre el árbol completo del menú en pantalla entera, con el botón **"📱 Modo depósito"** ([Modo depósito](/deposito/celular)), el enlace para elegir los botones de la barra y el buscador global. Se cierra con **"Cerrar"** o al elegir una opción.
 - En el celular no están la barra de estado (dólar, contadores) ni el botón "Salir".
 
+### Si una pantalla se rompe
+
+Si se sube una versión nueva de Laucen mientras tenés una pantalla abierta, el navegador puede quedar desfasado: en vez del error en inglés ("Application error…"), Laucen dice **"Laucen se actualizó"** y **se recarga sola**. Si el problema es otro, dice **"Algo falló al mostrar esta pantalla"** con el botón **"Recargar"**: lo que estabas haciendo puede haberse grabado igual (por ejemplo, el pedido se creó), recargá para ver cómo quedó.
+
 ### La pestaña del navegador
 
 La pestaña de Laucen dice siempre **"Laucen"**, con su isólogo (la L blanca sobre azul), en cualquier pantalla. La tienda web pública muestra su propio nombre y su logo.
