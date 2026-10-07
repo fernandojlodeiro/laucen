@@ -53,8 +53,8 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
           Mercado Libre no le muestra al comprador las cuotas del nombre del plan, y depende del vendedor (en .BAIRES la Premium 3x se ve
           «6 cuotas» y la 12x «18 cuotas»). Para saber qué muestra cada cuenta, en cada una se publica una notebook distinta con los tres
           planes que más convienen: <b>Clásica</b>, <b>Premium 3x</b> y <b>Premium 12x</b>. Cada una copia nuestra publicación común de
-          .BAIRES (título, fotos, características, garantía y descripción). Las de cuotas se cuelgan del mismo producto de Mercado Libre que
-          la Clásica, así comparten el stock. Precio de cada plan: deja lo mismo que la Clásica después de su comisión, más
+          .BAIRES (título, fotos, características, garantía y descripción). Cada plan es una publicación propia (las de cuotas, Premium con la marca
+          del plan); Mercado Libre las junta en el mismo producto y comparten el stock. Precio de cada plan: deja lo mismo que la Clásica después de su comisión, más
           {" "}{MARGEN_PLAN["3x_campaign"]} % (3x) o {MARGEN_PLAN["12x_campaign"]} % (12x). Salen publicadas al <b>tachado</b> del modelo (el mismo en sus tres planes: con la campaña, la Clásica muestra {DESCUENTO_CLASICA} % de descuento);
           después, al meterlas en campaña, cada una baja al precio de «Con la campaña».
           {estimada && " (Comisión estimada: Costos ML todavía no relevó la categoría.)"}
@@ -98,12 +98,13 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
         {enCola.length > 0 && (
           <div className={CAJA_TABLA}>
             <table className={TABLA}>
-              <thead className={THEAD}><tr><th className={TH}>Cuenta</th><th className={TH}>Prueba</th><th className={TH}>Estado</th><th className={TH}>Publicaciones creadas</th><th className={TH}>Cuándo</th></tr></thead>
+              <thead className={THEAD}><tr><th className={THN}>Lote</th><th className={TH}>Cuenta</th><th className={TH}>Prueba</th><th className={TH}>Estado</th><th className={TH}>Publicaciones creadas</th><th className={TH}>Cuándo</th></tr></thead>
               <tbody>
                 {enCola.map((q) => (
                   <tr key={`${q.item_id}-${q.ts}`} className={TR}>
+                    <td className={TDN}>{q.lote ? <Link href={`/config/canales/cola?ver=lotes&lote=${q.lote}`} className="text-[#16577F] hover:underline">{q.lote}</Link> : "—"}</td>
                     <td className={TD}>{q.canal}</td>
-                    <td className={`${TD} font-mono`}>{q.item_id.replace("prueba:", "")}</td>
+                    <td className={`${TD} font-mono`}>{q.item_id.replace("prueba:", "").replace(":", " · ")}</td>
                     <td className={TD}>{ESTADO[q.estado] ?? q.estado}{q.error && <span className="block text-[11px] text-[#C03420]">{q.error}</span>}</td>
                     <td className={`${TD} font-mono`}>{[q.respuesta?.id, ...(q.respuesta?.otras ?? [])].filter((x): x is string => !!x).map((id) => (
                       <span key={id} className="mr-2 whitespace-nowrap"><Link href={historialPublicacion(id)} className="text-[#16577F] hover:underline">{id}</Link> <a href={enlaceMl(id)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a></span>

@@ -9,10 +9,15 @@
 // Cada alta copia nuestra publicación común (no de catálogo) de .BAIRES del mismo
 // SKU (título, fotos, atributos, garantía, descripción) y la comprueba con ML
 // (validate, no publica nada). Todas salen al tachado del modelo (uno solo para
-// sus planes); después, al entrar en campaña, cada una baja a su precio. La Clásica se crea con POST /items y las de cuotas
-// se cuelgan de su producto de ML (POST /user-products/{up}/items, comparten el
-// stock), todo en un mismo pedido de la cola. Nada sale sin el clic de Fer:
-// queda un lote por cuenta "Preparado, falta tu clic".
+// sus planes); después, al entrar en campaña, cada una baja a su precio.
+// Cada plan es una publicación propia con POST /items: la Clásica, gold_special;
+// las de cuotas, gold_pro con la marca del plan en tags ("3x_campaign",
+// "12x_campaign"; así lo activa ML, documentación "Campañas con cuotas para
+// Marketplace"). ML las junta solo en el mismo producto (user product) y
+// comparten el stock. Colgarlas de /user-products/{up}/items daba 500 siempre
+// (lote 19, 7/10). Cada alta va en su propia fila de la cola: si una falla, las
+// otras salen igual y ninguna se duplica. Nada sale sin el clic de Fer: queda un
+// lote por cuenta "Preparado, falta tu clic".
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
@@ -102,8 +107,8 @@ export async function prepararPrueba(org: string, usuarioId: string): Promise<Re
     const faltan = deEsta.filter((f) => !f.existe);
     if (!faltan.length) { rech("ya tiene los tres planes"); continue; }
     const pendiente = await una<{ id: number }>(`
-      select id::int from ml_cola where organizacion_id = $1 and canal_id = $2 and tipo = 'crear' and item_id = $3
-         and estado in ('preparado', 'pendiente', 'enviando')`, [org, canal, `prueba:${p.sku}`]);
+      select id::int from ml_cola where organizacion_id = $1 and canal_id = $2 and tipo = 'crear' and item_id like $3
+         and estado in ('preparado', 'pendiente', 'enviando')`, [org, canal, `prueba:${p.sku}%`]);
     if (pendiente) { rech("ya hay un lote de esta prueba esperando en la cola"); continue; }
     const cuenta = await cuentaDelCanal(org, canal);
     if (!cuenta || cuenta.estado !== "activa") { rech("la cuenta de Mercado Libre no está conectada"); continue; }
@@ -113,41 +118,37 @@ export async function prepararPrueba(org: string, usuarioId: string): Promise<Re
     if (!g?.ml) { rech(`Laucen no tiene los datos de ${p.origen}: traé las publicaciones de nuevo`); continue; }
     const stock = Math.max(1, deEsta[0].stock);
     const modelo = await modeloDeLaucen(org, p.sku);
-    const pedidos: PedidoMl[] = [];
     const nombres: string[] = [];
 
-    const clasica = deEsta.find((f) => f.plan === "clasica")!;
-    let up: string | null = null;
-    if (clasica.existe) {
-      // La cuenta ya tiene la Clásica: los planes se cuelgan de su producto de ML.
-      up = (await una<{ up: string | null }>("select datos_externos -> 'ml' ->> 'user_product_id' up from meli_item where organizacion_id = $1 and item_id = $2 limit 1",
-        [org, clasica.existe]))?.up ?? null;
-      if (!up) { rech(`no se sabe el producto de ML de ${clasica.existe}: traé las publicaciones de nuevo`); continue; }
-    } else {
-      const item: ItemGuardado = { ...g.ml, price: clasica.tachado, available_quantity: stock, listing_type_id: "gold_special" };
-      const c = await comprobarAlta(cuenta, (x) => armarCuerpoCopia(item, p.sku, { variarTitulo: false, rotarFotos: false }, { modelo, ...x }));
-      if (!c.ok) { rech(`Mercado Libre no acepta la Clásica: ${c.motivo}`); continue; }
-      if (c.avisos) res.avisos.push(`${p.cuenta}: ${c.avisos}`);
-      pedidos.push({ metodo: "POST", ruta: "/items", cuerpo: c.cuerpo });
-      // La descripción se lee de ML con la cuenta de la publicación copiada.
-      const cOrigen = await cuentaDelCanal(org, g.canal_id);
-      const d = cOrigen?.estado === "activa" ? await ml<{ plain_text?: string }>(cOrigen, "GET", `/items/${p.origen}/description`) : null;
-      const texto = d?.status === 200 ? d.datos.plain_text?.trim() : "";
-      if (texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: texto }, seguirSiFalla: true });
-      nombres.push(`Clásica $ ${clasica.tachado.toLocaleString("es-AR")} (con campaña $ ${clasica.precio.toLocaleString("es-AR")})`);
-    }
-    for (const f of faltan.filter((x) => x.plan !== "clasica")) {
-      pedidos.push({
-        metodo: "POST", ruta: `/user-products/${up ?? "{up}"}/items`, seguirSiFalla: true,
-        cuerpo: { price: f.tachado, currency_id: "ARS", listing_type_id: "gold_pro", tags: [PLAN_INFO[f.plan].tag] },
+    // La descripción se lee de ML con la cuenta de la publicación copiada.
+    const cOrigen = await cuentaDelCanal(org, g.canal_id);
+    const d = cOrigen?.estado === "activa" ? await ml<{ plain_text?: string }>(cOrigen, "GET", `/items/${p.origen}/description`) : null;
+    const texto = d?.status === 200 ? d.datos.plain_text?.trim() : "";
+    const altas: Parameters<typeof encolarLoteConBoton>[2] = [];
+    for (const f of faltan) {
+      const tipo = f.plan === "clasica" ? "gold_special" : "gold_pro";
+      // Sin las condiciones de cuotas de la de origen: el plan lo marca el tag.
+      const item: ItemGuardado = { ...g.ml, price: f.tachado, available_quantity: stock, listing_type_id: tipo,
+        sale_terms: (g.ml.sale_terms ?? []).filter((t) => t.id !== "INSTALLMENTS_CAMPAIGN") };
+      const tags = f.plan === "clasica" ? null : [PLAN_INFO[f.plan].tag];
+      const c = await comprobarAlta(cuenta, (x) => {
+        const cuerpo = armarCuerpoCopia(item, p.sku, { variarTitulo: false, rotarFotos: false }, { modelo, ...x });
+        return tags ? { ...cuerpo, tags } : cuerpo;
       });
-      nombres.push(`${f.plan} $ ${f.tachado.toLocaleString("es-AR")} (con campaña $ ${f.precio.toLocaleString("es-AR")})`);
+      const nombre = f.plan === "clasica" ? "Clásica" : `Premium ${PLAN_INFO[f.plan].corto}`;
+      if (!c.ok) { rech(`Mercado Libre no acepta la ${nombre}: ${c.motivo}`); continue; }
+      if (c.avisos) res.avisos.push(`${p.cuenta} (${nombre}): ${c.avisos}`);
+      const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: c.cuerpo }];
+      if (texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: texto }, seguirSiFalla: true });
+      altas.push({
+        canalId: canal, itemId: `prueba:${p.sku}:${f.plan}`, tipo: "crear",
+        antes: { estado: "no existe en esta cuenta" },
+        payload: { descripcion: `Prueba de planes en ${p.cuenta}: ${p.sku} ${nombre} $ ${f.tachado.toLocaleString("es-AR")} (con campaña $ ${f.precio.toLocaleString("es-AR")}; copia de ${p.origen})`, origen: { canal: g.canal_id, item_id: p.origen }, pedidos },
+      });
+      nombres.push(nombre);
     }
-    const loteId = await encolarLoteConBoton(org, canal, [{
-      canalId: canal, itemId: `prueba:${p.sku}`, tipo: "crear",
-      antes: { estado: "no existe en esta cuenta" },
-      payload: { descripcion: `Prueba de planes en ${p.cuenta}: ${p.sku} — ${nombres.join(", ")} (copia de ${p.origen})`, origen: { canal: g.canal_id, item_id: p.origen }, pedidos },
-    }], `Prueba de planes de cuotas: ${p.sku} en ${p.cuenta}`, usuarioId);
+    if (!altas.length) continue;
+    const loteId = await encolarLoteConBoton(org, canal, altas, `Prueba de planes de cuotas: ${p.sku} en ${p.cuenta} (${nombres.join(", ")})`, usuarioId);
     res.lotes.push({ cuenta: p.cuenta, loteId, altas: nombres.length });
   }
   if (!res.lotes.length && !res.rechazos.length) throw new ErrorErp("No hay nada para crear.");
