@@ -157,6 +157,8 @@ La tabla junta, en orden de fecha:
 - **"Venta"**: cada venta de esta publicación, con el enlace al pedido.
 - **"Campaña: …"**: lo que pasó con ella en las campañas de Mercado Libre (entró, salió, cambió el precio o el estado).
 
-La columna **"Por qué"** explica una baja de stock o una pausa que llegó hasta 30 minutos después de una venta del mismo producto (en esta publicación o en otra, de cualquier cuenta o canal): dice "Venta del pedido N" o "Sin stock por la venta del pedido N", con el enlace al pedido, en el mismo renglón del cambio.
+La columna **"Por qué"** explica, con el enlace al pedido y en el mismo renglón del cambio (también en lo que mandó Laucen):
+- una baja de stock o una pausa que llegó hasta 30 minutos después de una venta del mismo producto (en esta publicación o en otra, de cualquier cuenta o canal): "Venta del pedido N" o "Sin stock por la venta del pedido N". Aunque esa venta después se haya cancelado, en su momento fue lo que bajó el stock;
+- una suba de stock o una reactivación hasta 30 minutos después de que se canceló o devolvió un pedido del mismo producto: "Cancelación del pedido N" o "Devolución del pedido N".
 
 Si tiene variaciones, una columna dice de cuál variación es cada cambio. Va de a 50 renglones, con el paginador abajo.
