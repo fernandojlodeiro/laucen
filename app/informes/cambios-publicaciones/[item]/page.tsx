@@ -75,7 +75,7 @@ export default async function HistorialPublicacion({ params, searchParams }: { p
      where mi.organizacion_id = $1 and mi.item_id = $2`, [org, item]);
   const existe = !!pub?.cuenta;
 
-  const [cambios, cola, campanas, ventas] = await Promise.all([
+  const [cambios, cola, campanas, ventas, cancelaciones] = await Promise.all([
     consulta<{ fecha: Date; variation_id: string; campo: string; antes: string | null; despues: string | null; origen: string }>(`
       select fecha, variation_id, campo, antes, despues, origen from meli_item_cambio
        where organizacion_id = $1 and item_id = $2`, [org, item]),
@@ -90,22 +90,39 @@ export default async function HistorialPublicacion({ params, searchParams }: { p
         from pedido_linea l join pedido p on p.id = l.pedido_id join canal ca on ca.id = p.canal_id
        where l.organizacion_id = $1 and (l.datos_externos #>> '{ml,item_id}' = $2 or l.variacion_id in (
              select pu.variacion_id from meli_item mi join publicacion pu on pu.id = mi.publicacion_id where mi.organizacion_id = $1 and mi.item_id = $2))`, [org, item]),
+    // Cuándo se canceló (o devolvió) un pedido del mismo producto: explica que el stock vuelva y se reactive.
+    consulta<{ fecha: Date; pedido: number; estado: string }>(`
+      select h.fecha, h.pedido_id::int pedido, h.estado_nuevo estado from pedido_estado_historial h
+       where h.organizacion_id = $1 and h.estado_nuevo in ('cancelado', 'devuelto') and h.pedido_id in (
+             select l.pedido_id from pedido_linea l where l.organizacion_id = $1 and (l.datos_externos #>> '{ml,item_id}' = $2 or l.variacion_id in (
+               select pu.variacion_id from meli_item mi join publicacion pu on pu.id = mi.publicacion_id where mi.organizacion_id = $1 and mi.item_id = $2)))`, [org, item]),
   ]);
 
-  // La venta más reciente del mismo producto hasta 30 minutos antes de un cambio.
-  const ventaAntes = (f: Date) => {
+  // Lo más reciente (hasta 30 minutos antes) que explica un cambio: una venta del mismo producto
+  // explica una baja o una pausa (aunque después se haya cancelado: en su momento bajó el stock);
+  // una cancelación o devolución explica que el stock suba y se reactive (Fer, 7/10).
+  const ultimoAntes = <T extends { fecha: Date }>(xs: T[], f: Date) => {
     const t = new Date(f).getTime();
-    return ventas.filter((v) => v.estado !== "cancelado" && t - new Date(v.fecha).getTime() >= 0 && t - new Date(v.fecha).getTime() <= VENTANA_MS)
+    return xs.filter((x) => t - new Date(x.fecha).getTime() >= 0 && t - new Date(x.fecha).getTime() <= VENTANA_MS)
       .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())[0];
   };
-  const porque = (c: (typeof cambios)[number]): Linea["porque"] => {
-    const baja = c.campo === "stock" && Number(c.despues) < Number(c.antes);
-    const pausa = c.campo === "estado" && c.despues === "paused";
-    if (!baja && !pausa) return undefined;
-    const v = ventaAntes(c.fecha);
-    if (!v) return undefined;
-    return { pedido: v.pedido, texto: baja ? "Venta del pedido" : "Sin stock por la venta del pedido" };
+  const porqueDe = (f: Date, baja: boolean, pausa: boolean, sube: boolean, activa: boolean): Linea["porque"] => {
+    if (baja || pausa) {
+      const v = ultimoAntes(ventas, f);
+      if (v) return { pedido: v.pedido, texto: baja ? "Venta del pedido" : "Sin stock por la venta del pedido" };
+    }
+    if (sube || activa) {
+      const c = ultimoAntes(cancelaciones, f);
+      if (c) return { pedido: c.pedido, texto: c.estado === "devuelto" ? "Devolución del pedido" : "Cancelación del pedido" };
+    }
+    return undefined;
   };
+  const porque = (c: (typeof cambios)[number]) => porqueDe(c.fecha,
+    c.campo === "stock" && Number(c.despues) < Number(c.antes), c.campo === "estado" && c.despues === "paused",
+    c.campo === "stock" && Number(c.despues) > Number(c.antes), c.campo === "estado" && c.despues === "active");
+  // Lo que mandó la cola por stock: una pausa por la venta, una reactivación por la cancelación.
+  const porqueCola = (c: (typeof cola)[number]) => c.tipo !== "stock" ? undefined
+    : porqueDe(c.fecha, false, c.payload?.estado === "paused" || c.payload?.cantidad === 0, false, c.payload?.estado === "active");
 
   const lineas: Linea[] = [
     ...cambios.map((c): Linea => ({
@@ -115,7 +132,7 @@ export default async function HistorialPublicacion({ params, searchParams }: { p
     ...cola.map((c): Linea => ({
       fecha: c.fecha, variacion: c.variation_id, tipo: "cola", que: `Laucen mandó: ${TIPO_COLA[c.tipo] ?? c.tipo}`,
       detalle: [textoPayload(c.tipo, c.payload), `(${ESTADO_COLA[c.estado] ?? c.estado}${c.estado === "error" && c.error ? `: ${c.error}` : ""})`].filter(Boolean).join(" "),
-      origen: c.origen === "boton" ? "Laucen (tu clic)" : c.origen === "barrida" ? "Laucen (barrida)" : "Laucen (automático)",
+      origen: c.origen === "boton" ? "Laucen (tu clic)" : c.origen === "barrida" ? "Laucen (barrida)" : "Laucen (automático)", porque: porqueCola(c),
     })),
     ...campanas.map((c): Linea => {
       const est = (x: string | null) => (x ? ESTADOS_PROMO[x] ?? x : "—");
