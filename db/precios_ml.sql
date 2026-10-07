@@ -158,6 +158,12 @@ alter table ml_promo_item add column if not exists pct_vendedor numeric(6, 2);
 alter table ml_promo_item add column if not exists oferta_id text;
 alter table ml_promo_item add column if not exists visto_ts timestamptz not null default now();
 alter table ml_promo_item add column if not exists datos jsonb not null default '{}';
+-- Cuándo apareció la fila por primera vez (la lectura la actualiza, pero no toca esto): la
+-- sincronización automática recalcula las publicaciones a las que ML les ofreció una campaña
+-- nueva (Fer, 7/10: las notebooks nuevas quedaban al tachado hasta la pasada de la noche).
+-- Las filas de antes quedan sin fecha.
+alter table ml_promo_item add column if not exists creado_ts timestamptz;
+alter table ml_promo_item alter column creado_ts set default now();
 
 create table if not exists ml_promo_campana (
   organizacion_id  text not null references organizaciones(id) on delete cascade,

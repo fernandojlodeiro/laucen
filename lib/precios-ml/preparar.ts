@@ -11,7 +11,7 @@ import { coincideBusqueda } from "@/lib/busqueda";
 import { consulta, una } from "@/lib/erp/base";
 import { encolar, encolarLoteConBoton, type CambioMl } from "@/lib/mercadolibre/cola";
 import { calcularCanal, canalesMl, type Calculo } from "@/lib/precios-ml/datos";
-import { PLAN_INFO, pedidoCrear, pedidosPrecio, pedidoVolumen, queCambia, cadenaFamilias, type PropuestaPub } from "@/lib/precios-ml/motor";
+import { CON_PRECIO, PLAN_INFO, pedidoCrear, pedidosPrecio, pedidoVolumen, queCambia, cadenaFamilias, type PropuestaPub } from "@/lib/precios-ml/motor";
 
 export type FiltroPrecios = { familia?: number | null; q?: string | null; comienza?: boolean };
 
@@ -165,8 +165,28 @@ export async function vueltaAutomatica(ahora = new Date()): Promise<Record<strin
            and coalesce(config ->> 'precios_ultima_pasada', '') <> $2 returning id`, [org, hoy]);
       noche = r.length > 0;
     }
+    // Las publicaciones a las que ML les ofreció una campaña con precio desde la vuelta anterior
+    // (una publicación nueva, o una campaña nueva): se recalculan para que entren sin esperar a la noche.
+    let ofrecidas: { variacion_id: number }[] = [];
+    if (!noche) {
+      const marcas = await consulta<{ id: number; previa: string | null }>(`
+        select id::int, config ->> 'precios_campanas_ts' previa from canal
+         where organizacion_id = $1 and tipo = 'mercadolibre' and coalesce((config ->> 'sincronizar_precios')::boolean, false)`, [org]);
+      const ahoraTs = new Date().toISOString();
+      ofrecidas = await consulta<{ variacion_id: number }>(`
+        select distinct pu.variacion_id::int variacion_id
+          from jsonb_to_recordset($2::jsonb) x(id bigint, previa timestamptz)
+          join ml_promo_item p on p.canal_id = x.id
+          join meli_item m on m.canal_id = p.canal_id and m.item_id = p.item_id and m.estado = 'active'
+          join publicacion pu on pu.id = m.publicacion_id
+         where p.organizacion_id = $1 and p.estado = 'candidate' and p.tipo = any($3::text[])
+           and p.creado_ts > coalesce(x.previa, now() - interval '2 hours')`, [org, JSON.stringify(marcas), CON_PRECIO]);
+      await consulta(`update canal set config = config || jsonb_build_object('precios_campanas_ts', $2::text) where id = any($1::bigint[])`,
+        [marcas.map((m) => m.id), ahoraTs]);
+    }
+    const variaciones = [...new Set([...ev.map((e) => e.variacion_id), ...ofrecidas.map((x) => x.variacion_id)])];
     if (noche) informe[org] = await sincronizarPreciosMl(org);
-    else if (ev.length) informe[org] = await sincronizarPreciosMl(org, { variaciones: ev.map((e) => e.variacion_id) });
+    else if (variaciones.length) informe[org] = await sincronizarPreciosMl(org, { variaciones });
   }
   return informe;
 }

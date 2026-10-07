@@ -197,6 +197,7 @@ Regla de la casa: **ningún precio sale a Mercado Libre sin un clic**.
   - al prender el interruptor (primera pasada);
   - al grabar en esta pantalla el tachado y los planes, una excepción, un rango de volumen, o al borrar una excepción;
   - en cada barrido (cada 30 minutos), para las variaciones cuyo precio cambió en alguna lista;
+  - en cada barrido, para las publicaciones a las que Mercado Libre les **ofreció una campaña nueva** con precio (una publicación recién creada o una campaña que apareció): así entran sin esperar a la noche. Mercado Libre las ofrece y Laucen las lee cada hora;
   - una **pasada entera por noche** (entre las 2 y las 4, hora argentina), que toma los cambios del tipo de cambio en productos en dólares y del stock en los escalones de volumen.
 - Todo pasa por la cola: se manda con ritmo, se reintenta si ML corta o falla, y queda registrado qué se mandó, cuándo y con qué resultado. Un cambio automático que dio error no se vuelve a mandar igual durante 6 horas.
 - Se considera que una publicación **cambia de precio** si el precio calculado difiere en $ 1 o más del que tiene en ML.
