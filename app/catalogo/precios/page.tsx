@@ -50,14 +50,15 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
     `select lista_id::int, count(distinct variacion_id)::int n from precio where organizacion_id = $1 group by lista_id`, [s.org.id]);
   const nPrecios = new Map(cuantos.map((c) => [c.lista_id, c.n]));
   // Lista derivada: "se calcula desde" otra lista × coeficiente (lo resuelve precio_de).
-  const derivadas = await consulta<{ id: number; base_lista_id: number | null; coeficiente: number | null }>(
-    "select id::int, base_lista_id::int, coeficiente::float8 from lista_precios where organizacion_id = $1", [s.org.id]);
+  const derivadas = await consulta<{ id: number; base_lista_id: number | null; coeficiente: number | null; aplica_descuentos: boolean }>(
+    "select id::int, base_lista_id::int, coeficiente::float8, aplica_descuentos from lista_precios where organizacion_id = $1", [s.org.id]);
   const baseDe = new Map(derivadas.map((d) => [d.id, d]));
   const nombreLista = new Map(listas.map((l) => [l.id, l.nombre]));
   /** "= Web × 0,9" si la lista tiene base; vacío si no. */
   const formula = (lid: number) => {
     const d = baseDe.get(lid);
-    return d?.base_lista_id ? `= ${nombreLista.get(d.base_lista_id) ?? "?"} × ${formatearNumero(d.coeficiente ?? 1, "decimal")}` : "";
+    const base = d?.base_lista_id ? `= ${nombreLista.get(d.base_lista_id) ?? "?"} × ${formatearNumero(d.coeficiente ?? 1, "decimal")}` : "";
+    return [base, d?.aplica_descuentos ? "con descuentos" : ""].filter(Boolean).join(" · ");
   };
   // Puede ser base de `lid`: no ella misma, ni una que ya se calcula desde
   // otra (precio_de mira un solo nivel, y así tampoco hay ciclos).
@@ -188,6 +189,10 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                     <label className="inline-flex items-center gap-1 text-[11px] text-[#5C6B76]">×
                       <CampoNumero name="coeficiente" valor={baseDe.get(l.id)?.coeficiente ?? null} tipo="decimal" placeholder="0,90" className={`${CAMPO} w-20`} />
                     </label>
+                    <label className="inline-flex items-center gap-1 text-[11px] text-[#5C6B76]">
+                      <input type="checkbox" name="aplica_descuentos" value="1" defaultChecked={baseDe.get(l.id)?.aplica_descuentos ?? false} />
+                      Aplica descuentos
+                    </label>
                     <CampoNumero name="orden" valor={l.orden} tipo="entero" className={`${CAMPO} w-16`} />
                     <select name="estado" defaultValue={l.estado} className={CAMPO} aria-label="Estado">
                       <option value="activa">Activa</option><option value="archivada">Archivada</option>
@@ -196,6 +201,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                     <Link href={url(BASE, { lista: l.id, ...filtrosL })} className={SUAVE}>Cancelar</Link>
                     <p className="w-full text-[10px] text-[#5C6B76]">
                       Con una lista de base, el precio es el de esa lista por el coeficiente (ej. 0,90 = 10 % menos). Un precio cargado a mano en esta lista gana sobre el calculado.
+                      «Aplica descuentos»: en esta lista rige el descuento de la variación, el producto o la familia (precio de venta = lista − descuento); sin tildar, el precio de venta es el de lista.
                       {esBaseDeOtra(l.id) && " Esta lista es base de otra: no puede calcularse a su vez desde una tercera."}
                     </p>
                   </form>

@@ -9,7 +9,7 @@ resumen: Las listas de precios (Clásicas, Web, Mayorista…), el precio de list
 
 ## Para qué sirve
 
-Cada lista de precios tiene un **precio de lista** por variación (el que se muestra tachado cuando hay descuento). El **precio de venta** se calcula solo: el de lista menos el descuento que rige para esa variación (de la variación, del producto o de la familia).
+Cada lista de precios tiene un **precio de lista** por variación (el que se muestra tachado cuando hay descuento). El **precio de venta** se calcula solo: en las listas con **«Aplica descuentos»** tildado, el de lista menos el descuento que rige para esa variación (de la variación, del producto o de la familia); en las demás, igual al de lista. Hoy sólo la **Web minorista** aplica descuentos (Fer, 7/10): en Clásicas (Mercado Libre) y en la del Local el precio de venta es el de lista.
 
 Cada canal de venta y cada cliente puede tener asignada una lista. La lista base de la empresa es **"Clásicas"**: la que crea y llena la importación de Virtual Seller con el precio de las publicaciones Clásicas de Mercado Libre (o, si el producto no tiene Clásica, con la Lista_000 de Virtual Seller). Es el precio que pone la empresa para Mercado Libre; de ahí salen los demás precios de ML (ver [Precios en Mercado Libre](/catalogo/precios-ml)). Otras listas pueden **calcularse desde Clásicas** con un coeficiente (ej. "Web = Clásicas × 0,90").
 
@@ -31,7 +31,7 @@ Buscador **"Buscar lista"**. Tabla con:
 - **Orden**, **Estado** (Activa / Archivada), **Variaciones con precio** (cuántas variaciones tienen precio cargado a mano en esa lista).
 - **Lápiz** (la fila se convierte en sus campos) y **tacho** ("¿Borrar la lista y sus precios?").
 
-Al editar una lista: nombre, moneda base, **Se calcula desde** ("Ninguna (precios propios)" o una lista), **×** coeficiente (ej. 0,90), orden, estado, **Guardar** / **Cancelar**.
+Al editar una lista: nombre, moneda base, **Se calcula desde** ("Ninguna (precios propios)" o una lista), **×** coeficiente (ej. 0,90), la caja **Aplica descuentos**, orden, estado, **Guardar** / **Cancelar**. En la tabla de listas, la fórmula dice «con descuentos» cuando la lista los aplica.
 
 ### La grilla de precios de la lista elegida (abajo)
 
@@ -96,7 +96,7 @@ También se puede desde la ficha del producto, pestaña **Precios**.
    - Un precio propio **siempre gana** sobre el calculado, aunque el de la base sea más nuevo.
    - Si no hay ninguno: "sin precio".
 2. **Descuento que rige**: el de la variación → el del producto → el de su familia → el de la primera familia de más arriba que tenga uno → 0 %.
-3. **Precio de venta** = precio de lista × (1 − descuento ÷ 100), redondeado a 2 decimales.
+3. **Precio de venta** = precio de lista × (1 − descuento ÷ 100), redondeado a 2 decimales, sólo si la lista tiene «Aplica descuentos»; si no, el descuento es 0 y el precio de venta es el de lista.
 
 **Dos monedas**: cada precio se guarda en pesos y en dólares. Al cargarlo en una moneda, la otra se calcula con el tipo de cambio oficial del día y **queda fija** (no se recalcula sola después). Si no hay tipo de cambio cargado, no deja guardar y pide cargarlo en [Tipo de cambio](/config/tipo-cambio). La pantalla muestra la moneda que eligió cada usuario con el interruptor $ / US$; "Cargado en" dice en cuál se cargó. La **moneda base** de la lista sólo decide en qué moneda se propone cargar.
 
@@ -123,7 +123,7 @@ También se puede desde la ficha del producto, pestaña **Precios**.
 ## Preguntas frecuentes
 
 **¿Cuál es la diferencia entre precio de lista y precio de venta?**
-El de lista es el que se carga (y se muestra tachado). El de venta es el de lista menos el descuento de la variación, el producto o la familia.
+El de lista es el que se carga (y se muestra tachado). El de venta es el de lista menos el descuento de la variación, el producto o la familia, en las listas que aplican descuentos (hoy, la Web minorista). Mercado Libre usa siempre el precio de lista de Clásicas.
 
 **Cargué un precio en pesos, ¿el de dólares se actualiza si sube el dólar?**
 No, queda fijo al tipo de cambio del día en que lo cargaste. Salvo que el producto tenga tildado "Precio en dólares": ahí los pesos siguen al dólar todos los días.

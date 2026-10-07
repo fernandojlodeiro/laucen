@@ -14,7 +14,7 @@ Las familias agrupan productos en un árbol (una familia puede tener una familia
 - **Mercado Libre**: son las categorías de Mercado Libre. Las crea sola la importación cuando un producto tiene publicación en ML (por ejemplo "Computación › Notebooks"), con el árbol de categorías completo. Son miles.
 - **Propias**: las que crea la empresa a mano, o las que trajo la importación de Virtual Seller para productos sin publicación (quedan arriba de todo, con el nombre de la familia de Virtual Seller).
 
-Lo que se carga en una familia lo **heredan** sus productos y sus subfamilias si no lo cambian: el descuento sobre el precio de lista, las cucardas y el costo de importación (NCM, flete, alícuotas).
+Lo que se carga en una familia lo **heredan** sus productos y sus subfamilias si no lo cambian: el descuento sobre el precio de lista (rige sólo en las listas con «Aplica descuentos», hoy la Web minorista), las cucardas y el costo de importación (NCM, flete, alícuotas).
 
 ## Cómo se llega
 

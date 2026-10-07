@@ -309,6 +309,10 @@ $$;
 -- variación (ése gana).
 alter table lista_precios add column if not exists base_lista_id bigint references lista_precios(id) on delete set null;
 alter table lista_precios add column if not exists coeficiente numeric(8, 4) check (coeficiente > 0);
+-- Descuentos por lista (Fer, 7/10): el descuento de la variación, el producto o la
+-- familia rige SÓLO en las listas que tienen "Aplica descuentos" tildado (la de la
+-- tienda web). En las demás (Clásicas, la del Local…) precio de venta = precio de lista.
+alter table lista_precios add column if not exists aplica_descuentos boolean not null default false;
 
 -- Precio en dólares (Fer, 3/10): un producto (o una variación, que pisa al
 -- producto) marcado "precio en dólares" guarda su precio en USD y los pesos se
@@ -323,7 +327,7 @@ returns table (
   precio_id bigint, lista_ars numeric, lista_usd numeric, moneda_origen text, vigente_desde date,
   descuento_pct numeric, venta_ars numeric, venta_usd numeric
 ) language sql stable as $$
-  with l as (select base_lista_id, coalesce(coeficiente, 1) coef from lista_precios where id = p_lista and organizacion_id = p_org),
+  with l as (select base_lista_id, coalesce(coeficiente, 1) coef, aplica_descuentos from lista_precios where id = p_lista and organizacion_id = p_org),
   c as (
     select pr.id, pr.importe_ars, pr.importe_usd, pr.moneda_origen, pr.vigente_desde, 0 prio
       from precio pr
@@ -340,7 +344,7 @@ returns table (
          round(x.ars * (1 - d.pct / 100), 2),
          round(c.importe_usd * (1 - d.pct / 100), 2)
     from c
-    cross join lateral (select descuento_efectivo(p_org, p_variacion) pct) d
+    cross join lateral (select case when coalesce((select aplica_descuentos from l), false) then descuento_efectivo(p_org, p_variacion) else 0 end pct) d
     left join usd u on true
     cross join lateral (select case when u.si and u.tc is not null then round(c.importe_usd * u.tc, 2) else c.importe_ars end ars) x
    order by c.prio, c.vigente_desde desc

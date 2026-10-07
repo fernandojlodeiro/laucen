@@ -59,9 +59,9 @@ export async function accionGuardarLista(fd: FormData) {
       if (coef == null) throw new ErrorErp("Falta el coeficiente (ej. 0,90).");
       if (coef <= 0 || coef >= 10000) throw new ErrorErp("El coeficiente tiene que ser mayor que cero (ej. 0,90 o 1,15).");
     }
-    await consulta(`update lista_precios set nombre = $3, moneda_base = $4, orden = $5, estado = $6, base_lista_id = $7, coeficiente = $8
+    await consulta(`update lista_precios set nombre = $3, moneda_base = $4, orden = $5, estado = $6, base_lista_id = $7, coeficiente = $8, aplica_descuentos = $9
                      where id = $2 and organizacion_id = $1`,
-      [s.org.id, lid, nombre, moneda(fd), entero(fd, "orden") ?? 0, fd.get("estado") === "archivada" ? "archivada" : "activa", baseId, coef]);
+      [s.org.id, lid, nombre, moneda(fd), entero(fd, "orden") ?? 0, fd.get("estado") === "archivada" ? "archivada" : "activa", baseId, coef, fd.get("aplica_descuentos") === "1"]);
     revalidatePath(BASE);
     return "Guardado.";
   });

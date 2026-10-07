@@ -270,7 +270,7 @@ Tacho de arriba a la derecha → "¿Borrar el producto entero?" → **Sí**. Se 
 - Un kit no puede contenerse a sí mismo, ni directa ni indirectamente.
 - "Kit en Virtual Seller (armar a mano)" es sólo una marca: la pone la importación de Virtual Seller cuando no pudo armar el kit sola (no encontró el SKU "-U" o el título no decía cuántas unidades). Sirve para filtrar y armarlos a mano.
 
-**Descuento que rige para una variación** (el que convierte precio de lista en precio de venta): el de la variación → si está vacío, el del producto → si está vacío, el de su familia → si está vacío, el de la primera familia de más arriba que tenga uno → si no hay ninguno, 0 %. Va de 0 a 100 %.
+**Descuento que rige para una variación** (el que convierte precio de lista en precio de venta): el de la variación → si está vacío, el del producto → si está vacío, el de su familia → si está vacío, el de la primera familia de más arriba que tenga uno → si no hay ninguno, 0 %. Va de 0 a 100 %. Rige **sólo en las listas con «Aplica descuentos»** (hoy, la Web minorista: tienda web y WhatsApp); en Clásicas (Mercado Libre) y en la del Local no se aplica.
 
 **Umbral de pausa** (con ese disponible o menos, el canal pausa la publicación): el de la publicación → el del producto → el del canal → el general de la empresa → 1.
 
