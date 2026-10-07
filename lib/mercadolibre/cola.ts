@@ -283,8 +283,8 @@ function resumen(r: RespuestaMl): unknown {
   const d = r.datos as Record<string, unknown> | string;
   if (typeof d === "string") return { status: r.status, texto: d.slice(0, 300) };
   if (!d || typeof d !== "object") return { status: r.status };
-  const { id, ids, status, available_quantity, price, message, error, cause } = d as Record<string, unknown>;
-  return { status: r.status, id, ids, estado: status, cantidad: available_quantity, precio: price, message, error, cause };
+  const { id, ids, otras, status, available_quantity, price, message, error, cause } = d as Record<string, unknown>;
+  return { status: r.status, id, ids, otras, estado: status, cantidad: available_quantity, precio: price, message, error, cause };
 }
 
 async function aplicarEfecto(org: string, e: Efecto | null) {
@@ -380,27 +380,40 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
             continue;
           }
           let r: RespuestaMl = { status: 200, datos: null };
+          // El producto de ML (user product) del alta: las publicaciones de planes de cuotas se cuelgan de él ("{up}").
+          let up: string | null = null;
+          const otras: string[] = [], fallos: string[] = [];
+          let cortado = false;
           for (const p of pedidos) {
-            // Un alta (POST /items) devuelve el id nuevo: los pedidos que siguen lo usan en "{id}".
-            const ruta = p.ruta.replace("{id}", creada ?? "{id}");
-            if (ruta.includes("{id}")) { r = { status: 400, datos: { message: "falta el id de la publicación recién creada" } }; break; }
+            // Un alta (POST /items) devuelve el id nuevo: los pedidos que siguen lo usan en "{id}" (y su user product en "{up}").
+            const ruta = p.ruta.replace("{id}", creada ?? "{id}").replace("{up}", up ?? "{up}");
+            if (ruta.includes("{id}")) { r = { status: 400, datos: { message: "falta el id de la publicación recién creada" } }; cortado = true; break; }
+            if (ruta.includes("{up}")) { r = { status: 400, datos: { message: "Mercado Libre no devolvió el producto (user product) de la publicación recién creada" } }; cortado = true; break; }
             const espera = ultimo + ritmo - Date.now();
             if (espera > 0) await dormir(espera);
             ultimo = Date.now();
             res.enviadas++;
             r = await enviar(cuenta, p.metodo, ruta, p.cuerpo);
-            if (fila.tipo === "crear" && p.metodo === "POST" && p.ruta === "/items" && r.status >= 200 && r.status < 300) {
-              creada = (r.datos as { id?: string } | null)?.id ?? null;
+            if (fila.tipo === "crear" && p.metodo === "POST" && r.status >= 200 && r.status < 300) {
+              const d = r.datos as { id?: string; user_product_id?: string } | null;
+              if (p.ruta === "/items") { creada ??= d?.id ?? null; up ??= d?.user_product_id ?? null; }
+              // Otra publicación sobre el mismo producto de ML (un plan de cuotas): también es un alta.
+              else if (/^\/user-products\/[^/]+\/items$/.test(p.ruta) && d?.id) { if (creada) otras.push(d.id); else creada = d.id; }
             }
-            if ((r.status < 200 || r.status >= 300) && !(p.seguirSiFalla && r.status >= 400 && r.status < 500 && r.status !== 429 && r.status !== 401)) break;
+            if ((r.status < 200 || r.status >= 300) && !(p.seguirSiFalla && r.status >= 400 && r.status < 500 && r.status !== 429 && r.status !== 401)) { cortado = true; break; }
+            // Un paso que falló pero se sigue (ej. la descripción, o un plan de cuotas): que quede anotado.
+            if (r.status < 200 || r.status >= 300) fallos.push(`${p.metodo} ${ruta}: ${errorLegible(r.status, r.datos)}`);
           }
           status = r.status; datos = r.datos;
           // Una publicación creada NUNCA se reintenta (saldría duplicada): si un paso posterior falló
           // (ej. la descripción), queda como enviada con el aviso, y se trae a Laucen igual.
           if (creada) {
-            if (status < 200 || status >= 300) notaCreada = `Se creó ${creada}, pero un paso posterior falló: ${errorLegible(status, datos)}`;
-            status = 200; datos = { id: creada };
-            try { await (await import("@/lib/mercadolibre/publicaciones")).importarItem(cuenta, creada); } catch { /* la barrida la trae */ }
+            if (cortado) fallos.push(errorLegible(status, datos));
+            if (fallos.length) notaCreada = `Se creó ${[creada, ...otras].join(", ")}, pero falló: ${[...new Set(fallos)].join(" · ")}`;
+            status = 200; datos = { id: creada, ...(otras.length ? { otras } : {}) };
+            for (const id of [creada, ...otras]) {
+              try { await (await import("@/lib/mercadolibre/publicaciones")).importarItem(cuenta, id); } catch { /* la barrida la trae */ }
+            }
           }
           if (status === 429) frenar = 60_000;
           else if (status === 401) frenar = 300_000;

@@ -1,0 +1,116 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { sosVos } from "@/lib/admin";
+import { orgRequerida } from "@/lib/tenancy";
+import { consulta } from "@/lib/erp/base";
+import { formatearNumero } from "@/lib/numeros";
+import { PLAN_INFO } from "@/lib/precios-ml/motor";
+import { MARGEN_PLAN, propuestaPrueba } from "@/lib/mercadolibre/prueba-planes";
+import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
+import { SUAVE, PRIMARIO } from "@/app/botones";
+import { BotonTarea } from "@/app/componentes/TareasFondo";
+import { CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
+import { accionPrepararPruebaPlanes } from "./actions";
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+export const metadata = { title: "Creaciones en ML", robots: { index: false, follow: false } };
+
+// Lo contrario de Limpieza (Fer, 7/10): publicaciones que se crean en Mercado
+// Libre de a tandas, con un botón que muestra antes todo lo que se va a crear y
+// deja los lotes en la cola esperando el clic. Sólo Fer.
+
+const CAJA = "bg-white border border-[#E3E9F0] rounded-xl p-4 space-y-3";
+const pesos = (x: number) => `$ ${formatearNumero(x, "entero")}`;
+const fechaHora = (iso: string) => new Date(iso).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+export default async function Creaciones({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
+  if (!(await sosVos())) redirect("/panel");
+  const sp = await searchParams;
+  const org = (await orgRequerida()).id;
+  const { filas, estimada } = await propuestaPrueba(org);
+  const faltan = filas.filter((f) => !f.existe).length;
+  // Cómo quedaron los lotes de esta prueba en la cola.
+  const enCola = await consulta<{ item_id: string; canal: string; estado: string; lote: number | null; error: string | null; respuesta: { id?: string; otras?: string[] } | null; ts: string }>(`
+    select q.item_id, c.nombre canal, q.estado, q.lote_id::int lote, q.ultimo_error error, q.respuesta, coalesce(q.enviado_ts, q.creado_ts) ts
+      from ml_cola q join canal c on c.id = q.canal_id
+     where q.organizacion_id = $1 and q.tipo = 'crear' and q.item_id like 'prueba:%' order by q.id desc limit 20`, [org]);
+  const ESTADO: Record<string, string> = { preparado: "Preparado, falta tu clic", pendiente: "En la cola", enviando: "Mandándose", ok: "Creada", error: "Con error", descartado: "Descartado" };
+
+  return (
+    <main className="max-w-5xl mx-auto p-4 space-y-4">
+      <h1 className="text-xl font-bold text-[#16577F]">Creaciones en ML</h1>
+      <p className="text-sm text-[#5C6B76]">Publicaciones que se crean en Mercado Libre por tandas. Nada sale sin tu clic en la cola.</p>
+
+      {sp.ok && <p className="text-sm bg-[#E8F5EE] border border-[#BFE3CF] rounded-lg p-3 text-[#167655]">{sp.ok}</p>}
+      {sp.error && <p className="text-sm bg-[#FDF0EE] border border-[#EFD3CE] rounded-lg p-3 text-[#C03420]">{sp.error}</p>}
+
+      <section className={CAJA}>
+        <h2 className="font-bold text-[#16577F]">Prueba de planes de cuotas en cada cuenta</h2>
+        <p className="text-sm text-[#5C6B76]">
+          Mercado Libre no le muestra al comprador las cuotas del nombre del plan, y depende del vendedor (en .BAIRES la Premium 3x se ve
+          «6 cuotas» y la 12x «18 cuotas»). Para saber qué muestra cada cuenta, en cada una se publica una notebook distinta con los tres
+          planes que más convienen: <b>Clásica</b>, <b>Premium 3x</b> y <b>Premium 12x</b>. Cada una copia nuestra publicación común de
+          .BAIRES (título, fotos, características, garantía y descripción). Las de cuotas se cuelgan del mismo producto de Mercado Libre que
+          la Clásica, así comparten el stock. Precio de cada plan: deja lo mismo que la Clásica después de su comisión, más
+          {" "}{MARGEN_PLAN["3x_campaign"]} % (3x) o {MARGEN_PLAN["12x_campaign"]} % (12x). Salen a precio normal, sin campaña ni tachado.
+          {estimada && " (Comisión estimada: Costos ML todavía no relevó la categoría.)"}
+        </p>
+        <div className={CAJA_TABLA}>
+          <table className={TABLA}>
+            <thead className={THEAD}>
+              <tr><th className={TH}>Cuenta</th><th className={TH}>SKU</th><th className={TH}>Plan</th><th className={THN}>Precio</th><th className={THN}>Comisión</th><th className={THN}>Stock</th><th className={TH}>Copia de</th><th className={TH}>Qué pasa</th></tr>
+            </thead>
+            <tbody>
+              {filas.map((f) => (
+                <tr key={`${f.cuenta}-${f.plan}`} className={TR}>
+                  <td className={TD}>{f.cuenta}</td>
+                  <td className={`${TD} font-mono`}>{f.sku}</td>
+                  <td className={TD}>{f.plan === "clasica" ? "Clásica" : `Premium ${f.plan.replace("_campaign", "")}`} <span className="text-[10px] text-[#5C6B76]">({PLAN_INFO[f.plan].corto} por nombre)</span></td>
+                  <td className={TDN}>{pesos(f.precio)}</td>
+                  <td className={TDN}>{formatearNumero(f.comision, "pct")} %</td>
+                  <td className={TDN}>{formatearNumero(f.stock, "entero")}</td>
+                  <td className={`${TD} font-mono whitespace-nowrap`}><Link href={historialPublicacion(f.origen)} className="text-[#16577F] hover:underline">{f.origen}</Link> <a href={enlaceMl(f.origen)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a></td>
+                  <td className={TD}>{f.existe
+                    ? <>Ya existe: <Link href={historialPublicacion(f.existe)} className="text-[#16577F] hover:underline font-mono">{f.existe}</Link> <a href={enlaceMl(f.existe)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a></>
+                    : <span className="text-[#167655] font-semibold">Se crea</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          {faltan > 0
+            ? <BotonTarea accion={accionPrepararPruebaPlanes} tipo="prueba-planes-ml" clase={PRIMARIO} texto={`Preparar ${faltan} publicaciones`} />
+            : <span className="text-sm text-[#167655]">Ya están todas creadas.</span>}
+          <Link href="/config/canales/cola?ver=lotes" className={SUAVE}>Ir a la Cola de Mercado Libre</Link>
+        </div>
+        <p className="text-xs text-[#5C6B76]">
+          El botón comprueba cada alta con Mercado Libre (no publica nada) y deja un lote por cuenta en la cola, «Preparado, falta tu clic».
+          Lo que Mercado Libre rechaza no entra y te dice por qué. Después de mandarlas, mirá en cada publicación cuántas cuotas muestra
+          Mercado Libre y anotalo en <Link href="/catalogo/precios-ml" className="underline">Precios en Mercado Libre</Link> (cuotas que ve el comprador).
+        </p>
+        {enCola.length > 0 && (
+          <div className={CAJA_TABLA}>
+            <table className={TABLA}>
+              <thead className={THEAD}><tr><th className={TH}>Cuenta</th><th className={TH}>Prueba</th><th className={TH}>Estado</th><th className={TH}>Publicaciones creadas</th><th className={TH}>Cuándo</th></tr></thead>
+              <tbody>
+                {enCola.map((q) => (
+                  <tr key={`${q.item_id}-${q.ts}`} className={TR}>
+                    <td className={TD}>{q.canal}</td>
+                    <td className={`${TD} font-mono`}>{q.item_id.replace("prueba:", "")}</td>
+                    <td className={TD}>{ESTADO[q.estado] ?? q.estado}{q.error && <span className="block text-[11px] text-[#C03420]">{q.error}</span>}</td>
+                    <td className={`${TD} font-mono`}>{[q.respuesta?.id, ...(q.respuesta?.otras ?? [])].filter((x): x is string => !!x).map((id) => (
+                      <span key={id} className="mr-2 whitespace-nowrap"><Link href={historialPublicacion(id)} className="text-[#16577F] hover:underline">{id}</Link> <a href={enlaceMl(id)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a></span>
+                    ))}</td>
+                    <td className={TDN}>{fechaHora(q.ts)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}

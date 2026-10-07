@@ -301,3 +301,30 @@ test("encolar: lo mismo que se está mandando o se acaba de mandar no se repite;
   await q("update ml_cola set enviado_ts = now() - interval '3 minutes' where organizacion_id = $1", [e.org]);
   assert.equal((await m.cola.encolar(e.org, [{ ...base, payload: pausa }], { origen: "automatico" })).encoladas, 1);
 });
+
+test("crear encadenado: la Clásica y, sobre su producto de ML ({up}), los planes de cuotas", async () => {
+  const e = await escenario();
+  const lote = await m.cola.encolarLoteConBoton(e.org, e.canal, [{
+    canalId: e.canal, itemId: "nueva:SKU-PLANES", tipo: "crear",
+    payload: { pedidos: [
+      { metodo: "POST", ruta: "/items", cuerpo: { title: "x" } },
+      { metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: "d" } },
+      { metodo: "POST", ruta: "/user-products/{up}/items", cuerpo: { tags: ["3x_campaign"] } },
+      { metodo: "POST", ruta: "/user-products/{up}/items", cuerpo: { tags: ["12x_campaign"] } },
+    ] },
+  }], "Planes de prueba", "usuario-1");
+  await m.cola.mandarLote(e.org, lote, "usuario-1");
+  let n = 0;
+  const llamadas: string[] = [];
+  const enviar = async (_c: unknown, metodo: string, ruta: string) => {
+    llamadas.push(`${metodo} ${ruta}`);
+    if (ruta === "/items") return { status: 201, datos: { id: "MLA900", user_product_id: "MLAU77" } };
+    if (ruta.endsWith("/items")) return { status: 201, datos: { id: `MLA90${++n}` } };
+    return { status: 200, datos: {} };
+  };
+  await m.cola.procesarCola(Date.now() + 10_000, { enviar, ritmoMs: 0, org: e.org });
+  assert.deepEqual(llamadas, ["POST /items", "POST /items/MLA900/description", "POST /user-products/MLAU77/items", "POST /user-products/MLAU77/items"]);
+  const [f] = await q<{ estado: string; respuesta: { id: string; otras: string[] } }>("select estado, respuesta from ml_cola where organizacion_id = $1", [e.org]);
+  assert.equal(f.estado, "ok");
+  assert.deepEqual([f.respuesta.id, f.respuesta.otras], ["MLA900", ["MLA901", "MLA902"]]);
+});

@@ -152,6 +152,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Piloto", href: "/admin/piloto" },
       { texto: "Diagnóstico", href: "/admin/diagnostico" },
       { texto: "Limpieza de datos", href: "/admin/limpieza" },
+      { texto: "Creaciones en ML", href: "/admin/creaciones" },
     ],
   },
 ];

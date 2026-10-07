@@ -1,8 +1,8 @@
 ---
 titulo: Herramientas internas
-menu: Coordinación › Bitácora · Para probar · Mercado Libre · Costos ML · Ventas ML por categoría · China — pruebas · Piloto · Diagnóstico · Limpieza de datos
+menu: Coordinación › Bitácora · Para probar · Mercado Libre · Costos ML · Ventas ML por categoría · China — pruebas · Piloto · Diagnóstico · Limpieza de datos · Creaciones en ML
 ruta: /admin/bitacora
-rutas: /admin/bitacora, /admin/para-probar, /admin/meli, /admin/meli/apify, /admin/mercadopago, /admin/costos-ml, /admin/ventas-ml, /admin/china, /admin/piloto, /admin/piloto/[id], /admin/piloto/[id]/revision, /admin/piloto/[id]/validacion, /admin/diagnostico, /admin/limpieza, /admin/limpieza/ajustes
+rutas: /admin/bitacora, /admin/para-probar, /admin/meli, /admin/meli/apify, /admin/mercadopago, /admin/costos-ml, /admin/ventas-ml, /admin/china, /admin/piloto, /admin/piloto/[id], /admin/piloto/[id]/revision, /admin/piloto/[id]/validacion, /admin/diagnostico, /admin/limpieza, /admin/limpieza/ajustes, /admin/creaciones
 permiso: fer
 resumen: Herramientas internas sólo de Fer: bitácora y "para probar" (coordinación con las sesiones de Claude), conexión y bancos de prueba de Mercado Libre y Apify, costos de vender en ML, ventas por categoría, pruebas de búsqueda en China, el piloto ML → China → juez y el diagnóstico de la base.
 ---
@@ -345,3 +345,25 @@ Pantalla [Limpieza de datos](/admin/limpieza) (menú **Coordinación**). Tareas 
    - **Revisar en ML (sólo lectura)**, primero: lee la cuenta entera en Mercado Libre por la API, de fondo, y deja en la fila la última revisión con su fecha: cuántas publicaciones tiene la cuenta, cuántas notebooks se eliminarían (por estado), cuántas son de la lista, cuántas activas quedan fuera de la lista, y **"Ver el detalle"**: cada publicación con su número (abre Mercado Libre ↗), estado, SKU, título y qué pasaría con ella. **No cambia nada** ni en Mercado Libre ni en Laucen.
    - **Preparar eliminación en ML** lee la cuenta entera en Mercado Libre, de fondo (la pantalla queda libre y al terminar aparece el cartel), y deja preparado **un lote** que finaliza y elimina cada notebook que no es de la lista, en cualquier estado. **Las activas que no son de la lista no se tocan**: el cartel las nombra. Las ya eliminadas en ML se saltean y las que ya tienen pedida su eliminación no se repiten. **No sale nada** hasta que se revisa el lote en la [Cola de Mercado Libre](/config/canales/cola) y se aprieta **Mandar a Mercado Libre**; eliminar no tiene vuelta atrás. Cada renglón del lote dice el estado y el SKU (o "sin SKU"). Cuando Mercado Libre la elimina, la publicación desaparece también de Laucen. Si no alcanza el tiempo, el cartel dice cuántas quedan y se aprieta de nuevo (se suma al mismo lote).
 2. **En Laucen**: la lista de notebooks que no son de la lista, con su stock y qué va a pasar con cada una. **Limpiar N notebooks de Laucen** (pregunta **¿Seguro? Sí / No**) borra las que no tienen historia y **archiva** las que tienen ventas, picking, recepciones, compras o son parte de un kit, para no romper esa historia.
+
+## Creaciones en ML
+
+Pantalla [Creaciones en ML](/admin/creaciones) (menú **Coordinación**), lo contrario de Limpieza: publicaciones que se crean en Mercado Libre por tandas. Muestra antes todo lo que se va a crear y el botón deja los lotes en la [Cola de Mercado Libre](/config/canales/cola) esperando el clic en «Mandar a Mercado Libre». Nada sale solo.
+
+**Prueba de planes de cuotas en cada cuenta.** Mercado Libre no le muestra al comprador las cuotas del nombre del plan y depende del vendedor: en .BAIRES la Premium 3x se ve «Mismo precio en 6 cuotas» y la Premium 12x «18 cuotas». Para saber qué muestra cada cuenta, en cada una de las otras cuatro se publica una notebook distinta con los tres planes que más convienen (Clásica, Premium 3x y Premium 12x):
+
+- ML PUNTO: F412DA-NH77 (ya tiene la Clásica: se crean la 3x y la 12x).
+- DEIROLAB SA: S532FA-SB77.
+- DEIROLAB SAS: 15-EF0022NR.
+- TIENDAVIRTUAL S: G3-3500.
+
+La tabla muestra, por cuenta y plan: SKU, plan, precio, comisión, stock disponible para la cuenta, de qué publicación se copia y si ya existe o se crea.
+
+Criterios:
+- Cada alta copia nuestra publicación común (no de catálogo) de .BAIRES del mismo SKU: título, fotos, características, garantía y descripción. Sale a precio normal, sin campaña ni tachado, con el stock disponible para esa cuenta.
+- Precio de la Clásica: el piso del esquema de notebooks (competencia × 90 % en las Asus, × 80 % en la HP; la G3, al precio que tiene hoy en .BAIRES). Precio de cada plan: deja, después de su comisión, lo mismo que la Clásica, más 2 % en la 3x y 4 % en la 12x.
+- Las de cuotas se cuelgan del mismo producto de Mercado Libre que la Clásica (comparten el stock): la Clásica y sus planes van juntos en un mismo pedido de la cola, uno detrás del otro.
+- El botón **Preparar N publicaciones** corre de fondo: comprueba cada Clásica con Mercado Libre (no publica nada) y arma un lote por cuenta. Lo que Mercado Libre rechaza no entra y lo dice. Si ya hay un lote de esta prueba esperando en la cola, esa cuenta no se vuelve a preparar.
+- Abajo, cómo quedó cada lote en la cola: preparado, en la cola, creada (con los números de las publicaciones nuevas) o con error (con el motivo).
+- Después de mandarlas, mirá en cada publicación cuántas cuotas muestra Mercado Libre y anotalo en [Precios en Mercado Libre](/catalogo/precios-ml) (cuotas que ve el comprador).
+
