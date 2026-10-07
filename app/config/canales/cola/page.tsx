@@ -191,26 +191,7 @@ async function Lotes({ org, sp, aqui }: { org: string; sp: SP; aqui: string }) {
   const estadoLote = (e: string) => e === "preparado" ? <Estado texto="Preparado, falta tu clic" tono="amarillo" /> : e === "enviado" ? <Estado texto="Mandado" tono="verde" /> : <Estado texto="Descartado" />;
   return (
     <div className="grid gap-4">
-      <div className={CAJA_TABLA}>
-        <table className={TABLA}>
-          <thead className={THEAD}><tr><th className={THN}>N.º</th><th className={TH}>Qué cambia</th><th className={TH}>Canal</th><th className={THN}>Cambios</th><th className={TH}>Estado</th><th className={THN}>Preparado</th><th className={THN}>Mandado</th></tr></thead>
-          <tbody>
-            {lotes.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>No hay lotes. Cuando se prepare un cambio en Mercado Libre (por ejemplo desde el chat), aparece acá y sale recién cuando apretás «Mandar a Mercado Libre».</td></tr>}
-            {lotes.map((l) => (
-              <tr key={l.id} className={`${TR} ${elegido?.id === l.id ? "bg-[#EEF3F8]" : ""}`}>
-                <td className={TDN}><Link href={url(BASE, { ver: "lotes", lote: l.id })} className="font-semibold text-[#16577F] hover:underline">{l.id}</Link></td>
-                <td className={TD}><Link href={url(BASE, { ver: "lotes", lote: l.id })} className="hover:text-[#16577F] hover:underline">{l.descripcion}</Link></td>
-                <td className={TD}>{l.canal ?? "Varias cuentas"}</td>
-                <td className={TDN}><Link href={url(BASE, { ver: "lotes", lote: l.id })} className="hover:underline">{l.cambios}</Link>
-                  {l.estado === "enviado" && <div className="text-[10px] text-[#5C6B76]">{l.ok} enviados{l.errores ? ` · ${l.errores} con error` : ""}</div>}</td>
-                <td className={TD}>{estadoLote(l.estado)}</td>
-                <td className={TDN}>{fechaHora(l.creado_ts)}</td>
-                <td className={TDN}>{l.enviado_ts ? fechaHora(l.enviado_ts) : "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* El lote elegido arriba: con muchos lotes, abajo quedaba fuera de la vista y no se veía el botón (Fer, 7/10). */}
       {elegido && (
         <section className={CAJA}>
           <TituloSeccion titulo={<>Lote {elegido.id}: {elegido.descripcion}</>}>
@@ -259,6 +240,26 @@ async function Lotes({ org, sp, aqui }: { org: string; sp: SP; aqui: string }) {
           <Paginado total={elegido.cambios} />
         </section>
       )}
+      <div className={CAJA_TABLA}>
+        <table className={TABLA}>
+          <thead className={THEAD}><tr><th className={THN}>N.º</th><th className={TH}>Qué cambia</th><th className={TH}>Canal</th><th className={THN}>Cambios</th><th className={TH}>Estado</th><th className={THN}>Preparado</th><th className={THN}>Mandado</th></tr></thead>
+          <tbody>
+            {lotes.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>No hay lotes. Cuando se prepare un cambio en Mercado Libre (por ejemplo desde el chat), aparece acá y sale recién cuando apretás «Mandar a Mercado Libre».</td></tr>}
+            {lotes.map((l) => (
+              <tr key={l.id} className={`${TR} ${elegido?.id === l.id ? "bg-[#EEF3F8]" : ""}`}>
+                <td className={TDN}><Link href={url(BASE, { ver: "lotes", lote: l.id })} className="font-semibold text-[#16577F] hover:underline">{l.id}</Link></td>
+                <td className={TD}><Link href={url(BASE, { ver: "lotes", lote: l.id })} className="hover:text-[#16577F] hover:underline">{l.descripcion}</Link></td>
+                <td className={TD}>{l.canal ?? "Varias cuentas"}</td>
+                <td className={TDN}><Link href={url(BASE, { ver: "lotes", lote: l.id })} className="hover:underline">{l.cambios}</Link>
+                  {l.estado === "enviado" && <div className="text-[10px] text-[#5C6B76]">{l.ok} enviados{l.errores ? ` · ${l.errores} con error` : ""}</div>}</td>
+                <td className={TD}>{estadoLote(l.estado)}</td>
+                <td className={TDN}>{fechaHora(l.creado_ts)}</td>
+                <td className={TDN}>{l.enviado_ts ? fechaHora(l.enviado_ts) : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

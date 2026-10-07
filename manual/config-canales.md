@@ -100,7 +100,7 @@ En las cuatro primeras pestañas:
 - Por fila: **"Reintentar"** (sólo con error) y **"Descartar"** (pendiente o con error). Los dos preguntan antes.
 - En **Con error**, arriba a la derecha: **"Reintentar errores"** (o "Reintentar los errores de esta cuenta" si filtraste por canal).
 
-En **Lotes preparados**: la lista de lotes (N.º, Qué cambia, Canal o "Varias cuentas", Cambios, Estado: "Preparado, falta tu clic" / "Mandado" / "Descartado", Preparado, Mandado). Se muestran los preparados y los de los últimos 30 días. Al elegir uno se ve su detalle (Publicación, SKU, Tipo, Antes, Después, Estado, Problema) y, si sigue preparado, los botones **"Descartar lote"** y **"Mandar a Mercado Libre"**. En un lote ya mandado, cada fila que sigue pendiente o con error tiene su botón **"Descartar"** (pregunta "¿No mandarlo?"), para frenar la que no termina de salir.
+En **Lotes preparados**: la lista de lotes (N.º, Qué cambia, Canal o "Varias cuentas", Cambios, Estado: "Preparado, falta tu clic" / "Mandado" / "Descartado", Preparado, Mandado). Se muestran los preparados y los de los últimos 30 días. Al elegir uno se ve su detalle, arriba de la lista, (Publicación, SKU, Tipo, Antes, Después, Estado, Problema) y, si sigue preparado, los botones **"Descartar lote"** y **"Mandar a Mercado Libre"**. En un lote ya mandado, cada fila que sigue pendiente o con error tiene su botón **"Descartar"** (pregunta "¿No mandarlo?"), para frenar la que no termina de salir.
 
 En **Barridas nocturnas**: una tarjeta por cuenta con la última noche (estado: Leyendo la lista, Leyendo publicaciones, Comparando, Terminada o "No pudo terminar"; revisadas, diferencias, encoladas, pausas y errores) y abajo la historia completa.
 
