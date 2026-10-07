@@ -120,7 +120,7 @@ Los datos del vendedor salen de la **razón social principal** (ver [Razones soc
 1. Abrí [Pedidos](/ventas/pedidos) y filtrá por el canal de la tienda.
 2. El pedido aparece con el número que vio el cliente (#N), sus líneas, el envío y el medio de pago.
 3. Si pagó por **transferencia**, cuando la veas acreditada apretá en el pedido **"Confirmar pago de $ …"**: pasa a pagado.
-4. Si es **efectivo al retirar**, ya entró en picking; al entregarlo se usa **"Entregado y cobrado"**.
+4. Si es **efectivo al retirar**, ya entró en picking; al entregarlo se usa **"Cliente presente: retira y paga"** (cobra, entrega y factura).
 
 ### El cliente dice que pagó con Mercado Pago pero el pedido sigue pendiente
 

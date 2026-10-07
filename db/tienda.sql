@@ -202,3 +202,14 @@ do $$ begin
       check (tipo in ('retiro', 'tarifa_fija', 'por_provincia', 'a_convenir', 'oca', 'oca_sucursal', 'andreani'));
   end if;
 end $$;
+
+-- Cómo se sigue el envío (Fer, 7/10): 'automatico' = lo informa el transportista (OCA: despachado al
+-- retirarlo, entregado al entregarlo; el pedido no muestra esos botones); 'manual' = se marca con los
+-- botones del pedido (cadetería, envío propio; el retiro en el local, con «Cliente presente: retira»).
+alter table metodo_envio add column if not exists seguimiento text not null default 'manual';
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'metodo_envio_seguimiento_check') then
+    alter table metodo_envio add constraint metodo_envio_seguimiento_check check (seguimiento in ('automatico', 'manual'));
+    update metodo_envio set seguimiento = 'automatico' where tipo in ('oca', 'oca_sucursal');
+  end if;
+end $$;

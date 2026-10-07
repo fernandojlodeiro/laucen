@@ -15,7 +15,7 @@ import { Estado, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ET
 import { fechaHora } from "@/app/ventas/formato";
 import { urlTienda } from "@/lib/tienda/dominios-tienda";
 import { TIPOS_MEDIO } from "@/app/config/medios-pago/comun";
-import { accionConfirmarPago, accionCambiarEstadoPedido, accionEntregadoYCobrado } from "./acciones";
+import { accionConfirmarPago, accionCambiarEstadoPedido, accionClientePresente } from "./acciones";
 
 const ESTADO_PAGO: Record<string, { texto: string; tono: "verde" | "amarillo" | "rojo" | "gris" }> = {
   pendiente: { texto: "Pendiente", tono: "amarillo" }, aprobado: { texto: "Aprobado", tono: "verde" }, rechazado: { texto: "Rechazado", tono: "rojo" },
@@ -60,7 +60,7 @@ const SIGUIENTES: Partial<Record<EstadoPedido, { estado: EstadoPedido; texto: st
   nuevo: [{ estado: "en_preparacion", texto: "En preparación" }, { estado: "preparado", texto: "Preparado" }],
   pagado: [{ estado: "en_preparacion", texto: "En preparación" }, { estado: "preparado", texto: "Preparado" }],
   en_preparacion: [{ estado: "preparado", texto: "Preparado" }],
-  preparado: [{ estado: "despachado", texto: "Despachado", nota: true }, { estado: "entregado", texto: "Entregado (retiro)" }],
+  preparado: [{ estado: "despachado", texto: "Despachado", nota: true }, { estado: "entregado", texto: "Entregado" }],
   despachado: [{ estado: "entregado", texto: "Entregado" }],
 };
 const CERRADOS: EstadoPedido[] = ["entregado", "cancelado", "devuelto"];
@@ -69,11 +69,11 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   const p = await una<{
     estado: EstadoPedido; estado_pago: string; total_ars: number; id_externo: string | null; medio_pago: string | null; codigo: string | null; canal_id: number; canal_tipo: string;
     cliente: string | null; telefono: string | null; movil: string | null; envio: string | null; envio_tipo: string | null;
-    sin_esperar: boolean; retiro: boolean;
+    sin_esperar: boolean; retiro: boolean; seguimiento: string | null;
   }>(`
     select p.estado, p.id_externo, ${sqlEstadoPago("p")} estado_pago, ${sqlSinEsperarPago("p")} sin_esperar,
            (me.tipo = 'retiro' or p.envio ->> 'metodo' = 'Retira') is true retiro, p.total_ars::float, p.medio_pago, p.codigo_seguimiento codigo, p.canal_id::int, c.tipo canal_tipo,
-           cl.nombre cliente, cl.telefono, cl.telefono_movil movil, me.nombre envio, me.tipo envio_tipo
+           cl.nombre cliente, cl.telefono, cl.telefono_movil movil, me.nombre envio, me.tipo envio_tipo, me.seguimiento
       from pedido p join canal c on c.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
       left join metodo_envio me on me.id = p.metodo_envio_id
      where p.id = $1 and p.organizacion_id = $2`, [pid, org]);
@@ -129,8 +129,11 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   if (medioSugerido && !opcionesMedio.some((m) => m.tipo === medioSugerido)) opcionesMedio.unshift({ tipo: medioSugerido, nombre: nombreMedio(medioSugerido) });
   const pagoPendiente = ["pendiente", "a_convenir", "a_cobrar"].includes(p.estado_pago) && !CERRADOS.includes(p.estado);
   const aCobrar = p.estado_pago === "a_cobrar" && !CERRADOS.includes(p.estado);
-  // Retiro de un «A cobrar» ya preparado: se entrega y se cobra en un clic.
-  const entregarYCobrar = aCobrar && p.retiro && p.estado === "preparado";
+  // Retiro ya preparado (Fer, 7/10): «Cliente presente: retira» cobra si hace falta, entrega y factura en un clic.
+  const clientePresente = p.retiro && p.estado === "preparado";
+  const entregarYCobrar = aCobrar && clientePresente;
+  // Seguimiento automático (OCA): despachado y entregado los marca el transportista, sin botones.
+  const automatico = p.seguimiento === "automatico";
 
   // WhatsApp: con el link de seguimiento si es un pedido de la tienda.
   const tel = telefonoWhatsapp(p.movil) ?? telefonoWhatsapp(p.telefono);
@@ -146,7 +149,8 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   }
   // Un nuevo sólo avanza solo si no espera el pago; un «A cobrar» que retira se entrega con «Entregado y cobrado».
   const siguientes = (p.estado === "nuevo" && !p.sin_esperar ? [] : SIGUIENTES[p.estado] ?? [])
-    .filter((x) => !(entregarYCobrar && x.estado === "entregado"));
+    .filter((x) => !(clientePresente && (x.estado === "entregado" || x.estado === "despachado")))
+    .filter((x) => !(automatico && (x.estado === "despachado" || x.estado === "entregado")));
 
   return (
     <>
@@ -161,16 +165,24 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
             <b>A COBRAR {formatear(p.total_ars, "ARS")}</b>{p.retiro ? " al retirar" : " al entregar"}.
           </p>
         )}
-        {entregarYCobrar && (
-          <form action={accionEntregadoYCobrado} className="flex flex-wrap items-end gap-2">
+        {clientePresente && (
+          <form action={accionClientePresente} className="flex flex-wrap items-end gap-2">
             <input type="hidden" name="pedido_id" value={pid} />
-            <label><span className={ETIQUETA}>Cobró con</span>
-              <select name="medio" defaultValue={medioSugerido} className={CAMPO} required>
-                {!medioSugerido && <option value="">Elegí…</option>}
-                {opcionesMedio.map((m) => <option key={m.tipo} value={m.tipo}>{m.nombre}</option>)}
-              </select></label>
-            <BotonEnviar clase={VERDE} corriendo="Entregando…">Entregado y cobrado ({formatear(p.total_ars, "ARS")})</BotonEnviar>
+            {entregarYCobrar && (
+              <label><span className={ETIQUETA}>Cobró con</span>
+                <select name="medio" defaultValue={medioSugerido} className={CAMPO} required>
+                  {!medioSugerido && <option value="">Elegí…</option>}
+                  {opcionesMedio.map((m) => <option key={m.tipo} value={m.tipo}>{m.nombre}</option>)}
+                </select></label>
+            )}
+            <BotonEnviar clase={VERDE} corriendo="Entregando y facturando…">
+              {entregarYCobrar ? `Cliente presente: retira y paga ${formatear(p.total_ars, "ARS")}` : "Cliente presente: retira"}
+            </BotonEnviar>
+            <span className="text-[11px] text-[#5C6B76]">Queda entregado y, si no tiene factura, se factura en el momento.</span>
           </form>
+        )}
+        {automatico && ["preparado", "despachado"].includes(p.estado) && (
+          <p className="text-[11px] text-[#5C6B76]">El envío lo sigue el transportista: el pedido pasa solo a «Despachado» cuando lo retiran y a «Entregado» cuando lo entregan.</p>
         )}
         {pagoPendiente && !entregarYCobrar && (
           <form action={accionConfirmarPago} className="flex flex-wrap items-end gap-2">
