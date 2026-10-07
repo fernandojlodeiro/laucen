@@ -34,15 +34,26 @@ export const DESCUENTO_CLASICA = 45;
 /** Margen extra de cada plan sobre lo que deja la Clásica (esquema de Fer, 7/10). */
 export const MARGEN_PLAN: Record<PlanPrueba, number> = { clasica: 0, premium: 2, "3x_campaign": 2, "9x_campaign": 4, "12x_campaign": 4 };
 
-/** Qué notebook va en cada cuenta y de qué publicación se copia. `clasica`: el precio
- *  de la Clásica (el piso del esquema: competencia × 90 % en las Asus, × 80 % en la HP;
- *  la G3, al precio que tiene hoy en .BAIRES). */
-export const PRUEBA: { cuenta: string; sku: string; origen: string; clasica: number; titulo?: string }[] = [
+/** Qué se crea en cada cuenta (Fer, 7/10, después de la prueba): quedan tres planes,
+ *  Clásica, Premium 3x (el comprador la ve «6 cuotas») y Premium 12x (en .BAIRES se
+ *  ve «18 cuotas»). .BAIRES gana todas las Clásicas y todas las 12x; la 3x se reparte
+ *  entre las otras cuentas (planilla «Cómo queda (3 planes)»). Acá van las que faltan
+ *  en las cuentas de cada modelo. `clasica`: el piso de la Clásica (competencia × 90 %
+ *  en las Asus, × 80 % en la HP); todas salen al tachado del modelo y después, al
+ *  entrar en campaña, bajan a su precio. `origen`: nuestra común de .BAIRES. */
+const F412 = { sku: "F412DA-NH77", origen: "MLA1471328469", clasica: 962_999,
   // El nombre de la de origen tiene 108 letras y ML acepta hasta 60.
-  { cuenta: "ML PUNTO", sku: "F412DA-NH77", origen: "MLA1471328469", clasica: 962_999, titulo: "Notebook Asus Vivobook F412DA Ryzen 7 3700U 8gb 512gb Ssd 14" },
-  { cuenta: "DEIROLAB SA", sku: "S532FA-SB77", origen: "MLA1707952619", clasica: 1_256_226 },
-  { cuenta: "DEIROLAB SAS", sku: "15-EF0022NR", origen: "MLA1706473885", clasica: 949_240 },
-  { cuenta: "TIENDAVIRTUAL S", sku: "G3-3500", origen: "MLA3064301590", clasica: 2_339_999 },
+  titulo: "Notebook Asus Vivobook F412DA Ryzen 7 3700U 8gb 512gb Ssd 14" };
+const S532 = { sku: "S532FA-SB77", origen: "MLA1707952619", clasica: 1_256_226 };
+const HP15 = { sku: "15-EF0022NR", origen: "MLA1706473885", clasica: 949_240 };
+const CUOTAS: PlanPrueba[] = ["3x_campaign", "12x_campaign"];
+export const PRUEBA: { cuenta: string; sku: string; origen: string; clasica: number; titulo?: string; planes: PlanPrueba[] }[] = [
+  { cuenta: "ML .BAIRES", ...S532, planes: CUOTAS },
+  { cuenta: "ML .BAIRES", ...F412, planes: CUOTAS },
+  { cuenta: "ML .BAIRES", ...HP15, planes: CUOTAS },
+  { cuenta: "ML PUNTO", ...S532, planes: CUOTAS },
+  { cuenta: "ML PUNTO", ...HP15, planes: CUOTAS },
+  { cuenta: "TIENDAVIRTUAL S", ...F412, planes: ["clasica", ...CUOTAS] },
 ];
 
 /** El tachado del modelo (uno solo para todos sus planes): con la campaña, la Clásica muestra 45 % de descuento. */
@@ -77,7 +88,7 @@ export async function propuestaPrueba(org: string): Promise<{ filas: FilaPrueba[
         from meli_item where organizacion_id = $1 and canal_id = $2 and sku = $3 and estado in ('active', 'paused')`, [org, canal, p.sku]) : [];
     const stock = canal ? Number((await una<{ d: number }>(
       "select stock_disponible_canal($1, v.id, $2)::int d from variacion v where v.organizacion_id = $1 and v.sku = $3", [org, canal, p.sku]))?.d ?? 0) : 0;
-    for (const plan of PLANES_PRUEBA) {
+    for (const plan of p.planes) {
       const ya = items.find((i) => planDe(i.tipo, i.tags, i.terms) === plan);
       filas.push({ canal, cuenta: p.cuenta, sku: p.sku, origen: p.origen, plan, tachado: tachadoPrueba(p.clasica), precio: precioPrueba(p.clasica, plan, valores), comision: valores[plan], existe: ya?.item_id ?? null, stock });
     }
@@ -102,16 +113,16 @@ export async function prepararPrueba(org: string, usuarioId: string): Promise<Re
   const { filas } = await propuestaPrueba(org);
   const res: ResultadoPrueba = { lotes: [], rechazos: [], avisos: [] };
   for (const p of PRUEBA) {
-    const deEsta = filas.filter((f) => f.cuenta === p.cuenta);
-    const rech = (motivo: string) => res.rechazos.push({ cuenta: p.cuenta, motivo });
+    const deEsta = filas.filter((f) => f.cuenta === p.cuenta && f.sku === p.sku);
+    const rech = (motivo: string) => res.rechazos.push({ cuenta: `${p.cuenta} ${p.sku}`, motivo });
     const canal = deEsta[0]?.canal;
     if (!canal) { rech("no está la cuenta en Laucen"); continue; }
     const faltan = deEsta.filter((f) => !f.existe);
-    if (!faltan.length) { rech("ya tiene los cinco planes"); continue; }
+    if (!faltan.length) { rech("ya tiene todos sus planes"); continue; }
     const pendiente = await una<{ id: number }>(`
       select id::int from ml_cola where organizacion_id = $1 and canal_id = $2 and tipo = 'crear' and item_id like $3
-         and estado in ('preparado', 'pendiente', 'enviando')`, [org, canal, `prueba:${p.sku}%`]);
-    if (pendiente) { rech("ya hay un lote de esta prueba esperando en la cola"); continue; }
+         and estado in ('preparado', 'pendiente', 'enviando')`, [org, canal, `esquema:${p.sku}%`]);
+    if (pendiente) { rech("ya hay un lote esperando en la cola"); continue; }
     const cuenta = await cuentaDelCanal(org, canal);
     if (!cuenta || cuenta.estado !== "activa") { rech("la cuenta de Mercado Libre no está conectada"); continue; }
 
@@ -145,15 +156,15 @@ export async function prepararPrueba(org: string, usuarioId: string): Promise<Re
       const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: c.cuerpo }];
       if (texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: texto }, seguirSiFalla: true });
       altas.push({
-        canalId: canal, itemId: `prueba:${p.sku}:${f.plan}`, tipo: "crear",
+        canalId: canal, itemId: `esquema:${p.sku}:${f.plan}`, tipo: "crear",
         antes: { estado: "no existe en esta cuenta" },
-        payload: { descripcion: `Prueba de planes en ${p.cuenta}: ${p.sku} ${nombre} $ ${f.tachado.toLocaleString("es-AR")} (con campaña $ ${f.precio.toLocaleString("es-AR")}; copia de ${p.origen})`, origen: { canal: g.canal_id, item_id: p.origen }, pedidos },
+        payload: { descripcion: `Alta en ${p.cuenta}: ${p.sku} ${nombre} $ ${f.tachado.toLocaleString("es-AR")} (con campaña $ ${f.precio.toLocaleString("es-AR")}; copia de ${p.origen})`, origen: { canal: g.canal_id, item_id: p.origen }, pedidos },
       });
       nombres.push(nombre);
     }
     if (!altas.length) continue;
-    const loteId = await encolarLoteConBoton(org, canal, altas, `Prueba de planes de cuotas: ${p.sku} en ${p.cuenta} (${nombres.join(", ")})`, usuarioId);
-    res.lotes.push({ cuenta: p.cuenta, loteId, altas: nombres.length });
+    const loteId = await encolarLoteConBoton(org, canal, altas, `Altas del esquema de notebooks: ${p.sku} en ${p.cuenta} (${nombres.join(", ")})`, usuarioId);
+    res.lotes.push({ cuenta: `${p.cuenta} ${p.sku}`, loteId, altas: nombres.length });
   }
   if (!res.lotes.length && !res.rechazos.length) throw new ErrorErp("No hay nada para crear.");
   return res;
@@ -161,7 +172,7 @@ export async function prepararPrueba(org: string, usuarioId: string): Promise<Re
 
 export function textoResultadoPrueba(r: ResultadoPrueba): string {
   const partes: string[] = [];
-  if (r.lotes.length) partes.push(`Quedaron ${r.lotes.length} lote${r.lotes.length === 1 ? "" : "s"} esperando tu clic en la Cola de Mercado Libre (${r.lotes.map((l) => `${l.cuenta}: ${l.altas}`).join(", ")}).`);
+  if (r.lotes.length) partes.push(`Quedaron ${r.lotes.length} lote${r.lotes.length === 1 ? "" : "s"} esperando tu clic en Configuración › Cola de Mercado Libre, pestaña «Lotes preparados» (${r.lotes.map((l) => `lote ${l.loteId}: ${l.cuenta}, ${l.altas}`).join("; ")}).`);
   if (r.rechazos.length) partes.push(`No se preparó: ${r.rechazos.map((x) => `${x.cuenta} (${x.motivo})`).join("; ")}.`);
   if (r.avisos.length) partes.push(`Avisos de ML: ${r.avisos.join(" · ")}`);
   return partes.join(" ");

@@ -32,11 +32,11 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
   const [{ filas, estimada }, catalogo] = await Promise.all([propuestaPrueba(org), filasCatalogo(org)]);
   const pueden = catalogo.filter(sePuedePedir).length;
   const faltan = filas.filter((f) => !f.existe).length;
-  // Cómo quedaron los lotes de esta prueba en la cola.
+  // Cómo quedaron los lotes de la prueba y de las altas del esquema en la cola.
   const enCola = await consulta<{ item_id: string; canal: string; estado: string; lote: number | null; error: string | null; respuesta: { id?: string; otras?: string[] } | null; ts: string }>(`
     select q.item_id, c.nombre canal, q.estado, q.lote_id::int lote, q.ultimo_error error, q.respuesta, coalesce(q.enviado_ts, q.creado_ts) ts
       from ml_cola q join canal c on c.id = q.canal_id
-     where q.organizacion_id = $1 and q.tipo = 'crear' and q.item_id like 'prueba:%' order by q.id desc limit 20`, [org]);
+     where q.organizacion_id = $1 and q.tipo = 'crear' and (q.item_id like 'prueba:%' or q.item_id like 'esquema:%') order by q.id desc limit 30`, [org]);
   const ESTADO: Record<string, string> = { preparado: "Preparado, falta tu clic", pendiente: "En la cola", enviando: "Mandándose", ok: "Creada", error: "Con error", descartado: "Descartado" };
 
   return (
@@ -48,15 +48,15 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
       {sp.error && <p className="text-sm bg-[#FDF0EE] border border-[#EFD3CE] rounded-lg p-3 text-[#C03420]">{sp.error}</p>}
 
       <section className={CAJA}>
-        <h2 className="font-bold text-[#16577F]">Prueba de planes de cuotas en cada cuenta</h2>
+        <h2 className="font-bold text-[#16577F]">Altas del esquema de notebooks (3 planes)</h2>
         <p className="text-sm text-[#5C6B76]">
-          Mercado Libre no le muestra al comprador las cuotas del nombre del plan, y depende del vendedor (en .BAIRES la Premium 3x se ve
-          «6 cuotas» y la 12x «18 cuotas»). Para saber qué muestra cada cuenta, en cada una se publica una notebook distinta con los cinco
-          planes: <b>Clásica</b>, <b>Premium común</b> (6 cuotas), <b>Premium 3x</b>, <b>Premium 9x</b> y <b>Premium 12x</b>. Cada una copia nuestra publicación común de
-          .BAIRES (título, fotos, características, garantía y descripción). Cada plan es una publicación propia (las de cuotas, Premium con la marca
-          del plan); Mercado Libre las junta en el mismo producto y comparten el stock. Precio de cada plan: deja lo mismo que la Clásica después de su comisión, más
-          {" "}{MARGEN_PLAN["3x_campaign"]} % (Premium común y 3x) o {MARGEN_PLAN["12x_campaign"]} % (9x y 12x). Salen publicadas al <b>tachado</b> del modelo (el mismo en sus cinco planes: con la campaña, la Clásica muestra {DESCUENTO_CLASICA} % de descuento);
-          después, al meterlas en campaña, cada una baja al precio de «Con la campaña».
+          Después de la prueba de planes (7/10) quedan tres: <b>Clásica</b>, <b>Premium 3x</b> (el comprador la ve «Mismo precio en 6 cuotas»)
+          y <b>Premium 12x</b> (se ve 12 cuotas; en .BAIRES, 18). .BAIRES gana todas las Clásicas y todas las 12x; la 3x se reparte entre
+          las otras cuentas. Acá están las publicaciones que faltan en las cuentas de cada modelo. Cada una copia nuestra publicación común de
+          .BAIRES (título, fotos, características, garantía y descripción) y es una publicación propia (las de cuotas, Premium con la marca
+          del plan); Mercado Libre las junta en el mismo producto. Precio de cada plan: deja lo mismo que la Clásica después de su comisión, más
+          {" "}{MARGEN_PLAN["3x_campaign"]} % (3x) o {MARGEN_PLAN["12x_campaign"]} % (12x). Salen publicadas al <b>tachado</b> del modelo (uno solo para sus planes: con la campaña, la Clásica muestra {DESCUENTO_CLASICA} % de descuento);
+          después, al meterlas en campaña, cada una baja al precio de «Con la campaña» (las cuentas que no ganan el plan, 3 % más).
           {estimada && " (Comisión estimada: Costos ML todavía no relevó la categoría.)"}
         </p>
         <div className={CAJA_TABLA}>
@@ -98,13 +98,13 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
         {enCola.length > 0 && (
           <div className={CAJA_TABLA}>
             <table className={TABLA}>
-              <thead className={THEAD}><tr><th className={THN}>Lote</th><th className={TH}>Cuenta</th><th className={TH}>Prueba</th><th className={TH}>Estado</th><th className={TH}>Publicaciones creadas</th><th className={TH}>Cuándo</th></tr></thead>
+              <thead className={THEAD}><tr><th className={THN}>Lote</th><th className={TH}>Cuenta</th><th className={TH}>Qué</th><th className={TH}>Estado</th><th className={TH}>Publicaciones creadas</th><th className={TH}>Cuándo</th></tr></thead>
               <tbody>
                 {enCola.map((q) => (
                   <tr key={`${q.item_id}-${q.ts}`} className={TR}>
                     <td className={TDN}>{q.lote ? <Link href={`/config/canales/cola?ver=lotes&lote=${q.lote}`} className="text-[#16577F] hover:underline">{q.lote}</Link> : "—"}</td>
                     <td className={TD}>{q.canal}</td>
-                    <td className={`${TD} font-mono`}>{q.item_id.replace("prueba:", "").replace(":", " · ")}</td>
+                    <td className={`${TD} font-mono`}>{q.item_id.replace(/^(prueba|esquema):/, "").replace(":", " · ")}</td>
                     <td className={TD}>{ESTADO[q.estado] ?? q.estado}{q.error && <span className="block text-[11px] text-[#C03420]">{q.error}</span>}</td>
                     <td className={`${TD} font-mono`}>{[q.respuesta?.id, ...(q.respuesta?.otras ?? [])].filter((x): x is string => !!x).map((id) => (
                       <span key={id} className="mr-2 whitespace-nowrap"><Link href={historialPublicacion(id)} className="text-[#16577F] hover:underline">{id}</Link> <a href={enlaceMl(id)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a></span>
