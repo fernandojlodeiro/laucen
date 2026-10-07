@@ -37,8 +37,9 @@ export const MARGEN_PLAN: Record<PlanPrueba, number> = { clasica: 0, premium: 2,
 /** Qué notebook va en cada cuenta y de qué publicación se copia. `clasica`: el precio
  *  de la Clásica (el piso del esquema: competencia × 90 % en las Asus, × 80 % en la HP;
  *  la G3, al precio que tiene hoy en .BAIRES). */
-export const PRUEBA: { cuenta: string; sku: string; origen: string; clasica: number }[] = [
-  { cuenta: "ML PUNTO", sku: "F412DA-NH77", origen: "MLA1471328469", clasica: 962_999 },
+export const PRUEBA: { cuenta: string; sku: string; origen: string; clasica: number; titulo?: string }[] = [
+  // El nombre de la de origen tiene 108 letras y ML acepta hasta 60.
+  { cuenta: "ML PUNTO", sku: "F412DA-NH77", origen: "MLA1471328469", clasica: 962_999, titulo: "Notebook Asus Vivobook F412DA Ryzen 7 3700U 8gb 512gb Ssd 14" },
   { cuenta: "DEIROLAB SA", sku: "S532FA-SB77", origen: "MLA1707952619", clasica: 1_256_226 },
   { cuenta: "DEIROLAB SAS", sku: "15-EF0022NR", origen: "MLA1706473885", clasica: 949_240 },
   { cuenta: "TIENDAVIRTUAL S", sku: "G3-3500", origen: "MLA3064301590", clasica: 2_339_999 },
@@ -129,7 +130,7 @@ export async function prepararPrueba(org: string, usuarioId: string): Promise<Re
     for (const f of faltan) {
       const tipo = f.plan === "clasica" ? "gold_special" : "gold_pro";
       // Sin las condiciones de cuotas de la de origen: el plan lo marca el tag.
-      const item: ItemGuardado = { ...g.ml, price: f.tachado, available_quantity: stock, listing_type_id: tipo,
+      const item: ItemGuardado = { ...g.ml, ...(p.titulo ? { family_name: p.titulo, title: p.titulo } : {}), price: f.tachado, available_quantity: stock, listing_type_id: tipo,
         sale_terms: (g.ml.sale_terms ?? []).filter((t) => t.id !== "INSTALLMENTS_CAMPAIGN") };
       // La Premium común (6 cuotas) va sin marca de plan.
       const tag = PLAN_INFO[f.plan].tag;
