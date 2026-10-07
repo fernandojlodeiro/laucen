@@ -78,6 +78,8 @@ const FACTURA = `(select json_build_object('id', cb.id, 'tipo', cb.tipo_cbte, 'p
     where cb.pedido_id = p.id and cb.estado = 'autorizado' and cb.tipo_cbte in (1, 6, 11) order by cb.id desc limit 1)`;
 type FacturaLista = { id: number; tipo: number; pv: number; n: number | null };
 const textoFactura = (x: FacturaLista) => `${nombreTipo(x.tipo)} ${numeroCbte(x.pv, x.n)}`;
+/** En pantalla, corto (Fer, 7/10): la letra y el número, sin "Factura" ni el punto de venta ("B 1234"). */
+const facturaCorta = (x: FacturaLista) => `${nombreTipo(x.tipo).slice(-1)} ${x.n ?? "…"}`;
 
 const CARGOS_ML = sqlCargosMl("p");
 const CARGOS_ML_USD = sqlCargosMlUsd("p");
@@ -120,7 +122,7 @@ const CAMPOS: Campo[] = [
     valor: (f) => f.factura ? textoFactura(f.factura as FacturaLista) : null,
     celda: (f) => {
       const x = f.factura as FacturaLista | null;
-      return x ? <Link href={`/administracion/facturacion/${x.id}`} className="whitespace-nowrap text-[#16577F] hover:underline">{textoFactura(x)}</Link> : <span className="text-[#5C6B76]">—</span>;
+      return x ? <Link href={`/administracion/facturacion/${x.id}`} className="whitespace-nowrap text-[#16577F] hover:underline" title={textoFactura(x)}>{facturaCorta(x)}</Link> : <span className="text-[#5C6B76]">—</span>;
     },
   },
   { clave: "externo", titulo: "Id externo", sql: "p.id_externo", ancho: 18, celda: (f) => f.externo ? <Link href={`/ventas/pedidos/${f.id}`} className={`${AL_PEDIDO} font-mono`}>{f.externo}</Link> : "—" },

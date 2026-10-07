@@ -57,7 +57,7 @@ Los pedidos de Mercado Libre **entran solos** y se mueven solos según lo que pa
 | **Canal** | el canal; tocándolo filtra la lista por ese canal |
 | **Estado** | el estado del pedido; si es un carrito de Mercado Libre en espera, al lado dice **"Carrito en espera · faltan N min"** |
 | **Pago** | un **✓ verde** si está pagado; si no, una **✗ roja** (al pasar el mouse dice cuál: Pendiente, A cobrar, A convenir, Reembolsado) |
-| **Factura** | si está facturado, el tipo y número de la factura (ej. "Factura B 00002-00001234"), con enlace para verla; si no, "—" |
+| **Factura** | si está facturado, la letra y el número de la factura, corto (ej. "B 1234"; al pasar el mouse, el número completo), con enlace para verla; si no, "—". En el Excel va completo ("Factura B 00002-00001234") |
 
 **Otras columnas** que se pueden sumar en una vista o en el Excel: Id externo, Fecha y hora, Documento del cliente, Mail del cliente, Teléfono del cliente, **Estado del pago** (el texto), Medio de pago, Total US$, Costo de envío, Comisión del canal, **Cargos ML**, **Neto ML**, Unidades, Líneas, Código de seguimiento, Notas y **Factura en ML** (sólo en ventas de Mercado Libre: "✓ Subida", "⏳ Pendiente", "⚠ Error" u "○ Falta"). En el Excel, los productos de un carrito van en una misma celda separados por " | ".
 
