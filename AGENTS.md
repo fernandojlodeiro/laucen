@@ -91,6 +91,12 @@ un camino, dáselo en opciones numeradas con una recomendada, y esperá el sí �
 Cuando una sesión le nombra a Fer un pedido (o un producto, cliente, publicación…) en el chat, va
 **con su link** al panel: `[pedido 42](https://laucen.com/ventas/pedidos/42)` (pedido de Fer, 6/10).
 
+Cuando una sesión le pide a Fer que apriete un botón, **le dice siempre dónde está**: el camino del
+menú hasta la pantalla, la pestaña y en qué parte de la pantalla, más el link directo. Por ejemplo:
+"Configuración › Cola de Mercado Libre, pestaña Lotes preparados, lote 24: botón «Mandar a Mercado
+Libre», arriba a la derecha del recuadro del lote ([abrir](https://laucen.com/config/canales/cola?ver=lotes&lote=24))".
+Nunca sólo "mandá el lote 24" (pedido de Fer, 7/10).
+
 **Todo lo que la sesión pueda hacer sola, la sesión lo hace sola — no se le delega a Fer.** Nada
 de pedirle que instale algo, corra un comando, edite una variable de entorno. Si hay duda de
 quién debería hacerlo, se le ofrece elegir: *"¿querés hacerlo vos o lo hago yo?"*.
