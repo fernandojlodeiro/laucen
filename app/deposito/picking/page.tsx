@@ -21,7 +21,7 @@ import TildarTodos from "./TildarTodos";
 import RecordarEnvio from "./RecordarEnvio";
 import { COOKIE_ENVIO } from "@/lib/deposito/picking-envio";
 import Pestanas from "@/app/componentes/Pestanas";
-import { FiltroVivo } from "@/app/componentes/BuscadorVivo";
+import { FiltroVivo, CasillaViva } from "@/app/componentes/BuscadorVivo";
 import { cookies } from "next/headers";
 import { SelectorTam, tamElegido } from "./Tamano";
 import PreparadoRapido from "./PreparadoRapido";
@@ -29,7 +29,7 @@ import { tienePermiso } from "@/lib/permisos";
 
 export const dynamic = "force-dynamic";
 
-type SP = { d?: string; ok?: string; error?: string; envio?: string; orden?: string };
+type SP = { d?: string; ok?: string; error?: string; envio?: string; orden?: string; carritos?: string };
 
 type Lote = { id: number; creado_ts: Date; terminado_ts: Date | null; estado: string; modo: string; pedidos: number; preparados: number; total: number; hechas: number; faltantes: number };
 
@@ -78,10 +78,12 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
   const cuenta = (g: string) => conEnvio.filter((p) => p.grupo === g).length;
   // Orden: "Despachar antes" (lo que vence primero; como venía) o "Más viejos primero" (por fecha de compra).
   const porFecha = sp.orden === "fecha";
-  const visibles = conEnvio.filter((p) => envio === "todos" || p.grupo === envio)
+  // "Carritos" (Fer, 6/10): sólo los pedidos que llevan más de un producto.
+  const soloCarritos = sp.carritos === "1";
+  const visibles = conEnvio.filter((p) => (envio === "todos" || p.grupo === envio) && (!soloCarritos || p.lineas > 1))
     .sort((a, b) => porFecha ? +new Date(a.fecha) - +new Date(b.fecha)
       : (a.despachar_antes ? +new Date(a.despachar_antes) : Infinity) - (b.despachar_antes ? +new Date(b.despachar_antes) : Infinity) || +new Date(a.fecha) - +new Date(b.fecha));
-  const conParam = (x: Record<string, string | null>) => url("/deposito/picking", { d: depositos.length > 1 ? String(dep.id) : null, envio: envio === "todos" ? null : envio, orden: porFecha ? "fecha" : null, ...x });
+  const conParam = (x: Record<string, string | null>) => url("/deposito/picking", { d: depositos.length > 1 ? String(dep.id) : null, envio: envio === "todos" ? null : envio, orden: porFecha ? "fecha" : null, carritos: soloCarritos ? "1" : null, ...x });
   const abiertos = lotes.filter((l) => l.estado === "abierto");
   const terminados = lotes.filter((l) => l.estado !== "abierto");
 
@@ -123,16 +125,18 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
             { href: conParam({ envio: "todos" }), texto: "Todos", cuenta: pedidos.length, activa: envio === "todos", clave: "todos" },
             ...GRUPOS_ENVIO.map((g) => ({ href: conParam({ envio: g.clave }), texto: g.texto, cuenta: cuenta(g.clave), activa: envio === g.clave, clave: g.clave })),
           ]} />
-          <div className="mb-2">
+          <div className="mb-1 flex flex-wrap items-center gap-x-4">
             <FiltroVivo parametro="orden" valor={porFecha ? "fecha" : ""} etiqueta="Orden">
               <option value="">Despachar antes</option>
               <option value="fecha">Más viejos primero</option>
             </FiltroVivo>
+            <CasillaViva parametro="carritos" activo={soloCarritos} etiqueta={`Sólo carritos (${conEnvio.filter((p) => (envio === "todos" || p.grupo === envio) && p.lineas > 1).length})`}
+              ayuda="Sólo los pedidos que llevan más de un producto." />
           </div>
         </>
       )}
       {visibles.length === 0 ? (
-        <p className="text-sm text-[#5C6B76] mb-5">{pedidos.length ? "No hay pedidos de este tipo de envío para preparar." : "No hay pedidos para preparar."}</p>
+        <p className="text-sm text-[#5C6B76] mb-5">{pedidos.length ? (soloCarritos ? "No hay carritos (pedidos de más de un producto) para preparar acá." : "No hay pedidos de este tipo de envío para preparar.") : "No hay pedidos para preparar."}</p>
       ) : (
         <form action={accionCrearLote} className="mb-5">
           <input type="hidden" name="d" value={dep.id} />
@@ -160,6 +164,13 @@ export default async function Picking({ searchParams }: { searchParams: Promise<
                         <> · <span className={urgente ? "font-bold text-[#C03420]" : ""}>Despachar antes: {fechaHoraAR(p.despachar_antes)}</span></>
                       )}
                     </div>
+                    {/* Golpe de vista de lo que lleva (Fer, 6/10): hasta 5 productos en letra chica y "y N más". */}
+                    {p.productos.length > 0 && (
+                      <ul className="mt-1 text-[10px] leading-tight text-[#5C6B76]">
+                        {p.productos.map((x, k) => <li key={k} className="truncate"><b className="text-[#1C2B36]">{x.cantidad}×</b> {x.texto}</li>)}
+                        {p.lineas > p.productos.length && <li className="font-semibold text-[#1C2B36]">y {p.lineas - p.productos.length} más</li>}
+                      </ul>
+                    )}
                   </div>
                   {p.en_espera
                     ? <button type="button" disabled className={`${SUAVE} shrink-0 opacity-50 cursor-not-allowed`} title="Un carrito de Mercado Libre se prepara 10 min después de su último ítem">Esperando</button>

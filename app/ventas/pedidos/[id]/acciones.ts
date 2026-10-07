@@ -15,6 +15,7 @@ import { deFondo } from "@/lib/tareas-fondo";
 import { pasarAPedido, pasarAPresupuesto, cambiarVigencia } from "@/lib/pedidos/presupuestos";
 import { altaOca, anularOca, envioOcaDe, seguirEnvio } from "@/lib/oca/envios";
 import { cancelarPedido } from "@/lib/pedidos/cancelar";
+import { clientePresenteRetira } from "@/lib/pedidos/retiro";
 
 export async function accionFacturar(fd: FormData) {
   const s = await entrarErp("facturacion_ver");
@@ -195,5 +196,21 @@ export async function accionVigenciaPresupuesto(fd: FormData) {
     await cambiarVigencia(s.org.id, pid, String(fd.get("vigencia") ?? ""));
     revalidatePath(`/ventas/pedidos/${pid}`);
     return "Vigencia cambiada.";
+  });
+}
+
+/** «Cliente presente: retira» (Fer, 7/10): cobra si se paga al retirar, entrega y factura si falta. */
+export async function accionClientePresente(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  const volver = `/ventas/pedidos/${pid}?b=op`;
+  await intentar(volver, async () => {
+    await pedidoOperable(s.org.id, pid);
+    const r = await clientePresenteRetira(s.org.id, pid, s.usuario.id, texto(fd, "medio"));
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    revalidatePath("/ventas/pedidos");
+    const listo = r.hecho.join(" · ");
+    if (r.fallo.length) throw new ErrorErp(`${listo.charAt(0).toUpperCase() + listo.slice(1)}. Falló: ${r.fallo.join(" · ")}`);
+    return `${listo.charAt(0).toUpperCase() + listo.slice(1)}.`;
   });
 }

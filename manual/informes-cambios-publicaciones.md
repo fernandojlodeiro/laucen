@@ -152,12 +152,14 @@ Tocando el **número de publicación** (MLA…) se abre su historial: todo lo qu
 
 Arriba muestra la publicación como está hoy: título, cuenta, SKU (con enlace al producto), estado, precio y stock. Arriba a la derecha, **"Ver en Mercado Libre ↗"** la abre en Mercado Libre, en otra pestaña.
 
-La tabla junta, en orden de fecha:
+La tabla junta, en orden de fecha, **un renglón por cada cosa que pasó**: lo que mandó Laucen y los cambios que resultaron en Mercado Libre (estado, stock, precio) en el mismo momento (menos de 2 minutos entre uno y otro) van en el mismo renglón, por ejemplo "Pausa · Laucen mandó pausar con 0 u. (enviado bien) · Activa → Pausada · Stock 1 → 0", con su "Por qué". Lo que entra en cada renglón:
 - **Estado, Precio y Stock**: cada cambio que tuvo (antes → después) y si lo hizo Laucen o alguien fuera de Laucen. «Fuera de Laucen» quiere decir que Laucen no le mandó nada en los 15 minutos anteriores: pudo ser alguien en Mercado Libre, Mercado Libre mismo u otro programa conectado a la cuenta. Se anotan desde el 3/10/2026.
 - **"Laucen mandó: …"**: cada cosa que le mandó Laucen por la cola (estado, precio, stock, atributos, campañas…), con cómo salió: enviado bien, con error (y el motivo), esperando tu clic, en la cola o descartado; y si fue por tu clic, automático o una barrida.
 - **"Venta"**: cada venta de esta publicación, con el enlace al pedido.
 - **"Campaña: …"**: lo que pasó con ella en las campañas de Mercado Libre (entró, salió, cambió el precio o el estado).
 
-La columna **"Por qué"** explica una baja de stock o una pausa que llegó hasta 30 minutos después de una venta del mismo producto (en esta publicación o en otra, de cualquier cuenta o canal): dice "Venta del pedido N" o "Sin stock por la venta del pedido N", con el enlace al pedido, en el mismo renglón del cambio.
+La columna **"Por qué"** explica, con el enlace al pedido y en el mismo renglón del cambio (también en lo que mandó Laucen):
+- una baja de stock o una pausa que llegó hasta 30 minutos después de una venta del mismo producto (en esta publicación o en otra, de cualquier cuenta o canal): "Venta del pedido N" o "Sin stock por la venta del pedido N". Aunque esa venta después se haya cancelado, en su momento fue lo que bajó el stock;
+- una suba de stock o una reactivación hasta 30 minutos después de que se canceló o devolvió un pedido del mismo producto: "Cancelación del pedido N" o "Devolución del pedido N".
 
 Si tiene variaciones, una columna dice de cuál variación es cada cambio. Va de a 50 renglones, con el paginador abajo.

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, numero, entero, id } from "@/lib/erp/acciones";
-import { TIPOS_ENVIO, PROVINCIAS, esTipoEnvio } from "./comun";
+import { TIPOS_ENVIO, PROVINCIAS, esTipoEnvio, conSeguimientoAutomatico } from "./comun";
 
 const VOLVER = "/config/envios";
 
@@ -18,7 +18,11 @@ function leer(fd: FormData) {
   const costo = numero(fd, "costo_ars") ?? 0;
   const gratis = numero(fd, "gratis_desde_ars");
   if (costo < 0 || (gratis != null && gratis < 0)) throw new ErrorErp("Los importes no pueden ser negativos.");
-  return { tipo, nombre, costo, gratis, plazo: texto(fd, "plazo"), instrucciones: texto(fd, "instrucciones"), orden: entero(fd, "orden") ?? 0 };
+  // Automático sólo si el transportista informa el seguimiento (OCA); sin elegir, el de su tipo.
+  const pedido = fd.get("seguimiento");
+  const seguimiento = pedido === "manual" || !conSeguimientoAutomatico(tipo) ? "manual" : "automatico";
+  if (pedido === "automatico" && !conSeguimientoAutomatico(tipo)) throw new ErrorErp("Ese tipo de envío no informa el seguimiento: va manual.");
+  return { tipo, nombre, costo, gratis, plazo: texto(fd, "plazo"), instrucciones: texto(fd, "instrucciones"), orden: entero(fd, "orden") ?? 0, seguimiento };
 }
 
 /** Las tarifas por provincia del formulario (las vacías no van). */
@@ -36,9 +40,9 @@ export async function accionCrearEnvio(fd: FormData) {
   await intentar(VOLVER, async () => {
     const d = leer(fd);
     const r = await una<{ id: number }>(`
-      insert into metodo_envio (organizacion_id, canal_id, tipo, nombre, activo, costo_ars, gratis_desde_ars, plazo, instrucciones, orden)
-      values ($1, null, $2, $3, false, $4, $5, $6, $7, $8) returning id::int`,
-      [s.org.id, d.tipo, d.nombre, d.costo, d.gratis, d.plazo, d.instrucciones, d.orden]);
+      insert into metodo_envio (organizacion_id, canal_id, tipo, nombre, activo, costo_ars, gratis_desde_ars, plazo, instrucciones, orden, seguimiento)
+      values ($1, null, $2, $3, false, $4, $5, $6, $7, $8, $9) returning id::int`,
+      [s.org.id, d.tipo, d.nombre, d.costo, d.gratis, d.plazo, d.instrucciones, d.orden, d.seguimiento]);
     revalidatePath(VOLVER);
     // Uno por provincia se crea y se abre para cargar las tarifas.
     if (d.tipo === "por_provincia") return { ir: `${VOLVER}?editar=${r!.id}&ok=${encodeURIComponent("Creado (apagado). Cargá las tarifas por provincia.")}` };
@@ -53,9 +57,9 @@ export async function accionGuardarEnvio(fd: FormData) {
     const t = tarifas(fd);
     const r = await consulta(`
       update metodo_envio set tipo = $3, nombre = $4, costo_ars = $5, gratis_desde_ars = $6, plazo = $7, instrucciones = $8, orden = $9,
-             tarifas = coalesce($10::jsonb, tarifas)
+             tarifas = coalesce($10::jsonb, tarifas), seguimiento = $11
        where id = $1 and organizacion_id = $2 returning id`,
-      [id(fd), s.org.id, d.tipo, d.nombre, d.costo, d.gratis, d.plazo, d.instrucciones, d.orden, t ? JSON.stringify(t) : null]);
+      [id(fd), s.org.id, d.tipo, d.nombre, d.costo, d.gratis, d.plazo, d.instrucciones, d.orden, t ? JSON.stringify(t) : null, d.seguimiento]);
     if (!r.length) throw new ErrorErp("Ese método de envío no existe.");
     revalidatePath(VOLVER);
     return "Guardado.";

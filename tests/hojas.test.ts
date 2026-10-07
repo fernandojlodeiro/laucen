@@ -354,3 +354,21 @@ test("cancelar: un pedido despachado (o con OCA en camino) no se cancela", async
   assert.equal(cancelar.motivoNoCancelable("preparado", { oca: { envioId: 1, tracking: "x", anulable: true } }), null);
   assert.equal(cancelar.motivoNoCancelable("pagado", { oca: null }), null);
 });
+
+test("cliente presente retira: un pedido preparado queda entregado (el stock sale) y se intenta facturar", async () => {
+  const retiro = await import("@/lib/pedidos/retiro");
+  const e = await escenario();
+  const a = await e.pedido([{ v: e.p1, c: 1 }]);
+  await assert.rejects(retiro.clientePresenteRetira(e.org, a, "operador", null), /Primero preparalo/);
+  await m.pedidos.cambiarEstado(e.org, a, "preparado", "operador");
+  // Sin el pago registrado, pide con qué pagó; con el medio, cobra y entrega.
+  await assert.rejects(retiro.clientePresenteRetira(e.org, a, "operador", null), /con qué pagó/);
+  const r = await retiro.clientePresenteRetira(e.org, a, "operador", "efectivo");
+  assert.deepEqual(r.hecho, ["cobrado y entregado"]);
+  // Sin razón social cargada no se puede facturar: avisa y el pedido queda entregado igual.
+  assert.equal(r.fallo.length, 1);
+  assert.match(r.fallo[0], /^Factura: /);
+  assert.equal((await q<{ estado: string }>("select estado from pedido where id = $1", [a]))[0].estado, "entregado");
+  const [v] = await q<{ n: number }>("select count(*)::int n from movimiento_stock where referencia_tipo = 'pedido' and referencia_id = $1 and tipo = 'venta'", [String(a)]);
+  assert.equal(v.n, 1);
+});

@@ -29,7 +29,12 @@ export type PedidoParaPreparar = {
   a_cobrar: boolean; total_ars: number;
   /** Cómo sale (para filtrar el picking por tipo de envío): el tipo de canal, el método de envío de la tienda y su nombre. */
   canal_tipo: string; metodo_tipo: string | null; metodo_nombre: string | null; retira: boolean;
+  /** Las primeras líneas (hasta 5) para dar un golpe de vista de qué lleva (Fer, 6/10). */
+  productos: { cantidad: number; texto: string }[];
 };
+
+/** Hasta cuántos productos se muestran en la tarjeta del picking ("y N más" el resto). */
+export const PRODUCTOS_A_LA_VISTA = 5;
 
 export type GrupoEnvio = "meli" | "oca" | "retiro" | "otros";
 /** Los grupos del filtro del picking, con el texto corto de su pestaña (se usa en el celular). */
@@ -63,7 +68,11 @@ export function pedidosParaPreparar(org: string, depositoId: number) {
            (select count(*)::int from pedido_linea where pedido_id = p.id and variacion_id is not null) lineas,
            e.despachar_antes, e.logistica, ${SQL_DEPOSITO}::int deposito_id, p.carrito_ultimo_evento_ts, ${sqlCarritoEnEspera("p")} en_espera,
            ${sqlACobrar("p")} a_cobrar, p.total_ars::float total_ars,
-           ca.tipo canal_tipo, me.tipo metodo_tipo, me.nombre metodo_nombre, coalesce(p.envio ->> 'metodo' = 'Retira', false) retira
+           ca.tipo canal_tipo, me.tipo metodo_tipo, me.nombre metodo_nombre, coalesce(p.envio ->> 'metodo' = 'Retira', false) retira,
+           coalesce((select json_agg(json_build_object('cantidad', x.cantidad, 'texto', x.texto) order by x.orden, x.id)
+                       from (select l.id, l.orden, l.cantidad::int, coalesce(nullif(l.titulo, ''), l.sku, 'Sin título') texto
+                               from pedido_linea l where l.pedido_id = p.id and l.variacion_id is not null
+                              order by l.orden, l.id limit ${PRODUCTOS_A_LA_VISTA}) x), '[]') productos
       from pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
       left join metodo_envio me on me.id = p.metodo_envio_id
       left join lateral (select despachar_antes, logistica from envio where pedido_id = p.id and coalesce(estado, '') <> 'cancelled' order by id desc limit 1) e on true

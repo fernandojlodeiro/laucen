@@ -19,3 +19,10 @@ export const PROVINCIAS = [
   "Formosa", "Jujuy", "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquén", "Río Negro", "Salta", "San Juan", "San Luis",
   "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán",
 ] as const;
+
+/** Cómo se sigue el envío (Fer, 7/10): automático = lo informa el transportista (por ahora, OCA);
+ *  manual = se marca con los botones del pedido (cadetería, envío propio, retiro). */
+export const SEGUIMIENTOS = { automatico: "Automático (lo informa el transportista)", manual: "Manual (con los botones del pedido)" } as const;
+export type Seguimiento = keyof typeof SEGUIMIENTOS;
+/** Los tipos que informan solos por dónde anda el envío. */
+export const conSeguimientoAutomatico = (tipo: string) => tipo === "oca" || tipo === "oca_sucursal";
