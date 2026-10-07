@@ -10,7 +10,6 @@ import { Tablero } from "./Tablero";
 import { accionActualizarReputacion } from "./acciones";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Relevamiento completo" };
 
 type SP = { ok?: string; error?: string };
 

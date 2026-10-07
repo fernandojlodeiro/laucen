@@ -7,7 +7,7 @@ import { formatearNumero } from "@/lib/numeros";
 import { SUAVE } from "@/app/botones";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Ajustes de la carga de stock", robots: { index: false, follow: false } };
+export const metadata = { robots: { index: false, follow: false } };
 
 // Para revisar contra el depósito: unidades que la carga de stock del 3/10 sacó
 // de ubicaciones reales (el archivo de Virtual Seller no trae ubicaciones).

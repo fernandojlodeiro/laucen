@@ -34,7 +34,6 @@ export const dynamic = "force-dynamic";
 // lógica ni de layout — sólo las rutas de import.
 
 export const metadata = {
-  title: "Bitácora",
   robots: { index: false, follow: false },
 };
 

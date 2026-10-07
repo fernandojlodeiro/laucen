@@ -21,7 +21,7 @@ export const maxDuration = 300;
 // Apify de 1688 y Alibaba con la misma búsqueda para comparar qué trae cada
 // uno. Cargar la página NO corre nada; correr es sólo con el botón.
 
-export const metadata = { title: "China — pruebas", robots: { index: false, follow: false } };
+export const metadata = { robots: { index: false, follow: false } };
 
 type Corrida = PruebaChina["corridas"][number];
 type Final = { estado: string; usd: number | null; cobros: unknown };

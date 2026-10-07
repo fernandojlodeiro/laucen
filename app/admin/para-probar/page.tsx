@@ -18,7 +18,6 @@ export const dynamic = "force-dynamic";
 // de lógica ni de layout — sólo las rutas de import.
 
 export const metadata = {
-  title: "Para probar",
   robots: { index: false, follow: false },
 };
 

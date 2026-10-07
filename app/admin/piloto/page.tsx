@@ -15,7 +15,7 @@ import CampoNumero from "@/app/componentes/CampoNumero";
 import type { TipoNumero } from "@/lib/numeros";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Piloto", robots: { index: false, follow: false } };
+export const metadata = { robots: { index: false, follow: false } };
 
 // Piloto (interno, sólo Fer): rastrillaje de Mercado Libre → China → juez.
 

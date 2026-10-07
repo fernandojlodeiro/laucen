@@ -10,7 +10,7 @@ import CampoNumero from "@/app/componentes/CampoNumero";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
-export const metadata = { title: "Ventas ML por categoría", robots: { index: false, follow: false } };
+export const metadata = { robots: { index: false, follow: false } };
 
 // Ventas de Fer en Mercado Libre por categoría (interno, sólo Fer): primer
 // nivel de categorías con ventas en los últimos N días (90 por defecto), con

@@ -11,7 +11,6 @@ export const dynamic = "force-dynamic";
 // DATABASE_URL (nunca la contraseña) y el error exacto al conectar. Sólo Fer.
 
 export const metadata = {
-  title: "Diagnóstico",
   robots: { index: false, follow: false },
 };
 

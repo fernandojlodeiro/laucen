@@ -14,7 +14,7 @@ import { accionCorrerAhora } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
-export const metadata = { title: "Costos ML", robots: { index: false, follow: false } };
+export const metadata = { robots: { index: false, follow: false } };
 
 // Costos de vender en Mercado Libre (interno, sólo Fer): lo vigente de cada
 // cosa y cómo vienen las corridas diarias. Los datos están en las tablas

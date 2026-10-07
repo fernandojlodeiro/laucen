@@ -20,7 +20,6 @@ export const maxDuration = 300;
 // pedida) con el costo final que informa Apify. Correr es sólo con el botón.
 
 export const metadata = {
-  title: "Apify — Mercado Libre",
   robots: { index: false, follow: false },
 };
 

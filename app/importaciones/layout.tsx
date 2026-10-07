@@ -4,7 +4,7 @@ import { Pestanas } from "@/app/radar/Cliente";
 
 // Importaciones: despachos de ARCA + enriquecimiento de Softrade.
 
-export const metadata = { title: "Importaciones", robots: { index: false, follow: false } };
+export const metadata = { robots: { index: false, follow: false } };
 
 export default function ImportacionesLayout({ children }: { children: React.ReactNode }) {
   return (

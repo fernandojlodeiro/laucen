@@ -7,7 +7,7 @@ import { formatearNumero } from "@/lib/numeros";
 import { SUAVE } from "@/app/botones";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Productos sin publicación", robots: { index: false, follow: false } };
+export const metadata = { robots: { index: false, follow: false } };
 
 // Los productos a los que no se les encontró ninguna publicación de Mercado
 // Libre (en ninguna cuenta). Primero los activos, después los inactivos.

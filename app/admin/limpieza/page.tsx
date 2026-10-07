@@ -15,7 +15,7 @@ import { consulta } from "@/lib/erp/base";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-export const metadata = { title: "Limpieza de datos", robots: { index: false, follow: false } };
+export const metadata = { robots: { index: false, follow: false } };
 
 // Tareas de una sola vez para dejar la base lista tras la carga de Virtual
 // Seller (pedido de Fer, 3/10). Sólo Fer. Cada botón pregunta antes de borrar.

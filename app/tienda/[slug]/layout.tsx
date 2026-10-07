@@ -28,7 +28,9 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const t = await cargarTienda((await params).slug);
   const nombre = nombreTienda(t);
-  return { title: { default: nombre, template: `%s · ${nombre}` }, description: t.config.bajada || `Tienda online de ${nombre}` };
+  // El ícono de la pestaña: el logo de la tienda (nunca el de Laucen).
+  return { title: { default: nombre, template: `%s · ${nombre}` }, description: t.config.bajada || `Tienda online de ${nombre}`,
+    icons: t.config.logo ? { icon: t.config.logo, apple: t.config.logo } : { icon: [] } };
 }
 
 const CONDICION_IVA: Record<string, string> = { responsable_inscripto: "IVA Responsable Inscripto", monotributo: "Monotributo", exento: "IVA Exento" };

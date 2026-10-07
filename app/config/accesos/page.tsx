@@ -11,7 +11,6 @@ import { Pantalla, Avisos, CAJA } from "@/app/componentes/erp";
 import { accionGuardarAccesos } from "./acciones";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Mis accesos del celular" };
 
 export default async function Accesos({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
   await asegurarEsquemaErp();

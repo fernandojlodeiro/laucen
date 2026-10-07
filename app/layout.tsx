@@ -5,9 +5,13 @@ import { esRutaPublica } from "@/lib/rutas-publicas";
 import { versión } from "@/lib/version";
 import Marco from "@/app/componentes/marco/Marco";
 
+// La pestaña del navegador dice siempre «Laucen», con su isólogo (Fer, 7/10): las
+// pantallas del panel no ponen título propio. La tienda pública pone el suyo
+// (app/tienda/[slug]/layout.tsx).
 export const metadata: Metadata = {
   title: "Laucen",
   description: "Gestión de ventas, stock e importación",
+  icons: { icon: "/marca/laucen-logo.svg", apple: "/marca/laucen-logo.png" },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };

@@ -20,7 +20,6 @@ export const maxDuration = 300;
 // interesa y muestra qué devuelve. Cada corrida queda en `meli_pruebas`.
 
 export const metadata = {
-  title: "Mercado Libre",
   robots: { index: false, follow: false },
 };
 

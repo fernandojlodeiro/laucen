@@ -12,7 +12,6 @@ import { Tablero } from "@/app/mercadolibre/Tablero";
 import { monedaVista } from "@/lib/moneda";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Para hacer" };
 
 export default async function Panel() {
   const sesion = await sesionRequerida();

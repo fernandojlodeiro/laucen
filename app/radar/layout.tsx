@@ -4,7 +4,7 @@ import { Pestanas } from "./Cliente";
 
 // Radar: tendencias de Mercado Libre. Tres pestañas.
 
-export const metadata = { title: "Radar", robots: { index: false, follow: false } };
+export const metadata = { robots: { index: false, follow: false } };
 
 export default function RadarLayout({ children }: { children: React.ReactNode }) {
   return (

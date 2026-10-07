@@ -13,7 +13,6 @@ import { sqlPedidoPendiente, sqlCarritoEnEspera } from "@/lib/pedidos";
 import { CONDICION_ENVIOS } from "@/app/ventas/envios/lista";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Modo depósito" };
 
 type Boton = { texto: string; ayuda: string; href: string; icono: string; permiso: PermisoKey; n?: number | null };
 
