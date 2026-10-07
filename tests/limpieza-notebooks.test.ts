@@ -9,7 +9,8 @@ test("se conservan los de la lista, sin importar mayúsculas ni el DE- de DEIROL
   assert.equal(seConserva(["DE-G3-3500"]), true);
   assert.equal(seConserva([" g3-3500-1 "]), true);
   assert.equal(seConserva(["F412DA-NH77-12GB"]), true);
-  assert.equal(seConserva(["81WE011UUS"]), false);
+  assert.equal(seConserva(["81WE011UUS"]), true); // la Lenovo 3, que Fer deja activa
+  assert.equal(seConserva(["81WE011VUS"]), false);
   assert.equal(seConserva(["G3-3500-2", ""]), false);
   assert.equal(seConserva([]), false);
 });
