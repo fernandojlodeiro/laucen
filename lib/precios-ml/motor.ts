@@ -474,8 +474,22 @@ export function pedidosPrecio(pa: PropuestaPub): PedidoHttp[] {
 export function pedidoVolumen(pa: PropuestaPub): PedidoHttp {
   return {
     metodo: "POST", ruta: `/items/${pa.pub.itemId}/prices/standard/quantity`,
-    cuerpo: { prices: pa.volumen.map((x) => ({ amount: x.precio, currency_id: "ARS", conditions: { min_purchase_unit: x.cantidad } })) },
+    // ML exige el contexto en cada escalón («Marketplace context is mandatory», 7/10). Al mandarlo,
+    // la cola le suma los precios base que ya tiene la publicación (tablaVolumen): uno que no se
+    // nombra, ML lo borra.
+    cuerpo: { prices: pa.volumen.map((x) => ({ amount: x.precio, currency_id: "ARS", conditions: { context_restrictions: ["channel_marketplace"], min_purchase_unit: x.cantidad } })) },
   };
+}
+
+type PrecioMl = { id?: string | number; type?: string; conditions?: { min_purchase_unit?: number | null } | null };
+
+/** La tabla de precios por cantidad que se manda a ML: los precios "standard" que ya
+ *  tiene la publicación sin cantidad mínima (el precio base, por canal) van por su id,
+ *  para que ML no los borre; los escalones viejos no se nombran (se reemplazan por los
+ *  nuevos). Pura: se prueba sin ML. */
+export function tablaVolumen(actuales: PrecioMl[], nuevos: unknown[]): unknown[] {
+  const base = actuales.filter((p) => p.type === "standard" && p.id != null && !(Number(p.conditions?.min_purchase_unit) > 1));
+  return [...base.map((p) => ({ id: String(p.id) })), ...nuevos];
 }
 
 /** Crear la publicación de un plan: ya no sale de acá. Colgarla del user

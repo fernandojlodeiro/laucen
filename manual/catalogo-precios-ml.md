@@ -66,6 +66,8 @@ Arriba a la derecha: «Descargar Excel» y **«Nuevo rango»**. Arriba de la tab
 
 Columnas: «Aplica a» (General / Categoría … / Producto …), «Clásica desde», «Clásica hasta» («sin tope»), «Escalones» (por ejemplo «3+ u. −5 % · 6+ u. −10 %», o «Sin descuento»), lápiz y tacho.
 
+En Mercado Libre se llama «precio por cantidad». Cada escalón sale marcado para el canal Mercado Libre (ML lo exige: sin eso contestaba «Marketplace context is mandatory», 7/10). Antes de mandarlo, Laucen lee los precios que ya tiene la publicación y nombra el precio base, porque un precio que no se nombra ML lo borra; los escalones viejos se reemplazan por los nuevos.
+
 El formulario: «Aplica a» (Toda la cuenta (general) / Una categoría (excepción) / Un producto (excepción)), «Categoría» o «o el SKU del producto», «Clásica desde», «Clásica hasta», la caja «Sin descuento por volumen» y cinco escalones, cada uno con «Desde u.» y «% off».
 
 ### Pestaña «Alertas»

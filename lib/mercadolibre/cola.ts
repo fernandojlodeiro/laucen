@@ -393,7 +393,15 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
             if (espera > 0) await dormir(espera);
             ultimo = Date.now();
             res.enviadas++;
-            r = await enviar(cuenta, p.metodo, ruta, p.cuerpo);
+            let cuerpo = p.cuerpo;
+            // Precios por cantidad: se nombran los precios base que ya tiene (si no, ML los borra).
+            if (p.metodo === "POST" && /\/prices\/standard\/quantity$/.test(ruta)) {
+              const actuales = await ml<{ prices?: { id?: string; type?: string; conditions?: { min_purchase_unit?: number } }[] }>(cuenta, "GET", ruta.replace(/\/standard\/quantity$/, ""));
+              if (actuales.status !== 200) { r = actuales; cortado = true; break; }
+              const { tablaVolumen } = await import("@/lib/precios-ml/motor");
+              cuerpo = { prices: tablaVolumen(actuales.datos?.prices ?? [], (p.cuerpo as { prices?: unknown[] } | null)?.prices ?? []) };
+            }
+            r = await enviar(cuenta, p.metodo, ruta, cuerpo);
             if (fila.tipo === "crear" && p.metodo === "POST" && r.status >= 200 && r.status < 300) {
               const d = r.datos as { id?: string; user_product_id?: string } | null;
               if (p.ruta === "/items") { creada ??= d?.id ?? null; up ??= d?.user_product_id ?? null; }

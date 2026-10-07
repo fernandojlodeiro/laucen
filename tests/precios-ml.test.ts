@@ -13,6 +13,7 @@ import {
   heredar, cadenaFamilias, precioPlan, tachado, elegirDestacado, escalonesPara, normalizarEscalones, planDePublicacion,
   comisionesDe, cuotasRepetidas, proponer, pedidosPrecio, pedidoCrear, campanasPara, holguraPlan,
   type FilaVolumen, type ReglaTachado, type ReglasPlan, type EntradaVariacion, type PubMl, type ReglasCanal,
+  tablaVolumen,
 } from "@/lib/precios-ml/motor";
 
 // ── El motor (sin base) ─────────────────────────────────────
@@ -407,3 +408,13 @@ if (url) {
     assert.match(al[0].alerta, /Dejó de ganar/);
   });
 }
+
+test("volumen: cada escalón lleva el contexto de ML y la tabla nombra los precios base (si no, ML los borra)", () => {
+  const nuevo = { amount: 950, currency_id: "ARS", conditions: { context_restrictions: ["channel_marketplace"], min_purchase_unit: 2 } };
+  const actuales = [
+    { id: "1", type: "standard", conditions: {} },
+    { id: "7", type: "standard", conditions: { min_purchase_unit: 3 } },
+    { id: "9", type: "promotion", conditions: {} },
+  ];
+  assert.deepEqual(tablaVolumen(actuales, [nuevo]), [{ id: "1" }, nuevo]);
+});
