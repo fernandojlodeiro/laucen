@@ -128,6 +128,7 @@ Mercado Pago avisa solo cuando aprueba el pago; puede tardar unos minutos. Si el
 
 ## Criterios y reglas
 
+- **La pestaña del navegador dice siempre el nombre de la tienda** (por ejemplo "Daitom") en todas sus páginas, con su logo como ícono. Sale de [Tienda web](/config/tienda): el nombre de la tienda (si está vacío, el del canal) y el logo; cada tienda muestra el suyo.
 ### Qué productos se muestran
 
 - **La web es un canal más**: un producto se ve en la tienda sólo si está **publicado en ese canal web** (el interruptor "Publicado en Web minorista" de la pestaña Publicaciones de su ficha en [Productos](/catalogo/productos)). Además tiene que estar **activo**, tener alguna **variación activa** y esa variación tiene que tener **precio en la lista de precios del canal**. Sin precio en esa lista, no aparece aunque esté publicado.

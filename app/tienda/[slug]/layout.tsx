@@ -29,7 +29,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const t = await cargarTienda((await params).slug);
   const nombre = nombreTienda(t);
   // El ícono de la pestaña: el logo de la tienda (nunca el de Laucen).
-  return { title: { default: nombre, template: `%s · ${nombre}` }, description: t.config.bajada || `Tienda online de ${nombre}`,
+  // La pestaña dice siempre el nombre de la tienda (Fer, 7/10: «Daitom»), sacado de su configuración:
+  // el template sin %s deja afuera el título de cada página.
+  return { title: { default: nombre, template: nombre }, description: t.config.bajada || `Tienda online de ${nombre}`,
     icons: t.config.logo ? { icon: t.config.logo, apple: t.config.logo } : { icon: [] } };
 }
 
