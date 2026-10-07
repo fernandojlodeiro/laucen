@@ -16,13 +16,16 @@ import {
 } from "@/app/componentes/erp";
 import { fecha, fechaHora, TONO_ESTADO, TONO_PAGO, etiqueta } from "@/app/ventas/formato";
 import { tienePermiso } from "@/lib/permisos";
-import { PRIMARIO, SUAVE } from "@/app/botones";
+import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { ESTADOS_CBTE, numeroCbte, nombreTipo, type EstadoCbte } from "@/app/administracion/facturacion/comun";
 import { accionFacturar, accionSubirFacturaMlPedido } from "./acciones";
 import { sqlEstadoFacturaMl } from "@/lib/mercadolibre/facturas";
 import { TextoFacturaMl, BotonFacturaMl, puedeSubir } from "@/app/administracion/facturacion/FacturaMl";
 import Operacion from "./Operacion";
+import AccionesPedido from "./AccionesPedido";
+import NuevoPedido, { type EdicionPedido } from "../NuevoPedido";
+import { motivoNoEditable } from "@/lib/pedidos/editar";
 import EnvioOca from "./EnvioOca";
 import { envioOcaDe } from "@/lib/oca/envios";
 import { cargosDelPedido, TIPOS_CARGO, TIPOS_COSTO, IMPUESTOS } from "@/lib/mercadolibre/facturacion";
@@ -45,7 +48,7 @@ type Cabecera = {
   documento_numero: string | null; deposito: string | null;
 };
 
-export default async function DetallePedido({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string; b?: string }> }) {
+export default async function DetallePedido({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string; b?: string; editar?: string }> }) {
   const s = await entrarErp("pedidos_ver");
   const { id } = await params;
   const sp = await searchParams;
@@ -135,8 +138,57 @@ export default async function DetallePedido({ params, searchParams }: { params: 
     <div><span className={ETIQUETA}>{t}</span><div className="text-xs">{children}</div></div>
   );
 
+  // El lápiz (Fer, 7/10): un presupuesto siempre; un pedido si todavía no se tocó (lib/pedidos/editar.ts).
+  const editable = !(await motivoNoEditable(s.org.id, pid));
+  const nombreDoc = c.estado === "presupuesto" ? "Presupuesto" : "Pedido";
+  if (editable && sp.editar === "ficha") {
+    const canalPedido = (await una<{ c: number }>("select canal_id::int c from pedido where id = $1", [pid]))!.c;
+    const [canalesAMano, listas, cli, lineasEd] = await Promise.all([
+      consulta<{ id: number; nombre: string; moneda: "ARS" | "USD"; tipo: string }>(`
+        select ca.id::int, ca.nombre, coalesce(l.moneda_base, 'ARS') moneda, ca.tipo from canal ca left join lista_precios l on l.id = ca.lista_precios_id
+         where ca.organizacion_id = $1 and (ca.id = $2 or (ca.estado = 'activo' and ca.tipo in ('local', 'web_minorista', 'web_mayorista', 'otro')))
+         order by (ca.tipo = 'local') desc, ca.nombre`, [s.org.id, canalPedido]),
+      consulta<{ id: number; nombre: string; moneda: "ARS" | "USD" }>(
+        "select id::int, nombre, moneda_base moneda from lista_precios where organizacion_id = $1 and estado = 'activa' order by orden, nombre", [s.org.id]),
+      c.cliente_id ? una<{ id: number; nombre: string; documento: string | null; email: string | null; cuenta_corriente: boolean }>(`
+        select id::int, nombre, nullif(concat_ws(' ', documento_tipo, documento_numero), '') documento, email, coalesce(cuenta_corriente, false) cuenta_corriente
+          from cliente where id = $1`, [c.cliente_id]) : null,
+      consulta<{ variacion: number; sku: string; titulo: string; disponible: number; cantidad: number; lista: number | null; unit: number; descuento: number }>(`
+        select l.variacion_id::int variacion, coalesce(v.sku, l.sku, '') sku, coalesce(titulo_variacion(v.id), l.titulo) titulo,
+               stock_disponible_canal(l.organizacion_id, v.id, p.canal_id) disponible, l.cantidad::int,
+               (case when p.moneda = 'USD' then l.precio_lista_usd else l.precio_lista_ars end)::float lista,
+               (case when p.moneda = 'USD' then l.precio_unit_usd else l.precio_unit_ars end)::float unit, coalesce(l.descuento_pct, 0)::float descuento
+          from pedido_linea l join pedido p on p.id = l.pedido_id left join variacion v on v.id = l.variacion_id
+         where l.pedido_id = $1 and l.variacion_id is not null order by l.orden, l.id`, [pid]),
+    ]);
+    const pe = await una<{ moneda: "ARS" | "USD"; lista: number | null; envio_ars: number; tc: number | null; vigencia: string | null }>(`
+      select moneda, lista_precios_id::int lista, costo_envio_ars::float envio_ars, nullif(total_ars, 0) / nullif(total_usd, 0) tc, to_char(vigencia, 'YYYY-MM-DD') vigencia
+        from pedido where id = $1`, [pid]);
+    const dirEd = (envio?.direccion ?? null) as Record<string, string | null> | null;
+    const edicion: EdicionPedido = {
+      pedidoId: pid, tipo: c.estado === "presupuesto" ? "presupuesto" : "pedido", canalId: canalPedido,
+      moneda: pe!.moneda, listaId: pe!.lista,
+      cliente: cli ? { id: cli.id, nombre: cli.nombre, documento: cli.documento, email: cli.email, cuentaCorriente: cli.cuenta_corriente, direccion: null } : null,
+      // Con precio de lista y descuento, se muestran los dos (lista × (1 − descuento) = el precio que tenía); si no, el precio tal cual.
+      lineas: lineasEd.map((l) => ({ variacion: l.variacion, sku: l.sku, titulo: l.titulo, sugerido: null, disponible: l.disponible, cantidad: l.cantidad,
+        precio: l.lista && l.descuento ? l.lista : l.unit, descuento: l.lista && l.descuento ? l.descuento : null })),
+      entrega: dirEd && (dirEd.calle || dirEd.localidad) ? "envio" : "retiro", direccion: dirEd,
+      costoEnvio: pe!.envio_ars ? (pe!.moneda === "USD" && pe!.tc ? Math.round((pe!.envio_ars / pe!.tc) * 100) / 100 : pe!.envio_ars) : null,
+      notas: c.notas, vigencia: pe!.vigencia,
+    };
+    return (
+      <Pantalla titulo={<>Editar {nombreDoc.toLowerCase()} {c.id}</>} camino={[{ texto: `${nombreDoc} ${c.id}`, href: `/ventas/pedidos/${pid}` }, { texto: "Editar" }]}
+        subtitulo="Lo que saques libera su stock reservado y lo que sumes lo reserva (si el pedido reservaba)."
+        acciones={<><button type="submit" form="ficha-pedido" className={VERDE}>Grabar</button><Link href={`/ventas/pedidos/${pid}`} className={SUAVE}>Cancelar</Link></>}>
+        <div className={CAJA}>
+          <NuevoPedido canales={canalesAMano} listas={listas} edicion={edicion} formId="ficha-pedido" />
+        </div>
+      </Pantalla>
+    );
+  }
+
   return (
-    <Pantalla titulo={<>{c.estado === "presupuesto" ? "Presupuesto" : "Pedido"} {c.id}{c.id_externo && <span className="font-mono font-normal text-sm text-[#5C6B76]"> · {c.id_externo}</span>}</>}
+    <Pantalla acciones={<AccionesPedido org={s.org.id} pid={pid} editable={editable} />} titulo={<>{c.estado === "presupuesto" ? "Presupuesto" : "Pedido"} {c.id}{c.id_externo && <span className="font-mono font-normal text-sm text-[#5C6B76]"> · {c.id_externo}</span>}</>}
       camino={[{ texto: `${c.estado === "presupuesto" ? "Presupuesto" : "Pedido"} ${c.id}` }]} subtitulo={<>{c.canal} · {fechaHora(c.fecha)} · hecho en <b>{c.moneda === "USD" ? "dólares" : "pesos"}</b>{listaPedido ? <> · lista {listaPedido}</> : null}</>}>
       <div className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4`}>
         <Dato t="Estado"><Estado texto={etiqueta(ESTADOS_PEDIDO, c.estado)} tono={TONO_ESTADO[c.estado] ?? "gris"} />{espera && <> <MarcaCarritoEspera ts={ml?.espera_ts} /></>}</Dato>

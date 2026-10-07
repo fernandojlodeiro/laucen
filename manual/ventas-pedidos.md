@@ -93,6 +93,22 @@ Título "Pedido 1234 · id externo", con el canal y la fecha y hora debajo. Bloq
 8. **"Facturación"**: los comprobantes del pedido (tipo y número, estado, **"PDF"** si está autorizado, y si es de Mercado Libre, "En ML: …") y los botones **"Facturar"** y **"Subir factura a Mercado Libre"**.
 9. **"Movimientos de stock"**: cada reserva, venta o liberación que generó el pedido (fecha, tipo, SKU, producto —o "del kit …"—, cantidad, desde, hacia, nota).
 
+### Los botones de arriba a la derecha
+
+En la ficha, arriba a la derecha (donde va "Nuevo" en otras pantallas):
+
+- **Presupuesto**: **"🖨 Imprimir"**, **"Pasar a pedido"**, **"Cancelar presupuesto"** (pregunta "¿Cancelar el presupuesto?" y aclara que no toca el stock, porque un presupuesto no reserva), **"WhatsApp ↗"** y el **lápiz**.
+- **Pedido** (que no es de Mercado Libre): **"Pasar a presupuesto"** (sólo si se puede, ver Presupuestos), **"Cancelar pedido"**, **"WhatsApp ↗"** (gris si el cliente no tiene teléfono) y el **lápiz** si se puede editar.
+- **Venta de Mercado Libre**: **"Cancelar pedido"** (explica que se cancela desde Mercado Libre).
+
+### Editar (el lápiz)
+
+El lápiz abre el mismo formulario del alta con los datos cargados: cliente, moneda, lista de precios, productos (cantidad, precio, descuento; se pueden sacar y sumar), entrega, envío, notas y, en un presupuesto, "Válido hasta". El canal no se cambia. **"Grabar"** y **"Cancelar"** quedan arriba a la derecha.
+
+- **Un presupuesto se edita siempre** (mientras no esté cancelado).
+- **Un pedido, sólo si todavía no se tocó**: no es de Mercado Libre, **no está pagado**, está Nuevo o A preparar (cuenta corriente), no entró en picking y no tiene factura. Vale también para los de la tienda web sin pagar. **Si está pagado, no se edita** (no aparece el lápiz).
+- Al grabar, **lo que sacás libera su stock reservado y lo que sumás lo reserva** (si el pedido ya reservaba; un presupuesto no reserva nada). El total se recalcula con los productos y el envío. Los precios de los productos que ya estaban se respetan tal cual; los que sumás vienen de la lista.
+
 ### El bloque "Operación"
 
 Aparece en los pedidos que no son de Mercado Libre. Según el estado y el pago muestra:
@@ -103,7 +119,7 @@ Aparece en los pedidos que no son de Mercado Libre. Según el estado y el pago m
 - **"Cliente presente: retira"**: cuando el pedido **retira** en el local y ya está **Preparado**. Si se paga al retirar («A cobrar»), dice **"Cliente presente: retira y paga $ …"** con **"Cobró con"**. Ver "El cliente retira en el local".
 - Si el método de envío tiene el **seguimiento automático** (OCA), no hay botones de "Despachado" ni "Entregado": dice "El envío lo sigue el transportista: el pedido pasa solo a «Despachado» cuando lo retiran y a «Entregado» cuando lo entregan."
 - Los botones del **estado siguiente** (ver la tabla de "Criterios").
-- **"Cancelar pedido"**: pregunta ahí mismo "¿Cancelar el pedido?" y dice qué más va a hacer (liberar el stock, anular el envío de OCA, anular o devolver el pago de Payway), con **"Sí"** / **"No"**. Si el pedido tiene factura, pregunta aparte "¿Emitir la nota de crédito…?". No aparece en pedidos entregados, cancelados o devueltos. **Un pedido Despachado, o con el envío de OCA ya en camino, no se cancela**: en su lugar dice "Ya salió: no se cancela. Si la mercadería vuelve, hacé la devolución." (así no se devuelve el pago ni se anula la factura de algo que está viajando). **En una venta de Mercado Libre**, "Cancelar pedido" no cancela: explica que las ventas de Mercado Libre se cancelan desde Mercado Libre, que Laucen lee el cambio enseguida (el pedido queda cancelado y el stock vuelve) y deja el botón **"Abrir la venta en Mercado Libre ↗"**.
+- **"Cancelar pedido"** (arriba a la derecha): pregunta ahí mismo "¿Cancelar el pedido?" y dice qué más va a hacer (liberar el stock, anular el envío de OCA, anular o devolver el pago de Payway), con **"Sí"** / **"No"**. Si el pedido tiene factura, pregunta aparte "¿Emitir la nota de crédito…?". No aparece en pedidos entregados, cancelados o devueltos. **Un pedido Despachado, o con el envío de OCA ya en camino, no se cancela**: en su lugar dice "Ya salió: no se cancela. Si la mercadería vuelve, hacé la devolución." (así no se devuelve el pago ni se anula la factura de algo que está viajando). **En una venta de Mercado Libre**, "Cancelar pedido" no cancela: explica que las ventas de Mercado Libre se cancelan desde Mercado Libre, que Laucen lee el cambio enseguida (el pedido queda cancelado y el stock vuelve) y deja el botón **"Abrir la venta en Mercado Libre ↗"**.
 - **"Avisar por WhatsApp"**: abre WhatsApp con un mensaje armado para el cliente según el estado. Si el cliente no tiene teléfono: "El cliente no tiene teléfono cargado: no se le puede avisar por WhatsApp."
 
 ## Cómo se hace
@@ -239,9 +255,9 @@ Un **presupuesto** es igual a un pedido (cliente, productos, precios, envío, to
 
 - **Se crea sólo en el canal local**, con "+ Nuevo pedido o presupuesto" eligiendo **"Presupuesto"**. Tiene una fecha **"Válido hasta"** (de entrada, 7 días); se cambia en su ficha.
 - **No pide pago, no reserva stock, no entra en picking, no se factura** y no cuenta como venta (ni en Rentabilidad, ni en el total comprado del cliente, ni en las ventas del tablero).
-- En su ficha, en vez de "Operación", el bloque **"Presupuesto"**: **"Válido hasta"** (con **"Cambiar"**; dice **"Vencido"** en rojo si ya pasó), **"🖨 Imprimir presupuesto"**, **"Pasar a pedido"**, **"Cancelar"** y **"Avisar por WhatsApp ↗"**.
+- En su ficha, en vez de "Operación", el bloque **"Presupuesto"** con **"Válido hasta"** (con **"Cambiar"**; dice **"Vencido"** en rojo si ya pasó). Los botones (**"🖨 Imprimir"**, **"Pasar a pedido"**, **"Cancelar presupuesto"**, **"WhatsApp ↗"** y el lápiz) van arriba a la derecha.
 - **"Pasar a pedido"** (pregunta antes): queda **Nuevo**, con el **pago pendiente**, y **reserva el stock** en ese momento. Desde ahí sigue como cualquier pedido (confirmar pago, preparar, facturar…). Corre de fondo y avisa con un cartel.
-- **"Pasar a presupuesto"** (en la Operación de un pedido, pregunta antes): **libera el stock reservado** y el pedido vuelve a ser presupuesto, con el pago pendiente. Sólo se puede si el pedido **todavía no se tocó**: está Nuevo o A preparar (por ejemplo, de la web en cuenta corriente, para pagar en el local o por transferencia), **no está pagado**, **no entró en un lote de picking**, **no tiene factura** y **no es de Mercado Libre**. Si ya está en preparación, preparado o más adelante, no se puede: la mercadería ya salió de su ubicación y hay que devolverla a mano. Un pedido pagado tampoco: primero hay que devolver el pago.
+- **"Pasar a presupuesto"** (arriba a la derecha en un pedido, pregunta antes): **libera el stock reservado** y el pedido vuelve a ser presupuesto, con el pago pendiente. Sólo se puede si el pedido **todavía no se tocó**: está Nuevo o A preparar (por ejemplo, de la web en cuenta corriente, para pagar en el local o por transferencia), **no está pagado**, **no entró en un lote de picking**, **no tiene factura** y **no es de Mercado Libre**. Si ya está en preparación, preparado o más adelante, no se puede: la mercadería ya salió de su ubicación y hay que devolverla a mano. Un pedido pagado tampoco: primero hay que devolver el pago.
 - **El PDF** ("🖨 Imprimir presupuesto", se abre en otra pestaña para ver e imprimir): A4, con el logo y los datos de la empresa (nombre, razón social, CUIT, condición de IVA, dirección, teléfono, WhatsApp, mail y web), **"PRESUPUESTO"**, su número, la fecha y **"Válido hasta"**, los datos del cliente, cada producto **con su foto**, cantidad, descripción, SKU, precio unitario y subtotal, el subtotal, el envío y el **TOTAL**, el **total en letras** ("Son pesos … con 50/100.") y al pie las condiciones (vigencia, sujeto a disponibilidad de stock, precios con IVA, "no es válido como factura"). **Sale en la moneda en que estás mirando el panel** (el interruptor $ / US$ de la barra de abajo): en pesos dice "Son pesos…"; en dólares, "Son dólares estadounidenses…". **Si el cliente es Responsable Inscripto** (y la empresa también), sale como una factura A: los precios unitarios y subtotales **sin IVA**, y abajo el subtotal neto, el envío sin IVA, **el IVA de cada alícuota** (21 %, 10,5 %…, la de cada producto) y el total.
 
 ### Reservas de stock: cuándo se aparta y cuándo se descuenta

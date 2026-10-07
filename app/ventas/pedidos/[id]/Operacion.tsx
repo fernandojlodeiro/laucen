@@ -2,22 +2,16 @@
 // de ML los mueve ML): confirmar el pago, pasarlo al estado siguiente, avisar
 // al cliente por WhatsApp. Y los pagos del pedido (de cualquier canal).
 
-import CancelarPedido from "./CancelarPedido";
-import CancelarMl from "./CancelarMl";
 import { queArrastraCancelar, motivoNoCancelable } from "@/lib/pedidos/cancelar";
 import { consulta, una } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
-import { tiendaDelCanal, nombreTienda } from "@/lib/tienda/tienda";
 import { esMedioEfectivo, sqlEstadoPago, sqlSinEsperarPago, type EstadoPedido } from "@/lib/pedidos";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { Estado, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
-import { urlTienda } from "@/lib/tienda/dominios-tienda";
 import { TIPOS_MEDIO } from "@/app/config/medios-pago/comun";
-import { accionConfirmarPago, accionCambiarEstadoPedido, accionClientePresente, accionPasarAPedido, accionPasarAPresupuesto, accionVigenciaPresupuesto } from "./acciones";
-import { BotonTarea } from "@/app/componentes/TareasFondo";
-import { motivoNoPresupuesto } from "@/lib/pedidos/presupuestos";
+import { accionConfirmarPago, accionCambiarEstadoPedido, accionClientePresente, accionVigenciaPresupuesto } from "./acciones";
 
 const ESTADO_PAGO: Record<string, { texto: string; tono: "verde" | "amarillo" | "rojo" | "gris" }> = {
   pendiente: { texto: "Pendiente", tono: "amarillo" }, aprobado: { texto: "Aprobado", tono: "verde" }, rechazado: { texto: "Rechazado", tono: "rojo" },
@@ -39,7 +33,7 @@ export function telefonoWhatsapp(tel: string | null | undefined): string | null 
   return conPais ? `54${n}` : n.length >= 8 ? n : null;
 }
 
-function mensaje(estado: EstadoPedido, d: { nombre: string | null; pedido: number; tienda: string; seguimiento: string | null; despacho: string | null; pagoPendiente: boolean; aCobrar: boolean }) {
+export function mensaje(estado: EstadoPedido, d: { nombre: string | null; pedido: number; tienda: string; seguimiento: string | null; despacho: string | null; pagoPendiente: boolean; aCobrar: boolean }) {
   const hola = `¡Hola${d.nombre ? ` ${d.nombre.split(" ")[0]}` : ""}!`;
   const n = `tu pedido #${d.pedido}`;
   const cuerpo: Record<EstadoPedido, string> = {
@@ -112,24 +106,17 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   );
 
   if (esMl) {
-    // Laucen no cancela ventas de ML: el botón explica que se hace en ML (Fer, 6/10).
-    const cancelable = !CERRADOS.includes(p.estado) && p.estado !== "despachado";
-    const enlaceMl = p.id_externo && /^\d+$/.test(p.id_externo) ? `https://www.mercadolibre.com.ar/ventas/${p.id_externo}/detalle` : null;
+    // «Cancelar pedido» de ML va arriba (AccionesPedido).
     return (
       <>
-        {cancelable && <div className="mb-4"><CancelarMl enlace={enlaceMl} /></div>}
         {pagos.length > 0 && <><h2 className="text-sm font-bold mb-2">Pagos</h2><div className="mb-4">{TablaPagos}</div></>}
       </>
     );
   }
 
-  // WhatsApp: con el link de seguimiento si es un pedido de la tienda.
-  const telWa = telefonoWhatsapp(p.movil) ?? telefonoWhatsapp(p.telefono);
-
   // Un presupuesto (Fer, 7/10): no reserva stock; se imprime, se pasa a pedido o se cancela.
   if (p.estado === "presupuesto") {
     const vencido = p.vigencia != null && p.vigencia < new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
-    const waP = telWa ? `https://wa.me/${telWa}?text=${encodeURIComponent(mensaje("presupuesto", { nombre: p.cliente, pedido: pid, tienda: "nuestra tienda", seguimiento: null, despacho: null, pagoPendiente: false, aCobrar: false }))}` : null;
     return (
       <>
         <h2 className="text-sm font-bold mb-2">Presupuesto</h2>
@@ -137,7 +124,7 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
           <p role={sp.error ? "alert" : undefined} className={`text-xs rounded-lg px-3 py-2 mb-2 ${sp.error ? "bg-[#FDF1EF] text-[#C03420]" : "bg-[#EEF7F1] text-[#1F6E4A]"}`}>{sp.error ?? sp.ok}</p>
         )}
         <div className={`${CAJA} mb-4 grid gap-3`}>
-          <p className="text-xs text-[#5C6B76]">Es un presupuesto: <b>no reserva stock</b>. Al pasarlo a pedido queda con el pago pendiente y reserva el stock.</p>
+          <p className="text-xs text-[#5C6B76]">Es un presupuesto: <b>no reserva stock</b>. Al pasarlo a pedido (botón de arriba) queda con el pago pendiente y reserva el stock.</p>
           <form action={accionVigenciaPresupuesto} className="flex flex-wrap items-end gap-2">
             <input type="hidden" name="pedido_id" value={pid} />
             <label><span className={ETIQUETA}>Válido hasta</span>
@@ -145,21 +132,10 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
             <BotonEnviar clase={SUAVE} corriendo="Guardando…">Cambiar</BotonEnviar>
             {vencido && <Estado texto="Vencido" tono="rojo" />}
           </form>
-          <div className="flex flex-wrap items-center gap-2">
-            <a href={`/ventas/pedidos/${pid}/presupuesto`} target="_blank" rel="noopener" className={PRIMARIO}>🖨 Imprimir presupuesto</a>
-            <BotonTarea accion={accionPasarAPedido} tipo={`presupuesto-a-pedido-${pid}`} texto="Pasar a pedido" clase={VERDE} campos={{ pedido_id: String(pid) }}
-              pregunta="¿Pasarlo a pedido? Reserva el stock y queda con el pago pendiente." />
-            {cancelar && !motivoNoCancelable(p.estado, cancelar) && (
-              <CancelarPedido pid={pid} oca={cancelar.oca} factura={cancelar.factura?.texto ?? null}
-                payway={cancelar.payway ? { importe: formatear(cancelar.payway.importe, "ARS"), mismoDia: cancelar.payway.mismoDia } : null} />
-            )}
-            {waP ? <a href={waP} target="_blank" rel="noopener" className={SUAVE}>Avisar por WhatsApp ↗</a> : null}
-          </div>
         </div>
       </>
     );
   }
-  const noPresupuesto = await motivoNoPresupuesto(org, pid);
 
   // Medio para confirmar: el del pago pendiente, o el del pedido; si no, se elige.
   const pendiente = [...pagos].reverse().find((x) => x.estado === "pendiente");
@@ -176,17 +152,6 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   // Seguimiento automático (OCA): despachado y entregado los marca el transportista, sin botones.
   const automatico = p.seguimiento === "automatico";
 
-  const tel = telWa;
-  let wa: string | null = null;
-  if (tel) {
-    const t = p.canal_tipo === "web_minorista" ? await tiendaDelCanal(org, p.canal_id) : null;
-    const seguimiento = t && p.codigo ? await urlTienda(t, `/pedido/${p.codigo}`) : null;
-    const despacho = p.estado === "despachado"
-      ? (await una<{ nota: string | null }>("select nota from pedido_estado_historial where pedido_id = $1 and estado_nuevo = 'despachado' order by fecha desc, id desc limit 1", [pid]))?.nota ?? null
-      : null;
-    const texto = mensaje(p.estado, { nombre: p.cliente, pedido: pid, tienda: t ? nombreTienda(t) : "nuestra tienda", seguimiento, despacho, pagoPendiente: pagoPendiente, aCobrar });
-    wa = `https://wa.me/${tel}?text=${encodeURIComponent(texto)}`;
-  }
   // Un nuevo sólo avanza solo si no espera el pago; un «A cobrar» que retira se entrega con «Entregado y cobrado».
   const siguientes = (p.estado === "nuevo" && !p.sin_esperar ? [] : SIGUIENTES[p.estado] ?? [])
     .filter((x) => !(clientePresente && (x.estado === "entregado" || x.estado === "despachado")))
@@ -253,26 +218,10 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
             {cancelar && motivoNoCancelable(p.estado, cancelar) && (
               <span className="text-xs text-[#5C6B76]">{motivoNoCancelable(p.estado, cancelar)}</span>
             )}
-            {cancelar && !motivoNoCancelable(p.estado, cancelar) && (
-              <CancelarPedido pid={pid} oca={cancelar.oca} factura={cancelar.factura?.texto ?? null}
-                payway={cancelar.payway ? { importe: formatear(cancelar.payway.importe, "ARS"), mismoDia: cancelar.payway.mismoDia } : null} />
-            )}
           </div>
         )}
         {p.estado === "nuevo" && pagoPendiente && !p.sin_esperar && <p className="text-[11px] text-[#5C6B76]">Al confirmar el pago pasa a Pagado y se reserva el stock.</p>}
         {aCobrar && <p className="text-[11px] text-[#5C6B76]">El stock ya está reservado y el pedido entra en picking sin esperar el pago. Se factura cuando confirmás el cobro.</p>}
-        {!noPresupuesto && (
-          <div className="flex flex-wrap items-center gap-2">
-            <BotonTarea accion={accionPasarAPresupuesto} tipo={`pedido-a-presupuesto-${pid}`} texto="Pasar a presupuesto" clase={SUAVE} campos={{ pedido_id: String(pid) }}
-              pregunta="¿Pasarlo a presupuesto? Se libera el stock reservado." />
-            <span className="text-[11px] text-[#5C6B76]">Deja de ser un pedido: libera el stock reservado.</span>
-          </div>
-        )}
-        <div>
-          {wa
-            ? <a href={wa} target="_blank" rel="noopener" className={SUAVE}>Avisar por WhatsApp ↗</a>
-            : <span className="text-[11px] text-[#5C6B76]">El cliente no tiene teléfono cargado: no se le puede avisar por WhatsApp.</span>}
-        </div>
       </div>
       {pagos.length > 0 && <><h2 className="text-sm font-bold mb-2">Pagos</h2><div className="mb-4">{TablaPagos}</div></>}
     </>

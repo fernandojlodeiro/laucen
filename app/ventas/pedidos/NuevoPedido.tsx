@@ -11,7 +11,7 @@ import CampoNumero from "@/app/componentes/CampoNumero";
 import { leerNumero, formatearNumero } from "@/lib/numeros";
 import { PRIMARIO, SUAVE, ICONO_BORRAR } from "@/app/botones";
 import {
-  accionNuevoPedido, buscarClientesPedido, crearClienteDesdePedido, buscarProductosPedido, preciosPedido,
+  accionNuevoPedido, accionEditarPedido, buscarClientesPedido, crearClienteDesdePedido, buscarProductosPedido, preciosPedido,
   type ClienteHallado, type ProductoHallado,
 } from "./acciones";
 
@@ -19,7 +19,16 @@ type Canal = { id: number; nombre: string; moneda: "ARS" | "USD"; tipo: string }
 
 /** Hoy + 7, en hora argentina (la vigencia de entrada de un presupuesto). */
 const enUnaSemana = () => { const d = new Date(Date.now() + 7 * 86_400_000); return d.toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }); };
-type Linea = { clave: number; variacion: number; sku: string; titulo: string; sugerido: number | null; disponible: number; version: number };
+type Linea = { clave: number; variacion: number; sku: string; titulo: string; sugerido: number | null; disponible: number; version: number;
+  /** Al editar: lo que ya tenía la línea (hasta que se reprecie). */
+  cantidad?: number; precio?: number | null; descuento?: number | null };
+
+/** Editar un pedido o presupuesto que ya existe (Fer, 7/10): el formulario arranca con sus datos. */
+export type EdicionPedido = {
+  pedidoId: number; tipo: "pedido" | "presupuesto"; canalId: number; moneda: "ARS" | "USD"; listaId: number | null;
+  cliente: ClienteHallado | null; lineas: Omit<Linea, "clave" | "version">[];
+  entrega: "retiro" | "envio"; direccion: Record<string, string | null> | null; costoEnvio: number | null; notas: string | null; vigencia: string | null;
+};
 
 const CAMPO = "border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs bg-white";
 const ETIQUETA = "block text-[11px] font-semibold text-[#5C6B76] mb-0.5";
@@ -125,25 +134,29 @@ function ClienteNuevo({ nombreInicial, alCrear, alCerrar }: { nombreInicial: str
   );
 }
 
-export default function NuevoPedido({ canales, listas }: { canales: Canal[]; listas: { id: number; nombre: string; moneda: "ARS" | "USD" }[] }) {
-  const [canal, setCanal] = useState<number>(canales[0]?.id ?? 0);
-  const [moneda, setMoneda] = useState<"ARS" | "USD">(canales[0]?.moneda ?? "ARS");
-  const [quien, setQuien] = useState<"consumidor" | "cliente">("consumidor");
-  const [cliente, setCliente] = useState<ClienteHallado | null>(null);
-  const [lineas, setLineas] = useState<Linea[]>([]);
+export default function NuevoPedido({ canales, listas, edicion, formId }: {
+  canales: Canal[]; listas: { id: number; nombre: string; moneda: "ARS" | "USD" }[];
+  /** Si viene, edita ese pedido (se graba con «Grabar» de arriba, que manda el formulario `formId`). */
+  edicion?: EdicionPedido; formId?: string;
+}) {
+  const [canal, setCanal] = useState<number>(edicion?.canalId ?? canales[0]?.id ?? 0);
+  const [moneda, setMoneda] = useState<"ARS" | "USD">(edicion?.moneda ?? canales[0]?.moneda ?? "ARS");
+  const [quien, setQuien] = useState<"consumidor" | "cliente">(edicion?.cliente ? "cliente" : "consumidor");
+  const [cliente, setCliente] = useState<ClienteHallado | null>(edicion?.cliente ?? null);
+  const [lineas, setLineas] = useState<Linea[]>(() => (edicion?.lineas ?? []).map((l, i) => ({ ...l, clave: 1000 + i, version: 0 })));
   const [borrando, setBorrando] = useState<number | null>(null);
   const [pago, setPago] = useState("a_convenir");
   // La lista de precios (null = la del cliente o la del canal) y la moneda, elegidas de entrada (Fer, 7/10).
-  const [listaId, setListaId] = useState<number | null>(null);
+  const [listaId, setListaId] = useState<number | null>(edicion?.listaId ?? null);
   // Pedido o presupuesto (Fer, 7/10): el presupuesto no reserva stock y va sólo por el canal local.
-  const [tipo, setTipo] = useState<"pedido" | "presupuesto">("pedido");
+  const [tipo, setTipo] = useState<"pedido" | "presupuesto">(edicion?.tipo ?? "pedido");
   const locales = canales.filter((c) => c.tipo === "local");
   const visibles = tipo === "presupuesto" ? locales : canales;
   const elegirTipo = (t: "pedido" | "presupuesto") => {
     setTipo(t);
     if (t === "presupuesto" && !locales.some((c) => c.id === canal) && locales[0]) { setCanal(locales[0].id); void reprecio(locales[0].id, clienteId); }
   };
-  const [entrega, setEntrega] = useState("retiro");
+  const [entrega, setEntrega] = useState<string>(edicion?.entrega ?? "retiro");
   const [error, setError] = useState("");
   const [altaCliente, setAltaCliente] = useState(false);
   const [total, setTotal] = useState(0);
@@ -182,7 +195,7 @@ export default function NuevoPedido({ canales, listas }: { canales: Canal[]; lis
     const r = await preciosPedido(nuevoCanal, nuevoCliente, lineas.map((l) => l.variacion),
       { listaId: o.listaId !== undefined ? o.listaId : listaId, moneda: o.moneda ?? moneda });
     setMoneda(r.moneda);
-    setLineas((ls) => ls.map((l) => ({ ...l, sugerido: r.precios[l.variacion] ?? null, version: l.version + 1 })));
+    setLineas((ls) => ls.map((l) => ({ ...l, sugerido: r.precios[l.variacion] ?? null, precio: undefined, version: l.version + 1 })));
     bProducto.limpiar();
   };
 
@@ -200,25 +213,29 @@ export default function NuevoPedido({ canales, listas }: { canales: Canal[]; lis
   const enviar = (fd: FormData) => {
     setError("");
     empezar(async () => {
-      const r = await accionNuevoPedido(fd);
+      const r = edicion ? await accionEditarPedido(fd) : await accionNuevoPedido(fd);
       if (r?.error) setError(r.error);
     });
   };
+
+  // La dirección de entrega de arranque: la del pedido que se edita (mientras sea el mismo cliente) o la del cliente elegido.
+  const dir: Record<string, string | null | undefined> = (edicion?.direccion && cliente?.id === edicion.cliente?.id ? edicion.direccion : null) ?? cliente?.direccion ?? {};
 
   if (!canales.length) {
     return <p className="text-xs text-[#5C6B76]">No hay canales para cargar pedidos a mano (local, web, mayorista u otro). Crealos en Configuración → Canales.</p>;
   }
 
   return (
-    <form ref={form} action={enviar} onInput={recalcular} onChange={recalcular} className="grid gap-4 text-xs">
+    <form ref={form} id={formId} action={enviar} onInput={recalcular} onChange={recalcular} className="grid gap-4 text-xs">
       {error && <p role="alert" className="rounded-lg px-3 py-2 bg-[#FDF1EF] text-[#C03420]">{error}</p>}
+      {edicion && <input type="hidden" name="pedido_id" value={edicion.pedidoId} />}
 
-      <fieldset className="flex flex-wrap items-center gap-4">
+      {edicion ? <input type="hidden" name="tipo" value={tipo} /> : <fieldset className="flex flex-wrap items-center gap-4">
         <span className={ETIQUETA}>¿Qué es?</span>
         <input type="hidden" name="tipo" value={tipo} />
         <label className="inline-flex items-center gap-1.5"><input type="radio" checked={tipo === "pedido"} onChange={() => elegirTipo("pedido")} className="accent-[#16577F]" /> Pedido <span className="text-[#5C6B76]">(reserva stock)</span></label>
         <label className={`inline-flex items-center gap-1.5 ${locales.length ? "" : "opacity-50"}`}><input type="radio" checked={tipo === "presupuesto"} disabled={!locales.length} onChange={() => elegirTipo("presupuesto")} className="accent-[#16577F]" /> Presupuesto <span className="text-[#5C6B76]">(no reserva stock; sólo canal local)</span></label>
-      </fieldset>
+      </fieldset>}
 
       <div className="flex flex-wrap items-end gap-4">
         <fieldset>
@@ -243,7 +260,7 @@ export default function NuevoPedido({ canales, listas }: { canales: Canal[]; lis
 
       <div className="flex flex-wrap items-end gap-4">
         <label><span className={ETIQUETA}>Canal</span>
-          <select name="canal" value={canal} className={CAMPO}
+          <select name="canal" value={canal} className={CAMPO} disabled={!!edicion} title={edicion ? "El canal no se cambia al editar" : undefined}
             onChange={(e) => { const c = Number(e.target.value); setCanal(c); void reprecio(c, clienteId); }}>
             {visibles.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select></label>
@@ -331,9 +348,9 @@ export default function NuevoPedido({ canales, listas }: { canales: Canal[]; lis
                       {l.disponible <= 0 && <span className="block text-[10px] text-[#C03420]">Sin stock disponible en el canal</span>}
                       {l.sugerido == null && <span className="block text-[10px] text-[#C03420]">Sin precio en la lista: escribilo</span>}
                     </td>
-                    <td className="py-1.5 px-2"><CampoNumero key={`c${l.clave}`} name={`l_${l.clave}_cantidad`} valor={1} tipo="entero" className={`${CAMPO} w-16`} /></td>
-                    <td className="py-1.5 px-2"><CampoNumero key={`p${l.clave}-${l.version}`} name={`l_${l.clave}_precio`} valor={l.sugerido} tipo={tipoPrecio} className={`${CAMPO} w-28`} /></td>
-                    <td className="py-1.5 px-2"><CampoNumero key={`d${l.clave}`} name={`l_${l.clave}_descuento`} valor={null} tipo="pct" placeholder="0,0" className={`${CAMPO} w-20`} /></td>
+                    <td className="py-1.5 px-2"><CampoNumero key={`c${l.clave}`} name={`l_${l.clave}_cantidad`} valor={l.cantidad ?? 1} tipo="entero" className={`${CAMPO} w-16`} /></td>
+                    <td className="py-1.5 px-2"><CampoNumero key={`p${l.clave}-${l.version}`} name={`l_${l.clave}_precio`} valor={l.precio !== undefined ? l.precio : l.sugerido} tipo={tipoPrecio} className={`${CAMPO} w-28`} /></td>
+                    <td className="py-1.5 px-2"><CampoNumero key={`d${l.clave}`} name={`l_${l.clave}_descuento`} valor={l.descuento ?? null} tipo="pct" placeholder="0,0" className={`${CAMPO} w-20`} /></td>
                     <td className="py-1.5 px-2 text-right tabular-nums whitespace-nowrap">{formatearNumero(subtotales[l.clave] ?? 0, tipoPrecio)}</td>
                     <td className="py-1.5 px-2 text-right whitespace-nowrap">
                       {borrando === l.clave ? (
@@ -374,10 +391,12 @@ export default function NuevoPedido({ canales, listas }: { canales: Canal[]; lis
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        {tipo === "presupuesto" ? (
+        {edicion && tipo === "pedido" ? (
+          <p className="text-[11px] text-[#5C6B76] content-start">El pago se maneja desde la ficha (Confirmar pago).</p>
+        ) : tipo === "presupuesto" ? (
           <fieldset className="grid gap-2 content-start">
             <label><span className={ETIQUETA}>Válido hasta</span>
-              <input type="date" name="vigencia" defaultValue={enUnaSemana()} className={CAMPO} required /></label>
+              <input type="date" name="vigencia" defaultValue={edicion?.vigencia ?? enUnaSemana()} className={CAMPO} required /></label>
             <p className="text-[11px] text-[#5C6B76]">No reserva stock ni pide pago. Desde su ficha se imprime y se pasa a pedido (ahí reserva el stock y queda con el pago pendiente).</p>
           </fieldset>
         ) : (
@@ -410,26 +429,27 @@ export default function NuevoPedido({ canales, listas }: { canales: Canal[]; lis
           </div>
           {entrega === "envio" && (
             <div key={cliente?.id ?? 0} className="grid grid-cols-6 gap-2 items-end">
-              <label className="col-span-4"><span className={ETIQUETA}>Calle</span><input name="calle" defaultValue={cliente?.direccion?.calle ?? ""} className={`${CAMPO} w-full`} /></label>
-              <label className="col-span-1"><span className={ETIQUETA}>Número</span><input name="numero" defaultValue={cliente?.direccion?.numero ?? ""} className={`${CAMPO} w-full`} /></label>
-              <label className="col-span-1"><span className={ETIQUETA}>Piso/depto</span><input name="piso_depto" className={`${CAMPO} w-full`} /></label>
-              <label className="col-span-3"><span className={ETIQUETA}>Localidad</span><input name="localidad" defaultValue={cliente?.direccion?.localidad ?? ""} className={`${CAMPO} w-full`} /></label>
-              <label className="col-span-2"><span className={ETIQUETA}>Provincia</span><input name="provincia" defaultValue={cliente?.direccion?.provincia ?? ""} className={`${CAMPO} w-full`} /></label>
-              <label className="col-span-1"><span className={ETIQUETA}>CP</span><input name="codigo_postal" defaultValue={cliente?.direccion?.codigo_postal ?? ""} className={`${CAMPO} w-full`} /></label>
-              <label className="col-span-4"><span className={ETIQUETA}>Referencia</span><input name="referencia" className={`${CAMPO} w-full`} /></label>
+              <label className="col-span-4"><span className={ETIQUETA}>Calle</span><input name="calle" defaultValue={dir.calle ?? ""} className={`${CAMPO} w-full`} /></label>
+              <label className="col-span-1"><span className={ETIQUETA}>Número</span><input name="numero" defaultValue={dir.numero ?? ""} className={`${CAMPO} w-full`} /></label>
+              <label className="col-span-1"><span className={ETIQUETA}>Piso/depto</span><input name="piso_depto" defaultValue={dir.piso_depto ?? ""} className={`${CAMPO} w-full`} /></label>
+              <label className="col-span-3"><span className={ETIQUETA}>Localidad</span><input name="localidad" defaultValue={dir.localidad ?? ""} className={`${CAMPO} w-full`} /></label>
+              <label className="col-span-2"><span className={ETIQUETA}>Provincia</span><input name="provincia" defaultValue={dir.provincia ?? ""} className={`${CAMPO} w-full`} /></label>
+              <label className="col-span-1"><span className={ETIQUETA}>CP</span><input name="codigo_postal" defaultValue={dir.codigo_postal ?? ""} className={`${CAMPO} w-full`} /></label>
+              <label className="col-span-4"><span className={ETIQUETA}>Referencia</span><input name="referencia" defaultValue={dir.referencia ?? ""} className={`${CAMPO} w-full`} /></label>
               <label className="col-span-2"><span className={ETIQUETA}>Costo del envío ({moneda === "USD" ? "US$" : "$"})</span>
-                <CampoNumero name="costo_envio" valor={null} tipo={tipoPrecio} className={`${CAMPO} w-full`} /></label>
+                <CampoNumero name="costo_envio" valor={edicion?.costoEnvio ?? null} tipo={tipoPrecio} className={`${CAMPO} w-full`} /></label>
             </div>
           )}
         </fieldset>
       </div>
 
       <label><span className={ETIQUETA}>Notas</span>
-        <textarea name="notas" rows={2} className={`${CAMPO} w-full`} /></label>
+        <textarea name="notas" rows={2} defaultValue={edicion?.notas ?? ""} className={`${CAMPO} w-full`} /></label>
 
       <div className="flex flex-wrap items-center justify-end gap-3">
+        {edicion && enviando && <span className="text-[#5C6B76]">Grabando…</span>}
         <span className="text-sm">Total: <b className="tabular-nums">{moneda === "USD" ? "US$" : "$"} {formatearNumero(total, tipoPrecio)}</b></span>
-        <button disabled={enviando || !lineas.length} className={`${PRIMARIO} disabled:opacity-60`}>{enviando ? "Creando…" : tipo === "presupuesto" ? "Crear presupuesto" : "Crear pedido"}</button>
+        {!edicion && <button disabled={enviando || !lineas.length} className={`${PRIMARIO} disabled:opacity-60`}>{enviando ? "Creando…" : tipo === "presupuesto" ? "Crear presupuesto" : "Crear pedido"}</button>}
       </div>
     </form>
   );

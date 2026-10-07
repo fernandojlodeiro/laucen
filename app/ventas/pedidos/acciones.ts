@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { camposCliente, prefiltroCliente } from "@/app/ventas/clientes/lista";
+import { editarPedido } from "@/lib/pedidos/editar";
 import { consulta, una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, numero, texto } from "@/lib/erp/acciones";
 import { crearPedidoAMano, type PedidoAMano } from "@/lib/pedidos/a-mano";
@@ -180,6 +181,48 @@ export async function accionNuevoPedido(fd: FormData): Promise<{ error: string }
   }
   revalidatePath("/ventas/pedidos");
   redirect(`/ventas/pedidos/${pedidoId}?ok=${encodeURIComponent(`${fd.get("tipo") === "presupuesto" ? "Presupuesto" : "Pedido"} ${pedidoId} creado.`)}`);
+}
+
+/** Graba la edición de un pedido o presupuesto (el lápiz de la ficha, Fer 7/10).
+ *  Mismo formulario que el alta; las líneas que ya estaban vienen sin precio
+ *  sugerido, así su precio se respeta tal cual. */
+export async function accionEditarPedido(fd: FormData): Promise<{ error: string }> {
+  const s = await entrarErp("pedidos_ver");
+  const pid = Number(fd.get("pedido_id")) || 0;
+  try {
+    const consumidorFinal = fd.get("quien") !== "cliente";
+    const clienteId = consumidorFinal ? null : Number(fd.get("cliente_id")) || null;
+    if (!consumidorFinal && !clienteId) throw new ErrorErp("Elegí el cliente (o marcá «Consumidor final»).");
+    const lineas = [];
+    for (const [i, clave] of fd.getAll("linea").map(String).entries()) {
+      const precio = numero(fd, `l_${clave}_precio`);
+      const sugerido = numero(fd, `l_${clave}_sugerido`);
+      if (precio == null) throw new ErrorErp(`Línea ${i + 1}: falta el precio.`);
+      const cantidad = numero(fd, `l_${clave}_cantidad`) ?? 0;
+      if (!Number.isInteger(cantidad) || cantidad <= 0) throw new ErrorErp(`Línea ${i + 1}: la cantidad tiene que ser un entero mayor que cero.`);
+      const deLista = sugerido != null && Math.abs(precio - sugerido) < 0.005;
+      lineas.push({ variacion_id: Number(fd.get(`l_${clave}_variacion`)) || null, cantidad,
+        precio_unitario: deLista ? null : precio, descuento_pct: numero(fd, `l_${clave}_descuento`) || null });
+    }
+    const entrega = fd.get("entrega") === "envio" ? "envio" : "retiro";
+    await editarPedido(s.org.id, pid, s.usuario.id, {
+      clienteId, lineas, entrega,
+      moneda: fd.get("moneda") === "USD" ? "USD" : fd.get("moneda") === "ARS" ? "ARS" : null,
+      listaId: Number(fd.get("lista_id")) || null,
+      direccion: entrega === "envio" ? {
+        calle: texto(fd, "calle"), numero: texto(fd, "numero"), piso_depto: texto(fd, "piso_depto"), localidad: texto(fd, "localidad"),
+        provincia: texto(fd, "provincia"), codigo_postal: texto(fd, "codigo_postal"), referencia: texto(fd, "referencia"),
+      } : null,
+      costoEnvio: entrega === "envio" ? numero(fd, "costo_envio") : null,
+      notas: texto(fd, "notas"),
+      vigencia: texto(fd, "vigencia"),
+    });
+  } catch (e) {
+    return { error: motivoErp(e) };
+  }
+  revalidatePath("/ventas/pedidos");
+  revalidatePath(`/ventas/pedidos/${pid}`);
+  redirect(`/ventas/pedidos/${pid}?ok=${encodeURIComponent("Grabado.")}`);
 }
 
 /** Une los carritos de Mercado Libre que quedaron partidos en varios pedidos
