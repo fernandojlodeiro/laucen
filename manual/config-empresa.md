@@ -12,6 +12,7 @@ resumen: Los datos generales de la empresa (nombre de fantasía, logo, contacto,
 Es la ficha de la propia empresa. Tiene:
 
 - **Datos generales**: el nombre de fantasía, el logo y los datos de contacto y dirección (se edita con su lápiz).
+- **Pedidos**: los **días de reserva sin pagar** (se edita con su lápiz).
 - **Datos fiscales**: sólo un resumen de las razones sociales (CUIT, condición IVA, punto de venta). Los datos fiscales de cada CUIT —razón social, CUIT, condición frente al IVA, domicilio comercial, Ingresos Brutos, inicio de actividades y punto de venta— se cargan y se editan en [Razones sociales](/config/razones-sociales).
 
 El logo es lo que más se ve: sale en el PDF de las facturas y en la tienda web cuando la tienda no tiene un logo propio. Los datos fiscales salen en las facturas y en el pie de la tienda web (razón social, CUIT, condición IVA y domicilio).
@@ -38,6 +39,12 @@ A la derecha del título está el **lápiz** para editarla. Campos:
 - **WhatsApp**: en formato internacional, sin "+" ni espacios (ej. 5493511234567).
 - **Web**: ej. laucen.com.ar.
 - **Dirección**, **Localidad**, **Provincia**, **Código postal**.
+
+### Caja "Pedidos"
+
+A la derecha del título, su **lápiz**. Un solo dato:
+
+- **Días de reserva sin pagar** (7 de entrada): cuántos días se le guarda el stock a un pedido Nuevo sin pagar. Al terminar el último día, si sigue sin pagar, se cancela solo. Va de 1 a 90, sin decimales; si no, dice "Los días de reserva van de 1 a 90, sin decimales.". El detalle, en [Pedidos](/ventas/pedidos) ("Reserva de un pedido sin pagar").
 
 ### Caja "Datos fiscales" (sólo lectura)
 

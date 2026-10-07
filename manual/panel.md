@@ -22,6 +22,7 @@ Una tabla centrada con **una columna por cuenta de Mercado Libre**, una **Web** 
 
 - **Etiquetas para imprimir**: envíos por despachar con la etiqueta sin imprimir (y cuántos son para hoy o están vencidos). Enlace: [Envíos](/ventas/envios).
 - **Pedidos para preparar**: los pendientes de [Pedidos](/ventas/pedidos) (nuevos o pagados), sin los carritos que todavía esperan. El número chico es el total sin despachar (los para preparar, los en preparación y los preparados); debajo, cuántos están "en preparación".
+- **Reservados sin pagar**: pedidos Nuevos sin pagar que tienen el stock apartado; debajo, cuántos vencen hoy o mañana (si hay, el número sale en rojo). Al terminar el último día de la reserva se cancelan solos. Lleva a [Pedidos](/ventas/pedidos?reserva=1) filtrado.
 - **Pedidos para despachar**: los **preparados** que todavía no salieron (tocándolo, la lista de pedidos en estado Preparado). Debajo, el plazo más cercano para entregarlos, por ejemplo "antes de hoy 16:30" (es el "despachar antes de" de la etiqueta de Mercado Libre; cada cuenta tiene el suyo), y cuántos ya vencieron.
 - **Preguntas para responder** y **Mensajes para responder** (sólo de Mercado Libre). Enlace: [Preguntas y mensajes](/ventas/preguntas).
 - **Reclamos para atender** y **Devoluciones**: el número grande son los abiertos; el chico, "de N en 60 días", cuántos hubo en los últimos 60 días (la misma ventana con la que Mercado Libre mide la reputación). Enlace: [Reclamos y devoluciones](/ventas/reclamos).

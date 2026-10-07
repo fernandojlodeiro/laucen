@@ -17,12 +17,12 @@ import { LISTA_PEDIDOS, filtrosPedidos, TODAS_LAS_FECHAS } from "./lista";
 
 export const dynamic = "force-dynamic";
 
-type SP = { ok?: string; error?: string; estado?: string; canal?: string; pago?: string; desde?: string; hasta?: string; q?: string; cliente?: string; p?: string; orden?: string; dir?: string; pend?: string; canc?: string };
+type SP = { ok?: string; error?: string; estado?: string; canal?: string; pago?: string; desde?: string; hasta?: string; q?: string; cliente?: string; p?: string; orden?: string; dir?: string; pend?: string; canc?: string; reserva?: string };
 
 export default async function Pedidos({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("pedidos_ver");
   const sp = await searchParams;
-  const { estado, pago, canal, desde, hasta, q, cliente, conPendiente, canceladas } = filtrosPedidos(sp);
+  const { estado, pago, canal, desde, hasta, q, cliente, conPendiente, canceladas, reserva } = filtrosPedidos(sp);
   const ctx = { org: s.org.id, moneda: s.moneda };
   const [canales, vista, aMano, listas] = await Promise.all([
     consulta<{ id: number; nombre: string }>("select id::int, nombre from canal where organizacion_id = $1 order by nombre", [s.org.id]),
@@ -36,7 +36,7 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
       "select id::int, nombre, moneda_base moneda from lista_precios where organizacion_id = $1 and estado = 'activa' order by orden, nombre", [s.org.id]),
   ]);
   // Las fechas de entrada (la última semana) no cuentan como filtro.
-  const hayFiltro = !!(estado || pago || canal || sp.desde !== undefined || sp.hasta !== undefined || q || cliente || conPendiente || canceladas);
+  const hayFiltro = !!(estado || pago || canal || sp.desde !== undefined || sp.hasta !== undefined || q || cliente || conPendiente || canceladas || reserva);
 
   return (
     <Pantalla titulo="Pedidos y presupuestos" subtitulo="Los pedidos de todos los canales y los presupuestos del local"
@@ -67,6 +67,8 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
         <CasillaViva parametro="pend" activo={conPendiente} etiqueta="Con algo pendiente"
           ayuda="Lo que todavía no terminó: sin entregar, sin cobrar o sin facturar (no los cancelados ni devueltos)." />
         <CasillaViva parametro="canc" activo={canceladas} etiqueta="Incluye canceladas" />
+        <CasillaViva parametro="reserva" activo={reserva} etiqueta="Reservados sin pagar"
+          ayuda="Nuevos sin pagar que guardan stock; al terminar el último día de la reserva se cancelan solos." />
         {hayFiltro && <Link href="/ventas/pedidos" className={SUAVE}>Limpiar filtros</Link>}
       </div>
       <div className="flex justify-end mb-2">{vista.selector}</div>

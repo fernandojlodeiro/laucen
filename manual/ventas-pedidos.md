@@ -41,6 +41,7 @@ Los pedidos de Mercado Libre **entran solos** y se mueven solos según lo que pa
 - **"Fechas"**: rango con atajos (Hoy, Ayer, Últimos 7 días…) o **"Todas las fechas"**. **De entrada, la última semana** ("Últimos 7 días"). Si se entra con un estado elegido (por ejemplo desde el contador "Pedidos a preparar") o desde un cliente, sin fechas: todas.
 - **"Con algo pendiente"** (caja para tildar): sólo los pedidos que todavía no terminaron: los que no están entregados, o están entregados pero sin cobrar o sin facturar. Los cancelados y devueltos nunca entran.
 - **"Incluye canceladas"** (caja para tildar): de entrada **los cancelados no se muestran**; tildándola, sí. Si elegís el estado "Cancelado", se muestran igual.
+- **"Reservados sin pagar"** (caja para tildar): sólo los pedidos **Nuevos sin pagar que tienen el stock apartado** (ver "Reserva de un pedido sin pagar"), sin importar la fecha, del que vence antes al último. Es adonde lleva la fila "Reservados sin pagar" de [Para hacer](/panel).
 - **"Limpiar filtros"**: aparece cuando hay algún filtro puesto; vuelve a la lista de entrada (todos los estados, última semana, sin cancelados).
 
 **"Vista"** (arriba de la tabla, a la derecha): elegí qué columnas ver; **"⚙ Configurar vistas…"** para armar otras.
@@ -55,7 +56,7 @@ Los pedidos de Mercado Libre **entran solos** y se mueven solos según lo que pa
 | **Cant.** · **Producto** · **Precio** | lo que se vendió, **un renglón por producto** (un carrito con tres productos ocupa tres renglones, bien juntos): la cantidad, el producto con su foto (tocándola se ven todas; el nombre abre la ficha del producto) y el precio unitario |
 | **Total** | en la moneda que estés viendo |
 | **Canal** | el canal; tocándolo filtra la lista por ese canal |
-| **Estado** | el estado del pedido; si es un carrito de Mercado Libre en espera, al lado dice **"Carrito en espera · faltan N min"** |
+| **Estado** | el estado del pedido; si es un carrito de Mercado Libre en espera, al lado dice **"Carrito en espera · faltan N min"**; si es un pedido sin pagar con stock apartado, al lado dice **"reserva hasta DD/MM"** (en rojo si vence hoy o mañana) |
 | **Pago** | un **✓ verde** si está pagado; si no, una **✗ roja** (al pasar el mouse dice cuál: Pendiente, A cobrar, A convenir, Reembolsado) |
 | **Factura** | si está facturado, la letra y el número de la factura, corto (ej. "B 1234"; al pasar el mouse, el número completo), con enlace para verla; si no, "—". En el Excel va completo ("Factura B 00002-00001234") |
 
@@ -176,7 +177,16 @@ Errores típicos: "Elegí el cliente (o marcá «Consumidor final»).", "Línea 
    - Si elegiste la nota de crédito, se emite por el total de la factura.
 4. Si algún paso falla (por ejemplo OCA o Payway no responden), el cartel sale en rojo diciendo cuál. El pedido queda cancelado igual; lo que falló se hace a mano: "Anular en OCA" en el pedido, la devolución en el panel de Payway, o "Anular con nota de crédito" en la factura.
 
-Un pedido cancelado no cambia más de estado.
+Un pedido cancelado no cambia más de estado, salvo que se lo **levante** (abajo).
+
+### Levantar un pedido cancelado
+
+Para cuando el cliente se arrepiente o se canceló por error (no para las ventas de Mercado Libre: esas las maneja Mercado Libre).
+
+1. En la ficha del pedido cancelado, arriba a la derecha, apretá **"Levantar pedido"**. Pregunta "¿Levantar el pedido? Vuelve a Nuevo y reserva el stock otra vez (si falta algo, te aviso)." Confirmá.
+2. Corre de fondo. El pedido vuelve a **Nuevo** y **reserva el stock otra vez**. Si el pago había quedado "Reembolsado", vuelve a "Pendiente". Si no está pago, la reserva tiene otra vez sus días completos (los de [Empresa](/config/empresa)).
+3. El cartel dice "Pedido N levantado…". **Si de algún producto ya no alcanza el stock**, el cartel avisa **"OJO: no alcanza el stock de …"** con los SKU: el pedido se levanta igual y lo que falta queda reservado en negativo (como un pedido que entró sin stock); hay que reponerlo o sacarlo del pedido con el lápiz.
+4. En el historial queda "pedido levantado (se volvió a reservar el stock)".
 
 ### Facturar un pedido
 
@@ -265,6 +275,16 @@ Un **presupuesto** es igual a un pedido (cliente, productos, precios, envío, to
 
 - **Todo pedido reserva su stock al nacer**, entre por donde entre (tienda web, carga a mano, API) y **esté pago o no**: lo aparta para que no se venda dos veces. El disponible baja, pero las unidades siguen en el estante. **Lo único que no reserva es un presupuesto.** Que no esté pago no lo manda a preparar: un pedido sin pagar (por ejemplo, transferencia o Mercado Pago pendiente) tiene su stock apartado pero entra en picking recién cuando se confirma el pago (los «A cobrar» y a convenir entran sin esperarlo).
 - **Mercado Libre**: sus ventas reservan al pasar a pagado (llegan pagas casi siempre).
+
+### Reserva de un pedido sin pagar (vencimiento)
+
+- Un pedido **Nuevo sin pagar** (pago pendiente o «A cobrar», de la tienda web o cargado a mano) guarda su stock **una cantidad de días**: los que dice **"Días de reserva sin pagar"** en [Configuración › Empresa](/config/empresa) (**7 de entrada**). Se cuentan desde que nace el pedido (o desde que un presupuesto pasa a pedido, o desde que se levanta un cancelado).
+- En la ficha, en "Operación", dice **"Stock reservado hasta el DD/MM (faltan N días)"**; en rojo si vence hoy o mañana.
+- **El último día vale entero**: al terminar ese día, si sigue Nuevo y sin pagar y no entró en un lote de picking, **se cancela solo** (Laucen lo revisa cada media hora) y libera el stock. En el historial queda "venció la reserva (sin pagar hasta el DD/MM)". No pasa a presupuesto: queda **Cancelado**, y se puede **levantar** si el cliente vuelve.
+- Al pagarse, la reserva deja de vencer: el stock queda apartado hasta que se despacha.
+- Las ventas de Mercado Libre y los pedidos ya pagos no vencen.
+- Cambiar los días en Empresa vale para los pedidos nuevos; los que ya estaban siguen con su fecha.
+- **Todavía no**: avisarle al cliente por WhatsApp y mail 48 horas antes y el día del vencimiento (está anotado para más adelante).
 - **Al llegar a Despachado** (o directamente a Entregado), la reserva se convierte en **venta**: ahí sale del stock.
 - **Al cancelar o devolver**, se **libera** lo que siga reservado (vuelve a estar disponible). Lo que ya se había vendido (un pedido despachado) no vuelve solo: la mercadería que regresa entra por la recepción de la devolución.
 - **De qué depósito sale**: el que tenga el pedido; si no tiene, el primer depósito activo asignado al canal (por prioridad); si el canal no tiene, el primer depósito activo de la organización (los propios primero). Las ventas de Mercado Libre por **Full** salen del depósito Full del canal.

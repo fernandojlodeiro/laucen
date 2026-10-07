@@ -260,6 +260,9 @@ alter table pedido add column if not exists reservado_ts timestamptz;
 -- con el pago pendiente, y reserva; «Pasar a presupuesto» libera la reserva
 -- (sólo si no está pago ni en preparación). vigencia = hasta cuándo vale.
 alter table pedido add column if not exists vigencia date;
+-- Hasta qué día (inclusive) se le guarda el stock a un pedido sin pagar (Fer, 7/10). Pasado ese
+-- día, si sigue Nuevo y sin pagar, se cancela solo (lib/pedidos/reserva.ts, desde el barrido).
+alter table pedido add column if not exists reserva_hasta date;
 -- La lista de precios con que se armó (Fer, 7/10: se elige al cargarlo a mano).
 alter table pedido add column if not exists lista_precios_id bigint references lista_precios(id) on delete set null;
 do $$ begin
@@ -528,4 +531,28 @@ begin
   delete from envio where pedido_id = p.id;
   delete from evento where organizacion_id = p_org and payload ->> 'pedido_id' = ref;
   delete from pedido where id = p.id;  -- líneas, historial, pagos y picking se van en cascada
+end $$;
+
+/** Levantar un pedido cancelado (Fer, 7/10: el cliente se arrepiente, o se
+ *  canceló por error): vuelve a Nuevo y reserva el stock otra vez (si falta,
+ *  queda en negativo y la pantalla avisa). No para las ventas de Mercado Libre
+ *  (las cancela y las levanta Mercado Libre). Un pago devuelto vuelve a pendiente. */
+create or replace function public.reactivar_pedido(p_org text, p_pedido bigint, p_quien text, p_reserva_hasta date default null)
+returns void language plpgsql as $$
+declare p pedido%rowtype; tipo_canal text;
+begin
+  select * into p from pedido where id = p_pedido and organizacion_id = p_org for update;
+  if not found then raise exception 'el pedido % no existe', p_pedido using errcode = 'P0001'; end if;
+  select c.tipo into tipo_canal from canal c where c.id = p.canal_id;
+  if p.estado <> 'cancelado' then raise exception 'sólo se levanta un pedido cancelado' using errcode = 'P0001'; end if;
+  if tipo_canal = 'mercadolibre' then raise exception 'una venta de Mercado Libre la levanta Mercado Libre' using errcode = 'P0001'; end if;
+  update pedido set estado = 'nuevo', reservado_ts = null,
+         estado_pago = case when estado_pago = 'reembolsado' then 'pendiente' else estado_pago end,
+         reserva_hasta = case when estado_pago in ('pendiente', 'a_cobrar', 'reembolsado') then p_reserva_hasta else null end
+   where id = p.id;
+  insert into pedido_estado_historial (organizacion_id, pedido_id, estado_anterior, estado_nuevo, quien, nota)
+  values (p_org, p.id, 'cancelado', 'nuevo', p_quien, 'pedido levantado (se volvió a reservar el stock)');
+  perform emitir_evento(p_org, 'pedido_estado_cambiado', jsonb_build_object(
+    'pedido_id', p.id, 'canal_id', p.canal_id, 'anterior', 'cancelado', 'nuevo', 'nuevo', 'quien', p_quien));
+  perform reservar_pedido(p_org, p.id, p_quien);
 end $$;

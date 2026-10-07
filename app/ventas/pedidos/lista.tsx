@@ -1,6 +1,7 @@
 // Pedidos como lista configurable (lib/listas/tipos.ts): catálogo de campos y
 // la consulta con los filtros de la pantalla (la comparten la pantalla y su Excel).
 
+import { sqlReservaSinPagar } from "@/lib/pedidos/reserva";
 import Link from "next/link";
 import { Estado, url } from "@/app/componentes/erp";
 import { enMoneda, enVista, formatear } from "@/lib/moneda";
@@ -30,7 +31,7 @@ export const TODAS_LAS_FECHAS = "todas";
 export function filtrosPedidos(sp: SP) {
   // La última semana sólo de entrada: con un estado elegido (ej. los pendientes de la barra) o un
   // cliente (desde su ficha), sin fechas = todas.
-  const sinFechas = sp.desde === undefined && sp.hasta === undefined && !sp.estado && !sp.cliente;
+  const sinFechas = sp.desde === undefined && sp.hasta === undefined && !sp.estado && !sp.cliente && sp.reserva !== "1";
   const semana = rangoDeAtajo("7dias", hoyArgentina());
   return {
     // Sin elegir, todos (Fer, 6/10); "pendientes" sigue andando (lo usa el contador de la barra).
@@ -44,6 +45,8 @@ export function filtrosPedidos(sp: SP) {
     // «Con algo pendiente» y «Incluye canceladas» (Fer, 6/10): de entrada, sin las canceladas.
     conPendiente: sp.pend === "1",
     canceladas: sp.canc === "1",
+    // «Reservados sin pagar» (Fer, 7/10; lo usa la fila del tablero): guardan stock y vencen solos.
+    reserva: sp.reserva === "1",
   };
 }
 
@@ -55,6 +58,7 @@ export function filtrosEnlace(sp: SP) {
     desde: sp.desde === undefined && sp.hasta === undefined ? null : sp.desde === TODAS_LAS_FECHAS ? TODAS_LAS_FECHAS : f.desde || null,
     hasta: sp.desde === undefined && sp.hasta === undefined ? null : f.hasta || null,
     conPendiente: null, canceladas: null, pend: f.conPendiente ? "1" : null, canc: f.canceladas ? "1" : null,
+    reserva: f.reserva ? "1" : null,
   };
 }
 
@@ -134,7 +138,9 @@ const CAMPOS: Campo[] = [
   {
     clave: "estado", titulo: "Estado", sql: "p.estado", valor: traducido("estado", ESTADOS_PEDIDO),
     // Un carrito de ML en espera (10 min desde su último evento) lo dice al lado.
-    celda: (f) => <span className="inline-flex flex-wrap gap-1"><Estado texto={etiqueta(ESTADOS_PEDIDO, f.estado)} tono={TONO_ESTADO[f.estado as EstadoPedido] ?? "gris"} /><MarcaCarritoEspera ts={f.espera_ts} /></span>,
+    celda: (f) => <span className="inline-flex flex-wrap gap-1"><Estado texto={etiqueta(ESTADOS_PEDIDO, f.estado)} tono={TONO_ESTADO[f.estado as EstadoPedido] ?? "gris"} /><MarcaCarritoEspera ts={f.espera_ts} />
+      {/* Sin pagar con stock guardado: hasta cuándo (en rojo si vence hoy o mañana). */}
+      {f.reserva_hasta ? <span className={`text-[11px] ${Number(f.reserva_faltan) <= 1 ? "text-[#C03420] font-semibold" : "text-[#5C6B76]"}`} title="Stock reservado sin pagar: al terminar ese día se cancela solo">reserva hasta {String(f.reserva_hasta)}</span> : null}</span>,
   },
   {
     // «A cobrar» (efectivo al retirar): los viejos con pago pendiente en efectivo también.
@@ -200,7 +206,9 @@ export const LISTA_PEDIDOS: Lista = {
   campos: CAMPOS,
   // Nº, fecha, cliente, lo que compró (cantidad, producto, precio), total, canal, estado, pago y factura (Fer, 6/10).
   enPantalla: ["id", "fecha", "cliente", "cantidades", "productos", "precios", "total", "canal", "estado", "pago", "factura"],
-  siempre: "p.id::int id, p.canal_id::int canal_id, p.cliente_id::int cliente_id, p.carrito_ultimo_evento_ts espera_ts, p.moneda moneda_pedido",
+  siempre: `p.id::int id, p.canal_id::int canal_id, p.cliente_id::int cliente_id, p.carrito_ultimo_evento_ts espera_ts, p.moneda moneda_pedido,
+    case when ${sqlReservaSinPagar("p")} then to_char(p.reserva_hasta, 'DD/MM') end reserva_hasta,
+    case when ${sqlReservaSinPagar("p")} then (p.reserva_hasta - (now() at time zone 'America/Argentina/Buenos_Aires')::date)::int end reserva_faltan`,
   consulta: async (ctx, sp) => {
     const f = filtrosPedidos(sp);
     const valores: unknown[] = [ctx.org];
@@ -210,6 +218,7 @@ export const LISTA_PEDIDOS: Lista = {
     if (f.estado === "pendientes") donde.push(sqlPedidoPendiente("p"));
     else if (f.estado) agregar((p) => `p.estado = ${p}`, f.estado);
     if (f.conPendiente) donde.push(SQL_ALGO_PENDIENTE);
+    if (f.reserva) donde.push(sqlReservaSinPagar("p"));
     // Sin las canceladas, salvo que se tilde «Incluye canceladas» o se elija ese estado.
     if (!f.canceladas && f.estado !== "cancelado") donde.push("p.estado <> 'cancelado'");
     if (f.pago) agregar((p) => `${sqlEstadoPago("p")} = ${p}`, f.pago);
@@ -232,7 +241,8 @@ export const LISTA_PEDIDOS: Lista = {
       donde: condicion,
       valores,
       // Los pendientes, del más viejo al más nuevo (se preparan en orden de llegada).
-      orden: f.estado === "pendientes" ? "p.fecha, p.id" : "p.fecha desc, p.id desc",
+      // Los reservados, del que vence antes al último.
+      orden: f.estado === "pendientes" ? "p.fecha, p.id" : f.reserva ? "p.reserva_hasta, p.id" : "p.fecha desc, p.id desc",
     };
   },
 };

@@ -16,6 +16,7 @@ import { pasarAPedido, pasarAPresupuesto, cambiarVigencia } from "@/lib/pedidos/
 import { altaOca, anularOca, envioOcaDe, seguirEnvio } from "@/lib/oca/envios";
 import { cancelarPedido } from "@/lib/pedidos/cancelar";
 import { clientePresenteRetira } from "@/lib/pedidos/retiro";
+import { reactivarPedido } from "@/lib/pedidos/reserva";
 
 export async function accionFacturar(fd: FormData) {
   const s = await entrarErp("facturacion_ver");
@@ -225,5 +226,18 @@ export async function accionEliminarPedido(fd: FormData) {
     await una("select eliminar_pedido($1, $2::bigint)", [s.org.id, pid]);
     revalidatePath("/ventas/pedidos");
     return { ir: `/ventas/pedidos?ok=${encodeURIComponent(`Se eliminó el ${pid}: no quedó nada de él.`)}` };
+  });
+}
+
+/** Levantar un pedido cancelado (Fer, 7/10): vuelve a Nuevo y reserva otra vez; avisa lo que quedó sin stock. */
+export async function accionLevantarPedido(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  return deFondo(s, `levantar-pedido-${pid}`, `Levantar el pedido ${pid}`, async () => {
+    const faltan = await reactivarPedido(s.org.id, pid, s.usuario.id);
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    return faltan.length
+      ? `Pedido ${pid} levantado, pero OJO: no alcanza el stock de ${faltan.join(", ")}. Quedó reservado igual (en negativo): reponelo o sacalo del pedido.`
+      : `Pedido ${pid} levantado: volvió a Nuevo y el stock quedó reservado.`;
   });
 }

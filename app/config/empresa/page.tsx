@@ -11,7 +11,8 @@ import { cuitLegible } from "@/lib/cuit";
 import { SUAVE } from "@/app/botones";
 import { entrarErp, Pantalla, Avisos, Dato, BotonesFicha, TituloSeccion, editandoFicha, CAMPO, ETIQUETA, CAJA } from "@/app/componentes/erp";
 import SubirImagen from "@/app/config/tienda/SubirImagen";
-import { accionGuardarEmpresa } from "./acciones";
+import CampoNumero from "@/app/componentes/CampoNumero";
+import { accionGuardarEmpresa, accionGuardarPedidos } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -19,21 +20,25 @@ type SP = { editar?: string; ok?: string; error?: string };
 type Empresa = {
   nombre_fantasia: string | null; logo: string | null; email: string | null; telefono: string | null; whatsapp: string | null; web: string | null;
   direccion: string | null; localidad: string | null; provincia: string | null; codigo_postal: string | null;
+  dias_reserva: number | null;
 };
 
 const AYUDA = "block text-[11px] text-[#5C6B76] mt-0.5";
+const AYUDA_RESERVA = "Cuántos días se le guarda el stock a un pedido sin pagar. Al terminar el último día, si sigue sin pagar, se cancela solo. Entre 1 y 90.";
 
 export default async function ConfigEmpresa({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("empresa_config");
   const sp = await searchParams;
   const [emp, razones] = await Promise.all([
-    una<Empresa>(`select nombre_fantasia, logo, email, telefono, whatsapp, web, direccion, localidad, provincia, codigo_postal
+    una<Empresa>(`select nombre_fantasia, logo, email, telefono, whatsapp, web, direccion, localidad, provincia, codigo_postal, dias_reserva
                     from empresa where organizacion_id = $1`, [s.org.id]),
     emisoresDe(s.org.id),
   ]);
   const v = (k: keyof Empresa) => emp?.[k] ?? "";
   const VOLVER = "/config/empresa";
   const general = editandoFicha(sp, "general");
+  const pedidos = editandoFicha(sp, "pedidos");
+  const dias = emp?.dias_reserva ?? 7;
   const CONDICION: Record<string, string> = { responsable_inscripto: "Responsable inscripto", monotributo: "Monotributo", exento: "Exento" };
 
   return (
@@ -84,6 +89,22 @@ export default async function ConfigEmpresa({ searchParams }: { searchParams: Pr
         <label><span className={ETIQUETA}>Código postal</span>
           <input name="codigo_postal" defaultValue={v("codigo_postal")} className={`${CAMPO} w-full`} /></label>
       </form>
+      )}
+
+      {/* Pedidos (Fer, 7/10): cuántos días se guarda el stock de un pedido sin pagar (lib/pedidos/reserva.ts). */}
+      <TituloSeccion titulo="Pedidos">
+        <BotonesFicha editando={pedidos} ver={VOLVER} editar={`${VOLVER}?editar=pedidos`} form="ficha-pedidos" />
+      </TituloSeccion>
+      {!pedidos ? (
+        <div className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start mb-5`}>
+          <Dato etiqueta="Días de reserva sin pagar" numero ayuda={AYUDA_RESERVA}>{dias}</Dato>
+        </div>
+      ) : (
+        <form id="ficha-pedidos" action={accionGuardarPedidos} className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start mb-5`}>
+          <label><span className={ETIQUETA}>Días de reserva sin pagar</span>
+            <CampoNumero name="dias_reserva" valor={dias} tipo="entero" className={`${CAMPO} w-full`} />
+            <span className={AYUDA}>{AYUDA_RESERVA}</span></label>
+        </form>
       )}
 
       <TituloSeccion titulo="Datos fiscales">

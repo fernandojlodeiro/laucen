@@ -2,6 +2,7 @@
 // de ML los mueve ML): confirmar el pago, pasarlo al estado siguiente, avisar
 // al cliente por WhatsApp. Y los pagos del pedido (de cualquier canal).
 
+import { vencimientoDe } from "@/lib/pedidos/reserva";
 import { queArrastraCancelar, motivoNoCancelable } from "@/lib/pedidos/cancelar";
 import { consulta, una } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
@@ -75,6 +76,7 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
       left join metodo_envio me on me.id = p.metodo_envio_id
      where p.id = $1 and p.organizacion_id = $2`, [pid, org]);
   if (!p) return null;
+  const vence = await vencimientoDe(org, pid);
   const pagos = await consulta<{ id: number; medio: string; estado: string; importe: number; cuotas: number; detalle: string | null; fecha: Date }>(`
     select id::int, medio, estado, importe_ars::float importe, cuotas, detalle, creado_ts fecha from pago
      where pedido_id = $1 and organizacion_id = $2 order by creado_ts, id`, [pid, org]);
@@ -221,6 +223,13 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
           </div>
         )}
         {p.estado === "nuevo" && pagoPendiente && !p.sin_esperar && <p className="text-[11px] text-[#5C6B76]">El stock ya está reservado. Al confirmar el pago pasa a «A preparar» y entra en picking.</p>}
+        {/* Sin pagar: hasta cuándo se guarda el stock (lib/pedidos/reserva.ts); en rojo si vence hoy o mañana. */}
+        {vence && (
+          <p className={`text-xs mt-1 ${vence.faltan <= 1 ? "text-[#C03420] font-semibold" : "text-[#5C6B76]"}`}>
+            Stock reservado hasta el {vence.hasta.split("-").reverse().join("/")} ({vence.faltan <= 0 ? "vence hoy" : vence.faltan === 1 ? "vence mañana" : `faltan ${vence.faltan} días`}).
+            Si al terminar ese día sigue sin pagar, se cancela solo.
+          </p>
+        )}
         {aCobrar && <p className="text-[11px] text-[#5C6B76]">El stock ya está reservado y el pedido entra en picking sin esperar el pago. Se factura cuando confirmás el cobro.</p>}
       </div>
       {pagos.length > 0 && <><h2 className="text-sm font-bold mb-2">Pagos</h2><div className="mb-4">{TablaPagos}</div></>}

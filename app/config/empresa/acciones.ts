@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto } from "@/lib/erp/acciones";
+import { leerNumero } from "@/lib/numeros";
 
 const VOLVER = "/config/empresa";
 const CLAVES = ["nombre_fantasia", "logo", "email", "telefono", "whatsapp", "web", "direccion", "localidad", "provincia", "codigo_postal"] as const;
@@ -28,6 +29,19 @@ export async function accionGuardarEmpresa(fd: FormData) {
       insert into empresa (organizacion_id, ${CLAVES.join(", ")}) values ($1, ${CLAVES.map((_, i) => `$${i + 2}`).join(", ")})
       on conflict (organizacion_id) do update set ${CLAVES.map((k) => `${k} = excluded.${k}`).join(", ")}, actualizado_ts = now()`,
       [s.org.id, ...CLAVES.map((k) => v[k])]);
+    revalidatePath(VOLVER);
+    return "Guardado.";
+  });
+}
+
+/** Pedidos: los días que se guarda el stock de un pedido sin pagar (lib/pedidos/reserva.ts). */
+export async function accionGuardarPedidos(fd: FormData) {
+  const s = await entrarErp("empresa_config");
+  await intentar(VOLVER, async () => {
+    const dias = leerNumero(fd.get("dias_reserva"));
+    if (dias == null || !Number.isInteger(dias) || dias < 1 || dias > 90) throw new ErrorErp("Los días de reserva van de 1 a 90, sin decimales.");
+    await consulta(`insert into empresa (organizacion_id, dias_reserva) values ($1, $2)
+                    on conflict (organizacion_id) do update set dias_reserva = excluded.dias_reserva, actualizado_ts = now()`, [s.org.id, dias]);
     revalidatePath(VOLVER);
     return "Guardado.";
   });

@@ -2,6 +2,7 @@
 // 7/10: «los botones siempre arriba a la derecha, donde iría Nuevo»):
 //   presupuesto: Imprimir · Pasar a pedido · Cancelar presupuesto · WhatsApp · lápiz
 //   pedido:      Pasar a presupuesto · Cancelar pedido · WhatsApp · lápiz
+//   cancelado:   Levantar pedido (vuelve a Nuevo y reserva otra vez)
 // El lápiz sólo si se puede editar (lib/pedidos/editar.ts). Lo que pide datos
 // (confirmar pago, el estado siguiente con su nota) sigue en «Operación».
 
@@ -18,7 +19,7 @@ import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import CancelarPedido from "./CancelarPedido";
 import CancelarMl from "./CancelarMl";
 import { mensaje, telefonoWhatsapp } from "./Operacion";
-import { accionPasarAPedido, accionPasarAPresupuesto, accionEliminarPedido } from "./acciones";
+import { accionPasarAPedido, accionPasarAPresupuesto, accionEliminarPedido, accionLevantarPedido } from "./acciones";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 
 const CERRADOS: EstadoPedido[] = ["entregado", "cancelado", "devuelto"];
@@ -85,9 +86,15 @@ export default async function AccionesPedido({ org, pid, editable, superadmin = 
     );
   }
   const aPresupuesto = !(await motivoNoPresupuesto(org, pid));
+  // Levantar un pedido cancelado (Fer, 7/10): el cliente se arrepintió o se canceló por error.
+  const levantar = p.estado === "cancelado"
+    ? <BotonTarea accion={accionLevantarPedido} tipo={`levantar-pedido-${pid}`} texto="Levantar pedido" clase={VERDE} campos={{ pedido_id: String(pid) }}
+        pregunta="¿Levantar el pedido? Vuelve a Nuevo y reserva el stock otra vez (si falta algo, te aviso)." />
+    : null;
   return (
     <>
       {imprimir}
+      {levantar}
       {aPresupuesto && (
         <BotonTarea accion={accionPasarAPresupuesto} tipo={`pedido-a-presupuesto-${pid}`} texto="Pasar a presupuesto" clase={SUAVE} campos={{ pedido_id: String(pid) }}
           pregunta="¿Pasarlo a presupuesto? Se libera el stock reservado." />

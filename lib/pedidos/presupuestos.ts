@@ -8,6 +8,7 @@
 
 import { una, ErrorErp } from "@/lib/erp/base";
 import { avisarStockMl } from "@/lib/tienda/pagos/confirmar";
+import { fijarVencimiento } from "@/lib/pedidos/reserva";
 
 /** Cuántos días vale un presupuesto si no se dice otra cosa. */
 export const DIAS_VIGENCIA = 7;
@@ -19,6 +20,7 @@ export async function pasarAPresupuesto(org: string, pedidoId: number, quien: st
 
 export async function pasarAPedido(org: string, pedidoId: number, quien: string): Promise<boolean> {
   const r = await una<{ r: boolean }>("select presupuesto_a_pedido($1, $2, $3) r", [org, pedidoId, quien]);
+  await fijarVencimiento(org, pedidoId);
   await avisarStockMl(org, pedidoId);
   return !!r?.r;
 }

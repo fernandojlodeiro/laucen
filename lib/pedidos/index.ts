@@ -7,6 +7,7 @@
 //   valida la transición, escribe el historial, emite el evento y reserva /
 //   vende / libera stock. Mercado Libre la llama sola; la tienda, el operador.
 
+import { fijarVencimiento } from "@/lib/pedidos/reserva";
 import type { PoolClient } from "pg";
 import { consulta, una, enTransaccion, ErrorErp, type Consultor } from "@/lib/erp/base";
 import { precioDe } from "@/lib/precios";
@@ -306,6 +307,8 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
     const reservo = vivo
       ? (await c.query<{ r: boolean }>("select reservar_pedido($1, $2, $3) r", [org, pedidoId, quien])).rows[0].r
       : false;
+    // Sin pagar, la reserva vence a los N días (lib/pedidos/reserva.ts).
+    if (vivo) await fijarVencimiento(org, pedidoId, c);
     return { pedidoId, clienteId, creado: true, total, reservo };
   };
   return cx ? correr(cx) : enTransaccion(correr);

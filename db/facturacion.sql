@@ -231,6 +231,8 @@ create table if not exists empresa (
 );
 alter table empresa enable row level security;
 select erp_politica_org('empresa');
+-- Cuántos días se le guarda el stock a un pedido sin pagar (Fer, 7/10): al terminar el último, se cancela solo.
+alter table empresa add column if not exists dias_reserva int not null default 7 check (dias_reserva between 1 and 90);
 
 -- Nota de crédito de una factura emitida FUERA de Laucen (ventas de Virtual
 -- Seller, pedido de Fer 5/10, bitácora #341): no hay comprobante_asociado_id,

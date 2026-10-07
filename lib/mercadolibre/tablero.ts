@@ -9,6 +9,7 @@
 // enlace (Envíos, Pedidos, Reclamos, Preguntas, Vincular con ML), para que la
 // cuenta del tablero y la de la lista coincidan.
 
+import { sqlReservaSinPagar } from "@/lib/pedidos/reserva";
 import { consulta } from "@/lib/erp/base";
 import { CONDICION_ENVIOS } from "@/app/ventas/envios/lista";
 import { CONDICION_RECLAMOS } from "@/lib/reclamos";
@@ -31,6 +32,8 @@ export type Metricas = {
   publicaciones: { total: number; activas: number; pausadas: number; conCuestiones: number; sinProducto: number; sinProductoActivas: number };
   etiquetas: { sinImprimir: number; porDespachar: number; vencidos: number };
   pedidosParaPreparar: number;
+  /** Sin pagar que guardan stock (lib/pedidos/reserva.ts) y cuántos vencen hoy o mañana. */
+  reservados: number; reservadosVencen: number;
   /** Sin terminar de preparar (nuevos + en preparación) y en preparación. */
   pedidosSinDespachar: number; enPreparacion: number;
   /** Preparados que falta despachar, y el plazo más cercano ("despachar antes de" de ML). */
@@ -47,7 +50,7 @@ export type Metricas = {
 const vacio = (): Metricas => ({
   publicaciones: { total: 0, activas: 0, pausadas: 0, conCuestiones: 0, sinProducto: 0, sinProductoActivas: 0 },
   etiquetas: { sinImprimir: 0, porDespachar: 0, vencidos: 0 },
-  pedidosParaPreparar: 0, enCamino: 0, pedidosSinDespachar: 0, enPreparacion: 0, paraDespachar: 0, despacharAntes: null, despacharVencidos: 0,
+  pedidosParaPreparar: 0, reservados: 0, reservadosVencen: 0, enCamino: 0, pedidosSinDespachar: 0, enPreparacion: 0, paraDespachar: 0, despacharAntes: null, despacharVencidos: 0,
   preguntas: { sinResponder: 0, total: 0, masVieja: null },
   mensajes: { sinLeer: 0, total: 0 },
   reclamos: { abiertos: 0, esperanRespuesta: 0, urgentes: 0, enMediacion: 0, total: 0 },
@@ -93,10 +96,12 @@ export async function metricasPorCanal(org: string, canales: number[], { soloMl 
                                and (e.despachar_antes at time zone '${ZONA}')::date <= (now() at time zone '${ZONA}')::date)::int vencidos,
              count(*) filter (where ${CONDICION_ENVIOS.camino})::int en_camino
         from envio e where e.organizacion_id = $1 and e.canal_id = any($2::bigint[]) group by e.canal_id`),
-    q<{ para_preparar: number; en_preparacion: number; sin_despachar: number; para_despachar: number; antes: Date | null; vencidos: number }>(`
+    q<{ reservados: number; reservados_vencen: number; para_preparar: number; en_preparacion: number; sin_despachar: number; para_despachar: number; antes: Date | null; vencidos: number }>(`
       select p.canal_id::int canal,
              count(*) filter (where ${sqlPedidoPendiente("p")} and not ${sqlCarritoEnEspera("p")})::int para_preparar,
              count(*) filter (where p.estado = 'en_preparacion')::int en_preparacion,
+             count(*) filter (where ${sqlReservaSinPagar("p")})::int reservados,
+             count(*) filter (where ${sqlReservaSinPagar("p")} and p.reserva_hasta <= (now() at time zone '${ZONA}')::date + 1)::int reservados_vencen,
              count(*) filter (where p.estado in ('nuevo', 'pagado', 'en_preparacion', 'preparado'))::int sin_despachar,
              count(*) filter (where p.estado = 'preparado')::int para_despachar,
              min(e.despachar_antes) filter (where p.estado = 'preparado') antes,
@@ -138,6 +143,7 @@ export async function metricasPorCanal(org: string, canales: number[], { soloMl 
   for (const f of pubs) poner(f.canal, (x) => { x.publicaciones = { total: f.total, activas: f.activas, pausadas: f.pausadas, conCuestiones: f.con_cuestiones, sinProducto: f.sin_producto, sinProductoActivas: f.sin_producto_activas }; });
   for (const f of envios) poner(f.canal, (x) => { x.etiquetas = { sinImprimir: f.sin_imprimir, porDespachar: f.por_despachar, vencidos: f.vencidos }; x.enCamino = f.en_camino; });
   for (const f of pedidos) poner(f.canal, (x) => {
+    x.reservados = f.reservados; x.reservadosVencen = f.reservados_vencen;
     x.pedidosParaPreparar = f.para_preparar; x.enPreparacion = f.en_preparacion; x.pedidosSinDespachar = f.sin_despachar;
     x.paraDespachar = f.para_despachar; x.despacharAntes = f.antes; x.despacharVencidos = f.vencidos;
   });
@@ -210,6 +216,7 @@ export const sumar = (ms: Metricas[]): Metricas => {
     for (const k of Object.keys(t.publicaciones) as (keyof Metricas["publicaciones"])[]) t.publicaciones[k] += m.publicaciones[k];
     for (const k of Object.keys(t.etiquetas) as (keyof Metricas["etiquetas"])[]) t.etiquetas[k] += m.etiquetas[k];
     t.pedidosParaPreparar += m.pedidosParaPreparar; t.enCamino += m.enCamino;
+    t.reservados += m.reservados; t.reservadosVencen += m.reservadosVencen;
     t.enPreparacion += m.enPreparacion; t.pedidosSinDespachar += m.pedidosSinDespachar;
     t.paraDespachar += m.paraDespachar; t.despacharVencidos += m.despacharVencidos;
     if (m.despacharAntes && (!t.despacharAntes || m.despacharAntes < t.despacharAntes)) t.despacharAntes = m.despacharAntes;
