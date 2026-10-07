@@ -57,7 +57,8 @@ const F412: ModeloEsquema = { sku: "F412DA-NH77", origen: "MLA1471328469", clasi
 // UPC de la S532 que encontró Cowork (7/10, ficha de catálogo de eBay; falta confirmarlo con una caja antes de mandar los lotes).
 const S532: ModeloEsquema = { sku: "S532FA-SB77", origen: "MLA1707952619", clasica: 1_256_226, gtin: "192876286241" };
 const HP15: ModeloEsquema = { sku: "15-EF0022NR", origen: "MLA1706473885", clasica: 949_240 };
-const G3: ModeloEsquema = { sku: "G3-3500", origen: "MLA3064301590", clasica: 2_339_999, sinGtin: true };
+// UPC de la caja de la G3 (Fer, 7/10). El que tenía la publicación (193905481088) es de una HP 14-dk.
+const G3: ModeloEsquema = { sku: "G3-3500", origen: "MLA3064301590", clasica: 2_339_999, gtin: "196105257545" };
 export const MODELOS_ESQUEMA: ModeloEsquema[] = [
   S532,
   { ...S532, sku: "S532FA-SB77-12GB", clasica: 1_386_726, ram: "12", titulo: "Notebook Asus Vivobook I7-8565u 12gb 512gb Ssd 15.6 Fhd" },
