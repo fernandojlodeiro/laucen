@@ -2,8 +2,8 @@
 // de cuotas de ML"). ML muestra al comprador cuotas que no coinciden con el plan
 // por dentro (en .BAIRES la Premium 3x se ve "6 cuotas" y la 12x "18 cuotas") y
 // eso depende del vendedor. Para saber qué muestra cada cuenta, en cada una de
-// las otras cuatro se publica UNA notebook distinta con los tres planes que más
-// convienen: Clásica, Premium 3x y Premium 12x. Con lo que se ve en ML se arma
+// las otras cuatro se publica UNA notebook distinta con los cinco planes:
+// Clásica, Premium (6 cuotas, sin marca), Premium 3x, 9x y 12x. Con lo que se ve en ML se arma
 // después el esquema definitivo.
 //
 // Cada alta copia nuestra publicación común (no de catálogo) de .BAIRES del mismo
@@ -26,12 +26,13 @@ import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, type ItemGuardado } fr
 import { comisionesMl } from "@/lib/precios-ml/datos";
 import { comisionesDe, PLAN_INFO, type Comisiones } from "@/lib/precios-ml/motor";
 
-export type PlanPrueba = "clasica" | "3x_campaign" | "12x_campaign";
-export const PLANES_PRUEBA: PlanPrueba[] = ["clasica", "3x_campaign", "12x_campaign"];
+export type PlanPrueba = "clasica" | "premium" | "3x_campaign" | "9x_campaign" | "12x_campaign";
+/** Los cinco planes (Fer, 7/10: para ver cómo aparece cada uno en cada tienda). */
+export const PLANES_PRUEBA: PlanPrueba[] = ["clasica", "premium", "3x_campaign", "9x_campaign", "12x_campaign"];
 /** Descuento que se ve sobre el tachado en la Clásica (esquema de Fer, 7/10): el tachado = Clásica ÷ (1 − 45 %). */
 export const DESCUENTO_CLASICA = 45;
 /** Margen extra de cada plan sobre lo que deja la Clásica (esquema de Fer, 7/10). */
-export const MARGEN_PLAN: Record<PlanPrueba, number> = { clasica: 0, "3x_campaign": 2, "12x_campaign": 4 };
+export const MARGEN_PLAN: Record<PlanPrueba, number> = { clasica: 0, premium: 2, "3x_campaign": 2, "9x_campaign": 4, "12x_campaign": 4 };
 
 /** Qué notebook va en cada cuenta y de qué publicación se copia. `clasica`: el precio
  *  de la Clásica (el piso del esquema: competencia × 90 % en las Asus, × 80 % en la HP;
@@ -84,7 +85,7 @@ export async function propuestaPrueba(org: string): Promise<{ filas: FilaPrueba[
 }
 
 /** El plan de una publicación guardada (tags o sale_terms INSTALLMENTS_CAMPAIGN). */
-function planDe(tipo: string, tags: unknown, terms: unknown): PlanPrueba | "premium" | "9x_campaign" | null {
+function planDe(tipo: string, tags: unknown, terms: unknown): PlanPrueba | null {
   if (tipo === "gold_special") return "clasica";
   if (tipo !== "gold_pro") return null;
   const t = new Set([...(Array.isArray(tags) ? tags.map(String) : []),
@@ -105,7 +106,7 @@ export async function prepararPrueba(org: string, usuarioId: string): Promise<Re
     const canal = deEsta[0]?.canal;
     if (!canal) { rech("no está la cuenta en Laucen"); continue; }
     const faltan = deEsta.filter((f) => !f.existe);
-    if (!faltan.length) { rech("ya tiene los tres planes"); continue; }
+    if (!faltan.length) { rech("ya tiene los cinco planes"); continue; }
     const pendiente = await una<{ id: number }>(`
       select id::int from ml_cola where organizacion_id = $1 and canal_id = $2 and tipo = 'crear' and item_id like $3
          and estado in ('preparado', 'pendiente', 'enviando')`, [org, canal, `prueba:${p.sku}%`]);
@@ -130,12 +131,14 @@ export async function prepararPrueba(org: string, usuarioId: string): Promise<Re
       // Sin las condiciones de cuotas de la de origen: el plan lo marca el tag.
       const item: ItemGuardado = { ...g.ml, price: f.tachado, available_quantity: stock, listing_type_id: tipo,
         sale_terms: (g.ml.sale_terms ?? []).filter((t) => t.id !== "INSTALLMENTS_CAMPAIGN") };
-      const tags = f.plan === "clasica" ? null : [PLAN_INFO[f.plan].tag];
+      // La Premium común (6 cuotas) va sin marca de plan.
+      const tag = PLAN_INFO[f.plan].tag;
+      const tags = tag ? [tag] : null;
       const c = await comprobarAlta(cuenta, (x) => {
         const cuerpo = armarCuerpoCopia(item, p.sku, { variarTitulo: false, rotarFotos: false }, { modelo, ...x });
         return tags ? { ...cuerpo, tags } : cuerpo;
       });
-      const nombre = f.plan === "clasica" ? "Clásica" : `Premium ${PLAN_INFO[f.plan].corto}`;
+      const nombre = f.plan === "clasica" ? "Clásica" : f.plan === "premium" ? "Premium común" : `Premium ${PLAN_INFO[f.plan].corto}`;
       if (!c.ok) { rech(`Mercado Libre no acepta la ${nombre}: ${c.motivo}`); continue; }
       if (c.avisos) res.avisos.push(`${p.cuenta} (${nombre}): ${c.avisos}`);
       const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: c.cuerpo }];

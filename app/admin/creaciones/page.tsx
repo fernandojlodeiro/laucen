@@ -51,11 +51,11 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
         <h2 className="font-bold text-[#16577F]">Prueba de planes de cuotas en cada cuenta</h2>
         <p className="text-sm text-[#5C6B76]">
           Mercado Libre no le muestra al comprador las cuotas del nombre del plan, y depende del vendedor (en .BAIRES la Premium 3x se ve
-          «6 cuotas» y la 12x «18 cuotas»). Para saber qué muestra cada cuenta, en cada una se publica una notebook distinta con los tres
-          planes que más convienen: <b>Clásica</b>, <b>Premium 3x</b> y <b>Premium 12x</b>. Cada una copia nuestra publicación común de
+          «6 cuotas» y la 12x «18 cuotas»). Para saber qué muestra cada cuenta, en cada una se publica una notebook distinta con los cinco
+          planes: <b>Clásica</b>, <b>Premium común</b> (6 cuotas), <b>Premium 3x</b>, <b>Premium 9x</b> y <b>Premium 12x</b>. Cada una copia nuestra publicación común de
           .BAIRES (título, fotos, características, garantía y descripción). Cada plan es una publicación propia (las de cuotas, Premium con la marca
           del plan); Mercado Libre las junta en el mismo producto y comparten el stock. Precio de cada plan: deja lo mismo que la Clásica después de su comisión, más
-          {" "}{MARGEN_PLAN["3x_campaign"]} % (3x) o {MARGEN_PLAN["12x_campaign"]} % (12x). Salen publicadas al <b>tachado</b> del modelo (el mismo en sus tres planes: con la campaña, la Clásica muestra {DESCUENTO_CLASICA} % de descuento);
+          {" "}{MARGEN_PLAN["3x_campaign"]} % (Premium común y 3x) o {MARGEN_PLAN["12x_campaign"]} % (9x y 12x). Salen publicadas al <b>tachado</b> del modelo (el mismo en sus cinco planes: con la campaña, la Clásica muestra {DESCUENTO_CLASICA} % de descuento);
           después, al meterlas en campaña, cada una baja al precio de «Con la campaña».
           {estimada && " (Comisión estimada: Costos ML todavía no relevó la categoría.)"}
         </p>
@@ -69,7 +69,7 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
                 <tr key={`${f.cuenta}-${f.plan}`} className={TR}>
                   <td className={TD}>{f.cuenta}</td>
                   <td className={`${TD} font-mono`}>{f.sku}</td>
-                  <td className={TD}>{f.plan === "clasica" ? "Clásica" : `Premium ${f.plan.replace("_campaign", "")}`} <span className="text-[10px] text-[#5C6B76]">({PLAN_INFO[f.plan].corto} por nombre)</span></td>
+                  <td className={TD}>{f.plan === "clasica" ? "Clásica" : f.plan === "premium" ? "Premium común" : `Premium ${f.plan.replace("_campaign", "")}`} <span className="text-[10px] text-[#5C6B76]">({PLAN_INFO[f.plan].corto} por nombre)</span></td>
                   <td className={TDN}>{pesos(f.tachado)}</td>
                   <td className={TDN}>{pesos(f.precio)}</td>
                   <td className={TDN}>{formatearNumero(100 * (1 - f.precio / f.tachado), "pct")} %</td>

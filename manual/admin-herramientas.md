@@ -350,9 +350,9 @@ Pantalla [Limpieza de datos](/admin/limpieza) (menú **Coordinación**). Tareas 
 
 Pantalla [Creaciones en ML](/admin/creaciones) (menú **Coordinación**), lo contrario de Limpieza: publicaciones que se crean en Mercado Libre por tandas. Muestra antes todo lo que se va a crear y el botón deja los lotes en la [Cola de Mercado Libre](/config/canales/cola) esperando el clic en «Mandar a Mercado Libre». Nada sale solo.
 
-**Prueba de planes de cuotas en cada cuenta.** Mercado Libre no le muestra al comprador las cuotas del nombre del plan y depende del vendedor: en .BAIRES la Premium 3x se ve «Mismo precio en 6 cuotas» y la Premium 12x «18 cuotas». Para saber qué muestra cada cuenta, en cada una de las otras cuatro se publica una notebook distinta con los tres planes que más convienen (Clásica, Premium 3x y Premium 12x):
+**Prueba de planes de cuotas en cada cuenta.** Mercado Libre no le muestra al comprador las cuotas del nombre del plan y depende del vendedor: en .BAIRES la Premium 3x se ve «Mismo precio en 6 cuotas» y la Premium 12x «18 cuotas». Para saber qué muestra cada cuenta, en cada una de las otras cuatro se publica una notebook distinta con los cinco planes (Clásica, Premium común —6 cuotas—, Premium 3x, Premium 9x y Premium 12x):
 
-- ML PUNTO: F412DA-NH77 (ya tiene la Clásica: se crean la 3x y la 12x).
+- ML PUNTO: F412DA-NH77 (ya tiene la Clásica: se crean las cuatro Premium).
 - DEIROLAB SA: S532FA-SB77.
 - DEIROLAB SAS: 15-EF0022NR.
 - TIENDAVIRTUAL S: G3-3500.
@@ -360,9 +360,9 @@ Pantalla [Creaciones en ML](/admin/creaciones) (menú **Coordinación**), lo con
 La tabla muestra, por cuenta y plan: SKU, plan, **Se publica a (tachado)**, **Con la campaña**, el descuento que se va a ver, comisión, stock disponible para la cuenta, de qué publicación se copia y si ya existe o se crea.
 
 Criterios:
-- Cada alta copia nuestra publicación común (no de catálogo) de .BAIRES del mismo SKU: título, fotos, características, garantía y descripción. Sale publicada al **tachado** del modelo, sin campaña, con el stock disponible para esa cuenta. El tachado es uno solo para los tres planes del modelo: Clásica ÷ (1 − 45 %). Después, al meterlas en campaña, cada una baja a su precio de «Con la campaña» (la Clásica muestra 45 % de descuento; las de cuotas, menos).
-- Precio de la Clásica con la campaña: el piso del esquema de notebooks (competencia × 90 % en las Asus, × 80 % en la HP; la G3, al precio que tiene hoy en .BAIRES). Precio de cada plan con la campaña: deja, después de su comisión, lo mismo que la Clásica, más 2 % en la 3x y 4 % en la 12x.
-- Cada plan es una publicación propia: la Clásica, tipo Clásica; las de cuotas, tipo Premium con la marca del plan (3x o 12x), que es como Mercado Libre activa las cuotas. Mercado Libre las junta en el mismo producto y comparten el stock. Cada una es un renglón aparte del lote: si una falla, las otras salen igual.
+- Cada alta copia nuestra publicación común (no de catálogo) de .BAIRES del mismo SKU: título, fotos, características, garantía y descripción. Sale publicada al **tachado** del modelo, sin campaña, con el stock disponible para esa cuenta. El tachado es uno solo para los cinco planes del modelo: Clásica ÷ (1 − 45 %). Después, al meterlas en campaña, cada una baja a su precio de «Con la campaña» (la Clásica muestra 45 % de descuento; las de cuotas, menos).
+- Precio de la Clásica con la campaña: el piso del esquema de notebooks (competencia × 90 % en las Asus, × 80 % en la HP; la G3, al precio que tiene hoy en .BAIRES). Precio de cada plan con la campaña: deja, después de su comisión, lo mismo que la Clásica, más 2 % en la Premium común y la 3x, y 4 % en la 9x y la 12x.
+- Cada plan es una publicación propia: la Clásica, tipo Clásica; las de cuotas, tipo Premium con la marca del plan (3x, 9x o 12x), que es como Mercado Libre activa las cuotas; la Premium común va sin marca. Mercado Libre las junta en el mismo producto y comparten el stock. Cada una es un renglón aparte del lote: si una falla, las otras salen igual.
 - El botón **Preparar N publicaciones** corre de fondo: comprueba cada publicación con Mercado Libre (no publica nada) y arma un lote por cuenta. Lo que Mercado Libre rechaza no entra y lo dice. Si ya hay un lote de esta prueba esperando en la cola, esa cuenta no se vuelve a preparar.
 - Abajo, cómo quedó cada lote en la cola (con su número de lote, que lleva al lote en la cola): preparado, en la cola, creada (con los números de las publicaciones nuevas) o con error (con el motivo).
 - Después de mandarlas, mirá en cada publicación cuántas cuotas muestra Mercado Libre y anotalo en [Precios en Mercado Libre](/catalogo/precios-ml) (cuotas que ve el comprador).
