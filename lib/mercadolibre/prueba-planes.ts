@@ -36,25 +36,41 @@ export const MARGEN_PLAN: Record<PlanPrueba, number> = { clasica: 0, premium: 2,
 
 /** Qué se crea en cada cuenta (Fer, 7/10, después de la prueba): quedan tres planes,
  *  Clásica, Premium 3x (el comprador la ve «6 cuotas») y Premium 12x (en .BAIRES se
- *  ve «18 cuotas»). .BAIRES gana todas las Clásicas y todas las 12x; la 3x se reparte
- *  entre las otras cuentas (planilla «Cómo queda (3 planes)»). Acá van las que faltan
- *  en las cuentas de cada modelo. `clasica`: el piso de la Clásica (competencia × 90 %
- *  en las Asus, × 80 % en la HP); todas salen al tachado del modelo y después, al
- *  entrar en campaña, bajan a su precio. `origen`: nuestra común de .BAIRES. */
-const F412 = { sku: "F412DA-NH77", origen: "MLA1471328469", clasica: 962_999,
+ *  ve «18 cuotas»), y los 7 modelos van en las 5 cuentas (Fer, 7/10 a la tarde: "los
+ *  7 modelos en todos los canales de Meli con sus 3 precios de cuotas"). .BAIRES gana
+ *  todas las Clásicas y todas las 12x; la 3x se reparte entre las otras cuentas (eso lo
+ *  deciden las reglas de Precios en ML, no esta lista). `clasica`: el piso de la Clásica
+ *  (competencia × 90 % en las Asus, × 80 % en la HP; las versiones con más memoria, la
+ *  competencia + $ 145.000 por 4 GB más); todas salen al tachado del modelo y después, al
+ *  entrar en campaña, bajan a su precio. `origen`: nuestra publicación de .BAIRES que se
+ *  copia. Las versiones con más memoria son kits en Laucen (equipo + 1 memoria SKU03498)
+ *  y copian la de 8 GB cambiándole el nombre, la memoria y la descripción.
+ *  `sinGtin`: el código de barras de la publicación de origen está mal (Fer, 7/10: el
+ *  193905481088 no es ni de la S532 ni de la G3) o no es del producto de fábrica (los
+ *  kits): se publica sin código, con el motivo "no tiene código registrado". */
+type ModeloEsquema = { sku: string; origen: string; clasica: number; titulo?: string; ram?: string; sinGtin?: boolean };
+const F412: ModeloEsquema = { sku: "F412DA-NH77", origen: "MLA1471328469", clasica: 962_999,
   // El nombre de la de origen tiene 108 letras y ML acepta hasta 60.
   titulo: "Notebook Asus Vivobook F412DA Ryzen 7 3700U 8gb 512gb Ssd 14" };
-const S532 = { sku: "S532FA-SB77", origen: "MLA1707952619", clasica: 1_256_226 };
-const HP15 = { sku: "15-EF0022NR", origen: "MLA1706473885", clasica: 949_240 };
-const CUOTAS: PlanPrueba[] = ["3x_campaign", "12x_campaign"];
-export const PRUEBA: { cuenta: string; sku: string; origen: string; clasica: number; titulo?: string; planes: PlanPrueba[] }[] = [
-  { cuenta: "ML .BAIRES", ...S532, planes: CUOTAS },
-  { cuenta: "ML .BAIRES", ...F412, planes: CUOTAS },
-  { cuenta: "ML .BAIRES", ...HP15, planes: CUOTAS },
-  { cuenta: "ML PUNTO", ...S532, planes: CUOTAS },
-  { cuenta: "ML PUNTO", ...HP15, planes: CUOTAS },
-  { cuenta: "TIENDAVIRTUAL S", ...F412, planes: ["clasica", ...CUOTAS] },
+const S532: ModeloEsquema = { sku: "S532FA-SB77", origen: "MLA1707952619", clasica: 1_256_226, sinGtin: true };
+const HP15: ModeloEsquema = { sku: "15-EF0022NR", origen: "MLA1706473885", clasica: 949_240 };
+const G3: ModeloEsquema = { sku: "G3-3500", origen: "MLA3064301590", clasica: 2_339_999, sinGtin: true };
+export const MODELOS_ESQUEMA: ModeloEsquema[] = [
+  S532,
+  { ...S532, sku: "S532FA-SB77-12GB", clasica: 1_386_726, ram: "12", titulo: "Notebook Asus Vivobook I7-8565u 12gb 512gb Ssd 15.6 Fhd" },
+  F412,
+  { ...F412, sku: "F412DA-NH77-12GB", clasica: 1_093_499, ram: "12", sinGtin: true, titulo: "Notebook Asus Vivobook F412DA Ryzen 7 12gb 512gb Ssd 14" },
+  HP15,
+  { ...HP15, sku: "15-EF0022NR-16GB", clasica: 1_181_240, ram: "16", sinGtin: true, titulo: "Notebook Hp Amd Ryzen 7 3700u 16gb Ram 256gb Ssd Windows" },
+  G3,
 ];
+const CUENTAS_ESQUEMA = ["ML .BAIRES", "ML PUNTO", "DEIROLAB SA", "DEIROLAB SAS", "TIENDAVIRTUAL S"];
+const PLANES_ESQUEMA: PlanPrueba[] = ["clasica", "3x_campaign", "12x_campaign"];
+export const PRUEBA: (ModeloEsquema & { cuenta: string; planes: PlanPrueba[] })[] =
+  MODELOS_ESQUEMA.flatMap((m) => CUENTAS_ESQUEMA.map((cuenta) => ({ cuenta, ...m, planes: PLANES_ESQUEMA })));
+
+/** "8gb" → "12gb" en un texto (respeta cómo estaba escrito: "8 GB", "8gb", "8GB"). */
+export const cambiarMemoria = (texto: string, ram: string) => texto.replace(/\b8(\s?)(gb)\b/gi, (_m, esp: string, gb: string) => `${ram}${esp}${gb}`);
 
 /** El tachado del modelo (uno solo para todos sus planes): con la campaña, la Clásica muestra 45 % de descuento. */
 export const tachadoPrueba = (clasica: number) => Math.round(clasica / (1 - DESCUENTO_CLASICA / 100));
@@ -83,14 +99,20 @@ export async function propuestaPrueba(org: string): Promise<{ filas: FilaPrueba[
   const filas: FilaPrueba[] = [];
   for (const p of PRUEBA) {
     const canal = canales.get(p.cuenta) ?? null;
+    // Cuenta sólo lo activo: una pausada vieja no vende (Fer, 7/10: "que queden publicados").
     const items = canal ? await consulta<{ item_id: string; tipo: string; tags: unknown; terms: unknown }>(`
       select item_id, tipo, datos_externos -> 'ml' -> 'tags' tags, datos_externos -> 'ml' -> 'sale_terms' terms
-        from meli_item where organizacion_id = $1 and canal_id = $2 and sku = $3 and estado in ('active', 'paused')`, [org, canal, p.sku]) : [];
+        from meli_item where organizacion_id = $1 and canal_id = $2 and sku = $3 and estado = 'active'`, [org, canal, p.sku]) : [];
+    // Lo que ya está en la cola esperando salir (o recién creado, antes de que Laucen lo lea) tampoco se vuelve a preparar.
+    const enCola = canal ? new Set((await consulta<{ item_id: string }>(`
+      select item_id from ml_cola where organizacion_id = $1 and canal_id = $2 and tipo = 'crear' and item_id like $3
+         and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '2 hours'))`,
+      [org, canal, `esquema:${p.sku}:%`])).map((x) => x.item_id)) : new Set<string>();
     const stock = canal ? Number((await una<{ d: number }>(
       "select stock_disponible_canal($1, v.id, $2)::int d from variacion v where v.organizacion_id = $1 and v.sku = $3", [org, canal, p.sku]))?.d ?? 0) : 0;
     for (const plan of p.planes) {
-      const ya = items.find((i) => planDe(i.tipo, i.tags, i.terms) === plan);
-      filas.push({ canal, cuenta: p.cuenta, sku: p.sku, origen: p.origen, plan, tachado: tachadoPrueba(p.clasica), precio: precioPrueba(p.clasica, plan, valores), comision: valores[plan], existe: ya?.item_id ?? null, stock });
+      const ya = items.find((i) => planDe(i.tipo, i.tags, i.terms) === plan)?.item_id ?? (enCola.has(`esquema:${p.sku}:${plan}`) ? "en la cola" : null);
+      filas.push({ canal, cuenta: p.cuenta, sku: p.sku, origen: p.origen, plan, tachado: tachadoPrueba(p.clasica), precio: precioPrueba(p.clasica, plan, valores), comision: valores[plan], existe: ya, stock });
     }
   }
   return { filas, estimada };
@@ -106,43 +128,54 @@ function planDe(tipo: string, tags: unknown, terms: unknown): PlanPrueba | null 
   return "premium";
 }
 
-export type ResultadoPrueba = { lotes: { cuenta: string; loteId: number; altas: number }[]; rechazos: { cuenta: string; motivo: string }[]; avisos: string[] };
+export type ResultadoPrueba = { lotes: { cuenta: string; loteId: number; altas: number }[]; rechazos: { cuenta: string; motivo: string }[]; avisos: string[]; sinTiempo?: number };
 
-/** Arma (sin mandar) un lote por cuenta con las altas que faltan. */
-export async function prepararPrueba(org: string, usuarioId: string): Promise<ResultadoPrueba> {
+/** Arma (sin mandar) un lote por cuenta con las altas que faltan. Comprueba cada alta con
+ *  ML (validate) y corta antes de que se acabe el tiempo de la tarea (`hasta`): lo que no
+ *  llegó a preparar queda para apretar de nuevo (lo ya preparado no se repite). */
+export async function prepararPrueba(org: string, usuarioId: string, hasta = Date.now() + 240_000): Promise<ResultadoPrueba> {
   const { filas } = await propuestaPrueba(org);
   const res: ResultadoPrueba = { lotes: [], rechazos: [], avisos: [] };
+  const porCuenta = new Map<number, { cuenta: string; altas: Parameters<typeof encolarLoteConBoton>[2]; nombres: string[] }>();
+  const origenes = new Map<string, { ml: ItemGuardado; canal: number; texto: string } | null>();
+  let sinTiempo = 0;
   for (const p of PRUEBA) {
     const deEsta = filas.filter((f) => f.cuenta === p.cuenta && f.sku === p.sku);
     const rech = (motivo: string) => res.rechazos.push({ cuenta: `${p.cuenta} ${p.sku}`, motivo });
     const canal = deEsta[0]?.canal;
-    if (!canal) { rech("no está la cuenta en Laucen"); continue; }
     const faltan = deEsta.filter((f) => !f.existe);
-    if (!faltan.length) { rech("ya tiene todos sus planes"); continue; }
-    const pendiente = await una<{ id: number }>(`
-      select id::int from ml_cola where organizacion_id = $1 and canal_id = $2 and tipo = 'crear' and item_id like $3
-         and estado in ('preparado', 'pendiente', 'enviando')`, [org, canal, `esquema:${p.sku}%`]);
-    if (pendiente) { rech("ya hay un lote esperando en la cola"); continue; }
+    if (!faltan.length) continue;
+    if (!canal) { rech("no está la cuenta en Laucen"); continue; }
+    if (Date.now() > hasta) { sinTiempo += faltan.length; continue; }
     const cuenta = await cuentaDelCanal(org, canal);
     if (!cuenta || cuenta.estado !== "activa") { rech("la cuenta de Mercado Libre no está conectada"); continue; }
 
-    const g = await una<{ ml: ItemGuardado | null; canal_id: number }>(
-      "select datos_externos -> 'ml' ml, canal_id::int from meli_item where organizacion_id = $1 and item_id = $2 limit 1", [org, p.origen]);
-    if (!g?.ml) { rech(`Laucen no tiene los datos de ${p.origen}: traé las publicaciones de nuevo`); continue; }
+    if (!origenes.has(p.origen)) {
+      const g = await una<{ ml: ItemGuardado | null; canal_id: number }>(
+        "select datos_externos -> 'ml' ml, canal_id::int from meli_item where organizacion_id = $1 and item_id = $2 limit 1", [org, p.origen]);
+      // La descripción se lee de ML con la cuenta de la publicación copiada.
+      const cOrigen = g?.ml ? await cuentaDelCanal(org, g.canal_id) : null;
+      const d = cOrigen?.estado === "activa" ? await ml<{ plain_text?: string }>(cOrigen, "GET", `/items/${p.origen}/description`) : null;
+      origenes.set(p.origen, g?.ml ? { ml: g.ml, canal: g.canal_id, texto: d?.status === 200 ? d.datos.plain_text?.trim() ?? "" : "" } : null);
+    }
+    const o = origenes.get(p.origen);
+    if (!o) { rech(`Laucen no tiene los datos de ${p.origen}: traé las publicaciones de nuevo`); continue; }
     const stock = Math.max(1, deEsta[0].stock);
     const modelo = await modeloDeLaucen(org, p.sku);
-    const nombres: string[] = [];
-
-    // La descripción se lee de ML con la cuenta de la publicación copiada.
-    const cOrigen = await cuentaDelCanal(org, g.canal_id);
-    const d = cOrigen?.estado === "activa" ? await ml<{ plain_text?: string }>(cOrigen, "GET", `/items/${p.origen}/description`) : null;
-    const texto = d?.status === 200 ? d.datos.plain_text?.trim() : "";
-    const altas: Parameters<typeof encolarLoteConBoton>[2] = [];
+    const texto = p.ram ? cambiarMemoria(o.texto, p.ram) : o.texto;
+    // La memoria (versiones con más) y el código de barras (si el de origen está mal o no es de fábrica).
+    const atributos = (o.ml.attributes ?? [])
+      .filter((a) => !(p.sinGtin && (a.id === "GTIN" || a.id === "EMPTY_GTIN_REASON")))
+      .map((a) => (p.ram && a.id === "RAM_MEMORY_MODULE_TOTAL_CAPACITY" ? { id: a.id, value_name: `${p.ram} GB` } : a));
+    if (p.sinGtin) atributos.push({ id: "EMPTY_GTIN_REASON", value_name: "El producto no tiene código registrado" });
+    const lote = porCuenta.get(canal) ?? { cuenta: p.cuenta, altas: [], nombres: [] };
+    porCuenta.set(canal, lote);
     for (const f of faltan) {
+      if (Date.now() > hasta) { sinTiempo++; continue; }
       const tipo = f.plan === "clasica" ? "gold_special" : "gold_pro";
       // Sin las condiciones de cuotas de la de origen: el plan lo marca el tag.
-      const item: ItemGuardado = { ...g.ml, ...(p.titulo ? { family_name: p.titulo, title: p.titulo } : {}), price: f.tachado, available_quantity: stock, listing_type_id: tipo,
-        sale_terms: (g.ml.sale_terms ?? []).filter((t) => t.id !== "INSTALLMENTS_CAMPAIGN") };
+      const item: ItemGuardado = { ...o.ml, ...(p.titulo ? { family_name: p.titulo, title: p.titulo } : {}), attributes: atributos, price: f.tachado,
+        available_quantity: stock, listing_type_id: tipo, sale_terms: (o.ml.sale_terms ?? []).filter((t) => t.id !== "INSTALLMENTS_CAMPAIGN") };
       // La Premium común (6 cuotas) va sin marca de plan.
       const tag = PLAN_INFO[f.plan].tag;
       const tags = tag ? [tag] : null;
@@ -152,21 +185,24 @@ export async function prepararPrueba(org: string, usuarioId: string): Promise<Re
       });
       const nombre = f.plan === "clasica" ? "Clásica" : f.plan === "premium" ? "Premium común" : `Premium ${PLAN_INFO[f.plan].corto}`;
       if (!c.ok) { rech(`Mercado Libre no acepta la ${nombre}: ${c.motivo}`); continue; }
-      if (c.avisos) res.avisos.push(`${p.cuenta} (${nombre}): ${c.avisos}`);
+      if (c.avisos) res.avisos.push(`${p.cuenta} ${p.sku} (${nombre}): ${c.avisos}`);
       const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: c.cuerpo }];
       if (texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: texto }, seguirSiFalla: true });
-      altas.push({
+      lote.altas.push({
         canalId: canal, itemId: `esquema:${p.sku}:${f.plan}`, tipo: "crear",
         antes: { estado: "no existe en esta cuenta" },
-        payload: { descripcion: `Alta en ${p.cuenta}: ${p.sku} ${nombre} $ ${f.tachado.toLocaleString("es-AR")} (con campaña $ ${f.precio.toLocaleString("es-AR")}; copia de ${p.origen})`, origen: { canal: g.canal_id, item_id: p.origen }, pedidos },
+        payload: { descripcion: `Alta en ${p.cuenta}: ${p.sku} ${nombre} $ ${f.tachado.toLocaleString("es-AR")} (con campaña $ ${f.precio.toLocaleString("es-AR")}; copia de ${p.origen})`, origen: { canal: o.canal, item_id: p.origen }, pedidos },
       });
-      nombres.push(nombre);
+      lote.nombres.push(`${p.sku} ${nombre}`);
     }
-    if (!altas.length) continue;
-    const loteId = await encolarLoteConBoton(org, canal, altas, `Altas del esquema de notebooks: ${p.sku} en ${p.cuenta} (${nombres.join(", ")})`, usuarioId);
-    res.lotes.push({ cuenta: `${p.cuenta} ${p.sku}`, loteId, altas: nombres.length });
   }
-  if (!res.lotes.length && !res.rechazos.length) throw new ErrorErp("No hay nada para crear.");
+  for (const [canal, l] of porCuenta) {
+    if (!l.altas.length) continue;
+    const loteId = await encolarLoteConBoton(org, canal, l.altas, `Altas del esquema de notebooks en ${l.cuenta} (${l.altas.length})`, usuarioId);
+    res.lotes.push({ cuenta: l.cuenta, loteId, altas: l.altas.length });
+  }
+  res.sinTiempo = sinTiempo;
+  if (!res.lotes.length && !res.rechazos.length && !sinTiempo) throw new ErrorErp("No hay nada para crear.");
   return res;
 }
 
@@ -175,5 +211,6 @@ export function textoResultadoPrueba(r: ResultadoPrueba): string {
   if (r.lotes.length) partes.push(`Quedaron ${r.lotes.length} lote${r.lotes.length === 1 ? "" : "s"} esperando tu clic en Configuración › Cola de Mercado Libre, pestaña «Lotes preparados» (${r.lotes.map((l) => `lote ${l.loteId}: ${l.cuenta}, ${l.altas}`).join("; ")}).`);
   if (r.rechazos.length) partes.push(`No se preparó: ${r.rechazos.map((x) => `${x.cuenta} (${x.motivo})`).join("; ")}.`);
   if (r.avisos.length) partes.push(`Avisos de ML: ${r.avisos.join(" · ")}`);
+  if (r.sinTiempo) partes.push(`No llegué a preparar ${r.sinTiempo} (se acabó el tiempo): apretá el botón de nuevo y se preparan las que faltan.`);
   return partes.join(" ");
 }

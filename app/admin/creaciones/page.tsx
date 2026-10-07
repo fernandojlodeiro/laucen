@@ -52,8 +52,10 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
         <p className="text-sm text-[#5C6B76]">
           Después de la prueba de planes (7/10) quedan tres: <b>Clásica</b>, <b>Premium 3x</b> (el comprador la ve «Mismo precio en 6 cuotas»)
           y <b>Premium 12x</b> (se ve 12 cuotas; en .BAIRES, 18). .BAIRES gana todas las Clásicas y todas las 12x; la 3x se reparte entre
-          las otras cuentas. Acá están las publicaciones que faltan en las cuentas de cada modelo. Cada una copia nuestra publicación común de
-          .BAIRES (título, fotos, características, garantía y descripción) y es una publicación propia (las de cuotas, Premium con la marca
+          las otras cuentas. Son los 7 modelos (S532 de 8 y 12 GB, F412 de 8 y 12 GB, HP 15-EF de 8 y 16 GB y Dell G3) en las 5 cuentas,
+          con sus 3 planes: 105 publicaciones; acá se ve cuáles ya están activas y cuáles faltan. Cada una copia nuestra publicación común de
+          .BAIRES (título, fotos, características, garantía y descripción; las de más memoria, la de 8 GB con la memoria cambiada en el nombre,
+          en las características y en la descripción; la S532, la G3 y las de más memoria salen sin código de barras) y es una publicación propia (las de cuotas, Premium con la marca
           del plan); Mercado Libre las junta en el mismo producto. Precio de cada plan: deja lo mismo que la Clásica después de su comisión, más
           {" "}{MARGEN_PLAN["3x_campaign"]} % (3x) o {MARGEN_PLAN["12x_campaign"]} % (12x). Salen publicadas al <b>tachado</b> del modelo (uno solo para sus planes: con la campaña, la Clásica muestra {DESCUENTO_CLASICA} % de descuento);
           después, al meterlas en campaña, cada una baja al precio de «Con la campaña» (las cuentas que no ganan el plan, 3 % más).
@@ -76,7 +78,7 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
                   <td className={TDN}>{formatearNumero(f.comision, "pct")} %</td>
                   <td className={TDN}>{formatearNumero(f.stock, "entero")}</td>
                   <td className={`${TD} font-mono whitespace-nowrap`}><Link href={historialPublicacion(f.origen)} className="text-[#16577F] hover:underline">{f.origen}</Link> <a href={enlaceMl(f.origen)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a></td>
-                  <td className={TD}>{f.existe
+                  <td className={TD}>{f.existe === "en la cola" ? <span className="text-[#5C6B76]">Ya está en la cola</span> : f.existe
                     ? <>Ya existe: <Link href={historialPublicacion(f.existe)} className="text-[#16577F] hover:underline font-mono">{f.existe}</Link> <a href={enlaceMl(f.existe)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a></>
                     : <span className="text-[#167655] font-semibold">Se crea</span>}</td>
                 </tr>
