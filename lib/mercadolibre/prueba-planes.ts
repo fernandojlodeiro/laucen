@@ -50,11 +50,12 @@ export const MARGEN_PLAN: Record<PlanPrueba, number> = { clasica: 0, premium: 2,
  *  "no tiene código registrado" (el valor exacto se lee de la categoría en ML: con el
  *  texto solo, ML lo descarta y pide el GTIN). Los kits llevan el código del equipo:
  *  en Notebooks ML lo exige (7/10, 64 altas rechazadas sin él). */
-type ModeloEsquema = { sku: string; origen: string; clasica: number; titulo?: string; ram?: string; sinGtin?: boolean };
+type ModeloEsquema = { sku: string; origen: string; clasica: number; titulo?: string; ram?: string; sinGtin?: boolean; gtin?: string };
 const F412: ModeloEsquema = { sku: "F412DA-NH77", origen: "MLA1471328469", clasica: 962_999,
   // El nombre de la de origen tiene 108 letras y ML acepta hasta 60.
   titulo: "Notebook Asus Vivobook F412DA Ryzen 7 3700U 8gb 512gb Ssd 14" };
-const S532: ModeloEsquema = { sku: "S532FA-SB77", origen: "MLA1707952619", clasica: 1_256_226, sinGtin: true };
+// UPC de la S532 que encontró Cowork (7/10, ficha de catálogo de eBay; falta confirmarlo con una caja antes de mandar los lotes).
+const S532: ModeloEsquema = { sku: "S532FA-SB77", origen: "MLA1707952619", clasica: 1_256_226, gtin: "192876286241" };
 const HP15: ModeloEsquema = { sku: "15-EF0022NR", origen: "MLA1706473885", clasica: 949_240 };
 const G3: ModeloEsquema = { sku: "G3-3500", origen: "MLA3064301590", clasica: 2_339_999, sinGtin: true };
 export const MODELOS_ESQUEMA: ModeloEsquema[] = [
@@ -168,8 +169,9 @@ export async function prepararPrueba(org: string, usuarioId: string, hasta = Dat
     const texto = p.ram ? cambiarMemoria(o.texto, p.ram) : o.texto;
     // La memoria (versiones con más) y el código de barras (si el de origen está mal o no es de fábrica).
     const atributos = (o.ml.attributes ?? [])
-      .filter((a) => !(p.sinGtin && (a.id === "GTIN" || a.id === "EMPTY_GTIN_REASON")))
+      .filter((a) => !((p.sinGtin || p.gtin) && (a.id === "GTIN" || a.id === "EMPTY_GTIN_REASON")))
       .map((a) => (p.ram && a.id === "RAM_MEMORY_MODULE_TOTAL_CAPACITY" ? { id: a.id, value_name: `${p.ram} GB` } : a));
+    if (p.gtin) atributos.push({ id: "GTIN", value_name: p.gtin });
     if (p.sinGtin) {
       const cat = o.ml.category_id ?? "";
       if (!motivosGtin.has(cat)) {
