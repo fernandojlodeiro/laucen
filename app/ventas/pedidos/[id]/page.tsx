@@ -362,7 +362,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
             <tr><th className={THN}>Fecha</th><th className={TH}>Tipo</th><th className={TH}>SKU</th><th className={TH}>Producto</th><th className={THN}>Cantidad</th><th className={TH}>Desde</th><th className={TH}>Hacia</th><th className={TH}>Nota</th></tr>
           </thead>
           <tbody>
-            {movimientos.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>{c.afecta_stock ? "Todavía no movió stock (se reserva al pasar a pagado)." : "Este pedido no mueve stock."}</td></tr>}
+            {movimientos.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>{c.afecta_stock ? c.estado === "presupuesto" ? "Un presupuesto no reserva stock." : "Todavía no movió stock." : "Este pedido no mueve stock."}</td></tr>}
             {movimientos.map((m) => (
               <tr key={m.id} className={TR}>
                 <td className={TDN}>{fechaHora(m.fecha)}</td>

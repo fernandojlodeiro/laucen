@@ -152,7 +152,7 @@ Errores típicos: "Elegí el cliente (o marcá «Consumidor final»).", "Línea 
 1. Abrí la ficha del pedido.
 2. En **"Operación"**, elegí en **"Pagó con"** el medio.
 3. Apretá **"Confirmar pago de $ …"**. Aviso: "Pago confirmado: el pedido quedó pagado."
-4. Si el pedido estaba Nuevo, pasa a **A preparar** (pagado) y se reserva el stock. Si era «A cobrar» y ya venía avanzando (en preparación, preparado…), el estado no cambia: sólo el pago queda Pagado, y desde ahí se puede facturar.
+4. Si el pedido estaba Nuevo, pasa a **A preparar** (pagado) y entra en picking (el stock ya estaba reservado desde que nació; los pedidos viejos que no lo tenían, reservan acá). Si era «A cobrar» y ya venía avanzando (en preparación, preparado…), el estado no cambia: sólo el pago queda Pagado, y desde ahí se puede facturar.
 
 ### El cliente retira en el local
 
@@ -263,7 +263,8 @@ Un **presupuesto** es igual a un pedido (cliente, productos, precios, envío, to
 
 ### Reservas de stock: cuándo se aparta y cuándo se descuenta
 
-- **Al pasar a A preparar** (o al saltearlo hacia un estado posterior) el pedido **reserva** su stock: lo aparta para que no se venda dos veces. El disponible baja, pero las unidades siguen en el estante.
+- **Todo pedido reserva su stock al nacer**, entre por donde entre (tienda web, carga a mano, API) y **esté pago o no**: lo aparta para que no se venda dos veces. El disponible baja, pero las unidades siguen en el estante. **Lo único que no reserva es un presupuesto.** Que no esté pago no lo manda a preparar: un pedido sin pagar (por ejemplo, transferencia o Mercado Pago pendiente) tiene su stock apartado pero entra en picking recién cuando se confirma el pago (los «A cobrar» y a convenir entran sin esperarlo).
+- **Mercado Libre**: sus ventas reservan al pasar a pagado (llegan pagas casi siempre).
 - **Al llegar a Despachado** (o directamente a Entregado), la reserva se convierte en **venta**: ahí sale del stock.
 - **Al cancelar o devolver**, se **libera** lo que siga reservado (vuelve a estar disponible). Lo que ya se había vendido (un pedido despachado) no vuelve solo: la mercadería que regresa entra por la recepción de la devolución.
 - **De qué depósito sale**: el que tenga el pedido; si no tiene, el primer depósito activo asignado al canal (por prioridad); si el canal no tiene, el primer depósito activo de la organización (los propios primero). Las ventas de Mercado Libre por **Full** salen del depósito Full del canal.

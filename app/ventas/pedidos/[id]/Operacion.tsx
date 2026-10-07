@@ -220,7 +220,7 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
             )}
           </div>
         )}
-        {p.estado === "nuevo" && pagoPendiente && !p.sin_esperar && <p className="text-[11px] text-[#5C6B76]">Al confirmar el pago pasa a Pagado y se reserva el stock.</p>}
+        {p.estado === "nuevo" && pagoPendiente && !p.sin_esperar && <p className="text-[11px] text-[#5C6B76]">El stock ya está reservado. Al confirmar el pago pasa a «A preparar» y entra en picking.</p>}
         {aCobrar && <p className="text-[11px] text-[#5C6B76]">El stock ya está reservado y el pedido entra en picking sin esperar el pago. Se factura cuando confirmás el cobro.</p>}
       </div>
       {pagos.length > 0 && <><h2 className="text-sm font-bold mb-2">Pagos</h2><div className="mb-4">{TablaPagos}</div></>}

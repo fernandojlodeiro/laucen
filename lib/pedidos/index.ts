@@ -299,8 +299,11 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
                    values ($1, $2, null, $3, $4, 'pedido creado')`, [org, pedidoId, estado, quien]);
     await c.query("select emitir_evento($1, 'pedido_estado_cambiado', $2::jsonb)",
       [org, JSON.stringify({ pedido_id: pedidoId, canal_id: Number(canal.id), anterior: null, nuevo: estado, quien })]);
-    // «A cobrar» o a convenir: reserva ya, sin esperar el pago (entra en picking).
-    const reservo = vivo && (estadoPago === "a_cobrar" || estadoPago === "a_convenir")
+    // Todo pedido reserva su stock al nacer, entre por donde entre y esté pago o no (Fer, 7/10: lo
+    // único que no reserva es un presupuesto). Que no esté pago no lo manda a picking: eso lo
+    // decide el pago («A cobrar» y a convenir entran sin esperarlo; el resto, al confirmarse).
+    // Las ventas de Mercado Libre reservan al pasar a pagado (cambiar_estado), como siempre.
+    const reservo = vivo
       ? (await c.query<{ r: boolean }>("select reservar_pedido($1, $2, $3) r", [org, pedidoId, quien])).rows[0].r
       : false;
     return { pedidoId, clienteId, creado: true, total, reservo };
