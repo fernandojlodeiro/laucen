@@ -126,7 +126,7 @@ export default function Historial({ inicial }: { inicial: Visto[] }) {
       <button type="button" onClick={() => setAbierto((x) => !x)} aria-expanded={abierto} disabled={!lista.length}
         className="hover:underline disabled:opacity-50 disabled:no-underline">Historial {abierto ? "▾" : "▴"}</button>
       {abierto && lista.length > 0 && (
-        <div className="absolute bottom-full left-0 mb-2 w-72 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-xl border border-[#E3E9F0] bg-white text-[#1E2A32] shadow-lg p-1.5">
+        <div className="absolute bottom-full left-0 mb-2 w-[27rem] max-w-[calc(100vw-1rem)] max-h-[calc(100vh-8rem)] overflow-y-auto rounded-xl border border-[#E3E9F0] bg-white text-[#1E2A32] shadow-lg p-1.5">
           <div className="flex items-center justify-between px-1.5 pb-1">
             <span className="text-[11px] font-bold text-[#5C6B76]">Lo último que viste</span>
             <button type="button" onClick={borrar} title="Borrar la lista" className="text-[11px] text-[#9AA7B3] hover:text-[#C03420]">✕</button>
@@ -147,7 +147,7 @@ export default function Historial({ inicial }: { inicial: Visto[] }) {
   return (
     <>
     {enBarra}
-    <aside data-reinicia-recorrido aria-label="Lo último que viste" className="hidden md:block print:hidden fixed left-2 top-14 bottom-12 z-20 overflow-y-auto" style={{ width: ANCHO }}>
+    <aside data-reinicia-recorrido aria-label="Lo último que viste" className="hidden md:block print:hidden fixed left-2 top-[10.5rem] bottom-12 z-20 overflow-y-auto" style={{ width: ANCHO }}>
       <div className="rounded-xl border border-[#E3E9F0] bg-white/90 backdrop-blur p-2 shadow-sm">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[11px] font-bold text-[#5C6B76]">Lo último que viste</span>

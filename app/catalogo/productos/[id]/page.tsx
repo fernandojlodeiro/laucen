@@ -24,7 +24,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type SP = { seccion?: string; editar?: string; ok?: string; error?: string };
+type SP = { seccion?: string; editar?: string; ok?: string; error?: string; orden?: string; dir?: string };
 
 export default async function FichaProducto({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SP> }) {
   const s = await entrarErp("productos_ver");
