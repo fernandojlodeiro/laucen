@@ -5,12 +5,8 @@ import { revalidatePath } from "next/cache";
 import { sosVos } from "@/lib/admin";
 import { orgRequerida, sesionRequerida } from "@/lib/tenancy";
 import { motivoErp } from "@/lib/erp/base";
-import { borrarBasuraDeVs } from "@/lib/limpieza-listas";
-import { borrarFantasmas, revisarFantasmas, recuperarPausadas } from "@/lib/mercadolibre/fantasmas";
-import { prepararEliminarNotebooks } from "@/lib/mercadolibre/notebooks";
-import {
-  borrarFamiliasVs, borrarNotebooksSinStock, borrarPruebas, categoriasPorPredictor, categoriasPorPublicacion,
-} from "@/lib/limpieza";
+import { deFondo } from "@/lib/tareas-fondo";
+import { prepararNotebooksMl, textoResultadoMl, limpiarNotebooksLaucen } from "@/lib/limpieza-notebooks";
 
 async function portero() {
   if (!(await sosVos())) redirect("/panel");
@@ -22,93 +18,22 @@ function volver(mensaje: string, error = false): never {
   redirect(`/admin/limpieza?${error ? "error" : "ok"}=${encodeURIComponent(mensaje)}`);
 }
 
-export async function accionBorrarPruebas() {
-  const org = await portero();
-  let r;
-  try { r = await borrarPruebas(org); } catch (e) { volver(motivoErp(e), true); }
-  volver(`Borrado: ${r.pedidos} pedidos, ${r.picking} renglones de picking, ${r.envios} envíos, ${r.pagos} pagos, ${r.reclamos} reclamos, ${r.cargos} cargos de ML y ${r.movimientos} movimientos de stock.`);
-}
-
-export async function accionBorrarNotebooks() {
-  const org = await portero();
-  let r;
-  try { r = await borrarNotebooksSinStock(org); } catch (e) { volver(motivoErp(e), true); }
-  volver(`Notebooks sin stock borradas: ${r.simples} productos (de ellos, ${r.kits} kits).`);
-}
-
-export async function accionBorrarFamiliasVs() {
-  const org = await portero();
-  let r;
-  try { r = await borrarFamiliasVs(org); } catch (e) { volver(motivoErp(e), true); }
-  volver(`Familias de Virtual Seller borradas: ${r.familias}.`);
-}
-
-/** Un paso de la detección de categorías. `desde = 0` arranca por las
- *  publicaciones de ML (aunque estén pausadas); después sigue el predictor de
- *  a lotes hasta que no queden productos sin categoría. */
-export async function accionCategorias(desde: number) {
-  const org = await portero();
-  try {
-    let previo = { porPublicacion: 0, reubicados: 0 };
-    if (desde === 0) previo = await categoriasPorPublicacion(org);
-    const r = await categoriasPorPredictor(org, desde, 20);
-    return { ok: true as const, ...r, ...previo };
-  } catch (e) {
-    return { ok: false as const, error: motivoErp(e) };
-  }
-}
-
-/** Compara las publicaciones de una cuenta con las que ML devuelve ahora. Sólo lectura. */
-export async function accionRevisarFantasmas(canalId: number) {
-  const org = await portero();
-  try {
-    const r = await revisarFantasmas(org, canalId, Date.now() + 50_000);
-    return { ok: true as const, enLaucen: r.enLaucen, enMl: r.enMl, faltan: r.fantasmas.length, soloEnMl: r.soloEnMl, ejemplos: r.ejemplos, confiable: r.confiable, motivo: r.motivo };
-  } catch (e) {
-    return { ok: false as const, error: motivoErp(e) };
-  }
-}
-
-/** Recupera en Laucen las publicaciones PAUSADAS de ML que Laucen no guarda (con producto por SKU, sin notebooks). No toca ML. */
-export async function accionRecuperarPausadas(canalId: number) {
-  const org = await portero();
-  try {
-    const r = await recuperarPausadas(org, canalId, Date.now() + 270_000);
-    revalidatePath("/admin/limpieza");
-    return { ok: true as const, ...r };
-  } catch (e) {
-    return { ok: false as const, error: motivoErp(e) };
-  }
-}
-
-/** Lee la cuenta en ML y deja preparado (sin mandar) el lote que elimina sus notebooks no activas. */
-export async function accionPrepararNotebooks(canalId: number) {
+/** Lee la cuenta en ML y deja preparado (sin mandar) el lote que elimina sus notebooks que no son de la lista. De fondo. */
+export async function accionNotebooksMl(fd: FormData) {
   await portero();
   const s = await sesionRequerida();
-  try {
-    const r = await prepararEliminarNotebooks(s.org.id, canalId, s.usuario.id, Date.now() + 270_000);
+  const canal = Number(fd.get("canal"));
+  return deFondo(s, `limpieza-notebooks:${canal}`, "Notebooks a eliminar en Mercado Libre", async () => {
+    const r = await prepararNotebooksMl(s.org.id, canal, s.usuario.id, Date.now() + 270_000);
     revalidatePath("/admin/limpieza");
-    return { ok: true as const, ...r };
-  } catch (e) {
-    return { ok: false as const, error: motivoErp(e) };
-  }
+    return textoResultadoMl(r);
+  });
 }
 
-/** Borra de Laucen (nunca de ML) las publicaciones que ML ya no tiene. Vuelve a leer ML antes. */
-export async function accionBorrarFantasmas(canalId: number) {
+/** Borra de Laucen las notebooks que no son de la lista (las que tienen historia, las archiva). */
+export async function accionNotebooksLaucen() {
   const org = await portero();
-  try {
-    const r = await borrarFantasmas(org, canalId, Date.now() + 50_000);
-    revalidatePath("/admin/limpieza");
-    return { ok: true as const, ...r };
-  } catch (e) {
-    return { ok: false as const, error: motivoErp(e) };
-  }
-}
-
-export async function accionBorrarBasura() {
-  const org = await portero();
-  let n;
-  try { n = await borrarBasuraDeVs(org); } catch (e) { volver(motivoErp(e), true); }
-  volver(`Basura de Virtual Seller borrada: ${n} productos.`);
+  let r;
+  try { r = await limpiarNotebooksLaucen(org); } catch (e) { volver(motivoErp(e), true); }
+  volver(`Notebooks en Laucen: ${r.borradas} borradas y ${r.archivadas} archivadas (tenían ventas o movimientos).`);
 }
