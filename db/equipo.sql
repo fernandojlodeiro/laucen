@@ -45,3 +45,7 @@ update roles set permisos = permisos || '{"tienda_dominios": true}'::jsonb
 -- «Configurar los mensajes» (3/10, carpeta de mensajes + IA de la tienda): una vez al Admin de fábrica.
 update roles set permisos = permisos || '{"mensajes_config": true}'::jsonb
  where protegido and not (permisos ? 'mensajes_config');
+
+-- «Asignar cuenta corriente y límite» (7/10): no es un botón del menú; una vez al Admin de fábrica.
+update roles set permisos = permisos || '{"cc_asignar": true}'::jsonb
+ where protegido and not (permisos ? 'cc_asignar');

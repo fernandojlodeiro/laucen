@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { ErrorErp, motivoErp, enTransaccion } from "@/lib/erp/base";
 import { intentar, entero, id } from "@/lib/erp/acciones";
-import { crearLote, escanear, corregirItem, terminarLote, cancelarLote, marcarPreparado, pedidosDelLotePorEtiqueta, empacar, esModoLote, pedidoPorNumero, prepararRapido, type FaltaEmpacar, type CargaKit } from "@/lib/deposito/picking";
+import { crearLote, escanear, corregirItem, terminarLote, cancelarLote, marcarPreparado, pedidosDelLotePorEtiqueta, empacar, esModoLote, pedidoPorNumero, prepararRapido, motivoNoPreparable, type FaltaEmpacar, type CargaKit } from "@/lib/deposito/picking";
 import { tienePermiso } from "@/lib/permisos";
 
 const LISTA = "/deposito/picking";
@@ -161,7 +161,7 @@ export async function accionBuscarRapido(codigo: string): Promise<PedidoRapido> 
     exigirSinEscanear(s);
     const p = await pedidoPorNumero(s.org.id, String(codigo ?? ""));
     if (p.estado === "preparado" && !p.lote) return { ok: false, mensaje: `El pedido ${p.id} ya está preparado.` };
-    if (!p.lote && !p.preparable) return { ok: false, mensaje: p.estado === "nuevo" ? `El pedido ${p.id} espera el pago: no se prepara todavía.` : `El pedido ${p.id} está ${p.estado.replace("_", " ")}: no se prepara.` };
+    if (!p.lote && !p.preparable) return { ok: false, mensaje: motivoNoPreparable({ ...p, estado: p.estado.replace("_", " ") }) };
     return { ok: true, id: p.id, cliente: p.cliente, unidades: p.unidades, estado: p.estado, lote: p.lote };
   } catch (e) {
     return { ok: false, mensaje: motivoErp(e) };

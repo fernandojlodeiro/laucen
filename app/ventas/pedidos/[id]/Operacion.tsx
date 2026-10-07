@@ -2,6 +2,7 @@
 // de ML los mueve ML): confirmar el pago, pasarlo al estado siguiente, avisar
 // al cliente por WhatsApp. Y los pagos del pedido (de cualquier canal).
 
+import { motivoFrenoCc } from "@/lib/administracion/credito";
 import { vencimientoDe } from "@/lib/pedidos/reserva";
 import { queArrastraCancelar, motivoNoCancelable } from "@/lib/pedidos/cancelar";
 import { consulta, una } from "@/lib/erp/base";
@@ -77,6 +78,7 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
      where p.id = $1 and p.organizacion_id = $2`, [pid, org]);
   if (!p) return null;
   const vence = await vencimientoDe(org, pid);
+  const frenoCc = p.estado_pago === "a_convenir" ? await motivoFrenoCc(pid) : null;
   const pagos = await consulta<{ id: number; medio: string; estado: string; importe: number; cuotas: number; detalle: string | null; fecha: Date }>(`
     select id::int, medio, estado, importe_ars::float importe, cuotas, detalle, creado_ts fecha from pago
      where pedido_id = $1 and organizacion_id = $2 order by creado_ts, id`, [pid, org]);
@@ -223,6 +225,12 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
           </div>
         )}
         {p.estado === "nuevo" && pagoPendiente && !p.sin_esperar && <p className="text-[11px] text-[#5C6B76]">El stock ya está reservado. Al confirmar el pago pasa a «A preparar» y entra en picking.</p>}
+        {/* A cuenta corriente sin crédito suficiente: no entra en picking (lib/administracion/credito.ts). */}
+        {frenoCc && (
+          <p className="text-xs mt-1 text-[#C03420] font-semibold">
+            Frenado por la cuenta corriente: {frenoCc}. No entra en picking hasta que haya crédito (cobrando, o subiendo el límite en la ficha del cliente).
+          </p>
+        )}
         {/* Sin pagar: hasta cuándo se guarda el stock (lib/pedidos/reserva.ts); en rojo si vence hoy o mañana. */}
         {vence && (
           <p className={`text-xs mt-1 ${vence.faltan <= 1 ? "text-[#C03420] font-semibold" : "text-[#5C6B76]"}`}>

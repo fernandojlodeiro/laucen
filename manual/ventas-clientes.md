@@ -57,6 +57,9 @@ Título: el nombre del cliente; debajo "Cliente N.º … · cliente desde el …
 - **"Lista de precios propia"** ("Para mayoristas. Vacío = la del canal.").
 - **"Notas"**.
 - **"Cuenta corriente"**: en edición, la caja **"Puede comprar en cuenta corriente / a convenir"**.
+- **"Límite de crédito"** (en pesos): hasta cuánto puede deber en cuenta corriente. Vacío = sin límite cargado (sus pedidos a cuenta no se preparan).
+- Si tiene la cuenta corriente habilitada (o un límite), en la vista se ven también **"Saldo de la cuenta"** (lo que debe según [Cuentas corrientes](/administracion/cuentas-corrientes), con enlace), **"Pedidos a cuenta sin facturar"** y **"Disponible"** (límite − saldo − pedidos; en rojo si es negativo).
+- La caja de cuenta corriente y el límite **sólo se pueden cambiar con el permiso "Asignar cuenta corriente y límite"** (en los roles; el Admin lo trae de fábrica y el superadministrador lo tiene siempre). Sin ese permiso, en edición dice quién los cambia.
 
 **"Datos originales (tal como llegaron)"**: un desplegable con lo que mandó cada origen (por ejemplo, Mercado Libre o Virtual Seller), tal cual vino. Sólo para consulta.
 
@@ -97,7 +100,7 @@ El botón sólo aparece si el cliente tiene CUIT y la empresa ya tiene cargados 
 
 ### Habilitar la cuenta corriente
 
-1. Lápiz → tildá **"Puede comprar en cuenta corriente / a convenir"** → **"Grabar"**.
+1. Lápiz → tildá **"Puede comprar en cuenta corriente / a convenir"**, cargá el **"Límite de crédito"** → **"Grabar"**. Hace falta el permiso "Asignar cuenta corriente y límite".
 2. En la tienda web le aparece el medio "Cuenta corriente" (si ese medio está prendido en [Medios de pago](/config/medios-pago)). En "Nuevo pedido", al elegirlo se ve "con cuenta corriente".
 
 ### Agregar, corregir o borrar una dirección
@@ -129,6 +132,7 @@ Sólo se puede si **no tiene ningún pedido**. Tacho arriba a la derecha → **"
 - **Condición de IVA**: decide el tipo de factura. Si la empresa es Responsable Inscripta: cliente Responsable Inscripto o Monotributo → factura **A** (y necesita **CUIT**); el resto → factura **B**. Sin condición cargada se toma como consumidor final. Para la factura, el documento es el CUIT (11 dígitos) o, si no, el DNI.
 - **Lista de precios propia**: si tiene, manda sobre la del canal en todos sus pedidos.
 - **Cuenta corriente**: habilita el medio "Cuenta corriente / a convenir" en la tienda y la opción "Cuenta corriente" al cargar un pedido a mano (que exige un cliente).
+- **Límite de crédito**: un pedido a cuenta corriente (pago "A convenir") **entra a preparar sólo si** el cliente tiene la cuenta habilitada, un límite cargado y **el saldo de su cuenta más sus pedidos a cuenta todavía sin facturar no pasan el límite** (el pedido mismo incluido). Si lo pasan, el pedido queda **frenado**: se crea y reserva el stock igual, pero no aparece en el picking hasta que haya crédito (cobrando, o subiendo el límite). Los pedidos más viejos tienen prioridad: se suman los de número menor o igual, más los que ya entraron a preparar. Un pedido facturado deja de contar como "pedido" y pasa a estar en el saldo. Todo en pesos (un pedido en dólares cuenta por su total en pesos).
 - **Padrón de ARCA**: pisa razón social, condición de IVA y CUIT con lo que dice ARCA; el domicilio fiscal de ARCA viene en un solo texto (calle y número juntos).
 - **Borrar**: no se puede borrar un cliente con pedidos. Quitar una identidad sólo hace que el próximo pedido de ese comprador no lo encuentre por ese camino.
 - **"Total comprado"**: suma de los totales en pesos de sus pedidos, sin los cancelados ni los devueltos.

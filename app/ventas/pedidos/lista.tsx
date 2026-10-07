@@ -139,6 +139,7 @@ const CAMPOS: Campo[] = [
     clave: "estado", titulo: "Estado", sql: "p.estado", valor: traducido("estado", ESTADOS_PEDIDO),
     // Un carrito de ML en espera (10 min desde su último evento) lo dice al lado.
     celda: (f) => <span className="inline-flex flex-wrap gap-1"><Estado texto={etiqueta(ESTADOS_PEDIDO, f.estado)} tono={TONO_ESTADO[f.estado as EstadoPedido] ?? "gris"} /><MarcaCarritoEspera ts={f.espera_ts} />
+      {f.freno_cc ? <span className="text-[11px] text-[#C03420] font-semibold" title={`Frenado por la cuenta corriente: ${String(f.freno_cc)}`}>frenado por cuenta corriente</span> : null}
       {/* Sin pagar con stock guardado: hasta cuándo (en rojo si vence hoy o mañana). */}
       {f.reserva_hasta ? <span className={`text-[11px] ${Number(f.reserva_faltan) <= 1 ? "text-[#C03420] font-semibold" : "text-[#5C6B76]"}`} title="Stock reservado sin pagar: al terminar ese día se cancela solo">reserva hasta {String(f.reserva_hasta)}</span> : null}</span>,
   },
@@ -208,7 +209,8 @@ export const LISTA_PEDIDOS: Lista = {
   enPantalla: ["id", "fecha", "cliente", "cantidades", "productos", "precios", "total", "canal", "estado", "pago", "factura"],
   siempre: `p.id::int id, p.canal_id::int canal_id, p.cliente_id::int cliente_id, p.carrito_ultimo_evento_ts espera_ts, p.moneda moneda_pedido,
     case when ${sqlReservaSinPagar("p")} then to_char(p.reserva_hasta, 'DD/MM') end reserva_hasta,
-    case when ${sqlReservaSinPagar("p")} then (p.reserva_hasta - (now() at time zone 'America/Argentina/Buenos_Aires')::date)::int end reserva_faltan`,
+    case when ${sqlReservaSinPagar("p")} then (p.reserva_hasta - (now() at time zone 'America/Argentina/Buenos_Aires')::date)::int end reserva_faltan,
+    case when p.estado_pago = 'a_convenir' then cc_motivo_freno(p.id) end freno_cc`,
   consulta: async (ctx, sp) => {
     const f = filtrosPedidos(sp);
     const valores: unknown[] = [ctx.org];

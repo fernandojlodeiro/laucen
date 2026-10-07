@@ -483,3 +483,38 @@ update cliente set telefono = telefono where telefono ~ '[^0-9]';
 update cliente set telefono_movil = telefono_movil where telefono_movil ~ '[^0-9]';
 update proveedor set telefono = telefono where telefono ~ '[^0-9]';
 update proveedor set telefono_movil = telefono_movil where telefono_movil ~ '[^0-9]';
+
+-- Cuenta corriente con límite de crédito (Fer, 7/10). Un pedido a cuenta
+-- corriente (estado_pago 'a_convenir') entra a preparar sólo si el cliente
+-- tiene la cuenta corriente habilitada, un límite cargado (en pesos) y el
+-- saldo de su cuenta más sus pedidos a cuenta todavía sin facturar no pasa el
+-- límite. Los pedidos más viejos tienen prioridad (se suman los de número
+-- menor o igual, más los que ya pasaron a preparación). Devuelve el motivo
+-- del freno, o null si puede prepararse (o si no es un pedido a cuenta).
+alter table cliente add column if not exists limite_cc numeric(14,2) check (limite_cc is null or limite_cc >= 0);
+comment on column cliente.limite_cc is 'Límite de crédito en pesos de la cuenta corriente; null = sin cargar (no se preparan pedidos a cuenta)';
+create or replace function public.cc_motivo_freno(p_pedido bigint) returns text language plpgsql stable as $$
+declare p record; cl record; saldo numeric; pedidos numeric;
+begin
+  select q.id, q.organizacion_id, q.cliente_id, q.estado, q.estado_pago into p from pedido q where q.id = p_pedido;
+  if not found or p.estado_pago <> 'a_convenir' or p.estado not in ('nuevo', 'pagado') then return null; end if;
+  if p.cliente_id is null then return 'la cuenta corriente necesita un cliente'; end if;
+  select c.cuenta_corriente, c.limite_cc into cl from cliente c where c.id = p.cliente_id;
+  if not coalesce(cl.cuenta_corriente, false) then return 'el cliente no tiene la cuenta corriente habilitada'; end if;
+  if cl.limite_cc is null then return 'el cliente no tiene límite de crédito cargado'; end if;
+  saldo := coalesce((select sum(m.importe_ars) from cc_movimiento m
+                      where m.organizacion_id = p.organizacion_id and m.tercero_tipo = 'cliente' and m.tercero_id = p.cliente_id), 0);
+  -- Los pedidos a cuenta que todavía no están en la cuenta (sin factura pasada a la cuenta corriente).
+  pedidos := coalesce((select sum(q.total_ars) from pedido q
+                        where q.organizacion_id = p.organizacion_id and q.cliente_id = p.cliente_id and q.estado_pago = 'a_convenir'
+                          and q.estado not in ('cancelado', 'devuelto', 'presupuesto')
+                          and (q.id <= p.id or q.estado not in ('nuevo', 'pagado'))
+                          and not exists (select 1 from comprobante cb join cc_movimiento m on m.referencia_tipo = 'comprobante' and m.referencia_id = cb.id
+                                           where cb.pedido_id = q.id and cb.estado = 'autorizado')), 0);
+  if saldo + pedidos > cl.limite_cc then
+    return format('el saldo de la cuenta ($ %s) más los pedidos a cuenta sin facturar ($ %s) pasan el límite de $ %s',
+      replace(to_char(round(saldo), 'FM999,999,999,990'), ',', '.'), replace(to_char(round(pedidos), 'FM999,999,999,990'), ',', '.'),
+      replace(to_char(round(cl.limite_cc), 'FM999,999,999,990'), ',', '.'));
+  end if;
+  return null;
+end $$;

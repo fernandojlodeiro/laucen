@@ -55,6 +55,7 @@ export type PermisoKey =
   | "compras_ver"
   | "despachos_ver"
   | "cuentas_corrientes_ver"
+  | "cc_asignar"
   | "tesoreria_ver"
   | "contabilidad_ver"
   | "informes_stock_ver"
@@ -118,6 +119,7 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "compras_ver", label: "Facturas de compra", ayuda: "Cargar y registrar facturas de proveedores (ingresan stock y costo)." },
   { key: "despachos_ver", label: "Despachos de importación", ayuda: "Cargar despachos y prorratear sus costos." },
   { key: "cuentas_corrientes_ver", label: "Cuentas corrientes", ayuda: "Saldos de clientes y proveedores, recibos y órdenes de pago." },
+  { key: "cc_asignar", label: "Asignar cuenta corriente y límite", ayuda: "Habilitar la cuenta corriente de un cliente y cargarle el límite de crédito." },
   { key: "tesoreria_ver", label: "Caja y bancos", ayuda: "Cuentas de fondos, movimientos, transferencias y conciliación." },
   { key: "contabilidad_ver", label: "Contabilidad", ayuda: "Plan de cuentas, asientos, libro diario, mayores y balances." },
   { key: "informes_stock_ver", label: "Informes de inventario", ayuda: "Stock valorizado y stock por ubicación, con descarga a Excel." },

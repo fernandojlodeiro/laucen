@@ -138,6 +138,7 @@ En la pestaña **"Etiquetas y hojas"** del lote apretá **"Reimprimir etiquetas 
 ### Mensajes de error típicos
 
 - "El pedido N espera el pago: no se prepara todavía." — está en "nuevo" y no es «A cobrar» ni a convenir.
+- "El pedido N está frenado por la cuenta corriente: …" — es a cuenta corriente y el cliente no tiene la cuenta habilitada, no tiene límite cargado, o su saldo más los pedidos a cuenta pasan el límite (ver [Clientes](/ventas/clientes)). Esos pedidos no aparecen en la lista para preparar.
 - "El pedido N sale de otro depósito." — elegí el depósito correcto arriba.
 - "El pedido N ya está en otro picking abierto."
 - "Esos pedidos no tienen nada reservado para preparar (¿productos sin vincular?)." — las líneas del pedido no están vinculadas a un producto de Laucen.

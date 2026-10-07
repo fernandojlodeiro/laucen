@@ -13,6 +13,8 @@ import { intentar, texto, id } from "@/lib/erp/acciones";
 import { DOCUMENTOS, CONDICIONES_IVA } from "@/app/ventas/formato";
 import { emisorConPadron } from "@/lib/arca/facturar";
 import { consultarCuit } from "@/lib/arca/padron";
+import { tienePermiso } from "@/lib/permisos";
+import { leerNumero } from "@/lib/numeros";
 
 const LISTADO = "/ventas/clientes";
 const ficha = (n: number) => `/ventas/clientes/${n}`;
@@ -66,19 +68,24 @@ export async function accionGuardarCliente(fd: FormData) {
     if (lista && !(await una("select 1 from lista_precios where id = $1 and organizacion_id = $2", [lista, s.org.id]))) {
       throw new ErrorErp("Esa lista de precios no existe.");
     }
+    const conCc = fd.get("con_cc") === "1";
+    if (conCc && !tienePermiso(s.permisos, "cc_asignar")) throw new ErrorErp("No tenés permiso para cambiar la cuenta corriente ni el límite de crédito.");
+    const limite = conCc ? leerNumero(fd.get("limite_cc")) : null;
+    if (limite != null && limite < 0) throw new ErrorErp("El límite de crédito no puede ser negativo.");
     const r = await consulta(`
       update cliente set nombre = $3, tipo = $4, email = $5, telefono = $6, documento_tipo = $7, documento_numero = $8,
                          condicion_iva = $9, lista_precios_id = $10, notas = $11, razon_social = $12, cuit = $13,
                          apellido = $14, nombre_pila = $15, apodo_ml = $16, telefono_movil = $17,
                          cuenta_corriente = coalesce($18, cuenta_corriente),
+                         limite_cc = case when $18::boolean is null then limite_cc else $21::numeric end,
                          telefono_aclaracion = $19, telefono_movil_aclaracion = $20
        where id = $2 and organizacion_id = $1 returning id`,
       [s.org.id, cid, nombre, tipo(fd), texto(fd, "email"), texto(fd, "telefono"), documentoTipo(fd),
         texto(fd, "documento_numero"), condicionIva(fd), lista, texto(fd, "notas"), texto(fd, "razon_social"), cuitDe(fd),
         texto(fd, "apellido"), texto(fd, "nombre_pila"), texto(fd, "apodo_ml"), texto(fd, "telefono_movil"),
-        // La ficha manda la casilla de cuenta corriente (con_cc); sin ella, queda como estaba.
-        fd.get("con_cc") === "1" ? fd.get("cuenta_corriente") === "on" : null,
-        texto(fd, "telefono_aclaracion"), texto(fd, "telefono_movil_aclaracion")]);
+        // La ficha manda la casilla de cuenta corriente y el límite (con_cc) sólo a quien tiene «cc_asignar»; sin ella, quedan como estaban.
+        conCc ? fd.get("cuenta_corriente") === "on" : null,
+        texto(fd, "telefono_aclaracion"), texto(fd, "telefono_movil_aclaracion"), conCc ? limite : null]);
     if (!r.length) throw new ErrorErp("El cliente no existe.");
     revalidatePath(ficha(cid));
     return "Guardado.";

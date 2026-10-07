@@ -13,10 +13,15 @@
 
 import type { PoolClient } from "pg";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
-import { cambiarEstado, exigirCarritoLibre, sqlCarritoEnEspera, sqlACobrar, sqlSinEsperarPago } from "@/lib/pedidos";
+import { cambiarEstado, exigirCarritoLibre, sqlCarritoEnEspera, sqlACobrar, sqlSinEsperarPago, sqlCcLibre } from "@/lib/pedidos";
 
-/** SQL: el pedido (alias `p`) se prepara: pagado o en preparación, o «A cobrar» / a convenir estando nuevo. */
-const SQL_PARA_PREPARAR = `(p.estado in ('pagado', 'en_preparacion') or (p.estado = 'nuevo' and ${sqlSinEsperarPago("p")}))`;
+/** SQL: el pedido (alias `p`) se prepara: pagado o en preparación, o «A cobrar» / a convenir estando nuevo.
+ *  Uno a cuenta corriente, sólo si el límite del cliente lo cubre (sqlCcLibre). */
+const SQL_PARA_PREPARAR = `((p.estado = 'en_preparacion' or ((p.estado = 'pagado' or (p.estado = 'nuevo' and ${sqlSinEsperarPago("p")})) and ${sqlCcLibre("p")})))`;
+/** Por qué no se prepara un pedido que no es preparable. */
+export const motivoNoPreparable = (p: { id: number | string; estado: string; freno: string | null }) =>
+  p.freno ? `El pedido ${p.id} está frenado por la cuenta corriente: ${p.freno}.`
+    : p.estado === "nuevo" ? `El pedido ${p.id} espera el pago: no se prepara todavía.` : `El pedido ${p.id} está ${p.estado}: no se prepara.`;
 /** SQL: el depósito de donde sale (el suyo, o el que le tocaría si todavía no reservó). */
 const SQL_DEPOSITO = "deposito_para_pedido(p.organizacion_id, p.canal_id, p.deposito_id)";
 
@@ -89,15 +94,15 @@ export const esModoLote = (x: unknown): x is ModoLote => x === "recorrido" || x 
 export async function crearLote(org: string, depositoId: number, pedidoIds: number[], usuarioId: string, modo: ModoLote = "recorrido", cx?: PoolClient): Promise<number> {
   if (!pedidoIds.length) throw new ErrorErp("Elegí al menos un pedido.");
   const correr = async (c: PoolClient) => {
-    const ok = await c.query<{ id: string; estado: string; deposito_id: string | null; preparable: boolean }>(`
-      select p.id, p.estado, ${SQL_DEPOSITO} deposito_id, ${SQL_PARA_PREPARAR} preparable
+    const ok = await c.query<{ id: string; estado: string; deposito_id: string | null; preparable: boolean; freno: string | null }>(`
+      select p.id, p.estado, ${SQL_DEPOSITO} deposito_id, ${SQL_PARA_PREPARAR} preparable, cc_motivo_freno(p.id) freno
         from pedido p where p.organizacion_id = $1 and p.id = any($2::bigint[]) for update`, [org, pedidoIds]);
     if (ok.rowCount !== pedidoIds.length) throw new ErrorErp("Algún pedido no existe.");
     // Un carrito de ML al que todavía le puede llegar un ítem no se prepara.
     await exigirCarritoLibre(org, pedidoIds, c);
     for (const p of ok.rows) {
       if (!p.preparable) {
-        throw new ErrorErp(p.estado === "nuevo" ? `El pedido ${p.id} espera el pago: no se prepara todavía.` : `El pedido ${p.id} está ${p.estado}: no se prepara.`);
+        throw new ErrorErp(motivoNoPreparable(p));
       }
       if (Number(p.deposito_id) !== depositoId) throw new ErrorErp(`El pedido ${p.id} sale de otro depósito.`);
     }
@@ -518,12 +523,12 @@ export async function empacar(org: string, loteId: number, codigo: string, usuar
 /** El pedido de un número escrito o escaneado (el N.º de Laucen, con o sin
  *  "#", o el número del canal, ej. el de la venta de Mercado Libre), para el
  *  «preparado rápido». */
-export async function pedidoPorNumero(org: string, codigo: string): Promise<{ id: number; cliente: string | null; estado: string; unidades: number; deposito_id: number | null; lote: number | null; preparable: boolean; full: boolean }> {
+export async function pedidoPorNumero(org: string, codigo: string): Promise<{ id: number; cliente: string | null; estado: string; unidades: number; deposito_id: number | null; lote: number | null; preparable: boolean; full: boolean; freno: string | null }> {
   const t = String(codigo ?? "").trim();
   if (!t) throw new ErrorErp("Escribí el número de pedido.");
   const n = leerCodigoPedido(t);
-  const p = await una<{ id: number; cliente: string | null; estado: string; unidades: number; deposito_id: number | null; lote: number | null; preparable: boolean; full: boolean }>(`
-    select p.id::int, cl.nombre cliente, p.estado, ${SQL_DEPOSITO}::int deposito_id, ${SQL_PARA_PREPARAR} preparable,
+  const p = await una<{ id: number; cliente: string | null; estado: string; unidades: number; deposito_id: number | null; lote: number | null; preparable: boolean; full: boolean; freno: string | null }>(`
+    select p.id::int, cl.nombre cliente, p.estado, ${SQL_DEPOSITO}::int deposito_id, ${SQL_PARA_PREPARAR} preparable, cc_motivo_freno(p.id) freno,
            coalesce((select logistica from envio where pedido_id = p.id order by id desc limit 1), '') = 'fulfillment' "full",
            (select coalesce(sum(cantidad), 0)::int from pedido_linea where pedido_id = p.id and variacion_id is not null) unidades,
            (select pp.lote_id::int from picking_pedido pp join picking_lote l on l.id = pp.lote_id

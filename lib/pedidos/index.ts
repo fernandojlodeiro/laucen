@@ -60,6 +60,11 @@ export const sqlACobrar = (a = "p") =>
 /** SQL: true si el pedido entra en picking (y reserva) sin esperar el pago: «A cobrar» o a convenir. */
 export const sqlSinEsperarPago = (a = "p") => `(${sqlACobrar(a)} or ${a}.estado_pago = 'a_convenir')`;
 
+/** SQL: el pedido no está frenado por la cuenta corriente (Fer, 7/10): uno a cuenta
+ *  (a convenir) se prepara sólo si el cliente tiene la cuenta habilitada y su
+ *  límite cubre el saldo más los pedidos a cuenta (cc_motivo_freno, db/administracion.sql). */
+export const sqlCcLibre = (a = "p") => `(${a}.estado_pago <> 'a_convenir' or cc_motivo_freno(${a}.id) is null)`;
+
 /** SQL: el estado del pago como se muestra (los viejos en efectivo, «a_cobrar»). */
 export const sqlEstadoPago = (a = "p") => `(case when ${sqlACobrar(a)} then 'a_cobrar' else ${a}.estado_pago end)`;
 

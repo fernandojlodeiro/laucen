@@ -21,6 +21,10 @@ import {
   accionDireccionPrincipal, accionBorrarDireccion, accionQuitarIdentidad, accionValidarPadron,
 } from "../acciones";
 import { emisorConPadron } from "@/lib/arca/facturar";
+import { situacionCc } from "@/lib/administracion/credito";
+import { tienePermiso } from "@/lib/permisos";
+import { formatear } from "@/lib/moneda";
+import CampoNumero from "@/app/componentes/CampoNumero";
 
 
 export const dynamic = "force-dynamic";
@@ -33,7 +37,7 @@ type Cliente = {
   razon_social: string | null; cuit: string | null; apodo_ml: string | null; telefono_movil: string | null;
   telefono_aclaracion: string | null; telefono_movil_aclaracion: string | null;
   nombre_pila: string | null; apellido: string | null; datos_externos: Record<string, Record<string, unknown>>;
-  cuenta_corriente: boolean;
+  cuenta_corriente: boolean; limite_cc: string | null;
 };
 type Direccion = {
   id: number; etiqueta: string | null; calle: string | null; numero: string | null; piso_depto: string | null; localidad: string | null;
@@ -54,7 +58,7 @@ export default async function FichaCliente({ params, searchParams }: { params: P
   if (!Number.isInteger(cid) || cid <= 0) notFound();
   const c = await una<Cliente>(`
     select id::int, nombre, tipo, email, telefono, documento_tipo, documento_numero, condicion_iva, lista_precios_id::int, notas, creado_ts,
-           razon_social, cuit, apodo_ml, telefono_movil, telefono_aclaracion, telefono_movil_aclaracion, nombre_pila, apellido, datos_externos, cuenta_corriente
+           razon_social, cuit, apodo_ml, telefono_movil, telefono_aclaracion, telefono_movil_aclaracion, nombre_pila, apellido, datos_externos, cuenta_corriente, limite_cc
       from cliente where id = $1 and organizacion_id = $2`, [cid, s.org.id]);
   if (!c) notFound();
   // La ficha abre en vista; ?editar=ficha la edita (?editar=<id> es el lápiz de una dirección).
@@ -62,6 +66,10 @@ export default async function FichaCliente({ params, searchParams }: { params: P
   const editar = Number(sp.editar) || 0;
   // ¿Se puede consultar el padrón de ARCA? Hace falta una razón social conectada.
   const conPadron = c.cuit ? !!(await emisorConPadron(s.org.id)) : false;
+  // Cuenta corriente (Fer, 7/10): habilitarla y su límite, sólo con el permiso «cc_asignar».
+  const puedeCc = tienePermiso(s.permisos, "cc_asignar");
+  const cc = c.cuenta_corriente || c.limite_cc != null ? await situacionCc(s.org.id, cid) : null;
+  const pesos = (n: number) => formatear(n, "ARS");
 
   const [direcciones, identidades, pedidos, listas] = await Promise.all([
     consulta<Direccion>(`
@@ -148,12 +156,21 @@ export default async function FichaCliente({ params, searchParams }: { params: P
           <span className="block text-[10px] text-[#5C6B76] mt-0.5">Para mayoristas. Vacío = la del canal.</span></label>
         <label className="sm:col-span-3"><span className={ETIQUETA}>Notas</span>
           <textarea name="notas" defaultValue={c.notas ?? ""} rows={2} className={`${CAMPO} w-full`} /></label>
-        <input type="hidden" name="con_cc" value="1" />
-        <label className="sm:col-span-3 flex items-center gap-1.5 text-xs">
-          <input type="checkbox" name="cuenta_corriente" defaultChecked={c.cuenta_corriente} className="h-4 w-4" />
-          Puede comprar en cuenta corriente / a convenir
-          <span className="text-[11px] text-[#5C6B76]">(en la tienda web le aparece el medio &quot;Cuenta corriente&quot;, si está prendido en Medios de pago)</span>
-        </label>
+        {puedeCc ? (
+          <>
+            <input type="hidden" name="con_cc" value="1" />
+            <label className="sm:col-span-2 flex items-center gap-1.5 text-xs self-end pb-1.5">
+              <input type="checkbox" name="cuenta_corriente" defaultChecked={c.cuenta_corriente} className="h-4 w-4" />
+              Puede comprar en cuenta corriente / a convenir
+              <span className="text-[11px] text-[#5C6B76]">(en la tienda web le aparece el medio &quot;Cuenta corriente&quot;, si está prendido en Medios de pago)</span>
+            </label>
+            <label><span className={ETIQUETA}>Límite de crédito ($)</span>
+              <CampoNumero name="limite_cc" valor={c.limite_cc == null ? null : Number(c.limite_cc)} tipo="pesos" className={`${CAMPO} w-full`} />
+              <span className="block text-[10px] text-[#5C6B76] mt-0.5">Vacío = sin límite cargado: sus pedidos a cuenta no se preparan.</span></label>
+          </>
+        ) : (
+          <p className="sm:col-span-3 text-[11px] text-[#5C6B76]">La cuenta corriente y el límite de crédito los cambia quien tiene el permiso «Asignar cuenta corriente y límite».</p>
+        )}
       </form>
       ) : (
         <div className={`${CAJA} grid grid-cols-1 sm:grid-cols-3 gap-3 items-start mb-4`}>
@@ -184,9 +201,23 @@ export default async function FichaCliente({ params, searchParams }: { params: P
             {c.lista_precios_id ? listas.find((l) => l.id === c.lista_precios_id)?.nombre ?? null : "La del canal"}
           </Dato>
           <Dato etiqueta="Notas" className="sm:col-span-3" largo>{c.notas}</Dato>
-          <Dato etiqueta="Cuenta corriente" className="sm:col-span-3">
+          <Dato etiqueta="Cuenta corriente" className="sm:col-span-2">
             {c.cuenta_corriente ? "Puede comprar en cuenta corriente / a convenir" : "No compra en cuenta corriente"}
           </Dato>
+          <Dato etiqueta="Límite de crédito" numero ayuda={c.cuenta_corriente && c.limite_cc == null ? "Sin límite cargado: sus pedidos a cuenta no se preparan." : undefined}>
+            {c.limite_cc == null ? null : pesos(Number(c.limite_cc))}
+          </Dato>
+          {cc && (
+            <>
+              <Dato etiqueta="Saldo de la cuenta" numero>
+                <Link href={`/administracion/cuentas-corrientes?id=${cid}`} className="hover:underline">{pesos(cc.saldo)}</Link>
+              </Dato>
+              <Dato etiqueta="Pedidos a cuenta sin facturar" numero>{pesos(cc.pedidos)}</Dato>
+              <Dato etiqueta="Disponible" numero>
+                {cc.disponible == null ? null : <span className={cc.disponible < 0 ? "text-[#C03420] font-semibold" : ""}>{pesos(cc.disponible)}</span>}
+              </Dato>
+            </>
+          )}
         </div>
       )}
 

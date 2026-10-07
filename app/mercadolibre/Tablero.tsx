@@ -25,6 +25,9 @@ const haceCuanto = (d: Date | string | null) => {
   const h = Math.round(min / 60);
   return h < 24 ? `hace ${h} h` : `hace ${Math.round(h / 24)} d`;
 };
+/** Debajo de «Pedidos para preparar»: los en preparación y los frenados por la cuenta corriente. */
+const notaPreparar = (m: Metricas) =>
+  [m.enPreparacion ? `${n(m.enPreparacion)} en preparación` : null, m.frenadosCc ? `${n(m.frenadosCc)} frenados por cuenta corriente` : null].filter(Boolean).join(" · ") || null;
 const periodo = (p: string | null) => (!p ? "" : p === "historic" ? "histórico" : /^(\d+) days?$/.test(p) ? `${p.split(" ")[0]} días` : p);
 
 type Tono = "alerta" | "ok" | "neutro";
@@ -236,8 +239,8 @@ export async function Tablero({ org, modo, moneda = "ARS" }: { org: string; modo
           celda: (c, m) => <Celda valor={m.etiquetas.sinImprimir} de={m.etiquetas.porDespachar} href={enlace("/ventas/envios", c)} nota={m.etiquetas.vencidos ? `${n(m.etiquetas.vencidos)} para hoy o vencidos` : null} />,
           total: (t) => <Celda valor={t.etiquetas.sinImprimir} de={t.etiquetas.porDespachar} href="/ventas/envios" nota={t.etiquetas.vencidos ? `${n(t.etiquetas.vencidos)} para hoy o vencidos` : null} /> },
         { titulo: "Pedidos para preparar", ayuda: "Nuevos o pagados que todavía no entraron a un lote; el chico es el total sin despachar (incluye los en preparación y los preparados)",
-          celda: (c, m) => <Celda valor={m.pedidosParaPreparar} de={m.pedidosSinDespachar} href={enlace("/ventas/pedidos", c, { estado: "pendientes" })} nota={m.enPreparacion ? `${n(m.enPreparacion)} en preparación` : null} />,
-          total: (t) => <Celda valor={t.pedidosParaPreparar} de={t.pedidosSinDespachar} href="/ventas/pedidos?estado=pendientes" nota={t.enPreparacion ? `${n(t.enPreparacion)} en preparación` : null} /> },
+          celda: (c, m) => <Celda valor={m.pedidosParaPreparar} de={m.pedidosSinDespachar} href={enlace("/ventas/pedidos", c, { estado: "pendientes" })} nota={notaPreparar(m)} />,
+          total: (t) => <Celda valor={t.pedidosParaPreparar} de={t.pedidosSinDespachar} href="/ventas/pedidos?estado=pendientes" nota={notaPreparar(t)} /> },
         { titulo: "Reservados sin pagar", ayuda: "Pedidos nuevos sin pagar que guardan stock; al terminar el último día de la reserva se cancelan solos. Debajo, los que vencen hoy o mañana",
           celda: (c, m) => <Celda valor={m.reservados} tono={m.reservadosVencen ? "alerta" : "neutro"} href={enlace("/ventas/pedidos", c, { reserva: 1 })} nota={m.reservadosVencen ? `${n(m.reservadosVencen)} vencen hoy o mañana` : null} />,
           total: (t) => <Celda valor={t.reservados} tono={t.reservadosVencen ? "alerta" : "neutro"} href="/ventas/pedidos?reserva=1" nota={t.reservadosVencen ? `${n(t.reservadosVencen)} vencen hoy o mañana` : null} /> },
