@@ -97,7 +97,8 @@ Aparece en los pedidos que no son de Mercado Libre. Según el estado y el pago m
 - **"Entrega: …"** (el método de envío, si tiene).
 - El cartel **"A COBRAR $ … al retirar"** (o "al entregar").
 - **"Confirmar pago de $ …"** con el desplegable **"Pagó con"**: cuando el pago está Pendiente, A convenir o A cobrar y el pedido no está cerrado.
-- **"Entregado y cobrado ($ …)"** con **"Cobró con"**: en lugar del anterior, cuando el pedido es «A cobrar», **retira** en el local y ya está **Preparado**.
+- **"Cliente presente: retira"**: cuando el pedido **retira** en el local y ya está **Preparado**. Si se paga al retirar («A cobrar»), dice **"Cliente presente: retira y paga $ …"** con **"Cobró con"**. Ver "El cliente retira en el local".
+- Si el método de envío tiene el **seguimiento automático** (OCA), no hay botones de "Despachado" ni "Entregado": dice "El envío lo sigue el transportista: el pedido pasa solo a «Despachado» cuando lo retiran y a «Entregado» cuando lo entregan."
 - Los botones del **estado siguiente** (ver la tabla de "Criterios").
 - **"Cancelar pedido"**: pregunta ahí mismo "¿Cancelar el pedido?" y dice qué más va a hacer (liberar el stock, anular el envío de OCA, anular o devolver el pago de Payway), con **"Sí"** / **"No"**. Si el pedido tiene factura, pregunta aparte "¿Emitir la nota de crédito…?". No aparece en pedidos entregados, cancelados o devueltos. **Un pedido Despachado, o con el envío de OCA ya en camino, no se cancela**: en su lugar dice "Ya salió: no se cancela. Si la mercadería vuelve, hacé la devolución." (así no se devuelve el pago ni se anula la factura de algo que está viajando). **En una venta de Mercado Libre**, "Cancelar pedido" no cancela: explica que las ventas de Mercado Libre se cancelan desde Mercado Libre, que Laucen lee el cambio enseguida (el pedido queda cancelado y el stock vuelve) y deja el botón **"Abrir la venta en Mercado Libre ↗"**.
 - **"Avisar por WhatsApp"**: abre WhatsApp con un mensaje armado para el cliente según el estado. Si el cliente no tiene teléfono: "El cliente no tiene teléfono cargado: no se le puede avisar por WhatsApp."
@@ -133,11 +134,11 @@ Errores típicos: "Elegí el cliente (o marcá «Consumidor final»).", "Línea 
 3. Apretá **"Confirmar pago de $ …"**. Aviso: "Pago confirmado: el pedido quedó pagado."
 4. Si el pedido estaba Nuevo, pasa a **A preparar** (pagado) y se reserva el stock. Si era «A cobrar» y ya venía avanzando (en preparación, preparado…), el estado no cambia: sólo el pago queda Pagado, y desde ahí se puede facturar.
 
-### Entregar y cobrar un pedido «A cobrar» que retira el cliente
+### El cliente retira en el local
 
-1. Cuando el pedido está **Preparado**, en **"Operación"** aparece **"Entregado y cobrado ($ …)"**.
-2. Elegí en **"Cobró con"** el medio y apretá el botón.
-3. En un solo paso queda el pago confirmado y el pedido **Entregado** (el stock reservado pasa a vendido). Aviso: "Cobrado y entregado."
+1. Cuando el pedido está **Preparado** y el cliente viene a buscarlo, en **"Operación"** apretá **"Cliente presente: retira"**.
+2. Si lo paga al retirar («A cobrar»), el botón dice **"Cliente presente: retira y paga $ …"**: elegí antes en **"Cobró con"** con qué pagó.
+3. En un solo paso: se confirma el cobro (si hacía falta), el pedido queda **Entregado** (el stock reservado pasa a vendido) y, **si todavía no tiene factura, se factura en el momento**. Aviso: "Entregado · Factura B … emitida." Si la factura no sale (por ejemplo, ARCA no responde), el pedido queda entregado igual y el aviso dice qué falló: se reintenta desde la factura.
 
 ### Avanzar el estado a mano (pedidos que no son de Mercado Libre)
 
@@ -212,7 +213,7 @@ Los estados, en orden: **Nuevo → Pagado → En preparación → Preparado → 
 | → **En preparación** | [Picking](/deposito/picking), al armar el lote | Picking, o el botón **"En preparación"** |
 | → **Preparado** | Picking, al terminar | Picking, o el botón **"Preparado"** |
 | → **Despachado** | solo, cuando Mercado Envíos marca el envío "en camino" | botón **"Despachado"** |
-| → **Entregado** | solo, cuando Mercado Envíos marca el envío entregado | botón **"Entregado"**, **"Entregado (retiro)"** o **"Entregado y cobrado"** |
+| → **Entregado** | solo, cuando Mercado Envíos u OCA marcan el envío entregado | botón **"Entregado"** o **"Cliente presente: retira"** |
 | → **Cancelado** | solo, cuando se cancelan **todas** las órdenes del carrito | botón **"Cancelar pedido"** |
 | → **Devuelto** | al cerrar la recepción de la devolución en el depósito | igual |
 
@@ -226,7 +227,7 @@ Los pedidos de Mercado Libre **no tienen botones de estado** en la ficha: los mu
 | Nuevo «A cobrar» o a convenir | "En preparación", "Preparado" |
 | Pagado | "En preparación", "Preparado" |
 | En preparación | "Preparado" |
-| Preparado | "Despachado" (con "Seguimiento / nota") y "Entregado (retiro)"; si es «A cobrar» y retira, en lugar de "Entregado (retiro)" está "Entregado y cobrado" |
+| Preparado | "Despachado" (con "Seguimiento / nota") y "Entregado" si el envío es manual (cadetería, envío propio); "Cliente presente: retira" si retira en el local; ninguno si el seguimiento es automático (OCA) |
 | Despachado | "Entregado" |
 
 ### Reservas de stock: cuándo se aparta y cuándo se descuenta
@@ -321,7 +322,7 @@ De entrada no se muestran: tildá "Incluye canceladas" o elegí "Cancelado" en "
 No: entran solos. El canal de Mercado Libre ni aparece en "Nuevo pedido".
 
 **¿Por qué no puedo facturar un pedido «A cobrar»?**
-Porque se factura cuando se cobra. Confirmá el pago (o usá "Entregado y cobrado") y después facturá.
+Porque se factura cuando se cobra. Confirmá el pago (o usá "Cliente presente: retira y paga", que también factura) y después facturá.
 
 **Un pedido de Mercado Libre dice "Carrito en espera". ¿Qué hago?**
 Esperá los minutos que indica: puede que todavía falte llegar otra orden del mismo carrito. Después se puede preparar y facturar normalmente.

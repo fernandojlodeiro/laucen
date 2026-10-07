@@ -25,9 +25,10 @@ export const LISTA_METODOS_ENVIO: Lista = {
     },
     { clave: "plazo", titulo: "Plazo", sql: "plazo" },
     { clave: "instrucciones", titulo: "Instrucciones", sql: "instrucciones", ancho: 40 },
+    { clave: "seguimiento", titulo: "Seguimiento", sql: "seguimiento", valor: (f) => (f.seguimiento === "automatico" ? "Automático" : "Manual") },
     { clave: "orden", titulo: "Orden", sql: "orden", formato: "entero" },
   ],
-  enPantalla: ["nombre", "tipo", "activo", "costo", "gratis", "plazo", "instrucciones", "orden"],
+  enPantalla: ["nombre", "tipo", "activo", "costo", "gratis", "plazo", "instrucciones", "seguimiento", "orden"],
   consulta: async (ctx, sp) => ({
     desde: "metodo_envio",
     donde: `organizacion_id = $1 and canal_id is null and ${sqlBusqueda("$2", ["id::text", "nombre", "tipo", TIPO_TEXTO, "tarifas::text", "plazo", "instrucciones"])}`,

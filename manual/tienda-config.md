@@ -56,11 +56,11 @@ Justo debajo de esa caja (antes de la ficha), la sección **Dominios (N)**, con 
 
 Arriba a la derecha, **"Cuenta de OCA"**, **"Descargar Excel"** y **"Nuevo método de envío"**. Buscador **"Buscar método de envío"** (en todos sus datos: N.º, nombre, tipo, provincias de las tarifas, plazo e instrucciones).
 
-Columnas (se ordenan tocando el título; de entrada por **Orden**): **Nombre**, **Tipo**, **Activo** (un interruptor Sí/No), **Costo** ("Sin cargo" para retiro, "A convenir", "N provincias · resto $ …" para por provincia, o el importe), **Gratis desde** ("Nunca", el importe, o "—" para retiro y a convenir), **Plazo**, **Instrucciones**, **Orden**, y el lápiz y el tacho ("¿Borrar?").
+Columnas (se ordenan tocando el título; de entrada por **Orden**): **Nombre**, **Tipo**, **Activo** (un interruptor Sí/No), **Costo** ("Sin cargo" para retiro, "A convenir", "N provincias · resto $ …" para por provincia, o el importe), **Gratis desde** ("Nunca", el importe, o "—" para retiro y a convenir), **Plazo**, **Instrucciones**, **Seguimiento** ("Automático" o "Manual"), **Orden**, y el lápiz y el tacho ("¿Borrar?").
 
 Tipos: **Retiro en el local**, **Tarifa fija**, **Por provincia**, **A convenir**, **OCA a domicilio** y **OCA a sucursal** (cotizan con la cuenta de OCA: botón **"Cuenta de OCA"** arriba a la derecha, ver [OCA](/config/envios/oca)); **Andreani (próximamente)** se ve deshabilitado. En los de OCA, la columna Costo dice "Lo que cotiza OCA" (o "Lo de OCA + $ …" si tiene Costo $).
 
-Al editar una fila (lápiz): Nombre, Tipo, **Costo $**, **Gratis desde $** (vacío = "nunca"), **Plazo**, **Instrucciones**, **Orden**, y el desplegable **"Tarifas por provincia (para el tipo "Por provincia")"** con un campo por cada una de las 24 provincias y **"Resto del país"**. Botones **"Guardar"** y **"Cancelar"**.
+Al editar una fila (lápiz): Nombre, Tipo, **Costo $**, **Gratis desde $** (vacío = "nunca"), **Plazo**, **Instrucciones**, **Orden**, **"Seguimiento del envío"**, y el desplegable **"Tarifas por provincia (para el tipo "Por provincia")"** con un campo por cada una de las 24 provincias y **"Resto del país"**. Botones **"Guardar"** y **"Cancelar"**.
 
 ### Medios de pago
 
@@ -133,7 +133,7 @@ En [Canales](/config/canales), lápiz del canal de la tienda → Estado "Pausado
 ### Crear un método de envío
 
 1. En [Métodos de envío](/config/envios), apretá **"Nuevo método de envío"**.
-2. Completá **Nombre que ve el comprador**, **Tipo**, **Costo $**, **Gratis desde $** (vacío = nunca), **Plazo** e **Instrucciones**.
+2. Completá **Nombre que ve el comprador**, **Tipo**, **Costo $**, **Gratis desde $** (vacío = nunca), **Plazo**, **Instrucciones** y **"Seguimiento del envío"**: **Automático** (lo informa el transportista: el pedido pasa solo a Despachado y a Entregado, sin botones; por ahora sólo OCA) o **Manual** (se marca con los botones del pedido: una cadetería, un envío propio; el retiro en el local se cierra con "Cliente presente: retira"). Sin elegir, OCA queda automático y el resto manual.
 3. **"Crear"**. Nace **apagado**: "Creado (apagado). Prendelo cuando esté listo."
 4. Si es "Por provincia", se abre solo para cargar las tarifas: "Creado (apagado). Cargá las tarifas por provincia."
 5. Prendé el interruptor **Activo**: "Prendido: ya se ofrece en la tienda."

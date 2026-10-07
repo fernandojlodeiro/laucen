@@ -17,7 +17,7 @@ import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, url, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
-import { TIPOS_ENVIO, PROVINCIAS, type TipoEnvio } from "./comun";
+import { TIPOS_ENVIO, PROVINCIAS, SEGUIMIENTOS, type TipoEnvio, type Seguimiento } from "./comun";
 import { AccionesExcel } from "@/app/listas/piezas";
 import { LISTA_METODOS_ENVIO } from "./lista";
 import { accionCrearEnvio, accionGuardarEnvio, accionActivarEnvio, accionBorrarEnvio } from "./acciones";
@@ -28,8 +28,18 @@ const BASE = "/config/envios";
 type SP = { editar?: string; q?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 type Metodo = {
   id: number; tipo: TipoEnvio; nombre: string; activo: boolean; costo: number; gratis: number | null; tarifas: Record<string, number>;
-  plazo: string | null; instrucciones: string | null; orden: number;
+  plazo: string | null; instrucciones: string | null; orden: number; seguimiento: Seguimiento;
 };
+
+/** "¿Cómo se sigue el envío?" (Fer, 7/10). Automático sólo vale para OCA (el servidor lo controla). */
+function SelectorSeguimiento({ valor }: { valor?: Seguimiento }) {
+  return (
+    <select name="seguimiento" defaultValue={valor ?? ""} className={`${CAMPO} w-full`}>
+      {!valor && <option value="">Según el tipo (OCA automático, el resto manual)</option>}
+      {Object.entries(SEGUIMIENTOS).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
+    </select>
+  );
+}
 
 function SelectorTipo({ valor }: { valor?: string }) {
   return (
@@ -62,11 +72,11 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
   const filtros = { q: q || null, contiene: comienza ? null : "1", p: sp.p, orden: sp.orden, dir: sp.dir };
   const base = await LISTA_METODOS_ENVIO.consulta!({ org: s.org.id, moneda: s.moneda }, sp);
   const metodos = await consulta<Metodo>(`
-    select id::int, tipo, nombre, activo, costo_ars::float costo, gratis_desde_ars::float gratis, tarifas, plazo, instrucciones, orden
+    select id::int, tipo, nombre, activo, costo_ars::float costo, gratis_desde_ars::float gratis, tarifas, plazo, instrucciones, orden, seguimiento
       from ${base.desde} where ${base.donde} order by ${base.orden}`, base.valores);
   const vista = paginarEnMemoria(ordenarEnMemoria(metodos, sp, {
     nombre: (m) => m.nombre, tipo: (m) => TIPOS_ENVIO[m.tipo]?.texto ?? m.tipo, activo: (m) => (m.activo ? 1 : 0), costo: (m) => m.costo,
-    gratis: (m) => m.gratis, plazo: (m) => m.plazo, instrucciones: (m) => m.instrucciones, orden: (m) => m.orden,
+    gratis: (m) => m.gratis, plazo: (m) => m.plazo, instrucciones: (m) => m.instrucciones, seguimiento: (m) => m.seguimiento, orden: (m) => m.orden,
   }), sp);
 
   return (
@@ -81,6 +91,7 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
           <label><span className={ETIQUETA}>Gratis desde $</span><CampoNumero name="gratis_desde_ars" valor={null} tipo="pesos" placeholder="nunca" className={`${CAMPO} w-full`} /></label>
           <label className="col-span-2"><span className={ETIQUETA}>Plazo</span><input name="plazo" placeholder="24 a 72 h" className={`${CAMPO} w-full`} /></label>
           <label className="col-span-2 sm:col-span-3"><span className={ETIQUETA}>Instrucciones</span><input name="instrucciones" className={`${CAMPO} w-full`} /></label>
+          <label className="col-span-2 sm:col-span-3"><span className={ETIQUETA}>Seguimiento del envío</span><SelectorSeguimiento /></label>
           <div><button className={PRIMARIO}>Crear</button></div>
         </form>
       </AltaNueva>
@@ -92,14 +103,14 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
           <thead className={THEAD}>
             <tr>
               <ThOrden col="nombre">Nombre</ThOrden><ThOrden col="tipo">Tipo</ThOrden><ThOrden col="activo">Activo</ThOrden><ThOrden col="costo" n>Costo</ThOrden>
-              <ThOrden col="gratis" n>Gratis desde</ThOrden><ThOrden col="plazo">Plazo</ThOrden><ThOrden col="instrucciones">Instrucciones</ThOrden><ThOrden col="orden" n desc={false} porDefecto>Orden</ThOrden><th />
+              <ThOrden col="gratis" n>Gratis desde</ThOrden><ThOrden col="plazo">Plazo</ThOrden><ThOrden col="instrucciones">Instrucciones</ThOrden><ThOrden col="seguimiento">Seguimiento</ThOrden><ThOrden col="orden" n desc={false} porDefecto>Orden</ThOrden><th />
             </tr>
           </thead>
           <tbody>
-            {metodos.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>{q ? "Ningún método coincide." : "Todavía no hay métodos de envío. Agregá uno con «Nuevo método de envío» (ej. Retiro en el local)."}</td></tr>}
+            {metodos.length === 0 && <tr><td colSpan={10} className={`${TD} text-[#5C6B76]`}>{q ? "Ningún método coincide." : "Todavía no hay métodos de envío. Agregá uno con «Nuevo método de envío» (ej. Retiro en el local)."}</td></tr>}
             {vista.map((m) => editar === m.id ? (
               <tr key={m.id} className={`${TR} bg-[#FAFBFC]`}>
-                <td colSpan={9} className={TD}>
+                <td colSpan={10} className={TD}>
                   <form action={accionGuardarEnvio} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-start">
                     <input type="hidden" name="id" value={m.id} />
                     <label className="col-span-2"><span className={ETIQUETA}>Nombre que ve el comprador</span>
@@ -115,6 +126,7 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
                       <input name="instrucciones" defaultValue={m.instrucciones ?? ""} placeholder="Ej. Retirá por Av. Colón 1234, lun a vie de 9 a 18" className={`${CAMPO} w-full`} /></label>
                     <label><span className={ETIQUETA}>Orden</span>
                       <CampoNumero name="orden" valor={m.orden} tipo="entero" className={`${CAMPO} w-full`} /></label>
+                    <label className="col-span-2 sm:col-span-3"><span className={ETIQUETA}>Seguimiento del envío</span><SelectorSeguimiento valor={m.seguimiento} /></label>
                     <details className="col-span-2 sm:col-span-6 group" open={m.tipo === "por_provincia"}>
                       <summary className={DESPLEGABLE_CHICO}>Tarifas por provincia (para el tipo &quot;Por provincia&quot;) <span className={FLECHA}>▾</span></summary>
                       <input type="hidden" name="tarifas_editadas" value="1" />
@@ -145,6 +157,7 @@ export default async function MetodosEnvio({ searchParams }: { searchParams: Pro
                 <td className={TDN}>{m.tipo === "retiro" || m.tipo === "a_convenir" ? "—" : m.gratis == null ? "Nunca" : pesos(m.gratis)}</td>
                 <td className={TD}>{m.plazo ?? "—"}</td>
                 <td className={`${TD} text-[#5C6B76]`}>{m.instrucciones ?? "—"}</td>
+                <td className={TD}>{m.seguimiento === "automatico" ? "Automático" : "Manual"}</td>
                 <td className={TDN}>{m.orden}</td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
