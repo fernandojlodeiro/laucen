@@ -220,6 +220,23 @@ test("campañas: queda la que ya está al precio; la que está a otro precio sal
   assert.deepEqual(c.fuera.map((x) => x.id), ["C"]);
 });
 
+test("en campaña sin esquema (tachado 0): no la saca de la campaña (7/10)", async () => {
+  const { ventaHoy } = await import("@/lib/precios-ml/datos");
+  const dia = { id: "P-1", tipo: "DEAL", estado: "started", precio: 1_789_999, min: 1, max: 99_999_999 };
+  assert.equal(ventaHoy(2_789_999, [dia]), 1_789_999);
+  assert.equal(ventaHoy(2_789_999, []), 2_789_999);
+  assert.equal(ventaHoy(null, []), null);
+  const e: EntradaVariacion = {
+    variacionId: 1, productoId: 7, lugar, clasica: 2_789_999, stock: 5, comisiones, comisionEstimada: false,
+    pubs: [pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 2_789_999, precioVentaMl: ventaHoy(2_789_999, [dia]), campanas: [dia], priceToWin: null, catalogo: false })],
+  };
+  const [pa] = proponer(e, { tachado: [], planes: [], volumen: [], reglaStock: true }).pubs;
+  assert.equal(pa.venta, 1_789_999);
+  assert.equal(pa.cambiaPrecio, false);
+  assert.deepEqual(pa.salir, []);
+  assert.deepEqual(pedidosPrecio(pa), []);
+});
+
 // ── Contra la base ──────────────────────────────────────────
 
 const url = process.env.TEST_DATABASE_URL;

@@ -104,7 +104,7 @@ Errores típicos: «Cada escalón lleva una cantidad desde 2 y un % entre 0 y 90
 En «Descuento por volumen», **«Replicar en las demás cuentas»** → confirmar. Copia la tabla entera de esta cuenta (todos los niveles) a cada una de las otras cuentas de Mercado Libre, **reemplazando** la que tenían.
 
 ### Prender la sincronización automática
-En «Tachado y planes», interruptor **«Sincronizar precios…»**. Al prenderlo, Laucen hace enseguida una primera pasada y avisa cuántas variaciones revisó y cuántos cambios mandó a la cola. Al apagarlo, deja de mandar solo (lo que ya estaba preparado en lotes sigue esperando el clic).
+En «Tachado y planes», interruptor **«Sincronizar precios…»**. Al prenderlo, Laucen hace una primera pasada **de fondo** (la pantalla queda libre) y, al terminar, el cartel de abajo a la derecha avisa cuántas variaciones revisó y cuántos cambios mandó a la cola. Al apagarlo, deja de mandar solo (lo que ya estaba preparado en lotes sigue esperando el clic).
 
 ### Revisar un destacado que dejó de ganar
 Pestaña «Alertas» → mirá «Qué pasa» (trae el estado que informa ML y el precio para ganar nuevo) → abrí la vista previa con el enlace de abajo → **«Preparar cambios»** → mandá el lote desde la cola.
@@ -128,7 +128,7 @@ Para cada producto se busca el valor de cada dato por separado, del más especí
 ### 3. El tachado
 - **El tachado es el precio de la lista** (la Clásica = tachado ÷ (1 + Tachado %), redondeada a pesos). Es **uno solo por modelo**: el mismo en todas las cuentas y en todos sus planes (Fer, 7/10).
 - La publicación (la Clásica y cada plan de cuotas) se publica **al tachado**, y una campaña de Mercado Libre la baja a su precio: el comprador ve el precio tachado y paga el de esa publicación.
-- **En campaña el tachado no se toca y el precio sólo baja** (Fer, 7/10): si una publicación ya está adentro de una campaña, su tachado queda el que tiene (aviso «En campaña: el tachado queda en …») y, si el esquema da un precio más alto que el que paga hoy el comprador, queda el de hoy (aviso «En campaña el precio sólo baja…»). Si da más bajo, sale de la campaña y vuelve a entrar al precio nuevo.
+- **En campaña el tachado no se toca y el precio sólo baja** (Fer, 7/10). Lo que paga hoy el comprador se toma del precio de la campaña en curso (no del precio de la publicación), así una publicación en campaña nunca se saca de la campaña por quedar «a su precio»: si una publicación ya está adentro de una campaña, su tachado queda el que tiene (aviso «En campaña: el tachado queda en …») y, si el esquema da un precio más alto que el que paga hoy el comprador, queda el de hoy (aviso «En campaña el precio sólo baja…»). Si da más bajo, sale de la campaña y vuelve a entrar al precio nuevo.
 - Mercado Libre pide **al menos 5 % de descuento** para mostrar el tachado; eso es un tachado de 5,3 % o más (con 5 % justo el descuento visible da 4,8 %). Si el tachado es mayor a 0 pero da menos de 5 % de descuento, la vista previa avisa.
 - Con tachado 0 % la publicación va directamente a la Clásica y sin campaña.
 

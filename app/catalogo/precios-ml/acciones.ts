@@ -5,6 +5,7 @@
 // cambios", que arma lotes preparados: nada sale a ML hasta que Fer aprieta
 // "Mandar a Mercado Libre" en la cola (AGENTS.md).
 
+import { lanzarTarea } from "@/lib/tareas-fondo";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, id, texto, numero, entero, tildado } from "@/lib/erp/acciones";
@@ -159,8 +160,12 @@ export async function accionInterruptor(fd: FormData) {
     revalidatePath(BASE_PML);
     if (clave === "sincronizar_precios") {
       if (!prender) return "Apagado: Laucen ya no manda precios solo a esta cuenta (lo preparado sigue esperando tu clic).";
-      const r = await sincronizarPreciosMl(s.org.id, { canal });
-      return `Prendido. Primera pasada: ${r.revisadas} variaciones revisadas, ${r.encoladas} cambios a la cola de ML (salen solos; las publicaciones nuevas de planes siempre esperan tu clic).`;
+      // La primera pasada corre de fondo: en una cuenta grande no entra en el tiempo de un clic (7/10).
+      await lanzarTarea(s.org.id, s.usuario.id, `precios-ml:${canal}`, "Primera pasada de precios a Mercado Libre", async () => {
+        const r = await sincronizarPreciosMl(s.org.id, { canal });
+        return `Primera pasada: ${r.revisadas} variaciones revisadas, ${r.encoladas} cambios a la cola de ML (salen solos).`;
+      });
+      return "Prendido. La primera pasada corre de fondo: al terminar aparece el cartel abajo a la derecha.";
     }
     if (clave === "leer_precio_ganar") return prender ? "Prendido: Laucen lee el precio para ganar y las campañas de esta cuenta (sólo lectura)." : "Apagado: no se lee más el precio para ganar de esta cuenta.";
     return prender ? "Prendido: un escalón de volumen sólo si hay stock para su cantidad." : "Apagado: los escalones van aunque no haya stock para la cantidad.";

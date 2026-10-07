@@ -142,7 +142,10 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
     const c = comisionesDe(categoria ? com.porCategoria.get(categoria) : null, com.general);
     const pubs: PubMl[] = fs.map((f) => ({
       publicacionId: f.pub, itemId: f.item, variationId: f.var, plan: planDePublicacion(f.tipo, f.tags), estado: f.estado,
-      precioListaMl: f.original ?? f.precio_mi ?? f.precio_canal, precioVentaMl: f.precio_mi ?? f.precio_canal,
+      // Lo que paga hoy el comprador: si está adentro de una campaña, el precio de la campaña (meli_item.precio
+      // es el de lista). Sin esto, una publicación en campaña parecía "a su precio" y la sacaba (7/10).
+      precioListaMl: f.original ?? f.precio_mi ?? f.precio_canal,
+      precioVentaMl: ventaHoy(f.precio_mi ?? f.precio_canal, campanas.get(f.item) ?? []),
       priceToWin: f.ptw, estadoPtw: f.ptw_estado, campanas: campanas.get(f.item) ?? [],
       volumenMl: volMl.get(`${f.item}|${f.var ?? ""}`) ?? null,
       userProductId: f.user_product, catalogProductId: f.cat_prod, catalogo: f.catalogo,
@@ -157,6 +160,13 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
     });
   }
   return { canal, propuestas, familias };
+}
+
+/** Lo que paga hoy el comprador: el menor precio de las campañas en curso, o el de la publicación. */
+export function ventaHoy(precio: number | null, campanas: Campana[]): number | null {
+  const v = Math.min(...campanas.filter((c) => (c.estado === "started" || c.estado === "pending") && c.precio != null && c.precio > 0).map((c) => Number(c.precio)),
+    precio ?? Infinity);
+  return Number.isFinite(v) ? v : null;
 }
 
 // ── Guardar reglas ──────────────────────────────────────────

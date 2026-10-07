@@ -2,7 +2,7 @@
 
 // Acciones de la cuenta de Mercado Libre de un canal (sesión 2).
 
-import { deFondo } from "@/lib/tareas-fondo";
+import { deFondo, lanzarTarea } from "@/lib/tareas-fondo";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
@@ -129,7 +129,11 @@ export async function accionSincronizarPrecios(fd: FormData) {
     await fijarInterruptor(s.org.id, canal, "sincronizar_precios", prender);
     revalidatePath("/config/canales");
     if (!prender) return "Apagado: Laucen no manda precios solo a esta cuenta (lo preparado sigue esperando tu clic).";
-    const r = await sincronizarPreciosMl(s.org.id, { canal });
-    return `Prendido. Primera pasada: ${r.revisadas} variaciones revisadas, ${r.encoladas} cambios de precio a la cola de ML.`;
+    // La primera pasada corre de fondo: en una cuenta grande no entra en el tiempo de un clic (7/10).
+    await lanzarTarea(s.org.id, s.usuario.id, `precios-ml:${canal}`, "Primera pasada de precios a Mercado Libre", async () => {
+      const r = await sincronizarPreciosMl(s.org.id, { canal });
+      return `Primera pasada: ${r.revisadas} variaciones revisadas, ${r.encoladas} cambios de precio a la cola de ML.`;
+    });
+    return "Prendido. La primera pasada corre de fondo: al terminar aparece el cartel abajo a la derecha.";
   });
 }
