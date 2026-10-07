@@ -8,7 +8,8 @@
 //
 // Cada alta copia nuestra publicación común (no de catálogo) de .BAIRES del mismo
 // SKU (título, fotos, atributos, garantía, descripción) y la comprueba con ML
-// (validate, no publica nada). La Clásica se crea con POST /items y las de cuotas
+// (validate, no publica nada). Todas salen al tachado del modelo (uno solo para
+// sus planes); después, al entrar en campaña, cada una baja a su precio. La Clásica se crea con POST /items y las de cuotas
 // se cuelgan de su producto de ML (POST /user-products/{up}/items, comparten el
 // stock), todo en un mismo pedido de la cola. Nada sale sin el clic de Fer:
 // queda un lote por cuenta "Preparado, falta tu clic".
@@ -22,6 +23,8 @@ import { comisionesDe, PLAN_INFO, type Comisiones } from "@/lib/precios-ml/motor
 
 export type PlanPrueba = "clasica" | "3x_campaign" | "12x_campaign";
 export const PLANES_PRUEBA: PlanPrueba[] = ["clasica", "3x_campaign", "12x_campaign"];
+/** Descuento que se ve sobre el tachado en la Clásica (esquema de Fer, 7/10): el tachado = Clásica ÷ (1 − 45 %). */
+export const DESCUENTO_CLASICA = 45;
 /** Margen extra de cada plan sobre lo que deja la Clásica (esquema de Fer, 7/10). */
 export const MARGEN_PLAN: Record<PlanPrueba, number> = { clasica: 0, "3x_campaign": 2, "12x_campaign": 4 };
 
@@ -35,14 +38,19 @@ export const PRUEBA: { cuenta: string; sku: string; origen: string; clasica: num
   { cuenta: "TIENDAVIRTUAL S", sku: "G3-3500", origen: "MLA3064301590", clasica: 2_339_999 },
 ];
 
-/** Precio del plan: deja, después de su comisión, lo mismo que la Clásica más el margen. */
+/** El tachado del modelo (uno solo para todos sus planes): con la campaña, la Clásica muestra 45 % de descuento. */
+export const tachadoPrueba = (clasica: number) => Math.round(clasica / (1 - DESCUENTO_CLASICA / 100));
+
+/** Precio del plan con la campaña: deja, después de su comisión, lo mismo que la Clásica más el margen. */
 export function precioPrueba(clasica: number, plan: PlanPrueba, c: Comisiones): number {
   if (plan === "clasica") return Math.round(clasica);
   return Math.round(((clasica * (1 - c.clasica / 100)) / (1 - c[plan] / 100)) * (1 + MARGEN_PLAN[plan] / 100));
 }
 
 export type FilaPrueba = {
-  canal: number | null; cuenta: string; sku: string; origen: string; plan: PlanPrueba; precio: number; comision: number;
+  canal: number | null; cuenta: string; sku: string; origen: string; plan: PlanPrueba;
+  /** Se publica al tachado (sin campaña); al entrar en campaña baja a `precio`. */
+  tachado: number; precio: number; comision: number;
   /** La publicación que la cuenta ya tiene en ese plan (activa o pausada), si hay. */
   existe: string | null; stock: number;
 };
@@ -64,7 +72,7 @@ export async function propuestaPrueba(org: string): Promise<{ filas: FilaPrueba[
       "select stock_disponible_canal($1, v.id, $2)::int d from variacion v where v.organizacion_id = $1 and v.sku = $3", [org, canal, p.sku]))?.d ?? 0) : 0;
     for (const plan of PLANES_PRUEBA) {
       const ya = items.find((i) => planDe(i.tipo, i.tags, i.terms) === plan);
-      filas.push({ canal, cuenta: p.cuenta, sku: p.sku, origen: p.origen, plan, precio: precioPrueba(p.clasica, plan, valores), comision: valores[plan], existe: ya?.item_id ?? null, stock });
+      filas.push({ canal, cuenta: p.cuenta, sku: p.sku, origen: p.origen, plan, tachado: tachadoPrueba(p.clasica), precio: precioPrueba(p.clasica, plan, valores), comision: valores[plan], existe: ya?.item_id ?? null, stock });
     }
   }
   return { filas, estimada };
@@ -116,7 +124,7 @@ export async function prepararPrueba(org: string, usuarioId: string): Promise<Re
         [org, clasica.existe]))?.up ?? null;
       if (!up) { rech(`no se sabe el producto de ML de ${clasica.existe}: traé las publicaciones de nuevo`); continue; }
     } else {
-      const item: ItemGuardado = { ...g.ml, price: clasica.precio, available_quantity: stock, listing_type_id: "gold_special" };
+      const item: ItemGuardado = { ...g.ml, price: clasica.tachado, available_quantity: stock, listing_type_id: "gold_special" };
       const c = await comprobarAlta(cuenta, (x) => armarCuerpoCopia(item, p.sku, { variarTitulo: false, rotarFotos: false }, { modelo, ...x }));
       if (!c.ok) { rech(`Mercado Libre no acepta la Clásica: ${c.motivo}`); continue; }
       if (c.avisos) res.avisos.push(`${p.cuenta}: ${c.avisos}`);
@@ -126,14 +134,14 @@ export async function prepararPrueba(org: string, usuarioId: string): Promise<Re
       const d = cOrigen?.estado === "activa" ? await ml<{ plain_text?: string }>(cOrigen, "GET", `/items/${p.origen}/description`) : null;
       const texto = d?.status === 200 ? d.datos.plain_text?.trim() : "";
       if (texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: texto }, seguirSiFalla: true });
-      nombres.push(`Clásica $ ${clasica.precio.toLocaleString("es-AR")}`);
+      nombres.push(`Clásica $ ${clasica.tachado.toLocaleString("es-AR")} (con campaña $ ${clasica.precio.toLocaleString("es-AR")})`);
     }
     for (const f of faltan.filter((x) => x.plan !== "clasica")) {
       pedidos.push({
         metodo: "POST", ruta: `/user-products/${up ?? "{up}"}/items`, seguirSiFalla: true,
-        cuerpo: { price: f.precio, currency_id: "ARS", listing_type_id: "gold_pro", tags: [PLAN_INFO[f.plan].tag] },
+        cuerpo: { price: f.tachado, currency_id: "ARS", listing_type_id: "gold_pro", tags: [PLAN_INFO[f.plan].tag] },
       });
-      nombres.push(`${PLAN_INFO[f.plan].corto} (${f.plan}) $ ${f.precio.toLocaleString("es-AR")}`);
+      nombres.push(`${f.plan} $ ${f.tachado.toLocaleString("es-AR")} (con campaña $ ${f.precio.toLocaleString("es-AR")})`);
     }
     const loteId = await encolarLoteConBoton(org, canal, [{
       canalId: canal, itemId: `prueba:${p.sku}`, tipo: "crear",

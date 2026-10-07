@@ -357,11 +357,11 @@ Pantalla [Creaciones en ML](/admin/creaciones) (menú **Coordinación**), lo con
 - DEIROLAB SAS: 15-EF0022NR.
 - TIENDAVIRTUAL S: G3-3500.
 
-La tabla muestra, por cuenta y plan: SKU, plan, precio, comisión, stock disponible para la cuenta, de qué publicación se copia y si ya existe o se crea.
+La tabla muestra, por cuenta y plan: SKU, plan, **Se publica a (tachado)**, **Con la campaña**, el descuento que se va a ver, comisión, stock disponible para la cuenta, de qué publicación se copia y si ya existe o se crea.
 
 Criterios:
-- Cada alta copia nuestra publicación común (no de catálogo) de .BAIRES del mismo SKU: título, fotos, características, garantía y descripción. Sale a precio normal, sin campaña ni tachado, con el stock disponible para esa cuenta.
-- Precio de la Clásica: el piso del esquema de notebooks (competencia × 90 % en las Asus, × 80 % en la HP; la G3, al precio que tiene hoy en .BAIRES). Precio de cada plan: deja, después de su comisión, lo mismo que la Clásica, más 2 % en la 3x y 4 % en la 12x.
+- Cada alta copia nuestra publicación común (no de catálogo) de .BAIRES del mismo SKU: título, fotos, características, garantía y descripción. Sale publicada al **tachado** del modelo, sin campaña, con el stock disponible para esa cuenta. El tachado es uno solo para los tres planes del modelo: Clásica ÷ (1 − 45 %). Después, al meterlas en campaña, cada una baja a su precio de «Con la campaña» (la Clásica muestra 45 % de descuento; las de cuotas, menos).
+- Precio de la Clásica con la campaña: el piso del esquema de notebooks (competencia × 90 % en las Asus, × 80 % en la HP; la G3, al precio que tiene hoy en .BAIRES). Precio de cada plan con la campaña: deja, después de su comisión, lo mismo que la Clásica, más 2 % en la 3x y 4 % en la 12x.
 - Las de cuotas se cuelgan del mismo producto de Mercado Libre que la Clásica (comparten el stock): la Clásica y sus planes van juntos en un mismo pedido de la cola, uno detrás del otro.
 - El botón **Preparar N publicaciones** corre de fondo: comprueba cada Clásica con Mercado Libre (no publica nada) y arma un lote por cuenta. Lo que Mercado Libre rechaza no entra y lo dice. Si ya hay un lote de esta prueba esperando en la cola, esa cuenta no se vuelve a preparar.
 - Abajo, cómo quedó cada lote en la cola: preparado, en la cola, creada (con los números de las publicaciones nuevas) o con error (con el motivo).

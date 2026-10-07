@@ -5,7 +5,7 @@ import { orgRequerida } from "@/lib/tenancy";
 import { consulta } from "@/lib/erp/base";
 import { formatearNumero } from "@/lib/numeros";
 import { PLAN_INFO } from "@/lib/precios-ml/motor";
-import { MARGEN_PLAN, propuestaPrueba } from "@/lib/mercadolibre/prueba-planes";
+import { DESCUENTO_CLASICA, MARGEN_PLAN, propuestaPrueba } from "@/lib/mercadolibre/prueba-planes";
 import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import { SUAVE, PRIMARIO } from "@/app/botones";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
@@ -53,13 +53,14 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
           planes que más convienen: <b>Clásica</b>, <b>Premium 3x</b> y <b>Premium 12x</b>. Cada una copia nuestra publicación común de
           .BAIRES (título, fotos, características, garantía y descripción). Las de cuotas se cuelgan del mismo producto de Mercado Libre que
           la Clásica, así comparten el stock. Precio de cada plan: deja lo mismo que la Clásica después de su comisión, más
-          {" "}{MARGEN_PLAN["3x_campaign"]} % (3x) o {MARGEN_PLAN["12x_campaign"]} % (12x). Salen a precio normal, sin campaña ni tachado.
+          {" "}{MARGEN_PLAN["3x_campaign"]} % (3x) o {MARGEN_PLAN["12x_campaign"]} % (12x). Salen publicadas al <b>tachado</b> del modelo (el mismo en sus tres planes: con la campaña, la Clásica muestra {DESCUENTO_CLASICA} % de descuento);
+          después, al meterlas en campaña, cada una baja al precio de «Con la campaña».
           {estimada && " (Comisión estimada: Costos ML todavía no relevó la categoría.)"}
         </p>
         <div className={CAJA_TABLA}>
           <table className={TABLA}>
             <thead className={THEAD}>
-              <tr><th className={TH}>Cuenta</th><th className={TH}>SKU</th><th className={TH}>Plan</th><th className={THN}>Precio</th><th className={THN}>Comisión</th><th className={THN}>Stock</th><th className={TH}>Copia de</th><th className={TH}>Qué pasa</th></tr>
+              <tr><th className={TH}>Cuenta</th><th className={TH}>SKU</th><th className={TH}>Plan</th><th className={THN}>Se publica a (tachado)</th><th className={THN}>Con la campaña</th><th className={THN}>Descuento</th><th className={THN}>Comisión</th><th className={THN}>Stock</th><th className={TH}>Copia de</th><th className={TH}>Qué pasa</th></tr>
             </thead>
             <tbody>
               {filas.map((f) => (
@@ -67,7 +68,9 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
                   <td className={TD}>{f.cuenta}</td>
                   <td className={`${TD} font-mono`}>{f.sku}</td>
                   <td className={TD}>{f.plan === "clasica" ? "Clásica" : `Premium ${f.plan.replace("_campaign", "")}`} <span className="text-[10px] text-[#5C6B76]">({PLAN_INFO[f.plan].corto} por nombre)</span></td>
+                  <td className={TDN}>{pesos(f.tachado)}</td>
                   <td className={TDN}>{pesos(f.precio)}</td>
+                  <td className={TDN}>{formatearNumero(100 * (1 - f.precio / f.tachado), "pct")} %</td>
                   <td className={TDN}>{formatearNumero(f.comision, "pct")} %</td>
                   <td className={TDN}>{formatearNumero(f.stock, "entero")}</td>
                   <td className={`${TD} font-mono whitespace-nowrap`}><Link href={historialPublicacion(f.origen)} className="text-[#16577F] hover:underline">{f.origen}</Link> <a href={enlaceMl(f.origen)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a></td>
