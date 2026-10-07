@@ -12,6 +12,7 @@ import { confirmarPago, entregarYCobrar } from "@/lib/tienda/pagos/confirmar";
 import { prepararFactura, emitir } from "@/lib/arca/facturar";
 import { subirFacturaDelPedidoConBoton } from "@/lib/mercadolibre/facturas";
 import { deFondo } from "@/lib/tareas-fondo";
+import { pasarAPedido, pasarAPresupuesto, cambiarVigencia } from "@/lib/pedidos/presupuestos";
 import { altaOca, anularOca, envioOcaDe, seguirEnvio } from "@/lib/oca/envios";
 import { cancelarPedido } from "@/lib/pedidos/cancelar";
 
@@ -162,5 +163,37 @@ export async function accionCancelarPedido(fd: FormData) {
     const listo = r.hecho.join(" · ");
     if (r.fallo.length) throw new ErrorErp(`${listo}. Falló: ${r.fallo.join(" · ")}. Eso hay que hacerlo a mano desde el pedido.`);
     return `${listo}.`;
+  });
+}
+
+// ── Presupuestos (Fer, 7/10) ──
+
+export async function accionPasarAPedido(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  return deFondo(s, `presupuesto-a-pedido-${pid}`, `Presupuesto ${pid} a pedido`, async () => {
+    await pasarAPedido(s.org.id, pid, s.usuario.id);
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    return `El presupuesto ${pid} ya es un pedido: el stock quedó reservado y el pago, pendiente.`;
+  });
+}
+
+export async function accionPasarAPresupuesto(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  return deFondo(s, `pedido-a-presupuesto-${pid}`, `Pedido ${pid} a presupuesto`, async () => {
+    await pasarAPresupuesto(s.org.id, pid, s.usuario.id);
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    return `El pedido ${pid} pasó a presupuesto: se liberó el stock reservado.`;
+  });
+}
+
+export async function accionVigenciaPresupuesto(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  await intentar(`/ventas/pedidos/${pid}?b=op`, async () => {
+    await cambiarVigencia(s.org.id, pid, String(fd.get("vigencia") ?? ""));
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    return "Vigencia cambiada.";
   });
 }

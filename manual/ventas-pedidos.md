@@ -1,10 +1,10 @@
 ---
-titulo: Pedidos
-menu: Ventas › Pedidos
+titulo: Pedidos y presupuestos
+menu: Ventas › Pedidos y presupuestos
 ruta: /ventas/pedidos
 rutas: /ventas/pedidos, /ventas/pedidos/[id]
 permiso: pedidos_ver
-resumen: Los pedidos de todos los canales (Mercado Libre, tienda web, local, mayorista): lista con filtros, alta a mano, ficha con estado, pago, reserva de stock, envío, cargos de Mercado Libre y facturación.
+resumen: Los pedidos de todos los canales (Mercado Libre, tienda web, local, mayorista) y los presupuestos del local: lista con filtros, alta a mano de pedidos y presupuestos, ficha con estado, pago, reserva de stock, envío, cargos de Mercado Libre, facturación, pasar de presupuesto a pedido y al revés, e imprimir el presupuesto en PDF.
 ---
 
 ## Para qué sirve
@@ -19,7 +19,7 @@ Los pedidos de Mercado Libre **entran solos** y se mueven solos según lo que pa
 
 ## Cómo se llega
 
-- Menú **Ventas › Pedidos** (o 🧾 **Pedidos** en la barra de abajo del celular).
+- Menú **Ventas › Pedidos y presupuestos** (o 🧾 **Pedidos** en la barra de abajo del celular).
 - Contador **"Pedidos a preparar"** de la barra de estado (abre la lista con el filtro Pendientes).
 - Tarjeta **"Pedidos abiertos"** del [Panel](/panel): cada renglón abre la lista filtrada por ese estado.
 - El [buscador global](/buscar): por Nº de pedido o por id externo (número de venta de Mercado Libre).
@@ -63,10 +63,11 @@ Los pedidos de Mercado Libre **entran solos** y se mueven solos según lo que pa
 
 **Orden**: con el filtro Pendientes, **del más viejo al más nuevo** (se preparan en orden de llegada). Con cualquier otro filtro, del más nuevo al más viejo. Se puede ordenar tocando el título de cualquier columna (salvo Notas, Cant., Producto, Precio y Factura).
 
-### El formulario "Nuevo pedido"
+### El formulario "Nuevo pedido o presupuesto"
 
-Se abre con **"+ Nuevo pedido"**, debajo del encabezado. Sirve para los canales de tipo **local, web minorista, web mayorista u otro** que estén activos (nunca Mercado Libre). Campos:
+Se abre con **"+ Nuevo pedido o presupuesto"**, debajo del encabezado. Sirve para los canales de tipo **local, web minorista, web mayorista u otro** que estén activos (nunca Mercado Libre). Campos:
 
+- **"¿Qué es?"**: **"Pedido"** (reserva stock; de entrada) o **"Presupuesto"** (no reserva stock; **sólo en el canal local**: al elegirlo, el desplegable de canales muestra sólo los locales). Con Presupuesto no se pide el pago: en su lugar aparece **"Válido hasta"** (de entrada, dentro de 7 días), y el botón dice **"Crear presupuesto"**.
 - **"Canal"**: desplegable con esos canales (el del local primero).
 - **"Cliente"**: **"Consumidor final"** o **"Un cliente"**. Con "Un cliente" aparece un buscador ("Nombre, documento, CUIT, mail o N.º"; busca en todos los datos del cliente) con su caja "Comienza por"; al elegir uno se muestra "N.º … · nombre · documento" (y "con cuenta corriente" si la tiene) con el botón **"Cambiar"**. Si el cliente no aparece, debajo del buscador está **"+ Cargar cliente nuevo"**: pide nombre (viene con lo que escribiste), documento, mail, teléfono y tipo; con **"Grabar y elegir"** se crea y queda elegido en el pedido, sin salir de la pantalla. Si el documento ya lo tiene otro cliente, avisa cuál es. También hay un enlace para cargarlo con todos los datos en la pantalla de [Clientes](/ventas/clientes) (se abre aparte, y después volvés y lo buscás).
 - **"Productos"**: buscador "SKU, título o código de barras" (busca desde la segunda letra, con "Comienza por"). Cada resultado muestra SKU, título, precio de lista (o "sin precio" en rojo) y lo disponible para el canal ("N disp.", en rojo si es 0 o menos). Al elegir uno (clic o Enter sobre el primero) se suma una línea.
@@ -228,6 +229,17 @@ Los pedidos de Mercado Libre **no tienen botones de estado** en la ficha: los mu
 | En preparación | "Preparado" |
 | Preparado | "Despachado" (con "Seguimiento / nota") y "Entregado (retiro)"; si es «A cobrar» y retira, en lugar de "Entregado (retiro)" está "Entregado y cobrado" |
 | Despachado | "Entregado" |
+
+### Presupuestos
+
+Un **presupuesto** es igual a un pedido (cliente, productos, precios, envío, total) pero **no reserva stock**: es una cotización. Se reconoce porque su estado dice **"Presupuesto"** (en violeta) y su ficha se titula "Presupuesto N".
+
+- **Se crea sólo en el canal local**, con "+ Nuevo pedido o presupuesto" eligiendo **"Presupuesto"**. Tiene una fecha **"Válido hasta"** (de entrada, 7 días); se cambia en su ficha.
+- **No pide pago, no reserva stock, no entra en picking, no se factura** y no cuenta como venta (ni en Rentabilidad, ni en el total comprado del cliente, ni en las ventas del tablero).
+- En su ficha, en vez de "Operación", el bloque **"Presupuesto"**: **"Válido hasta"** (con **"Cambiar"**; dice **"Vencido"** en rojo si ya pasó), **"🖨 Imprimir presupuesto"**, **"Pasar a pedido"**, **"Cancelar"** y **"Avisar por WhatsApp ↗"**.
+- **"Pasar a pedido"** (pregunta antes): queda **Nuevo**, con el **pago pendiente**, y **reserva el stock** en ese momento. Desde ahí sigue como cualquier pedido (confirmar pago, preparar, facturar…). Corre de fondo y avisa con un cartel.
+- **"Pasar a presupuesto"** (en la Operación de un pedido, pregunta antes): **libera el stock reservado** y el pedido vuelve a ser presupuesto, con el pago pendiente. Sólo se puede si el pedido **todavía no se tocó**: está Nuevo o A preparar (por ejemplo, de la web en cuenta corriente, para pagar en el local o por transferencia), **no está pagado**, **no entró en un lote de picking**, **no tiene factura** y **no es de Mercado Libre**. Si ya está en preparación, preparado o más adelante, no se puede: la mercadería ya salió de su ubicación y hay que devolverla a mano. Un pedido pagado tampoco: primero hay que devolver el pago.
+- **El PDF** ("🖨 Imprimir presupuesto", se abre en otra pestaña para ver e imprimir): A4, con el logo y los datos de la empresa (nombre, razón social, CUIT, condición de IVA, dirección, teléfono, WhatsApp, mail y web), **"PRESUPUESTO"**, su número, la fecha y **"Válido hasta"**, los datos del cliente, cada producto **con su foto**, cantidad, descripción, SKU, precio unitario y subtotal, el subtotal, el envío y el **TOTAL**, el **total en letras** ("Son pesos … con 50/100.") y al pie las condiciones (vigencia, sujeto a disponibilidad de stock, precios con IVA, "no es válido como factura"). **Sale en la moneda en que estás mirando el panel** (el interruptor $ / US$ de la barra de abajo): en pesos dice "Son pesos…"; en dólares, "Son dólares estadounidenses…".
 
 ### Reservas de stock: cuándo se aparta y cuándo se descuenta
 

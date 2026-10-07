@@ -7,6 +7,7 @@
 import { una, ErrorErp } from "@/lib/erp/base";
 import { crearPedido, cambiarEstado, type LineaEntrada } from "@/lib/pedidos";
 import { confirmarPago, avisarStockMl } from "@/lib/tienda/pagos/confirmar";
+import { DIAS_VIGENCIA } from "@/lib/pedidos/presupuestos";
 
 /** Canales donde se carga un pedido a mano: todos menos Mercado Libre (sus
  *  pedidos entran solos) y las ventas históricas. */
@@ -32,6 +33,8 @@ export type PedidoAMano = {
   direccion?: Direccion | null;
   costoEnvio?: number | null;
   notas?: string | null;
+  /** Presupuesto (Fer, 7/10): no reserva stock y sólo se carga en el canal local. vigencia = hasta cuándo vale (AAAA-MM-DD). */
+  presupuesto?: { vigencia: string | null } | null;
 };
 
 /** Valida lo que no depende de la base (para mostrarlo antes de confirmar). */
@@ -43,6 +46,11 @@ export function validarPedidoAMano(p: PedidoAMano): void {
     if (!Number.isInteger(l.cantidad) || l.cantidad <= 0) throw new ErrorErp(`Línea ${n}: la cantidad tiene que ser un entero mayor que cero.`);
     if (l.precio != null && !(l.precio >= 0)) throw new ErrorErp(`Línea ${n}: el precio no es válido.`);
   });
+  if (p.presupuesto) {
+    if (p.presupuesto.vigencia && !/^\d{4}-\d{2}-\d{2}$/.test(p.presupuesto.vigencia)) throw new ErrorErp("La fecha de vigencia no es válida.");
+    if (p.entrega === "envio" && (!p.direccion?.calle || !p.direccion?.localidad)) throw new ErrorErp("Para el envío completá al menos la calle y la localidad.");
+    return;
+  }
   if (!(PAGOS_A_MANO as readonly string[]).includes(p.pago)) throw new ErrorErp("Elegí el estado del pago.");
   if (p.medio && p.pago !== "cuenta_corriente" && !MEDIOS_A_MANO.includes(p.medio)) throw new ErrorErp(`Medio de pago desconocido (los que hay: ${MEDIOS_A_MANO.join(", ")}).`);
   if (p.pago === "pagado" && !p.medio) throw new ErrorErp("Elegí con qué pagó.");
@@ -64,12 +72,25 @@ export async function canalAMano(org: string, canalId: number) {
 /** Crea el pedido. Devuelve su número y el total. */
 export async function crearPedidoAMano(org: string, usuarioId: string, p: PedidoAMano, origen: string = "pantalla"): Promise<{ pedidoId: number; totalArs: number }> {
   validarPedidoAMano(p);
-  await canalAMano(org, p.canalId);
+  const canal = await canalAMano(org, p.canalId);
+  if (p.presupuesto && canal.tipo !== "local") throw new ErrorErp("Los presupuestos se cargan sólo en el canal local.");
   if (p.clienteId && !(await una("select 1 from cliente where id = $1 and organizacion_id = $2", [p.clienteId, org]))) throw new ErrorErp("El cliente no existe.");
   const lineas: LineaEntrada[] = p.lineas.map((l) => ({
     variacion_id: l.variacionId ?? null, sku: l.variacionId ? null : l.sku ?? null, cantidad: l.cantidad,
     precio_unitario: l.precio ?? null, descuento_pct: l.descuentoPct || null,
   }));
+  if (p.presupuesto) {
+    const pr = await crearPedido(org, {
+      canalId: p.canalId, clienteId: p.clienteId, lineas, estado_inicial: "presupuesto", estado_pago: "pendiente", medio_pago: null,
+      envio: { metodo: p.entrega === "envio" ? "Envío" : "Retira", a_mano: true, direccion: p.entrega === "envio" ? p.direccion ?? null : null },
+      costo_envio: p.entrega === "envio" ? p.costoEnvio || null : null,
+      notas: p.notas ?? null,
+      datos_externos: { a_mano: { usuario: usuarioId, presupuesto: true, origen } },
+    }, usuarioId);
+    await una(`update pedido set vigencia = coalesce($3::date, (now() at time zone 'America/Argentina/Buenos_Aires')::date + ${DIAS_VIGENCIA}) where id = $1 and organizacion_id = $2 returning id`,
+      [pr.pedidoId, org, p.presupuesto.vigencia]);
+    return { pedidoId: pr.pedidoId, totalArs: pr.total.ars };
+  }
   const creado = await crearPedido(org, {
     canalId: p.canalId,
     clienteId: p.clienteId,

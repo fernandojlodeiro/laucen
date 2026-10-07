@@ -253,6 +253,20 @@ do $$ begin
   end if;
 end $$;
 alter table pedido add column if not exists reservado_ts timestamptz;
+
+-- Presupuestos (Fer, 7/10): un pedido en estado 'presupuesto' no reserva
+-- stock. Se crea sólo desde el canal local; «Pasar a pedido» lo deja nuevo,
+-- con el pago pendiente, y reserva; «Pasar a presupuesto» libera la reserva
+-- (sólo si no está pago ni en preparación). vigencia = hasta cuándo vale.
+alter table pedido add column if not exists vigencia date;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conrelid = 'public.pedido'::regclass and conname = 'pedido_estado_check'
+                  and pg_get_constraintdef(oid) like '%presupuesto%') then
+    alter table pedido drop constraint if exists pedido_estado_check;
+    alter table pedido add constraint pedido_estado_check check (estado in
+      ('presupuesto', 'nuevo', 'pagado', 'en_preparacion', 'preparado', 'despachado', 'entregado', 'cancelado', 'devuelto'));
+  end if;
+end $$;
 alter table pedido_linea enable row level security;
 select erp_politica_org('pedido_linea');
 
@@ -388,6 +402,10 @@ begin
   if p.estado in ('cancelado', 'devuelto') then
     raise exception 'el pedido está %; no cambia más de estado', p.estado using errcode = 'P0001', hint = 'transicion_invalida';
   end if;
+  -- Un presupuesto sólo se cancela por acá; a pedido pasa con su botón (lib/pedidos/presupuestos.ts).
+  if p.estado = 'presupuesto' and p_nuevo <> 'cancelado' then
+    raise exception 'es un presupuesto: pasalo a pedido con «Pasar a pedido»' using errcode = 'P0001', hint = 'transicion_invalida';
+  end if;
   o_actual := estado_pedido_orden(p.estado);
   o_nuevo := estado_pedido_orden(p_nuevo);
   if o_nuevo is not null and o_nuevo < o_actual then
@@ -419,4 +437,57 @@ begin
   perform emitir_evento(p_org, 'pedido_estado_cambiado', jsonb_build_object(
     'pedido_id', p.id, 'canal_id', p.canal_id, 'anterior', p.estado, 'nuevo', p_nuevo, 'quien', p_quien));
   return p.estado;
+end $$;
+
+/** Presupuestos (Fer, 7/10). Un pedido pasa a presupuesto sólo si todavía no
+ *  se tocó: nuevo o pagado (cuenta corriente), sin el pago cobrado, sin lote
+ *  de picking, sin factura y que no sea de Mercado Libre. Libera la reserva. */
+create or replace function public.pedido_a_presupuesto(p_org text, p_pedido bigint, p_quien text, p_vigencia date default null)
+returns void language plpgsql as $$
+declare p pedido%rowtype; tipo text; r record; ref text := p_pedido::text;
+begin
+  select * into p from pedido where id = p_pedido and organizacion_id = p_org for update;
+  if not found then raise exception 'el pedido % no existe', p_pedido using errcode = 'P0001'; end if;
+  select c.tipo into tipo from canal c where c.id = p.canal_id;
+  if p.estado = 'presupuesto' then return; end if;
+  if tipo = 'mercadolibre' then raise exception 'una venta de Mercado Libre no se pasa a presupuesto' using errcode = 'P0001'; end if;
+  if p.estado not in ('nuevo', 'pagado') then
+    raise exception 'el pedido ya está %: no se puede pasar a presupuesto', p.estado using errcode = 'P0001';
+  end if;
+  if p.estado_pago = 'pagado' then
+    raise exception 'el pedido ya está pagado: primero hay que devolver el pago' using errcode = 'P0001';
+  end if;
+  if exists (select 1 from picking_pedido pp where pp.pedido_id = p.id) then
+    raise exception 'el pedido ya entró en un lote de picking: no se puede pasar a presupuesto' using errcode = 'P0001';
+  end if;
+  if exists (select 1 from comprobante cb where cb.pedido_id = p.id and cb.estado in ('autorizado', 'pendiente')) then
+    raise exception 'el pedido ya tiene factura: no se puede pasar a presupuesto' using errcode = 'P0001';
+  end if;
+  for r in select * from reservado_de(p_org, 'pedido', ref) loop
+    perform mover_stock(p_org, r.variacion_id, 'liberacion', r.cantidad, r.ubicacion_id, null, 'pedido', ref, p_quien, null, r.kit_variacion_id);
+  end loop;
+  update pedido set estado = 'presupuesto', reservado_ts = null,
+         estado_pago = case when estado_pago = 'reembolsado' then estado_pago else 'pendiente' end,
+         vigencia = coalesce(p_vigencia, vigencia, (now() at time zone 'America/Argentina/Buenos_Aires')::date + 7)
+   where id = p.id;
+  insert into pedido_estado_historial (organizacion_id, pedido_id, estado_anterior, estado_nuevo, quien, nota)
+  values (p_org, p.id, p.estado, 'presupuesto', p_quien, 'pasado a presupuesto (se liberó el stock)');
+  perform emitir_evento(p_org, 'pedido_estado_cambiado', jsonb_build_object(
+    'pedido_id', p.id, 'canal_id', p.canal_id, 'anterior', p.estado, 'nuevo', 'presupuesto', 'quien', p_quien));
+end $$;
+
+/** Un presupuesto pasa a pedido: nuevo, con el pago pendiente, y reserva el stock. */
+create or replace function public.presupuesto_a_pedido(p_org text, p_pedido bigint, p_quien text)
+returns boolean language plpgsql as $$
+declare p pedido%rowtype;
+begin
+  select * into p from pedido where id = p_pedido and organizacion_id = p_org for update;
+  if not found then raise exception 'el pedido % no existe', p_pedido using errcode = 'P0001'; end if;
+  if p.estado <> 'presupuesto' then raise exception 'no es un presupuesto (está %)', p.estado using errcode = 'P0001'; end if;
+  update pedido set estado = 'nuevo', estado_pago = 'pendiente', reservado_ts = null where id = p.id;
+  insert into pedido_estado_historial (organizacion_id, pedido_id, estado_anterior, estado_nuevo, quien, nota)
+  values (p_org, p.id, 'presupuesto', 'nuevo', p_quien, 'presupuesto pasado a pedido (se reservó el stock)');
+  perform emitir_evento(p_org, 'pedido_estado_cambiado', jsonb_build_object(
+    'pedido_id', p.id, 'canal_id', p.canal_id, 'anterior', 'presupuesto', 'nuevo', 'nuevo', 'quien', p_quien));
+  return reservar_pedido(p_org, p.id, p_quien);
 end $$;

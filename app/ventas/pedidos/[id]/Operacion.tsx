@@ -15,7 +15,9 @@ import { Estado, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ET
 import { fechaHora } from "@/app/ventas/formato";
 import { urlTienda } from "@/lib/tienda/dominios-tienda";
 import { TIPOS_MEDIO } from "@/app/config/medios-pago/comun";
-import { accionConfirmarPago, accionCambiarEstadoPedido, accionEntregadoYCobrado } from "./acciones";
+import { accionConfirmarPago, accionCambiarEstadoPedido, accionEntregadoYCobrado, accionPasarAPedido, accionPasarAPresupuesto, accionVigenciaPresupuesto } from "./acciones";
+import { BotonTarea } from "@/app/componentes/TareasFondo";
+import { motivoNoPresupuesto } from "@/lib/pedidos/presupuestos";
 
 const ESTADO_PAGO: Record<string, { texto: string; tono: "verde" | "amarillo" | "rojo" | "gris" }> = {
   pendiente: { texto: "Pendiente", tono: "amarillo" }, aprobado: { texto: "Aprobado", tono: "verde" }, rechazado: { texto: "Rechazado", tono: "rojo" },
@@ -41,6 +43,7 @@ function mensaje(estado: EstadoPedido, d: { nombre: string | null; pedido: numbe
   const hola = `¡Hola${d.nombre ? ` ${d.nombre.split(" ")[0]}` : ""}!`;
   const n = `tu pedido #${d.pedido}`;
   const cuerpo: Record<EstadoPedido, string> = {
+    presupuesto: `Te pasamos el presupuesto #${d.pedido} de ${d.tienda}. Cualquier duda, escribinos.`,
     nuevo: d.aCobrar ? `Recibimos ${n} en ${d.tienda}. Ya lo estamos preparando; lo pagás al retirarlo.`
       : d.pagoPendiente ? `Recibimos ${n} en ${d.tienda}. Apenas se acredite el pago lo preparamos.` : `Recibimos ${n} en ${d.tienda}.`,
     pagado: `Confirmamos el pago de ${n}. Ya lo estamos preparando.`,
@@ -69,11 +72,11 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   const p = await una<{
     estado: EstadoPedido; estado_pago: string; total_ars: number; id_externo: string | null; medio_pago: string | null; codigo: string | null; canal_id: number; canal_tipo: string;
     cliente: string | null; telefono: string | null; movil: string | null; envio: string | null; envio_tipo: string | null;
-    sin_esperar: boolean; retiro: boolean;
+    sin_esperar: boolean; retiro: boolean; vigencia: string | null;
   }>(`
     select p.estado, p.id_externo, ${sqlEstadoPago("p")} estado_pago, ${sqlSinEsperarPago("p")} sin_esperar,
            (me.tipo = 'retiro' or p.envio ->> 'metodo' = 'Retira') is true retiro, p.total_ars::float, p.medio_pago, p.codigo_seguimiento codigo, p.canal_id::int, c.tipo canal_tipo,
-           cl.nombre cliente, cl.telefono, cl.telefono_movil movil, me.nombre envio, me.tipo envio_tipo
+           cl.nombre cliente, cl.telefono, cl.telefono_movil movil, me.nombre envio, me.tipo envio_tipo, to_char(p.vigencia, 'YYYY-MM-DD') vigencia
       from pedido p join canal c on c.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
       left join metodo_envio me on me.id = p.metodo_envio_id
      where p.id = $1 and p.organizacion_id = $2`, [pid, org]);
@@ -120,6 +123,44 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
     );
   }
 
+  // WhatsApp: con el link de seguimiento si es un pedido de la tienda.
+  const telWa = telefonoWhatsapp(p.movil) ?? telefonoWhatsapp(p.telefono);
+
+  // Un presupuesto (Fer, 7/10): no reserva stock; se imprime, se pasa a pedido o se cancela.
+  if (p.estado === "presupuesto") {
+    const vencido = p.vigencia != null && p.vigencia < new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
+    const waP = telWa ? `https://wa.me/${telWa}?text=${encodeURIComponent(mensaje("presupuesto", { nombre: p.cliente, pedido: pid, tienda: "nuestra tienda", seguimiento: null, despacho: null, pagoPendiente: false, aCobrar: false }))}` : null;
+    return (
+      <>
+        <h2 className="text-sm font-bold mb-2">Presupuesto</h2>
+        {sp.b === "op" && (sp.ok || sp.error) && (
+          <p role={sp.error ? "alert" : undefined} className={`text-xs rounded-lg px-3 py-2 mb-2 ${sp.error ? "bg-[#FDF1EF] text-[#C03420]" : "bg-[#EEF7F1] text-[#1F6E4A]"}`}>{sp.error ?? sp.ok}</p>
+        )}
+        <div className={`${CAJA} mb-4 grid gap-3`}>
+          <p className="text-xs text-[#5C6B76]">Es un presupuesto: <b>no reserva stock</b>. Al pasarlo a pedido queda con el pago pendiente y reserva el stock.</p>
+          <form action={accionVigenciaPresupuesto} className="flex flex-wrap items-end gap-2">
+            <input type="hidden" name="pedido_id" value={pid} />
+            <label><span className={ETIQUETA}>Válido hasta</span>
+              <input type="date" name="vigencia" defaultValue={p.vigencia ?? ""} className={CAMPO} required /></label>
+            <BotonEnviar clase={SUAVE} corriendo="Guardando…">Cambiar</BotonEnviar>
+            {vencido && <Estado texto="Vencido" tono="rojo" />}
+          </form>
+          <div className="flex flex-wrap items-center gap-2">
+            <a href={`/ventas/pedidos/${pid}/presupuesto`} target="_blank" rel="noopener" className={PRIMARIO}>🖨 Imprimir presupuesto</a>
+            <BotonTarea accion={accionPasarAPedido} tipo={`presupuesto-a-pedido-${pid}`} texto="Pasar a pedido" clase={VERDE} campos={{ pedido_id: String(pid) }}
+              pregunta="¿Pasarlo a pedido? Reserva el stock y queda con el pago pendiente." />
+            {cancelar && !motivoNoCancelable(p.estado, cancelar) && (
+              <CancelarPedido pid={pid} oca={cancelar.oca} factura={cancelar.factura?.texto ?? null}
+                payway={cancelar.payway ? { importe: formatear(cancelar.payway.importe, "ARS"), mismoDia: cancelar.payway.mismoDia } : null} />
+            )}
+            {waP ? <a href={waP} target="_blank" rel="noopener" className={SUAVE}>Avisar por WhatsApp ↗</a> : null}
+          </div>
+        </div>
+      </>
+    );
+  }
+  const noPresupuesto = await motivoNoPresupuesto(org, pid);
+
   // Medio para confirmar: el del pago pendiente, o el del pedido; si no, se elige.
   const pendiente = [...pagos].reverse().find((x) => x.estado === "pendiente");
   const medioSugerido = pendiente?.medio ?? (esMedioEfectivo(p.medio_pago) ? "efectivo" : p.medio_pago) ?? "";
@@ -132,8 +173,7 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   // Retiro de un «A cobrar» ya preparado: se entrega y se cobra en un clic.
   const entregarYCobrar = aCobrar && p.retiro && p.estado === "preparado";
 
-  // WhatsApp: con el link de seguimiento si es un pedido de la tienda.
-  const tel = telefonoWhatsapp(p.movil) ?? telefonoWhatsapp(p.telefono);
+  const tel = telWa;
   let wa: string | null = null;
   if (tel) {
     const t = p.canal_tipo === "web_minorista" ? await tiendaDelCanal(org, p.canal_id) : null;
@@ -209,6 +249,13 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
         )}
         {p.estado === "nuevo" && pagoPendiente && !p.sin_esperar && <p className="text-[11px] text-[#5C6B76]">Al confirmar el pago pasa a Pagado y se reserva el stock.</p>}
         {aCobrar && <p className="text-[11px] text-[#5C6B76]">El stock ya está reservado y el pedido entra en picking sin esperar el pago. Se factura cuando confirmás el cobro.</p>}
+        {!noPresupuesto && (
+          <div className="flex flex-wrap items-center gap-2">
+            <BotonTarea accion={accionPasarAPresupuesto} tipo={`pedido-a-presupuesto-${pid}`} texto="Pasar a presupuesto" clase={SUAVE} campos={{ pedido_id: String(pid) }}
+              pregunta="¿Pasarlo a presupuesto? Se libera el stock reservado." />
+            <span className="text-[11px] text-[#5C6B76]">Deja de ser un pedido: libera el stock reservado.</span>
+          </div>
+        )}
         <div>
           {wa
             ? <a href={wa} target="_blank" rel="noopener" className={SUAVE}>Avisar por WhatsApp ↗</a>

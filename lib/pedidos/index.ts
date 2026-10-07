@@ -14,6 +14,8 @@ import { convertir, esMoneda, type Moneda } from "@/lib/moneda";
 import { condicionIva, documentoValido, normalizarCuit } from "@/lib/clientes";
 
 export const ESTADOS_PEDIDO = {
+  // Presupuesto (Fer, 7/10): no reserva stock; pasa a pedido con su botón (lib/pedidos/presupuestos.ts).
+  presupuesto: "Presupuesto",
   nuevo: "Nuevo",
   // Pagado y esperando que lo preparen: se muestra «A preparar» (Fer, 6/10); el pago se ve aparte.
   pagado: "A preparar",
@@ -266,7 +268,7 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
     };
     const estado = entrada.estado_inicial ?? "nuevo";
     if (!esEstadoPedido(estado)) throw new ErrorErp("Estado inicial desconocido.");
-    if (estado !== "nuevo" && entrada.afecta_stock !== false) {
+    if (estado !== "nuevo" && estado !== "presupuesto" && entrada.afecta_stock !== false) {
       throw new ErrorErp("Un pedido que mueve stock nace 'nuevo'; después se cambia con su estado.");
     }
     let estadoPago: EstadoPago = esEstadoPago(entrada.estado_pago) ? entrada.estado_pago : "pendiente";

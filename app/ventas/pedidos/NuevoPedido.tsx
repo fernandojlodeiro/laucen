@@ -15,7 +15,10 @@ import {
   type ClienteHallado, type ProductoHallado,
 } from "./acciones";
 
-type Canal = { id: number; nombre: string; moneda: "ARS" | "USD" };
+type Canal = { id: number; nombre: string; moneda: "ARS" | "USD"; tipo: string };
+
+/** Hoy + 7, en hora argentina (la vigencia de entrada de un presupuesto). */
+const enUnaSemana = () => { const d = new Date(Date.now() + 7 * 86_400_000); return d.toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }); };
 type Linea = { clave: number; variacion: number; sku: string; titulo: string; sugerido: number | null; disponible: number; version: number };
 
 const CAMPO = "border border-[#E3E9F0] rounded-lg px-2 py-1.5 text-xs bg-white";
@@ -130,6 +133,14 @@ export default function NuevoPedido({ canales }: { canales: Canal[] }) {
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [borrando, setBorrando] = useState<number | null>(null);
   const [pago, setPago] = useState("a_convenir");
+  // Pedido o presupuesto (Fer, 7/10): el presupuesto no reserva stock y va sólo por el canal local.
+  const [tipo, setTipo] = useState<"pedido" | "presupuesto">("pedido");
+  const locales = canales.filter((c) => c.tipo === "local");
+  const visibles = tipo === "presupuesto" ? locales : canales;
+  const elegirTipo = (t: "pedido" | "presupuesto") => {
+    setTipo(t);
+    if (t === "presupuesto" && !locales.some((c) => c.id === canal) && locales[0]) { setCanal(locales[0].id); void reprecio(locales[0].id, clienteId); }
+  };
   const [entrega, setEntrega] = useState("retiro");
   const [error, setError] = useState("");
   const [altaCliente, setAltaCliente] = useState(false);
@@ -199,11 +210,18 @@ export default function NuevoPedido({ canales }: { canales: Canal[] }) {
     <form ref={form} action={enviar} onInput={recalcular} onChange={recalcular} className="grid gap-4 text-xs">
       {error && <p role="alert" className="rounded-lg px-3 py-2 bg-[#FDF1EF] text-[#C03420]">{error}</p>}
 
+      <fieldset className="flex flex-wrap items-center gap-4">
+        <span className={ETIQUETA}>¿Qué es?</span>
+        <input type="hidden" name="tipo" value={tipo} />
+        <label className="inline-flex items-center gap-1.5"><input type="radio" checked={tipo === "pedido"} onChange={() => elegirTipo("pedido")} className="accent-[#16577F]" /> Pedido <span className="text-[#5C6B76]">(reserva stock)</span></label>
+        <label className={`inline-flex items-center gap-1.5 ${locales.length ? "" : "opacity-50"}`}><input type="radio" checked={tipo === "presupuesto"} disabled={!locales.length} onChange={() => elegirTipo("presupuesto")} className="accent-[#16577F]" /> Presupuesto <span className="text-[#5C6B76]">(no reserva stock; sólo canal local)</span></label>
+      </fieldset>
+
       <div className="flex flex-wrap items-end gap-4">
         <label><span className={ETIQUETA}>Canal</span>
           <select name="canal" value={canal} className={CAMPO}
             onChange={(e) => { const c = Number(e.target.value); setCanal(c); void reprecio(c, clienteId); }}>
-            {canales.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            {visibles.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select></label>
         <fieldset>
           <span className={ETIQUETA}>Cliente</span>
@@ -331,6 +349,13 @@ export default function NuevoPedido({ canales }: { canales: Canal[] }) {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        {tipo === "presupuesto" ? (
+          <fieldset className="grid gap-2 content-start">
+            <label><span className={ETIQUETA}>Válido hasta</span>
+              <input type="date" name="vigencia" defaultValue={enUnaSemana()} className={CAMPO} required /></label>
+            <p className="text-[11px] text-[#5C6B76]">No reserva stock ni pide pago. Desde su ficha se imprime y se pasa a pedido (ahí reserva el stock y queda con el pago pendiente).</p>
+          </fieldset>
+        ) : (
         <fieldset className="grid gap-2 content-start">
           <span className={ETIQUETA}>Pago</span>
           <div className="flex flex-wrap gap-3">
@@ -351,6 +376,7 @@ export default function NuevoPedido({ canales }: { canales: Canal[] }) {
             {pago === "pagado" ? "Queda pagado y se reserva el stock." : pago === "cuenta_corriente" ? "Queda confirmado (se reserva el stock) y el pago, a cuenta del cliente." : "Queda «A cobrar»: se reserva el stock y entra en picking sin esperar el pago; el cobro se confirma desde la ficha (se factura al cobrar)."}
           </p>
         </fieldset>
+        )}
         <fieldset className="grid gap-2 content-start">
           <span className={ETIQUETA}>Entrega</span>
           <div className="flex flex-wrap gap-3">
@@ -378,7 +404,7 @@ export default function NuevoPedido({ canales }: { canales: Canal[] }) {
 
       <div className="flex flex-wrap items-center justify-end gap-3">
         <span className="text-sm">Total: <b className="tabular-nums">{moneda === "USD" ? "US$" : "$"} {formatearNumero(total, tipoPrecio)}</b></span>
-        <button disabled={enviando || !lineas.length} className={`${PRIMARIO} disabled:opacity-60`}>{enviando ? "Creando…" : "Crear pedido"}</button>
+        <button disabled={enviando || !lineas.length} className={`${PRIMARIO} disabled:opacity-60`}>{enviando ? "Creando…" : tipo === "presupuesto" ? "Crear presupuesto" : "Crear pedido"}</button>
       </div>
     </form>
   );

@@ -99,7 +99,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
     const x = await una<{ canal_tipo: string; tiene_dir: boolean; sucursal: string | null }>(`
       select ca.tipo canal_tipo, coalesce(p.envio -> 'direccion' ->> 'codigo_postal', '') <> '' tiene_dir, p.envio #>> '{sucursal_oca,nombre}' sucursal
         from pedido p join canal ca on ca.id = p.canal_id where p.id = $1 and p.organizacion_id = $2`, [pid, s.org.id]);
-    const ofrecer = !!envioOca || (!!x && x.canal_tipo !== "mercadolibre" && x.tiene_dir && !["cancelado", "devuelto", "despachado", "entregado"].includes(c.estado));
+    const ofrecer = !!envioOca || (!!x && x.canal_tipo !== "mercadolibre" && x.tiene_dir && !["presupuesto", "cancelado", "devuelto", "despachado", "entregado"].includes(c.estado));
     return { ofrecer, envio: envioOca, sucursal: x?.sucursal ?? null };
   })();
   // Carrito de ML en espera (10 min desde su último evento): nada se toca todavía.
@@ -121,7 +121,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
   const subibles = comprobantes.filter((x) => x.estado === "autorizado" && x.es_ml && puedeSubir(enMl(x)));
   const puedeFacturar = tienePermiso(s.permisos, "facturacion_ver");
   const facturado = comprobantes.some((x) => [1, 6, 11].includes(x.tipo_cbte) && x.estado === "autorizado");
-  const ofrecerFacturar = puedeFacturar && !facturado && !["nuevo", "cancelado"].includes(c.estado);
+  const ofrecerFacturar = puedeFacturar && !facturado && !["presupuesto", "nuevo", "cancelado"].includes(c.estado);
 
   const v = s.moneda;
   // Lo que la base guarda sólo en pesos (comisión y cargos de ML) se ve, en dólares, al tipo de cambio del día del pedido.
@@ -135,8 +135,8 @@ export default async function DetallePedido({ params, searchParams }: { params: 
   );
 
   return (
-    <Pantalla titulo={<>Pedido {c.id}{c.id_externo && <span className="font-mono font-normal text-sm text-[#5C6B76]"> · {c.id_externo}</span>}</>}
-      camino={[{ texto: `Pedido ${c.id}` }]} subtitulo={<>{c.canal} · {fechaHora(c.fecha)}</>}>
+    <Pantalla titulo={<>{c.estado === "presupuesto" ? "Presupuesto" : "Pedido"} {c.id}{c.id_externo && <span className="font-mono font-normal text-sm text-[#5C6B76]"> · {c.id_externo}</span>}</>}
+      camino={[{ texto: `${c.estado === "presupuesto" ? "Presupuesto" : "Pedido"} ${c.id}` }]} subtitulo={<>{c.canal} · {fechaHora(c.fecha)}</>}>
       <div className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4`}>
         <Dato t="Estado"><Estado texto={etiqueta(ESTADOS_PEDIDO, c.estado)} tono={TONO_ESTADO[c.estado] ?? "gris"} />{espera && <> <MarcaCarritoEspera ts={ml?.espera_ts} /></>}</Dato>
         {espera && <p className="col-span-2 sm:col-span-4 text-xs rounded-lg px-3 py-2 bg-[#FFF1D6] text-[#8a5a00] border border-[#F2D08A]">{mensajeEsperaCarrito(espera)}</p>}

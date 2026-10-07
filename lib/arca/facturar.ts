@@ -103,6 +103,7 @@ export async function prepararFactura(org: string, pedidoId: number, usuarioId: 
       from pedido p left join cliente cl on cl.id = p.cliente_id where p.id = $1 and p.organizacion_id = $2`, [pedidoId, org]))[0];
   if (!p) throw new ErrorErp("El pedido no existe.");
   if (p.estado === "cancelado") throw new ErrorErp("Un pedido cancelado no se factura.");
+  if (p.estado === "presupuesto") throw new ErrorErp("Un presupuesto no se factura: primero pasalo a pedido.");
   // «A cobrar» (efectivo al retirar): se factura cuando se confirma el cobro.
   if (p.a_cobrar) throw new ErrorErp(MENSAJE_A_COBRAR_FACTURA);
   if (p.estado === "nuevo") throw new ErrorErp("Un pedido nuevo no se factura.");

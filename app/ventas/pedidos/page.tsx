@@ -28,8 +28,8 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
     consulta<{ id: number; nombre: string }>("select id::int, nombre from canal where organizacion_id = $1 order by nombre", [s.org.id]),
     paginaDeVista(LISTA_PEDIDOS, ctx, sp),
     // Los canales donde se carga un pedido a mano (Mercado Libre no: entran solos).
-    consulta<{ id: number; nombre: string; moneda: "ARS" | "USD" }>(`
-      select ca.id::int, ca.nombre, coalesce(l.moneda_base, 'ARS') moneda from canal ca left join lista_precios l on l.id = ca.lista_precios_id
+    consulta<{ id: number; nombre: string; moneda: "ARS" | "USD"; tipo: string }>(`
+      select ca.id::int, ca.nombre, coalesce(l.moneda_base, 'ARS') moneda, ca.tipo from canal ca left join lista_precios l on l.id = ca.lista_precios_id
        where ca.organizacion_id = $1 and ca.estado = 'activo' and ca.tipo in ('local', 'web_minorista', 'web_mayorista', 'otro')
        order by (ca.tipo = 'local') desc, ca.nombre`, [s.org.id]),
   ]);
@@ -37,10 +37,10 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
   const hayFiltro = !!(estado || pago || canal || sp.desde !== undefined || sp.hasta !== undefined || q || cliente || conPendiente || canceladas);
 
   return (
-    <Pantalla titulo="Pedidos" subtitulo="Los pedidos de todos los canales"
-      acciones={<><AccionesExcel lista={LISTA_PEDIDOS} org={s.org.id} vista={vista.activa?.id} /><BotonNuevo texto="Nuevo pedido" /></>}>
+    <Pantalla titulo="Pedidos y presupuestos" subtitulo="Los pedidos de todos los canales y los presupuestos del local"
+      acciones={<><AccionesExcel lista={LISTA_PEDIDOS} org={s.org.id} vista={vista.activa?.id} /><BotonNuevo texto="Nuevo pedido o presupuesto" /></>}>
       <Avisos sp={sp} />
-      <AltaNueva texto="Nuevo pedido" sinBoton>
+      <AltaNueva texto="Nuevo pedido o presupuesto" sinBoton>
         <NuevoPedido canales={aMano} />
       </AltaNueva>
       <div className="flex flex-wrap items-end gap-2 mb-3">

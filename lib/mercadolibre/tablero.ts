@@ -132,7 +132,7 @@ export async function metricasPorCanal(org: string, canales: number[], { soloMl 
              coalesce(sum(p.total_ars) filter (where (p.fecha at time zone '${ZONA}')::date = (now() at time zone '${ZONA}')::date), 0) hoy_ars,
              coalesce(sum(p.total_usd) filter (where (p.fecha at time zone '${ZONA}')::date = (now() at time zone '${ZONA}')::date), 0) hoy_usd,
              count(*)::int siete, coalesce(sum(p.total_ars), 0) siete_ars, coalesce(sum(p.total_usd), 0) siete_usd
-        from pedido p where p.organizacion_id = $1 and p.canal_id = any($2::bigint[]) and p.estado <> 'cancelado'
+        from pedido p where p.organizacion_id = $1 and p.canal_id = any($2::bigint[]) and p.estado not in ('cancelado', 'presupuesto')
          and p.fecha > now() - interval '7 days' group by p.canal_id`),
   ]);
   for (const f of pubs) poner(f.canal, (x) => { x.publicaciones = { total: f.total, activas: f.activas, pausadas: f.pausadas, conCuestiones: f.con_cuestiones, sinProducto: f.sin_producto, sinProductoActivas: f.sin_producto_activas }; });

@@ -72,7 +72,7 @@ export async function rentabilidad(org: string, f: FiltroRentabilidad, moneda: M
         from pedido p join canal ca on ca.id = p.canal_id
         join pedido_linea l on l.pedido_id = p.id
         left join variacion v on v.id = l.variacion_id
-       where p.organizacion_id = $1 and p.estado not in ('nuevo', 'cancelado', 'devuelto')
+       where p.organizacion_id = $1 and p.estado not in ('presupuesto', 'nuevo', 'cancelado', 'devuelto')
          and p.fecha >= ($2::date)::timestamp at time zone 'America/Argentina/Buenos_Aires'
          and p.fecha < ($3::date + 1)::timestamp at time zone 'America/Argentina/Buenos_Aires'
          and ($4 = 0 or p.canal_id = $4)

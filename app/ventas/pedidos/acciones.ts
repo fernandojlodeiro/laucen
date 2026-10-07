@@ -145,6 +145,7 @@ export async function accionNuevoPedido(fd: FormData): Promise<{ error: string }
         precio: deLista ? null : precio, descuentoPct: numero(fd, `l_${clave}_descuento`) ?? 0,
       });
     }
+    const esPresupuesto = fd.get("tipo") === "presupuesto";
     const pago = String(fd.get("pago") ?? "a_convenir") as PedidoAMano["pago"];
     const entrega = fd.get("entrega") === "envio" ? "envio" : "retiro";
     const creado = await crearPedidoAMano(s.org.id, s.usuario.id, {
@@ -160,13 +161,14 @@ export async function accionNuevoPedido(fd: FormData): Promise<{ error: string }
       } : null,
       costoEnvio: entrega === "envio" ? numero(fd, "costo_envio") : null,
       notas: texto(fd, "notas"),
+      presupuesto: esPresupuesto ? { vigencia: texto(fd, "vigencia") } : null,
     });
     pedidoId = creado.pedidoId;
   } catch (e) {
     return { error: motivoErp(e) };
   }
   revalidatePath("/ventas/pedidos");
-  redirect(`/ventas/pedidos/${pedidoId}?ok=${encodeURIComponent(`Pedido ${pedidoId} creado.`)}`);
+  redirect(`/ventas/pedidos/${pedidoId}?ok=${encodeURIComponent(`${fd.get("tipo") === "presupuesto" ? "Presupuesto" : "Pedido"} ${pedidoId} creado.`)}`);
 }
 
 /** Une los carritos de Mercado Libre que quedaron partidos en varios pedidos

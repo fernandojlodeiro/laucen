@@ -59,7 +59,7 @@ export function filtrosEnlace(sp: SP) {
 }
 
 /** «Con algo pendiente»: no llegó al final (entregado, cancelado o devuelto), o le falta cobrarse o facturarse. */
-const SQL_ALGO_PENDIENTE = `(p.estado not in ('cancelado', 'devuelto') and (p.estado <> 'entregado' or ${sqlEstadoPago("p")} <> 'pagado'
+const SQL_ALGO_PENDIENTE = `(p.estado not in ('presupuesto', 'cancelado', 'devuelto') and (p.estado <> 'entregado' or ${sqlEstadoPago("p")} <> 'pagado'
   or not exists (select 1 from comprobante cb where cb.pedido_id = p.id and cb.estado = 'autorizado' and cb.tipo_cbte in (1, 6, 11))))`;
 
 // Los productos del pedido, uno por renglón (Fer, 6/10): cantidad, producto (con su foto) y precio, en
