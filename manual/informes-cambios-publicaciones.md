@@ -151,7 +151,7 @@ Tocando el **número de publicación** (MLA…) se abre su historial: todo lo qu
 
 Arriba muestra la publicación como está hoy: título, cuenta, SKU (con enlace al producto), estado, precio y stock. Arriba a la derecha, **"Ver en Mercado Libre ↗"** la abre en Mercado Libre, en otra pestaña.
 
-La tabla junta, en orden de fecha:
+La tabla junta, en orden de fecha, **un renglón por cada cosa que pasó**: lo que mandó Laucen y los cambios que resultaron en Mercado Libre (estado, stock, precio) en el mismo momento (menos de 2 minutos entre uno y otro) van en el mismo renglón, por ejemplo "Pausa · Laucen mandó pausar con 0 u. (enviado bien) · Activa → Pausada · Stock 1 → 0", con su "Por qué". Lo que entra en cada renglón:
 - **Estado, Precio y Stock**: cada cambio que tuvo (antes → después) y si lo hizo Laucen o alguien fuera de Laucen. «Fuera de Laucen» quiere decir que Laucen no le mandó nada en los 15 minutos anteriores: pudo ser alguien en Mercado Libre, Mercado Libre mismo u otro programa conectado a la cuenta. Se anotan desde el 3/10/2026.
 - **"Laucen mandó: …"**: cada cosa que le mandó Laucen por la cola (estado, precio, stock, atributos, campañas…), con cómo salió: enviado bien, con error (y el motivo), esperando tu clic, en la cola o descartado; y si fue por tu clic, automático o una barrida.
 - **"Venta"**: cada venta de esta publicación, con el enlace al pedido.

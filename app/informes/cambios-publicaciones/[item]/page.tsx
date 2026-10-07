@@ -50,9 +50,52 @@ function textoPayload(tipo: string, p: Record<string, unknown> | null): string {
   if (!p) return "";
   if (tipo === "estado" && typeof p.estado === "string") return TEXTO_ESTADO_ML[p.estado] ?? (p.estado === "activa" ? "Activa" : p.estado === "pausada" ? "Pausada" : p.estado);
   if (tipo === "precio" && p.precio != null) return formatear(String(p.precio), "ARS");
-  if (tipo === "stock" && p.stock != null) return `${Number(p.stock).toLocaleString("es-AR")} u.`;
+  if (tipo === "stock") {
+    const n = p.cantidad ?? p.stock;
+    const u = n != null ? `${Number(n).toLocaleString("es-AR")} u.` : "";
+    if (p.estado === "paused") return u ? `pausar con ${u}` : "pausar";
+    if (p.estado === "active") return u ? `activar con ${u}` : "activar";
+    if (u) return `cantidad ${u}`;
+  }
   const t = Object.entries(p).filter(([, v]) => v != null && typeof v !== "object").map(([k, v]) => `${k}: ${v}`).join(" · ");
   return t.length > 160 ? `${t.slice(0, 157)}…` : t;
+}
+
+// Un renglón por evento (Fer, 7/10): lo que mandó Laucen y los cambios que resultaron (estado,
+// stock, precio) de una misma variación, con menos de 2 minutos entre el primero y el último, van
+// juntos: "Pausa · Laucen mandó: pausar con 0 (enviado bien) · Activa → Pausada · Stock 1 → 0".
+const JUNTOS_MS = 2 * 60 * 1000;
+function agrupar(lineas: Linea[]): Linea[] {
+  const asc = [...lineas].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+  const grupos: Linea[][] = [];
+  for (const l of asc) {
+    const g = grupos[grupos.length - 1];
+    const junta = g && (l.tipo === "cambio" || l.tipo === "cola") && (g[0].tipo === "cambio" || g[0].tipo === "cola")
+      && g[0].variacion === l.variacion && new Date(l.fecha).getTime() - new Date(g[0].fecha).getTime() <= JUNTOS_MS;
+    if (junta) g.push(l); else grupos.push([l]);
+  }
+  return grupos.map((g): Linea => {
+    if (g.length === 1 && g[0].tipo !== "cambio") return g[0];
+    const cambios = g.filter((l) => l.tipo === "cambio");
+    const cola = g.filter((l) => l.tipo === "cola");
+    const estado = cambios.find((l) => l.que === CAMPOS_CAMBIO.estado);
+    const nombres = [
+      estado ? (/→ Pausada$/.test(estado.detalle) ? "Pausa" : /→ Activa$/.test(estado.detalle) ? "Reactivación" : "Estado") : null,
+      !estado && cambios.some((l) => l.que === CAMPOS_CAMBIO.stock) ? "Stock" : null,
+      cambios.some((l) => l.que === CAMPOS_CAMBIO.precio) ? "Precio" : null,
+    ].filter(Boolean) as string[];
+    const partes = [
+      ...cola.map((l) => (l.que === `Laucen mandó: ${TIPO_COLA.stock}` ? `Laucen mandó ${l.detalle}` : `${l.que} ${l.detalle}`)),
+      ...cambios.map((l) => (l.que === CAMPOS_CAMBIO.estado ? l.detalle : `${l.que} ${l.detalle}`)),
+    ];
+    return {
+      fecha: g[0].fecha, variacion: g[0].variacion, tipo: "cambio",
+      que: nombres.length ? nombres.join(" · ") : g[0].que,
+      detalle: partes.join(" · "),
+      origen: cola[0]?.origen ?? cambios[0]?.origen ?? g[0].origen,
+      porque: g.find((l) => l.porque)?.porque,
+    };
+  }).sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 }
 
 export default async function HistorialPublicacion({ params, searchParams }: { params: Promise<{ item: string }>; searchParams: Promise<SP> }) {
@@ -150,13 +193,14 @@ export default async function HistorialPublicacion({ params, searchParams }: { p
       detalle: `${v.cantidad} u.${v.estado === "cancelado" ? " (cancelado)" : ""}`, origen: v.canal,
     })),
   ].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-  const pagina = paginarEnMemoria(lineas, sp);
-  const conVariacion = lineas.some((l) => l.variacion);
+  const eventos = agrupar(lineas);
+  const pagina = paginarEnMemoria(eventos, sp);
+  const conVariacion = eventos.some((l) => l.variacion);
 
   return (
     <Pantalla titulo={`Historial de ${item}`}
       camino={[{ texto: item }]}
-      subtitulo="Todo lo que le cambió a esta publicación, lo más nuevo arriba: estado, precio y stock (desde el 3/10/2026), lo que le mandó Laucen, sus ventas y lo que pasó con ella en las campañas de Mercado Libre. «Por qué» dice la venta que explica una baja de stock o una pausa."
+      subtitulo="Todo lo que le cambió a esta publicación, lo más nuevo arriba: estado, precio y stock (desde el 3/10/2026), lo que le mandó Laucen, sus ventas y lo que pasó con ella en las campañas de Mercado Libre. Un renglón por cada cosa que pasó; «Por qué» dice la venta o la cancelación que la explica."
       acciones={<a href={enlaceMl(item, pub?.permalink)} target="_blank" rel="noopener noreferrer" className={SUAVE}>Ver en Mercado Libre ↗</a>}>
       {existe ? (
         <div className={`${CAJA} mb-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm`}>
@@ -204,11 +248,11 @@ export default async function HistorialPublicacion({ params, searchParams }: { p
                 </td>
               </tr>
             ))}
-            {!lineas.length && <tr><td colSpan={6} className={`${TD} text-center text-[#5C6B76] py-6`}>No hay nada anotado de esta publicación.</td></tr>}
+            {!eventos.length && <tr><td colSpan={6} className={`${TD} text-center text-[#5C6B76] py-6`}>No hay nada anotado de esta publicación.</td></tr>}
           </tbody>
         </table>
       </div>
-      <Paginado total={lineas.length} />
+      <Paginado total={eventos.length} />
       <p className="text-[11px] text-[#5C6B76] mt-1">
         Para ver los cambios de todas las publicaciones juntas, <Link href={BASE_CAMBIOS} className={ENLACE}>Cambios en publicaciones</Link>.
       </p>
