@@ -449,6 +449,12 @@ alter table cliente add column if not exists busqueda text generated always as (
   regexp_replace(coalesce(documento_numero, ''), '[^0-9]', '', 'g') || ' ' || regexp_replace(coalesce(cuit, ''), '[^0-9]', '', 'g') || ' ' ||
   regexp_replace(coalesce(telefono, ''), '[^0-9]', '', 'g') || ' ' || regexp_replace(coalesce(telefono_movil, ''), '[^0-9]', '', 'g'))) stored;
 create index if not exists cliente_busqueda_trgm on cliente using gin (busqueda extensions.gin_trgm_ops);
+-- Lo mismo con las direcciones (la pantalla Clientes busca también en ellas).
+alter table cliente_direccion add column if not exists busqueda text generated always as (lower(
+  coalesce(etiqueta, '') || ' ' || coalesce(calle, '') || ' ' || coalesce(numero, '') || ' ' || coalesce(piso_depto, '') || ' ' || coalesce(localidad, '') || ' ' ||
+  coalesce(provincia, '') || ' ' || coalesce(codigo_postal, '') || ' ' || coalesce(pais, '') || ' ' || coalesce(receptor, '') || ' ' ||
+  coalesce(receptor_telefono, '') || ' ' || coalesce(referencia, '') || ' ' || regexp_replace(coalesce(receptor_telefono, ''), '[^0-9]', '', 'g'))) stored;
+create index if not exists cliente_direccion_busqueda_trgm on cliente_direccion using gin (busqueda extensions.gin_trgm_ops);
 alter table proveedor add column if not exists telefono_aclaracion text;
 alter table proveedor add column if not exists telefono_movil_aclaracion text;
 create or replace function erp_telefono() returns trigger language plpgsql as $$

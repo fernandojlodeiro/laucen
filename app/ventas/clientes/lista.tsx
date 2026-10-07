@@ -44,6 +44,22 @@ export function prefiltroCliente(a: string, q: string, valores: unknown[]): stri
   return conds.length ? conds.join(" and ") : "true";
 }
 
+/** Lo mismo para la pantalla Clientes, que busca también en las direcciones: los clientes
+ *  candidatos son los que tienen el término más largo en sus datos o en alguna dirección
+ *  (los dos con índice); después sqlBusqueda decide el criterio fino. */
+export function prefiltroClienteConDirecciones(a: string, q: string, valores: unknown[]): string {
+  const t = [...terminosBusqueda(q)].sort((x, y) => y.length - x.length)[0];
+  if (!t) return "true";
+  const esc = (x: string) => `%${x.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  valores.push(esc(t));
+  const n = valores.length;
+  const digitos = t.replace(/\D/g, "");
+  let m = 0;
+  if (digitos && digitos !== t) { valores.push(esc(digitos)); m = valores.length; }
+  const cond = (col: string) => `(${col} like $${n}${m ? ` or ${col} like $${m}` : ""})`;
+  return `${a}.id in (select id from cliente where ${cond("busqueda")} union select cliente_id from cliente_direccion where ${cond("busqueda")})`;
+}
+
 /** Además, en la pantalla Clientes: los datos de sus direcciones. */
 const BUSCA_EN: CampoBusqueda[] = [
   ...camposCliente("c"),
@@ -120,7 +136,10 @@ export const LISTA_CLIENTES: Lista = {
     const valores: unknown[] = [ctx.org];
     const donde = ["c.organizacion_id = $1"];
     if (tipo) { valores.push(tipo); donde.push(`c.tipo = $${valores.length}`); }
-    if (q) { valores.push(parametroBusqueda(q, comienza)); donde.push(sqlBusqueda(`$${valores.length}`, BUSCA_EN)); }
+    if (q) {
+      donde.push(prefiltroClienteConDirecciones("c", q, valores));
+      valores.push(parametroBusqueda(q, comienza)); donde.push(sqlBusqueda(`$${valores.length}`, BUSCA_EN));
+    }
     return { desde: "cliente c", donde: donde.join(" and "), valores, orden: "c.nombre, c.id" };
   },
 };

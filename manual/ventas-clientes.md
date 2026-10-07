@@ -121,6 +121,7 @@ Sólo se puede si **no tiene ningún pedido**. Tacho arriba a la derecha → **"
 
 ## Criterios y reglas
 
+- **El buscador es rápido aunque haya más de 100.000 clientes**: busca en todos los datos del cliente y de sus direcciones con un índice, así contesta al instante mientras tipeás.
 - **Quién crea los clientes**: los pedidos. Al entrar un pedido, Laucen busca al cliente en este orden: el id del comprador en ese canal (identidad) → el CUIT → el número de documento → el apodo de Mercado Libre → el mail. Si lo encuentra, **completa sólo los datos que le faltan** (nunca pisa uno que ya estaba cargado) y suma los datos originales. Si no, lo crea. Si vino el id del canal, deja la identidad guardada para encontrarlo la próxima vez.
 - **Nombre** de un cliente que llega de Mercado Libre: la razón social si es empresa; si no, "Apellido, Nombre"; si no, quien recibe el envío o el apodo.
 - **Documentos de relleno** (1111111, 00000000, menos de 6 dígitos) no se toman como documento.
