@@ -6,7 +6,7 @@ import { sosVos } from "@/lib/admin";
 import { orgRequerida, sesionRequerida } from "@/lib/tenancy";
 import { motivoErp } from "@/lib/erp/base";
 import { deFondo } from "@/lib/tareas-fondo";
-import { prepararNotebooksMl, textoResultadoMl, limpiarNotebooksLaucen } from "@/lib/limpieza-notebooks";
+import { prepararNotebooksMl, textoResultadoMl, limpiarNotebooksLaucen, revisarNotebooksMl } from "@/lib/limpieza-notebooks";
 
 async function portero() {
   if (!(await sosVos())) redirect("/panel");
@@ -16,6 +16,18 @@ async function portero() {
 function volver(mensaje: string, error = false): never {
   revalidatePath("/admin/limpieza");
   redirect(`/admin/limpieza?${error ? "error" : "ok"}=${encodeURIComponent(mensaje)}`);
+}
+
+/** "Revisar en ML": lee la cuenta entera y guarda el detalle de sus notebooks. Sólo lectura, de fondo. */
+export async function accionRevisarNotebooksMl(fd: FormData) {
+  await portero();
+  const s = await sesionRequerida();
+  const canal = Number(fd.get("canal"));
+  return deFondo(s, `limpieza-notebooks:${canal}`, "Revisión de notebooks en Mercado Libre", async () => {
+    const r = await revisarNotebooksMl(s.org.id, canal, Date.now() + 270_000);
+    revalidatePath("/admin/limpieza");
+    return r;
+  });
 }
 
 /** Lee la cuenta en ML y deja preparado (sin mandar) el lote que elimina sus notebooks que no son de la lista. De fondo. */

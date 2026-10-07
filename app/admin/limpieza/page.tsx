@@ -5,10 +5,10 @@ import { orgRequerida } from "@/lib/tenancy";
 import { consulta } from "@/lib/erp/base";
 import { formatearNumero } from "@/lib/numeros";
 import { esNotebook } from "@/lib/mercadolibre/es-notebook";
-import { SKUS_CONSERVAR, seConserva, notebooksLaucenFuera } from "@/lib/limpieza-notebooks";
+import { SKUS_CONSERVAR, seConserva, notebooksLaucenFuera, revisionesGuardadas, type Decision, type Revision } from "@/lib/limpieza-notebooks";
 import { SUAVE } from "@/app/botones";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
-import { accionNotebooksLaucen, accionNotebooksMl } from "./actions";
+import { accionNotebooksLaucen, accionNotebooksMl, accionRevisarNotebooksMl } from "./actions";
 import { BotonBorrar } from "./Botones";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +21,13 @@ export const metadata = { title: "Limpieza de datos", robots: { index: false, fo
 
 const CAJA = "bg-white border border-[#E3E9F0] rounded-xl p-4 space-y-2";
 const n = (x: number) => formatearNumero(x, "entero");
+const DECISION: Record<Decision, { texto: string; color: string }> = {
+  eliminar: { texto: "Se elimina", color: "text-[#C03420]" },
+  conservar: { texto: "De la lista: queda", color: "text-[#167655]" },
+  activa_fuera: { texto: "Activa fuera de la lista: no se toca", color: "text-[#8a6100]" },
+  ya_pedida: { texto: "Ya pedida antes", color: "text-[#5C6B76]" },
+};
+const fechaHora = (iso: string) => new Date(iso).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 export default async function Limpieza({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
   if (!(await sosVos())) redirect("/panel");
@@ -45,7 +52,7 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
     else c.borrar++;
     porCuenta.set(i.canal_id, c);
   }
-  const enLaucen = await notebooksLaucenFuera(org);
+  const [enLaucen, revisiones] = await Promise.all([notebooksLaucenFuera(org), revisionesGuardadas(org)]);
 
   return (
     <main className="max-w-3xl mx-auto p-4 space-y-4">
@@ -72,7 +79,8 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
 
         <h3 className="text-sm font-semibold pt-2">1. En Mercado Libre</h3>
         <p className="text-sm text-[#5C6B76]">
-          El botón de cada cuenta lee la cuenta entera en Mercado Libre (también lo que Laucen no guarda; tarda unos minutos y corre de
+          Primero <b>&quot;Revisar en ML&quot;</b>: lee la cuenta entera en Mercado Libre por la API y muestra acá abajo, publicación por
+          publicación, qué se haría con cada notebook. <b>No cambia nada.</b> Después, &quot;Preparar eliminación en ML&quot; lee la cuenta entera en Mercado Libre (también lo que Laucen no guarda; tarda unos minutos y corre de
           fondo) y deja <b>preparado un lote</b> que finaliza y elimina cada notebook que no sea de la lista, en cualquier estado (pausada,
           finalizada, en revisión, inactiva). <b>Las activas que no son de la lista no se tocan</b>: se avisan. No sale nada hasta que revises
           el lote en la <Link href="/config/canales/cola?ver=lotes" className="underline">Cola de Mercado Libre</Link> y aprietes
@@ -90,8 +98,13 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
                     {x.activasFuera.length > 0 && <span className="text-[#C03420]"> {n(x.activasFuera.length)} activas que no son de la lista: {x.activasFuera.join(", ")}.</span>}
                   </span>
                 </div>
-                <BotonTarea accion={accionNotebooksMl} tipo={`limpieza-notebooks:${c.id}`} campos={{ canal: String(c.id) }} clase={SUAVE}
-                  texto="Preparar eliminación en ML" />
+                <span className="flex gap-2 flex-wrap">
+                  <BotonTarea accion={accionRevisarNotebooksMl} tipo={`limpieza-notebooks:${c.id}`} campos={{ canal: String(c.id) }} clase={SUAVE}
+                    texto="Revisar en ML (sólo lectura)" />
+                  <BotonTarea accion={accionNotebooksMl} tipo={`limpieza-notebooks:${c.id}`} campos={{ canal: String(c.id) }} clase={SUAVE}
+                    texto="Preparar eliminación en ML" />
+                </span>
+                {revisiones.get(c.id) && <DetalleRevision r={revisiones.get(c.id)!} />}
               </div>
             );
           })}
@@ -118,5 +131,47 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
         )}
       </section>
     </main>
+  );
+}
+
+/** Lo que trajo la última revisión de la cuenta: conteos y el detalle, publicación por publicación. */
+function DetalleRevision({ r }: { r: Revision }) {
+  const cuenta = (d: Decision) => r.items.filter((x) => x.decision === d).length;
+  const porEstado = (d: Decision) => Object.entries(r.items.filter((x) => x.decision === d).reduce<Record<string, number>>((a, x) => ({ ...a, [x.estado]: (a[x.estado] ?? 0) + 1 }), {}))
+    .map(([k, v]) => `${n(v)} ${k}`).join(", ");
+  const orden: Decision[] = ["activa_fuera", "eliminar", "conservar", "ya_pedida"];
+  const items = [...r.items].sort((a, b) => orden.indexOf(a.decision) - orden.indexOf(b.decision) || a.id.localeCompare(b.id));
+  return (
+    <div className="w-full text-xs text-[#5C6B76] space-y-1">
+      <p>
+        <b>Revisión de ML del {fechaHora(r.fecha)}</b>: la cuenta tiene {n(r.totalCuenta)} publicaciones en Mercado Libre. Notebooks:{" "}
+        <span className="text-[#C03420] font-semibold">{n(cuenta("eliminar"))} se eliminan</span>{cuenta("eliminar") ? ` (${porEstado("eliminar")})` : ""} ·{" "}
+        <span className="text-[#167655]">{n(cuenta("conservar"))} de la lista</span> ·{" "}
+        <span className={cuenta("activa_fuera") ? "text-[#8a6100] font-semibold" : ""}>{n(cuenta("activa_fuera"))} activas fuera de la lista</span>
+        {cuenta("ya_pedida") ? ` · ${n(cuenta("ya_pedida"))} ya pedidas` : ""}.
+        {r.quedan > 0 && <span className="text-[#8a6100]"> Incompleta: faltaron {n(r.quedan)} por leer, apretá de nuevo.</span>}
+      </p>
+      {items.length > 0 && (
+        <details>
+          <summary className="cursor-pointer text-[#16577F]">Ver el detalle ({n(items.length)})</summary>
+          <div className="max-h-96 overflow-auto border border-[#E3E9F0] rounded mt-1">
+            <table className="w-full">
+              <thead className="sticky top-0 bg-[#FAFBFC] text-left"><tr><th className="p-1">Publicación</th><th className="p-1">Estado</th><th className="p-1">SKU</th><th className="p-1">Título</th><th className="p-1">Qué pasa</th></tr></thead>
+              <tbody>
+                {items.map((x) => (
+                  <tr key={x.id} className="border-t border-[#E3E9F0]">
+                    <td className="p-1 whitespace-nowrap"><a href={`https://articulo.mercadolibre.com.ar/${x.id.replace(/^MLA/, "MLA-")}`} target="_blank" rel="noopener" className="underline">{x.id} ↗</a></td>
+                    <td className="p-1">{x.estado}</td>
+                    <td className="p-1">{x.skus || "sin SKU"}</td>
+                    <td className="p-1">{x.titulo.slice(0, 60)}</td>
+                    <td className={`p-1 ${DECISION[x.decision].color}`}>{DECISION[x.decision].texto}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+    </div>
   );
 }

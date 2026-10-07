@@ -18,6 +18,8 @@ import { esNotebook } from "@/lib/mercadolibre/es-notebook";
 export const SKUS_CONSERVAR = [
   "81VS0001US", "S532FA-SB77", "F412DA-NH77", "F412DA-NH77-1", "15-EF0022NR", "14-DK1022WM", "15-DK0056WM", "G3-3500", "15-DK0056WM-1",
   "G3-3500-1", "F412DA-NH77-12GB",
+  // La Lenovo 3 i3 se vendió el 5/10: Fer la deja activa en Laucen (7/10).
+  "81WE011UUS",
 ];
 
 const DESCRIPCION_LOTE = "Eliminar en Mercado Libre notebooks que no son de la lista (7/10)";
@@ -40,6 +42,9 @@ export function skusDeItem(it: ItemMl): string[] {
     .filter(Boolean);
 }
 
+export type Decision = "eliminar" | "conservar" | "activa_fuera" | "ya_pedida";
+export type ItemRevisado = { id: string; titulo: string; estado: string; skus: string; decision: Decision };
+
 export type ResultadoMl = {
   cuenta: string; loteId: number | null; preparadas: number; sinSku: number; revisadas: number; quedan: number;
   porEstado: Record<string, number>; conservadas: number;
@@ -47,10 +52,9 @@ export type ResultadoMl = {
   activasFuera: { id: string; titulo: string; skus: string }[];
 };
 
-/** Lee la cuenta en ML y prepara el lote que elimina sus notebooks que no son de la lista. Si
- *  no alcanza el tiempo, lo leído queda en el lote y `quedan` dice cuántas faltan (se vuelve a
- *  apretar; lo ya preparado no se repite). */
-export async function prepararNotebooksMl(org: string, canalId: number, usuarioId: string, hastaMs: number): Promise<ResultadoMl> {
+/** Lee la cuenta entera en ML y clasifica cada notebook: eliminar, conservar (de la lista),
+ *  activa fuera de la lista (no se toca) o ya pedida. No cambia nada. */
+async function leerNotebooks(org: string, canalId: number, hastaMs: number) {
   const cuenta: CuentaMl | null = await cuentaDelCanal(org, canalId);
   if (!cuenta || cuenta.estado !== "activa") throw new ErrorErp("Esa cuenta de Mercado Libre no está conectada.");
   const nombre = (await consulta<{ nombre: string }>("select nombre from canal where id = $1", [canalId]))[0]?.nombre ?? `canal ${canalId}`;
@@ -68,43 +72,78 @@ export async function prepararNotebooksMl(org: string, canalId: number, usuarioI
     c.skus.push(f.sku ?? "", f.sku_laucen ?? "");
     conocidas.set(f.item_id, c);
   }
-  // Lo que ya tiene pedida su eliminación (preparado, en la cola o enviado): no se repite.
+  // Lo que ya tiene pedida su eliminación (preparado, en la cola o enviado).
   const yaPedidas = new Set((await consulta<{ item_id: string }>(
     `select distinct item_id from ml_cola where canal_id = $1 and estado in ('preparado', 'pendiente', 'enviando', 'ok')
         and payload::text like '%"deleted"%'`, [canalId])).map((f) => f.item_id));
 
-  const aRevisar = [...lectura.ids].filter((i) => !yaPedidas.has(i) && (!conocidas.has(i) || conocidas.get(i)!.notebook)).sort();
-  const r: ResultadoMl = { cuenta: nombre, loteId: null, preparadas: 0, sinSku: 0, revisadas: 0, quedan: 0, porEstado: {}, conservadas: 0, activasFuera: [] };
-  const cambios: CambioMl[] = [];
+  const aRevisar = [...lectura.ids].filter((i) => !conocidas.has(i) || conocidas.get(i)!.notebook).sort();
+  const items: ItemRevisado[] = [];
+  let revisadas = 0, quedan = 0;
   for (let i = 0; i < aRevisar.length; i += 20) {
-    if (Date.now() > hastaMs - 4_000) { r.quedan = aRevisar.length - i; break; }
+    if (Date.now() > hastaMs - 4_000) { quedan = aRevisar.length - i; break; }
     const lote = aRevisar.slice(i, i + 20);
     const x = await ml<{ code: number; body: ItemMl }[]>(cuenta, "GET",
       `/items?ids=${lote.join(",")}&attributes=id,title,status,sub_status,category_id,seller_custom_field,attributes,variations`);
-    if (x.status !== 200 || !Array.isArray(x.datos)) throw new ErrorErp(`${nombre}: Mercado Libre no contestó. Probá de nuevo (lo ya preparado no se pierde).`);
-    r.revisadas += lote.length;
+    if (x.status !== 200 || !Array.isArray(x.datos)) throw new ErrorErp(`${nombre}: Mercado Libre no contestó. Probá de nuevo.`);
+    revisadas += lote.length;
     for (const { code, body: it } of x.datos) {
       if (code !== 200 || !it?.id || !esNotebook(it.title, it.category_id)) continue;
       if ((it.sub_status ?? []).includes("deleted")) continue; // ya eliminada en ML
-      const skus = [...skusDeItem(it), ...(conocidas.get(it.id)?.skus ?? [])].filter(Boolean);
-      if (seConserva(skus)) { r.conservadas++; continue; }
-      if (it.status === "active") { r.activasFuera.push({ id: it.id, titulo: it.title ?? "", skus: [...new Set(skus)].join(", ") || "sin SKU" }); continue; }
-      const estado = it.status ?? "?";
-      r.porEstado[estado] = (r.porEstado[estado] ?? 0) + 1;
-      if (!skus.length) r.sinSku++;
-      cambios.push({
-        canalId, itemId: it.id, tipo: "otro", antes: { titulo: it.title, estado },
-        payload: {
-          marca: "eliminar_notebook",
-          descripcion: `${estado === "closed" ? "Eliminar" : "Finalizar y eliminar"} en ML (${estado}${skus.length ? `, SKU ${[...new Set(skus)].join("/")}` : ", sin SKU"}): ${it.title ?? it.id}`,
-          pedidos: [
-            ...(estado === "closed" ? [] : [{ metodo: "PUT" as const, ruta: `/items/${it.id}`, cuerpo: { status: "closed" }, seguirSiFalla: true }]),
-            { metodo: "PUT" as const, ruta: `/items/${it.id}`, cuerpo: { deleted: "true" } },
-          ],
-        },
-      });
+      const skus = [...new Set([...skusDeItem(it), ...(conocidas.get(it.id)?.skus ?? [])].filter(Boolean))];
+      const decision: Decision = seConserva(skus) ? "conservar" : yaPedidas.has(it.id) ? "ya_pedida" : it.status === "active" ? "activa_fuera" : "eliminar";
+      items.push({ id: it.id, titulo: it.title ?? "", estado: it.status ?? "?", skus: skus.join(", "), decision });
     }
   }
+  return { nombre, items, revisadas, totalCuenta: lectura.ids.size, quedan };
+}
+
+export type Revision = { fecha: string; cuenta: string; totalCuenta: number; revisadas: number; quedan: number; items: ItemRevisado[] };
+const claveRevision = (canalId: number) => `limpieza_notebooks_revision:${canalId}`;
+
+/** "Revisar en ML" (sólo lectura): lee la cuenta y guarda el detalle para verlo en la pantalla. */
+export async function revisarNotebooksMl(org: string, canalId: number, hastaMs: number): Promise<string> {
+  const r = await leerNotebooks(org, canalId, hastaMs);
+  const rev: Revision = { fecha: new Date().toISOString(), cuenta: r.nombre, totalCuenta: r.totalCuenta, revisadas: r.revisadas, quedan: r.quedan, items: r.items };
+  await consulta(`insert into config_org (organizacion_id, clave, valor) values ($1, $2, $3::jsonb)
+                  on conflict (coalesce(organizacion_id, ''), clave) do update set valor = excluded.valor, actualizado_ts = now()`,
+    [org, claveRevision(canalId), JSON.stringify(rev)]);
+  const c = (d: Decision) => r.items.filter((x) => x.decision === d).length;
+  const n = (x: number) => x.toLocaleString("es-AR");
+  return `${r.nombre}: Mercado Libre tiene ${n(r.totalCuenta)} publicaciones; notebooks: ${n(c("eliminar"))} para eliminar, ${n(c("conservar"))} de la lista, `
+    + `${n(c("activa_fuera"))} activas fuera de la lista${c("ya_pedida") ? `, ${n(c("ya_pedida"))} ya pedidas` : ""}. No se cambió nada: el detalle está en la pantalla.`
+    + (r.quedan ? ` No alcanzó el tiempo: quedan ${n(r.quedan)} por revisar, apretá de nuevo.` : "");
+}
+
+/** La última revisión guardada de cada cuenta. */
+export async function revisionesGuardadas(org: string): Promise<Map<number, Revision>> {
+  const f = await consulta<{ clave: string; valor: Revision }>("select clave, valor from config_org where organizacion_id = $1 and clave like 'limpieza_notebooks_revision:%'", [org]);
+  return new Map(f.map((x) => [Number(x.clave.split(":")[1]), x.valor]));
+}
+
+/** Lee la cuenta en ML y prepara el lote que elimina sus notebooks que no son de la lista. Si
+ *  no alcanza el tiempo, lo leído queda en el lote y `quedan` dice cuántas faltan (se vuelve a
+ *  apretar; lo ya preparado no se repite). */
+export async function prepararNotebooksMl(org: string, canalId: number, usuarioId: string, hastaMs: number): Promise<ResultadoMl> {
+  const l = await leerNotebooks(org, canalId, hastaMs);
+  const r: ResultadoMl = { cuenta: l.nombre, loteId: null, preparadas: 0, sinSku: 0, revisadas: l.revisadas, quedan: l.quedan, porEstado: {},
+    conservadas: l.items.filter((x) => x.decision === "conservar").length,
+    activasFuera: l.items.filter((x) => x.decision === "activa_fuera").map((x) => ({ id: x.id, titulo: x.titulo, skus: x.skus || "sin SKU" })) };
+  const cambios: CambioMl[] = l.items.filter((x) => x.decision === "eliminar").map((it) => {
+    r.porEstado[it.estado] = (r.porEstado[it.estado] ?? 0) + 1;
+    if (!it.skus) r.sinSku++;
+    return {
+      canalId, itemId: it.id, tipo: "otro" as const, antes: { titulo: it.titulo, estado: it.estado },
+      payload: {
+        marca: "eliminar_notebook",
+        descripcion: `${it.estado === "closed" ? "Eliminar" : "Finalizar y eliminar"} en ML (${it.estado}${it.skus ? `, SKU ${it.skus}` : ", sin SKU"}): ${it.titulo || it.id}`,
+        pedidos: [
+          ...(it.estado === "closed" ? [] : [{ metodo: "PUT" as const, ruta: `/items/${it.id}`, cuerpo: { status: "closed" }, seguirSiFalla: true }]),
+          { metodo: "PUT" as const, ruta: `/items/${it.id}`, cuerpo: { deleted: "true" } },
+        ],
+      },
+    };
+  });
   r.preparadas = cambios.length;
   if (!cambios.length) return r;
   // Un solo lote preparado por cuenta: si ya hay uno de una vuelta anterior, se suma a ése.
