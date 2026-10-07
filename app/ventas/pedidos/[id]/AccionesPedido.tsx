@@ -18,11 +18,12 @@ import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import CancelarPedido from "./CancelarPedido";
 import CancelarMl from "./CancelarMl";
 import { mensaje, telefonoWhatsapp } from "./Operacion";
-import { accionPasarAPedido, accionPasarAPresupuesto } from "./acciones";
+import { accionPasarAPedido, accionPasarAPresupuesto, accionEliminarPedido } from "./acciones";
+import { TachoConfirmar } from "@/app/radar/Cliente";
 
 const CERRADOS: EstadoPedido[] = ["entregado", "cancelado", "devuelto"];
 
-export default async function AccionesPedido({ org, pid, editable }: { org: string; pid: number; editable: boolean }) {
+export default async function AccionesPedido({ org, pid, editable, superadmin = false }: { org: string; pid: number; editable: boolean; superadmin?: boolean }) {
   const p = await una<{ estado: EstadoPedido; estado_pago: string; id_externo: string | null; codigo: string | null; canal_id: number; canal_tipo: string;
     cliente: string | null; telefono: string | null; movil: string | null }>(`
     select p.estado, ${sqlEstadoPago("p")} estado_pago, p.id_externo, p.codigo_seguimiento codigo, p.canal_id::int, c.tipo canal_tipo,
@@ -32,6 +33,10 @@ export default async function AccionesPedido({ org, pid, editable }: { org: stri
   if (!p) return null;
   const esMl = p.canal_tipo === "mercadolibre";
   const esPresupuesto = p.estado === "presupuesto";
+  // Eliminar del todo (Fer, 7/10): sólo superadministradores, un presupuesto o un pedido cancelado (la base controla el resto).
+  const tacho = superadmin && !esMl && (esPresupuesto || p.estado === "cancelado")
+    ? <TachoConfirmar accion={accionEliminarPedido} campos={{ pedido_id: String(pid) }} pregunta={`¿Eliminar ${esPresupuesto ? "el presupuesto" : "el pedido"} del todo? No queda nada.`} />
+    : null;
   const lapiz = editable ? <Lapiz href={`/ventas/pedidos/${pid}?editar=ficha`} etiqueta={esPresupuesto ? "Editar el presupuesto" : "Editar el pedido"} /> : null;
 
   if (esMl) {
@@ -73,6 +78,7 @@ export default async function AccionesPedido({ org, pid, editable }: { org: stri
         {botonCancelar}
         {waBoton}
         {lapiz}
+        {tacho}
       </>
     );
   }
@@ -86,6 +92,7 @@ export default async function AccionesPedido({ org, pid, editable }: { org: stri
       {botonCancelar}
       {waBoton}
       {lapiz}
+      {tacho}
     </>
   );
 }

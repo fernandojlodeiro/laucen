@@ -188,7 +188,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
   }
 
   return (
-    <Pantalla acciones={<AccionesPedido org={s.org.id} pid={pid} editable={editable} />} titulo={<>{c.estado === "presupuesto" ? "Presupuesto" : "Pedido"} {c.id}{c.id_externo && <span className="font-mono font-normal text-sm text-[#5C6B76]"> · {c.id_externo}</span>}</>}
+    <Pantalla acciones={<AccionesPedido org={s.org.id} pid={pid} editable={editable} superadmin={s.superadmin} />} titulo={<>{c.estado === "presupuesto" ? "Presupuesto" : "Pedido"} {c.id}{c.id_externo && <span className="font-mono font-normal text-sm text-[#5C6B76]"> · {c.id_externo}</span>}</>}
       camino={[{ texto: `${c.estado === "presupuesto" ? "Presupuesto" : "Pedido"} ${c.id}` }]} subtitulo={<>{c.canal} · {fechaHora(c.fecha)} · hecho en <b>{c.moneda === "USD" ? "dólares" : "pesos"}</b>{listaPedido ? <> · lista {listaPedido}</> : null}</>}>
       <div className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4`}>
         <Dato t="Estado"><Estado texto={etiqueta(ESTADOS_PEDIDO, c.estado)} tono={TONO_ESTADO[c.estado] ?? "gris"} />{espera && <> <MarcaCarritoEspera ts={ml?.espera_ts} /></>}</Dato>

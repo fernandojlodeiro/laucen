@@ -494,3 +494,38 @@ begin
     'pedido_id', p.id, 'canal_id', p.canal_id, 'anterior', 'presupuesto', 'nuevo', 'nuevo', 'quien', p_quien));
   return reservar_pedido(p_org, p.id, p_quien);
 end $$;
+
+/** Eliminar del todo un presupuesto o un pedido cancelado (Fer, 7/10; sólo
+ *  superadministradores, lo controla la pantalla). Sin vestigios: borra el
+ *  pedido, sus líneas, historial, pagos que no se cobraron, envíos anulados,
+ *  picking, los movimientos de reserva y liberación (que suman cero) y sus
+ *  eventos. No se puede si es de Mercado Libre, si tuvo factura, cobro
+ *  contable, movimiento de fondos, una venta de stock, un reclamo o una recepción. */
+create or replace function public.eliminar_pedido(p_org text, p_pedido bigint)
+returns void language plpgsql as $$
+declare p pedido%rowtype; tipo text; ref text := p_pedido::text;
+begin
+  select * into p from pedido where id = p_pedido and organizacion_id = p_org for update;
+  if not found then raise exception 'el pedido % no existe', p_pedido using errcode = 'P0001'; end if;
+  select c.tipo into tipo from canal c where c.id = p.canal_id;
+  if p.estado not in ('presupuesto', 'cancelado') then raise exception 'sólo se elimina un presupuesto o un pedido cancelado' using errcode = 'P0001'; end if;
+  if tipo = 'mercadolibre' then raise exception 'una venta de Mercado Libre no se elimina (volvería a entrar sola)' using errcode = 'P0001'; end if;
+  if exists (select 1 from comprobante where pedido_id = p.id) then raise exception 'tuvo factura o nota de crédito: no se elimina' using errcode = 'P0001'; end if;
+  if exists (select 1 from asiento where organizacion_id = p_org and origen = 'cobro_pedido' and referencia_id = p.id) then
+    raise exception 'tiene un cobro contabilizado: no se elimina' using errcode = 'P0001'; end if;
+  if exists (select 1 from movimiento_fondos where organizacion_id = p_org and referencia_tipo = 'pedido' and referencia_id = p.id) then
+    raise exception 'tiene un movimiento en Caja y bancos: no se elimina' using errcode = 'P0001'; end if;
+  if exists (select 1 from pago where pedido_id = p.id and estado in ('aprobado', 'reembolsado')) then
+    raise exception 'tuvo un pago cobrado: no se elimina' using errcode = 'P0001'; end if;
+  if exists (select 1 from movimiento_stock where organizacion_id = p_org and referencia_tipo = 'pedido' and referencia_id = ref and tipo not in ('reserva', 'liberacion')) then
+    raise exception 'movió stock (venta o devolución): no se elimina' using errcode = 'P0001'; end if;
+  if exists (select 1 from reservado_de(p_org, 'pedido', ref)) then raise exception 'todavía tiene stock reservado' using errcode = 'P0001'; end if;
+  if exists (select 1 from reclamo where pedido_id = p.id) or exists (select 1 from recepcion where pedido_id = p.id) then
+    raise exception 'tiene un reclamo o una devolución: no se elimina' using errcode = 'P0001'; end if;
+  if exists (select 1 from envio where pedido_id = p.id and coalesce(estado, '') not in ('cancelled', '')) then
+    raise exception 'tiene un envío que no está anulado: no se elimina' using errcode = 'P0001'; end if;
+  delete from movimiento_stock where organizacion_id = p_org and referencia_tipo = 'pedido' and referencia_id = ref;
+  delete from envio where pedido_id = p.id;
+  delete from evento where organizacion_id = p_org and payload ->> 'pedido_id' = ref;
+  delete from pedido where id = p.id;  -- líneas, historial, pagos y picking se van en cascada
+end $$;

@@ -214,3 +214,16 @@ export async function accionClientePresente(fd: FormData) {
     return `${listo.charAt(0).toUpperCase() + listo.slice(1)}.`;
   });
 }
+
+/** Eliminar del todo un presupuesto o un pedido cancelado (Fer, 7/10): sólo
+ *  superadministradores; las condiciones las controla eliminar_pedido (db/ventas.sql). */
+export async function accionEliminarPedido(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  await intentar(`/ventas/pedidos/${pid}?b=op`, async () => {
+    if (!s.superadmin) throw new ErrorErp("Sólo un superadministrador puede eliminar.");
+    await una("select eliminar_pedido($1, $2::bigint)", [s.org.id, pid]);
+    revalidatePath("/ventas/pedidos");
+    return { ir: `/ventas/pedidos?ok=${encodeURIComponent(`Se eliminó el ${pid}: no quedó nada de él.`)}` };
+  });
+}

@@ -66,12 +66,19 @@ function usarBusqueda<T>(buscar: (q: string, comienza: boolean) => Promise<T[]>)
   };
 }
 
-function CuadroBusqueda({ b, placeholder, alEnter }: { b: ReturnType<typeof usarBusqueda<unknown>>; placeholder: string; alEnter?: () => void }) {
+function CuadroBusqueda({ b, placeholder, alEnter, alFlecha, id }: {
+  b: ReturnType<typeof usarBusqueda<unknown>>; placeholder: string; alEnter?: () => void;
+  /** Flecha abajo / arriba: moverse por la lista de resultados (Fer, 7/10: todo con el teclado). */
+  alFlecha?: (paso: 1 | -1) => void; id?: string;
+}) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="relative inline-flex">
-        <input value={b.texto} onChange={(e) => b.escribir(e.target.value)} placeholder={placeholder} autoComplete="off"
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); alEnter?.(); } }}
+        <input id={id} value={b.texto} onChange={(e) => b.escribir(e.target.value)} placeholder={placeholder} autoComplete="off"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); alEnter?.(); }
+            else if (alFlecha && (e.key === "ArrowDown" || e.key === "ArrowUp")) { e.preventDefault(); alFlecha(e.key === "ArrowDown" ? 1 : -1); }
+          }}
           className="border border-[#E3E9F0] rounded-lg pl-2 pr-7 py-1.5 text-xs bg-white w-80" />
         {b.texto && (
           <button type="button" onClick={b.limpiar} aria-label="Borrar la búsqueda"
@@ -161,6 +168,9 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
   const [altaCliente, setAltaCliente] = useState(false);
   const [total, setTotal] = useState(0);
   const [subtotales, setSubtotales] = useState<Record<number, number>>({});
+  // El precio escrito en cada línea (para avisar si falta o si no es el de la lista) y el producto marcado con las flechas.
+  const [preciosEscritos, setPreciosEscritos] = useState<Record<number, number | null>>({});
+  const [marcado, setMarcado] = useState(0);
   const [enviando, empezar] = useTransition();
   const form = useRef<HTMLFormElement>(null);
   const proxima = useRef(1);
@@ -168,6 +178,9 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
   const clienteId = quien === "cliente" ? cliente?.id ?? null : null;
   const bCliente = usarBusqueda<ClienteHallado>((q, c) => buscarClientesPedido(q, c));
   const bProducto = usarBusqueda<ProductoHallado>((q, c) => buscarProductosPedido(q, c, canal, clienteId, { listaId, moneda }));
+  // Resultados nuevos: se marca el primero.
+  useEffect(() => { setMarcado(0); }, [bProducto.hallados]);
+
   const tipoPrecio = moneda === "USD" ? "usd" : "pesos";
 
   /** Subtotales y total, leídos de los campos del formulario. */
@@ -175,16 +188,19 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
     if (!form.current) return;
     const fd = new FormData(form.current);
     const sub: Record<number, number> = {};
+    const escritos: Record<number, number | null> = {};
     let t = 0;
     for (const l of lineas) {
       const cant = leerNumero(fd.get(`l_${l.clave}_cantidad`)) ?? 0;
       const precio = leerNumero(fd.get(`l_${l.clave}_precio`)) ?? 0;
       const desc = leerNumero(fd.get(`l_${l.clave}_descuento`)) ?? 0;
       sub[l.clave] = Math.round(cant * precio * (1 - desc / 100) * 100) / 100;
+      escritos[l.clave] = leerNumero(fd.get(`l_${l.clave}_precio`));
       t += sub[l.clave];
     }
     if (entrega === "envio") t += leerNumero(fd.get("costo_envio")) ?? 0;
     setSubtotales(sub);
+    setPreciosEscritos(escritos);
     setTotal(Math.round(t * 100) / 100);
   };
   useEffect(recalcular, [lineas, entrega]);
@@ -200,8 +216,32 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
   };
 
   const agregar = (p: ProductoHallado) => {
-    setLineas((ls) => [...ls, { clave: proxima.current++, variacion: p.id, sku: p.sku, titulo: p.titulo, sugerido: p.precio, disponible: p.disponible, version: 0 }]);
+    const clave = proxima.current++;
+    setLineas((ls) => [...ls, { clave, variacion: p.id, sku: p.sku, titulo: p.titulo, sugerido: p.precio, disponible: p.disponible, version: 0 }]);
     bProducto.limpiar();
+    setMarcado(0);
+    // El cursor va a la cantidad del producto recién sumado.
+    setTimeout(() => irA(`l_${clave}_cantidad`), 30);
+  };
+  /** ¿El precio escrito no es el de la lista? (se ve en otro color) */
+  const distintoDeLista = (l: Linea) => {
+    const escrito = preciosEscritos[l.clave];
+    return l.sugerido != null && escrito != null && Math.abs(escrito - l.sugerido) >= 0.005;
+  };
+  /** Pone el cursor en un campo del formulario (por su nombre) y selecciona lo que tiene, así lo que se tipea lo reemplaza. */
+  const irA = (nombre: string) => {
+    const el = form.current?.querySelector<HTMLInputElement>(`[name="${nombre}"]`) ?? (nombre === "#buscar" ? document.getElementById("buscar-producto") as HTMLInputElement | null : null);
+    el?.focus();
+    el?.select?.();
+  };
+  /** Enter en una línea (Fer, 7/10): cantidad → precio → descuento → el buscador, para cargar el siguiente. */
+  const enterEnLinea = (e: React.KeyboardEvent<HTMLFormElement>) => {
+    const t = e.target as unknown as HTMLInputElement;
+    const m = t.name?.match(/^l_(\d+)_(cantidad|precio|descuento)$/);
+    if (e.key !== "Enter" || !m) return;
+    e.preventDefault();
+    const siguiente = m[2] === "cantidad" ? `l_${m[1]}_precio` : m[2] === "precio" ? `l_${m[1]}_descuento` : "#buscar";
+    setTimeout(() => irA(siguiente), 0);
   };
 
   const elegirCliente = (c: ClienteHallado) => {
@@ -226,7 +266,9 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
   }
 
   return (
-    <form ref={form} id={formId} action={enviar} onInput={recalcular} onChange={recalcular} className="grid gap-4 text-xs">
+    <form ref={form} id={formId} action={enviar} onInput={recalcular} onChange={recalcular} className="grid gap-4 text-xs"
+      onKeyDown={enterEnLinea}
+      onFocus={(e) => { const t = e.target as unknown as HTMLInputElement; if (/^l_\d+_(cantidad|precio|descuento)$/.test(t.name ?? "")) t.select(); }}>
       {error && <p role="alert" className="rounded-lg px-3 py-2 bg-[#FDF1EF] text-[#C03420]">{error}</p>}
       {edicion && <input type="hidden" name="pedido_id" value={edicion.pedidoId} />}
 
@@ -346,10 +388,16 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
                     </td>
                     <td className="py-1.5 px-2">{l.titulo}
                       {l.disponible <= 0 && <span className="block text-[10px] text-[#C03420]">Sin stock disponible en el canal</span>}
-                      {l.sugerido == null && <span className="block text-[10px] text-[#C03420]">Sin precio en la lista: escribilo</span>}
+                      {(() => {
+                        // Sin precio (vacío o cero): aviso en rojo, nada más (Fer, 7/10).
+                        const escrito = Object.hasOwn(preciosEscritos, l.clave) ? preciosEscritos[l.clave] : (l.precio !== undefined ? l.precio : l.sugerido);
+                        return escrito == null || escrito <= 0 ? <span className="block text-[10px] font-bold text-[#C03420]">Ojo, no tiene precio</span> : null;
+                      })()}
                     </td>
                     <td className="py-1.5 px-2"><CampoNumero key={`c${l.clave}`} name={`l_${l.clave}_cantidad`} valor={l.cantidad ?? 1} tipo="entero" className={`${CAMPO} w-16`} /></td>
-                    <td className="py-1.5 px-2"><CampoNumero key={`p${l.clave}-${l.version}`} name={`l_${l.clave}_precio`} valor={l.precio !== undefined ? l.precio : l.sugerido} tipo={tipoPrecio} className={`${CAMPO} w-28`} /></td>
+                    <td className="py-1.5 px-2"><CampoNumero key={`p${l.clave}-${l.version}`} name={`l_${l.clave}_precio`} valor={l.precio !== undefined ? l.precio : l.sugerido} tipo={tipoPrecio}
+                      className={`${CAMPO} w-28 ${distintoDeLista(l) ? "!bg-[#FFF1D6] !border-[#F0B860] text-[#8a5a00]" : ""}`} />
+                      {distintoDeLista(l) && <span className="block text-[10px] text-[#8a5a00]">Lista: {formatearNumero(l.sugerido, tipoPrecio)}</span>}</td>
                     <td className="py-1.5 px-2"><CampoNumero key={`d${l.clave}`} name={`l_${l.clave}_descuento`} valor={l.descuento ?? null} tipo="pct" placeholder="0,0" className={`${CAMPO} w-20`} /></td>
                     <td className="py-1.5 px-2 text-right tabular-nums whitespace-nowrap">{formatearNumero(subtotales[l.clave] ?? 0, tipoPrecio)}</td>
                     <td className="py-1.5 px-2 text-right whitespace-nowrap">
@@ -370,14 +418,16 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
           </div>
         )}
         <div className="relative">
-          <CuadroBusqueda b={bProducto as ReturnType<typeof usarBusqueda<unknown>>} placeholder="SKU, título o código de barras"
-            alEnter={() => bProducto.hallados[0] && agregar(bProducto.hallados[0])} />
+          <CuadroBusqueda id="buscar-producto" b={bProducto as ReturnType<typeof usarBusqueda<unknown>>} placeholder="SKU, título o código de barras"
+            alEnter={() => { const p = bProducto.hallados[marcado] ?? bProducto.hallados[0]; if (p) agregar(p); }}
+            alFlecha={(paso) => setMarcado((m) => Math.min(Math.max(m + paso, 0), Math.max(bProducto.hallados.length - 1, 0)))} />
           {bProducto.texto.trim().length >= 2 && !bProducto.buscando && (
             <ul className="mt-1 max-w-3xl max-h-72 overflow-auto rounded-lg border border-[#C9D3DD] bg-white shadow-sm">
               {bProducto.hallados.length === 0 && <li className="px-2 py-1.5 text-[#5C6B76]">Ningún producto coincide.</li>}
-              {bProducto.hallados.map((p) => (
-                <li key={p.id}>
-                  <button type="button" onClick={() => agregar(p)} className="w-full text-left px-2 py-1.5 hover:bg-[#EEF3F8] flex gap-3">
+              {bProducto.hallados.map((p, i) => (
+                <li key={p.id} ref={i === marcado ? (el) => el?.scrollIntoView({ block: "nearest" }) : undefined}>
+                  <button type="button" tabIndex={-1} onClick={() => agregar(p)} onMouseEnter={() => setMarcado(i)}
+                    className={`w-full text-left px-2 py-1.5 flex gap-3 ${i === marcado ? "bg-[#DCE9F5]" : "hover:bg-[#EEF3F8]"}`}>
                     <span className="font-mono">{p.sku}</span>
                     <span className="flex-1 truncate">{p.titulo}</span>
                     <span className="tabular-nums text-right w-28">{p.precio == null ? <span className="text-[#C03420]">sin precio</span> : `${moneda === "USD" ? "US$" : "$"} ${formatearNumero(p.precio, tipoPrecio)}`}</span>
