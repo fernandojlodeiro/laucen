@@ -86,11 +86,16 @@ export function Precio({ lista, venta, moneda, desde, grande }: { lista: number;
       <div className="flex flex-wrap items-center gap-2">
         {desde && <span className="text-xs text-[var(--texto-2)]">Desde</span>}
         <Monto n={venta} moneda={moneda} className={`text-[var(--texto)] ${grande ? "text-[36px] font-light" : "text-2xl"}`} />
-        {off > 0 && <span className={`text-[var(--verde)] ${grande ? "text-lg" : "text-sm"}`}>{off}% OFF</span>}
+        {off > 0 && <span className={`rounded-[3px] bg-[var(--verde)] px-1.5 py-0.5 font-semibold leading-none text-white ${grande ? "text-base" : "text-xs"}`}>{off}% OFF</span>}
       </div>
     </div>
   );
 }
+
+/** "Llega gratis": la pastilla verde del envío gratis (a todo el país, desde el monto de Configuración › Envíos). */
+export const LlegaGratis = () => (
+  <p><span className="inline-block rounded-[3px] bg-[color-mix(in_srgb,var(--verde)_12%,white)] px-1.5 py-0.5 text-sm font-semibold text-[var(--verde)]">Llega gratis</span></p>
+);
 
 const enlaceProducto = (t: Tienda, p: { id: number }) => rutaTienda(t, `/producto/${p.id}`);
 
@@ -110,7 +115,7 @@ export function TarjetaProducto({ t, p }: { t: Tienda; p: Tarjeta }) {
         <h3 className="line-clamp-2 text-sm leading-[1.3] text-[var(--texto)] group-hover:text-[var(--boton)]">{p.titulo}</h3>
         <div className="mt-1"><Precio lista={p.lista} venta={p.venta} moneda={t.moneda} desde={p.ventaMax > p.venta} /></div>
         <LineaCuotas plan={p.plan} venta={p.venta} moneda={t.moneda} className="text-sm" />
-        {p.envioGratis && !sinStock && <p className="text-sm font-semibold text-[var(--verde)]">Envío gratis</p>}
+        {p.envioGratis && !sinStock && <LlegaGratis />}
         {sinStock && <p className="text-sm text-[var(--texto-2)]">Sin stock</p>}
       </div>
     </Link>
@@ -135,9 +140,9 @@ export function FilaProducto({ t, p }: { t: Tienda; p: Tarjeta }) {
         {p.marca && <p className="text-xs text-[var(--texto-2)]">Por {p.marca}</p>}
         <div className="mt-1"><Precio lista={p.lista} venta={p.venta} moneda={t.moneda} desde={p.ventaMax > p.venta} /></div>
         <LineaCuotas plan={p.plan} venta={p.venta} moneda={t.moneda} className="text-sm" />
-        {p.envioGratis && !sinStock && <p className="text-sm font-semibold text-[var(--verde)]">Envío gratis</p>}
+        {p.envioGratis && !sinStock && <LlegaGratis />}
         {sinStock ? <p className="text-sm text-[var(--texto-2)]">Sin stock</p>
-          : p.stock <= 3 && <p className="text-xs text-[var(--texto-2)]">{p.stock === 1 ? "¡Última disponible!" : `Últimas ${p.stock} disponibles`}</p>}
+          : p.stock > 1 && p.stock <= 3 && <p className="text-xs text-[var(--texto-2)]">{`Últimas ${p.stock} disponibles`}</p>}
       </div>
     </li>
   );

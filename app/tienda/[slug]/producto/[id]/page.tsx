@@ -134,7 +134,7 @@ export default async function Producto({ params, searchParams }: Props) {
   const encabezado = (
     <div className="space-y-2">
       <p className="text-sm text-[var(--texto-2)]">Nuevo{vendidos ? ` | ${vendidos}` : ""}</p>
-      <Etiquetas lista={f.cucardas} masVendido={masVendido} />
+      <Etiquetas lista={yo[0]?.cucardas ?? f.cucardas} masVendido={masVendido} />
       {p.marca && <Link href={`${rutaTienda(t, "/buscar")}?marca=${encodeURIComponent(p.marca)}`} className={`${LINK} block text-sm`}>Ver más productos de {p.marca}</Link>}
       <h1 className="text-[22px] font-semibold leading-tight text-[var(--texto)]">{p.titulo}</h1>
     </div>

@@ -195,7 +195,7 @@ Para un recargo, poné el número en negativo (ej. -10 = 10 % más caro).
 - **OCA a domicilio / a sucursal**: lo que cotiza OCA con el código postal del comprador y el peso y las medidas del carrito, más el **Costo $** si tiene. Ver [OCA](/config/envios/oca).
 - **Andreani**: "próximamente": no se puede elegir ni prender.
 - Los importes son en pesos y no pueden ser negativos.
-- La tienda anuncia "Envío gratis desde $ …" con el menor "Gratis desde" de los métodos de tarifa fija o por provincia activos (o "Envío gratis" si una tarifa fija cuesta 0). Sólo si la tienda vende en pesos.
+- La tienda anuncia "Envío gratis desde $ …" (y la pastilla "Llega gratis" en cada producto que llega) con el menor "Gratis desde" de los métodos de tarifa fija, por provincia u OCA (a domicilio o a sucursal) activos (o "Envío gratis" si una tarifa fija cuesta 0). Sólo si la tienda vende en pesos.
 
 ### Medios de pago
 

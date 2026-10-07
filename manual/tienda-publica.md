@@ -48,7 +48,7 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 - Título, migas ("Inicio › Categoría › Subcategoría") y la cantidad de resultados.
 - A la izquierda, los filtros: **Filtros aplicados** (cada uno con su X), **Envío gratis**, **Categorías**, **Descuentos** ("Con descuento"), **Marca**, **Precio** (tres rangos armados solos y "Mínimo"/"Máximo").
 - **"Ordenar por"**: Más relevantes, Menor precio, Mayor precio, Más vendidos. Vista en lista o grilla.
-- Cada tarjeta: foto, cucardas, "Más vendido", precio (con el precio de lista tachado y "% OFF" si hay descuento; "Desde" si las variaciones tienen distinto precio), cuotas ("Mismo precio en N cuotas de $ …" si son sin interés), "Envío gratis", "Sin stock", "¡Última disponible!" o "Últimas N disponibles".
+- Cada tarjeta, como en Mercado Libre: foto, la cucarda arriba del título ("Más vendido", "Última unidad", las cargadas o una automática), el título, el precio de lista tachado, el precio grande con el recuadro verde "N% OFF" si hay descuento ("Desde" si las variaciones tienen distinto precio), las cuotas ("Mismo precio en 6 cuotas de $ …" si son sin interés), la pastilla verde **"Llega gratis"** si el precio llega al envío gratis, "Sin stock" o "Últimas N disponibles" (2 o 3).
 - De a 24 productos por página, con "Anterior" / "Siguiente".
 - Sin resultados: "No hay publicaciones que coincidan con "…"." con consejos.
 
@@ -141,7 +141,10 @@ Mercado Pago avisa solo cuando aprueba el pago; puede tardar unos minutos. Si el
 - **"Novedades"**: los productos más nuevos con stock.
 - **Categorías**: sólo las que tienen productos en la tienda (contando sus subcategorías). Elegir una categoría incluye sus subcategorías.
 - **Buscador**: busca todas las palabras en el título, la marca o los SKU, sin importar acentos ni mayúsculas. Ordenando por "Más relevantes", primero los títulos que empiezan con lo buscado, después los que lo contienen, y con stock antes que sin stock.
-- **Cucardas**: las vigentes hoy del producto y las de su categoría (y categorías de más arriba).
+- **Cucardas**: las vigentes hoy del producto y las de su categoría (y categorías de más arriba). Además:
+  - **"Última unidad"** (roja) cuando queda una sola en stock para la tienda.
+  - **Automáticas**: a un producto sin cucarda cargada y que no es "Más vendido" le toca, a uno de cada tres más o menos, **"Oferta imperdible"** (sólo si tiene descuento) o **"Recomendado"**. Sale sola del número del producto, así que siempre es la misma para el mismo producto. Ninguna automática dice algo que no sea cierto (nada de "últimas N" o "más vendido" inventados). Para que un producto lleve otra, cargale una cucarda en [Cucardas](/catalogo/cucardas): la cargada reemplaza a la automática.
+- **"Llega gratis"**: cuando el precio llega al menor "Gratis desde $" de los métodos de envío activos (tarifa fija, por provincia u OCA). Con OCA es envío gratis a todo el país desde ese monto.
 - **Cuotas**: las del producto; si no tiene, las de su categoría más cercana. Se muestra el mejor plan sin interés; si no hay, el de más cuotas.
 - **Copia del catálogo**: los listados, la portada y el buscador usan una copia que se renueva cada 60 segundos. La ficha, el carrito y el checkout calculan **en vivo**.
 

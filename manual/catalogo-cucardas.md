@@ -64,7 +64,7 @@ Tacho → "¿Borrar?" → **Sí**. Se borra también de todos los productos y fa
 
 ## Criterios y reglas
 
-**Qué cucardas muestra un producto**: las suyas más las de su familia y las de todas las familias de más arriba, sin repetir.
+**Qué cucardas muestra un producto**: las suyas más las de su familia y las de todas las familias de más arriba, sin repetir. Si no tiene ninguna (ni es "Más vendido"), la tienda le pone sola, a uno de cada tres más o menos, "Oferta imperdible" (si tiene descuento) o "Recomendado"; y "Última unidad" cuando le queda una sola (detalle en el manual de la tienda web).
 
 **Vigencia**: cada asignación (a producto o a familia) puede tener "desde" y "hasta". Sin fechas rige siempre; con fechas, sólo los días entre una y otra (incluidos). El "hasta" no puede ser anterior al "desde".
 

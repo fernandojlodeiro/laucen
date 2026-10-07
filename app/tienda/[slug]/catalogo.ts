@@ -216,7 +216,8 @@ export const envioDe = cache(async (t: Tienda): Promise<InfoEnvio> => {
      where organizacion_id = $1 and activo and (canal_id is null or canal_id = $2) and tipo <> 'andreani' order by orden, id`,
   [t.organizacionId, t.canalId]);
   const envios = ms.filter((m) => m.tipo === "tarifa_fija" || m.tipo === "por_provincia");
-  const umbrales = envios.flatMap((m) => [
+  // OCA (a domicilio o a sucursal) también puede tener "gratis desde" (Fer, 7/10: envío gratis a todo el país desde un monto).
+  const umbrales = [...envios, ...ms.filter((m) => m.tipo === "oca" || m.tipo === "oca_sucursal")].flatMap((m) => [
     ...(m.gratis_desde_ars != null ? [Number(m.gratis_desde_ars)] : []),
     ...(m.tipo === "tarifa_fija" && Number(m.costo_ars) === 0 ? [0] : []),
   ]);
@@ -252,9 +253,26 @@ export async function aTarjetas(t: Tienda, productos: ProductoBase[]): Promise<T
     envioDe(t), masVendidosDe(t),
   ]);
   return productos.map((p) => ({
-    ...p, cucardas: cucardas.get(p.id) ?? [], plan: planParaMostrar(planes.get(p.variacionId) ?? []),
+    ...p, cucardas: cucardasConAuto(p, cucardas.get(p.id) ?? [], top.has(p.id)), plan: planParaMostrar(planes.get(p.variacionId) ?? []),
     envioGratis: envioGratis(envio, p.venta), masVendido: top.has(p.id),
   }));
+}
+
+/** Cucardas automáticas (Fer, 7/10: "que algunas tengan una, otras otra"). Las de
+ *  verdad: "MÁS VENDIDO" (las ventas, aparte) y "ÚLTIMA UNIDAD" si queda una sola.
+ *  A un producto sin cucarda cargada a mano le toca, más o menos a uno de cada
+ *  tres, una que no afirma ningún dato: "OFERTA IMPERDIBLE" (sólo si tiene
+ *  descuento de verdad) o "RECOMENDADO". Sale del id del producto, así no
+ *  cambia de una visita a otra. */
+export function cucardasConAuto(p: { id: number; stock: number; lista: number; venta: number }, propias: Cucarda[], masVendido: boolean): Cucarda[] {
+  const ultima = p.stock === 1 ? [{ nombre: "Última unidad", color: "#E4002B" }] : [];
+  if (propias.length || masVendido) return [...ultima, ...propias];
+  if (ultima.length) return ultima;
+  const dado = Math.abs(Math.imul(p.id, 2654435761) >>> 0) % 6;
+  const conDescuento = p.lista > 0 && p.venta < p.lista;
+  if (dado === 0 && conDescuento) return [{ nombre: "Oferta imperdible", color: "#3483FA" }];
+  if (dado === 1) return [{ nombre: "Recomendado", color: "#3483FA" }];
+  return [];
 }
 
 /** Filtra por palabras (todas tienen que estar: en el título, la marca o los SKU). */
