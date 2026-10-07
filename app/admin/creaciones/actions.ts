@@ -6,6 +6,7 @@ import { sosVos } from "@/lib/admin";
 import { orgRequerida, sesionRequerida } from "@/lib/tenancy";
 import { deFondo } from "@/lib/tareas-fondo";
 import { prepararPrueba, textoResultadoPrueba } from "@/lib/mercadolibre/prueba-planes";
+import { revisarCatalogo, prepararEntradaCatalogo } from "@/lib/mercadolibre/catalogo-entrada";
 
 /** Prepara (sin mandar) los lotes de la prueba de planes de cuotas: lee de ML y comprueba cada alta. De fondo. */
 export async function accionPrepararPruebaPlanes() {
@@ -16,5 +17,29 @@ export async function accionPrepararPruebaPlanes() {
     const r = await prepararPrueba(s.org.id, s.usuario.id);
     revalidatePath("/admin/creaciones");
     return textoResultadoPrueba(r);
+  });
+}
+
+/** «Revisar catálogo»: le pregunta a ML si cada publicación común puede entrar al catálogo. Sólo lectura, de fondo. */
+export async function accionRevisarCatalogo() {
+  if (!(await sosVos())) redirect("/panel");
+  await orgRequerida();
+  const s = await sesionRequerida();
+  return deFondo(s, "catalogo-ml", "Revisión de catálogo en ML", async () => {
+    const r = await revisarCatalogo(s.org.id, Date.now() + 270_000);
+    revalidatePath("/admin/creaciones");
+    return r;
+  });
+}
+
+/** «Preparar entrada al catálogo»: un lote por cuenta con las que pueden entrar, esperando el clic. De fondo. */
+export async function accionPrepararCatalogo() {
+  if (!(await sosVos())) redirect("/panel");
+  await orgRequerida();
+  const s = await sesionRequerida();
+  return deFondo(s, "catalogo-ml", "Entrada al catálogo en ML", async () => {
+    const r = await prepararEntradaCatalogo(s.org.id, s.usuario.id);
+    revalidatePath("/admin/creaciones");
+    return r;
   });
 }

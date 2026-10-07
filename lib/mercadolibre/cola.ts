@@ -397,8 +397,8 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
             if (fila.tipo === "crear" && p.metodo === "POST" && r.status >= 200 && r.status < 300) {
               const d = r.datos as { id?: string; user_product_id?: string } | null;
               if (p.ruta === "/items") { creada ??= d?.id ?? null; up ??= d?.user_product_id ?? null; }
-              // Otra publicación sobre el mismo producto de ML (un plan de cuotas): también es un alta.
-              else if (/^\/user-products\/[^/]+\/items$/.test(p.ruta) && d?.id) { if (creada) otras.push(d.id); else creada = d.id; }
+              // Otra publicación sobre el mismo producto de ML (un plan de cuotas, o la de catálogo de una común): también es un alta.
+              else if ((/^\/user-products\/[^/]+\/items$/.test(p.ruta) || p.ruta === "/items/catalog_listings") && d?.id) { if (creada) otras.push(d.id); else creada = d.id; }
             }
             if ((r.status < 200 || r.status >= 300) && !(p.seguirSiFalla && r.status >= 400 && r.status < 500 && r.status !== 429 && r.status !== 401)) { cortado = true; break; }
             // Un paso que falló pero se sigue (ej. la descripción, o un plan de cuotas): que quede anotado.

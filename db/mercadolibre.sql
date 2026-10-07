@@ -557,3 +557,18 @@ alter table canal_mp enable row level security;
 -- Las lecturas de saldo pasan a ser por cuenta de Mercado Pago.
 alter table mp_saldo add column if not exists conexion_id bigint references mp_conexion(id) on delete cascade;
 alter table mp_saldo alter column canal_id drop not null;
+
+-- Si cada publicación común puede entrar a competir en el catálogo de ML
+-- (GET /items/{id}/catalog_listing_eligibility), leído con el botón «Revisar
+-- catálogo» de Creaciones en ML (Fer, 7/10). Sólo lectura: entrar es otro botón.
+create table if not exists ml_catalogo_elegibilidad (
+  organizacion_id    text not null references organizaciones(id) on delete cascade,
+  canal_id           bigint not null references canal(id) on delete cascade,
+  item_id            text not null,
+  estado             text,
+  catalog_product_id text,
+  respuesta          jsonb,
+  leido_ts           timestamptz not null default now(),
+  primary key (canal_id, item_id)
+);
+alter table ml_catalogo_elegibilidad enable row level security;

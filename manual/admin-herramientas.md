@@ -367,3 +367,8 @@ Criterios:
 - Abajo, cómo quedó cada lote en la cola: preparado, en la cola, creada (con los números de las publicaciones nuevas) o con error (con el motivo).
 - Después de mandarlas, mirá en cada publicación cuántas cuotas muestra Mercado Libre y anotalo en [Precios en Mercado Libre](/catalogo/precios-ml) (cuotas que ve el comprador).
 
+**Catálogo: ¿pueden entrar a competir?** Debajo, las publicaciones comunes (no de catálogo) de estas notebooks, en todas las cuentas, con su producto de catálogo y lo último que dijo Mercado Libre:
+- **Revisar catálogo (sólo lectura)**: le pregunta a Mercado Libre, una por una, si la publicación puede entrar a competir en el catálogo. Corre de fondo y no cambia nada. Las respuestas: «Puede entrar», «Ya está en el catálogo», «No tiene producto de catálogo asociado», «No puede entrar» (con el motivo que da Mercado Libre, por ejemplo que falta el código de barras), entre otras.
+- **Preparar entrada al catálogo (N)**: aparece cuando hay alguna que puede entrar. Deja en la [Cola de Mercado Libre](/config/canales/cola) un lote por cuenta, esperando tu clic. Al mandarlo, Mercado Libre crea la publicación de catálogo, que comparte el stock con la común. Una que ya tiene la entrada pedida dice «Entrada pedida (ver la cola)» y no se vuelve a pedir.
+- Las publicaciones nuevas de la prueba de planes aparecen acá cuando Laucen las trae de Mercado Libre (al crearlas, o en la barrida).
+

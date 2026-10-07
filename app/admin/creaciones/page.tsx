@@ -10,7 +10,8 @@ import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaci
 import { SUAVE, PRIMARIO } from "@/app/botones";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import { CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
-import { accionPrepararPruebaPlanes } from "./actions";
+import { accionPrepararPruebaPlanes, accionRevisarCatalogo, accionPrepararCatalogo } from "./actions";
+import { filasCatalogo, textoEstadoCatalogo } from "@/lib/mercadolibre/catalogo-entrada";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -28,7 +29,8 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
   if (!(await sosVos())) redirect("/panel");
   const sp = await searchParams;
   const org = (await orgRequerida()).id;
-  const { filas, estimada } = await propuestaPrueba(org);
+  const [{ filas, estimada }, catalogo] = await Promise.all([propuestaPrueba(org), filasCatalogo(org)]);
+  const pueden = catalogo.filter((f) => f.estado === "READY_FOR_OPTIN" && f.catalog_product_id && !f.pedido).length;
   const faltan = filas.filter((f) => !f.existe).length;
   // Cómo quedaron los lotes de esta prueba en la cola.
   const enCola = await consulta<{ item_id: string; canal: string; estado: string; lote: number | null; error: string | null; respuesta: { id?: string; otras?: string[] } | null; ts: string }>(`
@@ -113,6 +115,46 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
             </table>
           </div>
         )}
+      </section>
+
+      <section className={CAJA}>
+        <h2 className="font-bold text-[#16577F]">Catálogo: ¿pueden entrar a competir?</h2>
+        <p className="text-sm text-[#5C6B76]">
+          Las publicaciones comunes (no de catálogo) de estas notebooks, en todas las cuentas. <b>«Revisar catálogo»</b> le pregunta a
+          Mercado Libre, una por una, si puede entrar a competir en el catálogo y contra qué producto (sólo lee, no cambia nada; corre de fondo).
+          <b> «Preparar entrada al catálogo»</b> deja en la cola, un lote por cuenta, las que pueden entrar: Mercado Libre crea la publicación
+          de catálogo, que comparte el stock con la común. No sale nada hasta tu clic en la cola. Las publicaciones nuevas de la prueba
+          aparecen acá cuando Laucen las trae de Mercado Libre.
+        </p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <BotonTarea accion={accionRevisarCatalogo} tipo="catalogo-ml" clase={SUAVE} texto="Revisar catálogo (sólo lectura)" />
+          {pueden > 0 && <BotonTarea accion={accionPrepararCatalogo} tipo="catalogo-ml" clase={PRIMARIO} texto={`Preparar entrada al catálogo (${pueden})`} />}
+        </div>
+        <div className={CAJA_TABLA}>
+          <table className={TABLA}>
+            <thead className={THEAD}>
+              <tr><th className={TH}>Cuenta</th><th className={TH}>SKU</th><th className={TH}>Publicación</th><th className={TH}>Tipo</th><th className={TH}>Producto de catálogo</th><th className={TH}>Qué dice ML</th><th className={TH}>Leído</th></tr>
+            </thead>
+            <tbody>
+              {catalogo.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>No hay publicaciones comunes de estas notebooks.</td></tr>}
+              {catalogo.map((f) => (
+                <tr key={`${f.canal}-${f.item_id}`} className={TR}>
+                  <td className={TD}>{f.cuenta}</td>
+                  <td className={`${TD} font-mono`}>{f.sku}</td>
+                  <td className={`${TD} font-mono whitespace-nowrap`}><Link href={historialPublicacion(f.item_id)} className="text-[#16577F] hover:underline">{f.item_id}</Link> <a href={enlaceMl(f.item_id)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a></td>
+                  <td className={TD}>{f.tipo === "gold_special" ? "Clásica" : f.tipo === "gold_pro" ? "Premium" : f.tipo}</td>
+                  <td className={`${TD} font-mono`}>{f.catalog_product_id ?? "—"}</td>
+                  <td className={TD}>
+                    <span className={f.estado === "READY_FOR_OPTIN" ? "text-[#167655] font-semibold" : ""}>{f.estado ? textoEstadoCatalogo(f.estado) : "Sin revisar"}</span>
+                    {f.pedido && <span className="block text-[11px] text-[#16577F]">Entrada pedida (ver la cola)</span>}
+                    {f.motivo && <span className="block text-[11px] text-[#5C6B76]">{f.motivo}</span>}
+                  </td>
+                  <td className={TDN}>{f.leido ? fechaHora(f.leido) : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </main>
   );
