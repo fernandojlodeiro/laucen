@@ -46,8 +46,10 @@ export const MARGEN_PLAN: Record<PlanPrueba, number> = { clasica: 0, premium: 2,
  *  copia. Las versiones con más memoria son kits en Laucen (equipo + 1 memoria SKU03498)
  *  y copian la de 8 GB cambiándole el nombre, la memoria y la descripción.
  *  `sinGtin`: el código de barras de la publicación de origen está mal (Fer, 7/10: el
- *  193905481088 no es ni de la S532 ni de la G3) o no es del producto de fábrica (los
- *  kits): se publica sin código, con el motivo "no tiene código registrado". */
+ *  193905481088 no es ni de la S532 ni de la G3): se publica sin código, con el motivo
+ *  "no tiene código registrado" (el valor exacto se lee de la categoría en ML: con el
+ *  texto solo, ML lo descarta y pide el GTIN). Los kits llevan el código del equipo:
+ *  en Notebooks ML lo exige (7/10, 64 altas rechazadas sin él). */
 type ModeloEsquema = { sku: string; origen: string; clasica: number; titulo?: string; ram?: string; sinGtin?: boolean };
 const F412: ModeloEsquema = { sku: "F412DA-NH77", origen: "MLA1471328469", clasica: 962_999,
   // El nombre de la de origen tiene 108 letras y ML acepta hasta 60.
@@ -59,9 +61,9 @@ export const MODELOS_ESQUEMA: ModeloEsquema[] = [
   S532,
   { ...S532, sku: "S532FA-SB77-12GB", clasica: 1_386_726, ram: "12", titulo: "Notebook Asus Vivobook I7-8565u 12gb 512gb Ssd 15.6 Fhd" },
   F412,
-  { ...F412, sku: "F412DA-NH77-12GB", clasica: 1_093_499, ram: "12", sinGtin: true, titulo: "Notebook Asus Vivobook F412DA Ryzen 7 12gb 512gb Ssd 14" },
+  { ...F412, sku: "F412DA-NH77-12GB", clasica: 1_093_499, ram: "12", titulo: "Notebook Asus Vivobook F412DA Ryzen 7 12gb 512gb Ssd 14" },
   HP15,
-  { ...HP15, sku: "15-EF0022NR-16GB", clasica: 1_181_240, ram: "16", sinGtin: true, titulo: "Notebook Hp Amd Ryzen 7 3700u 16gb Ram 256gb Ssd Windows" },
+  { ...HP15, sku: "15-EF0022NR-16GB", clasica: 1_181_240, ram: "16", titulo: "Notebook Hp Amd Ryzen 7 3700u 16gb Ram 256gb Ssd Windows" },
   G3,
 ];
 const CUENTAS_ESQUEMA = ["ML .BAIRES", "ML PUNTO", "DEIROLAB SA", "DEIROLAB SAS", "TIENDAVIRTUAL S"];
@@ -138,6 +140,7 @@ export async function prepararPrueba(org: string, usuarioId: string, hasta = Dat
   const res: ResultadoPrueba = { lotes: [], rechazos: [], avisos: [] };
   const porCuenta = new Map<number, { cuenta: string; altas: Parameters<typeof encolarLoteConBoton>[2]; nombres: string[] }>();
   const origenes = new Map<string, { ml: ItemGuardado; canal: number; texto: string } | null>();
+  const motivosGtin = new Map<string, { id: string; name: string } | null>();
   let sinTiempo = 0;
   for (const p of PRUEBA) {
     const deEsta = filas.filter((f) => f.cuenta === p.cuenta && f.sku === p.sku);
@@ -167,7 +170,17 @@ export async function prepararPrueba(org: string, usuarioId: string, hasta = Dat
     const atributos = (o.ml.attributes ?? [])
       .filter((a) => !(p.sinGtin && (a.id === "GTIN" || a.id === "EMPTY_GTIN_REASON")))
       .map((a) => (p.ram && a.id === "RAM_MEMORY_MODULE_TOTAL_CAPACITY" ? { id: a.id, value_name: `${p.ram} GB` } : a));
-    if (p.sinGtin) atributos.push({ id: "EMPTY_GTIN_REASON", value_name: "El producto no tiene código registrado" });
+    if (p.sinGtin) {
+      const cat = o.ml.category_id ?? "";
+      if (!motivosGtin.has(cat)) {
+        const r = await ml<{ id: string; values?: { id: string; name: string }[] }[]>(cuenta, "GET", `/categories/${cat}/attributes`);
+        const v = r.status === 200 && Array.isArray(r.datos) ? r.datos.find((a) => a.id === "EMPTY_GTIN_REASON")?.values?.find((x) => /no tiene c[oó]digo/i.test(x.name)) : undefined;
+        motivosGtin.set(cat, v ?? null);
+      }
+      const motivo = motivosGtin.get(cat);
+      if (!motivo) { rech("la categoría no acepta publicar sin código de barras: hace falta el código (UPC) de la caja"); continue; }
+      atributos.push({ id: "EMPTY_GTIN_REASON", value_id: motivo.id, value_name: motivo.name });
+    }
     const lote = porCuenta.get(canal) ?? { cuenta: p.cuenta, altas: [], nombres: [] };
     porCuenta.set(canal, lote);
     for (const f of faltan) {
