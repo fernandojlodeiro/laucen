@@ -226,6 +226,8 @@ test("en campaña sin esquema (tachado 0): no la saca de la campaña (7/10)", as
   assert.equal(ventaHoy(2_789_999, [dia]), 1_789_999);
   assert.equal(ventaHoy(2_789_999, []), 2_789_999);
   assert.equal(ventaHoy(null, []), null);
+  // «Potencia tus ventas» (SMART) la pone ML: no cuenta como oferta propia.
+  assert.equal(ventaHoy(2_789_999, [dia, { id: "P-2", tipo: "SMART", estado: "started", precio: 1_500_000, min: null, max: null }]), 1_789_999);
   const e: EntradaVariacion = {
     variacionId: 1, productoId: 7, lugar, clasica: 2_789_999, stock: 5, comisiones, comisionEstimada: false,
     pubs: [pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 2_789_999, precioVentaMl: ventaHoy(2_789_999, [dia]), campanas: [dia], priceToWin: null, catalogo: false })],

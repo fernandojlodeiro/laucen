@@ -6,7 +6,7 @@
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import {
-  cadenaFamilias, comisionesDe, comisionGeneral, normalizarEscalones, planDePublicacion, proponer,
+  CON_PRECIO, cadenaFamilias, comisionesDe, comisionGeneral, normalizarEscalones, planDePublicacion, proponer,
   type Campana, type Comisiones, type EntradaVariacion, type FilaComision, type FilaVolumen, type Propuesta, type ReglasCanal,
   type ReglasPlan, type ReglaTachado, type PubMl,
 } from "@/lib/precios-ml/motor";
@@ -162,9 +162,12 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
   return { canal, propuestas, familias };
 }
 
-/** Lo que paga hoy el comprador: el menor precio de las campañas en curso, o el de la publicación. */
+/** Lo que paga hoy el comprador por las ofertas propias: el menor precio de las campañas en curso en las
+ *  que el precio lo pone el vendedor (oferta del día, campaña del vendedor), o el de la publicación. Las que
+ *  arma ML («Potencia tus ventas» y otras con descuento que pone ML) no cuentan: si contaran, Laucen bajaría
+ *  la oferta propia hasta ese precio y pagaría solo el descuento que ML compartía (7/10). */
 export function ventaHoy(precio: number | null, campanas: Campana[]): number | null {
-  const v = Math.min(...campanas.filter((c) => (c.estado === "started" || c.estado === "pending") && c.precio != null && c.precio > 0).map((c) => Number(c.precio)),
+  const v = Math.min(...campanas.filter((c) => (c.estado === "started" || c.estado === "pending") && CON_PRECIO.includes(c.tipo) && c.precio != null && c.precio > 0).map((c) => Number(c.precio)),
     precio ?? Infinity);
   return Number.isFinite(v) ? v : null;
 }
