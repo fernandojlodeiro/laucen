@@ -177,7 +177,8 @@ const PLAN_CORTO = (p: Plan) => PLAN_INFO[p].corto;
 
 function resumenPlan(x: Excepcion["planes"][string] | undefined): string {
   if (!x || (x.activo == null && x.min == null && x.margen == null)) return "hereda";
-  const partes = [x.activo == null ? null : x.activo ? "activo" : "apagado", x.min != null ? `desde ${formatear(x.min, "ARS")}` : null, x.margen != null ? `margen ${formatearNumero(x.margen, "pct")} %` : null];
+  const partes = [x.activo == null ? null : x.activo ? "activo" : "apagado", x.min != null ? `desde ${formatear(x.min, "ARS")}` : null, x.margen != null ? `margen ${formatearNumero(x.margen, "pct")} %` : null,
+    x.ajuste == null ? null : x.ajuste === 0 ? "gana" : `no gana: +${formatearNumero(x.ajuste, "pct")} %`];
   return partes.filter(Boolean).join(" · ");
 }
 
@@ -251,7 +252,8 @@ async function Excepciones({ org, canal, sp, aqui }: { org: string; canal: Canal
                     ? <Link href={url("/catalogo/productos", { familia: e.familia_id })} className="text-[#16577F] hover:underline">{e.nombre}</Link>
                     : <><Link href={`/catalogo/productos/${e.producto_id}`} className="font-mono text-[#16577F] hover:underline">{e.sku}</Link> {e.nombre}</>}
                 </td>
-                <td className={TDN}>{e.tachado_pct != null ? pct(e.tachado_pct) : <span className="text-[#5C6B76]">hereda</span>}</td>
+                <td className={TDN}>{e.tachado_pct != null ? pct(e.tachado_pct) : <span className="text-[#5C6B76]">hereda</span>}
+                  {e.ajuste_pct != null && <div className="text-[10px] text-[#5C6B76]">Clásica: {e.ajuste_pct === 0 ? "gana" : `no gana, +${formatearNumero(e.ajuste_pct, "pct")} %`}</div>}</td>
                 {PLANES.map((p) => <td key={p} className={`${TD} text-[11px]`}>{resumenPlan(e.planes[p])}</td>)}
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">

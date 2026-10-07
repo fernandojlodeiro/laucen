@@ -45,8 +45,8 @@ export async function canalMl(org: string, canal: number): Promise<CanalMl> {
 /** Las reglas de un canal (todas las filas de todos los niveles). */
 export async function reglasCanal(org: string, canal: CanalMl): Promise<ReglasCanal> {
   const [tachado, planes, volumen] = await Promise.all([
-    consulta<ReglaTachado>(`select nivel, familia_id::int, producto_id::int, tachado_pct::float8 from ml_regla_precio where organizacion_id = $1 and canal_id = $2`, [org, canal.id]),
-    consulta<ReglasPlan>(`select plan, nivel, familia_id::int, producto_id::int, activo, precio_minimo::float8, margen_pct::float8, cuotas_visibles
+    consulta<ReglaTachado>(`select nivel, familia_id::int, producto_id::int, tachado_pct::float8, ajuste_pct::float8 from ml_regla_precio where organizacion_id = $1 and canal_id = $2`, [org, canal.id]),
+    consulta<ReglasPlan>(`select plan, nivel, familia_id::int, producto_id::int, activo, precio_minimo::float8, margen_pct::float8, cuotas_visibles, ajuste_pct::float8
                             from ml_plan_config where organizacion_id = $1 and canal_id = $2`, [org, canal.id]),
     consulta<FilaVolumen>(`select nivel, familia_id::int, producto_id::int, desde_precio::float8, hasta_precio::float8, escalones, sin_descuento
                              from ml_volumen_escala where organizacion_id = $1 and canal_id = $2 order by desde_precio`, [org, canal.id]),
@@ -271,8 +271,8 @@ export async function fijarInterruptor(org: string, canal: number, clave: "sincr
 
 export type Excepcion = {
   clave: string; nivel: "familia" | "producto"; familia_id: number | null; producto_id: number | null;
-  nombre: string; sku: string | null; tachado_pct: number | null;
-  planes: Record<string, { activo: boolean | null; min: number | null; margen: number | null }>;
+  nombre: string; sku: string | null; tachado_pct: number | null; ajuste_pct: number | null;
+  planes: Record<string, { activo: boolean | null; min: number | null; margen: number | null; ajuste: number | null }>;
 };
 
 /** Las excepciones (categoría o producto) de un canal, con su tachado y sus planes. */
@@ -285,7 +285,9 @@ export async function excepcionesCanal(org: string, canal: number): Promise<Exce
     select k.nivel, k.familia_id::int, k.producto_id::int, coalesce(f.nombre, p.titulo, '—') nombre, p.sku_base sku,
            (select tachado_pct::float8 from ml_regla_precio r where r.canal_id = $2 and r.nivel = k.nivel
                and r.familia_id is not distinct from k.familia_id and r.producto_id is not distinct from k.producto_id) tachado_pct,
-           coalesce((select jsonb_object_agg(c.plan, jsonb_build_object('activo', c.activo, 'min', c.precio_minimo, 'margen', c.margen_pct))
+           (select ajuste_pct::float8 from ml_regla_precio r where r.canal_id = $2 and r.nivel = k.nivel
+               and r.familia_id is not distinct from k.familia_id and r.producto_id is not distinct from k.producto_id) ajuste_pct,
+           coalesce((select jsonb_object_agg(c.plan, jsonb_build_object('activo', c.activo, 'min', c.precio_minimo, 'margen', c.margen_pct, 'ajuste', c.ajuste_pct))
               from ml_plan_config c where c.canal_id = $2 and c.nivel = k.nivel
                and c.familia_id is not distinct from k.familia_id and c.producto_id is not distinct from k.producto_id), '{}') planes
       from k left join familia f on f.id = k.familia_id left join producto p on p.id = k.producto_id

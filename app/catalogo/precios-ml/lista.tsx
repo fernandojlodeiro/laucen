@@ -47,6 +47,8 @@ export type FilaPrevia = {
   plan: PlanOClasica | null; rol: string; clasica: number | null; tachado_pct: number | null; tachado_origen: string | null;
   lista: number | null; venta: number | null; ptw: number | null; ptw_estado: string | null; precio_ml: number | null; venta_ml: number | null;
   diferencia: number | null; cambio: string; avisos: string; hay_cambio: boolean; comision_estimada: boolean; stock: number | null;
+  /** % más cara que el esquema en este canal (0 = este canal gana ese plan). */
+  ajuste: number | null;
 };
 
 /** Las filas de la vista previa (filtradas, en el orden de siempre: por SKU). */
@@ -68,9 +70,11 @@ export async function filasPrevia(org: string, sp: SP): Promise<FilaPrevia[]> {
       clasica: p.clasica, tachado_pct: p.clasica != null ? p.tachadoPct : null, tachado_origen: p.clasica != null ? textoOrigen(p.tachadoOrigen, nombreFamilia) : null,
       comision_estimada: info.comisionEstimada, stock: info.stock,
     };
+    const ajusteDe = (plan: PlanOClasica | null) => p.clasica == null ? null : plan === "clasica" ? p.ajustePct : p.planes.find((x) => x.plan === plan)?.ajustePct ?? null;
     p.pubs.forEach((pa, i) => {
       const cambio = queCambia(pa);
       filas.push({
+        ajuste: ajusteDe(pa.pub.plan),
         ...comun, id: `${pa.pub.publicacionId}`, item_id: pa.pub.itemId, variation_id: pa.pub.variationId, plan: pa.pub.plan, rol: pa.rol,
         lista: pa.lista, venta: pa.venta, ptw: pa.pub.priceToWin, ptw_estado: pa.pub.estadoPtw, precio_ml: pa.pub.precioListaMl, venta_ml: pa.pub.precioVentaMl,
         diferencia: pa.lista != null && pa.pub.precioListaMl != null ? Math.round(pa.lista - pa.pub.precioListaMl) : null,
@@ -78,12 +82,12 @@ export async function filasPrevia(org: string, sp: SP): Promise<FilaPrevia[]> {
       });
     });
     for (const fa of p.faltan) {
+      // Las que faltan se crean desde Coordinación › Creaciones en ML (copia completa de otra publicación).
       filas.push({
-        ...comun, id: `n${info.variacionId}-${fa.plan}`, item_id: null, variation_id: null, plan: fa.plan, rol: "nueva",
-        lista: fa.precio, venta: fa.precio, ptw: null, ptw_estado: null, precio_ml: null, venta_ml: null, diferencia: null,
-        cambio: fa.userProductId ? `Crear la publicación de ${PLAN_INFO[fa.plan].corto} a ${formatear(fa.precio, "ARS")}` : "",
-        avisos: fa.userProductId ? "" : "No se puede crear: ninguna publicación de esta variación tiene el user product de ML.",
-        hay_cambio: !!fa.userProductId,
+        ...comun, ajuste: ajusteDe(fa.plan), id: `n${info.variacionId}-${fa.plan}`, item_id: null, variation_id: null, plan: fa.plan, rol: "nueva",
+        lista: p.tachado ?? fa.precio, venta: fa.precio, ptw: null, ptw_estado: null, precio_ml: null, venta_ml: null, diferencia: null,
+        cambio: "", avisos: `Falta la publicación de ${PLAN_INFO[fa.plan].corto}: se crea desde Coordinación › Creaciones en ML.`,
+        hay_cambio: false,
       });
     }
   }
@@ -111,6 +115,10 @@ const CAMPOS_PREVIA: Campo[] = [
   { clave: "titulo", titulo: "Producto", ancho: 36, celda: (f) => <span className="line-clamp-2 min-w-[180px]">{f.titulo}</span> },
   { clave: "plan", titulo: "Plan", valor: (f) => nombrePlan(f.plan) },
   { clave: "rol", titulo: "Papel", valor: (f) => ROLES[f.rol] ?? f.rol },
+  {
+    clave: "ajuste", titulo: "¿Gana?", formato: "pct",
+    celda: (f) => f.ajuste == null ? "—" : f.ajuste === 0 ? <b className="text-[#1F6E4A]">Gana</b> : <span title="Esta cuenta no gana este plan: va más cara que el esquema">+{f.ajuste.toLocaleString("es-AR", { maximumFractionDigits: 2 })} %</span>,
+  },
   { clave: "clasica", titulo: "Clásica", formato: "pesos" },
   { clave: "tachado_pct", titulo: "Tachado %", formato: "pct", usa: ["tachado_origen"], celda: (f) => f.tachado_pct == null ? "—" : <span title={`Regla ${f.tachado_origen ?? ""}`}>{f.tachado_pct.toLocaleString("es-AR")} %</span> },
   { clave: "lista", titulo: "Precio calculado", formato: "pesos" },
@@ -139,7 +147,7 @@ export const LISTA_PRECIOS_ML: Lista = {
   permiso: "precios_ml_ver",
   // En memoria: el orden por columna usa el valor de cada fila (la clave sólo lo habilita).
   campos: CAMPOS_PREVIA.map((c) => (c.orden === false ? c : { ...c, orden: c.clave })),
-  enPantalla: ["item_id", "sku", "titulo", "plan", "rol", "clasica", "tachado_pct", "lista", "venta", "ptw", "precio_ml", "diferencia", "cambio", "avisos"],
+  enPantalla: ["item_id", "sku", "titulo", "plan", "rol", "ajuste", "clasica", "tachado_pct", "lista", "venta", "ptw", "precio_ml", "diferencia", "cambio", "avisos"],
   filas: (ctx, sp) => filasPrevia(ctx.org, sp),
 };
 

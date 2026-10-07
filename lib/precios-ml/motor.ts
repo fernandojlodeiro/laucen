@@ -1,14 +1,20 @@
 // El motor de precios de Mercado Libre (Fer, 3/10), en funciones puras (sin
 // base ni API: se prueban solas en tests/precios-ml.test.ts).
 //
-//   · Clásica: el único precio que pone Fer (lista del canal, precio_de).
-//   · Tachado = Clásica × (1 + %). La publicación va al tachado y una campaña
-//     la baja a la Clásica (ML pide ≥ 5 % de descuento).
+//   · La lista del canal (precio_de) tiene el TACHADO (Fer, 7/10): el precio
+//     que se publica en ML. Es el único precio que pone Fer.
+//   · Clásica = tachado ÷ (1 + %). La publicación va al tachado y una campaña
+//     la baja a la Clásica (ML pide ≥ 5 % de descuento). Uno solo por modelo
+//     (Fer, 7/10): todos sus planes salen a ese tachado y la campaña baja cada
+//     uno a su precio. Una publicación que ya está en campaña no cambia el
+//     tachado y su precio sólo baja.
+//   · Quién gana (Fer, 7/10): en cada canal, la Clásica y cada plan pueden ir
+//     un % más caros que el esquema (ajuste_pct; la cuenta que "no gana", 3 %).
 //   · Plan de cuotas: Clásica × (1 − comisión Clásica) ÷ (1 − comisión del
 //     plan) × (1 + margen extra), con la comisión real de la categoría.
 //   · Plan destacado: el que mejor "cierra" con el precio para ganar de ML va
 //     a ese precio, en las mismas campañas que la Clásica; los demás planes
-//     quedan a su precio por coeficiente.
+//     van a su precio por coeficiente (con tachado, por campaña).
 //   · Descuento por volumen: por rango de Clásica, hasta 5 escalones; un
 //     escalón sólo si hay stock para su cantidad.
 // Todo por canal y, adentro, general → familia (subiendo por el árbol) →
@@ -224,8 +230,12 @@ export function preciosPorCantidad(venta: number, escalones: Escalon[]): { canti
 
 // ── La propuesta de una variación en un canal ───────────────
 
-export type ReglasPlan = FilaNivel & { plan: Plan; activo: boolean | null; precio_minimo: number | null; margen_pct: number | null; cuotas_visibles: number | null };
-export type ReglaTachado = FilaNivel & { tachado_pct: number | null };
+export type ReglasPlan = FilaNivel & { plan: Plan; activo: boolean | null; precio_minimo: number | null; margen_pct: number | null; cuotas_visibles: number | null;
+  /** % más caro que el esquema en este canal (la cuenta que no gana el plan). */
+  ajuste_pct?: number | null };
+export type ReglaTachado = FilaNivel & { tachado_pct: number | null;
+  /** % más cara la Clásica en este canal que la de la lista (la cuenta que no gana la Clásica). */
+  ajuste_pct?: number | null };
 
 /** Una campaña de ML de una publicación (leída de /seller-promotions). */
 export type Campana = { id: string; tipo: string; estado: string | null; nombre?: string | null; precio: number | null; min: number | null; max: number | null };
@@ -243,6 +253,7 @@ export type PubMl = {
 
 export type EntradaVariacion = {
   variacionId: number; productoId: number; lugar: Lugar;
+  /** El precio de la lista del canal: el tachado (la Clásica sale de él). */
   clasica: number | null; stock: number | null; comisiones: Comisiones; comisionEstimada: boolean;
   pubs: PubMl[];
 };
@@ -268,12 +279,13 @@ export type PropuestaPub = {
 };
 
 export type PlanCalculado = {
-  plan: Plan; activo: boolean; habilitado: boolean; precioMinimo: number | null; margenPct: number; cuotasVisibles: number;
+  plan: Plan; activo: boolean; habilitado: boolean; precioMinimo: number | null; margenPct: number; ajustePct: number; cuotasVisibles: number;
   comisionPct: number; precio: number | null; origen: Origen | null;
 };
 
 export type Propuesta = {
-  variacionId: number; clasica: number | null; tachadoPct: number; tachado: number | null; tachadoOrigen: Origen | null;
+  /** `clasica`: la de este canal (la del esquema × (1 + ajuste)); `clasicaLista`: la del esquema (tachado ÷ (1 + %)). */
+  variacionId: number; clasica: number | null; clasicaLista: number | null; ajustePct: number; tachadoPct: number; tachado: number | null; tachadoOrigen: Origen | null;
   planes: PlanCalculado[];
   destacado: { plan: Plan; precio: number; holgura: number; itemId: string } | null;
   pubs: PropuestaPub[];
@@ -313,9 +325,13 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
   const avisos: string[] = [];
   const t = heredar(r.tachado, e.lugar, (f) => f.tachado_pct);
   const tachadoPct = Number(t.valor ?? 0);
-  const clasica = e.clasica != null && e.clasica > 0 ? e.clasica : null;
-  const tach = clasica != null ? tachado(clasica, tachadoPct) : null;
-  if (clasica == null) avisos.push("Sin precio en la lista de la Clásica: no se calcula nada.");
+  const ajustePct = Number(heredar(r.tachado, e.lugar, (f) => (f.ajuste_pct == null ? null : Number(f.ajuste_pct))).valor ?? 0);
+  // La lista tiene el tachado (el mismo en todos los canales y planes del modelo); la
+  // Clásica del esquema sale de él, y la de este canal, con su ajuste (si no gana).
+  const tach = e.clasica != null && e.clasica > 0 ? redondear(e.clasica) : null;
+  const base = tach != null ? redondear(tach / (1 + tachadoPct / 100)) : null;
+  const clasica = base != null ? redondear(base * (1 + ajustePct / 100)) : null;
+  if (clasica == null) avisos.push("Sin precio en la lista Clásicas (el tachado): no se calcula nada.");
   if (clasica != null && tachadoPct > 0 && descuentoVisible(tach!, clasica) < DESCUENTO_MINIMO_ML) {
     avisos.push(`El tachado da ${descuentoVisible(tach!, clasica).toLocaleString("es-AR")} % de descuento: ML pide al menos ${DESCUENTO_MINIMO_ML} % para mostrarlo.`);
   }
@@ -326,12 +342,15 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
     const min = heredar(delPlan, e.lugar, (f) => (f.precio_minimo == null ? null : Number(f.precio_minimo)));
     const mar = heredar(delPlan, e.lugar, (f) => (f.margen_pct == null ? null : Number(f.margen_pct)));
     const cuo = heredar(delPlan, e.lugar, (f) => f.cuotas_visibles);
+    const aju = heredar(delPlan, e.lugar, (f) => (f.ajuste_pct == null ? null : Number(f.ajuste_pct)));
     const activo = act.valor === true;
     const margenPct = mar.valor ?? 0;
-    const precio = clasica != null ? precioPlan(clasica, e.comisiones.clasica, e.comisiones[plan], margenPct) : null;
+    const ajuste = aju.valor ?? 0;
+    // El plan sale de la Clásica de la lista (no de la de este canal) más su ajuste.
+    const precio = base != null ? redondear(precioPlan(base, e.comisiones.clasica, e.comisiones[plan], margenPct) * (1 + ajuste / 100)) : null;
     const habilitado = activo && clasica != null && (min.valor == null || clasica >= min.valor);
     return {
-      plan, activo, habilitado, precioMinimo: min.valor, margenPct, cuotasVisibles: cuo.valor ?? PLAN_INFO[plan].cuotas,
+      plan, activo, habilitado, precioMinimo: min.valor, margenPct, ajustePct: ajuste, cuotasVisibles: cuo.valor ?? PLAN_INFO[plan].cuotas,
       comisionPct: e.comisiones[plan], precio, origen: act.origen,
     };
   });
@@ -370,20 +389,34 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
         return pa;
       }
       if (destacado && destacado.plan === pub.plan) {
-        pa.rol = "destacado"; pa.venta = destacado.precio; pa.lista = tachadoPct > 0 ? tachado(destacado.precio, tachadoPct) : destacado.precio;
+        pa.rol = "destacado"; pa.venta = destacado.precio;
       } else {
-        pa.rol = "plan"; pa.venta = pc.precio; pa.lista = pc.precio;
+        pa.rol = "plan"; pa.venta = pc.precio;
       }
+      // El mismo tachado que la Clásica (uno por modelo), si deja al menos el descuento mínimo de ML.
+      pa.lista = tachadoPct > 0 && tach != null && pa.venta != null && descuentoVisible(tach, pa.venta) >= DESCUENTO_MINIMO_ML ? tach : pa.venta;
     } else {
       pa.avisos.push("Tipo de publicación desconocido: no se toca.");
       return pa;
     }
-    pa.cambiaPrecio = !igual(pub.precioListaMl, pa.lista);
-    // Campañas: la Clásica y el destacado van a su precio de venta con campaña;
-    // un plan común no va en campaña. Para cambiar el precio hay que salir
-    // antes de las campañas en las que está (ML no deja) y volver a entrar.
     const adentro = pub.campanas.filter((c) => (c.estado === "started" || c.estado === "pending") && CON_PRECIO.includes(c.tipo));
-    if ((pa.rol === "clasica" || pa.rol === "destacado") && pa.lista !== pa.venta) {
+    // En campaña (Fer, 7/10): el tachado no se toca y el precio sólo baja.
+    if (adentro.length && pub.precioListaMl != null && pa.lista != null && pa.venta != null) {
+      if (!igual(pub.precioListaMl, pa.lista)) {
+        pa.avisos.push(`En campaña: el tachado queda en $ ${Math.round(pub.precioListaMl).toLocaleString("es-AR")} (no se puede cambiar).`);
+        pa.lista = pub.precioListaMl;
+      }
+      if (pub.precioVentaMl != null && pa.venta >= pub.precioVentaMl - 0.5) {
+        if (!igual(pa.venta, pub.precioVentaMl)) pa.avisos.push(`En campaña el precio sólo baja: queda en $ ${Math.round(pub.precioVentaMl).toLocaleString("es-AR")} (el esquema da $ ${Math.round(pa.venta).toLocaleString("es-AR")}).`);
+        pa.venta = pub.precioVentaMl;
+      }
+    }
+    pa.cambiaPrecio = !igual(pub.precioListaMl, pa.lista);
+    // Campañas: con tachado, la publicación va a su precio de venta con campaña
+    // (la Clásica, el destacado —en las mismas que la Clásica— y cada plan).
+    // Para cambiar el precio hay que salir antes de las campañas en las que
+    // está (ML no deja) y volver a entrar.
+    if (pa.lista !== pa.venta) {
       const c = campanasPara(pub.campanas, pa.venta!, pa.rol === "destacado" ? idsClasica : undefined);
       pa.salir = pa.cambiaPrecio ? adentro : c.salir;
       pa.entrar = pa.cambiaPrecio ? [...c.entrar.filter((x) => !c.quedan.includes(x)), ...c.quedan] : c.entrar;
@@ -408,7 +441,7 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
   }));
 
   return {
-    variacionId: e.variacionId, clasica, tachadoPct, tachado: tach, tachadoOrigen: t.origen, planes, destacado, pubs, faltan,
+    variacionId: e.variacionId, clasica, clasicaLista: base, ajustePct, tachadoPct, tachado: tach, tachadoOrigen: t.origen, planes, destacado, pubs, faltan,
     volumen: vol, avisos,
   };
 }
@@ -445,19 +478,13 @@ export function pedidoVolumen(pa: PropuestaPub): PedidoHttp {
   };
 }
 
-/** Crear la publicación de un plan sobre el mismo user product (comparte el
- *  stock): de catálogo, Premium y con la marca de cuotas. */
-export function pedidoCrear(f: Propuesta["faltan"][number]): PedidoHttp | null {
-  if (!f.userProductId) return null;
-  const tag = PLAN_INFO[f.plan].tag;
-  return {
-    metodo: "POST", ruta: `/user-products/${f.userProductId}/items`,
-    cuerpo: {
-      price: f.precio, currency_id: "ARS", listing_type_id: "gold_pro",
-      ...(f.catalogProductId ? { catalog_listing: true, catalog_product_id: f.catalogProductId } : {}),
-      ...(tag ? { tags: [tag] } : {}),
-    },
-  };
+/** Crear la publicación de un plan: ya no sale de acá. Colgarla del user
+ *  product (POST /user-products/{up}/items) daba 500 siempre (7/10); una
+ *  publicación de cuotas es una publicación propia (POST /items, Premium con
+ *  la marca del plan, copiando todo de otra) y se prepara desde Creaciones en
+ *  ML. La vista previa sigue mostrando qué planes faltan. */
+export function pedidoCrear(_f: Propuesta["faltan"][number]): PedidoHttp | null {
+  return null;
 }
 
 /** "Precio $ 12.000 → $ 13.500; entra a 2 campañas a $ 11.000" para la pantalla. */

@@ -118,7 +118,8 @@ test("propuesta: precio mínimo por plan, destacado al precio para ganar en las 
   };
   const campana = { id: "P1", tipo: "SELLER_CAMPAIGN", estado: "candidate", precio: null, min: 5_000, max: 11_000 };
   const e: EntradaVariacion = {
-    variacionId: 1, productoId: 7, lugar, clasica: 10_000, stock: 5, comisiones, comisionEstimada: false,
+    // La lista tiene el tachado: 12.500 con tachado 25 % → Clásica 10.000.
+    variacionId: 1, productoId: 7, lugar, clasica: 12_500, stock: 5, comisiones, comisionEstimada: false,
     pubs: [
       pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 11_000, campanas: [campana] }),
       pub({ publicacionId: 2, itemId: "MLA2", plan: "premium", precioListaMl: 10_000, priceToWin: 10_900,
@@ -140,22 +141,70 @@ test("propuesta: precio mínimo por plan, destacado al precio para ganar en las 
   assert.deepEqual(clas.entrar.map((c) => c.id), ["P1"]);
   assert.equal(prem.rol, "destacado");
   assert.equal(prem.venta, 10_900);
-  assert.equal(prem.lista, 13_625);
+  // Un solo tachado por modelo (Fer, 7/10): el de la Clásica.
+  assert.equal(prem.lista, 12_500);
   // Sólo en las campañas de la Clásica (P1), no en la otra (P2).
   assert.deepEqual(prem.entrar.map((c) => c.id), ["P1"]);
   const pedidos = pedidosPrecio(prem);
   assert.deepEqual(pedidos.map((x) => x.metodo), ["PUT", "POST"]);
-  assert.deepEqual(pedidos[0].cuerpo, { price: 13_625 });
+  assert.deepEqual(pedidos[0].cuerpo, { price: 12_500 });
   assert.deepEqual(pedidos[1].cuerpo, { promotion_id: "P1", promotion_type: "SELLER_CAMPAIGN", deal_price: 10_900 });
   // Ningún plan habilitado sin publicación: el 12x está debajo del mínimo y el 3x apagado.
   assert.deepEqual(p.faltan, []);
 
-  // Con la Clásica arriba del mínimo, el 12x falta: se prepara su creación sobre el mismo user product.
-  const p2 = proponer({ ...e, clasica: 60_000 }, reglas);
+  // Con la Clásica arriba del mínimo, el 12x falta. Ya no se crea desde acá (user-products daba 500):
+  // se crea desde Creaciones en ML.
+  const p2 = proponer({ ...e, clasica: 75_000 }, reglas);
   assert.deepEqual(p2.faltan.map((f) => f.plan), ["12x_campaign"]);
-  const crear = pedidoCrear(p2.faltan[0])!;
-  assert.equal(crear.ruta, "/user-products/MLAU1/items");
-  assert.deepEqual(crear.cuerpo, { price: precioPlan(60_000, 14, 27), currency_id: "ARS", listing_type_id: "gold_pro", catalog_listing: true, catalog_product_id: "MLA999", tags: ["12x_campaign"] });
+  assert.equal(pedidoCrear(p2.faltan[0]), null);
+});
+
+test("esquema de notebooks (7/10): un tachado por modelo, la cuenta que no gana va más cara, los planes van por campaña", () => {
+  const camp = (id: string) => ({ id, tipo: "SELLER_CAMPAIGN", estado: "candidate", precio: null, min: 1, max: 99_999_999 });
+  const reglas: ReglasCanal = {
+    // Tachado = Clásica ÷ 0,55; esta cuenta no gana la Clásica (3 % más).
+    tachado: [{ nivel: "producto", producto_id: 7, tachado_pct: 81.81818, ajuste_pct: 3 }],
+    planes: [
+      { nivel: "producto", producto_id: 7, plan: "3x_campaign", activo: true, precio_minimo: null, margen_pct: 2, cuotas_visibles: null, ajuste_pct: 0 },
+      { nivel: "producto", producto_id: 7, plan: "12x_campaign", activo: true, precio_minimo: null, margen_pct: 4, cuotas_visibles: null, ajuste_pct: 3 },
+    ],
+    volumen: [], reglaStock: true,
+  };
+  const com = { clasica: 12.8, premium: 26.2, "3x_campaign": 21.7, "9x_campaign": 30.6, "12x_campaign": 34.4 };
+  const e: EntradaVariacion = {
+    variacionId: 1, productoId: 7, lugar, clasica: 2_284_047, stock: 5, comisiones: com, comisionEstimada: false,
+    pubs: [
+      pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 2_284_047, precioVentaMl: 2_284_047, campanas: [camp("C1")], priceToWin: null, catalogo: false }),
+      pub({ publicacionId: 2, itemId: "MLA2", plan: "3x_campaign", precioListaMl: 2_284_047, precioVentaMl: 2_284_047, campanas: [camp("C1")], priceToWin: null, catalogo: false }),
+      pub({ publicacionId: 3, itemId: "MLA3", plan: "12x_campaign", precioListaMl: 2_284_047, precioVentaMl: 2_284_047, campanas: [camp("C1")], priceToWin: null, catalogo: false }),
+    ],
+  };
+  const p = proponer(e, reglas);
+  assert.equal(p.tachado, 2_284_047);
+  assert.equal(p.clasica, Math.round(1_256_226 * 1.03));
+  const [cl, x3, x12] = p.pubs;
+  // Todos al mismo tachado (no cambia) y cada uno entra a la campaña a su precio.
+  for (const pa of p.pubs) { assert.equal(pa.lista, 2_284_047); assert.equal(pa.cambiaPrecio, false); assert.deepEqual(pa.entrar.map((c) => c.id), ["C1"]); }
+  assert.equal(cl.venta, Math.round(1_256_226 * 1.03));
+  // El 3x gana: el piso (Clásica × coeficiente × 1,02); el 12x no: 3 % más.
+  assert.equal(x3.venta, precioPlan(1_256_226, 12.8, 21.7, 2));
+  assert.equal(x12.venta, Math.round(precioPlan(1_256_226, 12.8, 34.4, 4) * 1.03));
+
+  // Ya en campaña: el tachado no se toca y el precio sólo baja.
+  const enCampana = (precio: number) => ({ id: "D1", tipo: "DEAL", estado: "started", precio, min: 1, max: 99_999_999 });
+  const e2: EntradaVariacion = { ...e, pubs: [
+    pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 1_712_879, precioVentaMl: 1_317_599, campanas: [enCampana(1_317_599)], priceToWin: null, catalogo: false }),
+    pub({ publicacionId: 2, itemId: "MLA2", plan: "3x_campaign", precioListaMl: 1_712_879, precioVentaMl: 1_300_000, campanas: [enCampana(1_300_000)], priceToWin: null, catalogo: false }),
+  ] };
+  const [c2, x2] = proponer(e2, reglas).pubs;
+  assert.equal(c2.lista, 1_712_879);
+  assert.equal(c2.cambiaPrecio, false);
+  assert.equal(c2.venta, Math.round(1_256_226 * 1.03)); // baja
+  assert.deepEqual(c2.salir.map((c) => c.id), ["D1"]);
+  assert.deepEqual(c2.entrar.map((c) => c.id), ["D1"]);
+  assert.equal(x2.venta, 1_300_000); // el esquema da más: no sube
+  assert.deepEqual(x2.salir, []);
+  assert.deepEqual(x2.entrar, []);
 });
 
 test("campañas: queda la que ya está al precio; la que está a otro precio sale y vuelve a entrar; fuera de rango no", () => {
@@ -249,7 +298,8 @@ if (url) {
   test("preparar cambios: lotes preparados (precios, volumen, nuevas) sin mandar nada; el automático sólo con el interruptor", async () => {
     const e = await escenario();
     const a = await e.producto("A1");
-    await m.precios.guardarPrecio(e.org, { listaId: e.lista, variacionId: a.v, importe: 10_000, moneda: "ARS" });
+    // La lista tiene el tachado: 13.000 con el 30 % de la categoría → Clásica 10.000.
+    await m.precios.guardarPrecio(e.org, { listaId: e.lista, variacionId: a.v, importe: 13_000, moneda: "ARS" });
     await e.publicar(a.v, "MLA100", "gold_special", [], 11_000);
     await e.publicar(a.v, "MLA101", "gold_pro", [], 9_000);
     await m.datos.guardarTachado(e.org, e.canal, { nivel: "general" }, 25);
@@ -270,7 +320,8 @@ if (url) {
     assert.deepEqual(p.faltan.map((f) => f.plan), ["12x_campaign"]);
 
     const lotes = await m.preparar.prepararCambios(e.org, e.canal, {}, "u1");
-    assert.deepEqual(lotes.map((l) => l.descripcion.split(" · ")[0]), ["Precios y campañas", "Publicaciones nuevas de planes de cuotas"]);
+    // Las que faltan ya no se crean desde acá (Creaciones en ML).
+    assert.deepEqual(lotes.map((l) => l.descripcion.split(" · ")[0]), ["Precios y campañas"]);
     const cola = await q<{ tipo: string; estado: string; item_id: string; payload: { precio?: number; pedidos: { metodo: string; ruta: string; cuerpo: Record<string, unknown> }[] }; lote_id: string }>(
       "select tipo, estado, item_id, payload, lote_id from ml_cola where organizacion_id = $1 order by id", [e.org]);
     assert.ok(cola.every((c) => c.estado === "preparado"), "nada sale sin el clic");
@@ -278,10 +329,8 @@ if (url) {
     assert.equal(clasica.tipo, "precio");
     assert.equal(clasica.payload.precio, 13_000);
     assert.deepEqual(clasica.payload.pedidos[0], { metodo: "PUT", ruta: "/items/MLA100", cuerpo: { price: 13_000 } });
-    const crear = cola.find((c) => c.tipo === "crear")!;
-    assert.equal(crear.payload.pedidos[0].ruta, "/user-products/MLAU77/items");
-    assert.deepEqual(crear.payload.pedidos[0].cuerpo.tags, ["12x_campaign"]);
-    assert.equal((await q("select 1 from ml_lote where organizacion_id = $1 and estado = 'preparado'", [e.org])).length, 2);
+    assert.ok(!cola.some((c) => c.tipo === "crear"));
+    assert.equal((await q("select 1 from ml_lote where organizacion_id = $1 and estado = 'preparado'", [e.org])).length, 1);
 
     // Con stock aparece el lote de volumen.
     const dep = await id("insert into deposito (organizacion_id, nombre) values ($1, 'Propio') returning id", [e.org]);

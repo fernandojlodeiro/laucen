@@ -202,3 +202,13 @@ create index if not exists ml_promo_historia_fecha on ml_promo_historia (organiz
 create index if not exists ml_promo_historia_promo on ml_promo_historia (canal_id, promocion_id, fecha desc);
 alter table ml_promo_historia enable row level security;
 select erp_politica_org('ml_promo_historia');
+
+-- ── Esquema de notebooks (Fer, 7/10) ──────────────────────────────────────
+-- "Quién gana": en cada canal, la Clásica y cada plan pueden ir un % más caros
+-- que el esquema (la cuenta que no gana ese plan, 3 %). La Clásica de la lista
+-- es la del que gana; el tachado sale de ella, uno solo por modelo. Más
+-- decimales para que el tachado (Clásica ÷ 0,55) y el ajuste den el peso justo.
+alter table ml_regla_precio add column if not exists ajuste_pct numeric(9, 5) check (ajuste_pct between -50 and 100);
+alter table ml_plan_config add column if not exists ajuste_pct numeric(9, 5) check (ajuste_pct between -50 and 100);
+alter table ml_regla_precio alter column tachado_pct type numeric(10, 5);
+alter table ml_plan_config alter column margen_pct type numeric(9, 5);

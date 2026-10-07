@@ -11,8 +11,8 @@ resumen: El esquema de precios de cada cuenta de Mercado Libre: de la Clásica s
 
 Es donde se definen **las reglas** con las que Laucen calcula el precio de cada publicación en Mercado Libre, cuenta por cuenta. La idea central:
 
-- **La Clásica es el único precio que se pone a mano.** Es el precio de la variación en la lista de precios del canal (por ejemplo, la lista «Clásicas»), y se carga en [Listas de precios](/catalogo/precios) o en la ficha del producto.
-- **Todo lo demás sale solo de la Clásica:** el precio tachado, el precio de cada publicación de planes de cuotas (3, 6, 9 y 12 cuotas sin interés), cuál de ellas va "destacada" al precio para ganar, y el descuento por volumen.
+- **El tachado es el único precio que se pone a mano** (Fer, 7/10). Es el precio de la variación en la lista de precios del canal (por ejemplo, la lista «Clásicas»): el precio que se publica en Mercado Libre. Se carga en [Listas de precios](/catalogo/precios) o en la ficha del producto.
+- **Todo lo demás sale solo de ahí:** la Clásica (tachado ÷ (1 + Tachado %), lo que paga el comprador con la campaña), el precio de cada publicación de planes de cuotas (3, 6, 9 y 12 cuotas sin interés), cuál de ellas va "destacada" al precio para ganar, y el descuento por volumen.
 - Las reglas valen **por cuenta (canal)** y, adentro de la cuenta, **general → categoría → producto**: gana lo más específico.
 
 Desde acá **no sale nada** a Mercado Libre. Los precios que resultan se miran en la [Vista previa](/catalogo/precios-ml/vista-previa), y de ahí se preparan lotes que esperan el clic en «Mandar a Mercado Libre» en la [Cola de Mercado Libre](/config/canales/cola). La única excepción es si se prende el interruptor «Sincronizar precios» de la cuenta (ver más abajo).
@@ -112,11 +112,12 @@ Pestaña «Alertas» → mirá «Qué pasa» (trae el estado que informa ML y el
 ## Criterios y reglas
 
 ### 1. De dónde sale la Clásica
-- Es el **precio de lista** de la variación en la lista de precios de la cuenta: la que tiene asignada el canal en [Canales](/config/canales); si el canal no tiene, se usa la lista que se llame «Clásicas» (o «Clásica»).
+- El **precio de lista** de la variación es el **tachado** (lo que se publica en Mercado Libre); la **Clásica = tachado ÷ (1 + Tachado %)**. Con Tachado 0 % son el mismo precio. Ejemplo: lista $ 2.284.047 y tachado 81,81818 % → Clásica $ 1.256.226 (el tachado muestra 45 % de descuento).
+- La lista es la de la cuenta: la que tiene asignada el canal en [Canales](/config/canales); si el canal no tiene, se usa la lista que se llame «Clásicas» (o «Clásica»).
 - Es el precio vigente **hoy** (hora argentina). Si la lista es derivada (otra lista × coeficiente), es el de la lista base por el coeficiente, salvo que tenga un precio propio cargado.
 - Si el producto está marcado **en dólares**, los pesos se recalculan **cada día** con el tipo de cambio del día.
-- El **descuento %** propio del producto o la familia **no** se aplica en Mercado Libre: la Clásica es el precio de lista.
-- Si la variación no tiene precio en esa lista, no se calcula nada (aviso «Sin precio en la lista de la Clásica: no se calcula nada.»).
+- El **descuento %** propio del producto o la familia **no** se aplica en Mercado Libre.
+- Si la variación no tiene precio en esa lista, no se calcula nada (aviso «Sin precio en la lista Clásicas (el tachado): no se calcula nada.»).
 
 ### 2. Cómo se hereda una regla
 Para cada producto se busca el valor de cada dato por separado, del más específico al más general: **producto → su categoría → la categoría de arriba → … → general de la cuenta**. Se toma el primero que no esté vacío. Así, un producto puede tener su propio margen para 12 cuotas y heredar todo lo demás.
@@ -125,8 +126,9 @@ Para cada producto se busca el valor de cada dato por separado, del más especí
 - El descuento por volumen se hereda distinto (ver punto 7).
 
 ### 3. El tachado
-- **Tachado = Clásica × (1 + Tachado %)**, redondeado a pesos.
-- La publicación Clásica se publica **al tachado**, y una campaña de Mercado Libre la baja a la Clásica: el comprador ve el precio tachado y paga la Clásica.
+- **El tachado es el precio de la lista** (la Clásica = tachado ÷ (1 + Tachado %), redondeada a pesos). Es **uno solo por modelo**: el mismo en todas las cuentas y en todos sus planes (Fer, 7/10).
+- La publicación (la Clásica y cada plan de cuotas) se publica **al tachado**, y una campaña de Mercado Libre la baja a su precio: el comprador ve el precio tachado y paga el de esa publicación.
+- **En campaña el tachado no se toca y el precio sólo baja** (Fer, 7/10): si una publicación ya está adentro de una campaña, su tachado queda el que tiene (aviso «En campaña: el tachado queda en …») y, si el esquema da un precio más alto que el que paga hoy el comprador, queda el de hoy (aviso «En campaña el precio sólo baja…»). Si da más bajo, sale de la campaña y vuelve a entrar al precio nuevo.
 - Mercado Libre pide **al menos 5 % de descuento** para mostrar el tachado; eso es un tachado de 5,3 % o más (con 5 % justo el descuento visible da 4,8 %). Si el tachado es mayor a 0 pero da menos de 5 % de descuento, la vista previa avisa.
 - Con tachado 0 % la publicación va directamente a la Clásica y sin campaña.
 
@@ -147,6 +149,8 @@ Paso a paso:
 2. Se divide por (1 − comisión del plan): el precio que deja ese mismo neto pagando la comisión del plan.
 3. Se multiplica por (1 + margen extra).
 
+**Quién gana cada plan** (Fer, 7/10): en cada cuenta, la Clásica y cada plan pueden ir un % más caros que el esquema: la cuenta que **no gana** ese plan va **3 % más cara** («¿Gana?» en la vista previa: «Gana» o «+3 %»). La Clásica de esa cuenta = Clásica de la lista × 1,03; el plan = su precio por coeficiente (calculado con la Clásica de la lista) × 1,03. Se carga por producto en cada cuenta (en «Excepciones» se ve «gana» o «no gana: +3 %»).
+
 Un plan **se usa** (queda "habilitado") sólo si está **activo** y la Clásica es **mayor o igual** a su «Desde una Clásica de». Si no, su publicación queda con papel «Plan apagado» y **no se toca** (aviso «El plan no está activo: no se toca.» o «Debajo del mínimo del plan (…): no se toca.»).
 
 Si dos planes habilitados se le muestran al comprador con la misma cantidad de cuotas, la vista previa avisa que sobra uno («manda lo que ve el comprador»).
@@ -156,8 +160,8 @@ En las publicaciones de **catálogo**, Mercado Libre informa el **precio para ga
 - Candidatos: los planes habilitados que ya tienen publicación y precio para ganar leído.
 - Para cada uno calcula la **holgura**: (precio para ganar × (1 − comisión del plan)) ÷ (Clásica × (1 − comisión Clásica)) − 1, en %, **menos su margen extra**. Si da 0 o más, "cierra": a ese precio deja al menos lo que la Clásica más el margen.
 - Gana el de **mayor holgura**; si empatan, el que el comprador ve con más cuotas. Si ninguno cierra, no hay destacado (aviso «Ningún plan cierra al precio para ganar de ML…») y todos los planes quedan a su precio por coeficiente.
-- El destacado se publica así: lo que paga el comprador = **el precio para ganar** (redondeado); el precio de la publicación = ese precio con el tachado aplicado (si el tachado es 0, el mismo precio); y entra **en las mismas campañas que la Clásica**, para mostrarse con tachado en el recuadro «En cuotas».
-- Los **demás planes** van a su precio por coeficiente, **sin campaña** (si estaban en alguna campaña con precio, salen).
+- El destacado se publica así: lo que paga el comprador = **el precio para ganar** (redondeado); el precio de la publicación = el tachado del modelo (si el tachado es 0, el mismo precio); y entra **en las mismas campañas que la Clásica**, para mostrarse con tachado en el recuadro «En cuotas».
+- Los **demás planes** van a su precio por coeficiente: con tachado, publicados al tachado del modelo y bajados por campaña a su precio (si el tachado no deja al menos 5 % de descuento, a su precio y sin campaña); con tachado 0, a su precio y sin campaña.
 - El destacado elegido se graba al preparar los cambios (o en cada pasada automática). Después se verifica cada hora; si deja de ganar queda la alerta (pestaña «Alertas»).
 
 ### 7. Descuento por volumen
@@ -177,7 +181,7 @@ En las publicaciones de **catálogo**, Mercado Libre informa el **precio para ga
 - Ojo: el rango de cada campaña lo calcula ML sobre el precio actual; si el precio cambia mucho, alguna puede rechazar la entrada (queda «Con error» en la cola).
 
 ### 9. Publicaciones nuevas de planes que faltan
-Si un plan está habilitado para una variación y no tiene publicación, la vista previa propone **crearla** (papel «Nueva») al precio del plan. Se crea sobre el mismo producto de ML de otra publicación de la variación (comparte el stock), Premium, de catálogo si corresponde y con la marca de cuotas del plan. Si ninguna publicación de la variación tiene ese dato de ML, no se puede crear (avisa). **Las publicaciones nuevas nunca salen solas**: siempre van en lote y esperan el clic, aunque «Sincronizar precios» esté prendido.
+Si un plan está habilitado para una variación y no tiene publicación, la vista previa lo muestra (papel «Nueva») con el aviso «Falta la publicación de …: se crea desde Coordinación › Creaciones en ML». Desde acá ya no se crea: colgarla del producto de ML de otra publicación daba error siempre (7/10); una publicación de cuotas es una publicación propia (Premium con la marca del plan) que copia todo de otra, y eso lo hace [Creaciones en ML](/admin/creaciones). **Las publicaciones nuevas nunca salen solas**: siempre van en lote y esperan el clic.
 
 ### 10. Qué lee Laucen de Mercado Libre y cuándo (sólo lectura)
 Con «Leer el precio para ganar y las campañas» prendido, en cada barrido de Mercado Libre (cada 30 minutos):
@@ -188,7 +192,7 @@ Con «Leer el precio para ganar y las campañas» prendido, en cada barrido de M
 
 ### 11. Qué sale a Mercado Libre y cómo
 Regla de la casa: **ningún precio sale a Mercado Libre sin un clic**.
-- **Camino normal (interruptor apagado):** en la [Vista previa](/catalogo/precios-ml/vista-previa), «Preparar cambios» arma hasta tres **lotes** («Precios y campañas», «Descuento por volumen» y «Publicaciones nuevas de planes de cuotas»), que quedan «Preparado, falta tu clic» en la [Cola de Mercado Libre](/config/canales/cola), pestaña «Lotes preparados». Salen recién cuando se aprieta **«Mandar a Mercado Libre»** (o se tiran con «Descartar lote»).
+- **Camino normal (interruptor apagado):** en la [Vista previa](/catalogo/precios-ml/vista-previa), «Preparar cambios» arma hasta dos **lotes** («Precios y campañas» y «Descuento por volumen»), que quedan «Preparado, falta tu clic» en la [Cola de Mercado Libre](/config/canales/cola), pestaña «Lotes preparados». Salen recién cuando se aprieta **«Mandar a Mercado Libre»** (o se tiran con «Descartar lote»).
 - **Con «Sincronizar precios» prendido** (prenderlo es el clic): Laucen recalcula y manda a la cola **sin esperar**, sólo precios, campañas y volumen (nunca publicaciones nuevas):
   - al prender el interruptor (primera pasada);
   - al grabar en esta pantalla el tachado y los planes, una excepción, un rango de volumen, o al borrar una excepción;
@@ -201,9 +205,9 @@ Regla de la casa: **ningún precio sale a Mercado Libre sin un clic**.
 Todos los precios (tachado, planes, destacado, escalones de volumen) se redondean a **pesos enteros**.
 
 ### Ejemplo numérico completo
-Cuenta con tachado general 10 %, los cuatro planes activos sin mínimo, margen 0 % salvo 12 cuotas con 3 %. Categoría con comisiones: Clásica 14 %, 3 cuotas 17 %, 6 cuotas 19 %, 9 cuotas 24 %, 12 cuotas 27 %. Clásica del producto: **$ 10.000**. Stock del canal: 4.
+Cuenta con tachado general 10 %, los cuatro planes activos sin mínimo, margen 0 % salvo 12 cuotas con 3 %. Categoría con comisiones: Clásica 14 %, 3 cuotas 17 %, 6 cuotas 19 %, 9 cuotas 24 %, 12 cuotas 27 %. Precio del producto en la lista (el tachado): **$ 11.000**. Stock del canal: 4.
 
-1. **Tachado** = 10.000 × 1,10 = **$ 11.000**. La Clásica se publica a $ 11.000 y entra a campaña a $ 10.000 (descuento visible 9,1 %, más que el 5 % que pide ML).
+1. **Clásica** = 11.000 ÷ 1,10 = **$ 10.000**. La Clásica se publica a $ 11.000 (el tachado) y entra a campaña a $ 10.000 (descuento visible 9,1 %, más que el 5 % que pide ML).
 2. **Neto de la Clásica** = 10.000 × (1 − 0,14) = $ 8.600.
 3. **3 cuotas** = 8.600 ÷ 0,83 = 10.361,4 → **$ 10.361**.
 4. **6 cuotas** = 8.600 ÷ 0,81 = 10.617,3 → **$ 10.617**.
@@ -212,7 +216,7 @@ Cuenta con tachado general 10 %, los cuatro planes activos sin mínimo, margen 0
 7. **Destacado:** ML informa precio para ganar $ 10.800 en la de 6 cuotas y $ 11.900 en la de 12.
    - 6 cuotas: 10.800 × 0,81 = 8.748; 8.748 ÷ 8.600 − 1 = +1,72 %, menos margen 0 → cierra.
    - 12 cuotas: 11.900 × 0,73 = 8.687; 8.687 ÷ 8.600 − 1 = +1,01 %, menos margen 3 % = −1,99 % → no cierra.
-   - Destacado: **6 cuotas**, el comprador paga **$ 10.800**; la publicación va a 10.800 × 1,10 = **$ 11.880** y entra a las mismas campañas que la Clásica a $ 10.800. Las de 3, 9 y 12 cuotas quedan a $ 10.361, $ 11.316 y $ 12.134, sin campaña.
+   - Destacado: **6 cuotas**, el comprador paga **$ 10.800**; la publicación va al tachado del modelo, **$ 11.000**, y entra a las mismas campañas que la Clásica a $ 10.800. Las de 3 cuotas ($ 10.361) también van a $ 11.000 y por campaña a su precio; las de 9 y 12 ($ 11.316 y $ 12.134) quedan a su precio sin campaña, porque el tachado no les deja el 5 % de descuento.
 8. **Volumen** (rango general sin tope: 3+ u. −5 %, 6+ u. −10 %): en la Clásica, 3+ u. a $ 9.500; el escalón de 6 no va porque el stock es 4 (con la regla de stock prendida). En la destacada: 3+ u. a 10.800 × 0,95 = $ 10.260.
 
 ## Preguntas frecuentes
