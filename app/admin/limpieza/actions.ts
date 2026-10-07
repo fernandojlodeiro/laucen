@@ -6,7 +6,7 @@ import { sosVos } from "@/lib/admin";
 import { orgRequerida, sesionRequerida } from "@/lib/tenancy";
 import { motivoErp } from "@/lib/erp/base";
 import { deFondo } from "@/lib/tareas-fondo";
-import { prepararNotebooksMl, textoResultadoMl, limpiarNotebooksLaucen, revisarNotebooksMl } from "@/lib/limpieza-notebooks";
+import { prepararNotebooksMl, textoResultadoMl, limpiarNotebooksLaucen, revisarNotebooksMl, traerDescripcionesFaltantes } from "@/lib/limpieza-notebooks";
 
 async function portero() {
   if (!(await sosVos())) redirect("/panel");
@@ -39,6 +39,17 @@ export async function accionNotebooksMl(fd: FormData) {
     const r = await prepararNotebooksMl(s.org.id, canal, s.usuario.id, Date.now() + 270_000);
     revalidatePath("/admin/limpieza");
     return textoResultadoMl(r);
+  });
+}
+
+/** Trae de ML (sólo lectura) la descripción de los productos activos que no tienen. De fondo. */
+export async function accionDescripcionesMl() {
+  await portero();
+  const s = await sesionRequerida();
+  return deFondo(s, "descripciones-ml", "Descripciones de Mercado Libre", async () => {
+    const r = await traerDescripcionesFaltantes(s.org.id, Date.now() + 270_000);
+    revalidatePath("/admin/limpieza");
+    return r;
   });
 }
 

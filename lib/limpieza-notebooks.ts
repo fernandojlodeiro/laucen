@@ -211,3 +211,49 @@ export async function limpiarNotebooksLaucen(org: string): Promise<{ borradas: n
     return { borradas: (kits.rowCount ?? 0) + (simples.rowCount ?? 0), archivadas: archivadas.rowCount ?? 0 };
   });
 }
+
+// ── Descripciones que faltan (Fer, 7/10) ─────────────────────────────────
+// La descripción larga de una publicación no viene en la copia que Laucen
+// guarda de ML (meli_item): se pide aparte (/items/{id}/description, sólo
+// lectura). Para la web hace falta en el producto.
+
+/** A cada producto activo sin descripción le pone la de una de sus publicaciones de ML
+ *  (primero las comunes, después las de catálogo; la primera que tenga texto). */
+export async function traerDescripcionesFaltantes(org: string, hastaMs: number): Promise<string> {
+  const filas = await consulta<{ producto_id: number; canal_id: number; item_id: string }>(`
+    select distinct v.producto_id::int, i.canal_id::int, i.item_id, ((i.datos_externos -> 'ml' ->> 'catalog_listing') = 'true') cat
+      from producto p join variacion v on v.producto_id = p.id join publicacion pu on pu.variacion_id = v.id join meli_item i on i.publicacion_id = pu.id
+     where p.organizacion_id = $1 and p.estado = 'activo' and coalesce(trim(p.descripcion), '') = ''
+     order by 1, cat, i.item_id`, [org]);
+  const porProducto = new Map<number, { canal_id: number; item_id: string }[]>();
+  for (const f of filas) porProducto.set(f.producto_id, [...(porProducto.get(f.producto_id) ?? []), f]);
+  const cuentas = new Map<number, CuentaMl | null>();
+  let puestas = 0, sinTexto = 0, quedan = 0;
+  for (const [productoId, items] of porProducto) {
+    if (Date.now() > hastaMs) { quedan++; continue; }
+    let texto: string | null = null;
+    for (const it of items) {
+      if (!cuentas.has(it.canal_id)) cuentas.set(it.canal_id, await cuentaDelCanal(org, it.canal_id));
+      const cuenta = cuentas.get(it.canal_id);
+      if (!cuenta || cuenta.estado !== "activa") continue;
+      const d = await ml<{ plain_text?: string }>(cuenta, "GET", `/items/${it.item_id}/description`);
+      texto = d.status === 200 ? d.datos?.plain_text?.trim() || null : null;
+      if (texto) break;
+    }
+    if (!texto) { sinTexto++; continue; }
+    await consulta("update producto set descripcion = $3 where id = $1 and organizacion_id = $2 and coalesce(trim(descripcion), '') = ''", [productoId, org, texto]);
+    puestas++;
+  }
+  const n = (x: number) => x.toLocaleString("es-AR");
+  return `Descripciones traídas de Mercado Libre: ${n(puestas)}.${sinTexto ? ` ${n(sinTexto)} productos no tienen descripción en ninguna de sus publicaciones.` : ""}`
+    + (quedan ? ` No alcanzó el tiempo: quedan ${n(quedan)}, apretá de nuevo.` : "");
+}
+
+/** Cuántos productos activos no tienen descripción pero sí publicación de ML vinculada. */
+export async function contarSinDescripcion(org: string): Promise<number> {
+  const r = await consulta<{ n: number }>(`
+    select count(*)::int n from producto p
+     where p.organizacion_id = $1 and p.estado = 'activo' and coalesce(trim(p.descripcion), '') = ''
+       and exists (select 1 from variacion v join publicacion pu on pu.variacion_id = v.id join meli_item i on i.publicacion_id = pu.id where v.producto_id = p.id)`, [org]);
+  return r[0]?.n ?? 0;
+}

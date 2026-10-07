@@ -5,10 +5,10 @@ import { orgRequerida } from "@/lib/tenancy";
 import { consulta } from "@/lib/erp/base";
 import { formatearNumero } from "@/lib/numeros";
 import { esNotebook } from "@/lib/mercadolibre/es-notebook";
-import { SKUS_CONSERVAR, seConserva, notebooksLaucenFuera, revisionesGuardadas, type Decision, type Revision } from "@/lib/limpieza-notebooks";
+import { SKUS_CONSERVAR, seConserva, notebooksLaucenFuera, revisionesGuardadas, contarSinDescripcion, type Decision, type Revision } from "@/lib/limpieza-notebooks";
 import { SUAVE } from "@/app/botones";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
-import { accionNotebooksLaucen, accionNotebooksMl, accionRevisarNotebooksMl } from "./actions";
+import { accionDescripcionesMl, accionNotebooksLaucen, accionNotebooksMl, accionRevisarNotebooksMl } from "./actions";
 import { BotonBorrar } from "./Botones";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +52,7 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
     else c.borrar++;
     porCuenta.set(i.canal_id, c);
   }
-  const [enLaucen, revisiones] = await Promise.all([notebooksLaucenFuera(org), revisionesGuardadas(org)]);
+  const [enLaucen, revisiones, sinDescripcion] = await Promise.all([notebooksLaucenFuera(org), revisionesGuardadas(org), contarSinDescripcion(org)]);
 
   return (
     <main className="max-w-3xl mx-auto p-4 space-y-4">
@@ -68,6 +68,16 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
           Las unidades que la carga del 3/10 sacó de ubicaciones reales del depósito, para cotejarlas con lo que hay en las estanterías.
         </p>
         <Link href="/admin/limpieza/ajustes" className={SUAVE}>Ver ajustes a revisar</Link>
+      </section>
+
+      <section className={CAJA}>
+        <h2 className="font-bold text-[#16577F]">Descripciones de Mercado Libre que faltan en los productos</h2>
+        <p className="text-sm text-[#5C6B76]">
+          La descripción larga de una publicación no viene en la copia que Laucen guarda de Mercado Libre: se pide aparte. Este botón
+          trae, para cada producto activo sin descripción, la de una de sus publicaciones vinculadas (primero las comunes, después las de
+          catálogo). Sólo lee de Mercado Libre; no pisa una descripción que ya esté cargada. Hoy hay {n(sinDescripcion)} productos así.
+        </p>
+        <BotonTarea accion={accionDescripcionesMl} tipo="descripciones-ml" clase={SUAVE} texto="Traer descripciones de ML" />
       </section>
 
       <section className={CAJA}>
