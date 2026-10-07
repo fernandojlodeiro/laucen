@@ -18,8 +18,14 @@ export function filtrosPublicaciones(sp: SP) {
     inactivos: verInactivos(sp),
     // En revisión en ML (Fer, 5/10): todas, sólo las que son por el precio, o por otro motivo.
     revision: sp.revision === "todas" || sp.revision === "precio" || sp.revision === "otro" ? sp.revision : null,
+    // De catálogo o no (Fer, 7/10): dos casillas; con una sola tildada filtra, con las dos (o ninguna) van todas.
+    catalogo: sp.catalogo === "1",
+    comunes: sp.comunes === "1",
   };
 }
+
+/** Si la publicación de ML es de catálogo (la que compite en la página del producto de ML). */
+export const ES_CATALOGO = "coalesce((mi.datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false)";
 
 export const DISPONIBLE_PUBLICACION = "stock_disponible_canal($1, v.id, c.id)";
 
@@ -33,6 +39,39 @@ export const TEXTO_ESTADO_ML: Record<string, string> = {
 export const textoEstadoMl = (e: string | null | undefined) => (e ? TEXTO_ESTADO_ML[e] ?? e : null);
 const UMBRAL = "umbral_pausa_de($1, v.id, c.id)";
 export const PLAN_ML: Record<string, string> = { gold_pro: "Premium", gold_special: "Clásica", free: "Gratuita", gold: "Oro", silver: "Plata", bronze: "Bronce" };
+
+// El plan de cuotas de la publicación (Fer, 7/10): la Premium puede ser la
+// común o una de las campañas de cuotas de ML (3x/9x/12x_campaign), que vienen
+// en las marcas (tags) o en sale_terms (INSTALLMENTS_CAMPAIGN). Mismos códigos
+// que lib/precios-ml/motor.ts: clasica, premium, 3x_campaign…
+export const PLAN_PUBLICACION = `(case coalesce(mi.tipo, pu.tipo_publicacion)
+   when 'gold_special' then 'clasica'
+   when 'gold_pro' then coalesce((select t from unnest(array['12x_campaign', '9x_campaign', '3x_campaign']) t
+        where coalesce(mi.datos_externos -> 'ml' -> 'tags', '[]'::jsonb) ? t
+           or exists (select 1 from jsonb_array_elements(coalesce(mi.datos_externos -> 'ml' -> 'sale_terms', '[]'::jsonb)) st
+                       where st ->> 'id' = 'INSTALLMENTS_CAMPAIGN' and st ->> 'value_name' = t)
+        limit 1), 'premium')
+   else coalesce(mi.tipo, pu.tipo_publicacion) end)`;
+// Cuántas cuotas ve el comprador en ese plan, si la cuenta lo tiene cargado en Precios en ML (no siempre coincide con el nombre).
+export const CUOTAS_VISIBLES_PUBLICACION = `(select k.cuotas_visibles from ml_plan_config k
+   where k.canal_id = pu.canal_id and k.nivel = 'general' and k.plan = ${PLAN_PUBLICACION})`;
+const NOMBRE_PLAN: Record<string, string> = { clasica: "Clásica", premium: "Premium", "3x_campaign": "Premium 3x", "9x_campaign": "Premium 9x", "12x_campaign": "Premium 12x" };
+/** «Premium 3x» (el nombre interno de ML, para empatarlo con lo que se ve en ML) y, si se sabe, «ve 6 cuotas». */
+export function textoPlan(plan: string | null | undefined, cuotasVisibles?: number | null) {
+  if (!plan) return null;
+  const nombre = NOMBRE_PLAN[plan] ?? PLAN_ML[plan] ?? plan;
+  return cuotasVisibles ? `${nombre} · ve ${cuotasVisibles} cuotas` : nombre;
+}
+export function PlanPublicacion({ plan, cuotas }: { plan: string | null | undefined; cuotas?: number | null }) {
+  if (!plan) return <>—</>;
+  const tag = plan.endsWith("_campaign") ? plan : plan === "premium" ? "sin campaña de cuotas" : null;
+  return (
+    <span title={tag ? `En Mercado Libre: ${tag}` : undefined}>
+      {NOMBRE_PLAN[plan] ?? PLAN_ML[plan] ?? plan}
+      {cuotas ? <span className="block text-[10px] text-[#5C6B76]">el comprador ve {cuotas} cuotas</span> : null}
+    </span>
+  );
+}
 /** El precio publicado (con la campaña ya aplicada: el que paga el cliente), el tachado (si lo hay y es mayor) y la campaña activa. */
 export const PRECIO_PUBLICACION = "coalesce(mi.precio, pu.precio_canal)::float8";
 export const TACHADO_PUBLICACION = `(case when coalesce(nullif(mi.datos_externos -> 'ml' ->> 'original_price', '')::numeric, pu.precio_tachado) > coalesce(mi.precio, pu.precio_canal)
@@ -57,7 +96,9 @@ export const LISTA_PUBLICACIONES: Lista = {
     { clave: "categoria", titulo: "Categoría", sql: "pu.categoria_externa" },
     { clave: "tipo", titulo: "Tipo de publicación", sql: "pu.tipo_publicacion" },
     { clave: "estado", titulo: "Estado", sql: "pu.estado", valor: (f) => TEXTO_ESTADO_PUBLICACION[f.estado] ?? f.estado },
-    { clave: "plan", titulo: "Plan", sql: "coalesce(mi.tipo, pu.tipo_publicacion)", valor: (f) => (f.plan ? PLAN_ML[f.plan] ?? f.plan : null) },
+    { clave: "catalogo", titulo: "De catálogo", sql: `case when ${ES_CATALOGO} then 'Sí' end` },
+    { clave: "plan", titulo: "Plan", sql: PLAN_PUBLICACION, valor: (f) => textoPlan(f.plan) },
+    { clave: "cuotas_visibles", titulo: "Cuotas que ve el comprador", sql: CUOTAS_VISIBLES_PUBLICACION, orden: false, formato: "entero" },
     { clave: "precio", titulo: "Precio $", sql: PRECIO_PUBLICACION, orden: PRECIO_PUBLICACION, formato: "pesos" },
     { clave: "tachado", titulo: "Precio tachado $", sql: TACHADO_PUBLICACION, orden: false, formato: "pesos" },
     { clave: "campana", titulo: "Campaña activa", sql: CAMPANA_PUBLICACION, orden: false, ancho: 30 },
@@ -77,7 +118,7 @@ export const LISTA_PUBLICACIONES: Lista = {
     campoFecha("sincronizada", "Última sincronización", "pu.ultima_sincronizacion_ts", { hora: true }),
     { clave: "atributos", titulo: "Atributos externos", sql: "case when pu.atributos_externos = '{}'::jsonb then null else pu.atributos_externos::text end", orden: false, ancho: 50 },
   ],
-  enPantalla: ["titulo", "canal", "externo", "categoria", "plan", "precio", "tachado", "campana", "precio_campana", "estado", "estado_ml", "disponible", "stock_ml", "umbral"],
+  enPantalla: ["sku", "titulo", "canal", "externo", "categoria", "plan", "precio", "tachado", "campana", "precio_campana", "estado", "estado_ml", "disponible", "stock_ml", "umbral"],
   consulta: async (ctx, sp) => {
     const f = filtrosPublicaciones(sp);
     const desde = `publicacion pu
@@ -94,8 +135,10 @@ export const LISTA_PUBLICACIONES: Lista = {
          and ($3::text is null or pu.estado = $3)
          and ${sqlBusqueda("$4", ["pu.id::text", "pu.id_externo", "pu.variacion_externa", "coalesce(pu.titulo, titulo_variacion(v.id))", "pu.categoria_externa", "pu.tipo_publicacion",
               "v.sku", "v.codigo_barras", "p.sku_base", "p.titulo"])}
-         and ($6::text is null or (mi.estado = 'under_review' and ($6 = 'todas' or ($6 = 'precio') = coalesce(mm.por_precio, false))))`;
-    const valores: unknown[] = [ctx.org, f.canal, f.estado, parametroBusqueda(f.q, f.comienza), f.inactivos, f.revision];
+         and ($6::text is null or (mi.estado = 'under_review' and ($6 = 'todas' or ($6 = 'precio') = coalesce(mm.por_precio, false))))
+         and ($7::text is null or ($7 = 'catalogo') = ${ES_CATALOGO})`;
+    const tipoCatalogo = f.catalogo === f.comunes ? null : f.catalogo ? "catalogo" : "comunes";
+    const valores: unknown[] = [ctx.org, f.canal, f.estado, parametroBusqueda(f.q, f.comienza), f.inactivos, f.revision, tipoCatalogo];
     // Con algo escrito y la caja "Mostrar inactivos" apagada: si ninguna de un producto activo coincide pero sí
     // alguna de uno inactivo, se muestran igual (Fer).
     if (f.q && !f.inactivos) {

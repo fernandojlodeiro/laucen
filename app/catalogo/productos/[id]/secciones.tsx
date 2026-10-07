@@ -26,7 +26,7 @@ import SubirFoto from "../SubirFoto";
 import AltaNueva from "@/app/componentes/AltaNueva";
 import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import { caminoDeFamilia } from "@/lib/erp/familias";
-import { UNIR_MELI_ITEM, textoEstadoMl } from "@/app/catalogo/publicaciones/lista";
+import { UNIR_MELI_ITEM, textoEstadoMl, PlanPublicacion, PLAN_PUBLICACION, CUOTAS_VISIBLES_PUBLICACION } from "@/app/catalogo/publicaciones/lista";
 import { UNIR_MODERACION } from "@/lib/mercadolibre/moderaciones";
 import { canalesWebDe } from "@/lib/catalogo/web";
 import { Interruptor } from "@/app/radar/Piezas";
@@ -966,12 +966,14 @@ export async function SeccionPublicaciones({ s, p }: Props) {
   const webs = await canalesWebDe(s.org.id, p.id);
   // Los precios de las publicaciones son en pesos: en dólares, al tipo de cambio de hoy.
   const tcHoy = await tcParaVista(s.org.id, s.moneda);
-  const filas = await consulta<{ id: number; sku: string; canal: string; id_externo: string | null; titulo: string; tipo_publicacion: string | null; estado: string; sincro: string | null;
+  const filas = await consulta<{ id: number; sku: string; canal: string; id_externo: string | null; titulo: string; tipo_publicacion: string | null; plan: string | null; cuotas_visibles: number | null; estado: string; sincro: string | null;
     precio: number | null; precio_tachado: number | null; stock_ml: number | null; estado_ml: string | null; enlace: string | null; disp_web: number | null; vendidos: number | null; motivo: string | null; por_precio: boolean | null }>(`
     select pu.id::int, v.sku, c.nombre canal, pu.id_externo,
            -- La publicación en ML (Fer, 5/10): su dirección, o la que arma ML con el número.
            case when c.tipo = 'mercadolibre' and pu.id_externo is not null
-                then coalesce(mi.permalink, 'https://articulo.mercadolibre.com.ar/' || regexp_replace(pu.id_externo, '^([A-Z]{3})(\\d+)$', '\\1-\\2')) end enlace, coalesce(pu.titulo, titulo_variacion(v.id)) titulo, pu.tipo_publicacion, pu.estado,
+                then coalesce(mi.permalink, 'https://articulo.mercadolibre.com.ar/' || regexp_replace(pu.id_externo, '^([A-Z]{3})(\\d+)$', '\\1-\\2')) end enlace, coalesce(pu.titulo, titulo_variacion(v.id)) titulo, pu.tipo_publicacion,
+           -- El plan de cuotas (Fer, 7/10), para empatarlo con lo que se ve en ML.
+           ${PLAN_PUBLICACION} plan, ${CUOTAS_VISIBLES_PUBLICACION}::int cuotas_visibles, pu.estado,
            pu.precio_canal::float8 precio, pu.precio_tachado::float8, mi.stock stock_ml, mi.estado estado_ml,
            -- Vendidos en ML (lo que informa ML de la publicación); sin ventas, 0. La web no tiene.
            case when c.tipo = 'mercadolibre' then coalesce(mi.vendidos, 0) end::int vendidos,
@@ -1017,7 +1019,7 @@ export async function SeccionPublicaciones({ s, p }: Props) {
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={TH}>Canal</th><th className={TH}>Variación</th><th className={TH}>Id externo</th><th className={TH}>Título</th><th className={TH}>Tipo</th><th className={THN}>Precio</th><th className={TH}>Estado</th><th className={THN}>Stock en ML</th><th className={THN}>Vendidos en ML</th><th className={TH}>Última sincronización</th></tr>
+            <tr><th className={TH}>Canal</th><th className={TH}>Variación</th><th className={TH}>Id externo</th><th className={TH}>Título</th><th className={TH}>Plan</th><th className={THN}>Precio</th><th className={TH}>Estado</th><th className={THN}>Stock en ML</th><th className={THN}>Vendidos en ML</th><th className={TH}>Última sincronización</th></tr>
           </thead>
           <tbody>
             {filas.length === 0 && <tr><td colSpan={10} className={`${TD} text-[#5C6B76]`}>Ninguna variación de este producto está publicada.</td></tr>}
@@ -1032,7 +1034,7 @@ export async function SeccionPublicaciones({ s, p }: Props) {
                 <td className={TD}>{f.enlace
                   ? <a href={f.enlace} target="_blank" rel="noopener noreferrer" className="hover:text-[#16577F] hover:underline">{f.titulo} ↗</a>
                   : f.titulo}</td>
-                <td className={TD}>{f.tipo_publicacion ?? "—"}</td>
+                <td className={`${TD} whitespace-nowrap`}>{f.plan ? <PlanPublicacion plan={f.plan} cuotas={f.cuotas_visibles} /> : f.tipo_publicacion ?? "—"}</td>
                 <td className={TDN}>
                   {/* El precio de la publicación es el de venta; el tachado, el de antes de la campaña. */}
                   {f.precio_tachado != null && <span className="line-through text-[#5C6B76] mr-1.5">{enMoneda(f.precio_tachado, s.moneda, tcHoy)}</span>}

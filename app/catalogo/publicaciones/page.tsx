@@ -11,7 +11,7 @@ import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { VERDE, SUAVE } from "@/app/botones";
 import CampoNumero from "@/app/componentes/CampoNumero";
-import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
+import BuscadorVivo, { FiltroVivo, CasillaViva } from "@/app/componentes/BuscadorVivo";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { BotonConfirmar } from "@/app/radar/Cliente";
 import { formatear, tcDelDia } from "@/lib/moneda";
@@ -20,7 +20,7 @@ import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO,
 } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
-import { LISTA_PUBLICACIONES, DISPONIBLE_PUBLICACION, textoEstadoMl, PLAN_ML, PRECIO_PUBLICACION, TACHADO_PUBLICACION, CAMPANA_PUBLICACION, PRECIO_CAMPANA_PUBLICACION } from "./lista";
+import { LISTA_PUBLICACIONES, DISPONIBLE_PUBLICACION, textoEstadoMl, PlanPublicacion, PLAN_PUBLICACION, CUOTAS_VISIBLES_PUBLICACION, ES_CATALOGO, PRECIO_PUBLICACION, TACHADO_PUBLICACION, CAMPANA_PUBLICACION, PRECIO_CAMPANA_PUBLICACION } from "./lista";
 import { accionGuardarPublicacion, accionPausarPublicacion, accionSacarPausa, accionCorregirPrecio, accionLeerMotivos } from "./acciones";
 import { verInactivos } from "@/app/componentes/Inactivos";
 
@@ -30,14 +30,14 @@ export const maxDuration = 120;
 
 const BASE = "/catalogo/publicaciones";
 
-type SP = { canal?: string; estado?: string; revision?: string; precio?: string; q?: string; contiene?: string; inactivos?: string; editar?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+type SP = { canal?: string; estado?: string; revision?: string; catalogo?: string; comunes?: string; precio?: string; q?: string; contiene?: string; inactivos?: string; editar?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 type Fila = {
   id: number; variacion_id: number; producto_id: number; sku: string; titulo_var: string; foto: string | null; canal_id: number; canal: string; canal_tipo: string;
   id_externo: string | null; titulo: string | null; categoria_externa: string | null; tipo_publicacion: string | null;
   estado: string; umbral_pausa: number | null; disponible: number; umbral_efectivo: number;
   sincronizada: string | null; stock_ml: number | null; estado_ml: string | null;
-  precio: number | null; tachado: number | null; campana: string | null; precio_campana: number | null; plan: string | null; pausada_manual: boolean;
+  precio: number | null; tachado: number | null; campana: string | null; precio_campana: number | null; plan: string | null; cuotas_visibles: number | null; catalogo: boolean; pausada_manual: boolean;
   motivo: string | null; solucion: string | null; por_precio: boolean | null; corregido: string | null; prohibida: boolean; motivo_leido: boolean;
 };
 
@@ -57,7 +57,8 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
   const revision = sp.revision === "todas" || sp.revision === "precio" || sp.revision === "otro" ? sp.revision : null;
   const corrigiendo = Number(sp.precio) || 0;
   const inactivos = verInactivos(sp);
-  const filtros = { canal: canalId, estado, revision, q, contiene: cont, inactivos: inactivos ? "1" : null, p: sp.p, orden: sp.orden, dir: sp.dir };
+  const catalogo = sp.catalogo === "1", comunes = sp.comunes === "1";
+  const filtros = { canal: canalId, estado, revision, catalogo: catalogo ? "1" : null, comunes: comunes ? "1" : null, q, contiene: cont, inactivos: inactivos ? "1" : null, p: sp.p, orden: sp.orden, dir: sp.dir };
   const aqui = url(BASE, filtros);
 
   const canales = await consulta<{ id: number; nombre: string }>(
@@ -69,7 +70,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
     campos: `pu.id::int, v.id::int variacion_id, p.id::int producto_id, v.sku, titulo_variacion(v.id) titulo_var, c.id::int canal_id, c.nombre canal, c.tipo canal_tipo,
            pu.id_externo, pu.titulo, pu.categoria_externa, pu.tipo_publicacion, pu.estado, pu.umbral_pausa,
            ${DISPONIBLE} disponible, umbral_pausa_de($1, v.id, c.id) umbral_efectivo, mi.stock stock_ml, mi.estado estado_ml, pu.pausada_manual,
-           ${PRECIO_PUBLICACION} precio, ${TACHADO_PUBLICACION} tachado, ${CAMPANA_PUBLICACION} campana, ${PRECIO_CAMPANA_PUBLICACION} precio_campana, coalesce(mi.tipo, pu.tipo_publicacion) plan,
+           ${PRECIO_PUBLICACION} precio, ${TACHADO_PUBLICACION} tachado, ${CAMPANA_PUBLICACION} campana, ${PRECIO_CAMPANA_PUBLICACION} precio_campana, ${PLAN_PUBLICACION} plan, ${CUOTAS_VISIBLES_PUBLICACION}::int cuotas_visibles, ${ES_CATALOGO} catalogo,
            to_char(pu.ultima_sincronizacion_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') sincronizada,
            coalesce((select pf.url from producto_foto pf where pf.producto_id = p.id order by pf.orden, pf.id limit 1), mi.foto) foto,
            mm.motivo, mm.solucion, mm.por_precio, mm.item_id is not null motivo_leido,
@@ -78,8 +79,8 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
     desde: base.desde,
     donde: base.donde,
     orden: leerOrden(sp, {
-      titulo: "coalesce(pu.titulo, p.titulo)", canal: "c.nombre", externo: "pu.id_externo", categoria: "pu.categoria_externa",
-      estado: "pu.estado", plan: "coalesce(mi.tipo, pu.tipo_publicacion)", precio: PRECIO_PUBLICACION, disponible: DISPONIBLE, umbral: "umbral_pausa_de($1, v.id, c.id)", stock_ml: "mi.stock",
+      sku: "v.sku", titulo: "coalesce(pu.titulo, p.titulo)", canal: "c.nombre", externo: "pu.id_externo", categoria: "pu.categoria_externa",
+      estado: "pu.estado", plan: PLAN_PUBLICACION, precio: PRECIO_PUBLICACION, disponible: DISPONIBLE, umbral: "umbral_pausa_de($1, v.id, c.id)", stock_ml: "mi.stock",
     }, base.orden),
   }, base.valores, sp);
 
@@ -109,18 +110,21 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
           <option value="">En revisión o no</option><option value="todas">En revisión en ML</option>
           <option value="precio">En revisión por precio</option><option value="otro">En revisión por otro motivo</option>
         </FiltroVivo>
+        {/* De catálogo o no (Fer, 7/10): con una sola tildada filtra; con las dos (o ninguna), todas. */}
+        <CasillaViva parametro="catalogo" activo={catalogo} etiqueta="De catálogo" ayuda="Las publicaciones que compiten en la página del producto de Mercado Libre" />
+        <CasillaViva parametro="comunes" activo={comunes} etiqueta="Clásicas (no catálogo)" ayuda="Las publicaciones propias, fuera del catálogo de Mercado Libre" />
       </div>
 
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH} /><ThOrden col="titulo">Título</ThOrden><ThOrden col="canal" porDefecto>Canal</ThOrden><ThOrden col="externo">Id externo</ThOrden>
+              <th className={TH} /><ThOrden col="sku">SKU</ThOrden><ThOrden col="titulo">Título</ThOrden><ThOrden col="canal" porDefecto>Canal</ThOrden><ThOrden col="externo">Id externo</ThOrden>
               <ThOrden col="categoria">Categoría</ThOrden><ThOrden col="plan">Plan</ThOrden><ThOrden col="precio" n>Precio</ThOrden><ThOrden col="estado">Estado</ThOrden><ThOrden col="disponible" n>Disponible</ThOrden><ThOrden col="stock_ml" n>Stock en ML</ThOrden><ThOrden col="umbral" n>Umbral</ThOrden><th />
             </tr>
           </thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={12} className={`${TD} text-[#5C6B76]`}>{canalId || estado || revision || q ? "Nada coincide con el filtro." : "Todavía no hay publicaciones: se traen solas de Mercado Libre al vincular la cuenta."}</td></tr>}
+            {filas.length === 0 && <tr><td colSpan={13} className={`${TD} text-[#5C6B76]`}>{canalId || estado || revision || catalogo || comunes || q ? "Nada coincide con el filtro." : "Todavía no hay publicaciones: se traen solas de Mercado Libre al vincular la cuenta."}</td></tr>}
             {filas.map((f) => (
               <tr key={f.id} className={`${TR} ${editar === f.id ? "bg-[#FAFBFC]" : ""}`}>
                 <td className={`${TD} w-[60px]`}>
@@ -131,6 +135,8 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                       : <span className="block h-[52px] w-[52px] rounded border border-[#E3E9F0] bg-[#FAFBFC]" />}
                   </Link>
                 </td>
+                {/* SKU, MLA y título siempre a la vista (Fer, 7/10). */}
+                <td className={`${TD} font-mono whitespace-nowrap`}><Link href={`/catalogo/productos/${f.producto_id}`} className="text-[#16577F] hover:underline">{f.sku}</Link></td>
                 <td className={TD}>
                   <Link href={`/catalogo/productos/${f.producto_id}`} className="hover:underline">{f.titulo ?? <span className="text-[#5C6B76]">{f.titulo_var}</span>}</Link>
                   {editar === f.id && f.canal_tipo !== "mercadolibre" && (
@@ -143,7 +149,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                   ? <><Link href={historialPublicacion(f.id_externo)} className="text-[#16577F] hover:underline" title="Historial de esta publicación">{f.id_externo}</Link> <a href={enlaceMl(f.id_externo)} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline" title="Ver en Mercado Libre">↗</a></>
                   : f.id_externo ?? "—"}</td>
                 <td className={TD}>{f.categoria_externa || "—"}</td>
-                <td className={`${TD} whitespace-nowrap`}>{f.plan ? PLAN_ML[f.plan] ?? f.plan : "—"}</td>
+                <td className={`${TD} whitespace-nowrap`}><PlanPublicacion plan={f.plan} cuotas={f.cuotas_visibles} />{f.catalogo && <span className="block text-[10px] text-[#16577F]">Catálogo</span>}</td>
                 <td className={TDN}>
                   {corrigiendo === f.id ? (
                     // Corregir el precio de una en revisión: sale a ML con este clic (por la cola).
