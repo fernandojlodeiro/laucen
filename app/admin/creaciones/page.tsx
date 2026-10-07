@@ -11,7 +11,7 @@ import { SUAVE, PRIMARIO } from "@/app/botones";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import { CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import { accionPrepararPruebaPlanes, accionRevisarCatalogo, accionPrepararCatalogo } from "./actions";
-import { filasCatalogo, textoEstadoCatalogo } from "@/lib/mercadolibre/catalogo-entrada";
+import { filasCatalogo, textoEstadoCatalogo, textoMotivoCatalogo } from "@/lib/mercadolibre/catalogo-entrada";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -147,7 +147,7 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
                   <td className={TD}>
                     <span className={f.estado === "READY_FOR_OPTIN" ? "text-[#167655] font-semibold" : ""}>{f.estado ? textoEstadoCatalogo(f.estado) : "Sin revisar"}</span>
                     {f.pedido && <span className="block text-[11px] text-[#16577F]">Entrada pedida (ver la cola)</span>}
-                    {f.motivo && <span className="block text-[11px] text-[#5C6B76]">{f.motivo}</span>}
+                    {textoMotivoCatalogo(f.motivo) && <span className="block text-[11px] text-[#5C6B76]">{textoMotivoCatalogo(f.motivo)}</span>}
                   </td>
                   <td className={TDN}>{f.leido ? fechaHora(f.leido) : "—"}</td>
                 </tr>

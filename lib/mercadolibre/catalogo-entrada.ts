@@ -26,6 +26,13 @@ export const ESTADO_CATALOGO: Record<string, string> = {
   CATALOG_LISTING: "Ya es una publicación de catálogo",
   COMPETING: "Ya compite en el catálogo",
 };
+/** Los motivos (reason) que da ML, en criollo; los que ya dice el estado no se repiten. */
+const MOTIVO_CATALOGO: Record<string, string | null> = {
+  item_catalog_product_id_null: null,
+  item_has_item_relations: "ya tiene su publicación de catálogo",
+};
+export const textoMotivoCatalogo = (m: string | null) =>
+  m ? m.split(" · ").map((x) => (Object.hasOwn(MOTIVO_CATALOGO, x) ? MOTIVO_CATALOGO[x] : x)).filter(Boolean).join(" · ") || null : null;
 export const textoEstadoCatalogo = (e: string | null) => (e ? ESTADO_CATALOGO[e] ?? e : "—");
 
 export type FilaCatalogo = {
