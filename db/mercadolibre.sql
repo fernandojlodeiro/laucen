@@ -572,3 +572,18 @@ create table if not exists ml_catalogo_elegibilidad (
   primary key (canal_id, item_id)
 );
 alter table ml_catalogo_elegibilidad enable row level security;
+
+-- El producto del catálogo de ML que se encontró para un SKU buscando por su
+-- código de barras (GET /products/search?product_identifier=…), para intentar la
+-- entrada al catálogo de las publicaciones que ML no tiene asociadas (Fer, 7/10).
+create table if not exists ml_catalogo_sku (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  sku              text not null,
+  gtin             text,
+  producto         text,
+  nombre           text,
+  respuesta        jsonb,
+  leido_ts         timestamptz not null default now(),
+  primary key (organizacion_id, sku)
+);
+alter table ml_catalogo_sku enable row level security;

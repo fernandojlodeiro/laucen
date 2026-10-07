@@ -11,7 +11,7 @@ import { SUAVE, PRIMARIO } from "@/app/botones";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import { CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import { accionPrepararPruebaPlanes, accionRevisarCatalogo, accionPrepararCatalogo } from "./actions";
-import { filasCatalogo, textoEstadoCatalogo, textoMotivoCatalogo } from "@/lib/mercadolibre/catalogo-entrada";
+import { filasCatalogo, sePuedePedir, textoEstadoCatalogo, textoMotivoCatalogo } from "@/lib/mercadolibre/catalogo-entrada";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -30,7 +30,7 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
   const sp = await searchParams;
   const org = (await orgRequerida()).id;
   const [{ filas, estimada }, catalogo] = await Promise.all([propuestaPrueba(org), filasCatalogo(org)]);
-  const pueden = catalogo.filter((f) => f.estado === "READY_FOR_OPTIN" && f.catalog_product_id && !f.pedido).length;
+  const pueden = catalogo.filter(sePuedePedir).length;
   const faltan = filas.filter((f) => !f.existe).length;
   // Cómo quedaron los lotes de esta prueba en la cola.
   const enCola = await consulta<{ item_id: string; canal: string; estado: string; lote: number | null; error: string | null; respuesta: { id?: string; otras?: string[] } | null; ts: string }>(`
@@ -121,7 +121,10 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
         <h2 className="font-bold text-[#16577F]">Catálogo: ¿pueden entrar a competir?</h2>
         <p className="text-sm text-[#5C6B76]">
           Las publicaciones comunes (no de catálogo) de estas notebooks, en todas las cuentas. <b>«Revisar catálogo»</b> le pregunta a
-          Mercado Libre, una por una, si puede entrar a competir en el catálogo y contra qué producto (sólo lee, no cambia nada; corre de fondo).
+          Mercado Libre, una por una, si puede entrar a competir en el catálogo y contra qué producto; para los modelos sin producto conocido, lo
+          busca en el catálogo por su código de barras (sólo lee, no cambia nada; corre de fondo). Las que Mercado Libre no tiene asociadas pero
+          tienen un producto conocido (de otra publicación nuestra del mismo modelo, o encontrado por código de barras) se pueden <b>intentar</b>:
+          Mercado Libre puede rechazarlas, y el motivo queda en la cola.
           <b> «Preparar entrada al catálogo»</b> deja en la cola, un lote por cuenta, las que pueden entrar: Mercado Libre crea la publicación
           de catálogo, que comparte el stock con la común. No sale nada hasta tu clic en la cola. Las publicaciones nuevas de la prueba
           aparecen acá cuando Laucen las trae de Mercado Libre.
@@ -143,10 +146,14 @@ export default async function Creaciones({ searchParams }: { searchParams: Promi
                   <td className={`${TD} font-mono`}>{f.sku}</td>
                   <td className={`${TD} font-mono whitespace-nowrap`}><Link href={historialPublicacion(f.item_id)} className="text-[#16577F] hover:underline">{f.item_id}</Link> <a href={enlaceMl(f.item_id)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a></td>
                   <td className={TD}>{f.tipo === "gold_special" ? "Clásica" : f.tipo === "gold_pro" ? "Premium" : f.tipo}</td>
-                  <td className={`${TD} font-mono`}>{f.catalog_product_id ?? "—"}</td>
+                  <td className={TD}>
+                    <span className="font-mono">{f.catalog_product_id ?? (f.sugerido ? f.sugerido : "—")}</span>
+                    {!f.catalog_product_id && f.sugerido && <span className="block text-[11px] text-[#5C6B76]">por {f.sugerido_como}{f.sugerido_nombre ? `: ${f.sugerido_nombre}` : ""}</span>}
+                  </td>
                   <td className={TD}>
                     <span className={f.estado === "READY_FOR_OPTIN" ? "text-[#167655] font-semibold" : ""}>{f.estado ? textoEstadoCatalogo(f.estado) : "Sin revisar"}</span>
                     {f.pedido && <span className="block text-[11px] text-[#16577F]">Entrada pedida (ver la cola)</span>}
+                    {!f.pedido && f.estado === "CATALOG_PRODUCT_ID_NULL" && f.sugerido && <span className="block text-[11px] text-[#8a6100]">Se puede intentar con el producto conocido</span>}
                     {textoMotivoCatalogo(f.motivo) && <span className="block text-[11px] text-[#5C6B76]">{textoMotivoCatalogo(f.motivo)}</span>}
                   </td>
                   <td className={TDN}>{f.leido ? fechaHora(f.leido) : "—"}</td>
