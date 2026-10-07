@@ -121,6 +121,13 @@ export function atributosNoModificables(datos: unknown): string[] {
   return causasDe(datos).flatMap((c) => [...(c.message ?? "").matchAll(/Attribute \[([A-Z0-9_]+)\] ignored because it is not modifiable/g)].map((m) => m[1]));
 }
 
+/** Los atributos con un valor que ML no acepta en esa cuenta (ej. PRODUCT_TYPE «Notebook»,
+ *  bitácora 7/10): si no es uno que la categoría exige, se puede mandar sin él. */
+export function atributosInvalidos(datos: unknown): string[] {
+  return causasDe(datos).filter((c) => c.type !== "warning")
+    .flatMap((c) => [...(c.message ?? "").matchAll(/Attribute \[([A-Z0-9_]+)\] is not valid/g)].map((m) => m[1]));
+}
+
 /** Por qué ML rechaza un alta: cada causa con su tipo (error / aviso) y su código, sin repetir. Si hay errores, van primero. */
 export function motivoValidacion(status: number, datos: unknown): string {
   const causas = causasDe(datos).filter((c) => (c.message ?? "").trim());
@@ -146,6 +153,14 @@ export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string
   const nuevos = atributosNoModificables(r.datos).filter((x) => !sacar.includes(x));
   if (r.status === 400 && nuevos.length) {
     sacar = [...sacar, ...nuevos];
+    cuerpo = armar({ sacar });
+    r = await ml(cuenta, "POST", "/items/validate", cuerpo);
+  }
+  // Un atributo con un valor que ML no acepta (ej. PRODUCT_TYPE): se prueba sin él (hasta dos vueltas).
+  for (let vuelta = 0; vuelta < 2 && r.status === 400; vuelta++) {
+    const invalidos = [...atributosInvalidos(r.datos), ...atributosNoModificables(r.datos)].filter((x) => !sacar.includes(x));
+    if (!invalidos.length) break;
+    sacar = [...sacar, ...invalidos];
     cuerpo = armar({ sacar });
     r = await ml(cuenta, "POST", "/items/validate", cuerpo);
   }

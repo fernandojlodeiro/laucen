@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aceptable, armarCuerpoCopia, atributosNoModificables, claveProducto, motivoNoCopiable, motivoValidacion, rotarFotos, variarTitulo, type ItemGuardado } from "@/lib/mercadolibre/copiar";
+import { aceptable, armarCuerpoCopia, atributosInvalidos, atributosNoModificables, claveProducto, motivoNoCopiable, motivoValidacion, rotarFotos, variarTitulo, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 
 // Un item de verdad (BAIRES, 5/10), recortado.
 const ITEM: ItemGuardado = {
@@ -108,4 +108,12 @@ test("aceptable: 2xx, o 400 con sólo avisos; con un error, o sin causas, no", (
   assert.equal(aceptable({ status: 400, datos: { cause: [aviso, { type: "error", message: "falta Modelo" }] } }), false);
   assert.equal(aceptable({ status: 400, datos: { message: "x" } }), false);
   assert.equal(aceptable({ status: 401, datos: { cause: [aviso] } }), false);
+});
+
+test("atributosInvalidos: el atributo con un valor que ML no acepta en la cuenta (los avisos no cuentan)", () => {
+  const datos = { cause: [
+    { type: "error", code: "invalid.item.attribute.values", message: "Attribute [PRODUCT_TYPE] is not valid, item values [(null:Notebook)]" },
+    { type: "warning", message: "Attribute [COLOR] is not valid, item values [(x)]" },
+  ] };
+  assert.deepEqual(atributosInvalidos(datos), ["PRODUCT_TYPE"]);
 });
