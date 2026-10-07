@@ -98,8 +98,8 @@ Título "Pedido 1234 · id externo", con el canal y la fecha y hora debajo. Bloq
 En la ficha, arriba a la derecha (donde va "Nuevo" en otras pantallas):
 
 - **Presupuesto**: **"🖨 Imprimir"**, **"Pasar a pedido"**, **"Cancelar presupuesto"** (pregunta "¿Cancelar el presupuesto?" y aclara que no toca el stock, porque un presupuesto no reserva), **"WhatsApp ↗"** y el **lápiz**.
-- **Pedido** (que no es de Mercado Libre): **"Pasar a presupuesto"** (sólo si se puede, ver Presupuestos), **"Cancelar pedido"**, **"WhatsApp ↗"** (gris si el cliente no tiene teléfono) y el **lápiz** si se puede editar.
-- **Venta de Mercado Libre**: **"Cancelar pedido"** (explica que se cancela desde Mercado Libre).
+- **Pedido** (que no es de Mercado Libre): **"🖨 Imprimir"** (el mismo PDF del presupuesto, con el título "PEDIDO" y sin la vigencia), **"Pasar a presupuesto"** (sólo si se puede, ver Presupuestos), **"Cancelar pedido"**, **"WhatsApp ↗"** (gris si el cliente no tiene teléfono) y el **lápiz** si se puede editar.
+- **Venta de Mercado Libre**: **"🖨 Imprimir"** y **"Cancelar pedido"** (explica que se cancela desde Mercado Libre).
 - **Eliminar (el tacho 🗑, sólo superadministradores)**: en un **presupuesto** o en un **pedido cancelado**, pregunta "¿Eliminar … del todo? No queda nada." con Sí / No. Borra el pedido o presupuesto entero, sin dejar rastros (líneas, historial, pagos sin cobrar, envíos anulados, los movimientos de reserva y liberación de stock). **No se puede** si es de Mercado Libre, si tuvo factura o nota de crédito, un cobro (contabilizado, en Caja y bancos o un pago cobrado), si vendió stock, si tiene un reclamo o una devolución, o un envío sin anular: en esos casos dice por qué.
 
 ### Editar (el lápiz)

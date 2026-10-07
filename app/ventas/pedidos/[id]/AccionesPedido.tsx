@@ -37,12 +37,14 @@ export default async function AccionesPedido({ org, pid, editable, superadmin = 
   const tacho = superadmin && !esMl && (esPresupuesto || p.estado === "cancelado")
     ? <TachoConfirmar accion={accionEliminarPedido} campos={{ pedido_id: String(pid) }} pregunta={`¿Eliminar ${esPresupuesto ? "el presupuesto" : "el pedido"} del todo? No queda nada.`} />
     : null;
+  // Imprimir en PDF (Fer, 7/10): el presupuesto y también el pedido; sólo cambia el título.
+  const imprimir = <a href={`/ventas/pedidos/${pid}/presupuesto`} target="_blank" rel="noopener" className={esPresupuesto ? PRIMARIO : SUAVE}>🖨 Imprimir</a>;
   const lapiz = editable ? <Lapiz href={`/ventas/pedidos/${pid}?editar=ficha`} etiqueta={esPresupuesto ? "Editar el presupuesto" : "Editar el pedido"} /> : null;
 
   if (esMl) {
     const cancelable = !CERRADOS.includes(p.estado) && p.estado !== "despachado";
     const enlaceMl = p.id_externo && /^\d+$/.test(p.id_externo) ? `https://www.mercadolibre.com.ar/ventas/${p.id_externo}/detalle` : null;
-    return cancelable ? <CancelarMl enlace={enlaceMl} /> : null;
+    return <>{imprimir}{cancelable ? <CancelarMl enlace={enlaceMl} /> : null}</>;
   }
 
   // WhatsApp: con el link de seguimiento si es un pedido de la tienda.
@@ -72,7 +74,7 @@ export default async function AccionesPedido({ org, pid, editable, superadmin = 
   if (esPresupuesto) {
     return (
       <>
-        <a href={`/ventas/pedidos/${pid}/presupuesto`} target="_blank" rel="noopener" className={PRIMARIO}>🖨 Imprimir</a>
+        {imprimir}
         <BotonTarea accion={accionPasarAPedido} tipo={`presupuesto-a-pedido-${pid}`} texto="Pasar a pedido" clase={VERDE} campos={{ pedido_id: String(pid) }}
           pregunta="¿Pasarlo a pedido? Reserva el stock y queda con el pago pendiente." />
         {botonCancelar}
@@ -85,6 +87,7 @@ export default async function AccionesPedido({ org, pid, editable, superadmin = 
   const aPresupuesto = !(await motivoNoPresupuesto(org, pid));
   return (
     <>
+      {imprimir}
       {aPresupuesto && (
         <BotonTarea accion={accionPasarAPresupuesto} tipo={`pedido-a-presupuesto-${pid}`} texto="Pasar a presupuesto" clase={SUAVE} campos={{ pedido_id: String(pid) }}
           pregunta="¿Pasarlo a presupuesto? Se libera el stock reservado." />
