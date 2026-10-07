@@ -41,7 +41,7 @@ export const LISTA_PRECIOS: Lista = {
     { clave: "lista", titulo: "Precio de lista $", sql: "pr.lista_ars::float", orden: "pr.lista_ars", formato: "pesos" },
     { clave: "lista_usd", titulo: "Precio de lista US$", sql: "pr.lista_usd::float", orden: "pr.lista_usd", formato: "usd" },
     { clave: "moneda_origen", titulo: "Cargado en", sql: "pr.moneda_origen" },
-    { clave: "descuento", titulo: "Descuento %", sql: "descuento_efectivo($1, v.id)::float", orden: "descuento_efectivo($1, v.id)", formato: "pct" },
+    { clave: "descuento", titulo: "Descuento %", sql: "coalesce(pr.descuento_pct, 0)::float", orden: "coalesce(pr.descuento_pct, 0)", formato: "pct" },
     { clave: "venta", titulo: "Precio de venta $", sql: "pr.venta_ars::float", orden: "pr.venta_ars", formato: "pesos" },
     { clave: "venta_usd", titulo: "Precio de venta US$", sql: "pr.venta_usd::float", orden: "pr.venta_usd", formato: "usd" },
     campoFecha("vigente", "Vigente desde", "pr.vigente_desde", { dia: true }),

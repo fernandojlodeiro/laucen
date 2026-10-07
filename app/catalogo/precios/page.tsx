@@ -97,12 +97,12 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
     const porPrecio = ["lista", "descuento", "venta", "vigente"].includes(sp.orden ?? "");
     const ordenSql = leerOrden(sp, {
       sku: "v.sku", titulo: "coalesce(v.titulo, p.titulo)",
-      lista: "pr.lista_ars", descuento: "descuento_efectivo($1, v.id)", venta: "pr.venta_ars", vigente: "pr.vigente_desde",
+      lista: "pr.lista_ars", descuento: "coalesce(pr.descuento_pct, 0)", venta: "pr.venta_ars", vigente: "pr.vigente_desde",
     }, "v.sku, v.id");
     const valores = [...valoresPrecios(s.org.id, lista.id, sp), desde];
     const campos = `v.id::int, v.producto_id::int, v.sku, titulo_variacion(v.id) titulo, pr.precio_id::int,
              pr.lista_ars, pr.lista_usd, pr.moneda_origen, to_char(pr.vigente_desde, 'DD/MM/YYYY') vigente,
-             descuento_efectivo($1, v.id) descuento, pr.venta_ars, pr.venta_usd,
+             coalesce(pr.descuento_pct, 0) descuento, pr.venta_ars, pr.venta_usd,
              coalesce((select x.lista_id = $2 from precio x where x.id = pr.precio_id), false) propio,
              (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = v.producto_id) fotos`;
     const [lasFilas, [n]] = await Promise.all([
@@ -139,7 +139,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
   }
 
   return (
-    <Pantalla titulo="Listas de precios" subtitulo="El precio de lista (el tachado). El de venta resta el descuento de la variación, del producto o de la familia."
+    <Pantalla titulo="Listas de precios" subtitulo="El precio de lista (el tachado). El de venta resta el descuento de la variación, del producto o de la familia, sólo en las listas que aplican descuentos."
       acciones={<><AccionesExcel lista={LISTA_LISTAS_PRECIOS} org={s.org.id} /><BotonNuevo texto="Nueva lista" /></>}>
       <Avisos sp={sp} />
       <AltaNueva texto="Nueva lista" sinBoton>
