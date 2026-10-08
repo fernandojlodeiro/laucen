@@ -201,10 +201,7 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
                           <td className={`${TD} font-mono whitespace-nowrap`}>{x.sku ?? "—"}</td>
                           <td className={TD}>
                             <span className="inline-flex items-center gap-2">
-                              {x.foto
-                                // eslint-disable-next-line @next/next/no-img-element
-                                ? <img src={x.foto} alt="" className="w-10 h-10 object-contain rounded border border-[#E3E9F0] bg-white" loading="lazy" />
-                                : null}
+                              <FotosProducto fotos={x.foto ? [x.foto] : null} titulo={x.titulo ?? x.item_id ?? ""} />
                               <span>{x.permalink ? <a href={x.permalink} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline">{x.titulo ?? x.item_id} ↗</a> : x.titulo ?? x.item_id}
                                 {x.reclamado && ordenMl.items.length > 1 && <span className="ml-1 text-[10px] text-[#C03420]">(el reclamado)</span>}</span>
                             </span>
@@ -226,7 +223,7 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
                     {lineas.map((l) => (
                       <tr key={l.id} className={TR}>
                         <td className={`${TD} font-mono whitespace-nowrap`}>{l.producto_id
-                          ? <><Link href={`/catalogo/productos/${l.producto_id}`} className="text-[#16577F] hover:underline">{l.sku ?? "—"}</Link>{" "}<FotosProducto fotos={l.fotos} titulo={l.titulo} /></>
+                          ? <span className="inline-flex items-center gap-2 whitespace-nowrap"><FotosProducto fotos={l.fotos} titulo={l.titulo} /><Link href={`/catalogo/productos/${l.producto_id}`} className="text-[#16577F] hover:underline">{l.sku ?? "—"}</Link></span>
                           : l.sku ?? "—"}</td>
                         <td className={TD}>{l.titulo}</td>
                         <td className={TDN}>{l.cantidad}</td>

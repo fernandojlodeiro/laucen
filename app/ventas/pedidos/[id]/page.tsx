@@ -226,8 +226,8 @@ export default async function DetallePedido({ params, searchParams }: { params: 
             {lineas.map((l) => (
               <tr key={l.id} className={TR}>
                 <td className={`${TD} font-mono whitespace-nowrap`}>{l.variacion_id && productos.has(l.variacion_id)
-                  ? <><Link href={`/catalogo/productos/${productos.get(l.variacion_id)!.producto_id}`} className="text-[#16577F] hover:underline">{l.sku ?? "—"}</Link>{" "}
-                    <FotosProducto fotos={productos.get(l.variacion_id)!.fotos} titulo={l.titulo} /></>
+                  ? <span className="inline-flex items-center gap-2 whitespace-nowrap"><FotosProducto fotos={productos.get(l.variacion_id)!.fotos} titulo={l.titulo} />
+                    <Link href={`/catalogo/productos/${productos.get(l.variacion_id)!.producto_id}`} className="text-[#16577F] hover:underline">{l.sku ?? "—"}</Link></span>
                   : l.sku ?? "—"}</td>
                 <td className={TD}>{l.titulo}{variasOrdenes && l.orden_ml && <span className="block text-[10px] text-[#5C6B76] font-mono">Orden ML {l.orden_ml}</span>}</td>
                 <td className={TDN}>{l.cantidad}</td>

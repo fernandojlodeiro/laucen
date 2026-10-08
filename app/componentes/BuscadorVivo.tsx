@@ -19,7 +19,10 @@ export function usarCambiarParametro() {
     if (!("p" in cambios) && /^\d+$/.test(p.get("p") ?? "")) p.delete("p");
     for (const [k, v] of Object.entries(cambios)) if (v) p.set(k, v); else p.delete(k);
     const s = p.toString();
-    router.replace(s ? `${window.location.pathname}?${s}` : window.location.pathname, { scroll: false });
+    const destino = s ? `${window.location.pathname}?${s}` : window.location.pathname;
+    // El relojito de «Cargando…» (IndicadorCarga, en el marco) hasta que llega la pantalla nueva.
+    if (destino !== window.location.pathname + window.location.search) window.dispatchEvent(new Event("laucen:cargando"));
+    router.replace(destino, { scroll: false });
   };
 }
 

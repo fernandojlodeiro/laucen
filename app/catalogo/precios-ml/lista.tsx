@@ -137,9 +137,10 @@ const CAMPOS_PREVIA: Campo[] = [
   {
     clave: "sku", titulo: "SKU", ancho: 14,
     celda: (f) => (
-      <span className="whitespace-nowrap">
-        <Link href={`/catalogo/productos/${f.producto_id}`} className="text-[#16577F] hover:underline">{f.sku}</Link>{" "}
+      // La foto primero (todas del mismo tamaño) y después el SKU: quedan alineadas (Fer, 8/10).
+      <span className="inline-flex items-center gap-2 whitespace-nowrap">
         <FotosProducto fotos={f.fotos} titulo={f.titulo} />
+        <Link href={`/catalogo/productos/${f.producto_id}`} className="text-[#16577F] hover:underline">{f.sku}</Link>
       </span>
     ),
   },

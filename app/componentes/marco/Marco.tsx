@@ -24,6 +24,7 @@ import { accionLogout } from "@/app/auth-actions";
 import { BarraMenu, MenuCelular } from "./BarraMenu";
 import Historial from "./Historial";
 import Manuales from "./Manuales";
+import IndicadorCarga from "./IndicadorCarga";
 import { guiasDelManual } from "@/lib/asistente/manual";
 import { accionMonedaVista } from "./acciones";
 import Asistente from "@/app/componentes/asistente/Asistente";
@@ -108,6 +109,7 @@ export default async function Marco({ children, version }: { children: React.Rea
       </footer>
 
       <AvisosTareas />
+      <Suspense fallback={null}><IndicadorCarga /></Suspense>
 
       {/* El asistente: la carita abajo a la derecha (lib/asistente/motor.ts) */}
       {puede("asistente_usar") && (

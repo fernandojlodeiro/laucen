@@ -277,9 +277,11 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                   </tr>
                 ) : (
                   <tr key={f.id} className={TR}>
-                    <td className={`${TD} whitespace-nowrap`}>
-                      <Link href={`/catalogo/productos/${f.producto_id}`} className="font-semibold text-[#16577F] hover:underline">{f.sku}</Link>{" "}
-                      <FotosProducto fotos={f.fotos} titulo={f.titulo} />
+                    <td className={TD}>
+                      <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                        <FotosProducto fotos={f.fotos} titulo={f.titulo} />
+                        <Link href={`/catalogo/productos/${f.producto_id}`} className="font-semibold text-[#16577F] hover:underline">{f.sku}</Link>
+                      </span>
                     </td>
                     <td className={TD}><Link href={`/catalogo/productos/${f.producto_id}`} className="hover:underline">{f.titulo}</Link></td>
                     <td className={TDN}>{f.precio_id ? <span className={Number(f.descuento) > 0 ? "line-through text-[#5C6B76]" : ""}>{enVista({ ars: f.lista_ars, usd: f.lista_usd }, s.moneda)}</span> : <span className="text-[#5C6B76]">sin precio</span>}</td>

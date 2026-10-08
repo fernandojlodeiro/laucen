@@ -81,9 +81,9 @@ const CAMPOS: Campo[] = [
   {
     clave: "sku", titulo: "SKU", sql: "coalesce(v.sku, mi.sku, c.datos ->> 'sku')", ancho: 18, usa: ["titulo"],
     celda: (f) => (
-      // La foto a la izquierda y el SKU al lado, en su propio renglón: no se enciman (Fer, 6/10).
+      // La foto a la izquierda (siempre su lugar, aunque no tenga) y el SKU al lado: alineados (Fer, 6/10 y 8/10).
       <span className="inline-flex items-center gap-2 whitespace-nowrap">
-        {f.producto_id && <FotosProducto fotos={f.fotos} titulo={String(f.titulo ?? f.sku ?? "")} />}
+        <FotosProducto fotos={f.producto_id ? f.fotos : null} titulo={String(f.titulo ?? f.sku ?? "")} />
         {f.producto_id ? <Link href={`/catalogo/productos/${f.producto_id}`} className={`${ENLACE} font-semibold`}>{f.sku}</Link> : f.sku ?? "—"}
       </span>
     ),

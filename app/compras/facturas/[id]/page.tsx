@@ -249,7 +249,7 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
                   const p = prod.get(d.variacion_id);
                   return (
                     <tr key={d.variacion_id} className={TR}>
-                      <td className={TD}>{p ? <><Link href={`/catalogo/productos/${p.producto_id}`} className="font-mono text-[#16577F] hover:underline">{p.sku}</Link>{" "}<FotosProducto fotos={p.fotos} titulo={p.titulo} /> <span className="text-[#5C6B76]">{p.titulo}</span></> : `#${d.variacion_id}`}</td>
+                      <td className={TD}>{p ? <><span className="inline-flex items-center gap-2 whitespace-nowrap align-middle"><FotosProducto fotos={p.fotos} titulo={p.titulo} /><Link href={`/catalogo/productos/${p.producto_id}`} className="font-mono text-[#16577F] hover:underline">{p.sku}</Link></span> <span className="text-[#5C6B76]">{p.titulo}</span></> : `#${d.variacion_id}`}</td>
                       <td className={TDN}>{d.facturado.toLocaleString("es-AR")}</td>
                       <td className={TDN}>{d.recibido.toLocaleString("es-AR")}</td>
                       <td className={TDN}>{d.diferencia > 0 ? `faltan ${d.diferencia.toLocaleString("es-AR")}` : `sobran ${(-d.diferencia).toLocaleString("es-AR")}`}</td>

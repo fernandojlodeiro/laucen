@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from "react";
 
-export default function FotosProducto({ fotos, titulo, tamano = 40, portada = 0 }: { fotos: string[] | null | undefined; titulo: string; tamano?: number; portada?: number }) {
+export default function FotosProducto({ fotos, titulo, tamano = 28, portada = 0 }: { fotos: string[] | null | undefined; titulo: string; tamano?: number; portada?: number }) {
   const [abierta, setAbierta] = useState(false);
   const [ampliada, setAmpliada] = useState<number | null>(null);
   useEffect(() => {
@@ -20,7 +20,8 @@ export default function FotosProducto({ fotos, titulo, tamano = 40, portada = 0 
     document.addEventListener("keydown", tecla);
     return () => document.removeEventListener("keydown", tecla);
   }, [abierta, fotos]);
-  if (!fotos || fotos.length === 0) return null;
+  // Sin fotos, el mismo lugar vacío: en las listas la foto va primero y lo que sigue queda alineado (Fer, 8/10).
+  if (!fotos || fotos.length === 0) return <span aria-hidden className="inline-block align-middle shrink-0" style={{ width: tamano, height: tamano }} />;
 
   return (
     <>

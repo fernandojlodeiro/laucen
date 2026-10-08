@@ -212,10 +212,7 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
               return (
                 <tr key={`${f.item_id}-${f.variation_id}`} className={TR}>
                   <td className={TD}>
-                    {f.foto
-                      // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={f.foto} alt="" className="w-10 h-10 object-contain rounded border border-[#E3E9F0] bg-white" loading="lazy" />
-                      : <div className="w-10 h-10 rounded border border-[#E3E9F0] bg-[#FAFBFC]" />}
+                    <FotosProducto fotos={f.foto ? [f.foto] : null} titulo={f.titulo ?? ""} />
                   </td>
                   {todas && <td className={`${TD} whitespace-nowrap`}>{nombreCanal.get(f.canal_id) ?? "—"}</td>}
                   <td className={`${TD} min-w-56`}>
@@ -239,8 +236,8 @@ export default async function VincularMl({ searchParams }: { searchParams: Promi
                       <div className="flex items-start gap-2">
                         <div className="flex-1">
                           {f.producto_id
-                            ? <><Link href={`/catalogo/productos/${f.producto_id}`} className="text-[#16577F] underline font-semibold">{f.var_sku}</Link>{" "}
-                              <FotosProducto fotos={f.fotos} titulo={f.var_titulo ?? f.var_sku ?? ""} /></>
+                            ? <span className="inline-flex items-center gap-2 whitespace-nowrap"><FotosProducto fotos={f.fotos} titulo={f.var_titulo ?? f.var_sku ?? ""} />
+                              <Link href={`/catalogo/productos/${f.producto_id}`} className="text-[#16577F] underline font-semibold">{f.var_sku}</Link></span>
                             : <span className="font-semibold">{f.var_sku}</span>}
                           {f.inactivo && <span className="ml-1.5"><Estado texto="Inactivo" /></span>}
                           <div className="text-[#5C6B76]">{f.var_titulo}</div>

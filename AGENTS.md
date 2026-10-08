@@ -166,8 +166,9 @@ Listas de los ABM (pedido de Fer, 3/10):
   que cuenta cosas (productos de una familia, ubicaciones de un depósito, unidades) → la lista de
   esas cosas filtrada, sólo las activas salvo que se pida.
 - **Al lado de un producto, su foto principal** (no un ícono; `app/componentes/FotosProducto.tsx`,
-  pedido de Fer 5/10): al tocarla abre todas; si no tiene fotos no aparece. Vale también en el
-  buscador general y en la ficha (Datos muestra la principal).
+  pedido de Fer 5/10 y 8/10): **siempre primero, a la izquierda del SKU** (nunca después de un texto de
+  largo variable), todas del mismo tamaño (28 px en listas) y sin foto queda el lugar vacío para que lo
+  que sigue quede alineado; al tocarla abre todas. Vale también en el buscador general y en la ficha.
 - **Clientes y proveedores muestran su "N.º"** (el id interno): primera columna y en la ficha.
 - **Todo ABM tiene "Descargar Excel" con configuraciones** (pedido de Fer, 3/10): arriba a la
   derecha, al lado de "Nuevo …" (`<AccionesExcel>` de `app/listas/piezas.tsx`). Baja lo que se ve

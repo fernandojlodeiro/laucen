@@ -78,9 +78,9 @@ const CAMPOS: Campo[] = [
   {
     clave: "sku", titulo: "SKU base", sql: "p.sku_base", ancho: 18,
     celda: (f) => (
-      <span className="font-mono whitespace-nowrap">
-        <Link href={`/catalogo/productos/${f.id}`} className="text-[#16577F] font-semibold">{f.sku}</Link>{" "}
+      <span className="inline-flex items-center gap-2 font-mono whitespace-nowrap">
         <FotosProducto fotos={f.fotos} titulo={f.sku} />
+        <Link href={`/catalogo/productos/${f.id}`} className="text-[#16577F] font-semibold">{f.sku}</Link>
       </span>
     ),
   },

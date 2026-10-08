@@ -2,27 +2,31 @@
 // selector de cuenta (canal) y la barra de pestañas con sus cuentas.
 
 import Pestanas from "@/app/componentes/Pestanas";
-import { FiltroVivo } from "@/app/componentes/BuscadorVivo";
+import { FiltroVivo, CasillaViva } from "@/app/componentes/BuscadorVivo";
 import { url } from "@/app/componentes/erp";
 import { cuentasCanal, campanasBajoPisoCanal, type CanalMl } from "@/lib/precios-ml/datos";
 import { BASE_PML, PREVIA } from "./lista";
 
 export type VerPml = "general" | "excepciones" | "volumen" | "alertas" | "previa";
 
-export async function BarraPml({ org, canales, canal, ver }: { org: string; canales: CanalMl[]; canal: CanalMl; ver: VerPml }) {
+export async function BarraPml({ org, canales, canal, ver, todas = false }: { org: string; canales: CanalMl[]; canal: CanalMl; ver: VerPml; todas?: boolean }) {
   const [n, bajo] = await Promise.all([cuentasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id)]);
   const con = (v: string | null) => url(BASE_PML, { canal: canal.id, ver: v });
   return (
     <>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <label className="inline-flex items-center gap-2 text-xs text-[#5C6B76]">Cuenta
-          <FiltroVivo parametro="canal" valor={String(canal.id)} etiqueta="Cuenta de Mercado Libre" limpiar={["editar", "nuevo", "p", "familia"]}>
-            {canales.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-          </FiltroVivo>
+          {todas
+            ? <select disabled aria-label="Cuenta de Mercado Libre" className="text-xs border border-[#E3E9F0] rounded-lg px-2 py-1.5 bg-[#F2F4F6]"><option>Todas las cuentas</option></select>
+            : <FiltroVivo parametro="canal" valor={String(canal.id)} etiqueta="Cuenta de Mercado Libre" limpiar={["editar", "nuevo", "p", "familia"]}>
+                {canales.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </FiltroVivo>}
         </label>
+        {/* Vista previa: todas las cuentas juntas (Fer, 8/10), al lado de la cuenta. */}
+        {ver === "previa" && <CasillaViva parametro="todas" activo={todas} etiqueta="Todas las cuentas" />}
         <span className="text-[11px] text-[#5C6B76]">
-          Clásica: lista {canal.lista ? <b>{canal.lista}</b> : <b className="text-[#C03420]">sin lista (cargala en Configuración → Canales)</b>}
-          {canal.sincronizarPrecios ? " · sincroniza precios solo" : " · los cambios esperan tu clic"}
+          {todas ? null : <>Clásica: lista {canal.lista ? <b>{canal.lista}</b> : <b className="text-[#C03420]">sin lista (cargala en Configuración → Canales)</b>}
+          {canal.sincronizarPrecios ? " · sincroniza precios solo" : " · los cambios esperan tu clic"}</>}
         </span>
       </div>
       <Pestanas className="mb-3" items={[

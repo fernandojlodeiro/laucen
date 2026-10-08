@@ -8,6 +8,7 @@
 import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
+import FotosProducto from "@/app/componentes/FotosProducto";
 import PrecioPublicacion from "@/app/componentes/PrecioPublicacion";
 import { consulta } from "@/lib/erp/base";
 import { VERDE, SUAVE } from "@/app/botones";
@@ -128,14 +129,8 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
             {filas.length === 0 && <tr><td colSpan={13} className={`${TD} text-[#5C6B76]`}>{canalId || estado || revision || catalogo || comunes || q ? "Nada coincide con el filtro." : "Todavía no hay publicaciones: se traen solas de Mercado Libre al vincular la cuenta."}</td></tr>}
             {filas.map((f) => (
               <tr key={f.id} className={`${TR} ${editar === f.id ? "bg-[#FAFBFC]" : ""}`}>
-                <td className={`${TD} w-[60px]`}>
-                  <Link href={`/catalogo/productos/${f.producto_id}`} title="Ver el producto">
-                    {f.foto
-                      // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={f.foto} alt="" loading="lazy" className="h-[52px] w-[52px] rounded border border-[#E3E9F0] bg-white object-contain" />
-                      : <span className="block h-[52px] w-[52px] rounded border border-[#E3E9F0] bg-[#FAFBFC]" />}
-                  </Link>
-                </td>
+                {/* La foto: 30 % más chica y al tocarla se agranda, como en todas las listas (Fer, 8/10). */}
+                <td className={`${TD} w-[48px]`}><FotosProducto fotos={f.foto ? [f.foto] : null} titulo={f.titulo_var} tamano={36} /></td>
                 {/* SKU, MLA y título siempre a la vista (Fer, 7/10). */}
                 <td className={`${TD} font-mono whitespace-nowrap`}><Link href={`/catalogo/productos/${f.producto_id}`} className="text-[#16577F] hover:underline">{f.sku}</Link></td>
                 <td className={TD}>

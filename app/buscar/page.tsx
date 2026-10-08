@@ -517,7 +517,7 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
       )}
 
       <Seccion titulo="Productos" filas={productos} clave={(r) => r.id} columnas={[
-        { t: "SKU", c: (r) => <span className="inline-flex items-center gap-2 font-mono whitespace-nowrap"><FotosProducto fotos={r.fotos} titulo={r.titulo} tamano={48} /><Link href={`/catalogo/productos/${r.id}`} className={ENLACE}>{r.sku_base}</Link></span> },
+        { t: "SKU", c: (r) => <span className="inline-flex items-center gap-2 font-mono whitespace-nowrap"><FotosProducto fotos={r.fotos} titulo={r.titulo} tamano={34} /><Link href={`/catalogo/productos/${r.id}`} className={ENLACE}>{r.sku_base}</Link></span> },
         { t: "Título", c: (r) => <Link href={`/catalogo/productos/${r.id}`} className={`font-semibold ${ENLACE}`}>{r.titulo}</Link> },
         { t: "Marca", c: (r) => r.marca ?? "—" },
         { t: "Variación encontrada", c: (r) => <span className="font-mono">{r.donde ?? ""}</span> },

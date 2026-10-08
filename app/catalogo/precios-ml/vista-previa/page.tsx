@@ -54,7 +54,7 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
           campos={{ canal: String(canal.id), todas: f.todas ? "1" : "", familia: f.familia ? String(f.familia) : "", q: f.q, contiene: f.comienza ? "" : "1", volver: aqui }} />
       </>}>
       <Avisos sp={sp} />
-      <BarraPml org={s.org.id} canales={canales} canal={canal} ver="previa" />
+      <BarraPml org={s.org.id} canales={canales} canal={canal} ver="previa" todas={f.todas} />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <BuscadorVivo q={f.q} comienza={f.comienza} placeholder="Buscar por SKU, producto o publicación" />
         <ElegirFamilia parametro="familia" valor={f.familia} etiqueta={camino} vacio="Todas las categorías" placeholder="Buscá la categoría…" className="w-72" limpiar={["p"]} />
@@ -63,12 +63,10 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
           {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </FiltroVivo>
         <CasillaViva parametro="cambios" activo={f.cambios} etiqueta="Sólo las que cambian" />
-        {/* Todas las cuentas juntas (Fer, 8/10): con la casilla, la cuenta de arriba no filtra. */}
-        <CasillaViva parametro="todas" activo={f.todas} etiqueta="Todas las cuentas" />
       </div>
       <p className="text-[11px] text-[#5C6B76] mb-2">
         {todas.length.toLocaleString("es-AR")} filas · <b>{conCambio.toLocaleString("es-AR")} con cambios</b>{nuevas ? ` (${nuevas.toLocaleString("es-AR")} publicaciones nuevas de planes)` : ""}{conAviso ? ` · ${conAviso.toLocaleString("es-AR")} con avisos` : ""}.
-        {f.todas ? "Todas las cuentas juntas (la cuenta de arriba no filtra). " : ""}Precios como los ve el comprador: grande lo que paga, chico y tachado el publicado, con su % OFF.
+        {f.todas ? "Todas las cuentas juntas. " : ""}Precios como los ve el comprador: grande lo que paga, chico y tachado el publicado, con su % OFF.
       </p>
       <TablaVista lista={LISTA_PRECIOS_ML} campos={campos} filas={filas} total={todas.length} ctx={{ moneda: s.moneda, sp }}
         vacio={f.q || f.familia || f.cambios || f.rol || f.todas ? "Nada coincide con el filtro." : "Esta cuenta no tiene publicaciones vinculadas (Catálogo → Vincular con Mercado Libre)."}

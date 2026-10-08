@@ -30,7 +30,7 @@ Nada sale de acá: el botón «Preparar cambios» arma lotes que esperan tu clic
 - Buscador de categoría («Todas las categorías»): incluye sus subcategorías.
 - **Papel**: «Todos los papeles», «Clásica», «Destacado», «Plan», «Plan apagado», «Sin tocar», «Nueva».
 - Caja **«Sólo las que cambian»**.
-- Caja **«Todas las cuentas»**: muestra las publicaciones de las 5 cuentas juntas (ordenadas por SKU y cuenta; la cuenta elegida arriba no filtra). Con la caja tildada, «Preparar cambios» arma los lotes de cada cuenta.
+- Caja **«Todas las cuentas»**, al lado del selector «Cuenta»: muestra las publicaciones de todas las cuentas juntas (ordenadas por SKU y cuenta; el selector dice «Todas las cuentas»). Es más lenta: calcula cada cuenta. Con la caja tildada, «Preparar cambios» arma los lotes de cada cuenta.
 
 Un renglón de resumen: cuántas filas, cuántas **con cambios** (y cuántas son publicaciones nuevas de planes) y cuántas con avisos.
 
