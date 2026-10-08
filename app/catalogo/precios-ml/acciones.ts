@@ -17,7 +17,7 @@ import {
 import { prepararCambios, sincronizarPreciosMl } from "@/lib/precios-ml/preparar";
 import { PLANES, pedidoSalirCampana, tachadoDeDescuento } from "@/lib/precios-ml/motor";
 import { encolarLoteConBoton, type CambioMl } from "@/lib/mercadolibre/cola";
-import { BASE_PML, PREVIA } from "./lista";
+import { BASE_PML, PREVIA, limpiarCachePrevia } from "./lista";
 
 /** El descuento que ve el comprador (lo que carga Fer) → el tachado % que se guarda. Vacío = hereda. */
 function tachadoDelForm(fd: FormData): number | null {
@@ -71,6 +71,7 @@ const activoDe = (fd: FormData, k: string): boolean | null => {
 /** La caja general del canal: tachado y los planes (activo, mínimo, margen, cuotas que ve el comprador). */
 export async function accionGuardarGeneral(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
+  limpiarCachePrevia();
   const canal = id(fd, "canal");
   const v = volver(fd);
   await intentar(sinEditar(v), async () => {
@@ -89,6 +90,7 @@ export async function accionGuardarGeneral(fd: FormData) {
 /** Alta o cambio de una excepción (categoría o producto): tachado y planes; vacío = hereda. */
 export async function accionGuardarExcepcion(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
+  limpiarCachePrevia();
   const canal = id(fd, "canal");
   const v = volver(fd);
   await intentar(sinEditar(v), async () => {
@@ -105,6 +107,7 @@ export async function accionGuardarExcepcion(fd: FormData) {
 
 export async function accionBorrarExcepcion(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
+  limpiarCachePrevia();
   const canal = id(fd, "canal");
   await intentar(volver(fd), async () => {
     await borrarExcepcion(s.org.id, canal, await dondeDe(s.org.id, fd));
@@ -116,6 +119,7 @@ export async function accionBorrarExcepcion(fd: FormData) {
 /** Alta o cambio de un rango de descuento por volumen (hasta 5 escalones). */
 export async function accionGuardarVolumen(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
+  limpiarCachePrevia();
   const canal = id(fd, "canal");
   const v = volver(fd);
   await intentar(sinEditar(v), async () => {
@@ -140,6 +144,7 @@ export async function accionGuardarVolumen(fd: FormData) {
 
 export async function accionBorrarVolumen(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
+  limpiarCachePrevia();
   await intentar(volver(fd), async () => {
     await borrarVolumen(s.org.id, id(fd, "id"));
     revalidatePath(BASE_PML);
@@ -149,6 +154,7 @@ export async function accionBorrarVolumen(fd: FormData) {
 
 export async function accionReplicarVolumen(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
+  limpiarCachePrevia();
   await intentar(volver(fd), async () => {
     const n = await replicarVolumen(s.org.id, id(fd, "canal"));
     revalidatePath(BASE_PML);
@@ -162,6 +168,7 @@ const INTERRUPTORES = { sincronizar_precios: true, leer_precio_ganar: true, volu
  *  el clic de Fer que deja salir lo automático (AGENTS.md). */
 export async function accionInterruptor(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
+  limpiarCachePrevia();
   const canal = id(fd, "canal");
   const clave = texto(fd, "clave");
   await intentar(volver(fd), async () => {
@@ -186,6 +193,7 @@ export async function accionInterruptor(fd: FormData) {
 /** "Preparar cambios": arma los lotes con el filtro de la vista previa. */
 export async function accionPrepararCambios(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
+  limpiarCachePrevia();
   const canal = id(fd, "canal");
   await intentar(volver(fd, PREVIA), async () => {
     // «Todas las cuentas»: un juego de lotes por cuenta.
@@ -209,6 +217,7 @@ export async function accionPrepararCambios(fd: FormData) {
  *  debajo del piso. `clave` = "item|campaña" de una fila; sin clave, todas. */
 export async function accionSacarCampanas(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
+  limpiarCachePrevia();
   const canal = id(fd, "canal");
   const clave = texto(fd, "clave");
   await intentar(volver(fd), async () => {

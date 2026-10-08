@@ -8,7 +8,7 @@
 
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
-import { coincideBusqueda } from "@/lib/busqueda";
+import { coincideBusqueda, gruposBusqueda } from "@/lib/busqueda";
 import { formatear } from "@/lib/moneda";
 import type { Campo, Lista, SP } from "@/lib/listas/tipos";
 import { calcularCanal, canalesMl, excepcionesCanal, volumenCanal, type CanalMl } from "@/lib/precios-ml/datos";
@@ -58,6 +58,34 @@ export type FilaPrevia = {
   campanas: string | null;
 };
 
+/** Lo que el filtro deja pasar, antes de calcular (Fer, 8/10: la cuenta tiene miles de
+ *  publicaciones y calcularlas todas para mostrar un SKU tardaba). Es un colador grueso:
+ *  todas las palabras buscadas en el SKU, título, número o publicaciones de la variación, y la
+ *  categoría con sus subcategorías; el filtro fino (Comienza por, etc.) lo hace filtrarCalculo.
+ *  null = sin filtro (todas). */
+async function variacionesDelFiltro(org: string, canal: number, f: ReturnType<typeof filtrosPrevia>): Promise<number[] | null> {
+  const terminos = gruposBusqueda(f.q).flat().map((t) => t.toLowerCase());
+  if (!terminos.length && !f.familia) return null;
+  const filas = await consulta<{ id: number }>(`
+    with recursive fam as (
+      select id from familia where organizacion_id = $1 and id = $3
+      union select x.id from familia x join fam on x.padre_id = fam.id)
+    select distinct v.id::int id
+      from publicacion pu join variacion v on v.id = pu.variacion_id join producto p on p.id = v.producto_id
+     where pu.organizacion_id = $1 and pu.canal_id = $2 and pu.id_externo is not null and pu.estado <> 'cerrada'
+       and ($3::bigint is null or p.familia_id in (select id from fam))
+       and (select bool_and(strpos(lower(v.sku || ' ' || coalesce(titulo_variacion(v.id), '') || ' ' || v.id || ' ' || v.producto_id || ' ' ||
+              coalesce((select string_agg(x.id_externo, ' ') from publicacion x where x.variacion_id = v.id and x.canal_id = $2), '')), t) > 0)
+              from unnest($4::text[]) t) is not false`, [org, canal, f.familia, terminos]);
+  return filas.map((x) => x.id);
+}
+
+/** Lo calculado se guarda un ratito (Fer, 8/10): cambiar el papel, «Sólo las que cambian» o el
+ *  orden no vuelve a calcular. Grabar una regla o preparar cambios lo borra. */
+const CACHE_PREVIA = new Map<string, { hasta: number; filas: FilaPrevia[] }>();
+const VIDA_CACHE_MS = 60_000;
+export function limpiarCachePrevia() { CACHE_PREVIA.clear(); }
+
 /** Las filas de la vista previa (filtradas, en el orden de siempre: por SKU). */
 export async function filasPrevia(org: string, sp: SP): Promise<FilaPrevia[]> {
   const f = filtrosPrevia(sp);
@@ -69,7 +97,20 @@ export async function filasPrevia(org: string, sp: SP): Promise<FilaPrevia[]> {
   }
   const { canal } = await canalElegido(org, sp);
   if (!canal) return [];
-  const calculo = await calcularCanal(org, canal.id);
+  const clave = [org, canal.id, f.q, f.comienza, f.familia].join("|");
+  const guardado = CACHE_PREVIA.get(clave);
+  const todasLasFilas = guardado && guardado.hasta > Date.now() ? guardado.filas : await calcularFilas(org, canal, f);
+  if (!guardado || guardado.hasta <= Date.now()) {
+    for (const [k, v] of CACHE_PREVIA) if (v.hasta <= Date.now()) CACHE_PREVIA.delete(k);
+    CACHE_PREVIA.set(clave, { hasta: Date.now() + VIDA_CACHE_MS, filas: todasLasFilas });
+  }
+  return todasLasFilas.filter((x) => (!f.cambios || x.hay_cambio) && (!f.rol || x.rol === f.rol));
+}
+
+async function calcularFilas(org: string, canal: CanalMl, f: ReturnType<typeof filtrosPrevia>): Promise<FilaPrevia[]> {
+  const ids = await variacionesDelFiltro(org, canal.id, f);
+  if (ids && !ids.length) return [];
+  const calculo = await calcularCanal(org, canal.id, { variaciones: ids });
   const propuestas = filtrarCalculo(calculo, { familia: f.familia, q: f.q, comienza: f.comienza });
   const productos = [...new Set(propuestas.map((p) => p.info.productoId))];
   const fotos = new Map((productos.length ? await consulta<{ producto_id: number; fotos: string[] }>(
@@ -107,7 +148,7 @@ export async function filasPrevia(org: string, sp: SP): Promise<FilaPrevia[]> {
       });
     }
   }
-  return filas.filter((x) => (!f.cambios || x.hay_cambio) && (!f.rol || x.rol === f.rol));
+  return filas;
 }
 
 /** Las campañas de una publicación en una línea cada una: «● En curso: Día de la Madre $ 1.216.677», «→ Entraría: …», «← Saldría: …», «○ Programada: …». */
