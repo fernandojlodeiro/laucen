@@ -23,8 +23,8 @@ import { fechaHora } from "@/app/ventas/formato";
 import { formatear } from "@/lib/moneda";
 import { formatearNumero } from "@/lib/numeros";
 import { paginarEnMemoria } from "@/lib/lista";
-import { comisionesMl, reglasCanal, excepcionesCanal, volumenCanal, alertasCanal, campanasBajoPisoCanal, type CanalMl, type Excepcion, type RangoVolumen } from "@/lib/precios-ml/datos";
-import { PLANES, PLAN_INFO, precioPlan, descuentoComprador, type Plan, type ReglasPlan } from "@/lib/precios-ml/motor";
+import { reglasCanal, excepcionesCanal, volumenCanal, alertasCanal, campanasBajoPisoCanal, sinCampanaCanal, type CanalMl, type Excepcion, type RangoVolumen } from "@/lib/precios-ml/datos";
+import { PLANES, PLAN_INFO, descuentoComprador, type Plan, type ReglasPlan } from "@/lib/precios-ml/motor";
 import { BarraPml, type VerPml } from "./comun";
 import { BASE_PML, PREVIA, LISTA_EXCEPCIONES_ML, LISTA_VOLUMEN_ML, canalElegido, textoEscalones } from "./lista";
 import {
@@ -77,17 +77,15 @@ export default async function PreciosMl({ searchParams }: { searchParams: Promis
 // ── Tachado y planes (lo general del canal) ─────────────────
 
 async function General({ org, canal, editando, aqui }: { org: string; canal: CanalMl; editando: boolean; aqui: string }) {
-  const [reglas, com] = await Promise.all([reglasCanal(org, canal), comisionesMl()]);
+  const reglas = await reglasCanal(org, canal);
   const tachado = reglas.tachado.find((t) => t.nivel === "general")?.tachado_pct ?? 0;
   const ajusteClasica = reglas.tachado.find((t) => t.nivel === "general")?.ajuste_pct ?? null;
   const plan = (p: Plan): Partial<ReglasPlan> => reglas.planes.find((x) => x.nivel === "general" && x.plan === p) ?? {};
-  const g = com.general;
-  const ejemplo = 10_000;
   const campos = (clave: string) => ({ canal: String(canal.id), clave, volver: aqui });
   return (
     <div className="grid gap-4">
       <section className={CAJA}>
-        <TituloSeccion titulo="Descuento y planes de cuotas (general de la cuenta)" />
+        <TituloSeccion titulo="Descuento y quién gana (general de la cuenta)" />
         {!editando ? (
           <Dato etiqueta="Descuento que ve el comprador %" numero className="max-w-[260px]"
             ayuda="El «% OFF» de la publicación en ML: se publica a un precio más alto (tachado) y una campaña la baja a la Clásica. 0 = sin descuento. ML lo muestra desde 5 %.">
@@ -105,45 +103,23 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
           <div className={CAJA_TABLA}>
             <table className={TABLA}>
               <thead className={THEAD}>
-                <tr>
-                  <th className={TH}>Plan</th><th className={TH}>Activo</th><th className={THN}>Desde una Clásica de</th><th className={THN}>Margen extra</th>
-                  <th className={THN}>Cuotas que ve el comprador</th><th className={THN}>¿Gana? (si no, +%)</th><th className={THN}>Comisión (promedio)</th><th className={THN}>Con una Clásica de {formatear(ejemplo, "ARS")}</th>
-                </tr>
+                <tr><th className={TH}>Publicación</th><th className={THN}>¿Gana? (si no, +%)</th></tr>
               </thead>
               <tbody>
                 <tr className={TR}>
-                  <td className={TD}>{PLAN_INFO.clasica.nombre}</td><td className={TD}><Estado texto="Siempre" tono="verde" /></td>
-                  <td className={TDN}>—</td><td className={TDN}>—</td><td className={TDN}>—</td>
+                  <td className={TD}>{PLAN_INFO.clasica.nombre}</td>
                   <td className={editando ? TD : TDN}>{editando
                     ? <CampoNumero name="clasica_ajuste" valor={ajusteClasica} tipo="pct" placeholder="0 = gana" className={`${CAMPO} w-20`} />
                     : gana(ajusteClasica)}</td>
-                  <td className={TDN}>{pct(g.clasica)}</td>
-                  <td className={TDN}>{formatear(ejemplo, "ARS")}{Number(tachado) > 0 && <> (publicada a {formatear(Math.round(ejemplo * (1 + Number(tachado) / 100)), "ARS")}, −{formatearNumero(descuentoComprador(Number(tachado)), "pct")} %)</>}</td>
                 </tr>
                 {PLANES.map((p) => {
                   const r = plan(p);
                   return (
                     <tr key={p} className={TR}>
                       <td className={TD}>{PLAN_INFO[p].nombre}</td>
-                      {editando ? (
-                        <>
-                          <td className={TD}><input type="checkbox" name={`${p}_activo`} defaultChecked={!!r.activo} aria-label={`${PLAN_INFO[p].nombre} activo`} className="h-4 w-4 accent-[#16577F]" /></td>
-                          <td className={TD}><CampoNumero name={`${p}_min`} valor={r.precio_minimo ?? null} tipo="pesos" placeholder="sin mínimo" className={`${CAMPO} w-28`} /></td>
-                          <td className={TD}><CampoNumero name={`${p}_margen`} valor={r.margen_pct ?? null} tipo="pct" placeholder="0" className={`${CAMPO} w-20`} /></td>
-                          <td className={TD}><CampoNumero name={`${p}_cuotas`} valor={r.cuotas_visibles ?? null} tipo="entero" placeholder={String(PLAN_INFO[p].cuotas)} className={`${CAMPO} w-16`} /></td>
-                          <td className={TD}><CampoNumero name={`${p}_ajuste`} valor={r.ajuste_pct ?? null} tipo="pct" placeholder="0 = gana" className={`${CAMPO} w-20`} /></td>
-                        </>
-                      ) : (
-                        <>
-                          <td className={TD}>{r.activo ? <Estado texto="Sí" tono="verde" /> : <Estado texto="No" />}</td>
-                          <td className={TDN}>{pesos(r.precio_minimo) ?? "sin mínimo"}</td>
-                          <td className={TDN}>{pct(r.margen_pct) ?? "0 %"}</td>
-                          <td className={TDN}>{r.cuotas_visibles ?? PLAN_INFO[p].cuotas}</td>
-                          <td className={TDN}>{gana(r.ajuste_pct)}</td>
-                        </>
-                      )}
-                      <td className={TDN}>{pct(g[p])}</td>
-                      <td className={TDN}>{formatear(Math.round(precioPlan(ejemplo, g.clasica, g[p], Number(r.margen_pct ?? 0)) * (1 + Number(r.ajuste_pct ?? 0) / 100)), "ARS")}</td>
+                      <td className={editando ? TD : TDN}>{editando
+                        ? <CampoNumero name={`${p}_ajuste`} valor={r.ajuste_pct ?? null} tipo="pct" placeholder="0 = gana" className={`${CAMPO} w-20`} />
+                        : gana(r.ajuste_pct)}</td>
                     </tr>
                   );
                 })}
@@ -152,10 +128,8 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
           </div>
         </form>
         <p className="text-[11px] text-[#5C6B76] mt-2">
-          Precio de cada plan = Clásica × (1 − comisión de la Clásica) ÷ (1 − comisión del plan) × (1 + margen extra): deja lo mismo que la Clásica más el margen.
-          La comisión es la real de la categoría de cada publicación (la releva Costos ML todos los días: {com.porCategoria.size} categorías); si una no está, el promedio de arriba.
-          Entre los planes activos, el que mejor cierra con el precio para ganar de ML queda <b>destacado</b>: va a ese precio y en las mismas campañas que la Clásica (recuadro «En cuotas»); los demás quedan a su precio.
-          Si dos planes se ven con las mismas cuotas, la vista previa avisa (manda lo que ve el comprador).
+          Qué planes de cuotas lleva cada producto, desde qué Clásica, cuánto más tiene que dejar cada plan y cuántas cuotas ve el comprador se configura para todas las cuentas en{" "}
+          <Link href="/config/planes-cuotas" className="text-[#16577F] hover:underline">Configuración › Planes de cuotas</Link>.
           <b> ¿Gana?</b>: entre tus cuentas, una sola «gana» cada precio (la Clásica y cada plan) y las demás van un % más caras para no competir entre ellas (0 o vacío = gana; 3 = no gana, va 3 % arriba). Se puede cambiar por categoría o producto en Excepciones.
         </p>
       </section>
@@ -189,10 +163,8 @@ function gana(a: number | null | undefined) {
 const PLAN_CORTO = (p: Plan) => PLAN_INFO[p].corto;
 
 function resumenPlan(x: Excepcion["planes"][string] | undefined): string {
-  if (!x || (x.activo == null && x.min == null && x.margen == null && x.ajuste == null)) return "hereda";
-  const partes = [x.activo == null ? null : x.activo ? "activo" : "apagado", x.min != null ? `desde ${formatear(x.min, "ARS")}` : null, x.margen != null ? `margen ${formatearNumero(x.margen, "pct")} %` : null,
-    x.ajuste == null ? null : x.ajuste === 0 ? "gana" : `no gana: +${formatearNumero(x.ajuste, "pct")} %`];
-  return partes.filter(Boolean).join(" · ");
+  if (!x || x.ajuste == null) return "hereda";
+  return x.ajuste === 0 ? "gana" : `no gana: +${formatearNumero(x.ajuste, "pct")} %`;
 }
 
 function CamposExcepcion({ e }: { e?: Excepcion }) {
@@ -205,19 +177,8 @@ function CamposExcepcion({ e }: { e?: Excepcion }) {
         <span className="block text-[10px] text-[#5C6B76] mt-0.5">0 = gana · vacío = hereda</span></label>
       <span className="hidden sm:block" />
       {PLANES.map((p) => (
-        <fieldset key={p} className="border border-[#E3E9F0] rounded-lg p-2 grid grid-cols-2 gap-1.5">
-          <legend className="text-[11px] font-semibold text-[#5C6B76] px-1">{PLAN_INFO[p].nombre}</legend>
-          <label><span className={ETIQUETA}>Activo</span>
-            <select name={`${p}_activo`} defaultValue={e?.planes[p]?.activo == null ? "" : e.planes[p].activo ? "si" : "no"} className={`${CAMPO} w-full`}>
-              <option value="">Hereda</option><option value="si">Sí</option><option value="no">No</option>
-            </select></label>
-          <label><span className={ETIQUETA}>Desde Clásica</span>
-            <CampoNumero name={`${p}_min`} valor={e?.planes[p]?.min ?? null} tipo="pesos" placeholder="hereda" className={`${CAMPO} w-full`} /></label>
-          <label><span className={ETIQUETA}>Margen %</span>
-            <CampoNumero name={`${p}_margen`} valor={e?.planes[p]?.margen ?? null} tipo="pct" placeholder="hereda" className={`${CAMPO} w-full`} /></label>
-          <label><span className={ETIQUETA}>¿Gana? (si no, +%)</span>
-            <CampoNumero name={`${p}_ajuste`} valor={e?.planes[p]?.ajuste ?? null} tipo="pct" placeholder="hereda" className={`${CAMPO} w-full`} /></label>
-        </fieldset>
+        <label key={p}><span className={ETIQUETA}>{PLAN_INFO[p].nombre}: ¿gana? (si no, +%)</span>
+          <CampoNumero name={`${p}_ajuste`} valor={e?.planes[p]?.ajuste ?? null} tipo="pct" placeholder="hereda" className={`${CAMPO} w-full`} /></label>
       ))}
     </>
   );
@@ -391,7 +352,7 @@ async function Volumen({ org, canal, sp, aqui }: { org: string; canal: CanalMl; 
 // ── Alertas ─────────────────────────────────────────────────
 
 async function Alertas({ org, canal, aqui }: { org: string; canal: CanalMl; aqui: string }) {
-  const [filas, bajo] = await Promise.all([alertasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id)]);
+  const [filas, bajo, sin] = await Promise.all([alertasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id), sinCampanaCanal(org, canal)]);
   const base = { canal: String(canal.id), volver: aqui };
   return (
     <>
@@ -427,6 +388,32 @@ async function Alertas({ org, canal, aqui }: { org: string; canal: CanalMl; aqui
       <p className="text-[11px] text-[#5C6B76] mb-4">
         El piso es el precio que da el esquema para esa publicación (la Clásica de la cuenta, o el precio de su plan). En una campaña propia cuenta su precio; en una de ML («Potencia tus ventas»), sólo lo que ponés vos: el precio sin descuento menos tu parte (la de ML no sale de tu bolsillo).
         «Sacar de la campaña» no la saca ya: arma un lote en la <Link href="/config/canales/cola?ver=lotes" className="text-[#16577F] hover:underline">cola de Mercado Libre</Link> que sale con tu clic.
+      </p>
+
+      <TituloSeccion titulo={`Sin campaña hace más de 24 horas (${sin.length})`} />
+      <div className={`${CAJA_TABLA} mb-1`}>
+        <table className={TABLA}>
+          <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Producto</th><th className={TH}>Publicación</th>
+            <th className={THN}>Publicada a</th><th className={THN}>Sin campaña desde</th><th className={THN}>Hace</th></tr></thead>
+          <tbody>
+            {sin.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>Ninguna: todas las publicaciones con descuento están en alguna campaña (o salieron hace menos de 24 horas).</td></tr>}
+            {sin.map((f) => (
+              <tr key={f.publicacionId} className={TR}>
+                <td className={TD}><Link href={`/catalogo/productos/${f.productoId}`} className="font-mono text-[#16577F] hover:underline">{f.sku}</Link></td>
+                <td className={TD}>{f.titulo}</td>
+                <td className={TD}><Link href={url("/catalogo/publicaciones", { canal: canal.id, q: f.itemId })} className="font-mono text-[#16577F] hover:underline">{f.itemId}</Link>
+                  <div className="text-[10px] text-[#5C6B76]">{f.plan === "clasica" ? "Clásica" : PLAN_INFO[f.plan as Plan]?.nombre ?? f.plan ?? ""}</div></td>
+                <td className={TDN}>{f.precio != null ? formatear(f.precio, "ARS") : "—"}</td>
+                <td className={TDN}>{fechaHora(f.desde)}</td>
+                <td className={`${TDN} ${f.horas >= 72 ? "text-[#C03420] font-semibold" : ""}`}>{f.horas >= 48 ? `${Math.floor(f.horas / 24)} días` : `${f.horas} h`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[11px] text-[#5C6B76] mb-4">
+        Publicaciones con descuento (tachado) que no están en ninguna campaña: siguen publicadas al precio tachado —Laucen nunca las baja a la Clásica, porque después de una venta Mercado Libre puede no dejar volver a subirlo—, pero así casi no venden.
+        Laucen lee cada hora las campañas que ofrece Mercado Libre y, si la cuenta tiene «Sincronizar precios» prendido, la mete sola en la primera que acepte su precio. Si no, prepará los cambios desde la <Link href={url(PREVIA, { canal: canal.id })} className="text-[#16577F] hover:underline">vista previa</Link>.
       </p>
 
       <TituloSeccion titulo={`Destacados que dejaron de ganar (${filas.length})`} />

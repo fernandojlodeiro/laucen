@@ -4,13 +4,13 @@
 import Pestanas from "@/app/componentes/Pestanas";
 import { FiltroVivo, CasillaViva } from "@/app/componentes/BuscadorVivo";
 import { url } from "@/app/componentes/erp";
-import { cuentasCanal, campanasBajoPisoCanal, type CanalMl } from "@/lib/precios-ml/datos";
+import { cuentasCanal, campanasBajoPisoCanal, sinCampanaCanal, type CanalMl } from "@/lib/precios-ml/datos";
 import { BASE_PML, PREVIA } from "./lista";
 
 export type VerPml = "general" | "excepciones" | "volumen" | "alertas" | "previa";
 
 export async function BarraPml({ org, canales, canal, ver, todas = false }: { org: string; canales: CanalMl[]; canal: CanalMl; ver: VerPml; todas?: boolean }) {
-  const [n, bajo] = await Promise.all([cuentasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id)]);
+  const [n, bajo, sin] = await Promise.all([cuentasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id), sinCampanaCanal(org, canal)]);
   const con = (v: string | null) => url(BASE_PML, { canal: canal.id, ver: v });
   return (
     <>
@@ -30,10 +30,10 @@ export async function BarraPml({ org, canales, canal, ver, todas = false }: { or
         </span>
       </div>
       <Pestanas className="mb-3" items={[
-        { clave: "general", texto: "Descuento y planes", activa: ver === "general", href: con(null) },
+        { clave: "general", texto: "Descuento y quién gana", activa: ver === "general", href: con(null) },
         { clave: "excepciones", texto: "Excepciones", cuenta: n.excepciones, activa: ver === "excepciones", href: con("excepciones") },
         { clave: "volumen", texto: "Descuento por volumen", cuenta: n.volumen, activa: ver === "volumen", href: con("volumen") },
-        { clave: "alertas", texto: "Alertas", cuenta: n.alertas + bajo.length, activa: ver === "alertas", href: con("alertas") },
+        { clave: "alertas", texto: "Alertas", cuenta: n.alertas + bajo.length + sin.length, activa: ver === "alertas", href: con("alertas") },
         { clave: "previa", texto: "Vista previa", activa: ver === "previa", href: url(PREVIA, { canal: canal.id }) },
       ]} />
     </>

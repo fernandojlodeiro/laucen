@@ -39,7 +39,7 @@ export function leerFiltroRentabilidad(sp: Record<string, string | undefined>, h
 }
 
 export type FilaRentabilidad = {
-  clave: string; pedido_id: number | null; producto_id: number | null; fecha: string | null; externo: string | null; canal: string | null;
+  clave: string; pedido_id: number | null; producto_id: number | null; fecha: string | null; externo: string | null; canal: string | null; canal_id: number | null;
   sku: string | null; titulo: string | null; unidades: number; ventas: number;
   venta: number; cargos: number; cargos_ml: boolean; costo: number | null; sin_costo: number; margen: number | null; margen_pct: number | null;
 };
@@ -64,7 +64,7 @@ export async function rentabilidad(org: string, f: FiltroRentabilidad, moneda: M
   const comision = usd ? "(p.comision_ars / nullif(p.tc_dia, 0))" : "p.comision_ars";
   const base = `
     with l as (
-      select p.id pedido_id, p.fecha, p.id_externo, ca.nombre canal, l.variacion_id, v.producto_id, coalesce(v.sku, l.sku) sku, l.titulo, l.cantidad,
+      select p.id pedido_id, p.fecha, p.id_externo, p.canal_id, ca.nombre canal, l.variacion_id, v.producto_id, coalesce(v.sku, l.sku) sku, l.titulo, l.cantidad,
              ${precio} * l.cantidad venta_l,
              sum(${precio} * l.cantidad) over (partition by p.id) venta_p,
              ${cargos} cargos_ml, ${comision} comision_ars,
@@ -82,13 +82,13 @@ export async function rentabilidad(org: string, f: FiltroRentabilidad, moneda: M
   const filas = f.agrupar === "venta"
     ? await consulta<FilaRentabilidad>(`${base}
       select pedido_id::text clave, pedido_id::int, null::int producto_id, to_char(max(fecha) at time zone 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD HH24:MI') fecha,
-             max(id_externo) externo, max(canal) canal, null sku,
+             max(id_externo) externo, max(canal) canal, max(canal_id)::int canal_id, null sku,
              string_agg(titulo, ' · ' order by titulo) titulo, sum(cantidad)::int unidades, 1 ventas,
              round(sum(venta_l), 2)::float venta, round(sum(cargos_l), 2)::float cargos, bool_or(cargos_ml is not null) cargos_ml,
              round(sum(costo_l), 2)::float costo, count(*) filter (where costo_l is null)::int sin_costo
         from x group by pedido_id order by max(fecha) desc, pedido_id desc`, [org, f.desde, f.hasta, f.canal])
     : await consulta<FilaRentabilidad>(`${base}
-      select coalesce(variacion_id::text, 'sin:' || coalesce(sku, titulo)) clave, null::int pedido_id, max(producto_id)::int producto_id, null fecha, null externo, null canal,
+      select coalesce(variacion_id::text, 'sin:' || coalesce(sku, titulo)) clave, null::int pedido_id, max(producto_id)::int producto_id, null fecha, null externo, null canal, null::int canal_id,
              max(sku) sku, max(titulo) titulo, sum(cantidad)::int unidades, count(distinct pedido_id)::int ventas,
              round(sum(venta_l), 2)::float venta, round(sum(cargos_l), 2)::float cargos, bool_or(cargos_ml is not null) cargos_ml,
              round(sum(costo_l), 2)::float costo, count(*) filter (where costo_l is null)::int sin_costo

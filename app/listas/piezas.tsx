@@ -112,7 +112,8 @@ export async function TablaVista({ lista, campos, filas, total, ctx, vacio, acci
           <tbody>
             {filas.length === 0 && <tr><td colSpan={columnas} className={`${TD} text-[#5C6B76]`}>{vacio}</td></tr>}
             {filas.map((f) => fila?.(f, columnas) ?? (
-              <tr key={String(f[clave])} className={`${TR} ${claseFila?.(f) ?? ""}`}>
+              // Una fila de un canal lleva su color de fondo (Fer, 8/10; lib/canales/colores.ts).
+              <tr key={String(f[clave])} data-canal={f.canal_id != null && Number(f.canal_id) > 0 ? Number(f.canal_id) : undefined} className={`${TR} ${claseFila?.(f) ?? ""}`}>
                 {campos.map((c) => (
                   <td key={c.clave} className={alaDerecha(c) ? TDN : TD}>{c.celda ? c.celda(f, ctx) : textoCampo(c, f, ctx.moneda, tc)}</td>
                 ))}

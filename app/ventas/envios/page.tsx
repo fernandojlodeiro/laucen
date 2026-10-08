@@ -110,7 +110,7 @@ export default async function Envios({ searchParams }: { searchParams: Promise<S
                 </td></tr>
               )}
               {filas.map((e) => (
-                <tr key={e.id} className={TR}>
+                <tr key={e.id} data-canal={e.canal_id ?? undefined} className={TR}>
                   <td className={TD}>
                     {e.imprimible && <input type="checkbox" name="ids" value={e.id} disabled={e.en_espera} aria-label={`Elegir el envío del pedido ${e.pedido_id ?? e.id}`} className="h-4 w-4 align-middle disabled:opacity-40" />}
                   </td>

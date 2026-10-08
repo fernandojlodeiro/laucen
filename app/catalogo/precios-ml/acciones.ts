@@ -63,12 +63,7 @@ async function dondeDe(org: string, fd: FormData): Promise<Donde> {
   throw new ErrorErp("Elegí a qué se aplica: una categoría o un producto.");
 }
 
-const activoDe = (fd: FormData, k: string): boolean | null => {
-  const v = fd.get(k);
-  return v === "si" ? true : v === "no" ? false : null;
-};
-
-/** La caja general del canal: tachado y los planes (activo, mínimo, margen, cuotas que ve el comprador). */
+/** La caja general del canal: el descuento y «¿gana?» de la Clásica y de cada plan. */
 export async function accionGuardarGeneral(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
   limpiarCachePrevia();
@@ -77,17 +72,15 @@ export async function accionGuardarGeneral(fd: FormData) {
   await intentar(sinEditar(v), async () => {
     await guardarTachado(s.org.id, canal, { nivel: "general" }, tachadoDelForm(fd) ?? 0, numero(fd, "clasica_ajuste"));
     for (const p of PLANES) {
-      await guardarPlan(s.org.id, canal, p, { nivel: "general" }, {
-        activo: tildado(fd, `${p}_activo`), precioMinimo: numero(fd, `${p}_min`), margenPct: numero(fd, `${p}_margen`), cuotasVisibles: entero(fd, `${p}_cuotas`),
-        ajustePct: numero(fd, `${p}_ajuste`),
-      });
+      // Qué planes, desde dónde, margen y cuotas: Configuración › Planes de cuotas. Acá, sólo «¿gana?».
+      await guardarPlan(s.org.id, canal, p, { nivel: "general" }, { activo: null, precioMinimo: null, margenPct: null, cuotasVisibles: null, ajustePct: numero(fd, `${p}_ajuste`) });
     }
     revalidatePath(BASE_PML);
     return `Grabado.${await siAutomatico(s.org.id, canal)}`;
   });
 }
 
-/** Alta o cambio de una excepción (categoría o producto): tachado y planes; vacío = hereda. */
+/** Alta o cambio de una excepción (categoría o producto): descuento y «¿gana?»; vacío = hereda. */
 export async function accionGuardarExcepcion(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
   limpiarCachePrevia();
@@ -98,7 +91,7 @@ export async function accionGuardarExcepcion(fd: FormData) {
     if (d.nivel === "general") throw new ErrorErp("Elegí una categoría o un producto.");
     await guardarTachado(s.org.id, canal, d, tachadoDelForm(fd), numero(fd, "clasica_ajuste"));
     for (const p of PLANES) {
-      await guardarPlan(s.org.id, canal, p, d, { activo: activoDe(fd, `${p}_activo`), precioMinimo: numero(fd, `${p}_min`), margenPct: numero(fd, `${p}_margen`), ajustePct: numero(fd, `${p}_ajuste`) });
+      await guardarPlan(s.org.id, canal, p, d, { activo: null, precioMinimo: null, margenPct: null, ajustePct: numero(fd, `${p}_ajuste`) });
     }
     revalidatePath(BASE_PML);
     return `Grabado.${await siAutomatico(s.org.id, canal)}`;

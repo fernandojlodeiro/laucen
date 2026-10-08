@@ -28,7 +28,7 @@ import SubirFoto from "../SubirFoto";
 import AltaNueva from "@/app/componentes/AltaNueva";
 import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import { caminoDeFamilia } from "@/lib/erp/familias";
-import { UNIR_MELI_ITEM, textoEstadoMl, PlanPublicacion, PLAN_PUBLICACION, CUOTAS_VISIBLES_PUBLICACION } from "@/app/catalogo/publicaciones/lista";
+import { UNIR_MELI_ITEM, textoEstadoMl, PlanPublicacion, PLAN_PUBLICACION, CUOTAS_VISIBLES_PUBLICACION, ES_CATALOGO, MarcaCatalogo, rangoPlan } from "@/app/catalogo/publicaciones/lista";
 import { UNIR_MODERACION } from "@/lib/mercadolibre/moderaciones";
 import { canalesWebDe } from "@/lib/catalogo/web";
 import { Interruptor } from "@/app/radar/Piezas";
@@ -974,9 +974,9 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
   const webs = await canalesWebDe(s.org.id, p.id);
   // Los precios de las publicaciones son en pesos: en dólares, al tipo de cambio de hoy.
   const tcHoy = await tcParaVista(s.org.id, s.moneda);
-  const todasLasFilas = await consulta<{ id: number; sku: string; canal: string; canal_id: number; id_externo: string | null; titulo: string; tipo_publicacion: string | null; plan: string | null; cuotas_visibles: number | null; estado: string;
+  const todasLasFilas = await consulta<{ id: number; sku: string; canal: string; canal_id: number; canal_tipo: string; catalogo: boolean; id_externo: string | null; titulo: string; tipo_publicacion: string | null; plan: string | null; cuotas_visibles: number | null; estado: string;
     precio: number | null; precio_tachado: number | null; campana: string | null; stock_ml: number | null; estado_ml: string | null; enlace: string | null; disp_web: number | null; vendidos: number | null; motivo: string | null; por_precio: boolean | null }>(`
-    select pu.id::int, v.sku, c.nombre canal, pu.canal_id::int, pu.id_externo,
+    select pu.id::int, v.sku, c.nombre canal, pu.canal_id::int, c.tipo canal_tipo, ${ES_CATALOGO} catalogo, pu.id_externo,
            -- La publicación en ML (Fer, 5/10): su dirección, o la que arma ML con el número.
            case when c.tipo = 'mercadolibre' and pu.id_externo is not null
                 then coalesce(mi.permalink, 'https://articulo.mercadolibre.com.ar/' || regexp_replace(pu.id_externo, '^([A-Z]{3})(\\d+)$', '\\1-\\2')) end enlace, coalesce(pu.titulo, titulo_variacion(v.id)) titulo, pu.tipo_publicacion,
@@ -1007,10 +1007,14 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
   const tono = (e: string) => (e === "activa" ? "verde" : e === "pausada" ? "amarillo" : "gris") as "verde" | "amarillo" | "gris";
   // Se ordena tocando el título de la columna (Fer, 7/10); son pocas filas, en memoria.
   const CLAVES: Record<string, (f: (typeof filas)[number]) => string | number | null> = {
-    canal: (f) => f.canal, sku: (f) => f.sku, id: (f) => f.id_externo, titulo: (f) => f.titulo, plan: (f) => f.plan ?? f.tipo_publicacion,
+    canal: (f) => `${f.canal_tipo === "mercadolibre" ? 1 : 0} ${f.canal}`, sku: (f) => f.sku, id: (f) => f.id_externo, titulo: (f) => f.titulo, plan: (f) => rangoPlan(f.plan),
     precio: (f) => f.precio, estado: (f) => f.estado, stock: (f) => f.stock_ml, ventas: (f) => f.vendidos,
   };
   const clave = sp.orden && Object.hasOwn(CLAVES, sp.orden) ? CLAVES[sp.orden] : null;
+  // Sin elegir (Fer, 8/10): arriba la web; después cada cuenta de ML y, adentro, del plan más barato al más
+  // caro (Clásica, 3x, Premium, 9x, 12x), la de catálogo después de la común del mismo plan.
+  filas.sort((a, b) => Number(a.canal_tipo === "mercadolibre") - Number(b.canal_tipo === "mercadolibre") || a.canal.localeCompare(b.canal, "es")
+    || a.sku.localeCompare(b.sku, "es", { numeric: true }) || rangoPlan(a.plan) - rangoPlan(b.plan) || Number(a.catalogo) - Number(b.catalogo) || a.id - b.id);
   if (clave) {
     const signo = sp.dir === "desc" ? -1 : 1;
     filas.sort((a, b) => {
@@ -1066,7 +1070,7 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
           <tbody>
             {filas.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>Ninguna variación de este producto está publicada.</td></tr>}
             {filas.map((f) => (
-              <tr key={f.id} className={TR}>
+              <tr key={f.id} data-canal={f.canal_id} className={TR}>
                 <td className={TD}>{f.canal}</td>
                 <td className={`${TD} font-mono`}>{f.sku}</td>
                 {/* El número abre el historial de la publicación; la flechita, Mercado Libre en otra pestaña. */}
@@ -1076,7 +1080,7 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
                 <td className={TD}>{f.enlace
                   ? <a href={f.enlace} target="_blank" rel="noopener noreferrer" className="hover:text-[#16577F] hover:underline">{f.titulo} ↗</a>
                   : f.titulo}</td>
-                <td className={`${TD} whitespace-nowrap`}>{f.plan ? <PlanPublicacion plan={f.plan} cuotas={f.cuotas_visibles} /> : f.tipo_publicacion ?? "—"}</td>
+                <td className={`${TD} whitespace-nowrap`}>{f.plan ? <PlanPublicacion plan={f.plan} cuotas={f.cuotas_visibles} /> : f.tipo_publicacion ?? "—"}{f.catalogo && <span className="block mt-0.5"><MarcaCatalogo /></span>}</td>
                 <td className={TDN}>
                   {/* Como en ML (Fer, 8/10): grande lo que paga el cliente con su plan, el de lista chico y tachado, % OFF y la campaña chiquita. */}
                   {f.precio != null

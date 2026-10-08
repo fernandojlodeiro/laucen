@@ -5,6 +5,7 @@
 // muestran nunca (sólo si tiene o no); la recién generada, una sola vez.
 
 import Link from "next/link";
+import { PALETA_CANALES, NOMBRE_COLOR } from "@/lib/canales/colores";
 import { cookies } from "next/headers";
 import { consulta } from "@/lib/erp/base";
 import { VERDE, SUAVE, PRIMARIO, APAGAR } from "@/app/botones";
@@ -59,9 +60,9 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
   const canales = await consulta<{
     id: number; nombre: string; tipo: string; lista_id: number | null; lista: string | null; estado: string;
     umbral: number | null; tiene_llave: boolean; depositos: string | null; ml: string | null; apodo: string | null; emisor_id: number | null; emisor: string | null;
-    sincroniza: boolean; sube_facturas: boolean; precios: boolean;
+    sincroniza: boolean; sube_facturas: boolean; precios: boolean; color: string | null;
   }>(`
-    select c.id::int, c.nombre, c.tipo, c.lista_precios_id::int lista_id, l.nombre lista, c.estado, c.umbral_pausa_default umbral,
+    select c.id::int, c.nombre, c.color, c.tipo, c.lista_precios_id::int lista_id, l.nombre lista, c.estado, c.umbral_pausa_default umbral,
            c.config ? 'token' tiene_llave,
            (select string_agg(d.nombre, ', ' order by cd.prioridad, d.nombre) from canal_deposito cd join deposito d on d.id = cd.deposito_id
              where cd.canal_id = c.id) depositos,
@@ -180,6 +181,16 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
                       </select></label>
                     <label><span className={ETIQUETA}>Umbral de pausa</span>
                       <CampoNumero name="umbral" valor={c.umbral} tipo="entero" placeholder="hereda" className={`${CAMPO} w-20`} /></label>
+                    {/* El color del canal (Fer, 8/10): el fondo de sus filas en todas las pantallas. */}
+                    <fieldset><span className={ETIQUETA}>Color</span>
+                      <span className="flex flex-wrap gap-1">
+                        {PALETA_CANALES.map((col) => (
+                          <label key={col} title={NOMBRE_COLOR[col]} className="cursor-pointer">
+                            <input type="radio" name="color" value={col} defaultChecked={(c.color ?? "").toUpperCase() === col} className="peer sr-only" />
+                            <span className="block h-7 w-7 rounded-md border border-[#C9D3DD] peer-checked:ring-2 peer-checked:ring-[#16577F]" style={{ backgroundColor: col }} />
+                          </label>
+                        ))}
+                      </span></fieldset>
                     <button className={VERDE}>Guardar</button>
                     <Link href={aqui} className={SUAVE} scroll={false}>Cancelar</Link>
                   </form>
@@ -194,7 +205,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
                 </td>
               </tr>
             ) : (
-              <tr key={c.id} className={`${TR} ${elegido?.id === c.id ? "bg-[#EEF3F8]" : ""}`}>
+              <tr key={c.id} data-canal={c.id} className={`${TR} ${elegido?.id === c.id ? "outline outline-2 -outline-offset-2 outline-[#16577F]" : ""}`}>
                 <td className={TD}><Link href={url(BASE, { ...conFiltros, c: c.id })} className="font-semibold text-[#16577F] hover:underline">{c.nombre}</Link></td>
                 <td className={TD}>{TIPOS[c.tipo] ?? c.tipo}</td>
                 <td className={TD}>{c.lista_id

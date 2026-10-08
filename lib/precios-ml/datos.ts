@@ -6,10 +6,11 @@
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import {
-  CON_PRECIO, campanasBajoPiso, cadenaFamilias, comisionesDe, comisionGeneral, normalizarEscalones, planDePublicacion, proponer,
+  CON_PRECIO, campanasBajoPiso, cadenaFamilias, heredar, comisionesDe, comisionGeneral, normalizarEscalones, planDePublicacion, proponer,
   type Campana, type Comisiones, type EntradaVariacion, type FilaComision, type FilaVolumen, type Propuesta, type ReglasCanal,
   type ReglasPlan, type ReglaTachado, type PubMl,
 } from "@/lib/precios-ml/motor";
+import { gruposPlanes, barreraPlanes, reglasDeGrupos } from "@/lib/precios-ml/grupos";
 
 export type CanalMl = {
   id: number; nombre: string; listaId: number | null; lista: string | null;
@@ -46,11 +47,16 @@ export async function canalMl(org: string, canal: number): Promise<CanalMl> {
 export async function reglasCanal(org: string, canal: CanalMl): Promise<ReglasCanal> {
   const [tachado, planes, volumen] = await Promise.all([
     consulta<ReglaTachado>(`select nivel, familia_id::int, producto_id::int, tachado_pct::float8, ajuste_pct::float8 from ml_regla_precio where organizacion_id = $1 and canal_id = $2`, [org, canal.id]),
-    consulta<ReglasPlan>(`select plan, nivel, familia_id::int, producto_id::int, activo, precio_minimo::float8, margen_pct::float8, cuotas_visibles, ajuste_pct::float8
-                            from ml_plan_config where organizacion_id = $1 and canal_id = $2`, [org, canal.id]),
+    // De cada cuenta sólo «¿gana?» (ajuste_pct); qué planes, desde dónde, el margen y las cuotas que
+    // ve el comprador salen de los grupos de Configuración › Planes de cuotas (Fer, 8/10).
+    consulta<ReglasPlan>(`select plan, nivel, familia_id::int, producto_id::int, null::boolean activo, null::float8 precio_minimo, null::float8 margen_pct,
+                                 null::int cuotas_visibles, ajuste_pct::float8
+                            from ml_plan_config where organizacion_id = $1 and canal_id = $2 and ajuste_pct is not null`, [org, canal.id]),
     consulta<FilaVolumen>(`select nivel, familia_id::int, producto_id::int, desde_precio::float8, hasta_precio::float8, escalones, sin_descuento
                              from ml_volumen_escala where organizacion_id = $1 and canal_id = $2 order by desde_precio`, [org, canal.id]),
   ]);
+  const [grupos, barrera] = await Promise.all([gruposPlanes(org), barreraPlanes()]);
+  planes.push(...reglasDeGrupos(grupos, barrera));
   return { tachado, planes, volumen: volumen.map((v) => ({ ...v, escalones: normalizarEscalones(v.escalones) })), reglaStock: canal.reglaStock };
 }
 
@@ -303,7 +309,7 @@ export async function excepcionesCanal(org: string, canal: number): Promise<Exce
     with k as (
       select nivel, familia_id, producto_id from ml_regla_precio where organizacion_id = $1 and canal_id = $2 and nivel <> 'general'
       union
-      select nivel, familia_id, producto_id from ml_plan_config where organizacion_id = $1 and canal_id = $2 and nivel <> 'general')
+      select nivel, familia_id, producto_id from ml_plan_config where organizacion_id = $1 and canal_id = $2 and nivel <> 'general' and ajuste_pct is not null)
     select k.nivel, k.familia_id::int, k.producto_id::int, coalesce(f.nombre, p.titulo, '—') nombre, p.sku_base sku,
            (select tachado_pct::float8 from ml_regla_precio r where r.canal_id = $2 and r.nivel = k.nivel
                and r.familia_id is not distinct from k.familia_id and r.producto_id is not distinct from k.producto_id) tachado_pct,
@@ -373,7 +379,7 @@ export async function cuentasCanal(org: string, canal: number) {
   return (await una<{ excepciones: number; volumen: number; alertas: number }>(`
     select (select count(*) from (
               select nivel, familia_id, producto_id from ml_regla_precio where organizacion_id = $1 and canal_id = $2 and nivel <> 'general'
-              union select nivel, familia_id, producto_id from ml_plan_config where organizacion_id = $1 and canal_id = $2 and nivel <> 'general') k)::int excepciones,
+              union select nivel, familia_id, producto_id from ml_plan_config where organizacion_id = $1 and canal_id = $2 and nivel <> 'general' and ajuste_pct is not null) k)::int excepciones,
            (select count(*) from ml_volumen_escala where organizacion_id = $1 and canal_id = $2)::int volumen,
            (select count(*) from ml_plan_destacado where organizacion_id = $1 and canal_id = $2 and alerta is not null)::int alertas`, [org, canal]))!;
 }
@@ -388,4 +394,47 @@ export async function productoPorSku(org: string, sku: string | null): Promise<n
     limit 1`, [org, sku.trim()]);
   if (!p) throw new ErrorErp(`No hay ningún producto con el SKU ${sku}.`);
   return p.id;
+}
+
+export type SinCampana = {
+  variacionId: number; productoId: number; sku: string; titulo: string; publicacionId: number; itemId: string; plan: string | null;
+  precio: number | null; desde: Date; horas: number;
+};
+
+/** Las publicaciones con tachado que hace más de `horas` que no están en ninguna campaña
+ *  (Fer, 8/10): siguen publicadas al tachado —nunca se bajan a la Clásica—, pero así no
+ *  venden. «Desde» es lo último que se sabe: cuando salió de su última campaña, cuando
+ *  terminó, o cuando se publicó. */
+export async function sinCampanaCanal(org: string, canal: CanalMl, horas = 24): Promise<SinCampana[]> {
+  const [filas, reglas, familias] = await Promise.all([
+    consulta<{ variacion_id: number; producto_id: number; familia_id: number | null; sku: string; titulo: string; pub: number; item: string; tipo: string | null; tags: unknown;
+      precio: number | null; desde: Date }>(`
+      select p.variacion_id::int, v.producto_id::int, pr.familia_id::int, v.sku, titulo_variacion(v.id) titulo, p.id::int pub, p.id_externo item,
+             coalesce(mi.tipo, p.tipo_publicacion) tipo, mi.datos_externos -> 'ml' -> 'tags' tags, coalesce(mi.precio, p.precio_canal)::float8 precio,
+             greatest(p.creado_ts,
+               (select max(h.fecha) from ml_promo_historia h where h.canal_id = p.canal_id and h.item_id = p.id_externo and h.que = 'item_baja' and h.antes in ('started', 'pending')),
+               (select max(m.hasta) from ml_promo_item m where m.canal_id = p.canal_id and m.item_id = p.id_externo and m.hasta <= now())) desde
+        from publicacion p
+        join variacion v on v.id = p.variacion_id
+        join producto pr on pr.id = v.producto_id
+        left join meli_item mi on mi.canal_id = p.canal_id and mi.item_id = p.id_externo and mi.variation_id = coalesce(p.variacion_externa, '')
+       where p.organizacion_id = $1 and p.canal_id = $2 and p.estado = 'activa' and p.id_externo is not null
+         and not exists (select 1 from ml_promo_item m where m.canal_id = p.canal_id and m.item_id = p.id_externo
+                            and m.estado = 'started' and (m.hasta is null or m.hasta > now()))`, [org, canal.id]),
+    reglasCanal(org, canal),
+    familiasDe(org),
+  ]);
+  const limite = Date.now() - horas * 3_600_000;
+  const salida: SinCampana[] = [];
+  for (const f of filas) {
+    const desde = new Date(f.desde);
+    if (desde.getTime() > limite) continue;
+    const lugar = { productoId: f.producto_id, familias: cadenaFamilias(f.familia_id, familias.padres) };
+    if (!(Number(heredar(reglas.tachado, lugar, (r) => r.tachado_pct).valor ?? 0) > 0)) continue;
+    salida.push({
+      variacionId: f.variacion_id, productoId: f.producto_id, sku: f.sku, titulo: f.titulo, publicacionId: f.pub, itemId: f.item, plan: planDePublicacion(f.tipo, f.tags),
+      precio: f.precio, desde, horas: Math.floor((Date.now() - desde.getTime()) / 3_600_000),
+    });
+  }
+  return salida.sort((a, b) => a.desde.getTime() - b.desde.getTime());
 }

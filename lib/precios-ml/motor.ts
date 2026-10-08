@@ -29,10 +29,12 @@ export const esPlan = (x: unknown): x is Plan => PLANES.includes(x as Plan);
 
 export const PLAN_INFO: Record<PlanOClasica, { nombre: string; corto: string; cuotas: number; tipo: "gold_special" | "gold_pro"; tag: string | null }> = {
   clasica: { nombre: "Clásica", corto: "Clásica", cuotas: 1, tipo: "gold_special", tag: null },
-  premium: { nombre: "Premium 6 cuotas sin interés", corto: "6 cuotas", cuotas: 6, tipo: "gold_pro", tag: null },
-  "3x_campaign": { nombre: "3 cuotas sin interés", corto: "3 cuotas", cuotas: 3, tipo: "gold_pro", tag: "3x_campaign" },
-  "9x_campaign": { nombre: "9 cuotas sin interés", corto: "9 cuotas", cuotas: 9, tipo: "gold_pro", tag: "9x_campaign" },
-  "12x_campaign": { nombre: "12 cuotas sin interés", corto: "12 cuotas", cuotas: 12, tipo: "gold_pro", tag: "12x_campaign" },
+  // Los nombres son los de ML: cuántas cuotas ve el comprador depende de la categoría (y del momento) y se carga
+  // en Configuración › Planes de cuotas (Fer, 8/10); `cuotas` es sólo lo que se supone si no hay nada cargado.
+  premium: { nombre: "Premium común", corto: "Premium", cuotas: 6, tipo: "gold_pro", tag: null },
+  "3x_campaign": { nombre: "Premium 3x", corto: "3x", cuotas: 3, tipo: "gold_pro", tag: "3x_campaign" },
+  "9x_campaign": { nombre: "Premium 9x", corto: "9x", cuotas: 9, tipo: "gold_pro", tag: "9x_campaign" },
+  "12x_campaign": { nombre: "Premium 12x", corto: "12x", cuotas: 12, tipo: "gold_pro", tag: "12x_campaign" },
 };
 
 /** ML pide al menos 5 % de descuento para que una campaña muestre tachado. */

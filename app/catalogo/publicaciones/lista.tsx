@@ -52,9 +52,28 @@ export const PLAN_PUBLICACION = `(case coalesce(mi.tipo, pu.tipo_publicacion)
                        where st ->> 'id' = 'INSTALLMENTS_CAMPAIGN' and st ->> 'value_name' = t)
         limit 1), 'premium')
    else coalesce(mi.tipo, pu.tipo_publicacion) end)`;
-// Cuántas cuotas ve el comprador en ese plan, si la cuenta lo tiene cargado en Precios en ML (no siempre coincide con el nombre).
-export const CUOTAS_VISIBLES_PUBLICACION = `(select k.cuotas_visibles from ml_plan_config k
-   where k.canal_id = pu.canal_id and k.nivel = 'general' and k.plan = ${PLAN_PUBLICACION})`;
+// El orden de los planes (Fer, 8/10): del más barato al más caro para el vendedor (por la comisión):
+// Clásica, 3x, Premium común, 9x, 12x. Las listas lo usan para que las publicaciones de un mismo producto
+// en una cuenta queden juntas y en ese orden.
+export const ORDEN_PLANES = ["clasica", "3x_campaign", "premium", "9x_campaign", "12x_campaign"] as const;
+export const rangoPlan = (plan: string | null | undefined) => { const i = ORDEN_PLANES.indexOf(plan as (typeof ORDEN_PLANES)[number]); return i < 0 ? ORDEN_PLANES.length : i; };
+export const ORDEN_PLAN_PUBLICACION = `(case ${PLAN_PUBLICACION} ${ORDEN_PLANES.map((p, i) => `when '${p}' then ${i}`).join(" ")} else ${ORDEN_PLANES.length} end)`;
+/** Arriba de todo la web; después cada cuenta de ML. */
+export const ORDEN_CANAL = "(c.tipo = 'mercadolibre'), c.nombre";
+/** La marca de las publicaciones de catálogo de ML (Fer, 8/10): que se distinga a simple vista. */
+export function MarcaCatalogo() {
+  return (
+    <span title="Publicación de catálogo: compite en la página del producto de Mercado Libre"
+      className="inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] font-semibold leading-none bg-[#FFF1C2] text-[#7A5A00] border border-[#EBCB6B] align-middle">
+      📖 Catálogo
+    </span>
+  );
+}
+// Cuántas cuotas ve el comprador en ese plan: lo cargado para el grupo del producto en Configuración › Planes
+// de cuotas (Fer, 8/10; depende de la categoría, no de la cuenta, y no siempre coincide con el nombre del plan).
+export const CUOTAS_VISIBLES_PUBLICACION = `(select gp.cuotas_visibles from ml_plan_grupo_plan gp
+   where gp.grupo_id = ml_grupo_de_producto(pu.organizacion_id, (select vv.producto_id from variacion vv where vv.id = pu.variacion_id))
+     and gp.plan = ${PLAN_PUBLICACION})`;
 const NOMBRE_PLAN: Record<string, string> = { clasica: "Clásica", premium: "Premium", "3x_campaign": "Premium 3x", "9x_campaign": "Premium 9x", "12x_campaign": "Premium 12x" };
 /** «Premium 3x» (el nombre interno de ML, para empatarlo con lo que se ve en ML) y, si se sabe, «ve 6 cuotas». */
 export function textoPlan(plan: string | null | undefined, cuotasVisibles?: number | null) {
@@ -147,6 +166,6 @@ export const LISTA_PUBLICACIONES: Lista = {
                 exists (select 1 from ${desde} where ${donde.replace(INACTIVOS, "($5 or true)")}) todos`, valores);
       if (hay && !hay.activos && hay.todos) valores[4] = true;
     }
-    return { desde, donde, valores, orden: "c.nombre, v.sku, pu.id" };
+    return { desde, donde, valores, orden: `${ORDEN_CANAL}, v.sku, ${ORDEN_PLAN_PUBLICACION}, ${ES_CATALOGO}, pu.id` };
   },
 };

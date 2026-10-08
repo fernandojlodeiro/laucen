@@ -22,7 +22,7 @@ import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO,
 } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
-import { LISTA_PUBLICACIONES, DISPONIBLE_PUBLICACION, textoEstadoMl, PlanPublicacion, PLAN_PUBLICACION, CUOTAS_VISIBLES_PUBLICACION, ES_CATALOGO, PRECIO_PUBLICACION, TACHADO_PUBLICACION, CAMPANA_PUBLICACION, PRECIO_CAMPANA_PUBLICACION } from "./lista";
+import { LISTA_PUBLICACIONES, DISPONIBLE_PUBLICACION, textoEstadoMl, PlanPublicacion, PLAN_PUBLICACION, CUOTAS_VISIBLES_PUBLICACION, ES_CATALOGO, PRECIO_PUBLICACION, TACHADO_PUBLICACION, CAMPANA_PUBLICACION, PRECIO_CAMPANA_PUBLICACION, ORDEN_PLAN_PUBLICACION, ORDEN_CANAL, MarcaCatalogo } from "./lista";
 import { accionGuardarPublicacion, accionPausarPublicacion, accionSacarPausa, accionCorregirPrecio, accionLeerMotivos, accionEliminarPublicacion } from "./acciones";
 import BotonEliminar from "./BotonEliminar";
 
@@ -85,8 +85,8 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
     desde: base.desde,
     donde: base.donde,
     orden: leerOrden(sp, {
-      sku: "v.sku", titulo: "coalesce(pu.titulo, p.titulo)", canal: "c.nombre", externo: "pu.id_externo", categoria: "pu.categoria_externa",
-      estado: "pu.estado", plan: PLAN_PUBLICACION, precio: PRECIO_PUBLICACION, disponible: DISPONIBLE, umbral: "umbral_pausa_de($1, v.id, c.id)", stock_ml: "mi.stock",
+      sku: "v.sku", titulo: "coalesce(pu.titulo, p.titulo)", canal: ORDEN_CANAL, externo: "pu.id_externo", categoria: "pu.categoria_externa",
+      estado: "pu.estado", plan: ORDEN_PLAN_PUBLICACION, precio: PRECIO_PUBLICACION, disponible: DISPONIBLE, umbral: "umbral_pausa_de($1, v.id, c.id)", stock_ml: "mi.stock",
     }, base.orden),
   }, base.valores, sp);
 
@@ -132,7 +132,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
           <tbody>
             {filas.length === 0 && <tr><td colSpan={11} className={`${TD} text-[#5C6B76]`}>{canalId || estado || revision || catalogo || comunes || q ? "Nada coincide con el filtro." : "Todavía no hay publicaciones: se traen solas de Mercado Libre al vincular la cuenta."}</td></tr>}
             {filas.map((f) => (
-              <tr key={f.id} className={`${TR} ${editar === f.id ? "bg-[#FAFBFC]" : ""}`}>
+              <tr key={f.id} data-canal={f.canal_id} className={`${TR} ${editar === f.id ? "outline outline-2 -outline-offset-2 outline-[#16577F]" : ""}`}>
                 {/* La foto: 30 % más chica y al tocarla se agranda, como en todas las listas (Fer, 8/10). */}
                 <td className={`${TD} w-[40px]`}><FotosProducto fotos={f.foto ? [f.foto] : null} titulo={f.titulo_var} /></td>
                 {/* SKU, MLA y título siempre a la vista (Fer, 7/10). */}
@@ -149,7 +149,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                 <td className={`${TD} whitespace-nowrap`}>{f.id_externo && /^MLA\d+$/.test(f.id_externo)
                   ? <><Link href={historialPublicacion(f.id_externo)} className="text-[#16577F] hover:underline" title="Historial de esta publicación">{f.id_externo}</Link> <a href={enlaceMl(f.id_externo)} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline" title="Ver en Mercado Libre">↗</a></>
                   : f.id_externo ?? "—"}</td>
-                <td className={`${TD} whitespace-nowrap`}><PlanPublicacion plan={f.plan} cuotas={f.cuotas_visibles} />{f.catalogo && <span className="block text-[10px] text-[#16577F]">Catálogo</span>}</td>
+                <td className={`${TD} whitespace-nowrap`}><PlanPublicacion plan={f.plan} cuotas={f.cuotas_visibles} />{f.catalogo && <span className="block mt-0.5"><MarcaCatalogo /></span>}</td>
                 <td className={TDN}>
                   {corrigiendo === f.id ? (
                     // Corregir el precio de una en revisión: sale a ML con este clic (por la cola).

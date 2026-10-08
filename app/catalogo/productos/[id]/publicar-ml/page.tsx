@@ -29,7 +29,7 @@ import BorradorNueva from "./BorradorNueva";
 import { armarBorradorNueva, type BorradorNueva as DatosNueva } from "@/lib/mercadolibre/publicar-nueva";
 import { planTodas, AJUSTE_NO_GANA, type PlanTodas } from "@/lib/mercadolibre/publicar-todas";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
-import { descuentoComprador } from "@/lib/precios-ml/motor";
+import { descuentoComprador, PLAN_INFO, type Plan } from "@/lib/precios-ml/motor";
 import { accionPrepararTodas } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -283,8 +283,9 @@ function TodasLasCuentas({ plan, base }: { plan: PlanTodas; base: string }) {
           ? <><a href={plan.origen.permalink ?? "#"} target="_blank" rel="noreferrer" className="font-mono text-[#16577F] hover:underline">{plan.origen.itemId} ↗</a> ({plan.origen.cuenta}) — {plan.origen.titulo}</>
           : <b className="text-[#C03420]">ninguna (hace falta una primera publicación)</b>}</div>
         <div>Catálogo: {plan.catalogo ? <>cada alta pide entrar al producto de catálogo <b className="font-mono">{plan.catalogo}</b> (si ML no la deja, el alta queda igual)</> : "no se conoce producto de catálogo: no se intenta"}</div>
-        <div>Quién gana: Clásica → <b>{nombreCuenta(plan.ganador.clasica)}</b> · 12 cuotas → <b>{nombreCuenta(plan.ganador["12x_campaign"])}</b> · 3 cuotas → <b>{nombreCuenta(plan.ganador["3x_campaign"])}</b>
-          <span className="text-[#5C6B76]"> (la de 3 cuotas va a la cuenta que menos gana hoy: {cuentas.map((c) => `${c} ${plan.ganadas3x[plan.filas.find((f) => f.cuenta === c)!.canal] ?? 0}`).join(", ")}). Las que no ganan van {AJUSTE_NO_GANA} % más caras.</span></div>
+        <div>Quién gana: Clásica → <b>{nombreCuenta(plan.ganador.clasica)}</b>
+          {[plan.principal, ...plan.repartidos].filter((p): p is Plan => p != null).map((p) => <span key={p}> · {PLAN_INFO[p].corto} → <b>{nombreCuenta(plan.ganador[p])}</b></span>)}
+          <span className="text-[#5C6B76]"> (.BAIRES gana la Clásica y el plan de más cuotas; {plan.repartidos.length ? <>cada uno de los otros va a la cuenta que menos lo gana hoy: {plan.repartidos.map((p) => `${PLAN_INFO[p].corto}: ${cuentas.map((c) => `${c} ${plan.ganadas[p]?.[plan.filas.find((f) => f.cuenta === c)!.canal] ?? 0}`).join(", ")}`).join(" · ")}</> : "no hay otros planes"}). Las que no ganan van {AJUSTE_NO_GANA} % más caras.</span></div>
         {plan.tachadoPct > 0 && <div>Descuento que ve el comprador: {descuentoComprador(plan.tachadoPct).toLocaleString("es-AR")} %. Se publican al precio tachado y al entrar en campaña bajan a su precio.</div>}
       </div>
       {plan.avisos.map((a) => <p key={a} className="text-xs rounded-lg px-3 py-2 mb-2 bg-[#FFF8E5] text-[#8a6100]">{a}</p>)}
@@ -295,7 +296,7 @@ function TodasLasCuentas({ plan, base }: { plan: PlanTodas; base: string }) {
           </thead>
           <tbody>
             {plan.filas.map((f) => (
-              <tr key={`${f.canal}-${f.plan}`} className={TR}>
+              <tr key={`${f.canal}-${f.plan}`} data-canal={f.canal} className={TR}>
                 <td className={TD}>{f.cuenta}</td>
                 <td className={TD}>{f.nombre}</td>
                 <td className={TD}>{f.gana ? <Estado texto="Gana" tono="verde" /> : <span className="text-[11px]">no gana, +{AJUSTE_NO_GANA} %</span>}</td>

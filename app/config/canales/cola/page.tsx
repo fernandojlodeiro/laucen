@@ -125,7 +125,7 @@ async function Cola({ ctx, sp, ver, canales, aqui, filtros }: {
               </td></tr>
             )}
             {filas.map((x) => (
-              <tr key={x.id} className={TR}>
+              <tr key={x.id} data-canal={x.canal_id} className={TR}>
                 <td className={TDN}>{x.id}</td>
                 <td className={TDN}>{fechaHora(x.creado_ts)}</td>
                 <td className={TD}><Link href={url(BASE, { ver: verF, ...filtros, canal: x.canal_id })} className="hover:text-[#16577F] hover:underline">{x.canal}</Link></td>
@@ -171,8 +171,8 @@ async function Cola({ ctx, sp, ver, canales, aqui, filtros }: {
 }
 
 async function Lotes({ org, sp, aqui }: { org: string; sp: SP; aqui: string }) {
-  const lotes = await consulta<{ id: number; descripcion: string; canal: string | null; estado: string; creado_ts: Date; enviado_ts: Date | null; cambios: number; preparados: number; ok: number; errores: number }>(`
-    select l.id::int, l.descripcion, c.nombre canal, l.estado, l.creado_ts, l.enviado_ts,
+  const lotes = await consulta<{ id: number; descripcion: string; canal_id: number | null; canal: string | null; estado: string; creado_ts: Date; enviado_ts: Date | null; cambios: number; preparados: number; ok: number; errores: number }>(`
+    select l.id::int, l.descripcion, l.canal_id::int, c.nombre canal, l.estado, l.creado_ts, l.enviado_ts,
            (select count(*) from ml_cola q where q.lote_id = l.id)::int cambios,
            (select count(*) from ml_cola q where q.lote_id = l.id and q.estado = 'preparado')::int preparados,
            (select count(*) from ml_cola q where q.lote_id = l.id and q.estado = 'ok')::int ok,
@@ -211,7 +211,7 @@ async function Lotes({ org, sp, aqui }: { org: string; sp: SP; aqui: string }) {
               <thead className={THEAD}><tr><th className={TH}>Publicación</th><th className={TH}>SKU</th><th className={TH}>Tipo</th><th className={TH}>Antes</th><th className={TH}>Después</th><th className={TH}>Estado</th><th className={TH}>Problema</th>{conAccion && <th className={TH} />}</tr></thead>
               <tbody>
                 {detalle.map((x) => (
-                  <tr key={x.id} className={TR}>
+                  <tr key={x.id} data-canal={x.canal_id} className={TR}>
                     <td className={`${TD} font-mono whitespace-nowrap`}>
                       {x.item_id.startsWith("cbte:") ? <Link href={`/administracion/facturacion/${x.item_id.slice(5)}`} className="text-[#16577F] hover:underline">Comprobante {x.item_id.slice(5)}</Link>
                     : x.item_id.startsWith("reclamo:") ? <Link href={`/ventas/reclamos/ml/${x.item_id.slice(8)}`} className="text-[#16577F] hover:underline">Reclamo {x.item_id.slice(8)}</Link>
@@ -246,7 +246,7 @@ async function Lotes({ org, sp, aqui }: { org: string; sp: SP; aqui: string }) {
           <tbody>
             {lotes.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>No hay lotes. Cuando se prepare un cambio en Mercado Libre (por ejemplo desde el chat), aparece acá y sale recién cuando apretás «Mandar a Mercado Libre».</td></tr>}
             {lotes.map((l) => (
-              <tr key={l.id} className={`${TR} ${elegido?.id === l.id ? "bg-[#EEF3F8]" : ""}`}>
+              <tr key={l.id} data-canal={l.canal_id ?? undefined} className={`${TR} ${elegido?.id === l.id ? "outline outline-2 -outline-offset-2 outline-[#16577F]" : ""}`}>
                 <td className={TDN}><Link href={url(BASE, { ver: "lotes", lote: l.id })} className="font-semibold text-[#16577F] hover:underline">{l.id}</Link></td>
                 <td className={TD}><Link href={url(BASE, { ver: "lotes", lote: l.id })} className="hover:text-[#16577F] hover:underline">{l.descripcion}</Link></td>
                 <td className={TD}>{l.canal ?? "Varias cuentas"}</td>

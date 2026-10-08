@@ -16,6 +16,9 @@ create table if not exists canal (
   unique (organizacion_id, nombre)
 );
 create unique index if not exists canal_token on canal ((config ->> 'token')) where config ? 'token';
+-- El color del canal (Fer, 8/10): uno suave, de los de fondo de pantalla, distinto en cada canal. Toda
+-- pantalla que muestra datos de un canal pinta su fila (o su columna) con ese color (lib/canales/colores.ts).
+alter table canal add column if not exists color text check (color is null or color ~ '^#[0-9A-Fa-f]{6}$');
 alter table canal enable row level security;
 select erp_politica_org('canal');
 

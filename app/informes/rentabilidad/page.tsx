@@ -84,7 +84,7 @@ export default async function Rentabilidad({ searchParams }: { searchParams: Pro
           <tbody>
             {vista.length === 0 && <tr><td colSpan={10} className={`${TD} text-[#5C6B76]`}>No hay ventas en esas fechas.</td></tr>}
             {vista.map((r) => (
-              <tr key={r.clave} className={TR}>
+              <tr key={r.clave} data-canal={r.canal_id ?? undefined} className={TR}>
                 {porVenta ? <>
                   <td className={`${TD} whitespace-nowrap`}><Link href={`/ventas/pedidos/${r.pedido_id}`} className="hover:underline">{r.fecha?.slice(0, 10).split("-").reverse().join("/")} {r.fecha?.slice(11)}</Link></td>
                   <td className={`${TD} whitespace-nowrap`}><Link href={`/ventas/pedidos/${r.pedido_id}`} className="font-semibold text-[#16577F] hover:underline">{r.pedido_id}</Link>{r.externo && <span className="block font-mono text-[10px] text-[#5C6B76]">{r.externo}</span>}</td>

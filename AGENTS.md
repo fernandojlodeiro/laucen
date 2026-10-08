@@ -189,6 +189,17 @@ ubicaciones › A127-26"; cada parte se toca para volver a ese nivel. Sección y
 solas de `lib/menu.ts` (`Pantalla` dibuja `app/componentes/Camino.tsx`); una ficha suma sus
 partes con `camino={[…]}`. Nada de links "← Volver" sueltos arriba.
 
+Color de cada canal (pedido de Fer, 8/10): **cada canal tiene un color suave de fondo, distinto de los
+demás** (se elige en Configuración › Canales; paleta en `lib/canales/colores.ts`). Toda pantalla que
+muestra datos de un canal pinta con ese color su fila (o, si los canales son columnas, toda la columna):
+alcanza con `data-canal={id}` en el `<tr>`/`<td>` (el marco pone la regla de estilo; `TablaVista` lo hace
+solo si la fila trae `canal_id`).
+
+Publicaciones de un producto (pedido de Fer, 8/10): **arriba la web; después cada cuenta de ML junta y,
+adentro, del plan más barato al más caro: Clásica, 3x, Premium, 9x, 12x** (`ORDEN_PLANES` /
+`rangoPlan()` de `app/catalogo/publicaciones/lista.tsx`); las de catálogo, con la marca «📖 Catálogo»
+(`MarcaCatalogo`).
+
 Enlaces que salen de Laucen (pedido de Fer, 6/10): **siempre en otra pestaña** (`target="_blank"`)
 y con la flechita **↗** al lado del texto, para que se sepa antes de tocarlo (Mercado Libre, la tienda,
 WhatsApp, cualquier sitio de afuera). Un número de publicación (MLA…) abre su historial en Laucen

@@ -76,11 +76,11 @@ export default async function FichaCliente({ params, searchParams }: { params: P
       select id::int, etiqueta, calle, numero, piso_depto, localidad, provincia, codigo_postal, pais, principal,
              receptor, receptor_telefono, referencia
         from cliente_direccion where cliente_id = $1 and organizacion_id = $2 order by principal desc, id`, [cid, s.org.id]),
-    consulta<{ id: number; canal: string; id_externo: string }>(`
-      select i.id::int, ca.nombre canal, i.id_externo from cliente_identidad i join canal ca on ca.id = i.canal_id
+    consulta<{ id: number; canal_id: number; canal: string; id_externo: string }>(`
+      select i.id::int, i.canal_id::int, ca.nombre canal, i.id_externo from cliente_identidad i join canal ca on ca.id = i.canal_id
        where i.cliente_id = $1 and i.organizacion_id = $2 order by ca.nombre, i.id_externo`, [cid, s.org.id]),
-    consulta<{ id: number; id_externo: string | null; fecha: Date; canal: string; estado: EstadoPedido; total_ars: number; total_usd: number }>(`
-      select p.id::int, p.id_externo, p.fecha, ca.nombre canal, p.estado, p.total_ars::float, p.total_usd::float
+    consulta<{ id: number; id_externo: string | null; fecha: Date; canal_id: number; canal: string; estado: EstadoPedido; total_ars: number; total_usd: number }>(`
+      select p.id::int, p.canal_id::int, p.id_externo, p.fecha, ca.nombre canal, p.estado, p.total_ars::float, p.total_usd::float
         from pedido p join canal ca on ca.id = p.canal_id
        where p.cliente_id = $1 and p.organizacion_id = $2 order by p.fecha desc, p.id desc`, [cid, s.org.id]),
     listasDePrecios(s.org.id),
@@ -300,7 +300,7 @@ export default async function FichaCliente({ params, searchParams }: { params: P
           <tbody>
             {identidades.length === 0 && <tr><td colSpan={3} className={`${TD} text-[#5C6B76]`}>Sin identidades.</td></tr>}
             {identidades.map((i) => (
-              <tr key={i.id} className={TR}>
+              <tr key={i.id} data-canal={i.canal_id} className={TR}>
                 <td className={TD}>{i.canal}</td>
                 <td className={`${TD} font-mono`}>{i.id_externo}</td>
                 <td className={`${TD} text-right`}>
@@ -321,7 +321,7 @@ export default async function FichaCliente({ params, searchParams }: { params: P
           <tbody>
             {pedidos.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>Sin pedidos.</td></tr>}
             {pedidos.map((p) => (
-              <tr key={p.id} className={TR}>
+              <tr key={p.id} data-canal={p.canal_id} className={TR}>
                 <td className={TDN}><Link href={`/ventas/pedidos/${p.id}`} className="font-semibold text-[#16577F] hover:underline">{p.id}</Link></td>
                 <td className={TDN}><Link href={`/ventas/pedidos/${p.id}`} className="hover:underline">{fecha(p.fecha)}</Link></td>
                 <td className={TD}>{p.canal}</td>

@@ -1,5 +1,6 @@
 "use server";
 
+import { PALETA_CANALES, colorLibre } from "@/lib/canales/colores";
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
@@ -56,9 +57,11 @@ export async function accionCrearCanal(fd: FormData) {
   await intentar(BASE, async () => {
     const nombre = texto(fd, "nombre");
     if (!nombre) throw new ErrorErp("El canal necesita un nombre.");
+    // Cada canal con su color (Fer, 8/10): el primero de la paleta que no usa otro.
+    const usados = (await consulta<{ color: string | null }>("select color from canal where organizacion_id = $1", [s.org.id])).map((x) => x.color);
     const [c] = await consulta<{ id: number }>(
-      "insert into canal (organizacion_id, nombre, tipo, lista_precios_id, emisor_id) values ($1, $2, $3, $4, $5) returning id::int",
-      [s.org.id, nombre, tipo(fd), await listaDe(s.org.id, fd), await razonDe(s.org.id, fd)]);
+      "insert into canal (organizacion_id, nombre, tipo, lista_precios_id, emisor_id, color) values ($1, $2, $3, $4, $5, $6) returning id::int",
+      [s.org.id, nombre, tipo(fd), await listaDe(s.org.id, fd), await razonDe(s.org.id, fd), colorLibre(usados)]);
     // Su cuenta de ventas "Ventas — <canal>" en el plan de cuentas.
     await asegurarCuentasDeCanalesSinFallar(s.org.id);
     revalidatePath(BASE);
@@ -76,11 +79,13 @@ export async function accionGuardarCanal(fd: FormData) {
     const estado = String(fd.get("estado"));
     // Razón social con la que factura el canal: obligatoria si hay alguna cargada (no hay "principal").
     const emisor = fd.has("emisor") ? await razonDe(s.org.id, fd) : undefined;
+    const color = texto(fd, "color");
+    if (color && !(PALETA_CANALES as readonly string[]).includes(color)) throw new ErrorErp("Elegí un color de la paleta.");
     await consulta(`update canal set nombre = $3, tipo = $4, lista_precios_id = $5, estado = $6, umbral_pausa_default = $7,
-                           emisor_id = case when $8::boolean then $9::bigint else emisor_id end
+                           emisor_id = case when $8::boolean then $9::bigint else emisor_id end, color = coalesce($10, color)
                      where id = $2 and organizacion_id = $1`,
       [s.org.id, id(fd), nombre, tipo(fd), await listaDe(s.org.id, fd), ESTADOS.includes(estado) ? estado : "activo", umbral,
-        emisor !== undefined, emisor ?? null]);
+        emisor !== undefined, emisor ?? null, color]);
     // La cuenta de Mercado Pago del canal es de la razón social que factura el canal.
     if (emisor !== undefined) {
       await consulta("update cuenta_fondos set emisor_id = coalesce($3::bigint, emisor_principal($1)) where canal_id = $2 and organizacion_id = $1", [s.org.id, id(fd), emisor ?? null]);

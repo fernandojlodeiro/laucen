@@ -218,3 +218,51 @@ alter table ml_regla_precio add column if not exists ajuste_pct numeric(9, 5) ch
 alter table ml_plan_config add column if not exists ajuste_pct numeric(9, 5) check (ajuste_pct between -50 and 100);
 alter table ml_regla_precio alter column tachado_pct type numeric(10, 5);
 alter table ml_plan_config alter column margen_pct type numeric(9, 5);
+
+-- ── Planes de cuotas por grupo (Fer, 8/10) ────────────────────────────────
+-- Configuración › Planes de cuotas: qué planes de cuotas se crean, cuántas
+-- cuotas ve el comprador en cada uno (se carga a mano: ML no lo informa) y el
+-- % extra sobre lo que deja la Clásica, por grupo de categorías. Vale para
+-- todas las cuentas de ML. Un grupo con familias (y sus subfamilias) gana; el
+-- grupo sin familias es "el resto". Los planes van desde la Clásica en que
+-- ML empieza a dar envío gratis (ml_costos_envio_gratis_vigente; 33.000).
+-- Reemplaza activo / mínimo / margen / cuotas de ml_plan_config (ahí queda
+-- sólo "¿gana?", por cuenta).
+create table if not exists ml_plan_grupo (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  nombre           text not null,
+  familias         bigint[] not null default '{}',
+  orden            int not null default 0,
+  actualizado_ts   timestamptz not null default now()
+);
+create unique index if not exists ml_plan_grupo_un on ml_plan_grupo (organizacion_id, lower(nombre));
+alter table ml_plan_grupo enable row level security;
+select erp_politica_org('ml_plan_grupo');
+
+create table if not exists ml_plan_grupo_plan (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  grupo_id         bigint not null references ml_plan_grupo(id) on delete cascade,
+  plan             text not null check (plan in ('premium', '3x_campaign', '9x_campaign', '12x_campaign')),
+  usar             boolean not null default false,
+  cuotas_visibles  int check (cuotas_visibles between 1 and 36),
+  margen_pct       numeric(9, 5) check (margen_pct between -50 and 300),
+  actualizado_ts   timestamptz not null default now(),
+  unique (grupo_id, plan)
+);
+alter table ml_plan_grupo_plan enable row level security;
+select erp_politica_org('ml_plan_grupo_plan');
+
+-- El grupo de planes de un producto: el primero cuyas familias contienen la
+-- del producto (o una de arriba); si ninguno, el grupo sin familias.
+create or replace function ml_grupo_de_producto(p_org text, p_producto bigint) returns bigint
+language sql stable as $$
+  with recursive cadena(id, padre_id, n) as (
+    select f.id, f.padre_id, 0 from producto p join familia f on f.id = p.familia_id where p.id = p_producto
+    union all
+    select f.id, f.padre_id, c.n + 1 from cadena c join familia f on f.id = c.padre_id where c.n < 30)
+  select coalesce(
+    (select g.id from ml_plan_grupo g where g.organizacion_id = p_org and g.familias && (select array_agg(id) from cadena) order by g.orden, g.id limit 1),
+    (select g.id from ml_plan_grupo g where g.organizacion_id = p_org and g.familias = '{}' order by g.orden, g.id limit 1))
+$$;

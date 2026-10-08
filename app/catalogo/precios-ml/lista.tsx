@@ -248,8 +248,6 @@ export const LISTA_PRECIOS_ML: Lista = {
 
 // ── Excepciones y volumen ───────────────────────────────────
 
-const activoTexto = (v: boolean | null | undefined) => (v == null ? "hereda" : v ? "sí" : "no");
-
 export const LISTA_EXCEPCIONES_ML: Lista = {
   pantalla: "precios_ml_excepciones",
   titulo: "Excepciones de precios en Mercado Libre",
@@ -261,11 +259,9 @@ export const LISTA_EXCEPCIONES_ML: Lista = {
     { clave: "sku", titulo: "SKU" },
     // Lo que decide Fer es el descuento que ve el comprador (el tachado % es la cuenta interna).
     { clave: "tachado_pct", titulo: "Descuento que ve el comprador %", formato: "pct", valor: (f) => (f.tachado_pct == null ? null : descuentoComprador(Number(f.tachado_pct))) },
-    ...PLANES.flatMap((p): Campo[] => [
-      { clave: `${p}_activo`, titulo: `${PLAN_INFO[p].corto}: activo`, valor: (f) => activoTexto(f.planes?.[p]?.activo) },
-      { clave: `${p}_min`, titulo: `${PLAN_INFO[p].corto}: Clásica mínima`, valor: (f) => f.planes?.[p]?.min ?? null, formato: "pesos" },
-      { clave: `${p}_margen`, titulo: `${PLAN_INFO[p].corto}: margen %`, valor: (f) => f.planes?.[p]?.margen ?? null, formato: "pct" },
-    ]),
+    // Por cuenta queda sólo «¿gana?»; qué planes y sus márgenes, en Configuración › Planes de cuotas.
+    { clave: "clasica_ajuste", titulo: "Clásica: si no gana, +%", valor: (f) => f.ajuste_pct ?? null, formato: "pct" },
+    ...PLANES.map((p): Campo => ({ clave: `${p}_ajuste`, titulo: `${PLAN_INFO[p].nombre}: si no gana, +%`, valor: (f) => f.planes?.[p]?.ajuste ?? null, formato: "pct" })),
   ],
   enPantalla: ["tipo", "nombre", "sku", "tachado_pct"],
   filas: async (ctx, sp) => {

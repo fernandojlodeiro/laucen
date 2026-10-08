@@ -84,7 +84,7 @@ export const LISTA_PROMO_HISTORIA: Lista = {
   pantalla: "promociones-historia", titulo: "Promociones de ML — historia", ruta: BASE_PROMOS, permiso: "informes_publicaciones_ver",
   campos: CAMPOS_HISTORIA,
   enPantalla: ["fecha", "cuenta", "que", "campana", "item", "sku", "titulo", "antes", "despues", "precio_antes", "precio_despues", "pct"],
-  siempre: "h.id::int as id, v.producto_id::int as producto_id",
+  siempre: "h.id::int as id, v.producto_id::int as producto_id, h.canal_id::int as canal_id",
   porDefecto: "fecha",
   consulta: async (ctx, sp) => {
     const f = filtrosPromos(sp);
@@ -136,7 +136,7 @@ export const LISTA_PROMO_PUBLICACIONES: Lista = {
   pantalla: "promociones-publicaciones", titulo: "Promociones de ML — publicaciones en campañas", ruta: BASE_PROMOS, permiso: "informes_publicaciones_ver",
   campos: CAMPOS_PUBLICACIONES,
   enPantalla: ["cuenta", "item", "sku", "titulo", "campana", "estado", "precio_actual", "precio", "descuento", "hasta"],
-  siempre: "v.producto_id::int as producto_id",
+  siempre: "v.producto_id::int as producto_id, i.canal_id::int as canal_id",
   porDefecto: "hasta",
   consulta: async (ctx, sp) => {
     const f = filtrosPromos(sp);

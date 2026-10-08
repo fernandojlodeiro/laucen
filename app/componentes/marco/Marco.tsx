@@ -30,6 +30,7 @@ import { accionMonedaVista } from "./acciones";
 import Asistente from "@/app/componentes/asistente/Asistente";
 import { AvisosTareas } from "@/app/componentes/TareasFondo";
 import { configAsistente, CONFIG_DEFECTO } from "@/lib/asistente/config";
+import { estilosCanales } from "@/lib/canales/colores";
 
 export default async function Marco({ children, version }: { children: React.ReactNode; version: string }) {
   const sesion = await sesionActual();
@@ -39,7 +40,7 @@ export default async function Marco({ children, version }: { children: React.Rea
   const menu = menuPara(puede, esFer);
 
   // Si la base no responde, el marco se dibuja igual (con lo que haya).
-  const [moneda, tc, contadores, asistente, accesos, historial, inactivos, guias] = await Promise.all([
+  const [moneda, tc, contadores, asistente, accesos, historial, inactivos, guias, coloresCanales] = await Promise.all([
     monedaVista(sesion.usuario.id, sesion.org.id).catch(() => "ARS" as Moneda),
     tcDelDia(sesion.org.id).catch(() => null),
     contadoresEstado(sesion.org.id).catch(() => [] as Contador[]),
@@ -48,6 +49,7 @@ export default async function Marco({ children, version }: { children: React.Rea
     historialDe(sesion.usuario.id, sesion.org.id).catch(() => []),
     buscarInactivos(sesion.usuario.id, sesion.org.id).catch(() => false),
     guiasDelManual().catch(() => []),
+    estilosCanales(sesion.org.id).catch(() => ""),
   ]);
   // Las guías que puede leer (las de un permiso que no tiene, no se listan).
   const manuales = guias.filter((g) => g.permiso === "todos" || (g.permiso === "fer" ? esFer : puede(g.permiso as Parameters<typeof tienePermiso>[1])))
@@ -56,6 +58,8 @@ export default async function Marco({ children, version }: { children: React.Rea
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* El color de cada canal (Fer, 8/10): toda fila o columna marcada con data-canal="<id>" lleva su fondo. */}
+      {coloresCanales && <style dangerouslySetInnerHTML={{ __html: coloresCanales }} />}
       {/* PC: barra de menú */}
       <header data-reinicia-recorrido className="hidden md:block print:!hidden sticky top-0 z-30 bg-white border-b border-[#E3E9F0]">
         <div className="flex items-center gap-3 px-3 h-10">

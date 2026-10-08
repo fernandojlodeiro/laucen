@@ -3,13 +3,13 @@
 // vez: en cada cuenta la Clásica y cada plan de cuotas que corresponda por su
 // precio. Pestaña "Todas las cuentas" de /catalogo/productos/[id]/publicar-ml.
 //
-//   · Qué planes: los que Precios en ML tiene activos en esa cuenta y cuya
-//     Clásica llega a su «Desde una Clásica de» (por montos: un producto barato
-//     sale sólo con la Clásica, o con la Clásica y el plan que le llegue).
-//   · Quién gana (ajuste_pct del producto): .BAIRES gana la Clásica y la de 12
-//     cuotas; la de 3 cuotas (el comprador la ve «6 cuotas») se reparte sola a
-//     la cuenta que menos ganó hasta ahora. Las demás van 3 % más caras. Si el
-//     producto ya tiene ganador elegido para un plan, se respeta.
+//   · Qué planes: los tildados en el grupo del producto (Configuración ›
+//     Planes de cuotas), desde la Clásica en que ML da envío gratis (33.000):
+//     abajo de eso, sólo la Clásica.
+//   · Quién gana (ajuste_pct del producto): .BAIRES gana la Clásica y el plan
+//     del grupo que el comprador ve con más cuotas; cada uno de los otros planes
+//     se reparte solo a la cuenta que menos ganó ese plan hasta ahora. Las demás
+//     van 3 % más caras. Si el producto ya tiene ganador elegido, se respeta.
 //   · Copia la publicación común que ya tenga en alguna cuenta (título, fotos,
 //     atributos, garantía, descripción): hace falta una primera publicación.
 //   · Con producto de catálogo conocido, cada alta pide también entrar al
@@ -22,6 +22,7 @@ import { encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercado
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import { canalesMl, comisionesMl, familiasDe, reglasCanal, type CanalMl } from "@/lib/precios-ml/datos";
+import { gruposPlanes } from "@/lib/precios-ml/grupos";
 import {
   cadenaFamilias, comisionesDe, descuentoVisible, proponer, DESCUENTO_MINIMO_ML, PLAN_INFO, PLANES,
   type Plan, type PlanOClasica, type ReglasCanal,
@@ -31,9 +32,6 @@ import {
 export const AJUSTE_NO_GANA = 3;
 /** La cuenta que gana la Clásica y la de 12 cuotas (Fer, 7/10). */
 const esPrincipal = (c: { nombre: string }) => /BAIRES/i.test(c.nombre);
-/** Los planes que reparte este botón; los demás heredan lo que diga Precios en ML. */
-const PLAN_REPARTIDO: Plan = "3x_campaign";
-const PLAN_PRINCIPAL: Plan = "12x_campaign";
 
 export type FilaTodas = {
   canal: number; cuenta: string; plan: PlanOClasica; nombre: string;
@@ -49,8 +47,10 @@ export type PlanTodas = {
   catalogo: string | null;
   tachadoPct: number;
   ganador: Record<"clasica" | Plan, number | null>;
-  /** Cuántos productos gana ya cada cuenta en la de 3 cuotas (para el reparto). */
-  ganadas3x: Record<number, number>;
+  /** Los planes del grupo del producto: el que gana .BAIRES (el de más cuotas) y los que se reparten. */
+  principal: Plan | null; repartidos: Plan[];
+  /** Cuántos productos gana ya cada cuenta en cada plan repartido (para el reparto). */
+  ganadas: Partial<Record<Plan, Record<number, number>>>;
   filas: FilaTodas[];
   avisos: string[];
 };
@@ -114,18 +114,24 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
     select canal_id::int canal, 'clasica' plan from ml_regla_precio where organizacion_id = $1 and nivel = 'producto' and producto_id = $2 and ajuste_pct = 0
     union all
     select canal_id::int, plan from ml_plan_config where organizacion_id = $1 and nivel = 'producto' and producto_id = $2 and ajuste_pct = 0`, [org, productoId]);
-  const ganadas = await consulta<{ canal: number; n: number }>(`
-    select canal_id::int canal, count(*)::int n from ml_plan_config
-     where organizacion_id = $1 and nivel = 'producto' and plan = $2 and ajuste_pct = 0 and producto_id <> $3 group by 1`, [org, PLAN_REPARTIDO, productoId]);
-  const ganadas3x: Record<number, number> = Object.fromEntries(canales.map((c) => [c.id, ganadas.find((g) => g.canal === c.id)?.n ?? 0]));
+  // Los planes del grupo del producto (Configuración › Planes de cuotas): el de más cuotas lo gana .BAIRES; los demás se reparten.
+  const [grupos, grupoId] = await Promise.all([gruposPlanes(org), una<{ g: number | null }>("select ml_grupo_de_producto($1, $2)::int g", [org, productoId])]);
+  const grupo = grupos.find((g) => g.id === grupoId?.g) ?? null;
+  const usados = grupo ? PLANES.filter((p) => grupo.planes[p].usar)
+    .sort((a, b) => (grupo.planes[b].cuotasVisibles ?? PLAN_INFO[b].cuotas) - (grupo.planes[a].cuotasVisibles ?? PLAN_INFO[a].cuotas)) : [];
+  const planPrincipal = usados[0] ?? null;
+  const repartidos = usados.slice(1);
+  const cuenta = repartidos.length ? await consulta<{ canal: number; plan: Plan; n: number }>(`
+    select canal_id::int canal, plan, count(*)::int n from ml_plan_config
+     where organizacion_id = $1 and nivel = 'producto' and plan = any($2::text[]) and ajuste_pct = 0 and producto_id <> $3 group by 1, 2`, [org, repartidos, productoId]) : [];
+  const ganadas: PlanTodas["ganadas"] = Object.fromEntries(repartidos.map((p) => [p, Object.fromEntries(canales.map((c) => [c.id, cuenta.find((g) => g.canal === c.id && g.plan === p)?.n ?? 0]))]));
   const principal = canales.find(esPrincipal) ?? canales[0];
   const elegido = (p: string) => elegidos.find((e) => e.plan === p && canales.some((c) => c.id === e.canal))?.canal ?? null;
   const otras = canales.filter((c) => c.id !== principal.id);
-  const repartida = [...(otras.length ? otras : canales)].sort((a, b) => ganadas3x[a.id] - ganadas3x[b.id] || a.id - b.id)[0];
   const ganador = Object.fromEntries(["clasica", ...PLANES].map((p) => [p, elegido(p)])) as Record<"clasica" | Plan, number | null>;
   ganador.clasica ??= principal.id;
-  ganador[PLAN_PRINCIPAL] ??= principal.id;
-  ganador[PLAN_REPARTIDO] ??= repartida.id;
+  if (planPrincipal) ganador[planPrincipal] ??= principal.id;
+  for (const p of repartidos) ganador[p] ??= [...(otras.length ? otras : canales)].sort((a, b) => ganadas[p]![a.id] - ganadas[p]![b.id] || a.id - b.id)[0].id;
 
   // Lo que ya existe (activo, o en la cola esperando salir) en cada cuenta.
   const items = await consulta<{ canal: number; item_id: string; tipo: string; tags: unknown; terms: unknown }>(`
@@ -145,7 +151,7 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
   const filas: FilaTodas[] = [];
   let tachadoPct = 0;
   for (const c of canales) {
-    const ajustes = Object.fromEntries((["clasica", PLAN_PRINCIPAL, PLAN_REPARTIDO] as const).map((p) => [p, ganador[p] === c.id ? 0 : AJUSTE_NO_GANA]));
+    const ajustes = Object.fromEntries((["clasica", ...usados] as const).map((p) => [p, ganador[p] === c.id ? 0 : AJUSTE_NO_GANA]));
     const reglas = conAjustes(await reglasCanal(org, c), productoId, ajustes);
     const lista = c.listaId ? (await una<{ l: number | null }>("select lista_ars::float8 l from precio_de($1, $2, $3, $4::date)", [org, v.id, c.listaId, hoy]))?.l ?? null : null;
     const pr = proponer({ variacionId: v.id, productoId, lugar: { productoId, familias: cadena }, clasica: lista, stock: null, comisiones, comisionEstimada: false, pubs: [] }, reglas);
@@ -163,25 +169,25 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
       if (!p.activo) continue;
       filas.push(fila(p.plan, p.precio, p.habilitado ? null : `la Clásica no llega al mínimo del plan (${(p.precioMinimo ?? 0).toLocaleString("es-AR")})`));
     }
-    if (!pr.planes.some((p) => p.activo)) avisos.push(`${c.nombre}: no tiene ningún plan de cuotas activo en Precios en ML: sólo la Clásica.`);
+    if (!pr.planes.some((p) => p.activo)) avisos.push(`El grupo de este producto no tiene ningún plan de cuotas tildado en Configuración › Planes de cuotas: sólo la Clásica.`);
   }
   if (!origen) avisos.push("Este producto no tiene todavía ninguna publicación común en Mercado Libre para copiar: publicalo primero en una cuenta («Nueva desde Laucen» o «Catálogo de Mercado Libre») y volvé.");
   return {
     variacion: { id: v.id, sku: v.sku, titulo: v.titulo, codigoBarras: v.codigo_barras },
     variaciones: variaciones.map((x) => ({ id: x.id, sku: x.sku })),
-    origen, catalogo, tachadoPct, ganador, ganadas3x, filas, avisos: [...new Set(avisos)],
+    origen, catalogo, tachadoPct, ganador, principal: planPrincipal, repartidos, ganadas, filas, avisos: [...new Set(avisos)],
   };
 }
 
 /** Graba en Precios en ML quién gana cada precio de este producto en cada cuenta (sólo el ajuste; lo demás queda como estaba). */
-async function grabarGanadores(org: string, productoId: number, canales: CanalMl[], ganador: PlanTodas["ganador"]) {
+async function grabarGanadores(org: string, productoId: number, canales: CanalMl[], ganador: PlanTodas["ganador"], planes: Plan[]) {
   for (const c of canales) {
     const aj = (p: "clasica" | Plan) => (ganador[p] === c.id ? 0 : AJUSTE_NO_GANA);
     await consulta(`
       insert into ml_regla_precio (organizacion_id, canal_id, nivel, producto_id, tachado_pct, ajuste_pct) values ($1, $2, 'producto', $3, null, $4)
       on conflict (canal_id, nivel, coalesce(familia_id, 0), coalesce(producto_id, 0)) do update set ajuste_pct = excluded.ajuste_pct, actualizado_ts = now()`,
       [org, c.id, productoId, aj("clasica")]);
-    for (const p of [PLAN_PRINCIPAL, PLAN_REPARTIDO]) {
+    for (const p of planes) {
       await consulta(`
         insert into ml_plan_config (organizacion_id, canal_id, plan, nivel, producto_id, ajuste_pct) values ($1, $2, $3, 'producto', $4, $5)
         on conflict (canal_id, plan, nivel, coalesce(familia_id, 0), coalesce(producto_id, 0)) do update set ajuste_pct = excluded.ajuste_pct, actualizado_ts = now()`,
@@ -197,7 +203,7 @@ export async function prepararTodas(org: string, productoId: number, variacionId
   const plan = await planTodas(org, productoId, variacionId);
   if (!plan.origen) throw new ErrorErp("No hay ninguna publicación común de este producto para copiar: publicalo primero en una cuenta.");
   const canales = await canalesMl(org);
-  await grabarGanadores(org, productoId, canales, plan.ganador);
+  await grabarGanadores(org, productoId, canales, plan.ganador, [plan.principal, ...plan.repartidos].filter((x): x is Plan => x != null));
   const res: ResultadoTodas = { lotes: [], rechazos: [], avisos: [], sinTiempo: 0 };
   const crear = plan.filas.filter((f) => f.crear);
   if (!crear.length) throw new ErrorErp("No falta ninguna publicación: ya están todas (o en la cola).");

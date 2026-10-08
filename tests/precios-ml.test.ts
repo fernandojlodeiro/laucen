@@ -15,8 +15,37 @@ import {
   type FilaVolumen, type ReglaTachado, type ReglasPlan, type EntradaVariacion, type PubMl, type ReglasCanal,
   tablaVolumen, precioVendedorCampana, campanasBajoPiso, descuentoComprador, tachadoDeDescuento, type PropuestaPub,
 } from "@/lib/precios-ml/motor";
+import { reglasDeGrupos, type GrupoPlanes } from "@/lib/precios-ml/grupos";
 
 // ── El motor (sin base) ─────────────────────────────────────
+
+test("planes por grupo: Notebooks (familia) gana a Resto (general); desde la barrera; «¿gana?» sigue por cuenta", () => {
+  const plan = (usar: boolean, cuotas: number | null, margen: number | null) => ({ usar, cuotasVisibles: cuotas, margenPct: margen });
+  const grupos: GrupoPlanes[] = [
+    { id: 1, nombre: "Notebooks", familias: [3], nombresFamilias: ["Notebooks"], orden: 1,
+      planes: { premium: plan(true, 9, 3), "3x_campaign": plan(true, 6, 2), "9x_campaign": plan(false, null, null), "12x_campaign": plan(true, 18, 4) } },
+    { id: 2, nombre: "Resto", familias: [], nombresFamilias: [], orden: 2,
+      planes: { premium: plan(true, 6, 8), "3x_campaign": plan(false, 3, null), "9x_campaign": plan(true, 12, 12), "12x_campaign": plan(false, 12, null) } },
+  ];
+  const reglas: ReglasCanal = {
+    tachado: [],
+    planes: [{ nivel: "producto", producto_id: 7, plan: "premium", activo: null, precio_minimo: null, margen_pct: null, cuotas_visibles: null, ajuste_pct: 3 },
+      ...reglasDeGrupos(grupos, 33_000)],
+    volumen: [], reglaStock: true,
+  };
+  const com = { clasica: 16.34, premium: 29.7, "3x_campaign": 25.2, "9x_campaign": 34.1, "12x_campaign": 37.9 };
+  const entrada = (productoId: number, familias: number[], clasica: number): EntradaVariacion =>
+    ({ variacionId: productoId, productoId, lugar: { productoId, familias }, clasica, stock: 1, comisiones: com, comisionEstimada: false, pubs: [] });
+  const habil = (e: EntradaVariacion) => proponer(e, reglas).planes.filter((p) => p.habilitado).map((p) => `${p.plan}:${p.cuotasVisibles}:${p.margenPct}`);
+  // Notebook (familia 3, debajo de 2): Premium 9 cuotas, 3x 6, 12x 18.
+  assert.deepEqual(habil(entrada(7, [3, 2], 1_000_000)), ["premium:9:3", "3x_campaign:6:2", "12x_campaign:18:4"]);
+  // Otro producto: Premium 6 y 9x 12; abajo de la barrera, ninguno.
+  assert.deepEqual(habil(entrada(8, [50], 40_000)), ["premium:6:8", "9x_campaign:12:12"]);
+  assert.deepEqual(habil(entrada(8, [50], 32_999)), []);
+  // El «¿gana?» del producto 7 en esta cuenta sigue valiendo: su Premium va 3 % más cara.
+  const p7 = proponer(entrada(7, [3, 2], 1_000_000), reglas).planes.find((p) => p.plan === "premium")!;
+  assert.equal(p7.precio, Math.round(precioPlan(1_000_000, 16.34, 29.7, 3) * 1.03));
+});
 
 const padres = new Map<number, number | null>([[10, null], [11, 10], [12, 11]]);
 const lugar = { productoId: 7, familias: cadenaFamilias(12, padres) };

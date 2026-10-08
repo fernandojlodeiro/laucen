@@ -138,7 +138,7 @@ export const LISTA_CAMBIOS_PUBLICACIONES: Lista = {
   permiso: "informes_publicaciones_ver",
   campos: CAMPOS,
   enPantalla: ["fecha", "cuenta", "item", "sku", "titulo", "campo", "cambio", "cambios", "origen", "causa"],
-  siempre: "c.id::int as id, v.producto_id::int as producto_id, (select array_agg(pf.url order by pf.orden) from producto_foto pf where pf.producto_id = v.producto_id) as fotos",
+  siempre: "c.id::int as id, c.canal_id::int as canal_id, v.producto_id::int as producto_id, (select array_agg(pf.url order by pf.orden) from producto_foto pf where pf.producto_id = v.producto_id) as fotos",
   porDefecto: "fecha",
   consulta: async (ctx, sp) => {
     const f = filtrosCambios(sp);

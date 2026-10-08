@@ -90,7 +90,7 @@ export const LISTA_RECLAMOS: Lista = {
   permiso: "reclamos_ver",
   campos: CAMPOS,
   enPantalla: ["id", "vence", "fecha", "canal", "pedido", "comprador", "tipo", "motivo", "etapa", "estado", "devolucion", "monto"],
-  siempre: "r.id::int id",
+  siempre: "r.id::int id, r.canal_id::int canal_id",
   porDefecto: "vence",
   consulta: async (ctx, sp) => {
     const f = filtrosReclamos(sp);

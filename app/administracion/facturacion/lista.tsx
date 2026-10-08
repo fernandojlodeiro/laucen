@@ -100,7 +100,7 @@ export const LISTA_FACTURACION: Lista = {
   porDefecto: "fecha",
   campos: CAMPOS,
   enPantalla: ["fecha", "tipo", "numero", "receptor", "documento", "total", "estado", "cae", "pedido", "ml"],
-  siempre: "c.id::int id, c.cliente_id::int cliente_id, c.estado _estado",
+  siempre: "c.id::int id, c.cliente_id::int cliente_id, c.estado _estado, p.canal_id::int canal_id",
   consulta: async (ctx, sp) => {
     const f = filtrosFacturacion(sp);
     const cond = ["c.organizacion_id = $1"];
