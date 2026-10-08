@@ -5,6 +5,9 @@
 //     ?catalogo= abre el formulario para publicar ahí.
 //   · Tus publicaciones (?ver=propias): una publicación de las cuentas de Fer para
 //     copiar (lib/mercadolibre/publicar-similar.ts); ?item= abre el borrador.
+//   · Todas las cuentas (?ver=todas, ?variacion=): copia la publicación que ya tiene
+//     a todas las cuentas con la Clásica y los planes de cuotas que le tocan
+//     (lib/mercadolibre/publicar-todas.ts).
 //   · Nueva desde Laucen (?ver=nueva, ?cat= otra categoría): desde cero, con los datos
 //     del producto y lo que propone la IA (lib/mercadolibre/publicar-nueva.ts).
 // En los dos, "Preparar publicación" lo comprueba con ML y queda esperando el clic en la cola.
@@ -24,10 +27,14 @@ import Borrador from "./Borrador";
 import BorradorCatalogo from "./BorradorCatalogo";
 import BorradorNueva from "./BorradorNueva";
 import { armarBorradorNueva, type BorradorNueva as DatosNueva } from "@/lib/mercadolibre/publicar-nueva";
+import { planTodas, AJUSTE_NO_GANA, type PlanTodas } from "@/lib/mercadolibre/publicar-todas";
+import { BotonTarea } from "@/app/componentes/TareasFondo";
+import { accionPrepararTodas } from "./acciones";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
-type SP = { q?: string; ver?: string; item?: string; catalogo?: string; cat?: string; ok?: string; error?: string };
+type SP = { q?: string; ver?: string; variacion?: string; item?: string; catalogo?: string; cat?: string; ok?: string; error?: string };
 
 const TONO: Record<string, "verde" | "gris" | "amarillo" | "rojo" | "azul" | "ambar"> = { active: "verde", paused: "amarillo", closed: "gris", inactive: "gris", under_review: "rojo" };
 const pesos = (n: number | null | undefined) => (n == null ? "—" : `$ ${formatearNumero(n, "pesos")}`);
@@ -57,6 +64,7 @@ export default async function PublicarEnMl({ params, searchParams }: { params: P
   const q = sp.q?.trim() || null;
   const propias = sp.ver === "propias";
   const nueva = sp.ver === "nueva";
+  const todas = sp.ver === "todas";
 
   if (p.no_publicable) {
     return (
@@ -109,6 +117,24 @@ export default async function PublicarEnMl({ params, searchParams }: { params: P
     } catch (e) { errorElegido = motivoErp(e); }
   }
 
+  // Todas las cuentas: la vista previa y el botón (corre de fondo).
+  if (todas) {
+    let plan: PlanTodas | null = null, error: string | null = null;
+    try { plan = await planTodas(s.org.id, p.id, Number(sp.variacion) || null); } catch (e) { error = motivoErp(e); }
+    const aCrear = plan?.filas.filter((f) => f.crear).length ?? 0;
+    return (
+      <Pantalla titulo={titulo} camino={[...camino, { texto: "Todas las cuentas" }]} subtitulo={<>{p.titulo}{p.marca ? ` · marca ${p.marca}` : ""}</>}
+        acciones={plan?.origen && aCrear > 0
+          ? <BotonTarea accion={accionPrepararTodas} tipo="publicar-todas-ml" clase={PRIMARIO} texto={`Preparar ${aCrear} publicaci${aCrear === 1 ? "ón" : "ones"}`}
+              campos={{ producto: String(p.id), variacion: String(plan.variacion.id) }} />
+          : undefined}>
+        <Avisos sp={{ ...sp, error: error ?? sp.error }} />
+        <PestanasPublicar base={base} q={q} activa="todas" />
+        {plan && <TodasLasCuentas plan={plan} base={base} />}
+      </Pantalla>
+    );
+  }
+
   // Sin elegir: las dos búsquedas (las pestañas muestran cuántas hay en cada una) y, en su pestaña, la nueva.
   const cat_ = sp.cat && /^MLA\d+$/.test(sp.cat) ? sp.cat : null;
   const [nuevaR, cat, prop] = await Promise.all([
@@ -126,12 +152,7 @@ export default async function PublicarEnMl({ params, searchParams }: { params: P
           <div className="w-full sm:w-[28rem]"><BuscadorVivo q={q ?? ""} comienza={false} sinComienza placeholder={`Otras palabras (si no, busca por: ${p.titulo})`} /></div>
         </div>
       )}
-      <Pestanas items={[
-        { clave: "catalogo", texto: "Catálogo de Mercado Libre", cuenta: cat.lista.length, activa: !propias, href: url(base, { q }) },
-        { clave: "propias", texto: "Tus publicaciones", cuenta: prop.lista.length, activa: propias, href: url(base, { ver: "propias", q }) },
-        // Un formulario: sin cuenta (AGENTS.md).
-        { clave: "nueva", texto: "Nueva desde Laucen", activa: nueva, href: url(base, { ver: "nueva" }) },
-      ]} />
+      <PestanasPublicar base={base} q={q} activa={nueva ? "nueva" : propias ? "propias" : "catalogo"} cuentas={{ catalogo: cat.lista.length, propias: prop.lista.length }} />
       {!actual.conJuez && (
         <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#FFF8E5] text-[#8a6100]">No se pudo pedir a la IA que revise cuáles son el mismo producto: se muestran por parecido de palabras.</p>
       )}
@@ -228,6 +249,69 @@ function ListaPropias({ lista, base, q }: { lista: Parecida[]; base: string; q: 
           </tbody>
         </table>
       </div>
+    </>
+  );
+}
+
+function PestanasPublicar({ base, q, activa, cuentas }: { base: string; q: string | null; activa: string; cuentas?: { catalogo: number; propias: number } }) {
+  return (
+    <Pestanas items={[
+      { clave: "catalogo", texto: "Catálogo de Mercado Libre", cuenta: cuentas?.catalogo, activa: activa === "catalogo", href: url(base, { q }) },
+      { clave: "propias", texto: "Tus publicaciones", cuenta: cuentas?.propias, activa: activa === "propias", href: url(base, { ver: "propias", q }) },
+      // Formularios: sin cuenta (AGENTS.md).
+      { clave: "nueva", texto: "Nueva desde Laucen", activa: activa === "nueva", href: url(base, { ver: "nueva" }) },
+      { clave: "todas", texto: "Todas las cuentas", activa: activa === "todas", href: url(base, { ver: "todas" }) },
+    ]} />
+  );
+}
+
+function TodasLasCuentas({ plan, base }: { plan: PlanTodas; base: string }) {
+  const cuentas = [...new Set(plan.filas.map((f) => f.cuenta))];
+  const nombreCuenta = (id: number | null) => plan.filas.find((f) => f.canal === id)?.cuenta ?? "—";
+  return (
+    <>
+      {plan.variaciones.length > 1 && (
+        <p className="text-xs mb-2">Variación:{" "}
+          {plan.variaciones.map((v) => v.id === plan.variacion.id
+            ? <b key={v.id} className="font-mono mr-2">{v.sku}</b>
+            : <Link key={v.id} href={url(base, { ver: "todas", variacion: v.id })} className="font-mono text-[#16577F] hover:underline mr-2">{v.sku}</Link>)}
+        </p>
+      )}
+      <div className="text-xs text-[#1F2A33] mb-3 grid gap-1">
+        <div>Copia de: {plan.origen
+          ? <><a href={plan.origen.permalink ?? "#"} target="_blank" rel="noreferrer" className="font-mono text-[#16577F] hover:underline">{plan.origen.itemId} ↗</a> ({plan.origen.cuenta}) — {plan.origen.titulo}</>
+          : <b className="text-[#C03420]">ninguna (hace falta una primera publicación)</b>}</div>
+        <div>Catálogo: {plan.catalogo ? <>cada alta pide entrar al producto de catálogo <b className="font-mono">{plan.catalogo}</b> (si ML no la deja, el alta queda igual)</> : "no se conoce producto de catálogo: no se intenta"}</div>
+        <div>Quién gana: Clásica → <b>{nombreCuenta(plan.ganador.clasica)}</b> · 12 cuotas → <b>{nombreCuenta(plan.ganador["12x_campaign"])}</b> · 3 cuotas → <b>{nombreCuenta(plan.ganador["3x_campaign"])}</b>
+          <span className="text-[#5C6B76]"> (la de 3 cuotas va a la cuenta que menos gana hoy: {cuentas.map((c) => `${c} ${plan.ganadas3x[plan.filas.find((f) => f.cuenta === c)!.canal] ?? 0}`).join(", ")}). Las que no ganan van {AJUSTE_NO_GANA} % más caras.</span></div>
+        {plan.tachadoPct > 0 && <div>Tachado {plan.tachadoPct.toLocaleString("es-AR", { maximumFractionDigits: 1 })} %: se publican al tachado y al entrar en campaña bajan a su precio.</div>}
+      </div>
+      {plan.avisos.map((a) => <p key={a} className="text-xs rounded-lg px-3 py-2 mb-2 bg-[#FFF8E5] text-[#8a6100]">{a}</p>)}
+      <div className={CAJA_TABLA}>
+        <table className={TABLA}>
+          <thead className={THEAD}>
+            <tr><th className={TH}>Cuenta</th><th className={TH}>Publicación</th><th className={TH}>¿Gana?</th><th className={THN}>Se publica a</th><th className={THN}>Paga el comprador</th><th className={TH}>Qué pasa</th></tr>
+          </thead>
+          <tbody>
+            {plan.filas.map((f) => (
+              <tr key={`${f.canal}-${f.plan}`} className={TR}>
+                <td className={TD}>{f.cuenta}</td>
+                <td className={TD}>{f.nombre}</td>
+                <td className={TD}>{f.gana ? <Estado texto="Gana" tono="verde" /> : <span className="text-[11px]">no gana, +{AJUSTE_NO_GANA} %</span>}</td>
+                <td className={TDN}>{pesos(f.publicar)}</td>
+                <td className={TDN}>{pesos(f.venta)}</td>
+                <td className={TD}>{f.existe
+                  ? f.existe === "en la cola" ? <Estado texto="Ya está en la cola" tono="azul" /> : <><Estado texto="Ya existe" tono="gris" /> <span className="font-mono text-[11px]">{f.existe}</span></>
+                  : f.crear ? <Estado texto="Se crea" tono="verde" /> : <span className="text-[11px] text-[#C03420]">No: {f.motivo}</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[11px] text-[#5C6B76] mt-2">
+        Los planes de cada cuenta salen de <Link href="/catalogo/precios-ml" className="text-[#16577F] hover:underline">Precios en ML</Link> (los activos y cuya Clásica llega a su «Desde una Clásica de»).
+        Al preparar, Laucen graba quién gana en las excepciones del producto, comprueba cada alta con Mercado Libre (no publica nada) y deja un lote por cuenta en la cola, esperando tu clic en «Mandar a Mercado Libre».
+      </p>
     </>
   );
 }

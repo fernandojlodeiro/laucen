@@ -1033,6 +1033,8 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
         {!p.no_publicable && <Link href={`/catalogo/productos/${p.id}/publicar-ml`} className={SUAVE}>Publicar en ML copiando otra</Link>}
         {/* Directo a la publicación nueva armada con los datos de Laucen y la IA (Fer, 5/10). */}
         {!p.no_publicable && <Link href={`/catalogo/productos/${p.id}/publicar-ml?ver=nueva`} className={PRIMARIO}>Nueva desde Laucen con IA</Link>}
+        {/* Todas las cuentas con sus planes de cuotas, copiando la que ya tiene (Fer, 8/10). */}
+        {!p.no_publicable && <Link href={`/catalogo/productos/${p.id}/publicar-ml?ver=todas`} className={PRIMARIO}>Publicar en todas las cuentas</Link>}
         <Link href="/catalogo/publicaciones" className={SUAVE}>Ir a Publicaciones</Link>
       </div>
       <div className={CAJA_TABLA}>

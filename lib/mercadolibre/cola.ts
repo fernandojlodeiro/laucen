@@ -394,6 +394,9 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
             ultimo = Date.now();
             res.enviadas++;
             let cuerpo = p.cuerpo;
+            // El id de la recién creada también en el cuerpo (ej. entrar al catálogo: {"item_id": "{id}"}).
+            if (creada && cuerpo != null && JSON.stringify(cuerpo).includes("{id}")) cuerpo = JSON.parse(JSON.stringify(cuerpo).replaceAll("{id}", creada));
+            else if (cuerpo != null && JSON.stringify(cuerpo).includes("\"{id}\"")) { r = { status: 400, datos: { message: "falta el id de la publicación recién creada" } }; cortado = true; break; }
             // Precios por cantidad: se nombran los precios base que ya tiene (si no, ML los borra).
             if (p.metodo === "POST" && /\/prices\/standard\/quantity$/.test(ruta)) {
               const actuales = await ml<{ prices?: { id?: string; type?: string; conditions?: { min_purchase_unit?: number } }[] }>(cuenta, "GET", ruta.replace(/\/standard\/quantity$/, ""));

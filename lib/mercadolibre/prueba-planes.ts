@@ -123,7 +123,7 @@ export async function propuestaPrueba(org: string): Promise<{ filas: FilaPrueba[
 }
 
 /** El plan de una publicación guardada (tags o sale_terms INSTALLMENTS_CAMPAIGN). */
-function planDe(tipo: string, tags: unknown, terms: unknown): PlanPrueba | null {
+export function planDe(tipo: string, tags: unknown, terms: unknown): PlanPrueba | null {
   if (tipo === "gold_special") return "clasica";
   if (tipo !== "gold_pro") return null;
   const t = new Set([...(Array.isArray(tags) ? tags.map(String) : []),

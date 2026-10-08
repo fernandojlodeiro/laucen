@@ -4,7 +4,7 @@ menu: Catálogo › Productos › un producto › Publicar en ML copiando otra
 ruta: /catalogo/productos/[id]/publicar-ml
 rutas: /catalogo/productos/[id]/publicar-ml
 permiso: publicaciones_ver
-resumen: Publicar en una cuenta de Mercado Libre un producto que no está publicado: en el producto del catálogo de ML que es el mismo (cuidando la marca), copiando una publicación tuya o desde cero con los datos de Laucen y la ayuda de la IA.
+resumen: Publicar en Mercado Libre un producto: en el producto del catálogo de ML que es el mismo (cuidando la marca), copiando una publicación tuya, desde cero con los datos de Laucen y la IA, o en todas las cuentas a la vez con sus planes de cuotas.
 ---
 
 ## Para qué sirve
@@ -14,15 +14,16 @@ Para los productos que tienen stock y no están publicados en ninguna cuenta de 
 - **Catálogo de Mercado Libre** (lo primero que se ve): buscar el producto del catálogo de ML que es el mismo y publicar ahí. ML pone el título, las fotos y las características; vos ponés la cuenta, el precio, la cantidad, el tipo y la garantía.
 - **Tus publicaciones**: copiar una publicación de tus cuentas (también las cerradas o pausadas) con todos sus datos, y cambiar lo que haga falta.
 - **Nueva desde Laucen**: para un producto nuevo que no está en el catálogo de ML (o sólo con la marca de otro) ni lo publicaste nunca. Se arma desde cero con los datos del producto en Laucen, y lo que falta lo propone la IA para que lo revises.
+- **Todas las cuentas**: cuando el producto ya tiene una publicación (en cualquier cuenta), crea de una vez todas las que le faltan: en cada cuenta de Mercado Libre, la Clásica y cada plan de cuotas que le toca por su precio, repartiendo qué cuenta gana cada precio.
 
 ## Cómo se llega
 
 - Desde [Productos](/catalogo/productos), tildando **Con stock y sin publicación activa en ML**: cada fila tiene el botón **Buscar en ML**. También desde el [Tablero de Mercado Libre](/mercadolibre), tocando el número de "Productos con stock sin publicar".
-- Desde la ficha de un producto, pestaña **Publicaciones**, botón **Publicar en ML copiando otra**, o **Nueva desde Laucen con IA**, que abre directo la pestaña Nueva desde Laucen.
+- Desde la ficha de un producto, pestaña **Publicaciones**, botón **Publicar en ML copiando otra**, **Nueva desde Laucen con IA**, que abre directo la pestaña Nueva desde Laucen, o **Publicar en todas las cuentas**, que abre la pestaña Todas las cuentas.
 
 ## Qué hay en la pantalla
 
-Tres pestañas. Las dos primeras tienen un buscador (si está vacío, busca por el título del producto; escribí otras palabras si no aparece) y muestran cuántos encontraron:
+Cuatro pestañas. Las dos primeras tienen un buscador (si está vacío, busca por el título del producto; escribí otras palabras si no aparece) y muestran cuántos encontraron:
 
 - **Catálogo de Mercado Libre**: los productos del catálogo que pueden ser el mismo, con su foto, nombre (se abre en ML), modelo, **marca** y si se puede usar, **¿Es el mismo?**, el **precio que gana** hoy y cuántos **vendedores** tiene. Botón **Publicar en éste**.
 - **Tus publicaciones**: tus publicaciones que pueden ser el mismo producto, con cuenta, estado, SKU, precio, vendidos y **¿Es el mismo?**. Botón **Copiar ésta**.
@@ -33,6 +34,8 @@ Tres pestañas. Las dos primeras tienen un buscador (si está vacío, busca por 
   - **Cuentas donde se publica**: una tarjeta por cuenta de Mercado Libre, con su casilla para tildarla (vienen tildadas todas las que no tienen ya el producto). Cada cuenta tiene **su título** (la IA propone uno distinto para cada una, con las mismas palabras clave en otro orden o con sinónimos; hasta 60 letras), **su precio** (la Clásica de Laucen de esa cuenta, con "usar") y **su carrusel de fotos**: las del producto en Laucen, cada cuenta arrancando con otra foto principal; se destildan y se mueven con las flechas.
   - **Características**: las que pide Mercado Libre para esa categoría, primero las obligatorias (con **\***) y las que tienen valor; las demás, desplegando "Más características". Cada valor dice de dónde salió: **Laucen** (datos del producto) o **IA** (propuesto, con fondo amarillo: revisalo). Donde ML tiene opciones, al escribir se despliegan.
   - **Descripción**: la del producto; si no tiene, la propone la IA (marcada **IA**).
+
+- **Todas las cuentas**: arriba, de qué publicación se copia (se abre en ML), el producto de catálogo al que se pide entrar (si se conoce) y **quién gana** cada precio (Clásica, 12 cuotas, 3 cuotas), con cuántos productos gana hoy cada cuenta en la de 3 cuotas. Si el producto tiene varias variaciones, se elige arriba. Después una tabla, una fila por cuenta y publicación: «Cuenta», «Publicación» (Clásica, 3 cuotas sin interés…), «¿Gana?» («Gana» o «no gana, +3 %»), «Se publica a», «Paga el comprador» y «Qué pasa»: **Se crea**, **Ya existe** (con su número), **Ya está en la cola** o **No:** y el motivo (por ejemplo, la Clásica no llega al mínimo del plan). Arriba a la derecha, el botón **Preparar N publicaciones**.
 
 **¿Es el mismo?** lo decide una IA comparando tu producto (título, marca, modelo y características) con cada candidata: **El mismo**, **Parecido** (mismo tipo con alguna diferencia, como el pack o el color) o distinto. Los distintos no se muestran. Debajo va el motivo en una frase. Una publicación tuya con el mismo SKU es siempre "El mismo".
 
@@ -55,6 +58,14 @@ Tres pestañas. Las dos primeras tienen un buscador (si está vacío, busca por 
 5. Apretá **Preparar publicación** (arriba a la derecha). Se comprueba cada cuenta con Mercado Libre y queda **un solo lote** con todas. Si alguna cuenta no entra (por ejemplo, ya tiene el producto o Mercado Libre la rechaza), las demás se preparan igual y se avisa cuál quedó afuera y por qué.
 6. En la cola, **Mandar a Mercado Libre**: salen todas juntas.
 
+### Publicar en todas las cuentas con sus planes de cuotas
+
+1. El producto tiene que tener ya **una** publicación común en alguna cuenta (si no, hacela primero con **Nueva desde Laucen** o en el **Catálogo de Mercado Libre**, y mandala).
+2. En la ficha del producto, pestaña **Publicaciones**, botón **Publicar en todas las cuentas** (arriba a la derecha de la tabla de publicaciones).
+3. Revisá la tabla: qué se crea en cada cuenta, a qué precio y quién gana.
+4. Apretá **Preparar N publicaciones** (arriba a la derecha). Corre de fondo: el botón pasa a "Trabajando…" y al terminar aparece el cartel abajo a la derecha con los lotes que quedaron (uno por cuenta).
+5. En [Configuración › Cola de Mercado Libre](/config/canales/cola), pestaña **Lotes preparados**, revisá cada lote y apretá **Mandar a Mercado Libre**.
+
 ### Copiar una publicación tuya
 
 1. En la pestaña **Tus publicaciones**, apretá **Copiar ésta** en la que te sirve.
@@ -64,6 +75,12 @@ Tres pestañas. Las dos primeras tienen un buscador (si está vacío, busca por 
 ## Criterios y reglas
 
 - **Nada sale a Mercado Libre sin tu clic** en el lote de la cola.
+- **Todas las cuentas, qué planes**: en cada cuenta, la Clásica siempre, y cada plan de cuotas que esté **activo** en [Precios en ML](/catalogo/precios-ml) para esa cuenta y cuya Clásica llegue a su **«Desde una Clásica de»**. Así un producto barato sale sólo con la Clásica (o con la Clásica y el plan al que llegue), y uno caro con todos. Si una cuenta no tiene ningún plan activo, avisa y va sólo la Clásica.
+- **Todas las cuentas, quién gana**: entre tus cuentas, una sola gana cada precio y las demás van **3 % más caras**, para no competir entre ellas. **.BAIRES** gana la Clásica y la de 12 cuotas; la de **3 cuotas** (el comprador la ve "6 cuotas") se reparte sola: va a la cuenta (sin contar .BAIRES) que **menos productos gana hoy** en ese plan (si empatan, la primera). Si el producto ya tenía elegido quién gana un precio, se respeta. Al preparar, esto queda grabado en las excepciones del producto en [Precios en ML](/catalogo/precios-ml) (se cambia ahí con el lápiz).
+- **Todas las cuentas, precios**: los de [Precios en ML](/catalogo/precios-ml) (Clásica de la lista de la cuenta, cada plan por coeficiente con su margen, más el 3 % si no gana). Con tachado, se publica al tachado y al entrar en campaña baja a su precio ("Paga el comprador").
+- **Todas las cuentas, de dónde copia**: de la publicación común del producto (no la de catálogo), la activa antes que la pausada, la Clásica antes que otra y la más vendida: título, fotos, características, garantía y descripción. Si no tiene código de barras, se pone el del producto en Laucen. Una publicación con variaciones de ML no sirve de modelo.
+- **Todas las cuentas, catálogo**: si se conoce el producto de catálogo (de otra publicación tuya del mismo SKU o encontrado por código de barras), cada alta pide además entrar a competir en el catálogo. Si ML no la deja, el alta queda igual y el lote lo anota.
+- **Todas las cuentas, no duplica**: no se crea lo que la cuenta ya tiene activo en ese plan ni lo que está en la cola esperando salir.
 - **La marca en el catálogo**: el que creó un producto de catálogo a veces tiene una marca propia, y publicar con su marca trae denuncias. Por eso sólo se puede publicar en uno cuya marca sea **nuestra** (una de las marcas cargadas en los productos de Laucen) o **genérica** ("Genérica", "Sin marca"). **Daitom** cuenta siempre como nuestra. Con **marca de otro** dice "No se puede" y el sistema no lo deja preparar. Sin marca cargada en ML se puede, pero revisala.
 - **El catálogo se busca** por las palabras del título (o lo escrito) y, si el producto tiene código de barras, también por ese código. Un producto de catálogo con variantes (color, etc.) se reemplaza por sus variantes. Lo leído de ML se guarda una hora.
 - **La publicación de catálogo** lleva el título, las fotos y las características del catálogo; de Laucen van el SKU de la variación, el precio, la cantidad, el tipo (Clásica o Premium), la garantía, condición nuevo y Mercado Envíos 2.

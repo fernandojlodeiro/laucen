@@ -12,6 +12,8 @@ import { texto, numero, entero, id } from "@/lib/erp/acciones";
 import { prepararPublicacion } from "@/lib/mercadolibre/publicar-similar";
 import { prepararPublicacionCatalogo } from "@/lib/mercadolibre/catalogo-similar";
 import { prepararPublicacionNueva } from "@/lib/mercadolibre/publicar-nueva";
+import { prepararTodas, textoResultadoTodas } from "@/lib/mercadolibre/publicar-todas";
+import { deFondo } from "@/lib/tareas-fondo";
 
 export type ResultadoPreparar = { error: string } | null;
 
@@ -85,4 +87,17 @@ export async function accionPrepararNueva(_antes: ResultadoPreparar, fd: FormDat
     return { error: motivoErp(e) };
   }
   redirect(destino);
+}
+
+/** «Publicar en todas las cuentas»: graba quién gana y deja un lote por cuenta (esperando el clic). De fondo. */
+export async function accionPrepararTodas(fd: FormData) {
+  const s = await entrarErp("publicaciones_ver");
+  const producto = id(fd, "producto");
+  const variacion = id(fd, "variacion") || null;
+  return deFondo(s, "publicar-todas-ml", "Publicar en todas las cuentas de ML", async () => {
+    const r = await prepararTodas(s.org.id, producto, variacion, s.usuario.id);
+    revalidatePath(`/catalogo/productos/${producto}/publicar-ml`);
+    revalidatePath("/config/canales/cola");
+    return textoResultadoTodas(r);
+  });
 }
