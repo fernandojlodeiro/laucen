@@ -980,7 +980,11 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
                 then coalesce(mi.permalink, 'https://articulo.mercadolibre.com.ar/' || regexp_replace(pu.id_externo, '^([A-Z]{3})(\\d+)$', '\\1-\\2')) end enlace, coalesce(pu.titulo, titulo_variacion(v.id)) titulo, pu.tipo_publicacion,
            -- El plan de cuotas (Fer, 7/10), para empatarlo con lo que se ve en ML.
            ${PLAN_PUBLICACION} plan, ${CUOTAS_VISIBLES_PUBLICACION}::int cuotas_visibles, pu.estado,
-           pu.precio_canal::float8 precio, pu.precio_tachado::float8, mi.stock stock_ml, mi.estado estado_ml,
+           -- En campaña (Fer, 8/10): ML deja el precio de la publicación en el tachado y el de la campaña
+           -- lo informa aparte; el que paga el comprador es el menor de las campañas en curso (leídas por Laucen).
+           case when cp.precio < pu.precio_canal then cp.precio else pu.precio_canal end::float8 precio,
+           case when cp.precio < pu.precio_canal then pu.precio_canal else pu.precio_tachado end::float8 precio_tachado,
+           mi.stock stock_ml, mi.estado estado_ml,
            -- Vendidos en ML (lo que informa ML de la publicación); sin ventas, 0. La web no tiene.
            case when c.tipo = 'mercadolibre' then coalesce(mi.vendidos, 0) end::int vendidos,
            -- En revisión en ML: el motivo que informa ML (lib/mercadolibre/moderaciones.ts).
@@ -990,6 +994,9 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
       from publicacion pu join variacion v on v.id = pu.variacion_id join canal c on c.id = pu.canal_id
       ${UNIR_MELI_ITEM}
       ${UNIR_MODERACION}
+      left join lateral (select min(m.precio) precio from ml_promo_item m
+                          where m.canal_id = pu.canal_id and m.item_id = pu.id_externo and m.estado = 'started'
+                            and m.precio > 0 and (m.hasta is null or m.hasta > now())) cp on c.tipo = 'mercadolibre'
      where v.producto_id = $2 and pu.organizacion_id = $1 order by c.nombre, v.sku`, [s.org.id, p.id]);
   const tono = (e: string) => (e === "activa" ? "verde" : e === "pausada" ? "amarillo" : "gris") as "verde" | "amarillo" | "gris";
   // Se ordena tocando el título de la columna (Fer, 7/10); son pocas filas, en memoria.
