@@ -8,7 +8,8 @@
 //     la baja a la Clásica (ML pide ≥ 5 % de descuento). Uno solo por modelo
 //     (Fer, 7/10): todos sus planes salen a ese tachado y la campaña baja cada
 //     uno a su precio. Una publicación que ya está en campaña no cambia el
-//     tachado y su precio sólo baja.
+//     tachado; para cambiar su precio (subir o bajar) sale de la campaña y
+//     vuelve a entrar al precio nuevo (Fer, 8/10).
 //   · Quién gana (Fer, 7/10): en cada canal, la Clásica y cada plan pueden ir
 //     un % más caros que el esquema (ajuste_pct; la cuenta que "no gana", 3 %).
 //   · Plan de cuotas: Clásica × (1 − comisión Clásica) ÷ (1 − comisión del
@@ -422,15 +423,21 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
     }
     pa.piso = pa.venta;
     const adentro = pub.campanas.filter((c) => (c.estado === "started" || c.estado === "pending") && CON_PRECIO.includes(c.tipo));
-    // En campaña (Fer, 7/10): el tachado no se toca y el precio sólo baja.
+    // En campaña: el tachado no se toca (Fer, 7/10). El precio sube o baja al del esquema: sale de la
+    // campaña y vuelve a entrar al precio nuevo (Fer, 8/10; ML no deja cambiarlo estando adentro).
     if (adentro.length && pub.precioListaMl != null && pa.lista != null && pa.venta != null) {
       if (!igual(pub.precioListaMl, pa.lista)) {
         pa.avisos.push(`En campaña: el tachado queda en $ ${Math.round(pub.precioListaMl).toLocaleString("es-AR")} (no se puede cambiar).`);
         pa.lista = pub.precioListaMl;
       }
-      if (pub.precioVentaMl != null && pa.venta >= pub.precioVentaMl - 0.5) {
-        if (!igual(pa.venta, pub.precioVentaMl)) pa.avisos.push(`En campaña el precio sólo baja: queda en $ ${Math.round(pub.precioVentaMl).toLocaleString("es-AR")} (el esquema da $ ${Math.round(pa.venta).toLocaleString("es-AR")}).`);
-        pa.venta = pub.precioVentaMl;
+      if (pub.precioVentaMl != null && pa.venta > pub.precioVentaMl + 0.5) {
+        if (tachadoPct > 0) {
+          pa.avisos.push(`En campaña sube de $ ${Math.round(pub.precioVentaMl).toLocaleString("es-AR")} a $ ${Math.round(pa.venta).toLocaleString("es-AR")}: sale de la campaña y vuelve a entrar al precio nuevo (si la campaña no lo acepta, queda afuera al tachado hasta entrar en otra).`);
+        } else {
+          // Sin descuento en el esquema, la campaña es una oferta puesta a mano: no se toca (7/10).
+          pa.avisos.push(`En campaña sin descuento en el esquema: queda en $ ${Math.round(pub.precioVentaMl).toLocaleString("es-AR")} (el esquema da $ ${Math.round(pa.venta).toLocaleString("es-AR")}).`);
+          pa.venta = pub.precioVentaMl;
+        }
       }
     }
     pa.cambiaPrecio = !igual(pub.precioListaMl, pa.lista);

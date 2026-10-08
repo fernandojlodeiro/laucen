@@ -71,7 +71,7 @@ Las 5 cuentas venden lo mismo; para no competir entre ellas, **una sola gana cad
 
 - **El piso** de cada publicación es el precio que le da el esquema (la Clásica de la cuenta, o el precio de su plan). Laucen **nunca** la mete en una campaña por debajo del piso.
 - Entra a una campaña **sólo si el rango de precios que acepta la campaña incluye nuestro precio**; si no la acepta, no entra.
-- **En campaña, el tachado no se toca y el precio sólo baja** (para cambiar el precio hay que salir de la campaña y volver a entrar).
+- **En campaña, el tachado no se toca**; para cambiar el precio (subir o bajar) la publicación sale de la campaña y vuelve a entrar al precio nuevo.
 - Campañas que se superponen: entra en todas las que acepten el precio; el comprador paga la más baja de las propias.
 - Las campañas que arma Mercado Libre con descuento compartido («Potencia tus ventas») **no** se usan para calcular. Si una campaña (propia o de ML) deja una publicación por debajo del piso —en las de ML cuenta sólo la parte que ponés vos—, aparece en [Precios en ML › Alertas](/catalogo/precios-ml) con el botón **Sacar de la campaña**.
 - Una publicación con tachado necesita campaña para cobrar la Clásica: sin campaña, el comprador pagaría el tachado. Laucen la mete sola en cuanto ML le ofrece una (lee las ofertas cada hora), si la cuenta tiene «Sincronizar precios» prendido.

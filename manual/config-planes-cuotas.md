@@ -78,7 +78,7 @@ La comisión es la real de la categoría de cada producto. Ejemplo: Clásica $ 1
 - Las publicaciones de un plan que falta crear se crean con «Publicar en todas las cuentas» de la ficha del producto (pestaña Publicaciones); también esperan el clic.
 
 ### Subir o bajar el % en publicaciones que están en campaña
-Mientras una publicación está adentro de una campaña, su precio **sólo baja**: si se **baja** el %, el sistema la saca de la campaña y la vuelve a meter enseguida al precio nuevo; si se **sube**, queda al precio que tiene en la campaña (la vista previa lo avisa) y toma el precio nuevo recién cuando entra a otra campaña.
+Mercado Libre no deja cambiar el precio de una publicación mientras está adentro de una campaña. Por eso, al **subir o bajar** el %, el sistema la saca de la campaña y la vuelve a meter enseguida al precio nuevo (la vista previa lo avisa). Si la campaña no acepta el precio nuevo, la publicación queda afuera, al precio tachado, hasta que entre en otra; pasadas 24 horas aparece en [Precios en ML › Alertas](/catalogo/precios-ml).
 
 ### Una regla práctica para elegir planes
 Para cada cantidad de cuotas que ve el comprador, usá **el plan más barato que la muestra en esa categoría**. Si dos planes tildados muestran las mismas cuotas, sobra uno: la vista previa lo avisa.

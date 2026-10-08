@@ -220,7 +220,7 @@ test("esquema de notebooks (7/10): un tachado por modelo, la cuenta que no gana 
   assert.equal(x3.venta, precioPlan(1_256_226, 12.8, 21.7, 2));
   assert.equal(x12.venta, Math.round(precioPlan(1_256_226, 12.8, 34.4, 4) * 1.03));
 
-  // Ya en campaña: el tachado no se toca y el precio sólo baja.
+  // Ya en campaña: el tachado no se toca; el precio baja o sube saliendo y volviendo a entrar.
   const enCampana = (precio: number) => ({ id: "D1", tipo: "DEAL", estado: "started", precio, min: 1, max: 99_999_999 });
   const e2: EntradaVariacion = { ...e, pubs: [
     pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 1_712_879, precioVentaMl: 1_317_599, campanas: [enCampana(1_317_599)], priceToWin: null, catalogo: false }),
@@ -232,9 +232,9 @@ test("esquema de notebooks (7/10): un tachado por modelo, la cuenta que no gana 
   assert.equal(c2.venta, Math.round(1_256_226 * 1.03)); // baja
   assert.deepEqual(c2.salir.map((c) => c.id), ["D1"]);
   assert.deepEqual(c2.entrar.map((c) => c.id), ["D1"]);
-  assert.equal(x2.venta, 1_300_000); // el esquema da más: no sube
-  assert.deepEqual(x2.salir, []);
-  assert.deepEqual(x2.entrar, []);
+  assert.equal(x2.venta, precioPlan(1_256_226, 12.8, 21.7, 2)); // el esquema da más: sube
+  assert.deepEqual(x2.salir.map((c) => c.id), ["D1"]);
+  assert.deepEqual(x2.entrar.map((c) => c.id), ["D1"]);
 });
 
 test("campañas: queda la que ya está al precio; la que está a otro precio sale y vuelve a entrar; fuera de rango no", () => {
