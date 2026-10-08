@@ -131,6 +131,7 @@ Mercado Pago avisa solo cuando aprueba el pago; puede tardar unos minutos. Si el
 - **La pestaña del navegador dice siempre el nombre de la tienda** (por ejemplo "Daitom") en todas sus páginas, con su logo como ícono. Sale de [Tienda web](/config/tienda): el nombre de la tienda (si está vacío, el del canal) y el logo; cada tienda muestra el suyo.
 ### Qué productos se muestran
 
+- **Publicación automática**: en la Web minorista, una variación se publica sola apenas tiene precio de lista y stock en el canal (salvo que alguien la haya apagado a mano en la ficha del producto).
 - **La web es un canal más**: un producto se ve en la tienda sólo si está **publicado en ese canal web** (el interruptor "Publicado en Web minorista" de la pestaña Publicaciones de su ficha en [Productos](/catalogo/productos)). Además tiene que estar **activo**, tener alguna **variación activa** y esa variación tiene que tener **precio en la lista de precios del canal**. Sin precio en esa lista, no aparece aunque esté publicado.
 - El precio que se muestra en los listados es el **más bajo** de sus variaciones ("Desde" si varían).
 - **Productos sin stock**: se muestran como "Sin stock" o se ocultan, según lo que diga [Tienda web](/config/tienda).

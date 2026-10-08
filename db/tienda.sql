@@ -215,3 +215,39 @@ do $$ begin
     update metodo_envio set seguimiento = 'automatico' where tipo in ('oca', 'oca_sucursal');
   end if;
 end $$;
+
+-- ── Publicar solo en la Web minorista (Fer, 8/10) ───────────
+-- Toda variación activa (de un producto activo y publicable) que todavía no
+-- tiene publicación en la Web minorista se publica sola apenas tiene precio
+-- de lista y stock en ese canal. Si alguien la apaga a mano (interruptor de la
+-- ficha), queda la fila pausada con pausada_manual y esto no la vuelve a prender.
+-- Corre al cargar un precio y al entrar stock (de la variación o, si es un
+-- componente, de los kits que la usan).
+create or replace function public.publicar_web_auto(p_org text, p_variacion bigint)
+returns void language plpgsql as $$
+declare v bigint; c record;
+begin
+  for c in select id, lista_precios_id from canal where organizacion_id = p_org and tipo = 'web_minorista' and estado = 'activo' loop
+    for v in select p_variacion union select variacion_kit_id from kit_componente where variacion_componente_id = p_variacion loop
+      if exists (select 1 from publicacion where canal_id = c.id and variacion_id = v and id_externo is null) then continue; end if;
+      if not exists (select 1 from variacion vv join producto pr on pr.id = vv.producto_id
+                      where vv.id = v and vv.organizacion_id = p_org and vv.estado = 'activa' and pr.estado = 'activo' and not pr.no_publicable) then continue; end if;
+      if c.lista_precios_id is null or (select lista_ars from precio_de(p_org, v, c.lista_precios_id, (now() at time zone 'America/Argentina/Buenos_Aires')::date)) is null then continue; end if;
+      if stock_disponible_canal(p_org, v, c.id) <= 0 then continue; end if;
+      insert into publicacion (organizacion_id, variacion_id, canal_id, estado, titulo)
+      values (p_org, v, c.id, 'activa', titulo_variacion(v))
+      on conflict (canal_id, variacion_id) where id_externo is null do nothing;
+    end loop;
+  end loop;
+end $$;
+
+create or replace function public.publicar_web_auto_trg() returns trigger language plpgsql as $$
+begin
+  perform publicar_web_auto(new.organizacion_id, new.variacion_id);
+  return new;
+end $$;
+
+create or replace trigger stock_publicar_web after insert or update of cantidad on stock
+  for each row when (new.cantidad > 0) execute function publicar_web_auto_trg();
+create or replace trigger precio_publicar_web after insert on precio
+  for each row execute function publicar_web_auto_trg();

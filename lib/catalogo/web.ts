@@ -37,7 +37,8 @@ export async function marcarNoPublicable(org: string, productoId: number, valor:
   });
 }
 
-/** Publica (todas sus variaciones activas) o saca de la web el producto. */
+/** Publica (todas sus variaciones activas) o saca de la web el producto. Sacarlo a mano queda
+ *  marcado (pausada_manual): la publicación automática de la Web minorista no lo vuelve a prender. */
 export async function publicarEnWeb(org: string, productoId: number, canalId: number, publicar: boolean): Promise<void> {
   await enTransaccion(async (c) => {
     const ok = await c.query("select 1 from canal where id = $1 and organizacion_id = $2 and tipo in ('web_minorista', 'web_mayorista')", [canalId, org]);
@@ -49,10 +50,10 @@ export async function publicarEnWeb(org: string, productoId: number, canalId: nu
         insert into publicacion (organizacion_id, variacion_id, canal_id, estado, titulo)
         select v.organizacion_id, v.id, $3, 'activa', titulo_variacion(v.id) from variacion v
          where v.producto_id = $2 and v.organizacion_id = $1 and v.estado = 'activa'
-        on conflict (canal_id, variacion_id) where id_externo is null do update set estado = 'activa'`, [org, productoId, canalId]);
+        on conflict (canal_id, variacion_id) where id_externo is null do update set estado = 'activa', pausada_manual = false`, [org, productoId, canalId]);
     } else {
       await c.query(`
-        update publicacion pu set estado = 'pausada' from variacion v
+        update publicacion pu set estado = 'pausada', pausada_manual = true from variacion v
          where v.id = pu.variacion_id and v.producto_id = $2 and pu.organizacion_id = $1 and pu.canal_id = $3 and pu.id_externo is null`,
         [org, productoId, canalId]);
     }
