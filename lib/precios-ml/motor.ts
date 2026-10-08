@@ -31,7 +31,7 @@ export const esPlan = (x: unknown): x is Plan => PLANES.includes(x as Plan);
 export const PLAN_INFO: Record<PlanOClasica, { nombre: string; corto: string; cuotas: number; tipo: "gold_special" | "gold_pro"; tag: string | null }> = {
   clasica: { nombre: "Clásica", corto: "Clásica", cuotas: 1, tipo: "gold_special", tag: null },
   // Los nombres son los de ML: cuántas cuotas ve el comprador depende de la categoría (y del momento) y se carga
-  // en Configuración › Planes de cuotas (Fer, 8/10); `cuotas` es sólo lo que se supone si no hay nada cargado.
+  // en Precios en ML › Planes de cuotas (Fer, 8/10); `cuotas` es sólo lo que se supone si no hay nada cargado.
   premium: { nombre: "Premium común", corto: "Premium", cuotas: 6, tipo: "gold_pro", tag: null },
   "3x_campaign": { nombre: "Premium 3x", corto: "3x", cuotas: 3, tipo: "gold_pro", tag: "3x_campaign" },
   "9x_campaign": { nombre: "Premium 9x", corto: "9x", cuotas: 9, tipo: "gold_pro", tag: "9x_campaign" },
@@ -557,14 +557,24 @@ export function pedidoCrear(_f: Propuesta["faltan"][number]): PedidoHttp | null 
   return null;
 }
 
-/** "Precio $ 12.000 → $ 13.500; entra a 2 campañas a $ 11.000" para la pantalla. */
+/** Qué cambia, en palabras (Fer, 8/10: «que diga claramente qué cambia»), separado por "; ":
+ *  «Paga el comprador: $ 13.000 → $ 12.000; Sale de «Día de la Madre» y vuelve a entrar a $ 12.000». */
 export function queCambia(pa: PropuestaPub): string {
   const n = (x: number) => `$ ${Math.round(x).toLocaleString("es-AR")}`;
+  const nombres = (cs: Campana[]) => cs.map((c) => `«${c.nombre ?? c.tipo}»`).join(", ");
   const partes: string[] = [];
-  if (pa.cambiaPrecio && pa.lista != null) partes.push(`precio ${pa.pub.precioListaMl != null ? `${n(pa.pub.precioListaMl)} → ` : ""}${n(pa.lista)}`);
-  if (pa.salir.length) partes.push(`sale de ${pa.salir.length} campaña${pa.salir.length === 1 ? "" : "s"}`);
-  if (pa.entrar.length && pa.venta != null) partes.push(`entra a ${pa.entrar.length} campaña${pa.entrar.length === 1 ? "" : "s"} a ${n(pa.venta)}`);
-  if (pa.cambiaVolumen) partes.push(`volumen: ${pa.volumen.map((x) => `${x.cantidad}+ ${n(x.precio)}`).join(", ")}`);
-  const t = partes.join("; ");
-  return t ? t.charAt(0).toUpperCase() + t.slice(1) : "";
+  const conTachado = pa.lista != null && pa.venta != null && pa.lista > pa.venta + 0.5;
+  if (pa.cambiaPrecio && pa.lista != null) partes.push(`${conTachado ? "Precio publicado (tachado)" : "Precio publicado"}: ${pa.pub.precioListaMl != null ? `${n(pa.pub.precioListaMl)} → ` : ""}${n(pa.lista)}`);
+  const pagaHoy = pa.pub.precioVentaMl;
+  if (pa.venta != null && (pa.salir.length || pa.entrar.length || pa.cambiaPrecio) && (pagaHoy == null || Math.abs(pagaHoy - pa.venta) >= 1)) {
+    partes.push(`Paga el comprador: ${pagaHoy != null ? `${n(pagaHoy)} → ` : ""}${n(pa.venta)}`);
+  }
+  const vuelve = pa.salir.filter((c) => pa.entrar.some((x) => x.id === c.id));
+  const soloSale = pa.salir.filter((c) => !vuelve.includes(c));
+  const soloEntra = pa.entrar.filter((c) => !vuelve.some((x) => x.id === c.id));
+  if (vuelve.length && pa.venta != null) partes.push(`Sale de ${nombres(vuelve)} y vuelve a entrar a ${n(pa.venta)}`);
+  if (soloSale.length) partes.push(`Sale de ${nombres(soloSale)}`);
+  if (soloEntra.length && pa.venta != null) partes.push(`Entra a ${nombres(soloEntra)} a ${n(pa.venta)}`);
+  if (pa.cambiaVolumen) partes.push(`Descuento por volumen: ${pa.volumen.map((x) => `${x.cantidad}+ ${n(x.precio)}`).join(", ")}`);
+  return partes.join("; ");
 }

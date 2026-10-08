@@ -9,7 +9,7 @@ resumen: Qué precio tendría cada publicación de una cuenta de Mercado Libre c
 
 ## Para qué sirve
 
-Muestra, publicación por publicación de una cuenta de Mercado Libre, **qué precio le corresponde** según las reglas de [Precios en Mercado Libre](/catalogo/precios-ml) y de [Planes de cuotas](/config/planes-cuotas) (Clásica, tachado, planes de cuotas, destacado, volumen), **qué tiene hoy en ML** y **qué cambiaría**. También muestra las publicaciones de planes de cuotas que faltan y se podrían crear.
+Muestra, publicación por publicación de una cuenta de Mercado Libre, **qué precio le corresponde** según las reglas de [Precios en Mercado Libre](/catalogo/precios-ml) y de [Planes de cuotas](/catalogo/precios-ml/planes-cuotas) (Clásica, tachado, planes de cuotas, destacado, volumen), **qué tiene hoy en ML** y **qué cambiaría**. También muestra las publicaciones de planes de cuotas que faltan y se podrían crear.
 
 Nada sale de acá: el botón «Preparar cambios» arma lotes que esperan tu clic en la [Cola de Mercado Libre](/config/canales/cola).
 
@@ -29,7 +29,7 @@ Nada sale de acá: el botón «Preparar cambios» arma lotes que esperan tu clic
 - Buscador «Buscar por SKU, producto o publicación», con la caja «Comienza por».
 - Buscador de categoría («Todas las categorías»): incluye sus subcategorías.
 - **Papel**: «Todos los papeles», «Clásica», «Destacado», «Plan», «Plan apagado», «Sin tocar», «Nueva».
-- Caja **«Sólo las que cambian»**.
+- Caja **«Sólo las que cambian (y las nuevas)»**, tildada de entrada: se ven sólo las publicaciones a las que les cambiaría algo y las de planes que faltan. Destildándola se ven todas las activas.
 - Caja **«Todas las cuentas»**, al lado del selector «Cuenta»: muestra las publicaciones de todas las cuentas juntas (ordenadas por SKU y cuenta; el selector dice «Todas las cuentas»). Es más lenta: calcula cada cuenta. Con la caja tildada, «Preparar cambios» arma los lotes de cada cuenta.
 
 Un renglón de resumen: cuántas filas, cuántas **con cambios** (y cuántas son publicaciones nuevas de planes) y cuántas con avisos.
@@ -47,7 +47,7 @@ Un renglón de resumen: cuántas filas, cuántas **con cambios** (y cuántas son
 - **Precio para ganar**: lo que informó ML, con su estado debajo («gana», «compite», «comparte el 1.º», «listada»).
 - **Hoy en ML**: lo mismo pero con lo que tiene hoy la publicación en ML: grande lo que paga hoy el comprador (con la campaña en curso), el publicado tachado, el % OFF y, chiquito, el nombre de la campaña (entero al pasar el mouse).
 - **Diferencia**: precio publicado según Laucen − precio publicado hoy en ML; verde si sube, rojo si baja, «—» si es igual.
-- **Qué cambiaría**: por ejemplo «Precio $ 11.000 → $ 11.880; sale de 1 campaña; entra a 2 campañas a $ 10.800; volumen: 3+ $ 10.260», o «Nada».
+- **Qué cambiaría**: un renglón por cada cosa, por ejemplo «Precio publicado (tachado): $ 20.000 → $ 22.000», «Paga el comprador: $ 11.000 → $ 11.880», «Sale de «Día de la Madre» y vuelve a entrar a $ 11.880», «Entra a «Oferta del día» a $ 11.880», «Descuento por volumen: 3+ $ 10.260»; «Publicación nueva» en las que faltan; o «Nada».
 - **Avisos**: advertencias del cálculo (en amarillo).
 - Además, en el Excel: «Precio calculado» (el publicado según Laucen), «Paga el comprador», «Precio en ML», «Paga hoy en ML», «Estado en catálogo», «Stock del canal» y «Comisión estimada».
 
@@ -57,7 +57,7 @@ Las filas con cambios se ven con fondo amarillo clarito. Abajo hay una nota sobr
 
 ### Ver qué cambiaría en una cuenta
 1. Elegí la **Cuenta**.
-2. Tildá **«Sólo las que cambian»** para ver sólo lo que se mandaría.
+2. Con **«Sólo las que cambian»** tildada (así arranca) se ve sólo lo que se mandaría.
 3. Revisá «Qué cambiaría» y «Avisos».
 
 ### Preparar los cambios para mandarlos a Mercado Libre
@@ -76,7 +76,7 @@ Elegí en **Papel** «Destacado» o «Nueva».
 Con una cuenta elegida (no con «Todas las cuentas»), si hay filas «Nueva», arriba a la derecha aparece **«Crear los planes que faltan (N)»**.
 1. Si querés sólo una parte, filtrá por categoría o con el buscador: se respeta.
 2. Apretá el botón y confirmá con «Sí». Corre de fondo: podés seguir trabajando; al terminar, el cartel de abajo a la derecha dice qué lote quedó.
-3. Cada publicación nueva es una copia de la publicación común que el producto ya tiene **en esa misma cuenta** (título, fotos, características, garantía y descripción), con el plan que le toca según [Configuración › Planes de cuotas](/config/planes-cuotas) y su precio (con descuento, al precio tachado; la campaña la baja después). Antes de armarla se comprueba con Mercado Libre que la acepte.
+3. Cada publicación nueva es una copia de la publicación común que el producto ya tiene **en esa misma cuenta** (título, fotos, características, garantía y descripción), con el plan que le toca según [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas) y su precio (con descuento, al precio tachado; la campaña la baja después). Antes de armarla se comprueba con Mercado Libre que la acepte.
 4. Queda **un lote** en la [Cola de Mercado Libre](/config/canales/cola), pestaña «Lotes preparados»: revisalo y apretá **«Mandar a Mercado Libre»**.
 
 Un producto que no tiene ninguna publicación común en esa cuenta no se puede copiar: el cartel lo nombra. Lo que ya está en un lote o en la cola no se vuelve a armar, así que si el cartel dice que faltaron por tiempo, se aprieta el botón otra vez y sigue con las que faltan.
@@ -88,7 +88,7 @@ Un producto que no tiene ninguna publicación común en esa cuenta no se puede c
   - **Clásica**: la publicación Clásica. Va al tachado y entra a campaña a la Clásica.
   - **Destacado**: el plan de cuotas elegido para ir al precio para ganar; va con tachado y en las mismas campañas que la Clásica.
   - **Plan**: un plan habilitado no destacado; va a su precio por coeficiente, sin campaña.
-  - **Plan apagado**: un plan que el grupo de categorías del producto no usa en [Configuración › Planes de cuotas](/config/planes-cuotas), o un producto con la Clásica debajo de $ 33.000 (el mínimo para los planes); **no se toca**.
+  - **Plan apagado**: un plan que el grupo de categorías del producto no usa en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), o un producto con la Clásica debajo de $ 33.000 (el mínimo para los planes); **no se toca**.
   - **Sin tocar**: no se calcula (falta la Clásica, tipo de publicación desconocido).
   - **Nueva**: un plan habilitado sin publicación; se puede crear.
 - Las fórmulas (tachado, precio de cada plan, elección del destacado, volumen, campañas) están explicadas paso a paso, con un ejemplo, en [Precios en Mercado Libre](/catalogo/precios-ml).

@@ -114,7 +114,7 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
     select canal_id::int canal, 'clasica' plan from ml_regla_precio where organizacion_id = $1 and nivel = 'producto' and producto_id = $2 and ajuste_pct = 0
     union all
     select canal_id::int, plan from ml_plan_config where organizacion_id = $1 and nivel = 'producto' and producto_id = $2 and ajuste_pct = 0`, [org, productoId]);
-  // Los planes del grupo del producto (Configuración › Planes de cuotas): el de más cuotas lo gana .BAIRES; los demás se reparten.
+  // Los planes del grupo del producto (Precios en ML › Planes de cuotas): el de más cuotas lo gana .BAIRES; los demás se reparten.
   const [grupos, grupoId] = await Promise.all([gruposPlanes(org), una<{ g: number | null }>("select ml_grupo_de_producto($1, $2)::int g", [org, productoId])]);
   const grupo = grupos.find((g) => g.id === grupoId?.g) ?? null;
   const usados = grupo ? PLANES.filter((p) => grupo.planes[p].usar)
@@ -169,7 +169,7 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
       if (!p.activo) continue;
       filas.push(fila(p.plan, p.precio, p.habilitado ? null : `la Clásica no llega al mínimo del plan (${(p.precioMinimo ?? 0).toLocaleString("es-AR")})`));
     }
-    if (!pr.planes.some((p) => p.activo)) avisos.push(`El grupo de este producto no tiene ningún plan de cuotas tildado en Configuración › Planes de cuotas: sólo la Clásica.`);
+    if (!pr.planes.some((p) => p.activo)) avisos.push(`El grupo de este producto no tiene ningún plan de cuotas tildado en Precios en ML › Planes de cuotas: sólo la Clásica.`);
   }
   if (!origen) avisos.push("Este producto no tiene todavía ninguna publicación común en Mercado Libre para copiar: publicalo primero en una cuenta («Nueva desde Laucen» o «Catálogo de Mercado Libre») y volvé.");
   return {

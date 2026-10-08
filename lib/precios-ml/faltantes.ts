@@ -1,6 +1,6 @@
 // «Crear los planes que faltan» (Fer, 8/10): desde la vista previa de Precios
 // en ML, en UNA cuenta, las publicaciones de planes de cuotas que le tocan a
-// cada producto según Configuración › Planes de cuotas (grupo, desde la
+// cada producto según Precios en ML › Planes de cuotas (grupo, desde la
 // Clásica con envío gratis) y que esa cuenta todavía no tiene. Cada alta copia
 // la publicación común que el producto ya tiene en esa misma cuenta (título,
 // fotos, atributos, garantía, descripción), se comprueba con ML

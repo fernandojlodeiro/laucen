@@ -21,6 +21,7 @@ import { url } from "@/app/componentes/erp";
 
 export const BASE_PML = "/catalogo/precios-ml";
 export const PREVIA = `${BASE_PML}/vista-previa`;
+export const PLANES_PML = `${BASE_PML}/planes-cuotas`;
 
 export const ROLES: Record<string, string> = {
   clasica: "Clásica", destacado: "Destacado", plan: "Plan", apagado: "Plan apagado", otro: "Sin tocar", nueva: "Nueva",
@@ -39,7 +40,8 @@ export function filtrosPrevia(sp: SP) {
     familia: Number(sp.familia) || null,
     q: sp.q?.trim() ?? "",
     comienza: sp.contiene !== "1",
-    cambios: sp.cambios === "1",
+    // De entrada sólo las que cambian (y las nuevas); destildando, todas (Fer, 8/10).
+    cambios: sp.cambios !== "0",
     todas: sp.todas === "1",
     rol: sp.rol && Object.hasOwn(ROLES, sp.rol) ? sp.rol : "",
   };
@@ -104,7 +106,7 @@ export async function filasPrevia(org: string, sp: SP): Promise<FilaPrevia[]> {
     for (const [k, v] of CACHE_PREVIA) if (v.hasta <= Date.now()) CACHE_PREVIA.delete(k);
     CACHE_PREVIA.set(clave, { hasta: Date.now() + VIDA_CACHE_MS, filas: todasLasFilas });
   }
-  return todasLasFilas.filter((x) => (!f.cambios || x.hay_cambio) && (!f.rol || x.rol === f.rol));
+  return todasLasFilas.filter((x) => (!f.cambios || x.hay_cambio || x.rol === "nueva") && (!f.rol || x.rol === f.rol));
 }
 
 async function calcularFilas(org: string, canal: CanalMl, f: ReturnType<typeof filtrosPrevia>): Promise<FilaPrevia[]> {
@@ -143,7 +145,7 @@ async function calcularFilas(org: string, canal: CanalMl, f: ReturnType<typeof f
       filas.push({
         ...comun, ajuste: ajusteDe(fa.plan), cuotas: cuotasDe(fa.plan), campana_ml: null, campanas: null, id: `n${info.variacionId}-${fa.plan}`, item_id: null, variation_id: null, plan: fa.plan, rol: "nueva",
         lista: p.tachado ?? fa.precio, venta: fa.precio, ptw: null, ptw_estado: null, precio_ml: null, venta_ml: null, diferencia: null,
-        cambio: "", avisos: `Falta la publicación de ${PLAN_INFO[fa.plan].corto}: se crea con «Publicar en todas las cuentas» (ficha del producto, pestaña Publicaciones).`,
+        cambio: "", avisos: `Falta la publicación ${PLAN_INFO[fa.plan].nombre}: se crea con «Crear los planes que faltan», arriba a la derecha.`,
         hay_cambio: false,
       });
     }
@@ -229,7 +231,9 @@ const CAMPOS_PREVIA: Campo[] = [
     clave: "diferencia", titulo: "Diferencia", formato: "pesos",
     celda: (f) => f.diferencia == null || f.diferencia === 0 ? "—" : <span className={f.diferencia > 0 ? "text-[#1F6E4A]" : "text-[#C03420]"}>{f.diferencia > 0 ? "+" : ""}{pesos(f.diferencia)}</span>,
   },
-  { clave: "cambio", titulo: "Qué cambiaría", ancho: 40, orden: false, celda: (f) => f.cambio ? <b className="text-[11px]">{f.cambio}</b> : <span className="text-[#5C6B76]">Nada</span> },
+  // Una línea por cosa que cambia (Fer, 8/10).
+  { clave: "cambio", titulo: "Qué cambiaría", ancho: 40, orden: false, celda: (f) => f.rol === "nueva" ? <b className="text-[11px] text-[#16577F]">Publicación nueva</b>
+    : f.cambio ? <span className="block min-w-[200px] text-[11px] leading-snug">{String(f.cambio).split("; ").map((x: string) => <b key={x} className="block">{x}</b>)}</span> : <span className="text-[#5C6B76]">Nada</span> },
   { clave: "avisos", titulo: "Avisos", ancho: 40, orden: false, celda: (f) => f.avisos ? <span className="text-[11px] text-[#8a6100]">{f.avisos}</span> : "" },
   { clave: "stock", titulo: "Stock del canal", formato: "entero" },
   { clave: "comision_estimada", titulo: "Comisión estimada", formato: "sino" },
@@ -259,7 +263,7 @@ export const LISTA_EXCEPCIONES_ML: Lista = {
     { clave: "sku", titulo: "SKU" },
     // Lo que decide Fer es el descuento que ve el comprador (el tachado % es la cuenta interna).
     { clave: "tachado_pct", titulo: "Descuento que ve el comprador %", formato: "pct", valor: (f) => (f.tachado_pct == null ? null : descuentoComprador(Number(f.tachado_pct))) },
-    // Por cuenta queda sólo «¿gana?»; qué planes y sus márgenes, en Configuración › Planes de cuotas.
+    // Por cuenta queda sólo «¿gana?»; qué planes y sus márgenes, en Precios en ML › Planes de cuotas.
     { clave: "clasica_ajuste", titulo: "Clásica: si no gana, +%", valor: (f) => f.ajuste_pct ?? null, formato: "pct" },
     ...PLANES.map((p): Campo => ({ clave: `${p}_ajuste`, titulo: `${PLAN_INFO[p].nombre}: si no gana, +%`, valor: (f) => f.planes?.[p]?.ajuste ?? null, formato: "pct" })),
   ],

@@ -131,7 +131,6 @@ export const MENU: SeccionMenu[] = [
       { texto: "Depósitos y ubicaciones", href: "/stock/depositos", permiso: "depositos_ver" },
       { texto: "Canales", href: "/config/canales", permiso: "canales_ver" },
       { texto: "Cola de Mercado Libre", href: "/config/canales/cola", permiso: "canales_ver" },
-      { texto: "Planes de cuotas", href: "/config/planes-cuotas", permiso: "precios_ml_ver" },
       { texto: "Tipo de cambio", href: "/config/tipo-cambio", permiso: "tipo_cambio_ver" },
       { texto: "Usuarios y roles", href: "/config/usuarios", permiso: "usuarios_ver" },
       { texto: "Asistente", href: "/config/asistente", permiso: "asistente_config" },

@@ -13,7 +13,7 @@ Para entender **de dónde sale cada precio** que ve un comprador, en cualquier c
 
 ## Cómo se llega
 
-Las pantallas son [Catálogo › Listas de precios](/catalogo/precios), [Catálogo › Precios en Mercado Libre](/catalogo/precios-ml) (con su [Vista previa](/catalogo/precios-ml/vista-previa)), [Configuración › Planes de cuotas](/config/planes-cuotas) y la pestaña **Precios** de la ficha de cada producto.
+Las pantallas son [Catálogo › Listas de precios](/catalogo/precios), [Catálogo › Precios en Mercado Libre](/catalogo/precios-ml) (con su [Vista previa](/catalogo/precios-ml/vista-previa)), [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas) y la pestaña **Precios** de la ficha de cada producto.
 
 ## Criterios y reglas
 
@@ -57,7 +57,7 @@ En Mercado Libre, las cuotas sin interés son **publicaciones aparte**, además 
 
 O sea: cada plan deja, después de su comisión, **lo mismo que la Clásica más un % extra**. Las comisiones son las reales de la categoría de cada producto (las releva Costos ML todos los días).
 
-**Qué planes lleva cada producto: por grupo de categorías.** En [Configuración › Planes de cuotas](/config/planes-cuotas), para todas las cuentas a la vez, cada grupo de categorías (por ejemplo «Notebooks» y «Resto») dice qué planes usa, cuántas cuotas ve el comprador en cada uno y su % extra. Un producto lleva los planes de su grupo **sólo si su Clásica es de $ 33.000 o más** (desde ahí Mercado Libre da envío gratis); debajo, sale sólo con la Clásica.
+**Qué planes lleva cada producto: por grupo de categorías.** En [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), para todas las cuentas a la vez, cada grupo de categorías (por ejemplo «Notebooks» y «Resto») dice qué planes usa, cuántas cuotas ve el comprador en cada uno y su % extra. Un producto lleva los planes de su grupo **sólo si su Clásica es de $ 33.000 o más** (desde ahí Mercado Libre da envío gratis); debajo, sale sólo con la Clásica.
 
 ### 6. Quién gana entre tus cuentas
 
@@ -87,7 +87,7 @@ Se puede definir por rango de Clásica ("desde 3 unidades, −5 %"), pero **hoy 
 
 ### 10. Qué es configurable y qué es fijo
 
-- **Se configura** en [Precios en ML](/catalogo/precios-ml), por cuenta y con excepciones por categoría o producto: el descuento que ve el comprador, «¿Gana?», descuento por volumen y los interruptores de cada cuenta. En [Configuración › Planes de cuotas](/config/planes-cuotas), por grupo de categorías y para todas las cuentas: qué planes se usan, cuántas cuotas ve el comprador y el % extra de cada plan. En [Listas de precios](/catalogo/precios): las listas, sus bases y coeficientes y «Aplica descuentos».
+- **Se configura** en [Precios en ML](/catalogo/precios-ml), por cuenta y con excepciones por categoría o producto: el descuento que ve el comprador, «¿Gana?», descuento por volumen y los interruptores de cada cuenta. En [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), por grupo de categorías y para todas las cuentas: qué planes se usan, cuántas cuotas ve el comprador y el % extra de cada plan. En [Listas de precios](/catalogo/precios): las listas, sus bases y coeficientes y «Aplica descuentos».
 - **Fijo**: el mínimo de 5 % de descuento que pide ML; la barrera de $ 33.000 para los planes (sale de los costos de Mercado Libre y se ajusta sola); las comisiones (salen de Costos ML); el redondeo a pesos enteros; el reparto del botón «Publicar en todas las cuentas» (.BAIRES gana la Clásica y el plan con más cuotas, 3 % para la que no gana); una publicación con tachado nunca se baja a la Clásica; un cambio automático que dio error no se reintenta igual por 6 horas.
 
 ### 11. Qué sale solo y qué espera tu clic

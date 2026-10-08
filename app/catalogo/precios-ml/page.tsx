@@ -18,12 +18,13 @@ import {
   CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
+import { una } from "@/lib/erp/base";
 import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import { fechaHora } from "@/app/ventas/formato";
 import { formatear } from "@/lib/moneda";
 import { formatearNumero } from "@/lib/numeros";
 import { paginarEnMemoria } from "@/lib/lista";
-import { reglasCanal, excepcionesCanal, volumenCanal, alertasCanal, campanasBajoPisoCanal, sinCampanaCanal, type CanalMl, type Excepcion, type RangoVolumen } from "@/lib/precios-ml/datos";
+import { reglasCanal, heredadoExcepciones, excepcionesCanal, volumenCanal, alertasCanal, campanasBajoPisoCanal, sinCampanaCanal, type CanalMl, type Excepcion, type RangoVolumen } from "@/lib/precios-ml/datos";
 import { PLANES, PLAN_INFO, descuentoComprador, type Plan, type ReglasPlan } from "@/lib/precios-ml/motor";
 import { BarraPml, type VerPml } from "./comun";
 import { BASE_PML, PREVIA, LISTA_EXCEPCIONES_ML, LISTA_VOLUMEN_ML, canalElegido, textoEscalones } from "./lista";
@@ -77,7 +78,10 @@ export default async function PreciosMl({ searchParams }: { searchParams: Promis
 // ── Tachado y planes (lo general del canal) ─────────────────
 
 async function General({ org, canal, editando, aqui }: { org: string; canal: CanalMl; editando: boolean; aqui: string }) {
-  const reglas = await reglasCanal(org, canal);
+  const [reglas, propios] = await Promise.all([reglasCanal(org, canal), una<{ n: number }>(`
+    select count(distinct producto_id)::int n from (
+      select producto_id from ml_regla_precio where organizacion_id = $1 and canal_id = $2 and nivel = 'producto' and ajuste_pct is not null
+      union all select producto_id from ml_plan_config where organizacion_id = $1 and canal_id = $2 and nivel = 'producto' and ajuste_pct is not null) x`, [org, canal.id])]);
   const tachado = reglas.tachado.find((t) => t.nivel === "general")?.tachado_pct ?? 0;
   const ajusteClasica = reglas.tachado.find((t) => t.nivel === "general")?.ajuste_pct ?? null;
   const plan = (p: Plan): Partial<ReglasPlan> => reglas.planes.find((x) => x.nivel === "general" && x.plan === p) ?? {};
@@ -127,9 +131,14 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
             </table>
           </div>
         </form>
+        <p className="text-xs rounded-lg px-3 py-2 mt-2 bg-[#EEF4FA] text-[#16577F]">
+          Esto es <b>lo general de {canal.nombre}</b>: vale para todos sus productos que no tengan algo propio. Vacío = <b>gana</b> (sin recargo) y sin descuento.
+          Quién gana cada producto en particular se graba como excepción del producto (lo hace solo «Publicar en todas las cuentas»), y eso manda sobre lo general:
+          hoy {(propios?.n ?? 0).toLocaleString("es-AR")} producto{propios?.n === 1 ? "" : "s"} de esta cuenta tiene{propios?.n === 1 ? "" : "n"} su propio «¿gana?» — miralos en la pestaña <Link href={url(BASE_PML, { canal: canal.id, ver: "excepciones" })} className="underline">Excepciones</Link>.
+        </p>
         <p className="text-[11px] text-[#5C6B76] mt-2">
           Qué planes de cuotas lleva cada producto, desde qué Clásica, cuánto más tiene que dejar cada plan y cuántas cuotas ve el comprador se configura para todas las cuentas en{" "}
-          <Link href="/config/planes-cuotas" className="text-[#16577F] hover:underline">Configuración › Planes de cuotas</Link>.
+          <Link href="/catalogo/precios-ml/planes-cuotas" className="text-[#16577F] hover:underline">Precios en ML › Planes de cuotas</Link>.
           <b> ¿Gana?</b>: entre tus cuentas, una sola «gana» cada precio (la Clásica y cada plan) y las demás van un % más caras para no competir entre ellas (0 o vacío = gana; 3 = no gana, va 3 % arriba). Se puede cambiar por categoría o producto en Excepciones.
         </p>
       </section>
@@ -162,9 +171,12 @@ function gana(a: number | null | undefined) {
 
 const PLAN_CORTO = (p: Plan) => PLAN_INFO[p].corto;
 
-function resumenPlan(x: Excepcion["planes"][string] | undefined): string {
-  if (!x || x.ajuste == null) return "hereda";
-  return x.ajuste === 0 ? "gana" : `no gana: +${formatearNumero(x.ajuste, "pct")} %`;
+const textoGana = (a: number) => (a === 0 ? "gana" : `no gana: +${formatearNumero(a, "pct")} %`);
+
+/** Lo propio, o lo que hereda y de dónde (Fer, 8/10: «hereda, ¿de dónde?»). */
+function resumenPlan(x: Excepcion["planes"][string] | undefined, h: { valor: number; de: string } | undefined): React.ReactNode {
+  if (x && x.ajuste != null) return textoGana(x.ajuste);
+  return <span className="text-[#5C6B76]" title="Vacío: toma lo de la categoría de arriba o lo general de la cuenta">hereda: {h ? `${textoGana(h.valor)} (${h.de})` : "—"}</span>;
 }
 
 function CamposExcepcion({ e }: { e?: Excepcion }) {
@@ -187,6 +199,7 @@ function CamposExcepcion({ e }: { e?: Excepcion }) {
 async function Excepciones({ org, canal, sp, aqui }: { org: string; canal: CanalMl; sp: SP; aqui: string }) {
   const todas = await (LISTA_EXCEPCIONES_ML.filas!({ org, moneda: "ARS" }, sp) as Promise<Excepcion[]>);
   const vista = paginarEnMemoria(todas, sp);
+  const heredado = await heredadoExcepciones(org, canal, vista);
   const total = sp.q ? (await excepcionesCanal(org, canal.id)).length : todas.length;
   const base = { canal: String(canal.id), volver: aqui };
   return (
@@ -232,9 +245,10 @@ async function Excepciones({ org, canal, sp, aqui }: { org: string; canal: Canal
                     ? <Link href={url("/catalogo/productos", { familia: e.familia_id })} className="text-[#16577F] hover:underline">{e.nombre}</Link>
                     : <><Link href={`/catalogo/productos/${e.producto_id}`} className="font-mono text-[#16577F] hover:underline">{e.sku}</Link> {e.nombre}</>}
                 </td>
-                <td className={TDN}>{e.tachado_pct != null ? pct(descuentoComprador(e.tachado_pct)) : <span className="text-[#5C6B76]">hereda</span>}
-                  {e.ajuste_pct != null && <div className="text-[10px] text-[#5C6B76]">Clásica: {e.ajuste_pct === 0 ? "gana" : `no gana, +${formatearNumero(e.ajuste_pct, "pct")} %`}</div>}</td>
-                {PLANES.map((p) => <td key={p} className={`${TD} text-[11px]`}>{resumenPlan(e.planes[p])}</td>)}
+                <td className={TDN}>{e.tachado_pct != null ? pct(descuentoComprador(e.tachado_pct))
+                  : <span className="text-[#5C6B76]">hereda: {pct(descuentoComprador(heredado.get(e.clave)?.tachado.valor ?? 0))} ({heredado.get(e.clave)?.tachado.de})</span>}
+                  <div className="text-[10px] text-[#5C6B76]">Clásica: {e.ajuste_pct != null ? textoGana(e.ajuste_pct) : `hereda: ${textoGana(heredado.get(e.clave)?.clasica.valor ?? 0)} (${heredado.get(e.clave)?.clasica.de})`}</div></td>
+                {PLANES.map((p) => <td key={p} className={`${TD} text-[11px]`}>{resumenPlan(e.planes[p], heredado.get(e.clave)?.planes[p])}</td>)}
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">
                     <Lapiz href={url(BASE_PML, { canal: canal.id, ver: "excepciones", q: sp.q, contiene: sp.contiene, p: sp.p, editar: e.clave })} />

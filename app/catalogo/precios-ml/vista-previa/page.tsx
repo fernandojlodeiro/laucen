@@ -43,7 +43,7 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
   const conCambio = todas.filter((x) => x.hay_cambio).length;
   const nuevas = todas.filter((x) => x.rol === "nueva").length;
   const conAviso = todas.filter((x) => x.avisos).length;
-  const aqui = url("/catalogo/precios-ml/vista-previa", { canal: canal.id, familia: f.familia, q: f.q || null, contiene: f.comienza ? null : "1", cambios: f.cambios ? "1" : null, rol: f.rol || null, todas: f.todas ? "1" : null });
+  const aqui = url("/catalogo/precios-ml/vista-previa", { canal: canal.id, familia: f.familia, q: f.q || null, contiene: f.comienza ? null : "1", cambios: f.cambios ? null : "0", rol: f.rol || null, todas: f.todas ? "1" : null });
 
   return (
     <Pantalla titulo="Vista previa de precios en Mercado Libre" ancho="max-w-[1500px]"
@@ -68,7 +68,7 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
           <option value="">Todos los papeles</option>
           {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </FiltroVivo>
-        <CasillaViva parametro="cambios" activo={f.cambios} etiqueta="Sólo las que cambian" />
+        <CasillaViva parametro="cambios" activo={f.cambios} tildadaDeEntrada etiqueta="Sólo las que cambian (y las nuevas)" />
       </div>
       <p className="text-[11px] text-[#5C6B76] mb-2">
         {todas.length.toLocaleString("es-AR")} filas · <b>{conCambio.toLocaleString("es-AR")} con cambios</b>{nuevas ? ` (${nuevas.toLocaleString("es-AR")} publicaciones nuevas de planes)` : ""}{conAviso ? ` · ${conAviso.toLocaleString("es-AR")} con avisos` : ""}.

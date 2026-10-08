@@ -1,4 +1,4 @@
-// Planes de cuotas por grupo (Fer, 8/10): Configuración › Planes de cuotas.
+// Planes de cuotas por grupo (Fer, 8/10): Precios en ML › Planes de cuotas.
 // Por grupo de categorías (hoy «Notebooks» y «Resto»): qué planes se crean,
 // cuántas cuotas ve el comprador en cada uno (a mano: ML no lo informa) y el
 // % extra sobre lo que deja la Clásica. Vale para todas las cuentas de ML;

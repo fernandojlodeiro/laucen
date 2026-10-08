@@ -14,7 +14,7 @@ Es donde se definen **las reglas** con las que Laucen calcula el precio de cada 
 - **La Clásica es el único precio que se pone a mano** . Es el precio de la variación en la lista de precios del canal (la lista «Clásicas»): lo que paga el comprador en la Clásica de la cuenta que gana. Se carga en [Listas de precios](/catalogo/precios) o en la ficha del producto.
 - **Todo lo demás sale solo de ahí:** el precio tachado (Clásica ÷ (1 − descuento que ve el comprador)), la Clásica de las cuentas que no ganan, el precio de cada publicación de planes de cuotas (Premium común, Premium 3x, Premium 9x y Premium 12x), cuál de ellas va "destacada" al precio para ganar, y el descuento por volumen.
 - Las reglas de esta pantalla (descuento que ve el comprador, quién gana y descuento por volumen) valen **por cuenta (canal)** y, adentro de la cuenta, **general → categoría → producto**: gana lo más específico.
-- **Qué planes de cuotas lleva cada producto**, cuántas cuotas ve el comprador y cuánto más tiene que dejar cada plan se deciden para todas las cuentas a la vez, por grupo de categorías, en [Configuración › Planes de cuotas](/config/planes-cuotas).
+- **Qué planes de cuotas lleva cada producto**, cuántas cuotas ve el comprador y cuánto más tiene que dejar cada plan se deciden para todas las cuentas a la vez, por grupo de categorías, en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas).
 
 Desde acá **no sale nada** a Mercado Libre. Los precios que resultan se miran en la [Vista previa](/catalogo/precios-ml/vista-previa), y de ahí se preparan lotes que esperan el clic en «Mandar a Mercado Libre» en la [Cola de Mercado Libre](/config/canales/cola). La única excepción es si se prende el interruptor «Sincronizar precios» de la cuenta (ver más abajo).
 
@@ -40,7 +40,7 @@ Arriba a la derecha: el botón **«Vista previa»** y el **lápiz** para editar.
 Caja **«Descuento y quién gana (general de la cuenta)»**:
 - **Descuento que ve el comprador %**: el «% OFF» que muestra la publicación en Mercado Libre (por ejemplo 45). Es lo que se decide; el sistema calcula solo cuánto más alto se publica (el tachado) para que, con la campaña bajándola a la Clásica, se vea ese descuento. 0 = sin descuento; Mercado Libre lo muestra desde 5 %.
 - Tabla con una fila por publicación: «Clásica», «Premium común», «Premium 3x», «Premium 9x» y «Premium 12x», y la columna **«¿Gana? (si no, +%)»**. Vacío o 0 = esta cuenta **gana** ese precio; 3 = **no gana** y va 3 % más cara (para que tus cuentas no compitan entre ellas). Se ve «Gana» o «no gana, +3 %».
-- Debajo, un texto con el enlace a [Configuración › Planes de cuotas](/config/planes-cuotas), donde se decide qué planes lleva cada producto, desde qué Clásica, cuánto más tiene que dejar cada plan y cuántas cuotas ve el comprador.
+- Debajo, un texto con el enlace a [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), donde se decide qué planes lleva cada producto, desde qué Clásica, cuánto más tiene que dejar cada plan y cuántas cuotas ve el comprador.
 
 Caja **«Interruptores de la cuenta»** (tres interruptores):
 - **«Sincronizar precios: Laucen manda solo los precios a esta cuenta»**. Arranca apagado.
@@ -51,7 +51,7 @@ Caja **«Interruptores de la cuenta»** (tres interruptores):
 
 Excepciones por **categoría** (vale también para sus subcategorías) o por **producto**. Arriba a la derecha: «Descargar Excel» y **«Nueva excepción»**. Buscador por categoría, producto, SKU o número.
 
-Columnas: «Aplica a» (Categoría / Producto), «Categoría o producto» (con enlace), «Descuento» (el descuento que ve el comprador y, si la tiene, «Clásica: gana / no gana, +3 %») y una columna por plan («Premium», «3x», «9x», «12x») con «hereda», «gana» o, por ejemplo, «no gana: +3 %». Cada fila tiene el **lápiz** (se edita ahí mismo, con «Guardar» y «Cancelar») y el **tacho** (pregunta «¿Borrar? Vuelve a heredar» con Sí / No).
+Columnas: «Aplica a» (Categoría / Producto), «Categoría o producto» (con enlace), «Descuento» (el descuento que ve el comprador y, si la tiene, «Clásica: gana / no gana, +3 %») y una columna por plan («Premium», «3x», «9x», «12x») con «gana», por ejemplo «no gana: +3 %», o, si está vacío, **lo que hereda y de dónde**: «hereda: gana (general)», «hereda: 40 % (de la categoría Sensores)». Vacío en lo general de la cuenta quiere decir **gana** y **sin descuento**. Cada fila tiene el **lápiz** (se edita ahí mismo, con «Guardar» y «Cancelar») y el **tacho** (pregunta «¿Borrar? Vuelve a heredar» con Sí / No).
 
 El formulario de excepción tiene: «Aplica a» (una categoría o un producto), «Categoría» (buscador) **o** «o el SKU del producto», «Descuento que ve el comprador %», «Clásica: ¿gana? (si no, +%)» y, por cada plan, «… : ¿gana? (si no, +%)». Todo lo que queda vacío **hereda**.
 
@@ -91,7 +91,7 @@ La cuenta de la pestaña suma las tres cajas.
 
 Errores típicos: «El descuento que ve el comprador tiene que estar entre 0 % y 75 %.», «Mercado Libre muestra el descuento sólo desde 5 %: poné 0 (sin descuento) o 5 % o más.».
 
-Para cambiar qué planes se usan, sus cuotas o su % extra: [Configuración › Planes de cuotas](/config/planes-cuotas).
+Para cambiar qué planes se usan, sus cuotas o su % extra: [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas).
 
 ### Poner una excepción para una categoría o un producto
 1. Pestaña «Excepciones» → **«Nueva excepción»**.
@@ -132,9 +132,9 @@ Pestaña «Alertas» → mirá «Qué pasa» (trae el estado que informa ML y el
 - Si la variación no tiene precio en esa lista, no se calcula nada (aviso «Sin precio en la lista Clásicas: no se calcula nada.»).
 
 ### 2. Cómo se hereda una regla
-Para cada producto se busca el valor de cada dato por separado, del más específico al más general: **producto → su categoría → la categoría de arriba → … → general de la cuenta**. Se toma el primero que no esté vacío. Así, un producto puede tener su propio «¿gana?» para un plan y heredar todo lo demás.
+Para cada producto se busca el valor de cada dato por separado, del más específico al más general: **producto → su categoría → la categoría de arriba → … → general de la cuenta**. Se toma el primero que no esté vacío; si todo está vacío, vale **gana** (sin recargo) y **sin descuento**. Así, un producto puede tener su propio «¿gana?» para un plan y heredar todo lo demás. Quién gana cada producto suele quedar grabado como excepción del producto (lo graba «Publicar en todas las cuentas»); la pestaña «Descuento y quién gana» dice cuántos productos de la cuenta tienen el suyo.
 - En lo general: el descuento vacío vale 0 % (sin tachado); «¿gana?» vacío = gana.
-- Qué planes se usan, su % extra y las cuotas que ve el comprador no se heredan por cuenta: salen del grupo de categorías del producto en [Configuración › Planes de cuotas](/config/planes-cuotas), igual para todas las cuentas.
+- Qué planes se usan, su % extra y las cuotas que ve el comprador no se heredan por cuenta: salen del grupo de categorías del producto en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), igual para todas las cuentas.
 - El descuento por volumen se hereda distinto (ver punto 7).
 
 ### 3. El tachado
@@ -153,7 +153,7 @@ Para cada producto se busca el valor de cada dato por separado, del más especí
 - **Sólo se usa el % de comisión.** El cargo fijo por unidad (debajo de $ 33.000) y el costo del envío gratis también los releva Costos ML, pero **no entran** en el cálculo del precio de los planes.
 
 ### 5. El precio de cada publicación de planes de cuotas (por coeficiente)
-El criterio: **cada plan tiene que dejar, después de su comisión, lo mismo que deja la Clásica, más el % extra del plan** (el «% extra sobre la Clásica» del grupo del producto, en [Configuración › Planes de cuotas](/config/planes-cuotas)).
+El criterio: **cada plan tiene que dejar, después de su comisión, lo mismo que deja la Clásica, más el % extra del plan** (el «% extra sobre la Clásica» del grupo del producto, en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas)).
 
 **Precio del plan = Clásica × (1 − comisión de la Clásica) ÷ (1 − comisión del plan) × (1 + % extra)**, redondeado a pesos enteros.
 
@@ -164,7 +164,7 @@ Paso a paso:
 
 **Quién gana cada plan**: en cada cuenta, la Clásica y cada plan pueden ir un % más caros que el esquema: la cuenta que **no gana** ese plan va **3 % más cara** («¿Gana?» en la vista previa: «Gana» o «+3 %»). La Clásica de esa cuenta = Clásica de la lista × 1,03; el plan = su precio por coeficiente (calculado con la Clásica de la lista) × 1,03. Se carga en «Descuento y quién gana» (lápiz, columna «¿Gana? (si no, +%)») para toda la cuenta, o en «Excepciones» para una categoría o un producto (gana lo más específico; se ve «gana» o «no gana: +3 %»). El botón «Publicar en todas las cuentas» de la ficha del producto lo reparte solo (ver [Publicar un producto en todas las cuentas](/catalogo/productos)).
 
-Un plan **se usa** (queda "habilitado") sólo si tiene «Usar» tildado en el grupo del producto y la Clásica es de **$ 33.000 o más** (desde ahí Mercado Libre da envío gratis; ver [Configuración › Planes de cuotas](/config/planes-cuotas)). Si no, su publicación queda con papel «Plan apagado» y **no se toca**.
+Un plan **se usa** (queda "habilitado") sólo si tiene «Usar» tildado en el grupo del producto y la Clásica es de **$ 33.000 o más** (desde ahí Mercado Libre da envío gratis; ver [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas)). Si no, su publicación queda con papel «Plan apagado» y **no se toca**.
 
 Si dos planes habilitados se le muestran al comprador con la misma cantidad de cuotas, la vista previa avisa que sobra uno («manda lo que ve el comprador»).
 
@@ -237,7 +237,7 @@ Cuenta con descuento que ve el comprador general 10 %; en el grupo del producto,
 ## Preguntas frecuentes
 
 **¿Con qué criterio se calcula el precio de las publicaciones de cuotas?**
-Para que dejen, después de la comisión de Mercado Libre de su categoría, lo mismo que deja la Clásica más el % extra del plan: Clásica × (1 − comisión Clásica) ÷ (1 − comisión del plan) × (1 + % extra), redondeado a pesos. El % extra se pone en [Configuración › Planes de cuotas](/config/planes-cuotas). La que queda destacada va al precio para ganar de ML, si ese precio cierra.
+Para que dejen, después de la comisión de Mercado Libre de su categoría, lo mismo que deja la Clásica más el % extra del plan: Clásica × (1 − comisión Clásica) ÷ (1 − comisión del plan) × (1 + % extra), redondeado a pesos. El % extra se pone en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas). La que queda destacada va al precio para ganar de ML, si ese precio cierra.
 
 **¿Dónde cambio el precio de un producto en Mercado Libre?**
 Cambiando su Clásica (el precio en la lista del canal) en [Listas de precios](/catalogo/precios) o en la ficha del producto. Todo lo demás se recalcula solo. Después hay que preparar y mandar los cambios (salvo que la cuenta sincronice sola).
@@ -246,7 +246,7 @@ Cambiando su Clásica (el precio en la lista del canal) en [Listas de precios](/
 Porque con «Sincronizar precios» apagado nada sale solo: andá a la [Vista previa](/catalogo/precios-ml/vista-previa), «Preparar cambios», y en la [Cola de Mercado Libre](/config/canales/cola) apretá «Mandar a Mercado Libre».
 
 **¿Por qué un plan no tiene precio o dice «Plan apagado»?**
-Porque en el grupo del producto ese plan no tiene «Usar» tildado, o porque la Clásica está debajo de $ 33.000. Se revisa en [Configuración › Planes de cuotas](/config/planes-cuotas).
+Porque en el grupo del producto ese plan no tiene «Usar» tildado, o porque la Clásica está debajo de $ 33.000. Se revisa en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas).
 
 **¿Por qué una publicación con descuento sigue al precio tachado si no está en ninguna campaña?**
 Porque el sistema nunca la baja a la Clásica: después de una venta a ese precio Mercado Libre puede no dejar volver a subirlo. Aparece en «Alertas» › «Sin campaña hace más de 24 horas» hasta que entre en una campaña.
@@ -272,7 +272,7 @@ No: lo avisa en la vista previa y hay que sacarlo a mano en Mercado Libre.
 ## Relacionado
 
 - [Vista previa de precios en Mercado Libre](/catalogo/precios-ml/vista-previa)
-- [Planes de cuotas](/config/planes-cuotas)
+- [Planes de cuotas](/catalogo/precios-ml/planes-cuotas)
 - [Cola de Mercado Libre](/config/canales/cola)
 - [Listas de precios](/catalogo/precios)
 - [Canales](/config/canales)

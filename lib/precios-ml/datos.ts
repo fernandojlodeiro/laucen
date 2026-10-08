@@ -6,7 +6,7 @@
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import {
-  CON_PRECIO, campanasBajoPiso, cadenaFamilias, heredar, comisionesDe, comisionGeneral, normalizarEscalones, planDePublicacion, proponer,
+  CON_PRECIO, campanasBajoPiso, cadenaFamilias, heredar, textoOrigen, PLANES, type Origen, comisionesDe, comisionGeneral, normalizarEscalones, planDePublicacion, proponer,
   type Campana, type Comisiones, type EntradaVariacion, type FilaComision, type FilaVolumen, type Propuesta, type ReglasCanal,
   type ReglasPlan, type ReglaTachado, type PubMl, type PlanOClasica,
 } from "@/lib/precios-ml/motor";
@@ -48,7 +48,7 @@ export async function reglasCanal(org: string, canal: CanalMl): Promise<ReglasCa
   const [tachado, planes, volumen] = await Promise.all([
     consulta<ReglaTachado>(`select nivel, familia_id::int, producto_id::int, tachado_pct::float8, ajuste_pct::float8 from ml_regla_precio where organizacion_id = $1 and canal_id = $2`, [org, canal.id]),
     // De cada cuenta sólo «¿gana?» (ajuste_pct); qué planes, desde dónde, el margen y las cuotas que
-    // ve el comprador salen de los grupos de Configuración › Planes de cuotas (Fer, 8/10).
+    // ve el comprador salen de los grupos de Precios en ML › Planes de cuotas (Fer, 8/10).
     consulta<ReglasPlan>(`select plan, nivel, familia_id::int, producto_id::int, null::boolean activo, null::float8 precio_minimo, null::float8 margen_pct,
                                  null::int cuotas_visibles, ajuste_pct::float8
                             from ml_plan_config where organizacion_id = $1 and canal_id = $2 and ajuste_pct is not null`, [org, canal.id]),
@@ -308,6 +308,8 @@ export type Excepcion = {
   clave: string; nivel: "familia" | "producto"; familia_id: number | null; producto_id: number | null;
   nombre: string; sku: string | null; tachado_pct: number | null; ajuste_pct: number | null;
   planes: Record<string, { activo: boolean | null; min: number | null; margen: number | null; ajuste: number | null }>;
+  /** La familia del producto (para calcular lo que hereda). */
+  familia_producto?: number | null;
 };
 
 /** Las excepciones (categoría o producto) de un canal, con su tachado y sus planes. */
@@ -317,7 +319,7 @@ export async function excepcionesCanal(org: string, canal: number): Promise<Exce
       select nivel, familia_id, producto_id from ml_regla_precio where organizacion_id = $1 and canal_id = $2 and nivel <> 'general'
       union
       select nivel, familia_id, producto_id from ml_plan_config where organizacion_id = $1 and canal_id = $2 and nivel <> 'general' and ajuste_pct is not null)
-    select k.nivel, k.familia_id::int, k.producto_id::int, coalesce(f.nombre, p.titulo, '—') nombre, p.sku_base sku,
+    select k.nivel, k.familia_id::int, k.producto_id::int, coalesce(f.nombre, p.titulo, '—') nombre, p.sku_base sku, p.familia_id::int familia_producto,
            (select tachado_pct::float8 from ml_regla_precio r where r.canal_id = $2 and r.nivel = k.nivel
                and r.familia_id is not distinct from k.familia_id and r.producto_id is not distinct from k.producto_id) tachado_pct,
            (select ajuste_pct::float8 from ml_regla_precio r where r.canal_id = $2 and r.nivel = k.nivel
@@ -444,4 +446,28 @@ export async function sinCampanaCanal(org: string, canal: CanalMl, horas = 24): 
     });
   }
   return salida.sort((a, b) => a.desde.getTime() - b.desde.getTime());
+}
+
+export type Heredado = { tachado: { valor: number; de: string }; clasica: { valor: number; de: string }; planes: Record<string, { valor: number; de: string }> };
+
+/** Lo que una excepción hereda en cada campo vacío (Fer, 8/10: «hereda, ¿de dónde?»): el valor y de dónde
+ *  viene (una categoría de arriba o lo general de la cuenta; si no hay nada cargado, 0 = sin descuento / gana). */
+export async function heredadoExcepciones(org: string, canal: CanalMl, excepciones: Excepcion[]): Promise<Map<string, Heredado>> {
+  const [reglas, familias] = await Promise.all([reglasCanal(org, canal), familiasDe(org)]);
+  const de = (o: Origen | null) => (o ? textoOrigen(o, (id) => familias.nombre.get(id)) : "nada cargado");
+  const salida = new Map<string, Heredado>();
+  for (const e of excepciones) {
+    // Lo de arriba de la excepción: para un producto, su categoría y las de arriba; para una categoría, sus padres.
+    const cadena = e.nivel === "producto" ? cadenaFamilias(e.familia_producto ?? null, familias.padres) : cadenaFamilias(familias.padres.get(e.familia_id!) ?? null, familias.padres);
+    const lugar = { productoId: -1, familias: cadena };
+    const t = heredar(reglas.tachado, lugar, (r) => (r.tachado_pct == null ? null : Number(r.tachado_pct)));
+    const a = heredar(reglas.tachado, lugar, (r) => (r.ajuste_pct == null ? null : Number(r.ajuste_pct)));
+    const planes: Heredado["planes"] = {};
+    for (const p of PLANES) {
+      const x = heredar(reglas.planes.filter((r) => r.plan === p), lugar, (r) => (r.ajuste_pct == null ? null : Number(r.ajuste_pct)));
+      planes[p] = { valor: x.valor ?? 0, de: de(x.origen) };
+    }
+    salida.set(e.clave, { tachado: { valor: t.valor ?? 0, de: de(t.origen) }, clasica: { valor: a.valor ?? 0, de: de(a.origen) }, planes });
+  }
+  return salida;
 }

@@ -255,7 +255,7 @@ Prendido: cada factura y nota de crédito de una venta de ese canal, al autoriza
 
 ### Precios en Mercado Libre
 
-El interruptor de que los precios sigan a la publicación Clásica ("sincronizar precios") y el de leer el precio para ganar no están en esta pantalla: están en [Precios en Mercado Libre](/catalogo/precios-ml). Qué planes de cuotas se crean, para todas las cuentas, se decide en [Configuración › Planes de cuotas](/config/planes-cuotas).
+El interruptor de que los precios sigan a la publicación Clásica ("sincronizar precios") y el de leer el precio para ganar no están en esta pantalla: están en [Precios en Mercado Libre](/catalogo/precios-ml). Qué planes de cuotas se crean, para todas las cuentas, se decide en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas).
 
 ### Llave API
 

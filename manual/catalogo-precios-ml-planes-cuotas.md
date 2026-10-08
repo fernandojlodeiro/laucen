@@ -1,8 +1,8 @@
 ---
 titulo: Planes de cuotas
-menu: Configuración › Planes de cuotas
-ruta: /config/planes-cuotas
-rutas: /config/planes-cuotas
+menu: Catálogo › Precios en Mercado Libre, pestaña «Planes de cuotas»
+ruta: /catalogo/precios-ml/planes-cuotas
+rutas: /catalogo/precios-ml/planes-cuotas, /config/planes-cuotas
 permiso: precios_ml_ver
 resumen: Qué publicaciones de cuotas de Mercado Libre se crean además de la Clásica, por grupo de categorías y para todas las cuentas, con cuántas cuotas ve el comprador y cuánto más tiene que dejar cada plan.
 ---
@@ -21,8 +21,9 @@ Lo que no está acá: **quién gana** entre las cuentas y el **descuento que ve 
 
 ## Cómo se llega
 
-- Menú **Configuración › Planes de cuotas**.
-- Desde [Precios en Mercado Libre](/catalogo/precios-ml), pestaña «Descuento y quién gana», con el enlace del texto de abajo.
+- Menú **Catálogo › Precios en Mercado Libre**, última pestaña: **«Planes de cuotas»**.
+- Desde la pestaña «Descuento y quién gana», con el enlace del texto de abajo.
+- Lo que se ve acá vale para todas las cuentas: el selector «Cuenta» de arriba sólo sirve para pasar a las otras pestañas.
 - Hace falta el permiso «Precios en Mercado Libre».
 
 ## Qué hay en la pantalla

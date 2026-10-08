@@ -73,7 +73,7 @@ export async function accionGuardarGeneral(fd: FormData) {
   await intentar(sinEditar(v), async () => {
     await guardarTachado(s.org.id, canal, { nivel: "general" }, tachadoDelForm(fd) ?? 0, numero(fd, "clasica_ajuste"));
     for (const p of PLANES) {
-      // Qué planes, desde dónde, margen y cuotas: Configuración › Planes de cuotas. Acá, sólo «¿gana?».
+      // Qué planes, desde dónde, margen y cuotas: Precios en ML › Planes de cuotas. Acá, sólo «¿gana?».
       await guardarPlan(s.org.id, canal, p, { nivel: "general" }, { activo: null, precioMinimo: null, margenPct: null, cuotasVisibles: null, ajustePct: numero(fd, `${p}_ajuste`) });
     }
     revalidatePath(BASE_PML);
@@ -233,7 +233,7 @@ export async function accionSacarCampanas(fd: FormData) {
 }
 
 /** Vista previa › «Crear los planes que faltan» (Fer, 8/10): en la cuenta elegida (y con el filtro de la
- *  pantalla), las publicaciones de planes de cuotas que le tocan según Configuración › Planes de cuotas y
+ *  pantalla), las publicaciones de planes de cuotas que le tocan según Precios en ML › Planes de cuotas y
  *  todavía no existen. Corre de fondo; arma un lote que espera tu clic. */
 export async function accionCrearFaltantes(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");

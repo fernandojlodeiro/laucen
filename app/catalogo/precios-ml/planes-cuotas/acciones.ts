@@ -1,6 +1,6 @@
 "use server";
 
-// Configuración › Planes de cuotas: grabar los planes de un grupo. Nada sale
+// Precios en ML › Planes de cuotas: grabar los planes de un grupo. Nada sale
 // a Mercado Libre desde acá: si una cuenta tiene «Sincronizar precios»
 // prendido, los cambios de precio van solos a la cola; si no, se preparan en
 // la vista previa de Precios en ML y salen con el clic de «Mandar».
@@ -11,14 +11,15 @@ import { intentar, id, numero, entero, tildado } from "@/lib/erp/acciones";
 import { guardarGrupo, type ValoresGrupo } from "@/lib/precios-ml/grupos";
 import { sincronizarPreciosMl } from "@/lib/precios-ml/preparar";
 import { PLANES } from "@/lib/precios-ml/motor";
-import { limpiarCachePrevia } from "@/app/catalogo/precios-ml/lista";
+import { limpiarCachePrevia, PLANES_PML } from "@/app/catalogo/precios-ml/lista";
 
-const BASE = "/config/planes-cuotas";
+const BASE = PLANES_PML;
 
 export async function accionGuardarGrupo(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
   const grupo = id(fd, "grupo");
-  await intentar(BASE, async () => {
+  const canal = id(fd, "canal") || null;
+  await intentar(canal ? `${BASE}?canal=${canal}` : BASE, async () => {
     const v = Object.fromEntries(PLANES.map((p) => [p, { usar: tildado(fd, `${p}_usar`), cuotasVisibles: entero(fd, `${p}_cuotas`), margenPct: numero(fd, `${p}_margen`) }])) as ValoresGrupo;
     await guardarGrupo(s.org.id, grupo, v);
     limpiarCachePrevia();

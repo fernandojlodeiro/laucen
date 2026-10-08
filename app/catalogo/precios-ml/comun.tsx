@@ -5,9 +5,9 @@ import Pestanas from "@/app/componentes/Pestanas";
 import { FiltroVivo, CasillaViva } from "@/app/componentes/BuscadorVivo";
 import { url } from "@/app/componentes/erp";
 import { cuentasCanal, campanasBajoPisoCanal, sinCampanaCanal, type CanalMl } from "@/lib/precios-ml/datos";
-import { BASE_PML, PREVIA } from "./lista";
+import { BASE_PML, PREVIA, PLANES_PML } from "./lista";
 
-export type VerPml = "general" | "excepciones" | "volumen" | "alertas" | "previa";
+export type VerPml = "general" | "excepciones" | "volumen" | "alertas" | "previa" | "planes";
 
 export async function BarraPml({ org, canales, canal, ver, todas = false }: { org: string; canales: CanalMl[]; canal: CanalMl; ver: VerPml; todas?: boolean }) {
   const [n, bajo, sin] = await Promise.all([cuentasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id), sinCampanaCanal(org, canal)]);
@@ -35,6 +35,8 @@ export async function BarraPml({ org, canales, canal, ver, todas = false }: { or
         { clave: "volumen", texto: "Descuento por volumen", cuenta: n.volumen, activa: ver === "volumen", href: con("volumen") },
         { clave: "alertas", texto: "Alertas", cuenta: n.alertas + bajo.length + sin.length, activa: ver === "alertas", href: con("alertas") },
         { clave: "previa", texto: "Vista previa", activa: ver === "previa", href: url(PREVIA, { canal: canal.id }) },
+        // Para todas las cuentas (Fer, 8/10): qué planes de cuotas, cuotas que ve el comprador y % extra, por grupo.
+        { clave: "planes", texto: "Planes de cuotas", activa: ver === "planes", href: url(PLANES_PML, { canal: canal.id }) },
       ]} />
     </>
   );
