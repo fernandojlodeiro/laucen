@@ -8,6 +8,7 @@
 import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
+import PrecioPublicacion from "@/app/componentes/PrecioPublicacion";
 import { consulta } from "@/lib/erp/base";
 import { VERDE, SUAVE } from "@/app/botones";
 import CampoNumero from "@/app/componentes/CampoNumero";
@@ -162,11 +163,10 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                       </span>
                     </form>
                   ) : f.precio != null ? (
-                    <>
-                      {f.tachado != null && <span className="block text-[10px] text-[#5C6B76] line-through">{plata(f.tachado)}</span>}
-                      <span className="font-semibold">{plata(f.precio)}</span>
-                      {f.campana && <span className="mt-0.5 block whitespace-normal text-left text-[10px] leading-3 text-[#1F6E4A]" title="Campaña activa de Mercado Libre">Campaña: {f.campana}{f.precio_campana != null && <> · {plata(f.precio_campana)}</>}</span>}
-                    </>
+                    // Como en ML (Fer, 8/10): grande lo que paga (la campaña en curso, si baja el precio), el de lista chico y tachado, % OFF y la campaña chiquita.
+                    f.precio_campana != null && f.precio_campana < f.precio
+                      ? <PrecioPublicacion paga={f.precio_campana} lista={Math.max(f.precio, f.tachado ?? 0)} campana={f.campana} texto={plata} />
+                      : <PrecioPublicacion paga={f.precio} lista={f.tachado} campana={f.campana} texto={plata} />
                   ) : <span className="text-[#5C6B76]">—</span>}
                 </td>
                 <td className={TD}>

@@ -3,6 +3,7 @@
 
 import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import Link from "next/link";
+import PrecioPublicacion from "@/app/componentes/PrecioPublicacion";
 import { consulta } from "@/lib/erp/base";
 import { precioDe, listasDePrecios } from "@/lib/precios";
 import { enVista, enMoneda, formatear, tcDelDia, tcParaVista, type Moneda } from "@/lib/moneda";
@@ -973,7 +974,7 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
   // Los precios de las publicaciones son en pesos: en dólares, al tipo de cambio de hoy.
   const tcHoy = await tcParaVista(s.org.id, s.moneda);
   const filas = await consulta<{ id: number; sku: string; canal: string; id_externo: string | null; titulo: string; tipo_publicacion: string | null; plan: string | null; cuotas_visibles: number | null; estado: string;
-    precio: number | null; precio_tachado: number | null; stock_ml: number | null; estado_ml: string | null; enlace: string | null; disp_web: number | null; vendidos: number | null; motivo: string | null; por_precio: boolean | null }>(`
+    precio: number | null; precio_tachado: number | null; campana: string | null; stock_ml: number | null; estado_ml: string | null; enlace: string | null; disp_web: number | null; vendidos: number | null; motivo: string | null; por_precio: boolean | null }>(`
     select pu.id::int, v.sku, c.nombre canal, pu.id_externo,
            -- La publicación en ML (Fer, 5/10): su dirección, o la que arma ML con el número.
            case when c.tipo = 'mercadolibre' and pu.id_externo is not null
@@ -983,7 +984,7 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
            -- En campaña (Fer, 8/10): ML deja el precio de la publicación en el tachado y el de la campaña
            -- lo informa aparte; el que paga el comprador es el menor de las campañas en curso (leídas por Laucen).
            case when cp.precio < pu.precio_canal then cp.precio else pu.precio_canal end::float8 precio,
-           case when cp.precio < pu.precio_canal then pu.precio_canal else pu.precio_tachado end::float8 precio_tachado,
+           case when cp.precio < pu.precio_canal then pu.precio_canal else pu.precio_tachado end::float8 precio_tachado, cp.nombre campana,
            mi.stock stock_ml, mi.estado estado_ml,
            -- Vendidos en ML (lo que informa ML de la publicación); sin ventas, 0. La web no tiene.
            case when c.tipo = 'mercadolibre' then coalesce(mi.vendidos, 0) end::int vendidos,
@@ -994,7 +995,7 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
       from publicacion pu join variacion v on v.id = pu.variacion_id join canal c on c.id = pu.canal_id
       ${UNIR_MELI_ITEM}
       ${UNIR_MODERACION}
-      left join lateral (select min(m.precio) precio from ml_promo_item m
+      left join lateral (select min(m.precio) precio, string_agg(distinct coalesce(m.nombre, m.tipo), ' · ') nombre from ml_promo_item m
                           where m.canal_id = pu.canal_id and m.item_id = pu.id_externo and m.estado = 'started'
                             and m.precio > 0 and (m.hasta is null or m.hasta > now())) cp on c.tipo = 'mercadolibre'
      where v.producto_id = $2 and pu.organizacion_id = $1 order by c.nombre, v.sku`, [s.org.id, p.id]);
@@ -1066,14 +1067,10 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
                   : f.titulo}</td>
                 <td className={`${TD} whitespace-nowrap`}>{f.plan ? <PlanPublicacion plan={f.plan} cuotas={f.cuotas_visibles} /> : f.tipo_publicacion ?? "—"}</td>
                 <td className={TDN}>
-                  {/* En campaña (Fer, 7/10): el de antes, tachado y más chico; abajo el que paga el cliente (con su plan) y el descuento. */}
-                  {f.precio_tachado != null && f.precio != null && f.precio_tachado > f.precio && (
-                    <span className="block text-[10px] leading-3 line-through text-[#5C6B76]">{enMoneda(f.precio_tachado, s.moneda, tcHoy)}</span>
-                  )}
-                  {f.precio != null ? <span className="font-semibold">{enMoneda(f.precio, s.moneda, tcHoy)}</span> : <span className="text-[#5C6B76]">—</span>}
-                  {f.precio_tachado != null && f.precio != null && f.precio_tachado > f.precio && (
-                    <span className="block text-[10px] leading-3 font-semibold text-[#1F6E4A]">{Math.round((1 - f.precio / f.precio_tachado) * 100)}% OFF</span>
-                  )}
+                  {/* Como en ML (Fer, 8/10): grande lo que paga el cliente con su plan, el de lista chico y tachado, % OFF y la campaña chiquita. */}
+                  {f.precio != null
+                    ? <PrecioPublicacion paga={f.precio} lista={f.precio_tachado} campana={f.campana} texto={(n) => enMoneda(n, s.moneda, tcHoy)} />
+                    : <span className="text-[#5C6B76]">—</span>}
                 </td>
                 <td className={TD}>
                   {/* Web (Fer, 5/10): activa pero sin stock disponible → "Sin stock"; con el interruptor apagado, "Pausada". */}
