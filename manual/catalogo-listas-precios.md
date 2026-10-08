@@ -24,7 +24,7 @@ Arriba a la derecha: **Descargar Excel** (de las listas) y **+ Nueva lista**.
 
 ### Las listas (arriba)
 
-Buscador **"Buscar lista"**. Tabla con:
+Todas las listas, sin buscador (son pocas; para buscar productos está el buscador de la grilla de abajo). Tabla con:
 - **Lista**: tocándola, abajo se ve su grilla de precios (la fila elegida se pinta y dice "(viendo abajo)").
 - **Moneda base**: Pesos o Dólares.
 - **Se calcula desde**: "= Clásicas × 0,9" si es una lista derivada; "—" si tiene precios propios.

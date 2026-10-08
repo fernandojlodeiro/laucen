@@ -71,8 +71,9 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
   const comienza = sp.contiene !== "1";
   const cont = comienza ? null : "1";
   // Buscador de listas (arriba): otro parámetro, porque q es el de la grilla.
-  const ql = sp.ql?.trim() || "";
-  const comienzaL = sp.qlcontiene !== "1";
+  // Sin buscador de listas (Fer, 8/10: son 3 o 4 y la gente escribía ahí los productos): se ven todas.
+  const ql = "";
+  const comienzaL = true;
   const filtrosL = { ql: ql || null, qlcontiene: comienzaL ? null : "1" };
   // Las listas son pocas: se ordenan en memoria (sus columnas llevan "l_"; las de la grilla no).
   const listasVistas = ordenarEnMemoria(listas.filter((l) => coincideBusqueda([String(l.id), l.nombre, l.moneda_base], ql, comienzaL)), sp, {
@@ -155,9 +156,6 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
       </AltaNueva>
 
       {/* ── Listas ── */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
-        <BuscadorVivo q={ql} comienza={comienzaL} placeholder="Buscar lista" parametro="ql" limpiar={["editar"]} />
-      </div>
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
