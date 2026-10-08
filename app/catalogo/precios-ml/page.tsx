@@ -87,20 +87,19 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
   return (
     <div className="grid gap-4">
       <section className={CAJA}>
-        <TituloSeccion titulo="Tachado y planes de cuotas (general de la cuenta)" />
+        <TituloSeccion titulo="Descuento y planes de cuotas (general de la cuenta)" />
         {!editando ? (
-          <Dato etiqueta="Tachado %" numero className="max-w-[220px]"
-            ayuda="La publicación va a Clásica + este %; una campaña la baja a la Clásica al día siguiente. ML pide al menos 5 % de descuento (un tachado de 5,3 % o más).">
-            {pct(tachado)}{Number(tachado) > 0 ? ` (el comprador ve −${formatearNumero(descuentoComprador(Number(tachado)), "pct")} %)` : ""}
+          <Dato etiqueta="Descuento que ve el comprador %" numero className="max-w-[260px]"
+            ayuda="El «% OFF» de la publicación en ML: se publica a un precio más alto (tachado) y una campaña la baja a la Clásica. 0 = sin descuento. ML lo muestra desde 5 %.">
+            {pct(descuentoComprador(Number(tachado)))}
           </Dato>
         ) : null}
         <form id="ficha" action={accionGuardarGeneral}>
           <input type="hidden" name="canal" value={canal.id} /><input type="hidden" name="volver" value={aqui} />
           {editando && (
-            <label className="block max-w-[220px] mb-3"><span className={ETIQUETA}>Tachado %</span>
-              <CampoNumero name="tachado_pct" valor={tachado} tipo="pct" className={`${CAMPO} w-full`} />
-              <span className="block text-[10px] text-[#5C6B76] mt-0.5">Clásica + este %. ML pide ≥ 5 % de descuento (tachado de 5,3 % o más).
-                {Number(tachado) > 0 && <> Hoy {pct(tachado)} = el comprador ve −{formatearNumero(descuentoComprador(Number(tachado)), "pct")} %.</>}</span>
+            <label className="block max-w-[260px] mb-3"><span className={ETIQUETA}>Descuento que ve el comprador %</span>
+              <CampoNumero name="descuento_pct" valor={descuentoComprador(Number(tachado))} tipo="pct" className={`${CAMPO} w-full`} />
+              <span className="block text-[10px] text-[#5C6B76] mt-0.5">El «% OFF» en ML. 0 = sin descuento; ML lo muestra desde 5 %.</span>
             </label>
           )}
           <div className={CAJA_TABLA}>
@@ -119,7 +118,7 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
                     ? <CampoNumero name="clasica_ajuste" valor={ajusteClasica} tipo="pct" placeholder="0 = gana" className={`${CAMPO} w-20`} />
                     : gana(ajusteClasica)}</td>
                   <td className={TDN}>{pct(g.clasica)}</td>
-                  <td className={TDN}>{formatear(ejemplo, "ARS")} (tachado {formatear(Math.round(ejemplo * (1 + Number(tachado) / 100)), "ARS")})</td>
+                  <td className={TDN}>{formatear(ejemplo, "ARS")}{Number(tachado) > 0 && <> (publicada a {formatear(Math.round(ejemplo * (1 + Number(tachado) / 100)), "ARS")}, −{formatearNumero(descuentoComprador(Number(tachado)), "pct")} %)</>}</td>
                 </tr>
                 {PLANES.map((p) => {
                   const r = plan(p);
@@ -199,8 +198,8 @@ function resumenPlan(x: Excepcion["planes"][string] | undefined): string {
 function CamposExcepcion({ e }: { e?: Excepcion }) {
   return (
     <>
-      <label><span className={ETIQUETA}>Tachado %</span>
-        <CampoNumero name="tachado_pct" valor={e?.tachado_pct ?? null} tipo="pct" placeholder="hereda" className={`${CAMPO} w-full`} /></label>
+      <label><span className={ETIQUETA}>Descuento que ve el comprador %</span>
+        <CampoNumero name="descuento_pct" valor={e?.tachado_pct != null ? descuentoComprador(e.tachado_pct) : null} tipo="pct" placeholder="hereda" className={`${CAMPO} w-full`} /></label>
       <label><span className={ETIQUETA}>Clásica: ¿gana? (si no, +%)</span>
         <CampoNumero name="clasica_ajuste" valor={e?.ajuste_pct ?? null} tipo="pct" placeholder="hereda" className={`${CAMPO} w-full`} />
         <span className="block text-[10px] text-[#5C6B76] mt-0.5">0 = gana · vacío = hereda</span></label>
@@ -248,7 +247,7 @@ async function Excepciones({ org, canal, sp, aqui }: { org: string; canal: Canal
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={TH}>Aplica a</th><th className={TH}>Categoría o producto</th><th className={THN}>Tachado</th>
+            <tr><th className={TH}>Aplica a</th><th className={TH}>Categoría o producto</th><th className={THN}>Descuento</th>
               {PLANES.map((p) => <th key={p} className={TH}>{PLAN_CORTO(p)}</th>)}<th /></tr>
           </thead>
           <tbody>
@@ -272,7 +271,7 @@ async function Excepciones({ org, canal, sp, aqui }: { org: string; canal: Canal
                     ? <Link href={url("/catalogo/productos", { familia: e.familia_id })} className="text-[#16577F] hover:underline">{e.nombre}</Link>
                     : <><Link href={`/catalogo/productos/${e.producto_id}`} className="font-mono text-[#16577F] hover:underline">{e.sku}</Link> {e.nombre}</>}
                 </td>
-                <td className={TDN}>{e.tachado_pct != null ? <>{pct(e.tachado_pct)}{e.tachado_pct > 0 && <div className="text-[10px] text-[#5C6B76]">comprador −{formatearNumero(descuentoComprador(e.tachado_pct), "pct")} %</div>}</> : <span className="text-[#5C6B76]">hereda</span>}
+                <td className={TDN}>{e.tachado_pct != null ? pct(descuentoComprador(e.tachado_pct)) : <span className="text-[#5C6B76]">hereda</span>}
                   {e.ajuste_pct != null && <div className="text-[10px] text-[#5C6B76]">Clásica: {e.ajuste_pct === 0 ? "gana" : `no gana, +${formatearNumero(e.ajuste_pct, "pct")} %`}</div>}</td>
                 {PLANES.map((p) => <td key={p} className={`${TD} text-[11px]`}>{resumenPlan(e.planes[p])}</td>)}
                 <td className={`${TD} text-right whitespace-nowrap`}>

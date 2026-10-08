@@ -22,7 +22,7 @@ Se arranca en [Catálogo › Productos](/catalogo/productos) y se sigue en la fi
 ### Antes de empezar (una sola vez, ya debería estar)
 
 1. Las cuentas de Mercado Libre conectadas, cada una con su lista de precios y sus depósitos: [Configuración › Canales](/config/canales).
-2. En [Precios en ML](/catalogo/precios-ml), pestaña «Tachado y planes» de **cada cuenta**: qué planes de cuotas van (tildar **Activo**), desde qué Clásica conviene cada uno (**«Desde una Clásica de»**: por montos; un producto barato no lleva todos los planes) y el **margen extra** de cada plan. Esto decide, para todos los productos, qué publicaciones de cuotas se crean. Si una cuenta no tiene ningún plan activo, sus productos salen sólo con la Clásica.
+2. En [Precios en ML](/catalogo/precios-ml), pestaña «Descuento y planes» de **cada cuenta**: qué planes de cuotas van (tildar **Activo**), desde qué Clásica conviene cada uno (**«Desde una Clásica de»**: por montos; un producto barato no lleva todos los planes) y el **margen extra** de cada plan. Esto decide, para todos los productos, qué publicaciones de cuotas se crean. Si una cuenta no tiene ningún plan activo, sus productos salen sólo con la Clásica.
 3. La categoría de Mercado Libre cargada en la [familia](/catalogo/familias) del producto (de ahí salen la categoría de la publicación y las comisiones que usa el cálculo).
 
 ### Paso 1 · Dar de alta el producto
@@ -72,7 +72,7 @@ El stock entra por la compra (factura y recepción) o, si ya está en el depósi
 **Decidir: ¿con tachado o sin tachado?**
 El precio que cargás es siempre la **Clásica**: lo que paga el comprador en Mercado Libre en la cuenta que gana (Fer, 8/10).
 - **Sin tachado** (lo normal): la publicación sale a ese precio.
-- **Con tachado** (para que en Mercado Libre se vea "X % OFF"): en [Precios en ML](/catalogo/precios-ml), pestaña «Excepciones», se pone una excepción del producto con su **Tachado %** y el sistema calcula el tachado = Clásica × (1 + Tachado %). Ejemplo de las notebooks: Clásica $ 1.181.240, Tachado 81,8 % (el comprador ve **−45 %**) → tachado $ 2.147.709. La publicación sale al tachado y una campaña la baja a la Clásica.
+- **Con tachado** (para que en Mercado Libre se vea "X % OFF"): en [Precios en ML](/catalogo/precios-ml), pestaña «Excepciones», se pone una excepción del producto con su **Descuento que ve el comprador %** y el sistema calcula el tachado = Clásica ÷ (1 − Descuento %). Ejemplo de las notebooks: Clásica $ 1.181.240 y descuento **45 %** → tachado $ 2.147.709. La publicación sale al tachado y una campaña la baja a la Clásica.
 - **Descuento %** del producto o la familia: sólo se aplica en las listas con «Aplica descuentos» (la Web minorista). **Nunca en Mercado Libre.**
 
 ### Paso 8 · Revisar las reglas de Mercado Libre del producto (si hace falta)

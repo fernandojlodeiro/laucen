@@ -21,7 +21,7 @@ import { accionPrepararCambios } from "../acciones";
 
 export const dynamic = "force-dynamic";
 
-type SP = { canal?: string; familia?: string; q?: string; contiene?: string; cambios?: string; rol?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+type SP = { todas?: string; canal?: string; familia?: string; q?: string; contiene?: string; cambios?: string; rol?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 export default async function VistaPreviaPreciosMl({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("precios_ml_ver");
@@ -42,16 +42,16 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
   const conCambio = todas.filter((x) => x.hay_cambio).length;
   const nuevas = todas.filter((x) => x.rol === "nueva").length;
   const conAviso = todas.filter((x) => x.avisos).length;
-  const aqui = url("/catalogo/precios-ml/vista-previa", { canal: canal.id, familia: f.familia, q: f.q || null, contiene: f.comienza ? null : "1", cambios: f.cambios ? "1" : null, rol: f.rol || null });
+  const aqui = url("/catalogo/precios-ml/vista-previa", { canal: canal.id, familia: f.familia, q: f.q || null, contiene: f.comienza ? null : "1", cambios: f.cambios ? "1" : null, rol: f.rol || null, todas: f.todas ? "1" : null });
 
   return (
     <Pantalla titulo="Vista previa de precios en Mercado Libre" ancho="max-w-[1500px]"
       subtitulo="Qué precio tendría cada publicación con las reglas de la cuenta y qué cambiaría en ML. Nada sale de acá: «Preparar cambios» arma lotes que esperan tu clic en la cola."
       acciones={<>
-        <AccionesExcel lista={LISTA_PRECIOS_ML} org={s.org.id} extra={{ canal: String(canal.id) }} />
+        <AccionesExcel lista={LISTA_PRECIOS_ML} org={s.org.id} extra={{ canal: String(canal.id), ...(f.todas ? { todas: "1" } : {}) }} />
         <BotonConfirmar accion={accionPrepararCambios} clase={VERDE} texto="Preparar cambios" corriendo="Preparando…"
-          pregunta={`¿Preparar los cambios de ${conCambio.toLocaleString("es-AR")} publicaciones${f.familia || f.q ? " (las del filtro)" : ""}? No sale nada hasta tu clic.`}
-          campos={{ canal: String(canal.id), familia: f.familia ? String(f.familia) : "", q: f.q, contiene: f.comienza ? "" : "1", volver: aqui }} />
+          pregunta={`¿Preparar los cambios de ${conCambio.toLocaleString("es-AR")} publicaciones${f.todas ? " de todas las cuentas" : ""}${f.familia || f.q ? " (las del filtro)" : ""}? No sale nada hasta tu clic.`}
+          campos={{ canal: String(canal.id), todas: f.todas ? "1" : "", familia: f.familia ? String(f.familia) : "", q: f.q, contiene: f.comienza ? "" : "1", volver: aqui }} />
       </>}>
       <Avisos sp={sp} />
       <BarraPml org={s.org.id} canales={canales} canal={canal} ver="previa" />
@@ -63,13 +63,15 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
           {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </FiltroVivo>
         <CasillaViva parametro="cambios" activo={f.cambios} etiqueta="Sólo las que cambian" />
+        {/* Todas las cuentas juntas (Fer, 8/10): con la casilla, la cuenta de arriba no filtra. */}
+        <CasillaViva parametro="todas" activo={f.todas} etiqueta="Todas las cuentas" />
       </div>
       <p className="text-[11px] text-[#5C6B76] mb-2">
         {todas.length.toLocaleString("es-AR")} filas · <b>{conCambio.toLocaleString("es-AR")} con cambios</b>{nuevas ? ` (${nuevas.toLocaleString("es-AR")} publicaciones nuevas de planes)` : ""}{conAviso ? ` · ${conAviso.toLocaleString("es-AR")} con avisos` : ""}.
-        Precio calculado = el de la publicación en ML (el tachado en la Clásica y en el destacado, que una campaña baja a lo que paga el comprador).
+        {f.todas ? "Todas las cuentas juntas (la cuenta de arriba no filtra). " : ""}Precios como los ve el comprador: grande lo que paga, chico y tachado el publicado, con su % OFF.
       </p>
       <TablaVista lista={LISTA_PRECIOS_ML} campos={campos} filas={filas} total={todas.length} ctx={{ moneda: s.moneda, sp }}
-        vacio={f.q || f.familia || f.cambios || f.rol ? "Nada coincide con el filtro." : "Esta cuenta no tiene publicaciones vinculadas (Catálogo → Vincular con Mercado Libre)."}
+        vacio={f.q || f.familia || f.cambios || f.rol || f.todas ? "Nada coincide con el filtro." : "Esta cuenta no tiene publicaciones vinculadas (Catálogo → Vincular con Mercado Libre)."}
         claseFila={(x) => (x.hay_cambio ? "bg-[#FFFDF5]" : "")} />
       <p className="text-[11px] text-[#5C6B76] mt-1">
         Los lotes salen en tres partes: precios y campañas (primero sale de las campañas a otro precio, cambia el precio y vuelve a entrar con la Clásica), descuento por volumen y publicaciones nuevas de los planes que faltan.

@@ -13,7 +13,7 @@ import {
   heredar, cadenaFamilias, precioPlan, tachado, elegirDestacado, escalonesPara, normalizarEscalones, planDePublicacion,
   comisionesDe, cuotasRepetidas, proponer, pedidosPrecio, pedidoCrear, campanasPara, holguraPlan,
   type FilaVolumen, type ReglaTachado, type ReglasPlan, type EntradaVariacion, type PubMl, type ReglasCanal,
-  tablaVolumen, precioVendedorCampana, campanasBajoPiso, descuentoComprador, type PropuestaPub,
+  tablaVolumen, precioVendedorCampana, campanasBajoPiso, descuentoComprador, tachadoDeDescuento, type PropuestaPub,
 } from "@/lib/precios-ml/motor";
 
 // ── El motor (sin base) ─────────────────────────────────────
@@ -428,4 +428,11 @@ test("campañas debajo del piso: la propia por su precio, la de ML por lo que po
   const pa = { piso: 1000, pub: { campanas: [propia, smart, candidata] } } as unknown as PropuestaPub;
   assert.deepEqual(campanasBajoPiso(pa).map((x) => [x.campana.id, x.precio]), [["D1", 900], ["S1", 950]]);
   assert.deepEqual(campanasBajoPiso({ ...pa, piso: 900 } as PropuestaPub).map((x) => x.campana.id), []);
+});
+
+test("descuento que ve el comprador ↔ tachado %: 45 % = 81,81818 % (lo que decide Fer es el descuento)", () => {
+  assert.equal(tachadoDeDescuento(45), 81.81818);
+  assert.equal(descuentoComprador(tachadoDeDescuento(45)), 45);
+  assert.equal(tachadoDeDescuento(0), 0);
+  for (const d of [5, 10, 17, 30, 50]) assert.equal(descuentoComprador(tachadoDeDescuento(d)), d);
 });

@@ -44,7 +44,7 @@ Cambiar el precio en Clásicas cambia todos los canales. Cada canal dice con qu�
 ### 4. Mercado Libre: el tachado y la Clásica
 
 - El precio de la lista Clásicas es la **Clásica**: lo que paga el comprador en la publicación Clásica de la cuenta que gana (Fer, 8/10).
-- **Tachado = Clásica × (1 + Tachado %)**: el precio "de antes" que ve el comprador tachado. Lo calcula el sistema.
+- **Tachado = Clásica ÷ (1 − Descuento %)**: el precio "de antes" que ve el comprador tachado. Vos decidís el **descuento que ve el comprador** (por ejemplo 45 %) y el sistema calcula el tachado.
 - **Tachado 0 %** (lo normal): tachado y Clásica son lo mismo; la publicación va a ese precio y no necesita campaña.
 - **Con tachado**: la publicación se publica **al tachado** y una **campaña** de Mercado Libre la baja a la Clásica; así se ve "X % OFF". El descuento que ve el comprador = Tachado ÷ (100 + Tachado). Ejemplo de las notebooks: Tachado 81,8 % → el comprador ve **−45 %**. Mercado Libre pide al menos 5 % de descuento para mostrarlo.
 - El tachado es **uno solo por modelo**: el mismo en todas las cuentas y en todos sus planes.
@@ -85,7 +85,7 @@ Se puede definir por rango de Clásica ("desde 3 unidades, −5 %"), pero **hoy 
 
 ### 10. Qué es configurable y qué es fijo
 
-- **Se configura** (en [Precios en ML](/catalogo/precios-ml), por cuenta y con excepciones por categoría o producto): Tachado %, planes activos, «Desde una Clásica de», margen extra, cuotas que ve el comprador, «¿Gana?», descuento por volumen y los interruptores de cada cuenta. En [Listas de precios](/catalogo/precios): las listas, sus bases y coeficientes y «Aplica descuentos».
+- **Se configura** (en [Precios en ML](/catalogo/precios-ml), por cuenta y con excepciones por categoría o producto): el descuento que ve el comprador, planes activos, «Desde una Clásica de», margen extra, cuotas que ve el comprador, «¿Gana?», descuento por volumen y los interruptores de cada cuenta. En [Listas de precios](/catalogo/precios): las listas, sus bases y coeficientes y «Aplica descuentos».
 - **Fijo**: el mínimo de 5 % de descuento que pide ML; las comisiones (salen de Costos ML); el redondeo a pesos enteros; el reparto del botón «Publicar en todas las cuentas» (.BAIRES gana Clásica y 12 cuotas, 3 % para la que no gana); un cambio automático que dio error no se reintenta igual por 6 horas.
 
 ### 11. Qué sale solo y qué espera tu clic

@@ -11,13 +11,22 @@ import { entrarErp } from "@/app/componentes/erp";
 import { intentar, id, texto, numero, entero, tildado } from "@/lib/erp/acciones";
 import { ErrorErp, consulta } from "@/lib/erp/base";
 import {
-  guardarTachado, guardarPlan, borrarExcepcion, guardarVolumen, borrarVolumen, replicarVolumen, fijarInterruptor, productoPorSku, canalMl, campanasBajoPisoCanal,
+  guardarTachado, guardarPlan, borrarExcepcion, guardarVolumen, borrarVolumen, replicarVolumen, fijarInterruptor, productoPorSku, canalMl, canalesMl, campanasBajoPisoCanal,
   type Donde,
 } from "@/lib/precios-ml/datos";
 import { prepararCambios, sincronizarPreciosMl } from "@/lib/precios-ml/preparar";
-import { PLANES, pedidoSalirCampana } from "@/lib/precios-ml/motor";
+import { PLANES, pedidoSalirCampana, tachadoDeDescuento } from "@/lib/precios-ml/motor";
 import { encolarLoteConBoton, type CambioMl } from "@/lib/mercadolibre/cola";
 import { BASE_PML, PREVIA } from "./lista";
+
+/** El descuento que ve el comprador (lo que carga Fer) → el tachado % que se guarda. Vacío = hereda. */
+function tachadoDelForm(fd: FormData): number | null {
+  const d = numero(fd, "descuento_pct");
+  if (d == null) return null;
+  if (!(d >= 0 && d <= 75)) throw new ErrorErp("El descuento que ve el comprador tiene que estar entre 0 % y 75 %.");
+  if (d > 0 && d < 5) throw new ErrorErp("Mercado Libre muestra el descuento sólo desde 5 %: poné 0 (sin descuento) o 5 % o más.");
+  return tachadoDeDescuento(d);
+}
 
 const volver = (fd: FormData, base = BASE_PML) => {
   const v = texto(fd, "volver");
@@ -65,7 +74,7 @@ export async function accionGuardarGeneral(fd: FormData) {
   const canal = id(fd, "canal");
   const v = volver(fd);
   await intentar(sinEditar(v), async () => {
-    await guardarTachado(s.org.id, canal, { nivel: "general" }, numero(fd, "tachado_pct") ?? 0, numero(fd, "clasica_ajuste"));
+    await guardarTachado(s.org.id, canal, { nivel: "general" }, tachadoDelForm(fd) ?? 0, numero(fd, "clasica_ajuste"));
     for (const p of PLANES) {
       await guardarPlan(s.org.id, canal, p, { nivel: "general" }, {
         activo: tildado(fd, `${p}_activo`), precioMinimo: numero(fd, `${p}_min`), margenPct: numero(fd, `${p}_margen`), cuotasVisibles: entero(fd, `${p}_cuotas`),
@@ -85,7 +94,7 @@ export async function accionGuardarExcepcion(fd: FormData) {
   await intentar(sinEditar(v), async () => {
     const d = await dondeDe(s.org.id, fd);
     if (d.nivel === "general") throw new ErrorErp("Elegí una categoría o un producto.");
-    await guardarTachado(s.org.id, canal, d, numero(fd, "tachado_pct"), numero(fd, "clasica_ajuste"));
+    await guardarTachado(s.org.id, canal, d, tachadoDelForm(fd), numero(fd, "clasica_ajuste"));
     for (const p of PLANES) {
       await guardarPlan(s.org.id, canal, p, d, { activo: activoDe(fd, `${p}_activo`), precioMinimo: numero(fd, `${p}_min`), margenPct: numero(fd, `${p}_margen`), ajustePct: numero(fd, `${p}_ajuste`) });
     }
@@ -179,9 +188,14 @@ export async function accionPrepararCambios(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
   const canal = id(fd, "canal");
   await intentar(volver(fd, PREVIA), async () => {
-    const lotes = await prepararCambios(s.org.id, canal, {
-      familia: id(fd, "familia") || null, q: texto(fd, "q"), comienza: fd.get("contiene") !== "1",
-    }, s.usuario.id, { precios: fd.get("precios") !== "0", volumen: fd.get("volumen") !== "0", crear: fd.get("crear") !== "0" });
+    // «Todas las cuentas»: un juego de lotes por cuenta.
+    const canales = fd.get("todas") === "1" ? (await canalesMl(s.org.id)).map((c) => c.id) : [canal];
+    const lotes = [];
+    for (const c of canales) {
+      lotes.push(...await prepararCambios(s.org.id, c, {
+        familia: id(fd, "familia") || null, q: texto(fd, "q"), comienza: fd.get("contiene") !== "1",
+      }, s.usuario.id, { precios: fd.get("precios") !== "0", volumen: fd.get("volumen") !== "0", crear: fd.get("crear") !== "0" }));
+    }
     if (!lotes.length) return "No hay nada para cambiar: todo está como tiene que estar.";
     return {
       ir: `/config/canales/cola?ver=lotes&lote=${lotes[0].id}&ok=${encodeURIComponent(

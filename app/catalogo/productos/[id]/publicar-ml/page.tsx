@@ -29,6 +29,7 @@ import BorradorNueva from "./BorradorNueva";
 import { armarBorradorNueva, type BorradorNueva as DatosNueva } from "@/lib/mercadolibre/publicar-nueva";
 import { planTodas, AJUSTE_NO_GANA, type PlanTodas } from "@/lib/mercadolibre/publicar-todas";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
+import { descuentoComprador } from "@/lib/precios-ml/motor";
 import { accionPrepararTodas } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -284,7 +285,7 @@ function TodasLasCuentas({ plan, base }: { plan: PlanTodas; base: string }) {
         <div>Catálogo: {plan.catalogo ? <>cada alta pide entrar al producto de catálogo <b className="font-mono">{plan.catalogo}</b> (si ML no la deja, el alta queda igual)</> : "no se conoce producto de catálogo: no se intenta"}</div>
         <div>Quién gana: Clásica → <b>{nombreCuenta(plan.ganador.clasica)}</b> · 12 cuotas → <b>{nombreCuenta(plan.ganador["12x_campaign"])}</b> · 3 cuotas → <b>{nombreCuenta(plan.ganador["3x_campaign"])}</b>
           <span className="text-[#5C6B76]"> (la de 3 cuotas va a la cuenta que menos gana hoy: {cuentas.map((c) => `${c} ${plan.ganadas3x[plan.filas.find((f) => f.cuenta === c)!.canal] ?? 0}`).join(", ")}). Las que no ganan van {AJUSTE_NO_GANA} % más caras.</span></div>
-        {plan.tachadoPct > 0 && <div>Tachado {plan.tachadoPct.toLocaleString("es-AR", { maximumFractionDigits: 1 })} %: se publican al tachado y al entrar en campaña bajan a su precio.</div>}
+        {plan.tachadoPct > 0 && <div>Descuento que ve el comprador: {descuentoComprador(plan.tachadoPct).toLocaleString("es-AR")} %. Se publican al precio tachado y al entrar en campaña bajan a su precio.</div>}
       </div>
       {plan.avisos.map((a) => <p key={a} className="text-xs rounded-lg px-3 py-2 mb-2 bg-[#FFF8E5] text-[#8a6100]">{a}</p>)}
       <div className={CAJA_TABLA}>

@@ -30,6 +30,7 @@ Nada sale de acá: el botón «Preparar cambios» arma lotes que esperan tu clic
 - Buscador de categoría («Todas las categorías»): incluye sus subcategorías.
 - **Papel**: «Todos los papeles», «Clásica», «Destacado», «Plan», «Plan apagado», «Sin tocar», «Nueva».
 - Caja **«Sólo las que cambian»**.
+- Caja **«Todas las cuentas»**: muestra las publicaciones de las 5 cuentas juntas (ordenadas por SKU y cuenta; la cuenta elegida arriba no filtra). Con la caja tildada, «Preparar cambios» arma los lotes de cada cuenta.
 
 Un renglón de resumen: cuántas filas, cuántas **con cambios** (y cuántas son publicaciones nuevas de planes) y cuántas con avisos.
 
@@ -39,7 +40,9 @@ Un renglón de resumen: cuántas filas, cuántas **con cambios** (y cuántas son
 - **Plan**: como en [Publicaciones](/catalogo/publicaciones): el nombre que usa ML (Clásica, Premium 3x, Premium 12x…) y debajo «el comprador ve N cuotas».
 - **Papel**: qué rol tiene esa publicación (ver «Criterios y reglas»).
 - **Clásica**: el precio base.
-- **Tachado %**: el % que le toca y, al pasar el mouse, de dónde viene la regla («general», «de la categoría …», «del producto»).
+- **Cuenta**: de qué cuenta es la publicación (útil con «Todas las cuentas» tildado).
+- **Descuento**: el «% OFF» que ve el comprador («sin descuento» si no tiene) y, al pasar el mouse, de dónde viene la regla («general», «de la categoría …», «del producto»).
+- **Campañas**: una línea por campaña de la publicación: «● En curso» (con su precio; «(de ML)» si la armó Mercado Libre), «○ Programada», «→ Entraría» y «← Saldría» (lo que haría Laucen al preparar los cambios); «ninguna» si no tiene.
 - **Según Laucen**: el precio que le corresponde, dibujado como lo ve el comprador en ML (igual que en Publicaciones): **grande lo que paga** (la Clásica, el precio para ganar o el precio del plan), arriba **chico y tachado el precio publicado** (el tachado) y al lado el **% OFF**.
 - **Precio para ganar**: lo que informó ML, con su estado debajo («gana», «compite», «comparte el 1.º», «listada»).
 - **Hoy en ML**: lo mismo pero con lo que tiene hoy la publicación en ML: grande lo que paga hoy el comprador (con la campaña en curso), el publicado tachado, el % OFF y, chiquito, el nombre de la campaña (entero al pasar el mouse).

@@ -153,6 +153,13 @@ export function descuentoComprador(tachadoPct: number): number {
   return Math.round(tachadoPct / (100 + tachadoPct) * 1000) / 10;
 }
 
+/** Al revés: el tachado % que hace falta para que el comprador vea `descuento` % (45 % → 81,81818 %).
+ *  Fer decide el descuento que ve el comprador; el tachado % es la cuenta interna. */
+export function tachadoDeDescuento(descuento: number): number {
+  if (!(descuento > 0)) return 0;
+  return Math.round(descuento / (100 - descuento) * 100 * 100000) / 100000;
+}
+
 /** Precio de un plan por coeficiente: deja lo mismo que la Clásica (después
  *  de la comisión) más el margen extra. */
 export function precioPlan(clasica: number, comisionClasicaPct: number, comisionPlanPct: number, margenPct = 0): number {
