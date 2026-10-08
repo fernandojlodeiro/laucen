@@ -5,7 +5,8 @@
 // cambios", que arma lotes preparados: nada sale a ML hasta que Fer aprieta
 // "Mandar a Mercado Libre" en la cola (AGENTS.md).
 
-import { lanzarTarea } from "@/lib/tareas-fondo";
+import { lanzarTarea, deFondo } from "@/lib/tareas-fondo";
+import { prepararPlanesFaltantes, textoFaltantes } from "@/lib/precios-ml/faltantes";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, id, texto, numero, entero, tildado } from "@/lib/erp/acciones";
@@ -228,5 +229,21 @@ export async function accionSacarCampanas(fd: FormData) {
     return {
       ir: `/config/canales/cola?ver=lotes&lote=${lote}&ok=${encodeURIComponent("Preparado, falta tu clic: revisá el lote y apretá «Mandar a Mercado Libre».")}`,
     };
+  });
+}
+
+/** Vista previa › «Crear los planes que faltan» (Fer, 8/10): en la cuenta elegida (y con el filtro de la
+ *  pantalla), las publicaciones de planes de cuotas que le tocan según Configuración › Planes de cuotas y
+ *  todavía no existen. Corre de fondo; arma un lote que espera tu clic. */
+export async function accionCrearFaltantes(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  const canal = id(fd, "canal");
+  return deFondo(s, `planes-faltantes:${canal}`, "Crear los planes de cuotas que faltan", async () => {
+    const c = await canalMl(s.org.id, canal);
+    const r = await prepararPlanesFaltantes(s.org.id, canal, { familia: id(fd, "familia") || null, q: texto(fd, "q"), comienza: fd.get("contiene") !== "1" }, s.usuario.id);
+    limpiarCachePrevia();
+    revalidatePath(PREVIA);
+    revalidatePath("/config/canales/cola");
+    return textoFaltantes(r, c.nombre);
   });
 }

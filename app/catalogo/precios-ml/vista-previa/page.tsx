@@ -6,7 +6,7 @@
 // en la cola ("Mandar a Mercado Libre").
 
 import Link from "next/link";
-import { VERDE } from "@/app/botones";
+import { VERDE, SUAVE } from "@/app/botones";
 import { BotonConfirmar } from "@/app/radar/Cliente";
 import BuscadorVivo, { FiltroVivo, CasillaViva } from "@/app/componentes/BuscadorVivo";
 import { entrarErp, Pantalla, Avisos, url } from "@/app/componentes/erp";
@@ -17,7 +17,8 @@ import { camposDe, elegir, ordenarFilas } from "@/lib/listas/tipos";
 import { paginarEnMemoria } from "@/lib/lista";
 import { BarraPml } from "../comun";
 import { LISTA_PRECIOS_ML, ROLES, canalElegido, filasPrevia, filtrosPrevia } from "../lista";
-import { accionPrepararCambios } from "../acciones";
+import { accionPrepararCambios, accionCrearFaltantes } from "../acciones";
+import { BotonTarea } from "@/app/componentes/TareasFondo";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,11 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
       subtitulo="Qué precio tendría cada publicación con las reglas de la cuenta y qué cambiaría en ML. Nada sale de acá: «Preparar cambios» arma lotes que esperan tu clic en la cola."
       acciones={<>
         <AccionesExcel lista={LISTA_PRECIOS_ML} org={s.org.id} extra={{ canal: String(canal.id), ...(f.todas ? { todas: "1" } : {}) }} />
+        {/* Las publicaciones de planes que le faltan a esta cuenta (Fer, 8/10): un lote que espera tu clic. */}
+        {!f.todas && nuevas > 0 && <BotonTarea accion={accionCrearFaltantes} tipo={`planes-faltantes:${canal.id}`} clase={SUAVE}
+          texto={`Crear los planes que faltan (${nuevas.toLocaleString("es-AR")})`}
+          pregunta={`¿Armar el lote con las ${nuevas.toLocaleString("es-AR")} publicaciones de planes que le faltan a ${canal.nombre}${f.familia || f.q ? " (las del filtro)" : ""}? No sale nada hasta tu clic.`}
+          campos={{ canal: String(canal.id), familia: f.familia ? String(f.familia) : "", q: f.q ?? "", contiene: f.comienza ? "" : "1" }} />}
         <BotonConfirmar accion={accionPrepararCambios} clase={VERDE} texto="Preparar cambios" corriendo="Preparando…"
           pregunta={`¿Preparar los cambios de ${conCambio.toLocaleString("es-AR")} publicaciones${f.todas ? " de todas las cuentas" : ""}${f.familia || f.q ? " (las del filtro)" : ""}? No sale nada hasta tu clic.`}
           campos={{ canal: String(canal.id), todas: f.todas ? "1" : "", familia: f.familia ? String(f.familia) : "", q: f.q, contiene: f.comienza ? "" : "1", volver: aqui }} />

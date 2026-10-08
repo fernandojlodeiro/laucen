@@ -72,6 +72,15 @@ Si no hay nada para cambiar, avisa «No hay nada para cambiar: todo está como t
 ### Ver sólo los destacados, o los planes que faltan
 Elegí en **Papel** «Destacado» o «Nueva».
 
+### Crear las publicaciones de planes que le faltan a la cuenta
+Con una cuenta elegida (no con «Todas las cuentas»), si hay filas «Nueva», arriba a la derecha aparece **«Crear los planes que faltan (N)»**.
+1. Si querés sólo una parte, filtrá por categoría o con el buscador: se respeta.
+2. Apretá el botón y confirmá con «Sí». Corre de fondo: podés seguir trabajando; al terminar, el cartel de abajo a la derecha dice qué lote quedó.
+3. Cada publicación nueva es una copia de la publicación común que el producto ya tiene **en esa misma cuenta** (título, fotos, características, garantía y descripción), con el plan que le toca según [Configuración › Planes de cuotas](/config/planes-cuotas) y su precio (con descuento, al precio tachado; la campaña la baja después). Antes de armarla se comprueba con Mercado Libre que la acepte.
+4. Queda **un lote** en la [Cola de Mercado Libre](/config/canales/cola), pestaña «Lotes preparados»: revisalo y apretá **«Mandar a Mercado Libre»**.
+
+Un producto que no tiene ninguna publicación común en esa cuenta no se puede copiar: el cartel lo nombra. Lo que ya está en un lote o en la cola no se vuelve a armar, así que si el cartel dice que faltaron por tiempo, se aprieta el botón otra vez y sigue con las que faltan.
+
 ## Criterios y reglas
 
 - **Qué publicaciones aparecen:** las de la cuenta vinculadas a un producto, con número de ML y que no estén cerradas. Una fila por publicación, más una fila por cada plan habilitado que no tiene publicación (papel «Nueva»). Orden de siempre: por SKU.
