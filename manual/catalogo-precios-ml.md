@@ -11,8 +11,8 @@ resumen: El esquema de precios de cada cuenta de Mercado Libre: de la Clásica s
 
 Es donde se definen **las reglas** con las que Laucen calcula el precio de cada publicación en Mercado Libre, cuenta por cuenta. La idea central:
 
-- **El tachado es el único precio que se pone a mano** (Fer, 7/10). Es el precio de la variación en la lista de precios del canal (por ejemplo, la lista «Clásicas»): el precio que se publica en Mercado Libre. Se carga en [Listas de precios](/catalogo/precios) o en la ficha del producto.
-- **Todo lo demás sale solo de ahí:** la Clásica (tachado ÷ (1 + Tachado %), lo que paga el comprador con la campaña), el precio de cada publicación de planes de cuotas (3, 6, 9 y 12 cuotas sin interés), cuál de ellas va "destacada" al precio para ganar, y el descuento por volumen.
+- **La Clásica es el único precio que se pone a mano** (Fer, 8/10; hasta el 8/10 se cargaba el tachado). Es el precio de la variación en la lista de precios del canal (la lista «Clásicas»): lo que paga el comprador en la Clásica de la cuenta que gana. Se carga en [Listas de precios](/catalogo/precios) o en la ficha del producto.
+- **Todo lo demás sale solo de ahí:** el tachado (Clásica × (1 + Tachado %)), la Clásica de las cuentas que no ganan, el precio de cada publicación de planes de cuotas (3, 6, 9 y 12 cuotas sin interés), cuál de ellas va "destacada" al precio para ganar, y el descuento por volumen.
 - Las reglas valen **por cuenta (canal)** y, adentro de la cuenta, **general → categoría → producto**: gana lo más específico.
 
 Desde acá **no sale nada** a Mercado Libre. Los precios que resultan se miran en la [Vista previa](/catalogo/precios-ml/vista-previa), y de ahí se preparan lotes que esperan el clic en «Mandar a Mercado Libre» en la [Cola de Mercado Libre](/config/canales/cola). La única excepción es si se prende el interruptor «Sincronizar precios» de la cuenta (ver más abajo).
@@ -122,12 +122,12 @@ Pestaña «Alertas» → mirá «Qué pasa» (trae el estado que informa ML y el
 ## Criterios y reglas
 
 ### 1. De dónde sale la Clásica
-- El **precio de lista** de la variación es el **tachado** (lo que se publica en Mercado Libre); la **Clásica = tachado ÷ (1 + Tachado %)**. Con Tachado 0 % son el mismo precio. Ejemplo: lista $ 2.284.047 y tachado 81,81818 % → Clásica $ 1.256.226 (el tachado muestra 45 % de descuento).
+- El **precio de lista** de la variación es la **Clásica** (Fer, 8/10); el **tachado = Clásica × (1 + Tachado %)**, redondeado a pesos. Con Tachado 0 % son el mismo precio. Ejemplo: lista $ 1.256.226 y tachado 81,81818 % → tachado $ 2.284.047 (muestra 45 % de descuento).
 - La lista es la de la cuenta: la que tiene asignada el canal en [Canales](/config/canales); si el canal no tiene, se usa la lista que se llame «Clásicas» (o «Clásica»).
 - Es el precio vigente **hoy** (hora argentina). Si la lista es derivada (otra lista × coeficiente), es el de la lista base por el coeficiente, salvo que tenga un precio propio cargado.
 - Si el producto está marcado **en dólares**, los pesos se recalculan **cada día** con el tipo de cambio del día.
 - El **descuento %** propio del producto o la familia **no** se aplica en Mercado Libre.
-- Si la variación no tiene precio en esa lista, no se calcula nada (aviso «Sin precio en la lista Clásicas (el tachado): no se calcula nada.»).
+- Si la variación no tiene precio en esa lista, no se calcula nada (aviso «Sin precio en la lista Clásicas: no se calcula nada.»).
 
 ### 2. Cómo se hereda una regla
 Para cada producto se busca el valor de cada dato por separado, del más específico al más general: **producto → su categoría → la categoría de arriba → … → general de la cuenta**. Se toma el primero que no esté vacío. Así, un producto puede tener su propio margen para 12 cuotas y heredar todo lo demás.
@@ -136,7 +136,7 @@ Para cada producto se busca el valor de cada dato por separado, del más especí
 - El descuento por volumen se hereda distinto (ver punto 7).
 
 ### 3. El tachado
-- **El tachado es el precio de la lista** (la Clásica = tachado ÷ (1 + Tachado %), redondeada a pesos). Es **uno solo por modelo**: el mismo en todas las cuentas y en todos sus planes (Fer, 7/10).
+- **El tachado sale de la Clásica de la lista** (tachado = Clásica × (1 + Tachado %), redondeado a pesos). Es **uno solo por modelo**: el mismo en todas las cuentas y en todos sus planes (Fer, 7/10).
 - La publicación (la Clásica y cada plan de cuotas) se publica **al tachado**, y una campaña de Mercado Libre la baja a su precio: el comprador ve el precio tachado y paga el de esa publicación.
 - **En campaña el tachado no se toca y el precio sólo baja** (Fer, 7/10). Lo que paga hoy el comprador se toma del precio de la campaña en curso (no del precio de la publicación), así una publicación en campaña nunca se saca de la campaña por quedar «a su precio»: si una publicación ya está adentro de una campaña, su tachado queda el que tiene (aviso «En campaña: el tachado queda en …») y, si el esquema da un precio más alto que el que paga hoy el comprador, queda el de hoy (aviso «En campaña el precio sólo baja…»). Si da más bajo, sale de la campaña y vuelve a entrar al precio nuevo.
 - Mercado Libre pide **al menos 5 % de descuento** para mostrar el tachado; eso es un tachado de 5,3 % o más (con 5 % justo el descuento visible da 4,8 %). Si el tachado es mayor a 0 pero da menos de 5 % de descuento, la vista previa avisa.
@@ -217,9 +217,9 @@ Regla de la casa: **ningún precio sale a Mercado Libre sin un clic**.
 Todos los precios (tachado, planes, destacado, escalones de volumen) se redondean a **pesos enteros**.
 
 ### Ejemplo numérico completo
-Cuenta con tachado general 10 %, los cuatro planes activos sin mínimo, margen 0 % salvo 12 cuotas con 3 %. Categoría con comisiones: Clásica 14 %, 3 cuotas 17 %, 6 cuotas 19 %, 9 cuotas 24 %, 12 cuotas 27 %. Precio del producto en la lista (el tachado): **$ 11.000**. Stock del canal: 4.
+Cuenta con tachado general 10 %, los cuatro planes activos sin mínimo, margen 0 % salvo 12 cuotas con 3 %. Categoría con comisiones: Clásica 14 %, 3 cuotas 17 %, 6 cuotas 19 %, 9 cuotas 24 %, 12 cuotas 27 %. Precio del producto en la lista (la Clásica): **$ 10.000**. Stock del canal: 4.
 
-1. **Clásica** = 11.000 ÷ 1,10 = **$ 10.000**. La Clásica se publica a $ 11.000 (el tachado) y entra a campaña a $ 10.000 (descuento visible 9,1 %, más que el 5 % que pide ML).
+1. **Tachado** = 10.000 × 1,10 = **$ 11.000**. La Clásica se publica a $ 11.000 (el tachado) y entra a campaña a $ 10.000 (descuento visible 9,1 %, más que el 5 % que pide ML).
 2. **Neto de la Clásica** = 10.000 × (1 − 0,14) = $ 8.600.
 3. **3 cuotas** = 8.600 ÷ 0,83 = 10.361,4 → **$ 10.361**.
 4. **6 cuotas** = 8.600 ÷ 0,81 = 10.617,3 → **$ 10.617**.

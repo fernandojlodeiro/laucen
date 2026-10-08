@@ -119,8 +119,8 @@ test("propuesta: precio mínimo por plan, destacado al precio para ganar en las 
   };
   const campana = { id: "P1", tipo: "SELLER_CAMPAIGN", estado: "candidate", precio: null, min: 5_000, max: 11_000 };
   const e: EntradaVariacion = {
-    // La lista tiene el tachado: 12.500 con tachado 25 % → Clásica 10.000.
-    variacionId: 1, productoId: 7, lugar, clasica: 12_500, stock: 5, comisiones, comisionEstimada: false,
+    // La lista tiene la Clásica (Fer, 8/10): 10.000 con tachado 25 % → tachado 12.500.
+    variacionId: 1, productoId: 7, lugar, clasica: 10_000, stock: 5, comisiones, comisionEstimada: false,
     pubs: [
       pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 11_000, campanas: [campana] }),
       pub({ publicacionId: 2, itemId: "MLA2", plan: "premium", precioListaMl: 10_000, priceToWin: 10_900,
@@ -163,7 +163,7 @@ test("propuesta: precio mínimo por plan, destacado al precio para ganar en las 
 test("esquema de notebooks (7/10): un tachado por modelo, la cuenta que no gana va más cara, los planes van por campaña", () => {
   const camp = (id: string) => ({ id, tipo: "SELLER_CAMPAIGN", estado: "candidate", precio: null, min: 1, max: 99_999_999 });
   const reglas: ReglasCanal = {
-    // Tachado = Clásica ÷ 0,55; esta cuenta no gana la Clásica (3 % más).
+    // Tachado = Clásica × 1,8181818 (−45 %); esta cuenta no gana la Clásica (3 % más).
     tachado: [{ nivel: "producto", producto_id: 7, tachado_pct: 81.81818, ajuste_pct: 3 }],
     planes: [
       { nivel: "producto", producto_id: 7, plan: "3x_campaign", activo: true, precio_minimo: null, margen_pct: 2, cuotas_visibles: null, ajuste_pct: 0 },
@@ -173,7 +173,7 @@ test("esquema de notebooks (7/10): un tachado por modelo, la cuenta que no gana 
   };
   const com = { clasica: 12.8, premium: 26.2, "3x_campaign": 21.7, "9x_campaign": 30.6, "12x_campaign": 34.4 };
   const e: EntradaVariacion = {
-    variacionId: 1, productoId: 7, lugar, clasica: 2_284_047, stock: 5, comisiones: com, comisionEstimada: false,
+    variacionId: 1, productoId: 7, lugar, clasica: 1_256_226, stock: 5, comisiones: com, comisionEstimada: false,
     pubs: [
       pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 2_284_047, precioVentaMl: 2_284_047, campanas: [camp("C1")], priceToWin: null, catalogo: false }),
       pub({ publicacionId: 2, itemId: "MLA2", plan: "3x_campaign", precioListaMl: 2_284_047, precioVentaMl: 2_284_047, campanas: [camp("C1")], priceToWin: null, catalogo: false }),

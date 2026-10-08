@@ -1,9 +1,10 @@
 // El motor de precios de Mercado Libre (Fer, 3/10), en funciones puras (sin
 // base ni API: se prueban solas en tests/precios-ml.test.ts).
 //
-//   · La lista del canal (precio_de) tiene el TACHADO (Fer, 7/10): el precio
-//     que se publica en ML. Es el único precio que pone Fer.
-//   · Clásica = tachado ÷ (1 + %). La publicación va al tachado y una campaña
+//   · La lista del canal (precio_de) tiene la CLÁSICA (Fer, 8/10; antes tenía
+//     el tachado): lo que paga el comprador en la cuenta que gana. Es el único
+//     precio que pone Fer.
+//   · Tachado = Clásica × (1 + %). La publicación va al tachado y una campaña
 //     la baja a la Clásica (ML pide ≥ 5 % de descuento). Uno solo por modelo
 //     (Fer, 7/10): todos sus planes salen a ese tachado y la campaña baja cada
 //     uno a su precio. Una publicación que ya está en campaña no cambia el
@@ -262,7 +263,7 @@ export type PubMl = {
 
 export type EntradaVariacion = {
   variacionId: number; productoId: number; lugar: Lugar;
-  /** El precio de la lista del canal: el tachado (la Clásica sale de él). */
+  /** El precio de la lista del canal: la Clásica del esquema (el tachado sale de ella). */
   clasica: number | null; stock: number | null; comisiones: Comisiones; comisionEstimada: boolean;
   pubs: PubMl[];
 };
@@ -295,7 +296,7 @@ export type PlanCalculado = {
 };
 
 export type Propuesta = {
-  /** `clasica`: la de este canal (la del esquema × (1 + ajuste)); `clasicaLista`: la del esquema (tachado ÷ (1 + %)). */
+  /** `clasica`: la de este canal (la del esquema × (1 + ajuste)); `clasicaLista`: la del esquema (la de la lista). */
   variacionId: number; clasica: number | null; clasicaLista: number | null; ajustePct: number; tachadoPct: number; tachado: number | null; tachadoOrigen: Origen | null;
   planes: PlanCalculado[];
   destacado: { plan: Plan; precio: number; holgura: number; itemId: string } | null;
@@ -337,12 +338,12 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
   const t = heredar(r.tachado, e.lugar, (f) => f.tachado_pct);
   const tachadoPct = Number(t.valor ?? 0);
   const ajustePct = Number(heredar(r.tachado, e.lugar, (f) => (f.ajuste_pct == null ? null : Number(f.ajuste_pct))).valor ?? 0);
-  // La lista tiene el tachado (el mismo en todos los canales y planes del modelo); la
-  // Clásica del esquema sale de él, y la de este canal, con su ajuste (si no gana).
-  const tach = e.clasica != null && e.clasica > 0 ? redondear(e.clasica) : null;
-  const base = tach != null ? redondear(tach / (1 + tachadoPct / 100)) : null;
+  // La lista tiene la Clásica del esquema (Fer, 8/10); el tachado sale de ella (el mismo
+  // en todos los canales y planes del modelo), y la Clásica de este canal, con su ajuste (si no gana).
+  const base = e.clasica != null && e.clasica > 0 ? redondear(e.clasica) : null;
+  const tach = base != null ? tachado(base, tachadoPct) : null;
   const clasica = base != null ? redondear(base * (1 + ajustePct / 100)) : null;
-  if (clasica == null) avisos.push("Sin precio en la lista Clásicas (el tachado): no se calcula nada.");
+  if (clasica == null) avisos.push("Sin precio en la lista Clásicas: no se calcula nada.");
   if (clasica != null && tachadoPct > 0 && descuentoVisible(tach!, clasica) < DESCUENTO_MINIMO_ML) {
     avisos.push(`El tachado da ${descuentoVisible(tach!, clasica).toLocaleString("es-AR")} % de descuento: ML pide al menos ${DESCUENTO_MINIMO_ML} % para mostrarlo.`);
   }
