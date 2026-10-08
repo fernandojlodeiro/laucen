@@ -57,6 +57,11 @@ export function paginasDelManual(raiz = process.cwd()): Promise<PaginaManual[]> 
   return cache;
 }
 
+/** Las guías (manual/guia-*.md): las que lista «Manuales de ayuda» de la barra de estado. */
+export async function guiasDelManual(): Promise<PaginaManual[]> {
+  return (await paginasDelManual()).filter((p) => p.archivo.startsWith("guia-"));
+}
+
 /** Sin tildes y en minúsculas, para buscar. */
 export const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 

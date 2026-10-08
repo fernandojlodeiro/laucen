@@ -2,7 +2,7 @@
 titulo: Cómo se usa el sistema
 menu: (todas las pantallas)
 ruta: /buscar
-rutas: /buscar, /listas/[pantalla]/configurar
+rutas: /buscar, /listas/[pantalla]/configurar, /manuales/[archivo]
 permiso: todos
 resumen: El marco de Laucen (menú, barra de estado, modo celular), el camino, el buscador global y cómo funcionan en todas las pantallas las listas, las fichas, las altas, los borrados, las fechas y los números.
 ---
@@ -41,7 +41,8 @@ Una franja azul fija abajo de todo, siempre visible:
   - **"Preguntas"** → [Preguntas y mensajes](/ventas/preguntas): las preguntas de Mercado Libre pendientes.
   - **"Mensajes"** → la pestaña Mensajes de [Preguntas y mensajes](/ventas/preguntas?ver=mensajes): la suma de mensajes de posventa sin leer.
   - Cuando un contador es mayor que cero, el número se resalta en blanco.
-- A la derecha: **el nombre de la organización y el tuyo** (o tu mail), y la versión del sistema.
+- A la derecha: **el nombre de la organización y el tuyo** (o tu mail).
+- Al final, el botón amarillo **👇 Manuales de ayuda**: despliega hacia arriba las guías del manual (por ejemplo «Producto nuevo de punta a punta» y «Cómo funcionan los precios»), cada una con una línea de qué explica. Tocando una se abre para leerla entera (se imprime con Ctrl + P). Sólo aparecen las guías de lo que tu usuario puede ver. Pasando el mouse por el botón se ve cuándo se actualizó el sistema por última vez.
 
 ### En el celular: otro modo, no la misma pantalla achicada
 

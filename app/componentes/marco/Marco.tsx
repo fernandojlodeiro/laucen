@@ -23,6 +23,8 @@ import { contadoresEstado, type Contador } from "@/lib/erp/contadores";
 import { accionLogout } from "@/app/auth-actions";
 import { BarraMenu, MenuCelular } from "./BarraMenu";
 import Historial from "./Historial";
+import Manuales from "./Manuales";
+import { guiasDelManual } from "@/lib/asistente/manual";
 import { accionMonedaVista } from "./acciones";
 import Asistente from "@/app/componentes/asistente/Asistente";
 import { AvisosTareas } from "@/app/componentes/TareasFondo";
@@ -36,7 +38,7 @@ export default async function Marco({ children, version }: { children: React.Rea
   const menu = menuPara(puede, esFer);
 
   // Si la base no responde, el marco se dibuja igual (con lo que haya).
-  const [moneda, tc, contadores, asistente, accesos, historial, inactivos] = await Promise.all([
+  const [moneda, tc, contadores, asistente, accesos, historial, inactivos, guias] = await Promise.all([
     monedaVista(sesion.usuario.id, sesion.org.id).catch(() => "ARS" as Moneda),
     tcDelDia(sesion.org.id).catch(() => null),
     contadoresEstado(sesion.org.id).catch(() => [] as Contador[]),
@@ -44,7 +46,11 @@ export default async function Marco({ children, version }: { children: React.Rea
     accesosDe(sesion.usuario.id, sesion.org.id, puede).catch(() => []),
     historialDe(sesion.usuario.id, sesion.org.id).catch(() => []),
     buscarInactivos(sesion.usuario.id, sesion.org.id).catch(() => false),
+    guiasDelManual().catch(() => []),
   ]);
+  // Las guías que puede leer (las de un permiso que no tiene, no se listan).
+  const manuales = guias.filter((g) => g.permiso === "todos" || (g.permiso === "fer" ? esFer : puede(g.permiso as Parameters<typeof tienePermiso>[1])))
+    .map((g) => ({ archivo: g.archivo, titulo: g.titulo, resumen: g.resumen }));
   const quien = sesion.usuario.nombre || sesion.usuario.email;
 
   return (
@@ -95,7 +101,8 @@ export default async function Marco({ children, version }: { children: React.Rea
         {/* Lo último que viste: «Historial» en la barra (se despliega hacia arriba) y, si sobra lugar, también al costado. */}
         <Suspense fallback={null}><Historial inicial={historial} /></Suspense>
         <span className="ml-auto opacity-80">{sesion.org.nombre} · {quien}</span>
-        <span className="opacity-50 hidden lg:inline">{version}</span>
+        {/* Manuales de ayuda (Fer, 8/10: en lugar del id del deploy; la versión queda al pasar el mouse). */}
+        <Manuales guias={manuales} version={version} />
       </footer>
 
       <AvisosTareas />

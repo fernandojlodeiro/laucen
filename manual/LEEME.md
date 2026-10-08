@@ -31,3 +31,8 @@ valioso), `## Preguntas frecuentes`, `## Relacionado`.
 Escritura: castellano rioplatense para un empleado que no programa; botones y campos con su
 texto exacto; los lugares como enlaces markdown a su dirección (`[Proveedores](/compras/proveedores)`);
 nunca código, nombres de archivos, tablas, columnas, funciones ni variables de entorno.
+
+Guías: los archivos que empiezan con `guia-` son guías de recorrido o de conceptos (no una
+pantalla). Además de leerlas el asistente, aparecen solas en «Manuales de ayuda» de la barra de
+estado (abajo a la derecha) y se leen en /manuales/<archivo>. Una guía nueva = un archivo
+`guia-….md` con el mismo encabezado.
