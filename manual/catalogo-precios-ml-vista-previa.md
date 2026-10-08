@@ -36,18 +36,17 @@ Un renglón de resumen: cuántas filas, cuántas **con cambios** (y cuántas son
 **Columnas** (se ordena tocando el título; de a 50 filas con paginador):
 - **Publicación**: el número de ML (enlace a [Publicaciones](/catalogo/publicaciones)) o «nueva».
 - **SKU** (enlace a la ficha del producto, con su foto si tiene) y **Producto**.
-- **Plan**: Clásica, 3, 6, 9 o 12 cuotas.
+- **Plan**: como en [Publicaciones](/catalogo/publicaciones): el nombre que usa ML (Clásica, Premium 3x, Premium 12x…) y debajo «el comprador ve N cuotas».
 - **Papel**: qué rol tiene esa publicación (ver «Criterios y reglas»).
 - **Clásica**: el precio base.
 - **Tachado %**: el % que le toca y, al pasar el mouse, de dónde viene la regla («general», «de la categoría …», «del producto»).
-- **Precio calculado**: el precio que tiene que tener la publicación en ML (en la Clásica y en el destacado es el tachado, que una campaña baja a lo que paga el comprador).
-- **Paga el comprador**: lo que termina pagando (la Clásica, el precio para ganar o el precio del plan).
+- **Según Laucen**: el precio que le corresponde, dibujado como lo ve el comprador en ML (igual que en Publicaciones): **grande lo que paga** (la Clásica, el precio para ganar o el precio del plan), arriba **chico y tachado el precio publicado** (el tachado) y al lado el **% OFF**.
 - **Precio para ganar**: lo que informó ML, con su estado debajo («gana», «compite», «comparte el 1.º», «listada»).
-- **Precio en ML**: el precio que tiene hoy la publicación (el tachado si tiene).
-- **Diferencia**: precio calculado − precio en ML; verde si sube, rojo si baja, «—» si es igual.
+- **Hoy en ML**: lo mismo pero con lo que tiene hoy la publicación en ML: grande lo que paga hoy el comprador (con la campaña en curso), el publicado tachado, el % OFF y, chiquito, el nombre de la campaña (entero al pasar el mouse).
+- **Diferencia**: precio publicado según Laucen − precio publicado hoy en ML; verde si sube, rojo si baja, «—» si es igual.
 - **Qué cambiaría**: por ejemplo «Precio $ 11.000 → $ 11.880; sale de 1 campaña; entra a 2 campañas a $ 10.800; volumen: 3+ $ 10.260», o «Nada».
 - **Avisos**: advertencias del cálculo (en amarillo).
-- Además, en el Excel: «Estado en catálogo», «Paga hoy en ML», «Stock del canal» y «Comisión estimada».
+- Además, en el Excel: «Precio calculado» (el publicado según Laucen), «Paga el comprador», «Precio en ML», «Paga hoy en ML», «Estado en catálogo», «Stock del canal» y «Comisión estimada».
 
 Las filas con cambios se ven con fondo amarillo clarito. Abajo hay una nota sobre cómo salen los lotes.
 
@@ -107,7 +106,7 @@ Elegí en **Papel** «Destacado» o «Nueva».
 **¿Apretar «Preparar cambios» ya cambia los precios en Mercado Libre?**
 No. Arma lotes que salen recién cuando apretás «Mandar a Mercado Libre» en la cola.
 
-**¿Por qué «Precio calculado» y «Paga el comprador» son distintos?**
+**¿Por qué en «Según Laucen» hay un precio tachado y otro grande?**
 Porque en la Clásica y en el destacado la publicación va al precio tachado y una campaña lo baja a lo que paga el comprador.
 
 **¿Por qué no aparece una publicación?**

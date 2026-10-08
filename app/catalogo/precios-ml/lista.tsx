@@ -13,8 +13,10 @@ import { formatear } from "@/lib/moneda";
 import type { Campo, Lista, SP } from "@/lib/listas/tipos";
 import { calcularCanal, canalesMl, excepcionesCanal, volumenCanal, type CanalMl } from "@/lib/precios-ml/datos";
 import { filtrarCalculo } from "@/lib/precios-ml/preparar";
-import { PLANES, PLAN_INFO, queCambia, textoOrigen, type PlanOClasica } from "@/lib/precios-ml/motor";
+import { CON_PRECIO, PLANES, PLAN_INFO, queCambia, textoOrigen, type PlanOClasica } from "@/lib/precios-ml/motor";
 import FotosProducto from "@/app/componentes/FotosProducto";
+import PrecioPublicacion from "@/app/componentes/PrecioPublicacion";
+import { PlanPublicacion } from "@/app/catalogo/publicaciones/lista";
 import { url } from "@/app/componentes/erp";
 
 export const BASE_PML = "/catalogo/precios-ml";
@@ -49,6 +51,8 @@ export type FilaPrevia = {
   diferencia: number | null; cambio: string; avisos: string; hay_cambio: boolean; comision_estimada: boolean; stock: number | null;
   /** % más cara que el esquema en este canal (0 = este canal gana ese plan). */
   ajuste: number | null;
+  /** Las cuotas que ve el comprador en ese plan y las campañas propias en curso en ML. */
+  cuotas: number | null; campana_ml: string | null;
 };
 
 /** Las filas de la vista previa (filtradas, en el orden de siempre: por SKU). */
@@ -70,11 +74,13 @@ export async function filasPrevia(org: string, sp: SP): Promise<FilaPrevia[]> {
       clasica: p.clasica, tachado_pct: p.clasica != null ? p.tachadoPct : null, tachado_origen: p.clasica != null ? textoOrigen(p.tachadoOrigen, nombreFamilia) : null,
       comision_estimada: info.comisionEstimada, stock: info.stock,
     };
+    const cuotasDe = (plan: PlanOClasica | null) => (plan && plan !== "clasica" ? p.planes.find((x) => x.plan === plan)?.cuotasVisibles ?? null : null);
     const ajusteDe = (plan: PlanOClasica | null) => p.clasica == null ? null : plan === "clasica" ? p.ajustePct : p.planes.find((x) => x.plan === plan)?.ajustePct ?? null;
     p.pubs.forEach((pa, i) => {
       const cambio = queCambia(pa);
       filas.push({
-        ajuste: ajusteDe(pa.pub.plan),
+        ajuste: ajusteDe(pa.pub.plan), cuotas: cuotasDe(pa.pub.plan),
+        campana_ml: [...new Set(pa.pub.campanas.filter((c) => c.estado === "started" && CON_PRECIO.includes(c.tipo)).map((c) => c.nombre ?? c.tipo))].join(" · ") || null,
         ...comun, id: `${pa.pub.publicacionId}`, item_id: pa.pub.itemId, variation_id: pa.pub.variationId, plan: pa.pub.plan, rol: pa.rol,
         lista: pa.lista, venta: pa.venta, ptw: pa.pub.priceToWin, ptw_estado: pa.pub.estadoPtw, precio_ml: pa.pub.precioListaMl, venta_ml: pa.pub.precioVentaMl,
         diferencia: pa.lista != null && pa.pub.precioListaMl != null ? Math.round(pa.lista - pa.pub.precioListaMl) : null,
@@ -84,7 +90,7 @@ export async function filasPrevia(org: string, sp: SP): Promise<FilaPrevia[]> {
     for (const fa of p.faltan) {
       // Las que faltan se crean con «Publicar en todas las cuentas» de la ficha del producto (copia completa de otra publicación).
       filas.push({
-        ...comun, ajuste: ajusteDe(fa.plan), id: `n${info.variacionId}-${fa.plan}`, item_id: null, variation_id: null, plan: fa.plan, rol: "nueva",
+        ...comun, ajuste: ajusteDe(fa.plan), cuotas: cuotasDe(fa.plan), campana_ml: null, id: `n${info.variacionId}-${fa.plan}`, item_id: null, variation_id: null, plan: fa.plan, rol: "nueva",
         lista: p.tachado ?? fa.precio, venta: fa.precio, ptw: null, ptw_estado: null, precio_ml: null, venta_ml: null, diferencia: null,
         cambio: "", avisos: `Falta la publicación de ${PLAN_INFO[fa.plan].corto}: se crea con «Publicar en todas las cuentas» (ficha del producto, pestaña Publicaciones).`,
         hay_cambio: false,
@@ -113,7 +119,8 @@ const CAMPOS_PREVIA: Campo[] = [
     ),
   },
   { clave: "titulo", titulo: "Producto", ancho: 36, celda: (f) => <span className="line-clamp-2 min-w-[180px]">{f.titulo}</span> },
-  { clave: "plan", titulo: "Plan", valor: (f) => nombrePlan(f.plan) },
+  // Como en Catálogo › Publicaciones (Fer, 8/10): el nombre de ML y debajo las cuotas que ve el comprador.
+  { clave: "plan", titulo: "Plan", valor: (f) => nombrePlan(f.plan), usa: ["cuotas"], celda: (f) => <PlanPublicacion plan={f.plan} cuotas={f.cuotas} /> },
   { clave: "rol", titulo: "Papel", valor: (f) => ROLES[f.rol] ?? f.rol },
   {
     clave: "ajuste", titulo: "¿Gana?", formato: "pct",
@@ -121,6 +128,17 @@ const CAMPOS_PREVIA: Campo[] = [
   },
   { clave: "clasica", titulo: "Clásica", formato: "pesos" },
   { clave: "tachado_pct", titulo: "Tachado %", formato: "pct", usa: ["tachado_origen"], celda: (f) => f.tachado_pct == null ? "—" : <span title={`Regla ${f.tachado_origen ?? ""}`}>{f.tachado_pct.toLocaleString("es-AR")} %</span> },
+  // Como lo ve el comprador (Fer, 8/10): grande lo que paga, chico y tachado el precio publicado, % OFF.
+  {
+    clave: "segun_laucen", titulo: "Según Laucen", orden: false, usa: ["venta", "lista"],
+    valor: (f) => f.venta, formato: "pesos",
+    celda: (f) => f.venta == null ? "—" : <PrecioPublicacion paga={f.venta} lista={f.lista} texto={(n) => formatear(n, "ARS")} />,
+  },
+  {
+    clave: "hoy_ml", titulo: "Hoy en ML", orden: false, usa: ["venta_ml", "precio_ml", "campana_ml"],
+    valor: (f) => f.venta_ml ?? f.precio_ml, formato: "pesos",
+    celda: (f) => (f.venta_ml ?? f.precio_ml) == null ? "—" : <PrecioPublicacion paga={(f.venta_ml ?? f.precio_ml)!} lista={f.precio_ml} campana={f.campana_ml} texto={(n) => formatear(n, "ARS")} />,
+  },
   { clave: "lista", titulo: "Precio calculado", formato: "pesos" },
   { clave: "venta", titulo: "Paga el comprador", formato: "pesos" },
   {
@@ -147,7 +165,7 @@ export const LISTA_PRECIOS_ML: Lista = {
   permiso: "precios_ml_ver",
   // En memoria: el orden por columna usa el valor de cada fila (la clave sólo lo habilita).
   campos: CAMPOS_PREVIA.map((c) => (c.orden === false ? c : { ...c, orden: c.clave })),
-  enPantalla: ["item_id", "sku", "titulo", "plan", "rol", "ajuste", "clasica", "tachado_pct", "lista", "venta", "ptw", "precio_ml", "diferencia", "cambio", "avisos"],
+  enPantalla: ["item_id", "sku", "titulo", "plan", "rol", "ajuste", "clasica", "tachado_pct", "segun_laucen", "hoy_ml", "ptw", "diferencia", "cambio", "avisos"],
   filas: (ctx, sp) => filasPrevia(ctx.org, sp),
 };
 
