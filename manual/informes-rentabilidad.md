@@ -28,7 +28,7 @@ Título "Rentabilidad por venta" y la aclaración: "Lo vendido, lo que cobró el
 - **Fechas** desde/hasta con atajos. Si no se elige, va **del 1.º del mes actual a hoy**.
 - **Canal**: Todos o uno (Mercado Libre, tienda, etc.).
 - **Ver**: **Por venta** o **Por producto**.
-- **Costo**: **Costo promedio** (el de siempre), **Último costo** o **Costo FOB**.
+- **Costo**: **Costo promedio** (el que viene elegido de entrada), **Último costo** o **Costo FOB**.
 
 ### Recuadros de totales
 

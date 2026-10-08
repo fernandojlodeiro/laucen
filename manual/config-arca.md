@@ -21,7 +21,6 @@ Los datos fiscales (CUIT, razón social, condición frente al IVA, domicilio, In
 
 - Menú **Configuración › Facturación (ARCA)**.
 - Desde [Facturación](/administracion/facturacion), con el botón **"Configuración"** o el enlace **"Ir a Configuración"** del aviso.
-- La dirección vieja /administracion/facturacion/config lleva sola acá.
 
 ## Qué hay en la pantalla
 

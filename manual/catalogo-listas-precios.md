@@ -9,7 +9,7 @@ resumen: Las listas de precios (Clásicas, Web, Mayorista…), el precio de list
 
 ## Para qué sirve
 
-Cada lista de precios tiene un **precio de lista** por variación (el que se muestra tachado cuando hay descuento). El **precio de venta** se calcula solo: en las listas con **«Aplica descuentos»** tildado, el de lista menos el descuento que rige para esa variación (de la variación, del producto o de la familia); en las demás, igual al de lista. Hoy sólo la **Web minorista** aplica descuentos (Fer, 7/10): en Clásicas (Mercado Libre) y en la del Local el precio de venta es el de lista.
+Cada lista de precios tiene un **precio de lista** por variación (el que se muestra tachado cuando hay descuento). El **precio de venta** se calcula solo: en las listas con **«Aplica descuentos»** tildado, el de lista menos el descuento que rige para esa variación (de la variación, del producto o de la familia); en las demás, igual al de lista. Por ejemplo, si sólo la **Web minorista** aplica descuentos, en Clásicas (Mercado Libre) y en la del Local el precio de venta es el de lista.
 
 Cada canal de venta y cada cliente puede tener asignada una lista. La lista base de la empresa es **"Clásicas"**: la que crea y llena la importación de Virtual Seller con el precio de las publicaciones Clásicas de Mercado Libre (o, si el producto no tiene Clásica, con la Lista_000 de Virtual Seller). Es el precio que pone la empresa para Mercado Libre; de ahí salen los demás precios de ML (ver [Precios en Mercado Libre](/catalogo/precios-ml)). Otras listas pueden **calcularse desde Clásicas** con un coeficiente (ej. "Web = Clásicas × 0,90").
 
@@ -123,7 +123,7 @@ También se puede desde la ficha del producto, pestaña **Precios**.
 ## Preguntas frecuentes
 
 **¿Cuál es la diferencia entre precio de lista y precio de venta?**
-El de lista es el que se carga (y se muestra tachado). El de venta es el de lista menos el descuento de la variación, el producto o la familia, en las listas que aplican descuentos (hoy, la Web minorista). Mercado Libre usa siempre el precio de lista de Clásicas.
+El de lista es el que se carga (y se muestra tachado). El de venta es el de lista menos el descuento de la variación, el producto o la familia, en las listas que aplican descuentos (por ejemplo, la Web minorista). Mercado Libre usa siempre el precio de lista de Clásicas.
 
 **Cargué un precio en pesos, ¿el de dólares se actualiza si sube el dólar?**
 No, queda fijo al tipo de cambio del día en que lo cargaste. Salvo que el producto tenga tildado "Precio en dólares": ahí los pesos siguen al dólar todos los días.

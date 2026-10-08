@@ -21,7 +21,7 @@ Lo que no se separa: cuando entra mercadería —por una factura de compra, un d
 
 ## Cómo se llega
 
-Menú **Configuración › Razones sociales**. Sólo la ve quien tiene el permiso «Empresa». Los datos fiscales que antes se cargaban en [Empresa](/config/empresa) están ahora acá.
+Menú **Configuración › Razones sociales**. Sólo la ve quien tiene el permiso «Empresa». Los datos fiscales se cargan acá (en [Empresa](/config/empresa) quedan el logo y los datos generales).
 
 ## Qué hay en la pantalla
 
@@ -54,8 +54,8 @@ En [Canales](/config/canales), con el lápiz del canal, elegís **"Factura con"*
 - **Cuenta de Mercado Pago**: la cuenta de fondos de cada cuenta de ML pertenece a la razón social del canal; si cambiás la razón social del canal, la cuenta de fondos la sigue.
 - **La principal no se borra**: primero se elige otra como principal. Tampoco se borra una razón social que ya tiene facturas, compras, cuentas o asientos a su nombre.
 - **Cambiar el CUIT** de una razón social conectada con ARCA avisa que el permiso es del CUIT anterior y hay que hacer el trámite de nuevo.
-- Lo que ya existía antes de cargar la primera razón social queda a su nombre.
-- **Con una sola razón social el sistema se ve igual que siempre**: los selectores de razón social sólo aparecen cuando hay más de una.
+- Lo que se cargó antes de tener alguna razón social queda a nombre de la primera que se carga.
+- **Con una sola razón social no se ve nada de esto**: los selectores de razón social sólo aparecen cuando hay más de una.
 
 ## Preguntas frecuentes
 

@@ -50,7 +50,7 @@ La pantalla se actualiza sola cada pocos segundos.
 
 ### Prender o apagar la IA desde el teléfono
 Escribile al cliente desde el teléfono un mensaje que empiece con la **marca** (de fábrica, `*`):
-- Si la IA estaba prendida, se apaga en ese chat, y el resto del mensaje le llega al cliente tal cual ("* Hola, soy Fer, te atiendo yo").
+- Si la IA estaba prendida, se apaga en ese chat, y el resto del mensaje le llega al cliente tal cual ("* Hola, soy Juan, te atiendo yo").
 - Si estaba apagada, se prende, y lo que escribas después de la marca es un encargo para la IA ("* pasale el link de los auriculares"): la IA le escribe al cliente haciéndolo.
 Contestar desde el teléfono sin la marca no cambia nada: la IA sigue atendiendo.
 

@@ -153,7 +153,7 @@ En su ficha, "Lista de precios propia" → la lista mayorista.
 Tiene pedidos. Un cliente con pedidos no se borra.
 
 **Aparecen dos clientes que son la misma persona.**
-Pasa si entraron con datos distintos (sin documento ni mail en común). Hoy no hay un botón para unirlos; se puede corregir uno de los dos.
+Pasa si entraron con datos distintos (sin documento ni mail en común). No hay un botón para unirlos; se puede corregir uno de los dos.
 
 **¿Qué hace "Validar en el padrón de ARCA"?**
 Trae de ARCA la razón social, la condición de IVA y el domicilio fiscal del CUIT y los pisa en el cliente.

@@ -70,7 +70,7 @@ El stock entra por la compra (factura y recepción) o, si ya está en el depósi
 2. Listo: la **Web minorista** y el **Local** salen de Clásicas solas (Clásicas × 1).
 
 **Decidir: ¿con tachado o sin tachado?**
-El precio que cargás es siempre la **Clásica**: lo que paga el comprador en Mercado Libre en la cuenta que gana (Fer, 8/10).
+El precio que cargás es siempre la **Clásica**: lo que paga el comprador en Mercado Libre en la cuenta que gana.
 - **Sin tachado** (lo normal): la publicación sale a ese precio.
 - **Con tachado** (para que en Mercado Libre se vea "X % OFF"): en [Precios en ML](/catalogo/precios-ml), pestaña «Excepciones», se pone una excepción del producto con su **Descuento que ve el comprador %** y el sistema calcula el tachado = Clásica ÷ (1 − Descuento %). Ejemplo de las notebooks: Clásica $ 1.181.240 y descuento **45 %** → tachado $ 2.147.709. La publicación sale al tachado y una campaña la baja a la Clásica.
 - **Descuento %** del producto o la familia: sólo se aplica en las listas con «Aplica descuentos» (la Web minorista). **Nunca en Mercado Libre.**

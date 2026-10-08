@@ -66,7 +66,7 @@ Errores típicos:
 ### Archivar un proveedor
 Editalo con el lápiz, poné el estado en **Archivado** y **Guardar**. Un proveedor archivado:
 - sigue en la lista (al final, con la etiqueta gris "Archivado") y sus facturas no se tocan;
-- ya no aparece para elegir en una factura nueva ni en un despacho nuevo; si una factura en borrador ya lo tenía elegido, aparece como "(proveedor archivado)".
+- no aparece para elegir en una factura nueva ni en un despacho nuevo; si una factura en borrador ya lo tenía elegido, aparece como "(proveedor archivado)".
 
 ### Borrar un proveedor
 1. Tocá el **tacho** de la fila. En el mismo lugar pregunta "¿Borrar?" con **Sí** / **No**.

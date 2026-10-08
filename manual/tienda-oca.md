@@ -63,7 +63,7 @@ En la ficha del pedido, debajo del número de envío, los últimos movimientos q
 ## Preguntas frecuentes
 
 **¿Dónde consigo las operativas y el número de cuenta?**
-Te los da OCA al abrir la cuenta. Son los mismos que usa la tienda que tenías antes.
+Te los da OCA al abrir la cuenta. Si ya usabas OCA con otra tienda online, son los mismos.
 
 **La tienda no muestra el precio de OCA.**
 Fijate que el comprador haya puesto el código postal, y que **"Probar con OCA"** dé verde.

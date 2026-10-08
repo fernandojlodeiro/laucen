@@ -132,7 +132,7 @@ La tabla de cucardas activas (y las archivadas que el producto ya tenga): **Llev
 
 - Tabla: SKU del componente (lleva a su ficha), Componente, Cantidad, Disponible; lápiz para cambiar la cantidad y tacho ("¿Sacar?").
 - **+ Nuevo componente**: SKU del componente y cantidad, la caja **"Sobra al armarlo (entra al stock al vender el kit)"** y el botón **Agregar componente**.
-- **Pieza que sobra al armarlo** (Fer, 7/10): la que se le saca al equipo para armar el kit. Ejemplo: la Asus de 12 GB se arma sacándole una memoria de 4 GB y poniéndole una de 8; el kit es "equipo + memoria de 8 GB" y la de 4 GB (SODIMM-4DDR4) va tildada como que sobra. No es una cantidad negativa: es una marca. La fila dice "Sobra al armarlo: entra al stock cuando se vende el kit", con la cantidad en "+1" y sin disponible.
+- **Pieza que sobra al armarlo**: la que se le saca al equipo para armar el kit. Ejemplo: la Asus de 12 GB se arma sacándole una memoria de 4 GB y poniéndole una de 8; el kit es "equipo + memoria de 8 GB" y la de 4 GB (SODIMM-4DDR4) va tildada como que sobra. No es una cantidad negativa: es una marca. La fila dice "Sobra al armarlo: entra al stock cuando se vende el kit", con la cantidad en "+1" y sin disponible.
   - No cuenta para el disponible del kit, no se reserva y no aparece en el picking.
   - Cuando el kit se vende (sale del depósito), entra al stock en la misma ubicación de donde salió el equipo, con el movimiento "sobra al armar el kit: entra al venderlo".
   - En el costo FOB del kit, resta.
@@ -249,7 +249,7 @@ Tacho de arriba a la derecha → "¿Borrar el producto entero?" → **Sí**. Se 
 
 **No publicable**
 - Es para lo que no se vende solo: insumos o partes de otro producto, como la unidad "-U" que se vende sólo en pack. Se prende y apaga en la pestaña Publicaciones de la ficha.
-- Al crearse esta marca (5/10) se prendió sola en todos los productos con SKU terminado en "-U" que no tenían ninguna publicación de Mercado Libre (ni vinculada ni con su SKU en ninguna cuenta, en ningún estado), y esos salieron de la web. Los "-U" que sí tienen alguna publicación quedaron como estaban: si tampoco se venden solos, prendé la marca a mano.
+- Un producto marcado No publicable sale de la web. La marca se prende a mano en cada producto que no se vende solo (por ejemplo, las unidades "-U" de un pack).
 
 **Tipos de producto**
 - **Simple**: una sola variación, creada sola con el SKU base y el código de barras del producto. Si cambiás el SKU base o el código de barras del producto, la variación única se actualiza sola.
@@ -272,7 +272,7 @@ Tacho de arriba a la derecha → "¿Borrar el producto entero?" → **Sí**. Se 
 
 **Descuento que rige para una variación** (el que convierte precio de lista en precio de venta): el de la variación → si está vacío, el del producto → si está vacío, el de su familia → si está vacío, el de la primera familia de más arriba que tenga uno → si no hay ninguno, 0 %. Va de 0 a 100 %. Rige **sólo en las listas con «Aplica descuentos»** (hoy, la Web minorista: tienda web y WhatsApp); en Clásicas (Mercado Libre) y en la del Local no se aplica.
 
-**Umbral de pausa** (con ese disponible o menos, el canal pausa la publicación): el de la publicación → el del producto → el del canal → el general de la empresa → 1.
+**Umbral de pausa** (con ese disponible o menos, el canal pausa la publicación): el de la publicación → el del producto → el del canal → el general de la empresa → 0 (sin nada cargado, se pausa sólo cuando no queda stock).
 
 **Stock mínimo**: si el disponible total queda debajo, el total se pinta en rojo en la pestaña Stock y el panel avisa (sólo para productos activos y variaciones activas).
 

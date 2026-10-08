@@ -132,7 +132,6 @@ Mercado Pago avisa solo cuando aprueba el pago; puede tardar unos minutos. Si el
 ### Qué productos se muestran
 
 - **La web es un canal más**: un producto se ve en la tienda sólo si está **publicado en ese canal web** (el interruptor "Publicado en Web minorista" de la pestaña Publicaciones de su ficha en [Productos](/catalogo/productos)). Además tiene que estar **activo**, tener alguna **variación activa** y esa variación tiene que tener **precio en la lista de precios del canal**. Sin precio en esa lista, no aparece aunque esté publicado.
-- Al arrancar (4/10) quedaron publicados en las dos webs los productos que tenían alguna publicación activa en Mercado Libre; los demás, no.
 - El precio que se muestra en los listados es el **más bajo** de sus variaciones ("Desde" si varían).
 - **Productos sin stock**: se muestran como "Sin stock" o se ocultan, según lo que diga [Tienda web](/config/tienda).
 - **Stock** = el disponible del canal de la tienda (la suma de sus depósitos activos).

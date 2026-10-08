@@ -23,7 +23,7 @@ Arriba, tres cajas:
 
 1. **Hoy rige**: el dólar de venta que se está usando, con su fecha y su origen (ej. "del 03/10/2026 · dolarapi"). Si no hay ninguno: "Todavía no hay ninguno cargado." Botón **"Levantar ahora"**.
 2. **Fuente**: un desplegable con las dos fuentes, **"dolarapi.com (oficial BNA)"** y **"argentinadatos.com (oficial)"**, y el botón **"Usar ésta"**. Ayuda: "El cron la consulta todos los días a las 16:15. Si falla, prueba con la otra y, si fallan las dos, lo anota en la bitácora."
-3. **Historia**: desde qué fecha hay datos y cuántos días ("Desde el … · N días"), o "Sin historia cargada." Botón **"Cargar historia (desde 2011)"**. Ayuda: hace falta para convertir las ventas viejas de Virtual Seller con el dólar de su fecha.
+3. **Historia**: desde qué fecha hay datos y cuántos días ("Desde el … · N días"), o "Sin historia cargada." Botón **"Cargar historia (desde 2011)"**. Ayuda: hace falta para convertir las ventas viejas traídas de otro sistema con el dólar de su fecha.
 
 Debajo, la caja **Cargar a mano**: **Fecha** (propone hoy), **Compra**, **Venta** y el botón **"Guardar"**. Ayuda: "Vale sólo para tu organización y ese día gana al que levanta el cron."
 
@@ -89,7 +89,7 @@ Todos los días a las 16:15.
 Sí, en "Cargar a mano". Ese día gana al automático, y sólo para tu organización.
 
 **¿Por qué hace falta la historia desde 2011?**
-Para convertir las ventas viejas importadas de Virtual Seller con el dólar de su fecha.
+Para convertir las ventas viejas importadas de otro sistema con el dólar de su fecha.
 
 **Falló el automático. ¿Qué hago?**
 Apretá "Levantar ahora" un rato después; si sigue fallando, cargalo a mano.

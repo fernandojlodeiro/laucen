@@ -194,7 +194,7 @@ En la caja de la cuenta, **"Traer pedidos y preguntas ahora"**. Avisa "Listo: N 
 
 ### Con qué razón social se factura cada canal
 
-Una vez cargadas las razones sociales (ver [Razones sociales](/config/razones-sociales)), tocá el canal (su nombre) y, en la caja **"Cuenta de Mercado Libre"**, elegí **"Este canal factura con (razón social)"** y apretá **"Guardar"**. La columna **"Factura con"** de la lista muestra con cuál factura cada canal, y también se cambia con el **lápiz** de su fila (desplegable **"Factura con"**). Elegís la razón social con la que se emiten las facturas de lo que vende ese canal (por ejemplo, tres cuentas de Mercado Libre con una razón social y dos con la otra). **No hay "principal"**: cada canal (Mercado Libre, tienda web, local, mayorista) tiene que tener elegida su razón social; al crear un canal se elige ahí mismo, y el lápiz no deja guardar sin ella. Los que no la tenían (4/10) quedaron con la que era la principal (Virtual Argentina S.A).
+Una vez cargadas las razones sociales (ver [Razones sociales](/config/razones-sociales)), tocá el canal (su nombre) y, en la caja **"Cuenta de Mercado Libre"**, elegí **"Este canal factura con (razón social)"** y apretá **"Guardar"**. La columna **"Factura con"** de la lista muestra con cuál factura cada canal, y también se cambia con el **lápiz** de su fila (desplegable **"Factura con"**). Elegís la razón social con la que se emiten las facturas de lo que vende ese canal (por ejemplo, tres cuentas de Mercado Libre con una razón social y dos con la otra). **No hay "principal"**: cada canal (Mercado Libre, tienda web, local, mayorista) tiene que tener elegida su razón social; al crear un canal se elige ahí mismo, y el lápiz no deja guardar sin ella.
 
 - Cambiarlo afecta a las facturas **nuevas**; las ya emitidas no se mueven.
 - La cuenta de fondos "Mercado Pago — <apodo>" de la cuenta de ML pasa a ser de la nueva razón social.
@@ -202,7 +202,7 @@ Una vez cargadas las razones sociales (ver [Razones sociales](/config/razones-so
 
 ## Criterios y reglas
 
-- **Corte de pedidos de Mercado Libre.** Los pedidos que se crearon en Mercado Libre antes de las 21:35 del 3/10 (hora argentina) ya están en Virtual Seller y **no entran nunca** a Laucen: ni cuando Mercado Libre avisa un cambio (una entrega, un reclamo), ni en el barrido de cada media hora, ni al conectar una cuenta nueva. Todas las cuentas, incluidas las que se conecten después, usan el mismo corte. Si un carrito tiene alguna orden anterior al corte, no entra entero. Sólo entran los pedidos creados desde ese momento. **Lo mismo con las preguntas y los mensajes**: una pregunta hecha antes del corte no entra, y una conversación con el comprador sólo entra si tiene algún mensaje posterior al corte (en ese caso entra entera, para contestar con la historia a la vista).
+- **Corte de pedidos de Mercado Libre.** Los pedidos que se crearon en Mercado Libre antes del **momento de corte** (la fecha y hora desde la que la empresa gestiona sus ventas en Laucen; lo anterior queda en el sistema que usaba antes) **no entran nunca** a Laucen: ni cuando Mercado Libre avisa un cambio (una entrega, un reclamo), ni en el barrido de cada media hora, ni al conectar una cuenta nueva. Todas las cuentas, incluidas las que se conecten después, usan el mismo corte. Si un carrito tiene alguna orden anterior al corte, no entra entero. Sólo entran los pedidos creados desde ese momento. **Lo mismo con las preguntas y los mensajes**: una pregunta hecha antes del corte no entra, y una conversación con el comprador sólo entra si tiene algún mensaje posterior al corte (en ese caso entra entera, para contestar con la historia a la vista).
 
 - **Pausar y activar van con la cantidad, en el mismo envío.** Cuando el stock llega al umbral, Laucen manda a Mercado Libre la pausa y enseguida la cantidad disponible, juntas: primero la pausa (así nunca queda activa sin stock) y después la cantidad (con umbral 1 y 1 disponible, queda pausada con 1). Cuando vuelve a haber stock, manda la cantidad y la activación juntas: primero la cantidad y después "activa". Si una publicación estaba en 0 y pasa a tener stock, además de la cantidad se manda que se active. Las publicaciones con variaciones no se pausan enteras: a la variación sin stock se le informa 0.
 
@@ -222,7 +222,7 @@ Una vez cargadas las razones sociales (ver [Razones sociales](/config/razones-so
 
 ### Cuentas contables del canal (se crean solas)
 
-- **Ventas**: cada canal tiene su cuenta de ingresos **"Ventas — <nombre del canal>"** en el plan de cuentas, creada al crear el canal (los que ya estaban la recibieron una vez). El neto de las facturas de los pedidos del canal va ahí; sin canal, a la Ventas general. **Si se renombra el canal, la cuenta no cambia de nombre**: se la renombra a mano en [Contabilidad](/administracion/contabilidad) si se quiere.
+- **Ventas**: cada canal tiene su cuenta de ingresos **"Ventas — <nombre del canal>"** en el plan de cuentas, creada al crear el canal. El neto de las facturas de los pedidos del canal va ahí; sin canal, a la Ventas general. **Si se renombra el canal, la cuenta no cambia de nombre**: se la renombra a mano en [Contabilidad](/administracion/contabilidad) si se quiere.
 - **Mercado Pago**: cada cuenta de Mercado Libre colgada de un canal tiene su cuenta de fondos y contable **"Mercado Pago — <apodo>"**, creada al conectarla (o al usar "Usar la ya conectada"). Lo cobrado de las ventas del canal (menos la comisión) se asienta ahí en vez de en "Cobros de canales a liquidar", y entra también como movimiento "Cobro del pedido …" en esa cuenta de [Caja y bancos](/administracion/tesoreria), así su saldo coincide con la contabilidad. Sacar la cuenta del canal no la borra.
 - **Tienda web**: lo que la tienda cobra con Mercado Pago va a la cuenta **"Mercado Pago — Tienda web"**, que se crea sola al cargar el access token en [Medios de pago](/config/medios-pago).
 - Valen para los asientos nuevos; los ya grabados no cambian.
@@ -232,7 +232,7 @@ Una vez cargadas las razones sociales (ver [Razones sociales](/config/razones-so
 - **Una cuenta por canal**. "Usar la ya conectada" saca cualquier otra cuenta que tuviera el canal y cuelga la elegida.
 - **"Sacarla del canal"** no desconecta la cuenta de ML: sólo la deja sin canal; dejan de entrar sus pedidos.
 - Los pedidos y preguntas de ML entran solos con un barrido automático de cada pocos minutos; "Traer pedidos y preguntas ahora" lo hace en el momento.
-- **Cambios en Mercado Libre, siempre por un clic de Fer**: ninguna persona ni sesión modifica Mercado Libre "por su cuenta". Lo que se pide se prepara como un lote y sale recién con **"Mandar a Mercado Libre"**. Lo automático sólo corre si alguien prendió el interruptor del canal (prenderlo es ese clic). Leer de ML sí se puede siempre.
+- **Cambios en Mercado Libre, siempre por un clic en el panel**: nada modifica Mercado Libre "por su cuenta", ni siquiera lo que se le pide al asistente. Lo que se pide se prepara como un lote y sale recién con **"Mandar a Mercado Libre"**. Lo automático sólo corre si alguien prendió el interruptor del canal (prenderlo es ese clic). Leer de ML sí se puede siempre.
 
 ### Interruptor "Laucen manda el stock a ML y pausa al llegar al umbral"
 
@@ -259,7 +259,7 @@ El interruptor de que los precios sigan a la publicación Clásica ("sincronizar
 
 - Una llave por canal, de 64 caracteres, generada al azar. Se muestra completa **una sola vez**, durante un minuto, al generarla; después la pantalla sólo dice si hay o no.
 - "Generar otro" reemplaza la anterior: la vieja deja de andar en ese momento. "Revocar" la borra: nadie puede usar la API con ese canal.
-- La llave sirve para la API de pedidos (cargar pedidos en ese canal) y la de catálogo. Hoy no la usa ningún sistema.
+- La llave sirve para la API de pedidos (cargar pedidos en ese canal) y la de catálogo.
 
 ### Cola de Mercado Libre: cómo sale cada cambio
 
@@ -285,7 +285,7 @@ Todas las noches, de 2 a 5 (hora argentina), para cada cuenta con "Laucen manda 
 ## Preguntas frecuentes
 
 **¿Por qué un producto tiene stock pero en Mercado Libre aparece pausado?**
-Porque el disponible **del canal** (la suma de sus depósitos) es menor o igual al umbral de pausa. Revisá desde qué depósitos vende el canal y el umbral (publicación → producto → canal → organización → 0).
+Porque el disponible **del canal** (la suma de sus depósitos) es menor o igual al umbral de pausa. Revisá desde qué depósitos vende el canal y el umbral (publicación → producto → canal → organización → 0, que pausa sólo sin stock).
 
 **Prendí "Laucen manda el stock" y no cambió nada en ML. ¿Por qué?**
 Los cambios salen por la cola en los próximos minutos. Mirá la [Cola de Mercado Libre](/config/canales/cola): Pendientes, Enviados o Con error. Además, el canal tiene que estar Activo, con la cuenta conectada y las publicaciones vinculadas.

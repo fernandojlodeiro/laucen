@@ -205,7 +205,7 @@ Cuando la factura está vinculada a una recepción, el asiento de la compra pone
 - **Se recibió de más** (sobran unidades): al revés. Las de más están en el stock pero no pasaron por Mercaderías: entran al costo de la factura → **Debe** Mercaderías / **Haber** Diferencias en recepciones de stock (achica el egreso). Ejemplo: facturan 10 a $100 y llegaron 12 → **Debe** Mercaderías $200 / **Haber** Diferencias en recepciones de stock $200.
 - Cada producto va en su renglón, con el SKU como detalle. Un producto que está en la factura pero no vino en esa recepción cuenta como que faltó entero. Los productos de la recepción que la factura no nombra no cuentan (pueden venir en otra factura).
 - **Una recepción facturada en dos o más facturas**: cada factura mira lo que quedó recibido sin cubrir por las anteriores. Si la primera factura cobra 5 de las 10 recibidas, asienta 5 de sobrante; cuando llega la segunda con las otras 5, ya no queda nada recibido sin cubrir y asienta 5 de faltante: las dos se compensan y queda en cero.
-- La diferencia se calcula y se guarda al registrar la factura (las registradas antes de esto no la tienen). Las notas de crédito no la generan.
+- La diferencia se calcula y se guarda al registrar la factura. Las notas de crédito no la generan.
 - Si las unidades que faltaron llegan después con otra recepción, entran al stock sin asiento (la recepción no contabiliza): el contador las vuelve a pasar a Mercaderías con un asiento manual (Debe Mercaderías / Haber Diferencias en recepciones de stock).
 
 ### Duplicados

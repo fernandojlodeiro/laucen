@@ -36,7 +36,7 @@ Se ve también cuántas unidades hay en cada depósito y en cada ubicación, y q
 Al tocar un depósito (o si hay uno solo activo, de entrada) se abre la caja **Ubicaciones de "<depósito>"**:
 
 - Arriba a la derecha de la caja: **"Descargar Excel"** de sus ubicaciones (puede traer "Es la general" y "Productos distintos") y **"Nueva ubicación"** (sólo si el depósito usa ubicaciones). El alta pide **Código** ("ej. A-03-2"), **Descripción (opcional)**, **Orden** y **"Crear"**.
-- Si el depósito no usa ubicaciones, aparece la explicación de que todo va a la general, y un aviso si quedaron ubicaciones viejas con stock.
+- Si el depósito no usa ubicaciones, aparece la explicación de que todo va a la general, y un aviso si quedaron ubicaciones con stock.
 - Buscador **"Buscar ubicación por código o descripción"** (también por número).
 - Columnas (ordenables): **Código** (la general lleva la marca "General"), **Descripción**, **Orden de recorrido**, **Estado** (Activa / Archivada) y **Unidades**.
 - Tocando el código o las unidades se despliega debajo lo que tiene adentro: SKU, Producto, Cantidad y Reservado (o "No tiene nada adentro.").

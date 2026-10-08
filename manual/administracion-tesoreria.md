@@ -136,15 +136,15 @@ Si no se elige una, los asientos usan la del tipo: Caja → "Caja", Banco → "B
 
 ### Mercado Pago de cada cuenta de Mercado Libre
 
-- Al **conectar una cuenta de Mercado Libre a un canal** ([Canales](/config/canales)), y una vez para las que ya estaban conectadas, se crea sola la cuenta de fondos **"Mercado Pago — <apodo de la cuenta de ML>"**, tipo Mercado Pago, en pesos, con su cuenta contable propia y atada a ese canal. Si ya había una cuenta de Mercado Pago creada a mano con ese mismo nombre, se usa ésa.
+- Al **conectar una cuenta de Mercado Libre a un canal** ([Canales](/config/canales)) se crea sola la cuenta de fondos **"Mercado Pago — <apodo de la cuenta de ML>"**, tipo Mercado Pago, en pesos, con su cuenta contable propia y atada a ese canal. Si ya había una cuenta de Mercado Pago creada a mano con ese mismo nombre, se usa ésa.
 - Si la cuenta de ML se pasa a otro canal, su cuenta de Mercado Pago pasa a cobrar las ventas del canal nuevo.
 - Lo cobrado de cada venta de ese canal (total − comisión) se asienta en la cuenta contable de esa cuenta de Mercado Pago (ver [Contabilidad](/administracion/contabilidad)) y entra como movimiento en esta cuenta (ver "Cobros de pedidos", abajo).
 - Si se borra (sin movimientos) una cuenta de Mercado Pago de una cuenta de ML que sigue conectada, se vuelve a crear sola.
 
 ### Mercado Pago de la tienda web
 
-- Al cargar el **access token** del medio **Mercado Pago** en [Medios de pago](/config/medios-pago) (y una vez, si ya estaba cargado), se crea sola la cuenta de fondos **"Mercado Pago — Tienda web"** (si el medio tiene otro nombre que "Mercado Pago", ése), tipo Mercado Pago, en pesos, con su cuenta contable propia y atada a la tienda. Si ya había una cuenta de Mercado Pago creada a mano con ese mismo nombre (y que no es de una cuenta de ML), se usa ésa.
-- Ahí entra lo cobrado de cada pedido de la tienda **pagado con Mercado Pago**. Los pedidos pagados por transferencia, efectivo o tarjeta (Payway) siguen como siempre: no entran a esta cuenta.
+- Al cargar el **access token** del medio **Mercado Pago** en [Medios de pago](/config/medios-pago) se crea sola la cuenta de fondos **"Mercado Pago — Tienda web"** (si el medio tiene otro nombre que "Mercado Pago", ése), tipo Mercado Pago, en pesos, con su cuenta contable propia y atada a la tienda. Si ya había una cuenta de Mercado Pago creada a mano con ese mismo nombre (y que no es de una cuenta de ML), se usa ésa.
+- Ahí entra lo cobrado de cada pedido de la tienda **pagado con Mercado Pago**. Los pedidos pagados por transferencia, efectivo o tarjeta (Payway) no entran a esta cuenta.
 
 ### Cobros de pedidos
 
@@ -152,7 +152,6 @@ Si no se elige una, los asientos usan la del tipo: Caja → "Caja", Banco → "B
 - Es uno solo por pedido y aparece cuando se genera el asiento de cobro (el pedido pagado y facturado; ver [Contabilidad](/administracion/contabilidad)). No genera otro asiento: es la parte de fondos del mismo asiento de cobro.
 - El concepto es un enlace al pedido, en Movimientos y en Conciliación, para saber qué pedido es al conciliar con el extracto de Mercado Pago.
 - No se borra a mano. Si el pedido deja de estar cobrado (por ejemplo, se reembolsó), el movimiento se borra solo y el asiento de cobro queda anulado; si ya estaba conciliado, primero hay que desunirlo (Contabilidad lo avisa al contabilizar).
-- Los cobros que ya estaban asentados antes de esto recibieron su movimiento solos.
 
 ### Conciliación
 

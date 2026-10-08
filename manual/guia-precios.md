@@ -43,10 +43,10 @@ Cambiar el precio en Clásicas cambia todos los canales. Cada canal dice con qu�
 
 ### 4. Mercado Libre: el tachado y la Clásica
 
-- El precio de la lista Clásicas es la **Clásica**: lo que paga el comprador en la publicación Clásica de la cuenta que gana (Fer, 8/10).
-- **Tachado = Clásica ÷ (1 − Descuento %)**: el precio "de antes" que ve el comprador tachado. Vos decidís el **descuento que ve el comprador** (por ejemplo 45 %) y el sistema calcula el tachado.
-- **Tachado 0 %** (lo normal): tachado y Clásica son lo mismo; la publicación va a ese precio y no necesita campaña.
-- **Con tachado**: la publicación se publica **al tachado** y una **campaña** de Mercado Libre la baja a la Clásica; así se ve "X % OFF". El descuento que ve el comprador = Tachado ÷ (100 + Tachado). Ejemplo de las notebooks: Tachado 81,8 % → el comprador ve **−45 %**. Mercado Libre pide al menos 5 % de descuento para mostrarlo.
+- El precio de la lista Clásicas es la **Clásica**: lo que paga el comprador en la publicación Clásica de la cuenta que gana.
+- **Tachado = Clásica ÷ (1 − descuento que ve el comprador)**: el precio "de antes" que ve el comprador tachado. Vos decidís la Clásica y el **descuento que ve el comprador** (por ejemplo 45 %), y el sistema calcula el tachado.
+- **Descuento 0 %** (lo normal): tachado y Clásica son lo mismo; la publicación va a ese precio y no necesita campaña.
+- **Con descuento**: la publicación se publica **al tachado** y una **campaña** de Mercado Libre la baja a la Clásica; así se ve "X % OFF". Ejemplo de las notebooks: con descuento 45 %, el comprador ve el tachado y **−45 %**. Mercado Libre pide al menos 5 % de descuento para mostrarlo.
 - El tachado es **uno solo por modelo**: el mismo en todas las cuentas y en todos sus planes.
 
 ### 5. Los planes de cuotas: una publicación por plan
@@ -96,8 +96,8 @@ Se puede definir por rango de Clásica ("desde 3 unidades, −5 %"), pero **hoy 
 
 ### Ejemplo: una notebook en las 5 cuentas
 
-Lista Clásicas (la Clásica) **$ 1.256.226**, Tachado 81,8 % (el comprador ve −45 %):
-1. Tachado = 1.256.226 × 1,818 = **$ 2.284.047** (lo calcula el sistema).
+Lista Clásicas (la Clásica) **$ 1.256.226**, descuento 45 % (el comprador ve −45 %):
+1. Tachado = 1.256.226 ÷ 0,55 = **$ 2.284.047** (lo calcula el sistema).
 2. **.BAIRES** (gana la Clásica): publica al tachado, $ 2.284.047, y por campaña cobra **$ 1.256.226**.
 3. **Las otras 4 cuentas** (no ganan la Clásica): 1.256.226 × 1,03 = **$ 1.293.913**.
 4. Los planes de 3 y 12 cuotas salen de la Clásica del esquema por la fórmula del punto 5, más el 3 % en las cuentas que no los ganan, y también se publican al tachado y bajan por campaña.

@@ -25,7 +25,7 @@ Es, junto con el [Radar](/radar), la base para decidir qué rubros y productos b
 - Menú **Sourcing › Importaciones ARCA**.
 - Arriba hay cuatro pestañas: **Buscar** ([/importaciones](/importaciones)), **Descubrir** ([/importaciones/descubrir](/importaciones/descubrir)), **Rubros** ([/importaciones/rubros](/importaciones/rubros)) y **Cargas** ([/importaciones/cargas](/importaciones/cargas)).
 - La **ficha de una NCM** (/importaciones/ncm) se abre tocando cualquier código NCM subrayado; la **ficha de un importador** (/importaciones/importador) se abre tocando el nombre de un importador.
-- **Depurar posiciones** (/importaciones/depurar) se abre desde la pestaña Cargas, con el botón **🧹 Depurar posiciones** (sólo lo ve Fer).
+- **Depurar posiciones** (/importaciones/depurar) se abre desde la pestaña Cargas, con el botón **🧹 Depurar posiciones** (sólo lo ve el dueño del sistema).
 - Arriba a la izquierda, **← Panel** vuelve al panel.
 
 Para entrar hace falta el permiso «Ver Importaciones»; sin él, el sistema te devuelve al panel. Crear, renombrar y borrar rubros, y agregarles o quitarles NCM, pide además «Armar rubros».
@@ -85,10 +85,10 @@ Un **rubro** es un grupo de NCM con nombre (por ejemplo "Calefacción"), propio 
 - **Meses de ARCA cargados (N)**: Mes · Filas crudas · Ítems · Filas con concepto de impuesto · Cargado (fecha y hora). Debajo, desplegable **Faltan N meses (hasta mm/aaaa)** con los meses que faltan, agrupados por año ("todo el año" si falta entero).
 - **Excel de Softrade cargados (N)**: Archivo · Filas · Ítems · Subítems · Filtros usados · Cargado.
 - **Tablas de referencia**: cuántas posiciones tiene el nomenclador vigente, cuántas versiones del nomenclador hay cargadas, sufijos, cuántas NCM tienen IVA y estadística deducidos, cuántos países, transportes y conceptos tienen nombre, y el tamaño de la base.
-- **Cómo se carga**: recordatorio de dónde se dejan los archivos en la PC de Fer.
-- Sólo para Fer: "Sacar de la base los capítulos y partidas que no vas a estudiar." con el botón **🧹 Depurar posiciones**.
+- **Cómo se carga**: recordatorio de dónde se dejan los archivos para cargarlos.
+- Sólo para el dueño del sistema: "Sacar de la base los capítulos y partidas que no vas a estudiar." con el botón **🧹 Depurar posiciones**.
 
-### Depurar posiciones (sólo Fer)
+### Depurar posiciones (sólo el dueño del sistema)
 
 Lista de los capítulos del Sistema Armonizado (01 Animales vivos … 97 Arte y antigüedades), del que más registros tiene al que menos, cada uno con su caja para tildar, su nombre, el % de la base que representa y, si corresponde, la etiqueta **propuesta** con el motivo. El desplegable **Partidas (N)** abre las partidas del capítulo, cada una con su caja. Arriba dice qué % de la base se saca con lo tildado y cuándo se aplicó por última vez. Abajo, el botón **Guardar lo tildado**; **← Cargas** vuelve.
 
@@ -165,14 +165,14 @@ Lista de los capítulos del Sistema Armonizado (01 Animales vivos … 97 Arte y 
 ### Ver qué meses están cargados
 1. **Cargas** → **Meses de ARCA cargados** y el desplegable **Faltan N meses**.
 
-### Depurar posiciones (Fer)
+### Depurar posiciones (dueño del sistema)
 1. **Cargas** → **🧹 Depurar posiciones**.
 2. Tildá lo que querés sacar (un capítulo entero o partidas sueltas).
-3. Apretá **Guardar lo tildado**. Aparece "Guardado.". **Guardar no borra nada**: el borrado se hace después, cuando Fer lo pide.
+3. Apretá **Guardar lo tildado**. Aparece "Guardado.". **Guardar no borra nada**: el borrado se hace después, cuando el dueño del sistema lo pide.
 
 ## Criterios y reglas
 
-**De dónde salen los datos.** Los ZIP mensuales de ARCA, el nomenclador NCM y los Excel de Softrade se bajan a mano y se cargan desde la PC de Fer con una sesión de Claude Code; la carga **no** se hace desde esta pantalla. ARCA publica con alrededor de un mes de atraso: la pestaña Cargas considera "último mes posible" el mes anterior al actual y cuenta como faltantes todos los meses desde enero de 2017 que no estén cargados.
+**De dónde salen los datos.** Los ZIP mensuales de ARCA, el nomenclador NCM y los Excel de Softrade se bajan a mano y se cargan aparte, por fuera del panel; la carga **no** se hace desde esta pantalla. ARCA publica con alrededor de un mes de atraso: la pestaña Cargas considera "último mes posible" el mes anterior al actual y cuenta como faltantes todos los meses desde enero de 2017 que no estén cargados.
 
 **Un ítem = una línea de despacho.** ARCA repite cada ítem una vez por cada concepto de impuesto; el sistema lo guarda una sola vez (despacho + número de ítem). **No se guarda ningún monto de impuestos por despacho**: sólo se usan para deducir las tasas de cada NCM (ver más abajo).
 
@@ -199,7 +199,7 @@ Lista de los capítulos del Sistema Armonizado (01 Animales vivos … 97 Arte y 
 **Lo que paga hoy una NCM** (importando desde fuera del Mercosur):
 - **Arancel**: el derecho de importación extrazona del **nomenclador vigente** (la última versión cargada). Si la NCM tiene aperturas SIM con aranceles distintos, se muestra el rango (mínimo–máximo). En la tabla de ítems, si Softrade trae la apertura exacta, se usa la de esa apertura.
 - **IVA** y **tasa de estadística**: no están en el nomenclador; se **deducen de los despachos** de esa NCM. Por cada ítem: CIF = derechos ÷ arancel; estadística % = estadística ÷ CIF; IVA % = IVA ÷ (CIF + derechos + estadística). Sólo se usan ítems con arancel mayor que cero y un CIF creíble (entre 1 y 1,6 veces el FOB). Las tasas se redondean a 0,5; el IVA se lleva a la tasa legal más cercana (21 %, 10,5 % o 27 %) si está a 1,5 puntos o menos. Se queda la tasa **que más se repite en los últimos 12 meses cargados**, y se informa de cuántos despachos salió.
-- Si el IVA no se puede deducir (arancel 0 o sin despachos), se muestra **21 % por defecto**, marcado con asterisco y "revisar" (decisión de Fer: 21 % es lo general; 10,5 % es para pocas posiciones como bienes de capital, notebooks o impresoras 3D).
+- Si el IVA no se puede deducir (arancel 0 o sin despachos), se muestra **21 % por defecto**, marcado con asterisco y "revisar" (21 % es lo general; 10,5 % es para pocas posiciones como bienes de capital, notebooks o impresoras 3D).
 
 **Softrade.** Los datos de Softrade se cruzan con ARCA por despacho e ítem. La marca ✦ indica que el ítem tiene Softrade. "FOB por kg" = FOB (de Softrade) ÷ kg netos; "CIF / FOB" = CIF ÷ FOB, ambos sobre los ítems que tienen CIF.
 
@@ -211,7 +211,7 @@ Lista de los capítulos del Sistema Armonizado (01 Animales vivos … 97 Arte y 
 
 **Rubros.** Son de cada organización: cada uno ve y usa sólo los suyos. Un rubro necesita nombre ("El rubro necesita un nombre."). Agregar una NCM que ya está no la duplica. Borrar un rubro no borra nada de los despachos.
 
-**Depurar posiciones.** Es una decisión global (vale para toda la base) y la toma sólo Fer. Viene marcada una propuesta, con su motivo. Tildar un capítulo saca todas sus partidas. Guardar sólo registra la decisión; el borrado efectivo se hace después, a pedido de Fer. Lo sacado deja de cargarse en las próximas cargas; si se cambia de idea, se vuelve a cargar desde los archivos.
+**Depurar posiciones.** Es una decisión global (vale para toda la base) y la toma sólo el dueño del sistema. Viene marcada una propuesta, con su motivo. Tildar un capítulo saca todas sus partidas. Guardar sólo registra la decisión; el borrado efectivo se hace después, a pedido del dueño del sistema. Lo sacado deja de cargarse en las próximas cargas; si se cambia de idea, se vuelve a cargar desde los archivos.
 
 ## Preguntas frecuentes
 
@@ -225,16 +225,16 @@ Sin elegir **Desde** y **Hasta**, toma el último mes cargado. Cambiá el rango 
 Si dice "deducido de X de Y despachos", sale de lo que efectivamente se pagó. Si tiene asterisco y dice "por defecto", es un 21 % puesto hasta revisarlo.
 
 **¿Qué es el transporte "Vacío"?**
-Ítems que ARCA publica sin código de transporte. Todavía no se sabe qué significa; se muestra aparte.
+Ítems que ARCA publica sin código de transporte. ARCA no aclara qué significa; se muestra aparte.
 
 **¿Por qué algunos países aparecen como un número?**
-Porque todavía no se cargó el nombre de ese código. El sistema nunca inventa nombres.
+Porque ese código no tiene un nombre cargado. El sistema nunca inventa nombres.
 
 **¿El CSV baja sólo lo que veo?**
 Baja el mismo filtro y orden, pero todas las filas (hasta 100.000), no sólo las 200 de la pantalla.
 
 **¿Puedo cargar un mes nuevo desde acá?**
-No. La carga se hace desde la PC de Fer con los archivos descargados de ARCA; la pestaña Cargas sólo muestra qué hay y qué falta.
+No. La carga se hace aparte, por fuera del panel, con los archivos descargados de ARCA; la pestaña Cargas sólo muestra qué hay y qué falta.
 
 **¿Qué es un rubro y para qué sirve?**
 Un grupo de NCM con nombre. Sirve para filtrar Buscar y Descubrir por un tema (por ejemplo "Calefacción") sin escribir cada código.
@@ -243,7 +243,7 @@ Un grupo de NCM con nombre. Sirve para filtrar Buscar y Descubrir por un tema (p
 Hace falta el permiso «Armar rubros».
 
 **¿Dónde busco el producto en China?**
-La pantalla **Búsqueda en China** todavía no está hecha: figura como próximamente en el menú Sourcing.
+La pantalla **Búsqueda en China** figura como próximamente en el menú Sourcing: no se puede usar desde el sistema.
 
 ## Relacionado
 

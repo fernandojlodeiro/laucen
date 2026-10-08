@@ -81,11 +81,11 @@ Apretá **"Actualizar"** en la conversación: la vuelve a leer entera desde Merc
 
 ## Criterios y reglas
 
-- **Corte**: las preguntas hechas en Mercado Libre antes de las 21:35 del 3/10 y las conversaciones sin ningún mensaje posterior a esa hora no entran (están en Virtual Seller). Es el mismo corte de los pedidos.
+- **Corte**: las preguntas hechas en Mercado Libre antes del momento de corte (la fecha y hora desde la que la empresa gestiona sus ventas en Laucen) y las conversaciones sin ningún mensaje posterior a ese momento no entran: quedan en el sistema que se usaba antes. Es el mismo corte de los pedidos (ver [Canales](/config/canales)).
 
 - **Cómo entran**: Mercado Libre avisa cada pregunta y cada mensaje nuevo al instante, y además cada 30 minutos se revisan las preguntas pendientes por si se perdió algún aviso. Con **"Traer preguntas ahora"** se fuerza en el momento.
 - **Sin responder** = preguntas que Mercado Libre tiene como no respondidas. Si alguien la contesta desde Mercado Libre, o el interesado la borra, sale de la lista cuando se actualiza.
-- **La IA nunca contesta sola**: propone sola el texto apenas entra la pregunta o el mensaje (una vez; si falla, reintenta cada 30 minutos como mucho), pero lo mandás vos. La propuesta queda guardada en el cuadro hasta que respondas. "Proponer con IA" arma otra a pedido.
+- **Con el interruptor apagado, la IA no contesta sola**: propone sola el texto apenas entra la pregunta o el mensaje (una vez; si falla, reintenta cada 30 minutos como mucho), pero lo mandás vos. La propuesta queda guardada en el cuadro hasta que respondas. "Proponer con IA" arma otra a pedido.
 - **Qué sabe la IA para una pregunta**: el título, precio, stock en Mercado Libre, estado, si tiene envío gratis o es Full, los atributos, las variaciones y la descripción de la publicación; la ficha del producto en Laucen (descripción, marca, medidas, peso, atributos) y el **stock disponible del canal**; y las últimas 8 preguntas ya respondidas de esa misma publicación.
 - **Cómo escribe la IA una respuesta a una pregunta**: castellano rioplatense, cordial y breve (1 a 3 oraciones, nunca más de 600 caracteres), empieza con "Hola" y termina con un saludo corto. Respeta las reglas de Mercado Libre: nada de teléfonos, mails, direcciones, links, redes ni nombres de otras tiendas, y no invita a comprar por fuera. Usa sólo los datos que tiene: si un dato no está, no lo inventa (dice que lo consulta o sugiere ver la descripción); si preguntan por stock usa el disponible; si preguntan por envío dice lo que figura sin prometer fechas.
 - **Mensajes de posventa con IA**: usa el estado del pedido, sus líneas y el envío (estado, logística, tracking, entrega estimada) y la conversación. Hasta 350 caracteres (el límite de Mercado Libre), 1 a 4 oraciones, sin teléfonos, mails, links ni redes, sin arreglos por fuera de Mercado Libre y sin prometer fechas que no figuran; si el comprador reclama, primero empatía y una solución concreta.
@@ -98,7 +98,7 @@ Apretá **"Actualizar"** en la conversación: la vuelve a leer entera desde Merc
 ## Preguntas frecuentes
 
 **¿La IA contesta sola las preguntas?**
-No. Propone un texto (solo, o cuando apretás "Proponer con IA"); lo mandás vos con "Responder".
+Sólo si está prendido el interruptor "La IA contesta sola las preguntas" (ver "Respuesta automática"). Apagado, propone un texto (solo, o cuando apretás "Proponer con IA") y lo mandás vos con "Responder".
 
 **La IA dijo algo que no es cierto.**
 Corregí el texto antes de responder. La IA usa sólo los datos de la publicación y de la ficha: si la ficha está incompleta o mal, conviene corregirla.

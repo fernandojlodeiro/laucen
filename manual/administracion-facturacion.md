@@ -19,7 +19,7 @@ Las facturas no se cargan desde esta pantalla: nacen de un pedido (con el botón
 - Desde la ficha de un pedido ([Pedidos](/ventas/pedidos)): el número de la factura lleva a su detalle, y el botón **"PDF"** abre el PDF.
 - Desde [Configuración › Facturación (ARCA)](/config/arca), con el enlace **"Ver facturas"**.
 - Desde el estado de cuenta de un cliente en [Cuentas corrientes](/administracion/cuentas-corrientes): el concepto "Factura 00003-…" lleva al comprobante.
-- La dirección vieja /administracion/facturacion/config ya no tiene pantalla: lleva sola a [Configuración › Facturación (ARCA)](/config/arca).
+- La dirección /administracion/facturacion/config lleva sola a [Configuración › Facturación (ARCA)](/config/arca).
 
 ## Qué hay en la pantalla
 

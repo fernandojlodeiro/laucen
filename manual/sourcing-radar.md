@@ -169,7 +169,7 @@ La primera vez que alguien entra a una categoría en la semana, el sistema le pi
 
 **De dónde salen las tendencias.** Mercado Libre da, para cada categoría, una sola lista de hasta 50 palabras (en general 40) y la actualiza una vez por semana. El sistema la lee **una vez por categoría y por semana** y la guarda; no se pisa nada: cada semana queda como una lectura aparte. Si Mercado Libre responde que esa categoría no tiene tendencias, se guarda vacía para no volver a preguntar. "Todo Mercado Libre" también tiene su lista.
 
-**Los dos rankings.** Se arman por la posición en la lista de Mercado Libre, igual que los muestra la página de cada categoría (verificado el 27/9):
+**Los dos rankings.** Se arman por la posición en la lista de Mercado Libre, igual que los muestra la página de cada categoría:
 - **Más deseadas** = posiciones 1 a 20 ("Las búsquedas más deseadas"): lo que más gente buscó en la última semana. Mucho volumen y, en general, mucha competencia.
 - **Más populares** = posiciones 21 en adelante ("Las tendencias más populares"): según Mercado Libre, mide el aumento de búsquedas contra dos semanas atrás. Sirve para detectar lo que empieza a pegar.
 - La pestaña que abre por defecto es **Más populares**.

@@ -65,3 +65,13 @@ test("los enlaces del manual van a páginas que existen", async () => {
   }
   assert.deepEqual(rotos, [], `Enlaces a direcciones que no existen:\n${rotos.join("\n")}`);
 });
+
+test("el manual no nombra personas ni cuentas internas (es para cualquier empresa)", async () => {
+  const paginas = await paginasDelManual();
+  for (const p of paginas) {
+    const texto = `${p.resumen}\n${p.cuerpo}`;
+    assert.ok(!/\bFer\b/.test(texto), `${p.archivo}: nombra al dueño («Fer»)`);
+    assert.ok(!/\((?:[^()]*,\s*)?\d{1,2}\/\d{1,2}\)/.test(texto), `${p.archivo}: tiene una fecha de historia entre paréntesis («(7/10)»)`);
+    assert.ok(!/tachado\s*%|81,8/i.test(texto), `${p.archivo}: menciona el «tachado %» (se habla del descuento que ve el comprador)`);
+  }
+});

@@ -50,7 +50,7 @@ Sólo lo puede hacer otro superadministrador.
 2. Desde ese momento tiene todos los permisos, sin importar el rol (o vuelve a valer su rol).
 
 ### Suspender a alguien
-Apretá **"Suspender"** y confirmá: ya no puede entrar a la organización. **"Reactivar"** lo vuelve a habilitar.
+Apretá **"Suspender"** y confirmá: deja de poder entrar a la organización. **"Reactivar"** lo vuelve a habilitar.
 
 ## Criterios y reglas
 

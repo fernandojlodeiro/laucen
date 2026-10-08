@@ -4,14 +4,14 @@ menu: Coordinación › Bitácora · Para probar · Mercado Libre · Costos ML �
 ruta: /admin/bitacora
 rutas: /admin/bitacora, /admin/para-probar, /admin/meli, /admin/meli/apify, /admin/mercadopago, /admin/costos-ml, /admin/ventas-ml, /admin/china, /admin/piloto, /admin/piloto/[id], /admin/piloto/[id]/revision, /admin/piloto/[id]/validacion, /admin/diagnostico, /admin/limpieza, /admin/limpieza/ajustes, /admin/creaciones
 permiso: fer
-resumen: Herramientas internas sólo de Fer: bitácora y "para probar" (coordinación con las sesiones de Claude), conexión y bancos de prueba de Mercado Libre y Apify, costos de vender en ML, ventas por categoría, pruebas de búsqueda en China, el piloto ML → China → juez y el diagnóstico de la base.
+resumen: Herramientas internas, sólo para el dueño del sistema: bitácora y "para probar" (coordinación con las sesiones de Claude), conexión y bancos de prueba de Mercado Libre y Apify, costos de vender en ML, ventas por categoría, pruebas de búsqueda en China, el piloto ML → China → juez y el diagnóstico de la base.
 ---
 
 ## Para qué sirve
 
-La sección **Coordinación** del menú agrupa las herramientas internas del proyecto. No son funciones del sistema de gestión: son de uso exclusivo de Fer (el dueño de Laucen), para coordinar el trabajo con las sesiones de Claude (Code y Cowork), probar las conexiones con Mercado Libre, Apify y los sitios de China, y revisar la base de datos.
+La sección **Coordinación** del menú agrupa las herramientas internas del proyecto. No son funciones del sistema de gestión: son de uso exclusivo del dueño del sistema, para coordinar el trabajo con las sesiones de Claude (Code y Cowork), probar las conexiones con Mercado Libre, Apify y los sitios de China, y revisar la base de datos.
 
-- **Bitácora**: el canal de coordinación entre Fer y las sesiones (órdenes, decisiones, preguntas, por qué se hizo cada cosa y qué quedó pendiente).
+- **Bitácora**: el canal de coordinación entre el dueño del sistema y las sesiones (órdenes, decisiones, preguntas, por qué se hizo cada cosa y qué quedó pendiente).
 - **Para probar**: la cola de cosas nuevas que hay que ir a mirar en la app, con su resultado.
 - **Mercado Libre**: conectar la cuenta y ver qué devuelve la API de Mercado Libre; desde ahí, el banco de **Apify**.
 - **Costos ML**: lo que cuesta vender en Mercado Libre (comisiones, cargo fijo, envío gratis), leído todos los días.
@@ -19,19 +19,19 @@ La sección **Coordinación** del menú agrupa las herramientas internas del pro
 - **China — pruebas**: banco de pruebas de buscadores de 1688, Alibaba y AliExpress.
 - **Piloto**: rastrillaje experimental Mercado Libre → China → juez, con el costo puesto en Argentina.
 - **Diagnóstico**: revisa la conexión a la base de datos.
-- **Limpieza de datos**: tareas de una sola vez para dejar la base lista tras la carga de Virtual Seller (ver más abajo).
+- **Limpieza de datos**: tareas de una sola vez para dejar la base lista después de cargar los datos de Virtual Seller (ver más abajo).
 
 La pantalla definitiva de **Búsqueda en China** (menú Sourcing) todavía no existe: figura como **próximamente**. El Piloto y China — pruebas son los ensayos previos.
 
 ## Cómo se llega
 
-- Menú **Coordinación** (sólo le aparece a Fer): **Bitácora**, **Para probar**, **Mercado Libre**, **Costos ML**, **Ventas ML por categoría**, **China — pruebas**, **Piloto**, **Diagnóstico**.
+- Menú **Coordinación** (sólo le aparece al dueño del sistema): **Bitácora**, **Para probar**, **Mercado Libre**, **Costos ML**, **Ventas ML por categoría**, **China — pruebas**, **Piloto**, **Diagnóstico**.
 - El banco de Apify ([/admin/meli/apify](/admin/meli/apify)) se abre desde [Mercado Libre](/admin/meli), botón **Probar con Apify →**.
 - Cada piloto ([/admin/piloto](/admin/piloto) → **#número**) tiene tres pestañas: **Mercado Libre**, **Revisión** y **Validación**.
 - Desde la Bitácora hay un botón **🧪 Para probar**.
 - Cada pantalla tiene arriba a la izquierda **← Panel** (o **← Mercado Libre**, **← Pilotos**) para volver.
 
-Quién entra: sólo las direcciones de mail cargadas como dueño de Laucen (hoy, la de Fer). Cualquier otro usuario que abra una de estas direcciones vuelve al panel (o al inicio, en Bitácora y Para probar), aunque sea Admin de su organización. No dependen de los roles.
+Quién entra: sólo las direcciones de mail cargadas como dueño del sistema. Cualquier otro usuario que abra una de estas direcciones vuelve al panel (o al inicio, en Bitácora y Para probar), aunque sea Admin de su organización. No dependen de los roles.
 
 ## Qué hay en la pantalla
 
@@ -42,7 +42,7 @@ Quién entra: sólo las direcciones de mail cargadas como dueño de Laucen (hoy,
 - **Documentos publicados para Cowork**: los documentos que cada despliegue sube solo a la base para que Cowork los lea (por ejemplo el de convenciones del proyecto), con el commit, la fecha y el largo. Dice "(el de este deploy ✓)" si coincide con la versión en producción, o "no coincide" en rojo.
 - Desplegable **＋ Anotar una entrada**: **Tipo** (Entrega, Avance, Orden, Decisión, Pregunta, Respuesta, Bloqueo, Nota), **Título** (obligatorio), **Detalle**, **Por qué así y no de otra forma**, **Huecos que deja**, **Documento (opcional)** y el botón **Anotar**.
 - Filtros por tipo: **Todo** y uno por cada tipo.
-- Los **hilos**: cada entrada raíz con sus respuestas colgadas debajo (en orden). Cada entrada muestra: autor (fer, code, cowork), la sesión que la escribió (con el título que le puso Fer; si es una sesión de Code, tocarla la abre), el tipo, fecha y hora, **#número**, el documento si lo hay y la etiqueta **nuevo** si no la viste. Debajo: el detalle, "**Por qué:** …" y "**Huecos que deja:** …".
+- Los **hilos**: cada entrada raíz con sus respuestas colgadas debajo (en orden). Cada entrada muestra: autor (el dueño, Code o Cowork), la sesión que la escribió (con el título que le puso el dueño; si es una sesión de Code, tocarla la abre), el tipo, fecha y hora, **#número**, el documento si lo hay y la etiqueta **nuevo** si no la viste. Debajo: el detalle, "**Por qué:** …" y "**Huecos que deja:** …".
 - Si la entrada pide confirmación de lectura: un recuadro "Pide confirmación de lectura. Falta que la lean: …" o "La leyeron todos."
 - Botones por entrada: **✓ La leí** (si pide lectura y no la confirmaste), **✓ Visto** (o "Visto el dd/mm hh:mm"), y el desplegable **↩ Responder** con **Qué es** (Respuesta, Repregunta, Decisión, Orden, Nota), **En una línea**, **Lo que quieras agregar** y el botón **Responder**.
 - Columna **Huecos** (pendientes): **Abiertos (N)** / **Cerrados**. Cada pendiente con su prioridad (Alta, Media, Baja), estado (Abierto, En curso, Resuelto, Descartado), autor, detalle, "Por qué quedó", la nota de resolución, y un formulario **Estado** + **Guardar** con el desplegable **✎ Cómo se resolvió**.
@@ -52,8 +52,8 @@ Quién entra: sólo las direcciones de mail cargadas como dueño de Laucen (hoy,
 - Cinco contadores: **Por probar**, **De alta**, **Con fallas**, **Observados**, **Chequeadas** (y, si hay filtros, los mismos "Con los filtros puestos").
 - Desplegable **＋ Cargar algo para probar**: **Qué se hizo** (obligatorio), **Prioridad**, **Qué probar y dónde**, **Qué parte toca** (cajas: Búsqueda, Parámetros de búsqueda, Resultados, Cron, Panel, Importaciones, Por dentro), **Sesión** (opcional), **Por pedido de** y el botón **Cargar**.
 - Filtros: **Por probar** (el de entrada), **Con fallas**, **Observados**, **Anda**, **Todo**; **Prioridad** (Todas, Alta, Media, Baja); **Lo hizo** (Todos o cada autor); **Área** (desplegable con la cantidad de cada una) + **Ver**.
-- Cada hilo: **#número**, prioridad, estado, áreas, título, qué probar, "Lo hizo …", la sesión, "por pedido de …", fecha y versión ("build …"). Debajo, las **vueltas** numeradas **1a, 1b, 1c…** (Falló, Observado, Arreglado, Anda, Nota) con autor, sesión y fecha. Las vueltas escritas por Fer tienen **✎ Editar** (cambiar el texto y **Guardar**, o **🗑 Borrar esta vuelta**).
-- Botones del hilo: si está por probar, **✓ Anda**, **✗ Falló** (pide "Qué pasó") y **👀 Observado** (pide "Qué observaste"); si no, **↩ Volver a probar**. Siempre **💬 Nota**. Si el hilo lo cargó Fer, **🗑 Borrar**.
+- Cada hilo: **#número**, prioridad, estado, áreas, título, qué probar, "Lo hizo …", la sesión, "por pedido de …", fecha y versión ("build …"). Debajo, las **vueltas** numeradas **1a, 1b, 1c…** (Falló, Observado, Arreglado, Anda, Nota) con autor, sesión y fecha. Las vueltas escritas por el dueño tienen **✎ Editar** (cambiar el texto y **Guardar**, o **🗑 Borrar esta vuelta**).
+- Botones del hilo: si está por probar, **✓ Anda**, **✗ Falló** (pide "Qué pasó") y **👀 Observado** (pide "Qué observaste"); si no, **↩ Volver a probar**. Siempre **💬 Nota**. Si el hilo lo cargó el dueño, **🗑 Borrar**.
 - Recién marcado, el hilo muestra la etiqueta **Listo**.
 
 ### Mercado Libre
@@ -81,7 +81,7 @@ En el menú de herramientas internas, **"Aplicación de Mercado Pago"**. La apli
 ### Costos ML
 
 "Costos de vender en Mercado Libre". Pestañas:
-- **Cambios**: lo que Mercado Libre cambió desde la primera lectura (28/09/26), agrupado por día: **Qué**, **Detalle**, **Antes**, **Ahora** (hasta los últimos 300).
+- **Cambios**: lo que Mercado Libre cambió desde la primera lectura, agrupado por día: **Qué**, **Detalle**, **Antes**, **Ahora** (hasta los últimos 300).
 - **Comisiones (N)**: buscador de categoría + **Buscar**; por cada categoría donde tenés publicaciones activas (las que más tienen, arriba): **Publ.**, **Clásica**, **Clásica interés bajo**, **Premium 3x**, **Premium (6)**, **Premium 9x**, **Premium 12x**, **Desde** (y cuántos cambios tuvo).
 - **Cargo fijo (N)**: grilla de precios de venta (de $1.000 a $40.000) por peso del paquete (de 0,3 a 30 kg), más la columna **Sin peso**.
 - **Envío gratis (vendedor) (N)**: dos grillas, **Colecta / punto de despacho** y **Full**, de peso (0,3 a 70 kg) por precio (de $33.000 a $500.000).
@@ -203,10 +203,10 @@ En el menú de herramientas internas, **"Aplicación de Mercado Pago"**. La apli
 ## Criterios y reglas
 
 ### Acceso
-Estas herramientas no son funciones con permiso en el rol: las abre sólo la dirección de mail del dueño de Laucen. Si esa lista no está cargada, no entra nadie (falla cerrado).
+Estas herramientas no son funciones con permiso en el rol: las abre sólo la dirección de mail del dueño del sistema. Si esa lista no está cargada, no entra nadie (falla cerrado).
 
 ### Bitácora
-- Fer escribe siempre como **fer**; el autor no se elige.
+- Lo que se anota desde esta pantalla queda siempre a nombre del dueño; el autor no se elige.
 - **Un tema = un hilo**: la entrada raíz y sus respuestas, colgadas debajo en orden de número, sin importar cuántos niveles de respuesta haya.
 - **Para vos** = entradas de otros autores que todavía no marcaste como vistas. Responder una entrada también la marca vista.
 - La confirmación de lectura dice qué autores activos (distintos del que la escribió) todavía no la confirmaron.
@@ -218,7 +218,7 @@ Estas herramientas no son funciones con permiso en el rol: las abre sólo la dir
 - Marcar **Anda** pasa el estado a "Anda" y agrega la vuelta "Anda". **Falló** y **Observado** exigen texto y pasan a "Con fallas" / "Observado". **Nota** exige texto y no cambia el estado. **Volver a probar** lo pasa a "Por probar" con la nota "Vuelve a por probar." si no escribiste otra.
 - "Observado" no es una falla: un detalle chico; no cuenta entre lo que falló.
 - El arreglo de algo que falló no es una fila nueva: es una vuelta del mismo número (1a, 1b…).
-- Sólo se pueden editar o borrar las vueltas y los hilos escritos por Fer.
+- Sólo se pueden editar o borrar las vueltas y los hilos escritos por el dueño.
 
 ### Mercado Libre y Apify
 - La conexión guarda la llave de Mercado Libre de la organización; el sistema la renueva sola. Esta pantalla sólo **lee** de Mercado Libre: no cambia nada en las publicaciones.
@@ -228,9 +228,9 @@ Estas herramientas no son funciones con permiso en el rol: las abre sólo la dir
 - Banco de Apify: 20 resultados por actor, tope USD 0,25 por actor; no arranca una corrida si hay otra de hace menos de 5 minutos.
 
 ### Costos ML
-- Todos los días a las **6:30** (hora argentina) se le pregunta a la API de Mercado Libre, con la cuenta de Fer, cuánto cuesta vender, y se guarda **sólo lo que cambió**, con la fecha desde la que vale.
+- Todos los días a las **6:30** (hora argentina) se le pregunta a la API de Mercado Libre, con la cuenta conectada, cuánto cuesta vender, y se guarda **sólo lo que cambió**, con la fecha desde la que vale.
 - La corrida va en partes: Referencias, Cargo fijo, Envío gratis y Comisiones. Si no termina en un turno, la base la sigue cada 5 minutos hasta completarla.
-- **Comisiones**: sólo de las categorías donde Fer tiene publicaciones activas. El % no depende del precio. Las columnas de cuotas (interés bajo, 3x, 9x, 12x) muestran el total: Clásica + el cargo de esa opción de cuotas.
+- **Comisiones**: sólo de las categorías donde la cuenta tiene publicaciones activas. El % no depende del precio. Las columnas de cuotas (interés bajo, 3x, 9x, 12x) muestran el total: Clásica + el cargo de esa opción de cuotas.
 - **Cargo fijo**: por unidad vendida en publicación clásica, además del %; se cobra debajo del precio de envío gratis; depende del precio y, si se informa, del peso.
 - **Envío gratis**: lo que paga el vendedor, obligatorio desde $ 33.000, igual a todo el país, ya con la bonificación de MercadoLíder. Con caja voluminosa, Mercado Libre cobra por peso volumétrico (largo × ancho × alto ÷ 4.000).
 - "Cambios guardados": filas nuevas porque algo cambió (la primera vez, todo). "Sin respuesta": consultas que Mercado Libre no contestó; queda el último valor conocido.
@@ -257,10 +257,10 @@ Estas herramientas no son funciones con permiso en el rol: las abre sólo la dir
    - **Marítimo**: si el flete aéreo es ≥ "Entra seguro" (por defecto 20 %) → **entra seguro** (el avión sale caro); entre "Zona gris" (15 %) y el seguro → **zona gris**; por debajo de la zona gris → **fuera** (conviene traerlo en avión).
    - **Aéreo**: al revés: ≤ seguro → seguro; ≤ gris → gris; más caro → fuera.
    - Lo que queda **fuera** no se busca en China ni pasa por el juez. Sin caja estimada, se busca igual.
-4. **China**: busca en Alibaba (los pilotos nuevos), de a 4 productos, respetando el **Tope de gasto de Apify** de todo el piloto (por defecto US$ 10).
-5. **Juez**: la IA (Gemini en los pilotos nuevos) marca cada candidato como "equiparable", "dudoso" o "no es", y elige uno. Si ninguno es el mismo producto, **se replantea la búsqueda una vez** con otras palabras.
+4. **China**: busca en Alibaba, de a 4 productos, respetando el **Tope de gasto de Apify** de todo el piloto (por defecto US$ 10).
+5. **Juez**: la IA (Gemini) marca cada candidato como "equiparable", "dudoso" o "no es", y elige uno. Si ninguno es el mismo producto, **se replantea la búsqueda una vez** con otras palabras.
 6. **Fichas**: de los "equiparables" (hasta 5, los más baratos según la búsqueda) se lee la publicación por dentro (precios por cantidad, variantes y caja). Una segunda mirada confirma si es el mismo producto (con **Doble modelo**, la hace Anthropic). Se descartan los de pedido mínimo mayor al **Pedido mínimo razonable** (por defecto 500). Gana el más barato, prefiriendo los que tienen precio claro (precios por cantidad, precio de la variante, precio estimado por la posición de la variante o precio por medida). El costo = unidades necesarias × precio + accesorios que falten. Si ninguno pasa la segunda mirada, se replantea la búsqueda una vez.
-7. **NCM y costo**: la NCM se clasifica **una sola vez por tipo de mercadería**; si Fer la corrige con el lápiz, queda la de Fer para todo ese tipo de mercadería de ahí en adelante.
+7. **NCM y costo**: la NCM se clasifica **una sola vez por tipo de mercadería**; si el usuario la corrige con el lápiz, queda la corregida para todo ese tipo de mercadería de ahí en adelante.
 
 **Control de coherencia.** Si el costo puesto en Argentina contra la venta en Mercado Libre da **menos de 50 % sobre el costo**, se considera que se comparó otro producto: se replantea la búsqueda una vez; si la nueva no encuentra otro, queda el anterior marcado "⚠ Comparación dudosa, revisar".
 
@@ -289,7 +289,7 @@ Muestra la forma de la conexión y prueba conectarse. Nunca muestra la contrase�
 ## Preguntas frecuentes
 
 **¿Por qué no veo la sección Coordinación en el menú?**
-Es sólo para el dueño de Laucen (por su mail). No se habilita con roles ni permisos.
+Es sólo para el dueño del sistema (por su mail). No se habilita con roles ni permisos.
 
 **¿Qué diferencia hay entre "✓ Visto" y "✓ La leí"?**
 "Visto" saca la entrada de "Para vos". "La leí" es la confirmación de lectura que piden algunas entradas importantes, para que las otras partes sepan que la leíste.
@@ -333,13 +333,13 @@ Todavía no existe: figura como próximamente en el menú Sourcing. El Piloto y 
 
 ## Limpieza de datos
 
-Pantalla [Limpieza de datos](/admin/limpieza) (menú **Coordinación**). Tareas de una sola vez. Las tarjetas que ya se usaron (pruebas, categorías, familias y basura de Virtual Seller, publicaciones fantasma, recuperar pausadas, productos sin publicación) se sacaron el 7/10; quedan dos:
+Pantalla [Limpieza de datos](/admin/limpieza) (menú **Coordinación**). Tareas de una sola vez:
 
-**Para revisar el lunes: ajustes de la carga de stock.** El botón **Ver ajustes a revisar** abre [Ajustes de la carga de stock](/admin/limpieza/ajustes). El archivo de stock de Virtual Seller del 3/10 no traía ubicaciones: para llevar cada producto a su cantidad, la carga sacó unidades primero de GENERAL y de A UBICAR y, cuando no alcanzaba, de ubicaciones reales de la estantería. La pantalla lista esos renglones (SKU, producto, ubicación, cuántas había, cuántas se sacaron y cuántas quedan) para cotejarlos con las estanterías. No cambia nada: si una unidad estaba en otra ubicación, se corrige con un movimiento de stock.
+**Ajustes de la carga de stock, para revisar.** El botón **Ver ajustes a revisar** abre [Ajustes de la carga de stock](/admin/limpieza/ajustes). El archivo de stock de Virtual Seller no traía ubicaciones: para llevar cada producto a su cantidad, la carga sacó unidades primero de GENERAL y de A UBICAR y, cuando no alcanzaba, de ubicaciones reales de la estantería. La pantalla lista esos renglones (SKU, producto, ubicación, cuántas había, cuántas se sacaron y cuántas quedan) para cotejarlos con las estanterías. No cambia nada: si una unidad estaba en otra ubicación, se corrige con un movimiento de stock.
 
 **Descripciones de Mercado Libre que faltan en los productos.** La descripción larga de una publicación no viene en la copia que Laucen guarda de cada publicación de Mercado Libre: se pide aparte. **Traer descripciones de ML** (de fondo) toma cada producto **activo** sin descripción que tenga publicaciones vinculadas y le pone la descripción de una de ellas (primero las comunes, después las de catálogo; la primera que tenga texto). Sólo lee de Mercado Libre y nunca pisa una descripción ya cargada. La tarjeta dice cuántos productos hay así; el cartel al terminar, cuántas se trajeron y cuántos no tienen descripción en ninguna publicación.
 
-**Notebooks: eliminar todas salvo las de la lista.** Se conservan sólo los SKU 81VS0001US, S532FA-SB77, F412DA-NH77, F412DA-NH77-1 (la de 12 GB, que en Laucen es F412DA-NH77-12GB), 15-EF0022NR, 14-DK1022WM, 15-DK0056WM, G3-3500, 15-DK0056WM-1, G3-3500-1 y la Lenovo 3 81WE011UUS (se vendió el 5/10 y queda activa en Laucen). Es notebook la de la categoría de Mercado Libre Notebooks o con título que empieza con "Notebook". El SKU se compara sin mayúsculas ni el "DE-" de las cuentas DEIROLAB, y vale cualquiera de la publicación (el suyo, el de sus variaciones o el del producto de Laucen al que está vinculada).
+**Notebooks: eliminar todas salvo las de la lista.** Se conservan sólo los SKU 81VS0001US, S532FA-SB77, F412DA-NH77, F412DA-NH77-1 (la de 12 GB, que en Laucen es F412DA-NH77-12GB), 15-EF0022NR, 14-DK1022WM, 15-DK0056WM, G3-3500, 15-DK0056WM-1, G3-3500-1 y la Lenovo 3 81WE011UUS (queda activa en Laucen). Es notebook la de la categoría de Mercado Libre Notebooks o con título que empieza con "Notebook". El SKU se compara sin mayúsculas ni el "DE-" de las cuentas DEIROLAB, y vale cualquiera de la publicación (el suyo, el de sus variaciones o el del producto de Laucen al que está vinculada).
 
 1. **En Mercado Libre**, una fila por cuenta con lo que Laucen tiene guardado (cuántas para eliminar, cuántas de la lista y, en rojo, las activas que no son de la lista).
    - **Revisar en ML (sólo lectura)**, primero: lee la cuenta entera en Mercado Libre por la API, de fondo, y deja en la fila la última revisión con su fecha: cuántas publicaciones tiene la cuenta, cuántas notebooks se eliminarían (por estado), cuántas son de la lista, cuántas activas quedan fuera de la lista, y **"Ver el detalle"**: cada publicación con su número (abre Mercado Libre ↗), estado, SKU, título y qué pasaría con ella. **No cambia nada** ni en Mercado Libre ni en Laucen.
@@ -350,14 +350,14 @@ Pantalla [Limpieza de datos](/admin/limpieza) (menú **Coordinación**). Tareas 
 
 Pantalla [Creaciones en ML](/admin/creaciones) (menú **Coordinación**), lo contrario de Limpieza: publicaciones que se crean en Mercado Libre por tandas. Muestra antes todo lo que se va a crear y el botón deja los lotes en la [Cola de Mercado Libre](/config/canales/cola) esperando el clic en «Mandar a Mercado Libre». Nada sale solo.
 
-**Altas del esquema de notebooks (3 planes).** La prueba de planes del 7/10 (una notebook distinta por cuenta con los cinco planes) mostró que, del lado del comprador, la Premium 3x se ve «Mismo precio en 6 cuotas» igual que la Premium común pero pagando menos comisión, la 9x se ve 9 cuotas y la 12x se ve 12 (en .BAIRES, tienda oficial, 18). Por eso quedan tres planes: **Clásica**, **Premium 3x** y **Premium 12x**; la Premium común y la 9x de la prueba se eliminaron. .BAIRES gana todas las Clásicas y todas las 12x; la 3x se reparte entre las otras cuentas.
+**Altas del esquema de notebooks (3 planes).** Con una prueba de planes (una notebook distinta por cuenta con los cinco planes) se vio que, del lado del comprador, la Premium 3x se ve «Mismo precio en 6 cuotas» igual que la Premium común pero pagando menos comisión, la 9x se ve 9 cuotas y la 12x se ve 12 (en .BAIRES, tienda oficial, 18). Por eso el esquema usa tres planes: **Clásica**, **Premium 3x** y **Premium 12x** (la Premium común y la 9x no se usan). .BAIRES gana todas las Clásicas y todas las 12x; la 3x se reparte entre las otras cuentas.
 
-La meta (Fer, 7/10): **los 7 modelos en las 5 cuentas, con sus 3 planes** (105 publicaciones). Los modelos: S532 de 8 GB y de 12 GB, F412 de 8 GB y de 12 GB, HP 15-EF de 8 GB y de 16 GB, y Dell G3 3500 de 8 GB. La tabla muestra, por modelo, cuenta y plan: SKU, plan, **Se publica a (tachado)**, **Con la campaña**, el descuento que se va a ver, comisión, stock disponible para la cuenta, de qué publicación se copia y si ya existe (una publicación **activa** de ese SKU y plan en esa cuenta), si ya está en la cola o si se crea. Una pausada vieja no cuenta: no vende.
+La meta: **los 7 modelos en las 5 cuentas, con sus 3 planes** (105 publicaciones). Los modelos: S532 de 8 GB y de 12 GB, F412 de 8 GB y de 12 GB, HP 15-EF de 8 GB y de 16 GB, y Dell G3 3500 de 8 GB. La tabla muestra, por modelo, cuenta y plan: SKU, plan, **Se publica a (tachado)**, **Con la campaña**, el descuento que se va a ver, comisión, stock disponible para la cuenta, de qué publicación se copia y si ya existe (una publicación **activa** de ese SKU y plan en esa cuenta), si ya está en la cola o si se crea. Una pausada vieja no cuenta: no vende.
 
 Las versiones con más memoria son **kits** en Laucen: el equipo de 8 GB + 1 memoria de 8 GB (SKU03498). Las Asus llegan a 12 GB con una memoria; la HP, a 16 GB. Cuando se vende una, baja el stock del equipo y de la memoria, y su stock es el menor entre los dos. Su Clásica es la de 8 GB con la competencia + $ 145.000 por los 4 GB más (+ $ 290.000 en la HP de 16).
 
 Criterios:
-- Cada alta copia nuestra publicación común de .BAIRES del modelo: título, fotos, características, garantía y descripción. La F412 lleva un nombre más corto, porque Mercado Libre acepta hasta 60 letras. Las de más memoria copian la de 8 GB y le cambian la memoria en el nombre, en las características y en la descripción. La G3 sale con el UPC de su caja (196105257545): el que tenían sus publicaciones (193905481088) es de una HP 14-dk, no de la Dell. La S532 (también la de 12 GB) sale con el UPC 192876286241 que encontró Cowork (hay que confirmarlo con una caja antes de mandar el lote). La F412 de 12 GB y la HP de 16 GB llevan el código del equipo: en Notebooks Mercado Libre lo exige. Sale publicada al **tachado** del modelo, sin campaña, con el stock disponible para esa cuenta. El tachado es uno solo para los planes del modelo: Clásica ÷ (1 − 45 %). Después, al meterlas en campaña, cada una baja a su precio de «Con la campaña» (las cuentas que no ganan el plan, 3 % más).
+- Cada alta copia nuestra publicación común de .BAIRES del modelo: título, fotos, características, garantía y descripción. La F412 lleva un nombre más corto, porque Mercado Libre acepta hasta 60 letras. Las de más memoria copian la de 8 GB y le cambian la memoria en el nombre, en las características y en la descripción. La G3 sale con el UPC de su caja (196105257545), no con el 193905481088, que es de una HP 14-dk. La S532 (también la de 12 GB) sale con el UPC 192876286241 (hay que confirmarlo con una caja antes de mandar el lote). La F412 de 12 GB y la HP de 16 GB llevan el código del equipo: en Notebooks Mercado Libre lo exige. Sale publicada al **tachado** del modelo, sin campaña, con el stock disponible para esa cuenta. El tachado es uno solo para los planes del modelo: Clásica ÷ (1 − 45 %). Después, al meterlas en campaña, cada una baja a su precio de «Con la campaña» (las cuentas que no ganan el plan, 3 % más).
 - Precio de la Clásica con la campaña: el piso del esquema de notebooks (competencia × 90 % en las Asus, × 80 % en la HP). Precio de cada plan con la campaña: deja, después de su comisión, lo mismo que la Clásica, más 2 % en la 3x y 4 % en la 12x.
 - Cada plan es una publicación propia: la Clásica, tipo Clásica; las de cuotas, tipo Premium con la marca del plan (3x o 12x), que es como Mercado Libre activa las cuotas. Mercado Libre las junta en el mismo producto y comparten el stock. Cada una es un renglón aparte del lote: si una falla, las otras salen igual.
 - El botón **Preparar N publicaciones** corre de fondo: comprueba cada publicación con Mercado Libre (no publica nada) y arma **un lote por cuenta**. Lo que Mercado Libre rechaza no entra y lo dice. El cartel dice los números de lote y dónde mandarlos: Configuración › Cola de Mercado Libre, pestaña «Lotes preparados». Lo que ya está en la cola no se vuelve a preparar. Si son muchas y se acaba el tiempo, el cartel dice cuántas faltan: se aprieta de nuevo y se preparan ésas.

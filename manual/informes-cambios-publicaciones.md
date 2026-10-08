@@ -13,7 +13,7 @@ Es la historia de los cambios de las publicaciones de Mercado Libre: cuándo una
 
 Sirve para responder preguntas como "¿quién pausó esta publicación?", "¿cuándo le subieron el precio?" o "¿qué cambió hoy en Mercado Libre que no hicimos nosotros?".
 
-**La historia arranca el 3/10/2026**: de antes no hay nada.
+**La historia arranca cuando la cuenta de Mercado Libre queda conectada a Laucen**: de antes no hay nada.
 
 ## Cómo se llega
 
@@ -125,7 +125,7 @@ Es sólo lectura: no modifica nada en Mercado Libre.
 Porque de entrada sólo están tildados Estado y Precio. Tildá **Stock** en "Qué cambió:".
 
 **¿Por qué no aparece un cambio de la semana pasada?**
-Porque el período de entrada son los últimos 7 días. Ampliá las fechas. Y recordá que la historia arranca el 3/10/2026.
+Porque el período de entrada son los últimos 7 días. Ampliá las fechas. Y recordá que la historia arranca cuando la cuenta quedó conectada a Laucen.
 
 **Dice "Fuera de Laucen" pero yo lo cambié desde Laucen.**
 Si el cambio llegó a Mercado Libre más de 15 minutos después de que la cola lo mandó, o si lo hiciste directo en Mercado Libre, se marca como fuera de Laucen.
@@ -153,7 +153,7 @@ Tocando el **número de publicación** (MLA…) se abre su historial: todo lo qu
 Arriba muestra la publicación como está hoy: título, cuenta, SKU (con enlace al producto), estado, precio y stock. Arriba a la derecha, **"Ver en Mercado Libre ↗"** la abre en Mercado Libre, en otra pestaña.
 
 La tabla junta, en orden de fecha, **un renglón por cada cosa que pasó**: lo que mandó Laucen y los cambios que resultaron en Mercado Libre (estado, stock, precio) en el mismo momento (menos de 2 minutos entre uno y otro) van en el mismo renglón, por ejemplo "Pausa · Laucen mandó pausar con 0 u. (enviado bien) · Activa → Pausada · Stock 1 → 0", con su "Por qué". Lo que entra en cada renglón:
-- **Estado, Precio y Stock**: cada cambio que tuvo (antes → después) y si lo hizo Laucen o alguien fuera de Laucen. «Fuera de Laucen» quiere decir que Laucen no le mandó nada en los 15 minutos anteriores: pudo ser alguien en Mercado Libre, Mercado Libre mismo u otro programa conectado a la cuenta. Se anotan desde el 3/10/2026.
+- **Estado, Precio y Stock**: cada cambio que tuvo (antes → después) y si lo hizo Laucen o alguien fuera de Laucen. «Fuera de Laucen» quiere decir que Laucen no le mandó nada en los 15 minutos anteriores: pudo ser alguien en Mercado Libre, Mercado Libre mismo u otro programa conectado a la cuenta. Se anotan desde que la cuenta quedó conectada a Laucen.
 - **"Laucen mandó: …"**: cada cosa que le mandó Laucen por la cola (estado, precio, stock, atributos, campañas…), con cómo salió: enviado bien, con error (y el motivo), esperando tu clic, en la cola o descartado; y si fue por tu clic, automático o una barrida.
 - **"Venta"**: cada venta de esta publicación, con el enlace al pedido.
 - **"Campaña: …"**: lo que pasó con ella en las campañas de Mercado Libre (entró, salió, cambió el precio o el estado).

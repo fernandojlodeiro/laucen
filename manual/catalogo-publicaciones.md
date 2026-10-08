@@ -123,7 +123,7 @@ Lápiz de la fila → en la columna SKU escribí el SKU o código de barras de L
 - al apretar **Traer publicaciones de ML**.
 El estado se traduce así: activa en ML → Activa; pausada → Pausada; cualquier otro → Cerrada. Una variación que Laucen pausó por falta de stock sigue activa en ML con 0 unidades, y acá se ve como Pausada.
 
-**Publicaciones borradas de Laucen**: las pausadas o cerradas que no tienen producto en Laucen se pueden borrar con su botón (al principio era sólo para las notebooks). Laucen recuerda cuáles se borraron y no las vuelve a guardar al traer publicaciones, ni con los avisos de Mercado Libre. Si alguna se reactiva en Mercado Libre, no aparece sola en Laucen: hay que sacarla de las borradas.
+**Publicaciones borradas de Laucen**: las pausadas o cerradas que no tienen producto en Laucen se pueden borrar con su botón. Laucen recuerda cuáles se borraron y no las vuelve a guardar al traer publicaciones, ni con los avisos de Mercado Libre. Si alguna se reactiva en Mercado Libre, no aparece sola en Laucen: hay que sacarla de las borradas.
 
 **Vinculación automática por SKU**: al traer (o al llegar un aviso de ML), cada publicación (o cada variación de una publicación) que todavía no está vinculada se vincula sola si su **SKU en ML** coincide con el SKU de una variación de Laucen, sin importar mayúsculas. El "SKU en ML" es el atributo SKU del vendedor de la publicación (o de su variación); si no lo tiene, el campo de código propio del vendedor. También vincula por una **equivalencia** de SKU (un SKU viejo u otro código en ML que la importación de Virtual Seller dejó apuntando a un SKU de Laucen). Lo que ya estaba vinculado no se toca: si querés cambiarlo, desvinculá y volvé a vincular. Si no coincide tal cual y el SKU de ML empieza con **"DE-"** (las cuentas DEIROLAB y TIENDAVIRTUAL S), se prueba también sin el "DE-": en Laucen esos SKU se cargaron sin el prefijo.
 
@@ -131,11 +131,11 @@ El estado se traduce así: activa en ML → Activa; pausada → Pausada; cualqui
 
 **Crear producto desde una publicación**: crea el producto con el título, la descripción, la marca y la foto principal de ML. Si la publicación no tiene variaciones, queda **Simple** con SKU = el SKU en ML (o el número MLA si no tiene). Si tiene variaciones, queda **Con variaciones**, con SKU base = el MLA y una variación por cada variación de ML (SKU = el de ML, o "MLA…-número de variación"), con sus atributos (color, talle…). Después lo vincula. No le pone familia, costo ni precios.
 
-**Desvincular** borra la vinculación (la publicación sigue en ML y en la lista de traídas, ahora "Sin vincular").
+**Desvincular** borra la vinculación (la publicación sigue en ML y en la lista de traídas, y pasa a "Sin vincular").
 
 **Disponible de una publicación** = el disponible de la variación sumando sólo los depósitos asignados al canal (los activos). Un kit, desde sus componentes.
 
-**Umbral de pausa** (con ese disponible o menos, el canal pausa la publicación): el de la publicación → el del producto → el del canal → el general de la empresa → 1. No puede ser negativo. La pausa y reactivación automáticas sólo corren en un canal si su interruptor está prendido en [Canales](/config/canales), y salen por la [cola de Mercado Libre](/config/canales/cola).
+**Umbral de pausa** (con ese disponible o menos, el canal pausa la publicación): el de la publicación → el del producto → el del canal → el general de la empresa → 0 (sin nada cargado, se pausa sólo cuando no queda stock). No puede ser negativo. La pausa y reactivación automáticas sólo corren en un canal si su interruptor está prendido en [Canales](/config/canales), y salen por la [cola de Mercado Libre](/config/canales/cola).
 
 **Nada se cambia en Mercado Libre desde estas pantallas**: sólo se lee de ML y se guarda el vínculo y el umbral en Laucen.
 

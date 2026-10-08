@@ -17,7 +17,7 @@ Laucen está armado para varias organizaciones (empresas): cada usuario pertenec
 
 - La página de inicio pública (la dirección principal del sistema, sin nada más) muestra "Laucen · Sitio en construcción" con dos botones: **"Iniciar sesión"** (va a [Entrar](/login)) y **"Registrarse"** (va a [Crear cuenta](/registro)).
 - Si entrás a cualquier pantalla del sistema sin haber iniciado sesión, te manda solo a [Entrar](/login).
-- El panel se usa desde **laucen.com**. Si entrás por laucen.com.ar, www.laucen.com o www.laucen.com.ar, te lleva solo a laucen.com (a la misma pantalla). laucen.vercel.app sigue andando, pero los links que manda el sistema (confirmar la cuenta, cambiar la contraseña) van siempre a laucen.com.
+- El panel se usa desde **laucen.com**. Si entrás por laucen.com.ar, www.laucen.com o www.laucen.com.ar, te lleva solo a laucen.com (a la misma pantalla). laucen.vercel.app también anda, pero los links que manda el sistema (confirmar la cuenta, cambiar la contraseña) van siempre a laucen.com.
 - **"Salir"** está en la barra de arriba, a la derecha (en la PC).
 
 ## Qué hay en la pantalla

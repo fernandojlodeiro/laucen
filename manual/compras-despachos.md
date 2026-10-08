@@ -110,7 +110,7 @@ En [Facturas de compra](/compras/facturas), con líneas libres (sin productos). 
 3. Para cada línea con producto:
    - **costo**: se actualiza el último costo y el promedio ponderado del producto (stock que había × promedio anterior + cantidad × costo nuevo, dividido el total; si no había stock, el promedio pasa a ser el costo nuevo);
    - **stock**: ingresa la cantidad a la ubicación general del depósito elegido.
-4. Queda **Registrado** con fecha y hora. Ya no se modifica.
+4. Queda **Registrado** con fecha y hora. Desde ese momento no se modifica.
 5. Se avisa a Mercado Libre el stock nuevo de esos productos (si el canal tiene prendida la sincronización de stock).
 
 El despacho **no** genera deuda en cuenta corriente: la deuda la dejan las facturas del exterior y del despachante.

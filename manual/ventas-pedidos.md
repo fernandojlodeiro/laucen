@@ -153,7 +153,7 @@ Errores típicos: "Elegí el cliente (o marcá «Consumidor final»).", "Línea 
 1. Abrí la ficha del pedido.
 2. En **"Operación"**, elegí en **"Pagó con"** el medio.
 3. Apretá **"Confirmar pago de $ …"**. Aviso: "Pago confirmado: el pedido quedó pagado."
-4. Si el pedido estaba Nuevo, pasa a **A preparar** (pagado) y entra en picking (el stock ya estaba reservado desde que nació; los pedidos viejos que no lo tenían, reservan acá). Si era «A cobrar» y ya venía avanzando (en preparación, preparado…), el estado no cambia: sólo el pago queda Pagado, y desde ahí se puede facturar.
+4. Si el pedido estaba Nuevo, pasa a **A preparar** (pagado) y entra en picking (el stock ya estaba reservado desde que nació). Si era «A cobrar» y ya venía avanzando (en preparación, preparado…), el estado no cambia: sólo el pago queda Pagado, y desde ahí se puede facturar.
 
 ### El cliente retira en el local
 
@@ -284,7 +284,7 @@ Un **presupuesto** es igual a un pedido (cliente, productos, precios, envío, to
 - Al pagarse, la reserva deja de vencer: el stock queda apartado hasta que se despacha.
 - Las ventas de Mercado Libre y los pedidos ya pagos no vencen.
 - Cambiar los días en Empresa vale para los pedidos nuevos; los que ya estaban siguen con su fecha.
-- **Todavía no**: avisarle al cliente por WhatsApp y mail 48 horas antes y el día del vencimiento (está anotado para más adelante).
+- Laucen no le avisa al cliente por WhatsApp ni por mail que su reserva está por vencer.
 - **Al llegar a Despachado** (o directamente a Entregado), la reserva se convierte en **venta**: ahí sale del stock.
 - **Al cancelar o devolver**, se **libera** lo que siga reservado (vuelve a estar disponible). Lo que ya se había vendido (un pedido despachado) no vuelve solo: la mercadería que regresa entra por la recepción de la devolución.
 - **De qué depósito sale**: el que tenga el pedido; si no tiene, el primer depósito activo asignado al canal (por prioridad); si el canal no tiene, el primer depósito activo de la organización (los propios primero). Las ventas de Mercado Libre por **Full** salen del depósito Full del canal.
@@ -298,7 +298,7 @@ Un **presupuesto** es igual a un pedido (cliente, productos, precios, envío, to
 ### «A cobrar» y «A convenir»: pedidos que no esperan el pago
 
 - **«A cobrar»** es un pedido que se paga **en efectivo al retirar o al entregar**. No espera el pago: **reserva el stock apenas se crea** y **entra en picking estando Nuevo**. El pago queda «A cobrar» hasta que se confirma el cobro.
-- Un pedido cargado a mano con **"A cobrar (a convenir)"** queda «A cobrar». También queda «A cobrar» cualquier pedido nuevo (que no sea de Mercado Libre) con pago pendiente y medio **efectivo**. Los pedidos viejos con pago pendiente en efectivo también se muestran como «A cobrar».
+- Un pedido cargado a mano con **"A cobrar (a convenir)"** queda «A cobrar». También queda «A cobrar» cualquier pedido nuevo (que no sea de Mercado Libre) con pago pendiente y medio **efectivo**.
 - **Se factura recién cuando se cobra**: mientras esté «A cobrar», el botón "Facturar" está deshabilitado y la facturación automática no lo toma. Al confirmar el cobro, si el pedido ya llegó al estado en que se factura, la facturación automática lo factura.
 - **«A convenir»** (cuenta corriente): los pedidos de la tienda con "Cuenta corriente / a convenir" y los cargados a mano con **"Cuenta corriente"**. También reservan y entran en picking sin esperar el pago, pero **se facturan como siempre** (la cuenta corriente se arma con la factura). **Entran en picking sólo si el límite de crédito del cliente lo cubre** (ver [Clientes](/ventas/clientes), "Límite de crédito"); si no, quedan **frenados**: en la lista, al lado del estado dice **"frenado por cuenta corriente"** (en rojo) y en la ficha, en "Operación", **"Frenado por la cuenta corriente: …"** con el motivo.
 - En la ficha, un «A cobrar» muestra el cartel ámbar **"A COBRAR $ …"** con el total en pesos.
@@ -346,7 +346,7 @@ Si una venta de Mercado Libre trae un artículo que no está vinculado a un prod
 - **Líneas**: las del pedido, con el IVA de cada producto (21 % si el producto no tiene otro). El **costo de envío** que pagó el comprador va como una línea más "Envío", con IVA 21 %. En una factura C no se discrimina IVA.
 - **Facturación automática**: si está prendida en [Facturación (ARCA)](/config/arca), cada pedido se factura solo al llegar al estado elegido ahí (**Pagado**, que en la lista se ve como «A preparar»; **Preparado** o **Despachado**). Al prenderla no se facturan los pedidos que ya habían pasado. Los «A cobrar» esperan al cobro.
 - Un comprobante que quedó con error se reintenta solo, hasta 5 veces.
-- **Subida a Mercado Libre**: la factura de una venta de Mercado Libre se sube sola a la venta si el canal tiene prendido "Subir facturas a Mercado Libre" (es un clic de Fer en la configuración del canal); si no, con el botón **"Subir factura a Mercado Libre"** de la ficha. Todo sale por la [cola de Mercado Libre](/config/canales/cola). Una factura ya subida no se vuelve a subir.
+- **Subida a Mercado Libre**: la factura de una venta de Mercado Libre se sube sola a la venta si el canal tiene prendido "Subir facturas a Mercado Libre" (prenderlo es tu clic en la configuración del canal); si no, con el botón **"Subir factura a Mercado Libre"** de la ficha. Todo sale por la [cola de Mercado Libre](/config/canales/cola). Una factura ya subida no se vuelve a subir.
 - Estados de "Factura en ML": **Subida a ML** (✓), **Pendiente de subir**, **Subiendo** o **Preparada, falta tu clic** (⏳), **Con error** (⚠), **Falta subirla** o **No se subió (descartada)** (○).
 
 ### Comisión, cargos de Mercado Libre y neto
