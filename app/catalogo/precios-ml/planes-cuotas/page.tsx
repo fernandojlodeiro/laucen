@@ -13,8 +13,8 @@ import {
 } from "@/app/componentes/erp";
 import { formatear } from "@/lib/moneda";
 import { formatearNumero } from "@/lib/numeros";
-import { gruposPlanes, barreraPlanes, comisionReferencia, type GrupoPlanes } from "@/lib/precios-ml/grupos";
-import { PLANES, PLAN_INFO, precioPlan, type Comisiones } from "@/lib/precios-ml/motor";
+import { gruposPlanes, barreraPlanes, comisionReferencia, type GrupoPlanes, type Gana } from "@/lib/precios-ml/grupos";
+import { PLANES, PLAN_INFO, precioPlan, type Comisiones, type PlanOClasica } from "@/lib/precios-ml/motor";
 import { accionGuardarGrupo } from "./acciones";
 import { BarraPml } from "../comun";
 import { PLANES_PML, canalElegido } from "../lista";
@@ -41,23 +41,37 @@ export default async function PlanesCuotas({ searchParams }: { searchParams: Pro
         Abajo de ese precio, sólo la Clásica.
       </p>
       <div className="grid gap-4">
-        {grupos.map((g) => <Grupo key={g.id} g={g} canal={canal?.id ?? null} editando={sp.editar === `g${g.id}`} referencia={referencia.get(g.id) ?? null} />)}
+        {grupos.map((g) => <Grupo key={g.id} g={g} canal={canal?.id ?? null} cuentas={canales.map((c) => ({ id: c.id, nombre: c.nombre }))}
+          editando={sp.editar === `g${g.id}`} referencia={referencia.get(g.id) ?? null} />)}
         {!grupos.length && <p className="text-xs text-[#5C6B76]">Todavía no hay grupos de planes.</p>}
       </div>
       <p className="text-[11px] text-[#5C6B76] mt-3">
         <b>Comisión extra sobre la Clásica</b>: cuántos puntos más que la Clásica cobra Mercado Libre por ese plan, en la categoría con más productos publicados del grupo (cada producto usa la de su propia categoría).
         <b> Cuotas que ve el comprador</b>: Mercado Libre no lo informa y cambia según la categoría y las fechas especiales; se carga a mano mirando una publicación y conviene volver a chequearlo.
         <b> % extra sobre la Clásica</b>: cuánto más tiene que dejarte ese plan, después de su comisión, que lo que te deja la Clásica. Precio del plan = Clásica × (1 − comisión de la Clásica) ÷ (1 − comisión del plan) × (1 + % extra).
-        Quién gana entre las cuentas y el descuento que ve el comprador van en las otras pestañas de <Link href="/catalogo/precios-ml" className="text-[#16577F] hover:underline">Precios en Mercado Libre</Link>; en la vista previa se ve qué cambia en cada publicación antes de mandarlo.
+        <b> Quién gana</b>: tus cuentas venden lo mismo; para que no compitan entre ellas, una sola tiene el precio más bajo de cada publicación (la Clásica y cada plan) y las demás van el % de abajo más caras. «Rota» reparte los productos parejo entre las cuentas que no ganan nada fijo en el grupo (cada producto, siempre la misma). Un producto o una categoría puede tener otra cosa en la pestaña Excepciones.
+        El descuento que ve el comprador va en las otras pestañas de <Link href="/catalogo/precios-ml" className="text-[#16577F] hover:underline">Precios en Mercado Libre</Link>; en la vista previa se ve qué cambia en cada publicación antes de mandarlo.
       </p>
     </Pantalla>
   );
 }
 
-function Grupo({ g, canal, editando, referencia }: { g: GrupoPlanes; canal: number | null; editando: boolean; referencia: { categoria: string; ruta: string | null; productos: number; comisiones: Comisiones } | null }) {
+function Grupo({ g, canal, cuentas, editando, referencia }: { g: GrupoPlanes; canal: number | null; cuentas: { id: number; nombre: string }[]; editando: boolean; referencia: { categoria: string; ruta: string | null; productos: number; comisiones: Comisiones } | null }) {
   const form = `grupo${g.id}`;
   const c = referencia?.comisiones ?? null;
   const usados = PLANES.filter((p) => g.planes[p].usar).length;
+  // Quién gana (Fer, 8/10): una cuenta fija o «Rota» (los productos se reparten parejo entre las cuentas que no ganan nada fijo).
+  const textoGana = (x: Gana) => (x === "rota" ? "Rota" : cuentas.find((c) => c.id === x)?.nombre ?? "—");
+  const celdaGana = (p: PlanOClasica) => (
+    <td className={TD}>
+      {editando
+        ? <select name={`${p}_gana`} defaultValue={String(g.gana[p])} className={`${CAMPO} w-40`} aria-label={`Quién gana ${p === "clasica" ? "la Clásica" : PLAN_INFO[p].nombre}`}>
+            <option value="rota">Rota</option>
+            {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
+        : <ValorVista className="w-40">{textoGana(g.gana[p])}</ValorVista>}
+    </td>
+  );
   return (
     <section className={CAJA}>
       <TituloSeccion titulo={<>{g.nombre} <span className="font-normal text-[#5C6B76]">({usados} plan{usados === 1 ? "" : "es"} además de la Clásica)</span></>}>
@@ -77,9 +91,17 @@ function Grupo({ g, canal, editando, referencia }: { g: GrupoPlanes; canal: numb
                 <th className={TH}>Plan</th><th className={TH}>Usar</th><th className={THN}>Comisión extra sobre la Clásica</th>
                 <th className={THN}>Cuotas que ve el comprador <span className="font-normal">(a chequear)</span></th><th className={THN}>% extra sobre la Clásica</th>
                 <th className={THN}>Con una Clásica de {formatear(EJEMPLO, "ARS")}</th>
+                <th className={TH} title="La cuenta que tiene el precio más bajo para esta publicación; las demás van más caras para no competir entre ellas">Quién gana</th>
               </tr>
             </thead>
             <tbody>
+              <tr className={TR}>
+                <td className={TD}>Clásica</td>
+                <td className={TD}><input type="checkbox" checked disabled readOnly aria-label="La Clásica va siempre" className="h-4 w-4 accent-[#16577F]" /></td>
+                <td className={TDN}>—</td><td className={TDN}>—</td><td className={TDN}>—</td>
+                <td className={TDN}>{formatear(EJEMPLO, "ARS")}</td>
+                {celdaGana("clasica")}
+              </tr>
               {PLANES.map((p) => {
                 const x = g.planes[p];
                 const extra = c ? c[p] - c.clasica : null;
@@ -102,11 +124,19 @@ function Grupo({ g, canal, editando, referencia }: { g: GrupoPlanes; canal: numb
                         : <ValorVista numero className="w-20 ml-auto">{x.margenPct != null ? pct(x.margenPct) : null}</ValorVista>}
                     </td>
                     <td className={TDN}>{ejemplo != null ? formatear(ejemplo, "ARS") : "—"}</td>
+                    {celdaGana(p)}
                   </tr>
                 );
               })}
             </tbody>
           </table>
+        </div>
+        <div className="flex items-center gap-2 mt-2 text-xs">
+          <span>Las cuentas que no ganan van</span>
+          {editando
+            ? <CampoNumero name="no_gana" valor={g.ajusteNoGana} tipo="pct" className={`${CAMPO} w-20`} />
+            : <ValorVista numero className="w-20">{pct(g.ajusteNoGana)}</ValorVista>}
+          <span>más caras.</span>
         </div>
       </form>
     </section>

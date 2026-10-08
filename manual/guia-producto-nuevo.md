@@ -77,7 +77,7 @@ El precio que cargás es siempre la **Clásica**: lo que paga el comprador en Me
 
 ### Paso 8 · Revisar las reglas de Mercado Libre del producto (si hace falta)
 
-En [Precios en ML](/catalogo/precios-ml), pestaña «Excepciones», **Nueva excepción** para el producto (por SKU) sólo si tiene que ser distinto de lo general de la cuenta: otro descuento que ve el comprador u otro «¿gana?» para la Clásica o un plan. Lo que quede vacío hereda. Qué planes lleva no se cambia por producto: sale del grupo de su categoría en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas). Para ver los números antes de publicar: [Vista previa](/catalogo/precios-ml/vista-previa) buscando el SKU.
+En [Precios en ML](/catalogo/precios-ml), pestaña «Excepciones», **Nueva excepción** para el producto (por SKU) sólo si tiene que ser distinto de lo general: otro descuento que ve el comprador que el de la cuenta, u otro «¿gana?» para la Clásica o un plan que el que da «Quién gana» de su grupo en [Planes de cuotas](/catalogo/precios-ml/planes-cuotas). Lo que quede vacío hereda. Qué planes lleva no se cambia por producto: sale del grupo de su categoría en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas). Para ver los números antes de publicar: [Vista previa](/catalogo/precios-ml/vista-previa) buscando el SKU.
 
 ### Paso 9 · La primera publicación
 
@@ -93,13 +93,12 @@ Si el producto ya existe en el **catálogo de Mercado Libre** con una marca que 
 
 1. Ficha → pestaña **Publicaciones** → **Publicar en todas las cuentas**.
 2. Revisá la tabla: por cuenta, la **Clásica** y cada **plan de cuotas** que le toca (los que usa el grupo de su categoría en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), si la Clásica es de $ 33.000 o más), a qué precio se publica, cuánto paga el comprador y **quién gana**:
-   - **.BAIRES** gana la Clásica y el plan del grupo que el comprador ve con **más cuotas**.
-   - Cada uno de los otros planes del grupo va a la cuenta que menos veces lo ganó.
-   - Las que no ganan van **3 % más caras** (para no competir entre tus cuentas).
+   - Quién gana cada precio sale de la excepción del producto, si tiene una; si no, de **«Quién gana» del grupo** del producto en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas) (una cuenta fija o «Rota»).
+   - Las que no ganan van el % del grupo más caras (por ejemplo, **3 %**), para no competir entre tus cuentas.
 3. **Preparar N publicaciones** (arriba a la derecha). Corre de fondo; al terminar, el cartel de abajo a la derecha dice qué lotes quedaron (uno por cuenta). Lo que ML rechace no entra y dice por qué.
 4. En la [Cola de Mercado Libre](/config/canales/cola), pestaña «Lotes preparados», cada lote → **Mandar a Mercado Libre**.
 
-Cada alta, si se conoce el producto de catálogo, pide además **entrar al catálogo**. Quién gana queda grabado en las excepciones del producto en [Precios en ML](/catalogo/precios-ml) (se cambia ahí con el lápiz).
+Cada alta, si se conoce el producto de catálogo, pide además **entrar al catálogo**. El botón no graba nada en el producto: quién gana se cambia en [Planes de cuotas](/catalogo/precios-ml/planes-cuotas) (para todo el grupo) o con una excepción en [Precios en ML](/catalogo/precios-ml) (para un producto o una categoría).
 
 ### Paso 11 · Campañas y control
 
@@ -114,7 +113,7 @@ Cada alta, si se conoce el producto de catálogo, pide además **entrar al catá
 
 ## Criterios y reglas
 
-**Lo que hay que decidir, en resumen:** tipo, familia, marca/modelo/código de barras, fotos, el precio de la Clásicas (y si va con tachado), las excepciones de Mercado Libre del producto si hace falta, y apretar los botones. Qué planes de cuotas lleva lo decide el grupo de su categoría en Planes de cuotas (paso "Antes de empezar"); quién gana lo reparte el botón.
+**Lo que hay que decidir, en resumen:** tipo, familia, marca/modelo/código de barras, fotos, el precio de la Clásicas (y si va con tachado), las excepciones de Mercado Libre del producto si hace falta, y apretar los botones. Qué planes de cuotas lleva lo decide el grupo de su categoría en Planes de cuotas (paso "Antes de empezar"); quién gana, la columna «Quién gana» de ese mismo grupo.
 
 **Qué sale solo y qué espera tu clic:**
 - Toda publicación nueva y todo cambio a Mercado Libre armado por un botón queda en un **lote** que espera **Mandar a Mercado Libre**.
@@ -126,7 +125,7 @@ Cada alta, si se conoce el producto de catálogo, pide además **entrar al catá
 
 **¿Por qué un producto sale sólo con la Clásica?** Porque su Clásica está debajo de $ 33.000, o porque el grupo de su categoría no usa ningún plan. Se revisa en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas).
 
-**¿Puedo cambiar después quién gana?** Sí: [Precios en ML](/catalogo/precios-ml), pestaña «Excepciones», lápiz del producto, campos «¿Gana? (si no, +%)» (0 = gana; 3 = no gana).
+**¿Puedo cambiar después quién gana?** Sí. Para todos los productos del grupo: [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), columna «Quién gana». Para un producto o una categoría puntual: [Precios en ML](/catalogo/precios-ml), pestaña «Excepciones», campos «¿Gana? (si no, +%)» (0 = gana; 3 = no gana; vacío = según el grupo).
 
 **¿El botón de todas las cuentas sirve para un producto que no tiene ninguna publicación?** No: primero hacé una (paso 9) y después volvé.
 

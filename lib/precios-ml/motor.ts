@@ -285,6 +285,11 @@ export type ReglasCanal = {
   planes: ReglasPlan[];
   volumen: FilaVolumen[];
   reglaStock: boolean;
+  /** «¿Gana?» del grupo del producto (Precios en ML › Planes de cuotas; Fer, 8/10): 0 si esta cuenta gana esa
+   *  publicación, +% si no. Se usa cuando ni el producto, ni sus categorías, ni lo general de la cuenta dicen nada. */
+  ajusteGrupo?: (lugar: Lugar) => Partial<Record<PlanOClasica, number>>;
+  /** La campaña propia vigente de la cuenta («Promociones Daitom»; Fer, 8/10), si hay. */
+  campanaPropia?: { id: string; nombre: string } | null;
 };
 
 /** Qué tiene que tener una publicación (y qué cambia). */
@@ -349,7 +354,8 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
   const avisos: string[] = [];
   const t = heredar(r.tachado, e.lugar, (f) => f.tachado_pct);
   const tachadoPct = Number(t.valor ?? 0);
-  const ajustePct = Number(heredar(r.tachado, e.lugar, (f) => (f.ajuste_pct == null ? null : Number(f.ajuste_pct))).valor ?? 0);
+  const delGrupo = r.ajusteGrupo?.(e.lugar) ?? {};
+  const ajustePct = Number(heredar(r.tachado, e.lugar, (f) => (f.ajuste_pct == null ? null : Number(f.ajuste_pct))).valor ?? delGrupo.clasica ?? 0);
   // La lista tiene la Clásica del esquema (Fer, 8/10); el tachado sale de ella (el mismo
   // en todos los canales y planes del modelo), y la Clásica de este canal, con su ajuste (si no gana).
   const base = e.clasica != null && e.clasica > 0 ? redondear(e.clasica) : null;
@@ -369,7 +375,7 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
     const aju = heredar(delPlan, e.lugar, (f) => (f.ajuste_pct == null ? null : Number(f.ajuste_pct)));
     const activo = act.valor === true;
     const margenPct = mar.valor ?? 0;
-    const ajuste = aju.valor ?? 0;
+    const ajuste = aju.valor ?? delGrupo[plan] ?? 0;
     // El plan sale de la Clásica de la lista (no de la de este canal) más su ajuste.
     const precio = base != null ? redondear(precioPlan(base, e.comisiones.clasica, e.comisiones[plan], margenPct) * (1 + ajuste / 100)) : null;
     const habilitado = activo && clasica != null && (min.valor == null || clasica >= min.valor);
@@ -448,10 +454,24 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
     // Para cambiar el precio hay que salir antes de las campañas en las que
     // está (ML no deja) y volver a entrar.
     if (pa.lista !== pa.venta) {
-      const c = campanasPara(pub.campanas, pa.venta!, pa.rol === "destacado" ? idsClasica : undefined);
+      // La campaña propia de la cuenta (Fer, 8/10) va sólo si ninguna de Mercado Libre acepta el precio; si
+      // aparece una de ML que lo acepta, sale de la propia y entra a la de ML.
+      const propia = r.campanaPropia ?? null;
+      const esPropia = (x: Campana) => !!propia && (x.id === propia.id || (x.tipo === "SELLER_CAMPAIGN" && x.nombre === propia.nombre));
+      const propiasAdentro = adentro.filter(esPropia);
+      const c = campanasPara(pub.campanas.filter((x) => !esPropia(x)), pa.venta!, pa.rol === "destacado" ? idsClasica : undefined);
       pa.salir = pa.cambiaPrecio ? adentro : c.salir;
       pa.entrar = pa.cambiaPrecio ? [...c.entrar.filter((x) => !c.quedan.includes(x)), ...c.quedan] : c.entrar;
-      if (!c.entrar.length && !c.quedan.length) {
+      if (c.entrar.length || c.quedan.length) {
+        for (const x of propiasAdentro) if (!pa.salir.includes(x)) pa.salir.push(x);
+      } else if (propia) {
+        const yaEsta = propiasAdentro.find((x) => x.id === propia.id && igual(x.precio, pa.venta));
+        if (!yaEsta || pa.cambiaPrecio) {
+          for (const x of propiasAdentro) if (!pa.salir.includes(x)) pa.salir.push(x);
+          pa.entrar = [...pa.entrar, { id: propia.id, tipo: "SELLER_CAMPAIGN", estado: null, nombre: propia.nombre, precio: null, min: null, max: null }];
+        }
+        if (!pa.entrar.length && !yaEsta) pa.avisos.push("Ninguna campaña acepta ese precio: el comprador pagaría el tachado.");
+      } else {
         pa.avisos.push(pub.campanas.length ? "Ninguna campaña acepta ese precio: el comprador pagaría el tachado." : "Sin campañas leídas: el comprador pagaría el tachado hasta que entre en una.");
       }
     } else {

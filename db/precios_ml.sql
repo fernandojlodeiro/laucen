@@ -266,3 +266,9 @@ language sql stable as $$
     (select g.id from ml_plan_grupo g where g.organizacion_id = p_org and g.familias && (select array_agg(id) from cadena) order by g.orden, g.id limit 1),
     (select g.id from ml_plan_grupo g where g.organizacion_id = p_org and g.familias = '{}' order by g.orden, g.id limit 1))
 $$;
+
+-- Quién gana, por grupo (Fer, 8/10): por cada publicación (clasica y cada plan) una cuenta fija (el id del
+-- canal) o "rota" (los productos se reparten parejo entre las cuentas que no ganan fijo nada del grupo); las
+-- que no ganan van ajuste_no_gana % más caras. Lo de Excepciones (por cuenta) manda sobre esto.
+alter table ml_plan_grupo add column if not exists gana jsonb not null default '{}';
+alter table ml_plan_grupo add column if not exists ajuste_no_gana numeric(6, 2) not null default 3 check (ajuste_no_gana between 0 and 50);

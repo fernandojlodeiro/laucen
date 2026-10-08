@@ -19,6 +19,7 @@ import {
 } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
 import { una } from "@/lib/erp/base";
+import { campanaPropiaDe, NOMBRE_CAMPANA_PROPIA } from "@/lib/precios-ml/campana-propia";
 import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import { fechaHora } from "@/app/ventas/formato";
 import { formatear } from "@/lib/moneda";
@@ -27,9 +28,9 @@ import { paginarEnMemoria } from "@/lib/lista";
 import { reglasCanal, heredadoExcepciones, excepcionesCanal, volumenCanal, alertasCanal, campanasBajoPisoCanal, sinCampanaCanal, type CanalMl, type Excepcion, type RangoVolumen } from "@/lib/precios-ml/datos";
 import { PLANES, PLAN_INFO, descuentoComprador, type Plan, type ReglasPlan } from "@/lib/precios-ml/motor";
 import { BarraPml, type VerPml } from "./comun";
-import { BASE_PML, PREVIA, LISTA_EXCEPCIONES_ML, LISTA_VOLUMEN_ML, canalElegido, textoEscalones } from "./lista";
+import { BASE_PML, PREVIA, PLANES_PML, LISTA_EXCEPCIONES_ML, LISTA_VOLUMEN_ML, canalElegido, textoEscalones } from "./lista";
 import {
-  accionGuardarGeneral, accionGuardarExcepcion, accionBorrarExcepcion, accionGuardarVolumen, accionBorrarVolumen, accionReplicarVolumen, accionInterruptor, accionSacarCampanas,
+  accionGuardarGeneral, accionCampanaPropia, accionGuardarExcepcion, accionBorrarExcepcion, accionGuardarVolumen, accionBorrarVolumen, accionReplicarVolumen, accionInterruptor, accionSacarCampanas,
 } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -78,6 +79,7 @@ export default async function PreciosMl({ searchParams }: { searchParams: Promis
 // ── Tachado y planes (lo general del canal) ─────────────────
 
 async function General({ org, canal, editando, aqui }: { org: string; canal: CanalMl; editando: boolean; aqui: string }) {
+  const propia = await campanaPropiaDe(org, canal.id);
   const [reglas, propios] = await Promise.all([reglasCanal(org, canal), una<{ n: number }>(`
     select count(distinct producto_id)::int n from (
       select producto_id from ml_regla_precio where organizacion_id = $1 and canal_id = $2 and nivel = 'producto' and ajuste_pct is not null
@@ -132,14 +134,32 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
           </div>
         </form>
         <p className="text-xs rounded-lg px-3 py-2 mt-2 bg-[#EEF4FA] text-[#16577F]">
-          Esto es <b>lo general de {canal.nombre}</b>: vale para todos sus productos que no tengan algo propio. Vacío = <b>gana</b> (sin recargo) y sin descuento.
-          Quién gana cada producto en particular se graba como excepción del producto (lo hace solo «Publicar en todas las cuentas»), y eso manda sobre lo general:
-          hoy {(propios?.n ?? 0).toLocaleString("es-AR")} producto{propios?.n === 1 ? "" : "s"} de esta cuenta tiene{propios?.n === 1 ? "" : "n"} su propio «¿gana?» — miralos en la pestaña <Link href={url(BASE_PML, { canal: canal.id, ver: "excepciones" })} className="underline">Excepciones</Link>.
+          <b>Quién gana se decide por grupo de categorías</b>, para todas las cuentas a la vez, en la pestaña <Link href={url(PLANES_PML, { canal: canal.id })} className="underline">Planes de cuotas</Link> (una cuenta fija o «Rota» para la Clásica y cada plan).
+          Lo de acá es sólo para forzar algo en <b>{canal.nombre}</b>: vacío = «según el grupo». Un producto o una categoría puede tener lo suyo en <Link href={url(BASE_PML, { canal: canal.id, ver: "excepciones" })} className="underline">Excepciones</Link>
+          (hoy {(propios?.n ?? 0).toLocaleString("es-AR")} producto{propios?.n === 1 ? "" : "s"} de esta cuenta), y eso manda sobre el grupo.
         </p>
         <p className="text-[11px] text-[#5C6B76] mt-2">
           Qué planes de cuotas lleva cada producto, desde qué Clásica, cuánto más tiene que dejar cada plan y cuántas cuotas ve el comprador se configura para todas las cuentas en{" "}
           <Link href="/catalogo/precios-ml/planes-cuotas" className="text-[#16577F] hover:underline">Precios en ML › Planes de cuotas</Link>.
           <b> ¿Gana?</b>: entre tus cuentas, una sola «gana» cada precio (la Clásica y cada plan) y las demás van un % más caras para no competir entre ellas (0 o vacío = gana; 3 = no gana, va 3 % arriba). Se puede cambiar por categoría o producto en Excepciones.
+        </p>
+      </section>
+
+      <section className={CAJA}>
+        {/* La campaña propia (Fer, 8/10): para que una publicación con descuento lo muestre aunque ML no le ofrezca campaña. */}
+        <TituloSeccion titulo={`Campaña propia «${NOMBRE_CAMPANA_PROPIA}»`}>
+          <BotonConfirmar accion={accionCampanaPropia} campos={{ canal: String(canal.id), volver: aqui }} clase={SUAVE}
+            texto={propia ? "Renovar ahora" : "Crear en esta cuenta"} pregunta={`¿Crear en Mercado Libre la campaña «${NOMBRE_CAMPANA_PROPIA}» en ${canal.nombre}?`} corriendo="Creando…" />
+          <BotonConfirmar accion={accionCampanaPropia} campos={{ canal: String(canal.id), todas: "1", volver: aqui }} clase={SUAVE}
+            texto="Crear en todas las cuentas" pregunta={`¿Crear «${NOMBRE_CAMPANA_PROPIA}» en las cuentas que no la tienen?`} corriendo="Creando…" />
+        </TituloSeccion>
+        <p className="text-xs">
+          {propia ? <>Vigente del {propia.desde.split("-").reverse().join("/")} al {propia.hasta.split("-").reverse().join("/")}.{canal.sincronizarPrecios ? " Se renueva sola unos días antes de vencer." : " Con «Sincronizar precios» apagado no se renueva sola: renovala con el botón antes de que venza."}</>
+            : <span className="text-[#5C6B76]">Esta cuenta todavía no tiene campaña propia.</span>}
+        </p>
+        <p className="text-[11px] text-[#5C6B76] mt-1">
+          Una publicación con descuento (publicada al tachado) que no está en ninguna campaña de Mercado Libre entra a esta campaña a su precio, así el comprador ve el descuento.
+          Cuando Mercado Libre le ofrece una campaña suya que acepta ese precio, sale de la propia y pasa a la de Mercado Libre. Los cambios salen como siempre: con «Preparar cambios» en la vista previa, o solos con «Sincronizar precios».
         </p>
       </section>
 
@@ -166,6 +186,7 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
 
 /** «¿Quién gana?»: 0 o vacío = gana; si no, cuánto más cara va esta cuenta. */
 function gana(a: number | null | undefined) {
+  if (a == null) return <span className="text-[#5C6B76]">según el grupo</span>;
   return !a ? <Estado texto="Gana" tono="verde" /> : <span>no gana, +{formatearNumero(a, "pct")} %</span>;
 }
 

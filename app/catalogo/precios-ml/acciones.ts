@@ -7,6 +7,7 @@
 
 import { lanzarTarea, deFondo } from "@/lib/tareas-fondo";
 import { prepararPlanesFaltantes, textoFaltantes } from "@/lib/precios-ml/faltantes";
+import { asegurarCampanaPropia, NOMBRE_CAMPANA_PROPIA } from "@/lib/precios-ml/campana-propia";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, id, texto, numero, entero, tildado } from "@/lib/erp/acciones";
@@ -245,5 +246,29 @@ export async function accionCrearFaltantes(fd: FormData) {
     revalidatePath(PREVIA);
     revalidatePath("/config/canales/cola");
     return textoFaltantes(r, c.nombre);
+  });
+}
+
+/** «Crear la campaña propia» (Fer, 8/10): crea en Mercado Libre «Promociones Daitom» en esta cuenta (o en todas).
+ *  Es un cambio en ML: sale con este clic. Después, con «Sincronizar precios» prendido, se renueva sola. */
+export async function accionCampanaPropia(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  const canal = id(fd, "canal");
+  const todas = fd.get("todas") === "1";
+  await intentar(volver(fd), async () => {
+    const canales = todas ? await canalesMl(s.org.id) : [await canalMl(s.org.id, canal)];
+    const hechas: string[] = [], errores: string[] = [];
+    for (const c of canales) {
+      try {
+        const r = await asegurarCampanaPropia(s.org.id, c.id);
+        hechas.push(`${c.nombre}: ${r.nueva ? "creada" : "ya tenía"} (hasta el ${r.campana.hasta.split("-").reverse().join("/")})`);
+      } catch (e) {
+        errores.push(`${c.nombre}: ${(e as Error).message}`);
+      }
+    }
+    limpiarCachePrevia();
+    revalidatePath(BASE_PML);
+    if (errores.length && !hechas.length) throw new ErrorErp(errores.join(" · "));
+    return `Campaña «${NOMBRE_CAMPANA_PROPIA}» — ${hechas.join(" · ")}${errores.length ? ` · No se pudo: ${errores.join(" · ")}` : ""}. Las publicaciones entran con «Preparar cambios» en la vista previa (o solas con «Sincronizar precios»).`;
   });
 }

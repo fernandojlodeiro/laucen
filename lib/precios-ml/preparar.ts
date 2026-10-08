@@ -11,6 +11,7 @@ import { coincideBusqueda } from "@/lib/busqueda";
 import { consulta, una } from "@/lib/erp/base";
 import { encolar, encolarLoteConBoton, type CambioMl } from "@/lib/mercadolibre/cola";
 import { calcularCanal, canalesMl, type Calculo } from "@/lib/precios-ml/datos";
+import { asegurarCampanaPropia } from "@/lib/precios-ml/campana-propia";
 import { CON_PRECIO, PLAN_INFO, pedidoCrear, pedidosPrecio, pedidoVolumen, queCambia, cadenaFamilias, type PropuestaPub } from "@/lib/precios-ml/motor";
 
 export type FiltroPrecios = { familia?: number | null; q?: string | null; comienza?: boolean };
@@ -122,6 +123,9 @@ export async function sincronizarPreciosMl(org: string, opts: { canal?: number; 
     const cuenta = await una("select 1 from meli_cuenta where organizacion_id = $1 and canal_id = $2 and estado = 'activa'", [org, c.id]);
     if (!cuenta) continue;
     res.canales++;
+    // La campaña propia (Fer, 8/10): si la cuenta ya tiene una, se renueva sola unos días antes de vencer.
+    const conPropia = await una("select 1 from canal where id = $1 and config ? 'campana_propia'", [c.id]);
+    if (conPropia) await asegurarCampanaPropia(org, c.id).catch((e) => console.error("[precios ml] campaña propia", c.nombre, e));
     const calculo = await calcularCanal(org, c.id, { variaciones: opts.variaciones });
     res.revisadas += calculo.propuestas.length;
     const { precios, volumen } = cambiosDe(c.id, calculo.propuestas);

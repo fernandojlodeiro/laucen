@@ -8,9 +8,9 @@
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, id, numero, entero, tildado } from "@/lib/erp/acciones";
-import { guardarGrupo, type ValoresGrupo } from "@/lib/precios-ml/grupos";
+import { guardarGrupo, PUBLICACIONES_GANA, type ValoresGrupo, type Gana } from "@/lib/precios-ml/grupos";
 import { sincronizarPreciosMl } from "@/lib/precios-ml/preparar";
-import { PLANES } from "@/lib/precios-ml/motor";
+import { PLANES, type PlanOClasica } from "@/lib/precios-ml/motor";
 import { limpiarCachePrevia, PLANES_PML } from "@/app/catalogo/precios-ml/lista";
 
 const BASE = PLANES_PML;
@@ -20,7 +20,10 @@ export async function accionGuardarGrupo(fd: FormData) {
   const grupo = id(fd, "grupo");
   const canal = id(fd, "canal") || null;
   await intentar(canal ? `${BASE}?canal=${canal}` : BASE, async () => {
-    const v = Object.fromEntries(PLANES.map((p) => [p, { usar: tildado(fd, `${p}_usar`), cuotasVisibles: entero(fd, `${p}_cuotas`), margenPct: numero(fd, `${p}_margen`) }])) as ValoresGrupo;
+    const planes = Object.fromEntries(PLANES.map((p) => [p, { usar: tildado(fd, `${p}_usar`), cuotasVisibles: entero(fd, `${p}_cuotas`), margenPct: numero(fd, `${p}_margen`) }]));
+    // Quién gana cada publicación: una cuenta o «rota» (Fer, 8/10).
+    const gana = Object.fromEntries(PUBLICACIONES_GANA.map((p) => { const x = fd.get(`${p}_gana`); return [p, Number(x) > 0 ? Number(x) : "rota"]; })) as Record<PlanOClasica, Gana>;
+    const v = { ...planes, gana, ajusteNoGana: numero(fd, "no_gana") } as unknown as ValoresGrupo;
     await guardarGrupo(s.org.id, grupo, v);
     limpiarCachePrevia();
     revalidatePath(BASE);

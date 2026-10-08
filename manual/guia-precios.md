@@ -61,16 +61,18 @@ O sea: cada plan deja, después de su comisión, **lo mismo que la Clásica más
 
 ### 6. Quién gana entre tus cuentas
 
-Las 5 cuentas venden lo mismo; para no competir entre ellas, **una sola gana cada precio** (la Clásica y cada plan) y las demás van **3 % más caras**:
-- **.BAIRES** gana la Clásica y el plan del grupo que el comprador ve con más cuotas.
-- Cada uno de los otros planes del grupo va a la cuenta que menos veces lo ganó (así lo reparte el botón **Publicar en todas las cuentas**).
-- Las demás cuentas van 3 % más caras en ese plan.
-- Se configura en [Precios en ML](/catalogo/precios-ml): columna «¿Gana? (si no, +%)» para toda la cuenta, o por categoría o producto en «Excepciones» (0 = gana; 3 = no gana).
+Tus cuentas venden los mismos productos. Si todas tuvieran el mismo precio, competirían entre ellas en Mercado Libre. Por eso, **en cada tipo de publicación (la Clásica y cada plan de cuotas) una sola cuenta tiene el precio más bajo: ésa gana**; las demás van un % más caras (por ejemplo, **3 %**).
+- Se decide **por grupo de categorías, para todas las cuentas a la vez**, en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas): en la columna «Quién gana», la Clásica y cada plan llevan una **cuenta fija** o **«Rota»**; debajo, «Las cuentas que no ganan van X % más caras».
+- **«Rota»** reparte los productos parejo entre las cuentas que no ganan nada fijo en ese grupo. Cada producto cae siempre en la misma cuenta: lo decide el producto, no cambia de un día para otro.
+- No se carga nada producto por producto.
+- Ejemplo: **Notebooks**: Clásica → ML .BAIRES, Premium común → Rota, Premium 3x → Rota, Premium 12x → ML .BAIRES. **Resto**: Clásica → ML .BAIRES, Premium común → Rota, Premium 9x → ML .BAIRES. Las que no ganan, +3 %.
+- Para forzar algo distinto: en [Precios en ML](/catalogo/precios-ml), columna «¿Gana? (si no, +%)» para toda una cuenta, o «Excepciones» para una categoría o un producto (0 = gana; 3 = no gana; vacío = según el grupo). Manda lo más específico: producto → su categoría → las de arriba → general de la cuenta → «Quién gana» del grupo.
 
 ### 7. Campañas y el piso
 
 - **El piso** de cada publicación es el precio que le da el esquema (la Clásica de la cuenta, o el precio de su plan). Laucen **nunca** la mete en una campaña por debajo del piso.
 - Entra a una campaña **sólo si el rango de precios que acepta la campaña incluye nuestro precio**; si no la acepta, no entra.
+- **Campaña propia** («Promociones Daitom», una por cuenta, se crea en [Precios en ML](/catalogo/precios-ml), pestaña «Descuento y quién gana»): si ninguna campaña de Mercado Libre acepta el precio, la publicación entra a la propia, así se ve el descuento. Cuando Mercado Libre le ofrece una suya que lo acepta, pasa a la de Mercado Libre.
 - **En campaña, el tachado no se toca**; para cambiar el precio (subir o bajar) la publicación sale de la campaña y vuelve a entrar al precio nuevo.
 - Campañas que se superponen: entra en todas las que acepten el precio; el comprador paga la más baja de las propias.
 - Las campañas que arma Mercado Libre con descuento compartido («Potencia tus ventas») **no** se usan para calcular. Si una campaña (propia o de ML) deja una publicación por debajo del piso —en las de ML cuenta sólo la parte que ponés vos—, aparece en [Precios en ML › Alertas](/catalogo/precios-ml) con el botón **Sacar de la campaña**.
@@ -87,8 +89,8 @@ Se puede definir por rango de Clásica ("desde 3 unidades, −5 %"), pero **hoy 
 
 ### 10. Qué es configurable y qué es fijo
 
-- **Se configura** en [Precios en ML](/catalogo/precios-ml), por cuenta y con excepciones por categoría o producto: el descuento que ve el comprador, «¿Gana?», descuento por volumen y los interruptores de cada cuenta. En [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), por grupo de categorías y para todas las cuentas: qué planes se usan, cuántas cuotas ve el comprador y el % extra de cada plan. En [Listas de precios](/catalogo/precios): las listas, sus bases y coeficientes y «Aplica descuentos».
-- **Fijo**: el mínimo de 5 % de descuento que pide ML; la barrera de $ 33.000 para los planes (sale de los costos de Mercado Libre y se ajusta sola); las comisiones (salen de Costos ML); el redondeo a pesos enteros; el reparto del botón «Publicar en todas las cuentas» (.BAIRES gana la Clásica y el plan con más cuotas, 3 % para la que no gana); una publicación con tachado nunca se baja a la Clásica; un cambio automático que dio error no se reintenta igual por 6 horas.
+- **Se configura** en [Precios en ML](/catalogo/precios-ml), por cuenta y con excepciones por categoría o producto: el descuento que ve el comprador, «¿Gana?» (para forzar quién gana en una cuenta, categoría o producto), descuento por volumen y los interruptores de cada cuenta. En [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), por grupo de categorías y para todas las cuentas: qué planes se usan, cuántas cuotas ve el comprador, el % extra de cada plan, **quién gana** la Clásica y cada plan (una cuenta o «Rota») y cuánto más caras van las que no ganan. En [Listas de precios](/catalogo/precios): las listas, sus bases y coeficientes y «Aplica descuentos».
+- **Fijo**: el mínimo de 5 % de descuento que pide ML; la barrera de $ 33.000 para los planes (sale de los costos de Mercado Libre y se ajusta sola); las comisiones (salen de Costos ML); el redondeo a pesos enteros; una publicación con tachado nunca se baja a la Clásica; un cambio automático que dio error no se reintenta igual por 6 horas.
 
 ### 11. Qué sale solo y qué espera tu clic
 
@@ -102,7 +104,7 @@ Lista Clásicas (la Clásica) **$ 1.256.226**, descuento 45 % (el comprador ve �
 1. Tachado = 1.256.226 ÷ 0,55 = **$ 2.284.047** (lo calcula el sistema).
 2. **.BAIRES** (gana la Clásica): publica al tachado, $ 2.284.047, y por campaña cobra **$ 1.256.226**.
 3. **Las otras 4 cuentas** (no ganan la Clásica): 1.256.226 × 1,03 = **$ 1.293.913**.
-4. Los planes del grupo Notebooks salen de la Clásica del esquema por la fórmula del punto 5, más el 3 % en las cuentas que no los ganan, y también se publican al tachado y bajan por campaña.
+4. Los planes del grupo Notebooks salen de la Clásica del esquema por la fórmula del punto 5, más el 3 % en las cuentas que no los ganan (según «Quién gana» del grupo), y también se publican al tachado y bajan por campaña.
 5. La Web minorista muestra $ 1.256.226 tachado y cobra 17 % menos (el descuento de la familia): $ 1.042.668. El Local cobra $ 1.256.226.
 
 ## Preguntas frecuentes

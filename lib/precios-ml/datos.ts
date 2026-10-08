@@ -10,7 +10,8 @@ import {
   type Campana, type Comisiones, type EntradaVariacion, type FilaComision, type FilaVolumen, type Propuesta, type ReglasCanal,
   type ReglasPlan, type ReglaTachado, type PubMl, type PlanOClasica,
 } from "@/lib/precios-ml/motor";
-import { gruposPlanes, barreraPlanes, reglasDeGrupos } from "@/lib/precios-ml/grupos";
+import { gruposPlanes, barreraPlanes, reglasDeGrupos, ajustesDeGrupos } from "@/lib/precios-ml/grupos";
+import { campanaPropiaDe } from "@/lib/precios-ml/campana-propia";
 
 export type CanalMl = {
   id: number; nombre: string; listaId: number | null; lista: string | null;
@@ -55,9 +56,10 @@ export async function reglasCanal(org: string, canal: CanalMl): Promise<ReglasCa
     consulta<FilaVolumen>(`select nivel, familia_id::int, producto_id::int, desde_precio::float8, hasta_precio::float8, escalones, sin_descuento
                              from ml_volumen_escala where organizacion_id = $1 and canal_id = $2 order by desde_precio`, [org, canal.id]),
   ]);
-  const [grupos, barrera] = await Promise.all([gruposPlanes(org), barreraPlanes()]);
+  const [grupos, barrera, canales] = await Promise.all([gruposPlanes(org), barreraPlanes(), canalesMl(org)]);
   planes.push(...reglasDeGrupos(grupos, barrera));
-  return { tachado, planes, volumen: volumen.map((v) => ({ ...v, escalones: normalizarEscalones(v.escalones) })), reglaStock: canal.reglaStock };
+  return { tachado, planes, volumen: volumen.map((v) => ({ ...v, escalones: normalizarEscalones(v.escalones) })), reglaStock: canal.reglaStock,
+    ajusteGrupo: ajustesDeGrupos(grupos, canal.id, canales.map((c) => c.id)), campanaPropia: await campanaPropiaDe(org, canal.id) };
 }
 
 /** Las comisiones vigentes por categoría de ML y el promedio (para las que
@@ -467,12 +469,16 @@ export async function heredadoExcepciones(org: string, canal: CanalMl, excepcion
     const lugar = { productoId: -1, familias: cadena };
     const t = heredar(reglas.tachado, lugar, (r) => (r.tachado_pct == null ? null : Number(r.tachado_pct)));
     const a = heredar(reglas.tachado, lugar, (r) => (r.ajuste_pct == null ? null : Number(r.ajuste_pct)));
+    // Sin nada cargado, «¿gana?» sale de «Quién gana» del grupo (Planes de cuotas): para un producto, el valor justo;
+    // para una categoría, el de la cuenta fija, o «rota» (depende de cada producto).
+    const grupo = reglas.ajusteGrupo?.({ productoId: e.producto_id ?? 0, familias: e.nivel === "producto" ? cadena : [e.familia_id!, ...cadena] }) ?? {};
+    const delGrupo = (p: PlanOClasica, x: { valor: number | null; origen: Origen | null }) =>
+      x.valor != null ? { valor: x.valor, de: de(x.origen) } : { valor: grupo[p] ?? 0, de: "de Quién gana del grupo" };
     const planes: Heredado["planes"] = {};
     for (const p of PLANES) {
-      const x = heredar(reglas.planes.filter((r) => r.plan === p), lugar, (r) => (r.ajuste_pct == null ? null : Number(r.ajuste_pct)));
-      planes[p] = { valor: x.valor ?? 0, de: de(x.origen) };
+      planes[p] = delGrupo(p, heredar(reglas.planes.filter((r) => r.plan === p), lugar, (r) => (r.ajuste_pct == null ? null : Number(r.ajuste_pct))));
     }
-    salida.set(e.clave, { tachado: { valor: t.valor ?? 0, de: de(t.origen) }, clasica: { valor: a.valor ?? 0, de: de(a.origen) }, planes });
+    salida.set(e.clave, { tachado: { valor: t.valor ?? 0, de: de(t.origen) }, clasica: delGrupo("clasica", a), planes });
   }
   return salida;
 }

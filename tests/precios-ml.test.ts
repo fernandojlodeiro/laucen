@@ -15,7 +15,7 @@ import {
   type FilaVolumen, type ReglaTachado, type ReglasPlan, type EntradaVariacion, type PubMl, type ReglasCanal,
   tablaVolumen, precioVendedorCampana, campanasBajoPiso, descuentoComprador, tachadoDeDescuento, type PropuestaPub,
 } from "@/lib/precios-ml/motor";
-import { reglasDeGrupos, type GrupoPlanes } from "@/lib/precios-ml/grupos";
+import { reglasDeGrupos, ganadorDe, ajustesDeGrupos, type GrupoPlanes } from "@/lib/precios-ml/grupos";
 
 // ── El motor (sin base) ─────────────────────────────────────
 
@@ -23,9 +23,11 @@ test("planes por grupo: Notebooks (familia) gana a Resto (general); desde la bar
   const plan = (usar: boolean, cuotas: number | null, margen: number | null) => ({ usar, cuotasVisibles: cuotas, margenPct: margen });
   const grupos: GrupoPlanes[] = [
     { id: 1, nombre: "Notebooks", familias: [3], nombresFamilias: ["Notebooks"], orden: 1,
-      planes: { premium: plan(true, 9, 3), "3x_campaign": plan(true, 6, 2), "9x_campaign": plan(false, null, null), "12x_campaign": plan(true, 18, 4) } },
+      planes: { premium: plan(true, 9, 3), "3x_campaign": plan(true, 6, 2), "9x_campaign": plan(false, null, null), "12x_campaign": plan(true, 18, 4) },
+      gana: { clasica: 1, premium: "rota", "3x_campaign": "rota", "9x_campaign": "rota", "12x_campaign": 1 }, ajusteNoGana: 3 },
     { id: 2, nombre: "Resto", familias: [], nombresFamilias: [], orden: 2,
-      planes: { premium: plan(true, 6, 8), "3x_campaign": plan(false, 3, null), "9x_campaign": plan(true, 12, 12), "12x_campaign": plan(false, 12, null) } },
+      planes: { premium: plan(true, 6, 8), "3x_campaign": plan(false, 3, null), "9x_campaign": plan(true, 12, 12), "12x_campaign": plan(false, 12, null) },
+      gana: { clasica: 1, premium: "rota", "3x_campaign": "rota", "9x_campaign": 1, "12x_campaign": 1 }, ajusteNoGana: 3 },
   ];
   const reglas: ReglasCanal = {
     tachado: [],
@@ -45,6 +47,16 @@ test("planes por grupo: Notebooks (familia) gana a Resto (general); desde la bar
   // El «¿gana?» del producto 7 en esta cuenta sigue valiendo: su Premium va 3 % más cara.
   const p7 = proponer(entrada(7, [3, 2], 1_000_000), reglas).planes.find((p) => p.plan === "premium")!;
   assert.equal(p7.precio, Math.round(precioPlan(1_000_000, 16.34, 29.7, 3) * 1.03));
+
+  // Quién gana por grupo: .BAIRES (1) fijo en la Clásica; la Premium «rota» entre 7, 8, 9 y 10 según el producto.
+  const canales = [1, 7, 8, 9, 10];
+  assert.equal(ganadorDe(grupos[1], "clasica", 8, canales), 1);
+  assert.deepEqual([100, 101, 102, 103, 104].map((p) => ganadorDe(grupos[1], "premium", p, canales)), [7, 8, 9, 10, 7]);
+  const enOcho = ajustesDeGrupos(grupos, 8, canales);
+  assert.deepEqual(enOcho({ productoId: 101, familias: [50] }), { clasica: 3, premium: 0, "3x_campaign": 0, "9x_campaign": 3, "12x_campaign": 3 });
+  // En el motor: sin nada propio, la Clásica de esta cuenta (que no gana) va 3 % más cara.
+  const r8: ReglasCanal = { ...reglas, planes: reglasDeGrupos(grupos, 33_000), ajusteGrupo: enOcho };
+  assert.equal(proponer(entrada(101, [50], 40_000), r8).clasica, Math.round(40_000 * 1.03));
 });
 
 const padres = new Map<number, number | null>([[10, null], [11, 10], [12, 11]]);
@@ -267,6 +279,26 @@ test("en campaña sin esquema (tachado 0): no la saca de la campaña (7/10)", as
   assert.equal(pa.cambiaPrecio, false);
   assert.deepEqual(pa.salir, []);
   assert.deepEqual(pedidosPrecio(pa), []);
+});
+
+test("campaña propia: entra si ninguna de ML acepta el precio; si aparece una de ML, sale de la propia y pasa a la de ML", () => {
+  const reglas: ReglasCanal = { tachado: [{ nivel: "producto", producto_id: 7, tachado_pct: 100 }], planes: [], volumen: [], reglaStock: true,
+    campanaPropia: { id: "C-PROPIA", nombre: "Promociones Daitom" } };
+  const comisiones = { clasica: 16, premium: 30, "3x_campaign": 25, "9x_campaign": 34, "12x_campaign": 38 };
+  const base = { variacionId: 1, productoId: 7, lugar: { productoId: 7, familias: [] }, clasica: 50_000, stock: 3, comisiones, comisionEstimada: false };
+  // Publicada al tachado (100.000) y sin campañas: entra a la propia a 50.000.
+  const [a] = proponer({ ...base, pubs: [pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 100_000, precioVentaMl: 100_000, campanas: [], priceToWin: null, catalogo: false })] }, reglas).pubs;
+  assert.deepEqual(a.entrar.map((c) => c.id), ["C-PROPIA"]);
+  assert.equal(a.venta, 50_000);
+  // Ya en la propia a ese precio: nada.
+  const propia = { id: "C-PROPIA", tipo: "SELLER_CAMPAIGN", estado: "started", nombre: "Promociones Daitom", precio: 50_000, min: null, max: null };
+  const [b] = proponer({ ...base, pubs: [pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 100_000, precioVentaMl: 50_000, campanas: [propia], priceToWin: null, catalogo: false })] }, reglas).pubs;
+  assert.deepEqual([b.entrar.length, b.salir.length], [0, 0]);
+  // ML le ofrece una que acepta el precio: sale de la propia y entra a la de ML.
+  const deMl = { id: "P-ML", tipo: "DEAL", estado: "candidate", nombre: "Semana", precio: null, min: 40_000, max: 60_000 };
+  const [c] = proponer({ ...base, pubs: [pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 100_000, precioVentaMl: 50_000, campanas: [propia, deMl], priceToWin: null, catalogo: false })] }, reglas).pubs;
+  assert.deepEqual(c.salir.map((x) => x.id), ["C-PROPIA"]);
+  assert.deepEqual(c.entrar.map((x) => x.id), ["P-ML"]);
 });
 
 // ── Contra la base ──────────────────────────────────────────

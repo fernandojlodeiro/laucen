@@ -7,21 +7,27 @@
 // abajo de eso, sólo la Clásica.
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
-import { PLANES, comisionesDe, type Comisiones, type FilaComision, type Plan, type ReglasPlan } from "@/lib/precios-ml/motor";
+import { PLANES, comisionesDe, type Comisiones, type FilaComision, type Lugar, type Plan, type PlanOClasica, type ReglasPlan } from "@/lib/precios-ml/motor";
+
+/** Quién gana una publicación en el grupo: una cuenta fija (id del canal) o «rota». */
+export type Gana = number | "rota";
+export const PUBLICACIONES_GANA = ["clasica", ...PLANES] as const;
 
 export type PlanGrupo = { usar: boolean; cuotasVisibles: number | null; margenPct: number | null };
 export type GrupoPlanes = {
   id: number; nombre: string; familias: number[]; nombresFamilias: string[]; orden: number;
   planes: Record<Plan, PlanGrupo>;
+  /** Quién gana la Clásica y cada plan, y cuánto más caras van las cuentas que no ganan. */
+  gana: Record<PlanOClasica, Gana>; ajusteNoGana: number;
 };
 
 const VACIO: PlanGrupo = { usar: false, cuotasVisibles: null, margenPct: null };
 
 /** Los grupos de la organización con sus planes (el grupo sin familias es «el resto»). */
 export async function gruposPlanes(org: string): Promise<GrupoPlanes[]> {
-  const filas = await consulta<{ id: number; nombre: string; familias: number[]; orden: number; nombres: string[] | null;
+  const filas = await consulta<{ id: number; nombre: string; familias: number[]; orden: number; nombres: string[] | null; gana: Record<string, unknown> | null; ajuste_no_gana: number;
     planes: Record<string, { usar: boolean; cuotas: number | null; margen: number | null }> | null }>(`
-    select g.id::int, g.nombre, g.familias::int[] familias, g.orden,
+    select g.id::int, g.nombre, g.familias::int[] familias, g.orden, g.gana, g.ajuste_no_gana::float8,
            (select array_agg(f.nombre order by f.nombre) from familia f where f.id = any(g.familias)) nombres,
            (select jsonb_object_agg(p.plan, jsonb_build_object('usar', p.usar, 'cuotas', p.cuotas_visibles, 'margen', p.margen_pct::float8))
               from ml_plan_grupo_plan p where p.grupo_id = g.id) planes
@@ -33,7 +39,40 @@ export async function gruposPlanes(org: string): Promise<GrupoPlanes[]> {
       const x = f.planes?.[p];
       return [p, x ? { usar: !!x.usar, cuotasVisibles: x.cuotas ?? null, margenPct: x.margen ?? null } : VACIO];
     })) as Record<Plan, PlanGrupo>,
+    gana: Object.fromEntries(PUBLICACIONES_GANA.map((p) => {
+      const x = f.gana?.[p];
+      return [p, Number(x) > 0 ? Number(x) : "rota"];
+    })) as Record<PlanOClasica, Gana>,
+    ajusteNoGana: Number(f.ajuste_no_gana ?? 3),
   }));
+}
+
+/** El grupo de un producto: el primero cuyas categorías contienen la suya (o una de arriba); si no, el resto. */
+export function grupoDeLugar(grupos: GrupoPlanes[], familias: number[]): GrupoPlanes | null {
+  return grupos.find((g) => g.familias.length && g.familias.some((f) => familias.includes(f))) ?? grupos.find((g) => !g.familias.length) ?? null;
+}
+
+/** La cuenta que gana una publicación de un producto: la fija del grupo o, con «rota», una de las cuentas que no
+ *  ganan nada fijo en el grupo, repartidas parejo por número de producto (siempre la misma para cada producto). */
+export function ganadorDe(g: GrupoPlanes, plan: PlanOClasica, productoId: number, canales: number[]): number | null {
+  const x = g.gana[plan];
+  if (x !== "rota") return canales.includes(x) ? x : null;
+  const fijas = new Set(Object.values(g.gana).filter((v): v is number => v !== "rota"));
+  const libres = canales.filter((c) => !fijas.has(c)).sort((a, b) => a - b);
+  const lista = libres.length ? libres : [...canales].sort((a, b) => a - b);
+  return lista.length ? lista[productoId % lista.length] : null;
+}
+
+/** «¿Gana?» por grupo para un canal, en el formato del motor: 0 si gana, +% si no. */
+export function ajustesDeGrupos(grupos: GrupoPlanes[], canal: number, canales: number[]): (lugar: Lugar) => Partial<Record<PlanOClasica, number>> {
+  return (lugar) => {
+    const g = grupoDeLugar(grupos, lugar.familias);
+    if (!g) return {};
+    return Object.fromEntries(PUBLICACIONES_GANA.map((p) => {
+      const ganador = ganadorDe(g, p, lugar.productoId, canales);
+      return [p, ganador == null || ganador === canal ? 0 : g.ajusteNoGana];
+    }));
+  };
 }
 
 /** Desde qué Clásica van planes: el precio en que ML empieza a dar envío gratis
@@ -79,7 +118,7 @@ export async function comisionReferencia(org: string): Promise<Map<number, { cat
   return new Map(filas.map((f) => [f.grupo, { categoria: f.categoria, ruta: f.ruta, productos: f.productos, comisiones: comisionesDe(f).valores }]));
 }
 
-export type ValoresGrupo = Record<Plan, { usar: boolean; cuotasVisibles: number | null; margenPct: number | null }>;
+export type ValoresGrupo = Record<Plan, { usar: boolean; cuotasVisibles: number | null; margenPct: number | null }> & { gana?: Record<PlanOClasica, Gana>; ajusteNoGana?: number | null };
 
 /** Graba los planes de un grupo. */
 export async function guardarGrupo(org: string, grupoId: number, v: ValoresGrupo): Promise<void> {
@@ -98,7 +137,9 @@ export async function guardarGrupo(org: string, grupoId: number, v: ValoresGrupo
       on conflict (grupo_id, plan) do update set usar = excluded.usar, cuotas_visibles = excluded.cuotas_visibles, margen_pct = excluded.margen_pct, actualizado_ts = now()`,
       [org, grupoId, plan, x.usar, x.cuotasVisibles, x.margenPct]);
   }
-  await consulta("update ml_plan_grupo set actualizado_ts = now() where id = $1", [grupoId]);
+  if (v.ajusteNoGana != null && !(v.ajusteNoGana >= 0 && v.ajusteNoGana <= 50)) throw new ErrorErp("Lo que van más caras las cuentas que no ganan tiene que estar entre 0 % y 50 %.");
+  await consulta(`update ml_plan_grupo set actualizado_ts = now(), gana = coalesce($2::jsonb, gana), ajuste_no_gana = coalesce($3, ajuste_no_gana) where id = $1`,
+    [grupoId, v.gana ? JSON.stringify(v.gana) : null, v.ajusteNoGana ?? null]);
 }
 
 /** Cuántas cuotas ve el comprador en una publicación (SQL para las listas): el
