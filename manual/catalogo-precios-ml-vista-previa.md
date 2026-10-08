@@ -9,7 +9,7 @@ resumen: Qué precio tendría cada publicación de una cuenta de Mercado Libre c
 
 ## Para qué sirve
 
-Muestra, publicación por publicación de una cuenta de Mercado Libre, **qué precio le corresponde** según las reglas de [Precios en Mercado Libre](/catalogo/precios-ml) (Clásica, tachado, planes de cuotas, destacado, volumen), **qué tiene hoy en ML** y **qué cambiaría**. También muestra las publicaciones de planes de cuotas que faltan y se podrían crear.
+Muestra, publicación por publicación de una cuenta de Mercado Libre, **qué precio le corresponde** según las reglas de [Precios en Mercado Libre](/catalogo/precios-ml) y de [Planes de cuotas](/config/planes-cuotas) (Clásica, tachado, planes de cuotas, destacado, volumen), **qué tiene hoy en ML** y **qué cambiaría**. También muestra las publicaciones de planes de cuotas que faltan y se podrían crear.
 
 Nada sale de acá: el botón «Preparar cambios» arma lotes que esperan tu clic en la [Cola de Mercado Libre](/config/canales/cola).
 
@@ -40,7 +40,7 @@ Un renglón de resumen: cuántas filas, cuántas **con cambios** (y cuántas son
 - **Plan**: como en [Publicaciones](/catalogo/publicaciones): el nombre que usa ML (Clásica, Premium 3x, Premium 12x…) y debajo «el comprador ve N cuotas».
 - **Papel**: qué rol tiene esa publicación (ver «Criterios y reglas»).
 - **Clásica**: el precio base.
-- **Cuenta**: de qué cuenta es la publicación (útil con «Todas las cuentas» tildado).
+- **Cuenta**: de qué cuenta es la publicación (útil con «Todas las cuentas» tildado). Cada fila lleva de fondo el color de su cuenta (se elige en [Canales](/config/canales)).
 - **Descuento**: el «% OFF» que ve el comprador («sin descuento» si no tiene) y, al pasar el mouse, de dónde viene la regla («general», «de la categoría …», «del producto»).
 - **Campañas**: una línea por campaña de la publicación: «● En curso» (con su precio; «(de ML)» si la armó Mercado Libre), «○ Programada», «→ Entraría» y «← Saldría» (lo que haría Laucen al preparar los cambios); «ninguna» si no tiene.
 - **Según Laucen**: el precio que le corresponde, dibujado como lo ve el comprador en ML (igual que en Publicaciones): **grande lo que paga** (la Clásica, el precio para ganar o el precio del plan), arriba **chico y tachado el precio publicado** (el tachado) y al lado el **% OFF**.
@@ -79,7 +79,7 @@ Elegí en **Papel** «Destacado» o «Nueva».
   - **Clásica**: la publicación Clásica. Va al tachado y entra a campaña a la Clásica.
   - **Destacado**: el plan de cuotas elegido para ir al precio para ganar; va con tachado y en las mismas campañas que la Clásica.
   - **Plan**: un plan habilitado no destacado; va a su precio por coeficiente, sin campaña.
-  - **Plan apagado**: un plan no activo o con la Clásica debajo de su mínimo; **no se toca**.
+  - **Plan apagado**: un plan que el grupo de categorías del producto no usa en [Configuración › Planes de cuotas](/config/planes-cuotas), o un producto con la Clásica debajo de $ 33.000 (el mínimo para los planes); **no se toca**.
   - **Sin tocar**: no se calcula (falta la Clásica, tipo de publicación desconocido).
   - **Nueva**: un plan habilitado sin publicación; se puede crear.
 - Las fórmulas (tachado, precio de cada plan, elección del destacado, volumen, campañas) están explicadas paso a paso, con un ejemplo, en [Precios en Mercado Libre](/catalogo/precios-ml).
@@ -99,7 +99,7 @@ Elegí en **Papel** «Destacado» o «Nueva».
 - «El comprador ve N cuotas en … y …: sobra uno (manda lo que ve el comprador).»
 - «Ningún plan cierra al precio para ganar de ML: no hay destacado…»
 - «Ninguna campaña acepta ese precio: el comprador pagaría el tachado.» / «Sin campañas leídas: el comprador pagaría el tachado hasta que entre en una.»
-- «El plan no está activo: no se toca.» / «Debajo del mínimo del plan (…): no se toca.»
+- «El plan no está activo: no se toca.» (el grupo del producto no lo usa) / «Debajo del mínimo del plan (…): no se toca.» (la Clásica no llega a $ 33.000)
 - «Tenía descuento por volumen y ya no le corresponde: sacalo a mano en ML.»
 - «No se puede crear: ninguna publicación de esta variación tiene el user product de ML.»
 - «Tipo de publicación desconocido: no se toca.»

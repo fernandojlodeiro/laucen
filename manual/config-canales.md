@@ -44,6 +44,7 @@ La primera vez que una organización sin ningún canal abre la pantalla, el sist
 - **"Buscar canal"**: busca mientras tipeás, con la caja "Comienza por", en todos los datos del canal: N.º, nombre, tipo, estado y lista de precios.
 - Columnas (se ordenan tocando el título): **Canal** (el nombre; tocarlo abre sus detalles abajo), **Tipo**, **Lista de precios** (enlace a esa lista; en rojo "sin lista" si no tiene), **Vende desde** (los depósitos, en orden de prioridad; en rojo "ningún depósito"), **Estado** (Activo / Pausado / Archivado), **Mercado Libre** (sólo para canales de ML: "Conectada" en verde o "Desconectada" en rojo, **seguido del apodo (nick) de la cuenta de ML conectada**; para el resto, "—"), **Factura con** (aparece apenas hay una razón social cargada: con cuál se factura lo que vende el canal; en rojo "sin razón social" si falta elegirla), **Umbral de pausa** ("hereda" si está vacío), **Stock a ML**, **Precios a ML** y **Facturas a ML** (sólo en las cuentas de Mercado Libre: los interruptores "Laucen manda el stock a ML y pausa al llegar al umbral", "Laucen manda los precios a ML solo" —el mismo que "Sincronizar precios" de Precios en ML; apagado, ningún precio sale salvo lo que mandes vos con tu clic; al prenderlo, la primera pasada corre de fondo y avisa con el cartel de abajo a la derecha— y "Subir facturas a Mercado Libre", ahí mismo; al tocarlos preguntan "Sí" / "No" antes de cambiar; para el resto de los canales, "—"), **Llave API** ("Tiene" o "sin llave").
 - Al final de cada fila, el **lápiz** (editar la fila ahí mismo) y el **tacho** (borrar, pregunta "¿Borrar el canal?" Sí / No).
+- Cada fila lleva de fondo el **color** de su canal (ver "Color del canal" en Criterios).
 - Abajo, el paginador de 50 en 50 y dos ayudas: qué es el umbral de pausa y qué es la llave API.
 
 ### Detalle de un canal (al tocar su nombre)
@@ -126,7 +127,7 @@ Si falta el nombre: "El canal necesita un nombre." El nombre no se puede repetir
 ### Cambiar la lista de precios, el estado o el umbral de un canal
 
 1. Apretá el **lápiz** de la fila del canal. La fila se convierte en campos.
-2. Cambiá **Nombre**, **Tipo**, **Lista de precios** (de ahí sale el precio con que vende el canal), **Factura con** (la razón social, obligatoria), **Estado** (Activo / Pausado / Archivado) o **Umbral de pausa** (vacío = "hereda").
+2. Cambiá **Nombre**, **Tipo**, **Lista de precios** (de ahí sale el precio con que vende el canal), **Factura con** (la razón social, obligatoria), **Estado** (Activo / Pausado / Archivado), **Umbral de pausa** (vacío = "hereda") o **Color** (tocá uno de los cuadraditos de la paleta).
 3. **"Guardar"** (o "Cancelar").
 4. En una cuenta de Mercado Libre, debajo de los campos están también los interruptores **Stock a ML**, **Precios a ML** y **Facturas a ML**: se prenden o apagan ahí mismo (con su "Sí" / "No"), sin tocar "Guardar".
 
@@ -218,6 +219,7 @@ Una vez cargadas las razones sociales (ver [Razones sociales](/config/razones-so
 - **Stock disponible del canal** = la suma de lo disponible en sus depósitos **activos**. Un depósito archivado sigue en la lista pero no suma.
 - **Prioridad de los depósitos**: el de número menor se usa primero. Cuando un pedido de ese canal tiene que reservar stock y no tiene depósito asignado, reserva en el depósito activo de menor prioridad del canal (si el canal no tiene ninguno, en el primer depósito propio activo). Las ventas de ML con logística Full salen del depósito tipo Full del canal (el de menor prioridad).
 - **Umbral de pausa**: con ese stock disponible **o menos**, la publicación se pausa. Se toma, en este orden, el primero que esté cargado: el de la **publicación** → el del **producto** → el del **canal** (el de esta pantalla) → el de la **organización** → **1**. No puede ser negativo.
+- **Color del canal**: cada canal tiene un color de fondo suave, distinto para cada uno, que se elige con el lápiz de su fila (paleta de cuadraditos). Un canal nuevo recibe solo el primer color libre. Toda pantalla que muestra datos de un canal pinta su fila (o su columna) con ese color, para distinguir las cuentas de un vistazo: [Publicaciones](/catalogo/publicaciones), la pestaña Publicaciones de la ficha del [producto](/catalogo/productos), [Pedidos](/ventas/pedidos), [Reclamos](/ventas/reclamos), [Envíos](/ventas/envios), [Facturación](/administracion/facturacion), la [Cola de Mercado Libre](/config/canales/cola), los informes de [Promociones](/informes/promociones), [Cambios en publicaciones](/informes/cambios-publicaciones) y [Rentabilidad](/informes/rentabilidad), la ficha del [cliente](/ventas/clientes), la [Vista previa de precios en Mercado Libre](/catalogo/precios-ml/vista-previa) y «Publicar en todas las cuentas» de la ficha del producto.
 - **Datos de ejemplo**: la primera vez que una organización sin canales abre la pantalla, se crean cuatro listas de precios (Mercado Libre, Web minorista, Mayorista, Local), un "Depósito propio" (sólo si no había ningún depósito activo) y cinco canales (Mercado Libre, Web minorista, Web mayorista, Local, Otro), cada uno vendiendo desde ese depósito con prioridad 1. Queda marcado: borrarlos no los vuelve a crear. El cartel amarillo se ve mientras quede algún canal de ejemplo con su nombre original.
 
 ### Cuentas contables del canal (se crean solas)
@@ -253,7 +255,7 @@ Prendido: cada factura y nota de crédito de una venta de ese canal, al autoriza
 
 ### Precios en Mercado Libre
 
-El interruptor de que los precios sigan a la publicación Clásica ("sincronizar precios") y el de leer el precio para ganar no están en esta pantalla: están en [Precios en Mercado Libre](/catalogo/precios-ml).
+El interruptor de que los precios sigan a la publicación Clásica ("sincronizar precios") y el de leer el precio para ganar no están en esta pantalla: están en [Precios en Mercado Libre](/catalogo/precios-ml). Qué planes de cuotas se crean, para todas las cuentas, se decide en [Configuración › Planes de cuotas](/config/planes-cuotas).
 
 ### Llave API
 

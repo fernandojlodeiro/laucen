@@ -4,7 +4,7 @@ menu: Catálogo › Listas de precios y Precios en ML (guía conceptual)
 ruta: /catalogo/precios-ml
 rutas: /catalogo/precios, /catalogo/precios-ml, /catalogo/precios-ml/vista-previa
 permiso: precios_ml_ver
-resumen: El sistema de precios entero, en conceptos: un solo precio cargado a mano por producto (la lista Clásicas) y de ahí, por reglas, el de cada canal, cada cuenta de Mercado Libre, cada plan de cuotas, el tachado, las campañas con su piso, quién gana entre las cuentas, la web y el local; qué se configura, qué es fijo y qué sale solo.
+resumen: El sistema de precios entero, en conceptos: un solo precio cargado a mano por producto (la lista Clásicas) y de ahí, por reglas, el de cada canal, cada cuenta de Mercado Libre, cada plan de cuotas (por grupo de categorías), el tachado, las campañas con su piso, quién gana entre las cuentas, la web y el local; qué se configura, qué es fijo y qué sale solo.
 ---
 
 ## Para qué sirve
@@ -13,7 +13,7 @@ Para entender **de dónde sale cada precio** que ve un comprador, en cualquier c
 
 ## Cómo se llega
 
-Las pantallas son [Catálogo › Listas de precios](/catalogo/precios), [Catálogo › Precios en Mercado Libre](/catalogo/precios-ml) (con su [Vista previa](/catalogo/precios-ml/vista-previa)) y la pestaña **Precios** de la ficha de cada producto.
+Las pantallas son [Catálogo › Listas de precios](/catalogo/precios), [Catálogo › Precios en Mercado Libre](/catalogo/precios-ml) (con su [Vista previa](/catalogo/precios-ml/vista-previa)), [Configuración › Planes de cuotas](/config/planes-cuotas) y la pestaña **Precios** de la ficha de cada producto.
 
 ## Criterios y reglas
 
@@ -51,19 +51,20 @@ Cambiar el precio en Clásicas cambia todos los canales. Cada canal dice con qu�
 
 ### 5. Los planes de cuotas: una publicación por plan
 
-En Mercado Libre, las cuotas sin interés son **publicaciones aparte** (Premium con la marca del plan): la de 3 cuotas (el comprador la ve "6 cuotas") y la de 12 cuotas, además de la Clásica. Cada una tiene su precio:
+En Mercado Libre, las cuotas sin interés son **publicaciones aparte**, además de la Clásica: Premium común, Premium 3x, Premium 9x y Premium 12x. Cuántas cuotas ve el comprador en cada una **depende de la categoría** (y cambia en fechas especiales): Mercado Libre no lo informa, así que se carga a mano. Cada plan tiene su precio:
 
-**Precio del plan = Clásica × (1 − comisión de la Clásica) ÷ (1 − comisión del plan) × (1 + margen extra)**
+**Precio del plan = Clásica × (1 − comisión de la Clásica) ÷ (1 − comisión del plan) × (1 + % extra)**
 
-O sea: cada plan deja, después de su comisión, **lo mismo que la Clásica más un margen**. Las comisiones son las reales de la categoría (las releva Costos ML todos los días).
+O sea: cada plan deja, después de su comisión, **lo mismo que la Clásica más un % extra**. Las comisiones son las reales de la categoría de cada producto (las releva Costos ML todos los días).
 
-**Qué planes lleva cada producto: por montos.** En cada cuenta, cada plan tiene **Activo** y **«Desde una Clásica de»**: un producto lleva el plan sólo si su Clásica llega a ese monto. Un producto barato sale sólo con la Clásica; uno caro, con todos.
+**Qué planes lleva cada producto: por grupo de categorías.** En [Configuración › Planes de cuotas](/config/planes-cuotas), para todas las cuentas a la vez, cada grupo de categorías (por ejemplo «Notebooks» y «Resto») dice qué planes usa, cuántas cuotas ve el comprador en cada uno y su % extra. Un producto lleva los planes de su grupo **sólo si su Clásica es de $ 33.000 o más** (desde ahí Mercado Libre da envío gratis); debajo, sale sólo con la Clásica.
 
 ### 6. Quién gana entre tus cuentas
 
 Las 5 cuentas venden lo mismo; para no competir entre ellas, **una sola gana cada precio** (la Clásica y cada plan) y las demás van **3 % más caras**:
-- **.BAIRES** gana la Clásica y la de 12 cuotas.
-- La de 3 cuotas se reparte entre las otras cuentas (el botón **Publicar en todas las cuentas** la da a la que menos gana).
+- **.BAIRES** gana la Clásica y el plan del grupo que el comprador ve con más cuotas.
+- Cada uno de los otros planes del grupo va a la cuenta que menos veces lo ganó (así lo reparte el botón **Publicar en todas las cuentas**).
+- Las demás cuentas van 3 % más caras en ese plan.
 - Se configura en [Precios en ML](/catalogo/precios-ml): columna «¿Gana? (si no, +%)» para toda la cuenta, o por categoría o producto en «Excepciones» (0 = gana; 3 = no gana).
 
 ### 7. Campañas y el piso
@@ -74,10 +75,11 @@ Las 5 cuentas venden lo mismo; para no competir entre ellas, **una sola gana cad
 - Campañas que se superponen: entra en todas las que acepten el precio; el comprador paga la más baja de las propias.
 - Las campañas que arma Mercado Libre con descuento compartido («Potencia tus ventas») **no** se usan para calcular. Si una campaña (propia o de ML) deja una publicación por debajo del piso —en las de ML cuenta sólo la parte que ponés vos—, aparece en [Precios en ML › Alertas](/catalogo/precios-ml) con el botón **Sacar de la campaña**.
 - Una publicación con tachado necesita campaña para cobrar la Clásica: sin campaña, el comprador pagaría el tachado. Laucen la mete sola en cuanto ML le ofrece una (lee las ofertas cada hora), si la cuenta tiene «Sincronizar precios» prendido.
+- **Una publicación con tachado que pierde su campaña sigue al precio tachado: nunca se baja a la Clásica**, porque después de una venta a ese precio Mercado Libre puede no dejar volver a subirlo y se perdería el descuento. A las 24 horas sin campaña aparece en [Precios en ML › Alertas](/catalogo/precios-ml) («Sin campaña hace más de 24 horas»).
 
 ### 8. El plan destacado (catálogo)
 
-En las publicaciones de catálogo, Mercado Libre informa el **precio para ganar** el recuadro. Laucen elige el plan que mejor cierra a ese precio (que deje al menos lo de la Clásica más su margen) y lo pone ahí; si deja de ganar, avisa en Alertas.
+En las publicaciones de catálogo, Mercado Libre informa el **precio para ganar** el recuadro. Laucen elige el plan que mejor cierra a ese precio (que deje al menos lo de la Clásica más su % extra) y lo pone ahí; si deja de ganar, avisa en Alertas.
 
 ### 9. Descuento por volumen
 
@@ -85,8 +87,8 @@ Se puede definir por rango de Clásica ("desde 3 unidades, −5 %"), pero **hoy 
 
 ### 10. Qué es configurable y qué es fijo
 
-- **Se configura** (en [Precios en ML](/catalogo/precios-ml), por cuenta y con excepciones por categoría o producto): el descuento que ve el comprador, planes activos, «Desde una Clásica de», margen extra, cuotas que ve el comprador, «¿Gana?», descuento por volumen y los interruptores de cada cuenta. En [Listas de precios](/catalogo/precios): las listas, sus bases y coeficientes y «Aplica descuentos».
-- **Fijo**: el mínimo de 5 % de descuento que pide ML; las comisiones (salen de Costos ML); el redondeo a pesos enteros; el reparto del botón «Publicar en todas las cuentas» (.BAIRES gana Clásica y 12 cuotas, 3 % para la que no gana); un cambio automático que dio error no se reintenta igual por 6 horas.
+- **Se configura** en [Precios en ML](/catalogo/precios-ml), por cuenta y con excepciones por categoría o producto: el descuento que ve el comprador, «¿Gana?», descuento por volumen y los interruptores de cada cuenta. En [Configuración › Planes de cuotas](/config/planes-cuotas), por grupo de categorías y para todas las cuentas: qué planes se usan, cuántas cuotas ve el comprador y el % extra de cada plan. En [Listas de precios](/catalogo/precios): las listas, sus bases y coeficientes y «Aplica descuentos».
+- **Fijo**: el mínimo de 5 % de descuento que pide ML; la barrera de $ 33.000 para los planes (sale de los costos de Mercado Libre y se ajusta sola); las comisiones (salen de Costos ML); el redondeo a pesos enteros; el reparto del botón «Publicar en todas las cuentas» (.BAIRES gana la Clásica y el plan con más cuotas, 3 % para la que no gana); una publicación con tachado nunca se baja a la Clásica; un cambio automático que dio error no se reintenta igual por 6 horas.
 
 ### 11. Qué sale solo y qué espera tu clic
 
@@ -100,7 +102,7 @@ Lista Clásicas (la Clásica) **$ 1.256.226**, descuento 45 % (el comprador ve �
 1. Tachado = 1.256.226 ÷ 0,55 = **$ 2.284.047** (lo calcula el sistema).
 2. **.BAIRES** (gana la Clásica): publica al tachado, $ 2.284.047, y por campaña cobra **$ 1.256.226**.
 3. **Las otras 4 cuentas** (no ganan la Clásica): 1.256.226 × 1,03 = **$ 1.293.913**.
-4. Los planes de 3 y 12 cuotas salen de la Clásica del esquema por la fórmula del punto 5, más el 3 % en las cuentas que no los ganan, y también se publican al tachado y bajan por campaña.
+4. Los planes del grupo Notebooks salen de la Clásica del esquema por la fórmula del punto 5, más el 3 % en las cuentas que no los ganan, y también se publican al tachado y bajan por campaña.
 5. La Web minorista muestra $ 1.256.226 tachado y cobra 17 % menos (el descuento de la familia): $ 1.042.668. El Local cobra $ 1.256.226.
 
 ## Preguntas frecuentes
