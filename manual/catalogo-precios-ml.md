@@ -37,7 +37,8 @@ Desde acá **no sale nada** a Mercado Libre. Los precios que resultan se miran e
 Arriba a la derecha: el botón **«Vista previa»** y el **lápiz** para editar. En edición quedan **«Grabar»** y **«Cancelar»** en el mismo lugar.
 
 Caja **«Tachado y planes de cuotas (general de la cuenta)»**:
-- **Tachado %**: cuánto se infla la Clásica para mostrar el precio tachado.
+- **Tachado %**: cuánto se infla la Clásica para mostrar el precio tachado. Al lado dice qué descuento ve el comprador: un tachado de 81,8 % = el comprador ve −45 % (descuento = Tachado ÷ (100 + Tachado)).
+- **«¿Gana? (si no, +%)»**: una columna de la tabla, para la Clásica y para cada plan. Vacío o 0 = esta cuenta **gana** ese precio; 3 = **no gana** y va 3 % más cara (para que tus cuentas no compitan entre ellas). Se ve «Gana» o «no gana, +3 %».
 - Tabla de planes, una fila por plan: «Clásica» (siempre activa), «Premium 6 cuotas sin interés», «3 cuotas sin interés», «9 cuotas sin interés», «12 cuotas sin interés». Columnas:
   - **Activo**: caja para tildar. Un plan sin tildar no se calcula ni se toca.
   - **Desde una Clásica de**: precio mínimo de Clásica para que el plan se use («sin mínimo» si está vacío).
@@ -56,9 +57,9 @@ Caja **«Interruptores de la cuenta»** (tres interruptores):
 
 Excepciones por **categoría** (vale también para sus subcategorías) o por **producto**. Arriba a la derecha: «Descargar Excel» y **«Nueva excepción»**. Buscador por categoría, producto, SKU o número.
 
-Columnas: «Aplica a» (Categoría / Producto), «Categoría o producto» (con enlace), «Tachado» y una columna por plan («6 cuotas», «3 cuotas», «9 cuotas», «12 cuotas») con un resumen: «hereda», o por ejemplo «activo · desde $ 30.000 · margen 2 %». Cada fila tiene el **lápiz** (se edita ahí mismo, con «Guardar» y «Cancelar») y el **tacho** (pregunta «¿Borrar? Vuelve a heredar» con Sí / No).
+Columnas: «Aplica a» (Categoría / Producto), «Categoría o producto» (con enlace), «Tachado» (con el descuento que ve el comprador y, si la tiene, «Clásica: gana / no gana, +3 %») y una columna por plan («6 cuotas», «3 cuotas», «9 cuotas», «12 cuotas») con un resumen: «hereda», o por ejemplo «activo · desde $ 30.000 · margen 2 %». Cada fila tiene el **lápiz** (se edita ahí mismo, con «Guardar» y «Cancelar») y el **tacho** (pregunta «¿Borrar? Vuelve a heredar» con Sí / No).
 
-El formulario de excepción tiene: «Aplica a» (una categoría o un producto), «Categoría» (buscador) **o** «o el SKU del producto», «Tachado %» y, por cada plan, «Activo» (Hereda / Sí / No), «Desde Clásica» y «Margen %». Todo lo que queda vacío **hereda**.
+El formulario de excepción tiene: «Aplica a» (una categoría o un producto), «Categoría» (buscador) **o** «o el SKU del producto», «Tachado %», «Clásica: ¿gana? (si no, +%)» y, por cada plan, «Activo» (Hereda / Sí / No), «Desde Clásica», «Margen %» y «¿Gana? (si no, +%)». Todo lo que queda vacío **hereda**.
 
 ### Pestaña «Descuento por volumen»
 
@@ -151,7 +152,7 @@ Paso a paso:
 2. Se divide por (1 − comisión del plan): el precio que deja ese mismo neto pagando la comisión del plan.
 3. Se multiplica por (1 + margen extra).
 
-**Quién gana cada plan** (Fer, 7/10): en cada cuenta, la Clásica y cada plan pueden ir un % más caros que el esquema: la cuenta que **no gana** ese plan va **3 % más cara** («¿Gana?» en la vista previa: «Gana» o «+3 %»). La Clásica de esa cuenta = Clásica de la lista × 1,03; el plan = su precio por coeficiente (calculado con la Clásica de la lista) × 1,03. Se carga por producto en cada cuenta (en «Excepciones» se ve «gana» o «no gana: +3 %»).
+**Quién gana cada plan** (Fer, 7/10): en cada cuenta, la Clásica y cada plan pueden ir un % más caros que el esquema: la cuenta que **no gana** ese plan va **3 % más cara** («¿Gana?» en la vista previa: «Gana» o «+3 %»). La Clásica de esa cuenta = Clásica de la lista × 1,03; el plan = su precio por coeficiente (calculado con la Clásica de la lista) × 1,03. Se carga en «Tachado y planes» (lápiz, columna «¿Gana? (si no, +%)») para toda la cuenta, o en «Excepciones» para una categoría o un producto (gana lo más específico; se ve «gana» o «no gana: +3 %»). El botón «Publicar en todas las cuentas» de la ficha del producto lo reparte solo (ver [Publicar un producto en todas las cuentas](/catalogo/productos)).
 
 Un plan **se usa** (queda "habilitado") sólo si está **activo** y la Clásica es **mayor o igual** a su «Desde una Clásica de». Si no, su publicación queda con papel «Plan apagado» y **no se toca** (aviso «El plan no está activo: no se toca.» o «Debajo del mínimo del plan (…): no se toca.»).
 

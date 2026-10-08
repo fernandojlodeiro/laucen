@@ -64,10 +64,11 @@ export async function accionGuardarGeneral(fd: FormData) {
   const canal = id(fd, "canal");
   const v = volver(fd);
   await intentar(sinEditar(v), async () => {
-    await guardarTachado(s.org.id, canal, { nivel: "general" }, numero(fd, "tachado_pct") ?? 0);
+    await guardarTachado(s.org.id, canal, { nivel: "general" }, numero(fd, "tachado_pct") ?? 0, numero(fd, "clasica_ajuste"));
     for (const p of PLANES) {
       await guardarPlan(s.org.id, canal, p, { nivel: "general" }, {
         activo: tildado(fd, `${p}_activo`), precioMinimo: numero(fd, `${p}_min`), margenPct: numero(fd, `${p}_margen`), cuotasVisibles: entero(fd, `${p}_cuotas`),
+        ajustePct: numero(fd, `${p}_ajuste`),
       });
     }
     revalidatePath(BASE_PML);
@@ -83,9 +84,9 @@ export async function accionGuardarExcepcion(fd: FormData) {
   await intentar(sinEditar(v), async () => {
     const d = await dondeDe(s.org.id, fd);
     if (d.nivel === "general") throw new ErrorErp("Elegí una categoría o un producto.");
-    await guardarTachado(s.org.id, canal, d, numero(fd, "tachado_pct"));
+    await guardarTachado(s.org.id, canal, d, numero(fd, "tachado_pct"), numero(fd, "clasica_ajuste"));
     for (const p of PLANES) {
-      await guardarPlan(s.org.id, canal, p, d, { activo: activoDe(fd, `${p}_activo`), precioMinimo: numero(fd, `${p}_min`), margenPct: numero(fd, `${p}_margen`) });
+      await guardarPlan(s.org.id, canal, p, d, { activo: activoDe(fd, `${p}_activo`), precioMinimo: numero(fd, `${p}_min`), margenPct: numero(fd, `${p}_margen`), ajustePct: numero(fd, `${p}_ajuste`) });
     }
     revalidatePath(BASE_PML);
     return `Grabado.${await siAutomatico(s.org.id, canal)}`;

@@ -145,6 +145,13 @@ export function descuentoVisible(tachadoPrecio: number, venta: number): number {
   return Math.round((1 - venta / tachadoPrecio) * 1000) / 10;
 }
 
+/** El descuento que ve el comprador con un tachado de `tachadoPct` sobre la
+ *  Clásica (81,8 % → 45 %). */
+export function descuentoComprador(tachadoPct: number): number {
+  if (!(tachadoPct > 0)) return 0;
+  return Math.round(tachadoPct / (100 + tachadoPct) * 1000) / 10;
+}
+
 /** Precio de un plan por coeficiente: deja lo mismo que la Clásica (después
  *  de la comisión) más el margen extra. */
 export function precioPlan(clasica: number, comisionClasicaPct: number, comisionPlanPct: number, margenPct = 0): number {

@@ -186,18 +186,22 @@ async function validarDonde(org: string, d: Donde): Promise<{ familia: number | 
   return { familia: null, producto: d.productoId };
 }
 
-/** Graba el % de tachado de un nivel (null = hereda; en general, 0). */
-export async function guardarTachado(org: string, canal: number, d: Donde, pct: number | null): Promise<void> {
+/** Graba el % de tachado de un nivel (null = hereda; en general, 0) y, si se pasa,
+ *  el ajuste de la Clásica en esta cuenta («¿quién gana?»: 0 = gana, +X % = no gana;
+ *  null = hereda). `ajuste` undefined = no lo toca. */
+export async function guardarTachado(org: string, canal: number, d: Donde, pct: number | null, ajuste?: number | null): Promise<void> {
   await canalMl(org, canal);
   if (pct != null && !(pct >= 0 && pct <= 300)) throw new ErrorErp("El tachado tiene que ser un % entre 0 y 300.");
+  if (ajuste != null && !(ajuste >= -50 && ajuste <= 100)) throw new ErrorErp("El «si no gana, +%» tiene que estar entre -50 % y 100 % (0 = gana).");
   const { familia, producto } = await validarDonde(org, d);
   await consulta(`
-    insert into ml_regla_precio (organizacion_id, canal_id, nivel, familia_id, producto_id, tachado_pct) values ($1, $2, $3, $4, $5, $6)
-    on conflict (canal_id, nivel, coalesce(familia_id, 0), coalesce(producto_id, 0)) do update set tachado_pct = excluded.tachado_pct, actualizado_ts = now()`,
-    [org, canal, d.nivel, familia, producto, pct]);
+    insert into ml_regla_precio (organizacion_id, canal_id, nivel, familia_id, producto_id, tachado_pct, ajuste_pct) values ($1, $2, $3, $4, $5, $6, $7)
+    on conflict (canal_id, nivel, coalesce(familia_id, 0), coalesce(producto_id, 0)) do update set tachado_pct = excluded.tachado_pct,
+      ajuste_pct = case when $8 then excluded.ajuste_pct else ml_regla_precio.ajuste_pct end, actualizado_ts = now()`,
+    [org, canal, d.nivel, familia, producto, pct, ajuste ?? null, ajuste !== undefined]);
 }
 
-export type ValoresPlan = { activo: boolean | null; precioMinimo: number | null; margenPct: number | null; cuotasVisibles?: number | null };
+export type ValoresPlan = { activo: boolean | null; precioMinimo: number | null; margenPct: number | null; cuotasVisibles?: number | null; ajustePct?: number | null };
 
 export async function guardarPlan(org: string, canal: number, plan: string, d: Donde, v: ValoresPlan): Promise<void> {
   await canalMl(org, canal);
@@ -205,14 +209,17 @@ export async function guardarPlan(org: string, canal: number, plan: string, d: D
   if (v.precioMinimo != null && v.precioMinimo < 0) throw new ErrorErp("El precio mínimo no puede ser negativo.");
   if (v.margenPct != null && !(v.margenPct >= -50 && v.margenPct <= 300)) throw new ErrorErp("El margen tiene que estar entre -50 % y 300 %.");
   if (v.cuotasVisibles != null && !(Number.isInteger(v.cuotasVisibles) && v.cuotasVisibles >= 1 && v.cuotasVisibles <= 24)) throw new ErrorErp("Las cuotas que ve el comprador van de 1 a 24.");
+  if (v.ajustePct != null && !(v.ajustePct >= -50 && v.ajustePct <= 100)) throw new ErrorErp("El «si no gana, +%» tiene que estar entre -50 % y 100 % (0 = gana).");
   const { familia, producto } = await validarDonde(org, d);
   await consulta(`
-    insert into ml_plan_config (organizacion_id, canal_id, plan, nivel, familia_id, producto_id, activo, precio_minimo, margen_pct, cuotas_visibles)
-    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    insert into ml_plan_config (organizacion_id, canal_id, plan, nivel, familia_id, producto_id, activo, precio_minimo, margen_pct, cuotas_visibles, ajuste_pct)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     on conflict (canal_id, plan, nivel, coalesce(familia_id, 0), coalesce(producto_id, 0))
     do update set activo = excluded.activo, precio_minimo = excluded.precio_minimo, margen_pct = excluded.margen_pct,
-                  cuotas_visibles = excluded.cuotas_visibles, actualizado_ts = now()`,
-    [org, canal, plan, d.nivel, familia, producto, v.activo, v.precioMinimo, v.margenPct, d.nivel === "general" ? v.cuotasVisibles ?? null : null]);
+                  cuotas_visibles = excluded.cuotas_visibles,
+                  ajuste_pct = case when $12 then excluded.ajuste_pct else ml_plan_config.ajuste_pct end, actualizado_ts = now()`,
+    [org, canal, plan, d.nivel, familia, producto, v.activo, v.precioMinimo, v.margenPct, d.nivel === "general" ? v.cuotasVisibles ?? null : null,
+      v.ajustePct ?? null, v.ajustePct !== undefined]);
 }
 
 /** Borra todo lo propio de una excepción (categoría o producto) en un canal. */
