@@ -17,12 +17,12 @@ Se configura **por grupo de categorías**. Hay dos grupos:
 
 Un producto pertenece al grupo de su categoría (o de una categoría de más arriba). Así, todas las notebooks llevan los mismos planes, y el resto de los productos, los suyos.
 
-Lo que no está acá: el **descuento que ve el comprador** se decide por cuenta en [Precios en Mercado Libre](/catalogo/precios-ml). Ahí también se puede forzar quién gana para una cuenta, una categoría o un producto puntual, por encima de lo que diga el grupo.
+Lo que no está acá: el **descuento que ve el comprador** se decide por cuenta en [Precios en Mercado Libre](/catalogo/precios-ml). Ahí, en «Excepciones», también se puede forzar quién gana para una categoría o un producto puntual, por encima de lo que diga el grupo.
 
 ## Cómo se llega
 
 - Menú **Catálogo › Precios en Mercado Libre**, última pestaña: **«Planes de cuotas»**.
-- Desde la pestaña «Descuento y quién gana», con el enlace del texto de abajo.
+- Desde la pestaña «Descuento», con el enlace del texto de abajo.
 - Lo que se ve acá vale para todas las cuentas: el selector «Cuenta» de arriba sólo sirve para pasar a las otras pestañas.
 - Hace falta el permiso «Precios en Mercado Libre».
 

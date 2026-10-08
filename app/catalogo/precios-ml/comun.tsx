@@ -30,7 +30,7 @@ export async function BarraPml({ org, canales, canal, ver, todas = false }: { or
         </span>
       </div>
       <Pestanas className="mb-3" items={[
-        { clave: "general", texto: "Descuento y quién gana", activa: ver === "general", href: con(null) },
+        { clave: "general", texto: "Descuento", activa: ver === "general", href: con(null) },
         { clave: "excepciones", texto: "Excepciones", cuenta: n.excepciones, activa: ver === "excepciones", href: con("excepciones") },
         { clave: "volumen", texto: "Descuento por volumen", cuenta: n.volumen, activa: ver === "volumen", href: con("volumen") },
         { clave: "alertas", texto: "Alertas", cuenta: n.alertas + bajo.length + sin.length, activa: ver === "alertas", href: con("alertas") },

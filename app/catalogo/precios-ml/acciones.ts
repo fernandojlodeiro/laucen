@@ -65,18 +65,15 @@ async function dondeDe(org: string, fd: FormData): Promise<Donde> {
   throw new ErrorErp("Elegí a qué se aplica: una categoría o un producto.");
 }
 
-/** La caja general del canal: el descuento y «¿gana?» de la Clásica y de cada plan. */
+/** La caja general del canal: el descuento que ve el comprador. */
 export async function accionGuardarGeneral(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
   limpiarCachePrevia();
   const canal = id(fd, "canal");
   const v = volver(fd);
   await intentar(sinEditar(v), async () => {
-    await guardarTachado(s.org.id, canal, { nivel: "general" }, tachadoDelForm(fd) ?? 0, numero(fd, "clasica_ajuste"));
-    for (const p of PLANES) {
-      // Qué planes, desde dónde, margen y cuotas: Precios en ML › Planes de cuotas. Acá, sólo «¿gana?».
-      await guardarPlan(s.org.id, canal, p, { nivel: "general" }, { activo: null, precioMinimo: null, margenPct: null, cuotasVisibles: null, ajustePct: numero(fd, `${p}_ajuste`) });
-    }
+    // Sólo el descuento: quién gana va por grupo en Planes de cuotas (Fer, 8/10); lo de cada cuenta no se toca.
+    await guardarTachado(s.org.id, canal, { nivel: "general" }, tachadoDelForm(fd) ?? 0);
     revalidatePath(BASE_PML);
     return `Grabado.${await siAutomatico(s.org.id, canal)}`;
   });

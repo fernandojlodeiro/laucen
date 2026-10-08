@@ -66,13 +66,13 @@ Tus cuentas venden los mismos productos. Si todas tuvieran el mismo precio, comp
 - **«Rota»** reparte los productos parejo entre las cuentas que no ganan nada fijo en ese grupo. Cada producto cae siempre en la misma cuenta: lo decide el producto, no cambia de un día para otro.
 - No se carga nada producto por producto.
 - Ejemplo: **Notebooks**: Clásica → ML .BAIRES, Premium común → Rota, Premium 3x → Rota, Premium 12x → ML .BAIRES. **Resto**: Clásica → ML .BAIRES, Premium común → Rota, Premium 9x → ML .BAIRES. Las que no ganan, +3 %.
-- Para forzar algo distinto: en [Precios en ML](/catalogo/precios-ml), columna «¿Gana? (si no, +%)» para toda una cuenta, o «Excepciones» para una categoría o un producto (0 = gana; 3 = no gana; vacío = según el grupo). Manda lo más específico: producto → su categoría → las de arriba → general de la cuenta → «Quién gana» del grupo.
+- Para forzar algo distinto: en [Precios en ML](/catalogo/precios-ml), pestaña «Excepciones», para una categoría o un producto (0 = gana; 3 = no gana; vacío = según el grupo). Manda lo más específico: producto → su categoría → las de arriba → «Quién gana» del grupo.
 
 ### 7. Campañas y el piso
 
 - **El piso** de cada publicación es el precio que le da el esquema (la Clásica de la cuenta, o el precio de su plan). Laucen **nunca** la mete en una campaña por debajo del piso.
 - Entra a una campaña **sólo si el rango de precios que acepta la campaña incluye nuestro precio**; si no la acepta, no entra.
-- **Campaña propia** («Promociones Daitom», una por cuenta, se crea en [Precios en ML](/catalogo/precios-ml), pestaña «Descuento y quién gana»): si ninguna campaña de Mercado Libre acepta el precio, la publicación entra a la propia, así se ve el descuento. Cuando Mercado Libre le ofrece una suya que lo acepta, pasa a la de Mercado Libre.
+- **Campaña propia** («Promociones Daitom», una por cuenta, se crea en [Precios en ML](/catalogo/precios-ml), pestaña «Descuento»): si ninguna campaña de Mercado Libre acepta el precio, la publicación entra a la propia, así se ve el descuento. Cuando Mercado Libre le ofrece una suya que lo acepta, pasa a la de Mercado Libre.
 - **En campaña, el tachado no se toca**; para cambiar el precio (subir o bajar) la publicación sale de la campaña y vuelve a entrar al precio nuevo.
 - Campañas que se superponen: entra en todas las que acepten el precio; el comprador paga la más baja de las propias.
 - Las campañas que arma Mercado Libre con descuento compartido («Potencia tus ventas») **no** se usan para calcular. Si una campaña (propia o de ML) deja una publicación por debajo del piso —en las de ML cuenta sólo la parte que ponés vos—, aparece en [Precios en ML › Alertas](/catalogo/precios-ml) con el botón **Sacar de la campaña**.
@@ -89,7 +89,7 @@ Se puede definir por rango de Clásica ("desde 3 unidades, −5 %"), pero **hoy 
 
 ### 10. Qué es configurable y qué es fijo
 
-- **Se configura** en [Precios en ML](/catalogo/precios-ml), por cuenta y con excepciones por categoría o producto: el descuento que ve el comprador, «¿Gana?» (para forzar quién gana en una cuenta, categoría o producto), descuento por volumen y los interruptores de cada cuenta. En [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), por grupo de categorías y para todas las cuentas: qué planes se usan, cuántas cuotas ve el comprador, el % extra de cada plan, **quién gana** la Clásica y cada plan (una cuenta o «Rota») y cuánto más caras van las que no ganan. En [Listas de precios](/catalogo/precios): las listas, sus bases y coeficientes y «Aplica descuentos».
+- **Se configura** en [Precios en ML](/catalogo/precios-ml), por cuenta y con excepciones por categoría o producto: el descuento que ve el comprador, «¿Gana?» en Excepciones (para forzar quién gana en una categoría o producto), descuento por volumen y los interruptores de cada cuenta. En [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), por grupo de categorías y para todas las cuentas: qué planes se usan, cuántas cuotas ve el comprador, el % extra de cada plan, **quién gana** la Clásica y cada plan (una cuenta o «Rota») y cuánto más caras van las que no ganan. En [Listas de precios](/catalogo/precios): las listas, sus bases y coeficientes y «Aplica descuentos».
 - **Fijo**: el mínimo de 5 % de descuento que pide ML; la barrera de $ 33.000 para los planes (sale de los costos de Mercado Libre y se ajusta sola); las comisiones (salen de Costos ML); el redondeo a pesos enteros; una publicación con tachado nunca se baja a la Clásica; un cambio automático que dio error no se reintenta igual por 6 horas.
 
 ### 11. Qué sale solo y qué espera tu clic

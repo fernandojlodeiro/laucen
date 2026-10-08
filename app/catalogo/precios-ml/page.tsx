@@ -85,13 +85,11 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
       select producto_id from ml_regla_precio where organizacion_id = $1 and canal_id = $2 and nivel = 'producto' and ajuste_pct is not null
       union all select producto_id from ml_plan_config where organizacion_id = $1 and canal_id = $2 and nivel = 'producto' and ajuste_pct is not null) x`, [org, canal.id])]);
   const tachado = reglas.tachado.find((t) => t.nivel === "general")?.tachado_pct ?? 0;
-  const ajusteClasica = reglas.tachado.find((t) => t.nivel === "general")?.ajuste_pct ?? null;
-  const plan = (p: Plan): Partial<ReglasPlan> => reglas.planes.find((x) => x.nivel === "general" && x.plan === p) ?? {};
   const campos = (clave: string) => ({ canal: String(canal.id), clave, volver: aqui });
   return (
     <div className="grid gap-4">
       <section className={CAJA}>
-        <TituloSeccion titulo="Descuento y quién gana (general de la cuenta)" />
+        <TituloSeccion titulo="Descuento que ve el comprador (general de la cuenta)" />
         {!editando ? (
           <Dato etiqueta="Descuento que ve el comprador %" numero className="max-w-[260px]"
             ayuda="El «% OFF» de la publicación en ML: se publica a un precio más alto (tachado) y una campaña la baja a la Clásica. 0 = sin descuento. ML lo muestra desde 5 %.">
@@ -106,42 +104,11 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
               <span className="block text-[10px] text-[#5C6B76] mt-0.5">El «% OFF» en ML. 0 = sin descuento; ML lo muestra desde 5 %.</span>
             </label>
           )}
-          <div className={CAJA_TABLA}>
-            <table className={TABLA}>
-              <thead className={THEAD}>
-                <tr><th className={TH}>Publicación</th><th className={THN}>¿Gana? (si no, +%)</th></tr>
-              </thead>
-              <tbody>
-                <tr className={TR}>
-                  <td className={TD}>{PLAN_INFO.clasica.nombre}</td>
-                  <td className={editando ? TD : TDN}>{editando
-                    ? <CampoNumero name="clasica_ajuste" valor={ajusteClasica} tipo="pct" placeholder="0 = gana" className={`${CAMPO} w-20`} />
-                    : gana(ajusteClasica)}</td>
-                </tr>
-                {PLANES.map((p) => {
-                  const r = plan(p);
-                  return (
-                    <tr key={p} className={TR}>
-                      <td className={TD}>{PLAN_INFO[p].nombre}</td>
-                      <td className={editando ? TD : TDN}>{editando
-                        ? <CampoNumero name={`${p}_ajuste`} valor={r.ajuste_pct ?? null} tipo="pct" placeholder="0 = gana" className={`${CAMPO} w-20`} />
-                        : gana(r.ajuste_pct)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
         </form>
-        <p className="text-xs rounded-lg px-3 py-2 mt-2 bg-[#EEF4FA] text-[#16577F]">
-          <b>Quién gana se decide por grupo de categorías</b>, para todas las cuentas a la vez, en la pestaña <Link href={url(PLANES_PML, { canal: canal.id })} className="underline">Planes de cuotas</Link> (una cuenta fija o «Rota» para la Clásica y cada plan).
-          Lo de acá es sólo para forzar algo en <b>{canal.nombre}</b>: vacío = «según el grupo». Un producto o una categoría puede tener lo suyo en <Link href={url(BASE_PML, { canal: canal.id, ver: "excepciones" })} className="underline">Excepciones</Link>
-          (hoy {(propios?.n ?? 0).toLocaleString("es-AR")} producto{propios?.n === 1 ? "" : "s"} de esta cuenta), y eso manda sobre el grupo.
-        </p>
         <p className="text-[11px] text-[#5C6B76] mt-2">
-          Qué planes de cuotas lleva cada producto, desde qué Clásica, cuánto más tiene que dejar cada plan y cuántas cuotas ve el comprador se configura para todas las cuentas en{" "}
-          <Link href="/catalogo/precios-ml/planes-cuotas" className="text-[#16577F] hover:underline">Precios en ML › Planes de cuotas</Link>.
-          <b> ¿Gana?</b>: entre tus cuentas, una sola «gana» cada precio (la Clásica y cada plan) y las demás van un % más caras para no competir entre ellas (0 o vacío = gana; 3 = no gana, va 3 % arriba). Se puede cambiar por categoría o producto en Excepciones.
+          Es el descuento de toda la cuenta; una categoría o un producto puede tener otro en <Link href={url(BASE_PML, { canal: canal.id, ver: "excepciones" })} className="text-[#16577F] hover:underline">Excepciones</Link>.
+          Qué planes de cuotas lleva cada producto y <b>quién gana</b> entre tus cuentas se configuran para todas las cuentas a la vez en{" "}
+          <Link href={url(PLANES_PML, { canal: canal.id })} className="text-[#16577F] hover:underline">Planes de cuotas</Link>.
         </p>
       </section>
 
