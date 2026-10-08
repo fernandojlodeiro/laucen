@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 
 export type GuiaManual = { archivo: string; titulo: string; resumen: string };
 
-export default function Manuales({ guias, version }: { guias: GuiaManual[]; version: string }) {
+export default function Manuales({ guias }: { guias: GuiaManual[] }) {
   const [abierto, setAbierto] = useState(false);
   const caja = useRef<HTMLSpanElement>(null);
   const ruta = usePathname();
@@ -26,7 +26,7 @@ export default function Manuales({ guias, version }: { guias: GuiaManual[]; vers
   if (!guias.length) return null;
   return (
     <span ref={caja} className="relative">
-      <button type="button" onClick={() => setAbierto((x) => !x)} aria-expanded={abierto} title={version || undefined}
+      <button type="button" onClick={() => setAbierto((x) => !x)} aria-expanded={abierto}
         className="inline-flex items-center gap-1 rounded-full px-3 py-0.5 font-bold bg-[#FFC94D] text-[#5A3D00] border border-[#F2B227] shadow-sm hover:bg-[#FFD76E]">
         <span aria-hidden>👇</span> Manuales de ayuda <span aria-hidden>{abierto ? "▾" : "▴"}</span>
       </button>

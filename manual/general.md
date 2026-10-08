@@ -41,8 +41,9 @@ Una franja azul fija abajo de todo, siempre visible:
   - **"Preguntas"** → [Preguntas y mensajes](/ventas/preguntas): las preguntas de Mercado Libre pendientes.
   - **"Mensajes"** → la pestaña Mensajes de [Preguntas y mensajes](/ventas/preguntas?ver=mensajes): la suma de mensajes de posventa sin leer.
   - Cuando un contador es mayor que cero, el número se resalta en blanco.
+- **Al medio**: cuándo se actualizó el sistema por última vez ("Actualizado dd/mm hh:mm") y el código de esa versión.
 - A la derecha: **el nombre de la organización y el tuyo** (o tu mail).
-- Al final, el botón amarillo **👇 Manuales de ayuda**: despliega hacia arriba las guías del manual (por ejemplo «Producto nuevo de punta a punta» y «Cómo funcionan los precios»), cada una con una línea de qué explica. Tocando una se abre para leerla entera (se imprime con Ctrl + P). Sólo aparecen las guías de lo que tu usuario puede ver. Pasando el mouse por el botón se ve cuándo se actualizó el sistema por última vez.
+- Al final, el botón amarillo **👇 Manuales de ayuda**: despliega hacia arriba las guías del manual (por ejemplo «Producto nuevo de punta a punta» y «Cómo funcionan los precios»), cada una con una línea de qué explica. Tocando una se abre para leerla entera (se imprime con Ctrl + P). Sólo aparecen las guías de lo que tu usuario puede ver.
 
 ### En el celular: otro modo, no la misma pantalla achicada
 
