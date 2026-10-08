@@ -72,7 +72,7 @@ async function variacionesDelFiltro(org: string, canal: number, f: ReturnType<ty
       union select x.id from familia x join fam on x.padre_id = fam.id)
     select distinct v.id::int id
       from publicacion pu join variacion v on v.id = pu.variacion_id join producto p on p.id = v.producto_id
-     where pu.organizacion_id = $1 and pu.canal_id = $2 and pu.id_externo is not null and pu.estado <> 'cerrada'
+     where pu.organizacion_id = $1 and pu.canal_id = $2 and pu.id_externo is not null and pu.estado = 'activa'
        and ($3::bigint is null or p.familia_id in (select id from fam))
        and (select bool_and(strpos(lower(v.sku || ' ' || coalesce(titulo_variacion(v.id), '') || ' ' || v.id || ' ' || v.producto_id || ' ' ||
               coalesce((select string_agg(x.id_externo, ' ') from publicacion x where x.variacion_id = v.id and x.canal_id = $2), '')), t) > 0)

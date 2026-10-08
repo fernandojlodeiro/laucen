@@ -8,7 +8,7 @@ import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import {
   CON_PRECIO, campanasBajoPiso, cadenaFamilias, heredar, comisionesDe, comisionGeneral, normalizarEscalones, planDePublicacion, proponer,
   type Campana, type Comisiones, type EntradaVariacion, type FilaComision, type FilaVolumen, type Propuesta, type ReglasCanal,
-  type ReglasPlan, type ReglaTachado, type PubMl,
+  type ReglasPlan, type ReglaTachado, type PubMl, type PlanOClasica,
 } from "@/lib/precios-ml/motor";
 import { gruposPlanes, barreraPlanes, reglasDeGrupos } from "@/lib/precios-ml/grupos";
 
@@ -139,8 +139,14 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
   }
   const volMl = new Map(volumen.map((v) => [`${v.item_id}|${v.variation_id}`, v.payload?.escalones ?? null]));
 
+  // Las pausadas no se muestran ni se tocan (Fer, 8/10): sólo cuentan para no crear de nuevo un plan que ya
+  // tiene publicación. Una variación sin ninguna publicación activa en la cuenta no se calcula.
   const porVariacion = new Map<number, FilaPub[]>();
-  for (const f of filas) porVariacion.set(f.variacion_id, [...(porVariacion.get(f.variacion_id) ?? []), f]);
+  const pausados = new Map<number, Set<string>>();
+  for (const f of filas) {
+    if (f.estado === "activa") porVariacion.set(f.variacion_id, [...(porVariacion.get(f.variacion_id) ?? []), f]);
+    else pausados.set(f.variacion_id, new Set([...(pausados.get(f.variacion_id) ?? []), planDePublicacion(f.tipo, f.tags) ?? ""]));
+  }
   const propuestas: Calculo["propuestas"] = [];
   for (const [variacionId, fs] of porVariacion) {
     const f0 = fs[0];
@@ -161,6 +167,7 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
     const entrada: EntradaVariacion = {
       variacionId, productoId: f0.producto_id, lugar: { productoId: f0.producto_id, familias: cadena },
       clasica: f0.clasica, stock: f0.stock, comisiones: c.valores, comisionEstimada: c.estimada, pubs,
+      planesPausados: [...(pausados.get(variacionId) ?? [])].filter(Boolean) as PlanOClasica[],
     };
     propuestas.push({
       info: { variacionId, productoId: f0.producto_id, sku: f0.sku, titulo: f0.titulo, familiaId: f0.familia_id, comisionEstimada: c.estimada, stock: f0.stock },

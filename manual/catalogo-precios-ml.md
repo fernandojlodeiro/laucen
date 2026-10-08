@@ -121,6 +121,8 @@ Pestaña «Alertas» → mirá «Qué pasa» (trae el estado que informa ML y el
 
 ## Criterios y reglas
 
+**Sólo publicaciones activas.** Los precios, las campañas, las alertas y las publicaciones de planes que faltan se calculan sólo con las publicaciones activas de cada cuenta. Las pausadas no se muestran ni se tocan.
+
 ### 1. De dónde sale la Clásica
 - El **precio de lista** de la variación es la **Clásica**; el **tachado = Clásica ÷ (1 − descuento que ve el comprador)**, redondeado a pesos. Sin descuento son el mismo precio. Ejemplo: lista $ 1.256.226 y descuento 45 % → tachado $ 2.284.047.
 - La lista es la de la cuenta: la que tiene asignada el canal en [Canales](/config/canales); si el canal no tiene, se usa la lista que se llame «Clásicas» (o «Clásica»).

@@ -39,10 +39,10 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
     const faltan = propuesta.faltan.filter((f) => !enCola.has(claveAlta(info.sku, f.plan)));
     if (!faltan.length) continue;
     if (Date.now() > hasta) { res.sinTiempo += faltan.length; continue; }
-    // La publicación de origen: la común (no de catálogo, sin variaciones) de este SKU en esta cuenta, activa antes que pausada, Clásica antes que otra.
+    // La publicación de origen: la común activa (no de catálogo, sin variaciones) de este SKU en esta cuenta, Clásica antes que otra (las pausadas no se usan).
     const o = await una<{ item_id: string; ml: ItemGuardado | null }>(`
       select m.item_id, m.datos_externos -> 'ml' ml from meli_item m
-       where m.organizacion_id = $1 and m.canal_id = $2 and m.sku = $3 and m.estado in ('active', 'paused') and m.datos_externos -> 'ml' is not null
+       where m.organizacion_id = $1 and m.canal_id = $2 and m.sku = $3 and m.estado = 'active' and m.datos_externos -> 'ml' is not null
          and coalesce((m.datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false) = false
          and coalesce(jsonb_array_length(case when jsonb_typeof(m.datos_externos -> 'ml' -> 'variations') = 'array' then m.datos_externos -> 'ml' -> 'variations' end), 0) = 0
        order by (m.estado = 'active') desc, (m.tipo = 'gold_special') desc, m.vendidos desc nulls last, m.item_id limit 1`, [org, canalId, info.sku]);

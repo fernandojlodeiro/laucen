@@ -276,6 +276,8 @@ export type EntradaVariacion = {
   /** El precio de la lista del canal: la Clásica del esquema (el tachado sale de ella). */
   clasica: number | null; stock: number | null; comisiones: Comisiones; comisionEstimada: boolean;
   pubs: PubMl[];
+  /** Planes que la cuenta tiene sólo en publicaciones pausadas: no se tocan, pero tampoco se vuelven a crear. */
+  planesPausados?: PlanOClasica[];
 };
 
 export type ReglasCanal = {
@@ -465,7 +467,7 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
   // Planes habilitados sin publicación: se pueden crear (con el user product de otra publicación de la variación).
   const conUp = e.pubs.find((p) => p.userProductId) ?? null;
   const conCat = e.pubs.find((p) => p.catalogProductId) ?? null;
-  const faltan = habilitados.filter((p) => !pubDe(p.plan) && p.precio != null).map((p) => ({
+  const faltan = habilitados.filter((p) => !pubDe(p.plan) && !e.planesPausados?.includes(p.plan) && p.precio != null).map((p) => ({
     plan: p.plan, precio: p.precio!, userProductId: conUp?.userProductId ?? null, catalogProductId: conCat?.catalogProductId ?? null,
   }));
 
