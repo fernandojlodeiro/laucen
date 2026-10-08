@@ -47,7 +47,7 @@ Un renglón de resumen: cuántas filas, cuántas **con cambios** (y cuántas son
 - **Precio para ganar**: lo que informó ML, con su estado debajo («gana», «compite», «comparte el 1.º», «listada»).
 - **Hoy en ML**: lo mismo pero con lo que tiene hoy la publicación en ML: grande lo que paga hoy el comprador (con la campaña en curso), el publicado tachado, el % OFF y, chiquito, el nombre de la campaña (entero al pasar el mouse).
 - **Diferencia**: precio publicado según Laucen − precio publicado hoy en ML; verde si sube, rojo si baja, «—» si es igual.
-- **Qué cambiaría**: un renglón por cada cosa, por ejemplo «Precio publicado (tachado): $ 20.000 → $ 22.000», «Paga el comprador: $ 11.000 → $ 11.880», «Sale de «Día de la Madre» y vuelve a entrar a $ 11.880», «Entra a «Oferta del día» a $ 11.880», «Descuento por volumen: 3+ $ 10.260»; «Publicación nueva» en las que faltan; o «Nada».
+- **Qué cambiaría** (a lo ancho, en un renglón debajo de cada publicación, junto con sus **avisos**): una frase por cada cosa, por ejemplo «Precio publicado (tachado): $ 20.000 → $ 22.000», «Paga el comprador: $ 11.000 → $ 11.880», «Sale de «Día de la Madre» y vuelve a entrar a $ 11.880», «Entra a «Oferta del día» a $ 11.880», «Descuento por volumen: 3+ $ 10.260»; «Publicación nueva» en las que faltan; o «Nada».
 - **Avisos**: advertencias del cálculo (en amarillo).
 - Además, en el Excel: «Precio calculado» (el publicado según Laucen), «Paga el comprador», «Precio en ML», «Paga hoy en ML», «Estado en catálogo», «Stock del canal» y «Comisión estimada».
 

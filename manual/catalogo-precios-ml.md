@@ -74,7 +74,7 @@ La cuenta de la pestaña suma las tres cajas.
 - Botón **«Sacar de la campaña»** en cada fila (pregunta «¿Preparar el lote?» Sí / No) y **«Sacar de todas»** arriba a la derecha de la caja: arman un **lote preparado** en la [cola de Mercado Libre](/config/canales/cola) que la saca de la campaña con tu clic en «Mandar a Mercado Libre». Nada sale solo.
 - Por qué pasa: las campañas de ML las arma ML, con el precio que decide ML. Si después de sacarla ML la vuelve a meter, vuelve a aparecer acá.
 
-**«Sin campaña hace más de 24 horas (N)»**: publicaciones con descuento (tachado) que hace más de 24 horas no están en ninguna campaña. Columnas: «SKU», «Producto», «Publicación» (con su plan), «Publicada a», «Sin campaña desde» y «Hace» (en rojo desde los 3 días).
+**«Sin campaña hace más de 24 horas (N)»**: publicaciones que ya están publicadas al precio tachado y hace más de 24 horas no están en ninguna campaña (las que todavía están a su precio normal no aparecen: no dependen de una campaña). Columnas: «SKU», «Producto», «Publicación» (con su plan), «Publicada a», «Sin campaña desde» y «Hace» (en rojo desde los 3 días).
 - Siguen publicadas al precio tachado: el sistema **nunca** las baja a la Clásica, porque después de una venta a ese precio Mercado Libre puede no dejar volver a subirlo y se perdería el descuento. Pero así casi no venden.
 - El sistema lee cada hora las campañas que ofrece Mercado Libre y, si la cuenta tiene «Sincronizar precios» prendido, mete la publicación sola en la primera campaña que acepte su precio. Si no, prepará los cambios desde la [Vista previa](/catalogo/precios-ml/vista-previa).
 

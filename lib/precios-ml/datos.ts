@@ -417,9 +417,10 @@ export type SinCampana = {
 export async function sinCampanaCanal(org: string, canal: CanalMl, horas = 24): Promise<SinCampana[]> {
   const [filas, reglas, familias] = await Promise.all([
     consulta<{ variacion_id: number; producto_id: number; familia_id: number | null; sku: string; titulo: string; pub: number; item: string; tipo: string | null; tags: unknown;
-      precio: number | null; desde: Date }>(`
+      precio: number | null; clasica: number | null; desde: Date }>(`
       select p.variacion_id::int, v.producto_id::int, pr.familia_id::int, v.sku, titulo_variacion(v.id) titulo, p.id::int pub, p.id_externo item,
              coalesce(mi.tipo, p.tipo_publicacion) tipo, mi.datos_externos -> 'ml' -> 'tags' tags, coalesce(mi.precio, p.precio_canal)::float8 precio,
+             (select lista_ars from precio_de(p.organizacion_id, p.variacion_id, $3::bigint, (now() at time zone 'America/Argentina/Buenos_Aires')::date))::float8 clasica,
              greatest(p.creado_ts,
                (select max(h.fecha) from ml_promo_historia h where h.canal_id = p.canal_id and h.item_id = p.id_externo and h.que = 'item_baja' and h.antes in ('started', 'pending')),
                (select max(m.hasta) from ml_promo_item m where m.canal_id = p.canal_id and m.item_id = p.id_externo and m.hasta <= now())) desde
@@ -429,7 +430,7 @@ export async function sinCampanaCanal(org: string, canal: CanalMl, horas = 24): 
         left join meli_item mi on mi.canal_id = p.canal_id and mi.item_id = p.id_externo and mi.variation_id = coalesce(p.variacion_externa, '')
        where p.organizacion_id = $1 and p.canal_id = $2 and p.estado = 'activa' and p.id_externo is not null
          and not exists (select 1 from ml_promo_item m where m.canal_id = p.canal_id and m.item_id = p.id_externo
-                            and m.estado = 'started' and (m.hasta is null or m.hasta > now()))`, [org, canal.id]),
+                            and m.estado = 'started' and (m.hasta is null or m.hasta > now()))`, [org, canal.id, canal.listaId]),
     reglasCanal(org, canal),
     familiasDe(org),
   ]);
@@ -439,7 +440,11 @@ export async function sinCampanaCanal(org: string, canal: CanalMl, horas = 24): 
     const desde = new Date(f.desde);
     if (desde.getTime() > limite) continue;
     const lugar = { productoId: f.producto_id, familias: cadenaFamilias(f.familia_id, familias.padres) };
-    if (!(Number(heredar(reglas.tachado, lugar, (r) => r.tachado_pct).valor ?? 0) > 0)) continue;
+    const tachadoPct = Number(heredar(reglas.tachado, lugar, (r) => r.tachado_pct).valor ?? 0);
+    if (!(tachadoPct > 0)) continue;
+    // Sólo las que ya están publicadas al tachado del esquema: las que todavía están a su precio (la Clásica o el
+    // de su plan) no dependen de una campaña para venderse a lo que corresponde.
+    if (f.clasica == null || f.precio == null || f.precio < f.clasica * (1 + tachadoPct / 100) * 0.97) continue;
     salida.push({
       variacionId: f.variacion_id, productoId: f.producto_id, sku: f.sku, titulo: f.titulo, publicacionId: f.pub, itemId: f.item, plan: planDePublicacion(f.tipo, f.tags),
       precio: f.precio, desde, horas: Math.floor((Date.now() - desde.getTime()) / 3_600_000),

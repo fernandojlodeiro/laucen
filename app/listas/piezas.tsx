@@ -3,7 +3,7 @@
 // vistas, la consulta de la página con las columnas de la vista elegida y la
 // tabla que se dibuja desde el catálogo.
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { consultaPaginada } from "@/lib/lista";
 import { formatear, enMoneda, tcParaVista, type Moneda } from "@/lib/moneda";
 import { sesionActual } from "@/lib/tenancy";
@@ -83,11 +83,13 @@ export function textoCampo(c: Campo, f: Fila, moneda: Moneda = "ARS", tc: number
 /** La tabla de una lista con vistas, dibujada desde el catálogo. Las
  *  acciones de la fila (lápiz, tacho…) van en la última columna; una fila en
  *  edición la dibuja `fila` (ocupa todo el ancho). */
-export async function TablaVista({ lista, campos, filas, total, ctx, vacio, acciones, claseFila, fila, clave = "id", titulosFijos = false }: {
+export async function TablaVista({ lista, campos, filas, total, ctx, vacio, acciones, claseFila, fila, debajo, clave = "id", titulosFijos = false }: {
   lista: Lista; campos: Campo[]; filas: Fila[]; total: number; ctx: CtxCelda; vacio: ReactNode;
   acciones?: (f: Fila) => ReactNode; claseFila?: (f: Fila) => string;
   /** Reemplaza la fila entera (ej. la fila en edición): recibe cuántas columnas ocupa. */
   fila?: (f: Fila, columnas: number) => ReactNode | null;
+  /** Un renglón a lo ancho de toda la tabla debajo de la fila (textos largos que deformarían las columnas). */
+  debajo?: (f: Fila) => ReactNode | null;
   clave?: string;
   /** La fila de títulos queda fija al bajar (Fer, 6/10): la tabla baja dentro de su caja, del alto de la ventana. */
   titulosFijos?: boolean;
@@ -111,15 +113,22 @@ export async function TablaVista({ lista, campos, filas, total, ctx, vacio, acci
           </thead>
           <tbody>
             {filas.length === 0 && <tr><td colSpan={columnas} className={`${TD} text-[#5C6B76]`}>{vacio}</td></tr>}
-            {filas.map((f) => fila?.(f, columnas) ?? (
-              // Una fila de un canal lleva su color de fondo (Fer, 8/10; lib/canales/colores.ts).
-              <tr key={String(f[clave])} data-canal={f.canal_id != null && Number(f.canal_id) > 0 ? Number(f.canal_id) : undefined} className={`${TR} ${claseFila?.(f) ?? ""}`}>
-                {campos.map((c) => (
-                  <td key={c.clave} className={alaDerecha(c) ? TDN : TD}>{c.celda ? c.celda(f, ctx) : textoCampo(c, f, ctx.moneda, tc)}</td>
-                ))}
-                {acciones && <td className={`${TD} text-right whitespace-nowrap`}>{acciones(f)}</td>}
-              </tr>
-            ))}
+            {filas.map((f) => {
+              const canal = f.canal_id != null && Number(f.canal_id) > 0 ? Number(f.canal_id) : undefined;
+              const extra = debajo?.(f) ?? null;
+              return fila?.(f, columnas) ?? (
+                <Fragment key={String(f[clave])}>
+                  {/* Una fila de un canal lleva su color de fondo (Fer, 8/10; lib/canales/colores.ts). */}
+                  <tr data-canal={canal} className={`${TR} ${claseFila?.(f) ?? ""}`}>
+                    {campos.map((c) => (
+                      <td key={c.clave} className={alaDerecha(c) ? TDN : TD}>{c.celda ? c.celda(f, ctx) : textoCampo(c, f, ctx.moneda, tc)}</td>
+                    ))}
+                    {acciones && <td className={`${TD} text-right whitespace-nowrap`}>{acciones(f)}</td>}
+                  </tr>
+                  {extra && <tr data-canal={canal} className={claseFila?.(f) ?? ""}><td colSpan={columnas} className="px-2 pb-2 pt-0">{extra}</td></tr>}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>

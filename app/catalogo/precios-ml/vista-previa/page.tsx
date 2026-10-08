@@ -74,7 +74,18 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
         {todas.length.toLocaleString("es-AR")} filas · <b>{conCambio.toLocaleString("es-AR")} con cambios</b>{nuevas ? ` (${nuevas.toLocaleString("es-AR")} publicaciones nuevas de planes)` : ""}{conAviso ? ` · ${conAviso.toLocaleString("es-AR")} con avisos` : ""}.
         {f.todas ? "Todas las cuentas juntas. " : ""}Precios como los ve el comprador: grande lo que paga, chico y tachado el publicado, con su % OFF.
       </p>
-      <TablaVista lista={LISTA_PRECIOS_ML} campos={campos} filas={filas} total={todas.length} ctx={{ moneda: s.moneda, sp }}
+      {/* «Qué cambiaría» y «Avisos» van a lo ancho, debajo de cada fila: largos, deformaban las columnas (Fer, 8/10). */}
+      <TablaVista lista={LISTA_PRECIOS_ML} campos={campos.filter((c) => c.clave !== "cambio" && c.clave !== "avisos")} filas={filas} total={todas.length} ctx={{ moneda: s.moneda, sp }}
+        debajo={(x) => {
+          const cambios = x.rol === "nueva" ? ["Publicación nueva"] : x.cambio ? String(x.cambio).split("; ") : [];
+          if (!cambios.length && !x.avisos) return null;
+          return (
+            <div className="flex flex-wrap gap-x-6 gap-y-0.5 text-[11px] leading-snug pl-1">
+              {cambios.length > 0 && <span><b className="text-[#5C6B76]">Qué cambiaría:</b> {cambios.map((c, i) => <b key={i} className="text-[#1F2A33]">{i ? " · " : ""}{c}</b>)}</span>}
+              {x.avisos && <span className="text-[#8a6100]"><b>Aviso:</b> {String(x.avisos)}</span>}
+            </div>
+          );
+        }}
         vacio={f.q || f.familia || f.cambios || f.rol || f.todas ? "Nada coincide con el filtro." : "Esta cuenta no tiene publicaciones vinculadas (Catálogo → Vincular con Mercado Libre)."}
         claseFila={(x) => (x.hay_cambio ? "bg-[#FFFDF5]" : "")} />
       <p className="text-[11px] text-[#5C6B76] mt-1">
