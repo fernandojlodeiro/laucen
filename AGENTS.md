@@ -273,7 +273,9 @@ criollo, nunca se muestra crudo (`motivoLegible()` en `app/auth-actions.ts`).
 - **Manual del sistema (pedido de Fer, 3/10): toda pantalla nueva o cambiada actualiza su página
   en `manual/` en el mismo commit** — qué es, dónde está, cómo se hace y, sobre todo, los
   criterios (fórmulas, estados, automatismos), en criollo y sin nada técnico. Lo lee el
-  asistente para contestarle a la gente. `tests/manual.test.ts` falla si una página
+  asistente para contestarle a la gente. **Se escribe como un manual de producto, de cero y para cualquier empresa**
+  (pedido de Fer, 8/10): sin nombrar personas, sin historia ("antes…", "ahora…", fechas de cuándo se
+  cambió algo) y sin cuentas internas que el usuario no ve ni decide (detalle en `manual/LEEME.md`). `tests/manual.test.ts` falla si una página
   (`app/**/page.tsx`) no está en las `rutas` de ningún archivo o si un enlace del manual va a una
   dirección que no existe. Formato: `manual/LEEME.md`.
 
