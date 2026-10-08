@@ -89,6 +89,32 @@ export async function accionPausarPublicacion(fd: FormData) {
   });
 }
 
+/** La X de la fila (Fer, 8/10): eliminar la publicación en Mercado Libre (finalizarla y borrarla).
+ *  Nunca una activa: sólo pausada, cerrada o en revisión. Sale por la cola. */
+export async function accionEliminarPublicacion(fd: FormData) {
+  const s = await entrarErp("publicaciones_ver");
+  await intentar(volverDe(fd), async () => {
+    const p = await publicacionMl(s.org.id, id(fd));
+    const ml = await una<{ estado: string | null; titulo: string | null }>(
+      "select estado, titulo from meli_item where canal_id = $1 and item_id = $2 order by actualizado_ts desc limit 1", [p.canal_id, p.id_externo]);
+    if (ml?.estado === "active" || (!ml && p.estado === "activa")) throw new ErrorErp("Está activa en Mercado Libre: no se puede eliminar. Pausala primero.");
+    await encolar(s.org.id, [{
+      canalId: p.canal_id, itemId: p.id_externo, variationId: null, publicacionId: p.id, tipo: "otro",
+      antes: { estado: ml?.estado ?? p.estado },
+      payload: {
+        descripcion: `Eliminar en ML: ${ml?.titulo ?? p.id_externo}`,
+        pedidos: [
+          ...(ml?.estado === "closed" ? [] : [{ metodo: "PUT" as const, ruta: `/items/${p.id_externo}`, cuerpo: { status: "closed" }, seguirSiFalla: true }]),
+          { metodo: "PUT" as const, ruta: `/items/${p.id_externo}`, cuerpo: { deleted: "true" } },
+        ],
+      },
+      efecto: { publicacion: { id: p.id, estado: "cerrada" } },
+    }], { origen: "boton", usuarioId: s.usuario.id });
+    revalidatePath(BASE);
+    return "Listo: la eliminación salió a Mercado Libre. En unos minutos deja de aparecer.";
+  });
+}
+
 /** "Sacar la pausa" (clic de Fer): saca la marca de pausada a mano y, si hay stock, la reactiva en ML. */
 export async function accionSacarPausa(fd: FormData) {
   const s = await entrarErp("publicaciones_ver");

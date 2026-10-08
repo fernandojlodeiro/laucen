@@ -3,6 +3,7 @@
 
 import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import Link from "next/link";
+import { FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import PrecioPublicacion from "@/app/componentes/PrecioPublicacion";
 import { consulta } from "@/lib/erp/base";
 import { precioDe, listasDePrecios } from "@/lib/precios";
@@ -46,7 +47,7 @@ export type Producto = {
 type Props = {
   s: Sesion & { moneda: Moneda };
   p: Producto;
-  sp: { editar?: string; orden?: string; dir?: string };
+  sp: { editar?: string; orden?: string; dir?: string; pcanal?: string };
   seccion: string;
   /** Datos, Costo y Cucardas: en edición (?editar=ficha); si no, en vista. */
   editando: boolean;
@@ -973,9 +974,9 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
   const webs = await canalesWebDe(s.org.id, p.id);
   // Los precios de las publicaciones son en pesos: en dólares, al tipo de cambio de hoy.
   const tcHoy = await tcParaVista(s.org.id, s.moneda);
-  const filas = await consulta<{ id: number; sku: string; canal: string; id_externo: string | null; titulo: string; tipo_publicacion: string | null; plan: string | null; cuotas_visibles: number | null; estado: string;
+  const todasLasFilas = await consulta<{ id: number; sku: string; canal: string; canal_id: number; id_externo: string | null; titulo: string; tipo_publicacion: string | null; plan: string | null; cuotas_visibles: number | null; estado: string;
     precio: number | null; precio_tachado: number | null; campana: string | null; stock_ml: number | null; estado_ml: string | null; enlace: string | null; disp_web: number | null; vendidos: number | null; motivo: string | null; por_precio: boolean | null }>(`
-    select pu.id::int, v.sku, c.nombre canal, pu.id_externo,
+    select pu.id::int, v.sku, c.nombre canal, pu.canal_id::int, pu.id_externo,
            -- La publicación en ML (Fer, 5/10): su dirección, o la que arma ML con el número.
            case when c.tipo = 'mercadolibre' and pu.id_externo is not null
                 then coalesce(mi.permalink, 'https://articulo.mercadolibre.com.ar/' || regexp_replace(pu.id_externo, '^([A-Z]{3})(\\d+)$', '\\1-\\2')) end enlace, coalesce(pu.titulo, titulo_variacion(v.id)) titulo, pu.tipo_publicacion,
@@ -999,6 +1000,10 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
                           where m.canal_id = pu.canal_id and m.item_id = pu.id_externo and m.estado = 'started'
                             and m.precio > 0 and (m.hasta is null or m.hasta > now())) cp on c.tipo = 'mercadolibre'
      where v.producto_id = $2 and pu.organizacion_id = $1 order by c.nombre, v.sku`, [s.org.id, p.id]);
+  // Filtro por canal (Fer, 8/10); de entrada, todos.
+  const canalesPub = [...new Map(todasLasFilas.map((f) => [f.canal_id, f.canal])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  const canalFiltro = Number(sp.pcanal) || 0;
+  const filas = canalFiltro ? todasLasFilas.filter((f) => f.canal_id === canalFiltro) : todasLasFilas;
   const tono = (e: string) => (e === "activa" ? "verde" : e === "pausada" ? "amarillo" : "gris") as "verde" | "amarillo" | "gris";
   // Se ordena tocando el título de la columna (Fer, 7/10); son pocas filas, en memoria.
   const CLAVES: Record<string, (f: (typeof filas)[number]) => string | number | null> = {
@@ -1036,7 +1041,13 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
       )}
       <div className="flex items-center justify-end gap-2 mb-2">
         {/* El total de ventas en ML del producto (Fer, 5/10): la suma de lo vendido de sus publicaciones; sin ventas, 0. */}
-        <span className="mr-auto text-xs text-[#5C6B76]">Vendidos en Mercado Libre: <b className="text-[#1F2A33] tabular-nums">{filas.reduce((t, f) => t + (f.vendidos ?? 0), 0).toLocaleString("es-AR")}</b></span>
+        <span className="mr-auto inline-flex items-center gap-3 text-xs text-[#5C6B76]">
+          <FiltroVivo parametro="pcanal" valor={canalFiltro ? String(canalFiltro) : ""} etiqueta="Canal">
+            <option value="">Todos los canales ({todasLasFilas.length})</option>
+            {canalesPub.map(([id, nombre]) => <option key={id} value={id}>{nombre} ({todasLasFilas.filter((f) => f.canal_id === id).length})</option>)}
+          </FiltroVivo>
+          <span>Vendidos en Mercado Libre: <b className="text-[#1F2A33] tabular-nums">{filas.reduce((t, f) => t + (f.vendidos ?? 0), 0).toLocaleString("es-AR")}</b></span>
+        </span>
         {/* Publicarlo en una cuenta de ML copiando una publicación parecida (queda esperando el clic en la cola). */}
         {!p.no_publicable && <Link href={`/catalogo/productos/${p.id}/publicar-ml`} className={SUAVE}>Publicar en ML copiando otra</Link>}
         {/* Directo a la publicación nueva armada con los datos de Laucen y la IA (Fer, 5/10). */}

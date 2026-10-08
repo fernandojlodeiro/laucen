@@ -118,7 +118,7 @@ export const LISTA_PUBLICACIONES: Lista = {
     campoFecha("sincronizada", "Última sincronización", "pu.ultima_sincronizacion_ts", { hora: true }),
     { clave: "atributos", titulo: "Atributos externos", sql: "case when pu.atributos_externos = '{}'::jsonb then null else pu.atributos_externos::text end", orden: false, ancho: 50 },
   ],
-  enPantalla: ["sku", "titulo", "canal", "externo", "categoria", "plan", "precio", "tachado", "campana", "precio_campana", "estado", "estado_ml", "disponible", "stock_ml", "umbral"],
+  enPantalla: ["sku", "titulo", "canal", "externo", "plan", "precio", "tachado", "campana", "precio_campana", "estado", "estado_ml", "stock_ml", "umbral"],
   consulta: async (ctx, sp) => {
     const f = filtrosPublicaciones(sp);
     const desde = `publicacion pu

@@ -11,7 +11,7 @@ resumen: Cada variación publicada en cada canal (espejo de Mercado Libre) y la 
 
 Hay dos pantallas, las dos del menú **Catálogo**:
 
-- **Publicaciones**: la lista de cada variación publicada en cada canal, con su foto, id externo (el MLA…), categoría, plan, precio, estado, disponible, stock en ML y umbral de pausa. Es un **espejo** de lo que está publicado en Mercado Libre: lo escribe la sincronización y acá no se crea, no se borra ni se cambia nada de lo publicado, salvo **pausar** una publicación activa (botón **Pausar**, que sale a Mercado Libre). Se edita además lo propio de Laucen: el umbral de pausa y, en canales que no son de Mercado Libre, a qué variación corresponde.
+- **Publicaciones**: la lista de cada variación publicada en cada canal, con su foto, título, id externo (el MLA…), plan, precio, estado, stock y umbral de pausa. Es un **espejo** de lo que está publicado en Mercado Libre: lo escribe la sincronización y acá no se crea, no se borra ni se cambia nada de lo publicado, salvo **pausar** una publicación activa (botón **⏸**) o **eliminar** una que no está activa (botón **✕**), que salen a Mercado Libre. Se edita además lo propio de Laucen: el umbral de pausa y, en canales que no son de Mercado Libre, a qué variación corresponde.
 - **Vincular con Mercado Libre**: trae todas las publicaciones de una cuenta de ML y deja decir a qué variación de Laucen corresponde cada una. Una publicación vinculada es lo que usan el stock, la pausa automática y los pedidos: si una publicación no está vinculada, sus ventas no saben qué producto descontar.
 
 ## Cómo se llega
@@ -36,17 +36,16 @@ Columnas (todas se ordenan tocando el título; sin elegir, por canal):
 - **Título** (el de la publicación; en gris, el de la variación si la publicación no tiene título; lleva a la ficha del producto).
 - **Canal**: filtra por ese canal.
 - **Id externo**: si es un MLA, enlace a la publicación en Mercado Libre.
-- **Categoría**.
 - **Plan**: **Clásica**, **Premium** (la común, sin campaña de cuotas) o **Premium 3x / 9x / 12x** (las Premium con campaña de cuotas de Mercado Libre: 3x_campaign, 9x_campaign, 12x_campaign). Es el nombre que usa Mercado Libre por dentro; lo que ve el comprador puede ser otro (por ejemplo, en una cuenta la 3x se ve como «Mismo precio en 6 cuotas» y la 12x como «18 cuotas»), así que para empatar una publicación con lo que se ve en la página de ML, mirá este plan y el precio. Debajo, **Catálogo** si es una publicación de catálogo. Si la cuenta tiene cargado en [Precios en Mercado Libre](/catalogo/precios-ml) cuántas cuotas ve el comprador en ese plan, debajo dice «el comprador ve N cuotas». En el Excel salen las dos cosas (columnas «Plan» y «Cuotas que ve el comprador»).
 - **Precio**: como lo ve el comprador en Mercado Libre (en pesos o en dólares según el interruptor de abajo a la izquierda; los de Mercado Libre son en pesos y, en dólares, se convierten al tipo de cambio de hoy). **Grande, lo que paga el cliente**: si está en una campaña activa que baja el precio, el precio de la campaña. Arriba, **chico y tachado, el precio de lista**; al lado del grande, el **"% OFF"** en verde; y debajo, chiquito, el nombre de la campaña (entero al pasar el mouse). El plan de cuotas está en la columna **Plan**.
-- **Estado**: Activa / Pausada / Cerrada (o **Pausada por vos**, si la pausaste con el botón); debajo, "En ML: …" (lo que dice ML: Activa, Pausada, Cerrada, En revisión, Inactiva, Pago pendiente) y "sinc. dd/mm hh:mm". Si está **En revisión**, dice si está **esperando corrección** (se puede corregir y ML la vuelve a revisar) o **prohibida** (no se levanta), la marca **Por precio** si el motivo es el precio, y el **motivo** que informa Mercado Libre (pasando el mouse se ve entero, con la solución que sugiere ML). En las que están esperando corrección aparece el botón **Corregir precio**.
-- **Disponible**: lo que hay para vender en los depósitos del canal. En rojo cuando está en el umbral o por debajo. Lleva a [Consulta de stock](/stock/consulta).
-- **Stock en ML**: lo que la publicación tiene cargado en Mercado Libre (también si está pausada).
+- **Estado**: Activa / Pausada / Cerrada (o **Pausada por vos**, si la pausaste con el botón); debajo, "En ML: …" (lo que dice ML: Activa, Pausada, Cerrada, En revisión, Inactiva, Pago pendiente); pasando el mouse por el estado, la fecha y hora de la última sincronización. Si está **En revisión**, dice si está **esperando corrección** (se puede corregir y ML la vuelve a revisar) o **prohibida** (no se levanta), la marca **Por precio** si el motivo es el precio, y el **motivo** que informa Mercado Libre (pasando el mouse se ve entero, con la solución que sugiere ML). En las que están esperando corrección aparece el botón **Corregir precio**.
+- **Stock**: lo que la publicación tiene cargado en Mercado Libre (también si está pausada); en la web, lo disponible. Al pasar el mouse dice lo disponible en Laucen para ese canal; si no coincide con lo de Mercado Libre, abajo del número aparece «Laucen: N» (revisar la sincronización de stock). En rojo cuando lo disponible está en el umbral o por debajo. Lleva a [Consulta de stock](/stock/consulta).
 - **Vendidos ML** (para agregar en la vista o el Excel): unidades vendidas que informa Mercado Libre de esa publicación; 0 si no vendió.
-- **Umbral**: el que rige; "(hereda)" si no tiene uno propio.
-- A la derecha: **Pausar** (sólo publicaciones de Mercado Libre activas; pregunta "¿Pausar en Mercado Libre?" Sí / No), **Sacar la pausa** (sólo las que pausaste vos), **Re-vincular** (sólo publicaciones de ML: lleva a Vincular con Mercado Libre filtrado por ese MLA) y el **lápiz** ("Editar el umbral de pausa", y en canales que no son de ML también la variación).
+- **Umbral pausa**: el que rige; "(hereda)" si no tiene uno propio.
+- A la derecha, botones chicos: **⏸** pausa (sólo publicaciones de Mercado Libre activas; pregunta "¿Pausar en Mercado Libre?" Sí / No), **▶** saca la pausa (sólo las pausadas a mano), **Corregir precio** (en revisión por precio), **Re-vincular**, **✕** elimina la publicación en Mercado Libre y el **lápiz** del umbral.
+- **✕ Eliminar**: finaliza y borra la publicación en Mercado Libre. **Nunca una activa** (la ✕ no aparece; primero hay que pausarla): sólo pausadas, cerradas o en revisión. Pregunta "¿Eliminar en ML?" Sí / No y, si en Laucen hay stock para venderla en esa cuenta, pregunta otra vez avisando cuánto ("Ojo: tenés N para vender en esta cuenta. ¿Seguro que la eliminás?"). Sale por la [cola de Mercado Libre](/config/canales/cola) y en unos minutos deja de aparecer.
 
-De a 50 filas. Al pie, una nota explica Disponible, Stock en ML y Umbral.
+De a 50 filas. Al pie, una nota explica Stock, Umbral pausa y los botones.
 
 ### Vincular con Mercado Libre
 
@@ -155,7 +154,7 @@ Porque su SKU en ML está vacío o no coincide con ningún SKU de Laucen. Vincul
 **Vinculé mal una publicación, ¿cómo lo arreglo?**
 Tacho en la vinculación (desvincular) y vinculala de nuevo con el SKU correcto.
 
-**¿Qué diferencia hay entre "Disponible" y "Stock en ML"?**
+**¿Qué diferencia hay entre lo disponible en Laucen y el stock en ML?**
 Disponible es lo que Laucen tiene para vender en los depósitos del canal. Stock en ML es lo que la publicación tiene cargado en Mercado Libre.
 
 **¿Qué significa "(hereda)" en el umbral?**

@@ -23,7 +23,11 @@ import {
 } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
 import { LISTA_PUBLICACIONES, DISPONIBLE_PUBLICACION, textoEstadoMl, PlanPublicacion, PLAN_PUBLICACION, CUOTAS_VISIBLES_PUBLICACION, ES_CATALOGO, PRECIO_PUBLICACION, TACHADO_PUBLICACION, CAMPANA_PUBLICACION, PRECIO_CAMPANA_PUBLICACION } from "./lista";
-import { accionGuardarPublicacion, accionPausarPublicacion, accionSacarPausa, accionCorregirPrecio, accionLeerMotivos } from "./acciones";
+import { accionGuardarPublicacion, accionPausarPublicacion, accionSacarPausa, accionCorregirPrecio, accionLeerMotivos, accionEliminarPublicacion } from "./acciones";
+import BotonEliminar from "./BotonEliminar";
+
+/** Los botones de la fila, chicos (Fer, 8/10). */
+const CHICO = "text-[11px] font-bold rounded-md px-1.5 py-0.5 bg-[#EEF3F8] border border-[#E3E9F0] text-[#16577F]";
 import { verInactivos } from "@/app/componentes/Inactivos";
 
 export const dynamic = "force-dynamic";
@@ -122,18 +126,19 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
           <thead className={THEAD}>
             <tr>
               <th className={TH} /><ThOrden col="sku">SKU</ThOrden><ThOrden col="titulo">Título</ThOrden><ThOrden col="canal" porDefecto>Canal</ThOrden><ThOrden col="externo">Id externo</ThOrden>
-              <ThOrden col="categoria">Categoría</ThOrden><ThOrden col="plan">Plan</ThOrden><ThOrden col="precio" n>Precio</ThOrden><ThOrden col="estado">Estado</ThOrden><ThOrden col="disponible" n>Disponible</ThOrden><ThOrden col="stock_ml" n>Stock en ML</ThOrden><ThOrden col="umbral" n>Umbral</ThOrden><th />
+              <ThOrden col="plan">Plan</ThOrden><ThOrden col="precio" n>Precio</ThOrden><ThOrden col="estado">Estado</ThOrden><ThOrden col="stock_ml" n>Stock</ThOrden><ThOrden col="umbral" n>Umbral pausa</ThOrden><th />
             </tr>
           </thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={13} className={`${TD} text-[#5C6B76]`}>{canalId || estado || revision || catalogo || comunes || q ? "Nada coincide con el filtro." : "Todavía no hay publicaciones: se traen solas de Mercado Libre al vincular la cuenta."}</td></tr>}
+            {filas.length === 0 && <tr><td colSpan={11} className={`${TD} text-[#5C6B76]`}>{canalId || estado || revision || catalogo || comunes || q ? "Nada coincide con el filtro." : "Todavía no hay publicaciones: se traen solas de Mercado Libre al vincular la cuenta."}</td></tr>}
             {filas.map((f) => (
               <tr key={f.id} className={`${TR} ${editar === f.id ? "bg-[#FAFBFC]" : ""}`}>
                 {/* La foto: 30 % más chica y al tocarla se agranda, como en todas las listas (Fer, 8/10). */}
-                <td className={`${TD} w-[48px]`}><FotosProducto fotos={f.foto ? [f.foto] : null} titulo={f.titulo_var} tamano={36} /></td>
+                <td className={`${TD} w-[40px]`}><FotosProducto fotos={f.foto ? [f.foto] : null} titulo={f.titulo_var} /></td>
                 {/* SKU, MLA y título siempre a la vista (Fer, 7/10). */}
                 <td className={`${TD} font-mono whitespace-nowrap`}><Link href={`/catalogo/productos/${f.producto_id}`} className="text-[#16577F] hover:underline">{f.sku}</Link></td>
-                <td className={TD}>
+                {/* El título es lo más importante: columna ancha (Fer, 8/10). */}
+                <td className={`${TD} min-w-[300px]`}>
                   <Link href={`/catalogo/productos/${f.producto_id}`} className="hover:underline">{f.titulo ?? <span className="text-[#5C6B76]">{f.titulo_var}</span>}</Link>
                   {editar === f.id && f.canal_tipo !== "mercadolibre" && (
                     <input name="sku" form={`pub-${f.id}`} defaultValue={f.sku} placeholder="SKU o código de barras" title="La variación de Laucen de esta publicación"
@@ -144,7 +149,6 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                 <td className={`${TD} whitespace-nowrap`}>{f.id_externo && /^MLA\d+$/.test(f.id_externo)
                   ? <><Link href={historialPublicacion(f.id_externo)} className="text-[#16577F] hover:underline" title="Historial de esta publicación">{f.id_externo}</Link> <a href={enlaceMl(f.id_externo)} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline" title="Ver en Mercado Libre">↗</a></>
                   : f.id_externo ?? "—"}</td>
-                <td className={TD}>{f.categoria_externa || "—"}</td>
                 <td className={`${TD} whitespace-nowrap`}><PlanPublicacion plan={f.plan} cuotas={f.cuotas_visibles} />{f.catalogo && <span className="block text-[10px] text-[#16577F]">Catálogo</span>}</td>
                 <td className={TDN}>
                   {corrigiendo === f.id ? (
@@ -164,7 +168,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                       : <PrecioPublicacion paga={f.precio} lista={f.tachado} campana={f.campana} texto={plata} />
                   ) : <span className="text-[#5C6B76]">—</span>}
                 </td>
-                <td className={TD}>
+                <td className={TD} title={f.sincronizada ? `Última sincronización: ${f.sincronizada}` : undefined}>
                   {f.pausada_manual && <span className="mb-0.5 block"><Estado texto={f.estado === "pausada" ? "Pausada por vos" : "Pausa pedida"} tono="amarillo" /></span>}
                   {!(f.pausada_manual && f.estado === "pausada") && <Estado texto={TEXTO_ESTADO[f.estado] ?? f.estado} tono={TONO_ESTADO[f.estado] ?? "gris"} />}
                   {f.estado_ml && <span className="block text-[10px] text-[#5C6B76]">En ML: {textoEstadoMl(f.estado_ml)}{f.estado_ml === "under_review" && (f.prohibida ? " (prohibida)" : " (esperando corrección)")}</span>}
@@ -177,13 +181,12 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                       {f.corregido && <span className="block text-[#1F6E4A]">Precio corregido el {f.corregido}: esperando que ML la revise.</span>}
                     </span>
                   )}
-                  {f.sincronizada && <span className="block text-[10px] text-[#5C6B76]">sinc. {f.sincronizada}</span>}
                 </td>
-                <td className={`${TDN} ${f.disponible <= f.umbral_efectivo ? "text-[#C03420] font-semibold" : ""}`}>
-                  <Link href={url("/stock/consulta", { v: f.variacion_id })} className="hover:underline">{f.disponible}</Link>
-                </td>
-                <td className={TDN} title="Lo que Mercado Libre tiene cargado como disponible en la publicación (aunque esté pausada)">
-                  {f.stock_ml != null ? f.stock_ml : <span className="text-[#5C6B76]">—</span>}
+                {/* Un solo «Stock» (Fer, 8/10): el que tiene la publicación en ML (en la web, el disponible); el de Laucen, al pasar el mouse. En rojo si quedó en el umbral o abajo. */}
+                <td className={`${TDN} ${f.disponible <= f.umbral_efectivo ? "text-[#C03420] font-semibold" : ""}`}
+                  title={`Disponible en Laucen para este canal: ${f.disponible}${f.stock_ml != null && f.stock_ml !== f.disponible ? " (distinto de lo que tiene ML: revisar la sincronización de stock)" : ""}`}>
+                  <Link href={url("/stock/consulta", { v: f.variacion_id })} className="hover:underline">{f.stock_ml ?? f.disponible}</Link>
+                  {f.stock_ml != null && f.stock_ml !== f.disponible && <span className="block text-[10px] text-[#8a6100]">Laucen: {f.disponible}</span>}
                 </td>
                 {editar === f.id ? (
                   <td className={TDN}>
@@ -205,18 +208,22 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                   ) : (
                     <span className="inline-flex items-center gap-1">
                       {f.canal_tipo === "mercadolibre" && f.id_externo && f.estado === "activa" && !f.pausada_manual && (
-                        <BotonConfirmar accion={accionPausarPublicacion} campos={{ id: String(f.id), volver: aqui }} clase={SUAVE}
-                          texto="Pausar" pregunta="¿Pausar en Mercado Libre?" corriendo="Pausando…" />
+                        <BotonConfirmar accion={accionPausarPublicacion} campos={{ id: String(f.id), volver: aqui }} clase={CHICO}
+                          texto="⏸" pregunta="¿Pausar en Mercado Libre?" corriendo="Pausando…" />
                       )}
                       {f.canal_tipo === "mercadolibre" && f.pausada_manual && (
-                        <BotonConfirmar accion={accionSacarPausa} campos={{ id: String(f.id), volver: aqui }} clase={SUAVE}
-                          texto="Sacar la pausa" pregunta="¿Sacar la pausa?" corriendo="Activando…" />
+                        <BotonConfirmar accion={accionSacarPausa} campos={{ id: String(f.id), volver: aqui }} clase={CHICO}
+                          texto="▶" pregunta="¿Sacar la pausa?" corriendo="Activando…" />
                       )}
                       {f.canal_tipo === "mercadolibre" && f.id_externo && f.estado_ml === "under_review" && !f.prohibida && (
-                        <Link href={url(BASE, { ...filtros, precio: f.id })} className={SUAVE} scroll={false} title="Cambiar el precio en Mercado Libre para que la vuelva a revisar">Corregir precio</Link>
+                        <Link href={url(BASE, { ...filtros, precio: f.id })} className={CHICO} scroll={false} title="Cambiar el precio en Mercado Libre para que la vuelva a revisar">Corregir precio</Link>
                       )}
                       {f.canal_tipo === "mercadolibre" && f.id_externo && (
-                        <Link href={vincularMl(f)} className={SUAVE} title="Cambiar a qué variación de Laucen corresponde esta publicación">Re-vincular</Link>
+                        <Link href={vincularMl(f)} className={CHICO} title="Cambiar a qué variación de Laucen corresponde esta publicación">Re-vincular</Link>
+                      )}
+                      {/* Eliminar en ML (Fer, 8/10): nunca una activa; pausada con stock, doble aviso. */}
+                      {f.canal_tipo === "mercadolibre" && f.id_externo && f.estado_ml !== "active" && !(f.estado === "activa" && !f.estado_ml) && (
+                        <BotonEliminar accion={accionEliminarPublicacion} campos={{ id: String(f.id), volver: aqui }} disponible={f.disponible} />
                       )}
                       <Lapiz href={url(BASE, { ...filtros, editar: f.id })} etiqueta={f.canal_tipo === "mercadolibre" ? "Editar el umbral de pausa" : "Editar el umbral de pausa y la variación"} />
                     </span>
@@ -230,7 +237,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
       <Paginado total={total} />
 
       <section className="mt-2">
-        <p className="text-[11px] text-[#5C6B76] mt-2">Disponible: lo que hay para vender en los depósitos del canal. Stock en ML: lo que la publicación tiene cargado en Mercado Libre (también si está pausada). Umbral: con ese disponible o menos, el canal pausa la publicación (vacío = hereda del producto, del canal o de la organización).</p>
+        <p className="text-[11px] text-[#5C6B76] mt-2">Stock: lo que la publicación tiene cargado en Mercado Libre (también si está pausada); al pasar el mouse, lo disponible en Laucen para ese canal (si difieren, se avisa abajo del número). Umbral pausa: con ese disponible o menos, el canal pausa la publicación (vacío = hereda del producto, del canal o de la organización). ⏸ pausa, ▶ saca la pausa y ✕ elimina en Mercado Libre (sólo si no está activa).</p>
       </section>
     </Pantalla>
   );
