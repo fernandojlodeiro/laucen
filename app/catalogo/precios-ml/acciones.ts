@@ -11,11 +11,12 @@ import { entrarErp } from "@/app/componentes/erp";
 import { intentar, id, texto, numero, entero, tildado } from "@/lib/erp/acciones";
 import { ErrorErp, consulta } from "@/lib/erp/base";
 import {
-  guardarTachado, guardarPlan, borrarExcepcion, guardarVolumen, borrarVolumen, replicarVolumen, fijarInterruptor, productoPorSku, canalMl,
+  guardarTachado, guardarPlan, borrarExcepcion, guardarVolumen, borrarVolumen, replicarVolumen, fijarInterruptor, productoPorSku, canalMl, campanasBajoPisoCanal,
   type Donde,
 } from "@/lib/precios-ml/datos";
 import { prepararCambios, sincronizarPreciosMl } from "@/lib/precios-ml/preparar";
-import { PLANES } from "@/lib/precios-ml/motor";
+import { PLANES, pedidoSalirCampana } from "@/lib/precios-ml/motor";
+import { encolarLoteConBoton, type CambioMl } from "@/lib/mercadolibre/cola";
 import { BASE_PML, PREVIA } from "./lista";
 
 const volver = (fd: FormData, base = BASE_PML) => {
@@ -185,6 +186,31 @@ export async function accionPrepararCambios(fd: FormData) {
     return {
       ir: `/config/canales/cola?ver=lotes&lote=${lotes[0].id}&ok=${encodeURIComponent(
         `Preparado, falta tu clic: ${lotes.map((l) => l.descripcion).join("; ")}. Revisá cada lote y apretá «Mandar a Mercado Libre».`)}`,
+    };
+  });
+}
+
+/** Alertas › «Sacar de la campaña»: arma un lote preparado (espera el clic de
+ *  Fer en la cola) que saca la publicación de las campañas que la dejan
+ *  debajo del piso. `clave` = "item|campaña" de una fila; sin clave, todas. */
+export async function accionSacarCampanas(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  const canal = id(fd, "canal");
+  const clave = texto(fd, "clave");
+  await intentar(volver(fd), async () => {
+    const c = await canalMl(s.org.id, canal);
+    const filas = (await campanasBajoPisoCanal(s.org.id, canal)).filter((f) => !clave || `${f.itemId}|${f.campanaId}` === clave);
+    if (!filas.length) return "Ya no hay campañas debajo del piso para sacar (puede que ML las haya cambiado).";
+    const cambios: CambioMl[] = filas.map((f) => ({
+      canalId: canal, itemId: f.itemId, publicacionId: f.publicacionId, tipo: "campana",
+      payload: {
+        descripcion: `Salir de «${f.nombre ?? f.tipo}» (${f.sku}): con ella queda a $ ${f.precio.toLocaleString("es-AR")}, debajo del piso de $ ${Math.round(f.piso).toLocaleString("es-AR")}`,
+        pedidos: [pedidoSalirCampana(f.itemId, { id: f.campanaId, tipo: f.tipo, estado: "started", precio: null, min: null, max: null })],
+      },
+    }));
+    const lote = await encolarLoteConBoton(s.org.id, canal, cambios, `Salir de campañas debajo del piso · ${c.nombre} · ${cambios.length} publicaci${cambios.length === 1 ? "ón" : "ones"}`, s.usuario.id);
+    return {
+      ir: `/config/canales/cola?ver=lotes&lote=${lote}&ok=${encodeURIComponent("Preparado, falta tu clic: revisá el lote y apretá «Mandar a Mercado Libre».")}`,
     };
   });
 }

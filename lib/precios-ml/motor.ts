@@ -245,7 +245,9 @@ export type ReglaTachado = FilaNivel & { tachado_pct: number | null;
   ajuste_pct?: number | null };
 
 /** Una campaña de ML de una publicación (leída de /seller-promotions). */
-export type Campana = { id: string; tipo: string; estado: string | null; nombre?: string | null; precio: number | null; min: number | null; max: number | null };
+export type Campana = { id: string; tipo: string; estado: string | null; nombre?: string | null; precio: number | null; min: number | null; max: number | null;
+  /** Las que arma ML («Potencia tus ventas»): el precio sin descuento y qué % pone el vendedor. */
+  original?: number | null; pctVendedor?: number | null };
 
 export type PubMl = {
   publicacionId: number; itemId: string; variationId: string | null; plan: PlanOClasica | null; estado: string;
@@ -278,6 +280,8 @@ export type PropuestaPub = {
   rol: "clasica" | "destacado" | "plan" | "apagado" | "otro";
   /** El precio de la publicación en ML (lista) y lo que paga el comprador. */
   lista: number | null; venta: number | null;
+  /** El piso: lo que da el esquema para esta publicación, antes de mirar las campañas en las que ya está. */
+  piso: number | null;
   /** Campañas para entrar (o volver a entrar con otro precio). */
   entrar: Campana[]; salir: Campana[];
   volumen: { cantidad: number; precio: number; pct: number }[];
@@ -384,7 +388,7 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
   const idsClasica = campanasClasica ? new Set([...campanasClasica.entrar, ...campanasClasica.quedan].map((c) => c.id)) : new Set<string>();
 
   const pubs: PropuestaPub[] = e.pubs.map((pub) => {
-    const pa: PropuestaPub = { pub, rol: "otro", lista: null, venta: null, entrar: [], salir: [], volumen: [], cambiaPrecio: false, cambiaVolumen: false, avisos: [] };
+    const pa: PropuestaPub = { pub, rol: "otro", lista: null, venta: null, piso: null, entrar: [], salir: [], volumen: [], cambiaPrecio: false, cambiaVolumen: false, avisos: [] };
     if (clasica == null || pub.estado === "cerrada") return pa;
     if (pub.plan === "clasica") {
       pa.rol = "clasica"; pa.lista = tach; pa.venta = clasica;
@@ -406,6 +410,7 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
       pa.avisos.push("Tipo de publicación desconocido: no se toca.");
       return pa;
     }
+    pa.piso = pa.venta;
     const adentro = pub.campanas.filter((c) => (c.estado === "started" || c.estado === "pending") && CON_PRECIO.includes(c.tipo));
     // En campaña (Fer, 7/10): el tachado no se toca y el precio sólo baja.
     if (adentro.length && pub.precioListaMl != null && pa.lista != null && pa.venta != null) {
@@ -457,13 +462,38 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
 
 export type PedidoHttp = { metodo: "PUT" | "POST" | "DELETE"; ruta: string; cuerpo?: unknown };
 
+/** Lo que pone el vendedor en una campaña: en las propias, su precio; en las
+ *  que arma ML con descuento compartido, el precio sin descuento menos la parte
+ *  del vendedor (la de ML no sale de su bolsillo). */
+export function precioVendedorCampana(c: Campana): number | null {
+  if (!CON_PRECIO.includes(c.tipo) && c.original && c.pctVendedor != null) return Math.round(c.original * (1 - c.pctVendedor / 100));
+  return c.precio != null && c.precio > 0 ? Number(c.precio) : null;
+}
+
+/** Las campañas en curso de una publicación que la dejan debajo del piso del esquema. */
+export function campanasBajoPiso(pa: PropuestaPub): { campana: Campana; precio: number }[] {
+  if (pa.piso == null) return [];
+  const salida: { campana: Campana; precio: number }[] = [];
+  for (const c of pa.pub.campanas) {
+    if (c.estado !== "started" && c.estado !== "pending") continue;
+    const precio = precioVendedorCampana(c);
+    if (precio != null && precio < pa.piso - 0.5) salida.push({ campana: c, precio });
+  }
+  return salida;
+}
+
+/** Salir de una campaña. */
+export function pedidoSalirCampana(itemId: string, c: Campana): PedidoHttp {
+  return { metodo: "DELETE", ruta: `/seller-promotions/items/${itemId}?promotion_type=${encodeURIComponent(c.tipo)}&promotion_id=${encodeURIComponent(c.id)}&app_version=v2` };
+}
+
 /** Precio y campañas de una publicación, en orden: salir de las campañas a
  *  otro precio → cambiar el precio → entrar a las campañas. */
 export function pedidosPrecio(pa: PropuestaPub): PedidoHttp[] {
   const id = pa.pub.itemId;
   const salida: PedidoHttp[] = [];
   for (const c of pa.salir) {
-    salida.push({ metodo: "DELETE", ruta: `/seller-promotions/items/${id}?promotion_type=${encodeURIComponent(c.tipo)}&promotion_id=${encodeURIComponent(c.id)}&app_version=v2` });
+    salida.push(pedidoSalirCampana(id, c));
   }
   if (pa.cambiaPrecio && pa.lista != null) {
     const v = pa.pub.variationId ? Number(pa.pub.variationId) : null;

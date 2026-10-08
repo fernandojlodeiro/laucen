@@ -13,7 +13,7 @@ import {
   heredar, cadenaFamilias, precioPlan, tachado, elegirDestacado, escalonesPara, normalizarEscalones, planDePublicacion,
   comisionesDe, cuotasRepetidas, proponer, pedidosPrecio, pedidoCrear, campanasPara, holguraPlan,
   type FilaVolumen, type ReglaTachado, type ReglasPlan, type EntradaVariacion, type PubMl, type ReglasCanal,
-  tablaVolumen,
+  tablaVolumen, precioVendedorCampana, campanasBajoPiso, descuentoComprador, type PropuestaPub,
 } from "@/lib/precios-ml/motor";
 
 // ── El motor (sin base) ─────────────────────────────────────
@@ -417,4 +417,15 @@ test("volumen: cada escalón lleva el contexto de ML y la tabla nombra los preci
     { id: "9", type: "promotion", conditions: {} },
   ];
   assert.deepEqual(tablaVolumen(actuales, [nuevo]), [{ id: "1" }, nuevo]);
+});
+
+test("campañas debajo del piso: la propia por su precio, la de ML por lo que pone el vendedor", () => {
+  assert.equal(descuentoComprador(81.81818), 45);
+  const propia = { id: "D1", tipo: "DEAL", estado: "started", precio: 900, min: null, max: null };
+  const smart = { id: "S1", tipo: "SMART", estado: "started", precio: 850, min: null, max: null, original: 1000, pctVendedor: 5 };
+  const candidata = { id: "D2", tipo: "DEAL", estado: "candidate", precio: 500, min: null, max: null };
+  assert.equal(precioVendedorCampana(smart), 950);
+  const pa = { piso: 1000, pub: { campanas: [propia, smart, candidata] } } as unknown as PropuestaPub;
+  assert.deepEqual(campanasBajoPiso(pa).map((x) => [x.campana.id, x.precio]), [["D1", 900], ["S1", 950]]);
+  assert.deepEqual(campanasBajoPiso({ ...pa, piso: 900 } as PropuestaPub).map((x) => x.campana.id), []);
 });

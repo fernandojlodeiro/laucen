@@ -23,12 +23,12 @@ import { fechaHora } from "@/app/ventas/formato";
 import { formatear } from "@/lib/moneda";
 import { formatearNumero } from "@/lib/numeros";
 import { paginarEnMemoria } from "@/lib/lista";
-import { comisionesMl, reglasCanal, excepcionesCanal, volumenCanal, alertasCanal, type CanalMl, type Excepcion, type RangoVolumen } from "@/lib/precios-ml/datos";
+import { comisionesMl, reglasCanal, excepcionesCanal, volumenCanal, alertasCanal, campanasBajoPisoCanal, type CanalMl, type Excepcion, type RangoVolumen } from "@/lib/precios-ml/datos";
 import { PLANES, PLAN_INFO, precioPlan, descuentoComprador, type Plan, type ReglasPlan } from "@/lib/precios-ml/motor";
 import { BarraPml, type VerPml } from "./comun";
 import { BASE_PML, PREVIA, LISTA_EXCEPCIONES_ML, LISTA_VOLUMEN_ML, canalElegido, textoEscalones } from "./lista";
 import {
-  accionGuardarGeneral, accionGuardarExcepcion, accionBorrarExcepcion, accionGuardarVolumen, accionBorrarVolumen, accionReplicarVolumen, accionInterruptor,
+  accionGuardarGeneral, accionGuardarExcepcion, accionBorrarExcepcion, accionGuardarVolumen, accionBorrarVolumen, accionReplicarVolumen, accionInterruptor, accionSacarCampanas,
 } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -69,7 +69,7 @@ export default async function PreciosMl({ searchParams }: { searchParams: Promis
       {ver === "general" ? <General org={s.org.id} canal={canal} editando={editando} aqui={aqui} />
         : ver === "excepciones" ? <Excepciones org={s.org.id} canal={canal} sp={sp} aqui={aqui} />
         : ver === "volumen" ? <Volumen org={s.org.id} canal={canal} sp={sp} aqui={aqui} />
-        : <Alertas org={s.org.id} canal={canal} />}
+        : <Alertas org={s.org.id} canal={canal} aqui={aqui} />}
     </Pantalla>
   );
 }
@@ -391,10 +391,46 @@ async function Volumen({ org, canal, sp, aqui }: { org: string; canal: CanalMl; 
 
 // ── Alertas ─────────────────────────────────────────────────
 
-async function Alertas({ org, canal }: { org: string; canal: CanalMl }) {
-  const filas = await alertasCanal(org, canal.id);
+async function Alertas({ org, canal, aqui }: { org: string; canal: CanalMl; aqui: string }) {
+  const [filas, bajo] = await Promise.all([alertasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id)]);
+  const base = { canal: String(canal.id), volver: aqui };
   return (
     <>
+      <TituloSeccion titulo={`Campañas debajo del piso (${bajo.length})`}>
+        {bajo.length > 1 && <BotonConfirmar accion={accionSacarCampanas} campos={base} clase={SUAVE} texto="Sacar de todas"
+          pregunta={`¿Preparar un lote que saca las ${bajo.length}?`} corriendo="Preparando…" />}
+      </TituloSeccion>
+      <div className={`${CAJA_TABLA} mb-1`}>
+        <table className={TABLA}>
+          <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Producto</th><th className={TH}>Publicación</th><th className={TH}>Campaña</th>
+            <th className={THN}>Con la campaña</th><th className={THN}>Piso</th><th className={THN}>Debajo</th><th /></tr></thead>
+          <tbody>
+            {bajo.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>Ninguna: todas las campañas en curso respetan el piso.</td></tr>}
+            {bajo.map((f) => (
+              <tr key={`${f.itemId}|${f.campanaId}`} className={TR}>
+                <td className={TD}><Link href={`/catalogo/productos/${f.productoId}`} className="font-mono text-[#16577F] hover:underline">{f.sku}</Link></td>
+                <td className={TD}>{f.titulo}</td>
+                <td className={TD}><Link href={url("/catalogo/publicaciones", { canal: canal.id, q: f.itemId })} className="font-mono text-[#16577F] hover:underline">{f.itemId}</Link>
+                  <div className="text-[10px] text-[#5C6B76]">{f.plan === "clasica" ? "Clásica" : PLAN_INFO[f.plan as Plan]?.corto ?? f.plan ?? ""}</div></td>
+                <td className={TD}>{f.nombre ?? f.tipo}<div className="text-[10px] text-[#5C6B76]">{f.propia ? "propia (el precio lo pusiste vos)" : "de ML (cuenta sólo lo que ponés vos)"}</div></td>
+                <td className={TDN}>{formatear(f.precio, "ARS")}</td>
+                <td className={TDN}>{formatear(Math.round(f.piso), "ARS")}</td>
+                <td className={`${TDN} text-[#C03420]`}>−{formatearNumero(Math.round((1 - f.precio / f.piso) * 1000) / 10, "pct")} %</td>
+                <td className={`${TD} text-right whitespace-nowrap`}>
+                  <BotonConfirmar accion={accionSacarCampanas} campos={{ ...base, clave: `${f.itemId}|${f.campanaId}` }} clase={SUAVE} texto="Sacar de la campaña"
+                    pregunta="¿Preparar el lote?" corriendo="Preparando…" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[11px] text-[#5C6B76] mb-4">
+        El piso es el precio que da el esquema para esa publicación (la Clásica de la cuenta, o el precio de su plan). En una campaña propia cuenta su precio; en una de ML («Potencia tus ventas»), sólo lo que ponés vos: el precio sin descuento menos tu parte (la de ML no sale de tu bolsillo).
+        «Sacar de la campaña» no la saca ya: arma un lote en la <Link href="/config/canales/cola?ver=lotes" className="text-[#16577F] hover:underline">cola de Mercado Libre</Link> que sale con tu clic.
+      </p>
+
+      <TituloSeccion titulo={`Destacados que dejaron de ganar (${filas.length})`} />
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Producto</th><th className={TH}>Plan destacado</th><th className={TH}>Publicación</th><th className={THN}>Precio elegido</th><th className={TH}>Qué pasa</th><th className={THN}>Leído</th></tr></thead>

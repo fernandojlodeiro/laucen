@@ -73,7 +73,14 @@ El formulario: «Aplica a» (Toda la cuenta (general) / Una categoría (excepci�
 
 ### Pestaña «Alertas»
 
-Lista los **planes destacados que dejaron de ganar** en el recuadro de cuotas de Mercado Libre: «SKU», «Producto», «Plan destacado», «Publicación», «Precio elegido», «Qué pasa» y «Leído». Si no hay ninguno: «Sin alertas: los destacados siguen ganando (o todavía no hay destacados elegidos)». Abajo, un enlace a la vista previa filtrada por los destacados.
+La cuenta de la pestaña suma las dos cajas.
+
+**«Campañas debajo del piso (N)»**: publicaciones que están en una campaña en curso que las deja **más baratas que el piso**. El piso es lo que da el esquema para esa publicación (la Clásica de la cuenta, o el precio de su plan). Columnas: «SKU», «Producto», «Publicación» (con su tipo: Clásica, 3 cuotas…), «Campaña» (nombre, y si es **propia** —oferta del día, campaña del vendedor: el precio lo pusiste vos— o **de ML** —«Potencia tus ventas»—), «Con la campaña», «Piso» y «Debajo» (cuánto % abajo).
+- En una campaña propia cuenta su precio. En una de ML con descuento compartido cuenta **sólo lo que ponés vos**: precio sin descuento × (1 − tu %). La parte que pone ML no sale de tu bolsillo y no cuenta.
+- Botón **«Sacar de la campaña»** en cada fila (pregunta «¿Preparar el lote?» Sí / No) y **«Sacar de todas»** arriba a la derecha de la caja: arman un **lote preparado** en la [cola de Mercado Libre](/config/canales/cola) que la saca de la campaña con tu clic en «Mandar a Mercado Libre». Nada sale solo.
+- Por qué pasa: estando en campaña, Laucen no sube el precio (en campaña el precio sólo baja), y las campañas de ML las arma ML. Si después de sacarla ML la vuelve a meter, vuelve a aparecer acá.
+
+**«Destacados que dejaron de ganar (N)»**: lista los **planes destacados que dejaron de ganar** en el recuadro de cuotas de Mercado Libre: «SKU», «Producto», «Plan destacado», «Publicación», «Precio elegido», «Qué pasa» y «Leído». Si no hay ninguno: «Sin alertas: los destacados siguen ganando (o todavía no hay destacados elegidos)». Abajo, un enlace a la vista previa filtrada por los destacados.
 
 ## Cómo se hace
 

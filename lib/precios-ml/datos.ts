@@ -6,7 +6,7 @@
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import {
-  CON_PRECIO, cadenaFamilias, comisionesDe, comisionGeneral, normalizarEscalones, planDePublicacion, proponer,
+  CON_PRECIO, campanasBajoPiso, cadenaFamilias, comisionesDe, comisionGeneral, normalizarEscalones, planDePublicacion, proponer,
   type Campana, type Comisiones, type EntradaVariacion, type FilaComision, type FilaVolumen, type Propuesta, type ReglasCanal,
   type ReglasPlan, type ReglaTachado, type PubMl,
 } from "@/lib/precios-ml/motor";
@@ -117,8 +117,9 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
     [org, canal.id, canal.listaId, opts.variaciones?.length ? opts.variaciones : null, opts.fecha ?? new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" })]);
   const items = [...new Set(filas.map((f) => f.item))];
   const [promos, volumen] = items.length ? await Promise.all([
-    consulta<{ item_id: string; promocion_id: string; tipo: string; estado: string | null; nombre: string | null; precio: number | null; min_precio: number | null; max_precio: number | null }>(`
-      select item_id, promocion_id, tipo, estado, nombre, precio::float8, min_precio::float8, max_precio::float8
+    consulta<{ item_id: string; promocion_id: string; tipo: string; estado: string | null; nombre: string | null; precio: number | null; min_precio: number | null; max_precio: number | null;
+               precio_original: number | null; pct_vendedor: number | null }>(`
+      select item_id, promocion_id, tipo, estado, nombre, precio::float8, min_precio::float8, max_precio::float8, precio_original::float8, pct_vendedor::float8
         from ml_promo_item where canal_id = $1 and item_id = any($2::text[]) and (hasta is null or hasta > now())`, [canal.id, items]),
     consulta<{ item_id: string; variation_id: string; payload: { escalones?: { cantidad: number; precio: number }[] } }>(`
       select distinct on (item_id, variation_id) item_id, variation_id, payload from ml_cola
@@ -127,7 +128,8 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
   ]) : [[], []];
   const campanas = new Map<string, Campana[]>();
   for (const p of promos) {
-    campanas.set(p.item_id, [...(campanas.get(p.item_id) ?? []), { id: p.promocion_id, tipo: p.tipo, estado: p.estado, nombre: p.nombre, precio: p.precio, min: p.min_precio, max: p.max_precio }]);
+    campanas.set(p.item_id, [...(campanas.get(p.item_id) ?? []), { id: p.promocion_id, tipo: p.tipo, estado: p.estado, nombre: p.nombre, precio: p.precio, min: p.min_precio, max: p.max_precio,
+      original: p.precio_original, pctVendedor: p.pct_vendedor }]);
   }
   const volMl = new Map(volumen.map((v) => [`${v.item_id}|${v.variation_id}`, v.payload?.escalones ?? null]));
 
@@ -335,6 +337,35 @@ export async function alertasCanal(org: string, canal: number) {
     select d.variacion_id::int, v.producto_id::int, v.sku, titulo_variacion(v.id) titulo, d.plan, d.item_id, d.precio::float8, d.alerta, d.verificado_ts
       from ml_plan_destacado d join variacion v on v.id = d.variacion_id
      where d.organizacion_id = $1 and d.canal_id = $2 and d.alerta is not null order by v.sku`, [org, canal]);
+}
+
+export type BajoPiso = {
+  variacionId: number; productoId: number; sku: string; titulo: string; itemId: string; publicacionId: number; plan: string | null;
+  campanaId: string; tipo: string; nombre: string | null; propia: boolean; precio: number; piso: number;
+};
+
+/** Las publicaciones que están en una campaña (propia o de ML) que las deja
+ *  debajo del piso del esquema. Calcula sólo las variaciones en campaña. */
+export async function campanasBajoPisoCanal(org: string, canal: number): Promise<BajoPiso[]> {
+  const vs = await consulta<{ id: number }>(`
+    select distinct p.variacion_id::int id from publicacion p
+      join ml_promo_item m on m.canal_id = p.canal_id and m.item_id = p.id_externo
+     where p.organizacion_id = $1 and p.canal_id = $2 and p.estado <> 'cerrada'
+       and m.estado in ('started', 'pending') and (m.hasta is null or m.hasta > now())`, [org, canal]);
+  if (!vs.length) return [];
+  const calculo = await calcularCanal(org, canal, { variaciones: vs.map((v) => v.id) });
+  const salida: BajoPiso[] = [];
+  for (const { info, propuesta } of calculo.propuestas) {
+    for (const pa of propuesta.pubs) {
+      for (const { campana: c, precio } of campanasBajoPiso(pa)) {
+        salida.push({
+          variacionId: info.variacionId, productoId: info.productoId, sku: info.sku, titulo: info.titulo, itemId: pa.pub.itemId, publicacionId: pa.pub.publicacionId,
+          plan: pa.pub.plan, campanaId: c.id, tipo: c.tipo, nombre: c.nombre ?? null, propia: CON_PRECIO.includes(c.tipo), precio, piso: pa.piso!,
+        });
+      }
+    }
+  }
+  return salida;
 }
 
 /** Lo que cuenta cada pestaña. */
