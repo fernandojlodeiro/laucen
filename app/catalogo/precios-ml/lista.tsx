@@ -82,11 +82,11 @@ export async function filasPrevia(org: string, sp: SP): Promise<FilaPrevia[]> {
       });
     });
     for (const fa of p.faltan) {
-      // Las que faltan se crean desde Coordinación › Creaciones en ML (copia completa de otra publicación).
+      // Las que faltan se crean con «Publicar en todas las cuentas» de la ficha del producto (copia completa de otra publicación).
       filas.push({
         ...comun, ajuste: ajusteDe(fa.plan), id: `n${info.variacionId}-${fa.plan}`, item_id: null, variation_id: null, plan: fa.plan, rol: "nueva",
         lista: p.tachado ?? fa.precio, venta: fa.precio, ptw: null, ptw_estado: null, precio_ml: null, venta_ml: null, diferencia: null,
-        cambio: "", avisos: `Falta la publicación de ${PLAN_INFO[fa.plan].corto}: se crea desde Coordinación › Creaciones en ML.`,
+        cambio: "", avisos: `Falta la publicación de ${PLAN_INFO[fa.plan].corto}: se crea con «Publicar en todas las cuentas» (ficha del producto, pestaña Publicaciones).`,
         hay_cambio: false,
       });
     }

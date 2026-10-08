@@ -182,6 +182,7 @@ En las publicaciones de **catálogo**, Mercado Libre informa el **precio para ga
 - Se limpia lo cargado: cantidades desde 2, % mayor que 0 y hasta 90, sin cantidades repetidas, ordenado, máximo 5.
 - En ML va como "precio por cantidad" de cada publicación. Si una publicación tenía descuento por volumen y ya no le corresponde, Laucen **no lo saca**: avisa «sacalo a mano en ML».
 - Es sólo para Mercado Libre: el de la tienda web va aparte (más adelante).
+- **Hoy Mercado Libre sólo acepta precio por cantidad en neumáticos** (contesta "Price per quantity is available only for automotive tires"): en notebooks y el resto quedó cargado «Sin descuento por volumen».
 
 ### 8. Campañas (cómo se logra el tachado)
 - Sólo se usan las campañas en las que se elige el precio con descuento (ofertas del día y campañas del vendedor).
@@ -191,7 +192,7 @@ En las publicaciones de **catálogo**, Mercado Libre informa el **precio para ga
 - Ojo: el rango de cada campaña lo calcula ML sobre el precio actual; si el precio cambia mucho, alguna puede rechazar la entrada (queda «Con error» en la cola).
 
 ### 9. Publicaciones nuevas de planes que faltan
-Si un plan está habilitado para una variación y no tiene publicación, la vista previa lo muestra (papel «Nueva») con el aviso «Falta la publicación de …: se crea desde Coordinación › Creaciones en ML». Desde acá ya no se crea: colgarla del producto de ML de otra publicación daba error siempre (7/10); una publicación de cuotas es una publicación propia (Premium con la marca del plan) que copia todo de otra, y eso lo hace [Creaciones en ML](/admin/creaciones). **Las publicaciones nuevas nunca salen solas**: siempre van en lote y esperan el clic.
+Si un plan está habilitado para una variación y no tiene publicación, la vista previa lo muestra (papel «Nueva») con el aviso «Falta la publicación de …: se crea con «Publicar en todas las cuentas» (ficha del producto, pestaña Publicaciones)». Desde acá ya no se crea: colgarla del producto de ML de otra publicación daba error siempre (7/10); una publicación de cuotas es una publicación propia (Premium con la marca del plan) que copia todo de otra, y eso lo hace, para un producto, el botón **Publicar en todas las cuentas** de su ficha (pestaña Publicaciones), que crea en cada cuenta la Clásica y los planes que le tocan. **Las publicaciones nuevas nunca salen solas**: siempre van en lote y esperan el clic.
 
 ### 10. Qué lee Laucen de Mercado Libre y cuándo (sólo lectura)
 Con «Leer el precio para ganar y las campañas» prendido, en cada barrido de Mercado Libre (cada 30 minutos):
