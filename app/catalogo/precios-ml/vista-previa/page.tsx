@@ -63,7 +63,7 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
           pregunta={`¿Armar el lote con las ${nuevas.toLocaleString("es-AR")} publicaciones de planes que le faltan a ${canal.nombre}${f.familia || f.q ? " (las del filtro)" : ""}? No sale nada hasta tu clic.`}
           campos={{ canal: String(canal.id), familia: f.familia ? String(f.familia) : "", q: f.q ?? "", contiene: f.comienza ? "" : "1" }} />}
         <BotonConfirmar accion={accionPrepararCambios} clase={VERDE} texto="Preparar cambios" corriendo="Preparando…"
-          pregunta={`¿Preparar los cambios de ${conCambio.toLocaleString("es-AR")} publicaciones${f.todas ? " de todas las cuentas" : ""}${f.familia || f.q ? " (las del filtro)" : ""}? No sale nada hasta tu clic.`}
+          pregunta={`¿Preparar los cambios de ${conCambio.toLocaleString("es-AR")} publicaciones${f.todas ? " de todas las cuentas" : ""}${f.familia || f.q ? " (las del filtro)" : ""}?${nuevas ? ` Las ${nuevas.toLocaleString("es-AR")} nuevas no van acá: se crean con «Crear los planes que faltan».` : ""} No sale nada hasta tu clic.`}
           campos={{ canal: String(canal.id), todas: f.todas ? "1" : "", familia: f.familia ? String(f.familia) : "", q: f.q, contiene: f.comienza ? "" : "1", volver: aqui }} />
       </>}>
       <Avisos sp={sp} />
@@ -96,7 +96,7 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
         vacio={f.q || f.familia || f.cambios || f.rol || f.todas ? "Nada coincide con el filtro." : "Esta cuenta no tiene publicaciones vinculadas (Catálogo → Vincular con Mercado Libre)."}
         claseFila={(x) => (x.hay_cambio ? "bg-[#FFFDF5]" : "")} />
       <p className="text-[11px] text-[#5C6B76] mt-1">
-        Los lotes salen en tres partes: precios y campañas (primero sale de las campañas a otro precio, cambia el precio y vuelve a entrar con la Clásica), descuento por volumen y publicaciones nuevas de los planes que faltan.
+        «Preparar cambios» arma dos lotes: precios y campañas (primero sale de las campañas a otro precio, cambia el precio y vuelve a entrar) y descuento por volumen. Las filas «Nueva» no van ahí: se crean con «Crear los planes que faltan».
         Ojo: el rango de precio que acepta cada campaña lo calcula ML sobre el precio actual; si cambia mucho el precio, alguna puede rechazar la entrada (queda «Con error» en la cola).
       </p>
     </Pantalla>

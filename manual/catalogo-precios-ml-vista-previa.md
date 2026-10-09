@@ -105,7 +105,7 @@ Un producto que no tiene ninguna publicación común en esa cuenta no se puede c
 - **Los lotes que arma «Preparar cambios»** (sólo los que tengan algo):
   1. «Precios y campañas»: por publicación, primero sale de las campañas a otro precio, cambia el precio y vuelve a entrar con el precio nuevo.
   2. «Descuento por volumen»: los precios por cantidad de cada publicación.
-  3. «Publicaciones nuevas de planes de cuotas».
+  Las filas «Nueva» (planes que faltan) no van en estos lotes ni se cuentan en la pregunta: se crean con «Crear los planes que faltan». La pregunta lo aclara cuando hay alguna.
   Al preparar, además, se graba el plan destacado de cada variación (para las alertas).
 - **Respeta** el filtro de categoría y el buscador; **no** respeta «Papel» ni «Sólo las que cambian» (lo que no cambia no genera nada igual).
 - Los cálculos se hacen en el momento con las reglas, la Clásica de hoy, las comisiones vigentes y lo último leído de ML (precio para ganar cada 6 horas, campañas cada 12 horas).
