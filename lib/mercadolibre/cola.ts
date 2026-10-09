@@ -433,6 +433,15 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
           await consulta("update ml_cola set estado = 'ok', enviado_ts = now(), ultimo_error = $3, respuesta = $2::jsonb where id = $1",
             [fila.id, JSON.stringify(resumen({ status, datos })), notaCreada]);
           await aplicarEfecto(fila.organizacion_id, fila.efecto);
+          // Un cambio de precio o de campañas: se vuelven a leer sus campañas en el momento (Fer, 9/10), así
+          // las pantallas muestran ya el precio con campaña nuevo y no el de la última lectura.
+          if ((fila.tipo === "precio" || fila.tipo === "campana") && cuenta && fila.item_id && !fila.item_id.includes(":")) {
+            try {
+              const { leerPromosItem } = await import("@/lib/precios-ml/lectura");
+              const c = cuenta;
+              await leerPromosItem(fila.organizacion_id, Number(fila.canal_id), fila.item_id, false, (ruta) => ml(c, "GET", ruta));
+            } catch { /* la lectura periódica la trae */ }
+          }
           res.ok++;
           continue;
         }

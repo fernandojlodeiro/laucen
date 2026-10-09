@@ -80,30 +80,40 @@ export async function leerPreciosMl(hastaMs: number, opts: { leer?: Leer; org?: 
     }
     // 2b. Campañas a las que puede entrar cada publicación: cada 12 h.
     const promos = await consulta<{ item: string; primera: boolean }>(`
-      select distinct p.id_externo item, (l.item_id is null) primera from publicacion p
+      select item, primera from (
+      select distinct on (p.id_externo) p.id_externo item, (l.item_id is null) primera, l.leido_ts from publicacion p
         left join ml_promo_leida l on l.canal_id = p.canal_id and l.item_id = p.id_externo
        where p.canal_id = $1 and p.id_externo is not null and p.estado = 'activa'
          and (l.leido_ts is null or l.leido_ts < now() - interval '12 hours')
-       limit $2`, [canal, tanda]);
+       order by p.id_externo) x
+       order by leido_ts nulls first limit $2`, [canal, tanda]);
     for (const { item, primera } of promos) {
       if (Date.now() > hastaMs - 2_000) return;
-      const r = await pedir(`/seller-promotions/items/${item}?app_version=v2`);
-      if (r.status !== 200 || !Array.isArray(r.datos)) {
-        await consulta(`insert into ml_promo_leida (canal_id, item_id, organizacion_id, error) values ($1, $2, $3, $4)
-          on conflict (canal_id, item_id) do update set leido_ts = now(), error = excluded.error`, [canal, item, org, `ML contestó ${r.status}`]);
-        res.errores++;
-        continue;
-      }
-      const filas = (r.datos as PromoMl[]).filter((x) => x?.id && x?.type)
-        .map((x) => ({ fila: filaDePromoItem(x), datos: x })).filter((y): y is { fila: FilaPromoItem; datos: PromoMl } => !!y.fila);
-      res.eventos_promo += await registrarPromosDeItem(org, canal, item, filas, primera);
-      await consulta(`insert into ml_promo_leida (canal_id, item_id, organizacion_id) values ($1, $2, $3)
-        on conflict (canal_id, item_id) do update set leido_ts = now(), error = null`, [canal, item, org]);
+      const r = await leerPromosItem(org, canal, item, primera, pedir);
+      if (r == null) { res.errores++; continue; }
+      res.eventos_promo += r;
       res.promos++;
     }
   }));
   res.alertas = await verificarDestacados(opts.org);
   return res;
+}
+
+/** Las campañas de una publicación (en las que está y a las que puede entrar): lee y registra.
+ *  Devuelve los eventos de historia, o null si ML no contestó bien. */
+export async function leerPromosItem(org: string, canal: number, item: string, primera: boolean, pedir: (ruta: string) => Promise<RespuestaMl>): Promise<number | null> {
+  const r = await pedir(`/seller-promotions/items/${item}?app_version=v2`);
+  if (r.status !== 200 || !Array.isArray(r.datos)) {
+    await consulta(`insert into ml_promo_leida (canal_id, item_id, organizacion_id, error) values ($1, $2, $3, $4)
+      on conflict (canal_id, item_id) do update set leido_ts = now(), error = excluded.error`, [canal, item, org, `ML contestó ${r.status}`]);
+    return null;
+  }
+  const filas = (r.datos as PromoMl[]).filter((x) => x?.id && x?.type)
+    .map((x) => ({ fila: filaDePromoItem(x), datos: x })).filter((y): y is { fila: FilaPromoItem; datos: PromoMl } => !!y.fila);
+  const eventos = await registrarPromosDeItem(org, canal, item, filas, primera);
+  await consulta(`insert into ml_promo_leida (canal_id, item_id, organizacion_id) values ($1, $2, $3)
+    on conflict (canal_id, item_id) do update set leido_ts = now(), error = null`, [canal, item, org]);
+  return eventos;
 }
 
 /** El destacado que dejó de ganar (según el último precio para ganar leído)
