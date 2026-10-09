@@ -60,7 +60,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
   const canales = await consulta<{
     id: number; nombre: string; tipo: string; lista_id: number | null; lista: string | null; estado: string;
     umbral: number | null; tiene_llave: boolean; depositos: string | null; ml: string | null; apodo: string | null; emisor_id: number | null; emisor: string | null;
-    sincroniza: boolean; sube_facturas: boolean; precios: boolean; color: string | null;
+    sincroniza: boolean; sube_facturas: boolean; precios: boolean; color: string | null; orden_copia: number | null;
   }>(`
     select c.id::int, c.nombre, c.color, c.tipo, c.lista_precios_id::int lista_id, l.nombre lista, c.estado, c.umbral_pausa_default umbral,
            c.config ? 'token' tiene_llave,
@@ -70,7 +70,7 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
            (select mc.nickname from meli_cuenta mc where mc.canal_id = c.id) apodo,
            c.emisor_id::int, (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = c.emisor_id) emisor,
            coalesce((c.config ->> 'sincronizar_stock')::boolean, false) sincroniza, coalesce((c.config ->> 'subir_facturas')::boolean, false) sube_facturas,
-           coalesce((c.config ->> 'sincronizar_precios')::boolean, false) precios
+           coalesce((c.config ->> 'sincronizar_precios')::boolean, false) precios, (c.config ->> 'orden_copia')::int orden_copia
       from ${base.desde} where ${base.donde} order by ${base.orden}`, base.valores);
   const listas = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from lista_precios where organizacion_id = $1 and estado = 'activa' order by orden, nombre", [s.org.id]);
@@ -181,6 +181,12 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
                       </select></label>
                     <label><span className={ETIQUETA}>Umbral de pausa</span>
                       <CampoNumero name="umbral" valor={c.umbral} tipo="entero" placeholder="hereda" className={`${CAMPO} w-20`} /></label>
+                    {c.tipo === "mercadolibre" && (
+                      // De qué cuenta se copia una publicación para crearla en otra (Fer, 9/10): la de número más bajo primero.
+                      <label title="Para crear una publicación en otra cuenta, Laucen copia la de la cuenta con el número más bajo que la tenga (vacío = al final)">
+                        <span className={ETIQUETA}>Orden para copiar</span>
+                        <CampoNumero name="orden_copia" valor={c.orden_copia} tipo="entero" placeholder="al final" className={`${CAMPO} w-20`} /></label>
+                    )}
                     {/* El color del canal (Fer, 8/10): el fondo de sus filas en todas las pantallas. */}
                     <fieldset><span className={ETIQUETA}>Color</span>
                       <span className="flex flex-wrap gap-1">

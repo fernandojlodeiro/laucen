@@ -86,6 +86,13 @@ export async function accionGuardarCanal(fd: FormData) {
                      where id = $2 and organizacion_id = $1`,
       [s.org.id, id(fd), nombre, tipo(fd), await listaDe(s.org.id, fd), ESTADOS.includes(estado) ? estado : "activo", umbral,
         emisor !== undefined, emisor ?? null, color]);
+    // El orden para copiar publicaciones entre cuentas de ML (Fer, 9/10).
+    if (fd.has("orden_copia")) {
+      const orden = entero(fd, "orden_copia");
+      if (orden != null && (orden < 1 || orden > 99)) throw new ErrorErp("El orden para copiar va de 1 a 99.");
+      await consulta(`update canal set config = case when $3::int is null then config - 'orden_copia' else config || jsonb_build_object('orden_copia', $3::int) end
+                       where id = $2 and organizacion_id = $1`, [s.org.id, id(fd), orden]);
+    }
     // La cuenta de Mercado Pago del canal es de la razón social que factura el canal.
     if (emisor !== undefined) {
       await consulta("update cuenta_fondos set emisor_id = coalesce($3::bigint, emisor_principal($1)) where canal_id = $2 and organizacion_id = $1", [s.org.id, id(fd), emisor ?? null]);

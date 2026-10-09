@@ -72,6 +72,15 @@ Si no hay nada para cambiar, avisa «No hay nada para cambiar: todo está como t
 ### Ver sólo los destacados, o los planes que faltan
 Elegí en **Papel** «Destacado» o «Nueva».
 
+### Publicar en la cuenta los productos que se venden en otras cuentas y en ésta no
+Con una cuenta elegida (no con «Todas las cuentas»), si hay productos activos en otra cuenta de Mercado Libre que en ésta no están publicados (ni activos ni pausados), arriba a la derecha aparece **«Publicar lo que falta en esta cuenta (N)»**.
+1. Apretá el botón y confirmá con «Sí». Corre de fondo: podés seguir trabajando; al terminar, el cartel de abajo a la derecha dice qué lote quedó.
+2. Para cada producto se arma la **Clásica** y cada **plan de cuotas** que le toca por su grupo en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), al precio del esquema de esta cuenta (con descuento, al precio tachado; la campaña lo baja después), y quién gana como en el resto del esquema.
+3. Cada publicación es una copia de la publicación común del producto en otra cuenta (título, fotos, características, garantía y descripción): la de la cuenta que va primero en **«Orden para copiar»** de [Canales](/config/canales). Si se conoce el producto de catálogo, pide además entrar a competir ahí. Antes de armarla se comprueba con Mercado Libre que la acepte.
+4. Queda **un lote** en la [Cola de Mercado Libre](/config/canales/cola), pestaña «Lotes preparados»: revisalo y apretá **«Mandar a Mercado Libre»**.
+
+Un producto sin stock para esta cuenta no se publica, y uno que no tiene ninguna publicación común para copiar tampoco: el cartel los nombra. Lo que ya está en un lote o en la cola no se vuelve a armar: si el cartel dice que faltaron por tiempo, se aprieta el botón otra vez y sigue con los que faltan.
+
 ### Crear las publicaciones de planes que le faltan a la cuenta
 Con una cuenta elegida (no con «Todas las cuentas»), si hay filas «Nueva», arriba a la derecha aparece **«Crear los planes que faltan (N)»**.
 1. Si querés sólo una parte, filtrá por categoría o con el buscador: se respeta.

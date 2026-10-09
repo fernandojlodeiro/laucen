@@ -17,7 +17,8 @@ import { camposDe, elegir, ordenarFilas } from "@/lib/listas/tipos";
 import { paginarEnMemoria } from "@/lib/lista";
 import { BarraPml } from "../comun";
 import { LISTA_PRECIOS_ML, ROLES, canalElegido, filasPrevia, filtrosPrevia } from "../lista";
-import { accionPrepararCambios, accionCrearFaltantes } from "../acciones";
+import { accionPrepararCambios, accionCrearFaltantes, accionPublicarFaltantesCuenta } from "../acciones";
+import { faltantesEnCuenta } from "@/lib/mercadolibre/publicar-todas";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +38,8 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
   }
   const f = filtrosPrevia(sp);
   const ctx = { org: s.org.id, moneda: s.moneda };
-  const [todas, camino, todos] = await Promise.all([filasPrevia(s.org.id, sp), caminoDeFamilia(s.org.id, f.familia), camposDe(LISTA_PRECIOS_ML, ctx)]);
+  const [todas, camino, todos, faltanEnCuenta] = await Promise.all([filasPrevia(s.org.id, sp), caminoDeFamilia(s.org.id, f.familia), camposDe(LISTA_PRECIOS_ML, ctx),
+    f.todas ? Promise.resolve([]) : faltantesEnCuenta(s.org.id, canal.id)]);
   const filas = paginarEnMemoria(ordenarFilas(todos, todas, sp), sp);
   const campos = elegir(LISTA_PRECIOS_ML, todos, null);
   const conCambio = todas.filter((x) => x.hay_cambio).length;
@@ -50,6 +52,11 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
       subtitulo="Qué precio tendría cada publicación con las reglas de la cuenta y qué cambiaría en ML. Nada sale de acá: «Preparar cambios» arma lotes que esperan tu clic en la cola."
       acciones={<>
         <AccionesExcel lista={LISTA_PRECIOS_ML} org={s.org.id} extra={{ canal: String(canal.id), ...(f.todas ? { todas: "1" } : {}) }} />
+        {/* Los productos que se venden en otra cuenta y en ésta no (Fer, 9/10): un lote que espera tu clic. */}
+        {!f.todas && faltanEnCuenta.length > 0 && <BotonTarea accion={accionPublicarFaltantesCuenta} tipo={`faltan-en-cuenta:${canal.id}`} clase={SUAVE}
+          texto={`Publicar lo que falta en esta cuenta (${faltanEnCuenta.length.toLocaleString("es-AR")})`}
+          pregunta={`¿Armar el lote para publicar en ${canal.nombre} los ${faltanEnCuenta.length.toLocaleString("es-AR")} productos que están activos en otras cuentas y acá no? Cada uno con su Clásica y sus planes, al precio del esquema. No sale nada hasta tu clic.`}
+          campos={{ canal: String(canal.id) }} />}
         {/* Las publicaciones de planes que le faltan a esta cuenta (Fer, 8/10): un lote que espera tu clic. */}
         {!f.todas && nuevas > 0 && <BotonTarea accion={accionCrearFaltantes} tipo={`planes-faltantes:${canal.id}`} clase={SUAVE}
           texto={`Crear los planes que faltan (${nuevas.toLocaleString("es-AR")})`}

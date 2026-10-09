@@ -7,6 +7,7 @@
 
 import { lanzarTarea, deFondo } from "@/lib/tareas-fondo";
 import { prepararPlanesFaltantes, textoFaltantes } from "@/lib/precios-ml/faltantes";
+import { prepararFaltantesEnCuenta, textoFaltaCuenta } from "@/lib/mercadolibre/publicar-todas";
 import { asegurarCampanaPropia, NOMBRE_CAMPANA_PROPIA } from "@/lib/precios-ml/campana-propia";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
@@ -243,6 +244,21 @@ export async function accionCrearFaltantes(fd: FormData) {
     revalidatePath(PREVIA);
     revalidatePath("/config/canales/cola");
     return textoFaltantes(r, c.nombre);
+  });
+}
+
+/** «Publicar lo que falta en esta cuenta» (Fer, 9/10): cada producto activo en otra cuenta de ML y no en ésta,
+ *  con su Clásica y sus planes al precio del esquema, en un lote que espera tu clic. */
+export async function accionPublicarFaltantesCuenta(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  const canal = id(fd, "canal");
+  return deFondo(s, `faltan-en-cuenta:${canal}`, "Publicar lo que falta en la cuenta", async () => {
+    const c = await canalMl(s.org.id, canal);
+    const r = await prepararFaltantesEnCuenta(s.org.id, canal, s.usuario.id);
+    limpiarCachePrevia();
+    revalidatePath(PREVIA);
+    revalidatePath("/config/canales/cola");
+    return textoFaltaCuenta(r, c.nombre);
   });
 }
 
