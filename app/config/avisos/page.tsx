@@ -1,0 +1,53 @@
+// Configuración › Mis avisos (pedido de Fer, 10/10): cada persona elige cómo
+// se entera de lo que entra (lib/avisos.ts). Es sólo de quien la abre.
+
+import { sesionRequerida } from "@/lib/tenancy";
+import { asegurarEsquemaErp } from "@/lib/erp/esquema";
+import { prefsAvisos } from "@/lib/avisos";
+import { Pantalla, Avisos, BotonesFicha, editandoFicha, CAJA } from "@/app/componentes/erp";
+import { accionGuardarAvisos } from "./acciones";
+import ProbarSonido from "./ProbarSonido";
+
+export const dynamic = "force-dynamic";
+
+const VOLVER = "/config/avisos";
+
+export default async function MisAvisos({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string; editar?: string }> }) {
+  await asegurarEsquemaErp();
+  const s = await sesionRequerida();
+  const sp = await searchParams;
+  const editando = editandoFicha(sp);
+  const p = await prefsAvisos(s.usuario.id, s.org.id);
+  return (
+    <Pantalla titulo="Mis avisos" subtitulo="Cómo te enterás de los pedidos, preguntas y mensajes que entran. Se aplica sólo a tu usuario" ancho="max-w-xl"
+      acciones={<BotonesFicha editando={editando} ver={VOLVER} editar={`${VOLVER}?editar=ficha`} />}>
+      <Avisos sp={sp} />
+      <form id="ficha" action={accionGuardarAvisos} className={`${CAJA} grid gap-3`}>
+        <Opcion nombre="sonido" activa={p.sonido} editando={editando} titulo="Sonar cuando entra algo"
+          ayuda="Suena un aviso corto cuando entra un pedido, una pregunta, un mensaje o un WhatsApp en espera, y cuando la IA deja algo sin contestar." />
+        <Opcion nombre="ventana" activa={p.ventana} editando={editando} titulo="Abrirme una ventana con lo que la IA no contestó"
+          ayuda="Cuando la IA no contesta una pregunta o un mensaje porque le falta un dato, o porque el cliente pide hablar con una persona, se abre sola una ventana con lo que escribió el cliente y el botón «Ir a responder»." />
+        <div className="flex items-center gap-2 pt-1">
+          <ProbarSonido />
+          <span className="text-[11px] text-[#5C6B76]">Para escuchar cómo suena.</span>
+        </div>
+      </form>
+      <p className="text-[11px] text-[#5C6B76] mt-3">
+        Con las dos destildadas no suena ni se abre nada, pero igual el número de la barra de abajo se pinta de amarillo
+        cuando entra algo que todavía no viste, hasta que entrás a esa pantalla.
+      </p>
+    </Pantalla>
+  );
+}
+
+function Opcion({ nombre, activa, editando, titulo, ayuda }: { nombre: string; activa: boolean; editando: boolean; titulo: string; ayuda: string }) {
+  return (
+    <label className={`flex items-start gap-3 rounded-lg px-2 py-2 text-sm ${editando ? "hover:bg-[#F7F9FB] cursor-pointer" : "cursor-default"}`}>
+      <input type="checkbox" name={nombre} value="1" defaultChecked={activa} disabled={!editando} className="h-5 w-5 mt-0.5 shrink-0" />
+      <span>
+        <b>{titulo}</b>
+        <span className="block text-[11px] text-[#5C6B76]">{ayuda}</span>
+      </span>
+    </label>
+  );
+}

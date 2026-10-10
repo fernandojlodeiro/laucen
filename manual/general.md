@@ -40,7 +40,10 @@ Una franja azul fija abajo de todo, siempre visible:
   - **"Pedidos a preparar"** → [Pedidos](/ventas/pedidos?estado=pendientes) con el filtro Pendientes. Cuenta los pedidos nuevos y pagados, más los «A cobrar» que todavía no se entregaron (ver [Pedidos](/ventas/pedidos)).
   - **"Preguntas"** → [Preguntas y mensajes](/ventas/preguntas): las preguntas de Mercado Libre pendientes.
   - **"Mensajes"** → la pestaña Mensajes de [Preguntas y mensajes](/ventas/preguntas?ver=mensajes): la suma de mensajes de posventa sin leer.
-  - Cuando un contador es mayor que cero, el número se resalta en blanco.
+  - **"WhatsApp en espera"** → [WhatsApp](/ventas/mensajes?filtro=en_espera) con el filtro En espera: los chats que la IA dejó para una persona.
+  - Cuando un contador es mayor que cero, el número se resalta en blanco. Si entró algo que **todavía no viste**, se resalta en **amarillo** hasta que entrás a esa pantalla.
+  - Se actualizan solos cada pocos segundos. Cómo te avisa además (sonido, ventana con lo que la IA no contestó) lo elegís en [Mis avisos](/config/avisos).
+  - Sólo aparecen los contadores de las pantallas que tu rol puede ver.
 - **Al medio**: cuándo se actualizó el sistema por última vez ("Actualizado dd/mm hh:mm") y el código de esa versión.
 - A la derecha: **el nombre de la organización y el tuyo** (o tu mail).
 - Al final, el botón amarillo **👇 Manuales de ayuda**: despliega hacia arriba las guías del manual (por ejemplo «Producto nuevo de punta a punta» y «Cómo funcionan los precios»), cada una con una línea de qué explica. Tocando una se abre para leerla entera (se imprime con Ctrl + P). Sólo aparecen las guías de lo que tu usuario puede ver.
@@ -240,7 +243,7 @@ Donde hay un filtro de fechas, se ve en un renglón:
   - **Se quedan en la moneda propia**, aunque cambies el interruptor: **Caja y bancos** (cada cuenta está en su moneda: pesos o dólares), el **"A cobrar"** de los pedidos y del picking (es la plata que se cobra en pesos), lo que **se configura** en pesos (métodos de envío, Precios de Mercado Libre y sus reglas, tipo de cambio), la tienda pública, lo que se le contesta al cliente por WhatsApp y las herramientas internas.
   - **El Excel** baja siempre en pesos, y al lado de cada importe que tiene su dólar del día agrega una columna **"… (US$ al dólar del día)"**.
 - **Dólar oficial**: es el oficial venta del día; si hoy no hay, rige el último cargado. Se levanta solo una vez por día y se puede cargar a mano en [Tipo de cambio](/config/tipo-cambio).
-- **Contadores de la barra de estado**: se recalculan cada vez que cambiás de pantalla.
+- **Contadores de la barra de estado**: se actualizan solos cada pocos segundos (y al cambiar de pantalla).
 - **Buscadores**: con "Comienza por" tildada, coincide sólo el principio del texto; destildada, cualquier parte. No distingue mayúsculas de minúsculas.
 - **Orden de las listas**: el orden por columna es seguro (sólo se puede ordenar por las columnas que la lista ofrece). Si dos filas empatan, desempata el orden de siempre de esa lista.
 - **Paginado**: 50 filas por página, siempre.

@@ -19,7 +19,9 @@ import { menuPara } from "@/lib/menu";
 import { accesosDe } from "@/lib/accesos";
 import { historialDe } from "@/lib/historial";
 import { monedaVista, buscarInactivos, tcDelDia, formatear, type Moneda } from "@/lib/moneda";
-import { contadoresEstado, type Contador } from "@/lib/erp/contadores";
+import { estadoAvisos } from "@/lib/avisos";
+import type { EstadoAvisos } from "@/lib/avisos-tipos";
+import { ContadoresEstado, VigiaAvisos } from "./AvisosVivos";
 import { accionLogout } from "@/app/auth-actions";
 import { BarraMenu, MenuCelular } from "./BarraMenu";
 import Historial from "./Historial";
@@ -40,10 +42,10 @@ export default async function Marco({ children, version }: { children: React.Rea
   const menu = menuPara(puede, esFer);
 
   // Si la base no responde, el marco se dibuja igual (con lo que haya).
-  const [moneda, tc, contadores, asistente, accesos, historial, inactivos, guias, coloresCanales] = await Promise.all([
+  const [moneda, tc, avisos, asistente, accesos, historial, inactivos, guias, coloresCanales] = await Promise.all([
     monedaVista(sesion.usuario.id, sesion.org.id).catch(() => "ARS" as Moneda),
     tcDelDia(sesion.org.id).catch(() => null),
-    contadoresEstado(sesion.org.id).catch(() => [] as Contador[]),
+    estadoAvisos(sesion.usuario.id, sesion.org.id, puede).catch((): EstadoAvisos => ({ contadores: [], ventana: [], prefs: { sonido: false, ventana: false } })),
     configAsistente(sesion.org.id).catch(() => CONFIG_DEFECTO),
     accesosDe(sesion.usuario.id, sesion.org.id, puede).catch(() => []),
     historialDe(sesion.usuario.id, sesion.org.id).catch(() => []),
@@ -102,9 +104,8 @@ export default async function Marco({ children, version }: { children: React.Rea
         <span title={tc ? `Oficial venta del ${tc.fecha.split("-").reverse().join("/")} (${tc.origen})` : undefined}>
           Dólar: {tc ? <b>{formatear(tc.venta, "ARS")}</b> : <Link href="/config/tipo-cambio" className="underline">sin cargar</Link>}
         </span>
-        <span className="flex items-center gap-3">
-          {contadores.map((c) => <ContadorEstado key={c.texto} c={c} />)}
-        </span>
+        {/* Se refrescan solos; lo nuevo que no viste, en amarillo (Fer, 10/10). */}
+        <ContadoresEstado inicial={avisos.contadores} />
         {/* Lo último que viste: «Historial» en la barra (se despliega hacia arriba) y, si sobra lugar, también al costado. */}
         <Suspense fallback={null}><Historial inicial={historial} /></Suspense>
         <span className="ml-auto opacity-80">{sesion.org.nombre} · {quien}</span>
@@ -113,6 +114,8 @@ export default async function Marco({ children, version }: { children: React.Rea
       </footer>
 
       <AvisosTareas />
+      {/* Los contadores al día, el sonido y la ventana con lo que la IA no contestó (Configuración › Mis avisos). */}
+      <Suspense fallback={null}><VigiaAvisos inicial={avisos} /></Suspense>
       <Suspense fallback={null}><IndicadorCarga /></Suspense>
 
       {/* El asistente: la carita abajo a la derecha (lib/asistente/motor.ts) */}
@@ -126,12 +129,6 @@ export default async function Marco({ children, version }: { children: React.Rea
       <MenuCelular menu={menu} accesos={accesos} />
     </div>
   );
-}
-
-function ContadorEstado({ c }: { c: Contador }) {
-  if (c.n === null) return <span className="opacity-50" title="Próximamente">{c.texto}: —</span>;
-  const cuerpo = <>{c.texto}: <b className={c.n > 0 ? "bg-white text-[#16577F] rounded px-1" : ""}>{c.n}</b></>;
-  return c.href ? <Link href={c.href} className="hover:underline">{cuerpo}</Link> : <span>{cuerpo}</span>;
 }
 
 /** El interruptor "ver en pesos / ver en dólares": un interruptor de verdad

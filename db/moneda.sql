@@ -146,6 +146,16 @@ alter table usuario_preferencia add column if not exists historial jsonb;
 -- El buscador de arriba incluye los inactivos (Fer, 6/10): la caja queda como la dejó cada usuario.
 alter table usuario_preferencia add column if not exists buscar_inactivos boolean not null default false;
 
+-- Avisos de la barra de estado (Fer, 10/10), de cada usuario:
+-- - aviso_sonido: suena cuando entra algo nuevo (pedido, pregunta, mensaje, WhatsApp en espera).
+-- - aviso_ventana: se abre sola una ventana con lo que la IA no contestó (le falta un dato o piden una persona).
+-- - visto: hasta dónde vio cada contador ({clave: marca}); lo que pasa esa marca se pinta distinto.
+-- - avisado: hasta dónde ya le mostró la ventana ({clave: marca}), para no repetirla.
+alter table usuario_preferencia add column if not exists aviso_sonido boolean not null default false;
+alter table usuario_preferencia add column if not exists aviso_ventana boolean not null default true;
+alter table usuario_preferencia add column if not exists visto jsonb not null default '{}';
+alter table usuario_preferencia add column if not exists avisado jsonb;
+
 -- Tareas que corren de fondo (Fer, 6/10): un botón que demora no deja la
 -- pantalla esperando: lanza la tarea, el botón dice "Trabajando…" y, al
 -- terminar, aparece un cartel (verde si salió bien) y la pantalla se

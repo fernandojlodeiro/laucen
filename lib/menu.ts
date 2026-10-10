@@ -135,6 +135,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Usuarios y roles", href: "/config/usuarios", permiso: "usuarios_ver" },
       { texto: "Asistente", href: "/config/asistente", permiso: "asistente_config" },
       { texto: "Mis accesos del celular", href: "/config/accesos" },
+      { texto: "Mis avisos", href: "/config/avisos" },
       { texto: "Importar datos", href: "/importar", permiso: "importar_ver" },
     ],
   },

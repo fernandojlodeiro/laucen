@@ -20,6 +20,7 @@ Para cada una, la **IA propone sola una respuesta** apenas entra (con los datos 
 
 - Menú **Ventas › Preguntas y mensajes**.
 - Contadores de la barra de estado: **"Preguntas"** (abre la pestaña Preguntas) y **"Mensajes"** (abre la pestaña Mensajes).
+- La ventana que se abre sola cuando la IA no contesta una pregunta o un mensaje (le falta un dato o piden una persona), con el botón **"Ir a responder"**, si la tenés prendida en [Mis avisos](/config/avisos).
 - La tarjeta **"Preguntas sin responder"** del [Panel](/panel).
 
 ## Qué hay en la pantalla

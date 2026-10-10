@@ -85,7 +85,7 @@ En [Configuración de WhatsApp](/ventas/mensajes/configuracion), lápiz, y escri
 
 **¿Por qué un mensaje dice NO ENTREGADO?** WhatsApp no lo aceptó; el motivo está al lado (por ejemplo, que el número no tiene WhatsApp).
 
-**¿Qué pasa si la IA no sabe algo?** Le dice al cliente que ya le avisó a alguien del equipo y deja el chat **En espera** con el asunto.
+**¿Qué pasa si la IA no sabe algo?** Le dice al cliente que ya le avisó a alguien del equipo y deja el chat **En espera** con el asunto. En la barra de abajo sube el contador **"WhatsApp en espera"** y, si lo elegiste en [Mis avisos](/config/avisos), suena y se abre sola una ventana con el chat y el botón **"Ir a responder"**.
 
 ## Relacionado
 
