@@ -53,9 +53,9 @@ Debajo de la lista aparecen las cajas del canal elegido (su fila queda resaltada
 
 1. **Depósitos de "…"**: la tabla **Depósito / Prioridad**, con el botón **"Agregar depósito"** (si quedan depósitos activos que el canal no usa). Cada fila tiene el lápiz "Cambiar la prioridad" y el tacho ("¿Quitar?"). Un depósito archivado se marca "Archivado: no suma". Si no quedan depósitos para agregar, el enlace "Crear uno" lleva a [Depósitos y ubicaciones](/stock/depositos).
 2. **Cuenta de Mercado Libre** (sólo canales tipo Mercado Libre). Ver más abajo.
-3. **Textos de "…"** (sólo canales tipo Mercado Libre): la firma y las reglas de la IA para preguntas y mensajes, y el encabezado y el pie de la descripción. Ver más abajo.
-4. **Cuenta de Mercado Pago** (en todos los canales). Ver más abajo.
-5. **Llave API**: si tiene, "Tiene llave (no se muestra)." con los botones **"Generar otro"** y **"Revocar"**; si no tiene, "Sin llave: nadie puede usar la API con este canal." y el botón **"Generar llave"**.
+3. **Cuenta de Mercado Pago** (en todos los canales). Ver más abajo.
+4. **Llave API**: si tiene, "Tiene llave (no se muestra)." con los botones **"Generar otro"** y **"Revocar"**; si no tiene, "Sin llave: nadie puede usar la API con este canal." y el botón **"Generar llave"**.
+5. **Textos de "…"** (sólo canales tipo Mercado Libre), al final y a todo lo ancho: la firma y las reglas de la IA para preguntas y mensajes, y el encabezado y el pie de la descripción (dos cuadros altos, uno al lado del otro). Ver más abajo.
 
 ### Caja "Textos de …"
 

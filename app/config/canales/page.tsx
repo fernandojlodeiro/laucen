@@ -16,7 +16,7 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, TituloSeccion, BotonesFicha, Dato, editandoFicha, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, TituloSeccion, BotonesFicha, ValorVista, editandoFicha, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import { emisoresDe } from "@/lib/arca/facturar";
 import InterruptorConfirmar from "./InterruptorConfirmar";
@@ -165,9 +165,11 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
             {pagina.map((c) => editar === c.id ? (
               <tr key={c.id} className={`${TR} bg-[#FAFBFC]`}>
                 <td colSpan={multi ? 13 : 12} className={TD}>
-                  <form action={accionGuardarCanal} className="flex flex-wrap items-end gap-2">
+                  <form action={accionGuardarCanal} className="grid gap-3">
                     <input type="hidden" name="id" value={c.id} />
                     <input type="hidden" name="volver" value={aqui} />
+                    {/* Primer renglón, los datos; segundo, el color y los botones (Fer, 10/10: que quede prolijo). */}
+                    <div className="flex flex-wrap items-end gap-2">
                     <label className="flex-1 min-w-40"><span className={ETIQUETA}>Nombre</span>
                       <input name="nombre" defaultValue={c.nombre} className={`${CAMPO} w-full`} autoFocus /></label>
                     <label><span className={ETIQUETA}>Tipo</span>{selectorTipo(c.tipo)}</label>
@@ -188,6 +190,8 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
                         <span className={ETIQUETA}>Orden para copiar</span>
                         <CampoNumero name="orden_copia" valor={c.orden_copia} tipo="entero" placeholder="al final" className={`${CAMPO} w-20`} /></label>
                     )}
+                    </div>
+                    <div className="flex flex-wrap items-end justify-between gap-2">
                     {/* El color del canal (Fer, 8/10): el fondo de sus filas en todas las pantallas. */}
                     <fieldset><span className={ETIQUETA}>Color</span>
                       <span className="flex flex-wrap gap-1">
@@ -198,8 +202,11 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
                           </label>
                         ))}
                       </span></fieldset>
-                    <button className={VERDE}>Guardar</button>
-                    <Link href={aqui} className={SUAVE} scroll={false}>Cancelar</Link>
+                    <span className="flex gap-2">
+                      <button className={VERDE}>Guardar</button>
+                      <Link href={aqui} className={SUAVE} scroll={false}>Cancelar</Link>
+                    </span>
+                    </div>
                   </form>
                   {c.tipo === "mercadolibre" && (
                     // Fuera del formulario: cada interruptor se guarda solo (con su Sí / No).
@@ -300,9 +307,6 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
           </section>
 
           {elegido.tipo === "mercadolibre" && <CuentaMl org={s.org.id} canal={elegido.id} />}
-          {elegido.tipo === "mercadolibre" && (
-            <TextosCanal org={s.org.id} canal={elegido.id} nombre={elegido.nombre} aqui={aqui} editando={editandoFicha(sp, "textos")} />
-          )}
           <CuentaMp org={s.org.id} canal={elegido.id} />
 
           <section className={CAJA}>
@@ -332,6 +336,11 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
               </form>
             )}
           </section>
+
+          {/* Los textos del canal, a todo lo ancho y al final: así las cuatro cajas de arriba quedan de a pares. */}
+          {elegido.tipo === "mercadolibre" && (
+            <TextosCanal org={s.org.id} canal={elegido.id} nombre={elegido.nombre} aqui={aqui} editando={editandoFicha(sp, "textos")} />
+          )}
         </div>
       )}
     </Pantalla>
@@ -343,14 +352,23 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
 async function TextosCanal({ org, canal, nombre, aqui, editando }: { org: string; canal: number; nombre: string; aqui: string; editando: boolean }) {
   const t = await textosCanal(org, canal);
   const editar = `${aqui}${aqui.includes("?") ? "&" : "?"}editar=textos`;
-  const campo = (name: string, etiqueta: string, valor: string, ayuda: string, filas: number) => (
-    <label className="block">
+  // Cada texto con su alto, igual en vista y en edición (Fer, 10/10: encabezado y pie, bien altos).
+  const ALTO = { reglas: "h-36 !max-h-36", desc: "h-80 !max-h-80" };
+  const campo = (name: string, etiqueta: string, valor: string, ayuda: string, alto: string | null, clase = "") => (
+    <label className={`block ${clase}`}>
       <span className={ETIQUETA}>{etiqueta}</span>
-      {filas === 1
+      {alto === null
         ? <input name={name} defaultValue={valor} maxLength={100} className={`${CAMPO} w-full`} />
-        : <textarea name={name} defaultValue={valor} rows={filas} className={`${CAMPO} w-full leading-relaxed`} />}
+        : <textarea name={name} defaultValue={valor} className={`${CAMPO} w-full leading-relaxed resize-y ${alto}`} />}
       <span className="block text-[10px] text-[#5C6B76] mt-0.5">{ayuda}</span>
     </label>
+  );
+  const ver = (etiqueta: string, valor: string, ayuda: string, alto: string | null, clase = "") => (
+    <div className={clase}>
+      <span className={ETIQUETA}>{etiqueta}</span>
+      <ValorVista largo={alto !== null} className={alto ?? ""}>{valor}</ValorVista>
+      <span className="block text-[10px] text-[#5C6B76] mt-0.5">{ayuda}</span>
+    </div>
   );
   const AYUDA = {
     firma: "Va al final de cada respuesta que propone la IA a preguntas y mensajes, tal cual la escribís. Ej.: «Saludos, el equipo de Daitom».",
@@ -367,21 +385,19 @@ async function TextosCanal({ org, canal, nombre, aqui, editando }: { org: string
         <form id="ficha-textos" action={accionGuardarTextosCanal} className="grid gap-3 md:grid-cols-2">
           <input type="hidden" name="canal" value={canal} />
           <input type="hidden" name="volver" value={aqui} />
-          {campo("firma", "Firma de las respuestas", t.firma, AYUDA.firma, 1)}
+          {campo("firma", "Firma de las respuestas", t.firma, AYUDA.firma, null)}
           <div className="hidden md:block" />
-          {campo("reglas_ia", "Reglas para la IA (preguntas y mensajes)", t.reglasIa, AYUDA.reglas, 5)}
-          <div className="hidden md:block" />
-          {campo("desc_encabezado", "Encabezado de la descripción", t.encabezado, AYUDA.enc, 6)}
-          {campo("desc_pie", "Pie de la descripción", t.pie, AYUDA.pie, 6)}
+          {campo("reglas_ia", "Reglas para la IA (preguntas y mensajes)", t.reglasIa, AYUDA.reglas, ALTO.reglas, "md:col-span-2")}
+          {campo("desc_encabezado", "Encabezado de la descripción", t.encabezado, AYUDA.enc, ALTO.desc)}
+          {campo("desc_pie", "Pie de la descripción", t.pie, AYUDA.pie, ALTO.desc)}
         </form>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          <Dato etiqueta="Firma de las respuestas" ayuda={AYUDA.firma}>{t.firma}</Dato>
+          {ver("Firma de las respuestas", t.firma, AYUDA.firma, null)}
           <div className="hidden md:block" />
-          <Dato etiqueta="Reglas para la IA (preguntas y mensajes)" largo ayuda={AYUDA.reglas}>{t.reglasIa}</Dato>
-          <div className="hidden md:block" />
-          <Dato etiqueta="Encabezado de la descripción" largo ayuda={AYUDA.enc}>{t.encabezado}</Dato>
-          <Dato etiqueta="Pie de la descripción" largo ayuda={AYUDA.pie}>{t.pie}</Dato>
+          {ver("Reglas para la IA (preguntas y mensajes)", t.reglasIa, AYUDA.reglas, ALTO.reglas, "md:col-span-2")}
+          {ver("Encabezado de la descripción", t.encabezado, AYUDA.enc, ALTO.desc)}
+          {ver("Pie de la descripción", t.pie, AYUDA.pie, ALTO.desc)}
         </div>
       )}
     </section>

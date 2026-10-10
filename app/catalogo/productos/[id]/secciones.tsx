@@ -237,17 +237,21 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
           <input type="checkbox" disabled checked={p.precio_en_dolares} className="h-4 w-4 accent-[#16577F]" />
           Precio en dólares (los pesos siguen al tipo de cambio del día)
         </label>
-        <Dato etiqueta="Peso (g)" numero>{num(p.peso_g, "entero")}</Dato>
-        <Dato etiqueta="Stock mínimo" numero ayuda="Debajo de esto, avisa el panel.">{num(p.stock_minimo, "entero")}</Dato>
-        <Dato etiqueta="Largo (cm)" numero>{num(p.largo_cm, "decimal")}</Dato>
-        <Dato etiqueta="Ancho (cm)" numero>{num(p.ancho_cm, "decimal")}</Dato>
-        <Dato etiqueta="Alto (cm)" numero>{num(p.alto_cm, "decimal")}</Dato>
-        <div />
-        <Dato etiqueta="Descuento %" numero ayuda={ayudaDescuento}>{p.descuento_pct != null ? pct(p.descuento_pct) : null}</Dato>
-        <Dato etiqueta="Umbral de pausa" numero ayuda={ayudaUmbral}>{p.umbral_pausa != null ? String(p.umbral_pausa) : null}</Dato>
-        <Dato etiqueta="IVA" numero ayuda={ayudaIva}>{ALICUOTAS_IVA.find(([v]) => v === ivaPct)?.[1] ?? `${ivaPct} %`}</Dato>
-        <div />
-        <Dato etiqueta="Descripción larga" className="col-span-2 sm:col-span-4" largo>{p.descripcion}</Dato>
+        {/* Los números, juntos en una fila (Fer, 10/10): cada uno con su ancho, las ayudas abajo. */}
+        <div className={NUMEROS}>
+          <Dato etiqueta="Peso (g)" numero className={UN_NUMERO}>{num(p.peso_g, "entero")}</Dato>
+          <Dato etiqueta="Largo (cm)" numero className={UN_NUMERO}>{num(p.largo_cm, "decimal")}</Dato>
+          <Dato etiqueta="Ancho (cm)" numero className={UN_NUMERO}>{num(p.ancho_cm, "decimal")}</Dato>
+          <Dato etiqueta="Alto (cm)" numero className={UN_NUMERO}>{num(p.alto_cm, "decimal")}</Dato>
+          <Dato etiqueta="Stock mínimo" numero className={UN_NUMERO}>{num(p.stock_minimo, "entero")}</Dato>
+          <Dato etiqueta="Descuento %" numero className={UN_NUMERO}>{p.descuento_pct != null ? pct(p.descuento_pct) : null}</Dato>
+          <Dato etiqueta="Umbral de pausa" numero className={UN_NUMERO}>{p.umbral_pausa != null ? String(p.umbral_pausa) : null}</Dato>
+          <Dato etiqueta="IVA" numero className={UN_NUMERO}>{ALICUOTAS_IVA.find(([v]) => v === ivaPct)?.[1] ?? `${ivaPct} %`}</Dato>
+          <AyudasNumeros descuento={ayudaDescuento} umbral={ayudaUmbral} iva={ayudaIva} />
+        </div>
+        <div className="col-span-2 sm:col-span-4"><span className={ETIQUETA}>Descripción larga</span>
+          <ValorVista largo className={ALTO_DESCRIPCION}>{p.descripcion}</ValorVista>
+        </div>
       </div>
       <AtributosMl p={p} attrsMl={attrsMl} />
       </>
@@ -300,35 +304,44 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
         <input type="checkbox" name="precio_en_dolares" defaultChecked={p.precio_en_dolares} className="h-4 w-4 accent-[#16577F]" />
         Precio en dólares (los pesos siguen al tipo de cambio del día)
       </label>
-      <label><span className={ETIQUETA}>Peso (g)</span><CampoNumero name="peso_g" valor={p.peso_g} tipo="entero" className={`${CAMPO} w-full`} /></label>
-      <label><span className={ETIQUETA}>Stock mínimo</span><CampoNumero name="stock_minimo" valor={p.stock_minimo} tipo="entero" className={`${CAMPO} w-full`} />
-        <span className="block text-[10px] text-[#5C6B76] mt-0.5">Debajo de esto, avisa el panel.</span>
-      </label>
-      <label><span className={ETIQUETA}>Largo (cm)</span><CampoNumero name="largo_cm" valor={p.largo_cm} tipo="decimal" className={`${CAMPO} w-full`} /></label>
-      <label><span className={ETIQUETA}>Ancho (cm)</span><CampoNumero name="ancho_cm" valor={p.ancho_cm} tipo="decimal" className={`${CAMPO} w-full`} /></label>
-      <label><span className={ETIQUETA}>Alto (cm)</span><CampoNumero name="alto_cm" valor={p.alto_cm} tipo="decimal" className={`${CAMPO} w-full`} /></label>
-      <div />
-      <label><span className={ETIQUETA}>Descuento %</span>
-        <CampoNumero name="descuento_pct" valor={p.descuento_pct} tipo="pct" placeholder={formatearNumero(heredado, "pct")} className={`${CAMPO} w-full`} />
-        <span className="block text-[10px] text-[#5C6B76] mt-0.5">{ayudaDescuento}</span>
-      </label>
-      <label><span className={ETIQUETA}>Umbral de pausa</span>
-        <CampoNumero name="umbral_pausa" valor={p.umbral_pausa} tipo="entero" placeholder={String(umbralOrg)} className={`${CAMPO} w-full`} />
-        <span className="block text-[10px] text-[#5C6B76] mt-0.5">{ayudaUmbral}</span>
-      </label>
-      <label><span className={ETIQUETA}>IVA</span>
-        <select name="iva_pct" defaultValue={ivaPct} className={`${CAMPO} w-full`}>
-          {ALICUOTAS_IVA.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-        </select>
-        <span className="block text-[10px] text-[#5C6B76] mt-0.5">{ayudaIva}</span>
-      </label>
-      <div />
-      {/* La descripción larga, al final y a todo lo ancho. */}
+      {/* Los números, juntos en una fila (Fer, 10/10): cada uno con su ancho, las ayudas abajo. */}
+      <div className={NUMEROS}>
+        <label className={UN_NUMERO}><span className={ETIQUETA}>Peso (g)</span><CampoNumero name="peso_g" valor={p.peso_g} tipo="entero" className={`${CAMPO} w-full`} /></label>
+        <label className={UN_NUMERO}><span className={ETIQUETA}>Largo (cm)</span><CampoNumero name="largo_cm" valor={p.largo_cm} tipo="decimal" className={`${CAMPO} w-full`} /></label>
+        <label className={UN_NUMERO}><span className={ETIQUETA}>Ancho (cm)</span><CampoNumero name="ancho_cm" valor={p.ancho_cm} tipo="decimal" className={`${CAMPO} w-full`} /></label>
+        <label className={UN_NUMERO}><span className={ETIQUETA}>Alto (cm)</span><CampoNumero name="alto_cm" valor={p.alto_cm} tipo="decimal" className={`${CAMPO} w-full`} /></label>
+        <label className={UN_NUMERO}><span className={ETIQUETA}>Stock mínimo</span><CampoNumero name="stock_minimo" valor={p.stock_minimo} tipo="entero" className={`${CAMPO} w-full`} /></label>
+        <label className={UN_NUMERO}><span className={ETIQUETA}>Descuento %</span>
+          <CampoNumero name="descuento_pct" valor={p.descuento_pct} tipo="pct" placeholder={formatearNumero(heredado, "pct")} className={`${CAMPO} w-full`} /></label>
+        <label className={UN_NUMERO}><span className={ETIQUETA}>Umbral de pausa</span>
+          <CampoNumero name="umbral_pausa" valor={p.umbral_pausa} tipo="entero" placeholder={String(umbralOrg)} className={`${CAMPO} w-full`} /></label>
+        <label className={UN_NUMERO}><span className={ETIQUETA}>IVA</span>
+          <select name="iva_pct" defaultValue={ivaPct} className={`${CAMPO} w-full text-right`}>
+            {ALICUOTAS_IVA.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+          </select></label>
+        <AyudasNumeros descuento={ayudaDescuento} umbral={ayudaUmbral} iva={ayudaIva} />
+      </div>
+      {/* La descripción larga, al final, a todo lo ancho y bien alta: es donde se escribe el texto. */}
       <label className="col-span-2 sm:col-span-4"><span className={ETIQUETA}>Descripción larga</span>
-        <textarea name="descripcion" defaultValue={p.descripcion ?? ""} rows={14} className={`${CAMPO} w-full leading-relaxed`} />
+        <textarea name="descripcion" defaultValue={p.descripcion ?? ""} className={`${CAMPO} w-full leading-relaxed ${ALTO_DESCRIPCION}`} />
       </label>
     </form>
     </>
+  );
+}
+
+/** La fila de los números de la ficha y el ancho de cada uno (el mismo en vista y en edición). */
+const NUMEROS = "col-span-2 sm:col-span-4 flex flex-wrap gap-x-3 gap-y-2 items-start";
+const UN_NUMERO = "w-28";
+/** El alto de la descripción larga, igual en vista y en edición (con desplazamiento si es más larga). */
+const ALTO_DESCRIPCION = "h-[32rem] !max-h-[32rem] resize-y";
+
+/** Las ayudas de los números, en un renglón debajo de la fila (así los cuadros quedan juntos). */
+function AyudasNumeros({ descuento, umbral, iva }: { descuento: React.ReactNode; umbral: React.ReactNode; iva: string }) {
+  return (
+    <p className="w-full text-[10px] text-[#5C6B76] leading-relaxed">
+      <b>Stock mínimo:</b> debajo de esto, avisa el panel. · <b>Descuento:</b> {descuento} · <b>Umbral de pausa:</b> {umbral} · <b>IVA:</b> {iva}
+    </p>
   );
 }
 

@@ -90,11 +90,12 @@ Abre en modo vista (los datos en sus marcos, sin poder tocarlos). Con el lápiz 
 - **Costo FOB** con su moneda (USD o ARS). Debajo, en gris, el costo "Puesto en depósito: promedio … · último … — sale de compras" (o "Sin costo en depósito todavía (sale de compras)."). En un producto con variaciones dice "Va en cada variación."; en un kit no se carga: muestra la suma de sus componentes.
 - Casilla **Kit en Virtual Seller (armar a mano)**.
 - Casilla **Precio en dólares (los pesos siguen al tipo de cambio del día)**.
-- **Peso (g)**, **Stock mínimo** ("Debajo de esto, avisa el panel."), **Largo (cm)**, **Ancho (cm)**, **Alto (cm)**.
+- Los números van **juntos en una fila**, cada uno en un cuadro chico: **Peso (g)**, **Largo (cm)**, **Ancho (cm)**, **Alto (cm)**, **Stock mínimo**, **Descuento %**, **Umbral de pausa** e **IVA**; sus ayudas, en un renglón debajo de la fila.
+- **Stock mínimo**: debajo de esto, avisa el panel.
 - **Descuento %**: vacío hereda de la familia (la ayuda muestra cuánto heredaría y cuál rige).
 - **Umbral de pausa**: vacío = el del canal o el general (la ayuda muestra el general).
 - **IVA**: 21 %, 10,5 %, 27 %, 5 %, 2,5 % o 0 %. "Los precios se cargan con IVA; al facturar se discrimina con esta alícuota."
-- **Descripción larga**, a todo lo ancho.
+- **Descripción larga**, a todo lo ancho y bien alta (si el texto es más largo, se desplaza adentro del cuadro; en edición, el cuadro se puede estirar desde la esquina de abajo).
 
 Debajo, en modo vista, un desplegable **Atributos de Mercado Libre** con la categoría de ML y los atributos que trajo la publicación. Es sólo para mirar.
 
