@@ -269,11 +269,14 @@ export async function leerItemsDeCampana(org: string, canal: number, c: FilaCamp
     }
   }
   if (completo) {
-    const salieron = [...previas.entries()].filter(([item, f]) => enPromocion(f.estado) && !vistos.has(item));
-    for (const [item, f] of salieron) {
-      eventos.push({ que: "item_baja", promocion_id: c.promocion_id, item_id: item, tipo: c.tipo, nombre: c.nombre, antes: f.estado, despues: null, precio_antes: f.precio, precio_despues: null });
+    // La lista de la campaña a veces no trae publicaciones que siguen adentro (Fer, 10/10: dos notebooks en «Día de la
+    // Madre» desaparecieron de la lista y la vista previa las quiso meter en la propia). No se dan por salidas: se
+    // vuelven a leer primero de a una (/seller-promotions/items/{id}), que es lo que manda; esa lectura anota la baja si va.
+    const salieron = [...previas.entries()].filter(([item, f]) => enPromocion(f.estado) && !vistos.has(item)).map(([i]) => i);
+    if (salieron.length) {
+      await consulta(`insert into ml_promo_leida (canal_id, item_id, organizacion_id, leido_ts) select $1, x, $3, '-infinity' from unnest($2::text[]) x
+        on conflict (canal_id, item_id) do update set leido_ts = '-infinity'`, [canal, salieron, org]);
     }
-    if (salieron.length) await consulta("delete from ml_promo_item where canal_id = $1 and promocion_id = $2 and item_id = any($3::text[])", [canal, c.promocion_id, salieron.map(([i]) => i)]);
   }
   await guardarEventos(org, canal, eventos);
   return { items, eventos: eventos.length, error };
