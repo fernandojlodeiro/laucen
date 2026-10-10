@@ -34,17 +34,21 @@ export default async function ConfigSeguimiento({ searchParams }: { searchParams
               <CampoNumero name="frecuencia_dias" valor={c.frecuenciaDias} tipo="entero" className={`${CAMPO} w-full`} /></label>
             <label className="w-40"><span className={ETIQUETA}>Tope de gasto por mes (US$)</span>
               <CampoNumero name="tope_usd" valor={c.topeUsd} tipo="decimal" className={`${CAMPO} w-full`} /></label>
+            <label className="w-40"><span className={ETIQUETA}>No compite si tarda más de (días)</span>
+              <CampoNumero name="demora_dias" valor={c.demoraDias} tipo="entero" className={`${CAMPO} w-full`} /></label>
           </>
         ) : (
           <>
             <Dato etiqueta="Leer cada (días)" numero className="w-40">{String(c.frecuenciaDias)}</Dato>
             <Dato etiqueta="Tope de gasto por mes (US$)" numero className="w-40">{formatearNumero(c.topeUsd, "decimal")}</Dato>
+            <Dato etiqueta="No compite si tarda más de (días)" numero className="w-40">{String(c.demoraDias)}</Dato>
           </>
         )}
         <p className="w-full text-[11px] text-[#5C6B76]">
           Cada publicación seguida se vuelve a leer cuando pasaron esos días desde su última lectura (la primera es al agregarla), en la
           vuelta de la madrugada. Las de catálogo se leen gratis; las comunes y las búsquedas se pagan (Apify) y, al llegar al tope del mes,
-          se dejan de leer hasta el mes siguiente.
+          se dejan de leer hasta el mes siguiente. Una publicación que tarda en llegar más de los días elegidos (a un código postal de
+          Capital Federal, como lo informa Mercado Libre) no compite: en la búsqueda queda escondida y en las seguidas se marca en rojo.
         </p>
       </form>
       <div className={`${CAJA} mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3`}>

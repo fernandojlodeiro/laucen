@@ -19,6 +19,7 @@ Menú **Configuración › Seguimiento de publicaciones**.
 
 - **Leer cada (días)**: de entrada, 7.
 - **Tope de gasto por mes (US$)**: de entrada, 30.
+- **No compite si tarda más de (días)**: de entrada, 10.
 - Abajo: **Gastado este mes**, **Queda del tope**, **Publicaciones seguidas** y cuántas son **De catálogo (gratis)**.
 
 ## Cómo se hace
@@ -32,6 +33,7 @@ Menú **Configuración › Seguimiento de publicaciones**.
 - **Cuándo se lee cada una**: la primera lectura es al agregarla (si la elegiste de la búsqueda, lo que trajo la búsqueda ya vale como primera lectura). Después, se vuelve a leer cuando pasaron los días elegidos desde su última lectura, en la vuelta automática de la madrugada.
 - **Qué cuesta y qué no**: las publicaciones que compiten en un **producto de catálogo** de Mercado Libre se leen **gratis**. Las **comunes** y las **búsquedas** se leen con un servicio externo que cobra: unos US$ 0,10 por búsqueda de 50 resultados y menos de un centavo de dólar por publicación leída.
 - **El tope**: al llegar al tope del mes, se dejan de leer las comunes y de buscar hasta el mes siguiente (las de catálogo se siguen leyendo). El mes se cuenta en hora argentina.
+- **Tiempo de entrega**: de cada publicación ajena se calcula en cuántos días llega a un código postal de Capital Federal (la opción de envío más rápida, como la informa Mercado Libre; sin costo). Si tarda más que los días elegidos, **no compite**: en la búsqueda queda escondida (con una caja para mostrarla) y en las seguidas el plazo se ve en rojo. Sirve para separar, por ejemplo, las que se traen por encargo y tardan semanas.
 - Si una lectura falla, se reintenta al día siguiente.
 
 ## Relacionado

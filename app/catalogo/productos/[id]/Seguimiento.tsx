@@ -18,7 +18,7 @@ type Seguida = {
   id: number; item_id: string; catalogo_id: string | null; titulo: string | null; foto: string | null; permalink: string | null;
   vendedor: string | null; tienda_oficial: boolean | null; precio: number | null; precio_original: number | null; moneda: string | null;
   estado: string | null; tipo_publicacion: string | null; cuotas: string | null; envio_gratis: boolean | null;
-  leido_ts: Date | null; error: string | null; cambio: number | null;
+  leido_ts: Date | null; error: string | null; cambio: number | null; entrega_dias: number | null;
 };
 
 const TIPOS: Record<string, string> = { gold_special: "Clásica", gold_pro: "Premium", gold_premium: "Premium", free: "Gratuita", gold: "Oro", silver: "Plata", bronze: "Bronce" };
@@ -46,11 +46,22 @@ function hace(d: Date | null) {
   return dias <= 0 ? "hoy" : dias === 1 ? "ayer" : `hace ${dias} días`;
 }
 
-export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string } }) {
+/** «Llega en N días», en rojo si tarda más de lo que compite. */
+function Entrega({ dias, demora, gratis }: { dias: number | null | undefined; demora: number; gratis: boolean | null | undefined }) {
+  return (
+    <span className="whitespace-nowrap">
+      {dias == null ? <span className="text-[#5C6B76]">—</span>
+        : <span className={dias > demora ? "text-[#C03420] font-semibold" : ""}>{dias === 0 ? "Hoy" : dias === 1 ? "1 día" : `${dias} días`}</span>}
+      {gratis != null && <span className="block text-[10px] text-[#5C6B76]">{gratis ? "Envío gratis" : "Envío a cargo"}</span>}
+    </span>
+  );
+}
+
+export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string } }) {
   const [seguidas, busqueda, conf] = await Promise.all([
     consulta<Seguida>(`
       select sp.id::int, sp.item_id, sp.catalogo_id, sp.titulo, sp.foto, sp.permalink, sp.vendedor, sp.tienda_oficial, sp.precio::float8, sp.precio_original::float8,
-             sp.moneda, sp.estado, sp.tipo_publicacion, sp.cuotas, sp.envio_gratis, sp.leido_ts, sp.error,
+             sp.moneda, sp.estado, sp.tipo_publicacion, sp.cuotas, sp.envio_gratis, sp.leido_ts, sp.error, sp.entrega_dias,
              -- Cuánto cambió el precio desde la lectura anterior.
              (select (sp.precio - l.precio)::float8 from seguimiento_lectura l where l.seguimiento_id = sp.id and l.precio is not null
                order by l.ts desc offset 1 limit 1) cambio
@@ -64,9 +75,10 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
   const nuestroEsPack = esPack(p.titulo);
   const todos = (busqueda?.resultados ?? []).filter((r) => !r.esCatalogo)
     .map((r) => ({ ...r, pack: !nuestroEsPack && esPack(r.titulo), parecido: parecido(p.titulo, r.titulo) }));
-  const packs = todos.filter((r) => r.pack).length, propias = todos.filter((r) => r.propia).length;
-  const verPacks = sp.packs === "1", verPropias = sp.propias === "1";
-  const resultados = todos.filter((r) => (verPacks || !r.pack) && (verPropias || !r.propia))
+  const demora = (r: PubEncontrada) => r.entregaDias != null && r.entregaDias > conf.demoraDias;
+  const packs = todos.filter((r) => r.pack).length, propias = todos.filter((r) => r.propia).length, demoradas = todos.filter(demora).length;
+  const verPacks = sp.packs === "1", verPropias = sp.propias === "1", verDemoradas = sp.demoradas === "1";
+  const resultados = todos.filter((r) => (verPacks || !r.pack) && (verPropias || !r.propia) && (verDemoradas || !demora(r)))
     .sort((a, b) => b.parecido - a.parecido || (a.precio ?? Infinity) - (b.precio ?? Infinity));
   const campos = { producto_id: String(p.id) };
 
@@ -98,7 +110,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
           <table className={TABLA}>
             <thead className={THEAD}>
               <tr><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Tipo</th>
-                <th className={TH}>Envío</th><th className={TH}>Estado</th><th className={TH}>Leída</th><th /></tr>
+                <th className={TH}>Entrega</th><th className={TH}>Estado</th><th className={TH}>Leída</th><th /></tr>
             </thead>
             <tbody>
               {seguidas.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>Todavía no seguís ninguna: buscalas abajo y tocá «Seguir», o agregalas por número.</td></tr>}
@@ -121,7 +133,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
                     )}
                   </td>
                   <td className={TD}>{x.tipo_publicacion ? TIPOS[x.tipo_publicacion] ?? x.tipo_publicacion : "—"}{x.cuotas && <span className="block text-[10px] text-[#5C6B76]">{x.cuotas}</span>}</td>
-                  <td className={TD}>{x.envio_gratis ? "Gratis" : x.envio_gratis === false ? "A cargo" : "—"}</td>
+                  <td className={TD}><Entrega dias={x.entrega_dias} demora={conf.demoraDias} gratis={x.envio_gratis} /></td>
                   <td className={TD}><Estado texto={ESTADOS[x.estado ?? "sin_dato"]?.t ?? x.estado ?? "—"} tono={ESTADOS[x.estado ?? "sin_dato"]?.tono ?? "gris"} /></td>
                   <td className={`${TD} whitespace-nowrap`}>{hace(x.leido_ts)}{x.error && <span className="block text-[10px] text-[#C03420] max-w-48 whitespace-normal">{x.error}</span>}</td>
                   <td className={`${TD} text-right`}>
@@ -144,6 +156,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
           <div className="flex flex-wrap items-center gap-4 mt-2 text-xs">
             <CasillaViva parametro="packs" activo={verPacks} etiqueta={`Mostrar también packs y varias unidades (${packs})`} />
             <CasillaViva parametro="propias" activo={verPropias} etiqueta={`Mostrar también las nuestras (${propias})`} />
+            <CasillaViva parametro="demoradas" activo={verDemoradas} etiqueta={`Mostrar también las que tardan más de ${conf.demoraDias} días (${demoradas})`} />
             <span className="text-[11px] text-[#5C6B76]">Primero las que más se parecen al título del producto. Las de catálogo muestran a cada vendedor que compite.</span>
           </div>
         )}
@@ -151,7 +164,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
           <div className={`${CAJA_TABLA} mt-2`}>
             <table className={TABLA}>
               <thead className={THEAD}>
-                <tr><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Tipo y cuotas</th><th className={TH}>Envío</th><th /></tr>
+                <tr><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Tipo y cuotas</th><th className={TH}>Entrega</th><th /></tr>
               </thead>
               <tbody>
                 {resultados.map((r: PubEncontrada & { pack: boolean }) => (
@@ -162,7 +175,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
                         <span>
                           <a href={enlaceMl({ permalink: r.permalink, itemId: r.itemId })} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline">{r.titulo} ↗</a>
                           <span className="block text-[10px] text-[#5C6B76] font-mono">
-                            {r.itemId}{r.catalogoId && " · 📖 Catálogo"}{r.publicidad && " · Publicidad"}{r.pack && " · Pack"}
+                            {r.itemId}{r.catalogoId && " · 📖 Catálogo (el título es el del catálogo, no el del vendedor)"}{r.publicidad && " · Publicidad"}{r.pack && " · Pack"}
                           </span>
                         </span>
                       </span>
@@ -170,7 +183,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
                     <td className={TD}>{r.vendedor ?? "—"}{r.tiendaOficial && <span className="block text-[10px] text-[#1F6E4A]">Tienda oficial</span>}</td>
                     <td className={TDN}><Precio precio={r.precio} original={r.precioOriginal} moneda={r.moneda} /></td>
                     <td className={`${TD} text-[11px]`}>{r.tipoPublicacion ? <b className="block">{TIPOS[r.tipoPublicacion] ?? r.tipoPublicacion}</b> : null}{r.cuotas ?? (r.tipoPublicacion ? null : "—")}</td>
-                    <td className={TD}>{r.envioGratis ? "Gratis" : r.envioGratis === false ? "A cargo" : "—"}</td>
+                    <td className={TD}><Entrega dias={r.entregaDias} demora={conf.demoraDias} gratis={r.envioGratis} /></td>
                     <td className={`${TD} text-right whitespace-nowrap`}>
                       {r.propia ? <span className="text-[11px] text-[#5C6B76]">Nuestra</span>
                         : seguidosIds.has(r.itemId) ? <span className="text-[11px] text-[#1F6E4A] font-semibold">✓ Siguiendo</span>

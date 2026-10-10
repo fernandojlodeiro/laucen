@@ -24,8 +24,10 @@ import {
 } from "./secciones";
 
 export const dynamic = "force-dynamic";
+// Las tareas de fondo de la pestaña Seguimiento (buscar en ML con Apify y abrir los catálogos) corren hasta este tope.
+export const maxDuration = 300;
 
-type SP = { seccion?: string; editar?: string; ok?: string; error?: string; orden?: string; dir?: string; pcanal?: string; packs?: string; propias?: string };
+type SP = { seccion?: string; editar?: string; ok?: string; error?: string; orden?: string; dir?: string; pcanal?: string; packs?: string; propias?: string; demoradas?: string };
 
 export default async function FichaProducto({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SP> }) {
   const s = await entrarErp("productos_ver");

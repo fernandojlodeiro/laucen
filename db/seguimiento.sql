@@ -32,6 +32,8 @@ create table if not exists seguimiento_pub (
   creado_ts         timestamptz not null default now(),
   unique (organizacion_id, producto_id, item_id)
 );
+-- En cuántos días llega (opciones de envío de ML a un código postal de Capital): si tarda mucho, no compite.
+alter table seguimiento_pub add column if not exists entrega_dias int;
 create index if not exists seguimiento_pub_producto on seguimiento_pub (producto_id);
 create index if not exists seguimiento_pub_lectura on seguimiento_pub (organizacion_id, leido_ts);
 alter table seguimiento_pub enable row level security;

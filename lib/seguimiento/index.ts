@@ -21,25 +21,28 @@ const POR_RESULTADO = { busqueda: 0.002, lectura: 0.008 };
 
 // ── Configuración general ───────────────────────────────────
 
-export type ConfigSeguimiento = { frecuenciaDias: number; topeUsd: number };
-export const CONFIG_DEFECTO: ConfigSeguimiento = { frecuenciaDias: 7, topeUsd: 30 };
+/** `demoraDias`: una publicación que tarda más que esto en llegar no compite (se esconde en la búsqueda y se marca en rojo). */
+export type ConfigSeguimiento = { frecuenciaDias: number; topeUsd: number; demoraDias: number };
+export const CONFIG_DEFECTO: ConfigSeguimiento = { frecuenciaDias: 7, topeUsd: 30, demoraDias: 10 };
 
 export async function configSeguimiento(org: string): Promise<ConfigSeguimiento> {
-  const r = await una<{ valor: { frecuencia_dias?: number; tope_usd?: number } }>(
+  const r = await una<{ valor: { frecuencia_dias?: number; tope_usd?: number; demora_dias?: number } }>(
     "select valor from config_org where organizacion_id = $1 and clave = 'seguimiento'", [org]).catch(() => null);
   return {
     frecuenciaDias: Number(r?.valor?.frecuencia_dias) > 0 ? Number(r!.valor.frecuencia_dias) : CONFIG_DEFECTO.frecuenciaDias,
     topeUsd: r?.valor?.tope_usd != null && Number(r.valor.tope_usd) >= 0 ? Number(r.valor.tope_usd) : CONFIG_DEFECTO.topeUsd,
+    demoraDias: Number(r?.valor?.demora_dias) > 0 ? Number(r!.valor.demora_dias) : CONFIG_DEFECTO.demoraDias,
   };
 }
 
 export async function guardarConfigSeguimiento(org: string, c: ConfigSeguimiento): Promise<void> {
   if (!Number.isInteger(c.frecuenciaDias) || c.frecuenciaDias < 1 || c.frecuenciaDias > 90) throw new ErrorErp("Cada cuántos días: de 1 a 90.");
   if (!(c.topeUsd >= 0) || c.topeUsd > 1000) throw new ErrorErp("El tope de gasto va de US$ 0 a US$ 1.000 por mes.");
+  if (!Number.isInteger(c.demoraDias) || c.demoraDias < 1 || c.demoraDias > 120) throw new ErrorErp("«No compite si tarda más de»: de 1 a 120 días.");
   await consulta(`
     insert into config_org (organizacion_id, clave, valor) values ($1, 'seguimiento', $2::jsonb)
     on conflict (coalesce(organizacion_id, ''), clave) do update set valor = excluded.valor, actualizado_ts = now()`,
-    [org, JSON.stringify({ frecuencia_dias: c.frecuenciaDias, tope_usd: c.topeUsd })]);
+    [org, JSON.stringify({ frecuencia_dias: c.frecuenciaDias, tope_usd: c.topeUsd, demora_dias: c.demoraDias })]);
 }
 
 /** Lo gastado en Apify por el seguimiento este mes (hora argentina). */
@@ -81,6 +84,8 @@ export type PubEncontrada = {
   /** El resultado de la búsqueda es un producto de catálogo (no una publicación): se abre en sus vendedores por la API. */
   esCatalogo?: boolean;
   vendedorId?: number | null;
+  /** En cuántos días llega (a un código postal de Capital), de las opciones de envío de ML. */
+  entregaDias?: number | null;
   propia?: boolean;
 };
 
@@ -166,9 +171,12 @@ export async function buscarParaSeguir(org: string, productoId: number, texto: s
   // Los apodos de los vendedores (la API pública de usuarios), de a uno; los nuestros ya se saben.
   const ids = new Map(cuentas.map((x) => [x.meliUserId, x.nickname ?? "Nuestra"]));
   const nuestrosIds = new Set(cuentas.map((x) => x.meliUserId));
-  for (const v of [...new Set(lista.map((p) => p.vendedorId).filter((v): v is number => !!v && !ids.has(v)))].slice(0, 60)) {
-    const u = cuentas[0] ? await ml<{ nickname?: string }>(cuentas[0], "GET", `/users/${v}`).catch(() => null) : null;
-    if (u?.status === 200 && u.datos.nickname) ids.set(v, u.datos.nickname);
+  const sinApodo = [...new Set(lista.map((p) => p.vendedorId).filter((v): v is number => !!v && !ids.has(v)))].slice(0, 80);
+  for (let i = 0; i < sinApodo.length; i += 10) {
+    await Promise.all(sinApodo.slice(i, i + 10).map(async (v) => {
+      const u = cuentas[0] ? await ml<{ nickname?: string }>(cuentas[0], "GET", `/users/${v}`).catch(() => null) : null;
+      if (u?.status === 200 && u.datos.nickname) ids.set(v, u.datos.nickname);
+    }));
   }
   // Las nuestras: por el número de publicación o, en un «producto de vendedor» (MLAU…), por el suyo.
   const propiasIds = new Set((await consulta<{ id: string }>(`
@@ -176,17 +184,43 @@ export async function buscarParaSeguir(org: string, productoId: number, texto: s
     union select datos_externos #>> '{ml,user_product_id}' from meli_item where organizacion_id = $1 and datos_externos #>> '{ml,user_product_id}' = any($2::text[])`,
     [org, lista.map((p) => p.itemId)])).map((r) => r.id));
   const vistos = new Set<string>();
-  const resultados = lista
+  const resultados: PubEncontrada[] = lista
     .filter((p) => !vistos.has(p.itemId) && !!vistos.add(p.itemId))
     .map((p) => {
       const vendedor = p.vendedor ?? (p.vendedorId ? ids.get(p.vendedorId) ?? null : null);
       return { ...p, vendedor, propia: propiasIds.has(p.itemId) || (!!p.vendedorId && nuestrosIds.has(p.vendedorId)) || (!!vendedor && apodos.has(vendedor.toUpperCase().trim())) };
     });
+  // Cuánto tardan en llegar (gratis, por la API), salvo las nuestras: las que tardan mucho no compiten.
+  if (cuentas[0]) {
+    const ajenas = resultados.filter((p) => !p.propia).slice(0, 150);
+    for (let i = 0; i < ajenas.length; i += 10) {
+      await Promise.all(ajenas.slice(i, i + 10).map(async (p) => { p.entregaDias = await diasDeEntrega(cuentas[0], p.itemId); }));
+    }
+  }
   await consulta(`
     insert into seguimiento_busqueda (organizacion_id, producto_id, texto, ts, resultados) values ($1, $2, $3, now(), $4::jsonb)
     on conflict (organizacion_id, producto_id) do update set texto = excluded.texto, ts = now(), resultados = excluded.resultados`,
     [org, productoId, q, JSON.stringify(resultados)]);
   return { cantidad: resultados.length, costoUsd: costoDe("busqueda", c.costoUsd, c.items.length) };
+}
+
+/** El código postal de referencia para calcular la entrega (Capital Federal). */
+const CP_REFERENCIA = "1425";
+
+/** En cuántos días llega una publicación (la opción de envío más rápida), por la API: las opciones de envío
+ *  a un código postal sí se pueden leer de publicaciones ajenas. null si no se pudo. */
+export async function diasDeEntrega(cuenta: CuentaMl, itemId: string): Promise<number | null> {
+  if (!/^MLA\d+$/.test(itemId)) return null;
+  const r = await ml<{ options?: { estimated_delivery_time?: { date?: string | null } }[] }>(cuenta, "GET", `/items/${itemId}/shipping_options?zip_code=${CP_REFERENCIA}`).catch(() => null);
+  if (!r || r.status !== 200) return null;
+  return diasHasta((r.datos.options ?? []).map((o) => o.estimated_delivery_time?.date).filter((d): d is string => !!d));
+}
+
+/** Días desde hoy hasta la fecha más cercana (redondeado para arriba; 0 = hoy). Pura. */
+export function diasHasta(fechas: string[], hoy = new Date()): number | null {
+  const ms = fechas.map((f) => Date.parse(f)).filter(Number.isFinite);
+  if (!ms.length) return null;
+  return Math.max(0, Math.ceil((Math.min(...ms) - hoy.getTime()) / 86_400_000));
 }
 
 /** Los vendedores que compiten en un producto de catálogo (API, gratis), como publicaciones para seguir. */
@@ -219,11 +253,11 @@ export async function seguirDeBusqueda(org: string, productoId: number, itemId: 
   if (p.esCatalogo) throw new ErrorErp("Es un producto de catálogo: buscá de nuevo para ver a cada vendedor.");
   const r = await una<{ id: number }>(`
     insert into seguimiento_pub (organizacion_id, producto_id, item_id, catalogo_id, titulo, foto, permalink, vendedor, tienda_oficial,
-                                 precio, precio_original, moneda, estado, tipo_publicacion, cuotas, envio_gratis, origen, leido_ts, intento_ts, vendedor_id)
-    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, coalesce($13, 'activa'), $14, $15, $16, 'busqueda', $17, $17, $18)
+                                 precio, precio_original, moneda, estado, tipo_publicacion, cuotas, envio_gratis, origen, leido_ts, intento_ts, vendedor_id, entrega_dias)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, coalesce($13, 'activa'), $14, $15, $16, 'busqueda', $17, $17, $18, $19)
     on conflict (organizacion_id, producto_id, item_id) do nothing returning id::int`,
     [org, productoId, p.itemId, p.catalogoId, p.titulo, p.foto, p.permalink, p.vendedor, p.tiendaOficial, p.precio, p.precioOriginal, p.moneda,
-      p.estado, p.tipoPublicacion, p.cuotas, p.envioGratis, b!.ts, p.vendedorId ?? null]);
+      p.estado, p.tipoPublicacion, p.cuotas, p.envioGratis, b!.ts, p.vendedorId ?? null, p.entregaDias ?? null]);
   if (r) await anotarLectura(org, r.id, "busqueda", p);
 }
 
@@ -274,10 +308,11 @@ async function leerCatalogo(org: string, cuenta: CuentaMl, seguidas: Seguida[]):
             envioGratis: x.shipping?.free_shipping ?? null, tiendaOficial: x.official_store_id != null }
         // No figura entre los que compiten: pausada, sin stock o fuera del catálogo.
         : { estado: "no_figura" };
+      if (x) p.entregaDias = await diasDeEntrega(cuenta, s.item_id);
       await consulta(`update seguimiento_pub set precio = coalesce($2, precio), precio_original = $3, moneda = coalesce($4, moneda), estado = $5,
                              tipo_publicacion = coalesce($6, tipo_publicacion), envio_gratis = coalesce($7, envio_gratis), tienda_oficial = coalesce($8, tienda_oficial),
-                             vendedor_id = coalesce($9, vendedor_id), leido_ts = now(), intento_ts = now(), error = null where id = $1`,
-        [s.id, p.precio ?? null, p.precioOriginal ?? null, p.moneda ?? null, p.estado, p.tipoPublicacion ?? null, p.envioGratis ?? null, p.tiendaOficial ?? null, x?.seller_id ?? null]);
+                             vendedor_id = coalesce($9, vendedor_id), entrega_dias = coalesce($10, entrega_dias), leido_ts = now(), intento_ts = now(), error = null where id = $1`,
+        [s.id, p.precio ?? null, p.precioOriginal ?? null, p.moneda ?? null, p.estado, p.tipoPublicacion ?? null, p.envioGratis ?? null, p.tiendaOficial ?? null, x?.seller_id ?? null, p.entregaDias ?? null]);
       await anotarLectura(org, s.id, "api", p, x ?? { no_figura: true });
       leidas++;
     }
@@ -340,6 +375,13 @@ export async function leerSeguidas(org: string, o: { productoId?: number; todas?
   const deCatalogo = cuenta ? seguidas.filter((s) => s.catalogo_id) : [];
   const catalogo = deCatalogo.length ? await leerCatalogo(org, cuenta, deCatalogo) : 0;
   const { leidas, sinPresupuesto } = await leerComunes(org, seguidas.filter((s) => !deCatalogo.includes(s)));
+  // La entrega de las comunes, por la API (gratis), aunque no haya quedado presupuesto para leerlas con Apify.
+  if (cuenta) {
+    for (const x of seguidas.filter((s) => !deCatalogo.includes(s))) {
+      const d = await diasDeEntrega(cuenta, x.item_id);
+      if (d != null) await consulta("update seguimiento_pub set entrega_dias = $2 where id = $1", [x.id, d]);
+    }
+  }
   return { catalogo, comunes: leidas, sinPresupuesto };
 }
 

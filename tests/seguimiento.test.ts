@@ -1,7 +1,7 @@
 // Seguimiento de publicaciones (lib/seguimiento/): cómo se lee un resultado de Apify. Sin base.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aPubEncontrada, esPack, parecido } from "@/lib/seguimiento";
+import { aPubEncontrada, esPack, parecido, diasHasta } from "@/lib/seguimiento";
 
 test("aPubEncontrada: lo que trae el lector de Mercado Libre de Apify", () => {
   const p = aPubEncontrada({
@@ -39,4 +39,11 @@ test("esPack y parecido: los packs se esconden y se ordena por cuánto se parece
   for (const t of ["Servo Digital Ds04-nfc 360° Rotacion - Torsion 5.5 Kg/cm", "Placa 3.3v-5v", "Servo Sg90 9g"]) assert.equal(esPack(t), false, t);
   const nuestro = "Servo Digital Ds04-nfc 360° Rotacion";
   assert.ok(parecido(nuestro, "Servomotor Ds04-nfc 360° Arduino") > parecido(nuestro, "Servo Rc 40kg Metal Impermeable"));
+});
+
+test("diasHasta: la opción de envío más rápida, en días desde hoy", () => {
+  const hoy = new Date("2026-10-10T12:00:00-03:00");
+  assert.equal(diasHasta(["2026-11-04T00:00:00-03:00", "2026-11-06T00:00:00-03:00"], hoy), 25);
+  assert.equal(diasHasta(["2026-10-11T00:00:00-03:00"], hoy), 1);
+  assert.equal(diasHasta([], hoy), null);
 });
