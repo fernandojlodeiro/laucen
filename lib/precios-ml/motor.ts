@@ -272,6 +272,8 @@ export type PubMl = {
   /** Los escalones de volumen mandados la última vez (ok en la cola). */
   volumenMl: { cantidad: number; precio: number }[] | null;
   userProductId: string | null; catalogProductId: string | null; catalogo: boolean;
+  /** Publicación de catálogo atada a otra nuestra (item_relations): ML le copia el precio publicado de la original. */
+  gemelaDe?: string | null;
 };
 
 export type EntradaVariacion = {
@@ -471,6 +473,14 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
           pa.venta = pub.precioVentaMl;
         }
       }
+    }
+    // La gemela de catálogo nunca cambia su precio publicado (Fer, 10/10): ML le copia el de la original, y cambiárselo
+    // a ella se lo cambia también a la original (bajó el tachado de las F412DA y las sacó de Día de la Madre). Sólo entra
+    // o sale de campañas, al precio de venta del esquema.
+    if (pub.gemelaDe && pub.precioListaMl != null) {
+      if (!igual(pub.precioListaMl, pa.lista)) pa.avisos.push(`Publicación de catálogo atada a ${pub.gemelaDe}: su precio publicado lo copia Mercado Libre de ésa; acá sólo se manejan sus campañas.`);
+      pa.lista = pub.precioListaMl;
+      if (pa.venta != null && pa.lista <= pa.venta + 0.5) pa.venta = pa.lista;
     }
     pa.cambiaPrecio = !igual(pub.precioListaMl, pa.lista);
     // Campañas: con tachado, la publicación va a su precio de venta con campaña

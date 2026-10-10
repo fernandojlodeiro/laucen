@@ -57,11 +57,11 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
           texto={`Publicar lo que falta en esta cuenta (${faltanEnCuenta.length.toLocaleString("es-AR")})`}
           pregunta={`¿Armar el lote para publicar en ${canal.nombre} los ${faltanEnCuenta.length.toLocaleString("es-AR")} productos que están activos en otras cuentas y acá no? Cada uno con su Clásica y sus planes, al precio del esquema. No sale nada hasta tu clic.`}
           campos={{ canal: String(canal.id) }} />}
-        {/* Para probar con pocos antes de publicar todo (Fer, 9/10). */}
-        {!f.todas && faltanEnCuenta.length > 10 && <BotonTarea accion={accionPublicarFaltantesCuenta} tipo={`faltan-en-cuenta:${canal.id}`} clase={SUAVE}
-          texto="Probar con 10"
-          pregunta={`¿Armar el lote para publicar en ${canal.nombre} sólo 10 de los productos que faltan (los primeros por SKU)? No sale nada hasta tu clic.`}
-          campos={{ canal: String(canal.id), limite: "10" }} />}
+        {/* De a tandas, para controlar cada lote (Fer, 9/10 y 10/10). */}
+        {!f.todas && faltanEnCuenta.length > 40 && <BotonTarea accion={accionPublicarFaltantesCuenta} tipo={`faltan-en-cuenta:${canal.id}`} clase={SUAVE}
+          texto="Publicar 40"
+          pregunta={`¿Armar el lote para publicar en ${canal.nombre} 40 de los productos que faltan (los primeros por SKU)? No sale nada hasta tu clic.`}
+          campos={{ canal: String(canal.id), limite: "40" }} />}
         {/* Las publicaciones de planes que le faltan a esta cuenta (Fer, 8/10): un lote que espera tu clic. */}
         {!f.todas && nuevas > 0 && <BotonTarea accion={accionCrearFaltantes} tipo={`planes-faltantes:${canal.id}`} clase={SUAVE}
           texto={`Crear los planes que faltan (${nuevas.toLocaleString("es-AR")})`}
