@@ -63,14 +63,27 @@ export function motivoNoCopiable(it: ItemGuardado): string | null {
 /** Atributos que ML calcula o fija él: mandarlos da aviso ("ignored because it is not modifiable"). */
 export const NO_MODIFICABLE = (id: string) => /^PACKAGE_/.test(id) || id === "IS_TOM_BRAND";
 
-export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones: OpcionesCopia, extra: { modelo?: string | null; sacar?: string[]; sinEnvio?: boolean; completar?: string[] } = {}): Record<string, unknown> {
+/** Medidas del paquete para ML (cm y g). */
+export type Paquete = { largo: number; ancho: number; alto: number; peso: number };
+/** El paquete de un componente chico (un sobre), cuando ML rechaza las medidas que trae la publicación de origen (Fer, 10/10). */
+export const PAQUETE_ESTANDAR: Paquete = { largo: 15, ancho: 10, alto: 3, peso: 100 };
+const ATRIBUTOS_PAQUETE = ["SELLER_PACKAGE_LENGTH", "SELLER_PACKAGE_WIDTH", "SELLER_PACKAGE_HEIGHT", "SELLER_PACKAGE_WEIGHT"];
+
+export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones: OpcionesCopia, extra: { modelo?: string | null; sacar?: string[]; sinEnvio?: boolean; completar?: string[]; paquete?: Paquete | null } = {}): Record<string, unknown> {
   const nombre = ((it.family_name ?? it.title) ?? "").trim();
   const nuevoNombre = opciones.variarTitulo ? variarTitulo(nombre) : nombre;
   const fotos = (it.pictures ?? []).map((f) => f.secure_url ?? f.url).filter((u): u is string => !!u);
   const atributos = (it.attributes ?? [])
-    .filter((a) => a.id !== "SELLER_SKU" && !NO_MODIFICABLE(a.id) && !(extra.sacar ?? []).includes(a.id) && (a.value_name != null || (a.value_id != null && a.value_id !== "-1")))
+    .filter((a) => a.id !== "SELLER_SKU" && !NO_MODIFICABLE(a.id) && !(extra.sacar ?? []).includes(a.id) && (a.value_name != null || (a.value_id != null && a.value_id !== "-1"))
+      && !(extra.paquete && ATRIBUTOS_PAQUETE.includes(a.id)))
     .map((a) => ({ id: a.id, ...(a.value_id && a.value_id !== "-1" ? { value_id: a.value_id } : {}), ...(a.value_name != null ? { value_name: a.value_name } : {}) }));
   if (sku) atributos.push({ id: "SELLER_SKU", value_name: sku } as (typeof atributos)[number]);
+  if (extra.paquete) {
+    const k = extra.paquete;
+    for (const [id, v] of [["SELLER_PACKAGE_LENGTH", `${k.largo} cm`], ["SELLER_PACKAGE_WIDTH", `${k.ancho} cm`], ["SELLER_PACKAGE_HEIGHT", `${k.alto} cm`], ["SELLER_PACKAGE_WEIGHT", `${k.peso} g`]]) {
+      atributos.push({ id, value_name: v } as (typeof atributos)[number]);
+    }
+  }
   // Muchas publicaciones viejas no tienen Modelo en ML y ML hoy lo exige en algunas categorías: se usa el del producto de Laucen.
   if (extra.modelo && !atributos.some((a) => a.id === "MODEL")) atributos.push({ id: "MODEL", value_name: extra.modelo } as (typeof atributos)[number]);
   // Un «número de pieza» obligatorio que la publicación vieja no tiene: el Modelo (el de ML o el de Laucen).
@@ -161,9 +174,11 @@ export type Comprobacion = { ok: true; cuerpo: Record<string, unknown>; avisos: 
 /** Comprueba un alta con ML (POST /items/validate: no publica nada). Si ML avisa que hay
  *  atributos que no se pueden mandar, los saca y vuelve a comprobar; si protesta por el
  *  envío, vuelve a comprobar sin el bloque de envío (usa el que tiene la cuenta). */
-export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string[]; sinEnvio?: boolean; completar?: string[] }) => Record<string, unknown>): Promise<Comprobacion> {
+export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string[]; sinEnvio?: boolean; completar?: string[]; paquete?: Paquete | null }) => Record<string, unknown>,
+  opts: { paquetes?: (Paquete | null)[] } = {}): Promise<Comprobacion> {
   let sacar: string[] = [];
   let completar: string[] = [];
+  let paquete: Paquete | null = null;
   let cuerpo = armar({ sacar });
   let r = await ml(cuenta, "POST", "/items/validate", cuerpo);
   // Un obligatorio que falta y se puede completar (número de pieza ← Modelo): se prueba con él.
@@ -187,13 +202,33 @@ export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string
     cuerpo = armar({ sacar, completar });
     r = await ml(cuenta, "POST", "/items/validate", cuerpo);
   }
+  // Medidas del paquete que ML no cree para ese producto (las de publicaciones viejas): las de la ficha de Laucen, si las
+  // tiene, y si no un paquete estándar de sobre (Fer, 10/10). Cada una la comprueba ML.
+  if (!aceptable(r) && /seller\.package\.dimensions|seller_package/i.test(JSON.stringify(r.datos))) {
+    for (const k of [...(opts.paquetes ?? []).filter((x): x is Paquete => !!x), PAQUETE_ESTANDAR]) {
+      paquete = k;
+      cuerpo = armar({ sacar, completar, paquete });
+      r = await ml(cuenta, "POST", "/items/validate", cuerpo);
+      if (aceptable(r) || !/seller\.package\.dimensions|seller_package/i.test(JSON.stringify(r.datos))) break;
+    }
+  }
   if (!aceptable(r) && /mode me1|free shipping|shipping/i.test(JSON.stringify(r.datos))) {
-    cuerpo = armar({ sacar, sinEnvio: true, completar });
+    cuerpo = armar({ sacar, sinEnvio: true, completar, paquete });
     r = await ml(cuenta, "POST", "/items/validate", cuerpo);
   }
   if (!aceptable(r)) return { ok: false, motivo: motivoValidacion(r.status, r.datos) };
   const avisos = causasDe(r.datos).filter((c) => (c.message ?? "").trim() && !/not modifiable/.test(c.message ?? ""));
   return { ok: true, cuerpo, avisos: avisos.length ? motivoValidacion(r.status, { cause: avisos }) : null };
+}
+
+/** Las medidas del paquete cargadas en la ficha del producto de Laucen (si están todas). */
+export async function paqueteDeLaucen(org: string, sku: string | null): Promise<Paquete | null> {
+  if (!sku) return null;
+  const v = await variacionPorSku(org, sku);
+  if (!v) return null;
+  const p = await una<{ largo: number | null; ancho: number | null; alto: number | null; peso: number | null }>(
+    "select p.largo_cm::float8 largo, p.ancho_cm::float8 ancho, p.alto_cm::float8 alto, p.peso_g::float8 peso from variacion x join producto p on p.id = x.producto_id where x.id = $1", [v]);
+  return p && p.largo && p.ancho && p.alto && p.peso ? { largo: p.largo, ancho: p.ancho, alto: p.alto, peso: p.peso } : null;
 }
 
 /** El Modelo cargado en el producto de Laucen que tiene ese SKU (para completar el que falta en ML). */
@@ -245,7 +280,8 @@ export async function prepararCopia(org: string, origen: number, destino: number
     const sku = f.sku?.trim() || null; // el SKU es el mismo en todas las cuentas
     const modelo = f.sku ? await modeloDeLaucen(org, f.sku) : null;
     // Siempre Clásica, aunque la de origen sea Premium (Fer, 5/10).
-    const c = await comprobarAlta(cDestino, (x) => armarCuerpoCopia({ ...f.ml!, listing_type_id: "gold_special" }, sku, opciones, { modelo, ...x }));
+    const c = await comprobarAlta(cDestino, (x) => armarCuerpoCopia({ ...f.ml!, listing_type_id: "gold_special" }, sku, opciones, { modelo, ...x }),
+      { paquetes: [await paqueteDeLaucen(org, sku)] });
     if (!c.ok) { rech(`Mercado Libre no la acepta: ${c.motivo}`); continue; }
     const cuerpo = c.cuerpo;
     // Entra, pero ML dejó avisos (ej. "envío gratis obligatorio agregado"): se cuentan aparte.

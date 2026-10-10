@@ -11,7 +11,7 @@
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
-import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
+import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { calcularCanal } from "@/lib/precios-ml/datos";
 import { filtrarCalculo, type FiltroPrecios } from "@/lib/precios-ml/preparar";
 import { DESCUENTO_MINIMO_ML, PLAN_INFO, descuentoVisible } from "@/lib/precios-ml/motor";
@@ -69,7 +69,7 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
       const r = await comprobarAlta(cuenta, (x) => {
         const cuerpo = armarCuerpoCopia(item, info.sku, { variarTitulo: false, rotarFotos: false }, { modelo, ...x });
         return tag ? { ...cuerpo, tags: [tag] } : cuerpo;
-      });
+      }, { paquetes: [await paqueteDeLaucen(org, info.sku)] });
       if (!r.ok) { res.rechazos.push(`${info.sku} ${PLAN_INFO[f.plan].nombre}: ${r.motivo}`); continue; }
       const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: r.cuerpo }];
       if (texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: texto }, seguirSiFalla: true });

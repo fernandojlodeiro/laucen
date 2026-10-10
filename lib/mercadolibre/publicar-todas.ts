@@ -19,7 +19,7 @@
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
-import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
+import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import { canalesMl, comisionesMl, familiasDe, reglasCanal, type CanalMl } from "@/lib/precios-ml/datos";
 import { gruposPlanes, ganadorDe } from "@/lib/precios-ml/grupos";
@@ -250,7 +250,7 @@ async function altasEnCanal(org: string, plan: PlanTodas, datos: DatosOrigen, c:
     const r = await comprobarAlta(cuenta, (x) => {
       const cuerpo = armarCuerpoCopia(item, sku, { variarTitulo: false, rotarFotos: false }, { modelo: datos.modelo, ...x });
       return tag ? { ...cuerpo, tags: [tag] } : cuerpo;
-    });
+    }, { paquetes: [await paqueteDeLaucen(org, sku)] });
     if (!r.ok) { res.rechazos.push(`${c.nombre} ${sku} ${f.nombre}: ${r.motivo}`); continue; }
     if (r.avisos) res.avisos.push(`${c.nombre} ${sku} ${f.nombre}: ${r.avisos}`);
     const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: r.cuerpo }];
