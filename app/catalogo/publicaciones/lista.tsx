@@ -101,7 +101,7 @@ export const PRECIO_CAMPANA_PUBLICACION = `(select min(x.precio)::float8 from ml
 export const UNIR_PRECIO_COMPRADOR = "left join ml_precio_comprador pc on pc.canal_id = pu.canal_id and pc.item_id = pu.id_externo and pc.monto is not null";
 export const CAMPOS_PRECIO_COMPRADOR = `pc.monto::float8 paga_ml, pc.regular::float8 tachado_ml, pc.leido_ts::text leido_ml,
   case when pc.promocion_id is not null then coalesce((select coalesce(x.nombre, x.tipo) from ml_promo_item x where x.canal_id = pc.canal_id and x.item_id = pc.item_id
-    and x.promocion_id = pc.promocion_id limit 1), pc.promocion_tipo) end campana_ml`;
+    and x.promocion_id = pc.promocion_id limit 1), case when pc.promocion_tipo = 'campaign' then 'Campaña' else pc.promocion_tipo end) end campana_ml`;
 export const CAMPANA_PUBLICACION = `(select string_agg(distinct coalesce(x.nombre, x.tipo), ' · ') from ml_promo_item x
    where x.canal_id = pu.canal_id and x.item_id = pu.id_externo and x.estado = 'started' and (x.hasta is null or x.hasta > now()))`;
 

@@ -121,7 +121,7 @@ export async function leerPromosItem(org: string, canal: number, item: string, p
 /** Lo que Mercado Libre le muestra hoy al comprador (lo que paga, el tachado y la campaña que rige), tal cual lo dice ML. */
 export async function leerPrecioComprador(org: string, canal: number, item: string, pedir: (ruta: string) => Promise<RespuestaMl>): Promise<void> {
   const r = await pedir(`/items/${item}/sale_price?context=channel_marketplace`);
-  const d = (r.status === 200 ? r.datos : null) as { amount?: number; regular_amount?: number | null; metadata?: { promotion_id?: string; promotion_type?: string } } | null;
+  const d = (r.status === 200 ? r.datos : null) as { amount?: number; regular_amount?: number | null; metadata?: { campaign_id?: string; promotion_id?: string; promotion_type?: string } } | null;
   if (!d || d.amount == null) {
     await consulta(`insert into ml_precio_comprador (canal_id, item_id, organizacion_id, error) values ($1, $2, $3, $4)
       on conflict (canal_id, item_id) do update set leido_ts = now(), error = excluded.error`, [canal, item, org, `ML contestó ${r.status}`]);
@@ -130,7 +130,8 @@ export async function leerPrecioComprador(org: string, canal: number, item: stri
   await consulta(`insert into ml_precio_comprador (canal_id, item_id, organizacion_id, monto, regular, promocion_id, promocion_tipo) values ($1, $2, $3, $4, $5, $6, $7)
     on conflict (canal_id, item_id) do update set monto = excluded.monto, regular = excluded.regular, promocion_id = excluded.promocion_id,
       promocion_tipo = excluded.promocion_tipo, leido_ts = now(), error = null`,
-    [canal, item, org, d.amount, d.regular_amount ?? null, d.metadata?.promotion_id ?? null, d.metadata?.promotion_type ?? null]);
+    [canal, item, org, d.amount, d.regular_amount ?? null, // La campaña (P-…/C-…) para buscar su nombre; promotion_id es la oferta del ítem (OFFER-…).
+    d.metadata?.campaign_id ?? d.metadata?.promotion_id ?? null, d.metadata?.promotion_type ?? null]);
 }
 
 /** Una publicación al día ya mismo: sus campañas y lo que ve el comprador (aviso de ML de cambio de precio u oferta). */
