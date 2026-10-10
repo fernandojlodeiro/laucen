@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aceptable, armarCuerpoCopia, atributosInvalidos, atributosNoModificables, claveProducto, motivoNoCopiable, motivoValidacion, rotarFotos, variarTitulo, type ItemGuardado } from "@/lib/mercadolibre/copiar";
+import { aceptable, armarCuerpoCopia, atributosFaltantes, atributosInvalidos, atributosNoModificables, claveProducto, motivoNoCopiable, motivoValidacion, rotarFotos, variarTitulo, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 
 // Un item de verdad (BAIRES, 5/10), recortado.
 const ITEM: ItemGuardado = {
@@ -116,4 +116,12 @@ test("atributosInvalidos: el atributo con un valor que ML no acepta en la cuenta
     { type: "warning", message: "Attribute [COLOR] is not valid, item values [(x)]" },
   ] };
   assert.deepEqual(atributosInvalidos(datos), ["PRODUCT_TYPE"]);
+});
+
+test("número de pieza obligatorio: se detecta y se completa con el Modelo (10/10)", () => {
+  const datos = { cause: [{ type: "error", code: "item.attributes.missing_required", message: "The attributes [DEVICE_PART_NUMBER] are required for category MLA380668 and channel marketplace." }] };
+  assert.deepEqual(atributosFaltantes(datos), ["DEVICE_PART_NUMBER"]);
+  const it = { title: "Ic Tda9570h", category_id: "MLA380668", price: 1, attributes: [{ id: "MODEL", value_name: "Tda9570h" }] } as unknown as ItemGuardado;
+  const cuerpo = armarCuerpoCopia(it, "SKU02343", { variarTitulo: false, rotarFotos: false }, { completar: ["DEVICE_PART_NUMBER"] }) as { attributes: { id: string; value_name?: string }[] };
+  assert.equal(cuerpo.attributes.find((a) => a.id === "DEVICE_PART_NUMBER")?.value_name, "Tda9570h");
 });

@@ -62,7 +62,7 @@ export function motivoNoCopiable(it: ItemGuardado): string | null {
 /** Atributos que ML calcula o fija él: mandarlos da aviso ("ignored because it is not modifiable"). */
 export const NO_MODIFICABLE = (id: string) => /^PACKAGE_/.test(id) || id === "IS_TOM_BRAND";
 
-export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones: OpcionesCopia, extra: { modelo?: string | null; sacar?: string[]; sinEnvio?: boolean } = {}): Record<string, unknown> {
+export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones: OpcionesCopia, extra: { modelo?: string | null; sacar?: string[]; sinEnvio?: boolean; completar?: string[] } = {}): Record<string, unknown> {
   const nombre = ((it.family_name ?? it.title) ?? "").trim();
   const nuevoNombre = opciones.variarTitulo ? variarTitulo(nombre) : nombre;
   const fotos = (it.pictures ?? []).map((f) => f.secure_url ?? f.url).filter((u): u is string => !!u);
@@ -72,6 +72,11 @@ export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones:
   if (sku) atributos.push({ id: "SELLER_SKU", value_name: sku } as (typeof atributos)[number]);
   // Muchas publicaciones viejas no tienen Modelo en ML y ML hoy lo exige en algunas categorías: se usa el del producto de Laucen.
   if (extra.modelo && !atributos.some((a) => a.id === "MODEL")) atributos.push({ id: "MODEL", value_name: extra.modelo } as (typeof atributos)[number]);
+  // Un «número de pieza» obligatorio que la publicación vieja no tiene: el Modelo (el de ML o el de Laucen).
+  const modelo = atributos.find((a) => a.id === "MODEL")?.value_name ?? extra.modelo ?? null;
+  for (const id of extra.completar ?? []) {
+    if (modelo && ES_NUMERO_DE_PIEZA(id) && !atributos.some((a) => a.id === id)) atributos.push({ id, value_name: modelo } as (typeof atributos)[number]);
+  }
   const condiciones = (it.sale_terms ?? []).filter((t) => t.value_name != null || t.value_id != null)
     .map((t) => ({ id: t.id, ...(t.value_id ? { value_id: t.value_id } : {}), ...(t.value_name != null ? { value_name: t.value_name } : {}) }));
   return {
@@ -123,6 +128,15 @@ export function atributosNoModificables(datos: unknown): string[] {
 
 /** Los atributos con un valor que ML no acepta en esa cuenta (ej. PRODUCT_TYPE «Notebook»,
  *  bitácora 7/10): si no es uno que la categoría exige, se puede mandar sin él. */
+/** Los atributos obligatorios que faltan («The attributes [A, B] are required for category …»). */
+export function atributosFaltantes(datos: unknown): string[] {
+  return causasDe(datos).filter((c) => c.type !== "warning")
+    .flatMap((c) => [...(c.message ?? "").matchAll(/attributes \[([A-Z0-9_, ]+)\] are required/gi)].flatMap((m) => m[1].split(",").map((x) => x.trim()).filter(Boolean)));
+}
+
+/** Los obligatorios que son «número de pieza» (Fer, 10/10: ML pide DEVICE_PART_NUMBER en repuestos): se completan con el Modelo. */
+const ES_NUMERO_DE_PIEZA = (id: string) => /PART_NUMBER$|^MPN$/.test(id);
+
 export function atributosInvalidos(datos: unknown): string[] {
   return causasDe(datos).filter((c) => c.type !== "warning")
     .flatMap((c) => [...(c.message ?? "").matchAll(/Attribute \[([A-Z0-9_]+)\] is not valid/g)].map((m) => m[1]));
@@ -146,14 +160,22 @@ export type Comprobacion = { ok: true; cuerpo: Record<string, unknown>; avisos: 
 /** Comprueba un alta con ML (POST /items/validate: no publica nada). Si ML avisa que hay
  *  atributos que no se pueden mandar, los saca y vuelve a comprobar; si protesta por el
  *  envío, vuelve a comprobar sin el bloque de envío (usa el que tiene la cuenta). */
-export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string[]; sinEnvio?: boolean }) => Record<string, unknown>): Promise<Comprobacion> {
+export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string[]; sinEnvio?: boolean; completar?: string[] }) => Record<string, unknown>): Promise<Comprobacion> {
   let sacar: string[] = [];
+  let completar: string[] = [];
   let cuerpo = armar({ sacar });
   let r = await ml(cuenta, "POST", "/items/validate", cuerpo);
+  // Un obligatorio que falta y se puede completar (número de pieza ← Modelo): se prueba con él.
+  const faltan = atributosFaltantes(r.datos).filter((x) => ES_NUMERO_DE_PIEZA(x));
+  if (r.status === 400 && faltan.length) {
+    completar = faltan;
+    cuerpo = armar({ sacar, completar });
+    r = await ml(cuenta, "POST", "/items/validate", cuerpo);
+  }
   const nuevos = atributosNoModificables(r.datos).filter((x) => !sacar.includes(x));
   if (r.status === 400 && nuevos.length) {
     sacar = [...sacar, ...nuevos];
-    cuerpo = armar({ sacar });
+    cuerpo = armar({ sacar, completar });
     r = await ml(cuenta, "POST", "/items/validate", cuerpo);
   }
   // Un atributo con un valor que ML no acepta (ej. PRODUCT_TYPE): se prueba sin él (hasta dos vueltas).
@@ -161,11 +183,11 @@ export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string
     const invalidos = [...atributosInvalidos(r.datos), ...atributosNoModificables(r.datos)].filter((x) => !sacar.includes(x));
     if (!invalidos.length) break;
     sacar = [...sacar, ...invalidos];
-    cuerpo = armar({ sacar });
+    cuerpo = armar({ sacar, completar });
     r = await ml(cuenta, "POST", "/items/validate", cuerpo);
   }
   if (!aceptable(r) && /mode me1|free shipping|shipping/i.test(JSON.stringify(r.datos))) {
-    cuerpo = armar({ sacar, sinEnvio: true });
+    cuerpo = armar({ sacar, sinEnvio: true, completar });
     r = await ml(cuenta, "POST", "/items/validate", cuerpo);
   }
   if (!aceptable(r)) return { ok: false, motivo: motivoValidacion(r.status, r.datos) };
