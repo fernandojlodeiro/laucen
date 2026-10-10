@@ -240,7 +240,7 @@ export async function accionCrearFaltantes(fd: FormData) {
   const canal = id(fd, "canal");
   return deFondo(s, `planes-faltantes:${canal}`, "Crear los planes de cuotas que faltan", async () => {
     const c = await canalMl(s.org.id, canal);
-    const r = await prepararPlanesFaltantes(s.org.id, canal, { familia: id(fd, "familia") || null, q: texto(fd, "q"), comienza: fd.get("contiene") !== "1" }, s.usuario.id);
+    const r = await prepararPlanesFaltantes(s.org.id, canal, { familia: id(fd, "familia") || null, q: texto(fd, "q"), comienza: fd.get("contiene") !== "1" }, s.usuario.id, undefined, entero(fd, "limite"));
     limpiarCachePrevia();
     revalidatePath(PREVIA);
     revalidatePath("/config/canales/cola");

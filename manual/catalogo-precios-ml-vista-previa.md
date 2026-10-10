@@ -86,6 +86,7 @@ Un producto sin stock para esta cuenta no se publica, y uno que no tiene ninguna
 ### Crear las publicaciones de planes que le faltan a la cuenta
 Con una cuenta elegida (no con «Todas las cuentas»), si hay filas «Nueva», arriba a la derecha aparece **«Crear los planes que faltan (N)»**.
 1. Si querés sólo una parte, filtrá por categoría o con el buscador: se respeta.
+   Con más de 40 aparece también **«Crear 40 planes»**: arma el lote sólo con las primeras 40 (por SKU) y el cartel dice cuántas quedan para la próxima tanda.
 2. Apretá el botón y confirmá con «Sí». Corre de fondo: podés seguir trabajando; al terminar, el cartel de abajo a la derecha dice qué lote quedó.
 3. Cada publicación nueva es una copia de la publicación común que el producto ya tiene **en esa misma cuenta** (título, fotos, características, garantía y descripción); si ahí sólo está en el catálogo, la de otra cuenta, en el «Orden para copiar» de [Canales](/config/canales), con el plan que le toca según [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas) y su precio (con descuento, al precio tachado; la campaña la baja después). Antes de armarla se comprueba con Mercado Libre que la acepte.
 4. Queda **un lote** en la [Cola de Mercado Libre](/config/canales/cola), pestaña «Lotes preparados»: revisalo y apretá **«Mandar a Mercado Libre»**.

@@ -67,6 +67,11 @@ export default async function VistaPreviaPreciosMl({ searchParams }: { searchPar
           texto={`Crear los planes que faltan (${nuevas.toLocaleString("es-AR")})`}
           pregunta={`¿Armar el lote con las ${nuevas.toLocaleString("es-AR")} publicaciones de planes que le faltan a ${canal.nombre}${f.familia || f.q ? " (las del filtro)" : ""}? No sale nada hasta tu clic.`}
           campos={{ canal: String(canal.id), familia: f.familia ? String(f.familia) : "", q: f.q ?? "", contiene: f.comienza ? "" : "1" }} />}
+        {/* De a tandas también (Fer, 10/10). */}
+        {!f.todas && nuevas > 40 && <BotonTarea accion={accionCrearFaltantes} tipo={`planes-faltantes:${canal.id}`} clase={SUAVE}
+          texto="Crear 40 planes"
+          pregunta={`¿Armar el lote con 40 de las ${nuevas.toLocaleString("es-AR")} publicaciones de planes que le faltan a ${canal.nombre} (las primeras por SKU)? No sale nada hasta tu clic.`}
+          campos={{ canal: String(canal.id), familia: f.familia ? String(f.familia) : "", q: f.q ?? "", contiene: f.comienza ? "" : "1", limite: "40" }} />}
         <BotonConfirmar accion={accionPrepararCambios} clase={VERDE} texto="Preparar cambios" corriendo="Preparando…"
           pregunta={`¿Preparar los cambios de ${conCambio.toLocaleString("es-AR")} publicaciones${f.todas ? " de todas las cuentas" : ""}${f.familia || f.q ? " (las del filtro)" : ""}?${nuevas ? ` Las ${nuevas.toLocaleString("es-AR")} nuevas no van acá: se crean con «Crear los planes que faltan».` : ""} No sale nada hasta tu clic.`}
           campos={{ canal: String(canal.id), todas: f.todas ? "1" : "", familia: f.familia ? String(f.familia) : "", q: f.q, contiene: f.comienza ? "" : "1", volver: aqui }} />

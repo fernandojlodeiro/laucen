@@ -16,12 +16,14 @@ import { calcularCanal } from "@/lib/precios-ml/datos";
 import { filtrarCalculo, type FiltroPrecios } from "@/lib/precios-ml/preparar";
 import { DESCUENTO_MINIMO_ML, PLAN_INFO, descuentoVisible } from "@/lib/precios-ml/motor";
 
-export type ResultadoFaltantes = { loteId: number | null; altas: number; rechazos: string[]; sinOrigen: string[]; sinTiempo: number };
+export type ResultadoFaltantes = { loteId: number | null; altas: number; rechazos: string[]; sinOrigen: string[]; sinTiempo: number;
+  /** Con tope («Crear 40»): cuántas quedaron para la próxima tanda. */
+  quedan?: number };
 
 /** La clave en la cola de un alta de plan (la misma que «Publicar en todas las cuentas»: no se duplican). */
 const claveAlta = (sku: string, plan: string) => `esquema:${sku}:${plan}`;
 
-export async function prepararPlanesFaltantes(org: string, canalId: number, filtro: FiltroPrecios, usuario: string | null, hasta = Date.now() + 240_000): Promise<ResultadoFaltantes> {
+export async function prepararPlanesFaltantes(org: string, canalId: number, filtro: FiltroPrecios, usuario: string | null, hasta = Date.now() + 240_000, limite?: number | null): Promise<ResultadoFaltantes> {
   const calculo = await calcularCanal(org, canalId);
   const c = calculo.canal;
   const cuenta = await cuentaDelCanal(org, canalId);
@@ -39,6 +41,8 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
   for (const { info, propuesta } of propuestas) {
     const faltan = propuesta.faltan.filter((f) => !enCola.has(claveAlta(info.sku, f.plan)));
     if (!faltan.length) continue;
+    // En tandas (Fer, 10/10: «Crear 40»): lo que pasa del tope queda para la próxima.
+    if (limite && altas.length >= limite) { res.quedan = (res.quedan ?? 0) + faltan.length; continue; }
     if (Date.now() > hasta) { res.sinTiempo += faltan.length; continue; }
     // La publicación de origen: la común activa (no de catálogo, sin variaciones) de este SKU en esta cuenta, Clásica antes
     // que otra (las pausadas no se usan). Si en esta cuenta sólo está en el catálogo, la de otra cuenta, en el orden de
@@ -93,6 +97,7 @@ export function textoFaltantes(r: ResultadoFaltantes, cuenta: string): string {
   else if (!r.rechazos.length && !r.sinOrigen.length && !r.sinTiempo) partes.push(`No falta ninguna publicación de planes en ${cuenta} (o ya están en la cola).`);
   if (r.sinOrigen.length) partes.push(`Sin publicación común en esta cuenta para copiar (${r.sinOrigen.length}): ${r.sinOrigen.slice(0, 10).join(", ")}${r.sinOrigen.length > 10 ? "…" : ""}.`);
   if (r.rechazos.length) partes.push(`ML no las acepta (${r.rechazos.length}): ${r.rechazos.slice(0, 5).join("; ")}${r.rechazos.length > 5 ? "…" : ""}.`);
+  if (r.quedan) partes.push(`Quedan ${r.quedan} para la próxima tanda.`);
   if (r.sinTiempo) partes.push(`Faltaron ${r.sinTiempo} por tiempo: apretá el botón de nuevo y se arman las que faltan (las ya armadas no se repiten).`);
   return partes.join(" ");
 }
