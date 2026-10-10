@@ -9,6 +9,7 @@ import { credenciales, cuentaDe, tokenVigente, llamar, redirectUri, type Respues
 import { SUAVE, VERDE, PRIMARIO } from "@/app/botones";
 import { leerPaginas, aLink } from "@/lib/meli-pagina";
 import BotonLeer from "./BotonLeer";
+import { probarBusquedas } from "@/lib/meli-busqueda-prueba";
 import { costosFinales } from "@/lib/apify";
 import { and, desc, eq, like } from "drizzle-orm";
 
@@ -200,6 +201,20 @@ async function leerAccion(form: FormData) {
   redirect(`/admin/meli?prueba=${fila.id}`);
 }
 
+/** Botón "Probar las búsquedas" (Fer, 10/10): ¿alguna manera de buscar en ML anda, como Virtual Seller? */
+async function buscarAccion(form: FormData) {
+  "use server";
+  if (!(await sosVos())) redirect("/panel");
+  const sesion = await sesionRequerida();
+  const q = String(form.get("busqueda") ?? "").trim();
+  if (!q) redirect("/admin/meli");
+  const resultados = await probarBusquedas(sesion.org.id, q);
+  const [fila] = await db.insert(meliPruebas)
+    .values({ organizacionId: sesion.org.id, consulta: `busqueda-vs: ${q.slice(0, 300)}`, resultados })
+    .returning({ id: meliPruebas.id });
+  redirect(`/admin/meli?prueba=${fila.id}#resultados`);
+}
+
 /** Costo final de las últimas corridas, releído de Apify (el que se ve al
  *  terminar queda corto: Apify asienta el cobro un rato después). */
 async function costosRecientes(organizacionId: string) {
@@ -374,7 +389,36 @@ export default async function Meli({ searchParams }: {
         )}
       </section>
 
+      <section className="border-2 border-[#16577F] rounded-lg p-4 mb-6 bg-white text-sm">
+        <h2 className="font-bold mb-1">6. Buscar como Virtual Seller</h2>
+        <p className="text-xs text-[#5C6B76] mb-3">
+          Prueba todas las maneras de buscar publicaciones en Mercado Libre: por texto (sin cuenta, con cada cuenta conectada, con la llave en
+          la dirección, como navegador), por vendedor, por apodo de un competidor, por categoría, los más vendidos y la página pública del
+          listado. Arriba de todo sale el resumen: cuál anda (200) y cuál no (403). Sólo lee; no cuesta nada. Tarda unos segundos.
+        </p>
+        <form action={buscarAccion} className="flex gap-2">
+          <input name="busqueda" defaultValue="Placa De Microcontrolador 3.3v-5v" placeholder="Título del producto"
+            className="border border-[#E3E9F0] rounded-lg px-3 py-2 flex-1 text-sm" />
+          <BotonLeer texto="Probar las búsquedas" />
+        </form>
+      </section>
+
+      <span id="resultados" />
       {problemaLlave && <p className="text-xs text-[#C03420] mb-2">{problemaLlave}</p>}
+      {resultados[0]?.ruta.startsWith("(resumen) ¿Qué búsqueda") && Array.isArray(resultados[0].datos) && (
+        <table className="w-full text-xs mb-4 bg-white border border-[#E3E9F0] rounded-lg">
+          <thead><tr className="text-[#5C6B76] text-left"><th className="p-2 font-normal">Manera de buscar</th><th className="p-2 font-normal">Respuesta</th><th className="p-2 font-normal">Qué trajo</th></tr></thead>
+          <tbody>
+            {(resultados[0].datos as { variante: string; status: number; resultado: string }[]).map((x, i) => (
+              <tr key={i} className="border-t border-[#E3E9F0]">
+                <td className="p-2">{x.variante}</td>
+                <td className="p-2"><span className={`font-bold rounded px-1.5 py-0.5 ${x.status === 200 ? "bg-[#EEF7F1] text-[#1F6E4A]" : "bg-[#FDF1EF] text-[#C03420]"}`}>{x.status === 200 ? "Anda (200)" : x.status === 403 ? "Prohibido (403)" : x.status || "sin respuesta"}</span></td>
+                <td className="p-2 text-[#5C6B76]">{x.resultado}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       {resultados.map((r, i) => <Resultado key={i} r={r} />)}
     </main>
   );

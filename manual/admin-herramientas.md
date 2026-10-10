@@ -58,12 +58,13 @@ Quién entra: sólo las direcciones de mail cargadas como dueño del sistema. Cu
 
 ### Mercado Libre
 
-Título "Mercado Libre — qué trae la API". Cinco bloques:
+Título "Mercado Libre — qué trae la API". Seis bloques:
 1. **Conexión**: "Conectada como *apodo*." o "Todavía no hay cuenta conectada.", la dirección de redirección exacta que tiene que estar cargada en la aplicación de Mercado Libre, y el botón **Conectar con Mercado Libre** (o **Reconectar**).
 2. **Probar una búsqueda**: un texto (ej. "auriculares bluetooth") y **Probar**.
 3. **Scrapers de Apify**: botón **Probar con Apify →**.
 4. **Seguimiento de competencia**: pegar publicaciones (links o códigos MLA…, una por renglón: una tuya y las de la competencia) y **Probar**.
 5. **Leer la página con Apify**: hasta 5 links o códigos (MLA… / MLAU…), uno por renglón, y el botón **Leer** ("Leyendo… (uno o dos minutos)"). Debajo, la tabla de las últimas corridas: **Corrida**, **Páginas**, **Costo final USD**, **Por página**, y el desglose del cobro.
+6. **Buscar como Virtual Seller** (recuadro azul): un título y **Probar las búsquedas**. Prueba todas las maneras de buscar publicaciones en Mercado Libre (por texto sin cuenta y con cada cuenta conectada, con la llave en la dirección, como navegador, por vendedor, por apodo de un competidor, dentro de la categoría, los más vendidos y la página pública del listado) y muestra arriba una tabla **Manera de buscar / Respuesta / Qué trajo**: "Anda (200)" en verde o "Prohibido (403)" en rojo. Sólo lee y no cuesta nada.
 
 Abajo de todo, el resultado: una línea por cada consulta a la API, con el código de respuesta (verde si salió bien, rojo si no) y el contenido desplegable.
 
