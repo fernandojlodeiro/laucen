@@ -133,3 +133,14 @@ test("armarCuerpoCopia: completa el motivo sin código de barras y la cantidad d
   const conGtin = armarCuerpoCopia({ ...ITEM, attributes: [...ITEM.attributes!, { id: "GTIN", value_name: "7790000000000" }] }, null, { variarTitulo: false, rotarFotos: false }, { completar: ["EMPTY_GTIN_REASON"] }) as { attributes: { id: string }[] };
   assert.ok(!conGtin.attributes.some((a) => a.id === "EMPTY_GTIN_REASON"));
 });
+
+test("cantidadDelPack y modeloDelTitulo: del título de un componente", async () => {
+  const { cantidadDelPack, modeloDelTitulo } = await import("@/lib/mercadolibre/copiar");
+  assert.equal(cantidadDelPack("Pack X 5 Mmbt2907a Kst2907a 2907a"), 5);
+  assert.equal(cantidadDelPack("Pack X10 Unidades Termistor Ntc 100k"), 10);
+  assert.equal(cantidadDelPack("Resistencia Metal Film 220 Ohm 1/4w X 10 Unidades"), 10);
+  assert.equal(cantidadDelPack("Transistor Bc327 Pnp 50v"), null);
+  assert.equal(modeloDelTitulo("Interruptor Magnetico Rutenio Mka10110 Reed Switch Na"), "MKA10110");
+  assert.equal(modeloDelTitulo("Transistor Irf7316trpbf F7316 Irf7316 Sop-8 Nuevos"), "IRF7316TRPBF");
+  assert.equal(modeloDelTitulo("Capacitor 1000uf 10v Grado Acustico"), null);
+});

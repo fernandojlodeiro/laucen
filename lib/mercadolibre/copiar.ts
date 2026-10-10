@@ -91,17 +91,21 @@ export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones:
       atributos.push({ id, value_name: v } as (typeof atributos)[number]);
     }
   }
-  // Muchas publicaciones viejas no tienen Modelo en ML y ML hoy lo exige en algunas categorías: se usa el del producto de Laucen.
-  if (extra.modelo && !atributos.some((a) => a.id === "MODEL")) atributos.push({ id: "MODEL", value_name: extra.modelo } as (typeof atributos)[number]);
+  // Muchas publicaciones viejas no tienen Modelo en ML y ML hoy lo exige en algunas categorías: se usa el del producto de
+  // Laucen y, si no tiene, el código de pieza del título (Fer, 10/10).
+  const modeloLaucen = extra.modelo ?? ((extra.completar ?? []).includes("MODEL") ? modeloDelTitulo(nombre) : null);
+  if (modeloLaucen && !atributos.some((a) => a.id === "MODEL")) atributos.push({ id: "MODEL", value_name: modeloLaucen } as (typeof atributos)[number]);
   // Un «número de pieza» obligatorio que la publicación vieja no tiene: el Modelo (el de ML o el de Laucen).
-  const modelo = atributos.find((a) => a.id === "MODEL")?.value_name ?? extra.modelo ?? null;
+  const modelo = atributos.find((a) => a.id === "MODEL")?.value_name ?? modeloLaucen ?? null;
   for (const id of extra.completar ?? []) {
     if (atributos.some((a) => a.id === id)) continue;
     if (modelo && ES_NUMERO_DE_PIEZA(id)) atributos.push({ id, value_name: modelo } as (typeof atributos)[number]);
     // Código de barras exigido y la publicación no lo tiene: «El producto no tiene código registrado».
     if (id === "EMPTY_GTIN_REASON" && !atributos.some((a) => a.id === "GTIN")) atributos.push({ id, value_id: "17055160" } as (typeof atributos)[number]);
-    // «Formato de venta: Unidad» pide la cantidad de envases: 1.
-    if (id === "UNITS_PER_PACK") atributos.push({ id, value_name: "1" } as (typeof atributos)[number]);
+    // La cantidad de envases: la del título si es un pack («Pack X 10»); si no, 1.
+    if (id === "UNITS_PER_PACK") atributos.push({ id, value_name: String(cantidadDelPack(nombre) ?? 1) } as (typeof atributos)[number]);
+    // «¿Es kit de fábrica?»: no.
+    if (id === "IS_FACTORY_KIT") atributos.push({ id, value_name: "No" } as (typeof atributos)[number]);
   }
   const condiciones = (it.sale_terms ?? []).filter((t) => t.value_name != null || t.value_id != null)
     .map((t) => ({ id: t.id, ...(t.value_id ? { value_id: t.value_id } : {}), ...(t.value_name != null ? { value_name: t.value_name } : {}) }));
@@ -160,6 +164,22 @@ export function atributosFaltantes(datos: unknown): string[] {
     .flatMap((c) => [...(c.message ?? "").matchAll(/attributes \[([A-Z0-9_, ]+)\] are required/gi)].flatMap((m) => m[1].split(",").map((x) => x.trim()).filter(Boolean)));
 }
 
+/** La cantidad de un pack según el título («Pack X 10», «x5 unidades», «X 100 Unidades»), o null. Pura. */
+export function cantidadDelPack(titulo: string): number | null {
+  const m = titulo.match(/\bpack\s*x?\s*(\d{1,4})\b/i) ?? titulo.match(/\bx\s*(\d{1,4})\s*(u\b|un\b|unid|unidades)/i) ?? titulo.match(/^\s*x\s*(\d{1,4})\b/i);
+  const n = m ? Number(m[1]) : NaN;
+  return n > 1 ? n : null;
+}
+
+/** El código de pieza de un título de componente: la palabra más larga con letras y números («Irf7316trpbf»,
+ *  «Mka10110»), en mayúsculas; null si no hay. Pura. */
+export function modeloDelTitulo(titulo: string): string | null {
+  const candidatas = titulo.split(/\s+/).map((p) => p.replace(/^[^\w]+|[^\w]+$/g, ""))
+    .filter((p) => p.length >= 4 && /[a-z]/i.test(p) && /\d/.test(p) && !/^\d+(v|w|a|mm|cm|uf|nf|pf|k|m|g|x)$/i.test(p));
+  if (!candidatas.length) return null;
+  return candidatas.sort((a, b) => b.length - a.length)[0].toUpperCase();
+}
+
 /** Los obligatorios que son «número de pieza» (Fer, 10/10: ML pide DEVICE_PART_NUMBER en repuestos): se completan con el Modelo. */
 const ES_NUMERO_DE_PIEZA = (id: string) => /PART_NUMBER$|^MPN$/.test(id);
 
@@ -195,8 +215,10 @@ export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string
   let r = await ml(cuenta, "POST", "/items/validate", cuerpo);
   // Un obligatorio que falta y se puede completar (número de pieza ← Modelo; sin código de barras → el motivo;
   // la cantidad de envases de «Unidad» → 1): se prueba con él.
-  const faltan = [...atributosFaltantes(r.datos).flatMap((x) => (ES_NUMERO_DE_PIEZA(x) ? [x] : x === "GTIN" ? ["EMPTY_GTIN_REASON"] : [])),
-    ...(causasDe(r.datos).some((c) => c.code === "item.attribute.invalid_sale_units") ? ["UNITS_PER_PACK"] : [])];
+  const completables = (datos: unknown) => [
+    ...atributosFaltantes(datos).flatMap((x) => (ES_NUMERO_DE_PIEZA(x) || x === "MODEL" || x === "IS_FACTORY_KIT" ? [x] : x === "GTIN" ? ["EMPTY_GTIN_REASON"] : [])),
+    ...(causasDe(datos).some((c) => c.code === "item.attribute.invalid_sale_units") ? ["UNITS_PER_PACK"] : [])].filter((x) => !completar.includes(x));
+  const faltan = completables(r.datos);
   if (r.status === 400 && faltan.length) {
     completar = faltan;
     cuerpo = armar({ sacar, completar });
@@ -213,6 +235,13 @@ export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string
     const invalidos = [...atributosInvalidos(r.datos), ...atributosNoModificables(r.datos)].filter((x) => !sacar.includes(x));
     if (!invalidos.length) break;
     sacar = [...sacar, ...invalidos];
+    cuerpo = armar({ sacar, completar });
+    r = await ml(cuenta, "POST", "/items/validate", cuerpo);
+  }
+  // Un obligatorio que ML recién nombra en esta vuelta (después de sacar otros): se completa y se prueba de nuevo.
+  const otros = r.status === 400 ? completables(r.datos) : [];
+  if (otros.length) {
+    completar = [...completar, ...otros];
     cuerpo = armar({ sacar, completar });
     r = await ml(cuenta, "POST", "/items/validate", cuerpo);
   }
