@@ -87,10 +87,10 @@ Un producto sin stock para esta cuenta no se publica, y uno que no tiene ninguna
 Con una cuenta elegida (no con «Todas las cuentas»), si hay filas «Nueva», arriba a la derecha aparece **«Crear los planes que faltan (N)»**.
 1. Si querés sólo una parte, filtrá por categoría o con el buscador: se respeta.
 2. Apretá el botón y confirmá con «Sí». Corre de fondo: podés seguir trabajando; al terminar, el cartel de abajo a la derecha dice qué lote quedó.
-3. Cada publicación nueva es una copia de la publicación común que el producto ya tiene **en esa misma cuenta** (título, fotos, características, garantía y descripción), con el plan que le toca según [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas) y su precio (con descuento, al precio tachado; la campaña la baja después). Antes de armarla se comprueba con Mercado Libre que la acepte.
+3. Cada publicación nueva es una copia de la publicación común que el producto ya tiene **en esa misma cuenta** (título, fotos, características, garantía y descripción); si ahí sólo está en el catálogo, la de otra cuenta, en el «Orden para copiar» de [Canales](/config/canales), con el plan que le toca según [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas) y su precio (con descuento, al precio tachado; la campaña la baja después). Antes de armarla se comprueba con Mercado Libre que la acepte.
 4. Queda **un lote** en la [Cola de Mercado Libre](/config/canales/cola), pestaña «Lotes preparados»: revisalo y apretá **«Mandar a Mercado Libre»**.
 
-Un producto que no tiene ninguna publicación común en esa cuenta no se puede copiar: el cartel lo nombra. Lo que ya está en un lote o en la cola no se vuelve a armar, así que si el cartel dice que faltaron por tiempo, se aprieta el botón otra vez y sigue con las que faltan.
+Un producto sin ninguna publicación común activa en ninguna cuenta no se puede copiar: el cartel lo nombra. Si Mercado Libre pide un «número de pieza» que la publicación no tiene, se completa con su Modelo. Lo que ya está en un lote o en la cola no se vuelve a armar, así que si el cartel dice que faltaron por tiempo, se aprieta el botón otra vez y sigue con las que faltan.
 
 ## Criterios y reglas
 

@@ -3,7 +3,8 @@
 // cada producto según Precios en ML › Planes de cuotas (grupo, desde la
 // Clásica con envío gratis) y que esa cuenta todavía no tiene. Cada alta copia
 // la publicación común que el producto ya tiene en esa misma cuenta (título,
-// fotos, atributos, garantía, descripción), se comprueba con ML
+// fotos, atributos, garantía, descripción; si ahí sólo está en catálogo, la de otra
+// cuenta en el «Orden para copiar»), se comprueba con ML
 // (/items/validate: no publica nada) y queda en un lote "Preparado, falta tu
 // clic": nada sale a ML sin «Mandar a Mercado Libre» (AGENTS.md).
 
@@ -39,15 +40,18 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
     const faltan = propuesta.faltan.filter((f) => !enCola.has(claveAlta(info.sku, f.plan)));
     if (!faltan.length) continue;
     if (Date.now() > hasta) { res.sinTiempo += faltan.length; continue; }
-    // La publicación de origen: la común activa (no de catálogo, sin variaciones) de este SKU en esta cuenta, Clásica antes que otra (las pausadas no se usan).
-    const o = await una<{ item_id: string; ml: ItemGuardado | null }>(`
-      select m.item_id, m.datos_externos -> 'ml' ml from meli_item m
-       where m.organizacion_id = $1 and m.canal_id = $2 and m.sku = $3 and m.estado = 'active' and m.datos_externos -> 'ml' is not null
+    // La publicación de origen: la común activa (no de catálogo, sin variaciones) de este SKU en esta cuenta, Clásica antes
+    // que otra (las pausadas no se usan). Si en esta cuenta sólo está en el catálogo, la de otra cuenta, en el orden de
+    // «Orden para copiar» (Configuración › Canales; Fer, 10/10).
+    const o = await una<{ item_id: string; canal_id: number; ml: ItemGuardado | null }>(`
+      select m.item_id, m.canal_id::int, m.datos_externos -> 'ml' ml from meli_item m join canal c on c.id = m.canal_id
+       where m.organizacion_id = $1 and m.sku = $3 and m.estado = 'active' and m.datos_externos -> 'ml' is not null and c.tipo = 'mercadolibre'
          and coalesce((m.datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false) = false
          and coalesce(jsonb_array_length(case when jsonb_typeof(m.datos_externos -> 'ml' -> 'variations') = 'array' then m.datos_externos -> 'ml' -> 'variations' end), 0) = 0
-       order by (m.estado = 'active') desc, (m.tipo = 'gold_special') desc, m.vendidos desc nulls last, m.item_id limit 1`, [org, canalId, info.sku]);
+       order by (m.canal_id = $2) desc, coalesce((c.config ->> 'orden_copia')::int, 99), (m.tipo = 'gold_special') desc, m.vendidos desc nulls last, m.item_id limit 1`, [org, canalId, info.sku]);
     if (!o?.ml) { res.sinOrigen.push(info.sku); continue; }
-    const d = await ml<{ plain_text?: string }>(cuenta, "GET", `/items/${o.item_id}/description`);
+    const cuentaOrigen = o.canal_id === canalId ? cuenta : await cuentaDelCanal(org, o.canal_id);
+    const d = cuentaOrigen?.estado === "activa" ? await ml<{ plain_text?: string }>(cuentaOrigen, "GET", `/items/${o.item_id}/description`) : { status: 0, datos: {} as { plain_text?: string } };
     const texto = d.status === 200 ? d.datos.plain_text?.trim() ?? "" : "";
     const modelo = await modeloDeLaucen(org, info.sku);
     const stock = Math.max(1, Number(info.stock ?? 0));
@@ -71,7 +75,7 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
         canalId, itemId: claveAlta(info.sku, f.plan), tipo: "crear", antes: { estado: "no existe en esta cuenta" },
         payload: {
           descripcion: `Alta en ${c.nombre}: ${info.sku} ${PLAN_INFO[f.plan].nombre} $ ${publicar.toLocaleString("es-AR")}${conCampana}; copia de ${o.item_id}${f.catalogProductId ? `, y entra al catálogo ${f.catalogProductId}` : ""}`,
-          origen: { canal: canalId, item_id: o.item_id }, pedidos,
+          origen: { canal: o.canal_id, item_id: o.item_id }, pedidos,
         },
       });
     }
