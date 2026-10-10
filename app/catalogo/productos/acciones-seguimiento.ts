@@ -18,7 +18,7 @@ export async function accionBuscarSeguimiento(fd: FormData) {
   return deFondo(s, `seguimiento-buscar-${pid}`, "Búsqueda en Mercado Libre", async () => {
     const r = await buscarParaSeguir(s.org.id, pid, q);
     revalidatePath(`/catalogo/productos/${pid}`);
-    return `Encontradas ${r.cantidad} publicaciones${r.costoUsd != null ? ` (costó US$ ${r.costoUsd.toFixed(2)})` : ""}.`;
+    return `Encontradas ${r.cantidad} publicaciones${r.costoUsd != null ? ` (costó unos US$ ${r.costoUsd.toFixed(2).replace(".", ",")})` : ""}.`;
   });
 }
 

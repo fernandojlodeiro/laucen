@@ -12,10 +12,12 @@
 // Todo lo pago respeta el tope mensual (config 'seguimiento').
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
-import { correrConEntrada } from "@/lib/apify";
+import { correrConEntrada, costosFinales } from "@/lib/apify";
 import { ml, cuentasDe, type CuentaMl } from "@/lib/mercadolibre/api";
 
 const ACTOR = "scrapesage~mercadolibre-scraper";
+// Lo que cobra el actor (bitácora #102): US$ 2 cada 1.000 resultados; con el detalle de cada publicación, 8.
+const POR_RESULTADO = { busqueda: 0.002, lectura: 0.008 };
 
 // ── Configuración general ───────────────────────────────────
 
@@ -48,7 +50,24 @@ export async function gastoDelMes(org: string): Promise<number> {
   return Number(r?.usd ?? 0);
 }
 
+/** Apify asienta el cobro un rato después de la corrida: se relee el costo de las de los últimos días
+ *  (nunca por debajo de lo que cobra por resultado), así el tope cuenta bien. */
+export async function asentarCostos(org: string): Promise<void> {
+  const filas = await consulta<{ id: number; run_id: string; tipo: "busqueda" | "lectura"; publicaciones: number }>(`
+    select id::int, run_id, tipo, publicaciones from seguimiento_corrida
+     where organizacion_id = $1 and run_id is not null and ts > now() - interval '3 days' and ts < now() - interval '3 minutes'`, [org]);
+  if (!filas.length) return;
+  const finales = await costosFinales(filas.map((f) => f.run_id));
+  for (const f of filas) {
+    const usd = Math.max(finales[f.run_id]?.usd ?? 0, f.publicaciones * POR_RESULTADO[f.tipo]);
+    await consulta("update seguimiento_corrida set costo_usd = $2 where id = $1 and coalesce(costo_usd, 0) <> $2", [f.id, usd]);
+  }
+}
+
+const costoDe = (tipo: "busqueda" | "lectura", usd: number | null, n: number) => Math.max(usd ?? 0, n * POR_RESULTADO[tipo]);
+
 async function quedaParaGastar(org: string): Promise<number> {
+  await asentarCostos(org).catch(() => {});
   const [c, g] = await Promise.all([configSeguimiento(org), gastoDelMes(org)]);
   return Math.max(0, c.topeUsd - g);
 }
@@ -76,11 +95,15 @@ const bool = (v: unknown) => (typeof v === "boolean" ? v : null);
 /** Un resultado de Apify como publicación para seguir (null si no se reconoce su número). Pura. */
 export function aPubEncontrada(x: Record<string, unknown>): PubEncontrada | null {
   const url = txt(x, "url", "permalink", "productUrl", "link");
-  const id = (txt(x, "id", "itemId", "item_id", "publicationId") ?? "").replace("-", "").match(/^MLA\d{9,}$/)?.[0]
-    ?? url?.match(/MLA-?(\d{9,})/)?.[0]?.replace("-", "")
-    ?? String(x.clickUrl ?? "").match(/[?&]wid=(MLA\d+)/)?.[1] ?? null;
+  // La publicación: MLA… (9 cifras o más) o, la de un «producto de vendedor», MLAU….
+  const id = (txt(x, "id", "itemId", "item_id", "publicationId") ?? "").replace("-", "").match(/^MLAU?\d{9,}$/)?.[0]
+    ?? String(x.clickUrl ?? "").match(/[?&]wid=(MLA\d+)/)?.[1]
+    ?? url?.match(/\/up\/(MLAU\d+)/)?.[1]
+    ?? url?.match(/articulo\.mercadolibre\.com\.ar\/(MLA-?\d{9,})/)?.[1]?.replace("-", "") ?? null;
   if (!id) return null;
-  const catalogo = url?.match(/\/p\/(MLA\d+)/)?.[1] ?? txt(x, "catalogProductId", "catalog_product_id");
+  // El producto de catálogo, sólo si es otro número que el de la publicación.
+  const cat = url?.match(/\/p\/(MLA\d+)/)?.[1] ?? txt(x, "catalogProductId", "catalog_product_id");
+  const catalogo = cat && cat !== id ? cat : null;
   const estadoTxt = (txt(x, "status", "itemStatus") ?? "").toLowerCase();
   return {
     itemId: id, catalogoId: catalogo, titulo: txt(x, "title", "name") ?? "(sin título)", foto: txt(x, "image", "thumbnail", "imageUrl", "images", "pictures"),
@@ -109,7 +132,7 @@ export async function buscarParaSeguir(org: string, productoId: number, texto: s
   const c = await correrConEntrada(ACTOR, { site: "MLA", searchQueries: [q], maxItems: 50, maxPagesPerQuery: 1, includeProductDetails: false },
     { max: 50, esperaSeg: 240, topeUsd: Math.min(0.5, queda) });
   await consulta("insert into seguimiento_corrida (organizacion_id, tipo, producto_id, run_id, costo_usd, publicaciones, error) values ($1, 'busqueda', $2, $3, $4, $5, $6)",
-    [org, productoId, c.runId ?? null, c.costoUsd, c.items.length, c.error ?? null]);
+    [org, productoId, c.runId ?? null, costoDe("busqueda", c.costoUsd, c.items.length), c.items.length, c.error ?? null]);
   if (!c.items.length) throw new ErrorErp(c.error ? `Mercado Libre no devolvió resultados (${c.error.slice(0, 120)}).` : "Mercado Libre no devolvió resultados para esa búsqueda.");
   const { apodos } = await nuestras(org);
   const vistos = new Set<string>();
@@ -120,12 +143,16 @@ export async function buscarParaSeguir(org: string, productoId: number, texto: s
     insert into seguimiento_busqueda (organizacion_id, producto_id, texto, ts, resultados) values ($1, $2, $3, now(), $4::jsonb)
     on conflict (organizacion_id, producto_id) do update set texto = excluded.texto, ts = now(), resultados = excluded.resultados`,
     [org, productoId, q, JSON.stringify(resultados)]);
-  return { cantidad: resultados.length, costoUsd: c.costoUsd };
+  return { cantidad: resultados.length, costoUsd: costoDe("busqueda", c.costoUsd, c.items.length) };
 }
 
 export async function ultimaBusqueda(org: string, productoId: number): Promise<{ texto: string; ts: Date; resultados: PubEncontrada[] } | null> {
   return una("select texto, ts, resultados from seguimiento_busqueda where organizacion_id = $1 and producto_id = $2", [org, productoId]);
 }
+
+/** La dirección de una publicación por su número (MLA… común, MLAU… producto de vendedor). */
+export const enlaceDe = (id: string) => id.startsWith("MLAU")
+  ? `https://www.mercadolibre.com.ar/up/${id}` : `https://articulo.mercadolibre.com.ar/${id.replace("MLA", "MLA-")}`;
 
 // ── Seguir / dejar de seguir ────────────────────────────────
 
@@ -146,13 +173,13 @@ export async function seguirDeBusqueda(org: string, productoId: number, itemId: 
 
 /** Sigue publicaciones pegadas a mano (links o números MLA). Se leen en la próxima vuelta. */
 export async function seguirPorNumero(org: string, productoId: number, texto: string, origen: "manual" | "importado" = "manual"): Promise<{ nuevas: number; repetidas: number }> {
-  const ids = [...new Set((texto.toUpperCase().match(/MLA-?\d{9,}/g) ?? []).map((x) => x.replace("-", "")))];
-  if (!ids.length) throw new ErrorErp("Pegá links o números de publicación (MLA… de 9 cifras o más).");
+  const ids = [...new Set((texto.toUpperCase().match(/MLAU?-?\d{9,}/g) ?? []).map((x) => x.replace("-", "")))];
+  if (!ids.length) throw new ErrorErp("Pegá links o números de publicación (MLA… o MLAU…, de 9 cifras o más).");
   let nuevas = 0;
   for (const id of ids) {
     const r = await una(`insert into seguimiento_pub (organizacion_id, producto_id, item_id, origen, estado, permalink)
                           values ($1, $2, $3, $4, 'sin_dato', $5) on conflict (organizacion_id, producto_id, item_id) do nothing returning id`,
-      [org, productoId, id, origen, `https://articulo.mercadolibre.com.ar/${id.replace("MLA", "MLA-")}`]);
+      [org, productoId, id, origen, enlaceDe(id)]);
     if (r) nuevas++;
   }
   return { nuevas, repetidas: ids.length - nuevas };
@@ -210,11 +237,11 @@ async function leerComunes(org: string, seguidas: Seguida[]): Promise<{ leidas: 
     const queda = await quedaParaGastar(org);
     const estimado = tanda.length * 0.01;
     if (queda < Math.max(0.05, estimado)) { sinPresupuesto += seguidas.length - i; break; }
-    const urls = tanda.map((s) => ({ url: s.permalink ?? `https://articulo.mercadolibre.com.ar/${s.item_id.replace("MLA", "MLA-")}` }));
+    const urls = tanda.map((s) => ({ url: s.permalink ?? enlaceDe(s.item_id) }));
     const c = await correrConEntrada(ACTOR, { site: "MLA", startUrls: urls, maxItems: tanda.length, includeProductDetails: true },
       { max: tanda.length, esperaSeg: 280, topeUsd: Math.min(queda, Math.max(0.2, estimado * 2)) });
     await consulta("insert into seguimiento_corrida (organizacion_id, tipo, run_id, costo_usd, publicaciones, error) values ($1, 'lectura', $2, $3, $4, $5)",
-      [org, c.runId ?? null, c.costoUsd, c.items.length, c.error ?? null]);
+      [org, c.runId ?? null, costoDe("lectura", c.costoUsd, c.items.length), c.items.length, c.error ?? null]);
     const porId = new Map<string, { p: PubEncontrada; x: unknown }>();
     for (const x of c.items as Record<string, unknown>[]) {
       const p = aPubEncontrada(x);

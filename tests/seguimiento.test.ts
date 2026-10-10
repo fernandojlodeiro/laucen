@@ -24,3 +24,10 @@ test("aPubEncontrada: una de catálogo toma la publicación del wid y el catálo
   assert.equal(p?.catalogoId, "MLA12345678");
   assert.equal(aPubEncontrada({ title: "sin número" }), null);
 });
+
+test("aPubEncontrada: un «producto de vendedor» (MLAU) también se puede seguir; el catálogo nunca es la misma publicación", () => {
+  const p = aPubEncontrada({ title: "Servo", url: "https://www.mercadolibre.com.ar/servo/up/MLAU1234567890", price: 10 });
+  assert.equal(p?.itemId, "MLAU1234567890");
+  const q = aPubEncontrada({ id: "MLA2118082764", url: "https://www.mercadolibre.com.ar/x/p/MLA2118082764", price: 10 });
+  assert.equal(q?.catalogoId, null);
+});

@@ -4,7 +4,7 @@
 
 import { consulta } from "@/lib/erp/base";
 import { formatear, type Moneda } from "@/lib/moneda";
-import { ultimaBusqueda, configSeguimiento, type PubEncontrada } from "@/lib/seguimiento";
+import { ultimaBusqueda, configSeguimiento, enlaceDe, type PubEncontrada } from "@/lib/seguimiento";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
@@ -26,8 +26,7 @@ const ESTADOS: Record<string, { t: string; tono: "verde" | "amarillo" | "gris" |
   no_figura: { t: "No figura en el catálogo", tono: "amarillo" }, sin_dato: { t: "Sin leer todavía", tono: "gris" },
 };
 
-const enlaceMl = (p: { permalink: string | null; item_id?: string; itemId?: string }) =>
-  p.permalink ?? `https://articulo.mercadolibre.com.ar/${(p.item_id ?? p.itemId ?? "").replace("MLA", "MLA-")}`;
+const enlaceMl = (p: { permalink: string | null; item_id?: string; itemId?: string }) => p.permalink ?? enlaceDe(p.item_id ?? p.itemId ?? "");
 
 function Precio({ precio, original, moneda }: { precio: number | null; original: number | null; moneda: string | null }) {
   if (precio == null) return <span className="text-[#5C6B76]">—</span>;
