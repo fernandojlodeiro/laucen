@@ -159,6 +159,9 @@ alter table usuario_preferencia add column if not exists avisado jsonb;
 alter table usuario_preferencia add column if not exists aviso_cada_min int not null default 1;
 -- De entrada, todo prendido (Fer, 10/10; a los que ya existían se les prendió una vez a mano).
 alter table usuario_preferencia alter column aviso_sonido set default true;
+-- La ventana de prepo por tipo (Fer, 10/10): {pedidos, preguntas, mensajes, whatsapp: true/false}.
+-- Un tipo que falta sigue a aviso_ventana (la caja única de antes).
+alter table usuario_preferencia add column if not exists aviso_ventana_tipos jsonb;
 -- Avisos de Windows con Laucen cerrado (push): hasta dónde ya se mandó ({clave: marca}), cuándo
 -- se mandó el último (para el límite de arriba) y cuándo tuvo Laucen a la vista por última vez
 -- (con Laucen a la vista avisa la pantalla, no Windows).
@@ -190,7 +193,7 @@ create table if not exists push_llave (
 alter table push_llave enable row level security;
 
 -- El job de pg_cron 'avisos-push' (cada minuto) llama a /api/avisos/push sólo si alguien activó
--- los avisos de Windows y hay algo reciente que la IA no contestó (la última hora: el límite de
+-- los avisos de Windows y hay algo reciente: un pedido, o algo que la IA no contestó (la última hora: el límite de
 -- avisos llega a 60 minutos). La clave se lee de erp_llave al correr. Sin pg_cron, no pasa nada.
 do $$
 declare
@@ -200,7 +203,8 @@ declare
     url := 'https://laucen.vercel.app/api/avisos/push?clave=' || (select clave from public.erp_llave where id = 1),
     timeout_milliseconds := 60000
   ) where exists (select 1 from public.push_suscripcion)
-      and (exists (select 1 from public.meli_pregunta where estado = 'UNANSWERED' and ia_estado in ('falta_dato', 'persona')
+      and (exists (select 1 from public.pedido where creado_ts > now() - interval '61 minutes')
+        or exists (select 1 from public.meli_pregunta where estado = 'UNANSWERED' and ia_estado in ('falta_dato', 'persona')
                      and sugerencia_ts > now() - interval '61 minutes')
         or exists (select 1 from public.meli_conversacion where sin_leer > 0 and ia_estado in ('falta_dato', 'persona')
                      and sugerencia_ts > now() - interval '61 minutes')

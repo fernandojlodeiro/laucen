@@ -8,6 +8,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, entero, id } from "@/lib/erp/acciones";
 import { asegurarCuentasDeCanalesSinFallar } from "@/lib/administracion/contabilidad";
+import { guardarTextosCanal } from "@/lib/canales/textos";
 
 const BASE = "/config/canales";
 const TIPOS = ["mercadolibre", "web_minorista", "web_mayorista", "local", "historico", "otro"];
@@ -175,5 +176,28 @@ export async function accionRevocarToken(fd: FormData) {
     await consulta("update canal set config = config - 'token' where id = $2 and organizacion_id = $1", [s.org.id, canal]);
     revalidatePath(BASE);
     return "Llave API revocada: quien la usaba ya no puede entrar a la API.";
+  });
+}
+
+// ── Textos del canal (Fer, 10/10; lib/canales/textos.ts) ──
+
+export async function accionGuardarTextosCanal(fd: FormData) {
+  const s = await entrarErp("canales_ver");
+  await intentar(volverDe(fd), async () => {
+    const canal = await canalDe(s.org.id, fd, "canal");
+    const largo = (k: string, max: number, nombre: string) => {
+      const v = String(fd.get(k) ?? "").replace(/\r\n?/g, "\n");
+      if (v.trim().length > max) throw new ErrorErp(`${nombre}: hasta ${max} letras.`);
+      return v;
+    };
+    await guardarTextosCanal(s.org.id, canal, {
+      // La firma va también en los mensajes, que en ML tienen 350 letras en total.
+      firma: largo("firma", 100, "La firma"),
+      reglasIa: largo("reglas_ia", 3000, "Las reglas para la IA"),
+      encabezado: largo("desc_encabezado", 5000, "El encabezado"),
+      pie: largo("desc_pie", 5000, "El pie"),
+    });
+    revalidatePath(BASE);
+    return "Textos del canal grabados.";
   });
 }

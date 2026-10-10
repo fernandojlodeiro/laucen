@@ -1,7 +1,7 @@
 // Duplicar un producto (Fer, 5/10): "agarro una notebook, la duplico y el
 // sistema me la crea dentro de Laucen totalmente igual, para que yo vaya
 // cambiando sólo lo que cambió". La copia queda PAUSADA (no sale a ningún lado
-// hasta que Fer la active) con SKU nuevo, y trae: datos, variaciones con sus
+// hasta que Fer la active) con el SKU que sigue (lib/catalogo/sku.ts), y trae: datos, variaciones con sus
 // atributos, fotos, precios de hoy, cucardas, atributos, kit y costo de
 // importación.
 //
@@ -11,15 +11,19 @@
 // archivo: si se borra la foto de la copia, el original no se rompe).
 
 import { una, enTransaccion, ErrorErp, type Consultor } from "@/lib/erp/base";
+import { siguienteSku } from "@/lib/catalogo/sku";
 
-/** Los SKU de la copia: el base lleva "-COPIA" (o "-COPIA2", "-COPIA3"…, el
- *  primero cuyos SKU estén todos libres). Una variación que empieza con el SKU
+/** Los SKU de la copia: el base es `nuevo` (el SKU que sigue, lib/catalogo/sku.ts) o, si no
+ *  hay o está ocupado, lleva "-COPIA" (o "-COPIA2", "-COPIA3"…, el primero cuyos SKU estén todos libres). Una variación que empieza con el SKU
  *  base viejo conserva el resto ("ABC-ROJO" → "ABC-COPIA-ROJO"); las demás
  *  quedan "<base nuevo>-<n.º de variación>". `ocupados` va en minúsculas.
  *  Pura: se prueba sin base. */
-export function planSkus(skuBase: string, skusVariaciones: string[], ocupados: ReadonlySet<string>): { base: string; variaciones: string[] } {
-  for (let n = 1; n < 1000; n++) {
-    const base = `${skuBase}-COPIA${n > 1 ? n : ""}`;
+export function planSkus(skuBase: string, skusVariaciones: string[], ocupados: ReadonlySet<string>, nuevo?: string): { base: string; variaciones: string[] } {
+  const candidatos = function* () {
+    if (nuevo) yield nuevo;
+    for (let n = 1; n < 1000; n++) yield `${skuBase}-COPIA${n > 1 ? n : ""}`;
+  };
+  for (const base of candidatos()) {
     const variaciones = skusVariaciones.map((v, i) =>
       v.toLowerCase().startsWith(skuBase.toLowerCase()) ? base + v.slice(skuBase.length) : `${base}-${i + 1}`);
     // La variación default de un simple/kit se llama igual que el base: eso no cuenta como repetido.
@@ -49,12 +53,15 @@ export async function duplicarProducto(org: string, pid: number): Promise<{ id: 
   if (!origen) throw new ErrorErp("Ese producto no existe.");
 
   return enTransaccion(async (c) => {
+    const sugerido = await siguienteSku(org, c);
     const vars = (await c.query<{ id: string; sku: string; es_default: boolean }>(
       "select id, sku, es_default from variacion where producto_id = $2 and organizacion_id = $1 order by es_default desc, orden, id", [org, pid])).rows;
     const ocupados = new Set((await c.query<{ s: string }>(
       `select lower(sku_base) s from producto where organizacion_id = $1 and lower(sku_base) like lower($2) || '%'
-       union select lower(sku) from variacion where organizacion_id = $1 and lower(sku) like lower($2) || '%'`, [org, origen.sku_base])).rows.map((r) => r.s));
-    const skus = planSkus(origen.sku_base, vars.map((v) => v.sku), ocupados);
+       union select lower(sku) from variacion where organizacion_id = $1 and lower(sku) like lower($2) || '%'
+       union select lower(sku_base) from producto where organizacion_id = $1 and lower(sku_base) like lower($3) || '%'
+       union select lower(sku) from variacion where organizacion_id = $1 and lower(sku) like lower($3) || '%'`, [org, origen.sku_base, sugerido])).rows.map((r) => r.s));
+    const skus = planSkus(origen.sku_base, vars.map((v) => v.sku), ocupados, sugerido);
 
     // El producto. Pausado, y sin código de barras (identifica a la cosa física).
     const cp = (await columnas(c, "producto", NO_PRODUCTO)).map((x) => `"${x}"`).join(", ");

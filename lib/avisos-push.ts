@@ -17,8 +17,8 @@ import { membresiasDelUsuario } from "@/lib/tenancy";
 import { rolesDeLaOrg, permisosEfectivos } from "@/lib/roles";
 import { tienePermiso, todos, type Permisos, type PermisoKey } from "@/lib/permisos";
 import { urlPanel } from "@/lib/tienda/dominios";
-import { pendientesIa, marcasActuales, subirMarca, type Marcas } from "@/lib/avisos";
-import type { AvisoIa } from "@/lib/avisos-tipos";
+import { pendientesIa, marcasActuales, subirMarca, completarMarcas, prefsDe, type Marcas } from "@/lib/avisos";
+import { TIPOS_AVISO, type AvisoIa } from "@/lib/avisos-tipos";
 
 /** Las llaves para firmar los avisos (VAPID). La primera vez se generan y quedan en la base. */
 export async function llavesPush(): Promise<{ publica: string; privada: string }> {
@@ -41,7 +41,7 @@ export async function suscribir(usuario: string, org: string, s: SuscripcionNave
   await consulta(`
     insert into usuario_preferencia (usuario_id, organizacion_id, push_avisado) values ($1, $2, $3::jsonb)
     on conflict (usuario_id, organizacion_id) do update set push_avisado = coalesce(usuario_preferencia.push_avisado, excluded.push_avisado)`,
-    [usuario, org, JSON.stringify(await marcasActuales(org, puede))]);
+    [usuario, org, JSON.stringify(await marcasActuales(org))]);
 }
 
 export async function desuscribir(usuario: string, endpoint: string): Promise<void> {
@@ -88,10 +88,14 @@ export async function avisoDePrueba(usuario: string, org: string): Promise<numbe
 function armar(items: AvisoIa[]): Aviso {
   if (items.length === 1) {
     const a = items[0];
+    if (a.tipo === "pedidos") return { titulo: a.titulo, texto: [a.detalle, a.texto].filter(Boolean).join("\n"), url: a.href };
     return { titulo: `${a.titulo}: la IA no contestó`, texto: [a.texto, a.motivo].filter(Boolean).join("\n"), url: a.href };
   }
+  if (items.every((a) => a.tipo === "pedidos")) {
+    return { titulo: `Entraron ${items.length} pedidos nuevos`, texto: items.slice(0, 4).map((a) => `• ${a.titulo}: ${a.detalle}`.slice(0, 90)).join("\n"), url: "/ventas/pedidos?estado=pendientes" };
+  }
   return {
-    titulo: `La IA no contestó ${items.length} cosas`,
+    titulo: `${items.length} cosas te necesitan en Laucen`,
     texto: items.slice(0, 4).map((a) => `• ${a.titulo}: ${a.texto}`.slice(0, 90)).join("\n"),
     url: items.every((a) => a.tipo === "whatsapp") ? "/ventas/mensajes?filtro=en_espera" : "/ventas/preguntas",
   };
@@ -105,11 +109,12 @@ async function permisosDe(usuario: string, org: string): Promise<Permisos | null
 
 /** La vuelta del job: a cada usuario con avisos activados le manda (como mucho) un aviso con lo nuevo. */
 export async function vueltaPush(): Promise<{ usuarios: number; avisos: number }> {
-  const filas = await consulta<{ usuario_id: string; organizacion_id: string; listo: boolean; avisado: Marcas | null; push_avisado: Marcas | null }>(`
+  const filas = await consulta<Parameters<typeof prefsDe>[0] & { usuario_id: string; organizacion_id: string; listo: boolean; avisado: Marcas | null; push_avisado: Marcas | null }>(`
     select s.usuario_id, s.organizacion_id,
            (coalesce(p.vistazo_ts, '-infinity') < now() - interval '45 seconds'
             and coalesce(p.push_ultimo_ts, '-infinity') < now() - make_interval(mins => greatest(coalesce(p.aviso_cada_min, 1), 1)) + interval '5 seconds') listo,
-           p.avisado, p.push_avisado
+           p.avisado, p.push_avisado, coalesce(p.aviso_sonido, true) aviso_sonido, coalesce(p.aviso_ventana, true) aviso_ventana,
+           p.aviso_ventana_tipos, coalesce(p.aviso_cada_min, 1) aviso_cada_min
       from (select distinct usuario_id, organizacion_id from push_suscripcion) s
       left join usuario_preferencia p on p.usuario_id = s.usuario_id and p.organizacion_id = s.organizacion_id`);
   let avisos = 0;
@@ -119,19 +124,23 @@ export async function vueltaPush(): Promise<{ usuarios: number; avisos: number }
     if (!permisos) continue;
     const puede = (p: PermisoKey) => tienePermiso(permisos, p);
     if (!f.push_avisado) {
-      await subirTodas(f.usuario_id, f.organizacion_id, await marcasActuales(f.organizacion_id, puede));
+      await subirTodas(f.usuario_id, f.organizacion_id, await marcasActuales(f.organizacion_id));
       continue;
     }
     // Lo que ya vio en la ventana de la pantalla tampoco se avisa por Windows.
+    const push = await completarMarcas(f.usuario_id, f.organizacion_id, "push_avisado", f.push_avisado);
     const marcas: Marcas = {};
-    for (const t of ["preguntas", "mensajes", "whatsapp"]) marcas[t] = Math.max(Number(f.avisado?.[t] ?? 0), Number(f.push_avisado[t] ?? 0));
+    for (const t of TIPOS_AVISO) marcas[t] = Math.max(Number(f.avisado?.[t] ?? 0), Number(push[t] ?? 0));
     const items = await pendientesIa(f.organizacion_id, puede, marcas);
     if (!items.length) continue;
-    if (await mandar(f.usuario_id, f.organizacion_id, armar(items))) avisos++;
+    // Sólo los tipos que eligió en Mis avisos; los demás quedan como avisados igual.
+    const tipos = prefsDe(f).ventana;
+    const elegidos = items.filter((a) => tipos[a.tipo]);
+    if (elegidos.length && await mandar(f.usuario_id, f.organizacion_id, armar(elegidos))) avisos++;
     const nuevas: Marcas = {};
     for (const a of items) nuevas[a.tipo] = Math.max(nuevas[a.tipo] ?? 0, a.marca);
     await subirTodas(f.usuario_id, f.organizacion_id, nuevas);
-    await consulta("update usuario_preferencia set push_ultimo_ts = now() where usuario_id = $1 and organizacion_id = $2", [f.usuario_id, f.organizacion_id]);
+    if (elegidos.length) await consulta("update usuario_preferencia set push_ultimo_ts = now() where usuario_id = $1 and organizacion_id = $2", [f.usuario_id, f.organizacion_id]);
   }
   return { usuarios: filas.length, avisos };
 }

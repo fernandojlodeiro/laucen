@@ -27,9 +27,19 @@ export default async function MisAvisos({ searchParams }: { searchParams: Promis
       <Avisos sp={sp} />
       <form id="ficha" action={accionGuardarAvisos} className={`${CAJA} grid gap-3`}>
         <Opcion nombre="sonido" activa={p.sonido} editando={editando} titulo="Sonar cuando entra algo"
-          ayuda="Suena un aviso corto cuando entra un pedido, una pregunta, un mensaje o un WhatsApp en espera, y cuando la IA deja algo sin contestar." />
-        <Opcion nombre="ventana" activa={p.ventana} editando={editando} titulo="Abrirme una ventana con lo que la IA no contestó"
-          ayuda="Cuando la IA no contesta una pregunta o un mensaje porque le falta un dato, o porque el cliente pide hablar con una persona, se abre sola una ventana con lo que escribió el cliente y el botón «Ir a responder»." />
+          ayuda="Para todo: suena un aviso corto cuando entra un pedido, una pregunta, un mensaje o un WhatsApp en espera, y cuando la IA deja algo sin contestar." />
+        <fieldset className="grid gap-0.5">
+          <legend className="px-2 text-xs font-semibold">Abrirme una ventana de prepo con…</legend>
+          <span className="px-2 text-[11px] text-[#5C6B76] mb-1">La ventana se abre sola, estés en la pantalla que estés. Los avisos de Windows (abajo) avisan lo mismo.</span>
+          <Opcion nombre="ventana_pedidos" activa={p.ventana.pedidos} editando={editando} titulo="Pedidos nuevos"
+            ayuda="Cada pedido nuevo a preparar, con el cliente, el total y lo que compró." />
+          <Opcion nombre="ventana_preguntas" activa={p.ventana.preguntas} editando={editando} titulo="Preguntas que la IA no contestó"
+            ayuda="Preguntas de Mercado Libre en las que a la IA le falta un dato, o el comprador pide hablar con una persona." />
+          <Opcion nombre="ventana_mensajes" activa={p.ventana.mensajes} editando={editando} titulo="Mensajes que la IA no contestó"
+            ayuda="Mensajes de posventa de Mercado Libre en las mismas condiciones." />
+          <Opcion nombre="ventana_whatsapp" activa={p.ventana.whatsapp} editando={editando} titulo="WhatsApp en espera"
+            ayuda="Chats de WhatsApp que la IA dejó en espera para una persona." />
+        </fieldset>
         <div className="flex flex-wrap items-center gap-2 px-2">
           <span className="text-xs">Como mucho un aviso cada</span>
           {editando

@@ -20,11 +20,16 @@ Menú **Configuración › Mis avisos**.
 Dos cajas para tildar:
 
 - **"Sonar cuando entra algo"**: suena un aviso corto cuando entra un pedido a preparar, una pregunta, un mensaje o un WhatsApp en espera, y cuando la IA deja algo sin contestar.
-- **"Abrirme una ventana con lo que la IA no contestó"**: cuando la IA no contesta una pregunta o un mensaje, se abre sola una ventana en el medio de la pantalla, estés donde estés.
+- **"Abrirme una ventana de prepo con…"**, una caja por tipo, cada una se prende o apaga por separado:
+  - **Pedidos nuevos**: cada pedido nuevo a preparar, con el cliente, el total y lo que compró, y el botón **"Ver el pedido"**.
+  - **Preguntas que la IA no contestó** y **Mensajes que la IA no contestó**: de Mercado Libre, cuando a la IA le falta un dato o el comprador pide hablar con una persona.
+  - **WhatsApp en espera**: chats que la IA dejó para una persona.
+
+  La ventana se abre sola en el medio de la pantalla, estés donde estés. El sonido, en cambio, es uno solo para todo.
 
 Un número: **"Como mucho un aviso cada … minutos"** (de 1 a 60; de entrada, 1).
 
-De entrada, las dos cajas vienen tildadas.
+De entrada, todas las cajas vienen tildadas.
 
 El botón **"🔔 Probar el sonido"**, para escuchar cómo suena.
 
@@ -53,13 +58,13 @@ Si el navegador dice que las notificaciones están bloqueadas: tocá el candado 
 
 - **El número de la barra de abajo se pinta de amarillo** cuando entró algo que todavía no viste, aunque tengas las dos opciones destildadas. Vuelve a blanco cuando entrás a esa pantalla (por ejemplo, a [Preguntas y mensajes](/ventas/preguntas) para las preguntas). Lo que ya viste y sigue pendiente queda en blanco.
 - **Los contadores se actualizan solos**, cada pocos segundos, sin tener que cambiar de pantalla. Si estás mirando la pantalla de lo que entró (por ejemplo, la lista de preguntas), también se actualiza sola, salvo que estés escribiendo en un campo.
-- **Qué abre la ventana**: una pregunta o un mensaje de Mercado Libre sin responder en el que la IA dijo que **le falta un dato** o que **el cliente pide hablar con una persona**, y un chat de WhatsApp que la IA **dejó en espera** para una persona. La ventana muestra lo que escribió el cliente, por qué no contestó la IA y lo que propone, con el botón **"Ir a responder"**.
-- Cada cosa abre la ventana **una sola vez**: al cerrarla (botón **"Cerrar"** o la tecla Esc) o al ir a responder, no vuelve a aparecer. Si la ventana está destildada, no se abre ni se guarda para después.
+- **Qué abre la ventana** (de los tipos tildados): un pedido nuevo a preparar; una pregunta o un mensaje de Mercado Libre sin responder en el que la IA dijo que **le falta un dato** o que **el cliente pide hablar con una persona**; y un chat de WhatsApp que la IA **dejó en espera** para una persona. Muestra lo que escribió el cliente, por qué no contestó la IA y lo que propone, con el botón **"Ir a responder"** (en un pedido: el cliente, el total, lo que compró y **"Ver el pedido"**).
+- Cada cosa abre la ventana **una sola vez**: al cerrarla (botón **"Cerrar"** o la tecla Esc) o al ir a responder, no vuelve a aparecer. Lo de un tipo destildado no abre la ventana ni se guarda para después.
 - Lo que ya estaba pendiente la primera vez que entrás no abre la ventana: sólo lo que llega desde ahí.
 - **El sonido** son dos notas cortas, una sola vez: nunca queda sonando. Suena **como mucho una vez cada los minutos elegidos**, aunque entren varias cosas seguidas (y aunque tengas Laucen abierto en varias pestañas).
 - **El navegador deja sonar** sólo después de que tocaste algo en la página (un clic o una tecla). Si recién abriste el sistema y no tocaste nada, el primer aviso puede no sonar.
 - El sonido, el color y la ventana funcionan mientras tengas el sistema abierto en alguna pestaña del navegador.
-- **Avisos de Windows**: avisan lo mismo que la ventana (lo que la IA no contestó), con un cartel de Windows abajo a la derecha y el sonido de Windows, **aunque hayas cerrado Laucen**. Tocando el cartel se abre Laucen en esa pregunta o chat. Si entraron varias cosas, llegan juntas en un solo cartel. Respetan el mismo límite de minutos.
+- **Avisos de Windows**: avisan lo mismo que la ventana, de los mismos tipos tildados, con un cartel de Windows abajo a la derecha y el sonido de Windows, **aunque hayas cerrado Laucen**. Tocando el cartel se abre Laucen en esa pregunta o chat. Si entraron varias cosas, llegan juntas en un solo cartel. Respetan el mismo límite de minutos.
   - Llegan aunque hayas cerrado la ventana del navegador, porque Chrome y Edge siguen andando escondidos. Si el navegador está cerrado del todo o la computadora apagada, el aviso llega cuando lo abrís (si no pasaron más de 12 horas).
   - Si estás mirando Laucen, avisa la pantalla y no Windows, para no avisar dos veces.
   - Lo que ya viste en la ventana de la pantalla no se vuelve a avisar por Windows.

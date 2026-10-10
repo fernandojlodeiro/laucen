@@ -16,7 +16,7 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, TituloSeccion, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, TituloSeccion, BotonesFicha, Dato, editandoFicha, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import { emisoresDe } from "@/lib/arca/facturar";
 import InterruptorConfirmar from "./InterruptorConfirmar";
@@ -28,8 +28,9 @@ import { AccionesExcel } from "@/app/listas/piezas";
 import { LISTA_CANALES } from "./lista";
 import {
   accionAgregarDeposito, accionBorrarCanal, accionCrearCanal, accionGenerarToken, accionGuardarCanal,
-  accionPrioridadDeposito, accionQuitarDeposito, accionRevocarToken,
+  accionPrioridadDeposito, accionQuitarDeposito, accionRevocarToken, accionGuardarTextosCanal,
 } from "./acciones";
+import { textosCanal } from "@/lib/canales/textos";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -299,6 +300,9 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
           </section>
 
           {elegido.tipo === "mercadolibre" && <CuentaMl org={s.org.id} canal={elegido.id} />}
+          {elegido.tipo === "mercadolibre" && (
+            <TextosCanal org={s.org.id} canal={elegido.id} nombre={elegido.nombre} aqui={aqui} editando={editandoFicha(sp, "textos")} />
+          )}
           <CuentaMp org={s.org.id} canal={elegido.id} />
 
           <section className={CAJA}>
@@ -331,5 +335,55 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
         </div>
       )}
     </Pantalla>
+  );
+}
+
+/** Los textos del canal (Fer, 10/10; lib/canales/textos.ts): la firma y las reglas de la IA de
+ *  preguntas y mensajes, y el encabezado y el pie de la descripción al publicar. Abre en vista. */
+async function TextosCanal({ org, canal, nombre, aqui, editando }: { org: string; canal: number; nombre: string; aqui: string; editando: boolean }) {
+  const t = await textosCanal(org, canal);
+  const editar = `${aqui}${aqui.includes("?") ? "&" : "?"}editar=textos`;
+  const campo = (name: string, etiqueta: string, valor: string, ayuda: string, filas: number) => (
+    <label className="block">
+      <span className={ETIQUETA}>{etiqueta}</span>
+      {filas === 1
+        ? <input name={name} defaultValue={valor} maxLength={100} className={`${CAMPO} w-full`} />
+        : <textarea name={name} defaultValue={valor} rows={filas} className={`${CAMPO} w-full leading-relaxed`} />}
+      <span className="block text-[10px] text-[#5C6B76] mt-0.5">{ayuda}</span>
+    </label>
+  );
+  const AYUDA = {
+    firma: "Va al final de cada respuesta que propone la IA a preguntas y mensajes, tal cual la escribís. Ej.: «Saludos, el equipo de Daitom».",
+    reglas: "Lo que la IA tiene que respetar siempre en este canal, una regla por renglón. Ej.: «Nunca sugerir abrir un reclamo ni una mediación en Mercado Libre».",
+    enc: "Va arriba de la descripción técnica del producto al publicarlo en este canal.",
+    pie: "Va abajo de la descripción técnica al publicarlo en este canal.",
+  };
+  return (
+    <section className={`${CAJA} md:col-span-2`}>
+      <TituloSeccion titulo={<>Textos de “{nombre}”</>}>
+        <BotonesFicha editando={editando} ver={aqui} editar={editar} form="ficha-textos" />
+      </TituloSeccion>
+      {editando ? (
+        <form id="ficha-textos" action={accionGuardarTextosCanal} className="grid gap-3 md:grid-cols-2">
+          <input type="hidden" name="canal" value={canal} />
+          <input type="hidden" name="volver" value={aqui} />
+          {campo("firma", "Firma de las respuestas", t.firma, AYUDA.firma, 1)}
+          <div className="hidden md:block" />
+          {campo("reglas_ia", "Reglas para la IA (preguntas y mensajes)", t.reglasIa, AYUDA.reglas, 5)}
+          <div className="hidden md:block" />
+          {campo("desc_encabezado", "Encabezado de la descripción", t.encabezado, AYUDA.enc, 6)}
+          {campo("desc_pie", "Pie de la descripción", t.pie, AYUDA.pie, 6)}
+        </form>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          <Dato etiqueta="Firma de las respuestas" ayuda={AYUDA.firma}>{t.firma}</Dato>
+          <div className="hidden md:block" />
+          <Dato etiqueta="Reglas para la IA (preguntas y mensajes)" largo ayuda={AYUDA.reglas}>{t.reglasIa}</Dato>
+          <div className="hidden md:block" />
+          <Dato etiqueta="Encabezado de la descripción" largo ayuda={AYUDA.enc}>{t.encabezado}</Dato>
+          <Dato etiqueta="Pie de la descripción" largo ayuda={AYUDA.pie}>{t.pie}</Dato>
+        </div>
+      )}
+    </section>
   );
 }

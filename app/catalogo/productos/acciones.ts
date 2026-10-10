@@ -15,6 +15,7 @@ import { supabaseServer } from "@/lib/supabase";
 import { revalidateTag } from "next/cache";
 import { publicarEnWeb, marcarNoPublicable } from "@/lib/catalogo/web";
 import { duplicarProducto } from "@/lib/catalogo/duplicar";
+import { exigirSkuLibre } from "@/lib/catalogo/sku";
 
 const LISTADO = "/catalogo/productos";
 const SECCIONES = ["datos", "costo", "variaciones", "atributos", "fotos", "cucardas", "kit", "precios", "stock", "publicaciones"];
@@ -91,6 +92,7 @@ export async function accionCrearProducto(fd: FormData) {
     const sku = texto(fd, "sku_base");
     const titulo = texto(fd, "titulo");
     if (!sku || !titulo) throw new ErrorErp("El producto necesita SKU base y título.");
+    await exigirSkuLibre(s.org.id, sku);
     const tipo = TIPOS.includes(String(fd.get("tipo"))) ? String(fd.get("tipo")) : "simple";
     const familia = await familiaValida(s.org.id, id(fd, "familia_id"));
     const r = await una<{ id: number }>(
@@ -116,6 +118,7 @@ export async function accionGuardarDatos(fd: FormData) {
     const sku = texto(fd, "sku_base");
     const titulo = texto(fd, "titulo");
     if (!sku || !titulo) throw new ErrorErp("El producto necesita SKU base y título.");
+    await exigirSkuLibre(s.org.id, sku, { producto: pid });
     const tipo = TIPOS.includes(String(fd.get("tipo"))) ? String(fd.get("tipo")) : p.tipo;
     const estado = ["activo", "pausado", "archivado"].includes(String(fd.get("estado"))) ? String(fd.get("estado")) : "activo";
     const familia = await familiaValida(s.org.id, id(fd, "familia_id"));
@@ -183,7 +186,7 @@ export async function accionDuplicarProducto(fd: FormData) {
     await productoDe(s.org.id, pid);
     const r = await duplicarProducto(s.org.id, pid);
     revalidatePath(LISTADO);
-    return { ir: `${LISTADO}/${r.id}?editar=${EDITAR_FICHA}&ok=${encodeURIComponent(`Copia creada (${r.sku_base}), pausada. Cambiá el SKU y lo que haga falta, y activala cuando esté lista.`)}` };
+    return { ir: `${LISTADO}/${r.id}?editar=${EDITAR_FICHA}&ok=${encodeURIComponent(`Copia creada con el SKU ${r.sku_base} (lo podés cambiar), pausada. Cambiá lo que haga falta y activala cuando esté lista.`)}` };
   });
 }
 
@@ -208,6 +211,7 @@ export async function accionCrearVariacion(fd: FormData) {
     if (p.tipo !== "con_variaciones") throw new ErrorErp("Sólo un producto con variaciones puede tener más de una. Cambiá el tipo en Datos.");
     const sku = texto(fd, "sku");
     if (!sku) throw new ErrorErp("La variación necesita un SKU.");
+    await exigirSkuLibre(s.org.id, sku);
     const attrs = leerAtributos(texto(fd, "atributos"));
     await enTransaccion(async (c) => {
       const r = await c.query<{ id: number }>(`
@@ -243,6 +247,7 @@ export async function accionGuardarVariacion(fd: FormData) {
       } else {
         const sku = texto(fd, "sku");
         if (!sku) throw new ErrorErp("La variación necesita un SKU.");
+        await exigirSkuLibre(s.org.id, sku, { variacion: v.id });
         await c.query(`update variacion set sku = $3, codigo_barras = $4, titulo = $5, descuento_pct = $6, estado = $7
                         where id = $2 and organizacion_id = $1`,
           [s.org.id, v.id, sku, texto(fd, "codigo_barras"), texto(fd, "titulo"), pct(fd, "descuento_pct"), estado]);

@@ -152,6 +152,7 @@ export default function BorradorNueva({ productoId, b, tipos, condiciones, garan
         <section className={CAJA}>
           <h2 className={TITULO_CAJA}>Descripción {b.descripcionIa && <Origen o="ia" />}</h2>
           <textarea name="descripcion" defaultValue={b.descripcion} rows={12} className={`${CAMPO} w-full leading-relaxed`} />
+          <p className="text-[11px] text-[#5C6B76] mt-1">Sólo la descripción técnica: a cada cuenta se le agrega arriba su encabezado y abajo su pie (Configuración › Canales, «Textos del canal»).</p>
         </section>
       </>)}
     </form>

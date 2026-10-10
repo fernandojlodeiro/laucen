@@ -4,6 +4,7 @@
 // (Fer, 5/10) la IA contesta sola, salvo en una conversación donde el
 // comprador pidió hablar con una persona: ahí no contesta más.
 
+import { textosCanal, instruccionesExtra, conFirma } from "@/lib/canales/textos";
 import { igualALaSugerencia, leerPropuesta, FORMATO_IA, type EstadoIa } from "@/lib/mercadolibre/sugerencia";
 import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
@@ -79,7 +80,8 @@ ${FORMATO_IA}`;
 
 export async function sugerirMensaje(org: string, packId: string): Promise<{ texto: string; estado: EstadoIa }> {
   if (!hayClaude()) throw new ErrorErp("Falta la llave de Claude: no se puede sugerir la respuesta.");
-  const conv = await una<{ pedido_id: string | null }>("select pedido_id from meli_conversacion where organizacion_id = $1 and pack_id = $2", [org, packId]);
+  const conv = await una<{ pedido_id: string | null; canal_id: string | null }>("select pedido_id, canal_id from meli_conversacion where organizacion_id = $1 and pack_id = $2", [org, packId]);
+  const textos = await textosCanal(org, conv?.canal_id);
   const mensajes = await consulta<{ de_vendedor: boolean; texto: string | null; fecha: Date }>(
     "select de_vendedor, texto, fecha from meli_mensaje where organizacion_id = $1 and pack_id = $2 order by fecha", [org, packId]);
   const pedido = conv?.pedido_id ? await una(`
@@ -88,12 +90,13 @@ export async function sugerirMensaje(org: string, packId: string): Promise<{ tex
               from envio e where e.pedido_id = p.id order by e.id desc limit 1) envio
       from pedido p where p.id = $1`, [conv.pedido_id]) : null;
   const r = await pedirClaude({
-    system: INSTRUCCIONES, modelo: "medio", maxTokens: 400,
+    system: INSTRUCCIONES + instruccionesExtra(textos), modelo: "medio", maxTokens: 400,
     contenido: `PEDIDO:\n${JSON.stringify(pedido)}\n\nCONVERSACIÓN:\n${mensajes.map((m) => `${m.de_vendedor ? "Vendedor" : "Comprador"}: ${m.texto ?? "(adjunto)"}`).join("\n")}`,
   });
   if ("error" in r) throw new ErrorErp(`La IA no pudo proponer una respuesta (${r.error.slice(0, 120)}).`);
   const p = leerPropuesta(r.texto);
-  const texto = p.texto.slice(0, 350);
+  // La firma del canal la pone Laucen, no la IA (lib/canales/textos.ts); con ella, sigue dentro de los 350 de ML.
+  const texto = conFirma(p.texto, textos.firma, 350);
   // Si pidió una persona, queda marcado para siempre: la IA no contesta más sola esta conversación.
   await consulta(`update meli_conversacion set sugerencia = $3, sugerencia_ts = now(), ia_estado = $4,
                          pidio_persona_ts = coalesce(pidio_persona_ts, case when $4 = 'persona' then now() end)

@@ -8,6 +8,7 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { entrarErp, Pantalla, Avisos, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { AccionesExcel, TablaVista, paginaDeVista } from "@/app/listas/piezas";
 import { accionCrearProducto } from "./acciones";
+import { siguienteSku } from "@/lib/catalogo/sku";
 import { TIPOS_PRODUCTO, ESTADOS_PRODUCTO } from "./comun";
 import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import { caminoDeFamilia } from "@/lib/erp/familias";
@@ -28,6 +29,8 @@ export default async function Productos({ searchParams }: { searchParams: Promis
     una<{ n: number }>("select count(*)::int n from canal where organizacion_id = $1 and tipo = 'mercadolibre' and estado = 'activo'", [s.org.id])]);
   const cuentasMl = cuentas?.n ?? 0;
 
+  // El SKU que sigue al más alto (lib/catalogo/sku.ts), para el alta.
+  const skuSugerido = await siguienteSku(s.org.id).catch(() => "");
   const hayFiltro = q || estado || tipo || familia || verInactivos(sp) || kitVs || sinPublicar || sinFotos || sinPublicarEn || sinCanal || noPublicable || publicables || enCuentas != null;
   return (
     <Pantalla titulo="Productos" subtitulo="Cada producto con sus variaciones, kits, fotos, cucardas, precios y stock"
@@ -36,7 +39,7 @@ export default async function Productos({ searchParams }: { searchParams: Promis
 
       <AltaNueva texto="Nuevo producto" sinBoton>
         <form action={accionCrearProducto} className="flex flex-wrap items-end gap-2">
-          <label><span className={ETIQUETA}>SKU base</span><input name="sku_base" className={`${CAMPO} w-32`} autoFocus /></label>
+          <label title="Sugerido: el que sigue al SKU más alto. Lo podés cambiar; no puede repetir uno que ya exista."><span className={ETIQUETA}>SKU base</span><input name="sku_base" defaultValue={skuSugerido} className={`${CAMPO} w-32`} autoFocus /></label>
           <label className="flex-1 min-w-48"><span className={ETIQUETA}>Título</span><input name="titulo" className={`${CAMPO} w-full`} /></label>
           <label><span className={ETIQUETA}>Tipo</span>
             <select name="tipo" className={CAMPO} defaultValue="simple">

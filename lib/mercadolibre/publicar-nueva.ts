@@ -13,6 +13,7 @@
 //   · "Preparar publicación": se comprueba con ML (validate) y queda en un lote
 //     esperando el clic de Fer, como todo lo que va a ML.
 
+import { textosCanal, descripcionDelCanal } from "@/lib/canales/textos";
 import { createHash } from "node:crypto";
 import { unstable_cache } from "next/cache";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
@@ -371,9 +372,11 @@ export async function prepararPublicacionNueva(org: string, e: EntradaNueva, usu
     if (!r.ok && /family_name/i.test(r.motivo)) r = await comprobarAlta(cuenta, (x) => cuerpoNueva(datos, atributos, { ...x, conTitle: true }));
     if (!r.ok) { rech(`Mercado Libre no la acepta: ${r.motivo}`); continue; }
     if (r.avisos) avisos.push(`${nombre}: ${r.avisos}`);
+    // La descripción técnica con el encabezado y el pie de esa cuenta (Configuración › Canales, lib/canales/textos.ts).
+    const desc = texto ? descripcionDelCanal(texto, await textosCanal(org, c.canal)) : "";
     const pedidos: PedidoMl[] = [
       { metodo: "POST", ruta: "/items", cuerpo: r.cuerpo },
-      ...(texto ? [{ metodo: "POST" as const, ruta: "/items/{id}/description", cuerpo: { plain_text: texto } }] : []),
+      ...(desc ? [{ metodo: "POST" as const, ruta: "/items/{id}/description", cuerpo: { plain_text: desc } }] : []),
     ];
     cambios.push({
       canalId: c.canal, itemId: `nueva:${v.sku}`, tipo: "crear",

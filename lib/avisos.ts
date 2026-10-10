@@ -3,28 +3,38 @@
 //   refrescan solos, y lo que entró y el usuario todavía no vio se pinta
 //   distinto hasta que entra a esa pantalla (`visto`).
 // - Lo que la IA no contestó (le falta un dato o el cliente pide una persona)
-//   puede abrir una ventana de prepo (`aviso_ventana`) y sonar (`aviso_sonido`).
+//   puede abrir una ventana de prepo y sonar (`aviso_sonido`). La ventana se elige
+//   por tipo (`aviso_ventana_tipos`): pedidos nuevos, y preguntas, mensajes y
+//   WhatsApp que la IA no contestó.
 //   `avisado` guarda hasta dónde ya se mostró, para no repetirlo.
 // Las preferencias van en usuario_preferencia (db/moneda.sql).
 
 import { consulta, una } from "@/lib/erp/base";
 import { contadoresEstado, marcaDe } from "@/lib/erp/contadores";
 import type { PermisoKey } from "@/lib/permisos";
-import { cadaMinValido, type AvisoIa, type ClaveContador, type EstadoAvisos, type Prefs } from "@/lib/avisos-tipos";
+import { cadaMinValido, TIPOS_AVISO, VENTANA_TODO, type AvisoIa, type ClaveContador, type EstadoAvisos, type Prefs } from "@/lib/avisos-tipos";
+import { sqlPedidoPendiente } from "@/lib/pedidos";
+import { formatear, type Moneda } from "@/lib/moneda";
 
 export type Marcas = Record<string, number>;
 type TipoAviso = AvisoIa["tipo"];
 
 // De entrada, todo prendido (Fer, 10/10).
-const PREFS_DEFECTO: Prefs = { sonido: true, ventana: true, cadaMin: 1 };
+const PREFS_DEFECTO: Prefs = { sonido: true, ventana: VENTANA_TODO, cadaMin: 1 };
 
 async function filaDe(usuario: string, org: string) {
-  return una<{ aviso_sonido: boolean; aviso_ventana: boolean; aviso_cada_min: number; visto: Marcas | null; avisado: Marcas | null }>(
-    "select aviso_sonido, aviso_ventana, aviso_cada_min, visto, avisado from usuario_preferencia where usuario_id = $1 and organizacion_id = $2", [usuario, org]);
+  return una<FilaPrefs & { visto: Marcas | null; avisado: Marcas | null }>(
+    "select aviso_sonido, aviso_ventana, aviso_ventana_tipos, aviso_cada_min, visto, avisado from usuario_preferencia where usuario_id = $1 and organizacion_id = $2", [usuario, org]);
 }
 
-const prefsDe = (f: { aviso_sonido: boolean; aviso_ventana: boolean; aviso_cada_min: number } | null): Prefs =>
-  f ? { sonido: f.aviso_sonido, ventana: f.aviso_ventana, cadaMin: cadaMinValido(f.aviso_cada_min) } : PREFS_DEFECTO;
+type FilaPrefs = { aviso_sonido: boolean; aviso_ventana: boolean; aviso_ventana_tipos: Partial<Record<ClaveContador, boolean>> | null; aviso_cada_min: number };
+
+/** Un tipo que no está en `aviso_ventana_tipos` sigue a `aviso_ventana` (la caja única de antes). */
+export const prefsDe = (f: FilaPrefs | null): Prefs => f ? {
+  sonido: f.aviso_sonido,
+  ventana: Object.fromEntries(TIPOS_AVISO.map((t) => [t, f.aviso_ventana_tipos?.[t] ?? f.aviso_ventana])) as Record<ClaveContador, boolean>,
+  cadaMin: cadaMinValido(f.aviso_cada_min),
+} : PREFS_DEFECTO;
 
 export async function prefsAvisos(usuario: string, org: string): Promise<Prefs> {
   return prefsDe(await filaDe(usuario, org));
@@ -32,10 +42,10 @@ export async function prefsAvisos(usuario: string, org: string): Promise<Prefs> 
 
 export async function fijarPrefsAvisos(usuario: string, org: string, p: Prefs): Promise<void> {
   await consulta(`
-    insert into usuario_preferencia (usuario_id, organizacion_id, aviso_sonido, aviso_ventana, aviso_cada_min) values ($1, $2, $3, $4, $5)
-    on conflict (usuario_id, organizacion_id) do update set aviso_sonido = excluded.aviso_sonido, aviso_ventana = excluded.aviso_ventana,
+    insert into usuario_preferencia (usuario_id, organizacion_id, aviso_sonido, aviso_ventana_tipos, aviso_cada_min) values ($1, $2, $3, $4::jsonb, $5)
+    on conflict (usuario_id, organizacion_id) do update set aviso_sonido = excluded.aviso_sonido, aviso_ventana_tipos = excluded.aviso_ventana_tipos,
       aviso_cada_min = excluded.aviso_cada_min, actualizado_ts = now()`,
-    [usuario, org, p.sonido, p.ventana, cadaMinValido(p.cadaMin)]);
+    [usuario, org, p.sonido, JSON.stringify(p.ventana), cadaMinValido(p.cadaMin)]);
 }
 
 /** Guarda una marca (de `visto` o de `avisado`) sólo si es mayor que la que había. */
@@ -60,7 +70,7 @@ export async function marcarAvisado(usuario: string, org: string, marcas: Partia
   for (const [tipo, marca] of Object.entries(marcas)) if (TIPOS.includes(tipo as TipoAviso)) await subirMarca(usuario, org, "avisado", tipo, Number(marca));
 }
 
-const TIPOS: TipoAviso[] = ["preguntas", "mensajes", "whatsapp"];
+const TIPOS: TipoAviso[] = TIPOS_AVISO;
 
 const MOTIVO: Record<string, string> = {
   falta_dato: "A la IA le falta un dato para contestar.",
@@ -70,7 +80,13 @@ const MOTIVO: Record<string, string> = {
 /** Lo que la IA no contestó y todavía no se le mostró al usuario (pasa su marca de `avisado`). */
 export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolean, avisado: Marcas): Promise<AvisoIa[]> {
   const desde = (t: TipoAviso) => Number(avisado[t] ?? 0);
-  const [preguntas, mensajes, casos] = await Promise.all([
+  const [pedidos, preguntas, mensajes, casos] = await Promise.all([
+    puede("pedidos_ver") ? consulta<{ id: string; canal: string | null; cliente: string | null; total: string | null; moneda: Moneda; lineas: string | null }>(`
+      select p.id::text, c.nombre canal, cl.nombre cliente, case when p.moneda = 'USD' then p.total_usd else p.total_ars end::text total, p.moneda,
+             (select string_agg(l.cantidad::int || ' × ' || l.titulo, '\n' order by l.id) from pedido_linea l where l.pedido_id = p.id) lineas
+        from pedido p left join canal c on c.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
+       where p.organizacion_id = $1 and ${sqlPedidoPendiente("p")} and p.id > $2::float8
+       order by p.id limit 10`, [org, desde("pedidos")]).catch(() => []) : [],
     puede("preguntas_ver") ? consulta<{ id: string; marca: number; texto: string; ia_estado: string; sugerencia: string | null; cuenta: string | null; titulo: string | null }>(`
       select q.id::text, (extract(epoch from q.sugerencia_ts) * 1000)::float8 marca, q.texto, q.ia_estado, q.sugerencia,
              c.nombre cuenta, pu.titulo
@@ -94,6 +110,11 @@ export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolea
        order by k.id limit 10`, [org, desde("whatsapp")]).catch(() => []) : [],
   ]);
   return [
+    ...pedidos.map((p): AvisoIa => ({
+      tipo: "pedidos", id: p.id, marca: Number(p.id), titulo: `Pedido nuevo ${p.id}${p.canal ? ` en ${p.canal}` : ""}`,
+      detalle: [p.cliente, p.total != null ? formatear(Number(p.total), p.moneda) : null].filter(Boolean).join(" · "),
+      texto: p.lineas ?? "", motivo: "", propuesta: null, href: `/ventas/pedidos/${p.id}`,
+    })),
     ...preguntas.map((q): AvisoIa => ({
       tipo: "preguntas", id: q.id, marca: Number(q.marca), titulo: `Pregunta${q.cuenta ? ` en ${q.cuenta}` : ""}`,
       detalle: q.titulo ?? "", texto: q.texto, motivo: MOTIVO[q.ia_estado] ?? "", propuesta: q.sugerencia, href: "/ventas/preguntas",
@@ -120,26 +141,39 @@ export async function estadoAvisos(usuario: string, org: string, puede: (p: Perm
   const prefs = prefsDe(f);
   const contadores = await contadoresEstado(org, puede, f?.visto ?? {});
   if (!f?.avisado) {
-    await iniciarAvisado(usuario, org, puede).catch(() => {});
+    await iniciarAvisado(usuario, org).catch(() => {});
     return { contadores, ventana: [], prefs };
   }
-  const ventana = await pendientesIa(org, puede, f.avisado);
+  const ventana = await pendientesIa(org, puede, await completarMarcas(usuario, org, "avisado", f.avisado));
   return { contadores, ventana, prefs };
 }
 
-/** Las marcas de "hasta acá" de lo que hoy está pendiente (para empezar sin una catarata de cosas viejas). */
-export async function marcasActuales(org: string, puede: (p: PermisoKey) => boolean): Promise<Marcas> {
-  const todo = await pendientesIa(org, puede, {});
-  const marcas: Marcas = { preguntas: Date.now(), mensajes: Date.now(), whatsapp: 0 };
-  for (const a of todo) marcas[a.tipo] = Math.max(marcas[a.tipo], a.marca);
-  return marcas;
+/** Las marcas de "hasta acá" de hoy (para empezar sin una catarata de cosas viejas). */
+export async function marcasActuales(org: string): Promise<Marcas> {
+  const r = await una<{ pedidos: number | null; whatsapp: number | null }>(`
+    select (select max(id)::float8 from pedido where organizacion_id = $1) pedidos,
+           (select max(id)::float8 from chat_caso where organizacion_id = $1) whatsapp`, [org]);
+  return { pedidos: Number(r?.pedidos ?? 0), preguntas: Date.now(), mensajes: Date.now(), whatsapp: Number(r?.whatsapp ?? 0) };
 }
 
-async function iniciarAvisado(usuario: string, org: string, puede: (p: PermisoKey) => boolean): Promise<void> {
+/** Si a las marcas guardadas les falta un tipo (uno nuevo), se completa con la de hoy y se guarda. */
+export async function completarMarcas(usuario: string, org: string, columna: "avisado" | "push_avisado", marcas: Marcas): Promise<Marcas> {
+  const faltan = TIPOS_AVISO.filter((t) => marcas[t] === undefined);
+  if (!faltan.length) return marcas;
+  const hoy = await marcasActuales(org);
+  const completas = { ...marcas };
+  for (const t of faltan) {
+    completas[t] = hoy[t];
+    await subirMarca(usuario, org, columna, t, hoy[t]);
+  }
+  return completas;
+}
+
+async function iniciarAvisado(usuario: string, org: string): Promise<void> {
   await consulta(`
     insert into usuario_preferencia (usuario_id, organizacion_id, avisado) values ($1, $2, $3::jsonb)
     on conflict (usuario_id, organizacion_id) do update set avisado = coalesce(usuario_preferencia.avisado, excluded.avisado)`,
-    [usuario, org, JSON.stringify(await marcasActuales(org, puede))]);
+    [usuario, org, JSON.stringify(await marcasActuales(org))]);
 }
 
 async function vistazo(usuario: string, org: string): Promise<void> {

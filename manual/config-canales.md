@@ -53,8 +53,19 @@ Debajo de la lista aparecen las cajas del canal elegido (su fila queda resaltada
 
 1. **Depósitos de "…"**: la tabla **Depósito / Prioridad**, con el botón **"Agregar depósito"** (si quedan depósitos activos que el canal no usa). Cada fila tiene el lápiz "Cambiar la prioridad" y el tacho ("¿Quitar?"). Un depósito archivado se marca "Archivado: no suma". Si no quedan depósitos para agregar, el enlace "Crear uno" lleva a [Depósitos y ubicaciones](/stock/depositos).
 2. **Cuenta de Mercado Libre** (sólo canales tipo Mercado Libre). Ver más abajo.
-3. **Cuenta de Mercado Pago** (en todos los canales). Ver más abajo.
-4. **Llave API**: si tiene, "Tiene llave (no se muestra)." con los botones **"Generar otro"** y **"Revocar"**; si no tiene, "Sin llave: nadie puede usar la API con este canal." y el botón **"Generar llave"**.
+3. **Textos de "…"** (sólo canales tipo Mercado Libre): la firma y las reglas de la IA para preguntas y mensajes, y el encabezado y el pie de la descripción. Ver más abajo.
+4. **Cuenta de Mercado Pago** (en todos los canales). Ver más abajo.
+5. **Llave API**: si tiene, "Tiene llave (no se muestra)." con los botones **"Generar otro"** y **"Revocar"**; si no tiene, "Sin llave: nadie puede usar la API con este canal." y el botón **"Generar llave"**.
+
+### Caja "Textos de …"
+
+Abre en vista; se edita con el lápiz de arriba a la derecha de la caja y se graba con **Grabar** (o **Cancelar**). Cuatro textos, propios de ese canal:
+
+- **Firma de las respuestas** (hasta 100 letras): va al final de cada respuesta que la IA propone a una pregunta o un mensaje de ese canal, **tal cual la escribís** (la IA no la inventa ni la cambia). Por ejemplo: «Saludos, el equipo de Daitom». Con firma, la IA no agrega su propio saludo de despedida. En los mensajes, que en Mercado Libre tienen hasta 350 letras, la firma entra siempre: si hace falta, se acorta el texto de la IA.
+- **Reglas para la IA (preguntas y mensajes)** (hasta 3000 letras): lo que la IA tiene que respetar siempre al contestar en ese canal, una regla por renglón. Valen por encima de sus instrucciones de siempre. Por ejemplo: «Nunca sugerir abrir un reclamo ni una mediación en Mercado Libre».
+- **Encabezado de la descripción** y **Pie de la descripción** (hasta 5000 letras cada uno): al publicar un producto nuevo en ese canal desde [Publicar en Mercado Libre](/catalogo/productos), la descripción que sale es el encabezado, la descripción técnica del producto y el pie, separados por un renglón en blanco. En la ficha del producto se escribe sólo la descripción técnica. Si alguno está vacío, no deja renglones de más.
+
+La firma y las reglas se aplican desde la próxima respuesta que proponga la IA; las que ya estaban propuestas quedan como estaban.
 
 ### Caja "Cuenta de Mercado Pago"
 

@@ -159,11 +159,13 @@ Arriba de todo, el interruptor **No publicable (insumo o parte de otro)**: prend
 ### Crear un producto
 
 1. En [Productos](/catalogo/productos), apretá **+ Nuevo producto**.
-2. Completá **SKU base** y **Título** (obligatorios), elegí el **Tipo** (Simple, Con variaciones o Kit) y, si querés, la **Familia**.
+2. El **SKU base** ya viene sugerido: el que sigue al SKU más alto de la empresa (por ejemplo, si el más alto es SKU03554, propone SKU03555). Lo podés cambiar. Completá el **Título** (los dos son obligatorios), elegí el **Tipo** (Simple, Con variaciones o Kit) y, si querés, la **Familia**.
 3. Apretá **Crear**. Se abre la ficha con el aviso "Producto creado. Completá la ficha."
 4. Completá el resto en la pestaña Datos (lápiz → Grabar).
 
-Si falta el SKU o el título: "El producto necesita SKU base y título." El SKU base no se puede repetir dentro de la empresa.
+Si falta el SKU o el título: "El producto necesita SKU base y título." **Ningún SKU se puede repetir** dentro de la empresa, ni entre productos ni con el de una variación de otro producto, y sin importar mayúsculas: si ya existe, avisa "El SKU … ya existe: elegí otro." y no graba (lo mismo al cambiar el SKU de un producto o de una variación).
+
+**SKU sugerido**: el formato de la casa es «SKU» seguido de un número de 5 cifras (6 cuando pasa de 99999). Se busca el número más alto entre todos los SKU con ese formato (los de las variaciones también, y los que siguen con un agregado, como «SKU03542-BC») y se propone el siguiente. Los SKU con otro formato no cuentan.
 
 ### Editar los datos de un producto
 
@@ -229,11 +231,11 @@ Si no hay tipo de cambio cargado para pasar a la otra moneda, avisa que lo cargu
 
 ### Duplicar un producto
 
-Sirve para cargar un producto parecido a uno que ya existe (por ejemplo otra notebook): en la ficha, botón **Duplicar** (arriba a la derecha, al lado de "Pasar a Inactivo"). El sistema crea la copia y abre su ficha **en edición**, con el aviso "Copia creada, pausada". Después cambiás el SKU y lo que haga falta (título, atributos, fotos, precio…) y apretás **Grabar**.
+Sirve para cargar un producto parecido a uno que ya existe (por ejemplo otra notebook): en la ficha, botón **Duplicar** (arriba a la derecha, al lado de "Pasar a Inactivo"). El sistema crea la copia con el **SKU sugerido** (el que sigue al más alto, como en el alta) y abre su ficha **en edición**, con el aviso "Copia creada con el SKU …". Después cambiás lo que haga falta (título, atributos, fotos, precio…) y apretás **Grabar**.
 
 - **La copia trae**: los datos de la ficha (descripción, familia, marca, medidas, garantía, categoría de Mercado Libre y sus atributos, planes de cuotas, IVA…), las variaciones con sus atributos y fotos, las fotos del producto, los atributos, las cucardas, el costo de importación, los componentes si es un kit y el **precio de hoy** de cada lista.
 - **La copia no trae**: el stock (arranca en cero), el código de barras, los costos reales de compra (último y promedio), las publicaciones de la web y de Mercado Libre, ni las reglas de precio de ML. Eso se arma para el producto nuevo.
-- **El SKU** de la copia es el del original más "-COPIA" ("-COPIA2" si ya había una). Las variaciones que empiezan con el SKU del original conservan el resto ("ABC-ROJO" pasa a "ABC-COPIA-ROJO"). Se cambia desde Datos como cualquier SKU.
+- **El SKU** de la copia es el sugerido (el que sigue al más alto). Las variaciones que empiezan con el SKU del original conservan el resto ("SKU00010-ROJO" pasa a "SKU00011-ROJO"); las demás quedan con el SKU nuevo y su número de variación ("SKU00011-2"). Si el sugerido estuviera ocupado, la copia lleva el del original más "-COPIA". Se cambia desde Datos como cualquier SKU.
 - **Queda Pausada**: no se publica en ningún lado hasta que le pongas **Estado: Activo** en Datos.
 - Las fotos copiadas son las mismas imágenes que las del original: si borrás una foto de la copia, la del original sigue ahí.
 

@@ -19,3 +19,10 @@ test("planSkus: si -COPIA está ocupado (el SKU base o el de una variación) sig
   assert.equal(planSkus("ABC", ["ABC"], new Set(["abc-copia"])).base, "ABC-COPIA2");
   assert.equal(planSkus("ABC", ["ABC-ROJO"], new Set(["abc-copia-rojo", "abc-copia2-rojo"])).base, "ABC-COPIA3");
 });
+
+test("planSkus: con SKU nuevo sugerido, la copia lo usa y las variaciones lo siguen", () => {
+  assert.deepEqual(planSkus("SKU00010", ["SKU00010-ROJO", "OTRA"], new Set(), "SKU00011"),
+    { base: "SKU00011", variaciones: ["SKU00011-ROJO", "SKU00011-2"] });
+  // Ocupado: vuelve a -COPIA.
+  assert.equal(planSkus("SKU00010", ["SKU00010"], new Set(["sku00011"]), "SKU00011").base, "SKU00010-COPIA");
+});

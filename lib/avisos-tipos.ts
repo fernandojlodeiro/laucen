@@ -7,21 +7,26 @@ export type ClaveContador = "pedidos" | "preguntas" | "mensajes" | "whatsapp";
  *  `nuevo`: hay algo que el usuario todavía no vio (se pinta distinto). */
 export type Contador = { clave: ClaveContador; texto: string; n: number | null; href?: string; marca: number; nuevo: boolean };
 
-/** Algo que la IA no contestó y que la ventana muestra de prepo. */
+/** Lo que la ventana muestra de prepo: un pedido nuevo, o algo que la IA no contestó. */
 export type AvisoIa = {
-  tipo: "preguntas" | "mensajes" | "whatsapp";
+  tipo: ClaveContador;
   id: string;
   marca: number;
   titulo: string;   // "Pregunta en Daitom", "WhatsApp de Juan"…
   detalle: string;  // sobre qué es (la publicación, el pedido, el asunto)
   texto: string;    // lo que escribió el cliente
-  motivo: string;   // por qué no contestó la IA
+  motivo: string;   // por qué no contestó la IA (vacío en un pedido)
   propuesta: string | null;
   href: string;
 };
 
-/** `cadaMin`: como mucho un sonido (y un aviso de Windows) cada tantos minutos. */
-export type Prefs = { sonido: boolean; ventana: boolean; cadaMin: number };
+export const TIPOS_AVISO: ClaveContador[] = ["pedidos", "preguntas", "mensajes", "whatsapp"];
+
+/** `ventana`: de qué tipos se abre la ventana (y llegan los avisos de Windows).
+ *  `cadaMin`: como mucho un sonido (y un aviso de Windows) cada tantos minutos. */
+export type Prefs = { sonido: boolean; ventana: Record<ClaveContador, boolean>; cadaMin: number };
+
+export const VENTANA_TODO: Record<ClaveContador, boolean> = { pedidos: true, preguntas: true, mensajes: true, whatsapp: true };
 
 export const CADA_MIN_MAX = 60;
 export const cadaMinValido = (n: unknown) => Math.min(CADA_MIN_MAX, Math.max(1, Math.round(Number(n) || 1)));

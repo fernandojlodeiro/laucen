@@ -8,6 +8,7 @@ import { igualALaSugerencia, leerPropuesta, FORMATO_IA, type EstadoIa } from "@/
 import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { pedirClaude, hayClaude } from "@/lib/claude";
+import { textosCanal, instruccionesExtra, conFirma } from "@/lib/canales/textos";
 import { ml, mlOk, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import type { ItemMl } from "@/lib/mercadolibre/publicaciones";
 
@@ -99,13 +100,15 @@ export async function sugerirRespuesta(org: string, preguntaId: number): Promise
   const cuenta = await cuentaDelCanal(org, Number(q.canal_id));
   if (!cuenta) throw new ErrorErp("La cuenta de Mercado Libre de esta pregunta ya no está conectada.");
   const ctx = await contexto(cuenta, q.item_id, q.publicacion_id ? Number(q.publicacion_id) : null);
+  const textos = await textosCanal(org, q.canal_id);
   const r = await pedirClaude({
-    system: INSTRUCCIONES, modelo: "medio", maxTokens: 600,
+    system: INSTRUCCIONES + instruccionesExtra(textos), modelo: "medio", maxTokens: 600,
     contenido: `DATOS:\n${JSON.stringify(ctx, null, 1)}\n\nPREGUNTA DEL COMPRADOR:\n${q.texto}`,
   });
   if ("error" in r) throw new ErrorErp(`La IA no pudo proponer una respuesta (${r.error.slice(0, 120)}).`);
   const p = leerPropuesta(r.texto);
-  const texto = p.texto.slice(0, 1990);
+  // La firma del canal la pone Laucen, no la IA (lib/canales/textos.ts).
+  const texto = conFirma(p.texto, textos.firma, 1990);
   await consulta("update meli_pregunta set sugerencia = $3, sugerencia_ts = now(), ia_estado = $4 where id = $1 and organizacion_id = $2", [preguntaId, org, texto, p.estado]);
   return { texto, estado: p.estado };
 }

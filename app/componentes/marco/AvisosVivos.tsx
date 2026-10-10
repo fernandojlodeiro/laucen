@@ -102,8 +102,10 @@ export function VigiaAvisos({ inicial }: { inicial: EstadoAvisos }) {
 
     // Lo que la IA no contestó: con la ventana apagada, queda como avisado sin mostrarse.
     if (e.ventana.length) {
-      if (e.prefs.ventana) setVentana((actual) => [...actual, ...e.ventana.filter((a) => !actual.some((x) => x.tipo === a.tipo && x.id === a.id))]);
-      else avisar(e.ventana);
+      // Cada tipo según lo elegido en Mis avisos; los que no abren ventana quedan como avisados.
+      const mostrar = e.ventana.filter((a) => e.prefs.ventana[a.tipo]);
+      if (mostrar.length) setVentana((actual) => [...actual, ...mostrar.filter((a) => !actual.some((x) => x.tipo === a.tipo && x.id === a.id))]);
+      avisar(e.ventana.filter((a) => !e.prefs.ventana[a.tipo]));
     }
     if (e.prefs.sonido && (entraron.length || e.ventana.length)) sonarConLimite(e.prefs.cadaMin);
   }, [marcarVistos, publicar, router]);
@@ -156,7 +158,9 @@ export function VigiaAvisos({ inicial }: { inicial: EstadoAvisos }) {
       <div className="w-full max-w-lg max-h-[85vh] flex flex-col rounded-xl bg-white shadow-xl">
         <div className="flex items-center justify-between gap-2 border-b border-[#E3E9F0] px-4 py-3">
           <h2 id="aviso-ia-titulo" className="text-sm font-bold">
-            {ventana.length === 1 ? "La IA no contestó esto: te necesita" : `La IA no contestó ${ventana.length} cosas: te necesitan`}
+            {ventana.every((a) => a.tipo === "pedidos")
+              ? (ventana.length === 1 ? "Entró un pedido nuevo" : `Entraron ${ventana.length} pedidos nuevos`)
+              : ventana.length === 1 ? "Esto te necesita" : `${ventana.length} cosas te necesitan`}
           </h2>
           <button type="button" onClick={cerrar} className={SUAVE}>Cerrar</button>
         </div>
@@ -168,7 +172,7 @@ export function VigiaAvisos({ inicial }: { inicial: EstadoAvisos }) {
                   <b className="text-[13px]">{a.titulo}</b>
                   {a.detalle && <div className="text-[#5C6B76]">{a.detalle}</div>}
                 </div>
-                <Link href={a.href} onClick={cerrar} className={`${PRIMARIO} shrink-0`}>Ir a responder</Link>
+                <Link href={a.href} onClick={cerrar} className={`${PRIMARIO} shrink-0`}>{a.tipo === "pedidos" ? "Ver el pedido" : "Ir a responder"}</Link>
               </div>
               {a.texto && <p className="whitespace-pre-wrap rounded-lg bg-[#F7F9FB] border border-[#E3E9F0] px-2 py-1.5 text-[13px]">{a.texto}</p>}
               {a.motivo && <p className="text-[#8a6100]">⚠ {a.motivo}</p>}
