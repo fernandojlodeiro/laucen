@@ -89,7 +89,12 @@ export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones:
   // Un «número de pieza» obligatorio que la publicación vieja no tiene: el Modelo (el de ML o el de Laucen).
   const modelo = atributos.find((a) => a.id === "MODEL")?.value_name ?? extra.modelo ?? null;
   for (const id of extra.completar ?? []) {
-    if (modelo && ES_NUMERO_DE_PIEZA(id) && !atributos.some((a) => a.id === id)) atributos.push({ id, value_name: modelo } as (typeof atributos)[number]);
+    if (atributos.some((a) => a.id === id)) continue;
+    if (modelo && ES_NUMERO_DE_PIEZA(id)) atributos.push({ id, value_name: modelo } as (typeof atributos)[number]);
+    // Código de barras exigido y la publicación no lo tiene: «El producto no tiene código registrado».
+    if (id === "EMPTY_GTIN_REASON" && !atributos.some((a) => a.id === "GTIN")) atributos.push({ id, value_id: "17055160" } as (typeof atributos)[number]);
+    // «Formato de venta: Unidad» pide la cantidad de envases: 1.
+    if (id === "UNITS_PER_PACK") atributos.push({ id, value_name: "1" } as (typeof atributos)[number]);
   }
   const condiciones = (it.sale_terms ?? []).filter((t) => t.value_name != null || t.value_id != null)
     .map((t) => ({ id: t.id, ...(t.value_id ? { value_id: t.value_id } : {}), ...(t.value_name != null ? { value_name: t.value_name } : {}) }));
@@ -181,8 +186,10 @@ export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string
   let paquete: Paquete | null = null;
   let cuerpo = armar({ sacar });
   let r = await ml(cuenta, "POST", "/items/validate", cuerpo);
-  // Un obligatorio que falta y se puede completar (número de pieza ← Modelo): se prueba con él.
-  const faltan = atributosFaltantes(r.datos).filter((x) => ES_NUMERO_DE_PIEZA(x));
+  // Un obligatorio que falta y se puede completar (número de pieza ← Modelo; sin código de barras → el motivo;
+  // la cantidad de envases de «Unidad» → 1): se prueba con él.
+  const faltan = [...atributosFaltantes(r.datos).flatMap((x) => (ES_NUMERO_DE_PIEZA(x) ? [x] : x === "GTIN" ? ["EMPTY_GTIN_REASON"] : [])),
+    ...(causasDe(r.datos).some((c) => c.code === "item.attribute.invalid_sale_units") ? ["UNITS_PER_PACK"] : [])];
   if (r.status === 400 && faltan.length) {
     completar = faltan;
     cuerpo = armar({ sacar, completar });

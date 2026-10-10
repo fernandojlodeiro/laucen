@@ -125,3 +125,11 @@ test("número de pieza obligatorio: se detecta y se completa con el Modelo (10/1
   const cuerpo = armarCuerpoCopia(it, "SKU02343", { variarTitulo: false, rotarFotos: false }, { completar: ["DEVICE_PART_NUMBER"] }) as { attributes: { id: string; value_name?: string }[] };
   assert.equal(cuerpo.attributes.find((a) => a.id === "DEVICE_PART_NUMBER")?.value_name, "Tda9570h");
 });
+
+test("armarCuerpoCopia: completa el motivo sin código de barras y la cantidad de envases cuando ML los pide", () => {
+  const c = armarCuerpoCopia(ITEM, null, { variarTitulo: false, rotarFotos: false }, { completar: ["EMPTY_GTIN_REASON", "UNITS_PER_PACK"] }) as { attributes: { id: string; value_id?: string; value_name?: string }[] };
+  assert.equal(c.attributes.find((a) => a.id === "EMPTY_GTIN_REASON")?.value_id, "17055160");
+  assert.equal(c.attributes.find((a) => a.id === "UNITS_PER_PACK")?.value_name, "1");
+  const conGtin = armarCuerpoCopia({ ...ITEM, attributes: [...ITEM.attributes!, { id: "GTIN", value_name: "7790000000000" }] }, null, { variarTitulo: false, rotarFotos: false }, { completar: ["EMPTY_GTIN_REASON"] }) as { attributes: { id: string }[] };
+  assert.ok(!conGtin.attributes.some((a) => a.id === "EMPTY_GTIN_REASON"));
+});
