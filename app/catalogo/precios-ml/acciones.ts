@@ -254,7 +254,7 @@ export async function accionPublicarFaltantesCuenta(fd: FormData) {
   const canal = id(fd, "canal");
   return deFondo(s, `faltan-en-cuenta:${canal}`, "Publicar lo que falta en la cuenta", async () => {
     const c = await canalMl(s.org.id, canal);
-    const r = await prepararFaltantesEnCuenta(s.org.id, canal, s.usuario.id);
+    const r = await prepararFaltantesEnCuenta(s.org.id, canal, s.usuario.id, undefined, entero(fd, "limite"));
     limpiarCachePrevia();
     revalidatePath(PREVIA);
     revalidatePath("/config/canales/cola");

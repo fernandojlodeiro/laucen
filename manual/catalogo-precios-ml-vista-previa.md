@@ -79,6 +79,8 @@ Con una cuenta elegida (no con «Todas las cuentas»), si hay productos activos 
 3. Cada publicación es una copia de la publicación común del producto en otra cuenta (título, fotos, características, garantía y descripción): la de la cuenta que va primero en **«Orden para copiar»** de [Canales](/config/canales). Si se conoce el producto de catálogo, pide además entrar a competir ahí. Antes de armarla se comprueba con Mercado Libre que la acepte.
 4. Queda **un lote** en la [Cola de Mercado Libre](/config/canales/cola), pestaña «Lotes preparados»: revisalo y apretá **«Mandar a Mercado Libre»**.
 
+Para probar antes de publicar todo, al lado está **«Probar con 10»**: arma el mismo lote con sólo 10 productos (los primeros por SKU). Después, «Publicar lo que falta en esta cuenta» sigue con el resto (los que ya están en la cola no se repiten).
+
 Un producto sin stock para esta cuenta no se publica, y uno que no tiene ninguna publicación común para copiar tampoco: el cartel los nombra. Lo que ya está en un lote o en la cola no se vuelve a armar: si el cartel dice que faltaron por tiempo, se aprieta el botón otra vez y sigue con los que faltan.
 
 ### Crear las publicaciones de planes que le faltan a la cuenta

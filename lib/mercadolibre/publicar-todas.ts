@@ -291,7 +291,8 @@ export async function faltantesEnCuenta(org: string, canal: number): Promise<{ v
 
 export type ResultadoFaltaCuenta = ResultadoTodas & { productos: number; sinOrigen: string[]; sinStock: string[]; yaEnCola: number };
 
-export async function prepararFaltantesEnCuenta(org: string, canalId: number, usuarioId: string | null, hasta = Date.now() + 240_000): Promise<ResultadoFaltaCuenta> {
+/** `limite`: cuántos productos como mucho (para probar con unos pocos antes de publicar todo). */
+export async function prepararFaltantesEnCuenta(org: string, canalId: number, usuarioId: string | null, hasta = Date.now() + 240_000, limite?: number | null): Promise<ResultadoFaltaCuenta> {
   const cache: CacheTodas = { reglas: new Map() };
   cache.canales = await canalesMl(org);
   const c = cache.canales.find((x) => x.id === canalId);
@@ -299,6 +300,7 @@ export async function prepararFaltantesEnCuenta(org: string, canalId: number, us
   const res: ResultadoFaltaCuenta = { lotes: [], rechazos: [], avisos: [], sinTiempo: 0, productos: 0, sinOrigen: [], sinStock: [], yaEnCola: 0 };
   const altas: CambioMl[] = [];
   for (const v of await faltantesEnCuenta(org, canalId)) {
+    if (limite && res.productos >= limite) break;
     if (Date.now() > hasta) { res.sinTiempo++; continue; }
     if (!(v.stock > 0)) { res.sinStock.push(v.sku); continue; }
     try {
