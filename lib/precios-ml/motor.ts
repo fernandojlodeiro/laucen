@@ -114,10 +114,13 @@ export type FilaComision = {
 export function comisionesDe(f: FilaComision | null | undefined, general: Comisiones = COMISIONES_REFERENCIA): { valores: Comisiones; estimada: boolean } {
   if (!f || f.clasica_pct == null) return { valores: general, estimada: true };
   const c = Number(f.clasica_pct);
-  const mas = (x: number | null, plan: Plan) => (x == null ? general[plan] - general.clasica + c : c + Number(x));
+  const premium = f.premium_pct != null ? Number(f.premium_pct) : general.premium - general.clasica + c;
+  // Un plan sin relevar se estima sobre la Premium de la categoría (son variantes de la Premium): así nunca
+  // queda más barato que la Premium en una categoría de Premium cara (Fer, 10/10: 9x más barata que la Premium).
+  const mas = (x: number | null, plan: Plan) => (x == null ? premium + general[plan] - general.premium : c + Number(x));
   const valores: Comisiones = {
     clasica: c,
-    premium: f.premium_pct != null ? Number(f.premium_pct) : general.premium - general.clasica + c,
+    premium,
     "3x_campaign": mas(f.premium_3x_pct, "3x_campaign"),
     "9x_campaign": mas(f.premium_9x_pct, "9x_campaign"),
     "12x_campaign": mas(f.premium_12x_pct, "12x_campaign"),

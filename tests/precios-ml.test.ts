@@ -497,3 +497,12 @@ test("descuento que ve el comprador ↔ tachado %: 45 % = 81,81818 % (lo que dec
   assert.equal(tachadoDeDescuento(0), 0);
   for (const d of [5, 10, 17, 30, 50]) assert.equal(descuentoComprador(tachadoDeDescuento(d)), d);
 });
+
+test("comisión de un plan sin relevar: se estima sobre la Premium de la categoría (10/10)", () => {
+  const g = { clasica: 13, premium: 18, "3x_campaign": 20, "9x_campaign": 24, "12x_campaign": 27 };
+  const { valores, estimada } = comisionesDe({ clasica_pct: 15.83, premium_pct: 29.23, premium_3x_pct: null, premium_9x_pct: null, premium_12x_pct: null }, g);
+  assert.equal(estimada, true);
+  assert.ok(Math.abs(valores["9x_campaign"] - (29.23 + 6)) < 1e-9);
+  assert.ok(valores["9x_campaign"] > valores.premium);
+  assert.ok(valores["3x_campaign"] > valores.premium);
+});
