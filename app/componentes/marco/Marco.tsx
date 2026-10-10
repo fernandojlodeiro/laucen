@@ -45,7 +45,7 @@ export default async function Marco({ children, version }: { children: React.Rea
   const [moneda, tc, avisos, asistente, accesos, historial, inactivos, guias, coloresCanales] = await Promise.all([
     monedaVista(sesion.usuario.id, sesion.org.id).catch(() => "ARS" as Moneda),
     tcDelDia(sesion.org.id).catch(() => null),
-    estadoAvisos(sesion.usuario.id, sesion.org.id, puede).catch((): EstadoAvisos => ({ contadores: [], ventana: [], prefs: { sonido: false, ventana: false } })),
+    estadoAvisos(sesion.usuario.id, sesion.org.id, puede).catch((): EstadoAvisos => ({ contadores: [], ventana: [], prefs: { sonido: false, ventana: false, cadaMin: 1 } })),
     configAsistente(sesion.org.id).catch(() => CONFIG_DEFECTO),
     accesosDe(sesion.usuario.id, sesion.org.id, puede).catch(() => []),
     historialDe(sesion.usuario.id, sesion.org.id).catch(() => []),

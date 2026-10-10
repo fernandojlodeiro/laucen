@@ -4,7 +4,7 @@ menu: Configuración › Mis avisos
 ruta: /config/avisos
 rutas: /config/avisos
 permiso: todos
-resumen: Cada persona elige si suena un aviso cuando entra algo y si se le abre sola una ventana con lo que la IA no contestó.
+resumen: Cada persona elige si suena un aviso cuando entra algo, cada cuánto como mucho, si se le abre sola una ventana con lo que la IA no contestó y si le llegan avisos de Windows con Laucen cerrado.
 ---
 
 ## Para qué sirve
@@ -22,13 +22,26 @@ Dos cajas para tildar:
 - **"Sonar cuando entra algo"**: suena un aviso corto cuando entra un pedido a preparar, una pregunta, un mensaje o un WhatsApp en espera, y cuando la IA deja algo sin contestar.
 - **"Abrirme una ventana con lo que la IA no contestó"**: cuando la IA no contesta una pregunta o un mensaje, se abre sola una ventana en el medio de la pantalla, estés donde estés.
 
-Y el botón **"🔔 Probar el sonido"**, para escuchar cómo suena.
+Un número: **"Como mucho un aviso cada … minutos"** (de 1 a 60; de entrada, 1).
+
+El botón **"🔔 Probar el sonido"**, para escuchar cómo suena.
+
+Y abajo, el recuadro **"Avisos de Windows, aunque no tengas Laucen abierto"**: dice si **esta computadora** tiene los avisos activados y en cuántos equipos en total, con los botones **"Activar en esta computadora"**, **"Desactivar en esta computadora"** y **"Mandar un aviso de prueba"**.
 
 ## Cómo se hace
 
 1. Apretá el **lápiz** arriba a la derecha.
 2. Tildá o destildá las opciones.
 3. Apretá **"Grabar"** (o **"Cancelar"** para dejarlo como estaba).
+
+### Activar los avisos de Windows en una computadora
+
+1. Entrá a esta pantalla desde la computadora (o el celular) donde querés recibirlos.
+2. En el recuadro de abajo apretá **"Activar en esta computadora"**.
+3. El navegador pregunta si permitís las notificaciones: elegí **"Permitir"**.
+4. Para probar, apretá **"Mandar un aviso de prueba"**: en unos segundos aparece el cartel abajo a la derecha de la pantalla.
+
+Si el navegador dice que las notificaciones están bloqueadas: tocá el candado a la izquierda de la dirección, en «Notificaciones» elegí «Permitir» y volvé a cargar la pantalla.
 
 ## Criterios y reglas
 
@@ -37,8 +50,15 @@ Y el botón **"🔔 Probar el sonido"**, para escuchar cómo suena.
 - **Qué abre la ventana**: una pregunta o un mensaje de Mercado Libre sin responder en el que la IA dijo que **le falta un dato** o que **el cliente pide hablar con una persona**, y un chat de WhatsApp que la IA **dejó en espera** para una persona. La ventana muestra lo que escribió el cliente, por qué no contestó la IA y lo que propone, con el botón **"Ir a responder"**.
 - Cada cosa abre la ventana **una sola vez**: al cerrarla (botón **"Cerrar"** o la tecla Esc) o al ir a responder, no vuelve a aparecer. Si la ventana está destildada, no se abre ni se guarda para después.
 - Lo que ya estaba pendiente la primera vez que entrás no abre la ventana: sólo lo que llega desde ahí.
-- **El sonido**: el navegador deja sonar sólo después de que tocaste algo en la página (un clic o una tecla). Si recién abriste el sistema y no tocaste nada, el primer aviso puede no sonar.
-- Los avisos llegan mientras tengas el sistema abierto en alguna pestaña del navegador.
+- **El sonido** son dos notas cortas, una sola vez: nunca queda sonando. Suena **como mucho una vez cada los minutos elegidos**, aunque entren varias cosas seguidas (y aunque tengas Laucen abierto en varias pestañas).
+- **El navegador deja sonar** sólo después de que tocaste algo en la página (un clic o una tecla). Si recién abriste el sistema y no tocaste nada, el primer aviso puede no sonar.
+- El sonido, el color y la ventana funcionan mientras tengas el sistema abierto en alguna pestaña del navegador.
+- **Avisos de Windows**: avisan lo mismo que la ventana (lo que la IA no contestó), con un cartel de Windows abajo a la derecha y el sonido de Windows, **aunque hayas cerrado Laucen**. Tocando el cartel se abre Laucen en esa pregunta o chat. Si entraron varias cosas, llegan juntas en un solo cartel. Respetan el mismo límite de minutos.
+  - Llegan aunque hayas cerrado la ventana del navegador, porque Chrome y Edge siguen andando escondidos. Si el navegador está cerrado del todo o la computadora apagada, el aviso llega cuando lo abrís (si no pasaron más de 12 horas).
+  - Si estás mirando Laucen, avisa la pantalla y no Windows, para no avisar dos veces.
+  - Lo que ya viste en la ventana de la pantalla no se vuelve a avisar por Windows.
+  - Se activan **en cada computadora o celular por separado**. En el celular andan con Chrome en Android; en iPhone, sólo con Laucen agregado a la pantalla de inicio.
+  - Revisa cada un minuto si hay algo nuevo.
 - Sólo se cuenta y se avisa lo de las pantallas que tu rol puede ver.
 
 ## Relacionado

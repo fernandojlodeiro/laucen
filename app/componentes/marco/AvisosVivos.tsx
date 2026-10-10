@@ -7,8 +7,10 @@
 //   · <VigiaAvisos> (en el marco, una sola vez): pregunta cada 15 segundos.
 //     Si el usuario está en la pantalla de un contador y entró algo, la
 //     actualiza (salvo que esté escribiendo). Según lo que eligió en
-//     Configuración › Mis avisos: suena cuando entra algo y abre de prepo una
-//     ventana con lo que la IA no contestó.
+//     Configuración › Mis avisos: suena cuando entra algo (como mucho una vez
+//     cada tantos minutos) y abre de prepo una ventana con lo que la IA no
+//     contestó. Con la pestaña a la vista se lo dice al servidor (?vista=1):
+//     así los avisos de Windows no se duplican con la pantalla.
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -79,7 +81,7 @@ export function VigiaAvisos({ inicial }: { inicial: EstadoAvisos }) {
   const mirar = useCallback(async () => {
     let e: EstadoAvisos;
     try {
-      const r = await fetch("/api/avisos", { cache: "no-store" });
+      const r = await fetch(`/api/avisos${document.hidden ? "" : "?vista=1"}`, { cache: "no-store" });
       if (!r.ok) return;
       e = await r.json() as EstadoAvisos;
     } catch { return; /* sin red: se reintenta */ }
@@ -103,7 +105,7 @@ export function VigiaAvisos({ inicial }: { inicial: EstadoAvisos }) {
       if (e.prefs.ventana) setVentana((actual) => [...actual, ...e.ventana.filter((a) => !actual.some((x) => x.tipo === a.tipo && x.id === a.id))]);
       else avisar(e.ventana);
     }
-    if (e.prefs.sonido && (entraron.length || e.ventana.length)) sonar();
+    if (e.prefs.sonido && (entraron.length || e.ventana.length)) sonarConLimite(e.prefs.cadaMin);
   }, [marcarVistos, publicar, router]);
 
   useEffect(() => {
@@ -193,7 +195,18 @@ function escribiendo(): boolean {
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
 }
 
-// ── El sonido: dos notas cortas, sin archivo ──
+// ── El sonido: dos notas cortas (un tercio de segundo), sin archivo ──
+
+const ULTIMO_SONIDO = "laucen-ultimo-sonido";
+
+/** Suena como mucho una vez cada `cadaMin` minutos (también entre pestañas). */
+function sonarConLimite(cadaMin: number) {
+  let ultimo = 0;
+  try { ultimo = Number(localStorage.getItem(ULTIMO_SONIDO)) || 0; } catch { /* sin almacenamiento */ }
+  if (Date.now() - ultimo < Math.max(1, cadaMin) * 60_000 - 2000) return;
+  try { localStorage.setItem(ULTIMO_SONIDO, String(Date.now())); } catch { /* sin almacenamiento */ }
+  sonar();
+}
 let audio: AudioContext | null = null;
 
 function prepararSonido() {

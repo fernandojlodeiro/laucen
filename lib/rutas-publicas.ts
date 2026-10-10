@@ -28,6 +28,9 @@ export const RUTAS_PUBLICAS = [
   "/api/catalogo",
   // Los avisos de WhatsApp (Meta): se verifican con la firma de la app.
   "/api/whatsapp/webhook",
+  // Los avisos de Windows: los pide la base (pg_cron) con erp_llave; el portero del navegador es un archivo suelto.
+  "/api/avisos/push",
+  "/sw-avisos.js",
 ];
 
 /** La landing ("/") es pública y es la única ruta exacta que no pide login;

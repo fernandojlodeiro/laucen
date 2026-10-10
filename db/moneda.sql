@@ -155,6 +155,64 @@ alter table usuario_preferencia add column if not exists aviso_sonido boolean no
 alter table usuario_preferencia add column if not exists aviso_ventana boolean not null default true;
 alter table usuario_preferencia add column if not exists visto jsonb not null default '{}';
 alter table usuario_preferencia add column if not exists avisado jsonb;
+-- Cada cuántos minutos, como mucho, suena o llega un aviso de Windows (Fer, 10/10; de 1 a 60).
+alter table usuario_preferencia add column if not exists aviso_cada_min int not null default 1;
+-- Avisos de Windows con Laucen cerrado (push): hasta dónde ya se mandó ({clave: marca}), cuándo
+-- se mandó el último (para el límite de arriba) y cuándo tuvo Laucen a la vista por última vez
+-- (con Laucen a la vista avisa la pantalla, no Windows).
+alter table usuario_preferencia add column if not exists push_avisado jsonb;
+alter table usuario_preferencia add column if not exists push_ultimo_ts timestamptz;
+alter table usuario_preferencia add column if not exists vistazo_ts timestamptz;
+
+-- Cada computadora o celular donde el usuario activó los avisos de Windows (push del navegador).
+create table if not exists push_suscripcion (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  usuario_id       text not null references usuarios(id) on delete cascade,
+  endpoint         text not null unique,
+  p256dh           text not null,
+  auth             text not null,
+  equipo           text not null default '',
+  creado_ts        timestamptz not null default now(),
+  ultimo_ok_ts     timestamptz
+);
+create index if not exists push_suscripcion_usuario on push_suscripcion (usuario_id, organizacion_id);
+alter table push_suscripcion enable row level security;
+
+-- Las llaves con que Laucen firma los avisos push (VAPID). Las genera la app la primera vez. Una sola fila.
+create table if not exists push_llave (
+  id       int primary key check (id = 1),
+  publica  text not null,
+  privada  text not null
+);
+alter table push_llave enable row level security;
+
+-- El job de pg_cron 'avisos-push' (cada minuto) llama a /api/avisos/push sólo si alguien activó
+-- los avisos de Windows y hay algo reciente que la IA no contestó (la última hora: el límite de
+-- avisos llega a 60 minutos). La clave se lee de erp_llave al correr. Sin pg_cron, no pasa nada.
+do $$
+declare
+  j record;
+  cmd text := $cmd$
+  select net.http_get(
+    url := 'https://laucen.vercel.app/api/avisos/push?clave=' || (select clave from public.erp_llave where id = 1),
+    timeout_milliseconds := 60000
+  ) where exists (select 1 from public.push_suscripcion)
+      and (exists (select 1 from public.meli_pregunta where estado = 'UNANSWERED' and ia_estado in ('falta_dato', 'persona')
+                     and sugerencia_ts > now() - interval '61 minutes')
+        or exists (select 1 from public.meli_conversacion where sin_leer > 0 and ia_estado in ('falta_dato', 'persona')
+                     and sugerencia_ts > now() - interval '61 minutes')
+        or exists (select 1 from public.chat_caso where resuelto_ts is null and abierto_ts > now() - interval '61 minutes'))
+$cmd$;
+begin
+  if to_regclass('cron.job') is null then return; end if;
+  select jobid, command into j from cron.job where jobname = 'avisos-push';
+  if not found then perform cron.schedule('avisos-push', '* * * * *', cmd);
+  elsif j.command is distinct from cmd then perform cron.alter_job(j.jobid, command := cmd);
+  end if;
+exception when others then
+  raise notice 'pg_cron: no se pudo ajustar avisos-push (%)', sqlerrm;
+end $$;
 
 -- Tareas que corren de fondo (Fer, 6/10): un botón que demora no deja la
 -- pantalla esperando: lanza la tarea, el botón dice "Trabajando…" y, al

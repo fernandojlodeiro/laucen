@@ -10,32 +10,35 @@
 import { consulta, una } from "@/lib/erp/base";
 import { contadoresEstado, marcaDe } from "@/lib/erp/contadores";
 import type { PermisoKey } from "@/lib/permisos";
-import type { AvisoIa, ClaveContador, EstadoAvisos, Prefs } from "@/lib/avisos-tipos";
+import { cadaMinValido, type AvisoIa, type ClaveContador, type EstadoAvisos, type Prefs } from "@/lib/avisos-tipos";
 
-type Marcas = Record<string, number>;
+export type Marcas = Record<string, number>;
 type TipoAviso = AvisoIa["tipo"];
 
-const PREFS_DEFECTO: Prefs = { sonido: false, ventana: true };
+const PREFS_DEFECTO: Prefs = { sonido: false, ventana: true, cadaMin: 1 };
 
 async function filaDe(usuario: string, org: string) {
-  return una<{ aviso_sonido: boolean; aviso_ventana: boolean; visto: Marcas | null; avisado: Marcas | null }>(
-    "select aviso_sonido, aviso_ventana, visto, avisado from usuario_preferencia where usuario_id = $1 and organizacion_id = $2", [usuario, org]);
+  return una<{ aviso_sonido: boolean; aviso_ventana: boolean; aviso_cada_min: number; visto: Marcas | null; avisado: Marcas | null }>(
+    "select aviso_sonido, aviso_ventana, aviso_cada_min, visto, avisado from usuario_preferencia where usuario_id = $1 and organizacion_id = $2", [usuario, org]);
 }
 
+const prefsDe = (f: { aviso_sonido: boolean; aviso_ventana: boolean; aviso_cada_min: number } | null): Prefs =>
+  f ? { sonido: f.aviso_sonido, ventana: f.aviso_ventana, cadaMin: cadaMinValido(f.aviso_cada_min) } : PREFS_DEFECTO;
+
 export async function prefsAvisos(usuario: string, org: string): Promise<Prefs> {
-  const f = await filaDe(usuario, org);
-  return f ? { sonido: f.aviso_sonido, ventana: f.aviso_ventana } : PREFS_DEFECTO;
+  return prefsDe(await filaDe(usuario, org));
 }
 
 export async function fijarPrefsAvisos(usuario: string, org: string, p: Prefs): Promise<void> {
   await consulta(`
-    insert into usuario_preferencia (usuario_id, organizacion_id, aviso_sonido, aviso_ventana) values ($1, $2, $3, $4)
-    on conflict (usuario_id, organizacion_id) do update set aviso_sonido = excluded.aviso_sonido, aviso_ventana = excluded.aviso_ventana, actualizado_ts = now()`,
-    [usuario, org, p.sonido, p.ventana]);
+    insert into usuario_preferencia (usuario_id, organizacion_id, aviso_sonido, aviso_ventana, aviso_cada_min) values ($1, $2, $3, $4, $5)
+    on conflict (usuario_id, organizacion_id) do update set aviso_sonido = excluded.aviso_sonido, aviso_ventana = excluded.aviso_ventana,
+      aviso_cada_min = excluded.aviso_cada_min, actualizado_ts = now()`,
+    [usuario, org, p.sonido, p.ventana, cadaMinValido(p.cadaMin)]);
 }
 
 /** Guarda una marca (de `visto` o de `avisado`) sólo si es mayor que la que había. */
-async function subirMarca(usuario: string, org: string, columna: "visto" | "avisado", clave: string, marca: number): Promise<void> {
+export async function subirMarca(usuario: string, org: string, columna: "visto" | "avisado" | "push_avisado", clave: string, marca: number): Promise<void> {
   if (!Number.isFinite(marca) || marca <= 0) return;
   await consulta(`
     insert into usuario_preferencia (usuario_id, organizacion_id, ${columna}) values ($1, $2, jsonb_build_object($3::text, $4::float8))
@@ -64,7 +67,7 @@ const MOTIVO: Record<string, string> = {
 };
 
 /** Lo que la IA no contestó y todavía no se le mostró al usuario (pasa su marca de `avisado`). */
-async function pendientesIa(org: string, puede: (p: PermisoKey) => boolean, avisado: Marcas): Promise<AvisoIa[]> {
+export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolean, avisado: Marcas): Promise<AvisoIa[]> {
   const desde = (t: TipoAviso) => Number(avisado[t] ?? 0);
   const [preguntas, mensajes, casos] = await Promise.all([
     puede("preguntas_ver") ? consulta<{ id: string; marca: number; texto: string; ia_estado: string; sugerencia: string | null; cuenta: string | null; titulo: string | null }>(`
@@ -109,9 +112,11 @@ async function pendientesIa(org: string, puede: (p: PermisoKey) => boolean, avis
 
 /** Lo que dibuja la barra de estado y la ventana. La primera vez, lo que ya
  *  estaba pendiente no abre la ventana (sería una catarata de cosas viejas). */
-export async function estadoAvisos(usuario: string, org: string, puede: (p: PermisoKey) => boolean): Promise<EstadoAvisos> {
+export async function estadoAvisos(usuario: string, org: string, puede: (p: PermisoKey) => boolean, aLaVista = false): Promise<EstadoAvisos> {
+  // Con Laucen a la vista, avisa la pantalla: los avisos de Windows esperan (lib/avisos-push.ts).
+  if (aLaVista) await vistazo(usuario, org).catch(() => {});
   const f = await filaDe(usuario, org).catch(() => null);
-  const prefs = f ? { sonido: f.aviso_sonido, ventana: f.aviso_ventana } : PREFS_DEFECTO;
+  const prefs = prefsDe(f);
   const contadores = await contadoresEstado(org, puede, f?.visto ?? {});
   if (!f?.avisado) {
     await iniciarAvisado(usuario, org, puede).catch(() => {});
@@ -121,12 +126,23 @@ export async function estadoAvisos(usuario: string, org: string, puede: (p: Perm
   return { contadores, ventana, prefs };
 }
 
-async function iniciarAvisado(usuario: string, org: string, puede: (p: PermisoKey) => boolean): Promise<void> {
+/** Las marcas de "hasta acá" de lo que hoy está pendiente (para empezar sin una catarata de cosas viejas). */
+export async function marcasActuales(org: string, puede: (p: PermisoKey) => boolean): Promise<Marcas> {
   const todo = await pendientesIa(org, puede, {});
   const marcas: Marcas = { preguntas: Date.now(), mensajes: Date.now(), whatsapp: 0 };
   for (const a of todo) marcas[a.tipo] = Math.max(marcas[a.tipo], a.marca);
+  return marcas;
+}
+
+async function iniciarAvisado(usuario: string, org: string, puede: (p: PermisoKey) => boolean): Promise<void> {
   await consulta(`
     insert into usuario_preferencia (usuario_id, organizacion_id, avisado) values ($1, $2, $3::jsonb)
     on conflict (usuario_id, organizacion_id) do update set avisado = coalesce(usuario_preferencia.avisado, excluded.avisado)`,
-    [usuario, org, JSON.stringify(marcas)]);
+    [usuario, org, JSON.stringify(await marcasActuales(org, puede))]);
+}
+
+async function vistazo(usuario: string, org: string): Promise<void> {
+  await consulta(`
+    insert into usuario_preferencia (usuario_id, organizacion_id, vistazo_ts) values ($1, $2, now())
+    on conflict (usuario_id, organizacion_id) do update set vistazo_ts = now()`, [usuario, org]);
 }

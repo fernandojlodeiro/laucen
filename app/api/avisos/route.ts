@@ -12,12 +12,12 @@ export const dynamic = "force-dynamic";
 
 const CLAVES: ClaveContador[] = ["pedidos", "preguntas", "mensajes", "whatsapp"];
 
-export async function GET() {
+export async function GET(req: Request) {
   const s = await sesionActual();
   if (!s) return Response.json({ error: "sin sesión" }, { status: 401 });
   const puede = (p: Parameters<typeof tienePermiso>[1]) => tienePermiso(s.permisos, p);
   try {
-    return Response.json(await estadoAvisos(s.usuario.id, s.org.id, puede));
+    return Response.json(await estadoAvisos(s.usuario.id, s.org.id, puede, new URL(req.url).searchParams.get("vista") === "1"));
   } catch {
     return Response.json({ error: "sin base" }, { status: 503 });
   }

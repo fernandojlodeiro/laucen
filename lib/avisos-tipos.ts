@@ -20,7 +20,11 @@ export type AvisoIa = {
   href: string;
 };
 
-export type Prefs = { sonido: boolean; ventana: boolean };
+/** `cadaMin`: como mucho un sonido (y un aviso de Windows) cada tantos minutos. */
+export type Prefs = { sonido: boolean; ventana: boolean; cadaMin: number };
+
+export const CADA_MIN_MAX = 60;
+export const cadaMinValido = (n: unknown) => Math.min(CADA_MIN_MAX, Math.max(1, Math.round(Number(n) || 1)));
 
 export type EstadoAvisos = { contadores: Contador[]; ventana: AvisoIa[]; prefs: Prefs };
 
