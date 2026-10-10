@@ -435,7 +435,11 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
     const pa: PropuestaPub = { pub, rol: "otro", lista: null, venta: null, piso: null, entrar: [], salir: [], volumen: [], cambiaPrecio: false, cambiaVolumen: false, avisos: [] };
     if (clasica == null || pub.estado === "cerrada") return pa;
     if (pub.plan === "clasica") {
-      pa.rol = "clasica"; pa.lista = tach; pa.venta = clasica;
+      // Con tachado (que deje el descuento mínimo de ML), al tachado; si no, al precio de venta (Fer, 10/10: sin tachado
+      // en el esquema, la Clásica que no gana —+5 %— quedaba con el tachado debajo y se mandaba a una campaña más cara
+      // que su precio publicado: ML la rechaza).
+      pa.rol = "clasica"; pa.venta = clasica;
+      pa.lista = tachadoPct > 0 && tach != null && descuentoVisible(tach, clasica) >= DESCUENTO_MINIMO_ML ? tach : clasica;
     } else if (pub.plan && esPlan(pub.plan)) {
       const pc = planes.find((p) => p.plan === pub.plan)!;
       if (!pc.habilitado) {
@@ -503,6 +507,12 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
       if (!igual(pub.precioListaMl, pa.lista)) pa.avisos.push(`Publicación de catálogo atada a ${pub.gemelaDe}: su precio publicado lo copia Mercado Libre de ésa; acá sólo se manejan sus campañas.`);
       pa.lista = pub.precioListaMl;
       if (pa.venta != null && pa.lista <= pa.venta + 0.5) pa.venta = pa.lista;
+    }
+    // Una campaña nunca sube el precio: si el de venta queda arriba del publicado, el publicado sube a él (en la gemela,
+    // que no cambia su precio publicado, se vende a ése).
+    if (pa.lista != null && pa.venta != null && pa.venta > pa.lista + 0.5) {
+      if (pub.gemelaDe) pa.venta = pa.lista;
+      else pa.lista = pa.venta;
     }
     pa.cambiaPrecio = !igual(pub.precioListaMl, pa.lista);
     // Campañas: con tachado, la publicación va a su precio de venta con campaña
