@@ -165,6 +165,8 @@ Arriba de todo, el interruptor **No publicable (insumo o parte de otro)**: prend
 
 Si falta el SKU o el título: "El producto necesita SKU base y título." **Ningún SKU se puede repetir** dentro de la empresa, ni entre productos ni con el de una variación de otro producto, y sin importar mayúsculas: si ya existe, avisa "El SKU … ya existe: elegí otro." y no graba (lo mismo al cambiar el SKU de un producto o de una variación).
 
+**Cambiar el SKU de algo que está publicado en Mercado Libre**: al grabar, el SKU cambia en Laucen y queda **preparado un lote** con el cambio de SKU en cada una de sus publicaciones de Mercado Libre. Se abre la [Cola de Mercado Libre](/config/canales/cola) en ese lote: nada sale hasta apretar **«Mandar a Mercado Libre»**. Así el SKU queda igual en Laucen y en todas las cuentas.
+
 **SKU sugerido**: el formato de la casa es «SKU» seguido de un número de 5 cifras (6 cuando pasa de 99999). Se busca el número más alto entre todos los SKU con ese formato (los de las variaciones también, y los que siguen con un agregado, como «SKU03542-BC») y se propone el siguiente. Los SKU con otro formato no cuentan.
 
 ### Editar los datos de un producto

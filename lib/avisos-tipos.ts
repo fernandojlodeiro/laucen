@@ -22,9 +22,10 @@ export type AvisoIa = {
 
 export const TIPOS_AVISO: ClaveContador[] = ["pedidos", "preguntas", "mensajes", "whatsapp"];
 
-/** `ventana`: de qué tipos se abre la ventana (y llegan los avisos de Windows).
+/** `ventana`: de qué tipos avisa (ventana de prepo y avisos de Windows).
+ *  `pedidoDetalle`: un pedido nuevo abre la ventana con su detalle; si no, sólo un cartel de que llegó.
  *  `cadaMin`: como mucho un sonido (y un aviso de Windows) cada tantos minutos. */
-export type Prefs = { sonido: boolean; ventana: Record<ClaveContador, boolean>; cadaMin: number };
+export type Prefs = { sonido: boolean; ventana: Record<ClaveContador, boolean>; pedidoDetalle: boolean; cadaMin: number };
 
 export const VENTANA_TODO: Record<ClaveContador, boolean> = { pedidos: true, preguntas: true, mensajes: true, whatsapp: true };
 

@@ -50,6 +50,7 @@ export function VigiaAvisos({ inicial }: { inicial: EstadoAvisos }) {
   const ver = useSearchParams().get("ver");
   const ultimos = useRef(inicial.contadores);
   const [ventana, setVentana] = useState<AvisoIa[]>([]);
+  const [carteles, setCarteles] = useState<AvisoIa[]>([]);
   const abiertos = useRef<AvisoIa[]>([]);
   abiertos.current = ventana;
   const marcas = useRef(new Map(inicial.contadores.map((c) => [c.clave, c.marca])));
@@ -103,9 +104,16 @@ export function VigiaAvisos({ inicial }: { inicial: EstadoAvisos }) {
     // Lo que la IA no contestó: con la ventana apagada, queda como avisado sin mostrarse.
     if (e.ventana.length) {
       // Cada tipo según lo elegido en Mis avisos; los que no abren ventana quedan como avisados.
-      const mostrar = e.ventana.filter((a) => e.prefs.ventana[a.tipo]);
+      // Un pedido sin «Ver el detalle del pedido»: sólo un cartel de que llegó, sin ventana.
+      const soloCartel = (a: AvisoIa) => a.tipo === "pedidos" && !e.prefs.pedidoDetalle;
+      const mostrar = e.ventana.filter((a) => e.prefs.ventana[a.tipo] && !soloCartel(a));
+      const carteles = e.ventana.filter((a) => e.prefs.ventana[a.tipo] && soloCartel(a));
       if (mostrar.length) setVentana((actual) => [...actual, ...mostrar.filter((a) => !actual.some((x) => x.tipo === a.tipo && x.id === a.id))]);
-      avisar(e.ventana.filter((a) => !e.prefs.ventana[a.tipo]));
+      if (carteles.length) {
+        setCarteles((c) => [...c, ...carteles.filter((a) => !c.some((x) => x.id === a.id))]);
+        for (const a of carteles) setTimeout(() => setCarteles((c) => c.filter((x) => x.id !== a.id)), 20_000);
+      }
+      avisar(e.ventana.filter((a) => !mostrar.includes(a)));
     }
     if (e.prefs.sonido && (entraron.length || e.ventana.length)) sonarConLimite(e.prefs.cadaMin);
   }, [marcarVistos, publicar, router]);
@@ -152,8 +160,22 @@ export function VigiaAvisos({ inicial }: { inicial: EstadoAvisos }) {
     return () => window.removeEventListener("keydown", tecla);
   }, [ventana.length, cerrar]);
 
-  if (!ventana.length) return null;
+  const cartelesPedidos = carteles.length > 0 && (
+    <div className="fixed bottom-20 md:bottom-12 right-4 z-[60] grid gap-2 w-72 max-w-[calc(100vw-2rem)] print:hidden" aria-live="polite">
+      {carteles.map((a) => (
+        <div key={a.id} role="status" className="rounded-xl border border-[#BFD3E6] bg-[#EEF3F8] px-3 py-2 text-xs text-[#16577F] shadow-md flex items-start justify-between gap-2">
+          <Link href={a.href} onClick={() => setCarteles((c) => c.filter((x) => x.id !== a.id))} className="hover:underline">
+            🛒 <b>Llegó un pedido</b>{a.titulo.replace(/^Pedido nuevo/, "")}
+          </Link>
+          <button type="button" onClick={() => setCarteles((c) => c.filter((x) => x.id !== a.id))} aria-label="Cerrar" className="leading-none opacity-60 hover:opacity-100">×</button>
+        </div>
+      ))}
+    </div>
+  );
+  if (!ventana.length) return cartelesPedidos || null;
   return (
+    <>
+    {cartelesPedidos}
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4 print:hidden" role="dialog" aria-modal="true" aria-labelledby="aviso-ia-titulo">
       <div className="w-full max-w-lg max-h-[85vh] flex flex-col rounded-xl bg-white shadow-xl">
         <div className="flex items-center justify-between gap-2 border-b border-[#E3E9F0] px-4 py-3">
@@ -182,6 +204,7 @@ export function VigiaAvisos({ inicial }: { inicial: EstadoAvisos }) {
         </div>
       </div>
     </div>
+    </>
   );
 }
 

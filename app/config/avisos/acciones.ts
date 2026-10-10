@@ -13,7 +13,8 @@ export async function accionGuardarAvisos(fd: FormData) {
     redirect(`/config/avisos?editar=ficha&error=${encodeURIComponent(`Los minutos van de 1 a ${CADA_MIN_MAX}, sin decimales.`)}`);
   }
   try {
-    await fijarPrefsAvisos(s.usuario.id, s.org.id, { sonido: fd.get("sonido") === "1", ventana: Object.fromEntries(TIPOS_AVISO.map((t) => [t, fd.get(`ventana_${t}`) === "1"])) as Record<ClaveContador, boolean>, cadaMin });
+    await fijarPrefsAvisos(s.usuario.id, s.org.id, { sonido: fd.get("sonido") === "1", ventana: Object.fromEntries(TIPOS_AVISO.map((t) => [t, fd.get(`ventana_${t}`) === "1"])) as Record<ClaveContador, boolean>,
+      pedidoDetalle: fd.get("pedidos_detalle") === "1", cadaMin });
   } catch {
     redirect(`/config/avisos?editar=ficha&error=${encodeURIComponent("No se pudo grabar: probá de nuevo en un rato.")}`);
   }

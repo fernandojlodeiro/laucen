@@ -16,6 +16,7 @@
 // Las publicaciones de OTROS vendedores no se pueden leer por la API de ML
 // (/sites/MLA/search y /items/{id} ajeno dan 403, bitácora #105 y #143).
 
+import { textosCanal, descripcionCopiada, descripcionDelCanal, TEXTOS_VACIOS } from "@/lib/canales/textos";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolarLoteConBoton, type PedidoMl } from "@/lib/mercadolibre/cola";
@@ -129,6 +130,8 @@ export type Borrador = {
   titulo: string; categoria: string; precio: number | null; cantidad: number; tipo: string; condicion: string;
   fotos: { url: string; deLaucen: boolean }[]; atributos: DatoMl[]; garantia: DatoMl[];
   descripcion: string; descripcionLeida: boolean;
+  /** La descripción quedó sin el encabezado y el pie de la cuenta de origen: al mandarla se le ponen los de destino. */
+  descripcionTecnica: boolean;
   variaciones: { id: number; sku: string; titulo: string | null }[]; variacion: number;
   cuentas: CuentaDestino[]; cuenta: number | null;
 };
@@ -216,6 +219,10 @@ export async function armarBorrador(org: string, productoId: number, itemId: str
     if (d.status === 200) { descripcion = d.datos.plain_text?.trim() ?? ""; descripcionLeida = true; }
     else if (d.status === 404) descripcionLeida = true; // no tiene
   }
+  // Sin el encabezado y el pie de la cuenta de origen, si se pueden separar (lib/canales/textos.ts).
+  const sep = descripcion ? descripcionCopiada(descripcion, await textosCanal(org, g.canal_id), TEXTOS_VACIOS) : null;
+  if (sep?.separada) descripcion = sep.tecnica;
+  const descripcionTecnica = !!sep?.separada || !descripcion;
 
   return {
     origen: { item_id: itemId, canal: g.canal_id, cuenta: g.cuenta, estado: g.estado, precio: g.precio, permalink: g.permalink },
@@ -223,7 +230,7 @@ export async function armarBorrador(org: string, productoId: number, itemId: str
     precio: precioLaucen ?? it.price ?? g.precio, cantidad: Math.max(1, disponible),
     // Siempre Clásica de entrada, aunque la copiada sea Premium (Fer, 5/10); se cambia en el formulario.
     tipo: "gold_special", condicion: it.condition ?? "new",
-    fotos, atributos: editables(it.attributes).map((x) => deLaucen.has(x.id) ? { ...x, valor: deLaucen.get(x.id)! } : x), garantia: editables(it.sale_terms), descripcion, descripcionLeida,
+    fotos, atributos: editables(it.attributes).map((x) => deLaucen.has(x.id) ? { ...x, valor: deLaucen.get(x.id)! } : x), garantia: editables(it.sale_terms), descripcion, descripcionLeida, descripcionTecnica,
     variaciones, variacion, cuentas, cuenta,
   };
 }
@@ -252,6 +259,8 @@ export type Entrada = {
   productoId: number; itemId: string; canal: number; variacion: number;
   titulo: string; precio: number | null; cantidad: number | null; tipo: string; condicion: string;
   fotos: string[]; atributos: Record<string, string>; garantia: Record<string, string>; descripcion: string;
+  /** La descripción es sólo la técnica: se le ponen el encabezado y el pie de la cuenta de destino. */
+  descripcionTecnica?: boolean;
 };
 
 /** Los atributos de la publicación con lo que cambió Fer: un valor igual queda con su
@@ -310,7 +319,7 @@ export async function prepararPublicacion(org: string, e: Entrada, usuarioId: st
   const c = await comprobarAlta(cuenta, (x) => armarCuerpoCopia(item, v.sku, { variarTitulo: false, rotarFotos: false }, { modelo, ...x }));
   if (!c.ok) throw new ErrorErp(`Mercado Libre no la acepta: ${c.motivo}`);
 
-  const texto = e.descripcion.trim();
+  const texto = e.descripcionTecnica && e.descripcion.trim() ? descripcionDelCanal(e.descripcion, await textosCanal(org, e.canal)) : e.descripcion.trim();
   const pedidos: PedidoMl[] = [
     { metodo: "POST", ruta: "/items", cuerpo: c.cuerpo },
     ...(texto ? [{ metodo: "POST" as const, ruta: "/items/{id}/description", cuerpo: { plain_text: texto } }] : []),

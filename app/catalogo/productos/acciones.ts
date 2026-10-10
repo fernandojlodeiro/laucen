@@ -16,6 +16,7 @@ import { revalidateTag } from "next/cache";
 import { publicarEnWeb, marcarNoPublicable } from "@/lib/catalogo/web";
 import { duplicarProducto } from "@/lib/catalogo/duplicar";
 import { exigirSkuLibre } from "@/lib/catalogo/sku";
+import { prepararSkuMl } from "@/lib/mercadolibre/sku-ml";
 
 const LISTADO = "/catalogo/productos";
 const SECCIONES = ["datos", "costo", "variaciones", "atributos", "fotos", "cucardas", "kit", "precios", "stock", "publicaciones"];
@@ -37,8 +38,8 @@ async function productoDe(org: string, pid: number) {
 
 /** La variación, si es de ese producto (y de la organización). */
 async function variacionDe(org: string, pid: number, vid: number) {
-  const v = vid ? await una<{ id: number; es_default: boolean }>(
-    "select id::int, es_default from variacion where id = $3 and producto_id = $2 and organizacion_id = $1", [org, pid, vid]) : null;
+  const v = vid ? await una<{ id: number; es_default: boolean; sku: string }>(
+    "select id::int, es_default, sku from variacion where id = $3 and producto_id = $2 and organizacion_id = $1", [org, pid, vid]) : null;
   if (!v) throw new ErrorErp("Esa variación no existe.");
   return v;
 }
@@ -159,8 +160,19 @@ export async function accionGuardarDatos(fd: FormData) {
       }
     });
     revalidatePath(`${LISTADO}/${pid}`);
+    // Cambió el SKU: sus publicaciones de ML quedan preparadas para cambiarlo también (con el clic de Fer).
+    if (sku !== p.sku_base) {
+      const vids = (await consulta<{ id: number }>("select id::int from variacion where producto_id = $1 and es_default", [pid])).map((v) => v.id);
+      return conLoteSku(await prepararSkuMl(s.org.id, vids, s.usuario.id, `${p.sku_base} → ${sku}`));
+    }
     return "Guardado.";
   });
+}
+
+/** El aviso de grabar cuando el SKU cambió y hay publicaciones de ML para actualizar. */
+function conLoteSku(lote: number | null) {
+  if (!lote) return "Guardado.";
+  return { ir: `/config/canales/cola?ver=lotes&lote=${lote}&ok=${encodeURIComponent(`Guardado. El SKU cambió: en el lote ${lote} quedó preparado el cambio en sus publicaciones de Mercado Libre. Mandalo con «Mandar a Mercado Libre».`)}` };
 }
 
 /** Pasar a Inactivo (archivado) o volver a Activo, desde la cabecera de la ficha. */
@@ -234,6 +246,7 @@ export async function accionGuardarVariacion(fd: FormData) {
     const attrs = leerAtributos(texto(fd, "atributos"));
     const estado = ["activa", "pausada", "archivada"].includes(String(fd.get("estado"))) ? String(fd.get("estado")) : "activa";
     const [costo, monedaCosto] = costoFob(fd);
+    let skuCambio: string | null = null;
     await enTransaccion(async (c) => {
       // Un kit (por tipo o con componentes) no graba costo FOB: se calcula.
       if (p.tipo !== "kit") {
@@ -248,6 +261,7 @@ export async function accionGuardarVariacion(fd: FormData) {
         const sku = texto(fd, "sku");
         if (!sku) throw new ErrorErp("La variación necesita un SKU.");
         await exigirSkuLibre(s.org.id, sku, { variacion: v.id });
+        skuCambio = sku !== v.sku ? `${v.sku} → ${sku}` : null;
         await c.query(`update variacion set sku = $3, codigo_barras = $4, titulo = $5, descuento_pct = $6, estado = $7
                         where id = $2 and organizacion_id = $1`,
           [s.org.id, v.id, sku, texto(fd, "codigo_barras"), texto(fd, "titulo"), pct(fd, "descuento_pct"), estado]);
@@ -255,6 +269,7 @@ export async function accionGuardarVariacion(fd: FormData) {
       await guardarAtributosVariacion(c, s.org.id, v.id, attrs);
     });
     revalidatePath(`${LISTADO}/${pid}`);
+    if (skuCambio) return conLoteSku(await prepararSkuMl(s.org.id, [v.id], s.usuario.id, skuCambio));
     return "Guardado.";
   });
 }

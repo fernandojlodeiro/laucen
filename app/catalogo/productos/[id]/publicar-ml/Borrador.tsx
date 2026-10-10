@@ -161,6 +161,12 @@ export default function Borrador({ productoId, b, tipos, condiciones }: {
         <h2 className={TITULO_CAJA}>Descripción</h2>
         {!b.descripcionLeida && <p className="text-[11px] text-[#8a6100] mb-1">No se pudo leer la descripción de Mercado Libre (la cuenta de la publicación elegida no está conectada o ML no contestó): escribila acá o dejala vacía.</p>}
         <textarea name="descripcion" defaultValue={b.descripcion} rows={12} className={`${CAMPO} w-full leading-relaxed`} />
+        {b.descripcionTecnica && <input type="hidden" name="desc_tecnica" value="1" />}
+        <p className={`text-[11px] mt-1 ${b.descripcionTecnica ? "text-[#5C6B76]" : "text-[#8a6100]"}`}>
+          {b.descripcionTecnica
+            ? "Sólo la descripción técnica (sin el encabezado y el pie de la cuenta de origen): al mandarla se le agregan el encabezado y el pie de la cuenta elegida (Configuración › Canales, «Textos de …»)."
+            : "No se pudo separar el encabezado y el pie de la cuenta de origen (no coinciden con los cargados en «Textos de …»): la descripción va tal cual. Si querés, sacalos acá a mano."}
+        </p>
       </section>
     </form>
   );

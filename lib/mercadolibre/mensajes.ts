@@ -4,7 +4,7 @@
 // (Fer, 5/10) la IA contesta sola, salvo en una conversación donde el
 // comprador pidió hablar con una persona: ahí no contesta más.
 
-import { textosCanal, instruccionesExtra, conFirma } from "@/lib/canales/textos";
+import { textosCanal, instruccionesExtra, conFirma, agregarFirma } from "@/lib/canales/textos";
 import { igualALaSugerencia, leerPropuesta, FORMATO_IA, type EstadoIa } from "@/lib/mercadolibre/sugerencia";
 import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
@@ -143,11 +143,17 @@ export async function sugerirMensajesPendientes(opts: { org?: string; max?: numb
 
 /** Manda un mensaje al comprador del pack. Sin usuario y con `auto`: lo mandó la IA sola. */
 export async function enviarMensaje(org: string, packId: string, texto: string, usuarioId: string | null = null, o: { auto?: boolean } = {}) {
-  const t = texto.trim();
-  if (!t) throw new ErrorErp("El mensaje está vacío.");
-  if (t.length > 350) throw new ErrorErp("Mercado Libre acepta hasta 350 caracteres por mensaje.");
+  if (!texto.trim()) throw new ErrorErp("El mensaje está vacío.");
   const conv = await una<{ canal_id: string; pedido_id: string | null; sugerencia: string | null }>("select canal_id, pedido_id, sugerencia from meli_conversacion where organizacion_id = $1 and pack_id = $2", [org, packId]);
   if (!conv) throw new ErrorErp("La conversación no existe.");
+  // La firma del canal va siempre, la escriba una persona o la IA (si ya la trae, no se repite).
+  const firma = (await textosCanal(org, conv.canal_id)).firma;
+  const t = agregarFirma(texto, firma);
+  if (t.length > 350) {
+    throw new ErrorErp(t !== texto.trim()
+      ? `Mercado Libre acepta hasta 350 caracteres por mensaje, contando la firma (${firma.trim().length + 1}): acortá el texto a ${349 - firma.trim().length}.`
+      : "Mercado Libre acepta hasta 350 caracteres por mensaje.");
+  }
   const cuenta = await cuentaDelCanal(org, Number(conv.canal_id));
   if (!cuenta) throw new ErrorErp("La cuenta de Mercado Libre ya no está conectada.");
   const comprador = conv.pedido_id

@@ -29,10 +29,14 @@ export default async function MisAvisos({ searchParams }: { searchParams: Promis
         <Opcion nombre="sonido" activa={p.sonido} editando={editando} titulo="Sonar cuando entra algo"
           ayuda="Para todo: suena un aviso corto cuando entra un pedido, una pregunta, un mensaje o un WhatsApp en espera, y cuando la IA deja algo sin contestar." />
         <fieldset className="grid gap-0.5">
-          <legend className="px-2 text-xs font-semibold">Abrirme una ventana de prepo con…</legend>
-          <span className="px-2 text-[11px] text-[#5C6B76] mb-1">La ventana se abre sola, estés en la pantalla que estés. Los avisos de Windows (abajo) avisan lo mismo.</span>
+          <legend className="px-2 text-xs font-semibold">Avisarme de prepo de…</legend>
+          <span className="px-2 text-[11px] text-[#5C6B76] mb-1">Se abre sola una ventana, estés en la pantalla que estés. Los avisos de Windows (abajo) avisan lo mismo.</span>
           <Opcion nombre="ventana_pedidos" activa={p.ventana.pedidos} editando={editando} titulo="Pedidos nuevos"
-            ayuda="Cada pedido nuevo a preparar, con el cliente, el total y lo que compró." />
+            ayuda="Cada pedido nuevo a preparar." />
+          <div className="pl-6">
+            <Opcion nombre="pedidos_detalle" activa={p.pedidoDetalle} editando={editando} titulo="Ver el detalle del pedido"
+              ayuda="Tildada: se abre la ventana con el cliente, el total y lo que compró. Destildada: sólo aparece un cartel abajo a la derecha avisando que llegó un pedido, sin abrir ninguna ventana." />
+          </div>
           <Opcion nombre="ventana_preguntas" activa={p.ventana.preguntas} editando={editando} titulo="Preguntas que la IA no contestó"
             ayuda="Preguntas de Mercado Libre en las que a la IA le falta un dato, o el comprador pide hablar con una persona." />
           <Opcion nombre="ventana_mensajes" activa={p.ventana.mensajes} editando={editando} titulo="Mensajes que la IA no contestó"

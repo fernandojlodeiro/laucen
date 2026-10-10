@@ -21,7 +21,7 @@ Dos cajas para tildar:
 
 - **"Sonar cuando entra algo"**: suena un aviso corto cuando entra un pedido a preparar, una pregunta, un mensaje o un WhatsApp en espera, y cuando la IA deja algo sin contestar.
 - **"Abrirme una ventana de prepo con…"**, una caja por tipo, cada una se prende o apaga por separado:
-  - **Pedidos nuevos**: cada pedido nuevo a preparar, con el cliente, el total y lo que compró, y el botón **"Ver el pedido"**.
+  - **Pedidos nuevos**: cada pedido nuevo a preparar. Debajo, **"Ver el detalle del pedido"**: tildada, se abre la ventana con el cliente, el total, lo que compró y el botón **"Ver el pedido"**; destildada, no se abre ninguna ventana: sólo aparece un cartel chico abajo a la derecha, «🛒 Llegó un pedido …», que se toca para abrirlo y se va solo a los 20 segundos.
   - **Preguntas que la IA no contestó** y **Mensajes que la IA no contestó**: de Mercado Libre, cuando a la IA le falta un dato o el comprador pide hablar con una persona.
   - **WhatsApp en espera**: chats que la IA dejó para una persona.
 

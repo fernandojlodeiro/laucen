@@ -13,6 +13,7 @@
 // usuario" (tienen family_name): ML arma el título a partir del family_name, así
 // que variar el título es variar el family_name.
 
+import { textosCanal, descripcionCopiada } from "@/lib/canales/textos";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import { encolarLoteConBoton, errorLegible, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
@@ -216,6 +217,8 @@ export async function prepararCopia(org: string, origen: number, destino: number
   if (!ids.length) throw new ErrorErp("No elegiste ninguna publicación.");
   if (ids.length > MAX_POR_LOTE) throw new ErrorErp(`Elegí hasta ${MAX_POR_LOTE} publicaciones por vez (elegiste ${ids.length}).`);
   const cOrigen = await cuentaDelCanal(org, origen), cDestino = await cuentaDelCanal(org, destino);
+  // El encabezado y el pie de la descripción: se sacan los de origen y se ponen los de destino (lib/canales/textos.ts).
+  const [textosOrigen, textosDestino] = await Promise.all([textosCanal(org, origen), textosCanal(org, destino)]);
   if (!cOrigen || cOrigen.estado !== "activa") throw new ErrorErp("La cuenta de origen no está conectada.");
   if (!cDestino || cDestino.estado !== "activa") throw new ErrorErp("La cuenta de destino no está conectada.");
   const nombreDestino = (await una<{ nombre: string }>("select nombre from canal where id = $2 and organizacion_id = $1", [org, destino]))?.nombre ?? `canal ${destino}`;
@@ -248,7 +251,8 @@ export async function prepararCopia(org: string, origen: number, destino: number
     // Entra, pero ML dejó avisos (ej. "envío gratis obligatorio agregado"): se cuentan aparte.
     if (c.avisos) conAvisos.push({ item_id: f.item_id, titulo: f.titulo, avisos: c.avisos });
     const desc = await ml<{ plain_text?: string }>(cOrigen, "GET", `/items/${f.item_id}/description`);
-    const texto = desc.status === 200 ? desc.datos.plain_text?.trim() : "";
+    const leida = desc.status === 200 ? desc.datos.plain_text?.trim() ?? "" : "";
+    const texto = leida ? descripcionCopiada(leida, textosOrigen, textosDestino).texto : "";
     const pedidos: PedidoMl[] = [
       { metodo: "POST", ruta: "/items", cuerpo: cuerpo },
       ...(texto ? [{ metodo: "POST" as const, ruta: "/items/{id}/description", cuerpo: { plain_text: texto } }] : []),

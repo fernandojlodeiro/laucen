@@ -20,19 +20,20 @@ export type Marcas = Record<string, number>;
 type TipoAviso = AvisoIa["tipo"];
 
 // De entrada, todo prendido (Fer, 10/10).
-const PREFS_DEFECTO: Prefs = { sonido: true, ventana: VENTANA_TODO, cadaMin: 1 };
+const PREFS_DEFECTO: Prefs = { sonido: true, ventana: VENTANA_TODO, pedidoDetalle: true, cadaMin: 1 };
 
 async function filaDe(usuario: string, org: string) {
   return una<FilaPrefs & { visto: Marcas | null; avisado: Marcas | null }>(
     "select aviso_sonido, aviso_ventana, aviso_ventana_tipos, aviso_cada_min, visto, avisado from usuario_preferencia where usuario_id = $1 and organizacion_id = $2", [usuario, org]);
 }
 
-type FilaPrefs = { aviso_sonido: boolean; aviso_ventana: boolean; aviso_ventana_tipos: Partial<Record<ClaveContador, boolean>> | null; aviso_cada_min: number };
+type FilaPrefs = { aviso_sonido: boolean; aviso_ventana: boolean; aviso_ventana_tipos: Partial<Record<ClaveContador | "pedidos_detalle", boolean>> | null; aviso_cada_min: number };
 
 /** Un tipo que no está en `aviso_ventana_tipos` sigue a `aviso_ventana` (la caja única de antes). */
 export const prefsDe = (f: FilaPrefs | null): Prefs => f ? {
   sonido: f.aviso_sonido,
   ventana: Object.fromEntries(TIPOS_AVISO.map((t) => [t, f.aviso_ventana_tipos?.[t] ?? f.aviso_ventana])) as Record<ClaveContador, boolean>,
+  pedidoDetalle: f.aviso_ventana_tipos?.pedidos_detalle ?? true,
   cadaMin: cadaMinValido(f.aviso_cada_min),
 } : PREFS_DEFECTO;
 
@@ -45,7 +46,7 @@ export async function fijarPrefsAvisos(usuario: string, org: string, p: Prefs): 
     insert into usuario_preferencia (usuario_id, organizacion_id, aviso_sonido, aviso_ventana_tipos, aviso_cada_min) values ($1, $2, $3, $4::jsonb, $5)
     on conflict (usuario_id, organizacion_id) do update set aviso_sonido = excluded.aviso_sonido, aviso_ventana_tipos = excluded.aviso_ventana_tipos,
       aviso_cada_min = excluded.aviso_cada_min, actualizado_ts = now()`,
-    [usuario, org, p.sonido, JSON.stringify(p.ventana), cadaMinValido(p.cadaMin)]);
+    [usuario, org, p.sonido, JSON.stringify({ ...p.ventana, pedidos_detalle: p.pedidoDetalle }), cadaMinValido(p.cadaMin)]);
 }
 
 /** Guarda una marca (de `visto` o de `avisado`) sólo si es mayor que la que había. */

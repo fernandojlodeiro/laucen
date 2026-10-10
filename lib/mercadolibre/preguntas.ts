@@ -8,7 +8,7 @@ import { igualALaSugerencia, leerPropuesta, FORMATO_IA, type EstadoIa } from "@/
 import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { pedirClaude, hayClaude } from "@/lib/claude";
-import { textosCanal, instruccionesExtra, conFirma } from "@/lib/canales/textos";
+import { textosCanal, instruccionesExtra, conFirma, agregarFirma } from "@/lib/canales/textos";
 import { ml, mlOk, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import type { ItemMl } from "@/lib/mercadolibre/publicaciones";
 
@@ -143,11 +143,12 @@ export async function sugerirPendientes(opts: { org?: string; max?: number; hast
 
 /** Manda la respuesta a ML. Sin usuario y con `auto`: la mandó la IA sola. */
 export async function responder(org: string, preguntaId: number, texto: string, usuarioId: string | null, o: { auto?: boolean } = {}) {
-  const t = texto.trim();
-  if (!t) throw new ErrorErp("La respuesta está vacía.");
-  if (t.length > 2000) throw new ErrorErp("Mercado Libre acepta hasta 2.000 caracteres.");
+  if (!texto.trim()) throw new ErrorErp("La respuesta está vacía.");
   const q = await una<{ canal_id: string; estado: string; sugerencia: string | null }>("select canal_id, estado, sugerencia from meli_pregunta where id = $1 and organizacion_id = $2", [preguntaId, org]);
   if (!q) throw new ErrorErp("La pregunta no existe.");
+  // La firma del canal va siempre, la escriba una persona o la IA (si ya la trae, no se repite).
+  const t = agregarFirma(texto, (await textosCanal(org, q.canal_id)).firma);
+  if (t.length > 2000) throw new ErrorErp(`Mercado Libre acepta hasta 2.000 caracteres${t !== texto.trim() ? " (contando la firma)" : ""}.`);
   if (q.estado !== "UNANSWERED") throw new ErrorErp("Esa pregunta ya no está pendiente (se respondió o se borró).");
   const cuenta = await cuentaDelCanal(org, Number(q.canal_id));
   if (!cuenta) throw new ErrorErp("La cuenta de Mercado Libre de esta pregunta ya no está conectada.");

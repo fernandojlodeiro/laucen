@@ -32,7 +32,7 @@ export async function accionPrepararPublicacion(_antes: ResultadoPreparar, fd: F
       titulo: String(fd.get("titulo") ?? ""), precio: numero(fd, "precio"), cantidad: entero(fd, "cantidad"),
       tipo: texto(fd, "tipo") ?? "", condicion: texto(fd, "condicion") ?? "",
       fotos: fd.getAll("foto").map(String), atributos: conPrefijo(fd, "attr:"), garantia: conPrefijo(fd, "term:"),
-      descripcion: String(fd.get("descripcion") ?? ""),
+      descripcion: String(fd.get("descripcion") ?? ""), descripcionTecnica: fd.get("desc_tecnica") === "1",
     }, s.usuario.id);
     revalidatePath("/config/canales/cola");
     const avisos = r.avisos ? ` Mercado Libre dejó avisos (no frenan; los resuelve al crearla): ${r.avisos}` : "";

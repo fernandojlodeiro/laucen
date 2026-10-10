@@ -82,7 +82,7 @@ Apretá **"Actualizar"** en la conversación: la vuelve a leer entera desde Merc
 
 ## Criterios y reglas
 
-- **Firma y reglas de cada cuenta**: cada canal de Mercado Libre puede tener su firma (va al final de cada respuesta que propone la IA, tal cual se escribió) y sus reglas para la IA (por ejemplo, «nunca sugerir abrir un reclamo»). Se cargan en «Textos de …» de [Canales](/config/canales).
+- **Firma y reglas de cada cuenta**: cada canal de Mercado Libre puede tener su firma (va al final de cada respuesta, la proponga la IA o la escriba una persona, tal cual se escribió; si ya la tiene, no se repite; debajo del cuadro de la respuesta se ve cuál se va a agregar) y sus reglas para la IA (por ejemplo, «nunca sugerir abrir un reclamo»). Se cargan en «Textos de …» de [Canales](/config/canales).
 - **Corte**: las preguntas hechas en Mercado Libre antes del momento de corte (la fecha y hora desde la que la empresa gestiona sus ventas en Laucen) y las conversaciones sin ningún mensaje posterior a ese momento no entran: quedan en el sistema que se usaba antes. Es el mismo corte de los pedidos (ver [Canales](/config/canales)).
 
 - **Cómo entran**: Mercado Libre avisa cada pregunta y cada mensaje nuevo al instante, y además cada 30 minutos se revisan las preguntas pendientes por si se perdió algún aviso. Con **"Traer preguntas ahora"** se fuerza en el momento.

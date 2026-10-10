@@ -82,7 +82,7 @@ export default async function PreguntasYMensajes({ searchParams }: { searchParam
 }
 
 type Pregunta = {
-  id: string; canal: string | null; item_id: string; titulo: string | null; foto: string | null; permalink: string | null;
+  id: string; canal: string | null; firma: string | null; item_id: string; titulo: string | null; foto: string | null; permalink: string | null;
   texto: string; fecha: Date; sugerencia: string | null; vinculada: boolean; disponible: number | null;
   respuesta: string | null; respondida_ts: Date | null; respondida_por: string | null; respondida_con_ia: boolean;
   ia_estado: string | null; respondida_auto: boolean;
@@ -91,7 +91,7 @@ type Pregunta = {
 /** La publicación de la pregunta: foto y link de meli_item (la primera fila
  *  del item), título de ahí o de la publicación de Laucen, y el stock del canal. */
 const DE_PREGUNTA = `
-  select q.id::text, ca.nombre canal, q.item_id, coalesce(mi.titulo, pu.titulo) titulo, mi.foto, mi.permalink, q.texto, q.fecha, q.sugerencia,
+  select q.id::text, ca.nombre canal, nullif(trim(ca.config ->> 'firma'), '') firma, q.item_id, coalesce(mi.titulo, pu.titulo) titulo, mi.foto, mi.permalink, q.texto, q.fecha, q.sugerencia,
          (pu.id is not null) vinculada,
          case when pu.id is not null then greatest(stock_disponible_canal(q.organizacion_id, pu.variacion_id, pu.canal_id), 0)::int end disponible,
          q.respuesta, q.respondida_ts, u.nombre respondida_por, q.respondida_con_ia, q.ia_estado, q.respondida_auto
@@ -151,6 +151,7 @@ async function SinResponder({ org, canal, auto }: { org: string; canal: number |
             <label className="block">
               <span className={ETIQUETA}>Respuesta{q.sugerencia ? " (la propuso la IA: revisala)" : ""}</span>
               <textarea name="texto" defaultValue={q.sugerencia ?? ""} rows={3} maxLength={2000} className={`${CAMPO} w-full`} />
+              {q.firma && <span className="text-[11px] text-[#5C6B76]">Al mandarla se agrega al final la firma «{q.firma}» (si no la tiene).</span>}
             </label>
             <div className="flex flex-wrap gap-2">
               <button formAction={accionProponerRespuesta} className={SUAVE}>Proponer con IA</button>
@@ -191,10 +192,10 @@ async function Mensajes({ org, pack, canal, auto }: { org: string; pack?: string
   // contestar o al tocar "Actualizar").
   if (pack) await consulta("update meli_conversacion set sin_leer = 0 where organizacion_id = $1 and pack_id = $2 and sin_leer > 0", [org, pack]);
   const conversaciones = await consulta<{
-    pack_id: string; canal: string | null; pedido_id: number | null; cliente: string | null; sin_leer: number; ultimo_ts: Date | null; ultimo: string | null;
+    pack_id: string; canal: string | null; firma: string | null; pedido_id: number | null; cliente: string | null; sin_leer: number; ultimo_ts: Date | null; ultimo: string | null;
     pidio_persona: boolean;
   }>(`
-    select c.pack_id, ca.nombre canal, c.pedido_id::int, cl.nombre cliente, c.sin_leer, c.ultimo_ts, (c.pidio_persona_ts is not null) pidio_persona,
+    select c.pack_id, ca.nombre canal, nullif(trim(ca.config ->> 'firma'), '') firma, c.pedido_id::int, cl.nombre cliente, c.sin_leer, c.ultimo_ts, (c.pidio_persona_ts is not null) pidio_persona,
            (select m.texto from meli_mensaje m where m.organizacion_id = c.organizacion_id and m.pack_id = c.pack_id order by m.fecha desc limit 1) ultimo
       from meli_conversacion c
       left join canal ca on ca.id = c.canal_id
@@ -205,7 +206,7 @@ async function Mensajes({ org, pack, canal, auto }: { org: string; pack?: string
      limit 100`, [org, canal]);
   const elegida = pack ? conversaciones.find((c) => c.pack_id === pack)
     ?? await una<(typeof conversaciones)[number]>(`
-      select c.pack_id, ca.nombre canal, c.pedido_id::int, cl.nombre cliente, c.sin_leer, c.ultimo_ts, null ultimo, (c.pidio_persona_ts is not null) pidio_persona
+      select c.pack_id, ca.nombre canal, nullif(trim(ca.config ->> 'firma'), '') firma, c.pedido_id::int, cl.nombre cliente, c.sin_leer, c.ultimo_ts, null ultimo, (c.pidio_persona_ts is not null) pidio_persona
         from meli_conversacion c left join canal ca on ca.id = c.canal_id left join pedido p on p.id = c.pedido_id left join cliente cl on cl.id = p.cliente_id
        where c.organizacion_id = $1 and c.pack_id = $2`, [org, pack]) : null;
 
@@ -235,7 +236,7 @@ async function Mensajes({ org, pack, canal, auto }: { org: string; pack?: string
   );
 }
 
-async function Hilo({ org, conv, auto }: { org: string; conv: { pack_id: string; canal: string | null; pedido_id: number | null; cliente: string | null }; auto: boolean }) {
+async function Hilo({ org, conv, auto }: { org: string; conv: { pack_id: string; canal: string | null; firma: string | null; pedido_id: number | null; cliente: string | null }; auto: boolean }) {
   const mensajes = await consulta<{ id: string; de_vendedor: boolean; texto: string | null; fecha: Date; adjuntos: unknown[]; usuario: string | null; con_ia: boolean; auto: boolean }>(
     `select m.id, m.de_vendedor, m.texto, m.fecha, m.adjuntos, u.nombre usuario, m.con_ia, m.auto from meli_mensaje m left join usuarios u on u.id = m.usuario_id
       where m.organizacion_id = $1 and m.pack_id = $2 order by m.fecha`, [org, conv.pack_id]);
@@ -275,7 +276,7 @@ async function Hilo({ org, conv, auto }: { org: string; conv: { pack_id: string;
         <label className="block">
           <span className={ETIQUETA}>Mensaje{sug?.sugerencia ? " (lo propuso la IA: revisalo)" : ""}</span>
           <textarea name="texto" defaultValue={sug?.sugerencia ?? ""} rows={3} maxLength={350} className={`${CAMPO} w-full`} />
-          <span className="text-[11px] text-[#5C6B76]">Hasta 350 caracteres (el límite de Mercado Libre). Sin teléfonos, mails ni links.</span>
+          <span className="text-[11px] text-[#5C6B76]">Hasta 350 caracteres (el límite de Mercado Libre). Sin teléfonos, mails ni links.{conv.firma ? ` Al mandarlo se agrega al final la firma «${conv.firma}» (si no la tiene), que también cuenta.` : ""}</span>
         </label>
         <div className="flex flex-wrap gap-2">
           <button formAction={accionProponerMensaje} className={SUAVE}>Proponer con IA</button>
