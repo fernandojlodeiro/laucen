@@ -22,7 +22,7 @@ import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO,
 } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
-import { LISTA_PUBLICACIONES, DISPONIBLE_PUBLICACION, textoEstadoMl, PlanPublicacion, PLAN_PUBLICACION, CUOTAS_VISIBLES_PUBLICACION, ES_CATALOGO, PRECIO_PUBLICACION, TACHADO_PUBLICACION, CAMPANA_PUBLICACION, PRECIO_CAMPANA_PUBLICACION, ORDEN_PLAN_PUBLICACION, ORDEN_CANAL, MarcaCatalogo } from "./lista";
+import { LISTA_PUBLICACIONES, DISPONIBLE_PUBLICACION, textoEstadoMl, PlanPublicacion, PLAN_PUBLICACION, CUOTAS_VISIBLES_PUBLICACION, ES_CATALOGO, PRECIO_PUBLICACION, TACHADO_PUBLICACION, CAMPANA_PUBLICACION, PRECIO_CAMPANA_PUBLICACION, ORDEN_PLAN_PUBLICACION, ORDEN_CANAL, MarcaCatalogo, CAMPOS_PRECIO_COMPRADOR } from "./lista";
 import { accionGuardarPublicacion, accionPausarPublicacion, accionSacarPausa, accionCorregirPrecio, accionLeerMotivos, accionEliminarPublicacion } from "./acciones";
 import BotonEliminar from "./BotonEliminar";
 
@@ -45,6 +45,7 @@ type Fila = {
   sincronizada: string | null; stock_ml: number | null; estado_ml: string | null;
   precio: number | null; tachado: number | null; campana: string | null; precio_campana: number | null; plan: string | null; cuotas_visibles: number | null; catalogo: boolean; pausada_manual: boolean;
   motivo: string | null; solucion: string | null; por_precio: boolean | null; corregido: string | null; prohibida: boolean; motivo_leido: boolean;
+  paga_ml: number | null; tachado_ml: number | null; leido_ml: string | null; campana_ml: string | null;
 };
 
 const TONO_ESTADO: Record<string, "verde" | "amarillo" | "gris"> = { activa: "verde", pausada: "amarillo", cerrada: "gris" };
@@ -81,7 +82,7 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
            coalesce((select pf.url from producto_foto pf where pf.producto_id = p.id order by pf.orden, pf.id limit 1), mi.foto) foto,
            mm.motivo, mm.solucion, mm.por_precio, mm.item_id is not null motivo_leido,
            to_char(mm.precio_corregido_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') corregido,
-           coalesce((mi.datos_externos -> 'ml' -> 'sub_status') ? 'forbidden', false) prohibida`,
+           coalesce((mi.datos_externos -> 'ml' -> 'sub_status') ? 'forbidden', false) prohibida, ${CAMPOS_PRECIO_COMPRADOR}`,
     desde: base.desde,
     donde: base.donde,
     orden: leerOrden(sp, {
@@ -163,7 +164,10 @@ export default async function Publicaciones({ searchParams }: { searchParams: Pr
                     </form>
                   ) : f.precio != null ? (
                     // Como en ML (Fer, 8/10): grande lo que paga (la campaña en curso, si baja el precio), el de lista chico y tachado, % OFF y la campaña chiquita.
-                    f.precio_campana != null && f.precio_campana < f.precio
+                    // Lo que informa ML (según ML, hace …) si ya se leyó; si no, la cuenta con la campaña en curso.
+                    f.paga_ml != null
+                      ? <PrecioPublicacion paga={f.paga_ml} lista={f.tachado_ml} campana={f.campana_ml} texto={plata} leido={f.leido_ml} />
+                      : f.precio_campana != null && f.precio_campana < f.precio
                       ? <PrecioPublicacion paga={f.precio_campana} lista={Math.max(f.precio, f.tachado ?? 0)} campana={f.campana} texto={plata} />
                       : <PrecioPublicacion paga={f.precio} lista={f.tachado} campana={f.campana} texto={plata} />
                   ) : <span className="text-[#5C6B76]">—</span>}

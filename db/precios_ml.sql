@@ -124,6 +124,24 @@ create table if not exists ml_promo_leida (
 alter table ml_promo_leida enable row level security;
 select erp_politica_org('ml_promo_leida');
 
+-- Lo que Mercado Libre le muestra hoy al comprador en cada publicación (/items/{id}/sale_price): lo que paga, el
+-- tachado y la campaña que rige. Se lee al llegar el aviso de cambio de precio u oferta de ML, después de mandar un
+-- lote y en la lectura periódica; las pantallas lo muestran tal cual, con la hora en que se leyó.
+create table if not exists ml_precio_comprador (
+  canal_id         bigint not null references canal(id) on delete cascade,
+  item_id          text not null,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  monto            numeric(14,2),
+  regular          numeric(14,2),
+  promocion_id     text,
+  promocion_tipo   text,
+  leido_ts         timestamptz not null default now(),
+  error            text,
+  primary key (canal_id, item_id)
+);
+alter table ml_precio_comprador enable row level security;
+select erp_politica_org('ml_precio_comprador');
+
 -- El plan destacado de cada variación en cada canal (el que va al precio
 -- para ganar, en el recuadro "En cuotas"), elegido al preparar los cambios.
 -- La lectura periódica marca si dejó de ganar (alerta).

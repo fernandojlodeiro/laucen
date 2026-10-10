@@ -59,6 +59,14 @@ async function procesarUna(cuenta: CuentaMl, topic: string, recurso: string) {
       if (r.status === 200) await guardarItem(cuenta, r.datos);
       return;
     }
+    // Cambió el precio de venta o una oferta (campaña) de una publicación: se relee ya, así las pantallas
+    // muestran lo que ve el comprador con segundos de atraso (Fer, 10/10).
+    case "items_prices":
+    case "public_offers": {
+      const item = recurso.match(/MLA\d+/)?.[0];
+      if (item) await (await import("@/lib/precios-ml/lectura")).releerPublicacion(cuenta, item);
+      return;
+    }
     case "claims":
     case "claims_actions":
       return importarReclamoDeNotificacion(cuenta, recurso);

@@ -113,7 +113,32 @@ export async function leerPromosItem(org: string, canal: number, item: string, p
   const eventos = await registrarPromosDeItem(org, canal, item, filas, primera);
   await consulta(`insert into ml_promo_leida (canal_id, item_id, organizacion_id) values ($1, $2, $3)
     on conflict (canal_id, item_id) do update set leido_ts = now(), error = null`, [canal, item, org]);
+  // Y lo que ve el comprador (un error acá no frena la lectura de campañas).
+  try { await leerPrecioComprador(org, canal, item, pedir); } catch { /* queda la lectura anterior */ }
   return eventos;
+}
+
+/** Lo que Mercado Libre le muestra hoy al comprador (lo que paga, el tachado y la campaña que rige), tal cual lo dice ML. */
+export async function leerPrecioComprador(org: string, canal: number, item: string, pedir: (ruta: string) => Promise<RespuestaMl>): Promise<void> {
+  const r = await pedir(`/items/${item}/sale_price?context=channel_marketplace`);
+  const d = (r.status === 200 ? r.datos : null) as { amount?: number; regular_amount?: number | null; metadata?: { promotion_id?: string; promotion_type?: string } } | null;
+  if (!d || d.amount == null) {
+    await consulta(`insert into ml_precio_comprador (canal_id, item_id, organizacion_id, error) values ($1, $2, $3, $4)
+      on conflict (canal_id, item_id) do update set leido_ts = now(), error = excluded.error`, [canal, item, org, `ML contestó ${r.status}`]);
+    return;
+  }
+  await consulta(`insert into ml_precio_comprador (canal_id, item_id, organizacion_id, monto, regular, promocion_id, promocion_tipo) values ($1, $2, $3, $4, $5, $6, $7)
+    on conflict (canal_id, item_id) do update set monto = excluded.monto, regular = excluded.regular, promocion_id = excluded.promocion_id,
+      promocion_tipo = excluded.promocion_tipo, leido_ts = now(), error = null`,
+    [canal, item, org, d.amount, d.regular_amount ?? null, d.metadata?.promotion_id ?? null, d.metadata?.promotion_type ?? null]);
+}
+
+/** Una publicación al día ya mismo: sus campañas y lo que ve el comprador (aviso de ML de cambio de precio u oferta). */
+export async function releerPublicacion(cuenta: CuentaMl, item: string): Promise<void> {
+  if (!cuenta.canalId) return;
+  const pedir = (ruta: string) => ml(cuenta, "GET", ruta);
+  const ya = await consulta<{ x: number }>("select 1 x from ml_promo_leida where canal_id = $1 and item_id = $2", [cuenta.canalId, item]);
+  await leerPromosItem(cuenta.organizacionId, cuenta.canalId, item, !ya.length, pedir);
 }
 
 /** El destacado que dejó de ganar (según el último precio para ganar leído)

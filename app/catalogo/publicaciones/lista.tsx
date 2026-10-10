@@ -97,6 +97,11 @@ export const TACHADO_PUBLICACION = `(case when coalesce(nullif(mi.datos_externos
   then coalesce(nullif(mi.datos_externos -> 'ml' ->> 'original_price', '')::numeric, pu.precio_tachado)::float8 end)`;
 export const PRECIO_CAMPANA_PUBLICACION = `(select min(x.precio)::float8 from ml_promo_item x
    where x.canal_id = pu.canal_id and x.item_id = pu.id_externo and x.estado = 'started' and x.precio > 0 and (x.hasta is null or x.hasta > now()))`;
+/** Lo que Mercado Libre le muestra al comprador, tal cual lo informa ML (ml_precio_comprador), y cuándo se leyó. */
+export const UNIR_PRECIO_COMPRADOR = "left join ml_precio_comprador pc on pc.canal_id = pu.canal_id and pc.item_id = pu.id_externo and pc.monto is not null";
+export const CAMPOS_PRECIO_COMPRADOR = `pc.monto::float8 paga_ml, pc.regular::float8 tachado_ml, pc.leido_ts::text leido_ml,
+  case when pc.promocion_id is not null then coalesce((select coalesce(x.nombre, x.tipo) from ml_promo_item x where x.canal_id = pc.canal_id and x.item_id = pc.item_id
+    and x.promocion_id = pc.promocion_id limit 1), pc.promocion_tipo) end campana_ml`;
 export const CAMPANA_PUBLICACION = `(select string_agg(distinct coalesce(x.nombre, x.tipo), ' · ') from ml_promo_item x
    where x.canal_id = pu.canal_id and x.item_id = pu.id_externo and x.estado = 'started' and (x.hasta is null or x.hasta > now()))`;
 
@@ -122,6 +127,9 @@ export const LISTA_PUBLICACIONES: Lista = {
     { clave: "tachado", titulo: "Precio tachado $", sql: TACHADO_PUBLICACION, orden: false, formato: "pesos" },
     { clave: "campana", titulo: "Campaña activa", sql: CAMPANA_PUBLICACION, orden: false, ancho: 30 },
     { clave: "precio_campana", titulo: "Precio con campaña $", sql: PRECIO_CAMPANA_PUBLICACION, orden: false, formato: "pesos" },
+    { clave: "paga_ml", titulo: "Paga el comprador (según ML) $", sql: "pc.monto::float8", orden: false, formato: "pesos" },
+    { clave: "tachado_ml", titulo: "Tachado que ve el comprador (según ML) $", sql: "pc.regular::float8", orden: false, formato: "pesos" },
+    campoFecha("leido_ml", "Precio del comprador leído", "pc.leido_ts", { hora: true }),
     { clave: "pausada_manual", titulo: "Pausada por el usuario", sql: "case when pu.pausada_manual then 'Sí' end" },
     { clave: "stock_ml", titulo: "Stock en ML", sql: "mi.stock", formato: "entero" },
     { clave: "motivo_revision", titulo: "Motivo de la revisión en ML", sql: "mm.motivo", orden: false, ancho: 60 },
@@ -145,7 +153,8 @@ export const LISTA_PUBLICACIONES: Lista = {
         join producto p on p.id = v.producto_id
         join canal c on c.id = pu.canal_id
         ${UNIR_MELI_ITEM}
-        ${UNIR_MODERACION}`;
+        ${UNIR_MODERACION}
+        ${UNIR_PRECIO_COMPRADOR}`;
     const INACTIVOS = "($5 or p.estado <> 'archivado')";
     // Lo escrito, con la regla de lib/busqueda.ts ($4): los datos de la publicación, y SKU, código de barras y título de su producto.
     const donde = `pu.organizacion_id = $1

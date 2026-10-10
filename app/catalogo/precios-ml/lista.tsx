@@ -56,6 +56,8 @@ export type FilaPrevia = {
   ajuste: number | null;
   /** Las cuotas que ve el comprador en ese plan y las campañas propias en curso en ML. */
   cuotas: number | null; campana_ml: string | null;
+  /** Lo que Mercado Libre le muestra hoy al comprador, tal cual lo informa ML, y cuándo se leyó (si ya se leyó). */
+  comprador?: { paga: number; tachado: number | null; campana: string | null; leido: string } | null;
   /** Campañas en curso (todas, también las de ML) y a las que entraría o de las que saldría. */
   campanas: string | null;
 };
@@ -119,6 +121,13 @@ async function calcularFilas(org: string, canal: CanalMl, f: ReturnType<typeof f
     "select producto_id::int, array_agg(url order by orden) fotos from producto_foto where producto_id = any($1::bigint[]) group by producto_id", [productos]) : [])
     .map((x) => [x.producto_id, x.fotos]));
   const nombreFamilia = (id: number) => calculo.familias.nombre.get(id);
+  const items = [...new Set(propuestas.flatMap((x) => x.propuesta.pubs.map((pa) => pa.pub.itemId)))];
+  const comprador = new Map((items.length ? await consulta<{ item_id: string; paga: number; tachado: number | null; campana: string | null; leido: string }>(`
+    select pc.item_id, pc.monto::float8 paga, pc.regular::float8 tachado, pc.leido_ts::text leido,
+           case when pc.promocion_id is not null then coalesce((select coalesce(x.nombre, x.tipo) from ml_promo_item x where x.canal_id = pc.canal_id
+             and x.item_id = pc.item_id and x.promocion_id = pc.promocion_id limit 1), pc.promocion_tipo) end campana
+      from ml_precio_comprador pc where pc.canal_id = $1 and pc.item_id = any($2::text[]) and pc.monto is not null`, [canal.id, items]) : [])
+    .map((x) => [x.item_id, { paga: x.paga, tachado: x.tachado, campana: x.campana, leido: x.leido }]));
   const filas: FilaPrevia[] = [];
   for (const { info, propuesta: p } of propuestas) {
     const comun = {
@@ -136,6 +145,7 @@ async function calcularFilas(org: string, canal: CanalMl, f: ReturnType<typeof f
         campanas: textoCampanas(pa.pub.campanas, pa.entrar.map((c) => c.id), pa.salir.map((c) => c.id)),
         ...comun, id: `${pa.pub.publicacionId}`, item_id: pa.pub.itemId, variation_id: pa.pub.variationId, plan: pa.pub.plan, rol: pa.rol,
         lista: pa.lista, venta: pa.venta, ptw: pa.pub.priceToWin, ptw_estado: pa.pub.estadoPtw, precio_ml: pa.pub.precioListaMl, venta_ml: pa.pub.precioVentaMl,
+        comprador: comprador.get(pa.pub.itemId) ?? null,
         diferencia: pa.lista != null && pa.pub.precioListaMl != null ? Math.round(pa.lista - pa.pub.precioListaMl) : null,
         cambio, avisos: [...(i === 0 ? p.avisos : []), ...pa.avisos].join(" "), hay_cambio: !!cambio,
       });
@@ -211,8 +221,10 @@ const CAMPOS_PREVIA: Campo[] = [
   },
   {
     clave: "hoy_ml", titulo: "Hoy en ML", orden: false, usa: ["venta_ml", "precio_ml", "campana_ml"],
-    valor: (f) => f.venta_ml ?? f.precio_ml, formato: "pesos",
-    celda: (f) => (f.venta_ml ?? f.precio_ml) == null ? "—" : <PrecioPublicacion paga={(f.venta_ml ?? f.precio_ml)!} lista={f.precio_ml} campana={f.campana_ml} texto={(n) => formatear(n, "ARS")} />,
+    valor: (f) => f.comprador?.paga ?? f.venta_ml ?? f.precio_ml, formato: "pesos",
+    // Lo que informa ML (según ML, hace …) si ya se leyó; si no, la cuenta con la campaña en curso.
+    celda: (f) => f.comprador ? <PrecioPublicacion paga={f.comprador.paga} lista={f.comprador.tachado} campana={f.comprador.campana} texto={(n) => formatear(n, "ARS")} leido={f.comprador.leido} />
+      : (f.venta_ml ?? f.precio_ml) == null ? "—" : <PrecioPublicacion paga={(f.venta_ml ?? f.precio_ml)!} lista={f.precio_ml} campana={f.campana_ml} texto={(n) => formatear(n, "ARS")} />,
   },
   {
     clave: "campanas", titulo: "Campañas", ancho: 40, orden: false,
