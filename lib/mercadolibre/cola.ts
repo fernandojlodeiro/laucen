@@ -443,6 +443,13 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
               const { leerPromosItem } = await import("@/lib/precios-ml/lectura");
               const c = cuenta;
               await leerPromosItem(fila.organizacion_id, Number(fila.canal_id), item, fila.tipo === "crear", (ruta) => ml(c, "GET", ruta));
+              // ML tarda unos segundos en mostrar la publicación adentro de la campaña: si entraba a una y todavía figura
+              // afuera, queda para releer primero en la próxima lectura (Fer, 10/10: la vista previa la seguía proponiendo).
+              if (/Entra a|vuelve a entrar/.test(String((fila.payload as { descripcion?: string } | null)?.descripcion ?? ""))) {
+                await consulta(`update ml_promo_leida set leido_ts = '-infinity' where canal_id = $1 and item_id = $2
+                                   and not exists (select 1 from ml_promo_item p where p.canal_id = $1 and p.item_id = $2 and p.estado in ('started', 'pending'))`,
+                  [Number(fila.canal_id), item]);
+              }
             } catch { /* la lectura periódica la trae */ }
           }
           res.ok++;
