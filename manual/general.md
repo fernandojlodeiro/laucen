@@ -224,9 +224,14 @@ Donde hay un filtro de fechas, se ve en un renglón:
 2. Al elegir un atajo se llenan las dos fechas y **la lista se filtra al momento**.
 3. También podés tocar las fechas a mano (la de "desde" y la de "hasta"): filtra medio segundo después de que dejás de tocar, y el desplegable pasa a decir **"Personalizado"**.
 
+### Elegir de una lista larga (desplegable con buscador)
+
+Cuando hay que elegir algo de una lista de más de diez opciones (por ejemplo, la **marca** de un producto), el campo se despliega como una lista, pero **arriba se escribe para buscar**: no hace falta recorrerla. Muestra primero las que empiezan con lo escrito y después las que lo tienen en cualquier parte, sin importar mayúsculas ni acentos. Con las flechas y Enter también se elige; Escape cierra. La **×** saca lo elegido. Si lo escrito no existe y la lista lo permite, al final aparece el botón **«+ Crear «…»»**. Las listas cortas (hasta diez opciones) siguen siendo un desplegable común.
+
 ### Escribir números
 
 - Todo número se escribe y se ve **alineado a la derecha**.
+- Los cuadros de números (montos, pesos, medidas, cantidades) tienen un **ancho tope razonable**, igual en vista y en edición.
 - En precios (pesos o dólares), al salir del campo o al apretar Enter, el número se reescribe con **punto de miles** (por ejemplo, "70000" pasa a "70.000").
 - Los porcentajes se muestran con **un decimal** ("10,0").
 - Se acepta la coma o el punto como decimal: "7,1" y "7.1" valen lo mismo. Un punto que separa miles ("70.000") se toma como miles.

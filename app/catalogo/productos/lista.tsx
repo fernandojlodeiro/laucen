@@ -52,6 +52,8 @@ export function filtrosProductos(sp: SP) {
     tipo: sp.tipo && Object.hasOwn(TIPOS_PRODUCTO, sp.tipo) ? sp.tipo : "",
     // La familia elegida y todas las que cuelgan de ella.
     familia: Number(sp.familia) || 0,
+    // La marca (tabla de marcas).
+    marca: Number(sp.marca) || 0,
     // Los inactivos (archivados) sólo con la caja tildada, o si se los pide por estado.
     inactivos: verInactivos(sp) || estado === "archivado",
     kitVs: sp.kitvs === "1",
@@ -99,7 +101,7 @@ const CAMPOS: Campo[] = [
       </span>
     ),
   },
-  { clave: "marca", titulo: "Marca", sql: "p.marca", celda: (f) => f.marca ? <Link href={url("/catalogo/productos", { q: f.marca, contiene: null })} className={ENLACE}>{f.marca}</Link> : "—" },
+  { clave: "marca", titulo: "Marca", sql: "p.marca", celda: (f) => f.marca ? <Link href={url("/catalogo/productos", { marca: f.marca_id })} className={ENLACE}>{f.marca}</Link> : "—" },
   { clave: "modelo", titulo: "Modelo", sql: "p.modelo" },
   { clave: "linea", titulo: "Línea", sql: "p.linea" },
   {
@@ -164,7 +166,7 @@ export const LISTA_PRODUCTOS: Lista = {
   vistas: true,
   porDefecto: "titulo",
   enPantalla: ["sku", "titulo", "familia", "tipo", "variaciones", "publicaciones", "vendidos_ml", "disponible", "estado"],
-  siempre: `p.id::int id, p.familia_id::int familia_id, p.kit_vs, p.no_publicable, p.estado _estado,
+  siempre: `p.id::int id, p.familia_id::int familia_id, p.marca_id::int marca_id, p.kit_vs, p.no_publicable, p.estado _estado,
             ${PUBLICADO_ML}::int ml_n, ${CUENTAS_ML}::int ml_total,
             (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = p.id) fotos`,
   // Un precio por cada lista de precios (el de lista, de la variación principal, hoy).
@@ -199,8 +201,9 @@ export const LISTA_PRODUCTOS: Lista = {
                                       where v.producto_id = p.id and pu.estado = 'activa')))
          and (not $12 or p.no_publicable)
          and (not $13 or not p.no_publicable)
-         and ($14::int is null or ${PUBLICADO_ML} = $14::int)`;
-    const valores: unknown[] = [ctx.org, parametroBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn, f.sinCanal, f.noPublicable, f.publicables, f.enCuentas];
+         and ($14::int is null or ${PUBLICADO_ML} = $14::int)
+         and ($15::bigint = 0 or p.marca_id = $15::bigint)`;
+    const valores: unknown[] = [ctx.org, parametroBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn, f.sinCanal, f.noPublicable, f.publicables, f.enCuentas, f.marca];
     // Con algo escrito y la caja "Mostrar inactivos" apagada: si ningún activo coincide pero sí algún inactivo, se muestran igual (Fer).
     if (f.q && !f.inactivos) {
       const hay = await una<{ activos: boolean; todos: boolean }>(

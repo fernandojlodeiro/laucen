@@ -6,6 +6,7 @@ import type { Lista } from "@/lib/listas/tipos";
 import { LISTA_PRODUCTOS } from "@/app/catalogo/productos/lista";
 import { LISTA_FAMILIAS } from "@/app/catalogo/familias/lista";
 import { LISTA_CUCARDAS } from "@/app/catalogo/cucardas/lista";
+import { LISTA_MARCAS } from "@/app/catalogo/marcas/lista";
 import { LISTA_PRECIOS, LISTA_LISTAS_PRECIOS } from "@/app/catalogo/precios/lista";
 import { LISTA_PUBLICACIONES } from "@/app/catalogo/publicaciones/lista";
 import { LISTA_VINCULAR_ML } from "@/app/catalogo/publicaciones/ml/lista";
@@ -33,7 +34,7 @@ import { LISTA_ASISTENTE_HISTORIAL } from "@/app/config/asistente/lista";
 
 export const LISTAS: Record<string, Lista> = Object.fromEntries(
   [
-    LISTA_PRODUCTOS, LISTA_FAMILIAS, LISTA_CUCARDAS, LISTA_LISTAS_PRECIOS, LISTA_PRECIOS, LISTA_PUBLICACIONES, LISTA_VINCULAR_ML,
+    LISTA_PRODUCTOS, LISTA_FAMILIAS, LISTA_MARCAS, LISTA_CUCARDAS, LISTA_LISTAS_PRECIOS, LISTA_PRECIOS, LISTA_PUBLICACIONES, LISTA_VINCULAR_ML,
     LISTA_PEDIDOS, LISTA_CLIENTES, LISTA_ENVIOS, LISTA_RECLAMOS,
     LISTA_PROVEEDORES, LISTA_FACTURAS_COMPRA, LISTA_DESPACHOS,
     LISTA_FACTURACION, LISTA_TESORERIA, LISTA_CC_CLIENTES, LISTA_CC_PROVEEDORES,

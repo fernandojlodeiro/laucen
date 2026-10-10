@@ -6,6 +6,7 @@
 // app/componentes/CampoNumero.tsx.
 
 import { coincideBusqueda as coincideTodas } from "@/lib/busqueda";
+import { ANCHO_NUMERO } from "@/lib/numeros";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sesionRequerida, type Sesion } from "@/lib/tenancy";
@@ -128,7 +129,7 @@ export function ValorVista({ children, numero = false, largo = false, className 
 }) {
   const vacio = children == null || children === "" || children === false;
   return (
-    <div className={`${largo ? VISTA_LARGA : VISTA} ${numero ? "text-right tabular-nums" : ""} ${className}`}>
+    <div className={`${largo ? VISTA_LARGA : VISTA} ${numero ? `text-right tabular-nums ${ANCHO_NUMERO}` : ""} ${className}`}>
       {vacio ? <span className="text-[#5C6B76]">—</span> : children}
     </div>
   );

@@ -80,6 +80,55 @@ create index if not exists producto_familia on producto (familia_id);
 alter table producto enable row level security;
 select erp_politica_org('producto');
 
+-- ── Marcas (Fer, 10/10) ───────────────────────────────────
+-- Una tabla, para que no se escriban mal y sirvan de filtro en los informes.
+-- El producto guarda marca_id y, al lado, el nombre (producto.marca) que leen
+-- todas las pantallas, la API y Mercado Libre: lo mantiene la base sola. Quien
+-- escribe sólo el texto (importar de ML o de Virtual Seller) igual queda
+-- enganchado: si la marca existe (sin importar mayúsculas) toma esa; si no, se
+-- crea.
+create table if not exists marca (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  nombre           text not null check (trim(nombre) <> ''),
+  creado_ts        timestamptz not null default now()
+);
+create unique index if not exists marca_nombre on marca (organizacion_id, lower(trim(nombre)));
+alter table marca enable row level security;
+select erp_politica_org('marca');
+alter table producto add column if not exists marca_id bigint references marca(id) on delete set null;
+create index if not exists producto_marca on producto (marca_id);
+
+create or replace function producto_marca_sync() returns trigger
+language plpgsql as $$
+declare
+  v_id bigint; v_nombre text;
+begin
+  if new.marca_id is not null and (tg_op = 'INSERT' or new.marca_id is distinct from old.marca_id) then
+    select nombre into new.marca from marca where id = new.marca_id and organizacion_id = new.organizacion_id;
+    if not found then new.marca_id := null; end if;
+    return new;
+  end if;
+  if new.marca is null or trim(new.marca) = '' then
+    new.marca := null; new.marca_id := null;
+    return new;
+  end if;
+  select id, nombre into v_id, v_nombre from marca where organizacion_id = new.organizacion_id and lower(trim(nombre)) = lower(trim(new.marca));
+  if not found then
+    insert into marca (organizacion_id, nombre) values (new.organizacion_id, trim(new.marca))
+    on conflict do nothing returning id, nombre into v_id, v_nombre;
+    if v_id is null then
+      select id, nombre into v_id, v_nombre from marca where organizacion_id = new.organizacion_id and lower(trim(nombre)) = lower(trim(new.marca));
+    end if;
+  end if;
+  new.marca_id := v_id; new.marca := v_nombre;
+  return new;
+end $$;
+create or replace trigger producto_marca_sync before insert or update of marca, marca_id on producto
+  for each row execute function producto_marca_sync();
+-- Los que tienen el texto y todavía no la marca (la primera vez, todos; después, ninguno).
+update producto set marca = marca where marca is not null and marca_id is null;
+
 create table if not exists producto_foto (
   id               bigint generated always as identity primary key,
   organizacion_id  text not null references organizaciones(id) on delete cascade,

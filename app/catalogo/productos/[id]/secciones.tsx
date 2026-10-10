@@ -26,7 +26,10 @@ import {
 import { EstadoProducto, TIPOS_PRODUCTO, ESTADOS_PRODUCTO, ESTADOS_VARIACION, CONDICIONES, condicionDe } from "../comun";
 import SubirFoto from "../SubirFoto";
 import AltaNueva from "@/app/componentes/AltaNueva";
-import ElegirFamilia from "@/app/componentes/ElegirFamilia";
+import ElegirDeLista from "@/app/componentes/ElegirDeLista";
+import FamiliaConLupa from "@/app/catalogo/productos/FamiliaConLupa";
+import { opcionesMarcas } from "@/lib/catalogo/marcas";
+import { accionCrearMarcaDesdeFicha } from "@/app/catalogo/marcas/acciones";
 import { caminoDeFamilia } from "@/lib/erp/familias";
 import { UNIR_MELI_ITEM, textoEstadoMl, PlanPublicacion, PLAN_PUBLICACION, CUOTAS_VISIBLES_PUBLICACION, ES_CATALOGO, MarcaCatalogo, rangoPlan, UNIR_PRECIO_COMPRADOR, CAMPOS_PRECIO_COMPRADOR } from "@/app/catalogo/publicaciones/lista";
 import { UNIR_MODERACION } from "@/lib/mercadolibre/moderaciones";
@@ -36,7 +39,7 @@ import { ThOrden } from "@/app/componentes/Lista";
 
 export type Producto = {
   id: number; sku_base: string; titulo: string; descripcion: string | null; familia_id: number | null; familia: string | null;
-  marca: string | null; tipo: string; estado: string; codigo_barras: string | null; peso_g: number | null;
+  marca: string | null; marca_id: number | null; tipo: string; estado: string; codigo_barras: string | null; peso_g: number | null;
   largo_cm: number | null; ancho_cm: number | null; alto_cm: number | null; descuento_pct: number | null;
   umbral_pausa: number | null; stock_minimo: number | null; descuento_familia: number | null; umbral_org: string | null;
   variacion_default: number | null;
@@ -171,8 +174,10 @@ const atributosMl = (x: unknown): AtributoMl[] => (Array.isArray(x) ? x.filter((
 const ALICUOTAS_IVA = [["21", "21 %"], ["10.5", "10,5 %"], ["27", "27 %"], ["5", "5 %"], ["2.5", "2,5 %"], ["0", "0 %"]] as const;
 
 export async function SeccionDatos({ s, p, seccion, editando }: Props) {
-  // La familia se elige con buscador (ElegirFamilia); se muestra con su camino.
+  // La familia se elige con buscador (ElegirFamilia) y su lupa de Mercado Libre; se muestra con su camino.
   const caminoFamilia = await caminoDeFamilia(s.org.id, p.familia_id);
+  // Las marcas, de su tabla (desplegable con buscador).
+  const marcas = editando ? await opcionesMarcas(s.org.id) : [];
   // La alícuota de IVA (facturación) se lee aparte: la consulta del producto está en page.tsx.
   const iva = await consulta<{ iva_pct: string }>("select iva_pct::text from producto where id = $1 and organizacion_id = $2", [p.id, s.org.id]);
   const ivaPct = String(Number(iva[0]?.iva_pct ?? 21));
@@ -213,7 +218,7 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
         <Dato etiqueta="SKU base"><span className="font-mono">{p.sku_base}</span></Dato>
         <Dato etiqueta="Título" className="col-span-1 sm:col-span-3">{p.titulo}</Dato>
         <Dato etiqueta="Familia">{p.familia_id && <span className="block truncate" title={caminoFamilia ?? undefined}>{caminoFamilia ?? p.familia}</span>}</Dato>
-        <Dato etiqueta="Marca">{p.marca}</Dato>
+        <Dato etiqueta="Marca">{p.marca_id && <Link href={`/catalogo/productos?marca=${p.marca_id}`} className="text-[#16577F] hover:underline">{p.marca}</Link>}</Dato>
         <Dato etiqueta="Tipo">{TIPOS_PRODUCTO[p.tipo] ?? p.tipo}</Dato>
         <Dato etiqueta="Estado"><EstadoProducto estado={p.estado} /></Dato>
         {conVariaciones
@@ -256,9 +261,11 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
       <label><span className={ETIQUETA}>SKU base</span><input name="sku_base" defaultValue={p.sku_base} className={`${CAMPO} w-full font-mono`} /></label>
       <label className="col-span-1 sm:col-span-3"><span className={ETIQUETA}>Título</span><input name="titulo" defaultValue={p.titulo} className={`${CAMPO} w-full`} autoFocus /></label>
       <div><span className={ETIQUETA}>Familia</span>
-        <ElegirFamilia name="familia_id" valor={p.familia_id} etiqueta={caminoFamilia} />
+        <FamiliaConLupa name="familia_id" valor={p.familia_id} etiqueta={caminoFamilia} />
       </div>
-      <label><span className={ETIQUETA}>Marca</span><input name="marca" defaultValue={p.marca ?? ""} className={`${CAMPO} w-full`} /></label>
+      <div><span className={ETIQUETA}>Marca</span>
+        <ElegirDeLista name="marca_id" opciones={marcas} valor={p.marca_id} vacio="Sin marca" placeholder="Buscá la marca…" etiqueta="Marca" crear={accionCrearMarcaDesdeFicha} />
+      </div>
       <label><span className={ETIQUETA}>Tipo</span>
         <select name="tipo" defaultValue={p.tipo} className={`${CAMPO} w-full`}>
           {Object.entries(TIPOS_PRODUCTO).map(([k, t]) => <option key={k} value={k}>{t}</option>)}

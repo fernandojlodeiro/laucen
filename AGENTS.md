@@ -218,6 +218,11 @@ Buscadores (pedido de Fer, 2/10):
   tipea, por nombre o camino ("Electrónica › Componentes"), y muestra el camino. Sirve para un
   formulario (`name`), para un filtro de lista (`parametro`) y para elegir padre (`propias`,
   `excluir`). El filtro por familia incluye sus subfamilias.
+- **Elegir de una tabla con más de 10 opciones** (pedido de Fer, 10/10): nunca un desplegable largo que
+  hay que recorrer a mano. Se despliega igual, pero arriba se escribe para buscar
+  (`app/componentes/ElegirDeLista.tsx`: opciones enteras, para cientos; con `crear`, un botón «+ Crear «…»»;
+  para miles, buscar en el servidor como `ElegirFamilia`). Hasta 10 opciones, un `<select>` común. Ej.: la
+  marca del producto (tabla `marca`, Catálogo › Marcas).
 - Busca mientras se tipea (desde la segunda letra), sin botón "Buscar" ni "Limpiar": una X
   adentro del cuadro borra lo escrito. Con la caja **"Comienza por"**, tildada de entrada
   (coincidencia al principio del texto; destildada, en cualquier parte). Componente:
@@ -233,6 +238,9 @@ dos fechas y filtra al momento (cambia la dirección, como el buscador); días e
 Campos numéricos (pedido de Fer, 27/9): usar `app/componentes/CampoNumero.tsx` y leer con
 `leerNumero()` de `lib/numeros.ts`.
 - Todo número va **alineado a la derecha**.
+- **Ancho razonable** (pedido de Fer, 10/10): un monto, un peso, una medida o una cantidad no ocupa un cuadro de
+  200 letras. `CampoNumero` y el marco de vista de un número (`Dato`/`ValorVista` con `numero`) llevan el tope
+  `ANCHO_NUMERO` de `lib/numeros.ts`, así pasar de vista a edición no mueve nada.
 - Precios (pesos o dólares): al salir del campo o con Enter se reescriben con **punto de
   miles**. Porcentajes: **un decimal**. Enter en un campo no envía el formulario.
 - Se acepta "7,1" y "7.1" (un punto que no separa miles es la coma decimal).

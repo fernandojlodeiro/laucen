@@ -2,6 +2,11 @@
 // del lado del navegador (formatear al salir del campo) y del servidor (leer
 // lo que llegó en el formulario).
 
+/** El ancho tope de un número (Fer, 10/10): un monto, un peso o una medida no necesita un cuadro de
+ *  200 letras. Lo usan el campo (CampoNumero) y su marco de vista (ValorVista / Dato con `numero`),
+ *  así pasar de vista a edición no mueve nada. */
+export const ANCHO_NUMERO = "max-w-[9rem]";
+
 export type TipoNumero = "pesos" | "usd" | "pct" | "entero" | "decimal";
 
 /** Lee un número escrito a mano: "70.000" = 70000, "7,1" = 7.1 y también

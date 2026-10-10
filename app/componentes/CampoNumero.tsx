@@ -5,7 +5,7 @@
 // precios, un decimal en porcentajes). Enter no envía el formulario.
 
 import { useState } from "react";
-import { formatearNumero, leerNumero, type TipoNumero } from "@/lib/numeros";
+import { formatearNumero, leerNumero, ANCHO_NUMERO, type TipoNumero } from "@/lib/numeros";
 
 export default function CampoNumero({ name, valor, tipo, className = "", placeholder, form }: {
   name: string; valor: number | null | undefined; tipo: TipoNumero; className?: string; placeholder?: string;
@@ -21,6 +21,6 @@ export default function CampoNumero({ name, valor, tipo, className = "", placeho
     <input name={name} form={form} value={texto} placeholder={placeholder} inputMode={tipo === "entero" ? "numeric" : "decimal"}
       onChange={(e) => setTexto(e.target.value)} onBlur={ordenar}
       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); ordenar(); } }}
-      className={`${className} text-right tabular-nums`} />
+      className={`${className} text-right tabular-nums ${ANCHO_NUMERO}`} />
   );
 }

@@ -52,6 +52,7 @@ export const MENU: SeccionMenu[] = [
     items: [
       { texto: "Productos", href: "/catalogo/productos", permiso: "productos_ver", icono: "📦" },
       { texto: "Familias", href: "/catalogo/familias", permiso: "familias_ver" },
+      { texto: "Marcas", href: "/catalogo/marcas", permiso: "productos_ver" },
       { texto: "Cucardas", href: "/catalogo/cucardas", permiso: "cucardas_ver" },
       { texto: "Listas de precios", href: "/catalogo/precios", permiso: "precios_ver" },
       { texto: "Precios en Mercado Libre", href: "/catalogo/precios-ml", permiso: "precios_ml_ver" },

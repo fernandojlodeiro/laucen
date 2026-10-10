@@ -16,6 +16,8 @@ import { revalidateTag } from "next/cache";
 import { publicarEnWeb, marcarNoPublicable } from "@/lib/catalogo/web";
 import { duplicarProducto } from "@/lib/catalogo/duplicar";
 import { exigirSkuLibre } from "@/lib/catalogo/sku";
+import { marcaValida } from "@/lib/catalogo/marcas";
+import { sugerirCategoriasMl, familiaDeCategoriaMl } from "@/lib/catalogo/categoria-ml";
 import { prepararSkuMl } from "@/lib/mercadolibre/sku-ml";
 
 const LISTADO = "/catalogo/productos";
@@ -95,12 +97,20 @@ export async function accionCrearProducto(fd: FormData) {
     if (!sku || !titulo) throw new ErrorErp("El producto necesita SKU base y título.");
     await exigirSkuLibre(s.org.id, sku);
     const tipo = TIPOS.includes(String(fd.get("tipo"))) ? String(fd.get("tipo")) : "simple";
-    const familia = await familiaValida(s.org.id, id(fd, "familia_id"));
+    let familia = await familiaValida(s.org.id, id(fd, "familia_id"));
+    // Sin familia elegida: la que sugiere Mercado Libre para el título (si ML no contesta, queda sin familia).
+    let sugerida: string | null = null;
+    if (!familia) {
+      const cat = (await sugerirCategoriasMl(s.org.id, titulo).catch(() => []))[0];
+      const f = cat ? await familiaDeCategoriaMl(s.org.id, cat.categoria).catch(() => null) : null;
+      if (f) { familia = f.id; sugerida = f.camino; }
+    }
     const r = await una<{ id: number }>(
-      "insert into producto (organizacion_id, sku_base, titulo, tipo, familia_id) values ($1, $2, $3, $4, $5) returning id::int",
+      "insert into producto (organizacion_id, sku_base, titulo, tipo, familia_id, categoria_ml) values ($1, $2, $3, $4, $5, (select ml_categoria from familia where id = $5)) returning id::int",
       [s.org.id, sku, titulo, tipo, familia]);
     revalidatePath(LISTADO);
-    return { ir: `${LISTADO}/${r!.id}?ok=${encodeURIComponent("Producto creado. Completá la ficha.")}` };
+    const aviso = sugerida ? `Producto creado, en la familia que sugiere Mercado Libre: ${sugerida}. Completá la ficha.` : "Producto creado. Completá la ficha.";
+    return { ir: `${LISTADO}/${r!.id}?ok=${encodeURIComponent(aviso)}` };
   });
 }
 
@@ -124,7 +134,7 @@ export async function accionGuardarDatos(fd: FormData) {
     const estado = ["activo", "pausado", "archivado"].includes(String(fd.get("estado"))) ? String(fd.get("estado")) : "activo";
     const familia = await familiaValida(s.org.id, id(fd, "familia_id"));
     const valores = [
-      s.org.id, pid, sku, titulo, texto(fd, "descripcion"), familia, texto(fd, "marca"), tipo, estado,
+      s.org.id, pid, sku, titulo, texto(fd, "descripcion"), familia, await marcaValida(s.org.id, id(fd, "marca_id")), tipo, estado,
       tipo === "con_variaciones" ? null : texto(fd, "codigo_barras"),
       entero(fd, "peso_g"), numero(fd, "largo_cm"), numero(fd, "ancho_cm"), numero(fd, "alto_cm"),
       pct(fd, "descuento_pct"), entero(fd, "umbral_pausa"), entero(fd, "stock_minimo"),
@@ -147,7 +157,12 @@ export async function accionGuardarDatos(fd: FormData) {
       // El disparador de la base cuida la variación default (y tira el error
       // en criollo si pasa a simple/kit con más de una variación).
       await c.query(`
-        update producto set sku_base = $3, titulo = $4, descripcion = $5, familia_id = $6, marca = $7, tipo = $8, estado = $9,
+        update producto set sku_base = $3, titulo = $4, descripcion = $5, familia_id = $6,
+               -- La marca sale de su tabla (la base pone el nombre); sin marca, también sin el texto.
+               marca_id = $7, marca = case when $7::bigint is null then null else marca end,
+               -- Si cambió la familia, la categoría de ML para publicar pasa a ser la de la familia nueva.
+               categoria_ml = case when familia_id is distinct from $6 then (select ml_categoria from familia where id = $6) else categoria_ml end,
+               tipo = $8, estado = $9,
                codigo_barras = $10, peso_g = $11, largo_cm = $12, ancho_cm = $13, alto_cm = $14,
                descuento_pct = $15, umbral_pausa = $16, stock_minimo = $17, iva_pct = coalesce($18, iva_pct),
                modelo = $19, linea = $20, garantia = $21, condicion = $22, kit_vs = $23, precio_en_dolares = $24, actualizado_ts = now()

@@ -34,6 +34,7 @@ Filtros (filtran al momento, sin botón "Buscar"):
 - **Mostrar inactivos**: sin tildar, los productos inactivos no aparecen.
 - **Estado**: Todos los estados / Activo / Pausado / Inactivo. Elegir "Inactivo" los muestra aunque no esté tildado "Mostrar inactivos".
 - **Familia**: buscador de familias (tipeás parte del nombre o del camino, ej. "Electrónica › Componentes"). Incluye las subfamilias de la elegida.
+- **Marca**: desplegable con buscador (de [Marcas](/catalogo/marcas)); "Todas las marcas" saca el filtro.
 - **Tipo**: Todos los tipos / Simple / Con variaciones / Kit.
 - **Kits de Virtual Seller**: sólo los marcados como kit que vino de Virtual Seller y hay que armar a mano.
 - **Sin publicar en ningún canal**: productos que no tienen ninguna publicación activa en ningún canal (ninguna cuenta de Mercado Libre ni la web). Los **No publicables** no aparecen.
@@ -83,7 +84,7 @@ Pestañas (cada una muestra entre paréntesis cuántas cosas tiene):
 #### Pestaña Datos
 
 Abre en modo vista (los datos en sus marcos, sin poder tocarlos). Con el lápiz se editan:
-- **SKU base**, **Título**, **Familia** (buscador), **Marca**, **Tipo** (Simple / Con variaciones / Kit; ayuda: "A simple o kit, sólo con una variación."), **Estado** (Activo / Pausado / Inactivo).
+- **SKU base**, **Título**, **Familia** (buscador, con la lupa 🔍 al lado; ver abajo), **Marca** (desplegable con buscador, de la lista de [Marcas](/catalogo/marcas); si no está, el botón **«+ Crear «…»»** al final de la lista la crea), **Tipo** (Simple / Con variaciones / Kit; ayuda: "A simple o kit, sólo con una variación."), **Estado** (Activo / Pausado / Inactivo).
 - **Código de barras**: en un producto con variaciones dice "Va en cada variación."
 - **Modelo**, **Línea**, **Garantía** (ej. "6 meses"), **Condición** (Sin indicar / Nuevo / Usado / Reacondicionado).
 - **Costo FOB** con su moneda (USD o ARS). Debajo, en gris, el costo "Puesto en depósito: promedio … · último … — sale de compras" (o "Sin costo en depósito todavía (sale de compras)."). En un producto con variaciones dice "Va en cada variación."; en un kit no se carga: muestra la suma de sus componentes.
@@ -159,8 +160,8 @@ Arriba de todo, el interruptor **No publicable (insumo o parte de otro)**: prend
 ### Crear un producto
 
 1. En [Productos](/catalogo/productos), apretá **+ Nuevo producto**.
-2. El **SKU base** ya viene sugerido: el que sigue al SKU más alto de la empresa (por ejemplo, si el más alto es SKU03554, propone SKU03555). Lo podés cambiar. Completá el **Título** (los dos son obligatorios), elegí el **Tipo** (Simple, Con variaciones o Kit) y, si querés, la **Familia**.
-3. Apretá **Crear**. Se abre la ficha con el aviso "Producto creado. Completá la ficha."
+2. El **SKU base** ya viene sugerido: el que sigue al SKU más alto de la empresa (por ejemplo, si el más alto es SKU03554, propone SKU03555). Lo podés cambiar. Completá el **Título** (los dos son obligatorios), elegí el **Tipo** (Simple, Con variaciones o Kit) y, si querés, la **Familia** (con la lupa 🔍 de al lado, Mercado Libre te sugiere cuál, según el título escrito).
+3. Apretá **Crear**. Se abre la ficha con el aviso "Producto creado. Completá la ficha." Si no elegiste familia, el sistema le pone la que sugiere Mercado Libre para el título y lo dice en el aviso ("…en la familia que sugiere Mercado Libre: …"); si Mercado Libre no contesta, queda sin familia.
 4. Completá el resto en la pestaña Datos (lápiz → Grabar).
 
 Si falta el SKU o el título: "El producto necesita SKU base y título." **Ningún SKU se puede repetir** dentro de la empresa, ni entre productos ni con el de una variación de otro producto, y sin importar mayúsculas: si ya existe, avisa "El SKU … ya existe: elegí otro." y no graba (lo mismo al cambiar el SKU de un producto o de una variación).
@@ -168,6 +169,16 @@ Si falta el SKU o el título: "El producto necesita SKU base y título." **Ning�
 **Cambiar el SKU de algo que está publicado en Mercado Libre**: al grabar, el SKU cambia en Laucen y queda **preparado un lote** con el cambio de SKU en cada una de sus publicaciones de Mercado Libre. Se abre la [Cola de Mercado Libre](/config/canales/cola) en ese lote: nada sale hasta apretar **«Mandar a Mercado Libre»**. Así el SKU queda igual en Laucen y en todas las cuentas.
 
 **SKU sugerido**: el formato de la casa es «SKU» seguido de un número de 5 cifras (6 cuando pasa de 99999). Se busca el número más alto entre todos los SKU con ese formato (los de las variaciones también, y los que siguen con un agregado, como «SKU03542-BC») y se propone el siguiente. Los SKU con otro formato no cuentan.
+
+### Comprobar la familia con Mercado Libre (la lupa 🔍)
+
+Al lado del buscador de **Familia** (en el alta y en la ficha, en edición) está la lupa **🔍**. Al pasar el mouse explica qué hace. Al apretarla:
+
+1. Se le pregunta a Mercado Libre en qué categoría pondría un producto con el **título que está escrito** en el formulario (no hace falta grabar antes).
+2. Se abre un globo con hasta tres categorías sugeridas (la primera es la más probable), con su camino completo, y si la familia elegida **coincide** ("✓ Coincide con la que sugiere Mercado Libre"), si **está entre las sugeridas pero no es la primera**, o si **no coincide** ("⚠ No coincide").
+3. **«Usar ésta»** pone esa familia en el campo. Si todavía no existía en el árbol de familias, se crea con todo su camino. Se graba con el resto de la ficha (**Grabar**).
+
+Las familias son las categorías de Mercado Libre: elegir bien la familia es elegir la categoría con la que se publica. Al cambiar la familia de un producto, la categoría para publicarlo en Mercado Libre pasa a ser la de la familia nueva.
 
 ### Editar los datos de un producto
 
