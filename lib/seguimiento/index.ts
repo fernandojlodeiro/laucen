@@ -170,8 +170,11 @@ export async function buscarParaSeguir(org: string, productoId: number, texto: s
     const u = cuentas[0] ? await ml<{ nickname?: string }>(cuentas[0], "GET", `/users/${v}`).catch(() => null) : null;
     if (u?.status === 200 && u.datos.nickname) ids.set(v, u.datos.nickname);
   }
-  const propiasIds = new Set((await consulta<{ item_id: string }>("select distinct item_id from meli_item where organizacion_id = $1 and item_id = any($2::text[])",
-    [org, lista.map((p) => p.itemId)])).map((r) => r.item_id));
+  // Las nuestras: por el número de publicación o, en un «producto de vendedor» (MLAU…), por el suyo.
+  const propiasIds = new Set((await consulta<{ id: string }>(`
+    select item_id id from meli_item where organizacion_id = $1 and item_id = any($2::text[])
+    union select datos_externos #>> '{ml,user_product_id}' from meli_item where organizacion_id = $1 and datos_externos #>> '{ml,user_product_id}' = any($2::text[])`,
+    [org, lista.map((p) => p.itemId)])).map((r) => r.id));
   const vistos = new Set<string>();
   const resultados = lista
     .filter((p) => !vistos.has(p.itemId) && !!vistos.add(p.itemId))
