@@ -16,6 +16,8 @@ import { campanaPropiaDe } from "@/lib/precios-ml/campana-propia";
 export type CanalMl = {
   id: number; nombre: string; listaId: number | null; lista: string | null;
   sincronizarPrecios: boolean; leerPrecioGanar: boolean; reglaStock: boolean;
+  /** Sacar solo el envío gratis de las publicaciones de menos del umbral (lib/precios-ml/envio-gratis.ts). */
+  sacarEnvioGratis: boolean;
 };
 
 const bool = (v: unknown, defecto: boolean) => (v === true || v === "true" ? true : v === false || v === "false" ? false : defecto);
@@ -35,6 +37,7 @@ export async function canalesMl(org: string): Promise<CanalMl[]> {
     sincronizarPrecios: bool(f.config?.sincronizar_precios, false),
     leerPrecioGanar: bool(f.config?.leer_precio_ganar, true),
     reglaStock: bool(f.config?.volumen_regla_stock, true),
+    sacarEnvioGratis: bool(f.config?.sacar_envio_gratis, false),
   }));
 }
 
@@ -59,7 +62,7 @@ export async function reglasCanal(org: string, canal: CanalMl): Promise<ReglasCa
   const [grupos, barrera, canales] = await Promise.all([gruposPlanes(org), barreraPlanes(), canalesMl(org)]);
   planes.push(...reglasDeGrupos(grupos, barrera));
   return { tachado, planes, volumen: volumen.map((v) => ({ ...v, escalones: normalizarEscalones(v.escalones) })), reglaStock: canal.reglaStock,
-    ajusteGrupo: ajustesDeGrupos(grupos, canal.id, canales.map((c) => c.id)), campanaPropia: await campanaPropiaDe(org, canal.id) };
+    ajusteGrupo: ajustesDeGrupos(grupos, canal.id, canales.map((c) => c.id)), campanaPropia: await campanaPropiaDe(org, canal.id), envioGratis: barrera };
 }
 
 /** Las comisiones vigentes por categoría de ML y el promedio (para las que
@@ -304,7 +307,7 @@ export async function replicarVolumen(org: string, canal: number): Promise<numbe
 }
 
 /** Prende o apaga un interruptor del canal (canal.config). */
-export async function fijarInterruptor(org: string, canal: number, clave: "sincronizar_precios" | "leer_precio_ganar" | "volumen_regla_stock", valor: boolean): Promise<void> {
+export async function fijarInterruptor(org: string, canal: number, clave: "sincronizar_precios" | "leer_precio_ganar" | "volumen_regla_stock" | "sacar_envio_gratis", valor: boolean): Promise<void> {
   await canalMl(org, canal);
   await consulta("update canal set config = config || jsonb_build_object($3::text, $4::boolean) where id = $2 and organizacion_id = $1", [org, canal, clave, valor]);
 }

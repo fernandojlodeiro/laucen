@@ -44,6 +44,13 @@ export async function GET(req: Request) {
         try {
           const auto = await vueltaAutomatica();
           if (Object.keys(auto).length) console.log("[meli] precios automáticos", JSON.stringify(auto));
+          // Una vez por día: envío gratis puesto en publicaciones más baratas que el umbral (lib/precios-ml/envio-gratis.ts).
+          try {
+            const eg = await (await import("@/lib/precios-ml/envio-gratis")).revisarEnvioGratis();
+            if (Object.keys(eg).length) console.log("[meli] envío gratis de más", JSON.stringify(eg));
+          } catch (e) {
+            console.error("[meli] envío gratis", e instanceof Error ? e.message : e);
+          }
           if (t0 + 105_000 - Date.now() > 10_000) console.log("[meli] lecturas de precios", JSON.stringify(await leerPreciosMl(t0 + 105_000, { tanda: 1000 })));
         } catch (e) {
           console.error("[meli] precios", e instanceof Error ? e.message : e);

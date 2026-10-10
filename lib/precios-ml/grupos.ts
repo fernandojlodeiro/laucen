@@ -3,8 +3,9 @@
 // cuántas cuotas ve el comprador en cada uno (a mano: ML no lo informa) y el
 // % extra sobre lo que deja la Clásica. Vale para todas las cuentas de ML;
 // por cuenta queda sólo «¿gana?» (ml_plan_config.ajuste_pct). Los planes van
-// desde la Clásica en que ML empieza a dar envío gratis (la barrera, 33.000):
-// abajo de eso, sólo la Clásica.
+// desde la Clásica que se elige por plan («Desde $»; vacío = desde la Clásica en
+// que ML empieza a dar envío gratis, la barrera, 33.000). Ningún plan se crea si
+// su precio cae en la franja de 10 % abajo del envío gratis (Fer, 10/10).
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { PLANES, comisionesDe, type Comisiones, type FilaComision, type Lugar, type Plan, type PlanOClasica, type ReglasPlan } from "@/lib/precios-ml/motor";
@@ -13,7 +14,9 @@ import { PLANES, comisionesDe, type Comisiones, type FilaComision, type Lugar, t
 export type Gana = number | "rota";
 export const PUBLICACIONES_GANA = ["clasica", ...PLANES] as const;
 
-export type PlanGrupo = { usar: boolean; cuotasVisibles: number | null; margenPct: number | null };
+export type PlanGrupo = { usar: boolean; cuotasVisibles: number | null; margenPct: number | null;
+  /** Desde qué Clásica va el plan: null = desde el envío gratis; 0 = siempre. */
+  desdePrecio?: number | null };
 export type GrupoPlanes = {
   id: number; nombre: string; familias: number[]; nombresFamilias: string[]; orden: number;
   planes: Record<Plan, PlanGrupo>;
@@ -21,15 +24,15 @@ export type GrupoPlanes = {
   gana: Record<PlanOClasica, Gana>; ajusteNoGana: number;
 };
 
-const VACIO: PlanGrupo = { usar: false, cuotasVisibles: null, margenPct: null };
+const VACIO: PlanGrupo = { usar: false, cuotasVisibles: null, margenPct: null, desdePrecio: null };
 
 /** Los grupos de la organización con sus planes (el grupo sin familias es «el resto»). */
 export async function gruposPlanes(org: string): Promise<GrupoPlanes[]> {
   const filas = await consulta<{ id: number; nombre: string; familias: number[]; orden: number; nombres: string[] | null; gana: Record<string, unknown> | null; ajuste_no_gana: number;
-    planes: Record<string, { usar: boolean; cuotas: number | null; margen: number | null }> | null }>(`
+    planes: Record<string, { usar: boolean; cuotas: number | null; margen: number | null; desde: number | null }> | null }>(`
     select g.id::int, g.nombre, g.familias::int[] familias, g.orden, g.gana, g.ajuste_no_gana::float8,
            (select array_agg(f.nombre order by f.nombre) from familia f where f.id = any(g.familias)) nombres,
-           (select jsonb_object_agg(p.plan, jsonb_build_object('usar', p.usar, 'cuotas', p.cuotas_visibles, 'margen', p.margen_pct::float8))
+           (select jsonb_object_agg(p.plan, jsonb_build_object('usar', p.usar, 'cuotas', p.cuotas_visibles, 'margen', p.margen_pct::float8, 'desde', p.desde_precio::float8))
               from ml_plan_grupo_plan p where p.grupo_id = g.id) planes
       from ml_plan_grupo g where g.organizacion_id = $1
      order by g.familias = '{}', g.orden, g.id`, [org]);
@@ -37,7 +40,7 @@ export async function gruposPlanes(org: string): Promise<GrupoPlanes[]> {
     id: f.id, nombre: f.nombre, familias: f.familias ?? [], nombresFamilias: f.nombres ?? [], orden: f.orden,
     planes: Object.fromEntries(PLANES.map((p) => {
       const x = f.planes?.[p];
-      return [p, x ? { usar: !!x.usar, cuotasVisibles: x.cuotas ?? null, margenPct: x.margen ?? null } : VACIO];
+      return [p, x ? { usar: !!x.usar, cuotasVisibles: x.cuotas ?? null, margenPct: x.margen ?? null, desdePrecio: x.desde ?? null } : VACIO];
     })) as Record<Plan, PlanGrupo>,
     gana: Object.fromEntries(PUBLICACIONES_GANA.map((p) => {
       const x = f.gana?.[p];
@@ -94,7 +97,7 @@ export function reglasDeGrupos(grupos: GrupoPlanes[], barrera: number): ReglasPl
     for (const d of donde) {
       for (const plan of PLANES) {
         const p = g.planes[plan];
-        salida.push({ ...d, plan, activo: p.usar, precio_minimo: barrera, margen_pct: p.margenPct ?? 0, cuotas_visibles: p.cuotasVisibles, ajuste_pct: null });
+        salida.push({ ...d, plan, activo: p.usar, precio_minimo: p.desdePrecio ?? barrera, margen_pct: p.margenPct ?? 0, cuotas_visibles: p.cuotasVisibles, ajuste_pct: null });
       }
     }
   }
@@ -118,7 +121,7 @@ export async function comisionReferencia(org: string): Promise<Map<number, { cat
   return new Map(filas.map((f) => [f.grupo, { categoria: f.categoria, ruta: f.ruta, productos: f.productos, comisiones: comisionesDe(f).valores }]));
 }
 
-export type ValoresGrupo = Record<Plan, { usar: boolean; cuotasVisibles: number | null; margenPct: number | null }> & { gana?: Record<PlanOClasica, Gana>; ajusteNoGana?: number | null };
+export type ValoresGrupo = Record<Plan, { usar: boolean; cuotasVisibles: number | null; margenPct: number | null; desdePrecio?: number | null }> & { gana?: Record<PlanOClasica, Gana>; ajusteNoGana?: number | null };
 
 /** Graba los planes de un grupo. */
 export async function guardarGrupo(org: string, grupoId: number, v: ValoresGrupo): Promise<void> {
@@ -128,14 +131,16 @@ export async function guardarGrupo(org: string, grupoId: number, v: ValoresGrupo
     const x = v[plan];
     if (x.cuotasVisibles != null && !(Number.isInteger(x.cuotasVisibles) && x.cuotasVisibles >= 1 && x.cuotasVisibles <= 36)) throw new ErrorErp("Las cuotas que ve el comprador van de 1 a 36.");
     if (x.margenPct != null && !(x.margenPct >= -50 && x.margenPct <= 300)) throw new ErrorErp("El % extra tiene que estar entre -50 % y 300 %.");
+    if (x.desdePrecio != null && !(x.desdePrecio >= 0)) throw new ErrorErp("El «desde» tiene que ser un precio de 0 o más (vacío = desde el envío gratis).");
     if (x.usar && x.margenPct == null) throw new ErrorErp("Un plan tildado necesita su % extra sobre la Clásica (0 si no querés extra).");
   }
   for (const plan of PLANES) {
     const x = v[plan];
     await consulta(`
-      insert into ml_plan_grupo_plan (organizacion_id, grupo_id, plan, usar, cuotas_visibles, margen_pct) values ($1, $2, $3, $4, $5, $6)
-      on conflict (grupo_id, plan) do update set usar = excluded.usar, cuotas_visibles = excluded.cuotas_visibles, margen_pct = excluded.margen_pct, actualizado_ts = now()`,
-      [org, grupoId, plan, x.usar, x.cuotasVisibles, x.margenPct]);
+      insert into ml_plan_grupo_plan (organizacion_id, grupo_id, plan, usar, cuotas_visibles, margen_pct, desde_precio) values ($1, $2, $3, $4, $5, $6, $7)
+      on conflict (grupo_id, plan) do update set usar = excluded.usar, cuotas_visibles = excluded.cuotas_visibles, margen_pct = excluded.margen_pct,
+        desde_precio = excluded.desde_precio, actualizado_ts = now()`,
+      [org, grupoId, plan, x.usar, x.cuotasVisibles, x.margenPct, x.desdePrecio ?? null]);
   }
   if (v.ajusteNoGana != null && !(v.ajusteNoGana >= 0 && v.ajusteNoGana <= 50)) throw new ErrorErp("Lo que van más caras las cuentas que no ganan tiene que estar entre 0 % y 50 %.");
   await consulta(`update ml_plan_grupo set actualizado_ts = now(), gana = coalesce($2::jsonb, gana), ajuste_no_gana = coalesce($3, ajuste_no_gana) where id = $1`,

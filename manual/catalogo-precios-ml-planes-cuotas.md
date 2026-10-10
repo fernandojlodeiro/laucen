@@ -28,7 +28,7 @@ Lo que no está acá: el **descuento que ve el comprador** se decide por cuenta 
 
 ## Qué hay en la pantalla
 
-Arriba, un aviso con **la barrera de precio**: los planes van sólo en los productos con una Clásica de **$ 33.000 o más** (ver «Criterios y reglas»).
+Arriba, un aviso con **el precio del envío gratis** (por ejemplo $ 33.000), cómo funciona la columna «Desde» y **la franja sin planes** (de $ 29.700 a $ 33.000; ver «Criterios y reglas»).
 
 Después, **una caja por grupo** («Notebooks», «Resto»), con el nombre del grupo y cuántos planes usa además de la Clásica. Debajo del título, qué categorías abarca y de qué categoría salen las comisiones de referencia.
 
@@ -38,6 +38,7 @@ Cada caja tiene una tabla. La primera fila es la **Clásica** (se usa siempre; s
 - **Comisión extra sobre la Clásica**: cuántos puntos más que la Clásica cobra Mercado Libre por ese plan. Se lee sola de Mercado Libre, de la categoría con más productos publicados del grupo. Es sólo de referencia: el precio de cada producto usa siempre la comisión real de su propia categoría.
 - **Cuotas que ve el comprador (a chequear)**: cuántas cuotas sin interés le muestra Mercado Libre al comprador con ese plan. Se carga **a mano**, porque Mercado Libre no lo informa, y cambia según la categoría y en fechas especiales (por ejemplo, el Día de la Madre). Es lo que se ve debajo de cada plan, como «el comprador ve N cuotas», en la ficha del producto y en las listas de publicaciones.
 - **% extra sobre la Clásica**: cuánto más tiene que dejarte ese plan, después de pagar su comisión, que lo que te deja la Clásica.
+- **Desde (Clásica)**: desde qué precio de la Clásica se crea ese plan. **Vacío** (dice «Envío gratis»): desde el precio en que Mercado Libre da envío gratis. **0** (dice «Siempre»): en todos los productos del grupo, también los baratos. Otro número: desde esa Clásica.
 - **Con una Clásica de $ 100.000**: ejemplo del precio que daría el plan con esa Clásica y las comisiones de referencia.
 
 Debajo de la tabla de cada grupo: **«Las cuentas que no ganan van X % más caras»** (un % por grupo; por ejemplo, 3 %).
@@ -74,8 +75,15 @@ Conviene repasarlo antes y después de las fechas especiales.
 ### Qué grupo le toca a un producto
 El de su categoría; si su categoría no está en ningún grupo, el de la categoría de más arriba que sí esté; si ninguna, **Resto**.
 
-### La barrera de $ 33.000
-Los planes se crean y se usan sólo en los productos cuya Clásica es de **$ 33.000 o más**: desde ese precio Mercado Libre da envío gratis (el vendedor paga parte del envío). Abajo de ese precio, el producto va sólo con la Clásica. El sistema lee ese umbral solo de los costos de Mercado Libre: si Mercado Libre lo cambia, la barrera se ajusta sola.
+### Desde qué precio va cada plan, y la franja sin planes
+Cada plan va desde la Clásica que dice su columna **«Desde»**. Vacío es desde el precio en que Mercado Libre da envío gratis (por ejemplo $ 33.000; el sistema lo lee solo de los costos de Mercado Libre y, si cambia, se ajusta). 0 es siempre.
+
+Además, **ningún plan se crea si su precio cae en la franja de 10 % abajo del envío gratis** (con $ 33.000: entre $ 29.700 y $ 33.000), para que no lo cruce por poco. Una publicación de plan que ya existe y cae en esa franja no se toca: la vista previa lo avisa.
+
+Ejemplo con la 3x en «Siempre», comisión Clásica 16,3 %, comisión 3x 25,2 % y 5 % extra:
+- Clásica $ 24.132 → 3x $ 28.356: debajo de $ 29.700, **se crea**.
+- Clásica $ 26.000 → 3x unos $ 30.500: en la franja, **no se crea**.
+- Clásica $ 30.000 → 3x unos $ 35.250: arriba del envío gratis, **se crea**.
 
 ### El precio de cada plan
 Cada plan tiene que dejar, después de su comisión, lo mismo que deja la Clásica más su % extra:
@@ -111,7 +119,7 @@ Para cada cantidad de cuotas que ve el comprador, usá **el plan más barato que
 ## Preguntas frecuentes
 
 **¿Por qué un producto tiene sólo la Clásica?**
-Porque su Clásica está debajo de la barrera de $ 33.000, o porque en su grupo no hay ningún plan con «Usar» tildado.
+Porque su Clásica está debajo del «Desde» de cada plan, porque el precio del plan cae en la franja sin planes (10 % abajo del envío gratis), o porque en su grupo no hay ningún plan con «Usar» tildado.
 
 **¿Por qué las cuotas que se muestran no coinciden con las de Mercado Libre?**
 Porque se cargan a mano: Mercado Libre no las informa y cambian según la categoría y las fechas especiales. Mirá una publicación del plan en Mercado Libre y corregí la columna «Cuotas que ve el comprador».

@@ -155,7 +155,7 @@ export async function accionReplicarVolumen(fd: FormData) {
   });
 }
 
-const INTERRUPTORES = { sincronizar_precios: true, leer_precio_ganar: true, volumen_regla_stock: true } as const;
+const INTERRUPTORES = { sincronizar_precios: true, leer_precio_ganar: true, volumen_regla_stock: true, sacar_envio_gratis: true } as const;
 
 /** Prende o apaga un interruptor del canal. Prender "Sincronizar precios" es
  *  el clic de Fer que deja salir lo automático (AGENTS.md). */
@@ -178,6 +178,7 @@ export async function accionInterruptor(fd: FormData) {
       });
       return "Prendido. La primera pasada corre de fondo: al terminar aparece el cartel abajo a la derecha.";
     }
+    if (clave === "sacar_envio_gratis") return prender ? "Prendido: una vez por día, Laucen le saca solo el envío gratis a las publicaciones de esta cuenta que cuestan menos que el envío gratis (quedan en Alertas)." : "Apagado: las publicaciones con envío gratis de más quedan en Alertas, con un botón para preparar el lote.";
     if (clave === "leer_precio_ganar") return prender ? "Prendido: Laucen lee el precio para ganar y las campañas de esta cuenta (sólo lectura)." : "Apagado: no se lee más el precio para ganar de esta cuenta.";
     return prender ? "Prendido: un escalón de volumen sólo si hay stock para su cantidad." : "Apagado: los escalones van aunque no haya stock para la cantidad.";
   });
@@ -283,5 +284,17 @@ export async function accionCampanaPropia(fd: FormData) {
     revalidatePath(BASE_PML);
     if (errores.length && !hechas.length) throw new ErrorErp(errores.join(" · "));
     return `Campaña «${NOMBRE_CAMPANA_PROPIA}» — ${hechas.join(" · ")}${errores.length ? ` · No se pudo: ${errores.join(" · ")}` : ""}. Las publicaciones entran con «Preparar cambios» en la vista previa (o solas con «Sincronizar precios»).`;
+  });
+}
+
+/** Alertas › Envío gratis de más: un lote que se lo saca (a todas las de la cuenta o a una), para el clic de «Mandar». */
+export async function accionSacarEnvioGratis(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  await intentar(volver(fd), async () => {
+    const { prepararSacarEnvioGratis } = await import("@/lib/precios-ml/envio-gratis");
+    const r = await prepararSacarEnvioGratis(s.org.id, id(fd, "canal"), s.usuario.id, texto(fd, "item") || null);
+    revalidatePath(BASE_PML);
+    if (!r.loteId) return "No hay nada para sacar: ya no queda ninguna con envío gratis de más (o ya está en la cola).";
+    return `Lote ${r.loteId} preparado (${r.n} publicaci${r.n === 1 ? "ón" : "ones"}): mandalo desde la cola de Mercado Libre.`;
   });
 }

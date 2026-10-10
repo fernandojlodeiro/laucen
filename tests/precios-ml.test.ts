@@ -57,6 +57,19 @@ test("planes por grupo: Notebooks (familia) gana a Resto (general); desde la bar
   // En el motor: sin nada propio, la Clásica de esta cuenta (que no gana) va 3 % más cara.
   const r8: ReglasCanal = { ...reglas, planes: reglasDeGrupos(grupos, 33_000), ajusteGrupo: enOcho };
   assert.equal(proponer(entrada(101, [50], 40_000), r8).clasica, Math.round(40_000 * 1.03));
+
+  // «Desde $» por plan (10/10): la 3x desde 0 (siempre) y la 9x desde el envío gratis; ningún plan en la franja
+  // de 10 % abajo del envío gratis ($ 29.700 a $ 33.000).
+  const resto = { ...grupos[1], planes: { ...grupos[1].planes, premium: plan(false, 9, 8), "3x_campaign": { ...plan(true, 6, 5), desdePrecio: 0 } } };
+  const rd: ReglasCanal = { tachado: [], planes: reglasDeGrupos([grupos[0], resto], 33_000), volumen: [], reglaStock: true, envioGratis: 33_000 };
+  const planesDe = (clasica: number) => proponer(entrada(8, [50], clasica), rd).planes.filter((p) => p.habilitado).map((p) => p.plan);
+  assert.deepEqual(planesDe(20_000), ["3x_campaign"]);
+  const tres = (clasica: number) => proponer(entrada(8, [50], clasica), rd).planes.find((p) => p.plan === "3x_campaign")!;
+  assert.ok(tres(26_000).precio! >= 29_700 && tres(26_000).precio! < 33_000);
+  assert.deepEqual(planesDe(26_000), []);
+  assert.equal(tres(26_000).enFranja, true);
+  assert.deepEqual(planesDe(30_000), ["3x_campaign"]);
+  assert.deepEqual(planesDe(40_000), ["3x_campaign", "9x_campaign"]);
 });
 
 const padres = new Map<number, number | null>([[10, null], [11, 10], [12, 11]]);

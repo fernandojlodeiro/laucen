@@ -302,7 +302,17 @@ export type ReglasCanal = {
   campanaPropia?: { id: string; nombre: string } | null;
   /** Para las pruebas: el momento contra el que se mira si una campaña ya arrancó. */
   ahora?: Date;
+  /** Desde qué precio Mercado Libre da envío gratis: ningún plan se crea con su precio en la franja de
+   *  FRANJA_SIN_PLANES_PCT % abajo de ese umbral (Fer, 10/10). */
+  envioGratis?: number | null;
 };
+
+/** La franja abajo del envío gratis en la que no va ningún plan (%), para que un plan no lo cruce por poco. */
+export const FRANJA_SIN_PLANES_PCT = 10;
+
+/** El precio de un plan cae en la franja sin planes: entre el envío gratis menos 10 % y el envío gratis. */
+export const enFranjaSinPlanes = (precio: number | null, envioGratis: number | null | undefined) =>
+  precio != null && !!envioGratis && precio >= envioGratis * (1 - FRANJA_SIN_PLANES_PCT / 100) - 0.5 && precio < envioGratis;
 
 /** Qué tiene que tener una publicación (y qué cambia). */
 export type PropuestaPub = {
@@ -322,6 +332,8 @@ export type PropuestaPub = {
 export type PlanCalculado = {
   plan: Plan; activo: boolean; habilitado: boolean; precioMinimo: number | null; margenPct: number; ajustePct: number; cuotasVisibles: number;
   comisionPct: number; precio: number | null; origen: Origen | null;
+  /** Su precio cae en la franja sin planes (abajo del envío gratis). */
+  enFranja?: boolean;
 };
 
 export type Propuesta = {
@@ -390,10 +402,11 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
     const ajuste = aju.valor ?? delGrupo[plan] ?? 0;
     // El plan sale de la Clásica de la lista (no de la de este canal) más su ajuste.
     const precio = base != null ? redondear(precioPlan(base, e.comisiones.clasica, e.comisiones[plan], margenPct) * (1 + ajuste / 100)) : null;
-    const habilitado = activo && clasica != null && (min.valor == null || clasica >= min.valor);
+    const enFranja = enFranjaSinPlanes(precio, r.envioGratis);
+    const habilitado = activo && clasica != null && (min.valor == null || clasica >= min.valor) && !enFranja;
     return {
       plan, activo, habilitado, precioMinimo: min.valor, margenPct, ajustePct: ajuste, cuotasVisibles: cuo.valor ?? PLAN_INFO[plan].cuotas,
-      comisionPct: e.comisiones[plan], precio, origen: act.origen,
+      comisionPct: e.comisiones[plan], precio, origen: act.origen, enFranja,
     };
   });
   const habilitados = planes.filter((p) => p.habilitado);
@@ -427,7 +440,9 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
       const pc = planes.find((p) => p.plan === pub.plan)!;
       if (!pc.habilitado) {
         pa.rol = "apagado";
-        pa.avisos.push(pc.activo ? `Debajo del mínimo del plan (${pc.precioMinimo?.toLocaleString("es-AR")}): no se toca.` : "El plan no está activo: no se toca.");
+        pa.avisos.push(!pc.activo ? "El plan no está activo: no se toca."
+          : pc.enFranja ? `Su precio ($ ${Math.round(pc.precio!).toLocaleString("es-AR")}) cae en la franja sin planes, a menos de ${FRANJA_SIN_PLANES_PCT} % abajo del envío gratis ($ ${Math.round(r.envioGratis!).toLocaleString("es-AR")}): no se toca.`
+          : `Debajo del mínimo del plan (${pc.precioMinimo?.toLocaleString("es-AR")}): no se toca.`);
         return pa;
       }
       if (destacado && destacado.plan === pub.plan) {

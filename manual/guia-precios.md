@@ -57,7 +57,7 @@ En Mercado Libre, las cuotas sin interés son **publicaciones aparte**, además 
 
 O sea: cada plan deja, después de su comisión, **lo mismo que la Clásica más un % extra**. Las comisiones son las reales de la categoría de cada producto (las releva Costos ML todos los días).
 
-**Qué planes lleva cada producto: por grupo de categorías.** En [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), para todas las cuentas a la vez, cada grupo de categorías (por ejemplo «Notebooks» y «Resto») dice qué planes usa, cuántas cuotas ve el comprador en cada uno y su % extra. Un producto lleva los planes de su grupo **sólo si su Clásica es de $ 33.000 o más** (desde ahí Mercado Libre da envío gratis); debajo, sale sólo con la Clásica.
+**Qué planes lleva cada producto: por grupo de categorías.** En [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), para todas las cuentas a la vez, cada grupo de categorías (por ejemplo «Notebooks» y «Resto») dice qué planes usa, cuántas cuotas ve el comprador en cada uno y su % extra. Cada plan dice **desde qué Clásica** va (de entrada, desde el precio en que Mercado Libre da envío gratis, por ejemplo $ 33.000; o siempre). Ningún plan se crea con un precio en la franja de 10 % abajo del envío gratis.
 
 ### 6. Quién gana entre tus cuentas
 
@@ -90,7 +90,7 @@ Se puede definir por rango de Clásica ("desde 3 unidades, −5 %"), pero **hoy 
 ### 10. Qué es configurable y qué es fijo
 
 - **Se configura** en [Precios en ML](/catalogo/precios-ml), por cuenta y con excepciones por categoría o producto: el descuento que ve el comprador, «¿Gana?» en Excepciones (para forzar quién gana en una categoría o producto), descuento por volumen y los interruptores de cada cuenta. En [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), por grupo de categorías y para todas las cuentas: qué planes se usan, cuántas cuotas ve el comprador, el % extra de cada plan, **quién gana** la Clásica y cada plan (una cuenta o «Rota») y cuánto más caras van las que no ganan. En [Listas de precios](/catalogo/precios): las listas, sus bases y coeficientes y «Aplica descuentos».
-- **Fijo**: el mínimo de 5 % de descuento que pide ML; la barrera de $ 33.000 para los planes (sale de los costos de Mercado Libre y se ajusta sola); las comisiones (salen de Costos ML); el redondeo a pesos enteros; una publicación con tachado nunca se baja a la Clásica; un cambio automático que dio error no se reintenta igual por 6 horas.
+- **Fijo**: el mínimo de 5 % de descuento que pide ML; el precio del envío gratis (sale de los costos de Mercado Libre y se ajusta solo) y la franja sin planes de 10 % abajo de él; las comisiones (salen de Costos ML); el redondeo a pesos enteros; una publicación con tachado nunca se baja a la Clásica; un cambio automático que dio error no se reintenta igual por 6 horas.
 
 ### 11. Qué sale solo y qué espera tu clic
 

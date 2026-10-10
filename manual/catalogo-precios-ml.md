@@ -49,10 +49,11 @@ Caja **«Campaña propia «Promociones Daitom»»**: la campaña del vendedor de
 - Las publicaciones entran y salen como cualquier cambio de precio: con «Preparar cambios» en la vista previa, o solas si la cuenta tiene «Sincronizar precios» prendido.
 - Dura 30 días. Con «Sincronizar precios» prendido, se renueva sola unos días antes de vencer; si no, se renueva con el botón.
 
-Caja **«Interruptores de la cuenta»** (tres interruptores):
+Caja **«Interruptores de la cuenta»** (cuatro interruptores):
 - **«Sincronizar precios: Laucen manda solo los precios a esta cuenta»**. Arranca apagado.
 - **«Leer el precio para ganar y las campañas»**. Arranca prendido (es sólo lectura).
 - **«Descuento por volumen: un escalón sólo si hay stock para su cantidad»**. Arranca prendido.
+- **«Sacar el envío gratis a las publicaciones más baratas que el envío gratis»**. Arranca apagado. Prendido, una vez por día Laucen revisa las publicaciones activas de la cuenta y, a la que cuesta menos que el precio desde el que Mercado Libre da envío gratis (lo que paga el comprador) y lo tiene puesto, se lo saca sola. Apagado, quedan en la pestaña «Alertas» con un botón.
 
 ### Pestaña «Excepciones»
 
@@ -74,7 +75,9 @@ El formulario: «Aplica a» (Toda la cuenta (general) / Una categoría (excepci�
 
 ### Pestaña «Alertas»
 
-La cuenta de la pestaña suma las tres cajas.
+La cuenta de la pestaña suma las cuatro cajas.
+
+**«Con envío gratis y menos de $ 33.000 (N)»** (el monto es el del envío gratis de Mercado Libre, se actualiza solo): publicaciones activas que cuestan menos que eso y tienen el envío gratis puesto, o sea que el vendedor lo regala sin necesidad. Columnas: «SKU», «Producto», «Publicación» y «Paga el comprador». Botón **«Sacar el envío gratis»** en cada fila y **«Sacar a todas»** arriba a la derecha de la caja: arman un lote en la [cola de Mercado Libre](/config/canales/cola) que sale con tu clic. Con el interruptor de la pestaña «Descuento» prendido, se saca solo una vez por día. Debajo, lo sacado en los últimos 7 días: fecha, publicación, si fue solo o con tu clic, y el resultado.
 
 **«Campañas debajo del piso (N)»**: publicaciones que están en una campaña en curso que las deja **más baratas que el piso**. El piso es lo que da el esquema para esa publicación (la Clásica de la cuenta, o el precio de su plan). Columnas: «SKU», «Producto», «Publicación» (con su tipo: Clásica, Premium 3x…), «Campaña» (nombre, y si es **propia** —oferta del día, campaña del vendedor: el precio lo pusiste vos— o **de ML** —«Potencia tus ventas»—), «Con la campaña», «Piso» y «Debajo» (cuánto % abajo).
 - En una campaña propia cuenta su precio. En una de ML con descuento compartido cuenta **sólo lo que ponés vos**: precio sin descuento × (1 − tu %). La parte que pone ML no sale de tu bolsillo y no cuenta.

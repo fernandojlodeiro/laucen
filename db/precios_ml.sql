@@ -290,3 +290,7 @@ $$;
 -- que no ganan van ajuste_no_gana % más caras. Lo de Excepciones (por cuenta) manda sobre esto.
 alter table ml_plan_grupo add column if not exists gana jsonb not null default '{}';
 alter table ml_plan_grupo add column if not exists ajuste_no_gana numeric(6, 2) not null default 3 check (ajuste_no_gana between 0 and 50);
+
+-- Desde qué Clásica va cada plan (Fer, 10/10): vacío = desde el envío gratis (ml_costos_envio_gratis_vigente);
+-- 0 = siempre. Aparte, ningún plan se crea si su precio cae en la franja de 10 % abajo del envío gratis.
+alter table ml_plan_grupo_plan add column if not exists desde_precio numeric(14, 2) check (desde_precio >= 0);

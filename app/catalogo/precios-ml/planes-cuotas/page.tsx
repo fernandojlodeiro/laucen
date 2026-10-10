@@ -14,7 +14,7 @@ import {
 import { formatear } from "@/lib/moneda";
 import { formatearNumero } from "@/lib/numeros";
 import { gruposPlanes, barreraPlanes, comisionReferencia, type GrupoPlanes, type Gana } from "@/lib/precios-ml/grupos";
-import { PLANES, PLAN_INFO, precioPlan, type Comisiones, type PlanOClasica } from "@/lib/precios-ml/motor";
+import { PLANES, PLAN_INFO, precioPlan, FRANJA_SIN_PLANES_PCT, type Comisiones, type PlanOClasica } from "@/lib/precios-ml/motor";
 import { accionGuardarGrupo } from "./acciones";
 import { BarraPml } from "../comun";
 import { PLANES_PML, canalElegido } from "../lista";
@@ -37,12 +37,13 @@ export default async function PlanesCuotas({ searchParams }: { searchParams: Pro
       <Avisos sp={sp} />
       {canal && <BarraPml org={s.org.id} canales={canales} canal={canal} ver="planes" />}
       <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#EEF4FA] text-[#16577F]">
-        Los planes van sólo en los productos con una Clásica de <b>{formatear(barrera, "ARS")}</b> o más: desde ese precio Mercado Libre da envío gratis (lo toma solo de los costos de Mercado Libre; si cambia, se ajusta).
-        Abajo de ese precio, sólo la Clásica.
+        Mercado Libre da envío gratis desde <b>{formatear(barrera, "ARS")}</b> (lo toma solo de los costos de Mercado Libre; si cambia, se ajusta).
+        Cada plan va desde la Clásica que dice su columna «Desde»: vacío, desde el envío gratis; 0, siempre.
+        Ningún plan se crea si su precio cae a menos de {FRANJA_SIN_PLANES_PCT} % abajo del envío gratis (entre <b>{formatear(Math.round(barrera * (1 - FRANJA_SIN_PLANES_PCT / 100)), "ARS")}</b> y {formatear(barrera, "ARS")}), para que no lo cruce por poco.
       </p>
       <div className="grid gap-4">
         {grupos.map((g) => <Grupo key={g.id} g={g} canal={canal?.id ?? null} cuentas={canales.map((c) => ({ id: c.id, nombre: c.nombre }))}
-          editando={sp.editar === `g${g.id}`} referencia={referencia.get(g.id) ?? null} />)}
+          editando={sp.editar === `g${g.id}`} referencia={referencia.get(g.id) ?? null} barrera={barrera} />)}
         {!grupos.length && <p className="text-xs text-[#5C6B76]">Todavía no hay grupos de planes.</p>}
       </div>
       <p className="text-[11px] text-[#5C6B76] mt-3">
@@ -56,7 +57,7 @@ export default async function PlanesCuotas({ searchParams }: { searchParams: Pro
   );
 }
 
-function Grupo({ g, canal, cuentas, editando, referencia }: { g: GrupoPlanes; canal: number | null; cuentas: { id: number; nombre: string }[]; editando: boolean; referencia: { categoria: string; ruta: string | null; productos: number; comisiones: Comisiones } | null }) {
+function Grupo({ g, canal, cuentas, editando, referencia, barrera }: { g: GrupoPlanes; canal: number | null; cuentas: { id: number; nombre: string }[]; editando: boolean; referencia: { categoria: string; ruta: string | null; productos: number; comisiones: Comisiones } | null; barrera: number }) {
   const form = `grupo${g.id}`;
   const c = referencia?.comisiones ?? null;
   const usados = PLANES.filter((p) => g.planes[p].usar).length;
@@ -90,6 +91,7 @@ function Grupo({ g, canal, cuentas, editando, referencia }: { g: GrupoPlanes; ca
               <tr>
                 <th className={TH}>Plan</th><th className={TH}>Usar</th><th className={THN}>Comisión extra sobre la Clásica</th>
                 <th className={THN}>Cuotas que ve el comprador <span className="font-normal">(a chequear)</span></th><th className={THN}>% extra sobre la Clásica</th>
+                <th className={THN} title="Desde qué precio de la Clásica se crea el plan. Vacío: desde el envío gratis. 0: siempre.">Desde (Clásica)</th>
                 <th className={THN}>Con una Clásica de {formatear(EJEMPLO, "ARS")}</th>
                 <th className={TH} title="La cuenta que tiene el precio más bajo para esta publicación; las demás van más caras para no competir entre ellas">Quién gana</th>
               </tr>
@@ -98,7 +100,7 @@ function Grupo({ g, canal, cuentas, editando, referencia }: { g: GrupoPlanes; ca
               <tr className={TR}>
                 <td className={TD}>Clásica</td>
                 <td className={TD}><input type="checkbox" checked disabled readOnly aria-label="La Clásica va siempre" className="h-4 w-4 accent-[#16577F]" /></td>
-                <td className={TDN}>—</td><td className={TDN}>—</td><td className={TDN}>—</td>
+                <td className={TDN}>—</td><td className={TDN}>—</td><td className={TDN}>—</td><td className={TDN}>Siempre</td>
                 <td className={TDN}>{formatear(EJEMPLO, "ARS")}</td>
                 {celdaGana("clasica")}
               </tr>
@@ -122,6 +124,11 @@ function Grupo({ g, canal, cuentas, editando, referencia }: { g: GrupoPlanes; ca
                       {editando
                         ? <CampoNumero name={`${p}_margen`} valor={x.margenPct} tipo="pct" placeholder="—" className={`${CAMPO} w-20 ml-auto block`} />
                         : <ValorVista numero className="w-20 ml-auto">{x.margenPct != null ? pct(x.margenPct) : null}</ValorVista>}
+                    </td>
+                    <td className={TD}>
+                      {editando
+                        ? <CampoNumero name={`${p}_desde`} valor={x.desdePrecio ?? null} tipo="pesos" placeholder="envío gratis" className={`${CAMPO} w-28 ml-auto block`} />
+                        : <ValorVista numero className="w-28 ml-auto">{x.desdePrecio == null ? `Envío gratis` : x.desdePrecio === 0 ? "Siempre" : formatear(x.desdePrecio, "ARS")}</ValorVista>}
                     </td>
                     <td className={TDN}>{ejemplo != null ? formatear(ejemplo, "ARS") : "—"}</td>
                     {celdaGana(p)}

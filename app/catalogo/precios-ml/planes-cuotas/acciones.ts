@@ -20,7 +20,7 @@ export async function accionGuardarGrupo(fd: FormData) {
   const grupo = id(fd, "grupo");
   const canal = id(fd, "canal") || null;
   await intentar(canal ? `${BASE}?canal=${canal}` : BASE, async () => {
-    const planes = Object.fromEntries(PLANES.map((p) => [p, { usar: tildado(fd, `${p}_usar`), cuotasVisibles: entero(fd, `${p}_cuotas`), margenPct: numero(fd, `${p}_margen`) }]));
+    const planes = Object.fromEntries(PLANES.map((p) => [p, { usar: tildado(fd, `${p}_usar`), cuotasVisibles: entero(fd, `${p}_cuotas`), margenPct: numero(fd, `${p}_margen`), desdePrecio: numero(fd, `${p}_desde`) }]));
     // Quién gana cada publicación: una cuenta o «rota» (Fer, 8/10).
     const gana = Object.fromEntries(PUBLICACIONES_GANA.map((p) => { const x = fd.get(`${p}_gana`); return [p, Number(x) > 0 ? Number(x) : "rota"]; })) as Record<PlanOClasica, Gana>;
     const v = { ...planes, gana, ajusteNoGana: numero(fd, "no_gana") } as unknown as ValoresGrupo;

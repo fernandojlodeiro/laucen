@@ -20,6 +20,7 @@ import {
 import { AccionesExcel } from "@/app/listas/piezas";
 import { una } from "@/lib/erp/base";
 import { campanaPropiaDe, NOMBRE_CAMPANA_PROPIA } from "@/lib/precios-ml/campana-propia";
+import { conEnvioGratisDeMas, envioGratisSacado } from "@/lib/precios-ml/envio-gratis";
 import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import { fechaHora } from "@/app/ventas/formato";
 import { formatear } from "@/lib/moneda";
@@ -30,7 +31,7 @@ import { PLANES, PLAN_INFO, descuentoComprador, type Plan, type ReglasPlan } fro
 import { BarraPml, type VerPml } from "./comun";
 import { BASE_PML, PREVIA, PLANES_PML, LISTA_EXCEPCIONES_ML, LISTA_VOLUMEN_ML, canalElegido, textoEscalones } from "./lista";
 import {
-  accionGuardarGeneral, accionCampanaPropia, accionGuardarExcepcion, accionBorrarExcepcion, accionGuardarVolumen, accionBorrarVolumen, accionReplicarVolumen, accionInterruptor, accionSacarCampanas,
+  accionGuardarGeneral, accionCampanaPropia, accionGuardarExcepcion, accionBorrarExcepcion, accionGuardarVolumen, accionBorrarVolumen, accionReplicarVolumen, accionInterruptor, accionSacarCampanas, accionSacarEnvioGratis,
 } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -143,6 +144,11 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
             ayuda="Sólo lectura: cada 6 horas el precio para ganar de las publicaciones de catálogo (cada hora las destacadas, con alerta si dejan de ganar) y cada 12 horas las campañas de cada publicación." />
           <Interruptor accion={accionInterruptor} prendido={canal.reglaStock} campos={campos("volumen_regla_stock")}
             etiqueta="Descuento por volumen: un escalón sólo si hay stock para su cantidad" />
+          <Interruptor accion={accionInterruptor} prendido={canal.sacarEnvioGratis} campos={campos("sacar_envio_gratis")}
+            etiqueta="Sacar el envío gratis a las publicaciones más baratas que el envío gratis"
+            ayuda={canal.sacarEnvioGratis
+              ? "Prendido: una vez por día Laucen revisa las publicaciones activas de esta cuenta y, a la que cuesta menos que el precio desde el que Mercado Libre da envío gratis y lo tiene puesto, se lo saca sola. Lo que sacó queda en la pestaña Alertas."
+              : "Apagado: las que tienen envío gratis de más quedan en la pestaña Alertas, con un botón que prepara el lote."} />
         </div>
       </section>
     </div>
@@ -354,10 +360,59 @@ async function Volumen({ org, canal, sp, aqui }: { org: string; canal: CanalMl; 
 // ── Alertas ─────────────────────────────────────────────────
 
 async function Alertas({ org, canal, aqui }: { org: string; canal: CanalMl; aqui: string }) {
-  const [filas, bajo, sin] = await Promise.all([alertasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id), sinCampanaCanal(org, canal)]);
+  const [filas, bajo, sin, gratis, sacado] = await Promise.all([alertasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id), sinCampanaCanal(org, canal),
+    conEnvioGratisDeMas(org, canal.id), envioGratisSacado(org, canal.id)]);
   const base = { canal: String(canal.id), volver: aqui };
+  const umbral = formatear(gratis.umbral, "ARS");
   return (
     <>
+      {/* Envío gratis de más (Fer, 10/10): una publicación más barata que el envío gratis no tiene por qué regalarlo. */}
+      <TituloSeccion titulo={`Con envío gratis y menos de ${umbral} (${gratis.filas.length})`}>
+        {gratis.filas.length > 1 && <BotonConfirmar accion={accionSacarEnvioGratis} campos={base} clase={SUAVE} texto="Sacar a todas"
+          pregunta={`¿Preparar un lote que les saca el envío gratis a las ${gratis.filas.length}?`} corriendo="Preparando…" />}
+      </TituloSeccion>
+      <div className={`${CAJA_TABLA} mb-1`}>
+        <table className={TABLA}>
+          <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Producto</th><th className={TH}>Publicación</th><th className={THN}>Paga el comprador</th><th /></tr></thead>
+          <tbody>
+            {gratis.filas.length === 0 && <tr><td colSpan={5} className={`${TD} text-[#5C6B76]`}>Ninguna: las publicaciones de menos de {umbral} no tienen envío gratis.</td></tr>}
+            {gratis.filas.map((f) => (
+              <tr key={f.itemId} className={TR}>
+                <td className={TD}>{f.productoId ? <Link href={`/catalogo/productos/${f.productoId}`} className="font-mono text-[#16577F] hover:underline">{f.sku}</Link> : "—"}</td>
+                <td className={TD}>{f.titulo}</td>
+                <td className={TD}><Link href={url("/catalogo/publicaciones", { canal: canal.id, q: f.itemId })} className="font-mono text-[#16577F] hover:underline">{f.itemId}</Link></td>
+                <td className={TDN}>{formatear(f.precio, "ARS")}</td>
+                <td className={`${TD} text-right whitespace-nowrap`}>
+                  <BotonConfirmar accion={accionSacarEnvioGratis} campos={{ ...base, item: f.itemId }} clase={SUAVE} texto="Sacar el envío gratis"
+                    pregunta="¿Preparar el lote?" corriendo="Preparando…" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {sacado.length > 0 && (
+        <div className={`${CAJA_TABLA} mb-1`}>
+          <table className={TABLA}>
+            <thead className={THEAD}><tr><th className={TH}>Envío gratis sacado (últimos 7 días)</th><th className={TH}>Publicación</th><th className={TH}>Cómo</th><th className={TH}>Resultado</th></tr></thead>
+            <tbody>
+              {sacado.map((x, i) => (
+                <tr key={`${x.itemId}-${i}`} className={TR}>
+                  <td className={TD}>{fechaHora(x.ts)}</td>
+                  <td className={TD}><Link href={url("/catalogo/publicaciones", { canal: canal.id, q: x.itemId })} className="font-mono text-[#16577F] hover:underline">{x.itemId}</Link></td>
+                  <td className={TD}>{x.origen === "automatico" ? "Solo (interruptor prendido)" : "Con tu clic"}</td>
+                  <td className={TD}>{x.estado === "ok" ? <Estado texto="Sacado" tono="verde" /> : x.estado === "error" ? <span className="text-[#C03420]">{x.error ?? "Error"}</span> : <Estado texto={x.estado === "preparado" ? "Esperando tu clic" : "En camino"} tono="amarillo" />}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="text-[11px] text-[#5C6B76] mb-4">
+        Publicaciones activas que cuestan menos que el precio desde el que Mercado Libre da envío gratis ({umbral}, se toma solo de los costos de Mercado Libre) y lo tienen puesto: lo paga el vendedor sin necesidad.
+        Laucen lo revisa una vez por día. Con el interruptor «Sacar el envío gratis…» de la pestaña Descuento prendido, se lo saca sola; si no, el botón arma un lote en la <Link href="/config/canales/cola?ver=lotes" className="text-[#16577F] hover:underline">cola de Mercado Libre</Link> que sale con tu clic.
+      </p>
+
       <TituloSeccion titulo={`Campañas debajo del piso (${bajo.length})`}>
         {bajo.length > 1 && <BotonConfirmar accion={accionSacarCampanas} campos={base} clase={SUAVE} texto="Sacar de todas"
           pregunta={`¿Preparar un lote que saca las ${bajo.length}?`} corriendo="Preparando…" />}
