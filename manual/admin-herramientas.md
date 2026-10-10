@@ -304,7 +304,7 @@ No. Estas herramientas sólo leen de Mercado Libre.
 No. Las corridas pagas (leer páginas, banco de Apify, China, piloto) se disparan sólo con su botón.
 
 **¿Cada cuánto se actualizan los costos de Mercado Libre?**
-Todos los días a las 6:30; con **Correr ahora** se fuerza.
+Todos los días a las 6:30; con **Correr ahora** se fuerza (si la del día ya terminó, vuelve a relevar las comisiones).
 
 **¿El monto de Ventas ML por categoría es lo que me queda?**
 No: es precio × unidades, antes de comisiones y envío.
