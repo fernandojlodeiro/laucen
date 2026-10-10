@@ -434,6 +434,21 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
     }
     pa.piso = pa.venta;
     const adentro = pub.campanas.filter((c) => (c.estado === "started" || c.estado === "pending") && CON_PRECIO.includes(c.tipo));
+    // Descuento creíble (Fer, 10/10): en una publicación que ya existe, ML no acepta un precio con descuento más alto
+    // que el máximo que informa en sus campañas (≈ el precio de referencia reciente menos 1 % a 10 %). Si el esquema da
+    // más (o no hay campañas leídas para saberlo), va sin tachado ni campaña: el comprador paga el precio del esquema.
+    // Lo que ya está en una campaña y se mantiene o baja, sigue.
+    if (pa.lista != null && pa.venta != null && pa.lista > pa.venta + 0.5
+        && !adentro.some((c) => c.precio != null && c.precio > 0 && pa.venta! <= Number(c.precio) + 0.5)) {
+      const maximos = pub.campanas.map((c) => (c.max == null ? null : Number(c.max))).filter((m): m is number => m != null && m > 0);
+      const maximo = maximos.length ? Math.min(...maximos) : null;
+      if (maximo == null || pa.venta > maximo + 0.5) {
+        pa.avisos.push(maximo == null
+          ? "Sin campañas leídas de esta publicación: va sin tachado hasta saber qué descuento acepta Mercado Libre."
+          : `Mercado Libre acepta descuento sólo hasta $ ${Math.floor(maximo).toLocaleString("es-AR")} en esta publicación (por su precio reciente): va sin tachado, a $ ${Math.round(pa.venta).toLocaleString("es-AR")}.`);
+        pa.lista = pa.venta;
+      }
+    }
     // En campaña: el tachado no se toca (Fer, 7/10). El precio sube o baja al del esquema: sale de la
     // campaña y vuelve a entrar al precio nuevo (Fer, 8/10; ML no deja cambiarlo estando adentro).
     if (adentro.length && pub.precioListaMl != null && pa.lista != null && pa.venta != null) {

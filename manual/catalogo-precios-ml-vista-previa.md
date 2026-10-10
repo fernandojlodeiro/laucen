@@ -123,6 +123,7 @@ Un producto que no tiene ninguna publicación común en esa cuenta no se puede c
 - «Tenía descuento por volumen y ya no le corresponde: sacalo a mano en ML.»
 - «No se puede crear: ninguna publicación de esta variación tiene el user product de ML.»
 - «Tipo de publicación desconocido: no se toca.»
+- «Mercado Libre acepta descuento sólo hasta $ … en esta publicación (por su precio reciente): va sin tachado, a $ ….» / «Sin campañas leídas de esta publicación: va sin tachado hasta saber qué descuento acepta Mercado Libre.»
 
 ## Preguntas frecuentes
 

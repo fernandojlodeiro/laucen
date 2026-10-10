@@ -286,10 +286,19 @@ test("campaña propia: entra si ninguna de ML acepta el precio; si aparece una d
     campanaPropia: { id: "C-PROPIA", nombre: "Promociones Daitom" } };
   const comisiones = { clasica: 16, premium: 30, "3x_campaign": 25, "9x_campaign": 34, "12x_campaign": 38 };
   const base = { variacionId: 1, productoId: 7, lugar: { productoId: 7, familias: [] }, clasica: 50_000, stock: 3, comisiones, comisionEstimada: false };
-  // Publicada al tachado (100.000) y sin campañas: entra a la propia a 50.000.
-  const [a] = proponer({ ...base, pubs: [pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 100_000, precioVentaMl: 100_000, campanas: [], priceToWin: null, catalogo: false })] }, reglas).pubs;
+  // Publicada al tachado (100.000), ML acepta descuento hasta 95.000 y ninguna campaña suya: entra a la propia a 50.000.
+  const candidataPropia = { id: "C-PROPIA", tipo: "SELLER_CAMPAIGN", estado: "candidate", nombre: "Promociones Daitom", precio: null, min: 20_000, max: 95_000 };
+  const [a] = proponer({ ...base, pubs: [pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 100_000, precioVentaMl: 100_000, campanas: [candidataPropia], priceToWin: null, catalogo: false })] }, reglas).pubs;
   assert.deepEqual(a.entrar.map((c) => c.id), ["C-PROPIA"]);
   assert.equal(a.venta, 50_000);
+  // Descuento no creíble (10/10): ML acepta hasta 45.000 (venía vendiendo más barato) → sin tachado ni campaña.
+  const [n] = proponer({ ...base, pubs: [pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 46_000, precioVentaMl: 46_000, campanas: [{ ...candidataPropia, max: 45_000 }], priceToWin: null, catalogo: false })] }, reglas).pubs;
+  assert.equal(n.lista, 50_000);
+  assert.equal(n.venta, 50_000);
+  assert.equal(n.entrar.length, 0);
+  // Sin campañas leídas: tampoco se arriesga el tachado.
+  const [s0] = proponer({ ...base, pubs: [pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 46_000, precioVentaMl: 46_000, campanas: [], priceToWin: null, catalogo: false })] }, reglas).pubs;
+  assert.equal(s0.lista, 50_000);
   // Ya en la propia a ese precio: nada.
   const propia = { id: "C-PROPIA", tipo: "SELLER_CAMPAIGN", estado: "started", nombre: "Promociones Daitom", precio: 50_000, min: null, max: null };
   const [b] = proponer({ ...base, pubs: [pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 100_000, precioVentaMl: 50_000, campanas: [propia], priceToWin: null, catalogo: false })] }, reglas).pubs;
