@@ -312,3 +312,12 @@ create table if not exists ml_alta_colgada (
 );
 alter table ml_alta_colgada enable row level security;
 select erp_politica_org('ml_alta_colgada');
+
+-- Fotos de ML ya revisadas por la marca «Tiendavirtual» (lib/mercadolibre/fotos-marca.ts): las que la tienen
+-- no se usan en las publicaciones nuevas. Una vez por foto.
+create table if not exists ml_foto_revisada (
+  picture_id   text primary key,
+  con_marca    boolean not null,
+  revisada_ts  timestamptz not null default now()
+);
+alter table ml_foto_revisada enable row level security;

@@ -20,6 +20,7 @@ import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolar, encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
 import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
+import { sinFotosConMarca } from "@/lib/mercadolibre/fotos-marca";
 import { catalogoSegunMarca, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
@@ -235,7 +236,8 @@ async function datosOrigen(org: string, plan: PlanTodas): Promise<DatosOrigen> {
   const atributos = [...(g.ml.attributes ?? [])];
   const gtin = plan.variacion.codigoBarras?.replace(/[^0-9]/g, "") || null;
   if (gtin && !atributos.some((a) => a.id === "GTIN")) atributos.push({ id: "GTIN", value_name: gtin });
-  return { ml: g.ml, atributos, texto, modelo };
+  // Sin las fotos con la marca «Tiendavirtual» (pautas, fotos-marca.ts).
+  return { ml: { ...g.ml, pictures: await sinFotosConMarca(g.ml.pictures ?? []) }, atributos, texto, modelo };
 }
 
 /** Las altas de un producto en una cuenta, comprobadas con ML (/items/validate: no publica nada). */

@@ -58,6 +58,7 @@ Caja **«Interruptores de la cuenta»** (cuatro interruptores):
   - **Título**: la primera palabra queda igual y el resto se ordena distinto en cada cuenta y en cada plan, para que no haya dos títulos idénticos (hasta 60 letras).
   - **Marca**: los productos sin marca propia (Tiendavirtual, Daitom, Deirolab, Laucen, Genérico, OEM, en blanco) y los «Arduino» llevan la marca de la cuenta (la de «Marca de las publicaciones» de la cuenta); las demás marcas de fábrica quedan. La marca no va en el título. Con la marca cambiada, entra a un catálogo sólo si es de esa misma marca.
   - **Descripción**: sólo la parte técnica del producto, sin el encabezado ni el pie de la empresa.
+  - **Fotos**: las que tienen el logo o el nombre «Tiendavirtual» no se usan (si todas lo tienen, van igual: una publicación necesita fotos).
   - Si Mercado Libre pide un dato que falta, se completa solo como en cualquier alta (Modelo, código de barras, cantidad de envases, medidas del paquete). Lo que igual no acepta queda en la pestaña «Alertas», en «No se pudieron crear», y se vuelve a intentar más tarde.
 
 ### Pestaña «Excepciones»

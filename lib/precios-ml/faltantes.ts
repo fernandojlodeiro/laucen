@@ -11,6 +11,7 @@
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolar, encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { sinFotosConMarca } from "@/lib/mercadolibre/fotos-marca";
 import { catalogoSegunMarca, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
 import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
@@ -69,6 +70,8 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
     const modelo = await modeloDeLaucen(org, info.sku);
     const stock = Math.max(1, Number(info.stock ?? 0));
     const marca = marcaFinal(o.ml.attributes, marcaCuenta);
+    // Sin las fotos con la marca «Tiendavirtual» (pautas, fotos-marca.ts).
+    o.ml.pictures = await sinFotosConMarca(o.ml.pictures ?? []);
     for (const f of faltan) {
       if (Date.now() > hasta) { res.sinTiempo++; continue; }
       // El catálogo según su marca (catalogo-marca.ts): el de una marca vetada no se publica; una página de otra marca, sin catálogo.
