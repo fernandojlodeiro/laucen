@@ -171,6 +171,22 @@ Si falta el SKU o el título: "El producto necesita SKU base y título." **Ning�
 
 **SKU sugerido**: el formato de la casa es «SKU» seguido de un número de 5 cifras (6 cuando pasa de 99999). Se busca el número más alto entre todos los SKU con ese formato (los de las variaciones también, y los que siguen con un agregado, como «SKU03542-BC») y se propone el siguiente. Los SKU con otro formato no cuentan.
 
+### Seguir publicaciones de la competencia (pestaña Seguimiento)
+
+La pestaña **Seguimiento (N)** de la ficha guarda las publicaciones de otros vendedores que querés vigilar, con lo último que se leyó de cada una: foto, título (con ↗ a Mercado Libre), número, si es de catálogo, **vendedor** (y si es tienda oficial), **precio** (con el precio tachado si tiene descuento, y ▼/▲ con cuánto cambió desde la lectura anterior), **tipo** de publicación (Clásica, Premium…) y cuotas, **envío**, **estado** (Activa, Pausada, Terminada, "No figura en el catálogo" o "Sin leer todavía") y cuándo se **leyó**. Ordenadas de la más barata a la más cara.
+
+Para elegir cuáles seguir:
+1. En el recuadro **Buscar en Mercado Libre para seguir**, el texto ya viene con el título del producto (se puede cambiar).
+2. Apretá **🔍 Buscar en Mercado Libre**: pregunta "¿Buscar? Cuesta unos US$ 0,10"; con **Sí** busca de fondo (uno o dos minutos) y avisa abajo a la derecha al terminar.
+3. Aparecen hasta 50 publicaciones con foto, título, vendedor, precio, cuotas y envío; las de publicidad y las de catálogo están marcadas, y las nuestras dicen **Nuestra**.
+4. Al lado de cada una, **+ Seguir** la agrega (sin costo). Las que ya seguís dicen **✓ Siguiendo**.
+
+La última búsqueda queda guardada: volver a la pestaña no cuesta; buscar de nuevo, sí.
+
+Para agregar publicaciones que ya conocés: **+ Agregar por número**, pegá los links o números (MLA…), uno por renglón, y **Agregar**. Se leen con **Leer ahora** o en la próxima vuelta.
+
+**Leer ahora** relee las de este producto en el momento (pregunta antes, porque las comunes cuestan). Además se releen solas cada tantos días (ver [Seguimiento de publicaciones](/config/seguimiento)). El tacho deja de seguir una.
+
 ### Comprobar la familia con Mercado Libre (la lupa 🔍)
 
 Al lado del buscador de **Familia** (en el alta y en la ficha, en edición) está la lupa **🔍**. Al pasar el mouse explica qué hace. Al apretarla:

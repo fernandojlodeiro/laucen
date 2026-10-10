@@ -23,6 +23,7 @@ export const RUTAS_PUBLICAS = [
   "/api/piloto/tanda",
   "/api/costos-ml/cron",
   "/api/tipo-cambio/cron",
+  "/api/seguimiento/cron",
   // La API del cimiento: se autentica con el token de cada canal, no con la sesión.
   "/api/pedidos",
   "/api/catalogo",
