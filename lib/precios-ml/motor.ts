@@ -261,7 +261,12 @@ export type ReglaTachado = FilaNivel & { tachado_pct: number | null;
 /** Una campaña de ML de una publicación (leída de /seller-promotions). */
 export type Campana = { id: string; tipo: string; estado: string | null; nombre?: string | null; precio: number | null; min: number | null; max: number | null;
   /** Las que arma ML («Potencia tus ventas»): el precio sin descuento y qué % pone el vendedor. */
-  original?: number | null; pctVendedor?: number | null };
+  original?: number | null; pctVendedor?: number | null;
+  /** Cuándo arranca la campaña: una que todavía no arrancó no da descuento hoy. */
+  desde?: string | null };
+
+/** La campaña ya arrancó (o no se sabe cuándo arranca). */
+export const rigeHoy = (c: Campana, ahora: Date = new Date()) => !c.desde || new Date(c.desde).getTime() <= ahora.getTime();
 
 export type PubMl = {
   publicacionId: number; itemId: string; variationId: string | null; plan: PlanOClasica | null; estado: string;
@@ -295,6 +300,8 @@ export type ReglasCanal = {
   ajusteGrupo?: (lugar: Lugar) => Partial<Record<PlanOClasica, number>>;
   /** La campaña propia vigente de la cuenta («Promociones Daitom»; Fer, 8/10), si hay. */
   campanaPropia?: { id: string; nombre: string } | null;
+  /** Para las pruebas: el momento contra el que se mira si una campaña ya arrancó. */
+  ahora?: Date;
 };
 
 /** Qué tiene que tener una publicación (y qué cambia). */
@@ -496,9 +503,17 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
       const c = campanasPara(pub.campanas.filter((x) => !esPropia(x)), pa.venta!, pa.rol === "destacado" ? idsClasica : undefined);
       pa.salir = pa.cambiaPrecio ? adentro : c.salir;
       pa.entrar = pa.cambiaPrecio ? [...c.entrar.filter((x) => !c.quedan.includes(x)), ...c.quedan] : c.entrar;
-      if (c.entrar.length || c.quedan.length) {
+      // Una campaña que arranca más adelante no da descuento hoy (Fer, 10/10: la 9x del K24 quedó sólo en «OFERTAS
+      // OCTUBRE», que arranca el 19/10, y se vendía al tachado): mientras tanto va también a la propia.
+      const ahora = r.ahora ?? new Date();
+      const futuras = [...c.entrar, ...c.quedan].filter((x) => !rigeHoy(x, ahora));
+      if ([...c.entrar, ...c.quedan].some((x) => rigeHoy(x, ahora))) {
         for (const x of propiasAdentro) if (!pa.salir.includes(x)) pa.salir.push(x);
       } else if (propia) {
+        if (futuras.length) {
+          const dia = (x: Campana) => new Date(x.desde!).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "numeric" });
+          pa.avisos.push(`${futuras.map((x) => `«${x.nombre ?? x.tipo}» arranca el ${dia(x)}`).join(", ")}: hasta entonces va también a «${propia.nombre}».`);
+        }
         const yaEsta = propiasAdentro.find((x) => x.id === propia.id && igual(x.precio, pa.venta));
         if (!yaEsta || pa.cambiaPrecio) {
           for (const x of propiasAdentro) if (!pa.salir.includes(x)) pa.salir.push(x);

@@ -44,6 +44,7 @@ Caja **«Descuento que ve el comprador (general de la cuenta)»**:
 
 Caja **«Campaña propia «Promociones Daitom»»**: la campaña del vendedor de esta cuenta. Dice desde y hasta cuándo está vigente, o «Esta cuenta todavía no tiene campaña propia». Botones arriba a la derecha de la caja: **«Crear en esta cuenta»** (o **«Renovar ahora»** si ya tiene) y **«Crear en todas las cuentas»**; los dos preguntan antes y crean la campaña en Mercado Libre con ese clic.
 - Para qué sirve: una publicación con descuento (publicada al tachado) que no está en ninguna campaña de Mercado Libre entra a la campaña propia a su precio, así el comprador ve el descuento.
+- Una campaña de Mercado Libre que **todavía no arrancó** (programada para más adelante) no da descuento hoy: mientras tanto la publicación entra también a la campaña propia (aviso ««…» arranca el …: hasta entonces va también a la campaña propia»). Cuando la de Mercado Libre arranca, el próximo «Preparar cambios» la saca de la propia.
 - Cuando Mercado Libre le ofrece una campaña suya que acepta ese precio, sale de la propia y pasa a la de Mercado Libre (las de Mercado Libre la exponen más).
 - Las publicaciones entran y salen como cualquier cambio de precio: con «Preparar cambios» en la vista previa, o solas si la cuenta tiene «Sincronizar precios» prendido.
 - Dura 30 días. Con «Sincronizar precios» prendido, se renueva sola unos días antes de vencer; si no, se renueva con el botón.

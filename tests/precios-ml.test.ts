@@ -281,7 +281,8 @@ test("en campaña sin esquema (tachado 0): no la saca de la campaña (7/10)", as
   assert.deepEqual(pedidosPrecio(pa), []);
 });
 
-test("campaña propia: entra si ninguna de ML acepta el precio; si aparece una de ML, sale de la propia y pasa a la de ML", () => {
+test("campaña propia: entra si ninguna de ML acepta el precio; si aparece una de ML, sale de la propia y pasa a la de ML", async () => {
+  const { ventaHoy } = await import("@/lib/precios-ml/datos");
   const reglas: ReglasCanal = { tachado: [{ nivel: "producto", producto_id: 7, tachado_pct: 100 }], planes: [], volumen: [], reglaStock: true,
     campanaPropia: { id: "C-PROPIA", nombre: "Promociones Daitom" } };
   const comisiones = { clasica: 16, premium: 30, "3x_campaign": 25, "9x_campaign": 34, "12x_campaign": 38 };
@@ -307,7 +308,17 @@ test("campaña propia: entra si ninguna de ML acepta el precio; si aparece una d
   const deMl = { id: "P-ML", tipo: "DEAL", estado: "candidate", nombre: "Semana", precio: null, min: 40_000, max: 60_000 };
   const [c] = proponer({ ...base, pubs: [pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 100_000, precioVentaMl: 50_000, campanas: [propia, deMl], priceToWin: null, catalogo: false })] }, reglas).pubs;
   assert.deepEqual(c.salir.map((x) => x.id), ["C-PROPIA"]);
-  assert.deepEqual(c.entrar.map((x) => x.id), ["P-ML"]);
+  // La de ML arranca más adelante (pending con fecha futura): hoy no da descuento, así que entra también a la propia.
+  const ahora = new Date("2026-10-10T12:00:00Z");
+  const futura = { id: "P-OCT", tipo: "DEAL", estado: "pending", nombre: "OFERTAS OCTUBRE", precio: 50_000, min: null, max: null, desde: "2026-10-19T03:00:00Z" };
+  const [f] = proponer({ ...base, pubs: [pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 100_000, precioVentaMl: ventaHoy(100_000, [futura], ahora), campanas: [futura, candidataPropia], priceToWin: null, catalogo: false })] }, { ...reglas, ahora }).pubs;
+  assert.equal(ventaHoy(100_000, [futura], ahora), 100_000);
+  assert.deepEqual(f.entrar.map((x) => x.id), ["C-PROPIA"]);
+  assert.deepEqual(f.salir, []);
+  assert.ok(f.avisos.some((x) => x.includes("arranca el 19/10")));
+  // Ya arrancó: queda en la de ML y no va a la propia.
+  const [g] = proponer({ ...base, pubs: [pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 100_000, precioVentaMl: 50_000, campanas: [{ ...futura, estado: "started" }, candidataPropia], priceToWin: null, catalogo: false })] }, { ...reglas, ahora: new Date("2026-10-20T12:00:00Z") }).pubs;
+  assert.deepEqual([g.entrar.length, g.salir.length], [0, 0]);
 });
 
 // ── Contra la base ──────────────────────────────────────────

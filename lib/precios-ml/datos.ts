@@ -6,7 +6,7 @@
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import {
-  CON_PRECIO, campanasBajoPiso, cadenaFamilias, heredar, textoOrigen, PLANES, type Origen, comisionesDe, comisionGeneral, normalizarEscalones, planDePublicacion, proponer,
+  CON_PRECIO, rigeHoy, campanasBajoPiso, cadenaFamilias, heredar, textoOrigen, PLANES, type Origen, comisionesDe, comisionGeneral, normalizarEscalones, planDePublicacion, proponer,
   type Campana, type Comisiones, type EntradaVariacion, type FilaComision, type FilaVolumen, type Propuesta, type ReglasCanal,
   type ReglasPlan, type ReglaTachado, type PubMl, type PlanOClasica,
 } from "@/lib/precios-ml/motor";
@@ -127,8 +127,9 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
   const items = [...new Set(filas.map((f) => f.item))];
   const [promos, volumen] = items.length ? await Promise.all([
     consulta<{ item_id: string; promocion_id: string; tipo: string; estado: string | null; nombre: string | null; precio: number | null; min_precio: number | null; max_precio: number | null;
-               precio_original: number | null; pct_vendedor: number | null }>(`
-      select item_id, promocion_id, tipo, estado, nombre, precio::float8, min_precio::float8, max_precio::float8, precio_original::float8, pct_vendedor::float8
+               precio_original: number | null; pct_vendedor: number | null; desde: string | null }>(`
+      select item_id, promocion_id, tipo, estado, nombre, precio::float8, min_precio::float8, max_precio::float8, precio_original::float8, pct_vendedor::float8,
+             desde::text
         from ml_promo_item where canal_id = $1 and item_id = any($2::text[]) and (hasta is null or hasta > now())`, [canal.id, items]),
     consulta<{ item_id: string; variation_id: string; payload: { escalones?: { cantidad: number; precio: number }[] } }>(`
       select distinct on (item_id, variation_id) item_id, variation_id, payload from ml_cola
@@ -138,7 +139,7 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
   const campanas = new Map<string, Campana[]>();
   for (const p of promos) {
     campanas.set(p.item_id, [...(campanas.get(p.item_id) ?? []), { id: p.promocion_id, tipo: p.tipo, estado: p.estado, nombre: p.nombre, precio: p.precio, min: p.min_precio, max: p.max_precio,
-      original: p.precio_original, pctVendedor: p.pct_vendedor }]);
+      original: p.precio_original, pctVendedor: p.pct_vendedor, desde: p.desde }]);
   }
   const volMl = new Map(volumen.map((v) => [`${v.item_id}|${v.variation_id}`, v.payload?.escalones ?? null]));
 
@@ -186,8 +187,9 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
  *  que el precio lo pone el vendedor (oferta del día, campaña del vendedor), o el de la publicación. Las que
  *  arma ML («Potencia tus ventas» y otras con descuento que pone ML) no cuentan: si contaran, Laucen bajaría
  *  la oferta propia hasta ese precio y pagaría solo el descuento que ML compartía (7/10). */
-export function ventaHoy(precio: number | null, campanas: Campana[]): number | null {
-  const v = Math.min(...campanas.filter((c) => (c.estado === "started" || c.estado === "pending") && CON_PRECIO.includes(c.tipo) && c.precio != null && c.precio > 0).map((c) => Number(c.precio)),
+export function ventaHoy(precio: number | null, campanas: Campana[], ahora: Date = new Date()): number | null {
+  // Una campaña que todavía no arrancó (ML la marca «pending» con fecha de inicio futura) no baja el precio de hoy.
+  const v = Math.min(...campanas.filter((c) => (c.estado === "started" || c.estado === "pending") && rigeHoy(c, ahora) && CON_PRECIO.includes(c.tipo) && c.precio != null && c.precio > 0).map((c) => Number(c.precio)),
     precio ?? Infinity);
   return Number.isFinite(v) ? v : null;
 }
