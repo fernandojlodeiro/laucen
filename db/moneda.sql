@@ -157,6 +157,8 @@ alter table usuario_preferencia add column if not exists visto jsonb not null de
 alter table usuario_preferencia add column if not exists avisado jsonb;
 -- Cada cuántos minutos, como mucho, suena o llega un aviso de Windows (Fer, 10/10; de 1 a 60).
 alter table usuario_preferencia add column if not exists aviso_cada_min int not null default 1;
+-- De entrada, todo prendido (Fer, 10/10; a los que ya existían se les prendió una vez a mano).
+alter table usuario_preferencia alter column aviso_sonido set default true;
 -- Avisos de Windows con Laucen cerrado (push): hasta dónde ya se mandó ({clave: marca}), cuándo
 -- se mandó el último (para el límite de arriba) y cuándo tuvo Laucen a la vista por última vez
 -- (con Laucen a la vista avisa la pantalla, no Windows).

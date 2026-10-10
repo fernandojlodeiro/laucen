@@ -22,6 +22,7 @@ import { monedaVista, buscarInactivos, tcDelDia, formatear, type Moneda } from "
 import { estadoAvisos } from "@/lib/avisos";
 import type { EstadoAvisos } from "@/lib/avisos-tipos";
 import { ContadoresEstado, VigiaAvisos } from "./AvisosVivos";
+import OfrecerAvisos from "./OfrecerAvisos";
 import { accionLogout } from "@/app/auth-actions";
 import { BarraMenu, MenuCelular } from "./BarraMenu";
 import Historial from "./Historial";
@@ -116,6 +117,7 @@ export default async function Marco({ children, version }: { children: React.Rea
       <AvisosTareas />
       {/* Los contadores al día, el sonido y la ventana con lo que la IA no contestó (Configuración › Mis avisos). */}
       <Suspense fallback={null}><VigiaAvisos inicial={avisos} /></Suspense>
+      <OfrecerAvisos />
       <Suspense fallback={null}><IndicadorCarga /></Suspense>
 
       {/* El asistente: la carita abajo a la derecha (lib/asistente/motor.ts) */}

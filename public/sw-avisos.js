@@ -8,14 +8,18 @@ self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener("push", (e) => {
   let a = { titulo: "Laucen", texto: "", url: "/panel" };
   try { a = { ...a, ...e.data.json() }; } catch { /* sin datos */ }
-  e.waitUntil(self.registration.showNotification(a.titulo, {
-    body: a.texto,
-    icon: "/marca/laucen-logo.png",
-    // Un solo cartel de Laucen a la vez: uno nuevo reemplaza al anterior.
-    tag: "laucen-avisos",
-    renotify: true,
-    data: { url: a.url },
-  }));
+  e.waitUntil((async () => {
+    await self.registration.showNotification(a.titulo, {
+      body: a.texto,
+      icon: "/marca/laucen-logo.png",
+      // Un solo cartel de Laucen a la vez: uno nuevo reemplaza al anterior.
+      tag: "laucen-avisos",
+      renotify: true,
+      data: { url: a.url },
+    });
+    // Le cuenta a las pantallas abiertas que llegó (la prueba de Mis avisos lo usa para saber si Windows lo tapó).
+    for (const c of await self.clients.matchAll({ type: "window", includeUncontrolled: true })) c.postMessage({ tipo: "aviso-llego" });
+  })());
 });
 
 self.addEventListener("notificationclick", (e) => {

@@ -15,7 +15,8 @@ import { cadaMinValido, type AvisoIa, type ClaveContador, type EstadoAvisos, typ
 export type Marcas = Record<string, number>;
 type TipoAviso = AvisoIa["tipo"];
 
-const PREFS_DEFECTO: Prefs = { sonido: false, ventana: true, cadaMin: 1 };
+// De entrada, todo prendido (Fer, 10/10).
+const PREFS_DEFECTO: Prefs = { sonido: true, ventana: true, cadaMin: 1 };
 
 async function filaDe(usuario: string, org: string) {
   return una<{ aviso_sonido: boolean; aviso_ventana: boolean; aviso_cada_min: number; visto: Marcas | null; avisado: Marcas | null }>(

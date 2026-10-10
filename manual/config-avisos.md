@@ -24,6 +24,8 @@ Dos cajas para tildar:
 
 Un número: **"Como mucho un aviso cada … minutos"** (de 1 a 60; de entrada, 1).
 
+De entrada, las dos cajas vienen tildadas.
+
 El botón **"🔔 Probar el sonido"**, para escuchar cómo suena.
 
 Y abajo, el recuadro **"Avisos de Windows, aunque no tengas Laucen abierto"**: dice si **esta computadora** tiene los avisos activados y en cuántos equipos en total, con los botones **"Activar en esta computadora"**, **"Desactivar en esta computadora"** y **"Mandar un aviso de prueba"**.
@@ -36,10 +38,14 @@ Y abajo, el recuadro **"Avisos de Windows, aunque no tengas Laucen abierto"**: d
 
 ### Activar los avisos de Windows en una computadora
 
+La primera vez que entrás a Laucen en una computadora, abajo a la izquierda aparece el cartel **"🔔 ¿Te avisamos por Windows?"**. Con **"Sí, avisame"** el navegador te pide permiso: elegí **"Permitir"** y listo. Con **"Ahora no"** no vuelve a aparecer en esa computadora, y se activa después desde esta pantalla:
+
 1. Entrá a esta pantalla desde la computadora (o el celular) donde querés recibirlos.
 2. En el recuadro de abajo apretá **"Activar en esta computadora"**.
 3. El navegador pregunta si permitís las notificaciones: elegí **"Permitir"**.
 4. Para probar, apretá **"Mandar un aviso de prueba"**: en unos segundos aparece el cartel abajo a la derecha de la pantalla.
+
+Si con **"Mandar un aviso de prueba"** la pantalla dice que el aviso llegó pero no viste el cartel, lo está tapando Windows: en Inicio › Configuración › Sistema › Notificaciones, tienen que estar prendidas las notificaciones y las de tu navegador (Google Chrome o Microsoft Edge), y apagado «No molestar» (o «Asistente de concentración»). Los avisos que no se mostraron quedan en el centro de notificaciones (el globito al lado de la hora).
 
 Si el navegador dice que las notificaciones están bloqueadas: tocá el candado a la izquierda de la dirección, en «Notificaciones» elegí «Permitir» y volvé a cargar la pantalla.
 
@@ -59,6 +65,7 @@ Si el navegador dice que las notificaciones están bloqueadas: tocá el candado 
   - Lo que ya viste en la ventana de la pantalla no se vuelve a avisar por Windows.
   - Se activan **en cada computadora o celular por separado**. En el celular andan con Chrome en Android; en iPhone, sólo con Laucen agregado a la pantalla de inicio.
   - Revisa cada un minuto si hay algo nuevo.
+  - Si en una computadora ya diste el permiso, al entrar a Laucen los avisos quedan activados solos, salvo que los hayas desactivado con **"Desactivar en esta computadora"**.
 - Sólo se cuenta y se avisa lo de las pantallas que tu rol puede ver.
 
 ## Relacionado

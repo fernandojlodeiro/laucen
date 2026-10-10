@@ -4,7 +4,7 @@
 import { sesionRequerida } from "@/lib/tenancy";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { prefsAvisos } from "@/lib/avisos";
-import { Pantalla, Avisos, BotonesFicha, editandoFicha, TituloSeccion, ValorVista, CAJA } from "@/app/componentes/erp";
+import { Pantalla, Avisos, BotonesFicha, editandoFicha, TituloSeccion, ValorVista, CAJA, CAMPO } from "@/app/componentes/erp";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { CADA_MIN_MAX } from "@/lib/avisos-tipos";
 import AvisosWindows from "./AvisosWindows";
@@ -31,11 +31,11 @@ export default async function MisAvisos({ searchParams }: { searchParams: Promis
         <Opcion nombre="ventana" activa={p.ventana} editando={editando} titulo="Abrirme una ventana con lo que la IA no contestó"
           ayuda="Cuando la IA no contesta una pregunta o un mensaje porque le falta un dato, o porque el cliente pide hablar con una persona, se abre sola una ventana con lo que escribió el cliente y el botón «Ir a responder»." />
         <div className="flex flex-wrap items-center gap-2 px-2">
-          <span className="text-sm">Como mucho un aviso cada</span>
+          <span className="text-xs">Como mucho un aviso cada</span>
           {editando
-            ? <CampoNumero name="cada_min" valor={p.cadaMin} tipo="entero" className="w-16" />
+            ? <CampoNumero name="cada_min" valor={p.cadaMin} tipo="entero" className={`${CAMPO} w-16`} />
             : <ValorVista numero className="w-16">{p.cadaMin}</ValorVista>}
-          <span className="text-sm">{p.cadaMin === 1 && !editando ? "minuto" : "minutos"}</span>
+          <span className="text-xs">{p.cadaMin === 1 && !editando ? "minuto" : "minutos"}</span>
           <span className="block w-full text-[11px] text-[#5C6B76]">
             De 1 a {CADA_MIN_MAX}. Vale para el sonido y para los avisos de Windows: si entran varias cosas seguidas, suena una vez y el aviso de Windows las junta en uno solo.
           </span>
@@ -64,10 +64,10 @@ export default async function MisAvisos({ searchParams }: { searchParams: Promis
 
 function Opcion({ nombre, activa, editando, titulo, ayuda }: { nombre: string; activa: boolean; editando: boolean; titulo: string; ayuda: string }) {
   return (
-    <label className={`flex items-start gap-3 rounded-lg px-2 py-2 text-sm ${editando ? "hover:bg-[#F7F9FB] cursor-pointer" : "cursor-default"}`}>
-      <input type="checkbox" name={nombre} value="1" defaultChecked={activa} disabled={!editando} className="h-5 w-5 mt-0.5 shrink-0" />
+    <label className={`flex items-start gap-2 rounded-lg px-2 py-1.5 text-xs ${editando ? "hover:bg-[#F7F9FB] cursor-pointer" : "cursor-default"}`}>
+      <input type="checkbox" name={nombre} value="1" defaultChecked={activa} disabled={!editando} className="h-4 w-4 mt-px shrink-0 accent-[#16577F]" />
       <span>
-        <b>{titulo}</b>
+        <span className="font-semibold">{titulo}</span>
         <span className="block text-[11px] text-[#5C6B76]">{ayuda}</span>
       </span>
     </label>
