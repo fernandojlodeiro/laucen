@@ -192,7 +192,7 @@ async function envioGratis(c: Corrida, token: string, userId: number, hasta: num
 }
 
 /** Las categorías donde Fer tiene publicaciones activas (Fer, 30/9: sólo
- *  ésas interesan). Se guardan en ml_costos_mis_categorias. */
+ *  ésas interesan), en cualquiera de sus cuentas. Se guardan en ml_costos_mis_categorias. */
 async function misCategorias(token: string, userId: number, hasta: number) {
   const ids: string[] = [];
   for (let offset = 0; ; offset += 100) {
@@ -212,6 +212,11 @@ async function misCategorias(token: string, userId: number, hasta: number) {
   if (!res) return null;
   const cuenta = new Map<string, number>();
   for (const cat of res.flat()) if (cat) cuenta.set(cat, (cuenta.get(cat) ?? 0) + 1);
+  // También las categorías de las publicaciones activas de TODAS las cuentas de ML conectadas (Fer, 10/10): al
+  // publicar en una cuenta lo que tiene otra, hace falta la comisión de cada plan de esas categorías.
+  const otras = (await pool.query<{ categoria: string; n: number }>(
+    "select categoria, count(*)::int n from meli_item where estado = 'active' and categoria is not null group by 1")).rows;
+  for (const o of otras) if (!cuenta.has(o.categoria)) cuenta.set(o.categoria, o.n);
   const filas = [...cuenta].map(([categoria_id, publicaciones]) => ({ categoria_id, publicaciones }));
   await pool.query(
     `insert into ml_costos_mis_categorias (categoria_id, ruta, publicaciones, activa, vista)

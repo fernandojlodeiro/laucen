@@ -82,7 +82,7 @@ En el menú de herramientas internas, **"Aplicación de Mercado Pago"**. La apli
 
 "Costos de vender en Mercado Libre". Pestañas:
 - **Cambios**: lo que Mercado Libre cambió desde la primera lectura, agrupado por día: **Qué**, **Detalle**, **Antes**, **Ahora** (hasta los últimos 300).
-- **Comisiones (N)**: buscador de categoría + **Buscar**; por cada categoría donde tenés publicaciones activas (las que más tienen, arriba): **Publ.**, **Clásica**, **Clásica interés bajo**, **Premium 3x**, **Premium (6)**, **Premium 9x**, **Premium 12x**, **Desde** (y cuántos cambios tuvo).
+- **Comisiones (N)**: buscador de categoría + **Buscar**; por cada categoría donde tenés publicaciones activas en cualquiera de tus cuentas de Mercado Libre (las que más tienen, arriba): **Publ.**, **Clásica**, **Clásica interés bajo**, **Premium 3x**, **Premium (6)**, **Premium 9x**, **Premium 12x**, **Desde** (y cuántos cambios tuvo).
 - **Cargo fijo (N)**: grilla de precios de venta (de $1.000 a $40.000) por peso del paquete (de 0,3 a 30 kg), más la columna **Sin peso**.
 - **Envío gratis (vendedor) (N)**: dos grillas, **Colecta / punto de despacho** y **Full**, de peso (0,3 a 70 kg) por precio (de $33.000 a $500.000).
 - **Corridas (N)**: botón **Correr ahora** y la tabla **Fecha**, **Empezó**, **Terminó**, **Tus categorías**, **Cambios guardados**, **Sin respuesta**, **Partes** (Referencias, Cargo fijo, Envío gratis, Comisiones; en verde las terminadas).
