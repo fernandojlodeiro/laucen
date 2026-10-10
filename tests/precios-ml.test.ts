@@ -515,3 +515,18 @@ test("comisión de un plan sin relevar: se estima sobre la Premium de la categor
   assert.ok(valores["9x_campaign"] > valores.premium);
   assert.ok(valores["3x_campaign"] > valores.premium);
 });
+
+test("gemela de catálogo: nunca cambia su precio publicado, sólo campañas (10/10)", () => {
+  const reglas: ReglasCanal = { tachado: [{ nivel: "producto", producto_id: 7, tachado_pct: 100 }], planes: [], volumen: [], reglaStock: true };
+  const comisiones = { clasica: 16, premium: 30, "3x_campaign": 25, "9x_campaign": 34, "12x_campaign": 38 };
+  const base = { variacionId: 1, productoId: 7, lugar: { productoId: 7, familias: [] }, clasica: 50_000, stock: 3, comisiones, comisionEstimada: false };
+  const cand = { id: "P-ML", tipo: "DEAL", estado: "candidate", nombre: "Semana", precio: null, min: 10_000, max: 95_000 };
+  const [orig, gem] = proponer({ ...base, pubs: [
+    pub({ publicacionId: 1, itemId: "MLA1", plan: "clasica", precioListaMl: 100_000, precioVentaMl: 100_000, campanas: [cand], priceToWin: null, catalogo: false }),
+    { ...pub({ publicacionId: 2, itemId: "MLA2", plan: "clasica", precioListaMl: 100_000, precioVentaMl: 100_000, campanas: [], priceToWin: null, catalogo: true }), gemelaDe: "MLA1" },
+  ] }, reglas).pubs;
+  assert.equal(orig.lista, 100_000);
+  assert.equal(gem.cambiaPrecio, false);
+  assert.equal(gem.lista, 100_000);
+  assert.equal(gem.venta, 50_000);
+});

@@ -88,7 +88,7 @@ type FilaPub = {
   pub: number; variacion_id: number; producto_id: number; sku: string; titulo: string; familia_id: number | null;
   item: string; var: string | null; estado: string; tipo: string | null; categoria: string | null;
   precio_canal: number | null; precio_mi: number | null; original: number | null; tags: unknown; cat_prod: string | null;
-  user_product: string | null; catalogo: boolean; clasica: number | null; stock: number | null;
+  user_product: string | null; catalogo: boolean; relacion: string | null; clasica: number | null; stock: number | null;
   ptw: number | null; ptw_estado: string | null; ptw_ts: Date | null;
 };
 
@@ -111,6 +111,7 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
            mi.datos_externos -> 'ml' ->> 'catalog_product_id' cat_prod,
            coalesce(p.datos_externos ->> 'user_product_id', mi.datos_externos -> 'ml' ->> 'user_product_id') user_product,
            coalesce((p.datos_externos ->> 'catalogo')::boolean, (mi.datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false) catalogo,
+           mi.datos_externos -> 'ml' -> 'item_relations' -> 0 ->> 'id' relacion,
            pd.lista_ars::float8 clasica, stock_disponible_canal(p.organizacion_id, p.variacion_id, p.canal_id) stock,
            w.precio::float8 ptw, w.estado ptw_estado, w.leido_ts ptw_ts
       from publicacion p
@@ -165,6 +166,8 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
       priceToWin: f.ptw, estadoPtw: f.ptw_estado, campanas: campanas.get(f.item) ?? [],
       volumenMl: volMl.get(`${f.item}|${f.var ?? ""}`) ?? null,
       userProductId: f.user_product, catalogProductId: f.cat_prod, catalogo: f.catalogo,
+      // La gemela de catálogo de una publicación nuestra: ML le copia el precio de la original (Fer, 10/10).
+      gemelaDe: f.catalogo && f.relacion && fs.some((x) => x.item === f.relacion) ? f.relacion : null,
     }));
     const entrada: EntradaVariacion = {
       variacionId, productoId: f0.producto_id, lugar: { productoId: f0.producto_id, familias: cadena },
