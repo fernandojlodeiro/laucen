@@ -18,6 +18,9 @@ export type CanalMl = {
   sincronizarPrecios: boolean; leerPrecioGanar: boolean; reglaStock: boolean;
   /** Sacar solo el envío gratis de las publicaciones de menos del umbral (lib/precios-ml/envio-gratis.ts). */
   sacarEnvioGratis: boolean;
+  /** «Crear solo lo que falta» (lib/mercadolibre/auto-altas.ts). */
+  crearFaltantesAuto: boolean;
+  autoAltas: { ultimaVuelta: string | null; total: number };
 };
 
 const bool = (v: unknown, defecto: boolean) => (v === true || v === "true" ? true : v === false || v === "false" ? false : defecto);
@@ -38,6 +41,11 @@ export async function canalesMl(org: string): Promise<CanalMl[]> {
     leerPrecioGanar: bool(f.config?.leer_precio_ganar, true),
     reglaStock: bool(f.config?.volumen_regla_stock, true),
     sacarEnvioGratis: bool(f.config?.sacar_envio_gratis, false),
+    crearFaltantesAuto: bool(f.config?.crear_faltantes_auto, false),
+    autoAltas: (() => {
+      const a = (f.config?.auto_altas ?? {}) as { ultima_vuelta?: string; total?: number };
+      return { ultimaVuelta: a.ultima_vuelta ?? null, total: Number(a.total ?? 0) };
+    })(),
   }));
 }
 
@@ -307,7 +315,7 @@ export async function replicarVolumen(org: string, canal: number): Promise<numbe
 }
 
 /** Prende o apaga un interruptor del canal (canal.config). */
-export async function fijarInterruptor(org: string, canal: number, clave: "sincronizar_precios" | "leer_precio_ganar" | "volumen_regla_stock" | "sacar_envio_gratis", valor: boolean): Promise<void> {
+export async function fijarInterruptor(org: string, canal: number, clave: "sincronizar_precios" | "leer_precio_ganar" | "volumen_regla_stock" | "sacar_envio_gratis" | "crear_faltantes_auto", valor: boolean): Promise<void> {
   await canalMl(org, canal);
   await consulta("update canal set config = config || jsonb_build_object($3::text, $4::boolean) where id = $2 and organizacion_id = $1", [org, canal, clave, valor]);
 }

@@ -18,8 +18,9 @@
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
-import { encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { encolar, encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
 import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
+import { catalogoSegunMarca, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import { canalesMl, comisionesMl, familiasDe, reglasCanal, type CanalMl } from "@/lib/precios-ml/datos";
@@ -191,7 +192,9 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
   };
 }
 
-export type ResultadoTodas = { lotes: { cuenta: string; loteId: number; altas: number }[]; rechazos: string[]; avisos: string[]; sinTiempo: number };
+export type ResultadoTodas = { lotes: { cuenta: string; loteId: number; altas: number }[]; rechazos: string[]; avisos: string[]; sinTiempo: number;
+  /** Lo mismo que `rechazos`, con su SKU y plan (para la creación automática: auto-altas.ts). */
+  fallas?: { sku: string; plan: string; motivo: string }[] };
 
 /** «Preparar»: graba quién gana y deja un lote por cuenta con las altas que faltan (comprobadas con ML). */
 export async function prepararTodas(org: string, productoId: number, variacionId: number | null, usuarioId: string, hasta = Date.now() + 240_000): Promise<ResultadoTodas> {
@@ -225,7 +228,8 @@ async function datosOrigen(org: string, plan: PlanTodas): Promise<DatosOrigen> {
   if (!g?.ml) throw new ErrorErp(`Laucen no tiene los datos de ${o.itemId}: traé las publicaciones de nuevo.`);
   const cOrigen = await cuentaDelCanal(org, o.canal);
   const d = cOrigen?.estado === "activa" ? await ml<{ plain_text?: string }>(cOrigen, "GET", `/items/${o.itemId}/description`) : null;
-  const texto = d?.status === 200 ? d.datos.plain_text?.trim() ?? "" : "";
+  // Sin el encabezado ni el pie de la casa: sólo lo técnico (pautas.ts).
+  const texto = d?.status === 200 ? limpiarDescripcion(d.datos.plain_text ?? "") : "";
   const modelo = await modeloDeLaucen(org, plan.variacion.sku);
   // El código de barras: el de la publicación de origen o, si no tiene, el de Laucen.
   const atributos = [...(g.ml.attributes ?? [])];
@@ -245,18 +249,26 @@ async function altasEnCanal(org: string, plan: PlanTodas, datos: DatosOrigen, c:
   const stock = Math.max(1, Number((await una<{ d: number }>("select stock_disponible_canal($1, $2, $3)::int d", [org, plan.variacion.id, c.id]))?.d ?? 0));
   // El catálogo según su marca (catalogo-marca.ts): el de una marca vetada no se publica; una página de otra marca, sin catálogo.
   const cat = plan.catalogo ? await catalogoParaAlta(cuenta, plan.catalogo) : null;
-  if (cat?.decision === "no_publicar") { res.rechazos.push(`${c.nombre} ${sku}: está en el catálogo ${plan.catalogo} de ${cat.marca}, marca ajena`); return altas; }
-  const catalogo = cat?.decision === "entra" ? plan.catalogo : null;
+  if (cat?.decision === "no_publicar") {
+    const motivo = `está en el catálogo ${plan.catalogo} de ${cat.marca}, marca ajena`;
+    res.rechazos.push(`${c.nombre} ${sku}: ${motivo}`);
+    for (const f of deEsta) (res.fallas ??= []).push({ sku, plan: f.plan, motivo });
+    return altas;
+  }
+  // Pautas (pautas.ts): la marca de la cuenta en los «sin marca»; con la marca cambiada, sólo un catálogo de esa marca.
+  const marca = marcaFinal(datos.atributos, await marcaDeCuenta(org, c.id));
+  const catalogo = catalogoSegunMarca(plan.catalogo, cat, marca);
   for (const f of deEsta) {
     if (Date.now() > hasta) { res.sinTiempo++; continue; }
     const tag = f.plan === "clasica" ? null : PLAN_INFO[f.plan].tag;
     const item: ItemGuardado = { ...datos.ml, attributes: datos.atributos, price: f.publicar!, available_quantity: stock,
       listing_type_id: f.plan === "clasica" ? "gold_special" : "gold_pro", sale_terms: (datos.ml.sale_terms ?? []).filter((t) => t.id !== "INSTALLMENTS_CAMPAIGN") };
     const r = await comprobarAlta(cuenta, (x) => {
-      const cuerpo = armarCuerpoCopia(item, sku, { variarTitulo: false, rotarFotos: false }, { modelo: datos.modelo, ...x });
+      const cuerpo = armarCuerpoCopia(item, sku, { variarTitulo: false, rotarFotos: false },
+        { modelo: datos.modelo, marca: marca.cambiada ? marca.marca : null, semillaTitulo: `${c.id}:${f.plan}:${sku}`, ...x });
       return tag ? { ...cuerpo, tags: [tag] } : cuerpo;
     }, { paquetes: [await paqueteDeLaucen(org, sku)] });
-    if (!r.ok) { res.rechazos.push(`${c.nombre} ${sku} ${f.nombre}: ${r.motivo}`); continue; }
+    if (!r.ok) { res.rechazos.push(`${c.nombre} ${sku} ${f.nombre}: ${r.motivo}`); (res.fallas ??= []).push({ sku, plan: f.plan, motivo: r.motivo }); continue; }
     if (r.avisos) res.avisos.push(`${c.nombre} ${sku} ${f.nombre}: ${r.avisos}`);
     const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: r.cuerpo }];
     if (datos.texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: datos.texto }, seguirSiFalla: true });
@@ -294,17 +306,22 @@ export async function faltantesEnCuenta(org: string, canal: number): Promise<{ v
      order by v.sku`, [org, canal]);
 }
 
-export type ResultadoFaltaCuenta = ResultadoTodas & { productos: number; sinOrigen: string[]; sinStock: string[]; yaEnCola: number };
+export type ResultadoFaltaCuenta = ResultadoTodas & { productos: number; sinOrigen: string[]; sinStock: string[]; yaEnCola: number;
+  /** Con `directo`: cuántas altas fueron a la cola. */ encoladas?: number };
 
 /** `limite`: cuántos productos como mucho (para probar con unos pocos antes de publicar todo). */
-export async function prepararFaltantesEnCuenta(org: string, canalId: number, usuarioId: string | null, hasta = Date.now() + 240_000, limite?: number | null): Promise<ResultadoFaltaCuenta> {
+export async function prepararFaltantesEnCuenta(org: string, canalId: number, usuarioId: string | null, hasta = Date.now() + 240_000, limite?: number | null,
+  /** Creación automática (auto-altas.ts): `directo` manda las altas a la cola sin lote (el interruptor de la cuenta es el clic);
+   *  `saltear`: los SKU que esperan su próximo intento. */
+  opts: { directo?: boolean; saltear?: Set<string> } = {}): Promise<ResultadoFaltaCuenta> {
   const cache: CacheTodas = { reglas: new Map() };
   cache.canales = await canalesMl(org);
   const c = cache.canales.find((x) => x.id === canalId);
   if (!c) throw new ErrorErp("Esa cuenta de Mercado Libre no existe.");
-  const res: ResultadoFaltaCuenta = { lotes: [], rechazos: [], avisos: [], sinTiempo: 0, productos: 0, sinOrigen: [], sinStock: [], yaEnCola: 0 };
+  const res: ResultadoFaltaCuenta = { lotes: [], rechazos: [], avisos: [], sinTiempo: 0, productos: 0, sinOrigen: [], sinStock: [], yaEnCola: 0, fallas: [] };
   const altas: CambioMl[] = [];
   for (const v of await faltantesEnCuenta(org, canalId)) {
+    if (opts.saltear?.has(v.sku)) continue;
     if (limite && res.productos >= limite) break;
     if (Date.now() > hasta) { res.sinTiempo++; continue; }
     if (!(v.stock > 0)) { res.sinStock.push(v.sku); continue; }
@@ -317,10 +334,15 @@ export async function prepararFaltantesEnCuenta(org: string, canalId: number, us
       if (nuevas.length) res.productos++;
       altas.push(...nuevas);
     } catch (e) {
-      res.rechazos.push(`${v.sku}: ${e instanceof Error ? e.message : String(e)}`);
+      const motivo = e instanceof Error ? e.message : String(e);
+      res.rechazos.push(`${v.sku}: ${motivo}`);
+      res.fallas!.push({ sku: v.sku, plan: "*", motivo });
     }
   }
-  if (altas.length) {
+  if (altas.length && opts.directo) {
+    await encolar(org, altas, { origen: "automatico" });
+    res.encoladas = altas.length;
+  } else if (altas.length) {
     const loteId = await encolarLoteConBoton(org, canalId, altas, `Publicaciones que faltan en ${c.nombre} (${res.productos} productos, ${altas.length} publicaciones)`, usuarioId);
     res.lotes.push({ cuenta: c.nombre, loteId, altas: altas.length });
   }

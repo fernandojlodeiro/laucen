@@ -18,7 +18,7 @@ import {
   CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
 } from "@/app/componentes/erp";
 import { AccionesExcel } from "@/app/listas/piezas";
-import { una } from "@/lib/erp/base";
+import { consulta, una } from "@/lib/erp/base";
 import { campanaPropiaDe, NOMBRE_CAMPANA_PROPIA } from "@/lib/precios-ml/campana-propia";
 import { conEnvioGratisDeMas, envioGratisSacado } from "@/lib/precios-ml/envio-gratis";
 import ElegirFamilia from "@/app/componentes/ElegirFamilia";
@@ -149,6 +149,11 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
             ayuda={canal.sacarEnvioGratis
               ? "Prendido: una vez por día Laucen revisa las publicaciones activas de esta cuenta y, a la que cuesta menos que el precio desde el que Mercado Libre da envío gratis y lo tiene puesto, se lo saca sola. Lo que sacó queda en la pestaña Alertas."
               : "Apagado: las que tienen envío gratis de más quedan en la pestaña Alertas, con un botón que prepara el lote."} />
+          <Interruptor accion={accionInterruptor} prendido={canal.crearFaltantesAuto} campos={campos("crear_faltantes_auto")}
+            etiqueta="Crear solo lo que falta: las publicaciones y los planes de cuotas que esta cuenta no tiene"
+            ayuda={canal.crearFaltantesAuto
+              ? `Prendido: cada 10 minutos Laucen crea, sin esperar tu clic, los productos que están en otra cuenta y no en ésta (con su Clásica y sus planes) y los planes que les faltan, con las pautas de la cuenta (marca, título, descripción). Lo que Mercado Libre no acepta queda en la pestaña Alertas. Creadas hasta ahora: ${canal.autoAltas.total}${canal.autoAltas.ultimaVuelta ? `; última vuelta ${new Date(canal.autoAltas.ultimaVuelta).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}.`
+              : "Apagado: lo que falta se crea con los botones de la vista previa, en lotes que esperan tu clic."} />
         </div>
       </section>
     </div>
@@ -360,12 +365,41 @@ async function Volumen({ org, canal, sp, aqui }: { org: string; canal: CanalMl; 
 // ── Alertas ─────────────────────────────────────────────────
 
 async function Alertas({ org, canal, aqui }: { org: string; canal: CanalMl; aqui: string }) {
-  const [filas, bajo, sin, gratis, sacado] = await Promise.all([alertasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id), sinCampanaCanal(org, canal),
-    conEnvioGratisDeMas(org, canal.id), envioGratisSacado(org, canal.id)]);
+  const [filas, bajo, sin, gratis, sacado, colgadas] = await Promise.all([alertasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id), sinCampanaCanal(org, canal),
+    conEnvioGratisDeMas(org, canal.id), envioGratisSacado(org, canal.id),
+    consulta<{ sku: string; plan: string; motivo: string; producto_id: number | null }>(`
+      select g.sku, g.plan, g.motivo, v.producto_id::int producto_id from ml_alta_colgada g
+        left join variacion v on v.organizacion_id = g.organizacion_id and v.sku = g.sku
+       where g.organizacion_id = $1 and g.canal_id = $2 order by g.sku, g.plan`, [org, canal.id])]);
   const base = { canal: String(canal.id), volver: aqui };
   const umbral = formatear(gratis.umbral, "ARS");
   return (
     <>
+      {/* Lo que la creación automática no pudo crear (lib/mercadolibre/auto-altas.ts). */}
+      {(canal.crearFaltantesAuto || colgadas.length > 0) && <>
+        <TituloSeccion titulo={`No se pudieron crear (${colgadas.length})`}>
+          {colgadas.length > 0 && <a href={`/catalogo/precios-ml/colgadas?canal=${canal.id}`} className={SUAVE}>Descargar Excel</a>}
+        </TituloSeccion>
+        <div className={`${CAJA_TABLA} mb-1`}>
+          <table className={TABLA}>
+            <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Publicación</th><th className={TH}>Motivo</th></tr></thead>
+            <tbody>
+              {colgadas.length === 0 && <tr><td colSpan={3} className={`${TD} text-[#5C6B76]`}>Ninguna: todo lo que falta en esta cuenta se está creando.</td></tr>}
+              {colgadas.slice(0, 50).map((g) => (
+                <tr key={`${g.sku}-${g.plan}`} className={TR}>
+                  <td className={TD}>{g.producto_id ? <Link href={`/catalogo/productos/${g.producto_id}`} className="font-mono text-[#16577F] hover:underline">{g.sku}</Link> : g.sku}</td>
+                  <td className={TD}>{g.plan === "*" ? "Todas" : PLAN_INFO[g.plan as keyof typeof PLAN_INFO]?.nombre ?? g.plan}</td>
+                  <td className={TD}>{g.motivo}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[11px] text-[#5C6B76] mb-4">
+          Con «Crear solo lo que falta» prendido (pestaña Descuento), lo que Mercado Libre no acepta o no se puede copiar queda acá con su motivo y se vuelve a intentar más tarde (a la media hora, a las 2 horas, a las 12 y después una vez por día).
+          {colgadas.length > 50 && " Se ven las primeras 50: el Excel trae todas."}
+        </p>
+      </>}
       {/* Envío gratis de más (Fer, 10/10): una publicación más barata que el envío gratis no tiene por qué regalarlo. */}
       <TituloSeccion titulo={`Con envío gratis y menos de ${umbral} (${gratis.filas.length})`}>
         {gratis.filas.length > 1 && <BotonConfirmar accion={accionSacarEnvioGratis} campos={base} clase={SUAVE} texto="Sacar a todas"

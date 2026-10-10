@@ -54,6 +54,11 @@ Caja **«Interruptores de la cuenta»** (cuatro interruptores):
 - **«Leer el precio para ganar y las campañas»**. Arranca prendido (es sólo lectura).
 - **«Descuento por volumen: un escalón sólo si hay stock para su cantidad»**. Arranca prendido.
 - **«Sacar el envío gratis a las publicaciones más baratas que el envío gratis»**. Arranca apagado. Prendido, una vez por día Laucen revisa las publicaciones activas de la cuenta y, a la que cuesta menos que el precio desde el que Mercado Libre da envío gratis (lo que paga el comprador) y lo tiene puesto, se lo saca sola. Apagado, quedan en la pestaña «Alertas» con un botón.
+- **«Crear solo lo que falta»**. Arranca apagado. Prendido, cada 10 minutos Laucen crea en la cuenta, sin esperar tu clic, los productos que están activos en otra cuenta y no en ésta (con su Clásica y los planes de cuotas que les tocan) y los planes que les faltan a los que ya están, al precio del esquema. Cada publicación nueva sigue las pautas de la cuenta:
+  - **Título**: la primera palabra queda igual y el resto se ordena distinto en cada cuenta y en cada plan, para que no haya dos títulos idénticos (hasta 60 letras).
+  - **Marca**: los productos sin marca propia (Tiendavirtual, Daitom, Deirolab, Laucen, Genérico, OEM, en blanco) y los «Arduino» llevan la marca de la cuenta (la de «Marca de las publicaciones» de la cuenta); las demás marcas de fábrica quedan. La marca no va en el título. Con la marca cambiada, entra a un catálogo sólo si es de esa misma marca.
+  - **Descripción**: sólo la parte técnica del producto, sin el encabezado ni el pie de la empresa.
+  - Si Mercado Libre pide un dato que falta, se completa solo como en cualquier alta (Modelo, código de barras, cantidad de envases, medidas del paquete). Lo que igual no acepta queda en la pestaña «Alertas», en «No se pudieron crear», y se vuelve a intentar más tarde.
 
 ### Pestaña «Excepciones»
 
@@ -76,6 +81,8 @@ El formulario: «Aplica a» (Toda la cuenta (general) / Una categoría (excepci�
 ### Pestaña «Alertas»
 
 La cuenta de la pestaña suma las cuatro cajas.
+
+**«No se pudieron crear (N)»** (con «Crear solo lo que falta» prendido): lo que la creación automática no pudo crear en la cuenta, con su «SKU», «Publicación» (o «Todas») y el «Motivo» (por ejemplo, el producto no tiene ninguna publicación común para copiar, o Mercado Libre pide un precio mínimo para la categoría). Se vuelve a intentar a la media hora, a las 2 horas, a las 12 y después una vez por día; lo que se crea sale de la lista. Arriba a la derecha, **«Descargar Excel»** con todo y las fechas de cada intento.
 
 **«Con envío gratis y menos de $ 33.000 (N)»** (el monto es el del envío gratis de Mercado Libre, se actualiza solo): publicaciones activas que cuestan menos que eso y tienen el envío gratis puesto, o sea que el vendedor lo regala sin necesidad. Columnas: «SKU», «Producto», «Publicación» y «Paga el comprador». Botón **«Sacar el envío gratis»** en cada fila y **«Sacar a todas»** arriba a la derecha de la caja: arman un lote en la [cola de Mercado Libre](/config/canales/cola) que sale con tu clic. Con el interruptor de la pestaña «Descuento» prendido, se saca solo una vez por día. Debajo, lo sacado en los últimos 7 días: fecha, publicación, si fue solo o con tu clic, y el resultado.
 

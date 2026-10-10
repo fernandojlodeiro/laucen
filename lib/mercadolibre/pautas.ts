@@ -9,6 +9,21 @@
 //   · Descripción: sin el encabezado («Tiendavirtual - Importadores…») ni el pie
 //     («Llevamos más de 20 años…», «Enviamos a todo el país…»): sólo lo técnico.
 
+import { una } from "@/lib/erp/base";
+
+/** La marca que lleva esta cuenta en los productos «sin marca» (canal.config.marca_publicaciones). */
+export async function marcaDeCuenta(org: string, canal: number): Promise<string | null> {
+  const r = await una<{ m: string | null }>("select nullif(trim(config ->> 'marca_publicaciones'), '') m from canal where id = $2 and organizacion_id = $1", [org, canal]);
+  return r?.m ?? null;
+}
+
+/** ¿Entra al catálogo? Si la marca se cambió por la de la cuenta, sólo a un catálogo de esa misma marca. */
+export function catalogoSegunMarca(catalogo: string | null, cat: { marca: string | null; decision: string } | null, marca: { marca: string | null; cambiada: boolean }): string | null {
+  if (!catalogo || !cat) return null;
+  if (marca.cambiada) return normal(cat.marca) === normal(marca.marca) ? catalogo : null;
+  return cat.decision === "entra" ? catalogo : null;
+}
+
 const normal = (s: string | null | undefined) => (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 /** Marcas que se reemplazan por la de la cuenta. */
@@ -17,7 +32,7 @@ const REEMPLAZABLES = new Set(["", "tiendavirtual", "tienda virtual", "daitom", 
 
 export const esMarcaReemplazable = (marca: string | null | undefined) => REEMPLAZABLES.has(normal(marca));
 
-type Atributo = { id: string; value_id?: string; value_name?: string | null };
+type Atributo = { id: string; value_id?: string | null; value_name?: string | null };
 
 /** La marca que queda en la publicación: la de la cuenta si la del producto es reemplazable, si no la del producto. */
 export function marcaFinal(atributos: Atributo[] | undefined, marcaCuenta: string | null): { marca: string | null; cambiada: boolean } {

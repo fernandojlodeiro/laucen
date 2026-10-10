@@ -155,7 +155,7 @@ export async function accionReplicarVolumen(fd: FormData) {
   });
 }
 
-const INTERRUPTORES = { sincronizar_precios: true, leer_precio_ganar: true, volumen_regla_stock: true, sacar_envio_gratis: true } as const;
+const INTERRUPTORES = { sincronizar_precios: true, leer_precio_ganar: true, volumen_regla_stock: true, sacar_envio_gratis: true, crear_faltantes_auto: true } as const;
 
 /** Prende o apaga un interruptor del canal. Prender "Sincronizar precios" es
  *  el clic de Fer que deja salir lo automático (AGENTS.md). */
@@ -178,6 +178,9 @@ export async function accionInterruptor(fd: FormData) {
       });
       return "Prendido. La primera pasada corre de fondo: al terminar aparece el cartel abajo a la derecha.";
     }
+    if (clave === "crear_faltantes_auto") return prender
+      ? "Prendido: cada 10 minutos Laucen crea en esta cuenta las publicaciones y los planes que faltan, solos. Lo que Mercado Libre no acepte queda en Alertas, con su Excel."
+      : "Apagado: no se crea nada más solo en esta cuenta (lo que ya está en la cola sale igual).";
     if (clave === "sacar_envio_gratis") return prender ? "Prendido: una vez por día, Laucen le saca solo el envío gratis a las publicaciones de esta cuenta que cuestan menos que el envío gratis (quedan en Alertas)." : "Apagado: las publicaciones con envío gratis de más quedan en Alertas, con un botón para preparar el lote.";
     if (clave === "leer_precio_ganar") return prender ? "Prendido: Laucen lee el precio para ganar y las campañas de esta cuenta (sólo lectura)." : "Apagado: no se lee más el precio para ganar de esta cuenta.";
     return prender ? "Prendido: un escalón de volumen sólo si hay stock para su cantidad." : "Apagado: los escalones van aunque no haya stock para la cantidad.";

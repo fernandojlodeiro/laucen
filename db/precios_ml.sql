@@ -294,3 +294,21 @@ alter table ml_plan_grupo add column if not exists ajuste_no_gana numeric(6, 2) 
 -- Desde qué Clásica va cada plan (Fer, 10/10): vacío = desde el envío gratis (ml_costos_envio_gratis_vigente);
 -- 0 = siempre. Aparte, ningún plan se crea si su precio cae en la franja de 10 % abajo del envío gratis.
 alter table ml_plan_grupo_plan add column if not exists desde_precio numeric(14, 2) check (desde_precio >= 0);
+
+-- Creación automática de lo que falta en cada cuenta (Fer, 10/10; lib/mercadolibre/auto-altas.ts): lo que ML no
+-- acepta o no se puede copiar queda acá, con su motivo, y no se vuelve a intentar hasta proximo_ts (30 min, 2 h,
+-- 12 h y después cada día). Se descarga en Excel desde Precios en ML › Alertas.
+create table if not exists ml_alta_colgada (
+  organizacion_id  text not null,
+  canal_id         bigint not null,
+  sku              text not null,
+  plan             text not null,
+  motivo           text not null,
+  intentos         int not null default 1,
+  primer_ts        timestamptz not null default now(),
+  ultimo_ts        timestamptz not null default now(),
+  proximo_ts       timestamptz not null default now() + interval '30 minutes',
+  primary key (organizacion_id, canal_id, sku, plan)
+);
+alter table ml_alta_colgada enable row level security;
+select erp_politica_org('ml_alta_colgada');

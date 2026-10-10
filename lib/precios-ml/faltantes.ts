@@ -10,7 +10,8 @@
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
-import { encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { encolar, encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { catalogoSegunMarca, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
 import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { calcularCanal } from "@/lib/precios-ml/datos";
@@ -19,19 +20,24 @@ import { DESCUENTO_MINIMO_ML, PLAN_INFO, descuentoVisible } from "@/lib/precios-
 
 export type ResultadoFaltantes = { loteId: number | null; altas: number; rechazos: string[]; sinOrigen: string[]; sinTiempo: number;
   /** Con tope («Crear 40»): cuántas quedaron para la próxima tanda. */
-  quedan?: number };
+  quedan?: number;
+  /** Los rechazos con su SKU y plan (para la creación automática: auto-altas.ts). */
+  fallas?: { sku: string; plan: string; motivo: string }[] };
 
 /** La clave en la cola de un alta de plan (la misma que «Publicar en todas las cuentas»: no se duplican). */
 const claveAlta = (sku: string, plan: string) => `esquema:${sku}:${plan}`;
 
-export async function prepararPlanesFaltantes(org: string, canalId: number, filtro: FiltroPrecios, usuario: string | null, hasta = Date.now() + 240_000, limite?: number | null): Promise<ResultadoFaltantes> {
+export async function prepararPlanesFaltantes(org: string, canalId: number, filtro: FiltroPrecios, usuario: string | null, hasta = Date.now() + 240_000, limite?: number | null,
+  /** Creación automática (auto-altas.ts): `directo` manda a la cola sin lote; `saltear`: SKU que esperan su próximo intento. */
+  opts: { directo?: boolean; saltear?: Set<string> } = {}): Promise<ResultadoFaltantes> {
   const calculo = await calcularCanal(org, canalId);
   const c = calculo.canal;
   const cuenta = await cuentaDelCanal(org, canalId);
   if (!cuenta || cuenta.estado !== "activa") throw new ErrorErp(`${c.nombre}: la cuenta de Mercado Libre no está conectada.`);
   const propuestas = filtrarCalculo(calculo, filtro).filter((p) => p.propuesta.faltan.length);
-  const res: ResultadoFaltantes = { loteId: null, altas: 0, rechazos: [], sinOrigen: [], sinTiempo: 0 };
+  const res: ResultadoFaltantes = { loteId: null, altas: 0, rechazos: [], sinOrigen: [], sinTiempo: 0, fallas: [] };
   if (!propuestas.length) return res;
+  const marcaCuenta = await marcaDeCuenta(org, canalId);
 
   // Lo que ya está en la cola (preparado, esperando o recién mandado) no se vuelve a armar.
   const enCola = new Set((await consulta<{ item_id: string }>(`
@@ -40,6 +46,7 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
 
   const altas: CambioMl[] = [];
   for (const { info, propuesta } of propuestas) {
+    if (opts.saltear?.has(info.sku)) continue;
     const faltan = propuesta.faltan.filter((f) => !enCola.has(claveAlta(info.sku, f.plan)));
     if (!faltan.length) continue;
     // En tandas (Fer, 10/10: «Crear 40»): lo que pasa del tope queda para la próxima.
@@ -57,25 +64,33 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
     if (!o?.ml) { res.sinOrigen.push(info.sku); continue; }
     const cuentaOrigen = o.canal_id === canalId ? cuenta : await cuentaDelCanal(org, o.canal_id);
     const d = cuentaOrigen?.estado === "activa" ? await ml<{ plain_text?: string }>(cuentaOrigen, "GET", `/items/${o.item_id}/description`) : { status: 0, datos: {} as { plain_text?: string } };
-    const texto = d.status === 200 ? d.datos.plain_text?.trim() ?? "" : "";
+    // Sin el encabezado ni el pie de la casa: sólo lo técnico (pautas.ts).
+    const texto = d.status === 200 ? limpiarDescripcion(d.datos.plain_text ?? "") : "";
     const modelo = await modeloDeLaucen(org, info.sku);
     const stock = Math.max(1, Number(info.stock ?? 0));
+    const marca = marcaFinal(o.ml.attributes, marcaCuenta);
     for (const f of faltan) {
       if (Date.now() > hasta) { res.sinTiempo++; continue; }
       // El catálogo según su marca (catalogo-marca.ts): el de una marca vetada no se publica; una página de otra marca, sin catálogo.
       const cat = f.catalogProductId ? await catalogoParaAlta(cuenta, f.catalogProductId) : null;
-      if (cat?.decision === "no_publicar") { res.rechazos.push(`${info.sku} ${PLAN_INFO[f.plan].nombre}: está en el catálogo ${f.catalogProductId} de ${cat.marca}, marca ajena`); continue; }
-      const catalogo = cat?.decision === "entra" ? f.catalogProductId : null;
+      if (cat?.decision === "no_publicar") {
+        const motivo = `está en el catálogo ${f.catalogProductId} de ${cat.marca}, marca ajena`;
+        res.rechazos.push(`${info.sku} ${PLAN_INFO[f.plan].nombre}: ${motivo}`);
+        res.fallas!.push({ sku: info.sku, plan: f.plan, motivo });
+        continue;
+      }
+      const catalogo = catalogoSegunMarca(f.catalogProductId, cat, marca);
       // Con descuento en el esquema se publica al tachado (uno por modelo) y la campaña la baja a su precio.
       const publicar = propuesta.tachadoPct > 0 && propuesta.tachado != null && descuentoVisible(propuesta.tachado, f.precio) >= DESCUENTO_MINIMO_ML ? propuesta.tachado : f.precio;
       const tag = PLAN_INFO[f.plan].tag;
       const item: ItemGuardado = { ...o.ml, price: publicar, available_quantity: stock, listing_type_id: "gold_pro",
         sale_terms: (o.ml.sale_terms ?? []).filter((t) => t.id !== "INSTALLMENTS_CAMPAIGN") };
       const r = await comprobarAlta(cuenta, (x) => {
-        const cuerpo = armarCuerpoCopia(item, info.sku, { variarTitulo: false, rotarFotos: false }, { modelo, ...x });
+        const cuerpo = armarCuerpoCopia(item, info.sku, { variarTitulo: false, rotarFotos: false },
+          { modelo, marca: marca.cambiada ? marca.marca : null, semillaTitulo: `${canalId}:${f.plan}:${info.sku}`, ...x });
         return tag ? { ...cuerpo, tags: [tag] } : cuerpo;
       }, { paquetes: [await paqueteDeLaucen(org, info.sku)] });
-      if (!r.ok) { res.rechazos.push(`${info.sku} ${PLAN_INFO[f.plan].nombre}: ${r.motivo}`); continue; }
+      if (!r.ok) { res.rechazos.push(`${info.sku} ${PLAN_INFO[f.plan].nombre}: ${r.motivo}`); res.fallas!.push({ sku: info.sku, plan: f.plan, motivo: r.motivo }); continue; }
       const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: r.cuerpo }];
       if (texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: texto }, seguirSiFalla: true });
       if (catalogo) pedidos.push({ metodo: "POST", ruta: "/items/catalog_listings", cuerpo: { item_id: "{id}", catalog_product_id: catalogo }, seguirSiFalla: true });
@@ -89,7 +104,10 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
       });
     }
   }
-  if (altas.length) {
+  if (altas.length && opts.directo) {
+    await encolar(org, altas, { origen: "automatico" });
+    res.altas = altas.length;
+  } else if (altas.length) {
     res.loteId = await encolarLoteConBoton(org, canalId, altas, `Planes de cuotas que faltan en ${c.nombre} (${altas.length})`, usuario);
     res.altas = altas.length;
   }

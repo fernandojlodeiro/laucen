@@ -17,6 +17,7 @@ import { textosCanal, descripcionCopiada } from "@/lib/canales/textos";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import { encolarLoteConBoton, errorLegible, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { mezclarTitulo } from "@/lib/mercadolibre/pautas";
 import { variacionPorSku } from "@/lib/mercadolibre/publicaciones";
 
 export type OpcionesCopia = { variarTitulo: boolean; rotarFotos: boolean };
@@ -69,14 +70,20 @@ export type Paquete = { largo: number; ancho: number; alto: number; peso: number
 export const PAQUETE_ESTANDAR: Paquete = { largo: 15, ancho: 10, alto: 3, peso: 100 };
 const ATRIBUTOS_PAQUETE = ["SELLER_PACKAGE_LENGTH", "SELLER_PACKAGE_WIDTH", "SELLER_PACKAGE_HEIGHT", "SELLER_PACKAGE_WEIGHT"];
 
-export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones: OpcionesCopia, extra: { modelo?: string | null; sacar?: string[]; sinEnvio?: boolean; completar?: string[]; paquete?: Paquete | null } = {}): Record<string, unknown> {
+export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones: OpcionesCopia, extra: { modelo?: string | null; sacar?: string[]; sinEnvio?: boolean; completar?: string[]; paquete?: Paquete | null;
+    /** Pautas (pautas.ts): la marca de la cuenta y la semilla para mezclar el título. */ marca?: string | null; semillaTitulo?: string | null } = {}): Record<string, unknown> {
   const nombre = ((it.family_name ?? it.title) ?? "").trim();
-  const nuevoNombre = opciones.variarTitulo ? variarTitulo(nombre) : nombre;
+  const nuevoNombre = extra.semillaTitulo ? mezclarTitulo(nombre, extra.semillaTitulo) : opciones.variarTitulo ? variarTitulo(nombre) : nombre;
   const fotos = (it.pictures ?? []).map((f) => f.secure_url ?? f.url).filter((u): u is string => !!u);
   const atributos = (it.attributes ?? [])
     .filter((a) => a.id !== "SELLER_SKU" && !NO_MODIFICABLE(a.id) && !(extra.sacar ?? []).includes(a.id) && (a.value_name != null || (a.value_id != null && a.value_id !== "-1"))
       && !(extra.paquete && ATRIBUTOS_PAQUETE.includes(a.id)))
     .map((a) => ({ id: a.id, ...(a.value_id && a.value_id !== "-1" ? { value_id: a.value_id } : {}), ...(a.value_name != null ? { value_name: a.value_name } : {}) }));
+  if (extra.marca) {
+    const i = atributos.findIndex((a) => a.id === "BRAND");
+    if (i >= 0) atributos.splice(i, 1);
+    atributos.push({ id: "BRAND", value_name: extra.marca } as (typeof atributos)[number]);
+  }
   if (sku) atributos.push({ id: "SELLER_SKU", value_name: sku } as (typeof atributos)[number]);
   if (extra.paquete) {
     const k = extra.paquete;
