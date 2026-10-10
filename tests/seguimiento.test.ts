@@ -1,7 +1,7 @@
 // Seguimiento de publicaciones (lib/seguimiento/): cómo se lee un resultado de Apify. Sin base.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aPubEncontrada } from "@/lib/seguimiento";
+import { aPubEncontrada, esPack, parecido } from "@/lib/seguimiento";
 
 test("aPubEncontrada: lo que trae el lector de Mercado Libre de Apify", () => {
   const p = aPubEncontrada({
@@ -28,6 +28,15 @@ test("aPubEncontrada: una de catálogo toma la publicación del wid y el catálo
 test("aPubEncontrada: un «producto de vendedor» (MLAU) también se puede seguir; el catálogo nunca es la misma publicación", () => {
   const p = aPubEncontrada({ title: "Servo", url: "https://www.mercadolibre.com.ar/servo/up/MLAU1234567890", price: 10 });
   assert.equal(p?.itemId, "MLAU1234567890");
+  // Un resultado /p/MLA… es un producto de catálogo (se abre en sus vendedores por la API).
   const q = aPubEncontrada({ id: "MLA2118082764", url: "https://www.mercadolibre.com.ar/x/p/MLA2118082764", price: 10 });
-  assert.equal(q?.catalogoId, null);
+  assert.equal(q?.esCatalogo, true);
+  assert.equal(q?.catalogoId, "MLA2118082764");
+});
+
+test("esPack y parecido: los packs se esconden y se ordena por cuánto se parece al nuestro", () => {
+  for (const t of ["Pack De 2 Motor Servo", "5 X Motor Servo Dm-s0090d", "Servo x10 unidades", "Kit Arduino", "10 unidades servo"]) assert.equal(esPack(t), true, t);
+  for (const t of ["Servo Digital Ds04-nfc 360° Rotacion - Torsion 5.5 Kg/cm", "Placa 3.3v-5v", "Servo Sg90 9g"]) assert.equal(esPack(t), false, t);
+  const nuestro = "Servo Digital Ds04-nfc 360° Rotacion";
+  assert.ok(parecido(nuestro, "Servomotor Ds04-nfc 360° Arduino") > parecido(nuestro, "Servo Rc 40kg Metal Impermeable"));
 });

@@ -4,7 +4,8 @@
 
 import { consulta } from "@/lib/erp/base";
 import { formatear, type Moneda } from "@/lib/moneda";
-import { ultimaBusqueda, configSeguimiento, enlaceDe, type PubEncontrada } from "@/lib/seguimiento";
+import { ultimaBusqueda, configSeguimiento, enlaceDe, esPack, parecido, type PubEncontrada } from "@/lib/seguimiento";
+import { CasillaViva } from "@/app/componentes/BuscadorVivo";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
@@ -45,7 +46,7 @@ function hace(d: Date | null) {
   return dias <= 0 ? "hoy" : dias === 1 ? "ayer" : `hace ${dias} días`;
 }
 
-export default async function SeccionSeguimiento({ s, p }: { s: { org: { id: string } }; p: { id: number; titulo: string } }) {
+export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string } }) {
   const [seguidas, busqueda, conf] = await Promise.all([
     consulta<Seguida>(`
       select sp.id::int, sp.item_id, sp.catalogo_id, sp.titulo, sp.foto, sp.permalink, sp.vendedor, sp.tienda_oficial, sp.precio::float8, sp.precio_original::float8,
@@ -59,6 +60,14 @@ export default async function SeccionSeguimiento({ s, p }: { s: { org: { id: str
     configSeguimiento(s.org.id),
   ]);
   const seguidosIds = new Set(seguidas.map((x) => x.item_id));
+  // Los resultados: sin packs (si el nuestro no lo es) ni los nuestros, salvo que se pidan; los más parecidos al nuestro primero.
+  const nuestroEsPack = esPack(p.titulo);
+  const todos = (busqueda?.resultados ?? []).filter((r) => !r.esCatalogo)
+    .map((r) => ({ ...r, pack: !nuestroEsPack && esPack(r.titulo), parecido: parecido(p.titulo, r.titulo) }));
+  const packs = todos.filter((r) => r.pack).length, propias = todos.filter((r) => r.propia).length;
+  const verPacks = sp.packs === "1", verPropias = sp.propias === "1";
+  const resultados = todos.filter((r) => (verPacks || !r.pack) && (verPropias || !r.propia))
+    .sort((a, b) => b.parecido - a.parecido || (a.precio ?? Infinity) - (b.precio ?? Infinity));
   const campos = { producto_id: String(p.id) };
 
   return (
@@ -126,19 +135,26 @@ export default async function SeccionSeguimiento({ s, p }: { s: { org: { id: str
       </section>
 
       <section className={CAJA}>
-        <TituloSeccion titulo={`Buscar en Mercado Libre para seguir${busqueda ? ` (${busqueda.resultados.length})` : ""}`} />
+        <TituloSeccion titulo={`Buscar en Mercado Libre para seguir${busqueda ? ` (${resultados.length})` : ""}`} />
         <BuscarSeguimiento productoId={p.id} inicial={busqueda?.texto ?? p.titulo} />
         {busqueda && (
           <p className="text-[11px] text-[#5C6B76] mt-2">Última búsqueda: «{busqueda.texto}», {new Date(busqueda.ts).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" })}. Volver a buscar cuesta de nuevo.</p>
         )}
-        {busqueda && busqueda.resultados.length > 0 && (
+        {busqueda && todos.length > 0 && (
+          <div className="flex flex-wrap items-center gap-4 mt-2 text-xs">
+            <CasillaViva parametro="packs" activo={verPacks} etiqueta={`Mostrar también packs y varias unidades (${packs})`} />
+            <CasillaViva parametro="propias" activo={verPropias} etiqueta={`Mostrar también las nuestras (${propias})`} />
+            <span className="text-[11px] text-[#5C6B76]">Primero las que más se parecen al título del producto. Las de catálogo muestran a cada vendedor que compite.</span>
+          </div>
+        )}
+        {busqueda && resultados.length > 0 && (
           <div className={`${CAJA_TABLA} mt-2`}>
             <table className={TABLA}>
               <thead className={THEAD}>
-                <tr><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Cuotas</th><th className={TH}>Envío</th><th /></tr>
+                <tr><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Tipo y cuotas</th><th className={TH}>Envío</th><th /></tr>
               </thead>
               <tbody>
-                {busqueda.resultados.map((r: PubEncontrada) => (
+                {resultados.map((r: PubEncontrada & { pack: boolean }) => (
                   <tr key={r.itemId} className={`${TR} ${r.propia ? "bg-[#F7F9FB]" : ""}`}>
                     <td className={TD}>
                       <span className="flex items-start gap-2">
@@ -146,15 +162,15 @@ export default async function SeccionSeguimiento({ s, p }: { s: { org: { id: str
                         <span>
                           <a href={enlaceMl({ permalink: r.permalink, itemId: r.itemId })} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline">{r.titulo} ↗</a>
                           <span className="block text-[10px] text-[#5C6B76] font-mono">
-                            {r.itemId}{r.catalogoId && " · 📖 Catálogo"}{r.publicidad && " · Publicidad"}
+                            {r.itemId}{r.catalogoId && " · 📖 Catálogo"}{r.publicidad && " · Publicidad"}{r.pack && " · Pack"}
                           </span>
                         </span>
                       </span>
                     </td>
                     <td className={TD}>{r.vendedor ?? "—"}{r.tiendaOficial && <span className="block text-[10px] text-[#1F6E4A]">Tienda oficial</span>}</td>
                     <td className={TDN}><Precio precio={r.precio} original={r.precioOriginal} moneda={r.moneda} /></td>
-                    <td className={`${TD} text-[11px]`}>{r.cuotas ?? "—"}</td>
-                    <td className={TD}>{r.envioGratis ? "Gratis" : "—"}</td>
+                    <td className={`${TD} text-[11px]`}>{r.tipoPublicacion ? <b className="block">{TIPOS[r.tipoPublicacion] ?? r.tipoPublicacion}</b> : null}{r.cuotas ?? (r.tipoPublicacion ? null : "—")}</td>
+                    <td className={TD}>{r.envioGratis ? "Gratis" : r.envioGratis === false ? "A cargo" : "—"}</td>
                     <td className={`${TD} text-right whitespace-nowrap`}>
                       {r.propia ? <span className="text-[11px] text-[#5C6B76]">Nuestra</span>
                         : seguidosIds.has(r.itemId) ? <span className="text-[11px] text-[#1F6E4A] font-semibold">✓ Siguiendo</span>

@@ -78,8 +78,27 @@ export type PubEncontrada = {
   itemId: string; catalogoId: string | null; titulo: string; foto: string | null; permalink: string | null;
   vendedor: string | null; tiendaOficial: boolean | null; precio: number | null; precioOriginal: number | null; moneda: string | null;
   cuotas: string | null; envioGratis: boolean | null; publicidad: boolean; estado: string | null; tipoPublicacion: string | null;
+  /** El resultado de la búsqueda es un producto de catálogo (no una publicación): se abre en sus vendedores por la API. */
+  esCatalogo?: boolean;
+  vendedorId?: number | null;
   propia?: boolean;
 };
+
+/** ¿Es un pack o varias unidades? («Pack de 2», «5 X …», «x10», «kit», «combo», «lote», «10 unidades»). Pura. */
+export function esPack(titulo: string): boolean {
+  return /\b(pack|kit|combo|lote|set)\b|\b\d+\s*x\s|\bx\s*\d+\b|\b\d+\s*(unidades|unid|uds|u)\b/i.test(titulo);
+}
+
+const palabras = (t: string) => new Set(t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1));
+
+/** Cuánto se parece un título al nuestro (0 a 1: palabras del nuestro que están en el otro). Pura. */
+export function parecido(nuestro: string, otro: string): number {
+  const a = palabras(nuestro), b = palabras(otro);
+  if (!a.size) return 0;
+  let n = 0;
+  for (const w of a) if (b.has(w)) n++;
+  return n / a.size;
+}
 
 const txt = (x: Record<string, unknown>, ...k: string[]) => {
   for (const c of k) {
@@ -101,15 +120,17 @@ export function aPubEncontrada(x: Record<string, unknown>): PubEncontrada | null
     ?? url?.match(/\/up\/(MLAU\d+)/)?.[1]
     ?? url?.match(/articulo\.mercadolibre\.com\.ar\/(MLA-?\d{9,})/)?.[1]?.replace("-", "") ?? null;
   if (!id) return null;
-  // El producto de catálogo, sólo si es otro número que el de la publicación.
-  const cat = url?.match(/\/p\/(MLA\d+)/)?.[1] ?? txt(x, "catalogProductId", "catalog_product_id");
-  const catalogo = cat && cat !== id ? cat : null;
+  // Un resultado con dirección /p/MLA… es un producto de catálogo: el número es el del catálogo, no el
+  // de una publicación (la publicación sale de la API, con todos los que compiten).
+  const enCatalogo = url?.match(/\/p\/(MLA\d+)/)?.[1] ?? null;
+  const catalogo = enCatalogo ?? txt(x, "catalogProductId", "catalog_product_id");
   const estadoTxt = (txt(x, "status", "itemStatus") ?? "").toLowerCase();
   return {
     itemId: id, catalogoId: catalogo, titulo: txt(x, "title", "name") ?? "(sin título)", foto: txt(x, "image", "thumbnail", "imageUrl", "images", "pictures"),
     permalink: url, vendedor: txt(x, "sellerName", "seller", "sellerNickname"), tiendaOficial: bool(x.officialStore),
     precio: num(x.price ?? x.currentPrice), precioOriginal: num(x.originalPrice), moneda: txt(x, "currency") ?? "ARS",
-    cuotas: txt(x, "installments"), envioGratis: bool(x.freeShipping), publicidad: x.sponsored === true,
+    // El envío gratis de la búsqueda de Apify no es confiable: el de verdad sale de la API (catálogo).
+    cuotas: txt(x, "installments"), envioGratis: null, publicidad: x.sponsored === true, esCatalogo: !!enCatalogo,
     estado: /paus/.test(estadoTxt) ? "pausada" : /clos|finaliz/.test(estadoTxt) ? "cerrada" : estadoTxt ? "activa" : null,
     tipoPublicacion: txt(x, "listingType", "listing_type_id"),
   };
@@ -134,16 +155,47 @@ export async function buscarParaSeguir(org: string, productoId: number, texto: s
   await consulta("insert into seguimiento_corrida (organizacion_id, tipo, producto_id, run_id, costo_usd, publicaciones, error) values ($1, 'busqueda', $2, $3, $4, $5, $6)",
     [org, productoId, c.runId ?? null, costoDe("busqueda", c.costoUsd, c.items.length), c.items.length, c.error ?? null]);
   if (!c.items.length) throw new ErrorErp(c.error ? `Mercado Libre no devolvió resultados (${c.error.slice(0, 120)}).` : "Mercado Libre no devolvió resultados para esa búsqueda.");
-  const { apodos } = await nuestras(org);
+  const { cuentas, apodos } = await nuestras(org);
+  const crudos = (c.items as Record<string, unknown>[]).map(aPubEncontrada).filter((p): p is PubEncontrada => !!p);
+  // Cada producto de catálogo se abre en sus vendedores por la API (gratis): publicación, vendedor, precio, tipo y envío reales.
+  const lista: PubEncontrada[] = [];
+  for (const p of crudos) {
+    if (!p.esCatalogo || !cuentas[0]) { lista.push({ ...p, esCatalogo: false }); continue; }
+    lista.push(...await vendedoresDelCatalogo(cuentas[0], p.catalogoId ?? p.itemId, p));
+  }
+  // Los apodos de los vendedores (la API pública de usuarios), de a uno; los nuestros ya se saben.
+  const ids = new Map(cuentas.map((x) => [x.meliUserId, x.nickname ?? "Nuestra"]));
+  const nuestrosIds = new Set(cuentas.map((x) => x.meliUserId));
+  for (const v of [...new Set(lista.map((p) => p.vendedorId).filter((v): v is number => !!v && !ids.has(v)))].slice(0, 60)) {
+    const u = cuentas[0] ? await ml<{ nickname?: string }>(cuentas[0], "GET", `/users/${v}`).catch(() => null) : null;
+    if (u?.status === 200 && u.datos.nickname) ids.set(v, u.datos.nickname);
+  }
+  const propiasIds = new Set((await consulta<{ item_id: string }>("select distinct item_id from meli_item where organizacion_id = $1 and item_id = any($2::text[])",
+    [org, lista.map((p) => p.itemId)])).map((r) => r.item_id));
   const vistos = new Set<string>();
-  const resultados = (c.items as Record<string, unknown>[]).map(aPubEncontrada)
-    .filter((p): p is PubEncontrada => !!p && !vistos.has(p.itemId) && !!vistos.add(p.itemId))
-    .map((p) => ({ ...p, propia: !!p.vendedor && apodos.has(p.vendedor.toUpperCase().trim()) }));
+  const resultados = lista
+    .filter((p) => !vistos.has(p.itemId) && !!vistos.add(p.itemId))
+    .map((p) => {
+      const vendedor = p.vendedor ?? (p.vendedorId ? ids.get(p.vendedorId) ?? null : null);
+      return { ...p, vendedor, propia: propiasIds.has(p.itemId) || (!!p.vendedorId && nuestrosIds.has(p.vendedorId)) || (!!vendedor && apodos.has(vendedor.toUpperCase().trim())) };
+    });
   await consulta(`
     insert into seguimiento_busqueda (organizacion_id, producto_id, texto, ts, resultados) values ($1, $2, $3, now(), $4::jsonb)
     on conflict (organizacion_id, producto_id) do update set texto = excluded.texto, ts = now(), resultados = excluded.resultados`,
     [org, productoId, q, JSON.stringify(resultados)]);
   return { cantidad: resultados.length, costoUsd: costoDe("busqueda", c.costoUsd, c.items.length) };
+}
+
+/** Los vendedores que compiten en un producto de catálogo (API, gratis), como publicaciones para seguir. */
+async function vendedoresDelCatalogo(cuenta: CuentaMl, catalogo: string, base: PubEncontrada): Promise<PubEncontrada[]> {
+  const r = await ml<{ results?: { item_id: string; price?: number; original_price?: number | null; currency_id?: string; listing_type_id?: string; seller_id?: number;
+    official_store_id?: number | null; shipping?: { free_shipping?: boolean } }[] }>(cuenta, "GET", `/products/${catalogo}/items?limit=30`).catch(() => null);
+  if (!r || r.status !== 200 || !r.datos.results?.length) return [];
+  return r.datos.results.map((x) => ({
+    ...base, itemId: x.item_id, catalogoId: catalogo, esCatalogo: false, permalink: enlaceDe(x.item_id), vendedor: null, vendedorId: x.seller_id ?? null,
+    tiendaOficial: x.official_store_id != null, precio: x.price ?? null, precioOriginal: x.original_price ?? null, moneda: x.currency_id ?? "ARS",
+    tipoPublicacion: x.listing_type_id ?? null, envioGratis: x.shipping?.free_shipping ?? null, estado: "activa", publicidad: false,
+  }));
 }
 
 export async function ultimaBusqueda(org: string, productoId: number): Promise<{ texto: string; ts: Date; resultados: PubEncontrada[] } | null> {
@@ -161,13 +213,14 @@ export async function seguirDeBusqueda(org: string, productoId: number, itemId: 
   const b = await ultimaBusqueda(org, productoId);
   const p = b?.resultados.find((x) => x.itemId === itemId);
   if (!p) throw new ErrorErp("Esa publicación ya no está en la búsqueda: buscá de nuevo.");
+  if (p.esCatalogo) throw new ErrorErp("Es un producto de catálogo: buscá de nuevo para ver a cada vendedor.");
   const r = await una<{ id: number }>(`
     insert into seguimiento_pub (organizacion_id, producto_id, item_id, catalogo_id, titulo, foto, permalink, vendedor, tienda_oficial,
-                                 precio, precio_original, moneda, estado, tipo_publicacion, cuotas, envio_gratis, origen, leido_ts, intento_ts)
-    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, coalesce($13, 'activa'), $14, $15, $16, 'busqueda', $17, $17)
+                                 precio, precio_original, moneda, estado, tipo_publicacion, cuotas, envio_gratis, origen, leido_ts, intento_ts, vendedor_id)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, coalesce($13, 'activa'), $14, $15, $16, 'busqueda', $17, $17, $18)
     on conflict (organizacion_id, producto_id, item_id) do nothing returning id::int`,
     [org, productoId, p.itemId, p.catalogoId, p.titulo, p.foto, p.permalink, p.vendedor, p.tiendaOficial, p.precio, p.precioOriginal, p.moneda,
-      p.estado, p.tipoPublicacion, p.cuotas, p.envioGratis, b!.ts]);
+      p.estado, p.tipoPublicacion, p.cuotas, p.envioGratis, b!.ts, p.vendedorId ?? null]);
   if (r) await anotarLectura(org, r.id, "busqueda", p);
 }
 

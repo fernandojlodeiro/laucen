@@ -25,7 +25,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type SP = { seccion?: string; editar?: string; ok?: string; error?: string; orden?: string; dir?: string; pcanal?: string };
+type SP = { seccion?: string; editar?: string; ok?: string; error?: string; orden?: string; dir?: string; pcanal?: string; packs?: string; propias?: string };
 
 export default async function FichaProducto({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SP> }) {
   const s = await entrarErp("productos_ver");
@@ -149,7 +149,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
       {seccion === "precios" && <SeccionPrecios {...props} />}
       {seccion === "stock" && <SeccionStock {...props} />}
       {seccion === "publicaciones" && <SeccionPublicaciones {...props} />}
-      {seccion === "seguimiento" && <SeccionSeguimiento s={s} p={p} />}
+      {seccion === "seguimiento" && <SeccionSeguimiento s={s} p={p} sp={sp} />}
     </Pantalla>
   );
 }

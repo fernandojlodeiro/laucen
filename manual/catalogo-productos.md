@@ -178,8 +178,9 @@ La pestaña **Seguimiento (N)** de la ficha guarda las publicaciones de otros ve
 Para elegir cuáles seguir:
 1. En el recuadro **Buscar en Mercado Libre para seguir**, el texto ya viene con el título del producto (se puede cambiar).
 2. Apretá **🔍 Buscar en Mercado Libre**: pregunta "¿Buscar? Cuesta unos US$ 0,10"; con **Sí** busca de fondo (uno o dos minutos) y avisa abajo a la derecha al terminar.
-3. Aparecen hasta 50 publicaciones con foto, título, vendedor, precio, cuotas y envío; las de publicidad y las de catálogo están marcadas, y las nuestras dicen **Nuestra**.
-4. Al lado de cada una, **+ Seguir** la agrega (sin costo). Las que ya seguís dicen **✓ Siguiendo**.
+3. Aparecen las publicaciones encontradas, **primero las que más se parecen al título del producto**, con foto, título, vendedor, precio, tipo de publicación y cuotas, y envío. Cuando lo encontrado es un **producto de catálogo** de Mercado Libre, se muestra **cada vendedor que compite en ese catálogo** (con su vendedor, precio, tipo y envío reales), marcados **📖 Catálogo**; las de publicidad también están marcadas.
+4. De entrada **no se muestran los packs ni las de varias unidades** («Pack de 2», «5 X…», «x10», «kit», «combo», «lote», «10 unidades»), salvo que el producto también sea un pack, **ni las nuestras** (se reconocen por el número de publicación y por la cuenta). Las cajas **Mostrar también packs y varias unidades (N)** y **Mostrar también las nuestras (N)** las agregan; las nuestras dicen **Nuestra**.
+5. Al lado de cada una, **+ Seguir** la agrega (sin costo). Las que ya seguís dicen **✓ Siguiendo**.
 
 La última búsqueda queda guardada: volver a la pestaña no cuesta; buscar de nuevo, sí.
 
