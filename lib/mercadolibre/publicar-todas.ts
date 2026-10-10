@@ -19,6 +19,7 @@
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import { canalesMl, comisionesMl, familiasDe, reglasCanal, type CanalMl } from "@/lib/precios-ml/datos";
@@ -242,6 +243,10 @@ async function altasEnCanal(org: string, plan: PlanTodas, datos: DatosOrigen, c:
   const cuenta = await cuentaDelCanal(org, c.id);
   if (!cuenta || cuenta.estado !== "activa") { res.rechazos.push(`${c.nombre}: la cuenta de Mercado Libre no está conectada`); return altas; }
   const stock = Math.max(1, Number((await una<{ d: number }>("select stock_disponible_canal($1, $2, $3)::int d", [org, plan.variacion.id, c.id]))?.d ?? 0));
+  // El catálogo según su marca (catalogo-marca.ts): el de una marca vetada no se publica; una página de otra marca, sin catálogo.
+  const cat = plan.catalogo ? await catalogoParaAlta(cuenta, plan.catalogo) : null;
+  if (cat?.decision === "no_publicar") { res.rechazos.push(`${c.nombre} ${sku}: está en el catálogo ${plan.catalogo} de ${cat.marca}, marca ajena`); return altas; }
+  const catalogo = cat?.decision === "entra" ? plan.catalogo : null;
   for (const f of deEsta) {
     if (Date.now() > hasta) { res.sinTiempo++; continue; }
     const tag = f.plan === "clasica" ? null : PLAN_INFO[f.plan].tag;
@@ -256,12 +261,12 @@ async function altasEnCanal(org: string, plan: PlanTodas, datos: DatosOrigen, c:
     const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: r.cuerpo }];
     if (datos.texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: datos.texto }, seguirSiFalla: true });
     // Que compita también en el catálogo (si ML no la deja, el alta queda igual).
-    if (plan.catalogo) pedidos.push({ metodo: "POST", ruta: "/items/catalog_listings", cuerpo: { item_id: "{id}", catalog_product_id: plan.catalogo }, seguirSiFalla: true });
+    if (catalogo) pedidos.push({ metodo: "POST", ruta: "/items/catalog_listings", cuerpo: { item_id: "{id}", catalog_product_id: catalogo }, seguirSiFalla: true });
     const precio = f.publicar !== f.venta && f.venta != null ? ` (con campaña $ ${f.venta.toLocaleString("es-AR")})` : "";
     altas.push({
       canalId: c.id, itemId: `esquema:${sku}:${f.plan}`, tipo: "crear", antes: { estado: "no existe en esta cuenta" },
       payload: {
-        descripcion: `Alta en ${c.nombre}: ${sku} ${f.nombre} $ ${f.publicar!.toLocaleString("es-AR")}${precio}${f.gana ? "" : ` (no gana: +${plan.noGana} %)`}; copia de ${o.itemId} (${o.cuenta})${plan.catalogo ? `, y entra al catálogo ${plan.catalogo}` : ""}`,
+        descripcion: `Alta en ${c.nombre}: ${sku} ${f.nombre} $ ${f.publicar!.toLocaleString("es-AR")}${precio}${f.gana ? "" : ` (no gana: +${plan.noGana} %)`}; copia de ${o.itemId} (${o.cuenta})${catalogo ? `, y entra al catálogo ${catalogo}` : ""}`,
         origen: { canal: o.canal, item_id: o.itemId }, pedidos,
       },
     });

@@ -11,6 +11,7 @@
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { calcularCanal } from "@/lib/precios-ml/datos";
 import { filtrarCalculo, type FiltroPrecios } from "@/lib/precios-ml/preparar";
@@ -61,6 +62,10 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
     const stock = Math.max(1, Number(info.stock ?? 0));
     for (const f of faltan) {
       if (Date.now() > hasta) { res.sinTiempo++; continue; }
+      // El catálogo según su marca (catalogo-marca.ts): el de una marca vetada no se publica; una página de otra marca, sin catálogo.
+      const cat = f.catalogProductId ? await catalogoParaAlta(cuenta, f.catalogProductId) : null;
+      if (cat?.decision === "no_publicar") { res.rechazos.push(`${info.sku} ${PLAN_INFO[f.plan].nombre}: está en el catálogo ${f.catalogProductId} de ${cat.marca}, marca ajena`); continue; }
+      const catalogo = cat?.decision === "entra" ? f.catalogProductId : null;
       // Con descuento en el esquema se publica al tachado (uno por modelo) y la campaña la baja a su precio.
       const publicar = propuesta.tachadoPct > 0 && propuesta.tachado != null && descuentoVisible(propuesta.tachado, f.precio) >= DESCUENTO_MINIMO_ML ? propuesta.tachado : f.precio;
       const tag = PLAN_INFO[f.plan].tag;
@@ -73,12 +78,12 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
       if (!r.ok) { res.rechazos.push(`${info.sku} ${PLAN_INFO[f.plan].nombre}: ${r.motivo}`); continue; }
       const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: r.cuerpo }];
       if (texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: texto }, seguirSiFalla: true });
-      if (f.catalogProductId) pedidos.push({ metodo: "POST", ruta: "/items/catalog_listings", cuerpo: { item_id: "{id}", catalog_product_id: f.catalogProductId }, seguirSiFalla: true });
+      if (catalogo) pedidos.push({ metodo: "POST", ruta: "/items/catalog_listings", cuerpo: { item_id: "{id}", catalog_product_id: catalogo }, seguirSiFalla: true });
       const conCampana = publicar !== f.precio ? ` (con campaña $ ${f.precio.toLocaleString("es-AR")})` : "";
       altas.push({
         canalId, itemId: claveAlta(info.sku, f.plan), tipo: "crear", antes: { estado: "no existe en esta cuenta" },
         payload: {
-          descripcion: `Alta en ${c.nombre}: ${info.sku} ${PLAN_INFO[f.plan].nombre} $ ${publicar.toLocaleString("es-AR")}${conCampana}; copia de ${o.item_id}${f.catalogProductId ? `, y entra al catálogo ${f.catalogProductId}` : ""}`,
+          descripcion: `Alta en ${c.nombre}: ${info.sku} ${PLAN_INFO[f.plan].nombre} $ ${publicar.toLocaleString("es-AR")}${conCampana}; copia de ${o.item_id}${catalogo ? `, y entra al catálogo ${catalogo}` : ""}`,
           origen: { canal: o.canal_id, item_id: o.item_id }, pedidos,
         },
       });
