@@ -71,7 +71,9 @@ export const PAQUETE_ESTANDAR: Paquete = { largo: 15, ancho: 10, alto: 3, peso: 
 const ATRIBUTOS_PAQUETE = ["SELLER_PACKAGE_LENGTH", "SELLER_PACKAGE_WIDTH", "SELLER_PACKAGE_HEIGHT", "SELLER_PACKAGE_WEIGHT"];
 
 export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones: OpcionesCopia, extra: { modelo?: string | null; sacar?: string[]; sinEnvio?: boolean; completar?: string[]; paquete?: Paquete | null;
-    /** Pautas (pautas.ts): la marca de la cuenta y la semilla para mezclar el título. */ marca?: string | null; semillaTitulo?: string | null } = {}): Record<string, unknown> {
+    /** Pautas (pautas.ts): la marca de la cuenta y la semilla para mezclar el título. */ marca?: string | null; semillaTitulo?: string | null;
+    /** Los datos de las otras publicaciones del producto (pautas.ts › atributosConocidos), para completar lo que ML pide. */
+    conocidos?: Map<string, { value_id?: string; value_name?: string }> } = {}): Record<string, unknown> {
   const nombre = ((it.family_name ?? it.title) ?? "").trim();
   const nuevoNombre = extra.semillaTitulo ? mezclarTitulo(nombre, extra.semillaTitulo) : opciones.variarTitulo ? variarTitulo(nombre) : nombre;
   const fotos = (it.pictures ?? []).map((f) => f.secure_url ?? f.url).filter((u): u is string => !!u);
@@ -100,6 +102,9 @@ export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones:
   const modelo = atributos.find((a) => a.id === "MODEL")?.value_name ?? modeloLaucen ?? null;
   for (const id of extra.completar ?? []) {
     if (atributos.some((a) => a.id === id)) continue;
+    // Lo que ya tiene otra publicación del mismo producto, primero.
+    const conocido = extra.conocidos?.get(id);
+    if (conocido) { atributos.push({ id, ...conocido } as (typeof atributos)[number]); continue; }
     if (modelo && ES_NUMERO_DE_PIEZA(id)) atributos.push({ id, value_name: modelo } as (typeof atributos)[number]);
     // Código de barras exigido y la publicación no lo tiene: «El producto no tiene código registrado».
     if (id === "EMPTY_GTIN_REASON" && !atributos.some((a) => a.id === "GTIN")) atributos.push({ id, value_id: "17055160" } as (typeof atributos)[number]);
@@ -212,7 +217,7 @@ export type Comprobacion = { ok: true; cuerpo: Record<string, unknown>; avisos: 
  *  atributos que no se pueden mandar, los saca y vuelve a comprobar; si protesta por el
  *  envío, vuelve a comprobar sin el bloque de envío (usa el que tiene la cuenta). */
 export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string[]; sinEnvio?: boolean; completar?: string[]; paquete?: Paquete | null }) => Record<string, unknown>,
-  opts: { paquetes?: (Paquete | null)[] } = {}): Promise<Comprobacion> {
+  opts: { paquetes?: (Paquete | null)[]; conocidos?: Map<string, unknown> } = {}): Promise<Comprobacion> {
   let sacar: string[] = [];
   let completar: string[] = [];
   let paquete: Paquete | null = null;
@@ -221,7 +226,8 @@ export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string
   // Un obligatorio que falta y se puede completar (número de pieza ← Modelo; sin código de barras → el motivo;
   // la cantidad de envases de «Unidad» → 1): se prueba con él.
   const completables = (datos: unknown) => [
-    ...atributosFaltantes(datos).flatMap((x) => (ES_NUMERO_DE_PIEZA(x) || x === "MODEL" || x === "IS_FACTORY_KIT" ? [x] : x === "GTIN" ? ["EMPTY_GTIN_REASON"] : [])),
+    ...atributosFaltantes(datos).flatMap((x) => (opts.conocidos?.has(x) || ES_NUMERO_DE_PIEZA(x) || x === "MODEL" || x === "IS_FACTORY_KIT" ? [x]
+      : x === "GTIN" ? ["EMPTY_GTIN_REASON"] : [])),
     ...(causasDe(datos).some((c) => c.code === "item.attribute.invalid_sale_units") ? ["UNITS_PER_PACK"] : [])].filter((x) => !completar.includes(x));
   const faltan = completables(r.datos);
   if (r.status === 400 && faltan.length) {

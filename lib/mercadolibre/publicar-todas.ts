@@ -21,7 +21,7 @@ import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolar, encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
 import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
 import { sinFotosConMarca } from "@/lib/mercadolibre/fotos-marca";
-import { catalogoSegunMarca, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
+import { ajusteAlta, atributosConocidos, catalogoSegunMarca, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import { canalesMl, comisionesMl, familiasDe, reglasCanal, type CanalMl } from "@/lib/precios-ml/datos";
@@ -150,7 +150,8 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
        and coalesce((datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false) = false`, [org, v.sku]);
   const enCola = await consulta<{ canal: number; item_id: string }>(`
     select canal_id::int canal, item_id from ml_cola where organizacion_id = $1 and tipo = 'crear' and item_id like $2
-       and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '30 days'))`, [org, `esquema:${v.sku}:%`]);
+       and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '30 days'
+                and not exists (select 1 from meli_item x where x.item_id = ml_cola.respuesta ->> 'id' and x.estado = 'closed')))`, [org, `esquema:${v.sku}:%`]);
 
   cache.com ??= await comisionesMl();
   cache.familias ??= await familiasDe(org);
@@ -260,16 +261,20 @@ async function altasEnCanal(org: string, plan: PlanTodas, datos: DatosOrigen, c:
   // Pautas (pautas.ts): la marca de la cuenta en los «sin marca»; con la marca cambiada, sólo un catálogo de esa marca.
   const marca = marcaFinal(datos.atributos, await marcaDeCuenta(org, c.id));
   const catalogo = catalogoSegunMarca(plan.catalogo, cat, marca);
+  // Una que ML bloqueó y se vuelve a crear: en la categoría que sugirió y con el título sin mezclar (ml_alta_ajuste).
+  const ajuste = await ajusteAlta(org, c.id, sku);
+  const conocidos = await atributosConocidos(org, sku);
   for (const f of deEsta) {
     if (Date.now() > hasta) { res.sinTiempo++; continue; }
     const tag = f.plan === "clasica" ? null : PLAN_INFO[f.plan].tag;
     const item: ItemGuardado = { ...datos.ml, attributes: datos.atributos, price: f.publicar!, available_quantity: stock,
+      ...(ajuste?.categoria ? { category_id: ajuste.categoria } : {}),
       listing_type_id: f.plan === "clasica" ? "gold_special" : "gold_pro", sale_terms: (datos.ml.sale_terms ?? []).filter((t) => t.id !== "INSTALLMENTS_CAMPAIGN") };
     const r = await comprobarAlta(cuenta, (x) => {
       const cuerpo = armarCuerpoCopia(item, sku, { variarTitulo: false, rotarFotos: false },
-        { modelo: datos.modelo, marca: marca.cambiada ? marca.marca : null, semillaTitulo: `${c.id}:${f.plan}:${sku}`, ...x });
+        { modelo: datos.modelo, marca: marca.cambiada ? marca.marca : null, semillaTitulo: ajuste?.sinMezclar ? null : `${c.id}:${f.plan}:${sku}`, conocidos, ...x });
       return tag ? { ...cuerpo, tags: [tag] } : cuerpo;
-    }, { paquetes: [await paqueteDeLaucen(org, sku)] });
+    }, { paquetes: [await paqueteDeLaucen(org, sku)], conocidos });
     if (!r.ok) { res.rechazos.push(`${c.nombre} ${sku} ${f.nombre}: ${r.motivo}`); (res.fallas ??= []).push({ sku, plan: f.plan, motivo: r.motivo }); continue; }
     if (r.avisos) res.avisos.push(`${c.nombre} ${sku} ${f.nombre}: ${r.avisos}`);
     const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: r.cuerpo }];

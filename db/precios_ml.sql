@@ -321,3 +321,18 @@ create table if not exists ml_foto_revisada (
   revisada_ts  timestamptz not null default now()
 );
 alter table ml_foto_revisada enable row level security;
+
+-- Ajustes para volver a crear una publicación que ML bloqueó (Fer, 11/10; lib/mercadolibre/auto-altas.ts): la categoría
+-- que sugiere ML («Estaba en una categoría incorrecta») y el título sin mezclar («El título y/o las fotos no coinciden»).
+create table if not exists ml_alta_ajuste (
+  organizacion_id  text not null,
+  canal_id         bigint not null,
+  sku              text not null,
+  categoria        text,
+  sin_mezclar      boolean not null default false,
+  motivo           text,
+  creado_ts        timestamptz not null default now(),
+  primary key (organizacion_id, canal_id, sku)
+);
+alter table ml_alta_ajuste enable row level security;
+select erp_politica_org('ml_alta_ajuste');

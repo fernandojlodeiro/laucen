@@ -12,7 +12,7 @@ import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolar, encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
 import { sinFotosConMarca } from "@/lib/mercadolibre/fotos-marca";
-import { catalogoSegunMarca, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
+import { ajusteAlta, atributosConocidos, catalogoSegunMarca, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
 import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { calcularCanal } from "@/lib/precios-ml/datos";
@@ -43,7 +43,8 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
   // Lo que ya está en la cola (preparado, esperando o recién mandado) no se vuelve a armar.
   const enCola = new Set((await consulta<{ item_id: string }>(`
     select item_id from ml_cola where organizacion_id = $1 and canal_id = $2 and tipo = 'crear' and item_id like 'esquema:%'
-       and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '30 days'))`, [org, canalId])).map((x) => x.item_id));
+       and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '30 days'
+                and not exists (select 1 from meli_item x where x.item_id = ml_cola.respuesta ->> 'id' and x.estado = 'closed')))`, [org, canalId])).map((x) => x.item_id));
 
   const altas: CambioMl[] = [];
   for (const { info, propuesta } of propuestas) {
@@ -70,6 +71,9 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
     const modelo = await modeloDeLaucen(org, info.sku);
     const stock = Math.max(1, Number(info.stock ?? 0));
     const marca = marcaFinal(o.ml.attributes, marcaCuenta);
+    // Una que ML bloqueó y se vuelve a crear: categoría sugerida y título sin mezclar (ml_alta_ajuste); los datos de las otras.
+    const ajuste = await ajusteAlta(org, canalId, info.sku);
+    const conocidos = await atributosConocidos(org, info.sku);
     // Sin las fotos con la marca «Tiendavirtual» (pautas, fotos-marca.ts).
     o.ml.pictures = await sinFotosConMarca(o.ml.pictures ?? []);
     for (const f of faltan) {
@@ -86,13 +90,13 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
       // Con descuento en el esquema se publica al tachado (uno por modelo) y la campaña la baja a su precio.
       const publicar = propuesta.tachadoPct > 0 && propuesta.tachado != null && descuentoVisible(propuesta.tachado, f.precio) >= DESCUENTO_MINIMO_ML ? propuesta.tachado : f.precio;
       const tag = PLAN_INFO[f.plan].tag;
-      const item: ItemGuardado = { ...o.ml, price: publicar, available_quantity: stock, listing_type_id: "gold_pro",
+      const item: ItemGuardado = { ...o.ml, price: publicar, available_quantity: stock, listing_type_id: "gold_pro", ...(ajuste?.categoria ? { category_id: ajuste.categoria } : {}),
         sale_terms: (o.ml.sale_terms ?? []).filter((t) => t.id !== "INSTALLMENTS_CAMPAIGN") };
       const r = await comprobarAlta(cuenta, (x) => {
         const cuerpo = armarCuerpoCopia(item, info.sku, { variarTitulo: false, rotarFotos: false },
-          { modelo, marca: marca.cambiada ? marca.marca : null, semillaTitulo: `${canalId}:${f.plan}:${info.sku}`, ...x });
+          { modelo, marca: marca.cambiada ? marca.marca : null, semillaTitulo: ajuste?.sinMezclar ? null : `${canalId}:${f.plan}:${info.sku}`, conocidos, ...x });
         return tag ? { ...cuerpo, tags: [tag] } : cuerpo;
-      }, { paquetes: [await paqueteDeLaucen(org, info.sku)] });
+      }, { paquetes: [await paqueteDeLaucen(org, info.sku)], conocidos });
       if (!r.ok) { res.rechazos.push(`${info.sku} ${PLAN_INFO[f.plan].nombre}: ${r.motivo}`); res.fallas!.push({ sku: info.sku, plan: f.plan, motivo: r.motivo }); continue; }
       const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: r.cuerpo }];
       if (texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: texto }, seguirSiFalla: true });

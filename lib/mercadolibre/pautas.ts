@@ -9,12 +9,31 @@
 //   · Descripción: sin el encabezado («Tiendavirtual - Importadores…») ni el pie
 //     («Llevamos más de 20 años…», «Enviamos a todo el país…»): sólo lo técnico.
 
-import { una } from "@/lib/erp/base";
+import { consulta, una } from "@/lib/erp/base";
 
 /** La marca que lleva esta cuenta en los productos «sin marca» (canal.config.marca_publicaciones). */
 export async function marcaDeCuenta(org: string, canal: number): Promise<string | null> {
   const r = await una<{ m: string | null }>("select nullif(trim(config ->> 'marca_publicaciones'), '') m from canal where id = $2 and organizacion_id = $1", [org, canal]);
   return r?.m ?? null;
+}
+
+/** El ajuste para volver a crear una publicación que ML bloqueó (ml_alta_ajuste): su categoría sugerida y sin mezclar el título. */
+export async function ajusteAlta(org: string, canal: number, sku: string): Promise<{ categoria: string | null; sinMezclar: boolean } | null> {
+  const r = await una<{ categoria: string | null; sin_mezclar: boolean }>(
+    "select categoria, sin_mezclar from ml_alta_ajuste where organizacion_id = $1 and canal_id = $2 and sku = $3", [org, canal, sku]);
+  return r ? { categoria: r.categoria, sinMezclar: r.sin_mezclar } : null;
+}
+
+/** Los datos que ya tienen las otras publicaciones del mismo producto (en cualquier cuenta): si ML pide uno que a la
+ *  de origen le falta, se toma de ahí (Fer, 11/10: «si ya hay publicaciones activas, sabés todo lo que hace falta»). */
+export async function atributosConocidos(org: string, sku: string): Promise<Map<string, { value_id?: string; value_name?: string }>> {
+  const filas = await consulta<{ id: string; value_id: string | null; value_name: string | null }>(`
+    select distinct on (a ->> 'id') a ->> 'id' id, nullif(a ->> 'value_id', '-1') value_id, nullif(trim(a ->> 'value_name'), '') value_name
+      from meli_item m, jsonb_array_elements(coalesce(m.datos_externos -> 'ml' -> 'attributes', '[]')) a
+     where m.organizacion_id = $1 and m.sku = $2 and m.estado = 'active'
+       and (nullif(a ->> 'value_id', '-1') is not null or nullif(trim(a ->> 'value_name'), '') is not null)
+     order by a ->> 'id', m.vendidos desc nulls last`, [org, sku]);
+  return new Map(filas.map((f) => [f.id, { ...(f.value_id ? { value_id: f.value_id } : {}), ...(f.value_name ? { value_name: f.value_name } : {}) }]));
 }
 
 /** ¿Entra al catálogo? Si la marca se cambió por la de la cuenta, sólo a un catálogo de esa misma marca. */
