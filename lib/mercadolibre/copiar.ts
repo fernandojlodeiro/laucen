@@ -82,7 +82,8 @@ export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones:
     .filter((a) => a.id !== "SELLER_SKU" && !NO_MODIFICABLE(a.id) && !(extra.sacar ?? []).includes(a.id)
       && ((a.value_name != null && a.value_name.trim() !== "") || (a.value_id != null && a.value_id !== "-1"))
       && !(extra.paquete && ATRIBUTOS_PAQUETE.includes(a.id)))
-    .map((a) => ({ id: a.id, ...(a.value_id && a.value_id !== "-1" ? { value_id: a.value_id } : {}), ...(a.value_name != null ? { value_name: a.value_name } : {}) }));
+    .map((a) => ({ id: a.id, ...(a.value_id && a.value_id !== "-1" ? { value_id: a.value_id } : {}),
+      ...(a.value_name != null ? { value_name: a.value_id && a.value_id !== "-1" ? a.value_name : unidadMl(a.value_name) } : {}) }));
   if (extra.marca) {
     const i = atributos.findIndex((a) => a.id === "BRAND");
     if (i >= 0) atributos.splice(i, 1);
@@ -105,7 +106,11 @@ export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones:
     if (atributos.some((a) => a.id === id)) continue;
     // Lo que ya tiene otra publicación del mismo producto, primero.
     const conocido = extra.conocidos?.get(id);
-    if (conocido) { atributos.push({ id, ...conocido } as (typeof atributos)[number]); continue; }
+    if (conocido) {
+      const v = conocido.value_name != null && !conocido.value_id ? { value_name: unidadMl(conocido.value_name) } : conocido;
+      atributos.push({ id, ...v } as (typeof atributos)[number]);
+      continue;
+    }
     if (modelo && ES_NUMERO_DE_PIEZA(id)) atributos.push({ id, value_name: modelo } as (typeof atributos)[number]);
     // Código de barras exigido y la publicación no lo tiene: «El producto no tiene código registrado».
     if (id === "EMPTY_GTIN_REASON" && !atributos.some((a) => a.id === "GTIN")) atributos.push({ id, value_id: "17055160" } as (typeof atributos)[number]);
@@ -191,6 +196,16 @@ export function modeloDelTitulo(titulo: string): string | null {
   return palabras || null;
 }
 
+/** Un valor con unidad escrito como en las publicaciones viejas, en la forma que ML acepta hoy: «68 µF» (micro del
+ *  teclado) → «68 μF» (la letra griega), «50 MO» / «10 kohm» → «50 MΩ» / «10 KΩ». Pura. */
+export function unidadMl(valor: string): string {
+  const v = valor.replace(/µ/g, "μ");
+  const m = v.match(/^\s*([\d.,]+)\s*([kKmMG]?)\s*(?:O|Ω|ohms?|ohmios?)\s*$/i);
+  if (!m) return v;
+  const prefijo = m[2] === "k" || m[2] === "K" ? "K" : m[2] === "M" || m[2] === "G" ? m[2] : m[2] === "m" ? "m" : "";
+  return `${m[1]} ${prefijo}Ω`;
+}
+
 /** Los obligatorios que son «número de pieza» (Fer, 10/10: ML pide DEVICE_PART_NUMBER en repuestos): se completan con el Modelo. */
 const ES_NUMERO_DE_PIEZA = (id: string) => /PART_NUMBER$|^MPN$/.test(id);
 
@@ -245,9 +260,14 @@ export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string
     r = await ml(cuenta, "POST", "/items/validate", cuerpo);
   }
   // Un atributo con un valor que ML no acepta (ej. PRODUCT_TYPE): se prueba sin él (hasta dos vueltas).
-  for (let vuelta = 0; vuelta < 2 && r.status === 400; vuelta++) {
+  for (let vuelta = 0; vuelta < 3 && r.status === 400; vuelta++) {
     const invalidos = [...atributosInvalidos(r.datos), ...atributosNoModificables(r.datos)].filter((x) => !sacar.includes(x));
+    // Un código de barras que ML ya tiene en otra categoría o marca: sin él, con «no tiene código registrado».
+    const gtinUsado = !sacar.includes("GTIN") && causasDe(r.datos).some((c) => c.type !== "warning" && c.code === "item.attribute.invalid_product_identifier");
+    if (gtinUsado) { invalidos.push("GTIN"); if (!completar.includes("EMPTY_GTIN_REASON")) completar = [...completar, "EMPTY_GTIN_REASON"]; }
     if (!invalidos.length) break;
+    // El mismo valor malo no vuelve por los datos de las otras publicaciones: si es obligatorio, lo elige la IA.
+    for (const x of invalidos) opts.conocidos?.delete(x);
     sacar = [...sacar, ...invalidos];
     cuerpo = armar({ sacar, completar });
     r = await ml(cuenta, "POST", "/items/validate", cuerpo);
@@ -291,7 +311,8 @@ export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string
     const cat: string | null = categoria ?? opts.ia.categoria;
     if (!cat) break;
     const ia = await completarConIA(cuenta, cat, quedan, opts.ia.titulo, opts.ia.descripcion);
-    if (ia.categoriaIncorrecta && !categoria) {
+    // La categoría está mal, o la IA no encuentra en el producto lo que esa categoría pide: la que ML cree que va.
+    if ((ia.categoriaIncorrecta || !ia.valores.size) && !categoria) {
       const nueva = await categoriaParaTitulo(cuenta, opts.ia.titulo);
       if (!nueva || nueva === cat) break;
       categoria = nueva;
