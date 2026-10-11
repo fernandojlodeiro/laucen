@@ -21,13 +21,13 @@ const CONTADORES: { clave: ClaveContador; texto: string; href: string; permiso: 
   {
     clave: "reclamos", texto: "Reclamos", href: "/ventas/reclamos", permiso: "reclamos_ver",
     // La marca crece con un reclamo nuevo y con cada mensaje nuevo del comprador o de Mercado Libre.
-    sql: `select count(*)::int n, (extract(epoch from max(greatest(r.creado_ts,
+    sql: `select count(*)::int n, floor(extract(epoch from max(greatest(r.creado_ts,
             coalesce((select max(m.fecha) from reclamo_mensaje m where m.reclamo_id = r.id and m.de in ('comprador', 'ml')), r.creado_ts)))) * 1000)::float8 marca
             from reclamo r where r.organizacion_id = $1 and ${SQL_RECLAMO_A_ATENDER}`,
   },
   {
     clave: "mensajes", texto: "Mensajes", href: "/ventas/preguntas?ver=mensajes", permiso: "preguntas_ver",
-    sql: `select coalesce(sum(sin_leer), 0)::int n, (extract(epoch from max(ultimo_ts)) * 1000)::float8 marca
+    sql: `select coalesce(sum(sin_leer), 0)::int n, floor(extract(epoch from max(ultimo_ts)) * 1000)::float8 marca
             from meli_conversacion where organizacion_id = $1 and sin_leer > 0`,
   },
   {

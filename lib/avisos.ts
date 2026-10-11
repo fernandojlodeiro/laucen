@@ -87,7 +87,7 @@ export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolea
     puede("reclamos_ver") ? consulta<{ id: string; marca: number; tipo: string; origen: string; canal: string | null; motivo: string | null; pedido_id: string | null;
       cliente: string | null; vence: string | null; texto: string | null }>(`
       select x.* from (
-        select r.id::text, (extract(epoch from greatest(r.creado_ts, coalesce(u.fecha, r.creado_ts))) * 1000)::float8 marca, r.tipo, r.origen,
+        select r.id::text, floor(extract(epoch from greatest(r.creado_ts, coalesce(u.fecha, r.creado_ts))) * 1000)::float8 marca, r.tipo, r.origen,
                c.nombre canal, r.motivo, r.pedido_id::text, cl.nombre cliente,
                to_char(r.vence_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM "a las" HH24:MI') vence, u.texto
           from reclamo r left join canal c on c.id = r.canal_id left join cliente cl on cl.id = r.cliente_id
@@ -103,19 +103,20 @@ export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolea
        where p.organizacion_id = $1 and ${sqlPedidoPendiente("p")} and p.id > $2::float8
        order by p.id limit 10`, [org, desde("pedidos")]).catch(() => []) : [],
     puede("preguntas_ver") ? consulta<{ id: string; marca: number; texto: string; ia_estado: string; sugerencia: string | null; cuenta: string | null; titulo: string | null }>(`
-      select q.id::text, (extract(epoch from q.sugerencia_ts) * 1000)::float8 marca, q.texto, q.ia_estado, q.sugerencia,
+      select q.id::text, floor(extract(epoch from q.sugerencia_ts) * 1000)::float8 marca, q.texto, q.ia_estado, q.sugerencia,
              c.nombre cuenta, pu.titulo
         from meli_pregunta q left join canal c on c.id = q.canal_id left join publicacion pu on pu.id = q.publicacion_id
        where q.organizacion_id = $1 and q.estado = 'UNANSWERED' and q.ia_estado in ('falta_dato', 'persona')
-         and q.sugerencia_ts > to_timestamp($2::float8 / 1000)
+         -- Al milisegundo, igual que la marca guardada (con los microsegundos, lo cerrado volvía a abrirse).
+         and floor(extract(epoch from q.sugerencia_ts) * 1000) > $2::float8
        order by q.sugerencia_ts limit 10`, [org, desde("preguntas")]).catch(() => []) : [],
     puede("preguntas_ver") ? consulta<{ pack_id: string; marca: number; ia_estado: string; sugerencia: string | null; cuenta: string | null; pedido_id: string | null; texto: string | null }>(`
-      select v.pack_id, (extract(epoch from v.sugerencia_ts) * 1000)::float8 marca, v.ia_estado, v.sugerencia, c.nombre cuenta, v.pedido_id::text,
+      select v.pack_id, floor(extract(epoch from v.sugerencia_ts) * 1000)::float8 marca, v.ia_estado, v.sugerencia, c.nombre cuenta, v.pedido_id::text,
              (select m.texto from meli_mensaje m where m.organizacion_id = v.organizacion_id and m.pack_id = v.pack_id and not m.de_vendedor
                order by m.fecha desc limit 1) texto
         from meli_conversacion v left join canal c on c.id = v.canal_id
        where v.organizacion_id = $1 and v.sin_leer > 0 and v.ia_estado in ('falta_dato', 'persona')
-         and v.sugerencia_ts > to_timestamp($2::float8 / 1000)
+         and floor(extract(epoch from v.sugerencia_ts) * 1000) > $2::float8
        order by v.sugerencia_ts limit 10`, [org, desde("mensajes")]).catch(() => []) : [],
     puede("mensajes_ver") ? consulta<{ id: string; chat_id: string; asunto: string; motivo: string; nombre: string; texto: string | null }>(`
       select k.id::text, k.chat_id::text, k.asunto, k.motivo, coalesce(nullif(ch.nombre, ''), ch.externo) nombre,
