@@ -14,6 +14,7 @@
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { correrConEntrada, costosFinales } from "@/lib/apify";
 import { ml, cuentasDe, type CuentaMl } from "@/lib/mercadolibre/api";
+import { revisarReglasDe } from "@/lib/seguimiento/regla";
 
 const ACTOR = "scrapesage~mercadolibre-scraper";
 // Lo que cobra el actor (bitácora #102): US$ 2 cada 1.000 resultados; con el detalle de cada publicación, 8.
@@ -228,11 +229,19 @@ async function vendedoresDelCatalogo(cuenta: CuentaMl, catalogo: string, base: P
   const r = await ml<{ results?: { item_id: string; price?: number; original_price?: number | null; currency_id?: string; listing_type_id?: string; seller_id?: number;
     official_store_id?: number | null; shipping?: { free_shipping?: boolean } }[] }>(cuenta, "GET", `/products/${catalogo}/items?limit=30`).catch(() => null);
   if (!r || r.status !== 200 || !r.datos.results?.length) return [];
+  // El título que ve el comprador es el del catálogo: el de la búsqueda puede ser el de una publicación (Fer, 11/10).
+  const nombre = await nombreCatalogo(cuenta, catalogo);
   return r.datos.results.map((x) => ({
-    ...base, itemId: x.item_id, catalogoId: catalogo, esCatalogo: false, permalink: enlaceDe(x.item_id), vendedor: null, vendedorId: x.seller_id ?? null,
+    ...base, titulo: nombre ?? base.titulo, itemId: x.item_id, catalogoId: catalogo, esCatalogo: false, permalink: enlaceDe(x.item_id), vendedor: null, vendedorId: x.seller_id ?? null,
     tiendaOficial: x.official_store_id != null, precio: x.price ?? null, precioOriginal: x.original_price ?? null, moneda: x.currency_id ?? "ARS",
     tipoPublicacion: x.listing_type_id ?? null, envioGratis: x.shipping?.free_shipping ?? null, estado: "activa", publicidad: false,
   }));
+}
+
+/** El nombre de un producto de catálogo (el título que ve el comprador). */
+async function nombreCatalogo(cuenta: CuentaMl, catalogo: string): Promise<string | null> {
+  const r = await ml<{ name?: string }>(cuenta, "GET", `/products/${catalogo}`).catch(() => null);
+  return r?.status === 200 && r.datos.name ? r.datos.name : null;
 }
 
 export async function ultimaBusqueda(org: string, productoId: number): Promise<{ texto: string; ts: Date; resultados: PubEncontrada[] } | null> {
@@ -287,7 +296,7 @@ async function anotarLectura(org: string, segId: number, fuente: "api" | "apify"
     [org, segId, fuente, p.precio ?? null, p.precioOriginal ?? null, p.estado ?? null, p.tipoPublicacion ?? null, JSON.stringify(datos ?? {})]);
 }
 
-type Seguida = { id: number; item_id: string; catalogo_id: string | null; permalink: string | null };
+type Seguida = { id: number; item_id: string; catalogo_id: string | null; permalink: string | null; producto_id: number };
 
 /** Las de catálogo, por la API (gratis): /products/{catálogo}/items trae a todos los que compiten. */
 async function leerCatalogo(org: string, cuenta: CuentaMl, seguidas: Seguida[]): Promise<number> {
@@ -295,6 +304,16 @@ async function leerCatalogo(org: string, cuenta: CuentaMl, seguidas: Seguida[]):
   const porCatalogo = new Map<string, Seguida[]>();
   for (const s of seguidas) porCatalogo.set(s.catalogo_id!, [...(porCatalogo.get(s.catalogo_id!) ?? []), s]);
   for (const [cat, lista] of porCatalogo) {
+    // El título del catálogo (el que ve el comprador), también en la búsqueda guardada.
+    const nombre = await nombreCatalogo(cuenta, cat);
+    if (nombre) {
+      await consulta("update seguimiento_pub set titulo = $3 where organizacion_id = $1 and catalogo_id = $2", [org, cat, nombre]);
+      await consulta(`
+        update seguimiento_busqueda b set resultados = (
+          select jsonb_agg(case when e ->> 'catalogoId' = $2 then jsonb_set(e, '{titulo}', to_jsonb($3::text)) else e end order by n)
+            from jsonb_array_elements(b.resultados) with ordinality t(e, n))
+         where b.organizacion_id = $1 and b.resultados @> jsonb_build_array(jsonb_build_object('catalogoId', $2::text))`, [org, cat, nombre]);
+    }
     const r = await ml<{ results?: { item_id: string; price?: number; original_price?: number | null; currency_id?: string; listing_type_id?: string; seller_id?: number;
       official_store_id?: number | null; shipping?: { free_shipping?: boolean } }[] }>(cuenta, "GET", `/products/${cat}/items?limit=100`);
     for (const s of lista) {
@@ -364,7 +383,7 @@ async function leerComunes(org: string, seguidas: Seguida[]): Promise<{ leidas: 
 export async function leerSeguidas(org: string, o: { productoId?: number; todas?: boolean } = {}): Promise<{ catalogo: number; comunes: number; sinPresupuesto: number }> {
   const { frecuenciaDias } = await configSeguimiento(org);
   const seguidas = await consulta<Seguida>(`
-    select id::int, item_id, catalogo_id, permalink from seguimiento_pub
+    select id::int, item_id, catalogo_id, permalink, producto_id::int from seguimiento_pub
      where organizacion_id = $1 and ($2::bigint is null or producto_id = $2)
        and ($3 or leido_ts is null or leido_ts < now() - make_interval(days => $4) + interval '2 hours')
        -- Lo que falló hace poco no se reintenta enseguida (salvo pedido a mano).
@@ -382,6 +401,8 @@ export async function leerSeguidas(org: string, o: { productoId?: number; todas?
       if (d != null) await consulta("update seguimiento_pub set entrega_dias = $2 where id = $1", [x.id, d]);
     }
   }
+  // Con lo recién leído, la regla de precio de cada producto (lib/seguimiento/regla.ts).
+  await revisarReglasDe(org, [...new Set(seguidas.map((x) => x.producto_id))]).catch((e) => console.error("[seguimiento] reglas", e));
   return { catalogo, comunes: leidas, sinPresupuesto };
 }
 

@@ -191,6 +191,28 @@ Para agregar publicaciones que ya conocés: **+ Agregar por número**, pegá los
 
 **📈 Historial (N)**, al lado del tacho de cada publicación que seguís, abre debajo de ella cada lectura que se hizo (N es cuántas hay), de la más nueva a la más vieja: fecha y hora, precio (con el tachado si tenía descuento), **cuánto cambió** respecto de la lectura anterior (▼ en rojo si bajó, ▲ en verde si subió, en pesos y en %), tipo de publicación y estado. Tocándolo de nuevo se cierra. Cada vuelta automática y cada **Leer ahora** suman una lectura.
 
+### Regla de precio (pestaña Seguimiento)
+
+Debajo de las publicaciones que seguís está la caja **Regla de precio**: mirando lo que cobran esas publicaciones, **baja el precio de la lista Clásicas** de este producto. No toca Mercado Libre directo: desde la lista, el esquema de precios lo lleva a todas las cuentas y todos los planes (ver [Cómo funcionan los precios](/catalogo/precios-ml)).
+
+Se configura con el **lápiz** del título de la caja (en edición quedan **Grabar** y **Cancelar**):
+
+- **Qué hace**: **Apagada**; **Proponer el cambio y esperar mi clic** (deja el cambio propuesto con los botones **Aplicar** y **Descartar**); o **Automático: cambiar la lista sola**. Se elige producto por producto, según cuánto confiás en los que seguís.
+- **Contra quién**: **el más barato de los que sigo** o una publicación puntual de las que seguís.
+- **Cómo**: **Igualar su precio**, **Quedar X pesos abajo** o **Quedar X % abajo** (X va en el campo de al lado).
+- **Piso**: la Clásica nunca baja de ese precio. Es obligatorio para prender la regla.
+
+Criterios:
+
+- **Sólo baja.** Si tu Clásica ya está igual o más barata que el objetivo, no hace nada. Si el objetivo queda por debajo del piso, baja hasta el piso.
+- Compara contra las seguidas **activas** con precio leído (las pausadas, terminadas o que no figuran en el catálogo no cuentan). El precio de la referencia es el que paga el comprador.
+- El objetivo se redondea a pesos enteros, hacia abajo. Si el producto tiene varias variaciones, se revisa cada una con su propia Clásica.
+- Un producto con precio en dólares sigue en dólares: se baja en la misma proporción.
+- **Cuándo se revisa**: sola, después de cada lectura de las seguidas (la vuelta automática o **Leer ahora**); al grabar la regla; y con **Revisar ahora** (usa lo último leído, sin volver a leer).
+- Lo propuesto que no se aplicó se reemplaza por lo de la revisión siguiente.
+
+La caja muestra **tu Clásica hoy**, la **referencia** (quién y a cuánto) y a cuánto quedarías, la última revisión con su resultado y, al desplegar **Lo que hizo la regla (N)**, cada cambio: cuándo, SKU, antes, después, contra quién y su estado (**Espera tu clic**, **Aplicado**, **Descartado** o **Reemplazado**).
+
 ### Comprobar la familia con Mercado Libre (la lupa 🔍)
 
 Al lado del buscador de **Familia** (en el alta y en la ficha, en edición) está la lupa **🔍**. Al pasar el mouse explica qué hace. Al apretarla:

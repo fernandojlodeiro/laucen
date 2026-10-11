@@ -13,6 +13,7 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { SUAVE, PRIMARIO } from "@/app/botones";
 import { CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, Estado, TituloSeccion } from "@/app/componentes/erp";
 import BuscarSeguimiento from "./BuscarSeguimiento";
+import ReglaPrecio from "./ReglaPrecio";
 import { accionSeguir, accionSeguirPorNumero, accionDejarDeSeguir, accionLeerSeguimiento } from "@/app/catalogo/productos/acciones-seguimiento";
 
 type Seguida = {
@@ -65,7 +66,7 @@ function Entrega({ dias, demora, gratis }: { dias: number | null | undefined; de
   );
 }
 
-export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string; borden?: string; hist?: string } }) {
+export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string; borden?: string; hist?: string; editar?: string } }) {
   const hist = Number(sp.hist) || null;
   const [seguidas, busqueda, conf, lecturas] = await Promise.all([
     consulta<Seguida>(`
@@ -182,6 +183,9 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
           </table>
         </div>
       </section>
+
+      <ReglaPrecio org={s.org.id} productoId={p.id} seguidas={seguidas} editando={sp.editar === "regla"}
+        ver={conHist(hist)} editar={`${conHist(hist)}&editar=regla`} />
 
       <section className={CAJA}>
         <TituloSeccion titulo={`Buscar en Mercado Libre para seguir${busqueda ? ` (${resultados.length})` : ""}`} />

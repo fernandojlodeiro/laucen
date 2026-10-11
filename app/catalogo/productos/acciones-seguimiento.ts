@@ -4,9 +4,10 @@
 
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
-import { intentar, texto, id } from "@/lib/erp/acciones";
+import { intentar, texto, id, numero } from "@/lib/erp/acciones";
 import { deFondo } from "@/lib/tareas-fondo";
 import { buscarParaSeguir, seguirDeBusqueda, seguirPorNumero, dejarDeSeguir, leerSeguidas } from "@/lib/seguimiento";
+import { guardarRegla, revisarRegla, aplicarPropuesta, descartarPropuesta } from "@/lib/seguimiento/regla";
 
 const volver = (pid: number) => `/catalogo/productos/${pid}?seccion=seguimiento`;
 
@@ -60,5 +61,60 @@ export async function accionLeerSeguimiento(fd: FormData) {
     const r = await leerSeguidas(s.org.id, { productoId: pid, todas: true });
     revalidatePath(`/catalogo/productos/${pid}`);
     return `Leídas: ${r.catalogo} de catálogo (gratis) y ${r.comunes} comunes.${r.sinPresupuesto ? ` ${r.sinPresupuesto} quedaron sin leer: se llegó al tope de gasto del mes.` : ""}`;
+  });
+}
+
+// ── La regla de precio (lib/seguimiento/regla.ts) ──
+
+/** «Grabar» de la caja «Regla de precio». Al grabarla prendida, se revisa enseguida con lo último leído. */
+export async function accionGuardarRegla(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  await intentar(volver(pid), async () => {
+    const modo = texto(fd, "modo");
+    const como = texto(fd, "como");
+    const contra = texto(fd, "contra") ?? "mas_barato";
+    await guardarRegla(s.org.id, pid, {
+      modo: modo === "propuesta" || modo === "automatico" ? modo : "apagada",
+      contra: contra === "mas_barato" ? "mas_barato" : "una",
+      seguimientoId: contra === "mas_barato" ? null : Number(contra) || null,
+      como: como === "igual" || como === "pct" ? como : "pesos",
+      diferencia: numero(fd, "diferencia") ?? 0,
+      piso: numero(fd, "piso"),
+    });
+    const r = await revisarRegla(s.org.id, pid, s.usuario.id);
+    revalidatePath(`/catalogo/productos/${pid}`);
+    return `Regla grabada. ${r}`;
+  });
+}
+
+/** «Revisar ahora»: con lo último leído, sin volver a leer. */
+export async function accionRevisarRegla(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  await intentar(volver(pid), async () => {
+    const r = await revisarRegla(s.org.id, pid, s.usuario.id);
+    revalidatePath(`/catalogo/productos/${pid}`);
+    return r;
+  });
+}
+
+export async function accionAplicarPropuesta(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  await intentar(volver(pid), async () => {
+    const n = await aplicarPropuesta(s.org.id, pid, s.usuario.id);
+    revalidatePath(`/catalogo/productos/${pid}`);
+    return `Listo: se cambió la lista Clásicas (${n} variaci${n === 1 ? "ón" : "ones"}). Desde ahí, el esquema de precios lo lleva a todas las cuentas y planes.`;
+  });
+}
+
+export async function accionDescartarPropuesta(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  await intentar(volver(pid), async () => {
+    await descartarPropuesta(s.org.id, pid, s.usuario.id);
+    revalidatePath(`/catalogo/productos/${pid}`);
+    return "Propuesta descartada: la lista queda como estaba.";
   });
 }

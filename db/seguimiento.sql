@@ -83,3 +83,48 @@ create table if not exists seguimiento_busqueda (
 );
 alter table seguimiento_busqueda enable row level security;
 select erp_politica_org('seguimiento_busqueda');
+
+-- La regla de precio de cada producto (Fer, 11/10): mirando lo que se sigue,
+-- baja el precio de la lista Clásicas del producto (desde ahí el esquema de
+-- precios lo lleva a todas las cuentas y planes). Nunca toca Mercado Libre
+-- directo. modo: apagada · propuesta (queda esperando el clic de «Aplicar») ·
+-- automatico (cambia la lista sola). contra: el más barato de los que se
+-- siguen, o uno elegido. como: igual · pesos (X pesos menos) · pct (X % menos).
+-- piso: la Clásica nunca baja de ahí.
+create table if not exists seguimiento_regla (
+  organizacion_id   text not null references organizaciones(id) on delete cascade,
+  producto_id       bigint not null references producto(id) on delete cascade,
+  modo              text not null default 'apagada' check (modo in ('apagada', 'propuesta', 'automatico')),
+  contra            text not null default 'mas_barato' check (contra in ('mas_barato', 'una')),
+  seguimiento_id    bigint references seguimiento_pub(id) on delete set null,
+  como              text not null default 'pesos' check (como in ('igual', 'pesos', 'pct')),
+  diferencia        numeric(16, 2) not null default 0 check (diferencia >= 0),
+  piso              numeric(16, 2) check (piso > 0),
+  revisada_ts       timestamptz,
+  resultado         text,
+  actualizado_ts    timestamptz not null default now(),
+  primary key (organizacion_id, producto_id)
+);
+alter table seguimiento_regla enable row level security;
+select erp_politica_org('seguimiento_regla');
+
+-- Lo que hizo (o propuso) la regla: una fila por variación y vez.
+-- estado: propuesto (espera «Aplicar») · aplicado · descartado · reemplazado.
+create table if not exists seguimiento_ajuste (
+  id                bigint generated always as identity primary key,
+  organizacion_id   text not null references organizaciones(id) on delete cascade,
+  producto_id       bigint not null references producto(id) on delete cascade,
+  variacion_id      bigint not null references variacion(id) on delete cascade,
+  lista_id          bigint not null references lista_precios(id) on delete cascade,
+  ts                timestamptz not null default now(),
+  antes_ars         numeric(16, 2) not null,
+  nuevo_ars         numeric(16, 2) not null,
+  referencia        text,
+  modo              text not null check (modo in ('propuesta', 'automatico')),
+  estado            text not null default 'propuesto' check (estado in ('propuesto', 'aplicado', 'descartado', 'reemplazado')),
+  resuelto_ts       timestamptz,
+  usuario_id        text
+);
+create index if not exists seguimiento_ajuste_producto on seguimiento_ajuste (organizacion_id, producto_id, ts desc);
+alter table seguimiento_ajuste enable row level security;
+select erp_politica_org('seguimiento_ajuste');

@@ -47,3 +47,16 @@ test("diasHasta: la opción de envío más rápida, en días desde hoy", () => {
   assert.equal(diasHasta(["2026-10-11T00:00:00-03:00"], hoy), 1);
   assert.equal(diasHasta([], hoy), null);
 });
+
+test("regla de precio: el objetivo y la decisión (sólo baja, nunca abajo del piso)", async () => {
+  const { objetivoDe, decidir } = await import("@/lib/seguimiento/regla");
+  assert.equal(objetivoDe(19455, "igual", 0), 19455);
+  assert.equal(objetivoDe(19455, "pesos", 100), 19355);
+  assert.equal(objetivoDe(20000, "pct", 2.5), 19500);
+  assert.equal(objetivoDe(19999.9, "igual", 0), 19999);
+  assert.deepEqual(decidir(25000, 19355, 15000), { nuevo: 19355, motivo: "" });
+  assert.deepEqual(decidir(19000, 19355, 15000).nuevo, null);           // ya está más barato
+  assert.deepEqual(decidir(25000, 12000, 15000), { nuevo: 15000, motivo: "queda en el piso" });
+  assert.equal(decidir(15000, 12000, 15000).nuevo, null);               // ya está en el piso
+  assert.equal(decidir(14000, 12000, 15000).nuevo, null);               // por debajo del piso: no sube
+});
