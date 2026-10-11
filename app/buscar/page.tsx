@@ -140,7 +140,7 @@ type ItemMl = { item_id: string; variation_id: string; canal_id: number; canal: 
 type Pedido = { id: number; id_externo: string | null; fecha: Date; canal: string; cliente: string | null; cliente_id: number | null; estado: EstadoPedido; total_ars: number; total_usd: number };
 type Cliente = { id: number; nombre: string; razon_social: string | null; email: string | null; documento_tipo: string | null; documento_numero: string | null; cuit: string | null; telefonos: string[]; localidad: string | null };
 type Proveedor = { id: number; nombre: string; razon_social: string | null; cuit: string | null; email: string | null; telefonos: string[]; localidad: string | null };
-type Pregunta = { id: number; fecha: Date | null; texto: string | null; respuesta: string | null; estado: string | null; publicacion: string | null; item_id: string | null };
+type Pregunta = { id: string; fecha: Date | null; texto: string | null; respuesta: string | null; estado: string | null; publicacion: string | null; item_id: string | null };
 type ConvMl = { pack_id: string; canal: string | null; ultimo_ts: Date | null; cliente: string | null; pedido_id: number | null; texto: string | null };
 type Chat = { id: number; nombre: string | null; externo: string | null; canal: string; ultimo_ts: Date | null; texto: string | null };
 type Reclamo = { id: number; fecha: Date | null; tipo: string | null; motivo: string | null; estado: string; cliente: string | null; pedido_id: number | null };
@@ -320,7 +320,7 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
         { id: "q.id", de: "meli_pregunta q", donde: "q.organizacion_id = $1", campos: ["q.id::text", "q.item_id", "q.texto", "q.respuesta", "q.sugerencia", "q.comprador_id::text"] },
         { id: "q.id", de: "meli_pregunta q join meli_item m on m.canal_id = q.canal_id and m.item_id = q.item_id", donde: "q.organizacion_id = $1", campos: ["m.titulo", "m.sku"] },
       ])}
-      select q.id::int, q.fecha, q.texto, q.respuesta, q.estado, q.item_id,
+      select q.id::text, q.fecha, q.texto, q.respuesta, q.estado, q.item_id,
              (select mi.titulo from meli_item mi where mi.canal_id = q.canal_id and mi.item_id = q.item_id limit 1) publicacion
         from cand q
        where ${exacta(["q.id::text", "q.item_id", "q.texto", "q.respuesta", "q.sugerencia", "q.comprador_id::text",
