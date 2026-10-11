@@ -60,9 +60,9 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
     const o = await una<{ item_id: string; canal_id: number; ml: ItemGuardado | null }>(`
       select m.item_id, m.canal_id::int, m.datos_externos -> 'ml' ml from meli_item m join canal c on c.id = m.canal_id
        where m.organizacion_id = $1 and m.sku = $3 and m.estado = 'active' and m.datos_externos -> 'ml' is not null and c.tipo = 'mercadolibre'
-         and coalesce((m.datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false) = false
          and coalesce(jsonb_array_length(case when jsonb_typeof(m.datos_externos -> 'ml' -> 'variations') = 'array' then m.datos_externos -> 'ml' -> 'variations' end), 0) = 0
-       order by (m.canal_id = $2) desc, coalesce((c.config ->> 'orden_copia')::int, 99), (m.tipo = 'gold_special') desc, m.vendidos desc nulls last, m.item_id limit 1`, [org, canalId, info.sku]);
+       -- La de catálogo sirve sólo si no hay ninguna común (Fer, 11/10).
+       order by coalesce((m.datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false), (m.canal_id = $2) desc, coalesce((c.config ->> 'orden_copia')::int, 99), (m.tipo = 'gold_special') desc, m.vendidos desc nulls last, m.item_id limit 1`, [org, canalId, info.sku]);
     if (!o?.ml) { res.sinOrigen.push(info.sku); continue; }
     const cuentaOrigen = o.canal_id === canalId ? cuenta : await cuentaDelCanal(org, o.canal_id);
     const d = cuentaOrigen?.estado === "activa" ? await ml<{ plain_text?: string }>(cuentaOrigen, "GET", `/items/${o.item_id}/description`) : { status: 0, datos: {} as { plain_text?: string } };

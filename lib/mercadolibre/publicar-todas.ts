@@ -102,9 +102,10 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
            coalesce(jsonb_array_length(case when jsonb_typeof(m.datos_externos -> 'ml' -> 'variations') = 'array' then m.datos_externos -> 'ml' -> 'variations' end), 0) variaciones
       from meli_item m join canal c on c.id = m.canal_id
      where m.organizacion_id = $1 and m.sku = $2 and m.estado in ('active', 'paused') and m.datos_externos -> 'ml' is not null
-       and coalesce((m.datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false) = false
        and ($3::bigint is null or m.canal_id <> $3)
-     order by coalesce(jsonb_array_length(case when jsonb_typeof(m.datos_externos -> 'ml' -> 'variations') = 'array' then m.datos_externos -> 'ml' -> 'variations' end), 0) = 0 desc,
+     -- La de catálogo sirve sólo si no hay ninguna común (Fer, 11/10: 45 productos estaban sólo en catálogo).
+     order by coalesce((m.datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false),
+              coalesce(jsonb_array_length(case when jsonb_typeof(m.datos_externos -> 'ml' -> 'variations') = 'array' then m.datos_externos -> 'ml' -> 'variations' end), 0) = 0 desc,
               (m.estado = 'active') desc, coalesce((c.config ->> 'orden_copia')::int, 99), (m.tipo = 'gold_special') desc, m.vendidos desc nulls last, m.item_id
      limit 1`, [org, v.sku, opts.canal ?? null]);
   if (o && o.variaciones > 0) avisos.push(`La publicación de origen (${o.itemId}) tiene variaciones en ML: este botón copia publicaciones de un solo producto. Publicalo con «Tus publicaciones».`);
