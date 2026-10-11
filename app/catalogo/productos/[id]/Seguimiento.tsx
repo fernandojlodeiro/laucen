@@ -5,7 +5,8 @@
 import { consulta } from "@/lib/erp/base";
 import { formatear, type Moneda } from "@/lib/moneda";
 import { ultimaBusqueda, configSeguimiento, enlaceDe, esPack, parecido, type PubEncontrada } from "@/lib/seguimiento";
-import { CasillaViva } from "@/app/componentes/BuscadorVivo";
+import Link from "next/link";
+import { CasillaViva, FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
@@ -18,8 +19,15 @@ type Seguida = {
   id: number; item_id: string; catalogo_id: string | null; titulo: string | null; foto: string | null; permalink: string | null;
   vendedor: string | null; tienda_oficial: boolean | null; precio: number | null; precio_original: number | null; moneda: string | null;
   estado: string | null; tipo_publicacion: string | null; cuotas: string | null; envio_gratis: boolean | null;
-  leido_ts: Date | null; error: string | null; cambio: number | null; entrega_dias: number | null;
+  leido_ts: Date | null; error: string | null; cambio: number | null; entrega_dias: number | null; lecturas: number;
 };
+
+type Lectura = { id: number; ts: Date; fuente: string; precio: number | null; precio_original: number | null; estado: string | null; tipo_publicacion: string | null };
+
+/** Cómo se ordena la búsqueda (Fer, 11/10): como la muestra Mercado Libre, por precio o por parecido al título nuestro. */
+const ORDENES_BUSQUEDA = { ml: "Como en Mercado Libre", precio: "Precio, de menor a mayor", parecido: "Parecido al título del producto" } as const;
+type OrdenBusqueda = keyof typeof ORDENES_BUSQUEDA;
+const esOrdenBusqueda = (x: unknown): x is OrdenBusqueda => typeof x === "string" && Object.hasOwn(ORDENES_BUSQUEDA, x);
 
 const TIPOS: Record<string, string> = { gold_special: "Clásica", gold_pro: "Premium", gold_premium: "Premium", free: "Gratuita", gold: "Oro", silver: "Plata", bronze: "Bronce" };
 const ESTADOS: Record<string, { t: string; tono: "verde" | "amarillo" | "gris" | "rojo" }> = {
@@ -57,18 +65,26 @@ function Entrega({ dias, demora, gratis }: { dias: number | null | undefined; de
   );
 }
 
-export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string } }) {
-  const [seguidas, busqueda, conf] = await Promise.all([
+export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string; borden?: string; hist?: string } }) {
+  const hist = Number(sp.hist) || null;
+  const [seguidas, busqueda, conf, lecturas] = await Promise.all([
     consulta<Seguida>(`
       select sp.id::int, sp.item_id, sp.catalogo_id, sp.titulo, sp.foto, sp.permalink, sp.vendedor, sp.tienda_oficial, sp.precio::float8, sp.precio_original::float8,
              sp.moneda, sp.estado, sp.tipo_publicacion, sp.cuotas, sp.envio_gratis, sp.leido_ts, sp.error, sp.entrega_dias,
              -- Cuánto cambió el precio desde la lectura anterior.
              (select (sp.precio - l.precio)::float8 from seguimiento_lectura l where l.seguimiento_id = sp.id and l.precio is not null
-               order by l.ts desc offset 1 limit 1) cambio
+               order by l.ts desc offset 1 limit 1) cambio,
+             (select count(*)::int from seguimiento_lectura l where l.seguimiento_id = sp.id) lecturas
         from seguimiento_pub sp where sp.organizacion_id = $1 and sp.producto_id = $2
        order by sp.precio nulls last, sp.id`, [s.org.id, p.id]),
     ultimaBusqueda(s.org.id, p.id).catch(() => null),
     configSeguimiento(s.org.id),
+    // El historial de una de las seguidas: cada lectura, de la más nueva a la más vieja.
+    hist ? consulta<Lectura>(`
+      select l.id::int, l.ts, l.fuente, l.precio::float8, l.precio_original::float8, l.estado, l.tipo_publicacion
+        from seguimiento_lectura l join seguimiento_pub sp on sp.id = l.seguimiento_id
+       where l.organizacion_id = $1 and sp.producto_id = $2 and l.seguimiento_id = $3
+       order by l.ts desc limit 200`, [s.org.id, p.id, hist]) : Promise.resolve([] as Lectura[]),
   ]);
   const seguidosIds = new Set(seguidas.map((x) => x.item_id));
   // Los resultados: sin packs (si el nuestro no lo es) ni los nuestros, salvo que se pidan; los más parecidos al nuestro primero.
@@ -78,8 +94,20 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
   const demora = (r: PubEncontrada) => r.entregaDias != null && r.entregaDias > conf.demoraDias;
   const packs = todos.filter((r) => r.pack).length, propias = todos.filter((r) => r.propia).length, demoradas = todos.filter(demora).length;
   const verPacks = sp.packs === "1", verPropias = sp.propias === "1", verDemoradas = sp.demoradas === "1";
-  const resultados = todos.filter((r) => (verPacks || !r.pack) && (verPropias || !r.propia) && (verDemoradas || !demora(r)))
-    .sort((a, b) => b.parecido - a.parecido || (a.precio ?? Infinity) - (b.precio ?? Infinity));
+  // «Como en Mercado Libre»: el orden en que vino la búsqueda (los vendedores de un catálogo, en su lugar).
+  const borden: OrdenBusqueda = esOrdenBusqueda(sp.borden) ? sp.borden : "ml";
+  const resultados = todos.map((r, posicion) => ({ ...r, posicion }))
+    .filter((r) => (verPacks || !r.pack) && (verPropias || !r.propia) && (verDemoradas || !demora(r)))
+    .sort((a, b) => borden === "precio" ? (a.precio ?? Infinity) - (b.precio ?? Infinity) || a.posicion - b.posicion
+      : borden === "parecido" ? b.parecido - a.parecido || a.posicion - b.posicion
+      : a.posicion - b.posicion);
+  // El enlace al historial de una seguida (o cerrarlo), sin perder lo demás de la dirección.
+  const conHist = (id: number | null) => {
+    const q = new URLSearchParams({ seccion: "seguimiento" });
+    for (const k of ["packs", "propias", "demoradas", "borden"] as const) if (sp[k]) q.set(k, sp[k]!);
+    if (id) q.set("hist", String(id));
+    return `/catalogo/productos/${p.id}?${q}`;
+  };
   const campos = { producto_id: String(p.id) };
 
   return (
@@ -114,7 +142,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
             </thead>
             <tbody>
               {seguidas.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>Todavía no seguís ninguna: buscalas abajo y tocá «Seguir», o agregalas por número.</td></tr>}
-              {seguidas.map((x) => (
+              {seguidas.flatMap((x) => [
                 <tr key={x.id} className={TR}>
                   <td className={TD}>
                     <span className="flex items-start gap-2">
@@ -136,11 +164,20 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
                   <td className={TD}><Entrega dias={x.entrega_dias} demora={conf.demoraDias} gratis={x.envio_gratis} /></td>
                   <td className={TD}><Estado texto={ESTADOS[x.estado ?? "sin_dato"]?.t ?? x.estado ?? "—"} tono={ESTADOS[x.estado ?? "sin_dato"]?.tono ?? "gris"} /></td>
                   <td className={`${TD} whitespace-nowrap`}>{hace(x.leido_ts)}{x.error && <span className="block text-[10px] text-[#C03420] max-w-48 whitespace-normal">{x.error}</span>}</td>
-                  <td className={`${TD} text-right`}>
-                    <TachoConfirmar accion={accionDejarDeSeguir} campos={{ id: String(x.id), producto_id: String(p.id) }} pregunta="¿Dejar de seguirla?" />
+                  <td className={`${TD} text-right whitespace-nowrap`}>
+                    <span className="inline-flex items-center gap-1">
+                      <Link href={conHist(hist === x.id ? null : x.id)} scroll={false} className={SUAVE}
+                        title="Cada lectura que se hizo de esta publicación: precio, estado y tipo">📈 Historial ({x.lecturas})</Link>
+                      <TachoConfirmar accion={accionDejarDeSeguir} campos={{ id: String(x.id), producto_id: String(p.id) }} pregunta="¿Dejar de seguirla?" />
+                    </span>
                   </td>
-                </tr>
-              ))}
+                </tr>,
+                hist === x.id && (
+                  <tr key={`h${x.id}`}>
+                    <td colSpan={8} className="bg-[#F7F9FB] px-3 py-2"><Historial lecturas={lecturas} moneda={x.moneda} /></td>
+                  </tr>
+                ),
+              ])}
             </tbody>
           </table>
         </div>
@@ -157,7 +194,12 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
             <CasillaViva parametro="packs" activo={verPacks} etiqueta={`Mostrar también packs y varias unidades (${packs})`} />
             <CasillaViva parametro="propias" activo={verPropias} etiqueta={`Mostrar también las nuestras (${propias})`} />
             <CasillaViva parametro="demoradas" activo={verDemoradas} etiqueta={`Mostrar también las que tardan más de ${conf.demoraDias} días (${demoradas})`} />
-            <span className="text-[11px] text-[#5C6B76]">Primero las que más se parecen al título del producto. Las de catálogo muestran a cada vendedor que compite.</span>
+            <label className="flex items-center gap-1">Ordenar:
+              <FiltroVivo parametro="borden" valor={borden} etiqueta="Ordenar la búsqueda">
+                {Object.entries(ORDENES_BUSQUEDA).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
+              </FiltroVivo>
+            </label>
+            <span className="text-[11px] text-[#5C6B76]">«Como en Mercado Libre» es el orden del buscador (más relevantes). Las de catálogo muestran a cada vendedor que compite, en el lugar del catálogo.</span>
           </div>
         )}
         {busqueda && resultados.length > 0 && (
@@ -202,5 +244,34 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
         )}
       </section>
     </div>
+  );
+}
+
+/** Cada lectura de una publicación seguida: cómo fue cambiando el precio. */
+function Historial({ lecturas, moneda }: { lecturas: Lectura[]; moneda: string | null }) {
+  if (!lecturas.length) return <p className="text-xs text-[#5C6B76]">Todavía no se leyó ninguna vez.</p>;
+  const m = (moneda === "USD" ? "USD" : "ARS") as Moneda;
+  return (
+    <table className="text-xs">
+      <thead><tr className="text-[#5C6B76]"><th className="text-left pr-4 font-semibold">Leída</th><th className="text-right pr-4 font-semibold">Precio</th>
+        <th className="text-right pr-4 font-semibold">Cambio</th><th className="text-left pr-4 font-semibold">Tipo</th><th className="text-left font-semibold">Estado</th></tr></thead>
+      <tbody>
+        {lecturas.map((l, i) => {
+          const antes = lecturas.slice(i + 1).find((x) => x.precio != null)?.precio;
+          const cambio = l.precio != null && antes != null ? l.precio - antes : null;
+          return (
+            <tr key={l.id}>
+              <td className="pr-4 py-0.5 whitespace-nowrap">{new Date(l.ts).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" })}</td>
+              <td className="pr-4 py-0.5 text-right"><Precio precio={l.precio} original={l.precio_original} moneda={m} /></td>
+              <td className={`pr-4 py-0.5 text-right ${cambio != null && cambio < 0 ? "text-[#C03420]" : "text-[#1F6E4A]"}`}>
+                {cambio ? `${cambio < 0 ? "▼" : "▲"} ${formatear(Math.abs(cambio), m)} (${((cambio / antes!) * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 })} %)` : <span className="text-[#5C6B76]">—</span>}
+              </td>
+              <td className="pr-4 py-0.5">{l.tipo_publicacion ? TIPOS[l.tipo_publicacion] ?? l.tipo_publicacion : "—"}</td>
+              <td className="py-0.5">{ESTADOS[l.estado ?? "sin_dato"]?.t ?? l.estado ?? "—"}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }

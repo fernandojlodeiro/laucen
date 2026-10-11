@@ -178,7 +178,7 @@ La pestaña **Seguimiento (N)** de la ficha guarda las publicaciones de otros ve
 Para elegir cuáles seguir:
 1. En el recuadro **Buscar en Mercado Libre para seguir**, el texto ya viene con el título del producto (se puede cambiar).
 2. Apretá **🔍 Buscar en Mercado Libre**: pregunta "¿Buscar? Cuesta unos US$ 0,10"; con **Sí** busca de fondo (uno o dos minutos) y avisa abajo a la derecha al terminar.
-3. Aparecen las publicaciones encontradas, **primero las que más se parecen al título del producto**, con foto, título, vendedor, precio, tipo de publicación y cuotas, y envío. Cuando lo encontrado es un **producto de catálogo** de Mercado Libre, se muestra **cada vendedor que compite en ese catálogo** (con su vendedor, precio, tipo y envío reales), marcados **📖 Catálogo**; las de publicidad también están marcadas.
+3. Aparecen las publicaciones encontradas, de entrada **en el mismo orden que las muestra el buscador de Mercado Libre** (más relevantes), con foto, título, vendedor, precio, tipo de publicación y cuotas, y envío. Cuando lo encontrado es un **producto de catálogo** de Mercado Libre, se muestra **cada vendedor que compite en ese catálogo** (con su vendedor, precio, tipo y envío reales), marcados **📖 Catálogo**; las de publicidad también están marcadas. En un producto de catálogo, el título que se ve es el del catálogo: es el mismo que ve el comprador. El desplegable **Ordenar** cambia el orden: **Como en Mercado Libre**, **Precio, de menor a mayor** o **Parecido al título del producto**.
 En un producto de catálogo, Mercado Libre muestra el título del catálogo para todos los vendedores que compiten en él, aunque cada uno haya publicado con otro título: por eso esos renglones dicen «el título es el del catálogo».
 4. De entrada **no se muestran los packs ni las de varias unidades** («Pack de 2», «5 X…», «x10», «kit», «combo», «lote», «10 unidades»), salvo que el producto también sea un pack, **ni las nuestras** (se reconocen por el número de publicación y por la cuenta). Tampoco **las que tardan en llegar más de lo que compite** (ver [Seguimiento de publicaciones](/config/seguimiento)). Las cajas **Mostrar también packs y varias unidades (N)**, **Mostrar también las nuestras (N)** y **Mostrar también las que tardan más de N días (N)** las agregan; las nuestras dicen **Nuestra**.
 5. Al lado de cada una, **+ Seguir** la agrega (sin costo). Las que ya seguís dicen **✓ Siguiendo**.
@@ -188,6 +188,8 @@ La última búsqueda queda guardada: volver a la pestaña no cuesta; buscar de n
 Para agregar publicaciones que ya conocés: **+ Agregar por número**, pegá los links o números (MLA…), uno por renglón, y **Agregar**. Se leen con **Leer ahora** o en la próxima vuelta.
 
 **Leer ahora** relee las de este producto en el momento (pregunta antes, porque las comunes cuestan). Además se releen solas cada tantos días (ver [Seguimiento de publicaciones](/config/seguimiento)). El tacho deja de seguir una.
+
+**📈 Historial (N)**, al lado del tacho de cada publicación que seguís, abre debajo de ella cada lectura que se hizo (N es cuántas hay), de la más nueva a la más vieja: fecha y hora, precio (con el tachado si tenía descuento), **cuánto cambió** respecto de la lectura anterior (▼ en rojo si bajó, ▲ en verde si subió, en pesos y en %), tipo de publicación y estado. Tocándolo de nuevo se cierra. Cada vuelta automática y cada **Leer ahora** suman una lectura.
 
 ### Comprobar la familia con Mercado Libre (la lupa 🔍)
 
