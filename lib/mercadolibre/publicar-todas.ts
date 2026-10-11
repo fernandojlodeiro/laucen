@@ -146,7 +146,7 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
   // Lo que ya existe (activo, o en la cola esperando salir) en cada cuenta.
   const items = await consulta<{ canal: number; item_id: string; tipo: string; tags: unknown; terms: unknown }>(`
     select canal_id::int canal, item_id, tipo, datos_externos -> 'ml' -> 'tags' tags, datos_externos -> 'ml' -> 'sale_terms' terms
-      from meli_item where organizacion_id = $1 and sku = $2 and estado = 'active'
+      from meli_item where organizacion_id = $1 and sku = $2 and estado in ('active', 'paused', 'under_review')
        and coalesce((datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false) = false`, [org, v.sku]);
   const enCola = await consulta<{ canal: number; item_id: string }>(`
     select canal_id::int canal, item_id from ml_cola where organizacion_id = $1 and tipo = 'crear' and item_id like $2
@@ -304,7 +304,10 @@ export async function faltantesEnCuenta(org: string, canal: number): Promise<{ v
      where v.organizacion_id = $1 and coalesce(v.estado, 'activa') <> 'archivada'
        and exists (select 1 from publicacion p join canal c on c.id = p.canal_id
                     where p.variacion_id = v.id and c.tipo = 'mercadolibre' and p.canal_id <> $2 and p.estado = 'activa' and p.id_externo is not null)
-       and not exists (select 1 from publicacion q where q.variacion_id = v.id and q.canal_id = $2 and q.estado in ('activa', 'pausada'))
+       and (not exists (select 1 from publicacion q where q.variacion_id = v.id and q.canal_id = $2 and q.estado in ('activa', 'pausada'))
+            -- O está, pero sin Clásica (Fer, 11/10: tenía sólo planes): se arma la que falta (las que ya están no se repiten).
+            or not exists (select 1 from meli_item m where m.organizacion_id = $1 and m.canal_id = $2 and m.sku = v.sku and m.tipo = 'gold_special'
+                             and m.estado in ('active', 'paused', 'under_review')))
      order by v.sku`, [org, canal]);
 }
 
