@@ -25,6 +25,7 @@ test("marcaFinal: los «sin marca» y Arduino llevan la de la cuenta; las de fá
   assert.deepEqual(marcaFinal([{ id: "BRAND", value_name: "Mastech" }], "Daitom"), { marca: "Mastech", cambiada: false });
   assert.deepEqual(marcaFinal([{ id: "BRAND", value_name: "Daitom" }], "Daitom"), { marca: "Daitom", cambiada: false });
   assert.ok(esMarcaReemplazable("TIENDAVIRTUAL") && esMarcaReemplazable("OEM") && !esMarcaReemplazable("Raspberry Pi"));
+  assert.ok(esMarcaReemplazable("DATIOM") && esMarcaReemplazable("Socket Dip28") && !esMarcaReemplazable("Tower Pro"));
 });
 
 test("catalogoSegunMarca: con la marca cambiada, sólo un catálogo de esa misma marca", () => {

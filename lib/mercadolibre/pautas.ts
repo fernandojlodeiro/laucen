@@ -30,7 +30,11 @@ const normal = (s: string | null | undefined) => (s ?? "").normalize("NFD").repl
 const REEMPLAZABLES = new Set(["", "tiendavirtual", "tienda virtual", "daitom", "deirolab", "laucen", "generico", "generica", "generic",
   "oem", "ome", "sin marca", "arduino", "para arduino"]);
 
-export const esMarcaReemplazable = (marca: string | null | undefined) => REEMPLAZABLES.has(normal(marca));
+/** También las mal escritas de las nuestras («Datiom») y una «marca» que es una descripción (lleva números: «Socket Dip28»). */
+export const esMarcaReemplazable = (marca: string | null | undefined) => {
+  const m = normal(marca);
+  return REEMPLAZABLES.has(m) || /\d/.test(m) || ["datiom", "daiton", "dayton", "deirolat", "tienda virtual s", "lausen"].includes(m);
+};
 
 type Atributo = { id: string; value_id?: string | null; value_name?: string | null };
 
