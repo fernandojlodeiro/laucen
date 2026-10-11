@@ -454,7 +454,9 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
           continue;
         }
         // ¿Se reintenta? Lo que es de ML (429, 5xx, sin respuesta) o de la llave, sí; un rechazo (400, 403, 404…), no.
-        const transitorio = status === 0 || status === 429 || status === 401 || status >= 500;
+        // El 409 «internal capacity constraints» es ML saturado, no un rechazo (Fer, 11/10: quedaban campañas sin entrar).
+        const saturado = status === 409 && /capacity/i.test(JSON.stringify(datos ?? ""));
+        const transitorio = status === 0 || status === 429 || status === 401 || status >= 500 || saturado;
         const final = !transitorio || fila.intentos >= MAX_INTENTOS;
         await consulta(`
           update ml_cola set estado = $2, ultimo_error = $3, respuesta = $4::jsonb,
