@@ -43,7 +43,7 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
   // Lo que ya está en la cola (preparado, esperando o recién mandado) no se vuelve a armar.
   const enCola = new Set((await consulta<{ item_id: string }>(`
     select item_id from ml_cola where organizacion_id = $1 and canal_id = $2 and tipo = 'crear' and item_id like 'esquema:%'
-       and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '2 hours'))`, [org, canalId])).map((x) => x.item_id));
+       and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '30 days'))`, [org, canalId])).map((x) => x.item_id));
 
   const altas: CambioMl[] = [];
   for (const { info, propuesta } of propuestas) {

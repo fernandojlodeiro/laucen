@@ -110,7 +110,7 @@ export async function propuestaPrueba(org: string): Promise<{ filas: FilaPrueba[
     // Lo que ya está en la cola esperando salir (o recién creado, antes de que Laucen lo lea) tampoco se vuelve a preparar.
     const enCola = canal ? new Set((await consulta<{ item_id: string }>(`
       select item_id from ml_cola where organizacion_id = $1 and canal_id = $2 and tipo = 'crear' and item_id like $3
-         and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '2 hours'))`,
+         and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '30 days'))`,
       [org, canal, `esquema:${p.sku}:%`])).map((x) => x.item_id)) : new Set<string>();
     const stock = canal ? Number((await una<{ d: number }>(
       "select stock_disponible_canal($1, v.id, $2)::int d from variacion v where v.organizacion_id = $1 and v.sku = $3", [org, canal, p.sku]))?.d ?? 0) : 0;
