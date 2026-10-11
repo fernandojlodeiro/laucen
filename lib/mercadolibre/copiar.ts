@@ -76,7 +76,8 @@ export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones:
   const nuevoNombre = extra.semillaTitulo ? mezclarTitulo(nombre, extra.semillaTitulo) : opciones.variarTitulo ? variarTitulo(nombre) : nombre;
   const fotos = (it.pictures ?? []).map((f) => f.secure_url ?? f.url).filter((u): u is string => !!u);
   const atributos = (it.attributes ?? [])
-    .filter((a) => a.id !== "SELLER_SKU" && !NO_MODIFICABLE(a.id) && !(extra.sacar ?? []).includes(a.id) && (a.value_name != null || (a.value_id != null && a.value_id !== "-1"))
+    .filter((a) => a.id !== "SELLER_SKU" && !NO_MODIFICABLE(a.id) && !(extra.sacar ?? []).includes(a.id)
+      && ((a.value_name != null && a.value_name.trim() !== "") || (a.value_id != null && a.value_id !== "-1"))
       && !(extra.paquete && ATRIBUTOS_PAQUETE.includes(a.id)))
     .map((a) => ({ id: a.id, ...(a.value_id && a.value_id !== "-1" ? { value_id: a.value_id } : {}), ...(a.value_name != null ? { value_name: a.value_name } : {}) }));
   if (extra.marca) {
@@ -176,8 +177,12 @@ export function cantidadDelPack(titulo: string): number | null {
 export function modeloDelTitulo(titulo: string): string | null {
   const candidatas = titulo.split(/\s+/).map((p) => p.replace(/^[^\w]+|[^\w]+$/g, ""))
     .filter((p) => p.length >= 4 && /[a-z]/i.test(p) && /\d/.test(p) && !/^\d+(v|w|a|mm|cm|uf|nf|pf|k|m|g|x)$/i.test(p));
-  if (!candidatas.length) return null;
-  return candidatas.sort((a, b) => b.length - a.length)[0].toUpperCase();
+  if (candidatas.length) return candidatas.sort((a, b) => b.length - a.length)[0].toUpperCase();
+  // Sin código de pieza (un capacitor «3300uf 35v»): sus valores con número; si no hay, las palabras después de la primera.
+  const valores = titulo.split(/\s+/).filter((p) => /\d/.test(p) && !/^x$/i.test(p)).slice(0, 3);
+  if (valores.length) return valores.join(" ").toUpperCase().slice(0, 60);
+  const palabras = titulo.split(/\s+/).slice(1, 4).join(" ");
+  return palabras || null;
 }
 
 /** Los obligatorios que son «número de pieza» (Fer, 10/10: ML pide DEVICE_PART_NUMBER en repuestos): se completan con el Modelo. */
@@ -255,8 +260,17 @@ export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string
       if (aceptable(r) || !/seller\.package\.dimensions|seller_package/i.test(JSON.stringify(r.datos))) break;
     }
   }
+  let sinEnvio = false;
   if (!aceptable(r) && /mode me1|free shipping|shipping/i.test(JSON.stringify(r.datos))) {
-    cuerpo = armar({ sacar, sinEnvio: true, completar, paquete });
+    sinEnvio = true;
+    cuerpo = armar({ sacar, sinEnvio, completar, paquete });
+    r = await ml(cuenta, "POST", "/items/validate", cuerpo);
+  }
+  // Lo último: un obligatorio que ML nombra recién después del envío o del paquete.
+  const ultimos = !aceptable(r) ? completables(r.datos) : [];
+  if (ultimos.length) {
+    completar = [...completar, ...ultimos];
+    cuerpo = armar({ sacar, sinEnvio, completar, paquete });
     r = await ml(cuenta, "POST", "/items/validate", cuerpo);
   }
   if (!aceptable(r)) return { ok: false, motivo: motivoValidacion(r.status, r.datos) };

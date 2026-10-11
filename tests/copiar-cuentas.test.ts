@@ -142,5 +142,6 @@ test("cantidadDelPack y modeloDelTitulo: del título de un componente", async ()
   assert.equal(cantidadDelPack("Transistor Bc327 Pnp 50v"), null);
   assert.equal(modeloDelTitulo("Interruptor Magnetico Rutenio Mka10110 Reed Switch Na"), "MKA10110");
   assert.equal(modeloDelTitulo("Transistor Irf7316trpbf F7316 Irf7316 Sop-8 Nuevos"), "IRF7316TRPBF");
-  assert.equal(modeloDelTitulo("Capacitor 1000uf 10v Grado Acustico"), null);
+  assert.equal(modeloDelTitulo("Capacitor 1000uf 10v Grado Acustico"), "1000UF 10V");
+  assert.equal(modeloDelTitulo("Par Inyector Y Eyector Poe Splitter"), "Inyector Y Eyector");
 });
