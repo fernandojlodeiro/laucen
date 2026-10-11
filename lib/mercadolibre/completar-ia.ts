@@ -34,7 +34,8 @@ export async function completarConIA(cuenta: CuentaMl, categoria: string, faltan
   const r = await pedirClaude({
     system: SISTEMA, modelo: "chico", maxTokens: 600,
     contenido: `Producto: ${titulo}\n\nDescripción:\n${descripcion.slice(0, 2500)}\n\nDatos que pide Mercado Libre:\n${JSON.stringify(pedido)}\n\n` +
-      "Devolvé {\"valores\": {ID: {\"value_id\": \"...\"} si hay opciones, o {\"value_name\": \"...\"} (con unidad si tiene unidades, ej. \"5 V\"), o null}, " +
+      "Devolvé {\"valores\": {ID: {\"value_id\": \"...\"} si una de las opciones corresponde, o {\"value_name\": \"...\"} si el tipo no es \"list\" y ninguna opción corresponde " +
+      "(ej. tipo de alimentación \"USB\"; con unidad si tiene unidades, ej. \"5 V\"), o null}, " +
       "\"categoria_incorrecta\": true si esos datos no tienen nada que ver con este producto (está en una categoría equivocada)}.",
   });
   const j = "texto" in r ? jsonDe<{ valores?: Record<string, ValorIA | null>; categoria_incorrecta?: boolean }>(r.texto) : null;
@@ -43,9 +44,10 @@ export async function completarConIA(cuenta: CuentaMl, categoria: string, faltan
   for (const a of defs) {
     const v = j.valores?.[a.id];
     if (!v) continue;
-    // Una opción tiene que ser una de las que acepta ML; un texto, no vacío.
+    // Una opción tiene que ser una de las que acepta ML; un texto, no vacío y sólo si el dato no es una lista cerrada
+    // (en los de texto las opciones son sugerencias: ML acepta otro valor, ej. «USB»).
     if (v.value_id && a.values?.some((x) => x.id === String(v.value_id))) valores.set(a.id, { value_id: String(v.value_id) });
-    else if (!a.values?.length && v.value_name && String(v.value_name).trim()) valores.set(a.id, { value_name: String(v.value_name).trim() });
+    else if (a.value_type !== "list" && v.value_name && String(v.value_name).trim()) valores.set(a.id, { value_name: String(v.value_name).trim() });
   }
   return { valores, categoriaIncorrecta: j.categoria_incorrecta === true };
 }

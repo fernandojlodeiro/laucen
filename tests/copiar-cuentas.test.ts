@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aceptable, armarCuerpoCopia, atributosFaltantes, atributosInvalidos, atributosNoModificables, claveProducto, motivoNoCopiable, motivoValidacion, rotarFotos, variarTitulo, type ItemGuardado } from "@/lib/mercadolibre/copiar";
+import { aceptable, armarCuerpoCopia, atributosFaltantes, atributosInvalidos, atributosNoModificables, claveProducto, motivoNoCopiable, motivoValidacion, rotarFotos, unidadMl, variarTitulo, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 
 // Un item de verdad (BAIRES, 5/10), recortado.
 const ITEM: ItemGuardado = {
@@ -144,4 +144,13 @@ test("cantidadDelPack y modeloDelTitulo: del título de un componente", async ()
   assert.equal(modeloDelTitulo("Transistor Irf7316trpbf F7316 Irf7316 Sop-8 Nuevos"), "IRF7316TRPBF");
   assert.equal(modeloDelTitulo("Capacitor 1000uf 10v Grado Acustico"), "1000UF 10V");
   assert.equal(modeloDelTitulo("Par Inyector Y Eyector Poe Splitter"), "Inyector Y Eyector");
+});
+
+test("unidadMl: micro y ohm como los acepta ML hoy", () => {
+  assert.equal(unidadMl("68 µF"), "68 μF");
+  assert.equal(unidadMl("50 MO"), "50 MΩ");
+  assert.equal(unidadMl("10 kohm"), "10 KΩ");
+  assert.equal(unidadMl("220 Ω"), "220 Ω");
+  assert.equal(unidadMl("Negro"), "Negro");
+  assert.equal(unidadMl("5 V"), "5 V");
 });
