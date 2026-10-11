@@ -148,11 +148,14 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
   const items = await consulta<{ canal: number; item_id: string; tipo: string; tags: unknown; terms: unknown }>(`
     select canal_id::int canal, item_id, tipo, datos_externos -> 'ml' -> 'tags' tags, datos_externos -> 'ml' -> 'sale_terms' terms
       from meli_item where organizacion_id = $1 and sku = $2 and estado in ('active', 'paused', 'under_review')
+       -- Una bloqueada por ML (forbidden) no se puede editar ni cerrar: cuenta como que no está y se vuelve a crear (Fer, 11/10).
+       and not (estado = 'under_review' and coalesce(datos_externos -> 'ml' -> 'sub_status' ? 'forbidden', false))
        and coalesce((datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false) = false`, [org, v.sku]);
   const enCola = await consulta<{ canal: number; item_id: string }>(`
     select canal_id::int canal, item_id from ml_cola where organizacion_id = $1 and tipo = 'crear' and item_id like $2
        and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '30 days'
-                and not exists (select 1 from meli_item x where x.item_id = ml_cola.respuesta ->> 'id' and x.estado = 'closed')))`, [org, `esquema:${v.sku}:%`]);
+                and not exists (select 1 from meli_item x where x.item_id = ml_cola.respuesta ->> 'id'
+                                  and (x.estado = 'closed' or (x.estado = 'under_review' and x.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden')))))`, [org, `esquema:${v.sku}:%`]);
 
   cache.com ??= await comisionesMl();
   cache.familias ??= await familiasDe(org);
@@ -313,7 +316,8 @@ export async function faltantesEnCuenta(org: string, canal: number): Promise<{ v
        and (not exists (select 1 from publicacion q where q.variacion_id = v.id and q.canal_id = $2 and q.estado in ('activa', 'pausada'))
             -- O está, pero sin Clásica (Fer, 11/10: tenía sólo planes): se arma la que falta (las que ya están no se repiten).
             or not exists (select 1 from meli_item m where m.organizacion_id = $1 and m.canal_id = $2 and m.sku = v.sku and m.tipo = 'gold_special'
-                             and m.estado in ('active', 'paused', 'under_review')))
+                             and m.estado in ('active', 'paused', 'under_review')
+                             and not (m.estado = 'under_review' and coalesce(m.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden', false))))
      order by v.sku`, [org, canal]);
 }
 

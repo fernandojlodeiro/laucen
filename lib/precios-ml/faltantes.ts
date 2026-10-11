@@ -44,7 +44,8 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
   const enCola = new Set((await consulta<{ item_id: string }>(`
     select item_id from ml_cola where organizacion_id = $1 and canal_id = $2 and tipo = 'crear' and item_id like 'esquema:%'
        and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '30 days'
-                and not exists (select 1 from meli_item x where x.item_id = ml_cola.respuesta ->> 'id' and x.estado = 'closed')))`, [org, canalId])).map((x) => x.item_id));
+                and not exists (select 1 from meli_item x where x.item_id = ml_cola.respuesta ->> 'id'
+                                  and (x.estado = 'closed' or (x.estado = 'under_review' and x.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden')))))`, [org, canalId])).map((x) => x.item_id));
 
   const altas: CambioMl[] = [];
   for (const { info, propuesta } of propuestas) {

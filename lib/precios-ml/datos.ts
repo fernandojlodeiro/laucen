@@ -132,6 +132,8 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
       left join lateral (select lista_ars from precio_de(p.organizacion_id, p.variacion_id, $3::bigint, $5::date)) pd on $3::bigint is not null
       left join ml_price_to_win w on w.canal_id = p.canal_id and w.item_id = p.id_externo and w.error is null
      where p.organizacion_id = $1 and p.canal_id = $2 and p.id_externo is not null and p.estado <> 'cerrada'
+       -- Una bloqueada por ML (forbidden) no se puede tocar: para el esquema no está, y su plan se vuelve a crear (Fer, 11/10).
+       and not (coalesce(mi.estado, '') = 'under_review' and coalesce(mi.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden', false))
        and ($4::bigint[] is null or p.variacion_id = any($4::bigint[]))
      order by v.sku, p.id`,
     [org, canal.id, canal.listaId, opts.variaciones?.length ? opts.variaciones : null, opts.fecha ?? new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" })]);
