@@ -20,7 +20,7 @@ Los pedidos de Mercado Libre **entran solos** y se mueven solos según lo que pa
 ## Cómo se llega
 
 - Menú **Ventas › Pedidos y presupuestos** (o 🧾 **Pedidos** en la barra de abajo del celular).
-- Contador **"Pedidos a preparar"** de la barra de estado (abre la lista con el filtro Pendientes).
+- Contador **"Pedidos"** de la barra de estado (abre la lista con el filtro Pendientes).
 - Tarjeta **"Pedidos abiertos"** del [Panel](/panel): cada renglón abre la lista filtrada por ese estado.
 - El [buscador global](/buscar): por Nº de pedido o por id externo (número de venta de Mercado Libre).
 - Desde la ficha de un cliente (su lista de pedidos), desde [Envíos](/ventas/envios), [Reclamos](/ventas/reclamos), [Preguntas y mensajes](/ventas/preguntas) y [Facturación](/administracion/facturacion): el número de pedido es un enlace a su ficha.
@@ -38,7 +38,7 @@ Los pedidos de Mercado Libre **entran solos** y se mueven solos según lo que pa
 - **"Estado"**: **"Todos"** (de entrada), **"Pendientes (nuevo + a preparar)"** o un estado puntual (Nuevo, **A preparar**, En preparación, Preparado, Despachado, Entregado, Cancelado, Devuelto).
 - **"Canal"**: todos o uno.
 - **"Pago"**: Pendiente, Pagado, A cobrar, A convenir, Reembolsado.
-- **"Fechas"**: rango con atajos (Hoy, Ayer, Últimos 7 días…) o **"Todas las fechas"**. **De entrada, la última semana** ("Últimos 7 días"). Si se entra con un estado elegido (por ejemplo desde el contador "Pedidos a preparar") o desde un cliente, sin fechas: todas.
+- **"Fechas"**: rango con atajos (Hoy, Ayer, Últimos 7 días…) o **"Todas las fechas"**. **De entrada, la última semana** ("Últimos 7 días"). Si se entra con un estado elegido (por ejemplo desde el contador "Pedidos") o desde un cliente, sin fechas: todas.
 - **"Con algo pendiente"** (caja para tildar): sólo los pedidos que todavía no terminaron: los que no están entregados, o están entregados pero sin cobrar o sin facturar. Los cancelados y devueltos nunca entran.
 - **"Incluye canceladas"** (caja para tildar): de entrada **los cancelados no se muestran**; tildándola, sí. Si elegís el estado "Cancelado", se muestran igual.
 - **"Reservados sin pagar"** (caja para tildar): sólo los pedidos **Nuevos sin pagar que tienen el stock apartado** (ver "Reserva de un pedido sin pagar"), sin importar la fecha, del que vence antes al último. Es adonde lleva la fila "Reservados sin pagar" de [Para hacer](/panel).
@@ -302,7 +302,7 @@ Un **presupuesto** es igual a un pedido (cliente, productos, precios, envío, to
 - **Se factura recién cuando se cobra**: mientras esté «A cobrar», el botón "Facturar" está deshabilitado y la facturación automática no lo toma. Al confirmar el cobro, si el pedido ya llegó al estado en que se factura, la facturación automática lo factura.
 - **«A convenir»** (cuenta corriente): los pedidos de la tienda con "Cuenta corriente / a convenir" y los cargados a mano con **"Cuenta corriente"**. También reservan y entran en picking sin esperar el pago, pero **se facturan como siempre** (la cuenta corriente se arma con la factura). **Entran en picking sólo si el límite de crédito del cliente lo cubre** (ver [Clientes](/ventas/clientes), "Límite de crédito"); si no, quedan **frenados**: en la lista, al lado del estado dice **"frenado por cuenta corriente"** (en rojo) y en la ficha, en "Operación", **"Frenado por la cuenta corriente: …"** con el motivo.
 - En la ficha, un «A cobrar» muestra el cartel ámbar **"A COBRAR $ …"** con el total en pesos.
-- El filtro **Pendientes** y el contador "Pedidos a preparar" incluyen los Nuevos, los Pagados y los «A cobrar» que todavía no se entregaron (aunque estén en preparación, preparados o despachados).
+- El filtro **Pendientes** y el contador "Pedidos" incluyen los Nuevos, los Pagados y los «A cobrar» que todavía no se entregaron (aunque estén en preparación, preparados o despachados).
 
 ### Precios de un pedido
 

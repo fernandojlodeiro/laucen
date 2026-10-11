@@ -1,4 +1,4 @@
-/** Hora del último deploy en hora argentina y el commit corto (sin el id del
+/** Fecha y hora del último deploy en hora argentina y el commit corto (sin el id del
  *  deploy de Vercel: Fer, 8/10). */
 export function versión() {
   const hora = process.env.BUILD_TIME
@@ -8,5 +8,5 @@ export function versión() {
       })
     : "";
   const commit = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
-  return [hora && `Actualizado ${hora}`, commit].filter(Boolean).join(" · ");
+  return [hora, commit].filter(Boolean).join(" · ");
 }

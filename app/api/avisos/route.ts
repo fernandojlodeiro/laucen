@@ -6,11 +6,11 @@
 import { sesionActual } from "@/lib/tenancy";
 import { tienePermiso } from "@/lib/permisos";
 import { estadoAvisos, marcarVisto, marcarAvisado } from "@/lib/avisos";
-import type { ClaveContador } from "@/lib/avisos-tipos";
+import { TIPOS_AVISO, type ClaveContador } from "@/lib/avisos-tipos";
 
 export const dynamic = "force-dynamic";
 
-const CLAVES: ClaveContador[] = ["pedidos", "preguntas", "mensajes", "whatsapp"];
+const CLAVES: ClaveContador[] = TIPOS_AVISO;
 
 export async function GET(req: Request) {
   const s = await sesionActual();

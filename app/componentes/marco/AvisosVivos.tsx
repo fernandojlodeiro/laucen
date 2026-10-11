@@ -194,7 +194,7 @@ export function VigiaAvisos({ inicial }: { inicial: EstadoAvisos }) {
                   <b className="text-[13px]">{a.titulo}</b>
                   {a.detalle && <div className="text-[#5C6B76]">{a.detalle}</div>}
                 </div>
-                <Link href={a.href} onClick={cerrar} className={`${PRIMARIO} shrink-0`}>{a.tipo === "pedidos" ? "Ver el pedido" : "Ir a responder"}</Link>
+                <Link href={a.href} onClick={cerrar} className={`${PRIMARIO} shrink-0`}>{a.tipo === "pedidos" ? "Ver el pedido" : a.tipo === "reclamos" ? "Ver el reclamo" : "Ir a responder"}</Link>
               </div>
               {a.texto && <p className="whitespace-pre-wrap rounded-lg bg-[#F7F9FB] border border-[#E3E9F0] px-2 py-1.5 text-[13px]">{a.texto}</p>}
               {a.motivo && <p className="text-[#8a6100]">⚠ {a.motivo}</p>}

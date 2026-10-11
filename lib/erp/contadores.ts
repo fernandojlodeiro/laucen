@@ -1,5 +1,5 @@
-// Los contadores de la barra de estado (pedidos nuevos, preguntas sin
-// responder…). Cada sesión que tenga algo para contar agrega acá su entrada:
+// Los contadores de la barra de estado (reclamos para atender, preguntas sin
+// responder, pedidos a preparar…). Cada sesión que tenga algo para contar agrega acá su entrada:
 // una clave, un texto, un número, adónde lleva y su «marca» (un número que
 // crece cuando entra algo nuevo: con eso se sabe si el usuario ya lo vio).
 // Cada uno sale sólo si el usuario puede abrir su pantalla.
@@ -13,15 +13,17 @@ export type { Contador };
 
 type Cuenta = { n: number; marca: number | null };
 
+// Para atender: lo que Mercado Libre espera que respondas, y los de la web o el local sin tocar (como el resumen de lib/reclamos).
+export const SQL_RECLAMO_A_ATENDER = "r.estado <> 'resuelto' and (r.espera_respuesta or (r.origen <> 'mercadolibre' and r.estado = 'abierto'))";
+
+// En el orden de la barra (Fer, 11/10): reclamos, mensajes, preguntas, WhatsApp y pedidos.
 const CONTADORES: { clave: ClaveContador; texto: string; href: string; permiso: PermisoKey; sql: string }[] = [
   {
-    clave: "pedidos", texto: "Pedidos a preparar", href: "/ventas/pedidos?estado=pendientes", permiso: "pedidos_ver",
-    sql: `select count(*)::int n, max(p.id)::float8 marca from pedido p where p.organizacion_id = $1 and ${sqlPedidoPendiente("p")}`,
-  },
-  {
-    clave: "preguntas", texto: "Preguntas", href: "/ventas/preguntas", permiso: "preguntas_ver",
-    // El número de pregunta de Mercado Libre crece con cada pregunta nueva.
-    sql: "select count(*)::int n, max(id)::float8 marca from meli_pregunta where organizacion_id = $1 and estado = 'UNANSWERED'",
+    clave: "reclamos", texto: "Reclamos", href: "/ventas/reclamos", permiso: "reclamos_ver",
+    // La marca crece con un reclamo nuevo y con cada mensaje nuevo del comprador o de Mercado Libre.
+    sql: `select count(*)::int n, (extract(epoch from max(greatest(r.creado_ts,
+            coalesce((select max(m.fecha) from reclamo_mensaje m where m.reclamo_id = r.id and m.de in ('comprador', 'ml')), r.creado_ts)))) * 1000)::float8 marca
+            from reclamo r where r.organizacion_id = $1 and ${SQL_RECLAMO_A_ATENDER}`,
   },
   {
     clave: "mensajes", texto: "Mensajes", href: "/ventas/preguntas?ver=mensajes", permiso: "preguntas_ver",
@@ -29,8 +31,17 @@ const CONTADORES: { clave: ClaveContador; texto: string; href: string; permiso: 
             from meli_conversacion where organizacion_id = $1 and sin_leer > 0`,
   },
   {
-    clave: "whatsapp", texto: "WhatsApp en espera", href: "/ventas/mensajes?filtro=en_espera", permiso: "mensajes_ver",
+    clave: "preguntas", texto: "Preguntas", href: "/ventas/preguntas", permiso: "preguntas_ver",
+    // El número de pregunta de Mercado Libre crece con cada pregunta nueva.
+    sql: "select count(*)::int n, max(id)::float8 marca from meli_pregunta where organizacion_id = $1 and estado = 'UNANSWERED'",
+  },
+  {
+    clave: "whatsapp", texto: "WhatsApp", href: "/ventas/mensajes?filtro=en_espera", permiso: "mensajes_ver",
     sql: "select count(*)::int n, max(id)::float8 marca from chat_caso where organizacion_id = $1 and resuelto_ts is null",
+  },
+  {
+    clave: "pedidos", texto: "Pedidos", href: "/ventas/pedidos?estado=pendientes", permiso: "pedidos_ver",
+    sql: `select count(*)::int n, max(p.id)::float8 marca from pedido p where p.organizacion_id = $1 and ${sqlPedidoPendiente("p")}`,
   },
 ];
 

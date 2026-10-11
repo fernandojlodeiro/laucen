@@ -22,27 +22,29 @@ export default async function MisAvisos({ searchParams }: { searchParams: Promis
   const editando = editandoFicha(sp);
   const p = await prefsAvisos(s.usuario.id, s.org.id);
   return (
-    <Pantalla titulo="Mis avisos" subtitulo="Cómo te enterás de los pedidos, preguntas y mensajes que entran. Se aplica sólo a tu usuario" ancho="max-w-xl"
+    <Pantalla titulo="Mis avisos" subtitulo="Cómo te enterás de los reclamos, mensajes, preguntas y pedidos que entran. Se aplica sólo a tu usuario" ancho="max-w-xl"
       acciones={<BotonesFicha editando={editando} ver={VOLVER} editar={`${VOLVER}?editar=ficha`} />}>
       <Avisos sp={sp} />
       <form id="ficha" action={accionGuardarAvisos} className={`${CAJA} grid gap-3`}>
         <Opcion nombre="sonido" activa={p.sonido} editando={editando} titulo="Sonar cuando entra algo"
-          ayuda="Para todo: suena un aviso corto cuando entra un pedido, una pregunta, un mensaje o un WhatsApp en espera, y cuando la IA deja algo sin contestar." />
+          ayuda="Para todo: suena un aviso corto cuando entra un reclamo para atender, un mensaje, una pregunta, un WhatsApp en espera o un pedido, y cuando la IA deja algo sin contestar." />
         <fieldset className="grid gap-0.5">
           <legend className="px-2 text-xs font-semibold">Avisarme de prepo de…</legend>
           <span className="px-2 text-[11px] text-[#5C6B76] mb-1">Se abre sola una ventana, estés en la pantalla que estés. Los avisos de Windows (abajo) avisan lo mismo.</span>
+          <Opcion nombre="ventana_reclamos" activa={p.ventana.reclamos} editando={editando} titulo="Reclamos para atender"
+            ayuda="Un reclamo nuevo que espera tu respuesta, o un mensaje nuevo del comprador o de Mercado Libre en uno abierto. Muestra hasta cuándo hay para responder." />
+          <Opcion nombre="ventana_mensajes" activa={p.ventana.mensajes} editando={editando} titulo="Mensajes que la IA no contestó"
+            ayuda="Mensajes de posventa de Mercado Libre en los que a la IA le falta un dato, o el comprador pide hablar con una persona." />
+          <Opcion nombre="ventana_preguntas" activa={p.ventana.preguntas} editando={editando} titulo="Preguntas que la IA no contestó"
+            ayuda="Preguntas de Mercado Libre en las que a la IA le falta un dato, o el comprador pide hablar con una persona." />
+          <Opcion nombre="ventana_whatsapp" activa={p.ventana.whatsapp} editando={editando} titulo="WhatsApp en espera"
+            ayuda="Chats de WhatsApp que la IA dejó en espera para una persona." />
           <Opcion nombre="ventana_pedidos" activa={p.ventana.pedidos} editando={editando} titulo="Pedidos nuevos"
             ayuda="Cada pedido nuevo a preparar." />
           <div className="pl-6">
             <Opcion nombre="pedidos_detalle" activa={p.pedidoDetalle} editando={editando} titulo="Ver el detalle del pedido"
               ayuda="Tildada: se abre la ventana con el cliente, el total y lo que compró. Destildada: sólo aparece un cartel abajo a la derecha avisando que llegó un pedido, sin abrir ninguna ventana." />
           </div>
-          <Opcion nombre="ventana_preguntas" activa={p.ventana.preguntas} editando={editando} titulo="Preguntas que la IA no contestó"
-            ayuda="Preguntas de Mercado Libre en las que a la IA le falta un dato, o el comprador pide hablar con una persona." />
-          <Opcion nombre="ventana_mensajes" activa={p.ventana.mensajes} editando={editando} titulo="Mensajes que la IA no contestó"
-            ayuda="Mensajes de posventa de Mercado Libre en las mismas condiciones." />
-          <Opcion nombre="ventana_whatsapp" activa={p.ventana.whatsapp} editando={editando} titulo="WhatsApp en espera"
-            ayuda="Chats de WhatsApp que la IA dejó en espera para una persona." />
         </fieldset>
         <div className="flex flex-wrap items-center gap-2 px-2">
           <span className="text-xs">Como mucho un aviso cada</span>
@@ -62,7 +64,7 @@ export default async function MisAvisos({ searchParams }: { searchParams: Promis
       <div className={`${CAJA} mt-4`}>
         <TituloSeccion titulo="Avisos de Windows, aunque no tengas Laucen abierto" />
         <p className="text-[11px] text-[#5C6B76] mb-3">
-          Cuando la IA no contesta algo, aparece un cartel de Windows abajo a la derecha (con el sonido de Windows), aunque hayas cerrado
+          Cuando entra un reclamo para atender o la IA no contesta algo, aparece un cartel de Windows abajo a la derecha (con el sonido de Windows), aunque hayas cerrado
           Laucen. Tocándolo se abre Laucen ahí. Se activa en cada computadora o celular por separado. Si tenés Laucen a la vista, avisa la
           pantalla y no Windows.
         </p>

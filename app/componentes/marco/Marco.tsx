@@ -46,7 +46,7 @@ export default async function Marco({ children, version }: { children: React.Rea
   const [moneda, tc, avisos, asistente, accesos, historial, inactivos, guias, coloresCanales] = await Promise.all([
     monedaVista(sesion.usuario.id, sesion.org.id).catch(() => "ARS" as Moneda),
     tcDelDia(sesion.org.id).catch(() => null),
-    estadoAvisos(sesion.usuario.id, sesion.org.id, puede).catch((): EstadoAvisos => ({ contadores: [], ventana: [], prefs: { sonido: false, ventana: { pedidos: false, preguntas: false, mensajes: false, whatsapp: false }, pedidoDetalle: false, cadaMin: 1 } })),
+    estadoAvisos(sesion.usuario.id, sesion.org.id, puede).catch((): EstadoAvisos => ({ contadores: [], ventana: [], prefs: { sonido: false, ventana: { reclamos: false, mensajes: false, preguntas: false, whatsapp: false, pedidos: false }, pedidoDetalle: false, cadaMin: 1 } })),
     configAsistente(sesion.org.id).catch(() => CONFIG_DEFECTO),
     accesosDe(sesion.usuario.id, sesion.org.id, puede).catch(() => []),
     historialDe(sesion.usuario.id, sesion.org.id).catch(() => []),
@@ -99,8 +99,6 @@ export default async function Marco({ children, version }: { children: React.Rea
 
       {/* PC: barra de estado, fija abajo */}
       <footer className="hidden md:flex print:!hidden fixed bottom-0 inset-x-0 z-30 h-8 items-center gap-4 px-3 bg-[#16577F] text-white text-[11px]">
-        {/* Cuándo se actualizó y el commit (Fer, 8/10: muy importante, centrado en la barra). */}
-        {version && <span className="absolute left-1/2 -translate-x-1/2 hidden lg:inline font-semibold whitespace-nowrap pointer-events-none">{version}</span>}
         <InterruptorMoneda moneda={moneda} oscuro />
         <span title={tc ? `Oficial venta del ${tc.fecha.split("-").reverse().join("/")} (${tc.origen})` : undefined}>
           Dólar: {tc ? <b>{formatear(tc.venta, "ARS")}</b> : <Link href="/config/tipo-cambio" className="underline">sin cargar</Link>}
@@ -112,6 +110,8 @@ export default async function Marco({ children, version }: { children: React.Rea
         <span className="ml-auto opacity-80">{sesion.org.nombre} · {quien}</span>
         {/* Manuales de ayuda (Fer, 8/10: en lugar del id del deploy). */}
         <Manuales guias={manuales} />
+        {/* Fecha, hora y commit del último deploy (Fer, 11/10: a la derecha, sin «Actualizado»). */}
+        {version && <span className="hidden lg:inline font-semibold whitespace-nowrap">{version}</span>}
       </footer>
 
       <AvisosTareas />

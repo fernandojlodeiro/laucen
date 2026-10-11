@@ -89,6 +89,7 @@ function armar(items: AvisoIa[]): Aviso {
   if (items.length === 1) {
     const a = items[0];
     if (a.tipo === "pedidos") return { titulo: a.titulo, texto: [a.detalle, a.texto].filter(Boolean).join("\n"), url: a.href };
+    if (a.tipo === "reclamos") return { titulo: `${a.titulo}: para atender`, texto: [a.detalle, a.texto, a.motivo].filter(Boolean).join("\n"), url: a.href };
     return { titulo: `${a.titulo}: la IA no contestó`, texto: [a.texto, a.motivo].filter(Boolean).join("\n"), url: a.href };
   }
   if (items.every((a) => a.tipo === "pedidos")) {
@@ -97,7 +98,8 @@ function armar(items: AvisoIa[]): Aviso {
   return {
     titulo: `${items.length} cosas te necesitan en Laucen`,
     texto: items.slice(0, 4).map((a) => `• ${a.titulo}: ${a.texto}`.slice(0, 90)).join("\n"),
-    url: items.every((a) => a.tipo === "whatsapp") ? "/ventas/mensajes?filtro=en_espera" : "/ventas/preguntas",
+    url: items.every((a) => a.tipo === "whatsapp") ? "/ventas/mensajes?filtro=en_espera"
+      : items.every((a) => a.tipo === "reclamos") ? "/ventas/reclamos" : "/ventas/preguntas",
   };
 }
 

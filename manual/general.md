@@ -37,16 +37,17 @@ Una franja azul fija abajo de todo, siempre visible:
 - **El interruptor de moneda** ("$" ↔ "US$"): un interruptor de verdad. Tocándolo cambiás si **vos** ves los importes en pesos o en dólares en todas las pantallas. Es una preferencia de cada usuario (y de cada organización): no cambia nada para los demás. De entrada se ve en pesos.
 - **"Dólar: $ …"**: el tipo de cambio oficial venta que rige hoy. Si pasás el mouse dice de qué fecha es y de dónde salió. Si no hay ninguno cargado dice **"sin cargar"** y es un enlace a [Tipo de cambio](/config/tipo-cambio).
 - **Contadores** (cada uno es un enlace):
-  - **"Pedidos a preparar"** → [Pedidos](/ventas/pedidos?estado=pendientes) con el filtro Pendientes. Cuenta los pedidos nuevos y pagados, más los «A cobrar» que todavía no se entregaron (ver [Pedidos](/ventas/pedidos)).
-  - **"Preguntas"** → [Preguntas y mensajes](/ventas/preguntas): las preguntas de Mercado Libre pendientes.
+  - **"Reclamos"** → [Reclamos y devoluciones](/ventas/reclamos): los reclamos para atender (los de Mercado Libre que esperan tu respuesta y los de la web o el local que siguen abiertos).
   - **"Mensajes"** → la pestaña Mensajes de [Preguntas y mensajes](/ventas/preguntas?ver=mensajes): la suma de mensajes de posventa sin leer.
-  - **"WhatsApp en espera"** → [WhatsApp](/ventas/mensajes?filtro=en_espera) con el filtro En espera: los chats que la IA dejó para una persona.
+  - **"Preguntas"** → [Preguntas y mensajes](/ventas/preguntas): las preguntas de Mercado Libre pendientes.
+  - **"WhatsApp"** → [WhatsApp](/ventas/mensajes?filtro=en_espera) con el filtro En espera: los chats que la IA dejó para una persona.
+  - **"Pedidos"** → [Pedidos](/ventas/pedidos?estado=pendientes) con el filtro Pendientes: los pedidos a preparar. Cuenta los nuevos y pagados, más los «A cobrar» que todavía no se entregaron (ver [Pedidos](/ventas/pedidos)).
   - Cuando un contador es mayor que cero, el número se resalta en blanco. Si entró algo que **todavía no viste**, se resalta en **amarillo** hasta que entrás a esa pantalla.
   - Se actualizan solos cada pocos segundos. Cómo te avisa además (sonido, ventana con lo que la IA no contestó) lo elegís en [Mis avisos](/config/avisos).
   - Sólo aparecen los contadores de las pantallas que tu rol puede ver.
-- **Al medio**: cuándo se actualizó el sistema por última vez ("Actualizado dd/mm hh:mm") y el código de esa versión.
 - A la derecha: **el nombre de la organización y el tuyo** (o tu mail).
-- Al final, el botón amarillo **👇 Manuales de ayuda**: despliega hacia arriba las guías del manual (por ejemplo «Producto nuevo de punta a punta» y «Cómo funcionan los precios»), cada una con una línea de qué explica. Tocando una se abre para leerla entera (se imprime con Ctrl + P). Sólo aparecen las guías de lo que tu usuario puede ver.
+- Después, el botón amarillo **👇 Manuales de ayuda**: despliega hacia arriba las guías del manual (por ejemplo «Producto nuevo de punta a punta» y «Cómo funcionan los precios»), cada una con una línea de qué explica. Tocando una se abre para leerla entera (se imprime con Ctrl + P). Sólo aparecen las guías de lo que tu usuario puede ver.
+- Bien a la derecha: la fecha y hora de la última versión del sistema ("dd/mm hh:mm") y el código de esa versión.
 
 ### En el celular: otro modo, no la misma pantalla achicada
 

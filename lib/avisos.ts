@@ -5,12 +5,14 @@
 // - Lo que la IA no contestó (le falta un dato o el cliente pide una persona)
 //   puede abrir una ventana de prepo y sonar (`aviso_sonido`). La ventana se elige
 //   por tipo (`aviso_ventana_tipos`): pedidos nuevos, y preguntas, mensajes y
-//   WhatsApp que la IA no contestó.
+//   WhatsApp que la IA no contestó, y reclamos para atender (uno nuevo, o un
+//   mensaje nuevo del comprador o de Mercado Libre en uno que espera respuesta).
 //   `avisado` guarda hasta dónde ya se mostró, para no repetirlo.
 // Las preferencias van en usuario_preferencia (db/moneda.sql).
 
 import { consulta, una } from "@/lib/erp/base";
-import { contadoresEstado, marcaDe } from "@/lib/erp/contadores";
+import { contadoresEstado, marcaDe, SQL_RECLAMO_A_ATENDER } from "@/lib/erp/contadores";
+import { TIPOS_RECLAMO, esTipoReclamo } from "@/lib/reclamos";
 import type { PermisoKey } from "@/lib/permisos";
 import { cadaMinValido, TIPOS_AVISO, VENTANA_TODO, type AvisoIa, type ClaveContador, type EstadoAvisos, type Prefs } from "@/lib/avisos-tipos";
 import { sqlPedidoPendiente } from "@/lib/pedidos";
@@ -81,7 +83,19 @@ const MOTIVO: Record<string, string> = {
 /** Lo que la IA no contestó y todavía no se le mostró al usuario (pasa su marca de `avisado`). */
 export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolean, avisado: Marcas): Promise<AvisoIa[]> {
   const desde = (t: TipoAviso) => Number(avisado[t] ?? 0);
-  const [pedidos, preguntas, mensajes, casos] = await Promise.all([
+  const [reclamos, pedidos, preguntas, mensajes, casos] = await Promise.all([
+    puede("reclamos_ver") ? consulta<{ id: string; marca: number; tipo: string; origen: string; canal: string | null; motivo: string | null; pedido_id: string | null;
+      cliente: string | null; vence: string | null; texto: string | null }>(`
+      select x.* from (
+        select r.id::text, (extract(epoch from greatest(r.creado_ts, coalesce(u.fecha, r.creado_ts))) * 1000)::float8 marca, r.tipo, r.origen,
+               c.nombre canal, r.motivo, r.pedido_id::text, cl.nombre cliente,
+               to_char(r.vence_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM "a las" HH24:MI') vence, u.texto
+          from reclamo r left join canal c on c.id = r.canal_id left join cliente cl on cl.id = r.cliente_id
+          left join lateral (select m.fecha, m.texto from reclamo_mensaje m where m.reclamo_id = r.id and m.de in ('comprador', 'ml')
+                              order by m.fecha desc limit 1) u on true
+         where r.organizacion_id = $1 and ${SQL_RECLAMO_A_ATENDER}) x
+       where x.marca > $2::float8
+       order by x.marca limit 10`, [org, desde("reclamos")]).catch(() => []) : [],
     puede("pedidos_ver") ? consulta<{ id: string; canal: string | null; cliente: string | null; total: string | null; moneda: Moneda; lineas: string | null }>(`
       select p.id::text, c.nombre canal, cl.nombre cliente, case when p.moneda = 'USD' then p.total_usd else p.total_ars end::text total, p.moneda,
              (select string_agg(l.cantidad::int || ' × ' || l.titulo, '\n' order by l.id) from pedido_linea l where l.pedido_id = p.id) lineas
@@ -111,6 +125,13 @@ export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolea
        order by k.id limit 10`, [org, desde("whatsapp")]).catch(() => []) : [],
   ]);
   return [
+    ...reclamos.map((r): AvisoIa => ({
+      tipo: "reclamos", id: r.id, marca: Number(r.marca),
+      titulo: `${esTipoReclamo(r.tipo) ? TIPOS_RECLAMO[r.tipo] : "Reclamo"} ${r.id}${r.canal ? ` en ${r.canal}` : r.origen === "web" ? " de la web" : r.origen === "local" ? " del local" : ""}`,
+      detalle: [r.motivo, r.cliente, r.pedido_id ? `Pedido ${r.pedido_id}` : null].filter(Boolean).join(" · "),
+      texto: r.texto ?? "", motivo: r.vence ? `Hay que responder antes del ${r.vence}.` : "Está esperando que lo atiendas.",
+      propuesta: null, href: `/ventas/reclamos/${r.id}`,
+    })),
     ...pedidos.map((p): AvisoIa => ({
       tipo: "pedidos", id: p.id, marca: Number(p.id), titulo: `Pedido nuevo ${p.id}${p.canal ? ` en ${p.canal}` : ""}`,
       detalle: [p.cliente, p.total != null ? formatear(Number(p.total), p.moneda) : null].filter(Boolean).join(" · "),
@@ -154,7 +175,7 @@ export async function marcasActuales(org: string): Promise<Marcas> {
   const r = await una<{ pedidos: number | null; whatsapp: number | null }>(`
     select (select max(id)::float8 from pedido where organizacion_id = $1) pedidos,
            (select max(id)::float8 from chat_caso where organizacion_id = $1) whatsapp`, [org]);
-  return { pedidos: Number(r?.pedidos ?? 0), preguntas: Date.now(), mensajes: Date.now(), whatsapp: Number(r?.whatsapp ?? 0) };
+  return { reclamos: Date.now(), pedidos: Number(r?.pedidos ?? 0), preguntas: Date.now(), mensajes: Date.now(), whatsapp: Number(r?.whatsapp ?? 0) };
 }
 
 /** Si a las marcas guardadas les falta un tipo (uno nuevo), se completa con la de hoy y se guarda. */
