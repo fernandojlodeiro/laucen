@@ -128,7 +128,15 @@ export async function sincronizarPreciosMl(org: string, opts: { canal?: number; 
     if (conPropia) await asegurarCampanaPropia(org, c.id).catch((e) => console.error("[precios ml] campaña propia", c.nombre, e));
     const calculo = await calcularCanal(org, c.id, { variaciones: opts.variaciones });
     res.revisadas += calculo.propuestas.length;
-    const { precios, volumen } = cambiosDe(c.id, calculo.propuestas);
+    const { precios: todos, volumen } = cambiosDe(c.id, calculo.propuestas);
+    // Una publicación a la que ya se le mandó un precio o una campaña y todavía no se volvió a leer de ML no se
+    // recalcula (Fer, 11/10: con las campañas viejas en Laucen, cada 30 minutos salía y volvía a entrar al mismo precio).
+    const sinLeer = new Set((await consulta<{ item_id: string }>(`
+      select distinct q.item_id from ml_cola q
+        left join ml_promo_leida l on l.canal_id = q.canal_id and l.item_id = q.item_id
+       where q.canal_id = $1 and q.tipo in ('precio', 'campana') and q.estado in ('ok', 'pendiente', 'enviando')
+         and q.creado_ts > now() - interval '6 hours' and coalesce(l.leido_ts, '-infinity') < coalesce(q.enviado_ts, now())`, [c.id])).map((x) => x.item_id));
+    const precios = todos.filter((x) => !sinLeer.has(x.itemId));
     if (precios.length || volumen.length) {
       const r = await encolar(org, [...precios, ...volumen], { origen: "automatico" });
       res.encoladas += r.encoladas + r.reemplazadas;

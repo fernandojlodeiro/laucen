@@ -17,6 +17,8 @@ import { textosCanal, descripcionCopiada } from "@/lib/canales/textos";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import { encolarLoteConBoton, errorLegible, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { categoriaParaTitulo, completarConIA } from "@/lib/mercadolibre/completar-ia";
+import { mezclarTitulo } from "@/lib/mercadolibre/pautas";
 import { variacionPorSku } from "@/lib/mercadolibre/publicaciones";
 
 export type OpcionesCopia = { variarTitulo: boolean; rotarFotos: boolean };
@@ -69,14 +71,23 @@ export type Paquete = { largo: number; ancho: number; alto: number; peso: number
 export const PAQUETE_ESTANDAR: Paquete = { largo: 15, ancho: 10, alto: 3, peso: 100 };
 const ATRIBUTOS_PAQUETE = ["SELLER_PACKAGE_LENGTH", "SELLER_PACKAGE_WIDTH", "SELLER_PACKAGE_HEIGHT", "SELLER_PACKAGE_WEIGHT"];
 
-export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones: OpcionesCopia, extra: { modelo?: string | null; sacar?: string[]; sinEnvio?: boolean; completar?: string[]; paquete?: Paquete | null } = {}): Record<string, unknown> {
+export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones: OpcionesCopia, extra: { modelo?: string | null; sacar?: string[]; sinEnvio?: boolean; completar?: string[]; paquete?: Paquete | null;
+    /** Pautas (pautas.ts): la marca de la cuenta y la semilla para mezclar el título. */ marca?: string | null; semillaTitulo?: string | null;
+    /** Los datos de las otras publicaciones del producto (pautas.ts › atributosConocidos), para completar lo que ML pide. */
+    conocidos?: Map<string, { value_id?: string; value_name?: string }>; categoria?: string | null } = {}): Record<string, unknown> {
   const nombre = ((it.family_name ?? it.title) ?? "").trim();
-  const nuevoNombre = opciones.variarTitulo ? variarTitulo(nombre) : nombre;
+  const nuevoNombre = extra.semillaTitulo ? mezclarTitulo(nombre, extra.semillaTitulo) : opciones.variarTitulo ? variarTitulo(nombre) : nombre;
   const fotos = (it.pictures ?? []).map((f) => f.secure_url ?? f.url).filter((u): u is string => !!u);
   const atributos = (it.attributes ?? [])
-    .filter((a) => a.id !== "SELLER_SKU" && !NO_MODIFICABLE(a.id) && !(extra.sacar ?? []).includes(a.id) && (a.value_name != null || (a.value_id != null && a.value_id !== "-1"))
+    .filter((a) => a.id !== "SELLER_SKU" && !NO_MODIFICABLE(a.id) && !(extra.sacar ?? []).includes(a.id)
+      && ((a.value_name != null && a.value_name.trim() !== "") || (a.value_id != null && a.value_id !== "-1"))
       && !(extra.paquete && ATRIBUTOS_PAQUETE.includes(a.id)))
     .map((a) => ({ id: a.id, ...(a.value_id && a.value_id !== "-1" ? { value_id: a.value_id } : {}), ...(a.value_name != null ? { value_name: a.value_name } : {}) }));
+  if (extra.marca) {
+    const i = atributos.findIndex((a) => a.id === "BRAND");
+    if (i >= 0) atributos.splice(i, 1);
+    atributos.push({ id: "BRAND", value_name: extra.marca } as (typeof atributos)[number]);
+  }
   if (sku) atributos.push({ id: "SELLER_SKU", value_name: sku } as (typeof atributos)[number]);
   if (extra.paquete) {
     const k = extra.paquete;
@@ -84,23 +95,30 @@ export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones:
       atributos.push({ id, value_name: v } as (typeof atributos)[number]);
     }
   }
-  // Muchas publicaciones viejas no tienen Modelo en ML y ML hoy lo exige en algunas categorías: se usa el del producto de Laucen.
-  if (extra.modelo && !atributos.some((a) => a.id === "MODEL")) atributos.push({ id: "MODEL", value_name: extra.modelo } as (typeof atributos)[number]);
+  // Muchas publicaciones viejas no tienen Modelo en ML y ML hoy lo exige en algunas categorías: se usa el del producto de
+  // Laucen y, si no tiene, el código de pieza del título (Fer, 10/10).
+  const modeloLaucen = extra.modelo ?? ((extra.completar ?? []).includes("MODEL") ? modeloDelTitulo(nombre) : null);
+  if (modeloLaucen && !atributos.some((a) => a.id === "MODEL")) atributos.push({ id: "MODEL", value_name: modeloLaucen } as (typeof atributos)[number]);
   // Un «número de pieza» obligatorio que la publicación vieja no tiene: el Modelo (el de ML o el de Laucen).
-  const modelo = atributos.find((a) => a.id === "MODEL")?.value_name ?? extra.modelo ?? null;
+  const modelo = atributos.find((a) => a.id === "MODEL")?.value_name ?? modeloLaucen ?? null;
   for (const id of extra.completar ?? []) {
     if (atributos.some((a) => a.id === id)) continue;
+    // Lo que ya tiene otra publicación del mismo producto, primero.
+    const conocido = extra.conocidos?.get(id);
+    if (conocido) { atributos.push({ id, ...conocido } as (typeof atributos)[number]); continue; }
     if (modelo && ES_NUMERO_DE_PIEZA(id)) atributos.push({ id, value_name: modelo } as (typeof atributos)[number]);
     // Código de barras exigido y la publicación no lo tiene: «El producto no tiene código registrado».
     if (id === "EMPTY_GTIN_REASON" && !atributos.some((a) => a.id === "GTIN")) atributos.push({ id, value_id: "17055160" } as (typeof atributos)[number]);
-    // «Formato de venta: Unidad» pide la cantidad de envases: 1.
-    if (id === "UNITS_PER_PACK") atributos.push({ id, value_name: "1" } as (typeof atributos)[number]);
+    // La cantidad de envases: la del título si es un pack («Pack X 10»); si no, 1.
+    if (id === "UNITS_PER_PACK") atributos.push({ id, value_name: String(cantidadDelPack(nombre) ?? 1) } as (typeof atributos)[number]);
+    // «¿Es kit de fábrica?»: no.
+    if (id === "IS_FACTORY_KIT") atributos.push({ id, value_name: "No" } as (typeof atributos)[number]);
   }
   const condiciones = (it.sale_terms ?? []).filter((t) => t.value_name != null || t.value_id != null)
     .map((t) => ({ id: t.id, ...(t.value_id ? { value_id: t.value_id } : {}), ...(t.value_name != null ? { value_name: t.value_name } : {}) }));
   return {
     ...(it.family_name ? { family_name: nuevoNombre } : { title: nuevoNombre }),
-    category_id: it.category_id,
+    category_id: extra.categoria ?? it.category_id,
     price: it.price,
     currency_id: it.currency_id ?? "ARS",
     available_quantity: Math.max(1, it.available_quantity ?? 1),
@@ -153,6 +171,26 @@ export function atributosFaltantes(datos: unknown): string[] {
     .flatMap((c) => [...(c.message ?? "").matchAll(/attributes \[([A-Z0-9_, ]+)\] are required/gi)].flatMap((m) => m[1].split(",").map((x) => x.trim()).filter(Boolean)));
 }
 
+/** La cantidad de un pack según el título («Pack X 10», «x5 unidades», «X 100 Unidades»), o null. Pura. */
+export function cantidadDelPack(titulo: string): number | null {
+  const m = titulo.match(/\bpack\s*x?\s*(\d{1,4})\b/i) ?? titulo.match(/\bx\s*(\d{1,4})\s*(u\b|un\b|unid|unidades)/i) ?? titulo.match(/^\s*x\s*(\d{1,4})\b/i);
+  const n = m ? Number(m[1]) : NaN;
+  return n > 1 ? n : null;
+}
+
+/** El código de pieza de un título de componente: la palabra más larga con letras y números («Irf7316trpbf»,
+ *  «Mka10110»), en mayúsculas; null si no hay. Pura. */
+export function modeloDelTitulo(titulo: string): string | null {
+  const candidatas = titulo.split(/\s+/).map((p) => p.replace(/^[^\w]+|[^\w]+$/g, ""))
+    .filter((p) => p.length >= 4 && /[a-z]/i.test(p) && /\d/.test(p) && !/^\d+(v|w|a|mm|cm|uf|nf|pf|k|m|g|x)$/i.test(p));
+  if (candidatas.length) return candidatas.sort((a, b) => b.length - a.length)[0].toUpperCase();
+  // Sin código de pieza (un capacitor «3300uf 35v»): sus valores con número; si no hay, las palabras después de la primera.
+  const valores = titulo.split(/\s+/).filter((p) => /\d/.test(p) && !/^x$/i.test(p)).slice(0, 3);
+  if (valores.length) return valores.join(" ").toUpperCase().slice(0, 60);
+  const palabras = titulo.split(/\s+/).slice(1, 4).join(" ");
+  return palabras || null;
+}
+
 /** Los obligatorios que son «número de pieza» (Fer, 10/10: ML pide DEVICE_PART_NUMBER en repuestos): se completan con el Modelo. */
 const ES_NUMERO_DE_PIEZA = (id: string) => /PART_NUMBER$|^MPN$/.test(id);
 
@@ -179,8 +217,10 @@ export type Comprobacion = { ok: true; cuerpo: Record<string, unknown>; avisos: 
 /** Comprueba un alta con ML (POST /items/validate: no publica nada). Si ML avisa que hay
  *  atributos que no se pueden mandar, los saca y vuelve a comprobar; si protesta por el
  *  envío, vuelve a comprobar sin el bloque de envío (usa el que tiene la cuenta). */
-export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string[]; sinEnvio?: boolean; completar?: string[]; paquete?: Paquete | null }) => Record<string, unknown>,
-  opts: { paquetes?: (Paquete | null)[] } = {}): Promise<Comprobacion> {
+export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string[]; sinEnvio?: boolean; completar?: string[]; paquete?: Paquete | null; categoria?: string | null }) => Record<string, unknown>,
+  opts: { paquetes?: (Paquete | null)[]; conocidos?: Map<string, { value_id?: string; value_name?: string }>;
+    /** Último intento (completar-ia.ts): lo que nadie tiene lo elige la IA; si la categoría es absurda, la que ML cree que va. */
+    ia?: { titulo: string; descripcion: string; categoria: string | null } } = {}): Promise<Comprobacion> {
   let sacar: string[] = [];
   let completar: string[] = [];
   let paquete: Paquete | null = null;
@@ -188,8 +228,11 @@ export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string
   let r = await ml(cuenta, "POST", "/items/validate", cuerpo);
   // Un obligatorio que falta y se puede completar (número de pieza ← Modelo; sin código de barras → el motivo;
   // la cantidad de envases de «Unidad» → 1): se prueba con él.
-  const faltan = [...atributosFaltantes(r.datos).flatMap((x) => (ES_NUMERO_DE_PIEZA(x) ? [x] : x === "GTIN" ? ["EMPTY_GTIN_REASON"] : [])),
-    ...(causasDe(r.datos).some((c) => c.code === "item.attribute.invalid_sale_units") ? ["UNITS_PER_PACK"] : [])];
+  const completables = (datos: unknown) => [
+    ...atributosFaltantes(datos).flatMap((x) => (opts.conocidos?.has(x) || ES_NUMERO_DE_PIEZA(x) || x === "MODEL" || x === "IS_FACTORY_KIT" ? [x]
+      : x === "GTIN" ? ["EMPTY_GTIN_REASON"] : [])),
+    ...(causasDe(datos).some((c) => c.code === "item.attribute.invalid_sale_units") ? ["UNITS_PER_PACK"] : [])].filter((x) => !completar.includes(x));
+  const faltan = completables(r.datos);
   if (r.status === 400 && faltan.length) {
     completar = faltan;
     cuerpo = armar({ sacar, completar });
@@ -209,6 +252,13 @@ export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string
     cuerpo = armar({ sacar, completar });
     r = await ml(cuenta, "POST", "/items/validate", cuerpo);
   }
+  // Un obligatorio que ML recién nombra en esta vuelta (después de sacar otros): se completa y se prueba de nuevo.
+  const otros = r.status === 400 ? completables(r.datos) : [];
+  if (otros.length) {
+    completar = [...completar, ...otros];
+    cuerpo = armar({ sacar, completar });
+    r = await ml(cuenta, "POST", "/items/validate", cuerpo);
+  }
   // Medidas del paquete que ML no cree para ese producto (las de publicaciones viejas): las de la ficha de Laucen, si las
   // tiene, y si no un paquete estándar de sobre (Fer, 10/10). Cada una la comprueba ML.
   if (!aceptable(r) && /seller\.package\.dimensions|seller_package/i.test(JSON.stringify(r.datos))) {
@@ -219,8 +269,37 @@ export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string
       if (aceptable(r) || !/seller\.package\.dimensions|seller_package/i.test(JSON.stringify(r.datos))) break;
     }
   }
+  let sinEnvio = false;
   if (!aceptable(r) && /mode me1|free shipping|shipping/i.test(JSON.stringify(r.datos))) {
-    cuerpo = armar({ sacar, sinEnvio: true, completar, paquete });
+    sinEnvio = true;
+    cuerpo = armar({ sacar, sinEnvio, completar, paquete });
+    r = await ml(cuenta, "POST", "/items/validate", cuerpo);
+  }
+  // Lo último: un obligatorio que ML nombra recién después del envío o del paquete.
+  const ultimos = !aceptable(r) ? completables(r.datos) : [];
+  if (ultimos.length) {
+    completar = [...completar, ...ultimos];
+    cuerpo = armar({ sacar, sinEnvio, completar, paquete });
+    r = await ml(cuenta, "POST", "/items/validate", cuerpo);
+  }
+  // Lo que ninguna publicación del producto tiene: la IA, con las opciones que acepta ML (hasta dos vueltas: si cambia la
+  // categoría, la nueva puede pedir otros datos).
+  let categoria: string | null = null;
+  for (let vuelta = 0; vuelta < 2 && !aceptable(r) && opts.ia && opts.conocidos; vuelta++) {
+    const quedan = atributosFaltantes(r.datos).filter((x) => !opts.conocidos!.has(x));
+    if (!quedan.length) break;
+    const cat: string | null = categoria ?? opts.ia.categoria;
+    if (!cat) break;
+    const ia = await completarConIA(cuenta, cat, quedan, opts.ia.titulo, opts.ia.descripcion);
+    if (ia.categoriaIncorrecta && !categoria) {
+      const nueva = await categoriaParaTitulo(cuenta, opts.ia.titulo);
+      if (!nueva || nueva === cat) break;
+      categoria = nueva;
+    } else if (ia.valores.size) {
+      for (const [id, v] of ia.valores) opts.conocidos.set(id, v);
+      completar = [...completar, ...ia.valores.keys()];
+    } else break;
+    cuerpo = armar({ sacar, sinEnvio, completar, paquete, categoria });
     r = await ml(cuenta, "POST", "/items/validate", cuerpo);
   }
   if (!aceptable(r)) return { ok: false, motivo: motivoValidacion(r.status, r.datos) };
