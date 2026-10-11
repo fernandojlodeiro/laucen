@@ -49,8 +49,22 @@ export async function correrEsquemaErp(base: Pool): Promise<void> {
 
 let listo: Promise<void> | null = null;
 
+/** Un choque con otra consulta (deadlock, o esperar de más un candado) justo al arrancar un deploy nuevo
+ *  no tiene que tirar la pantalla: se reintenta hasta 3 veces (Fer, 11/10). */
+async function conReintentos(): Promise<void> {
+  for (let intento = 1; ; intento++) {
+    try {
+      return await correrEsquemaErp(pool);
+    } catch (e) {
+      const codigo = (e as { code?: string }).code;
+      if (intento >= 3 || !["40P01", "55P03", "40001"].includes(codigo ?? "")) throw e;
+      await new Promise((r) => setTimeout(r, 500 * intento));
+    }
+  }
+}
+
 export function asegurarEsquemaErp(): Promise<void> {
-  listo ??= correrEsquemaErp(pool).catch((e) => {
+  listo ??= conReintentos().catch((e) => {
     listo = null; // que el próximo intento lo reintente
     throw e;
   });

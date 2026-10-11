@@ -60,3 +60,11 @@ test("regla de precio: el objetivo y la decisión (sólo baja, nunca abajo del p
   assert.equal(decidir(15000, 12000, 15000).nuevo, null);               // ya está en el piso
   assert.equal(decidir(14000, 12000, 15000).nuevo, null);               // por debajo del piso: no sube
 });
+
+test("catalogoDeApify: el catálogo en el que compite una publicación leída con Apify", async () => {
+  const { catalogoDeApify } = await import("@/lib/seguimiento");
+  assert.equal(catalogoDeApify({ sku: "MLA2082997403" }, "MLA725348734"), "MLA2082997403");
+  assert.equal(catalogoDeApify({ sku: "MLA725348734" }, "MLA725348734"), null);
+  assert.equal(catalogoDeApify({ sku: "ABC-123" }, "MLA725348734"), null);
+  assert.equal(catalogoDeApify({}, "MLA725348734"), null);
+});

@@ -271,17 +271,17 @@ export async function seguirDeBusqueda(org: string, productoId: number, itemId: 
 }
 
 /** Sigue publicaciones pegadas a mano (links o números MLA). Se leen en la próxima vuelta. */
-export async function seguirPorNumero(org: string, productoId: number, texto: string, origen: "manual" | "importado" = "manual"): Promise<{ nuevas: number; repetidas: number }> {
+export async function seguirPorNumero(org: string, productoId: number, texto: string, origen: "manual" | "importado" = "manual"): Promise<{ nuevas: number; repetidas: number; ids: number[] }> {
   const ids = [...new Set((texto.toUpperCase().match(/MLAU?-?\d{9,}/g) ?? []).map((x) => x.replace("-", "")))];
   if (!ids.length) throw new ErrorErp("Pegá links o números de publicación (MLA… o MLAU…, de 9 cifras o más).");
-  let nuevas = 0;
+  const nuevos: number[] = [];
   for (const id of ids) {
-    const r = await una(`insert into seguimiento_pub (organizacion_id, producto_id, item_id, origen, estado, permalink)
-                          values ($1, $2, $3, $4, 'sin_dato', $5) on conflict (organizacion_id, producto_id, item_id) do nothing returning id`,
+    const r = await una<{ id: number }>(`insert into seguimiento_pub (organizacion_id, producto_id, item_id, origen, estado, permalink)
+                          values ($1, $2, $3, $4, 'sin_dato', $5) on conflict (organizacion_id, producto_id, item_id) do nothing returning id::int`,
       [org, productoId, id, origen, enlaceDe(id)]);
-    if (r) nuevas++;
+    if (r) nuevos.push(r.id);
   }
-  return { nuevas, repetidas: ids.length - nuevas };
+  return { nuevas: nuevos.length, repetidas: ids.length - nuevos.length, ids: nuevos };
 }
 
 export async function dejarDeSeguir(org: string, id: number): Promise<void> {
@@ -296,7 +296,7 @@ async function anotarLectura(org: string, segId: number, fuente: "api" | "apify"
     [org, segId, fuente, p.precio ?? null, p.precioOriginal ?? null, p.estado ?? null, p.tipoPublicacion ?? null, JSON.stringify(datos ?? {})]);
 }
 
-type Seguida = { id: number; item_id: string; catalogo_id: string | null; permalink: string | null; producto_id: number };
+type Seguida = { id: number; item_id: string; catalogo_id: string | null; permalink: string | null; producto_id: number; vendedor_id: number | null };
 
 /** Las de catálogo, por la API (gratis): /products/{catálogo}/items trae a todos los que compiten. */
 async function leerCatalogo(org: string, cuenta: CuentaMl, seguidas: Seguida[]): Promise<number> {
@@ -321,13 +321,20 @@ async function leerCatalogo(org: string, cuenta: CuentaMl, seguidas: Seguida[]):
         await consulta("update seguimiento_pub set intento_ts = now(), error = $2 where id = $1", [s.id, `Mercado Libre contestó ${r.status} al leer el catálogo ${cat}.`]);
         continue;
       }
-      const x = (r.datos.results ?? []).find((y) => y.item_id === s.item_id);
+      // Una MLAU (producto de vendedor) no figura por su número: se la reconoce por el vendedor.
+      const x = (r.datos.results ?? []).find((y) => y.item_id === s.item_id)
+        ?? (s.item_id.startsWith("MLAU") && s.vendedor_id ? (r.datos.results ?? []).find((y) => y.seller_id === s.vendedor_id) : undefined);
       const p: Partial<PubEncontrada> = x
         ? { precio: x.price ?? null, precioOriginal: x.original_price ?? null, moneda: x.currency_id ?? "ARS", estado: "activa", tipoPublicacion: x.listing_type_id ?? null,
             envioGratis: x.shipping?.free_shipping ?? null, tiendaOficial: x.official_store_id != null }
         // No figura entre los que compiten: pausada, sin stock o fuera del catálogo.
         : { estado: "no_figura" };
       if (x) p.entregaDias = await diasDeEntrega(cuenta, s.item_id);
+      // El apodo del vendedor, si todavía no se sabe (las agregadas por número llegan sin él).
+      if (x?.seller_id) {
+        const u = await ml<{ nickname?: string }>(cuenta, "GET", `/users/${x.seller_id}`).catch(() => null);
+        if (u?.status === 200 && u.datos.nickname) await consulta("update seguimiento_pub set vendedor = coalesce(vendedor, $2) where id = $1", [s.id, u.datos.nickname]);
+      }
       await consulta(`update seguimiento_pub set precio = coalesce($2, precio), precio_original = $3, moneda = coalesce($4, moneda), estado = $5,
                              tipo_publicacion = coalesce($6, tipo_publicacion), envio_gratis = coalesce($7, envio_gratis), tienda_oficial = coalesce($8, tienda_oficial),
                              vendedor_id = coalesce($9, vendedor_id), entrega_dias = coalesce($10, entrega_dias), leido_ts = now(), intento_ts = now(), error = null where id = $1`,
@@ -371,7 +378,7 @@ async function leerComunes(org: string, seguidas: Seguida[]): Promise<{ leidas: 
                              cuotas = coalesce($11, cuotas), envio_gratis = coalesce($12, envio_gratis), catalogo_id = coalesce(catalogo_id, $13),
                              leido_ts = now(), intento_ts = now(), error = null where id = $1`,
         [s.id, p.titulo !== "(sin título)" ? p.titulo : null, p.foto, p.vendedor, p.tiendaOficial, p.precio, p.precioOriginal, p.moneda, p.estado,
-          p.tipoPublicacion, p.cuotas, p.envioGratis, p.catalogoId]);
+          p.tipoPublicacion, p.cuotas, p.envioGratis, p.catalogoId ?? catalogoDeApify(e.x, s.item_id)]);
       await anotarLectura(org, s.id, "apify", p, e.x);
       leidas++;
     }
@@ -379,24 +386,59 @@ async function leerComunes(org: string, seguidas: Seguida[]): Promise<{ leidas: 
   return { leidas, sinPresupuesto };
 }
 
+/** El catálogo en el que compite, según lo que trae Apify de la publicación («sku»: MLA… del producto de catálogo). Pura. */
+export function catalogoDeApify(x: unknown, itemId: string): string | null {
+  const sku = (x as { sku?: unknown } | null)?.sku;
+  return typeof sku === "string" && /^MLA\d{8,}$/.test(sku) && sku !== itemId ? sku : null;
+}
+
+/** Una MLAU (producto de vendedor): la API dice de quién es y en qué catálogo compite, si lo hay. */
+async function leerUserProduct(cuenta: CuentaMl, s: Seguida): Promise<boolean> {
+  const r = await ml<{ user_id?: number; catalog_product_id?: string | null; name?: string }>(cuenta, "GET", `/user-products/${s.item_id}`).catch(() => null);
+  if (!r || r.status !== 200) {
+    await consulta("update seguimiento_pub set intento_ts = now(), error = $2 where id = $1",
+      [s.id, `Mercado Libre no deja leer las publicaciones MLAU de otros vendedores (contestó ${r?.status ?? "sin respuesta"}). Seguí su número MLA si lo tenés.`]);
+    return false;
+  }
+  await consulta("update seguimiento_pub set vendedor_id = coalesce($2, vendedor_id), catalogo_id = coalesce(catalogo_id, $3), titulo = coalesce(titulo, $4) where id = $1",
+    [s.id, r.datos.user_id ?? null, r.datos.catalog_product_id ?? null, r.datos.name ?? null]);
+  if (!r.datos.catalog_product_id) {
+    await consulta("update seguimiento_pub set intento_ts = now(), error = $2 where id = $1",
+      [s.id, "Es una publicación MLAU que no compite en un catálogo: Mercado Libre no deja leer su precio. Seguí su número MLA si lo tenés."]);
+    return false;
+  }
+  s.catalogo_id = r.datos.catalog_product_id;
+  s.vendedor_id = r.datos.user_id ?? s.vendedor_id;
+  return true;
+}
+
 /** Lee las seguidas que tocan (pasaron los días de la configuración, o nunca se leyeron), o las de un producto. */
-export async function leerSeguidas(org: string, o: { productoId?: number; todas?: boolean } = {}): Promise<{ catalogo: number; comunes: number; sinPresupuesto: number }> {
+export async function leerSeguidas(org: string, o: { productoId?: number; todas?: boolean; ids?: number[] } = {}): Promise<{ catalogo: number; comunes: number; sinPresupuesto: number }> {
   const { frecuenciaDias } = await configSeguimiento(org);
   const seguidas = await consulta<Seguida>(`
-    select id::int, item_id, catalogo_id, permalink, producto_id::int from seguimiento_pub
-     where organizacion_id = $1 and ($2::bigint is null or producto_id = $2)
+    select id::int, item_id, catalogo_id, permalink, producto_id::int, vendedor_id::float8 vendedor_id from seguimiento_pub
+     where organizacion_id = $1 and ($2::bigint is null or producto_id = $2) and ($5::bigint[] is null or id = any($5::bigint[]))
        and ($3 or leido_ts is null or leido_ts < now() - make_interval(days => $4) + interval '2 hours')
        -- Lo que falló hace poco no se reintenta enseguida (salvo pedido a mano).
        and ($3 or intento_ts is null or intento_ts < now() - interval '20 hours')
-     order by leido_ts nulls first limit 2000`, [org, o.productoId ?? null, !!o.todas, frecuenciaDias]);
+     order by leido_ts nulls first limit 2000`, [org, o.productoId ?? null, !!o.todas, frecuenciaDias, o.ids?.length ? o.ids : null]);
   if (!seguidas.length) return { catalogo: 0, comunes: 0, sinPresupuesto: 0 };
   const cuenta = (await nuestras(org)).cuentas[0];
+  // Las MLAU (productos de vendedor) no se leen con Apify: la API dice en qué catálogo compiten (si compiten).
+  const mlau = seguidas.filter((s) => s.item_id.startsWith("MLAU") && !s.catalogo_id);
+  const mlauOk = new Set<number>();
+  if (cuenta) for (const s of mlau) if (await leerUserProduct(cuenta, s)) mlauOk.add(s.id);
   const deCatalogo = cuenta ? seguidas.filter((s) => s.catalogo_id) : [];
-  const catalogo = deCatalogo.length ? await leerCatalogo(org, cuenta, deCatalogo) : 0;
-  const { leidas, sinPresupuesto } = await leerComunes(org, seguidas.filter((s) => !deCatalogo.includes(s)));
-  // La entrega de las comunes, por la API (gratis), aunque no haya quedado presupuesto para leerlas con Apify.
+  let catalogo = deCatalogo.length ? await leerCatalogo(org, cuenta, deCatalogo) : 0;
+  const comunes = seguidas.filter((s) => !deCatalogo.includes(s) && !mlau.includes(s));
+  const { leidas, sinPresupuesto } = await leerComunes(org, comunes);
   if (cuenta) {
-    for (const x of seguidas.filter((s) => !deCatalogo.includes(s))) {
+    // Si Apify dijo que compite en un catálogo, se completa por la API (gratis): vendedor, tipo y el título del catálogo.
+    const ahoraCatalogo = await consulta<Seguida>(`select id::int, item_id, catalogo_id, permalink, producto_id::int, vendedor_id::float8 vendedor_id
+      from seguimiento_pub where id = any($1::bigint[]) and catalogo_id is not null`, [comunes.map((s) => s.id)]);
+    if (ahoraCatalogo.length) catalogo += await leerCatalogo(org, cuenta, ahoraCatalogo);
+    // La entrega de las comunes, por la API (gratis), aunque no haya quedado presupuesto para leerlas con Apify.
+    for (const x of comunes.filter((s) => !ahoraCatalogo.some((c) => c.id === s.id))) {
       const d = await diasDeEntrega(cuenta, x.item_id);
       if (d != null) await consulta("update seguimiento_pub set entrega_dias = $2 where id = $1", [x.id, d]);
     }

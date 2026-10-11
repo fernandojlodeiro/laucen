@@ -185,7 +185,9 @@ En un producto de catálogo, Mercado Libre muestra el título del catálogo para
 
 La última búsqueda queda guardada: volver a la pestaña no cuesta; buscar de nuevo, sí.
 
-Para agregar publicaciones que ya conocés: **+ Agregar por número**, pegá los links o números (MLA…), uno por renglón, y **Agregar**. Se leen con **Leer ahora** o en la próxima vuelta.
+Para agregar publicaciones que ya conocés: **+ Agregar por número**, pegá los links o números (MLA…), uno por renglón, y **Agregar**. **Se leen enseguida, de fondo**: el botón **Leer ahora** queda en «Trabajando…» y en un minuto aparecen con sus datos (mientras tanto dicen «Sin leer todavía»). Si la publicación compite en un **catálogo**, a partir de ahí se lee gratis por el catálogo y muestra el vendedor, el tipo y el título que ve el comprador.
+
+Las publicaciones **MLAU…** («producto de vendedor») se leen sólo si compiten en un catálogo; si no, Mercado Libre no deja leer su precio y la fila lo dice en rojo: en ese caso conviene seguir su número **MLA…**.
 
 **Leer ahora** relee las de este producto en el momento (pregunta antes, porque las comunes cuestan). Además se releen solas cada tantos días (ver [Seguimiento de publicaciones](/config/seguimiento)). El tacho deja de seguir una.
 

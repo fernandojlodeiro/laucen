@@ -5,7 +5,7 @@
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, texto, id, numero } from "@/lib/erp/acciones";
-import { deFondo } from "@/lib/tareas-fondo";
+import { deFondo, lanzarTarea } from "@/lib/tareas-fondo";
 import { buscarParaSeguir, seguirDeBusqueda, seguirPorNumero, dejarDeSeguir, leerSeguidas } from "@/lib/seguimiento";
 import { guardarRegla, revisarRegla, aplicarPropuesta, descartarPropuesta } from "@/lib/seguimiento/regla";
 
@@ -38,8 +38,16 @@ export async function accionSeguirPorNumero(fd: FormData) {
   const pid = id(fd, "producto_id");
   await intentar(volver(pid), async () => {
     const r = await seguirPorNumero(s.org.id, pid, texto(fd, "numeros") ?? "");
+    // Las nuevas se leen ya, de fondo (Fer, 11/10): al terminar aparecen con sus datos.
+    if (r.ids.length) {
+      await lanzarTarea(s.org.id, s.usuario.id, `seguimiento-leer-${pid}`, "Leer las publicaciones agregadas", async () => {
+        const l = await leerSeguidas(s.org.id, { productoId: pid, todas: true, ids: r.ids });
+        revalidatePath(`/catalogo/productos/${pid}`);
+        return `Leídas las agregadas: ${l.catalogo} de catálogo y ${l.comunes} comunes.${l.sinPresupuesto ? " Alguna quedó sin leer: se llegó al tope de gasto del mes." : ""}`;
+      });
+    }
     revalidatePath(`/catalogo/productos/${pid}`);
-    return `${r.nuevas} agregada${r.nuevas === 1 ? "" : "s"}${r.repetidas ? ` (${r.repetidas} ya estaba${r.repetidas === 1 ? "" : "n"})` : ""}. Se leen con «Leer ahora» o en la próxima vuelta.`;
+    return `${r.nuevas} agregada${r.nuevas === 1 ? "" : "s"}${r.repetidas ? ` (${r.repetidas} ya estaba${r.repetidas === 1 ? "" : "n"})` : ""}.${r.nuevas ? " Se están leyendo: en un minuto aparecen con sus datos." : ""}`;
   });
 }
 
