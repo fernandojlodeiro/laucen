@@ -278,7 +278,8 @@ async function altasEnCanal(org: string, plan: PlanTodas, datos: DatosOrigen, c:
       const cuerpo = armarCuerpoCopia(item, sku, { variarTitulo: false, rotarFotos: false },
         { modelo: datos.modelo, marca: marca.cambiada ? marca.marca : null, semillaTitulo: ajuste?.sinMezclar ? null : `${c.id}:${f.plan}:${sku}`, conocidos, ...x });
       return tag ? { ...cuerpo, tags: [tag] } : cuerpo;
-    }, { paquetes: [await paqueteDeLaucen(org, sku)], conocidos });
+    }, { paquetes: [await paqueteDeLaucen(org, sku)], conocidos,
+      ia: { titulo: (datos.ml.family_name ?? datos.ml.title ?? "").trim(), descripcion: datos.texto, categoria: item.category_id ?? null } });
     if (!r.ok) { res.rechazos.push(`${c.nombre} ${sku} ${f.nombre}: ${r.motivo}`); (res.fallas ??= []).push({ sku, plan: f.plan, motivo: r.motivo }); continue; }
     if (r.avisos) res.avisos.push(`${c.nombre} ${sku} ${f.nombre}: ${r.avisos}`);
     const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: r.cuerpo }];

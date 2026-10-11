@@ -59,7 +59,7 @@ Caja **«Interruptores de la cuenta»** (cuatro interruptores):
   - **Marca**: los productos sin marca propia (Tiendavirtual, Daitom, Deirolab, Laucen, Genérico, OEM, en blanco) y los «Arduino» llevan la marca de la cuenta (la de «Marca de las publicaciones» de la cuenta); las demás marcas de fábrica quedan. La marca no va en el título. Con la marca cambiada, entra a un catálogo sólo si es de esa misma marca.
   - **Descripción**: sólo la parte técnica del producto, sin el encabezado ni el pie de la empresa.
   - **Fotos**: las que tienen el logo o el nombre «Tiendavirtual» no se usan (si todas lo tienen, van igual: una publicación necesita fotos).
-  - Si Mercado Libre pide un dato que falta, se completa solo como en cualquier alta (Modelo, código de barras, cantidad de envases, medidas del paquete). Lo que igual no acepta queda en la pestaña «Alertas», en «No se pudieron crear», y se vuelve a intentar más tarde.
+  - Si Mercado Libre pide un dato que falta, se completa solo como en cualquier alta (Modelo, código de barras, cantidad de envases, medidas del paquete). Si ninguna publicación del producto lo tiene, lo elige la IA entre las opciones que acepta Mercado Libre, mirando el título y la descripción (si no está segura, no lo inventa y queda en Alertas). Si lo que pide no tiene nada que ver con el producto, se publica en la categoría que Mercado Libre indica para ese título. Una publicación que Mercado Libre bloquea se vuelve a crear en la categoría que sugiere o con el título sin mezclar. Lo que igual no acepta queda en la pestaña «Alertas», en «No se pudieron crear», y se vuelve a intentar más tarde.
 
 ### Pestaña «Excepciones»
 

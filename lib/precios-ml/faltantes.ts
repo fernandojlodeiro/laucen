@@ -97,7 +97,8 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
         const cuerpo = armarCuerpoCopia(item, info.sku, { variarTitulo: false, rotarFotos: false },
           { modelo, marca: marca.cambiada ? marca.marca : null, semillaTitulo: ajuste?.sinMezclar ? null : `${canalId}:${f.plan}:${info.sku}`, conocidos, ...x });
         return tag ? { ...cuerpo, tags: [tag] } : cuerpo;
-      }, { paquetes: [await paqueteDeLaucen(org, info.sku)], conocidos });
+      }, { paquetes: [await paqueteDeLaucen(org, info.sku)], conocidos,
+        ia: { titulo: (o.ml.family_name ?? o.ml.title ?? "").trim(), descripcion: texto, categoria: item.category_id ?? null } });
       if (!r.ok) { res.rechazos.push(`${info.sku} ${PLAN_INFO[f.plan].nombre}: ${r.motivo}`); res.fallas!.push({ sku: info.sku, plan: f.plan, motivo: r.motivo }); continue; }
       const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: r.cuerpo }];
       if (texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: texto }, seguirSiFalla: true });

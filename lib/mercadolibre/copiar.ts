@@ -17,6 +17,7 @@ import { textosCanal, descripcionCopiada } from "@/lib/canales/textos";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import { encolarLoteConBoton, errorLegible, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { categoriaParaTitulo, completarConIA } from "@/lib/mercadolibre/completar-ia";
 import { mezclarTitulo } from "@/lib/mercadolibre/pautas";
 import { variacionPorSku } from "@/lib/mercadolibre/publicaciones";
 
@@ -73,7 +74,7 @@ const ATRIBUTOS_PAQUETE = ["SELLER_PACKAGE_LENGTH", "SELLER_PACKAGE_WIDTH", "SEL
 export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones: OpcionesCopia, extra: { modelo?: string | null; sacar?: string[]; sinEnvio?: boolean; completar?: string[]; paquete?: Paquete | null;
     /** Pautas (pautas.ts): la marca de la cuenta y la semilla para mezclar el título. */ marca?: string | null; semillaTitulo?: string | null;
     /** Los datos de las otras publicaciones del producto (pautas.ts › atributosConocidos), para completar lo que ML pide. */
-    conocidos?: Map<string, { value_id?: string; value_name?: string }> } = {}): Record<string, unknown> {
+    conocidos?: Map<string, { value_id?: string; value_name?: string }>; categoria?: string | null } = {}): Record<string, unknown> {
   const nombre = ((it.family_name ?? it.title) ?? "").trim();
   const nuevoNombre = extra.semillaTitulo ? mezclarTitulo(nombre, extra.semillaTitulo) : opciones.variarTitulo ? variarTitulo(nombre) : nombre;
   const fotos = (it.pictures ?? []).map((f) => f.secure_url ?? f.url).filter((u): u is string => !!u);
@@ -117,7 +118,7 @@ export function armarCuerpoCopia(it: ItemGuardado, sku: string | null, opciones:
     .map((t) => ({ id: t.id, ...(t.value_id ? { value_id: t.value_id } : {}), ...(t.value_name != null ? { value_name: t.value_name } : {}) }));
   return {
     ...(it.family_name ? { family_name: nuevoNombre } : { title: nuevoNombre }),
-    category_id: it.category_id,
+    category_id: extra.categoria ?? it.category_id,
     price: it.price,
     currency_id: it.currency_id ?? "ARS",
     available_quantity: Math.max(1, it.available_quantity ?? 1),
@@ -216,8 +217,10 @@ export type Comprobacion = { ok: true; cuerpo: Record<string, unknown>; avisos: 
 /** Comprueba un alta con ML (POST /items/validate: no publica nada). Si ML avisa que hay
  *  atributos que no se pueden mandar, los saca y vuelve a comprobar; si protesta por el
  *  envío, vuelve a comprobar sin el bloque de envío (usa el que tiene la cuenta). */
-export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string[]; sinEnvio?: boolean; completar?: string[]; paquete?: Paquete | null }) => Record<string, unknown>,
-  opts: { paquetes?: (Paquete | null)[]; conocidos?: Map<string, unknown> } = {}): Promise<Comprobacion> {
+export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string[]; sinEnvio?: boolean; completar?: string[]; paquete?: Paquete | null; categoria?: string | null }) => Record<string, unknown>,
+  opts: { paquetes?: (Paquete | null)[]; conocidos?: Map<string, { value_id?: string; value_name?: string }>;
+    /** Último intento (completar-ia.ts): lo que nadie tiene lo elige la IA; si la categoría es absurda, la que ML cree que va. */
+    ia?: { titulo: string; descripcion: string; categoria: string | null } } = {}): Promise<Comprobacion> {
   let sacar: string[] = [];
   let completar: string[] = [];
   let paquete: Paquete | null = null;
@@ -277,6 +280,26 @@ export async function comprobarAlta(cuenta: CuentaMl, armar: (x: { sacar: string
   if (ultimos.length) {
     completar = [...completar, ...ultimos];
     cuerpo = armar({ sacar, sinEnvio, completar, paquete });
+    r = await ml(cuenta, "POST", "/items/validate", cuerpo);
+  }
+  // Lo que ninguna publicación del producto tiene: la IA, con las opciones que acepta ML (hasta dos vueltas: si cambia la
+  // categoría, la nueva puede pedir otros datos).
+  let categoria: string | null = null;
+  for (let vuelta = 0; vuelta < 2 && !aceptable(r) && opts.ia && opts.conocidos; vuelta++) {
+    const quedan = atributosFaltantes(r.datos).filter((x) => !opts.conocidos!.has(x));
+    if (!quedan.length) break;
+    const cat: string | null = categoria ?? opts.ia.categoria;
+    if (!cat) break;
+    const ia = await completarConIA(cuenta, cat, quedan, opts.ia.titulo, opts.ia.descripcion);
+    if (ia.categoriaIncorrecta && !categoria) {
+      const nueva = await categoriaParaTitulo(cuenta, opts.ia.titulo);
+      if (!nueva || nueva === cat) break;
+      categoria = nueva;
+    } else if (ia.valores.size) {
+      for (const [id, v] of ia.valores) opts.conocidos.set(id, v);
+      completar = [...completar, ...ia.valores.keys()];
+    } else break;
+    cuerpo = armar({ sacar, sinEnvio, completar, paquete, categoria });
     r = await ml(cuenta, "POST", "/items/validate", cuerpo);
   }
   if (!aceptable(r)) return { ok: false, motivo: motivoValidacion(r.status, r.datos) };
