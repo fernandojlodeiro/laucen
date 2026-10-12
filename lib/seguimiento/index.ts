@@ -458,44 +458,68 @@ async function leerCatalogo(org: string, cuenta: CuentaMl, seguidas: Seguida[]):
   return leidas;
 }
 
-/** Las comunes, con Apify por su dirección (de a 100 por corrida), dentro del tope. */
+/** Las comunes, con Apify por su dirección, dentro del tope. De a tandas chicas que corren en paralelo (Fer, 12/10:
+ *  una sola corrida de 33 tardaba más que los 5 minutos que tiene la vuelta, y se cortaba sin grabar nada). Cada
+ *  corrida espera como mucho ESPERA_SEG: lo que trajo hasta ahí se graba igual y lo demás queda para la próxima vuelta. */
+const TANDA_APIFY = 10;
+const EN_PARALELO = 4;
+const ESPERA_SEG = 180;
+
 async function leerComunes(org: string, seguidas: Seguida[]): Promise<{ leidas: number; sinPresupuesto: number }> {
   let leidas = 0, sinPresupuesto = 0;
-  for (let i = 0; i < seguidas.length; i += 100) {
-    const tanda = seguidas.slice(i, i + 100);
-    const queda = await quedaParaGastar(org);
-    const estimado = tanda.length * 0.01;
-    if (queda < Math.max(0.05, estimado)) { sinPresupuesto += seguidas.length - i; break; }
-    const urls = tanda.map((s) => ({ url: s.permalink ?? enlaceDe(s.item_id) }));
-    const c = await correrConEntrada(ACTOR, { site: "MLA", startUrls: urls, maxItems: tanda.length, includeProductDetails: true },
-      { max: tanda.length, esperaSeg: 280, topeUsd: Math.min(queda, Math.max(0.2, estimado * 2)) });
-    await consulta("insert into seguimiento_corrida (organizacion_id, tipo, run_id, costo_usd, publicaciones, error) values ($1, 'lectura', $2, $3, $4, $5)",
-      [org, c.runId ?? null, costoDe("lectura", c.costoUsd, c.items.length), c.items.length, c.error ?? null]);
-    const porId = new Map<string, { p: PubEncontrada; x: unknown }>();
-    for (const x of c.items as Record<string, unknown>[]) {
-      const p = aPubEncontrada(x);
-      if (p) porId.set(p.itemId, { p, x });
+  const tandas: Seguida[][] = [];
+  for (let i = 0; i < seguidas.length; i += TANDA_APIFY) tandas.push(seguidas.slice(i, i + TANDA_APIFY));
+  for (let g = 0; g < tandas.length; g += EN_PARALELO) {
+    // El presupuesto se mira una vez por grupo y se reparte entre las corridas del grupo.
+    let queda = await quedaParaGastar(org);
+    const grupo: { tanda: Seguida[]; tope: number }[] = [];
+    for (const tanda of tandas.slice(g, g + EN_PARALELO)) {
+      const estimado = tanda.length * 0.01;
+      if (queda < Math.max(0.05, estimado)) { sinPresupuesto += tanda.length; continue; }
+      const tope = Math.min(queda, Math.max(0.2, estimado * 2));
+      queda -= tope;
+      grupo.push({ tanda, tope });
     }
-    for (const s of tanda) {
-      const e = porId.get(s.item_id);
-      if (!e) {
-        await consulta("update seguimiento_pub set intento_ts = now(), error = $2 where id = $1",
-          [s.id, c.error ? `No se pudo leer (${c.error.slice(0, 100)}).` : "Mercado Libre no devolvió esta publicación (puede estar terminada)."]);
-        continue;
-      }
-      const p = e.p;
-      await consulta(`update seguimiento_pub set titulo = coalesce($2, titulo), foto = coalesce($3, foto), vendedor = coalesce($4, vendedor),
-                             tienda_oficial = coalesce($5, tienda_oficial), precio = coalesce($6, precio), precio_original = $7, moneda = coalesce($8, moneda),
-                             estado = coalesce($9, case when $6 is not null then 'activa' else estado end), tipo_publicacion = coalesce($10, tipo_publicacion),
-                             cuotas = coalesce($11, cuotas), envio_gratis = coalesce($12, envio_gratis), catalogo_id = coalesce(catalogo_id, $13),
-                             leido_ts = now(), intento_ts = now(), error = null where id = $1`,
-        [s.id, p.titulo !== "(sin título)" ? p.titulo : null, p.foto, p.vendedor, p.tiendaOficial, p.precio, p.precioOriginal, p.moneda, p.estado,
-          p.tipoPublicacion, p.cuotas, p.envioGratis, p.catalogoId ?? catalogoDeApify(e.x, s.item_id)]);
-      await anotarLectura(org, s.id, "apify", p, e.x);
-      leidas++;
-    }
+    if (!grupo.length) { sinPresupuesto += tandas.slice(g + EN_PARALELO).reduce((a, t) => a + t.length, 0); break; }
+    const resultados = await Promise.all(grupo.map(async ({ tanda, tope }) => ({
+      tanda,
+      c: await correrConEntrada(ACTOR, { site: "MLA", startUrls: tanda.map((s) => ({ url: s.permalink ?? enlaceDe(s.item_id) })), maxItems: tanda.length, includeProductDetails: true },
+        { max: tanda.length, esperaSeg: ESPERA_SEG, topeUsd: tope }),
+    })));
+    for (const { tanda, c } of resultados) leidas += await grabarComunes(org, tanda, c);
   }
   return { leidas, sinPresupuesto };
+}
+
+/** Graba lo que trajo una corrida de Apify para su tanda. Devuelve cuántas leyó. */
+async function grabarComunes(org: string, tanda: Seguida[], c: Awaited<ReturnType<typeof correrConEntrada>>): Promise<number> {
+  let leidas = 0;
+  await consulta("insert into seguimiento_corrida (organizacion_id, tipo, run_id, costo_usd, publicaciones, error) values ($1, 'lectura', $2, $3, $4, $5)",
+    [org, c.runId ?? null, costoDe("lectura", c.costoUsd, c.items.length), c.items.length, c.error ?? null]);
+  const porId = new Map<string, { p: PubEncontrada; x: unknown }>();
+  for (const x of c.items as Record<string, unknown>[]) {
+    const p = aPubEncontrada(x);
+    if (p) porId.set(p.itemId, { p, x });
+  }
+  for (const s of tanda) {
+    const e = porId.get(s.item_id);
+    if (!e) {
+      await consulta("update seguimiento_pub set intento_ts = now(), error = $2 where id = $1",
+        [s.id, c.error ? `No se pudo leer (${c.error.slice(0, 100)}).` : "Mercado Libre no devolvió esta publicación (puede estar terminada)."]);
+      continue;
+    }
+    const p = e.p;
+    await consulta(`update seguimiento_pub set titulo = coalesce($2, titulo), foto = coalesce($3, foto), vendedor = coalesce($4, vendedor),
+                           tienda_oficial = coalesce($5, tienda_oficial), precio = coalesce($6, precio), precio_original = $7, moneda = coalesce($8, moneda),
+                           estado = coalesce($9, case when $6 is not null then 'activa' else estado end), tipo_publicacion = coalesce($10, tipo_publicacion),
+                           cuotas = coalesce($11, cuotas), envio_gratis = coalesce($12, envio_gratis), catalogo_id = coalesce(catalogo_id, $13),
+                           leido_ts = now(), intento_ts = now(), error = null where id = $1`,
+      [s.id, p.titulo !== "(sin título)" ? p.titulo : null, p.foto, p.vendedor, p.tiendaOficial, p.precio, p.precioOriginal, p.moneda, p.estado,
+        p.tipoPublicacion, p.cuotas, p.envioGratis, p.catalogoId ?? catalogoDeApify(e.x, s.item_id)]);
+    await anotarLectura(org, s.id, "apify", p, e.x);
+    leidas++;
+  }
+  return leidas;
 }
 
 /** El catálogo en el que compite, según lo que trae Apify de la publicación («sku»: MLA… del producto de catálogo). Pura. */
