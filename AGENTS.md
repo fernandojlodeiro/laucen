@@ -225,8 +225,11 @@ Buscadores (pedido de Fer, 2/10):
   marca del producto (tabla `marca`, Catálogo › Marcas).
 - Busca mientras se tipea (desde la segunda letra), sin botón "Buscar" ni "Limpiar": una X
   adentro del cuadro borra lo escrito. Con la caja **"Comienza por"**, tildada de entrada
-  (coincidencia al principio del texto; destildada, en cualquier parte). Componente:
-  `app/componentes/BuscadorVivo.tsx`.
+  (coincidencia al principio del texto; destildada, en cualquier parte). **Un "?" al principio de
+  lo escrito busca en cualquier parte aunque la caja esté tildada** (pedido de Fer, 12/10; "?4739983"
+  encuentra "MLA17064739983"). Componente: `app/componentes/BuscadorVivo.tsx`; la regla, en
+  `lib/busqueda.ts` (`parametroBusqueda`/`coincideBusqueda`): todo buscador filtra con ésas, nunca con
+  una comparación propia.
 
 Fechas desde/hasta (pedido de Fer, 3/10): **RangoFechas con atajos**
 (`app/componentes/RangoFechas.tsx`) en todo filtro "desde / hasta": en un renglón, un desplegable
