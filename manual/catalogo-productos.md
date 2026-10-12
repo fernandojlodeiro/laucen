@@ -297,6 +297,10 @@ Si el "hasta" es anterior al "desde": "Una cucarda tiene el "hasta" antes del "d
 
 Si no hay tipo de cambio cargado para pasar a la otra moneda, avisa que lo cargues en [Tipo de cambio](/config/tipo-cambio).
 
+### Ver los cambios de precio (pestaña Cambios de precio)
+
+La pestaña **Cambios de precio (N)**, al lado de **Precios**, muestra cada precio de lista de este producto (N es cuántos cambios hubo): cuándo, desde qué día rige, la lista, antes y después, cuánto cambió (▲ verde si subió, ▼ rojo si bajó, **Nuevo** si fue el primero) y **quién** lo cambió: la persona, **Regla de seguimiento (automática)**, «… (aplicó la regla de seguimiento)», carga masiva o copia al duplicar. Los de la regla dicen en **Motivo** contra quién comparó. **Ver con filtros en el Historial** abre [Historial de precios de lista](/catalogo/precios/historial) con este producto, para filtrar por fechas, subieron o bajaron, o quién.
+
 ### Duplicar un producto
 
 Sirve para cargar un producto parecido a uno que ya existe (por ejemplo otra notebook): en la ficha, botón **Duplicar** (arriba a la derecha, al lado de "Pasar a Inactivo"). El sistema crea la copia con el **SKU sugerido** (el que sigue al más alto, como en el alta) y abre su ficha **en edición**, con el aviso "Copia creada con el SKU …". Después cambiás lo que haga falta (título, atributos, fotos, precio…) y apretás **Grabar**.

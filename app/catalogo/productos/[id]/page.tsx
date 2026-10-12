@@ -8,6 +8,7 @@
 // cada fila (?editar=<id>) y el alta va detrás de "Nuevo …" arriba a la derecha.
 
 import SeccionSeguimiento from "./Seguimiento";
+import CambiosPrecio from "./CambiosPrecio";
 import { notFound } from "next/navigation";
 import { una, consulta } from "@/lib/erp/base";
 import FotosProducto from "@/app/componentes/FotosProducto";
@@ -70,7 +71,10 @@ export default async function FichaProducto({ params, searchParams }: { params: 
              where v.producto_id = $2 and v.organizacion_id = $1 and d.organizacion_id = $1 and d.estado = 'activo')::int stock,
            (select count(*) from publicacion pu join variacion v on v.id = pu.variacion_id where v.producto_id = $2 and pu.organizacion_id = $1)::int publicaciones,
            (select count(*) from cucarda c where c.organizacion_id = $1 and c.estado = 'activa')::int cucardas_activas,
-           (select count(*) from seguimiento_pub sg where sg.producto_id = $2 and sg.organizacion_id = $1)::int seguimiento`,
+           (select count(*) from seguimiento_pub sg where sg.producto_id = $2 and sg.organizacion_id = $1)::int seguimiento,
+           -- Cambios de precio: cada precio de lista que tiene uno anterior (de esa variación en esa lista).
+           (select count(*) - count(distinct (pr.lista_id, pr.variacion_id)) from precio pr join variacion v on v.id = pr.variacion_id
+             where v.producto_id = $2 and pr.organizacion_id = $1)::int cambios_precio`,
     [s.org.id, pid])) ?? {};
 
   // Fotos del producto (las de sus variaciones si no tiene propias): la principal se ve en "Datos".
@@ -90,6 +94,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
     ["cucardas", "Cucardas", n.cucardas ?? 0],
     ...(p.tipo === "kit" ? [["kit", "Componentes del kit", n.kit ?? 0] as [string, string, number]] : []),
     ["precios", "Precios", n.precios ?? 0],
+    ["cambios-precio", "Cambios de precio", n.cambios_precio ?? 0],
     ["stock", "Stock", n.stock ?? 0],
     ["publicaciones", "Publicaciones", n.publicaciones ?? 0],
     ["seguimiento", "Seguimiento", n.seguimiento ?? 0],
@@ -149,6 +154,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
       {seccion === "cucardas" && <SeccionCucardas {...props} />}
       {seccion === "kit" && <SeccionKit {...props} />}
       {seccion === "precios" && <SeccionPrecios {...props} />}
+      {seccion === "cambios-precio" && <CambiosPrecio org={s.org.id} productoId={p.id} skuBase={p.sku_base} sp={sp} />}
       {seccion === "stock" && <SeccionStock {...props} />}
       {seccion === "publicaciones" && <SeccionPublicaciones {...props} />}
       {seccion === "seguimiento" && <SeccionSeguimiento s={s} p={p} sp={sp} />}

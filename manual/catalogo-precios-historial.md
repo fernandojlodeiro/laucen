@@ -13,7 +13,7 @@ Para ver **qué precios de lista cambiaron, cuánto y quién los cambió**: los 
 
 ## Cómo se llega
 
-Menú **Catálogo › Historial de precios de lista**.
+Menú **Catálogo › Historial de precios de lista**. Los de un solo producto también están en la pestaña **Cambios de precio** de su ficha.
 
 ## Qué hay en la pantalla
 
@@ -32,14 +32,16 @@ La tabla, de lo más nuevo a lo más viejo (se ordena tocando el título de cada
 - **Lista**.
 - **Antes** y **Después**, en pesos. Si el precio está cargado en dólares, lo dice debajo.
 - **Cambio**: ▲ en verde si subió, ▼ en rojo si bajó, en %; **Nuevo** si es el primer precio de esa variación en esa lista.
-- **Quién**: la persona; **Regla de seguimiento (automática)** si lo cambió la regla sola; «… (aplicó la regla de seguimiento)» si una persona tocó **Aplicar** en una propuesta de la regla; «… (carga masiva)» si salió de una carga por porcentaje.
+- **Quién**: la persona; **Regla de seguimiento (automática)** si lo cambió la regla sola; «… (aplicó la regla de seguimiento)» si una persona tocó **Aplicar** en una propuesta de la regla; «… (carga masiva)» si salió de una carga por porcentaje; «Copiado al duplicar el producto»; o «Carga directa (sin usuario)».
 - **Motivo**: en los de la regla, contra qué publicación comparó y a qué precio estaba.
 
 ## Criterios y reglas
 
 - Cada fila compara el precio con **el anterior de la misma variación en la misma lista**. El % se calcula en la moneda en que está cargado el precio (en dólares, si es un producto con precio en dólares).
 - La historia es **por día**: si un precio se cambia dos veces el mismo día, queda el último.
-- Los cambios de antes de que existiera esta pantalla no tienen motivo, y si no tienen persona dicen «Sistema».
+- Los cambios de antes de que existiera esta pantalla no tienen motivo.
+- **«Copiado al duplicar el producto»**: el precio que recibió una variación nueva al duplicar un producto (el mismo del original).
+- **«Carga directa (sin usuario)»**: un precio cargado sin pasar por una pantalla de Laucen (por ejemplo, una carga hecha directamente en la base); no tiene a quién atribuirse.
 
 ## Relacionado
 

@@ -93,8 +93,9 @@ export async function duplicarProducto(org: string, pid: number): Promise<{ id: 
       await c.query(`insert into variacion_foto (organizacion_id, variacion_id, orden, url)
                      select organizacion_id, $2::bigint, orden, url from variacion_foto where variacion_id = $1`, [viejaId, nuevaId]);
       // El precio de hoy en cada lista (no la historia).
-      await c.query(`insert into precio (organizacion_id, lista_id, variacion_id, importe_ars, importe_usd, moneda_origen, vigente_desde)
-                     select distinct on (lista_id) organizacion_id, lista_id, $2::bigint, importe_ars, importe_usd, moneda_origen, current_date
+      await c.query(`insert into precio (organizacion_id, lista_id, variacion_id, importe_ars, importe_usd, moneda_origen, vigente_desde, origen, motivo)
+                     select distinct on (lista_id) organizacion_id, lista_id, $2::bigint, importe_ars, importe_usd, moneda_origen, current_date,
+                            'copia', 'Copiado al duplicar el producto' 
                        from precio where variacion_id = $1 and vigente_desde <= current_date order by lista_id, vigente_desde desc`, [viejaId, nuevaId]);
       // Si es un kit, sus componentes.
       await c.query(`insert into kit_componente (organizacion_id, variacion_kit_id, variacion_componente_id, cantidad)

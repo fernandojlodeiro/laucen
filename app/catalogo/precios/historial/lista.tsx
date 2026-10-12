@@ -27,7 +27,8 @@ const PCT = `case when h.moneda_origen = 'USD' then (h.importe_usd - h.antes_usd
 export const QUIEN = `case when h.origen = 'seguimiento' and h.usuario_id is null then 'Regla de seguimiento (automática)'
   when h.origen = 'seguimiento' then coalesce(u.nombre, u.email, '—') || ' (aplicó la regla de seguimiento)'
   when h.origen = 'masivo' then coalesce(u.nombre, u.email, 'Carga masiva') || ' (carga masiva)'
-  else coalesce(u.nombre, u.email, 'Sistema') end`;
+  when h.origen = 'copia' then 'Copiado al duplicar el producto'
+  else coalesce(u.nombre, u.email, 'Carga directa (sin usuario)') end`;
 
 export const SENTIDOS = { cambios: "Subieron o bajaron", subio: "Sólo los que subieron", bajo: "Sólo los que bajaron", nuevo: "Precios cargados por primera vez", todos: "Todos" } as const;
 export type Sentido = keyof typeof SENTIDOS;
@@ -67,7 +68,21 @@ export function filtrosHistorial(org: string, sp: SP) {
   if (sp.desde && /^\d{4}-\d{2}-\d{2}$/.test(sp.desde)) { valores.push(sp.desde); donde.push(`h.creado_ts >= ($${valores.length}::date)::timestamp at time zone 'America/Argentina/Buenos_Aires'`); }
   if (sp.hasta && /^\d{4}-\d{2}-\d{2}$/.test(sp.hasta)) { valores.push(sp.hasta); donde.push(`h.creado_ts < ($${valores.length}::date + 1)::timestamp at time zone 'America/Argentina/Buenos_Aires'`); }
   if (Number(sp.lista)) { valores.push(Number(sp.lista)); donde.push(`h.lista_id = $${valores.length}`); }
+  if (Number(sp.producto)) { valores.push(Number(sp.producto)); donde.push(`p.id = $${valores.length}`); }
   if (sp.quien === "regla") donde.push("h.origen = 'seguimiento' and h.usuario_id is null");
   else if (sp.quien) { valores.push(sp.quien); donde.push(`h.usuario_id = $${valores.length}`); }
   return { desde: HISTORIA, donde: donde.join(" and "), valores, orden: "h.creado_ts desc, h.id desc" };
 }
+
+/** Lo que trae cada fila de la pantalla (y de la pestaña «Cambios de precio» de la ficha). */
+export type FilaHistorial = { id: number; fecha: Date; vigente: string; producto_id: number; sku: string; titulo: string; lista: string; antes: number | null; despues: number;
+  pct: number | null; sentido: string; quien: string; motivo: string | null; moneda: string; fotos: string[] | null };
+
+export const CAMPOS_HISTORIAL = `h.id::int, h.creado_ts fecha, to_char(h.vigente_desde, 'DD/MM/YYYY') vigente, p.id::int producto_id, v.sku, coalesce(v.titulo, p.titulo) titulo,
+  l.nombre lista, h.antes_ars::float8 antes, h.importe_ars::float8 despues, h.moneda_origen moneda,
+  round((${PCT})::numeric, 1)::float8 pct, ${SENTIDO} sentido, ${QUIEN} quien, h.motivo,
+  (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = p.id) fotos`;
+
+/** El orden por columna (lista blanca). */
+export const ORDEN_HISTORIAL = { fecha: "h.creado_ts", sku: "v.sku", titulo: "lower(coalesce(v.titulo, p.titulo))", lista: "l.nombre", antes: "h.antes_ars", despues: "h.importe_ars",
+  pct: PCT, quien: QUIEN };
