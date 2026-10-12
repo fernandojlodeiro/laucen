@@ -1,6 +1,7 @@
 // Piezas comunes de "Precios en Mercado Libre" y su vista previa: el
 // selector de cuenta (canal) y la barra de pestañas con sus cuentas.
 
+import type { ReactNode } from "react";
 import Pestanas from "@/app/componentes/Pestanas";
 import { FiltroVivo, CasillaViva } from "@/app/componentes/BuscadorVivo";
 import { url } from "@/app/componentes/erp";
@@ -11,7 +12,11 @@ import { cuentaRelampagos } from "@/lib/precios-ml/relampago";
 
 export type VerPml = "general" | "excepciones" | "volumen" | "alertas" | "previa" | "planes" | "relampago";
 
-export async function BarraPml({ org, canales, canal, ver, todas = false }: { org: string; canales: CanalMl[]; canal: CanalMl; ver: VerPml; todas?: boolean }) {
+export async function BarraPml({ org, canales, canal, ver, todas = false, derecha }: {
+  org: string; canales: CanalMl[]; canal: CanalMl; ver: VerPml; todas?: boolean;
+  /** Lo que va a la derecha del renglón de la cuenta (ej. el buscador de la pestaña, Fer 12/10). */
+  derecha?: ReactNode;
+}) {
   const [n, bajo, sin, gratis, relampago] = await Promise.all([cuentasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id), sinCampanaCanal(org, canal), conEnvioGratisDeMas(org, canal.id), cuentaRelampagos(org, canal.id)]);
   const con = (v: string | null) => url(BASE_PML, { canal: canal.id, ver: v });
   return (
@@ -30,6 +35,7 @@ export async function BarraPml({ org, canales, canal, ver, todas = false }: { or
           {todas ? null : <>Clásica: lista {canal.lista ? <b>{canal.lista}</b> : <b className="text-[#C03420]">sin lista (cargala en Configuración → Canales)</b>}
           {canal.sincronizarPrecios ? " · sincroniza precios solo" : " · los cambios esperan tu clic"}</>}
         </span>
+        {derecha && <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-2">{derecha}</div>}
       </div>
       <Pestanas className="mb-3" items={[
         { clave: "general", texto: "Descuento", activa: ver === "general", href: con(null) },

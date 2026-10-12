@@ -1,7 +1,7 @@
 // Ofertas relámpago (Fer, 12/10). Mercado Libre invita publicaciones a una «oferta relámpago» (LIGHTNING): un rango de
 // precio con descuento y un stock que se reserva; una vez activada no se puede borrar. Laucen ya las lee con las
 // campañas de cada publicación (ml_promo_item, tipo LIGHTNING). Acá: cuánto se recibe vendiendo en la oferta (al precio
-// más alto que deja el rango) contra lo que se recibe hoy, el piso que pone Fer por producto, y el lote para entrar.
+// de hoy si entra en el rango; Fer lo puede cambiar) contra lo que se recibe hoy, el piso que pone Fer por producto, y el lote para entrar.
 // «Recibís» = lo que paga el comprador − la comisión de ML a ese precio (incluye el cargo fijo; /sites/MLA/listing_prices)
 // − lo que cobra ML por el envío gratis (/users/{id}/shipping_options/free; sólo desde el precio de envío gratis).
 
@@ -18,16 +18,33 @@ export function recibis(precio: number | null, comision: number | null, envio: n
   return Math.round(precio - comision - envio);
 }
 
-/** Cuánto más barato que hoy entra a la oferta (Fer, 12/10): el «máximo» que informa ML es sobre el precio publicado
- *  (el tachado), no sobre lo que paga hoy el comprador, y una oferta más cara que hoy no tiene sentido. */
-export const BAJA_RELAMPAGO_PCT = 5;
-
-/** El precio con que entra: el más alto del rango, pero nunca más de BAJA_RELAMPAGO_PCT % debajo de lo que paga hoy
- *  el comprador, en pesos enteros (hacia abajo). null si queda debajo del mínimo del rango. Pura. */
-export function precioRelampago(max: number | null, hoy: number | null, min: number | null = null): number | null {
+/** El precio con que entra (Fer, 12/10): el que paga hoy el comprador si entra en el rango de ML (no hace falta bajarlo
+ *  más; el «máximo» que informa ML es sobre el precio publicado, el tachado), si no el más alto del rango; en pesos enteros
+ *  (hacia abajo). Fer lo puede cambiar a mano en la fila (`elegido`). null si queda fuera del rango. Pura. */
+export function precioRelampago(max: number | null, hoy: number | null, min: number | null = null, elegido: number | null = null): number | null {
+  if (elegido != null) return (min != null && elegido < min) || (max != null && elegido > max) ? null : elegido;
   if (max == null || hoy == null) return null;
-  const p = Math.floor(Math.min(max, hoy * (1 - BAJA_RELAMPAGO_PCT / 100)));
+  const p = Math.floor(Math.min(max, hoy));
   return min != null && p < min ? null : p;
+}
+
+/** Cuánto se lleva Mercado Libre (y el descuento, en la oferta) de lo que paga hoy el comprador, en %: hoy = comisión +
+ *  envío; en la relámpago = lo que deja de entrar contra el precio de hoy. Un decimal. Pura. */
+export function costoPct(hoy: number | null, recibe: number | null): number | null {
+  if (hoy == null || recibe == null || hoy <= 0) return null;
+  return Math.round(((hoy - recibe) / hoy) * 1000) / 10;
+}
+
+/** Lo que dice ML de una fecha («2026-10-15T12:00:00», a veces con zona) en hora argentina: «15/10 12:00». Pura. */
+export function fechaRelampago(t: string | null): string | null {
+  if (!t) return null;
+  const sinZona = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(t);
+  if (sinZona && !/(Z|[+-]\d{2}:?\d{2})$/.test(t)) return `${sinZona[3]}/${sinZona[2]} ${sinZona[4]}:${sinZona[5]}`;
+  const d = new Date(t);
+  if (isNaN(d.getTime())) return null;
+  const x = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(d);
+  const v = (k: string) => x.find((y) => y.type === k)?.value ?? "";
+  return `${v("day")}/${v("month")} ${v("hour")}:${v("minute")}`;
 }
 
 export type FilaRelampago = {
@@ -36,10 +53,23 @@ export type FilaRelampago = {
   desde: string | null; hasta: string | null;
   hoy: number | null; hoy_comision: number | null; hoy_envio: number | null;
   rel: number | null; max: number | null; rel_comision: number | null; rel_envio: number | null; min: number | null; sugerido: number | null; tags: unknown;
-  piso: number | null;
+  piso: number | null; elegido: number | null;
 };
 
-export type Relampago = FilaRelampago & { plan: PlanOClasica | null; recibisHoy: number | null; recibisRel: number | null; diferencia: number | null; alcanza: boolean | null; conStock: boolean | null };
+export type Relampago = FilaRelampago & {
+  plan: PlanOClasica | null; recibisHoy: number | null; recibisRel: number | null; diferencia: number | null; alcanza: boolean | null; conStock: boolean | null;
+  costoHoyPct: number | null; costoRelPct: number | null;
+};
+
+// El precio de hoy, el más alto del rango y el de entrada (el elegido a mano; si no, el de hoy topeado por el rango; en una
+// ya aceptada, el de la oferta). Los usan la pantalla y la lectura de costos.
+const PRECIOS_SQL = `
+      left join ml_precio_comprador pc on pc.canal_id = p.canal_id and pc.item_id = p.item_id
+      left join ml_relampago_precio rp on rp.canal_id = p.canal_id and rp.item_id = p.item_id
+      cross join lateral (select coalesce(pc.monto, (m.datos_externos -> 'ml' ->> 'price')::numeric) hoy,
+                                 coalesce(p.max_precio, (p.datos ->> 'max_discounted_price')::numeric) max) x
+      cross join lateral (select case when p.estado <> 'candidate' and p.datos ->> 'price' is not null then round((p.datos ->> 'price')::numeric, 2)
+                                      else round(coalesce(rp.precio, floor(least(x.max, x.hoy))), 2) end rel) y`;
 
 /** Las propuestas de oferta relámpago de las publicaciones activas (de una cuenta o de todas), con lo que se recibe. */
 export async function relampagos(org: string, canal: number | null = null): Promise<Relampago[]> {
@@ -48,32 +78,32 @@ export async function relampagos(org: string, canal: number | null = null): Prom
            coalesce(m.datos_externos -> 'ml' ->> 'title', '') titulo, m.datos_externos -> 'ml' ->> 'listing_type_id' tipo,
            m.datos_externos -> 'ml' ->> 'category_id' categoria, m.datos_externos -> 'ml' -> 'tags' tags, (m.datos_externos -> 'ml' ->> 'available_quantity')::int stock,
            (p.datos -> 'stock' ->> 'min')::int stock_min, (p.datos -> 'stock' ->> 'max')::int stock_max,
-           coalesce(p.datos ->> 'start_date', k.desde::text) desde, coalesce(p.datos ->> 'finish_date', p.hasta::text, k.hasta::text) hasta,
-           coalesce(pc.monto, (m.datos_externos -> 'ml' ->> 'price')::numeric)::float8 hoy,
-           ch.comision::float8 hoy_comision, ch.envio::float8 hoy_envio,
-           floor(least(coalesce(p.max_precio, (p.datos ->> 'max_discounted_price')::numeric), coalesce(pc.monto, (m.datos_externos -> 'ml' ->> 'price')::numeric) * (1 - $3::numeric / 100)))::float8 rel, coalesce(p.max_precio, (p.datos ->> 'max_discounted_price')::numeric)::float8 max,
-           cr.comision::float8 rel_comision, cr.envio::float8 rel_envio,
+           coalesce(fe.desde, p.datos ->> 'start_date', k.desde::text) desde, coalesce(fe.hasta, p.datos ->> 'finish_date', p.hasta::text, k.hasta::text) hasta,
+           x.hoy::float8 hoy, ch.comision::float8 hoy_comision, ch.envio::float8 hoy_envio,
+           y.rel::float8 rel, x.max::float8 max, cr.comision::float8 rel_comision, cr.envio::float8 rel_envio,
            coalesce(p.min_precio, (p.datos ->> 'min_discounted_price')::numeric)::float8 min, (p.datos ->> 'suggested_discounted_price')::float8 sugerido,
-           ps.piso::float8 piso
+           ps.piso::float8 piso, rp.precio::float8 elegido
       from ml_promo_item p
       join canal c on c.id = p.canal_id
       join meli_item m on m.canal_id = p.canal_id and m.item_id = p.item_id and m.estado = 'active'
       join publicacion pu on pu.id = m.publicacion_id join variacion v on v.id = pu.variacion_id
       left join ml_promo_campana k on k.canal_id = p.canal_id and k.promocion_id = p.promocion_id
-      left join ml_precio_comprador pc on pc.canal_id = p.canal_id and pc.item_id = p.item_id
-      left join ml_relampago_costo ch on ch.canal_id = p.canal_id and ch.item_id = p.item_id and ch.precio = round(coalesce(pc.monto, (m.datos_externos -> 'ml' ->> 'price')::numeric), 2)
-      left join ml_relampago_costo cr on cr.canal_id = p.canal_id and cr.item_id = p.item_id and cr.precio = floor(least(coalesce(p.max_precio, (p.datos ->> 'max_discounted_price')::numeric), coalesce(pc.monto, (m.datos_externos -> 'ml' ->> 'price')::numeric) * (1 - $3::numeric / 100)))
+      left join ml_relampago_fecha fe on fe.canal_id = p.canal_id and fe.item_id = p.item_id and p.estado <> 'candidate'
+      ${PRECIOS_SQL}
+      left join ml_relampago_costo ch on ch.canal_id = p.canal_id and ch.item_id = p.item_id and ch.precio = round(x.hoy, 2)
+      left join ml_relampago_costo cr on cr.canal_id = p.canal_id and cr.item_id = p.item_id and cr.precio = y.rel
       left join ml_relampago_piso ps on ps.organizacion_id = p.organizacion_id and ps.producto_id = v.producto_id
      where p.organizacion_id = $1 and p.tipo = 'LIGHTNING' and p.estado in ('candidate', 'pending', 'started')
        and ($2::bigint is null or p.canal_id = $2)
-     order by v.sku, c.nombre`, [org, canal, BAJA_RELAMPAGO_PCT]);
+     order by v.sku, c.nombre`, [org, canal]);
   return filas.map((f) => {
     const recibisHoy = recibis(f.hoy, f.hoy_comision, f.hoy_envio);
     const recibisRel = recibis(f.rel, f.rel_comision, f.rel_envio);
-    // Un precio de entrada debajo del mínimo del rango no se puede usar.
-    if (f.rel != null && f.min != null && f.rel < f.min) f.rel = null;
+    // Un precio de entrada fuera del rango no se puede usar (en una propuesta todavía no aceptada).
+    if (f.estado === "candidate" && f.rel != null && ((f.min != null && f.rel < f.min) || (f.max != null && f.rel > f.max))) f.rel = null;
     return {
       ...f, plan: planDePublicacion(f.tipo, f.tags), recibisHoy, recibisRel,
+      costoHoyPct: costoPct(f.hoy, recibisHoy), costoRelPct: f.rel == null ? null : costoPct(f.hoy, recibisRel),
       diferencia: recibisHoy != null && recibisRel != null ? recibisRel - recibisHoy : null,
       alcanza: f.piso == null || recibisRel == null ? null : recibisRel >= f.piso,
       conStock: f.stock == null || f.stock_min == null ? null : f.stock >= f.stock_min,
@@ -104,17 +134,16 @@ async function costos(cuenta: CuentaMl, item: string, precio: number, tipo: stri
 /** Lee de ML los costos que faltan (o tienen más de un día) de las propuestas: al precio de hoy y al de la oferta. */
 export async function actualizarCostosRelampago(hasta: number): Promise<number> {
   const faltan = await consulta<{ organizacion_id: string; canal_id: number; item_id: string; precio: number; tipo: string; categoria: string }>(`
-    select distinct p.organizacion_id, p.canal_id::int canal_id, p.item_id, x.precio::float8 precio,
+    select distinct p.organizacion_id, p.canal_id::int canal_id, p.item_id, z.precio::float8 precio,
            m.datos_externos -> 'ml' ->> 'listing_type_id' tipo, m.datos_externos -> 'ml' ->> 'category_id' categoria
       from ml_promo_item p
       join meli_item m on m.canal_id = p.canal_id and m.item_id = p.item_id and m.estado = 'active'
-      left join ml_precio_comprador pc on pc.canal_id = p.canal_id and pc.item_id = p.item_id
-      cross join lateral (values (round(coalesce(pc.monto, (m.datos_externos -> 'ml' ->> 'price')::numeric), 2)),
-                                 (floor(least(coalesce(p.max_precio, (p.datos ->> 'max_discounted_price')::numeric), coalesce(pc.monto, (m.datos_externos -> 'ml' ->> 'price')::numeric) * (1 - $1::numeric / 100))))) x(precio)
-      left join ml_relampago_costo k on k.canal_id = p.canal_id and k.item_id = p.item_id and k.precio = x.precio
-     where p.tipo = 'LIGHTNING' and p.estado in ('candidate', 'pending', 'started') and x.precio is not null
+      ${PRECIOS_SQL}
+      cross join lateral (values (round(x.hoy, 2)), (y.rel)) z(precio)
+      left join ml_relampago_costo k on k.canal_id = p.canal_id and k.item_id = p.item_id and k.precio = z.precio
+     where p.tipo = 'LIGHTNING' and p.estado in ('candidate', 'pending', 'started') and z.precio is not null
        and (k.item_id is null or k.leido_ts < now() - interval '1 day' or k.comision is null or k.envio is null)
-     limit 400`, [BAJA_RELAMPAGO_PCT]);
+     limit 400`);
   if (!faltan.length) return 0;
   const barrera = await barreraPlanes();
   const cuentas = new Map<number, CuentaMl | null>();
@@ -140,6 +169,56 @@ export async function guardarPiso(org: string, producto: number, piso: number | 
   }
   await consulta(`insert into ml_relampago_piso (organizacion_id, producto_id, piso) values ($1, $2, $3)
                   on conflict (organizacion_id, producto_id) do update set piso = excluded.piso, actualizado_ts = now()`, [org, producto, piso]);
+}
+
+/** El precio de entrada que pone Fer a mano en la fila (null: vuelve al sugerido). Tiene que estar dentro del rango de ML;
+ *  lee enseguida lo que cobra ML a ese precio, para que la fila muestre cuánto se recibe. */
+export async function guardarPrecioRelampago(org: string, canal: number, item: string, precio: number | null): Promise<void> {
+  if (precio == null) {
+    await consulta("delete from ml_relampago_precio where organizacion_id = $1 and canal_id = $2 and item_id = $3", [org, canal, item]);
+    return;
+  }
+  const f = (await relampagos(org, canal)).find((x) => x.item_id === item);
+  if (!f) throw new ErrorErp("Esa publicación ya no tiene propuesta de oferta relámpago.");
+  if (f.estado !== "candidate") throw new ErrorErp("Esa oferta ya está aceptada: el precio no se cambia.");
+  if ((f.min != null && precio < f.min) || (f.max != null && precio > f.max))
+    throw new ErrorErp(`Mercado Libre acepta entre $ ${Math.ceil(f.min ?? 0).toLocaleString("es-AR")} y $ ${Math.floor(f.max ?? 0).toLocaleString("es-AR")}.`);
+  await consulta(`insert into ml_relampago_precio (organizacion_id, canal_id, item_id, precio) values ($1, $2, $3, $4)
+                  on conflict (canal_id, item_id) do update set precio = excluded.precio, actualizado_ts = now()`, [org, canal, item, precio]);
+  const cuenta = await cuentaDelCanal(org, canal);
+  if (!cuenta || cuenta.estado !== "activa" || !f.tipo || !f.categoria) return;
+  const k = await costos(cuenta, item, Math.round(precio * 100) / 100, f.tipo, f.categoria, await barreraPlanes());
+  await consulta(`insert into ml_relampago_costo (canal_id, item_id, precio, comision, envio) values ($1, $2, $3, $4, $5)
+                  on conflict (canal_id, item_id, precio) do update set comision = excluded.comision, envio = excluded.envio, leido_ts = now()`,
+    [canal, item, Math.round(precio * 100) / 100, k.comision, k.envio]);
+}
+
+/** Cuándo corren las ofertas aceptadas: ML pone el día y la hora y sólo lo dice en la lista de la promoción. Lee las que
+ *  todavía no tienen fecha (o cambiaron de oferta). */
+export async function actualizarFechasRelampago(hasta: number): Promise<number> {
+  const faltan = await consulta<{ organizacion_id: string; canal_id: number; promocion_id: string; estado: string }>(`
+    select distinct p.organizacion_id, p.canal_id::int canal_id, p.promocion_id, p.estado
+      from ml_promo_item p
+      left join ml_relampago_fecha f on f.canal_id = p.canal_id and f.item_id = p.item_id
+     where p.tipo = 'LIGHTNING' and p.estado in ('pending', 'started')
+       and (f.item_id is null or f.ref_id is distinct from p.datos ->> 'ref_id' or f.desde is null)
+     limit 40`);
+  let n = 0;
+  for (const f of faltan) {
+    if (Date.now() > hasta) break;
+    const cuenta = await cuentaDelCanal(f.organizacion_id, f.canal_id);
+    if (!cuenta || cuenta.estado !== "activa") continue;
+    const r = await ml<{ results?: { id: string; ref_id?: string; start_date?: string; finish_date?: string }[] }>(cuenta, "GET",
+      `/seller-promotions/promotions/${encodeURIComponent(f.promocion_id)}/items?promotion_type=LIGHTNING&status=${f.estado}&limit=50&app_version=v2`);
+    if (r.status !== 200) continue;
+    for (const x of r.datos?.results ?? []) {
+      await consulta(`insert into ml_relampago_fecha (canal_id, item_id, ref_id, desde, hasta) values ($1, $2, $3, $4, $5)
+                      on conflict (canal_id, item_id) do update set ref_id = excluded.ref_id, desde = excluded.desde, hasta = excluded.hasta, leido_ts = now()`,
+        [f.canal_id, x.id, x.ref_id ?? null, x.start_date ?? null, x.finish_date ?? null]);
+      n++;
+    }
+  }
+  return n;
 }
 
 /** «Preparar las que alcanzan el piso»: un lote por cuenta, para el clic de Fer, con las propuestas todavía no aceptadas
@@ -175,7 +254,7 @@ export async function entrarRelampago(org: string, usuario: string, canal: numbe
   const f = (await relampagos(org, canal)).find((x) => x.item_id === item);
   if (!f) throw new ErrorErp("Esa publicación ya no tiene propuesta de oferta relámpago.");
   if (f.estado !== "candidate") throw new ErrorErp("Esa oferta ya está aceptada.");
-  if (f.rel == null) throw new ErrorErp("No hay un precio dentro del rango que la deje más barata que hoy: no se puede entrar.");
+  if (f.rel == null) throw new ErrorErp("El precio de entrada queda fuera del rango que acepta Mercado Libre: no se puede entrar.");
   if (f.stock_min == null) throw new ErrorErp("Mercado Libre no informa cuánto stock pide: no se puede entrar.");
   if (f.conStock === false) throw new ErrorErp(`Tenés ${f.stock} y la oferta pide al menos ${f.stock_min}.`);
   await encolar(org, [cambioEntrar(f)], { origen: "boton", usuarioId: usuario });

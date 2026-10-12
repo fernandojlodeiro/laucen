@@ -6,7 +6,7 @@
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, id, numero } from "@/lib/erp/acciones";
-import { entrarRelampago, guardarPiso, prepararRelampagos } from "@/lib/precios-ml/relampago";
+import { entrarRelampago, guardarPiso, guardarPrecioRelampago, prepararRelampagos } from "@/lib/precios-ml/relampago";
 import { texto } from "@/lib/erp/acciones";
 import { RELAMPAGO_PML } from "@/app/catalogo/precios-ml/lista";
 
@@ -16,6 +16,16 @@ export async function accionGuardarPiso(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
   await intentar(volver(fd), async () => {
     await guardarPiso(s.org.id, id(fd, "producto"), numero(fd, "piso"));
+    revalidatePath(RELAMPAGO_PML);
+    return "Grabado.";
+  });
+}
+
+/** El precio de entrada de una fila, a mano (vacío: vuelve al sugerido). */
+export async function accionGuardarPrecioRelampago(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  await intentar(volver(fd), async () => {
+    await guardarPrecioRelampago(s.org.id, id(fd, "canal"), texto(fd, "item") ?? "", numero(fd, "precio"));
     revalidatePath(RELAMPAGO_PML);
     return "Grabado.";
   });
