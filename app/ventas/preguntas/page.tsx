@@ -86,7 +86,7 @@ type Pregunta = {
   texto: string; fecha: Date; sugerencia: string | null; vinculada: boolean; disponible: number | null;
   respuesta: string | null; respondida_ts: Date | null; respondida_por: string | null; respondida_con_ia: boolean;
   ia_estado: string | null; respondida_auto: boolean;
-  canal_id: number | null; comprador_id: string | null; compras: number;
+  canal_id: number | null; comprador_id: string | null; compras: number; ultima_compra: Date | null; cliente_id: number | null;
 };
 
 /** La publicación de la pregunta: foto y link de meli_item (la primera fila
@@ -97,8 +97,13 @@ const DE_PREGUNTA = `
          case when pu.id is not null then greatest(stock_disponible_canal(q.organizacion_id, pu.variacion_id, pu.canal_id), 0)::int end disponible,
          q.respuesta, q.respondida_ts, u.nombre respondida_por, q.respondida_con_ia, q.ia_estado, q.respondida_auto,
          q.canal_id::int, q.comprador_id::text,
-         (select count(distinct mv.order_id)::int from ml_venta mv where mv.canal_id = q.canal_id and mv.comprador_id::text = q.comprador_id::text) compras
+         -- ¿Ya nos compró? (Fer, 12/10) En cualquier cuenta: el usuario de Mercado Libre es el mismo en todas.
+         coalesce(cq.compras, 0) compras, cq.ultima ultima_compra,
+         (select ci.cliente_id::int from cliente_identidad ci join canal c2 on c2.id = ci.canal_id and c2.tipo = 'mercadolibre'
+           where ci.organizacion_id = q.organizacion_id and ci.id_externo = q.comprador_id::text limit 1) cliente_id
     from meli_pregunta q
+    left join lateral (select count(distinct coalesce(mv.pack_id, mv.order_id))::int compras, max(mv.fecha) ultima from ml_venta mv
+                        where mv.organizacion_id = q.organizacion_id and mv.comprador_id = q.comprador_id and mv.estado <> 'cancelled') cq on true
     left join canal ca on ca.id = q.canal_id
     left join publicacion pu on pu.id = q.publicacion_id and pu.organizacion_id = q.organizacion_id
     left join lateral (select titulo, foto, permalink from meli_item m
@@ -123,10 +128,21 @@ function Publicacion({ q }: { q: Pregunta }) {
           {q.vinculada
             ? <span>Stock del canal: <b className="tabular-nums">{q.disponible ?? 0}</b></span>
             : <span>Sin vincular a un producto</span>}
-          {q.compras > 0 && q.comprador_id && <Link href={`/ventas/historial?canal=${q.canal_id}&comprador=${q.comprador_id}`} className="text-[#16577F] hover:underline">Compras de este usuario ({q.compras})</Link>}
+          {(q.compras > 0 || q.cliente_id) && q.comprador_id && <EsCliente q={q} />}
         </div>
       </div>
     </div>
+  );
+}
+
+/** El cartel de «ya nos compró» (Fer, 12/10): cuántas compras y la última; lleva a la ficha del cliente si está, o a sus compras. */
+function EsCliente({ q }: { q: Pregunta }) {
+  const ir = q.cliente_id ? `/ventas/clientes/${q.cliente_id}` : `/ventas/historial?comprador=${q.comprador_id}`;
+  return (
+    <Link href={ir} className="inline-flex items-center gap-1 hover:underline" title={q.cliente_id ? "Ver la ficha del cliente" : "Ver sus compras"}>
+      <Estado texto="Cliente" tono="verde" />
+      {q.compras > 0 && <span className="text-[#16577F]">{q.compras} compra{q.compras === 1 ? "" : "s"}{q.ultima_compra ? ` · última ${new Date(q.ultima_compra).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}` : ""}</span>}
+    </Link>
   );
 }
 
