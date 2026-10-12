@@ -10,7 +10,7 @@ import { SUAVE, VERDE, PRIMARIO } from "@/app/botones";
 import { leerPaginas, aLink } from "@/lib/meli-pagina";
 import BotonLeer from "./BotonLeer";
 import { probarBusquedas } from "@/lib/meli-busqueda-prueba";
-import { probarEscrituraPublicidad } from "@/lib/publicidad/prueba";
+import { probarEscrituraPublicidad, probarCampanaReal } from "@/lib/publicidad/prueba";
 import { anunciantesDe } from "@/lib/publicidad/lectura";
 import { costosFinales } from "@/lib/apify";
 import { and, desc, eq, like } from "drizzle-orm";
@@ -234,6 +234,23 @@ async function publicidadAccion(form: FormData) {
   redirect(`/admin/meli?prueba=${fila.id}#resultados`);
 }
 
+/** Botón "Probar con la campaña de prueba" (orden 596, Paso 0): con el clic de Fer, cambia y devuelve presupuesto,
+ *  ROAS, estado y el anuncio de una campaña llamada «PRUEBA…» (lib/publicidad/prueba.ts › probarCampanaReal). */
+async function publicidadRealAccion(form: FormData) {
+  "use server";
+  if (!(await sosVos())) redirect("/panel");
+  const sesion = await sesionRequerida();
+  const cuentaId = Number(form.get("cuenta"));
+  const campana = String(form.get("campana") ?? "").replace(/\D/g, "");
+  const a = (await anunciantesDe(sesion.org.id)).find((x) => x.cuentaId === cuentaId && x.anuncianteId);
+  if (!a || !campana) redirect("/admin/meli#publicidad");
+  const resultados = await probarCampanaReal(cuentaId, String(a.anuncianteId), campana);
+  const [fila] = await db.insert(meliPruebas)
+    .values({ organizacionId: sesion.org.id, consulta: `publicidad-real: ${a.nickname} campaña ${campana}`, resultados })
+    .returning({ id: meliPruebas.id });
+  redirect(`/admin/meli?prueba=${fila.id}#resultados`);
+}
+
 /** Costo final de las últimas corridas, releído de Apify (el que se ve al
  *  terminar queda corto: Apify asienta el cobro un rato después). */
 async function costosRecientes(organizacionId: string) {
@@ -439,6 +456,22 @@ export default async function Meli({ searchParams }: {
             <BotonLeer texto="Probar si deja escribir" />
           </form>
         ) : <p className="text-xs text-[#C03420]">Ninguna cuenta tiene anunciante de publicidad leído todavía.</p>}
+        {anunciantes.length > 0 && (
+          <>
+            <p className="text-xs text-[#5C6B76] mt-4 mb-2">
+              <b>Prueba real</b> sobre una campaña de prueba (su nombre tiene que empezar con «PRUEBA»; cualquier otra no se toca): cambia el
+              presupuesto (+ $ 100), el ROAS objetivo (± 0,5) y el estado, y pausa y reactiva su anuncio; después de cada cambio lo devuelve
+              a como estaba y al final compara. Tarda medio minuto.
+            </p>
+            <form action={publicidadRealAccion} className="flex gap-2">
+              <select name="cuenta" className="border border-[#E3E9F0] rounded-lg px-3 py-2 flex-1 text-sm">
+                {anunciantes.map((a) => <option key={a.cuentaId} value={a.cuentaId}>{a.nickname}</option>)}
+              </select>
+              <input name="campana" defaultValue="7361059" aria-label="N.º de campaña" className="border border-[#E3E9F0] rounded-lg px-3 py-2 w-32 text-sm text-right" />
+              <BotonLeer texto="Probar con la campaña de prueba" />
+            </form>
+          </>
+        )}
       </section>
 
       <span id="resultados" />
