@@ -36,7 +36,8 @@ async function pedir(token: string, metodo: string, ruta: string, version: strin
 /** Qué dice la respuesta, en criollo (para el resumen). */
 export function queDice(status: number, datos: unknown): string {
   const t = typeof datos === "string" ? datos : JSON.stringify(datos ?? "");
-  if (/No static resource/i.test(t)) return "la ruta no existe";
+  if (/No static resource|resource not found/i.test(t)) return "la ruta no existe";
+  if (/permission to write/i.test(t)) return "la ruta existe: la app no tiene permiso de escritura";
   if (status === 405) return "la ruta existe, pero no con este verbo";
   if (status === 403) return "falta permiso (scope de la app o de la cuenta)";
   if (status === 401) return "la llave no sirve";
