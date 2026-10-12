@@ -157,7 +157,7 @@ export async function prepararRelampagos(org: string, usuario: string, canal: nu
       payload: {
         descripcion: `Entrar a la oferta relámpago: ${f.item_id} (${f.sku}) a $ ${f.rel!.toLocaleString("es-AR")} con ${f.stock_min} u.; recibís $ ${(f.recibisRel ?? 0).toLocaleString("es-AR")} (hoy $ ${(f.recibisHoy ?? 0).toLocaleString("es-AR")})`,
         pedidos: [{ metodo: "POST", ruta: `/seller-promotions/items/${f.item_id}?app_version=v2`,
-          cuerpo: { promotion_id: f.promocion_id, promotion_type: "LIGHTNING", deal_price: f.rel, stock: f.stock_min } }],
+          cuerpo: { deal_price: f.rel, stock: f.stock_min, promotion_type: "LIGHTNING" } }],
       },
     }));
     lotes.push(await encolarLoteConBoton(org, c, cambios, `Ofertas relámpago: ${fs.length} publicaci${fs.length === 1 ? "ón" : "ones"} en ${fs[0].cuenta}`, usuario));
