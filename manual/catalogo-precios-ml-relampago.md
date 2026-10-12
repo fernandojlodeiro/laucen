@@ -19,7 +19,11 @@ Catálogo › Precios en Mercado Libre, pestaña **«Ofertas relámpago»**. El 
 
 ## Qué hay en la pantalla
 
+Arriba, el **buscador** (por SKU, producto o número de publicación; mientras escribís, con la caja «Comienza por»). La tabla tiene su propia barra para correr de costado y hacia abajo, con los títulos fijos arriba.
+
 Una fila por publicación con propuesta:
+
+- **Entrar** (primera columna): el botón para entrar a esa oferta. Dice «Aceptada», «Mandándose…» o «Adentro» cuando corresponde; «No entra» si no hay un precio del rango más barato que hoy, y «Sin stock» si no llegás al mínimo. Si Mercado Libre la rechaza, dice por qué.
 
 - **SKU** (con su foto) y **Producto**, **Cuenta** y **Publicación** (el número abre su historial; la ↗, Mercado Libre).
 - **Estado**: «Propuesta» (todavía no entraste), «Aceptada (programada)» o «En curso», con las fechas si Mercado Libre las informa.
@@ -39,7 +43,11 @@ Arriba a la derecha, **«Preparar las que alcanzan el piso (N)»** (de la cuenta
 1. Lápiz de la fila del producto.
 2. Escribí lo mínimo que aceptás recibir y apretá «Grabar».
 
-### Entrar a las ofertas que convienen
+### Entrar a una oferta
+1. Botón «Entrar» de la fila (primera columna) y «Sí» en la confirmación, que dice el precio, las unidades y cuánto recibís.
+2. Sale a Mercado Libre en un par de minutos; la columna pasa a «Aceptada» (o dice por qué no).
+
+### Entrar a varias de una vez
 1. Apretá «Preparar las que alcanzan el piso» y confirmá. Se arma un lote por cuenta con las propuestas que alcanzan el piso y tienen el stock que piden.
 2. Mandalo desde Configuración › Cola de Mercado Libre, pestaña «Lotes preparados», con «Mandar a Mercado Libre».
 

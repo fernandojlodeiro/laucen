@@ -7,7 +7,8 @@
 
 import { consulta, una } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
-import { encolarLoteConBoton, type CambioMl } from "@/lib/mercadolibre/cola";
+import { encolar, encolarLoteConBoton, type CambioMl } from "@/lib/mercadolibre/cola";
+import { ErrorErp } from "@/lib/erp/base";
 import { barreraPlanes } from "@/lib/precios-ml/grupos";
 import { planDePublicacion, type PlanOClasica } from "@/lib/precios-ml/motor";
 
@@ -152,15 +153,39 @@ export async function prepararRelampagos(org: string, usuario: string, canal: nu
   for (const f of filas) if (!yaPedidas.has(`relampago:${f.item_id}`)) porCanal.set(f.canal_id, [...(porCanal.get(f.canal_id) ?? []), f]);
   const lotes: number[] = [];
   for (const [c, fs] of porCanal) {
-    const cambios: CambioMl[] = fs.map((f) => ({
-      canalId: c, itemId: `relampago:${f.item_id}`, tipo: "campana", antes: { estado: "candidata a oferta relámpago" },
-      payload: {
-        descripcion: `Entrar a la oferta relámpago: ${f.item_id} (${f.sku}) a $ ${f.rel!.toLocaleString("es-AR")} con ${f.stock_min} u.; recibís $ ${(f.recibisRel ?? 0).toLocaleString("es-AR")} (hoy $ ${(f.recibisHoy ?? 0).toLocaleString("es-AR")})`,
-        pedidos: [{ metodo: "POST", ruta: `/seller-promotions/items/${f.item_id}?app_version=v2`,
-          cuerpo: { deal_price: f.rel, stock: f.stock_min, promotion_type: "LIGHTNING" } }],
-      },
-    }));
+    const cambios: CambioMl[] = fs.map(cambioEntrar);
     lotes.push(await encolarLoteConBoton(org, c, cambios, `Ofertas relámpago: ${fs.length} publicaci${fs.length === 1 ? "ón" : "ones"} en ${fs[0].cuenta}`, usuario));
   }
   return { lotes, filas: [...porCanal.values()].reduce((s, x) => s + x.length, 0) };
+}
+
+/** El pedido para entrar a la oferta relámpago de una publicación (como dice el manual: deal_price, stock, promotion_type). */
+function cambioEntrar(f: Relampago): CambioMl {
+  return {
+    canalId: f.canal_id, itemId: `relampago:${f.item_id}`, tipo: "campana", antes: { estado: "candidata a oferta relámpago" },
+    payload: {
+      descripcion: `Entrar a la oferta relámpago: ${f.item_id} (${f.sku}) a $ ${f.rel!.toLocaleString("es-AR")} con ${f.stock_min} u.; recibís $ ${(f.recibisRel ?? 0).toLocaleString("es-AR")} (hoy $ ${(f.recibisHoy ?? 0).toLocaleString("es-AR")})`,
+      pedidos: [{ metodo: "POST", ruta: `/seller-promotions/items/${f.item_id}?app_version=v2`, cuerpo: { deal_price: f.rel, stock: f.stock_min, promotion_type: "LIGHTNING" } }],
+    },
+  };
+}
+
+/** «Entrar» de una fila (el clic de Fer): va directo a la cola de ML, sin lote. */
+export async function entrarRelampago(org: string, usuario: string, canal: number, item: string): Promise<Relampago> {
+  const f = (await relampagos(org, canal)).find((x) => x.item_id === item);
+  if (!f) throw new ErrorErp("Esa publicación ya no tiene propuesta de oferta relámpago.");
+  if (f.estado !== "candidate") throw new ErrorErp("Esa oferta ya está aceptada.");
+  if (f.rel == null) throw new ErrorErp("No hay un precio dentro del rango que la deje más barata que hoy: no se puede entrar.");
+  if (f.stock_min == null) throw new ErrorErp("Mercado Libre no informa cuánto stock pide: no se puede entrar.");
+  if (f.conStock === false) throw new ErrorErp(`Tenés ${f.stock} y la oferta pide al menos ${f.stock_min}.`);
+  await encolar(org, [cambioEntrar(f)], { origen: "boton", usuarioId: usuario });
+  return f;
+}
+
+/** Lo último que se mandó para entrar, por publicación (para la pantalla). */
+export async function enviosRelampago(org: string): Promise<Map<string, { estado: string; error: string | null }>> {
+  return new Map((await consulta<{ item_id: string; estado: string; error: string | null }>(`
+    select distinct on (item_id) substr(item_id, 11) item_id, estado, ultimo_error error from ml_cola
+     where organizacion_id = $1 and item_id like 'relampago:%' and creado_ts > now() - interval '7 days' order by item_id, id desc`, [org]))
+    .map((x) => [x.item_id, { estado: x.estado, error: x.error }]));
 }

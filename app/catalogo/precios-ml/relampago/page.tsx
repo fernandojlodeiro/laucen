@@ -10,16 +10,17 @@ import { VERDE, SUAVE } from "@/app/botones";
 import { entrarErp, Pantalla, Avisos, Lapiz, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import { consulta } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
-import { relampagos, BAJA_RELAMPAGO_PCT } from "@/lib/precios-ml/relampago";
+import { relampagos, enviosRelampago, BAJA_RELAMPAGO_PCT } from "@/lib/precios-ml/relampago";
+import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import { PLAN_INFO } from "@/lib/precios-ml/motor";
 import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
-import { accionGuardarPiso, accionPrepararRelampagos } from "./acciones";
+import { accionEntrarRelampago, accionGuardarPiso, accionPrepararRelampagos } from "./acciones";
 import { BarraPml } from "../comun";
 import { RELAMPAGO_PML, canalElegido } from "../lista";
 
 export const dynamic = "force-dynamic";
 
-type SP = { canal?: string; editar?: string; ok?: string; error?: string };
+type SP = { canal?: string; editar?: string; q?: string; contiene?: string; ok?: string; error?: string };
 
 const pesos = (v: number | null | undefined) => (v == null ? "—" : formatear(v, "ARS"));
 const fecha = (t: string | null) => (t ? new Date(t).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit" }) : null);
@@ -29,37 +30,64 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
   const s = await entrarErp("precios_ml_ver");
   const sp = await searchParams;
   const { canales, canal } = await canalElegido(s.org.id, sp);
-  const filas = await relampagos(s.org.id, canal?.id ?? null);
+  const q = sp.q?.trim() ?? "";
+  const comienza = sp.contiene !== "1";
+  const norm = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const palabras = norm(q).split(/\s+/).filter(Boolean);
+  // Buscar por SKU, título o número de publicación (todas las palabras; «Comienza por»: al principio de una palabra).
+  const coincide = (t: string) => palabras.every((p) => comienza ? norm(t).split(/[\s\-/]+/).some((w) => w.startsWith(p)) : norm(t).includes(p));
+  const todas = await relampagos(s.org.id, canal?.id ?? null);
+  const filas = q ? todas.filter((f) => coincide(`${f.sku} ${f.titulo} ${f.item_id}`)) : todas;
+  const envios = await enviosRelampago(s.org.id);
   const editar = Number(sp.editar) || 0;
   const productos = [...new Set(filas.map((f) => f.producto_id))];
   const fotos = new Map((productos.length ? await consulta<{ producto_id: number; fotos: string[] }>(
     "select producto_id::int, array_agg(url order by orden) fotos from producto_foto where producto_id = any($1::bigint[]) group by producto_id", [productos]) : [])
     .map((x) => [x.producto_id, x.fotos]));
   const listas = filas.filter((f) => f.estado === "candidate" && f.alcanza === true && f.conStock !== false).length;
-  const aqui = (extra: Record<string, unknown> = {}) => url(RELAMPAGO_PML, { canal: canal?.id, ...extra });
+  const aqui = (extra: Record<string, unknown> = {}) => url(RELAMPAGO_PML, { canal: canal?.id, q: q || null, contiene: comienza ? null : "1", ...extra });
   return (
-    <Pantalla titulo="Precios en Mercado Libre"
+    <Pantalla titulo="Precios en Mercado Libre" ancho="max-w-[1500px]"
       subtitulo="Ofertas relámpago: las que te propone Mercado Libre en la cuenta elegida, con cuánto recibís en la oferta contra lo que recibís hoy."
       acciones={<BotonConfirmar accion={accionPrepararRelampagos} campos={{ canal: String(canal?.id ?? "") }} clase={VERDE}
         texto={`Preparar las que alcanzan el piso (${listas})`} corriendo="Preparando…"
         pregunta="¿Preparar el lote para entrar a las ofertas que alcanzan el piso y tienen el stock que piden? Sale a Mercado Libre recién con tu clic en «Mandar a Mercado Libre». Una oferta relámpago aceptada no se puede borrar." />}>
       <Avisos sp={sp} />
       {canal && <BarraPml org={s.org.id} canales={canales} canal={canal} ver="relampago" />}
-      <div className={`${CAJA_TABLA} mb-2`}>
-        <table className={TABLA}>
-          <thead className={THEAD}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por SKU, producto o publicación" limpiar={["editar"]} />
+        <span className="text-[11px] text-[#5C6B76]">{filas.length} de {todas.length}</span>
+      </div>
+      {/* Con alto propio: la barra para correr de costado queda a la vista y los títulos quedan fijos arriba. */}
+      <div className={`${CAJA_TABLA} mb-2 max-h-[70vh] overflow-auto`}>
+        <table className={`${TABLA} min-w-max`}>
+          <thead className={`${THEAD} sticky top-0 z-10`}>
             <tr>
-              <th className={TH}>SKU</th><th className={TH}>Producto</th><th className={TH}>Cuenta</th><th className={TH}>Publicación</th><th className={TH}>Plan</th><th className={TH}>Estado</th>
+              <th className={TH}>Entrar</th><th className={TH}>SKU</th><th className={TH}>Producto</th><th className={TH}>Cuenta</th><th className={TH}>Publicación</th><th className={TH}>Plan</th><th className={TH}>Estado</th>
               <th className={THN}>Stock (pide)</th><th className={THN}>Hoy paga</th><th className={THN}>Hoy recibís</th>
               <th className={THN}>Rango de ML</th><th className={THN}>Entraría a</th><th className={THN}>Recibís en relámpago</th><th className={THN}>Diferencia</th><th className={THN}>Piso</th><th />
             </tr>
           </thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={15} className={`${TD} text-[#5C6B76]`}>Mercado Libre no te propone ninguna oferta relámpago ahora.</td></tr>}
+            {filas.length === 0 && <tr><td colSpan={16} className={`${TD} text-[#5C6B76]`}>{q ? "Ninguna coincide con la búsqueda." : "Mercado Libre no te propone ninguna oferta relámpago en esta cuenta ahora."}</td></tr>}
             {filas.map((f) => {
               const color = f.alcanza === true && f.conStock !== false ? "text-[#1E7B3A]" : f.alcanza === false || f.conStock === false ? "text-[#C03420]" : "";
               return (
                 <tr key={`${f.canal_id}-${f.item_id}`} className={TR} data-canal={f.canal_id}>
+                  <td className={`${TD} whitespace-nowrap`}>
+                    {(() => {
+                      const e = envios.get(f.item_id);
+                      if (f.estado !== "candidate") return <span className="text-[11px] text-[#1E7B3A]">Adentro</span>;
+                      if (e?.estado === "pendiente" || e?.estado === "enviando") return <span className="text-[11px] text-[#5C6B76]">Mandándose…</span>;
+                      if (e?.estado === "preparado") return <span className="text-[11px] text-[#5C6B76]">En un lote</span>;
+                      if (e?.estado === "ok") return <span className="text-[11px] text-[#1E7B3A]">Aceptada</span>;
+                      const boton = f.rel != null && f.stock_min != null && f.conStock !== false
+                        ? <BotonConfirmar accion={accionEntrarRelampago} campos={{ canal: String(f.canal_id), item: f.item_id, volver: aqui() }} clase={VERDE} texto="Entrar" corriendo="Mandando…"
+                            pregunta={`¿Entrar a la oferta relámpago ${f.item_id} (${f.sku}, ${f.cuenta}) a ${pesos(f.rel)} con ${f.stock_min} unidades? Recibís ${pesos(f.recibisRel)} por venta (hoy ${pesos(f.recibisHoy)}). Una vez activa no se puede borrar.`} />
+                        : <span className="text-[11px] text-[#C03420]">{f.rel == null ? "No entra" : "Sin stock"}</span>;
+                      return <>{boton}{e?.estado === "error" && <span className="block text-[10px] text-[#C03420] max-w-[180px] whitespace-normal" title={e.error ?? ""}>La rechazó: {(e.error ?? "").slice(0, 80)}</span>}</>;
+                    })()}
+                  </td>
                   <td className={TD}>
                     <span className="inline-flex items-center gap-2 whitespace-nowrap">
                       <FotosProducto fotos={fotos.get(f.producto_id) ?? null} titulo={f.titulo} />
@@ -107,6 +135,7 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
         <b> Entraría a</b>: el más alto del rango, pero siempre al menos {BAJA_RELAMPAGO_PCT} % más barato que lo que paga hoy el comprador (una oferta tiene que ser más barata que hoy); «no entra» si eso queda debajo del más bajo del rango.
         Por eso <b>Recibís en relámpago</b> es menos que hoy: la <b>Diferencia</b> es lo que cuesta cada venta en la oferta (Mercado Libre puede sumar un descuento propio para el comprador, que no sale de lo tuyo). <b>Stock</b>: el que tenés, y entre paréntesis lo que pide la propuesta (mínimo–máximo); se entra con el mínimo.
         <b> Piso</b>: lo mínimo que aceptás recibir por una venta de ese producto (lápiz). En verde, las que lo alcanzan y tienen el stock; en rojo, las que no.
+        <b>Entrar</b> (primera columna): con tu clic y una confirmación, la publicación entra a la oferta al precio de «Entraría a» con el stock mínimo; sale a Mercado Libre en un par de minutos y la columna pasa a «Aceptada» (o dice por qué la rechazó).
         «Preparar las que alcanzan el piso» arma un lote por cuenta: sale a Mercado Libre con tu clic en «Mandar a Mercado Libre». Una oferta relámpago aceptada no se puede borrar, y mientras dura, Laucen no le toca el precio ni las campañas a esa publicación.
       </p>
     </Pantalla>
