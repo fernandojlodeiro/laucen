@@ -10,7 +10,8 @@ import { VERDE, SUAVE } from "@/app/botones";
 import { entrarErp, Pantalla, Avisos, Lapiz, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import { consulta } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
-import { relampagos } from "@/lib/precios-ml/relampago";
+import { relampagos, BAJA_RELAMPAGO_PCT } from "@/lib/precios-ml/relampago";
+import { PLAN_INFO } from "@/lib/precios-ml/motor";
 import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import { accionGuardarPiso, accionPrepararRelampagos } from "./acciones";
 import { BarraPml } from "../comun";
@@ -28,7 +29,7 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
   const s = await entrarErp("precios_ml_ver");
   const sp = await searchParams;
   const { canales, canal } = await canalElegido(s.org.id, sp);
-  const filas = await relampagos(s.org.id);
+  const filas = await relampagos(s.org.id, canal?.id ?? null);
   const editar = Number(sp.editar) || 0;
   const productos = [...new Set(filas.map((f) => f.producto_id))];
   const fotos = new Map((productos.length ? await consulta<{ producto_id: number; fotos: string[] }>(
@@ -38,7 +39,7 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
   const aqui = (extra: Record<string, unknown> = {}) => url(RELAMPAGO_PML, { canal: canal?.id, ...extra });
   return (
     <Pantalla titulo="Precios en Mercado Libre"
-      subtitulo="Ofertas relámpago: las que te propone Mercado Libre en todas las cuentas, con cuánto recibís en la oferta contra lo que recibís hoy."
+      subtitulo="Ofertas relámpago: las que te propone Mercado Libre en la cuenta elegida, con cuánto recibís en la oferta contra lo que recibís hoy."
       acciones={<BotonConfirmar accion={accionPrepararRelampagos} campos={{ canal: String(canal?.id ?? "") }} clase={VERDE}
         texto={`Preparar las que alcanzan el piso (${listas})`} corriendo="Preparando…"
         pregunta="¿Preparar el lote para entrar a las ofertas que alcanzan el piso y tienen el stock que piden? Sale a Mercado Libre recién con tu clic en «Mandar a Mercado Libre». Una oferta relámpago aceptada no se puede borrar." />}>
@@ -48,13 +49,13 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH}>SKU</th><th className={TH}>Producto</th><th className={TH}>Cuenta</th><th className={TH}>Publicación</th><th className={TH}>Estado</th>
+              <th className={TH}>SKU</th><th className={TH}>Producto</th><th className={TH}>Cuenta</th><th className={TH}>Publicación</th><th className={TH}>Plan</th><th className={TH}>Estado</th>
               <th className={THN}>Stock (pide)</th><th className={THN}>Hoy paga</th><th className={THN}>Hoy recibís</th>
-              <th className={THN}>Relámpago (rango)</th><th className={THN}>Recibís en relámpago</th><th className={THN}>Diferencia</th><th className={THN}>Piso</th><th />
+              <th className={THN}>Rango de ML</th><th className={THN}>Entraría a</th><th className={THN}>Recibís en relámpago</th><th className={THN}>Diferencia</th><th className={THN}>Piso</th><th />
             </tr>
           </thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={13} className={`${TD} text-[#5C6B76]`}>Mercado Libre no te propone ninguna oferta relámpago ahora.</td></tr>}
+            {filas.length === 0 && <tr><td colSpan={15} className={`${TD} text-[#5C6B76]`}>Mercado Libre no te propone ninguna oferta relámpago ahora.</td></tr>}
             {filas.map((f) => {
               const color = f.alcanza === true && f.conStock !== false ? "text-[#1E7B3A]" : f.alcanza === false || f.conStock === false ? "text-[#C03420]" : "";
               return (
@@ -71,11 +72,13 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
                     <Link href={historialPublicacion(f.item_id)} className="font-mono text-[#16577F] hover:underline">{f.item_id}</Link>{" "}
                     <a href={enlaceMl(f.item_id)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a>
                   </td>
+                  <td className={`${TD} whitespace-nowrap text-[11px]`}>{f.plan ? PLAN_INFO[f.plan].nombre : "—"}</td>
                   <td className={`${TD} text-[11px]`}>{ESTADO[f.estado] ?? f.estado}{f.desde || f.hasta ? <span className="block text-[#5C6B76]">{[fecha(f.desde), fecha(f.hasta)].filter(Boolean).join(" → ")}</span> : null}</td>
                   <td className={`${TDN} ${f.conStock === false ? "text-[#C03420]" : ""}`}>{f.stock ?? "—"} ({f.stock_min ?? "?"}–{f.stock_max ?? "?"})</td>
                   <td className={TDN}>{pesos(f.hoy)}</td>
                   <td className={TDN}>{pesos(f.recibisHoy)}</td>
-                  <td className={TDN}><b>{pesos(f.rel)}</b><span className="block text-[10px] text-[#5C6B76]">desde {pesos(f.min)}</span></td>
+                  <td className={`${TDN} text-[11px] text-[#5C6B76]`}>{pesos(f.min)} a {pesos(f.max)}</td>
+                  <td className={TDN}><b>{f.rel == null ? "no entra" : pesos(f.rel)}</b></td>
                   <td className={`${TDN} ${color}`}><b>{pesos(f.recibisRel)}</b></td>
                   <td className={`${TDN} ${f.diferencia != null && f.diferencia < 0 ? "text-[#C03420]" : ""}`}>{f.diferencia == null ? "—" : `${f.diferencia > 0 ? "+" : ""}${formatear(f.diferencia, "ARS")}`}</td>
                   {editar === f.producto_id ? (
@@ -100,7 +103,9 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
       </div>
       <p className="text-[11px] text-[#5C6B76]">
         <b>Recibís</b> = lo que paga el comprador, menos la comisión de Mercado Libre a ese precio (con el cargo fijo) y lo que te cobra por el envío gratis (desde el precio de envío gratis); «—» mientras se leen los costos (cada media hora).
-        <b> Relámpago</b>: el precio más alto que acepta la propuesta (debajo, el más bajo). <b>Stock</b>: el que tenés, y entre paréntesis lo que pide la propuesta (mínimo–máximo); se entra con el mínimo.
+        <b> Rango de ML</b>: el precio más bajo y el más alto que acepta la propuesta; Mercado Libre lo calcula sobre el precio publicado (el tachado), por eso el más alto suele quedar arriba de lo que paga hoy el comprador.
+        <b> Entraría a</b>: el más alto del rango, pero siempre al menos {BAJA_RELAMPAGO_PCT} % más barato que lo que paga hoy el comprador (una oferta tiene que ser más barata que hoy); «no entra» si eso queda debajo del más bajo del rango.
+        Por eso <b>Recibís en relámpago</b> es menos que hoy: la <b>Diferencia</b> es lo que cuesta cada venta en la oferta (Mercado Libre puede sumar un descuento propio para el comprador, que no sale de lo tuyo). <b>Stock</b>: el que tenés, y entre paréntesis lo que pide la propuesta (mínimo–máximo); se entra con el mínimo.
         <b> Piso</b>: lo mínimo que aceptás recibir por una venta de ese producto (lápiz). En verde, las que lo alcanzan y tienen el stock; en rojo, las que no.
         «Preparar las que alcanzan el piso» arma un lote por cuenta: sale a Mercado Libre con tu clic en «Mandar a Mercado Libre». Una oferta relámpago aceptada no se puede borrar, y mientras dura, Laucen no le toca el precio ni las campañas a esa publicación.
       </p>

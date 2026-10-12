@@ -12,7 +12,7 @@ import { cuentaRelampagos } from "@/lib/precios-ml/relampago";
 export type VerPml = "general" | "excepciones" | "volumen" | "alertas" | "previa" | "planes" | "relampago";
 
 export async function BarraPml({ org, canales, canal, ver, todas = false }: { org: string; canales: CanalMl[]; canal: CanalMl; ver: VerPml; todas?: boolean }) {
-  const [n, bajo, sin, gratis, relampago] = await Promise.all([cuentasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id), sinCampanaCanal(org, canal), conEnvioGratisDeMas(org, canal.id), cuentaRelampagos(org)]);
+  const [n, bajo, sin, gratis, relampago] = await Promise.all([cuentasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id), sinCampanaCanal(org, canal), conEnvioGratisDeMas(org, canal.id), cuentaRelampagos(org, canal.id)]);
   const con = (v: string | null) => url(BASE_PML, { canal: canal.id, ver: v });
   return (
     <>

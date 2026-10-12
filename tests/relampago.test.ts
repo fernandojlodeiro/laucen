@@ -10,7 +10,9 @@ test("recibis: precio menos comisión menos envío; sin un dato, no se sabe", ()
   assert.equal(recibis(20_000, null, 0), null);
 });
 
-test("precioRelampago: el más alto del rango, en pesos enteros", () => {
-  assert.equal(precioRelampago(1_575_816.4), 1_575_816);
-  assert.equal(precioRelampago(null), null);
+test("precioRelampago: el más alto del rango, pero 5 % debajo de lo que paga hoy; debajo del mínimo, ninguno", () => {
+  assert.equal(precioRelampago(1_575_816.4, 962_999), 914_849);
+  assert.equal(precioRelampago(800_000, 962_999), 800_000);
+  assert.equal(precioRelampago(800_000, 962_999, 850_000), null);
+  assert.equal(precioRelampago(null, 962_999), null);
 });

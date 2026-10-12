@@ -26,7 +26,7 @@ export async function accionGuardarPiso(fd: FormData) {
 export async function accionPrepararRelampagos(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
   await intentar(volver(fd), async () => {
-    const r = await prepararRelampagos(s.org.id, s.usuario.id, null);
+    const r = await prepararRelampagos(s.org.id, s.usuario.id, id(fd, "canal") || null);
     revalidatePath(RELAMPAGO_PML);
     return r.filas
       ? `Preparado${r.lotes.length === 1 ? "" : "s"} ${r.lotes.length} lote${r.lotes.length === 1 ? "" : "s"} (${r.lotes.join(", ")}) con ${r.filas} publicacion${r.filas === 1 ? "" : "es"}: salen con «Mandar a Mercado Libre» en Configuración › Cola de Mercado Libre, pestaña Lotes preparados.`
