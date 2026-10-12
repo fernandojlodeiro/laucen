@@ -53,11 +53,13 @@ export type FilaRelampago = {
   desde: string | null; hasta: string | null;
   hoy: number | null; hoy_comision: number | null; hoy_envio: number | null;
   rel: number | null; max: number | null; rel_comision: number | null; rel_envio: number | null; min: number | null; sugerido: number | null; tags: unknown;
-  piso: number | null; elegido: number | null;
+  piso: number | null; elegido: number | null; elegido_stock: number | null; restante: number | null;
 };
 
 export type Relampago = FilaRelampago & {
   plan: PlanOClasica | null; recibisHoy: number | null; recibisRel: number | null; diferencia: number | null; alcanza: boolean | null; conStock: boolean | null;
+  /** Con cuántas unidades entra: las que eligió Fer en la fila, si no el mínimo que pide; en una aceptada, las que le quedan. */
+  stockEntrar: number | null;
   costoHoyPct: number | null; costoRelPct: number | null;
 };
 
@@ -82,7 +84,7 @@ export async function relampagos(org: string, canal: number | null = null): Prom
            x.hoy::float8 hoy, ch.comision::float8 hoy_comision, ch.envio::float8 hoy_envio,
            y.rel::float8 rel, x.max::float8 max, cr.comision::float8 rel_comision, cr.envio::float8 rel_envio,
            coalesce(p.min_precio, (p.datos ->> 'min_discounted_price')::numeric)::float8 min, (p.datos ->> 'suggested_discounted_price')::float8 sugerido,
-           ps.piso::float8 piso, rp.precio::float8 elegido
+           ps.piso::float8 piso, rp.precio::float8 elegido, rp.stock elegido_stock, (p.datos -> 'stock' ->> 'remaining_stock')::int restante
       from ml_promo_item p
       join canal c on c.id = p.canal_id
       join meli_item m on m.canal_id = p.canal_id and m.item_id = p.item_id and m.estado = 'active'
@@ -106,7 +108,8 @@ export async function relampagos(org: string, canal: number | null = null): Prom
       costoHoyPct: costoPct(f.hoy, recibisHoy), costoRelPct: f.rel == null ? null : costoPct(f.hoy, recibisRel),
       diferencia: recibisHoy != null && recibisRel != null ? recibisRel - recibisHoy : null,
       alcanza: f.piso == null || recibisRel == null ? null : recibisRel >= f.piso,
-      conStock: f.stock == null || f.stock_min == null ? null : f.stock >= f.stock_min,
+      stockEntrar: f.estado !== "candidate" ? f.restante : (f.elegido_stock ?? f.stock_min),
+      conStock: f.estado !== "candidate" || f.stock == null || (f.elegido_stock ?? f.stock_min) == null ? null : f.stock >= (f.elegido_stock ?? f.stock_min)!,
     };
   });
 }
@@ -171,51 +174,72 @@ export async function guardarPiso(org: string, producto: number, piso: number | 
                   on conflict (organizacion_id, producto_id) do update set piso = excluded.piso, actualizado_ts = now()`, [org, producto, piso]);
 }
 
-/** El precio de entrada que pone Fer a mano en la fila (null: vuelve al sugerido). Tiene que estar dentro del rango de ML;
- *  lee enseguida lo que cobra ML a ese precio, para que la fila muestre cuánto se recibe. */
-export async function guardarPrecioRelampago(org: string, canal: number, item: string, precio: number | null): Promise<void> {
-  if (precio == null) {
-    await consulta("delete from ml_relampago_precio where organizacion_id = $1 and canal_id = $2 and item_id = $3", [org, canal, item]);
-    return;
-  }
+/** Lo que Fer cambia en la fila (un solo lápiz): el precio y el stock con que entra (vacío: el sugerido / el mínimo; dentro
+ *  de lo que acepta ML y del stock que hay) y el piso del producto (vale para todas las cuentas; vacío: sin piso). Si
+ *  cambia el precio, lee enseguida lo que cobra ML a ese precio, para que la fila muestre cuánto se recibe. */
+export async function guardarFilaRelampago(org: string, canal: number, item: string, d: { precio: number | null; stock: number | null; piso: number | null }): Promise<void> {
   const f = (await relampagos(org, canal)).find((x) => x.item_id === item);
   if (!f) throw new ErrorErp("Esa publicación ya no tiene propuesta de oferta relámpago.");
-  if (f.estado !== "candidate") throw new ErrorErp("Esa oferta ya está aceptada: el precio no se cambia.");
-  if ((f.min != null && precio < f.min) || (f.max != null && precio > f.max))
-    throw new ErrorErp(`Mercado Libre acepta entre $ ${Math.ceil(f.min ?? 0).toLocaleString("es-AR")} y $ ${Math.floor(f.max ?? 0).toLocaleString("es-AR")}.`);
-  await consulta(`insert into ml_relampago_precio (organizacion_id, canal_id, item_id, precio) values ($1, $2, $3, $4)
-                  on conflict (canal_id, item_id) do update set precio = excluded.precio, actualizado_ts = now()`, [org, canal, item, precio]);
+  await guardarPiso(org, f.producto_id, d.piso);
+  if (f.estado !== "candidate") {
+    if (d.precio != null || d.stock != null) throw new ErrorErp("Esa oferta ya está aceptada: el precio y el stock ya no se cambian (el piso sí quedó grabado).");
+    return;
+  }
+  if (d.precio != null && ((f.min != null && d.precio < f.min) || (f.max != null && d.precio > f.max)))
+    throw new ErrorErp(`Mercado Libre acepta un precio entre $ ${Math.ceil(f.min ?? 0).toLocaleString("es-AR")} y $ ${Math.floor(f.max ?? 0).toLocaleString("es-AR")}.`);
+  if (d.stock != null) {
+    if (!Number.isInteger(d.stock) || d.stock <= 0) throw new ErrorErp("El stock va en unidades enteras.");
+    if (f.stock_min != null && d.stock < f.stock_min) throw new ErrorErp(`La oferta pide al menos ${f.stock_min} unidades.`);
+    if (f.stock_max != null && d.stock > f.stock_max) throw new ErrorErp(`La oferta acepta hasta ${f.stock_max} unidades.`);
+    if (f.stock != null && d.stock > f.stock) throw new ErrorErp(`Tenés ${f.stock} unidades.`);
+  }
+  if (d.precio == null && d.stock == null)
+    await consulta("delete from ml_relampago_precio where organizacion_id = $1 and canal_id = $2 and item_id = $3", [org, canal, item]);
+  else
+    await consulta(`insert into ml_relampago_precio (organizacion_id, canal_id, item_id, precio, stock) values ($1, $2, $3, $4, $5)
+                    on conflict (canal_id, item_id) do update set precio = excluded.precio, stock = excluded.stock, actualizado_ts = now()`,
+      [org, canal, item, d.precio, d.stock]);
+  if (d.precio == null || d.precio === f.elegido) return;
   const cuenta = await cuentaDelCanal(org, canal);
   if (!cuenta || cuenta.estado !== "activa" || !f.tipo || !f.categoria) return;
-  const k = await costos(cuenta, item, Math.round(precio * 100) / 100, f.tipo, f.categoria, await barreraPlanes());
+  const precio = Math.round(d.precio * 100) / 100;
+  const k = await costos(cuenta, item, precio, f.tipo, f.categoria, await barreraPlanes());
   await consulta(`insert into ml_relampago_costo (canal_id, item_id, precio, comision, envio) values ($1, $2, $3, $4, $5)
                   on conflict (canal_id, item_id, precio) do update set comision = excluded.comision, envio = excluded.envio, leido_ts = now()`,
-    [canal, item, Math.round(precio * 100) / 100, k.comision, k.envio]);
+    [canal, item, precio, k.comision, k.envio]);
 }
 
 /** Cuándo corren las ofertas aceptadas: ML pone el día y la hora y sólo lo dice en la lista de la promoción. Lee las que
- *  todavía no tienen fecha (o cambiaron de oferta). */
+ *  todavía no tienen fecha, también las recién aceptadas desde Laucen (la cola dio ok) aunque la lectura de campañas no
+ *  haya pasado todavía; de paso deja la propuesta como aceptada en Laucen (sólo lectura de ML). */
 export async function actualizarFechasRelampago(hasta: number): Promise<number> {
-  const faltan = await consulta<{ organizacion_id: string; canal_id: number; promocion_id: string; estado: string }>(`
-    select distinct p.organizacion_id, p.canal_id::int canal_id, p.promocion_id, p.estado
+  const faltan = await consulta<{ organizacion_id: string; canal_id: number; promocion_id: string }>(`
+    select distinct p.organizacion_id, p.canal_id::int canal_id, p.promocion_id
       from ml_promo_item p
       left join ml_relampago_fecha f on f.canal_id = p.canal_id and f.item_id = p.item_id
-     where p.tipo = 'LIGHTNING' and p.estado in ('pending', 'started')
-       and (f.item_id is null or f.ref_id is distinct from p.datos ->> 'ref_id' or f.desde is null)
+     where p.tipo = 'LIGHTNING'
+       and (p.estado in ('pending', 'started') and (f.item_id is null or f.desde is null or f.ref_id is distinct from p.datos ->> 'ref_id')
+            or p.estado = 'candidate' and exists (select 1 from ml_cola q where q.canal_id = p.canal_id and q.item_id = 'relampago:' || p.item_id
+                                                   and q.estado = 'ok' and q.enviado_ts > now() - interval '7 days'))
      limit 40`);
   let n = 0;
   for (const f of faltan) {
     if (Date.now() > hasta) break;
     const cuenta = await cuentaDelCanal(f.organizacion_id, f.canal_id);
     if (!cuenta || cuenta.estado !== "activa") continue;
-    const r = await ml<{ results?: { id: string; ref_id?: string; start_date?: string; finish_date?: string }[] }>(cuenta, "GET",
-      `/seller-promotions/promotions/${encodeURIComponent(f.promocion_id)}/items?promotion_type=LIGHTNING&status=${f.estado}&limit=50&app_version=v2`);
-    if (r.status !== 200) continue;
-    for (const x of r.datos?.results ?? []) {
-      await consulta(`insert into ml_relampago_fecha (canal_id, item_id, ref_id, desde, hasta) values ($1, $2, $3, $4, $5)
-                      on conflict (canal_id, item_id) do update set ref_id = excluded.ref_id, desde = excluded.desde, hasta = excluded.hasta, leido_ts = now()`,
-        [f.canal_id, x.id, x.ref_id ?? null, x.start_date ?? null, x.finish_date ?? null]);
-      n++;
+    for (const estado of ["pending", "started"]) {
+      const r = await ml<{ results?: { id: string; ref_id?: string; status?: string; price?: number; start_date?: string; finish_date?: string }[] }>(cuenta, "GET",
+        `/seller-promotions/promotions/${encodeURIComponent(f.promocion_id)}/items?promotion_type=LIGHTNING&status=${estado}&limit=50&app_version=v2`);
+      if (r.status !== 200) continue;
+      for (const x of r.datos?.results ?? []) {
+        await consulta(`insert into ml_relampago_fecha (canal_id, item_id, ref_id, desde, hasta) values ($1, $2, $3, $4, $5)
+                        on conflict (canal_id, item_id) do update set ref_id = excluded.ref_id, desde = excluded.desde, hasta = excluded.hasta, leido_ts = now()`,
+          [f.canal_id, x.id, x.ref_id ?? null, x.start_date ?? null, x.finish_date ?? null]);
+        await consulta(`update ml_promo_item set estado = $3, datos = datos || jsonb_strip_nulls(jsonb_build_object('status', $3::text, 'ref_id', $4::text, 'price', $5::numeric))
+                         where canal_id = $1 and item_id = $2 and tipo = 'LIGHTNING' and estado in ('candidate', 'pending', 'started')`,
+          [f.canal_id, x.id, x.status ?? estado, x.ref_id ?? null, x.price ?? null]);
+        n++;
+      }
     }
   }
   return n;
@@ -224,7 +248,7 @@ export async function actualizarFechasRelampago(hasta: number): Promise<number> 
 /** «Preparar las que alcanzan el piso»: un lote por cuenta, para el clic de Fer, con las propuestas todavía no aceptadas
  *  que alcanzan el piso y tienen el stock que piden. Entra al precio más alto del rango y con el stock mínimo. */
 export async function prepararRelampagos(org: string, usuario: string, canal: number | null): Promise<{ lotes: number[]; filas: number }> {
-  const filas = (await relampagos(org, canal)).filter((f) => f.estado === "candidate" && f.alcanza === true && f.conStock !== false && f.rel != null && f.stock_min != null);
+  const filas = (await relampagos(org, canal)).filter((f) => f.estado === "candidate" && f.alcanza === true && f.conStock !== false && f.rel != null && f.stockEntrar != null);
   const yaPedidas = new Set((await consulta<{ item_id: string }>(
     "select item_id from ml_cola where organizacion_id = $1 and item_id like 'relampago:%' and estado in ('preparado', 'pendiente', 'enviando', 'ok') and creado_ts > now() - interval '7 days'", [org]))
     .map((x) => x.item_id));
@@ -243,8 +267,8 @@ function cambioEntrar(f: Relampago): CambioMl {
   return {
     canalId: f.canal_id, itemId: `relampago:${f.item_id}`, tipo: "campana", antes: { estado: "candidata a oferta relámpago" },
     payload: {
-      descripcion: `Entrar a la oferta relámpago: ${f.item_id} (${f.sku}) a $ ${f.rel!.toLocaleString("es-AR")} con ${f.stock_min} u.; recibís $ ${(f.recibisRel ?? 0).toLocaleString("es-AR")} (hoy $ ${(f.recibisHoy ?? 0).toLocaleString("es-AR")})`,
-      pedidos: [{ metodo: "POST", ruta: `/seller-promotions/items/${f.item_id}?app_version=v2`, cuerpo: { deal_price: f.rel, stock: f.stock_min, promotion_type: "LIGHTNING" } }],
+      descripcion: `Entrar a la oferta relámpago: ${f.item_id} (${f.sku}) a $ ${f.rel!.toLocaleString("es-AR")} con ${f.stockEntrar} u.; recibís $ ${(f.recibisRel ?? 0).toLocaleString("es-AR")} (hoy $ ${(f.recibisHoy ?? 0).toLocaleString("es-AR")})`,
+      pedidos: [{ metodo: "POST", ruta: `/seller-promotions/items/${f.item_id}?app_version=v2`, cuerpo: { deal_price: f.rel, stock: f.stockEntrar, promotion_type: "LIGHTNING" } }],
     },
   };
 }
@@ -255,8 +279,8 @@ export async function entrarRelampago(org: string, usuario: string, canal: numbe
   if (!f) throw new ErrorErp("Esa publicación ya no tiene propuesta de oferta relámpago.");
   if (f.estado !== "candidate") throw new ErrorErp("Esa oferta ya está aceptada.");
   if (f.rel == null) throw new ErrorErp("El precio de entrada queda fuera del rango que acepta Mercado Libre: no se puede entrar.");
-  if (f.stock_min == null) throw new ErrorErp("Mercado Libre no informa cuánto stock pide: no se puede entrar.");
-  if (f.conStock === false) throw new ErrorErp(`Tenés ${f.stock} y la oferta pide al menos ${f.stock_min}.`);
+  if (f.stockEntrar == null) throw new ErrorErp("Mercado Libre no informa cuánto stock pide: no se puede entrar.");
+  if (f.conStock === false) throw new ErrorErp(`Tenés ${f.stock} y querés entrar con ${f.stockEntrar}.`);
   await encolar(org, [cambioEntrar(f)], { origen: "boton", usuarioId: usuario });
   return f;
 }

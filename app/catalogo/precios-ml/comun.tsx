@@ -30,7 +30,7 @@ export async function BarraPml({ org, canales, canal, ver, todas = false, derech
               </FiltroVivo>}
         </label>
         {/* Vista previa: todas las cuentas juntas (Fer, 8/10), al lado de la cuenta. */}
-        {ver === "previa" && <CasillaViva parametro="todas" activo={todas} etiqueta="Todas las cuentas" />}
+        {(ver === "previa" || ver === "relampago") && <CasillaViva parametro="todas" activo={todas} etiqueta="Todas las cuentas" />}
         <span className="text-[11px] text-[#5C6B76]">
           {todas ? null : <>Clásica: lista {canal.lista ? <b>{canal.lista}</b> : <b className="text-[#C03420]">sin lista (cargala en Configuración → Canales)</b>}
           {canal.sincronizarPrecios ? " · sincroniza precios solo" : " · los cambios esperan tu clic"}</>}

@@ -418,6 +418,9 @@ create table if not exists ml_relampago_precio (
 );
 alter table ml_relampago_precio enable row level security;
 select erp_politica_org('ml_relampago_precio');
+-- También el stock con que se entra (Fer, 12/10): un solo lápiz por fila para precio, stock y piso.
+alter table ml_relampago_precio alter column precio drop not null;
+alter table ml_relampago_precio add column if not exists stock int check (stock > 0);
 
 -- Cuándo corre una oferta relámpago aceptada: Mercado Libre pone el día y la hora (no el vendedor) y lo informa sólo en
 -- la lista de la promoción (/seller-promotions/promotions/{id}/items), no en la de la publicación. Tal cual lo dice ML.
