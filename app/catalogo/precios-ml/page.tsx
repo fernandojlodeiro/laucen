@@ -21,6 +21,7 @@ import { AccionesExcel } from "@/app/listas/piezas";
 import { consulta, una } from "@/lib/erp/base";
 import { campanaPropiaDe, NOMBRE_CAMPANA_PROPIA } from "@/lib/precios-ml/campana-propia";
 import { conEnvioGratisDeMas, envioGratisSacado } from "@/lib/precios-ml/envio-gratis";
+import { propuestasDeCanal } from "@/lib/mercadolibre/catalogo-propio";
 import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import { fechaHora } from "@/app/ventas/formato";
 import { formatear } from "@/lib/moneda";
@@ -154,6 +155,13 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
             ayuda={canal.crearFaltantesAuto
               ? `Prendido: cada 10 minutos Laucen crea, sin esperar tu clic, los productos que están en otra cuenta y no en ésta (con su Clásica y sus planes) y los planes que les faltan, con las pautas de la cuenta (marca, título, descripción). Lo que Mercado Libre no acepta queda en la pestaña Alertas. Creadas hasta ahora: ${canal.autoAltas.total}${canal.autoAltas.ultimaVuelta ? `; última vuelta ${new Date(canal.autoAltas.ultimaVuelta).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}.`
               : "Apagado: lo que falta se crea con los botones de la vista previa, en lotes que esperan tu clic."} />
+          <Interruptor accion={accionInterruptor} prendido={canal.catalogoPropioAuto} campos={campos("catalogo_propio_auto")}
+            etiqueta={`Catálogo con nuestra marca${canal.marca ? ` (${canal.marca})` : ""}: proponer y pasar las publicaciones atadas a un catálogo de otra marca`}
+            ayuda={!canal.marca
+              ? "Esta cuenta no tiene «Marca de las publicaciones»: sin marca no se puede proponer un catálogo."
+              : canal.catalogoPropioAuto
+                ? `Prendido: cada media hora Laucen propone a Mercado Libre, con la marca ${canal.marca} y el cupo libre de la cuenta, catálogos para los productos nuestros que Mercado Libre ató a un catálogo o página de otra marca (los que más venden primero). Si Mercado Libre pide corregir algo, lo corrige; cuando lo aprueba, pasa ahí las publicaciones de las cuentas ${canal.marca}. Todo queda en la pestaña Alertas.`
+                : "Apagado: no se propone nada solo."} />
         </div>
       </section>
     </div>
@@ -364,13 +372,18 @@ async function Volumen({ org, canal, sp, aqui }: { org: string; canal: CanalMl; 
 
 // ── Alertas ─────────────────────────────────────────────────
 
+const ESTADO_PROPUESTA: Record<string, string> = {
+  encolada: "Saliendo a Mercado Libre", UNDER_REVIEW: "En revisión de Mercado Libre", WAITING_FOR_FIX: "Mercado Libre pide corregir",
+  PUBLISHED: "Aprobado", REJECTED: "Rechazado", no_se_puede: "No se pudo proponer",
+};
+
 async function Alertas({ org, canal, aqui }: { org: string; canal: CanalMl; aqui: string }) {
-  const [filas, bajo, sin, gratis, sacado, colgadas] = await Promise.all([alertasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id), sinCampanaCanal(org, canal),
+  const [filas, bajo, sin, gratis, sacado, colgadas, propuestas] = await Promise.all([alertasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id), sinCampanaCanal(org, canal),
     conEnvioGratisDeMas(org, canal.id), envioGratisSacado(org, canal.id),
     consulta<{ sku: string; plan: string; motivo: string; producto_id: number | null }>(`
       select g.sku, g.plan, g.motivo, v.producto_id::int producto_id from ml_alta_colgada g
         left join variacion v on v.organizacion_id = g.organizacion_id and v.sku = g.sku
-       where g.organizacion_id = $1 and g.canal_id = $2 order by g.sku, g.plan`, [org, canal.id])]);
+       where g.organizacion_id = $1 and g.canal_id = $2 order by g.sku, g.plan`, [org, canal.id]), propuestasDeCanal(org, canal.id)]);
   const base = { canal: String(canal.id), volver: aqui };
   const umbral = formatear(gratis.umbral, "ARS");
   return (
@@ -398,6 +411,31 @@ async function Alertas({ org, canal, aqui }: { org: string; canal: CanalMl; aqui
         <p className="text-[11px] text-[#5C6B76] mb-4">
           Con «Crear solo lo que falta» prendido (pestaña Descuento), lo que Mercado Libre no acepta o no se puede copiar queda acá con su motivo y se vuelve a intentar más tarde (a la media hora, a las 2 horas, a las 12 y después una vez por día).
           {colgadas.length > 50 && " Se ven las primeras 50: el Excel trae todas."}
+        </p>
+      </>}
+      {/* Catálogo con nuestra marca (lib/mercadolibre/catalogo-propio.ts). */}
+      {(canal.catalogoPropioAuto || propuestas.length > 0) && <>
+        <TituloSeccion titulo={`Catálogo con nuestra marca (${propuestas.length})`} />
+        <div className={`${CAJA_TABLA} mb-1`}>
+          <table className={TABLA}>
+            <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Estado</th><th className={TH}>Catálogo de otra marca</th><th className={TH}>Catálogo nuestro</th><th className={TH}>Detalle</th></tr></thead>
+            <tbody>
+              {propuestas.length === 0 && <tr><td colSpan={5} className={`${TD} text-[#5C6B76]`}>Todavía ninguna: la primera vuelta corre dentro de la próxima media hora.</td></tr>}
+              {propuestas.slice(0, 100).map((g) => (
+                <tr key={g.sku} className={TR}>
+                  <td className={TD}>{g.producto ? <Link href={`/catalogo/productos/${g.producto}`} className="font-mono text-[#16577F] hover:underline">{g.sku}</Link> : g.sku}</td>
+                  <td className={TD}>{ESTADO_PROPUESTA[g.estado] ?? g.estado}</td>
+                  <td className={TD}>{g.catalogo_ajeno ? <a href={`https://www.mercadolibre.com.ar/p/${g.catalogo_ajeno}`} target="_blank" rel="noreferrer" className="font-mono text-[#16577F] hover:underline">{g.catalogo_ajeno} ↗</a> : "—"}</td>
+                  <td className={TD}>{g.producto_id ? <a href={`https://www.mercadolibre.com.ar/p/${g.producto_id}`} target="_blank" rel="noreferrer" className="font-mono text-[#16577F] hover:underline">{g.producto_id} ↗</a> : "—"}</td>
+                  <td className={TD}>{g.motivo ?? ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[11px] text-[#5C6B76] mb-4">
+          Con «Catálogo con nuestra marca» prendido (pestaña Descuento), Laucen propone catálogos con la marca de la cuenta usando el cupo libre y, cuando Mercado Libre los aprueba, pasa ahí las publicaciones.
+          {propuestas.length > 100 && " Se ven las primeras 100."}
         </p>
       </>}
       {/* Envío gratis de más (Fer, 10/10): una publicación más barata que el envío gratis no tiene por qué regalarlo. */}

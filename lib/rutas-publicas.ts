@@ -12,6 +12,7 @@ export const RUTAS_PUBLICAS = [
   "/api/meli/barrido",
   // La creación automática de lo que falta en ML: la llama pg_cron con meli_llave.
   "/api/meli/auto-altas",
+  "/api/meli/catalogo-propio",
   "/api/erp/tareas",
   // La llama la base (pg_net) al cambiar el stock; se autentica con erp_llave.
   "/api/erp/stock",
