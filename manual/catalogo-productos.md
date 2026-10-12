@@ -187,6 +187,10 @@ La última búsqueda queda guardada: volver a la pestaña no cuesta; buscar de n
 
 Para agregar publicaciones que ya conocés: **+ Agregar por número**, pegá los links o números (MLA…), uno por renglón, y **Agregar**. **Se leen enseguida, de fondo**: el botón **Leer ahora** queda en «Trabajando…» y en un minuto aparecen con sus datos (mientras tanto dicen «Sin leer todavía»). Si la publicación compite en un **catálogo**, a partir de ahí se lee gratis por el catálogo y muestra el vendedor, el tipo y el título que ve el comprador.
 
+**El link de un catálogo.** En Mercado Libre, la página de un producto de catálogo tiene la dirección `…/p/MLA…` y el recuadro «Otras opciones de compra» con todos los vendedores. Si pegás en **+ Agregar por número**:
+- el link del catálogo solo (`…/p/MLA2081953349`): aparece, debajo de las que seguís, la caja **Vendedores del catálogo «…» (N)** con todos los que compiten (vendedor, precio, tipo, entrega; de la más barata a la más cara), cada uno con **+ Seguir**. Se lee gratis. El tacho de la caja saca la lista (lo que ya seguís queda). Pegar el mismo catálogo de nuevo la vuelve a leer;
+- el link con un vendedor elegido (`…/p/MLA2090682290?pdp_filters=item_id:MLA3756369652`, el que queda al tocar un vendedor de ese recuadro): sigue directamente esa publicación y la lee gratis por su catálogo.
+
 Las publicaciones **MLAU…** («producto de vendedor») se leen sólo si compiten en un catálogo; si no, Mercado Libre no deja leer su precio y la fila lo dice en rojo: en ese caso conviene seguir su número **MLA…**.
 
 **Leer ahora** relee las de este producto en el momento (pregunta antes, porque las comunes cuestan). Además se releen solas cada tantos días (ver [Seguimiento de publicaciones](/config/seguimiento)). El tacho deja de seguir una.
@@ -195,7 +199,7 @@ Las publicaciones **MLAU…** («producto de vendedor») se leen sólo si compit
 
 ### Regla de precio (pestaña Seguimiento)
 
-Debajo de las publicaciones que seguís está la caja **Regla de precio**: mirando lo que cobran esas publicaciones, **baja el precio de la lista Clásicas** de este producto. No toca Mercado Libre directo: desde la lista, el esquema de precios lo lleva a todas las cuentas y todos los planes (ver [Cómo funcionan los precios](/catalogo/precios-ml)).
+Debajo de las publicaciones que seguís está la caja **Regla de precio**: mirando lo que cobran esas publicaciones, **baja (y, si querés, sube) el precio de la lista Clásicas** de este producto. No toca Mercado Libre directo: desde la lista, el esquema de precios lo lleva a todas las cuentas y todos los planes (ver [Cómo funcionan los precios](/catalogo/precios-ml)).
 
 Se configura con el **lápiz** del título de la caja (en edición quedan **Grabar** y **Cancelar**):
 
@@ -203,10 +207,12 @@ Se configura con el **lápiz** del título de la caja (en edición quedan **Grab
 - **Contra quién**: **el más barato de los que sigo** o una publicación puntual de las que seguís.
 - **Cómo**: **Igualar su precio**, **Quedar X pesos abajo** o **Quedar X % abajo** (X va en el campo de al lado).
 - **Piso**: la Clásica nunca baja de ese precio. Es obligatorio para prender la regla.
+- **También subir** y **Techo**: tildada, si la publicación que seguís sube su precio (o el más barato pasa a ser uno más caro), la Clásica sube hasta el objetivo, nunca por encima del techo. El techo es obligatorio si está tildada y tiene que ser mayor que el piso.
 
 Criterios:
 
-- **Sólo baja.** Si tu Clásica ya está igual o más barata que el objetivo, no hace nada. Si el objetivo queda por debajo del piso, baja hasta el piso.
+- **Baja** si tu Clásica está por encima del objetivo; si el objetivo queda por debajo del piso, baja hasta el piso.
+- **Sube sólo con «También subir»**, si tu Clásica está por debajo del objetivo; si el objetivo queda por encima del techo, sube hasta el techo. Sin esa caja, si ya estás más barato no hace nada.
 - Compara contra las seguidas **activas** con precio leído (las pausadas, terminadas o que no figuran en el catálogo no cuentan). El precio de la referencia es el que paga el comprador.
 - El objetivo se redondea a pesos enteros, hacia abajo. Si el producto tiene varias variaciones, se revisa cada una con su propia Clásica.
 - Un producto con precio en dólares sigue en dólares: se baja en la misma proporción.

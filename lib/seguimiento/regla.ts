@@ -4,7 +4,8 @@
 // esquema de precios lo lleva a todas las cuentas y planes (lib/precios-ml).
 //   · modo «propuesta»: deja el cambio esperando «Aplicar» en la pestaña Seguimiento.
 //   · modo «automatico»: cambia la lista sola.
-// Sólo baja: si ya estamos más baratos, no hace nada. Nunca por debajo del piso.
+// Baja hasta el objetivo, nunca por debajo del piso. Con «También subir» (Fer, 12/10), si el
+// competidor sube (o cambia el más barato por uno más caro) sube hasta el objetivo, nunca por encima del techo.
 // Se revisa después de cada lectura de las seguidas y con «Revisar ahora».
 
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
@@ -15,7 +16,7 @@ import { formatear } from "@/lib/moneda";
 export type ModoRegla = "apagada" | "propuesta" | "automatico";
 export type ComoRegla = "igual" | "pesos" | "pct";
 export type Regla = {
-  modo: ModoRegla; contra: "mas_barato" | "una"; seguimientoId: number | null; como: ComoRegla; diferencia: number; piso: number | null;
+  modo: ModoRegla; contra: "mas_barato" | "una"; seguimientoId: number | null; como: ComoRegla; diferencia: number; piso: number | null; subir: boolean; techo: number | null;
   revisadaTs: Date | null; resultado: string | null;
 };
 
@@ -26,7 +27,7 @@ export const MODOS_REGLA: Record<ModoRegla, string> = {
 };
 export const COMO_REGLA: Record<ComoRegla, string> = { igual: "Igualar su precio", pesos: "Quedar X pesos abajo", pct: "Quedar X % abajo" };
 
-const REGLA_VACIA: Regla = { modo: "apagada", contra: "mas_barato", seguimientoId: null, como: "pesos", diferencia: 0, piso: null, revisadaTs: null, resultado: null };
+const REGLA_VACIA: Regla = { modo: "apagada", contra: "mas_barato", seguimientoId: null, como: "pesos", diferencia: 0, piso: null, subir: false, techo: null, revisadaTs: null, resultado: null };
 
 /** El precio al que hay que quedar, según el de la referencia. En pesos enteros, hacia abajo. Pura. */
 export function objetivoDe(referencia: number, como: ComoRegla, diferencia: number): number {
@@ -34,23 +35,32 @@ export function objetivoDe(referencia: number, como: ComoRegla, diferencia: numb
   return Math.floor(v);
 }
 
-/** Qué hacer con una Clásica: sólo bajar, y nunca por debajo del piso. Pura. */
-export function decidir(actual: number, objetivo: number, piso: number): { nuevo: number | null; motivo: string } {
-  if (actual <= objetivo) return { nuevo: null, motivo: "ya está igual o más barato" };
-  if (actual <= piso) return { nuevo: null, motivo: "ya está en el piso" };
-  if (objetivo < piso) return { nuevo: piso, motivo: "queda en el piso" };
+/** Qué hacer con una Clásica: bajar hasta el objetivo, nunca por debajo del piso; con techo (también subir),
+ *  subir hasta el objetivo, nunca por encima del techo. Pura. */
+export function decidir(actual: number, objetivo: number, piso: number, techo: number | null = null): { nuevo: number | null; motivo: string } {
+  if (actual > objetivo) {
+    if (actual <= piso) return { nuevo: null, motivo: "ya está en el piso" };
+    if (objetivo < piso) return { nuevo: piso, motivo: "queda en el piso" };
+    return { nuevo: objetivo, motivo: "" };
+  }
+  if (actual === objetivo) return { nuevo: null, motivo: "ya está en el objetivo" };
+  if (techo == null) return { nuevo: null, motivo: "ya está más barato (no sube)" };
+  if (actual >= techo) return { nuevo: null, motivo: "ya está en el techo" };
+  if (objetivo > techo) return { nuevo: techo, motivo: "queda en el techo" };
   return { nuevo: objetivo, motivo: "" };
 }
 
 export async function reglaDe(org: string, productoId: number): Promise<Regla> {
-  const r = await una<{ modo: ModoRegla; contra: "mas_barato" | "una"; seguimiento_id: number | null; como: ComoRegla; diferencia: number; piso: number | null; revisada_ts: Date | null; resultado: string | null }>(`
-    select modo, contra, seguimiento_id::int, como, diferencia::float8, piso::float8, revisada_ts, resultado
+  const r = await una<{ modo: ModoRegla; contra: "mas_barato" | "una"; seguimiento_id: number | null; como: ComoRegla; diferencia: number; piso: number | null; subir: boolean; techo: number | null; revisada_ts: Date | null; resultado: string | null }>(`
+    select modo, contra, seguimiento_id::int, como, diferencia::float8, piso::float8, subir, techo::float8, revisada_ts, resultado
       from seguimiento_regla where organizacion_id = $1 and producto_id = $2`, [org, productoId]);
-  return r ? { modo: r.modo, contra: r.contra, seguimientoId: r.seguimiento_id, como: r.como, diferencia: r.diferencia, piso: r.piso, revisadaTs: r.revisada_ts, resultado: r.resultado } : REGLA_VACIA;
+  return r ? { modo: r.modo, contra: r.contra, seguimientoId: r.seguimiento_id, como: r.como, diferencia: r.diferencia, piso: r.piso, subir: r.subir, techo: r.techo, revisadaTs: r.revisada_ts, resultado: r.resultado } : REGLA_VACIA;
 }
 
 export async function guardarRegla(org: string, productoId: number, r: Omit<Regla, "revisadaTs" | "resultado">): Promise<void> {
   if (r.modo !== "apagada" && !(r.piso && r.piso > 0)) throw new ErrorErp("Para prenderla, cargá el piso: el precio más bajo al que puede llegar la Clásica.");
+  if (r.modo !== "apagada" && r.subir && !(r.techo && r.techo > 0)) throw new ErrorErp("Para que también suba, cargá el techo: el precio más alto al que puede llegar la Clásica.");
+  if (r.subir && r.techo != null && r.piso != null && r.techo < r.piso) throw new ErrorErp("El techo tiene que ser mayor que el piso.");
   if (r.contra === "una" && !r.seguimientoId) throw new ErrorErp("Elegí contra qué publicación se compara.");
   if (r.como === "pct" && r.diferencia >= 100) throw new ErrorErp("El porcentaje tiene que ser menor a 100.");
   if (r.contra === "una") {
@@ -58,11 +68,12 @@ export async function guardarRegla(org: string, productoId: number, r: Omit<Regl
     if (!ok) throw new ErrorErp("Esa publicación ya no se sigue.");
   }
   await consulta(`
-    insert into seguimiento_regla (organizacion_id, producto_id, modo, contra, seguimiento_id, como, diferencia, piso)
-    values ($1, $2, $3, $4, $5, $6, $7, $8)
+    insert into seguimiento_regla (organizacion_id, producto_id, modo, contra, seguimiento_id, como, diferencia, piso, subir, techo)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     on conflict (organizacion_id, producto_id) do update set modo = excluded.modo, contra = excluded.contra, seguimiento_id = excluded.seguimiento_id,
-      como = excluded.como, diferencia = excluded.diferencia, piso = excluded.piso, actualizado_ts = now()`,
-    [org, productoId, r.modo, r.contra, r.contra === "una" ? r.seguimientoId : null, r.como, r.como === "igual" ? 0 : r.diferencia, r.piso]);
+      como = excluded.como, diferencia = excluded.diferencia, piso = excluded.piso,
+      subir = excluded.subir, techo = excluded.techo, actualizado_ts = now()`,
+    [org, productoId, r.modo, r.contra, r.contra === "una" ? r.seguimientoId : null, r.como, r.como === "igual" ? 0 : r.diferencia, r.piso, r.subir, r.techo]);
   // Al apagarla o pasarla a automático, lo que esperaba el clic ya no corre.
   if (r.modo !== "propuesta") await reemplazarPropuestas(org, productoId);
 }
@@ -109,7 +120,7 @@ export async function revisarRegla(org: string, productoId: number, usuario: str
   for (const v of variaciones) {
     const p = await precioDe(org, v.id, lista);
     if (!p) { notas.push(`${v.sku}: no tiene precio en la lista`); continue; }
-    const d = decidir(p.lista.ars, objetivo, r.piso!);
+    const d = decidir(p.lista.ars, objetivo, r.piso!, r.subir ? r.techo : null);
     if (d.nuevo == null) { notas.push(`${v.sku}: ${d.motivo} (${fmt(p.lista.ars)})`); continue; }
     // Un producto con precio en dólares sigue en dólares: se baja en la misma proporción.
     cambios.push({ variacion: v.id, sku: v.sku, antes: p.lista.ars, nuevo: d.nuevo, usd: p.monedaOrigen === "USD" && p.lista.ars > 0 ? p.lista.usd * d.nuevo / p.lista.ars : null });
@@ -118,7 +129,7 @@ export async function revisarRegla(org: string, productoId: number, usuario: str
   const base = `Referencia: ${ref.texto}; objetivo ${fmt(objetivo)}.`;
   // Lo que esperaba el clic y ya no vale, se reemplaza por lo de hoy.
   await reemplazarPropuestas(org, productoId);
-  if (!cambios.length) return anotar(`${base} No hace falta bajar${notas.length ? ` (${notas.join("; ")})` : ""}.`);
+  if (!cambios.length) return anotar(`${base} No hace falta cambiar${notas.length ? ` (${notas.join("; ")})` : ""}.`);
   await enTransaccion(async (c) => {
     for (const x of cambios) {
       if (r.modo === "automatico") {
@@ -131,8 +142,8 @@ export async function revisarRegla(org: string, productoId: number, usuario: str
   });
   const detalle = cambios.map((x) => `${x.sku} de ${fmt(x.antes)} a ${fmt(x.nuevo)}`).join("; ");
   return anotar(r.modo === "automatico"
-    ? `${base} Se bajó la Clásica: ${detalle}.`
-    : `${base} Propuesto bajar la Clásica: ${detalle}. Espera «Aplicar».`);
+    ? `${base} Se cambió la Clásica: ${detalle}.`
+    : `${base} Propuesto cambiar la Clásica: ${detalle}. Espera «Aplicar».`);
 }
 
 /** «Aplicar»: lo propuesto pasa a la lista de precios (desde ahí, el esquema lo lleva a Mercado Libre). */

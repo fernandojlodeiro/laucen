@@ -1,5 +1,5 @@
 // La caja «Regla de precio» de la pestaña Seguimiento (pedido de Fer, 11/10;
-// lib/seguimiento/regla.ts): mirando las publicaciones que se siguen, baja el
+// lib/seguimiento/regla.ts): mirando las publicaciones que se siguen, baja (o sube) el
 // precio de la lista Clásicas del producto. Abre en vista; el lápiz del título
 // la pasa a edición (?editar=regla) y ahí quedan «Grabar» y «Cancelar».
 
@@ -41,7 +41,7 @@ export default async function ReglaPrecio({ org, productoId, seguidas, editando,
       </TituloSeccion>
       <p className="text-[11px] text-[#5C6B76] mb-3">
         Baja el precio de la <b>lista Clásicas</b> de este producto según lo que cobran las publicaciones que seguís. No toca Mercado Libre: desde la
-        lista, el esquema de precios lo lleva a todas las cuentas y todos los planes. Sólo baja, nunca por debajo del piso, y se revisa sola después de cada lectura.
+        lista, el esquema de precios lo lleva a todas las cuentas y todos los planes. Baja hasta el objetivo sin pasar el piso; con «También subir», sube hasta el objetivo sin pasar el techo. Se revisa sola después de cada lectura.
       </p>
 
       {editando ? (
@@ -70,6 +70,16 @@ export default async function ReglaPrecio({ org, productoId, seguidas, editando,
             <CampoNumero name="piso" valor={r.piso} tipo="pesos" className={`${CAMPO} w-full`} />
             <span className="block text-[10px] text-[#5C6B76] mt-0.5">Obligatorio para prenderla.</span>
           </label>
+          <label className="flex items-start gap-2 text-xs sm:col-span-2">
+            <input type="checkbox" name="subir" value="1" defaultChecked={r.subir} className="h-4 w-4 mt-px shrink-0 accent-[#16577F]" />
+            <span><b>También subir</b>
+              <span className="block text-[11px] text-[#5C6B76]">Si el que seguís sube su precio (o el más barato pasa a ser uno más caro), la Clásica sube hasta el objetivo, nunca por encima del techo.</span>
+            </span>
+          </label>
+          <label><span className={ETIQUETA}>Techo: la Clásica nunca sube de</span>
+            <CampoNumero name="techo" valor={r.techo} tipo="pesos" className={`${CAMPO} w-full`} />
+            <span className="block text-[10px] text-[#5C6B76] mt-0.5">Obligatorio si «También subir» está tildada.</span>
+          </label>
         </form>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -77,6 +87,10 @@ export default async function ReglaPrecio({ org, productoId, seguidas, editando,
           <Dato etiqueta="Contra quién">{contraTexto}</Dato>
           <Dato etiqueta="Cómo">{comoTexto}</Dato>
           <Dato etiqueta="Piso: la Clásica nunca baja de" numero>{r.piso != null ? pesos(r.piso) : null}</Dato>
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={r.subir} disabled readOnly className="h-4 w-4 shrink-0 accent-[#16577F]" /> También subir
+          </label>
+          <Dato etiqueta="Techo: la Clásica nunca sube de" numero>{r.subir && r.techo != null ? pesos(r.techo) : null}</Dato>
         </div>
       )}
 
@@ -86,7 +100,7 @@ export default async function ReglaPrecio({ org, productoId, seguidas, editando,
           {v.clasicas.length ? v.clasicas.map((c) => `${v.clasicas.length > 1 ? `${c.sku} ` : ""}${pesos(c.ars)}`).join(" · ") : "sin lista de la Clásica"}
         </div>
         <div>
-          <b>Referencia:</b> {v.referencia ? <>{v.referencia.texto} → quedarías a <b>{pesos(v.objetivo)}</b>{r.piso != null && v.objetivo != null && v.objetivo < r.piso && <> (topea en el piso, {pesos(r.piso)})</>}</>
+          <b>Referencia:</b> {v.referencia ? <>{v.referencia.texto} → quedarías a <b>{pesos(v.objetivo)}</b>{r.piso != null && v.objetivo != null && v.objetivo < r.piso && <> (topea en el piso, {pesos(r.piso)})</>}{r.subir && r.techo != null && v.objetivo != null && v.objetivo > r.techo && <> (topea en el techo, {pesos(r.techo)})</>}</>
             : <span className="text-[#5C6B76]">ninguna seguida activa con precio leído</span>}
         </div>
         {r.revisadaTs && <div className="text-[#5C6B76]">Última revisión, {fecha(r.revisadaTs)}: {r.resultado}</div>}

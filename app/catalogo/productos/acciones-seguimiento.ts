@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, texto, id, numero } from "@/lib/erp/acciones";
 import { deFondo, lanzarTarea } from "@/lib/tareas-fondo";
-import { buscarParaSeguir, seguirDeBusqueda, seguirPorNumero, dejarDeSeguir, leerSeguidas } from "@/lib/seguimiento";
+import { buscarParaSeguir, seguirDeBusqueda, seguirPorNumero, dejarDeSeguir, leerSeguidas, listarCatalogo, cerrarCatalogo } from "@/lib/seguimiento";
 import { guardarRegla, revisarRegla, aplicarPropuesta, descartarPropuesta } from "@/lib/seguimiento/regla";
 
 const volver = (pid: number) => `/catalogo/productos/${pid}?seccion=seguimiento`;
@@ -38,16 +38,34 @@ export async function accionSeguirPorNumero(fd: FormData) {
   const pid = id(fd, "producto_id");
   await intentar(volver(pid), async () => {
     const r = await seguirPorNumero(s.org.id, pid, texto(fd, "numeros") ?? "");
-    // Las nuevas se leen ya, de fondo (Fer, 11/10): al terminar aparecen con sus datos.
-    if (r.ids.length) {
-      await lanzarTarea(s.org.id, s.usuario.id, `seguimiento-leer-${pid}`, "Leer las publicaciones agregadas", async () => {
-        const l = await leerSeguidas(s.org.id, { productoId: pid, todas: true, ids: r.ids });
+    // Las nuevas se leen ya y los catálogos pegados se abren en sus vendedores, de fondo (Fer, 11/10 y 12/10).
+    if (r.ids.length || r.catalogos.length) {
+      await lanzarTarea(s.org.id, s.usuario.id, `seguimiento-leer-${pid}`, "Leer lo agregado", async () => {
+        const partes: string[] = [];
+        for (const c of r.catalogos) partes.push(`catálogo ${c}: ${await listarCatalogo(s.org.id, pid, c)} vendedores para elegir`);
+        if (r.ids.length) {
+          const l = await leerSeguidas(s.org.id, { productoId: pid, todas: true, ids: r.ids });
+          partes.push(`leídas ${l.catalogo} de catálogo y ${l.comunes} comunes${l.sinPresupuesto ? " (alguna quedó sin leer: tope de gasto del mes)" : ""}`);
+        }
         revalidatePath(`/catalogo/productos/${pid}`);
-        return `Leídas las agregadas: ${l.catalogo} de catálogo y ${l.comunes} comunes.${l.sinPresupuesto ? " Alguna quedó sin leer: se llegó al tope de gasto del mes." : ""}`;
+        return `Listo: ${partes.join("; ")}.`;
       });
     }
     revalidatePath(`/catalogo/productos/${pid}`);
-    return `${r.nuevas} agregada${r.nuevas === 1 ? "" : "s"}${r.repetidas ? ` (${r.repetidas} ya estaba${r.repetidas === 1 ? "" : "n"})` : ""}.${r.nuevas ? " Se están leyendo: en un minuto aparecen con sus datos." : ""}`;
+    const t: string[] = [];
+    if (r.nuevas || r.repetidas) t.push(`${r.nuevas} agregada${r.nuevas === 1 ? "" : "s"}${r.repetidas ? ` (${r.repetidas} ya estaba${r.repetidas === 1 ? "" : "n"})` : ""}`);
+    if (r.catalogos.length) t.push(`${r.catalogos.length === 1 ? "el catálogo" : `${r.catalogos.length} catálogos`} se está${r.catalogos.length === 1 ? "" : "n"} abriendo en sus vendedores`);
+    return `${t.join("; ")}.${r.ids.length || r.catalogos.length ? " En un momento aparece todo." : ""}`;
+  });
+}
+
+export async function accionCerrarCatalogo(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  await intentar(volver(pid), async () => {
+    await cerrarCatalogo(s.org.id, pid, texto(fd, "catalogo") ?? "");
+    revalidatePath(`/catalogo/productos/${pid}`);
+    return "Listo: se sacó la lista de ese catálogo (lo que seguís de ahí sigue igual).";
   });
 }
 
@@ -89,6 +107,8 @@ export async function accionGuardarRegla(fd: FormData) {
       como: como === "igual" || como === "pct" ? como : "pesos",
       diferencia: numero(fd, "diferencia") ?? 0,
       piso: numero(fd, "piso"),
+      subir: fd.get("subir") === "1",
+      techo: numero(fd, "techo"),
     });
     const r = await revisarRegla(s.org.id, pid, s.usuario.id);
     revalidatePath(`/catalogo/productos/${pid}`);

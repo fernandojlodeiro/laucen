@@ -4,7 +4,7 @@
 
 import { consulta } from "@/lib/erp/base";
 import { formatear, type Moneda } from "@/lib/moneda";
-import { ultimaBusqueda, configSeguimiento, enlaceDe, esPack, parecido, type PubEncontrada } from "@/lib/seguimiento";
+import { ultimaBusqueda, catalogosPegados, configSeguimiento, enlaceDe, esPack, parecido, type PubEncontrada } from "@/lib/seguimiento";
 import Link from "next/link";
 import { CasillaViva, FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
@@ -14,7 +14,7 @@ import { SUAVE, PRIMARIO } from "@/app/botones";
 import { CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, Estado, TituloSeccion } from "@/app/componentes/erp";
 import BuscarSeguimiento from "./BuscarSeguimiento";
 import ReglaPrecio from "./ReglaPrecio";
-import { accionSeguir, accionSeguirPorNumero, accionDejarDeSeguir, accionLeerSeguimiento } from "@/app/catalogo/productos/acciones-seguimiento";
+import { accionSeguir, accionSeguirPorNumero, accionDejarDeSeguir, accionLeerSeguimiento, accionCerrarCatalogo } from "@/app/catalogo/productos/acciones-seguimiento";
 
 type Seguida = {
   id: number; item_id: string; catalogo_id: string | null; titulo: string | null; foto: string | null; permalink: string | null;
@@ -68,7 +68,7 @@ function Entrega({ dias, demora, gratis }: { dias: number | null | undefined; de
 
 export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string; borden?: string; hist?: string; editar?: string } }) {
   const hist = Number(sp.hist) || null;
-  const [seguidas, busqueda, conf, lecturas] = await Promise.all([
+  const [seguidas, busqueda, conf, lecturas, catalogos] = await Promise.all([
     consulta<Seguida>(`
       select sp.id::int, sp.item_id, sp.catalogo_id, sp.titulo, sp.foto, sp.permalink, sp.vendedor, sp.tienda_oficial, sp.precio::float8, sp.precio_original::float8,
              sp.moneda, sp.estado, sp.tipo_publicacion, sp.cuotas, sp.envio_gratis, sp.leido_ts, sp.error, sp.entrega_dias,
@@ -86,6 +86,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
         from seguimiento_lectura l join seguimiento_pub sp on sp.id = l.seguimiento_id
        where l.organizacion_id = $1 and sp.producto_id = $2 and l.seguimiento_id = $3
        order by l.ts desc limit 200`, [s.org.id, p.id, hist]) : Promise.resolve([] as Lectura[]),
+    catalogosPegados(s.org.id, p.id).catch(() => []),
   ]);
   const seguidosIds = new Set(seguidas.map((x) => x.item_id));
   // Los resultados: sin packs (si el nuestro no lo es) ni los nuestros, salvo que se pidan; los más parecidos al nuestro primero.
@@ -124,10 +125,10 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
         <AltaNueva texto="Agregar por número" sinBoton>
           <form action={accionSeguirPorNumero} className="grid gap-2">
             <input type="hidden" name="producto_id" value={p.id} />
-            <textarea name="numeros" rows={3} placeholder={"https://articulo.mercadolibre.com.ar/MLA-1234567890-…\nMLA1234567890"} className={`${CAMPO} w-full`} autoFocus />
+            <textarea name="numeros" rows={3} placeholder={"https://articulo.mercadolibre.com.ar/MLA-1234567890-…\nMLA1234567890\nhttps://www.mercadolibre.com.ar/…/p/MLA12345678 (un catálogo: muestra sus vendedores)"} className={`${CAMPO} w-full`} autoFocus />
             <span className="flex items-center gap-2">
               <button className={PRIMARIO}>Agregar</button>
-              <span className="text-[11px] text-[#5C6B76]">Links o números de publicación (MLA…), uno por renglón. Se leen con «Leer ahora» o en la próxima vuelta.</span>
+              <span className="text-[11px] text-[#5C6B76]">Links o números de publicación (MLA…), uno por renglón: se leen enseguida. El link de un catálogo (…/p/MLA…) muestra a todos sus vendedores para elegir.</span>
             </span>
           </form>
         </AltaNueva>
@@ -184,6 +185,21 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
         </div>
       </section>
 
+      {catalogos.map((c) => (
+        <section key={c.catalogoId} className={CAJA}>
+          <TituloSeccion titulo={<>Vendedores del catálogo «{c.titulo ?? c.catalogoId}» ({c.resultados.length})</>}>
+            <TachoConfirmar accion={accionCerrarCatalogo} campos={{ producto_id: String(p.id), catalogo: c.catalogoId }} pregunta="¿Sacar esta lista?" />
+          </TituloSeccion>
+          <p className="text-[11px] text-[#5C6B76] mb-2">
+            Del link de catálogo pegado en «Agregar por número» ({c.catalogoId}), leído gratis el {new Date(c.ts).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" })}.
+            Tocá «+ Seguir» en los que quieras; el tacho saca la lista (lo que ya seguís queda).
+          </p>
+          {c.resultados.length
+            ? <TablaEncontradas filas={[...c.resultados].sort((a, b) => (a.precio ?? Infinity) - (b.precio ?? Infinity))} productoId={p.id} seguidos={seguidosIds} demora={conf.demoraDias} />
+            : <p className="text-xs text-[#5C6B76]">Mercado Libre no devolvió vendedores para ese catálogo.</p>}
+        </section>
+      ))}
+
       <ReglaPrecio org={s.org.id} productoId={p.id} seguidas={seguidas} editando={sp.editar === "regla"}
         ver={conHist(hist)} editar={`${conHist(hist)}&editar=regla`} />
 
@@ -207,44 +223,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
           </div>
         )}
         {busqueda && resultados.length > 0 && (
-          <div className={`${CAJA_TABLA} mt-2`}>
-            <table className={TABLA}>
-              <thead className={THEAD}>
-                <tr><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Tipo y cuotas</th><th className={TH}>Entrega</th><th /></tr>
-              </thead>
-              <tbody>
-                {resultados.map((r: PubEncontrada & { pack: boolean }) => (
-                  <tr key={r.itemId} className={`${TR} ${r.propia ? "bg-[#F7F9FB]" : ""}`}>
-                    <td className={TD}>
-                      <span className="flex items-start gap-2">
-                        <span className="h-10 w-10 shrink-0">{r.foto && <img src={r.foto} alt="" className="h-10 w-10 object-contain rounded bg-white" />}</span>
-                        <span>
-                          <a href={enlaceMl({ permalink: r.permalink, itemId: r.itemId })} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline">{r.titulo} ↗</a>
-                          <span className="block text-[10px] text-[#5C6B76] font-mono">
-                            {r.itemId}{r.catalogoId && " · 📖 Catálogo (el título es el del catálogo, no el del vendedor)"}{r.publicidad && " · Publicidad"}{r.pack && " · Pack"}
-                          </span>
-                        </span>
-                      </span>
-                    </td>
-                    <td className={TD}>{r.vendedor ?? "—"}{r.tiendaOficial && <span className="block text-[10px] text-[#1F6E4A]">Tienda oficial</span>}</td>
-                    <td className={TDN}><Precio precio={r.precio} original={r.precioOriginal} moneda={r.moneda} /></td>
-                    <td className={`${TD} text-[11px]`}>{r.tipoPublicacion ? <b className="block">{TIPOS[r.tipoPublicacion] ?? r.tipoPublicacion}</b> : null}{r.cuotas ?? (r.tipoPublicacion ? null : "—")}</td>
-                    <td className={TD}><Entrega dias={r.entregaDias} demora={conf.demoraDias} gratis={r.envioGratis} /></td>
-                    <td className={`${TD} text-right whitespace-nowrap`}>
-                      {r.propia ? <span className="text-[11px] text-[#5C6B76]">Nuestra</span>
-                        : seguidosIds.has(r.itemId) ? <span className="text-[11px] text-[#1F6E4A] font-semibold">✓ Siguiendo</span>
-                        : (
-                          <form action={accionSeguir}>
-                            <input type="hidden" name="producto_id" value={p.id} /><input type="hidden" name="item" value={r.itemId} />
-                            <button className={SUAVE}>+ Seguir</button>
-                          </form>
-                        )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <TablaEncontradas filas={resultados} productoId={p.id} seguidos={seguidosIds} demora={conf.demoraDias} />
         )}
       </section>
     </div>
@@ -277,5 +256,49 @@ function Historial({ lecturas, moneda }: { lecturas: Lectura[]; moneda: string |
         })}
       </tbody>
     </table>
+  );
+}
+
+/** Una lista de publicaciones encontradas (búsqueda o catálogo pegado), con «+ Seguir» al lado de cada una. */
+function TablaEncontradas({ filas, productoId, seguidos, demora }: { filas: (PubEncontrada & { pack?: boolean })[]; productoId: number; seguidos: Set<string>; demora: number }) {
+  return (
+    <div className={`${CAJA_TABLA} mt-2`}>
+      <table className={TABLA}>
+        <thead className={THEAD}>
+          <tr><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Tipo y cuotas</th><th className={TH}>Entrega</th><th /></tr>
+        </thead>
+        <tbody>
+          {filas.map((r) => (
+            <tr key={r.itemId} className={`${TR} ${r.propia ? "bg-[#F7F9FB]" : ""}`}>
+              <td className={TD}>
+                <span className="flex items-start gap-2">
+                  <span className="h-10 w-10 shrink-0">{r.foto && <img src={r.foto} alt="" className="h-10 w-10 object-contain rounded bg-white" />}</span>
+                  <span>
+                    <a href={enlaceMl({ permalink: r.permalink, itemId: r.itemId })} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline">{r.titulo} ↗</a>
+                    <span className="block text-[10px] text-[#5C6B76] font-mono">
+                      {r.itemId}{r.catalogoId && " · 📖 Catálogo (el título es el del catálogo, no el del vendedor)"}{r.publicidad && " · Publicidad"}{r.pack && " · Pack"}
+                    </span>
+                  </span>
+                </span>
+              </td>
+              <td className={TD}>{r.vendedor ?? "—"}{r.tiendaOficial && <span className="block text-[10px] text-[#1F6E4A]">Tienda oficial</span>}</td>
+              <td className={TDN}><Precio precio={r.precio} original={r.precioOriginal} moneda={r.moneda} /></td>
+              <td className={`${TD} text-[11px]`}>{r.tipoPublicacion ? <b className="block">{TIPOS[r.tipoPublicacion] ?? r.tipoPublicacion}</b> : null}{r.cuotas ?? (r.tipoPublicacion ? null : "—")}</td>
+              <td className={TD}><Entrega dias={r.entregaDias} demora={demora} gratis={r.envioGratis} /></td>
+              <td className={`${TD} text-right whitespace-nowrap`}>
+                {r.propia ? <span className="text-[11px] text-[#5C6B76]">Nuestra</span>
+                  : seguidos.has(r.itemId) ? <span className="text-[11px] text-[#1F6E4A] font-semibold">✓ Siguiendo</span>
+                  : (
+                    <form action={accionSeguir}>
+                      <input type="hidden" name="producto_id" value={productoId} /><input type="hidden" name="item" value={r.itemId} />
+                      <button className={SUAVE}>+ Seguir</button>
+                    </form>
+                  )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

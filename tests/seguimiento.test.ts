@@ -68,3 +68,23 @@ test("catalogoDeApify: el catálogo en el que compite una publicación leída co
   assert.equal(catalogoDeApify({ sku: "ABC-123" }, "MLA725348734"), null);
   assert.equal(catalogoDeApify({}, "MLA725348734"), null);
 });
+
+test("leerRenglon: links de catálogo, de catálogo con vendedor y números sueltos", async () => {
+  const { leerRenglon } = await import("@/lib/seguimiento");
+  assert.deepEqual(leerRenglon("https://www.mercadolibre.com.ar/servo-ds04/p/MLA2090682290?pdp_filters=item_id:MLA3756369652"),
+    { catalogo: "MLA2090682290", items: ["MLA3756369652"] });
+  assert.deepEqual(leerRenglon("https://www.mercadolibre.com.ar/servo-ds04/p/MLA2090682290?pdp_filters=item_id%3AMLA3756369652#x"),
+    { catalogo: "MLA2090682290", items: ["MLA3756369652"] });
+  assert.deepEqual(leerRenglon("https://www.mercadolibre.com.ar/lupa/p/MLA2081953349"), { catalogo: "MLA2081953349", items: [] });
+  assert.deepEqual(leerRenglon("https://articulo.mercadolibre.com.ar/MLA-725348734-lupa"), { catalogo: null, items: ["MLA725348734"] });
+  assert.deepEqual(leerRenglon("MLAU132461203"), { catalogo: null, items: ["MLAU132461203"] });
+});
+
+test("regla de precio: también subir, hasta el techo", async () => {
+  const { decidir } = await import("@/lib/seguimiento/regla");
+  assert.deepEqual(decidir(18000, 20000, 15000, 25000), { nuevo: 20000, motivo: "" });           // el competidor subió
+  assert.deepEqual(decidir(18000, 30000, 15000, 25000), { nuevo: 25000, motivo: "queda en el techo" });
+  assert.equal(decidir(25000, 30000, 15000, 25000).nuevo, null);                                  // ya en el techo
+  assert.equal(decidir(18000, 20000, 15000, null).nuevo, null);                                   // sin «También subir», no sube
+  assert.equal(decidir(20000, 20000, 15000, 25000).nuevo, null);
+});

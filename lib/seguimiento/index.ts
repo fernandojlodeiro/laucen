@@ -150,25 +150,9 @@ async function nuestras(org: string): Promise<{ cuentas: CuentaMl[]; apodos: Set
 
 // ── Buscar para elegir ──────────────────────────────────────
 
-/** Busca en Mercado Libre (Apify) y guarda el resultado como la última búsqueda del producto. */
-export async function buscarParaSeguir(org: string, productoId: number, texto: string): Promise<{ cantidad: number; costoUsd: number | null }> {
-  const q = texto.replace(/\s+/g, " ").trim();
-  if (q.length < 3) throw new ErrorErp("Escribí qué buscar (al menos 3 letras).");
-  const queda = await quedaParaGastar(org);
-  if (queda < 0.2) throw new ErrorErp("Se llegó al tope de gasto del mes del seguimiento (Configuración › Seguimiento de publicaciones).");
-  const c = await correrConEntrada(ACTOR, { site: "MLA", searchQueries: [q], maxItems: 50, maxPagesPerQuery: 1, includeProductDetails: false },
-    { max: 50, esperaSeg: 240, topeUsd: Math.min(0.5, queda) });
-  await consulta("insert into seguimiento_corrida (organizacion_id, tipo, producto_id, run_id, costo_usd, publicaciones, error) values ($1, 'busqueda', $2, $3, $4, $5, $6)",
-    [org, productoId, c.runId ?? null, costoDe("busqueda", c.costoUsd, c.items.length), c.items.length, c.error ?? null]);
-  if (!c.items.length) throw new ErrorErp(c.error ? `Mercado Libre no devolvió resultados (${c.error.slice(0, 120)}).` : "Mercado Libre no devolvió resultados para esa búsqueda.");
-  const { cuentas, apodos } = await nuestras(org);
-  const crudos = (c.items as Record<string, unknown>[]).map(aPubEncontrada).filter((p): p is PubEncontrada => !!p);
-  // Cada producto de catálogo se abre en sus vendedores por la API (gratis): publicación, vendedor, precio, tipo y envío reales.
-  const lista: PubEncontrada[] = [];
-  for (const p of crudos) {
-    if (!p.esCatalogo || !cuentas[0]) { lista.push({ ...p, esCatalogo: false }); continue; }
-    lista.push(...await vendedoresDelCatalogo(cuentas[0], p.catalogoId ?? p.itemId, p));
-  }
+/** Lo que completa una lista de publicaciones encontradas (búsqueda o catálogo pegado): el apodo de cada vendedor,
+ *  cuáles son nuestras y en cuántos días llegan (todo por la API, gratis). Sin repetidas. */
+async function completar(org: string, cuentas: CuentaMl[], apodos: Set<string>, lista: PubEncontrada[]): Promise<PubEncontrada[]> {
   // Los apodos de los vendedores (la API pública de usuarios), de a uno; los nuestros ya se saben.
   const ids = new Map(cuentas.map((x) => [x.meliUserId, x.nickname ?? "Nuestra"]));
   const nuestrosIds = new Set(cuentas.map((x) => x.meliUserId));
@@ -198,6 +182,29 @@ export async function buscarParaSeguir(org: string, productoId: number, texto: s
       await Promise.all(ajenas.slice(i, i + 10).map(async (p) => { p.entregaDias = await diasDeEntrega(cuentas[0], p.itemId); }));
     }
   }
+  return resultados;
+}
+
+/** Busca en Mercado Libre (Apify) y guarda el resultado como la última búsqueda del producto. */
+export async function buscarParaSeguir(org: string, productoId: number, texto: string): Promise<{ cantidad: number; costoUsd: number | null }> {
+  const q = texto.replace(/\s+/g, " ").trim();
+  if (q.length < 3) throw new ErrorErp("Escribí qué buscar (al menos 3 letras).");
+  const queda = await quedaParaGastar(org);
+  if (queda < 0.2) throw new ErrorErp("Se llegó al tope de gasto del mes del seguimiento (Configuración › Seguimiento de publicaciones).");
+  const c = await correrConEntrada(ACTOR, { site: "MLA", searchQueries: [q], maxItems: 50, maxPagesPerQuery: 1, includeProductDetails: false },
+    { max: 50, esperaSeg: 240, topeUsd: Math.min(0.5, queda) });
+  await consulta("insert into seguimiento_corrida (organizacion_id, tipo, producto_id, run_id, costo_usd, publicaciones, error) values ($1, 'busqueda', $2, $3, $4, $5, $6)",
+    [org, productoId, c.runId ?? null, costoDe("busqueda", c.costoUsd, c.items.length), c.items.length, c.error ?? null]);
+  if (!c.items.length) throw new ErrorErp(c.error ? `Mercado Libre no devolvió resultados (${c.error.slice(0, 120)}).` : "Mercado Libre no devolvió resultados para esa búsqueda.");
+  const { cuentas, apodos } = await nuestras(org);
+  const crudos = (c.items as Record<string, unknown>[]).map(aPubEncontrada).filter((p): p is PubEncontrada => !!p);
+  // Cada producto de catálogo se abre en sus vendedores por la API (gratis): publicación, vendedor, precio, tipo y envío reales.
+  const lista: PubEncontrada[] = [];
+  for (const p of crudos) {
+    if (!p.esCatalogo || !cuentas[0]) { lista.push({ ...p, esCatalogo: false }); continue; }
+    lista.push(...await vendedoresDelCatalogo(cuentas[0], p.catalogoId ?? p.itemId, p));
+  }
+  const resultados = await completar(org, cuentas, apodos, lista);
   await consulta(`
     insert into seguimiento_busqueda (organizacion_id, producto_id, texto, ts, resultados) values ($1, $2, $3, now(), $4::jsonb)
     on conflict (organizacion_id, producto_id) do update set texto = excluded.texto, ts = now(), resultados = excluded.resultados`,
@@ -240,8 +247,57 @@ async function vendedoresDelCatalogo(cuenta: CuentaMl, catalogo: string, base: P
 
 /** El nombre de un producto de catálogo (el título que ve el comprador). */
 async function nombreCatalogo(cuenta: CuentaMl, catalogo: string): Promise<string | null> {
-  const r = await ml<{ name?: string }>(cuenta, "GET", `/products/${catalogo}`).catch(() => null);
-  return r?.status === 200 && r.datos.name ? r.datos.name : null;
+  return (await datosCatalogo(cuenta, catalogo))?.nombre ?? null;
+}
+
+async function datosCatalogo(cuenta: CuentaMl, catalogo: string): Promise<{ nombre: string; foto: string | null; permalink: string | null } | null> {
+  const r = await ml<{ name?: string; pictures?: { url?: string; secure_url?: string }[]; permalink?: string }>(cuenta, "GET", `/products/${catalogo}`).catch(() => null);
+  if (r?.status !== 200 || !r.datos.name) return null;
+  const f = r.datos.pictures?.[0];
+  return { nombre: r.datos.name, foto: f?.secure_url ?? f?.url ?? null, permalink: r.datos.permalink ?? null };
+}
+
+// ── Un catálogo pegado: sus vendedores, para elegir ─────────
+
+/** Lo que trae un renglón pegado en «Agregar por número». Pura.
+ *  · link de catálogo con vendedor (…/p/MLA…?pdp_filters=item_id:MLA…) → esa publicación, en ese catálogo;
+ *  · link de catálogo solo (…/p/MLA…) → el catálogo, para elegir vendedores;
+ *  · si no, los números MLA/MLAU que tenga. */
+export function leerRenglon(renglon: string): { catalogo: string | null; items: string[] } {
+  const r = renglon.toUpperCase();
+  const cat = r.match(/\/P\/(MLA\d{6,})/)?.[1] ?? null;
+  const item = decodeURIComponent(r).match(/ITEM_ID[:=](MLAU?\d{6,})/)?.[1] ?? null;
+  if (cat) return { catalogo: cat, items: item ? [item] : [] };
+  return { catalogo: null, items: [...new Set((r.match(/MLAU?-?\d{9,}/g) ?? []).map((x) => x.replace("-", "")))] };
+}
+
+export type CatalogoPegado = { catalogoId: string; titulo: string | null; ts: Date; resultados: PubEncontrada[] };
+
+/** Arma (o rearma) la lista de vendedores de un catálogo, por la API (gratis). */
+export async function listarCatalogo(org: string, productoId: number, catalogo: string): Promise<number> {
+  const { cuentas, apodos } = await nuestras(org);
+  if (!cuentas[0]) throw new ErrorErp("No hay ninguna cuenta de Mercado Libre conectada para leer el catálogo.");
+  const d = await datosCatalogo(cuentas[0], catalogo);
+  if (!d) throw new ErrorErp(`Mercado Libre no encuentra el catálogo ${catalogo}.`);
+  const base: PubEncontrada = {
+    itemId: catalogo, catalogoId: catalogo, titulo: d.nombre, foto: d.foto, permalink: d.permalink, vendedor: null, tiendaOficial: null, precio: null,
+    precioOriginal: null, moneda: "ARS", cuotas: null, envioGratis: null, publicidad: false, estado: "activa", tipoPublicacion: null,
+  };
+  const resultados = await completar(org, cuentas, apodos, await vendedoresDelCatalogo(cuentas[0], catalogo, base));
+  await consulta(`
+    insert into seguimiento_catalogo (organizacion_id, producto_id, catalogo_id, titulo, ts, resultados) values ($1, $2, $3, $4, now(), $5::jsonb)
+    on conflict (organizacion_id, producto_id, catalogo_id) do update set titulo = excluded.titulo, ts = now(), resultados = excluded.resultados`,
+    [org, productoId, catalogo, d.nombre, JSON.stringify(resultados)]);
+  return resultados.length;
+}
+
+export function catalogosPegados(org: string, productoId: number): Promise<CatalogoPegado[]> {
+  return consulta<CatalogoPegado>(`select catalogo_id "catalogoId", titulo, ts, resultados from seguimiento_catalogo
+    where organizacion_id = $1 and producto_id = $2 order by ts desc`, [org, productoId]);
+}
+
+export async function cerrarCatalogo(org: string, productoId: number, catalogo: string): Promise<void> {
+  await consulta("delete from seguimiento_catalogo where organizacion_id = $1 and producto_id = $2 and catalogo_id = $3", [org, productoId, catalogo]);
 }
 
 export async function ultimaBusqueda(org: string, productoId: number): Promise<{ texto: string; ts: Date; resultados: PubEncontrada[] } | null> {
@@ -257,7 +313,13 @@ export const enlaceDe = (id: string) => id.startsWith("MLAU")
 /** Sigue una publicación de la última búsqueda (con lo que trajo, que vale como primera lectura). */
 export async function seguirDeBusqueda(org: string, productoId: number, itemId: string): Promise<void> {
   const b = await ultimaBusqueda(org, productoId);
-  const p = b?.resultados.find((x) => x.itemId === itemId);
+  let p = b?.resultados.find((x) => x.itemId === itemId);
+  let ts = b?.ts ?? new Date();
+  // O de un catálogo pegado en «Agregar por número».
+  if (!p) for (const c of await catalogosPegados(org, productoId)) {
+    const x = c.resultados.find((y) => y.itemId === itemId);
+    if (x) { p = x; ts = c.ts; break; }
+  }
   if (!p) throw new ErrorErp("Esa publicación ya no está en la búsqueda: buscá de nuevo.");
   if (p.esCatalogo) throw new ErrorErp("Es un producto de catálogo: buscá de nuevo para ver a cada vendedor.");
   const r = await una<{ id: number }>(`
@@ -266,22 +328,28 @@ export async function seguirDeBusqueda(org: string, productoId: number, itemId: 
     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, coalesce($13, 'activa'), $14, $15, $16, 'busqueda', $17, $17, $18, $19)
     on conflict (organizacion_id, producto_id, item_id) do nothing returning id::int`,
     [org, productoId, p.itemId, p.catalogoId, p.titulo, p.foto, p.permalink, p.vendedor, p.tiendaOficial, p.precio, p.precioOriginal, p.moneda,
-      p.estado, p.tipoPublicacion, p.cuotas, p.envioGratis, b!.ts, p.vendedorId ?? null, p.entregaDias ?? null]);
+      p.estado, p.tipoPublicacion, p.cuotas, p.envioGratis, ts, p.vendedorId ?? null, p.entregaDias ?? null]);
   if (r) await anotarLectura(org, r.id, "busqueda", p);
 }
 
 /** Sigue publicaciones pegadas a mano (links o números MLA). Se leen en la próxima vuelta. */
-export async function seguirPorNumero(org: string, productoId: number, texto: string, origen: "manual" | "importado" = "manual"): Promise<{ nuevas: number; repetidas: number; ids: number[] }> {
-  const ids = [...new Set((texto.toUpperCase().match(/MLAU?-?\d{9,}/g) ?? []).map((x) => x.replace("-", "")))];
-  if (!ids.length) throw new ErrorErp("Pegá links o números de publicación (MLA… o MLAU…, de 9 cifras o más).");
+export async function seguirPorNumero(org: string, productoId: number, texto: string, origen: "manual" | "importado" = "manual"): Promise<{ nuevas: number; repetidas: number; ids: number[]; catalogos: string[] }> {
+  const items = new Map<string, string | null>(); // número → catálogo (si vino en el link)
+  const catalogos = new Set<string>();
+  for (const renglon of texto.split(/[\n\s]+/).filter(Boolean)) {
+    const r = leerRenglon(renglon);
+    if (r.catalogo && !r.items.length) catalogos.add(r.catalogo);
+    for (const it of r.items) items.set(it, r.catalogo ?? items.get(it) ?? null);
+  }
+  if (!items.size && !catalogos.size) throw new ErrorErp("Pegá links o números de publicación (MLA… o MLAU…), o el link de un catálogo (…/p/MLA…).");
   const nuevos: number[] = [];
-  for (const id of ids) {
-    const r = await una<{ id: number }>(`insert into seguimiento_pub (organizacion_id, producto_id, item_id, origen, estado, permalink)
-                          values ($1, $2, $3, $4, 'sin_dato', $5) on conflict (organizacion_id, producto_id, item_id) do nothing returning id::int`,
-      [org, productoId, id, origen, enlaceDe(id)]);
+  for (const [id, cat] of items) {
+    const r = await una<{ id: number }>(`insert into seguimiento_pub (organizacion_id, producto_id, item_id, catalogo_id, origen, estado, permalink)
+                          values ($1, $2, $3, $4, $5, 'sin_dato', $6) on conflict (organizacion_id, producto_id, item_id) do nothing returning id::int`,
+      [org, productoId, id, cat, origen, enlaceDe(id)]);
     if (r) nuevos.push(r.id);
   }
-  return { nuevas: nuevos.length, repetidas: ids.length - nuevos.length, ids: nuevos };
+  return { nuevas: nuevos.length, repetidas: items.size - nuevos.length, ids: nuevos, catalogos: [...catalogos] };
 }
 
 export async function dejarDeSeguir(org: string, id: number): Promise<void> {

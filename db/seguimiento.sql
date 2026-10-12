@@ -105,6 +105,9 @@ create table if not exists seguimiento_regla (
   actualizado_ts    timestamptz not null default now(),
   primary key (organizacion_id, producto_id)
 );
+-- También subir (Fer, 12/10): si el competidor sube, la Clásica sube hasta el objetivo, nunca por encima del techo.
+alter table seguimiento_regla add column if not exists subir boolean not null default false;
+alter table seguimiento_regla add column if not exists techo numeric(16, 2) check (techo > 0);
 alter table seguimiento_regla enable row level security;
 select erp_politica_org('seguimiento_regla');
 
@@ -128,3 +131,19 @@ create table if not exists seguimiento_ajuste (
 create index if not exists seguimiento_ajuste_producto on seguimiento_ajuste (organizacion_id, producto_id, ts desc);
 alter table seguimiento_ajuste enable row level security;
 select erp_politica_org('seguimiento_ajuste');
+
+-- Los vendedores de un catálogo pegado en «Agregar por número» (Fer, 12/10): el
+-- link de la página del catálogo (…/p/MLA…) trae, por la API y gratis, a todos
+-- los que compiten, para elegir a cuáles seguir. Uno por catálogo y producto;
+-- se vuelve a armar si se pega de nuevo, y se cierra con su tacho.
+create table if not exists seguimiento_catalogo (
+  organizacion_id   text not null references organizaciones(id) on delete cascade,
+  producto_id       bigint not null references producto(id) on delete cascade,
+  catalogo_id       text not null,
+  titulo            text,
+  ts                timestamptz not null default now(),
+  resultados        jsonb not null default '[]',
+  primary key (organizacion_id, producto_id, catalogo_id)
+);
+alter table seguimiento_catalogo enable row level security;
+select erp_politica_org('seguimiento_catalogo');
