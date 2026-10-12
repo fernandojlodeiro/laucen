@@ -40,6 +40,7 @@ export const MENU: SeccionMenu[] = [
     texto: "Ventas",
     items: [
       { texto: "Pedidos y presupuestos", href: "/ventas/pedidos", permiso: "pedidos_ver", icono: "🧾" },
+      { texto: "Historial de ventas", href: "/ventas/historial", permiso: "pedidos_ver", icono: "📈" },
       { texto: "Clientes", href: "/ventas/clientes", permiso: "clientes_ver", icono: "👤" },
       { texto: "Envíos", href: "/ventas/envios", permiso: "envios_ver", icono: "🚚" },
       { texto: "Preguntas y mensajes", href: "/ventas/preguntas", permiso: "preguntas_ver", icono: "💬" },

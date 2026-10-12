@@ -47,13 +47,16 @@ const CAMPOS: Campo[] = [
     const [d, h] = String(f.fecha ?? "").split(" ");
     return <Link href={`/ventas/reclamos/${f.id}`} className={`${AL_RECLAMO} whitespace-nowrap`}>{d?.split("-").reverse().join("/")} {h}</Link>;
   } },
+  { clave: "venta_ml", titulo: "Venta de ML (id interno)", orden: false,
+    sql: "(select mv.id::int from ml_venta mv where mv.canal_id = r.canal_id and (mv.order_id::text = r.orden_externa or mv.pack_id::text = r.orden_externa) order by mv.id limit 1)" },
   { clave: "origen", titulo: "Origen", sql: "r.origen", valor: traducido("origen", ORIGENES_RECLAMO) },
   { clave: "canal", titulo: "Canal / cuenta", sql: "coalesce(ca.nombre, '—')" },
   {
     clave: "pedido", titulo: "Pedido", sql: "r.pedido_id::int", orden: "r.pedido_id", formato: "entero",
     celda: (f) => f.pedido ? <Link href={`/ventas/pedidos/${f.pedido}`} className="font-semibold text-[#16577F] hover:underline">{f.pedido}</Link>
+      : f.venta_ml ? <Link href={`/ventas/historial/${f.venta_ml}`} className="font-mono text-[10px] text-[#16577F] hover:underline" title="Venta de ML sin pedido en Laucen: ver la venta">{f.orden}</Link>
       : f.orden ? <span className="font-mono text-[10px] text-[#5C6B76]" title="Orden de ML sin pedido en Laucen">{f.orden}</span> : "—",
-    usa: ["orden"],
+    usa: ["orden", "venta_ml"],
   },
   { clave: "orden", titulo: "Orden de ML", sql: "r.orden_externa", ancho: 18 },
   {
