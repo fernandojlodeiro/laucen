@@ -316,7 +316,8 @@ create table if not exists precio (
 create index if not exists precio_variacion on precio (variacion_id, lista_id, vigente_desde desc);
 -- De dónde salió cada precio (Fer, 12/10: Historial de precios de lista). origen: null = a mano
 -- (o anterior a esto) · 'seguimiento' (la regla de precio del seguimiento) · 'masivo' (carga masiva
--- por porcentaje) · 'copia' (al duplicar un producto). motivo: en palabras (ej. contra quién compitió la regla).
+-- por porcentaje) · 'copia' (al duplicar un producto) · 'ajuste' (un ajuste en lote pedido en el chat; el
+-- motivo dice cuál). motivo: en palabras (ej. contra quién compitió la regla).
 alter table precio add column if not exists origen text;
 alter table precio add column if not exists motivo text;
 create index if not exists precio_org_fecha on precio (organizacion_id, creado_ts desc);

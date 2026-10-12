@@ -41,6 +41,7 @@ La tabla, de lo más nuevo a lo más viejo (se ordena tocando el título de cada
 - La historia es **por día**: si un precio se cambia dos veces el mismo día, queda el último.
 - Los cambios de antes de que existiera esta pantalla no tienen motivo.
 - **«Copiado al duplicar el producto»**: el precio que recibió una variación nueva al duplicar un producto (el mismo del original).
+- **«Ajuste en lote (ver motivo)»**: un cambio hecho de una vez sobre muchos precios (por ejemplo, alinear la lista con lo publicado en Mercado Libre); el **Motivo** dice qué ajuste fue y cuándo.
 - **«Carga directa (sin usuario)»**: un precio cargado sin pasar por una pantalla de Laucen (por ejemplo, una carga hecha directamente en la base); no tiene a quién atribuirse.
 
 ## Relacionado

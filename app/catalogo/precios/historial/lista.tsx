@@ -28,6 +28,7 @@ export const QUIEN = `case when h.origen = 'seguimiento' and h.usuario_id is nul
   when h.origen = 'seguimiento' then coalesce(u.nombre, u.email, '—') || ' (aplicó la regla de seguimiento)'
   when h.origen = 'masivo' then coalesce(u.nombre, u.email, 'Carga masiva') || ' (carga masiva)'
   when h.origen = 'copia' then 'Copiado al duplicar el producto'
+  when h.origen = 'ajuste' or (h.usuario_id is not null and u.id is null) then 'Ajuste en lote (ver motivo)'
   else coalesce(u.nombre, u.email, 'Carga directa (sin usuario)') end`;
 
 export const SENTIDOS = { cambios: "Subieron o bajaron", subio: "Sólo los que subieron", bajo: "Sólo los que bajaron", nuevo: "Precios cargados por primera vez", todos: "Todos" } as const;
