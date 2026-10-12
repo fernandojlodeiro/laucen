@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
     { titulo: "Cargos del canal", valor: (r) => r.cargos, formato: "importe", ancho: 14 },
     { titulo: "Cargos de", valor: (r) => (r.cargos_ml ? "Facturación ML" : "Comisión de la orden"), ancho: 20 },
     { titulo: `${BASES_COSTO[f.costo]}`, valor: (r) => (r.sin_costo > 0 ? null : r.costo), formato: "importe", ancho: 14 },
+    { titulo: "Costo estimado (FOB + 40 %)", valor: (r) => (r.estimados > 0 ? "Sí" : ""), ancho: 12 },
     { titulo: "Margen", valor: (r) => r.margen, formato: "importe", ancho: 14 },
     { titulo: "Margen %", valor: (r) => r.margen_pct, formato: "pct", ancho: 10 },
   ];

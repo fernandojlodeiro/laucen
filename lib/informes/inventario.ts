@@ -21,12 +21,20 @@ export type BaseCosto = keyof typeof COSTOS;
 export const MONEDAS = { ars: "Pesos", usd: "Dólares", ambas: "Ambas" } as const;
 export type MonedaInforme = keyof typeof MONEDAS;
 
-export type FiltroValorizado = Busqueda & { depositoId: number | null; conStock: boolean; inactivos: boolean; costo: BaseCosto; moneda: MonedaInforme };
+export type FiltroValorizado = Busqueda & { depositoId: number | null; conStock: boolean; inactivos: boolean; costo: BaseCosto; moneda: MonedaInforme;
+  /** Sólo los productos que no tienen ninguna publicación seguida (Fer, 12/10). */
+  sinSeguimiento: boolean;
+  /** Sólo los que no están publicados en todas las cuentas de Mercado Libre. */
+  faltanCuentas: boolean };
 
 export type FilaValorizado = {
   producto_id: number; sku: string; titulo: string; familia: string | null; moneda: string; costo: number | null; stock: number; valorizado: number | null;
   /** El producto está archivado (sólo aparece con "Mostrar inactivos", o si lo buscado no está en ningún activo). */
   inactivo: boolean;
+  /** Publicaciones de la competencia que se siguen, y si tiene la regla de precio prendida. */
+  seguidas: number; regla: boolean;
+  /** En cuántas cuentas de Mercado Libre está publicado (activa o pausada), de cuántas hay. */
+  cuentas_ml: number; cuentas_total: number;
 };
 
 /** La fila con el costo y el valorizado en las dos monedas (null = sin costo,
@@ -41,6 +49,7 @@ export function leerFiltroValorizado(sp: Record<string, string | undefined>): Fi
     depositoId: Number(sp.dep) || null, conStock: sp.todos !== "1", inactivos: sp.inactivos === "1",
     costo: sp.costo === "promedio" || sp.costo === "ultimo" ? sp.costo : "fob",
     moneda: sp.moneda === "usd" || sp.moneda === "ambas" ? sp.moneda : "ars",
+    sinSeguimiento: sp.sin_seg === "1", faltanCuentas: sp.faltan_ml === "1",
   };
 }
 
@@ -61,18 +70,27 @@ async function stockValorizadoCon(org: string, f: FiltroValorizado): Promise<Fil
         from stock st join ubicacion u on u.id = st.ubicacion_id join deposito d on d.id = u.deposito_id
        where st.organizacion_id = $1 and d.estado = 'activo' and ($2::bigint is null or d.id = $2)
        group by st.variacion_id
-    )
+    ),
+    cuentas as (select count(*)::int n from meli_cuenta where organizacion_id = $1 and estado = 'activa' and canal_id is not null),
+    x as (
     select p.id::int producto_id, v.sku, titulo_variacion(v.id) titulo, fa.nombre familia, ${moneda} moneda, ${costo}::float8 costo,
            coalesce(s.stock, 0) stock, round(${costo} * coalesce(s.stock, 0), 2)::float8 valorizado,
-           p.estado = 'archivado' inactivo
+           p.estado = 'archivado' inactivo,
+           (select count(*)::int from seguimiento_pub sp where sp.organizacion_id = $1 and sp.producto_id = p.id) seguidas,
+           exists (select 1 from seguimiento_regla r where r.organizacion_id = $1 and r.producto_id = p.id and r.modo <> 'apagada') regla,
+           (select count(distinct pu.canal_id)::int from publicacion pu join meli_cuenta mc on mc.canal_id = pu.canal_id and mc.estado = 'activa'
+             where pu.variacion_id = v.id and pu.estado in ('activa', 'pausada')) cuentas_ml,
+           (select n from cuentas) cuentas_total
       from variacion v join producto p on p.id = v.producto_id
       left join familia fa on fa.id = p.familia_id
       left join s on s.variacion_id = v.id
      where v.organizacion_id = $1 and v.estado <> 'archivada' and not es_kit(v.id)
        and ($3 or p.estado <> 'archivado')
        and (not $4 or coalesce(s.stock, 0) <> 0)
-       and ${sqlBusqueda("$5", [...camposVariacionYProducto("v", "p"), "fa.nombre"])}
-     order by v.sku`, [org, f.depositoId, f.inactivos, f.conStock, patron(f)]);
+       and ${sqlBusqueda("$5", [...camposVariacionYProducto("v", "p"), "fa.nombre"])})
+    select * from x
+     where (not $6 or seguidas = 0) and (not $7 or cuentas_ml < cuentas_total)
+     order by sku`, [org, f.depositoId, f.inactivos, f.conStock, patron(f), f.sinSeguimiento, f.faltanCuentas]);
 }
 
 const redondear = (n: number, dec: number) => Math.round(n * 10 ** dec) / 10 ** dec;
@@ -97,6 +115,12 @@ export function aDobleMoneda(filas: FilaValorizado[], tc: number | null): FilaVa
       valorizado_usd: costo_usd == null ? null : redondear(costo_usd * r.stock, 2),
     };
   });
+}
+
+/** De lo que más plata tiene en stock a lo que menos (Fer, 12/10); sin costo, al final. */
+export function ordenarPorValorizado(filas: FilaValorizadoDoble[], tc: number | null): FilaValorizadoDoble[] {
+  const pesos = (r: FilaValorizadoDoble) => r.valorizado_ars ?? (r.valorizado_usd != null && tc ? r.valorizado_usd * tc : r.valorizado_usd);
+  return [...filas].sort((a, b) => (pesos(b) ?? -Infinity) - (pesos(a) ?? -Infinity) || a.sku.localeCompare(b.sku));
 }
 
 /** El total del informe, ya convertido: stock, valorizado en pesos y en

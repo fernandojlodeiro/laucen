@@ -121,6 +121,7 @@ Normalmente no hace falta: los pedidos crean los clientes solos.
 ### Borrar un cliente
 
 Sólo se puede si **no tiene ningún pedido**. Tacho arriba a la derecha → **"Sí"**. Vuelve a la lista con "Cliente borrado.".
+- **Ventas (N)** en la ficha: todo lo que compró ese cliente en cualquier canal, incluidas las compras de Mercado Libre anteriores al sistema (figuran «Sin pedido»). Tocando la fecha de una de Mercado Libre se abre su detalle; si tiene más de 50, «Ver las N en el historial» abre el [Historial de ventas](/ventas/historial) filtrado.
 
 ## Criterios y reglas
 

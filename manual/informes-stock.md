@@ -33,7 +33,10 @@ Los dos tienen **"Descargar Excel"**, que baja exactamente lo mismo con los mism
   - **"Costo"**: **"Costo FOB"** (el de entrada), **"Costo promedio (USD)"** o **"Último costo (USD)"**.
   - **"Moneda"**: **"Pesos"** (el de entrada), **"Dólares"** o **"Ambas"**.
   - Interruptor **"Sólo con stock"** (prendido de entrada): apagado, muestra también los productos con stock cero.
-- Columnas: **Código** (enlace a la ficha del producto), **Descripción**, **Familia**, **Costo**, **Stock** y **Valorizado**. Con "Ambas", el costo y el valorizado van dos veces, en $ y en US$.
+  - Caja **"Sólo sin seguimiento"**: sólo los productos que no tienen ninguna publicación de la competencia seguida.
+  - Caja **"Sólo los que no están en todas las cuentas de ML"**.
+- Columnas: **Código** (enlace a la ficha del producto), **Descripción**, **Familia**, **Costo**, **Stock**, **Valorizado**, **Seguimiento** («Sí (N)» con cuántas publicaciones de la competencia se siguen y «· regla» si tiene la regla de precio prendida, o «No»; lleva a su pestaña Seguimiento) y **Cuentas de ML** (en cuántas cuentas de Mercado Libre está publicado, activo o pausado, de cuántas hay: «3 de 5», en ámbar si falta alguna; lleva a sus publicaciones). Con "Ambas", el costo y el valorizado van dos veces, en $ y en US$.
+- **Orden**: de lo que más plata hay en stock a lo que menos; los que no tienen costo, al final.
   - "sin costo" en ámbar: el producto no tiene ese costo cargado.
   - "sin TC": el costo está en la otra moneda y no hay tipo de cambio para convertirlo.
   - El stock negativo se pinta de rojo.
@@ -65,7 +68,7 @@ Elegí el depósito en **"Depósito"**.
 
 ### Bajar el valorizado a Excel
 
-Poné los filtros y apretá **"Descargar Excel"**. El Excel trae Código, Descripción, Familia, **Moneda del costo**, el costo (en la o las monedas elegidas), Stock y Valorizado, el total y, al pie, el tipo de cambio usado.
+Poné los filtros y apretá **"Descargar Excel"**. El Excel trae Código, Descripción, Familia, **Moneda del costo**, el costo (en la o las monedas elegidas), Stock, Valorizado, Seguimiento y Cuentas de ML, en el mismo orden que la pantalla, el total y, al pie, el tipo de cambio usado.
 
 ### Controlar un estante
 

@@ -176,12 +176,12 @@ test("lee la facturación: tablas, signos, unión con el pedido, sin duplicar ni
   assert.equal(imp.reduce((a, x) => a + x.monto, 0), 470);
 
   // Rentabilidad: costo promedio 10 US$ × 1000 = 10.000; margen 20.000 − 2.100 − 10.000.
-  const filas = await m.rent.rentabilidad(e.org, { desde: "2026-09-01", hasta: "2026-09-30", canal: 0, costo: "promedio", agrupar: "venta" });
+  const filas = await m.rent.rentabilidad(e.org, { desde: "2026-09-01", hasta: "2026-09-30", canal: 0, costo: "promedio", agrupar: "venta", estimar: false });
   const s = filas.find((f) => f.pedido_id === e.suelto)!;
   assert.deepEqual([s.venta, s.cargos, s.cargos_ml, s.costo, s.margen, s.margen_pct], [20000, 2100, true, 10000, 7900, 39.5]);
   const c = filas.find((f) => f.pedido_id === e.carrito)!;
   assert.deepEqual([c.cargos, c.costo, c.margen], [150, 10000, -5150]);
-  const fob = await m.rent.rentabilidad(e.org, { desde: "2026-09-01", hasta: "2026-09-30", canal: 0, costo: "fob", agrupar: "producto" });
+  const fob = await m.rent.rentabilidad(e.org, { desde: "2026-09-01", hasta: "2026-09-30", canal: 0, costo: "fob", agrupar: "producto", estimar: false });
   assert.equal(fob.length, 1);
   assert.deepEqual([fob[0].unidades, fob[0].ventas, fob[0].venta, fob[0].cargos, fob[0].costo], [2, 2, 25000, 2250, 14000]);
 

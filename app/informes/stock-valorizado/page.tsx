@@ -6,9 +6,9 @@
 import Link from "next/link";
 import { VERDE } from "@/app/botones";
 import { InterruptorFiltro } from "@/app/radar/Piezas";
-import BuscadorVivo from "@/app/componentes/BuscadorVivo";
-import { entrarErp, Pantalla, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
-import { COSTOS, MONEDAS, aDobleMoneda, depositosYUbicaciones, leerFiltroValorizado, stockValorizado, totalesValorizado, type FilaValorizadoDoble } from "@/lib/informes/inventario";
+import BuscadorVivo, { CasillaViva } from "@/app/componentes/BuscadorVivo";
+import { entrarErp, Pantalla, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
+import { COSTOS, MONEDAS, aDobleMoneda, depositosYUbicaciones, leerFiltroValorizado, ordenarPorValorizado, stockValorizado, totalesValorizado, type FilaValorizadoDoble } from "@/lib/informes/inventario";
 import { tcDelDia } from "@/lib/moneda";
 import { Desplegable } from "../Filtros";
 
@@ -30,20 +30,20 @@ export default async function StockValorizado({ searchParams }: { searchParams: 
   const sp = await searchParams;
   const f = leerFiltroValorizado(sp);
   const [{ depositos }, crudas, tc] = await Promise.all([depositosYUbicaciones(s.org.id), stockValorizado(s.org.id, f), tcDelDia(s.org.id)]);
-  const filas = aDobleMoneda(crudas, tc?.venta ?? null);
+  const filas = ordenarPorValorizado(aDobleMoneda(crudas, tc?.venta ?? null), tc?.venta ?? null);
   const t = totalesValorizado(filas);
   const monedas: Mon[] = f.moneda === "ars" ? ["ARS"] : f.moneda === "usd" ? ["USD"] : ["ARS", "USD"];
   const ambas = monedas.length > 1;
-  const params = { q: f.q || null, contiene: f.comienza ? null : "1", dep: f.depositoId, todos: f.conStock ? null : "1", inactivos: f.inactivos ? "1" : null, costo: f.costo === "fob" ? null : f.costo, moneda: f.moneda === "ars" ? null : f.moneda };
+  const params = { q: f.q || null, contiene: f.comienza ? null : "1", dep: f.depositoId, todos: f.conStock ? null : "1", inactivos: f.inactivos ? "1" : null, costo: f.costo === "fob" ? null : f.costo, moneda: f.moneda === "ars" ? null : f.moneda, sin_seg: f.sinSeguimiento ? "1" : null, faltan_ml: f.faltanCuentas ? "1" : null };
   const costoDe = (r: FilaValorizadoDoble, m: Mon) => (m === "USD" ? r.costo_usd : r.costo_ars);
   const valorDe = (r: FilaValorizadoDoble, m: Mon) => (m === "USD" ? r.valorizado_usd : r.valorizado_ars);
-  const columnas = 3 + monedas.length * 2 + 1;
+  const columnas = 3 + monedas.length * 2 + 3;
   const subtitulo = tc
     ? `Convertido con el tipo de cambio oficial de ${tc.fecha.split("-").reverse().join("/")}: $ ${importe(tc.venta)} por dólar.`
     : "No hay tipo de cambio cargado: los costos que están en la otra moneda no se pueden convertir (Configuración → Tipo de cambio).";
 
   return (
-    <Pantalla titulo="Stock valorizado" subtitulo={<>Cada producto con su costo, su stock y el stock por el costo. Los kits no entran: su stock está en los componentes.<br />{subtitulo}</>}
+    <Pantalla titulo="Stock valorizado" subtitulo={<>Cada producto con su costo, su stock y el stock por el costo, de lo que más plata tiene en stock a lo que menos; si se sigue a la competencia y en cuántas cuentas de Mercado Libre está publicado. Los kits no entran: su stock está en los componentes.<br />{subtitulo}</>}
       acciones={<a href={url(`${BASE}/excel`, params)} className={VERDE}>Descargar Excel</a>}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <BuscadorVivo q={f.q} comienza={f.comienza} inactivos={f.inactivos} placeholder="SKU o descripción" />
@@ -54,6 +54,8 @@ export default async function StockValorizado({ searchParams }: { searchParams: 
         <Desplegable parametro="moneda" etiqueta="Moneda" valor={f.moneda === "ars" ? "" : f.moneda}
           opciones={Object.entries(MONEDAS).map(([k, v]) => ({ valor: k === "ars" ? "" : k, texto: v }))} />
         <InterruptorFiltro href={url(BASE, { ...params, todos: f.conStock ? "1" : null })} prendido={f.conStock} etiqueta="Sólo con stock" />
+        <CasillaViva parametro="sin_seg" activo={f.sinSeguimiento} etiqueta="Sólo sin seguimiento" ayuda="Los productos que no tienen ninguna publicación de la competencia seguida" />
+        <CasillaViva parametro="faltan_ml" activo={f.faltanCuentas} etiqueta="Sólo los que no están en todas las cuentas de ML" />
       </div>
 
       {f.q && !f.inactivos && filas.some((r) => r.inactivo) && (
@@ -66,7 +68,8 @@ export default async function StockValorizado({ searchParams }: { searchParams: 
               <th className={TH}>Código</th><th className={TH}>Descripción</th><th className={TH}>Familia</th>
               {monedas.map((m) => <th key={`c${m}`} className={THN}>Costo{ambas ? ` (${signo(m)})` : ""}</th>)}
               <th className={THN}>Stock</th>
-              {monedas.map((m) => <th key={`v${m}`} className={THN}>Valorizado{ambas ? ` (${signo(m)})` : ""}</th>)}
+              {monedas.map((m) => <th key={`v${m}`} className={THN}>Valorizado{ambas ? ` (${signo(m)})` : ""} ▼</th>)}
+              <th className={TH}>Seguimiento</th><th className={THN}>Cuentas de ML</th>
             </tr>
           </thead>
           <tbody>
@@ -93,6 +96,14 @@ export default async function StockValorizado({ searchParams }: { searchParams: 
                   const v = valorDe(r, m);
                   return <td key={`v${m}`} className={`${TDN} whitespace-nowrap`}>{v == null ? "—" : `${signo(m)} ${importe(v)}`}</td>;
                 })}
+                <td className={TD}>
+                  <Link href={`/catalogo/productos/${r.producto_id}?seccion=seguimiento`} className="hover:underline">
+                    {r.seguidas > 0 ? <Estado texto={`Sí (${r.seguidas})${r.regla ? " · regla" : ""}`} tono="verde" /> : <Estado texto="No" tono="gris" />}
+                  </Link>
+                </td>
+                <td className={`${TDN} ${r.cuentas_ml < r.cuentas_total ? "text-[#8a6100] font-semibold" : ""}`}>
+                  <Link href={`/catalogo/productos/${r.producto_id}?seccion=publicaciones`} className="hover:underline">{r.cuentas_ml} de {r.cuentas_total}</Link>
+                </td>
               </tr>
             ))}
             {filas.length > 0 && (
@@ -110,6 +121,7 @@ export default async function StockValorizado({ searchParams }: { searchParams: 
                 </td>
                 <td className={TDN}>{entero(t.stock)}</td>
                 {monedas.map((m) => <td key={m} className={`${TDN} whitespace-nowrap`}>{signo(m)} {importe(m === "USD" ? t.usd : t.ars)}</td>)}
+                <td className={TD} colSpan={2} />
               </tr>
             )}
           </tbody>

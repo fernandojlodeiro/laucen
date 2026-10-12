@@ -6,13 +6,14 @@
 import Link from "next/link";
 import { VERDE } from "@/app/botones";
 import RangoFechas from "@/app/componentes/RangoFechas";
+import { CasillaViva } from "@/app/componentes/BuscadorVivo";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { entrarErp, Pantalla, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import { consulta } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
 import { hoyArgentina } from "@/lib/rango-fechas";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
-import { AGRUPAR, BASES_COSTO, leerFiltroRentabilidad, rentabilidad, totalesRentabilidad, type FilaRentabilidad } from "@/lib/informes/rentabilidad";
+import { AGRUPAR, BASES_COSTO, RECARGO_ESTIMADO_PCT, leerFiltroRentabilidad, rentabilidad, totalesRentabilidad, type FilaRentabilidad } from "@/lib/informes/rentabilidad";
 import { Desplegable } from "../Filtros";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +40,7 @@ export default async function Rentabilidad({ searchParams }: { searchParams: Pro
   const t = totalesRentabilidad(filas);
   const porVenta = f.agrupar === "venta";
   const vista = paginarEnMemoria(ordenarEnMemoria(filas, sp, ORDEN), sp);
-  const params = { desde: f.desde, hasta: f.hasta, canal: f.canal || null, costo: f.costo === "promedio" ? null : f.costo, agrupar: porVenta ? null : "producto" };
+  const params = { desde: f.desde, hasta: f.hasta, canal: f.canal || null, costo: f.costo === "promedio" ? null : f.costo, agrupar: porVenta ? null : "producto", estimar: f.estimar ? null : "0" };
   const sinCargosMl = filas.filter((r) => !r.cargos_ml).length;
 
   return (
@@ -54,6 +55,8 @@ export default async function Rentabilidad({ searchParams }: { searchParams: Pro
           opciones={Object.entries(AGRUPAR).map(([k, v]) => ({ valor: k === "venta" ? "" : k, texto: v }))} />
         <Desplegable parametro="costo" etiqueta="Costo" valor={f.costo === "promedio" ? "" : f.costo}
           opciones={Object.entries(BASES_COSTO).map(([k, v]) => ({ valor: k === "promedio" ? "" : k, texto: v }))} />
+        {f.costo !== "fob" && <CasillaViva parametro="estimar" activo={f.estimar} tildadaDeEntrada etiqueta={`Sin costo: estimar con FOB + ${RECARGO_ESTIMADO_PCT} %`}
+          ayuda="Para los productos que no tienen ese costo pero sí costo FOB: una referencia hasta calcular su costo real" />}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3 text-xs">
@@ -61,9 +64,10 @@ export default async function Rentabilidad({ searchParams }: { searchParams: Pro
           <div key={k} className="bg-white border border-[#E3E9F0] rounded-xl p-2"><span className="block text-[11px] text-[#5C6B76]">{k}</span><b className="tabular-nums">{v}</b></div>
         ))}
       </div>
-      {(t.sinCosto > 0 || sinCargosMl > 0) && (
+      {(t.sinCosto > 0 || sinCargosMl > 0 || t.estimados > 0) && (
         <p className="text-[11px] text-[#8a6100] mb-2">
           {t.sinCosto > 0 && <>{t.sinCosto.toLocaleString("es-AR")} {porVenta ? "venta(s)" : "producto(s)"} con algún producto sin costo: su margen no se calcula y su costo no suma entero. </>}
+          {t.estimados > 0 && <>{t.estimados.toLocaleString("es-AR")} {porVenta ? "venta(s)" : "producto(s)"} con costo estimado (FOB + {RECARGO_ESTIMADO_PCT} %, marcado ≈). </>}
           {sinCargosMl > 0 && <>{sinCargosMl.toLocaleString("es-AR")} sin cargos de la facturación de ML (todavía no se leyó, o no es de ML): se usa la comisión de la orden.</>}
         </p>
       )}
@@ -98,7 +102,8 @@ export default async function Rentabilidad({ searchParams }: { searchParams: Pro
                 <td className={TDN}>{r.unidades.toLocaleString("es-AR")}</td>
                 <td className={TDN}>{pesos(r.venta)}</td>
                 <td className={TDN} title={r.cargos_ml ? "De la facturación de Mercado Libre" : "Comisión de la orden (falta la facturación de ML)"}>{pesos(r.cargos)}{!r.cargos_ml && r.cargos > 0 && <span className="text-[#8a6100]">*</span>}</td>
-                <td className={TDN}>{r.sin_costo > 0 ? <span className="text-[#8a6100]">sin costo</span> : pesos(r.costo)}</td>
+                <td className={TDN}>{r.sin_costo > 0 ? <span className="text-[#8a6100]">sin costo</span>
+                  : r.estimados > 0 ? <span className="text-[#8a6100]" title={`Costo estimado: FOB + ${RECARGO_ESTIMADO_PCT} %`}>≈ {pesos(r.costo)}</span> : pesos(r.costo)}</td>
                 <td className={`${TDN} font-semibold ${r.margen != null && r.margen < 0 ? "text-[#C03420]" : ""}`}>{pesos(r.margen)}</td>
                 <td className={`${TDN} ${r.margen_pct != null && r.margen_pct < 0 ? "text-[#C03420]" : ""}`}>{pct(r.margen_pct)}</td>
               </tr>

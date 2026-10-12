@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { leerNumero, formatearNumero } from "@/lib/numeros";
 import { PRIMARIO, SUAVE, ICONO_BORRAR } from "@/app/botones";
+import IconoTacho from "@/app/componentes/IconoTacho";
 import {
   accionNuevoPedido, accionEditarPedido, buscarClientesPedido, crearClienteDesdePedido, buscarProductosPedido, preciosPedido,
   type ClienteHallado, type ProductoHallado,
@@ -408,7 +409,7 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
                           <button type="button" className={SUAVE} onClick={() => setBorrando(null)}>No</button>
                         </span>
                       ) : (
-                        <button type="button" aria-label="Sacar la línea" title="Sacar la línea" className={ICONO_BORRAR} onClick={() => setBorrando(l.clave)}>🗑</button>
+                        <button type="button" aria-label="Sacar la línea" title="Sacar la línea" className={ICONO_BORRAR} onClick={() => setBorrando(l.clave)}><IconoTacho /></button>
                       )}
                     </td>
                   </tr>

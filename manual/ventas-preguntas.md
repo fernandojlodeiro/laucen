@@ -79,6 +79,8 @@ Errores típicos: "La respuesta está vacía.", "Mercado Libre acepta hasta 2.00
 ### Ver lo último de una conversación
 
 Apretá **"Actualizar"** en la conversación: la vuelve a leer entera desde Mercado Libre y la marca como leída allá.
+- En una conversación, al lado del pedido (o de «sin pedido en Laucen»), **Ver la venta** abre la ficha de esa venta de Mercado Libre con sus artículos, envío y reclamos, aunque sea anterior al sistema.
+- En una pregunta, si quien pregunta ya nos compró en esa cuenta, aparece **Compras de este usuario (N)**, que abre el [Historial de ventas](/ventas/historial) con sus compras.
 
 ## Criterios y reglas
 

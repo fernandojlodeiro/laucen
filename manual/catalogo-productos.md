@@ -198,7 +198,7 @@ Las publicaciones **MLAU…** («producto de vendedor») se leen sólo si compit
 Debajo del precio de cada publicación que seguís está **su último cambio**: ▲ (verde) o ▼ (rojo), cuánto en pesos y en %, y la fecha; «sin cambios» si nunca cambió. **La fila se pinta de amarillo si cambió en la última lectura**, y **de rosa si además es la referencia de la regla de precio**. La que usa la regla para comparar lleva la marca **🎯 Referencia de la regla** (la elegida, o la más barata de las activas si la regla compara contra la más barata).
 
 En cada fila de las que seguís:
-- **El tacho, a la izquierda**, deja de seguirla (pregunta ahí mismo «Sí» / «No»).
+- **El tacho, a la derecha de la fila**, deja de seguirla (pregunta ahí mismo «Sí» / «No»).
 - **Fuera de la regla — Excluir**: tildada, la seguís y ves su precio, pero **la regla de precio no la tiene en cuenta** (por ejemplo, un vendedor que a veces pone un precio puntual muy bajo). Graba al tocarla y la regla se vuelve a revisar enseguida.
 - **🌐 Internacional**: tampoco cuenta para la regla.
 

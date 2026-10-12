@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { BORRAR, SUAVE, ICONO_BORRAR } from "@/app/botones";
 import BarraPestanas from "@/app/componentes/Pestanas";
+import IconoTacho from "@/app/componentes/IconoTacho";
 
 /** Pestañas que saben en qué página están (dibujo: app/componentes/Pestanas.tsx). */
 export function Pestanas({ items }: { items: { href: string; texto: string; cuenta?: number | null }[] }) {
@@ -40,7 +41,7 @@ export function TachoConfirmar({ accion, campos, pregunta }: {
 }) {
   const [preguntando, setPreguntando] = useState(false);
   if (!preguntando) {
-    return <button type="button" onClick={() => setPreguntando(true)} className={ICONO_BORRAR} aria-label={pregunta}>🗑</button>;
+    return <button type="button" onClick={() => setPreguntando(true)} className={ICONO_BORRAR} aria-label={pregunta} title={pregunta}><IconoTacho /></button>;
   }
   return (
     <form action={accion} className="flex items-center gap-1 text-xs">

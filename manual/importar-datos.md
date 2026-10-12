@@ -4,14 +4,14 @@ menu: Configuración › Importar datos
 ruta: /importar
 rutas: /importar, /importar/[id], /importar/virtualseller, /importar/virtualseller/[id]
 permiso: importar_ver
-resumen: Cargar desde un Excel o CSV productos, clientes y proveedores, ventas históricas y stock inicial (mapeando columnas), y la importación especial de productos desde Virtual Seller cruzada con Mercado Libre.
+resumen: Cargar desde un Excel o CSV productos, clientes y proveedores, ventas históricas (como pedidos, o sólo como historial de Virtual Seller para consultar y estadística) y stock inicial (mapeando columnas), y la importación especial de productos desde Virtual Seller cruzada con Mercado Libre.
 ---
 
 ## Para qué sirve
 
 Para traer datos masivos desde una planilla en vez de cargarlos uno por uno. Hay dos caminos:
 
-1. **Importación general desde Excel** ([/importar](/importar)): subís un archivo, elegís qué es (Productos, Clientes y proveedores, Ventas históricas o Stock inicial), le decís qué columna va a cada campo, mirás una vista previa y lo ejecutás. Queda un informe con las filas importadas y las rechazadas con su motivo.
+1. **Importación general desde Excel** ([/importar](/importar)): subís un archivo, elegís qué es (Productos, Clientes y proveedores, Ventas históricas como pedidos, Historial de ventas de Virtual Seller o Stock inicial), le decís qué columna va a cada campo, mirás una vista previa y lo ejecutás. Queda un informe con las filas importadas y las rechazadas con su motivo.
 2. **Productos desde Virtual Seller + Mercado Libre** ([/importar/virtualseller](/importar/virtualseller)): subís tres archivos de Virtual Seller (stock, maestro y lista de precios) y el sistema los cruza con las publicaciones de la cuenta de Mercado Libre para armar el catálogo completo: productos, kits, stock por ubicación, precios, IVA y vinculación con las publicaciones.
 
 ## Cómo se llega
@@ -26,7 +26,8 @@ Para traer datos masivos desde una planilla en vez de cargarlos uno por uno. Hay
 
 - Arriba, el recuadro azul que lleva a la importación de Virtual Seller.
 - El formulario de subida:
-  - **Qué es**: Productos, Clientes y proveedores, Ventas históricas, Stock inicial.
+  - **Qué es**: Productos, Clientes y proveedores, Ventas históricas como pedidos, Historial de ventas de Virtual Seller, Stock inicial.
+  - El archivo puede pesar **hasta 50 MB**. Si es más grande, exportalo en partes (por ejemplo, un año por archivo) y subí cada una.
   - **Archivo Excel (.xlsx / .xls) o .csv**.
   - Botón **"Subir y leer"** (mientras trabaja dice "Subiendo…" y "Leyendo las filas…").
   - Si el libro tiene varias hojas, pregunta **"El archivo tiene varias hojas: ¿cuál?"**, con el botón **"Leer esa hoja"** y **"Otro archivo"** para empezar de nuevo.
@@ -38,6 +39,8 @@ Estados de una importación: **Para mapear** (azul), **A medias** (amarillo), **
 ### Una importación (/importar/N)
 
 El título dice "Importar productos", "Importar clientes y proveedores", etc.; arriba a la derecha, el estado. Debajo, la ayuda del tipo elegido.
+
+En el **Historial de ventas de Virtual Seller**, además, la sección **Canales de Virtual Seller**: cada nombre de canal que trae el archivo, cuántos renglones tiene y a qué **canal del sistema** va. Abre en vista; el lápiz de su título deja elegir el canal de cada uno («Canal histórico (sin canal del sistema)» para una cuenta que ya no existe) y **Grabar** lo guarda. Se puede cambiar antes o después de ejecutar: las ventas ya importadas pasan solas al canal nuevo.
 
 **Antes de ejecutar** (pantalla de mapeo):
 - **Mapeos guardados** (si hay): un botón **"Cargar "…""** por cada mapeo guardado de ese tipo, con su tacho.
@@ -135,7 +138,7 @@ En el informe, **"Pausar"** la frena (lo importado queda). **"Seguir"** la retom
 - **Direcciones**: la principal (fiscal) y, si es distinta, la de envío como segunda dirección. No repite una que ya tiene (misma calle, número y localidad).
 - Toda la fila original queda guardada en la ficha del cliente (datos de Virtual Seller), aunque una columna no tenga campo propio.
 
-### Ventas históricas
+### Ventas históricas como pedidos
 
 - Obligatorios: **Nº de venta**, **Fecha**, **SKU**, **Cantidad**, **Precio unitario**.
 - Cada Nº de venta es **un pedido**; varias filas con el mismo número son varias líneas de ese pedido.
@@ -145,6 +148,25 @@ En el informe, **"Pausar"** la frena (lo importado queda). **"Seguir"** la retom
 - Si **una fila** de la venta tiene error (SKU que no existe, cantidad no entera, fecha que no se entiende), **la venta entera** se rechaza: las demás filas dicen "La venta N no se importó: la fila M de la misma venta tiene un error."
 - **No duplica**: si esa venta ya se había importado, la fila queda "Ya estaba importada (pedido N)".
 - La cantidad tiene que ser un entero mayor que cero.
+
+### Historial de ventas de Virtual Seller
+
+Para traer todo lo vendido en Virtual Seller, de todos los canales y de todos los años, **sólo para consultar y para las estadísticas**. Se exporta de Virtual Seller el informe **Ventas por producto**.
+
+- **No crea pedidos, ni clientes, ni mueve stock, ni se factura.** Cada renglón es un producto vendido y aparece en [Historial de ventas](/ventas/historial) como «Sin pedido», con el número de pedido de Virtual Seller al lado.
+- Obligatorios: **N.º de pedido de Virtual Seller**, **Fecha**, **Canal de venta**, **SKU**, **Cantidad**, y **Precio unitario o Subtotal**. Las columnas del informe de Virtual Seller se reconocen solas.
+- **Lo cobrado** es el Subtotal; si no viene, precio unitario × cantidad − descuento.
+- **El producto** se busca por SKU, también sin el «DE-» de adelante. Si el SKU no está en el catálogo, el renglón entra igual con su SKU y su nombre, sin enlace (la fila dice «el SKU … no está en el catálogo: queda sin enlace»).
+- **El cliente** se enlaza sólo si ya existe en el sistema con ese CUIT o ese documento; si no, queda el nombre tal cual. Los documentos de relleno (11111111) se ignoran.
+- **Canal**: cada canal de Virtual Seller se asocia solo a un canal del sistema con el mismo nombre o a la cuenta de Mercado Libre donde ya están leídas sus ventas; el resto, a mano en **Canales de Virtual Seller**. Lo elegido a mano no lo cambia ninguna importación. Sin canal del sistema, se muestra con el nombre de Virtual Seller.
+- **Nada se cuenta dos veces**:
+  - Una venta de Mercado Libre que el sistema ya tiene leída (por su número de venta de ML) queda guardada pero no se suma: cuenta la de Mercado Libre. La fila dice «la venta de ML ya estaba leída: no se cuenta dos veces».
+  - En los canales que no son de Mercado Libre (web, local…), cuenta sólo lo anterior al **primer pedido del sistema** en ese canal; desde ahí cuentan los pedidos.
+  - **Subir de nuevo el mismo archivo, o archivos que se pisan, no duplica**: cada renglón se reconoce por pedido de Virtual Seller, SKU y venta de ML, y se actualiza.
+- Virtual Seller da sólo el día: se toma el mediodía argentino.
+- Un renglón sin canal en Virtual Seller entra igual, bajo el canal «Sin canal en Virtual Seller» (se puede asociar a un canal del sistema como cualquier otro).
+- Un renglón con cantidad 0 no es una venta: no se importa («Cantidad 0: no es una venta»).
+- Si un renglón tiene un error (falta el SKU, la fecha no se entiende, la cantidad no es un entero), se rechaza ese renglón solo; los demás del mismo pedido entran.
 
 ### Stock inicial
 
@@ -193,6 +215,12 @@ Excel .xlsx, el .xls de Virtual Seller o .csv, con los nombres de las columnas e
 **¿Por qué no entraron las notebooks sin stock?**
 Es una regla de la importación de Virtual Seller: las notebooks sin stock se descartan.
 
+**¿Qué diferencia hay entre «Ventas históricas como pedidos» y «Historial de ventas de Virtual Seller»?**
+La primera crea un pedido entregado por cada venta, en el canal "Histórico Virtual Seller". La segunda no crea nada: deja las ventas sólo para consultar y para las estadísticas, en su canal de siempre. Para traer la historia de Virtual Seller, la segunda.
+
+**El archivo de Virtual Seller pesa más de 50 MB. ¿Qué hago?**
+Exportalo por partes (un año, o unos meses, por archivo) y subí cada uno. Si dos archivos se pisan en algún día, no se duplica nada.
+
 **¿Con qué dólar se convierten las ventas históricas?**
 Con el oficial venta de la fecha de cada venta.
 
@@ -202,6 +230,7 @@ Con el oficial venta de la fecha de cada venta.
 - [Clientes](/ventas/clientes)
 - [Proveedores](/compras/proveedores)
 - [Pedidos](/ventas/pedidos)
+- [Historial de ventas](/ventas/historial)
 - [Consulta de stock](/stock/consulta)
 - [Depósitos y ubicaciones](/stock/depositos)
 - [Listas de precios](/catalogo/precios)

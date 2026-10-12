@@ -138,6 +138,7 @@ Un reclamo de Mercado Libre de una venta hecha antes de Laucen entra igual, pero
 
 1. **"Recibir devolución"**: abre una recepción de devolución **sin pedido**, con la orden de ML de referencia. Ahí se escanea lo que vuelve (como nuevo o caja abierta).
 2. **"Nota de crédito"**: lleva a [Nota de crédito de una factura de afuera](/administracion/facturacion/nota-credito) con la orden de ML, el monto del reclamo y el cliente ya puestos. Falta poner el tipo, punto de venta y número de la factura vieja (están en la factura de Virtual Seller) y apretar "Buscar en ARCA".
+- Un reclamo de una venta de Mercado Libre que no tiene pedido en el sistema (una venta anterior) muestra el número de la venta como enlace: **Ver la venta** abre su ficha en el [Historial de ventas](/ventas/historial).
 
 ## Criterios y reglas
 

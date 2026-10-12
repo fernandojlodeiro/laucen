@@ -15,6 +15,7 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import {
   entrarErp, Pantalla, Avisos, Lapiz, Estado, Dato, BotonesFicha, editandoFicha, EDITAR_FICHA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
+import { TituloSeccion as TituloSeccionErp } from "@/app/componentes/erp";
 import { fecha, TONO_ESTADO, TIPOS_CLIENTE, CONDICIONES_IVA, DOCUMENTOS, etiqueta } from "@/app/ventas/formato";
 import {
   accionGuardarCliente, accionBorrarCliente, accionAgregarDireccion, accionGuardarDireccion,
@@ -84,6 +85,17 @@ export default async function FichaCliente({ params, searchParams }: { params: P
         from pedido p join canal ca on ca.id = p.canal_id
        where p.cliente_id = $1 and p.organizacion_id = $2 order by p.fecha desc, p.id desc`, [cid, s.org.id]),
     listasDePrecios(s.org.id),
+  ]);
+  // Sus ventas de todos los canales (vista venta_estadistica): las de ML se reconocen por su usuario de ML en cada cuenta,
+  // así aparecen también las anteriores a Laucen (sin pedido).
+  const DE_SUS_VENTAS = `venta_estadistica e where e.organizacion_id = $2 and (e.cliente_id = $1 or exists (select 1 from cliente_identidad ci
+      where ci.cliente_id = $1 and ci.canal_id = e.canal_id and ci.id_externo = e.ml_comprador_id::text))`;
+  const [ventas, nVentas] = await Promise.all([
+    consulta<{ fecha: Date; canal_id: number; canal: string; producto_id: number | null; sku: string | null; titulo: string | null; cantidad: number; total: number; estado: string; pedido_id: number | null; ml_venta_id: number | null }>(`
+      select e.fecha, e.canal_id::int, coalesce(ca.nombre, e.canal_nombre) canal, va.producto_id::int, coalesce(va.sku, e.sku) sku, e.titulo, e.cantidad, e.total::float8, e.estado, e.pedido_id::int, e.ml_venta_id::int
+        from ${DE_SUS_VENTAS.replace("venta_estadistica e where", "venta_estadistica e left join canal ca on ca.id = e.canal_id left join variacion va on va.id = e.variacion_id where")}
+       order by e.fecha desc limit 50`, [cid, s.org.id]),
+    una<{ n: number }>(`select count(*)::int n from ${DE_SUS_VENTAS}`, [cid, s.org.id]),
   ]);
   const volver = `/ventas/clientes/${cid}`;
   const direccionTexto = (d: Direccion) =>
@@ -306,6 +318,31 @@ export default async function FichaCliente({ params, searchParams }: { params: P
                 <td className={`${TD} text-right`}>
                   <TachoConfirmar accion={accionQuitarIdentidad} campos={{ id: String(i.id), cliente_id: String(cid) }} pregunta="¿Quitar?" />
                 </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <TituloSeccionErp titulo={`Ventas (${nVentas?.n ?? 0})`}>
+        {(nVentas?.n ?? 0) > 50 && <Link href={`/ventas/historial?cliente=${cid}`} className="text-xs text-[#16577F] hover:underline">Ver las {nVentas!.n} en el historial</Link>}
+      </TituloSeccionErp>
+      <p className="text-[11px] text-[#5C6B76] mb-2">Todo lo que compró, en cualquier canal; incluye las compras de Mercado Libre anteriores a Laucen (sin pedido).</p>
+      <div className={`${CAJA_TABLA} mb-6`}>
+        <table className={TABLA}>
+          <thead className={THEAD}>
+            <tr><th className={THN}>Fecha</th><th className={TH}>Canal</th><th className={TH}>Producto</th><th className={THN}>Cant.</th><th className={THN}>Total</th><th className={TH}>Pedido</th></tr>
+          </thead>
+          <tbody>
+            {ventas.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>Sin ventas.</td></tr>}
+            {ventas.map((v, i) => (
+              <tr key={i} data-canal={v.canal_id} className={TR}>
+                <td className={TDN}>{v.ml_venta_id ? <Link href={`/ventas/historial/${v.ml_venta_id}`} className="text-[#16577F] hover:underline">{fecha(v.fecha)}</Link> : fecha(v.fecha)}</td>
+                <td className={TD}>{v.canal}</td>
+                <td className={TD}>{v.producto_id ? <Link href={`/catalogo/productos/${v.producto_id}`} className="font-mono text-[#16577F] hover:underline">{v.sku}</Link> : <span className="font-mono">{v.sku ?? "—"}</span>} <span className="text-[#5C6B76]">{v.titulo}</span></td>
+                <td className={TDN}>{v.cantidad}</td>
+                <td className={TDN}>{formatear(v.total, "ARS")}</td>
+                <td className={TD}>{v.pedido_id ? <Link href={`/ventas/pedidos/${v.pedido_id}`} className="text-[#16577F] hover:underline">{v.pedido_id}</Link> : <span className="text-[#5C6B76]">Sin pedido</span>}</td>
               </tr>
             ))}
           </tbody>

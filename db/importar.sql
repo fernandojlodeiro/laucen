@@ -35,6 +35,11 @@ create table if not exists importacion (
   creado_ts        timestamptz not null default now(),
   terminado_ts     timestamptz
 );
+-- Historial de ventas de Virtual Seller (ventas_vs, 12/10): va a venta_historica (db/ml_ventas.sql), nunca a pedidos.
+alter table importacion drop constraint if exists importacion_destino_check;
+alter table importacion add constraint importacion_destino_check check (destino in ('productos', 'clientes', 'ventas', 'ventas_vs', 'stock'));
+alter table importacion_mapeo drop constraint if exists importacion_mapeo_destino_check;
+alter table importacion_mapeo add constraint importacion_mapeo_destino_check check (destino in ('productos', 'clientes', 'ventas', 'ventas_vs', 'stock'));
 create index if not exists importacion_org on importacion (organizacion_id, creado_ts desc);
 alter table importacion enable row level security;
 select erp_politica_org('importacion');

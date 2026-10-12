@@ -154,18 +154,14 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
         <div className={CAJA_TABLA}>
           <table className={TABLA}>
             <thead className={THEAD}>
-              <tr><th /><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Tipo</th>
-                <th className={TH}>Entrega</th><th className={TH}>Estado</th><th className={TH}>Leída</th><th className={TH} title="Tildada: se sigue, pero no cuenta para la regla de precio">Fuera de la regla</th><th /></tr>
+              <tr><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Tipo</th>
+                <th className={TH}>Entrega</th><th className={TH}>Estado</th><th className={TH}>Leída</th><th className={TH} title="Tildada: se sigue, pero no cuenta para la regla de precio">Fuera de la regla</th><th /><th /></tr>
             </thead>
             <tbody>
               {seguidas.length === 0 && <tr><td colSpan={10} className={`${TD} text-[#5C6B76]`}>Todavía no seguís ninguna: buscalas abajo y tocá «Seguir», o agregalas por número.</td></tr>}
               {seguidas.flatMap((x) => [
                 // Lo que cambió en la última lectura, en amarillo; si es la referencia de la regla, en rosa (Fer, 12/10).
                 <tr key={x.id} className={`${TR} ${x.ultimo?.enLaUltima ? (x.id === referenciaId ? "bg-[#FCE4EC]" : "bg-[#FFF8E5]") : ""}`}>
-                  {/* Dejar de seguir: bien a la vista, a la izquierda (Fer, 12/10). */}
-                  <td className={`${TD} w-8`}>
-                    <TachoConfirmar accion={accionDejarDeSeguir} campos={{ id: String(x.id), producto_id: String(p.id) }} pregunta="¿Dejar de seguirla?" />
-                  </td>
                   <td className={TD}>
                     <span className="flex items-start gap-2">
                       <span className="h-10 w-10 shrink-0">{x.foto && <img src={x.foto} alt="" className="h-10 w-10 object-contain rounded bg-white" />}</span>
@@ -193,6 +189,10 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
                   <td className={`${TD} text-right whitespace-nowrap`}>
                     <Link href={conHist(hist === x.id ? null : x.id)} scroll={false} className={SUAVE}
                       title="Cada lectura que se hizo de esta publicación: precio, estado y tipo">📈 Historial ({x.lecturas})</Link>
+                  </td>
+                  {/* Dejar de seguir: a la derecha, como todo editar y borrar (Fer, 12/10). */}
+                  <td className={`${TD} w-8 text-right`}>
+                    <TachoConfirmar accion={accionDejarDeSeguir} campos={{ id: String(x.id), producto_id: String(p.id) }} pregunta="¿Dejar de seguirla?" />
                   </td>
                 </tr>,
                 hist === x.id && (

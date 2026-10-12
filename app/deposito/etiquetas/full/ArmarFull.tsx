@@ -10,6 +10,7 @@ import { useRef, useState } from "react";
 import { PRIMARIO, SUAVE, ICONO_BORRAR, BORRAR } from "@/app/botones";
 import { IMPRESORAS_FULL, POR_HOJA_FULL, type PublicacionFull } from "@/lib/deposito/etiquetas-full-tipos";
 import { accionBuscarFull, accionCodigoFull } from "./acciones";
+import IconoTacho from "@/app/componentes/IconoTacho";
 
 // Los de app/componentes/erp.tsx (que es del servidor).
 const CAJA = "bg-white border border-[#E3E9F0] rounded-xl p-3";
@@ -137,7 +138,7 @@ export default function ArmarFull({ canales, impresora }: { canales: { id: numbe
                     <button type="button" onClick={() => setBorrando(null)} className={SUAVE}>No</button>
                   </span>
                 ) : (
-                  <button type="button" onClick={() => setBorrando(clave(x))} className={`${ICONO_BORRAR} shrink-0`} aria-label="Sacar de la lista" title="Sacar de la lista">🗑</button>
+                  <button type="button" onClick={() => setBorrando(clave(x))} className={`${ICONO_BORRAR} shrink-0`} aria-label="Sacar de la lista" title="Sacar de la lista"><IconoTacho /></button>
                 )}
               </li>
             ))}

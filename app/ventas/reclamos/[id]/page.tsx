@@ -41,7 +41,7 @@ type SP = { ok?: string; error?: string; editar?: string };
 
 type Reclamo = {
   id: number; origen: "mercadolibre" | "web" | "local"; canal_id: number | null; canal: string | null; id_externo: string | null;
-  pedido_id: number | null; pedido_externo: string | null; cliente_id: number | null; cliente: string | null; orden_externa: string | null;
+  pedido_id: number | null; pedido_externo: string | null; cliente_id: number | null; cliente: string | null; orden_externa: string | null; venta_ml: number | null;
   comprador_externo: string | null; tipo: TipoReclamo; motivo: string | null; estado: EstadoReclamo; etapa: string | null; estado_externo: string | null;
   fecha: Date; vence_ts: Date | null; espera_respuesta: boolean; acciones_disponibles: AccionMl[]; resolucion: string | null;
   monto: number | null; reembolso_ars: number | null; tc_dia: number | null; devolucion_id: string | null; devolucion_estado: string | null;
@@ -66,7 +66,8 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
            r.cliente_id::int, cl.nombre cliente, r.orden_externa, r.comprador_externo, r.tipo, r.motivo, r.estado, r.etapa, r.estado_externo,
            r.fecha, r.vence_ts, r.espera_respuesta, r.acciones_disponibles, r.resolucion, r.monto::float, r.reembolso_ars::float, r.tc_dia::float,
            r.devolucion_id, r.devolucion_estado, r.devolucion_envio_estado, r.devolucion_tracking, r.recepcion_id::int, rc.estado recepcion_estado,
-           r.notas, r.datos_externos - 'ml' datos_externos, r.actualizado_ts
+           r.notas, r.datos_externos - 'ml' datos_externos, r.actualizado_ts,
+           (select mv.id::int from ml_venta mv where mv.canal_id = r.canal_id and (mv.order_id::text = r.orden_externa or mv.pack_id::text = r.orden_externa) order by mv.id limit 1) venta_ml
       from reclamo r
       left join canal ca on ca.id = r.canal_id
       left join pedido pe on pe.id = r.pedido_id
@@ -151,7 +152,7 @@ export default async function FichaReclamo({ params, searchParams }: { params: P
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 <Dato etiqueta="Pedido">{r.pedido_id
                   ? <Link href={`/ventas/pedidos/${r.pedido_id}`} className="font-semibold text-[#16577F] hover:underline">{r.pedido_id}{r.pedido_externo ? ` · ${r.pedido_externo}` : ""}</Link>
-                  : r.orden_externa ? <span>Orden de ML {r.orden_externa} (sin pedido en Laucen)</span> : null}</Dato>
+                  : r.orden_externa ? <span>Orden de ML {r.orden_externa} (sin pedido en Laucen){r.venta_ml ? <> · <Link href={`/ventas/historial/${r.venta_ml}`} className="text-[#16577F] hover:underline">Ver la venta</Link></> : null}</span> : null}</Dato>
                 <Dato etiqueta={r.origen === "mercadolibre" ? "Comprador" : "Cliente"}>{r.cliente_id
                   ? <Link href={`/ventas/clientes/${r.cliente_id}`} className="text-[#16577F] hover:underline">{r.cliente}</Link>
                   : ordenMl?.comprador.nombre || ordenMl?.comprador.nickname

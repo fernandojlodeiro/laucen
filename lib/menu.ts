@@ -40,6 +40,7 @@ export const MENU: SeccionMenu[] = [
     texto: "Ventas",
     items: [
       { texto: "Pedidos y presupuestos", href: "/ventas/pedidos", permiso: "pedidos_ver", icono: "🧾" },
+      { texto: "Historial de ventas", href: "/ventas/historial", permiso: "pedidos_ver", icono: "📈" },
       { texto: "Clientes", href: "/ventas/clientes", permiso: "clientes_ver", icono: "👤" },
       { texto: "Envíos", href: "/ventas/envios", permiso: "envios_ver", icono: "🚚" },
       { texto: "Preguntas y mensajes", href: "/ventas/preguntas", permiso: "preguntas_ver", icono: "💬" },
@@ -82,6 +83,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Proveedores", href: "/compras/proveedores", permiso: "proveedores_ver" },
       { texto: "Facturas de compra", href: "/compras/facturas", permiso: "compras_ver" },
       { texto: "Despachos de importación", href: "/compras/despachos", permiso: "despachos_ver" },
+      { texto: "Compras por courier", href: "/compras/courier", permiso: "compras_ver" },
     ],
   },
   {
@@ -105,6 +107,8 @@ export const MENU: SeccionMenu[] = [
       { texto: "Cambios en publicaciones", href: "/informes/cambios-publicaciones", permiso: "informes_publicaciones_ver" },
       { texto: "Promociones de ML", href: "/informes/promociones", permiso: "informes_publicaciones_ver" },
       { texto: "Rentabilidad por venta", href: "/informes/rentabilidad", permiso: "informes_ventas_ver" },
+      { texto: "Ranking de clientes", href: "/informes/ranking-clientes", permiso: "informes_ventas_ver" },
+      { texto: "Precios según seguimiento", href: "/informes/precios-seguimiento", permiso: "precios_ver" },
     ],
   },
   {

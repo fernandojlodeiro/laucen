@@ -13,6 +13,7 @@ import { fechaHora } from "@/app/ventas/formato";
 import { DESTINOS, ESTADOS_IMPORTACION, esDestino, faltanObligatorios } from "@/lib/importar/campos";
 import type { Valor } from "@/lib/importar/leer";
 import SeguirSolo from "@/app/importar/SeguirSolo";
+import CanalesVs, { EDITAR_CANALES } from "./CanalesVs";
 import { accionGuardarMapeo, accionCargarMapeo, accionBorrarMapeo, accionEjecutar, accionPausar } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export const maxDuration = 300;
 
 const POR_PAGINA = 50;
 
-type SP = { pagina?: string; ok?: string; error?: string; seguir?: string };
+type SP = { pagina?: string; ok?: string; error?: string; seguir?: string; editar?: string };
 
 const mostrar = (v: Valor | undefined) => (v == null ? "" : typeof v === "number" ? v.toLocaleString("es-AR", { maximumFractionDigits: 4 }) : String(v));
 
@@ -55,6 +56,7 @@ export default async function Importacion({ params, searchParams }: { params: Pr
       acciones={<Estado texto={texto} tono={tono} />}>
       <Avisos sp={sp} />
       <p className="text-xs text-[#5C6B76] mb-3">{destino.ayuda}</p>
+      {imp.destino === "ventas_vs" && imp.mapeo.canal && <CanalesVs iid={iid} org={s.org.id} columna={imp.mapeo.canal} editando={sp.editar === EDITAR_CANALES} />}
 
       {empezada
         ? <Informe iid={iid} andando={imp.segundo_plano} cuenta={cuenta} terminado={imp.terminado_ts} pagina={Math.max(1, Number(sp.pagina) || 1)} org={s.org.id} mapeados={mapeados.map((c) => ({ etiqueta: c.etiqueta, col: imp.mapeo[c.clave] }))} />

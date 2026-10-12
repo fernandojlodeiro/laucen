@@ -109,3 +109,25 @@ export async function accionPausar(fd: FormData) {
     return "Pausada. Lo importado queda; \"Seguir\" retoma desde donde quedó.";
   });
 }
+
+/** Historial de VS: a qué canal del sistema va cada canal de Virtual Seller (lo elegido a mano no lo cambia la importación). */
+export async function accionCanalesVs(fd: FormData) {
+  const s = await entrarErp("importar_ver");
+  const iid = id(fd);
+  await intentar(volver(iid), async () => {
+    let n = 0;
+    for (let i = 0; fd.has(`nombre_${i}`); i++) {
+      const nombre = texto(fd, `nombre_${i}`);
+      if (!nombre) continue;
+      const canal = Number(fd.get(`canal_${i}`)) || null;
+      if (canal && !(await una("select 1 from canal where id = $1 and organizacion_id = $2", [canal, s.org.id]))) throw new ErrorErp("Ese canal no existe.");
+      await consulta(`
+        insert into venta_vs_canal (organizacion_id, nombre_vs, canal_id, elegido_a_mano) values ($1, $2, $3, true)
+        on conflict (organizacion_id, nombre_vs) do update set canal_id = excluded.canal_id, elegido_a_mano = true`, [s.org.id, nombre, canal]);
+      n++;
+    }
+    revalidatePath(volver(iid));
+    revalidatePath("/ventas/historial");
+    return `Canales grabados (${n}).`;
+  });
+}

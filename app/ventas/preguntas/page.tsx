@@ -86,6 +86,7 @@ type Pregunta = {
   texto: string; fecha: Date; sugerencia: string | null; vinculada: boolean; disponible: number | null;
   respuesta: string | null; respondida_ts: Date | null; respondida_por: string | null; respondida_con_ia: boolean;
   ia_estado: string | null; respondida_auto: boolean;
+  canal_id: number | null; comprador_id: string | null; compras: number;
 };
 
 /** La publicación de la pregunta: foto y link de meli_item (la primera fila
@@ -94,7 +95,9 @@ const DE_PREGUNTA = `
   select q.id::text, ca.nombre canal, nullif(trim(ca.config ->> 'firma'), '') firma, q.item_id, coalesce(mi.titulo, pu.titulo) titulo, mi.foto, mi.permalink, q.texto, q.fecha, q.sugerencia,
          (pu.id is not null) vinculada,
          case when pu.id is not null then greatest(stock_disponible_canal(q.organizacion_id, pu.variacion_id, pu.canal_id), 0)::int end disponible,
-         q.respuesta, q.respondida_ts, u.nombre respondida_por, q.respondida_con_ia, q.ia_estado, q.respondida_auto
+         q.respuesta, q.respondida_ts, u.nombre respondida_por, q.respondida_con_ia, q.ia_estado, q.respondida_auto,
+         q.canal_id::int, q.comprador_id::text,
+         (select count(distinct mv.order_id)::int from ml_venta mv where mv.canal_id = q.canal_id and mv.comprador_id::text = q.comprador_id::text) compras
     from meli_pregunta q
     left join canal ca on ca.id = q.canal_id
     left join publicacion pu on pu.id = q.publicacion_id and pu.organizacion_id = q.organizacion_id
@@ -120,6 +123,7 @@ function Publicacion({ q }: { q: Pregunta }) {
           {q.vinculada
             ? <span>Stock del canal: <b className="tabular-nums">{q.disponible ?? 0}</b></span>
             : <span>Sin vincular a un producto</span>}
+          {q.compras > 0 && q.comprador_id && <Link href={`/ventas/historial?canal=${q.canal_id}&comprador=${q.comprador_id}`} className="text-[#16577F] hover:underline">Compras de este usuario ({q.compras})</Link>}
         </div>
       </div>
     </div>
@@ -242,6 +246,9 @@ async function Hilo({ org, conv, auto }: { org: string; conv: { pack_id: string;
       where m.organizacion_id = $1 and m.pack_id = $2 order by m.fecha`, [org, conv.pack_id]);
   const sug = await una<{ sugerencia: string | null; ia_estado: string | null; pidio_persona: boolean }>(
     "select sugerencia, ia_estado, (pidio_persona_ts is not null) pidio_persona from meli_conversacion where organizacion_id = $1 and pack_id = $2", [org, conv.pack_id]);
+  // La venta de ML de esta conversación (también las anteriores, sin pedido en Laucen): su detalle con artículos, envío y reclamos.
+  const venta = await una<{ id: number }>(
+    "select id::int from ml_venta where organizacion_id = $1 and (pack_id = $2::bigint or order_id = $2::bigint) order by id limit 1", [org, conv.pack_id]).catch(() => null);
 
   return (
     <section className={`${CAJA} self-start`}>
@@ -252,6 +259,7 @@ async function Hilo({ org, conv, auto }: { org: string; conv: { pack_id: string;
             {conv.canal ?? "—"} · {conv.pedido_id
               ? <Link href={`/ventas/pedidos/${conv.pedido_id}`} className="text-[#16577F] hover:underline">Pedido {conv.pedido_id}</Link>
               : <span>Pack {conv.pack_id} (sin pedido en Laucen)</span>}
+            {venta && <> · <Link href={`/ventas/historial/${venta.id}`} className="text-[#16577F] hover:underline">Ver la venta</Link></>}
           </div>
         </div>
         <BotonTarea accion={accionActualizarConversacion} tipo={`conversacion:${conv.pack_id}`} campos={{ pack: String(conv.pack_id) }} clase={SUAVE} texto="Actualizar" />
