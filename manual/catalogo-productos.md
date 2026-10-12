@@ -180,7 +180,7 @@ Para elegir cuáles seguir:
 2. Apretá **🔍 Buscar en Mercado Libre**: pregunta "¿Buscar? Cuesta unos US$ 0,10"; con **Sí** busca de fondo (uno o dos minutos) y avisa abajo a la derecha al terminar.
 3. Aparecen las publicaciones encontradas, de entrada **en el mismo orden que las muestra el buscador de Mercado Libre** (más relevantes), con foto, título, vendedor, precio, tipo de publicación y cuotas, y envío. Cuando lo encontrado es un **producto de catálogo** de Mercado Libre, se muestra **cada vendedor que compite en ese catálogo** (con su vendedor, precio, tipo y envío reales), marcados **📖 Catálogo**; las de publicidad también están marcadas. En un producto de catálogo, el título que se ve es el del catálogo: es el mismo que ve el comprador. El desplegable **Ordenar** cambia el orden: **Como en Mercado Libre**, **Precio, de menor a mayor** o **Parecido al título del producto**.
 En un producto de catálogo, Mercado Libre muestra el título del catálogo para todos los vendedores que compiten en él, aunque cada uno haya publicado con otro título: por eso esos renglones dicen «el título es el del catálogo».
-4. De entrada **no se muestran los packs ni las de varias unidades** («Pack de 2», «5 X…», «x10», «kit», «combo», «lote», «10 unidades»), salvo que el producto también sea un pack, **ni las nuestras** (se reconocen por el número de publicación y por la cuenta). Tampoco **las que tardan en llegar más de lo que compite** (ver [Seguimiento de publicaciones](/config/seguimiento)). Las cajas **Mostrar también packs y varias unidades (N)**, **Mostrar también las nuestras (N)** y **Mostrar también las que tardan más de N días (N)** las agregan; las nuestras dicen **Nuestra**.
+4. De entrada **no se muestran los packs ni las de varias unidades** («Pack de 2», «5 X…», «x10», «kit», «combo», «lote», «10 unidades»), salvo que el producto también sea un pack, **ni las nuestras** (se reconocen por el número de publicación y por la cuenta). Tampoco **las internacionales** (vendedor de afuera o entrega internacional: su precio no se compara porque le faltan los impuestos; llevan la marca **🌐 Internacional**) ni **las que tardan en llegar más de lo que compite** (ver [Seguimiento de publicaciones](/config/seguimiento)). Las cajas **Mostrar también packs y varias unidades (N)**, **Mostrar también las nuestras (N)** y **Mostrar también las que tardan más de N días (N)** y **Mostrar también las internacionales (N)** las agregan; las nuestras dicen **Nuestra**.
 5. Al lado de cada una, **+ Seguir** la agrega (sin costo). Las que ya seguís dicen **✓ Siguiendo**.
 
 La última búsqueda queda guardada: volver a la pestaña no cuesta; buscar de nuevo, sí.
@@ -197,7 +197,12 @@ Las publicaciones **MLAU…** («producto de vendedor») se leen sólo si compit
 
 Debajo del precio de cada publicación que seguís está **su último cambio**: ▲ (verde) o ▼ (rojo), cuánto en pesos y en %, y la fecha; «sin cambios» si nunca cambió. **La fila se pinta de amarillo si cambió en la última lectura**, y **de rosa si además es la referencia de la regla de precio**. La que usa la regla para comparar lleva la marca **🎯 Referencia de la regla** (la elegida, o la más barata de las activas si la regla compara contra la más barata).
 
-**📈 Historial (N)**, al lado del tacho de cada publicación que seguís, abre debajo de ella cada lectura que se hizo (N es cuántas hay), de la más nueva a la más vieja: fecha y hora, precio (con el tachado si tenía descuento), **cuánto cambió** respecto de la lectura anterior (▼ en rojo si bajó, ▲ en verde si subió, en pesos y en %), tipo de publicación y estado. Tocándolo de nuevo se cierra. Cada vuelta automática y cada **Leer ahora** suman una lectura.
+En cada fila de las que seguís:
+- **El tacho, a la izquierda**, deja de seguirla (pregunta ahí mismo «Sí» / «No»).
+- **Fuera de la regla — Excluir**: tildada, la seguís y ves su precio, pero **la regla de precio no la tiene en cuenta** (por ejemplo, un vendedor que a veces pone un precio puntual muy bajo). Graba al tocarla y la regla se vuelve a revisar enseguida.
+- **🌐 Internacional**: tampoco cuenta para la regla.
+
+**📈 Historial (N)**, a la derecha de cada publicación que seguís, abre debajo de ella cada lectura que se hizo (N es cuántas hay), de la más nueva a la más vieja: fecha y hora, precio (con el tachado si tenía descuento), **cuánto cambió** respecto de la lectura anterior (▼ en rojo si bajó, ▲ en verde si subió, en pesos y en %), tipo de publicación y estado. Tocándolo de nuevo se cierra. Cada vuelta automática y cada **Leer ahora** suman una lectura.
 
 ### Regla de precio (pestaña Seguimiento)
 
@@ -215,7 +220,7 @@ Criterios:
 
 - **Baja** si tu Clásica está por encima del objetivo; si el objetivo queda por debajo del piso, baja hasta el piso.
 - **Sube sólo con «También subir»**, si tu Clásica está por debajo del objetivo; si el objetivo queda por encima del techo, sube hasta el techo. Sin esa caja, si ya estás más barato no hace nada.
-- Compara contra las seguidas **activas** con precio leído (las pausadas, terminadas o que no figuran en el catálogo no cuentan). El precio de la referencia es el que paga el comprador.
+- Compara contra las seguidas **activas** con precio leído (las pausadas, terminadas o que no figuran en el catálogo no cuentan), sin las **excluidas** ni las **internacionales**. El precio de la referencia es el que paga el comprador.
 - El objetivo se redondea a pesos enteros, hacia abajo. Si el producto tiene varias variaciones, se revisa cada una con su propia Clásica.
 - Un producto con precio en dólares sigue en dólares: se baja en la misma proporción.
 - **Cuándo se revisa**: sola, después de cada lectura de las seguidas (la vuelta automática o **Leer ahora**); al grabar la regla; y con **Revisar ahora** (usa lo último leído, sin volver a leer).

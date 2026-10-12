@@ -147,3 +147,9 @@ create table if not exists seguimiento_catalogo (
 );
 alter table seguimiento_catalogo enable row level security;
 select erp_politica_org('seguimiento_catalogo');
+
+-- Internacionales y excluidas de la regla (Fer, 12/10): una publicación de un
+-- vendedor de afuera (o con entrega internacional) no se compara (le faltan los
+-- impuestos); y Fer puede seguir una sin que cuente para la regla de precio.
+alter table seguimiento_pub add column if not exists internacional boolean;
+alter table seguimiento_pub add column if not exists excluido boolean not null default false;

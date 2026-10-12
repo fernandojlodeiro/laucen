@@ -94,6 +94,8 @@ async function referenciaDe(org: string, productoId: number, r: Regla): Promise<
   const f = await una<{ precio: number; vendedor: string | null; item_id: string }>(`
     select precio::float8, vendedor, item_id from seguimiento_pub
      where organizacion_id = $1 and producto_id = $2 and estado = 'activa' and precio is not null and coalesce(moneda, 'ARS') = 'ARS'
+       -- Las excluidas a mano y las internacionales no cuentan (Fer, 12/10).
+       and not excluido and not coalesce(internacional, false)
        and ($3::bigint is null or id = $3)
      order by precio limit 1`, [org, productoId, r.contra === "una" ? r.seguimientoId : null]);
   return f ? { precio: f.precio, texto: `${f.vendedor ?? f.item_id} a ${formatear(f.precio, "ARS")}` } : null;

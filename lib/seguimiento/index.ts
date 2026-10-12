@@ -88,6 +88,8 @@ export type PubEncontrada = {
   /** En cuántos días llega (a un código postal de Capital), de las opciones de envío de ML. */
   entregaDias?: number | null;
   propia?: boolean;
+  /** Vendedor de afuera o entrega internacional: no se compara (le faltan los impuestos). */
+  internacional?: boolean;
 };
 
 /** ¿Es un pack o varias unidades? («Pack de 2», «5 X …», «x10», «kit», «combo», «lote», «10 unidades»). Pura. */
@@ -150,17 +152,25 @@ async function nuestras(org: string): Promise<{ cuentas: CuentaMl[]; apodos: Set
 
 // ── Buscar para elegir ──────────────────────────────────────
 
+/** ¿Entrega internacional? (el campo international_delivery_mode de ML: "none" = local). Pura. */
+export function esInternacional(modo: string | null | undefined, pais?: string | null): boolean {
+  return (!!modo && modo !== "none") || (!!pais && pais !== "AR");
+}
+
 /** Lo que completa una lista de publicaciones encontradas (búsqueda o catálogo pegado): el apodo de cada vendedor,
  *  cuáles son nuestras y en cuántos días llegan (todo por la API, gratis). Sin repetidas. */
 async function completar(org: string, cuentas: CuentaMl[], apodos: Set<string>, lista: PubEncontrada[]): Promise<PubEncontrada[]> {
   // Los apodos de los vendedores (la API pública de usuarios), de a uno; los nuestros ya se saben.
   const ids = new Map(cuentas.map((x) => [x.meliUserId, x.nickname ?? "Nuestra"]));
   const nuestrosIds = new Set(cuentas.map((x) => x.meliUserId));
+  // También su país: un vendedor de afuera es internacional (Fer, 12/10).
+  const paises = new Map<number, string>();
   const sinApodo = [...new Set(lista.map((p) => p.vendedorId).filter((v): v is number => !!v && !ids.has(v)))].slice(0, 80);
   for (let i = 0; i < sinApodo.length; i += 10) {
     await Promise.all(sinApodo.slice(i, i + 10).map(async (v) => {
-      const u = cuentas[0] ? await ml<{ nickname?: string }>(cuentas[0], "GET", `/users/${v}`).catch(() => null) : null;
+      const u = cuentas[0] ? await ml<{ nickname?: string; country_id?: string }>(cuentas[0], "GET", `/users/${v}`).catch(() => null) : null;
       if (u?.status === 200 && u.datos.nickname) ids.set(v, u.datos.nickname);
+      if (u?.status === 200 && u.datos.country_id) paises.set(v, u.datos.country_id);
     }));
   }
   // Las nuestras: por el número de publicación o, en un «producto de vendedor» (MLAU…), por el suyo.
@@ -173,7 +183,8 @@ async function completar(org: string, cuentas: CuentaMl[], apodos: Set<string>, 
     .filter((p) => !vistos.has(p.itemId) && !!vistos.add(p.itemId))
     .map((p) => {
       const vendedor = p.vendedor ?? (p.vendedorId ? ids.get(p.vendedorId) ?? null : null);
-      return { ...p, vendedor, propia: propiasIds.has(p.itemId) || (!!p.vendedorId && nuestrosIds.has(p.vendedorId)) || (!!vendedor && apodos.has(vendedor.toUpperCase().trim())) };
+      const internacional = !!p.internacional || esInternacional(null, p.vendedorId ? paises.get(p.vendedorId) : null);
+      return { ...p, vendedor, internacional, propia: propiasIds.has(p.itemId) || (!!p.vendedorId && nuestrosIds.has(p.vendedorId)) || (!!vendedor && apodos.has(vendedor.toUpperCase().trim())) };
     });
   // Cuánto tardan en llegar (gratis, por la API), salvo las nuestras: las que tardan mucho no compiten.
   if (cuentas[0]) {
@@ -234,7 +245,7 @@ export function diasHasta(fechas: string[], hoy = new Date()): number | null {
 /** Los vendedores que compiten en un producto de catálogo (API, gratis), como publicaciones para seguir. */
 async function vendedoresDelCatalogo(cuenta: CuentaMl, catalogo: string, base: PubEncontrada): Promise<PubEncontrada[]> {
   const r = await ml<{ results?: { item_id: string; price?: number; original_price?: number | null; currency_id?: string; listing_type_id?: string; seller_id?: number;
-    official_store_id?: number | null; shipping?: { free_shipping?: boolean } }[] }>(cuenta, "GET", `/products/${catalogo}/items?limit=30`).catch(() => null);
+    official_store_id?: number | null; shipping?: { free_shipping?: boolean }; international_delivery_mode?: string | null }[] }>(cuenta, "GET", `/products/${catalogo}/items?limit=30`).catch(() => null);
   if (!r || r.status !== 200 || !r.datos.results?.length) return [];
   // El título que ve el comprador es el del catálogo: el de la búsqueda puede ser el de una publicación (Fer, 11/10).
   const nombre = await nombreCatalogo(cuenta, catalogo);
@@ -242,6 +253,7 @@ async function vendedoresDelCatalogo(cuenta: CuentaMl, catalogo: string, base: P
     ...base, titulo: nombre ?? base.titulo, itemId: x.item_id, catalogoId: catalogo, esCatalogo: false, permalink: enlaceDe(x.item_id), vendedor: null, vendedorId: x.seller_id ?? null,
     tiendaOficial: x.official_store_id != null, precio: x.price ?? null, precioOriginal: x.original_price ?? null, moneda: x.currency_id ?? "ARS",
     tipoPublicacion: x.listing_type_id ?? null, envioGratis: x.shipping?.free_shipping ?? null, estado: "activa", publicidad: false,
+    internacional: esInternacional(x.international_delivery_mode),
   }));
 }
 
@@ -324,11 +336,11 @@ export async function seguirDeBusqueda(org: string, productoId: number, itemId: 
   if (p.esCatalogo) throw new ErrorErp("Es un producto de catálogo: buscá de nuevo para ver a cada vendedor.");
   const r = await una<{ id: number }>(`
     insert into seguimiento_pub (organizacion_id, producto_id, item_id, catalogo_id, titulo, foto, permalink, vendedor, tienda_oficial,
-                                 precio, precio_original, moneda, estado, tipo_publicacion, cuotas, envio_gratis, origen, leido_ts, intento_ts, vendedor_id, entrega_dias)
-    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, coalesce($13, 'activa'), $14, $15, $16, 'busqueda', $17, $17, $18, $19)
+                                 precio, precio_original, moneda, estado, tipo_publicacion, cuotas, envio_gratis, origen, leido_ts, intento_ts, vendedor_id, entrega_dias, internacional)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, coalesce($13, 'activa'), $14, $15, $16, 'busqueda', $17, $17, $18, $19, $20)
     on conflict (organizacion_id, producto_id, item_id) do nothing returning id::int`,
     [org, productoId, p.itemId, p.catalogoId, p.titulo, p.foto, p.permalink, p.vendedor, p.tiendaOficial, p.precio, p.precioOriginal, p.moneda,
-      p.estado, p.tipoPublicacion, p.cuotas, p.envioGratis, ts, p.vendedorId ?? null, p.entregaDias ?? null]);
+      p.estado, p.tipoPublicacion, p.cuotas, p.envioGratis, ts, p.vendedorId ?? null, p.entregaDias ?? null, p.internacional ?? null]);
   if (r) await anotarLectura(org, r.id, "busqueda", p);
 }
 
@@ -354,6 +366,35 @@ export async function seguirPorNumero(org: string, productoId: number, texto: st
 
 export async function dejarDeSeguir(org: string, id: number): Promise<void> {
   await consulta("delete from seguimiento_pub where id = $1 and organizacion_id = $2", [id, org]);
+}
+
+/** Seguirla pero que no cuente para la regla de precio (o volver a contarla). */
+/** Marca las internacionales en la búsqueda guardada y en los catálogos pegados (por el país de cada vendedor, gratis):
+ *  las búsquedas de antes no traían el dato. Devuelve cuántas marcó. */
+export async function marcarInternacionales(org: string, productoId: number): Promise<number> {
+  const { cuentas } = await nuestras(org);
+  if (!cuentas[0]) return 0;
+  const b = await ultimaBusqueda(org, productoId);
+  const cats = await catalogosPegados(org, productoId);
+  const todas = [...(b?.resultados ?? []), ...cats.flatMap((c) => c.resultados)];
+  const vendedores = [...new Set(todas.filter((x) => x.internacional == null && x.vendedorId).map((x) => x.vendedorId!))].slice(0, 120);
+  const afuera = new Set<number>();
+  for (let i = 0; i < vendedores.length; i += 10) {
+    await Promise.all(vendedores.slice(i, i + 10).map(async (v) => {
+      const u = await ml<{ country_id?: string }>(cuentas[0], "GET", `/users/${v}`).catch(() => null);
+      if (u?.status === 200 && esInternacional(null, u.datos.country_id)) afuera.add(v);
+    }));
+  }
+  const marcar = (lista: PubEncontrada[]) => lista.map((x) => (x.internacional == null && x.vendedorId ? { ...x, internacional: afuera.has(x.vendedorId) } : x));
+  if (b) await consulta("update seguimiento_busqueda set resultados = $3::jsonb where organizacion_id = $1 and producto_id = $2", [org, productoId, JSON.stringify(marcar(b.resultados))]);
+  for (const c of cats) await consulta("update seguimiento_catalogo set resultados = $4::jsonb where organizacion_id = $1 and producto_id = $2 and catalogo_id = $3",
+    [org, productoId, c.catalogoId, JSON.stringify(marcar(c.resultados))]);
+  return afuera.size;
+}
+
+export async function excluirDeRegla(org: string, id: number, excluido: boolean): Promise<number | null> {
+  const r = await una<{ producto_id: number }>("update seguimiento_pub set excluido = $3 where id = $1 and organizacion_id = $2 returning producto_id::int", [id, org, excluido]);
+  return r?.producto_id ?? null;
 }
 
 // ── Leer las seguidas ───────────────────────────────────────
@@ -383,7 +424,7 @@ async function leerCatalogo(org: string, cuenta: CuentaMl, seguidas: Seguida[]):
          where b.organizacion_id = $1 and b.resultados @> jsonb_build_array(jsonb_build_object('catalogoId', $2::text))`, [org, cat, nombre]);
     }
     const r = await ml<{ results?: { item_id: string; price?: number; original_price?: number | null; currency_id?: string; listing_type_id?: string; seller_id?: number;
-      official_store_id?: number | null; shipping?: { free_shipping?: boolean } }[] }>(cuenta, "GET", `/products/${cat}/items?limit=100`);
+      official_store_id?: number | null; shipping?: { free_shipping?: boolean }; international_delivery_mode?: string | null }[] }>(cuenta, "GET", `/products/${cat}/items?limit=100`);
     for (const s of lista) {
       if (r.status !== 200) {
         await consulta("update seguimiento_pub set intento_ts = now(), error = $2 where id = $1", [s.id, `Mercado Libre contestó ${r.status} al leer el catálogo ${cat}.`]);
@@ -399,9 +440,12 @@ async function leerCatalogo(org: string, cuenta: CuentaMl, seguidas: Seguida[]):
         : { estado: "no_figura" };
       if (x) p.entregaDias = await diasDeEntrega(cuenta, s.item_id);
       // El apodo del vendedor, si todavía no se sabe (las agregadas por número llegan sin él).
+      // Y si es internacional (entrega internacional o vendedor de afuera): no cuenta para la regla.
       if (x?.seller_id) {
-        const u = await ml<{ nickname?: string }>(cuenta, "GET", `/users/${x.seller_id}`).catch(() => null);
-        if (u?.status === 200 && u.datos.nickname) await consulta("update seguimiento_pub set vendedor = coalesce(vendedor, $2) where id = $1", [s.id, u.datos.nickname]);
+        const u = await ml<{ nickname?: string; country_id?: string }>(cuenta, "GET", `/users/${x.seller_id}`).catch(() => null);
+        const ok = u?.status === 200;
+        await consulta("update seguimiento_pub set vendedor = coalesce(vendedor, $2), internacional = $3 where id = $1",
+          [s.id, ok ? u!.datos.nickname ?? null : null, esInternacional(x.international_delivery_mode, ok ? u!.datos.country_id : null)]);
       }
       await consulta(`update seguimiento_pub set precio = coalesce($2, precio), precio_original = $3, moneda = coalesce($4, moneda), estado = $5,
                              tipo_publicacion = coalesce($6, tipo_publicacion), envio_gratis = coalesce($7, envio_gratis), tienda_oficial = coalesce($8, tienda_oficial),

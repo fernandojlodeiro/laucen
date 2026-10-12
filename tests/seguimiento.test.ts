@@ -88,3 +88,11 @@ test("regla de precio: también subir, hasta el techo", async () => {
   assert.equal(decidir(18000, 20000, 15000, null).nuevo, null);                                   // sin «También subir», no sube
   assert.equal(decidir(20000, 20000, 15000, 25000).nuevo, null);
 });
+
+test("esInternacional: entrega internacional o vendedor de afuera", async () => {
+  const { esInternacional } = await import("@/lib/seguimiento");
+  assert.equal(esInternacional("none", "AR"), false);
+  assert.equal(esInternacional(null, null), false);
+  assert.equal(esInternacional("CBT", null), true);
+  assert.equal(esInternacional(null, "CN"), true);
+});

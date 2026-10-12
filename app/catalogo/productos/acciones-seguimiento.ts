@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, texto, id, numero } from "@/lib/erp/acciones";
 import { deFondo, lanzarTarea } from "@/lib/tareas-fondo";
-import { buscarParaSeguir, seguirDeBusqueda, seguirPorNumero, dejarDeSeguir, leerSeguidas, listarCatalogo, cerrarCatalogo } from "@/lib/seguimiento";
+import { buscarParaSeguir, seguirDeBusqueda, seguirPorNumero, dejarDeSeguir, leerSeguidas, listarCatalogo, cerrarCatalogo, excluirDeRegla, marcarInternacionales } from "@/lib/seguimiento";
 import { guardarRegla, revisarRegla, aplicarPropuesta, descartarPropuesta } from "@/lib/seguimiento/regla";
 
 const volver = (pid: number) => `/catalogo/productos/${pid}?seccion=seguimiento`;
@@ -85,6 +85,8 @@ export async function accionLeerSeguimiento(fd: FormData) {
   const pid = id(fd, "producto_id");
   return deFondo(s, `seguimiento-leer-${pid}`, "Leer las publicaciones seguidas", async () => {
     const r = await leerSeguidas(s.org.id, { productoId: pid, todas: true });
+    // De paso, las internacionales de la búsqueda guardada (las de antes no traían el dato).
+    await marcarInternacionales(s.org.id, pid).catch((e) => console.error("[seguimiento] internacionales", e));
     revalidatePath(`/catalogo/productos/${pid}`);
     return `Leídas: ${r.catalogo} de catálogo (gratis) y ${r.comunes} comunes.${r.sinPresupuesto ? ` ${r.sinPresupuesto} quedaron sin leer: se llegó al tope de gasto del mes.` : ""}`;
   });
@@ -144,5 +146,19 @@ export async function accionDescartarPropuesta(fd: FormData) {
     await descartarPropuesta(s.org.id, pid, s.usuario.id);
     revalidatePath(`/catalogo/productos/${pid}`);
     return "Propuesta descartada: la lista queda como estaba.";
+  });
+}
+
+/** La casilla «Excluir de la regla» de cada publicación seguida: la sigue, pero no cuenta para la regla de precio. */
+export async function accionExcluirDeRegla(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  await intentar(volver(pid), async () => {
+    const excluido = fd.get("valor") === "1";
+    await excluirDeRegla(s.org.id, id(fd), excluido);
+    // Con la referencia cambiada, la regla se vuelve a revisar con lo último leído.
+    const r = await revisarRegla(s.org.id, pid, s.usuario.id);
+    revalidatePath(`/catalogo/productos/${pid}`);
+    return `${excluido ? "Excluida de la regla: se sigue, pero no cuenta para comparar." : "Vuelve a contar para la regla."} ${r}`;
   });
 }

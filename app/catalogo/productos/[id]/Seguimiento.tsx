@@ -15,13 +15,15 @@ import { CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, Estado, Ti
 import BuscarSeguimiento from "./BuscarSeguimiento";
 import { reglaDe } from "@/lib/seguimiento/regla";
 import ReglaPrecio from "./ReglaPrecio";
-import { accionSeguir, accionSeguirPorNumero, accionDejarDeSeguir, accionLeerSeguimiento, accionCerrarCatalogo } from "@/app/catalogo/productos/acciones-seguimiento";
+import CasillaAccion from "@/app/componentes/CasillaAccion";
+import { accionSeguir, accionSeguirPorNumero, accionDejarDeSeguir, accionLeerSeguimiento, accionCerrarCatalogo, accionExcluirDeRegla } from "@/app/catalogo/productos/acciones-seguimiento";
 
 type Seguida = {
   id: number; item_id: string; catalogo_id: string | null; titulo: string | null; foto: string | null; permalink: string | null;
   vendedor: string | null; tienda_oficial: boolean | null; precio: number | null; precio_original: number | null; moneda: string | null;
   estado: string | null; tipo_publicacion: string | null; cuotas: string | null; envio_gratis: boolean | null;
   leido_ts: Date | null; error: string | null; cambio: number | null; entrega_dias: number | null; lecturas: number;
+  internacional: boolean | null; excluido: boolean;
   /** El último cambio de precio (entre dos lecturas seguidas), y si fue en la última lectura. */
   ultimo: { ts: string; antes: number; despues: number; enLaUltima: boolean } | null;
 };
@@ -69,12 +71,12 @@ function Entrega({ dias, demora, gratis }: { dias: number | null | undefined; de
   );
 }
 
-export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string; borden?: string; hist?: string; editar?: string } }) {
+export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string; internacionales?: string; borden?: string; hist?: string; editar?: string } }) {
   const hist = Number(sp.hist) || null;
   const [seguidas, busqueda, conf, lecturas, catalogos, regla] = await Promise.all([
     consulta<Seguida>(`
       select sp.id::int, sp.item_id, sp.catalogo_id, sp.titulo, sp.foto, sp.permalink, sp.vendedor, sp.tienda_oficial, sp.precio::float8, sp.precio_original::float8,
-             sp.moneda, sp.estado, sp.tipo_publicacion, sp.cuotas, sp.envio_gratis, sp.leido_ts, sp.error, sp.entrega_dias,
+             sp.moneda, sp.estado, sp.tipo_publicacion, sp.cuotas, sp.envio_gratis, sp.leido_ts, sp.error, sp.entrega_dias, sp.internacional, sp.excluido,
              -- Cuánto cambió el precio desde la lectura anterior.
              (select (sp.precio - l.precio)::float8 from seguimiento_lectura l where l.seguimiento_id = sp.id and l.precio is not null
                order by l.ts desc offset 1 limit 1) cambio,
@@ -99,7 +101,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
   // La referencia de la regla de precio (si está prendida): la elegida o la más barata de las activas con precio.
   const referenciaId = !regla || regla.modo === "apagada" ? null
     : regla.contra === "una" ? regla.seguimientoId
-    : seguidas.filter((x) => x.estado === "activa" && x.precio != null && (x.moneda ?? "ARS") === "ARS").sort((a, b) => a.precio! - b.precio!)[0]?.id ?? null;
+    : seguidas.filter((x) => x.estado === "activa" && x.precio != null && (x.moneda ?? "ARS") === "ARS" && !x.excluido && !x.internacional).sort((a, b) => a.precio! - b.precio!)[0]?.id ?? null;
   const seguidosIds = new Set(seguidas.map((x) => x.item_id));
   // Los resultados: sin packs (si el nuestro no lo es) ni los nuestros, salvo que se pidan; los más parecidos al nuestro primero.
   const nuestroEsPack = esPack(p.titulo);
@@ -107,18 +109,19 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
     .map((r) => ({ ...r, pack: !nuestroEsPack && esPack(r.titulo), parecido: parecido(p.titulo, r.titulo) }));
   const demora = (r: PubEncontrada) => r.entregaDias != null && r.entregaDias > conf.demoraDias;
   const packs = todos.filter((r) => r.pack).length, propias = todos.filter((r) => r.propia).length, demoradas = todos.filter(demora).length;
-  const verPacks = sp.packs === "1", verPropias = sp.propias === "1", verDemoradas = sp.demoradas === "1";
+  const internacionales = todos.filter((r) => r.internacional).length;
+  const verPacks = sp.packs === "1", verPropias = sp.propias === "1", verDemoradas = sp.demoradas === "1", verInternacionales = sp.internacionales === "1";
   // «Como en Mercado Libre»: el orden en que vino la búsqueda (los vendedores de un catálogo, en su lugar).
   const borden: OrdenBusqueda = esOrdenBusqueda(sp.borden) ? sp.borden : "ml";
   const resultados = todos.map((r, posicion) => ({ ...r, posicion }))
-    .filter((r) => (verPacks || !r.pack) && (verPropias || !r.propia) && (verDemoradas || !demora(r)))
+    .filter((r) => (verPacks || !r.pack) && (verPropias || !r.propia) && (verDemoradas || !demora(r)) && (verInternacionales || !r.internacional))
     .sort((a, b) => borden === "precio" ? (a.precio ?? Infinity) - (b.precio ?? Infinity) || a.posicion - b.posicion
       : borden === "parecido" ? b.parecido - a.parecido || a.posicion - b.posicion
       : a.posicion - b.posicion);
   // El enlace al historial de una seguida (o cerrarlo), sin perder lo demás de la dirección.
   const conHist = (id: number | null) => {
     const q = new URLSearchParams({ seccion: "seguimiento" });
-    for (const k of ["packs", "propias", "demoradas", "borden"] as const) if (sp[k]) q.set(k, sp[k]!);
+    for (const k of ["packs", "propias", "demoradas", "internacionales", "borden"] as const) if (sp[k]) q.set(k, sp[k]!);
     if (id) q.set("hist", String(id));
     return `/catalogo/productos/${p.id}?${q}`;
   };
@@ -151,14 +154,18 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
         <div className={CAJA_TABLA}>
           <table className={TABLA}>
             <thead className={THEAD}>
-              <tr><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Tipo</th>
-                <th className={TH}>Entrega</th><th className={TH}>Estado</th><th className={TH}>Leída</th><th /></tr>
+              <tr><th /><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Tipo</th>
+                <th className={TH}>Entrega</th><th className={TH}>Estado</th><th className={TH}>Leída</th><th className={TH} title="Tildada: se sigue, pero no cuenta para la regla de precio">Fuera de la regla</th><th /></tr>
             </thead>
             <tbody>
-              {seguidas.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>Todavía no seguís ninguna: buscalas abajo y tocá «Seguir», o agregalas por número.</td></tr>}
+              {seguidas.length === 0 && <tr><td colSpan={10} className={`${TD} text-[#5C6B76]`}>Todavía no seguís ninguna: buscalas abajo y tocá «Seguir», o agregalas por número.</td></tr>}
               {seguidas.flatMap((x) => [
                 // Lo que cambió en la última lectura, en amarillo; si es la referencia de la regla, en rosa (Fer, 12/10).
                 <tr key={x.id} className={`${TR} ${x.ultimo?.enLaUltima ? (x.id === referenciaId ? "bg-[#FCE4EC]" : "bg-[#FFF8E5]") : ""}`}>
+                  {/* Dejar de seguir: bien a la vista, a la izquierda (Fer, 12/10). */}
+                  <td className={`${TD} w-8`}>
+                    <TachoConfirmar accion={accionDejarDeSeguir} campos={{ id: String(x.id), producto_id: String(p.id) }} pregunta="¿Dejar de seguirla?" />
+                  </td>
                   <td className={TD}>
                     <span className="flex items-start gap-2">
                       <span className="h-10 w-10 shrink-0">{x.foto && <img src={x.foto} alt="" className="h-10 w-10 object-contain rounded bg-white" />}</span>
@@ -166,6 +173,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
                         <a href={enlaceMl(x)} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline">{x.titulo ?? x.item_id} ↗</a>
                         <span className="block text-[10px] text-[#5C6B76] font-mono">{x.item_id}{x.catalogo_id && <> · 📖 Catálogo {x.catalogo_id}</>}</span>
                         {x.id === referenciaId && <span className="inline-block mt-0.5 rounded px-1 text-[10px] font-semibold bg-[#AD1457] text-white" title="La regla de precio compara contra ésta">🎯 Referencia de la regla</span>}
+                        {x.internacional && <span className="inline-block mt-0.5 mr-1 rounded px-1 text-[10px] font-semibold bg-[#E3E9F0] text-[#16577F]" title="Vendedor de afuera o entrega internacional: no cuenta para la regla (le faltan los impuestos)">🌐 Internacional</span>}
                       </span>
                     </span>
                   </td>
@@ -178,17 +186,18 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
                   <td className={TD}><Entrega dias={x.entrega_dias} demora={conf.demoraDias} gratis={x.envio_gratis} /></td>
                   <td className={TD}><Estado texto={ESTADOS[x.estado ?? "sin_dato"]?.t ?? x.estado ?? "—"} tono={ESTADOS[x.estado ?? "sin_dato"]?.tono ?? "gris"} /></td>
                   <td className={`${TD} whitespace-nowrap`}>{hace(x.leido_ts)}{x.error && <span className="block text-[10px] text-[#C03420] max-w-48 whitespace-normal">{x.error}</span>}</td>
+                  <td className={TD}>
+                    <CasillaAccion accion={accionExcluirDeRegla} campos={{ id: String(x.id), producto_id: String(p.id) }} activa={x.excluido}
+                      etiqueta="Excluir" ayuda="Tildada: la seguís y ves su precio, pero la regla de precio no la tiene en cuenta" />
+                  </td>
                   <td className={`${TD} text-right whitespace-nowrap`}>
-                    <span className="inline-flex items-center gap-1">
-                      <Link href={conHist(hist === x.id ? null : x.id)} scroll={false} className={SUAVE}
-                        title="Cada lectura que se hizo de esta publicación: precio, estado y tipo">📈 Historial ({x.lecturas})</Link>
-                      <TachoConfirmar accion={accionDejarDeSeguir} campos={{ id: String(x.id), producto_id: String(p.id) }} pregunta="¿Dejar de seguirla?" />
-                    </span>
+                    <Link href={conHist(hist === x.id ? null : x.id)} scroll={false} className={SUAVE}
+                      title="Cada lectura que se hizo de esta publicación: precio, estado y tipo">📈 Historial ({x.lecturas})</Link>
                   </td>
                 </tr>,
                 hist === x.id && (
                   <tr key={`h${x.id}`}>
-                    <td colSpan={8} className="bg-[#F7F9FB] px-3 py-2"><Historial lecturas={lecturas} moneda={x.moneda} /></td>
+                    <td colSpan={10} className="bg-[#F7F9FB] px-3 py-2"><Historial lecturas={lecturas} moneda={x.moneda} /></td>
                   </tr>
                 ),
               ])}
@@ -226,6 +235,8 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
             <CasillaViva parametro="packs" activo={verPacks} etiqueta={`Mostrar también packs y varias unidades (${packs})`} />
             <CasillaViva parametro="propias" activo={verPropias} etiqueta={`Mostrar también las nuestras (${propias})`} />
             <CasillaViva parametro="demoradas" activo={verDemoradas} etiqueta={`Mostrar también las que tardan más de ${conf.demoraDias} días (${demoradas})`} />
+            <CasillaViva parametro="internacionales" activo={verInternacionales} etiqueta={`Mostrar también las internacionales (${internacionales})`}
+              ayuda="Vendedores de afuera o con entrega internacional: su precio no se compara porque le faltan los impuestos." />
             <label className="flex items-center gap-1">Ordenar:
               <FiltroVivo parametro="borden" valor={borden} etiqueta="Ordenar la búsqueda">
                 {Object.entries(ORDENES_BUSQUEDA).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
@@ -288,7 +299,7 @@ function TablaEncontradas({ filas, productoId, seguidos, demora }: { filas: (Pub
                   <span>
                     <a href={enlaceMl({ permalink: r.permalink, itemId: r.itemId })} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline">{r.titulo} ↗</a>
                     <span className="block text-[10px] text-[#5C6B76] font-mono">
-                      {r.itemId}{r.catalogoId && " · 📖 Catálogo (el título es el del catálogo, no el del vendedor)"}{r.publicidad && " · Publicidad"}{r.pack && " · Pack"}
+                      {r.itemId}{r.catalogoId && " · 📖 Catálogo (el título es el del catálogo, no el del vendedor)"}{r.publicidad && " · Publicidad"}{r.pack && " · Pack"}{r.internacional && " · 🌐 Internacional"}
                     </span>
                   </span>
                 </span>
