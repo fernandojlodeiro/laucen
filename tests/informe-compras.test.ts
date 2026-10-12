@@ -8,7 +8,7 @@ import { analizar, recomendar, resumir, type ProductoImportado } from "@/lib/com
 
 const p = (x: Partial<ProductoImportado>): ProductoImportado => ({
   linea_id: 1, compra_id: 1, compra: "C_1", ingreso_ts: new Date("2026-05-21T16:10:00Z"), producto_id: 1, sku: "SKU1", descripcion: "Algo", fotos: null,
-  cargado: 100, vendido: 0, ventas: 0, comision: 0, costo_unit: 1000, disponible: 100, precio: 5000, primera_venta: null, agotado_ts: null, dias: 140, ...x,
+  cargado: 100, vendido: 0, ventas: 0, comision: 0, costo_unit: 1000, disponible: 100, precio: 5000, primera_venta: null, agotado_ts: null, dias: 140, costo_usd: 1, comprado: 100, ...x,
 });
 
 test("ganancia, margen, venta por día, días para agotar y diferencia de stock", () => {
@@ -41,4 +41,6 @@ test("resumen de varias", () => {
   assert.equal(r.vendido, 30);
   assert.equal(r.ganancia, 50_000 - 5_000 - 10_000 + 80_000 - 9_000 - 20_000);
   assert.equal(r.diferencia, -5);
+  assert.equal(r.compra_usd, 200);
+  assert.equal(r.stock_usd, 165);
 });

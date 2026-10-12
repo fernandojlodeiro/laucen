@@ -57,7 +57,7 @@ Si el producto ya tenía stock antes de la compra, sus ventas también cuentan: 
 
 Botón **Informe de importaciones**, arriba a la derecha de la lista de compras. Arriba se tildan las **compras** a analizar (de entrada, todas): se pueden mirar una sola o varias juntas.
 
-- **Resumen** por compra (y el total si hay más de una): cargado, vendido y %, ventas, comisión y cargo fijo de Mercado Libre, costo de lo vendido, **ganancia** y margen, disponible hoy, diferencia de stock y su valor a precio de la Clásica, y lo que queda en stock al costo y a precio de la Clásica.
+- **Resumen** por compra (y el total si hay más de una): cargado, vendido y %, ventas, comisión y cargo fijo de Mercado Libre, costo de lo vendido, **ganancia** y margen, disponible hoy, diferencia de stock y su valor a precio de la Clásica, lo que queda en stock al costo y a precio de la Clásica, la **compra real en dólares** (lo que se compró por su costo en dólares de esa compra: FOB más flete por kilo, más el % del courier) y el **stock que queda en dólares** a ese mismo costo, con el % que representa de la compra.
 - **Para la próxima importación**: qué conviene hacer con cada producto, agrupado:
   - **Comprar más cantidad**: vendió casi todo (90 % o más) en 60 días o menos y deja 25 % o más de margen; sugiere la cantidad para 120 días de venta.
   - **Reponer**: vendió el 60 % o más con margen razonable; sugiere la cantidad para 120 días.

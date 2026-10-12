@@ -11,6 +11,8 @@ import { consulta, una } from "@/lib/erp/base";
 export type ProductoImportado = {
   linea_id: number; compra_id: number; compra: string; ingreso_ts: Date; producto_id: number | null; sku: string; descripcion: string; fotos: string[] | null;
   cargado: number; vendido: number; ventas: number; comision: number; costo_unit: number | null; disponible: number; precio: number | null;
+  /** Lo que costó en dólares cada unidad en ESTA compra (FOB + flete por kilo, más el % del courier) y cuántas se compraron. */
+  costo_usd: number; comprado: number;
   primera_venta: Date | null; agotado_ts: Date | null; dias: number;
 };
 
@@ -50,7 +52,8 @@ export async function productosImportados(org: string, compras: number[]): Promi
                order by lower(nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') desc, orden, id limit 1),
     l as (
       select l.id, c.id compra_id, c.nombre compra, c.ingreso_ts, l.variacion_id, va.producto_id, coalesce(va.sku, l.sku) sku, l.descripcion, l.orden,
-             coalesce(l.cargado, l.cantidad) cargado, va.costo_ultimo_usd * tc.tc costo_unit
+             coalesce(l.cargado, l.cantidad) cargado, va.costo_ultimo_usd * tc.tc costo_unit, l.cantidad comprado,
+             (l.fob_unit_usd + coalesce(l.peso_g, 0) / 1000 * c.flete_usd_kg) * (1 + c.courier_pct / 100) costo_usd
         from compra_courier c join compra_courier_linea l on l.compra_id = c.id left join variacion va on va.id = l.variacion_id cross join tc
        where c.organizacion_id = $1 and c.id = any($2::bigint[]) and c.ingreso_ts is not null),
     v as (
@@ -65,7 +68,7 @@ export async function productosImportados(org: string, compras: number[]): Promi
         from a join l on l.id = a.id group by a.id)
     select l.id::int linea_id, l.compra_id::int, l.compra, l.ingreso_ts, l.producto_id::int, l.sku, l.descripcion,
            (select array_agg(pf.url order by pf.orden) from producto_foto pf where pf.producto_id = l.producto_id) fotos,
-           l.cargado, coalesce(g.vendido, 0) vendido, coalesce(g.ventas, 0) ventas, coalesce(g.comision, 0) comision, l.costo_unit::float8,
+           l.cargado, l.comprado, l.costo_usd::float8, coalesce(g.vendido, 0) vendido, coalesce(g.ventas, 0) ventas, coalesce(g.comision, 0) comision, l.costo_unit::float8,
            (select coalesce(sum(s.cantidad - s.reservado), 0) from stock s where s.variacion_id = l.variacion_id)::int disponible,
            (select pd.lista_ars from lista, precio_de($1, l.variacion_id, lista.id) pd)::float8 precio,
            g.primera_venta, g.agotado_ts,
@@ -128,13 +131,15 @@ export function recomendar(a: Analisis, u = UMBRALES): Recomendacion[] {
 
 export type Resumen = {
   compra: string; cargado: number; vendido: number; ventas: number; comision: number; costo_vendido: number; ganancia: number;
+  /** La compra en dólares (lo que se pagó) y lo que queda en stock valorizado a ese mismo costo en dólares. */
+  compra_usd: number; stock_usd: number;
   disponible: number; diferencia: number; stock_costo: number; stock_pvp: number; faltante_pvp: number;
 };
 
 export function resumir(nombre: string, xs: Analisis[]): Resumen {
   const s = (f: (a: Analisis) => number | null) => xs.reduce((t, a) => t + (f(a) ?? 0), 0);
   return {
-    compra: nombre, cargado: s((a) => a.cargado), vendido: s((a) => a.vendido), ventas: s((a) => a.ventas), comision: s((a) => a.comision),
+    compra: nombre, compra_usd: s((a) => a.comprado * a.costo_usd), stock_usd: s((a) => Math.max(0, a.disponible) * a.costo_usd), cargado: s((a) => a.cargado), vendido: s((a) => a.vendido), ventas: s((a) => a.ventas), comision: s((a) => a.comision),
     costo_vendido: s((a) => a.costo_vendido), ganancia: s((a) => a.ganancia), disponible: s((a) => a.disponible), diferencia: s((a) => a.diferencia),
     stock_costo: s((a) => a.stock_costo), stock_pvp: s((a) => (a.precio ?? 0) * Math.max(0, a.disponible)),
     faltante_pvp: s((a) => (a.diferencia < 0 ? a.diferencia * (a.precio ?? 0) : 0)),

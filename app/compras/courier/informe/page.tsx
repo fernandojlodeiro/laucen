@@ -15,6 +15,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const pesos = (n: number | null) => (n == null ? "—" : `$ ${formatearNumero(Math.round(n), "pesos")}`);
+const usd = (n: number | null) => (n == null ? "—" : `US$ ${n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const entero = (n: number | null) => (n == null ? "—" : formatearNumero(n, "entero"));
 const pct = (n: number | null) => (n == null ? "—" : `${n.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`);
 const rojo = (n: number | null) => (n != null && n < 0 ? "text-[#C03420] font-semibold" : "");
@@ -66,6 +67,8 @@ export default async function InformeImportaciones({ searchParams }: { searchPar
     ["Ganancia", (r) => <b>{pesos(r.ganancia)}</b>], ["Margen", (r) => pct(r.ventas ? (r.ganancia / r.ventas) * 100 : null)],
     ["Disponible hoy", (r) => entero(r.disponible)], ["Diferencia de stock", (r) => <span className={rojo(r.diferencia)}>{entero(r.diferencia)}</span>],
     ["Faltante a precio Clásica", (r) => <span className={rojo(r.faltante_pvp)}>{pesos(r.faltante_pvp)}</span>],
+    ["Compra real en dólares", (r) => usd(r.compra_usd)],
+    ["Stock que queda, en dólares", (r) => <>{usd(r.stock_usd)} <span className="text-[#5C6B76]">({pct(r.compra_usd ? (r.stock_usd / r.compra_usd) * 100 : null)} de la compra)</span></>],
     ["Stock que queda, al costo", (r) => pesos(r.stock_costo)], ["Stock que queda, a precio Clásica", (r) => pesos(r.stock_pvp)],
   ];
 
