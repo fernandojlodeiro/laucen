@@ -6,7 +6,7 @@
 // `alias`: nombres de columna que se reconocen solos al subir el archivo
 // (sin acentos ni mayúsculas), para que el mapeo arranque medio hecho.
 
-export type Destino = "productos" | "clientes" | "ventas" | "stock";
+export type Destino = "productos" | "clientes" | "ventas" | "ventas_vs" | "stock";
 
 export type Campo = {
   clave: string;
@@ -66,7 +66,7 @@ export const DESTINOS: Record<Destino, { nombre: string; ayuda: string; campos: 
     ],
   },
   ventas: {
-    nombre: "Ventas históricas",
+    nombre: "Ventas históricas como pedidos",
     ayuda: "Cada nº de venta es un pedido (varias filas con el mismo nº = varias líneas). Entran como entregados en el canal \"Histórico Virtual Seller\", sin tocar el stock. Se convierten con el tipo de cambio de la fecha de cada venta.",
     campos: [
       { clave: "id_externo", etiqueta: "Nº de venta", obligatorio: true, alias: ["nro venta", "numero venta", "venta", "nro", "comprobante", "nro comprobante", "factura", "pedido"] },
@@ -79,6 +79,25 @@ export const DESTINOS: Record<Destino, { nombre: string; ayuda: string; campos: 
       { clave: "precio_unitario", etiqueta: "Precio unitario", obligatorio: true, alias: ["precio", "precio unitario", "unitario", "p unitario"] },
       { clave: "moneda", etiqueta: "Moneda", ayuda: "ARS o USD. Vacío = pesos.", alias: ["moneda"] },
       { clave: "medio_pago", etiqueta: "Medio de pago", alias: ["medio de pago", "forma de pago", "pago"] },
+    ],
+  },
+  ventas_vs: {
+    nombre: "Historial de ventas de Virtual Seller",
+    ayuda: "Sólo para consultar y para las estadísticas: NO crea pedidos, ni clientes, ni mueve stock. Cada renglón es un producto vendido y aparece en Ventas › Historial de ventas. Subir el mismo archivo (o uno que se pisa con otro) no duplica nada. Una venta de Mercado Libre que el sistema ya tiene (por su número de venta) no se cuenta dos veces, y en la web, el local y los demás canales se cuenta sólo lo anterior al primer pedido del sistema en ese canal.",
+    campos: [
+      { clave: "id_externo", etiqueta: "N.º de pedido de Virtual Seller", obligatorio: true, alias: ["pedido id", "pedido", "nro pedido", "id pedido"] },
+      { clave: "fecha", etiqueta: "Fecha", obligatorio: true, alias: ["fecha", "fecha pedido"] },
+      { clave: "venta_ml", etiqueta: "N.º de venta de Mercado Libre", ayuda: "Con esto se reconoce la venta si el sistema ya la tiene leída de Mercado Libre.", alias: ["venta ml", "venta ml#", "nro venta ml", "venta mercadolibre"] },
+      { clave: "canal", etiqueta: "Canal de venta", obligatorio: true, ayuda: "Cada nombre se asocia a un canal del sistema más abajo (los que no se asocian quedan como canal histórico).", alias: ["canal de venta", "canal"] },
+      { clave: "cliente", etiqueta: "Cliente (nombre)", alias: ["cliente", "nombre"] },
+      { clave: "documento", etiqueta: "N.º de documento", ayuda: "Los de relleno (11111111) se ignoran.", alias: ["nro documento", "documento", "dni"] },
+      { clave: "cuit", etiqueta: "CUIT (identificación tributaria)", alias: ["identificacion tributaria", "cuit"] },
+      { clave: "sku", etiqueta: "SKU", obligatorio: true, ayuda: "Se busca el producto por SKU (también sin el «DE-» de adelante). Si no existe, el renglón entra igual con su SKU y su nombre.", alias: ["producto codigo sku", "sku", "codigo"] },
+      { clave: "titulo", etiqueta: "Producto (nombre)", alias: ["producto denominacion", "denominacion", "producto", "descripcion"] },
+      { clave: "cantidad", etiqueta: "Cantidad", obligatorio: true, alias: ["cantidad", "cant"] },
+      { clave: "precio_unitario", etiqueta: "Precio unitario", alias: ["precio unitario", "precio"] },
+      { clave: "descuento", etiqueta: "Importe de descuento", alias: ["importe descuento", "descuento"] },
+      { clave: "subtotal", etiqueta: "Subtotal (lo cobrado)", ayuda: "Vacío = precio unitario × cantidad − descuento.", alias: ["subtotal", "total", "importe"] },
     ],
   },
   stock: {
@@ -123,5 +142,6 @@ export function mapeoSugerido(destino: Destino, columnas: string[]): Record<stri
 export function faltanObligatorios(destino: Destino, mapeo: Record<string, string>): string[] {
   const faltan = DESTINOS[destino].campos.filter((c) => c.obligatorio && !mapeo[c.clave]).map((c) => c.etiqueta);
   if (destino === "stock" && !mapeo.sku && !mapeo.codigo_barras) faltan.unshift("SKU o código de barras");
+  if (destino === "ventas_vs" && !mapeo.precio_unitario && !mapeo.subtotal) faltan.push("Precio unitario o subtotal");
   return faltan;
 }

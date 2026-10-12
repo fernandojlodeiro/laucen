@@ -1,6 +1,7 @@
 // Ventas › Historial de ventas (pedido de Fer, 12/10): TODAS las ventas de todos los canales. Mercado Libre trae
-// también las de antes de que Laucen tomara los pedidos (marcadas «Sin pedido»: son sólo para consultar y estadística,
-// nunca generan un pedido). Tocando una venta de ML se abre su detalle leído de Mercado Libre; una de otro canal, su pedido.
+// también las de antes de que Laucen tomara los pedidos, y lo anterior viene del historial importado de Virtual Seller
+// (marcadas «Sin pedido»: son sólo para consultar y estadística, nunca generan un pedido). Tocando una venta de ML se
+// abre su detalle leído de Mercado Libre; una de otro canal, su pedido.
 
 import Link from "next/link";
 import BuscadorVivo, { FiltroVivo } from "@/app/componentes/BuscadorVivo";
@@ -13,7 +14,7 @@ import { consulta, una } from "@/lib/erp/base";
 import { consultaPaginada } from "@/lib/lista";
 import { camposDe, ordenDe, seleccion, type Fila } from "@/lib/listas/tipos";
 import { formatearNumero } from "@/lib/numeros";
-import { fechaHora } from "@/app/ventas/formato";
+import { fecha, fechaHora } from "@/app/ventas/formato";
 import { BASE_HISTORIAL as BASE, ESTADOS_VENTA, LISTA_HISTORIAL, filtrosHistorial } from "./lista";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +40,7 @@ export default async function HistorialVentas({ searchParams }: { searchParams: 
   ]);
   return (
     <Pantalla titulo="Historial de ventas"
-      subtitulo="Todas las ventas de todos los canales. Las de Mercado Libre de antes de que Laucen tomara los pedidos figuran «Sin pedido»: son sólo para consultar."
+      subtitulo="Todas las ventas de todos los canales. Las anteriores a que Laucen tomara los pedidos (de Mercado Libre o del historial de Virtual Seller) figuran «Sin pedido»: son sólo para consultar."
       acciones={<AccionesExcel lista={LISTA_HISTORIAL} org={s.org.id} />}>
       <Avisos sp={sp} />
       {carga && carga.faltan > 0 && (
@@ -51,6 +52,12 @@ export default async function HistorialVentas({ searchParams }: { searchParams: 
         <FiltroVivo parametro="canal" valor={f.canal ? String(f.canal) : ""} etiqueta="Canal" limpiar={["p"]}>
           <option value="">Todos los canales</option>
           {canales.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+        </FiltroVivo>
+        <FiltroVivo parametro="origen" valor={f.origen} etiqueta="De dónde" limpiar={["p"]}>
+          <option value="">Todas</option>
+          <option value="ml">Mercado Libre</option>
+          <option value="otros">Pedidos de otros canales</option>
+          <option value="vs">Historial de Virtual Seller</option>
         </FiltroVivo>
         <FiltroVivo parametro="pedido" valor={f.pedido} etiqueta="Pedido" limpiar={["p"]}>
           <option value="">Con y sin pedido</option>
@@ -76,9 +83,10 @@ export default async function HistorialVentas({ searchParams }: { searchParams: 
             {filas.map((v, i) => {
               const ver = v.ml_venta_id ? `${BASE}/${v.ml_venta_id}` : v.pedido ? `/ventas/pedidos/${v.pedido}` : null;
               const cancelada = ["cancelled", "cancelado", "invalid"].includes(v.estado);
+              const deVs = v.origen === "vs";
               return (
                 <tr key={`${v.ml_venta_id ?? "p"}-${v.pedido ?? ""}-${i}`} className={`${TR} ${cancelada ? "opacity-60" : ""}`} data-canal={v.canal_id}>
-                  <td className={`${TDN} whitespace-nowrap`}>{ver ? <Link href={ver} className="text-[#16577F] hover:underline">{fechaHora(v.fecha)}</Link> : fechaHora(v.fecha)}</td>
+                  <td className={`${TDN} whitespace-nowrap`}>{ver ? <Link href={ver} className="text-[#16577F] hover:underline">{fechaHora(v.fecha)}</Link> : deVs ? fecha(v.fecha) : fechaHora(v.fecha)}</td>
                   <td className={TD}>{v.canal}</td>
                   <td className={TD}>
                     <span className="inline-flex items-center gap-2 align-middle">
@@ -91,7 +99,7 @@ export default async function HistorialVentas({ searchParams }: { searchParams: 
                   <td className={TDN}>{pesos(v.total)}</td>
                   <td className={TDN}>{pesos(v.comision)}</td>
                   <td className={TD}>{ESTADOS_VENTA[v.estado] ?? v.estado}{v.reclamo ? <> <Estado texto="Reclamo" tono="rojo" /></> : null}</td>
-                  <td className={TD}>{v.pedido ? <Link href={`/ventas/pedidos/${v.pedido}`} className="text-[#16577F] hover:underline">{v.pedido}</Link> : <Estado texto="Sin pedido" tono="gris" />}</td>
+                  <td className={TD}>{v.pedido ? <Link href={`/ventas/pedidos/${v.pedido}`} className="text-[#16577F] hover:underline">{v.pedido}</Link> : deVs ? <span title="Del historial de Virtual Seller: sin pedido en Laucen"><Estado texto="Sin pedido" tono="gris" /> <span className="text-[10px] text-[#5C6B76] whitespace-nowrap">VS {v.pedido_vs}</span></span> : <Estado texto="Sin pedido" tono="gris" />}</td>
                   <td className={TD}>{v.cliente_id ? <Link href={`/ventas/clientes/${v.cliente_id}`} className="text-[#16577F] hover:underline">{v.comprador}</Link> : v.comprador ?? "—"}</td>
                 </tr>
               );

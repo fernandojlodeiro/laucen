@@ -92,8 +92,8 @@ export default async function FichaCliente({ params, searchParams }: { params: P
       where ci.cliente_id = $1 and ci.canal_id = e.canal_id and ci.id_externo = e.ml_comprador_id::text))`;
   const [ventas, nVentas] = await Promise.all([
     consulta<{ fecha: Date; canal_id: number; canal: string; producto_id: number | null; sku: string | null; titulo: string | null; cantidad: number; total: number; estado: string; pedido_id: number | null; ml_venta_id: number | null }>(`
-      select e.fecha, e.canal_id::int, ca.nombre canal, va.producto_id::int, coalesce(va.sku, e.sku) sku, e.titulo, e.cantidad, e.total::float8, e.estado, e.pedido_id::int, e.ml_venta_id::int
-        from ${DE_SUS_VENTAS.replace("venta_estadistica e where", "venta_estadistica e join canal ca on ca.id = e.canal_id left join variacion va on va.id = e.variacion_id where")}
+      select e.fecha, e.canal_id::int, coalesce(ca.nombre, e.canal_nombre) canal, va.producto_id::int, coalesce(va.sku, e.sku) sku, e.titulo, e.cantidad, e.total::float8, e.estado, e.pedido_id::int, e.ml_venta_id::int
+        from ${DE_SUS_VENTAS.replace("venta_estadistica e where", "venta_estadistica e left join canal ca on ca.id = e.canal_id left join variacion va on va.id = e.variacion_id where")}
        order by e.fecha desc limit 50`, [cid, s.org.id]),
     una<{ n: number }>(`select count(*)::int n from ${DE_SUS_VENTAS}`, [cid, s.org.id]),
   ]);

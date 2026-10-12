@@ -19,6 +19,10 @@ import { crearPedido, type LineaEntrada } from "@/lib/pedidos";
 import type { Moneda } from "@/lib/moneda";
 import { esDestino, faltanObligatorios, type Destino } from "@/lib/importar/campos";
 import type { Valor } from "@/lib/importar/leer";
+import { leerFecha } from "@/lib/importar/fecha";
+import { importarVentasVs } from "@/lib/importar/ventas-vs";
+
+export { leerFecha };
 
 /** El canal donde entran las ventas históricas (se crea solo, sin lista). */
 export const CANAL_HISTORICO = "Histórico Virtual Seller";
@@ -63,33 +67,6 @@ function moneda(v: Valor): Moneda | null {
   if (["ARS", "$", "PESOS", "PESO", "ARG", "AR$"].includes(t)) return "ARS";
   if (["USD", "US$", "U$S", "U$D", "DOLAR", "DOLARES", "U$"].includes(t)) return "USD";
   throw new ErrorErp(`Moneda desconocida: "${v}" (tiene que ser ARS o USD).`);
-}
-
-/** Fecha de la planilla → "2026-03-15" o "2026-03-15T14:30:00" (hora argentina). */
-export function leerFecha(v: Valor): string | null {
-  if (v == null || v === "") return null;
-  const dos = (x: number) => String(x).padStart(2, "0");
-  const armar = (a: number, m: number, d: number, h = 0, mi = 0, s = 0) => {
-    const f = new Date(Date.UTC(a, m - 1, d, h, mi, s));
-    if (f.getUTCFullYear() !== a || f.getUTCMonth() !== m - 1 || f.getUTCDate() !== d || a < 1990 || a > 2100) return null;
-    const dia = `${a}-${dos(m)}-${dos(d)}`;
-    return h || mi || s ? `${dia}T${dos(h)}:${dos(mi)}:${dos(s)}` : dia;
-  };
-  if (typeof v === "number") {
-    // Número de serie de Excel (días desde el 30/12/1899).
-    if (v < 20000 || v > 80000) return null;
-    const f = new Date(Date.UTC(1899, 11, 30) + Math.round(v * 86400) * 1000);
-    return armar(f.getUTCFullYear(), f.getUTCMonth() + 1, f.getUTCDate(), f.getUTCHours(), f.getUTCMinutes(), f.getUTCSeconds());
-  }
-  const t = String(v).trim();
-  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
-  if (m) return armar(+m[1], +m[2], +m[3], +(m[4] ?? 0), +(m[5] ?? 0), +(m[6] ?? 0));
-  m = t.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
-  if (m) {
-    const a = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
-    return armar(a, +m[2], +m[1], +(m[4] ?? 0), +(m[5] ?? 0), +(m[6] ?? 0));
-  }
-  return null;
 }
 
 const digitos = (s: string | null) => (s ? s.replace(/\D/g, "") : "");
@@ -504,7 +481,7 @@ export async function ejecutarImportacion(org: string, importacionId: number, us
       const ctx: Ctx = { org, importacionId, usuarioId, mapeo: imp.mapeo, cache: new Map(), listas: new Map() };
       const inicio = Date.now();
       while (Date.now() - inicio < presupuestoMs) {
-        if (destino === "ventas") {
+        if (destino === "ventas" || destino === "ventas_vs") {
           const col = imp.mapeo.id_externo;
           const filas = await consulta<Fila & { clave: string | null }>(`
             with g as (
@@ -514,8 +491,15 @@ export async function ejecutarImportacion(org: string, importacionId: number, us
             select f.n, f.datos, f.datos ->> $3 clave
               from importacion_fila f join g on g.clave is not distinct from f.datos ->> $3
              where f.importacion_id = $1 and f.organizacion_id = $2 and f.resultado is null
-             order by f.n`, [importacionId, org, col, Math.ceil(FILAS_POR_VUELTA / 4)]);
+             order by f.n`, [importacionId, org, col, destino === "ventas_vs" ? 400 : Math.ceil(FILAS_POR_VUELTA / 4)]);
           if (!filas.length) break;
+          if (destino === "ventas_vs") {
+            // Historial de VS: nunca pedidos; toda la tanda en pocas consultas (lib/importar/ventas-vs.ts).
+            const pedidos = new Map<string, Fila[]>();
+            for (const f of filas) pedidos.set(f.clave ?? "", [...(pedidos.get(f.clave ?? "") ?? []), f]);
+            procesadas += await importarVentasVs(org, importacionId, imp.mapeo, [...pedidos.values()]);
+            continue;
+          }
           const grupos = new Map<string | null, Fila[]>();
           for (const f of filas) {
             const k = f.clave?.trim() || null;
