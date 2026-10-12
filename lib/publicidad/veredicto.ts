@@ -69,19 +69,19 @@ export function juzgar(m: Metr, precio: number | null, pctMax: number, cfg: Conf
   const queVentas = cfg.ventas === "totales" ? "ventas por publicidad (directas e indirectas)" : "ventas directas por publicidad";
 
   if (m.costo <= 0) return { ...base, veredicto: "esperar", color: "gris", motivo: "Sin gasto en los días que se miran." };
-  if (topeSinVentas != null && deMas >= topeSinVentas) {
+  if (topeSinVentas != null && deMas >= topeSinVentas && m.costo >= cfg.cortarMinimoPesos) {
     return { ...base, veredicto: "cortar", color: "rojo", motivo: ventas
       ? `Gastó ${fmt(m.costo)} y vendió ${ventas}: lleva ${fmt(deMas)} de más sobre el tope (${pct(pctMax)} por venta), más que el corte de ${fmt(topeSinVentas)}.`
       : `Gastó ${fmt(m.costo)} sin vender: llegó al corte de ${fmt(topeSinVentas)} (el equivalente a ${cfg.topeVentas.toLocaleString("es-AR")} ventas${cfg.topePesos > 0 ? ` o ${fmt(cfg.topePesos)}` : ""}).` };
   }
   if (!ventas) {
     return { ...base, veredicto: "seguir", color: "amarillo",
-      motivo: `Sin ${queVentas} todavía: gastó ${fmt(m.costo)}${topeSinVentas != null ? ` de ${fmt(topeSinVentas)} antes de cortar` : ""}.` };
+      motivo: `Sin ${queVentas} todavía: gastó ${fmt(m.costo)}${topeSinVentas != null ? ` de ${fmt(Math.max(topeSinVentas, cfg.cortarMinimoPesos))} antes de cortar` : ""}.` };
   }
   const pocos = m.diasConGasto < cfg.diasMinimos || m.clics < cfg.clicsMinimos;
   const p = pctPorVenta ?? 0;
   const cuenta = `Gastó ${fmt(m.costo)}, ${ventas} ${ventas === 1 ? "venta" : "ventas"} (${fmt(monto)}): ${fmt(porVenta ?? 0)} por venta = ${pct(p)} del precio; tope ${pct(pctMax)}.`;
-  if (p > pctMax * cfg.cortarDesde / 100 && !pocos) return { ...base, veredicto: "cortar", color: "rojo", motivo: `${cuenta} Pasa el ${cfg.cortarDesde} % del tope.` };
+  if (p > pctMax * cfg.cortarDesde / 100 && !pocos && m.costo >= cfg.cortarMinimoPesos) return { ...base, veredicto: "cortar", color: "rojo", motivo: `${cuenta} Pasa el ${cfg.cortarDesde} % del tope.` };
   if (p > pctMax) return { ...base, veredicto: pocos ? "seguir" : "bajar", color: "amarillo", motivo: `${cuenta}${pocos ? " Todavía con pocos datos para bajar." : " Conviene bajar el presupuesto o el objetivo."}` };
   if (p <= pctMax * cfg.subirHasta / 100 && !pocos) return { ...base, veredicto: "subir", color: "verde", motivo: `${cuenta} Rinde: se puede subir el presupuesto.` };
   return { ...base, veredicto: "seguir", color: "verde", motivo: `${cuenta} Dentro del tope.` };

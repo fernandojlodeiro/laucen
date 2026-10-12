@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { juzgar, type Metr } from "@/lib/publicidad/veredicto";
 import { CONFIG_DEFECTO } from "@/lib/publicidad/config";
 
-const cfg = { ...CONFIG_DEFECTO, pctMax: 7, topeVentas: 2, topePesos: 0, diasMinimos: 3, clicsMinimos: 30, subirHasta: 50, cortarDesde: 150, ventas: "directas" as const };
+const cfg = { ...CONFIG_DEFECTO, pctMax: 7, topeVentas: 2, topePesos: 0, cortarMinimoPesos: 0, diasMinimos: 3, clicsMinimos: 30, subirHasta: 50, cortarDesde: 150, ventas: "directas" as const };
 const m = (x: Partial<Metr>): Metr => ({ clics: 0, impresiones: 0, costo: 0, montoDir: 0, montoInd: 0, udsDir: 0, udsInd: 0, diasConGasto: 0, ...x });
 
 test("sin ventas: dentro del corte sigue (amarillo); al gastar el equivalente a 2 ventas, corta", () => {
@@ -48,4 +48,12 @@ test("sumar métricas no toca los otros campos del grupo", async () => {
   assert.equal(g.clics, 3);
   assert.equal(g.costo, 15);
   assert.ok(Array.isArray(g.publicaciones));
+});
+
+test("no se corta antes de gastar el piso en pesos", () => {
+  const barato = m({ costo: 800, clics: 8, diasConGasto: 2 });
+  assert.equal(juzgar(barato, 2_700, 7, cfg).veredicto, "cortar");
+  const r = juzgar(barato, 2_700, 7, { ...cfg, cortarMinimoPesos: 3_000 });
+  assert.equal(r.veredicto, "seguir");
+  assert.equal(r.color, "amarillo");
 });

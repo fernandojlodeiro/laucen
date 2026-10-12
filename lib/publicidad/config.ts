@@ -16,6 +16,8 @@ export type ConfigPublicidad = {
   topeVentas: number;
   /** …o, si es mayor que 0, un tope en pesos (el que llegue primero). */
   topePesos: number;
+  /** No se corta por gasto sin rendir hasta haber gastado al menos esto (los productos baratos llegan al corte con pocos clics). */
+  cortarMinimoPesos: number;
   /** No se juzga (salvo el tope sin ventas) hasta tener estos días con gasto… */
   diasMinimos: number;
   /** …y estos clics. */
@@ -39,7 +41,7 @@ export type ConfigPublicidad = {
 };
 
 export const CONFIG_DEFECTO: ConfigPublicidad = {
-  pctMax: 7, topeVentas: 2, topePesos: 0, diasMinimos: 3, clicsMinimos: 30, subirHasta: 50, cortarDesde: 150,
+  pctMax: 7, topeVentas: 2, topePesos: 0, cortarMinimoPesos: 3000, diasMinimos: 3, clicsMinimos: 30, subirHasta: 50, cortarDesde: 150,
   ventanaDias: 14, ventas: "directas", leerCadaHoras: 6, releerDias: 7, avisoCanal: "ambos", avisoRepetirHoras: 24,
 };
 
@@ -48,6 +50,7 @@ export const CAMPOS_NUM: { clave: keyof ConfigPublicidad; rotulo: string; ayuda:
   { clave: "pctMax", rotulo: "Publicidad por venta, tope (% del precio)", ayuda: "Lo máximo que aceptás pagar de publicidad por cada venta.", tipo: "decimal", min: 0.1, max: 100 },
   { clave: "topeVentas", rotulo: "Cortar sin ventas al gastar (ventas)", ayuda: "Gastado el equivalente a tantas ventas sin vender nada: CORTAR.", tipo: "decimal", min: 0.5, max: 50 },
   { clave: "topePesos", rotulo: "…o al gastar ($, 0 = no usar)", ayuda: "Tope fijo en pesos sin ventas; vale el que llegue primero.", tipo: "pesos", min: 0, max: 1e9 },
+  { clave: "cortarMinimoPesos", rotulo: "No cortar antes de gastar ($)", ayuda: "Piso para el corte: un producto barato no se corta por unos pocos clics.", tipo: "pesos", min: 0, max: 1e9 },
   { clave: "diasMinimos", rotulo: "Días mínimos antes de juzgar", ayuda: "Días con gasto antes de decir SUBIR o BAJAR.", tipo: "entero", min: 0, max: 60 },
   { clave: "clicsMinimos", rotulo: "Clics mínimos antes de juzgar", ayuda: "Clics antes de decir SUBIR o BAJAR.", tipo: "entero", min: 0, max: 10000 },
   { clave: "subirHasta", rotulo: "SUBIR hasta (% del tope)", ayuda: "Si la publicidad por venta queda en este % del tope o menos.", tipo: "entero", min: 1, max: 100 },

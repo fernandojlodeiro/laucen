@@ -59,7 +59,7 @@ Pestañas:
 - **Tope por venta** = el % que se acepta pagar × el precio de venta (el promedio de lo vendido por publicidad; si no vendió, el precio de sus anuncios). Gana la excepción del producto, si no la de su familia (o la familia más cercana hacia arriba), si no la general.
 - **Publicidad por venta** = lo gastado ÷ las ventas. En % = lo gastado ÷ lo vendido por publicidad.
 - **Gastado de más** = lo gastado − ventas × tope por venta.
-- **CORTAR** (rojo): si lo gastado de más llega al **corte sin ventas** (el equivalente a N ventas, o el tope en pesos si se cargó; el que llegue primero). Vale aunque haya pocos datos. También si, con datos suficientes, la publicidad por venta pasa el «CORTAR desde» (en % del tope).
+- **CORTAR** (rojo): si lo gastado de más llega al **corte sin ventas** (el equivalente a N ventas, o el tope en pesos si se cargó; el que llegue primero). Vale aunque haya pocos datos, siempre que haya gastado al menos el piso «No cortar antes de gastar». También si, con datos suficientes, la publicidad por venta pasa el «CORTAR desde» (en % del tope).
 - **BAJAR** (amarillo): con datos suficientes, la publicidad por venta pasa el tope pero no el «CORTAR desde».
 - **SEGUIR** (verde): la publicidad por venta está dentro del tope. **SEGUIR amarillo**: todavía no vendió por publicidad pero no llegó al corte, o pasa el tope con pocos datos.
 - **SUBIR** (verde): con datos suficientes, la publicidad por venta queda en el «SUBIR hasta» (en % del tope) o menos: rinde y se puede subir el presupuesto.
@@ -75,6 +75,7 @@ Valores de la configuración (todos se cambian):
 | Publicidad por venta, tope (% del precio) | Lo máximo que se acepta pagar de publicidad por venta. |
 | Cortar sin ventas al gastar (ventas) | Gastado el equivalente a tantas ventas sin vender: CORTAR. |
 | …o al gastar ($) | Tope fijo en pesos; 0 = no se usa. |
+| No cortar antes de gastar ($) | Piso: un producto barato no pasa a CORTAR por unos pocos clics. |
 | Días mínimos / Clics mínimos antes de juzgar | Antes de eso no dice SUBIR ni BAJAR. |
 | SUBIR hasta / CORTAR desde (% del tope) | Los umbrales de los colores. |
 | Días que se miran | Cuántos días hacia atrás suma el veredicto. |
