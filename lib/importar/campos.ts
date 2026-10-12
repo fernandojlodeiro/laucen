@@ -88,7 +88,7 @@ export const DESTINOS: Record<Destino, { nombre: string; ayuda: string; campos: 
       { clave: "id_externo", etiqueta: "N.º de pedido de Virtual Seller", obligatorio: true, alias: ["pedido id", "pedido", "nro pedido", "id pedido"] },
       { clave: "fecha", etiqueta: "Fecha", obligatorio: true, alias: ["fecha", "fecha pedido"] },
       { clave: "venta_ml", etiqueta: "N.º de venta de Mercado Libre", ayuda: "Con esto se reconoce la venta si el sistema ya la tiene leída de Mercado Libre.", alias: ["venta ml", "venta ml#", "nro venta ml", "venta mercadolibre"] },
-      { clave: "canal", etiqueta: "Canal de venta", obligatorio: true, ayuda: "Cada nombre se asocia a un canal del sistema más abajo (los que no se asocian quedan como canal histórico).", alias: ["canal de venta", "canal"] },
+      { clave: "canal", etiqueta: "Canal de venta", obligatorio: true, ayuda: "Cada nombre se asocia a un canal del sistema más abajo (los que no se asocian quedan como canal histórico). Un renglón sin canal entra como «Sin canal en Virtual Seller».", alias: ["canal de venta", "canal"] },
       { clave: "cliente", etiqueta: "Cliente (nombre)", alias: ["cliente", "nombre"] },
       { clave: "documento", etiqueta: "N.º de documento", ayuda: "Los de relleno (11111111) se ignoran.", alias: ["nro documento", "documento", "dni"] },
       { clave: "cuit", etiqueta: "CUIT (identificación tributaria)", alias: ["identificacion tributaria", "cuit"] },

@@ -164,6 +164,8 @@ Para traer todo lo vendido en Virtual Seller, de todos los canales y de todos lo
   - En los canales que no son de Mercado Libre (web, local…), cuenta sólo lo anterior al **primer pedido del sistema** en ese canal; desde ahí cuentan los pedidos.
   - **Subir de nuevo el mismo archivo, o archivos que se pisan, no duplica**: cada renglón se reconoce por pedido de Virtual Seller, SKU y venta de ML, y se actualiza.
 - Virtual Seller da sólo el día: se toma el mediodía argentino.
+- Un renglón sin canal en Virtual Seller entra igual, bajo el canal «Sin canal en Virtual Seller» (se puede asociar a un canal del sistema como cualquier otro).
+- Un renglón con cantidad 0 no es una venta: no se importa («Cantidad 0: no es una venta»).
 - Si un renglón tiene un error (falta el SKU, la fecha no se entiende, la cantidad no es un entero), se rechaza ese renglón solo; los demás del mismo pedido entran.
 
 ### Stock inicial

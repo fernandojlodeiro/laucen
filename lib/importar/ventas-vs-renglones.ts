@@ -36,6 +36,9 @@ function num(v: Valor | undefined, que: string): number | null {
   if (n == null) throw new Error(`${que}: "${t}" no es un número.`);
   return n;
 }
+/** El canal de las ventas que en VS no tienen canal. */
+export const SIN_CANAL = "Sin canal en Virtual Seller";
+
 const dosDecimales = (x: number) => Math.round(x * 100) / 100;
 
 /** Arma los renglones de un pedido de VS (todas sus filas juntas, en orden). Los que tienen un problema vuelven
@@ -54,10 +57,11 @@ export function renglonesVs(filas: { n: number; datos: Record<string, Valor> }[]
       const fechaTxt = get(f.datos, "fecha");
       const fecha = leerFecha(fechaTxt)?.slice(0, 10) ?? null;
       if (!fecha) throw new Error(fechaTxt == null ? "Falta la fecha." : `La fecha "${fechaTxt}" no se entiende.`);
-      const canal = txt(get(f.datos, "canal"));
-      if (!canal) throw new Error("Falta el canal de venta.");
+      // Hay ventas viejas sin canal en VS: entran igual, juntas bajo este nombre (se puede asociar a un canal).
+      const canal = txt(get(f.datos, "canal")) ?? SIN_CANAL;
       const cantidad = num(get(f.datos, "cantidad"), "La cantidad");
-      if (cantidad == null || !Number.isInteger(cantidad) || cantidad <= 0) throw new Error("La cantidad tiene que ser un entero mayor que cero.");
+      if (cantidad === 0) throw new Error("Cantidad 0: no es una venta (no se importa).");
+      if (cantidad == null || !Number.isInteger(cantidad) || cantidad < 0) throw new Error("La cantidad tiene que ser un entero mayor que cero.");
       const precio = num(get(f.datos, "precio_unitario"), "El precio unitario");
       const descuento = num(get(f.datos, "descuento"), "El descuento");
       const subtotal = num(get(f.datos, "subtotal"), "El subtotal");

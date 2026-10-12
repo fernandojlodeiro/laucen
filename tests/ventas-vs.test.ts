@@ -55,6 +55,14 @@ test("renglones: números con coma, ML con todos sus dígitos, documento de rell
   assert.match(errores[0].motivo, /fecha/);
 });
 
+test("sin canal entra como «Sin canal en Virtual Seller»; cantidad 0 no es una venta", () => {
+  const m = { id_externo: "P", fecha: "F", sku: "S", cantidad: "C", subtotal: "T", canal: "K" };
+  const { ok, errores } = renglonesVs([{ n: 2, datos: { P: "PED-1", F: "16/06/2017", S: "HP-1", C: "1,00", T: "16100,00" } },
+    { n: 3, datos: { P: "PED-2", F: "13/12/2016", S: "SKU1", C: "0,00", T: "0,00", K: "ML" } }], m);
+  assert.equal(ok[0].canal, "Sin canal en Virtual Seller");
+  assert.match(errores[0].motivo, /no es una venta/);
+});
+
 test("sin subtotal: precio × cantidad − descuento", () => {
   const { ok } = renglonesVs([{ n: 2, datos: { P: "PED-9", F: "01/01/2017", S: "SKU1", C: "3", U: "100,50", D: "1,50", K: "Local" } }],
     { id_externo: "P", fecha: "F", sku: "S", cantidad: "C", precio_unitario: "U", descuento: "D", canal: "K" });
