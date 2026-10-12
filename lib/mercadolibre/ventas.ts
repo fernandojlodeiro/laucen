@@ -28,7 +28,9 @@ async function buscarVariacion(cuenta: CuentaMl, itemId: string, variationId: nu
     if (unica && unica.n === 1) id = Number(unica.variacion_id);
   }
   if (id == null && sku?.trim()) {
-    const v = await una<{ id: string }>("select id from variacion where organizacion_id = $1 and lower(sku) = lower($2) limit 1", [cuenta.organizacionId, sku.trim()]);
+    // Las cuentas de DEIROLAB publican con el SKU de Laucen precedido de «DE-».
+    const v = await una<{ id: string }>("select id from variacion where organizacion_id = $1 and lower(sku) in (lower($2), lower(regexp_replace($2, '^DE-', '', 'i'))) order by lower(sku) = lower($2) desc limit 1",
+      [cuenta.organizacionId, sku.trim()]);
     id = v ? Number(v.id) : null;
   }
   cache.set(clave, id);
