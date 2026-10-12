@@ -22,7 +22,7 @@ import { encolar, encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/li
 import { campanaPropiaDe, pedidoCampanaPropia } from "@/lib/precios-ml/campana-propia";
 import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
 import { sinFotosConMarca } from "@/lib/mercadolibre/fotos-marca";
-import { ajusteAlta, atributosConocidos, catalogoSegunMarca, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
+import { ajusteAlta, atributosConocidos, catalogoSegunMarca, catalogoVetado, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import { canalesMl, comisionesMl, familiasDe, reglasCanal, type CanalMl } from "@/lib/precios-ml/datos";
@@ -264,7 +264,7 @@ async function altasEnCanal(org: string, plan: PlanTodas, datos: DatosOrigen, c:
   }
   // Pautas (pautas.ts): la marca de la cuenta en los «sin marca»; con la marca cambiada, sólo un catálogo de esa marca.
   const marca = marcaFinal(datos.atributos, await marcaDeCuenta(org, c.id));
-  const catalogo = catalogoSegunMarca(plan.catalogo, cat, marca);
+  const catalogo = (await catalogoVetado(org, sku, plan.catalogo)) ? null : catalogoSegunMarca(plan.catalogo, cat, marca);
   // Una que ML bloqueó y se vuelve a crear: en la categoría que sugirió y con el título sin mezclar (ml_alta_ajuste).
   const ajuste = await ajusteAlta(org, c.id, sku);
   const conocidos = await atributosConocidos(org, sku);

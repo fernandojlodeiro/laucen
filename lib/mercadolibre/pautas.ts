@@ -118,3 +118,9 @@ export function limpiarDescripcion(texto: string): string {
     .filter((l) => !ENCABEZADO.test(l) && !SEPARADOR.test(l) && !PIE.some((p) => p.test(l)));
   return lineas.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
+
+/** ¿Ese catálogo está vedado para ese SKU? (ml_catalogo_vetado: la ficha es de otro producto, ej. la de 8 GB para la de 12 GB). */
+export async function catalogoVetado(org: string, sku: string, producto: string | null): Promise<boolean> {
+  if (!producto) return false;
+  return !!(await una("select 1 from ml_catalogo_vetado where organizacion_id = $1 and sku = $2 and producto_id = $3", [org, sku, producto]));
+}

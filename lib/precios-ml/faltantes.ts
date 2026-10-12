@@ -13,7 +13,7 @@ import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolar, encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
 import { campanaPropiaDe, pedidoCampanaPropia } from "@/lib/precios-ml/campana-propia";
 import { sinFotosConMarca } from "@/lib/mercadolibre/fotos-marca";
-import { ajusteAlta, atributosConocidos, catalogoSegunMarca, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
+import { ajusteAlta, atributosConocidos, catalogoSegunMarca, catalogoVetado, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
 import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { calcularCanal } from "@/lib/precios-ml/datos";
@@ -88,7 +88,7 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
         res.fallas!.push({ sku: info.sku, plan: f.plan, motivo });
         continue;
       }
-      const catalogo = catalogoSegunMarca(f.catalogProductId, cat, marca);
+      const catalogo = (await catalogoVetado(org, info.sku, f.catalogProductId)) ? null : catalogoSegunMarca(f.catalogProductId, cat, marca);
       // Con descuento en el esquema se publica al tachado (uno por modelo) y la campaña la baja a su precio.
       const publicar = propuesta.tachadoPct > 0 && propuesta.tachado != null && descuentoVisible(propuesta.tachado, f.precio) >= DESCUENTO_MINIMO_ML ? propuesta.tachado : f.precio;
       const tag = PLAN_INFO[f.plan].tag;

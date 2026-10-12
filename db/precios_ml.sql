@@ -367,3 +367,17 @@ create table if not exists ml_catalogo_marca (
   leido_ts     timestamptz not null default now()
 );
 alter table ml_catalogo_marca enable row level security;
+
+-- Catálogos que no corresponden a un producto (Fer, 12/10: la Asus de 12 GB atada a la ficha de la de 8 GB). Una alta no
+-- pide entrar ahí, y la publicación de catálogo que Mercado Libre crea sola en esa ficha se cierra y elimina
+-- (lib/mercadolibre/rehacer-esquema.ts › cerrarCatalogosVetados).
+create table if not exists ml_catalogo_vetado (
+  organizacion_id  text not null,
+  sku              text not null,
+  producto_id      text not null,
+  motivo           text,
+  creado_ts        timestamptz not null default now(),
+  primary key (organizacion_id, sku, producto_id)
+);
+alter table ml_catalogo_vetado enable row level security;
+select erp_politica_org('ml_catalogo_vetado');

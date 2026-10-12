@@ -166,3 +166,22 @@ export async function correrBorrarCerradas(hasta: number): Promise<Record<string
   }
   return informe;
 }
+
+/** Las publicaciones de catálogo que Mercado Libre crea sola en una ficha vedada para ese SKU (ml_catalogo_vetado): se
+ *  cierran y eliminan, una sola vez cada una (Fer, 12/10: la Asus de 12 GB vendiéndose en la ficha de la de 8 GB). */
+export async function cerrarCatalogosVetados(): Promise<number> {
+  const filas = await consulta<{ organizacion_id: string; canal_id: number; item_id: string; sku: string; producto_id: string }>(`
+    select m.organizacion_id, m.canal_id::int canal_id, m.item_id, m.sku, v.producto_id from meli_item m
+      join ml_catalogo_vetado v on v.organizacion_id = m.organizacion_id and v.sku = m.sku and v.producto_id = m.datos_externos -> 'ml' ->> 'catalog_product_id'
+     where m.estado in ('active', 'paused') and coalesce((m.datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false)
+       -- Solo con el «Arrancar» de Fer (el clic que deja hacer esto sin lote).
+       and exists (select 1 from canal c where c.id = m.canal_id and c.config ? 'rehacer_esquema')
+       and not exists (select 1 from ml_cola q where q.canal_id = m.canal_id and q.item_id = 'vetado:' || m.item_id and q.estado in ('preparado', 'pendiente', 'enviando', 'ok'))`);
+  for (const f of filas) {
+    await encolar(f.organizacion_id, [{ canalId: f.canal_id, itemId: `vetado:${f.item_id}`, tipo: "estado", antes: { estado: "active" },
+      payload: { descripcion: `Cerrar y eliminar ${f.item_id} (${f.sku}): publicación de catálogo en la ficha ${f.producto_id}, que es de otro producto`,
+        pedidos: [{ metodo: "PUT", ruta: `/items/${f.item_id}`, cuerpo: { status: "closed" } }, { metodo: "PUT", ruta: `/items/${f.item_id}`, cuerpo: { deleted: "true" }, seguirSiFalla: true }] } }],
+      { origen: "automatico" });
+  }
+  return filas.length;
+}
