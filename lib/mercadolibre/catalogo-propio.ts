@@ -7,11 +7,13 @@
 //   1. sigue las propuestas en trámite: aprobada → engancha las publicaciones comunes de las
 //      cuentas de esa marca; «a corregir» → la IA corrige lo que ML observó (hasta 2 veces);
 //      rechazada → queda anotada con el motivo;
-//   2. con el cupo libre de cada cuenta (las propuestas en trámite al mismo tiempo), propone los
-//      productos nuestros atados a un catálogo o página de otra marca, los que más venden primero.
-// La marca de la propuesta es la de la cuenta (canal.config.marca_publicaciones). Sólo productos sin
-// marca propia (los que llevan la marca de la cuenta, pautas.ts); un catálogo de marca de fábrica
-// (Arduino original, Asus…) es legítimo y no se toca. Todo lo que va a ML pasa por la cola.
+//   2. con el cupo libre de cada cuenta (las propuestas en trámite al mismo tiempo), propone primero los
+//      productos nuestros atados a un catálogo ajeno y después los que no están en ningún catálogo, los
+//      que más venden primero. Ajeno (Fer, 12/10): la marca del catálogo no está en la tabla de marcas
+//      (Catálogo › Marcas); si está, es competencia de verdad y no se toca.
+// La marca de la propuesta es la de la cuenta (canal.config.marca_publicaciones): un producto puede tener
+// un catálogo por cada marca nuestra (Fer, 12/10). Sólo productos sin marca propia (los que llevan la marca
+// de la cuenta, pautas.ts). Todo lo que va a ML pasa por la cola.
 
 import { consulta, una } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
@@ -23,14 +25,16 @@ import { hayClaude, jsonDe, pedirClaude } from "@/lib/claude";
 
 const normal = (s: string | null | undefined) => (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 
-/** ¿Este catálogo hay que reemplazarlo por uno nuestro? Sí si es de una marca vetada, o si es una página armada por ML
- *  («flex») con la marca de otro vendedor. No si es nuestro, genérico, o un catálogo de verdad de una marca de fábrica. Pura. */
-export function catalogoAjeno(marca: string | null, tipo: string | null): boolean {
+const GENERICAS = ["", "generico", "generica", "generic", "oem", "ome", "sin marca"];
+
+/** ¿Este catálogo hay que reemplazarlo por uno nuestro? (Fer, 12/10) Si su marca está en la tabla de marcas (Catálogo ›
+ *  Marcas: las que vendemos) es competencia de verdad y no se toca; si no, es ajeno. Las nuestras y las genéricas nunca
+ *  son ajenas; las vetadas (Nubbeo, Libercam, ST Smart Tech) siempre. Pura. */
+export function catalogoAjeno(marca: string | null, marcasTabla: Set<string>): boolean {
   const m = normal(marca);
-  if (MARCAS_NUESTRAS.includes(m)) return false;
+  if (MARCAS_NUESTRAS.includes(m) || GENERICAS.includes(m)) return false;
   if (MARCAS_VETADAS.includes(m)) return true;
-  if (esMarcaReemplazable(marca)) return false;
-  return tipo === "flex";
+  return !marcasTabla.has(m);
 }
 
 /** Atributos que no describen el producto (son de la publicación o del envío): no van en la propuesta. */
@@ -216,27 +220,36 @@ async function vueltaOrg(org: string, canales: { id: number; marca: string }[], 
   await leerMarcas([...cuentas.values()][0], [...new Set(pubs.map((p) => p.catalogo).filter((x): x is string => !!x))], hasta - 60_000);
   const marcaDe = new Map((await consulta<{ producto_id: string; marca: string | null; tipo: string | null }>(
     "select producto_id, marca, tipo from ml_catalogo_marca")).map((x) => [x.producto_id, x]));
+  const marcasTabla = new Set((await consulta<{ nombre: string }>("select nombre from marca where organizacion_id = $1", [org])).map((x) => normal(x.nombre)));
   const yaEstan = new Set((await consulta<{ clave: string }>("select marca || '|' || sku clave from ml_catalogo_propio where organizacion_id = $1", [org])).map((x) => x.clave));
   // Por producto: su publicación común más vendida (sin marca propia, de cualquier cuenta) y, por marca, si alguna
   // publicación de las cuentas de esa marca está atada a un catálogo ajeno.
+  // Por marca de cuenta y producto: «ajeno» si alguna publicación de esas cuentas está atada a un catálogo ajeno; «sin
+  // catálogo» si ninguna está en un catálogo. Primero los ajenos, después los que no tienen; en cada grupo, los que más venden.
   const marcaCanal = new Map(canales.map((c) => [c.id, c.marca]));
-  const porSku = new Map<string, { vendidos: number; ajeno: Map<string, string>; origen: Item | null }>();
+  const porSku = new Map<string, { vendidos: number; ajeno: Map<string, string>; conCatalogo: Set<string>; enMarca: Set<string>; origen: Item | null }>();
   for (const p of pubs) {
     const cat = p.catalogo ? marcaDe.get(p.catalogo) : null;
-    const s = porSku.get(p.sku) ?? { vendidos: 0, ajeno: new Map<string, string>(), origen: null };
+    const s = porSku.get(p.sku) ?? { vendidos: 0, ajeno: new Map<string, string>(), conCatalogo: new Set<string>(), enMarca: new Set<string>(), origen: null };
     s.vendidos += p.vendidos;
     const m = marcaCanal.get(p.canal_id);
-    if (m && cat && catalogoAjeno(cat.marca, cat.tipo)) s.ajeno.set(m, p.catalogo!);
+    if (m) {
+      s.enMarca.add(m);
+      if (p.catalogo) s.conCatalogo.add(m);
+      if (cat && catalogoAjeno(cat.marca, marcasTabla)) s.ajeno.set(m, p.catalogo!);
+    }
     const marcaPub = p.atributos.find((a) => a.id === "BRAND")?.value_name ?? null;
     if (!p.de_catalogo && esMarcaReemplazable(marcaPub) && (!s.origen || p.vendidos > s.origen.vendidos)) s.origen = p;
     porSku.set(p.sku, s);
   }
-  const lista = [...porSku.entries()].filter(([, s]) => s.ajeno.size && s.origen).sort((a, b) => b[1].vendidos - a[1].vendidos);
+  const ordenados = [...porSku.entries()].filter(([, s]) => s.origen).sort((a, b) => b[1].vendidos - a[1].vendidos);
   for (const marca of marcas) {
     const deLaMarca = canales.filter((c) => c.marca === marca && cuentas.has(c.id)).map((c) => c.id);
-    for (const [sku, s0] of lista) {
-      const ajeno = s0.ajeno.get(marca);
-      if (!ajeno) continue;
+    const lista = [
+      ...ordenados.filter(([, s]) => s.ajeno.has(marca)).map(([sku, s]) => [sku, s, s.ajeno.get(marca)!] as const),
+      ...ordenados.filter(([, s]) => s.enMarca.has(marca) && !s.conCatalogo.has(marca)).map(([sku, s]) => [sku, s, null] as const),
+    ];
+    for (const [sku, s0, ajeno] of lista) {
       const s = { ...s0, ajeno };
       if (Date.now() > hasta) return inf;
       if (yaEstan.has(`${marca}|${sku}`)) continue;
@@ -263,7 +276,7 @@ async function vueltaOrg(org: string, canales: { id: number; marca: string }[], 
       }
       if (errores.length) { await anotar("no_se_puede", errores.join(" · ").slice(0, 1000)); continue; }
       await encolar(org, [{ canalId: canal, itemId: `catalogo-propio:${marca}:${sku}`, tipo: "crear",
-        payload: { motivo: "catalogo_propio", descripcion: `Proponer a Mercado Libre el catálogo «${String(cuerpo.title)}» (${sku}); hoy está en ${s.ajeno}, de otra marca.`,
+        payload: { motivo: "catalogo_propio", descripcion: `Proponer a Mercado Libre el catálogo «${String(cuerpo.title)}» (${sku}); ${s.ajeno ? `hoy está en ${s.ajeno}, de otra marca` : "hoy no está en ningún catálogo"}.`,
           pedidos: [{ metodo: "POST", ruta: "/catalog_suggestions", cuerpo }] } }], { origen: "automatico" });
       await anotar("encolada", null);
       cupo.set(canal, (cupo.get(canal) ?? 1) - 1);

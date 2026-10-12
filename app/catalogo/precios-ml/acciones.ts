@@ -182,7 +182,7 @@ export async function accionInterruptor(fd: FormData) {
       ? "Prendido: cada 10 minutos Laucen crea en esta cuenta las publicaciones y los planes que faltan, solos. Lo que Mercado Libre no acepte queda en Alertas, con su Excel."
       : "Apagado: no se crea nada más solo en esta cuenta (lo que ya está en la cola sale igual).";
     if (clave === "catalogo_propio_auto") return prender
-      ? "Prendido: cada media hora Laucen propone a Mercado Libre catálogos con la marca de esta cuenta para los productos atados a un catálogo de otra marca (con el cupo libre) y, cuando los aprueba, pasa ahí las publicaciones. Lo ves en Alertas."
+      ? "Prendido: cada media hora Laucen propone a Mercado Libre catálogos con la marca de esta cuenta para los productos atados a un catálogo ajeno y después para los que no están en ninguno (con el cupo libre) y, cuando los aprueba, pasa ahí las publicaciones. Lo ves en Alertas."
       : "Apagado: no se proponen más catálogos solos desde esta cuenta (lo que ya está en trámite sigue en Mercado Libre).";
     if (clave === "sacar_envio_gratis") return prender ? "Prendido: una vez por día, Laucen le saca solo el envío gratis a las publicaciones de esta cuenta que cuestan menos que el envío gratis (quedan en Alertas)." : "Apagado: las publicaciones con envío gratis de más quedan en Alertas, con un botón para preparar el lote.";
     if (clave === "leer_precio_ganar") return prender ? "Prendido: Laucen lee el precio para ganar y las campañas de esta cuenta (sólo lectura)." : "Apagado: no se lee más el precio para ganar de esta cuenta.";

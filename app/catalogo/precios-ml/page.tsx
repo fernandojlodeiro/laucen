@@ -156,11 +156,11 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
               ? `Prendido: cada 10 minutos Laucen crea, sin esperar tu clic, los productos que están en otra cuenta y no en ésta (con su Clásica y sus planes) y los planes que les faltan, con las pautas de la cuenta (marca, título, descripción). Lo que Mercado Libre no acepta queda en la pestaña Alertas. Creadas hasta ahora: ${canal.autoAltas.total}${canal.autoAltas.ultimaVuelta ? `; última vuelta ${new Date(canal.autoAltas.ultimaVuelta).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}.`
               : "Apagado: lo que falta se crea con los botones de la vista previa, en lotes que esperan tu clic."} />
           <Interruptor accion={accionInterruptor} prendido={canal.catalogoPropioAuto} campos={campos("catalogo_propio_auto")}
-            etiqueta={`Catálogo con nuestra marca${canal.marca ? ` (${canal.marca})` : ""}: proponer y pasar las publicaciones atadas a un catálogo de otra marca`}
+            etiqueta={`Catálogo con nuestra marca${canal.marca ? ` (${canal.marca})` : ""}: proponer catálogos propios y pasar ahí las publicaciones`}
             ayuda={!canal.marca
               ? "Esta cuenta no tiene «Marca de las publicaciones»: sin marca no se puede proponer un catálogo."
               : canal.catalogoPropioAuto
-                ? `Prendido: cada media hora Laucen propone a Mercado Libre, con la marca ${canal.marca} y el cupo libre de la cuenta, catálogos para los productos nuestros que Mercado Libre ató a un catálogo o página de otra marca (los que más venden primero). Si Mercado Libre pide corregir algo, lo corrige; cuando lo aprueba, pasa ahí las publicaciones de las cuentas ${canal.marca}. Todo queda en la pestaña Alertas.`
+                ? `Prendido: cada media hora Laucen propone a Mercado Libre, con la marca ${canal.marca} y el cupo libre de la cuenta, catálogos para los productos nuestros que Mercado Libre ató a un catálogo ajeno (de una marca que no está en Catálogo › Marcas) y después para los que no están en ningún catálogo (los que más venden primero). Si Mercado Libre pide corregir algo, lo corrige; cuando lo aprueba, pasa ahí las publicaciones de las cuentas ${canal.marca}. Todo queda en la pestaña Alertas.`
                 : "Apagado: no se propone nada solo."} />
         </div>
       </section>
@@ -418,14 +418,14 @@ async function Alertas({ org, canal, aqui }: { org: string; canal: CanalMl; aqui
         <TituloSeccion titulo={`Catálogo con nuestra marca (${propuestas.length})`} />
         <div className={`${CAJA_TABLA} mb-1`}>
           <table className={TABLA}>
-            <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Estado</th><th className={TH}>Catálogo de otra marca</th><th className={TH}>Catálogo nuestro</th><th className={TH}>Detalle</th></tr></thead>
+            <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Estado</th><th className={TH}>Estaba en</th><th className={TH}>Catálogo nuestro</th><th className={TH}>Detalle</th></tr></thead>
             <tbody>
               {propuestas.length === 0 && <tr><td colSpan={5} className={`${TD} text-[#5C6B76]`}>Todavía ninguna: la primera vuelta corre dentro de la próxima media hora.</td></tr>}
               {propuestas.slice(0, 100).map((g) => (
                 <tr key={g.sku} className={TR}>
                   <td className={TD}>{g.producto ? <Link href={`/catalogo/productos/${g.producto}`} className="font-mono text-[#16577F] hover:underline">{g.sku}</Link> : g.sku}</td>
                   <td className={TD}>{ESTADO_PROPUESTA[g.estado] ?? g.estado}</td>
-                  <td className={TD}>{g.catalogo_ajeno ? <a href={`https://www.mercadolibre.com.ar/p/${g.catalogo_ajeno}`} target="_blank" rel="noreferrer" className="font-mono text-[#16577F] hover:underline">{g.catalogo_ajeno} ↗</a> : "—"}</td>
+                  <td className={TD}>{g.catalogo_ajeno ? <a href={`https://www.mercadolibre.com.ar/p/${g.catalogo_ajeno}`} target="_blank" rel="noreferrer" className="font-mono text-[#16577F] hover:underline">{g.catalogo_ajeno} ↗</a> : "Ningún catálogo"}</td>
                   <td className={TD}>{g.producto_id ? <a href={`https://www.mercadolibre.com.ar/p/${g.producto_id}`} target="_blank" rel="noreferrer" className="font-mono text-[#16577F] hover:underline">{g.producto_id} ↗</a> : "—"}</td>
                   <td className={TD}>{g.motivo ?? ""}</td>
                 </tr>
