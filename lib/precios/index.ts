@@ -48,6 +48,8 @@ export async function precioDe(org: string, variacionId: number, listaId: number
  *  había un precio cargado hoy, lo pisa (la historia es por día). */
 export async function guardarPrecio(org: string, args: {
   listaId: number; variacionId: number; importe: number; moneda: Moneda; usuarioId?: string | null; vigenteDesde?: string;
+  /** De dónde sale (null = a mano) y por qué, para el Historial de precios de lista. */
+  origen?: "seguimiento" | "masivo" | null; motivo?: string | null;
 }, c?: Consultor): Promise<void> {
   if (!(args.importe >= 0)) throw new ErrorErp("El precio tiene que ser un número mayor o igual a cero.");
   const fecha = args.vigenteDesde ?? hoyAR();
@@ -58,12 +60,12 @@ export async function guardarPrecio(org: string, args: {
     if (!ok.rowCount) throw new ErrorErp("La lista o la variación no existen.");
     const d = await importeDoble(org, args.importe, args.moneda, fecha, cx);
     await cx.query(`
-      insert into precio (organizacion_id, lista_id, variacion_id, importe_ars, importe_usd, moneda_origen, vigente_desde, usuario_id)
-      values ($1, $2, $3, $4, $5, $6, $7::date, $8)
+      insert into precio (organizacion_id, lista_id, variacion_id, importe_ars, importe_usd, moneda_origen, vigente_desde, usuario_id, origen, motivo)
+      values ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10)
       on conflict (lista_id, variacion_id, vigente_desde) do update
         set importe_ars = excluded.importe_ars, importe_usd = excluded.importe_usd,
-            moneda_origen = excluded.moneda_origen, usuario_id = excluded.usuario_id, creado_ts = now()`,
-      [org, args.listaId, args.variacionId, d.importe_ars, d.importe_usd, d.moneda_origen, fecha, args.usuarioId ?? null]);
+            moneda_origen = excluded.moneda_origen, usuario_id = excluded.usuario_id, origen = excluded.origen, motivo = excluded.motivo, creado_ts = now()`,
+      [org, args.listaId, args.variacionId, d.importe_ars, d.importe_usd, d.moneda_origen, fecha, args.usuarioId ?? null, args.origen ?? null, args.motivo ?? null]);
   };
   if (c) await correr(c);
   else await enTransaccion(correr);
@@ -93,7 +95,7 @@ export async function precioMasivoPorPorcentaje(org: string, args: {
       nuevo = paso ? Math.round(nuevo / paso) * paso : Math.round(nuevo * 100) / 100;
       await guardarPrecio(org, {
         listaId: args.listaDestinoId, variacionId: Number(f.variacion_id), importe: nuevo,
-        moneda: f.moneda_origen, usuarioId: args.usuarioId,
+        moneda: f.moneda_origen, usuarioId: args.usuarioId, origen: "masivo", motivo: `${args.porcentaje > 0 ? "+" : ""}${args.porcentaje} % sobre otra lista`,
       }, c);
     }
     return origen.rowCount ?? 0;

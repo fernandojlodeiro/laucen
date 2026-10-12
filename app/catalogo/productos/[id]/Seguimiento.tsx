@@ -13,6 +13,7 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { SUAVE, PRIMARIO } from "@/app/botones";
 import { CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, Estado, TituloSeccion } from "@/app/componentes/erp";
 import BuscarSeguimiento from "./BuscarSeguimiento";
+import { reglaDe } from "@/lib/seguimiento/regla";
 import ReglaPrecio from "./ReglaPrecio";
 import { accionSeguir, accionSeguirPorNumero, accionDejarDeSeguir, accionLeerSeguimiento, accionCerrarCatalogo } from "@/app/catalogo/productos/acciones-seguimiento";
 
@@ -21,6 +22,8 @@ type Seguida = {
   vendedor: string | null; tienda_oficial: boolean | null; precio: number | null; precio_original: number | null; moneda: string | null;
   estado: string | null; tipo_publicacion: string | null; cuotas: string | null; envio_gratis: boolean | null;
   leido_ts: Date | null; error: string | null; cambio: number | null; entrega_dias: number | null; lecturas: number;
+  /** El último cambio de precio (entre dos lecturas seguidas), y si fue en la última lectura. */
+  ultimo: { ts: string; antes: number; despues: number; enLaUltima: boolean } | null;
 };
 
 type Lectura = { id: number; ts: Date; fuente: string; precio: number | null; precio_original: number | null; estado: string | null; tipo_publicacion: string | null };
@@ -68,14 +71,18 @@ function Entrega({ dias, demora, gratis }: { dias: number | null | undefined; de
 
 export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string; borden?: string; hist?: string; editar?: string } }) {
   const hist = Number(sp.hist) || null;
-  const [seguidas, busqueda, conf, lecturas, catalogos] = await Promise.all([
+  const [seguidas, busqueda, conf, lecturas, catalogos, regla] = await Promise.all([
     consulta<Seguida>(`
       select sp.id::int, sp.item_id, sp.catalogo_id, sp.titulo, sp.foto, sp.permalink, sp.vendedor, sp.tienda_oficial, sp.precio::float8, sp.precio_original::float8,
              sp.moneda, sp.estado, sp.tipo_publicacion, sp.cuotas, sp.envio_gratis, sp.leido_ts, sp.error, sp.entrega_dias,
              -- Cuánto cambió el precio desde la lectura anterior.
              (select (sp.precio - l.precio)::float8 from seguimiento_lectura l where l.seguimiento_id = sp.id and l.precio is not null
                order by l.ts desc offset 1 limit 1) cambio,
-             (select count(*)::int from seguimiento_lectura l where l.seguimiento_id = sp.id) lecturas
+             (select count(*)::int from seguimiento_lectura l where l.seguimiento_id = sp.id) lecturas,
+             (select json_build_object('ts', c.ts, 'antes', c.antes, 'despues', c.despues, 'enLaUltima', c.ts = c.ultima)
+                from (select l.ts, l.precio::float8 despues, (lag(l.precio) over (order by l.ts, l.id))::float8 antes, max(l.ts) over () ultima
+                        from seguimiento_lectura l where l.seguimiento_id = sp.id and l.precio is not null) c
+               where c.antes is not null and c.antes <> c.despues order by c.ts desc limit 1) ultimo
         from seguimiento_pub sp where sp.organizacion_id = $1 and sp.producto_id = $2
        order by sp.precio nulls last, sp.id`, [s.org.id, p.id]),
     ultimaBusqueda(s.org.id, p.id).catch(() => null),
@@ -87,7 +94,12 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
        where l.organizacion_id = $1 and sp.producto_id = $2 and l.seguimiento_id = $3
        order by l.ts desc limit 200`, [s.org.id, p.id, hist]) : Promise.resolve([] as Lectura[]),
     catalogosPegados(s.org.id, p.id).catch(() => []),
+    reglaDe(s.org.id, p.id).catch(() => null),
   ]);
+  // La referencia de la regla de precio (si está prendida): la elegida o la más barata de las activas con precio.
+  const referenciaId = !regla || regla.modo === "apagada" ? null
+    : regla.contra === "una" ? regla.seguimientoId
+    : seguidas.filter((x) => x.estado === "activa" && x.precio != null && (x.moneda ?? "ARS") === "ARS").sort((a, b) => a.precio! - b.precio!)[0]?.id ?? null;
   const seguidosIds = new Set(seguidas.map((x) => x.item_id));
   // Los resultados: sin packs (si el nuestro no lo es) ni los nuestros, salvo que se pidan; los más parecidos al nuestro primero.
   const nuestroEsPack = esPack(p.titulo);
@@ -145,22 +157,22 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
             <tbody>
               {seguidas.length === 0 && <tr><td colSpan={8} className={`${TD} text-[#5C6B76]`}>Todavía no seguís ninguna: buscalas abajo y tocá «Seguir», o agregalas por número.</td></tr>}
               {seguidas.flatMap((x) => [
-                <tr key={x.id} className={TR}>
+                // Lo que cambió en la última lectura, en amarillo; si es la referencia de la regla, en rosa (Fer, 12/10).
+                <tr key={x.id} className={`${TR} ${x.ultimo?.enLaUltima ? (x.id === referenciaId ? "bg-[#FCE4EC]" : "bg-[#FFF8E5]") : ""}`}>
                   <td className={TD}>
                     <span className="flex items-start gap-2">
                       <span className="h-10 w-10 shrink-0">{x.foto && <img src={x.foto} alt="" className="h-10 w-10 object-contain rounded bg-white" />}</span>
                       <span>
                         <a href={enlaceMl(x)} target="_blank" rel="noopener noreferrer" className="text-[#16577F] hover:underline">{x.titulo ?? x.item_id} ↗</a>
                         <span className="block text-[10px] text-[#5C6B76] font-mono">{x.item_id}{x.catalogo_id && <> · 📖 Catálogo {x.catalogo_id}</>}</span>
+                        {x.id === referenciaId && <span className="inline-block mt-0.5 rounded px-1 text-[10px] font-semibold bg-[#AD1457] text-white" title="La regla de precio compara contra ésta">🎯 Referencia de la regla</span>}
                       </span>
                     </span>
                   </td>
                   <td className={TD}>{x.vendedor ?? "—"}{x.tienda_oficial && <span className="block text-[10px] text-[#1F6E4A]">Tienda oficial</span>}</td>
                   <td className={TDN}>
                     <Precio precio={x.precio} original={x.precio_original} moneda={x.moneda} />
-                    {x.cambio != null && x.cambio !== 0 && (
-                      <span className={`block text-[10px] ${x.cambio < 0 ? "text-[#C03420]" : "text-[#1F6E4A]"}`}>{x.cambio < 0 ? "▼" : "▲"} {formatear(Math.abs(x.cambio), "ARS")}</span>
-                    )}
+                    <UltimoCambio u={x.ultimo} />
                   </td>
                   <td className={TD}>{x.tipo_publicacion ? TIPOS[x.tipo_publicacion] ?? x.tipo_publicacion : "—"}{x.cuotas && <span className="block text-[10px] text-[#5C6B76]">{x.cuotas}</span>}</td>
                   <td className={TD}><Entrega dias={x.entrega_dias} demora={conf.demoraDias} gratis={x.envio_gratis} /></td>
@@ -300,5 +312,19 @@ function TablaEncontradas({ filas, productoId, seguidos, demora }: { filas: (Pub
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** El último cambio de precio de una seguida: «▲ $ 5.408 (27,8 %) · 12/10 (antes $ 19.455)». */
+function UltimoCambio({ u }: { u: Seguida["ultimo"] }) {
+  if (!u) return <span className="block text-[10px] text-[#5C6B76]">sin cambios</span>;
+  const d = u.despues - u.antes;
+  const pct = u.antes ? (d / u.antes) * 100 : null;
+  return (
+    <span className={`block text-[10px] whitespace-nowrap ${u.enLaUltima ? "font-semibold" : ""} ${d < 0 ? "text-[#C03420]" : "text-[#1F6E4A]"}`}
+      title={`Antes ${formatear(u.antes, "ARS")}${u.enLaUltima ? " · cambió en la última lectura" : ""}`}>
+      {d < 0 ? "▼" : "▲"} {formatear(Math.abs(d), "ARS")}{pct != null && ` (${Math.abs(pct).toLocaleString("es-AR", { maximumFractionDigits: 1 })} %)`}
+      <span className="text-[#5C6B76] font-normal"> · {new Date(u.ts).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit" })}</span>
+    </span>
   );
 }

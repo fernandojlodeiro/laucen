@@ -195,6 +195,8 @@ Las publicaciones **MLAU…** («producto de vendedor») se leen sólo si compit
 
 **Leer ahora** relee las de este producto en el momento (pregunta antes, porque las comunes cuestan). Además se releen solas cada tantos días (ver [Seguimiento de publicaciones](/config/seguimiento)). El tacho deja de seguir una.
 
+Debajo del precio de cada publicación que seguís está **su último cambio**: ▲ (verde) o ▼ (rojo), cuánto en pesos y en %, y la fecha; «sin cambios» si nunca cambió. **La fila se pinta de amarillo si cambió en la última lectura**, y **de rosa si además es la referencia de la regla de precio**. La que usa la regla para comparar lleva la marca **🎯 Referencia de la regla** (la elegida, o la más barata de las activas si la regla compara contra la más barata).
+
 **📈 Historial (N)**, al lado del tacho de cada publicación que seguís, abre debajo de ella cada lectura que se hizo (N es cuántas hay), de la más nueva a la más vieja: fecha y hora, precio (con el tachado si tenía descuento), **cuánto cambió** respecto de la lectura anterior (▼ en rojo si bajó, ▲ en verde si subió, en pesos y en %), tipo de publicación y estado. Tocándolo de nuevo se cierra. Cada vuelta automática y cada **Leer ahora** suman una lectura.
 
 ### Regla de precio (pestaña Seguimiento)
@@ -218,6 +220,8 @@ Criterios:
 - Un producto con precio en dólares sigue en dólares: se baja en la misma proporción.
 - **Cuándo se revisa**: sola, después de cada lectura de las seguidas (la vuelta automática o **Leer ahora**); al grabar la regla; y con **Revisar ahora** (usa lo último leído, sin volver a leer).
 - Lo propuesto que no se aplicó se reemplaza por lo de la revisión siguiente.
+
+Todos los cambios de la lista (los de la regla y los hechos a mano, con quién) se ven en [Historial de precios de lista](/catalogo/precios/historial).
 
 La caja muestra **tu Clásica hoy**, la **referencia** (quién y a cuánto) y a cuánto quedarías, la última revisión con su resultado y, al desplegar **Lo que hizo la regla (N)**, cada cambio: cuándo, SKU, antes, después, contra quién y su estado (**Espera tu clic**, **Aplicado**, **Descartado** o **Reemplazado**).
 

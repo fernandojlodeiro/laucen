@@ -133,7 +133,9 @@ export async function revisarRegla(org: string, productoId: number, usuario: str
   await enTransaccion(async (c) => {
     for (const x of cambios) {
       if (r.modo === "automatico") {
-        await guardarPrecio(org, { listaId: lista, variacionId: x.variacion, importe: x.usd ?? x.nuevo, moneda: x.usd != null ? "USD" : "ARS", usuarioId: usuario }, c);
+        // Lo cambió la regla sola: sin usuario (el historial dice «Regla de seguimiento, automática»).
+        await guardarPrecio(org, { listaId: lista, variacionId: x.variacion, importe: x.usd ?? x.nuevo, moneda: x.usd != null ? "USD" : "ARS", usuarioId: null,
+          origen: "seguimiento", motivo: `Automático: referencia ${ref.texto}` }, c);
       }
       await c.query(`insert into seguimiento_ajuste (organizacion_id, producto_id, variacion_id, lista_id, antes_ars, nuevo_ars, referencia, modo, estado, resuelto_ts, usuario_id)
                      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
@@ -148,15 +150,16 @@ export async function revisarRegla(org: string, productoId: number, usuario: str
 
 /** «Aplicar»: lo propuesto pasa a la lista de precios (desde ahí, el esquema lo lleva a Mercado Libre). */
 export async function aplicarPropuesta(org: string, productoId: number, usuario: string | null): Promise<number> {
-  const props = await consulta<{ id: number; variacion_id: number; lista_id: number; nuevo_ars: number }>(`
-    select id::int, variacion_id::int, lista_id::int, nuevo_ars::float8 from seguimiento_ajuste
+  const props = await consulta<{ id: number; variacion_id: number; lista_id: number; nuevo_ars: number; referencia: string | null }>(`
+    select id::int, variacion_id::int, lista_id::int, nuevo_ars::float8, referencia from seguimiento_ajuste
      where organizacion_id = $1 and producto_id = $2 and estado = 'propuesto'`, [org, productoId]);
   if (!props.length) throw new ErrorErp("No hay nada propuesto para aplicar.");
   await enTransaccion(async (c) => {
     for (const x of props) {
       const p = await precioDe(org, x.variacion_id, x.lista_id, undefined, c);
       const usd = p && p.monedaOrigen === "USD" && p.lista.ars > 0 ? p.lista.usd * x.nuevo_ars / p.lista.ars : null;
-      await guardarPrecio(org, { listaId: x.lista_id, variacionId: x.variacion_id, importe: usd ?? x.nuevo_ars, moneda: usd != null ? "USD" : "ARS", usuarioId: usuario }, c);
+      await guardarPrecio(org, { listaId: x.lista_id, variacionId: x.variacion_id, importe: usd ?? x.nuevo_ars, moneda: usd != null ? "USD" : "ARS", usuarioId: usuario,
+        origen: "seguimiento", motivo: `Propuesta aplicada: referencia ${x.referencia ?? "—"}` }, c);
       await c.query("update seguimiento_ajuste set estado = 'aplicado', resuelto_ts = now(), usuario_id = $2 where id = $1", [x.id, usuario]);
     }
   });
