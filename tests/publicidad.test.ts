@@ -40,3 +40,12 @@ test("las indirectas cuentan sólo si la config lo dice; sin gasto, esperar; top
   assert.equal(juzgar(m({}), 100_000, 7, cfg).veredicto, "esperar");
   assert.equal(juzgar(m({ costo: 5_000, clics: 5 }), 100_000, 7, { ...cfg, topePesos: 4_000 }).veredicto, "cortar");
 });
+
+test("sumar métricas no toca los otros campos del grupo", async () => {
+  const { sumarMetricas } = await import("@/lib/publicidad/veredicto");
+  const g = { clics: 1, impresiones: 0, costo: 10, montoDir: 0, montoInd: 0, udsDir: 0, udsInd: 0, diasConGasto: 1, publicaciones: [] as unknown[] };
+  sumarMetricas(g, m({ clics: 2, costo: 5 }));
+  assert.equal(g.clics, 3);
+  assert.equal(g.costo, 15);
+  assert.ok(Array.isArray(g.publicaciones));
+});

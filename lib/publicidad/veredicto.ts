@@ -88,7 +88,8 @@ export function juzgar(m: Metr, precio: number | null, pctMax: number, cfg: Conf
 }
 
 const vacio = (): Metr => ({ clics: 0, impresiones: 0, costo: 0, montoDir: 0, montoInd: 0, udsDir: 0, udsInd: 0, diasConGasto: 0 });
-const sumar = (a: Metr, b: Metr) => { for (const k of Object.keys(a) as (keyof Metr)[]) a[k] += b[k]; };
+const CLAVES_METR = Object.keys(vacio()) as (keyof Metr)[];
+export const sumarMetricas = (a: Metr, b: Metr) => { for (const k of CLAVES_METR) a[k] += b[k]; };
 
 /** Todos los productos con publicidad en la ventana, con su veredicto. */
 export async function veredictos(org: string, cfgDada?: ConfigPublicidad): Promise<FilaProducto[]> {
@@ -160,7 +161,7 @@ export async function veredictos(org: string, cfgDada?: ConfigPublicidad): Promi
       grupos.set(clave, g);
     }
     const dias = g.diasConGasto;
-    sumar(g, metr);
+    sumarMetricas(g, metr);
     g.diasConGasto = Math.max(dias, metr.diasConGasto);
     g.publicaciones.push({ ...metr, itemId: f.item_id, canalId: Number(f.canal_id), canal: f.canal, titulo: f.titulo, precio: f.precio != null ? Number(f.precio) : null,
       estado: f.estado, campanaId: f.campana_id ? Number(f.campana_id) : null, permalink: f.permalink });
