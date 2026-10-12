@@ -17,7 +17,7 @@ export default async function ComprasCourier({ searchParams }: { searchParams: P
   const filas = await compras(s.org.id);
   return (
     <Pantalla titulo="Compras por courier" subtitulo="Las importaciones por courier: flete por kilo y un único % para toda la compra. De acá sale el costo de cada producto (no mueve stock)."
-      acciones={<Link href="/compras/courier/control" className={SUAVE}>Control de stock</Link>}>
+      acciones={<><Link href="/compras/courier/informe" className={SUAVE}>Informe de importaciones</Link><Link href="/compras/courier/control" className={SUAVE}>Control de stock</Link></>}>
       <Avisos sp={sp} />
       <div className={CAJA_TABLA}>
         <table className={TABLA}>

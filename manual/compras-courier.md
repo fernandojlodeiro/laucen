@@ -2,7 +2,7 @@
 titulo: Compras por courier
 menu: Compras › Compras por courier
 ruta: /compras/courier
-rutas: /compras/courier, /compras/courier/[id], /compras/courier/control
+rutas: /compras/courier, /compras/courier/[id], /compras/courier/control, /compras/courier/informe
 permiso: compras_ver
 resumen: Las importaciones por courier con su flete por kilo y su porcentaje único; de acá sale el costo de cada producto.
 ---
@@ -52,6 +52,22 @@ Botón **Control de stock**, arriba a la derecha de la lista de compras. Muestra
 - Arriba, el total de unidades y pesos que faltan y que sobran; abajo, la fila de totales.
 
 Si el producto ya tenía stock antes de la compra, sus ventas también cuentan: no se puede saber de qué compra salió cada unidad. Una diferencia positiva suele ser eso, o devoluciones y ajustes.
+
+## Informe de importaciones
+
+Botón **Informe de importaciones**, arriba a la derecha de la lista de compras. Arriba se tildan las **compras** a analizar (de entrada, todas): se pueden mirar una sola o varias juntas.
+
+- **Resumen** por compra (y el total si hay más de una): cargado, vendido y %, ventas, comisión y cargo fijo de Mercado Libre, costo de lo vendido, **ganancia** y margen, disponible hoy, diferencia de stock y su valor a precio de la Clásica, y lo que queda en stock al costo y a precio de la Clásica.
+- **Para la próxima importación**: qué conviene hacer con cada producto, agrupado:
+  - **Comprar más cantidad**: vendió casi todo (90 % o más) en 60 días o menos y deja 25 % o más de margen; sugiere la cantidad para 120 días de venta.
+  - **Reponer**: vendió el 60 % o más con margen razonable; sugiere la cantidad para 120 días.
+  - **Comprar menos o no repetir**: después de 60 días vendió menos del 35 %; dice para cuántos días alcanza lo que queda.
+  - **Revisar precio o costo**: deja menos del 10 % sobre la venta.
+  - **Revisar el stock**: falta mercadería contra lo vendido.
+- Cuatro listas de 10: **los que más ganancia dejaron**, **los que menos margen dejaron**, **los que más rápido se venden** (unidades por día) y **los que más tardan en venderse** (días que faltan para agotar lo que queda, al ritmo de venta).
+- **Detalle por producto**, de la ganancia más alta a la más baja: cargado, vendido y %, días (desde que entró hasta que se agotó, marcado ✓, o hasta hoy), venta por día, ventas, ganancia, margen, disponible, días para agotar y diferencia de stock.
+
+Criterios: las ventas son de todos los canales desde la fecha y hora de ingreso de la compra, sin canceladas, y un kit vendido cuenta sus componentes. Ganancia = ventas − comisión y cargo fijo de Mercado Libre − costo de lo vendido al dólar de hoy (costo de reposición); no incluye el envío gratis que paga el vendedor ni la publicidad. Si el producto ya tenía stock antes de la compra, sus ventas también cuentan.
 
 ## Relacionado
 
