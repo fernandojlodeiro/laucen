@@ -9,7 +9,7 @@ import { veredictos, type FilaProducto } from "@/lib/publicidad/veredicto";
 export const BASE_PUBLICIDAD = "/ventas/publicidad";
 
 export const VEREDICTOS: Record<string, string> = { cortar: "CORTAR", bajar: "BAJAR", seguir: "SEGUIR", subir: "SUBIR", esperar: "Sin gasto" };
-export const ESTADOS_CAMPANA: Record<string, string> = { active: "Activa", paused: "Pausada", hold: "Retenida", idle: "Sin anuncios" };
+export const ESTADOS_CAMPANA: Record<string, string> = { active: "Activa", paused: "Pausada", hold: "Retenida", idle: "Sin anuncios", deleted: "Eliminada" };
 
 /** Los productos con publicidad, filtrados como la pantalla (?q=, ?veredicto=, ?canal=). */
 export async function productosFiltrados(org: string, sp: Record<string, string | undefined>): Promise<FilaProducto[]> {

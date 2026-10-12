@@ -81,6 +81,10 @@ async function leerCuenta(org: string, cuenta: CuentaMl, nombre: string, releer:
     if (offset + 50 >= num(r.datos.paging?.total)) break;
   }
   inf.campanas = campanas.length;
+  // La que ML ya no devuelve fue eliminada en el panel: queda en la historia, marcada (si no, figuraría activa para siempre).
+  await consulta(`update pub_campana set estado = 'deleted', leido_ts = now()
+                   where organizacion_id = $1 and canal_id = $2 and estado is distinct from 'deleted' and not (campana_id = any($3::bigint[]))`,
+    [org, canal, campanas.map((c) => c.id)]);
   const hoy = hoyAr();
   for (const c of campanas) {
     await consulta(`insert into pub_campana (organizacion_id, campana_id, canal_id, anunciante_id, nombre, estado, estrategia, roas_objetivo, acos_objetivo,
