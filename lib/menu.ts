@@ -107,6 +107,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Promociones de ML", href: "/informes/promociones", permiso: "informes_publicaciones_ver" },
       { texto: "Rentabilidad por venta", href: "/informes/rentabilidad", permiso: "informes_ventas_ver" },
       { texto: "Ranking de clientes", href: "/informes/ranking-clientes", permiso: "informes_ventas_ver" },
+      { texto: "Precios según seguimiento", href: "/informes/precios-seguimiento", permiso: "precios_ver" },
     ],
   },
   {
