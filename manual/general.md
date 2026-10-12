@@ -135,7 +135,7 @@ Todas las listas tienen su buscador arriba:
 
 1. Escribí en el cuadro. **Busca solo mientras tipeás**, desde la segunda letra (con una sola letra todavía no busca). No hay botón "Buscar".
 2. Para borrar lo escrito, tocá la **X** que aparece adentro del cuadro.
-3. La caja **"Comienza por"** viene tildada: busca lo que empieza con lo que escribiste. Destildala para buscar en cualquier parte del texto. Lo que escribís se busca **tal cual** (números y letras por igual, con espacios) en **todos los datos** de lo que lista esa pantalla; con **?** pedís varias cosas en un mismo dato y con **\*** varias cosas en el mismo registro aunque estén en datos distintos (por ejemplo note?12gb\*asus), igual que en el buscador de arriba (el globito **?** al lado del cuadro lo explica). Con "Comienza por", la primera condición de cada parte va al principio del dato. (Algunas listas, como Pedidos o Reclamos, buscan siempre en cualquier parte y no muestran esta caja.)
+3. La caja **"Comienza por"** viene tildada: busca lo que empieza con lo que escribiste. Destildala para buscar en cualquier parte del texto, o empezá lo que escribís con un **?** (por ejemplo ?4739983): así busca en cualquier parte aunque la caja siga tildada. Lo que escribís se busca **tal cual** (números y letras por igual, con espacios) en **todos los datos** de lo que lista esa pantalla; con **?** pedís varias cosas en un mismo dato y con **\*** varias cosas en el mismo registro aunque estén en datos distintos (por ejemplo note?12gb\*asus), igual que en el buscador de arriba (el globito **?** al lado del cuadro lo explica). Con "Comienza por", la primera condición de cada parte va al principio del dato. (Algunas listas, como Pedidos o Reclamos, buscan siempre en cualquier parte y no muestran esta caja.)
 4. En las listas de productos aparece además **"Mostrar inactivos"**: un producto inactivo no sale en ninguna lista ni buscador salvo que la tildes.
 5. Los desplegables de filtro que están al lado del buscador (estado, canal, tipo…) también filtran al momento de elegir.
 6. **Toda búsqueda o filtro nuevo vuelve a la página 1.**
@@ -250,7 +250,7 @@ Cuando hay que elegir algo de una lista de más de diez opciones (por ejemplo, l
   - **El Excel** baja siempre en pesos, y al lado de cada importe que tiene su dólar del día agrega una columna **"… (US$ al dólar del día)"**.
 - **Dólar oficial**: es el oficial venta del día; si hoy no hay, rige el último cargado. Se levanta solo una vez por día y se puede cargar a mano en [Tipo de cambio](/config/tipo-cambio).
 - **Contadores de la barra de estado**: se actualizan solos cada pocos segundos (y al cambiar de pantalla).
-- **Buscadores**: con "Comienza por" tildada, coincide sólo el principio del texto; destildada, cualquier parte. No distingue mayúsculas de minúsculas.
+- **Buscadores**: con "Comienza por" tildada, coincide sólo el principio del texto; destildada (o escribiendo un ? al principio), cualquier parte. No distingue mayúsculas de minúsculas.
 - **Orden de las listas**: el orden por columna es seguro (sólo se puede ordenar por las columnas que la lista ofrece). Si dos filas empatan, desempata el orden de siempre de esa lista.
 - **Paginado**: 50 filas por página, siempre.
 - **Excel**: hasta 50.000 filas por descarga; mismos filtros que la pantalla; las columnas, según la configuración elegida o, si es "Como en pantalla", las de la pantalla (o de la vista elegida).

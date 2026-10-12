@@ -367,3 +367,70 @@ create table if not exists ml_catalogo_marca (
   leido_ts     timestamptz not null default now()
 );
 alter table ml_catalogo_marca enable row level security;
+
+-- Catálogos que no corresponden a un producto (Fer, 12/10: la Asus de 12 GB atada a la ficha de la de 8 GB). Una alta no
+-- pide entrar ahí, y la publicación de catálogo que Mercado Libre crea sola en esa ficha se cierra y elimina
+-- (lib/mercadolibre/rehacer-esquema.ts › cerrarCatalogosVetados).
+create table if not exists ml_catalogo_vetado (
+  organizacion_id  text not null,
+  sku              text not null,
+  producto_id      text not null,
+  motivo           text,
+  creado_ts        timestamptz not null default now(),
+  primary key (organizacion_id, sku, producto_id)
+);
+alter table ml_catalogo_vetado enable row level security;
+select erp_politica_org('ml_catalogo_vetado');
+
+-- Ofertas relámpago (Fer, 12/10; lib/precios-ml/relampago.ts): lo que cobra Mercado Libre por vender a un precio (comisión
+-- de /sites/MLA/listing_prices y envío gratis de /users/{id}/shipping_options/free), para calcular cuánto se recibe.
+create table if not exists ml_relampago_costo (
+  canal_id   bigint not null,
+  item_id    text not null,
+  precio     numeric(16, 2) not null,
+  comision   numeric(16, 2),
+  envio      numeric(16, 2),
+  leido_ts   timestamptz not null default now(),
+  primary key (canal_id, item_id, precio)
+);
+alter table ml_relampago_costo enable row level security;
+
+-- Lo mínimo que se acepta recibir por una venta en oferta relámpago, por producto.
+create table if not exists ml_relampago_piso (
+  organizacion_id  text not null,
+  producto_id      bigint not null,
+  piso             numeric(16, 2) not null check (piso >= 0),
+  actualizado_ts   timestamptz not null default now(),
+  primary key (organizacion_id, producto_id)
+);
+alter table ml_relampago_piso enable row level security;
+select erp_politica_org('ml_relampago_piso');
+
+-- El precio con que se entra a una oferta relámpago, cuando Fer lo cambia a mano en la fila (Fer, 12/10). Sin fila: el
+-- de hoy si entra en el rango de ML, si no el más alto del rango.
+create table if not exists ml_relampago_precio (
+  organizacion_id  text not null,
+  canal_id         bigint not null,
+  item_id          text not null,
+  precio           numeric(16, 2) not null check (precio > 0),
+  actualizado_ts   timestamptz not null default now(),
+  primary key (canal_id, item_id)
+);
+alter table ml_relampago_precio enable row level security;
+select erp_politica_org('ml_relampago_precio');
+-- También el stock con que se entra (Fer, 12/10): un solo lápiz por fila para precio, stock y piso.
+alter table ml_relampago_precio alter column precio drop not null;
+alter table ml_relampago_precio add column if not exists stock int check (stock > 0);
+
+-- Cuándo corre una oferta relámpago aceptada: Mercado Libre pone el día y la hora (no el vendedor) y lo informa sólo en
+-- la lista de la promoción (/seller-promotions/promotions/{id}/items), no en la de la publicación. Tal cual lo dice ML.
+create table if not exists ml_relampago_fecha (
+  canal_id   bigint not null,
+  item_id    text not null,
+  ref_id     text,
+  desde      text,
+  hasta      text,
+  leido_ts   timestamptz not null default now(),
+  primary key (canal_id, item_id)
+);
+alter table ml_relampago_fecha enable row level security;

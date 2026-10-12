@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { accionArbol, type Fila } from "@/app/categorias-actions";
 import { BORRAR, SUAVE } from "@/app/botones";
+import { coincideBusqueda, terminosBusqueda } from "@/lib/busqueda";
 
 const RAIZ = "MLA";
 type Elegida = { id: string; ruta: string };
@@ -86,12 +87,13 @@ export default function ExploradorCategorias({ modo, irA, campo = "cats", inicio
   }, [aqui, arbol]);
   const hijas = arbol?.hijos.get(actual) ?? [];
 
-  // Búsqueda dentro de la rama actual: por nombre, sin importar acentos.
+  // Búsqueda dentro de la rama actual: por nombre, sin importar acentos, con la regla común
+  // de los buscadores (lib/busqueda.ts), en cualquier parte del nombre.
   const t = normal(texto.trim());
   const resultados = useMemo(() => {
-    if (!arbol || t.length < 2) return null;
+    if (!arbol || terminosBusqueda(t).join("").length < 2) return null;
     const prefijo = aqui ? `${aqui.ruta} › ` : "";
-    return arbol.todos.filter((n) => n.clave.includes(t) && (!prefijo || n.ruta.startsWith(prefijo)))
+    return arbol.todos.filter((n) => coincideBusqueda(n.clave, t) && (!prefijo || n.ruta.startsWith(prefijo)))
       .sort((a, b) => a.nivel - b.nivel || (b.publicaciones ?? 0) - (a.publicaciones ?? 0)).slice(0, 300);
   }, [arbol, t, aqui]);
 

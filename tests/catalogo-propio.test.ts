@@ -4,14 +4,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { atributosSugerencia, catalogoAjeno, motivosValidacion, tituloSugerencia } from "@/lib/mercadolibre/catalogo-propio";
 
-test("catalogoAjeno: vetadas y páginas de otro vendedor sí; nuestras, genéricas y marcas de fábrica no", () => {
-  assert.equal(catalogoAjeno("Nubbeo", "catalog_product"), true);
-  assert.equal(catalogoAjeno("TecnoliveUSA", "flex"), true);
-  assert.equal(catalogoAjeno("Deirolab", "flex"), false);
-  assert.equal(catalogoAjeno("Laucen", "flex"), false);
-  assert.equal(catalogoAjeno("OEM", "flex"), false);
-  assert.equal(catalogoAjeno("Genérica", "flex"), false);
-  assert.equal(catalogoAjeno("Asus", "catalog_product"), false);
+test("catalogoAjeno: la marca en la tabla de marcas es competencia de verdad; si no está, es ajeno", () => {
+  const tabla = new Set(["asus", "mastech", "oem"]);
+  assert.equal(catalogoAjeno("Asus", tabla), false);
+  assert.equal(catalogoAjeno("TecnoliveUSA", tabla), true);
+  assert.equal(catalogoAjeno("Nubbeo", new Set(["nubbeo"])), true);
+  assert.equal(catalogoAjeno("Deirolab", tabla), false);
+  assert.equal(catalogoAjeno("Laucen", tabla), false);
+  assert.equal(catalogoAjeno("Genérica", tabla), false);
+  assert.equal(catalogoAjeno("", tabla), false);
 });
 
 test("atributosSugerencia: con la marca de la cuenta y sin lo que es de la publicación", () => {

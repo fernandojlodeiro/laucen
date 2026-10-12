@@ -13,17 +13,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usarCambiarParametro } from "@/app/componentes/BuscadorVivo";
+import { coincideBusqueda, gruposBusqueda } from "@/lib/busqueda";
 
 export type Opcion = { id: number; texto: string; detalle?: string };
 
 const sinAcentos = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
-/** Las opciones que coinciden: primero las que empiezan con lo escrito. Pura. */
+/** Las opciones que coinciden, con la regla común de lib/busqueda.ts ("?", "*", un "?" al
+ *  principio): primero las que empiezan con lo escrito, después las que lo tienen en cualquier
+ *  parte (del texto o del detalle). Pura. */
 export function filtrarOpciones(opciones: Opcion[], texto: string): Opcion[] {
   const q = sinAcentos(texto);
-  if (!q) return opciones;
-  const empiezan = opciones.filter((o) => sinAcentos(o.texto).startsWith(q));
-  const tienen = opciones.filter((o) => !sinAcentos(o.texto).startsWith(q) && sinAcentos(`${o.texto} ${o.detalle ?? ""}`).includes(q));
+  if (!gruposBusqueda(q).length) return opciones;
+  const empiezan = opciones.filter((o) => coincideBusqueda(sinAcentos(o.texto), q, true));
+  const tienen = opciones.filter((o) => !empiezan.includes(o) && coincideBusqueda([sinAcentos(o.texto), sinAcentos(o.detalle ?? "")], q));
   return [...empiezan, ...tienen];
 }
 

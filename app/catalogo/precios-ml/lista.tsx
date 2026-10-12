@@ -12,7 +12,7 @@ import { coincideBusqueda, gruposBusqueda } from "@/lib/busqueda";
 import { formatear } from "@/lib/moneda";
 import type { Campo, Lista, SP } from "@/lib/listas/tipos";
 import { calcularCanal, canalesMl, excepcionesCanal, volumenCanal, type CanalMl } from "@/lib/precios-ml/datos";
-import { filtrarCalculo } from "@/lib/precios-ml/preparar";
+import { filtrarCalculo, mandadosSinLeer } from "@/lib/precios-ml/preparar";
 import { CON_PRECIO, PLANES, PLAN_INFO, descuentoComprador, queCambia, textoOrigen, type PlanOClasica } from "@/lib/precios-ml/motor";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import PrecioPublicacion from "@/app/componentes/PrecioPublicacion";
@@ -22,6 +22,7 @@ import { url } from "@/app/componentes/erp";
 export const BASE_PML = "/catalogo/precios-ml";
 export const PREVIA = `${BASE_PML}/vista-previa`;
 export const PLANES_PML = `${BASE_PML}/planes-cuotas`;
+export const RELAMPAGO_PML = `${BASE_PML}/relampago`;
 
 export const ROLES: Record<string, string> = {
   clasica: "Clásica", destacado: "Destacado", plan: "Plan", apagado: "Plan apagado", otro: "Sin tocar", nueva: "Nueva",
@@ -128,6 +129,8 @@ async function calcularFilas(org: string, canal: CanalMl, f: ReturnType<typeof f
              and x.item_id = pc.item_id and x.promocion_id = pc.promocion_id limit 1), pc.promocion_tipo) end campana
       from ml_precio_comprador pc where pc.canal_id = $1 and pc.item_id = any($2::text[]) and pc.monto is not null`, [canal.id, items]) : [])
     .map((x) => [x.item_id, { paga: x.paga, tachado: x.tachado, campana: x.campana, leido: x.leido }]));
+  const sinLeer = await mandadosSinLeer(canal.id);
+  const hora = (t: string | null) => (t ? new Date(t).toLocaleTimeString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit" }) : "recién");
   const filas: FilaPrevia[] = [];
   for (const { info, propuesta: p } of propuestas) {
     const comun = {
@@ -138,7 +141,10 @@ async function calcularFilas(org: string, canal: CanalMl, f: ReturnType<typeof f
     const cuotasDe = (plan: PlanOClasica | null) => (plan && plan !== "clasica" ? p.planes.find((x) => x.plan === plan)?.cuotasVisibles ?? null : null);
     const ajusteDe = (plan: PlanOClasica | null) => p.clasica == null ? null : plan === "clasica" ? p.ajustePct : p.planes.find((x) => x.plan === plan)?.ajustePct ?? null;
     p.pubs.forEach((pa, i) => {
-      const cambio = queCambia(pa);
+      // Ya mandado y todavía no releído de ML: lo que se ve es de antes del cambio; no es un cambio pendiente.
+      const mandado = sinLeer.has(pa.pub.itemId);
+      const calculado = queCambia(pa);
+      const cambio = mandado && calculado ? `Ya se mandó a Mercado Libre (${hora(sinLeer.get(pa.pub.itemId) ?? null)}); se ve al volver a leer la publicación: ${calculado}` : calculado;
       filas.push({
         ajuste: ajusteDe(pa.pub.plan), cuotas: cuotasDe(pa.pub.plan),
         campana_ml: [...new Set(pa.pub.campanas.filter((c) => c.estado === "started" && CON_PRECIO.includes(c.tipo)).map((c) => c.nombre ?? c.tipo))].join(" · ") || null,
@@ -147,7 +153,7 @@ async function calcularFilas(org: string, canal: CanalMl, f: ReturnType<typeof f
         lista: pa.lista, venta: pa.venta, ptw: pa.pub.priceToWin, ptw_estado: pa.pub.estadoPtw, precio_ml: pa.pub.precioListaMl, venta_ml: pa.pub.precioVentaMl,
         comprador: comprador.get(pa.pub.itemId) ?? null,
         diferencia: pa.lista != null && pa.pub.precioListaMl != null ? Math.round(pa.lista - pa.pub.precioListaMl) : null,
-        cambio, avisos: [...(i === 0 ? p.avisos : []), ...pa.avisos].join(" "), hay_cambio: !!cambio,
+        cambio, avisos: [...(i === 0 ? p.avisos : []), ...pa.avisos].join(" "), hay_cambio: !!calculado && !mandado,
       });
     });
     for (const fa of p.faltan) {

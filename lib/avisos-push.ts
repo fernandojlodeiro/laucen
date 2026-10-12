@@ -109,6 +109,18 @@ async function permisosDe(usuario: string, org: string): Promise<Permisos | null
   return m.membresia.superadmin ? todos(true) : permisosEfectivos(m.membresia, await rolesDeLaOrg(org));
 }
 
+/** Un aviso a todos los usuarios de la organización que tienen el permiso y avisos de Windows activados
+ *  (ej. publicidad: un producto pasó a CORTAR). Devuelve a cuántas computadoras llegó. */
+export async function avisarOrg(org: string, permiso: PermisoKey, aviso: Aviso): Promise<number> {
+  const usuarios = await consulta<{ usuario_id: string }>("select distinct usuario_id from push_suscripcion where organizacion_id = $1", [org]);
+  let n = 0;
+  for (const u of usuarios) {
+    const permisos = await permisosDe(u.usuario_id, org).catch(() => null);
+    if (permisos && tienePermiso(permisos, permiso)) n += await mandar(u.usuario_id, org, aviso);
+  }
+  return n;
+}
+
 /** La vuelta del job: a cada usuario con avisos activados le manda (como mucho) un aviso con lo nuevo. */
 export async function vueltaPush(): Promise<{ usuarios: number; avisos: number }> {
   const filas = await consulta<Parameters<typeof prefsDe>[0] & { usuario_id: string; organizacion_id: string; listo: boolean; avisado: Marcas | null; push_avisado: Marcas | null }>(`

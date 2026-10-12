@@ -117,7 +117,7 @@ export async function buscarProductosPedido(q: string, comienza: boolean, canalI
       from variacion v join producto p on p.id = v.producto_id
      where v.organizacion_id = $1 and v.estado <> 'archivada' and p.estado <> 'archivado'
        and (v.codigo_barras = $3 or ${sqlBusqueda("$2", ["v.sku", "titulo_variacion(v.id)", "p.sku_base", "v.codigo_barras", "p.codigo_barras"])})
-     order by (v.codigo_barras = $3) desc, (v.sku ilike $3) desc, v.sku limit 20`, [s.org.id, parametroBusqueda(t, comienza), t, canalId]);
+     order by (v.codigo_barras = $3) desc, (v.sku ilike $3) desc, v.sku limit 20`, [s.org.id, parametroBusqueda(t, comienza), t.replace(/^\?+\s*/, ""), canalId]);
   const { listaId, moneda } = await listaDelPedido(s.org.id, canalId, clienteId, elegido);
   return Promise.all(filas.map(async (f) => ({ ...f, precio: await precioSugerido(s.org.id, f.id, listaId, moneda) })));
 }

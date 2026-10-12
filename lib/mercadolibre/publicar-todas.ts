@@ -19,9 +19,10 @@
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolar, encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { campanaPropiaDe, pedidoCampanaPropia } from "@/lib/precios-ml/campana-propia";
 import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
 import { sinFotosConMarca } from "@/lib/mercadolibre/fotos-marca";
-import { ajusteAlta, atributosConocidos, catalogoSegunMarca, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
+import { ajusteAlta, atributosConocidos, catalogoSegunMarca, catalogoVetado, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import { canalesMl, comisionesMl, familiasDe, reglasCanal, type CanalMl } from "@/lib/precios-ml/datos";
@@ -154,8 +155,7 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
   const enCola = await consulta<{ canal: number; item_id: string }>(`
     select canal_id::int canal, item_id from ml_cola where organizacion_id = $1 and tipo = 'crear' and item_id like $2
        and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '30 days'
-                and not exists (select 1 from meli_item x where x.item_id = ml_cola.respuesta ->> 'id'
-                                  and (x.estado = 'closed' or (x.estado = 'under_review' and x.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden')))))`, [org, `esquema:${v.sku}:%`]);
+                and (enviado_ts > now() - interval '1 hour' or exists (select 1 from meli_item x where x.item_id = ml_cola.respuesta ->> 'id' and x.estado <> 'closed' and not (x.estado = 'under_review' and x.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden')))))`, [org, `esquema:${v.sku}:%`]);
 
   cache.com ??= await comisionesMl();
   cache.familias ??= await familiasDe(org);
@@ -264,10 +264,11 @@ async function altasEnCanal(org: string, plan: PlanTodas, datos: DatosOrigen, c:
   }
   // Pautas (pautas.ts): la marca de la cuenta en los «sin marca»; con la marca cambiada, sólo un catálogo de esa marca.
   const marca = marcaFinal(datos.atributos, await marcaDeCuenta(org, c.id));
-  const catalogo = catalogoSegunMarca(plan.catalogo, cat, marca);
+  const catalogo = (await catalogoVetado(org, sku, plan.catalogo)) ? null : catalogoSegunMarca(plan.catalogo, cat, marca);
   // Una que ML bloqueó y se vuelve a crear: en la categoría que sugirió y con el título sin mezclar (ml_alta_ajuste).
   const ajuste = await ajusteAlta(org, c.id, sku);
   const conocidos = await atributosConocidos(org, sku);
+  const propia = await campanaPropiaDe(org, c.id);
   for (const f of deEsta) {
     if (Date.now() > hasta) { res.sinTiempo++; continue; }
     const tag = f.plan === "clasica" ? null : PLAN_INFO[f.plan].tag;
@@ -286,6 +287,9 @@ async function altasEnCanal(org: string, plan: PlanTodas, datos: DatosOrigen, c:
     if (datos.texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: datos.texto }, seguirSiFalla: true });
     // Que compita también en el catálogo (si ML no la deja, el alta queda igual).
     if (catalogo) pedidos.push({ metodo: "POST", ruta: "/items/catalog_listings", cuerpo: { item_id: "{id}", catalog_product_id: catalogo }, seguirSiFalla: true });
+    // Nace al tachado: en el mismo paso entra a la campaña propia a su precio, así el comprador nunca paga el tachado
+    // (Fer, 12/10). Si después Mercado Libre le ofrece una campaña suya, la sincronización la pasa ahí.
+    if (propia && f.venta != null && f.publicar! > f.venta + 0.5) pedidos.push(pedidoCampanaPropia(propia.id, f.venta));
     const precio = f.publicar !== f.venta && f.venta != null ? ` (con campaña $ ${f.venta.toLocaleString("es-AR")})` : "";
     altas.push({
       canalId: c.id, itemId: `esquema:${sku}:${f.plan}`, tipo: "crear", antes: { estado: "no existe en esta cuenta" },

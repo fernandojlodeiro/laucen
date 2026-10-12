@@ -22,17 +22,18 @@ import { consulta, una } from "@/lib/erp/base";
 import { campanaPropiaDe, NOMBRE_CAMPANA_PROPIA } from "@/lib/precios-ml/campana-propia";
 import { conEnvioGratisDeMas, envioGratisSacado } from "@/lib/precios-ml/envio-gratis";
 import { propuestasDeCanal } from "@/lib/mercadolibre/catalogo-propio";
+import { estadoRehacer } from "@/lib/mercadolibre/rehacer-esquema";
 import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import { fechaHora } from "@/app/ventas/formato";
 import { formatear } from "@/lib/moneda";
 import { formatearNumero } from "@/lib/numeros";
 import { paginarEnMemoria } from "@/lib/lista";
-import { reglasCanal, heredadoExcepciones, excepcionesCanal, volumenCanal, alertasCanal, campanasBajoPisoCanal, sinCampanaCanal, type CanalMl, type Excepcion, type RangoVolumen } from "@/lib/precios-ml/datos";
+import { canalesMl, reglasCanal, heredadoExcepciones, excepcionesCanal, volumenCanal, alertasCanal, campanasBajoPisoCanal, sinCampanaCanal, type CanalMl, type Excepcion, type RangoVolumen } from "@/lib/precios-ml/datos";
 import { PLANES, PLAN_INFO, descuentoComprador, type Plan, type ReglasPlan } from "@/lib/precios-ml/motor";
 import { BarraPml, type VerPml } from "./comun";
 import { BASE_PML, PREVIA, PLANES_PML, LISTA_EXCEPCIONES_ML, LISTA_VOLUMEN_ML, canalElegido, textoEscalones } from "./lista";
 import {
-  accionGuardarGeneral, accionCampanaPropia, accionGuardarExcepcion, accionBorrarExcepcion, accionGuardarVolumen, accionBorrarVolumen, accionReplicarVolumen, accionInterruptor, accionSacarCampanas, accionSacarEnvioGratis,
+  accionGuardarGeneral, accionCampanaPropia, accionGuardarExcepcion, accionBorrarExcepcion, accionGuardarVolumen, accionBorrarVolumen, accionReplicarVolumen, accionCopiarEsquema, accionArrancarRehacer, accionInterruptor, accionSacarCampanas, accionSacarEnvioGratis,
 } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -82,6 +83,8 @@ export default async function PreciosMl({ searchParams }: { searchParams: Promis
 
 async function General({ org, canal, editando, aqui }: { org: string; canal: CanalMl; editando: boolean; aqui: string }) {
   const propia = await campanaPropiaDe(org, canal.id);
+  const otras = (await canalesMl(org)).filter((c) => c.id !== canal.id);
+  const rehacer = await estadoRehacer(org);
   const [reglas, propios] = await Promise.all([reglasCanal(org, canal), una<{ n: number }>(`
     select count(distinct producto_id)::int n from (
       select producto_id from ml_regla_precio where organizacion_id = $1 and canal_id = $2 and nivel = 'producto' and ajuste_pct is not null
@@ -133,6 +136,51 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
       </section>
 
       <section className={CAJA}>
+        {/* Pasar las otras cuentas a este esquema, cerrando y volviendo a crear lo creado sin él (rehacer-esquema.ts). */}
+        <TituloSeccion titulo="Pasar las otras cuentas a este esquema">
+          {/* Sólo desde una cuenta con el esquema armado (descuentos por categoría), para no copiar uno vacío. */}
+          {!rehacer.length && reglas.tachado.some((t) => t.nivel === "familia") && <BotonConfirmar accion={accionArrancarRehacer} campos={{ canal: String(canal.id), volver: aqui }} clase={VERDE} texto="Arrancar" corriendo="Arrancando…"
+            pregunta={`¿Pasar ${otras.map((o) => o.nombre).join(", ")} al esquema de ${canal.nombre}? Se copia el esquema (las excepciones por producto de cada cuenta quedan), se prende «Sincronizar precios», se cierran, eliminan y vuelven a crear, solas, las publicaciones que la creación automática hizo desde el 10/10 sin el esquema (las que no tienen ventas ni excepción propia), y en todas las cuentas se eliminan las publicaciones cerradas.`} />}
+        </TituloSeccion>
+        {rehacer.length > 0 ? (
+          <div className={`${CAJA_TABLA} mb-1`}>
+            <table className={TABLA}>
+              <thead className={THEAD}><tr><th className={TH}>Cuenta</th><th className={TH}>Estado</th><th className={THN}>Por cerrar</th><th className={THN}>Cerrándose</th></tr></thead>
+              <tbody>
+                {rehacer.map((r) => (
+                  <tr key={r.canal} className={TR} data-canal={r.canal}>
+                    <td className={TD}>{r.nombre}</td>
+                    <td className={TD}>{r.estado?.terminado ? "Terminado: se vuelve a crear con el esquema nuevo" : r.estado?.cierre ? "Cerrando y volviendo a crear" : r.estado?.copiado ? "Esquema copiado" : "Esperando la próxima vuelta (cada 10 minutos)"}</td>
+                    <td className={TDN}>{r.abiertas}</td>
+                    <td className={TDN}>{r.enCola}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+        <p className="text-[11px] text-[#5C6B76]">
+          Con un clic, en cada una de las otras cuentas: copia este esquema (las excepciones por producto de la cuenta quedan como están), prende «Sincronizar precios», cierra y elimina en Mercado Libre las publicaciones que la creación automática hizo desde el 10/10 antes de tener el esquema (sólo las que no tienen ventas ni excepción propia) y la creación automática las vuelve a crear con él; al terminar, elimina todas las publicaciones cerradas de cada cuenta (también de ésta): nacen con el tachado y entran en campaña, así el comprador paga lo mismo.
+          Mercado Libre no deja ponerle después un descuento grande a una publicación que ya se vendía sin él.
+        </p>
+      </section>
+
+      <section className={CAJA}>
+        {/* Copiar el esquema (Fer, 12/10): pasar a una cuenta el esquema que ya se armó en otra, sin cargarlo a mano. */}
+        <TituloSeccion titulo="Copiar el esquema de otra cuenta">
+          {otras.map((o) => (
+            <BotonConfirmar key={o.id} accion={accionCopiarEsquema} campos={{ canal: String(canal.id), origen: String(o.id), volver: aqui }} clase={SUAVE}
+              texto={`Copiar de ${o.nombre}`} corriendo="Copiando…"
+              pregunta={`¿Reemplazar todo el esquema de ${canal.nombre} (descuento, excepciones, planes de cuotas y volumen) por el de ${o.nombre}? Lo de ${canal.nombre} se borra.`} />
+          ))}
+        </TituloSeccion>
+        <p className="text-[11px] text-[#5C6B76]">
+          Deja esta cuenta con el mismo descuento, las mismas excepciones, planes de cuotas y descuento por volumen que la otra; lo que tenía se borra. La marca, los interruptores y la campaña propia no cambian.
+          Nada sale a Mercado Libre: lo que cambiaría se ve en la vista previa y sale como siempre (con «Preparar cambios» o solo, con «Sincronizar precios» prendido).
+        </p>
+      </section>
+
+      <section className={CAJA}>
         <TituloSeccion titulo="Interruptores de la cuenta" />
         <div className="grid gap-3">
           <Interruptor accion={accionInterruptor} prendido={canal.sincronizarPrecios} campos={campos("sincronizar_precios")}
@@ -156,11 +204,11 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
               ? `Prendido: cada 10 minutos Laucen crea, sin esperar tu clic, los productos que están en otra cuenta y no en ésta (con su Clásica y sus planes) y los planes que les faltan, con las pautas de la cuenta (marca, título, descripción). Lo que Mercado Libre no acepta queda en la pestaña Alertas. Creadas hasta ahora: ${canal.autoAltas.total}${canal.autoAltas.ultimaVuelta ? `; última vuelta ${new Date(canal.autoAltas.ultimaVuelta).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}.`
               : "Apagado: lo que falta se crea con los botones de la vista previa, en lotes que esperan tu clic."} />
           <Interruptor accion={accionInterruptor} prendido={canal.catalogoPropioAuto} campos={campos("catalogo_propio_auto")}
-            etiqueta={`Catálogo con nuestra marca${canal.marca ? ` (${canal.marca})` : ""}: proponer y pasar las publicaciones atadas a un catálogo de otra marca`}
+            etiqueta={`Catálogo con nuestra marca${canal.marca ? ` (${canal.marca})` : ""}: proponer catálogos propios y pasar ahí las publicaciones`}
             ayuda={!canal.marca
               ? "Esta cuenta no tiene «Marca de las publicaciones»: sin marca no se puede proponer un catálogo."
               : canal.catalogoPropioAuto
-                ? `Prendido: cada media hora Laucen propone a Mercado Libre, con la marca ${canal.marca} y el cupo libre de la cuenta, catálogos para los productos nuestros que Mercado Libre ató a un catálogo o página de otra marca (los que más venden primero). Si Mercado Libre pide corregir algo, lo corrige; cuando lo aprueba, pasa ahí las publicaciones de las cuentas ${canal.marca}. Todo queda en la pestaña Alertas.`
+                ? `Prendido: cada media hora Laucen propone a Mercado Libre, con la marca ${canal.marca} y el cupo libre de la cuenta, catálogos para los productos nuestros que Mercado Libre ató a un catálogo ajeno (de una marca que no está en Catálogo › Marcas) y después para los que no están en ningún catálogo (los que más venden primero). Si Mercado Libre pide corregir algo, lo corrige; cuando lo aprueba, pasa ahí las publicaciones de las cuentas ${canal.marca}. Todo queda en la pestaña Alertas.`
                 : "Apagado: no se propone nada solo."} />
         </div>
       </section>
@@ -418,14 +466,14 @@ async function Alertas({ org, canal, aqui }: { org: string; canal: CanalMl; aqui
         <TituloSeccion titulo={`Catálogo con nuestra marca (${propuestas.length})`} />
         <div className={`${CAJA_TABLA} mb-1`}>
           <table className={TABLA}>
-            <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Estado</th><th className={TH}>Catálogo de otra marca</th><th className={TH}>Catálogo nuestro</th><th className={TH}>Detalle</th></tr></thead>
+            <thead className={THEAD}><tr><th className={TH}>SKU</th><th className={TH}>Estado</th><th className={TH}>Estaba en</th><th className={TH}>Catálogo nuestro</th><th className={TH}>Detalle</th></tr></thead>
             <tbody>
               {propuestas.length === 0 && <tr><td colSpan={5} className={`${TD} text-[#5C6B76]`}>Todavía ninguna: la primera vuelta corre dentro de la próxima media hora.</td></tr>}
               {propuestas.slice(0, 100).map((g) => (
                 <tr key={g.sku} className={TR}>
                   <td className={TD}>{g.producto ? <Link href={`/catalogo/productos/${g.producto}`} className="font-mono text-[#16577F] hover:underline">{g.sku}</Link> : g.sku}</td>
                   <td className={TD}>{ESTADO_PROPUESTA[g.estado] ?? g.estado}</td>
-                  <td className={TD}>{g.catalogo_ajeno ? <a href={`https://www.mercadolibre.com.ar/p/${g.catalogo_ajeno}`} target="_blank" rel="noreferrer" className="font-mono text-[#16577F] hover:underline">{g.catalogo_ajeno} ↗</a> : "—"}</td>
+                  <td className={TD}>{g.catalogo_ajeno ? <a href={`https://www.mercadolibre.com.ar/p/${g.catalogo_ajeno}`} target="_blank" rel="noreferrer" className="font-mono text-[#16577F] hover:underline">{g.catalogo_ajeno} ↗</a> : "Ningún catálogo"}</td>
                   <td className={TD}>{g.producto_id ? <a href={`https://www.mercadolibre.com.ar/p/${g.producto_id}`} target="_blank" rel="noreferrer" className="font-mono text-[#16577F] hover:underline">{g.producto_id} ↗</a> : "—"}</td>
                   <td className={TD}>{g.motivo ?? ""}</td>
                 </tr>

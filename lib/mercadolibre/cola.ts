@@ -405,6 +405,23 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
               cuerpo = { prices: tablaVolumen(actuales.datos?.prices ?? [], (p.cuerpo as { prices?: unknown[] } | null)?.prices ?? []) };
             }
             r = await enviar(cuenta, p.metodo, ruta, cuerpo);
+            // Un código de barras que ML ya tiene en la publicación de otra marca: /items/validate no lo ve, el alta sí.
+            // Se prueba una vez sin él, con «no tiene código registrado» (como en lib/mercadolibre/copiar.ts).
+            // Lo mismo con «Cantidad de envases» que ML pide al alta cuando hay «Unidad»: va 1.
+            const textoError = fila.tipo === "crear" && p.metodo === "POST" && ruta === "/items" && r.status === 400 ? JSON.stringify(r.datos) : "";
+            const c = cuerpo as { attributes?: { id: string }[] } | null;
+            const sinGtin = /item\.attribute\.invalid_product_identifier/.test(textoError) && !!c?.attributes?.some((x) => x.id === "GTIN");
+            const conEnvases = /UNITS_PER_PACK\] to be added/.test(textoError) && !!c?.attributes && !c.attributes.some((x) => x.id === "UNITS_PER_PACK");
+            if (c?.attributes && (sinGtin || conEnvases)) {
+              let atributos: { id: string; value_id?: string; value_name?: string }[] = c.attributes;
+              if (sinGtin) atributos = [...atributos.filter((x) => x.id !== "GTIN" && x.id !== "EMPTY_GTIN_REASON"), { id: "EMPTY_GTIN_REASON", value_id: "17055160" }];
+              if (conEnvases) atributos = [...atributos, { id: "UNITS_PER_PACK", value_name: "1" }];
+              cuerpo = { ...c, attributes: atributos };
+              const espera2 = ultimo + ritmo - Date.now();
+              if (espera2 > 0) await dormir(espera2);
+              ultimo = Date.now();
+              r = await enviar(cuenta, p.metodo, ruta, cuerpo);
+            }
             if (fila.tipo === "crear" && p.metodo === "POST" && r.status >= 200 && r.status < 300) {
               const d = r.datos as { id?: string; user_product_id?: string } | null;
               if (p.ruta === "/items") { creada ??= d?.id ?? null; up ??= d?.user_product_id ?? null; }

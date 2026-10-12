@@ -57,3 +57,8 @@ export async function asegurarCampanaPropia(org: string, canal: number, forzar =
     [org, canal, JSON.stringify(campana)]);
   return { campana, nueva: true };
 }
+
+/** Entrar a la campaña propia a ese precio, en el alta (el id de la publicación recién creada es "{id}"). */
+export function pedidoCampanaPropia(campana: string, precio: number) {
+  return { metodo: "POST" as const, ruta: "/seller-promotions/items/{id}?app_version=v2", cuerpo: { promotion_id: campana, promotion_type: "SELLER_CAMPAIGN", deal_price: precio }, seguirSiFalla: true };
+}

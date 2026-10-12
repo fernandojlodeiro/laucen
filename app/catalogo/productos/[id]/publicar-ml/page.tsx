@@ -62,7 +62,9 @@ export default async function PublicarEnMl({ params, searchParams }: { params: P
   const base = `/catalogo/productos/${p.id}/publicar-ml`;
   const camino = [{ texto: p.sku_base, href: `/catalogo/productos/${p.id}` }, { texto: "Publicar en Mercado Libre", href: base }];
   const titulo = `Publicar ${p.sku_base} en Mercado Libre`;
-  const q = sp.q?.trim() || null;
+  // Busca por palabras parecidas (no por la regla de lib/busqueda.ts): el "?" del principio, que en los
+  // buscadores es una marca ("en cualquier parte"), no se manda como texto.
+  const q = sp.q?.trim().replace(/^\?+\s*/, "") || null;
   const propias = sp.ver === "propias";
   const nueva = sp.ver === "nueva";
   const todas = sp.ver === "todas";

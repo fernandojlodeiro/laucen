@@ -11,8 +11,9 @@
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolar, encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { campanaPropiaDe, pedidoCampanaPropia } from "@/lib/precios-ml/campana-propia";
 import { sinFotosConMarca } from "@/lib/mercadolibre/fotos-marca";
-import { ajusteAlta, atributosConocidos, catalogoSegunMarca, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
+import { ajusteAlta, atributosConocidos, catalogoSegunMarca, catalogoVetado, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
 import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { calcularCanal } from "@/lib/precios-ml/datos";
@@ -39,13 +40,13 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
   const res: ResultadoFaltantes = { loteId: null, altas: 0, rechazos: [], sinOrigen: [], sinTiempo: 0, fallas: [] };
   if (!propuestas.length) return res;
   const marcaCuenta = await marcaDeCuenta(org, canalId);
+  const propia = await campanaPropiaDe(org, canalId);
 
   // Lo que ya está en la cola (preparado, esperando o recién mandado) no se vuelve a armar.
   const enCola = new Set((await consulta<{ item_id: string }>(`
     select item_id from ml_cola where organizacion_id = $1 and canal_id = $2 and tipo = 'crear' and item_id like 'esquema:%'
        and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '30 days'
-                and not exists (select 1 from meli_item x where x.item_id = ml_cola.respuesta ->> 'id'
-                                  and (x.estado = 'closed' or (x.estado = 'under_review' and x.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden')))))`, [org, canalId])).map((x) => x.item_id));
+                and (enviado_ts > now() - interval '1 hour' or exists (select 1 from meli_item x where x.item_id = ml_cola.respuesta ->> 'id' and x.estado <> 'closed' and not (x.estado = 'under_review' and x.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden')))))`, [org, canalId])).map((x) => x.item_id));
 
   const altas: CambioMl[] = [];
   for (const { info, propuesta } of propuestas) {
@@ -87,7 +88,7 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
         res.fallas!.push({ sku: info.sku, plan: f.plan, motivo });
         continue;
       }
-      const catalogo = catalogoSegunMarca(f.catalogProductId, cat, marca);
+      const catalogo = (await catalogoVetado(org, info.sku, f.catalogProductId)) ? null : catalogoSegunMarca(f.catalogProductId, cat, marca);
       // Con descuento en el esquema se publica al tachado (uno por modelo) y la campaña la baja a su precio.
       const publicar = propuesta.tachadoPct > 0 && propuesta.tachado != null && descuentoVisible(propuesta.tachado, f.precio) >= DESCUENTO_MINIMO_ML ? propuesta.tachado : f.precio;
       const tag = PLAN_INFO[f.plan].tag;
@@ -103,6 +104,8 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
       const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: r.cuerpo }];
       if (texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: texto }, seguirSiFalla: true });
       if (catalogo) pedidos.push({ metodo: "POST", ruta: "/items/catalog_listings", cuerpo: { item_id: "{id}", catalog_product_id: catalogo }, seguirSiFalla: true });
+      // Nace al tachado: entra en el mismo paso a la campaña propia a su precio (el comprador nunca paga el tachado).
+      if (propia && publicar > f.precio + 0.5) pedidos.push(pedidoCampanaPropia(propia.id, f.precio));
       const conCampana = publicar !== f.precio ? ` (con campaña $ ${f.precio.toLocaleString("es-AR")})` : "";
       altas.push({
         canalId, itemId: claveAlta(info.sku, f.plan), tipo: "crear", antes: { estado: "no existe en esta cuenta" },

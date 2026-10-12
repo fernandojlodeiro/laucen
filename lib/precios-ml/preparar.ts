@@ -96,7 +96,10 @@ export async function prepararCambios(org: string, canalId: number, filtro: Filt
   que: { precios?: boolean; volumen?: boolean; crear?: boolean } = { precios: true, volumen: true, crear: true }): Promise<LotePreparado[]> {
   const calculo = await calcularCanal(org, canalId);
   const propuestas = filtrarCalculo(calculo, filtro);
-  const { precios, volumen, crear } = cambiosDe(canalId, propuestas);
+  const { precios: todos, volumen, crear } = cambiosDe(canalId, propuestas);
+  // Lo ya mandado que ML todavía no confirmó (no se volvió a leer) no se prepara de nuevo.
+  const sinLeer = await mandadosSinLeer(canalId);
+  const precios = todos.filter((x) => !sinLeer.has(x.itemId));
   const nombre = calculo.canal.nombre;
   const alcance = filtro.familia ? ` (${calculo.familias.nombre.get(filtro.familia) ?? "categoría"})` : filtro.q ? ` («${filtro.q}»)` : "";
   const lotes: LotePreparado[] = [];
@@ -131,11 +134,7 @@ export async function sincronizarPreciosMl(org: string, opts: { canal?: number; 
     const { precios: todos, volumen } = cambiosDe(c.id, calculo.propuestas);
     // Una publicación a la que ya se le mandó un precio o una campaña y todavía no se volvió a leer de ML no se
     // recalcula (Fer, 11/10: con las campañas viejas en Laucen, cada 30 minutos salía y volvía a entrar al mismo precio).
-    const sinLeer = new Set((await consulta<{ item_id: string }>(`
-      select distinct q.item_id from ml_cola q
-        left join ml_promo_leida l on l.canal_id = q.canal_id and l.item_id = q.item_id
-       where q.canal_id = $1 and q.tipo in ('precio', 'campana') and q.estado in ('ok', 'pendiente', 'enviando')
-         and q.creado_ts > now() - interval '6 hours' and coalesce(l.leido_ts, '-infinity') < coalesce(q.enviado_ts, now())`, [c.id])).map((x) => x.item_id));
+    const sinLeer = await mandadosSinLeer(c.id);
     const precios = todos.filter((x) => !sinLeer.has(x.itemId));
     if (precios.length || volumen.length) {
       const r = await encolar(org, [...precios, ...volumen], { origen: "automatico" });
@@ -144,6 +143,18 @@ export async function sincronizarPreciosMl(org: string, opts: { canal?: number; 
     await grabarDestacados(org, c.id, calculo.propuestas);
   }
   return res;
+}
+
+/** Las publicaciones de la cuenta a las que se les mandó (o se les está por mandar) un precio o una campaña en las
+ *  últimas 6 horas y que todavía no se volvieron a leer de ML, con la hora del envío: lo que Laucen sabe de ellas es
+ *  de antes del cambio, así que no se recalculan (Fer, 11/10) ni la vista previa las da como cambio pendiente (12/10). */
+export async function mandadosSinLeer(canal: number): Promise<Map<string, string | null>> {
+  return new Map((await consulta<{ item_id: string; enviado: string | null }>(`
+    select q.item_id, max(q.enviado_ts)::text enviado from ml_cola q
+      left join ml_promo_leida l on l.canal_id = q.canal_id and l.item_id = q.item_id
+     where q.canal_id = $1 and q.tipo in ('precio', 'campana') and q.estado in ('ok', 'pendiente', 'enviando')
+       and q.creado_ts > now() - interval '6 hours' and coalesce(l.leido_ts, '-infinity') < coalesce(q.enviado_ts, now())
+     group by q.item_id`, [canal])).map((x) => [x.item_id, x.enviado]));
 }
 
 /** ¿Algún canal de la organización sincroniza precios solo? */

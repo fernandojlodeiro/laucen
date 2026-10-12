@@ -5,6 +5,7 @@
 
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 
 export type FilaHistorial = {
   id: number;
@@ -25,7 +26,11 @@ export type FilaHistorial = {
 /** Últimas búsquedas de la organización, con la ruta completa de la
  *  categoría, quién la hizo y en qué grupo estaba la palabra esa semana. */
 export async function historial(organizacionId: string, { automaticas = true, texto = "", limite = 200 } = {}) {
-  const filtroTexto = texto.trim() ? `%${texto.trim().replace(/[%_]/g, "")}%` : null;
+  // La regla común de los buscadores (lib/busqueda.ts), en la palabra o la ruta de la categoría:
+  // sqlBusqueda deja la marca del parámetro y acá se cambia por el valor (que drizzle manda aparte).
+  const filtroTexto = texto.trim()
+    ? sql.join(sqlBusqueda("\u0000", ["b.palabra", "c.ruta"]).split("\u0000").map((x) => sql.raw(x)), sql`${parametroBusqueda(texto)}`)
+    : null;
   const r = await db.execute(sql`
     select b.id, b.palabra, b.categoria_id, c.ruta, b.fuente, b.origen, b.estado, b.pedida_el, b.costo_usd, b.semilla,
            (select count(*)::int from meli_publicaciones p where p.busqueda_id = b.id) as publicaciones,
@@ -40,7 +45,7 @@ export async function historial(organizacionId: string, { automaticas = true, te
       left join usuarios u on u.id = b.usuario_id
      where b.organizacion_id = ${organizacionId}
        ${automaticas ? sql`` : sql`and b.origen <> 'cron'`}
-       ${filtroTexto ? sql`and (b.palabra ilike ${filtroTexto} or c.ruta ilike ${filtroTexto})` : sql``}
+       ${filtroTexto ? sql`and ${filtroTexto}` : sql``}
      order by b.pedida_el desc
      limit ${limite}`);
   return (r.rows as FilaHistorial[]).map((f) => ({ ...f, pedida_el: new Date(f.pedida_el) }));

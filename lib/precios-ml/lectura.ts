@@ -64,8 +64,12 @@ export async function leerPreciosMl(hastaMs: number, opts: { leer?: Leer; org?: 
          and (w.leido_ts is null or w.leido_ts < now() - interval '6 hours' or (d.item_id is not null and w.leido_ts < now() - interval '1 hour'))
        order by p.id_externo) x
        order by destacado desc, leido_ts nulls first limit $2`, [canal, tanda]);
+    // El precio para ganar usa como mucho la mitad del tiempo que queda: con cientos de publicaciones de catálogo se
+    // comía todo el barrido y las campañas de cada publicación quedaban días sin leer (Fer, 12/10: TIENDAVIRTUAL S tenía
+    // 1.130 sin leer desde el 10/10 y la vista previa trabajaba con campañas viejas).
+    const mitad = Date.now() + (hastaMs - Date.now()) / 2;
     for (const { item } of ptw) {
-      if (Date.now() > hastaMs - 2_000) return;
+      if (Date.now() > mitad) break;
       const r = await pedir(`/items/${item}/price_to_win?siteId=MLA&version=v2`);
       const d = (r.datos ?? {}) as Ptw;
       const ok = r.status === 200;

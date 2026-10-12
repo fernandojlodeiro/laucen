@@ -4,7 +4,7 @@
 // días (ml_costos_comisiones_vigente); lo que ML tiene hoy, del espejo
 // (meli_item) y de las lecturas de precio para ganar y campañas.
 
-import { consulta, una, ErrorErp } from "@/lib/erp/base";
+import { consulta, una, ErrorErp, enTransaccion } from "@/lib/erp/base";
 import {
   CON_PRECIO, rigeHoy, campanasBajoPiso, cadenaFamilias, heredar, textoOrigen, PLANES, type Origen, comisionesDe, comisionGeneral, normalizarEscalones, planDePublicacion, proponer,
   type Campana, type Comisiones, type EntradaVariacion, type FilaComision, type FilaVolumen, type Propuesta, type ReglasCanal,
@@ -24,6 +24,8 @@ export type CanalMl = {
   /** «Catálogo con nuestra marca» (lib/mercadolibre/catalogo-propio.ts) y la marca de la cuenta. */
   catalogoPropioAuto: boolean;
   marca: string | null;
+  /** «Entrar solo a las ofertas relámpago» (lib/precios-ml/relampago.ts, entrarRelampagosAuto). */
+  relampagoAuto: boolean;
 };
 
 const bool = (v: unknown, defecto: boolean) => (v === true || v === "true" ? true : v === false || v === "false" ? false : defecto);
@@ -46,6 +48,7 @@ export async function canalesMl(org: string): Promise<CanalMl[]> {
     sacarEnvioGratis: bool(f.config?.sacar_envio_gratis, false),
     crearFaltantesAuto: bool(f.config?.crear_faltantes_auto, false),
     catalogoPropioAuto: bool(f.config?.catalogo_propio_auto, false),
+    relampagoAuto: bool(f.config?.relampago_auto, false),
     marca: typeof f.config?.marca_publicaciones === "string" && f.config.marca_publicaciones.trim() ? f.config.marca_publicaciones.trim() : null,
     autoAltas: (() => {
       const a = (f.config?.auto_altas ?? {}) as { ultima_vuelta?: string; total?: number };
@@ -306,6 +309,36 @@ export async function borrarVolumen(org: string, id: number): Promise<void> {
   await consulta("delete from ml_volumen_escala where id = $1 and organizacion_id = $2", [id, org]);
 }
 
+/** «Copiar el esquema de otra cuenta» (Fer, 12/10): la cuenta destino queda con el mismo esquema que la de origen
+ *  —descuento (tachado) y ajustes de todos los niveles, planes de cuotas y descuento por volumen—; lo suyo se borra.
+ *  La marca, los interruptores y la campaña propia de cada cuenta no se tocan. Nada sale a ML: lo que cambie se ve en
+ *  la vista previa y sale como siempre. */
+export async function copiarEsquema(org: string, origen: number, destino: number, opts: { conservarProductos?: boolean } = {}): Promise<{ reglas: number; planes: number; volumen: number }> {
+  if (origen === destino) throw new ErrorErp("Elegí otra cuenta para copiar.");
+  await canalMl(org, origen);
+  await canalMl(org, destino);
+  // conservarProductos (Fer, 12/10): las excepciones por producto de la cuenta destino quedan (las notebooks ya están bien en
+  // ML con las suyas) y no se copian las de producto de la de origen.
+  const nivel = opts.conservarProductos ? "and nivel <> 'producto'" : "";
+  return enTransaccion(async (c) => {
+    for (const t of ["ml_regla_precio", "ml_plan_config", "ml_volumen_escala"]) {
+      await c.query(`delete from ${t} where organizacion_id = $1 and canal_id = $2 ${nivel}`, [org, destino]);
+    }
+    const reglas = await c.query(`
+      insert into ml_regla_precio (organizacion_id, canal_id, nivel, familia_id, producto_id, tachado_pct, ajuste_pct)
+      select organizacion_id, $3, nivel, familia_id, producto_id, tachado_pct, ajuste_pct from ml_regla_precio where organizacion_id = $1 and canal_id = $2 ${nivel}`, [org, origen, destino]);
+    const planes = await c.query(`
+      insert into ml_plan_config (organizacion_id, canal_id, plan, nivel, familia_id, producto_id, activo, precio_minimo, margen_pct, cuotas_visibles, ajuste_pct)
+      select organizacion_id, $3, plan, nivel, familia_id, producto_id, activo, precio_minimo, margen_pct, cuotas_visibles, ajuste_pct
+        from ml_plan_config where organizacion_id = $1 and canal_id = $2 ${nivel}`, [org, origen, destino]);
+    const volumen = await c.query(`
+      insert into ml_volumen_escala (organizacion_id, canal_id, nivel, familia_id, producto_id, desde_precio, hasta_precio, escalones, sin_descuento)
+      select organizacion_id, $3, nivel, familia_id, producto_id, desde_precio, hasta_precio, escalones, sin_descuento
+        from ml_volumen_escala where organizacion_id = $1 and canal_id = $2 ${nivel}`, [org, origen, destino]);
+    return { reglas: reglas.rowCount ?? 0, planes: planes.rowCount ?? 0, volumen: volumen.rowCount ?? 0 };
+  });
+}
+
 /** "Replicar en las demás cuentas": copia la tabla de volumen de un canal
  *  (todos los niveles) a los otros canales de ML, reemplazando la suya. */
 export async function replicarVolumen(org: string, canal: number): Promise<number> {
@@ -322,7 +355,7 @@ export async function replicarVolumen(org: string, canal: number): Promise<numbe
 }
 
 /** Prende o apaga un interruptor del canal (canal.config). */
-export async function fijarInterruptor(org: string, canal: number, clave: "sincronizar_precios" | "leer_precio_ganar" | "volumen_regla_stock" | "sacar_envio_gratis" | "crear_faltantes_auto" | "catalogo_propio_auto", valor: boolean): Promise<void> {
+export async function fijarInterruptor(org: string, canal: number, clave: "sincronizar_precios" | "leer_precio_ganar" | "volumen_regla_stock" | "sacar_envio_gratis" | "crear_faltantes_auto" | "catalogo_propio_auto" | "relampago_auto", valor: boolean): Promise<void> {
   await canalMl(org, canal);
   await consulta("update canal set config = config || jsonb_build_object($3::text, $4::boolean) where id = $2 and organizacion_id = $1", [org, canal, clave, valor]);
 }
