@@ -6,12 +6,13 @@ import { FiltroVivo, CasillaViva } from "@/app/componentes/BuscadorVivo";
 import { url } from "@/app/componentes/erp";
 import { cuentasCanal, campanasBajoPisoCanal, sinCampanaCanal, type CanalMl } from "@/lib/precios-ml/datos";
 import { conEnvioGratisDeMas } from "@/lib/precios-ml/envio-gratis";
-import { BASE_PML, PREVIA, PLANES_PML } from "./lista";
+import { BASE_PML, PREVIA, PLANES_PML, RELAMPAGO_PML } from "./lista";
+import { cuentaRelampagos } from "@/lib/precios-ml/relampago";
 
-export type VerPml = "general" | "excepciones" | "volumen" | "alertas" | "previa" | "planes";
+export type VerPml = "general" | "excepciones" | "volumen" | "alertas" | "previa" | "planes" | "relampago";
 
 export async function BarraPml({ org, canales, canal, ver, todas = false }: { org: string; canales: CanalMl[]; canal: CanalMl; ver: VerPml; todas?: boolean }) {
-  const [n, bajo, sin, gratis] = await Promise.all([cuentasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id), sinCampanaCanal(org, canal), conEnvioGratisDeMas(org, canal.id)]);
+  const [n, bajo, sin, gratis, relampago] = await Promise.all([cuentasCanal(org, canal.id), campanasBajoPisoCanal(org, canal.id), sinCampanaCanal(org, canal), conEnvioGratisDeMas(org, canal.id), cuentaRelampagos(org)]);
   const con = (v: string | null) => url(BASE_PML, { canal: canal.id, ver: v });
   return (
     <>
@@ -38,6 +39,8 @@ export async function BarraPml({ org, canales, canal, ver, todas = false }: { or
         { clave: "previa", texto: "Vista previa", activa: ver === "previa", href: url(PREVIA, { canal: canal.id }) },
         // Para todas las cuentas (Fer, 8/10): qué planes de cuotas, cuotas que ve el comprador y % extra, por grupo.
         { clave: "planes", texto: "Planes de cuotas", activa: ver === "planes", href: url(PLANES_PML, { canal: canal.id }) },
+        // Las propuestas de oferta relámpago de todas las cuentas (Fer, 12/10).
+        { clave: "relampago", texto: "Ofertas relámpago", cuenta: relampago, activa: ver === "relampago", href: url(RELAMPAGO_PML, { canal: canal.id }) },
       ]} />
     </>
   );

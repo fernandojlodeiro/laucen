@@ -52,6 +52,11 @@ export async function GET(req: Request) {
             console.error("[meli] envío gratis", e instanceof Error ? e.message : e);
           }
           if (t0 + 105_000 - Date.now() > 10_000) console.log("[meli] lecturas de precios", JSON.stringify(await leerPreciosMl(t0 + 105_000, { tanda: 1000 })));
+          // Lo que cobra ML en las ofertas relámpago propuestas (lib/precios-ml/relampago.ts): sólo lectura.
+          if (t0 + 112_000 - Date.now() > 5_000) {
+            const n = await (await import("@/lib/precios-ml/relampago")).actualizarCostosRelampago(t0 + 112_000);
+            if (n) console.log("[meli] costos de ofertas relámpago", n);
+          }
         } catch (e) {
           console.error("[meli] precios", e instanceof Error ? e.message : e);
         }

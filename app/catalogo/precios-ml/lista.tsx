@@ -22,6 +22,7 @@ import { url } from "@/app/componentes/erp";
 export const BASE_PML = "/catalogo/precios-ml";
 export const PREVIA = `${BASE_PML}/vista-previa`;
 export const PLANES_PML = `${BASE_PML}/planes-cuotas`;
+export const RELAMPAGO_PML = `${BASE_PML}/relampago`;
 
 export const ROLES: Record<string, string> = {
   clasica: "Clásica", destacado: "Destacado", plan: "Plan", apagado: "Plan apagado", otro: "Sin tocar", nueva: "Nueva",

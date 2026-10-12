@@ -434,6 +434,12 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
   const pubs: PropuestaPub[] = e.pubs.map((pub) => {
     const pa: PropuestaPub = { pub, rol: "otro", lista: null, venta: null, piso: null, entrar: [], salir: [], volumen: [], cambiaPrecio: false, cambiaVolumen: false, avisos: [] };
     if (clasica == null || pub.estado === "cerrada") return pa;
+    // En oferta relámpago (aceptada o en curso): ML no deja tocarle el precio ni las campañas hasta que termine (Fer, 12/10).
+    if (pub.campanas.some((c) => c.tipo === "LIGHTNING" && (c.estado === "started" || c.estado === "pending"))) {
+      pa.rol = "apagado";
+      pa.avisos.push("En oferta relámpago: no se toca hasta que termine.");
+      return pa;
+    }
     if (pub.plan === "clasica") {
       // Con tachado (que deje el descuento mínimo de ML), al tachado; si no, al precio de venta (Fer, 10/10: sin tachado
       // en el esquema, la Clásica que no gana —+5 %— quedaba con el tachado debajo y se mandaba a una campaña más cara

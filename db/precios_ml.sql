@@ -381,3 +381,27 @@ create table if not exists ml_catalogo_vetado (
 );
 alter table ml_catalogo_vetado enable row level security;
 select erp_politica_org('ml_catalogo_vetado');
+
+-- Ofertas relámpago (Fer, 12/10; lib/precios-ml/relampago.ts): lo que cobra Mercado Libre por vender a un precio (comisión
+-- de /sites/MLA/listing_prices y envío gratis de /users/{id}/shipping_options/free), para calcular cuánto se recibe.
+create table if not exists ml_relampago_costo (
+  canal_id   bigint not null,
+  item_id    text not null,
+  precio     numeric(16, 2) not null,
+  comision   numeric(16, 2),
+  envio      numeric(16, 2),
+  leido_ts   timestamptz not null default now(),
+  primary key (canal_id, item_id, precio)
+);
+alter table ml_relampago_costo enable row level security;
+
+-- Lo mínimo que se acepta recibir por una venta en oferta relámpago, por producto.
+create table if not exists ml_relampago_piso (
+  organizacion_id  text not null,
+  producto_id      bigint not null,
+  piso             numeric(16, 2) not null check (piso >= 0),
+  actualizado_ts   timestamptz not null default now(),
+  primary key (organizacion_id, producto_id)
+);
+alter table ml_relampago_piso enable row level security;
+select erp_politica_org('ml_relampago_piso');
