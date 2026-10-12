@@ -1,6 +1,6 @@
 // ¿Una publicación nueva entra al catálogo de ML? (Fer, 10/10). Según la marca del
 // producto de catálogo y si es un catálogo de verdad o una página que armó ML:
-//   · marca nuestra (Daitom, Deirolab, Tiendavirtual) → entra;
+//   · marca nuestra (Daitom, Deirolab, Tiendavirtual, Laucen) → entra;
 //   · marca propia de otro vendedor que no se toca (Nubbeo, Libercam, ST Smart Tech)
 //     → el producto no se publica en esa cuenta (ML lo metería igual en ese catálogo);
 //   · otra marca: si es un catálogo de verdad (marca de fábrica: Arduino, Mastech…)
@@ -9,7 +9,7 @@
 
 import { ml, type CuentaMl } from "@/lib/mercadolibre/api";
 
-export const MARCAS_NUESTRAS = ["daitom", "deirolab", "tiendavirtual"];
+export const MARCAS_NUESTRAS = ["daitom", "deirolab", "tiendavirtual", "laucen"];
 export const MARCAS_VETADAS = ["nubbeo", "libercam", "st smart tech"];
 
 export type DecisionCatalogo = "entra" | "no_entra" | "no_publicar";
