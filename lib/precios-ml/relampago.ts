@@ -18,13 +18,14 @@ export function recibis(precio: number | null, comision: number | null, envio: n
   return Math.round(precio - comision - envio);
 }
 
-/** El precio con que entra (Fer, 12/10): un peso debajo de lo que paga hoy el comprador si entra en el rango de ML (ML
- *  rechaza una relámpago al mismo precio de hoy por «no creíble», ERROR_CREDIBILITY_DISCOUNTED_PRICE; un peso menos la
- *  acepta), si no el más alto del rango; en pesos enteros (hacia abajo). Fer lo puede cambiar a mano en la fila (`elegido`). null si queda fuera del rango. Pura. */
-export function precioRelampago(max: number | null, hoy: number | null, min: number | null = null, elegido: number | null = null): number | null {
+/** El precio con que entra (Fer, 12/10): lo más cerca posible de lo que paga hoy el comprador, sin pasar el precio que
+ *  propone ML para la relámpago (`sugeridoMl`, el «price» de la propuesta: ≈ 5 % debajo de su precio de hoy) ni el más
+ *  alto del rango. Más arriba ML la rechaza por «no creíble» (ERROR_CREDIBILITY_DISCOUNTED_PRICE: pasó al mismo precio
+ *  de hoy y a un peso menos). Sin sugerido, un peso debajo de hoy. En pesos enteros (hacia abajo). Fer lo puede cambiar a mano en la fila (`elegido`). null si queda fuera del rango. Pura. */
+export function precioRelampago(max: number | null, hoy: number | null, min: number | null = null, elegido: number | null = null, sugeridoMl: number | null = null): number | null {
   if (elegido != null) return (min != null && elegido < min) || (max != null && elegido > max) ? null : elegido;
   if (max == null || hoy == null) return null;
-  const p = Math.min(Math.floor(max), Math.ceil(hoy) - 1);
+  const p = Math.min(Math.floor(max), Math.ceil(hoy) - 1, sugeridoMl != null && sugeridoMl > 0 ? Math.floor(sugeridoMl) : Infinity);
   return min != null && p < min ? null : p;
 }
 
@@ -74,7 +75,7 @@ const PRECIOS_SQL = `
       cross join lateral (select coalesce(pc.monto, (m.datos_externos -> 'ml' ->> 'price')::numeric) hoy,
                                  coalesce(p.max_precio, (p.datos ->> 'max_discounted_price')::numeric) max) x
       cross join lateral (select case when p.estado <> 'candidate' and p.datos ->> 'price' is not null then round((p.datos ->> 'price')::numeric, 2)
-                                      else round(coalesce(rp.precio, least(floor(x.max), ceil(x.hoy) - 1)), 2) end rel) y`;
+                                      else round(coalesce(rp.precio, least(floor(x.max), ceil(x.hoy) - 1, floor(nullif((p.datos ->> 'price')::numeric, 0)))), 2) end rel) y`;
 
 /** Las propuestas de oferta relámpago de las publicaciones activas (de una cuenta o de todas), con lo que se recibe. */
 export async function relampagos(org: string, canal: number | null = null): Promise<Relampago[]> {
@@ -311,7 +312,8 @@ export function entraSola(f: Pick<Relampago, "estado" | "rel" | "hoy" | "alcanza
   if (f.estado !== "candidate" || f.rel == null || f.hoy == null) return false;
   // Con piso, hace falta saber que lo alcanza (sin los costos leídos todavía, espera a la próxima vuelta).
   if (f.piso != null && f.alcanza !== true) return false;
-  if (f.rel < f.hoy * (1 - RELAMPAGO_AUTO_PCT / 100)) return false;
+  // Un peso de tolerancia: el precio que propone ML es justo 5 % debajo de hoy, en pesos enteros.
+  if (f.rel < f.hoy * (1 - RELAMPAGO_AUTO_PCT / 100) - 1) return false;
   return f.stock != null && f.stock > 0 && (f.stock_min == null || f.stock >= f.stock_min);
 }
 
