@@ -21,6 +21,9 @@ export type CanalMl = {
   /** «Crear solo lo que falta» (lib/mercadolibre/auto-altas.ts). */
   crearFaltantesAuto: boolean;
   autoAltas: { ultimaVuelta: string | null; total: number };
+  /** «Catálogo con nuestra marca» (lib/mercadolibre/catalogo-propio.ts) y la marca de la cuenta. */
+  catalogoPropioAuto: boolean;
+  marca: string | null;
 };
 
 const bool = (v: unknown, defecto: boolean) => (v === true || v === "true" ? true : v === false || v === "false" ? false : defecto);
@@ -42,6 +45,8 @@ export async function canalesMl(org: string): Promise<CanalMl[]> {
     reglaStock: bool(f.config?.volumen_regla_stock, true),
     sacarEnvioGratis: bool(f.config?.sacar_envio_gratis, false),
     crearFaltantesAuto: bool(f.config?.crear_faltantes_auto, false),
+    catalogoPropioAuto: bool(f.config?.catalogo_propio_auto, false),
+    marca: typeof f.config?.marca_publicaciones === "string" && f.config.marca_publicaciones.trim() ? f.config.marca_publicaciones.trim() : null,
     autoAltas: (() => {
       const a = (f.config?.auto_altas ?? {}) as { ultima_vuelta?: string; total?: number };
       return { ultimaVuelta: a.ultima_vuelta ?? null, total: Number(a.total ?? 0) };
@@ -317,7 +322,7 @@ export async function replicarVolumen(org: string, canal: number): Promise<numbe
 }
 
 /** Prende o apaga un interruptor del canal (canal.config). */
-export async function fijarInterruptor(org: string, canal: number, clave: "sincronizar_precios" | "leer_precio_ganar" | "volumen_regla_stock" | "sacar_envio_gratis" | "crear_faltantes_auto", valor: boolean): Promise<void> {
+export async function fijarInterruptor(org: string, canal: number, clave: "sincronizar_precios" | "leer_precio_ganar" | "volumen_regla_stock" | "sacar_envio_gratis" | "crear_faltantes_auto" | "catalogo_propio_auto", valor: boolean): Promise<void> {
   await canalMl(org, canal);
   await consulta("update canal set config = config || jsonb_build_object($3::text, $4::boolean) where id = $2 and organizacion_id = $1", [org, canal, clave, valor]);
 }

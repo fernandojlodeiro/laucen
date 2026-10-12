@@ -336,3 +336,34 @@ create table if not exists ml_alta_ajuste (
 );
 alter table ml_alta_ajuste enable row level security;
 select erp_politica_org('ml_alta_ajuste');
+
+-- Catálogo con nuestra marca (Fer, 12/10; lib/mercadolibre/catalogo-propio.ts): por marca y producto, la propuesta de
+-- catálogo a Mercado Libre (Brand Central) y en qué quedó. Una fila por marca y SKU.
+create table if not exists ml_catalogo_propio (
+  organizacion_id  text not null,
+  marca            text not null,
+  sku              text not null,
+  canal_id         bigint,
+  estado           text not null,
+  sugerencia_id    text,
+  producto_id      text,
+  catalogo_ajeno   text,
+  motivo           text,
+  arreglos         int not null default 0,
+  enganchado_ts    timestamptz,
+  creado_ts        timestamptz not null default now(),
+  actualizado_ts   timestamptz not null default now(),
+  primary key (organizacion_id, marca, sku)
+);
+alter table ml_catalogo_propio enable row level security;
+select erp_politica_org('ml_catalogo_propio');
+
+-- La marca y el tipo de cada producto de catálogo de ML (GET /products/{id}): se lee una vez por semana.
+create table if not exists ml_catalogo_marca (
+  producto_id  text primary key,
+  marca        text,
+  tipo         text,
+  nombre       text,
+  leido_ts     timestamptz not null default now()
+);
+alter table ml_catalogo_marca enable row level security;
