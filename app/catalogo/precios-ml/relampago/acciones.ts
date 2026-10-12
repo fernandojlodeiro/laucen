@@ -6,26 +6,17 @@
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, id, numero } from "@/lib/erp/acciones";
-import { entrarRelampago, guardarPiso, guardarPrecioRelampago, prepararRelampagos } from "@/lib/precios-ml/relampago";
+import { entrarRelampago, guardarFilaRelampago, prepararRelampagos } from "@/lib/precios-ml/relampago";
 import { texto } from "@/lib/erp/acciones";
 import { RELAMPAGO_PML } from "@/app/catalogo/precios-ml/lista";
 
 const volver = (fd: FormData) => texto(fd, "volver") || (id(fd, "canal") ? `${RELAMPAGO_PML}?canal=${id(fd, "canal")}` : RELAMPAGO_PML);
 
-export async function accionGuardarPiso(fd: FormData) {
+/** El lápiz de la fila: precio y stock con que entra, y el piso del producto (vacíos: los sugeridos / sin piso). */
+export async function accionGuardarFilaRelampago(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
   await intentar(volver(fd), async () => {
-    await guardarPiso(s.org.id, id(fd, "producto"), numero(fd, "piso"));
-    revalidatePath(RELAMPAGO_PML);
-    return "Grabado.";
-  });
-}
-
-/** El precio de entrada de una fila, a mano (vacío: vuelve al sugerido). */
-export async function accionGuardarPrecioRelampago(fd: FormData) {
-  const s = await entrarErp("precios_ml_ver");
-  await intentar(volver(fd), async () => {
-    await guardarPrecioRelampago(s.org.id, id(fd, "canal"), texto(fd, "item") ?? "", numero(fd, "precio"));
+    await guardarFilaRelampago(s.org.id, id(fd, "canal"), texto(fd, "item") ?? "", { precio: numero(fd, "precio"), stock: numero(fd, "stock"), piso: numero(fd, "piso") });
     revalidatePath(RELAMPAGO_PML);
     return "Grabado.";
   });
@@ -48,6 +39,6 @@ export async function accionEntrarRelampago(fd: FormData) {
   await intentar(volver(fd), async () => {
     const f = await entrarRelampago(s.org.id, s.usuario.id, id(fd, "canal"), texto(fd, "item") ?? "");
     revalidatePath(RELAMPAGO_PML);
-    return `Mandada: ${f.item_id} entra a la oferta relámpago a ${f.rel!.toLocaleString("es-AR")} con ${f.stock_min} unidades. Sale a Mercado Libre en un par de minutos; en la columna «Entrar» ves si la aceptó.`;
+    return `Mandada: ${f.item_id} entra a la oferta relámpago a ${f.rel!.toLocaleString("es-AR")} con ${f.stockEntrar} unidades. Sale a Mercado Libre en un par de minutos; en la columna «Entrar» ves si la aceptó.`;
   });
 }
