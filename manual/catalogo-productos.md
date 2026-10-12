@@ -206,9 +206,14 @@ En cada fila de las que seguís:
 
 ### Regla de precio (pestaña Seguimiento)
 
+Arriba de la caja de la regla hay un **cuadro con lo más importante, en letra grande**:
+- **Con la regla prendida**: a cuánto llevaría hoy cada Clásica, **en verde si sube y en rojo si baja**, con cuánto en pesos y en %; o «Se queda en …» y por qué (ya está en el objetivo, en el piso, en el techo…).
+- **Con la regla apagada**: **qué % estás más arriba (en rojo) o más abajo (en verde)** que la referencia.
+En los dos casos dice cuál es la referencia (la más barata de las que seguís, sin las excluidas ni las internacionales, o la elegida) y a cuánto está.
+
 Debajo de las publicaciones que seguís está la caja **Regla de precio**: mirando lo que cobran esas publicaciones, **baja (y, si querés, sube) el precio de la lista Clásicas** de este producto. No toca Mercado Libre directo: desde la lista, el esquema de precios lo lleva a todas las cuentas y todos los planes (ver [Cómo funcionan los precios](/catalogo/precios-ml)).
 
-Se configura con el **lápiz** del título de la caja (en edición quedan **Grabar** y **Cancelar**):
+Se configura con el **lápiz** del título de la caja (en edición quedan **Grabar** y **Cancelar**). **Mientras editás, al lado de los campos se ve qué haría el sistema** con lo que vas eligiendo (el precio nuevo de cada Clásica, en verde si sube y en rojo si baja), antes de grabar:
 
 - **Qué hace**: **Apagada**; **Proponer el cambio y esperar mi clic** (deja el cambio propuesto con los botones **Aplicar** y **Descartar**); o **Automático: cambiar la lista sola**. Se elige producto por producto, según cuánto confiás en los que seguís.
 - **Contra quién**: **el más barato de los que sigo** o una publicación puntual de las que seguís.

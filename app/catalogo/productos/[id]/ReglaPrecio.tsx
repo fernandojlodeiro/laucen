@@ -8,6 +8,9 @@ import { vistaRegla, MODOS_REGLA, COMO_REGLA } from "@/lib/seguimiento/regla";
 import { BotonesFicha, Dato, Estado, TituloSeccion, CAJA, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { PRIMARIO, SUAVE } from "@/app/botones";
+import { simular, type Candidata } from "@/lib/seguimiento/regla-calculo";
+import ResultadoRegla from "./ResultadoRegla";
+import VistaPreviaRegla from "./VistaPreviaRegla";
 import { accionGuardarRegla, accionRevisarRegla, accionAplicarPropuesta, accionDescartarPropuesta } from "@/app/catalogo/productos/acciones-seguimiento";
 
 const ESTADOS_AJUSTE: Record<string, { t: string; tono: "verde" | "amarillo" | "gris" | "rojo" }> = {
@@ -18,7 +21,8 @@ const pesos = (n: number | null | undefined) => (n == null ? "—" : formatear(n
 const fecha = (d: Date) => new Date(d).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" });
 
 export default async function ReglaPrecio({ org, productoId, seguidas, editando, ver, editar }: {
-  org: string; productoId: number; seguidas: { id: number; item_id: string; vendedor: string | null; precio: number | null }[];
+  org: string; productoId: number;
+  seguidas: { id: number; item_id: string; vendedor: string | null; precio: number | null; estado: string | null; moneda: string | null; excluido: boolean; internacional: boolean | null }[];
   editando: boolean; ver: string; editar: string;
 }) {
   const v = await vistaRegla(org, productoId);
@@ -27,8 +31,18 @@ export default async function ReglaPrecio({ org, productoId, seguidas, editando,
     : (() => { const x = seguidas.find((s) => s.id === r.seguimientoId); return x ? `${x.vendedor ?? x.item_id}` : "La que elegí (ya no se sigue)"; })();
   const comoTexto = r.como === "igual" ? COMO_REGLA.igual : r.como === "pesos" ? `${pesos(r.diferencia)} abajo` : `${r.diferencia.toLocaleString("es-AR")} % abajo`;
   const campos = { producto_id: String(productoId) };
+  // Lo más importante, arriba y en grande (Fer, 12/10): qué haría la regla, o cuánto estás de la referencia si está apagada.
+  const candidatas: Candidata[] = seguidas.map((s) => ({ id: s.id, nombre: s.vendedor ?? s.item_id, precio: s.precio, estado: s.estado, moneda: s.moneda,
+    excluido: s.excluido, internacional: s.internacional }));
+  const prendida = r.modo !== "apagada";
+  const hoy = simular(v.clasicas, candidatas, r);
 
   return (
+    <>
+    <section className={`${CAJA} border-2 !border-[#BFD3E6]`}>
+      <ResultadoRegla s={hoy} prendida={prendida}
+        titulo={prendida ? `Lo que hace la regla (${MODOS_REGLA[r.modo].toLowerCase()}) con tu Clásica de hoy:` : "Tu Clásica frente a la competencia (la regla está apagada):"} />
+    </section>
     <section className={CAJA}>
       <TituloSeccion titulo="Regla de precio">
         {!editando && r.modo !== "apagada" && (
@@ -45,6 +59,7 @@ export default async function ReglaPrecio({ org, productoId, seguidas, editando,
       </p>
 
       {editando ? (
+        <div className="grid gap-4 lg:grid-cols-[1fr_24rem] items-start">
         <form id="regla" action={accionGuardarRegla} className="grid gap-3 sm:grid-cols-2">
           <input type="hidden" name="producto_id" value={productoId} />
           <label><span className={ETIQUETA}>Qué hace</span>
@@ -81,6 +96,9 @@ export default async function ReglaPrecio({ org, productoId, seguidas, editando,
             <span className="block text-[10px] text-[#5C6B76] mt-0.5">Obligatorio si «También subir» está tildada.</span>
           </label>
         </form>
+        {/* Al lado, mientras se cambian los campos: qué haría el sistema (sin grabar). */}
+        <VistaPreviaRegla form="regla" clasicas={v.clasicas} candidatas={candidatas} />
+        </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           <Dato etiqueta="Qué hace">{MODOS_REGLA[r.modo]}</Dato>
@@ -95,14 +113,6 @@ export default async function ReglaPrecio({ org, productoId, seguidas, editando,
       )}
 
       <div className="mt-3 grid gap-1 text-xs">
-        <div>
-          <b>Tu Clásica hoy:</b>{" "}
-          {v.clasicas.length ? v.clasicas.map((c) => `${v.clasicas.length > 1 ? `${c.sku} ` : ""}${pesos(c.ars)}`).join(" · ") : "sin lista de la Clásica"}
-        </div>
-        <div>
-          <b>Referencia:</b> {v.referencia ? <>{v.referencia.texto} → quedarías a <b>{pesos(v.objetivo)}</b>{r.piso != null && v.objetivo != null && v.objetivo < r.piso && <> (topea en el piso, {pesos(r.piso)})</>}{r.subir && r.techo != null && v.objetivo != null && v.objetivo > r.techo && <> (topea en el techo, {pesos(r.techo)})</>}</>
-            : <span className="text-[#5C6B76]">ninguna seguida activa con precio leído</span>}
-        </div>
         {r.revisadaTs && <div className="text-[#5C6B76]">Última revisión, {fecha(r.revisadaTs)}: {r.resultado}</div>}
       </div>
 
@@ -143,5 +153,6 @@ export default async function ReglaPrecio({ org, productoId, seguidas, editando,
         </details>
       )}
     </section>
+    </>
   );
 }

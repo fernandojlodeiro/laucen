@@ -13,42 +13,15 @@ import { guardarPrecio, precioDe } from "@/lib/precios";
 import { canalesMl } from "@/lib/precios-ml/datos";
 import { formatear } from "@/lib/moneda";
 
-export type ModoRegla = "apagada" | "propuesta" | "automatico";
-export type ComoRegla = "igual" | "pesos" | "pct";
+import { MODOS_REGLA, COMO_REGLA, objetivoDe, decidir, type ModoRegla, type ComoRegla } from "@/lib/seguimiento/regla-calculo";
+export { MODOS_REGLA, COMO_REGLA, objetivoDe, decidir, type ModoRegla, type ComoRegla };
+
 export type Regla = {
   modo: ModoRegla; contra: "mas_barato" | "una"; seguimientoId: number | null; como: ComoRegla; diferencia: number; piso: number | null; subir: boolean; techo: number | null;
   revisadaTs: Date | null; resultado: string | null;
 };
 
-export const MODOS_REGLA: Record<ModoRegla, string> = {
-  apagada: "Apagada",
-  propuesta: "Proponer el cambio y esperar mi clic",
-  automatico: "Automático: cambiar la lista sola",
-};
-export const COMO_REGLA: Record<ComoRegla, string> = { igual: "Igualar su precio", pesos: "Quedar X pesos abajo", pct: "Quedar X % abajo" };
-
 const REGLA_VACIA: Regla = { modo: "apagada", contra: "mas_barato", seguimientoId: null, como: "pesos", diferencia: 0, piso: null, subir: false, techo: null, revisadaTs: null, resultado: null };
-
-/** El precio al que hay que quedar, según el de la referencia. En pesos enteros, hacia abajo. Pura. */
-export function objetivoDe(referencia: number, como: ComoRegla, diferencia: number): number {
-  const v = como === "igual" ? referencia : como === "pesos" ? referencia - diferencia : referencia * (1 - diferencia / 100);
-  return Math.floor(v);
-}
-
-/** Qué hacer con una Clásica: bajar hasta el objetivo, nunca por debajo del piso; con techo (también subir),
- *  subir hasta el objetivo, nunca por encima del techo. Pura. */
-export function decidir(actual: number, objetivo: number, piso: number, techo: number | null = null): { nuevo: number | null; motivo: string } {
-  if (actual > objetivo) {
-    if (actual <= piso) return { nuevo: null, motivo: "ya está en el piso" };
-    if (objetivo < piso) return { nuevo: piso, motivo: "queda en el piso" };
-    return { nuevo: objetivo, motivo: "" };
-  }
-  if (actual === objetivo) return { nuevo: null, motivo: "ya está en el objetivo" };
-  if (techo == null) return { nuevo: null, motivo: "ya está más barato (no sube)" };
-  if (actual >= techo) return { nuevo: null, motivo: "ya está en el techo" };
-  if (objetivo > techo) return { nuevo: techo, motivo: "queda en el techo" };
-  return { nuevo: objetivo, motivo: "" };
-}
 
 export async function reglaDe(org: string, productoId: number): Promise<Regla> {
   const r = await una<{ modo: ModoRegla; contra: "mas_barato" | "una"; seguimiento_id: number | null; como: ComoRegla; diferencia: number; piso: number | null; subir: boolean; techo: number | null; revisada_ts: Date | null; resultado: string | null }>(`

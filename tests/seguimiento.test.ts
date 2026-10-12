@@ -96,3 +96,21 @@ test("esInternacional: entrega internacional o vendedor de afuera", async () => 
   assert.equal(esInternacional("CBT", null), true);
   assert.equal(esInternacional(null, "CN"), true);
 });
+
+test("simular: la referencia sin excluidas ni internacionales, y qué haría con cada Clásica", async () => {
+  const { simular } = await import("@/lib/seguimiento/regla-calculo");
+  const c = [
+    { id: 1, nombre: "BARATO", precio: 15000, estado: "activa", moneda: "ARS", excluido: true, internacional: false },
+    { id: 2, nombre: "CHINO", precio: 14000, estado: "activa", moneda: "ARS", excluido: false, internacional: true },
+    { id: 3, nombre: "BUENO", precio: 20000, estado: "activa", moneda: "ARS", excluido: false, internacional: false },
+    { id: 4, nombre: "PAUSADO", precio: 10000, estado: "pausada", moneda: "ARS", excluido: false, internacional: false },
+  ];
+  const p = { contra: "mas_barato" as const, seguimientoId: null, como: "pesos" as const, diferencia: 100, piso: 16000, subir: true, techo: 30000 };
+  const s = simular([{ sku: "A", ars: 25000 }, { sku: "B", ars: 18000 }], c, p);
+  assert.equal(s.referencia?.nombre, "BUENO");
+  assert.equal(s.objetivo, 19900);
+  assert.equal(s.filas[0].nuevo, 19900);   // baja
+  assert.equal(s.filas[1].nuevo, 19900);   // sube (también subir)
+  assert.equal(simular([{ sku: "A", ars: 25000 }], c, { ...p, piso: null }).filas[0].motivo, "falta el piso");
+  assert.equal(simular([{ sku: "A", ars: 25000 }], [], p).referencia, null);
+});
