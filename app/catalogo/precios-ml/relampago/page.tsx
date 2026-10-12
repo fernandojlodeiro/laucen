@@ -181,7 +181,7 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
         <b>Recibís / Recibirás</b> = lo que paga el comprador, menos la comisión de Mercado Libre a ese precio (con el cargo fijo) y lo que te cobra por el envío gratis (desde el precio de envío gratis); «—» mientras se leen los costos (cada media hora).
         <b> Costo hoy</b>: qué parte de lo que paga hoy el comprador se lleva Mercado Libre (comisión y envío). <b>Costo relámpago</b>: qué parte de ese mismo precio de hoy no te llega si vendés en la oferta (el descuento más la comisión y el envío). <b>Diferencia %</b>: cuántos puntos más te cuesta cada venta en la oferta.
         <b> Rango de ML</b>: el precio más bajo y el más alto que acepta la propuesta; Mercado Libre lo calcula sobre el precio publicado (el tachado).
-        <b> Entraría a</b>: lo que paga hoy el comprador si entra en el rango (no hace falta bajarlo); si no, el más alto del rango.
+        <b> Entraría a</b>: un peso menos que lo que paga hoy el comprador si entra en el rango (al mismo precio de hoy Mercado Libre la rechaza por «no creíble»); si no, el más alto del rango.
         <b> Cuándo</b>: el día y la hora los fija Mercado Libre recién cuando aceptás; no se eligen.
         <b> Stock tenés</b>: el disponible de la publicación. <b>Entra con</b>: las unidades que se comprometen (de entrada, el mínimo que pide la propuesta; abajo, el mínimo y el máximo que acepta); en una aceptada, las que le quedan a la oferta.
         <b> Piso</b>: lo mínimo que aceptás recibir por una venta de ese producto (vale para todas las cuentas). En verde, las que lo alcanzan y tienen el stock; en rojo, las que no.

@@ -10,8 +10,9 @@ test("recibis: precio menos comisión menos envío; sin un dato, no se sabe", ()
   assert.equal(recibis(20_000, null, 0), null);
 });
 
-test("precioRelampago: el de hoy si entra en el rango, si no el más alto; el elegido a mano, si está en el rango", () => {
-  assert.equal(precioRelampago(1_513_000, 1_119_946), 1_119_946);
+test("precioRelampago: un peso debajo de hoy si entra en el rango, si no el más alto; el elegido a mano, si está en el rango", () => {
+  assert.equal(precioRelampago(1_513_000, 1_119_946), 1_119_945);
+  assert.equal(precioRelampago(2_000_000, 1_662_807.43), 1_662_807);
   assert.equal(precioRelampago(1_889.1, 2_099), 1_889);
   assert.equal(precioRelampago(800_000, 962_999, 850_000), null);
   assert.equal(precioRelampago(null, 962_999), null);
@@ -33,7 +34,7 @@ test("fechaRelampago: lo que dice ML, en hora argentina", () => {
 });
 
 test("entraSola: hasta 5 % debajo de hoy, con piso alcanzado si hay, con stock", () => {
-  const base = { estado: "candidate", rel: 1_119_946, hoy: 1_119_946, alcanza: null, piso: null, stock: 8, stock_min: 5 };
+  const base = { estado: "candidate", rel: 1_119_945, hoy: 1_119_946, alcanza: null, piso: null, stock: 8, stock_min: 5 };
   assert.equal(entraSola(base), true);
   assert.equal(entraSola({ ...base, rel: 1_063_949 }), true, "5 % justo");
   assert.equal(entraSola({ ...base, rel: 1_000_000 }), false, "más de 5 %");

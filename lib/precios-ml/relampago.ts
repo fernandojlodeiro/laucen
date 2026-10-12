@@ -18,13 +18,13 @@ export function recibis(precio: number | null, comision: number | null, envio: n
   return Math.round(precio - comision - envio);
 }
 
-/** El precio con que entra (Fer, 12/10): el que paga hoy el comprador si entra en el rango de ML (no hace falta bajarlo
- *  más; el «máximo» que informa ML es sobre el precio publicado, el tachado), si no el más alto del rango; en pesos enteros
- *  (hacia abajo). Fer lo puede cambiar a mano en la fila (`elegido`). null si queda fuera del rango. Pura. */
+/** El precio con que entra (Fer, 12/10): un peso debajo de lo que paga hoy el comprador si entra en el rango de ML (ML
+ *  rechaza una relámpago al mismo precio de hoy por «no creíble», ERROR_CREDIBILITY_DISCOUNTED_PRICE; un peso menos la
+ *  acepta), si no el más alto del rango; en pesos enteros (hacia abajo). Fer lo puede cambiar a mano en la fila (`elegido`). null si queda fuera del rango. Pura. */
 export function precioRelampago(max: number | null, hoy: number | null, min: number | null = null, elegido: number | null = null): number | null {
   if (elegido != null) return (min != null && elegido < min) || (max != null && elegido > max) ? null : elegido;
   if (max == null || hoy == null) return null;
-  const p = Math.floor(Math.min(max, hoy));
+  const p = Math.min(Math.floor(max), Math.ceil(hoy) - 1);
   return min != null && p < min ? null : p;
 }
 
@@ -74,7 +74,7 @@ const PRECIOS_SQL = `
       cross join lateral (select coalesce(pc.monto, (m.datos_externos -> 'ml' ->> 'price')::numeric) hoy,
                                  coalesce(p.max_precio, (p.datos ->> 'max_discounted_price')::numeric) max) x
       cross join lateral (select case when p.estado <> 'candidate' and p.datos ->> 'price' is not null then round((p.datos ->> 'price')::numeric, 2)
-                                      else round(coalesce(rp.precio, floor(least(x.max, x.hoy))), 2) end rel) y`;
+                                      else round(coalesce(rp.precio, least(floor(x.max), ceil(x.hoy) - 1)), 2) end rel) y`;
 
 /** Las propuestas de oferta relámpago de las publicaciones activas (de una cuenta o de todas), con lo que se recibe. */
 export async function relampagos(org: string, canal: number | null = null): Promise<Relampago[]> {
@@ -293,11 +293,12 @@ export async function entrarRelampago(org: string, usuario: string, canal: numbe
 }
 
 /** Lo último que se mandó para entrar, por publicación (para la pantalla). */
-export async function enviosRelampago(org: string): Promise<Map<string, { estado: string; error: string | null }>> {
-  return new Map((await consulta<{ item_id: string; estado: string; error: string | null }>(`
-    select distinct on (item_id) substr(item_id, 11) item_id, estado, ultimo_error error from ml_cola
+export async function enviosRelampago(org: string): Promise<Map<string, { estado: string; error: string | null; precio: number | null }>> {
+  return new Map((await consulta<{ item_id: string; estado: string; error: string | null; precio: number | null }>(`
+    select distinct on (item_id) substr(item_id, 11) item_id, estado, ultimo_error error,
+           (payload -> 'pedidos' -> 0 -> 'cuerpo' ->> 'deal_price')::float8 precio from ml_cola
      where organizacion_id = $1 and item_id like 'relampago:%' and creado_ts > now() - interval '7 days' order by item_id, id desc`, [org]))
-    .map((x) => [x.item_id, { estado: x.estado, error: x.error }]));
+    .map((x) => [x.item_id, { estado: x.estado, error: x.error, precio: x.precio }]));
 }
 
 /** Cuánto más barata que hoy puede ser una relámpago para entrar sola (Fer, 12/10): hasta 5 % debajo de lo que paga hoy
@@ -332,7 +333,8 @@ export async function entrarRelampagosAuto(hasta: number): Promise<number> {
     if (Date.now() > hasta) break;
     const enviados = await enviosRelampago(c.organizacion_id);
     const cambios = (await relampagos(c.organizacion_id, c.id))
-      .filter((f) => entraSola(f) && !enviados.has(f.item_id))
+      // Una vez por propuesta y precio: si ML la rechazó, se vuelve a probar sólo si el precio de entrada cambió.
+      .filter((f) => { const e = enviados.get(f.item_id); return entraSola(f) && (!e || (e.estado === "error" && e.precio !== f.rel)); })
       .map((f) => cambioEntrar(f, stockAuto(f)));
     if (!cambios.length) continue;
     await encolar(c.organizacion_id, cambios.map((x) => ({ ...x, prioridad: 40 })), { origen: "automatico" });
