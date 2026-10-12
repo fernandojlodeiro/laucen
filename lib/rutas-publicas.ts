@@ -16,6 +16,8 @@ export const RUTAS_PUBLICAS = [
   "/api/meli/previa-resumen",
   // Publicidad: la lectura de cada hora (sólo lee de ML); la llama pg_cron con meli_llave.
   "/api/meli/publicidad",
+  // Ventas de ML de los últimos 12 meses (sólo lee de ML, escribe ml_venta); la llama pg_cron con meli_llave.
+  "/api/meli/ventas",
   "/api/erp/tareas",
   // La llama la base (pg_net) al cambiar el stock; se autentica con erp_llave.
   "/api/erp/stock",

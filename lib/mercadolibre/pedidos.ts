@@ -13,6 +13,7 @@ import { consulta, una, enTransaccion } from "@/lib/erp/base";
 import { crearPedido, cambiarEstado, agregarLineas, quitarLineas, marcarEventoCarrito, type ClienteEntrada, type EstadoPedido, type DireccionEntrada, type LineaEntrada } from "@/lib/pedidos";
 import { ml, type CuentaMl } from "@/lib/mercadolibre/api";
 import { guardarEnvio, leerEnvio, type EnvioMl } from "@/lib/mercadolibre/envios";
+import { registrarVentas } from "@/lib/mercadolibre/ventas";
 
 type ItemOrden = {
   item: { id: string; title: string; variation_id: number | null; seller_sku: string | null; seller_custom_field: string | null; variation_attributes?: { name: string; value_name: string }[] };
@@ -296,6 +297,8 @@ export async function cargarOrdenes(cuenta: CuentaMl, ordenesLeidas: OrdenMl[], 
 
   if (envio) await guardarEnvio(org, canalId, pedidoId, envio);
   await llevarEstado(org, pedidoId, estadoDelCarrito(todas, envio));
+  // La venta también queda en ml_venta (estadística), enganchada a su pedido. Si falla, el pedido ya está: no se corta.
+  await registrarVentas(cuenta, ordenes, pedidoId).catch((e) => console.error("[ml_venta]", e instanceof Error ? e.message : e));
   return pedidoId;
 }
 
