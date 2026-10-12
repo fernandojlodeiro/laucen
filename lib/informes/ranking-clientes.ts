@@ -1,4 +1,4 @@
-// Informe: ranking de clientes (pedido de Fer, 12/10). Los 40 (o 50, 100, 200) que más compraron en un período, por cantidad de
+// Informe: ranking de clientes (pedido de Fer, 12/10). Los 50, 100 o 200 que más compraron en un período, por cantidad de
 // compras, por productos distintos o por monto, sobre TODAS las ventas (vista venta_estadistica: Mercado Libre,
 // pedidos de los demás canales e historial de Virtual Seller), sin canceladas.
 //
@@ -11,8 +11,8 @@
 
 import { consulta } from "@/lib/erp/base";
 
-/** Cuántos mostrar (Fer, 12/10: los primeros 40, 50, 100 o 200). */
-export const TOPES_RANKING = [40, 50, 100, 200] as const;
+/** Cuántos mostrar (Fer, 12/10: los primeros 50, 100 o 200). */
+export const TOPES_RANKING = [50, 100, 200] as const;
 export const ORDENES_RANKING = { compras: "Cantidad de compras", productos: "Productos distintos", monto: "Monto" } as const;
 export type OrdenRanking = keyof typeof ORDENES_RANKING;
 
@@ -36,29 +36,14 @@ export const GENERICO = "^\\W*(consumidor( final)?|c\\.?\\s?f\\.?|cliente|varios
 export async function rankingClientes(org: string, f: FiltroRanking): Promise<FilaRanking[]> {
   const valores: unknown[] = [org];
   const p = (v: unknown) => { valores.push(v); return `$${valores.length}`; };
-  const donde = ["e.organizacion_id = $1", "e.estado not in ('cancelled', 'cancelado', 'invalid')"];
+  const donde = ["e.organizacion_id = $1"];
   if (f.desde) donde.push(`e.fecha >= (${p(f.desde)}::date)::timestamp at time zone 'America/Argentina/Buenos_Aires'`);
   if (f.hasta) donde.push(`e.fecha < (${p(f.hasta)}::date + 1)::timestamp at time zone 'America/Argentina/Buenos_Aires'`);
-  if (f.sinNotebooks) {
-    donde.push(`not es_notebook(e.titulo) and not exists (select 1 from producto pr join familia fa on fa.id = pr.familia_id
-      where pr.id = va.producto_id and fa.nombre ~* '^notebook')`);
-  }
+  if (f.sinNotebooks) donde.push("not e.notebook");
   const orden = { compras: "compras desc, monto desc", productos: "productos desc, monto desc", monto: "monto desc" }[f.orden];
   return consulta<FilaRanking>(`
-    with v as (
-      select coalesce(e.cliente_id, ci.cliente_id) cid,
-             case when e.ml_comprador_id is not null then e.canal_id || ':' || e.ml_comprador_id end ml,
-             coalesce(mv.comprador, vh.cliente_nombre) nombre_otro,
-             coalesce(e.pedido_vs, 'p' || e.pedido_id, 'm' || coalesce(mv.pack_id, e.order_id)) compra,
-             coalesce(va.producto_id::text, upper(e.sku)) prod, e.total, e.cantidad, e.fecha, coalesce(ca.nombre, e.canal_nombre) canal
-        from venta_estadistica e
-        left join canal ca on ca.id = e.canal_id
-        left join ml_venta mv on mv.id = e.ml_venta_id
-        left join venta_historica vh on vh.id = e.venta_historica_id
-        left join variacion va on va.id = e.variacion_id
-        left join lateral (select ci.cliente_id from cliente_identidad ci
-                            where e.ml_comprador_id is not null and ci.canal_id = e.canal_id and ci.id_externo = e.ml_comprador_id::text limit 1) ci on true
-       where ${donde.join(" and ")}),
+    -- venta_cliente_mv (db/ml_ventas.sql): las ventas con su cliente, compra y marca de notebook, precalculadas.
+    with v as (select e.* from venta_cliente_mv e where ${donde.join(" and ")}),
     k as (
       select v.*, cl.nombre cliente_nombre,
              coalesce('c' || v.cid, case when v.ml is not null then 'm' || v.ml end, 'v' || lower(trim(v.nombre_otro))) clave

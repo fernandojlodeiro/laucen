@@ -147,3 +147,39 @@ create or replace view venta_estadistica with (security_invoker = true) as
    where (h.ml_order_id is null or not exists (select 1 from ml_venta x where x.order_id = h.ml_order_id and x.organizacion_id = h.organizacion_id))
      and (h.ml_order_id is not null or m.canal_id is null
           or h.fecha < coalesce((select min(p.fecha) from pedido p where p.canal_id = m.canal_id), 'infinity'));
+
+-- El ranking de clientes (lib/informes/ranking-clientes.ts) precalculado (Fer, 12/10: "está un poquito lento"):
+-- un renglón por producto vendido con quién lo compró, en qué compra y si es notebook. Se refresca cada 30 minutos
+-- (pg_cron 'ranking-clientes') y al terminar una importación del historial de Virtual Seller.
+create materialized view if not exists venta_cliente_mv as
+  select e.organizacion_id, e.fecha, coalesce(e.cliente_id, ci.cliente_id) cid,
+         case when e.ml_comprador_id is not null then e.canal_id || ':' || e.ml_comprador_id end ml,
+         coalesce(mv.comprador, vh.cliente_nombre) nombre_otro,
+         coalesce(e.pedido_vs, 'p' || e.pedido_id, 'm' || coalesce(mv.pack_id, e.order_id)) compra,
+         coalesce(va.producto_id::text, upper(e.sku)) prod, e.total, e.cantidad, coalesce(ca.nombre, e.canal_nombre) canal,
+         es_notebook(e.titulo) or coalesce(fa.nombre ~* '^notebook', false) notebook
+    from venta_estadistica e
+    left join canal ca on ca.id = e.canal_id
+    left join ml_venta mv on mv.id = e.ml_venta_id
+    left join venta_historica vh on vh.id = e.venta_historica_id
+    left join variacion va on va.id = e.variacion_id
+    left join producto pr on pr.id = va.producto_id
+    left join familia fa on fa.id = pr.familia_id
+    left join lateral (select ci.cliente_id from cliente_identidad ci
+                        where e.ml_comprador_id is not null and ci.canal_id = e.canal_id and ci.id_externo = e.ml_comprador_id::text limit 1) ci on true
+   where e.estado not in ('cancelled', 'cancelado', 'invalid');
+create index if not exists venta_cliente_mv_fecha on venta_cliente_mv (organizacion_id, fecha);
+-- Una vista materializada no tiene RLS: que no la vea la API pública de Supabase.
+revoke all on venta_cliente_mv from anon, authenticated;
+
+do $$
+declare j record; cmd text := 'refresh materialized view public.venta_cliente_mv';
+begin
+  if to_regclass('cron.job') is null then return; end if;
+  select jobid, command into j from cron.job where jobname = 'ranking-clientes';
+  if not found then perform cron.schedule('ranking-clientes', '*/30 * * * *', cmd);
+  elsif j.command is distinct from cmd then perform cron.alter_job(j.jobid, command := cmd);
+  end if;
+exception when others then
+  raise notice 'pg_cron: no se pudo ajustar ranking-clientes (%)', sqlerrm;
+end $$;

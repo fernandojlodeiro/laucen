@@ -539,5 +539,7 @@ export async function ejecutarImportacion(org: string, importacionId: number, us
     candado.release();
   }
   const t = await actualizarTotales(org, importacionId);
+  // El ranking de clientes lee una vista precalculada (db/ml_ventas.sql): al terminar el historial de VS, se pone al día.
+  if (destino === "ventas_vs" && procesadas > 0 && !t?.pendientes) await consulta("refresh materialized view venta_cliente_mv").catch(() => {});
   return { procesadas, pendientes: t?.pendientes ?? 0 };
 }

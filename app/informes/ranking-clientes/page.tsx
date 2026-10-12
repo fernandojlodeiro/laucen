@@ -1,4 +1,4 @@
-// Informe: ranking de clientes (lib/informes/ranking-clientes.ts). Los 40 (50, 100, 200) que más compraron en el período, por
+// Informe: ranking de clientes (lib/informes/ranking-clientes.ts). Los 50, 100 o 200 que más compraron en el período, por
 // cantidad de compras, productos distintos o monto; con la caja para dejar afuera las notebooks.
 
 import Link from "next/link";

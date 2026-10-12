@@ -461,9 +461,15 @@ async function leerCatalogo(org: string, cuenta: CuentaMl, seguidas: Seguida[]):
 /** Las comunes, con Apify por su dirección, dentro del tope. De a tandas chicas que corren en paralelo (Fer, 12/10:
  *  una sola corrida de 33 tardaba más que los 5 minutos que tiene la vuelta, y se cortaba sin grabar nada). Cada
  *  corrida espera como mucho ESPERA_SEG: lo que trajo hasta ahí se graba igual y lo demás queda para la próxima vuelta. */
-const TANDA_APIFY = 10;
+const TANDA_APIFY = 5;
 const EN_PARALELO = 4;
-const ESPERA_SEG = 180;
+const ESPERA_SEG = 200;
+
+/** La dirección que se le pasa a Apify: con un número MLA, siempre la de la publicación (articulo.mercadolibre.com.ar/MLA-…);
+ *  Apify no lee bien los links de catálogo (…/p/…) ni de producto de vendedor (…/up/…) aunque traigan el número. */
+function urlParaLeer(s: Seguida): string {
+  return /^MLA\d+$/.test(s.item_id) ? enlaceDe(s.item_id) : (s.permalink ?? enlaceDe(s.item_id));
+}
 
 async function leerComunes(org: string, seguidas: Seguida[]): Promise<{ leidas: number; sinPresupuesto: number }> {
   let leidas = 0, sinPresupuesto = 0;
@@ -483,7 +489,7 @@ async function leerComunes(org: string, seguidas: Seguida[]): Promise<{ leidas: 
     if (!grupo.length) { sinPresupuesto += tandas.slice(g + EN_PARALELO).reduce((a, t) => a + t.length, 0); break; }
     const resultados = await Promise.all(grupo.map(async ({ tanda, tope }) => ({
       tanda,
-      c: await correrConEntrada(ACTOR, { site: "MLA", startUrls: tanda.map((s) => ({ url: s.permalink ?? enlaceDe(s.item_id) })), maxItems: tanda.length, includeProductDetails: true },
+      c: await correrConEntrada(ACTOR, { site: "MLA", startUrls: tanda.map((s) => ({ url: urlParaLeer(s) })), maxItems: tanda.length, includeProductDetails: true },
         { max: tanda.length, esperaSeg: ESPERA_SEG, topeUsd: tope }),
     })));
     for (const { tanda, c } of resultados) leidas += await grabarComunes(org, tanda, c);
