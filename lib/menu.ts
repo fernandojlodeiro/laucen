@@ -45,6 +45,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Preguntas y mensajes", href: "/ventas/preguntas", permiso: "preguntas_ver", icono: "💬" },
       { texto: "WhatsApp", href: "/ventas/mensajes", permiso: "mensajes_ver", icono: "🟢" },
       { texto: "Reclamos y devoluciones", href: "/ventas/reclamos", permiso: "reclamos_ver", icono: "↩️" },
+      { texto: "Publicidad en Mercado Libre", href: "/ventas/publicidad", permiso: "publicidad_ver", icono: "📣" },
     ],
   },
   {
