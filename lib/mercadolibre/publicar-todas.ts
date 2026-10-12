@@ -155,8 +155,7 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
   const enCola = await consulta<{ canal: number; item_id: string }>(`
     select canal_id::int canal, item_id from ml_cola where organizacion_id = $1 and tipo = 'crear' and item_id like $2
        and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '30 days'
-                and not exists (select 1 from meli_item x where x.item_id = ml_cola.respuesta ->> 'id'
-                                  and (x.estado = 'closed' or (x.estado = 'under_review' and x.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden')))))`, [org, `esquema:${v.sku}:%`]);
+                and (enviado_ts > now() - interval '1 hour' or exists (select 1 from meli_item x where x.item_id = ml_cola.respuesta ->> 'id' and x.estado <> 'closed' and not (x.estado = 'under_review' and x.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden')))))`, [org, `esquema:${v.sku}:%`]);
 
   cache.com ??= await comisionesMl();
   cache.familias ??= await familiasDe(org);

@@ -12,6 +12,8 @@
 
 import { consulta } from "@/lib/erp/base";
 import { encolar, type CambioMl } from "@/lib/mercadolibre/cola";
+import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
+import { olvidarEliminada } from "@/lib/mercadolibre/publicaciones";
 import { copiarEsquema } from "@/lib/precios-ml/datos";
 
 /** Desde cuándo se rehacen las altas automáticas (la primera noche de la creación automática). */
@@ -26,6 +28,9 @@ export async function arrancarRehacer(org: string, origen: number): Promise<numb
      where organizacion_id = $1 and tipo = 'mercadolibre' and estado = 'activo' and id <> $2 and not (config ? 'rehacer_esquema') returning id::int`, [org, origen]);
   // La de origen ya tiene el esquema: sólo vuelve a sincronizar sola.
   await consulta(`update canal set config = config || '{"sincronizar_precios": true}'::jsonb where id = $1 and organizacion_id = $2`, [origen, org]);
+  // En todas las cuentas se eliminan las publicaciones cerradas (Fer, 12/10): en las que se rehacen, al terminar de cerrar.
+  await consulta(`update canal set config = config || jsonb_build_object('borrar_cerradas', jsonb_build_object('arrancado', now()))
+                   where organizacion_id = $1 and tipo = 'mercadolibre' and estado = 'activo' and not (config ? 'borrar_cerradas')`, [org]);
   return r.length;
 }
 
@@ -84,7 +89,9 @@ export async function correrRehacer(): Promise<Record<string, string>> {
         const cambios: CambioMl[] = abiertas.map((a) => ({
           canalId: c.id, itemId: `rehacer:${a.item_id}`, tipo: "estado", antes: { estado: "active" },
           payload: { descripcion: `Cerrar ${a.item_id} (${a.sku ?? "sin SKU"}): creada sin el esquema nuevo; se vuelve a crear con él`,
-            pedidos: [{ metodo: "PUT", ruta: `/items/${a.item_id}`, cuerpo: { status: "closed" } }] },
+            // Cerrar y eliminar (Fer, 12/10). Si ML todavía no deja eliminarla, la barrida de cerradas la elimina después.
+            pedidos: [{ metodo: "PUT", ruta: `/items/${a.item_id}`, cuerpo: { status: "closed" } },
+              { metodo: "PUT", ruta: `/items/${a.item_id}`, cuerpo: { deleted: "true" }, seguirSiFalla: true }] },
         }));
         await encolar(c.organizacion_id, cambios, { origen: "automatico" });
         await fijar({ cierre: c.estado.cierre ?? new Date().toISOString(), cerradas: (c.estado.cerradas ?? 0) + abiertas.length });
@@ -99,6 +106,62 @@ export async function correrRehacer(): Promise<Record<string, string>> {
     } catch (e) {
       console.error("[rehacer]", c.nombre, e instanceof Error ? e.message : e);
       informe[c.nombre] = `error: ${e instanceof Error ? e.message : e}`;
+    }
+  }
+  return informe;
+}
+
+/** Eliminar en Mercado Libre todas las publicaciones cerradas de la cuenta (Fer, 12/10): se buscan en ML (no sólo las que
+ *  conoce Laucen) y cada una se elimina por la cola, una sola vez. En una cuenta que se está rehaciendo, recién cuando
+ *  terminó de cerrar. Termina cuando ML ya no devuelve cerradas sin pedir. */
+export async function correrBorrarCerradas(hasta: number): Promise<Record<string, string>> {
+  const informe: Record<string, string> = {};
+  const canales = await consulta<{ id: number; organizacion_id: string; nombre: string }>(`
+    select id::int, organizacion_id, nombre from canal
+     where tipo = 'mercadolibre' and estado = 'activo' and config ? 'borrar_cerradas' and not (config -> 'borrar_cerradas' ? 'terminado')
+       and (not (config ? 'rehacer_esquema') or config -> 'rehacer_esquema' ? 'terminado')`);
+  for (const c of canales) {
+    if (Date.now() > hasta) break;
+    try {
+      const cuenta = await cuentaDelCanal(c.organizacion_id, c.id);
+      if (!cuenta || cuenta.estado !== "activa") continue;
+      const ids: string[] = [];
+      let scroll: string | null = null;
+      for (let pag = 0; pag < 30 && Date.now() < hasta; pag++) {
+        const r: { status: number; datos: { results?: string[]; scroll_id?: string | null } } = await ml<{ results?: string[]; scroll_id?: string | null }>(cuenta, "GET",
+          `/users/${cuenta.meliUserId}/items/search?status=closed&search_type=scan&limit=100${scroll ? `&scroll_id=${encodeURIComponent(scroll)}` : ""}`);
+        if (r.status !== 200) break;
+        const lote = r.datos.results ?? [];
+        ids.push(...lote);
+        scroll = r.datos.scroll_id ?? null;
+        if (!lote.length || !scroll) break;
+      }
+      const pedidas = new Set((await consulta<{ item_id: string }>(
+        "select item_id from ml_cola where canal_id = $1 and item_id = any($2) and estado in ('pendiente', 'enviando', 'ok')",
+        [c.id, ids.map((i) => `borrar:${i}`)])).map((x) => x.item_id));
+      const nuevas = ids.filter((i) => !pedidas.has(`borrar:${i}`));
+      if (nuevas.length) {
+        await encolar(c.organizacion_id, nuevas.map((i) => ({
+          canalId: c.id, itemId: `borrar:${i}`, tipo: "estado" as const, antes: { estado: "closed" },
+          payload: { descripcion: `Eliminar ${i} (cerrada)`, pedidos: [{ metodo: "PUT", ruta: `/items/${i}`, cuerpo: { deleted: "true" } }] },
+        })), { origen: "automatico" });
+        informe[c.nombre] = `${nuevas.length} cerradas a eliminar`;
+      } else {
+        const pend = await consulta<{ n: number }>("select count(*)::int n from ml_cola where canal_id = $1 and item_id like 'borrar:%' and estado in ('pendiente', 'enviando')", [c.id]);
+        if (!pend[0]?.n) {
+          await consulta("update canal set config = jsonb_set(config, '{borrar_cerradas}', (config -> 'borrar_cerradas') || jsonb_build_object('terminado', now())) where id = $1", [c.id]);
+          informe[c.nombre] = "cerradas eliminadas";
+        }
+      }
+      // Lo eliminado sale de Laucen (como cualquier eliminada en ML).
+      const eliminadas = await consulta<{ item_id: string; titulo: string | null; atributos: unknown }>(`
+        select m.item_id, m.datos_externos -> 'ml' ->> 'title' titulo, m.datos_externos -> 'ml' -> 'attributes' atributos from meli_item m
+          join ml_cola q on q.canal_id = m.canal_id and q.item_id = 'borrar:' || m.item_id and q.estado = 'ok' where m.canal_id = $1`, [c.id]);
+      for (const e of eliminadas) {
+        await olvidarEliminada(cuenta, { id: e.item_id, title: e.titulo ?? undefined, status: "closed", attributes: (e.atributos ?? undefined) as never, seller_custom_field: undefined } as never);
+      }
+    } catch (e) {
+      console.error("[borrar cerradas]", c.nombre, e instanceof Error ? e.message : e);
     }
   }
   return informe;

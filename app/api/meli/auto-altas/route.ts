@@ -6,7 +6,7 @@ import { after } from "next/server";
 import { pool } from "@/db";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { correrAutoAltas } from "@/lib/mercadolibre/auto-altas";
-import { correrRehacer } from "@/lib/mercadolibre/rehacer-esquema";
+import { correrBorrarCerradas, correrRehacer } from "@/lib/mercadolibre/rehacer-esquema";
 import { procesarCola } from "@/lib/mercadolibre/cola";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +21,8 @@ export async function GET(req: Request) {
   // Pasar cuentas al esquema nuevo (rehacer-esquema.ts): antes de crear, así lo que se crea ya sale con él.
   const rehacer = await correrRehacer().catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
   if (Object.keys(rehacer).length) console.log("[rehacer]", JSON.stringify(rehacer));
+  const borrar = await correrBorrarCerradas(t0 + 60_000).catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
+  if (Object.keys(borrar).length) console.log("[borrar cerradas]", JSON.stringify(borrar));
   const informe = await correrAutoAltas(t0 + 230_000);
   console.log("[auto-altas]", JSON.stringify(informe));
   after(async () => {

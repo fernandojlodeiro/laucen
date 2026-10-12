@@ -111,8 +111,7 @@ export async function propuestaPrueba(org: string): Promise<{ filas: FilaPrueba[
     const enCola = canal ? new Set((await consulta<{ item_id: string }>(`
       select item_id from ml_cola where organizacion_id = $1 and canal_id = $2 and tipo = 'crear' and item_id like $3
          and (estado in ('preparado', 'pendiente', 'enviando') or (estado = 'ok' and enviado_ts > now() - interval '30 days'
-                and not exists (select 1 from meli_item x where x.item_id = ml_cola.respuesta ->> 'id'
-                                  and (x.estado = 'closed' or (x.estado = 'under_review' and x.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden')))))`,
+                and (enviado_ts > now() - interval '1 hour' or exists (select 1 from meli_item x where x.item_id = ml_cola.respuesta ->> 'id' and x.estado <> 'closed' and not (x.estado = 'under_review' and x.datos_externos -> 'ml' -> 'sub_status' ? 'forbidden')))))`,
       [org, canal, `esquema:${p.sku}:%`])).map((x) => x.item_id)) : new Set<string>();
     const stock = canal ? Number((await una<{ d: number }>(
       "select stock_disponible_canal($1, v.id, $2)::int d from variacion v where v.organizacion_id = $1 and v.sku = $3", [org, canal, p.sku]))?.d ?? 0) : 0;

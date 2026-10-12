@@ -140,7 +140,7 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
         <TituloSeccion titulo="Pasar las otras cuentas a este esquema">
           {/* Sólo desde una cuenta con el esquema armado (descuentos por categoría), para no copiar uno vacío. */}
           {!rehacer.length && reglas.tachado.some((t) => t.nivel === "familia") && <BotonConfirmar accion={accionArrancarRehacer} campos={{ canal: String(canal.id), volver: aqui }} clase={VERDE} texto="Arrancar" corriendo="Arrancando…"
-            pregunta={`¿Pasar ${otras.map((o) => o.nombre).join(", ")} al esquema de ${canal.nombre}? Se copia el esquema (las excepciones por producto de cada cuenta quedan), se prende «Sincronizar precios» y se cierran y vuelven a crear, solas, las publicaciones que la creación automática hizo desde el 10/10 sin el esquema (las que no tienen ventas ni excepción propia).`} />}
+            pregunta={`¿Pasar ${otras.map((o) => o.nombre).join(", ")} al esquema de ${canal.nombre}? Se copia el esquema (las excepciones por producto de cada cuenta quedan), se prende «Sincronizar precios», se cierran, eliminan y vuelven a crear, solas, las publicaciones que la creación automática hizo desde el 10/10 sin el esquema (las que no tienen ventas ni excepción propia), y en todas las cuentas se eliminan las publicaciones cerradas.`} />}
         </TituloSeccion>
         {rehacer.length > 0 ? (
           <div className={`${CAJA_TABLA} mb-1`}>
@@ -160,7 +160,7 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
           </div>
         ) : null}
         <p className="text-[11px] text-[#5C6B76]">
-          Con un clic, en cada una de las otras cuentas: copia este esquema (las excepciones por producto de la cuenta quedan como están), prende «Sincronizar precios», cierra en Mercado Libre las publicaciones que la creación automática hizo desde el 10/10 antes de tener el esquema (sólo las que no tienen ventas ni excepción propia) y la creación automática las vuelve a crear con él: nacen con el tachado y entran en campaña, así el comprador paga lo mismo.
+          Con un clic, en cada una de las otras cuentas: copia este esquema (las excepciones por producto de la cuenta quedan como están), prende «Sincronizar precios», cierra y elimina en Mercado Libre las publicaciones que la creación automática hizo desde el 10/10 antes de tener el esquema (sólo las que no tienen ventas ni excepción propia) y la creación automática las vuelve a crear con él; al terminar, elimina todas las publicaciones cerradas de cada cuenta (también de ésta): nacen con el tachado y entran en campaña, así el comprador paga lo mismo.
           Mercado Libre no deja ponerle después un descuento grande a una publicación que ya se vendía sin él.
         </p>
       </section>
