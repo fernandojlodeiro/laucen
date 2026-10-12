@@ -11,6 +11,7 @@
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolar, encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { campanaPropiaDe, pedidoCampanaPropia } from "@/lib/precios-ml/campana-propia";
 import { sinFotosConMarca } from "@/lib/mercadolibre/fotos-marca";
 import { ajusteAlta, atributosConocidos, catalogoSegunMarca, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
 import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
@@ -39,6 +40,7 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
   const res: ResultadoFaltantes = { loteId: null, altas: 0, rechazos: [], sinOrigen: [], sinTiempo: 0, fallas: [] };
   if (!propuestas.length) return res;
   const marcaCuenta = await marcaDeCuenta(org, canalId);
+  const propia = await campanaPropiaDe(org, canalId);
 
   // Lo que ya está en la cola (preparado, esperando o recién mandado) no se vuelve a armar.
   const enCola = new Set((await consulta<{ item_id: string }>(`
@@ -103,6 +105,8 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
       const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: r.cuerpo }];
       if (texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: texto }, seguirSiFalla: true });
       if (catalogo) pedidos.push({ metodo: "POST", ruta: "/items/catalog_listings", cuerpo: { item_id: "{id}", catalog_product_id: catalogo }, seguirSiFalla: true });
+      // Nace al tachado: entra en el mismo paso a la campaña propia a su precio (el comprador nunca paga el tachado).
+      if (propia && publicar > f.precio + 0.5) pedidos.push(pedidoCampanaPropia(propia.id, f.precio));
       const conCampana = publicar !== f.precio ? ` (con campaña $ ${f.precio.toLocaleString("es-AR")})` : "";
       altas.push({
         canalId, itemId: claveAlta(info.sku, f.plan), tipo: "crear", antes: { estado: "no existe en esta cuenta" },

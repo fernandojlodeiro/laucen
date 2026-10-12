@@ -9,6 +9,7 @@ import { lanzarTarea, deFondo } from "@/lib/tareas-fondo";
 import { prepararPlanesFaltantes, textoFaltantes } from "@/lib/precios-ml/faltantes";
 import { prepararFaltantesEnCuenta, textoFaltaCuenta } from "@/lib/mercadolibre/publicar-todas";
 import { asegurarCampanaPropia, NOMBRE_CAMPANA_PROPIA } from "@/lib/precios-ml/campana-propia";
+import { arrancarRehacer } from "@/lib/mercadolibre/rehacer-esquema";
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, id, texto, numero, entero, tildado } from "@/lib/erp/acciones";
@@ -142,6 +143,18 @@ export async function accionBorrarVolumen(fd: FormData) {
     await borrarVolumen(s.org.id, id(fd, "id"));
     revalidatePath(BASE_PML);
     return "Borrado.";
+  });
+}
+
+/** «Pasar las otras cuentas a este esquema» (rehacer-esquema.ts): el clic de Fer que deja hacer todo solo. */
+export async function accionArrancarRehacer(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  limpiarCachePrevia();
+  await intentar(volver(fd), async () => {
+    const n = await arrancarRehacer(s.org.id, id(fd, "canal"));
+    revalidatePath(BASE_PML);
+    return n ? `Arrancado en ${n} cuenta${n === 1 ? "" : "s"}: en los próximos 10 minutos se copia el esquema y empieza a cerrar y volver a crear. El avance se ve en esta caja.`
+      : "Las otras cuentas ya lo tenían arrancado.";
   });
 }
 

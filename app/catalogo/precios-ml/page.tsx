@@ -22,6 +22,7 @@ import { consulta, una } from "@/lib/erp/base";
 import { campanaPropiaDe, NOMBRE_CAMPANA_PROPIA } from "@/lib/precios-ml/campana-propia";
 import { conEnvioGratisDeMas, envioGratisSacado } from "@/lib/precios-ml/envio-gratis";
 import { propuestasDeCanal } from "@/lib/mercadolibre/catalogo-propio";
+import { estadoRehacer } from "@/lib/mercadolibre/rehacer-esquema";
 import ElegirFamilia from "@/app/componentes/ElegirFamilia";
 import { fechaHora } from "@/app/ventas/formato";
 import { formatear } from "@/lib/moneda";
@@ -32,7 +33,7 @@ import { PLANES, PLAN_INFO, descuentoComprador, type Plan, type ReglasPlan } fro
 import { BarraPml, type VerPml } from "./comun";
 import { BASE_PML, PREVIA, PLANES_PML, LISTA_EXCEPCIONES_ML, LISTA_VOLUMEN_ML, canalElegido, textoEscalones } from "./lista";
 import {
-  accionGuardarGeneral, accionCampanaPropia, accionGuardarExcepcion, accionBorrarExcepcion, accionGuardarVolumen, accionBorrarVolumen, accionReplicarVolumen, accionCopiarEsquema, accionInterruptor, accionSacarCampanas, accionSacarEnvioGratis,
+  accionGuardarGeneral, accionCampanaPropia, accionGuardarExcepcion, accionBorrarExcepcion, accionGuardarVolumen, accionBorrarVolumen, accionReplicarVolumen, accionCopiarEsquema, accionArrancarRehacer, accionInterruptor, accionSacarCampanas, accionSacarEnvioGratis,
 } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -83,6 +84,7 @@ export default async function PreciosMl({ searchParams }: { searchParams: Promis
 async function General({ org, canal, editando, aqui }: { org: string; canal: CanalMl; editando: boolean; aqui: string }) {
   const propia = await campanaPropiaDe(org, canal.id);
   const otras = (await canalesMl(org)).filter((c) => c.id !== canal.id);
+  const rehacer = await estadoRehacer(org);
   const [reglas, propios] = await Promise.all([reglasCanal(org, canal), una<{ n: number }>(`
     select count(distinct producto_id)::int n from (
       select producto_id from ml_regla_precio where organizacion_id = $1 and canal_id = $2 and nivel = 'producto' and ajuste_pct is not null
@@ -130,6 +132,36 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
         <p className="text-[11px] text-[#5C6B76] mt-1">
           Una publicación con descuento (publicada al tachado) que no está en ninguna campaña de Mercado Libre entra a esta campaña a su precio, así el comprador ve el descuento.
           Cuando Mercado Libre le ofrece una campaña suya que acepta ese precio, sale de la propia y pasa a la de Mercado Libre. Los cambios salen como siempre: con «Preparar cambios» en la vista previa, o solos con «Sincronizar precios».
+        </p>
+      </section>
+
+      <section className={CAJA}>
+        {/* Pasar las otras cuentas a este esquema, cerrando y volviendo a crear lo creado sin él (rehacer-esquema.ts). */}
+        <TituloSeccion titulo="Pasar las otras cuentas a este esquema">
+          {/* Sólo desde una cuenta con el esquema armado (descuentos por categoría), para no copiar uno vacío. */}
+          {!rehacer.length && reglas.tachado.some((t) => t.nivel === "familia") && <BotonConfirmar accion={accionArrancarRehacer} campos={{ canal: String(canal.id), volver: aqui }} clase={VERDE} texto="Arrancar" corriendo="Arrancando…"
+            pregunta={`¿Pasar ${otras.map((o) => o.nombre).join(", ")} al esquema de ${canal.nombre}? Se copia el esquema (las excepciones por producto de cada cuenta quedan), se prende «Sincronizar precios» y se cierran y vuelven a crear, solas, las publicaciones que la creación automática hizo desde el 10/10 sin el esquema (las que no tienen ventas ni excepción propia).`} />}
+        </TituloSeccion>
+        {rehacer.length > 0 ? (
+          <div className={`${CAJA_TABLA} mb-1`}>
+            <table className={TABLA}>
+              <thead className={THEAD}><tr><th className={TH}>Cuenta</th><th className={TH}>Estado</th><th className={THN}>Por cerrar</th><th className={THN}>Cerrándose</th></tr></thead>
+              <tbody>
+                {rehacer.map((r) => (
+                  <tr key={r.canal} className={TR} data-canal={r.canal}>
+                    <td className={TD}>{r.nombre}</td>
+                    <td className={TD}>{r.estado?.terminado ? "Terminado: se vuelve a crear con el esquema nuevo" : r.estado?.cierre ? "Cerrando y volviendo a crear" : r.estado?.copiado ? "Esquema copiado" : "Esperando la próxima vuelta (cada 10 minutos)"}</td>
+                    <td className={TDN}>{r.abiertas}</td>
+                    <td className={TDN}>{r.enCola}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+        <p className="text-[11px] text-[#5C6B76]">
+          Con un clic, en cada una de las otras cuentas: copia este esquema (las excepciones por producto de la cuenta quedan como están), prende «Sincronizar precios», cierra en Mercado Libre las publicaciones que la creación automática hizo desde el 10/10 antes de tener el esquema (sólo las que no tienen ventas ni excepción propia) y la creación automática las vuelve a crear con él: nacen con el tachado y entran en campaña, así el comprador paga lo mismo.
+          Mercado Libre no deja ponerle después un descuento grande a una publicación que ya se vendía sin él.
         </p>
       </section>
 

@@ -42,6 +42,8 @@ export async function correrAutoAltas(hasta: number): Promise<InformeAuto> {
   const canales = await consulta<{ id: number; organizacion_id: string; nombre: string }>(`
     select id::int, organizacion_id, nombre from canal
      where tipo = 'mercadolibre' and estado = 'activo' and coalesce((config ->> 'crear_faltantes_auto')::boolean, false)
+       -- En pausa mientras la cuenta no tenga el esquema nuevo (rehacer-esquema.ts la saca al copiarlo).
+       and not coalesce((config ->> 'pausa_altas')::boolean, false)
      order by id`);
   const informe: InformeAuto = {};
   if (!canales.length) return informe;

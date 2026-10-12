@@ -310,25 +310,28 @@ export async function borrarVolumen(org: string, id: number): Promise<void> {
  *  —descuento (tachado) y ajustes de todos los niveles, planes de cuotas y descuento por volumen—; lo suyo se borra.
  *  La marca, los interruptores y la campaña propia de cada cuenta no se tocan. Nada sale a ML: lo que cambie se ve en
  *  la vista previa y sale como siempre. */
-export async function copiarEsquema(org: string, origen: number, destino: number): Promise<{ reglas: number; planes: number; volumen: number }> {
+export async function copiarEsquema(org: string, origen: number, destino: number, opts: { conservarProductos?: boolean } = {}): Promise<{ reglas: number; planes: number; volumen: number }> {
   if (origen === destino) throw new ErrorErp("Elegí otra cuenta para copiar.");
   await canalMl(org, origen);
   await canalMl(org, destino);
+  // conservarProductos (Fer, 12/10): las excepciones por producto de la cuenta destino quedan (las notebooks ya están bien en
+  // ML con las suyas) y no se copian las de producto de la de origen.
+  const nivel = opts.conservarProductos ? "and nivel <> 'producto'" : "";
   return enTransaccion(async (c) => {
     for (const t of ["ml_regla_precio", "ml_plan_config", "ml_volumen_escala"]) {
-      await c.query(`delete from ${t} where organizacion_id = $1 and canal_id = $2`, [org, destino]);
+      await c.query(`delete from ${t} where organizacion_id = $1 and canal_id = $2 ${nivel}`, [org, destino]);
     }
     const reglas = await c.query(`
       insert into ml_regla_precio (organizacion_id, canal_id, nivel, familia_id, producto_id, tachado_pct, ajuste_pct)
-      select organizacion_id, $3, nivel, familia_id, producto_id, tachado_pct, ajuste_pct from ml_regla_precio where organizacion_id = $1 and canal_id = $2`, [org, origen, destino]);
+      select organizacion_id, $3, nivel, familia_id, producto_id, tachado_pct, ajuste_pct from ml_regla_precio where organizacion_id = $1 and canal_id = $2 ${nivel}`, [org, origen, destino]);
     const planes = await c.query(`
       insert into ml_plan_config (organizacion_id, canal_id, plan, nivel, familia_id, producto_id, activo, precio_minimo, margen_pct, cuotas_visibles, ajuste_pct)
       select organizacion_id, $3, plan, nivel, familia_id, producto_id, activo, precio_minimo, margen_pct, cuotas_visibles, ajuste_pct
-        from ml_plan_config where organizacion_id = $1 and canal_id = $2`, [org, origen, destino]);
+        from ml_plan_config where organizacion_id = $1 and canal_id = $2 ${nivel}`, [org, origen, destino]);
     const volumen = await c.query(`
       insert into ml_volumen_escala (organizacion_id, canal_id, nivel, familia_id, producto_id, desde_precio, hasta_precio, escalones, sin_descuento)
       select organizacion_id, $3, nivel, familia_id, producto_id, desde_precio, hasta_precio, escalones, sin_descuento
-        from ml_volumen_escala where organizacion_id = $1 and canal_id = $2`, [org, origen, destino]);
+        from ml_volumen_escala where organizacion_id = $1 and canal_id = $2 ${nivel}`, [org, origen, destino]);
     return { reglas: reglas.rowCount ?? 0, planes: planes.rowCount ?? 0, volumen: volumen.rowCount ?? 0 };
   });
 }

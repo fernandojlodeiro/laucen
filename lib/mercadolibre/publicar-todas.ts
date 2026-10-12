@@ -19,6 +19,7 @@
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { encolar, encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
+import { campanaPropiaDe, pedidoCampanaPropia } from "@/lib/precios-ml/campana-propia";
 import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
 import { sinFotosConMarca } from "@/lib/mercadolibre/fotos-marca";
 import { ajusteAlta, atributosConocidos, catalogoSegunMarca, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
@@ -268,6 +269,7 @@ async function altasEnCanal(org: string, plan: PlanTodas, datos: DatosOrigen, c:
   // Una que ML bloqueó y se vuelve a crear: en la categoría que sugirió y con el título sin mezclar (ml_alta_ajuste).
   const ajuste = await ajusteAlta(org, c.id, sku);
   const conocidos = await atributosConocidos(org, sku);
+  const propia = await campanaPropiaDe(org, c.id);
   for (const f of deEsta) {
     if (Date.now() > hasta) { res.sinTiempo++; continue; }
     const tag = f.plan === "clasica" ? null : PLAN_INFO[f.plan].tag;
@@ -286,6 +288,9 @@ async function altasEnCanal(org: string, plan: PlanTodas, datos: DatosOrigen, c:
     if (datos.texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: datos.texto }, seguirSiFalla: true });
     // Que compita también en el catálogo (si ML no la deja, el alta queda igual).
     if (catalogo) pedidos.push({ metodo: "POST", ruta: "/items/catalog_listings", cuerpo: { item_id: "{id}", catalog_product_id: catalogo }, seguirSiFalla: true });
+    // Nace al tachado: en el mismo paso entra a la campaña propia a su precio, así el comprador nunca paga el tachado
+    // (Fer, 12/10). Si después Mercado Libre le ofrece una campaña suya, la sincronización la pasa ahí.
+    if (propia && f.venta != null && f.publicar! > f.venta + 0.5) pedidos.push(pedidoCampanaPropia(propia.id, f.venta));
     const precio = f.publicar !== f.venta && f.venta != null ? ` (con campaña $ ${f.venta.toLocaleString("es-AR")})` : "";
     altas.push({
       canalId: c.id, itemId: `esquema:${sku}:${f.plan}`, tipo: "crear", antes: { estado: "no existe en esta cuenta" },
