@@ -1,4 +1,4 @@
-// Informe: ranking de clientes (lib/informes/ranking-clientes.ts). Los 40 que más compraron en el período, por
+// Informe: ranking de clientes (lib/informes/ranking-clientes.ts). Los 40 (50, 100, 200) que más compraron en el período, por
 // cantidad de compras, productos distintos o monto; con la caja para dejar afuera las notebooks.
 
 import Link from "next/link";
@@ -7,7 +7,7 @@ import { CasillaViva } from "@/app/componentes/BuscadorVivo";
 import { entrarErp, Pantalla, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import { formatearNumero } from "@/lib/numeros";
 import { fecha } from "@/app/ventas/formato";
-import { ORDENES_RANKING, TOPE_RANKING, leerFiltroRanking, rankingClientes, type FilaRanking } from "@/lib/informes/ranking-clientes";
+import { ORDENES_RANKING, TOPES_RANKING, leerFiltroRanking, rankingClientes, type FilaRanking } from "@/lib/informes/ranking-clientes";
 import { Desplegable } from "../Filtros";
 
 export const dynamic = "force-dynamic";
@@ -34,10 +34,12 @@ export default async function RankingClientes({ searchParams }: { searchParams: 
 
   return (
     <Pantalla titulo="Ranking de clientes"
-      subtitulo={`Los ${TOPE_RANKING} clientes que más compraron en el período, en todos los canales (Mercado Libre, web, local y el historial de Virtual Seller), sin ventas canceladas. Montos en pesos de cada momento.`}>
+      subtitulo={`Los ${f.tope} clientes que más compraron en el período, en todos los canales (Mercado Libre, web, local y el historial de Virtual Seller), sin ventas canceladas. Montos en pesos de cada momento.`}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <RangoFechas desde={f.desde} hasta={f.hasta} vacio="Toda la historia" />
-        <Desplegable parametro="orden" etiqueta={`Top ${TOPE_RANKING} por`} valor={f.orden === "monto" ? "" : f.orden}
+        <Desplegable parametro="top" etiqueta="Mostrar" valor={f.tope === TOPES_RANKING[0] ? "" : String(f.tope)}
+          opciones={TOPES_RANKING.map((t, i) => ({ valor: i === 0 ? "" : String(t), texto: `Los primeros ${t}` }))} />
+        <Desplegable parametro="orden" etiqueta="Ordenados por" valor={f.orden === "monto" ? "" : f.orden}
           opciones={Object.entries(ORDENES_RANKING).map(([k, v]) => ({ valor: k === "monto" ? "" : k, texto: v }))} />
         <CasillaViva parametro="sin_notebooks" activo={f.sinNotebooks} etiqueta="Excluye compras de notebooks" />
       </div>

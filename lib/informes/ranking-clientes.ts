@@ -1,4 +1,4 @@
-// Informe: ranking de clientes (pedido de Fer, 12/10). Los 40 que más compraron en un período, por cantidad de
+// Informe: ranking de clientes (pedido de Fer, 12/10). Los 40 (o 50, 100, 200) que más compraron en un período, por cantidad de
 // compras, por productos distintos o por monto, sobre TODAS las ventas (vista venta_estadistica: Mercado Libre,
 // pedidos de los demás canales e historial de Virtual Seller), sin canceladas.
 //
@@ -11,11 +11,12 @@
 
 import { consulta } from "@/lib/erp/base";
 
-export const TOPE_RANKING = 40;
+/** Cuántos mostrar (Fer, 12/10: los primeros 40, 50, 100 o 200). */
+export const TOPES_RANKING = [40, 50, 100, 200] as const;
 export const ORDENES_RANKING = { compras: "Cantidad de compras", productos: "Productos distintos", monto: "Monto" } as const;
 export type OrdenRanking = keyof typeof ORDENES_RANKING;
 
-export type FiltroRanking = { desde: string; hasta: string; sinNotebooks: boolean; orden: OrdenRanking };
+export type FiltroRanking = { desde: string; hasta: string; sinNotebooks: boolean; orden: OrdenRanking; tope: number };
 export type FilaRanking = {
   puesto: number; cliente_id: number | null; nombre: string; ml_comprador: string | null; canal: string | null;
   compras: number; productos: number; unidades: number; monto: number; primera: Date; ultima: Date;
@@ -25,7 +26,8 @@ const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
 export function leerFiltroRanking(sp: Record<string, string | undefined>): FiltroRanking {
   const orden = sp.orden && Object.hasOwn(ORDENES_RANKING, sp.orden) ? (sp.orden as OrdenRanking) : "monto";
-  return { desde: FECHA.test(sp.desde ?? "") ? sp.desde! : "", hasta: FECHA.test(sp.hasta ?? "") ? sp.hasta! : "", sinNotebooks: sp.sin_notebooks === "1", orden };
+  const tope = TOPES_RANKING.find((t) => t === Number(sp.top)) ?? TOPES_RANKING[0];
+  return { desde: FECHA.test(sp.desde ?? "") ? sp.desde! : "", hasta: FECHA.test(sp.hasta ?? "") ? sp.hasta! : "", sinNotebooks: sp.sin_notebooks === "1", orden, tope };
 }
 
 /** Nombres que no identifican a nadie (ventas de mostrador sin datos). */
@@ -71,5 +73,5 @@ export async function rankingClientes(org: string, f: FiltroRanking): Promise<Fi
        where clave is not null and coalesce(cliente_nombre, nombre_otro, '') !~* '${GENERICO}'
        group by clave)
     select (row_number() over (order by ${orden}))::int puesto, cliente_id, nombre, ml_comprador, canal, compras, productos, unidades, monto, primera, ultima
-      from g order by ${orden} limit ${TOPE_RANKING}`, valores);
+      from g order by ${orden} limit ${f.tope}`, valores);
 }

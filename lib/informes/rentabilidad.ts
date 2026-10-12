@@ -12,6 +12,8 @@
 //   costo   = cantidad × costo de la variación, en pesos con el tipo de cambio
 //             del día de la venta: promedio (USD), último (USD) o FOB (en su
 //             moneda); si falta el de dólares, el promedio / último en pesos;
+//             con «Estimar», si no hay ese costo pero sí FOB, FOB + 40 % (Fer, 12/10: referencia
+//             hasta calcular bien el costo de lo que no vino en las compras por courier);
 //   margen  = venta − cargos − costo (y % sobre la venta).
 // Entran las ventas que no están "nuevo" (sin pagar), canceladas ni devueltas.
 
@@ -24,7 +26,10 @@ export type BaseCosto = keyof typeof BASES_COSTO;
 export const AGRUPAR = { venta: "Por venta", producto: "Por producto" } as const;
 export type Agrupar = keyof typeof AGRUPAR;
 
-export type FiltroRentabilidad = { desde: string; hasta: string; canal: number; costo: BaseCosto; agrupar: Agrupar };
+export type FiltroRentabilidad = { desde: string; hasta: string; canal: number; costo: BaseCosto; agrupar: Agrupar; estimar: boolean };
+
+/** El recargo sobre el FOB del costo estimado (flete, courier, impuestos), mientras no haya un costo calculado. */
+export const RECARGO_ESTIMADO_PCT = 40;
 
 const esFecha = (x?: string) => !!x && /^\d{4}-\d{2}-\d{2}$/.test(x);
 
@@ -35,13 +40,15 @@ export function leerFiltroRentabilidad(sp: Record<string, string | undefined>, h
     canal: Number(sp.canal) || 0,
     costo: sp.costo === "ultimo" || sp.costo === "fob" ? sp.costo : "promedio",
     agrupar: sp.agrupar === "producto" ? "producto" : "venta",
+    // Tildada de entrada: «0» la apaga.
+    estimar: sp.estimar !== "0",
   };
 }
 
 export type FilaRentabilidad = {
   clave: string; pedido_id: number | null; producto_id: number | null; fecha: string | null; externo: string | null; canal: string | null; canal_id: number | null;
   sku: string | null; titulo: string | null; unidades: number; ventas: number;
-  venta: number; cargos: number; cargos_ml: boolean; costo: number | null; sin_costo: number; margen: number | null; margen_pct: number | null;
+  venta: number; cargos: number; cargos_ml: boolean; costo: number | null; sin_costo: number; estimados: number; margen: number | null; margen_pct: number | null;
 };
 
 function costoUnitario(base: BaseCosto, moneda: Moneda) {
@@ -62,13 +69,16 @@ export async function rentabilidad(org: string, f: FiltroRentabilidad, moneda: M
   const cargos = usd ? sqlCargosMlUsd("p") : sqlCargosMl("p");
   const precio = usd ? "l.precio_unit_usd" : "l.precio_unit_ars";
   const comision = usd ? "(p.comision_ars / nullif(p.tc_dia, 0))" : "p.comision_ars";
+  const real = costoUnitario(f.costo, moneda);
+  const estimado = f.estimar && f.costo !== "fob" ? `(${costoUnitario("fob", moneda)} * ${1 + RECARGO_ESTIMADO_PCT / 100})` : "null";
   const base = `
     with l as (
       select p.id pedido_id, p.fecha, p.id_externo, p.canal_id, ca.nombre canal, l.variacion_id, v.producto_id, coalesce(v.sku, l.sku) sku, l.titulo, l.cantidad,
              ${precio} * l.cantidad venta_l,
              sum(${precio} * l.cantidad) over (partition by p.id) venta_p,
              ${cargos} cargos_ml, ${comision} comision_ars,
-             l.cantidad * ${costoUnitario(f.costo, moneda)} costo_l
+             l.cantidad * coalesce(${real}, ${estimado}) costo_l,
+             (${real}) is null and (${estimado}) is not null estimado_l
         from pedido p join canal ca on ca.id = p.canal_id
         join pedido_linea l on l.pedido_id = p.id
         left join variacion v on v.id = l.variacion_id
@@ -85,13 +95,13 @@ export async function rentabilidad(org: string, f: FiltroRentabilidad, moneda: M
              max(id_externo) externo, max(canal) canal, max(canal_id)::int canal_id, null sku,
              string_agg(titulo, ' · ' order by titulo) titulo, sum(cantidad)::int unidades, 1 ventas,
              round(sum(venta_l), 2)::float venta, round(sum(cargos_l), 2)::float cargos, bool_or(cargos_ml is not null) cargos_ml,
-             round(sum(costo_l), 2)::float costo, count(*) filter (where costo_l is null)::int sin_costo
+             round(sum(costo_l), 2)::float costo, count(*) filter (where costo_l is null)::int sin_costo, count(*) filter (where estimado_l)::int estimados
         from x group by pedido_id order by max(fecha) desc, pedido_id desc`, [org, f.desde, f.hasta, f.canal])
     : await consulta<FilaRentabilidad>(`${base}
       select coalesce(variacion_id::text, 'sin:' || coalesce(sku, titulo)) clave, null::int pedido_id, max(producto_id)::int producto_id, null fecha, null externo, null canal, null::int canal_id,
              max(sku) sku, max(titulo) titulo, sum(cantidad)::int unidades, count(distinct pedido_id)::int ventas,
              round(sum(venta_l), 2)::float venta, round(sum(cargos_l), 2)::float cargos, bool_or(cargos_ml is not null) cargos_ml,
-             round(sum(costo_l), 2)::float costo, count(*) filter (where costo_l is null)::int sin_costo
+             round(sum(costo_l), 2)::float costo, count(*) filter (where costo_l is null)::int sin_costo, count(*) filter (where estimado_l)::int estimados
         from x group by coalesce(variacion_id::text, 'sin:' || coalesce(sku, titulo)) order by sum(venta_l) desc`, [org, f.desde, f.hasta, f.canal]);
   return filas.map((r) => {
     const costo = r.sin_costo > 0 && r.costo == null ? null : r.costo;
@@ -102,7 +112,7 @@ export async function rentabilidad(org: string, f: FiltroRentabilidad, moneda: M
 
 export function totalesRentabilidad(filas: FilaRentabilidad[]) {
   const t = filas.reduce((a, r) => ({ venta: a.venta + r.venta, cargos: a.cargos + r.cargos, costo: a.costo + (r.costo ?? 0), sinCosto: a.sinCosto + (r.sin_costo > 0 ? 1 : 0),
-    unidades: a.unidades + r.unidades }), { venta: 0, cargos: 0, costo: 0, sinCosto: 0, unidades: 0 });
+    estimados: a.estimados + (r.estimados > 0 ? 1 : 0), unidades: a.unidades + r.unidades }), { venta: 0, cargos: 0, costo: 0, sinCosto: 0, estimados: 0, unidades: 0 });
   const margen = t.venta - t.cargos - t.costo;
   return { ...t, margen, margenPct: t.venta ? Math.round((margen / t.venta) * 1000) / 10 : null };
 }

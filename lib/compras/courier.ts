@@ -112,5 +112,6 @@ export async function controlStock(org: string, compraId: number | null): Promis
            cargado - (vendido_ml + vendido_otros + vendido_kits) saldo, disponible,
            disponible - (cargado - (vendido_ml + vendido_otros + vendido_kits)) diferencia, precio,
            (disponible - (cargado - (vendido_ml + vendido_otros + vendido_kits))) * precio monto
-      from x order by compra, orden, id`, [org, compraId]);
+      -- De la diferencia más grande en plata (falte o sobre) a la más chica (Fer, 12/10).
+      from x order by abs((disponible - (cargado - (vendido_ml + vendido_otros + vendido_kits))) * precio) desc nulls last, compra, orden, id`, [org, compraId]);
 }

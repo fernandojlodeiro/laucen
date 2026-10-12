@@ -29,6 +29,7 @@ Título "Rentabilidad por venta" y la aclaración: "Lo vendido, lo que cobró el
 - **Canal**: Todos o uno (Mercado Libre, tienda, etc.).
 - **Ver**: **Por venta** o **Por producto**.
 - **Costo**: **Costo promedio** (el que viene elegido de entrada), **Último costo** o **Costo FOB**.
+- La caja **«Sin costo: estimar con FOB + 40 %»** (tildada de entrada; no aparece con Costo FOB): a los productos que no tienen el costo elegido pero sí costo FOB les pone un costo estimado.
 
 ### Recuadros de totales
 
@@ -89,6 +90,7 @@ Cantidad × costo unitario de la variación, en pesos, según la base elegida:
 - **Costo promedio**: el costo promedio en dólares × el **tipo de cambio del día de la venta**; si no hay costo en dólares, el costo promedio en pesos.
 - **Último costo**: igual, con el último costo.
 - **Costo FOB**: el FOB del producto; si está en pesos va directo, si está en dólares se multiplica por el tipo de cambio del día de la venta.
+- **Costo estimado**: con la caja «Sin costo: estimar con FOB + 40 %» tildada, si el producto no tiene el costo elegido pero sí FOB, se toma el FOB (pasado a pesos como arriba) más un 40 % por flete, courier e impuestos. Es una referencia hasta que el producto tenga su costo calculado: se ve con **≈** delante, en ámbar, y el aviso de arriba dice cuántas ventas o productos lo usan. En el Excel, la columna «Costo estimado (FOB + 40 %)» dice «Sí».
 
 ### Margen
 

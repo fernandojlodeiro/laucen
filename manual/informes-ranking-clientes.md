@@ -4,7 +4,7 @@ menu: Informes › Ranking de clientes
 ruta: /informes/ranking-clientes
 rutas: /informes/ranking-clientes
 permiso: informes_ventas_ver
-resumen: Los 40 clientes que más compraron en un período, por cantidad de compras, por productos distintos o por monto, en todos los canales.
+resumen: Los clientes que más compraron (los primeros 40, 50, 100 o 200) en un período, por cantidad de compras, por productos distintos o por monto, en todos los canales.
 ---
 
 ## Para qué sirve
@@ -18,7 +18,8 @@ Menú **Informes › Ranking de clientes**. Pide el permiso «Informes de ventas
 ## Qué hay en la pantalla
 
 - **Fechas** con atajos (Hoy, Este mes, Último año…). Sin fechas, toda la historia.
-- **Top 40 por**: Monto (el de entrada), Cantidad de compras o Productos distintos. La columna elegida se ve en negrita.
+- **Mostrar**: los primeros 40 (de entrada), 50, 100 o 200.
+- **Ordenados por**: Monto (el de entrada), Cantidad de compras o Productos distintos. La columna elegida se ve en negrita.
 - La caja **«Excluye compras de notebooks»**: tildada, las notebooks vendidas no cuentan (ni en compras, ni en productos, ni en monto).
 - La tabla: puesto, cliente, último canal por el que compró, **compras**, **productos distintos**, unidades, **monto**, ticket promedio (monto ÷ compras), primera y última compra del período.
 - Tocando el cliente se abre su ficha. Si no está en el sistema como cliente, se abren sus compras en el [Historial de ventas](/ventas/historial).

@@ -48,6 +48,7 @@ Botón **Control de stock**, arriba a la derecha de la lista de compras. Muestra
 - **Disponible hoy**: el stock de todos los depósitos menos lo reservado (lo vendido que todavía no salió).
 - **Diferencia** = disponible hoy − saldo. En rojo falta mercadería; en verde sobra.
 - **Precio Clásica** y **Diferencia $** = diferencia × precio de la Clásica.
+- Ordenado de la diferencia más grande en plata (falte o sobre) a la más chica.
 - Arriba, el total de unidades y pesos que faltan y que sobran; abajo, la fila de totales.
 
 Si el producto ya tenía stock antes de la compra, sus ventas también cuentan: no se puede saber de qué compra salió cada unidad. Una diferencia positiva suele ser eso, o devoluciones y ajustes.
