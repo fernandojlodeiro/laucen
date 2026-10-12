@@ -22,11 +22,13 @@ Menú **Compras › Sugerencia de compra**.
   - **Historia**: el período que se estudia (de entrada, los últimos 6 años);
   - **Comprar para**: 30, 45, 60 (de entrada), 90, 120 o 180 días;
   - **Días con venta**: sólo los que vendieron más de 5, 10, 20, 30, 50, 100 o 200 días en el período;
-  - **Última venta**: sólo los que tuvieron su última venta entre esas fechas (por ejemplo, desde el año pasado, para no ver los que dejaron de venderse).
+  - **Última venta**: sólo los que se vendieron por última vez en el último mes, 3 o 6 meses, el último año, 2 o 3 años (para no ver los que dejaron de venderse);
+  - **Categorías**: abre el árbol de categorías (hasta el tercer nivel), sólo las que tienen productos en la lista, con cuántos tiene cada una; todas vienen tildadas. Destildar una esconde sus productos y los de sus subcategorías. «Tildar todas» y «Destildar todas» arriba; «Sin categoría» para los productos que no tienen.
   - la caja **«Incluye los que tienen stock suficiente»**: de entrada no se muestran los productos que no hace falta comprar (lo que hay alcanza para los días elegidos); tildada, aparecen también.
   Estos filtros **sólo esconden renglones**: los cálculos se hacen siempre con todo el período de la historia.
 - Cuatro recuadros: cuántos productos (y cuántos tienen costo), las **unidades a comprar**, la **inversión** en dólares y la **ganancia estimada**, cada una según el ritmo típico y según el mejor momento.
-- La pantalla usa todo el ancho, con letra un poco más chica, para que entren todas las columnas sin desplazarse de costado. Los títulos son cortos; al pasar el mouse por cada uno se ve qué es.
+- La tabla tiene letra un poco más chica y columnas angostas para que entren todas sin desplazarse de costado. Los títulos son cortos (al pasar el mouse por cada uno se ve qué es) y **quedan fijos arriba** al bajar por la lista.
+- **El cálculo se guarda 30 minutos** para cada período y cantidad de días: filtrar, ordenar y cambiar de página no lo rehacen, así anda rápido. Abajo dice cuándo se calculó; mientras calcula la primera vez, aparece un aviso.
 - La tabla, de entrada de lo que más se vende a lo que menos; **se ordena tocando el título de cada columna** (por ejemplo, por inversión o por ganancia). Un renglón por producto:
   - **Producto** con su foto (enlace a la ficha), en un renglón. «Inactivo» si está archivado y «No está en el catálogo» si es un código viejo que ya no existe. Debajo, en una línea: cuántos tramos con venta regular encontró y, en ámbar, las **compras grandes no consideradas**.
   - **N días · típico** y **· mejor**: lo que se vendería.

@@ -9,11 +9,12 @@ import FotosProducto from "@/app/componentes/FotosProducto";
 import { Paginado, ThOrden } from "@/app/componentes/Lista";
 import { entrarErp, Pantalla, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import { Desplegable } from "@/app/informes/Filtros";
+import Categorias from "./Categorias";
 import { coincideBusqueda } from "@/lib/busqueda";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import { formatearNumero } from "@/lib/numeros";
 import { hoyArgentina } from "@/lib/rango-fechas";
-import { MIN_DIAS_VENTA, ORDEN_SUGERENCIA, filtrarMuestra, leerFiltroSugerencia, sugerenciaCompra, totalesSugerencia } from "@/lib/compras/sugerencia";
+import { MIN_DIAS_VENTA, ORDEN_SUGERENCIA, ULTIMA_VENTA_MESES, arbolCategorias, filtrarMuestra, leerFiltroSugerencia, sugerenciaGuardada, totalesSugerencia } from "@/lib/compras/sugerencia";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -30,15 +31,18 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
   const s = await entrarErp("compras_ver");
   const sp = await searchParams;
   const f = leerFiltroSugerencia(sp, hoyArgentina());
-  const { filas: todas, tcHoy } = await sugerenciaCompra(s.org.id, f);
+  const { filas: todas, tcHoy, calculado } = await sugerenciaGuardada(s.org.id, f);
+  const { nodos, ancestros } = await arbolCategorias(s.org.id, todas);
+  const sinCat = new Set((sp.sin_cat ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n >= 0 && sp.sin_cat));
+  const categoriaFuera = (x: (typeof todas)[number]) => x.familia_id == null ? sinCat.has(0) : (ancestros.get(x.familia_id) ?? []).some((id) => sinCat.has(id));
   const q = sp.q?.trim() ?? "";
-  const filas = filtrarMuestra(todas, sp, (x) => !q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1"));
+  const filas = filtrarMuestra(todas, sp, (x) => !categoriaFuera(x) && (!q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1")));
   const t = totalesSugerencia(filas);
   const vista = paginarEnMemoria(ordenarEnMemoria(filas, sp, ORDEN_SUGERENCIA), sp);
-  const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vdesde: sp.vdesde ?? null, vhasta: sp.vhasta ?? null, con_stock: sp.con_stock ?? null };
+  const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vmeses: sp.vmeses ?? null, con_stock: sp.con_stock ?? null, sin_cat: sp.sin_cat ?? null };
 
   return (
-    <Pantalla titulo="Sugerencia de compra" ancho="max-w-none"
+    <Pantalla titulo="Sugerencia de compra" ancho="max-w-7xl"
       subtitulo={`Qué comprar para ${f.dias} días al ritmo real de la historia (típico y mejor momento). Sin notebooks.`}
       acciones={
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
@@ -48,7 +52,9 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
             opciones={DIAS_OPCIONES.map((d) => ({ valor: d === 60 ? "" : String(d), texto: `${d} días` }))} />
           <Desplegable parametro="min_dias" etiqueta="Días con venta" valor={sp.min_dias ?? ""} limpiar={["p"]}
             opciones={[{ valor: "", texto: "Todos" }, ...MIN_DIAS_VENTA.map((d) => ({ valor: String(d), texto: `Más de ${d}` }))]} />
-          <RangoFechas desde={sp.vdesde ?? ""} hasta={sp.vhasta ?? ""} parametroDesde="vdesde" parametroHasta="vhasta" etiqueta="Última venta" vacio="Cualquiera" limpiar={["p"]} />
+          <Desplegable parametro="vmeses" etiqueta="Última venta" valor={sp.vmeses ?? ""} limpiar={["p"]}
+            opciones={[{ valor: "", texto: "Cualquiera" }, ...ULTIMA_VENTA_MESES.map(([m, t]) => ({ valor: String(m), texto: `En ${t}` }))]} />
+          <Categorias nodos={nodos} sinCategoria={todas.filter((x) => x.familia_id == null).length} excluidas={[...sinCat]} />
           <CasillaViva parametro="con_stock" activo={sp.con_stock === "1"} etiqueta="Incluye los que tienen stock suficiente" ayuda="Los que no hace falta comprar: el stock de hoy alcanza para los días elegidos" />
           <a href={url("/compras/sugerencia/excel", params)} className={VERDE}>Descargar Excel</a>
         </div>
@@ -61,9 +67,10 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
           <div key={k} className="bg-white border border-[#E3E9F0] rounded-xl p-2"><span className="block text-[11px] text-[#5C6B76]">{k}</span><b className="tabular-nums">{v}</b></div>
         ))}
       </div>
-      <div className={CAJA_TABLA}>
-        <table className={`${TABLA} text-[11px]`}>
-          <thead className={THEAD}>
+      {/* Los títulos quedan fijos al desplazarse (Fer, 12/10): la tabla tiene su propio alto y se desplaza adentro. */}
+      <div className={`${CAJA_TABLA} max-h-[calc(100vh-15rem)] overflow-y-auto`}>
+        <table className={`${TABLA} text-[11px] [&_td]:px-1.5 [&_th]:px-1.5`}>
+          <thead className={`${THEAD} sticky top-0 z-10 shadow-[0_1px_0_#E3E9F0]`}>
             <tr>
               <ThOrden col="sku">Producto</ThOrden>
               <ThOrden col="tipico" n porDefecto desc title={`Lo que se vendería en ${f.dias} días al ritmo típico`}>Típico</ThOrden>
@@ -88,7 +95,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
             {vista.length === 0 && <tr><td colSpan={17} className={`${TD} text-[#5C6B76]`}>No hay ventas con ritmo regular en ese período.</td></tr>}
             {vista.map((x) => (
               <tr key={x.clave} className={TR}>
-                <td className={`${TD} max-w-[22rem]`}>
+                <td className={`${TD} max-w-[17rem]`}>
                   <span className="flex items-center gap-2 min-w-0">
                     <FotosProducto fotos={x.fotos} titulo={x.titulo} />
                     {x.producto_id ? <Link href={`/catalogo/productos/${x.producto_id}`} className="font-mono text-[#16577F] hover:underline whitespace-nowrap">{x.sku}</Link> : <span className="font-mono whitespace-nowrap">{x.sku}</span>}
@@ -124,6 +131,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
         </table>
       </div>
       <Paginado total={filas.length} />
+      <p className="text-[10px] text-[#5C6B76] mt-1">Calculado el {new Date(calculado).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" })}: el cálculo se guarda 30 minutos (filtrar, ordenar y cambiar de página no lo rehacen).</p>
       <p className="text-[11px] text-[#5C6B76] mt-2">
         Costo = último costo de la ficha; precio = la última venta pasada a dólares con el oficial de ese día y a pesos con el de hoy{tcHoy ? ` ($ ${formatearNumero(tcHoy, "pesos")})` : ""}. Los filtros «Días con venta» y «Última venta» sólo esconden renglones: los cálculos usan todo el período. Cómo se calcula: no hay historia del stock, así que se toman los tramos de {f.dias} días en que el producto se vendió con regularidad (sin un hueco más largo de lo normal para ese producto).
         Típico = lo que se vendió en un tramo común (la mediana); mejor momento = el mejor tramo. A comprar = lo que se vendería menos el stock de hoy; la inversión y la ganancia total son sobre eso. Las compras grandes de una sola vez no cuentan. Precio hoy = la última venta llevada a pesos de hoy (por eso puede diferir de la Clásica actual). Ganancia = precio de hoy − comisión, cargo fijo y envío de Mercado Libre − costo. Es una referencia para chequear.

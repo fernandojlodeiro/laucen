@@ -5,7 +5,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { coincideBusqueda } from "@/lib/busqueda";
 import { respuestaExcel, type ColumnaExcel } from "@/lib/informes/excel";
 import { hoyArgentina } from "@/lib/rango-fechas";
-import { ORDEN_SUGERENCIA, filtrarMuestra, leerFiltroSugerencia, sugerenciaCompra, totalesSugerencia, type FilaSugerencia } from "@/lib/compras/sugerencia";
+import { ORDEN_SUGERENCIA, arbolCategorias, filtrarMuestra, leerFiltroSugerencia, sugerenciaGuardada, totalesSugerencia, type FilaSugerencia } from "@/lib/compras/sugerencia";
 import { ordenarEnMemoria } from "@/lib/lista";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +15,12 @@ export async function GET(req: NextRequest) {
   const s = await entrarErp("compras_ver");
   const sp = Object.fromEntries(req.nextUrl.searchParams);
   const f = leerFiltroSugerencia(sp, hoyArgentina());
-  const { filas: todas } = await sugerenciaCompra(s.org.id, f);
+  const { filas: todas } = await sugerenciaGuardada(s.org.id, f);
+  const { ancestros } = await arbolCategorias(s.org.id, todas);
+  const sinCat = new Set((sp.sin_cat ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n >= 0 && sp.sin_cat));
+  const categoriaFuera = (x: FilaSugerencia) => x.familia_id == null ? sinCat.has(0) : (ancestros.get(x.familia_id) ?? []).some((id) => sinCat.has(id));
   const q = sp.q?.trim() ?? "";
-  const filas = ordenarEnMemoria(filtrarMuestra(todas, sp, (x) => !q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1")), sp, ORDEN_SUGERENCIA);
+  const filas = ordenarEnMemoria(filtrarMuestra(todas, sp, (x) => !categoriaFuera(x) && (!q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1"))), sp, ORDEN_SUGERENCIA);
   const fecha = (iso: string) => new Date(`${iso}T00:00:00Z`);
   const columnas: ColumnaExcel<FilaSugerencia>[] = [
     { titulo: "SKU", valor: (x) => x.sku, ancho: 16, formato: "texto" },
