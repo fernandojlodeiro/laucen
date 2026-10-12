@@ -17,18 +17,24 @@ Menú **Compras › Sugerencia de compra**.
 
 ## Qué hay en la pantalla
 
-- Arriba a la derecha, **Descargar Excel** con lo mismo que se ve (todas las filas).
-- Filtros: buscador (SKU o producto), **Período de la historia** (de entrada, los últimos 6 años) y **Comprar para** (30, 45, 60 —de entrada—, 90, 120 o 180 días).
+- Arriba a la derecha, a la altura del título, los filtros y **Descargar Excel** (lo mismo que se ve, todas las filas):
+  - buscador (SKU o producto);
+  - **Historia**: el período que se estudia (de entrada, los últimos 6 años);
+  - **Comprar para**: 30, 45, 60 (de entrada), 90, 120 o 180 días;
+  - **Días con venta**: sólo los que vendieron más de 5, 10, 20, 30, 50, 100 o 200 días en el período;
+  - **Última venta**: sólo los que tuvieron su última venta entre esas fechas (por ejemplo, desde el año pasado, para no ver los que dejaron de venderse).
+  Los dos últimos **sólo esconden renglones**: los cálculos se hacen siempre con todo el período de la historia.
 - Cuatro recuadros: cuántos productos (y cuántos tienen costo), las **unidades a comprar**, la **inversión** en dólares y la **ganancia estimada**, cada una según el ritmo típico y según el mejor momento.
 - La tabla, de entrada de lo que más se vende a lo que menos; **se ordena tocando el título de cada columna** (por ejemplo, por inversión o por ganancia). Un renglón por producto:
-  - **Producto** con su foto (enlace a la ficha), en un renglón. «Inactivo» si está archivado y «No está en el catálogo» si es un código viejo que ya no existe. Debajo, en una línea: cuántos días vendió en el período, cuántos tramos con venta regular encontró y, en ámbar, las **compras grandes no consideradas**.
+  - **Producto** con su foto (enlace a la ficha), en un renglón. «Inactivo» si está archivado y «No está en el catálogo» si es un código viejo que ya no existe. Debajo, en una línea: cuántos tramos con venta regular encontró y, en ámbar, las **compras grandes no consideradas**.
   - **N días · típico** y **· mejor**: lo que se vendería.
-  - **Stock hoy** (disponible) y **A comprar · típico** = lo que se vendería menos el stock (al pasar el mouse, el del mejor momento).
+  - **Días con venta** en el período (se puede ordenar por esta columna).
+  - **Stock hoy** (disponible) y **A comprar** = lo que se vendería menos el stock (al pasar el mouse, el del mejor momento).
   - **Costo US$** y la **inversión** (lo que hay que comprar por el costo).
   - **Última venta**: la fecha, el precio en pesos y el dólar oficial de ese día (al pasar el mouse, lo que daba en dólares).
   - **Precio hoy**: ese precio en dólares, al dólar oficial de hoy. Al lado, la **Clásica de hoy** para comparar.
   - **Mercado Libre**: comisión de su categoría más el cargo fijo (precios bajos) o el envío gratis (precios altos).
-  - **Ganancia** por unidad, **margen** y la **ganancia total** de lo que hay que comprar, según el típico y el mejor momento.
+  - **Ganancia** por unidad, **% s/ venta** (ganancia sobre el precio), **% s/ costo** (ganancia sobre el costo) y la **ganancia total** de lo que hay que comprar, según el típico y el mejor momento.
 
 ## Criterios y reglas
 

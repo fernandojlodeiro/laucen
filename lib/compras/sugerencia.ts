@@ -30,6 +30,8 @@ export type FilaSugerencia = {
   costo_usd: number | null; costo_ars: number | null;
   ultima_fecha: string; ultima_precio: number; ultima_tc: number | null; precio_usd: number | null; precio_hoy: number | null; clasica: number | null;
   comision_pct: number; costos_ml: number | null; ganancia_unit: number | null; margen_pct: number | null;
+  /** La ganancia sobre el costo (lo que rinde cada peso invertido). */
+  roi_pct: number | null;
   /** Lo disponible hoy y lo que habría que comprar (lo que se vendería menos lo que ya hay), según el típico y el mejor momento. */
   stock: number; comprar_tipico: number; comprar_mejor: number;
 };
@@ -126,6 +128,7 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
       costo_usd: d.costo_usd, costo_ars: costoArs, ultima_fecha: d.ultima_fecha, ultima_precio: d.ultima_precio, ultima_tc: d.ultima_tc,
       precio_usd: precioUsd, precio_hoy: precioHoy, clasica: d.clasica, comision_pct: comision, costos_ml: ml, ganancia_unit: ganancia,
       margen_pct: ganancia != null && precioHoy ? Math.round((ganancia / precioHoy) * 1000) / 10 : null,
+      roi_pct: ganancia != null && costoArs ? Math.round((ganancia / costoArs) * 1000) / 10 : null,
       stock: d.stock, comprar_tipico: Math.max(0, r.tipico - Math.max(0, d.stock)), comprar_mejor: Math.max(0, r.mejor - Math.max(0, d.stock)),
     };
   });
@@ -147,7 +150,19 @@ export function totalesSugerencia(filas: FilaSugerencia[]) {
 export const ORDEN_SUGERENCIA: Record<string, (x: FilaSugerencia) => number | string | null> = {
   sku: (x) => x.sku, tipico: (x) => x.tipico, mejor: (x) => x.mejor, stock: (x) => x.stock, comprar: (x) => x.comprar_tipico,
   costo: (x) => x.costo_usd, inversion: (x) => (x.costo_usd == null ? null : x.costo_usd * x.comprar_tipico), ultima: (x) => x.ultima_fecha,
-  precio: (x) => x.precio_hoy, ganancia_unit: (x) => x.ganancia_unit, margen: (x) => x.margen_pct,
+  precio: (x) => x.precio_hoy, ganancia_unit: (x) => x.ganancia_unit, margen: (x) => x.margen_pct, roi: (x) => x.roi_pct, dias_venta: (x) => x.dias_con_venta,
   ganancia: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_tipico),
   ganancia_mejor: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_mejor),
 };
+
+/** Opciones del filtro «Días con venta» (más de N). */
+export const MIN_DIAS_VENTA = [5, 10, 20, 30, 50, 100, 200];
+
+/** Lo que se MUESTRA (Fer, 12/10): buscador, «más de N días con venta» y «última venta entre». No cambia los cálculos: el
+ *  ritmo se calcula con todo el período elegido; esto sólo esconde renglones. */
+export function filtrarMuestra(filas: FilaSugerencia[], sp: Record<string, string | undefined>, coincide: (x: FilaSugerencia) => boolean): FilaSugerencia[] {
+  const minDias = Number(sp.min_dias) || 0;
+  const desde = FECHA.test(sp.vdesde ?? "") ? sp.vdesde! : "";
+  const hasta = FECHA.test(sp.vhasta ?? "") ? sp.vhasta! : "";
+  return filas.filter((x) => x.dias_con_venta > minDias && (!desde || x.ultima_fecha >= desde) && (!hasta || x.ultima_fecha <= hasta) && coincide(x));
+}

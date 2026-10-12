@@ -5,7 +5,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { coincideBusqueda } from "@/lib/busqueda";
 import { respuestaExcel, type ColumnaExcel } from "@/lib/informes/excel";
 import { hoyArgentina } from "@/lib/rango-fechas";
-import { ORDEN_SUGERENCIA, leerFiltroSugerencia, sugerenciaCompra, totalesSugerencia, type FilaSugerencia } from "@/lib/compras/sugerencia";
+import { ORDEN_SUGERENCIA, filtrarMuestra, leerFiltroSugerencia, sugerenciaCompra, totalesSugerencia, type FilaSugerencia } from "@/lib/compras/sugerencia";
 import { ordenarEnMemoria } from "@/lib/lista";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const f = leerFiltroSugerencia(sp, hoyArgentina());
   const { filas: todas } = await sugerenciaCompra(s.org.id, f);
   const q = sp.q?.trim() ?? "";
-  const filas = ordenarEnMemoria(q ? todas.filter((x) => coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1")) : todas, sp, ORDEN_SUGERENCIA);
+  const filas = ordenarEnMemoria(filtrarMuestra(todas, sp, (x) => !q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1")), sp, ORDEN_SUGERENCIA);
   const fecha = (iso: string) => new Date(`${iso}T00:00:00Z`);
   const columnas: ColumnaExcel<FilaSugerencia>[] = [
     { titulo: "SKU", valor: (x) => x.sku, ancho: 16, formato: "texto" },
@@ -43,12 +43,13 @@ export async function GET(req: NextRequest) {
     { titulo: "Comisión ML %", valor: (x) => x.comision_pct, formato: "pct", ancho: 10 },
     { titulo: "Mercado Libre $", valor: (x) => x.costos_ml, formato: "importe", ancho: 12 },
     { titulo: "Ganancia $", valor: (x) => x.ganancia_unit, formato: "importe", ancho: 13 },
-    { titulo: "Margen %", valor: (x) => x.margen_pct, formato: "pct", ancho: 9 },
+    { titulo: "% s/ venta", valor: (x) => x.margen_pct, formato: "pct", ancho: 9 },
+    { titulo: "% s/ costo", valor: (x) => x.roi_pct, formato: "pct", ancho: 9 },
     { titulo: "Ganancia típica $", valor: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_tipico), formato: "importe", ancho: 14 },
     { titulo: "Ganancia mejor $", valor: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_mejor), formato: "importe", ancho: 14 },
   ];
   const t = totalesSugerencia(filas);
   return respuestaExcel("Sugerencia de compra", "Sugerencia", columnas, filas,
-    [["Total", null, null, null, null, null, t.unidadesTipicas, t.unidadesMejor, null, null, null, null, t.inversionTipicaUsd, t.inversionMejorUsd, null, null, null, null, null, null, null, null, null, null, t.gananciaTipica, t.gananciaMejor],
+    [["Total", null, null, null, null, null, t.unidadesTipicas, t.unidadesMejor, null, null, null, null, t.inversionTipicaUsd, t.inversionMejorUsd, null, null, null, null, null, null, null, null, null, null, null, t.gananciaTipica, t.gananciaMejor],
       [`Período ${f.desde} a ${f.hasta}; comprar para ${f.dias} días`]]);
 }
