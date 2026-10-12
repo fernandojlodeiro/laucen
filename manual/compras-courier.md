@@ -2,7 +2,7 @@
 titulo: Compras por courier
 menu: Compras › Compras por courier
 ruta: /compras/courier
-rutas: /compras/courier, /compras/courier/[id]
+rutas: /compras/courier, /compras/courier/[id], /compras/courier/control
 permiso: compras_ver
 resumen: Las importaciones por courier con su flete por kilo y su porcentaje único; de acá sale el costo de cada producto.
 ---
@@ -37,6 +37,20 @@ Menú **Compras › Compras por courier**. Tocando el nombre de una compra se ab
 - **Al grabar**, cada producto queda con: el FOB en dólares, el **último costo** en dólares y en pesos (en pesos, al dólar del día de ingreso), el promedio si todavía no tenía uno, y el peso de la ficha del producto.
 - **Ingreso al stock**: es el momento desde el que se cuentan las ventas de esa mercadería en los análisis.
 - La compra no suma ni resta stock.
+
+## Control de stock de las compras
+
+Botón **Control de stock**, arriba a la derecha de la lista de compras. Muestra, por cada producto de cada compra (o de la compra elegida en el desplegable **Compra**):
+
+- **Comprado** y **cargado** (lo que efectivamente entró al stock).
+- **Vendido**: todo lo vendido desde la fecha y hora de ingreso de la compra, en todos los canales y sin canceladas, separado en Mercado Libre, otros canales (web, local, incluido el historial de Virtual Seller) y **en kits** (cada kit vendido cuenta sus componentes). Tocando lo vendido en ML se abren esas ventas en el historial.
+- **Saldo** = cargado − vendido: lo que tendría que quedar.
+- **Disponible hoy**: el stock de todos los depósitos menos lo reservado (lo vendido que todavía no salió).
+- **Diferencia** = disponible hoy − saldo. En rojo falta mercadería; en verde sobra.
+- **Precio Clásica** y **Diferencia $** = diferencia × precio de la Clásica.
+- Arriba, el total de unidades y pesos que faltan y que sobran; abajo, la fila de totales.
+
+Si el producto ya tenía stock antes de la compra, sus ventas también cuentan: no se puede saber de qué compra salió cada unidad. Una diferencia positiva suele ser eso, o devoluciones y ajustes.
 
 ## Relacionado
 

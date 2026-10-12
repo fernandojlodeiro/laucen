@@ -7,6 +7,7 @@ import { compras } from "@/lib/compras/courier";
 import { formatear } from "@/lib/moneda";
 import { formatearNumero } from "@/lib/numeros";
 import { fechaHora } from "@/app/ventas/formato";
+import { SUAVE } from "@/app/botones";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,8 @@ export default async function ComprasCourier({ searchParams }: { searchParams: P
   const sp = await searchParams;
   const filas = await compras(s.org.id);
   return (
-    <Pantalla titulo="Compras por courier" subtitulo="Las importaciones por courier: flete por kilo y un único % para toda la compra. De acá sale el costo de cada producto (no mueve stock).">
+    <Pantalla titulo="Compras por courier" subtitulo="Las importaciones por courier: flete por kilo y un único % para toda la compra. De acá sale el costo de cada producto (no mueve stock)."
+      acciones={<Link href="/compras/courier/control" className={SUAVE}>Control de stock</Link>}>
       <Avisos sp={sp} />
       <div className={CAJA_TABLA}>
         <table className={TABLA}>

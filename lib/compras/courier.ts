@@ -69,3 +69,48 @@ export async function grabarCostos(org: string, id: number): Promise<{ productos
   });
   return { productos: n, sinProducto };
 }
+
+/** Control de stock de las compras (pedido de Fer, 12/10): por renglón, lo cargado, lo vendido desde que la compra
+ *  entró al stock (todos los canales, vista venta_estadistica, sin canceladas; las ventas de un kit cuentan sus
+ *  componentes), el saldo esperado, el disponible de hoy y la diferencia valorizada al precio de la Clásica. */
+export type FilaControl = {
+  compra_id: number; compra: string; ingreso_ts: Date | null; variacion_id: number | null; producto_id: number | null; sku: string | null;
+  descripcion: string; fotos: string[] | null; comprado: number; cargado: number; vendido_ml: number; vendido_otros: number; vendido_kits: number;
+  vendido: number; saldo: number; disponible: number | null; diferencia: number | null; precio: number | null; monto: number | null;
+};
+
+export async function controlStock(org: string, compraId: number | null): Promise<FilaControl[]> {
+  return consulta<FilaControl>(`
+    with l as (
+      select c.id compra_id, c.nombre compra, c.ingreso_ts, l.variacion_id, l.sku, l.descripcion, l.orden, l.id,
+             l.cantidad comprado, coalesce(l.cargado, l.cantidad) cargado
+        from compra_courier c join compra_courier_linea l on l.compra_id = c.id
+       where c.organizacion_id = $1 and ($2::bigint is null or c.id = $2)),
+    lista as (select id from lista_precios where organizacion_id = $1
+               order by lower(nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') desc, orden, id limit 1),
+    v as (
+      select l.id,
+             coalesce(sum(e.cantidad) filter (where e.variacion_id = l.variacion_id and e.origen = 'ml'), 0) ml,
+             coalesce(sum(e.cantidad) filter (where e.variacion_id = l.variacion_id and e.origen <> 'ml'), 0) otros,
+             coalesce(sum(e.cantidad * k.cantidad) filter (where k.variacion_componente_id is not null), 0) kits
+        from l
+        join venta_estadistica e on e.organizacion_id = $1 and l.ingreso_ts is not null and e.fecha >= l.ingreso_ts
+                                and e.estado not in ('cancelled', 'cancelado', 'invalid')
+        left join kit_componente k on k.variacion_kit_id = e.variacion_id and k.variacion_componente_id = l.variacion_id
+       where e.variacion_id = l.variacion_id or k.variacion_componente_id is not null
+       group by l.id),
+    x as (
+      select l.*, va.producto_id, coalesce(va.sku, l.sku) sku_v,
+             coalesce(v.ml, 0)::int vendido_ml, coalesce(v.otros, 0)::int vendido_otros, coalesce(v.kits, 0)::int vendido_kits,
+             case when l.variacion_id is null then null
+                  else (select coalesce(sum(s.cantidad - s.reservado), 0) from stock s where s.variacion_id = l.variacion_id)::int end disponible,
+             (select pd.lista_ars from lista, precio_de($1, l.variacion_id, lista.id) pd)::float8 precio
+        from l left join v on v.id = l.id left join variacion va on va.id = l.variacion_id)
+    select compra_id::int, compra, ingreso_ts, variacion_id::int, producto_id::int, sku_v sku, descripcion,
+           (select array_agg(pf.url order by pf.orden) from producto_foto pf where pf.producto_id = x.producto_id) fotos,
+           comprado, cargado, vendido_ml, vendido_otros, vendido_kits, vendido_ml + vendido_otros + vendido_kits vendido,
+           cargado - (vendido_ml + vendido_otros + vendido_kits) saldo, disponible,
+           disponible - (cargado - (vendido_ml + vendido_otros + vendido_kits)) diferencia, precio,
+           (disponible - (cargado - (vendido_ml + vendido_otros + vendido_kits))) * precio monto
+      from x order by compra, orden, id`, [org, compraId]);
+}

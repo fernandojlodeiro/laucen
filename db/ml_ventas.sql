@@ -113,6 +113,15 @@ create index if not exists ml_venta_orden on ml_venta (order_id);
 -- El primer pedido de cada canal (corte del historial de VS en la vista).
 create index if not exists pedido_canal_fecha on pedido (canal_id, fecha);
 
+-- ¿Es una notebook? Por el nombre del producto (sirve también para lo vendido hace años, que no está en el catálogo):
+-- empieza con notebook/netbook/laptop…, o nombra un procesador y una capacidad (los modelos que se publicaban como
+-- "HP Core i5… 256GB SSD"), sin ser un accesorio, una tablet o una PC. Lo usa el ranking de clientes.
+create or replace function es_notebook(t text) returns boolean language sql immutable as $$
+  select coalesce(t ~* '^\W*(notebook|netbook|ultrabook|laptop|chromebook|macbook\s+(air|pro)\M)'
+    or (t ~* '(core|ryzen|celeron|pentium|athlon|a\d+-\d{4})' and t ~* '\d+\s*(gb|tb)'
+        and not t ~* '^\W*(tablet|celular|smartphone|bater|cargador|cable|all in one|aio|pc\M|kit|memoria|disco|placa|mother|procesador|monitor|cpu|mini pc|gabinete|raspberry)'), false)
+$$;
+
 -- Todas las ventas de todos los canales, para estadística: ML desde ml_venta (con o sin pedido) y los demás
 -- canales desde pedido (sin presupuestos ni cancelados). Una fila por artículo vendido.
 create or replace view venta_estadistica with (security_invoker = true) as
