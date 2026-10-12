@@ -3,7 +3,7 @@
 
 import type { NextRequest } from "next/server";
 import { entrarErp } from "@/app/componentes/erp";
-import { COSTOS, aDobleMoneda, leerFiltroValorizado, stockValorizado, totalesValorizado, type FilaValorizadoDoble } from "@/lib/informes/inventario";
+import { COSTOS, aDobleMoneda, leerFiltroValorizado, ordenarPorValorizado, stockValorizado, totalesValorizado, type FilaValorizadoDoble } from "@/lib/informes/inventario";
 import { respuestaExcel, type ColumnaExcel } from "@/lib/informes/excel";
 import { tcDelDia } from "@/lib/moneda";
 
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const s = await entrarErp("informes_stock_ver");
   const f = leerFiltroValorizado(Object.fromEntries(req.nextUrl.searchParams));
   const [crudas, tc] = await Promise.all([stockValorizado(s.org.id, f), tcDelDia(s.org.id)]);
-  const filas = aDobleMoneda(crudas, tc?.venta ?? null);
+  const filas = ordenarPorValorizado(aDobleMoneda(crudas, tc?.venta ?? null), tc?.venta ?? null);
   const monedas: ("ARS" | "USD")[] = f.moneda === "ars" ? ["ARS"] : f.moneda === "usd" ? ["USD"] : ["ARS", "USD"];
   const signo = (m: "ARS" | "USD") => (m === "USD" ? "US$" : "$");
   const base = COSTOS[f.costo].replace(/ \((USD)\)$/, "");
@@ -26,9 +26,12 @@ export async function GET(req: NextRequest) {
     ...monedas.map((m): ColumnaExcel<FilaValorizadoDoble> => ({ titulo: `${base} (${signo(m)})`, valor: (r) => (m === "USD" ? r.costo_usd : r.costo_ars), ancho: 16, formato: "importe" })),
     { titulo: "Stock", valor: (r) => r.stock, ancho: 10, formato: "entero" },
     ...monedas.map((m): ColumnaExcel<FilaValorizadoDoble> => ({ titulo: `Valorizado (${signo(m)})`, valor: (r) => (m === "USD" ? r.valorizado_usd : r.valorizado_ars), ancho: 18, formato: "importe" })),
+
+    { titulo: "Seguimiento", valor: (r) => (r.seguidas > 0 ? `Sí (${r.seguidas})${r.regla ? " con regla" : ""}` : "No"), ancho: 16 },
+    { titulo: "Cuentas de ML", valor: (r) => `${r.cuentas_ml} de ${r.cuentas_total}`, ancho: 12 },
   ];
   const t = totalesValorizado(filas);
-  const total = ["Total stock valorizado", null, null, null, ...monedas.map(() => null), t.stock, ...monedas.map((m) => (m === "USD" ? t.usd : t.ars))];
+  const total = ["Total stock valorizado", null, null, null, ...monedas.map(() => null), t.stock, ...monedas.map((m) => (m === "USD" ? t.usd : t.ars)), null, null];
   const pie: (string | number | null)[][] = [total];
   if (tc) pie.push([`Tipo de cambio oficial ${tc.fecha.split("-").reverse().join("/")}: ${tc.venta} pesos por dólar`]);
   else pie.push(["Sin tipo de cambio cargado: los costos en la otra moneda quedan vacíos"]);
