@@ -101,6 +101,7 @@ export const MENU: SeccionMenu[] = [
     items: [
       { texto: "Stock valorizado", href: "/informes/stock-valorizado", permiso: "informes_stock_ver" },
       { texto: "Stock por ubicación", href: "/informes/stock-por-ubicacion", permiso: "informes_stock_ver" },
+      { texto: "Monitoreo de precios y publicaciones", href: "/informes/monitoreo-publicaciones", permiso: "informes_publicaciones_ver" },
       { texto: "Cambios en publicaciones", href: "/informes/cambios-publicaciones", permiso: "informes_publicaciones_ver" },
       { texto: "Promociones de ML", href: "/informes/promociones", permiso: "informes_publicaciones_ver" },
       { texto: "Rentabilidad por venta", href: "/informes/rentabilidad", permiso: "informes_ventas_ver" },
