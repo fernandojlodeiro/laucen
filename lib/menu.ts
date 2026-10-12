@@ -82,6 +82,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Proveedores", href: "/compras/proveedores", permiso: "proveedores_ver" },
       { texto: "Facturas de compra", href: "/compras/facturas", permiso: "compras_ver" },
       { texto: "Despachos de importación", href: "/compras/despachos", permiso: "despachos_ver" },
+      { texto: "Compras por courier", href: "/compras/courier", permiso: "compras_ver" },
     ],
   },
   {
