@@ -14,7 +14,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { intentar, id, texto, numero, entero, tildado } from "@/lib/erp/acciones";
 import { ErrorErp, consulta } from "@/lib/erp/base";
 import {
-  guardarTachado, guardarPlan, borrarExcepcion, guardarVolumen, borrarVolumen, replicarVolumen, fijarInterruptor, productoPorSku, canalMl, canalesMl, campanasBajoPisoCanal,
+  guardarTachado, guardarPlan, borrarExcepcion, guardarVolumen, borrarVolumen, replicarVolumen, copiarEsquema, fijarInterruptor, productoPorSku, canalMl, canalesMl, campanasBajoPisoCanal,
   type Donde,
 } from "@/lib/precios-ml/datos";
 import { prepararCambios, sincronizarPreciosMl } from "@/lib/precios-ml/preparar";
@@ -142,6 +142,17 @@ export async function accionBorrarVolumen(fd: FormData) {
     await borrarVolumen(s.org.id, id(fd, "id"));
     revalidatePath(BASE_PML);
     return "Borrado.";
+  });
+}
+
+/** «Copiar el esquema de otra cuenta»: la cuenta queda con el esquema de la de origen (sólo en Laucen). */
+export async function accionCopiarEsquema(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  limpiarCachePrevia();
+  await intentar(volver(fd), async () => {
+    const r = await copiarEsquema(s.org.id, id(fd, "origen"), id(fd, "canal"));
+    revalidatePath(BASE_PML);
+    return `Copiado: ${r.reglas} reglas de descuento, ${r.planes} de planes y ${r.volumen} de volumen. Nada salió a Mercado Libre: lo que cambiaría está en la vista previa.`;
   });
 }
 

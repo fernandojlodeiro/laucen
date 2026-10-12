@@ -27,12 +27,12 @@ import { fechaHora } from "@/app/ventas/formato";
 import { formatear } from "@/lib/moneda";
 import { formatearNumero } from "@/lib/numeros";
 import { paginarEnMemoria } from "@/lib/lista";
-import { reglasCanal, heredadoExcepciones, excepcionesCanal, volumenCanal, alertasCanal, campanasBajoPisoCanal, sinCampanaCanal, type CanalMl, type Excepcion, type RangoVolumen } from "@/lib/precios-ml/datos";
+import { canalesMl, reglasCanal, heredadoExcepciones, excepcionesCanal, volumenCanal, alertasCanal, campanasBajoPisoCanal, sinCampanaCanal, type CanalMl, type Excepcion, type RangoVolumen } from "@/lib/precios-ml/datos";
 import { PLANES, PLAN_INFO, descuentoComprador, type Plan, type ReglasPlan } from "@/lib/precios-ml/motor";
 import { BarraPml, type VerPml } from "./comun";
 import { BASE_PML, PREVIA, PLANES_PML, LISTA_EXCEPCIONES_ML, LISTA_VOLUMEN_ML, canalElegido, textoEscalones } from "./lista";
 import {
-  accionGuardarGeneral, accionCampanaPropia, accionGuardarExcepcion, accionBorrarExcepcion, accionGuardarVolumen, accionBorrarVolumen, accionReplicarVolumen, accionInterruptor, accionSacarCampanas, accionSacarEnvioGratis,
+  accionGuardarGeneral, accionCampanaPropia, accionGuardarExcepcion, accionBorrarExcepcion, accionGuardarVolumen, accionBorrarVolumen, accionReplicarVolumen, accionCopiarEsquema, accionInterruptor, accionSacarCampanas, accionSacarEnvioGratis,
 } from "./acciones";
 
 export const dynamic = "force-dynamic";
@@ -82,6 +82,7 @@ export default async function PreciosMl({ searchParams }: { searchParams: Promis
 
 async function General({ org, canal, editando, aqui }: { org: string; canal: CanalMl; editando: boolean; aqui: string }) {
   const propia = await campanaPropiaDe(org, canal.id);
+  const otras = (await canalesMl(org)).filter((c) => c.id !== canal.id);
   const [reglas, propios] = await Promise.all([reglasCanal(org, canal), una<{ n: number }>(`
     select count(distinct producto_id)::int n from (
       select producto_id from ml_regla_precio where organizacion_id = $1 and canal_id = $2 and nivel = 'producto' and ajuste_pct is not null
@@ -129,6 +130,21 @@ async function General({ org, canal, editando, aqui }: { org: string; canal: Can
         <p className="text-[11px] text-[#5C6B76] mt-1">
           Una publicación con descuento (publicada al tachado) que no está en ninguna campaña de Mercado Libre entra a esta campaña a su precio, así el comprador ve el descuento.
           Cuando Mercado Libre le ofrece una campaña suya que acepta ese precio, sale de la propia y pasa a la de Mercado Libre. Los cambios salen como siempre: con «Preparar cambios» en la vista previa, o solos con «Sincronizar precios».
+        </p>
+      </section>
+
+      <section className={CAJA}>
+        {/* Copiar el esquema (Fer, 12/10): pasar a una cuenta el esquema que ya se armó en otra, sin cargarlo a mano. */}
+        <TituloSeccion titulo="Copiar el esquema de otra cuenta">
+          {otras.map((o) => (
+            <BotonConfirmar key={o.id} accion={accionCopiarEsquema} campos={{ canal: String(canal.id), origen: String(o.id), volver: aqui }} clase={SUAVE}
+              texto={`Copiar de ${o.nombre}`} corriendo="Copiando…"
+              pregunta={`¿Reemplazar todo el esquema de ${canal.nombre} (descuento, excepciones, planes de cuotas y volumen) por el de ${o.nombre}? Lo de ${canal.nombre} se borra.`} />
+          ))}
+        </TituloSeccion>
+        <p className="text-[11px] text-[#5C6B76]">
+          Deja esta cuenta con el mismo descuento, las mismas excepciones, planes de cuotas y descuento por volumen que la otra; lo que tenía se borra. La marca, los interruptores y la campaña propia no cambian.
+          Nada sale a Mercado Libre: lo que cambiaría se ve en la vista previa y sale como siempre (con «Preparar cambios» o solo, con «Sincronizar precios» prendido).
         </p>
       </section>
 

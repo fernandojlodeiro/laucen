@@ -43,6 +43,8 @@ Caja **«Descuento que ve el comprador (general de la cuenta)»**:
 - Debajo, un texto: una categoría o un producto puede tener otro descuento en «Excepciones»; qué planes lleva cada producto y **quién gana** entre tus cuentas se configuran para todas las cuentas a la vez en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas).
 
 Caja **«Campaña propia «Promociones Daitom»»**: la campaña del vendedor de esta cuenta. Dice desde y hasta cuándo está vigente, o «Esta cuenta todavía no tiene campaña propia». Botones arriba a la derecha de la caja: **«Crear en esta cuenta»** (o **«Renovar ahora»** si ya tiene) y **«Crear en todas las cuentas»**; los dos preguntan antes y crean la campaña en Mercado Libre con ese clic.
+
+Caja **«Copiar el esquema de otra cuenta»**: un botón **«Copiar de …»** por cada una de las otras cuentas, arriba a la derecha de la caja. Pregunta antes y deja esta cuenta con el mismo descuento, las mismas excepciones, planes de cuotas y descuento por volumen que la otra; lo que tenía se borra. La marca, los interruptores y la campaña propia de la cuenta no cambian. Nada sale a Mercado Libre con ese clic: lo que cambiaría se ve en la vista previa.
 - Para qué sirve: una publicación con descuento (publicada al tachado) que no está en ninguna campaña de Mercado Libre entra a la campaña propia a su precio, así el comprador ve el descuento.
 - Una campaña de Mercado Libre que **todavía no arrancó** (programada para más adelante) no da descuento hoy: mientras tanto la publicación entra también a la campaña propia (aviso ««…» arranca el …: hasta entonces va también a la campaña propia»). Cuando la de Mercado Libre arranca, el próximo «Preparar cambios» la saca de la propia.
 - Cuando Mercado Libre le ofrece una campaña suya que acepta ese precio, sale de la propia y pasa a la de Mercado Libre (las de Mercado Libre la exponen más).
@@ -140,6 +142,13 @@ Errores típicos: «Cada escalón lleva una cantidad desde 2 y un % entre 0 y 90
 
 ### Copiar el descuento por volumen a las otras cuentas
 En «Descuento por volumen», **«Replicar en las demás cuentas»** → confirmar. Copia la tabla entera de esta cuenta (todos los niveles) a cada una de las otras cuentas de Mercado Libre, **reemplazando** la que tenían.
+
+### Pasar el esquema de una cuenta a otra
+
+1. Conviene apagar antes «Sincronizar precios» en la cuenta que va a recibir el esquema.
+2. En la pestaña «Descuento» de esa cuenta, caja «Copiar el esquema de otra cuenta», apretá «Copiar de …» con la cuenta que tiene el esquema bueno y confirmá.
+3. Revisá la vista previa de la cuenta: ahí está lo que cambiaría en cada publicación.
+4. Si está bien, «Preparar cambios» arma el lote para mandarlo, o prendé de nuevo «Sincronizar precios».
 
 ### Prender la sincronización automática
 En la pestaña «Descuento», interruptor **«Sincronizar precios…»**. Al prenderlo, Laucen hace una primera pasada **de fondo** (la pantalla queda libre) y, al terminar, el cartel de abajo a la derecha avisa cuántas variaciones revisó y cuántos cambios mandó a la cola. Al apagarlo, deja de mandar solo (lo que ya estaba preparado en lotes sigue esperando el clic).

@@ -4,7 +4,7 @@
 // días (ml_costos_comisiones_vigente); lo que ML tiene hoy, del espejo
 // (meli_item) y de las lecturas de precio para ganar y campañas.
 
-import { consulta, una, ErrorErp } from "@/lib/erp/base";
+import { consulta, una, ErrorErp, enTransaccion } from "@/lib/erp/base";
 import {
   CON_PRECIO, rigeHoy, campanasBajoPiso, cadenaFamilias, heredar, textoOrigen, PLANES, type Origen, comisionesDe, comisionGeneral, normalizarEscalones, planDePublicacion, proponer,
   type Campana, type Comisiones, type EntradaVariacion, type FilaComision, type FilaVolumen, type Propuesta, type ReglasCanal,
@@ -304,6 +304,33 @@ export async function guardarVolumen(org: string, canal: number, d: Donde, v: Va
 
 export async function borrarVolumen(org: string, id: number): Promise<void> {
   await consulta("delete from ml_volumen_escala where id = $1 and organizacion_id = $2", [id, org]);
+}
+
+/** «Copiar el esquema de otra cuenta» (Fer, 12/10): la cuenta destino queda con el mismo esquema que la de origen
+ *  —descuento (tachado) y ajustes de todos los niveles, planes de cuotas y descuento por volumen—; lo suyo se borra.
+ *  La marca, los interruptores y la campaña propia de cada cuenta no se tocan. Nada sale a ML: lo que cambie se ve en
+ *  la vista previa y sale como siempre. */
+export async function copiarEsquema(org: string, origen: number, destino: number): Promise<{ reglas: number; planes: number; volumen: number }> {
+  if (origen === destino) throw new ErrorErp("Elegí otra cuenta para copiar.");
+  await canalMl(org, origen);
+  await canalMl(org, destino);
+  return enTransaccion(async (c) => {
+    for (const t of ["ml_regla_precio", "ml_plan_config", "ml_volumen_escala"]) {
+      await c.query(`delete from ${t} where organizacion_id = $1 and canal_id = $2`, [org, destino]);
+    }
+    const reglas = await c.query(`
+      insert into ml_regla_precio (organizacion_id, canal_id, nivel, familia_id, producto_id, tachado_pct, ajuste_pct)
+      select organizacion_id, $3, nivel, familia_id, producto_id, tachado_pct, ajuste_pct from ml_regla_precio where organizacion_id = $1 and canal_id = $2`, [org, origen, destino]);
+    const planes = await c.query(`
+      insert into ml_plan_config (organizacion_id, canal_id, plan, nivel, familia_id, producto_id, activo, precio_minimo, margen_pct, cuotas_visibles, ajuste_pct)
+      select organizacion_id, $3, plan, nivel, familia_id, producto_id, activo, precio_minimo, margen_pct, cuotas_visibles, ajuste_pct
+        from ml_plan_config where organizacion_id = $1 and canal_id = $2`, [org, origen, destino]);
+    const volumen = await c.query(`
+      insert into ml_volumen_escala (organizacion_id, canal_id, nivel, familia_id, producto_id, desde_precio, hasta_precio, escalones, sin_descuento)
+      select organizacion_id, $3, nivel, familia_id, producto_id, desde_precio, hasta_precio, escalones, sin_descuento
+        from ml_volumen_escala where organizacion_id = $1 and canal_id = $2`, [org, origen, destino]);
+    return { reglas: reglas.rowCount ?? 0, planes: planes.rowCount ?? 0, volumen: volumen.rowCount ?? 0 };
+  });
 }
 
 /** "Replicar en las demás cuentas": copia la tabla de volumen de un canal
