@@ -26,8 +26,12 @@ export async function GET(req: Request) {
   const borrar = await correrBorrarCerradas(t0 + 60_000).catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
   if (Object.keys(borrar).length) console.log("[borrar cerradas]", JSON.stringify(borrar));
   // Lo que cobra ML en las ofertas relámpago propuestas (lib/precios-ml/relampago.ts; sólo lectura): hasta 25 segundos.
-  const costos = await (await import("@/lib/precios-ml/relampago")).actualizarCostosRelampago(Date.now() + 25_000).catch(() => 0);
+  const rel = await import("@/lib/precios-ml/relampago");
+  const costos = await rel.actualizarCostosRelampago(Date.now() + 25_000).catch(() => 0);
   if (costos) console.log("[relámpago] costos leídos", costos);
+  // Cuándo corren las aceptadas (día y hora los pone ML): hasta 10 segundos.
+  const fechas = await rel.actualizarFechasRelampago(Date.now() + 10_000).catch(() => 0);
+  if (fechas) console.log("[relámpago] fechas leídas", fechas);
   const informe = await correrAutoAltas(t0 + 230_000);
   console.log("[auto-altas]", JSON.stringify(informe));
   after(async () => {

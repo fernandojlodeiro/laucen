@@ -22,6 +22,7 @@
 //   la publicación clásica (quedan en la bitácora #43, relevados a mano).
 
 import { pool } from "@/db";
+import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { ml, tokenML } from "@/lib/radar/base";
 import type { Respuesta } from "@/lib/meli";
 
@@ -333,15 +334,16 @@ type FilaComision = { categoria_id: string; ruta: string | null; desde: Date; pu
 
 /** Comisiones vigentes de las categorías donde Fer tiene publicaciones activas. */
 export async function comisionesVigentes(buscar: string, limite = 300) {
-  const q = `%${buscar.trim()}%`;
+  // La regla común de los buscadores (lib/busqueda.ts), en cualquier parte del dato.
+  const q = parametroBusqueda(buscar);
   const r = await pool.query<FilaComision>(
     `select v.*, coalesce(m.ruta, v.ruta) ruta, m.publicaciones,
             (select count(*)::int from ml_costos_comisiones k where k.categoria_id = v.categoria_id) cambios
        from ml_costos_comisiones_vigente v join ml_costos_mis_categorias m on m.categoria_id = v.categoria_id and m.activa
-      where $1 = '%%' or coalesce(m.ruta, v.ruta) ilike $1 or v.categoria_id ilike $1
+      where ${sqlBusqueda("$1", ["coalesce(m.ruta, v.ruta)", "v.categoria_id"])}
       order by m.publicaciones desc, 2 limit $2`, [q, limite]);
   const total = await pool.query<{ n: number }>(
-    `select count(*)::int n from ml_costos_mis_categorias m where m.activa and ($1 = '%%' or m.ruta ilike $1 or m.categoria_id ilike $1)`, [q]);
+    `select count(*)::int n from ml_costos_mis_categorias m where m.activa and ${sqlBusqueda("$1", ["m.ruta", "m.categoria_id"])}`, [q]);
   return {
     total: total.rows[0].n,
     filas: r.rows.map((f) => ({

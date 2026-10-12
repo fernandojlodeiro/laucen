@@ -405,3 +405,29 @@ create table if not exists ml_relampago_piso (
 );
 alter table ml_relampago_piso enable row level security;
 select erp_politica_org('ml_relampago_piso');
+
+-- El precio con que se entra a una oferta relámpago, cuando Fer lo cambia a mano en la fila (Fer, 12/10). Sin fila: el
+-- de hoy si entra en el rango de ML, si no el más alto del rango.
+create table if not exists ml_relampago_precio (
+  organizacion_id  text not null,
+  canal_id         bigint not null,
+  item_id          text not null,
+  precio           numeric(16, 2) not null check (precio > 0),
+  actualizado_ts   timestamptz not null default now(),
+  primary key (canal_id, item_id)
+);
+alter table ml_relampago_precio enable row level security;
+select erp_politica_org('ml_relampago_precio');
+
+-- Cuándo corre una oferta relámpago aceptada: Mercado Libre pone el día y la hora (no el vendedor) y lo informa sólo en
+-- la lista de la promoción (/seller-promotions/promotions/{id}/items), no en la de la publicación. Tal cual lo dice ML.
+create table if not exists ml_relampago_fecha (
+  canal_id   bigint not null,
+  item_id    text not null,
+  ref_id     text,
+  desde      text,
+  hasta      text,
+  leido_ts   timestamptz not null default now(),
+  primary key (canal_id, item_id)
+);
+alter table ml_relampago_fecha enable row level security;

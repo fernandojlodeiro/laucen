@@ -193,7 +193,8 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
   const digitos = patrones.map((x) => { const d = x.replace(/\D/g, ""); return d ? `%${d}%` : ""; });
   // Con "?" (varias condiciones en un mismo dato) hace falta la regla exacta; si no, los candidatos ya lo son.
   const exacta = (campos: CampoBusqueda[]) => (grupos.some((g) => g.length > 1) ? sqlBusqueda("$2", campos) : "true");
-  const base = [s.org.id, parametroBusqueda(q), q.toLowerCase(), patrones, digitos];
+  // Lo exacto ($3) sin el "?" del principio (ese "?" es una marca, no un carácter a buscar).
+  const base = [s.org.id, parametroBusqueda(q), q.replace(/^\s*\?/, "").trim().toLowerCase(), patrones, digitos];
   const buscar = <T,>(si: boolean, sql: string, extra: unknown[] = []): Promise<T[]> =>
     si && grupos.length ? consulta<T & Record<string, unknown>>(conTipos(sql, base.length + extra.length), [...base, ...extra]) as Promise<T[]> : Promise.resolve([]);
 

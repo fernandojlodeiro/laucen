@@ -19,6 +19,7 @@ export async function buscarVariaciones(q: string): Promise<VariacionHallada[]> 
   const s = await entrarErp("stock_ajustar");
   const t = q.trim().slice(0, 80);
   if (t.length < 2) return [];
+  const exacto = t.replace(/^\?+\s*/, ""); // el "?" del principio es una marca (lib/busqueda.ts), no un carácter
   return consulta<VariacionHallada>(`
     select v.id::int, v.sku, coalesce(v.titulo, p.titulo) titulo, p.estado,
            coalesce((select url from variacion_foto f where f.variacion_id = v.id order by orden, id limit 1),
@@ -28,7 +29,7 @@ export async function buscarVariaciones(q: string): Promise<VariacionHallada[]> 
        and (v.codigo_barras = $2 or ${sqlBusqueda("$3", camposVariacionYProducto("v", "p"))})
      order by (v.sku ilike $2) desc, (v.codigo_barras = $2) desc, (p.estado = 'archivado'),
               (v.sku ilike $4) desc, (coalesce(v.titulo, p.titulo) ilike $4) desc, v.sku
-     limit 15`, [s.org.id, t, parametroBusqueda(t), `${escapar(t)}%`]);
+     limit 15`, [s.org.id, exacto, parametroBusqueda(t), `${escapar(exacto)}%`]);
 }
 
 export async function ubicacionesDe(variacionId: number): Promise<UbicacionConStock[]> {

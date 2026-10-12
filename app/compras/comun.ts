@@ -57,7 +57,7 @@ export async function buscarVariaciones(org: string, q: string, inactivos = fals
       from variacion v join producto p on p.id = v.producto_id
      where v.organizacion_id = $1 and v.estado <> 'archivada' and ($3 or p.estado <> 'archivado')
        and (v.codigo_barras = $4 or ${sqlBusqueda("$2", ["titulo_variacion(v.id)", ...camposVariacionYProducto("v", "p")])})
-     order by (v.codigo_barras = $4) desc, (v.sku ilike $4) desc, v.sku limit 30`, [org, parametroBusqueda(t), conInactivos, t]);
+     order by (v.codigo_barras = $4) desc, (v.sku ilike $4) desc, v.sku limit 30`, [org, parametroBusqueda(t), conInactivos, t.replace(/^\?+\s*/, "")]);
   const filas = await buscar(inactivos);
   return filas.length || inactivos ? filas : buscar(true);
 }
