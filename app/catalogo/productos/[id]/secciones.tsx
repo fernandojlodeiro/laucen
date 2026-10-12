@@ -1033,10 +1033,22 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
     precio: (f) => f.paga_ml ?? f.precio, estado: (f) => f.estado, stock: (f) => f.stock_ml, ventas: (f) => f.vendidos,
   };
   const clave = sp.orden && Object.hasOwn(CLAVES, sp.orden) ? CLAVES[sp.orden] : null;
-  // Sin elegir (Fer, 8/10): arriba la web; después cada cuenta de ML y, adentro, del plan más barato al más
-  // caro (Clásica, 3x, Premium, 9x, 12x), la de catálogo después de la común del mismo plan.
-  filas.sort((a, b) => Number(a.canal_tipo === "mercadolibre") - Number(b.canal_tipo === "mercadolibre") || a.canal.localeCompare(b.canal, "es")
-    || a.sku.localeCompare(b.sku, "es", { numeric: true }) || rangoPlan(a.plan) - rangoPlan(b.plan) || Number(a.catalogo) - Number(b.catalogo) || a.id - b.id);
+  // Sin elegir (Fer, 12/10): arriba la web; después Mercado Libre por plan, del más barato al más caro
+  // (Clásica, 3x, Premium, 9x, 12x) y, adentro de cada plan, las cuentas de la más barata a la más cara.
+  const pagaDe = (f: (typeof filas)[number]) => f.paga_ml ?? f.precio;
+  filas.sort((a, b) => Number(a.canal_tipo === "mercadolibre") - Number(b.canal_tipo === "mercadolibre")
+    || (a.canal_tipo === "mercadolibre" ? rangoPlan(a.plan) - rangoPlan(b.plan) : 0)
+    || a.sku.localeCompare(b.sku, "es", { numeric: true })
+    || (pagaDe(a) ?? Infinity) - (pagaDe(b) ?? Infinity) || a.canal.localeCompare(b.canal, "es") || Number(a.catalogo) - Number(b.catalogo) || a.id - b.id);
+  // Quién gana cada plan (como en Informes › Monitoreo): la activa más barata de Mercado Libre de esa variación y plan.
+  const minimoPlan = new Map<string, number>();
+  for (const f of filas) {
+    const x = pagaDe(f);
+    if (f.canal_tipo !== "mercadolibre" || f.estado !== "activa" || x == null) continue;
+    const k = `${f.sku}|${f.plan}`;
+    if (!minimoPlan.has(k) || x < minimoPlan.get(k)!) minimoPlan.set(k, x);
+  }
+  const gana = (f: (typeof filas)[number]) => f.canal_tipo === "mercadolibre" && f.estado === "activa" && pagaDe(f) != null && minimoPlan.get(`${f.sku}|${f.plan}`) === pagaDe(f);
   if (clave) {
     const signo = sp.dir === "desc" ? -1 : 1;
     filas.sort((a, b) => {
@@ -1085,14 +1097,15 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
       <div className={CAJA_TABLA}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><ThOrden col="canal" porDefecto>Canal</ThOrden><ThOrden col="sku">Variación</ThOrden><ThOrden col="id">Id externo</ThOrden><ThOrden col="titulo">Título</ThOrden>
-              <ThOrden col="plan">Plan</ThOrden><ThOrden col="precio" n>Precio</ThOrden><ThOrden col="estado">Estado</ThOrden>
+            <tr><ThOrden col="plan" porDefecto>Plan</ThOrden><ThOrden col="canal">Canal</ThOrden><ThOrden col="sku">Variación</ThOrden><ThOrden col="id">Id externo</ThOrden><ThOrden col="titulo">Título</ThOrden>
+              <ThOrden col="precio" n>Precio</ThOrden><ThOrden col="estado">Estado</ThOrden>
               <ThOrden col="stock" n title="Lo que Mercado Libre tiene cargado como disponible">Stock</ThOrden><ThOrden col="ventas" n title="Vendidos en Mercado Libre">Ventas</ThOrden></tr>
           </thead>
           <tbody>
             {filas.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>Ninguna variación de este producto está publicada.</td></tr>}
             {filas.map((f) => (
               <tr key={f.id} data-canal={f.canal_id} className={TR}>
+                <td className={`${TD} whitespace-nowrap`}>{f.plan ? <PlanPublicacion plan={f.plan} cuotas={f.cuotas_visibles} /> : f.tipo_publicacion ?? "—"}{f.catalogo && <span className="block mt-0.5"><MarcaCatalogo /></span>}</td>
                 <td className={TD}>{f.canal}</td>
                 <td className={`${TD} font-mono`}>{f.sku}</td>
                 {/* El número abre el historial de la publicación; la flechita, Mercado Libre en otra pestaña. */}
@@ -1102,8 +1115,8 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
                 <td className={TD}>{f.enlace
                   ? <a href={f.enlace} target="_blank" rel="noopener noreferrer" className="hover:text-[#16577F] hover:underline">{f.titulo} ↗</a>
                   : f.titulo}</td>
-                <td className={`${TD} whitespace-nowrap`}>{f.plan ? <PlanPublicacion plan={f.plan} cuotas={f.cuotas_visibles} /> : f.tipo_publicacion ?? "—"}{f.catalogo && <span className="block mt-0.5"><MarcaCatalogo /></span>}</td>
-                <td className={TDN}>
+                <td className={`${TDN} ${gana(f) ? "bg-[#E3F4EA]" : ""}`}>
+                  {gana(f) && <span className="block text-[10px] font-semibold text-[#1F6E4A]" title="La más barata de este plan: la que el comprador ve primero">★ gana el plan</span>}
                   {/* Como en ML (Fer, 8/10): grande lo que paga el cliente con su plan, el de lista chico y tachado, % OFF y la campaña chiquita. */}
                   {/* Lo que informa ML (según ML, hace …) si ya se leyó; si no, la cuenta con la campaña en curso. */}
                   {f.paga_ml != null
