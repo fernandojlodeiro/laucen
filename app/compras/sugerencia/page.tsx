@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { VERDE } from "@/app/botones";
-import BuscadorVivo from "@/app/componentes/BuscadorVivo";
+import BuscadorVivo, { CasillaViva } from "@/app/componentes/BuscadorVivo";
 import RangoFechas from "@/app/componentes/RangoFechas";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import { Paginado, ThOrden } from "@/app/componentes/Lista";
@@ -35,10 +35,10 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
   const filas = filtrarMuestra(todas, sp, (x) => !q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1"));
   const t = totalesSugerencia(filas);
   const vista = paginarEnMemoria(ordenarEnMemoria(filas, sp, ORDEN_SUGERENCIA), sp);
-  const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vdesde: sp.vdesde ?? null, vhasta: sp.vhasta ?? null };
+  const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vdesde: sp.vdesde ?? null, vhasta: sp.vhasta ?? null, con_stock: sp.con_stock ?? null };
 
   return (
-    <Pantalla titulo="Sugerencia de compra"
+    <Pantalla titulo="Sugerencia de compra" ancho="max-w-none"
       subtitulo={`Qué comprar para ${f.dias} días al ritmo real de la historia (típico y mejor momento). Sin notebooks.`}
       acciones={
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
@@ -49,6 +49,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
           <Desplegable parametro="min_dias" etiqueta="Días con venta" valor={sp.min_dias ?? ""} limpiar={["p"]}
             opciones={[{ valor: "", texto: "Todos" }, ...MIN_DIAS_VENTA.map((d) => ({ valor: String(d), texto: `Más de ${d}` }))]} />
           <RangoFechas desde={sp.vdesde ?? ""} hasta={sp.vhasta ?? ""} parametroDesde="vdesde" parametroHasta="vhasta" etiqueta="Última venta" vacio="Cualquiera" limpiar={["p"]} />
+          <CasillaViva parametro="con_stock" activo={sp.con_stock === "1"} etiqueta="Incluye los que tienen stock suficiente" ayuda="Los que no hace falta comprar: el stock de hoy alcanza para los días elegidos" />
           <a href={url("/compras/sugerencia/excel", params)} className={VERDE}>Descargar Excel</a>
         </div>
       }>
@@ -61,22 +62,33 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
         ))}
       </div>
       <div className={CAJA_TABLA}>
-        <table className={TABLA}>
+        <table className={`${TABLA} text-[11px]`}>
           <thead className={THEAD}>
             <tr>
-              <ThOrden col="sku">Producto</ThOrden><ThOrden col="tipico" n porDefecto desc>{f.dias} días · típico</ThOrden><ThOrden col="mejor" n desc>· mejor</ThOrden>
-              <ThOrden col="dias_venta" n desc>Días con venta</ThOrden><ThOrden col="stock" n desc>Stock hoy</ThOrden><ThOrden col="comprar" n desc>A comprar</ThOrden>
-              <ThOrden col="costo" n desc>Costo US$</ThOrden><ThOrden col="inversion" n desc>Inversión US$</ThOrden><ThOrden col="ultima" desc>Última venta</ThOrden>
-              <ThOrden col="precio" n desc>Precio hoy</ThOrden><th className={THN}>Clásica hoy</th><th className={THN}>Mercado Libre</th>
-              <ThOrden col="ganancia_unit" n desc>Ganancia</ThOrden><ThOrden col="margen" n desc title="Ganancia sobre el precio de venta">% s/ venta</ThOrden><ThOrden col="roi" n desc title="Ganancia sobre el costo">% s/ costo</ThOrden>
-              <ThOrden col="ganancia" n desc>Ganancia total · típico</ThOrden><ThOrden col="ganancia_mejor" n desc>· mejor</ThOrden>
+              <ThOrden col="sku">Producto</ThOrden>
+              <ThOrden col="tipico" n porDefecto desc title={`Lo que se vendería en ${f.dias} días al ritmo típico`}>Típico</ThOrden>
+              <ThOrden col="mejor" n desc title={`Lo que se vendería en ${f.dias} días al ritmo del mejor momento`}>Mejor</ThOrden>
+              <ThOrden col="dias_venta" n desc title="Días con venta en el período">Días venta</ThOrden>
+              <ThOrden col="stock" n desc>Stock</ThOrden>
+              <ThOrden col="comprar" n desc title="Típico menos el stock de hoy">A comprar</ThOrden>
+              <ThOrden col="costo" n desc>Costo US$</ThOrden>
+              <ThOrden col="inversion" n desc title="A comprar × costo">Inversión US$</ThOrden>
+              <ThOrden col="ultima" desc>Últ. venta</ThOrden>
+              <ThOrden col="precio" n desc title="La última venta llevada a pesos de hoy">Precio hoy</ThOrden>
+              <th className={THN}>Clásica</th>
+              <th className={THN} title="Comisión, cargo fijo o envío de Mercado Libre">ML</th>
+              <ThOrden col="ganancia_unit" n desc title="Ganancia por unidad">Ganancia</ThOrden>
+              <ThOrden col="margen" n desc title="Ganancia sobre el precio de venta">% venta</ThOrden>
+              <ThOrden col="roi" n desc title="Ganancia sobre el costo">% costo</ThOrden>
+              <ThOrden col="ganancia" n desc title="Ganancia de lo que hay que comprar, al ritmo típico">Total típico</ThOrden>
+              <ThOrden col="ganancia_mejor" n desc title="Ganancia de lo que hay que comprar, al ritmo del mejor momento">Total mejor</ThOrden>
             </tr>
           </thead>
           <tbody>
             {vista.length === 0 && <tr><td colSpan={17} className={`${TD} text-[#5C6B76]`}>No hay ventas con ritmo regular en ese período.</td></tr>}
             {vista.map((x) => (
               <tr key={x.clave} className={TR}>
-                <td className={`${TD} max-w-[26rem]`}>
+                <td className={`${TD} max-w-[22rem]`}>
                   <span className="flex items-center gap-2 min-w-0">
                     <FotosProducto fotos={x.fotos} titulo={x.titulo} />
                     {x.producto_id ? <Link href={`/catalogo/productos/${x.producto_id}`} className="font-mono text-[#16577F] hover:underline whitespace-nowrap">{x.sku}</Link> : <span className="font-mono whitespace-nowrap">{x.sku}</span>}

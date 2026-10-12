@@ -23,8 +23,10 @@ Menú **Compras › Sugerencia de compra**.
   - **Comprar para**: 30, 45, 60 (de entrada), 90, 120 o 180 días;
   - **Días con venta**: sólo los que vendieron más de 5, 10, 20, 30, 50, 100 o 200 días en el período;
   - **Última venta**: sólo los que tuvieron su última venta entre esas fechas (por ejemplo, desde el año pasado, para no ver los que dejaron de venderse).
-  Los dos últimos **sólo esconden renglones**: los cálculos se hacen siempre con todo el período de la historia.
+  - la caja **«Incluye los que tienen stock suficiente»**: de entrada no se muestran los productos que no hace falta comprar (lo que hay alcanza para los días elegidos); tildada, aparecen también.
+  Estos filtros **sólo esconden renglones**: los cálculos se hacen siempre con todo el período de la historia.
 - Cuatro recuadros: cuántos productos (y cuántos tienen costo), las **unidades a comprar**, la **inversión** en dólares y la **ganancia estimada**, cada una según el ritmo típico y según el mejor momento.
+- La pantalla usa todo el ancho, con letra un poco más chica, para que entren todas las columnas sin desplazarse de costado. Los títulos son cortos; al pasar el mouse por cada uno se ve qué es.
 - La tabla, de entrada de lo que más se vende a lo que menos; **se ordena tocando el título de cada columna** (por ejemplo, por inversión o por ganancia). Un renglón por producto:
   - **Producto** con su foto (enlace a la ficha), en un renglón. «Inactivo» si está archivado y «No está en el catálogo» si es un código viejo que ya no existe. Debajo, en una línea: cuántos tramos con venta regular encontró y, en ámbar, las **compras grandes no consideradas**.
   - **N días · típico** y **· mejor**: lo que se vendería.

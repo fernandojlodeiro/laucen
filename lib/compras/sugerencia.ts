@@ -158,11 +158,12 @@ export const ORDEN_SUGERENCIA: Record<string, (x: FilaSugerencia) => number | st
 /** Opciones del filtro «Días con venta» (más de N). */
 export const MIN_DIAS_VENTA = [5, 10, 20, 30, 50, 100, 200];
 
-/** Lo que se MUESTRA (Fer, 12/10): buscador, «más de N días con venta» y «última venta entre». No cambia los cálculos: el
+/** Lo que se MUESTRA (Fer, 12/10): sin los que tienen stock suficiente (salvo «Incluye…»), buscador, «más de N días con venta» y «última venta entre». No cambia los cálculos: el
  *  ritmo se calcula con todo el período elegido; esto sólo esconde renglones. */
 export function filtrarMuestra(filas: FilaSugerencia[], sp: Record<string, string | undefined>, coincide: (x: FilaSugerencia) => boolean): FilaSugerencia[] {
   const minDias = Number(sp.min_dias) || 0;
   const desde = FECHA.test(sp.vdesde ?? "") ? sp.vdesde! : "";
   const hasta = FECHA.test(sp.vhasta ?? "") ? sp.vhasta! : "";
-  return filas.filter((x) => x.dias_con_venta > minDias && (!desde || x.ultima_fecha >= desde) && (!hasta || x.ultima_fecha <= hasta) && coincide(x));
+  const conStock = sp.con_stock === "1";
+  return filas.filter((x) => (conStock || x.comprar_tipico > 0) && x.dias_con_venta > minDias && (!desde || x.ultima_fecha >= desde) && (!hasta || x.ultima_fecha <= hasta) && coincide(x));
 }
