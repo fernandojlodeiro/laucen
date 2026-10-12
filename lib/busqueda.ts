@@ -10,6 +10,9 @@
 //     mismo producto, cliente…), aunque sea en campos distintos: "note*F412".
 //     Se combinan: "note?12gb*asus" = "note" y "12gb" en un mismo campo, y
 //     "asus" en cualquier campo de esa fila.
+//   · Un "?" AL PRINCIPIO (de lo escrito, o de un grupo después de "*") hace que ese
+//     grupo busque en cualquier parte aunque "Comienza por" esté tildada (Fer, 12/10):
+//     "?4739983" encuentra "MLA17064739983" sin destildar la caja.
 //   · CUIT, teléfonos y CBU se guardan sólo con números (los disparadores de la
 //     base, db/moneda.sql): en esos campos ("campos numéricos") se compara también
 //     lo escrito sin lo que no sea número, así "20-10225274-9" encuentra
@@ -20,14 +23,19 @@
 // Pura (sin base): la usan las consultas SQL y los filtros en memoria.
 
 /** Lo que explica el globito "?" de los buscadores. */
-export const AYUDA_BUSQUEDA = "Busca lo que escribís tal cual (números y letras por igual, con sus espacios) en cualquier parte. Con ? pedís varias cosas en un mismo dato: note?12gb trae lo que en el mismo dato (como el título) dice “note” y también “12gb”. Con * pedís varias cosas en el mismo registro aunque estén en datos distintos: note*F412 trae lo que dice “note” en un dato y “F412” en otro.";
+export const AYUDA_BUSQUEDA = "Busca lo que escribís tal cual (números y letras por igual, con sus espacios) en cualquier parte. Con ? pedís varias cosas en un mismo dato: note?12gb trae lo que en el mismo dato (como el título) dice “note” y también “12gb”. Con * pedís varias cosas en el mismo registro aunque estén en datos distintos: note*F412 trae lo que dice “note” en un dato y “F412” en otro. Un ? al principio busca en cualquier parte aunque «Comienza por» esté tildada: ?4739983.";
+
+/** Los grupos con su marca `libre`: el grupo empieza con "?" (busca en cualquier parte aunque «Comienza por» esté tildada). */
+function gruposMarcados(q: string | null | undefined): { g: string[]; libre: boolean }[] {
+  let n = 0;
+  return (q ?? "").split("*")
+    .map((g) => ({ libre: g.trimStart().startsWith("?"), g: [...new Set(g.split("?").map((t) => t.trim()).filter(Boolean))].filter(() => ++n <= 10) }))
+    .filter((x) => x.g.length);
+}
 
 /** Lo escrito en grupos (separados por "*") de condiciones (separadas por "?"), sin vacíos (hasta 10 condiciones en total). */
 export function gruposBusqueda(q: string | null | undefined): string[][] {
-  let n = 0;
-  return (q ?? "").split("*")
-    .map((g) => [...new Set(g.split("?").map((t) => t.trim()).filter(Boolean))].filter(() => ++n <= 10))
-    .filter((g) => g.length);
+  return gruposMarcados(q).map((x) => x.g);
 }
 
 /** Todas las condiciones, sin agrupar. */
@@ -40,7 +48,7 @@ const escapar = (t: string) => t.replace(/[\\%_]/g, (x) => `\\${x}`);
 /** El valor para el parámetro de sqlBusqueda: JSON con los grupos de patrones para `ilike`
  *  ("%x%"; con `comienza`, la primera condición de cada grupo "x%"). "[]" si no se escribió nada. */
 export function parametroBusqueda(q: string | null | undefined, comienza = false): string {
-  return JSON.stringify(gruposBusqueda(q).map((g) => g.map((t, i) => `${comienza && i === 0 ? "" : "%"}${escapar(t)}%`)));
+  return JSON.stringify(gruposMarcados(q).map(({ g, libre }) => g.map((t, i) => `${comienza && !libre && i === 0 ? "" : "%"}${escapar(t)}%`)));
 }
 
 /** Un campo donde buscar:
@@ -82,11 +90,11 @@ export function coincideBusqueda(
   textos: string | null | undefined | (string | null | undefined)[], q: string | null | undefined, comienza = false,
   numericos: (string | null | undefined)[] = [],
 ): boolean {
-  const grupos = gruposBusqueda(q).map((g) => g.map((t) => t.toLowerCase()));
+  const grupos = gruposMarcados(q).map(({ g, libre }) => ({ libre, g: g.map((t) => t.toLowerCase()) }));
   if (!grupos.length) return true;
   const lista = (Array.isArray(textos) ? textos : [textos]).map((t) => (t ?? "").toLowerCase());
   const nums = numericos.map((t) => (t ?? "").replace(/\D/g, ""));
-  const cumple = (x: string, g: string[]) => g.every((b, i) => (comienza && i === 0 ? x.startsWith(b) : x.includes(b)));
+  const cumple = (x: string, g: string[], libre: boolean) => g.every((b, i) => (comienza && !libre && i === 0 ? x.startsWith(b) : x.includes(b)));
   const cumpleNum = (x: string, g: string[]) => g.every((b) => { const d = b.replace(/\D/g, ""); return (!!d && x.includes(d)) || x.includes(b); });
-  return grupos.every((g) => lista.some((x) => cumple(x, g)) || nums.some((x) => cumpleNum(x, g)));
+  return grupos.every(({ g, libre }) => lista.some((x) => cumple(x, g, libre)) || nums.some((x) => cumpleNum(x, g)));
 }

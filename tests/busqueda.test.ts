@@ -40,3 +40,12 @@ test("busqueda: el SQL", () => {
   assert.equal(sqlBusqueda("$2", []), "true");
   assert.throws(() => sqlBusqueda("$2", ["x ilike _p"]));
 });
+
+test("busqueda: un ? al principio busca en cualquier parte aunque «Comienza por» esté tildada", () => {
+  assert.equal(coincideBusqueda("MLA17064739983", "4739983", true), false);
+  assert.equal(coincideBusqueda("MLA17064739983", "?4739983", true), true);
+  assert.equal(coincideBusqueda(["Notebook Asus", "F412"], "note*?412", true), true, "sólo el grupo que empieza con ?");
+  assert.equal(coincideBusqueda(["Notebook Asus", "F412"], "sus*?412", true), false);
+  assert.equal(parametroBusqueda("?abc", true), JSON.stringify([["%abc%"]]));
+  assert.equal(parametroBusqueda("abc", true), JSON.stringify([["abc%"]]));
+});
