@@ -29,7 +29,7 @@ Nada sale de acá: el botón «Preparar cambios» arma lotes que esperan tu clic
 - Buscador «Buscar por SKU, producto o publicación», con la caja «Comienza por».
 - Buscador de categoría («Todas las categorías»): incluye sus subcategorías.
 - **Papel**: «Todos los papeles», «Clásica», «Destacado», «Plan», «Plan apagado», «Sin tocar», «Nueva».
-- Caja **«Sólo las que cambian (y las nuevas)»**, tildada de entrada: se ven sólo las publicaciones a las que les cambiaría algo y las de planes que faltan. Destildándola se ven todas las activas.
+- Caja **«Sólo las que cambian (y las nuevas)»**, tildada de entrada: se ven sólo las publicaciones a las que les cambiaría algo y las de planes que faltan. Destildándola se ven todas las activas. Una publicación a la que ya se le mandó el cambio y que todavía no se volvió a leer de Mercado Libre no cuenta como cambio (lo que se ve de ella es de antes): destildando la caja aparece con «Ya se mandó a Mercado Libre (hora)» y lo que se mandó; tampoco se vuelve a preparar.
 - Caja **«Todas las cuentas»**, al lado del selector «Cuenta»: muestra las publicaciones de todas las cuentas juntas (ordenadas por SKU y cuenta; el selector dice «Todas las cuentas»). Es más lenta: calcula cada cuenta. Con la caja tildada, «Preparar cambios» arma los lotes de cada cuenta.
 
 Un renglón de resumen: cuántas filas, cuántas **con cambios** (y cuántas son publicaciones nuevas de planes) y cuántas con avisos.
