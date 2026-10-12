@@ -11,11 +11,13 @@ import { entrarErp, Pantalla, Avisos, Lapiz, url, CAJA_TABLA, THEAD, TR } from "
 import { consulta } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
 import { coincideBusqueda } from "@/lib/busqueda";
-import { relampagos, enviosRelampago, fechaRelampago, type Relampago } from "@/lib/precios-ml/relampago";
+import { relampagos, enviosRelampago, fechaRelampago, entraSola, RELAMPAGO_AUTO_PCT, type Relampago } from "@/lib/precios-ml/relampago";
 import BuscadorVivo, { CasillaViva } from "@/app/componentes/BuscadorVivo";
 import { PLAN_INFO } from "@/lib/precios-ml/motor";
 import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import { accionEntrarRelampago, accionGuardarFilaRelampago, accionPrepararRelampagos } from "./acciones";
+import { accionInterruptor } from "../acciones";
+import { Interruptor } from "@/app/radar/Piezas";
 import { BarraPml } from "../comun";
 import { RELAMPAGO_PML, canalElegido } from "../lista";
 
@@ -69,6 +71,15 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
         campos={{ canal: todasCuentas ? "" : String(canal?.id ?? ""), volver: aqui() }}
         pregunta="¿Preparar el lote para entrar a las ofertas que alcanzan el piso y tienen el stock que piden? Sale a Mercado Libre recién con tu clic en «Mandar a Mercado Libre». Una oferta relámpago aceptada no se puede borrar." />}>
       <Avisos sp={sp} />
+      {canal && !todasCuentas && (
+        <div className="mb-3">
+          <Interruptor accion={accionInterruptor} prendido={canal.relampagoAuto} campos={{ canal: String(canal.id), clave: "relampago_auto", volver: aqui() }}
+            etiqueta={`Entrar solo a las ofertas relámpago de ${canal.nombre} (hasta ${RELAMPAGO_AUTO_PCT} % debajo de lo que paga hoy el comprador, con todas las unidades)`}
+            ayuda={canal.relampagoAuto
+              ? `Prendido: cada 10 minutos Laucen entra solo a las propuestas de esta cuenta cuyo precio de «Entraría a» no baja más de ${RELAMPAGO_AUTO_PCT} % lo que paga hoy el comprador y que alcanzan el piso (si tiene), con todas las unidades disponibles hasta el máximo que acepta la oferta. Tiene prioridad sobre las otras campañas. Las que entrarían ahora: ${todas.filter((f) => f.canal_id === canal.id && entraSola(f)).length}.`
+              : "Apagado: a las ofertas relámpago se entra sólo con «Entrar» o con «Preparar las que alcanzan el piso»."} />
+        </div>
+      )}
       {canal && <BarraPml org={s.org.id} canales={canales} canal={canal} ver="relampago" todas={todasCuentas} derecha={<>
         <CasillaViva parametro="aceptadas" activo={soloAceptadas} etiqueta="Sólo aceptadas" />
         <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por SKU, producto o publicación" limpiar={["editar"]} />
@@ -134,7 +145,7 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
                     {f.estado === "candidate" && <span className="block text-[10px] text-[#5C6B76]">pide {f.stock_min ?? "?"}–{f.stock_max ?? "?"}</span>}
                   </td>
                   <td className={TDN}>{pesos(f.hoy)}</td>
-                  <td className={TDN}>{pesos(f.recibisHoy)}</td>
+                  <td className={TDN}>{pesos(f.recibisHoy)}{f.aporte ? <span className="block text-[10px] text-[#5C6B76]" title="Lo que pone Mercado Libre en la campaña de hoy; en la relámpago no lo pone.">con {pesos(f.aporte)} de ML</span> : null}</td>
                   <td className={TDN}>{pct(f.costoHoyPct)}</td>
                   <td className={`${TDN} text-[11px] text-[#5C6B76]`}>{pesos(f.min)} a<br />{pesos(f.max)}</td>
                   <td className={TDN}>

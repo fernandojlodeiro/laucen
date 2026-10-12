@@ -32,6 +32,9 @@ export async function GET(req: Request) {
   // Cuándo corren las aceptadas (día y hora los pone ML): hasta 10 segundos.
   const fechas = await rel.actualizarFechasRelampago(Date.now() + 10_000).catch(() => 0);
   if (fechas) console.log("[relámpago] fechas leídas", fechas);
+  // «Entrar solo a las ofertas relámpago» (interruptor de cada cuenta): antes que las altas, con prioridad en la cola.
+  const auto = await rel.entrarRelampagosAuto(Date.now() + 20_000).catch((e) => { console.error("[relámpago] entrar solo", e instanceof Error ? e.message : e); return 0; });
+  if (auto) console.log("[relámpago] mandadas a entrar solas", auto);
   const informe = await correrAutoAltas(t0 + 230_000);
   console.log("[auto-altas]", JSON.stringify(informe));
   after(async () => {

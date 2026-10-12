@@ -19,6 +19,8 @@ Catálogo › Precios en Mercado Libre, pestaña **«Ofertas relámpago»**. El 
 
 ## Qué hay en la pantalla
 
+Arriba, el interruptor **«Entrar solo a las ofertas relámpago»** de la cuenta elegida (ver «Criterios y reglas»).
+
 Arriba, al lado de la cuenta: **«Todas las cuentas»** (las propuestas de todas las cuentas de Mercado Libre juntas), y a la derecha **«Sólo aceptadas»** (deja sólo las que ya aceptaste o están en curso: todo lo que tenés en oferta relámpago) y el **buscador** (por SKU, producto o número de publicación; mientras escribís, con la caja «Comienza por»; un ? al principio busca en cualquier parte). La tabla tiene su propia barra para correr de costado y hacia abajo, con los títulos fijos arriba.
 
 Una fila por publicación con propuesta:
@@ -30,7 +32,7 @@ Una fila por publicación con propuesta:
 - **Cuándo**: el día y las horas en que corre la oferta. Los fija Mercado Libre recién cuando la aceptás (no se eligen); en una propuesta dice «La fija ML al entrar».
 - **Stock tenés**: el disponible de la publicación.
 - **Entra con**: las unidades que se comprometen en la oferta. De entrada, el mínimo que pide la propuesta (abajo dice el mínimo y el máximo que acepta); en rojo si no te alcanza el stock. En una aceptada, las unidades que le quedan a la oferta.
-- **Hoy paga** y **Hoy recibís**: lo que paga hoy el comprador y lo que te queda. **Costo hoy**: qué parte de lo que paga hoy el comprador se lleva Mercado Libre (comisión y envío), en %.
+- **Hoy paga** y **Hoy recibís**: lo que paga hoy el comprador y lo que te queda. Si la campaña con que vendés hoy tiene un aporte de Mercado Libre (por ejemplo «Potencia tus ventas»), está sumado y abajo dice cuánto («con $ … de ML»): en la relámpago Mercado Libre no lo pone. **Costo hoy**: qué parte de lo que paga hoy el comprador se lleva Mercado Libre (comisión y envío), en %.
 - **Plan**: Clásica, Premium o el plan de cuotas de esa publicación.
 - **Rango de ML**: el precio más bajo y el más alto que acepta la oferta. Mercado Libre lo calcula sobre el precio publicado (el tachado), por eso el más alto puede quedar arriba de lo que paga hoy el comprador.
 - **Entraría a**: el precio con que se entra. Si lo que paga hoy el comprador entra en el rango, ése (no hace falta bajarlo); si no, el más alto del rango. Se puede cambiar a mano, siempre dentro del rango («a mano» debajo). «no entra» si queda fuera del rango.
@@ -56,6 +58,9 @@ Arriba a la derecha, **«Preparar las que alcanzan el piso (N)»** (de la cuenta
 2. Mandalo desde Configuración › Cola de Mercado Libre, pestaña «Lotes preparados», con «Mandar a Mercado Libre».
 
 ## Criterios y reglas
+
+- **Entrar solo** (interruptor por cuenta, apagado de entrada): prendido, cada 10 minutos Laucen entra solo a las propuestas de esa cuenta cuyo precio de «Entraría a» no baja más de **5 %** lo que paga hoy el comprador y que alcanzan el piso (si el producto tiene piso), con **todas las unidades disponibles** hasta el máximo que acepta la oferta (o las que pusiste a mano en la fila). Tiene prioridad sobre las otras campañas. Entra una sola vez por propuesta: si Mercado Libre la rechaza, queda el motivo en «Entrar» y no se reintenta sola.
+- **Mientras espera su día**: aceptar una relámpago no cambia nada hasta que empieza. La publicación sigue vendiéndose con la campaña que tenía (o sin campaña), y en esos días el esquema de precios no le toca el precio ni las campañas. Durante su franja, y mientras le queden unidades, el comprador ve el precio de la relámpago; al terminar, la publicación sigue con las campañas que tenga vigentes.
 
 - **Recibís** = lo que paga el comprador − la comisión de Mercado Libre a ese precio (incluye el cargo fijo) − lo que te cobra por el envío gratis (sólo desde el precio de envío gratis; debajo lo paga el comprador). La comisión y el envío se los pregunta Laucen a Mercado Libre para cada publicación y cada precio; mientras se leen (cada media hora) se ve «—».
 - Se entra **al precio de hoy si está dentro del rango** (si no, al más alto del rango), o al que pusiste a mano, y **con el stock mínimo** que pide la oferta (así se compromete lo menos posible), o con las unidades que pusiste a mano.

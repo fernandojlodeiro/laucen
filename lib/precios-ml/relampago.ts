@@ -54,6 +54,9 @@ export type FilaRelampago = {
   hoy: number | null; hoy_comision: number | null; hoy_envio: number | null;
   rel: number | null; max: number | null; rel_comision: number | null; rel_envio: number | null; min: number | null; sugerido: number | null; tags: unknown;
   piso: number | null; elegido: number | null; elegido_stock: number | null; restante: number | null;
+  /** Lo que pone Mercado Libre de su bolsillo en la campaña con que se vende hoy (ej. «Potencia tus ventas»: meli_percentage
+   *  sobre el precio publicado). Entra a lo que se recibe hoy; en la relámpago no lo pone. */
+  aporte: number | null;
 };
 
 export type Relampago = FilaRelampago & {
@@ -84,7 +87,10 @@ export async function relampagos(org: string, canal: number | null = null): Prom
            x.hoy::float8 hoy, ch.comision::float8 hoy_comision, ch.envio::float8 hoy_envio,
            y.rel::float8 rel, x.max::float8 max, cr.comision::float8 rel_comision, cr.envio::float8 rel_envio,
            coalesce(p.min_precio, (p.datos ->> 'min_discounted_price')::numeric)::float8 min, (p.datos ->> 'suggested_discounted_price')::float8 sugerido,
-           ps.piso::float8 piso, rp.precio::float8 elegido, rp.stock elegido_stock, (p.datos -> 'stock' ->> 'remaining_stock')::int restante
+           ps.piso::float8 piso, rp.precio::float8 elegido,
+           (select max((d.datos ->> 'original_price')::numeric * (d.datos ->> 'meli_percentage')::numeric / 100)
+              from ml_promo_item d where d.canal_id = p.canal_id and d.item_id = p.item_id and d.estado = 'started'
+               and (d.datos ->> 'meli_percentage')::numeric > 0 and round((d.datos ->> 'price')::numeric) = round(x.hoy))::float8 aporte, rp.stock elegido_stock, (p.datos -> 'stock' ->> 'remaining_stock')::int restante
       from ml_promo_item p
       join canal c on c.id = p.canal_id
       join meli_item m on m.canal_id = p.canal_id and m.item_id = p.item_id and m.estado = 'active'
@@ -99,7 +105,8 @@ export async function relampagos(org: string, canal: number | null = null): Prom
        and ($2::bigint is null or p.canal_id = $2)
      order by v.sku, c.nombre`, [org, canal]);
   return filas.map((f) => {
-    const recibisHoy = recibis(f.hoy, f.hoy_comision, f.hoy_envio);
+    const sinAporte = recibis(f.hoy, f.hoy_comision, f.hoy_envio);
+    const recibisHoy = sinAporte == null ? null : Math.round(sinAporte + (f.aporte ?? 0));
     const recibisRel = recibis(f.rel, f.rel_comision, f.rel_envio);
     // Un precio de entrada fuera del rango no se puede usar (en una propuesta todavía no aceptada).
     if (f.estado === "candidate" && f.rel != null && ((f.min != null && f.rel < f.min) || (f.max != null && f.rel > f.max))) f.rel = null;
@@ -263,12 +270,12 @@ export async function prepararRelampagos(org: string, usuario: string, canal: nu
 }
 
 /** El pedido para entrar a la oferta relámpago de una publicación (como dice el manual: deal_price, stock, promotion_type). */
-function cambioEntrar(f: Relampago): CambioMl {
+function cambioEntrar(f: Relampago, stock: number | null = f.stockEntrar): CambioMl {
   return {
     canalId: f.canal_id, itemId: `relampago:${f.item_id}`, tipo: "campana", antes: { estado: "candidata a oferta relámpago" },
     payload: {
-      descripcion: `Entrar a la oferta relámpago: ${f.item_id} (${f.sku}) a $ ${f.rel!.toLocaleString("es-AR")} con ${f.stockEntrar} u.; recibís $ ${(f.recibisRel ?? 0).toLocaleString("es-AR")} (hoy $ ${(f.recibisHoy ?? 0).toLocaleString("es-AR")})`,
-      pedidos: [{ metodo: "POST", ruta: `/seller-promotions/items/${f.item_id}?app_version=v2`, cuerpo: { deal_price: f.rel, stock: f.stockEntrar, promotion_type: "LIGHTNING" } }],
+      descripcion: `Entrar a la oferta relámpago: ${f.item_id} (${f.sku}) a $ ${f.rel!.toLocaleString("es-AR")} con ${stock} u.; recibís $ ${(f.recibisRel ?? 0).toLocaleString("es-AR")} (hoy $ ${(f.recibisHoy ?? 0).toLocaleString("es-AR")})`,
+      pedidos: [{ metodo: "POST", ruta: `/seller-promotions/items/${f.item_id}?app_version=v2`, cuerpo: { deal_price: f.rel, stock, promotion_type: "LIGHTNING" } }],
     },
   };
 }
@@ -291,4 +298,45 @@ export async function enviosRelampago(org: string): Promise<Map<string, { estado
     select distinct on (item_id) substr(item_id, 11) item_id, estado, ultimo_error error from ml_cola
      where organizacion_id = $1 and item_id like 'relampago:%' and creado_ts > now() - interval '7 days' order by item_id, id desc`, [org]))
     .map((x) => [x.item_id, { estado: x.estado, error: x.error }]));
+}
+
+/** Cuánto más barata que hoy puede ser una relámpago para entrar sola (Fer, 12/10): hasta 5 % debajo de lo que paga hoy
+ *  el comprador. */
+export const RELAMPAGO_AUTO_PCT = 5;
+
+/** Si una propuesta entra sola: todavía no aceptada, con precio dentro del rango que no baje más de RELAMPAGO_AUTO_PCT % de
+ *  lo que paga hoy el comprador, que alcance el piso (si hay) y con stock para lo que pide. Pura. */
+export function entraSola(f: Pick<Relampago, "estado" | "rel" | "hoy" | "alcanza" | "piso" | "stock" | "stock_min">): boolean {
+  if (f.estado !== "candidate" || f.rel == null || f.hoy == null) return false;
+  // Con piso, hace falta saber que lo alcanza (sin los costos leídos todavía, espera a la próxima vuelta).
+  if (f.piso != null && f.alcanza !== true) return false;
+  if (f.rel < f.hoy * (1 - RELAMPAGO_AUTO_PCT / 100)) return false;
+  return f.stock != null && f.stock > 0 && (f.stock_min == null || f.stock >= f.stock_min);
+}
+
+/** Las unidades con que entra sola: todas las disponibles, hasta el máximo que acepta la oferta (o las que puso Fer). Pura. */
+export function stockAuto(f: Pick<Relampago, "stock" | "stock_max" | "elegido_stock">): number | null {
+  if (f.elegido_stock != null) return f.elegido_stock;
+  if (f.stock == null) return null;
+  return f.stock_max != null ? Math.min(f.stock, f.stock_max) : f.stock;
+}
+
+/** «Entrar solo a las ofertas relámpago» (interruptor de la cuenta, canal.config.relampago_auto; prenderlo es el clic de
+ *  Fer): las propuestas que cumplen entraSola entran con todas las unidades, antes que cualquier otra campaña (mientras
+ *  está aceptada, el esquema de precios no toca esa publicación). Una vez por propuesta. */
+export async function entrarRelampagosAuto(hasta: number): Promise<number> {
+  const canales = await consulta<{ organizacion_id: string; id: number }>(
+    "select organizacion_id, id::int id from canal where (config ->> 'relampago_auto')::boolean is true");
+  let n = 0;
+  for (const c of canales) {
+    if (Date.now() > hasta) break;
+    const enviados = await enviosRelampago(c.organizacion_id);
+    const cambios = (await relampagos(c.organizacion_id, c.id))
+      .filter((f) => entraSola(f) && !enviados.has(f.item_id))
+      .map((f) => cambioEntrar(f, stockAuto(f)));
+    if (!cambios.length) continue;
+    await encolar(c.organizacion_id, cambios.map((x) => ({ ...x, prioridad: 40 })), { origen: "automatico" });
+    n += cambios.length;
+  }
+  return n;
 }
