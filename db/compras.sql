@@ -74,3 +74,56 @@ create table if not exists compra_courier_linea (
 create index if not exists compra_courier_linea_c on compra_courier_linea (compra_id, orden);
 alter table compra_courier_linea enable row level security;
 select erp_politica_org('compra_courier_linea');
+
+-- ── Invoices de compra: historial (pedido de Fer, 12/10; lib/compras/invoices.ts) ──
+-- Los invoices de los proveedores del exterior, sólo para estadística: qué se
+-- compró, cuándo, cuánto y a qué precio. NO mueven stock ni costos. La fecha es
+-- la del invoice (aproximada): la llegada se estima sumándole la demora de la
+-- vía (avión o barco, configurable en config_org 'invoices'). Entra «a revisar»
+-- y cuenta recién cuando se confirma. Si el invoice es el de una compra por
+-- courier ya cargada, se lo vincula y esa compra no se cuenta dos veces.
+-- El proveedor preferido del producto sale del invoice confirmado más reciente
+-- (y se puede cambiar a mano en la ficha).
+alter table producto add column if not exists proveedor_id bigint references proveedor(id) on delete set null;
+create index if not exists producto_proveedor on producto (organizacion_id, proveedor_id) where proveedor_id is not null;
+
+create table if not exists compra_invoice (
+  id                 bigint generated always as identity primary key,
+  organizacion_id    text not null references organizaciones(id) on delete cascade,
+  proveedor_id       bigint references proveedor(id) on delete set null,
+  compra_courier_id  bigint references compra_courier(id) on delete set null,
+  archivo            text not null,
+  ruta_storage       text,
+  hoja               text,
+  numero             text,
+  fecha              date,
+  fecha_texto        text,                                -- como venía escrita en el invoice
+  fecha_dudosa       boolean not null default false,      -- día y mes se podían leer al revés
+  via                text not null default 'avion' check (via in ('avion', 'barco')),
+  estado             text not null default 'revisar' check (estado in ('revisar', 'confirmado')),
+  avisos             jsonb not null default '[]',
+  notas              text,
+  usuario_id         text,
+  creado_ts          timestamptz not null default now()
+);
+-- Precio no confiable (invoices viejos): cuentan fecha, cantidad y proveedor; el precio no se usa.
+alter table compra_invoice add column if not exists ignorar_precio boolean not null default false;
+create index if not exists compra_invoice_fecha on compra_invoice (organizacion_id, fecha desc);
+alter table compra_invoice enable row level security;
+select erp_politica_org('compra_invoice');
+
+create table if not exists compra_invoice_linea (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  invoice_id       bigint not null references compra_invoice(id) on delete cascade,
+  fila             int,                                   -- renglón del Excel
+  sku              text not null,                         -- como venía en el invoice
+  descripcion      text,
+  cantidad         numeric(12, 2) not null check (cantidad > 0),
+  precio_usd       numeric(16, 4),
+  variacion_id     bigint references variacion(id) on delete set null
+);
+create index if not exists compra_invoice_linea_i on compra_invoice_linea (invoice_id, fila);
+create index if not exists compra_invoice_linea_v on compra_invoice_linea (organizacion_id, variacion_id) where variacion_id is not null;
+alter table compra_invoice_linea enable row level security;
+select erp_politica_org('compra_invoice_linea');

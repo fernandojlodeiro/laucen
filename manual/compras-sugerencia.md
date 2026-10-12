@@ -23,6 +23,7 @@ Menú **Compras › Sugerencia de compra**.
   - **Comprar para**: 30, 45, 60 (de entrada), 90, 120 o 180 días;
   - **Días con venta**: sólo los que vendieron más de 5, 10, 20, 30, 50, 100 o 200 días en el período;
   - **Última venta**: sólo los que se vendieron por última vez en el último mes, 3 o 6 meses, el último año, 2 o 3 años (para no ver los que dejaron de venderse);
+  - **Proveedor**: sólo los productos de ese proveedor preferido (el de la ficha del producto), o «Sin proveedor preferido».
   - **Categorías**: abre el árbol de categorías (hasta el tercer nivel), sólo las que tienen productos en la lista, con cuántos tiene cada una; todas vienen tildadas. Destildar una esconde sus productos y los de sus subcategorías. «Tildar todas» y «Destildar todas» arriba; «Sin categoría» para los productos que no tienen.
   - la caja **«Incluye los que tienen stock suficiente»**: de entrada no se muestran los productos que no hace falta comprar (lo que hay alcanza para los días elegidos); tildada, aparecen también.
   Estos filtros **sólo esconden renglones**: los cálculos se hacen siempre con todo el período de la historia.

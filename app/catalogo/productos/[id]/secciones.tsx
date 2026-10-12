@@ -29,6 +29,7 @@ import AltaNueva from "@/app/componentes/AltaNueva";
 import ElegirDeLista from "@/app/componentes/ElegirDeLista";
 import FamiliaConLupa from "@/app/catalogo/productos/FamiliaConLupa";
 import { opcionesMarcas } from "@/lib/catalogo/marcas";
+import { opcionesProveedores } from "@/lib/compras/invoices";
 import { accionCrearMarcaDesdeFicha } from "@/app/catalogo/marcas/acciones";
 import { caminoDeFamilia } from "@/lib/erp/familias";
 import { UNIR_MELI_ITEM, textoEstadoMl, PlanPublicacion, PLAN_PUBLICACION, CUOTAS_VISIBLES_PUBLICACION, ES_CATALOGO, MarcaCatalogo, rangoPlan, UNIR_PRECIO_COMPRADOR, CAMPOS_PRECIO_COMPRADOR } from "@/app/catalogo/publicaciones/lista";
@@ -42,7 +43,7 @@ export type Producto = {
   marca: string | null; marca_id: number | null; tipo: string; estado: string; codigo_barras: string | null; peso_g: number | null;
   largo_cm: number | null; ancho_cm: number | null; alto_cm: number | null; descuento_pct: number | null;
   umbral_pausa: number | null; stock_minimo: number | null; descuento_familia: number | null; umbral_org: string | null;
-  variacion_default: number | null;
+  variacion_default: number | null; proveedor_id: number | null; proveedor: string | null;
   modelo: string | null; linea: string | null; garantia: string | null; condicion: string | null;
   categoria_ml: string | null; atributos_ml: unknown; kit_vs: boolean; precio_en_dolares: boolean; no_publicable: boolean;
 };
@@ -178,6 +179,7 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
   const caminoFamilia = await caminoDeFamilia(s.org.id, p.familia_id);
   // Las marcas, de su tabla (desplegable con buscador).
   const marcas = editando ? await opcionesMarcas(s.org.id) : [];
+  const proveedores = editando ? await opcionesProveedores(s.org.id) : [];
   // La alícuota de IVA (facturación) se lee aparte: la consulta del producto está en page.tsx.
   const iva = await consulta<{ iva_pct: string }>("select iva_pct::text from producto where id = $1 and organizacion_id = $2", [p.id, s.org.id]);
   const ivaPct = String(Number(iva[0]?.iva_pct ?? 21));
@@ -219,6 +221,7 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
         <Dato etiqueta="Título" className="col-span-1 sm:col-span-3">{p.titulo}</Dato>
         <Dato etiqueta="Familia">{p.familia_id && <span className="block truncate" title={caminoFamilia ?? undefined}>{caminoFamilia ?? p.familia}</span>}</Dato>
         <Dato etiqueta="Marca">{p.marca_id && <Link href={`/catalogo/productos?marca=${p.marca_id}`} className="text-[#16577F] hover:underline">{p.marca}</Link>}</Dato>
+        <Dato etiqueta="Proveedor preferido">{p.proveedor_id && <Link href={`/compras/proveedores?id=${p.proveedor_id}`} className="text-[#16577F] hover:underline">{p.proveedor}</Link>}</Dato>
         <Dato etiqueta="Tipo">{TIPOS_PRODUCTO[p.tipo] ?? p.tipo}</Dato>
         <Dato etiqueta="Estado"><EstadoProducto estado={p.estado} /></Dato>
         {conVariaciones
@@ -269,6 +272,10 @@ export async function SeccionDatos({ s, p, seccion, editando }: Props) {
       </div>
       <div><span className={ETIQUETA}>Marca</span>
         <ElegirDeLista name="marca_id" opciones={marcas} valor={p.marca_id} vacio="Sin marca" placeholder="Buscá la marca…" etiqueta="Marca" crear={accionCrearMarcaDesdeFicha} />
+      </div>
+      <div><span className={ETIQUETA}>Proveedor preferido</span>
+        <ElegirDeLista name="proveedor_id" opciones={proveedores} valor={p.proveedor_id} vacio="Sin proveedor" placeholder="Buscá el proveedor…" etiqueta="Proveedor preferido" />
+        <span className="block text-[10px] text-[#5C6B76] mt-0.5">Se completa solo con el del último invoice confirmado.</span>
       </div>
       <label><span className={ETIQUETA}>Tipo</span>
         <select name="tipo" defaultValue={p.tipo} className={`${CAMPO} w-full`}>

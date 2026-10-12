@@ -32,7 +32,7 @@ function fechaIso(d: Date): string | null {
   return iso.slice(11, 19) === "00:00:00" ? iso.slice(0, 10) : iso.slice(0, 19);
 }
 
-function valorCelda(v: ExcelJS.CellValue): Valor {
+export function valorCelda(v: ExcelJS.CellValue): Valor {
   if (v == null) return null;
   if (v instanceof Date) return fechaIso(v);
   if (typeof v === "number") return Number.isFinite(v) ? v : null;

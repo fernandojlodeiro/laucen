@@ -18,6 +18,7 @@ Para traer datos masivos desde una planilla en vez de cargarlos uno por uno. Hay
 
 - Menú **Configuración › Importar datos**.
 - Desde ahí, el recuadro azul **"Productos desde Virtual Seller + Mercado Libre"** lleva a la importación de Virtual Seller.
+- El recuadro **"Invoices de compra"** lleva a [Invoices de compra](/compras/invoices), donde se suben los Excel o PDF de las compras al exterior para el historial de compras de cada producto.
 - Pide el permiso «Importar datos».
 
 ## Qué hay en la pantalla

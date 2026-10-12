@@ -18,24 +18,26 @@ import { una } from "@/lib/erp/base";
 import ElegirDeLista from "@/app/componentes/ElegirDeLista";
 import FamiliaConLupa from "./FamiliaConLupa";
 import { opcionesMarcas } from "@/lib/catalogo/marcas";
+import { opcionesProveedores } from "@/lib/compras/invoices";
 
 export const dynamic = "force-dynamic";
 
-type SP = { q?: string; estado?: string; familia?: string; marca?: string; tipo?: string; inactivos?: string; kitvs?: string; sinpublicar?: string; sinpubcanal?: string; webcanal?: string; webver?: string; sinfotos?: string; sincanal?: string; nopub?: string; pub?: string; encuentas?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+type SP = { q?: string; estado?: string; familia?: string; marca?: string; prov?: string; tipo?: string; inactivos?: string; kitvs?: string; sinpublicar?: string; sinpubcanal?: string; webcanal?: string; webver?: string; sinfotos?: string; sincanal?: string; nopub?: string; pub?: string; encuentas?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 export default async function Productos({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("productos_ver");
   const sp = await searchParams;
-  const { q, comienza, estado, tipo, familia, marca, kitVs, sinPublicar, sinFotos, sinPublicarEn, sinCanal, webCanal, webVer, noPublicable, publicables, enCuentas } = filtrosProductos(sp);
+  const { q, comienza, estado, tipo, familia, marca, proveedor, kitVs, sinPublicar, sinFotos, sinPublicarEn, sinCanal, webCanal, webVer, noPublicable, publicables, enCuentas } = filtrosProductos(sp);
   const ctx = { org: s.org.id, moneda: s.moneda };
   const [caminoFamilia, vista, cuentas, marcas] = await Promise.all([caminoDeFamilia(s.org.id, familia), paginaDeVista(LISTA_PRODUCTOS, ctx, sp),
     una<{ n: number }>("select count(*)::int n from canal where organizacion_id = $1 and tipo = 'mercadolibre' and estado = 'activo'", [s.org.id]),
     opcionesMarcas(s.org.id).catch(() => [])]);
+  const proveedores = await opcionesProveedores(s.org.id).catch(() => []);
   const cuentasMl = cuentas?.n ?? 0;
 
   // El SKU que sigue al más alto (lib/catalogo/sku.ts), para el alta.
   const skuSugerido = await siguienteSku(s.org.id).catch(() => "");
-  const hayFiltro = q || estado || tipo || familia || marca || verInactivos(sp) || kitVs || sinPublicar || sinFotos || sinPublicarEn || sinCanal || noPublicable || publicables || enCuentas != null;
+  const hayFiltro = q || estado || tipo || familia || marca || proveedor || verInactivos(sp) || kitVs || sinPublicar || sinFotos || sinPublicarEn || sinCanal || noPublicable || publicables || enCuentas != null;
   return (
     <Pantalla titulo="Productos" subtitulo="Cada producto con sus variaciones, kits, fotos, cucardas, precios y stock"
       acciones={<><AccionesExcel lista={LISTA_PRODUCTOS} org={s.org.id} vista={vista.activa?.id} /><BotonNuevo texto="Nuevo producto" /></>}>
@@ -64,6 +66,7 @@ export default async function Productos({ searchParams }: { searchParams: Promis
         </FiltroVivo>
         <ElegirFamilia parametro="familia" valor={familia || null} etiqueta={caminoFamilia} vacio="Todas las familias" className="w-72" />
         <ElegirDeLista parametro="marca" opciones={marcas} valor={marca || null} vacio="Todas las marcas" placeholder="Buscá la marca…" etiqueta="Marca" className="w-48" />
+        <ElegirDeLista parametro="prov" opciones={proveedores} valor={proveedor || null} vacio="Todos los proveedores" placeholder="Buscá el proveedor…" etiqueta="Proveedor preferido" className="w-48" />
         <FiltroVivo parametro="tipo" valor={tipo} etiqueta="Tipo">
           <option value="">Todos los tipos</option>
           {Object.entries(TIPOS_PRODUCTO).map(([k, t]) => <option key={k} value={k}>{t}</option>)}

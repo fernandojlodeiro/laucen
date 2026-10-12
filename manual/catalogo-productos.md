@@ -35,6 +35,7 @@ Filtros (filtran al momento, sin botón "Buscar"):
 - **Estado**: Todos los estados / Activo / Pausado / Inactivo. Elegir "Inactivo" los muestra aunque no esté tildado "Mostrar inactivos".
 - **Familia**: buscador de familias (tipeás parte del nombre o del camino, ej. "Electrónica › Componentes"). Incluye las subfamilias de la elegida.
 - **Marca**: desplegable con buscador (de [Marcas](/catalogo/marcas)); "Todas las marcas" saca el filtro.
+- **Proveedor preferido**: desplegable con buscador (de [Proveedores](/compras/proveedores)); "Todos los proveedores" saca el filtro. La columna **Proveedor preferido** se puede sumar a la vista; tocando el nombre filtra por ese proveedor.
 - **Tipo**: Todos los tipos / Simple / Con variaciones / Kit.
 - **Kits de Virtual Seller**: sólo los marcados como kit que vino de Virtual Seller y hay que armar a mano.
 - **Sin publicar en ningún canal**: productos que no tienen ninguna publicación activa en ningún canal (ninguna cuenta de Mercado Libre ni la web). Los **No publicables** no aparecen.
@@ -84,7 +85,7 @@ Pestañas (cada una muestra entre paréntesis cuántas cosas tiene):
 #### Pestaña Datos
 
 Abre en modo vista (los datos en sus marcos, sin poder tocarlos). Con el lápiz se editan:
-- **SKU base**, **Título**, **Familia** (buscador, con la lupa 🔍 al lado; ver abajo), **Marca** (desplegable con buscador, de la lista de [Marcas](/catalogo/marcas); si no está, el botón **«+ Crear «…»»** al final de la lista la crea), **Tipo** (Simple / Con variaciones / Kit; ayuda: "A simple o kit, sólo con una variación."), **Estado** (Activo / Pausado / Inactivo).
+- **SKU base**, **Título**, **Familia** (buscador, con la lupa 🔍 al lado; ver abajo), **Marca** (desplegable con buscador, de la lista de [Marcas](/catalogo/marcas); si no está, el botón **«+ Crear «…»»** al final de la lista la crea), **Proveedor preferido** (desplegable con buscador, de [Proveedores](/compras/proveedores); se completa solo con el proveedor del último [invoice de compra](/compras/invoices) confirmado que trae el producto, y se puede cambiar a mano), **Tipo** (Simple / Con variaciones / Kit; ayuda: "A simple o kit, sólo con una variación."), **Estado** (Activo / Pausado / Inactivo).
 - **Código de barras**: en un producto con variaciones dice "Va en cada variación."
 - **Modelo**, **Línea**, **Garantía** (ej. "6 meses"), **Condición** (Sin indicar / Nuevo / Usado / Reacondicionado).
 - **Costo FOB** con su moneda (USD o ARS). Debajo, en gris, el costo "Puesto en depósito: promedio … · último … — sale de compras" (o "Sin costo en depósito todavía (sale de compras)."). En un producto con variaciones dice "Va en cada variación."; en un kit no se carga: muestra la suma de sus componentes.
@@ -147,6 +148,12 @@ Una tabla por cada lista de precios activa: Variación, **Lista** (tachado si ha
 #### Pestaña Stock
 
 Disponible (lo que hay menos lo reservado) de cada variación en cada depósito activo, y el **Total** (en rojo si está debajo del stock mínimo). **Ver detalle** lleva a [Consulta de stock](/stock/consulta) de esa variación.
+
+#### Pestaña Compras
+
+El historial de compras del producto, sólo para estadística (no mueve stock ni costos): los renglones de los [invoices de compra](/compras/invoices) confirmados y de las [compras por courier](/compras/courier). Una fila por compra, de la más nueva a la más vieja: **Fecha** (la del invoice), **Llegada estimada** (fecha + la demora de la vía), **Documento** (lleva al invoice o a la compra por courier), **Proveedor**, **Vía** (Avión, Barco o Courier), **Variación**, **Cantidad**, **Precio unit.** y **Total** en dólares (vacíos si el invoice está marcado «No tomar el precio») y **Se vendió**: en cuántos días se terminó de vender esa compra y hasta qué fecha, o cuántas unidades quedan. Arriba, cuántos días tardó en venderse cada compra en promedio.
+
+Para «Se vendió», las ventas de todos los canales (también las de los kits que llevan el producto) desde la primera llegada se reparten entre las compras en orden de llegada: la primera que llegó es la primera que se vende. El stock que había antes de la primera compra registrada no se conoce, así que la primera puede figurar vendida antes de lo real.
 
 #### Pestaña Publicaciones
 

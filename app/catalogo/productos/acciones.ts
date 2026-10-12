@@ -121,6 +121,12 @@ async function familiaValida(org: string, fid: number) {
   return fid;
 }
 
+async function proveedorValido(org: string, pid: number | null): Promise<number | null> {
+  if (!pid) return null;
+  if (!(await una("select 1 from proveedor where id = $1 and organizacion_id = $2", [pid, org]))) throw new ErrorErp("Ese proveedor no existe.");
+  return pid;
+}
+
 export async function accionGuardarDatos(fd: FormData) {
   const s = await entrarErp("productos_ver");
   const pid = id(fd, "producto_id");
@@ -143,6 +149,7 @@ export async function accionGuardarDatos(fd: FormData) {
       texto(fd, "modelo"), texto(fd, "linea"), texto(fd, "garantia"),
       CONDICIONES.includes(String(fd.get("condicion"))) ? String(fd.get("condicion")) : null,
       tildado(fd, "kit_vs"), tildado(fd, "precio_en_dolares"),
+      await proveedorValido(s.org.id, id(fd, "proveedor_id")),
     ];
     // El costo FOB de un simple/kit va en su variación default (el campo sólo
     // viene en el formulario cuando el producto no tiene variaciones).
@@ -165,7 +172,7 @@ export async function accionGuardarDatos(fd: FormData) {
                tipo = $8, estado = $9,
                codigo_barras = $10, peso_g = $11, largo_cm = $12, ancho_cm = $13, alto_cm = $14,
                descuento_pct = $15, umbral_pausa = $16, stock_minimo = $17, iva_pct = coalesce($18, iva_pct),
-               modelo = $19, linea = $20, garantia = $21, condicion = $22, kit_vs = $23, precio_en_dolares = $24, actualizado_ts = now()
+               modelo = $19, linea = $20, garantia = $21, condicion = $22, kit_vs = $23, precio_en_dolares = $24, proveedor_id = $25, actualizado_ts = now()
          where id = $2 and organizacion_id = $1`, valores);
       // Un kit no graba costo FOB: es la suma de sus componentes.
       if (costo && tipo !== "con_variaciones" && tipo !== "kit") {

@@ -11,6 +11,7 @@ import { entrarErp, Pantalla, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR
 import { Desplegable } from "@/app/informes/Filtros";
 import Categorias from "./Categorias";
 import { coincideBusqueda } from "@/lib/busqueda";
+import { consulta } from "@/lib/erp/base";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import { formatearNumero } from "@/lib/numeros";
 import { hoyArgentina } from "@/lib/rango-fechas";
@@ -33,13 +34,16 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
   const f = leerFiltroSugerencia(sp, hoyArgentina());
   const { filas: todas, tcHoy, calculado } = await sugerenciaGuardada(s.org.id, f);
   const { nodos, ancestros } = await arbolCategorias(s.org.id, todas);
+  // Proveedor preferido: los que tienen algún producto en la sugerencia.
+  const provIds = [...new Set(todas.map((x) => x.proveedor_id).filter((x): x is number => x != null))];
+  const proveedores = provIds.length ? await consulta<{ id: number; nombre: string }>("select id::int, nombre from proveedor where organizacion_id = $1 and id = any($2::bigint[]) order by lower(nombre)", [s.org.id, provIds]) : [];
   const sinCat = new Set((sp.sin_cat ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n >= 0 && sp.sin_cat));
   const categoriaFuera = (x: (typeof todas)[number]) => x.familia_id == null ? sinCat.has(0) : (ancestros.get(x.familia_id) ?? []).some((id) => sinCat.has(id));
   const q = sp.q?.trim() ?? "";
   const filas = filtrarMuestra(todas, sp, (x) => !categoriaFuera(x) && (!q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1")));
   const t = totalesSugerencia(filas);
   const vista = paginarEnMemoria(ordenarEnMemoria(filas, sp, ORDEN_SUGERENCIA), sp);
-  const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vmeses: sp.vmeses ?? null, con_stock: sp.con_stock ?? null, sin_cat: sp.sin_cat ?? null };
+  const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vmeses: sp.vmeses ?? null, con_stock: sp.con_stock ?? null, sin_cat: sp.sin_cat ?? null, prov: sp.prov ?? null };
 
   return (
     <Pantalla titulo="Sugerencia de compra" ancho="max-w-7xl"
@@ -54,6 +58,8 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
             opciones={[{ valor: "", texto: "Todos" }, ...MIN_DIAS_VENTA.map((d) => ({ valor: String(d), texto: `Más de ${d}` }))]} />
           <Desplegable parametro="vmeses" etiqueta="Última venta" valor={sp.vmeses ?? ""} limpiar={["p"]}
             opciones={[{ valor: "", texto: "Cualquiera" }, ...ULTIMA_VENTA_MESES.map(([m, t]) => ({ valor: String(m), texto: `En ${t}` }))]} />
+          <Desplegable parametro="prov" etiqueta="Proveedor" valor={sp.prov ?? ""} limpiar={["p"]}
+            opciones={[{ valor: "", texto: "Todos" }, ...proveedores.map((p) => ({ valor: String(p.id), texto: p.nombre })), { valor: "0", texto: "Sin proveedor preferido" }]} />
           <Categorias nodos={nodos} sinCategoria={todas.filter((x) => x.familia_id == null).length} excluidas={[...sinCat]} />
           <CasillaViva parametro="con_stock" activo={sp.con_stock === "1"} etiqueta="Incluye los que tienen stock suficiente" ayuda="Los que no hace falta comprar: el stock de hoy alcanza para los días elegidos" />
           <a href={url("/compras/sugerencia/excel", params)} className={VERDE}>Descargar Excel</a>

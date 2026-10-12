@@ -9,6 +9,7 @@
 
 import SeccionSeguimiento from "./Seguimiento";
 import CambiosPrecio from "./CambiosPrecio";
+import SeccionCompras from "./Compras";
 import { notFound } from "next/navigation";
 import { una, consulta } from "@/lib/erp/base";
 import FotosProducto from "@/app/componentes/FotosProducto";
@@ -40,6 +41,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
   const p = await una<Producto>(`
     select p.id::int, p.sku_base, p.titulo, p.descripcion, p.familia_id::int, f.nombre familia, p.marca, p.marca_id::int, p.tipo, p.estado, p.codigo_barras,
            p.modelo, p.linea, p.garantia, p.condicion, p.categoria_ml, p.atributos_ml, p.kit_vs, p.precio_en_dolares, p.no_publicable,
+           p.proveedor_id::int, (select pr.nombre from proveedor pr where pr.id = p.proveedor_id) proveedor,
            p.peso_g, p.largo_cm::float8, p.ancho_cm::float8, p.alto_cm::float8, p.descuento_pct::float8, p.umbral_pausa, p.stock_minimo,
            (with recursive cadena as (
               select fa.id, fa.padre_id, fa.descuento_pct, 0 nivel from familia fa where fa.id = p.familia_id
@@ -72,6 +74,12 @@ export default async function FichaProducto({ params, searchParams }: { params: 
            (select count(*) from publicacion pu join variacion v on v.id = pu.variacion_id where v.producto_id = $2 and pu.organizacion_id = $1)::int publicaciones,
            (select count(*) from cucarda c where c.organizacion_id = $1 and c.estado = 'activa')::int cucardas_activas,
            (select count(*) from seguimiento_pub sg where sg.producto_id = $2 and sg.organizacion_id = $1)::int seguimiento,
+           -- Compras: renglones de invoices confirmados y de compras por courier (las vinculadas a un invoice no cuentan dos veces).
+           ((select count(*) from compra_invoice_linea l join compra_invoice i on i.id = l.invoice_id join variacion v on v.id = l.variacion_id
+              where v.producto_id = $2 and i.organizacion_id = $1 and i.estado = 'confirmado' and i.fecha is not null)
+            + (select count(*) from compra_courier_linea l join compra_courier c on c.id = l.compra_id join variacion v on v.id = l.variacion_id
+                where v.producto_id = $2 and c.organizacion_id = $1 and c.ingreso_ts is not null
+                  and not exists (select 1 from compra_invoice i where i.compra_courier_id = c.id and i.estado = 'confirmado')))::int compras,
            -- Cambios de precio: cada precio de lista que tiene uno anterior (de esa variación en esa lista).
            (select count(*) - count(distinct (pr.lista_id, pr.variacion_id)) from precio pr join variacion v on v.id = pr.variacion_id
              where v.producto_id = $2 and pr.organizacion_id = $1)::int cambios_precio`,
@@ -96,6 +104,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
     ["precios", "Precios", n.precios ?? 0],
     ["cambios-precio", "Cambios de precio", n.cambios_precio ?? 0],
     ["stock", "Stock", n.stock ?? 0],
+    ["compras", "Compras", n.compras ?? 0],
     ["publicaciones", "Publicaciones", n.publicaciones ?? 0],
     ["seguimiento", "Seguimiento", n.seguimiento ?? 0],
   ];
@@ -156,6 +165,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
       {seccion === "precios" && <SeccionPrecios {...props} />}
       {seccion === "cambios-precio" && <CambiosPrecio org={s.org.id} productoId={p.id} skuBase={p.sku_base} sp={sp} />}
       {seccion === "stock" && <SeccionStock {...props} />}
+      {seccion === "compras" && <SeccionCompras org={s.org.id} productoId={p.id} />}
       {seccion === "publicaciones" && <SeccionPublicaciones {...props} />}
       {seccion === "seguimiento" && <SeccionSeguimiento s={s} p={p} sp={sp} />}
     </Pantalla>
