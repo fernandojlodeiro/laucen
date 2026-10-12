@@ -1,7 +1,7 @@
 // Sugerencia de compra (pedido de Fer, 12/10): qué comprar para N días según el ritmo real de venta de la historia
 // (lib/compras/sugerencia-calculo.ts). Todos los productos, activos o no, salvo notebooks; ventas de todos los canales
 // (vista venta_estadistica, sin canceladas). Por producto:
-//   · cantidad para N días según el ritmo típico y según el mejor momento;
+//   · cantidad para N días según el ritmo típico y según el mejor momento, y lo que habría que comprar descontando el stock de hoy;
 //   · costo: el último costo en dólares de la ficha (FOB + 40 %, o el de su compra por courier), al dólar oficial de hoy;
 //   · precio: la última venta, pasada a dólares con el oficial de ese día y de ahí a pesos de hoy;
 //   · ganancia estimada = precio − lo que se lleva Mercado Libre (comisión de su categoría, cargo fijo, envío) − costo.
@@ -30,6 +30,8 @@ export type FilaSugerencia = {
   costo_usd: number | null; costo_ars: number | null;
   ultima_fecha: string; ultima_precio: number; ultima_tc: number | null; precio_usd: number | null; precio_hoy: number | null; clasica: number | null;
   comision_pct: number; costos_ml: number | null; ganancia_unit: number | null; margen_pct: number | null;
+  /** Lo disponible hoy y lo que habría que comprar (lo que se vendería menos lo que ya hay), según el típico y el mejor momento. */
+  stock: number; comprar_tipico: number; comprar_mejor: number;
 };
 
 const DIA = 86400_000;
@@ -67,7 +69,7 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
     l.push({ dia: aDia(r.dia), cantidad: r.cantidad });
     porClave.set(r.clave, l);
     const u = ultima.get(r.clave);
-    if (r.precio != null && r.precio > 0 && (!u || r.dia >= u.dia)) ultima.set(r.clave, { dia: r.dia, precio: r.precio, titulo: r.titulo });
+    if (r.precio != null && r.precio > 1 && (!u || r.dia >= u.dia)) ultima.set(r.clave, { dia: r.dia, precio: r.precio, titulo: r.titulo });
   }
   const fin = aDia(f.hasta);
   const ritmos = new Map<string, ReturnType<typeof ritmo> & { grandes: number; mayor: number }>();
@@ -81,7 +83,7 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
   const variaciones = claves.filter((k) => k.startsWith("v")).map((k) => Number(k.slice(1)));
   const fechas = [...new Set(claves.map((k) => ultima.get(k)!.dia))];
   const [info, tcs] = await Promise.all([
-    consulta<{ id: number; producto_id: number; sku: string; titulo: string; fotos: string[] | null; archivado: boolean; costo_usd: number | null; comision_pct: number | null; clasica: number | null }>(`
+    consulta<{ id: number; producto_id: number; sku: string; titulo: string; fotos: string[] | null; archivado: boolean; costo_usd: number | null; comision_pct: number | null; clasica: number | null; stock: number }>(`
       with lista as (select id from lista_precios where organizacion_id = $1
                       order by lower(nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') desc, orden, id limit 1)
       select va.id::int, va.producto_id::int, va.sku, titulo_variacion(va.id) titulo,
@@ -89,7 +91,8 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
              pr.estado = 'archivado' or va.estado = 'archivada' archivado, va.costo_ultimo_usd::float8 costo_usd,
              (select max(c.clasica_pct)::float8 from publicacion pu join canal ca on ca.id = pu.canal_id and ca.tipo = 'mercadolibre'
                 join ml_costos_comisiones_vigente c on c.categoria_id = pu.categoria_externa where pu.variacion_id = va.id) comision_pct,
-             (select pd.lista_ars from lista, precio_de($1, va.id, lista.id) pd)::float8 clasica
+             (select pd.lista_ars from lista, precio_de($1, va.id, lista.id) pd)::float8 clasica,
+             (select coalesce(sum(st.cantidad - st.reservado), 0) from stock st where st.variacion_id = va.id)::int stock
         from variacion va join producto pr on pr.id = va.producto_id
        where va.organizacion_id = $1 and va.id = any($2::bigint[])`, [org, variaciones]),
     consulta<{ dia: string; tc: number | null }>("select d::text dia, tc_del_dia($1, d)::float8 tc from unnest($2::date[]) d", [org, fechas]),
@@ -101,7 +104,7 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
     const v = porVariacion.get(clave);
     return {
       clave, producto_id: v?.producto_id ?? null, sku: v?.sku ?? clave.slice(1), titulo: v?.titulo ?? u.titulo ?? clave.slice(1), fotos: v?.fotos ?? null,
-      archivado: v ? v.archivado : true, costo_usd: v?.costo_usd ?? null, comision_pct: v?.comision_pct ?? null, clasica: v?.clasica ?? null,
+      archivado: v ? v.archivado : true, costo_usd: v?.costo_usd ?? null, comision_pct: v?.comision_pct ?? null, clasica: v?.clasica ?? null, stock: v?.stock ?? 0,
       ultima_fecha: u.dia, ultima_precio: u.precio, ultima_tc: tcDe.get(u.dia) ?? null,
     };
   });
@@ -123,6 +126,7 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
       costo_usd: d.costo_usd, costo_ars: costoArs, ultima_fecha: d.ultima_fecha, ultima_precio: d.ultima_precio, ultima_tc: d.ultima_tc,
       precio_usd: precioUsd, precio_hoy: precioHoy, clasica: d.clasica, comision_pct: comision, costos_ml: ml, ganancia_unit: ganancia,
       margen_pct: ganancia != null && precioHoy ? Math.round((ganancia / precioHoy) * 1000) / 10 : null,
+      stock: d.stock, comprar_tipico: Math.max(0, r.tipico - Math.max(0, d.stock)), comprar_mejor: Math.max(0, r.mejor - Math.max(0, d.stock)),
     };
   });
   filas.sort((a, b) => b.tipico - a.tipico || b.mejor - a.mejor);
@@ -133,8 +137,17 @@ export function totalesSugerencia(filas: FilaSugerencia[]) {
   const s = (f: (x: FilaSugerencia) => number | null) => filas.reduce((t, x) => t + (f(x) ?? 0), 0);
   return {
     productos: filas.length, conCosto: filas.filter((x) => x.costo_usd != null).length,
-    inversionTipicaUsd: s((x) => (x.costo_usd != null ? x.costo_usd * x.tipico : null)), inversionMejorUsd: s((x) => (x.costo_usd != null ? x.costo_usd * x.mejor : null)),
-    gananciaTipica: s((x) => (x.ganancia_unit != null ? x.ganancia_unit * x.tipico : null)), gananciaMejor: s((x) => (x.ganancia_unit != null ? x.ganancia_unit * x.mejor : null)),
-    unidadesTipicas: s((x) => x.tipico), unidadesMejor: s((x) => x.mejor),
+    inversionTipicaUsd: s((x) => (x.costo_usd != null ? x.costo_usd * x.comprar_tipico : null)), inversionMejorUsd: s((x) => (x.costo_usd != null ? x.costo_usd * x.comprar_mejor : null)),
+    gananciaTipica: s((x) => (x.ganancia_unit != null ? x.ganancia_unit * x.comprar_tipico : null)), gananciaMejor: s((x) => (x.ganancia_unit != null ? x.ganancia_unit * x.comprar_mejor : null)),
+    unidadesTipicas: s((x) => x.comprar_tipico), unidadesMejor: s((x) => x.comprar_mejor),
   };
 }
+
+/** Las columnas por las que se puede ordenar (lista blanca para ?orden=). */
+export const ORDEN_SUGERENCIA: Record<string, (x: FilaSugerencia) => number | string | null> = {
+  sku: (x) => x.sku, tipico: (x) => x.tipico, mejor: (x) => x.mejor, stock: (x) => x.stock, comprar: (x) => x.comprar_tipico,
+  costo: (x) => x.costo_usd, inversion: (x) => (x.costo_usd == null ? null : x.costo_usd * x.comprar_tipico), ultima: (x) => x.ultima_fecha,
+  precio: (x) => x.precio_hoy, ganancia_unit: (x) => x.ganancia_unit, margen: (x) => x.margen_pct,
+  ganancia: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_tipico),
+  ganancia_mejor: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_mejor),
+};
