@@ -13,7 +13,7 @@ import { DESCRIPCION_LOTE_GARANTIA } from "@/lib/mercadolibre/garantia-notebooks
 
 type Fila = { id: string; canal_id: string; titulo: string; categoria_ml: string | null; item_id: string | null; ficha: string | null; copia: TerminoVenta[] | null };
 
-export type ResultadoCompletar = { revisadas: number; notebooks: number; ml: number; copia: number; ficha: number; sinDato: number; pendientes: number };
+export type ResultadoCompletar = { revisadas: number; notebooks: number; ml: number; copia: number; ficha: number; sinDato: number; pendientes: number; fallos: Record<string, number> };
 
 /** A cada línea de pedido sin garantía grabada, le graba la que corresponde. Repetirlo sólo toma las que faltan. */
 export async function completarGarantiaPedidos(org: string, hastaMs: number): Promise<ResultadoCompletar> {
@@ -23,7 +23,7 @@ export async function completarGarantiaPedidos(org: string, hastaMs: number): Pr
       from pedido_linea l join pedido p on p.id = l.pedido_id
       left join variacion v on v.id = l.variacion_id left join producto pr on pr.id = v.producto_id
      where l.organizacion_id = $1 and l.garantia_origen is null order by l.id`, [org]);
-  const r: ResultadoCompletar = { revisadas: filas.length, notebooks: 0, ml: 0, copia: 0, ficha: 0, sinDato: 0, pendientes: 0 };
+  const r: ResultadoCompletar = { revisadas: filas.length, notebooks: 0, ml: 0, copia: 0, ficha: 0, sinDato: 0, pendientes: 0, fallos: {} };
   const poner = (id: string, garantia: string | null, origen: string) =>
     consulta("update pedido_linea set garantia = $2, garantia_origen = $3 where id = $1 and garantia_origen is null", [id, garantia, origen]);
 
@@ -38,13 +38,16 @@ export async function completarGarantiaPedidos(org: string, hastaMs: number): Pr
     const lista = [...ids];
     for (let i = 0; i < lista.length; i += 20) {
       if (Date.now() > hastaMs - 4_000) break;
-      const x = await ml<{ code: number; body: { id?: string; sale_terms?: TerminoVenta[] } }[]>(cuenta, "GET", `/items?ids=${lista.slice(i, i + 20).join(",")}&attributes=id,sale_terms`);
-      if (x.status !== 200 || !Array.isArray(x.datos)) continue;
-      lista.slice(i, i + 20).forEach((id, k) => {
-        const e = x.datos[k];
-        if (e?.code === 200 && e.body?.id === id) { hoy.set(`${canal}|${id}`, e.body.sale_terms ?? []); leidos.add(`${canal}|${id}`); }
-        else if (e?.code === 404) leidos.add(`${canal}|${id}`);   // ML ya no la tiene: se usa la copia
-      });
+      const lote = lista.slice(i, i + 20);
+      const x = await ml<{ code: number; body: { id?: string; sale_terms?: TerminoVenta[] } }[]>(cuenta, "GET", `/items?ids=${lote.join(",")}&attributes=id,sale_terms`);
+      if (x.status !== 200 || !Array.isArray(x.datos)) { r.fallos[`lectura ${x.status}`] = (r.fallos[`lectura ${x.status}`] ?? 0) + lote.length; continue; }
+      // Cada publicación se busca por su id (no por el lugar): lo que ML no devuelve o rechaza queda "leído sin dato" y usa la copia o la ficha.
+      for (const id of lote) {
+        const e = x.datos.find((y) => y?.body?.id === id);
+        if (e?.code === 200) hoy.set(`${canal}|${id}`, e.body.sale_terms ?? []);
+        else r.fallos[`publicación ${e?.code ?? "no devuelta"}`] = (r.fallos[`publicación ${e?.code ?? "no devuelta"}`] ?? 0) + 1;
+        leidos.add(`${canal}|${id}`);
+      }
     }
   }
 
@@ -101,6 +104,8 @@ export function textoControl(i: InformeControl, c: ResultadoCompletar): string {
   const partes = [`Control en ML: ${bien} de ${i.controles.length} con 1 año.`];
   if (mal.length) partes.push(`Sin 1 año: ${mal.map((x) => `${x.item_id} (${x.garantia ?? x.motivo ?? "sin dato"})`).join(", ")}.`);
   partes.push(`Pedidos: se revisaron ${c.revisadas} líneas: ${c.notebooks} notebooks con 3 meses, ${c.ml + c.copia} con la de ML, ${c.ficha} con la de la ficha, ${c.sinDato} sin dato.`);
+  const fallos = Object.entries(c.fallos).map(([k, v]) => `${v} ${k}`).join(", ");
+  if (fallos) partes.push(`Lo que ML no dio: ${fallos}.`);
   if (c.pendientes) partes.push(`${c.pendientes} quedaron pendientes (ML no contestó o no alcanzó el tiempo): apretá de nuevo.`);
   return partes.join(" ");
 }
