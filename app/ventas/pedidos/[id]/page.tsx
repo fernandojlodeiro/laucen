@@ -38,7 +38,7 @@ export const maxDuration = 60;
 type Linea = {
   id: number; variacion_id: number | null; sku: string | null; titulo: string; cantidad: number;
   precio_lista_ars: number | null; precio_lista_usd: number | null; descuento_pct: number; precio_unit_ars: number; precio_unit_usd: number;
-  orden_ml: string | null;
+  orden_ml: string | null; garantia: string | null;
 };
 type Historial = { estado_anterior: string | null; estado_nuevo: string; quien_nombre: string; nota: string | null; fecha: Date };
 type Cabecera = {
@@ -225,7 +225,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH}>SKU</th><th className={TH}>Título</th><th className={THN}>Cantidad</th><th className={THN}>Lista</th>
+              <th className={TH}>SKU</th><th className={TH}>Título</th><th className={THN}>Cantidad</th><th className={TH}>Garantía</th><th className={THN}>Lista</th>
               <th className={THN}>Descuento</th><th className={THN}>Unitario</th><th className={THN}>Subtotal</th>
             </tr>
           </thead>
@@ -238,6 +238,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
                   : l.sku ?? "—"}</td>
                 <td className={TD}>{l.titulo}{variasOrdenes && l.orden_ml && <span className="block text-[10px] text-[#5C6B76] font-mono">Orden ML {l.orden_ml}</span>}</td>
                 <td className={TDN}>{l.cantidad}</td>
+                <td className={TD}>{l.garantia ?? "—"}</td>
                 <td className={TDN}>{l.precio_lista_ars == null && l.precio_lista_usd == null ? "—" : enVista({ ars: l.precio_lista_ars, usd: l.precio_lista_usd }, v)}</td>
                 <td className={TDN}>{l.descuento_pct ? `${l.descuento_pct.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %` : "—"}</td>
                 <td className={TDN}>{enVista({ ars: l.precio_unit_ars, usd: l.precio_unit_usd }, v)}</td>
@@ -245,7 +246,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
               </tr>
             ))}
             <tr className={`${TR} font-bold`}>
-              <td colSpan={6} className={`${TD} text-right`}>Total</td>
+              <td colSpan={7} className={`${TD} text-right`}>Total</td>
               <td className={TDN}>{enVista({ ars: c.total_ars, usd: c.total_usd }, v)}</td>
             </tr>
           </tbody>

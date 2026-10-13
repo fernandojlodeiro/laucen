@@ -14,6 +14,7 @@ import { crearPedido, cambiarEstado, agregarLineas, quitarLineas, marcarEventoCa
 import { ml, type CuentaMl } from "@/lib/mercadolibre/api";
 import { guardarEnvio, leerEnvio, type EnvioMl } from "@/lib/mercadolibre/envios";
 import { registrarVentas } from "@/lib/mercadolibre/ventas";
+import { garantiaDeTerminos, type TerminoVenta } from "@/lib/garantia";
 
 type ItemOrden = {
   item: { id: string; title: string; variation_id: number | null; seller_sku: string | null; seller_custom_field: string | null; variation_attributes?: { name: string; value_name: string }[] };
@@ -141,7 +142,25 @@ export async function importarOrden(cuenta: CuentaMl, orderId: number | string):
   const facturacion = fact.status === 200 ? fact.datos : {};
   const envioId = ordenes.find((x) => x.shipping?.id)?.shipping?.id;
   const envio = envioId ? await leerEnvio(cuenta, envioId) : null;
-  return cargarOrdenes(cuenta, ordenes, facturacion, envio);
+  return cargarOrdenes(cuenta, ordenes, facturacion, envio, await garantiasDeItems(cuenta, ordenes));
+}
+
+/** La garantía que tiene AHORA cada publicación de las órdenes (se graba en la línea del pedido).
+ *  Si ML no contesta, queda sin dato y la línea usa la última copia guardada o la ficha. */
+async function garantiasDeItems(cuenta: CuentaMl, ordenes: OrdenMl[]): Promise<Map<string, string>> {
+  const ids = [...new Set(ordenes.flatMap((o) => o.order_items.map((it) => it.item.id)))];
+  const salida = new Map<string, string>();
+  try {
+    for (let i = 0; i < ids.length; i += 20) {
+      const r = await ml<{ code: number; body: { id?: string; sale_terms?: TerminoVenta[] } }[]>(cuenta, "GET", `/items?ids=${ids.slice(i, i + 20).join(",")}&attributes=id,sale_terms`);
+      if (r.status !== 200 || !Array.isArray(r.datos)) continue;
+      for (const x of r.datos) {
+        const g = x.code === 200 && x.body?.id ? garantiaDeTerminos(x.body.sale_terms) : null;
+        if (g) salida.set(x.body.id!, g);
+      }
+    }
+  } catch { /* sin dato: la línea usa la copia guardada o la ficha */ }
+  return salida;
 }
 
 type PedidoDelCarrito = { id: number; id_externo: string | null; estado: EstadoPedido; ordenes: Record<string, OrdenMl> };
@@ -156,7 +175,7 @@ type PedidoDelCarrito = { id: number; id_externo: string | null; estado: EstadoP
  *    salen del pedido (y se libera su reserva); si se cancelan todas, el
  *    pedido queda cancelado.
  *  Repetirlo no duplica nada. Devuelve el id del pedido. */
-export async function cargarOrdenes(cuenta: CuentaMl, ordenesLeidas: OrdenMl[], facturacion: Facturacion, envio: EnvioMl | null): Promise<number | null> {
+export async function cargarOrdenes(cuenta: CuentaMl, ordenesLeidas: OrdenMl[], facturacion: Facturacion, envio: EnvioMl | null, garantias: Map<string, string> = new Map()): Promise<number | null> {
   if (!cuenta.canalId || !ordenesLeidas.length) return null;
   if (ordenesLeidas.some((o) => anteriorAlCorte(cuenta, o))) return null;
   const canalId = cuenta.canalId;
@@ -187,7 +206,7 @@ export async function cargarOrdenes(cuenta: CuentaMl, ordenesLeidas: OrdenMl[], 
       lineas.push({
         variacion_id: variacionId, sku: variacionId ? null : (sku ?? it.item.id), cantidad: it.quantity,
         precio_unitario: it.unit_price, titulo: atributos ? `${it.item.title} — ${atributos}` : it.item.title,
-        datos_externos: { ml: { order_id: String(o.id), item_id: it.item.id, variation_id: it.item.variation_id ?? null, sale_fee: it.sale_fee ?? null, listing_type_id: it.listing_type_id ?? null } },
+        datos_externos: { ml: { order_id: String(o.id), item_id: it.item.id, variation_id: it.item.variation_id ?? null, sale_fee: it.sale_fee ?? null, listing_type_id: it.listing_type_id ?? null, ...(garantias.has(it.item.id) ? { garantia: garantias.get(it.item.id) } : {}) } },
       });
     }
     lineasDe.set(o.id, lineas);

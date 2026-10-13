@@ -6,6 +6,7 @@ import { sosVos } from "@/lib/admin";
 import { orgRequerida, sesionRequerida } from "@/lib/tenancy";
 import { consulta, motivoErp } from "@/lib/erp/base";
 import { deFondo } from "@/lib/tareas-fondo";
+import { completarGarantiaPedidos, controlarGarantiaNotebooks, textoControl } from "@/lib/mercadolibre/garantia-pedidos";
 import { prepararGarantiaNotebooks, textoGarantia } from "@/lib/mercadolibre/garantia-notebooks";
 import { prepararNotebooksMl, textoResultadoMl, limpiarNotebooksLaucen, revisarNotebooksMl, traerDescripcionesFaltantes } from "@/lib/limpieza-notebooks";
 
@@ -58,6 +59,18 @@ export async function accionGarantiaNotebooksMl() {
     }));
     revalidatePath("/admin/limpieza");
     return textos.join(" ");
+  });
+}
+
+/** Sólo lectura de ML: controla notebooks al azar de cada cuenta y completa la garantía grabada en los pedidos. De fondo. */
+export async function accionControlGarantia() {
+  const org = await portero();
+  const s = await sesionRequerida();
+  return deFondo(s, "garantia-control", "Control de garantía y pedidos", async () => {
+    const control = await controlarGarantiaNotebooks(org);
+    const pedidos = await completarGarantiaPedidos(org, Date.now() + 240_000);
+    revalidatePath("/admin/limpieza");
+    return textoControl(control, pedidos);
   });
 }
 

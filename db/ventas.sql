@@ -235,6 +235,11 @@ create index if not exists pedido_linea_variacion on pedido_linea (variacion_id)
 -- para reclamos, devoluciones y facturación.
 alter table pedido_linea add column if not exists datos_externos jsonb not null default '{}';
 create index if not exists pedido_linea_orden_ml on pedido_linea ((datos_externos #>> '{ml,order_id}')) where datos_externos ? 'ml';
+-- Garantía de la línea (Fer, 13/10): lo que decía al momento de la venta, congelado como el título.
+-- Si se vendió por Mercado Libre, la de la publicación en ML; si no, la de la ficha del producto.
+-- `garantia_origen`: 'ml' | 'ficha' | 'sin_dato' (se buscó y no había nada; no se vuelve a buscar).
+alter table pedido_linea add column if not exists garantia text;
+alter table pedido_linea add column if not exists garantia_origen text;
 create index if not exists pedido_pack_ml on pedido (canal_id, (envio ->> 'pack_id')) where envio ? 'pack_id';
 -- Espera del carrito de ML (Fer, 3/10): cuándo fue el último evento del
 -- carrito (llegó una orden del pack, una cambió de estado o se canceló, se

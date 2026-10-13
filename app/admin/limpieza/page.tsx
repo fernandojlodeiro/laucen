@@ -8,7 +8,7 @@ import { esNotebook } from "@/lib/mercadolibre/es-notebook";
 import { SKUS_CONSERVAR, seConserva, notebooksLaucenFuera, revisionesGuardadas, contarSinDescripcion, type Decision, type Revision } from "@/lib/limpieza-notebooks";
 import { SUAVE } from "@/app/botones";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
-import { accionGarantiaNotebooksMl, accionDescripcionesMl, accionNotebooksLaucen, accionNotebooksMl, accionRevisarNotebooksMl } from "./actions";
+import { accionControlGarantia, accionGarantiaNotebooksMl, accionDescripcionesMl, accionNotebooksLaucen, accionNotebooksMl, accionRevisarNotebooksMl } from "./actions";
 import { BotonBorrar } from "./Botones";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +52,8 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
     else c.borrar++;
     porCuenta.set(i.canal_id, c);
   }
+  const control = (await consulta<{ valor: import("@/lib/mercadolibre/garantia-pedidos").InformeControl }>(
+    "select valor from config_org where organizacion_id = $1 and clave = 'garantia_notebooks_control'", [org]))[0]?.valor ?? null;
   const [enLaucen, revisiones, sinDescripcion] = await Promise.all([notebooksLaucenFuera(org), revisionesGuardadas(org), contarSinDescripcion(org)]);
 
   return (
@@ -89,6 +91,18 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
           <Link href="/config/canales/cola?ver=lotes" className="underline">Cola de Mercado Libre</Link> y aprietes &quot;Mandar a Mercado Libre&quot;.
         </p>
         <BotonTarea accion={accionGarantiaNotebooksMl} tipo="garantia-notebooks" clase={SUAVE} texto="Preparar 1 año de garantía en todas las cuentas" />
+        <p className="text-sm text-[#5C6B76] pt-2">
+          <b>Control y pedidos</b> (sólo lee de Mercado Libre): mira una notebook al azar de cada lote enviado y las rechazadas, y deja grabada
+          en cada línea de los pedidos que todavía no la tienen la garantía que corresponde.
+        </p>
+        <BotonTarea accion={accionControlGarantia} tipo="garantia-control" clase={SUAVE} texto="Controlar notebooks y completar garantías de pedidos" />
+        {control && (
+          <ul className="text-xs text-[#5C6B76] list-disc pl-5">
+            {control.controles.map((x) => (
+              <li key={x.item_id} className={x.esperada ? "" : "text-[#C03420]"}>{x.cuenta} · {x.item_id}: {x.garantia ?? x.motivo ?? "sin dato"}{x.esperada ? " ✓" : ""}</li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className={CAJA}>
