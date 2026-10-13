@@ -111,6 +111,8 @@ Si el producto vino en alguna compra con packing list cargado, debajo de los dat
 
 Rige (★) el dato exacto antes que el aproximado y, entre dos iguales, el del packing list más nuevo.
 
+Debajo, con el dato que rige y el FOB de la ficha: el **flete por avión** por unidad (y qué % del FOB es; en rojo si pasa el umbral, porque conviene barco), el **flete por barco** y el **costo final con IVA** por cada vía. Los montos y la categoría contra el precio de la Clásica están en [Sugerencia de compra](/compras/sugerencia), recuadro «¿Avión o barco?».
+
 #### Pestaña Costo
 
 Arriba, la caja del costo de importación del producto (se edita con el lápiz): **NCM (posición arancelaria)**, **Vía** (Avión / Barco / Courier; "informativa por ahora"), **Flete % (sobre FOB)** y **Seguro % (sobre FOB)**; el bloque "Se suman al costo (sobre CIF)": **Derecho de importación %**, **Tasa de estadística %**, **Arancel / otros %**, **Despachante %**, **Depósito fiscal y otros %**; y el bloque "Crédito fiscal y anticipos (no son costo; sobre CIF + derechos + estadística)": **IVA %**, **IVA adicional %**, **Percepción de ganancias %**, **Ingresos brutos %**. Además **Notas**.

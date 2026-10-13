@@ -3,14 +3,32 @@
 
 import { CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, Estado } from "@/app/componentes/erp";
 import { formatearNumero } from "@/lib/numeros";
+import Link from "next/link";
 import { FACTOR_AEREO, packingDeProducto } from "@/lib/compras/packing";
+import { consulta } from "@/lib/erp/base";
+import { configVia, costoFinal, costosResueltos } from "@/lib/compras/via";
 
 const dia = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "sin fecha");
 const g = (n: number) => `${formatearNumero(Math.round(n), "entero")} g`;
 
-export default async function PackingProducto({ org, productoId }: { org: string; productoId: number }) {
+const usd = (n: number) => `US$ ${n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+export default async function PackingProducto({ org, productoId, familiaId }: { org: string; productoId: number; familiaId: number | null }) {
   const filas = await packingDeProducto(org, productoId);
   if (!filas.length) return null;
+  // ¿Avión o barco? Con el dato que rige y el FOB de cada variación (lib/compras/via.ts).
+  const [cfg, resueltos, fobs] = await Promise.all([
+    configVia(org), costosResueltos(org, [{ id: productoId, familia_id: familiaId }]),
+    consulta<{ id: number; fob: number | null }>("select id::int, case when costo_moneda = 'USD' then costo_fob::float8 end fob from variacion where organizacion_id = $1 and producto_id = $2", [org, productoId]),
+  ]);
+  const r = resueltos.get(productoId) ?? null;
+  const fobDe = new Map(fobs.map((x) => [x.id, x.fob]));
+  const vias = filas.filter((f) => f.rige).map((f) => {
+    const fob = fobDe.get(f.variacion_id) ?? null;
+    const kg = Math.max(f.peso_g / 1000, f.cbm * FACTOR_AEREO);
+    const avion = kg * cfg.aereoUsdKg, barco = f.cbm * cfg.barcoUsdM3;
+    return { f, fob, avion, barco, pct: fob ? (avion / fob) * 100 : null, finalAvion: fob ? costoFinal(fob, avion, r, cfg) : null, finalBarco: fob ? costoFinal(fob, barco, r, cfg) : null };
+  });
   const variaciones = new Set(filas.map((f) => f.variacion_id)).size;
   return (
     <section className="mt-4">
@@ -54,6 +72,17 @@ export default async function PackingProducto({ org, productoId }: { org: string
         </table>
       </div>
       <p className="text-[10px] text-[#5C6B76] mt-1">En rojo, los que por avión pagan bastante más por volumen que por peso (el volumétrico supera en 50 % al real).</p>
+      <div className="mt-2 text-xs space-y-0.5">
+        {vias.map((v) => (
+          <p key={v.f.variacion_id}>
+            {variaciones > 1 && <span className="font-mono mr-1">{v.f.sku_variacion}:</span>}
+            Flete por avión <b>{usd(v.avion)}</b> por unidad (US$ {cfg.aereoUsdKg}/kg){v.pct != null && <> = <b className={v.pct > cfg.umbralFletePct ? "text-[#C03420]" : ""}>{v.pct.toFixed(1).replace(".", ",")} % del FOB</b>{v.pct > cfg.umbralFletePct && " (conviene barco)"}</>}
+            {" · "}por barco <b>{usd(v.barco)}</b> (US$ {cfg.barcoUsdM3}/m³).
+            {v.finalAvion != null && v.finalBarco != null && <> Costo final con IVA: avión <b>{usd(v.finalAvion)}</b>, barco <b>{usd(v.finalBarco)}</b>{r?.derecho_pct.valor == null && ` (sin NCM: impuestos y gastos ${cfg.recargoSinDatosPct} %)`}.</>}
+          </p>
+        ))}
+        <p className="text-[10px] text-[#5C6B76]">La categoría (avión, conviene barco, no rentable o imposible por avión) contra el precio de la Clásica está en <Link href="/compras/sugerencia" className="text-[#16577F] hover:underline">Sugerencia de compra</Link>.</p>
+      </div>
     </section>
   );
 }

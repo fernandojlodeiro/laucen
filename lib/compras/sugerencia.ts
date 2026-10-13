@@ -11,6 +11,7 @@ import { unstable_cache } from "next/cache";
 import { consulta, una } from "@/lib/erp/base";
 import { costosMl, ritmo, sinComprasGrandes, type Grillas, type Renglon } from "@/lib/compras/sugerencia-calculo";
 import { comprasDeVariaciones, duracionCompras } from "@/lib/compras/invoices";
+import { calcularVia, configVia, costosResueltos, medidasDe, type CategoriaVia } from "@/lib/compras/via";
 
 export type FiltroSugerencia = { desde: string; hasta: string; dias: number };
 
@@ -41,6 +42,11 @@ export type FilaSugerencia = {
   /** Las compras registradas (invoices y courier): cuántas, la última (llegada y cantidad), cuántos días tardaron en
    *  venderse las últimas terminadas (mediana) y lo que se vendería en los días elegidos a ese ritmo. */
   compras_n: number; ultima_compra: string | null; ultima_cant: number | null; dias_compra: number | null; segun_compras: number | null;
+  /** ¿Avión o barco? (lib/compras/via.ts): FOB de la ficha, flete aéreo como % del FOB, costo final con IVA y ganancia por
+   *  cada vía (US$ por unidad, sobre la Clásica), y la categoría. */
+  fob_usd: number | null; via: CategoriaVia; medidas: "packing" | "ficha" | null; flete_aereo_pct: number | null; con_ncm: boolean;
+  avion_final: number | null; avion_ganancia: number | null; avion_margen: number | null;
+  barco_final: number | null; barco_ganancia: number | null; barco_margen: number | null;
 };
 
 /** Cuántas de las últimas compras terminadas se usan para el ritmo «según compras». */
@@ -99,12 +105,13 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
   const variaciones = claves.filter((k) => k.startsWith("v")).map((k) => Number(k.slice(1)));
   const fechas = [...new Set(claves.map((k) => ultima.get(k)!.dia))];
   const [info, tcs, compras] = await Promise.all([
-    consulta<{ id: number; producto_id: number; familia_id: number | null; proveedor_id: number | null; sku: string; titulo: string; fotos: string[] | null; archivado: boolean; costo_usd: number | null; comision_pct: number | null; clasica: number | null; stock: number }>(`
+    consulta<{ id: number; producto_id: number; familia_id: number | null; proveedor_id: number | null; sku: string; titulo: string; fotos: string[] | null; archivado: boolean; costo_usd: number | null; fob_usd: number | null; comision_pct: number | null; clasica: number | null; stock: number }>(`
       with lista as (select id from lista_precios where organizacion_id = $1
                       order by lower(nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') desc, orden, id limit 1)
       select va.id::int, va.producto_id::int, pr.familia_id::int, pr.proveedor_id::int, va.sku, titulo_variacion(va.id) titulo,
              (select array_agg(pf.url order by pf.orden) from producto_foto pf where pf.producto_id = va.producto_id) fotos,
              pr.estado = 'archivado' or va.estado = 'archivada' archivado, va.costo_ultimo_usd::float8 costo_usd,
+             case when va.costo_moneda = 'USD' then va.costo_fob::float8 end fob_usd,
              (select max(c.clasica_pct)::float8 from publicacion pu join canal ca on ca.id = pu.canal_id and ca.tipo = 'mercadolibre'
                 join ml_costos_comisiones_vigente c on c.categoria_id = pu.categoria_externa where pu.variacion_id = va.id) comision_pct,
              (select pd.lista_ars from lista, precio_de($1, va.id, lista.id) pd)::float8 clasica,
@@ -136,11 +143,14 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
     const v = porVariacion.get(clave);
     return {
       clave, producto_id: v?.producto_id ?? null, familia_id: v?.familia_id ?? null, proveedor_id: v?.proveedor_id ?? null, sku: v?.sku ?? clave.slice(1), titulo: v?.titulo ?? u.titulo ?? clave.slice(1), fotos: v?.fotos ?? null,
-      archivado: v ? v.archivado : true, costo_usd: v?.costo_usd ?? null, comision_pct: v?.comision_pct ?? null, clasica: v?.clasica ?? null, stock: v?.stock ?? 0,
+      archivado: v ? v.archivado : true, costo_usd: v?.costo_usd ?? null, fob_usd: v?.fob_usd ?? null, variacion_id: v?.id ?? null, comision_pct: v?.comision_pct ?? null, clasica: v?.clasica ?? null, stock: v?.stock ?? 0,
       ultima_fecha: u.dia, ultima_precio: u.precio, ultima_tc: tcDe.get(u.dia) ?? null,
     };
   });
-  const g = await grillas();
+  const [g, cfgVia, medidas, resueltos] = await Promise.all([
+    grillas(), configVia(org), medidasDe(org, info.map((x) => x.id)),
+    costosResueltos(org, info.map((x) => ({ id: x.producto_id, familia_id: x.familia_id }))),
+  ]);
   // Sin categoría conocida, la comisión más común de las categorías donde se publica.
   const conocidas = datos.map((d) => d.comision_pct).filter((x): x is number => x != null).sort((a, b) => a - b);
   const comisionComun = conocidas.length ? conocidas[Math.floor(conocidas.length / 2)] : 16.34;
@@ -154,6 +164,10 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
     const base = d.clasica != null && d.clasica > 0 ? d.clasica : precioHoy;
     const ml = base != null ? costosMl(base, comision, g) : null;
     const ganancia = base != null && costoArs != null && ml != null ? base - ml - costoArs : null;
+    const vv = d.variacion_id != null && d.producto_id != null
+      ? calcularVia(d.fob_usd, medidas.get(d.variacion_id) ?? { peso_g: null, cbm: null, origen: null, exacto: false },
+          base != null && ml != null && tcHoy ? (base - ml) / tcHoy : null, resueltos.get(d.producto_id) ?? null, cfgVia)
+      : null;
     return {
       clave: d.clave, producto_id: d.producto_id, familia_id: d.familia_id, proveedor_id: d.proveedor_id, sku: d.sku, titulo: d.titulo, fotos: d.fotos, archivado: d.archivado,
       tipico: r.tipico, mejor: r.mejor, ventanas: r.ventanas, dias_con_venta: r.diasConVenta, grandes: r.grandes, mayor_grande: r.mayor,
@@ -164,6 +178,9 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
       roi_pct: ganancia != null && costoArs ? Math.round((ganancia / costoArs) * 1000) / 10 : null,
       stock: d.stock, comprar_tipico: Math.max(0, r.tipico - Math.max(0, d.stock)), comprar_mejor: Math.max(0, r.mejor - Math.max(0, d.stock)),
       ...(segunCompras.get(d.clave) ?? { compras_n: 0, ultima_compra: null, ultima_cant: null, dias_compra: null, segun_compras: null }),
+      fob_usd: d.fob_usd, via: vv?.categoria ?? "sin_datos", medidas: vv?.medidas.origen ?? null, flete_aereo_pct: vv?.flete_aereo_pct ?? null, con_ncm: vv?.con_ncm ?? false,
+      avion_final: vv?.avion?.final ?? null, avion_ganancia: vv?.avion?.ganancia ?? null, avion_margen: vv?.avion?.margen_pct ?? null,
+      barco_final: vv?.barco?.final ?? null, barco_ganancia: vv?.barco?.ganancia ?? null, barco_margen: vv?.barco?.margen_pct ?? null,
     };
   });
   filas.sort((a, b) => b.tipico - a.tipico || b.mejor - a.mejor);
@@ -188,6 +205,7 @@ export const ORDEN_SUGERENCIA: Record<string, (x: FilaSugerencia) => number | st
   ganancia: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_tipico),
   ganancia_mejor: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_mejor),
   segun_compras: (x) => x.segun_compras, compras: (x) => x.ultima_compra,
+  flete_aereo: (x) => x.flete_aereo_pct, avion_margen: (x) => x.avion_margen, barco_margen: (x) => x.barco_margen,
 };
 
 /** Opciones del filtro «Días con venta» (más de N). */
@@ -202,7 +220,10 @@ export function filtrarMuestra(filas: FilaSugerencia[], sp: Record<string, strin
   const conStock = sp.con_stock === "1";
   // Proveedor preferido: un id, o «0» = los que no tienen.
   const prov = sp.prov != null && sp.prov !== "" ? Number(sp.prov) : null;
-  return filas.filter((x) => (conStock || x.comprar_tipico > 0) && (prov == null || (x.proveedor_id ?? 0) === prov) && x.dias_con_venta > minDias && (!desde || x.ultima_fecha >= desde) && coincide(x));
+  // Vía: una categoría, o «rentable» = las que por avión dejan el margen mínimo (Avión y Conviene barco).
+  const via = sp.via ?? "";
+  const pasaVia = (x: FilaSugerencia) => !via || (via === "rentable" ? x.via === "avion" || x.via === "barco" : x.via === via);
+  return filas.filter((x) => (conStock || x.comprar_tipico > 0) && (prov == null || (x.proveedor_id ?? 0) === prov) && pasaVia(x) && x.dias_con_venta > minDias && (!desde || x.ultima_fecha >= desde) && coincide(x));
 }
 
 /** «Última venta» (sólo muestra): en los últimos N meses. */
@@ -212,7 +233,7 @@ export const ULTIMA_VENTA_MESES = [[1, "el último mes"], [3, "los últimos 3 me
  *  lento»): filtrar, ordenar y pasar de página usan lo guardado. `calculado` dice cuándo se hizo. */
 export function sugerenciaGuardada(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null; calculado: string }> {
   return unstable_cache(async () => ({ ...(await sugerenciaCompra(org, f)), calculado: new Date().toISOString() }),
-    ["sugerencia-compra-4", org, f.desde, f.hasta, String(f.dias)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
+    ["sugerencia-compra-5", org, f.desde, f.hasta, String(f.dias)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
 }
 
 export type NodoCategoria = { id: number; nombre: string; padre: number | null; nivel: number; productos: number };

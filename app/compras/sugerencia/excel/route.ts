@@ -1,6 +1,7 @@
 // Descarga en Excel de la sugerencia de compra, con los mismos filtros que la pantalla.
 
 import type { NextRequest } from "next/server";
+import { CATEGORIAS_VIA } from "@/lib/compras/via";
 import { entrarErp } from "@/app/componentes/erp";
 import { coincideBusqueda } from "@/lib/busqueda";
 import { respuestaExcel, type ColumnaExcel } from "@/lib/informes/excel";
@@ -56,6 +57,17 @@ export async function GET(req: NextRequest) {
     { titulo: "% s/ costo", valor: (x) => x.roi_pct, formato: "pct", ancho: 9 },
     { titulo: "Ganancia típica $", valor: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_tipico), formato: "importe", ancho: 14 },
     { titulo: "Ganancia mejor $", valor: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_mejor), formato: "importe", ancho: 14 },
+    { titulo: "Vía", valor: (x) => CATEGORIAS_VIA[x.via].texto, ancho: 18 },
+    { titulo: "FOB US$", valor: (x) => x.fob_usd, formato: "importe", ancho: 10 },
+    { titulo: "Peso y volumen de", valor: (x) => (x.medidas === "packing" ? "Packing list" : x.medidas === "ficha" ? "Ficha" : ""), ancho: 12 },
+    { titulo: "Flete avión % FOB", valor: (x) => x.flete_aereo_pct, formato: "pct", ancho: 10 },
+    { titulo: "Con NCM", valor: (x) => (x.con_ncm ? "Sí" : ""), ancho: 8 },
+    { titulo: "Costo final avión US$", valor: (x) => x.avion_final, formato: "importe", ancho: 12 },
+    { titulo: "Ganancia avión US$", valor: (x) => x.avion_ganancia, formato: "importe", ancho: 12 },
+    { titulo: "% avión", valor: (x) => x.avion_margen, formato: "pct", ancho: 9 },
+    { titulo: "Costo final barco US$", valor: (x) => x.barco_final, formato: "importe", ancho: 12 },
+    { titulo: "Ganancia barco US$", valor: (x) => x.barco_ganancia, formato: "importe", ancho: 12 },
+    { titulo: "% barco", valor: (x) => x.barco_margen, formato: "pct", ancho: 9 },
   ];
   const t = totalesSugerencia(filas);
   return respuestaExcel("Sugerencia de compra", "Sugerencia", columnas, filas,

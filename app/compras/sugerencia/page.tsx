@@ -7,7 +7,10 @@ import BuscadorVivo, { CasillaViva } from "@/app/componentes/BuscadorVivo";
 import RangoFechas from "@/app/componentes/RangoFechas";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import { Paginado, ThOrden } from "@/app/componentes/Lista";
-import { entrarErp, Pantalla, Estado, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
+import { entrarErp, Pantalla, Estado, url, editandoFicha, BotonesFicha, Dato, TituloSeccion, CAJA, CAMPO, ETIQUETA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
+import CampoNumero from "@/app/componentes/CampoNumero";
+import { CAMPOS_VIA, CATEGORIAS_VIA, configVia } from "@/lib/compras/via";
+import { accionGuardarVia } from "./acciones";
 import { Desplegable } from "@/app/informes/Filtros";
 import Categorias from "./Categorias";
 import { coincideBusqueda } from "@/lib/busqueda";
@@ -34,7 +37,8 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
   const sp = await searchParams;
   const f = leerFiltroSugerencia(sp, hoyArgentina());
   const { filas: todas, tcHoy, calculado } = await sugerenciaGuardada(s.org.id, f);
-  const { nodos, ancestros } = await arbolCategorias(s.org.id, todas);
+  const [{ nodos, ancestros }, cfgVia] = await Promise.all([arbolCategorias(s.org.id, todas), configVia(s.org.id)]);
+  const editandoVia = editandoFicha(sp, "via");
   // Proveedor preferido: los que tienen algún producto en la sugerencia.
   const provIds = [...new Set(todas.map((x) => x.proveedor_id).filter((x): x is number => x != null))];
   const proveedores = provIds.length ? await consulta<{ id: number; nombre: string }>("select id::int, nombre from proveedor where organizacion_id = $1 and id = any($2::bigint[]) order by lower(nombre)", [s.org.id, provIds]) : [];
@@ -44,7 +48,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
   const filas = filtrarMuestra(todas, sp, (x) => !categoriaFuera(x) && (!q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1")));
   const t = totalesSugerencia(filas);
   const vista = paginarEnMemoria(ordenarEnMemoria(filas, sp, ORDEN_SUGERENCIA), sp);
-  const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vmeses: sp.vmeses ?? null, con_stock: sp.con_stock ?? null, sin_cat: sp.sin_cat ?? null, prov: sp.prov ?? null };
+  const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vmeses: sp.vmeses ?? null, con_stock: sp.con_stock ?? null, sin_cat: sp.sin_cat ?? null, prov: sp.prov ?? null, via: sp.via ?? null };
 
   return (
     <Pantalla titulo="Sugerencia de compra" ancho="max-w-7xl"
@@ -61,6 +65,8 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
             opciones={[{ valor: "", texto: "Cualquiera" }, ...ULTIMA_VENTA_MESES.map(([m, t]) => ({ valor: String(m), texto: `En ${t}` }))]} />
           <Desplegable parametro="prov" etiqueta="Proveedor" valor={sp.prov ?? ""} limpiar={["p"]}
             opciones={[{ valor: "", texto: "Todos" }, ...proveedores.map((p) => ({ valor: String(p.id), texto: p.nombre })), { valor: "0", texto: "Sin proveedor preferido" }]} />
+          <Desplegable parametro="via" etiqueta="Vía" valor={sp.via ?? ""} limpiar={["p"]}
+            opciones={[{ valor: "", texto: "Todas" }, { valor: "rentable", texto: "Rentables por avión" }, ...Object.entries(CATEGORIAS_VIA).map(([k, c]) => ({ valor: k, texto: c.texto }))]} />
           <Categorias nodos={nodos} sinCategoria={todas.filter((x) => x.familia_id == null).length} excluidas={[...sinCat]} />
           <CasillaViva parametro="con_stock" activo={sp.con_stock === "1"} etiqueta="Incluye los que tienen stock suficiente" ayuda="Los que no hace falta comprar: el stock de hoy alcanza para los días elegidos" />
           <a href={url("/compras/sugerencia/excel", params)} className={VERDE}>Descargar Excel</a>
@@ -95,12 +101,16 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
               <ThOrden col="ganancia_unit" n desc title="Ganancia por unidad">Ganancia</ThOrden>
               <ThOrden col="margen" n desc title="Ganancia sobre el precio de venta">% venta</ThOrden>
               <ThOrden col="roi" n desc title="Ganancia sobre el costo">% costo</ThOrden>
+              <th className={TH} title="¿Avión o barco? Según el flete aéreo y la ganancia por avión (ver abajo)">Vía</th>
+              <ThOrden col="flete_aereo" n desc title={`Flete aéreo por unidad (US$ ${cfgVia.aereoUsdKg} por kilo cobrable) como % del FOB`}>Flete avión</ThOrden>
+              <ThOrden col="avion_margen" n desc title="Ganancia sobre la Clásica trayéndolo por avión, con el costo final (impuestos e IVA incluidos)">% avión</ThOrden>
+              <ThOrden col="barco_margen" n desc title="Ganancia sobre la Clásica trayéndolo por barco, con el costo final (impuestos e IVA incluidos)">% barco</ThOrden>
               <ThOrden col="ganancia" n desc title="Ganancia de lo que hay que comprar, al ritmo típico">Total típico</ThOrden>
               <ThOrden col="ganancia_mejor" n desc title="Ganancia de lo que hay que comprar, al ritmo del mejor momento">Total mejor</ThOrden>
             </tr>
           </thead>
           <tbody>
-            {vista.length === 0 && <tr><td colSpan={18} className={`${TD} text-[#5C6B76]`}>No hay ventas con ritmo regular en ese período.</td></tr>}
+            {vista.length === 0 && <tr><td colSpan={22} className={`${TD} text-[#5C6B76]`}>No hay ventas con ritmo regular en ese período.</td></tr>}
             {vista.map((x) => (
               <tr key={x.clave} className={TR}>
                 <td className={`${TD} max-w-[17rem]`}>
@@ -137,6 +147,12 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
                 <td className={`${TDN} ${x.ganancia_unit != null && x.ganancia_unit < 0 ? "text-[#C03420] font-semibold" : ""}`}>{pesos(x.ganancia_unit)}</td>
                 <td className={`${TDN} ${x.margen_pct != null && x.margen_pct < 0 ? "text-[#C03420]" : ""}`}>{pct(x.margen_pct)}</td>
                 <td className={`${TDN} ${x.roi_pct != null && x.roi_pct < 0 ? "text-[#C03420]" : ""}`}>{pct(x.roi_pct)}</td>
+                <td className={TD} title={`${CATEGORIAS_VIA[x.via].ayuda}${x.medidas === "ficha" ? " Peso y medidas de la ficha (no hay packing list)." : ""}${x.con_ncm ? "" : ` Sin NCM cargada: impuestos y gastos = ${cfgVia.recargoSinDatosPct} %.`}`}>
+                  <Estado texto={CATEGORIAS_VIA[x.via].texto} tono={CATEGORIAS_VIA[x.via].tono} />
+                </td>
+                <td className={TDN} title={x.fob_usd != null ? `FOB US$ ${x.fob_usd}` : "Sin FOB en la ficha"}>{pct(x.flete_aereo_pct)}</td>
+                <td className={`${TDN} ${x.avion_margen != null && x.avion_margen < 0 ? "text-[#C03420]" : ""}`} title={x.avion_final != null ? `Costo final por avión ${usd(x.avion_final)} · ganancia ${usd(x.avion_ganancia)}` : undefined}>{pct(x.avion_margen)}</td>
+                <td className={`${TDN} ${x.barco_margen != null && x.barco_margen < 0 ? "text-[#C03420]" : ""}`} title={x.barco_final != null ? `Costo final por barco ${usd(x.barco_final)} · ganancia ${usd(x.barco_ganancia)}` : undefined}>{pct(x.barco_margen)}</td>
                 <td className={`${TDN} font-semibold`}>{x.ganancia_unit == null ? "—" : pesos(x.ganancia_unit * x.comprar_tipico)}</td>
                 <td className={TDN}>{x.ganancia_unit == null ? "—" : pesos(x.ganancia_unit * x.comprar_mejor)}</td>
               </tr>
@@ -150,6 +166,22 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
         Costo = último costo de la ficha; la ganancia sale del precio de la lista Clásica (con * los que no tienen Clásica: ahí sale de la última venta). «Últ. venta hoy» = la última venta pasada a dólares con el oficial de ese día y a pesos con el de hoy{tcHoy ? ` ($ ${formatearNumero(tcHoy, "pesos")})` : ""}. Los filtros «Días con venta» y «Última venta» sólo esconden renglones: los cálculos usan todo el período. Cómo se calcula: no hay historia del stock, así que se toman los tramos de {f.dias} días en que el producto se vendió con regularidad (sin un hueco más largo de lo normal para ese producto).
         Típico = lo que se vendió en un tramo común (la mediana); mejor momento = el mejor tramo. A comprar = lo que se vendería menos el stock de hoy; la inversión y la ganancia total son sobre eso. Las compras grandes de una sola vez no cuentan. Ganancia = precio de la Clásica − comisión, cargo fijo y envío de Mercado Libre − costo. Es una referencia para chequear.
       </p>
+      <section className="mt-6">
+        <TituloSeccion titulo="¿Avión o barco?">
+          <BotonesFicha editando={editandoVia} ver="/compras/sugerencia" editar="/compras/sugerencia?editar=via" form="via" />
+        </TituloSeccion>
+        <form id="via" action={accionGuardarVia} className={`${CAJA} flex flex-wrap items-start gap-4`}>
+          {CAMPOS_VIA.map(([k, t, u]) => editandoVia
+            ? <label key={k} className="w-48"><span className={ETIQUETA}>{t} ({u})</span><CampoNumero name={k} valor={cfgVia[k]} tipo="decimal" className={`${CAMPO} w-full`} /></label>
+            : <Dato key={k} etiqueta={`${t} (${u})`} numero className="w-48">{formatearNumero(cfgVia[k], "decimal")}</Dato>)}
+          <p className="basis-full text-[11px] text-[#5C6B76]">
+            Por unidad: flete por avión = kilos cobrables (el mayor entre el peso real y el volumétrico, volumen × 167 kg/m³) × US$ por kilo; por barco = volumen × US$ por m³.
+            Peso y volumen salen del packing list de las compras y, si no hay, de la ficha. Costo final con IVA: si el producto tiene NCM cargada (pestaña Costo), CIF + derechos, estadística,
+            despachante y depósito + IVA; si no, FOB + flete más el recargo de arriba. La ganancia sale de la Clásica menos lo de Mercado Libre, en dólares al oficial de hoy.
+            {" "}{Object.values(CATEGORIAS_VIA).map((c) => `${c.texto}: ${c.ayuda}`).join(" ")}
+          </p>
+        </form>
+      </section>
     </Pantalla>
   );
 }

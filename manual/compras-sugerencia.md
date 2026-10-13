@@ -24,6 +24,7 @@ Menú **Compras › Sugerencia de compra**.
   - **Días con venta**: sólo los que vendieron más de 5, 10, 20, 30, 50, 100 o 200 días en el período;
   - **Última venta**: sólo los que se vendieron por última vez en el último mes, 3 o 6 meses, el último año, 2 o 3 años (para no ver los que dejaron de venderse);
   - **Proveedor**: sólo los productos de ese proveedor preferido (el de la ficha del producto), o «Sin proveedor preferido».
+  - **Vía**: sólo los de una categoría de «¿avión o barco?» (ver abajo), o **«Rentables por avión»** (Avión y Conviene barco juntos).
   - **Categorías**: abre el árbol de categorías (hasta el tercer nivel), sólo las que tienen productos en la lista, con cuántos tiene cada una; todas vienen tildadas. Destildar una esconde sus productos y los de sus subcategorías. «Tildar todas» y «Destildar todas» arriba; «Sin categoría» para los productos que no tienen.
   - la caja **«Incluye los que tienen stock suficiente»**: de entrada no se muestran los productos que no hace falta comprar (lo que hay alcanza para los días elegidos); tildada, aparecen también.
   Estos filtros **sólo esconden renglones**: los cálculos se hacen siempre con todo el período de la historia.
@@ -42,6 +43,8 @@ Menú **Compras › Sugerencia de compra**.
   - **Últ. venta hoy**: el precio de la última venta en dólares, llevado al dólar oficial de hoy; sólo de referencia. Si el producto no tiene precio en la Clásica, la ganancia sale de este precio y lleva un asterisco (*).
   - **Mercado Libre**: comisión de su categoría más el cargo fijo (precios bajos) o el envío gratis (precios altos), sobre el precio de la Clásica.
   - **Ganancia** por unidad, **% s/ venta** (ganancia sobre el precio), **% s/ costo** (ganancia sobre el costo) y la **ganancia total** de lo que hay que comprar, según el típico y el mejor momento.
+  - **Vía**: la categoría de «¿avión o barco?»; **Flete avión**: el flete aéreo por unidad como % del FOB; **% avión** y **% barco**: la ganancia sobre la Clásica trayéndolo por cada vía, con el costo final (al pasar el mouse, el costo final y la ganancia en dólares).
+- Abajo, el recuadro **¿Avión o barco?** con los montos y criterios del cálculo; se cambian con el lápiz de su título.
 
 ## Criterios y reglas
 
@@ -53,6 +56,13 @@ Menú **Compras › Sugerencia de compra**.
 - **Precio para la ganancia**: el de la lista Clásica de hoy. Si el producto no tiene precio en la Clásica, el de la última venta (de cualquier canal) pasado a dólares con el oficial de ese día y a pesos con el de hoy.
 - **A comprar**: lo que se vendería en los días elegidos menos el stock disponible de hoy (nunca menos de cero). La inversión, las unidades y la ganancia de los recuadros son sobre eso.
 - **Ganancia por unidad** = precio de la Clásica − comisión de Mercado Libre de su categoría (si no se conoce, la más común) − cargo fijo o envío gratis − costo. No incluye publicidad ni impuestos.
+- **¿Avión o barco?** Por unidad de cada producto:
+  - **Flete por avión** = kilos cobrables × US$ por kilo (de entrada, 13). Los kilos cobrables son el mayor entre el peso real y el volumétrico (volumen × 167 kg por m³).
+  - **Flete por barco** = volumen × US$ por metro cúbico (de entrada, 330).
+  - Peso y volumen salen del packing list de las compras (ver [Productos](/catalogo/productos)); si no hay, del peso y las medidas de la ficha.
+  - **Costo final, con IVA incluido**: si el producto tiene posición arancelaria y derechos cargados (pestaña Costo, propios o de su categoría), CIF (FOB + flete + seguro) + derechos, tasa de estadística, otros, despachante y depósito fiscal + IVA sobre la base imponible. Si no tiene, FOB + flete más un recargo (de entrada, 30 %).
+  - **Ganancia** = Clásica − lo que se lleva Mercado Libre − costo final, en dólares al oficial de hoy.
+  - Categorías: **Avión** = el flete aéreo no pasa el umbral (de entrada, 30 % del FOB) y por avión deja al menos el margen mínimo (de entrada, 10 % de la Clásica). **Conviene barco** = el flete aéreo pasa el umbral, pero por avión igual deja el margen mínimo: se puede traer rápido si hace falta. **No rentable por avión** = por avión gana menos que el margen mínimo. **Imposible por avión** = por avión pierde plata. **Sin datos** = falta el peso, el FOB o el precio.
 
 ## Relacionado
 

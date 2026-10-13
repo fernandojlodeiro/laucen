@@ -157,7 +157,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
         </div>
       )}
       {seccion === "datos" && <SeccionDatos {...props} />}
-      {seccion === "datos" && !editando && <PackingProducto org={s.org.id} productoId={p.id} />}
+      {seccion === "datos" && !editando && <PackingProducto org={s.org.id} productoId={p.id} familiaId={p.familia_id ?? null} />}
       {seccion === "costo" && <SeccionCosto {...props} />}
       {seccion === "variaciones" && <SeccionVariaciones {...props} />}
       {seccion === "atributos" && <SeccionAtributos {...props} />}
