@@ -11,6 +11,7 @@ import { fijarVencimiento } from "@/lib/pedidos/reserva";
 import type { PoolClient } from "pg";
 import { consulta, una, enTransaccion, ErrorErp, type Consultor } from "@/lib/erp/base";
 import { precioDe } from "@/lib/precios";
+import { garantiaDeLinea } from "@/lib/pedidos/garantia";
 import { convertir, esMoneda, type Moneda } from "@/lib/moneda";
 import { condicionIva, documentoValido, normalizarCuit } from "@/lib/clientes";
 
@@ -378,11 +379,13 @@ async function resolverLineas(c: PoolClient, org: string, entrada: LineaEntrada[
 
 async function insertarLineas(c: PoolClient, org: string, pedidoId: number, lineas: LineaResuelta[], desde: number) {
   for (const [i, l] of lineas.entries()) {
+    // Lo que decía la garantía en este momento queda grabado en la línea (lib/pedidos/garantia.ts).
+    const g = await garantiaDeLinea(c, pedidoId, l.variacion_id, l.datos);
     await c.query(`
       insert into pedido_linea (organizacion_id, pedido_id, variacion_id, cantidad, precio_lista_ars, precio_lista_usd,
-                                descuento_pct, precio_unit_ars, precio_unit_usd, titulo, sku, orden, datos_externos)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)`,
-      [org, pedidoId, l.variacion_id, l.cantidad, l.lista_ars, l.lista_usd, l.descuento, l.unit_ars, l.unit_usd, l.titulo, l.sku, desde + i, JSON.stringify(l.datos)]);
+                                descuento_pct, precio_unit_ars, precio_unit_usd, titulo, sku, orden, datos_externos, garantia, garantia_origen)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15)`,
+      [org, pedidoId, l.variacion_id, l.cantidad, l.lista_ars, l.lista_usd, l.descuento, l.unit_ars, l.unit_usd, l.titulo, l.sku, desde + i, JSON.stringify(l.datos), g.garantia, g.origen]);
   }
 }
 
@@ -576,7 +579,7 @@ export async function pedidoCompleto(org: string, pedidoId: number) {
   if (!pedido) return null;
   const lineas = await consulta(`
     select id::int, variacion_id::int, sku, titulo, cantidad, precio_lista_ars::float, precio_lista_usd::float,
-           descuento_pct::float, precio_unit_ars::float, precio_unit_usd::float, datos_externos #>> '{ml,order_id}' orden_ml
+           descuento_pct::float, precio_unit_ars::float, precio_unit_usd::float, datos_externos #>> '{ml,order_id}' orden_ml, garantia
       from pedido_linea where pedido_id = $1 order by orden, id`, [pedidoId]);
   const historial = await consulta(`
     select h.estado_anterior, h.estado_nuevo, h.quien, coalesce(u.nombre, h.quien) quien_nombre, h.nota, h.fecha

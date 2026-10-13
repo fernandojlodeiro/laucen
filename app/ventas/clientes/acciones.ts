@@ -57,6 +57,15 @@ function cuitDe(fd: FormData): string | null {
   return c;
 }
 
+/** El WhatsApp en formato internacional, sólo números (5493511234567); un número local de 10 dígitos se completa con 549. */
+function whatsappDe(fd: FormData): string | null {
+  let d = String(fd.get("whatsapp") ?? "").replace(/\D/g, "");
+  if (!d) return null;
+  if (d.length === 10) d = `549${d}`;
+  if (d.length < 11 || d.length > 15) throw new ErrorErp("El WhatsApp va en formato internacional, sólo números (ej. 5493511234567).");
+  return d;
+}
+
 export async function accionGuardarCliente(fd: FormData) {
   const s = await entrarErp("clientes_ver");
   const cid = id(fd);
@@ -77,14 +86,18 @@ export async function accionGuardarCliente(fd: FormData) {
                          apellido = $14, nombre_pila = $15, apodo_ml = $16, telefono_movil = $17,
                          cuenta_corriente = coalesce($18, cuenta_corriente),
                          limite_cc = case when $18::boolean is null then limite_cc else $21::numeric end,
-                         telefono_aclaracion = $19, telefono_movil_aclaracion = $20
+                         telefono_aclaracion = $19, telefono_movil_aclaracion = $20,
+                         -- El WhatsApp confirmado: si una persona lo cambia, deja de figurar "nos escribió desde acá".
+                         whatsapp_confirmado_ts = case when whatsapp is distinct from $22 then null else whatsapp_confirmado_ts end, whatsapp = $22,
+                         factura_por_whatsapp = $23, factura_por_mail = $24
        where id = $2 and organizacion_id = $1 returning id`,
       [s.org.id, cid, nombre, tipo(fd), texto(fd, "email"), texto(fd, "telefono"), documentoTipo(fd),
         texto(fd, "documento_numero"), condicionIva(fd), lista, texto(fd, "notas"), texto(fd, "razon_social"), cuitDe(fd),
         texto(fd, "apellido"), texto(fd, "nombre_pila"), texto(fd, "apodo_ml"), texto(fd, "telefono_movil"),
         // La ficha manda la casilla de cuenta corriente y el límite (con_cc) sólo a quien tiene «cc_asignar»; sin ella, quedan como estaban.
         conCc ? fd.get("cuenta_corriente") === "on" : null,
-        texto(fd, "telefono_aclaracion"), texto(fd, "telefono_movil_aclaracion"), conCc ? limite : null]);
+        texto(fd, "telefono_aclaracion"), texto(fd, "telefono_movil_aclaracion"), conCc ? limite : null,
+        whatsappDe(fd), fd.get("factura_por_whatsapp") === "on", fd.get("factura_por_mail") === "on"]);
     if (!r.length) throw new ErrorErp("El cliente no existe.");
     revalidatePath(ficha(cid));
     return "Guardado.";

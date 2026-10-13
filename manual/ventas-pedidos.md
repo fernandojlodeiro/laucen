@@ -85,7 +85,7 @@ Se abre con **"+ Nuevo pedido o presupuesto"**, debajo del encabezado. Sirve par
 Título "Pedido 1234 · id externo", con el canal y la fecha y hora debajo. Bloques, de arriba hacia abajo:
 
 1. **Cabecera**: Estado (y la marca de carrito en espera, con un recuadro que explica desde qué hora se puede tocar), Pago (con el medio), el cartel **"A COBRAR $ …"** si corresponde, Total (y "cargado en dólares/pesos" si se cargó en la otra moneda), Depósito (o "no mueve stock"), Cliente (con documento y mail), Canal, Fecha, Unidades y Notas.
-2. **"Líneas"**: SKU (enlace al producto, con su foto si tiene), Título (en un carrito de Mercado Libre con varias órdenes, debajo dice "Orden ML …"), Cantidad, Lista, Descuento, Unitario, Subtotal y el Total.
+2. **"Líneas"**: SKU (enlace al producto, con su foto si tiene), Título (en un carrito de Mercado Libre con varias órdenes, debajo dice "Orden ML …"), Cantidad, **Garantía** (la que tenía lo vendido en el momento de la venta), Lista, Descuento, Unitario, Subtotal y el Total.
 3. **"Envío"**: si es de Mercado Envíos, Logística (Full, Flex, Colecta, Despacho en correo, A convenir), Estado del envío, "Despachar antes de", "Entrega estimada", las fechas del envío según Mercado Libre (**"Etiqueta impresa"**, **"Lista para preparar"**, **"En camino"**, **"Recibido por el cliente"**: en verde con la fecha y hora cuando pasó, **"Pendiente"** en amarillo mientras no; "No entregado", "Devuelto" o "Cancelado" en rojo si pasó). "Despachar antes de" es el plazo que figura en la etiqueta (en azul; en rojo si ya venció sin despachar), "Recibe", "Seguimiento" y "Dirección". Si no, los datos de entrega cargados ("Sin datos de envío." si no hay). En los pedidos que no son de Mercado Libre y tienen dirección con código postal, el botón **"🚚 Despachar por OCA"**; ya dado de alta en OCA, el número de envío, **"🖨 Etiqueta de OCA"**, **"↻ Actualizar seguimiento"**, **"Anular en OCA"** (mientras no salió) y los últimos movimientos que informó OCA. Ver [OCA](/config/envios/oca). Debajo, la **"Comisión de Mercado Libre"** (y el número de carrito) y, en rojo, el aviso si tiene artículos sin vincular.
 4. **"Historial de estados"**: fecha, cambio ("Pagado → **En preparación**"), quién (o "Sistema") y nota.
 5. **"Cargos de Mercado Libre"** (sólo si ya están): la venta, cada cargo restado por tipo y el **"Neto de Mercado Libre"**; aparte, las retenciones y percepciones.
@@ -218,7 +218,18 @@ Con los mismos datos no se vuelve a leer: sólo cuando el comprador escribe algo
 
 - **A mano**: si el pedido tiene una factura vigente, en el bloque «Facturación» está **"Refacturar con datos actuales"**. Hace una **nota de crédito idéntica** a la factura (del mismo tipo: a una B, una nota de crédito B) que la anula, y una **factura nueva** con los datos de hoy de la ficha del cliente y las Observaciones de la factura. Las dos salen con la fecha del día. Sirve, por ejemplo, cuando el cliente pidió por teléfono factura A: cargá su CUIT en la ficha del cliente (con «Validar en ARCA») y apretá el botón.
 - **Sola**: si el comprador escribe **después** de la factura pidiendo un cambio claro (factura A con su CUIT, una leyenda), Laucen refactura sola de la misma manera. Si el pedido no está claro, queda **"⚠ Revisar la factura"** con el motivo y el aviso **"Facturas"**: refacturá con el botón o apretá **"Dejar la factura como está"**.
-- **Mercado Libre acepta un solo documento fiscal por venta**: la nota de crédito no se sube, y si la factura anterior ya estaba subida, la nueva no se sube sola (queda «Falta subirla») hasta reemplazar la de Mercado Libre.
+- **En Mercado Libre** (acepta un solo documento fiscal por venta): la nota de crédito no se sube. Si la factura anterior estaba subida a la venta, la nueva **la reemplaza**: se borra la anterior y se sube la nueva. Pasa solo en las cuentas con «Subir facturas a Mercado Libre» prendido ([Canales](/config/canales)); en las demás, con el botón «Subir factura a Mercado Libre». Si el comprador había escrito por la mensajería de esa venta, se le avisa ahí: «¡Hola! Ya cargamos en tu compra la factura corregida (…)».
+- **Por WhatsApp**: si al cliente le corresponde (ver abajo), la factura nueva le llega sola, con el texto «factura corregida».
+
+### Mandarle la factura al cliente por WhatsApp
+
+Cuando una factura queda autorizada, le llega sola por WhatsApp al cliente si:
+- el cliente tiene **WhatsApp confirmado** y la casilla **"Enviarle la factura por WhatsApp"** tildada ([Clientes](/ventas/clientes)), y
+- el pedido **no es una venta de Mercado Libre**, o lo es pero el cliente nos escribió por WhatsApp por esa compra (la factura de una venta de Mercado Libre va a Mercado Libre).
+
+Dentro de las 24 horas del último mensaje del cliente le llega el PDF. Pasadas las 24 horas, WhatsApp sólo deja mandar un mensaje con **plantilla**: le llega «Hola …, te enviamos la Factura B … de tu compra» con el botón **"Ver la factura"**, que abre el PDF. La plantilla la pide Laucen sola a Meta la primera vez; hasta que Meta la aprueba, la factura queda pendiente y sale sola cuando se aprueba (se reintenta durante 3 días).
+
+En el bloque «Facturación» del pedido, al lado de cada factura dice **"WhatsApp: enviada el … (a …)"**, o pendiente o el error con el motivo. El botón **"Mandar por WhatsApp"** la manda en el momento (por ejemplo, si el cliente la pide de nuevo o si se tildó la casilla después). Hace falta una línea de WhatsApp conectada ([WhatsApp](/ventas/mensajes)). El envío queda también en el chat del cliente.
 
 ### Subir la factura a la venta de Mercado Libre
 
@@ -236,6 +247,8 @@ Con los mismos datos no se vuelve a leer: sólo cuando el comprador escribe algo
 2. En la lista, sumá a tu vista las columnas **"Cargos ML"** y **"Neto ML"**.
 
 ## Criterios y reglas
+
+- **La lista se actualiza sola**: estando en Pedidos (por ejemplo con el filtro Pendientes, al que se llega desde la barra de estado), cada 15 segundos se fija si cambió la cantidad de pendientes. Si entró un pedido o si otro operador (o vos en otra pestaña) resolvió uno, la lista se actualiza y desaparecen los que ya no están pendientes. Si estás escribiendo en un campo, espera a que termines.
 
 ### Canales: de dónde vienen los pedidos
 
@@ -357,6 +370,8 @@ Como las órdenes de un carrito pueden llegar con minutos de diferencia, para qu
 - Se ve con la marca ámbar **"Carrito en espera · faltan N min"** en la lista, en la ficha (con el texto "se puede tocar desde las HH:MM") y en Envíos ("Carrito: esperando"). El botón "Facturar" se ve deshabilitado con ese texto.
 - Pasada la espera, la marca desaparece sola y todo vuelve a andar (la facturación automática lo toma en su próxima vuelta).
 - Un carrito que entra tarde (por la revisión de cada 30 minutos) cuenta la espera desde su orden más reciente, así que puede no esperar nada.
+
+- **Garantía de cada línea** (uso interno, no sale en ningún comprobante): al entrar la venta queda grabada en la línea la garantía que tenía en ese momento y no cambia después aunque cambie la publicación o la ficha. Si se vendió por **Mercado Libre**, es la que tenía la publicación en Mercado Libre (por ejemplo "Garantía del vendedor · 12 meses"); si no se pudo leer en ese momento, la última que Laucen tenía guardada de esa publicación. Si se vendió por cualquier otro canal (local, web, mayorista), es la que dice la ficha del producto. Si no hay ningún dato, la línea muestra "—".
 
 ### Artículos sin vincular
 

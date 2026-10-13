@@ -315,7 +315,7 @@ const dormir = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
 /** Manda lo pendiente hasta `hastaMs`. Cada canal (cuenta) con pendientes va
  *  en paralelo, pero con un solo trabajador a la vez por canal (turno) y su
  *  ritmo. Se puede llamar desde varios lados a la vez sin pisarse. */
-export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; subir?: SubirArchivo; ritmoMs?: number; org?: string } = {}): Promise<ResultadoCola> {
+export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; subir?: SubirArchivo; subirClip?: import("@/lib/mercadolibre/clips").SubirClip; ritmoMs?: number; org?: string } = {}): Promise<ResultadoCola> {
   const enviar: Enviar = opts.enviar ?? ((c, m, r, b) => ml(c, m, r, b));
   const ritmo = opts.ritmoMs ?? RITMO_MS;
   const res: ResultadoCola = { canales: 0, enviadas: 0, ok: 0, reintentos: 0, errores: 0, frenadas: 0 };
@@ -368,6 +368,21 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
           }
           if (x.enviado) { ultimo = Date.now(); res.enviadas++; }
           status = x.r.status; datos = x.r.datos; mensajeError = x.mensajeError;
+          if (status === 429) frenar = 60_000;
+          else if (status === 401) frenar = 300_000;
+        } else if (fila.payload?.marca === "subir_clip") {
+          // Subir un video (Clip) a una publicación (lib/mercadolibre/clips.ts).
+          const { enviarClip } = await import("@/lib/mercadolibre/clips");
+          const espera = ultimo + ritmo - Date.now();
+          if (espera > 0) await dormir(espera);
+          const x = await enviarClip(fila.organizacion_id, fila.payload, cuenta, opts.subirClip);
+          if (x.tipo === "error") {
+            await consulta("update ml_cola set estado = 'error', ultimo_error = $2, enviado_ts = now() where id = $1", [fila.id, x.mensaje]);
+            res.errores++;
+            continue;
+          }
+          ultimo = Date.now(); res.enviadas++;
+          status = x.r.status; datos = x.r.datos;
           if (status === 429) frenar = 60_000;
           else if (status === 401) frenar = 300_000;
         } else {

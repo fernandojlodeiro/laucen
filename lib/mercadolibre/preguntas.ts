@@ -11,6 +11,8 @@ import { pedirClaude, hayClaude } from "@/lib/claude";
 import { textosCanal, instruccionesExtra, conFirma, agregarFirma } from "@/lib/canales/textos";
 import { ml, mlOk, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import type { ItemMl } from "@/lib/mercadolibre/publicaciones";
+import { buscarProductosPedidos } from "@/lib/mercadolibre/productos-pedidos";
+import { planDe } from "@/lib/mercadolibre/prueba-planes";
 
 type PreguntaMl = {
   id: number; item_id: string; seller_id: number; status: string; text: string; date_created: string;
@@ -86,8 +88,9 @@ async function contexto(cuenta: CuentaMl, itemId: string, publicacionId: number 
 }
 
 const INSTRUCCIONES = `Sos quien atiende las preguntas de una tienda argentina en Mercado Libre. Escribí la respuesta a la pregunta del comprador, en castellano rioplatense, cordial y breve (1 a 3 oraciones, nunca más de 600 caracteres), empezando con "Hola" y terminando con un saludo corto ("Saludos!").
-Reglas de Mercado Libre que no se pueden romper: nada de teléfonos, mails, direcciones, links, redes sociales ni nombres de otras tiendas; no invitar a comprar por fuera de ML.
+Reglas de Mercado Libre que no se pueden romper: nada de teléfonos, mails, direcciones, redes sociales ni nombres de otras tiendas; no invitar a comprar por fuera de ML. Links: sólo los de publicaciones nuestras de Mercado Libre que figuren en DATOS.productos_pedidos, nunca otros.
 Usá SOLO los datos que te paso (publicación, ficha y stock). Si el dato no está, no lo inventes: decí que lo consultás o sugerí ver la descripción. Si preguntan por stock, usá el disponible. Si preguntan por envío, decí lo que figura (envío gratis o Full) sin prometer fechas exactas.
+Si DATOS trae productos_pedidos, el comprador pregunta también por esos otros productos: cada uno trae las publicaciones nuestras que se encontraron (con link, plan y stock disponible) o ninguna. Usá sólo esos datos; qué decir según haya o no stock lo dicen las reglas de la tienda. Un solo link por producto, el de la primera con stock.
 ${FORMATO_IA}`;
 
 /** La IA propone una respuesta y queda guardada como sugerencia, con lo que
@@ -100,6 +103,12 @@ export async function sugerirRespuesta(org: string, preguntaId: number): Promise
   const cuenta = await cuentaDelCanal(org, Number(q.canal_id));
   if (!cuenta) throw new ErrorErp("La cuenta de Mercado Libre de esta pregunta ya no está conectada.");
   const ctx = await contexto(cuenta, q.item_id, q.publicacion_id ? Number(q.publicacion_id) : null);
+  // ¿Pregunta por otros productos? Se buscan entre las publicaciones de esta cuenta (lib/mercadolibre/productos-pedidos.ts).
+  const mi = await una<{ tipo: string | null; tags: unknown; terms: unknown }>(
+    "select tipo, datos_externos -> 'ml' -> 'tags' tags, datos_externos -> 'ml' -> 'sale_terms' terms from meli_item where organizacion_id = $1 and canal_id = $2 and item_id = $3 limit 1", [org, q.canal_id, q.item_id]);
+  const pedidos = await buscarProductosPedidos(org, Number(q.canal_id), {
+    pregunta: q.texto, tituloPublicacion: ctx.publicacion?.titulo ?? null, itemId: q.item_id, plan: mi?.tipo ? planDe(mi.tipo, mi.tags, mi.terms) : null });
+  if (pedidos.length) (ctx as Record<string, unknown>).productos_pedidos = pedidos;
   const textos = await textosCanal(org, q.canal_id);
   const r = await pedirClaude({
     system: INSTRUCCIONES + instruccionesExtra(textos), modelo: "medio", maxTokens: 600,

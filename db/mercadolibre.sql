@@ -587,3 +587,19 @@ create table if not exists ml_catalogo_sku (
   primary key (organizacion_id, sku)
 );
 alter table ml_catalogo_sku enable row level security;
+
+-- Videos para publicaciones (Fer, 13/10): el archivo está en Storage (bucket 'videos'); `url_firmada` es el link
+-- con el que la cola lo baja para mandarlo a ML (nunca se muestra).
+create table if not exists video_ml (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  nombre           text not null,
+  ruta             text not null,
+  bytes            bigint,
+  tipo             text,
+  url_firmada      text not null,
+  vence_ts         timestamptz not null,
+  subido_por       text,
+  creado_ts        timestamptz not null default now()
+);
+alter table video_ml enable row level security;

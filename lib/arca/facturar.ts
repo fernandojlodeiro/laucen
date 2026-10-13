@@ -183,7 +183,8 @@ export async function prepararNotaCredito(org: string, facturaId: number, usuari
 
 /** Recién autorizado: si es de una venta de Mercado Libre y el canal tiene
  *  prendido "Subir facturas a Mercado Libre", entra a la cola para subirse
- *  (lib/mercadolibre/facturas.ts). Una falla acá no deshace la factura. */
+ *  (lib/mercadolibre/facturas.ts); y si le corresponde, sale por WhatsApp
+ *  (lib/facturacion/envio.ts). Una falla acá no deshace la factura. */
 async function alAutorizar(org: string, comprobanteId: number) {
   try {
     const { alAutorizarComprobante } = await import("@/lib/mercadolibre/facturas");
@@ -191,6 +192,9 @@ async function alAutorizar(org: string, comprobanteId: number) {
   } catch (e) {
     console.error("[factura a ML]", e instanceof Error ? e.message : e);
   }
+  // Y al cliente por WhatsApp, si le corresponde (lib/facturacion/envio.ts; no tira).
+  const { alAutorizarWhatsapp } = await import("@/lib/facturacion/envio");
+  await alAutorizarWhatsapp(org, comprobanteId);
 }
 
 /** Manda el comprobante a ARCA y guarda el resultado. */

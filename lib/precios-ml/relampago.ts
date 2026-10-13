@@ -18,14 +18,15 @@ export function recibis(precio: number | null, comision: number | null, envio: n
   return Math.round(precio - comision - envio);
 }
 
-/** El precio con que entra (Fer, 12/10): lo más cerca posible de lo que paga hoy el comprador, sin pasar el precio que
- *  propone ML para la relámpago (`sugeridoMl`, el «price» de la propuesta: ≈ 5 % debajo de su precio de hoy) ni el más
- *  alto del rango. Más arriba ML la rechaza por «no creíble» (ERROR_CREDIBILITY_DISCOUNTED_PRICE: pasó al mismo precio
- *  de hoy y a un peso menos). Sin sugerido, un peso debajo de hoy. En pesos enteros (hacia abajo). Fer lo puede cambiar a mano en la fila (`elegido`). null si queda fuera del rango. Pura. */
-export function precioRelampago(max: number | null, hoy: number | null, min: number | null = null, elegido: number | null = null, sugeridoMl: number | null = null): number | null {
+/** El precio con que entra (Fer, 13/10): un peso debajo de lo que paga hoy el comprador (sin pasar el más alto del rango).
+ *  Hay publicaciones donde ML lo acepta así (la notebook MLA1706473983 y las del G3-3500, 12/10) y otras donde lo rechaza
+ *  por «no creíble» (ERROR_CREDIBILITY_DISCOUNTED_PRICE) y sólo acepta el precio que propone para la relámpago (el «price»
+ *  de la propuesta, ≈ 5 % debajo): `propuestoMl` va sólo después de ese rechazo. En pesos enteros (hacia abajo). Fer lo
+ *  puede cambiar a mano en la fila (`elegido`). null si queda fuera del rango. Pura. */
+export function precioRelampago(max: number | null, hoy: number | null, min: number | null = null, elegido: number | null = null, propuestoMl: number | null = null): number | null {
   if (elegido != null) return (min != null && elegido < min) || (max != null && elegido > max) ? null : elegido;
   if (max == null || hoy == null) return null;
-  const p = Math.min(Math.floor(max), Math.ceil(hoy) - 1, sugeridoMl != null && sugeridoMl > 0 ? Math.floor(sugeridoMl) : Infinity);
+  const p = Math.min(Math.floor(max), Math.ceil(hoy) - 1, propuestoMl != null && propuestoMl > 0 ? Math.floor(propuestoMl) : Infinity);
   return min != null && p < min ? null : p;
 }
 
@@ -64,6 +65,8 @@ export type Relampago = FilaRelampago & {
   plan: PlanOClasica | null; recibisHoy: number | null; recibisRel: number | null; diferencia: number | null; alcanza: boolean | null; conStock: boolean | null;
   /** Con cuántas unidades entra: las que eligió Fer en la fila, si no el mínimo que pide; en una aceptada, las que le quedan. */
   stockEntrar: number | null;
+  /** Cuánto más barato que hoy entra, en % con un decimal (Fer, 13/10: ordenar por lo que exige ML). */
+  bajaPct: number | null;
   costoHoyPct: number | null; costoRelPct: number | null;
 };
 
@@ -72,10 +75,15 @@ export type Relampago = FilaRelampago & {
 const PRECIOS_SQL = `
       left join ml_precio_comprador pc on pc.canal_id = p.canal_id and pc.item_id = p.item_id
       left join ml_relampago_precio rp on rp.canal_id = p.canal_id and rp.item_id = p.item_id
+      -- El último pedido para entrar: si ML lo rechazó por «no creíble», se baja al precio que propone (≈ 5 % debajo).
+      left join lateral (select (q.payload -> 'pedidos' -> 0 -> 'cuerpo' ->> 'deal_price')::numeric precio
+                           from ml_cola q where q.canal_id = p.canal_id and q.item_id = 'relampago:' || p.item_id
+                            and q.estado = 'error' and q.ultimo_error ilike '%CREDIBILITY%' order by q.id desc limit 1) rz on true
       cross join lateral (select coalesce(pc.monto, (m.datos_externos -> 'ml' ->> 'price')::numeric) hoy,
                                  coalesce(p.max_precio, (p.datos ->> 'max_discounted_price')::numeric) max) x
       cross join lateral (select case when p.estado <> 'candidate' and p.datos ->> 'price' is not null then round((p.datos ->> 'price')::numeric, 2)
-                                      else round(coalesce(rp.precio, least(floor(x.max), ceil(x.hoy) - 1, floor(nullif((p.datos ->> 'price')::numeric, 0)))), 2) end rel) y`;
+                                      else round(coalesce(rp.precio, least(floor(x.max), ceil(x.hoy) - 1,
+                                        case when rz.precio is not null then floor(nullif((p.datos ->> 'price')::numeric, 0)) end)), 2) end rel) y`;
 
 /** Las propuestas de oferta relámpago de las publicaciones activas (de una cuenta o de todas), con lo que se recibe. */
 export async function relampagos(org: string, canal: number | null = null): Promise<Relampago[]> {
@@ -117,6 +125,7 @@ export async function relampagos(org: string, canal: number | null = null): Prom
       diferencia: recibisHoy != null && recibisRel != null ? recibisRel - recibisHoy : null,
       alcanza: f.piso == null || recibisRel == null ? null : recibisRel >= f.piso,
       stockEntrar: f.estado !== "candidate" ? f.restante : (f.elegido_stock ?? f.stock_min),
+      bajaPct: f.rel == null || f.hoy == null || f.hoy <= 0 ? null : Math.round(((f.hoy - f.rel) / f.hoy) * 1000) / 10,
       conStock: f.estado !== "candidate" || f.stock == null || (f.elegido_stock ?? f.stock_min) == null ? null : f.stock >= (f.elegido_stock ?? f.stock_min)!,
     };
   });
@@ -334,13 +343,42 @@ export async function entrarRelampagosAuto(hasta: number): Promise<number> {
   for (const c of canales) {
     if (Date.now() > hasta) break;
     const enviados = await enviosRelampago(c.organizacion_id);
-    const cambios = (await relampagos(c.organizacion_id, c.id))
-      // Una vez por propuesta y precio: si ML la rechazó, se vuelve a probar sólo si el precio de entrada cambió.
-      .filter((f) => { const e = enviados.get(f.item_id); return entraSola(f) && (!e || (e.estado === "error" && e.precio !== f.rel)); })
+    // Uno por producto también entre cuentas (Fer, 13/10): los productos que ya tienen una relámpago (en cualquier cuenta).
+    const todas = await relampagos(c.organizacion_id, null);
+    const cambios = unaPorProducto(todas.filter((f) => f.canal_id === c.id && entraSola(f)), todas, enviados)
       .map((f) => cambioEntrar(f, stockAuto(f)));
     if (!cambios.length) continue;
     await encolar(c.organizacion_id, cambios.map((x) => ({ ...x, prioridad: 40 })), { origen: "automatico" });
     n += cambios.length;
   }
   return n;
+}
+
+type Envios = Map<string, { estado: string; error: string | null; precio: number | null }>;
+
+/** De las propuestas `candidatas`, una sola por producto (al azar entre sus publicaciones y cuentas; Fer, 13/10: no
+ *  entrar con el mismo producto en varias publicaciones), salteando los productos que ya tienen una relámpago aceptada o
+ *  mandada en `todas`. Una que ML rechazó se vuelve a probar sólo si cambió su precio de entrada. */
+export function unaPorProducto(candidatas: Relampago[], todas: Relampago[], enviados: Envios, azar: () => number = Math.random): Relampago[] {
+  const enviada = (f: Relampago) => { const e = enviados.get(f.item_id); return !!e && !(e.estado === "error" && e.precio !== f.rel); };
+  const ocupados = new Set(todas.filter((f) => f.estado !== "candidate" || enviada(f)).map((f) => f.producto_id));
+  const porProducto = new Map<number, Relampago[]>();
+  for (const f of candidatas) {
+    if (ocupados.has(f.producto_id) || enviada(f)) continue;
+    porProducto.set(f.producto_id, [...(porProducto.get(f.producto_id) ?? []), f]);
+  }
+  return [...porProducto.values()].map((fs) => fs[Math.floor(azar() * fs.length)]);
+}
+
+/** «Entrar a todas las que bajan hasta X %» (el clic de Fer): las propuestas de la cuenta (o de todas) que entran con
+ *  una baja de hasta `maxPct` % sobre lo que paga hoy, alcanzan el piso y tienen el stock que piden; una por producto,
+ *  con todas las unidades disponibles (hasta el máximo de la oferta). Van directo a la cola. */
+export async function entrarRelampagosHasta(org: string, usuario: string, canal: number | null, maxPct: number): Promise<Relampago[]> {
+  const todas = await relampagos(org, null);
+  const candidatas = todas.filter((f) => (canal == null || f.canal_id === canal) && f.estado === "candidate" && f.rel != null
+    && f.bajaPct != null && f.bajaPct <= maxPct + 0.05 && f.alcanza !== false && f.stock != null && f.stock > 0
+    && (f.stock_min == null || f.stock >= f.stock_min));
+  const elegidas = unaPorProducto(candidatas, todas, await enviosRelampago(org));
+  if (elegidas.length) await encolar(org, elegidas.map((f) => cambioEntrar(f, stockAuto(f))), { origen: "boton", usuarioId: usuario });
+  return elegidas;
 }

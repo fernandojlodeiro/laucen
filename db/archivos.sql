@@ -31,3 +31,22 @@ begin
       using (bucket_id in ('productos', 'importaciones') and (storage.foldername(name))[1] in (select public.mis_organizaciones()));
   end if;
 end $$;
+
+-- Videos de publicaciones (Fer, 13/10): privado, hasta 300 MB. Se suben del navegador y la cola los manda a ML por un link firmado.
+do $$
+begin
+  if not exists (select 1 from pg_namespace where nspname = 'storage') then return; end if;
+  insert into storage.buckets (id, name, public, file_size_limit) values ('videos', 'videos', false, 314572800) on conflict (id) do nothing;
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'erp videos insertar') then
+    create policy "erp videos insertar" on storage.objects for insert to authenticated
+      with check (bucket_id = 'videos' and (storage.foldername(name))[1] in (select public.mis_organizaciones()));
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'erp videos leer') then
+    create policy "erp videos leer" on storage.objects for select to authenticated
+      using (bucket_id = 'videos' and (storage.foldername(name))[1] in (select public.mis_organizaciones()));
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'erp videos borrar') then
+    create policy "erp videos borrar" on storage.objects for delete to authenticated
+      using (bucket_id = 'videos' and (storage.foldername(name))[1] in (select public.mis_organizaciones()));
+  end if;
+end $$;

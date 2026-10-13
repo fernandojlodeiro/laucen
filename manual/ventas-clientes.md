@@ -53,6 +53,8 @@ Título: el nombre del cliente; debajo "Cliente N.º … · cliente desde el …
 - **"Razón social (para facturar)"** y **"CUIT"**. Debajo del CUIT, si se puede consultar ARCA, el botón **"Validar en el padrón de ARCA"**.
 - **"Apellido"**, **"Nombre de pila"**, **"Apodo en Mercado Libre"**.
 - **"Mail"**, **"Teléfono"**, **"Celular"**, cada teléfono con su **"Interno / aclaración"** al lado (ej. "INT 32"). El teléfono se escribe como quieras: se guarda sólo con sus números y se muestra ordenado ("011 4613-0698 (INT 32)"); si escribís el interno pegado al número, Laucen lo pasa solo a la aclaración.
+- **"WhatsApp confirmado"**: el número con el que el cliente nos escribe por WhatsApp, en formato internacional (5493511234567; un número de 10 cifras se completa solo con 549). **Se carga solo** cuando el cliente nos escribe por WhatsApp (debajo dice «Nos escribió desde este número» y la fecha); también se puede escribir a mano (dice «Cargado a mano»). Es el número al que se le mandan la factura y los mensajes con plantilla. Los teléfonos de arriba son sólo teléfonos: no se da por hecho que tengan WhatsApp.
+- Las casillas **"Enviarle la factura por WhatsApp"** y **"Enviarle la factura por mail"**: de entrada, las dos tildadas. Destildá la que el cliente no quiera. El envío por mail todavía no está disponible (falta configurar el correo); la casilla queda guardada para cuando lo esté.
 - **"Documento"** (tipo y número) y **"Condición IVA"** (Consumidor final, Responsable inscripto, Monotributo, Exento, No responsable, o "Sin cargar").
 - **"Lista de precios propia"** ("Para mayoristas. Vacío = la del canal.").
 - **"Notas"**.

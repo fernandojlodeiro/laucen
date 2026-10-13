@@ -167,6 +167,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Diagnóstico", href: "/admin/diagnostico" },
       { texto: "Limpieza de datos", href: "/admin/limpieza" },
       { texto: "Creaciones en ML", href: "/admin/creaciones" },
+      { texto: "Videos en ML", href: "/admin/videos" },
     ],
   },
 ];

@@ -42,12 +42,14 @@ export const chatPorId = (org: string, id: number) => una<Chat>(`${SQL_CHAT} whe
 export async function clientePorTelefono(org: string, telefono: string): Promise<number | null> {
   const d = ultimos10(telefono);
   if (d.length !== 10) return null;
+  // Primero el WhatsApp confirmado (el número desde el que ya nos escribió); después los teléfonos de la ficha.
   const r = await una<{ id: number }>(`
     select id::int from cliente
      where organizacion_id = $1
-       and $2 in (right(regexp_replace(regexp_replace(coalesce(telefono, ''), '\\D', '', 'g'), '^0?(\\d{2,4})15(\\d{6,8})$', '\\1\\2'), 10),
+       and $2 in (right(regexp_replace(coalesce(whatsapp, ''), '\\D', '', 'g'), 10),
+                  right(regexp_replace(regexp_replace(coalesce(telefono, ''), '\\D', '', 'g'), '^0?(\\d{2,4})15(\\d{6,8})$', '\\1\\2'), 10),
                   right(regexp_replace(regexp_replace(coalesce(telefono_movil, ''), '\\D', '', 'g'), '^0?(\\d{2,4})15(\\d{6,8})$', '\\1\\2'), 10))
-     order by id desc limit 1`, [org, d]);
+     order by (right(regexp_replace(coalesce(whatsapp, ''), '\\D', '', 'g'), 10) = $2) desc, id desc limit 1`, [org, d]);
   return r?.id ?? null;
 }
 
@@ -93,7 +95,17 @@ export async function guardarMensaje(m: NuevoMensaje): Promise<number | null> {
     JSON.stringify(m.herramientas ?? []), m.tokensIn ?? 0, m.tokensOut ?? 0, m.usd ?? 0]);
   if (!r) return null;
   await consulta(`update chat set ultimo_ts = now()${direccion === "entrante" ? ", ultimo_entrante_ts = now()" : ""} where id = $1`, [m.chatId]);
+  // Nos escribió por WhatsApp un cliente de la ficha: ése es su WhatsApp confirmado (pedido de Fer, 13/10).
+  if (direccion === "entrante") await confirmarWhatsapp(m.chatId);
   return r.id;
+}
+
+/** El número del chat pasa a ser el WhatsApp confirmado de su cliente. */
+export async function confirmarWhatsapp(chatId: number): Promise<void> {
+  await consulta(`
+    update cliente set whatsapp = c.externo, whatsapp_confirmado_ts = now()
+      from chat c where c.id = $1 and c.canal = 'whatsapp' and cliente.id = c.cliente_id
+       and (cliente.whatsapp is distinct from c.externo or cliente.whatsapp_confirmado_ts is null)`, [chatId]).catch(() => {});
 }
 
 /** Lo que dice Meta de un mensaje nuestro (entregado, leído, no entregado). */

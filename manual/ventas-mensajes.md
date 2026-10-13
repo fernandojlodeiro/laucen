@@ -23,6 +23,7 @@ Menú **Ventas › WhatsApp** ([WhatsApp](/ventas/mensajes)). Tiene tres pestañ
 ## Qué hay en la pantalla
 
 **Chats**: a la izquierda la lista de chats, del más nuevo al más viejo, con un buscador (por nombre del chat o del cliente, teléfono —con o sin guiones o espacios— o notas) y las pestañas **Todos**, **Sin responder** (el último mensaje es del cliente), **En espera** (tienen algo que la IA pasó a una persona) y **Con persona** (la IA de ese chat está apagada). A la derecha, el chat abierto:
+- **Chat y ficha del cliente**: un chat se enlaza solo con la ficha del cliente cuyo **WhatsApp confirmado** (o, si no tiene, su teléfono o celular) coincide con el número. Cuando un cliente enlazado escribe, ese número pasa a ser su WhatsApp confirmado. Si escribe alguien que no sabemos si es cliente y habla de una compra, un pedido o una factura, la IA le pregunta con amabilidad si ya nos compró y le pide su DNI o CUIT con su nombre y apellido (o el mail con el que compró): si encuentra **un solo** cliente con esos datos, enlaza el chat a su ficha y le carga el WhatsApp confirmado; si no encuentra a nadie o encuentra más de uno, no enlaza nada.
 - Arriba: el nombre (si es un cliente cargado, es un enlace a su ficha), el teléfono, **📝 Notas** (notas internas que el cliente no ve) y el **interruptor de la IA de ese chat**.
 - Los casos **En espera**, con su motivo y el botón **"Resolver"**.
 - Los mensajes: los del cliente a la izquierda; los nuestros a la derecha, marcados 🤖 (la IA), con el nombre de quien lo mandó desde el panel, o 📱 Desde el teléfono. ✓ enviado, ✓✓ entregado, ✓✓ celeste leído; **NO ENTREGADO** con el motivo.
@@ -45,7 +46,7 @@ La pantalla se actualiza sola cada pocos segundos.
 ### Contestar vos un chat
 1. Abrí el chat.
 2. Si vas a atenderlo vos, **apagá el interruptor de la IA** de ese chat (si no, la IA puede contestar también).
-3. Escribí y apretá **"Enviar"**. Si tenía casos en espera sin dueño, quedan a tu nombre.
+3. Escribí y apretá **"Enviar"**. Para pasarle el link de una de tus publicaciones, escribí **#** y el nombre del producto, y elegí una de la lista (ver «Citar una de tus publicaciones con #» en [Preguntas y mensajes](/ventas/preguntas)). Si tenía casos en espera sin dueño, quedan a tu nombre.
 4. Cuando termines, si querés que la IA siga, prendé el interruptor. Si el cliente quedó esperando respuesta, contesta en el momento.
 
 ### Prender o apagar la IA desde el teléfono
@@ -63,6 +64,8 @@ Contestar desde el teléfono sin la marca no cambia nada: la IA sigue atendiendo
 En [Configuración de WhatsApp](/ventas/mensajes/configuracion), lápiz, y escribí en **Lo que sabe para los clientes** lo que tiene que saber: envíos y plazos, formas de pago, horarios, si hacen factura A, garantía, preguntas frecuentes. Grabá y probalo en **Probar la IA**.
 
 ## Criterios y reglas
+
+- **Otros productos**: si el cliente pide productos distintos, la IA los busca en el catálogo de la tienda (con sus herramientas de búsqueda) y le pasa el link de la tienda de los que tienen stock. Si no hay o no tienen stock, dice lo que indiquen las [Respuestas de la IA](/config/respuestas-ia) de la empresa (por ejemplo, que por el momento no hay stock y que está por ingresar).
 
 - **La IA contesta siempre**, salvo que: esté apagada para todos (Configuración), el interruptor de ese chat esté apagado, se haya llegado al tope de gasto del mes, o haya contestado más de lo permitido en la última hora en ese chat. En los dos últimos casos deja el chat **En espera** con el motivo.
 - **Espera a que el cliente termine de escribir**: si manda varios mensajes seguidos, contesta una sola vez después del último (de fábrica, 12 segundos).

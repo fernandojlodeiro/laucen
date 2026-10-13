@@ -37,6 +37,7 @@ type Cliente = {
   documento_numero: string | null; condicion_iva: string | null; lista_precios_id: number | null; notas: string | null; creado_ts: Date;
   razon_social: string | null; cuit: string | null; apodo_ml: string | null; telefono_movil: string | null;
   telefono_aclaracion: string | null; telefono_movil_aclaracion: string | null;
+  whatsapp: string | null; whatsapp_confirmado_ts: Date | null; factura_por_whatsapp: boolean; factura_por_mail: boolean;
   nombre_pila: string | null; apellido: string | null; datos_externos: Record<string, Record<string, unknown>>;
   cuenta_corriente: boolean; limite_cc: string | null;
 };
@@ -59,7 +60,8 @@ export default async function FichaCliente({ params, searchParams }: { params: P
   if (!Number.isInteger(cid) || cid <= 0) notFound();
   const c = await una<Cliente>(`
     select id::int, nombre, tipo, email, telefono, documento_tipo, documento_numero, condicion_iva, lista_precios_id::int, notas, creado_ts,
-           razon_social, cuit, apodo_ml, telefono_movil, telefono_aclaracion, telefono_movil_aclaracion, nombre_pila, apellido, datos_externos, cuenta_corriente, limite_cc
+           razon_social, cuit, apodo_ml, telefono_movil, telefono_aclaracion, telefono_movil_aclaracion, nombre_pila, apellido, datos_externos, cuenta_corriente, limite_cc,
+           whatsapp, whatsapp_confirmado_ts, factura_por_whatsapp, factura_por_mail
       from cliente where id = $1 and organizacion_id = $2`, [cid, s.org.id]);
   if (!c) notFound();
   // La ficha abre en vista; ?editar=ficha la edita (?editar=<id> es el lápiz de una dirección).
@@ -147,6 +149,13 @@ export default async function FichaCliente({ params, searchParams }: { params: P
           <input name="telefono_movil" defaultValue={telefonoLegible(c.telefono_movil)} className={`${CAMPO} w-full`} /></label>
         <label><span className={ETIQUETA}>Interno / aclaración del celular</span>
           <input name="telefono_movil_aclaracion" defaultValue={c.telefono_movil_aclaracion ?? ""} className={`${CAMPO} w-full`} /></label>
+        <label><span className={ETIQUETA}>WhatsApp confirmado</span>
+          <input name="whatsapp" defaultValue={c.whatsapp ?? ""} inputMode="numeric" placeholder="5493511234567" className={`${CAMPO} w-full`} />
+          <span className="block text-[10px] text-[#5C6B76] mt-0.5">El número con el que nos escribe por WhatsApp (formato internacional). Se carga solo cuando escribe.</span></label>
+        <div className="sm:col-span-2 grid gap-1 self-end pb-1.5 text-xs">
+          <label className="flex items-center gap-1.5"><input type="checkbox" name="factura_por_whatsapp" defaultChecked={c.factura_por_whatsapp} className="h-4 w-4" /> Enviarle la factura por WhatsApp</label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" name="factura_por_mail" defaultChecked={c.factura_por_mail} className="h-4 w-4" /> Enviarle la factura por mail</label>
+        </div>
         <div><span className={ETIQUETA}>Documento</span>
           <div className="flex gap-1">
             <select name="documento_tipo" defaultValue={c.documento_tipo ?? ""} className={CAMPO} aria-label="Tipo de documento">
@@ -207,6 +216,13 @@ export default async function FichaCliente({ params, searchParams }: { params: P
           <Dato etiqueta="Interno / aclaración">{c.telefono_aclaracion}</Dato>
           <Dato etiqueta="Celular">{c.telefono_movil ? telefonoLegible(c.telefono_movil) : null}</Dato>
           <Dato etiqueta="Interno / aclaración del celular">{c.telefono_movil_aclaracion}</Dato>
+          <Dato etiqueta="WhatsApp confirmado" ayuda={c.whatsapp ? (c.whatsapp_confirmado_ts ? `Nos escribió desde este número (${fecha(c.whatsapp_confirmado_ts)}).` : "Cargado a mano.") : undefined}>
+            {c.whatsapp ? telefonoLegible(c.whatsapp) : null}
+          </Dato>
+          <div className="sm:col-span-2 grid gap-1 self-end pb-1.5 text-xs">
+            <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.factura_por_whatsapp} disabled readOnly className="h-4 w-4" /> Enviarle la factura por WhatsApp</label>
+            <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.factura_por_mail} disabled readOnly className="h-4 w-4" /> Enviarle la factura por mail</label>
+          </div>
           <Dato etiqueta="Documento">{[c.documento_tipo, c.documento_numero].filter(Boolean).join(" ")}</Dato>
           <Dato etiqueta="Condición IVA">{c.condicion_iva ? etiqueta(CONDICIONES_IVA, c.condicion_iva) : null}</Dato>
           <Dato etiqueta="Lista de precios propia" ayuda="Para mayoristas. Vacío = la del canal.">

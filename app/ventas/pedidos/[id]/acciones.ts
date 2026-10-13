@@ -290,3 +290,18 @@ export async function accionLeyendaFactura(fd: FormData) {
     return { ir: `${volver}?ok=${encodeURIComponent("Observaciones de la factura grabadas.")}` };
   });
 }
+
+/** «Mandar por WhatsApp»: la factura al WhatsApp confirmado del cliente (lib/facturacion/envio.ts). */
+export async function accionFacturaWhatsapp(fd: FormData) {
+  const s = await entrarErp("facturacion_ver");
+  const pid = id(fd, "pedido_id");
+  const cid = id(fd, "comprobante_id");
+  const volver = `/ventas/pedidos/${pid}`;
+  await intentar(volver, async () => {
+    if (!cid || !(await una("select 1 from comprobante where id = $1 and organizacion_id = $2 and pedido_id = $3", [cid, s.org.id, pid]))) throw new ErrorErp("El comprobante no existe.");
+    const { enviarFacturaWhatsapp } = await import("@/lib/facturacion/envio");
+    const r = await enviarFacturaWhatsapp(s.org.id, cid, { manual: true });
+    revalidatePath(volver);
+    return r;
+  });
+}

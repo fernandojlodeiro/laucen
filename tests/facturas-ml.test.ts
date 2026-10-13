@@ -166,20 +166,35 @@ test("ML dice que la venta ya tiene ese documento → queda como subida", async 
   assert.equal(cb.ml_documento_id, null);
 });
 
-test("nota de crédito rechazada por ML → error en criollo, sin marcarla subida", async () => {
+test("nota de crédito: no se sube (ML acepta un solo documento por venta)", async () => {
   const e = await escenario({ subirFacturas: true });
   const nc = await e.comprobante(8, e.factura);
-  await m.facturas.alAutorizarComprobante(e.org, nc);
-  const falso = falsoMl(() => ({ status: 400, datos: { message: "invalid fiscal document", cause: [{ message: "credit note not allowed" }] } }));
-  const r = await m.cola.procesarCola(Date.now() + 20_000, { enviar: falso.enviar, subir: falso.subir, ritmoMs: 0, org: e.org });
-  assert.equal(r.errores, 1);
-  assert.match(falso.subidas[0].nombre, /^NC-B-/);
-  const [f] = await colaDe(e.org);
-  assert.equal(f.estado, "error");
-  assert.match(f.ultimo_error ?? "", /^Mercado Libre no aceptó el documento \(400\): invalid fiscal document · credit note not allowed/);
-  const [cb] = await q<{ ml_subida_ts: Date | null }>("select ml_subida_ts from comprobante where id = $1", [nc]);
-  assert.equal(cb.ml_subida_ts, null);
-  assert.equal((await m.facturas.estadoFacturaMl(e.org, nc))?.estado, "error");
+  assert.equal(await m.facturas.alAutorizarComprobante(e.org, nc), 0);
+  assert.equal((await colaDe(e.org)).length, 0);
+});
+
+test("refacturación: la factura nueva borra la anterior de la venta y se sube; sin reemplazo, no se sube", async () => {
+  const e = await escenario({ subirFacturas: true });
+  await q("update comprobante set ml_subida_ts = now(), ml_documento_id = 'VIEJA' where id = $1", [e.factura]);
+  await e.comprobante(8, e.factura);
+  const nueva = await e.comprobante(6);
+  // Sin marcar como reemplazo: la venta ya tiene una subida, no se encola.
+  assert.equal(await m.facturas.alAutorizarComprobante(e.org, nueva), 0);
+  await q("update comprobante set ml_reemplaza = true where id = $1", [nueva]);
+  assert.equal(await m.facturas.alAutorizarComprobante(e.org, nueva), 1);
+  const borradas: string[] = [];
+  m.facturas.usarBorrar(async (_c, ruta) => { borradas.push(ruta); return { status: 200, datos: {} }; });
+  try {
+    const falso = falsoMl(() => ({ status: 200, datos: { ids: ["NUEVA"] } }));
+    const r = await m.cola.procesarCola(Date.now() + 20_000, { enviar: falso.enviar, subir: falso.subir, ritmoMs: 0, org: e.org });
+    assert.equal(r.ok, 1);
+    assert.deepEqual(borradas, [`/packs/${e.pack}/fiscal_documents`]);
+    assert.equal(falso.subidas.length, 1);
+    const [cb] = await q<{ ml_documento_id: string | null }>("select ml_documento_id from comprobante where id = $1", [nueva]);
+    assert.equal(cb.ml_documento_id, "NUEVA");
+  } finally {
+    m.facturas.usarBorrar(null);
+  }
 });
 
 test("lote: «Subir a ML las facturas que faltan» queda preparado hasta el clic", async () => {

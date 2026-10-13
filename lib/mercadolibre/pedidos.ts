@@ -14,6 +14,7 @@ import { crearPedido, cambiarEstado, agregarLineas, quitarLineas, marcarEventoCa
 import { ml, type CuentaMl } from "@/lib/mercadolibre/api";
 import { guardarEnvio, leerEnvio, type EnvioMl } from "@/lib/mercadolibre/envios";
 import { registrarVentas } from "@/lib/mercadolibre/ventas";
+import { garantiaDeTerminos, type TerminoVenta } from "@/lib/garantia";
 
 type ItemOrden = {
   item: { id: string; title: string; variation_id: number | null; seller_sku: string | null; seller_custom_field: string | null; variation_attributes?: { name: string; value_name: string }[] };
@@ -110,9 +111,11 @@ export function estadoDelCarrito(ordenes: OrdenMl[], envio: EnvioMl | null): Est
   return null; // payment_required / payment_in_process: sigue 'nuevo'
 }
 
-/** ¿La orden se creó antes del corte de la cuenta? Entonces no entra: ya está en Virtual Seller. */
-const anteriorAlCorte = (cuenta: CuentaMl, o: { date_created: string }): boolean =>
-  !!cuenta.pedidosCorte && Date.parse(o.date_created) < cuenta.pedidosCorte.getTime();
+/** ¿La orden se cerró (se pagó) antes del corte de la cuenta? Entonces no entra: ya está en Virtual Seller. Cuenta
+ *  el cierre, no la creación (Fer, 13/10): una orden creada antes del corte con el pago rechazado y pagada después
+ *  (2000018559253036: creada el 20/9, pagada el 7/10) no estaba en Virtual Seller y quedaba afuera de los dos. */
+const anteriorAlCorte = (cuenta: CuentaMl, o: { date_created: string; date_closed?: string | null }): boolean =>
+  !!cuenta.pedidosCorte && Date.parse(o.date_closed ?? o.date_created) < cuenta.pedidosCorte.getTime();
 
 /** Trae una orden de ML y la deja en Laucen (crea o actualiza). Si la orden
  *  es parte de un carrito (pack_id), trae el carrito entero (/packs) y todo
@@ -141,7 +144,25 @@ export async function importarOrden(cuenta: CuentaMl, orderId: number | string):
   const facturacion = fact.status === 200 ? fact.datos : {};
   const envioId = ordenes.find((x) => x.shipping?.id)?.shipping?.id;
   const envio = envioId ? await leerEnvio(cuenta, envioId) : null;
-  return cargarOrdenes(cuenta, ordenes, facturacion, envio);
+  return cargarOrdenes(cuenta, ordenes, facturacion, envio, await garantiasDeItems(cuenta, ordenes));
+}
+
+/** La garantía que tiene AHORA cada publicación de las órdenes (se graba en la línea del pedido).
+ *  Si ML no contesta, queda sin dato y la línea usa la última copia guardada o la ficha. */
+async function garantiasDeItems(cuenta: CuentaMl, ordenes: OrdenMl[]): Promise<Map<string, string>> {
+  const ids = [...new Set(ordenes.flatMap((o) => o.order_items.map((it) => it.item.id)))];
+  const salida = new Map<string, string>();
+  try {
+    for (let i = 0; i < ids.length; i += 20) {
+      const r = await ml<{ code: number; body: { id?: string; sale_terms?: TerminoVenta[] } }[]>(cuenta, "GET", `/items?ids=${ids.slice(i, i + 20).join(",")}&attributes=id,sale_terms`);
+      if (r.status !== 200 || !Array.isArray(r.datos)) continue;
+      for (const x of r.datos) {
+        const g = x.code === 200 && x.body?.id ? garantiaDeTerminos(x.body.sale_terms) : null;
+        if (g) salida.set(x.body.id!, g);
+      }
+    }
+  } catch { /* sin dato: la línea usa la copia guardada o la ficha */ }
+  return salida;
 }
 
 type PedidoDelCarrito = { id: number; id_externo: string | null; estado: EstadoPedido; ordenes: Record<string, OrdenMl> };
@@ -156,7 +177,7 @@ type PedidoDelCarrito = { id: number; id_externo: string | null; estado: EstadoP
  *    salen del pedido (y se libera su reserva); si se cancelan todas, el
  *    pedido queda cancelado.
  *  Repetirlo no duplica nada. Devuelve el id del pedido. */
-export async function cargarOrdenes(cuenta: CuentaMl, ordenesLeidas: OrdenMl[], facturacion: Facturacion, envio: EnvioMl | null): Promise<number | null> {
+export async function cargarOrdenes(cuenta: CuentaMl, ordenesLeidas: OrdenMl[], facturacion: Facturacion, envio: EnvioMl | null, garantias: Map<string, string> = new Map()): Promise<number | null> {
   if (!cuenta.canalId || !ordenesLeidas.length) return null;
   if (ordenesLeidas.some((o) => anteriorAlCorte(cuenta, o))) return null;
   const canalId = cuenta.canalId;
@@ -187,7 +208,7 @@ export async function cargarOrdenes(cuenta: CuentaMl, ordenesLeidas: OrdenMl[], 
       lineas.push({
         variacion_id: variacionId, sku: variacionId ? null : (sku ?? it.item.id), cantidad: it.quantity,
         precio_unitario: it.unit_price, titulo: atributos ? `${it.item.title} — ${atributos}` : it.item.title,
-        datos_externos: { ml: { order_id: String(o.id), item_id: it.item.id, variation_id: it.item.variation_id ?? null, sale_fee: it.sale_fee ?? null, listing_type_id: it.listing_type_id ?? null } },
+        datos_externos: { ml: { order_id: String(o.id), item_id: it.item.id, variation_id: it.item.variation_id ?? null, sale_fee: it.sale_fee ?? null, listing_type_id: it.listing_type_id ?? null, ...(garantias.has(it.item.id) ? { garantia: garantias.get(it.item.id) } : {}) } },
       });
     }
     lineasDe.set(o.id, lineas);
@@ -328,7 +349,8 @@ export async function barrerOrdenes(cuenta: CuentaMl, hastaMs: number): Promise<
   let n = 0;
   for (let offset = 0; offset < 1000 && Date.now() < hastaMs; offset += 50) {
     const r = await ml<{ results: { id: number }[]; paging: { total: number } }>(cuenta, "GET",
-      `/orders/search?seller=${cuenta.meliUserId}&order.date_last_updated.from=${encodeURIComponent(desde.toISOString())}${cuenta.pedidosCorte ? `&order.date_created.from=${encodeURIComponent(cuenta.pedidosCorte.toISOString())}` : ""}&sort=date_asc&limit=50&offset=${offset}`);
+      // Sin filtro por creación: una orden vieja que se paga ahora también entra (anteriorAlCorte mira el cierre).
+      `/orders/search?seller=${cuenta.meliUserId}&order.date_last_updated.from=${encodeURIComponent(desde.toISOString())}&sort=date_asc&limit=50&offset=${offset}`);
     if (r.status !== 200) throw new Error(`orders/search: ML contestó ${r.status}`);
     for (const o of r.datos.results) {
       if (Date.now() > hastaMs) return n;

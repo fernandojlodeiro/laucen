@@ -6,7 +6,7 @@
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, id, numero } from "@/lib/erp/acciones";
-import { entrarRelampago, guardarFilaRelampago, prepararRelampagos } from "@/lib/precios-ml/relampago";
+import { entrarRelampago, entrarRelampagosHasta, guardarFilaRelampago, prepararRelampagos } from "@/lib/precios-ml/relampago";
 import { texto } from "@/lib/erp/acciones";
 import { RELAMPAGO_PML } from "@/app/catalogo/precios-ml/lista";
 
@@ -40,5 +40,18 @@ export async function accionEntrarRelampago(fd: FormData) {
     const f = await entrarRelampago(s.org.id, s.usuario.id, id(fd, "canal"), texto(fd, "item") ?? "");
     revalidatePath(RELAMPAGO_PML);
     return `Mandada: ${f.item_id} entra a la oferta relámpago a ${f.rel!.toLocaleString("es-AR")} con ${f.stockEntrar} unidades. Sale a Mercado Libre en un par de minutos; en la columna «Entrar» ves si la aceptó.`;
+  });
+}
+
+/** «Entrar a todas las que bajan hasta X %»: una por producto, con todas las unidades; directo a la cola con tu clic. */
+export async function accionEntrarRelampagosHasta(fd: FormData) {
+  const s = await entrarErp("precios_ml_ver");
+  await intentar(volver(fd), async () => {
+    const pct = numero(fd, "pct") ?? 5;
+    const fs = await entrarRelampagosHasta(s.org.id, s.usuario.id, id(fd, "canal") || null, pct);
+    revalidatePath(RELAMPAGO_PML);
+    return fs.length
+      ? `Mandadas ${fs.length} (una por producto, con todas las unidades). Salen a Mercado Libre en un par de minutos; en «Entrar» ves si las aceptó.`
+      : `Ninguna propuesta baja ${pct} % o menos con el stock que pide (o ya hay una de ese producto).`;
   });
 }

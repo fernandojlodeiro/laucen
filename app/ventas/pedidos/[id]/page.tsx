@@ -19,7 +19,7 @@ import { tienePermiso } from "@/lib/permisos";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { ESTADOS_CBTE, numeroCbte, nombreTipo, type EstadoCbte } from "@/app/administracion/facturacion/comun";
-import { accionFacturar, accionSubirFacturaMlPedido, accionRefacturar, accionLiberarFactura, accionLeyendaFactura } from "./acciones";
+import { accionFacturar, accionSubirFacturaMlPedido, accionRefacturar, accionLiberarFactura, accionLeyendaFactura, accionFacturaWhatsapp } from "./acciones";
 import { sqlEstadoFacturaMl } from "@/lib/mercadolibre/facturas";
 import { TextoFacturaMl, BotonFacturaMl, puedeSubir } from "@/app/administracion/facturacion/FacturaMl";
 import Operacion from "./Operacion";
@@ -38,7 +38,7 @@ export const maxDuration = 60;
 type Linea = {
   id: number; variacion_id: number | null; sku: string | null; titulo: string; cantidad: number;
   precio_lista_ars: number | null; precio_lista_usd: number | null; descuento_pct: number; precio_unit_ars: number; precio_unit_usd: number;
-  orden_ml: string | null;
+  orden_ml: string | null; garantia: string | null;
 };
 type Historial = { estado_anterior: string | null; estado_nuevo: string; quien_nombre: string; nota: string | null; fecha: Date };
 type Cabecera = {
@@ -113,9 +113,9 @@ export default async function DetallePedido({ params, searchParams }: { params: 
   const fechaCorta = (d: Date | null) => d ? d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
 
   // Facturación: los comprobantes del pedido y si se puede facturar.
-  const comprobantes = await consulta<{ id: number; tipo_cbte: number; punto_venta: number; numero: string | null; estado: EstadoCbte; observaciones: string | null; asociado_id: number | null;
+  const comprobantes = await consulta<{ id: number; tipo_cbte: number; punto_venta: number; numero: string | null; estado: EstadoCbte; observaciones: string | null; asociado_id: number | null; wa_estado: string | null; wa_detalle: string | null; wa_enviado_ts: Date | null;
     es_ml: boolean; ml_estado: string | null; ml_subida_ts: Date | null; ml_documento_id: string | null; ml_error: string | null; ml_cola_id: number | null }>(`
-    select cb.id::int, cb.tipo_cbte, cb.punto_venta, cb.numero::text, cb.estado, cb.observaciones, cb.comprobante_asociado_id::int asociado_id,
+    select cb.id::int, cb.tipo_cbte, cb.punto_venta, cb.numero::text, cb.estado, cb.observaciones, cb.comprobante_asociado_id::int asociado_id, cb.wa_estado, cb.wa_detalle, cb.wa_enviado_ts,
            (ca.tipo = 'mercadolibre' and p.id_externo is not null) es_ml, ${sqlEstadoFacturaMl("cb")} ml_estado, cb.ml_subida_ts, cb.ml_documento_id,
            (select q.ultimo_error from ml_cola q where q.tipo = 'factura' and q.item_id = 'cbte:' || cb.id order by q.id desc limit 1) ml_error,
            (select q.id::int from ml_cola q where q.tipo = 'factura' and q.item_id = 'cbte:' || cb.id order by q.id desc limit 1) ml_cola_id
@@ -225,7 +225,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH}>SKU</th><th className={TH}>Título</th><th className={THN}>Cantidad</th><th className={THN}>Lista</th>
+              <th className={TH}>SKU</th><th className={TH}>Título</th><th className={THN}>Cantidad</th><th className={TH}>Garantía</th><th className={THN}>Lista</th>
               <th className={THN}>Descuento</th><th className={THN}>Unitario</th><th className={THN}>Subtotal</th>
             </tr>
           </thead>
@@ -238,6 +238,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
                   : l.sku ?? "—"}</td>
                 <td className={TD}>{l.titulo}{variasOrdenes && l.orden_ml && <span className="block text-[10px] text-[#5C6B76] font-mono">Orden ML {l.orden_ml}</span>}</td>
                 <td className={TDN}>{l.cantidad}</td>
+                <td className={TD}>{l.garantia ?? "—"}</td>
                 <td className={TDN}>{l.precio_lista_ars == null && l.precio_lista_usd == null ? "—" : enVista({ ars: l.precio_lista_ars, usd: l.precio_lista_usd }, v)}</td>
                 <td className={TDN}>{l.descuento_pct ? `${l.descuento_pct.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %` : "—"}</td>
                 <td className={TDN}>{enVista({ ars: l.precio_unit_ars, usd: l.precio_unit_usd }, v)}</td>
@@ -245,7 +246,7 @@ export default async function DetallePedido({ params, searchParams }: { params: 
               </tr>
             ))}
             <tr className={`${TR} font-bold`}>
-              <td colSpan={6} className={`${TD} text-right`}>Total</td>
+              <td colSpan={7} className={`${TD} text-right`}>Total</td>
               <td className={TDN}>{enVista({ ars: c.total_ars, usd: c.total_usd }, v)}</td>
             </tr>
           </tbody>
@@ -358,6 +359,18 @@ export default async function DetallePedido({ params, searchParams }: { params: 
                 {x.estado === "autorizado" && puedeFacturar && <a href={`/administracion/facturacion/${x.id}/pdf`} target="_blank" rel="noopener" className={SUAVE}>PDF</a>}
                 {x.observaciones && x.estado !== "autorizado" && <span className="text-[11px] text-[#5C6B76]">{x.observaciones}</span>}
                 {x.estado === "autorizado" && x.es_ml && <span className="text-[11px] text-[#5C6B76]">En ML: <TextoFacturaMl x={enMl(x)} /></span>}
+                {x.wa_estado && (
+                  <span className={`text-[11px] ${x.wa_estado === "error" ? "text-[#C03420]" : "text-[#5C6B76]"}`}>
+                    WhatsApp: {x.wa_estado === "enviado" ? `enviada${x.wa_enviado_ts ? ` el ${fechaHora(x.wa_enviado_ts)}` : ""} (${x.wa_detalle ?? ""})` : x.wa_detalle ?? x.wa_estado}
+                  </span>
+                )}
+                {x.estado === "autorizado" && puedeFacturar && [1, 6, 11].includes(x.tipo_cbte) && x.wa_estado !== "enviado" && (
+                  <form action={accionFacturaWhatsapp}>
+                    <input type="hidden" name="pedido_id" value={pid} />
+                    <input type="hidden" name="comprobante_id" value={x.id} />
+                    <BotonEnviar clase={SUAVE} corriendo="Mandando…">Mandar por WhatsApp</BotonEnviar>
+                  </form>
+                )}
               </div>
             );
           })}
