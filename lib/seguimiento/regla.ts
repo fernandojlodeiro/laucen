@@ -69,6 +69,8 @@ async function referenciaDe(org: string, productoId: number, r: Regla): Promise<
      where organizacion_id = $1 and producto_id = $2 and estado = 'activa' and precio is not null and coalesce(moneda, 'ARS') = 'ARS'
        -- Las excluidas a mano y las internacionales no cuentan (Fer, 12/10).
        and not excluido and not coalesce(internacional, false)
+       -- Las que siguió sola la búsqueda de mercado cuentan recién cuando una persona las confirma (Fer, 13/10).
+       and confirmada
        and ($3::bigint is null or id = $3)
      order by precio limit 1`, [org, productoId, r.contra === "una" ? r.seguimientoId : null]);
   return f ? { precio: f.precio, texto: `${f.vendedor ?? f.item_id} a ${formatear(f.precio, "ARS")}` } : null;

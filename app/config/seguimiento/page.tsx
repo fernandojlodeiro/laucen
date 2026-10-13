@@ -36,12 +36,15 @@ export default async function ConfigSeguimiento({ searchParams }: { searchParams
               <CampoNumero name="tope_usd" valor={c.topeUsd} tipo="decimal" className={`${CAMPO} w-full`} /></label>
             <label className="w-40"><span className={ETIQUETA}>No compite si tarda más de (días)</span>
               <CampoNumero name="demora_dias" valor={c.demoraDias} tipo="entero" className={`${CAMPO} w-full`} /></label>
+            <label className="w-40"><span className={ETIQUETA}>Seguir solas por producto</span>
+              <CampoNumero name="auto_max" valor={c.autoMax} tipo="entero" className={`${CAMPO} w-full`} /></label>
           </>
         ) : (
           <>
             <Dato etiqueta="Leer cada (días)" numero className="w-40">{String(c.frecuenciaDias)}</Dato>
             <Dato etiqueta="Tope de gasto por mes (US$)" numero className="w-40">{formatearNumero(c.topeUsd, "decimal")}</Dato>
             <Dato etiqueta="No compite si tarda más de (días)" numero className="w-40">{String(c.demoraDias)}</Dato>
+            <Dato etiqueta="Seguir solas por producto" numero className="w-40">{String(c.autoMax)}</Dato>
           </>
         )}
         <p className="w-full text-[11px] text-[#5C6B76]">
@@ -49,6 +52,9 @@ export default async function ConfigSeguimiento({ searchParams }: { searchParams
           vuelta de la madrugada. Las de catálogo se leen gratis; las comunes y las búsquedas se pagan (Apify) y, al llegar al tope del mes,
           se dejan de leer hasta el mes siguiente. Una publicación que tarda en llegar más de los días elegidos (a un código postal de
           Capital Federal, como lo informa Mercado Libre) no compite: en la búsqueda queda escondida y en las seguidas se marca en rojo.
+          La búsqueda de precio de mercado (Compras › Sugerencia de compra) sigue sola, en cada producto, hasta esa cantidad de
+          publicaciones que la IA juzga iguales al producto (las más baratas); quedan «sin confirmar» hasta que una persona las revisa
+          (0 = no seguir ninguna sola).
         </p>
       </form>
       <div className={`${CAJA} mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3`}>

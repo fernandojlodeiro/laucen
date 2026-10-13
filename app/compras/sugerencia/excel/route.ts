@@ -1,5 +1,6 @@
 // Descarga en Excel de la sugerencia de compra, con los mismos filtros que la pantalla.
 
+import { ESTADOS_MERCADO } from "@/lib/seguimiento/estado-mercado";
 import type { NextRequest } from "next/server";
 import { CATEGORIAS_VIA } from "@/lib/compras/via";
 import { entrarErp } from "@/app/componentes/erp";
@@ -57,9 +58,10 @@ export async function GET(req: NextRequest) {
     { titulo: "% s/ costo", valor: (x) => x.roi_pct, formato: "pct", ancho: 9 },
     { titulo: "Ganancia típica $", valor: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_tipico), formato: "importe", ancho: 14 },
     { titulo: "Ganancia mejor $", valor: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_mejor), formato: "importe", ancho: 14 },
-    { titulo: "Mercado (mediana) $", valor: (x) => x.mercado, formato: "importe", ancho: 13 },
-    { titulo: "Mercado (cuarto más barato) $", valor: (x) => x.mercado_p25, formato: "importe", ancho: 13 },
-    { titulo: "Publicaciones parecidas", valor: (x) => x.mercado_n || null, formato: "entero", ancho: 10 },
+    { titulo: "Mercado (cuarto más barato) $", valor: (x) => x.mercado, formato: "importe", ancho: 13 },
+    { titulo: "Mercado (mediana) $", valor: (x) => x.mercado_mediana, formato: "importe", ancho: 13 },
+    { titulo: "Publicaciones iguales", valor: (x) => x.mercado_n || null, formato: "entero", ancho: 10 },
+    { titulo: "Precio de mercado", valor: (x) => (x.estado_mercado ? ESTADOS_MERCADO[x.estado_mercado].texto : null), formato: "texto", ancho: 24 },
     { titulo: "Vía", valor: (x) => CATEGORIAS_VIA[x.via].texto, ancho: 18 },
     { titulo: "FOB US$", valor: (x) => x.fob_usd, formato: "importe", ancho: 10 },
     { titulo: "Peso y volumen de", valor: (x) => (x.medidas === "packing" ? "Packing list" : x.medidas === "ficha" ? "Ficha" : ""), ancho: 12 },

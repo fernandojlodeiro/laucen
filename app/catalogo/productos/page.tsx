@@ -4,6 +4,7 @@
 
 import { PRIMARIO } from "@/app/botones";
 import BuscadorVivo, { FiltroVivo, CasillaViva } from "@/app/componentes/BuscadorVivo";
+import { ESTADOS_MERCADO, esEstadoMercado } from "@/lib/seguimiento/estado-mercado";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { entrarErp, Pantalla, Avisos, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { AccionesExcel, TablaVista, paginaDeVista } from "@/app/listas/piezas";
@@ -22,7 +23,7 @@ import { opcionesProveedores } from "@/lib/compras/invoices";
 
 export const dynamic = "force-dynamic";
 
-type SP = { q?: string; estado?: string; familia?: string; marca?: string; prov?: string; tipo?: string; inactivos?: string; kitvs?: string; sinpublicar?: string; sinpubcanal?: string; webcanal?: string; webver?: string; sinfotos?: string; sincanal?: string; nopub?: string; pub?: string; encuentas?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+type SP = { q?: string; mercado?: string; estado?: string; familia?: string; marca?: string; prov?: string; tipo?: string; inactivos?: string; kitvs?: string; sinpublicar?: string; sinpubcanal?: string; webcanal?: string; webver?: string; sinfotos?: string; sincanal?: string; nopub?: string; pub?: string; encuentas?: string; contiene?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 export default async function Productos({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("productos_ver");
@@ -37,7 +38,7 @@ export default async function Productos({ searchParams }: { searchParams: Promis
 
   // El SKU que sigue al más alto (lib/catalogo/sku.ts), para el alta.
   const skuSugerido = await siguienteSku(s.org.id).catch(() => "");
-  const hayFiltro = q || estado || tipo || familia || marca || proveedor || verInactivos(sp) || kitVs || sinPublicar || sinFotos || sinPublicarEn || sinCanal || noPublicable || publicables || enCuentas != null;
+  const hayFiltro = q || sp.mercado || estado || tipo || familia || marca || proveedor || verInactivos(sp) || kitVs || sinPublicar || sinFotos || sinPublicarEn || sinCanal || noPublicable || publicables || enCuentas != null;
   return (
     <Pantalla titulo="Productos" subtitulo="Cada producto con sus variaciones, kits, fotos, cucardas, precios y stock"
       acciones={<><AccionesExcel lista={LISTA_PRODUCTOS} org={s.org.id} vista={vista.activa?.id} /><BotonNuevo texto="Nuevo producto" /></>}>
@@ -70,6 +71,10 @@ export default async function Productos({ searchParams }: { searchParams: Promis
         <FiltroVivo parametro="tipo" valor={tipo} etiqueta="Tipo">
           <option value="">Todos los tipos</option>
           {Object.entries(TIPOS_PRODUCTO).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
+        </FiltroVivo>
+        <FiltroVivo parametro="mercado" valor={esEstadoMercado(sp.mercado) ? sp.mercado : ""} etiqueta="Precio de mercado">
+          <option value="">Cualquier precio de mercado</option>
+          {Object.entries(ESTADOS_MERCADO).map(([k, e]) => <option key={k} value={k}>{e.texto}</option>)}
         </FiltroVivo>
         <CasillaViva parametro="kitvs" activo={kitVs} etiqueta="Kits de Virtual Seller" />
         <CasillaViva parametro="sinpublicar" activo={sinPublicar} etiqueta="Con stock y sin publicación activa en ML" />

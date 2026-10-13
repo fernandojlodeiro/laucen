@@ -14,6 +14,8 @@ import { campoFecha, traducido, type Campo, type Lista, type SP } from "@/lib/li
 import { SQL_SIN_PUBLICAR, SQL_SIN_FOTOS, SQL_DISPONIBLE, sqlSinPublicarEnCanal } from "@/lib/catalogo-alertas";
 import { sqlPublicadoEnWeb } from "@/lib/catalogo/web";
 import { EstadoProducto, TIPOS_PRODUCTO, ESTADOS_PRODUCTO } from "./comun";
+import MarcaMercado from "@/app/componentes/MarcaMercado";
+import { ESTADOS_MERCADO, esEstadoMercado, filtroEstadoMercado, sqlEstadoMercado } from "@/lib/seguimiento/estado-mercado";
 
 const ENLACE = "hover:text-[#16577F] hover:underline";
 /** La variación principal (la default; si no hay, la primera). */
@@ -137,6 +139,11 @@ const CAMPOS: Campo[] = [
   { clave: "costo_moneda", titulo: "Moneda del costo", sql: deVdef("costo_moneda") },
   { clave: "costo_promedio_ars", titulo: "Costo promedio $", sql: `${deVdef("costo_promedio_ars")}::float`, sqlUsd: `${deVdef("costo_promedio_usd")}::float`, formato: "pesos" },
   { clave: "costo_ultimo_ars", titulo: "Último costo $", sql: `${deVdef("costo_ultimo_ars")}::float`, sqlUsd: `${deVdef("costo_ultimo_usd")}::float`, formato: "pesos" },
+  {
+    clave: "mercado", titulo: "Precio de mercado", sql: sqlEstadoMercado("p.id"), ancho: 26,
+    valor: (f) => (esEstadoMercado(f.mercado) ? ESTADOS_MERCADO[f.mercado].texto : null),
+    celda: (f) => <MarcaMercado estado={esEstadoMercado(f.mercado) ? f.mercado : null} href={`/catalogo/productos/${f.id}?seccion=seguimiento`} />,
+  },
   { clave: "codigo_barras", titulo: "Código de barras", sql: "coalesce(p.codigo_barras, " + deVdef("codigo_barras") + ")", ancho: 16 },
   { clave: "iva", titulo: "IVA %", sql: "p.iva_pct::float", formato: "pct" },
   { clave: "descuento", titulo: "Descuento %", sql: "p.descuento_pct::float", formato: "pct" },
@@ -169,7 +176,7 @@ export const LISTA_PRODUCTOS: Lista = {
   permiso: "productos_ver",
   vistas: true,
   porDefecto: "titulo",
-  enPantalla: ["sku", "titulo", "familia", "tipo", "variaciones", "publicaciones", "vendidos_ml", "disponible", "estado"],
+  enPantalla: ["sku", "titulo", "mercado", "familia", "tipo", "variaciones", "publicaciones", "vendidos_ml", "disponible", "estado"],
   siempre: `p.id::int id, p.familia_id::int familia_id, p.marca_id::int marca_id, p.proveedor_id::int proveedor_id, p.kit_vs, p.no_publicable, p.estado _estado,
             ${PUBLICADO_ML}::int ml_n, ${CUENTAS_ML}::int ml_total,
             (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = p.id) fotos`,
@@ -207,7 +214,7 @@ export const LISTA_PRODUCTOS: Lista = {
          and (not $13 or not p.no_publicable)
          and ($14::int is null or ${PUBLICADO_ML} = $14::int)
          and ($15::bigint = 0 or p.marca_id = $15::bigint)
-         and ($16::bigint = 0 or p.proveedor_id = $16::bigint)`;
+         and ($16::bigint = 0 or p.proveedor_id = $16::bigint)${filtroEstadoMercado(sp.mercado, "p.id")}`;
     const valores: unknown[] = [ctx.org, parametroBusqueda(f.q, f.comienza), f.estado, f.tipo, f.familia, f.inactivos, f.kitVs, f.sinPublicar, f.sinFotos, f.sinPublicarEn, f.sinCanal, f.noPublicable, f.publicables, f.enCuentas, f.marca, f.proveedor];
     // Con algo escrito y la caja "Mostrar inactivos" apagada: si ningún activo coincide pero sí algún inactivo, se muestran igual (Fer).
     if (f.q && !f.inactivos) {

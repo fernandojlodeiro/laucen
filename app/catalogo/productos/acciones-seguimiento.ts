@@ -6,7 +6,8 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, texto, id, numero } from "@/lib/erp/acciones";
 import { deFondo, lanzarTarea } from "@/lib/tareas-fondo";
-import { buscarParaSeguir, seguirDeBusqueda, seguirPorNumero, dejarDeSeguir, leerSeguidas, listarCatalogo, cerrarCatalogo, excluirDeRegla, marcarInternacionales } from "@/lib/seguimiento";
+import { buscarParaSeguir, seguirDeBusqueda, seguirPorNumero, dejarDeSeguir, leerSeguidas, listarCatalogo, cerrarCatalogo, excluirDeRegla, marcarInternacionales, confirmarSeguidas, ultimaBusqueda } from "@/lib/seguimiento";
+import { analizarBusqueda } from "@/lib/seguimiento/auto";
 import { guardarRegla, revisarRegla, aplicarPropuesta, descartarPropuesta } from "@/lib/seguimiento/regla";
 
 const volver = (pid: number) => `/catalogo/productos/${pid}?seccion=seguimiento`;
@@ -18,8 +19,11 @@ export async function accionBuscarSeguimiento(fd: FormData) {
   const q = texto(fd, "q") ?? "";
   return deFondo(s, `seguimiento-buscar-${pid}`, "Búsqueda en Mercado Libre", async () => {
     const r = await buscarParaSeguir(s.org.id, pid, q);
+    // La IA marca cuáles son el mismo producto (en una búsqueda a mano no sigue ninguna sola: se elige con «+ Seguir»).
+    const b = await ultimaBusqueda(s.org.id, pid);
+    const a = b ? await analizarBusqueda(s.org.id, pid, b.texto, b.resultados, { seguir: false }).catch(() => null) : null;
     revalidatePath(`/catalogo/productos/${pid}`);
-    return `Encontradas ${r.cantidad} publicaciones${r.costoUsd != null ? ` (costó unos US$ ${r.costoUsd.toFixed(2).replace(".", ",")})` : ""}.`;
+    return `Encontradas ${r.cantidad} publicaciones${a ? `, ${a.comparables.length} comparables` : ""}${r.costoUsd != null ? ` (costó unos US$ ${r.costoUsd.toFixed(2).replace(".", ",")})` : ""}.`;
   });
 }
 
@@ -160,5 +164,30 @@ export async function accionExcluirDeRegla(fd: FormData) {
     const r = await revisarRegla(s.org.id, pid, s.usuario.id);
     revalidatePath(`/catalogo/productos/${pid}`);
     return `${excluido ? "Excluida de la regla: se sigue, pero no cuenta para comparar." : "Vuelve a contar para la regla."} ${r}`;
+  });
+}
+
+/** «Revisada»: una persona confirma (o no) una seguida que agregó sola la búsqueda de precio de mercado. */
+export async function accionConfirmarSeguida(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  await intentar(volver(pid), async () => {
+    const confirmada = fd.get("valor") === "1";
+    await confirmarSeguidas(s.org.id, pid, { ids: [id(fd)], confirmada, usuario: s.usuario.email });
+    const r = await revisarRegla(s.org.id, pid, s.usuario.id);
+    revalidatePath(`/catalogo/productos/${pid}`);
+    return `${confirmada ? "Confirmada: cuenta como revisada por una persona." : "Vuelve a quedar sin confirmar."} ${r}`;
+  });
+}
+
+/** «Confirmar todas»: todas las sin confirmar del producto. */
+export async function accionConfirmarTodas(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  await intentar(volver(pid), async () => {
+    const n = await confirmarSeguidas(s.org.id, pid, { confirmada: true, usuario: s.usuario.email });
+    const r = await revisarRegla(s.org.id, pid, s.usuario.id);
+    revalidatePath(`/catalogo/productos/${pid}`);
+    return `Confirmada${n === 1 ? "" : "s"} ${n}. ${r}`;
   });
 }

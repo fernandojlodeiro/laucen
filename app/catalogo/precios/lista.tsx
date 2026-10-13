@@ -10,6 +10,7 @@ import { verInactivos } from "@/app/componentes/Inactivos";
 import { consulta } from "@/lib/erp/base";
 import { hoyAR } from "@/lib/moneda";
 import { campoFecha, type Lista, type SP } from "@/lib/listas/tipos";
+import { ESTADOS_MERCADO, esEstadoMercado, filtroEstadoMercado, sqlEstadoMercado } from "@/lib/seguimiento/estado-mercado";
 
 /** Lo escrito (regla de lib/busqueda.ts, en $4) sobre los datos de una variación `v` y de su producto `p`. */
 const buscarPrecio = (v: string, p: string) => sqlBusqueda("$4", camposVariacionYProducto(v, p));
@@ -45,6 +46,7 @@ export const LISTA_PRECIOS: Lista = {
     { clave: "venta", titulo: "Precio de venta $", sql: "pr.venta_ars::float", orden: "pr.venta_ars", formato: "pesos" },
     { clave: "venta_usd", titulo: "Precio de venta US$", sql: "pr.venta_usd::float", orden: "pr.venta_usd", formato: "usd" },
     campoFecha("vigente", "Vigente desde", "pr.vigente_desde", { dia: true }),
+    { clave: "mercado", titulo: "Precio de mercado", sql: sqlEstadoMercado("v.producto_id"), valor: (f) => (esEstadoMercado(f.mercado) ? ESTADOS_MERCADO[f.mercado].texto : null), ancho: 26 },
     { clave: "propio", titulo: "Precio propio de esta lista", sql: "coalesce((select x.lista_id = $2 from precio x where x.id = pr.precio_id), false)", formato: "sino" },
   ],
   enPantalla: ["sku", "titulo", "lista", "descuento", "venta", "vigente"],
@@ -55,7 +57,7 @@ export const LISTA_PRECIOS: Lista = {
     return {
       desde: `variacion v join producto p on p.id = v.producto_id
         left join lateral precio_de($1, v.id, $2, $3::date) pr on true`,
-      donde: DONDE_PRECIOS,
+      donde: DONDE_PRECIOS + filtroEstadoMercado(sp.mercado, "p.id"),
       valores: valoresPrecios(ctx.org, lista?.id ?? 0, sp),
       orden: "v.sku, v.id",
     };

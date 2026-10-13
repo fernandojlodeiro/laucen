@@ -153,3 +153,19 @@ select erp_politica_org('seguimiento_catalogo');
 -- impuestos); y Fer puede seguir una sin que cuente para la regla de precio.
 alter table seguimiento_pub add column if not exists internacional boolean;
 alter table seguimiento_pub add column if not exists excluido boolean not null default false;
+
+-- Seguimiento automático (Fer, 13/10): la búsqueda de precio de mercado sigue sola
+-- las publicaciones que la IA juzga comparables con el producto (origen 'auto').
+-- Esas quedan sin confirmar hasta que una persona las revisa (confirmada); las que
+-- agrega una persona nacen confirmadas. La regla de precio sólo mira las
+-- confirmadas. motivo_ia: por qué la IA la juzgó comparable.
+alter table seguimiento_pub add column if not exists confirmada boolean not null default true;
+alter table seguimiento_pub add column if not exists confirmada_ts timestamptz;
+alter table seguimiento_pub add column if not exists confirmada_por text;
+alter table seguimiento_pub add column if not exists motivo_ia text;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'seguimiento_pub_origen_auto') then
+    alter table seguimiento_pub drop constraint if exists seguimiento_pub_origen_check;
+    alter table seguimiento_pub add constraint seguimiento_pub_origen_auto check (origen in ('busqueda', 'manual', 'importado', 'auto'));
+  end if;
+end $$;

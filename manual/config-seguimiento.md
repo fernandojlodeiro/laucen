@@ -20,12 +20,13 @@ Menú **Configuración › Seguimiento de publicaciones**.
 - **Leer cada (días)**: de entrada, 7.
 - **Tope de gasto por mes (US$)**: de entrada, 30.
 - **No compite si tarda más de (días)**: de entrada, 10.
+- **Seguir solas por producto**: de entrada, 8. Cuántas publicaciones que la IA juzga iguales al producto sigue sola, en cada producto, la búsqueda de precio de mercado (0 = ninguna).
 - Abajo: **Gastado este mes**, **Queda del tope**, **Publicaciones seguidas** y cuántas son **De catálogo (gratis)**.
 
 ## Cómo se hace
 
 1. Apretá el **lápiz** arriba a la derecha.
-2. Cambiá los días (de 1 a 90) o el tope (de 0 a 1.000 dólares).
+2. Cambiá los días (de 1 a 90), el tope (de 0 a 1.000 dólares) o cuántas seguir solas (de 0 a 30).
 3. Apretá **Grabar**.
 
 ## Criterios y reglas
@@ -35,6 +36,7 @@ Menú **Configuración › Seguimiento de publicaciones**.
 - **El tope**: al llegar al tope del mes, se dejan de leer las comunes y de buscar hasta el mes siguiente (las de catálogo se siguen leyendo). El mes se cuenta en hora argentina.
 - **Tiempo de entrega**: de cada publicación ajena se calcula en cuántos días llega a un código postal de Capital Federal (la opción de envío más rápida, como la informa Mercado Libre; sin costo). Si tarda más que los días elegidos, **no compite**: en la búsqueda queda escondida (con una caja para mostrarla) y en las seguidas el plazo se ve en rojo. Sirve para separar, por ejemplo, las que se traen por encargo y tardan semanas.
 - Si una lectura falla, se reintenta al día siguiente.
+- **Seguir solas**: la búsqueda de precio de mercado ([Sugerencia de compra](/compras/sugerencia)) sigue, en cada producto, las publicaciones más baratas de las que la IA juzga iguales, hasta la cantidad elegida. Quedan **sin confirmar** (no cuentan para la regla de precio) hasta que una persona las revisa en la pestaña Seguimiento del producto. Las que ya se seguían no se tocan. Para ver lo que falta revisar: [Seguimientos](/catalogo/seguimientos).
 
 ## Relacionado
 

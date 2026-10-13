@@ -22,6 +22,9 @@ import {
 } from "@/app/componentes/erp";
 import { verInactivos } from "@/app/componentes/Inactivos";
 import { AccionesExcel } from "@/app/listas/piezas";
+import MarcaMercado from "@/app/componentes/MarcaMercado";
+import { Desplegable } from "@/app/informes/Filtros";
+import { ESTADOS_MERCADO, esEstadoMercado, filtroEstadoMercado, sqlEstadoMercado, type EstadoMercado } from "@/lib/seguimiento/estado-mercado";
 import { LISTA_PRECIOS, LISTA_LISTAS_PRECIOS, DONDE_PRECIOS, valoresPrecios } from "./lista";
 import { accionBorrarLista, accionCrearLista, accionGuardarLista, accionGuardarPrecio, accionMasivo } from "./acciones";
 
@@ -30,7 +33,7 @@ export const dynamic = "force-dynamic";
 const BASE = "/catalogo/precios";
 
 type SP = {
-  lista?: string; editar?: string; precio?: string; q?: string; contiene?: string; ql?: string; qlcontiene?: string; p?: string; orden?: string; dir?: string; inactivos?: string; ok?: string; error?: string;
+  lista?: string; editar?: string; precio?: string; q?: string; mercado?: string; contiene?: string; ql?: string; qlcontiene?: string; p?: string; orden?: string; dir?: string; inactivos?: string; ok?: string; error?: string;
   // Carga masiva (paso 1: elegir; paso 2: confirmar).
   md?: string; mo?: string; ms?: string; mpct?: string; mr?: string;
 };
@@ -39,7 +42,7 @@ type Fila = {
   id: number; producto_id: number; sku: string; titulo: string; precio_id: number | null; fotos: string[] | null;
   lista_ars: string | null; lista_usd: string | null; moneda_origen: Moneda | null; vigente: string | null;
   descuento: string; venta_ars: string | null; venta_usd: string | null;
-  propio: boolean;
+  propio: boolean; mercado: EstadoMercado;
 };
 
 export default async function Precios({ searchParams }: { searchParams: Promise<SP> }) {
@@ -86,7 +89,9 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
   const inactivos = verInactivos(sp);
   const ina = inactivos ? "1" : null;
   // La dirección de esta vista, sin lo que abre una edición: a donde vuelven las acciones.
-  const aqui = url(BASE, { lista: lista?.id, q, contiene: cont, inactivos: ina, ...filtrosL, ...orden });
+  // El estado del precio de mercado elegido (Fer, 13/10).
+  const mercado = esEstadoMercado(sp.mercado) ? sp.mercado : null;
+  const aqui = url(BASE, { lista: lista?.id, q, contiene: cont, inactivos: ina, mercado, ...filtrosL, ...orden });
 
   // La grilla: primero la página de variaciones y después precio_de() sólo
   // para esas 50. Ordenar por precio o descuento lo calcula para todas.
@@ -94,7 +99,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
   let total = 0;
   if (lista) {
     // Los mismos filtros que el Excel ($1…$5, lista.tsx); el desplazamiento de la página va en $6.
-    const donde = DONDE_PRECIOS;
+    const donde = DONDE_PRECIOS + filtroEstadoMercado(sp.mercado, "p.id");
     const porPrecio = ["lista", "descuento", "venta", "vigente"].includes(sp.orden ?? "");
     const ordenSql = leerOrden(sp, {
       sku: "v.sku", titulo: "coalesce(v.titulo, p.titulo)",
@@ -105,6 +110,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
              pr.lista_ars, pr.lista_usd, pr.moneda_origen, to_char(pr.vigente_desde, 'DD/MM/YYYY') vigente,
              coalesce(pr.descuento_pct, 0) descuento, pr.venta_ars, pr.venta_usd,
              coalesce((select x.lista_id = $2 from precio x where x.id = pr.precio_id), false) propio,
+             ${sqlEstadoMercado("v.producto_id")} mercado,
              (select array_agg(pf.url order by pf.orden, pf.id) from producto_foto pf where pf.producto_id = v.producto_id) fotos`;
     const [lasFilas, [n]] = await Promise.all([
       consulta<Fila>(porPrecio ? `
@@ -236,6 +242,8 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
               {formula(lista.id) && <span className="font-normal text-[#5C6B76]"> · {formula(lista.id)}</span>}</h2>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <BuscadorVivo q={q} comienza={comienza} inactivos={inactivos} placeholder="Buscar SKU, título o código de barras" limpiar={["p", "precio"]} />
+              <Desplegable parametro="mercado" etiqueta="Precio de mercado" valor={mercado ?? ""} limpiar={["p", "precio"]}
+                opciones={[{ valor: "", texto: "Todos" }, ...Object.entries(ESTADOS_MERCADO).map(([k, e]) => ({ valor: k, texto: e.texto }))]} />
               <AccionesExcel lista={LISTA_PRECIOS} org={s.org.id} extra={{ lista: String(lista.id) }} />
             </div>
           </div>
@@ -284,7 +292,12 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                       </span>
                     </td>
                     <td className={TD}><Link href={`/catalogo/productos/${f.producto_id}`} className="hover:underline">{f.titulo}</Link></td>
-                    <td className={TDN}>{f.precio_id ? <span className={Number(f.descuento) > 0 ? "line-through text-[#5C6B76]" : ""}>{enVista({ ars: f.lista_ars, usd: f.lista_usd }, s.moneda)}</span> : <span className="text-[#5C6B76]">sin precio</span>}</td>
+                    <td className={`${TDN} whitespace-nowrap`}>
+                      <span className="inline-flex items-center gap-1.5">
+                        {f.precio_id ? <span className={Number(f.descuento) > 0 ? "line-through text-[#5C6B76]" : ""}>{enVista({ ars: f.lista_ars, usd: f.lista_usd }, s.moneda)}</span> : <span className="text-[#5C6B76]">sin precio</span>}
+                        <MarcaMercado estado={f.mercado} href={`/catalogo/productos/${f.producto_id}?seccion=seguimiento`} />
+                      </span>
+                    </td>
                     <td className={TDN}>{Number(f.descuento) > 0 ? `${formatearNumero(Number(f.descuento), "pct")} %` : "—"}</td>
                     <td className={`${TDN} font-semibold`}>{f.precio_id ? enVista({ ars: f.venta_ars, usd: f.venta_usd }, s.moneda) : "—"}</td>
                     <td className={TD}>{f.vigente ?? "—"}</td>
@@ -292,7 +305,7 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                       {f.moneda_origen ? (f.moneda_origen === "USD" ? "Dólares" : "Pesos") : "—"}
                       {f.precio_id && !f.propio && <span className="ml-1.5"><Estado texto="calculado" tono="azul" /></span>}
                     </td>
-                    <td className={`${TD} text-right`}><Lapiz href={url(BASE, { lista: lista.id, q, contiene: cont, inactivos: ina, ...filtrosL, ...orden, precio: f.id })} etiqueta="Editar precio" /></td>
+                    <td className={`${TD} text-right`}><Lapiz href={url(BASE, { lista: lista.id, q, contiene: cont, inactivos: ina, mercado, ...filtrosL, ...orden, precio: f.id })} etiqueta="Editar precio" /></td>
                   </tr>
                 ))}
               </tbody>

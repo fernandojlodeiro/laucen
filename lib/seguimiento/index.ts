@@ -23,16 +23,18 @@ const POR_RESULTADO = { busqueda: 0.002, lectura: 0.008 };
 // ── Configuración general ───────────────────────────────────
 
 /** `demoraDias`: una publicación que tarda más que esto en llegar no compite (se esconde en la búsqueda y se marca en rojo). */
-export type ConfigSeguimiento = { frecuenciaDias: number; topeUsd: number; demoraDias: number };
-export const CONFIG_DEFECTO: ConfigSeguimiento = { frecuenciaDias: 7, topeUsd: 30, demoraDias: 10 };
+/** `autoMax`: cuántas publicaciones comparables sigue sola la búsqueda de precio de mercado en cada producto (0 = ninguna). */
+export type ConfigSeguimiento = { frecuenciaDias: number; topeUsd: number; demoraDias: number; autoMax: number };
+export const CONFIG_DEFECTO: ConfigSeguimiento = { frecuenciaDias: 7, topeUsd: 30, demoraDias: 10, autoMax: 8 };
 
 export async function configSeguimiento(org: string): Promise<ConfigSeguimiento> {
-  const r = await una<{ valor: { frecuencia_dias?: number; tope_usd?: number; demora_dias?: number } }>(
+  const r = await una<{ valor: { frecuencia_dias?: number; tope_usd?: number; demora_dias?: number; auto_max?: number } }>(
     "select valor from config_org where organizacion_id = $1 and clave = 'seguimiento'", [org]).catch(() => null);
   return {
     frecuenciaDias: Number(r?.valor?.frecuencia_dias) > 0 ? Number(r!.valor.frecuencia_dias) : CONFIG_DEFECTO.frecuenciaDias,
     topeUsd: r?.valor?.tope_usd != null && Number(r.valor.tope_usd) >= 0 ? Number(r.valor.tope_usd) : CONFIG_DEFECTO.topeUsd,
     demoraDias: Number(r?.valor?.demora_dias) > 0 ? Number(r!.valor.demora_dias) : CONFIG_DEFECTO.demoraDias,
+    autoMax: r?.valor?.auto_max != null && Number(r.valor.auto_max) >= 0 ? Number(r.valor.auto_max) : CONFIG_DEFECTO.autoMax,
   };
 }
 
@@ -40,10 +42,11 @@ export async function guardarConfigSeguimiento(org: string, c: ConfigSeguimiento
   if (!Number.isInteger(c.frecuenciaDias) || c.frecuenciaDias < 1 || c.frecuenciaDias > 90) throw new ErrorErp("Cada cuántos días: de 1 a 90.");
   if (!(c.topeUsd >= 0) || c.topeUsd > 1000) throw new ErrorErp("El tope de gasto va de US$ 0 a US$ 1.000 por mes.");
   if (!Number.isInteger(c.demoraDias) || c.demoraDias < 1 || c.demoraDias > 120) throw new ErrorErp("«No compite si tarda más de»: de 1 a 120 días.");
+  if (!Number.isInteger(c.autoMax) || c.autoMax < 0 || c.autoMax > 30) throw new ErrorErp("«Seguir solas por producto»: de 0 a 30.");
   await consulta(`
     insert into config_org (organizacion_id, clave, valor) values ($1, 'seguimiento', $2::jsonb)
     on conflict (coalesce(organizacion_id, ''), clave) do update set valor = excluded.valor, actualizado_ts = now()`,
-    [org, JSON.stringify({ frecuencia_dias: c.frecuenciaDias, tope_usd: c.topeUsd, demora_dias: c.demoraDias })]);
+    [org, JSON.stringify({ frecuencia_dias: c.frecuenciaDias, tope_usd: c.topeUsd, demora_dias: c.demoraDias, auto_max: c.autoMax })]);
 }
 
 /** Lo gastado en Apify por el seguimiento este mes (hora argentina). */
@@ -145,7 +148,7 @@ export function aPubEncontrada(x: Record<string, unknown>): PubEncontrada | null
 }
 
 /** Nuestras cuentas (para marcar como propias las publicaciones que aparecen en la búsqueda). */
-async function nuestras(org: string): Promise<{ cuentas: CuentaMl[]; apodos: Set<string> }> {
+export async function nuestras(org: string): Promise<{ cuentas: CuentaMl[]; apodos: Set<string> }> {
   const cuentas = (await cuentasDe(org)).filter((c) => c.estado === "activa");
   return { cuentas, apodos: new Set(cuentas.map((c) => (c.nickname ?? "").toUpperCase().trim()).filter(Boolean)) };
 }
@@ -159,7 +162,7 @@ export function esInternacional(modo: string | null | undefined, pais?: string |
 
 /** Lo que completa una lista de publicaciones encontradas (búsqueda o catálogo pegado): el apodo de cada vendedor,
  *  cuáles son nuestras y en cuántos días llegan (todo por la API, gratis). Sin repetidas. */
-async function completar(org: string, cuentas: CuentaMl[], apodos: Set<string>, lista: PubEncontrada[]): Promise<PubEncontrada[]> {
+export async function completar(org: string, cuentas: CuentaMl[], apodos: Set<string>, lista: PubEncontrada[]): Promise<PubEncontrada[]> {
   // Los apodos de los vendedores (la API pública de usuarios), de a uno; los nuestros ya se saben.
   const ids = new Map(cuentas.map((x) => [x.meliUserId, x.nickname ?? "Nuestra"]));
   const nuestrosIds = new Set(cuentas.map((x) => x.meliUserId));
@@ -207,20 +210,30 @@ export async function buscarParaSeguir(org: string, productoId: number, texto: s
   await consulta("insert into seguimiento_corrida (organizacion_id, tipo, producto_id, run_id, costo_usd, publicaciones, error) values ($1, 'busqueda', $2, $3, $4, $5, $6)",
     [org, productoId, c.runId ?? null, costoDe("busqueda", c.costoUsd, c.items.length), c.items.length, c.error ?? null]);
   if (!c.items.length) throw new ErrorErp(c.error ? `Mercado Libre no devolvió resultados (${c.error.slice(0, 120)}).` : "Mercado Libre no devolvió resultados para esa búsqueda.");
+  const resultados = await armarEncontradas(org, c.items as Record<string, unknown>[]);
+  await guardarBusqueda(org, productoId, q, resultados);
+  return { cantidad: resultados.length, costoUsd: costoDe("busqueda", c.costoUsd, c.items.length) };
+}
+
+/** Lo que trajo una búsqueda de Apify, como publicaciones: cada producto de catálogo se abre en sus vendedores por la
+ *  API (gratis: publicación, vendedor, precio, tipo y envío reales) y se completa (apodos, nuestras, entrega). */
+export async function armarEncontradas(org: string, items: Record<string, unknown>[]): Promise<PubEncontrada[]> {
   const { cuentas, apodos } = await nuestras(org);
-  const crudos = (c.items as Record<string, unknown>[]).map(aPubEncontrada).filter((p): p is PubEncontrada => !!p);
-  // Cada producto de catálogo se abre en sus vendedores por la API (gratis): publicación, vendedor, precio, tipo y envío reales.
+  const crudos = items.map(aPubEncontrada).filter((p): p is PubEncontrada => !!p);
   const lista: PubEncontrada[] = [];
   for (const p of crudos) {
     if (!p.esCatalogo || !cuentas[0]) { lista.push({ ...p, esCatalogo: false }); continue; }
     lista.push(...await vendedoresDelCatalogo(cuentas[0], p.catalogoId ?? p.itemId, p));
   }
-  const resultados = await completar(org, cuentas, apodos, lista);
+  return completar(org, cuentas, apodos, lista);
+}
+
+/** Guarda una búsqueda como la última del producto (la que se ve en su pestaña Seguimiento). */
+export async function guardarBusqueda(org: string, productoId: number, texto: string, resultados: PubEncontrada[]): Promise<void> {
   await consulta(`
     insert into seguimiento_busqueda (organizacion_id, producto_id, texto, ts, resultados) values ($1, $2, $3, now(), $4::jsonb)
     on conflict (organizacion_id, producto_id) do update set texto = excluded.texto, ts = now(), resultados = excluded.resultados`,
-    [org, productoId, q, JSON.stringify(resultados)]);
-  return { cantidad: resultados.length, costoUsd: costoDe("busqueda", c.costoUsd, c.items.length) };
+    [org, productoId, texto, JSON.stringify(resultados)]);
 }
 
 /** El código postal de referencia para calcular la entrega (Capital Federal). */
@@ -368,7 +381,37 @@ export async function dejarDeSeguir(org: string, id: number): Promise<void> {
   await consulta("delete from seguimiento_pub where id = $1 and organizacion_id = $2", [id, org]);
 }
 
-/** Seguirla pero que no cuente para la regla de precio (o volver a contarla). */
+/** Sigue solas las publicaciones comparables (origen «auto», sin confirmar), con lo que trajo la búsqueda como
+ *  primera lectura. Las que ya se siguen no se tocan. Devuelve cuántas agregó. */
+export async function seguirAutomaticas(org: string, productoId: number, pubs: (PubEncontrada & { motivoIa?: string | null })[], ts: Date = new Date()): Promise<number> {
+  // Las automáticas que nadie revisó y que esta búsqueda ya no elige se dejan de seguir (las revisadas quedan).
+  await consulta(`delete from seguimiento_pub where organizacion_id = $1 and producto_id = $2 and origen = 'auto' and not confirmada
+                   and not (item_id = any($3::text[]))`, [org, productoId, pubs.map((p) => p.itemId)]);
+  let n = 0;
+  for (const p of pubs) {
+    if (p.esCatalogo || p.propia) continue;
+    const r = await una<{ id: number }>(`
+      insert into seguimiento_pub (organizacion_id, producto_id, item_id, catalogo_id, titulo, foto, permalink, vendedor, tienda_oficial,
+                                   precio, precio_original, moneda, estado, tipo_publicacion, cuotas, envio_gratis, origen, leido_ts, intento_ts, vendedor_id,
+                                   entrega_dias, internacional, confirmada, motivo_ia)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, coalesce($13, 'activa'), $14, $15, $16, 'auto', $17, $17, $18, $19, $20, false, $21)
+      on conflict (organizacion_id, producto_id, item_id) do nothing returning id::int`,
+      [org, productoId, p.itemId, p.catalogoId, p.titulo, p.foto, p.permalink, p.vendedor, p.tiendaOficial, p.precio, p.precioOriginal, p.moneda,
+        p.estado, p.tipoPublicacion, p.cuotas, p.envioGratis, ts, p.vendedorId ?? null, p.entregaDias ?? null, p.internacional ?? null, p.motivoIa ?? null]);
+    if (r) { await anotarLectura(org, r.id, "busqueda", p); n++; }
+  }
+  return n;
+}
+
+/** Una persona revisó (o des-revisó) seguidas: por id, o todas las sin confirmar del producto. Devuelve cuántas cambió. */
+export async function confirmarSeguidas(org: string, productoId: number, o: { ids?: number[]; confirmada: boolean; usuario: string | null }): Promise<number> {
+  const r = await consulta<{ id: number }>(`
+    update seguimiento_pub set confirmada = $3, confirmada_ts = case when $3 then now() end, confirmada_por = case when $3 then $4 end
+     where organizacion_id = $1 and producto_id = $2 and confirmada <> $3 and ($5::bigint[] is null or id = any($5::bigint[])) returning id::int`,
+    [org, productoId, o.confirmada, o.usuario, o.ids?.length ? o.ids : null]);
+  return r.length;
+}
+
 /** Marca las internacionales en la búsqueda guardada y en los catálogos pegados (por el país de cada vendedor, gratis):
  *  las búsquedas de antes no traían el dato. Devuelve cuántas marcó. */
 export async function marcarInternacionales(org: string, productoId: number): Promise<number> {
@@ -392,6 +435,7 @@ export async function marcarInternacionales(org: string, productoId: number): Pr
   return afuera.size;
 }
 
+/** Seguirla pero que no cuente para la regla de precio (o volver a contarla). */
 export async function excluirDeRegla(org: string, id: number, excluido: boolean): Promise<number | null> {
   const r = await una<{ producto_id: number }>("update seguimiento_pub set excluido = $3 where id = $1 and organizacion_id = $2 returning producto_id::int", [id, org, excluido]);
   return r?.producto_id ?? null;
