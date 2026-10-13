@@ -5,8 +5,9 @@
 //     refrescan solos. Lo que entró y el usuario todavía no vio se pinta en
 //     amarillo hasta que entra a esa pantalla.
 //   · <VigiaAvisos> (en el marco, una sola vez): pregunta cada 15 segundos.
-//     Si el usuario está en la pantalla de un contador y entró algo, la
-//     actualiza (salvo que esté escribiendo). Según lo que eligió en
+//     Si el usuario está en la pantalla de un contador y entró algo o
+//     cambió la cantidad (otro operador resolvió un pendiente), la actualiza
+//     (salvo que esté escribiendo). Según lo que eligió en
 //     Configuración › Mis avisos: suena cuando entra algo (como mucho una vez
 //     cada tantos minutos) y abre de prepo una ventana con lo que la IA no
 //     contestó. Con la pestaña a la vista se lo dice al servidor (?vista=1):
@@ -54,6 +55,7 @@ export function VigiaAvisos({ inicial }: { inicial: EstadoAvisos }) {
   const abiertos = useRef<AvisoIa[]>([]);
   abiertos.current = ventana;
   const marcas = useRef(new Map(inicial.contadores.map((c) => [c.clave, c.marca])));
+  const cantidades = useRef(new Map(inicial.contadores.map((c) => [c.clave, c.n])));
   const vistos = useRef(new Set<string>());
   const donde = useRef({ ruta, ver });
   donde.current = { ruta, ver };
@@ -92,14 +94,18 @@ export function VigiaAvisos({ inicial }: { inicial: EstadoAvisos }) {
       const antes = marcas.current.get(c.clave);
       return antes !== undefined && c.marca > antes && c.n !== null && c.n > 0;
     });
+    // ¿Cambió la cantidad de pendientes? Si bajó es que otro operador (o este mismo en otra pestaña) ya lo resolvió.
+    const cambiaron = e.contadores.filter((c) => cantidades.current.has(c.clave) && cantidades.current.get(c.clave) !== c.n);
+    cantidades.current = new Map(e.contadores.map((c) => [c.clave, c.n]));
     marcas.current = new Map(e.contadores.map((c) => [c.clave, c.marca]));
     const contadores = marcarVistos(e.contadores);
     ultimos.current = contadores;
     publicar(contadores);
 
-    // Si está en la pantalla de lo que entró, se actualiza sola (WhatsApp ya se actualiza por su cuenta).
+    // Si está en la pantalla de lo que entró (o de lo que se resolvió: cambió la cantidad), se actualiza sola
+    // (WhatsApp ya se actualiza por su cuenta). Si está escribiendo, espera.
     const { ruta: r, ver: v } = donde.current;
-    if (entraron.some((c) => c.clave !== "whatsapp" && esPantallaDe(c.clave, r, v)) && !escribiendo()) router.refresh();
+    if ([...entraron, ...cambiaron].some((c) => c.clave !== "whatsapp" && esPantallaDe(c.clave, r, v)) && !escribiendo()) router.refresh();
 
     // Lo que la IA no contestó: con la ventana apagada, queda como avisado sin mostrarse.
     if (e.ventana.length) {

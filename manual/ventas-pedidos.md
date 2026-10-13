@@ -248,6 +248,8 @@ En el bloque «Facturación» del pedido, al lado de cada factura dice **"WhatsA
 
 ## Criterios y reglas
 
+- **La lista se actualiza sola**: estando en Pedidos (por ejemplo con el filtro Pendientes, al que se llega desde la barra de estado), cada 15 segundos se fija si cambió la cantidad de pendientes. Si entró un pedido o si otro operador (o vos en otra pestaña) resolvió uno, la lista se actualiza y desaparecen los que ya no están pendientes. Si estás escribiendo en un campo, espera a que termines.
+
 ### Canales: de dónde vienen los pedidos
 
 | Canal | Cómo entra el pedido |

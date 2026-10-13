@@ -19,6 +19,21 @@ const pack = (fd: FormData) => {
   return p;
 };
 
+export type PreguntaAnterior = { id: string; texto: string; respuesta: string | null; estado: string; fecha: string; respondida_ts: string | null; canal: string | null; titulo: string | null };
+
+/** Las otras preguntas del mismo comprador (en cualquiera de las cuentas) con lo que se le respondió, de la más nueva a la más vieja. */
+export async function accionPreguntasAnteriores(preguntaId: string): Promise<PreguntaAnterior[]> {
+  const s = await entrarErp("preguntas_ver");
+  if (!/^\d{1,20}$/.test(String(preguntaId))) return [];
+  return consulta<PreguntaAnterior>(`
+    select x.id::text, x.texto, x.respuesta, x.estado, x.fecha, x.respondida_ts, ca.nombre canal,
+           (select m.titulo from meli_item m where m.organizacion_id = x.organizacion_id and m.item_id = x.item_id limit 1) titulo
+      from meli_pregunta q join meli_pregunta x on x.organizacion_id = q.organizacion_id and x.comprador_id = q.comprador_id and x.id <> q.id
+      left join canal ca on ca.id = x.canal_id
+     where q.id = $1 and q.organizacion_id = $2 and q.comprador_id is not null
+     order by x.fecha desc limit 30`, [preguntaId, s.org.id]);
+}
+
 /** Trae ahora las preguntas sin responder de todas las cuentas con canal. */
 export async function accionTraerPreguntas() {
   const s = await entrarErp("preguntas_ver");

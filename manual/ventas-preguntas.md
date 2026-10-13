@@ -63,6 +63,10 @@ Dos pestañas chicas: **"Sin responder (N)"** y **"Respondidas (N)"**.
 
 Errores típicos: "La respuesta está vacía.", "Mercado Libre acepta hasta 2.000 caracteres.", "Esa pregunta ya no está pendiente (se respondió o se borró).", "La cuenta de Mercado Libre de esta pregunta ya no está conectada.", "Falta la llave de Claude: no se puede sugerir la respuesta.".
 
+### Ver las preguntas anteriores de un comprador
+
+Si quien pregunta ya había preguntado antes (en cualquiera de tus cuentas de Mercado Libre: el comprador es el mismo en todas), debajo de su pregunta aparece el enlace **«Ver preguntas anteriores (N)»**. Al tocarlo se despliegan, de la más nueva a la más vieja, esas preguntas con su fecha, la cuenta y la publicación, y **lo que le respondimos** (o «Todavía sin responder»). Se vuelve a tocar para ocultarlas. Está en las pestañas Sin responder y Respondidas.
+
 ### Citar una de tus publicaciones con #
 
 En la respuesta a una pregunta, en un mensaje de posventa de Mercado Libre o en un chat de WhatsApp, al escribir **#** el texto que sigue (hasta el cursor) se convierte en un buscador de publicaciones propias:
@@ -96,6 +100,7 @@ Apretá **"Actualizar"** en la conversación: la vuelve a leer entera desde Merc
 ## Criterios y reglas
 
 - **Preguntas por otros productos** (en preguntas y en mensajes de posventa): si quien pregunta o escribe nombra otros productos además del de la publicación (por ejemplo una lista para armar un carrito), la IA los busca entre las publicaciones activas de **esa misma cuenta** (primero las del mismo plan que la publicación de la pregunta) y ve de cada una su link, su plan y el stock disponible. Con eso puede pasarle el link de la que tenga stock. Si no hay publicación o no hay stock, lo que contesta lo definen las reglas de la IA de la empresa (ver [Respuestas de la IA](/config/respuestas-ia)). Sólo se le pasan links de publicaciones propias de Mercado Libre (Mercado Libre puede rechazar links en los mensajes de posventa: en ese caso el mensaje no sale y queda para una persona); si la IA no encuentra el producto con lo que el comprador escribió, lo toma como que no hay publicación.
+- **La pantalla se actualiza sola**: estando en Preguntas, Mensajes o Pedidos, cada 15 segundos se fija si cambió la cantidad de pendientes de la barra de abajo. Si entró algo, o si se resolvió algo (otro operador, o vos mismo desde otra pestaña o ventana), la lista se actualiza sola y desaparecen los que ya no están pendientes. Si estás escribiendo en una caja, espera a que termines para no pisarte; apenas salís de la caja, se pone al día.
 - **Firma y reglas de cada cuenta**: cada canal de Mercado Libre puede tener su firma (va al final de cada respuesta, la proponga la IA o la escriba una persona, tal cual se escribió; si ya la tiene, no se repite; debajo del cuadro de la respuesta se ve cuál se va a agregar) y sus reglas para la IA (por ejemplo, «nunca sugerir abrir un reclamo»). Se cargan en «Textos de …» de [Canales](/config/canales).
 - **Corte**: las preguntas hechas en Mercado Libre antes del momento de corte (la fecha y hora desde la que la empresa gestiona sus ventas en Laucen) y las conversaciones sin ningún mensaje posterior a ese momento no entran: quedan en el sistema que se usaba antes. Es el mismo corte de los pedidos (ver [Canales](/config/canales)).
 

@@ -16,6 +16,7 @@ import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import { nombrePlan } from "@/lib/mercadolibre/buscar-publicaciones";
 import CajaRespuesta from "./CajaRespuesta";
+import PreguntasAnteriores from "./PreguntasAnteriores";
 import {
   accionTraerPreguntas, accionProponerRespuesta, accionResponder,
   accionActualizarConversacion, accionProponerMensaje, accionEnviarMensaje, accionRespuestaAuto,
@@ -90,7 +91,7 @@ type Pregunta = {
   respuesta: string | null; respondida_ts: Date | null; respondida_por: string | null; respondida_con_ia: boolean;
   ia_estado: string | null; respondida_auto: boolean;
   canal_id: number | null; comprador_id: string | null; compras: number; ultima_compra: Date | null; cliente_id: number | null;
-  tipo: string | null; tags: unknown; terms: unknown;
+  tipo: string | null; tags: unknown; terms: unknown; anteriores: number;
 };
 
 /** El plan de la publicación sobre la que se preguntó (Clásica, Premium, Premium 3x…), si se sabe. */
@@ -104,6 +105,8 @@ const DE_PREGUNTA = `
          case when pu.id is not null then greatest(stock_disponible_canal(q.organizacion_id, pu.variacion_id, pu.canal_id), 0)::int end disponible,
          q.respuesta, q.respondida_ts, u.nombre respondida_por, q.respondida_con_ia, q.ia_estado, q.respondida_auto,
          q.canal_id::int, q.comprador_id::text, mi.tipo, mi.tags, mi.terms,
+         -- Otras preguntas del mismo comprador (en cualquier cuenta): «Ver preguntas anteriores».
+         case when q.comprador_id is null then 0 else (select count(*) from meli_pregunta x where x.organizacion_id = q.organizacion_id and x.comprador_id = q.comprador_id and x.id <> q.id)::int end anteriores,
          -- ¿Ya nos compró? (Fer, 12/10) En cualquier cuenta: el usuario de Mercado Libre es el mismo en todas.
          coalesce(cq.compras, 0) compras, cq.ultima ultima_compra,
          (select ci.cliente_id::int from cliente_identidad ci join canal c2 on c2.id = ci.canal_id and c2.tipo = 'mercadolibre'
@@ -173,6 +176,7 @@ async function SinResponder({ org, canal, auto }: { org: string; canal: number |
             <span className="text-[11px] text-[#5C6B76] whitespace-nowrap" title={fechaHora(q.fecha)}>{haceCuanto(q.fecha)}</span>
           </div>
           <p className="mt-2 text-sm rounded-lg bg-[#FAFBFC] border border-[#E3E9F0] px-3 py-2">{q.texto}</p>
+          {q.anteriores > 0 && <PreguntasAnteriores preguntaId={q.id} cantidad={q.anteriores} />}
           {q.sugerencia && <div className="mt-2"><AvisoIa estado={q.ia_estado} auto={auto} /></div>}
           <form action={accionResponder} className="mt-2 space-y-2">
             <input type="hidden" name="id" value={q.id} />
@@ -206,6 +210,7 @@ async function Respondidas({ org, canal }: { org: string; canal: number | null }
             <span className="text-[11px] text-[#5C6B76] whitespace-nowrap">{fechaHora(q.fecha)}</span>
           </div>
           <p className="mt-2 text-sm"><span className="text-[#5C6B76]">Pregunta: </span>{q.texto}</p>
+          {q.anteriores > 0 && <PreguntasAnteriores preguntaId={q.id} cantidad={q.anteriores} />}
           <p className="mt-1 text-sm rounded-lg bg-[#EEF7F1] px-3 py-2">{q.respuesta}</p>
           <p className="mt-1 text-[11px] text-[#5C6B76]">
             {q.respondida_auto ? "Respondió la IA sola" : <>Respondió {q.respondida_por ?? "alguien desde Mercado Libre"}{q.respondida_por && q.respondida_con_ia ? " con la IA" : ""}</>}{q.respondida_ts ? ` · ${fechaHora(q.respondida_ts)}` : ""}
