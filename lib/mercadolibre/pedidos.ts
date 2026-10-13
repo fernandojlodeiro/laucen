@@ -111,9 +111,11 @@ export function estadoDelCarrito(ordenes: OrdenMl[], envio: EnvioMl | null): Est
   return null; // payment_required / payment_in_process: sigue 'nuevo'
 }
 
-/** ¿La orden se creó antes del corte de la cuenta? Entonces no entra: ya está en Virtual Seller. */
-const anteriorAlCorte = (cuenta: CuentaMl, o: { date_created: string }): boolean =>
-  !!cuenta.pedidosCorte && Date.parse(o.date_created) < cuenta.pedidosCorte.getTime();
+/** ¿La orden se cerró (se pagó) antes del corte de la cuenta? Entonces no entra: ya está en Virtual Seller. Cuenta
+ *  el cierre, no la creación (Fer, 13/10): una orden creada antes del corte con el pago rechazado y pagada después
+ *  (2000018559253036: creada el 20/9, pagada el 7/10) no estaba en Virtual Seller y quedaba afuera de los dos. */
+const anteriorAlCorte = (cuenta: CuentaMl, o: { date_created: string; date_closed?: string | null }): boolean =>
+  !!cuenta.pedidosCorte && Date.parse(o.date_closed ?? o.date_created) < cuenta.pedidosCorte.getTime();
 
 /** Trae una orden de ML y la deja en Laucen (crea o actualiza). Si la orden
  *  es parte de un carrito (pack_id), trae el carrito entero (/packs) y todo
@@ -347,7 +349,8 @@ export async function barrerOrdenes(cuenta: CuentaMl, hastaMs: number): Promise<
   let n = 0;
   for (let offset = 0; offset < 1000 && Date.now() < hastaMs; offset += 50) {
     const r = await ml<{ results: { id: number }[]; paging: { total: number } }>(cuenta, "GET",
-      `/orders/search?seller=${cuenta.meliUserId}&order.date_last_updated.from=${encodeURIComponent(desde.toISOString())}${cuenta.pedidosCorte ? `&order.date_created.from=${encodeURIComponent(cuenta.pedidosCorte.toISOString())}` : ""}&sort=date_asc&limit=50&offset=${offset}`);
+      // Sin filtro por creación: una orden vieja que se paga ahora también entra (anteriorAlCorte mira el cierre).
+      `/orders/search?seller=${cuenta.meliUserId}&order.date_last_updated.from=${encodeURIComponent(desde.toISOString())}&sort=date_asc&limit=50&offset=${offset}`);
     if (r.status !== 200) throw new Error(`orders/search: ML contestó ${r.status}`);
     for (const o of r.datos.results) {
       if (Date.now() > hastaMs) return n;
