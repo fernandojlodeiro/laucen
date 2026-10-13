@@ -125,6 +125,12 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
       const costo = Math.max(c.costoUsd ?? 0, c.items.length * USD_POR_RESULTADO);
       await consulta("insert into seguimiento_corrida (organizacion_id, tipo, producto_id, run_id, costo_usd, publicaciones, error) values ($1, 'busqueda', $2, $3, $4, $5, $6)",
         [org, p.producto_id, c.runId ?? null, costo, c.items.length, c.error ?? null]);
+      // La cuenta de Apify llegó a su límite del mes: no es error del producto, la tanda se corta (queda pendiente).
+      if (!c.items.length && /usage hard limit|limit exceeded/i.test(c.error ?? "")) {
+        await consulta("update precio_mercado set ts = null where organizacion_id = $1 and producto_id = $2", [org, p.producto_id]);
+        await consulta("update precio_mercado_tanda set estado = 'cortada', mensaje = 'La cuenta de Apify llegó a su límite de uso del mes (se sube en Apify › Billing).', actualizado_ts = now() where id = $1", [tanda]);
+        return;
+      }
       if (!c.items.length) {
         await consulta("update precio_mercado set estado = 'error', error = $3, ts = now() where organizacion_id = $1 and producto_id = $2",
           [org, p.producto_id, c.error ? c.error.slice(0, 200) : "Sin resultados"]);
@@ -150,6 +156,11 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
                        where organizacion_id = $1 and producto_id = $2`, [org, p.producto_id, e.encontradas, e.minimo, e.p25, e.mediana, JSON.stringify(e.resultados)]);
     }));
     hechos += lote.length;
+    const sigue = await una<{ estado: string }>("select estado from precio_mercado_tanda where id = $1", [tanda]);
+    if (sigue?.estado !== "corriendo") {
+      await consulta("update precio_mercado set ts = null where organizacion_id = $1 and tanda_id = $2 and estado = 'pendiente'", [org, tanda]);
+      return { hechos, quedan: -1, estado: sigue?.estado ?? "cortada" };
+    }
   }
   // La sugerencia de compra guarda su cálculo: se descarta para que muestre los precios nuevos.
   try { revalidateTag(`sugerencia-compra-${org}`); } catch { /* fuera de Next */ }
