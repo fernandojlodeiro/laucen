@@ -22,3 +22,12 @@ test("cuentan las parecidas, sin packs ni las nuestras; mínimo, p25 y mediana",
   assert.equal(e.mediana, 24000);
   assert.equal(e.p25, 22000);
 });
+
+test("sin las internacionales: las que lo dicen y las que tardan más que la demora", () => {
+  const it = (title: string, price: number, extra: Record<string, unknown> = {}) => ({ id: `MLA${String(price).padStart(10, "2")}`, title, price, sellerName: "X", currency: "ARS", ...extra });
+  const items = [it("Lupa Vincha Led 5 Lentes", 20000), it("Lupa Vincha Led 5 Lentes", 9000, { shipping: "Compra Internacional" }),
+    it("Lupa Vincha Led 5 Lentes", 8000), it("Lupa Vincha Led 5 Lentes", 26000)];
+  const entrega = new Map([[items[2].id, 25], [items[0].id, 1]]);
+  const e = estadistica("Lupa Vincha Led 5 Lentes", items, new Set(), entrega, 10);
+  assert.deepEqual(e.resultados.map((r) => r.precio), [20000, 26000]);
+});

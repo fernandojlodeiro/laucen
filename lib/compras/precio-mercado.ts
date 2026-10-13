@@ -1,7 +1,9 @@
 // Precio de mercado (pedido de Fer, 13/10): ¿la Clásica está al día? Una búsqueda en Mercado Libre por producto (Apify,
 // el mismo actor del seguimiento de publicaciones y dentro de su tope de gasto del mes) con el título del producto.
 // De lo que aparece cuentan las publicaciones que se parecen (la mitad o más de las palabras de nuestro título; si
-// quedan menos de 3, un tercio), sin packs, sin las nuestras y en pesos: el mínimo, el cuarto más barato (p25) y la
+// quedan menos de 3, un tercio), sin packs, sin las nuestras, en pesos y sin las internacionales (Fer, 13/10: no
+// compiten con nuestro stock local; como en el seguimiento: las que dicen «internacional» o tardan en llegar más que
+// la demora de Configuración › Seguimiento de publicaciones, leída por la API): el mínimo, el cuarto más barato (p25) y la
 // mediana. Se pide en tandas desde la Sugerencia de compra; cada vuelta procesa unos cuantos productos a la vez
 // y se relanza sola hasta terminar (/api/precios-mercado). Tablas en db/compras.sql. Sólo lee: no cambia precios.
 
@@ -9,7 +11,7 @@ import { revalidateTag } from "next/cache";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { correrConEntrada } from "@/lib/apify";
 import { cuentasDe } from "@/lib/mercadolibre/api";
-import { aPubEncontrada, esPack, parecido, quedaParaGastar } from "@/lib/seguimiento";
+import { aPubEncontrada, configSeguimiento, diasDeEntrega, esPack, parecido, quedaParaGastar } from "@/lib/seguimiento";
 import { urlPanel } from "@/lib/tienda/dominios";
 
 const ACTOR = "scrapesage~mercadolibre-scraper";
@@ -22,7 +24,7 @@ const SEGUNDOS_POR_VUELTA = 200;
 /** Máximo de productos por tanda. */
 export const TOPE_TANDA = 300;
 
-export type PubMercado = { titulo: string; precio: number; vendedor: string | null; permalink: string | null; parecido: number };
+export type PubMercado = { itemId: string; titulo: string; precio: number; vendedor: string | null; permalink: string | null; parecido: number; entregaDias?: number | null };
 export type Estadistica = { encontradas: number; minimo: number | null; p25: number | null; mediana: number | null; resultados: PubMercado[] };
 
 const cuantil = (xs: number[], q: number) => {
@@ -37,13 +39,25 @@ export function textoBusqueda(titulo: string): string {
   return titulo.replace(/\(.*?\)/g, " ").replace(/\bSKU\S*/gi, " ").replace(/[^\p{L}\p{N}.,+ -]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 60).trim();
 }
 
-/** Lo que cuenta de una búsqueda y sus números. Pura. */
-export function estadistica(nuestro: string, items: Record<string, unknown>[], propios: Set<string>): Estadistica {
-  const todas = items.map(aPubEncontrada).filter((p): p is NonNullable<typeof p> => !!p)
+/** ¿El resultado de Apify dice que es internacional? Pura. */
+const diceInternacional = (x: Record<string, unknown>) => /internacional|international|compra internacional/i.test(JSON.stringify(x));
+
+/** Las que se parecen, sin packs, sin las nuestras, en pesos y sin las que dicen internacional. Pura. */
+export function candidatas(nuestro: string, items: Record<string, unknown>[], propios: Set<string>): PubMercado[] {
+  const todas = items.filter((x) => !diceInternacional(x)).map(aPubEncontrada).filter((p): p is NonNullable<typeof p> => !!p)
     .filter((p) => p.precio != null && p.precio > 0 && (p.moneda ?? "ARS") === "ARS" && !esPack(p.titulo) && !propios.has((p.vendedor ?? "").toUpperCase().trim()))
-    .map((p) => ({ titulo: p.titulo, precio: p.precio!, vendedor: p.vendedor, permalink: p.permalink, parecido: Math.round(parecido(nuestro, p.titulo) * 100) / 100 }));
-  let cuentan = todas.filter((p) => p.parecido >= 0.5);
-  if (cuentan.length < 3) cuentan = todas.filter((p) => p.parecido >= 0.34);
+    .map((p) => ({ itemId: p.itemId, titulo: p.titulo, precio: p.precio!, vendedor: p.vendedor, permalink: p.permalink, parecido: Math.round(parecido(nuestro, p.titulo) * 100) / 100 }));
+  const vistos = new Set<string>();
+  const unicas = todas.filter((p) => !vistos.has(p.itemId) && !!vistos.add(p.itemId));
+  const cuentan = unicas.filter((p) => p.parecido >= 0.5);
+  return cuentan.length >= 3 ? cuentan : unicas.filter((p) => p.parecido >= 0.34);
+}
+
+/** Lo que cuenta de una búsqueda y sus números: las candidatas sin las que tardan más de `demora` días. Pura. */
+export function estadistica(nuestro: string, items: Record<string, unknown>[], propios: Set<string>, entrega: Map<string, number | null> = new Map(), demora = Infinity): Estadistica {
+  const cuentan = candidatas(nuestro, items, propios)
+    .map((p) => ({ ...p, entregaDias: entrega.get(p.itemId) ?? null }))
+    .filter((p) => p.entregaDias == null || p.entregaDias <= demora);
   const precios = cuentan.map((p) => p.precio);
   return {
     encontradas: cuentan.length, minimo: precios.length ? Math.min(...precios) : null, p25: cuantil(precios, 0.25), mediana: cuantil(precios, 0.5),
@@ -81,7 +95,9 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
   if (!t) throw new ErrorErp("Tanda desconocida.");
   if (t.estado !== "corriendo") return { hechos: 0, quedan: 0, estado: t.estado };
   const org = t.organizacion_id;
-  const propios = new Set((await cuentasDe(org).catch(() => [])).map((c) => (c.nickname ?? "").toUpperCase().trim()).filter(Boolean));
+  const cuentas = (await cuentasDe(org).catch(() => [])).filter((c) => c.estado === "activa");
+  const propios = new Set(cuentas.map((c) => (c.nickname ?? "").toUpperCase().trim()).filter(Boolean));
+  const demora = (await configSeguimiento(org)).demoraDias;
   const t0 = Date.now();
   let hechos = 0;
   while (Date.now() - t0 < SEGUNDOS_POR_VUELTA * 1000) {
@@ -112,7 +128,16 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
           [org, p.producto_id, c.error ? c.error.slice(0, 200) : "Sin resultados"]);
         return;
       }
-      const e = estadistica(p.titulo, c.items as Record<string, unknown>[], propios);
+      // Cuánto tardan en llegar las que cuentan (API de ML, gratis): las internacionales tardan más que la demora.
+      const items = c.items as Record<string, unknown>[];
+      const entrega = new Map<string, number | null>();
+      if (cuentas[0]) {
+        const ids = candidatas(p.titulo, items, propios).map((x) => x.itemId).filter((id) => /^MLA\d+$/.test(id));
+        for (let i = 0; i < ids.length; i += 8) {
+          await Promise.all(ids.slice(i, i + 8).map(async (id) => { entrega.set(id, await diasDeEntrega(cuentas[0], id).catch(() => null)); }));
+        }
+      }
+      const e = estadistica(p.titulo, items, propios, entrega, demora);
       await consulta(`update precio_mercado set estado = 'ok', error = null, ts = now(), encontradas = $3, minimo = $4, p25 = $5, mediana = $6, resultados = $7::jsonb
                        where organizacion_id = $1 and producto_id = $2`, [org, p.producto_id, e.encontradas, e.minimo, e.p25, e.mediana, JSON.stringify(e.resultados)]);
     }));
