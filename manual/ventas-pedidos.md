@@ -367,9 +367,9 @@ Como las órdenes de un carrito pueden llegar con minutos de diferencia, para qu
 - Durante la espera **no se puede**: cambiarle el estado a mano, meterlo en picking, facturarlo (ni a mano ni automáticamente), imprimir su etiqueta ni operarlo desde la ficha. Lo que manda Mercado Libre sí entra.
 - Se ve con la marca ámbar **"Carrito en espera · faltan N min"** en la lista, en la ficha (con el texto "se puede tocar desde las HH:MM") y en Envíos ("Carrito: esperando"). El botón "Facturar" se ve deshabilitado con ese texto.
 - Pasada la espera, la marca desaparece sola y todo vuelve a andar (la facturación automática lo toma en su próxima vuelta).
+- Un carrito que entra tarde (por la revisión de cada 30 minutos) cuenta la espera desde su orden más reciente, así que puede no esperar nada.
 
 - **Garantía de cada línea** (uso interno, no sale en ningún comprobante): al entrar la venta queda grabada en la línea la garantía que tenía en ese momento y no cambia después aunque cambie la publicación o la ficha. Si se vendió por **Mercado Libre**, es la que tenía la publicación en Mercado Libre (por ejemplo "Garantía del vendedor · 12 meses"); si no se pudo leer en ese momento, la última que Laucen tenía guardada de esa publicación. Si se vendió por cualquier otro canal (local, web, mayorista), es la que dice la ficha del producto. Si no hay ningún dato, la línea muestra "—".
-- Un carrito que entra tarde (por la revisión de cada 30 minutos) cuenta la espera desde su orden más reciente, así que puede no esperar nada.
 
 ### Artículos sin vincular
 
