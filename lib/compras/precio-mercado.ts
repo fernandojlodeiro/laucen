@@ -43,9 +43,9 @@ export function textoBusqueda(titulo: string): string {
 const diceInternacional = (x: Record<string, unknown>) => /internacional|international|compra internacional/i.test(JSON.stringify(x));
 
 /** Las que se parecen, sin packs, sin las nuestras, en pesos y sin las que dicen internacional. Pura. */
-export function candidatas(nuestro: string, items: Record<string, unknown>[], propios: Set<string>): PubMercado[] {
+export function candidatas(nuestro: string, items: Record<string, unknown>[], propios: Set<string>, propiasIds: Set<string> = new Set()): PubMercado[] {
   const todas = items.filter((x) => !diceInternacional(x)).map(aPubEncontrada).filter((p): p is NonNullable<typeof p> => !!p)
-    .filter((p) => p.precio != null && p.precio > 0 && (p.moneda ?? "ARS") === "ARS" && !esPack(p.titulo) && !propios.has((p.vendedor ?? "").toUpperCase().trim()))
+    .filter((p) => p.precio != null && p.precio > 0 && (p.moneda ?? "ARS") === "ARS" && !esPack(p.titulo) && !propios.has((p.vendedor ?? "").toUpperCase().trim()) && !propiasIds.has(p.itemId))
     .map((p) => ({ itemId: p.itemId, titulo: p.titulo, precio: p.precio!, vendedor: p.vendedor, permalink: p.permalink, parecido: Math.round(parecido(nuestro, p.titulo) * 100) / 100 }));
   const vistos = new Set<string>();
   const unicas = todas.filter((p) => !vistos.has(p.itemId) && !!vistos.add(p.itemId));
@@ -54,8 +54,8 @@ export function candidatas(nuestro: string, items: Record<string, unknown>[], pr
 }
 
 /** Lo que cuenta de una búsqueda y sus números: las candidatas sin las que tardan más de `demora` días. Pura. */
-export function estadistica(nuestro: string, items: Record<string, unknown>[], propios: Set<string>, entrega: Map<string, number | null> = new Map(), demora = Infinity): Estadistica {
-  const cuentan = candidatas(nuestro, items, propios)
+export function estadistica(nuestro: string, items: Record<string, unknown>[], propios: Set<string>, entrega: Map<string, number | null> = new Map(), demora = Infinity, propiasIds: Set<string> = new Set()): Estadistica {
+  const cuentan = candidatas(nuestro, items, propios, propiasIds)
     .map((p) => ({ ...p, entregaDias: entrega.get(p.itemId) ?? null }))
     .filter((p) => p.entregaDias == null || p.entregaDias <= demora);
   const precios = cuentan.map((p) => p.precio);
@@ -130,14 +130,20 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
       }
       // Cuánto tardan en llegar las que cuentan (API de ML, gratis): las internacionales tardan más que la demora.
       const items = c.items as Record<string, unknown>[];
+      // Las nuestras, por número de publicación (Apify no siempre trae el vendedor).
+      const ids0 = items.map(aPubEncontrada).filter((x): x is NonNullable<typeof x> => !!x).map((x) => x.itemId);
+      const propiasIds = new Set((await consulta<{ id: string }>(`
+        select item_id id from meli_item where organizacion_id = $1 and item_id = any($2::text[])
+        union select datos_externos #>> '{ml,user_product_id}' from meli_item where organizacion_id = $1 and datos_externos #>> '{ml,user_product_id}' = any($2::text[])`,
+        [org, ids0])).map((r) => r.id));
       const entrega = new Map<string, number | null>();
       if (cuentas[0]) {
-        const ids = candidatas(p.titulo, items, propios).map((x) => x.itemId).filter((id) => /^MLA\d+$/.test(id));
+        const ids = candidatas(p.titulo, items, propios, propiasIds).map((x) => x.itemId).filter((id) => /^MLA\d+$/.test(id));
         for (let i = 0; i < ids.length; i += 8) {
           await Promise.all(ids.slice(i, i + 8).map(async (id) => { entrega.set(id, await diasDeEntrega(cuentas[0], id).catch(() => null)); }));
         }
       }
-      const e = estadistica(p.titulo, items, propios, entrega, demora);
+      const e = estadistica(p.titulo, items, propios, entrega, demora, propiasIds);
       await consulta(`update precio_mercado set estado = 'ok', error = null, ts = now(), encontradas = $3, minimo = $4, p25 = $5, mediana = $6, resultados = $7::jsonb
                        where organizacion_id = $1 and producto_id = $2`, [org, p.producto_id, e.encontradas, e.minimo, e.p25, e.mediana, JSON.stringify(e.resultados)]);
     }));
