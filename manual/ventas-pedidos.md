@@ -218,7 +218,7 @@ Con los mismos datos no se vuelve a leer: sólo cuando el comprador escribe algo
 
 - **A mano**: si el pedido tiene una factura vigente, en el bloque «Facturación» está **"Refacturar con datos actuales"**. Hace una **nota de crédito idéntica** a la factura (del mismo tipo: a una B, una nota de crédito B) que la anula, y una **factura nueva** con los datos de hoy de la ficha del cliente y las Observaciones de la factura. Las dos salen con la fecha del día. Sirve, por ejemplo, cuando el cliente pidió por teléfono factura A: cargá su CUIT en la ficha del cliente (con «Validar en ARCA») y apretá el botón.
 - **Sola**: si el comprador escribe **después** de la factura pidiendo un cambio claro (factura A con su CUIT, una leyenda), Laucen refactura sola de la misma manera. Si el pedido no está claro, queda **"⚠ Revisar la factura"** con el motivo y el aviso **"Facturas"**: refacturá con el botón o apretá **"Dejar la factura como está"**.
-- Si la factura ya estaba subida a Mercado Libre, la nota de crédito y la factura nueva se suben igual que cualquier comprobante (ver abajo).
+- **Mercado Libre acepta un solo documento fiscal por venta**: la nota de crédito no se sube, y si la factura anterior ya estaba subida, la nueva no se sube sola (queda «Falta subirla») hasta reemplazar la de Mercado Libre.
 
 ### Subir la factura a la venta de Mercado Libre
 
