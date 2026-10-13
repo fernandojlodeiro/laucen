@@ -10,6 +10,7 @@ import Link from "next/link";
 import { FILTROS, type ChatAbierto, type FiltroBandeja, type FotoBandeja, type MensajeVista } from "@/lib/mensajes/bandeja-tipos";
 import { accionEnviar, accionIa, accionNotas, accionResolverCaso } from "./acciones";
 import Llave from "./Llave";
+import CajaConPublicaciones from "@/app/componentes/CajaConPublicaciones";
 
 const CADA = 5000, CADA_SIN_ABRIR = 10000;
 const SUAVE = "text-xs font-bold rounded-lg px-3 py-2 bg-[#EEF3F8] border border-[#E3E9F0] text-[#16577F]";
@@ -218,10 +219,10 @@ function Conversacion({ chat, nombreIa, iaActiva, alVolver, alCambiar }: {
           <p className="text-xs text-[#5C6B76] px-1 py-2">Pasaron más de 24 horas desde el último mensaje del cliente: WhatsApp no deja escribirle desde acá. Escribile desde el teléfono; cuando conteste, seguís desde acá.</p>
         ) : (
           <div className="flex items-end gap-2">
-            <textarea ref={caja} value={texto} onChange={(e) => setTexto(e.target.value)} rows={1}
+            <CajaConPublicaciones cajaRef={caja} value={texto} onChange={setTexto} rows={1}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void enviar(); } }}
-              placeholder={iaPrendida ? `Escribí un mensaje (${nombreIa} sigue atendiendo; apagala si lo tomás vos)…` : "Escribí un mensaje…"}
-              className="flex-1 resize-none border border-[#E3E9F0] rounded-lg px-2 py-2 text-xs bg-white overflow-hidden" />
+              placeholder={iaPrendida ? `Escribí un mensaje (${nombreIa} sigue atendiendo; apagala si lo tomás vos). Con # buscás una publicación…` : "Escribí un mensaje. Con # buscás una publicación…"}
+              className="w-full resize-none border border-[#E3E9F0] rounded-lg px-2 py-2 text-xs bg-white overflow-hidden" />
             <button type="button" onClick={enviar} disabled={mandando || !texto.trim()} className={PRIMARIO}>{mandando ? "Mandando…" : "Enviar"}</button>
           </div>
         )}

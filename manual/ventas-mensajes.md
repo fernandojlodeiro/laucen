@@ -46,7 +46,7 @@ La pantalla se actualiza sola cada pocos segundos.
 ### Contestar vos un chat
 1. Abrí el chat.
 2. Si vas a atenderlo vos, **apagá el interruptor de la IA** de ese chat (si no, la IA puede contestar también).
-3. Escribí y apretá **"Enviar"**. Si tenía casos en espera sin dueño, quedan a tu nombre.
+3. Escribí y apretá **"Enviar"**. Para pasarle el link de una de tus publicaciones, escribí **#** y el nombre del producto, y elegí una de la lista (ver «Citar una de tus publicaciones con #» en [Preguntas y mensajes](/ventas/preguntas)). Si tenía casos en espera sin dueño, quedan a tu nombre.
 4. Cuando termines, si querés que la IA siga, prendé el interruptor. Si el cliente quedó esperando respuesta, contesta en el momento.
 
 ### Prender o apagar la IA desde el teléfono
