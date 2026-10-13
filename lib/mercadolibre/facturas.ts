@@ -19,7 +19,7 @@
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { encolar, encolarLoteConBoton, PRIORIDAD, type CambioMl } from "@/lib/mercadolibre/cola";
-import { mlArchivo, type ArchivoMl, type CuentaMl, type RespuestaMl } from "@/lib/mercadolibre/api";
+import { ml, mlArchivo, type ArchivoMl, type CuentaMl, type RespuestaMl } from "@/lib/mercadolibre/api";
 import { sqlCarritoEnEspera, carritoEnEspera } from "@/lib/pedidos";
 import { TIPOS_CBTE } from "@/lib/arca/facturar";
 
@@ -74,11 +74,11 @@ async function candidatos(org: string, ids: number[] | null, limite = 2000): Pro
       join canal ca on ca.id = p.canal_id and ca.tipo = 'mercadolibre'
      where cb.organizacion_id = $1 and cb.estado = 'autorizado' and cb.ml_subida_ts is null
        and coalesce(p.id_externo, '') ~ '^[0-9]+$'
-       -- Mercado Libre acepta UN solo documento fiscal por venta: la nota de crédito no se sube, y la
-       -- factura nueva de una refacturación tampoco mientras la venta ya tenga otro subido (ML diría
-       -- "ya tiene" y quedaría marcada como subida sin serlo). Reemplazarlo es otro paso.
+       -- Mercado Libre acepta UN solo documento fiscal por venta: la nota de crédito no se sube, y una
+       -- factura nueva sólo si la venta no tiene otro subido, o si es la de una refacturación
+       -- (ml_reemplaza: al subirla se borra antes la anterior, ver enviarFactura).
        and cb.tipo_cbte in (1, 6, 11)
-       and not exists (select 1 from comprobante o where o.pedido_id = cb.pedido_id and o.id <> cb.id and o.ml_subida_ts is not null)
+       and (cb.ml_reemplaza or not exists (select 1 from comprobante o where o.pedido_id = cb.pedido_id and o.id <> cb.id and o.ml_subida_ts is not null))
        and ($2::bigint[] is null or cb.id = any($2::bigint[]))
        and not ${sqlCarritoEnEspera("p")}
        and not exists (select 1 from ml_cola q where q.canal_id = p.canal_id and q.tipo = 'factura' and q.item_id = 'cbte:' || cb.id
@@ -202,8 +202,9 @@ export async function enviarFactura(org: string, payload: Record<string, unknown
   subir: SubirArchivo = subirDeVerdad): Promise<ResultadoEnvioFactura> {
   const id = Number(payload.comprobante_id);
   const cb = await una<{ estado: string; ml_subida_ts: Date | null; tipo_cbte: number; punto_venta: number; numero: string | null; pack_id: string | null;
-    canal_id: string | null; carrito_ultimo_evento_ts: Date | null; ahora: Date }>(`
-    select cb.estado, cb.ml_subida_ts, cb.tipo_cbte, cb.punto_venta, cb.numero::text, p.id_externo pack_id, p.canal_id, p.carrito_ultimo_evento_ts, now() ahora
+    canal_id: string | null; carrito_ultimo_evento_ts: Date | null; ahora: Date; reemplaza: boolean; pedido_id: string | null }>(`
+    select cb.estado, cb.ml_subida_ts, cb.tipo_cbte, cb.punto_venta, cb.numero::text, p.id_externo pack_id, p.canal_id, p.carrito_ultimo_evento_ts, now() ahora,
+           cb.ml_reemplaza reemplaza, cb.pedido_id
       from comprobante cb left join pedido p on p.id = cb.pedido_id where cb.id = $1 and cb.organizacion_id = $2`, [id, org]);
   if (!cb) return { tipo: "error", mensaje: "El comprobante ya no existe." };
   if (cb.ml_subida_ts) return { tipo: "respuesta", r: { status: 200, datos: { ya_estaba: true } }, enviado: false };
@@ -222,14 +223,42 @@ export async function enviarFactura(org: string, payload: Record<string, unknown
   }
   const letra = TIPOS_CBTE[cb.tipo_cbte]?.nc ? "NC" : "Factura";
   const nombre = `${letra}-${TIPOS_CBTE[cb.tipo_cbte]?.letra ?? ""}-${numeroCbte(cb.punto_venta, cb.numero)}.pdf`;
+  // Refacturación (pedido de Fer, 13/10): ML acepta un solo documento por venta, así que primero se borra el anterior.
+  if (cb.reemplaza) {
+    const b = await borrar(cuenta, rutaFactura(pack));
+    if ((b.status < 200 || b.status >= 300) && b.status !== 404) {
+      return { tipo: "respuesta", r: b, mensajeError: `No se pudo borrar la factura anterior de la venta: ${errorFacturaLegible(b.status, b.datos, pack)}`, enviado: true };
+    }
+  }
   const r = await subir(cuenta, rutaFactura(pack), CAMPO_ARCHIVO, { nombre, tipo: "application/pdf", datos });
   const ok = r.status >= 200 && r.status < 300;
-  if (ok || yaTeniaDocumento(r.status, r.datos)) {
+  // "Ya tenía un documento" vale como subida, salvo en un reemplazo (ahí sería la anterior).
+  if (ok || (!cb.reemplaza && yaTeniaDocumento(r.status, r.datos))) {
     await consulta("update comprobante set ml_documento_id = coalesce($3, ml_documento_id), ml_subida_ts = now() where id = $1 and organizacion_id = $2",
       [id, org, ok ? idDocumento(r.datos) : null]);
+    if (cb.reemplaza && cb.pedido_id) await avisarFacturaNueva(org, Number(cb.pedido_id), `${TIPOS_CBTE[cb.tipo_cbte]?.nombre ?? "Factura"} ${numeroCbte(cb.punto_venta, cb.numero)}`);
     return { tipo: "respuesta", r: ok ? r : { status: 200, datos: { ya_estaba: true, ml: r.datos } }, enviado: true };
   }
   return { tipo: "respuesta", r, mensajeError: errorFacturaLegible(r.status, r.datos, pack), enviado: true };
+}
+
+/** Borra los documentos fiscales subidos a una venta (ML no deja tener más de uno). */
+export type BorrarDocumentos = (cuenta: CuentaMl, ruta: string) => Promise<RespuestaMl>;
+const borrarDeVerdad: BorrarDocumentos = (c, r) => ml(c, "DELETE", r);
+let borrar: BorrarDocumentos = borrarDeVerdad;
+/** Para los tests. */
+export const usarBorrar = (f: BorrarDocumentos | null) => { borrar = f ?? borrarDeVerdad; };
+
+/** Le avisa al comprador, en la mensajería de la venta, que ya está la factura corregida (si hay conversación). No tira. */
+async function avisarFacturaNueva(org: string, pedidoId: number, comprobante: string) {
+  try {
+    const conv = await una<{ pack_id: string }>("select pack_id from meli_conversacion where organizacion_id = $1 and pedido_id = $2 order by ultimo_ts desc nulls last limit 1", [org, pedidoId]);
+    if (!conv) return;
+    const { enviarMensaje } = await import("@/lib/mercadolibre/mensajes");
+    await enviarMensaje(org, conv.pack_id, `¡Hola! Ya cargamos en tu compra la factura corregida (${comprobante}). Cualquier duda, escribinos.`, null, { auto: true });
+  } catch (e) {
+    console.error("[aviso factura corregida]", pedidoId, e instanceof Error ? e.message : e);
+  }
 }
 
 /** El estado en ML de un comprobante, para su ficha y la del pedido. */

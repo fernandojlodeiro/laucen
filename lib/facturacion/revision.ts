@@ -195,6 +195,10 @@ export async function refacturar(org: string, pid: number, usuario: string | nul
   const r1 = await emitir(org, nc);
   if (r1.estado !== "autorizado") throw new ErrorErp(`La nota de crédito no salió: ${r1.mensaje}`);
   const nueva = await prepararFactura(org, pid, usuario);
+  // Si la anterior estaba subida a Mercado Libre, la nueva la reemplaza ahí (se borra la vieja y se sube ésta,
+  // lib/mercadolibre/facturas.ts). Se marca antes de emitir: al autorizarse, entra a la cola.
+  await consulta(`update comprobante set ml_reemplaza = exists (select 1 from comprobante o where o.pedido_id = $3 and o.id <> $1 and o.ml_subida_ts is not null)
+                   where id = $1 and organizacion_id = $2`, [nueva, org, pid]);
   const r2 = await emitir(org, nueva);
   await consulta("update pedido set factura_retenida = null, factura_retenida_ts = null where id = $1 and organizacion_id = $2", [pid, org]);
   if (r2.estado !== "autorizado") throw new ErrorErp(`Se anuló la factura (${r1.mensaje}) pero la nueva no salió: ${r2.mensaje}`);

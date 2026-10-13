@@ -254,3 +254,22 @@ alter table pedido add column if not exists factura_retenida_ts timestamptz;
 -- pedido.factura_revision: la última lectura ({firma, ts, decision, motivo}); con la misma firma no se vuelve a leer.
 alter table pedido add column if not exists factura_revision jsonb;
 create index if not exists pedido_factura_retenida on pedido (organizacion_id) where factura_retenida is not null;
+
+-- Envío de facturas al cliente (pedido de Fer, 13/10; lib/facturacion/envio.ts).
+-- cliente.whatsapp: el número de WhatsApp CONFIRMADO (el que nos escribió, o el que cargó una persona);
+-- whatsapp_confirmado_ts: cuándo escribió desde ese número (null = cargado a mano). Las plantillas van a ése.
+alter table cliente add column if not exists whatsapp text;
+alter table cliente add column if not exists whatsapp_confirmado_ts timestamptz;
+-- Las dos casillas de la ficha: ¿le mandamos la factura por WhatsApp? ¿por mail? (de entrada, sí).
+alter table cliente add column if not exists factura_por_whatsapp boolean not null default true;
+alter table cliente add column if not exists factura_por_mail boolean not null default true;
+-- comprobante.wa_estado: null (no corresponde) · pendiente · enviado · error; wa_detalle: el motivo o a qué número.
+alter table comprobante add column if not exists wa_estado text;
+alter table comprobante add column if not exists wa_detalle text;
+alter table comprobante add column if not exists wa_enviado_ts timestamptz;
+alter table comprobante add column if not exists wa_intentos int not null default 0;
+-- El enlace público para bajar el PDF (lo usa la plantilla de WhatsApp): un código al azar por comprobante.
+alter table comprobante add column if not exists enlace_token text;
+create unique index if not exists comprobante_enlace_token on comprobante (enlace_token) where enlace_token is not null;
+-- La factura nueva de una refacturación reemplaza a la subida en Mercado Libre (borra la vieja y sube ésta).
+alter table comprobante add column if not exists ml_reemplaza boolean not null default false;

@@ -218,7 +218,18 @@ Con los mismos datos no se vuelve a leer: sólo cuando el comprador escribe algo
 
 - **A mano**: si el pedido tiene una factura vigente, en el bloque «Facturación» está **"Refacturar con datos actuales"**. Hace una **nota de crédito idéntica** a la factura (del mismo tipo: a una B, una nota de crédito B) que la anula, y una **factura nueva** con los datos de hoy de la ficha del cliente y las Observaciones de la factura. Las dos salen con la fecha del día. Sirve, por ejemplo, cuando el cliente pidió por teléfono factura A: cargá su CUIT en la ficha del cliente (con «Validar en ARCA») y apretá el botón.
 - **Sola**: si el comprador escribe **después** de la factura pidiendo un cambio claro (factura A con su CUIT, una leyenda), Laucen refactura sola de la misma manera. Si el pedido no está claro, queda **"⚠ Revisar la factura"** con el motivo y el aviso **"Facturas"**: refacturá con el botón o apretá **"Dejar la factura como está"**.
-- **Mercado Libre acepta un solo documento fiscal por venta**: la nota de crédito no se sube, y si la factura anterior ya estaba subida, la nueva no se sube sola (queda «Falta subirla») hasta reemplazar la de Mercado Libre.
+- **En Mercado Libre** (acepta un solo documento fiscal por venta): la nota de crédito no se sube. Si la factura anterior estaba subida a la venta, la nueva **la reemplaza**: se borra la anterior y se sube la nueva. Pasa solo en las cuentas con «Subir facturas a Mercado Libre» prendido ([Canales](/config/canales)); en las demás, con el botón «Subir factura a Mercado Libre». Si el comprador había escrito por la mensajería de esa venta, se le avisa ahí: «¡Hola! Ya cargamos en tu compra la factura corregida (…)».
+- **Por WhatsApp**: si al cliente le corresponde (ver abajo), la factura nueva le llega sola, con el texto «factura corregida».
+
+### Mandarle la factura al cliente por WhatsApp
+
+Cuando una factura queda autorizada, le llega sola por WhatsApp al cliente si:
+- el cliente tiene **WhatsApp confirmado** y la casilla **"Enviarle la factura por WhatsApp"** tildada ([Clientes](/ventas/clientes)), y
+- el pedido **no es una venta de Mercado Libre**, o lo es pero el cliente nos escribió por WhatsApp por esa compra (la factura de una venta de Mercado Libre va a Mercado Libre).
+
+Dentro de las 24 horas del último mensaje del cliente le llega el PDF. Pasadas las 24 horas, WhatsApp sólo deja mandar un mensaje con **plantilla**: le llega «Hola …, te enviamos la Factura B … de tu compra» con el botón **"Ver la factura"**, que abre el PDF. La plantilla la pide Laucen sola a Meta la primera vez; hasta que Meta la aprueba, la factura queda pendiente y sale sola cuando se aprueba (se reintenta durante 3 días).
+
+En el bloque «Facturación» del pedido, al lado de cada factura dice **"WhatsApp: enviada el … (a …)"**, o pendiente o el error con el motivo. El botón **"Mandar por WhatsApp"** la manda en el momento (por ejemplo, si el cliente la pide de nuevo o si se tildó la casilla después). Hace falta una línea de WhatsApp conectada ([WhatsApp](/ventas/mensajes)). El envío queda también en el chat del cliente.
 
 ### Subir la factura a la venta de Mercado Libre
 
