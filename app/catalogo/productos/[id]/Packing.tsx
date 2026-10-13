@@ -6,7 +6,7 @@ import { formatearNumero } from "@/lib/numeros";
 import Link from "next/link";
 import { FACTOR_AEREO, packingDeProducto } from "@/lib/compras/packing";
 import { consulta } from "@/lib/erp/base";
-import { configVia, costoFinal, costosResueltos } from "@/lib/compras/via";
+import { configVia, costoCourier, costoFinal, costosResueltos } from "@/lib/compras/via";
 
 const dia = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "sin fecha");
 const g = (n: number) => `${formatearNumero(Math.round(n), "entero")} g`;
@@ -27,7 +27,7 @@ export default async function PackingProducto({ org, productoId, familiaId }: { 
     const fob = fobDe.get(f.variacion_id) ?? null;
     const kg = Math.max(f.peso_g / 1000, f.cbm * FACTOR_AEREO);
     const avion = kg * cfg.aereoUsdKg, barco = f.cbm * cfg.barcoUsdM3;
-    return { f, fob, avion, barco, pct: fob ? (avion / fob) * 100 : null, finalAvion: fob ? costoFinal(fob, avion, r, cfg) : null, finalBarco: fob ? costoFinal(fob, barco, r, cfg) : null };
+    return { f, fob, avion, barco, pct: fob ? (avion / fob) * 100 : null, finalAvion: fob ? costoCourier(fob, avion, cfg) : null, finalBarco: fob ? costoFinal(fob, barco, r, cfg) : null };
   });
   const variaciones = new Set(filas.map((f) => f.variacion_id)).size;
   return (
@@ -78,7 +78,7 @@ export default async function PackingProducto({ org, productoId, familiaId }: { 
             {variaciones > 1 && <span className="font-mono mr-1">{v.f.sku_variacion}:</span>}
             Flete por avión <b>{usd(v.avion)}</b> por unidad (US$ {cfg.aereoUsdKg}/kg){v.pct != null && <> = <b className={v.pct > cfg.umbralFletePct ? "text-[#C03420]" : ""}>{v.pct.toFixed(1).replace(".", ",")} % del FOB</b>{v.pct > cfg.umbralFletePct && " (conviene barco)"}</>}
             {" · "}por barco <b>{usd(v.barco)}</b> (US$ {cfg.barcoUsdM3}/m³).
-            {v.finalAvion != null && v.finalBarco != null && <> Costo final con IVA: avión <b>{usd(v.finalAvion)}</b>, barco <b>{usd(v.finalBarco)}</b>{r?.derecho_pct.valor == null && ` (sin NCM: impuestos y gastos ${cfg.recargoSinDatosPct} %)`}.</>}
+            {v.finalAvion != null && v.finalBarco != null && <> Costo final: avión por courier <b>{usd(v.finalAvion)}</b> (FOB + flete + {cfg.courierPct} % del FOB), barco con IVA <b>{usd(v.finalBarco)}</b>{r?.derecho_pct.valor == null && ` (sin NCM: impuestos y gastos ${cfg.recargoSinDatosPct} %)`}.</>}
           </p>
         ))}
         <p className="text-[10px] text-[#5C6B76]">La categoría (avión, conviene barco, no rentable o imposible por avión) contra el precio de la Clásica está en <Link href="/compras/sugerencia" className="text-[#16577F] hover:underline">Sugerencia de compra</Link>.</p>

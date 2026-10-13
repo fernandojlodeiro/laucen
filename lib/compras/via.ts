@@ -1,7 +1,8 @@
 // ¿Avión o barco? (pedido de Fer, 13/10). Por unidad de cada producto:
 //   · flete por avión = kilos cobrables × US$ por kilo (cobrable = el mayor entre el peso real y el volumétrico, CBM × 167);
 //   · flete por barco = CBM × US$ por metro cúbico;
-//   · costo final (con IVA, como maneja Fer los costos):
+//   · por avión viene por courier (Fer, 13/10): costo final = FOB + flete + un % del FOB por todo concepto (8 %), sin despacho;
+//   · por barco, costo final (con IVA, como maneja Fer los costos):
 //       con NCM cargada (pestaña Costo, propia o heredada de la familia): CIF = FOB + flete + seguro; + derechos,
 //       estadística, otros, despachante y depósito sobre el CIF; + IVA sobre la base imponible (CIF + derechos + estadística);
 //       sin datos: (FOB + flete) × (1 + recargo sin datos);
@@ -20,17 +21,19 @@ import { calcular, generalDe, resolver, type Resuelto, type Valores } from "@/li
 
 export type ConfigVia = {
   /** Flete aéreo, US$ por kilo cobrable. */ aereoUsdKg: number;
+  /** Por avión viene por courier: todo lo demás (impuestos y gastos) es este % del FOB. */ courierPct: number;
   /** Flete marítimo, US$ por metro cúbico. */ barcoUsdM3: number;
   /** Si el flete aéreo pasa este % del FOB, conviene barco. */ umbralFletePct: number;
   /** Sin NCM cargada: (FOB + flete) × (1 + esto). */ recargoSinDatosPct: number;
   /** Ganancia mínima sobre la Clásica para que traerlo por avión sea rentable. */ margenMinimoPct: number;
 };
-export const CONFIG_VIA: ConfigVia = { aereoUsdKg: 13, barcoUsdM3: 330, umbralFletePct: 30, recargoSinDatosPct: 30, margenMinimoPct: 10 };
+export const CONFIG_VIA: ConfigVia = { aereoUsdKg: 13, courierPct: 8, barcoUsdM3: 330, umbralFletePct: 30, recargoSinDatosPct: 30, margenMinimoPct: 10 };
 export const CAMPOS_VIA: [keyof ConfigVia, string, string][] = [
   ["aereoUsdKg", "Flete aéreo", "US$ por kilo cobrable"],
+  ["courierPct", "Por avión (courier), impuestos y gastos", "% del FOB"],
   ["barcoUsdM3", "Flete marítimo", "US$ por metro cúbico"],
   ["umbralFletePct", "Conviene barco si el flete aéreo pasa", "% del FOB"],
-  ["recargoSinDatosPct", "Sin NCM cargada, impuestos y gastos", "% sobre FOB + flete"],
+  ["recargoSinDatosPct", "Por barco sin NCM cargada, impuestos y gastos", "% sobre FOB + flete"],
   ["margenMinimoPct", "Margen mínimo por avión", "% de la Clásica"],
 ];
 
@@ -64,7 +67,10 @@ export type ViaProducto = {
   avion: CostoVia | null; barco: CostoVia | null; categoria: CategoriaVia;
 };
 
-/** Costo final por unidad (con IVA) para un flete dado. Sin derechos cargados, el recargo general. */
+/** Costo final por unidad por avión: viene por courier, FOB + flete + el % de courier sobre el FOB. */
+export const costoCourier = (fob: number, flete: number, cfg: ConfigVia) => fob * (1 + cfg.courierPct / 100) + flete;
+
+/** Costo final por unidad por barco (con IVA) para un flete dado. Sin derechos cargados, el recargo general. */
 export function costoFinal(fob: number, flete: number, r: Resuelto | null, cfg: ConfigVia): number {
   if (!r || r.derecho_pct.valor == null) return (fob + flete) * (1 + cfg.recargoSinDatosPct / 100);
   const c = calcular(fob, { ...r, flete_pct: { valor: fob > 0 ? (flete / fob) * 100 : 0, origen: null } });
@@ -77,13 +83,14 @@ export function calcularVia(fob: number | null, m: Medidas, netoUsd: number | nu
   const cobrable = m.peso_g != null || m.cbm != null ? Math.max((m.peso_g ?? 0) / 1000, (m.cbm ?? 0) * FACTOR_AEREO) : null;
   if (fob == null || fob <= 0 || cobrable == null || cobrable <= 0)
     return { medidas: m, cobrable_kg: cobrable, flete_aereo_pct: null, con_ncm: conNcm, avion: null, barco: null, categoria: "sin_datos" };
-  const uno = (flete: number): CostoVia => {
-    const final = costoFinal(fob, flete, r, cfg);
+  const uno = (flete: number, final: number): CostoVia => {
     const ganancia = netoUsd != null ? netoUsd - final : null;
     return { flete, final, ganancia, margen_pct: ganancia != null && netoUsd ? (ganancia / netoUsd) * 100 : null };
   };
-  const avion = uno(cobrable * cfg.aereoUsdKg);
-  const barco = m.cbm != null && m.cbm > 0 ? uno(m.cbm * cfg.barcoUsdM3) : null;
+  const fa = cobrable * cfg.aereoUsdKg;
+  const avion = uno(fa, costoCourier(fob, fa, cfg));
+  const fb = m.cbm != null && m.cbm > 0 ? m.cbm * cfg.barcoUsdM3 : null;
+  const barco = fb != null ? uno(fb, costoFinal(fob, fb, r, cfg)) : null;
   const pct = (avion.flete / fob) * 100;
   let categoria: CategoriaVia;
   if (avion.ganancia == null || avion.margen_pct == null) categoria = "sin_datos";

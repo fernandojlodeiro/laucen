@@ -111,7 +111,7 @@ Si el producto vino en alguna compra con packing list cargado, debajo de los dat
 
 Rige (★) el dato exacto antes que el aproximado y, entre dos iguales, el del packing list más nuevo.
 
-Debajo, con el dato que rige y el FOB de la ficha: el **flete por avión** por unidad (y qué % del FOB es; en rojo si pasa el umbral, porque conviene barco), el **flete por barco** y el **costo final con IVA** por cada vía. Los montos y la categoría contra el precio de la Clásica están en [Sugerencia de compra](/compras/sugerencia), recuadro «¿Avión o barco?».
+Debajo, con el dato que rige y el FOB de la ficha: el **flete por avión** por unidad (y qué % del FOB es; en rojo si pasa el umbral, porque conviene barco), el **flete por barco** y el **costo final** por cada vía: por avión, courier (FOB + flete + un % del FOB por todo concepto); por barco, despacho con impuestos e IVA. Los montos y la categoría contra el precio de la Clásica están en [Sugerencia de compra](/compras/sugerencia), recuadro «¿Avión o barco?».
 
 #### Pestaña Costo
 

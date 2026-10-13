@@ -43,7 +43,7 @@ Menú **Compras › Sugerencia de compra**.
   - **Últ. venta hoy**: el precio de la última venta en dólares, llevado al dólar oficial de hoy; sólo de referencia. Si el producto no tiene precio en la Clásica, la ganancia sale de este precio y lleva un asterisco (*).
   - **Mercado Libre**: comisión de su categoría más el cargo fijo (precios bajos) o el envío gratis (precios altos), sobre el precio de la Clásica.
   - **Ganancia** por unidad, **% s/ venta** (ganancia sobre el precio), **% s/ costo** (ganancia sobre el costo) y la **ganancia total** de lo que hay que comprar, según el típico y el mejor momento.
-  - **Vía**: la categoría de «¿avión o barco?»; **Flete avión**: el flete aéreo por unidad como % del FOB; **% avión** y **% barco**: la ganancia sobre la Clásica trayéndolo por cada vía, con el costo final (al pasar el mouse, el costo final y la ganancia en dólares).
+  - **Vía**: la categoría de «¿avión o barco?»; **Flete avión**: el flete aéreo por unidad como % del FOB; **% avión** y **% barco**: la ganancia sobre la Clásica trayéndolo por cada vía (por avión, courier; por barco, despacho con impuestos e IVA) (al pasar el mouse, el costo final y la ganancia en dólares).
 - Abajo, el recuadro **¿Avión o barco?** con los montos y criterios del cálculo; se cambian con el lápiz de su título.
 
 ## Criterios y reglas
@@ -60,7 +60,8 @@ Menú **Compras › Sugerencia de compra**.
   - **Flete por avión** = kilos cobrables × US$ por kilo (de entrada, 13). Los kilos cobrables son el mayor entre el peso real y el volumétrico (volumen × 167 kg por m³).
   - **Flete por barco** = volumen × US$ por metro cúbico (de entrada, 330).
   - Peso y volumen salen del packing list de las compras (ver [Productos](/catalogo/productos)); si no hay, del peso y las medidas de la ficha.
-  - **Costo final, con IVA incluido**: si el producto tiene posición arancelaria y derechos cargados (pestaña Costo, propios o de su categoría), CIF (FOB + flete + seguro) + derechos, tasa de estadística, otros, despachante y depósito fiscal + IVA sobre la base imponible. Si no tiene, FOB + flete más un recargo (de entrada, 30 %).
+  - **Costo final por avión**: viene por courier, sin despacho: FOB + flete + un % del FOB por todo concepto (de entrada, 8 %).
+  - **Costo final por barco, con IVA incluido**: si el producto tiene posición arancelaria y derechos cargados (pestaña Costo, propios o de su categoría), CIF (FOB + flete + seguro) + derechos, tasa de estadística, otros, despachante y depósito fiscal + IVA sobre la base imponible. Si no tiene, FOB + flete más un recargo (de entrada, 30 %).
   - **Ganancia** = Clásica − lo que se lleva Mercado Libre − costo final, en dólares al oficial de hoy.
   - Categorías: **Avión** = el flete aéreo no pasa el umbral (de entrada, 30 % del FOB) y por avión deja al menos el margen mínimo (de entrada, 10 % de la Clásica). **Conviene barco** = el flete aéreo pasa el umbral, pero por avión igual deja el margen mínimo: se puede traer rápido si hace falta. **No rentable por avión** = por avión gana menos que el margen mínimo. **Imposible por avión** = por avión pierde plata. **Sin datos** = falta el peso, el FOB o el precio.
 

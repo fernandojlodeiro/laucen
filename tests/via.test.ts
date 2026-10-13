@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CONFIG_VIA, calcularVia, costoFinal } from "@/lib/compras/via";
+import { CONFIG_VIA, calcularVia, costoCourier, costoFinal } from "@/lib/compras/via";
 import { resolver } from "@/lib/costo-importacion";
 
 const sinNcm = null;
@@ -21,6 +21,10 @@ test("con NCM: CIF + derechos, estadística, despachante y depósito + IVA", () 
   assert.equal(Math.round(costoFinal(10, 2, r, CONFIG_VIA) * 1000) / 1000, 16.907);
 });
 
+test("por avión, courier: FOB + flete + 8 % del FOB", () => {
+  assert.equal(Math.round(costoCourier(10, 3, CONFIG_VIA) * 100) / 100, 13.8);
+});
+
 test("categorías: avión, conviene barco, no rentable, imposible, sin datos", () => {
   // 100 g, chico: flete 1,30 sobre FOB 10 = 13 % → avión.
   assert.equal(calcularVia(10, m(100, 0.0001), 30, sinNcm, CONFIG_VIA).categoria, "avion");
@@ -30,9 +34,9 @@ test("categorías: avión, conviene barco, no rentable, imposible, sin datos", (
   assert.equal(Math.round(b.flete_aereo_pct!), 130);
   // Volumétrico manda: 0,01 m³ × 167 = 1,67 kg aunque pese 200 g.
   assert.equal(calcularVia(10, m(200, 0.01), 60, sinNcm, CONFIG_VIA).cobrable_kg, 1.67);
-  // Gana, pero menos del 10 %: costo (10 + 1,3) × 1,3 = 14,69; neto 16 → 8,2 %.
-  assert.equal(calcularVia(10, m(100, null), 16, sinNcm, CONFIG_VIA).categoria, "no_rentable");
-  // Pierde plata por avión.
+  // Gana, pero menos del 10 %: costo 10,8 + 1,3 = 12,1; neto 13 → 6,9 %.
+  assert.equal(calcularVia(10, m(100, null), 13, sinNcm, CONFIG_VIA).categoria, "no_rentable");
+  // Pierde plata por avión: 10,8 + 13 = 23,8 > 20.
   assert.equal(calcularVia(10, m(1000, null), 20, sinNcm, CONFIG_VIA).categoria, "imposible");
   assert.equal(calcularVia(null, m(100, null), 20, sinNcm, CONFIG_VIA).categoria, "sin_datos");
   assert.equal(calcularVia(10, m(null, null), 20, sinNcm, CONFIG_VIA).categoria, "sin_datos");

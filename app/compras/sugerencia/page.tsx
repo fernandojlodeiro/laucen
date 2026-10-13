@@ -103,7 +103,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
               <ThOrden col="roi" n desc title="Ganancia sobre el costo">% costo</ThOrden>
               <th className={TH} title="¿Avión o barco? Según el flete aéreo y la ganancia por avión (ver abajo)">Vía</th>
               <ThOrden col="flete_aereo" n desc title={`Flete aéreo por unidad (US$ ${cfgVia.aereoUsdKg} por kilo cobrable) como % del FOB`}>Flete avión</ThOrden>
-              <ThOrden col="avion_margen" n desc title="Ganancia sobre la Clásica trayéndolo por avión, con el costo final (impuestos e IVA incluidos)">% avión</ThOrden>
+              <ThOrden col="avion_margen" n desc title="Ganancia sobre la Clásica trayéndolo por avión (courier: FOB + flete + % de courier)">% avión</ThOrden>
               <ThOrden col="barco_margen" n desc title="Ganancia sobre la Clásica trayéndolo por barco, con el costo final (impuestos e IVA incluidos)">% barco</ThOrden>
               <ThOrden col="ganancia" n desc title="Ganancia de lo que hay que comprar, al ritmo típico">Total típico</ThOrden>
               <ThOrden col="ganancia_mejor" n desc title="Ganancia de lo que hay que comprar, al ritmo del mejor momento">Total mejor</ThOrden>
@@ -147,7 +147,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
                 <td className={`${TDN} ${x.ganancia_unit != null && x.ganancia_unit < 0 ? "text-[#C03420] font-semibold" : ""}`}>{pesos(x.ganancia_unit)}</td>
                 <td className={`${TDN} ${x.margen_pct != null && x.margen_pct < 0 ? "text-[#C03420]" : ""}`}>{pct(x.margen_pct)}</td>
                 <td className={`${TDN} ${x.roi_pct != null && x.roi_pct < 0 ? "text-[#C03420]" : ""}`}>{pct(x.roi_pct)}</td>
-                <td className={TD} title={`${CATEGORIAS_VIA[x.via].ayuda}${x.medidas === "ficha" ? " Peso y medidas de la ficha (no hay packing list)." : ""}${x.con_ncm ? "" : ` Sin NCM cargada: impuestos y gastos = ${cfgVia.recargoSinDatosPct} %.`}`}>
+                <td className={TD} title={`${CATEGORIAS_VIA[x.via].ayuda}${x.medidas === "ficha" ? " Peso y medidas de la ficha (no hay packing list)." : ""}${x.con_ncm ? "" : ` Sin NCM cargada: por barco, impuestos y gastos = ${cfgVia.recargoSinDatosPct} %.`}`}>
                   <Estado texto={CATEGORIAS_VIA[x.via].texto} tono={CATEGORIAS_VIA[x.via].tono} />
                 </td>
                 <td className={TDN} title={x.fob_usd != null ? `FOB US$ ${x.fob_usd}` : "Sin FOB en la ficha"}>{pct(x.flete_aereo_pct)}</td>
@@ -176,8 +176,8 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
             : <Dato key={k} etiqueta={`${t} (${u})`} numero className="w-48">{formatearNumero(cfgVia[k], "decimal")}</Dato>)}
           <p className="basis-full text-[11px] text-[#5C6B76]">
             Por unidad: flete por avión = kilos cobrables (el mayor entre el peso real y el volumétrico, volumen × 167 kg/m³) × US$ por kilo; por barco = volumen × US$ por m³.
-            Peso y volumen salen del packing list de las compras y, si no hay, de la ficha. Costo final con IVA: si el producto tiene NCM cargada (pestaña Costo), CIF + derechos, estadística,
-            despachante y depósito + IVA; si no, FOB + flete más el recargo de arriba. La ganancia sale de la Clásica menos lo de Mercado Libre, en dólares al oficial de hoy.
+            Peso y volumen salen del packing list de las compras y, si no hay, de la ficha. Por avión viene por courier: costo final = FOB + flete + el % de courier sobre el FOB (sin despacho).
+            Por barco, costo final con IVA: si el producto tiene NCM cargada (pestaña Costo), CIF + derechos, estadística, despachante y depósito + IVA; si no, FOB + flete más el recargo de arriba. La ganancia sale de la Clásica menos lo de Mercado Libre, en dólares al oficial de hoy.
             {" "}{Object.values(CATEGORIAS_VIA).map((c) => `${c.texto}: ${c.ayuda}`).join(" ")}
           </p>
         </form>
