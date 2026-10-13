@@ -86,15 +86,16 @@ export type ArchivoMl = { nombre: string; tipo: string; datos: Uint8Array };
 
 /** El cuerpo multipart/form-data con un solo archivo en el campo `campo`.
  *  fetch le pone solo el content-type con su boundary. */
-export function armarMultipart(campo: string, archivo: ArchivoMl): FormData {
+export function armarMultipart(campo: string, archivo: ArchivoMl, extras: Record<string, string> = {}): FormData {
   const fd = new FormData();
+  for (const [k, v] of Object.entries(extras)) fd.append(k, v);
   fd.append(campo, new Blob([Buffer.from(archivo.datos)], { type: archivo.tipo }), archivo.nombre);
   return fd;
 }
 
 /** Como `ml`, pero manda un archivo como multipart/form-data (POST). Mismos
  *  ritmo; la llave va sólo en el encabezado y no se registra nunca. */
-export async function mlArchivo<T = unknown>(cuenta: CuentaMl, ruta: string, campo: string, archivo: ArchivoMl): Promise<RespuestaMl<T>> {
+export async function mlArchivo<T = unknown>(cuenta: CuentaMl, ruta: string, campo: string, archivo: ArchivoMl, opciones: { extras?: Record<string, string>; timeoutMs?: number } = {}): Promise<RespuestaMl<T>> {
   const token = await tokenDeCuenta(cuenta.id);
   if (!token) return { status: 401, datos: { message: "la cuenta de Mercado Libre está desconectada" } as T };
   for (let intento = 0; ; intento++) {
@@ -102,9 +103,9 @@ export async function mlArchivo<T = unknown>(cuenta: CuentaMl, ruta: string, cam
       const r = await fetch(`${API}${ruta}`, {
         method: "POST",
         headers: { accept: "application/json", authorization: `Bearer ${token}` },
-        body: armarMultipart(campo, archivo),
+        body: armarMultipart(campo, archivo, opciones.extras),
         cache: "no-store",
-        signal: AbortSignal.timeout(40_000),
+        signal: AbortSignal.timeout(opciones.timeoutMs ?? 40_000),
       });
       // Sólo se reintenta acá lo que ML cortó sin procesar (429): un 5xx o
       // un corte pudo haber subido el archivo, y eso lo decide la cola.
