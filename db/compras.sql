@@ -127,3 +127,45 @@ create index if not exists compra_invoice_linea_i on compra_invoice_linea (invoi
 create index if not exists compra_invoice_linea_v on compra_invoice_linea (organizacion_id, variacion_id) where variacion_id is not null;
 alter table compra_invoice_linea enable row level security;
 select erp_politica_org('compra_invoice_linea');
+
+-- ── Packing lists: peso y volumen por unidad (pedido de Fer, 13/10; lib/compras/packing.ts) ──
+-- De cada packing list se guarda, por SKU, cuántas unidades vinieron y qué parte
+-- del peso y del CBM de sus cajas le toca. Caja con un solo SKU → exacto (peso y
+-- CBM de la caja ÷ unidades). Caja mezclada → aproximado: la caja se reparte entre
+-- todas sus unidades por partes iguales. Si un SKU tiene cajas propias y además
+-- unidades en cajas mezcladas, cuentan sólo sus cajas propias (exacto).
+-- No pisa el peso de la ficha: es un dato aparte, con su origen. Por variación vale
+-- el exacto antes que el aproximado y, entre iguales, el packing list más nuevo.
+create table if not exists packing_list (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  archivo          text not null,
+  numero           text,
+  fecha            date,
+  invoice_id       bigint references compra_invoice(id) on delete set null,
+  via              text check (via in ('avion', 'barco')),
+  cajas            int not null default 0,
+  unidades         numeric(14, 2) not null default 0,
+  peso_kg          numeric(14, 3) not null default 0,
+  cbm              numeric(14, 6) not null default 0,
+  creado_ts        timestamptz not null default now()
+);
+alter table packing_list enable row level security;
+select erp_politica_org('packing_list');
+
+create table if not exists packing_item (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  packing_list_id  bigint not null references packing_list(id) on delete cascade,
+  sku              text not null,
+  variacion_id     bigint references variacion(id) on delete set null,
+  cantidad         numeric(14, 2) not null check (cantidad > 0),   -- las unidades que se usaron para la cuenta
+  peso_kg          numeric(14, 4) not null,                         -- el peso de esas unidades (con su parte de caja)
+  cbm              numeric(14, 6) not null,
+  exacto           boolean not null,
+  cajas            text                                             -- números de caja, para ubicarlo en el archivo
+);
+create index if not exists packing_item_v on packing_item (organizacion_id, variacion_id) where variacion_id is not null;
+create index if not exists packing_item_pl on packing_item (packing_list_id);
+alter table packing_item enable row level security;
+select erp_politica_org('packing_item');

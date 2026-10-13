@@ -10,6 +10,7 @@
 import SeccionSeguimiento from "./Seguimiento";
 import CambiosPrecio from "./CambiosPrecio";
 import SeccionCompras from "./Compras";
+import PackingProducto from "./Packing";
 import { notFound } from "next/navigation";
 import { una, consulta } from "@/lib/erp/base";
 import FotosProducto from "@/app/componentes/FotosProducto";
@@ -156,6 +157,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
         </div>
       )}
       {seccion === "datos" && <SeccionDatos {...props} />}
+      {seccion === "datos" && !editando && <PackingProducto org={s.org.id} productoId={p.id} />}
       {seccion === "costo" && <SeccionCosto {...props} />}
       {seccion === "variaciones" && <SeccionVariaciones {...props} />}
       {seccion === "atributos" && <SeccionAtributos {...props} />}

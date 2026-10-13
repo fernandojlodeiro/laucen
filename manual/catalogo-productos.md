@@ -100,6 +100,17 @@ Abre en modo vista (los datos en sus marcos, sin poder tocarlos). Con el lápiz 
 
 Debajo, en modo vista, un desplegable **Atributos de Mercado Libre** con la categoría de ML y los atributos que trajo la publicación. Es sólo para mirar.
 
+#### Recuadro «Según packing list» (pestaña Datos)
+
+Si el producto vino en alguna compra con packing list cargado, debajo de los datos aparece el recuadro **Según packing list**: el peso y el volumen **por unidad** sacados de las cajas, con la parte de cartón y embalaje que le toca a cada unidad. No cambia el peso de la ficha: es un dato aparte. Por cada packing list en que aparece el producto (y por variación, si tiene):
+
+- **Exacto** (verde): venía en cajas con un solo producto; peso y volumen de las cajas ÷ unidades.
+- **Aproximado** (ámbar): venía en una caja mezclada; el peso y el volumen de la caja se reparten por partes iguales entre todas sus unidades.
+- **Peso por unidad** y **volumen por unidad** (en cm³), el **peso volumétrico por avión** (volumen × 167 kg por m³) y el **cobrable por avión** (el mayor de los dos; en rojo si el volumétrico supera en 50 % al real: por avión paga sobre todo aire).
+- De qué packing list salió (número, fecha y vía), cuántas unidades y en qué cajas.
+
+Rige (★) el dato exacto antes que el aproximado y, entre dos iguales, el del packing list más nuevo.
+
 #### Pestaña Costo
 
 Arriba, la caja del costo de importación del producto (se edita con el lápiz): **NCM (posición arancelaria)**, **Vía** (Avión / Barco / Courier; "informativa por ahora"), **Flete % (sobre FOB)** y **Seguro % (sobre FOB)**; el bloque "Se suman al costo (sobre CIF)": **Derecho de importación %**, **Tasa de estadística %**, **Arancel / otros %**, **Despachante %**, **Depósito fiscal y otros %**; y el bloque "Crédito fiscal y anticipos (no son costo; sobre CIF + derechos + estadística)": **IVA %**, **IVA adicional %**, **Percepción de ganancias %**, **Ingresos brutos %**. Además **Notas**.
