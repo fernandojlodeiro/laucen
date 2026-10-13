@@ -95,6 +95,7 @@ Apretá **"Actualizar"** en la conversación: la vuelve a leer entera desde Merc
 
 ## Criterios y reglas
 
+- **Preguntas por otros productos**: si quien pregunta nombra otros productos además del de la publicación (por ejemplo una lista para armar un carrito), la IA los busca entre las publicaciones activas de **esa misma cuenta** (primero las del mismo plan que la publicación de la pregunta) y ve de cada una su link, su plan y el stock disponible. Con eso puede pasarle el link de la que tenga stock. Si no hay publicación o no hay stock, lo que contesta lo definen las reglas de la IA de la empresa (ver [Respuestas de la IA](/config/respuestas-ia)). Sólo se le pasan links de publicaciones propias de Mercado Libre; si la IA no encuentra el producto con lo que el comprador escribió, lo toma como que no hay publicación.
 - **Firma y reglas de cada cuenta**: cada canal de Mercado Libre puede tener su firma (va al final de cada respuesta, la proponga la IA o la escriba una persona, tal cual se escribió; si ya la tiene, no se repite; debajo del cuadro de la respuesta se ve cuál se va a agregar) y sus reglas para la IA (por ejemplo, «nunca sugerir abrir un reclamo»). Se cargan en «Textos de …» de [Canales](/config/canales).
 - **Corte**: las preguntas hechas en Mercado Libre antes del momento de corte (la fecha y hora desde la que la empresa gestiona sus ventas en Laucen) y las conversaciones sin ningún mensaje posterior a ese momento no entran: quedan en el sistema que se usaba antes. Es el mismo corte de los pedidos (ver [Canales](/config/canales)).
 

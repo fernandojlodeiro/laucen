@@ -14,6 +14,8 @@ export const nombrePlan = (plan: string | null | undefined) => (plan ? NOMBRE_PL
 export type PublicacionEncontrada = {
   item_id: string; titulo: string; permalink: string; foto: string | null; sku: string | null;
   canal_id: number; cuenta: string; plan: string | null; planTexto: string | null; mismoPlan: boolean;
+  /** Stock que Laucen le da a esa publicación en su cuenta (null: no está vinculada a un producto). */
+  disponible: number | null;
 };
 
 /** Pura: primero las del plan pedido, después las demás de la más barata a la más cara; dentro, por título. */
@@ -26,9 +28,10 @@ export function ordenarPorPlan<T extends { plan: string | null; titulo: string }
 export async function buscarPublicaciones(org: string, texto: string, o: { canalId?: number | null; plan?: string | null; limite?: number } = {}): Promise<PublicacionEncontrada[]> {
   const q = texto.trim();
   if (q.length < 2) return [];
-  const filas = await consulta<{ item_id: string; titulo: string | null; permalink: string; foto: string | null; sku: string | null; canal_id: number; cuenta: string; tipo: string | null; tags: unknown; terms: unknown }>(`
+  const filas = await consulta<{ item_id: string; titulo: string | null; permalink: string; foto: string | null; sku: string | null; canal_id: number; cuenta: string; tipo: string | null; tags: unknown; terms: unknown; disponible: number | null }>(`
     select distinct on (mi.canal_id, mi.item_id) mi.item_id, coalesce(mi.titulo, pu.titulo) titulo, mi.permalink, mi.foto, v.sku, mi.canal_id::int, c.nombre cuenta,
-           mi.tipo, mi.datos_externos -> 'ml' -> 'tags' tags, mi.datos_externos -> 'ml' -> 'sale_terms' terms
+           mi.tipo, mi.datos_externos -> 'ml' -> 'tags' tags, mi.datos_externos -> 'ml' -> 'sale_terms' terms,
+           case when pu.id is not null then greatest(stock_disponible_canal(mi.organizacion_id, pu.variacion_id, mi.canal_id), 0)::int end disponible
       from meli_item mi
       join canal c on c.id = mi.canal_id
       left join publicacion pu on pu.id = mi.publicacion_id
@@ -39,7 +42,7 @@ export async function buscarPublicaciones(org: string, texto: string, o: { canal
      order by mi.canal_id, mi.item_id limit 300`, [org, o.canalId ?? null, parametroBusqueda(q)]);
   const conPlan = filas.map((f) => {
     const plan = f.tipo ? planDe(f.tipo, f.tags, f.terms) : null;
-    return { item_id: f.item_id, titulo: f.titulo ?? f.item_id, permalink: f.permalink, foto: f.foto, sku: f.sku, canal_id: f.canal_id, cuenta: f.cuenta, plan, planTexto: nombrePlan(plan) };
+    return { item_id: f.item_id, titulo: f.titulo ?? f.item_id, permalink: f.permalink, foto: f.foto, sku: f.sku, canal_id: f.canal_id, cuenta: f.cuenta, plan, planTexto: nombrePlan(plan), disponible: f.disponible };
   });
   return ordenarPorPlan(conPlan, o.plan).slice(0, o.limite ?? 15);
 }

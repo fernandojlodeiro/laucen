@@ -26,3 +26,16 @@ test("ordenarPorPlan: primero el mismo plan, después de la más barata a la má
   assert.deepEqual(ordenarPorPlan(filas, null).map((x) => x.titulo), ["C", "B", "D", "A", "E"]);
   assert.deepEqual(ordenarPorPlan(filas, "3x_campaign").some((x) => x.mismoPlan), false);
 });
+
+import { leerProductos } from "@/lib/mercadolibre/productos-pedidos";
+
+test("leerProductos: lee el JSON de la IA aunque venga con texto alrededor y descarta lo inútil", () => {
+  const t = 'Acá va: {"productos":[{"pedido":"Sensor BME280","palabras":["BME280"]},{"pedido":"Pantalla TFT 3.5","palabras":["TFT","3.5","SPI","x"]},{"pedido":"","palabras":["a"]},{"pedido":"Cosa","palabras":[]}]} listo';
+  assert.deepEqual(leerProductos(t), [
+    { pedido: "Sensor BME280", palabras: ["BME280"] },
+    { pedido: "Pantalla TFT 3.5", palabras: ["TFT", "3.5", "SPI"] },
+  ]);
+  assert.deepEqual(leerProductos("no sé"), []);
+  assert.deepEqual(leerProductos('{"productos":[]}'), []);
+  assert.deepEqual(leerProductos('{"productos":[{"pedido":"X","palabras":["a?b*c"]}]}'), [{ pedido: "X", palabras: ["a b c"] }]);
+});
