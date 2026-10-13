@@ -1,6 +1,7 @@
 // ¿Qué publicaciones de una búsqueda compiten de verdad con nuestro producto? (Fer, 13/10)
 //   1. Preselección (pura): fuera las nuestras, las internacionales, las que tardan más que la demora, las que no
-//      están en pesos, los packs (si el nuestro no lo es) y las que no comparten casi ninguna palabra del título.
+//      están en pesos y las que no comparten casi ninguna palabra del título. Los packs los decide la IA (por el título
+//      se confunden: «Lupa 6x» es el aumento, no seis unidades).
 //   2. La IA (Claude, el modelo chico) mira nuestro título y descripción contra cada una y dice si es el mismo
 //      producto (misma función, modelo y especificaciones, una unidad): la que lo es, «comparable», con el motivo.
 //      Sin IA (falta la llave o falla), cuenta el parecido del título (la mitad de las palabras o más).
@@ -14,7 +15,7 @@ export type Juicio = { comparable: boolean; motivo: string };
 export type PubJuzgada = PubEncontrada & { comparable?: boolean | null; motivoIa?: string | null };
 
 /** Cuántas candidatas se le pasan a la IA como mucho. */
-const TOPE_IA = 30;
+const TOPE_IA = 60;
 
 /** ¿Por qué no entra en la preselección? (null = entra). Pura. */
 export function motivoFuera(nuestro: string, p: PubEncontrada, demora: number): string | null {
@@ -24,7 +25,6 @@ export function motivoFuera(nuestro: string, p: PubEncontrada, demora: number): 
   if (p.precio == null || p.precio <= 0) return "Sin precio";
   if ((p.moneda ?? "ARS") !== "ARS") return "No está en pesos";
   if (p.entregaDias != null && p.entregaDias > demora) return `Tarda ${p.entregaDias} días en llegar`;
-  if (!esPack(nuestro) && esPack(p.titulo)) return "Pack o varias unidades";
   if (parecido(nuestro, p.titulo) < 0.25) return "El título casi no se parece";
   return null;
 }
@@ -101,7 +101,7 @@ export async function analizar(nuestro: { titulo: string; descripcion?: string |
     const j = ia?.juicios.get(p.itemId);
     if (j) return { ...p, comparable: j.comparable, motivoIa: j.motivo };
     // Sin IA: el parecido del título.
-    const ok = parecido(nuestro.titulo, p.titulo) >= 0.5;
+    const ok = parecido(nuestro.titulo, p.titulo) >= 0.5 && (esPack(nuestro.titulo) || !esPack(p.titulo));
     return { ...p, comparable: ok, motivoIa: ok ? "Título parecido (sin IA)" : "Título poco parecido (sin IA)" };
   });
   const comparables = juzgadas.filter((p) => p.comparable).sort((a, b) => a.precio! - b.precio!);

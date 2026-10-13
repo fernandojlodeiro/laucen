@@ -384,6 +384,9 @@ export async function dejarDeSeguir(org: string, id: number): Promise<void> {
 /** Sigue solas las publicaciones comparables (origen «auto», sin confirmar), con lo que trajo la búsqueda como
  *  primera lectura. Las que ya se siguen no se tocan. Devuelve cuántas agregó. */
 export async function seguirAutomaticas(org: string, productoId: number, pubs: (PubEncontrada & { motivoIa?: string | null })[], ts: Date = new Date()): Promise<number> {
+  // Las automáticas que nadie revisó y que esta búsqueda ya no elige se dejan de seguir (las revisadas quedan).
+  await consulta(`delete from seguimiento_pub where organizacion_id = $1 and producto_id = $2 and origen = 'auto' and not confirmada
+                   and not (item_id = any($3::text[]))`, [org, productoId, pubs.map((p) => p.itemId)]);
   let n = 0;
   for (const p of pubs) {
     if (p.esCatalogo || p.propia) continue;

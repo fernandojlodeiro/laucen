@@ -64,10 +64,10 @@ export async function pedirTanda(org: string, usuarioId: string, productos: { id
 }
 
 /** Llama a la ruta que procesa la tanda (sin esperar a que termine). */
-async function relanzar(tanda: number, token: string, reanalizar = false): Promise<void> {
+async function relanzar(tanda: number, token: string, extra = ""): Promise<void> {
   const base = urlPanel();
   if (!base) return;
-  await fetch(`${base}/api/precios-mercado?tanda=${tanda}&token=${token}${reanalizar ? "&reanalizar=1" : ""}`, { cache: "no-store", signal: AbortSignal.timeout(3000) }).catch(() => {});
+  await fetch(`${base}/api/precios-mercado?tanda=${tanda}&token=${token}${extra}`, { cache: "no-store", signal: AbortSignal.timeout(3000) }).catch(() => {});
 }
 
 /** Una vuelta de la tanda: busca de a varios productos hasta el tiempo de la vuelta y, si quedan, se relanza. */
@@ -172,14 +172,15 @@ export async function preciosDeMercado(org: string, productos: number[]): Promis
 /** Vuelve a analizar lo ya buscado, sin pagar otra búsqueda: la última búsqueda guardada del producto o, si no hay, lo
  *  que quedó en precio_mercado. Saca las nuestras, juzga con la IA, sigue las comparables y recalcula los números.
  *  Sirve para lo buscado antes de que existiera el seguimiento automático. Devuelve cuántos productos hizo. */
-export async function reanalizarGuardados(org: string, o: { productos?: number[]; segundos?: number } = {}): Promise<{ hechos: number; quedan: number }> {
+export async function reanalizarGuardados(org: string, o: { productos?: number[]; segundos?: number; antes?: Date } = {}): Promise<{ hechos: number; quedan: number }> {
   const t0 = Date.now();
   const filas = await consulta<{ producto_id: number; texto: string; resultados: { itemId?: string; titulo: string; precio: number; vendedor: string | null; permalink: string | null }[] }>(`
     select producto_id::int, texto, resultados from precio_mercado
-     where organizacion_id = $1 and jsonb_array_length(resultados) > 0 and ($2::bigint[] is null or producto_id = any($2::bigint[]))
-       -- Lo ya analizado por la IA guarda el motivo de cada comparable.
-       and not (resultados -> 0 ? 'motivo')
-     order by producto_id`, [org, o.productos?.length ? o.productos : null]);
+     where organizacion_id = $1 and ($2::bigint[] is null or producto_id = any($2::bigint[]))
+       and (jsonb_array_length(resultados) > 0 or exists (select 1 from seguimiento_busqueda b where b.organizacion_id = $1 and b.producto_id = precio_mercado.producto_id))
+       -- Lo ya analizado por la IA guarda el motivo de cada comparable; con «antes», se rehace lo analizado antes de esa hora.
+       and (case when $3::timestamptz is null then not coalesce(resultados -> 0 ? 'motivo', false) else estado = 'ok' and ts < $3 end)
+     order by producto_id`, [org, o.productos?.length ? o.productos : null, o.antes ?? null]);
   const { cuentas, apodos } = await nuestras(org);
   let n = 0;
   for (const f of filas) {
@@ -205,18 +206,18 @@ export async function reanalizarGuardados(org: string, o: { productos?: number[]
 }
 
 /** reanalizarGuardados de la organización de una tanda (la ruta lo pide con el token de la tanda). */
-export async function reanalizarDeTanda(tanda: number, token: string): Promise<number> {
+export async function reanalizarDeTanda(tanda: number, token: string, antes?: Date): Promise<number> {
   const t = await una<{ organizacion_id: string }>("select organizacion_id from precio_mercado_tanda where id = $1 and token = $2::uuid", [tanda, token]);
   if (!t) throw new ErrorErp("Tanda desconocida.");
   // Hasta unos minutos por vuelta (la ruta tiene 5); si quedan, se relanza. Lo que pasó queda anotado en la tanda.
   let r: { hechos: number; quedan: number };
   try {
-    r = await reanalizarGuardados(t.organizacion_id, { segundos: 180 });
+    r = await reanalizarGuardados(t.organizacion_id, { segundos: 180, antes });
   } catch (e) {
     await consulta("update precio_mercado_tanda set mensaje = $2 where id = $1", [tanda, `Reanálisis: ${(e instanceof Error ? e.message : String(e)).slice(0, 300)}`]);
     throw e;
   }
   await consulta("update precio_mercado_tanda set mensaje = $2 where id = $1", [tanda, `Reanálisis: ${r.hechos} hechos, quedan ${r.quedan}.`]);
-  if (r.quedan > 0 && r.hechos > 0) await relanzar(tanda, token, true);
+  if (r.quedan > 0 && r.hechos > 0) await relanzar(tanda, token, antes ? `&reanalizar=1&antes=${encodeURIComponent(antes.toISOString())}` : "&reanalizar=1");
   return r.hechos;
 }
