@@ -194,6 +194,8 @@ export async function reanalizarGuardados(org: string, o: { productos?: number[]
       await cerrarProducto(org, f.producto_id, b?.texto ?? f.texto, lista, b?.ts);
     } catch (e) {
       console.error("[precios-mercado] reanalizar", f.producto_id, e);
+      await consulta("update precio_mercado set error = $3 where organizacion_id = $1 and producto_id = $2",
+        [org, f.producto_id, `Reanálisis: ${(e instanceof Error ? e.message : String(e)).slice(0, 200)}`]).catch(() => {});
       continue;
     }
     n++;
@@ -206,8 +208,15 @@ export async function reanalizarGuardados(org: string, o: { productos?: number[]
 export async function reanalizarDeTanda(tanda: number, token: string): Promise<number> {
   const t = await una<{ organizacion_id: string }>("select organizacion_id from precio_mercado_tanda where id = $1 and token = $2::uuid", [tanda, token]);
   if (!t) throw new ErrorErp("Tanda desconocida.");
-  // Hasta unos minutos por vuelta (la ruta tiene 5); si quedan, se relanza.
-  const r = await reanalizarGuardados(t.organizacion_id, { segundos: 180 });
+  // Hasta unos minutos por vuelta (la ruta tiene 5); si quedan, se relanza. Lo que pasó queda anotado en la tanda.
+  let r: { hechos: number; quedan: number };
+  try {
+    r = await reanalizarGuardados(t.organizacion_id, { segundos: 180 });
+  } catch (e) {
+    await consulta("update precio_mercado_tanda set mensaje = $2 where id = $1", [tanda, `Reanálisis: ${(e instanceof Error ? e.message : String(e)).slice(0, 300)}`]);
+    throw e;
+  }
+  await consulta("update precio_mercado_tanda set mensaje = $2 where id = $1", [tanda, `Reanálisis: ${r.hechos} hechos, quedan ${r.quedan}.`]);
   if (r.quedan > 0 && r.hechos > 0) await relanzar(tanda, token, true);
   return r.hechos;
 }
