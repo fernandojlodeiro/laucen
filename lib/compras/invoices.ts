@@ -6,9 +6,8 @@
 //   · Llegada estimada = fecha del invoice + demora de la vía (avión o barco, configurable).
 //   · Proveedor preferido del producto = el del invoice confirmado más reciente (se puede cambiar a mano en la ficha).
 //   · Si el invoice es el de una compra por courier ya cargada, se vincula y esa compra no se cuenta dos veces.
-//   · Cuánto duró cada compra (historialProducto): las ventas desde la primera llegada se van comiendo las compras en
-//     orden (la primera que entró es la primera que se vende); una compra se agotó el día que lo vendido alcanza la suma
-//     de ella y las anteriores. El stock que había antes de la primera compra registrada no se conoce.
+//   · Cuánto duró cada compra (historialProducto, duracionCompras): desde que llega (o desde que se terminó la anterior,
+//     si todavía quedaba) hasta que lo vendido alcanza su cantidad.
 
 import type ExcelJS from "exceljs";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
@@ -218,7 +217,7 @@ export type CompraHistorial = {
   origen: "invoice" | "courier"; doc_id: number; documento: string; proveedor: string | null; via: string;
   fecha: string; llegada: string; sku: string; cantidad: number; precio_usd: number | null;
   /** Calculado: cuándo se terminó de vender (orden de llegada) y en cuántos días; o cuántas quedan. */
-  agotada: string | null; dias: number | null; quedan: number;
+  desde: string; agotada: string | null; dias: number | null; quedan: number;
 };
 
 const SQL_COMPRAS = `
@@ -237,25 +236,31 @@ const SQL_COMPRAS = `
 
 const DIA = 86400000;
 
-/** Reparte las ventas entre las compras en orden de llegada (pura; la prueban los tests). `ventas`: [día ISO, unidades], en orden. */
-export function duracionCompras<T extends { llegada: string; cantidad: number }>(compras: T[], ventas: [string, number][]): (T & { agotada: string | null; dias: number | null; quedan: number })[] {
+/** Cuánto tardó en venderse cada compra (pura; la prueban los tests). `ventas`: [día ISO, unidades], en orden.
+ *  Cada compra empieza a venderse el día que llega, o el día después de que se terminó la anterior si todavía quedaba de
+ *  ella, y se terminó el día que las ventas desde ahí alcanzan su cantidad. No se arrastra lo vendido entre compras
+ *  lejanas: si hubo compras que no están registradas, el cálculo no se corre. */
+export function duracionCompras<T extends { llegada: string; cantidad: number }>(compras: T[], ventas: [string, number][]): (T & { desde: string; agotada: string | null; dias: number | null; quedan: number })[] {
   const orden = [...compras].sort((a, b) => a.llegada.localeCompare(b.llegada));
-  let acum = 0, v = 0, vendido = 0;
+  let finAnterior: string | null = null;
   return orden.map((c) => {
-    acum += c.cantidad;
-    while (v < ventas.length && vendido < acum) { vendido += ventas[v][1]; v++; }
-    if (vendido >= acum && v > 0) {
-      const agotada = ventas[v - 1][0];
-      const dias = Math.max(0, Math.round((Date.parse(agotada) - Date.parse(c.llegada)) / DIA));
-      return { ...c, agotada, dias, quedan: 0 };
+    const sigue = finAnterior != null && finAnterior >= c.llegada;
+    const desde = sigue ? new Date(Date.parse(finAnterior!) + DIA).toISOString().slice(0, 10) : c.llegada;
+    let vendido = 0, agotada: string | null = null;
+    for (const [dia, u] of ventas) {
+      if (dia < desde) continue;
+      vendido += u;
+      if (vendido >= c.cantidad) { agotada = dia; break; }
     }
-    return { ...c, agotada: null, dias: null, quedan: Math.min(c.cantidad, acum - vendido) };
+    finAnterior = agotada;
+    if (agotada) return { ...c, desde, agotada, dias: Math.round((Date.parse(agotada) - Date.parse(desde)) / DIA) + 1, quedan: 0 };
+    return { ...c, desde, agotada: null, dias: null, quedan: c.cantidad - vendido };
   }).reverse();
 }
 
 export async function historialProducto(org: string, productoId: number): Promise<CompraHistorial[]> {
   const cfg = await configInvoices(org);
-  const compras = await consulta<Omit<CompraHistorial, "agotada" | "dias" | "quedan"> & { producto_id: number }>(SQL_COMPRAS, [org, [productoId], cfg.demoraBarco, cfg.demoraAvion]);
+  const compras = await consulta<Omit<CompraHistorial, "desde" | "agotada" | "dias" | "quedan"> & { producto_id: number }>(SQL_COMPRAS, [org, [productoId], cfg.demoraBarco, cfg.demoraAvion]);
   if (!compras.length) return [];
   const desde = compras.reduce((m, c) => (c.llegada < m ? c.llegada : m), compras[0].llegada);
   // Ventas del producto (todas sus variaciones, y las de los kits que lo llevan) desde la primera llegada.
@@ -293,4 +298,23 @@ export async function confirmarListos(org: string): Promise<number> {
   const ids = await consulta<{ id: number }>(`select id::int from compra_invoice where organizacion_id = $1 and estado = 'revisar' and fecha is not null and not fecha_dudosa and exists (select 1 from compra_invoice_linea l where l.invoice_id = compra_invoice.id)`, [org]);
   for (const { id } of ids) await confirmar(org, id);
   return ids.length;
+}
+
+/** Las compras registradas de cada variación (invoices confirmados y courier), con su llegada estimada (para la sugerencia). */
+export async function comprasDeVariaciones(org: string, variaciones: number[]): Promise<Map<number, { llegada: string; cantidad: number }[]>> {
+  if (!variaciones.length) return new Map();
+  const cfg = await configInvoices(org);
+  const r = await consulta<{ vid: number; llegada: string; cantidad: number }>(`
+    select l.variacion_id::int vid, (i.fecha + case i.via when 'barco' then $3::int else $4::int end)::text llegada, l.cantidad::float8 cantidad
+      from compra_invoice_linea l join compra_invoice i on i.id = l.invoice_id
+     where i.organizacion_id = $1 and i.estado = 'confirmado' and i.fecha is not null and l.variacion_id = any($2::bigint[])
+    union all
+    select l.variacion_id::int, (c.ingreso_ts at time zone 'America/Argentina/Buenos_Aires')::date::text, l.cantidad::float8
+      from compra_courier_linea l join compra_courier c on c.id = l.compra_id
+     where c.organizacion_id = $1 and c.ingreso_ts is not null and l.variacion_id = any($2::bigint[])
+       and not exists (select 1 from compra_invoice i where i.compra_courier_id = c.id and i.estado = 'confirmado')`,
+    [org, variaciones, cfg.demoraBarco, cfg.demoraAvion]);
+  const m = new Map<number, { llegada: string; cantidad: number }[]>();
+  for (const x of r) m.set(x.vid, [...(m.get(x.vid) ?? []), { llegada: x.llegada, cantidad: x.cantidad }]);
+  return m;
 }

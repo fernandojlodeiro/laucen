@@ -73,17 +73,18 @@ test("sin tabla: avisa", () => {
   assert.ok(r.avisos.some((a) => a.includes("tabla")));
 });
 
-test("cuánto duró cada compra: las ventas se comen las compras en orden de llegada", async () => {
+test("cuánto duró cada compra: desde que llega (o desde que se terminó la anterior) hasta vender su cantidad", async () => {
   const { duracionCompras } = await import("@/lib/compras/invoices");
   const r = duracionCompras(
-    [{ llegada: "2026-01-01", cantidad: 10 }, { llegada: "2026-02-01", cantidad: 5 }, { llegada: "2026-03-01", cantidad: 100 }],
-    [["2026-01-05", 4], ["2026-01-20", 6], ["2026-02-10", 3], ["2026-02-20", 4], ["2026-03-05", 2]],
+    [{ llegada: "2021-04-01", cantidad: 10 }, { llegada: "2024-11-01", cantidad: 5 }, { llegada: "2024-11-10", cantidad: 100 }],
+    // Ventas de años sin compras registradas: no se le cargan a la compra de 2024.
+    [["2021-04-05", 4], ["2021-04-20", 6], ["2023-01-01", 500], ["2024-11-05", 3], ["2024-11-20", 4], ["2024-12-01", 2]],
   );
   // Vuelve de la más nueva a la más vieja.
-  assert.deepEqual(r.map((x) => [x.llegada, x.agotada, x.dias, x.quedan]), [
-    ["2026-03-01", null, null, 96],
-    ["2026-02-01", "2026-02-20", 19, 0],
-    ["2026-01-01", "2026-01-20", 19, 0],
+  assert.deepEqual(r.map((x) => [x.llegada, x.desde, x.agotada, x.dias, x.quedan]), [
+    ["2024-11-10", "2024-11-21", null, null, 98],
+    ["2024-11-01", "2024-11-01", "2024-11-20", 20, 0],
+    ["2021-04-01", "2021-04-01", "2021-04-20", 20, 0],
   ]);
 });
 

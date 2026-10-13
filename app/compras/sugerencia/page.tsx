@@ -25,6 +25,7 @@ type SP = Record<string, string | undefined>;
 const pesos = (n: number | null) => (n == null ? "—" : `$ ${formatearNumero(Math.round(n), "pesos")}`);
 const usd = (n: number | null) => (n == null ? "—" : `US$ ${n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const entero = (n: number) => formatearNumero(n, "entero");
+const fechaCorta = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}` : "—");
 const pct = (n: number | null) => (n == null ? "—" : `${n.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`);
 const dma = (iso: string) => iso.split("-").reverse().join("/");
 
@@ -81,6 +82,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
               <ThOrden col="sku">Producto</ThOrden>
               <ThOrden col="tipico" n porDefecto desc title={`Lo que se vendería en ${f.dias} días al ritmo típico`}>Típico</ThOrden>
               <ThOrden col="mejor" n desc title={`Lo que se vendería en ${f.dias} días al ritmo del mejor momento`}>Mejor</ThOrden>
+              <ThOrden col="segun_compras" n desc title={`Lo que se vendería en ${f.dias} días al ritmo con que se vendieron las últimas compras registradas (invoices y courier)`}>Según compras</ThOrden>
               <ThOrden col="dias_venta" n desc title="Días con venta en el período">Días venta</ThOrden>
               <ThOrden col="stock" n desc>Stock</ThOrden>
               <ThOrden col="comprar" n desc title="Típico menos el stock de hoy">A comprar</ThOrden>
@@ -98,7 +100,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
             </tr>
           </thead>
           <tbody>
-            {vista.length === 0 && <tr><td colSpan={17} className={`${TD} text-[#5C6B76]`}>No hay ventas con ritmo regular en ese período.</td></tr>}
+            {vista.length === 0 && <tr><td colSpan={18} className={`${TD} text-[#5C6B76]`}>No hay ventas con ritmo regular en ese período.</td></tr>}
             {vista.map((x) => (
               <tr key={x.clave} className={TR}>
                 <td className={`${TD} max-w-[17rem]`}>
@@ -115,6 +117,10 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
                 </td>
                 <td className={TDN}>{entero(x.tipico)}</td>
                 <td className={TDN}>{entero(x.mejor)}</td>
+                <td className={TDN} title={x.compras_n ? `${x.compras_n} compra${x.compras_n === 1 ? "" : "s"} registrada${x.compras_n === 1 ? "" : "s"}; la última llegó el ${fechaCorta(x.ultima_compra)} (${entero(x.ultima_cant ?? 0)} u.)${x.dias_compra != null ? `; cada compra tardó unos ${x.dias_compra} días en venderse` : ""}` : "Sin compras registradas"}>
+                  {x.segun_compras != null ? entero(x.segun_compras) : "—"}
+                  {x.compras_n > 0 && <span className="block text-[10px] text-[#5C6B76] whitespace-nowrap">{x.compras_n} comp.{x.dias_compra != null ? ` · ${x.dias_compra} d` : ""}</span>}
+                </td>
                 <td className={TDN}>{entero(x.dias_con_venta)}</td>
                 <td className={TDN}>{entero(x.stock)}</td>
                 <td className={`${TDN} font-semibold`} title={`Según el mejor momento: ${entero(x.comprar_mejor)}`}>{entero(x.comprar_tipico)}</td>

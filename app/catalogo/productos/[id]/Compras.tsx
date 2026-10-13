@@ -24,7 +24,7 @@ export default async function SeccionCompras({ org, productoId }: { org: string;
             <tr>
               <th className={TH}>Fecha</th><th className={TH}>Llegada estimada</th><th className={TH}>Documento</th><th className={TH}>Proveedor</th><th className={TH}>Vía</th>
               <th className={TH}>Variación</th><th className={THN}>Cantidad</th><th className={THN}>Precio unit.</th><th className={THN}>Total</th>
-              <th className={TH} title="Las ventas se reparten entre las compras en orden de llegada">Se vendió</th>
+              <th className={TH} title="Desde que llegó (o desde que se terminó la compra anterior) hasta que se vendió su cantidad">Se vendió</th>
             </tr>
           </thead>
           <tbody>
@@ -41,7 +41,7 @@ export default async function SeccionCompras({ org, productoId }: { org: string;
                 <td className={TDN}>{f.precio_usd == null ? <span className="text-[#5C6B76]">—</span> : usd(f.precio_usd)}</td>
                 <td className={TDN}>{f.precio_usd == null ? "—" : `US$ ${formatearNumero(Math.round(f.cantidad * f.precio_usd * 100) / 100, "decimal")}`}</td>
                 <td className={TD}>
-                  {f.agotada ? <>en {formatearNumero(f.dias!, "entero")} días <span className="text-[#5C6B76]">(hasta el {diaAr(f.agotada)})</span></>
+                  {f.agotada ? <>en {formatearNumero(f.dias!, "entero")} días <span className="text-[#5C6B76]">(del {diaAr(f.desde)} al {diaAr(f.agotada)})</span></>
                     : <span className="text-[#5C6B76]">quedan {formatearNumero(Math.round(f.quedan), "entero")}</span>}
                 </td>
               </tr>
@@ -50,8 +50,8 @@ export default async function SeccionCompras({ org, productoId }: { org: string;
         </table>
       </div>
       <p className="text-[10px] text-[#5C6B76] mt-1">
-        La fecha es la del invoice; la llegada se estima con la demora de la vía (configurable en Invoices de compra). «Se vendió»: las ventas de todos los canales
-        desde la llegada se reparten entre las compras en orden (la primera que llegó es la primera que se vende); el stock que había antes de la primera compra registrada no se conoce.
+        La fecha es la del invoice; la llegada se estima con la demora de la vía (configurable en Invoices de compra). «Se vendió»: cada compra empieza a venderse cuando llega
+        (o al terminarse la anterior, si todavía quedaba) y se termina cuando las ventas de todos los canales desde ahí suman su cantidad. Si hubo compras que no están registradas, puede figurar más rápida de lo real.
       </p>
     </section>
   );

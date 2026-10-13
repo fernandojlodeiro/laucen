@@ -33,6 +33,7 @@ Menú **Compras › Sugerencia de compra**.
 - La tabla, de entrada de lo que más se vende a lo que menos; **se ordena tocando el título de cada columna** (por ejemplo, por inversión o por ganancia). Un renglón por producto:
   - **Producto** con su foto (enlace a la ficha), en un renglón. «Inactivo» si está archivado y «No está en el catálogo» si es un código viejo que ya no existe. Debajo, en una línea: cuántos tramos con venta regular encontró y, en ámbar, las **compras grandes no consideradas**.
   - **N días · típico** y **· mejor**: lo que se vendería.
+  - **Según compras**: lo que se vendería en los días elegidos al ritmo con que se vendieron las últimas compras registradas del producto (hasta 3 que ya se terminaron de vender; de [Invoices de compra](/compras/invoices) y [Compras por courier](/compras/courier)). Debajo, cuántas compras tiene y cuántos días tarda en venderse una compra (la del medio). Al pasar el mouse, cuándo llegó la última y cuántas unidades trajo. Sirve para comparar con el típico: si da mucho más, en la historia hubo cortes de stock que el típico no ve.
   - **Días con venta** en el período (se puede ordenar por esta columna).
   - **Stock hoy** (disponible) y **A comprar** = lo que se vendería menos el stock (al pasar el mouse, el del mejor momento).
   - **Costo US$** y la **inversión** (lo que hay que comprar por el costo).

@@ -10,6 +10,7 @@
 import { unstable_cache } from "next/cache";
 import { consulta, una } from "@/lib/erp/base";
 import { costosMl, ritmo, sinComprasGrandes, type Grillas, type Renglon } from "@/lib/compras/sugerencia-calculo";
+import { comprasDeVariaciones, duracionCompras } from "@/lib/compras/invoices";
 
 export type FiltroSugerencia = { desde: string; hasta: string; dias: number };
 
@@ -35,7 +36,13 @@ export type FilaSugerencia = {
   roi_pct: number | null;
   /** Lo disponible hoy y lo que habría que comprar (lo que se vendería menos lo que ya hay), según el típico y el mejor momento. */
   stock: number; comprar_tipico: number; comprar_mejor: number;
+  /** Las compras registradas (invoices y courier): cuántas, la última (llegada y cantidad), cuántos días tardaron en
+   *  venderse las últimas terminadas (mediana) y lo que se vendería en los días elegidos a ese ritmo. */
+  compras_n: number; ultima_compra: string | null; ultima_cant: number | null; dias_compra: number | null; segun_compras: number | null;
 };
+
+/** Cuántas de las últimas compras terminadas se usan para el ritmo «según compras». */
+export const COMPRAS_PARA_RITMO = 3;
 
 const DIA = 86400_000;
 const aDia = (iso: string) => Math.floor(Date.parse(`${iso}T00:00:00Z`) / DIA);
@@ -65,12 +72,16 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
        and coalesce(e.sku, '') <> ''
        and not es_notebook(coalesce(pr.titulo, e.titulo)) and not coalesce(fa.nombre ~* '^notebook', false)`, [org, f.desde, f.hasta]);
   const porClave = new Map<string, Renglon[]>();
+  const ventasIso = new Map<string, [string, number][]>();
   // La última venta de cada producto (para el precio): la de fecha más nueva del período.
   const ultima = new Map<string, { dia: string; precio: number; titulo: string | null }>();
   for (const r of renglones) {
     const l = porClave.get(r.clave) ?? [];
     l.push({ dia: aDia(r.dia), cantidad: r.cantidad });
     porClave.set(r.clave, l);
+    const vi = ventasIso.get(r.clave) ?? [];
+    vi.push([r.dia, r.cantidad]);
+    ventasIso.set(r.clave, vi);
     const u = ultima.get(r.clave);
     if (r.precio != null && r.precio > 1 && (!u || r.dia >= u.dia)) ultima.set(r.clave, { dia: r.dia, precio: r.precio, titulo: r.titulo });
   }
@@ -85,7 +96,7 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
   const claves = [...ritmos.keys()].filter((k) => ultima.has(k));
   const variaciones = claves.filter((k) => k.startsWith("v")).map((k) => Number(k.slice(1)));
   const fechas = [...new Set(claves.map((k) => ultima.get(k)!.dia))];
-  const [info, tcs] = await Promise.all([
+  const [info, tcs, compras] = await Promise.all([
     consulta<{ id: number; producto_id: number; familia_id: number | null; proveedor_id: number | null; sku: string; titulo: string; fotos: string[] | null; archivado: boolean; costo_usd: number | null; comision_pct: number | null; clasica: number | null; stock: number }>(`
       with lista as (select id from lista_precios where organizacion_id = $1
                       order by lower(nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') desc, orden, id limit 1)
@@ -99,7 +110,23 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
         from variacion va join producto pr on pr.id = va.producto_id
        where va.organizacion_id = $1 and va.id = any($2::bigint[])`, [org, variaciones]),
     consulta<{ dia: string; tc: number | null }>("select d::text dia, tc_del_dia($1, d)::float8 tc from unnest($2::date[]) d", [org, fechas]),
+    comprasDeVariaciones(org, variaciones),
   ]);
+  // Lo que dicen las compras registradas de cada producto.
+  const segunCompras = new Map<string, Pick<FilaSugerencia, "compras_n" | "ultima_compra" | "ultima_cant" | "dias_compra" | "segun_compras">>();
+  for (const [vid, cs] of compras) {
+    const clave = `v${vid}`;
+    const ventas = (ventasIso.get(clave) ?? []).sort((a, b) => a[0].localeCompare(b[0]));
+    const d = duracionCompras(cs, ventas); // de la más nueva a la más vieja
+    const terminadas = d.filter((x) => x.dias != null).slice(0, COMPRAS_PARA_RITMO);
+    const dias = terminadas.map((x) => x.dias!).sort((a, b) => a - b);
+    const uds = terminadas.reduce((t, x) => t + x.cantidad, 0), sumaDias = terminadas.reduce((t, x) => t + x.dias!, 0);
+    segunCompras.set(clave, {
+      compras_n: cs.length, ultima_compra: d[0]?.llegada ?? null, ultima_cant: d[0]?.cantidad ?? null,
+      dias_compra: dias.length ? dias[Math.floor(dias.length / 2)] : null,
+      segun_compras: sumaDias > 0 ? Math.round((uds / sumaDias) * f.dias) : null,
+    });
+  }
   const porVariacion = new Map(info.map((x) => [`v${x.id}`, x]));
   const tcDe = new Map(tcs.map((x) => [x.dia, x.tc]));
   const datos = claves.map((clave) => {
@@ -131,6 +158,7 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
       margen_pct: ganancia != null && precioHoy ? Math.round((ganancia / precioHoy) * 1000) / 10 : null,
       roi_pct: ganancia != null && costoArs ? Math.round((ganancia / costoArs) * 1000) / 10 : null,
       stock: d.stock, comprar_tipico: Math.max(0, r.tipico - Math.max(0, d.stock)), comprar_mejor: Math.max(0, r.mejor - Math.max(0, d.stock)),
+      ...(segunCompras.get(d.clave) ?? { compras_n: 0, ultima_compra: null, ultima_cant: null, dias_compra: null, segun_compras: null }),
     };
   });
   filas.sort((a, b) => b.tipico - a.tipico || b.mejor - a.mejor);
@@ -154,6 +182,7 @@ export const ORDEN_SUGERENCIA: Record<string, (x: FilaSugerencia) => number | st
   precio: (x) => x.precio_hoy, ganancia_unit: (x) => x.ganancia_unit, margen: (x) => x.margen_pct, roi: (x) => x.roi_pct, dias_venta: (x) => x.dias_con_venta,
   ganancia: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_tipico),
   ganancia_mejor: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_mejor),
+  segun_compras: (x) => x.segun_compras, compras: (x) => x.ultima_compra,
 };
 
 /** Opciones del filtro «Días con venta» (más de N). */
@@ -178,7 +207,7 @@ export const ULTIMA_VENTA_MESES = [[1, "el último mes"], [3, "los últimos 3 me
  *  lento»): filtrar, ordenar y pasar de página usan lo guardado. `calculado` dice cuándo se hizo. */
 export function sugerenciaGuardada(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null; calculado: string }> {
   return unstable_cache(async () => ({ ...(await sugerenciaCompra(org, f)), calculado: new Date().toISOString() }),
-    ["sugerencia-compra-2", org, f.desde, f.hasta, String(f.dias)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
+    ["sugerencia-compra-3", org, f.desde, f.hasta, String(f.dias)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
 }
 
 export type NodoCategoria = { id: number; nombre: string; padre: number | null; nivel: number; productos: number };
