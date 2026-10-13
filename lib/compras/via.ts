@@ -77,15 +77,16 @@ export function costoFinal(fob: number, flete: number, r: Resuelto | null, cfg: 
   return c.costo + c.baseImponible * ((r.iva_pct.valor ?? 0) / 100);
 }
 
-/** Todo el cálculo de una unidad. `netoUsd` = Clásica menos lo de Mercado Libre, en dólares (null si no hay precio). */
-export function calcularVia(fob: number | null, m: Medidas, netoUsd: number | null, r: Resuelto | null, cfg: ConfigVia): ViaProducto {
+/** Todo el cálculo de una unidad. `netoUsd` = Clásica menos lo de Mercado Libre, en dólares (null si no hay precio);
+ *  `precioUsd` = la Clásica en dólares: el margen es la ganancia sobre ella (como «% venta» de la sugerencia). */
+export function calcularVia(fob: number | null, m: Medidas, netoUsd: number | null, r: Resuelto | null, cfg: ConfigVia, precioUsd: number | null = netoUsd): ViaProducto {
   const conNcm = r?.derecho_pct.valor != null;
   const cobrable = m.peso_g != null || m.cbm != null ? Math.max((m.peso_g ?? 0) / 1000, (m.cbm ?? 0) * FACTOR_AEREO) : null;
   if (fob == null || fob <= 0 || cobrable == null || cobrable <= 0)
     return { medidas: m, cobrable_kg: cobrable, flete_aereo_pct: null, con_ncm: conNcm, avion: null, barco: null, categoria: "sin_datos" };
   const uno = (flete: number, final: number): CostoVia => {
     const ganancia = netoUsd != null ? netoUsd - final : null;
-    return { flete, final, ganancia, margen_pct: ganancia != null && netoUsd ? (ganancia / netoUsd) * 100 : null };
+    return { flete, final, ganancia, margen_pct: ganancia != null && precioUsd ? (ganancia / precioUsd) * 100 : null };
   };
   const fa = cobrable * cfg.aereoUsdKg;
   const avion = uno(fa, costoCourier(fob, fa, cfg));
