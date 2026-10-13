@@ -89,8 +89,8 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
               <ThOrden col="costo" n desc>Costo US$</ThOrden>
               <ThOrden col="inversion" n desc title="A comprar × costo">Inversión US$</ThOrden>
               <ThOrden col="ultima" desc>Últ. venta</ThOrden>
-              <ThOrden col="precio" n desc title="La última venta llevada a pesos de hoy">Precio hoy</ThOrden>
-              <th className={THN}>Clásica</th>
+              <ThOrden col="clasica" n desc title="El precio de la lista Clásica: de acá sale la ganancia">Clásica</ThOrden>
+              <ThOrden col="precio" n desc title="La última venta llevada a pesos de hoy (sólo de referencia)">Últ. venta hoy</ThOrden>
               <th className={THN} title="Comisión, cargo fijo o envío de Mercado Libre">ML</th>
               <ThOrden col="ganancia_unit" n desc title="Ganancia por unidad">Ganancia</ThOrden>
               <ThOrden col="margen" n desc title="Ganancia sobre el precio de venta">% venta</ThOrden>
@@ -129,8 +129,10 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
                 <td className={`${TD} whitespace-nowrap text-[11px] leading-tight`} title={`En dólares: ${usd(x.precio_usd)}`}>
                   {dma(x.ultima_fecha)}<span className="block">{pesos(x.ultima_precio)}</span><span className="block text-[#5C6B76]">dólar {x.ultima_tc ? formatearNumero(x.ultima_tc, "pesos") : "—"}</span>
                 </td>
-                <td className={`${TDN} font-semibold`}>{pesos(x.precio_hoy)}</td>
-                <td className={TDN}>{pesos(x.clasica)}</td>
+                <td className={`${TDN} font-semibold`}>{pesos(x.clasica)}</td>
+                <td className={`${TDN} text-[#5C6B76]`} title={x.precio_base === "ultima" ? "Sin precio en la Clásica: la ganancia sale de este precio" : undefined}>
+                  {pesos(x.precio_hoy)}{x.precio_base === "ultima" && <span className="text-[#8a6100]"> *</span>}
+                </td>
                 <td className={TDN} title={`Comisión ${pct(x.comision_pct)} + cargo fijo o envío`}>{pesos(x.costos_ml)}</td>
                 <td className={`${TDN} ${x.ganancia_unit != null && x.ganancia_unit < 0 ? "text-[#C03420] font-semibold" : ""}`}>{pesos(x.ganancia_unit)}</td>
                 <td className={`${TDN} ${x.margen_pct != null && x.margen_pct < 0 ? "text-[#C03420]" : ""}`}>{pct(x.margen_pct)}</td>
@@ -145,8 +147,8 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
       <Paginado total={filas.length} />
       <p className="text-[10px] text-[#5C6B76] mt-1">Calculado el {new Date(calculado).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" })}: el cálculo se guarda 30 minutos (filtrar, ordenar y cambiar de página no lo rehacen).</p>
       <p className="text-[11px] text-[#5C6B76] mt-2">
-        Costo = último costo de la ficha; precio = la última venta pasada a dólares con el oficial de ese día y a pesos con el de hoy{tcHoy ? ` ($ ${formatearNumero(tcHoy, "pesos")})` : ""}. Los filtros «Días con venta» y «Última venta» sólo esconden renglones: los cálculos usan todo el período. Cómo se calcula: no hay historia del stock, así que se toman los tramos de {f.dias} días en que el producto se vendió con regularidad (sin un hueco más largo de lo normal para ese producto).
-        Típico = lo que se vendió en un tramo común (la mediana); mejor momento = el mejor tramo. A comprar = lo que se vendería menos el stock de hoy; la inversión y la ganancia total son sobre eso. Las compras grandes de una sola vez no cuentan. Precio hoy = la última venta llevada a pesos de hoy (por eso puede diferir de la Clásica actual). Ganancia = precio de hoy − comisión, cargo fijo y envío de Mercado Libre − costo. Es una referencia para chequear.
+        Costo = último costo de la ficha; la ganancia sale del precio de la lista Clásica (con * los que no tienen Clásica: ahí sale de la última venta). «Últ. venta hoy» = la última venta pasada a dólares con el oficial de ese día y a pesos con el de hoy{tcHoy ? ` ($ ${formatearNumero(tcHoy, "pesos")})` : ""}. Los filtros «Días con venta» y «Última venta» sólo esconden renglones: los cálculos usan todo el período. Cómo se calcula: no hay historia del stock, así que se toman los tramos de {f.dias} días en que el producto se vendió con regularidad (sin un hueco más largo de lo normal para ese producto).
+        Típico = lo que se vendió en un tramo común (la mediana); mejor momento = el mejor tramo. A comprar = lo que se vendería menos el stock de hoy; la inversión y la ganancia total son sobre eso. Las compras grandes de una sola vez no cuentan. Ganancia = precio de la Clásica − comisión, cargo fijo y envío de Mercado Libre − costo. Es una referencia para chequear.
       </p>
     </Pantalla>
   );

@@ -38,8 +38,9 @@ Menú **Compras › Sugerencia de compra**.
   - **Stock hoy** (disponible) y **A comprar** = lo que se vendería menos el stock (al pasar el mouse, el del mejor momento).
   - **Costo US$** y la **inversión** (lo que hay que comprar por el costo).
   - **Última venta**: la fecha, el precio en pesos y el dólar oficial de ese día (al pasar el mouse, lo que daba en dólares).
-  - **Precio hoy**: ese precio en dólares, al dólar oficial de hoy. Al lado, la **Clásica de hoy** para comparar.
-  - **Mercado Libre**: comisión de su categoría más el cargo fijo (precios bajos) o el envío gratis (precios altos).
+  - **Clásica**: el precio de hoy en la lista Clásica. **De acá salen Mercado Libre y la ganancia.**
+  - **Últ. venta hoy**: el precio de la última venta en dólares, llevado al dólar oficial de hoy; sólo de referencia. Si el producto no tiene precio en la Clásica, la ganancia sale de este precio y lleva un asterisco (*).
+  - **Mercado Libre**: comisión de su categoría más el cargo fijo (precios bajos) o el envío gratis (precios altos), sobre el precio de la Clásica.
   - **Ganancia** por unidad, **% s/ venta** (ganancia sobre el precio), **% s/ costo** (ganancia sobre el costo) y la **ganancia total** de lo que hay que comprar, según el típico y el mejor momento.
 
 ## Criterios y reglas
@@ -49,9 +50,9 @@ Menú **Compras › Sugerencia de compra**.
 - **Típico** = lo que se vendió en un tramo común de los que valen (la mediana). **Mejor momento** = el tramo en que más se vendió.
 - **Compras grandes**: un renglón de venta con más de 3 veces la cantidad típica de ese producto (y 6 unidades o más) no cuenta para el ritmo, porque no se repite; se avisa en la nota del producto.
 - **Costo**: el último costo en dólares de la ficha, al dólar oficial de hoy. Sin costo, no hay inversión ni ganancia.
-- **Precio**: el de la última venta del producto en el período (de cualquier canal), pasado a dólares con el oficial de ese día y a pesos con el de hoy. Por eso puede diferir de la Clásica actual: refleja a cuánto se vendió de verdad, actualizado por el dólar.
+- **Precio para la ganancia**: el de la lista Clásica de hoy. Si el producto no tiene precio en la Clásica, el de la última venta (de cualquier canal) pasado a dólares con el oficial de ese día y a pesos con el de hoy.
 - **A comprar**: lo que se vendería en los días elegidos menos el stock disponible de hoy (nunca menos de cero). La inversión, las unidades y la ganancia de los recuadros son sobre eso.
-- **Ganancia por unidad** = precio de hoy − comisión de Mercado Libre de su categoría (si no se conoce, la más común) − cargo fijo o envío gratis − costo. No incluye publicidad ni impuestos.
+- **Ganancia por unidad** = precio de la Clásica − comisión de Mercado Libre de su categoría (si no se conoce, la más común) − cargo fijo o envío gratis − costo. No incluye publicidad ni impuestos.
 
 ## Relacionado
 

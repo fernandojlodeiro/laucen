@@ -31,6 +31,8 @@ export type FilaSugerencia = {
   tipico: number; mejor: number; ventanas: number; dias_con_venta: number; grandes: number; mayor_grande: number;
   costo_usd: number | null; costo_ars: number | null;
   ultima_fecha: string; ultima_precio: number; ultima_tc: number | null; precio_usd: number | null; precio_hoy: number | null; clasica: number | null;
+  /** De qué precio sale la ganancia: la Clásica, o (si no tiene) la última venta llevada a hoy. */
+  precio_base: "clasica" | "ultima" | null;
   comision_pct: number; costos_ml: number | null; ganancia_unit: number | null; margen_pct: number | null;
   /** La ganancia sobre el costo (lo que rinde cada peso invertido). */
   roi_pct: number | null;
@@ -148,14 +150,17 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
     const precioHoy = precioUsd != null && tcHoy ? Math.round(precioUsd * tcHoy) : null;
     const costoArs = d.costo_usd != null && tcHoy ? d.costo_usd * tcHoy : null;
     const comision = d.comision_pct ?? comisionComun;
-    const ml = precioHoy != null ? costosMl(precioHoy, comision, g) : null;
-    const ganancia = precioHoy != null && costoArs != null && ml != null ? precioHoy - ml - costoArs : null;
+    // La ganancia sale del precio de la lista Clásica (Fer, 13/10); sin Clásica, de la última venta llevada a hoy.
+    const base = d.clasica != null && d.clasica > 0 ? d.clasica : precioHoy;
+    const ml = base != null ? costosMl(base, comision, g) : null;
+    const ganancia = base != null && costoArs != null && ml != null ? base - ml - costoArs : null;
     return {
       clave: d.clave, producto_id: d.producto_id, familia_id: d.familia_id, proveedor_id: d.proveedor_id, sku: d.sku, titulo: d.titulo, fotos: d.fotos, archivado: d.archivado,
       tipico: r.tipico, mejor: r.mejor, ventanas: r.ventanas, dias_con_venta: r.diasConVenta, grandes: r.grandes, mayor_grande: r.mayor,
       costo_usd: d.costo_usd, costo_ars: costoArs, ultima_fecha: d.ultima_fecha, ultima_precio: d.ultima_precio, ultima_tc: d.ultima_tc,
       precio_usd: precioUsd, precio_hoy: precioHoy, clasica: d.clasica, comision_pct: comision, costos_ml: ml, ganancia_unit: ganancia,
-      margen_pct: ganancia != null && precioHoy ? Math.round((ganancia / precioHoy) * 1000) / 10 : null,
+      precio_base: d.clasica != null && d.clasica > 0 ? "clasica" : precioHoy != null ? "ultima" : null,
+      margen_pct: ganancia != null && base ? Math.round((ganancia / base) * 1000) / 10 : null,
       roi_pct: ganancia != null && costoArs ? Math.round((ganancia / costoArs) * 1000) / 10 : null,
       stock: d.stock, comprar_tipico: Math.max(0, r.tipico - Math.max(0, d.stock)), comprar_mejor: Math.max(0, r.mejor - Math.max(0, d.stock)),
       ...(segunCompras.get(d.clave) ?? { compras_n: 0, ultima_compra: null, ultima_cant: null, dias_compra: null, segun_compras: null }),
@@ -179,7 +184,7 @@ export function totalesSugerencia(filas: FilaSugerencia[]) {
 export const ORDEN_SUGERENCIA: Record<string, (x: FilaSugerencia) => number | string | null> = {
   sku: (x) => x.sku, tipico: (x) => x.tipico, mejor: (x) => x.mejor, stock: (x) => x.stock, comprar: (x) => x.comprar_tipico,
   costo: (x) => x.costo_usd, inversion: (x) => (x.costo_usd == null ? null : x.costo_usd * x.comprar_tipico), ultima: (x) => x.ultima_fecha,
-  precio: (x) => x.precio_hoy, ganancia_unit: (x) => x.ganancia_unit, margen: (x) => x.margen_pct, roi: (x) => x.roi_pct, dias_venta: (x) => x.dias_con_venta,
+  precio: (x) => x.precio_hoy, clasica: (x) => x.clasica, ganancia_unit: (x) => x.ganancia_unit, margen: (x) => x.margen_pct, roi: (x) => x.roi_pct, dias_venta: (x) => x.dias_con_venta,
   ganancia: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_tipico),
   ganancia_mejor: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_mejor),
   segun_compras: (x) => x.segun_compras, compras: (x) => x.ultima_compra,
@@ -207,7 +212,7 @@ export const ULTIMA_VENTA_MESES = [[1, "el último mes"], [3, "los últimos 3 me
  *  lento»): filtrar, ordenar y pasar de página usan lo guardado. `calculado` dice cuándo se hizo. */
 export function sugerenciaGuardada(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null; calculado: string }> {
   return unstable_cache(async () => ({ ...(await sugerenciaCompra(org, f)), calculado: new Date().toISOString() }),
-    ["sugerencia-compra-3", org, f.desde, f.hasta, String(f.dias)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
+    ["sugerencia-compra-4", org, f.desde, f.hasta, String(f.dias)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
 }
 
 export type NodoCategoria = { id: number; nombre: string; padre: number | null; nivel: number; productos: number };
