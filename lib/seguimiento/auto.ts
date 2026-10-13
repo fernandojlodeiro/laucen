@@ -12,10 +12,17 @@ export type Resultado = Analisis & { seguidas: number };
 /** Analiza la búsqueda de un producto, la guarda con la marca de la IA y (con `seguir`) sigue las comparables. */
 export async function analizarBusqueda(org: string, productoId: number, texto: string, lista: PubEncontrada[], o: { seguir: boolean; ts?: Date }): Promise<Resultado> {
   const [p, conf] = await Promise.all([
-    una<{ titulo: string; descripcion: string | null }>("select titulo, descripcion from producto where id = $1 and organizacion_id = $2", [productoId, org]),
+    // Con la Clásica de hoy de la variación principal: las de precio muy distinto no se comparan.
+    una<{ titulo: string; descripcion: string | null; clasica: number | null }>(`
+      select p.titulo, p.descripcion,
+             (select pd.lista_ars::float8 from lista_precios l, precio_de(p.organizacion_id, va.id, l.id) pd
+               where l.organizacion_id = p.organizacion_id
+               order by lower(l.nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') desc, l.orden, l.id limit 1) clasica
+        from producto p left join variacion va on va.producto_id = p.id and va.es_default
+       where p.id = $1 and p.organizacion_id = $2`, [productoId, org]),
     configSeguimiento(org),
   ]);
-  const a = await analizar({ titulo: p?.titulo ?? texto, descripcion: p?.descripcion }, lista, conf.demoraDias);
+  const a = await analizar({ titulo: p?.titulo ?? texto, descripcion: p?.descripcion, clasica: p?.clasica ?? null }, lista, conf.demoraDias);
   await guardarBusqueda(org, productoId, texto, a.lista);
   const seguidas = o.seguir && conf.autoMax > 0 ? await seguirAutomaticas(org, productoId, a.comparables.slice(0, conf.autoMax), o.ts) : 0;
   return { ...a, seguidas };

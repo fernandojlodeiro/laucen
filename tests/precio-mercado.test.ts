@@ -19,13 +19,17 @@ test("texto de búsqueda: sin paréntesis ni SKU, hasta 60 letras", () => {
   assert.ok(textoBusqueda("x".repeat(100)).length <= 60);
 });
 
-test("preselección: fuera las nuestras, internacionales, demoradas, otra moneda y títulos que no se parecen", () => {
+test("preselección: fuera las nuestras, internacionales, demoradas, otra moneda, packs, precio muy distinto y títulos que no se parecen", () => {
   const nuestro = "Lupa Vincha Led 5 Lentes";
   assert.equal(motivoFuera(nuestro, pub("A", nuestro, 1000, { propia: true }), 10), "Es nuestra");
   assert.equal(motivoFuera(nuestro, pub("B", nuestro, 1000, { internacional: true }), 10), "Internacional");
   assert.equal(motivoFuera(nuestro, pub("C", nuestro, 1000, { entregaDias: 20 }), 10), "Tarda 20 días en llegar");
-  // Los packs los decide la IA: por el título, «Lupa 6x» parecería un pack.
+  // «6x» es el aumento, no un pack; «Pack X25» sí.
   assert.equal(motivoFuera(nuestro, pub("D", "Lupa Vincha Led 5 Lentes 6x Con Luz", 1000), 10), null);
+  assert.equal(motivoFuera(nuestro, pub("D2", "Pack X25 Lupa Vincha Led 5 Lentes", 1000), 10), "Pack o varias unidades");
+  // Precio más del triple o menos de un tercio de nuestra Clásica: otro producto o un pack.
+  assert.match(motivoFuera("Led 3mm Rojo x Unidad", pub("L", "Led 3mm Rojo Alto Brillo", 25841), 10, 1980) ?? "", /Precio muy distinto/);
+  assert.equal(motivoFuera("Led 3mm Rojo x Unidad", pub("L2", "Led 3mm Rojo Alto Brillo", 2500), 10, 1980), null);
   assert.equal(motivoFuera(nuestro, pub("E", nuestro, 1000, { moneda: "USD" }), 10), "No está en pesos");
   assert.equal(motivoFuera(nuestro, pub("F", "Destornillador philips", 1000), 10), "El título casi no se parece");
   assert.equal(motivoFuera(nuestro, pub("G", "Lupa de vincha con led", 1000), 10), null);
