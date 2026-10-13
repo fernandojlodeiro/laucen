@@ -6,6 +6,7 @@ import { sosVos } from "@/lib/admin";
 import { orgRequerida, sesionRequerida } from "@/lib/tenancy";
 import { motivoErp } from "@/lib/erp/base";
 import { deFondo } from "@/lib/tareas-fondo";
+import { prepararGarantiaNotebooks, textoGarantia } from "@/lib/mercadolibre/garantia-notebooks";
 import { prepararNotebooksMl, textoResultadoMl, limpiarNotebooksLaucen, revisarNotebooksMl, traerDescripcionesFaltantes } from "@/lib/limpieza-notebooks";
 
 async function portero() {
@@ -39,6 +40,18 @@ export async function accionNotebooksMl(fd: FormData) {
     const r = await prepararNotebooksMl(s.org.id, canal, s.usuario.id, Date.now() + 270_000);
     revalidatePath("/admin/limpieza");
     return textoResultadoMl(r);
+  });
+}
+
+/** Lee la cuenta en ML y deja preparado (sin mandar) el lote que pone 1 año de garantía a sus notebooks activas. De fondo. */
+export async function accionGarantiaNotebooksMl(fd: FormData) {
+  await portero();
+  const s = await sesionRequerida();
+  const canal = Number(fd.get("canal"));
+  return deFondo(s, `garantia-notebooks:${canal}`, "Garantía de notebooks en Mercado Libre", async () => {
+    const r = await prepararGarantiaNotebooks(s.org.id, canal, s.usuario.id, Date.now() + 270_000);
+    revalidatePath("/admin/limpieza");
+    return textoGarantia(r);
   });
 }
 
