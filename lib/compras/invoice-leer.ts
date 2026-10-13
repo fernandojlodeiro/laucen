@@ -22,7 +22,7 @@ const normal = (v: Celda): string =>
 // Títulos de columna que se reconocen (sin acentos ni mayúsculas). El orden importa: el primero que aparece gana.
 const T_SKU = [/^(sku|sku ?no\.?|sku ?code|item ?(no|number|code|#)\.?|model ?(no|number)?\.?|part ?(no|number)\.?|product ?(code|no)\.?|art(icle|iculo)? ?(no|code)?\.?|code|codigo|cod\.?|货号|型号|编号|产品编号)$/,
   /\bsku\b|货号|型号/];
-const T_CANT = [/^(qty|q'?ty|quantity|pcs|cantidad|cant\.?|units?|数量)(\s*\(.*\))?$/, /\bqty\b|quantity|cantidad|数量/];
+const T_CANT = [/^(qty|q|q'?ty|quantity|pcs|cantidad|cant\.?|units?|unidades|a comprar|comprar|pedido|数量)(\s*\(.*\))?$/, /\bqty\b|quantity|cantidad|数量/];
 const T_PRECIO = [/^(unit ?price|price|precio( unitario)?|u\.? ?price|fob( price)?|单价|价格)(\s*\(.*\))?$/, /unit ?price|单价|^price\b|precio unit/];
 const T_TOTAL = [/^(amount|total|total ?amount|importe|subtotal|金额|总价)(\s*\(.*\))?$/, /amount|金额|总价/];
 const T_DESC = [/^(description|descripcion|product ?name|name|item ?name|product|producto|detalle|goods|品名|描述|名称)(\s*\(.*\))?$/, /description|descripcion|品名|名称/];
@@ -113,6 +113,26 @@ function despuesDe(fila: Celda[], k: number): Celda[] {
   return salida;
 }
 
+/** Las columnas [precio, total] tales que cantidad × precio ≈ total en la mayoría de los renglones. */
+function precioPorCuentas(filas: Celda[][], cCant: number): [number, number] | null {
+  const ancho = Math.max(0, ...filas.map((f) => f.length));
+  let mejor: [number, number] | null = null, mejorN = 0;
+  for (let a = 0; a < ancho; a++) {
+    for (let b = 0; b < ancho; b++) {
+      if (a === b || a === cCant || b === cCant) continue;
+      let n = 0, con = 0;
+      for (const f of filas) {
+        const q = numeroInvoice(f[cCant]), p = numeroInvoice(f[a]), t = numeroInvoice(f[b]);
+        if (q == null || p == null || t == null || q <= 0) continue;
+        con++;
+        if (t > 0 && Math.abs(q * p - t) <= Math.max(0.02, t * 0.01)) n++;
+      }
+      if (con >= 2 && n >= con * 0.6 && n > mejorN) { mejor = [a, b]; mejorN = n; }
+    }
+  }
+  return mejor;
+}
+
 export function leerInvoice(filas: Celda[][]): InvoiceLeido {
   const avisos: string[] = [];
   // El renglón de títulos: el primero que tiene SKU, cantidad y precio (o total).
@@ -121,9 +141,14 @@ export function leerInvoice(filas: Celda[][]): InvoiceLeido {
     const titulos = filas[i].map(normal);
     const usadas = new Set<number>();
     const cant = columna(titulos, T_CANT, usadas); if (cant < 0) continue; usadas.add(cant);
-    const precio = columna(titulos, T_PRECIO, usadas); if (precio >= 0) usadas.add(precio);
-    const total = columna(titulos, T_TOTAL, usadas); if (total >= 0) usadas.add(total);
-    if (precio < 0 && total < 0) continue;
+    let precio = columna(titulos, T_PRECIO, usadas); if (precio >= 0) usadas.add(precio);
+    let total = columna(titulos, T_TOTAL, usadas); if (total >= 0) usadas.add(total);
+    if (precio < 0 && total < 0) {
+      // Sin títulos de precio reconocibles: las dos columnas donde cantidad × una ≈ la otra.
+      const par = precioPorCuentas(filas.slice(i + 1, i + 60), cant);
+      if (!par) continue;
+      [precio, total] = par; usadas.add(precio); usadas.add(total);
+    }
     // El SKU: la columna cuyos valores parecen SKU propios («SKU00377»), aunque el título diga otra cosa
     // (en los invoices suele estar el código del proveedor en «Item No.» y el nuestro en otra columna).
     const debajo = filas.slice(i + 1, i + 200);
@@ -187,11 +212,13 @@ export function leerInvoice(filas: Celda[][]): InvoiceLeido {
       if (!fila.some((c) => c != null && c !== "")) { if (++vacias >= 3 && renglones.length) break; continue; }
       vacias = 0;
       const cantidad = numeroInvoice(fila[cCant]);
-      if (!sku || cantidad == null || cantidad <= 0) continue;
+      if (cantidad == null || cantidad <= 0) continue;
       let precio = cPrecio >= 0 ? numeroInvoice(fila[cPrecio]) : null;
       const total = cTotal >= 0 ? numeroInvoice(fila[cTotal]) : null;
       if ((precio == null || precio <= 0) && total != null && total > 0) precio = Math.round((total / cantidad) * 10000) / 10000;
       const descripcion = cDesc >= 0 && fila[cDesc] != null ? String(fila[cDesc]).replace(/\s+/g, " ").trim().slice(0, 300) || null : null;
+      // Sin SKU pero con descripción y precio: entra igual (se le pone el SKU a mano en la vista previa).
+      if (!sku && (!descripcion || precio == null)) continue;
       renglones.push({ fila: i + 1, sku: sku.replace(/\s+/g, " ").slice(0, 80), descripcion, cantidad, precio: precio != null && precio > 0 ? precio : null });
     }
     if (!renglones.length) avisos.push("Encontré los títulos de la tabla pero ningún renglón con SKU y cantidad.");

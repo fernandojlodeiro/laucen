@@ -165,7 +165,7 @@ export default async function FichaInvoice({ params, searchParams }: { params: P
             ) : (
               <tr key={l.id} className={TR}>
                 <td className={`${TDN} text-[#5C6B76]`}>{l.fila ?? ""}</td>
-                <td className={`${TD} font-mono`}>{l.sku}</td>
+                <td className={`${TD} font-mono`}>{l.sku || "—"}</td>
                 <td className={TD}>
                   {l.producto_id ? (
                     <span className="inline-flex items-center gap-2 align-middle">

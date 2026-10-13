@@ -50,6 +50,7 @@ test("invoice en inglés: fecha con rótulo, número y SKU propio en otra column
   assert.deepEqual(r.renglones.map((x) => [x.sku, x.cantidad, x.precio, x.descripcion]), [
     ["SKU00377", 100, 2.35, "Arduino Uno R3"],
     ["SKU00536", 50, 3.5, "GPS module"],
+    ["", 10, 1, "Sin SKU"],
   ]);
   assert.equal(r.renglones[0].fila, 6);
 });
@@ -84,4 +85,25 @@ test("cuánto duró cada compra: las ventas se comen las compras en orden de lle
     ["2026-02-01", "2026-02-20", 19, 0],
     ["2026-01-01", "2026-01-20", 19, 0],
   ]);
+});
+
+test("títulos raros: «Q» y «NEW» (el precio sale de las cuentas) y un renglón sin SKU", () => {
+  const r = leerInvoice([
+    ["PICTURE", "SKU", "PRODUCT", "Q", "NEW", null],
+    [null, "SKU03394", "Starter Kit", 300, 14.5, 4350],
+    [null, "SKU01980", "Kit sensores", 200, 6.7, 1340],
+    [null, null, "Scanner Elm327", 150, 1.78, 267],
+    [null, null, null, null, null, 5957],
+  ]);
+  assert.deepEqual(r.renglones.map((x) => [x.sku, x.cantidad, x.precio]), [["SKU03394", 300, 14.5], ["SKU01980", 200, 6.7], ["", 150, 1.78]]);
+});
+
+test("cantidad titulada «A comprar»", () => {
+  const r = leerInvoice([
+    ["Date:", "2024-3-21"],
+    ["Codigo", "Producto", "Picture", "A comprar", "Price", "Total Amount"],
+    ["SKU00125-U", "Llavero", null, 500, 0.06, 30],
+  ]);
+  assert.equal(r.fecha, "2024-03-21");
+  assert.deepEqual(r.renglones.map((x) => [x.sku, x.cantidad, x.precio]), [["SKU00125-U", 500, 0.06]]);
 });

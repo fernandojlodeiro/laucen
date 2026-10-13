@@ -72,7 +72,7 @@ async function emparejar(c: { query: (s: string, v: unknown[]) => Promise<unknow
 }
 
 export async function crearInvoice(org: string, a: { archivo: string; ruta: string; proveedorId: number | null; usuarioId: string; hoja: string | null; leido: InvoiceLeido; pdf?: boolean }): Promise<number> {
-  const { leido } = a;
+  const leido = { ...a.leido, numero: a.leido.numero ?? a.archivo.match(/[a-z]{2,}\d{6,}/i)?.[0]?.toUpperCase() ?? null };
   if (!leido.renglones.length && !a.pdf) throw new ErrorErp(`«${a.archivo}»: ${leido.avisos[0] ?? "no tiene renglones con SKU y cantidad."}`);
   // El mismo invoice dos veces: mismo número del mismo proveedor, o misma fecha con los mismos renglones.
   const huella = leido.renglones.map((r) => `${r.sku.toUpperCase()}:${r.cantidad}`).sort().join("|");
