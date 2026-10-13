@@ -208,3 +208,17 @@ create table if not exists precio_mercado (
 create index if not exists precio_mercado_tanda_i on precio_mercado (tanda_id, estado);
 alter table precio_mercado enable row level security;
 select erp_politica_org('precio_mercado');
+
+-- Reanudador de las tandas de precio de mercado: si una vuelta se cortó (tope de tiempo del servidor), cada 5 minutos
+-- la base la vuelve a llamar (pg_cron + pg_net). Las protege el token de la tanda.
+do $$
+declare j record; cmd text := $c$select net.http_get('https://laucen.com/api/precios-mercado?tanda=' || id || '&token=' || token) from public.precio_mercado_tanda where estado = 'corriendo' and actualizado_ts < now() - interval '6 minutes'$c$;
+begin
+  if to_regclass('cron.job') is null then return; end if;
+  select jobid, command into j from cron.job where jobname = 'precios-mercado';
+  if not found then perform cron.schedule('precios-mercado', '*/5 * * * *', cmd);
+  elsif j.command is distinct from cmd then perform cron.alter_job(j.jobid, command := cmd);
+  end if;
+exception when others then
+  raise notice 'pg_cron: no se pudo ajustar precios-mercado (%)', sqlerrm;
+end $$;

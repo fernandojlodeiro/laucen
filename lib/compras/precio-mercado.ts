@@ -20,7 +20,7 @@ export const RESULTADOS_POR_BUSQUEDA = 30;
 export const USD_POR_RESULTADO = 0.002;
 /** Productos que se buscan a la vez y segundos de trabajo por vuelta (antes de relanzarse). */
 const A_LA_VEZ = 5;
-const SEGUNDOS_POR_VUELTA = 200;
+const SEGUNDOS_POR_VUELTA = 60; // + la última tanda de búsquedas (hasta ~3 minutos): entra en los 5 minutos de la ruta
 /** Máximo de productos por tanda. */
 export const TOPE_TANDA = 300;
 
@@ -95,6 +95,8 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
   if (!t) throw new ErrorErp("Tanda desconocida.");
   if (t.estado !== "corriendo") return { hechos: 0, quedan: 0, estado: t.estado };
   const org = t.organizacion_id;
+  // Marca que está trabajando (el reanudador de la base no la relanza mientras tanto).
+  await consulta("update precio_mercado_tanda set actualizado_ts = now() where id = $1", [tanda]);
   const cuentas = (await cuentasDe(org).catch(() => [])).filter((c) => c.estado === "activa");
   const propios = new Set(cuentas.map((c) => (c.nickname ?? "").toUpperCase().trim()).filter(Boolean));
   const demora = (await configSeguimiento(org)).demoraDias;
@@ -119,7 +121,7 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
     }
     await Promise.all(lote.map(async (p) => {
       const c = await correrConEntrada(ACTOR, { site: "MLA", searchQueries: [p.texto], maxItems: RESULTADOS_POR_BUSQUEDA, maxPagesPerQuery: 1, includeProductDetails: false },
-        { max: RESULTADOS_POR_BUSQUEDA, esperaSeg: 150, topeUsd: 0.2 });
+        { max: RESULTADOS_POR_BUSQUEDA, esperaSeg: 120, topeUsd: 0.2 });
       const costo = Math.max(c.costoUsd ?? 0, c.items.length * USD_POR_RESULTADO);
       await consulta("insert into seguimiento_corrida (organizacion_id, tipo, producto_id, run_id, costo_usd, publicaciones, error) values ($1, 'busqueda', $2, $3, $4, $5, $6)",
         [org, p.producto_id, c.runId ?? null, costo, c.items.length, c.error ?? null]);
@@ -138,7 +140,7 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
         [org, ids0])).map((r) => r.id));
       const entrega = new Map<string, number | null>();
       if (cuentas[0]) {
-        const ids = candidatas(p.titulo, items, propios, propiasIds).map((x) => x.itemId).filter((id) => /^MLA\d+$/.test(id));
+        const ids = candidatas(p.titulo, items, propios, propiasIds).map((x) => x.itemId).filter((id) => /^MLA\d+$/.test(id)).slice(0, 16);
         for (let i = 0; i < ids.length; i += 8) {
           await Promise.all(ids.slice(i, i + 8).map(async (id) => { entrega.set(id, await diasDeEntrega(cuentas[0], id).catch(() => null)); }));
         }
