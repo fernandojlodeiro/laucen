@@ -6,6 +6,7 @@
 
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { leerSeguidas, orgsConSeguimiento } from "@/lib/seguimiento";
+import { seguirTandas } from "@/lib/compras/precio-mercado";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -20,5 +21,6 @@ export async function GET(req: Request) {
   for (const org of await orgsConSeguimiento()) {
     informe[org] = await leerSeguidas(org).catch((e) => ({ error: String(e) }));
   }
+  informe.preciosMercado = await seguirTandas().catch((e) => String(e));
   return Response.json(informe);
 }

@@ -70,7 +70,7 @@ export async function asentarCostos(org: string): Promise<void> {
 
 const costoDe = (tipo: "busqueda" | "lectura", usd: number | null, n: number) => Math.max(usd ?? 0, n * POR_RESULTADO[tipo]);
 
-async function quedaParaGastar(org: string): Promise<number> {
+export async function quedaParaGastar(org: string): Promise<number> {
   await asentarCostos(org).catch(() => {});
   const [c, g] = await Promise.all([configSeguimiento(org), gastoDelMes(org)]);
   return Math.max(0, c.topeUsd - g);

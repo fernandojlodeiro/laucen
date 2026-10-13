@@ -40,10 +40,12 @@ Menú **Compras › Sugerencia de compra**.
   - **Costo US$** y la **inversión** (lo que hay que comprar por el costo).
   - **Última venta**: la fecha, el precio en pesos y el dólar oficial de ese día (al pasar el mouse, lo que daba en dólares).
   - **Clásica**: el precio de hoy en la lista Clásica. **De acá salen Mercado Libre y la ganancia.**
+  - **Mercado**: lo que se vende hoy en Mercado Libre (la mediana de las publicaciones parecidas). En verde si supera a la Clásica en más de 15 %: la Clásica puede estar atrasada. Al pasar el mouse, cuántas publicaciones, de qué fecha y el cuarto más barato.
   - **Últ. venta hoy**: el precio de la última venta en dólares, llevado al dólar oficial de hoy; sólo de referencia. Si el producto no tiene precio en la Clásica, la ganancia sale de este precio y lleva un asterisco (*).
   - **Mercado Libre**: comisión de su categoría más el cargo fijo (precios bajos) o el envío gratis (precios altos), sobre el precio de la Clásica.
   - **Ganancia** por unidad, **% s/ venta** (ganancia sobre el precio), **% s/ costo** (ganancia sobre el costo) y la **ganancia total** de lo que hay que comprar, según el típico y el mejor momento.
   - **Vía**: la categoría de «¿avión o barco?»; **Flete avión**: el flete aéreo por unidad como % del FOB; **% avión** y **% barco**: la ganancia sobre la Clásica trayéndolo por cada vía (por avión, courier; por barco, despacho con impuestos e IVA) (al pasar el mouse, el costo final y la ganancia en dólares).
+- Arriba, el botón **«Buscar precio de mercado (N)»**: busca en Mercado Libre los productos de la lista que se está viendo (con los filtros puestos, todas las páginas, hasta 300). Antes pregunta ahí mismo cuánto cuesta (unos US$ 0,06 por producto, del tope de gasto del mes de [Seguimiento de publicaciones](/config/seguimiento)). Corre de fondo: tarda unos minutos y la columna **Mercado** se va llenando; arriba de la tabla se ve el avance de la última búsqueda.
 - Abajo, el recuadro **¿Avión o barco?** con los montos y criterios del cálculo; se cambian con el lápiz de su título.
 
 ## Criterios y reglas
@@ -64,6 +66,7 @@ Menú **Compras › Sugerencia de compra**.
   - **Costo final por barco, con IVA incluido**: si el producto tiene posición arancelaria y derechos cargados (pestaña Costo, propios o de su categoría), CIF (FOB + flete + seguro) + derechos, tasa de estadística, otros, despachante y depósito fiscal + IVA sobre la base imponible. Si no tiene, FOB + flete más un recargo (de entrada, 30 %).
   - **Ganancia** = Clásica − lo que se lleva Mercado Libre − costo final, en dólares al oficial de hoy.
   - Categorías: **Avión** = el flete aéreo no pasa el umbral (de entrada, 30 % del FOB) y por avión deja al menos el margen mínimo (de entrada, 10 % de la Clásica). **Conviene barco** = el flete aéreo pasa el umbral, pero por avión igual deja el margen mínimo: se puede traer rápido si hace falta. **No rentable por avión** = por avión gana menos que el margen mínimo. **Imposible por avión** = por avión pierde plata. **Sin datos** = falta el peso, el FOB o el precio.
+- **Precio de mercado**: se busca en Mercado Libre con el título del producto (30 resultados). Cuentan las publicaciones que se parecen (la mitad o más de las palabras de nuestro título; si quedan menos de 3, un tercio), sin packs ni varias unidades, sin las nuestras y en pesos. Se muestran la mediana y el cuarto más barato. Sólo informa: no cambia precios.
 
 ## Relacionado
 

@@ -12,6 +12,7 @@ import { consulta, una } from "@/lib/erp/base";
 import { costosMl, ritmo, sinComprasGrandes, type Grillas, type Renglon } from "@/lib/compras/sugerencia-calculo";
 import { comprasDeVariaciones, duracionCompras } from "@/lib/compras/invoices";
 import { calcularVia, configVia, costosResueltos, medidasDe, type CategoriaVia } from "@/lib/compras/via";
+import { preciosDeMercado } from "@/lib/compras/precio-mercado";
 
 export type FiltroSugerencia = { desde: string; hasta: string; dias: number };
 
@@ -42,6 +43,8 @@ export type FilaSugerencia = {
   /** Las compras registradas (invoices y courier): cuántas, la última (llegada y cantidad), cuántos días tardaron en
    *  venderse las últimas terminadas (mediana) y lo que se vendería en los días elegidos a ese ritmo. */
   compras_n: number; ultima_compra: string | null; ultima_cant: number | null; dias_compra: number | null; segun_compras: number | null;
+  /** Precio de mercado (lib/compras/precio-mercado.ts): mediana y el cuarto más barato de lo que se vende hoy en ML. */
+  mercado: number | null; mercado_p25: number | null; mercado_n: number; mercado_ts: string | null;
   /** ¿Avión o barco? (lib/compras/via.ts): FOB de la ficha, flete aéreo como % del FOB, costo final con IVA y ganancia por
    *  cada vía (US$ por unidad, sobre la Clásica), y la categoría. */
   fob_usd: number | null; via: CategoriaVia; medidas: "packing" | "ficha" | null; flete_aereo_pct: number | null; con_ncm: boolean;
@@ -147,8 +150,8 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
       ultima_fecha: u.dia, ultima_precio: u.precio, ultima_tc: tcDe.get(u.dia) ?? null,
     };
   });
-  const [g, cfgVia, medidas, resueltos] = await Promise.all([
-    grillas(), configVia(org), medidasDe(org, info.map((x) => x.id)),
+  const [g, cfgVia, medidas, mercado, resueltos] = await Promise.all([
+    grillas(), configVia(org), medidasDe(org, info.map((x) => x.id)), preciosDeMercado(org, [...new Set(info.map((x) => x.producto_id))]),
     costosResueltos(org, info.map((x) => ({ id: x.producto_id, familia_id: x.familia_id }))),
   ]);
   // Sin categoría conocida, la comisión más común de las categorías donde se publica.
@@ -179,6 +182,8 @@ export async function sugerenciaCompra(org: string, f: FiltroSugerencia): Promis
       roi_pct: ganancia != null && costoArs ? Math.round((ganancia / costoArs) * 1000) / 10 : null,
       stock: d.stock, comprar_tipico: Math.max(0, r.tipico - Math.max(0, d.stock)), comprar_mejor: Math.max(0, r.mejor - Math.max(0, d.stock)),
       ...(segunCompras.get(d.clave) ?? { compras_n: 0, ultima_compra: null, ultima_cant: null, dias_compra: null, segun_compras: null }),
+      ...(() => { const m = d.producto_id != null ? mercado.get(d.producto_id) : undefined;
+        return { mercado: m?.mediana ?? null, mercado_p25: m?.p25 ?? null, mercado_n: m?.encontradas ?? 0, mercado_ts: m ? new Date(m.ts).toISOString().slice(0, 10) : null }; })(),
       fob_usd: d.fob_usd, via: vv?.categoria ?? "sin_datos", medidas: vv?.medidas.origen ?? null, flete_aereo_pct: vv?.flete_aereo_pct ?? null, con_ncm: vv?.con_ncm ?? false,
       avion_final: vv?.avion?.final ?? null, avion_ganancia: vv?.avion?.ganancia ?? null, avion_margen: vv?.avion?.margen_pct ?? null,
       barco_final: vv?.barco?.final ?? null, barco_ganancia: vv?.barco?.ganancia ?? null, barco_margen: vv?.barco?.margen_pct ?? null,
@@ -206,6 +211,7 @@ export const ORDEN_SUGERENCIA: Record<string, (x: FilaSugerencia) => number | st
   ganancia: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_tipico),
   ganancia_mejor: (x) => (x.ganancia_unit == null ? null : x.ganancia_unit * x.comprar_mejor),
   segun_compras: (x) => x.segun_compras, compras: (x) => x.ultima_compra,
+  mercado: (x) => x.mercado, mercado_dif: (x) => (x.mercado != null && x.clasica ? x.mercado / x.clasica : null),
   flete_aereo: (x) => x.flete_aereo_pct, avion_margen: (x) => x.avion_margen, barco_margen: (x) => x.barco_margen,
 };
 
@@ -234,7 +240,7 @@ export const ULTIMA_VENTA_MESES = [[1, "el último mes"], [3, "los últimos 3 me
  *  lento»): filtrar, ordenar y pasar de página usan lo guardado. `calculado` dice cuándo se hizo. */
 export function sugerenciaGuardada(org: string, f: FiltroSugerencia): Promise<{ filas: FilaSugerencia[]; tcHoy: number | null; calculado: string }> {
   return unstable_cache(async () => ({ ...(await sugerenciaCompra(org, f)), calculado: new Date().toISOString() }),
-    ["sugerencia-compra-7", org, f.desde, f.hasta, String(f.dias)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
+    ["sugerencia-compra-8", org, f.desde, f.hasta, String(f.dias)], { revalidate: 1800, tags: [`sugerencia-compra-${org}`] })();
 }
 
 export type NodoCategoria = { id: number; nombre: string; padre: number | null; nivel: number; productos: number };

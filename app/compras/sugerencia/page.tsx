@@ -10,7 +10,10 @@ import { Paginado, ThOrden } from "@/app/componentes/Lista";
 import { entrarErp, Pantalla, Estado, url, editandoFicha, BotonesFicha, Dato, TituloSeccion, CAJA, CAMPO, ETIQUETA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { CAMPOS_VIA, CATEGORIAS_VIA, configVia } from "@/lib/compras/via";
-import { accionGuardarVia } from "./acciones";
+import { accionGuardarVia, accionPrecioMercado } from "./acciones";
+import { BotonTarea } from "@/app/componentes/TareasFondo";
+import { SUAVE } from "@/app/botones";
+import { RESULTADOS_POR_BUSQUEDA, TOPE_TANDA, USD_POR_RESULTADO, seguirTandas, ultimaTanda } from "@/lib/compras/precio-mercado";
 import { Desplegable } from "@/app/informes/Filtros";
 import Categorias from "./Categorias";
 import { coincideBusqueda } from "@/lib/busqueda";
@@ -37,7 +40,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
   const sp = await searchParams;
   const f = leerFiltroSugerencia(sp, hoyArgentina());
   const { filas: todas, tcHoy, calculado } = await sugerenciaGuardada(s.org.id, f);
-  const [{ nodos, ancestros }, cfgVia] = await Promise.all([arbolCategorias(s.org.id, todas), configVia(s.org.id)]);
+  const [{ nodos, ancestros }, cfgVia, tanda] = await Promise.all([arbolCategorias(s.org.id, todas), configVia(s.org.id), ultimaTanda(s.org.id), seguirTandas(s.org.id).catch(() => 0)]);
   const editandoVia = editandoFicha(sp, "via");
   // Proveedor preferido: los que tienen algún producto en la sugerencia.
   const provIds = [...new Set(todas.map((x) => x.proveedor_id).filter((x): x is number => x != null))];
@@ -47,6 +50,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
   const q = sp.q?.trim() ?? "";
   const filas = filtrarMuestra(todas, sp, (x) => !categoriaFuera(x) && (!q || coincideBusqueda([x.sku, x.titulo], q, sp.contiene !== "1")));
   const t = totalesSugerencia(filas);
+  const idsMercado = [...new Set(filas.map((x) => x.producto_id).filter((x): x is number => x != null))].slice(0, TOPE_TANDA);
   const vista = paginarEnMemoria(ordenarEnMemoria(filas, sp, ORDEN_SUGERENCIA), sp);
   const params = { desde: f.desde, hasta: f.hasta, dias: f.dias === 60 ? null : f.dias, q: q || null, contiene: sp.contiene ?? null, orden: sp.orden ?? null, dir: sp.dir ?? null, min_dias: sp.min_dias ?? null, vmeses: sp.vmeses ?? null, con_stock: sp.con_stock ?? null, sin_cat: sp.sin_cat ?? null, prov: sp.prov ?? null, via: sp.via ?? null };
 
@@ -69,9 +73,19 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
             opciones={[{ valor: "", texto: "Todas" }, { valor: "rentable", texto: "Rentables por avión" }, ...Object.entries(CATEGORIAS_VIA).map(([k, c]) => ({ valor: k, texto: c.texto }))]} />
           <Categorias nodos={nodos} sinCategoria={todas.filter((x) => x.familia_id == null).length} excluidas={[...sinCat]} />
           <CasillaViva parametro="con_stock" activo={sp.con_stock === "1"} etiqueta="Incluye los que tienen stock suficiente" ayuda="Los que no hace falta comprar: el stock de hoy alcanza para los días elegidos" />
+          <BotonTarea accion={accionPrecioMercado} tipo="precio-mercado" clase={SUAVE} campos={{ ids: idsMercado.join(",") }}
+            texto={`Buscar precio de mercado (${idsMercado.length})`}
+            pregunta={`¿Buscar en Mercado Libre el precio de los ${idsMercado.length} productos de la lista? Cuesta unos US$ ${(idsMercado.length * RESULTADOS_POR_BUSQUEDA * USD_POR_RESULTADO).toFixed(2)} de Apify`} />
           <a href={url("/compras/sugerencia/excel", params)} className={VERDE}>Descargar Excel</a>
         </div>
       }>
+      {tanda && (
+        <p className="text-xs text-[#5C6B76] mb-2">
+          Precio de mercado: última búsqueda del {tanda.creado.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" })},{" "}
+          {tanda.estado === "corriendo" ? <b className="text-[#16577F]">buscando: {tanda.hechos + tanda.errores} de {tanda.total}</b> : <>{tanda.hechos} de {tanda.total} con precio</>}
+          {tanda.errores > 0 && `, ${tanda.errores} sin resultados`}{tanda.estado === "cortada" && ` · se cortó: ${tanda.mensaje ?? ""}`}.
+        </p>
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3 text-xs">
         {[["Productos", `${entero(t.productos)} (${entero(t.conCosto)} con costo)`],
           ["Unidades a comprar · típico / mejor", `${entero(t.unidadesTipicas)} / ${entero(t.unidadesMejor)}`],
@@ -96,6 +110,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
               <ThOrden col="inversion" n desc title="A comprar × costo">Inversión US$</ThOrden>
               <ThOrden col="ultima" desc>Últ. venta</ThOrden>
               <ThOrden col="clasica" n desc title="El precio de la lista Clásica: de acá sale la ganancia">Clásica</ThOrden>
+              <ThOrden col="mercado" n desc title="Precio de mercado: la mediana de lo que se vende hoy en Mercado Libre (publicaciones parecidas, sin packs ni las nuestras). Al pasar el mouse, el cuarto más barato">Mercado</ThOrden>
               <ThOrden col="precio" n desc title="La última venta llevada a pesos de hoy (sólo de referencia)">Últ. venta hoy</ThOrden>
               <th className={THN} title="Comisión, cargo fijo o envío de Mercado Libre">ML</th>
               <ThOrden col="ganancia_unit" n desc title="Ganancia por unidad">Ganancia</ThOrden>
@@ -110,7 +125,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
             </tr>
           </thead>
           <tbody>
-            {vista.length === 0 && <tr><td colSpan={22} className={`${TD} text-[#5C6B76]`}>No hay ventas con ritmo regular en ese período.</td></tr>}
+            {vista.length === 0 && <tr><td colSpan={23} className={`${TD} text-[#5C6B76]`}>No hay ventas con ritmo regular en ese período.</td></tr>}
             {vista.map((x) => (
               <tr key={x.clave} className={TR}>
                 <td className={`${TD} max-w-[17rem]`}>
@@ -140,6 +155,10 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
                   {dma(x.ultima_fecha)}<span className="block">{pesos(x.ultima_precio)}</span><span className="block text-[#5C6B76]">dólar {x.ultima_tc ? formatearNumero(x.ultima_tc, "pesos") : "—"}</span>
                 </td>
                 <td className={`${TDN} font-semibold`}>{pesos(x.clasica)}</td>
+                <td className={`${TDN} ${x.mercado != null && x.clasica && x.mercado > x.clasica * 1.15 ? "text-[#1F7A3A] font-semibold" : ""}`}
+                  title={x.mercado != null ? `${x.mercado_n} publicaciones parecidas el ${fechaCorta(x.mercado_ts)} · el cuarto más barato ${pesos(x.mercado_p25)}${x.clasica ? ` · ${Math.round((x.mercado / x.clasica - 1) * 100)} % contra la Clásica` : ""}` : "Sin buscar"}>
+                  {pesos(x.mercado)}
+                </td>
                 <td className={`${TDN} text-[#5C6B76]`} title={x.precio_base === "ultima" ? "Sin precio en la Clásica: la ganancia sale de este precio" : undefined}>
                   {pesos(x.precio_hoy)}{x.precio_base === "ultima" && <span className="text-[#8a6100]"> *</span>}
                 </td>

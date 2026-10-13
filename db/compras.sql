@@ -171,3 +171,40 @@ create index if not exists packing_item_v on packing_item (organizacion_id, vari
 create index if not exists packing_item_pl on packing_item (packing_list_id);
 alter table packing_item enable row level security;
 select erp_politica_org('packing_item');
+
+-- ── Precio de mercado (pedido de Fer, 13/10; lib/compras/precio-mercado.ts) ──
+-- Una búsqueda en Mercado Libre (Apify) por producto, para comparar la Clásica
+-- con lo que se vende hoy. Se piden en tandas: la tanda se procesa de a varios
+-- productos por vez y se relanza sola hasta terminar.
+create table if not exists precio_mercado_tanda (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  token            uuid not null default gen_random_uuid(),
+  total            int not null default 0,
+  estado           text not null default 'corriendo' check (estado in ('corriendo', 'terminada', 'cortada')),
+  mensaje          text,
+  usuario_id       text,
+  creado_ts        timestamptz not null default now(),
+  actualizado_ts   timestamptz not null default now()
+);
+alter table precio_mercado_tanda enable row level security;
+select erp_politica_org('precio_mercado_tanda');
+
+create table if not exists precio_mercado (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  producto_id      bigint not null references producto(id) on delete cascade,
+  tanda_id         bigint references precio_mercado_tanda(id) on delete set null,
+  texto            text not null,
+  estado           text not null default 'pendiente' check (estado in ('pendiente', 'ok', 'error')),
+  ts               timestamptz,
+  encontradas      int,                     -- publicaciones que se parecen (sin packs ni las nuestras)
+  minimo           numeric(14, 2),
+  p25              numeric(14, 2),
+  mediana          numeric(14, 2),
+  resultados       jsonb not null default '[]',
+  error            text,
+  primary key (organizacion_id, producto_id)
+);
+create index if not exists precio_mercado_tanda_i on precio_mercado (tanda_id, estado);
+alter table precio_mercado enable row level security;
+select erp_politica_org('precio_mercado');
