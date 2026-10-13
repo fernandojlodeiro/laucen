@@ -36,6 +36,7 @@ Una fila por publicación con propuesta:
 - **Plan**: Clásica, Premium o el plan de cuotas de esa publicación.
 - **Rango de ML**: el precio más bajo y el más alto que acepta la oferta. Mercado Libre lo calcula sobre el precio publicado (el tachado), por eso el más alto puede quedar arriba de lo que paga hoy el comprador.
 - **Entraría a**: el precio con que se entra. Un peso debajo de lo que paga hoy el comprador, sin pasar el más alto del rango. En muchas publicaciones Mercado Libre la acepta así. En otras la rechaza por «precio no creíble»: ahí pasa al precio que propone Mercado Libre para esa relámpago (en general, 5 % debajo de hoy) y se vuelve a probar. Se puede cambiar a mano, siempre dentro del rango («a mano» debajo). «no entra» si queda fuera del rango.
+- **Baja %**: cuánto más barato que lo que paga hoy el comprador entra a la oferta.
 - **Recibirás**: lo que te queda por venta en la oferta. **Costo relámpago**: qué parte de lo que paga hoy el comprador no te llega si vendés en la oferta (el descuento, la comisión y el envío), en %.
 - **Diferencia** (en pesos) y **Diferencia %** (en puntos: costo relámpago menos costo hoy): cuánto más te cuesta cada venta en la oferta. Mercado Libre puede sumar un descuento propio para el comprador, que no sale de lo tuyo.
 - **Piso**: lo mínimo que aceptás recibir por una venta de ese producto. Vale para todas las cuentas. En verde, las que alcanzan el piso y tienen el stock; en rojo, las que no.
@@ -53,13 +54,20 @@ Arriba a la derecha, **«Preparar las que alcanzan el piso (N)»** (de la cuenta
 1. Botón «Entrar» de la fila (primera columna). La pregunta se abre en un renglón arriba de la tabla, sin tapar los datos: dice el precio, las unidades y cuánto recibirás. Apretá «Sí» (o «No»).
 2. Sale a Mercado Libre en un par de minutos; la columna pasa a «Aceptada» (o dice por qué no).
 
+### Entrar a todas las que bajan poco, con un clic
+1. Arriba de la tabla, en «Entrar a todas las que bajan hasta», elegí el porcentaje (por ejemplo 5 %). El botón dice a cuántas entraría.
+2. Apretá «Entrar a …» y «Sí» en la pregunta que se abre arriba de la tabla.
+3. Entra a las propuestas de la cuenta elegida (o de todas, con «Todas las cuentas») que bajan ese porcentaje o menos, alcanzan el piso y tienen el stock que piden. **Una sola publicación por producto**: si el mismo producto tiene varias publicaciones o está en varias cuentas, se elige una al azar, y un producto que ya tiene una relámpago se saltea. Entra con todas las unidades disponibles (hasta el máximo que acepta la oferta).
+
+Los títulos de las columnas se tocan para ordenar (por ejemplo «Baja %», de menor a mayor, para ver primero las que menos exige Mercado Libre).
+
 ### Entrar a varias de una vez
 1. Apretá «Preparar las que alcanzan el piso» y confirmá. Se arma un lote por cuenta con las propuestas que alcanzan el piso y tienen el stock que piden.
 2. Mandalo desde Configuración › Cola de Mercado Libre, pestaña «Lotes preparados», con «Mandar a Mercado Libre».
 
 ## Criterios y reglas
 
-- **Entrar solo** (interruptor por cuenta, apagado de entrada): prendido, cada 10 minutos Laucen entra solo a las propuestas de esa cuenta cuyo precio de «Entraría a» no baja más de **5 %** lo que paga hoy el comprador y que alcanzan el piso (si el producto tiene piso), con **todas las unidades disponibles** hasta el máximo que acepta la oferta (o las que pusiste a mano en la fila). Tiene prioridad sobre las otras campañas. Entra una sola vez por propuesta: si Mercado Libre la rechaza, queda el motivo en «Entrar» y se vuelve a probar sola sólo si cambia el precio de entrada.
+- **Entrar solo** (interruptor por cuenta, apagado de entrada): prendido, cada 10 minutos Laucen entra solo a las propuestas de esa cuenta cuyo precio de «Entraría a» no baja más de **5 %** lo que paga hoy el comprador y que alcanzan el piso (si el producto tiene piso), con **todas las unidades disponibles** hasta el máximo que acepta la oferta (o las que pusiste a mano en la fila), y una sola publicación por producto (si el producto ya tiene una relámpago en cualquier cuenta, no entra otra). Tiene prioridad sobre las otras campañas. Entra una sola vez por propuesta: si Mercado Libre la rechaza, queda el motivo en «Entrar» y se vuelve a probar sola sólo si cambia el precio de entrada.
 - **Mientras espera su día**: aceptar una relámpago no cambia nada hasta que empieza. La publicación sigue vendiéndose con la campaña que tenía (o sin campaña), y en esos días el esquema de precios no le toca el precio ni las campañas. Durante su franja, y mientras le queden unidades, el comprador ve el precio de la relámpago; al terminar, la publicación sigue con las campañas que tenga vigentes.
 
 - **Recibís** = lo que paga el comprador − la comisión de Mercado Libre a ese precio (incluye el cargo fijo) − lo que te cobra por el envío gratis (sólo desde el precio de envío gratis; debajo lo paga el comprador). La comisión y el envío se los pregunta Laucen a Mercado Libre para cada publicación y cada precio; mientras se leen (cada media hora) se ve «—».

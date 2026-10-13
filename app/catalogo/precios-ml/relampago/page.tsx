@@ -11,11 +11,13 @@ import { entrarErp, Pantalla, Avisos, Lapiz, url, CAJA_TABLA, THEAD, TR } from "
 import { consulta } from "@/lib/erp/base";
 import { formatear } from "@/lib/moneda";
 import { coincideBusqueda } from "@/lib/busqueda";
-import { relampagos, enviosRelampago, fechaRelampago, entraSola, RELAMPAGO_AUTO_PCT, type Relampago } from "@/lib/precios-ml/relampago";
+import { relampagos, enviosRelampago, fechaRelampago, entraSola, unaPorProducto, RELAMPAGO_AUTO_PCT, type Relampago } from "@/lib/precios-ml/relampago";
 import BuscadorVivo, { CasillaViva } from "@/app/componentes/BuscadorVivo";
 import { PLAN_INFO } from "@/lib/precios-ml/motor";
 import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
-import { accionEntrarRelampago, accionGuardarFilaRelampago, accionPrepararRelampagos } from "./acciones";
+import { accionEntrarRelampago, accionEntrarRelampagosHasta, accionGuardarFilaRelampago, accionPrepararRelampagos } from "./acciones";
+import { ThOrden } from "@/app/componentes/Lista";
+import { FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import { accionInterruptor } from "../acciones";
 import { Interruptor } from "@/app/radar/Piezas";
 import { BarraPml } from "../comun";
@@ -23,7 +25,16 @@ import { RELAMPAGO_PML, canalElegido } from "../lista";
 
 export const dynamic = "force-dynamic";
 
-type SP = { canal?: string; editar?: string; q?: string; contiene?: string; todas?: string; aceptadas?: string; ok?: string; error?: string };
+type SP = { canal?: string; editar?: string; q?: string; contiene?: string; todas?: string; aceptadas?: string; orden?: string; dir?: string; hasta?: string; ok?: string; error?: string };
+
+// Orden tocando el título (Fer, 13/10): columna → valor de la fila (lista blanca; en memoria).
+const ORDEN: Record<string, (f: Relampago) => string | number | null> = {
+  sku: (f) => f.sku, producto: (f) => f.titulo, cuenta: (f) => f.cuenta, plan: (f) => f.plan, estado: (f) => f.estado, cuando: (f) => f.desde,
+  stock: (f) => f.stock, entra: (f) => f.stockEntrar, hoy: (f) => f.hoy, recibis: (f) => f.recibisHoy, costo: (f) => f.costoHoyPct,
+  rel: (f) => f.rel, baja: (f) => f.bajaPct, recibiras: (f) => f.recibisRel, costorel: (f) => f.costoRelPct, dif: (f) => f.diferencia,
+  difpct: (f) => (f.costoRelPct != null && f.costoHoyPct != null ? f.costoRelPct - f.costoHoyPct : null), piso: (f) => f.piso,
+};
+const PCTS = [0, 1, 2, 3, 5, 7, 10];
 
 // Columnas apretadas (Fer, 12/10): la tabla no se estira al ancho de la pantalla y los títulos largos van en dos renglones.
 const TH = "py-1.5 px-1.5 text-left font-semibold leading-tight align-bottom";
@@ -55,6 +66,11 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
   const todas = (await relampagos(s.org.id, todasCuentas ? null : canal?.id ?? null)).filter((f) => !soloAceptadas || f.estado !== "candidate");
   // Por SKU, título o número de publicación, con la regla de todos los buscadores (lib/busqueda.ts).
   const filas = q ? todas.filter((f) => coincideBusqueda([f.sku, f.titulo, f.item_id], q, comienza)) : todas;
+  const ordenar = sp.orden && Object.hasOwn(ORDEN, sp.orden) ? ORDEN[sp.orden] : null;
+  if (ordenar) {
+    const d = sp.dir === "desc" ? -1 : 1;
+    filas.sort((a, b) => { const x = ordenar(a), y = ordenar(b); if (x == null) return y == null ? 0 : 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * d; });
+  }
   const envios = await enviosRelampago(s.org.id);
   const editar = sp.editar ?? "";
   const productos = [...new Set(filas.map((f) => f.producto_id))];
@@ -62,6 +78,12 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
     "select producto_id::int, array_agg(url order by orden) fotos from producto_foto where producto_id = any($1::bigint[]) group by producto_id", [productos]) : [])
     .map((x) => [x.producto_id, x.fotos]));
   const listas = filas.filter((f) => f.estado === "candidate" && f.alcanza === true && f.conStock !== false).length;
+  // «Entrar a todas las que bajan hasta X %» (Fer, 13/10): cuántas serían, una por producto.
+  const hastaPct = PCTS.includes(Number(sp.hasta)) && sp.hasta !== undefined && sp.hasta !== "" ? Number(sp.hasta) : 5;
+  const todasCuentasFilas = todasCuentas ? todas : await relampagos(s.org.id, null);
+  const envios0 = await enviosRelampago(s.org.id);
+  const nHasta = unaPorProducto(todas.filter((f) => f.estado === "candidate" && f.rel != null && f.bajaPct != null && f.bajaPct <= hastaPct + 0.05
+    && f.alcanza !== false && f.stock != null && f.stock > 0 && (f.stock_min == null || f.stock >= f.stock_min)), todasCuentasFilas, envios0, () => 0).length;
   const aqui = (extra: Record<string, unknown> = {}) => url(RELAMPAGO_PML, {
     canal: canal?.id, q: q || null, contiene: comienza ? null : "1", todas: todasCuentas ? "1" : null, aceptadas: soloAceptadas ? "1" : null, ...extra });
   return (
@@ -85,6 +107,18 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
         <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar por SKU, producto o publicación" limpiar={["editar"]} />
         <span className="text-[11px] text-[#5C6B76]">{filas.length} de {todas.length}</span>
       </>} />}
+      {/* Entrar de una a todas las que bajan hasta X % (una por producto, con todas las unidades). */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-[#5C6B76]">
+        <span>Entrar a todas las que bajan hasta</span>
+        <FiltroVivo parametro="hasta" valor={String(hastaPct)} etiqueta="Baja máxima">
+          {PCTS.map((x) => <option key={x} value={x}>{x} %</option>)}
+        </FiltroVivo>
+        <BotonPreguntar grupo="hasta" clase={VERDE} texto={`Entrar a ${nHasta}`} corriendo="Mandando…"
+          campos={{ canal: todasCuentas ? "" : String(canal?.id ?? ""), pct: String(hastaPct), volver: aqui() }}
+          pregunta={`¿Entrar a ${nHasta} ofertas relámpago${todasCuentas ? " (todas las cuentas)" : ` de ${canal?.nombre ?? ""}`} que bajan ${hastaPct} % o menos lo que paga hoy el comprador? Una sola publicación por producto (al azar entre sus publicaciones y cuentas), con todas las unidades disponibles. El día y la hora los fija Mercado Libre; una vez activa no se puede borrar.`} />
+        <span>· una por producto, con todas las unidades</span>
+      </div>
+      <PreguntaArriba accion={accionEntrarRelampagosHasta} grupo="hasta" />
       {/* La confirmación de «Entrar» (y de «Preparar…») se abre acá, arriba de la tabla, sin desarmar la fila. */}
       <PreguntaArriba accion={accionEntrarRelampago} />
       <PreguntaArriba accion={accionPrepararRelampagos} grupo="preparar" />
@@ -93,14 +127,14 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
         <table className="text-xs min-w-max">
           <thead className={`${THEAD} sticky top-0 z-10`}>
             <tr>
-              <th className={TH}>Entrar</th><th className={TH}>SKU</th><th className={TH}>Producto</th><th className={TH}>Cuenta</th><th className={TH}>Publicación</th><th className={TH}>Plan</th><th className={TH}>Estado</th>
-              <th className={TH}>Cuándo</th><th className={THN}>Stock<br />tenés</th><th className={THN}>Entra<br />con</th><th className={THN}>Hoy<br />paga</th><th className={THN}>Hoy<br />recibís</th><th className={THN}>Costo<br />hoy</th>
-              <th className={THN}>Rango<br />de ML</th><th className={THN}>Entraría<br />a</th><th className={THN}>Recibirás</th><th className={THN}>Costo<br />relámpago</th>
-              <th className={THN}>Diferencia</th><th className={THN}>Diferencia<br />%</th><th className={THN}>Piso</th><th />
+              <th className={TH}>Entrar</th><ThOrden col="sku" className={TH}>SKU</ThOrden><ThOrden col="producto" className={TH}>Producto</ThOrden><ThOrden col="cuenta" className={TH}>Cuenta</ThOrden><th className={TH}>Publicación</th><ThOrden col="plan" className={TH}>Plan</ThOrden><ThOrden col="estado" className={TH}>Estado</ThOrden>
+              <ThOrden col="cuando" className={TH}>Cuándo</ThOrden><ThOrden col="stock" n className={THN}>Stock<br />tenés</ThOrden><ThOrden col="entra" n className={THN}>Entra<br />con</ThOrden><ThOrden col="hoy" n className={THN}>Hoy<br />paga</ThOrden><ThOrden col="recibis" n className={THN}>Hoy<br />recibís</ThOrden><ThOrden col="costo" n className={THN}>Costo<br />hoy</ThOrden>
+              <th className={THN}>Rango<br />de ML</th><ThOrden col="rel" n className={THN}>Entraría<br />a</ThOrden><ThOrden col="baja" n desc={false} className={THN} title="Cuánto más barato que hoy entra">Baja<br />%</ThOrden><ThOrden col="recibiras" n className={THN}>Recibirás</ThOrden><ThOrden col="costorel" n className={THN}>Costo<br />relámpago</ThOrden>
+              <ThOrden col="dif" n className={THN}>Diferencia</ThOrden><ThOrden col="difpct" n desc={false} className={THN}>Diferencia<br />%</ThOrden><ThOrden col="piso" n className={THN}>Piso</ThOrden><th />
             </tr>
           </thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={20} className={`${TD} text-[#5C6B76]`}>{q ? "Ninguna coincide con la búsqueda." : "Mercado Libre no te propone ninguna oferta relámpago en esta cuenta ahora."}</td></tr>}
+            {filas.length === 0 && <tr><td colSpan={21} className={`${TD} text-[#5C6B76]`}>{q ? "Ninguna coincide con la búsqueda." : "Mercado Libre no te propone ninguna oferta relámpago en esta cuenta ahora."}</td></tr>}
             {filas.map((f) => {
               const color = f.alcanza === true && f.conStock !== false ? "text-[#1E7B3A]" : f.alcanza === false || f.conStock === false ? "text-[#C03420]" : "";
               const difPct = f.costoRelPct != null && f.costoHoyPct != null ? Math.round((f.costoRelPct - f.costoHoyPct) * 10) / 10 : null;
@@ -153,6 +187,7 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
                       ? <CampoNumero name="precio" form={idForm} valor={f.elegido} tipo="pesos" placeholder={f.rel == null ? "" : formatear(f.rel, "ARS")} className="w-28" />
                       : <><b>{f.rel == null ? "no entra" : pesos(f.rel)}</b>{f.elegido != null && <span className="block text-[10px] text-[#5C6B76]">a mano</span>}</>}
                   </td>
+                  <td className={`${TDN} ${f.bajaPct != null && f.bajaPct <= 5 ? "text-[#1E7B3A]" : ""}`}>{pct(f.bajaPct)}</td>
                   <td className={`${TDN} ${color}`}><b>{pesos(f.recibisRel)}</b></td>
                   <td className={TDN}>{pct(f.costoRelPct)}</td>
                   <td className={`${TDN} ${f.diferencia != null && f.diferencia < 0 ? "text-[#C03420]" : ""}`}>{f.diferencia == null ? "—" : `${f.diferencia > 0 ? "+" : ""}${formatear(f.diferencia, "ARS")}`}</td>
@@ -182,6 +217,7 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
         <b> Costo hoy</b>: qué parte de lo que paga hoy el comprador se lleva Mercado Libre (comisión y envío). <b>Costo relámpago</b>: qué parte de ese mismo precio de hoy no te llega si vendés en la oferta (el descuento más la comisión y el envío). <b>Diferencia %</b>: cuántos puntos más te cuesta cada venta en la oferta.
         <b> Rango de ML</b>: el precio más bajo y el más alto que acepta la propuesta; Mercado Libre lo calcula sobre el precio publicado (el tachado).
         <b> Entraría a</b>: un peso debajo de lo que paga hoy el comprador, sin pasar el más alto del rango; si Mercado Libre lo rechaza por «no creíble», el precio que propone para la relámpago (en general 5 % debajo de hoy).
+        <b> Baja %</b>: cuánto más barato que hoy entra. <b>«Entrar a todas las que bajan hasta X %»</b>: con un clic entra a las que bajan eso o menos, alcanzan el piso y tienen el stock que piden; una sola publicación por producto (al azar entre sus publicaciones y cuentas; se saltea un producto que ya tiene una relámpago), con todas las unidades disponibles. Los títulos se tocan para ordenar.
         <b> Cuándo</b>: el día y la hora los fija Mercado Libre recién cuando aceptás; no se eligen.
         <b> Stock tenés</b>: el disponible de la publicación. <b>Entra con</b>: las unidades que se comprometen (de entrada, el mínimo que pide la propuesta; abajo, el mínimo y el máximo que acepta); en una aceptada, las que le quedan a la oferta.
         <b> Piso</b>: lo mínimo que aceptás recibir por una venta de ese producto (vale para todas las cuentas). En verde, las que lo alcanzan y tienen el stock; en rojo, las que no.

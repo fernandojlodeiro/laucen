@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { precioRelampago, recibis, costoPct, fechaRelampago, entraSola, stockAuto } from "@/lib/precios-ml/relampago";
+import { precioRelampago, recibis, costoPct, fechaRelampago, entraSola, stockAuto, unaPorProducto, type Relampago } from "@/lib/precios-ml/relampago";
 
 test("recibis: precio menos comisión menos envío; sin un dato, no se sabe", () => {
   assert.equal(recibis(962_999, 122_949.69, 9_590), 830_459);
@@ -51,4 +51,16 @@ test("stockAuto: todas las unidades hasta el máximo de la oferta, o las elegida
   assert.equal(stockAuto({ stock: 19, stock_max: 19, elegido_stock: null }), 19);
   assert.equal(stockAuto({ stock: 40, stock_max: 19, elegido_stock: null }), 19);
   assert.equal(stockAuto({ stock: 40, stock_max: 19, elegido_stock: 6 }), 6);
+});
+
+test("unaPorProducto: una publicación por producto, salteando los que ya tienen una relámpago", () => {
+  const f = (item_id: string, producto_id: number, estado = "candidate", rel = 100) => ({ item_id, producto_id, estado, rel } as Relampago);
+  const cand = [f("A1", 1), f("A2", 1), f("A3", 1), f("B1", 2), f("C1", 3)];
+  const todas = [...cand, f("C2", 3, "pending")];
+  const r = unaPorProducto(cand, todas, new Map(), () => 0);
+  assert.deepEqual(r.map((x) => x.item_id), ["A1", "B1"], "una del 1, la del 2; el 3 ya tiene una aceptada");
+  const conEnvio = unaPorProducto(cand, todas, new Map([["B1", { estado: "ok", error: null, precio: 100 }]]), () => 0);
+  assert.deepEqual(conEnvio.map((x) => x.item_id), ["A1"], "el 2 ya se mandó");
+  const rechazada = unaPorProducto(cand, todas, new Map([["B1", { estado: "error", error: "no creíble", precio: 105 }]]), () => 0);
+  assert.deepEqual(rechazada.map((x) => x.item_id), ["A1", "B1"], "rechazada a otro precio: se vuelve a probar");
 });
