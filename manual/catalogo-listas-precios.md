@@ -37,8 +37,8 @@ Al editar una lista: nombre, moneda base, **Se calcula desde** ("Ninguna (precio
 
 Título "Precios de "…" · se ven en pesos/dólares" (según el interruptor $ / US$ de arriba). Si es derivada, explica: "Esta lista se calcula: … Un precio cargado a mano acá gana sobre el calculado (los calculados dicen "calculado")."
 
-- Buscador **"Buscar SKU, título o código de barras"** con "Comienza por" y **Mostrar inactivos**, y su propio **Descargar Excel** (trae también precios en dólares, código de barras y si el precio es propio de la lista).
-- Una fila por **variación activa**: **SKU** (lleva a la ficha, con su foto), **Variación**, **Precio de lista** (tachado si hay descuento; "sin precio" si no tiene), **Descuento**, **Precio de venta**, **Vigente desde**, **Cargado en** (Pesos / Dólares, y la marca "calculado" si sale de la lista base), y el lápiz **Editar precio**.
+- Buscador **"Buscar SKU, título o código de barras"** con "Comienza por" y **Mostrar inactivos**, el desplegable **Precio de mercado** (Todos / Precio de mercado confirmado / Monitoreado sin confirmar / Sin seguimiento) y su propio **Descargar Excel** (trae también precios en dólares, código de barras, si el precio es propio de la lista y el estado del precio de mercado).
+- Una fila por **variación activa**: **SKU** (lleva a la ficha, con su foto), **Variación**, **Precio de lista** (tachado si hay descuento; "sin precio" si no tiene; al lado, la marca del precio de mercado: ✓ verde confirmado, ? ámbar monitoreado sin confirmar, ○ gris sin seguimiento —ver [Productos](/catalogo/productos)—; tocándola abre la pestaña Seguimiento del producto), **Descuento**, **Precio de venta**, **Vigente desde**, **Cargado en** (Pesos / Dólares, y la marca "calculado" si sale de la lista base), y el lápiz **Editar precio**.
 - Al editar: el importe (si el precio es calculado, el campo viene vacío y dice "Calculado: …"), la moneda en que se carga, **Guardar** / **Cancelar**.
 - De a 50 filas; todas las columnas con ▲/▼ se ordenan tocando el título.
 

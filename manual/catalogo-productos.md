@@ -37,6 +37,7 @@ Filtros (filtran al momento, sin botón "Buscar"):
 - **Marca**: desplegable con buscador (de [Marcas](/catalogo/marcas)); "Todas las marcas" saca el filtro.
 - **Proveedor preferido**: desplegable con buscador (de [Proveedores](/compras/proveedores)); "Todos los proveedores" saca el filtro. La columna **Proveedor preferido** se puede sumar a la vista; tocando el nombre filtra por ese proveedor.
 - **Tipo**: Todos los tipos / Simple / Con variaciones / Kit.
+- **Precio de mercado**: Cualquier precio de mercado / Precio de mercado confirmado / Monitoreado sin confirmar / Sin seguimiento (ver «La marca del precio de mercado», más abajo).
 - **Kits de Virtual Seller**: sólo los marcados como kit que vino de Virtual Seller y hay que armar a mano.
 - **Sin publicar en ningún canal**: productos que no tienen ninguna publicación activa en ningún canal (ninguna cuenta de Mercado Libre ni la web). Los **No publicables** no aparecen.
 - **Publicables**: sólo los que NO están marcados como No publicable (los no publicables ni se ven).
@@ -191,6 +192,14 @@ Si falta el SKU o el título: "El producto necesita SKU base y título." **Ning�
 
 **SKU sugerido**: el formato de la casa es «SKU» seguido de un número de 5 cifras (6 cuando pasa de 99999). Se busca el número más alto entre todos los SKU con ese formato (los de las variaciones también, y los que siguen con un agregado, como «SKU03542-BC») y se propone el siguiente. Los SKU con otro formato no cuentan.
 
+### La marca del precio de mercado
+
+Al lado del título en la ficha, en la columna **Precio de mercado** de la lista de productos, junto al precio en [Listas de precios](/catalogo/precios) y junto a la Clásica en [Sugerencia de compra](/compras/sugerencia) hay un circulito que dice cómo está controlado el precio contra la competencia (al pasar el mouse lo explica; tocándolo abre la pestaña Seguimiento):
+- **✓ verde — Precio de mercado confirmado**: el producto sigue al menos una publicación de la competencia que **una persona agregó o revisó**.
+- **? ámbar — Monitoreado sin confirmar**: sólo sigue publicaciones que **eligió sola la búsqueda de precio de mercado** y nadie revisó todavía.
+- **○ gris — Sin seguimiento**: no sigue ninguna.
+No cuentan las publicaciones excluidas de la regla. Para ver los que falta revisar: [Seguimientos](/catalogo/seguimientos).
+
 ### Seguir publicaciones de la competencia (pestaña Seguimiento)
 
 La pestaña **Seguimiento (N)** de la ficha guarda las publicaciones de otros vendedores que querés vigilar, con lo último que se leyó de cada una: foto, título (con ↗ a Mercado Libre), número, si es de catálogo, **vendedor** (y si es tienda oficial), **precio** (con el precio tachado si tiene descuento, y ▼/▲ con cuánto cambió desde la lectura anterior), **tipo** de publicación (Clásica, Premium…) y cuotas, **entrega** (en cuántos días llega a Capital Federal, en rojo si tarda más de lo que compite, y si el envío es gratis), **estado** (Activa, Pausada, Terminada, "No figura en el catálogo" o "Sin leer todavía") y cuándo se **leyó**. Ordenadas de la más barata a la más cara.
@@ -201,7 +210,8 @@ Para elegir cuáles seguir:
 3. Aparecen las publicaciones encontradas, de entrada **en el mismo orden que las muestra el buscador de Mercado Libre** (más relevantes), con foto, título, vendedor, precio, tipo de publicación y cuotas, y envío. Cuando lo encontrado es un **producto de catálogo** de Mercado Libre, se muestra **cada vendedor que compite en ese catálogo** (con su vendedor, precio, tipo y envío reales), marcados **📖 Catálogo**; las de publicidad también están marcadas. En un producto de catálogo, el título que se ve es el del catálogo: es el mismo que ve el comprador. El desplegable **Ordenar** cambia el orden: **Como en Mercado Libre**, **Precio, de menor a mayor** o **Parecido al título del producto**.
 En un producto de catálogo, Mercado Libre muestra el título del catálogo para todos los vendedores que compiten en él, aunque cada uno haya publicado con otro título: por eso esos renglones dicen «el título es el del catálogo».
 4. De entrada **no se muestran los packs ni las de varias unidades** («Pack de 2», «5 X…», «x10», «kit», «combo», «lote», «10 unidades»), salvo que el producto también sea un pack, **ni las nuestras** (se reconocen por el número de publicación y por la cuenta). Tampoco **las internacionales** (vendedor de afuera o entrega internacional: su precio no se compara porque le faltan los impuestos; llevan la marca **🌐 Internacional**) ni **las que tardan en llegar más de lo que compite** (ver [Seguimiento de publicaciones](/config/seguimiento)). Las cajas **Mostrar también packs y varias unidades (N)**, **Mostrar también las nuestras (N)** y **Mostrar también las que tardan más de N días (N)** y **Mostrar también las internacionales (N)** las agregan; las nuestras dicen **Nuestra**.
-5. Al lado de cada una, **+ Seguir** la agrega (sin costo). Las que ya seguís dicen **✓ Siguiendo**.
+5. La columna **IA** dice si la inteligencia artificial juzga que es **el mismo producto** que el nuestro: **✓ Comparable** (en verde) o **✗ No**, con el motivo corto («mismo modelo, 5 lentes y LED», «es otro modelo», «Es nuestra», «Pack o varias unidades»…). Sirve para elegir rápido; no sigue nada sola.
+6. Al lado de cada una, **+ Seguir** la agrega (sin costo). Las que ya seguís dicen **✓ Siguiendo**.
 
 La última búsqueda queda guardada: volver a la pestaña no cuesta; buscar de nuevo, sí.
 
@@ -215,14 +225,19 @@ Las publicaciones **MLAU…** («producto de vendedor») se leen sólo si compit
 
 **Leer ahora** relee las de este producto en el momento (pregunta antes, porque las comunes cuestan). Además se releen solas cada tantos días (ver [Seguimiento de publicaciones](/config/seguimiento)). El tacho deja de seguir una.
 
-Debajo del precio de cada publicación que seguís está **su último cambio**: ▲ (verde) o ▼ (rojo), cuánto en pesos y en %, y la fecha; «sin cambios» si nunca cambió. **La fila se pinta de amarillo si cambió en la última lectura**, y **de rosa si además es la referencia de la regla de precio**. La que usa la regla para comparar lleva la marca **🎯 Referencia de la regla** (la elegida, o la más barata de las activas si la regla compara contra la más barata).
+Debajo del precio de cada publicación que seguís está **su último cambio**: ▲ (verde) o ▼ (rojo), cuánto en pesos y en %, y la fecha desde la que tiene el precio de hoy; si nunca cambió, «igual desde el comienzo (dd/mm)», con la fecha en que se empezó a seguir. **La fila se pinta de amarillo si cambió en la última lectura**, y **de rosa si además es la referencia de la regla de precio**. La que usa la regla para comparar lleva la marca **🎯 Referencia de la regla** (la elegida, o la más barata de las activas si la regla compara contra la más barata).
+
+**Seguidas solas por la búsqueda de precio de mercado.** La búsqueda de precio de mercado ([Sugerencia de compra](/compras/sugerencia)) guarda lo que encontró como la última búsqueda del producto (se ve en **Buscar en Mercado Libre para seguir**, con la columna IA) y **sigue sola las publicaciones que la IA juzga iguales** (las más baratas, hasta lo que diga [Seguimiento de publicaciones](/config/seguimiento)). Esas llevan la marca **🤖 Automática · sin revisar** (al pasar el mouse, el motivo de la IA) y **no cuentan para la regla de precio** hasta que una persona las revisa:
+- la caja **Revisada** de su fila la confirma (o la vuelve a dejar sin confirmar); al confirmarla pasa a **🤖 Automática · revisada** (al pasar el mouse, quién y cuándo);
+- **✓ Confirmar todas (N)**, arriba a la derecha de la caja, confirma de una vez todas las sin revisar del producto.
+Las que agrega una persona (con **+ Seguir** o por número) ya nacen revisadas.
 
 En cada fila de las que seguís:
 - **El tacho, a la derecha de la fila**, deja de seguirla (pregunta ahí mismo «Sí» / «No»).
 - **Fuera de la regla — Excluir**: tildada, la seguís y ves su precio, pero **la regla de precio no la tiene en cuenta** (por ejemplo, un vendedor que a veces pone un precio puntual muy bajo). Graba al tocarla y la regla se vuelve a revisar enseguida.
 - **🌐 Internacional**: tampoco cuenta para la regla.
 
-**📈 Historial (N)**, a la derecha de cada publicación que seguís, abre debajo de ella cada lectura que se hizo (N es cuántas hay), de la más nueva a la más vieja: fecha y hora, precio (con el tachado si tenía descuento), **cuánto cambió** respecto de la lectura anterior (▼ en rojo si bajó, ▲ en verde si subió, en pesos y en %), tipo de publicación y estado. Tocándolo de nuevo se cierra. Cada vuelta automática y cada **Leer ahora** suman una lectura.
+**📈 Historial (N)**, a la derecha de cada publicación que seguís, abre debajo de ella **sólo las veces que cambió algo** —el precio, el estado o el tipo de publicación— (N es cuántos cambios hubo), de la más nueva a la más vieja: desde cuándo, precio (con el tachado si tenía descuento), **cuánto cambió** (▼ en rojo si bajó, ▲ en verde si subió, en pesos y en %), tipo y estado. El último renglón es el **Comienzo del seguimiento**. Las lecturas que encontraron todo igual no se muestran; al pie dice cuándo fue la última lectura. Tocándolo de nuevo se cierra.
 
 ### Regla de precio (pestaña Seguimiento)
 

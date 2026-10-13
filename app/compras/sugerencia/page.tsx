@@ -1,6 +1,7 @@
 // Compras › Sugerencia de compra (pedido de Fer, 12/10; lib/compras/sugerencia.ts): qué comprar para N días según el
 // ritmo real de venta de la historia (típico y mejor momento), cuánto se invierte y qué ganancia podría dejar.
 
+import MarcaMercado from "@/app/componentes/MarcaMercado";
 import Link from "next/link";
 import { VERDE } from "@/app/botones";
 import BuscadorVivo, { CasillaViva } from "@/app/componentes/BuscadorVivo";
@@ -110,7 +111,7 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
               <ThOrden col="inversion" n desc title="A comprar × costo">Inversión US$</ThOrden>
               <ThOrden col="ultima" desc>Últ. venta</ThOrden>
               <ThOrden col="clasica" n desc title="El precio de la lista Clásica: de acá sale la ganancia">Clásica</ThOrden>
-              <ThOrden col="mercado" n desc title="Precio de mercado: la mediana de lo que se vende hoy en Mercado Libre (publicaciones parecidas, sin packs ni las nuestras). Al pasar el mouse, el cuarto más barato">Mercado</ThOrden>
+              <ThOrden col="mercado" n desc title="Precio de mercado: el cuarto más barato de lo que se vende hoy en Mercado Libre, contando sólo las publicaciones que la IA juzgó iguales al producto (sin packs, ni las nuestras, ni internacionales). Al pasar el mouse, la mediana">Mercado</ThOrden>
               <ThOrden col="precio" n desc title="La última venta llevada a pesos de hoy (sólo de referencia)">Últ. venta hoy</ThOrden>
               <th className={THN} title="Comisión, cargo fijo o envío de Mercado Libre">ML</th>
               <ThOrden col="ganancia_unit" n desc title="Ganancia por unidad">Ganancia</ThOrden>
@@ -154,9 +155,11 @@ export default async function SugerenciaCompra({ searchParams }: { searchParams:
                 <td className={`${TD} whitespace-nowrap text-[11px] leading-tight`} title={`En dólares: ${usd(x.precio_usd)}`}>
                   {dma(x.ultima_fecha)}<span className="block">{pesos(x.ultima_precio)}</span><span className="block text-[#5C6B76]">dólar {x.ultima_tc ? formatearNumero(x.ultima_tc, "pesos") : "—"}</span>
                 </td>
-                <td className={`${TDN} font-semibold`}>{pesos(x.clasica)}</td>
+                <td className={`${TDN} font-semibold whitespace-nowrap`}>
+                  <span className="inline-flex items-center gap-1.5">{pesos(x.clasica)}{x.producto_id != null && <MarcaMercado estado={x.estado_mercado} href={`/catalogo/productos/${x.producto_id}?seccion=seguimiento`} />}</span>
+                </td>
                 <td className={`${TDN} ${x.mercado != null && x.clasica && x.mercado > x.clasica * 1.15 ? "text-[#1F7A3A] font-semibold" : ""}`}
-                  title={x.mercado != null ? `${x.mercado_n} publicaciones parecidas el ${fechaCorta(x.mercado_ts)} · el cuarto más barato ${pesos(x.mercado_p25)}${x.clasica ? ` · ${Math.round((x.mercado / x.clasica - 1) * 100)} % contra la Clásica` : ""}` : "Sin buscar"}>
+                  title={x.mercado != null ? `${x.mercado_n} publicaciones iguales el ${fechaCorta(x.mercado_ts)} · la mediana ${pesos(x.mercado_mediana)}${x.clasica ? ` · ${Math.round((x.mercado / x.clasica - 1) * 100)} % contra la Clásica` : ""}` : "Sin buscar"}>
                   {pesos(x.mercado)}
                 </td>
                 <td className={`${TDN} text-[#5C6B76]`} title={x.precio_base === "ultima" ? "Sin precio en la Clásica: la ganancia sale de este precio" : undefined}>

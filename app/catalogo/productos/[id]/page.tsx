@@ -7,6 +7,8 @@
 // (manda el formulario "ficha" de la sección). En las grillas, el lápiz es de
 // cada fila (?editar=<id>) y el alta va detrás de "Nuevo …" arriba a la derecha.
 
+import MarcaMercado from "@/app/componentes/MarcaMercado";
+import { esEstadoMercado, sqlEstadoMercado } from "@/lib/seguimiento/estado-mercado";
 import SeccionSeguimiento from "./Seguimiento";
 import CambiosPrecio from "./CambiosPrecio";
 import SeccionCompras from "./Compras";
@@ -75,6 +77,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
            (select count(*) from publicacion pu join variacion v on v.id = pu.variacion_id where v.producto_id = $2 and pu.organizacion_id = $1)::int publicaciones,
            (select count(*) from cucarda c where c.organizacion_id = $1 and c.estado = 'activa')::int cucardas_activas,
            (select count(*) from seguimiento_pub sg where sg.producto_id = $2 and sg.organizacion_id = $1)::int seguimiento,
+           ${sqlEstadoMercado("$2::bigint")} mercado,
            -- Compras: renglones de invoices confirmados y de compras por courier (las vinculadas a un invoice no cuentan dos veces).
            ((select count(*) from compra_invoice_linea l join compra_invoice i on i.id = l.invoice_id join variacion v on v.id = l.variacion_id
               where v.producto_id = $2 and i.organizacion_id = $1 and i.estado = 'confirmado' and i.fecha is not null)
@@ -119,7 +122,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
 
   return (
     <Pantalla
-      titulo={<span className="flex flex-wrap items-center gap-2"><span className="font-mono text-[#5C6B76]">{p.sku_base}</span> {p.titulo} <EstadoProducto estado={p.estado} />{p.no_publicable && <Estado texto="No publicable" tono="gris" />}</span>}
+      titulo={<span className="flex flex-wrap items-center gap-2"><span className="font-mono text-[#5C6B76]">{p.sku_base}</span> {p.titulo} <MarcaMercado estado={esEstadoMercado(n.mercado) ? n.mercado : null} href={`/catalogo/productos/${p.id}?seccion=seguimiento`} /> <EstadoProducto estado={p.estado} />{p.no_publicable && <Estado texto="No publicable" tono="gris" />}</span>}
       subtitulo={<>{TIPOS_PRODUCTO[p.tipo]}{p.familia ? ` · ${p.familia}` : ""}{p.marca ? ` · ${p.marca}` : ""}</>}
       camino={[{ texto: p.sku_base }]}
       acciones={

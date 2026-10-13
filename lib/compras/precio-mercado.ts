@@ -1,17 +1,19 @@
 // Precio de mercado (pedido de Fer, 13/10): ¿la Clásica está al día? Una búsqueda en Mercado Libre por producto (Apify,
 // el mismo actor del seguimiento de publicaciones y dentro de su tope de gasto del mes) con el título del producto.
-// De lo que aparece cuentan las publicaciones que se parecen (la mitad o más de las palabras de nuestro título; si
-// quedan menos de 3, un tercio), sin packs, sin las nuestras, en pesos y sin las internacionales (Fer, 13/10: no
-// compiten con nuestro stock local; como en el seguimiento: las que dicen «internacional» o tardan en llegar más que
-// la demora de Configuración › Seguimiento de publicaciones, leída por la API): el mínimo, el cuarto más barato (p25) y la
-// mediana. Se pide en tandas desde la Sugerencia de compra; cada vuelta procesa unos cuantos productos a la vez
-// y se relanza sola hasta terminar (/api/precios-mercado). Tablas en db/compras.sql. Sólo lee: no cambia precios.
+// Cada resultado de catálogo se abre en sus vendedores (API, gratis) y se marcan las nuestras (por cuenta y por número
+// de publicación), las internacionales y cuánto tardan en llegar. Después la IA dice cuáles son el mismo producto
+// (lib/seguimiento/comparables.ts): con ésas, el mínimo, el cuarto más barato (p25) y la mediana. La búsqueda queda
+// guardada en el producto (pestaña Seguimiento, con la marca de la IA) y las comparables más baratas se siguen solas,
+// sin confirmar (lib/seguimiento/auto.ts). Se pide en tandas desde la Sugerencia de compra; cada vuelta procesa unos
+// cuantos productos a la vez y se relanza sola hasta terminar (/api/precios-mercado). Tablas en db/compras.sql.
+// No cambia precios.
 
 import { revalidateTag } from "next/cache";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { correrConEntrada } from "@/lib/apify";
-import { cuentasDe } from "@/lib/mercadolibre/api";
-import { aPubEncontrada, configSeguimiento, diasDeEntrega, esPack, parecido, quedaParaGastar } from "@/lib/seguimiento";
+import { aPubEncontrada, armarEncontradas, completar, nuestras, quedaParaGastar, ultimaBusqueda, type PubEncontrada } from "@/lib/seguimiento";
+import { analizarBusqueda } from "@/lib/seguimiento/auto";
+import type { PubJuzgada } from "@/lib/seguimiento/comparables";
 import { urlPanel } from "@/lib/tienda/dominios";
 
 const ACTOR = "scrapesage~mercadolibre-scraper";
@@ -24,45 +26,24 @@ const SEGUNDOS_POR_VUELTA = 60; // + la última tanda de búsquedas (hasta ~3 mi
 /** Máximo de productos por tanda. */
 export const TOPE_TANDA = 300;
 
-export type PubMercado = { itemId: string; titulo: string; precio: number; vendedor: string | null; permalink: string | null; parecido: number; entregaDias?: number | null };
-export type Estadistica = { encontradas: number; minimo: number | null; p25: number | null; mediana: number | null; resultados: PubMercado[] };
-
-const cuantil = (xs: number[], q: number) => {
-  if (!xs.length) return null;
-  const s = [...xs].sort((a, b) => a - b);
-  const i = (s.length - 1) * q, b = Math.floor(i);
-  return s[b] + (s[Math.min(b + 1, s.length - 1)] - s[b]) * (i - b);
-};
+/** Lo que se guarda de cada comparable (las 15 más baratas). */
+export type PubMercado = { itemId: string; titulo: string; precio: number; vendedor: string | null; permalink: string | null; motivo: string | null; entregaDias?: number | null };
 
 /** El texto de búsqueda: el título sin lo que estorba (paréntesis, códigos SKU), hasta 60 letras. Pura. */
 export function textoBusqueda(titulo: string): string {
   return titulo.replace(/\(.*?\)/g, " ").replace(/\bSKU\S*/gi, " ").replace(/[^\p{L}\p{N}.,+ -]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 60).trim();
 }
 
-/** ¿El resultado de Apify dice que es internacional? Pura. */
-const diceInternacional = (x: Record<string, unknown>) => /internacional|international|compra internacional/i.test(JSON.stringify(x));
+/** Las comparables como se guardan en precio_mercado. Pura. */
+export const aGuardar = (comparables: PubJuzgada[]): PubMercado[] => comparables.slice(0, 15).map((p) => ({
+  itemId: p.itemId, titulo: p.titulo, precio: p.precio!, vendedor: p.vendedor, permalink: p.permalink, motivo: p.motivoIa ?? null, entregaDias: p.entregaDias ?? null,
+}));
 
-/** Las que se parecen, sin packs, sin las nuestras, en pesos y sin las que dicen internacional. Pura. */
-export function candidatas(nuestro: string, items: Record<string, unknown>[], propios: Set<string>, propiasIds: Set<string> = new Set()): PubMercado[] {
-  const todas = items.filter((x) => !diceInternacional(x)).map(aPubEncontrada).filter((p): p is NonNullable<typeof p> => !!p)
-    .filter((p) => p.precio != null && p.precio > 0 && (p.moneda ?? "ARS") === "ARS" && !esPack(p.titulo) && !propios.has((p.vendedor ?? "").toUpperCase().trim()) && !propiasIds.has(p.itemId))
-    .map((p) => ({ itemId: p.itemId, titulo: p.titulo, precio: p.precio!, vendedor: p.vendedor, permalink: p.permalink, parecido: Math.round(parecido(nuestro, p.titulo) * 100) / 100 }));
-  const vistos = new Set<string>();
-  const unicas = todas.filter((p) => !vistos.has(p.itemId) && !!vistos.add(p.itemId));
-  const cuentan = unicas.filter((p) => p.parecido >= 0.5);
-  return cuentan.length >= 3 ? cuentan : unicas.filter((p) => p.parecido >= 0.34);
-}
-
-/** Lo que cuenta de una búsqueda y sus números: las candidatas sin las que tardan más de `demora` días. Pura. */
-export function estadistica(nuestro: string, items: Record<string, unknown>[], propios: Set<string>, entrega: Map<string, number | null> = new Map(), demora = Infinity, propiasIds: Set<string> = new Set()): Estadistica {
-  const cuentan = candidatas(nuestro, items, propios, propiasIds)
-    .map((p) => ({ ...p, entregaDias: entrega.get(p.itemId) ?? null }))
-    .filter((p) => p.entregaDias == null || p.entregaDias <= demora);
-  const precios = cuentan.map((p) => p.precio);
-  return {
-    encontradas: cuentan.length, minimo: precios.length ? Math.min(...precios) : null, p25: cuantil(precios, 0.25), mediana: cuantil(precios, 0.5),
-    resultados: cuentan.sort((a, b) => a.precio - b.precio).slice(0, 15),
-  };
+/** Analiza lo encontrado de un producto, lo guarda (búsqueda, seguidas automáticas y números) y lo da por hecho. */
+async function cerrarProducto(org: string, productoId: number, texto: string, lista: PubEncontrada[], ts?: Date): Promise<void> {
+  const a = await analizarBusqueda(org, productoId, texto, lista, { seguir: true, ts });
+  await consulta(`update precio_mercado set estado = 'ok', error = null, ts = now(), encontradas = $3, minimo = $4, p25 = $5, mediana = $6, resultados = $7::jsonb
+                   where organizacion_id = $1 and producto_id = $2`, [org, productoId, a.comparables.length, a.minimo, a.p25, a.mediana, JSON.stringify(aGuardar(a.comparables))]);
 }
 
 /** Pide una tanda: los productos quedan pendientes y arranca la primera vuelta. Devuelve cuántos y el costo estimado. */
@@ -83,10 +64,10 @@ export async function pedirTanda(org: string, usuarioId: string, productos: { id
 }
 
 /** Llama a la ruta que procesa la tanda (sin esperar a que termine). */
-async function relanzar(tanda: number, token: string): Promise<void> {
+async function relanzar(tanda: number, token: string, reanalizar = false): Promise<void> {
   const base = urlPanel();
   if (!base) return;
-  await fetch(`${base}/api/precios-mercado?tanda=${tanda}&token=${token}`, { cache: "no-store", signal: AbortSignal.timeout(3000) }).catch(() => {});
+  await fetch(`${base}/api/precios-mercado?tanda=${tanda}&token=${token}${reanalizar ? "&reanalizar=1" : ""}`, { cache: "no-store", signal: AbortSignal.timeout(3000) }).catch(() => {});
 }
 
 /** Una vuelta de la tanda: busca de a varios productos hasta el tiempo de la vuelta y, si quedan, se relanza. */
@@ -97,21 +78,18 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
   const org = t.organizacion_id;
   // Marca que está trabajando (el reanudador de la base no la relanza mientras tanto).
   await consulta("update precio_mercado_tanda set actualizado_ts = now() where id = $1", [tanda]);
-  const cuentas = (await cuentasDe(org).catch(() => [])).filter((c) => c.estado === "activa");
-  const propios = new Set(cuentas.map((c) => (c.nickname ?? "").toUpperCase().trim()).filter(Boolean));
-  const demora = (await configSeguimiento(org)).demoraDias;
   const t0 = Date.now();
   let hechos = 0;
   while (Date.now() - t0 < SEGUNDOS_POR_VUELTA * 1000) {
     // Se toman de a varios marcándolos (otra vuelta en paralelo no los repite).
-    const lote = await consulta<{ producto_id: number; texto: string; titulo: string }>(`
+    const lote = await consulta<{ producto_id: number; texto: string }>(`
       update precio_mercado pm set ts = now() from producto p
        where pm.organizacion_id = $1 and pm.tanda_id = $2 and p.id = pm.producto_id
          and (pm.organizacion_id, pm.producto_id) in (
            select organizacion_id, producto_id from precio_mercado
             where organizacion_id = $1 and tanda_id = $2 and estado = 'pendiente' and (ts is null or ts < now() - interval '10 minutes')
             order by producto_id limit $3 for update skip locked)
-      returning pm.producto_id::int, pm.texto, p.titulo`, [org, tanda, A_LA_VEZ]);
+      returning pm.producto_id::int, pm.texto`, [org, tanda, A_LA_VEZ]);
     if (!lote.length) break;
     const queda = await quedaParaGastar(org);
     if (queda < lote.length * RESULTADOS_POR_BUSQUEDA * USD_POR_RESULTADO) {
@@ -136,24 +114,12 @@ export async function procesarTanda(tanda: number, token: string): Promise<{ hec
           [org, p.producto_id, c.error ? c.error.slice(0, 200) : "Sin resultados"]);
         return;
       }
-      // Cuánto tardan en llegar las que cuentan (API de ML, gratis): las internacionales tardan más que la demora.
-      const items = c.items as Record<string, unknown>[];
-      // Las nuestras, por número de publicación (Apify no siempre trae el vendedor).
-      const ids0 = items.map(aPubEncontrada).filter((x): x is NonNullable<typeof x> => !!x).map((x) => x.itemId);
-      const propiasIds = new Set((await consulta<{ id: string }>(`
-        select item_id id from meli_item where organizacion_id = $1 and item_id = any($2::text[])
-        union select datos_externos #>> '{ml,user_product_id}' from meli_item where organizacion_id = $1 and datos_externos #>> '{ml,user_product_id}' = any($2::text[])`,
-        [org, ids0])).map((r) => r.id));
-      const entrega = new Map<string, number | null>();
-      if (cuentas[0]) {
-        const ids = candidatas(p.titulo, items, propios, propiasIds).map((x) => x.itemId).filter((id) => /^MLA\d+$/.test(id)).slice(0, 16);
-        for (let i = 0; i < ids.length; i += 8) {
-          await Promise.all(ids.slice(i, i + 8).map(async (id) => { entrega.set(id, await diasDeEntrega(cuentas[0], id).catch(() => null)); }));
-        }
+      try {
+        await cerrarProducto(org, p.producto_id, p.texto, await armarEncontradas(org, c.items as Record<string, unknown>[]));
+      } catch (e) {
+        await consulta("update precio_mercado set estado = 'error', error = $3, ts = now() where organizacion_id = $1 and producto_id = $2",
+          [org, p.producto_id, (e instanceof Error ? e.message : String(e)).slice(0, 200)]);
       }
-      const e = estadistica(p.titulo, items, propios, entrega, demora, propiasIds);
-      await consulta(`update precio_mercado set estado = 'ok', error = null, ts = now(), encontradas = $3, minimo = $4, p25 = $5, mediana = $6, resultados = $7::jsonb
-                       where organizacion_id = $1 and producto_id = $2`, [org, p.producto_id, e.encontradas, e.minimo, e.p25, e.mediana, JSON.stringify(e.resultados)]);
     }));
     hechos += lote.length;
     const sigue = await una<{ estado: string }>("select estado from precio_mercado_tanda where id = $1", [tanda]);
@@ -201,4 +167,47 @@ export async function preciosDeMercado(org: string, productos: number[]): Promis
     select producto_id::int, mediana::float8, p25::float8, minimo::float8, encontradas, ts from precio_mercado
      where organizacion_id = $1 and producto_id = any($2::bigint[]) and estado = 'ok'`, [org, productos]);
   return new Map(r.map((x) => [x.producto_id, x]));
+}
+
+/** Vuelve a analizar lo ya buscado, sin pagar otra búsqueda: la última búsqueda guardada del producto o, si no hay, lo
+ *  que quedó en precio_mercado. Saca las nuestras, juzga con la IA, sigue las comparables y recalcula los números.
+ *  Sirve para lo buscado antes de que existiera el seguimiento automático. Devuelve cuántos productos hizo. */
+export async function reanalizarGuardados(org: string, o: { productos?: number[]; segundos?: number } = {}): Promise<{ hechos: number; quedan: number }> {
+  const t0 = Date.now();
+  const filas = await consulta<{ producto_id: number; texto: string; resultados: { itemId?: string; titulo: string; precio: number; vendedor: string | null; permalink: string | null }[] }>(`
+    select producto_id::int, texto, resultados from precio_mercado
+     where organizacion_id = $1 and jsonb_array_length(resultados) > 0 and ($2::bigint[] is null or producto_id = any($2::bigint[]))
+       -- Lo ya analizado por la IA guarda el motivo de cada comparable.
+       and not (resultados -> 0 ? 'motivo')
+     order by producto_id`, [org, o.productos?.length ? o.productos : null]);
+  const { cuentas, apodos } = await nuestras(org);
+  let n = 0;
+  for (const f of filas) {
+    if (o.segundos && Date.now() - t0 > o.segundos * 1000) break;
+    try {
+      const b = await ultimaBusqueda(org, f.producto_id).catch(() => null);
+      let lista: PubEncontrada[];
+      if (b?.resultados.length) lista = await completar(org, cuentas, apodos, b.resultados.map((x) => ({ ...x, propia: undefined })));
+      else lista = await completar(org, cuentas, apodos, f.resultados
+        .map((r) => aPubEncontrada({ id: r.itemId, url: r.permalink, title: r.titulo, price: r.precio, sellerName: r.vendedor, currency: "ARS" }))
+        .filter((x): x is PubEncontrada => !!x));
+      await cerrarProducto(org, f.producto_id, b?.texto ?? f.texto, lista, b?.ts);
+    } catch (e) {
+      console.error("[precios-mercado] reanalizar", f.producto_id, e);
+      continue;
+    }
+    n++;
+  }
+  try { revalidateTag(`sugerencia-compra-${org}`); } catch { /* fuera de Next */ }
+  return { hechos: n, quedan: filas.length - n };
+}
+
+/** reanalizarGuardados de la organización de una tanda (la ruta lo pide con el token de la tanda). */
+export async function reanalizarDeTanda(tanda: number, token: string): Promise<number> {
+  const t = await una<{ organizacion_id: string }>("select organizacion_id from precio_mercado_tanda where id = $1 and token = $2::uuid", [tanda, token]);
+  if (!t) throw new ErrorErp("Tanda desconocida.");
+  // Hasta unos minutos por vuelta (la ruta tiene 5); si quedan, se relanza.
+  const r = await reanalizarGuardados(t.organizacion_id, { segundos: 180 });
+  if (r.quedan > 0 && r.hechos > 0) await relanzar(tanda, token, true);
+  return r.hechos;
 }

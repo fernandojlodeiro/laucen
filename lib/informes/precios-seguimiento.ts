@@ -36,7 +36,7 @@ export async function preciosSeguimiento(org: string): Promise<FilaPrecioSeguimi
         select s.precio, s.vendedor, s.item_id, s.permalink, s.leido_ts, s.estado from seguimiento_pub s
          where s.organizacion_id = $1 and s.producto_id = p.id
            and (case when r.contra = 'una' then s.id = r.seguimiento_id
-                     else s.estado = 'activa' and s.precio is not null and coalesce(s.moneda, 'ARS') = 'ARS' and not s.excluido and not coalesce(s.internacional, false) end)
+                     else s.estado = 'activa' and s.precio is not null and coalesce(s.moneda, 'ARS') = 'ARS' and not s.excluido and not coalesce(s.internacional, false) and s.confirmada end)
          order by s.precio nulls last limit 1) ref on true
      where r.organizacion_id = $1 and r.modo <> 'apagada'
      order by va.sku`, [org]);

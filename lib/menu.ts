@@ -58,6 +58,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Cucardas", href: "/catalogo/cucardas", permiso: "cucardas_ver" },
       { texto: "Listas de precios", href: "/catalogo/precios", permiso: "precios_ver" },
       { texto: "Historial de precios de lista", href: "/catalogo/precios/historial", permiso: "precios_ver" },
+      { texto: "Seguimientos", href: "/catalogo/seguimientos", permiso: "productos_ver" },
       { texto: "Precios en Mercado Libre", href: "/catalogo/precios-ml", permiso: "precios_ml_ver" },
       { texto: "Vista previa de precios ML", href: "/catalogo/precios-ml/vista-previa", permiso: "precios_ml_ver" },
       { texto: "Publicaciones", href: "/catalogo/publicaciones", permiso: "publicaciones_ver" },
