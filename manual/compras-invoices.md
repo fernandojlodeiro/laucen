@@ -31,7 +31,7 @@ Menú **Compras › Invoices de compra**. También desde [Importar datos](/impor
 Tocando la fecha o el número se abre lo que se leyó, para revisarlo antes de confirmar:
 
 - Arriba, los avisos de la lectura (por ejemplo, una fecha que se puede leer de dos formas).
-- Los datos: **Fecha del invoice** (y cómo venía escrita), **Vino por** (Avión o Barco), **Llegada estimada**, **Número**, **Proveedor**, **Es la compra por courier** (si este invoice es el de una compra ya cargada en [Compras por courier](/compras/courier)), la caja **«No tomar el precio»** y las **Notas**. Se corrigen con el lápiz de arriba a la derecha.
+- Los datos: **Fecha del invoice** (y cómo venía escrita), **Vino por** (Avión o Barco), **Llegada real** (opcional), **Llegada estimada**, **Número**, **Proveedor**, **Es la compra por courier** (si este invoice es el de una compra ya cargada en [Compras por courier](/compras/courier)), la caja **«No tomar el precio»** y las **Notas**. Se corrigen con el lápiz de arriba a la derecha.
 - Los totales: renglones, cuántos no están en el sistema, unidades y total.
 - Los renglones: fila del Excel, **SKU del invoice**, el **producto** del sistema que le corresponde (con su foto; lleva a la pestaña Compras del producto) o, en rojo, que no está; descripción, cantidad, precio unitario y total. Cada renglón se corrige con su lápiz (SKU, cantidad y precio) o se borra con el tacho.
 - Arriba a la derecha: **Ver el archivo ↗** (el original), **Nuevo renglón** (para cargar a mano), **Confirmar** (o **Volver a revisar** si ya está confirmado) y el lápiz.
@@ -59,7 +59,7 @@ Marcá **«No tomar el precio»** con el lápiz: cuentan la fecha, la cantidad y
 - **El SKU** se busca sin importar mayúsculas ni espacios. Un renglón cuyo SKU no está en el sistema se guarda igual, pero no cuenta para ningún producto hasta que se corrige.
 - **El mismo invoice dos veces** no entra: mismo número del mismo proveedor, o misma fecha con los mismos renglones.
 - **Sólo cuenta lo confirmado**: un invoice a revisar no aparece en el historial de los productos ni cambia el proveedor preferido. Para confirmar hace falta la fecha y al menos un renglón.
-- **Llegada estimada** = fecha del invoice + la demora de la vía (avión o barco). Desde la llegada se cuenta cuánto tardó en venderse cada compra (ver la pestaña Compras en [Productos](/catalogo/productos)).
+- **Llegada estimada** = fecha del invoice + la demora de la vía (avión o barco). Si el invoice tiene cargada la **llegada real** (por ejemplo, mercadería que quedó un tiempo en una zona franca y se retiró después), vale esa fecha en lugar de la estimada. Desde la llegada se cuenta cuánto tardó en venderse cada compra (ver la pestaña Compras en [Productos](/catalogo/productos)).
 - **Proveedor preferido**: al confirmar (o corregir un confirmado), cada producto del invoice toma el proveedor de su invoice confirmado más reciente. Se puede cambiar a mano en la ficha del producto, y vuelve a cambiar si llega un invoice más nuevo de otro proveedor.
 - **Compra por courier vinculada**: si un invoice es el de una compra por courier ya cargada, al vincularlo esa compra deja de contarse aparte en el historial, para no sumarla dos veces.
 - Se aceptan Excel .xlsx y PDF. Un .xls viejo hay que abrirlo y guardarlo como .xlsx.

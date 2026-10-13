@@ -3,7 +3,8 @@
 // Tablas en db/compras.sql; la lectura del Excel, en invoice-leer.ts (sin base).
 //
 //   · Entra «a revisar» y cuenta recién cuando se confirma.
-//   · Llegada estimada = fecha del invoice + demora de la vía (avión o barco, configurable).
+//   · Llegada estimada = fecha del invoice + demora de la vía (avión o barco, configurable), salvo que tenga cargada
+//     la llegada real (ej. mercadería que quedó en zona franca).
 //   · Proveedor preferido del producto = el del invoice confirmado más reciente (se puede cambiar a mano en la ficha).
 //   · Si el invoice es el de una compra por courier ya cargada, se vincula y esa compra no se cuenta dos veces.
 //   · Cuánto duró cada compra (historialProducto, duracionCompras): desde que llega (o desde que se terminó la anterior,
@@ -100,13 +101,13 @@ export async function crearInvoice(org: string, a: { archivo: string; ruta: stri
 }
 
 export type FilaInvoice = {
-  id: number; archivo: string; numero: string | null; fecha: string | null; fecha_dudosa: boolean; via: Via; estado: "revisar" | "confirmado"; ignorar_precio: boolean;
+  id: number; archivo: string; numero: string | null; fecha: string | null; llegada_real: string | null; fecha_dudosa: boolean; via: Via; estado: "revisar" | "confirmado"; ignorar_precio: boolean;
   proveedor_id: number | null; proveedor: string | null; compra_courier: string | null; renglones: number; unidades: number; total_usd: number | null; sin_producto: number;
   creado_ts: Date;
 };
 
 const CAMPOS_LISTA = `
-  i.id::int, i.archivo, i.numero, i.fecha::text fecha, i.fecha_dudosa, i.via, i.estado, i.ignorar_precio, i.proveedor_id::int, pr.nombre proveedor, cc.nombre compra_courier, i.creado_ts,
+  i.id::int, i.archivo, i.numero, i.fecha::text fecha, i.llegada::text llegada_real, i.fecha_dudosa, i.via, i.estado, i.ignorar_precio, i.proveedor_id::int, pr.nombre proveedor, cc.nombre compra_courier, i.creado_ts,
   (select count(*) from compra_invoice_linea l where l.invoice_id = i.id)::int renglones,
   (select coalesce(sum(l.cantidad), 0) from compra_invoice_linea l where l.invoice_id = i.id)::float8 unidades,
   (select case when i.ignorar_precio then null else coalesce(sum(l.cantidad * l.precio_usd), 0) end from compra_invoice_linea l where l.invoice_id = i.id)::float8 total_usd,
@@ -155,13 +156,15 @@ async function actualizarPreferidos(org: string, invoiceId: number) {
      where p.id = u.producto_id and p.organizacion_id = $1 and p.proveedor_id is distinct from u.proveedor_id`, [org, invoiceId]);
 }
 
-export async function guardarCabecera(org: string, id: number, c: { fecha: string | null; via: string; numero: string | null; proveedorId: number | null; compraCourierId: number | null; notas: string | null; ignorarPrecio: boolean }) {
+export async function guardarCabecera(org: string, id: number, c: { fecha: string | null; llegada: string | null; via: string; numero: string | null; proveedorId: number | null; compraCourierId: number | null; notas: string | null; ignorarPrecio: boolean }) {
   if (!(c.via in VIAS)) throw new ErrorErp("Elegí si vino por avión o por barco.");
   if (c.fecha && !/^\d{4}-\d{2}-\d{2}$/.test(c.fecha)) throw new ErrorErp("La fecha no es válida.");
+  if (c.llegada && !/^\d{4}-\d{2}-\d{2}$/.test(c.llegada)) throw new ErrorErp("La fecha de llegada no es válida.");
+  if (c.llegada && c.fecha && c.llegada < c.fecha) throw new ErrorErp("La llegada no puede ser anterior a la fecha del invoice.");
   if (c.proveedorId && !(await una("select 1 from proveedor where id = $1 and organizacion_id = $2", [c.proveedorId, org]))) throw new ErrorErp("Ese proveedor no existe.");
   if (c.compraCourierId && !(await una("select 1 from compra_courier where id = $1 and organizacion_id = $2", [c.compraCourierId, org]))) throw new ErrorErp("Esa compra por courier no existe.");
-  await consulta(`update compra_invoice set fecha = $3, fecha_dudosa = fecha_dudosa and fecha is not distinct from $3::date, via = $4, numero = $5, proveedor_id = $6, compra_courier_id = $7, notas = $8, ignorar_precio = $9
-                   where id = $2 and organizacion_id = $1`, [org, id, c.fecha, c.via, c.numero, c.proveedorId, c.compraCourierId, c.notas, c.ignorarPrecio]);
+  await consulta(`update compra_invoice set fecha = $3, fecha_dudosa = fecha_dudosa and fecha is not distinct from $3::date, via = $4, numero = $5, proveedor_id = $6, compra_courier_id = $7, notas = $8, ignorar_precio = $9, llegada = $10
+                   where id = $2 and organizacion_id = $1`, [org, id, c.fecha, c.via, c.numero, c.proveedorId, c.compraCourierId, c.notas, c.ignorarPrecio, c.llegada]);
   const i = await una<{ estado: string }>("select estado from compra_invoice where id = $1", [id]);
   if (i?.estado === "confirmado") await actualizarPreferidos(org, id);
 }
@@ -222,7 +225,7 @@ export type CompraHistorial = {
 
 const SQL_COMPRAS = `
   select 'invoice' origen, i.id::int doc_id, coalesce(i.numero, i.archivo) documento, pr.nombre proveedor, i.via,
-         i.fecha::text fecha, (i.fecha + case i.via when 'barco' then $3::int else $4::int end)::text llegada,
+         i.fecha::text fecha, coalesce(i.llegada, i.fecha + case i.via when 'barco' then $3::int else $4::int end)::text llegada,
          va.sku, l.cantidad::float8, case when i.ignorar_precio then null else l.precio_usd end::float8 precio_usd, va.producto_id::int
     from compra_invoice_linea l join compra_invoice i on i.id = l.invoice_id join variacion va on va.id = l.variacion_id
     left join proveedor pr on pr.id = i.proveedor_id
@@ -305,7 +308,7 @@ export async function comprasDeVariaciones(org: string, variaciones: number[]): 
   if (!variaciones.length) return new Map();
   const cfg = await configInvoices(org);
   const r = await consulta<{ vid: number; llegada: string; cantidad: number }>(`
-    select l.variacion_id::int vid, (i.fecha + case i.via when 'barco' then $3::int else $4::int end)::text llegada, l.cantidad::float8 cantidad
+    select l.variacion_id::int vid, coalesce(i.llegada, i.fecha + case i.via when 'barco' then $3::int else $4::int end)::text llegada, l.cantidad::float8 cantidad
       from compra_invoice_linea l join compra_invoice i on i.id = l.invoice_id
      where i.organizacion_id = $1 and i.estado = 'confirmado' and i.fecha is not null and l.variacion_id = any($2::bigint[])
     union all

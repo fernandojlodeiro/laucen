@@ -45,7 +45,7 @@ export async function accionGuardarInvoice(fd: FormData) {
   const iid = id(fd);
   await intentar(`${LISTA}/${iid}`, async () => {
     await guardarCabecera(s.org.id, iid, {
-      fecha: texto(fd, "fecha"), via: String(fd.get("via") ?? ""), numero: texto(fd, "numero"),
+      fecha: texto(fd, "fecha"), llegada: texto(fd, "llegada"), via: String(fd.get("via") ?? ""), numero: texto(fd, "numero"),
       proveedorId: entero(fd, "proveedor_id"), compraCourierId: entero(fd, "compra_courier_id"), notas: texto(fd, "notas"), ignorarPrecio: tildado(fd, "ignorar_precio"),
     });
     revalidatePath(`${LISTA}/${iid}`);

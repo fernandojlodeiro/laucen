@@ -47,7 +47,7 @@ export default async function FichaInvoice({ params, searchParams }: { params: P
       return data?.signedUrl ?? null;
     })(),
   ]);
-  const llegada = c.fecha ? masDias(c.fecha, c.via === "barco" ? cfg.demoraBarco : cfg.demoraAvion) : null;
+  const llegada = c.llegada_real ?? (c.fecha ? masDias(c.fecha, c.via === "barco" ? cfg.demoraBarco : cfg.demoraAvion) : null);
   const usd = (n: number, dec = 2) => `US$ ${formatearNumero(Math.round(n * 10 ** dec) / 10 ** dec, "decimal")}`;
   const precioVisto = (n: number | null) => (n == null ? "—" : c.ignorar_precio ? <span className="text-[#5C6B76] line-through">{usd(n, 4)}</span> : usd(n, 4));
   const editandoLinea = sp.editar && sp.editar !== "ficha" ? Number(sp.editar) : null;
@@ -81,6 +81,8 @@ export default async function FichaInvoice({ params, searchParams }: { params: P
               <select name="via" defaultValue={c.via} className={`${CAMPO} w-full`}>
                 {Object.entries(VIAS).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
               </select></label>
+            <label><span className={ETIQUETA}>Llegada real</span><input type="date" name="llegada" defaultValue={c.llegada_real ?? ""} className={`${CAMPO} w-full`} />
+              <span className="block text-[10px] text-[#5C6B76]">Vacía: se estima con la demora de la vía.</span></label>
             <label><span className={ETIQUETA}>Número</span><input name="numero" defaultValue={c.numero ?? ""} className={`${CAMPO} w-full`} /></label>
             <div className="col-span-2 sm:col-span-2"><span className={ETIQUETA}>Proveedor</span>
               <ElegirDeLista name="proveedor_id" opciones={proveedores} valor={c.proveedor_id} vacio="Sin proveedor" placeholder="Buscá el proveedor…" etiqueta="Proveedor" />
@@ -102,7 +104,7 @@ export default async function FichaInvoice({ params, searchParams }: { params: P
               {c.fecha ? <>{diaAr(c.fecha)}{c.fecha_dudosa && <span className="ml-1 text-[#8a6100]">⚠ revisar</span>}</> : null}
             </Dato>
             <Dato etiqueta="Vino por">{VIAS[c.via]}</Dato>
-            <Dato etiqueta="Llegada estimada">{llegada ? diaAr(llegada) : null}</Dato>
+            <Dato etiqueta={c.llegada_real ? "Llegada real" : "Llegada estimada"}>{llegada ? diaAr(llegada) : null}</Dato>
             <Dato etiqueta="Número">{c.numero}</Dato>
             <Dato etiqueta="Proveedor" className="col-span-2">{c.proveedor_id ? <Link href={`/compras/proveedores?id=${c.proveedor_id}`} className="text-[#16577F] hover:underline">{c.proveedor}</Link> : null}</Dato>
             <Dato etiqueta="Es la compra por courier">{c.compra_courier_id ? <Link href={`/compras/courier/${c.compra_courier_id}`} className="text-[#16577F] hover:underline">{c.compra_courier}</Link> : null}</Dato>

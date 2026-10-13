@@ -108,6 +108,8 @@ create table if not exists compra_invoice (
 );
 -- Precio no confiable (invoices viejos): cuentan fecha, cantidad y proveedor; el precio no se usa.
 alter table compra_invoice add column if not exists ignorar_precio boolean not null default false;
+-- Llegada real (opcional): pisa la estimada (fecha + demora de la vía). Ej.: mercadería que quedó en zona franca.
+alter table compra_invoice add column if not exists llegada date;
 create index if not exists compra_invoice_fecha on compra_invoice (organizacion_id, fecha desc);
 alter table compra_invoice enable row level security;
 select erp_politica_org('compra_invoice');
