@@ -1,6 +1,6 @@
 // Un año de garantía en las notebooks activas de Mercado Libre (pedido de Fer, 13/10). Se lee la
-// cuenta entera en ML (sólo lectura) y se prepara UN lote por cuenta que pone WARRANTY_TYPE y
-// WARRANTY_TIME = 12 meses en cada notebook activa que no la tenga ya. Sale recién con el clic de
+// cuenta entera en ML (sólo lectura) y se prepara UN lote por cuenta que pone WARRANTY_TYPE =
+// "Garantía del vendedor" y WARRANTY_TIME = 12 meses en cada notebook activa, tenga la garantía que tenga. Sale recién con el clic de
 // Fer en "Mandar a Mercado Libre" (lib/mercadolibre/cola.ts). Las no activas no se tocan.
 
 import { ErrorErp } from "@/lib/erp/base";
@@ -12,30 +12,22 @@ import { consulta } from "@/lib/erp/base";
 
 export const DESCRIPCION_LOTE_GARANTIA = "Poner 1 año de garantía a las notebooks activas";
 const TIEMPO = "12 meses";
-const TIPO_POR_DEFECTO = "Garantía del vendedor";
+const TIPO = "Garantía del vendedor";
 
 type Termino = { id: string; value_name?: string | null };
 type ItemCorto = { id: string; title?: string; status?: string; category_id?: string; sale_terms?: Termino[] };
 
-/** ¿Ya tiene un año (o más) de garantía? Puro: se prueba sin base ni red. */
-export function tieneUnAnio(terminos: Termino[] | null | undefined): boolean {
+/** ¿Ya tiene exactamente lo que se va a mandar (vendedor, 12 meses)? Entonces no hay nada que cambiar. Puro. */
+export function yaEstaIgual(terminos: Termino[] | null | undefined): boolean {
   const t = (id: string) => (terminos ?? []).find((x) => x.id === id)?.value_name?.trim().toLowerCase() ?? "";
-  if (/^sin garant/.test(t("WARRANTY_TYPE"))) return false;
-  const m = t("WARRANTY_TIME").match(/^(\d+)\s*(mes|meses|año|años|dia|dias|día|días)/);
-  if (!m) return false;
-  const n = Number(m[1]);
-  const meses = m[2].startsWith("a") ? n * 12 : m[2].startsWith("m") ? n : n / 30;
-  return meses >= 12;
+  return t("WARRANTY_TYPE") === TIPO.toLowerCase() && /^(12 meses|1 año)$/.test(t("WARRANTY_TIME"));
 }
 
-/** Lo que se manda a cada publicación: el tipo que ya tenía (si no era "Sin garantía") y 12 meses. */
-export function cuerpoGarantia(terminos: Termino[] | null | undefined) {
-  const tipo = (terminos ?? []).find((x) => x.id === "WARRANTY_TYPE")?.value_name?.trim();
-  return { sale_terms: [
-    { id: "WARRANTY_TYPE", value_name: tipo && !/^sin garant/i.test(tipo) ? tipo : TIPO_POR_DEFECTO },
-    { id: "WARRANTY_TIME", value_name: TIEMPO },
-  ] };
-}
+/** Lo que se manda a cada publicación, sin importar lo que tenía: garantía del vendedor, 12 meses. */
+export const cuerpoGarantia = () => ({ sale_terms: [
+  { id: "WARRANTY_TYPE", value_name: TIPO },
+  { id: "WARRANTY_TIME", value_name: TIEMPO },
+] });
 
 export type PreparacionGarantia = { cuenta: string; loteId: number | null; preparadas: number; yaTenian: number; activas: number; revisadas: number; quedan: number };
 
@@ -69,11 +61,11 @@ export async function prepararGarantiaNotebooks(org: string, canalId: number, us
     for (const { code, body: it } of r.datos) {
       if (code !== 200 || !it?.id || it.status !== "active" || !esNotebook(it.title, it.category_id)) continue;
       activas++;
-      if (tieneUnAnio(it.sale_terms)) { yaTenian++; continue; }
+      if (yaEstaIgual(it.sale_terms)) { yaTenian++; continue; }
       cambios.push({
         canalId, itemId: it.id, tipo: "atributos",
         antes: { titulo: it.title, garantia: (it.sale_terms ?? []).filter((t) => /^WARRANTY/.test(t.id)).map((t) => `${t.id}: ${t.value_name ?? ""}`) },
-        payload: { cuerpo: cuerpoGarantia(it.sale_terms), descripcion: `1 año de garantía: ${it.title ?? it.id}` },
+        payload: { cuerpo: cuerpoGarantia(), descripcion: `1 año de garantía: ${it.title ?? it.id}` },
       });
     }
   }
@@ -93,7 +85,7 @@ export function textoGarantia(r: PreparacionGarantia): string {
   const partes = [`${r.cuenta}: se revisaron ${n(r.revisadas)} publicaciones; ${n(r.activas)} notebooks activas.`];
   if (r.preparadas) partes.push(`${n(r.preparadas)} preparadas con 1 año de garantía: revisá el lote en Configuración › Canales › Cola de Mercado Libre y apretá «Mandar a Mercado Libre».`);
   else partes.push("No hay notebooks activas para cambiar.");
-  if (r.yaTenian) partes.push(`${n(r.yaTenian)} ya tenían un año o más.`);
+  if (r.yaTenian) partes.push(`${n(r.yaTenian)} ya la tenían así.`);
   if (r.quedan) partes.push(`No alcanzó el tiempo: quedan ${n(r.quedan)} por revisar, apretá de nuevo.`);
   return partes.join(" ");
 }

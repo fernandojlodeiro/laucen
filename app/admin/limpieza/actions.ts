@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { sosVos } from "@/lib/admin";
 import { orgRequerida, sesionRequerida } from "@/lib/tenancy";
-import { motivoErp } from "@/lib/erp/base";
+import { consulta, motivoErp } from "@/lib/erp/base";
 import { deFondo } from "@/lib/tareas-fondo";
 import { prepararGarantiaNotebooks, textoGarantia } from "@/lib/mercadolibre/garantia-notebooks";
 import { prepararNotebooksMl, textoResultadoMl, limpiarNotebooksLaucen, revisarNotebooksMl, traerDescripcionesFaltantes } from "@/lib/limpieza-notebooks";
@@ -43,15 +43,21 @@ export async function accionNotebooksMl(fd: FormData) {
   });
 }
 
-/** Lee la cuenta en ML y deja preparado (sin mandar) el lote que pone 1 año de garantía a sus notebooks activas. De fondo. */
-export async function accionGarantiaNotebooksMl(fd: FormData) {
-  await portero();
+/** Lee TODAS las cuentas de ML y deja preparado (sin mandar) un lote por cuenta que pone 1 año de garantía a sus notebooks activas. De fondo. */
+export async function accionGarantiaNotebooksMl() {
+  const org = await portero();
   const s = await sesionRequerida();
-  const canal = Number(fd.get("canal"));
-  return deFondo(s, `garantia-notebooks:${canal}`, "Garantía de notebooks en Mercado Libre", async () => {
-    const r = await prepararGarantiaNotebooks(s.org.id, canal, s.usuario.id, Date.now() + 270_000);
+  return deFondo(s, "garantia-notebooks", "Garantía de notebooks en Mercado Libre", async () => {
+    const cuentas = await consulta<{ id: number }>(
+      "select c.id::int from meli_cuenta mc join canal c on c.id = mc.canal_id where mc.organizacion_id = $1 and mc.estado = 'activa' order by c.id", [org]);
+    const hasta = Date.now() + 270_000;
+    // Las cuentas son independientes (cada una con su propio ritmo en ML): se leen a la vez.
+    const textos = await Promise.all(cuentas.map(async (c) => {
+      try { return textoGarantia(await prepararGarantiaNotebooks(org, c.id, s.usuario.id, hasta)); }
+      catch (e) { return `Canal ${c.id}: ${motivoErp(e)}`; }
+    }));
     revalidatePath("/admin/limpieza");
-    return textoGarantia(r);
+    return textos.join(" ");
   });
 }
 

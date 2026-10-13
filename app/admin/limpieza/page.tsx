@@ -83,20 +83,12 @@ export default async function Limpieza({ searchParams }: { searchParams: Promise
       <section className={CAJA}>
         <h2 className="font-bold text-[#16577F]">Notebooks activas: poner 1 año de garantía</h2>
         <p className="text-sm text-[#5C6B76]">
-          Lee cada cuenta entera en Mercado Libre (sólo lectura; tarda unos minutos y corre de fondo) y deja <b>preparado un lote</b> que
-          pone «Garantía del vendedor · 12 meses» en cada notebook <b>activa</b> que no tenga ya un año o más. Las no activas no se tocan. No sale
-          nada hasta que revises el lote en la <Link href="/config/canales/cola?ver=lotes" className="underline">Cola de Mercado Libre</Link> y
-          aprietes &quot;Mandar a Mercado Libre&quot;.
+          Un solo botón para todas las cuentas de Mercado Libre. Lee cada cuenta entera (sólo lectura; tarda unos minutos y corre de fondo) y
+          deja <b>preparado un lote por cuenta</b> que pone «Garantía del vendedor · 12 meses» en cada notebook <b>activa</b>, tenga la
+          garantía que tenga. Las no activas no se tocan. No sale nada hasta que revises los lotes en la{" "}
+          <Link href="/config/canales/cola?ver=lotes" className="underline">Cola de Mercado Libre</Link> y aprietes &quot;Mandar a Mercado Libre&quot;.
         </p>
-        <div className="space-y-2">
-          {cuentas.map((c) => (
-            <div key={c.id} className="border border-[#E3E9F0] rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap">
-              <span className="text-sm font-semibold text-[#16577F]">{c.nombre}</span>
-              <BotonTarea accion={accionGarantiaNotebooksMl} tipo={`garantia-notebooks:${c.id}`} campos={{ canal: String(c.id) }} clase={SUAVE}
-                texto="Preparar 1 año de garantía" />
-            </div>
-          ))}
-        </div>
+        <BotonTarea accion={accionGarantiaNotebooksMl} tipo="garantia-notebooks" clase={SUAVE} texto="Preparar 1 año de garantía en todas las cuentas" />
       </section>
 
       <section className={CAJA}>
