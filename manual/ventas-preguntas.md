@@ -80,7 +80,7 @@ Errores típicos: "La respuesta está vacía.", "Mercado Libre acepta hasta 2.00
 
 Apretá **"Actualizar"** en la conversación: la vuelve a leer entera desde Mercado Libre y la marca como leída allá.
 - En una conversación, al lado del pedido (o de «sin pedido en Laucen»), **Ver la venta** abre la ficha de esa venta de Mercado Libre con sus artículos, envío y reclamos, aunque sea anterior al sistema.
-- En una pregunta, si quien pregunta ya nos compró en esa cuenta, aparece **Compras de este usuario (N)**, que abre el [Historial de ventas](/ventas/historial) con sus compras.
+- En una pregunta, si quien pregunta **ya nos compró** (en cualquiera de las cuentas de Mercado Libre: el usuario es el mismo en todas) o ya está como cliente, aparece el cartel verde **Cliente** con cuántas compras hizo y la fecha de la última. Tocándolo se abre su ficha de cliente (con sus datos, teléfono, mail y todo lo que compró) o, si todavía no está como cliente, sus compras en el [Historial de ventas](/ventas/historial).
 
 ## Criterios y reglas
 

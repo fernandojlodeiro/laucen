@@ -74,3 +74,151 @@ create table if not exists compra_courier_linea (
 create index if not exists compra_courier_linea_c on compra_courier_linea (compra_id, orden);
 alter table compra_courier_linea enable row level security;
 select erp_politica_org('compra_courier_linea');
+
+-- ── Invoices de compra: historial (pedido de Fer, 12/10; lib/compras/invoices.ts) ──
+-- Los invoices de los proveedores del exterior, sólo para estadística: qué se
+-- compró, cuándo, cuánto y a qué precio. NO mueven stock ni costos. La fecha es
+-- la del invoice (aproximada): la llegada se estima sumándole la demora de la
+-- vía (avión o barco, configurable en config_org 'invoices'). Entra «a revisar»
+-- y cuenta recién cuando se confirma. Si el invoice es el de una compra por
+-- courier ya cargada, se lo vincula y esa compra no se cuenta dos veces.
+-- El proveedor preferido del producto sale del invoice confirmado más reciente
+-- (y se puede cambiar a mano en la ficha).
+alter table producto add column if not exists proveedor_id bigint references proveedor(id) on delete set null;
+create index if not exists producto_proveedor on producto (organizacion_id, proveedor_id) where proveedor_id is not null;
+
+create table if not exists compra_invoice (
+  id                 bigint generated always as identity primary key,
+  organizacion_id    text not null references organizaciones(id) on delete cascade,
+  proveedor_id       bigint references proveedor(id) on delete set null,
+  compra_courier_id  bigint references compra_courier(id) on delete set null,
+  archivo            text not null,
+  ruta_storage       text,
+  hoja               text,
+  numero             text,
+  fecha              date,
+  fecha_texto        text,                                -- como venía escrita en el invoice
+  fecha_dudosa       boolean not null default false,      -- día y mes se podían leer al revés
+  via                text not null default 'avion' check (via in ('avion', 'barco')),
+  estado             text not null default 'revisar' check (estado in ('revisar', 'confirmado')),
+  avisos             jsonb not null default '[]',
+  notas              text,
+  usuario_id         text,
+  creado_ts          timestamptz not null default now()
+);
+-- Precio no confiable (invoices viejos): cuentan fecha, cantidad y proveedor; el precio no se usa.
+alter table compra_invoice add column if not exists ignorar_precio boolean not null default false;
+-- Llegada real (opcional): pisa la estimada (fecha + demora de la vía). Ej.: mercadería que quedó en zona franca.
+alter table compra_invoice add column if not exists llegada date;
+create index if not exists compra_invoice_fecha on compra_invoice (organizacion_id, fecha desc);
+alter table compra_invoice enable row level security;
+select erp_politica_org('compra_invoice');
+
+create table if not exists compra_invoice_linea (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  invoice_id       bigint not null references compra_invoice(id) on delete cascade,
+  fila             int,                                   -- renglón del Excel
+  sku              text not null,                         -- como venía en el invoice
+  descripcion      text,
+  cantidad         numeric(12, 2) not null check (cantidad > 0),
+  precio_usd       numeric(16, 4),
+  variacion_id     bigint references variacion(id) on delete set null
+);
+create index if not exists compra_invoice_linea_i on compra_invoice_linea (invoice_id, fila);
+create index if not exists compra_invoice_linea_v on compra_invoice_linea (organizacion_id, variacion_id) where variacion_id is not null;
+alter table compra_invoice_linea enable row level security;
+select erp_politica_org('compra_invoice_linea');
+
+-- ── Packing lists: peso y volumen por unidad (pedido de Fer, 13/10; lib/compras/packing.ts) ──
+-- De cada packing list se guarda, por SKU, cuántas unidades vinieron y qué parte
+-- del peso y del CBM de sus cajas le toca. Caja con un solo SKU → exacto (peso y
+-- CBM de la caja ÷ unidades). Caja mezclada → aproximado: la caja se reparte entre
+-- todas sus unidades por partes iguales. Si un SKU tiene cajas propias y además
+-- unidades en cajas mezcladas, cuentan sólo sus cajas propias (exacto).
+-- No pisa el peso de la ficha: es un dato aparte, con su origen. Por variación vale
+-- el exacto antes que el aproximado y, entre iguales, el packing list más nuevo.
+create table if not exists packing_list (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  archivo          text not null,
+  numero           text,
+  fecha            date,
+  invoice_id       bigint references compra_invoice(id) on delete set null,
+  via              text check (via in ('avion', 'barco')),
+  cajas            int not null default 0,
+  unidades         numeric(14, 2) not null default 0,
+  peso_kg          numeric(14, 3) not null default 0,
+  cbm              numeric(14, 6) not null default 0,
+  creado_ts        timestamptz not null default now()
+);
+alter table packing_list enable row level security;
+select erp_politica_org('packing_list');
+
+create table if not exists packing_item (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  packing_list_id  bigint not null references packing_list(id) on delete cascade,
+  sku              text not null,
+  variacion_id     bigint references variacion(id) on delete set null,
+  cantidad         numeric(14, 2) not null check (cantidad > 0),   -- las unidades que se usaron para la cuenta
+  peso_kg          numeric(14, 4) not null,                         -- el peso de esas unidades (con su parte de caja)
+  cbm              numeric(14, 6) not null,
+  exacto           boolean not null,
+  cajas            text                                             -- números de caja, para ubicarlo en el archivo
+);
+create index if not exists packing_item_v on packing_item (organizacion_id, variacion_id) where variacion_id is not null;
+create index if not exists packing_item_pl on packing_item (packing_list_id);
+alter table packing_item enable row level security;
+select erp_politica_org('packing_item');
+
+-- ── Precio de mercado (pedido de Fer, 13/10; lib/compras/precio-mercado.ts) ──
+-- Una búsqueda en Mercado Libre (Apify) por producto, para comparar la Clásica
+-- con lo que se vende hoy. Se piden en tandas: la tanda se procesa de a varios
+-- productos por vez y se relanza sola hasta terminar.
+create table if not exists precio_mercado_tanda (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  token            uuid not null default gen_random_uuid(),
+  total            int not null default 0,
+  estado           text not null default 'corriendo' check (estado in ('corriendo', 'terminada', 'cortada')),
+  mensaje          text,
+  usuario_id       text,
+  creado_ts        timestamptz not null default now(),
+  actualizado_ts   timestamptz not null default now()
+);
+alter table precio_mercado_tanda enable row level security;
+select erp_politica_org('precio_mercado_tanda');
+
+create table if not exists precio_mercado (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  producto_id      bigint not null references producto(id) on delete cascade,
+  tanda_id         bigint references precio_mercado_tanda(id) on delete set null,
+  texto            text not null,
+  estado           text not null default 'pendiente' check (estado in ('pendiente', 'ok', 'error')),
+  ts               timestamptz,
+  encontradas      int,                     -- publicaciones que se parecen (sin packs ni las nuestras)
+  minimo           numeric(14, 2),
+  p25              numeric(14, 2),
+  mediana          numeric(14, 2),
+  resultados       jsonb not null default '[]',
+  error            text,
+  primary key (organizacion_id, producto_id)
+);
+create index if not exists precio_mercado_tanda_i on precio_mercado (tanda_id, estado);
+alter table precio_mercado enable row level security;
+select erp_politica_org('precio_mercado');
+
+-- Reanudador de las tandas de precio de mercado: si una vuelta se cortó (tope de tiempo del servidor), cada 5 minutos
+-- la base la vuelve a llamar (pg_cron + pg_net). Las protege el token de la tanda.
+do $$
+declare j record; cmd text := $c$select net.http_get('https://laucen.com/api/precios-mercado?tanda=' || id || '&token=' || token) from public.precio_mercado_tanda where estado = 'corriendo' and actualizado_ts < now() - interval '6 minutes'$c$;
+begin
+  if to_regclass('cron.job') is null then return; end if;
+  select jobid, command into j from cron.job where jobname = 'precios-mercado';
+  if not found then perform cron.schedule('precios-mercado', '*/5 * * * *', cmd);
+  elsif j.command is distinct from cmd then perform cron.alter_job(j.jobid, command := cmd);
+  end if;
+exception when others then
+  raise notice 'pg_cron: no se pudo ajustar precios-mercado (%)', sqlerrm;
+end $$;

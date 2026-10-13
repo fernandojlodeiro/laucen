@@ -35,6 +35,7 @@ Filtros (filtran al momento, sin botón "Buscar"):
 - **Estado**: Todos los estados / Activo / Pausado / Inactivo. Elegir "Inactivo" los muestra aunque no esté tildado "Mostrar inactivos".
 - **Familia**: buscador de familias (tipeás parte del nombre o del camino, ej. "Electrónica › Componentes"). Incluye las subfamilias de la elegida.
 - **Marca**: desplegable con buscador (de [Marcas](/catalogo/marcas)); "Todas las marcas" saca el filtro.
+- **Proveedor preferido**: desplegable con buscador (de [Proveedores](/compras/proveedores)); "Todos los proveedores" saca el filtro. La columna **Proveedor preferido** se puede sumar a la vista; tocando el nombre filtra por ese proveedor.
 - **Tipo**: Todos los tipos / Simple / Con variaciones / Kit.
 - **Kits de Virtual Seller**: sólo los marcados como kit que vino de Virtual Seller y hay que armar a mano.
 - **Sin publicar en ningún canal**: productos que no tienen ninguna publicación activa en ningún canal (ninguna cuenta de Mercado Libre ni la web). Los **No publicables** no aparecen.
@@ -84,7 +85,7 @@ Pestañas (cada una muestra entre paréntesis cuántas cosas tiene):
 #### Pestaña Datos
 
 Abre en modo vista (los datos en sus marcos, sin poder tocarlos). Con el lápiz se editan:
-- **SKU base**, **Título**, **Familia** (buscador, con la lupa 🔍 al lado; ver abajo), **Marca** (desplegable con buscador, de la lista de [Marcas](/catalogo/marcas); si no está, el botón **«+ Crear «…»»** al final de la lista la crea), **Tipo** (Simple / Con variaciones / Kit; ayuda: "A simple o kit, sólo con una variación."), **Estado** (Activo / Pausado / Inactivo).
+- **SKU base**, **Título**, **Familia** (buscador, con la lupa 🔍 al lado; ver abajo), **Marca** (desplegable con buscador, de la lista de [Marcas](/catalogo/marcas); si no está, el botón **«+ Crear «…»»** al final de la lista la crea), **Proveedor preferido** (desplegable con buscador, de [Proveedores](/compras/proveedores); se completa solo con el proveedor del último [invoice de compra](/compras/invoices) confirmado que trae el producto, y se puede cambiar a mano), **Tipo** (Simple / Con variaciones / Kit; ayuda: "A simple o kit, sólo con una variación."), **Estado** (Activo / Pausado / Inactivo).
 - **Código de barras**: en un producto con variaciones dice "Va en cada variación."
 - **Modelo**, **Línea**, **Garantía** (ej. "6 meses"), **Condición** (Sin indicar / Nuevo / Usado / Reacondicionado).
 - **Costo FOB** con su moneda (USD o ARS). Debajo, en gris, el costo "Puesto en depósito: promedio … · último … — sale de compras" (o "Sin costo en depósito todavía (sale de compras)."). En un producto con variaciones dice "Va en cada variación."; en un kit no se carga: muestra la suma de sus componentes.
@@ -98,6 +99,19 @@ Abre en modo vista (los datos en sus marcos, sin poder tocarlos). Con el lápiz 
 - **Descripción larga**, a todo lo ancho y bien alta (si el texto es más largo, se desplaza adentro del cuadro; en edición, el cuadro se puede estirar desde la esquina de abajo).
 
 Debajo, en modo vista, un desplegable **Atributos de Mercado Libre** con la categoría de ML y los atributos que trajo la publicación. Es sólo para mirar.
+
+#### Recuadro «Según packing list» (pestaña Datos)
+
+Si el producto vino en alguna compra con packing list cargado, debajo de los datos aparece el recuadro **Según packing list**: el peso y el volumen **por unidad** sacados de las cajas, con la parte de cartón y embalaje que le toca a cada unidad. No cambia el peso de la ficha: es un dato aparte. Por cada packing list en que aparece el producto (y por variación, si tiene):
+
+- **Exacto** (verde): venía en cajas con un solo producto; peso y volumen de las cajas ÷ unidades.
+- **Aproximado** (ámbar): venía en una caja mezclada; el peso y el volumen de la caja se reparten por partes iguales entre todas sus unidades.
+- **Peso por unidad** y **volumen por unidad** (en cm³), el **peso volumétrico por avión** (volumen × 167 kg por m³) y el **cobrable por avión** (el mayor de los dos; en rojo si el volumétrico supera en 50 % al real: por avión paga sobre todo aire).
+- De qué packing list salió (número, fecha y vía), cuántas unidades y en qué cajas.
+
+Rige (★) el dato exacto antes que el aproximado y, entre dos iguales, el del packing list más nuevo.
+
+Debajo, con el dato que rige y el FOB de la ficha: el **flete por avión** por unidad (y qué % del FOB es; en rojo si pasa el umbral, porque conviene barco), el **flete por barco** y el **costo final** por cada vía: por avión, courier (FOB + flete + un % del FOB por todo concepto); por barco, despacho con impuestos e IVA. Los montos y la categoría contra el precio de la Clásica están en [Sugerencia de compra](/compras/sugerencia), recuadro «¿Avión o barco?».
 
 #### Pestaña Costo
 
@@ -147,6 +161,12 @@ Una tabla por cada lista de precios activa: Variación, **Lista** (tachado si ha
 #### Pestaña Stock
 
 Disponible (lo que hay menos lo reservado) de cada variación en cada depósito activo, y el **Total** (en rojo si está debajo del stock mínimo). **Ver detalle** lleva a [Consulta de stock](/stock/consulta) de esa variación.
+
+#### Pestaña Compras
+
+El historial de compras del producto, sólo para estadística (no mueve stock ni costos): los renglones de los [invoices de compra](/compras/invoices) confirmados y de las [compras por courier](/compras/courier). Una fila por compra, de la más nueva a la más vieja: **Fecha** (la del invoice), **Llegada estimada** (fecha + la demora de la vía), **Documento** (lleva al invoice o a la compra por courier), **Proveedor**, **Vía** (Avión, Barco o Courier), **Variación**, **Cantidad**, **Precio unit.** y **Total** en dólares (vacíos si el invoice está marcado «No tomar el precio») y **Se vendió**: en cuántos días se terminó de vender esa compra (del día que empezó al que se terminó), o cuántas unidades le quedaban sin vender. Arriba, cuántos días tardó en venderse cada compra en promedio.
+
+Para «Se vendió», cada compra empieza a venderse el día que llega, o el día después de que se terminó la compra anterior si todavía quedaba de ella, y se termina el día que las ventas de todos los canales (también las de los kits que llevan el producto) desde ahí suman su cantidad; entre paréntesis, del día que empezó al que se terminó. Si hubo compras que no están registradas, esa compra puede figurar vendida más rápido de lo real.
 
 #### Pestaña Publicaciones
 
