@@ -170,3 +170,58 @@ export function motivoEnvio(codigo: number | null | undefined): string {
     default: return "WhatsApp no aceptó el mensaje.";
   }
 }
+
+type Envio = { ok: true; wamid: string | null } | { ok: false; motivo: string; codigo: number | null };
+
+async function mandar(cuenta: CuentaWa, cuerpo: Record<string, unknown>): Promise<Envio> {
+  const r = await pedir(`${GRAPH}/${cuenta.phoneNumberId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cuenta.token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", ...cuerpo }),
+  });
+  if (!r.ok) {
+    const codigo = Number((r.data?.error as { code?: number } | undefined)?.code ?? 0) || null;
+    console.error("[wa-enviar]", cuenta.phoneNumberId, motivoCrudo(r));
+    return { ok: false, motivo: motivoEnvio(codigo), codigo };
+  }
+  return { ok: true, wamid: ((r.data?.messages ?? []) as { id?: string }[])[0]?.id ?? null };
+}
+
+/** Un documento (el PDF de una factura) por su dirección pública: Meta lo baja y lo manda.
+ *  Como el texto libre, sólo dentro de las 24 h desde el último mensaje del cliente. */
+export const enviarDocumento = (cuenta: CuentaWa, para: string, link: string, nombreArchivo: string, texto: string) =>
+  mandar(cuenta, { to: para, type: "document", document: { link, filename: nombreArchivo, caption: texto.slice(0, 1024) } });
+
+/** Un mensaje con plantilla aprobada (fuera de las 24 h). `cuerpo`: los {{1}}, {{2}}… del texto;
+ *  `boton`: lo que va al final de la dirección del botón (si la plantilla tiene uno). */
+export const enviarPlantilla = (cuenta: CuentaWa, para: string, nombre: string, idioma: string, cuerpo: string[], boton?: string) =>
+  mandar(cuenta, {
+    to: para, type: "template",
+    template: {
+      name: nombre, language: { code: idioma },
+      components: [
+        { type: "body", parameters: cuerpo.map((text) => ({ type: "text", text })) },
+        ...(boton ? [{ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: boton }] }] : []),
+      ],
+    },
+  });
+
+/** El estado de una plantilla de la cuenta (APPROVED, PENDING, REJECTED…); null si no existe. */
+export async function estadoPlantilla(wabaId: string, token: string, nombre: string): Promise<string | null> {
+  const r = await pedir(`${GRAPH}/${wabaId}/message_templates?name=${encodeURIComponent(nombre)}&fields=name,status,language`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) { console.error("[wa-plantilla]", wabaId, motivoCrudo(r)); throw new Error(motivoCrudo(r)); }
+  const fila = ((r.data?.data ?? []) as { name?: string; status?: string }[]).find((x) => x.name === nombre);
+  return fila?.status ?? null;
+}
+
+/** Pide a Meta que apruebe una plantilla nueva (categoría «utilidad»). */
+export async function crearPlantilla(wabaId: string, token: string, plantilla: Record<string, unknown>): Promise<void> {
+  const r = await pedir(`${GRAPH}/${wabaId}/message_templates`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(plantilla),
+  });
+  if (!r.ok) { console.error("[wa-plantilla]", wabaId, motivoCrudo(r)); throw new Error(motivoCrudo(r)); }
+}

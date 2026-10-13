@@ -79,6 +79,18 @@ const HERRAMIENTAS: Anthropic.Beta.BetaTool[] = [
     input_schema: { type: "object", properties: {} },
   },
   {
+    name: "identificar_cliente",
+    description: "Busca en las fichas de clientes a quien te escribe, cuando todavía no sabemos quién es. Hace falta su DNI o CUIT junto con su nombre y apellido, o el mail con el que compró. Si lo encuentra, este chat queda enlazado a su ficha y su número queda como su WhatsApp.",
+    input_schema: {
+      type: "object",
+      properties: {
+        documento: { type: "string", description: "DNI o CUIT, como lo escribió." },
+        nombre: { type: "string", description: "Nombre y apellido (o razón social)." },
+        email: { type: "string", description: "El mail con el que compró." },
+      },
+    },
+  },
+  {
     name: "derivar_a_persona",
     description: "Pasa el tema a una persona del equipo (queda 'En espera' en la carpeta de mensajes). Usalo sólo para lo que no podés resolver.",
     input_schema: {
@@ -128,6 +140,7 @@ async function contexto(c: ConfigMensajes, chat: Chat, t: Tienda | null): Promis
     lineas.push("- Esta organización todavía no tiene tienda web: no hay catálogo para consultar.");
   }
   const cli = chat.clienteId ? await una<{ nombre: string }>("select nombre from cliente where id = $1", [chat.clienteId]) : null;
+  if (!cli && chat.canal === "whatsapp") lineas.push("- Todavía no sabemos si es cliente. Si habla de una compra, un pedido o una factura, preguntale con amabilidad si ya nos compró y pedile su DNI o CUIT y su nombre y apellido (o el mail con el que compró), y usá identificar_cliente.");
   lineas.push(`- Le escribís a ${cli ? `${cli.nombre} (cliente cargado)` : chat.nombre || "alguien que todavía no es cliente"}${chat.canal === "whatsapp" ? ` por WhatsApp (${telefonoLindo(chat.externo)})` : " (es una prueba desde el panel)"}.`);
   const casos = await casosAbiertos(chat.organizacionId, chat.id);
   lineas.push(casos.length ? `- Casos abiertos de este chat (esperando a una persona): ${casos.map((k) => `#${k.id} ${k.asunto}`).join("; ")}.` : "- No hay casos abiertos en este chat.");
@@ -185,6 +198,18 @@ async function correr(nombre: string, e: Record<string, unknown>, chat: Chat, t:
       if (!filas.length) return nombre === "estado_pedido" ? "No existe un pedido con ese número." : "No encontré pedidos de este cliente (puede que haya comprado con otro teléfono o mail).";
       if (!suyos.length) return "Ese pedido no está a nombre de este teléfono: por seguridad no le podés dar el estado. Que lo consulte desde el teléfono con el que compró, o derivalo a una persona.";
       return suyos.map((f) => `Pedido #${f.id} del ${f.fecha}: ${estadoCriollo(f.estado, f.estado_pago, f.metodo_tipo).texto}, total ${formatear(Number(f.total), f.moneda)}${f.tracking ? `, seguimiento ${f.tracking}` : ""}.`).join("\n");
+    }
+    case "identificar_cliente": {
+      if (chat.clienteId) return "Este chat ya está enlazado a un cliente.";
+      const r = await identificarCliente(org, { documento: String(e.documento ?? ""), nombre: String(e.nombre ?? ""), email: String(e.email ?? "") });
+      if (r.tipo === "falta") return r.motivo;
+      if (r.tipo === "ninguno") return "No encontré ningún cliente con esos datos. Puede ser un cliente nuevo: seguí atendiéndolo normalmente (no le digas que no figura en el sistema).";
+      if (r.tipo === "varios") return "Hay más de un cliente con esos datos: no lo enlaces. Seguí atendiéndolo; si necesita algo de un pedido, derivalo a una persona.";
+      await consulta("update chat set cliente_id = $2 where id = $1 and organizacion_id = $3", [chat.id, r.id, org]);
+      chat.clienteId = r.id;
+      const { confirmarWhatsapp } = await import("./chats");
+      await confirmarWhatsapp(chat.id);
+      return `Listo: es ${r.nombre} (cliente cargado). Ya podés consultar sus pedidos.`;
     }
     case "derivar_a_persona": {
       const id = await abrirCaso(org, chat.id, String(e.asunto ?? "Consulta").trim() || "Consulta", String(e.motivo ?? ""));
@@ -310,4 +335,31 @@ export async function mandar(org: string, chat: Chat, texto: string, extra: {
   const r = await enviarTexto({ token: cred.token, phoneNumberId: cred.phoneNumberId }, chat.externo, texto);
   await guardarMensaje({ org, chatId: chat.id, texto, ...extra, wamid: r.ok ? r.wamid : null, estado: r.ok ? "enviado" : "fallido", motivo: r.ok ? null : r.motivo });
   return r.ok ? { ok: true } : { ok: false, motivo: r.motivo };
+}
+
+/** ¿Quién es? Por DNI o CUIT más el nombre (para que no alcance con saber un número ajeno), o por el mail.
+ *  Uno solo → ése; varios → no se enlaza. */
+export async function identificarCliente(org: string, d: { documento: string; nombre: string; email: string }):
+  Promise<{ tipo: "uno"; id: number; nombre: string } | { tipo: "ninguno" } | { tipo: "varios" } | { tipo: "falta"; motivo: string }> {
+  const doc = d.documento.replace(/\D/g, "");
+  const email = d.email.trim().toLowerCase();
+  const palabras = d.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/[^a-z0-9]+/).filter((p) => p.length >= 3);
+  if (!(doc.length >= 7 && palabras.length) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { tipo: "falta", motivo: "Para encontrarlo hace falta su DNI o CUIT junto con su nombre y apellido, o el mail con el que compró. Pedíselo." };
+  }
+  const filas = await consulta<{ id: number; nombre: string; texto: string; doc: string; email: string | null }>(`
+    select id::int, nombre, concat_ws(' ', nombre, razon_social, nombre_pila, apellido) texto,
+           regexp_replace(concat_ws(' ', documento_numero, cuit), '\\D', '', 'g') doc, lower(email) email
+      from cliente where organizacion_id = $1
+       and (($2 <> '' and (regexp_replace(coalesce(documento_numero, ''), '\\D', '', 'g') = $2 or regexp_replace(coalesce(cuit, ''), '\\D', '', 'g') = $2
+                           or ($2 ~ '^\\d{11}$' and regexp_replace(coalesce(documento_numero, ''), '\\D', '', 'g') = substr($2, 3, 8))))
+            or ($3 <> '' and lower(email) = $3))
+     limit 10`, [org, doc.length >= 7 ? doc : "", email]).catch(() => null);
+  if (!filas) return { tipo: "ninguno" };
+  const plano = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  for (const f of filas) f.texto = plano(f.texto);
+  const buenos = filas.filter((f) => (email && f.email === email) || (doc.length >= 7 && f.doc.includes(doc.length === 11 ? doc.slice(2, 10) : doc) && palabras.some((p) => f.texto.includes(p))));
+  if (!buenos.length) return { tipo: "ninguno" };
+  if (buenos.length > 1) return { tipo: "varios" };
+  return { tipo: "uno", id: buenos[0].id, nombre: buenos[0].nombre };
 }

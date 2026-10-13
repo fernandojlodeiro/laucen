@@ -22,6 +22,7 @@ import { barridaNocturna, enVentanaBarrida } from "@/lib/mercadolibre/barrida";
 import { hayMotivosPendientes, leerMotivosPendientes } from "@/lib/mercadolibre/moderaciones";
 import { traerFacturacionMl, facturacionPendiente } from "@/lib/mercadolibre/facturacion";
 import { revisarFacturadas } from "@/lib/facturacion/revision";
+import { reintentarFacturasWhatsapp } from "@/lib/facturacion/envio";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -40,6 +41,8 @@ export async function GET(req: Request) {
       facturacion: await facturarPendientes(organizacion_id, t0 + 60_000),
       // Lo que el comprador escribió después de la factura: si pide cambiarla, se refactura (lib/facturacion/revision.ts).
       refacturacion: await revisarFacturadas(organizacion_id, t0 + 60_000).catch((e) => ({ error: e instanceof Error ? e.message : String(e) })),
+      // Facturas por WhatsApp que quedaron pendientes (plantilla en aprobación, sin línea…).
+      whatsapp: await reintentarFacturasWhatsapp(organizacion_id, t0 + 60_000).catch((e) => ({ error: e instanceof Error ? e.message : String(e) })),
     };
   }
   // Administración: sólo las organizaciones que ya usan algo de ella (o facturan).
