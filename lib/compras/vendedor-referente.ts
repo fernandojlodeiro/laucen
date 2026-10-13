@@ -29,7 +29,7 @@ export async function correrVendedor(id: number, token: string): Promise<number>
   await consulta("update vendedor_referente set estado = 'corriendo', actualizado_ts = now() where id = $1", [id]);
   const c = await correrConEntrada(ACTOR, {
     site: "MLA", startUrls: [{ url: listadoDe(f.vendedor_id) }], maxItems: f.maximo, maxPagesPerQuery: Math.ceil(f.maximo / 48), includeProductDetails: f.detalle,
-  }, { max: f.maximo, esperaSeg: 280, topeUsd: tope });
+  }, { max: f.maximo, esperaSeg: 200, topeUsd: tope }); // 200 s: con lo que tarda guardar, entra en los 5 minutos de la ruta (lo leído hasta ahí se guarda igual)
   const costo = Math.max(c.costoUsd ?? 0, c.items.length * (f.detalle ? POR_RESULTADO.detalle : POR_RESULTADO.listado));
   await consulta("insert into seguimiento_corrida (organizacion_id, tipo, run_id, costo_usd, publicaciones, error) values ($1, 'busqueda', $2, $3, $4, $5)",
     [f.organizacion_id, c.runId ?? null, costo, c.items.length, c.error ?? null]);
