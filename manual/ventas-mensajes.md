@@ -65,6 +65,8 @@ En [Configuración de WhatsApp](/ventas/mensajes/configuracion), lápiz, y escri
 
 ## Criterios y reglas
 
+- **Otros productos**: si el cliente pide productos distintos, la IA los busca en el catálogo de la tienda (con sus herramientas de búsqueda) y le pasa el link de la tienda de los que tienen stock. Si no hay o no tienen stock, dice lo que indiquen las [Respuestas de la IA](/config/respuestas-ia) de la empresa (por ejemplo, que por el momento no hay stock y que está por ingresar).
+
 - **La IA contesta siempre**, salvo que: esté apagada para todos (Configuración), el interruptor de ese chat esté apagado, se haya llegado al tope de gasto del mes, o haya contestado más de lo permitido en la última hora en ese chat. En los dos últimos casos deja el chat **En espera** con el motivo.
 - **Espera a que el cliente termine de escribir**: si manda varios mensajes seguidos, contesta una sola vez después del último (de fábrica, 12 segundos).
 - **Qué sabe**: productos, precios y stock de la tienda web (los mismos que ve el comprador, con el link para comprar); envíos, retiro y medios de pago de la tienda; horario, dirección, garantía y devoluciones de Configuración › Tienda web; y lo que escribas en "Lo que sabe". No inventa productos, precios ni plazos.

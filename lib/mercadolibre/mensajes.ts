@@ -4,6 +4,7 @@
 // (Fer, 5/10) la IA contesta sola, salvo en una conversación donde el
 // comprador pidió hablar con una persona: ahí no contesta más.
 
+import { buscarProductosPedidos } from "@/lib/mercadolibre/productos-pedidos";
 import { textosCanal, instruccionesExtra, conFirma, agregarFirma } from "@/lib/canales/textos";
 import { igualALaSugerencia, leerPropuesta, FORMATO_IA, type EstadoIa } from "@/lib/mercadolibre/sugerencia";
 import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
@@ -73,8 +74,9 @@ export async function importarMensaje(cuenta: CuentaMl, recurso: string) {
 }
 
 const INSTRUCCIONES = `Sos quien atiende la posventa de una tienda argentina en Mercado Libre. Escribí la próxima respuesta al comprador, en castellano rioplatense, cordial y breve (1 a 4 oraciones, máximo 350 caracteres, que es el límite de ML).
-Reglas de Mercado Libre: nada de teléfonos, mails, links ni redes; no ofrecer arreglos por fuera de ML.
+Reglas de Mercado Libre: nada de teléfonos, mails ni redes; links, sólo los de publicaciones nuestras de Mercado Libre que figuren en productos_pedidos, nunca otros; no ofrecer arreglos por fuera de ML.
 Usá SOLO los datos del pedido y del envío que te paso; no prometas fechas que no figuran. Si el comprador reclama, primero empatía y una solución concreta dentro de lo que se ve en los datos.
+Si traigo productos_pedidos, el comprador pide también otros productos: cada uno trae las publicaciones nuestras que se encontraron (con link, plan y stock disponible) o ninguna. Usá sólo esos datos; qué decir según haya o no stock lo dicen las reglas de la tienda. Un solo link por producto, el de la primera con stock.
 Mirá toda la conversación: si en cualquier mensaje el comprador pidió hablar con una persona, el estado es "persona".
 ${FORMATO_IA}`;
 
@@ -89,9 +91,17 @@ export async function sugerirMensaje(org: string, packId: string): Promise<{ tex
            (select json_build_object('estado', e.estado, 'subestado', e.subestado, 'logistica', e.logistica, 'tracking', e.tracking, 'entrega_estimada', e.entrega_estimada)
               from envio e where e.pedido_id = p.id order by e.id desc limit 1) envio
       from pedido p where p.id = $1`, [conv.pedido_id]) : null;
+  // ¿Pide otros productos? Se buscan entre las publicaciones de esta cuenta (lib/mercadolibre/productos-pedidos.ts).
+  const ultimo = mensajes[mensajes.length - 1];
+  const delComprador = mensajes.filter((m) => !m.de_vendedor && m.texto).slice(-3).map((m) => m.texto).join("\n");
+  const pedidos = conv?.canal_id && ultimo && !ultimo.de_vendedor && delComprador
+    ? await buscarProductosPedidos(org, Number(conv.canal_id), {
+        pregunta: delComprador, itemId: "", plan: null,
+        tituloPublicacion: ((pedido as { lineas?: { titulo: string }[] } | null)?.lineas ?? []).map((l) => l.titulo).join(" | ") || null })
+    : [];
   const r = await pedirClaude({
     system: INSTRUCCIONES + instruccionesExtra(textos), modelo: "medio", maxTokens: 400,
-    contenido: `PEDIDO:\n${JSON.stringify(pedido)}\n\nCONVERSACIÓN:\n${mensajes.map((m) => `${m.de_vendedor ? "Vendedor" : "Comprador"}: ${m.texto ?? "(adjunto)"}`).join("\n")}`,
+    contenido: `PEDIDO:\n${JSON.stringify(pedido)}${pedidos.length ? `\n\nproductos_pedidos:\n${JSON.stringify(pedidos, null, 1)}` : ""}\n\nCONVERSACIÓN:\n${mensajes.map((m) => `${m.de_vendedor ? "Vendedor" : "Comprador"}: ${m.texto ?? "(adjunto)"}`).join("\n")}`,
   });
   if ("error" in r) throw new ErrorErp(`La IA no pudo proponer una respuesta (${r.error.slice(0, 120)}).`);
   const p = leerPropuesta(r.texto);
