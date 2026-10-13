@@ -347,13 +347,14 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
   );
 }
 
-/** Los textos del canal (Fer, 10/10; lib/canales/textos.ts): la firma y las reglas de la IA de
- *  preguntas y mensajes, y el encabezado y el pie de la descripción al publicar. Abre en vista. */
+/** Los textos del canal (Fer, 10/10; lib/canales/textos.ts): la firma de las respuestas y el
+ *  encabezado y el pie de la descripción al publicar. Las reglas de la IA son de la empresa
+ *  (Configuración › Respuestas de la IA). Abre en vista. */
 async function TextosCanal({ org, canal, nombre, aqui, editando }: { org: string; canal: number; nombre: string; aqui: string; editando: boolean }) {
   const t = await textosCanal(org, canal);
   const editar = `${aqui}${aqui.includes("?") ? "&" : "?"}editar=textos`;
   // Cada texto con su alto, igual en vista y en edición (Fer, 10/10: encabezado y pie, bien altos).
-  const ALTO = { reglas: "h-36 !max-h-36", desc: "h-80 !max-h-80" };
+  const ALTO = { desc: "h-80 !max-h-80" };
   const campo = (name: string, etiqueta: string, valor: string, ayuda: string, alto: string | null, clase = "") => (
     <label className={`block ${clase}`}>
       <span className={ETIQUETA}>{etiqueta}</span>
@@ -372,7 +373,6 @@ async function TextosCanal({ org, canal, nombre, aqui, editando }: { org: string
   );
   const AYUDA = {
     firma: "Va al final de cada respuesta que propone la IA a preguntas y mensajes, tal cual la escribís. Ej.: «Saludos, el equipo de Daitom».",
-    reglas: "Lo que la IA tiene que respetar siempre en este canal, una regla por renglón. Ej.: «Nunca sugerir abrir un reclamo ni una mediación en Mercado Libre».",
     enc: "Va arriba de la descripción técnica del producto al publicarlo en este canal.",
     pie: "Va abajo de la descripción técnica al publicarlo en este canal.",
   };
@@ -387,7 +387,6 @@ async function TextosCanal({ org, canal, nombre, aqui, editando }: { org: string
           <input type="hidden" name="volver" value={aqui} />
           {campo("firma", "Firma de las respuestas", t.firma, AYUDA.firma, null)}
           <div className="hidden md:block" />
-          {campo("reglas_ia", "Reglas para la IA (preguntas y mensajes)", t.reglasIa, AYUDA.reglas, ALTO.reglas, "md:col-span-2")}
           {campo("desc_encabezado", "Encabezado de la descripción", t.encabezado, AYUDA.enc, ALTO.desc)}
           {campo("desc_pie", "Pie de la descripción", t.pie, AYUDA.pie, ALTO.desc)}
         </form>
@@ -395,7 +394,6 @@ async function TextosCanal({ org, canal, nombre, aqui, editando }: { org: string
         <div className="grid gap-3 md:grid-cols-2">
           {ver("Firma de las respuestas", t.firma, AYUDA.firma, null)}
           <div className="hidden md:block" />
-          {ver("Reglas para la IA (preguntas y mensajes)", t.reglasIa, AYUDA.reglas, ALTO.reglas, "md:col-span-2")}
           {ver("Encabezado de la descripción", t.encabezado, AYUDA.enc, ALTO.desc)}
           {ver("Pie de la descripción", t.pie, AYUDA.pie, ALTO.desc)}
         </div>

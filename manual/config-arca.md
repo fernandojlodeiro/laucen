@@ -113,6 +113,7 @@ Abrí **"Cambiar o desconectar"**, apretá **"Desconectar ARCA"** y confirmá. A
   - Se puede facturar al llegar a **Pagado**, **Preparado** o **Despachado** (no otros estados).
   - Al prenderla, todos los cambios de estado de pedidos que estaban sin procesar se marcan como vistos: **no salen de golpe facturas de pedidos viejos**.
   - Corre en la revisión periódica de Laucen (cada 2 minutos, si hay algo pendiente). El detalle de qué pedidos se facturan y cuáles se saltean está en [Facturación](/administracion/facturacion).
+  - **Antes de cada factura**, Laucen lee lo que escribió el comprador y las notas del pedido y del cliente: si pidió una leyenda o factura A con su CUIT, lo aplica; si hay duda, no factura y avisa (ver "Revisión antes de facturar" en [Pedidos](/ventas/pedidos)).
   - Apagarla no afecta lo ya facturado.
 - **Datos fiscales**: si todavía no hay una razón social cargada, las acciones que la necesitan avisan "Primero cargá la razón social (CUIT, condición de IVA y punto de venta) en Configuración → Razones sociales."
 

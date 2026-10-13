@@ -239,3 +239,18 @@ alter table empresa add column if not exists dias_reserva int not null default 7
 -- la factura original va acá tal como la devolvió ARCA:
 -- {tipo, punto_venta, numero, fecha, total}.
 alter table comprobante add column if not exists asociado_externo jsonb;
+
+-- Revisión antes de facturar (pedido de Fer, 13/10; lib/facturacion/revision.ts):
+-- antes de la factura automática se leen los mensajes del comprador y las notas del
+-- pedido y del cliente. Lo que pidió para la factura se aplica (leyenda, CUIT/factura A);
+-- si hay duda, la factura queda retenida hasta que una persona la mire.
+-- comprobante.leyenda: lo que sale en "Observaciones" de la factura (en pantalla y en el PDF).
+alter table comprobante add column if not exists leyenda text;
+-- pedido.factura_leyenda: la leyenda para la próxima factura del pedido (la escribe la IA o una persona).
+alter table pedido add column if not exists factura_leyenda text;
+-- pedido.factura_retenida: por qué no se facturó solo (o por qué hay que mirar la factura ya hecha); null = nada retenido.
+alter table pedido add column if not exists factura_retenida text;
+alter table pedido add column if not exists factura_retenida_ts timestamptz;
+-- pedido.factura_revision: la última lectura ({firma, ts, decision, motivo}); con la misma firma no se vuelve a leer.
+alter table pedido add column if not exists factura_revision jsonb;
+create index if not exists pedido_factura_retenida on pedido (organizacion_id) where factura_retenida is not null;

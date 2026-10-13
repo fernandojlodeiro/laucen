@@ -21,6 +21,7 @@ import { procesarCambiosStock, sincronizarStockMl, variacionesConEventos } from 
 import { barridaNocturna, enVentanaBarrida } from "@/lib/mercadolibre/barrida";
 import { hayMotivosPendientes, leerMotivosPendientes } from "@/lib/mercadolibre/moderaciones";
 import { traerFacturacionMl, facturacionPendiente } from "@/lib/mercadolibre/facturacion";
+import { revisarFacturadas } from "@/lib/facturacion/revision";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -35,7 +36,11 @@ export async function GET(req: Request) {
   const orgs = (await pool.query<{ organizacion_id: string }>("select distinct organizacion_id from emisor")).rows;
   for (const { organizacion_id } of orgs) {
     if (Date.now() - t0 > 60_000) break;
-    informe[organizacion_id] = { facturacion: await facturarPendientes(organizacion_id, t0 + 60_000) };
+    informe[organizacion_id] = {
+      facturacion: await facturarPendientes(organizacion_id, t0 + 60_000),
+      // Lo que el comprador escribió después de la factura: si pide cambiarla, se refactura (lib/facturacion/revision.ts).
+      refacturacion: await revisarFacturadas(organizacion_id, t0 + 60_000).catch((e) => ({ error: e instanceof Error ? e.message : String(e) })),
+    };
   }
   // Administración: sólo las organizaciones que ya usan algo de ella (o facturan).
   const adm = (await pool.query<{ organizacion_id: string }>(`

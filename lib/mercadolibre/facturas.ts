@@ -74,6 +74,11 @@ async function candidatos(org: string, ids: number[] | null, limite = 2000): Pro
       join canal ca on ca.id = p.canal_id and ca.tipo = 'mercadolibre'
      where cb.organizacion_id = $1 and cb.estado = 'autorizado' and cb.ml_subida_ts is null
        and coalesce(p.id_externo, '') ~ '^[0-9]+$'
+       -- Mercado Libre acepta UN solo documento fiscal por venta: la nota de crédito no se sube, y la
+       -- factura nueva de una refacturación tampoco mientras la venta ya tenga otro subido (ML diría
+       -- "ya tiene" y quedaría marcada como subida sin serlo). Reemplazarlo es otro paso.
+       and cb.tipo_cbte in (1, 6, 11)
+       and not exists (select 1 from comprobante o where o.pedido_id = cb.pedido_id and o.id <> cb.id and o.ml_subida_ts is not null)
        and ($2::bigint[] is null or cb.id = any($2::bigint[]))
        and not ${sqlCarritoEnEspera("p")}
        and not exists (select 1 from ml_cola q where q.canal_id = p.canal_id and q.tipo = 'factura' and q.item_id = 'cbte:' || cb.id

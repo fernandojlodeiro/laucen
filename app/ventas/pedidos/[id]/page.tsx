@@ -12,14 +12,14 @@ import { enVista, type Moneda } from "@/lib/moneda";
 import { pedidoCompleto, ESTADOS_PEDIDO, ESTADOS_PAGO, type EstadoPedido, type EstadoPago } from "@/lib/pedidos";
 import { TIPOS_MOVIMIENTO, type TipoMovimiento } from "@/lib/stock";
 import {
-  entrarErp, Pantalla, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAJA, ETIQUETA,
+  entrarErp, Pantalla, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAJA, ETIQUETA, CAMPO, TituloSeccion, BotonesFicha, ValorVista,
 } from "@/app/componentes/erp";
 import { fecha, fechaHora, TONO_ESTADO, TONO_PAGO, etiqueta } from "@/app/ventas/formato";
 import { tienePermiso } from "@/lib/permisos";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { ESTADOS_CBTE, numeroCbte, nombreTipo, type EstadoCbte } from "@/app/administracion/facturacion/comun";
-import { accionFacturar, accionSubirFacturaMlPedido } from "./acciones";
+import { accionFacturar, accionSubirFacturaMlPedido, accionRefacturar, accionLiberarFactura, accionLeyendaFactura } from "./acciones";
 import { sqlEstadoFacturaMl } from "@/lib/mercadolibre/facturas";
 import { TextoFacturaMl, BotonFacturaMl, puedeSubir } from "@/app/administracion/facturacion/FacturaMl";
 import Operacion from "./Operacion";
@@ -113,9 +113,9 @@ export default async function DetallePedido({ params, searchParams }: { params: 
   const fechaCorta = (d: Date | null) => d ? d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
 
   // Facturación: los comprobantes del pedido y si se puede facturar.
-  const comprobantes = await consulta<{ id: number; tipo_cbte: number; punto_venta: number; numero: string | null; estado: EstadoCbte; observaciones: string | null;
+  const comprobantes = await consulta<{ id: number; tipo_cbte: number; punto_venta: number; numero: string | null; estado: EstadoCbte; observaciones: string | null; asociado_id: number | null;
     es_ml: boolean; ml_estado: string | null; ml_subida_ts: Date | null; ml_documento_id: string | null; ml_error: string | null; ml_cola_id: number | null }>(`
-    select cb.id::int, cb.tipo_cbte, cb.punto_venta, cb.numero::text, cb.estado, cb.observaciones,
+    select cb.id::int, cb.tipo_cbte, cb.punto_venta, cb.numero::text, cb.estado, cb.observaciones, cb.comprobante_asociado_id::int asociado_id,
            (ca.tipo = 'mercadolibre' and p.id_externo is not null) es_ml, ${sqlEstadoFacturaMl("cb")} ml_estado, cb.ml_subida_ts, cb.ml_documento_id,
            (select q.ultimo_error from ml_cola q where q.tipo = 'factura' and q.item_id = 'cbte:' || cb.id order by q.id desc limit 1) ml_error,
            (select q.id::int from ml_cola q where q.tipo = 'factura' and q.item_id = 'cbte:' || cb.id order by q.id desc limit 1) ml_cola_id
@@ -124,7 +124,14 @@ export default async function DetallePedido({ params, searchParams }: { params: 
   const enMl = (x: (typeof comprobantes)[number]) => ({ estado: x.ml_estado, subida_ts: x.ml_subida_ts, documento_id: x.ml_documento_id, error: x.ml_error, cola_id: x.ml_cola_id });
   const subibles = comprobantes.filter((x) => x.estado === "autorizado" && x.es_ml && puedeSubir(enMl(x)));
   const puedeFacturar = tienePermiso(s.permisos, "facturacion_ver");
-  const facturado = comprobantes.some((x) => [1, 6, 11].includes(x.tipo_cbte) && x.estado === "autorizado");
+  // Facturado = una factura autorizada que ninguna nota de crédito autorizada anuló.
+  const facturado = comprobantes.some((x) => [1, 6, 11].includes(x.tipo_cbte) && x.estado === "autorizado"
+    && !comprobantes.some((n) => n.asociado_id === x.id && n.estado === "autorizado"));
+  // La revisión antes de facturar (lib/facturacion/revision.ts): retenida, lo que leyó y las observaciones de la factura.
+  const fx = await una<{ leyenda: string | null; retenida: string | null; retenida_ts: Date | null; lectura: string | null; leida_ts: string | null }>(`
+    select factura_leyenda leyenda, factura_retenida retenida, factura_retenida_ts retenida_ts, factura_revision ->> 'motivo' lectura, factura_revision ->> 'ts' leida_ts
+      from pedido where id = $1 and organizacion_id = $2`, [pid, s.org.id]);
+  const editandoLeyenda = sp.editar === "leyenda";
   const ofrecerFacturar = puedeFacturar && !facturado && !["presupuesto", "nuevo", "cancelado"].includes(c.estado);
 
   const v = s.moneda;
@@ -318,6 +325,25 @@ export default async function DetallePedido({ params, searchParams }: { params: 
           {sp.error && c.cliente_id && <> <Link href={`/ventas/clientes/${c.cliente_id}`} className="font-bold underline">Corregir en la ficha del cliente</Link></>}
         </p>
       )}
+      {fx?.retenida && (
+        <div className="rounded-lg border border-[#F2D27A] bg-[#FFF8E5] p-3 text-xs mb-2 flex flex-wrap items-start justify-between gap-2">
+          <span className="min-w-0">
+            <b>⚠ {facturado ? "Revisar la factura" : "Factura retenida: no se facturó sola"}</b>
+            {fx.retenida_ts && <span className="text-[#5C6B76]"> · {fechaHora(fx.retenida_ts)}</span>}
+            <span className="block mt-0.5 whitespace-pre-wrap">{fx.retenida}</span>
+            <span className="block mt-1 text-[#5C6B76]">
+              Corregí lo que haga falta en la {c.cliente_id ? <Link href={`/ventas/clientes/${c.cliente_id}`} className="text-[#16577F] hover:underline">ficha del cliente</Link> : "ficha del cliente"} y
+              en «Observaciones de la factura» (abajo), y después {facturado ? "«Refacturar con datos actuales» o «Dejar la factura como está»" : "«Facturar»"}.
+            </span>
+          </span>
+          {puedeFacturar && facturado && (
+            <form action={accionLiberarFactura}>
+              <input type="hidden" name="pedido_id" value={pid} />
+              <BotonEnviar clase={SUAVE} corriendo="Un momento…">Dejar la factura como está</BotonEnviar>
+            </form>
+          )}
+        </div>
+      )}
       <div className={`${CAJA} mb-4 flex flex-wrap items-start justify-between gap-3`}>
         <div className="text-xs grid gap-1">
           {comprobantes.length === 0 && <span className="text-[#5C6B76]">Sin comprobantes.</span>}
@@ -353,7 +379,32 @@ export default async function DetallePedido({ params, searchParams }: { params: 
             <BotonEnviar clase={PRIMARIO} corriendo="Facturando…">Facturar</BotonEnviar>
           </form>
         )}
+        {/* Nota de crédito idéntica a la factura vigente y factura nueva con los datos de hoy de la ficha del cliente. */}
+        {puedeFacturar && facturado && (
+          <form action={accionRefacturar}>
+            <input type="hidden" name="pedido_id" value={pid} />
+            <BotonEnviar clase={fx?.retenida ? PRIMARIO : SUAVE} corriendo="Refacturando…">Refacturar con datos actuales</BotonEnviar>
+          </form>
+        )}
       </div>
+
+      <section className={`${CAJA} mb-4`}>
+        <TituloSeccion titulo="Observaciones de la factura">
+          {puedeFacturar && <BotonesFicha editando={editandoLeyenda} ver={`/ventas/pedidos/${pid}`} editar={`/ventas/pedidos/${pid}?editar=leyenda`} form="leyenda" />}
+        </TituloSeccion>
+        {editandoLeyenda && puedeFacturar ? (
+          <form id="leyenda" action={accionLeyendaFactura}>
+            <input type="hidden" name="pedido_id" value={pid} />
+            <textarea name="leyenda" defaultValue={fx?.leyenda ?? ""} autoFocus maxLength={500} className={`${CAMPO} w-full h-16 resize-y`} />
+          </form>
+        ) : (
+          <ValorVista largo className="h-16">{fx?.leyenda ?? null}</ValorVista>
+        )}
+        <p className="text-[11px] text-[#5C6B76] mt-1">
+          Sale en «Observaciones» de la próxima factura de este pedido (en pantalla y en el PDF). Si el comprador la pide por mensaje, la carga sola la revisión antes de facturar.
+          {fx?.lectura && <> Última lectura{fx.leida_ts ? ` (${fechaHora(new Date(fx.leida_ts))})` : ""}: {fx.lectura}</>}
+        </p>
+      </section>
 
       <h2 className="text-sm font-bold mb-2">Movimientos de stock</h2>
       <div className={CAJA_TABLA}>

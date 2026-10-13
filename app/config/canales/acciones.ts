@@ -193,7 +193,6 @@ export async function accionGuardarTextosCanal(fd: FormData) {
     await guardarTextosCanal(s.org.id, canal, {
       // La firma va también en los mensajes, que en ML tienen 350 letras en total.
       firma: largo("firma", 100, "La firma"),
-      reglasIa: largo("reglas_ia", 3000, "Las reglas para la IA"),
       encabezado: largo("desc_encabezado", 5000, "El encabezado"),
       pie: largo("desc_pie", 5000, "El pie"),
     });

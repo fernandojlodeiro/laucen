@@ -35,7 +35,7 @@ export function filtrosPedidos(sp: SP) {
   const semana = rangoDeAtajo("7dias", hoyArgentina());
   return {
     // Sin elegir, todos (Fer, 6/10); "pendientes" sigue andando (lo usa el contador de la barra).
-    estado: sp.estado === "pendientes" || esEstadoPedido(sp.estado) ? sp.estado! : "",
+    estado: sp.estado === "pendientes" || sp.estado === "retenidas" || esEstadoPedido(sp.estado) ? sp.estado! : "",
     pago: esEstadoPago(sp.pago) ? sp.pago! : "",
     canal: Number(sp.canal) || 0,
     desde: sinFechas ? semana.desde : esFecha(sp.desde),
@@ -218,6 +218,8 @@ export const LISTA_PEDIDOS: Lista = {
     const agregar = (cond: (p: string) => string, v: unknown) => { valores.push(v); donde.push(cond(`$${valores.length}`)); };
     // Pendientes: nuevos y pagados, y los «A cobrar» que todavía no se entregaron.
     if (f.estado === "pendientes") donde.push(sqlPedidoPendiente("p"));
+    // Factura retenida por la revisión antes de facturar (lib/facturacion/revision.ts; contador «Facturas»).
+    else if (f.estado === "retenidas") donde.push("p.factura_retenida is not null");
     else if (f.estado) agregar((p) => `p.estado = ${p}`, f.estado);
     if (f.conPendiente) donde.push(SQL_ALGO_PENDIENTE);
     if (f.reserva) donde.push(sqlReservaSinPagar("p"));

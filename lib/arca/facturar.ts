@@ -90,14 +90,16 @@ export async function prepararFactura(org: string, pedidoId: number, usuarioId: 
   if (!e) throw new ErrorErp("Falta cargar los datos de facturación (Configuración → Razones sociales).");
   // Un carrito de ML al que todavía le puede llegar un ítem no se factura.
   await exigirCarritoLibre(org, pedidoId, c);
-  const ya = await q<{ id: number; estado: string }>("select id::int, estado from comprobante where organizacion_id = $1 and pedido_id = $2 and tipo_cbte in (1, 6, 11) and estado in ('autorizado', 'pendiente', 'error') order by id desc limit 1", [org, pedidoId]);
+  // Una factura anulada con nota de crédito ya no cuenta (refacturar, lib/facturacion/revision.ts).
+  const ya = await q<{ id: number; estado: string }>(`select id::int, estado from comprobante where organizacion_id = $1 and pedido_id = $2 and tipo_cbte in (1, 6, 11) and estado in ('autorizado', 'pendiente', 'error')
+    and not exists (select 1 from comprobante nc where nc.comprobante_asociado_id = comprobante.id and nc.estado = 'autorizado') order by id desc limit 1`, [org, pedidoId]);
   if (ya[0]) {
     if (ya[0].estado === "autorizado") throw new ErrorErp("Ese pedido ya está facturado.");
     return ya[0].id; // pendiente o con error: se reintenta el mismo
   }
   const p = (await q<{ cliente_id: number | null; total_ars: string; estado: string; nombre: string | null; razon_social: string | null; cuit: string | null;
-    documento_tipo: string | null; documento_numero: string | null; condicion_iva: string | null; domicilio: string | null; a_cobrar: boolean }>(`
-    select p.cliente_id::int, p.total_ars, p.estado, ${sqlACobrar("p")} a_cobrar, cl.nombre, cl.razon_social, cl.cuit, cl.documento_tipo, cl.documento_numero, cl.condicion_iva,
+    documento_tipo: string | null; documento_numero: string | null; condicion_iva: string | null; domicilio: string | null; a_cobrar: boolean; leyenda: string | null }>(`
+    select p.cliente_id::int, p.total_ars, p.estado, nullif(trim(p.factura_leyenda), '') leyenda, ${sqlACobrar("p")} a_cobrar, cl.nombre, cl.razon_social, cl.cuit, cl.documento_tipo, cl.documento_numero, cl.condicion_iva,
            (select concat_ws(', ', concat_ws(' ', d.calle, d.numero), d.localidad, d.provincia) from cliente_direccion d
              where d.cliente_id = cl.id order by (d.etiqueta = 'Fiscal') desc, d.principal desc, d.id limit 1) domicilio
       from pedido p left join cliente cl on cl.id = p.cliente_id where p.id = $1 and p.organizacion_id = $2`, [pedidoId, org]))[0];
@@ -139,12 +141,12 @@ export async function prepararFactura(org: string, pedidoId: number, usuarioId: 
   const correr = async (cx: PoolClient) => {
     const cb = await cx.query<{ id: string }>(`
       insert into comprobante (organizacion_id, pedido_id, cliente_id, ambiente, tipo_cbte, punto_venta, doc_tipo, doc_nro, receptor_nombre,
-                               receptor_condicion_iva, receptor_domicilio, importe_total, importe_neto, importe_iva, iva_detalle, usuario_id, fecha, emisor_id)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16, (now() at time zone 'America/Argentina/Buenos_Aires')::date, $17)
+                               receptor_condicion_iva, receptor_domicilio, importe_total, importe_neto, importe_iva, iva_detalle, usuario_id, fecha, emisor_id, leyenda)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16, (now() at time zone 'America/Argentina/Buenos_Aires')::date, $17, $18)
       returning id`,
       [org, pedidoId, p.cliente_id, e.ambiente, tipo, e.punto_venta, docTipo, docNro, p.razon_social ?? p.nombre ?? "Consumidor final",
         CONDICION_RECEPTOR[condRec] ?? 5, p.domicilio, t.total, conIva ? t.neto : t.total, conIva ? t.iva : 0,
-        JSON.stringify(conIva ? t.alicuotas.map((a) => ({ id: a.id, pct: a.pct, base: a.base, importe: a.importe })) : []), usuarioId, e.id]);
+        JSON.stringify(conIva ? t.alicuotas.map((a) => ({ id: a.id, pct: a.pct, base: a.base, importe: a.importe })) : []), usuarioId, e.id, p.leyenda]);
     const id = Number(cb.rows[0].id);
     for (const [i, l] of items.entries()) {
       await cx.query(`insert into comprobante_linea (organizacion_id, comprobante_id, variacion_id, descripcion, cantidad, precio_unit, iva_pct, neto, iva, total, orden)
@@ -168,9 +170,9 @@ export async function prepararNotaCredito(org: string, facturaId: number, usuari
     const r = await c.query<{ id: string }>(`
       insert into comprobante (organizacion_id, pedido_id, cliente_id, ambiente, tipo_cbte, punto_venta, doc_tipo, doc_nro, receptor_nombre,
                                receptor_condicion_iva, receptor_domicilio, importe_total, importe_neto, importe_iva, iva_detalle,
-                               comprobante_asociado_id, usuario_id, fecha, emisor_id)
+                               comprobante_asociado_id, usuario_id, fecha, emisor_id, leyenda)
       select organizacion_id, pedido_id, cliente_id, ambiente, $3, punto_venta, doc_tipo, doc_nro, receptor_nombre, receptor_condicion_iva,
-             receptor_domicilio, importe_total, importe_neto, importe_iva, iva_detalle, id, $4, (now() at time zone 'America/Argentina/Buenos_Aires')::date, emisor_id
+             receptor_domicilio, importe_total, importe_neto, importe_iva, iva_detalle, id, $4, (now() at time zone 'America/Argentina/Buenos_Aires')::date, emisor_id, leyenda
         from comprobante where id = $1 and organizacion_id = $2 returning id`, [facturaId, org, tipoNc, usuarioId]);
     const id = Number(r.rows[0].id);
     await c.query(`insert into comprobante_linea (organizacion_id, comprobante_id, variacion_id, descripcion, cantidad, precio_unit, iva_pct, neto, iva, total, orden)
@@ -308,11 +310,15 @@ export async function facturarPendientes(org: string, hastaMs: number): Promise<
       select distinct ev.pedido_id::int from ev join pedido p on p.id = ev.pedido_id
        where not ${sqlACobrar("p")}
          and (ev.tipo = 'pedido_estado_cambiado' or estado_pedido_orden(p.estado) >= estado_pedido_orden($2))
-         and not exists (select 1 from comprobante cb where cb.pedido_id = p.id and cb.tipo_cbte in (1, 6, 11) and cb.estado = 'autorizado')
+         and not exists (select 1 from comprobante cb where cb.pedido_id = p.id and cb.tipo_cbte in (1, 6, 11) and cb.estado = 'autorizado'
+                           and not exists (select 1 from comprobante nc where nc.comprobante_asociado_id = cb.id and nc.estado = 'autorizado'))
        order by 1`, [org, e.facturar_al, e.id]);
     for (const { pedido_id } of eventos) {
       if (Date.now() > hastaMs) break;
       try {
+        // Antes, lo que escribió el comprador y las notas (lib/facturacion/revision.ts): con duda, no se factura.
+        const { revisarPedido } = await import("@/lib/facturacion/revision");
+        if ((await revisarPedido(org, pedido_id)).retenida) continue;
         const id = await prepararFactura(org, pedido_id, "sistema");
         const r = await emitir(org, id);
         if (r.estado === "autorizado") res.emitidos++; else res.errores.push(`pedido ${pedido_id}: ${r.mensaje}`);

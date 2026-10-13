@@ -83,7 +83,7 @@ const MOTIVO: Record<string, string> = {
 /** Lo que la IA no contestó y todavía no se le mostró al usuario (pasa su marca de `avisado`). */
 export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolean, avisado: Marcas): Promise<AvisoIa[]> {
   const desde = (t: TipoAviso) => Number(avisado[t] ?? 0);
-  const [reclamos, pedidos, preguntas, mensajes, casos] = await Promise.all([
+  const [reclamos, pedidos, preguntas, mensajes, casos, facturas] = await Promise.all([
     puede("reclamos_ver") ? consulta<{ id: string; marca: number; tipo: string; origen: string; canal: string | null; motivo: string | null; pedido_id: string | null;
       cliente: string | null; vence: string | null; texto: string | null }>(`
       select x.* from (
@@ -124,6 +124,12 @@ export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolea
         from chat_caso k join chat ch on ch.id = k.chat_id
        where k.organizacion_id = $1 and k.resuelto_ts is null and k.id > $2::float8
        order by k.id limit 10`, [org, desde("whatsapp")]).catch(() => []) : [],
+    puede("facturacion_ver") ? consulta<{ id: string; marca: number; motivo: string; canal: string | null; cliente: string | null; texto: string | null }>(`
+      select p.id::text, floor(extract(epoch from p.factura_retenida_ts) * 1000)::float8 marca, p.factura_retenida motivo, c.nombre canal, cl.nombre cliente,
+             (select m.texto from meli_mensaje m where m.pedido_id = p.id and not m.de_vendedor order by m.fecha desc limit 1) texto
+        from pedido p left join canal c on c.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
+       where p.organizacion_id = $1 and p.factura_retenida is not null and floor(extract(epoch from p.factura_retenida_ts) * 1000) > $2::float8
+       order by p.factura_retenida_ts limit 10`, [org, desde("facturas")]).catch(() => []) : [],
   ]);
   return [
     ...reclamos.map((r): AvisoIa => ({
@@ -152,6 +158,10 @@ export async function pendientesIa(org: string, puede: (p: PermisoKey) => boolea
       texto: k.texto ?? "", motivo: k.motivo || "La IA lo dejó en espera para una persona.", propuesta: null,
       href: `/ventas/mensajes?filtro=en_espera&con=${k.chat_id}`,
     })),
+    ...facturas.map((f): AvisoIa => ({
+      tipo: "facturas", id: f.id, marca: Number(f.marca), titulo: `Factura retenida: pedido ${f.id}${f.canal ? ` en ${f.canal}` : ""}`,
+      detalle: f.cliente ?? "", texto: f.texto ?? "", motivo: f.motivo, propuesta: null, href: `/ventas/pedidos/${f.id}`,
+    })),
   ];
 }
 
@@ -176,7 +186,7 @@ export async function marcasActuales(org: string): Promise<Marcas> {
   const r = await una<{ pedidos: number | null; whatsapp: number | null }>(`
     select (select max(id)::float8 from pedido where organizacion_id = $1) pedidos,
            (select max(id)::float8 from chat_caso where organizacion_id = $1) whatsapp`, [org]);
-  return { reclamos: Date.now(), pedidos: Number(r?.pedidos ?? 0), preguntas: Date.now(), mensajes: Date.now(), whatsapp: Number(r?.whatsapp ?? 0) };
+  return { reclamos: Date.now(), pedidos: Number(r?.pedidos ?? 0), preguntas: Date.now(), mensajes: Date.now(), whatsapp: Number(r?.whatsapp ?? 0), facturas: Date.now() };
 }
 
 /** Si a las marcas guardadas les falta un tipo (uno nuevo), se completa con la de hoy y se guarda. */

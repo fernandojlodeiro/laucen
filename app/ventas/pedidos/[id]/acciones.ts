@@ -10,6 +10,7 @@ import { intentar, id, texto } from "@/lib/erp/acciones";
 import { cambiarEstado, esEstadoPedido, exigirCarritoLibre, ESTADOS_PEDIDO } from "@/lib/pedidos";
 import { confirmarPago, entregarYCobrar } from "@/lib/tienda/pagos/confirmar";
 import { prepararFactura, emitir } from "@/lib/arca/facturar";
+import { refacturar, liberarFactura, LARGO_LEYENDA } from "@/lib/facturacion/revision";
 import { subirFacturaDelPedidoConBoton } from "@/lib/mercadolibre/facturas";
 import { deFondo } from "@/lib/tareas-fondo";
 import { pasarAPedido, pasarAPresupuesto, cambiarVigencia } from "@/lib/pedidos/presupuestos";
@@ -28,6 +29,8 @@ export async function accionFacturar(fd: FormData) {
     // sea un carrito de ML en espera).
     const cid = await prepararFactura(s.org.id, pid, s.usuario.id);
     const r = await emitir(s.org.id, cid);
+    // Una persona la facturó: si estaba retenida (lib/facturacion/revision.ts), ya no.
+    if (r.estado === "autorizado") await liberarFactura(s.org.id, pid);
     revalidatePath(volver);
     revalidatePath("/administracion/facturacion");
     if (r.estado !== "autorizado") throw new ErrorErp(r.mensaje);
@@ -239,5 +242,51 @@ export async function accionLevantarPedido(fd: FormData) {
     return faltan.length
       ? `Pedido ${pid} levantado, pero OJO: no alcanza el stock de ${faltan.join(", ")}. Quedó reservado igual (en negativo): reponelo o sacalo del pedido.`
       : `Pedido ${pid} levantado: volvió a Nuevo y el stock quedó reservado.`;
+  });
+}
+
+// ── Revisión de la factura (pedido de Fer, 13/10; lib/facturacion/revision.ts) ──
+
+/** «Refacturar con datos actuales»: nota de crédito idéntica a la factura vigente y factura nueva
+ *  con lo que hoy tiene la ficha del cliente y las observaciones del pedido (las dos con la fecha del día). */
+export async function accionRefacturar(fd: FormData) {
+  const s = await entrarErp("facturacion_ver");
+  const pid = id(fd, "pedido_id");
+  const volver = `/ventas/pedidos/${pid}`;
+  await intentar(volver, async () => {
+    if (!pid) throw new ErrorErp("El pedido no existe.");
+    if (!(await una("select 1 from pedido where id = $1 and organizacion_id = $2", [pid, s.org.id]))) throw new ErrorErp("El pedido no existe.");
+    const r = await refacturar(s.org.id, pid, s.usuario.id);
+    revalidatePath(volver);
+    revalidatePath("/administracion/facturacion");
+    return r;
+  });
+}
+
+/** «Dejar la factura como está»: la persona miró lo retenido y no hace falta cambiar nada. */
+export async function accionLiberarFactura(fd: FormData) {
+  const s = await entrarErp("facturacion_ver");
+  const pid = id(fd, "pedido_id");
+  const volver = `/ventas/pedidos/${pid}`;
+  await intentar(volver, async () => {
+    if (!pid) throw new ErrorErp("El pedido no existe.");
+    await liberarFactura(s.org.id, pid);
+    revalidatePath(volver);
+    return "Listo: la factura queda como está.";
+  });
+}
+
+/** Las observaciones que salen en la próxima factura del pedido. */
+export async function accionLeyendaFactura(fd: FormData) {
+  const s = await entrarErp("facturacion_ver");
+  const pid = id(fd, "pedido_id");
+  const volver = `/ventas/pedidos/${pid}`;
+  await intentar(volver, async () => {
+    if (!pid) throw new ErrorErp("El pedido no existe.");
+    const t = (texto(fd, "leyenda") ?? "").trim();
+    if (t.length > LARGO_LEYENDA) throw new ErrorErp(`Las observaciones de la factura: hasta ${LARGO_LEYENDA} letras.`);
+    await una("update pedido set factura_leyenda = $3 where id = $1 and organizacion_id = $2 returning id", [pid, s.org.id, t || null]);
+    revalidatePath(volver);
+    return { ir: `${volver}?ok=${encodeURIComponent("Observaciones de la factura grabadas.")}` };
   });
 }

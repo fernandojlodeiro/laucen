@@ -235,7 +235,7 @@ En esa misma revisión periódica se reintentan solos los comprobantes en estado
 
 ### Subida de la factura a Mercado Libre
 
-Mercado Libre le pide al vendedor que adjunte la factura de cada venta. Laucen sube **el PDF del comprobante** a la venta (al carrito, si es un carrito). Se pueden subir la factura y, si la hay, su nota de crédito.
+Mercado Libre le pide al vendedor que adjunte la factura de cada venta. Laucen sube **el PDF del comprobante** a la venta (al carrito, si es un carrito). Mercado Libre acepta **un solo documento fiscal por venta**: se sube la factura; la nota de crédito no se sube, y la factura nueva de una refacturación no se sube sola si la venta ya tiene otra subida.
 
 Todo lo que va a Mercado Libre pasa por la cola, y siempre sale por un clic de una persona o por un interruptor que prendió alguien:
 - **Sola, al autorizarse**: si la cuenta de Mercado Libre tiene prendido el interruptor **"Subir facturas a Mercado Libre"** en [Canales](/config/canales), cada factura de una venta de ML entra a la cola apenas ARCA la autoriza.

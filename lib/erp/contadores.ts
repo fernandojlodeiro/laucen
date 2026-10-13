@@ -43,6 +43,12 @@ const CONTADORES: { clave: ClaveContador; texto: string; href: string; permiso: 
     clave: "pedidos", texto: "Pedidos", href: "/ventas/pedidos?estado=pendientes", permiso: "pedidos_ver",
     sql: `select count(*)::int n, max(p.id)::float8 marca from pedido p where p.organizacion_id = $1 and ${sqlPedidoPendiente("p")}`,
   },
+  {
+    // Facturas que no salieron solas (o que el comprador pide cambiar): lib/facturacion/revision.ts.
+    clave: "facturas", texto: "Facturas", href: "/ventas/pedidos?estado=retenidas&ver=facturas", permiso: "facturacion_ver",
+    sql: `select count(*)::int n, floor(extract(epoch from max(factura_retenida_ts)) * 1000)::float8 marca
+            from pedido where organizacion_id = $1 and factura_retenida is not null`,
+  },
 ];
 
 /** Los contadores, con `nuevo` según hasta dónde vio cada uno el usuario (`visto`: {clave: marca}). */
