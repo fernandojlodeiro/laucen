@@ -55,18 +55,17 @@ Debajo de la lista aparecen las cajas del canal elegido (su fila queda resaltada
 2. **Cuenta de Mercado Libre** (sólo canales tipo Mercado Libre). Ver más abajo.
 3. **Cuenta de Mercado Pago** (en todos los canales). Ver más abajo.
 4. **Llave API**: si tiene, "Tiene llave (no se muestra)." con los botones **"Generar otro"** y **"Revocar"**; si no tiene, "Sin llave: nadie puede usar la API con este canal." y el botón **"Generar llave"**.
-5. **Textos de "…"** (sólo canales tipo Mercado Libre), al final y a todo lo ancho: la firma y las reglas de la IA para preguntas y mensajes, y el encabezado y el pie de la descripción (dos cuadros altos, uno al lado del otro). Ver más abajo.
+5. **Textos de "…"** (sólo canales tipo Mercado Libre), al final y a todo lo ancho: la firma de las respuestas a preguntas y mensajes, y el encabezado y el pie de la descripción (dos cuadros altos, uno al lado del otro). Ver más abajo.
 
 ### Caja "Textos de …"
 
-Abre en vista; se edita con el lápiz de arriba a la derecha de la caja y se graba con **Grabar** (o **Cancelar**). Cuatro textos, propios de ese canal:
+Abre en vista; se edita con el lápiz de arriba a la derecha de la caja y se graba con **Grabar** (o **Cancelar**). Tres textos, propios de ese canal (las reglas que respeta la IA al contestar son una sola para toda la empresa y se cargan en [Respuestas de la IA](/config/respuestas-ia)):
 
 - **Firma de las respuestas** (hasta 100 letras): va al final de **cada respuesta a una pregunta o un mensaje** de ese canal, la proponga la IA o la escriba una persona, **tal cual la escribís** (la IA no la inventa ni la cambia). Por ejemplo: «Saludos, el equipo de Daitom». Si el texto ya termina con la firma, no se repite. Con firma, la IA no agrega su propio saludo de despedida. En los mensajes, que en Mercado Libre tienen hasta 350 letras, la firma cuenta: en lo que propone la IA se acorta el texto para que entre; si una persona escribe de más, avisa cuántas letras le quedan.
-- **Reglas para la IA (preguntas y mensajes)** (hasta 3000 letras): lo que la IA tiene que respetar siempre al contestar en ese canal, una regla por renglón. Valen por encima de sus instrucciones de siempre. Por ejemplo: «Nunca sugerir abrir un reclamo ni una mediación en Mercado Libre».
 - **Encabezado de la descripción** y **Pie de la descripción** (hasta 5000 letras cada uno): al publicar un producto nuevo en ese canal desde [Publicar en Mercado Libre](/catalogo/productos), la descripción que sale es el encabezado, la descripción técnica del producto y el pie, separados por un renglón en blanco. En la ficha del producto se escribe sólo la descripción técnica. Si alguno está vacío, no deja renglones de más.
 - **Al copiar una publicación de otra cuenta** (publicar sobre una existente, o crear las que faltan copiando): se le sacan a la descripción el encabezado y el pie de la cuenta de origen y se le ponen los de la cuenta de destino. Para eso la descripción tiene que empezar con el encabezado y terminar con el pie **tal cual están cargados** en la cuenta de origen; si no coinciden (o la cuenta de origen no tiene cargados), la descripción va tal cual y la pantalla lo avisa.
 
-La firma y las reglas se aplican desde la próxima respuesta que proponga la IA; las que ya estaban propuestas quedan como estaban.
+La firma se aplica desde la próxima respuesta que proponga la IA; las que ya estaban propuestas quedan como estaban.
 
 ### Caja "Cuenta de Mercado Pago"
 

@@ -24,6 +24,7 @@ Dos cajas para tildar:
   - **Reclamos para atender**: un reclamo nuevo que espera tu respuesta, o un mensaje nuevo del comprador o de Mercado Libre en uno abierto. La ventana muestra el motivo, el cliente, el pedido, lo último que escribieron y hasta cuándo hay para responder, con el botón **"Ver el reclamo"**.
   - **Mensajes que la IA no contestó** y **Preguntas que la IA no contestó**: de Mercado Libre, cuando a la IA le falta un dato o el comprador pide hablar con una persona.
   - **WhatsApp en espera**: chats que la IA dejó para una persona.
+  - **Facturas retenidas**: un pedido que no se facturó solo porque el comprador pidió algo para la factura que no está claro, o que pide cambiar una factura ya hecha. La ventana muestra el motivo, lo último que escribió y el botón **"Ver el pedido"** (ver "Revisión antes de facturar" en [Pedidos](/ventas/pedidos)).
   - **Pedidos nuevos**: cada pedido nuevo a preparar. Debajo, **"Ver el detalle del pedido"**: tildada, se abre la ventana con el cliente, el total, lo que compró y el botón **"Ver el pedido"**; destildada, no se abre ninguna ventana: sólo aparece un cartel chico abajo a la derecha, «🛒 Llegó un pedido …», que se toca para abrirlo y se va solo a los 20 segundos.
 
   La ventana se abre sola en el medio de la pantalla, estés donde estés. El sonido, en cambio, es uno solo para todo.

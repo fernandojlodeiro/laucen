@@ -2,8 +2,9 @@
 // canal.config (Configuración › Canales, recuadro «Textos del canal»):
 // - firma: la pone Laucen (no la IA) al final de cada respuesta a preguntas y
 //   mensajes, la proponga la IA o la escriba una persona. Escrita por el usuario, tal cual.
-// - reglas_ia: lo que la IA tiene que respetar al contestar en ese canal (se
-//   suma a sus instrucciones), por ejemplo "nunca sugerir abrir un reclamo".
+// - reglas de la IA: NO son del canal (pedido de Fer, 13/10): son una sola para toda
+//   la empresa (config_org 'reglas_ia', Configuración › Respuestas de la IA) y valen
+//   para preguntas, mensajes y WhatsApp. Acá se leen para sumarlas a las instrucciones.
 // - desc_encabezado / desc_pie: van arriba y abajo de la descripción técnica
 //   del producto al publicarlo en ese canal (lib/mercadolibre/publicar-nueva.ts).
 
@@ -14,17 +15,32 @@ export type TextosCanal = { firma: string; reglasIa: string; encabezado: string;
 export const TEXTOS_VACIOS: TextosCanal = { firma: "", reglasIa: "", encabezado: "", pie: "" };
 
 export async function textosCanal(org: string, canal: number | string | null | undefined): Promise<TextosCanal> {
-  if (!canal) return TEXTOS_VACIOS;
+  if (!canal) return { ...TEXTOS_VACIOS, reglasIa: await reglasIaEmpresa(org) };
   const r = await una<{ firma: string | null; reglas: string | null; enc: string | null; pie: string | null }>(`
-    select config ->> 'firma' firma, config ->> 'reglas_ia' reglas, config ->> 'desc_encabezado' enc, config ->> 'desc_pie' pie
+    select config ->> 'firma' firma, (${SQL_REGLAS}) reglas, config ->> 'desc_encabezado' enc, config ->> 'desc_pie' pie
       from canal where id = $2 and organizacion_id = $1`, [org, canal]).catch(() => null);
   return r ? { firma: r.firma ?? "", reglasIa: r.reglas ?? "", encabezado: r.enc ?? "", pie: r.pie ?? "" } : TEXTOS_VACIOS;
 }
 
-export async function guardarTextosCanal(org: string, canal: number, t: TextosCanal): Promise<void> {
+/** Los textos propios del canal (las reglas de la IA son de la empresa y no se tocan acá). */
+export async function guardarTextosCanal(org: string, canal: number, t: Omit<TextosCanal, "reglasIa">): Promise<void> {
   await consulta(`
-    update canal set config = coalesce(config, '{}'::jsonb) || jsonb_build_object('firma', $3::text, 'reglas_ia', $4::text, 'desc_encabezado', $5::text, 'desc_pie', $6::text)
-     where id = $2 and organizacion_id = $1`, [org, canal, t.firma.trim(), t.reglasIa.trim(), t.encabezado.trim(), t.pie.trim()]);
+    update canal set config = coalesce(config, '{}'::jsonb) || jsonb_build_object('firma', $3::text, 'desc_encabezado', $4::text, 'desc_pie', $5::text)
+     where id = $2 and organizacion_id = $1`, [org, canal, t.firma.trim(), t.encabezado.trim(), t.pie.trim()]);
+}
+
+// ── Las reglas de la IA de la empresa (una sola para preguntas, mensajes y WhatsApp) ──
+const SQL_REGLAS = `select valor ->> 'texto' from config_org where organizacion_id = $1 and clave = 'reglas_ia'`;
+
+export async function reglasIaEmpresa(org: string): Promise<string> {
+  const r = await una<{ texto: string | null }>(`select (${SQL_REGLAS}) texto`, [org]).catch(() => null);
+  return r?.texto ?? "";
+}
+
+export async function guardarReglasIa(org: string, texto: string): Promise<void> {
+  await consulta(`
+    insert into config_org (organizacion_id, clave, valor) values ($1, 'reglas_ia', jsonb_build_object('texto', $2::text))
+    on conflict (coalesce(organizacion_id, ''), clave) do update set valor = excluded.valor, actualizado_ts = now()`, [org, texto.trim()]);
 }
 
 /** Lo que se suma a las instrucciones de la IA de preguntas y mensajes. Con firma, la IA no se despide

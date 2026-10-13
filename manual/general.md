@@ -42,6 +42,7 @@ Una franja azul fija abajo de todo, siempre visible:
   - **"Preguntas"** → [Preguntas y mensajes](/ventas/preguntas): las preguntas de Mercado Libre pendientes.
   - **"WhatsApp"** → [WhatsApp](/ventas/mensajes?filtro=en_espera) con el filtro En espera: los chats que la IA dejó para una persona.
   - **"Pedidos"** → [Pedidos](/ventas/pedidos?estado=pendientes) con el filtro Pendientes: los pedidos a preparar. Cuenta los nuevos y pagados, más los «A cobrar» que todavía no se entregaron (ver [Pedidos](/ventas/pedidos)).
+  - **"Facturas"** (permiso Facturación) → [Pedidos](/ventas/pedidos?estado=retenidas) con el filtro «Con la factura retenida»: los pedidos que no se facturaron solos porque el comprador pidió algo para la factura que no está claro, o que piden cambiar una factura ya hecha.
   - Cuando un contador es mayor que cero, el número se resalta en blanco. Si entró algo que **todavía no viste**, se resalta en **amarillo** hasta que entrás a esa pantalla.
   - Se actualizan solos cada pocos segundos. Cómo te avisa además (sonido, ventana con lo que la IA no contestó) lo elegís en [Mis avisos](/config/avisos).
   - Sólo aparecen los contadores de las pantallas que tu rol puede ver.

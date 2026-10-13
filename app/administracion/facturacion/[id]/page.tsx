@@ -28,7 +28,7 @@ type Cbte = {
   id: number; pedido_id: number | null; cliente_id: number | null; ambiente: string; tipo_cbte: number; punto_venta: number; numero: string | null;
   fecha: Date; doc_tipo: number; doc_nro: string; receptor_nombre: string | null; receptor_condicion_iva: number | null; receptor_domicilio: string | null;
   importe_total: number; importe_neto: number; importe_iva: number; tc_dia: number | null; iva_detalle: { pct: number; base: number; importe: number }[];
-  asociado_id: number | null; asociado_externo: { tipo: number; punto_venta: number; numero: number; fecha: string } | null; emisor_id: number | null; estado: EstadoCbte; cae: string | null; cae_vto: Date | null; observaciones: string | null; intentos: number;
+  asociado_id: number | null; asociado_externo: { tipo: number; punto_venta: number; numero: number; fecha: string } | null; emisor_id: number | null; estado: EstadoCbte; cae: string | null; cae_vto: Date | null; observaciones: string | null; leyenda: string | null; intentos: number;
   pedido_a_arca: { xml?: string } | null; respuesta_arca: { xml?: string } | null; creado_ts: Date; autorizado_ts: Date | null;
 };
 type Relacionado = { id: number; tipo_cbte: number; punto_venta: number; numero: string | null; estado: EstadoCbte };
@@ -48,7 +48,7 @@ export default async function DetalleComprobante({ params, searchParams }: { par
   const c = await una<Cbte>(`
     select id::int, pedido_id::int, cliente_id::int, ambiente, tipo_cbte, punto_venta, numero::text, fecha, doc_tipo, doc_nro, receptor_nombre,
            receptor_condicion_iva, receptor_domicilio, tc_dia::float tc_dia, importe_total::float importe_total, importe_neto::float importe_neto,
-           importe_iva::float importe_iva, iva_detalle, comprobante_asociado_id::int asociado_id, asociado_externo, emisor_id::int, estado, cae, cae_vto, observaciones, intentos,
+           importe_iva::float importe_iva, iva_detalle, comprobante_asociado_id::int asociado_id, asociado_externo, emisor_id::int, estado, cae, cae_vto, observaciones, leyenda, intentos,
            pedido_a_arca, respuesta_arca, creado_ts, autorizado_ts
       from comprobante where id = $1 and organizacion_id = $2`, [cid, s.org.id]);
   if (!c) notFound();
@@ -123,6 +123,7 @@ export default async function DetalleComprobante({ params, searchParams }: { par
               className="text-[#16577F] hover:underline">ver sus notas de crédito</Link>
           </Dato></div>
         )}
+        {c.leyenda && <div className="col-span-2"><Dato t="Observaciones"><span className="whitespace-pre-wrap">{c.leyenda}</span></Dato></div>}
         {notas.length > 0 && <div className="col-span-2"><Dato t="Notas de crédito">
           {notas.map((n) => <div key={n.id}><Rel r={n} /> <Estado texto={ESTADOS_CBTE[n.estado]?.texto ?? n.estado} tono={ESTADOS_CBTE[n.estado]?.tono ?? "gris"} /></div>)}
         </Dato></div>}

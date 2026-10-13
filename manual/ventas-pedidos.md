@@ -35,7 +35,7 @@ Los pedidos de Mercado Libre **entran solos** y se mueven solos según lo que pa
 **Filtros** (todos aplican al momento, sin botón "Filtrar"):
 
 - **"Buscar"** (cuadro "Nº, cliente, producto, canal, factura…"): busca en todo lo que se ve en la pantalla —Nº, id externo, canal, estado, los productos (título y SKU), el número de la factura— y además en el medio de pago, el código de seguimiento, las notas y todos los datos del cliente (N.º, nombre, razón social, mail, apodo de ML, documento, CUIT, teléfonos, notas). Busca en cualquier parte del texto (no tiene "Comienza por"). **Si escribís el número de un pedido** (el de Laucen, con o sin "#", o el número de venta de Mercado Libre), ese pedido aparece siempre, aunque los filtros lo dejarían afuera.
-- **"Estado"**: **"Todos"** (de entrada), **"Pendientes (nuevo + a preparar)"** o un estado puntual (Nuevo, **A preparar**, En preparación, Preparado, Despachado, Entregado, Cancelado, Devuelto).
+- **"Estado"**: **"Todos"** (de entrada), **"Pendientes (nuevo + a preparar)"**, **"Con la factura retenida"** (los que no se facturaron solos o piden cambiar la factura; lo abre el contador **"Facturas"** de la barra) o un estado puntual (Nuevo, **A preparar**, En preparación, Preparado, Despachado, Entregado, Cancelado, Devuelto).
 - **"Canal"**: todos o uno.
 - **"Pago"**: Pendiente, Pagado, A cobrar, A convenir, Reembolsado.
 - **"Fechas"**: rango con atajos (Hoy, Ayer, Últimos 7 días…) o **"Todas las fechas"**. **De entrada, la última semana** ("Últimos 7 días"). Si se entra con un estado elegido (por ejemplo desde el contador "Pedidos") o desde un cliente, sin fechas: todas.
@@ -194,7 +194,31 @@ Para cuando el cliente se arrepiente o se canceló por error (no para las ventas
 2. Laucen arma la factura y la manda a ARCA. Si queda autorizada, aparece el comprobante con su número y el botón **"PDF"**, y un aviso verde con el CAE.
 3. Si ARCA la rechaza o falta un dato, el aviso rojo explica por qué; si el problema es del cliente (por ejemplo, falta el CUIT para una factura A), al lado aparece **"Corregir en la ficha del cliente"**.
 
-El botón **no aparece** si el pedido está Nuevo o Cancelado, o si ya tiene una factura autorizada. Está **deshabilitado** si el pedido es «A cobrar» ("Primero confirmá el cobro: el pedido está «A cobrar» y se factura cuando se cobra.") o si es un carrito de Mercado Libre en espera.
+Al facturar a mano no se hace la revisión de mensajes (ver abajo): sale con los datos de hoy de la ficha del cliente y las **Observaciones de la factura** del pedido.
+
+El botón **no aparece** si el pedido está Nuevo o Cancelado, o si ya tiene una factura autorizada (que no esté anulada con una nota de crédito). Está **deshabilitado** si el pedido es «A cobrar» ("Primero confirmá el cobro: el pedido está «A cobrar» y se factura cuando se cobra.") o si es un carrito de Mercado Libre en espera.
+
+### Observaciones de la factura
+
+Debajo de «Facturación», la caja **"Observaciones de la factura"**: un texto que sale en **"Observaciones"** de la próxima factura del pedido, en la pantalla de la factura y en su PDF (por ejemplo, el número de un subsidio que el comprador tiene que rendir). Se edita con el lápiz de la caja y se graba con **Grabar**. Si el comprador lo pide por mensaje, lo carga solo la revisión antes de facturar. Abajo dice qué leyó la última revisión.
+
+### Revisión antes de facturar (y factura retenida)
+
+Antes de que salga sola una factura (la facturación automática de [Facturación (ARCA)](/config/arca)), Laucen lee lo que escribió el comprador —los mensajes de Mercado Libre del pedido y los WhatsApp del cliente desde el pedido— y las **notas del pedido** y las **notas del cliente**:
+
+- **Si no hay nada escrito**, o lo escrito no tiene que ver con la factura, factura como siempre.
+- **Si pidió algo claro para la factura**, lo aplica y factura:
+  - una **leyenda** (un número de subsidio, de expediente, de orden de compra…) → va a "Observaciones de la factura";
+  - **factura A** o **facturar a un CUIT** → busca el CUIT en el padrón de ARCA y pasa a la ficha del cliente la razón social, la condición de IVA y el domicilio fiscal; la factura sale con esos datos (A si en ARCA es responsable inscripto o monotributista).
+- **Si hay duda** (otra razón social o domicilio sin CUIT, pide A sin dar el CUIT, un CUIT que no es válido o que en ARCA no corresponde a A, partir la factura, otro importe, algo que no se entiende…), **no factura**: el pedido queda con **"⚠ Factura retenida: no se facturó sola"** y el motivo, arriba del bloque «Facturación», y avisa en la barra de estado (**"Facturas"**), en la ventana y en el aviso de Windows (ver [Mis avisos](/config/avisos)). Corregí lo que haga falta en la ficha del cliente y en las Observaciones de la factura, y apretá **"Facturar"**.
+
+Con los mismos datos no se vuelve a leer: sólo cuando el comprador escribe algo nuevo o cambian las notas.
+
+### Refacturar (cambiar una factura ya hecha)
+
+- **A mano**: si el pedido tiene una factura vigente, en el bloque «Facturación» está **"Refacturar con datos actuales"**. Hace una **nota de crédito idéntica** a la factura (del mismo tipo: a una B, una nota de crédito B) que la anula, y una **factura nueva** con los datos de hoy de la ficha del cliente y las Observaciones de la factura. Las dos salen con la fecha del día. Sirve, por ejemplo, cuando el cliente pidió por teléfono factura A: cargá su CUIT en la ficha del cliente (con «Validar en ARCA») y apretá el botón.
+- **Sola**: si el comprador escribe **después** de la factura pidiendo un cambio claro (factura A con su CUIT, una leyenda), Laucen refactura sola de la misma manera. Si el pedido no está claro, queda **"⚠ Revisar la factura"** con el motivo y el aviso **"Facturas"**: refacturá con el botón o apretá **"Dejar la factura como está"**.
+- Si la factura ya estaba subida a Mercado Libre, la nota de crédito y la factura nueva se suben igual que cualquier comprobante (ver abajo).
 
 ### Subir la factura a la venta de Mercado Libre
 

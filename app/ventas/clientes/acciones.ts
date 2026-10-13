@@ -11,8 +11,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, id } from "@/lib/erp/acciones";
 import { DOCUMENTOS, CONDICIONES_IVA } from "@/app/ventas/formato";
-import { emisorConPadron } from "@/lib/arca/facturar";
-import { consultarCuit } from "@/lib/arca/padron";
+import { padronAlCliente } from "@/lib/arca/padron-cliente";
 import { tienePermiso } from "@/lib/permisos";
 import { leerNumero } from "@/lib/numeros";
 
@@ -189,41 +188,10 @@ export async function accionValidarPadron(fd: FormData) {
   const s = await entrarErp("clientes_ver");
   const cid = id(fd);
   await intentar(ficha(cid), async () => {
-    const c = await una<{ cuit: string | null; razon_social: string | null; condicion_iva: string | null }>(
-      "select cuit, razon_social, condicion_iva from cliente where id = $1 and organizacion_id = $2", [cid, s.org.id]);
+    const c = await una<{ cuit: string | null }>("select cuit from cliente where id = $1 and organizacion_id = $2", [cid, s.org.id]);
     if (!c) throw new ErrorErp("El cliente no existe.");
     if (!c.cuit) throw new ErrorErp("El cliente no tiene CUIT guardado.");
-    // Cualquier razón social conectada con ARCA sirve para consultar el padrón.
-    const e = await emisorConPadron(s.org.id);
-    if (!e) throw new ErrorErp("Para consultar el padrón hace falta una razón social conectada con ARCA (Configuración → Facturación (ARCA)).");
-    const p = await consultarCuit(e.id, e.ambiente, e.cuit, c.cuit);
-
-    const cambios: string[] = [];
-    if (p.razonSocial !== c.razon_social) cambios.push(`razón social: ${p.razonSocial}`);
-    if (p.condicionIva !== c.condicion_iva) cambios.push(`condición IVA: ${CONDICIONES_IVA[p.condicionIva]}`);
-    await enTransaccion(async (cx) => {
-      await cx.query("update cliente set razon_social = $3, condicion_iva = $4, cuit = $5 where id = $1 and organizacion_id = $2",
-        [cid, s.org.id, p.razonSocial, p.condicionIva, p.cuit]);
-      if (!p.domicilio && !p.localidad) return;
-      const fiscal = await cx.query<{ id: string; calle: string | null; localidad: string | null; provincia: string | null; codigo_postal: string | null }>(
-        "select id, calle, localidad, provincia, codigo_postal from cliente_direccion where cliente_id = $1 and organizacion_id = $2 and etiqueta = 'Fiscal' order by id limit 1",
-        [cid, s.org.id]);
-      const d = fiscal.rows[0];
-      if (d) {
-        if (d.calle !== p.domicilio || d.localidad !== p.localidad || d.provincia !== p.provincia || d.codigo_postal !== p.codigoPostal) {
-          // El domicilio de ARCA viene en un solo texto (calle y número juntos).
-          await cx.query(`update cliente_direccion set calle = $3, numero = null, piso_depto = null, localidad = $4, provincia = $5, codigo_postal = $6, pais = 'AR'
-                           where id = $1 and organizacion_id = $2`, [d.id, s.org.id, p.domicilio, p.localidad, p.provincia, p.codigoPostal]);
-          cambios.push("domicilio fiscal actualizado");
-        }
-      } else {
-        await cx.query(`
-          insert into cliente_direccion (organizacion_id, cliente_id, etiqueta, calle, localidad, provincia, codigo_postal, pais, principal)
-          values ($1, $2, 'Fiscal', $3, $4, $5, $6, 'AR', not exists (select 1 from cliente_direccion where cliente_id = $2))`,
-          [s.org.id, cid, p.domicilio, p.localidad, p.provincia, p.codigoPostal]);
-        cambios.push("domicilio fiscal agregado");
-      }
-    });
+    const { persona: p, cambios } = await padronAlCliente(s.org.id, cid, c.cuit);
     revalidatePath(ficha(cid));
     const estado = p.estado && p.estado !== "ACTIVO" ? ` Ojo: en ARCA figura ${p.estado.toLowerCase()}.` : "";
     return (cambios.length ? `Validado en ARCA. Cambió: ${cambios.join(" · ")}.` : "Validado en ARCA: los datos ya coincidían.") + estado;

@@ -41,6 +41,8 @@ export default async function MisAvisos({ searchParams }: { searchParams: Promis
             ayuda="Chats de WhatsApp que la IA dejó en espera para una persona." />
           <Opcion nombre="ventana_pedidos" activa={p.ventana.pedidos} editando={editando} titulo="Pedidos nuevos"
             ayuda="Cada pedido nuevo a preparar." />
+          <Opcion nombre="ventana_facturas" activa={p.ventana.facturas} editando={editando} titulo="Facturas retenidas"
+            ayuda="Un pedido que no se facturó solo porque el comprador pidió algo para la factura que no está claro, o que pide cambiar una factura ya hecha." />
           <div className="pl-6">
             <Opcion nombre="pedidos_detalle" activa={p.pedidoDetalle} editando={editando} titulo="Ver el detalle del pedido"
               ayuda="Tildada: se abre la ventana con el cliente, el total y lo que compró. Destildada: sólo aparece un cartel abajo a la derecha avisando que llegó un pedido, sin abrir ninguna ventana." />
