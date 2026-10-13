@@ -34,6 +34,7 @@ export const RUTAS_PUBLICAS = [
   "/api/seguimiento/cron",
   // Las vueltas del precio de mercado: se relanzan solas; las protege el token de la tanda.
   "/api/precios-mercado",
+  "/api/vendedor-referente",
   // La API del cimiento: se autentica con el token de cada canal, no con la sesión.
   "/api/pedidos",
   "/api/catalogo",

@@ -222,3 +222,23 @@ begin
 exception when others then
   raise notice 'pg_cron: no se pudo ajustar precios-mercado (%)', sqlerrm;
 end $$;
+
+-- Productos de un vendedor referente (Fer, 13/10): su listado entero en Mercado Libre (Apify), para encontrar
+-- productos que no tenemos y pedirle cotización al proveedor (lib/compras/vendedor-referente.ts).
+create table if not exists vendedor_referente (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  vendedor_id      bigint not null,
+  nombre           text,
+  estado           text not null default 'pendiente' check (estado in ('pendiente', 'corriendo', 'terminada', 'error')),
+  detalle          boolean not null default false,   -- entrar a cada publicación (trae ventas; cuesta más)
+  maximo           int not null default 3000,
+  items            jsonb not null default '[]',
+  costo_usd        numeric(10, 4),
+  error            text,
+  token            uuid not null default gen_random_uuid(),
+  creado_ts        timestamptz not null default now(),
+  actualizado_ts   timestamptz not null default now()
+);
+alter table vendedor_referente enable row level security;
+select erp_politica_org('vendedor_referente');
