@@ -84,6 +84,20 @@ export function discriminar(lineas: { total: number; iva_pct: number }[], conIva
   return { alicuotas, total, neto, iva: r2(total - neto) };
 }
 
+/** Lo que pagó el comprador de envío en una venta de Mercado Libre: el costo de envío a su cargo que informa ML
+ *  (shipping_option.cost, guardado en `envio`); si falta, lo que traen sus pagos (en los carritos los pagos no lo traen,
+ *  el envío sí). 0 si no pagó o si no es de ML. */
+export async function envioPagadoPorElCompradorDe(pedidoId: number, q?: <T>(s: string, v: unknown[]) => Promise<T[]>): Promise<number> {
+  const run = q ?? (<T,>(s: string, v: unknown[]) => consulta(s, v) as Promise<T[]>);
+  const f = (await run<{ ml: Record<string, OrdenMl> | null; orden: OrdenMl | null; es_ml: boolean; del_envio: string | null }>(`
+    select p.datos_externos #> '{ml,ordenes}' ml, p.datos_externos #> '{ml,orden}' orden, p.datos_externos ? 'ml' es_ml,
+           (select e.costo_ars from envio e where e.pedido_id = p.id and e.costo_ars > 0 order by e.id desc limit 1) del_envio
+      from pedido p where p.id = $1`, [pedidoId]))[0];
+  if (!f?.es_ml) return 0;
+  if (Number(f.del_envio) > 0) return Number(f.del_envio);
+  return f.ml || f.orden ? envioPagadoPorElComprador(f.ml ? Object.values(f.ml) : [f.orden!]) : 0;
+}
+
 /** Arma (sin mandar) la factura de un pedido. Tira ErrorErp si falta algo. */
 export async function prepararFactura(org: string, pedidoId: number, usuarioId: string | null, c?: PoolClient): Promise<number> {
   const q = c ? <T,>(s: string, v: unknown[]) => c.query(s, v).then((r) => r.rows as T[]) : <T,>(s: string, v: unknown[]) => consulta(s, v) as Promise<T[]>;
@@ -129,17 +143,10 @@ export async function prepararFactura(org: string, pedidoId: number, usuarioId: 
      where l.pedido_id = $1 order by l.orden, l.id`, [pedidoId]);
   if (!lineas.length) throw new ErrorErp("El pedido no tiene líneas.");
   // El envío que pagó el comprador va como una línea más (IVA 21 %).
-  const envio = (await q<{ costo: string; ml: Record<string, OrdenMl> | null; orden: OrdenMl | null; es_ml: boolean; del_envio: string | null }>(`
-    select p.costo_envio_ars costo, p.datos_externos #> '{ml,ordenes}' ml, p.datos_externos #> '{ml,orden}' orden, p.datos_externos ? 'ml' es_ml,
-           (select e.costo_ars from envio e where e.pedido_id = p.id and e.costo_ars > 0 order by e.id desc limit 1) del_envio
-      from pedido p where p.id = $1`, [pedidoId]))[0];
-  // Venta de Mercado Libre: el envío que pagó el comprador va siempre en la factura (ML lo exige). Sale del costo del
-  // envío para el comprador que informa ML (shipping_option.cost, guardado en `envio`); si falta, de sus pagos
-  // (en los carritos los pagos no lo traen, el envío sí). Ver lib/mercadolibre/envio-comprador.ts.
-  const delComprador = !envio?.es_ml ? 0
-    : Number(envio.del_envio) > 0 ? Number(envio.del_envio)
-    : envio.ml || envio.orden ? envioPagadoPorElComprador(envio.ml ? Object.values(envio.ml) : [envio.orden!]) : 0;
-  const costoEnvio = Number(envio?.costo) > 0 ? Number(envio.costo) : delComprador;
+  const envio = (await q<{ costo: string; con_envio: boolean }>("select costo_envio_ars costo, factura_con_envio con_envio from pedido where id = $1", [pedidoId]))[0];
+  // El envío NUNCA va solo en la factura de una venta de Mercado Libre, aunque ML se lo cobre al comprador. Sólo si el
+  // comprador lo pidió (la revisión de mensajes marca el pedido, lib/facturacion/revision.ts): entonces va, con lo que pagó.
+  const costoEnvio = Number(envio?.costo) > 0 ? Number(envio.costo) : envio?.con_envio ? await envioPagadoPorElCompradorDe(pedidoId, q) : 0;
   if (costoEnvio > 0) lineas.push({ variacion_id: null, titulo: "Envío", cantidad: 1, unit: String(costoEnvio), iva_pct: "21" });
   const conIva = tipo !== 11;
   const items = lineas.map((l) => {

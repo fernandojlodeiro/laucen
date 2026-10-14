@@ -273,3 +273,7 @@ alter table comprobante add column if not exists enlace_token text;
 create unique index if not exists comprobante_enlace_token on comprobante (enlace_token) where enlace_token is not null;
 -- La factura nueva de una refacturación reemplaza a la subida en Mercado Libre (borra la vieja y sube ésta).
 alter table comprobante add column if not exists ml_reemplaza boolean not null default false;
+
+-- pedido.factura_con_envio: el comprador pidió que se le facture el envío que pagó (lo marca la revisión de mensajes,
+-- lib/facturacion/revision.ts). Sin esto el envío NUNCA va en la factura de una venta de Mercado Libre.
+alter table pedido add column if not exists factura_con_envio boolean not null default false;

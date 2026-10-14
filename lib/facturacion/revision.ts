@@ -17,15 +17,15 @@ import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { pedirClaude, jsonDe, hayClaude } from "@/lib/claude";
 import { cuitCierra, cuitLegible } from "@/lib/cuit";
 import { padronAlCliente, CONDICIONES_IVA_TEXTO } from "@/lib/arca/padron-cliente";
-import { prepararFactura, prepararNotaCredito, emitir, TIPOS_CBTE } from "@/lib/arca/facturar";
+import { prepararFactura, prepararNotaCredito, emitir, envioPagadoPorElCompradorDe, TIPOS_CBTE } from "@/lib/arca/facturar";
 
 /** Lo que devuelve la IA. */
 export type Lectura = {
-  decision: "nada" | "aplicar" | "duda"; leyenda: string | null; cuit: string | null; factura_a: boolean;
+  decision: "nada" | "aplicar" | "duda"; leyenda: string | null; cuit: string | null; factura_a: boolean; incluir_envio?: boolean;
   razon_social: string | null; domicilio: string | null; motivo: string;
 };
 export type Decision =
-  | { accion: "facturar"; leyenda: string | null; cuit: string | null; facturaA: boolean; motivo: string }
+  | { accion: "facturar"; leyenda: string | null; cuit: string | null; facturaA: boolean; incluirEnvio: boolean; motivo: string }
   | { accion: "retener"; motivo: string };
 
 export const LARGO_LEYENDA = 500;
@@ -36,13 +36,13 @@ export function decidir(l: Lectura | null, cliente: { cuit: string | null }): De
   if (!l || !["nada", "aplicar", "duda"].includes(l.decision)) return { accion: "retener", motivo: "No se pudo leer qué pidió el comprador: mirá los mensajes y las notas antes de facturar." };
   const motivo = (l.motivo ?? "").trim();
   if (l.decision === "duda") return { accion: "retener", motivo: motivo || "Pidió algo sobre la factura que no está claro." };
-  if (l.decision === "nada") return { accion: "facturar", leyenda: null, cuit: null, facturaA: false, motivo };
+  if (l.decision === "nada") return { accion: "facturar", leyenda: null, cuit: null, facturaA: false, incluirEnvio: false, motivo };
   const cuit = l.cuit ? digitos(l.cuit) : null;
   if (l.cuit && (cuit!.length !== 11 || !cuitCierra(cuit!))) return { accion: "retener", motivo: `Dio un CUIT que no es válido (${l.cuit}). ${motivo}`.trim() };
   if ((l.razon_social || l.domicilio) && !cuit) return { accion: "retener", motivo: `Pide otra razón social o domicilio sin dar el CUIT. ${motivo}`.trim() };
   if (l.factura_a && !cuit && digitos(cliente.cuit).length !== 11) return { accion: "retener", motivo: `Pide factura A pero no dio el CUIT. ${motivo}`.trim() };
   const leyenda = (l.leyenda ?? "").trim().replace(/^["«“']+|["»”']+$/g, "").slice(0, LARGO_LEYENDA) || null;
-  return { accion: "facturar", leyenda, cuit, facturaA: !!l.factura_a, motivo };
+  return { accion: "facturar", leyenda, cuit, facturaA: !!l.factura_a, incluirEnvio: !!l.incluir_envio, motivo };
 }
 
 /** La huella de lo que escribió el comprador y de las notas: con la misma, no se vuelve a leer. Pura. */
@@ -52,12 +52,13 @@ export function firmaDe(textos: { quien: string; texto: string }[]): string {
 }
 
 const INSTRUCCIONES = `Antes de emitir la factura electrónica de un pedido de una tienda argentina, revisás lo que escribió el comprador (mensajes de Mercado Libre o WhatsApp) y las notas que cargó la tienda en el pedido o en el cliente, para ver si pidieron algo sobre la factura.
-Devolvé SÓLO un JSON: {"decision": "nada" | "aplicar" | "duda", "leyenda": texto o null, "cuit": texto o null, "factura_a": true o false, "razon_social": texto o null, "domicilio": texto o null, "motivo": una oración en castellano rioplatense}
+Devolvé SÓLO un JSON: {"decision": "nada" | "aplicar" | "duda", "leyenda": texto o null, "cuit": texto o null, "factura_a": true o false, "incluir_envio": true o false, "razon_social": texto o null, "domicilio": texto o null, "motivo": una oración en castellano rioplatense}
 - "nada": no pidieron nada sobre la factura (preguntas del envío, agradecimientos, consultas del producto…), o lo que pidieron ya está en los datos actuales.
 - "aplicar": pidieron algo claro que se resuelve con una o las dos cosas de acá:
   · una leyenda u observación que tiene que figurar en la factura (un número de subsidio, expediente, orden de compra, proyecto…): va en "leyenda", textual, sin comillas;
+  · que se facture el envío (o el flete) que pagó, o que la factura incluya el costo del envío: "incluir_envio" es true (ya está resuelto: se le corrige la factura sumando el envío);
   · factura A, o facturar a un CUIT: el CUIT va en "cuit" y "factura_a" es true si pidió A. Con el CUIT, la razón social, la condición de IVA y el domicilio salen del padrón de ARCA; si además dio razón social o domicilio, ponelos en esos campos igual.
-- "duda": cualquier otra cosa sobre la factura, algo que no se entiende, o pedidos que se contradicen. Por ejemplo: otra razón social o domicilio sin CUIT, facturar a nombre de otra persona sin CUIT, partir la factura, otro importe, otra fecha, otra descripción de los productos, factura sin IVA, o una leyenda de la que no está claro el texto.
+- "duda": cualquier otra cosa sobre la factura, algo que no se entiende, o pedidos que se contradicen. Por ejemplo: otra razón social o domicilio sin CUIT, facturar a nombre de otra persona sin CUIT, partir la factura, otro importe que no sea el envío, otra fecha, otra descripción de los productos, factura sin IVA, o una leyenda de la que no está claro el texto.
 Los mensajes del vendedor son sólo contexto; lo que vale es lo que pidió el comprador o lo que dicen las notas.
 Una dirección, un nombre o un DNI para un envío o un reenvío NO son datos de la factura: eso es "nada", salvo que diga que es para la factura.
 Si te paso una FACTURA YA HECHA, "aplicar" sólo si lo pedido es distinto de lo que ya tiene; si ya coincide, "nada".
@@ -65,14 +66,14 @@ Si te paso una FACTURA YA HECHA, "aplicar" sólo si lo pedido es distinto de lo 
 
 type Contexto = {
   pedido: { id: number; cliente_id: number | null; notas: string | null; leyenda: string | null; retenida: string | null; revision: { firma?: string } | null;
-    nombre: string | null; razon_social: string | null; cuit: string | null; condicion_iva: string | null; cliente_notas: string | null; domicilio: string | null };
+    nombre: string | null; razon_social: string | null; cuit: string | null; condicion_iva: string | null; cliente_notas: string | null; domicilio: string | null; con_envio: boolean };
   textos: { cuando: Date | null; donde: string; quien: string; texto: string }[];
 };
 
 /** Lo escrito sobre el pedido: mensajes de ML (los dos lados), WhatsApp del cliente desde el pedido, y las notas. */
 async function contexto(org: string, pid: number): Promise<Contexto | null> {
   const pedido = await una<Contexto["pedido"] & { creado: Date }>(`
-    select p.id::int, p.cliente_id::int, p.notas, p.factura_leyenda leyenda, p.factura_retenida retenida, p.factura_revision revision, p.creado_ts creado,
+    select p.id::int, p.cliente_id::int, p.notas, p.factura_leyenda leyenda, p.factura_con_envio con_envio, p.factura_retenida retenida, p.factura_revision revision, p.creado_ts creado,
            cl.nombre, cl.razon_social, cl.cuit, cl.condicion_iva, cl.notas cliente_notas,
            (select concat_ws(', ', concat_ws(' ', d.calle, d.numero), d.localidad, d.provincia) from cliente_direccion d
              where d.cliente_id = cl.id order by (d.etiqueta = 'Fiscal') desc, d.principal desc, d.id limit 1) domicilio
@@ -151,6 +152,14 @@ export async function revisarPedido(org: string, pid: number, facturada: Factura
     cambio = true;
   }
   if (facturada && d.leyenda && d.leyenda !== (facturada.leyenda ?? "")) cambio = true;
+  // El comprador pidió que se le facture el envío: se marca el pedido y, si ya estaba facturado, se refactura (sólo si pagó envío).
+  if (d.incluirEnvio && !c.pedido.con_envio) {
+    if (await envioPagadoPorElCompradorDe(pid) > 0) {
+      await consulta("update pedido set factura_con_envio = true where id = $1 and organizacion_id = $2", [pid, org]);
+      aplicado.push("el envío que pagó el comprador va en la factura");
+      cambio = true;
+    } else aplicado.push("pidió el envío en la factura, pero no pagó envío: no hay nada que sumar");
+  }
   const cuit = d.cuit ?? (d.facturaA ? digitos(c.pedido.cuit) : null);
   if (cuit) {
     if (!c.pedido.cliente_id) {

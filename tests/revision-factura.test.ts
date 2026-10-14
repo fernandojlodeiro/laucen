@@ -44,3 +44,10 @@ test("firmaDe: sólo cuenta lo del comprador y las notas", () => {
   assert.equal(a, firmaDe([{ quien: "Comprador", texto: "Factura A por favor" }, { quien: "Vendedor", texto: "Dale" }]));
   assert.notEqual(a, firmaDe([{ quien: "Comprador", texto: "Factura A por favor" }, { quien: "Comprador", texto: "CUIT 30-…" }]));
 });
+
+test("decidir: pedir el envío en la factura se aplica (no se retiene)", () => {
+  const d = decidir(lectura({ incluir_envio: true, motivo: "Pide el envío en la factura." }), { cuit: null });
+  assert.equal(d.accion === "facturar" && d.incluirEnvio, true);
+  const sin = decidir(lectura({ decision: "nada" }), { cuit: null });
+  assert.equal(sin.accion === "facturar" && sin.incluirEnvio, false);
+});
