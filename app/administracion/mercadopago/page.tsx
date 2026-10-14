@@ -48,12 +48,12 @@ function coloresPorMonto(vals: (number | null | undefined)[]): (string | null)[]
 
 // El disponible vale sólo si el reporte es de hace pocas horas: con plata que entra y sale, uno de hace días da un saldo que ya no existe.
 const HORAS_VALE = 3;
-const alDia = (d: Numeros) => !!d.disponible && (!d.disponible.al || Date.now() - new Date(d.disponible.al).getTime() < HORAS_VALE * 3600_000);
+const alDia = (d: Numeros) => !!d.disponible?.creado && Date.now() - new Date(d.disponible.creado).getTime() < HORAS_VALE * 3600_000;
 
 const RENGLONES: Renglon[] = [
   { titulo: "Saldo total", ayuda: "Disponible + a liberar", valor: (d) => (alDia(d) && d.aLiberar ? d.disponible!.monto + d.aLiberar.monto : null), suma: true },
   { titulo: "Disponible", ayuda: "Según el último Reporte de Liquidaciones de Mercado Pago (si es de hace más de 3 horas no se muestra: el saldo ya cambió)", nivel: 1, valor: (d) => (alDia(d) ? d.disponible?.monto : null), suma: true, destacar: true,
-    texto: (d) => (alDia(d) ? null : d.disponible ? `sin dato al día (último: ${d.disponible.al?.slice(8, 10)}/${d.disponible.al?.slice(5, 7)})` : d.reportePedido ? "pedido a MP, actualizá en unos minutos" : null) },
+    texto: (d) => (alDia(d) ? null : d.disponible ? `sin dato al día (reporte del ${d.disponible.creado ? hora(d.disponible.creado) : "—"})` : d.reportePedido ? "pedido a MP, actualizá en unos minutos" : null) },
   { titulo: "A liberar", ayuda: "Cobros aprobados que todavía no se liberaron (neto)", nivel: 1, valor: (d) => d.aLiberar?.monto, suma: true },
   { titulo: "Pagos a liberar", nivel: 2, valor: (d) => d.aLiberar?.pagos, suma: true, cantidad: true },
   { titulo: "Se libera en los próximos 7 días", nivel: 2, valor: (d) => d.aLiberar?.en7dias, suma: true },
@@ -131,7 +131,7 @@ export default async function MercadoPago({ searchParams }: { searchParams: Prom
                   {conexiones.map((c) => {
                     const l = lecturas.get(c.id);
                     const d = datosDe(c.id);
-                    return <td key={c.id} className={TDN}>{l ? hora(l.leidoTs) : "—"}{d.disponible?.al && <span className="block">disponible al {d.disponible.al.slice(0, 16).replace("T", " ")}</span>}</td>;
+                    return <td key={c.id} className={TDN}>{l ? hora(l.leidoTs) : "—"}{d.disponible?.al && <span className="block">reporte del {hora(d.disponible.creado ?? d.disponible.al)}</span>}</td>;
                   })}
                   {conexiones.length > 1 && <td />}
                 </tr>

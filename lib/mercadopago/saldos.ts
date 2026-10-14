@@ -61,6 +61,14 @@ async function pagos(token: string, filtros: string, tope: number, intentos: Int
 const neto = (p: Pago) => Number(p.transaction_details?.net_received_amount ?? 0);
 const redondo = (n: number) => Math.round(n * 100) / 100;
 
+/** Cuándo se armó un reporte: Mercado Pago pone mal la zona en date_created (dice -04:00 pero es otra hora),
+ *  así que se toma la del nombre del archivo (…-AAAA-MM-DD-HHMMSS.csv, hora argentina). */
+const armadoEl = (f: { file_name?: string; date_created?: string }): number => {
+  const m = /(\d{4}-\d{2}-\d{2})-(\d{2})(\d{2})(\d{2})\.csv$/.exec(f.file_name ?? "");
+  return m ? new Date(`${m[1]}T${m[2]}:${m[3]}:${m[4]}-03:00`).getTime() : new Date(f.date_created ?? 0).getTime();
+};
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 /** El Reporte de Liquidaciones: si hay uno reciente, lo baja y saca el saldo;
  *  si no hay uno de la última hora, pide uno nuevo (últimos 7 días). */
 async function disponible(token: string, intentos: Intento[]): Promise<{ disponible: Numeros["disponible"]; pedido: string | null; muestra?: string[] | null }> {
@@ -69,7 +77,7 @@ async function disponible(token: string, intentos: Intento[]): Promise<{ disponi
     intentos.push({ fuente: "Reporte de Liquidaciones (lista)", status: lista.status, motivo: motivoDe(lista.status, lista.datos) });
     return { disponible: null, pedido: null };
   }
-  const archivos = lista.datos.filter((f) => f.file_name).sort((a, b) => new Date(b.date_created ?? 0).getTime() - new Date(a.date_created ?? 0).getTime());
+  const archivos = lista.datos.filter((f) => f.file_name).sort((a, b) => armadoEl(b) - armadoEl(a));
   // Para ver si Mercado Pago sigue sumando reportes nuevos a la lista (si el último es viejo, el saldo también).
   intentos.push({ fuente: "Reporte de Liquidaciones (lista)", status: 200, motivo: `${archivos.length} archivos; el más nuevo: ${archivos[0]?.date_created ?? "ninguno"}` });
   let resultado: Numeros["disponible"] = null;
@@ -79,7 +87,7 @@ async function disponible(token: string, intentos: Intento[]): Promise<{ disponi
     const csv = await mpPedir<string>(token, "GET", `/v1/account/release_report/${enc(ultimo.file_name)}`);
     if (csv.status === 200 && typeof csv.datos === "string") {
       resultado = saldoDelReporte(csv.datos, ultimo.file_name);
-      if (resultado) resultado.creado = ultimo.date_created ?? null;
+      if (resultado) resultado.creado = new Date(armadoEl(ultimo)).toISOString();
       // Para revisar cómo viene (cabecera + últimas filas): queda en la lectura.
       const lineas = csv.datos.split(/\r?\n/).filter((l) => l.trim());
       muestraReporte = [lineas[0], ...lineas.slice(-8)].map((l) => l.slice(0, 600));
@@ -115,7 +123,7 @@ async function disponible(token: string, intentos: Intento[]): Promise<{ disponi
   // Uno nuevo si el último tiene más de una hora (Mercado Pago lo arma en unos
   // minutos), o enseguida si recién se agregó la columna de saldo.
   let pedido: string | null = null;
-  const viejo = sinSaldo || !ultimo?.date_created || Date.now() - new Date(ultimo.date_created).getTime() > 3600_000;
+  const viejo = sinSaldo || !ultimo?.file_name || Date.now() - armadoEl(ultimo) > 10 * 60_000;
   if (viejo) {
     const cuerpo = { begin_date: new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 19) + "Z", end_date: new Date().toISOString().slice(0, 19) + "Z" };
     let r = await mpPedir(token, "POST", "/v1/account/release_report", cuerpo);
@@ -131,7 +139,27 @@ async function disponible(token: string, intentos: Intento[]): Promise<{ disponi
       r = await mpPedir(token, "POST", "/v1/account/release_report", cuerpo);
     }
     intentos.push({ fuente: "Reporte de Liquidaciones (pedir uno nuevo)", status: r.status, ...(r.status < 300 ? {} : { motivo: motivoDe(r.status, r.datos) }) });
-    if (r.status < 300) pedido = new Date().toISOString();
+    if (r.status < 300) {
+      pedido = new Date().toISOString();
+      // Mercado Pago lo arma en ~1 minuto: se espera (hasta 40 s) y se usa ese, así el saldo es el de ahora y no el de la lectura anterior.
+      const desde = Date.now() - 30_000;
+      for (let i = 0; i < 8; i++) {
+        await esperar(5000);
+        const l2 = await mpPedir<{ file_name?: string; date_created?: string }[]>(token, "GET", "/v1/account/release_report/list");
+        if (l2.status !== 200 || !Array.isArray(l2.datos)) continue;
+        const nuevo = l2.datos.filter((f) => f.file_name && armadoEl(f) >= desde).sort((a, b) => armadoEl(b) - armadoEl(a))[0];
+        if (!nuevo?.file_name) continue;
+        const csv2 = await mpPedir<string>(token, "GET", `/v1/account/release_report/${enc(nuevo.file_name)}`);
+        const res2 = csv2.status === 200 && typeof csv2.datos === "string" ? saldoDelReporte(csv2.datos, nuevo.file_name) : null;
+        if (res2) {
+          res2.creado = new Date(armadoEl(nuevo)).toISOString();
+          resultado = res2;
+          const lineas = (csv2.datos as string).split(/\r?\n/).filter((l) => l.trim());
+          muestraReporte = [lineas[0], ...lineas.slice(-8)].map((l) => l.slice(0, 600));
+        }
+        break;
+      }
+    }
   }
   return { disponible: resultado, pedido, muestra: muestraReporte };
 }
