@@ -286,7 +286,7 @@ export type EntradaVariacion = {
   /** El precio de la lista del canal: la Clásica del esquema (el tachado sale de ella). */
   clasica: number | null; stock: number | null; comisiones: Comisiones; comisionEstimada: boolean;
   pubs: PubMl[];
-  /** Planes que la cuenta tiene sólo en publicaciones pausadas: no se tocan, pero tampoco se vuelven a crear. */
+  /** Planes que la cuenta tiene sólo en publicaciones pausadas: no se vuelven a crear. */
   planesPausados?: PlanOClasica[];
 };
 
@@ -415,7 +415,10 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
   }
 
   // El destacado: entre los planes habilitados que ya tienen publicación con precio para ganar leído.
-  const pubDe = (plan: PlanOClasica) => e.pubs.find((p) => p.plan === plan && p.estado !== "cerrada") ?? null;
+  // Una activa antes que una pausada (las pausadas también llevan precio, Fer 14/10, pero el destacado y las campañas de la
+  // Clásica salen de la activa).
+  const pubDe = (plan: PlanOClasica) => e.pubs.find((p) => p.plan === plan && p.estado === "activa")
+    ?? e.pubs.find((p) => p.plan === plan && p.estado !== "cerrada") ?? null;
   const dest = clasica != null ? elegirDestacado(clasica, e.comisiones.clasica, habilitados.map((p) => ({
     plan: p.plan, priceToWin: pubDe(p.plan)?.priceToWin ?? null, comisionPct: p.comisionPct, margenPct: p.margenPct, cuotasVisibles: p.cuotasVisibles,
   }))) : null;
@@ -472,7 +475,8 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
     // que el máximo que informa en sus campañas (≈ el precio de referencia reciente menos 1 % a 10 %). Si el esquema da
     // más (o no hay campañas leídas para saberlo), va sin tachado ni campaña: el comprador paga el precio del esquema.
     // Lo que ya está en una campaña y se mantiene o baja, sigue.
-    if (pa.lista != null && pa.venta != null && pa.lista > pa.venta + 0.5
+    // Una pausada no se mira (no tiene campañas leídas): conserva el tachado para entrar a campaña al reactivarse.
+    if (pub.estado !== "pausada" && pa.lista != null && pa.venta != null && pa.lista > pa.venta + 0.5
         && !adentro.some((c) => c.precio != null && c.precio > 0 && pa.venta! <= Number(c.precio) + 0.5)) {
       const maximos = pub.campanas.map((c) => (c.max == null ? null : Number(c.max))).filter((m): m is number => m != null && m > 0);
       const maximo = maximos.length ? Math.min(...maximos) : null;
@@ -556,6 +560,14 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
       }
     } else {
       pa.salir = adentro;
+    }
+    // Pausada (Fer, 14/10: «antes de cargarle stock le quiero corregir el precio»): lleva su precio publicado (el tachado)
+    // y su descuento por volumen, pero no entra a campañas (ML no se las ofrece a una pausada); si está en una y cambia el
+    // precio, sale. Al reactivarse se recalcula enseguida (evento publicacion_reactivada) y entra a la campaña.
+    if (pub.estado === "pausada") {
+      pa.entrar = [];
+      pa.salir = pa.cambiaPrecio ? adentro : [];
+      pa.avisos.push("Pausada: se le corrige el precio; la campaña, al reactivarse.");
     }
     pa.volumen = preciosPorCantidad(pa.venta!, vol.escalones);
     const antes = (pub.volumenMl ?? []).map((x) => `${x.cantidad}:${x.precio}`).join(",");

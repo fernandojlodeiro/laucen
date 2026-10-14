@@ -164,13 +164,13 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
   }
   const volMl = new Map(volumen.map((v) => [`${v.item_id}|${v.variation_id}`, v.payload?.escalones ?? null]));
 
-  // Las pausadas no se muestran ni se tocan (Fer, 8/10): sólo cuentan para no crear de nuevo un plan que ya
-  // tiene publicación. Una variación sin ninguna publicación activa en la cuenta no se calcula.
+  // Las pausadas también llevan precio (Fer, 14/10: el precio se corrige antes de cargar stock; si no, al reactivarse
+  // salía con el de la última vez). Sin campañas hasta reactivarse (lib/precios-ml/motor.ts).
   const porVariacion = new Map<number, FilaPub[]>();
   const pausados = new Map<number, Set<string>>();
   for (const f of filas) {
-    if (f.estado === "activa") porVariacion.set(f.variacion_id, [...(porVariacion.get(f.variacion_id) ?? []), f]);
-    else pausados.set(f.variacion_id, new Set([...(pausados.get(f.variacion_id) ?? []), planDePublicacion(f.tipo, f.tags) ?? ""]));
+    porVariacion.set(f.variacion_id, [...(porVariacion.get(f.variacion_id) ?? []), f]);
+    if (f.estado !== "activa") pausados.set(f.variacion_id, new Set([...(pausados.get(f.variacion_id) ?? []), planDePublicacion(f.tipo, f.tags) ?? ""]));
   }
   const propuestas: Calculo["propuestas"] = [];
   for (const [variacionId, fs] of porVariacion) {

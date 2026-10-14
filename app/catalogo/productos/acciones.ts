@@ -19,6 +19,12 @@ import { exigirSkuLibre } from "@/lib/catalogo/sku";
 import { marcaValida } from "@/lib/catalogo/marcas";
 import { sugerirCategoriasMl, familiaDeCategoriaMl } from "@/lib/catalogo/categoria-ml";
 import { prepararSkuMl } from "@/lib/mercadolibre/sku-ml";
+import { after } from "next/server";
+import { precioCambiadoAMano } from "@/lib/precios-ml/preparar";
+
+/** Un precio a mano va a Mercado Libre en el acto (Fer, 14/10), de fondo para no demorar la pantalla. */
+const alMlEnElActo = (org: string, variacion: number) =>
+  after(() => precioCambiadoAMano(org, variacion).catch((e) => console.error("[precios ml] en el acto", e instanceof Error ? e.message : e)));
 
 const LISTADO = "/catalogo/productos";
 const SECCIONES = ["datos", "costo", "variaciones", "atributos", "fotos", "cucardas", "kit", "precios", "stock", "publicaciones"];
@@ -569,6 +575,7 @@ export async function accionGuardarPrecio(fd: FormData) {
     await guardarPrecio(s.org.id, {
       listaId: id(fd, "lista_id"), variacionId: v.id, importe, moneda: esMoneda(moneda) ? moneda : s.moneda, usuarioId: s.usuario.id,
     });
+    alMlEnElActo(s.org.id, v.id);
     revalidatePath(`${LISTADO}/${pid}`);
     return "Precio guardado.";
   });

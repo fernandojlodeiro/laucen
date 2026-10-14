@@ -6,6 +6,12 @@ import { consulta, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, entero, numero, id } from "@/lib/erp/acciones";
 import { guardarPrecio, precioMasivoPorPorcentaje } from "@/lib/precios";
 import { esMoneda } from "@/lib/moneda";
+import { after } from "next/server";
+import { precioCambiadoAMano } from "@/lib/precios-ml/preparar";
+
+/** Un precio a mano va a Mercado Libre en el acto (Fer, 14/10), de fondo para no demorar la pantalla. */
+const alMlEnElActo = (org: string, variacion: number) =>
+  after(() => precioCambiadoAMano(org, variacion).catch((e) => console.error("[precios ml] en el acto", e instanceof Error ? e.message : e)));
 
 const BASE = "/catalogo/precios";
 
@@ -88,6 +94,7 @@ export async function accionGuardarPrecio(fd: FormData) {
     await guardarPrecio(s.org.id, {
       listaId: id(fd, "lista"), variacionId: id(fd, "variacion"), importe, moneda: moneda(fd), usuarioId: s.usuario.id,
     });
+    alMlEnElActo(s.org.id, id(fd, "variacion"));
     revalidatePath(BASE);
     return "Precio guardado (rige desde hoy).";
   });

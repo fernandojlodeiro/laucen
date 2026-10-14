@@ -434,3 +434,17 @@ create table if not exists ml_relampago_fecha (
   primary key (canal_id, item_id)
 );
 alter table ml_relampago_fecha enable row level security;
+
+-- Una publicación pausada que se reactiva (Fer, 14/10): el esquema de precios la recalcula en la vuelta siguiente para
+-- que entre a su campaña (pausada lleva el precio pero no campañas). Lo consume lib/precios-ml/preparar.ts (vueltaAutomatica).
+create or replace function public.publicacion_emitir_reactivada() returns trigger
+language plpgsql as $$
+begin
+  if old.estado = 'pausada' and new.estado = 'activa' then
+    perform emitir_evento(new.organizacion_id, 'publicacion_reactivada', jsonb_build_object(
+      'publicacion_id', new.id, 'variacion_id', new.variacion_id, 'canal_id', new.canal_id));
+  end if;
+  return null;
+end $$;
+create or replace trigger publicacion_emitir_reactivada after update of estado on publicacion
+  for each row execute function publicacion_emitir_reactivada();
