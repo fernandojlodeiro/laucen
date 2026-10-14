@@ -95,7 +95,7 @@ Un producto sin ninguna publicación común activa en ninguna cuenta no se puede
 
 ## Criterios y reglas
 
-- **Qué publicaciones aparecen:** las **activas y las pausadas** de la cuenta vinculadas a un producto, con número de ML. A una pausada se le corrige el precio, pero no entra a campañas hasta reactivarse (lo dice en sus avisos); un plan que la cuenta tiene en una publicación pausada no se vuelve a crear. Una fila por publicación, más una fila por cada plan habilitado que no tiene publicación (papel «Nueva»). Orden de siempre: por SKU.
+- **Qué publicaciones aparecen:** las **activas y las pausadas** de la cuenta vinculadas a un producto, con número de ML. Una pausada se trata igual que una activa (precio, campañas y volumen); un plan que la cuenta tiene en una publicación pausada no se vuelve a crear. Una fila por publicación, más una fila por cada plan habilitado que no tiene publicación (papel «Nueva»). Orden de siempre: por SKU.
 - **Papeles:**
   - **Clásica**: la publicación Clásica. Va al tachado y entra a campaña a la Clásica.
   - **Destacado**: el plan de cuotas elegido para ir al precio para ganar; va con tachado y en las mismas campañas que la Clásica.

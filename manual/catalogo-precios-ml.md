@@ -161,7 +161,7 @@ Pestaña «Alertas» → mirá «Qué pasa» (trae el estado que informa ML y el
 
 ## Criterios y reglas
 
-**Activas y pausadas.** El precio se calcula y se manda a las publicaciones **activas y pausadas** de cada cuenta (no a las cerradas ni a las que Mercado Libre bloqueó), así se puede corregir el precio de un producto antes de cargarle stock. Una pausada lleva su precio publicado (el tachado) y su descuento por volumen, pero **no entra a campañas**, porque Mercado Libre no se las ofrece; si estaba en una y cambia el precio, sale. **Cuando se reactiva**, Laucen la recalcula en el barrido siguiente (a los 30 minutos como mucho) y entra a su campaña. Un plan que la cuenta tiene en una publicación pausada no se vuelve a crear.
+**Activas y pausadas.** El precio se calcula y se manda a las publicaciones **activas y pausadas** de cada cuenta (no a las cerradas ni a las que Mercado Libre bloqueó), así se puede corregir el precio de un producto antes de cargarle stock. Una pausada se trata igual que una activa: precio publicado (el tachado), campaña y descuento por volumen (Mercado Libre la deja en sus campañas aunque esté pausada). Así, cuando se reactiva, ya sale a su precio. Al reactivarse, Laucen igual la vuelve a revisar en el barrido siguiente. Un plan que la cuenta tiene en una publicación pausada no se vuelve a crear.
 
 ### 1. De dónde sale la Clásica
 - El **precio de lista** de la variación es la **Clásica**; el **tachado = Clásica ÷ (1 − descuento que ve el comprador)**, redondeado a pesos. Sin descuento son el mismo precio. Ejemplo: lista $ 1.256.226 y descuento 45 % → tachado $ 2.284.047.

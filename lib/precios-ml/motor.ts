@@ -475,8 +475,8 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
     // que el máximo que informa en sus campañas (≈ el precio de referencia reciente menos 1 % a 10 %). Si el esquema da
     // más (o no hay campañas leídas para saberlo), va sin tachado ni campaña: el comprador paga el precio del esquema.
     // Lo que ya está en una campaña y se mantiene o baja, sigue.
-    // Una pausada no se mira (no tiene campañas leídas): conserva el tachado para entrar a campaña al reactivarse.
-    if (pub.estado !== "pausada" && pa.lista != null && pa.venta != null && pa.lista > pa.venta + 0.5
+    // Una pausada sin campañas leídas no se mira: conserva el tachado para su campaña.
+    if ((pub.estado !== "pausada" || pub.campanas.length > 0) && pa.lista != null && pa.venta != null && pa.lista > pa.venta + 0.5
         && !adentro.some((c) => c.precio != null && c.precio > 0 && pa.venta! <= Number(c.precio) + 0.5)) {
       const maximos = pub.campanas.map((c) => (c.max == null ? null : Number(c.max))).filter((m): m is number => m != null && m > 0);
       const maximo = maximos.length ? Math.min(...maximos) : null;
@@ -561,14 +561,8 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
     } else {
       pa.salir = adentro;
     }
-    // Pausada (Fer, 14/10: «antes de cargarle stock le quiero corregir el precio»): lleva su precio publicado (el tachado)
-    // y su descuento por volumen, pero no entra a campañas (ML no se las ofrece a una pausada); si está en una y cambia el
-    // precio, sale. Al reactivarse se recalcula enseguida (evento publicacion_reactivada) y entra a la campaña.
-    if (pub.estado === "pausada") {
-      pa.entrar = [];
-      pa.salir = pa.cambiaPrecio ? adentro : [];
-      pa.avisos.push("Pausada: se le corrige el precio; la campaña, al reactivarse.");
-    }
+    // Pausada (Fer, 14/10: «antes de cargarle stock le quiero corregir el precio»): igual que una activa —precio publicado,
+    // campañas (ML las deja en campaña aunque estén pausadas) y volumen—, así al reactivarse ya está a su precio.
     pa.volumen = preciosPorCantidad(pa.venta!, vol.escalones);
     const antes = (pub.volumenMl ?? []).map((x) => `${x.cantidad}:${x.precio}`).join(",");
     if (pa.volumen.length) pa.cambiaVolumen = antes !== pa.volumen.map((x) => `${x.cantidad}:${x.precio}`).join(",");

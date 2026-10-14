@@ -555,19 +555,21 @@ test("gemela de catálogo: nunca cambia su precio publicado, sólo campañas (10
   assert.equal(gem.venta, 50_000);
 });
 
-test("pausada (Fer, 14/10): lleva el precio del esquema (el tachado) pero no entra a campañas; si está en una y cambia el precio, sale", () => {
+test("pausada (Fer, 14/10): igual que una activa — precio publicado (el tachado) y campaña; si está en una a otro precio, sale y vuelve a entrar", () => {
   const reglas: ReglasCanal = { tachado: [{ nivel: "general", tachado_pct: 25 }], planes: [], volumen: [], reglaStock: true };
   const candidata = { id: "P1", tipo: "SELLER_CAMPAIGN", estado: "candidate", precio: null, min: 5_000, max: 11_000 };
   const base = { variacionId: 1, productoId: 7, lugar, clasica: 10_000, stock: 0, comisiones, comisionEstimada: false };
   const sola = proponer({ ...base, pubs: [pub({ estado: "pausada", precioListaMl: 8_000, precioVentaMl: 8_000, campanas: [candidata] })] }, reglas).pubs[0];
   assert.equal(sola.cambiaPrecio, true);
-  assert.equal(sola.lista, 12_500, "conserva el tachado (no lo saca por no tener campañas leídas)");
-  assert.deepEqual(sola.entrar, []);
-  assert.deepEqual(sola.salir, []);
+  assert.equal(sola.lista, 12_500);
+  assert.deepEqual(sola.entrar.map((c) => c.id), ["P1"]);
   const enCampana = proponer({ ...base, pubs: [pub({ estado: "pausada", precioListaMl: 11_000, precioVentaMl: 9_000,
     campanas: [{ ...candidata, estado: "started", precio: 9_000 }] })] }, reglas).pubs[0];
-  assert.deepEqual(enCampana.salir.map((c) => c.id), ["P1"], "para cambiar el precio sale de la campaña");
-  assert.deepEqual(enCampana.entrar, [], "y vuelve a entrar al reactivarse");
+  assert.deepEqual(enCampana.salir.map((c) => c.id), ["P1"]);
+  assert.deepEqual(enCampana.entrar.map((c) => c.id), ["P1"], "vuelve a entrar al precio nuevo");
+  // Sin campañas leídas, la pausada conserva el tachado (no se le saca por «no saber qué descuento acepta»).
+  const sinLeer = proponer({ ...base, pubs: [pub({ estado: "pausada", precioListaMl: 8_000, campanas: [] })] }, reglas).pubs[0];
+  assert.equal(sinLeer.lista, 12_500);
   // Con una activa del mismo plan, el destacado y las campañas de la Clásica salen de la activa.
   const dos = proponer({ ...base, pubs: [pub({ publicacionId: 1, itemId: "MLA1", estado: "pausada", precioListaMl: 12_500 }),
     pub({ publicacionId: 2, itemId: "MLA2", estado: "activa", precioListaMl: 12_500, campanas: [candidata] })] }, reglas);
