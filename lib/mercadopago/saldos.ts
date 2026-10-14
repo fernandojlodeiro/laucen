@@ -22,6 +22,8 @@ export type Numeros = {
   disponible?: { monto: number; al: string | null; reporte: string; creado?: string | null } | null;
   reportePedido?: string | null;
   muestraReporte?: string[] | null;
+  /** Lo último que se movió en la cuenta (últimas 6 h), para comparar con el reporte: sirve para ver qué no entró todavía. */
+  recientes?: { id: number; estado: string; tipo: string | null; monto: number; neto: number; aprobado: string | null; libera: string | null; estadoLiberacion: string | null; actualizado: string | null }[];
   aLiberarDetalle?: { id: number; neto: number; bruto: number; devuelto: number; libera: string | null; estadoLiberacion: string | null; detalle: string | null; tipo: string | null; descripcion: string }[];
 };
 export type Lectura = { conexionId: number; leidoTs: Date; datos: Numeros; intentos: Intento[] };
@@ -123,7 +125,7 @@ async function disponible(token: string, intentos: Intento[]): Promise<{ disponi
   // Uno nuevo si el último tiene más de una hora (Mercado Pago lo arma en unos
   // minutos), o enseguida si recién se agregó la columna de saldo.
   let pedido: string | null = null;
-  const viejo = sinSaldo || !ultimo?.file_name || Date.now() - armadoEl(ultimo) > 10 * 60_000;
+  const viejo = sinSaldo || !ultimo?.file_name || Date.now() - armadoEl(ultimo) > 2 * 60_000;
   if (viejo) {
     const cuerpo = { begin_date: new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 19) + "Z", end_date: new Date().toISOString().slice(0, 19) + "Z" };
     let r = await mpPedir(token, "POST", "/v1/account/release_report", cuerpo);
@@ -250,6 +252,12 @@ export async function leerCuenta(org: string, c: ConexionMp): Promise<Lectura> {
         devuelto: redondo(l.reduce((a, p) => a + Number(p.transaction_amount_refunded ?? 0), 0)),
       };
     }
+    const rec = await mpPedir<{ results?: (Pago & { date_last_updated?: string })[] }>(token, "GET",
+      `/v1/payments/search?sort=date_last_updated&criteria=desc&range=date_last_updated&begin_date=${enc(isoAr(new Date(ahora.getTime() - 6 * 3600_000)))}&end_date=${enc(isoAr(ahora))}&limit=30`);
+    intentos.push({ fuente: "Movimientos de las últimas 6 horas", status: rec.status, ...(rec.status === 200 ? {} : { motivo: motivoDe(rec.status, rec.datos) }) });
+    if (rec.status === 200) datos.recientes = (rec.datos.results ?? []).map((p) => ({
+      id: p.id, estado: p.status, tipo: p.operation_type ?? null, monto: Number(p.transaction_amount ?? 0), neto: neto(p),
+      aprobado: p.date_approved ?? null, libera: p.money_release_date ?? null, estadoLiberacion: p.money_release_status ?? null, actualizado: p.date_last_updated ?? null }));
     datos.disponible = disp.disponible;
     datos.reportePedido = disp.pedido;
     datos.muestraReporte = disp.muestra ?? null;
