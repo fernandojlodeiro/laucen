@@ -19,7 +19,7 @@ export type Intento = { fuente: string; status: number; motivo?: string };
 export type Numeros = {
   aLiberar?: { monto: number; pagos: number; proxima: string | null; proximaMonto: number; en7dias: number; completo: boolean };
   cobrado30?: { pagos: number; bruto: number; comisiones: number; neto: number; devuelto: number; completo: boolean };
-  disponible?: { monto: number; al: string | null; reporte: string } | null;
+  disponible?: { monto: number; al: string | null; reporte: string; creado?: string | null } | null;
   reportePedido?: string | null;
   muestraReporte?: string[] | null;
   aLiberarDetalle?: { id: number; neto: number; bruto: number; devuelto: number; libera: string | null; estadoLiberacion: string | null; detalle: string | null; tipo: string | null; descripcion: string }[];
@@ -69,7 +69,9 @@ async function disponible(token: string, intentos: Intento[]): Promise<{ disponi
     intentos.push({ fuente: "Reporte de Liquidaciones (lista)", status: lista.status, motivo: motivoDe(lista.status, lista.datos) });
     return { disponible: null, pedido: null };
   }
-  const archivos = lista.datos.filter((f) => f.file_name).sort((a, b) => String(b.date_created ?? "").localeCompare(String(a.date_created ?? "")));
+  const archivos = lista.datos.filter((f) => f.file_name).sort((a, b) => new Date(b.date_created ?? 0).getTime() - new Date(a.date_created ?? 0).getTime());
+  // Para ver si Mercado Pago sigue sumando reportes nuevos a la lista (si el último es viejo, el saldo también).
+  intentos.push({ fuente: "Reporte de Liquidaciones (lista)", status: 200, motivo: `${archivos.length} archivos; el más nuevo: ${archivos[0]?.date_created ?? "ninguno"}` });
   let resultado: Numeros["disponible"] = null;
   let muestraReporte: string[] | null = null;
   const ultimo = archivos[0];
@@ -77,6 +79,7 @@ async function disponible(token: string, intentos: Intento[]): Promise<{ disponi
     const csv = await mpPedir<string>(token, "GET", `/v1/account/release_report/${enc(ultimo.file_name)}`);
     if (csv.status === 200 && typeof csv.datos === "string") {
       resultado = saldoDelReporte(csv.datos, ultimo.file_name);
+      if (resultado) resultado.creado = ultimo.date_created ?? null;
       // Para revisar cómo viene (cabecera + últimas filas): queda en la lectura.
       const lineas = csv.datos.split(/\r?\n/).filter((l) => l.trim());
       muestraReporte = [lineas[0], ...lineas.slice(-8)].map((l) => l.slice(0, 600));
