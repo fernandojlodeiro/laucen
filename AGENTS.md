@@ -295,6 +295,13 @@ criollo, nunca se muestra crudo (`motivoLegible()` en `app/auth-actions.ts`).
 
 ## Disciplina técnica (todo va a main)
 
+- **Cuando hay plata en juego, se contesta con el código leído entero** (pedido de Fer, 14/10). Toda pregunta
+  sobre precios, campañas, cobros, comisiones, costos, facturación o stock que se vende se contesta recién
+  después de leer el camino completo que lo hace en el código —de dónde sale el dato, qué filtros y
+  excepciones pasa, qué se manda y a quién—, no una consulta suelta ni la primera función que aparece. La
+  respuesta nombra el archivo donde está. Si no se llegó a leer todo, se dice «no lo verifiqué» en vez de
+  afirmar. Nunca se contesta de memoria, ni por cómo «debería» andar, ni por lo que dijo otra sesión.
+
 - **Manual del sistema (pedido de Fer, 3/10): toda pantalla nueva o cambiada actualiza su página
   en `manual/` en el mismo commit** — qué es, dónde está, cómo se hace y, sobre todo, los
   criterios (fórmulas, estados, automatismos), en criollo y sin nada técnico. Lo lee el
