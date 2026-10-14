@@ -8,6 +8,7 @@
 // respuesta se pierde, el reintento consulta ARCA antes de pedir otro número
 // (no se duplica la factura).
 
+import { envioPagadoPorElComprador } from "@/lib/mercadolibre/envio-comprador";
 import type { PoolClient } from "pg";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { pool } from "@/db";
@@ -67,6 +68,7 @@ export async function emisorDeCanal(org: string, canalId: number | null, c?: Poo
 export const sqlEmisorDePedido = (p: string) =>
   `coalesce((select ca.emisor_id from canal ca where ca.id = ${p}.canal_id), emisor_principal(${p}.organizacion_id))`;
 
+type OrdenMl = Parameters<typeof envioPagadoPorElComprador>[0][number];
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
 /** Neto e IVA de cada alícuota a partir de totales con IVA. */
@@ -127,8 +129,18 @@ export async function prepararFactura(org: string, pedidoId: number, usuarioId: 
      where l.pedido_id = $1 order by l.orden, l.id`, [pedidoId]);
   if (!lineas.length) throw new ErrorErp("El pedido no tiene líneas.");
   // El envío que pagó el comprador va como una línea más (IVA 21 %).
-  const envio = (await q<{ costo: string }>("select costo_envio_ars costo from pedido where id = $1", [pedidoId]))[0];
-  if (Number(envio?.costo) > 0) lineas.push({ variacion_id: null, titulo: "Envío", cantidad: 1, unit: envio.costo, iva_pct: "21" });
+  const envio = (await q<{ costo: string; ml: Record<string, OrdenMl> | null; orden: OrdenMl | null; es_ml: boolean; del_envio: string | null }>(`
+    select p.costo_envio_ars costo, p.datos_externos #> '{ml,ordenes}' ml, p.datos_externos #> '{ml,orden}' orden, p.datos_externos ? 'ml' es_ml,
+           (select e.costo_ars from envio e where e.pedido_id = p.id and e.costo_ars > 0 order by e.id desc limit 1) del_envio
+      from pedido p where p.id = $1`, [pedidoId]))[0];
+  // Venta de Mercado Libre: el envío que pagó el comprador va siempre en la factura (ML lo exige). Sale del costo del
+  // envío para el comprador que informa ML (shipping_option.cost, guardado en `envio`); si falta, de sus pagos
+  // (en los carritos los pagos no lo traen, el envío sí). Ver lib/mercadolibre/envio-comprador.ts.
+  const delComprador = !envio?.es_ml ? 0
+    : Number(envio.del_envio) > 0 ? Number(envio.del_envio)
+    : envio.ml || envio.orden ? envioPagadoPorElComprador(envio.ml ? Object.values(envio.ml) : [envio.orden!]) : 0;
+  const costoEnvio = Number(envio?.costo) > 0 ? Number(envio.costo) : delComprador;
+  if (costoEnvio > 0) lineas.push({ variacion_id: null, titulo: "Envío", cantidad: 1, unit: String(costoEnvio), iva_pct: "21" });
   const conIva = tipo !== 11;
   const items = lineas.map((l) => {
     const total = r2(Number(l.unit) * l.cantidad);

@@ -19,7 +19,7 @@ import { tienePermiso } from "@/lib/permisos";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { ESTADOS_CBTE, numeroCbte, nombreTipo, type EstadoCbte } from "@/app/administracion/facturacion/comun";
-import { accionFacturar, accionSubirFacturaMlPedido, accionRefacturar, accionLiberarFactura, accionLeyendaFactura, accionFacturaWhatsapp } from "./acciones";
+import { accionFacturar, accionSubirFacturaMlPedido, accionRefacturar, accionLoteFacturaCorregida, accionLiberarFactura, accionLeyendaFactura, accionFacturaWhatsapp } from "./acciones";
 import { sqlEstadoFacturaMl } from "@/lib/mercadolibre/facturas";
 import { TextoFacturaMl, BotonFacturaMl, puedeSubir } from "@/app/administracion/facturacion/FacturaMl";
 import Operacion from "./Operacion";
@@ -397,6 +397,13 @@ export default async function DetallePedido({ params, searchParams }: { params: 
           <form action={accionRefacturar}>
             <input type="hidden" name="pedido_id" value={pid} />
             <BotonEnviar clase={fx?.retenida ? PRIMARIO : SUAVE} corriendo="Refacturando…">Refacturar con datos actuales</BotonEnviar>
+          </form>
+        )}
+        {/* Venta de ML ya refacturada: un lote con la factura nueva y el aviso al comprador, que sale con el clic en la cola. */}
+        {puedeFacturar && facturado && comprobantes.some((x) => x.es_ml) && comprobantes.some((x) => x.asociado_id != null) && (
+          <form action={accionLoteFacturaCorregida}>
+            <input type="hidden" name="pedido_id" value={pid} />
+            <BotonEnviar clase={SUAVE} corriendo="Preparando…">Preparar factura corregida para Mercado Libre</BotonEnviar>
           </form>
         )}
       </div>

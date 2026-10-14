@@ -151,6 +151,10 @@ Mensajes típicos si no se puede:
 
 ## Criterios y reglas
 
+### El envío en la factura
+
+- Si el comprador pagó el envío, la factura lleva una línea **«Envío»** con ese importe (con IVA 21 %), además de los productos. En las ventas de Mercado Libre el importe sale de lo que Mercado Libre informa que pagó el comprador; si el envío fue gratis para el comprador, no hay línea. Mercado Libre exige que ese monto figure en la factura.
+
 ### Qué tipo de comprobante sale (A, B o C)
 
 - Si la empresa **no** es Responsable Inscripto (monotributo o exento): siempre **Factura C** (no discrimina IVA).

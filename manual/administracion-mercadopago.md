@@ -41,7 +41,7 @@ En [Canales](/config/canales), elegí el canal y en la caja **"Cuenta de Mercado
 
 ## Criterios
 
-- **Disponible**: Mercado Pago no tiene una consulta directa del saldo; sale de su **Reporte de Liquidaciones**, que Laucen le pide (los últimos 7 días) y Mercado Pago arma en unos minutos. Se pide uno nuevo si el último tiene más de una hora; mientras tanto vale el último que llegó (dice "disponible al …"). La primera vez dice "pedido a MP, actualizá en unos minutos". Si el último reporte que llegó tiene más de 3 horas, **no se muestra el monto** (diría un saldo que ya no existe, porque entra y sale plata) y la celda dice "sin dato al día" con la fecha del último; el saldo total de esa cuenta tampoco se calcula hasta que llegue un reporte nuevo.
+- **Disponible**: Mercado Pago no tiene una consulta directa del saldo; sale de su **Reporte de Liquidaciones**, que Laucen le pide (los últimos 7 días) y Mercado Pago arma en unos minutos. Al actualizar, si el último tiene más de 10 minutos se pide uno nuevo y se espera hasta unos 40 segundos a que llegue; si no llega, vale el último (dice "reporte del …"). La primera vez dice "pedido a MP, actualizá en unos minutos". Si el reporte que se usó tiene más de 3 horas, **no se muestra el monto** (diría un saldo que ya no existe, porque entra y sale plata) y la celda dice "sin dato al día" con la fecha de ese reporte; el saldo total de esa cuenta tampoco se calcula hasta que llegue un reporte nuevo.
 - **A liberar**: los pagos aprobados con fecha de liberación de hoy en adelante que todavía no figuran liberados, sumando lo neto que recibís.
 - **Cobrado en los últimos 30 días**: los pagos aprobados de los últimos 30 días.
 - Cada lectura queda guardada para poder ver cómo fue cambiando y hacer análisis.
