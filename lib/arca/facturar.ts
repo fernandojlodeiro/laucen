@@ -129,10 +129,16 @@ export async function prepararFactura(org: string, pedidoId: number, usuarioId: 
      where l.pedido_id = $1 order by l.orden, l.id`, [pedidoId]);
   if (!lineas.length) throw new ErrorErp("El pedido no tiene líneas.");
   // El envío que pagó el comprador va como una línea más (IVA 21 %).
-  const envio = (await q<{ costo: string; ml: Record<string, OrdenMl> | null; orden: OrdenMl | null }>(
-    "select costo_envio_ars costo, datos_externos #> '{ml,ordenes}' ml, datos_externos #> '{ml,orden}' orden from pedido where id = $1", [pedidoId]))[0];
-  // En una venta de Mercado Libre, el envío que pagó el comprador sale de sus pagos (siempre va en la factura, ML lo exige).
-  const delComprador = envio?.ml || envio?.orden ? envioPagadoPorElComprador(envio.ml ? Object.values(envio.ml) : [envio.orden!]) : 0;
+  const envio = (await q<{ costo: string; ml: Record<string, OrdenMl> | null; orden: OrdenMl | null; es_ml: boolean; del_envio: string | null }>(`
+    select p.costo_envio_ars costo, p.datos_externos #> '{ml,ordenes}' ml, p.datos_externos #> '{ml,orden}' orden, p.datos_externos ? 'ml' es_ml,
+           (select e.costo_ars from envio e where e.pedido_id = p.id and e.costo_ars > 0 order by e.id desc limit 1) del_envio
+      from pedido p where p.id = $1`, [pedidoId]))[0];
+  // Venta de Mercado Libre: el envío que pagó el comprador va siempre en la factura (ML lo exige). Sale del costo del
+  // envío para el comprador que informa ML (shipping_option.cost, guardado en `envio`); si falta, de sus pagos
+  // (en los carritos los pagos no lo traen, el envío sí). Ver lib/mercadolibre/envio-comprador.ts.
+  const delComprador = !envio?.es_ml ? 0
+    : Number(envio.del_envio) > 0 ? Number(envio.del_envio)
+    : envio.ml || envio.orden ? envioPagadoPorElComprador(envio.ml ? Object.values(envio.ml) : [envio.orden!]) : 0;
   const costoEnvio = Number(envio?.costo) > 0 ? Number(envio.costo) : delComprador;
   if (costoEnvio > 0) lineas.push({ variacion_id: null, titulo: "Envío", cantidad: 1, unit: String(costoEnvio), iva_pct: "21" });
   const conIva = tipo !== 11;

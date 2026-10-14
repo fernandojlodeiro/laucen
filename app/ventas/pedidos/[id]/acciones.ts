@@ -263,6 +263,20 @@ export async function accionRefacturar(fd: FormData) {
   });
 }
 
+/** «Preparar factura corregida para Mercado Libre»: un lote (subir la factura vigente + avisar al comprador) que sale con el clic en la cola. */
+export async function accionLoteFacturaCorregida(fd: FormData) {
+  const s = await entrarErp("facturacion_ver");
+  const pid = id(fd, "pedido_id");
+  const volver = `/ventas/pedidos/${pid}`;
+  await intentar(volver, async () => {
+    if (!pid) throw new ErrorErp("El pedido no existe.");
+    const { prepararLoteFacturaCorregida } = await import("@/lib/mercadolibre/facturas");
+    const r = await prepararLoteFacturaCorregida(s.org.id, pid, s.usuario.id);
+    revalidatePath(volver);
+    return `Lote ${r.lote} preparado (${r.cantidad === 2 ? "la factura y el aviso al comprador" : "el aviso al comprador"}). Falta tu clic en «Mandar a Mercado Libre»: Configuración › Cola de Mercado Libre, pestaña Lotes preparados.`;
+  });
+}
+
 /** «Dejar la factura como está»: la persona miró lo retenido y no hace falta cambiar nada. */
 export async function accionLiberarFactura(fd: FormData) {
   const s = await entrarErp("facturacion_ver");

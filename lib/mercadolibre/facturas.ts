@@ -19,7 +19,7 @@
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { encolar, encolarLoteConBoton, PRIORIDAD, type CambioMl } from "@/lib/mercadolibre/cola";
-import { ml, mlArchivo, type ArchivoMl, type CuentaMl, type RespuestaMl } from "@/lib/mercadolibre/api";
+import { ml, mlArchivo, cuentaDelCanal, type ArchivoMl, type CuentaMl, type RespuestaMl } from "@/lib/mercadolibre/api";
 import { sqlCarritoEnEspera, carritoEnEspera } from "@/lib/pedidos";
 import { TIPOS_CBTE } from "@/lib/arca/facturar";
 
@@ -270,4 +270,38 @@ export async function estadoFacturaMl(org: string, comprobanteId: number) {
            (select q.id::int from ml_cola q where q.tipo = 'factura' and q.item_id = 'cbte:' || cb.id order by q.id desc limit 1) cola_id
       from comprobante cb left join pedido p on p.id = cb.pedido_id left join canal ca on ca.id = p.canal_id
      where cb.id = $1 and cb.organizacion_id = $2`, [comprobanteId, org]);
+}
+
+/** Factura corregida de una venta de ML (refacturada): prepara UN lote, que sale con el clic de Fer en
+ *  «Mandar a Mercado Libre», con (1) la factura vigente subida a la venta (reemplaza a la anterior) y
+ *  (2) el aviso al comprador por mensajería de que ya la tiene. Si la factura ya está subida o en la cola,
+ *  sólo va el aviso. Devuelve el id del lote. */
+export async function prepararLoteFacturaCorregida(org: string, pedidoId: number, usuario: string | null): Promise<{ lote: number; cantidad: number }> {
+  const p = await una<{ canal_id: string; pack_id: string | null; comprador: string | null; tipo: string | null }>(`
+    select p.canal_id, p.id_externo pack_id, p.datos_externos #>> '{ml,orden,buyer,id}' comprador, ca.tipo
+      from pedido p join canal ca on ca.id = p.canal_id where p.id = $1 and p.organizacion_id = $2`, [pedidoId, org]);
+  if (!p || p.tipo !== "mercadolibre" || !/^\d+$/.test(p.pack_id ?? "")) throw new ErrorErp("Sólo sirve para pedidos de Mercado Libre.");
+  if (!p.comprador) throw new ErrorErp("No se sabe quién es el comprador de la venta.");
+  const f = await una<{ id: number }>(`
+    select cb.id::int from comprobante cb where cb.organizacion_id = $1 and cb.pedido_id = $2 and cb.estado = 'autorizado' and cb.tipo_cbte in (1, 6, 11)
+       and not exists (select 1 from comprobante nc where nc.comprobante_asociado_id = cb.id and nc.estado = 'autorizado') order by cb.id desc limit 1`, [org, pedidoId]);
+  if (!f) throw new ErrorErp("El pedido no tiene una factura vigente.");
+  const cuenta = await cuentaDelCanal(org, Number(p.canal_id));
+  if (!cuenta) throw new ErrorErp("La cuenta de Mercado Libre ya no está conectada.");
+  const ya = await una("select 1 from ml_cola where canal_id = $1 and item_id = $2 and estado in ('preparado', 'pendiente', 'enviando')", [p.canal_id, `aviso:factura:${f.id}`]);
+  if (ya) throw new ErrorErp("El aviso de esta factura ya está en la cola de Mercado Libre.");
+  const { textosCanal, agregarFirma } = await import("@/lib/canales/textos");
+  const firma = (await textosCanal(org, p.canal_id)).firma;
+  const texto = agregarFirma("¡Hola! Ya tenés disponible la factura corregida, con el costo del envío incluido, en el detalle de tu compra. Disculpá las molestias.", firma);
+  const cambios: CambioMl[] = (await candidatos(org, [f.id])).map(cambioDe);
+  cambios.push({
+    canalId: Number(p.canal_id), itemId: `aviso:factura:${f.id}`, tipo: "otro", prioridad: PRIORIDAD.normal,
+    payload: {
+      descripcion: `Avisar al comprador de la venta ${p.pack_id} que ya tiene la factura corregida: «${texto}»`,
+      pedidos: [{ metodo: "POST", ruta: `/messages/packs/${p.pack_id}/sellers/${cuenta.meliUserId}?tag=post_sale`,
+        cuerpo: { from: { user_id: cuenta.meliUserId }, to: { user_id: Number(p.comprador) }, text: texto } }],
+    },
+  });
+  const lote = await encolarLoteConBoton(org, Number(p.canal_id), cambios, `Factura corregida de la venta ${p.pack_id}: subirla y avisar al comprador`, usuario);
+  return { lote, cantidad: cambios.length };
 }
