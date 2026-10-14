@@ -169,3 +169,29 @@ do $$ begin
     alter table seguimiento_pub add constraint seguimiento_pub_origen_auto check (origen in ('busqueda', 'manual', 'importado', 'auto'));
   end if;
 end $$;
+
+-- Importar los seguimientos de Virtual Seller (Fer, 14/10): el informe «Seguimientos
+-- totales» trae, por cada seguimiento, el producto nuestro (en el ID del seguimiento) y
+-- las publicaciones de la competencia con su último precio y estado. Entran revisadas
+-- (las eligió una persona en Virtual Seller), con origen 'importado' y de dónde vienen
+-- en origen_detalle. La primera lectura queda con fuente 'importado'.
+alter table seguimiento_pub add column if not exists origen_detalle text;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'seguimiento_lectura_fuente_imp') then
+    alter table seguimiento_lectura drop constraint if exists seguimiento_lectura_fuente_check;
+    alter table seguimiento_lectura add constraint seguimiento_lectura_fuente_imp check (fuente in ('api', 'apify', 'busqueda', 'importado'));
+  end if;
+end $$;
+create table if not exists seguimiento_importacion (
+  id                bigint generated always as identity primary key,
+  organizacion_id   text not null references organizaciones(id) on delete cascade,
+  archivo           text not null,
+  usuario_id        text,
+  ts                timestamptz not null default now(),
+  estado            text not null default 'corriendo' check (estado in ('corriendo', 'terminada', 'error')),
+  resumen           jsonb not null default '{}',
+  error             text
+);
+create index if not exists seguimiento_importacion_org on seguimiento_importacion (organizacion_id, id desc);
+alter table seguimiento_importacion enable row level security;
+select erp_politica_org('seguimiento_importacion');

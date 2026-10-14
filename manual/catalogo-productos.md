@@ -204,6 +204,8 @@ No cuentan las publicaciones excluidas de la regla. Para ver los que falta revis
 
 La pestaña **Seguimiento (N)** de la ficha guarda las publicaciones de otros vendedores que querés vigilar, con lo último que se leyó de cada una: foto, título (con ↗ a Mercado Libre), número, si es de catálogo, **vendedor** (y si es tienda oficial), **precio** (con el precio tachado si tiene descuento, y ▼/▲ con cuánto cambió desde la lectura anterior), **tipo** de publicación (Clásica, Premium…) y cuotas, **entrega** (en cuántos días llega a Capital Federal, en rojo si tarda más de lo que compite, y si el envío es gratis), **estado** (Activa, Pausada, Terminada, "No figura en el catálogo" o "Sin leer todavía") y cuándo se **leyó**. Ordenadas de la más barata a la más cara.
 
+Arriba se ven sólo las que están a la venta (el número del título cuenta ésas). **Las pausadas, terminadas o que ya no figuran en el catálogo van aparte**: debajo de la tabla, el botón **▸ Pausadas o terminadas (N)** las muestra en otra tabla igual (tocándolo de nuevo se esconde). Se siguen leyendo, así que si el vendedor la vuelve a activar, vuelve sola a la tabla de arriba; mientras tanto, la regla de precio no la usa.
+
 Para elegir cuáles seguir:
 1. En el recuadro **Buscar en Mercado Libre para seguir**, el texto ya viene con el título del producto (se puede cambiar).
 2. Apretá **🔍 Buscar en Mercado Libre**: pregunta "¿Buscar? Cuesta unos US$ 0,10"; con **Sí** busca de fondo (uno o dos minutos) y avisa abajo a la derecha al terminar.
@@ -230,7 +232,7 @@ Debajo del precio de cada publicación que seguís está **su último cambio**: 
 **Seguidas solas por la búsqueda de precio de mercado.** La búsqueda de precio de mercado ([Sugerencia de compra](/compras/sugerencia)) guarda lo que encontró como la última búsqueda del producto (se ve en **Buscar en Mercado Libre para seguir**, con la columna IA) y **sigue sola las publicaciones que la IA juzga iguales** (las más baratas, hasta lo que diga [Seguimiento de publicaciones](/config/seguimiento)). Esas llevan la marca **🤖 Automática · sin revisar** (al pasar el mouse, el motivo de la IA) y **no cuentan para la regla de precio** hasta que una persona las revisa:
 - la caja **Revisada** de su fila la confirma (o la vuelve a dejar sin confirmar); al confirmarla pasa a **🤖 Automática · revisada** (al pasar el mouse, quién y cuándo);
 - **✓ Confirmar todas (N)**, arriba a la derecha de la caja, confirma de una vez todas las sin revisar del producto.
-Las que agrega una persona (con **+ Seguir**, por número o desde una planilla importada) ya nacen revisadas. Debajo de la caja **Revisada** dice de dónde sale: «por …» (quién la tildó y cuándo), «con «+ Seguir»», «por número» o «desde planilla», con la fecha; al pasar el mouse, el detalle.
+Las que agrega una persona (con **+ Seguir**, por número, desde una planilla importada o importadas de Virtual Seller en [Importar seguimientos de Virtual Seller](/catalogo/seguimientos/importar)) ya nacen revisadas. Debajo de la caja **Revisada** dice de dónde sale: «por …» (quién la tildó y cuándo), «con «+ Seguir»», «por número», «desde planilla» o «desde Virtual Seller», con la fecha; al pasar el mouse, el detalle (en las de Virtual Seller, el ID del seguimiento).
 
 En cada fila de las que seguís:
 - **El tacho, a la derecha de la fila**, deja de seguirla (pregunta ahí mismo «Sí» / «No»).
@@ -251,7 +253,7 @@ Debajo de las publicaciones que seguís está la caja **Regla de precio**: miran
 Se configura con el **lápiz** del título de la caja (en edición quedan **Grabar** y **Cancelar**). **Mientras editás, al lado de los campos se ve qué haría el sistema** con lo que vas eligiendo (el precio nuevo de cada Clásica, en verde si sube y en rojo si baja), antes de grabar:
 
 - **Qué hace**: **Apagada**; **Proponer el cambio y esperar mi clic** (deja el cambio propuesto con los botones **Aplicar** y **Descartar**); o **Automático: cambiar la lista sola**. Se elige producto por producto, según cuánto confiás en los que seguís.
-- **Contra quién**: **el más barato de los que sigo** o una publicación puntual de las que seguís.
+- **Contra quién**: **el más barato de los que sigo** o una publicación puntual de las que seguís. Si la elegida deja de estar activa (el vendedor la pausa o la termina) o la excluís, la regla sigue sola contra **la más barata de las que quedan** y el resultado lo dice («la elegida no está activa: se usa la más barata que sigue»); cuando vuelve a estar activa, se compara otra vez contra ella.
 - **Cómo**: **Igualar su precio**, **Quedar X pesos abajo** o **Quedar X % abajo** (X va en el campo de al lado).
 - **Piso**: la Clásica nunca baja de ese precio. Es obligatorio para prender la regla.
 - **También subir** y **Techo**: tildada, si la publicación que seguís sube su precio (o el más barato pasa a ser uno más caro), la Clásica sube hasta el objetivo, nunca por encima del techo. El techo es obligatorio si está tildada y tiene que ser mayor que el piso.
@@ -260,7 +262,7 @@ Criterios:
 
 - **Baja** si tu Clásica está por encima del objetivo; si el objetivo queda por debajo del piso, baja hasta el piso.
 - **Sube sólo con «También subir»**, si tu Clásica está por debajo del objetivo; si el objetivo queda por encima del techo, sube hasta el techo. Sin esa caja, si ya estás más barato no hace nada.
-- Compara contra las seguidas **activas** con precio leído (las pausadas, terminadas o que no figuran en el catálogo no cuentan), sin las **excluidas** ni las **internacionales**. El precio de la referencia es el que paga el comprador.
+- Compara contra las seguidas **activas**, **revisadas** y con precio leído (las pausadas, terminadas o que no figuran en el catálogo no cuentan: si la que era la referencia se pausa, pasa sola a la siguiente más barata), sin las **excluidas** ni las **internacionales**. El precio de la referencia es el que paga el comprador.
 - El objetivo se redondea a pesos enteros, hacia abajo. Si el producto tiene varias variaciones, se revisa cada una con su propia Clásica.
 - Un producto con precio en dólares sigue en dólares: se baja en la misma proporción.
 - **Cuándo se revisa**: sola, después de cada lectura de las seguidas (la vuelta automática o **Leer ahora**); al grabar la regla; y con **Revisar ahora** (usa lo último leído, sin volver a leer).

@@ -13,6 +13,7 @@ import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import { listaSeguimientos } from "@/lib/seguimiento/lista-seguimientos";
 import { ESTADOS_MERCADO, esEstadoMercado } from "@/lib/seguimiento/estado-mercado";
 import { Desplegable } from "@/app/informes/Filtros";
+import { SUAVE } from "@/app/botones";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export default async function Seguimientos({ searchParams }: { searchParams: Pro
 
   return (
     <Pantalla titulo="Seguimientos"
+      acciones={<Link href="/catalogo/seguimientos/importar" className={SUAVE}>Importar de Virtual Seller</Link>}
       subtitulo="El precio de mercado de cada producto según lo que sigue de la competencia: confirmado (una persona revisó lo que se sigue), monitoreado sin confirmar (lo siguió sola la búsqueda de precio de mercado) o sin seguimiento. Se revisa en la pestaña Seguimiento de cada producto.">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <BuscadorVivo q={q} comienza={comienza} placeholder="Buscar SKU o título" />

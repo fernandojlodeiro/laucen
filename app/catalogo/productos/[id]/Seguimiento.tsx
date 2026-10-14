@@ -26,7 +26,7 @@ type Seguida = {
   leido_ts: Date | null; error: string | null; cambio: number | null; entrega_dias: number | null; lecturas: number;
   internacional: boolean | null; excluido: boolean;
   /** La agregó sola la búsqueda de precio de mercado (origen «auto») y si una persona ya la revisó. */
-  origen: string; confirmada: boolean; confirmada_ts: Date | null; confirmada_por: string | null; motivo_ia: string | null; creado_ts: Date;
+  origen: string; origen_detalle: string | null; confirmada: boolean; confirmada_ts: Date | null; confirmada_por: string | null; motivo_ia: string | null; creado_ts: Date;
   /** La primera lectura (el comienzo del seguimiento) y cuántos cambios de precio o estado hubo. */
   desde: string | null; cambios: number;
   /** El último cambio de precio (entre dos lecturas seguidas), y si fue en la última lectura. */
@@ -76,13 +76,13 @@ function Entrega({ dias, demora, gratis }: { dias: number | null | undefined; de
   );
 }
 
-export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string; internacionales?: string; borden?: string; hist?: string; editar?: string } }) {
+export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string; internacionales?: string; borden?: string; hist?: string; editar?: string; pausadas?: string } }) {
   const hist = Number(sp.hist) || null;
   const [seguidas, busqueda, conf, lecturas, catalogos, regla] = await Promise.all([
     consulta<Seguida>(`
       select sp.id::int, sp.item_id, sp.catalogo_id, sp.titulo, sp.foto, sp.permalink, sp.vendedor, sp.tienda_oficial, sp.precio::float8, sp.precio_original::float8,
              sp.moneda, sp.estado, sp.tipo_publicacion, sp.cuotas, sp.envio_gratis, sp.leido_ts, sp.error, sp.entrega_dias, sp.internacional, sp.excluido,
-             sp.origen, sp.confirmada, sp.confirmada_ts, sp.confirmada_por, sp.motivo_ia, sp.creado_ts,
+             sp.origen, sp.origen_detalle, sp.confirmada, sp.confirmada_ts, sp.confirmada_por, sp.motivo_ia, sp.creado_ts,
              -- Cuánto cambió el precio desde la lectura anterior.
              (select (sp.precio - l.precio)::float8 from seguimiento_lectura l where l.seguimiento_id = sp.id and l.precio is not null
                order by l.ts desc offset 1 limit 1) cambio,
@@ -111,10 +111,16 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
     catalogosPegados(s.org.id, p.id).catch(() => []),
     reglaDe(s.org.id, p.id).catch(() => null),
   ]);
-  // La referencia de la regla de precio (si está prendida): la elegida o la más barata de las activas con precio.
+  // La referencia de la regla de precio (si está prendida): la elegida o la más barata de las activas con precio. Si la
+  // elegida deja de estar activa, la que sigue (Fer, 14/10), igual que en lib/seguimiento/regla.ts.
+  const sirven = seguidas.filter((x) => x.estado === "activa" && x.precio != null && (x.moneda ?? "ARS") === "ARS" && !x.excluido && !x.internacional && x.confirmada)
+    .sort((a, b) => a.precio! - b.precio!);
   const referenciaId = !regla || regla.modo === "apagada" ? null
-    : regla.contra === "una" ? regla.seguimientoId
-    : seguidas.filter((x) => x.estado === "activa" && x.precio != null && (x.moneda ?? "ARS") === "ARS" && !x.excluido && !x.internacional && x.confirmada).sort((a, b) => a.precio! - b.precio!)[0]?.id ?? null;
+    : (regla.contra === "una" && sirven.find((x) => x.id === regla.seguimientoId)?.id) || (sirven[0]?.id ?? null);
+  // Las pausadas, terminadas o que no figuran van aparte, a un clic (Fer, 14/10): no cuentan para la regla.
+  const fueraDeVenta = (x: Seguida) => x.estado === "pausada" || x.estado === "cerrada" || x.estado === "no_figura";
+  const activas = seguidas.filter((x) => !fueraDeVenta(x)), pausadas = seguidas.filter(fueraDeVenta);
+  const verPausadas = sp.pausadas === "1" || pausadas.some((x) => x.id === hist);
   const seguidosIds = new Set(seguidas.map((x) => x.item_id));
   // Los resultados: sin packs (si el nuestro no lo es) ni los nuestros, salvo que se pidan; los más parecidos al nuestro primero.
   const nuestroEsPack = esPack(p.titulo);
@@ -134,53 +140,20 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
   // El enlace al historial de una seguida (o cerrarlo), sin perder lo demás de la dirección.
   const conHist = (id: number | null) => {
     const q = new URLSearchParams({ seccion: "seguimiento" });
-    for (const k of ["packs", "propias", "demoradas", "internacionales", "borden"] as const) if (sp[k]) q.set(k, sp[k]!);
+    for (const k of ["packs", "propias", "demoradas", "internacionales", "borden", "pausadas"] as const) if (sp[k]) q.set(k, sp[k]!);
     if (id) q.set("hist", String(id));
     return `/catalogo/productos/${p.id}?${q}`;
   };
   const campos = { producto_id: String(p.id) };
+  const conPausadas = (ver: boolean) => {
+    const q = new URLSearchParams({ seccion: "seguimiento" });
+    for (const k of ["packs", "propias", "demoradas", "internacionales", "borden"] as const) if (sp[k]) q.set(k, sp[k]!);
+    if (ver) q.set("pausadas", "1");
+    return `/catalogo/productos/${p.id}?${q}`;
+  };
   const sinConfirmar = seguidas.filter((x) => !x.confirmada).length;
-
-  return (
-    <div className="grid gap-4">
-      <section className={CAJA}>
-        <TituloSeccion titulo={`Publicaciones que seguís (${seguidas.length})`}>
-          <BotonNuevo texto="Agregar por número" />
-          {sinConfirmar > 0 && (
-            <form action={accionConfirmarTodas}>
-              <input type="hidden" name="producto_id" value={p.id} />
-              <button className={SUAVE} title="Las que siguió sola la búsqueda de precio de mercado: quedan revisadas por vos y cuentan para la regla de precio">✓ Confirmar todas ({sinConfirmar})</button>
-            </form>
-          )}
-          {seguidas.length > 0 && (
-            <BotonTarea accion={accionLeerSeguimiento} tipo={`seguimiento-leer-${p.id}`} clase={SUAVE} texto="Leer ahora" campos={campos}
-              pregunta="¿Leerlas ahora? Las comunes cuestan (las de catálogo, no)" />
-          )}
-        </TituloSeccion>
-        <AltaNueva texto="Agregar por número" sinBoton>
-          <form action={accionSeguirPorNumero} className="grid gap-2">
-            <input type="hidden" name="producto_id" value={p.id} />
-            <textarea name="numeros" rows={3} placeholder={"https://articulo.mercadolibre.com.ar/MLA-1234567890-…\nMLA1234567890\nhttps://www.mercadolibre.com.ar/…/p/MLA12345678 (un catálogo: muestra sus vendedores)"} className={`${CAMPO} w-full`} autoFocus />
-            <span className="flex items-center gap-2">
-              <button className={PRIMARIO}>Agregar</button>
-              <span className="text-[11px] text-[#5C6B76]">Links o números de publicación (MLA…), uno por renglón: se leen enseguida. El link de un catálogo (…/p/MLA…) muestra a todos sus vendedores para elegir.</span>
-            </span>
-          </form>
-        </AltaNueva>
-        <p className="text-[11px] text-[#5C6B76] mb-2">
-          Se vuelven a leer cada {conf.frecuenciaDias} día{conf.frecuenciaDias === 1 ? "" : "s"}, a la madrugada (Configuración › Seguimiento de publicaciones).
-          Las de catálogo se leen gratis; las comunes, con un costo chico.
-          Las marcadas 🤖 las siguió sola la búsqueda de precio de mercado: no cuentan para la regla de precio hasta que tildás «Revisada».
-        </p>
-        <div className={CAJA_TABLA}>
-          <table className={TABLA}>
-            <thead className={THEAD}>
-              <tr><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Tipo</th>
-                <th className={TH}>Entrega</th><th className={TH}>Estado</th><th className={TH}>Leída</th><th className={TH} title="Tildada: una persona la revisó (las agregadas a mano ya nacen revisadas)">Revisada</th><th className={TH} title="Tildada: se sigue, pero no cuenta para la regla de precio">Fuera de la regla</th><th /><th /></tr>
-            </thead>
-            <tbody>
-              {seguidas.length === 0 && <tr><td colSpan={11} className={`${TD} text-[#5C6B76]`}>Todavía no seguís ninguna: buscalas abajo y tocá «Seguir», o agregalas por número.</td></tr>}
-              {seguidas.flatMap((x) => [
+  // Un renglón de una seguida (y su historial abierto, si se pidió).
+  const fila = (x: Seguida) => [
                 // Lo que cambió en la última lectura, en amarillo; si es la referencia de la regla, en rosa (Fer, 12/10).
                 <tr key={x.id} className={`${TR} ${x.ultimo?.enLaUltima ? (x.id === referenciaId ? "bg-[#FCE4EC]" : "bg-[#FFF8E5]") : ""}`}>
                   <td className={TD}>
@@ -230,10 +203,72 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
                     <td colSpan={11} className="bg-[#F7F9FB] px-3 py-2"><Historial lecturas={lecturas} moneda={x.moneda} /></td>
                   </tr>
                 ),
-              ])}
+];
+
+  return (
+    <div className="grid gap-4">
+      <section className={CAJA}>
+        <TituloSeccion titulo={`Publicaciones que seguís (${activas.length})`}>
+          <BotonNuevo texto="Agregar por número" />
+          {sinConfirmar > 0 && (
+            <form action={accionConfirmarTodas}>
+              <input type="hidden" name="producto_id" value={p.id} />
+              <button className={SUAVE} title="Las que siguió sola la búsqueda de precio de mercado: quedan revisadas por vos y cuentan para la regla de precio">✓ Confirmar todas ({sinConfirmar})</button>
+            </form>
+          )}
+          {seguidas.length > 0 && (
+            <BotonTarea accion={accionLeerSeguimiento} tipo={`seguimiento-leer-${p.id}`} clase={SUAVE} texto="Leer ahora" campos={campos}
+              pregunta="¿Leerlas ahora? Las comunes cuestan (las de catálogo, no)" />
+          )}
+        </TituloSeccion>
+        <AltaNueva texto="Agregar por número" sinBoton>
+          <form action={accionSeguirPorNumero} className="grid gap-2">
+            <input type="hidden" name="producto_id" value={p.id} />
+            <textarea name="numeros" rows={3} placeholder={"https://articulo.mercadolibre.com.ar/MLA-1234567890-…\nMLA1234567890\nhttps://www.mercadolibre.com.ar/…/p/MLA12345678 (un catálogo: muestra sus vendedores)"} className={`${CAMPO} w-full`} autoFocus />
+            <span className="flex items-center gap-2">
+              <button className={PRIMARIO}>Agregar</button>
+              <span className="text-[11px] text-[#5C6B76]">Links o números de publicación (MLA…), uno por renglón: se leen enseguida. El link de un catálogo (…/p/MLA…) muestra a todos sus vendedores para elegir.</span>
+            </span>
+          </form>
+        </AltaNueva>
+        <p className="text-[11px] text-[#5C6B76] mb-2">
+          Se vuelven a leer cada {conf.frecuenciaDias} día{conf.frecuenciaDias === 1 ? "" : "s"}, a la madrugada (Configuración › Seguimiento de publicaciones).
+          Las de catálogo se leen gratis; las comunes, con un costo chico.
+          Las marcadas 🤖 las siguió sola la búsqueda de precio de mercado: no cuentan para la regla de precio hasta que tildás «Revisada».
+        </p>
+        <div className={CAJA_TABLA}>
+          <table className={TABLA}>
+            <thead className={THEAD}>
+              <tr><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Tipo</th>
+                <th className={TH}>Entrega</th><th className={TH}>Estado</th><th className={TH}>Leída</th><th className={TH} title="Tildada: una persona la revisó (las agregadas a mano ya nacen revisadas)">Revisada</th><th className={TH} title="Tildada: se sigue, pero no cuenta para la regla de precio">Fuera de la regla</th><th /><th /></tr>
+            </thead>
+            <tbody>
+              {activas.length === 0 && <tr><td colSpan={11} className={`${TD} text-[#5C6B76]`}>{pausadas.length ? "Ninguna activa: las que seguís están pausadas o terminadas (abajo)." : "Todavía no seguís ninguna: buscalas abajo y tocá «Seguir», o agregalas por número."}</td></tr>}
+              {activas.flatMap(fila)}
             </tbody>
           </table>
         </div>
+        {pausadas.length > 0 && (
+          <div className="mt-3">
+            <Link href={conPausadas(!verPausadas)} scroll={false} className={SUAVE}
+              title="Las que el vendedor pausó, terminó o ya no figuran en el catálogo: se siguen leyendo, pero la regla de precio no las usa">
+              {verPausadas ? "▾" : "▸"} Pausadas o terminadas ({pausadas.length})
+            </Link>
+            {verPausadas && (
+              <div className={`${CAJA_TABLA} mt-2`}>
+                <table className={TABLA}>
+                  <thead className={THEAD}>
+                    <tr><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Tipo</th>
+                    <th className={TH}>Entrega</th><th className={TH}>Estado</th><th className={TH}>Leída</th><th className={TH} title="Tildada: una persona la revisó (las agregadas a mano ya nacen revisadas)">Revisada</th><th className={TH} title="Tildada: se sigue, pero no cuenta para la regla de precio">Fuera de la regla</th><th /><th /></tr>
+                  </thead>
+                  <tbody>
+                    {pausadas.flatMap(fila)}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {catalogos.map((c) => (
@@ -390,6 +425,7 @@ const diaMes = (d: Date | string | null) => (d ? new Date(d).toLocaleDateString(
 /** Por qué cuenta como revisada (Fer, 14/10): quién la revisó o, si la agregó una persona, de dónde vino. */
 function deDondeRevisada(x: Seguida): string {
   if (x.confirmada_por) return `Revisada por ${x.confirmada_por} el ${diaMes(x.confirmada_ts)}`;
+  if (x.origen === "importado" && x.origen_detalle?.startsWith("Virtual Seller")) return `Importada de Virtual Seller el ${diaMes(x.creado_ts)} (${x.origen_detalle.replace(/^Virtual Seller, /, "")}): la eligió una persona en Virtual Seller`;
   if (x.origen === "importado") return `Agregada desde una planilla el ${diaMes(x.creado_ts)}: el link lo eligió una persona en la planilla`;
   if (x.origen === "busqueda") return `Elegida con «+ Seguir» de la búsqueda el ${diaMes(x.creado_ts)}`;
   if (x.origen === "manual") return `Agregada por número el ${diaMes(x.creado_ts)}`;
@@ -397,6 +433,7 @@ function deDondeRevisada(x: Seguida): string {
 }
 function deDondeCorto(x: Seguida): string {
   if (x.confirmada_por) return `por ${x.confirmada_por.split("@")[0]} · ${diaMes(x.confirmada_ts)}`;
+  if (x.origen === "importado" && x.origen_detalle?.startsWith("Virtual Seller")) return `desde Virtual Seller · ${diaMes(x.creado_ts)}`;
   if (x.origen === "importado") return `desde planilla · ${diaMes(x.creado_ts)}`;
   if (x.origen === "busqueda") return `con «+ Seguir» · ${diaMes(x.creado_ts)}`;
   if (x.origen === "manual") return `por número · ${diaMes(x.creado_ts)}`;

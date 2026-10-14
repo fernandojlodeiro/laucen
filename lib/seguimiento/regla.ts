@@ -62,18 +62,21 @@ async function listaClasica(org: string): Promise<number> {
   return id;
 }
 
-/** La referencia: la más barata de las seguidas activas (o la elegida), con lo último leído. */
+/** La referencia: la más barata de las seguidas activas (o la elegida), con lo último leído. Si la elegida dejó de estar
+ *  activa (pausada, terminada, excluida), la regla sigue con la más barata de las que quedan (Fer, 14/10) y lo dice. */
 async function referenciaDe(org: string, productoId: number, r: Regla): Promise<{ precio: number; texto: string } | null> {
-  const f = await una<{ precio: number; vendedor: string | null; item_id: string }>(`
-    select precio::float8, vendedor, item_id from seguimiento_pub
+  const elegida = r.contra === "una" ? r.seguimientoId : null;
+  const f = await una<{ precio: number; vendedor: string | null; item_id: string; es_elegida: boolean }>(`
+    select precio::float8, vendedor, item_id, id = $3 es_elegida from seguimiento_pub
      where organizacion_id = $1 and producto_id = $2 and estado = 'activa' and precio is not null and coalesce(moneda, 'ARS') = 'ARS'
        -- Las excluidas a mano y las internacionales no cuentan (Fer, 12/10).
        and not excluido and not coalesce(internacional, false)
        -- Las que siguió sola la búsqueda de mercado cuentan recién cuando una persona las confirma (Fer, 13/10).
        and confirmada
-       and ($3::bigint is null or id = $3)
-     order by precio limit 1`, [org, productoId, r.contra === "una" ? r.seguimientoId : null]);
-  return f ? { precio: f.precio, texto: `${f.vendedor ?? f.item_id} a ${formatear(f.precio, "ARS")}` } : null;
+     order by id = $3 desc nulls last, precio limit 1`, [org, productoId, elegida]);
+  if (!f) return null;
+  const texto = `${f.vendedor ?? f.item_id} a ${formatear(f.precio, "ARS")}`;
+  return { precio: f.precio, texto: elegida && !f.es_elegida ? `${texto} (la elegida no está activa: se usa la más barata que sigue)` : texto };
 }
 
 const fmt = (n: number) => formatear(n, "ARS");
@@ -87,7 +90,7 @@ export async function revisarRegla(org: string, productoId: number, usuario: str
     return t;
   };
   const ref = await referenciaDe(org, productoId, r);
-  if (!ref) return anotar(r.contra === "una" ? "La publicación elegida no está activa o no tiene precio leído: no se cambió nada." : "Ninguna de las seguidas está activa con precio leído: no se cambió nada.");
+  if (!ref) return anotar(r.contra === "una" ? "Ni la publicación elegida ni ninguna otra de las seguidas está activa con precio leído: no se cambió nada." : "Ninguna de las seguidas está activa con precio leído: no se cambió nada.");
   const objetivo = objetivoDe(ref.precio, r.como, r.diferencia);
   const lista = await listaClasica(org);
   const variaciones = await consulta<{ id: number; sku: string }>(

@@ -17,6 +17,9 @@ const LANZADA = "laucen-tarea-lanzada";
 const CORRIENDO = "laucen-tareas-corriendo";
 let corriendoAhora: string[] = [];
 
+/** Para un botón propio que lanzó una tarea (p. ej. después de subir un archivo): que los carteles empiecen a preguntar. */
+export function avisarTareaLanzada() { window.dispatchEvent(new Event(LANZADA)); }
+
 export function AvisosTareas() {
   const router = useRouter();
   const [carteles, setCarteles] = useState<Tarea[]>([]);
