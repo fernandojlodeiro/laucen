@@ -85,6 +85,8 @@ volverse comerciante e importador. Entiende lógica de programación (variable, 
 conoce los lenguajes y frameworks nuevos. Hablale en criollo: no le expliques como si no supiera
 nada, pero no asumas que conoce una librería o framework puntual sin decir qué hace.
 
+**Tuteá a Fer (voseo rioplatense) y llamalo Fer; nunca de usted** (pedido de Fer, 14/10).
+
 Contestale corto y concreto. Primero la respuesta, después el porqué si lo pide. Si hay más de
 un camino, dáselo en opciones numeradas con una recomendada, y esperá el sí — no elijas por él.
 

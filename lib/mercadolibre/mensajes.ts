@@ -71,6 +71,21 @@ export async function importarMensaje(cuenta: CuentaMl, recurso: string) {
   const pack = m.message_resources?.find((x) => x.name === "packs" || x.name === "orders")?.id;
   if (!pack) throw new Error(`mensaje ${id}: no dice de qué pedido es`);
   await importarConversacion(cuenta, pack);
+  await revisarFacturaDeLaVenta(cuenta, pack);
+}
+
+/** Llegó un mensaje del comprador: si la venta ya está facturada y pide un cambio de la factura (otro CUIT, factura A,
+ *  el envío…), se refactura en el acto; si la factura todavía no salió, no se hace nada (la revisión corre al facturar).
+ *  No tira: la tarea periódica es la red de seguridad. */
+async function revisarFacturaDeLaVenta(cuenta: CuentaMl, pack: string | number) {
+  try {
+    const p = await una<{ id: number }>("select pedido_id::int id from meli_conversacion where organizacion_id = $1 and pack_id = $2 and pedido_id is not null", [cuenta.organizacionId, String(pack)]);
+    if (!p) return;
+    const { revisarFacturadas } = await import("@/lib/facturacion/revision");
+    await revisarFacturadas(cuenta.organizacionId, Date.now() + 45_000, p.id);
+  } catch (e) {
+    console.error("[revisión de la factura al llegar el mensaje]", e instanceof Error ? e.message : e);
+  }
 }
 
 const INSTRUCCIONES = `Sos quien atiende la posventa de una tienda argentina en Mercado Libre. Escribí la próxima respuesta al comprador, en castellano rioplatense, cordial y breve (1 a 4 oraciones, máximo 350 caracteres, que es el límite de ML).

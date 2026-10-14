@@ -219,11 +219,28 @@ export async function liberarFactura(org: string, pid: number): Promise<void> {
   await consulta("update pedido set factura_retenida = null, factura_retenida_ts = null where id = $1 and organizacion_id = $2", [pid, org]);
 }
 
+type CandidatoFacturada = Facturada & { pedido_id: number };
+
+/** Revisa un pedido ya facturado: si el comprador pidió un cambio claro se refactura, si hay duda se retiene y avisa.
+ *  Si la refacturación falla, queda retenido con el motivo para que una persona lo mire. */
+async function revisarYRefacturar(org: string, x: CandidatoFacturada, res: { refacturadas: number; retenidas: number; errores: string[] }) {
+  try {
+    const r = await revisarPedido(org, x.pedido_id, x);
+    if (r.retenida) res.retenidas++;
+    else if (r.cambio) { await refacturar(org, x.pedido_id, "sistema"); res.refacturadas++; }
+  } catch (e) {
+    const motivo = `No se pudo refacturar solo: ${e instanceof Error ? e.message : String(e)}`;
+    await consulta("update pedido set factura_retenida = $3, factura_retenida_ts = now() where id = $1 and organizacion_id = $2", [x.pedido_id, org, motivo.slice(0, 1000)]).catch(() => {});
+    res.errores.push(`pedido ${x.pedido_id}: ${motivo}`);
+  }
+}
+
 /** Los pedidos ya facturados a los que el comprador les escribió después de la factura (o desde la
- *  última lectura): se leen y, si pidió un cambio claro, se refactura solo; si hay duda, se retiene y avisa. */
-export async function revisarFacturadas(org: string, hastaMs: number): Promise<{ refacturadas: number; retenidas: number; errores: string[] }> {
+ *  última lectura). Con `pedidoId`, sólo ése (lo llama la llegada de un mensaje de ML, al instante);
+ *  sin él, los que encuentre la tarea periódica (red de seguridad). */
+export async function revisarFacturadas(org: string, hastaMs: number, pedidoId: number | null = null): Promise<{ refacturadas: number; retenidas: number; errores: string[] }> {
   const res = { refacturadas: 0, retenidas: 0, errores: [] as string[] };
-  const candidatos = await consulta<Facturada & { pedido_id: number }>(`
+  const candidatos = await consulta<CandidatoFacturada>(`
     select p.id::int pedido_id, cb.tipo_cbte, cb.receptor_nombre, cb.doc_tipo, cb.doc_nro, cb.leyenda
       from comprobante cb join pedido p on p.id = cb.pedido_id
       join lateral (select greatest(
@@ -231,19 +248,11 @@ export async function revisarFacturadas(org: string, hastaMs: number): Promise<{
               (select max(x.ts) from chat_mensaje x join chat c on c.id = x.chat_id where c.cliente_id = p.cliente_id and x.direccion = 'entrante' and x.ts >= p.creado_ts)) ultimo) u on true
      where cb.organizacion_id = $1 and ${sqlFacturaVigente("cb")} and cb.autorizado_ts > now() - interval '60 days' and p.factura_retenida is null
        and u.ultimo > cb.autorizado_ts and u.ultimo > coalesce((p.factura_revision ->> 'ts')::timestamptz, '-infinity')
-     order by u.ultimo limit 10`, [org]);
+       and ($2::bigint is null or p.id = $2)
+     order by u.ultimo limit 10`, [org, pedidoId]);
   for (const x of candidatos) {
     if (Date.now() > hastaMs) break;
-    try {
-      const r = await revisarPedido(org, x.pedido_id, x);
-      if (r.retenida) res.retenidas++;
-      else if (r.cambio) { await refacturar(org, x.pedido_id, "sistema"); res.refacturadas++; }
-    } catch (e) {
-      // Si la refacturación falla, queda retenida con el motivo para que una persona la mire.
-      const motivo = `No se pudo refacturar solo: ${e instanceof Error ? e.message : String(e)}`;
-      await consulta("update pedido set factura_retenida = $3, factura_retenida_ts = now() where id = $1 and organizacion_id = $2", [x.pedido_id, org, motivo.slice(0, 1000)]).catch(() => {});
-      res.errores.push(`pedido ${x.pedido_id}: ${motivo}`);
-    }
+    await revisarYRefacturar(org, x, res);
   }
   return res;
 }
