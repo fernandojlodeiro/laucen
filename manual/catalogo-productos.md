@@ -230,7 +230,7 @@ Debajo del precio de cada publicación que seguís está **su último cambio**: 
 **Seguidas solas por la búsqueda de precio de mercado.** La búsqueda de precio de mercado ([Sugerencia de compra](/compras/sugerencia)) guarda lo que encontró como la última búsqueda del producto (se ve en **Buscar en Mercado Libre para seguir**, con la columna IA) y **sigue sola las publicaciones que la IA juzga iguales** (las más baratas, hasta lo que diga [Seguimiento de publicaciones](/config/seguimiento)). Esas llevan la marca **🤖 Automática · sin revisar** (al pasar el mouse, el motivo de la IA) y **no cuentan para la regla de precio** hasta que una persona las revisa:
 - la caja **Revisada** de su fila la confirma (o la vuelve a dejar sin confirmar); al confirmarla pasa a **🤖 Automática · revisada** (al pasar el mouse, quién y cuándo);
 - **✓ Confirmar todas (N)**, arriba a la derecha de la caja, confirma de una vez todas las sin revisar del producto.
-Las que agrega una persona (con **+ Seguir** o por número) ya nacen revisadas.
+Las que agrega una persona (con **+ Seguir**, por número o desde una planilla importada) ya nacen revisadas. Debajo de la caja **Revisada** dice de dónde sale: «por …» (quién la tildó y cuándo), «con «+ Seguir»», «por número» o «desde planilla», con la fecha; al pasar el mouse, el detalle.
 
 En cada fila de las que seguís:
 - **El tacho, a la derecha de la fila**, deja de seguirla (pregunta ahí mismo «Sí» / «No»).

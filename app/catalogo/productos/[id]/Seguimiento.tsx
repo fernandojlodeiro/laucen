@@ -26,7 +26,7 @@ type Seguida = {
   leido_ts: Date | null; error: string | null; cambio: number | null; entrega_dias: number | null; lecturas: number;
   internacional: boolean | null; excluido: boolean;
   /** La agregó sola la búsqueda de precio de mercado (origen «auto») y si una persona ya la revisó. */
-  origen: string; confirmada: boolean; confirmada_ts: Date | null; confirmada_por: string | null; motivo_ia: string | null;
+  origen: string; confirmada: boolean; confirmada_ts: Date | null; confirmada_por: string | null; motivo_ia: string | null; creado_ts: Date;
   /** La primera lectura (el comienzo del seguimiento) y cuántos cambios de precio o estado hubo. */
   desde: string | null; cambios: number;
   /** El último cambio de precio (entre dos lecturas seguidas), y si fue en la última lectura. */
@@ -82,7 +82,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
     consulta<Seguida>(`
       select sp.id::int, sp.item_id, sp.catalogo_id, sp.titulo, sp.foto, sp.permalink, sp.vendedor, sp.tienda_oficial, sp.precio::float8, sp.precio_original::float8,
              sp.moneda, sp.estado, sp.tipo_publicacion, sp.cuotas, sp.envio_gratis, sp.leido_ts, sp.error, sp.entrega_dias, sp.internacional, sp.excluido,
-             sp.origen, sp.confirmada, sp.confirmada_ts, sp.confirmada_por, sp.motivo_ia,
+             sp.origen, sp.confirmada, sp.confirmada_ts, sp.confirmada_por, sp.motivo_ia, sp.creado_ts,
              -- Cuánto cambió el precio desde la lectura anterior.
              (select (sp.precio - l.precio)::float8 from seguimiento_lectura l where l.seguimiento_id = sp.id and l.precio is not null
                order by l.ts desc offset 1 limit 1) cambio,
@@ -209,7 +209,8 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
                   <td className={`${TD} whitespace-nowrap`}>{hace(x.leido_ts)}{x.error && <span className="block text-[10px] text-[#C03420] max-w-48 whitespace-normal">{x.error}</span>}</td>
                   <td className={TD}>
                     <CasillaAccion accion={accionConfirmarSeguida} campos={{ id: String(x.id), producto_id: String(p.id) }} activa={x.confirmada}
-                      etiqueta="Revisada" ayuda={x.confirmada ? `Revisada${x.confirmada_por ? ` por ${x.confirmada_por}` : ""}` : "Tildala cuando confirmes que es el mismo producto: recién ahí cuenta para la regla de precio"} />
+                      etiqueta="Revisada" ayuda={x.confirmada ? deDondeRevisada(x) : "Tildala cuando confirmes que es el mismo producto: recién ahí cuenta para la regla de precio"} />
+                    {x.confirmada && <span className="block text-[10px] text-[#5C6B76] whitespace-nowrap">{deDondeCorto(x)}</span>}
                   </td>
                   <td className={TD}>
                     <CasillaAccion accion={accionExcluirDeRegla} campos={{ id: String(x.id), producto_id: String(p.id) }} activa={x.excluido}
@@ -382,6 +383,24 @@ function TablaEncontradas({ filas, productoId, seguidos, demora }: { filas: (Pub
       </table>
     </div>
   );
+}
+
+const diaMes = (d: Date | string | null) => (d ? new Date(d).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit" }) : "");
+
+/** Por qué cuenta como revisada (Fer, 14/10): quién la revisó o, si la agregó una persona, de dónde vino. */
+function deDondeRevisada(x: Seguida): string {
+  if (x.confirmada_por) return `Revisada por ${x.confirmada_por} el ${diaMes(x.confirmada_ts)}`;
+  if (x.origen === "importado") return `Agregada desde una planilla el ${diaMes(x.creado_ts)}: el link lo eligió una persona en la planilla`;
+  if (x.origen === "busqueda") return `Elegida con «+ Seguir» de la búsqueda el ${diaMes(x.creado_ts)}`;
+  if (x.origen === "manual") return `Agregada por número el ${diaMes(x.creado_ts)}`;
+  return "Revisada";
+}
+function deDondeCorto(x: Seguida): string {
+  if (x.confirmada_por) return `por ${x.confirmada_por.split("@")[0]} · ${diaMes(x.confirmada_ts)}`;
+  if (x.origen === "importado") return `desde planilla · ${diaMes(x.creado_ts)}`;
+  if (x.origen === "busqueda") return `con «+ Seguir» · ${diaMes(x.creado_ts)}`;
+  if (x.origen === "manual") return `por número · ${diaMes(x.creado_ts)}`;
+  return "";
 }
 
 /** El último cambio de precio de una seguida: «▲ $ 5.408 (27,8 %) · 12/10 (antes $ 19.455)». */
