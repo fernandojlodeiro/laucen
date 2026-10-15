@@ -567,9 +567,9 @@ test("pausada (Fer, 14/10): igual que una activa — precio publicado (el tachad
     campanas: [{ ...candidata, estado: "started", precio: 9_000 }] })] }, reglas).pubs[0];
   assert.deepEqual(enCampana.salir.map((c) => c.id), ["P1"]);
   assert.deepEqual(enCampana.entrar.map((c) => c.id), ["P1"], "vuelve a entrar al precio nuevo");
-  // Sin campañas leídas, la pausada conserva el tachado (no se le saca por «no saber qué descuento acepta»).
+  // Sin campañas leídas, como una activa: va sin tachado al precio del esquema (con tachado, ML rechaza la campaña).
   const sinLeer = proponer({ ...base, pubs: [pub({ estado: "pausada", precioListaMl: 8_000, campanas: [] })] }, reglas).pubs[0];
-  assert.equal(sinLeer.lista, 12_500);
+  assert.equal(sinLeer.lista, 10_000);
   // Con una activa del mismo plan, el destacado y las campañas de la Clásica salen de la activa.
   const dos = proponer({ ...base, pubs: [pub({ publicacionId: 1, itemId: "MLA1", estado: "pausada", precioListaMl: 12_500 }),
     pub({ publicacionId: 2, itemId: "MLA2", estado: "activa", precioListaMl: 12_500, campanas: [candidata] })] }, reglas);

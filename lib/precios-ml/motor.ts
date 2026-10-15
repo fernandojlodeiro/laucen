@@ -475,8 +475,9 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
     // que el máximo que informa en sus campañas (≈ el precio de referencia reciente menos 1 % a 10 %). Si el esquema da
     // más (o no hay campañas leídas para saberlo), va sin tachado ni campaña: el comprador paga el precio del esquema.
     // Lo que ya está en una campaña y se mantiene o baja, sigue.
-    // Una pausada sin campañas leídas no se mira: conserva el tachado para su campaña.
-    if ((pub.estado !== "pausada" || pub.campanas.length > 0) && pa.lista != null && pa.venta != null && pa.lista > pa.venta + 0.5
+    // Vale igual para una pausada (15/10: con el tachado sin campañas leídas, ML rechazó la campaña por «no creíble» en
+    // 5.773 pausadas y quedaron al tachado sin campaña).
+    if (pa.lista != null && pa.venta != null && pa.lista > pa.venta + 0.5
         && !adentro.some((c) => c.precio != null && c.precio > 0 && pa.venta! <= Number(c.precio) + 0.5)) {
       const maximos = pub.campanas.map((c) => (c.max == null ? null : Number(c.max))).filter((m): m is number => m != null && m > 0);
       const maximo = maximos.length ? Math.min(...maximos) : null;

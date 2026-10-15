@@ -398,6 +398,8 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
           // El producto de ML (user product) del alta: las publicaciones de planes de cuotas se cuelgan de él ("{up}").
           let up: string | null = null;
           const otras: string[] = [], fallos: string[] = [];
+          // El último cambio de precio publicado de esta fila (para volverlo si ML rechaza la campaña por «no creíble»).
+          let subioPrecio: { ruta: string; variacion: number | null } | null = null;
           let cortado = false;
           for (const p of pedidos) {
             // Un alta (POST /items) devuelve el id nuevo: los pedidos que siguen lo usan en "{id}" (y su user product en "{up}").
@@ -442,6 +444,26 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
               if (p.ruta === "/items") { creada ??= d?.id ?? null; up ??= d?.user_product_id ?? null; }
               // Otra publicación sobre el mismo producto de ML (un plan de cuotas, o la de catálogo de una común): también es un alta.
               else if ((/^\/user-products\/[^/]+\/items$/.test(p.ruta) || p.ruta === "/items/catalog_listings") && d?.id) { if (creada) otras.push(d.id); else creada = d.id; }
+            }
+            // Subió el precio publicado (el tachado) y ML no acepta la campaña por «no creíble» (15/10: miles de pausadas
+            // quedaron al tachado, casi el doble, sin campaña): el precio publicado vuelve al de venta, sin tachado.
+            if (r.status === 400 && p.metodo === "POST" && ruta.startsWith("/seller-promotions/items/")
+                && /CREDIBILITY/.test(JSON.stringify(r.datos)) && subioPrecio) {
+              const venta = Number((cuerpo as { deal_price?: number } | null)?.deal_price);
+              if (venta > 0) {
+                const espera3 = ultimo + ritmo - Date.now();
+                if (espera3 > 0) await dormir(espera3);
+                ultimo = Date.now();
+                const v = subioPrecio.variacion;
+                const vuelta = await enviar(cuenta, "PUT", subioPrecio.ruta, v ? { variations: [{ id: v, price: venta }] } : { price: venta });
+                fallos.push(vuelta.status >= 200 && vuelta.status < 300
+                  ? `ML no aceptó la campaña («no creíble»): quedó sin tachado, a $ ${venta.toLocaleString("es-AR")}`
+                  : `ML no aceptó la campaña («no creíble») y no se pudo volver el precio a $ ${venta.toLocaleString("es-AR")}`);
+              }
+            }
+            if (p.metodo === "PUT" && /^\/items\/[^/]+$/.test(ruta) && r.status >= 200 && r.status < 300) {
+              const c = cuerpo as { price?: number; variations?: { id: number; price?: number }[] } | null;
+              if (c?.price != null || c?.variations?.[0]?.price != null) subioPrecio = { ruta, variacion: c?.variations?.[0]?.id ?? null };
             }
             if ((r.status < 200 || r.status >= 300) && !(p.seguirSiFalla && r.status >= 400 && r.status < 500 && r.status !== 429 && r.status !== 401)) { cortado = true; break; }
             // Un paso que falló pero se sigue (ej. la descripción, o un plan de cuotas): que quede anotado.
