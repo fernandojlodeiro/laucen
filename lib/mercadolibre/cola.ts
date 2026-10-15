@@ -447,15 +447,19 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
             }
             // Subió el precio publicado (el tachado) y ML no acepta la campaña por «no creíble» (15/10: miles de pausadas
             // quedaron al tachado, casi el doble, sin campaña): el precio publicado vuelve al de venta, sin tachado.
-            if (r.status === 400 && p.metodo === "POST" && ruta.startsWith("/seller-promotions/items/")
-                && /CREDIBILITY/.test(JSON.stringify(r.datos)) && subioPrecio) {
+            // También sin un cambio de precio en esta fila (15/10): una que ya había quedado al tachado sin campaña.
+            // Sólo en las filas de precio del esquema (nunca en una oferta relámpago: ahí no se toca el precio publicado).
+            if (fila.tipo === "precio" && r.status === 400 && p.metodo === "POST" && ruta.startsWith("/seller-promotions/items/")
+                && (cuerpo as { promotion_type?: string } | null)?.promotion_type !== "LIGHTNING"
+                && /CREDIBILITY/.test(JSON.stringify(r.datos))) {
               const venta = Number((cuerpo as { deal_price?: number } | null)?.deal_price);
               if (venta > 0) {
                 const espera3 = ultimo + ritmo - Date.now();
                 if (espera3 > 0) await dormir(espera3);
                 ultimo = Date.now();
-                const v = subioPrecio.variacion;
-                const vuelta = await enviar(cuenta, "PUT", subioPrecio.ruta, v ? { variations: [{ id: v, price: venta }] } : { price: venta });
+                const item = ruta.split("?")[0].split("/").pop()!;
+                const v = subioPrecio?.variacion ?? (fila.variation_id ? Number(fila.variation_id) : null);
+                const vuelta = await enviar(cuenta, "PUT", subioPrecio?.ruta ?? `/items/${item}`, v ? { variations: [{ id: v, price: venta }] } : { price: venta });
                 fallos.push(vuelta.status >= 200 && vuelta.status < 300
                   ? `ML no aceptó la campaña («no creíble»): quedó sin tachado, a $ ${venta.toLocaleString("es-AR")}`
                   : `ML no aceptó la campaña («no creíble») y no se pudo volver el precio a $ ${venta.toLocaleString("es-AR")}`);
