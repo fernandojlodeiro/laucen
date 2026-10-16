@@ -451,12 +451,17 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
       pa.lista = tachadoPct > 0 && tach != null && descuentoVisible(tach, clasica) >= DESCUENTO_MINIMO_ML ? tach : clasica;
     } else if (pub.plan && esPlan(pub.plan)) {
       const pc = planes.find((p) => p.plan === pub.plan)!;
-      if (!pc.habilitado) {
+      // Plan apagado, debajo de su «desde» o en la franja sin planes: no se CREAN publicaciones de ese plan, pero la que
+      // ya existe lleva su precio igual (Fer, 16/10: las Premium apagadas de la impresora 3D quedaron a un precio viejo).
+      if (pc.precio == null) {
         pa.rol = "apagado";
-        pa.avisos.push(!pc.activo ? "El plan no está activo: no se toca."
-          : pc.enFranja ? `Su precio ($ ${Math.round(pc.precio!).toLocaleString("es-AR")}) cae en la franja sin planes, a menos de ${FRANJA_SIN_PLANES_PCT} % abajo del envío gratis ($ ${Math.round(r.envioGratis!).toLocaleString("es-AR")}): no se toca.`
-          : `Debajo del mínimo del plan (${pc.precioMinimo?.toLocaleString("es-AR")}): no se toca.`);
+        pa.avisos.push("Sin precio calculado para el plan: no se toca.");
         return pa;
+      }
+      if (!pc.habilitado) {
+        pa.avisos.push(!pc.activo ? "El plan está apagado: no se crean publicaciones nuevas, pero ésta ya existe y lleva su precio."
+          : pc.enFranja ? `Su precio cae en la franja sin planes (a menos de ${FRANJA_SIN_PLANES_PCT} % abajo del envío gratis): no se crean nuevas, pero ésta ya existe y lleva su precio.`
+          : `Debajo del mínimo del plan (${pc.precioMinimo?.toLocaleString("es-AR")}): no se crean nuevas, pero ésta ya existe y lleva su precio.`);
       }
       if (destacado && destacado.plan === pub.plan) {
         pa.rol = "destacado"; pa.venta = destacado.precio;

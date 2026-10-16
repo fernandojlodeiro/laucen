@@ -212,6 +212,14 @@ test("propuesta: precio mínimo por plan, destacado al precio para ganar en las 
   const p2 = proponer({ ...e, clasica: 75_000 }, reglas);
   assert.deepEqual(p2.faltan.map((f) => f.plan), ["12x_campaign"]);
   assert.equal(pedidoCrear(p2.faltan[0]), null);
+
+  // Plan apagado (Fer, 16/10): no se crea, pero la publicación que ya existe lleva su precio por coeficiente.
+  const p3 = proponer({ ...e, pubs: [...e.pubs, pub({ publicacionId: 3, itemId: "MLA3", plan: "3x_campaign", precioListaMl: 5_000, campanas: [] })] }, reglas);
+  const tres = p3.pubs[2];
+  assert.equal(tres.rol, "plan");
+  assert.equal(tres.venta, pl["3x_campaign"].precio);
+  assert.equal(tres.cambiaPrecio, true);
+  assert.ok(!p3.faltan.some((f) => f.plan === "3x_campaign"));
 });
 
 test("esquema de notebooks (7/10): un tachado por modelo, la cuenta que no gana va más cara, los planes van por campaña", () => {
