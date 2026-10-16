@@ -422,6 +422,11 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
               cuerpo = { prices: tablaVolumen(actuales.datos?.prices ?? [], (p.cuerpo as { prices?: unknown[] } | null)?.prices ?? []) };
             }
             r = await enviar(cuenta, p.metodo, ruta, cuerpo);
+            // Salir de una campaña en la que ML ya no la tiene («No offers found for item»): ya está afuera, se sigue
+            // (16/10: cortaba la fila y el precio nuevo no salía).
+            if (p.metodo === "DELETE" && ruta.startsWith("/seller-promotions/items/") && r.status === 400 && /No offers found/i.test(JSON.stringify(r.datos))) {
+              r = { status: 200, datos: null };
+            }
             // Un código de barras que ML ya tiene en la publicación de otra marca: /items/validate no lo ve, el alta sí.
             // Se prueba una vez sin él, con «no tiene código registrado» (como en lib/mercadolibre/copiar.ts).
             // Lo mismo con «Cantidad de envases» que ML pide al alta cuando hay «Unidad»: va 1.
