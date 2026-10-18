@@ -262,13 +262,15 @@ export async function normalizar(datos: DatosExport[], ahora = new Date()) {
 
     // Controles por mes y moneda (los meses de la cola).
     const meses = [...new Set(cola.filter((x) => x.desde).map((x) => x.etiqueta.slice(0, 7)))];
-    // Para el control de saldo, cada movimiento cuenta en el mes en que la plata quedó disponible (fecha de
-    // liberación; si no la hay, la de saldo): así se compara con Liquidaciones, que es el saldo disponible.
-    // Un cobro de una venta afecta el saldo cuando se aprueba pero recién está disponible al liberarse.
+    // Para el control de saldo, cada movimiento cuenta en el mes en que movió el saldo disponible: una entrada,
+    // cuando se liberó (si no tiene fecha de liberación, la de saldo); una salida, en su fecha de saldo. Así se
+    // compara con Liquidaciones, que es el saldo disponible: un cobro de una venta recién está disponible al liberarse.
     const porMes = new Map<string, Movimiento[]>();
     for (const m of movimientos) {
       if (m.cuenta_mp_id !== cuenta.mpUserId) continue;
-      const k = (m.fecha_liberacion ?? m.fecha_saldo ?? m.fecha_operacion)?.slice(0, 7) ?? null;
+      // Sólo lo que entra espera la liberación; lo que sale deja el saldo en el momento (la fecha de liberación de un
+      // pago hecho es la del que cobra).
+      const k = ((m.importe_neto ?? 0) > 0 ? m.fecha_liberacion ?? m.fecha_saldo ?? m.fecha_operacion : m.fecha_saldo ?? m.fecha_operacion)?.slice(0, 7) ?? null;
       if (!k) continue;
       const l = porMes.get(k); if (l) l.push(m); else porMes.set(k, [m]);
     }
