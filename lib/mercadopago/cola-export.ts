@@ -127,8 +127,15 @@ const lista = async (token: string, familia: string) => {
   const l = await mpPedir<Archivo[]>(token, "GET", `/v1/account/${familia}/list`);
   return { status: l.status, archivos: Array.isArray(l.datos) ? l.datos.filter((f) => f.file_name) : [] };
 };
+/** Los archivos del período. En el mes en curso (pedido hasta este momento) Mercado Pago lleva el fin
+ *  al último segundo del día: vale cualquier fin entre la hora pedida y un día después. */
 const delPeriodo = (archivos: Archivo[], it: Item) =>
-  archivos.filter((f) => f.begin_date?.slice(0, 19) === z(it.desde!).slice(0, 19) && f.end_date?.slice(0, 19) === z(it.hasta!).slice(0, 19)).map((f) => f.file_name!);
+  archivos.filter((f) => {
+    if (f.begin_date?.slice(0, 19) !== z(it.desde!).slice(0, 19) || !f.end_date) return false;
+    if (f.end_date.slice(0, 19) === z(it.hasta!).slice(0, 19)) return true;
+    const dif = new Date(f.end_date).getTime() - new Date(it.hasta!).getTime();
+    return it.etiqueta.includes("parcial") && dif >= 0 && dif < 86_400_000;
+  }).map((f) => f.file_name!);
 
 /** ¿El archivo no trae movimientos? (sólo la cabecera, o en Liquidaciones sólo saldo inicial y total). */
 function vacio(familia: string, bytes: Buffer) {
