@@ -10,8 +10,8 @@ import { Pantalla, Avisos, Estado, TituloSeccion, CAJA, CAJA_TABLA, TABLA, THEAD
 import AltaNueva from "@/app/componentes/AltaNueva";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import { entrarPersonal, autorizados } from "@/lib/personal/espacio";
-import { cuentasDelEspacio, trabajosDelEspacio, archivosDelEspacio, ultimosPasos, ultimasSondas } from "@/lib/personal/mercadopago";
-import { accionAutorizar, accionDesautorizar, accionDesconectar, accionInventario, accionMes } from "./acciones";
+import { cuentasDelEspacio, trabajosDelEspacio, archivosDelEspacio, ultimosPasos, ultimasSondas, colaDelEspacio } from "@/lib/personal/mercadopago";
+import { accionAutorizar, accionDesautorizar, accionDesconectar, accionInventario, accionMes, accionExportarAnio } from "./acciones";
 import { BotonFondo, Refrescar } from "./Cliente";
 
 export const dynamic = "force-dynamic";
@@ -45,13 +45,20 @@ type Sonda = {
 export default async function EspacioPersonal({ searchParams }: { searchParams: Promise<Sp> }) {
   const sp = await searchParams;
   const { espacio } = await entrarPersonal();
-  const [cuentas, trabajos, archivos, pasos, sondas, gente] = await Promise.all([
-    cuentasDelEspacio(espacio.id), trabajosDelEspacio(espacio.id), archivosDelEspacio(espacio.id), ultimosPasos(espacio.id), ultimasSondas(espacio.id),
+  const [cuentas, trabajos, archivos, pasos, sondas, cola, gente] = await Promise.all([
+    cuentasDelEspacio(espacio.id), trabajosDelEspacio(espacio.id), archivosDelEspacio(espacio.id), ultimosPasos(espacio.id), ultimasSondas(espacio.id), colaDelEspacio(espacio.id),
     espacio.esDueno ? autorizados(espacio.id) : Promise.resolve([]),
   ]);
   const corriendo = trabajos.some((t) => t.estado === "corriendo");
   const sondaDe = new Map(sondas.map((s) => [s.conexionId, s.datos as Sonda]));
   const listaMeses = meses();
+  const colaViva = cola.some((i) => i.estado === "pendiente" || i.estado === "pedido");
+  // El año de análisis: los doce meses cerrados hasta el mes pasado (más el mes en curso, parcial).
+  const hoyAr = new Date(Date.now() - 3 * 3600_000);
+  const mesTxt = (a: number, m: number) => `${a}-${String(m).padStart(2, "0")}`;
+  const ultimoCerrado = hoyAr.getUTCMonth() === 0 ? mesTxt(hoyAr.getUTCFullYear() - 1, 12) : mesTxt(hoyAr.getUTCFullYear(), hoyAr.getUTCMonth());
+  const primeroDelAnio = mesTxt(hoyAr.getUTCFullYear() - 1, hoyAr.getUTCMonth() + 1);
+  const etiquetaMes = (t: string) => new Date(`${t.slice(0, 7)}-15T12:00:00Z`).toLocaleDateString("es-AR", { month: "short", year: "numeric", timeZone: "UTC" });
 
   return (
     <Pantalla titulo="Espacio personal" camino={[{ texto: "Espacio personal" }]}
@@ -59,6 +66,7 @@ export default async function EspacioPersonal({ searchParams }: { searchParams: 
       acciones={<a href="/personal/mercadopago/conectar" className={PRIMARIO}>+ Conectar cuenta de Mercado Pago</a>}>
       <Avisos sp={sp} />
       <Refrescar activo={corriendo} />
+      <Refrescar activo={!corriendo && colaViva} cada={30} />
 
       <section className="mb-5">
         <TituloSeccion titulo={`Cuentas de Mercado Pago (${cuentas.length})`} />
@@ -72,7 +80,7 @@ export default async function EspacioPersonal({ searchParams }: { searchParams: 
             <table className={TABLA}>
               <thead className={THEAD}><tr>
                 <th className={TH}>Cuenta</th><th className={THN}>N.º en Mercado Pago</th><th className={TH}>Estado</th><th className={TH}>Conectada</th>
-                <th className={TH}>Inventario</th><th className={TH}>Un mes</th><th className={TH} />
+                <th className={TH}>Inventario</th><th className={TH}>Un mes</th><th className={TH}>El año</th><th className={TH} />
               </tr></thead>
               <tbody>
                 {cuentas.map((c) => (
@@ -91,6 +99,12 @@ export default async function EspacioPersonal({ searchParams }: { searchParams: 
                         <BotonFondo accion={accionMes} campos={{ conexion: String(c.id) }} texto="Pedir reportes y pagos" clase={SUAVE} corriendo={corriendo} conMes meses={listaMeses} />
                         <BotonFondo accion={accionMes} campos={{ conexion: String(c.id), bajar: "1" }} texto="Bajar reportes del mes" clase={SUAVE} corriendo={corriendo} conMes meses={listaMeses} />
                       </div>
+                    </td>
+                    <td className={TD}>
+                      <form action={accionExportarAnio}>
+                        <input type="hidden" name="conexion" value={c.id} /><input type="hidden" name="desde" value={primeroDelAnio} /><input type="hidden" name="hasta" value={ultimoCerrado} />
+                        <button className={SUAVE}>Exportar {etiquetaMes(primeroDelAnio)} – hoy</button>
+                      </form>
                     </td>
                     <td className={TD}>
                       {espacio.esDueno && <TachoConfirmar accion={accionDesconectar} campos={{ conexion: String(c.id) }} pregunta="¿Desconectar la cuenta y borrar lo bajado?" />}
@@ -132,6 +146,48 @@ export default async function EspacioPersonal({ searchParams }: { searchParams: 
             </table>
           </div>
           <p className="text-[11px] text-[#5C6B76] mt-1">La consulta de pagos de Mercado Pago llega sólo hasta alrededor de un año atrás; lo anterior sale de los reportes.</p>
+        </section>
+      )}
+
+      {cola.length > 0 && (
+        <section className="mb-5">
+          <TituloSeccion titulo={`Exportación del año (${cola.filter((i) => i.estado === "listo" || i.estado === "vacio").length} de ${cola.length} listos)`} />
+          {cuentas.filter((c) => cola.some((i) => i.conexionId === c.id)).map((c) => {
+            const items = cola.filter((i) => i.conexionId === c.id);
+            const filas = [...new Set(items.map((i) => i.etiqueta))];
+            const celda = (et: string, f: string) => {
+              const i = items.find((x) => x.etiqueta === et && x.fuente === f);
+              if (!i) return <td className={TD}>—</td>;
+              const tono = i.estado === "listo" ? "verde" : i.estado === "vacio" ? "gris" : i.estado === "error" ? "rojo" : i.estado === "pedido" ? "azul" : "amarillo";
+              const texto = { listo: "Bajado", vacio: "Sin movimientos", error: "Falló", pedido: "Armándose", pendiente: "En cola" }[i.estado] ?? i.estado;
+              return <td className={TD} title={i.mensaje ?? ""}><Estado texto={texto} tono={tono} />{i.estado === "error" && i.mensaje && <div className="text-[11px] text-[#C03420]">{i.mensaje}</div>}</td>;
+            };
+            const especiales = filas.filter((et) => !/^\d{4}-\d{2}/.test(et));
+            const meses = filas.filter((et) => /^\d{4}-\d{2}/.test(et));
+            return (
+              <div key={c.id} className="mb-3">
+                <p className="text-xs font-semibold mb-1">{c.nombre ?? c.mpUserId}</p>
+                {especiales.map((et) => {
+                  const i = items.find((x) => x.etiqueta === et)!;
+                  return <p key={et} className="text-xs text-[#5C6B76] mb-1">{et[0].toUpperCase() + et.slice(1)}: <b>{{ listo: "listo", vacio: "nada", error: "falló", pedido: "en curso", pendiente: "en cola" }[i.estado]}</b>{i.mensaje ? ` — ${i.mensaje}` : ""}</p>;
+                })}
+                <div className={CAJA_TABLA}>
+                  <table className={TABLA}>
+                    <thead className={THEAD}><tr><th className={TH}>Período</th><th className={TH}>Todas las transacciones</th><th className={TH}>Liquidaciones</th><th className={TH}>Pagos (API)</th></tr></thead>
+                    <tbody>
+                      {meses.map((et) => (
+                        <tr key={et} className={TR}>
+                          <td className={TD}>{etiquetaMes(et)}{et.includes("parcial") && <span className="text-[#5C6B76]"> (parcial)</span>}</td>
+                          {celda(et, "settlement_report")}{celda(et, "release_report")}{celda(et, "payments")}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+          <p className="text-[11px] text-[#5C6B76]">Se va pidiendo y bajando solo, de a poco; la pantalla se actualiza cada medio minuto. «Sin movimientos»: Mercado Pago lo entregó vacío. «Falló»: se reintentó varias veces; pasando el mouse se ve el motivo.</p>
         </section>
       )}
 

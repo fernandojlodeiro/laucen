@@ -25,6 +25,7 @@ Con el botón **«Personal»** de la barra de arriba, al lado de «Salir» (en e
 
 - **Cuentas de Mercado Pago**: cada cuenta conectada, su número en Mercado Pago, si está conectada, cuándo se conectó y los botones para sacar información.
 - **Qué se puede sacar de cada cuenta**: después del inventario, el titular, la fecha de alta y desde cuándo hay datos en cada fuente (todos los pagos de la cuenta, los que hizo la cuenta y los reportes que Mercado Pago ya tiene armados).
+- **Exportación del año**: por cada cuenta, mes por mes, cómo va cada fuente: «En cola», «Armándose» (Mercado Pago lo está preparando), «Bajado», «Sin movimientos» (Mercado Pago lo entregó vacío) o «Falló» (con el motivo). Arriba de cada tabla, cómo quedó la configuración de los reportes y los reportes viejos que ya estaban armados.
 - **Lo último que se hizo**: lo que se pidió y cómo terminó.
 - **Archivos bajados**: los archivos tal cual los entregó Mercado Pago, con su tamaño, cuándo se bajaron y una comprobación (para saber si dos archivos son idénticos). Tocando el nombre se baja.
 - **Qué contestó Mercado Pago**: cada pedido y su respuesta, para revisar si algo falló.
@@ -47,6 +48,12 @@ Apretá «Hacer inventario» en la fila de la cuenta. Trabaja de fondo (podés i
 1. En la columna «Un mes», elegí el mes y apretá «Pedir reportes y pagos»: le pide a Mercado Pago el reporte de todas las transacciones y el de liquidaciones de ese mes, baja todos los pagos de la cuenta y, aparte, los que hizo la cuenta, y espera unos minutos a que Mercado Pago arme los reportes para bajarlos también. Trabaja de fondo: podés ir a otra pantalla.
 2. Si al terminar dice que algún reporte todavía no estaba, esperá unos minutos y, con el mismo mes elegido, apretá «Bajar reportes del mes».
 
+### Exportar el año entero
+
+1. En la fila de la cuenta, apretá «Exportar … – hoy» (columna «El año»): pone en cola los doce meses cerrados hasta el mes pasado y el mes en curso hasta este momento.
+2. No hace falta quedarse mirando: el sistema pide y baja todo de a poco, de fondo, y la sección «Exportación del año» muestra cómo va.
+3. También baja, tal cual, todos los reportes que Mercado Pago ya tenía armados de esa cuenta (aunque sean de años anteriores), y ajusta el reporte de todas las transacciones para que incluya los retiros a banco y la hora argentina.
+
 ## Criterios y reglas
 
 - Los meses van de 00:00 del día 1 a las 23:59:59 del último día, en hora argentina.
@@ -55,6 +62,7 @@ Apretá «Hacer inventario» en la fila de la cuenta. Trabaja de fondo (podés i
 - Un archivo se guarda tal cual vino. Si se baja dos veces sin cambios, no se repite; si Mercado Pago lo rearmó distinto, queda la versión nueva al lado.
 - Desconectar una cuenta borra su llave y todo lo que se bajó de ella.
 - Mientras algo corre, los demás botones esperan: se hace una cosa por vez.
+- En la exportación del año, cada mes se pide por separado (Mercado Pago no arma más de 60 días por reporte). Si Mercado Pago no contesta o no arma un reporte, se vuelve a pedir con espera; después de varios intentos queda «Falló» con el motivo. Nunca se da un mes por bajado si Mercado Pago no lo entregó. Volver a apretar el botón no repite los meses que ya están en la cola.
 
 ## Relacionado
 

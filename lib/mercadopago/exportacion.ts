@@ -138,7 +138,54 @@ export type Destino = {
   mpUserId: number;
   anotar: (paso: string, status: number | null, datos: unknown) => Promise<void>;
   guardar: (fuente: string, nombre: string, desde: string | null, hasta: string | null, bytes: Buffer, sha256: string) => Promise<void>;
+  /** Los nombres de los archivos ya bajados de la cuenta (para no volver a bajar los mismos). */
+  bajados: () => Promise<Set<string>>;
+  cola: Cola;
 };
+
+/** Un período de la cola de exportación (mp_export_item / personal.mp_item). */
+export type Item = {
+  id: number; fuente: string; desde: Date | null; hasta: Date | null; etiqueta: string;
+  estado: "pendiente" | "pedido" | "listo" | "vacio" | "error"; intentos: number; pedido_ts: Date | null; antes: string[] | null;
+};
+export type Cola = {
+  crear: (items: { fuente: string; desde: string | null; hasta: string | null; etiqueta: string }[]) => Promise<number>;
+  /** Los que toca mover ahora (pendientes o pedidos con su próxima vuelta vencida). */
+  tomar: (tope: number) => Promise<Item[]>;
+  guardar: (id: number, cambios: { estado?: Item["estado"]; intentos?: number; proximoEnSeg?: number; pedido?: boolean; antes?: string[]; archivos?: string[]; mensaje?: string | null }) => Promise<void>;
+};
+
+/** La cola en una tabla (la de la empresa lleva organizacion_id; la personal, no). */
+export function colaEnTabla(tabla: string, conexionId: number, org: string | null): Cola {
+  return {
+    crear: async (items) => {
+      let n = 0;
+      for (const it of items) {
+        const r = await consulta(
+          org
+            ? `insert into ${tabla} (organizacion_id, conexion_id, fuente, desde, hasta, etiqueta) values ($5, $1, $2, $3, $4, $6) on conflict do nothing returning id`
+            : `insert into ${tabla} (conexion_id, fuente, desde, hasta, etiqueta) values ($1, $2, $3, $4, $5) on conflict do nothing returning id`,
+          org ? [conexionId, it.fuente, it.desde, it.hasta, org, it.etiqueta] : [conexionId, it.fuente, it.desde, it.hasta, it.etiqueta]);
+        n += r.length;
+      }
+      return n;
+    },
+    tomar: (tope) => consulta<Item>(`
+      select id::int, fuente, desde, hasta, etiqueta, estado, intentos, pedido_ts, antes from ${tabla}
+       where conexion_id = $1 and estado in ('pendiente', 'pedido') and proximo_ts <= now()
+       order by (fuente = 'config') desc, (fuente = 'existentes') desc, estado = 'pedido' desc, desde nulls first, id limit $2`, [conexionId, tope]),
+    guardar: async (id, c) => {
+      await consulta(`update ${tabla} set
+          estado = coalesce($2, estado), intentos = coalesce($3, intentos),
+          proximo_ts = case when $4::int is null then proximo_ts else now() + make_interval(secs => $4::int) end,
+          pedido_ts = case when $5::boolean then now() else pedido_ts end,
+          antes = coalesce($6, antes), archivos = coalesce($7, archivos),
+          mensaje = case when $8::boolean then $9 else mensaje end, actualizado_ts = now()
+        where id = $1 and conexion_id = $10`,
+        [id, c.estado ?? null, c.intentos ?? null, c.proximoEnSeg ?? null, c.pedido ?? false, c.antes ?? null, c.archivos ?? null, c.mensaje !== undefined, c.mensaje ?? null, conexionId]);
+    },
+  };
+}
 
 /** Una cuenta de Mercado Pago de la empresa (mp_conexion). */
 export async function destinoEmpresa(conexionId: number): Promise<Destino | null> {
@@ -157,11 +204,13 @@ export async function destinoEmpresa(conexionId: number): Promise<Destino | null
                       values ($1, $2, $3, $4, $5, $6, $7, $8, $9) on conflict (conexion_id, fuente, nombre, sha256) do nothing`,
         [org, conexionId, fuente, nombre, desde, hasta, sha, bytes.length, bytes]);
     },
+    bajados: async () => new Set((await consulta<{ nombre: string }>("select distinct nombre from mp_export_archivo where conexion_id = $1", [conexionId])).map((x) => x.nombre)),
+    cola: colaEnTabla("mp_export_item", conexionId, org),
   };
 }
 
 /** Baja un archivo tal cual (bytes), sin pasarlo a texto. */
-async function bajarCrudo(token: string, ruta: string): Promise<{ status: number; bytes: Buffer | null; motivo?: string }> {
+export async function bajarCrudo(token: string, ruta: string): Promise<{ status: number; bytes: Buffer | null; motivo?: string }> {
   try {
     const r = await fetch(`https://api.mercadopago.com${ruta}`, { headers: { authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(120_000) });
     const b = Buffer.from(await r.arrayBuffer());
@@ -171,14 +220,14 @@ async function bajarCrudo(token: string, ruta: string): Promise<{ status: number
   }
 }
 
-async function guardarArchivo(d: Destino, fuente: string, nombre: string, desde: string | null, hasta: string | null, bytes: Buffer) {
+export async function guardarArchivo(d: Destino, fuente: string, nombre: string, desde: string | null, hasta: string | null, bytes: Buffer) {
   const sha = createHash("sha256").update(bytes).digest("hex");
   await d.guardar(fuente, nombre, desde, hasta, bytes, sha);
   return sha;
 }
 
 /** Todos los pagos de una búsqueda (de a 100). */
-async function todosLosPagos(token: string, filtros: string) {
+export async function todosLosPagos(token: string, filtros: string) {
   const lista: unknown[] = [];
   let total = 0;
   for (let offset = 0; offset < 20_000; offset += 100) {

@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { motivoErp } from "@/lib/erp/base";
 import { entrarPersonal, autorizar, desautorizar } from "@/lib/personal/espacio";
-import { desconectar, lanzarInventario, lanzarMes } from "@/lib/personal/mercadopago";
+import { desconectar, lanzarInventario, lanzarMes, exportarAnio } from "@/lib/personal/mercadopago";
 
 const volver = (q: string) => redirect(`/personal?${q}`);
 
@@ -47,4 +47,12 @@ export async function accionMes(fd: FormData): Promise<{ ok: boolean; mensaje?: 
   } catch (e) { return { ok: false, mensaje: motivoErp(e) }; }
   revalidatePath("/personal");
   return { ok: true };
+}
+
+/** El año entero a la cola (la vuelta de fondo lo pide y lo baja de a poco). */
+export async function accionExportarAnio(fd: FormData) {
+  const { espacio } = await entrarPersonal();
+  let error: string | null = null, n = 0;
+  try { n = await exportarAnio(espacio.id, Number(fd.get("conexion")), String(fd.get("desde") ?? ""), String(fd.get("hasta") ?? "")); } catch (e) { error = motivoErp(e); }
+  volver(error ? `error=${encodeURIComponent(error)}` : `ok=${encodeURIComponent(n ? `Listo: ${n} pedidos en la cola. Se van pidiendo y bajando solos; mirá «Exportación del año».` : "Esos meses ya estaban en la cola.")}`);
 }

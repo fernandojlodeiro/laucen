@@ -44,3 +44,28 @@ create table if not exists mp_export_paso (
 );
 create index if not exists mp_export_paso_conexion on mp_export_paso (conexion_id, ts desc);
 alter table mp_export_paso enable row level security;
+
+-- La cola de la exportación (lo que hay que pedirle y bajarle a Mercado Pago, cuenta por cuenta y
+-- mes por mes). La avanza la vuelta /api/mercadopago/exportacion?accion=vuelta (pg_cron 'mp-export'):
+-- pendiente → pedido (Mercado Pago lo está armando) → listo / vacio / error. Reintenta con espera y
+-- retoma donde quedó; repetir un período no duplica (los archivos van por su suma de comprobación).
+create table if not exists mp_export_item (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  conexion_id      bigint not null references mp_conexion(id) on delete cascade,
+  fuente           text not null,
+  desde            timestamptz,
+  hasta            timestamptz,
+  etiqueta         text not null,
+  estado           text not null default 'pendiente' check (estado in ('pendiente', 'pedido', 'listo', 'vacio', 'error')),
+  intentos         int not null default 0,
+  proximo_ts       timestamptz not null default now(),
+  pedido_ts        timestamptz,
+  antes            text[],
+  archivos         text[],
+  mensaje          text,
+  creado_ts        timestamptz not null default now(),
+  actualizado_ts   timestamptz not null default now()
+);
+create unique index if not exists mp_export_item_unico on mp_export_item (conexion_id, fuente, coalesce(desde, 'epoch'), coalesce(hasta, 'epoch'));
+alter table mp_export_item enable row level security;

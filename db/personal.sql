@@ -103,3 +103,46 @@ create table if not exists personal.trabajo (
   terminado_ts  timestamptz
 );
 alter table personal.trabajo enable row level security;
+
+-- La cola de la exportación de las cuentas personales (igual que mp_export_item de la empresa).
+create table if not exists personal.mp_item (
+  id               bigint generated always as identity primary key,
+  conexion_id      bigint not null references personal.mp_conexion(id) on delete cascade,
+  fuente           text not null,
+  desde            timestamptz,
+  hasta            timestamptz,
+  etiqueta         text not null,
+  estado           text not null default 'pendiente' check (estado in ('pendiente', 'pedido', 'listo', 'vacio', 'error')),
+  intentos         int not null default 0,
+  proximo_ts       timestamptz not null default now(),
+  pedido_ts        timestamptz,
+  antes            text[],
+  archivos         text[],
+  mensaje          text,
+  creado_ts        timestamptz not null default now(),
+  actualizado_ts   timestamptz not null default now()
+);
+create unique index if not exists mp_item_unico on personal.mp_item (conexion_id, fuente, coalesce(desde, 'epoch'), coalesce(hasta, 'epoch'));
+alter table personal.mp_item enable row level security;
+
+-- La vuelta de la exportación de Mercado Pago (empresa y personal): cada 2 minutos, sólo si hay algo
+-- en la cola por pedir o por bajar. La clave se lee de erp_llave al correr. Sin pg_cron, no pasa nada.
+do $$
+declare
+  j record;
+  cmd text := $cmd$
+  select net.http_get(
+    url := 'https://laucen.com/api/mercadopago/exportacion?accion=vuelta&clave=' || (select clave from public.erp_llave where id = 1),
+    timeout_milliseconds := 300000
+  ) where exists (select 1 from public.mp_export_item where estado in ('pendiente', 'pedido') and proximo_ts <= now())
+       or exists (select 1 from personal.mp_item where estado in ('pendiente', 'pedido') and proximo_ts <= now())
+$cmd$;
+begin
+  if to_regclass('cron.job') is null then return; end if;
+  select jobid, command into j from cron.job where jobname = 'mp-export';
+  if not found then perform cron.schedule('mp-export', '*/2 * * * *', cmd);
+  elsif j.command is distinct from cmd then perform cron.alter_job(j.jobid, command := cmd);
+  end if;
+exception when others then
+  raise notice 'pg_cron: no se pudo ajustar mp-export (%)', sqlerrm;
+end $$;

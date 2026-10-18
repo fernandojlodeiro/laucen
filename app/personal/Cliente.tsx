@@ -7,13 +7,13 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-export function Refrescar({ activo }: { activo: boolean }) {
+export function Refrescar({ activo, cada = 4 }: { activo: boolean; cada?: number }) {
   const router = useRouter();
   useEffect(() => {
     if (!activo) return;
-    const t = setInterval(() => router.refresh(), 4000);
+    const t = setInterval(() => router.refresh(), cada * 1000);
     return () => clearInterval(t);
-  }, [activo, router]);
+  }, [activo, cada, router]);
   return null;
 }
 

@@ -6,7 +6,7 @@
 import { after } from "next/server";
 import { consulta, una, enTransaccion, motivoErp } from "@/lib/erp/base";
 import { API_MP, appMp, pedirToken } from "@/lib/mercadopago/conexion";
-import { sondearConLlave, muestraMes, bajarReportes, reportesDelMes, type Destino } from "@/lib/mercadopago/exportacion";
+import { sondearConLlave, muestraMes, bajarReportes, reportesDelMes, colaEnTabla, type Destino } from "@/lib/mercadopago/exportacion";
 
 /** Canjea el código que vuelve de Mercado Pago y guarda la cuenta en el espacio. */
 export async function canjearCodigoPersonal(espacioId: number, usuarioId: string, code: string, redirectUri: string): Promise<string> {
@@ -53,7 +53,7 @@ async function tokenPersonal(conexionId: number): Promise<string | null> {
   });
 }
 
-function destinoPersonal(conexionId: number, mpUserId: number): Destino {
+export function destinoPersonal(conexionId: number, mpUserId: number): Destino {
   return {
     token: () => tokenPersonal(conexionId),
     mpUserId,
@@ -65,6 +65,8 @@ function destinoPersonal(conexionId: number, mpUserId: number): Destino {
                       values ($1, $2, $3, $4, $5, $6, $7, $8) on conflict (conexion_id, fuente, nombre, sha256) do nothing`,
         [conexionId, fuente, nombre, desde, hasta, sha, bytes.length, bytes]);
     },
+    bajados: async () => new Set((await consulta<{ nombre: string }>("select distinct nombre from personal.mp_archivo where conexion_id = $1", [conexionId])).map((x) => x.nombre)),
+    cola: colaEnTabla("personal.mp_item", conexionId, null),
   };
 }
 
@@ -189,4 +191,23 @@ export async function ultimasSondas(espacioId: number): Promise<SondaVista[]> {
   return consulta<SondaVista>(`
     select distinct on (s.conexion_id) s.conexion_id::int "conexionId", s.datos
       from personal.mp_sonda s join personal.mp_conexion c on c.id = s.conexion_id where c.espacio_id = $1 order by s.conexion_id, s.ts desc`, [espacioId]);
+}
+
+/** Pone en la cola el año pedido (meses cerrados de desde a hasta y el mes en curso hasta hoy) de una cuenta del espacio. */
+export async function exportarAnio(espacioId: number, conexionId: number, desdeMes: string, hastaMes: string) {
+  const c = await cuentaDelEspacio(espacioId, conexionId);
+  if (!c) throw new Error("Esa cuenta no es de este espacio.");
+  const { encolar } = await import("@/lib/mercadopago/cola-export");
+  return encolar(destinoPersonal(c.id, Number(c.mp_user_id)), desdeMes, hastaMes, true);
+}
+
+export type ItemVista = { conexionId: number; fuente: string; etiqueta: string; estado: string; intentos: number; mensaje: string | null; actualizado: string };
+
+/** Cómo va la cola de la exportación de las cuentas del espacio. */
+export async function colaDelEspacio(espacioId: number): Promise<ItemVista[]> {
+  return consulta<ItemVista>(`
+    select i.conexion_id::int "conexionId", i.fuente, i.etiqueta, i.estado, i.intentos, i.mensaje,
+           to_char(i.actualizado_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') actualizado
+      from personal.mp_item i join personal.mp_conexion c on c.id = i.conexion_id
+     where c.espacio_id = $1 order by i.conexion_id, i.desde nulls first, i.id`, [espacioId]);
 }
