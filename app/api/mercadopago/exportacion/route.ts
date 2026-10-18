@@ -12,6 +12,8 @@ import { sondearTodas, muestraMes, bajarReportes, destinoEmpresa } from "@/lib/m
 import { encolar, vuelta } from "@/lib/mercadopago/cola-export";
 import { datosExportacionEmpresa } from "@/lib/mercadopago/exportacion";
 import { normalizar } from "@/lib/mercadopago/normalizar";
+import { mpPedir } from "@/lib/mercadopago/conexion";
+import { destinoPersonal } from "@/lib/personal/mercadopago";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -33,6 +35,25 @@ export async function GET(req: Request) {
 async function correr(q: URLSearchParams) {
   const accion = q.get("accion"), conexion = Number(q.get("conexion")), mes = q.get("mes") ?? "";
   if (accion === "sonda") return Response.json(await sondearTodas(q.get("org") ?? undefined));
+  // ¿Qué dice Mercado Pago de un movimiento suelto (un retiro, una transferencia) y de quien lo recibió?
+  // Sólo lectura (GET) de una lista fija de caminos, con una cuenta personal (?personal=<conexión>&id=&usuario=).
+  if (accion === "detalle" && q.get("personal")) {
+    const c = (await pool.query("select mp_user_id::bigint id from personal.mp_conexion where id = $1", [Number(q.get("personal"))])).rows[0];
+    if (!c) return new Response("No", { status: 404 });
+    const token = await destinoPersonal(Number(q.get("personal")), Number(c.id)).token();
+    if (!token) return new Response("Sin llave", { status: 409 });
+    const id = (q.get("id") ?? "").replace(/\D/g, ""), usuario = (q.get("usuario") ?? "").replace(/\D/g, "");
+    const caminos = [
+      ...(id ? [`/v1/payments/${id}`, `/v1/payouts/${id}`, `/v1/transfers/${id}`, `/v1/bank_transfers/${id}`, `/v1/money_transfers/${id}`, `/v1/account/movements/search?id=${id}`] : []),
+      ...(usuario ? [`/users/${usuario}`] : []),
+    ];
+    const salida: Record<string, unknown> = {};
+    for (const ruta of caminos) {
+      const r = await mpPedir(token, "GET", ruta);
+      salida[ruta] = { status: r.status, datos: JSON.stringify(r.datos).slice(0, 4000) };
+    }
+    return Response.json(salida);
+  }
   // Para revisar la exportación de la empresa sin bajar el .zip: el control de saldo por cuenta y mes, y los problemas.
   if (accion === "resumen" && q.get("org")) {
     const { movimientos, controles, problemas } = await normalizar(await datosExportacionEmpresa(q.get("org")!));
