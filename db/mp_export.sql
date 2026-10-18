@@ -123,3 +123,33 @@ create table if not exists mp_export_pago (
   primary key (conexion_id, pago_id)
 );
 alter table mp_export_pago enable row level security;
+
+-- Clasificación de los gastos de Mercado Pago (tablero de la empresa): la marca puesta a mano en un
+-- movimiento y las reglas guardadas («todo lo de este destinatario / este texto es …»). Aparte de los
+-- datos de Mercado Pago, que no se tocan.
+create table if not exists mp_gasto_marca (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  conexion_id      bigint not null references mp_conexion(id) on delete cascade,
+  clave            text not null,
+  categoria        text,
+  ambito_gasto     text,
+  recurrencia      text,
+  nota             text,
+  usuario_id       text,
+  actualizado_ts   timestamptz not null default now(),
+  primary key (conexion_id, clave)
+);
+alter table mp_gasto_marca enable row level security;
+create table if not exists mp_gasto_regla (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  campo            text not null check (campo in ('contraparte', 'texto')),
+  valor            text not null,
+  categoria        text,
+  ambito_gasto     text,
+  recurrencia      text,
+  usuario_id       text,
+  creado_ts        timestamptz not null default now(),
+  unique (organizacion_id, campo, valor)
+);
+alter table mp_gasto_regla enable row level security;

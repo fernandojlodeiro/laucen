@@ -63,7 +63,7 @@ export default async function EspacioPersonal({ searchParams }: { searchParams: 
   return (
     <Pantalla titulo="Espacio personal" camino={[{ texto: "Espacio personal" }]}
       subtitulo={espacio.esDueno ? "Aparte de la empresa: no se mezcla con sus datos. Entrás vos y quien autorices." : `Espacio de ${espacio.dueno}: te autorizó a entrar.`}
-      acciones={<a href="/personal/mercadopago/conectar" className={PRIMARIO}>+ Conectar cuenta de Mercado Pago</a>}>
+      acciones={<><Link href="/personal/gastos" className={SUAVE}>Mis gastos</Link><a href="/personal/mercadopago/conectar" className={PRIMARIO}>+ Conectar cuenta de Mercado Pago</a></>}>
       <Avisos sp={sp} />
       <Refrescar activo={corriendo} />
       <Refrescar activo={!corriendo && colaViva} cada={30} />

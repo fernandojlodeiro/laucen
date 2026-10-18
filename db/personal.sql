@@ -174,6 +174,33 @@ create table if not exists personal.mp_pago (
 );
 alter table personal.mp_pago enable row level security;
 
+-- Clasificación de los gastos personales (igual que mp_gasto_marca / mp_gasto_regla de la empresa).
+create table if not exists personal.gasto_marca (
+  conexion_id      bigint not null references personal.mp_conexion(id) on delete cascade,
+  clave            text not null,
+  categoria        text,
+  ambito_gasto     text,
+  recurrencia      text,
+  nota             text,
+  usuario_id       text,
+  actualizado_ts   timestamptz not null default now(),
+  primary key (conexion_id, clave)
+);
+alter table personal.gasto_marca enable row level security;
+create table if not exists personal.gasto_regla (
+  id               bigint generated always as identity primary key,
+  espacio_id       bigint not null references personal.espacio(id) on delete cascade,
+  campo            text not null check (campo in ('contraparte', 'texto')),
+  valor            text not null,
+  categoria        text,
+  ambito_gasto     text,
+  recurrencia      text,
+  usuario_id       text,
+  creado_ts        timestamptz not null default now(),
+  unique (espacio_id, campo, valor)
+);
+alter table personal.gasto_regla enable row level security;
+
 -- La vuelta de la exportación de Mercado Pago (empresa y personal): cada 2 minutos, sólo si hay algo
 -- en la cola por pedir o por bajar, o archivos bajados sin pasar a movimientos. La clave se lee de erp_llave al correr. Sin pg_cron, no pasa nada.
 do $$

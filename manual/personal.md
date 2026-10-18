@@ -2,7 +2,7 @@
 titulo: Espacio personal
 menu: Botón «Personal» de la barra de arriba
 ruta: /personal
-rutas: /personal
+rutas: /personal, /personal/gastos, /personal/gastos/revisar
 permiso: fer
 resumen: Un lugar aparte de la empresa para conectar cuentas personales de Mercado Pago y bajar su información (reportes y pagos), que sólo ve quien creó la organización y las personas que él autoriza.
 ---
@@ -55,6 +55,21 @@ Apretá «Hacer inventario» en la fila de la cuenta. Trabaja de fondo (podés i
 3. Con «Descargar exportación (.zip)», a la derecha del título «Exportación del año», se baja todo lo que ya está: los movimientos de cada cuenta y todos juntos en CSV, un Excel con las hojas Movimientos, Cuentas, Cobertura, Controles y Diccionario, y un manifiesto con lo que falta o falló. Se puede bajar en cualquier momento: trae lo que haya hasta ahí.
 4. También baja, tal cual, todos los reportes que Mercado Pago ya tenía armados de esa cuenta (aunque sean de años anteriores), y ajusta el reporte de todas las transacciones para que incluya los retiros a banco y la hora argentina.
 
+### Ver mis gastos
+
+1. Apretá «Mis gastos» (arriba a la derecha del espacio personal).
+2. Arriba están los números grandes: el gasto de los últimos 12 meses cerrados, el promedio por mes, cuánto es fijo (recurrente) y cuánto eventual, y cuánto queda sin clasificar.
+3. Debajo: el gasto por mes (la última barra, más clara, es el mes en curso), por tipo de gasto, una tabla de tipo de gasto por mes, a quién se le pagó más y, aparte, lo que no es gasto.
+4. Si sos quien creó la organización, también suma los pagos hechos con cuentas de la empresa que se marcaron como personales, y los muestra en su propia sección.
+
+### Clasificar un gasto
+
+1. En «Mis gastos», apretá «Revisar y clasificar».
+2. Elegí qué ver (de entrada, los gastos sin clasificar), el mes, o buscá por descripción o destinatario.
+3. Apretá el lápiz de la fila: elegí el tipo de gasto, a quién corresponde (personal, empresa, mixto) y si es recurrente o eventual.
+4. Si tildás «Aplicar a todo lo de este destinatario» (o «a todo lo que diga…»), queda como regla: de ahí en adelante esos pagos se clasifican solos.
+5. «Grabar». Para que algo deje de contar como gasto, elegí como tipo, por ejemplo, «Transferencia entre cuentas propias».
+
 ## Criterios y reglas
 
 - Los meses van de 00:00 del día 1 a las 23:59:59 del último día, en hora argentina.
@@ -62,6 +77,9 @@ Apretá «Hacer inventario» en la fila de la cuenta. Trabaja de fondo (podés i
 - «Todos los pagos de la cuenta» trae lo que la cuenta cobró y también lo que pagó; «Pagos hechos» trae sólo lo que pagó. Para no contar dos veces, el sentido de cada pago se mira en el detalle, no por el archivo en que vino.
 - Un archivo se guarda tal cual vino. Si se baja dos veces sin cambios, no se repite; si Mercado Pago lo rearmó distinto, queda la versión nueva al lado.
 - Desconectar una cuenta borra su llave y todo lo que se bajó de ella.
+- Gasto es la plata que salió y no es: una transferencia entre cuentas propias (de la persona o de sus empresas), un retiro a un banco propio, ni un movimiento sin efecto en el saldo. Los ingresos, las devoluciones recibidas y los rendimientos se muestran aparte y nunca se suman.
+- Cada gasto se clasifica así, en este orden: lo marcado a mano; una regla guardada; y si no, reglas fijas por el tipo de movimiento y por palabras de la descripción (impuestos, telefonía, servicios, expensas, suscripciones, transporte, supermercado, salud, viajes, educación). Lo que no encaja queda «Sin clasificar». Una transferencia a otra persona queda como «Transferencias a terceros» hasta que se la clasifique.
+- El total de 12 meses son los doce meses cerrados hasta el mes pasado; el mes en curso se muestra pero no se suma.
 - En la exportación, cada movimiento aparece una sola vez aunque venga en varios reportes que se pisan. El importe neto es el efecto en el saldo y ya descuenta comisiones e impuestos. Las monedas no se convierten. La clasificación es sólo una propuesta y queda aparte de los datos de Mercado Pago.
 - Mientras algo corre, los demás botones esperan: se hace una cosa por vez.
 - En la exportación del año, cada mes se pide por separado (Mercado Pago no arma más de 60 días por reporte). Si Mercado Pago no contesta o no arma un reporte, se vuelve a pedir con espera; después de varios intentos queda «Falló» con el motivo. Nunca se da un mes por bajado si Mercado Pago no lo entregó. Volver a apretar el botón no repite los meses que ya están en la cola.
