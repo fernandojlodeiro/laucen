@@ -15,7 +15,7 @@ const mov = (x: Partial<MovGasto>): MovGasto => ({
 test("transferencia a una cuenta propia y retiro a banco no son gasto; ARCA es Impuestos", () => {
   const c = clasificarGastos([
     mov({ api_tipo: "money_transfer", cobrador_id: "200", importe_neto: -500000 }),
-    mov({ tipo_original: "WITHDRAWAL", api_tipo: null, importe_neto: -100000 }),
+    mov({ tipo_original: "PAYOUTS", api_tipo: null, movimiento_id: null, medio_pago: null, importe_neto: -100000 }),
     mov({ api_descripcion: "ARCA", importe_neto: -2796962 }),
     mov({ api_tipo: "money_transfer", cobrador_id: "777", importe_neto: -15000 }),
   ], { propias: new Set(["100", "200"]), ambitoCuenta: () => "empresa", marcas: [], reglas: [] });

@@ -10,6 +10,8 @@
 // entre cuentas propias → reglas fijas (por tipo de movimiento y por palabras
 // de la descripción). Lo que no encaja queda «Sin clasificar».
 
+import { RETIROS } from "@/lib/mercadopago/normalizar";
+
 export const CATEGORIAS = [
   "Impuestos", "Servicios (luz, gas, agua)", "Telefonía e internet", "Vivienda y expensas", "Compras", "Supermercado y comida", "Salud",
   "Transporte y auto", "Suscripciones", "Viajes", "Educación", "Comisiones y cargos de Mercado Pago", "Envíos", "Reclamos y devoluciones de ventas",
@@ -67,7 +69,7 @@ export function clasificarGastos(movs: MovGasto[], o: { propias: Set<string>; am
     let ambito = ambitoCuenta === "personal" ? "personal" : "empresa";
 
     // Lo que no es gasto, por el tipo de movimiento.
-    if (m.tipo_original === "WITHDRAWAL" || m.tipo_original === "PAYOUT" || m.tipo_original === "WITHDRAWAL_CANCEL") { grupo = "Retiro a banco propio"; origen = "tipo retiro"; }
+    if (RETIROS.has(m.tipo_original) || m.tipo_original === "WITHDRAWAL_CANCEL") { grupo = "Retiro a banco propio"; origen = "tipo retiro"; }
     else if (m.api_tipo === "money_transfer" && contraparte && o.propias.has(contraparte)) { grupo = "Transferencia entre cuentas propias"; origen = "contraparte propia"; }
     else if (neto > 0) {
       if (m.tipo_original === "REFUND" || m.tipo_original === "CHARGEBACK") { grupo = "Devolución recibida"; origen = "tipo devolución"; }

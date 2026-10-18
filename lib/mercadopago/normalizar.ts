@@ -155,7 +155,11 @@ export type Movimiento = {
   categoria_propuesta: string; ambito_gasto: string; sociedad_atribuida: string | null; recurrencia: string; grupo_conciliacion: string | null; regla_aplicada: string | null; estado_revision: string;
 };
 
+/** Los tipos de «Todas las transacciones» que son retiros a banco (Mercado Pago usa PAYOUTS, en plural, en Argentina). */
+export const RETIROS = new Set(["WITHDRAWAL", "PAYOUT", "PAYOUTS"]);
+
 const TIPOS: Record<string, string> = {
+  PAYOUTS: "retiro a cuenta bancaria",
   SETTLEMENT: "operación aprobada", REFUND: "devolución", CHARGEBACK: "contracargo", DISPUTE: "reclamo", WITHDRAWAL: "retiro a cuenta bancaria",
   WITHDRAWAL_CANCEL: "retiro cancelado", PAYOUT: "retiro en efectivo", SETTLEMENT_SHIPPING: "costo de envío", DISPUTE_SHIPPING: "envío de reclamo",
 };
@@ -173,7 +177,7 @@ export function tramoDe(mes: string | null, ahora = new Date()) {
 
 /** Clasificación propuesta, sólo con reglas seguras; lo demás queda «sin clasificar» para revisar. */
 function clasificar(m: Movimiento): Pick<Movimiento, "categoria_propuesta" | "regla_aplicada" | "recurrencia"> {
-  if (m.tipo_original === "WITHDRAWAL" || m.tipo_original === "PAYOUT") return { categoria_propuesta: "Movimiento propio: retiro a banco", regla_aplicada: "tipo retiro", recurrencia: "sin clasificar" };
+  if (RETIROS.has(m.tipo_original)) return { categoria_propuesta: "Movimiento propio: retiro a banco", regla_aplicada: "tipo retiro", recurrencia: "sin clasificar" };
   if (m.tipo_original === "WITHDRAWAL_CANCEL") return { categoria_propuesta: "Movimiento propio: retiro cancelado", regla_aplicada: "tipo retiro cancelado", recurrencia: "sin clasificar" };
   if (m.tipo_original === "REFUND") return { categoria_propuesta: "Devolución", regla_aplicada: "tipo devolución", recurrencia: "eventual" };
   if (m.tipo_original === "CHARGEBACK" || m.tipo_original.startsWith("DISPUTE")) return { categoria_propuesta: "Reclamo / contracargo", regla_aplicada: "tipo reclamo", recurrencia: "eventual" };
@@ -261,7 +265,7 @@ export async function normalizar(datos: DatosExport[], ahora = new Date()) {
         const f = delMes.filter((m) => (m.moneda ?? "ARS") === moneda);
         const entradas = f.reduce((s, m) => s + Math.max(0, m.importe_neto ?? 0), 0), salidas = f.reduce((s, m) => s + Math.min(0, m.importe_neto ?? 0), 0);
         const l = moneda === "ARS" ? liquidaciones.get(mes) : undefined;
-        const conRetiros = f.some((m) => m.tipo_original === "WITHDRAWAL" || m.tipo_original === "PAYOUT");
+        const conRetiros = f.some((m) => RETIROS.has(m.tipo_original));
         const diferencia = l?.inicial != null && l.final != null ? redondo(l.inicial + entradas + salidas - (conRetiros ? 0 : l.retiros) - l.final) : null;
         controles.push({
           cuenta_alias: cuenta.alias, cuenta_mp_id: cuenta.mpUserId, mes, moneda, filas: f.length, entradas: redondo(entradas), salidas: redondo(salidas), neto: redondo(entradas + salidas),
