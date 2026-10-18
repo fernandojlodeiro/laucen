@@ -121,7 +121,7 @@ export function clasificarGastos(movs: MovGasto[], o: { propias: Set<string>; am
 }
 
 /** Mes en hora argentina (AAAA-MM). */
-export const mesAr = (d: Date | null) => (d ? new Date(d.getTime() - 3 * 3600_000).toISOString().slice(0, 7) : "sin fecha");
+export const mesAr = (d: Date | null) => (d ? new Date(new Date(d).getTime() - 3 * 3600_000).toISOString().slice(0, 7) : "sin fecha");
 
 /** Los 12 meses cerrados hasta el mes pasado y el mes en curso. */
 export function mesesDelAnio(ahora = new Date()) {
@@ -147,34 +147,40 @@ export type Tablero = {
 };
 
 /** Los números del tablero: sólo gasto (salidas que son gasto) del ámbito pedido, por mes y categoría. */
-export function armarTablero(c: Clasificado[], incluir: (x: Clasificado) => boolean, ahora = new Date()): Tablero {
+export function armarTablero(cTodos: Clasificado[], incluir: (x: Clasificado) => boolean, ahora = new Date()): Tablero {
   const { meses, cerrados, enCurso } = mesesDelAnio(ahora);
-  const delAnio = c.filter((x) => meses.includes(mesAr(x.fecha)));
+  // El mes de cada movimiento, calculado una sola vez.
+  const mesDe = new Map<Clasificado, string>();
+  for (const x of cTodos) mesDe.set(x, mesAr(x.fecha));
+  const mesAr_ = (x: Clasificado) => mesDe.get(x)!;
+  const enMeses = new Set(meses), enCerrados = new Set(cerrados);
+  const c = cTodos;
+  const delAnio = c.filter((x) => enMeses.has(mesAr_(x)));
   const gastos = delAnio.filter((x) => x.es_gasto && incluir(x));
   const monto = (x: Clasificado) => -x.importe_neto;
   const suma = (l: Clasificado[]) => Math.round(l.reduce((s, x) => s + monto(x), 0) * 100) / 100;
-  const enAnio = gastos.filter((x) => cerrados.includes(mesAr(x.fecha)));
+  const enAnio = gastos.filter((x) => enCerrados.has(mesAr_(x)));
   const cats = new Map<string, Clasificado[]>();
-  for (const g of gastos) cats.set(g.categoria, [...(cats.get(g.categoria) ?? []), g]);
+  for (const g of gastos) { const l = cats.get(g.categoria); if (l) l.push(g); else cats.set(g.categoria, [g]); }
   const dest = new Map<string, Clasificado[]>();
-  for (const g of enAnio) { const k = g.contraparte ?? (g.api_descripcion || g.descripcion || "sin dato"); dest.set(k, [...(dest.get(k) ?? []), g]); }
+  for (const g of enAnio) { const k = g.contraparte ?? (g.api_descripcion || g.descripcion || "sin dato"); const l = dest.get(k); if (l) l.push(g); else dest.set(k, [g]); }
   const grupos = new Map<string, Clasificado[]>();
-  for (const x of delAnio.filter((y) => !y.es_gasto && incluir(y))) grupos.set(x.grupo, [...(grupos.get(x.grupo) ?? []), x]);
+  for (const x of delAnio.filter((y) => !y.es_gasto && incluir(y))) { const l = grupos.get(x.grupo); if (l) l.push(x); else grupos.set(x.grupo, [x]); }
   const sc = enAnio.filter((x) => x.categoria === "Sin clasificar");
   const personalesEmp = gastos.filter((x) => x.ambito_gasto === "personal" && x.ambito_cuenta === "empresa");
   return {
     meses, enCurso,
     totalAnio: suma(enAnio), promedioMensual: Math.round(suma(enAnio) / 12), sinClasificar: suma(sc), sinClasificarCant: sc.length,
-    porMes: meses.map((mes) => ({ mes, total: suma(gastos.filter((x) => mesAr(x.fecha) === mes)) })),
+    porMes: meses.map((mes) => ({ mes, total: suma(gastos.filter((x) => mesAr_(x) === mes)) })),
     porCategoria: [...cats].map(([categoria, l]) => ({
-      categoria, total: suma(l.filter((x) => cerrados.includes(mesAr(x.fecha)))), cantidad: l.length,
-      porMes: Object.fromEntries(meses.map((mes) => [mes, suma(l.filter((x) => mesAr(x.fecha) === mes))])),
+      categoria, total: suma(l.filter((x) => enCerrados.has(mesAr_(x)))), cantidad: l.length,
+      porMes: Object.fromEntries(meses.map((mes) => [mes, suma(l.filter((x) => mesAr_(x) === mes))])),
     })).sort((a, b) => b.total - a.total),
     porDestinatario: [...dest].map(([contraparte, l]) => ({ contraparte, ejemplo: (l.find((x) => x.api_descripcion)?.api_descripcion ?? l[0].descripcion ?? "").slice(0, 60), total: suma(l), cantidad: l.length, categoria: l[0].categoria }))
       .sort((a, b) => b.total - a.total).slice(0, 20),
     recurrenteVsEventual: RECURRENCIAS.map((r) => ({ recurrencia: r, total: suma(enAnio.filter((x) => x.recurrencia === r)) })).filter((x) => x.total),
     noGasto: [...grupos].map(([grupo, l]) => ({ grupo, entradas: Math.round(l.filter((x) => x.importe_neto > 0).reduce((s, x) => s + x.importe_neto, 0)), salidas: Math.round(l.filter((x) => x.importe_neto < 0).reduce((s, x) => s - x.importe_neto, 0)), cantidad: l.length })),
-    personalesDeEmpresa: [...new Set(personalesEmp.map((x) => x.cuenta))].map((cuenta) => ({ cuenta, total: suma(personalesEmp.filter((x) => x.cuenta === cuenta && cerrados.includes(mesAr(x.fecha)))), cantidad: personalesEmp.filter((x) => x.cuenta === cuenta).length })),
+    personalesDeEmpresa: [...new Set(personalesEmp.map((x) => x.cuenta))].map((cuenta) => ({ cuenta, total: suma(personalesEmp.filter((x) => x.cuenta === cuenta && enCerrados.has(mesAr_(x)))), cantidad: personalesEmp.filter((x) => x.cuenta === cuenta).length })),
     candidatosPersonales: gastos.filter((x) => x.posible_personal).length,
   };
 }

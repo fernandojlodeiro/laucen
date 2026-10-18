@@ -100,8 +100,10 @@ const instante = (s: string | undefined) => {
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d;
 };
-const local = (d: Date | null) => (d ? d.toLocaleString("sv-SE", { timeZone: ZONA }).replace(" ", "T") + "-03:00" : null);
-const mesDe = (d: Date | null) => (d ? d.toLocaleDateString("sv-SE", { timeZone: ZONA }).slice(0, 7) : null);
+// Argentina no cambia la hora (UTC−3 todo el año): la cuenta es directa, sin el reloj del sistema (mucho más rápido).
+const AR = 3 * 3600_000;
+const local = (d: Date | null) => (d ? new Date(new Date(d).getTime() - AR).toISOString().slice(0, 19) + "-03:00" : null);
+const mesDe = (d: Date | null) => (d ? new Date(new Date(d).getTime() - AR).toISOString().slice(0, 7) : null);
 
 /** Las filas de un archivo de «Todas las transacciones», con su clave sin duplicados: el contenido de
  *  la fila (cuenta, id, tipo, fecha de saldo, neto, referencia) y #n si el mismo archivo la trae n veces. */
@@ -258,8 +260,12 @@ export async function normalizar(datos: DatosExport[], ahora = new Date()) {
 
     // Controles por mes y moneda (los meses de la cola).
     const meses = [...new Set(cola.filter((x) => x.desde).map((x) => x.etiqueta.slice(0, 7)))];
+    const porMes = new Map<string, Movimiento[]>();
+    for (const m of movimientos) if (m.cuenta_mp_id === cuenta.mpUserId && m.mes) { const l = porMes.get(m.mes); if (l) l.push(m); else porMes.set(m.mes, [m]); }
+    const porArchivo = new Map<string, number>();
+    for (const m of movimientos) if (m.cuenta_mp_id === cuenta.mpUserId) porArchivo.set(m.archivo, (porArchivo.get(m.archivo) ?? 0) + 1);
     for (const mes of meses) {
-      const delMes = movimientos.filter((m) => m.cuenta_mp_id === cuenta.mpUserId && m.mes === mes);
+      const delMes = porMes.get(mes) ?? [];
       const monedas = [...new Set(delMes.map((m) => m.moneda ?? "ARS"))];
       for (const moneda of monedas.length ? monedas : ["ARS"]) {
         const f = delMes.filter((m) => (m.moneda ?? "ARS") === moneda);
@@ -278,7 +284,7 @@ export async function normalizar(datos: DatosExport[], ahora = new Date()) {
 
     // Cobertura: cada período y fuente de la cola, con su estado y cuántas filas aportó.
     for (const it of cola) {
-      const filas = it.fuente === "settlement_report" && it.archivos?.length ? movimientos.filter((m) => m.cuenta_mp_id === cuenta.mpUserId && it.archivos!.includes(m.archivo)).length : null;
+      const filas = it.fuente === "settlement_report" && it.archivos?.length ? it.archivos.reduce((t, a) => t + (porArchivo.get(a) ?? 0), 0) : null;
       cobertura.push({
         cuenta_alias: cuenta.alias, cuenta_mp_id: cuenta.mpUserId, periodo: it.etiqueta, fuente: NOMBRES[it.fuente] ?? it.fuente,
         estado: ESTADOS[it.estado] ?? it.estado, archivos: (it.archivos ?? []).join(" "), filas, motivo: it.mensaje, actualizado: it.actualizado.toISOString(),
