@@ -115,14 +115,16 @@ export function filasDeSettlement(mpUserId: number, a: { nombre: string; bajado:
     t.cab.forEach((h, k) => { v[h] = f[k] ?? ""; });
     if (!v.TRANSACTION_TYPE) return;
     const fSaldo = instante(v.SETTLEMENT_DATE), fOp = instante(v.TRANSACTION_DATE);
-    const base = [mpUserId, "settlement", v.SOURCE_ID, v.TRANSACTION_TYPE, (fSaldo ?? fOp)?.toISOString() ?? v.TRANSACTION_DATE, num(v.SETTLEMENT_NET_AMOUNT) ?? "", v.EXTERNAL_REFERENCE].join("|");
+    // El neto es SETTLEMENT_NET_AMOUNT; si la cuenta no tiene esa columna configurada, REAL_AMOUNT (el mismo importe real).
+    const neto = num(v.SETTLEMENT_NET_AMOUNT) ?? num(v.REAL_AMOUNT);
+    const base = [mpUserId, "settlement", v.SOURCE_ID, v.TRANSACTION_TYPE, (fSaldo ?? fOp)?.toISOString() ?? v.TRANSACTION_DATE, neto ?? "", v.EXTERNAL_REFERENCE ?? ""].join("|");
     const nro = (veces.get(base) ?? 0) + 1;
     veces.set(base, nro);
     salida.push({
       clave: `${base}#${nro}`, archivo: a.nombre, fila: i + 2, extraido: a.bajado, movimiento_id: v.SOURCE_ID || null, referencia_externa: v.EXTERNAL_REFERENCE || null,
       tipo_original: v.TRANSACTION_TYPE, fecha_operacion: fOp, fecha_operacion_original: v.TRANSACTION_DATE || null, fecha_saldo: fSaldo, fecha_liberacion: instante(v.MONEY_RELEASE_DATE),
       moneda: v.SETTLEMENT_CURRENCY || v.TRANSACTION_CURRENCY || null, importe_bruto: num(v.TRANSACTION_AMOUNT), comision: num(v.FEE_AMOUNT),
-      impuestos: v.TAXES_AMOUNT !== undefined ? num(v.TAXES_AMOUNT) : null, cupon: num(v.COUPON_AMOUNT), importe_neto: num(v.SETTLEMENT_NET_AMOUNT),
+      impuestos: v.TAXES_AMOUNT !== undefined ? num(v.TAXES_AMOUNT) : null, cupon: num(v.COUPON_AMOUNT), importe_neto: neto,
       medio_pago: v.PAYMENT_METHOD || null, tipo_medio: v.PAYMENT_METHOD_TYPE || null, descripcion: v.DESCRIPTION || null,
     });
   });
@@ -260,8 +262,16 @@ export async function normalizar(datos: DatosExport[], ahora = new Date()) {
 
     // Controles por mes y moneda (los meses de la cola).
     const meses = [...new Set(cola.filter((x) => x.desde).map((x) => x.etiqueta.slice(0, 7)))];
+    // Para el control de saldo, cada movimiento cuenta en el mes en que la plata quedó disponible (fecha de
+    // liberación; si no la hay, la de saldo): así se compara con Liquidaciones, que es el saldo disponible.
+    // Un cobro de una venta afecta el saldo cuando se aprueba pero recién está disponible al liberarse.
     const porMes = new Map<string, Movimiento[]>();
-    for (const m of movimientos) if (m.cuenta_mp_id === cuenta.mpUserId && m.mes) { const l = porMes.get(m.mes); if (l) l.push(m); else porMes.set(m.mes, [m]); }
+    for (const m of movimientos) {
+      if (m.cuenta_mp_id !== cuenta.mpUserId) continue;
+      const k = (m.fecha_liberacion ?? m.fecha_saldo ?? m.fecha_operacion)?.slice(0, 7) ?? null;
+      if (!k) continue;
+      const l = porMes.get(k); if (l) l.push(m); else porMes.set(k, [m]);
+    }
     const porArchivo = new Map<string, number>();
     for (const m of movimientos) if (m.cuenta_mp_id === cuenta.mpUserId) porArchivo.set(m.archivo, (porArchivo.get(m.archivo) ?? 0) + 1);
     for (const mes of meses) {
@@ -277,7 +287,7 @@ export async function normalizar(datos: DatosExport[], ahora = new Date()) {
           cuenta_alias: cuenta.alias, cuenta_mp_id: cuenta.mpUserId, mes, moneda, filas: f.length, entradas: redondo(entradas), salidas: redondo(salidas), neto: redondo(entradas + salidas),
           saldo_inicial: l?.inicial ?? null, saldo_final: l?.final ?? null, retiros_liquidaciones: l ? redondo(l.retiros) : null, diferencia,
           nota: !l ? "sin Liquidaciones del mes: no se puede controlar el saldo" : diferencia == null ? "Liquidaciones sin saldo inicial o final" : Math.abs(diferencia) < 0.01 ? "cierra" :
-            "no cierra: diferencia a explicar (puede ser por fechas de liberación distintas entre los dos reportes)" + (conRetiros ? "" : "; retiros tomados de Liquidaciones"),
+            "no cierra: diferencia a explicar (dinero retenido por reclamos o reservas, o un movimiento sin fecha de liberación)" + (conRetiros ? "" : "; retiros tomados de Liquidaciones"),
         });
       }
     }

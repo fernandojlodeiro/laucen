@@ -28,7 +28,11 @@ export async function procesarArchivos(d: Destino, tope = 15): Promise<number> {
                 from jsonb_to_recordset($3::jsonb) x(clave text, archivo text, fila int, extraido timestamptz, movimiento_id text, referencia_externa text, tipo_original text,
                   fecha_operacion timestamptz, fecha_operacion_original text, fecha_saldo timestamptz, fecha_liberacion timestamptz, moneda text, importe_bruto numeric, comision numeric,
                   impuestos numeric, cupon numeric, importe_neto numeric, medio_pago text, tipo_medio text, descripcion text)
-              on conflict (conexion_id, clave) do nothing`,
+              -- La misma fila en otro archivo no se repite; pero si este trae columnas que el otro no tenía, se completan.
+              on conflict (conexion_id, clave) do update set
+                fecha_liberacion = coalesce(${mov}.fecha_liberacion, excluded.fecha_liberacion), descripcion = coalesce(${mov}.descripcion, excluded.descripcion),
+                impuestos = coalesce(${mov}.impuestos, excluded.impuestos), medio_pago = coalesce(${mov}.medio_pago, excluded.medio_pago),
+                tipo_medio = coalesce(${mov}.tipo_medio, excluded.tipo_medio), referencia_externa = coalesce(${mov}.referencia_externa, excluded.referencia_externa)`,
               d.org ? [d.conexionId, a.id, JSON.stringify(filas.slice(i, i + 500)), d.org] : [d.conexionId, a.id, JSON.stringify(filas.slice(i, i + 500))]);
           }
         } else await d.anotar("pasar a movimientos", null, { archivo: a.nombre, motivo: "formato no reconocido (sin SOURCE_ID / TRANSACTION_TYPE)" });
