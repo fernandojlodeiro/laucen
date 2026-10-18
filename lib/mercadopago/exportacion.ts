@@ -267,6 +267,19 @@ export async function muestraMes(d: Destino, mes: string) {
   return { ok: true, mes };
 }
 
+/** Los nombres de los reportes del período que Mercado Pago ya tiene en su lista, por familia
+ *  (para saber, después de pedir uno, cuándo apareció el nuevo). */
+export async function reportesDelMes(d: Destino, mes: string): Promise<Record<string, Set<string>>> {
+  const token = await d.token();
+  const p = periodoMes(mes);
+  const salida: Record<string, Set<string>> = {};
+  for (const familia of ["settlement_report", "release_report"]) {
+    const l = token ? await mpPedir<{ file_name?: string; begin_date?: string; end_date?: string }[]>(token, "GET", `/v1/account/${familia}/list`) : null;
+    salida[familia] = new Set(Array.isArray(l?.datos) ? l.datos.filter((f) => f.file_name && f.begin_date?.slice(0, 19) === p.desde.slice(0, 19) && f.end_date?.slice(0, 19) === p.hasta.slice(0, 19)).map((f) => f.file_name!) : []);
+  }
+  return salida;
+}
+
 /** Baja los reportes ya armados del período (Todas las transacciones y Liquidaciones). */
 export async function bajarReportes(d: Destino, mes: string) {
   const token = await d.token();

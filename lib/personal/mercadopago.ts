@@ -6,7 +6,7 @@
 import { after } from "next/server";
 import { consulta, una, enTransaccion, motivoErp } from "@/lib/erp/base";
 import { API_MP, appMp, pedirToken } from "@/lib/mercadopago/conexion";
-import { sondearConLlave, muestraMes, bajarReportes, type Destino } from "@/lib/mercadopago/exportacion";
+import { sondearConLlave, muestraMes, bajarReportes, reportesDelMes, type Destino } from "@/lib/mercadopago/exportacion";
 
 /** Canjea el código que vuelve de Mercado Pago y guarda la cuenta en el espacio. */
 export async function canjearCodigoPersonal(espacioId: number, usuarioId: string, code: string, redirectUri: string): Promise<string> {
@@ -135,10 +135,28 @@ export async function lanzarMes(espacioId: number, usuarioId: string, conexionId
   if (!c) throw new Error("Esa cuenta no es de este espacio.");
   if (!/^\d{4}-\d{2}$/.test(mes)) throw new Error("Elegí el mes.");
   const d = destinoPersonal(c.id, Number(c.mp_user_id));
-  await deFondo(espacioId, usuarioId, soloBajar ? `Bajar los reportes de ${mes}` : `Pedir los reportes y bajar los pagos de ${mes}`, async () => {
-    const r = soloBajar ? await bajarReportes(d, mes) : await muestraMes(d, mes);
+  await deFondo(espacioId, usuarioId, soloBajar ? `Bajar los reportes de ${mes}` : `Pedir y bajar los reportes y pagos de ${mes}`, async () => {
+    if (soloBajar) {
+      const r = await bajarReportes(d, mes);
+      if ("error" in r && r.error) throw new Error(String(r.error));
+      return "Reportes bajados (los que Mercado Pago ya tenía armados).";
+    }
+    // Pide los reportes y espera (hasta unos 3 minutos) a que Mercado Pago los arme, para bajarlos
+    // en la misma pasada: aparece en su lista un archivo del mes que antes no estaba.
+    const antes = await reportesDelMes(d, mes);
+    const r = await muestraMes(d, mes);
     if ("error" in r && r.error) throw new Error(String(r.error));
-    return soloBajar ? "Reportes bajados (los que Mercado Pago ya tenía armados)." : "Pedidos a Mercado Pago; en unos minutos apretá «Bajar reportes del mes».";
+    let faltan = ["settlement_report", "release_report"];
+    for (let i = 0; i < 9 && faltan.length; i++) {
+      await new Promise((ok) => setTimeout(ok, 20_000));
+      const ahora = await reportesDelMes(d, mes);
+      faltan = faltan.filter((f) => ![...ahora[f]].some((n) => !antes[f].has(n)));
+    }
+    await bajarReportes(d, mes);
+    const nombres: Record<string, string> = { settlement_report: "Todas las transacciones", release_report: "Liquidaciones" };
+    return faltan.length
+      ? `Pagos bajados. Mercado Pago todavía no armó ${faltan.map((f) => nombres[f]).join(" ni ")}: en unos minutos apretá «Bajar reportes del mes».`
+      : "Listo: reportes y pagos del mes bajados.";
   });
 }
 

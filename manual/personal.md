@@ -44,8 +44,8 @@ Apretá «Hacer inventario» en la fila de la cuenta. Trabaja de fondo (podés i
 
 ### Bajar un mes
 
-1. En la columna «Un mes», elegí el mes y apretá «Pedir reportes y pagos»: le pide a Mercado Pago el reporte de todas las transacciones y el de liquidaciones de ese mes, y baja en el momento todos los pagos de la cuenta y, aparte, los que hizo la cuenta.
-2. Mercado Pago tarda unos minutos en armar los reportes. Después, con el mismo mes elegido, apretá «Bajar reportes del mes».
+1. En la columna «Un mes», elegí el mes y apretá «Pedir reportes y pagos»: le pide a Mercado Pago el reporte de todas las transacciones y el de liquidaciones de ese mes, baja todos los pagos de la cuenta y, aparte, los que hizo la cuenta, y espera unos minutos a que Mercado Pago arme los reportes para bajarlos también. Trabaja de fondo: podés ir a otra pantalla.
+2. Si al terminar dice que algún reporte todavía no estaba, esperá unos minutos y, con el mismo mes elegido, apretá «Bajar reportes del mes».
 
 ## Criterios y reglas
 
