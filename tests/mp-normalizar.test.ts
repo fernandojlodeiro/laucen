@@ -1,3 +1,4 @@
+import ExcelJS from "exceljs";
 // Tests de la exportación de Mercado Pago (lib/mercadopago/normalizar.ts): la
 // lectura de los CSV de Mercado Pago (JSON con comillas sin escapar adentro),
 // los movimientos sin duplicados cuando dos archivos se pisan, y el control
@@ -129,4 +130,10 @@ test("paquete: consolidado de varias cuentas sin duplicados, retiros que faltan 
   const zo = leerZip(o.zip);
   assert.equal(zo.get("originales_Persona_1/liquidaciones/liq.csv")!.toString("utf8"), liq.contenido.toString("utf8"));
   assert.ok(zo.has("originales_Persona_1/lista_de_originales.csv"));
+
+  const x = await paqueteExportacion(datos, "prueba", "excel");
+  const libro = new ExcelJS.Workbook();
+  await libro.xlsx.load(leerZip(x.zip).get("exportacion.xlsx")! as unknown as ArrayBuffer);
+  assert.equal(libro.getWorksheet("Movimientos")!.rowCount, 3, "el Excel trae los mismos movimientos que el consolidado");
+  assert.ok(libro.getWorksheet("Controles") && libro.getWorksheet("Diccionario"));
 });

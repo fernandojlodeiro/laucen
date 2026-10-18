@@ -13,6 +13,7 @@
 // cuentas y sus archivos (nunca se mezclan).
 
 import ExcelJS from "exceljs";
+import { PassThrough } from "node:stream";
 import { armarZip } from "@/lib/zip";
 
 export const VERSION_ESQUEMA = "1.0";
@@ -473,13 +474,21 @@ export async function paqueteExportacion(datos: DatosExport[], ambito: string, p
   };
 
   if (parte === "excel") {
-    const libro = new ExcelJS.Workbook();
+    // Fila por fila con el escritor por partes de ExcelJS: con todo en memoria, 60.000 movimientos pasan los 3 GB
+    // y la función del servidor se cae; así son unos 300 MB y pocos segundos.
+    const salida = new PassThrough();
+    const trozos: Buffer[] = [];
+    salida.on("data", (c: Buffer) => trozos.push(c));
+    const libro = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: salida, useStyles: true, useSharedStrings: false });
     const hoja = <T extends Record<string, unknown>>(nombre: string, filas: T[], columnas: string[]) => {
       const h = libro.addWorksheet(nombre, { views: [{ state: "frozen", ySplit: 1 }] });
       h.columns = columnas.map((c) => ({ header: c, key: c, width: Math.min(40, Math.max(10, c.length + 2)) }));
-      h.getRow(1).font = { bold: true };
-      for (const f of filas) h.addRow(columnas.map((c) => f[c] ?? null));
       h.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columnas.length } };
+      const cab = h.getRow(1);
+      cab.font = { bold: true };
+      cab.commit();
+      for (const f of filas) h.addRow(columnas.map((c) => f[c] ?? null)).commit();
+      h.commit();
     };
     hoja("Movimientos", movCsv, COLUMNAS as string[]);
     hoja("Cuentas", manifiesto.cuentas.map((c) => ({ ...c, pendientes: c.pendientes.length, errores: c.errores.join(" | "), sin_movimientos: c.sin_movimientos.length })) as Record<string, unknown>[],
@@ -487,7 +496,8 @@ export async function paqueteExportacion(datos: DatosExport[], ambito: string, p
     hoja("Cobertura", coberturaResumen, Object.keys(coberturaResumen[0] ?? { cuenta_mp_id: 0 }));
     hoja("Controles", controles as unknown as Record<string, unknown>[], ["cuenta_alias", "cuenta_mp_id", "mes", "moneda", "filas", "entradas", "salidas", "neto", "saldo_inicial", "saldo_final", "retiros_liquidaciones", "diferencia", "nota"]);
     hoja("Diccionario", DICCIONARIO, ["campo", "tipo", "obligatorio", "descripcion", "ejemplo"]);
-    archivos.push({ nombre: "exportacion.xlsx", contenido: new Uint8Array(await libro.xlsx.writeBuffer() as ArrayBuffer) });
+    await libro.commit();
+    archivos.push({ nombre: "exportacion.xlsx", contenido: new Uint8Array(Buffer.concat(trozos)) });
     return { zip: armarZip(archivos, ahora, true), nombre: `mercadopago-excel-${ejecucion}.zip` };
   }
 
