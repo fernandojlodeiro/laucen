@@ -11,6 +11,7 @@ import AltaNueva from "@/app/componentes/AltaNueva";
 import { TachoConfirmar } from "@/app/radar/Cliente";
 import { entrarPersonal, autorizados } from "@/lib/personal/espacio";
 import { cuentasDelEspacio, trabajosDelEspacio, archivosDelEspacio, ultimosPasos, ultimasSondas, colaDelEspacio } from "@/lib/personal/mercadopago";
+import { orgsDelDueno, sociedadesEmpresa } from "@/lib/mercadopago/gastos-datos";
 import { accionAutorizar, accionDesautorizar, accionDesconectar, accionInventario, accionMes, accionExportarAnio } from "./acciones";
 import { BotonFondo, Refrescar } from "./Cliente";
 
@@ -44,7 +45,7 @@ type Sonda = {
 
 export default async function EspacioPersonal({ searchParams }: { searchParams: Promise<Sp> }) {
   const sp = await searchParams;
-  const { espacio } = await entrarPersonal();
+  const { sesion, espacio } = await entrarPersonal();
   const [cuentas, trabajos, archivos, pasos, sondas, cola, gente] = await Promise.all([
     cuentasDelEspacio(espacio.id), trabajosDelEspacio(espacio.id), archivosDelEspacio(espacio.id), ultimosPasos(espacio.id), ultimasSondas(espacio.id), colaDelEspacio(espacio.id),
     espacio.esDueno ? autorizados(espacio.id) : Promise.resolve([]),
@@ -52,6 +53,12 @@ export default async function EspacioPersonal({ searchParams }: { searchParams: 
   const corriendo = trabajos.some((t) => t.estado === "corriendo");
   const sondaDe = new Map(sondas.map((s) => [s.conexionId, s.datos as Sonda]));
   const listaMeses = meses();
+  // Las cuentas de la exportación (las personales y, para el dueño, las de la empresa), para bajar los originales de cada una.
+  const empresa = espacio.esDueno ? (await Promise.all((await orgsDelDueno(sesion.usuario.id)).map((org) => sociedadesEmpresa(org)))).flat() : [];
+  const originales = [
+    ...cuentas.map((c) => ({ id: c.mpUserId, texto: `${c.nombre ?? "Personal"} (${c.mpUserId})` })),
+    ...empresa.map((e) => ({ id: e.cuenta_mp_id, texto: `${e.titular ?? e.cuenta} · ${e.cuenta} (${e.cuenta_mp_id})` })),
+  ];
   const colaViva = cola.some((i) => i.estado === "pendiente" || i.estado === "pedido");
   // El año de análisis: los doce meses cerrados hasta el mes pasado (más el mes en curso, parcial).
   const hoyAr = new Date(Date.now() - 3 * 3600_000);
@@ -152,8 +159,13 @@ export default async function EspacioPersonal({ searchParams }: { searchParams: 
       {cola.length > 0 && (
         <section className="mb-5">
           <TituloSeccion titulo={`Exportación del año (${cola.filter((i) => i.estado === "listo" || i.estado === "vacio").length} de ${cola.length} listos)`}>
-            <a href="/personal/exportacion" className={SUAVE}>Descargar exportación (.zip)</a>
+            <a href="/personal/exportacion?parte=movimientos" className={SUAVE}>{espacio.esDueno ? "Movimientos de las seis cuentas (.zip)" : "Movimientos (.zip)"}</a>
+            <a href="/personal/exportacion?parte=excel" className={SUAVE}>Excel (.zip)</a>
           </TituloSeccion>
+          <p className="text-xs mb-2">
+            Originales tal cual los entregó Mercado Pago, una cuenta por archivo:{" "}
+            {originales.map((o, k) => <span key={o.id}>{k ? " · " : ""}<a href={`/personal/exportacion?parte=originales&cuenta=${o.id}`} className="text-[#16577F] hover:underline">{o.texto}</a></span>)}
+          </p>
           {cuentas.filter((c) => cola.some((i) => i.conexionId === c.id)).map((c) => {
             const items = cola.filter((i) => i.conexionId === c.id);
             const filas = [...new Set(items.map((i) => i.etiqueta))];

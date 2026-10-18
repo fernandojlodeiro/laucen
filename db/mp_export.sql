@@ -103,6 +103,7 @@ create table if not exists mp_export_mov (
 );
 create index if not exists mp_export_mov_fecha on mp_export_mov (conexion_id, fecha_saldo);
 alter table mp_export_mov enable row level security;
+alter table mp_export_mov add column if not exists destino text;
 
 -- Los pagos de la API (el último dato de cada uno), para saber tipo, estado, descripción y contraparte.
 create table if not exists mp_export_pago (

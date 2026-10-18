@@ -153,8 +153,13 @@ export default async function MercadoPago({ searchParams }: { searchParams: Prom
       {exportacion.length > 0 && (
         <section className="mb-6">
           <TituloSeccion titulo={`Exportación histórica (${exportacion.length})`}>
-            <a href="/administracion/mercadopago/exportacion" className={SUAVE}>Descargar exportación (.zip)</a>
+            <a href="/administracion/mercadopago/exportacion?parte=movimientos" className={SUAVE}>Movimientos (.zip)</a>
+            <a href="/administracion/mercadopago/exportacion?parte=excel" className={SUAVE}>Excel (.zip)</a>
           </TituloSeccion>
+          <p className="text-xs mb-2">
+            Originales tal cual los entregó Mercado Pago, una cuenta por archivo:{" "}
+            {conexiones.map((c, k) => <span key={c.id}>{k ? " · " : ""}<a href={`/administracion/mercadopago/exportacion?parte=originales&cuenta=${c.mpUserId}`} className="text-[#16577F] hover:underline">{c.nombre ?? c.email} ({c.mpUserId})</a></span>)}
+          </p>
           <div className={CAJA_TABLA}>
             <table className={TABLA}>
               <thead className={THEAD}><tr><th className={TH}>Cuenta</th><th className={THN}>Bajados</th><th className={THN}>Sin movimientos</th><th className={THN}>En curso</th><th className={THN}>Fallaron</th><th className={TH}>Último cambio</th></tr></thead>

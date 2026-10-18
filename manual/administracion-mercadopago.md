@@ -43,11 +43,11 @@ En [Canales](/config/canales), elegí el canal y en la caja **"Cuenta de Mercado
 
 Cuando se pide la exportación de las cuentas, aparece la sección **«Exportación histórica»**: por cada cuenta, cuántos períodos (mes y reporte) ya se bajaron, cuántos vinieron sin movimientos, cuántos están en curso y cuántos fallaron. El sistema le pide a Mercado Pago, mes por mes, el reporte de todas las transacciones, el de liquidaciones y los pagos, y los baja solo, de fondo; un mes que falla se vuelve a pedir con espera.
 
-Con **«Descargar exportación (.zip)»** (a la derecha del título de la sección) se baja un archivo comprimido con:
+A la derecha del título de la sección se baja lo que haya hasta ahí:
 
-- **Movimientos**: uno por cuenta y uno con todas juntas, en CSV (UTF-8, coma como separador y punto decimal). Una fila por movimiento de dinero, sin duplicados, con el archivo y la fila de donde sale.
-- **Excel** con las hojas Movimientos, Cuentas, Cobertura (cada mes y reporte con su estado), Controles (por cuenta, mes y moneda: entradas, salidas, saldo inicial y final según Liquidaciones y la diferencia) y Diccionario de campos.
-- **Manifiesto**: qué se pidió, qué se cubrió, qué falta y qué falló.
+- **«Movimientos (.zip)»**: los movimientos de las cuentas, juntos (consolidado, sin duplicados) y uno por cuenta, en CSV (UTF-8, coma como separador y punto decimal), cada fila con el titular, su CUIT y el número de cuenta de Mercado Pago, y el archivo y la fila de donde sale; más la cobertura por cuenta y mes (qué quedó completo y qué no), los controles de saldo (entradas, salidas, saldo inicial y final según Liquidaciones y la diferencia), el diccionario de campos y el manifiesto.
+- **«Excel (.zip)»**: lo mismo en un Excel con hojas Movimientos, Cuentas, Cobertura, Controles y Diccionario.
+- **Originales**, debajo del título: un archivo por cuenta con los reportes tal cual los entregó Mercado Pago y las respuestas de su API, con la lista de archivos y su comprobación.
 
 La clasificación (gasto, transferencia propia, rendimiento…) es una propuesta por reglas seguras y queda en columnas aparte, para revisar: lo dudoso queda «sin clasificar».
 

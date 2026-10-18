@@ -13,7 +13,7 @@ const MOVS = (mov: string, pago: string, conexion: string, filtro: string) => `
          p.tipo api_tipo, p.descripcion api_descripcion, p.cobrador_id, p.pagador_id, p.tipo_medio
     from ${mov} m join ${conexion} c on c.id = m.conexion_id
     left join ${pago} p on p.conexion_id = m.conexion_id and p.pago_id = m.movimiento_id
-   where ${filtro} and coalesce(m.fecha_saldo, m.fecha_operacion) >= $2`;
+   where ${filtro} and m.importe_neto is not null and coalesce(m.fecha_saldo, m.fecha_operacion) >= $2`;
 
 /** Desde cuándo se leen los movimientos: el primer día del mes de hace un año (hora argentina). */
 export function desdeAnio(ahora = new Date()) {

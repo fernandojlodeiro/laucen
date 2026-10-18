@@ -52,7 +52,10 @@ Apretá «Hacer inventario» en la fila de la cuenta. Trabaja de fondo (podés i
 
 1. En la fila de la cuenta, apretá «Exportar … – hoy» (columna «El año»): pone en cola los doce meses cerrados hasta el mes pasado y el mes en curso hasta este momento.
 2. No hace falta quedarse mirando: el sistema pide y baja todo de a poco, de fondo, y la sección «Exportación del año» muestra cómo va.
-3. Con «Descargar exportación (.zip)», a la derecha del título «Exportación del año», se baja todo lo que ya está: los movimientos de cada cuenta y todos juntos en CSV, un Excel con las hojas Movimientos, Cuentas, Cobertura, Controles y Diccionario, y un manifiesto con lo que falta o falló. Se puede bajar en cualquier momento: trae lo que haya hasta ahí.
+3. A la derecha del título «Exportación del año» se baja, en cualquier momento, lo que haya hasta ahí:
+   - «Movimientos (.zip)»: los movimientos de todas las cuentas juntos (consolidado, sin duplicados) y uno por cuenta, en CSV, cada fila con el titular, su CUIT o DNI y el número de cuenta de Mercado Pago; más la cobertura por cuenta y mes (qué quedó completo y qué no), los controles de saldo, el diccionario de campos y el manifiesto. Quien creó la organización ve también, en el mismo consolidado, las cuentas de Mercado Pago de la empresa.
+   - «Excel (.zip)»: lo mismo en un Excel con hojas Movimientos, Cuentas, Cobertura, Controles y Diccionario.
+   - Debajo del título, «Originales»: un archivo por cuenta con los reportes tal cual los entregó Mercado Pago y las respuestas de su API, con la lista de archivos y su comprobación.
 4. También baja, tal cual, todos los reportes que Mercado Pago ya tenía armados de esa cuenta (aunque sean de años anteriores), y ajusta el reporte de todas las transacciones para que incluya los retiros a banco y la hora argentina.
 
 ### Ver mis gastos
@@ -80,6 +83,7 @@ Apretá «Hacer inventario» en la fila de la cuenta. Trabaja de fondo (podés i
 - Gasto es la plata que salió y no es: una transferencia entre cuentas propias (de la persona o de sus empresas), un retiro a un banco propio, ni un movimiento sin efecto en el saldo. Los ingresos, las devoluciones recibidas y los rendimientos se muestran aparte y nunca se suman.
 - Cada gasto se clasifica así, en este orden: lo marcado a mano; una regla guardada; y si no, reglas fijas por el tipo de movimiento y por palabras de la descripción (impuestos, telefonía, servicios, expensas, suscripciones, transporte, supermercado, salud, viajes, educación). Lo que no encaja queda «Sin clasificar». Una transferencia a otra persona queda como «Transferencias a terceros» hasta que se la clasifique.
 - El total de 12 meses son los doce meses cerrados hasta el mes pasado; el mes en curso se muestra pero no se suma.
+- Un retiro a banco que el reporte de todas las transacciones no trae (por ejemplo, de un mes pedido antes de que el reporte incluyera los retiros) se toma de su fila original del reporte de liquidaciones, con su fecha, su número y su importe; esas filas dicen «Liquidaciones» en la columna fuente. Mercado Pago no informa el banco de destino de los retiros.
 - En la exportación, cada movimiento aparece una sola vez aunque venga en varios reportes que se pisan. El importe neto es el efecto en el saldo y ya descuenta comisiones e impuestos. Las monedas no se convierten. La clasificación es sólo una propuesta y queda aparte de los datos de Mercado Pago.
 - Mientras algo corre, los demás botones esperan: se hace una cosa por vez.
 - En la exportación del año, cada mes se pide por separado (Mercado Pago no arma más de 60 días por reporte). Si Mercado Pago no contesta o no arma un reporte, se vuelve a pedir con espera; después de varios intentos queda «Falló» con el motivo. Nunca se da un mes por bajado si Mercado Pago no lo entregó. Volver a apretar el botón no repite los meses que ya están en la cola.

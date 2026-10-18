@@ -22,17 +22,17 @@ export async function procesarArchivos(d: Destino, tope = 15): Promise<number> {
           for (let i = 0; i < filas.length; i += 500) {
             await consulta(`
               insert into ${mov} (${d.org ? "organizacion_id, " : ""}conexion_id, clave, archivo_id, archivo, fila, extraido, movimiento_id, referencia_externa, tipo_original,
-                fecha_operacion, fecha_operacion_original, fecha_saldo, fecha_liberacion, moneda, importe_bruto, comision, impuestos, cupon, importe_neto, medio_pago, tipo_medio, descripcion)
+                fecha_operacion, fecha_operacion_original, fecha_saldo, fecha_liberacion, moneda, importe_bruto, comision, impuestos, cupon, importe_neto, medio_pago, tipo_medio, descripcion, destino)
               select ${d.org ? "$4, " : ""}$1, x.clave, $2, x.archivo, x.fila, x.extraido, x.movimiento_id, x.referencia_externa, x.tipo_original,
-                x.fecha_operacion, x.fecha_operacion_original, x.fecha_saldo, x.fecha_liberacion, x.moneda, x.importe_bruto, x.comision, x.impuestos, x.cupon, x.importe_neto, x.medio_pago, x.tipo_medio, x.descripcion
+                x.fecha_operacion, x.fecha_operacion_original, x.fecha_saldo, x.fecha_liberacion, x.moneda, x.importe_bruto, x.comision, x.impuestos, x.cupon, x.importe_neto, x.medio_pago, x.tipo_medio, x.descripcion, x.destino
                 from jsonb_to_recordset($3::jsonb) x(clave text, archivo text, fila int, extraido timestamptz, movimiento_id text, referencia_externa text, tipo_original text,
                   fecha_operacion timestamptz, fecha_operacion_original text, fecha_saldo timestamptz, fecha_liberacion timestamptz, moneda text, importe_bruto numeric, comision numeric,
-                  impuestos numeric, cupon numeric, importe_neto numeric, medio_pago text, tipo_medio text, descripcion text)
+                  impuestos numeric, cupon numeric, importe_neto numeric, medio_pago text, tipo_medio text, descripcion text, destino text)
               -- La misma fila en otro archivo no se repite; pero si este trae columnas que el otro no tenía, se completan.
               on conflict (conexion_id, clave) do update set
                 fecha_liberacion = coalesce(${mov}.fecha_liberacion, excluded.fecha_liberacion), descripcion = coalesce(${mov}.descripcion, excluded.descripcion),
                 impuestos = coalesce(${mov}.impuestos, excluded.impuestos), medio_pago = coalesce(${mov}.medio_pago, excluded.medio_pago),
-                tipo_medio = coalesce(${mov}.tipo_medio, excluded.tipo_medio), referencia_externa = coalesce(${mov}.referencia_externa, excluded.referencia_externa)`,
+                tipo_medio = coalesce(${mov}.tipo_medio, excluded.tipo_medio), referencia_externa = coalesce(${mov}.referencia_externa, excluded.referencia_externa), destino = coalesce(${mov}.destino, excluded.destino)`,
               d.org ? [d.conexionId, a.id, JSON.stringify(filas.slice(i, i + 500)), d.org] : [d.conexionId, a.id, JSON.stringify(filas.slice(i, i + 500))]);
           }
         } else await d.anotar("pasar a movimientos", null, { archivo: a.nombre, motivo: "formato no reconocido (sin SOURCE_ID / TRANSACTION_TYPE)" });

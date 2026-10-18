@@ -79,3 +79,53 @@ test("tramos: año comparable, mes en curso y anterior", () => {
   assert.equal(tramoDe("2026-10", hoy), "mes en curso (parcial)");
   assert.equal(tramoDe("2025-09", hoy), "anterior");
 });
+
+// Lee un .zip (guardado o deflate) para los tests: nombre → contenido.
+import { inflateRawSync } from "node:zlib";
+import { paqueteExportacion } from "@/lib/mercadopago/normalizar";
+function leerZip(z: Buffer) {
+  const salida = new Map<string, Buffer>();
+  let i = 0;
+  while (z.readUInt32LE(i) === 0x04034b50) {
+    const metodo = z.readUInt16LE(i + 8), largo = z.readUInt32LE(i + 18), largoNombre = z.readUInt16LE(i + 26), extra = z.readUInt16LE(i + 28);
+    const nombre = z.subarray(i + 30, i + 30 + largoNombre).toString("utf8");
+    const datos = z.subarray(i + 30 + largoNombre + extra, i + 30 + largoNombre + extra + largo);
+    salida.set(nombre, metodo === 8 ? inflateRawSync(datos) : datos);
+    i += 30 + largoNombre + extra + largo;
+  }
+  return salida;
+}
+
+test("paquete: consolidado de varias cuentas sin duplicados, retiros que faltan tomados de Liquidaciones y originales tal cual", async () => {
+  const desde = new Date("2025-10-01T03:00:00Z"), hasta = new Date("2025-11-01T02:59:59Z");
+  const todas = archivo(1, "todas.csv", `${CAB}\n${PAGO.replaceAll("2026-09-01", "2025-10-01")}\n`, "2026-10-18T00:00:00Z");
+  const liq = archivo(2, "liq.csv", [
+    "DATE;SOURCE_ID;DESCRIPTION;NET_CREDIT_AMOUNT;NET_DEBIT_AMOUNT;BALANCE_AMOUNT",
+    "2025-10-01T00:00:00.000-03:00;;;500000.00;0.00;500000.00",
+    "2025-10-01T10:00:00.000-03:00;176725980154;payment;0.00;130949.00;369051.00",
+    "2025-10-20T12:00:00.000-03:00;555;payout;0.00;100000.00;269051.00",
+    ";;;269051.00;0.00;0.00",
+  ].join("\n"), "2026-10-18T00:00:00Z", "release_report");
+  const cola = [{ fuente: "release_report", etiqueta: "2025-10", desde, hasta, estado: "listo", mensaje: null, archivos: ["liq.csv"], actualizado: new Date() },
+    { fuente: "settlement_report", etiqueta: "2025-10", desde, hasta, estado: "listo", mensaje: null, archivos: ["todas.csv"], actualizado: new Date() }];
+  const datos: DatosExport[] = [
+    { cuenta: { id: 1, mpUserId: 1, alias: "PERSONAL", titular: "Persona", documento: "20111", ambito: "personal" }, archivos: [todas, liq], cola },
+    { cuenta: { id: 2, mpUserId: 2, alias: "EMPRESA", titular: "EMPRESA SA", documento: "30999", ambito: "empresa" }, archivos: [], cola: [] },
+  ];
+  const p = await paqueteExportacion(datos, "prueba", "movimientos");
+  const z = leerZip(p.zip);
+  const consolidado = z.get("movimientos_consolidado.csv")!.toString("utf8");
+  const filas = consolidado.trim().split("\n");
+  assert.equal(filas.length, 3, "cabecera + el pago + el retiro tomado de Liquidaciones");
+  assert.ok(filas[0].includes("titular_documento") && filas[0].includes("destino"));
+  const retiro = filas.find((f) => f.includes("Liquidaciones"))!;
+  assert.ok(retiro.includes(",555,") && retiro.includes("-100000") && retiro.includes("no informado por Mercado Pago"));
+  assert.ok(z.has("por_cuenta/movimientos_Persona_1.csv") && z.has("por_cuenta/movimientos_EMPRESA_SA_2.csv"));
+  const cob = z.get("cobertura_por_cuenta_y_mes.csv")!.toString("utf8");
+  assert.ok(cob.includes("completo"), cob);
+
+  const o = await paqueteExportacion(datos, "prueba", "originales", 1);
+  const zo = leerZip(o.zip);
+  assert.equal(zo.get("originales_Persona_1/liquidaciones/liq.csv")!.toString("utf8"), liq.contenido.toString("utf8"));
+  assert.ok(zo.has("originales_Persona_1/lista_de_originales.csv"));
+});

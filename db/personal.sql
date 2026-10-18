@@ -155,6 +155,7 @@ create table if not exists personal.mp_mov (
 );
 create index if not exists mp_mov_fecha on personal.mp_mov (conexion_id, fecha_saldo);
 alter table personal.mp_mov enable row level security;
+alter table personal.mp_mov add column if not exists destino text;
 
 create table if not exists personal.mp_pago (
   conexion_id       bigint not null references personal.mp_conexion(id) on delete cascade,

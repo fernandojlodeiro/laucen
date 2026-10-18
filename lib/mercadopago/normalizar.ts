@@ -19,7 +19,7 @@ export const VERSION_ESQUEMA = "1.0";
 const ZONA = "America/Argentina/Cordoba";
 
 export type CuentaExport = { id: number; mpUserId: number; alias: string; titular: string | null; documento: string | null; ambito: "empresa" | "personal" };
-export type ArchivoExport = { id: number; fuente: string; nombre: string; desde: Date | null; hasta: Date | null; bajado: Date; contenido: Buffer };
+export type ArchivoExport = { id: number; fuente: string; nombre: string; desde: Date | null; hasta: Date | null; bajado: Date; contenido: Buffer; sha256?: string };
 export type ItemExport = { fuente: string; etiqueta: string; desde: Date | null; hasta: Date | null; estado: string; mensaje: string | null; archivos: string[] | null; actualizado: Date };
 /** Una fila de «Todas las transacciones» ya leída (tal cual se guarda en la tabla de movimientos). */
 export type MovBase = {
@@ -27,6 +27,8 @@ export type MovBase = {
   fecha_operacion: Date | null; fecha_operacion_original: string | null; fecha_saldo: Date | null; fecha_liberacion: Date | null; moneda: string | null;
   importe_bruto: number | null; comision: number | null; impuestos: number | null; cupon: number | null; importe_neto: number | null;
   medio_pago: string | null; tipo_medio: string | null; descripcion: string | null;
+  /** A dónde fue la plata (banco, billetera o transferencia), si Mercado Pago lo informa. */
+  destino?: string | null;
 };
 /** Un pago de la API, con lo que hace falta. */
 export type PagoBase = {
@@ -126,6 +128,7 @@ export function filasDeSettlement(mpUserId: number, a: { nombre: string; bajado:
       moneda: v.SETTLEMENT_CURRENCY || v.TRANSACTION_CURRENCY || null, importe_bruto: num(v.TRANSACTION_AMOUNT), comision: num(v.FEE_AMOUNT),
       impuestos: v.TAXES_AMOUNT !== undefined ? num(v.TAXES_AMOUNT) : null, cupon: num(v.COUPON_AMOUNT), importe_neto: neto,
       medio_pago: v.PAYMENT_METHOD || null, tipo_medio: v.PAYMENT_METHOD_TYPE || null, descripcion: v.DESCRIPTION || null,
+      destino: [v.POI_BANK_NAME, v.POI_WALLET_NAME, v.PAY_BANK_TRANSFER_ID && `transferencia ${v.PAY_BANK_TRANSFER_ID}`].filter(Boolean).join(" · ") || null,
     });
   });
   return salida;
@@ -148,12 +151,12 @@ export function pagosDeArchivo(contenido: Buffer): PagoBase[] {
 // ── La fila normalizada ─────────────────────────────────────────────────
 
 export type Movimiento = {
-  version_esquema: string; cuenta_mp_id: number; cuenta_alias: string; titular: string | null; ambito_cuenta: string;
+  version_esquema: string; cuenta_mp_id: number; cuenta_alias: string; titular: string | null; titular_documento: string | null; ambito_cuenta: string;
   fuente: string; archivo: string; fila: number; extraido: string;
   movimiento_id: string | null; referencia_externa: string | null; tipo_original: string; tipo: string; direccion: "entrada" | "salida" | "sin efecto";
   fecha_operacion: string | null; fecha_operacion_original: string | null; fecha_saldo: string | null; fecha_liberacion: string | null; mes: string | null; tramo: string;
   moneda: string | null; importe_bruto: number | null; comision: number | null; impuestos: number | null; cupon: number | null; importe_neto: number | null;
-  medio_pago: string | null; tipo_medio: string | null; descripcion: string | null;
+  medio_pago: string | null; tipo_medio: string | null; descripcion: string | null; destino: string | null;
   api_tipo: string | null; api_estado: string | null; api_descripcion: string | null; api_pagado: number | null; api_contraparte: string | null;
   clave_dedup: string;
   categoria_propuesta: string; ambito_gasto: string; sociedad_atribuida: string | null; recurrencia: string; grupo_conciliacion: string | null; regla_aplicada: string | null; estado_revision: string;
@@ -163,7 +166,7 @@ export type Movimiento = {
 export const RETIROS = new Set(["WITHDRAWAL", "PAYOUT", "PAYOUTS"]);
 
 const TIPOS: Record<string, string> = {
-  PAYOUTS: "retiro a cuenta bancaria",
+  PAYOUTS: "retiro a cuenta bancaria", TIP: "propina",
   SETTLEMENT: "operación aprobada", REFUND: "devolución", CHARGEBACK: "contracargo", DISPUTE: "reclamo", WITHDRAWAL: "retiro a cuenta bancaria",
   WITHDRAWAL_CANCEL: "retiro cancelado", PAYOUT: "retiro en efectivo", SETTLEMENT_SHIPPING: "costo de envío", DISPUTE_SHIPPING: "envío de reclamo",
 };
@@ -234,12 +237,13 @@ export async function normalizar(datos: DatosExport[], ahora = new Date()) {
       const contra = p ? (p.cobrador_id === String(cuenta.mpUserId) ? p.pagador_id : p.cobrador_id) : null;
       const mes = mesDe(b.fecha_saldo ?? b.fecha_operacion);
       const m: Movimiento = {
-        version_esquema: VERSION_ESQUEMA, cuenta_mp_id: cuenta.mpUserId, cuenta_alias: cuenta.alias, titular: cuenta.titular, ambito_cuenta: cuenta.ambito,
+        version_esquema: VERSION_ESQUEMA, cuenta_mp_id: cuenta.mpUserId, cuenta_alias: cuenta.alias, titular: cuenta.titular, titular_documento: cuenta.documento, ambito_cuenta: cuenta.ambito,
         fuente: "Todas las transacciones", archivo: b.archivo, fila: b.fila, extraido: new Date(b.extraido).toISOString(),
         movimiento_id: b.movimiento_id, referencia_externa: b.referencia_externa, tipo_original: b.tipo_original, tipo: TIPOS[b.tipo_original] ?? b.tipo_original.toLowerCase(), direccion,
         fecha_operacion: local(b.fecha_operacion), fecha_operacion_original: b.fecha_operacion_original, fecha_saldo: local(b.fecha_saldo), fecha_liberacion: local(b.fecha_liberacion), mes, tramo: tramoDe(mes, ahora),
         moneda: b.moneda, importe_bruto: n(b.importe_bruto), comision: n(b.comision), impuestos: n(b.impuestos), cupon: n(b.cupon), importe_neto: n(neto),
         medio_pago: b.medio_pago, tipo_medio: b.tipo_medio, descripcion: b.descripcion,
+        destino: b.destino ?? (RETIROS.has(b.tipo_original) ? "no informado por Mercado Pago" : contra ? `cuenta ${contra}` : null),
         api_tipo: p?.tipo ?? null, api_estado: p?.estado ?? null, api_descripcion: p?.descripcion ?? null, api_pagado: n(p?.pagado ?? null), api_contraparte: contra ? `cuenta ${contra}` : null,
         clave_dedup: b.clave,
         categoria_propuesta: "", ambito_gasto: "sin clasificar", sociedad_atribuida: null, recurrencia: "", grupo_conciliacion: null, regla_aplicada: null, estado_revision: "pendiente",
@@ -256,7 +260,32 @@ export async function normalizar(datos: DatosExport[], ahora = new Date()) {
       if (!t) continue;
       const i = (h: string) => t.cab.indexOf(h);
       const sinMov = t.filas.filter((f) => !f[i("SOURCE_ID")] && !f[i("DESCRIPTION")] && (i("RECORD_TYPE") < 0 || ["initial_available_balance", "total", ""].includes(f[i("RECORD_TYPE")])));
-      const retiros = t.filas.filter((f) => f[i("DESCRIPTION")] === "payout").reduce((s, f) => s + (num(f[i("NET_DEBIT_AMOUNT")]) ?? 0), 0);
+      const filasRetiro = t.filas.map((f, k) => ({ f, fila: k + 2 })).filter(({ f }) => f[i("DESCRIPTION")] === "payout");
+      const retiros = filasRetiro.reduce((s, { f }) => s + (num(f[i("NET_DEBIT_AMOUNT")]) ?? 0), 0);
+      // Un retiro que «Todas las transacciones» no trae (un reporte pedido antes de incluir los retiros) se toma de la
+      // fila original de Liquidaciones, con su fecha, su identificador y su importe: nunca una fila de ajuste por el total.
+      const yaEstan = new Set(movimientos.filter((m) => m.cuenta_mp_id === cuenta.mpUserId && RETIROS.has(m.tipo_original)).map((m) => m.movimiento_id));
+      for (const { f, fila } of filasRetiro) {
+        const id = f[i("SOURCE_ID")] || null;
+        if (id && yaEstan.has(id)) continue;
+        const fecha = instante(f[i("DATE")]);
+        const neto = -(num(f[i("NET_DEBIT_AMOUNT")]) ?? 0) + (num(f[i("NET_CREDIT_AMOUNT")]) ?? 0);
+        const mes = mesDe(fecha);
+        const m: Movimiento = {
+          version_esquema: VERSION_ESQUEMA, cuenta_mp_id: cuenta.mpUserId, cuenta_alias: cuenta.alias, titular: cuenta.titular, titular_documento: cuenta.documento, ambito_cuenta: cuenta.ambito,
+          fuente: "Liquidaciones", archivo: a!.nombre, fila, extraido: new Date(a!.bajado).toISOString(),
+          movimiento_id: id, referencia_externa: f[i("EXTERNAL_REFERENCE")] || null, tipo_original: "PAYOUTS", tipo: "retiro a cuenta bancaria", direccion: neto < 0 ? "salida" : neto > 0 ? "entrada" : "sin efecto",
+          fecha_operacion: local(fecha), fecha_operacion_original: f[i("DATE")] || null, fecha_saldo: local(fecha), fecha_liberacion: null, mes, tramo: tramoDe(mes, ahora),
+          moneda: f[i("CURRENCY")] || "ARS", importe_bruto: num(f[i("GROSS_AMOUNT")]), comision: null, impuestos: null, cupon: null, importe_neto: redondo(neto),
+          medio_pago: f[i("PAYMENT_METHOD")] || null, tipo_medio: null, descripcion: "payout", destino: "no informado por Mercado Pago",
+          api_tipo: null, api_estado: null, api_descripcion: null, api_pagado: null, api_contraparte: null,
+          clave_dedup: [cuenta.mpUserId, "release", id ?? "", "payout", fecha?.toISOString() ?? f[i("DATE")], redondo(neto)].join("|") + "#1",
+          categoria_propuesta: "", ambito_gasto: "sin clasificar", sociedad_atribuida: null, recurrencia: "", grupo_conciliacion: null, regla_aplicada: null, estado_revision: "pendiente",
+        };
+        Object.assign(m, clasificar(m));
+        movimientos.push(m);
+        if (id) yaEstan.add(id);
+      }
       liquidaciones.set(it.etiqueta.slice(0, 7), { inicial: sinMov.length ? num(sinMov[0][i("NET_CREDIT_AMOUNT")]) : null, final: sinMov.length > 1 ? num(sinMov.at(-1)![i("NET_CREDIT_AMOUNT")]) : null, retiros });
     }
 
@@ -318,13 +347,14 @@ export const DICCIONARIO: { campo: string; tipo: string; obligatorio: string; de
   { campo: "cuenta_mp_id", tipo: "entero", obligatorio: "sí", descripcion: "Número de la cuenta en Mercado Pago (identificador estable).", ejemplo: "123456789" },
   { campo: "cuenta_alias", tipo: "texto", obligatorio: "sí", descripcion: "Nombre reconocible de la cuenta.", ejemplo: "CUENTA PRINCIPAL" },
   { campo: "titular", tipo: "texto", obligatorio: "no", descripcion: "Titular o sociedad según Mercado Pago.", ejemplo: "EMPRESA SA" },
+  { campo: "titular_documento", tipo: "texto", obligatorio: "no", descripcion: "CUIT o DNI del titular según Mercado Pago.", ejemplo: "30712345678" },
   { campo: "ambito_cuenta", tipo: "empresa | personal", obligatorio: "sí", descripcion: "Si la cuenta está conectada como de la empresa o personal. No decide la categoría del gasto.", ejemplo: "empresa" },
-  { campo: "fuente", tipo: "texto", obligatorio: "sí", descripcion: "Reporte de Mercado Pago del que sale la fila.", ejemplo: "Todas las transacciones" },
+  { campo: "fuente", tipo: "texto", obligatorio: "sí", descripcion: "Reporte de Mercado Pago del que sale la fila: «Todas las transacciones» o, para un retiro que ese reporte no trae, la fila original de «Liquidaciones».", ejemplo: "Todas las transacciones" },
   { campo: "archivo / fila", tipo: "texto / entero", obligatorio: "sí", descripcion: "Archivo original y número de fila (la 1 es la cabecera).", ejemplo: "laucen-todas-manual-2026-10-18-011537.csv / 2" },
   { campo: "extraido", tipo: "fecha y hora UTC", obligatorio: "sí", descripcion: "Cuándo se bajó el archivo original.", ejemplo: "2026-10-18T05:18:51Z" },
   { campo: "movimiento_id", tipo: "texto", obligatorio: "no", descripcion: "Identificador de la operación en Mercado Pago (SOURCE_ID). Vacío en algunos rendimientos.", ejemplo: "176725980154" },
   { campo: "referencia_externa", tipo: "texto", obligatorio: "no", descripcion: "Referencia del vendedor o de la orden (EXTERNAL_REFERENCE).", ejemplo: "2000018730227366" },
-  { campo: "tipo_original / tipo", tipo: "texto", obligatorio: "sí", descripcion: "Tipo tal cual lo da Mercado Pago (SETTLEMENT, REFUND, CHARGEBACK, DISPUTE, WITHDRAWAL, WITHDRAWAL_CANCEL, PAYOUT, SETTLEMENT_SHIPPING…) y su nombre en castellano.", ejemplo: "SETTLEMENT / operación aprobada" },
+  { campo: "tipo_original / tipo", tipo: "texto", obligatorio: "sí", descripcion: "Tipo tal cual lo da Mercado Pago (SETTLEMENT, REFUND, CHARGEBACK, DISPUTE, PAYOUTS = retiro a banco, WITHDRAWAL, WITHDRAWAL_CANCEL, SETTLEMENT_SHIPPING, TIP…) y su nombre en castellano.", ejemplo: "SETTLEMENT / operación aprobada" },
   { campo: "direccion", tipo: "entrada | salida | sin efecto", obligatorio: "sí", descripcion: "Según el signo del importe neto.", ejemplo: "salida" },
   { campo: "fecha_operacion", tipo: "fecha y hora (-03:00)", obligatorio: "no", descripcion: "Cuándo se hizo la operación (TRANSACTION_DATE), en hora argentina.", ejemplo: "2026-09-01T14:50:12-03:00" },
   { campo: "fecha_operacion_original", tipo: "texto", obligatorio: "no", descripcion: "La misma fecha tal cual vino, con su zona horaria original.", ejemplo: "2026-09-01T13:50:12.000-04:00" },
@@ -338,6 +368,7 @@ export const DICCIONARIO: { campo: string; tipo: string; obligatorio: string; de
   { campo: "importe_neto", tipo: "decimal con signo", obligatorio: "sí", descripcion: "Efecto en el saldo (SETTLEMENT_NET_AMOUNT): + entra, − sale. Ya descuenta comisiones e impuestos: no sumarlos otra vez.", ejemplo: "-130949.00" },
   { campo: "medio_pago / tipo_medio", tipo: "texto", obligatorio: "no", descripcion: "Medio de pago tal cual lo da Mercado Pago.", ejemplo: "available_money / account_money" },
   { campo: "descripcion", tipo: "texto", obligatorio: "no", descripcion: "Descripción del reporte (si la cuenta tiene esa columna configurada).", ejemplo: "" },
+  { campo: "destino", tipo: "texto", obligatorio: "no", descripcion: "A dónde fue la plata: banco o billetera (POI_BANK_NAME, POI_WALLET_NAME), transferencia (PAY_BANK_TRANSFER_ID) o la cuenta de Mercado Pago de la contraparte. En los retiros, Mercado Pago no informa el banco de destino.", ejemplo: "cuenta 156701430" },
   { campo: "api_tipo / api_estado / api_descripcion / api_pagado / api_contraparte", tipo: "texto / decimal", obligatorio: "no", descripcion: "Lo que dice la API de pagos del mismo movimiento (sólo el último año). api_pagado = lo que realmente se pagó (con cupones ya descontados).", ejemplo: "regular_payment / approved / Tablet… / 130949 / cobrador 123" },
   { campo: "clave_dedup", tipo: "texto", obligatorio: "sí", descripcion: "Clave sin duplicados: cuenta | fuente | movimiento_id | tipo | fecha de saldo (UTC) | neto | referencia, más #n si la misma fila aparece n veces en el reporte.", ejemplo: "" },
   { campo: "categoria_propuesta", tipo: "texto", obligatorio: "sí", descripcion: "Propuesta por reglas seguras (retiros, devoluciones, reclamos, envíos, transferencias, suscripciones). Lo demás: «sin clasificar». Nunca es definitiva.", ejemplo: "Transferencia enviada (revisar si es propia)" },
@@ -346,9 +377,9 @@ export const DICCIONARIO: { campo: string; tipo: string; obligatorio: string; de
 
 // ── Los archivos de la exportación ──────────────────────────────────────
 
-const COLUMNAS: (keyof Movimiento)[] = ["version_esquema", "cuenta_mp_id", "cuenta_alias", "titular", "ambito_cuenta", "fuente", "archivo", "fila", "extraido",
+const COLUMNAS: (keyof Movimiento)[] = ["version_esquema", "cuenta_mp_id", "cuenta_alias", "titular", "titular_documento", "ambito_cuenta", "fuente", "archivo", "fila", "extraido",
   "movimiento_id", "referencia_externa", "tipo_original", "tipo", "direccion", "fecha_operacion", "fecha_operacion_original", "fecha_saldo", "fecha_liberacion", "mes", "tramo",
-  "moneda", "importe_bruto", "comision", "impuestos", "cupon", "importe_neto", "medio_pago", "tipo_medio", "descripcion",
+  "moneda", "importe_bruto", "comision", "impuestos", "cupon", "importe_neto", "medio_pago", "tipo_medio", "descripcion", "destino",
   "api_tipo", "api_estado", "api_descripcion", "api_pagado", "api_contraparte", "clave_dedup",
   "categoria_propuesta", "ambito_gasto", "sociedad_atribuida", "recurrencia", "grupo_conciliacion", "regla_aplicada", "estado_revision"];
 
@@ -361,29 +392,68 @@ export function csv<T extends Record<string, unknown>>(filas: T[], columnas: (ke
   return "﻿" + [columnas.join(","), ...filas.map((f) => columnas.map((c) => celdaCsv(f[c])).join(","))].join("\n") + "\n";
 }
 
-/** El paquete completo: CSV por cuenta y consolidado, Excel con todas las hojas, diccionario y manifiesto. */
-export async function paqueteExportacion(datos: DatosExport[], ambito: string) {
+export type ParteExportacion = "movimientos" | "excel" | "originales";
+
+/** El resumen de cobertura por cuenta y mes: qué quedó completo y qué no, en palabras. */
+export function resumenCobertura(datos: DatosExport[], controles: Control[]) {
+  const filas: Record<string, unknown>[] = [];
+  for (const d of datos) {
+    const meses = [...new Set(d.cola.filter((x) => x.desde).map((x) => x.etiqueta))].sort();
+    for (const et of meses) {
+      const de = (f: string) => d.cola.find((x) => x.etiqueta === et && x.fuente === f);
+      const est = (f: string) => { const x = de(f); return x ? ESTADOS[x.estado] ?? x.estado : "no pedido"; };
+      const c = controles.find((x) => x.cuenta_mp_id === d.cuenta.mpUserId && x.mes === et.slice(0, 7) && x.moneda === "ARS");
+      const todas = de("settlement_report"), liq = de("release_report");
+      const completo = !!todas && ["listo", "vacio"].includes(todas.estado) && !!liq && ["listo", "vacio"].includes(liq.estado);
+      filas.push({
+        cuenta_mp_id: d.cuenta.mpUserId, titular: d.cuenta.titular ?? d.cuenta.alias, titular_documento: d.cuenta.documento, cuenta_alias: d.cuenta.alias, ambito: d.cuenta.ambito, periodo: et,
+        todas_las_transacciones: est("settlement_report"), liquidaciones: est("release_report"), pagos_api: est("payments"),
+        control_saldo: c ? c.nota : "sin control", diferencia: c?.diferencia ?? null,
+        estado: !completo ? "INCOMPLETO: falta bajar un reporte" : c && c.diferencia != null && Math.abs(c.diferencia) >= 0.01 ? "bajado; el saldo no cierra (ver controles)" : "completo",
+      });
+    }
+  }
+  return filas;
+}
+
+/** Una parte de la exportación, en un .zip comprimido (cada parte por separado para que la descarga no sea enorme):
+ *  «movimientos» = consolidado sin duplicados + uno por cuenta + controles, cobertura, diccionario y manifiesto;
+ *  «excel» = el Excel con todas las hojas; «originales» = los archivos tal cual los entregó Mercado Pago, de una cuenta. */
+export async function paqueteExportacion(datos: DatosExport[], ambito: string, parte: ParteExportacion = "movimientos", cuentaMpId?: number) {
   const ahora = new Date();
   const ejecucion = `${ambito}-${ahora.toISOString().replace(/[-:]/g, "").slice(0, 15)}Z`;
-  const { movimientos, controles, cobertura, problemas } = await normalizar(datos, ahora);
-  const movCsv = movimientos.map((m) => ({ ...m, fila: m.fila })) as unknown as Record<string, unknown>[];
-  const archivos: { nombre: string; contenido: Uint8Array }[] = [];
   const utf8 = (s: string) => new Uint8Array(Buffer.from(s, "utf8"));
-  archivos.push({ nombre: "movimientos_consolidado.csv", contenido: utf8(csv(movCsv, COLUMNAS as string[])) });
-  for (const d of datos) {
-    const propios = movCsv.filter((m) => m.cuenta_mp_id === d.cuenta.mpUserId);
-    archivos.push({ nombre: `movimientos_${d.cuenta.alias.replace(/[^A-Za-z0-9_.-]+/g, "_")}_${d.cuenta.mpUserId}.csv`, contenido: utf8(csv(propios, COLUMNAS as string[])) });
-  }
-  archivos.push({ nombre: "controles.csv", contenido: utf8(csv(controles as unknown as Record<string, unknown>[], Object.keys(controles[0] ?? { cuenta_alias: 0 }))) });
-  archivos.push({ nombre: "cobertura.csv", contenido: utf8(csv(cobertura as unknown as Record<string, unknown>[], Object.keys(cobertura[0] ?? { cuenta_alias: 0 }))) });
-  archivos.push({ nombre: "diccionario.csv", contenido: utf8(csv(DICCIONARIO, ["campo", "tipo", "obligatorio", "descripcion", "ejemplo"])) });
+  const archivos: { nombre: string; contenido: Uint8Array }[] = [];
+  const limpio = (t: string) => t.replace(/[^A-Za-z0-9_.-]+/g, "_").replace(/^_+|_+$/g, "");
 
+  if (parte === "originales") {
+    const d = datos.find((x) => x.cuenta.mpUserId === cuentaMpId);
+    if (!d) throw new Error("Esa cuenta no está en la exportación.");
+    const carpeta = `originales_${limpio(d.cuenta.titular ?? d.cuenta.alias)}_${d.cuenta.mpUserId}`;
+    const nombres: Record<string, string> = { settlement_report: "todas_las_transacciones", release_report: "liquidaciones", payments_cobrados: "api_pagos_todos", payments_hechos: "api_pagos_hechos" };
+    const lista: Record<string, unknown>[] = [];
+    const vistos = new Set<string>();
+    for (const a of d.archivos) {
+      let ruta = `${carpeta}/${nombres[a.fuente] ?? a.fuente}/${a.nombre}`;
+      if (vistos.has(ruta)) ruta = ruta.replace(/(\.[a-z]+)$/, `_${a.id}$1`);
+      vistos.add(ruta);
+      archivos.push({ nombre: ruta, contenido: new Uint8Array(a.contenido) });
+      lista.push({ archivo: ruta, fuente: NOMBRES[a.fuente] ?? a.fuente, desde: a.desde?.toISOString() ?? null, hasta: a.hasta?.toISOString() ?? null, bajado: a.bajado.toISOString(), bytes: a.contenido.length, sha256: a.sha256 ?? null });
+    }
+    archivos.push({ nombre: `${carpeta}/lista_de_originales.csv`, contenido: utf8(csv(lista, ["archivo", "fuente", "desde", "hasta", "bajado", "bytes", "sha256"])) });
+    return { zip: armarZip(archivos, ahora, true), nombre: `mercadopago-originales-${d.cuenta.mpUserId}-${ahora.toISOString().slice(0, 10)}.zip` };
+  }
+
+  const { movimientos, controles, cobertura, problemas } = await normalizar(datos, ahora);
+  const movCsv = movimientos as unknown as Record<string, unknown>[];
+  const coberturaResumen = resumenCobertura(datos, controles);
   const manifiesto = {
     version_esquema: VERSION_ESQUEMA, ejecucion, generado: ahora.toISOString(), zona_horaria_cortes: ZONA,
     criterio_periodos: "Meses calendario en hora argentina: inicio incluido (00:00:00) y fin el último segundo del mes (Mercado Pago no acepta fin excluido).",
     cuentas: datos.map((d) => ({
       cuenta_mp_id: d.cuenta.mpUserId, alias: d.cuenta.alias, titular: d.cuenta.titular, documento: d.cuenta.documento, ambito: d.cuenta.ambito,
-      archivos_originales: d.archivos.length, filas: movimientos.filter((m) => m.cuenta_mp_id === d.cuenta.mpUserId).length,
+      filas: movimientos.filter((m) => m.cuenta_mp_id === d.cuenta.mpUserId).length,
+      retiros_tomados_de_liquidaciones: movimientos.filter((m) => m.cuenta_mp_id === d.cuenta.mpUserId && m.fuente === "Liquidaciones").length,
       periodos: d.cola.filter((x) => x.desde).length,
       periodos_completos: d.cola.filter((x) => x.desde && (x.estado === "listo" || x.estado === "vacio")).length,
       pendientes: d.cola.filter((x) => x.estado === "pendiente" || x.estado === "pedido").map((x) => `${x.etiqueta} ${NOMBRES[x.fuente] ?? x.fuente}`),
@@ -393,32 +463,54 @@ export async function paqueteExportacion(datos: DatosExport[], ambito: string) {
     })),
     fuentes: {
       "Todas las transacciones": "Fuente principal de movimientos (operaciones aprobadas que afectan el saldo; las pendientes o rechazadas no aparecen). Hasta 60 días por pedido; se pide mes por mes.",
-      "Liquidaciones": "Control de saldo inicial y final de cada mes y retiros a banco.",
+      "Liquidaciones": "Control de saldo inicial y final de cada mes; y los retiros a banco que «Todas las transacciones» no trae, tomados de su fila original.",
       "Pagos (API)": "Detalle de cada pago (tipo, estado, descripción, contraparte). Sólo el último año.",
     },
     archivos_con_problemas: problemas,
-    archivos: archivos.map((a) => a.nombre).concat(["exportacion.xlsx", "manifiesto.json"]),
-    nota: "Un mes «sin movimientos» es porque Mercado Pago entregó el reporte vacío; un mes «falló» o «en cola» no está completo. Los importes no se convierten de moneda.",
+    nota: "Un mes «sin movimientos» es porque Mercado Pago entregó el reporte vacío; un mes «falló» o «en cola» no está completo. Los importes no se convierten de moneda. Los originales de Mercado Pago se bajan aparte, uno por cuenta.",
   };
 
-  // El Excel: las mismas tablas, para revisar.
-  const libro = new ExcelJS.Workbook();
-  const hoja = <T extends Record<string, unknown>>(nombre: string, filas: T[], columnas: string[]) => {
-    const h = libro.addWorksheet(nombre, { views: [{ state: "frozen", ySplit: 1 }] });
-    h.columns = columnas.map((c) => ({ header: c, key: c, width: Math.min(40, Math.max(10, c.length + 2)) }));
-    h.getRow(1).font = { bold: true };
-    for (const f of filas) h.addRow(columnas.map((c) => f[c] ?? null));
-    h.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columnas.length } };
-  };
-  hoja("Movimientos", movCsv, COLUMNAS as string[]);
-  hoja("Cuentas", manifiesto.cuentas.map((c) => ({ ...c, pendientes: c.pendientes.length, errores: c.errores.join(" | "), sin_movimientos: c.sin_movimientos.length })) as Record<string, unknown>[],
-    ["cuenta_mp_id", "alias", "titular", "documento", "ambito", "archivos_originales", "filas", "periodos", "periodos_completos", "pendientes", "errores", "sin_movimientos", "fecha_mas_antigua_en_datos"]);
-  hoja("Cobertura", cobertura as unknown as Record<string, unknown>[], ["cuenta_alias", "cuenta_mp_id", "periodo", "fuente", "estado", "filas", "archivos", "motivo", "actualizado"]);
-  hoja("Controles", controles as unknown as Record<string, unknown>[], ["cuenta_alias", "cuenta_mp_id", "mes", "moneda", "filas", "entradas", "salidas", "neto", "saldo_inicial", "saldo_final", "retiros_liquidaciones", "diferencia", "nota"]);
-  hoja("Diccionario", DICCIONARIO, ["campo", "tipo", "obligatorio", "descripcion", "ejemplo"]);
-  hoja("Manifiesto", Object.entries(manifiesto).filter(([, v]) => typeof v !== "object").map(([clave, valor]) => ({ clave, valor })), ["clave", "valor"]);
-  archivos.push({ nombre: "exportacion.xlsx", contenido: new Uint8Array(await libro.xlsx.writeBuffer() as ArrayBuffer) });
-  archivos.push({ nombre: "manifiesto.json", contenido: utf8(JSON.stringify(manifiesto, null, 2)) });
+  if (parte === "excel") {
+    const libro = new ExcelJS.Workbook();
+    const hoja = <T extends Record<string, unknown>>(nombre: string, filas: T[], columnas: string[]) => {
+      const h = libro.addWorksheet(nombre, { views: [{ state: "frozen", ySplit: 1 }] });
+      h.columns = columnas.map((c) => ({ header: c, key: c, width: Math.min(40, Math.max(10, c.length + 2)) }));
+      h.getRow(1).font = { bold: true };
+      for (const f of filas) h.addRow(columnas.map((c) => f[c] ?? null));
+      h.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columnas.length } };
+    };
+    hoja("Movimientos", movCsv, COLUMNAS as string[]);
+    hoja("Cuentas", manifiesto.cuentas.map((c) => ({ ...c, pendientes: c.pendientes.length, errores: c.errores.join(" | "), sin_movimientos: c.sin_movimientos.length })) as Record<string, unknown>[],
+      ["cuenta_mp_id", "titular", "documento", "alias", "ambito", "filas", "retiros_tomados_de_liquidaciones", "periodos", "periodos_completos", "pendientes", "errores", "sin_movimientos", "fecha_mas_antigua_en_datos"]);
+    hoja("Cobertura", coberturaResumen, Object.keys(coberturaResumen[0] ?? { cuenta_mp_id: 0 }));
+    hoja("Controles", controles as unknown as Record<string, unknown>[], ["cuenta_alias", "cuenta_mp_id", "mes", "moneda", "filas", "entradas", "salidas", "neto", "saldo_inicial", "saldo_final", "retiros_liquidaciones", "diferencia", "nota"]);
+    hoja("Diccionario", DICCIONARIO, ["campo", "tipo", "obligatorio", "descripcion", "ejemplo"]);
+    archivos.push({ nombre: "exportacion.xlsx", contenido: new Uint8Array(await libro.xlsx.writeBuffer() as ArrayBuffer) });
+    return { zip: armarZip(archivos, ahora, true), nombre: `mercadopago-excel-${ejecucion}.zip` };
+  }
 
-  return { zip: armarZip(archivos, ahora), nombre: `mercadopago-${ejecucion}.zip`, resumen: { movimientos: movimientos.length, controles, problemas } };
+  archivos.push({ nombre: "movimientos_consolidado.csv", contenido: utf8(csv(movCsv, COLUMNAS as string[])) });
+  for (const d of datos) {
+    const propios = movCsv.filter((m) => m.cuenta_mp_id === d.cuenta.mpUserId);
+    archivos.push({ nombre: `por_cuenta/movimientos_${limpio(d.cuenta.titular ?? d.cuenta.alias)}_${d.cuenta.mpUserId}.csv`, contenido: utf8(csv(propios, COLUMNAS as string[])) });
+  }
+  archivos.push({ nombre: "cobertura_por_cuenta_y_mes.csv", contenido: utf8(csv(coberturaResumen, Object.keys(coberturaResumen[0] ?? { cuenta_mp_id: 0 }))) });
+  archivos.push({ nombre: "cobertura_detalle.csv", contenido: utf8(csv(cobertura as unknown as Record<string, unknown>[], Object.keys(cobertura[0] ?? { cuenta_alias: 0 }))) });
+  archivos.push({ nombre: "controles.csv", contenido: utf8(csv(controles as unknown as Record<string, unknown>[], Object.keys(controles[0] ?? { cuenta_alias: 0 }))) });
+  archivos.push({ nombre: "diccionario.csv", contenido: utf8(csv(DICCIONARIO, ["campo", "tipo", "obligatorio", "descripcion", "ejemplo"])) });
+  archivos.push({ nombre: "manifiesto.json", contenido: utf8(JSON.stringify({ ...manifiesto, archivos: archivos.map((a) => a.nombre) }, null, 2)) });
+  return { zip: armarZip(archivos, ahora, true), nombre: `mercadopago-movimientos-${ejecucion}.zip`, resumen: { movimientos: movimientos.length, controles, problemas } };
+}
+
+/** La respuesta de descarga de un .zip, mandada de a pedazos. */
+export function respuestaZip(zip: Buffer, nombre: string) {
+  let i = 0;
+  const cuerpo = new ReadableStream<Uint8Array>({
+    pull(c) {
+      if (i >= zip.length) { c.close(); return; }
+      c.enqueue(new Uint8Array(zip.subarray(i, i + 512 * 1024)));
+      i += 512 * 1024;
+    },
+  });
+  return new Response(cuerpo, { headers: { "content-type": "application/zip", "content-disposition": `attachment; filename="${nombre}"`, "content-length": String(zip.length), "cache-control": "no-store" } });
 }

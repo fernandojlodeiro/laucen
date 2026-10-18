@@ -214,21 +214,24 @@ export async function colaDelEspacio(espacioId: number): Promise<ItemVista[]> {
 }
 
 /** Lo que hace falta para armar la exportación de las cuentas del espacio (sólo del esquema personal). */
-export async function datosExportacion(espacioId: number): Promise<import("@/lib/mercadopago/normalizar").DatosExport[]> {
+export async function datosExportacion(espacioId: number, o: { originalesDe?: number } = {}): Promise<import("@/lib/mercadopago/normalizar").DatosExport[]> {
   const cuentas = await consulta<{ id: number; mp_user_id: string; nombre: string | null; titular: string | null; documento: string | null }>(`
     select c.id::int, c.mp_user_id, c.nombre,
            (select s.datos->'usuario'->>'nombre' from personal.mp_sonda s where s.conexion_id = c.id order by s.ts desc limit 1) titular,
            (select s.datos->'usuario'->>'documento' from personal.mp_sonda s where s.conexion_id = c.id order by s.ts desc limit 1) documento
-      from personal.mp_conexion c where c.espacio_id = $1 order by c.id`, [espacioId]);
+      from personal.mp_conexion c where c.espacio_id = $1 and ($2::bigint is null or c.mp_user_id = $2) order by c.id`, [espacioId, o.originalesDe ?? null]);
   return Promise.all(cuentas.map(async (c) => ({
     cuenta: { id: c.id, mpUserId: Number(c.mp_user_id), alias: c.nombre ?? String(c.mp_user_id), titular: c.titular, documento: c.documento, ambito: "personal" as const },
-    // Sólo los de Liquidaciones de la cola (para el control de saldo); los movimientos y pagos salen de sus tablas.
-    archivos: await consulta(`select a.id::int, a.fuente, a.nombre, a.desde, a.hasta, a.bajado_ts bajado, a.contenido from personal.mp_archivo a
-      where a.conexion_id = $1 and a.fuente = 'release_report'
-        and exists (select 1 from personal.mp_item i where i.conexion_id = a.conexion_id and a.nombre = any(i.archivos)) order by a.id`, [c.id]),
-    movs: await consulta(`select clave, archivo, fila, extraido, movimiento_id, referencia_externa, tipo_original, fecha_operacion, fecha_operacion_original, fecha_saldo, fecha_liberacion,
-      moneda, importe_bruto, comision, impuestos, cupon, importe_neto, medio_pago, tipo_medio, descripcion from personal.mp_mov where conexion_id = $1 order by fecha_saldo nulls last, id`, [c.id]),
-    pagos: await consulta(`select pago_id, tipo, estado, descripcion, cobrador_id, pagador_id, importe, pagado, tipo_medio, medio, creado, actualizado from personal.mp_pago where conexion_id = $1`, [c.id]),
+    // Para los originales, todos los archivos de la cuenta tal cual; si no, sólo los de Liquidaciones de la cola (control de
+    // saldo y retiros), porque los movimientos y pagos salen de sus tablas.
+    archivos: await consulta(`select a.id::int, a.fuente, a.nombre, a.desde, a.hasta, a.bajado_ts bajado, a.contenido, a.sha256 from personal.mp_archivo a
+      where a.conexion_id = $1 and ($2::boolean or (a.fuente = 'release_report'
+        and exists (select 1 from personal.mp_item i where i.conexion_id = a.conexion_id and a.nombre = any(i.archivos)))) order by a.fuente, a.desde nulls first, a.id`,
+      [c.id, !!o.originalesDe]),
+    // Las filas sin neto (de un reporte que no tenía esa columna, ya vuelto a leer) no son movimientos válidos.
+    movs: o.originalesDe ? [] : await consulta(`select clave, archivo, fila, extraido, movimiento_id, referencia_externa, tipo_original, fecha_operacion, fecha_operacion_original, fecha_saldo, fecha_liberacion,
+      moneda, importe_bruto, comision, impuestos, cupon, importe_neto, medio_pago, tipo_medio, descripcion, destino from personal.mp_mov where conexion_id = $1 and importe_neto is not null order by fecha_saldo nulls last, id`, [c.id]),
+    pagos: o.originalesDe ? [] : await consulta(`select pago_id, tipo, estado, descripcion, cobrador_id, pagador_id, importe, pagado, tipo_medio, medio, creado, actualizado from personal.mp_pago where conexion_id = $1`, [c.id]),
     cola: await consulta(`select fuente, etiqueta, desde, hasta, estado, mensaje, archivos, actualizado_ts actualizado from personal.mp_item where conexion_id = $1 order by desde nulls first, id`, [c.id]),
   })));
 }
