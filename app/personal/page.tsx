@@ -110,7 +110,7 @@ export default async function EspacioPersonal({ searchParams }: { searchParams: 
             <table className={TABLA}>
               <thead className={THEAD}><tr>
                 <th className={TH}>Cuenta</th><th className={TH}>Titular</th><th className={TH}>Alta en Mercado Pago</th>
-                <th className={THN}>Cobros (API)</th><th className={TH}>Desde</th><th className={THN}>Pagos hechos (API)</th><th className={TH}>Desde</th>
+                <th className={THN}>Todos los pagos (API)</th><th className={TH}>Desde</th><th className={THN}>Pagos hechos (API)</th><th className={TH}>Desde</th>
                 <th className={THN}>Reportes de movimientos ya armados</th><th className={TH}>Desde</th><th className={THN}>Reportes de liquidaciones ya armados</th><th className={TH}>Desde</th>
               </tr></thead>
               <tbody>
@@ -131,7 +131,7 @@ export default async function EspacioPersonal({ searchParams }: { searchParams: 
               </tbody>
             </table>
           </div>
-          <p className="text-[11px] text-[#5C6B76] mt-1">La consulta de pagos de Mercado Pago llega sólo hasta unos 13 meses atrás; lo anterior sale de los reportes.</p>
+          <p className="text-[11px] text-[#5C6B76] mt-1">La consulta de pagos de Mercado Pago llega sólo hasta alrededor de un año atrás; lo anterior sale de los reportes.</p>
         </section>
       )}
 
@@ -165,7 +165,7 @@ export default async function EspacioPersonal({ searchParams }: { searchParams: 
                 {archivos.map((a) => (
                   <tr key={a.id} className={TR}>
                     <td className={TD}><Link href={`/personal/archivo/${a.id}`} prefetch={false} className="text-[#16577F] hover:underline">{a.nombre}</Link></td>
-                    <td className={TD}>{{ settlement_report: "Todas las transacciones", release_report: "Liquidaciones", payments_cobrados: "Pagos cobrados (API)", payments_hechos: "Pagos hechos (API)" }[a.fuente] ?? a.fuente}</td>
+                    <td className={TD}>{{ settlement_report: "Todas las transacciones", release_report: "Liquidaciones", payments_cobrados: "Todos los pagos de la cuenta (API)", payments_hechos: "Pagos hechos (API)" }[a.fuente] ?? a.fuente}</td>
                     <td className={TDN}>{kb(a.bytes)}</td><td className={TD}>{a.bajado}</td><td className={`${TD} font-mono text-[11px]`}>{a.sha}</td>
                   </tr>
                 ))}

@@ -9,7 +9,7 @@ resumen: Un lugar aparte de la empresa para conectar cuentas personales de Merca
 
 ## Para qué sirve
 
-Sirve para conectar **cuentas personales de Mercado Pago** y sacar su información (movimientos, pagos hechos y cobrados, reportes de Mercado Pago) **sin mezclarla con los datos de la empresa**. Lo que se conecta y se baja acá no aparece en ninguna pantalla, informe, búsqueda ni consulta del asistente de la empresa, y lo de la empresa tampoco aparece acá. **Sólo lee** de Mercado Pago y le pide reportes: nunca mueve plata, paga, transfiere ni cambia permisos.
+Sirve para conectar **cuentas personales de Mercado Pago** y sacar su información (movimientos, pagos hechos y recibidos, reportes de Mercado Pago) **sin mezclarla con los datos de la empresa**. Lo que se conecta y se baja acá no aparece en ninguna pantalla, informe, búsqueda ni consulta del asistente de la empresa, y lo de la empresa tampoco aparece acá. **Sólo lee** de Mercado Pago y le pide reportes: nunca mueve plata, paga, transfiere ni cambia permisos.
 
 ## Cómo se llega
 
@@ -24,7 +24,7 @@ Con el botón **«Personal»** de la barra de arriba, al lado de «Salir» (en e
 ## Qué hay en la pantalla
 
 - **Cuentas de Mercado Pago**: cada cuenta conectada, su número en Mercado Pago, si está conectada, cuándo se conectó y los botones para sacar información.
-- **Qué se puede sacar de cada cuenta**: después del inventario, el titular, la fecha de alta y desde cuándo hay datos en cada fuente (pagos cobrados, pagos hechos y los reportes que Mercado Pago ya tiene armados).
+- **Qué se puede sacar de cada cuenta**: después del inventario, el titular, la fecha de alta y desde cuándo hay datos en cada fuente (todos los pagos de la cuenta, los que hizo la cuenta y los reportes que Mercado Pago ya tiene armados).
 - **Lo último que se hizo**: lo que se pidió y cómo terminó.
 - **Archivos bajados**: los archivos tal cual los entregó Mercado Pago, con su tamaño, cuándo se bajaron y una comprobación (para saber si dos archivos son idénticos). Tocando el nombre se baja.
 - **Qué contestó Mercado Pago**: cada pedido y su respuesta, para revisar si algo falló.
@@ -44,13 +44,14 @@ Apretá «Hacer inventario» en la fila de la cuenta. Trabaja de fondo (podés i
 
 ### Bajar un mes
 
-1. En la columna «Un mes», elegí el mes y apretá «Pedir reportes y pagos»: le pide a Mercado Pago el reporte de todas las transacciones y el de liquidaciones de ese mes, y baja en el momento los pagos cobrados y hechos.
+1. En la columna «Un mes», elegí el mes y apretá «Pedir reportes y pagos»: le pide a Mercado Pago el reporte de todas las transacciones y el de liquidaciones de ese mes, y baja en el momento todos los pagos de la cuenta y, aparte, los que hizo la cuenta.
 2. Mercado Pago tarda unos minutos en armar los reportes. Después, con el mismo mes elegido, apretá «Bajar reportes del mes».
 
 ## Criterios y reglas
 
 - Los meses van de 00:00 del día 1 a las 23:59:59 del último día, en hora argentina.
-- La consulta de pagos de Mercado Pago llega sólo hasta unos 13 meses atrás; lo anterior se saca de los reportes.
+- La consulta de pagos de Mercado Pago llega sólo hasta alrededor de un año atrás; lo anterior se saca de los reportes.
+- «Todos los pagos de la cuenta» trae lo que la cuenta cobró y también lo que pagó; «Pagos hechos» trae sólo lo que pagó. Para no contar dos veces, el sentido de cada pago se mira en el detalle, no por el archivo en que vino.
 - Un archivo se guarda tal cual vino. Si se baja dos veces sin cambios, no se repite; si Mercado Pago lo rearmó distinto, queda la versión nueva al lado.
 - Desconectar una cuenta borra su llave y todo lo que se bajó de ella.
 - Mientras algo corre, los demás botones esperan: se hace una cosa por vez.

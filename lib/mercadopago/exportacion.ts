@@ -122,7 +122,9 @@ export async function sondearTodas(org?: string): Promise<{ conexion: number; no
 //   2. si la cuenta no tiene configurado ese reporte para pedirlo por API, se
 //      configura (CSV, hora argentina, las mismas columnas del reporte viejo);
 //   3. se piden Todas las transacciones y Liquidaciones del período;
-//   4. se bajan todos los pagos del período (cobrados y hechos) por la API.
+//   4. se bajan todos los pagos del período por la API: "payments_cobrados" trae
+//      todos aquellos en que participa la cuenta (en una cuenta personal, también
+//      lo que pagó), y "payments_hechos" sólo los que pagó (payer.id).
 // Lo que contesta cada paso queda en mp_export_paso; los archivos, en
 // mp_export_archivo sin tocar. Los reportes pedidos se bajan después
 // (Mercado Pago los arma en unos minutos): bajarReportes().
@@ -232,9 +234,19 @@ export async function muestraMes(d: Destino, mes: string) {
       frequency: { hour: 0, type: "monthly", value: 1 }, columns: lista.map((key) => ({ key })) });
     let r = await mpPedir(token, "POST", "/v1/account/settlement_report/config", cuerpo(cols));
     await d.anotar("configurar Todas las transacciones", r.status, { columnas: cols, respuesta: corto(r.datos, 1500) });
-    if (!ok(r) && columnas.length) {
-      r = await mpPedir(token, "POST", "/v1/account/settlement_report/config", cuerpo(columnas));
-      await d.anotar("configurar Todas las transacciones (sólo las columnas del reporte viejo)", r.status, { columnas, respuesta: corto(r.datos, 1500) });
+    // Si Mercado Pago no acepta alguna columna (contesta 400 sin decir cuál), se prueba con las
+    // del reporte viejo de la cuenta o, si no tiene ninguno, con las 17 básicas que trae todo
+    // reporte de Todas las transacciones; y por último con lo mínimo (columnas, nombre y hora).
+    const BASICAS = BASE.slice(0, 17);
+    const segunda = columnas.length ? columnas : BASICAS;
+    if (!ok(r)) {
+      r = await mpPedir(token, "POST", "/v1/account/settlement_report/config", cuerpo(segunda));
+      await d.anotar("configurar Todas las transacciones (columnas básicas)", r.status, { columnas: segunda, respuesta: corto(r.datos, 1500) });
+    }
+    if (!ok(r)) {
+      r = await mpPedir(token, "POST", "/v1/account/settlement_report/config",
+        { columns: segunda.map((key) => ({ key })), file_name_prefix: "laucen-todas", display_timezone: "GMT-03" });
+      await d.anotar("configurar Todas las transacciones (lo mínimo)", r.status, { columnas: segunda, respuesta: corto(r.datos, 1500) });
     }
   } else await d.anotar("leer configuración de Todas las transacciones", conf.status, conf.datos);
 
