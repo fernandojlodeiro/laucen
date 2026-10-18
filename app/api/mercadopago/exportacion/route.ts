@@ -10,6 +10,8 @@ import { pool } from "@/db";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { sondearTodas, muestraMes, bajarReportes, destinoEmpresa } from "@/lib/mercadopago/exportacion";
 import { encolar, vuelta } from "@/lib/mercadopago/cola-export";
+import { datosExportacionEmpresa } from "@/lib/mercadopago/exportacion";
+import { normalizar } from "@/lib/mercadopago/normalizar";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -31,6 +33,17 @@ export async function GET(req: Request) {
 async function correr(q: URLSearchParams) {
   const accion = q.get("accion"), conexion = Number(q.get("conexion")), mes = q.get("mes") ?? "";
   if (accion === "sonda") return Response.json(await sondearTodas(q.get("org") ?? undefined));
+  // Para revisar la exportación de la empresa sin bajar el .zip: controles, problemas y totales por cuenta, mes y tipo.
+  if (accion === "resumen" && q.get("org")) {
+    const { movimientos, controles, problemas } = await normalizar(await datosExportacionEmpresa(q.get("org")!));
+    const porTipo: Record<string, { filas: number; neto: number }> = {};
+    for (const m of movimientos) {
+      const k = `${m.cuenta_alias}|${m.tramo}|${m.tipo_original}|${m.direccion}`;
+      porTipo[k] ??= { filas: 0, neto: 0 };
+      porTipo[k].filas++; porTipo[k].neto = Math.round((porTipo[k].neto + (m.importe_neto ?? 0)) * 100) / 100;
+    }
+    return Response.json({ movimientos: movimientos.length, controles, problemas, porTipo });
+  }
   // La vuelta de la cola (pg_cron 'mp-export', db/personal.sql): empresa y espacios personales.
   if (accion === "vuelta") return Response.json(await vuelta());
   // Poner en la cola los meses de una cuenta de la empresa (?desde=AAAA-MM&hasta=AAAA-MM&parcial=1).
