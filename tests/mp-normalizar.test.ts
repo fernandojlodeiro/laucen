@@ -106,6 +106,7 @@ test("paquete: consolidado de varias cuentas sin duplicados, retiros que faltan 
     "2025-10-20T12:00:00.000-03:00;555;payout;0.00;100000.00;269051.00",
     ";;;269051.00;0.00;0.00",
   ].join("\n"), "2026-10-18T00:00:00Z", "release_report");
+  for (const a of [todas, liq]) Object.assign(a, { desde, hasta });
   const cola = [{ fuente: "release_report", etiqueta: "2025-10", desde, hasta, estado: "listo", mensaje: null, archivos: ["liq.csv"], actualizado: new Date() },
     { fuente: "settlement_report", etiqueta: "2025-10", desde, hasta, estado: "listo", mensaje: null, archivos: ["todas.csv"], actualizado: new Date() }];
   const datos: DatosExport[] = [
