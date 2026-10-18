@@ -71,7 +71,8 @@ async function ajustarConfig(d: Destino, token: string): Promise<string> {
   let conf = await mpPedir<Conf>(token, "GET", "/v1/account/settlement_report/config");
   if (conf.status === 404) {
     const r = await mpPedir(token, "POST", "/v1/account/settlement_report/config",
-      { columns: BASICAS.map((key) => ({ key })), file_name_prefix: "laucen-todas", display_timezone: "GMT-03" });
+      // La frecuencia es obligatoria al crearla (no programa nada: eso es aparte, con /schedule).
+      { columns: BASICAS.map((key) => ({ key })), file_name_prefix: "laucen-todas", display_timezone: "GMT-03", frequency: { hour: 0, type: "monthly", value: 1 } });
     await d.anotar("crear configuración de Todas las transacciones", r.status, corto(r.datos, 800));
     conf = await mpPedir<Conf>(token, "GET", "/v1/account/settlement_report/config");
   }
