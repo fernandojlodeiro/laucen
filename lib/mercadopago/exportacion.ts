@@ -138,6 +138,10 @@ export type Destino = {
   mpUserId: number;
   anotar: (paso: string, status: number | null, datos: unknown) => Promise<void>;
   guardar: (fuente: string, nombre: string, desde: string | null, hasta: string | null, bytes: Buffer, sha256: string) => Promise<void>;
+  /** Las tablas de esta cuenta (de la empresa o del esquema personal) y su organización (null en lo personal). */
+  conexionId: number;
+  tablas: { archivo: string; mov: string; pago: string };
+  org: string | null;
   /** Los nombres de los archivos ya bajados de la cuenta (para no volver a bajar los mismos). */
   bajados: () => Promise<Set<string>>;
   cola: Cola;
@@ -195,6 +199,7 @@ export async function destinoEmpresa(conexionId: number): Promise<Destino | null
   return {
     token: () => tokenDeConexion(conexionId),
     mpUserId: Number(c.mp_user_id),
+    conexionId, tablas: { archivo: "mp_export_archivo", mov: "mp_export_mov", pago: "mp_export_pago" }, org,
     anotar: async (paso, status, datos) => {
       await consulta("insert into mp_export_paso (organizacion_id, conexion_id, paso, status, datos) values ($1, $2, $3, $4, $5)",
         [org, conexionId, paso, status, JSON.stringify(datos ?? null)]);
@@ -357,7 +362,13 @@ export async function datosExportacionEmpresa(org: string): Promise<import("@/li
       from mp_conexion c where c.organizacion_id = $1 order by c.id`, [org]);
   return Promise.all(cuentas.map(async (c) => ({
     cuenta: { id: c.id, mpUserId: Number(c.mp_user_id), alias: c.nombre ?? String(c.mp_user_id), titular: c.titular, documento: c.documento, ambito: "empresa" as const },
-    archivos: await consulta(`select id::int, fuente, nombre, desde, hasta, bajado_ts bajado, contenido from mp_export_archivo where conexion_id = $1 and organizacion_id = $2 order by id`, [c.id, org]),
+    // Sólo los de Liquidaciones de la cola (para el control de saldo); los movimientos y pagos salen de sus tablas.
+    archivos: await consulta(`select a.id::int, a.fuente, a.nombre, a.desde, a.hasta, a.bajado_ts bajado, a.contenido from mp_export_archivo a
+      where a.conexion_id = $1 and a.organizacion_id = $2 and a.fuente = 'release_report'
+        and exists (select 1 from mp_export_item i where i.conexion_id = a.conexion_id and a.nombre = any(i.archivos)) order by a.id`, [c.id, org]),
+    movs: await consulta(`select clave, archivo, fila, extraido, movimiento_id, referencia_externa, tipo_original, fecha_operacion, fecha_operacion_original, fecha_saldo, fecha_liberacion,
+      moneda, importe_bruto, comision, impuestos, cupon, importe_neto, medio_pago, tipo_medio, descripcion from mp_export_mov where conexion_id = $1 and organizacion_id = $2 order by fecha_saldo nulls last, id`, [c.id, org]),
+    pagos: await consulta(`select pago_id, tipo, estado, descripcion, cobrador_id, pagador_id, importe, pagado, tipo_medio, medio, creado, actualizado from mp_export_pago where conexion_id = $1 and organizacion_id = $2`, [c.id, org]),
     cola: await consulta(`select fuente, etiqueta, desde, hasta, estado, mensaje, archivos, actualizado_ts actualizado from mp_export_item where conexion_id = $1 and organizacion_id = $2 order by desde nulls first, id`, [c.id, org]),
   })));
 }

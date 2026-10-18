@@ -21,7 +21,20 @@ const ZONA = "America/Argentina/Cordoba";
 export type CuentaExport = { id: number; mpUserId: number; alias: string; titular: string | null; documento: string | null; ambito: "empresa" | "personal" };
 export type ArchivoExport = { id: number; fuente: string; nombre: string; desde: Date | null; hasta: Date | null; bajado: Date; contenido: Buffer };
 export type ItemExport = { fuente: string; etiqueta: string; desde: Date | null; hasta: Date | null; estado: string; mensaje: string | null; archivos: string[] | null; actualizado: Date };
-export type DatosExport = { cuenta: CuentaExport; archivos: ArchivoExport[]; cola: ItemExport[] };
+/** Una fila de «Todas las transacciones» ya leída (tal cual se guarda en la tabla de movimientos). */
+export type MovBase = {
+  clave: string; archivo: string; fila: number; extraido: Date; movimiento_id: string | null; referencia_externa: string | null; tipo_original: string;
+  fecha_operacion: Date | null; fecha_operacion_original: string | null; fecha_saldo: Date | null; fecha_liberacion: Date | null; moneda: string | null;
+  importe_bruto: number | null; comision: number | null; impuestos: number | null; cupon: number | null; importe_neto: number | null;
+  medio_pago: string | null; tipo_medio: string | null; descripcion: string | null;
+};
+/** Un pago de la API, con lo que hace falta. */
+export type PagoBase = {
+  pago_id: string; tipo: string | null; estado: string | null; descripcion: string | null; cobrador_id: string | null; pagador_id: string | null;
+  importe: number | null; pagado: number | null; tipo_medio: string | null; medio: string | null; creado: Date | null; actualizado: Date | null;
+};
+/** De una cuenta: sus archivos (al menos los de Liquidaciones de la cola) y, si ya están pasados a tablas, sus movimientos y pagos. */
+export type DatosExport = { cuenta: CuentaExport; archivos: ArchivoExport[]; cola: ItemExport[]; movs?: MovBase[]; pagos?: PagoBase[] };
 
 // ── Lectura de los archivos de Mercado Pago ─────────────────────────────
 
@@ -65,7 +78,7 @@ export function leerCsvMp(texto: string): { cab: string[]; filas: string[][] } {
   return { cab: partir(lineas[0]).map((h) => h.toUpperCase()), filas: lineas.slice(1).map(partir) };
 }
 
-async function leerArchivo(a: ArchivoExport): Promise<{ cab: string[]; filas: string[][] } | null> {
+export async function leerArchivo(a: ArchivoExport): Promise<{ cab: string[]; filas: string[][] } | null> {
   if (a.nombre.endsWith(".xlsx")) {
     try {
       const libro = new ExcelJS.Workbook();
@@ -79,6 +92,8 @@ async function leerArchivo(a: ArchivoExport): Promise<{ cab: string[]; filas: st
   return leerCsvMp(a.contenido.toString("utf8"));
 }
 
+/** Los importes que vienen de la base llegan como texto (numeric): a número. */
+const n = (x: number | string | null | undefined) => (x == null ? null : Number(x));
 const num = (s: string | undefined) => (s == null || s.trim() === "" ? null : Number(s.replace(/,(?=\d{1,2}$)/, ".")));
 const instante = (s: string | undefined) => {
   if (!s) return null;
@@ -87,6 +102,44 @@ const instante = (s: string | undefined) => {
 };
 const local = (d: Date | null) => (d ? d.toLocaleString("sv-SE", { timeZone: ZONA }).replace(" ", "T") + "-03:00" : null);
 const mesDe = (d: Date | null) => (d ? d.toLocaleDateString("sv-SE", { timeZone: ZONA }).slice(0, 7) : null);
+
+/** Las filas de un archivo de «Todas las transacciones», con su clave sin duplicados: el contenido de
+ *  la fila (cuenta, id, tipo, fecha de saldo, neto, referencia) y #n si el mismo archivo la trae n veces. */
+export function filasDeSettlement(mpUserId: number, a: { nombre: string; bajado: Date }, t: { cab: string[]; filas: string[][] }): MovBase[] {
+  const veces = new Map<string, number>();
+  const salida: MovBase[] = [];
+  t.filas.forEach((f, i) => {
+    const v: Record<string, string> = {};
+    t.cab.forEach((h, k) => { v[h] = f[k] ?? ""; });
+    if (!v.TRANSACTION_TYPE) return;
+    const fSaldo = instante(v.SETTLEMENT_DATE), fOp = instante(v.TRANSACTION_DATE);
+    const base = [mpUserId, "settlement", v.SOURCE_ID, v.TRANSACTION_TYPE, (fSaldo ?? fOp)?.toISOString() ?? v.TRANSACTION_DATE, num(v.SETTLEMENT_NET_AMOUNT) ?? "", v.EXTERNAL_REFERENCE].join("|");
+    const nro = (veces.get(base) ?? 0) + 1;
+    veces.set(base, nro);
+    salida.push({
+      clave: `${base}#${nro}`, archivo: a.nombre, fila: i + 2, extraido: a.bajado, movimiento_id: v.SOURCE_ID || null, referencia_externa: v.EXTERNAL_REFERENCE || null,
+      tipo_original: v.TRANSACTION_TYPE, fecha_operacion: fOp, fecha_operacion_original: v.TRANSACTION_DATE || null, fecha_saldo: fSaldo, fecha_liberacion: instante(v.MONEY_RELEASE_DATE),
+      moneda: v.SETTLEMENT_CURRENCY || v.TRANSACTION_CURRENCY || null, importe_bruto: num(v.TRANSACTION_AMOUNT), comision: num(v.FEE_AMOUNT),
+      impuestos: v.TAXES_AMOUNT !== undefined ? num(v.TAXES_AMOUNT) : null, cupon: num(v.COUPON_AMOUNT), importe_neto: num(v.SETTLEMENT_NET_AMOUNT),
+      medio_pago: v.PAYMENT_METHOD || null, tipo_medio: v.PAYMENT_METHOD_TYPE || null, descripcion: v.DESCRIPTION || null,
+    });
+  });
+  return salida;
+}
+
+/** Los pagos de un archivo de la API (JSON tal cual lo dio Mercado Pago). */
+export function pagosDeArchivo(contenido: Buffer): PagoBase[] {
+  type J = { id: number | string; operation_type?: string; status?: string; description?: string | null; collector_id?: number | null; collector?: { id?: number | null } | null;
+    payer_id?: string | number | null; payer?: { id?: string | number | null } | null; transaction_amount?: number; transaction_details?: { total_paid_amount?: number };
+    payment_type_id?: string; payment_method_id?: string; date_created?: string; date_last_updated?: string };
+  return (JSON.parse(contenido.toString("utf8")) as J[]).map((j) => ({
+    pago_id: String(j.id), tipo: j.operation_type ?? null, estado: j.status ?? null, descripcion: j.description ?? null,
+    cobrador_id: j.collector?.id != null ? String(j.collector.id) : j.collector_id != null ? String(j.collector_id) : null,
+    pagador_id: j.payer_id != null ? String(j.payer_id) : j.payer?.id != null ? String(j.payer.id) : null,
+    importe: j.transaction_amount ?? null, pagado: j.transaction_details?.total_paid_amount ?? null, tipo_medio: j.payment_type_id ?? null, medio: j.payment_method_id ?? null,
+    creado: instante(j.date_created), actualizado: instante(j.date_last_updated),
+  }));
+}
 
 // ── La fila normalizada ─────────────────────────────────────────────────
 
@@ -106,9 +159,6 @@ const TIPOS: Record<string, string> = {
   SETTLEMENT: "operación aprobada", REFUND: "devolución", CHARGEBACK: "contracargo", DISPUTE: "reclamo", WITHDRAWAL: "retiro a cuenta bancaria",
   WITHDRAWAL_CANCEL: "retiro cancelado", PAYOUT: "retiro en efectivo", SETTLEMENT_SHIPPING: "costo de envío", DISPUTE_SHIPPING: "envío de reclamo",
 };
-
-type Pago = { id: number; operation_type?: string; status?: string; description?: string | null; collector_id?: number | null; payer?: { id?: number | string | null; email?: string | null } | null;
-  transaction_details?: { total_paid_amount?: number }; date_created?: string };
 
 /** El tramo de análisis: el año comparable (12 meses cerrados hasta el mes anterior), el mes en curso (parcial) o lo anterior. */
 export function tramoDe(mes: string | null, ahora = new Date()) {
@@ -148,59 +198,46 @@ export async function normalizar(datos: DatosExport[], ahora = new Date()) {
   const cobertura: Cobertura[] = [];
   const problemas: Problema[] = [];
 
-  for (const { cuenta, archivos, cola } of datos) {
+  for (const d of datos) {
+    const { cuenta, archivos, cola } = d;
     // Pagos de la API (el más nuevo de cada id), para completar la información de cada movimiento.
-    const pagos = new Map<string, Pago>();
-    for (const a of archivos.filter((x) => x.fuente.startsWith("payments")).sort((x, y) => +x.bajado - +y.bajado)) {
-      try { for (const p of JSON.parse(a.contenido.toString("utf8")) as Pago[]) pagos.set(String(p.id), p); } catch { problemas.push({ cuenta_alias: cuenta.alias, archivo: a.nombre, motivo: "no se pudo leer" }); }
+    const pagos = new Map<string, PagoBase>();
+    if (d.pagos) for (const p of d.pagos) pagos.set(p.pago_id, p);
+    else for (const a of archivos.filter((x) => x.fuente.startsWith("payments")).sort((x, y) => +x.bajado - +y.bajado)) {
+      try { for (const p of pagosDeArchivo(a.contenido)) pagos.set(p.pago_id, p); } catch { problemas.push({ cuenta_alias: cuenta.alias, archivo: a.nombre, motivo: "no se pudo leer" }); }
     }
 
-    // Todas las transacciones: sin duplicados entre archivos que se pisan. Cada fila se identifica por
-    // su contenido (cuenta, id, tipo, fecha, neto); si un archivo la trae n veces, cuentan n (la mayor
-    // cantidad entre archivos), tomando las del archivo bajado más recientemente.
-    const porClave = new Map<string, { veces: number; filas: { a: ArchivoExport; fila: number; v: Record<string, string> }[]; bajado: number }>();
-    for (const a of archivos.filter((x) => x.fuente === "settlement_report")) {
-      const t = await leerArchivo(a);
-      if (!t || !t.cab.includes("SOURCE_ID") || !t.cab.includes("TRANSACTION_TYPE")) { problemas.push({ cuenta_alias: cuenta.alias, archivo: a.nombre, motivo: "formato no reconocido (sin SOURCE_ID / TRANSACTION_TYPE)" }); continue; }
-      const enEste = new Map<string, { a: ArchivoExport; fila: number; v: Record<string, string> }[]>();
-      t.filas.forEach((f, i) => {
-        const v: Record<string, string> = {};
-        t.cab.forEach((h, k) => { v[h] = f[k] ?? ""; });
-        if (!v.TRANSACTION_TYPE) return;
-        const fecha = instante(v.SETTLEMENT_DATE || v.TRANSACTION_DATE)?.toISOString() ?? v.TRANSACTION_DATE;
-        const clave = [cuenta.mpUserId, "settlement", v.SOURCE_ID, v.TRANSACTION_TYPE, fecha, num(v.SETTLEMENT_NET_AMOUNT) ?? "", v.EXTERNAL_REFERENCE].join("|");
-        const l = enEste.get(clave) ?? [];
-        l.push({ a, fila: i + 2, v });
-        enEste.set(clave, l);
-      });
-      for (const [clave, l] of enEste) {
-        const ya = porClave.get(clave);
-        if (!ya || l.length > ya.veces || (l.length === ya.veces && +a.bajado > ya.bajado)) porClave.set(clave, { veces: l.length, filas: l, bajado: +a.bajado });
+    // Todas las transacciones, sin duplicados: ya pasadas a movimientos (d.movs) o, si no, leídas de
+    // los archivos (el más reciente primero; la misma clave en otro archivo no se repite).
+    let movs = d.movs;
+    if (!movs) {
+      const vistas = new Set<string>();
+      movs = [];
+      for (const a of archivos.filter((x) => x.fuente === "settlement_report").sort((x, y) => +y.bajado - +x.bajado)) {
+        const t = await leerArchivo(a);
+        if (!t || !t.cab.includes("SOURCE_ID") || !t.cab.includes("TRANSACTION_TYPE")) { problemas.push({ cuenta_alias: cuenta.alias, archivo: a.nombre, motivo: "formato no reconocido (sin SOURCE_ID / TRANSACTION_TYPE)" }); continue; }
+        for (const m of filasDeSettlement(cuenta.mpUserId, a, t)) if (!vistas.has(m.clave)) { vistas.add(m.clave); movs.push(m); }
       }
     }
-    for (const [clave, { filas }] of porClave) {
-      filas.forEach(({ a, fila, v }, n) => {
-        const neto = num(v.SETTLEMENT_NET_AMOUNT);
-        const fOp = instante(v.TRANSACTION_DATE), fSaldo = instante(v.SETTLEMENT_DATE), fLib = instante(v.MONEY_RELEASE_DATE);
-        const p = v.SOURCE_ID ? pagos.get(v.SOURCE_ID) : undefined;
-        const direccion = neto == null || neto === 0 ? "sin efecto" : neto > 0 ? "entrada" : "salida";
-        const contra = p ? (String(p.collector_id ?? "") === String(cuenta.mpUserId) ? `pagador ${p.payer?.id ?? "?"}` : `cobrador ${p.collector_id ?? "?"}`) : null;
-        const mes = mesDe(fSaldo ?? fOp);
-        const m: Movimiento = {
-          version_esquema: VERSION_ESQUEMA, cuenta_mp_id: cuenta.mpUserId, cuenta_alias: cuenta.alias, titular: cuenta.titular, ambito_cuenta: cuenta.ambito,
-          fuente: "Todas las transacciones", archivo: a.nombre, fila, extraido: a.bajado.toISOString(),
-          movimiento_id: v.SOURCE_ID || null, referencia_externa: v.EXTERNAL_REFERENCE || null, tipo_original: v.TRANSACTION_TYPE, tipo: TIPOS[v.TRANSACTION_TYPE] ?? v.TRANSACTION_TYPE.toLowerCase(), direccion,
-          fecha_operacion: local(fOp), fecha_operacion_original: v.TRANSACTION_DATE || null, fecha_saldo: local(fSaldo), fecha_liberacion: local(fLib), mes, tramo: tramoDe(mes, ahora),
-          moneda: v.SETTLEMENT_CURRENCY || v.TRANSACTION_CURRENCY || null, importe_bruto: num(v.TRANSACTION_AMOUNT), comision: num(v.FEE_AMOUNT),
-          impuestos: v.TAXES_AMOUNT !== undefined ? num(v.TAXES_AMOUNT) : null, cupon: num(v.COUPON_AMOUNT), importe_neto: neto,
-          medio_pago: v.PAYMENT_METHOD || null, tipo_medio: v.PAYMENT_METHOD_TYPE || null, descripcion: v.DESCRIPTION || null,
-          api_tipo: p?.operation_type ?? null, api_estado: p?.status ?? null, api_descripcion: p?.description ?? null, api_pagado: p?.transaction_details?.total_paid_amount ?? null, api_contraparte: contra,
-          clave_dedup: `${clave}#${n + 1}`,
-          categoria_propuesta: "", ambito_gasto: "sin clasificar", sociedad_atribuida: null, recurrencia: "", grupo_conciliacion: null, regla_aplicada: null, estado_revision: "pendiente",
-        };
-        Object.assign(m, clasificar(m));
-        movimientos.push(m);
-      });
+    for (const b of movs) {
+      const neto = b.importe_neto;
+      const p = b.movimiento_id ? pagos.get(b.movimiento_id) : undefined;
+      const direccion = neto == null || neto === 0 ? "sin efecto" : neto > 0 ? "entrada" : "salida";
+      const contra = p ? (p.cobrador_id === String(cuenta.mpUserId) ? p.pagador_id : p.cobrador_id) : null;
+      const mes = mesDe(b.fecha_saldo ?? b.fecha_operacion);
+      const m: Movimiento = {
+        version_esquema: VERSION_ESQUEMA, cuenta_mp_id: cuenta.mpUserId, cuenta_alias: cuenta.alias, titular: cuenta.titular, ambito_cuenta: cuenta.ambito,
+        fuente: "Todas las transacciones", archivo: b.archivo, fila: b.fila, extraido: new Date(b.extraido).toISOString(),
+        movimiento_id: b.movimiento_id, referencia_externa: b.referencia_externa, tipo_original: b.tipo_original, tipo: TIPOS[b.tipo_original] ?? b.tipo_original.toLowerCase(), direccion,
+        fecha_operacion: local(b.fecha_operacion), fecha_operacion_original: b.fecha_operacion_original, fecha_saldo: local(b.fecha_saldo), fecha_liberacion: local(b.fecha_liberacion), mes, tramo: tramoDe(mes, ahora),
+        moneda: b.moneda, importe_bruto: n(b.importe_bruto), comision: n(b.comision), impuestos: n(b.impuestos), cupon: n(b.cupon), importe_neto: n(neto),
+        medio_pago: b.medio_pago, tipo_medio: b.tipo_medio, descripcion: b.descripcion,
+        api_tipo: p?.tipo ?? null, api_estado: p?.estado ?? null, api_descripcion: p?.descripcion ?? null, api_pagado: n(p?.pagado ?? null), api_contraparte: contra ? `cuenta ${contra}` : null,
+        clave_dedup: b.clave,
+        categoria_propuesta: "", ambito_gasto: "sin clasificar", sociedad_atribuida: null, recurrencia: "", grupo_conciliacion: null, regla_aplicada: null, estado_revision: "pendiente",
+      };
+      Object.assign(m, clasificar(m));
+      movimientos.push(m);
     }
 
     // Liquidaciones de cada mes de la cola: saldo inicial y final, y retiros a banco.

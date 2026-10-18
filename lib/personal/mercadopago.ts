@@ -57,6 +57,7 @@ export function destinoPersonal(conexionId: number, mpUserId: number): Destino {
   return {
     token: () => tokenPersonal(conexionId),
     mpUserId,
+    conexionId, tablas: { archivo: "personal.mp_archivo", mov: "personal.mp_mov", pago: "personal.mp_pago" }, org: null,
     anotar: async (paso, status, datos) => {
       await consulta("insert into personal.mp_paso (conexion_id, paso, status, datos) values ($1, $2, $3, $4)", [conexionId, paso, status, JSON.stringify(datos ?? null)]);
     },
@@ -221,7 +222,13 @@ export async function datosExportacion(espacioId: number): Promise<import("@/lib
       from personal.mp_conexion c where c.espacio_id = $1 order by c.id`, [espacioId]);
   return Promise.all(cuentas.map(async (c) => ({
     cuenta: { id: c.id, mpUserId: Number(c.mp_user_id), alias: c.nombre ?? String(c.mp_user_id), titular: c.titular, documento: c.documento, ambito: "personal" as const },
-    archivos: await consulta(`select id::int, fuente, nombre, desde, hasta, bajado_ts bajado, contenido from personal.mp_archivo where conexion_id = $1 order by id`, [c.id]),
+    // Sólo los de Liquidaciones de la cola (para el control de saldo); los movimientos y pagos salen de sus tablas.
+    archivos: await consulta(`select a.id::int, a.fuente, a.nombre, a.desde, a.hasta, a.bajado_ts bajado, a.contenido from personal.mp_archivo a
+      where a.conexion_id = $1 and a.fuente = 'release_report'
+        and exists (select 1 from personal.mp_item i where i.conexion_id = a.conexion_id and a.nombre = any(i.archivos)) order by a.id`, [c.id]),
+    movs: await consulta(`select clave, archivo, fila, extraido, movimiento_id, referencia_externa, tipo_original, fecha_operacion, fecha_operacion_original, fecha_saldo, fecha_liberacion,
+      moneda, importe_bruto, comision, impuestos, cupon, importe_neto, medio_pago, tipo_medio, descripcion from personal.mp_mov where conexion_id = $1 order by fecha_saldo nulls last, id`, [c.id]),
+    pagos: await consulta(`select pago_id, tipo, estado, descripcion, cobrador_id, pagador_id, importe, pagado, tipo_medio, medio, creado, actualizado from personal.mp_pago where conexion_id = $1`, [c.id]),
     cola: await consulta(`select fuente, etiqueta, desde, hasta, estado, mensaje, archivos, actualizado_ts actualizado from personal.mp_item where conexion_id = $1 order by desde nulls first, id`, [c.id]),
   })));
 }

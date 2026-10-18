@@ -13,6 +13,7 @@ import { consulta } from "@/lib/erp/base";
 import { mpPedir } from "@/lib/mercadopago/conexion";
 import { bajarCrudo, guardarArchivo, todosLosPagos, destinoEmpresa, type Destino, type Item } from "@/lib/mercadopago/exportacion";
 import { destinoPersonal } from "@/lib/personal/mercadopago";
+import { procesarArchivos } from "@/lib/mercadopago/procesar";
 
 const ok = (s: number) => s >= 200 && s < 300;
 const corto = (d: unknown, n = 300) => (typeof d === "string" ? d : JSON.stringify(d ?? null)).slice(0, n);
@@ -243,13 +244,17 @@ async function vueltaCuenta(d: Destino, hasta: number, tope = 8) {
   return n;
 }
 
-/** La vuelta de todas las cuentas (empresa y personales) con algo en la cola; en paralelo por cuenta. */
+/** La vuelta de todas las cuentas (empresa y personales) con algo en la cola o archivos sin pasar a
+ *  movimientos; en paralelo por cuenta. */
 export async function vuelta(segundos = 240) {
   const hasta = Date.now() + segundos * 1000;
-  const empresa = await consulta<{ id: number }>("select distinct conexion_id::int id from mp_export_item where estado in ('pendiente', 'pedido') and proximo_ts <= now()");
+  const empresa = await consulta<{ id: number }>(`
+    select conexion_id::int id from mp_export_item where estado in ('pendiente', 'pedido') and proximo_ts <= now()
+    union select conexion_id::int from mp_export_archivo where not procesado`);
   const personales = await consulta<{ id: number; mp_user_id: string }>(`
-    select distinct c.id::int, c.mp_user_id from personal.mp_item i join personal.mp_conexion c on c.id = i.conexion_id
-     where i.estado in ('pendiente', 'pedido') and i.proximo_ts <= now()`);
+    select c.id::int, c.mp_user_id from personal.mp_conexion c
+     where exists (select 1 from personal.mp_item i where i.conexion_id = c.id and i.estado in ('pendiente', 'pedido') and i.proximo_ts <= now())
+        or exists (select 1 from personal.mp_archivo a where a.conexion_id = c.id and not a.procesado)`);
   const destinos: Destino[] = [];
   for (const e of empresa) { const d = await destinoEmpresa(e.id); if (d) destinos.push(d); }
   for (const p of personales) destinos.push(destinoPersonal(p.id, Number(p.mp_user_id)));
@@ -257,8 +262,10 @@ export async function vuelta(segundos = 240) {
     let total = 0;
     while (Date.now() < hasta) {
       const n = await vueltaCuenta(d, hasta).catch(() => 0);
-      if (!n) break;
-      total += n;
+      // Lo bajado, a movimientos (de a poco, dejando tiempo para lo demás).
+      const p = Date.now() < hasta - 30_000 ? await procesarArchivos(d).catch(() => 0) : 0;
+      if (!n && !p) break;
+      total += n + p;
     }
     return total;
   }));

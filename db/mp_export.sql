@@ -69,3 +69,57 @@ create table if not exists mp_export_item (
 );
 create unique index if not exists mp_export_item_unico on mp_export_item (conexion_id, fuente, coalesce(desde, 'epoch'), coalesce(hasta, 'epoch'));
 alter table mp_export_item enable row level security;
+
+-- Los movimientos normalizados (lib/mercadopago/normalizar.ts), uno por fila de «Todas las transacciones»,
+-- sin duplicados: la clave es el contenido de la fila (+ #n si el mismo reporte la trae n veces), así un
+-- archivo que se pisa con otro no repite. Se llenan solos al bajar cada archivo (columna procesado).
+alter table mp_export_archivo add column if not exists procesado boolean not null default false;
+create table if not exists mp_export_mov (
+  id                        bigint generated always as identity primary key,
+  organizacion_id           text not null references organizaciones(id) on delete cascade,
+  conexion_id               bigint not null references mp_conexion(id) on delete cascade,
+  clave                     text not null,
+  archivo_id                bigint references mp_export_archivo(id) on delete set null,
+  archivo                   text not null,
+  fila                      int not null,
+  extraido                  timestamptz not null,
+  movimiento_id             text,
+  referencia_externa        text,
+  tipo_original             text not null,
+  fecha_operacion           timestamptz,
+  fecha_operacion_original  text,
+  fecha_saldo               timestamptz,
+  fecha_liberacion          timestamptz,
+  moneda                    text,
+  importe_bruto             numeric,
+  comision                  numeric,
+  impuestos                 numeric,
+  cupon                     numeric,
+  importe_neto              numeric,
+  medio_pago                text,
+  tipo_medio                text,
+  descripcion               text,
+  unique (conexion_id, clave)
+);
+create index if not exists mp_export_mov_fecha on mp_export_mov (conexion_id, fecha_saldo);
+alter table mp_export_mov enable row level security;
+
+-- Los pagos de la API (el último dato de cada uno), para saber tipo, estado, descripción y contraparte.
+create table if not exists mp_export_pago (
+  organizacion_id   text not null references organizaciones(id) on delete cascade,
+  conexion_id       bigint not null references mp_conexion(id) on delete cascade,
+  pago_id           text not null,
+  tipo              text,
+  estado            text,
+  descripcion       text,
+  cobrador_id       text,
+  pagador_id        text,
+  importe           numeric,
+  pagado            numeric,
+  tipo_medio        text,
+  medio             text,
+  creado            timestamptz,
+  actualizado       timestamptz,
+  primary key (conexion_id, pago_id)
+);
+alter table mp_export_pago enable row level security;

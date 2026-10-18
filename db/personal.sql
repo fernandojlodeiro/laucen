@@ -125,8 +125,57 @@ create table if not exists personal.mp_item (
 create unique index if not exists mp_item_unico on personal.mp_item (conexion_id, fuente, coalesce(desde, 'epoch'), coalesce(hasta, 'epoch'));
 alter table personal.mp_item enable row level security;
 
+-- Movimientos normalizados y pagos de la API de las cuentas personales (igual que mp_export_mov / mp_export_pago).
+alter table personal.mp_archivo add column if not exists procesado boolean not null default false;
+create table if not exists personal.mp_mov (
+  id                        bigint generated always as identity primary key,
+  conexion_id               bigint not null references personal.mp_conexion(id) on delete cascade,
+  clave                     text not null,
+  archivo_id                bigint references personal.mp_archivo(id) on delete set null,
+  archivo                   text not null,
+  fila                      int not null,
+  extraido                  timestamptz not null,
+  movimiento_id             text,
+  referencia_externa        text,
+  tipo_original             text not null,
+  fecha_operacion           timestamptz,
+  fecha_operacion_original  text,
+  fecha_saldo               timestamptz,
+  fecha_liberacion          timestamptz,
+  moneda                    text,
+  importe_bruto             numeric,
+  comision                  numeric,
+  impuestos                 numeric,
+  cupon                     numeric,
+  importe_neto              numeric,
+  medio_pago                text,
+  tipo_medio                text,
+  descripcion               text,
+  unique (conexion_id, clave)
+);
+create index if not exists mp_mov_fecha on personal.mp_mov (conexion_id, fecha_saldo);
+alter table personal.mp_mov enable row level security;
+
+create table if not exists personal.mp_pago (
+  conexion_id       bigint not null references personal.mp_conexion(id) on delete cascade,
+  pago_id           text not null,
+  tipo              text,
+  estado            text,
+  descripcion       text,
+  cobrador_id       text,
+  pagador_id        text,
+  importe           numeric,
+  pagado            numeric,
+  tipo_medio        text,
+  medio             text,
+  creado            timestamptz,
+  actualizado       timestamptz,
+  primary key (conexion_id, pago_id)
+);
+alter table personal.mp_pago enable row level security;
+
 -- La vuelta de la exportación de Mercado Pago (empresa y personal): cada 2 minutos, sólo si hay algo
--- en la cola por pedir o por bajar. La clave se lee de erp_llave al correr. Sin pg_cron, no pasa nada.
+-- en la cola por pedir o por bajar, o archivos bajados sin pasar a movimientos. La clave se lee de erp_llave al correr. Sin pg_cron, no pasa nada.
 do $$
 declare
   j record;
@@ -136,6 +185,8 @@ declare
     timeout_milliseconds := 300000
   ) where exists (select 1 from public.mp_export_item where estado in ('pendiente', 'pedido') and proximo_ts <= now())
        or exists (select 1 from personal.mp_item where estado in ('pendiente', 'pedido') and proximo_ts <= now())
+       or exists (select 1 from public.mp_export_archivo where not procesado)
+       or exists (select 1 from personal.mp_archivo where not procesado)
 $cmd$;
 begin
   if to_regclass('cron.job') is null then return; end if;
