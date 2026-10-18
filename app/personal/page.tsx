@@ -151,7 +151,9 @@ export default async function EspacioPersonal({ searchParams }: { searchParams: 
 
       {cola.length > 0 && (
         <section className="mb-5">
-          <TituloSeccion titulo={`Exportación del año (${cola.filter((i) => i.estado === "listo" || i.estado === "vacio").length} de ${cola.length} listos)`} />
+          <TituloSeccion titulo={`Exportación del año (${cola.filter((i) => i.estado === "listo" || i.estado === "vacio").length} de ${cola.length} listos)`}>
+            <a href="/personal/exportacion" className={SUAVE}>Descargar exportación (.zip)</a>
+          </TituloSeccion>
           {cuentas.filter((c) => cola.some((i) => i.conexionId === c.id)).map((c) => {
             const items = cola.filter((i) => i.conexionId === c.id);
             const filas = [...new Set(items.map((i) => i.etiqueta))];

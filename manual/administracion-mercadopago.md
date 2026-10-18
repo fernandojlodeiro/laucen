@@ -39,6 +39,18 @@ Abrí la pantalla: muestra lo último leído al instante y, si esa lectura tiene
 
 En [Canales](/config/canales), elegí el canal y en la caja **"Cuenta de Mercado Pago"** apretá **"Conectar Mercado Pago"**: Mercado Pago pide entrar con la cuenta que querés conectar y aprobar a Laucen; al volver, queda conectada. Si la cuenta ya está conectada en otro canal, aparece **"Usar la ya conectada: …"**.
 
+## Exportación histórica
+
+Cuando se pide la exportación de las cuentas, aparece la sección **«Exportación histórica»**: por cada cuenta, cuántos períodos (mes y reporte) ya se bajaron, cuántos vinieron sin movimientos, cuántos están en curso y cuántos fallaron. El sistema le pide a Mercado Pago, mes por mes, el reporte de todas las transacciones, el de liquidaciones y los pagos, y los baja solo, de fondo; un mes que falla se vuelve a pedir con espera.
+
+Con **«Descargar exportación (.zip)»** (a la derecha del título de la sección) se baja un archivo comprimido con:
+
+- **Movimientos**: uno por cuenta y uno con todas juntas, en CSV (UTF-8, coma como separador y punto decimal). Una fila por movimiento de dinero, sin duplicados, con el archivo y la fila de donde sale.
+- **Excel** con las hojas Movimientos, Cuentas, Cobertura (cada mes y reporte con su estado), Controles (por cuenta, mes y moneda: entradas, salidas, saldo inicial y final según Liquidaciones y la diferencia) y Diccionario de campos.
+- **Manifiesto**: qué se pidió, qué se cubrió, qué falta y qué falló.
+
+La clasificación (gasto, transferencia propia, rendimiento…) es una propuesta por reglas seguras y queda en columnas aparte, para revisar: lo dudoso queda «sin clasificar».
+
 ## Criterios
 
 - **Disponible**: Mercado Pago no tiene una consulta directa del saldo; sale de su **Reporte de Liquidaciones**, que Laucen le pide (los últimos 7 días) y Mercado Pago arma en unos minutos. Al actualizar, si el último tiene más de 10 minutos se pide uno nuevo y se espera hasta unos 40 segundos a que llegue; si no llega, vale el último (dice "reporte del …"). La primera vez dice "pedido a MP, actualizá en unos minutos". Si el reporte que se usó tiene más de 3 horas, **no se muestra el monto** (diría un saldo que ya no existe, porque entra y sale plata) y la celda dice "sin dato al día" con la fecha de ese reporte; el saldo total de esa cuenta tampoco se calcula hasta que llegue un reporte nuevo.

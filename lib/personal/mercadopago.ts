@@ -211,3 +211,17 @@ export async function colaDelEspacio(espacioId: number): Promise<ItemVista[]> {
       from personal.mp_item i join personal.mp_conexion c on c.id = i.conexion_id
      where c.espacio_id = $1 order by i.conexion_id, i.desde nulls first, i.id`, [espacioId]);
 }
+
+/** Lo que hace falta para armar la exportación de las cuentas del espacio (sólo del esquema personal). */
+export async function datosExportacion(espacioId: number): Promise<import("@/lib/mercadopago/normalizar").DatosExport[]> {
+  const cuentas = await consulta<{ id: number; mp_user_id: string; nombre: string | null; titular: string | null; documento: string | null }>(`
+    select c.id::int, c.mp_user_id, c.nombre,
+           (select s.datos->'usuario'->>'nombre' from personal.mp_sonda s where s.conexion_id = c.id order by s.ts desc limit 1) titular,
+           (select s.datos->'usuario'->>'documento' from personal.mp_sonda s where s.conexion_id = c.id order by s.ts desc limit 1) documento
+      from personal.mp_conexion c where c.espacio_id = $1 order by c.id`, [espacioId]);
+  return Promise.all(cuentas.map(async (c) => ({
+    cuenta: { id: c.id, mpUserId: Number(c.mp_user_id), alias: c.nombre ?? String(c.mp_user_id), titular: c.titular, documento: c.documento, ambito: "personal" as const },
+    archivos: await consulta(`select id::int, fuente, nombre, desde, hasta, bajado_ts bajado, contenido from personal.mp_archivo where conexion_id = $1 order by id`, [c.id]),
+    cola: await consulta(`select fuente, etiqueta, desde, hasta, estado, mensaje, archivos, actualizado_ts actualizado from personal.mp_item where conexion_id = $1 order by desde nulls first, id`, [c.id]),
+  })));
+}

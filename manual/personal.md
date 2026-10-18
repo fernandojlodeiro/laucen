@@ -52,7 +52,8 @@ Apretá «Hacer inventario» en la fila de la cuenta. Trabaja de fondo (podés i
 
 1. En la fila de la cuenta, apretá «Exportar … – hoy» (columna «El año»): pone en cola los doce meses cerrados hasta el mes pasado y el mes en curso hasta este momento.
 2. No hace falta quedarse mirando: el sistema pide y baja todo de a poco, de fondo, y la sección «Exportación del año» muestra cómo va.
-3. También baja, tal cual, todos los reportes que Mercado Pago ya tenía armados de esa cuenta (aunque sean de años anteriores), y ajusta el reporte de todas las transacciones para que incluya los retiros a banco y la hora argentina.
+3. Con «Descargar exportación (.zip)», a la derecha del título «Exportación del año», se baja todo lo que ya está: los movimientos de cada cuenta y todos juntos en CSV, un Excel con las hojas Movimientos, Cuentas, Cobertura, Controles y Diccionario, y un manifiesto con lo que falta o falló. Se puede bajar en cualquier momento: trae lo que haya hasta ahí.
+4. También baja, tal cual, todos los reportes que Mercado Pago ya tenía armados de esa cuenta (aunque sean de años anteriores), y ajusta el reporte de todas las transacciones para que incluya los retiros a banco y la hora argentina.
 
 ## Criterios y reglas
 
@@ -61,6 +62,7 @@ Apretá «Hacer inventario» en la fila de la cuenta. Trabaja de fondo (podés i
 - «Todos los pagos de la cuenta» trae lo que la cuenta cobró y también lo que pagó; «Pagos hechos» trae sólo lo que pagó. Para no contar dos veces, el sentido de cada pago se mira en el detalle, no por el archivo en que vino.
 - Un archivo se guarda tal cual vino. Si se baja dos veces sin cambios, no se repite; si Mercado Pago lo rearmó distinto, queda la versión nueva al lado.
 - Desconectar una cuenta borra su llave y todo lo que se bajó de ella.
+- En la exportación, cada movimiento aparece una sola vez aunque venga en varios reportes que se pisan. El importe neto es el efecto en el saldo y ya descuenta comisiones e impuestos. Las monedas no se convierten. La clasificación es sólo una propuesta y queda aparte de los datos de Mercado Pago.
 - Mientras algo corre, los demás botones esperan: se hace una cosa por vez.
 - En la exportación del año, cada mes se pide por separado (Mercado Pago no arma más de 60 días por reporte). Si Mercado Pago no contesta o no arma un reporte, se vuelve a pedir con espera; después de varios intentos queda «Falló» con el motivo. Nunca se da un mes por bajado si Mercado Pago no lo entregó. Volver a apretar el botón no repite los meses que ya están en la cola.
 

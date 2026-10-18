@@ -347,3 +347,17 @@ export async function bajarReportes(d: Destino, mes: string) {
   }
   return salida;
 }
+
+/** Lo que hace falta para armar la exportación de las cuentas de Mercado Pago de una organización (sólo sus tablas). */
+export async function datosExportacionEmpresa(org: string): Promise<import("@/lib/mercadopago/normalizar").DatosExport[]> {
+  const cuentas = await consulta<{ id: number; mp_user_id: string; nombre: string | null; titular: string | null; documento: string | null }>(`
+    select c.id::int, c.mp_user_id, c.nombre,
+           (select s.datos->'usuario'->>'nombre' from mp_export_sonda s where s.conexion_id = c.id order by s.ts desc limit 1) titular,
+           (select s.datos->'usuario'->>'documento' from mp_export_sonda s where s.conexion_id = c.id order by s.ts desc limit 1) documento
+      from mp_conexion c where c.organizacion_id = $1 order by c.id`, [org]);
+  return Promise.all(cuentas.map(async (c) => ({
+    cuenta: { id: c.id, mpUserId: Number(c.mp_user_id), alias: c.nombre ?? String(c.mp_user_id), titular: c.titular, documento: c.documento, ambito: "empresa" as const },
+    archivos: await consulta(`select id::int, fuente, nombre, desde, hasta, bajado_ts bajado, contenido from mp_export_archivo where conexion_id = $1 and organizacion_id = $2 order by id`, [c.id, org]),
+    cola: await consulta(`select fuente, etiqueta, desde, hasta, estado, mensaje, archivos, actualizado_ts actualizado from mp_export_item where conexion_id = $1 and organizacion_id = $2 order by desde nulls first, id`, [c.id, org]),
+  })));
+}
