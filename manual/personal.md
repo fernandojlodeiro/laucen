@@ -2,7 +2,7 @@
 titulo: Espacio personal
 menu: Botón «Personal» de la barra de arriba
 ruta: /personal
-rutas: /personal, /personal/gastos, /personal/gastos/revisar
+rutas: /personal, /personal/gastos, /personal/gastos/revisar, /personal/gastos/destinatarios, /personal/gastos/proveedores
 permiso: fer
 resumen: Un lugar aparte de la empresa para conectar cuentas personales de Mercado Pago y bajar su información (reportes y pagos), que sólo ve quien creó la organización y las personas que él autoriza.
 ---
@@ -65,13 +65,28 @@ Apretá «Hacer inventario» en la fila de la cuenta. Trabaja de fondo (podés i
 3. Debajo: el gasto por mes (la última barra, más clara, es el mes en curso), por tipo de gasto, una tabla de tipo de gasto por mes, a quién se le pagó más y, aparte, lo que no es gasto.
 4. Si sos quien creó la organización, también suma los pagos hechos con cuentas de la empresa que se marcaron como personales, y los muestra en su propia sección.
 
+Mis gastos tiene cuatro pestañas: «Tablero», «Sin clasificar», «Destinatarios» y «Proveedores».
+
 ### Clasificar un gasto
 
-1. En «Mis gastos», apretá «Revisar y clasificar».
+1. En «Mis gastos», pestaña «Sin clasificar».
 2. Elegí qué ver (de entrada, los gastos sin clasificar), el mes, o buscá por descripción o destinatario.
 3. Apretá el lápiz de la fila: elegí el tipo de gasto, a quién corresponde (personal, empresa, mixto) y si es recurrente o eventual.
 4. Si tildás «Aplicar a todo lo de este destinatario» (o «a todo lo que diga…»), queda como regla: de ahí en adelante esos pagos se clasifican solos.
 5. «Grabar». Para que algo deje de contar como gasto, elegí como tipo, por ejemplo, «Transferencia entre cuentas propias».
+
+### Ponerle proveedor y tipo de gasto a una cuenta destino
+
+1. En «Mis gastos», pestaña «Destinatarios». Cada fila es una cuenta a la que salió plata: el CBU o CVU (sale del mail de Mercado Pago «Tu transferencia fue enviada») o, para una cuenta de Mercado Pago, el número de usuario; con el titular y el banco que trae el mail, cuántas veces, cuánto en 12 meses y la última vez. De entrada se ven las que no tienen proveedor, de mayor a menor plata.
+2. Apretá el lápiz de la fila. En «Proveedor» buscá el proveedor o escribí uno nuevo y apretá «+ Crear «…»».
+3. Elegí el tipo de gasto, a quién corresponde y si es recurrente o eventual, y apretá «Grabar».
+4. Si el mismo comercio te pide la plata a otra cuenta, a esa fila le elegís el mismo proveedor: un proveedor puede tener todas las cuentas que haga falta.
+5. Para que lo que va a una cuenta no cuente como gasto (por ejemplo, una cuenta tuya en otro banco), elegí como tipo «Transferencia entre cuentas propias».
+
+### Proveedores
+
+1. En «Mis gastos», pestaña «Proveedores»: cada proveedor con su tipo de gasto, cuántas cuentas tiene (tocá el número para verlas), cuántos pagos y cuánto en 12 meses.
+2. El lápiz cambia el nombre y el tipo de gasto, que vale para todas sus cuentas. El tacho lo borra (pregunta «Sí / No» ahí mismo) y sus cuentas quedan sin proveedor.
 
 ## Criterios y reglas
 
@@ -81,9 +96,10 @@ Apretá «Hacer inventario» en la fila de la cuenta. Trabaja de fondo (podés i
 - Un archivo se guarda tal cual vino. Si se baja dos veces sin cambios, no se repite; si Mercado Pago lo rearmó distinto, queda la versión nueva al lado.
 - Desconectar una cuenta borra su llave y todo lo que se bajó de ella.
 - Gasto es la plata que salió y no es: una transferencia entre cuentas propias (de la persona o de sus empresas), un retiro a un banco propio, ni un movimiento sin efecto en el saldo. Los ingresos, las devoluciones recibidas y los rendimientos se muestran aparte y nunca se suman.
-- Cada gasto se clasifica así, en este orden: lo marcado a mano; una regla guardada; y si no, reglas fijas por el tipo de movimiento y por palabras de la descripción (impuestos, telefonía, servicios, expensas, suscripciones, transporte, supermercado, salud, viajes, educación). Lo que no encaja queda «Sin clasificar». Una transferencia a otra persona queda como «Transferencias a terceros» hasta que se la clasifique.
+- Una transferencia a un CBU o CVU desde la cuenta personal (Mercado Pago la llama «retiro») es un gasto, salvo que el titular de la cuenta destino sea el dueño (por su nombre, en el mail). Mercado Pago no informa a qué cuenta fue: eso sale del mail «Tu transferencia fue enviada», que se busca en el correo del dueño y se empareja con el movimiento por importe y hora (salen con segundos de diferencia; hasta 30 minutos). Una transferencia sin su mail queda como «Transferencias a terceros» y se clasifica de a una.
+- Cada gasto se clasifica así, en este orden: lo marcado a mano; el proveedor de la cuenta destino; una regla guardada; y si no, reglas fijas por el tipo de movimiento y por palabras de la descripción (impuestos, telefonía, servicios, expensas, suscripciones, transporte, supermercado, salud, viajes, educación). Lo que no encaja queda «Sin clasificar». Una transferencia a otra persona queda como «Transferencias a terceros» hasta que se la clasifique.
 - El total de 12 meses son los doce meses cerrados hasta el mes pasado; el mes en curso se muestra pero no se suma.
-- Un retiro a banco que el reporte de todas las transacciones no trae (por ejemplo, de un mes pedido antes de que el reporte incluyera los retiros) se toma de su fila original del reporte de liquidaciones, con su fecha, su número y su importe; esas filas dicen «Liquidaciones» en la columna fuente. Mercado Pago no informa el banco de destino de los retiros.
+- Un retiro a banco que el reporte de todas las transacciones no trae (por ejemplo, de un mes pedido antes de que el reporte incluyera los retiros) se toma de su fila original del reporte de liquidaciones, con su fecha, su número y su importe; esas filas dicen «Liquidaciones» en la columna fuente. Los reportes de Mercado Pago no informan la cuenta de destino de los retiros.
 - En la exportación, cada movimiento aparece una sola vez aunque venga en varios reportes que se pisan. El importe neto es el efecto en el saldo y ya descuenta comisiones e impuestos. Las monedas no se convierten. La clasificación es sólo una propuesta y queda aparte de los datos de Mercado Pago.
 - Mientras algo corre, los demás botones esperan: se hace una cosa por vez.
 - En la exportación del año, cada mes se pide por separado (Mercado Pago no arma más de 60 días por reporte). Si Mercado Pago no contesta o no arma un reporte, se vuelve a pedir con espera; después de varios intentos queda «Falló» con el motivo. Nunca se da un mes por bajado si Mercado Pago no lo entregó. Volver a apretar el botón no repite los meses que ya están en la cola.

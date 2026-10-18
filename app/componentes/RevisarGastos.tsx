@@ -32,7 +32,7 @@ export default function RevisarGastos({ filas, sp, base, accion, empresa }: {
   const elegidas = filas
     .filter((f) => ver === "todos" ? true : ver === "gastos" ? f.es_gasto : ver === "no-gasto" ? !f.es_gasto : ver === "candidatos" ? !!f.posible_personal : ver === "personales" ? f.es_gasto && f.ambito_gasto === "personal" : f.es_gasto && f.categoria === "Sin clasificar")
     .filter((f) => !sp.mes || mesAr(f.fecha) === sp.mes)
-    .filter((f) => !q || coincideBusqueda([f.api_descripcion, f.descripcion, f.contraparte, f.categoria, f.cuenta, f.movimiento_id], q, comienza))
+    .filter((f) => !q || coincideBusqueda([f.api_descripcion, f.descripcion, f.contraparte, f.categoria, f.cuenta, f.movimiento_id, f.destino_nombre, f.proveedor], q, comienza))
     .sort((a, b) => +(b.fecha ?? 0) - +(a.fecha ?? 0));
   const pagina = paginarEnMemoria(elegidas, sp);
   const aqui = (extra: Record<string, string | null>) => url(base, { ver, mes: sp.mes ?? null, q: q || null, contiene: sp.contiene ?? null, p: sp.p ?? null, ...extra });
@@ -68,7 +68,7 @@ export default function RevisarGastos({ filas, sp, base, accion, empresa }: {
                 return (
                   <tr key={id} className={`${TR} bg-[#F7FAFC]`}>
                     <td className={TD}>{fecha(f.fecha)}</td><td className={TD}>{f.cuenta}</td>
-                    <td className={TD}>{desc}{f.contraparte && <span className="block text-[11px] text-[#5C6B76]">cuenta {f.contraparte}</span>}</td>
+                    <td className={TD}>{desc}{(f.proveedor || f.destino_nombre || f.contraparte) && <span className="block text-[11px] text-[#5C6B76]">{f.proveedor ? `proveedor ${f.proveedor}` : f.destino_nombre ? `a ${f.destino_nombre}${f.destino_entidad ? ` (${f.destino_entidad})` : ""}` : `cuenta ${f.contraparte}`}</span>}</td>
                     <td className={TDN}>{plata(f.importe_neto)}</td>
                     <td className={TD} colSpan={5}>
                       <form action={accion} className="flex flex-wrap items-end gap-2">
@@ -97,7 +97,7 @@ export default function RevisarGastos({ filas, sp, base, accion, empresa }: {
               return (
                 <tr key={id} className={TR}>
                   <td className={TD}>{fecha(f.fecha)}</td><td className={TD}>{f.cuenta}</td>
-                  <td className={TD}>{desc}{f.contraparte && <span className="block text-[11px] text-[#5C6B76]">cuenta {f.contraparte}</span>}</td>
+                  <td className={TD}>{desc}{(f.proveedor || f.destino_nombre || f.contraparte) && <span className="block text-[11px] text-[#5C6B76]">{f.proveedor ? `proveedor ${f.proveedor}` : f.destino_nombre ? `a ${f.destino_nombre}${f.destino_entidad ? ` (${f.destino_entidad})` : ""}` : `cuenta ${f.contraparte}`}</span>}</td>
                   <td className={TDN}>{plata(f.importe_neto)}</td>
                   <td className={TD}>{f.categoria === "Sin clasificar" ? <Estado texto="Sin clasificar" tono="amarillo" /> : f.categoria}</td>
                   <td className={TD}>{f.ambito_gasto}{f.posible_personal && <span className="block text-[11px] text-[#8a5a00]">¿personal? {f.posible_personal}</span>}</td>

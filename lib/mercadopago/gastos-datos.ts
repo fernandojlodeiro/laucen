@@ -6,6 +6,7 @@
 
 import { consulta } from "@/lib/erp/base";
 import { clasificarGastos, type MovGasto, type Marca, type Regla, type Clasificado } from "@/lib/mercadopago/gastos";
+import { avisosDelEspacio, asignacionesDelEspacio, titularesDelEspacio, emparejarAvisos, cuentaDestino } from "@/lib/personal/destinatarios";
 
 const MOVS = (mov: string, pago: string, conexion: string, filtro: string) => `
   select m.conexion_id::int, coalesce(c.nombre, c.mp_user_id::text) cuenta, c.mp_user_id::bigint cuenta_mp_id, m.clave, m.movimiento_id, m.tipo_original,
@@ -46,15 +47,25 @@ export async function orgsDelDueno(usuarioId: string) {
   return (await consulta<{ id: string }>("select id from organizaciones where dueno_usuario_id = $1", [usuarioId])).map((x) => x.id);
 }
 
-/** Las cuentas personales del espacio y a quién les pagaron (pista para la empresa). */
+/** Las cuentas personales del espacio y a quién les pagaron (pista para la empresa). Cada salida lleva su cuenta destino
+ *  (del mail de la transferencia, lib/personal/destinatarios.ts). */
 async function personales(espacioId: number, desde: Date) {
-  const [movs, marcas, reglas, propias] = await Promise.all([
+  const [movs, marcas, reglas, propias, avisos, proveedores, titulares] = await Promise.all([
     consulta<MovGasto>(MOVS("personal.mp_mov", "personal.mp_pago", "personal.mp_conexion", "c.espacio_id = $1"), [espacioId, desde]),
     consulta<Marca>("select g.conexion_id::int, g.clave, g.categoria, g.ambito_gasto, g.recurrencia, g.nota from personal.gasto_marca g join personal.mp_conexion c on c.id = g.conexion_id where c.espacio_id = $1", [espacioId]),
     consulta<Regla>("select id::int, campo, valor, categoria, ambito_gasto, recurrencia from personal.gasto_regla where espacio_id = $1 order by id", [espacioId]),
     consulta<{ id: string }>("select mp_user_id::text id from personal.mp_conexion where espacio_id = $1", [espacioId]),
+    avisosDelEspacio(espacioId), asignacionesDelEspacio(espacioId), titularesDelEspacio(espacioId),
   ]);
-  return { movs, marcas, reglas, propias: propias.map((x) => x.id) };
+  const pares = emparejarAvisos(movs, avisos);
+  for (const m of movs) {
+    const a = pares.get(m.clave);
+    const yo = String(m.cuenta_mp_id);
+    m.destino_cuenta = Number(m.importe_neto) < 0 ? cuentaDestino(a, m.cobrador_id === yo ? m.pagador_id : m.cobrador_id) : null;
+    m.destino_nombre = a?.nombre ?? null;
+    m.destino_entidad = a?.entidad ?? null;
+  }
+  return { movs, marcas, reglas, propias: propias.map((x) => x.id), proveedores, titulares };
 }
 
 /** A quién se le pagó desde las cuentas personales del espacio (destinatarios), para marcar candidatos en la empresa. */
@@ -85,7 +96,7 @@ export async function gastosPersonales(espacioId: number, usuarioId: string, esD
   const orgs = esDueno ? await orgsDelDueno(usuarioId) : [];
   const emp = await Promise.all(orgs.map((org) => empresa(org, desde)));
   const propias = new Set([...p.propias, ...emp.flatMap((x) => x.propias)]);
-  const propios = clasificarGastos(p.movs, { propias, ambitoCuenta: () => "personal", marcas: p.marcas, reglas: p.reglas });
+  const propios = clasificarGastos(p.movs, { propias, ambitoCuenta: () => "personal", marcas: p.marcas, reglas: p.reglas, proveedores: p.proveedores, titulares: p.titulares });
   const deEmpresa = emp.flatMap((e) => clasificarGastos(e.movs, { propias, ambitoCuenta: () => "empresa", marcas: e.marcas, reglas: e.reglas })
     .filter((x) => x.es_gasto && x.ambito_gasto === "personal"));
   return [...propios, ...deEmpresa];

@@ -5,10 +5,16 @@
 // la empresa: quien llama pasa los movimientos, las cuentas propias y las
 // marcas y reglas de su lado.
 //
-// Orden de decisión: la marca puesta a mano en el movimiento → una regla
-// guardada («todo lo de este destinatario / este texto es …») → transferencia
-// entre cuentas propias → reglas fijas (por tipo de movimiento y por palabras
-// de la descripción). Lo que no encaja queda «Sin clasificar».
+// Orden de decisión: la marca puesta a mano en el movimiento → el proveedor
+// asignado a la cuenta destino (espacio personal, lib/personal/destinatarios.ts)
+// → una regla guardada («todo lo de este destinatario / este texto es …») →
+// transferencia entre cuentas propias → reglas fijas (por tipo de movimiento y
+// por palabras de la descripción). Lo que no encaja queda «Sin clasificar».
+//
+// En la cuenta personal, un «retiro» de Mercado Pago es casi siempre una
+// transferencia a un CBU/CVU de un tercero (así se paga): es gasto, salvo que el
+// mail de la transferencia diga que el titular es el dueño. En la empresa, un
+// retiro es a la cuenta bancaria propia y no es gasto.
 
 import { RETIROS } from "@/lib/mercadopago/normalizar";
 
@@ -27,7 +33,10 @@ export type MovGasto = {
   conexion_id: number; cuenta: string; cuenta_mp_id: number; clave: string; movimiento_id: string | null; tipo_original: string;
   fecha: Date | null; importe_neto: number; descripcion: string | null; medio_pago: string | null;
   api_tipo: string | null; api_descripcion: string | null; cobrador_id: string | null; pagador_id: string | null; tipo_medio: string | null;
+  /** La cuenta destino (CBU/CVU, «mp:<usuario>» o nombre y banco) y su titular, del mail de la transferencia. */
+  destino_cuenta?: string | null; destino_nombre?: string | null; destino_entidad?: string | null;
 };
+export type ProveedorGasto = { id: number; nombre: string; categoria: string | null; ambito_gasto: string | null; recurrencia: string | null };
 export type Marca = { conexion_id: number; clave: string; categoria: string | null; ambito_gasto: string | null; recurrencia: string | null; nota: string | null };
 export type Regla = { id: number; campo: "contraparte" | "texto"; valor: string; categoria: string | null; ambito_gasto: string | null; recurrencia: string | null };
 
@@ -36,6 +45,8 @@ export type Clasificado = MovGasto & {
   contraparte: string | null; texto: string; categoria: string; ambito_gasto: string; recurrencia: string; es_gasto: boolean; grupo: string; origen: string;
   /** Pista de que podría ser un gasto personal (sólo en cuentas de la empresa). */
   posible_personal: string | null;
+  /** La cuenta destino (la del mail o «mp:<usuario>») y el proveedor asignado a ella. */
+  destino: string | null; proveedor: string | null;
 };
 
 // Palabras de la descripción → categoría (en minúsculas, sin acentos). La primera que encaja gana.
@@ -52,12 +63,25 @@ const PALABRAS: [RegExp, string, string][] = [
   [/\b(colegio|universidad|curso|escuela|udemy|coursera)\b/, "Educación", "recurrente"],
 ];
 const sinAcentos = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+const palabras = (s: string) => sinAcentos(s).split(/[^a-z]+/).filter((x) => x.length >= 3);
+/** ¿El titular de la cuenta destino es el dueño? Todas las palabras de alguno de sus nombres están en el del titular. */
+export function esTitularPropio(nombre: string | null | undefined, propios: string[]) {
+  if (!nombre) return false;
+  const n = new Set(palabras(nombre));
+  return propios.some((p) => { const w = palabras(p); return w.length >= 2 && w.every((x) => n.has(x)); });
+}
 // Categorías que, pagadas desde la empresa, son pista de gasto personal.
 const PERSONALES = new Set(["Supermercado y comida", "Salud", "Viajes", "Educación"]);
 
 /** Clasifica los movimientos. `propias`: los números de cuenta de Mercado Pago propios (las 6). `pagadosDesdePersonal`:
  *  los destinatarios a los que se pagó desde una cuenta personal (pista de gasto personal en la empresa). */
-export function clasificarGastos(movs: MovGasto[], o: { propias: Set<string>; ambitoCuenta: (m: MovGasto) => "personal" | "empresa"; marcas: Marca[]; reglas: Regla[]; pagadosDesdePersonal?: Set<string> }): Clasificado[] {
+export function clasificarGastos(movs: MovGasto[], o: {
+  propias: Set<string>; ambitoCuenta: (m: MovGasto) => "personal" | "empresa"; marcas: Marca[]; reglas: Regla[]; pagadosDesdePersonal?: Set<string>;
+  /** Cuenta destino → proveedor (espacio personal). */
+  proveedores?: Map<string, ProveedorGasto>;
+  /** Los nombres del dueño: una transferencia a un titular con su nombre es a una cuenta propia. */
+  titulares?: string[];
+}): Clasificado[] {
   const marcas = new Map(o.marcas.map((x) => [`${x.conexion_id}|${x.clave}`, x]));
   return movs.map((m) => {
     const neto = Number(m.importe_neto);
@@ -65,11 +89,17 @@ export function clasificarGastos(movs: MovGasto[], o: { propias: Set<string>; am
     const contraparte = m.cobrador_id === yo ? m.pagador_id : m.cobrador_id;
     const texto = sinAcentos(`${m.api_descripcion ?? ""} ${m.descripcion ?? ""}`.trim());
     const ambitoCuenta = o.ambitoCuenta(m);
+    const destino = m.destino_cuenta ?? (contraparte && neto < 0 ? `mp:${contraparte}` : null);
+    const prov = destino ? o.proveedores?.get(destino) : undefined;
     let categoria = "Sin clasificar", recurrencia = "sin clasificar", grupo = "gasto", origen = "sin regla";
     let ambito = ambitoCuenta === "personal" ? "personal" : "empresa";
 
     // Lo que no es gasto, por el tipo de movimiento.
-    if (RETIROS.has(m.tipo_original) || m.tipo_original === "WITHDRAWAL_CANCEL") { grupo = "Retiro a banco propio"; origen = "tipo retiro"; }
+    if ((RETIROS.has(m.tipo_original) || m.tipo_original === "WITHDRAWAL_CANCEL") && ambitoCuenta === "personal") {
+      if (m.tipo_original === "WITHDRAWAL_CANCEL" || neto > 0) { grupo = "Devolución recibida"; origen = "transferencia devuelta"; }
+      else if (esTitularPropio(m.destino_nombre, o.titulares ?? [])) { grupo = "Transferencia entre cuentas propias"; origen = "titular propio (mail)"; }
+    }
+    else if (RETIROS.has(m.tipo_original) || m.tipo_original === "WITHDRAWAL_CANCEL") { grupo = "Retiro a banco propio"; origen = "tipo retiro"; }
     else if (m.api_tipo === "money_transfer" && contraparte && o.propias.has(contraparte)) { grupo = "Transferencia entre cuentas propias"; origen = "contraparte propia"; }
     else if (neto > 0) {
       if (m.tipo_original === "REFUND" || m.tipo_original === "CHARGEBACK") { grupo = "Devolución recibida"; origen = "tipo devolución"; }
@@ -86,6 +116,7 @@ export function clasificarGastos(movs: MovGasto[], o: { propias: Set<string>; am
         const p = PALABRAS.find(([re]) => re.test(texto));
         if (p) { categoria = p[1]; recurrencia = p[2]; origen = `palabra en la descripción`; }
         else if (m.api_tipo === "money_transfer") { categoria = "Transferencias a terceros"; origen = "transferencia"; }
+        else if (RETIROS.has(m.tipo_original)) { categoria = "Transferencias a terceros"; origen = m.destino_cuenta ? "transferencia a CBU/CVU" : "transferencia sin mail (destinatario desconocido)"; }
         else if (!m.movimiento_id || m.tipo_original !== "SETTLEMENT") { categoria = "Comisiones y cargos de Mercado Pago"; origen = "cargo sin operación"; }
         else if (m.api_tipo === "regular_payment" && texto) { categoria = "Compras"; recurrencia = "eventual"; origen = "pago con descripción"; }
       }
@@ -97,6 +128,17 @@ export function clasificarGastos(movs: MovGasto[], o: { propias: Set<string>; am
         if (r.recurrencia) recurrencia = r.recurrencia;
         origen = `regla: ${r.campo === "contraparte" ? "destinatario" : "texto"} ${r.valor}`;
       }
+    }
+    // El proveedor de la cuenta destino: manda sobre las reglas (también puede decir que es una cuenta propia).
+    if (prov && neto < 0 && (grupo === "gasto" || grupo === "Retiro a banco propio" || grupo === "Transferencia entre cuentas propias")) {
+      if (prov.categoria && (NO_GASTO as readonly string[]).includes(prov.categoria)) grupo = prov.categoria;
+      else {
+        grupo = "gasto";
+        if (prov.categoria) categoria = prov.categoria;
+        if (prov.ambito_gasto) ambito = prov.ambito_gasto;
+        if (prov.recurrencia) recurrencia = prov.recurrencia;
+      }
+      origen = `proveedor: ${prov.nombre}`;
     }
     // La marca a mano manda sobre todo (también puede volver gasto algo que no lo parecía, o al revés).
     const mk = marcas.get(`${m.conexion_id}|${m.clave}`);
@@ -116,7 +158,7 @@ export function clasificarGastos(movs: MovGasto[], o: { propias: Set<string>; am
       else if (PERSONALES.has(categoria)) posible_personal = `categoría ${categoria}`;
       else if (m.fecha && [0, 6].includes(new Date(m.fecha.getTime() - 3 * 3600_000).getUTCDay()) && categoria !== "Envíos" && categoria !== "Reclamos y devoluciones de ventas") posible_personal = "pagado un fin de semana";
     }
-    return { ...m, ambito_cuenta: ambitoCuenta, importe_neto: neto, contraparte, texto, categoria: es_gasto ? categoria : grupo, ambito_gasto: ambito, recurrencia, es_gasto, grupo, origen, posible_personal };
+    return { ...m, ambito_cuenta: ambitoCuenta, importe_neto: neto, contraparte, texto, categoria: es_gasto ? categoria : grupo, ambito_gasto: ambito, recurrencia, es_gasto, grupo, origen, posible_personal, destino, proveedor: prov?.nombre ?? null };
   });
 }
 

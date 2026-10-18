@@ -202,6 +202,48 @@ create table if not exists personal.gasto_regla (
 );
 alter table personal.gasto_regla enable row level security;
 
+-- Destinatarios de las transferencias (pedido de Fer, 18/10). Mercado Pago no informa a qué cuenta fue una
+-- transferencia a CBU/CVU, pero el mail «Tu transferencia fue enviada» sí: nombre, banco y número de cuenta.
+-- Cada mail es un aviso (lo carga una sesión de Claude que lee el Gmail del dueño); se empareja con el movimiento
+-- por importe y hora. Cada cuenta destino se asigna a un proveedor, con su tipo de gasto: de ahí en adelante toda
+-- transferencia a esa cuenta se clasifica sola. Un proveedor puede tener varias cuentas.
+create table if not exists personal.transferencia_aviso (
+  id           bigint generated always as identity primary key,
+  espacio_id   bigint not null references personal.espacio(id) on delete cascade,
+  mail_id      text not null,
+  fecha        timestamptz not null,
+  importe      numeric not null,
+  nombre       text,
+  entidad      text,
+  cuenta       text,
+  creado_ts    timestamptz not null default now(),
+  unique (espacio_id, mail_id)
+);
+alter table personal.transferencia_aviso enable row level security;
+
+create table if not exists personal.proveedor (
+  id            bigint generated always as identity primary key,
+  espacio_id    bigint not null references personal.espacio(id) on delete cascade,
+  nombre        text not null,
+  categoria     text,
+  ambito_gasto  text,
+  recurrencia   text,
+  creado_ts     timestamptz not null default now(),
+  unique (espacio_id, nombre)
+);
+alter table personal.proveedor enable row level security;
+
+-- La cuenta destino: un CBU/CVU (del mail) o «mp:<usuario>» (una transferencia a otra cuenta de Mercado Pago sin mail).
+create table if not exists personal.proveedor_cuenta (
+  espacio_id    bigint not null references personal.espacio(id) on delete cascade,
+  cuenta        text not null,
+  proveedor_id  bigint not null references personal.proveedor(id) on delete cascade,
+  usuario_id    text,
+  creado_ts     timestamptz not null default now(),
+  primary key (espacio_id, cuenta)
+);
+alter table personal.proveedor_cuenta enable row level security;
+
 -- La vuelta de la exportación de Mercado Pago (empresa y personal): cada 2 minutos, sólo si hay algo
 -- en la cola por pedir o por bajar, o archivos bajados sin pasar a movimientos. La clave se lee de erp_llave al correr. Sin pg_cron, no pasa nada.
 do $$
