@@ -33,16 +33,10 @@ export async function GET(req: Request) {
 async function correr(q: URLSearchParams) {
   const accion = q.get("accion"), conexion = Number(q.get("conexion")), mes = q.get("mes") ?? "";
   if (accion === "sonda") return Response.json(await sondearTodas(q.get("org") ?? undefined));
-  // Para revisar la exportación de la empresa sin bajar el .zip: controles, problemas y totales por cuenta, mes y tipo.
+  // Para revisar la exportación de la empresa sin bajar el .zip: el control de saldo por cuenta y mes, y los problemas.
   if (accion === "resumen" && q.get("org")) {
     const { movimientos, controles, problemas } = await normalizar(await datosExportacionEmpresa(q.get("org")!));
-    const porTipo: Record<string, { filas: number; neto: number }> = {};
-    for (const m of movimientos) {
-      const k = `${m.cuenta_alias}|${m.tramo}|${m.tipo_original}|${m.direccion}`;
-      porTipo[k] ??= { filas: 0, neto: 0 };
-      porTipo[k].filas++; porTipo[k].neto = Math.round((porTipo[k].neto + (m.importe_neto ?? 0)) * 100) / 100;
-    }
-    return Response.json({ movimientos: movimientos.length, controles, problemas, porTipo });
+    return Response.json({ movimientos: movimientos.length, problemas: problemas.length, controles: controles.map((c) => [c.cuenta_alias, c.mes, c.filas, c.neto, c.saldo_inicial, c.saldo_final, c.retiros_liquidaciones, c.diferencia]) });
   }
   // La vuelta de la cola (pg_cron 'mp-export', db/personal.sql): empresa y espacios personales.
   if (accion === "vuelta") return Response.json(await vuelta());
