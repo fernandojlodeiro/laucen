@@ -206,7 +206,14 @@ async function avanzar(d: Destino, token: string, it: Item, bajados: Set<string>
     return;
   }
   // Pedido: ¿apareció un archivo nuevo del período?
-  const nuevos = delMes.filter((n) => !(it.antes ?? []).includes(n));
+  // El nombre lo pone Mercado Pago con la hora al segundo: dos períodos armados en el mismo segundo salen con el
+  // mismo nombre y al bajarlo por nombre viene uno solo. Un nombre que también tiene otro período no sirve: se vuelve a pedir.
+  const ambiguo = (n: string) => l.archivos.some((f) => f.file_name === n && f.begin_date?.slice(0, 19) !== z(it.desde!).slice(0, 19));
+  const nuevos = delMes.filter((n) => !(it.antes ?? []).includes(n) && !ambiguo(n));
+  if (!nuevos.length && delMes.some((n) => !(it.antes ?? []).includes(n))) {
+    await reintentar("Mercado Pago le puso al archivo el mismo nombre que a otro período; se vuelve a pedir.", 60);
+    return;
+  }
   if (!nuevos.length) {
     const minutos = it.pedido_ts ? (Date.now() - new Date(it.pedido_ts).getTime()) / 60_000 : 99;
     if (minutos > 45) await reintentar("Pasaron 45 minutos y Mercado Pago no lo armó; se vuelve a pedir.", 60);

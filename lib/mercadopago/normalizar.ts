@@ -255,7 +255,9 @@ export async function normalizar(datos: DatosExport[], ahora = new Date()) {
     // Liquidaciones de cada mes de la cola: saldo inicial y final, y retiros a banco.
     const liquidaciones = new Map<string, { inicial: number | null; final: number | null; retiros: number }>();
     for (const it of cola.filter((x) => x.fuente === "release_report" && x.estado === "listo" && x.archivos?.length)) {
-      const a = archivos.find((x) => x.fuente === "release_report" && x.nombre === it.archivos!.at(-1));
+      // Sólo si el archivo es de ese período (Mercado Pago puede repetir un nombre entre dos períodos).
+      const a = archivos.find((x) => x.fuente === "release_report" && x.nombre === it.archivos!.at(-1)
+        && (!x.desde || !it.desde || Math.abs(x.desde.getTime() - it.desde.getTime()) < 86_400_000));
       const t = a ? await leerArchivo(a) : null;
       if (!t) continue;
       const i = (h: string) => t.cab.indexOf(h);
