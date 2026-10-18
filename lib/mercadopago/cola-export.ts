@@ -62,38 +62,63 @@ const EXTRAS = ["DESCRIPTION", "MONEY_RELEASE_DATE", "TAXES_AMOUNT", "MKP_FEE_AM
 const BASICAS = ["EXTERNAL_REFERENCE", "SOURCE_ID", "USER_ID", "PAYMENT_METHOD_TYPE", "PAYMENT_METHOD", "SITE", "TRANSACTION_TYPE", "TRANSACTION_AMOUNT",
   "TRANSACTION_CURRENCY", "TRANSACTION_DATE", "FEE_AMOUNT", "SETTLEMENT_NET_AMOUNT", "SETTLEMENT_CURRENCY", "SETTLEMENT_DATE", "REAL_AMOUNT", "COUPON_AMOUNT", "METADATA"];
 
-/** Todas las transacciones con los retiros incluidos, hora argentina y las columnas que acepte. */
+/** Todas las transacciones con los retiros incluidos, hora argentina y las columnas que acepte.
+ *  Mercado Pago contesta 400 sin decir qué no le gusta, así que se prueba de a poco: primero el
+ *  cuerpo que devolvió la misma configuración (sin lo que es de sólo lectura) con los cambios;
+ *  después lo mínimo; las columnas nuevas, de a una. Lo que contesta cada intento queda anotado. */
 async function ajustarConfig(d: Destino, token: string): Promise<string> {
-  let conf = await mpPedir<{ columns?: { key: string }[]; file_name_prefix?: string }>(token, "GET", "/v1/account/settlement_report/config");
+  type Conf = Record<string, unknown> & { columns?: { key: string }[]; file_name_prefix?: string };
+  let conf = await mpPedir<Conf>(token, "GET", "/v1/account/settlement_report/config");
   if (conf.status === 404) {
     const r = await mpPedir(token, "POST", "/v1/account/settlement_report/config",
-      { columns: BASICAS.map((key) => ({ key })), file_name_prefix: "laucen-todas", display_timezone: "GMT-03", include_withdraw: true });
+      { columns: BASICAS.map((key) => ({ key })), file_name_prefix: "laucen-todas", display_timezone: "GMT-03" });
     await d.anotar("crear configuración de Todas las transacciones", r.status, corto(r.datos, 800));
-    conf = await mpPedir(token, "GET", "/v1/account/settlement_report/config");
+    conf = await mpPedir<Conf>(token, "GET", "/v1/account/settlement_report/config");
   }
   if (!ok(conf.status)) throw new Error(`No se pudo leer la configuración de Todas las transacciones (${conf.status}).`);
-  let columnas = (conf.datos.columns ?? []).map((c) => c.key);
-  const prefijo = conf.datos.file_name_prefix || "laucen-todas";
-  const poner = (cols: string[]) => mpPedir(token, "PUT", "/v1/account/settlement_report/config",
-    { columns: cols.map((key) => ({ key })), file_name_prefix: prefijo, display_timezone: "GMT-03", include_withdraw: true });
-  const faltan = EXTRAS.filter((x) => !columnas.includes(x));
-  let r = await poner([...columnas, ...faltan]);
-  const rechazadas: string[] = [];
-  if (ok(r.status)) columnas = [...columnas, ...faltan];
-  else {
-    // Mercado Pago contesta 400 sin decir qué columna no le gusta: se prueban de a una.
-    r = await poner(columnas);
-    if (!ok(r.status)) {
-      await d.anotar("ajustar configuración de Todas las transacciones", r.status, corto(r.datos, 800));
-      throw new Error(`Mercado Pago no aceptó incluir los retiros en Todas las transacciones (${r.status}).`);
-    }
-    for (const x of faltan) {
-      const p = await poner([...columnas, x]);
-      if (ok(p.status)) columnas.push(x); else rechazadas.push(x);
+  const actual = conf.datos;
+  let columnas = (actual.columns ?? []).map((c) => c.key);
+  const prefijo = actual.file_name_prefix || "laucen-todas";
+  // El cuerpo que devolvió Mercado Pago, sin lo que es de sólo lectura ni vacíos.
+  const SOLO_LECTURA = ["scheduled", "data_processed", "id", "user_id", "date_created", "last_modified"];
+  const base: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(actual)) {
+    if (SOLO_LECTURA.includes(k) || k === "columns" || v == null || (typeof v === "object" && !Array.isArray(v) && !Object.keys(v as object).length)) continue;
+    base[k] = v;
+  }
+  if (base.frequency && typeof base.frequency === "object") {
+    const f = { ...(base.frequency as Record<string, unknown>) };
+    if (f.value == null || f.value === "") delete f.value;
+    base.frequency = f;
+  }
+  const intentos: { prueba: string; status: number; respuesta: string }[] = [];
+  const probar = async (prueba: string, cuerpo: Record<string, unknown>) => {
+    const r = await mpPedir(token, "PUT", "/v1/account/settlement_report/config", cuerpo);
+    intentos.push({ prueba, status: r.status, respuesta: corto(r.datos, 200) });
+    return ok(r.status);
+  };
+  const cols = (c: string[]) => c.map((key) => ({ key }));
+  // 1. Retiros y hora: con el cuerpo completo, o con lo mínimo; si no hay forma, sin los retiros.
+  const conRetiros = await probar("completo con retiros", { ...base, columns: cols(columnas), include_withdraw: true, display_timezone: "GMT-03" })
+    || await probar("mínimo con retiros", { columns: cols(columnas), file_name_prefix: prefijo, display_timezone: "GMT-03", include_withdraw: true });
+  let cuerpo: Record<string, unknown> = conRetiros ? (intentos.at(-1)!.prueba.startsWith("completo") ? { ...base, include_withdraw: true, display_timezone: "GMT-03" } : { file_name_prefix: prefijo, display_timezone: "GMT-03", include_withdraw: true }) : {};
+  if (!conRetiros) {
+    if (await probar("completo sin retiros", { ...base, columns: cols(columnas), display_timezone: "GMT-03" })) cuerpo = { ...base, display_timezone: "GMT-03" };
+    else if (await probar("mínimo sin retiros", { columns: cols(columnas), file_name_prefix: prefijo, display_timezone: "GMT-03" })) cuerpo = { file_name_prefix: prefijo, display_timezone: "GMT-03" };
+    else {
+      await d.anotar("ajustar configuración de Todas las transacciones", 400, { intentos, configuracion: actual });
+      throw new Error("Mercado Pago no aceptó ningún cambio en la configuración de Todas las transacciones (queda como estaba).");
     }
   }
-  await d.anotar("ajustar configuración de Todas las transacciones", 200, { columnas, rechazadas, include_withdraw: true, display_timezone: "GMT-03" });
-  return `Retiros incluidos, hora argentina, ${columnas.length} columnas${rechazadas.length ? ` (no aceptó: ${rechazadas.join(", ")})` : ""}.`;
+  // 2. Las columnas que faltan: todas juntas o, si no, de a una.
+  const faltan = EXTRAS.filter((x) => !columnas.includes(x));
+  const rechazadas: string[] = [];
+  if (faltan.length && await probar("todas las columnas", { ...cuerpo, columns: cols([...columnas, ...faltan]) })) columnas = [...columnas, ...faltan];
+  else for (const x of faltan) {
+    if (await probar(`columna ${x}`, { ...cuerpo, columns: cols([...columnas, x]) })) columnas.push(x); else rechazadas.push(x);
+  }
+  await d.anotar("ajustar configuración de Todas las transacciones", 200, { columnas, rechazadas, conRetiros, intentos: intentos.slice(0, 8) });
+  return `${conRetiros ? "Retiros incluidos" : "Mercado Pago no dejó incluir los retiros (salen de Liquidaciones)"}, hora argentina, ${columnas.length} columnas${rechazadas.length ? ` (no aceptó: ${rechazadas.join(", ")})` : ""}.`;
 }
 
 type Archivo = { file_name?: string; begin_date?: string; end_date?: string; status?: string };
@@ -166,6 +191,8 @@ async function avanzar(d: Destino, token: string, it: Item, bajados: Set<string>
     if (r.status === 202 || r.status === 200 || r.status === 201) await d.cola.guardar(it.id, { estado: "pedido", pedido: true, antes: delMes, proximoEnSeg: 90, mensaje: null });
     else if (r.status === 203) await reintentar("Mercado Pago no pudo armarlo; se vuelve a pedir.", 600);
     else if (r.status === 429) await d.cola.guardar(it.id, { proximoEnSeg: 300, mensaje: "Mercado Pago pidió esperar." });
+    // Sin configuración del reporte todavía (la arma el paso «configuración»): se espera sin gastar intentos.
+    else if (r.status === 404) await d.cola.guardar(it.id, { proximoEnSeg: 300, mensaje: "Esperando la configuración del reporte." });
     else await reintentar(`Mercado Pago no lo aceptó (${r.status}): ${corto(r.datos, 200)}`, 600);
     return;
   }
