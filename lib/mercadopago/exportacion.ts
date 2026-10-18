@@ -12,6 +12,7 @@
 // cubre cada clase de movimiento. Sólo lectura (todo GET).
 
 import { consulta, una } from "@/lib/erp/base";
+import { createHash } from "node:crypto";
 import { tokenDeConexion, mpPedir } from "@/lib/mercadopago/conexion";
 
 type Resp = { status: number; datos: unknown };
@@ -66,6 +67,11 @@ export type Sonda = Record<string, unknown>;
 export async function sondearCuenta(conexionId: number): Promise<Sonda> {
   const token = await tokenDeConexion(conexionId);
   if (!token) return { conexion: "sin llave vigente (desconectada)" };
+  return sondearConLlave(token);
+}
+
+/** El inventario con la llave de la cuenta (sirve para la empresa y para el espacio personal). */
+export async function sondearConLlave(token: string): Promise<Sonda> {
   const yo = await mpPedir<Record<string, unknown>>(token, "GET", "/users/me");
   const u = (ok(yo) ? yo.datos : {}) as Record<string, unknown> & { identification?: { type?: string; number?: string } };
   const uid = Number(u.id ?? 0);
@@ -121,13 +127,35 @@ export async function sondearTodas(org?: string): Promise<{ conexion: number; no
 // mp_export_archivo sin tocar. Los reportes pedidos se bajan después
 // (Mercado Pago los arma en unos minutos): bajarReportes().
 
-async function cuentaDe(conexionId: number) {
-  return una<{ organizacion_id: string; mp_user_id: string }>("select organizacion_id, mp_user_id from mp_conexion where id = $1", [conexionId]);
-}
+/** Dónde queda lo que se baja de una cuenta: la empresa (mp_export_*) o un
+ *  espacio personal (esquema personal, lib/personal/mercadopago.ts). Las
+ *  funciones de abajo no saben cuál es: así lo personal nunca cae en una
+ *  tabla de la empresa ni al revés. */
+export type Destino = {
+  token: () => Promise<string | null>;
+  mpUserId: number;
+  anotar: (paso: string, status: number | null, datos: unknown) => Promise<void>;
+  guardar: (fuente: string, nombre: string, desde: string | null, hasta: string | null, bytes: Buffer, sha256: string) => Promise<void>;
+};
 
-async function anotar(org: string, conexionId: number, paso: string, status: number | null, datos: unknown) {
-  await consulta("insert into mp_export_paso (organizacion_id, conexion_id, paso, status, datos) values ($1, $2, $3, $4, $5)",
-    [org, conexionId, paso, status, JSON.stringify(datos ?? null)]);
+/** Una cuenta de Mercado Pago de la empresa (mp_conexion). */
+export async function destinoEmpresa(conexionId: number): Promise<Destino | null> {
+  const c = await una<{ organizacion_id: string; mp_user_id: string }>("select organizacion_id, mp_user_id from mp_conexion where id = $1", [conexionId]);
+  if (!c) return null;
+  const org = c.organizacion_id;
+  return {
+    token: () => tokenDeConexion(conexionId),
+    mpUserId: Number(c.mp_user_id),
+    anotar: async (paso, status, datos) => {
+      await consulta("insert into mp_export_paso (organizacion_id, conexion_id, paso, status, datos) values ($1, $2, $3, $4, $5)",
+        [org, conexionId, paso, status, JSON.stringify(datos ?? null)]);
+    },
+    guardar: async (fuente, nombre, desde, hasta, bytes, sha) => {
+      await consulta(`insert into mp_export_archivo (organizacion_id, conexion_id, fuente, nombre, desde, hasta, sha256, bytes, contenido)
+                      values ($1, $2, $3, $4, $5, $6, $7, $8, $9) on conflict (conexion_id, fuente, nombre, sha256) do nothing`,
+        [org, conexionId, fuente, nombre, desde, hasta, sha, bytes.length, bytes]);
+    },
+  };
 }
 
 /** Baja un archivo tal cual (bytes), sin pasarlo a texto. */
@@ -141,12 +169,9 @@ async function bajarCrudo(token: string, ruta: string): Promise<{ status: number
   }
 }
 
-async function guardarArchivo(org: string, conexionId: number, fuente: string, nombre: string, desde: string | null, hasta: string | null, bytes: Buffer) {
-  const { createHash } = await import("node:crypto");
+async function guardarArchivo(d: Destino, fuente: string, nombre: string, desde: string | null, hasta: string | null, bytes: Buffer) {
   const sha = createHash("sha256").update(bytes).digest("hex");
-  await consulta(`insert into mp_export_archivo (organizacion_id, conexion_id, fuente, nombre, desde, hasta, sha256, bytes, contenido)
-                  values ($1, $2, $3, $4, $5, $6, $7, $8, $9) on conflict (conexion_id, fuente, nombre, sha256) do nothing`,
-    [org, conexionId, fuente, nombre, desde, hasta, sha, bytes.length, bytes]);
+  await d.guardar(fuente, nombre, desde, hasta, bytes, sha);
   return sha;
 }
 
@@ -174,11 +199,10 @@ export function periodoMes(mes: string) {
   return { desde: z(desde), hasta: z(hasta), desdeAr: ar(desde), hastaAr: ar(hasta).replace(".000", ".999") };
 }
 
-export async function muestraMes(conexionId: number, mes: string) {
-  const c = await cuentaDe(conexionId);
-  const token = await tokenDeConexion(conexionId);
-  if (!c || !token) return { error: "cuenta desconectada" };
-  const org = c.organizacion_id, p = periodoMes(mes);
+export async function muestraMes(d: Destino, mes: string) {
+  const token = await d.token();
+  if (!token) return { error: "cuenta desconectada" };
+  const p = periodoMes(mes);
 
   // 1. Un reporte viejo de Todas las transacciones (el CSV más viejo de la lista).
   const lista = await mpPedir<{ file_name?: string; begin_date?: string; end_date?: string; format?: string }[]>(token, "GET", "/v1/account/settlement_report/list");
@@ -188,12 +212,12 @@ export async function muestraMes(conexionId: number, mes: string) {
     const f = viejos[0];
     const b = await bajarCrudo(token, `/v1/account/settlement_report/${encodeURIComponent(f.file_name!)}`);
     if (b.bytes) {
-      await guardarArchivo(org, conexionId, "settlement_report", f.file_name!, f.begin_date ?? null, f.end_date ?? null, b.bytes);
+      await guardarArchivo(d, "settlement_report", f.file_name!, f.begin_date ?? null, f.end_date ?? null, b.bytes);
       const cab = b.bytes.toString("utf8").split(/\r?\n/)[0] ?? "";
       const sep = cab.includes(";") ? ";" : ",";
       columnas = cab.split(sep).map((x) => x.replace(/^﻿/, "").replace(/"/g, "").trim()).filter((x) => /^[A-Z0-9_]+$/.test(x));
-      await anotar(org, conexionId, "bajar reporte viejo de Todas las transacciones", b.status, { archivo: f.file_name, desde: f.begin_date, hasta: f.end_date, bytes: b.bytes.length, cabecera: cab.slice(0, 1500) });
-    } else await anotar(org, conexionId, "bajar reporte viejo de Todas las transacciones", b.status, { archivo: f.file_name, motivo: b.motivo });
+      await d.anotar("bajar reporte viejo de Todas las transacciones", b.status, { archivo: f.file_name, desde: f.begin_date, hasta: f.end_date, bytes: b.bytes.length, cabecera: cab.slice(0, 1500) });
+    } else await d.anotar("bajar reporte viejo de Todas las transacciones", b.status, { archivo: f.file_name, motivo: b.motivo });
   }
 
   // 2. La configuración para pedirlo por API (sólo si no hay ninguna).
@@ -207,35 +231,34 @@ export async function muestraMes(conexionId: number, mes: string) {
     const cuerpo = (lista: string[]) => ({ file_name_prefix: "laucen-todas", display_timezone: "GMT-03", report_translation: "en", separator: ",",
       frequency: { hour: 0, type: "monthly", value: 1 }, columns: lista.map((key) => ({ key })) });
     let r = await mpPedir(token, "POST", "/v1/account/settlement_report/config", cuerpo(cols));
-    await anotar(org, conexionId, "configurar Todas las transacciones", r.status, { columnas: cols, respuesta: corto(r.datos, 1500) });
+    await d.anotar("configurar Todas las transacciones", r.status, { columnas: cols, respuesta: corto(r.datos, 1500) });
     if (!ok(r) && columnas.length) {
       r = await mpPedir(token, "POST", "/v1/account/settlement_report/config", cuerpo(columnas));
-      await anotar(org, conexionId, "configurar Todas las transacciones (sólo las columnas del reporte viejo)", r.status, { columnas, respuesta: corto(r.datos, 1500) });
+      await d.anotar("configurar Todas las transacciones (sólo las columnas del reporte viejo)", r.status, { columnas, respuesta: corto(r.datos, 1500) });
     }
-  } else await anotar(org, conexionId, "leer configuración de Todas las transacciones", conf.status, conf.datos);
+  } else await d.anotar("leer configuración de Todas las transacciones", conf.status, conf.datos);
 
   // 3. Pedir los dos reportes del período.
   for (const familia of ["settlement_report", "release_report"]) {
     const r = await mpPedir(token, "POST", `/v1/account/${familia}`, { begin_date: p.desde, end_date: p.hasta });
-    await anotar(org, conexionId, `pedir ${familia}`, r.status, { mes, desde: p.desde, hasta: p.hasta, respuesta: corto(r.datos, 1500) });
+    await d.anotar(`pedir ${familia}`, r.status, { mes, desde: p.desde, hasta: p.hasta, respuesta: corto(r.datos, 1500) });
   }
 
   // 4. Los pagos del período por la API (lo que cobró y lo que pagó la cuenta), tal cual vienen.
   const rango = `range=date_created&begin_date=${encodeURIComponent(p.desdeAr)}&end_date=${encodeURIComponent(p.hastaAr)}`;
-  for (const [fuente, filtros] of [["payments_cobrados", rango], ["payments_hechos", `payer.id=${c.mp_user_id}&${rango}`]] as const) {
+  for (const [fuente, filtros] of [["payments_cobrados", rango], ["payments_hechos", `payer.id=${d.mpUserId}&${rango}`]] as const) {
     const t = await todosLosPagos(token, filtros);
     const bytes = Buffer.from(JSON.stringify(t.lista));
-    await guardarArchivo(org, conexionId, fuente, `${fuente}-${mes}.json`, p.desde, p.hasta, bytes);
-    await anotar(org, conexionId, `bajar ${fuente}`, t.completo ? 200 : null, { mes, total: t.total, bajados: t.lista.length, completo: t.completo, error: (t as { error?: string }).error ?? null });
+    await guardarArchivo(d, fuente, `${fuente}-${mes}.json`, p.desde, p.hasta, bytes);
+    await d.anotar(`bajar ${fuente}`, t.completo ? 200 : null, { mes, total: t.total, bajados: t.lista.length, completo: t.completo, error: (t as { error?: string }).error ?? null });
   }
   return { ok: true, mes };
 }
 
 /** Baja los reportes ya armados del período (Todas las transacciones y Liquidaciones). */
-export async function bajarReportes(conexionId: number, mes: string) {
-  const c = await cuentaDe(conexionId);
-  const token = await tokenDeConexion(conexionId);
-  if (!c || !token) return { error: "cuenta desconectada" };
+export async function bajarReportes(d: Destino, mes: string) {
+  const token = await d.token();
+  if (!token) return { error: "cuenta desconectada" };
   const p = periodoMes(mes);
   const salida: Record<string, unknown> = {};
   for (const familia of ["settlement_report", "release_report"]) {
@@ -244,8 +267,8 @@ export async function bajarReportes(conexionId: number, mes: string) {
     salida[familia] = delMes.map((f) => ({ archivo: f.file_name, estado: f.status }));
     for (const f of delMes) {
       const b = await bajarCrudo(token, `/v1/account/${familia}/${encodeURIComponent(f.file_name!)}`);
-      if (b.bytes) await guardarArchivo(c.organizacion_id, conexionId, familia, f.file_name!, f.begin_date ?? null, f.end_date ?? null, b.bytes);
-      await anotar(c.organizacion_id, conexionId, `bajar ${familia}`, b.status, { mes, archivo: f.file_name, bytes: b.bytes?.length ?? null, motivo: b.motivo ?? null });
+      if (b.bytes) await guardarArchivo(d, familia, f.file_name!, f.begin_date ?? null, f.end_date ?? null, b.bytes);
+      await d.anotar(`bajar ${familia}`, b.status, { mes, archivo: f.file_name, bytes: b.bytes?.length ?? null, motivo: b.motivo ?? null });
     }
   }
   return salida;

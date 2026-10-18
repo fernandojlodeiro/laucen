@@ -7,7 +7,7 @@
 
 import { pool } from "@/db";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
-import { sondearTodas, muestraMes, bajarReportes } from "@/lib/mercadopago/exportacion";
+import { sondearTodas, muestraMes, bajarReportes, destinoEmpresa } from "@/lib/mercadopago/exportacion";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -29,7 +29,8 @@ export async function GET(req: Request) {
 async function correr(q: URLSearchParams) {
   const accion = q.get("accion"), conexion = Number(q.get("conexion")), mes = q.get("mes") ?? "";
   if (accion === "sonda") return Response.json(await sondearTodas(q.get("org") ?? undefined));
-  if (accion === "muestra" && conexion && /^\d{4}-\d{2}$/.test(mes)) return Response.json(await muestraMes(conexion, mes));
-  if (accion === "bajar" && conexion && /^\d{4}-\d{2}$/.test(mes)) return Response.json(await bajarReportes(conexion, mes));
+  const d = conexion && /^\d{4}-\d{2}$/.test(mes) ? await destinoEmpresa(conexion) : null;
+  if (accion === "muestra" && d) return Response.json(await muestraMes(d, mes));
+  if (accion === "bajar" && d) return Response.json(await bajarReportes(d, mes));
   return new Response("Acción desconocida", { status: 400 });
 }
