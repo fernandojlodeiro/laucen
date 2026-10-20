@@ -131,6 +131,16 @@ export default async function DetallePedido({ params, searchParams }: { params: 
   const fx = await una<{ leyenda: string | null; retenida: string | null; retenida_ts: Date | null; lectura: string | null; leida_ts: string | null }>(`
     select factura_leyenda leyenda, factura_retenida retenida, factura_retenida_ts retenida_ts, factura_revision ->> 'motivo' lectura, factura_revision ->> 'ts' leida_ts
       from pedido where id = $1 and organizacion_id = $2`, [pid, s.org.id]);
+  // Mensajería del pedido (sólo se muestra si hay): los mensajes de Mercado Libre de la venta y el WhatsApp del cliente desde que se hizo el pedido.
+  const mensajes = await consulta<{ cuando: Date; donde: string; nuestro: boolean; auto: boolean; texto: string }>(`
+    select fecha cuando, 'Mercado Libre' donde, de_vendedor nuestro, (auto or con_ia) auto, texto from meli_mensaje
+     where pedido_id = $1 and organizacion_id = $2 and coalesce(texto, '') <> ''
+    union all
+    select x.ts, 'WhatsApp', x.direccion = 'saliente', x.usuario_id is null, x.texto
+      from chat_mensaje x join chat ch on ch.id = x.chat_id
+     where ch.organizacion_id = $2 and ch.cliente_id is not null and ch.cliente_id = $3 and coalesce(x.texto, '') <> ''
+       and x.ts >= (select creado_ts from pedido where id = $1)
+     order by 1`, [pid, s.org.id, c.cliente_id ?? 0]);
   const editandoLeyenda = sp.editar === "leyenda";
   const ofrecerFacturar = puedeFacturar && !facturado && !["presupuesto", "nuevo", "cancelado"].includes(c.estado);
 
@@ -314,6 +324,22 @@ export default async function DetallePedido({ params, searchParams }: { params: 
           </div>
         </div>
       </div>
+
+      {mensajes.length > 0 && (
+        <section className="mb-4">
+          <h2 className="text-sm font-bold mb-2">Mensajes ({mensajes.length})</h2>
+          <div className={`${CAJA} space-y-2`}>
+            {mensajes.map((m, i) => (
+              <div key={i} className={`flex ${m.nuestro ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${m.nuestro ? "bg-[#E7F1F8]" : "bg-[#F1F3F5]"}`}>
+                  <p className="whitespace-pre-wrap">{m.texto}</p>
+                  <p className="text-[10px] text-[#5C6B76] mt-1 text-right">{m.nuestro ? (m.auto ? "La IA" : "Nosotros") : "Comprador"} · {m.donde} · {fechaHora(m.cuando)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {cargos.length > 0 && <CargosMl cargos={cargos} total={v === "USD" ? c.total_usd : c.total_ars} moneda={v} />}
 

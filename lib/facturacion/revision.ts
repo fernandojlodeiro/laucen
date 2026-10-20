@@ -4,7 +4,7 @@
 // pidió algo para la factura.
 // - Nada sobre la factura → se factura como siempre (sin texto, ni se llama a la IA).
 // - Pedido claro → se aplica: la leyenda va a "Observaciones" de la factura; un
-//   CUIT (o «factura A») se busca en el padrón de ARCA y pasa a la ficha del
+//   CUIT (o «factura A») pasa a la ficha del
 //   cliente (razón social, condición de IVA, domicilio fiscal), de donde sale la factura.
 // - Duda → no se factura: el pedido queda con «Factura retenida» y su motivo, y
 //   avisa (barra de estado, ventana, Windows). Lo destraba una persona.
@@ -16,7 +16,7 @@ import { createHash } from "node:crypto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { pedirClaude, jsonDe, hayClaude } from "@/lib/claude";
 import { cuitCierra, cuitLegible } from "@/lib/cuit";
-import { padronAlCliente, CONDICIONES_IVA_TEXTO } from "@/lib/arca/padron-cliente";
+import { CONDICIONES_IVA_TEXTO } from "@/lib/arca/padron-cliente";
 import { prepararFactura, prepararNotaCredito, emitir, envioPagadoPorElCompradorDe, TIPOS_CBTE } from "@/lib/arca/facturar";
 
 /** Lo que devuelve la IA. */
@@ -25,7 +25,7 @@ export type Lectura = {
   razon_social: string | null; domicilio: string | null; motivo: string;
 };
 export type Decision =
-  | { accion: "facturar"; leyenda: string | null; cuit: string | null; facturaA: boolean; incluirEnvio: boolean; motivo: string }
+  | { accion: "facturar"; leyenda: string | null; cuit: string | null; facturaA: boolean; incluirEnvio: boolean; razonSocial: string | null; motivo: string }
   | { accion: "retener"; motivo: string };
 
 export const LARGO_LEYENDA = 500;
@@ -36,13 +36,13 @@ export function decidir(l: Lectura | null, cliente: { cuit: string | null }): De
   if (!l || !["nada", "aplicar", "duda"].includes(l.decision)) return { accion: "retener", motivo: "No se pudo leer qué pidió el comprador: mirá los mensajes y las notas antes de facturar." };
   const motivo = (l.motivo ?? "").trim();
   if (l.decision === "duda") return { accion: "retener", motivo: motivo || "Pidió algo sobre la factura que no está claro." };
-  if (l.decision === "nada") return { accion: "facturar", leyenda: null, cuit: null, facturaA: false, incluirEnvio: false, motivo };
+  if (l.decision === "nada") return { accion: "facturar", leyenda: null, cuit: null, facturaA: false, incluirEnvio: false, razonSocial: null, motivo };
   const cuit = l.cuit ? digitos(l.cuit) : null;
   if (l.cuit && (cuit!.length !== 11 || !cuitCierra(cuit!))) return { accion: "retener", motivo: `Dio un CUIT que no es válido (${l.cuit}). ${motivo}`.trim() };
   if ((l.razon_social || l.domicilio) && !cuit) return { accion: "retener", motivo: `Pide otra razón social o domicilio sin dar el CUIT. ${motivo}`.trim() };
   if (l.factura_a && !cuit && digitos(cliente.cuit).length !== 11) return { accion: "retener", motivo: `Pide factura A pero no dio el CUIT. ${motivo}`.trim() };
   const leyenda = (l.leyenda ?? "").trim().replace(/^["«“']+|["»”']+$/g, "").slice(0, LARGO_LEYENDA) || null;
-  return { accion: "facturar", leyenda, cuit, facturaA: !!l.factura_a, incluirEnvio: !!l.incluir_envio, motivo };
+  return { accion: "facturar", leyenda, cuit, facturaA: !!l.factura_a, incluirEnvio: !!l.incluir_envio, razonSocial: (l.razon_social ?? "").trim().slice(0, 120) || null, motivo };
 }
 
 /** La huella de lo que escribió el comprador y de las notas: con la misma, no se vuelve a leer. Pura. */
@@ -57,7 +57,7 @@ Devolvé SÓLO un JSON: {"decision": "nada" | "aplicar" | "duda", "leyenda": tex
 - "aplicar": pidieron algo claro que se resuelve con una o las dos cosas de acá:
   · una leyenda u observación que tiene que figurar en la factura (un número de subsidio, expediente, orden de compra, proyecto…): va en "leyenda", textual, sin comillas;
   · que se facture el envío (o el flete) que pagó, o que la factura incluya el costo del envío: "incluir_envio" es true (ya está resuelto: se le corrige la factura sumando el envío);
-  · factura A, o facturar a un CUIT: el CUIT va en "cuit" y "factura_a" es true si pidió A. Con el CUIT, la razón social, la condición de IVA y el domicilio salen del padrón de ARCA; si además dio razón social o domicilio, ponelos en esos campos igual.
+  · factura A, o facturar a un CUIT: el CUIT va en "cuit" y "factura_a" es true si pidió A. Quien pide factura A se factura como Responsable Inscripto (no se consulta ningún padrón); si dio razón social o domicilio, ponelos en esos campos.
 - "duda": cualquier otra cosa sobre la factura, algo que no se entiende, o pedidos que se contradicen. Por ejemplo: otra razón social o domicilio sin CUIT, facturar a nombre de otra persona sin CUIT, partir la factura, otro importe que no sea el envío, otra fecha, otra descripción de los productos, factura sin IVA, o una leyenda de la que no está claro el texto.
 Los mensajes del vendedor son sólo contexto; lo que vale es lo que pidió el comprador o lo que dicen las notas.
 Una dirección, un nombre o un DNI para un envío o un reenvío NO son datos de la factura: eso es "nada", salvo que diga que es para la factura.
@@ -167,19 +167,20 @@ export async function revisarPedido(org: string, pid: number, facturada: Factura
       await retener(org, pid, motivo, { ...base, decision: "duda", motivo });
       return { retenida: true, motivo, cambio: false };
     }
-    try {
-      const { persona, cambios } = await padronAlCliente(org, c.pedido.cliente_id, cuit);
-      if (persona.estado && persona.estado !== "ACTIVO") throw new ErrorErp(`en ARCA el CUIT ${persona.cuit} figura ${persona.estado.toLowerCase()}`);
-      if (d.facturaA && !["responsable_inscripto", "monotributo"].includes(persona.condicionIva)) {
-        throw new ErrorErp(`pide factura A, pero en ARCA ${persona.razonSocial} figura como ${CONDICIONES_IVA_TEXTO[persona.condicionIva].toLowerCase()}: le corresponde B`);
-      }
-      if (cambios.length) { aplicado.push(`datos de ARCA en el cliente (${cambios.join(", ")})`); cambio = true; }
-      if (facturada && digitos(facturada.doc_nro) !== cuit) cambio = true;
-    } catch (e) {
-      const motivo = `No se pudo usar el CUIT ${cuitLegible(cuit)}: ${e instanceof Error ? e.message : String(e)}`;
-      await retener(org, pid, motivo, { ...base, decision: "duda", motivo });
-      return { retenida: true, motivo, cambio: false };
+    // Sin consultar el padrón de ARCA (Fer, 20/10): lo que dio el comprador va a la ficha, y quien pide factura A es Responsable Inscripto.
+    const cl = c.pedido;
+    const cambios: string[] = [];
+    if (digitos(cl.cuit) !== cuit) cambios.push(`CUIT ${cuitLegible(cuit)}`);
+    if (d.facturaA && cl.condicion_iva !== "responsable_inscripto") cambios.push("Responsable inscripto");
+    if (d.razonSocial && d.razonSocial !== cl.razon_social) cambios.push(`razón social ${d.razonSocial}`);
+    if (cambios.length) {
+      await consulta(`update cliente set cuit = $3, condicion_iva = case when $4::boolean then 'responsable_inscripto' else condicion_iva end,
+                             razon_social = coalesce($5::text, razon_social) where id = $1 and organizacion_id = $2`,
+        [cl.cliente_id, org, cuit, d.facturaA, d.razonSocial]);
+      aplicado.push(`datos en la ficha del cliente (${cambios.join(", ")})`);
+      cambio = true;
     }
+    if (facturada && (digitos(facturada.doc_nro) !== cuit || (d.facturaA && facturada.tipo_cbte !== 1))) cambio = true;
   }
   const motivo = [d.motivo, aplicado.length ? `Se aplicó: ${aplicado.join("; ")}.` : ""].filter(Boolean).join(" ");
   await consulta("update pedido set factura_revision = $3::jsonb where id = $1 and organizacion_id = $2",
