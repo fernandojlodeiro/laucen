@@ -107,7 +107,7 @@ if (url) {
     await assert.rejects(m.envios.despachar(e.org, envio, "u"), /No alcanza el stock de 3/);
     assert.equal(await n("select stock_disponible_deposito($1, $2, $3)", [e.org, v, e.propio]), 10, "si falla no mueve nada");
     const linW = await id("select id from full_envio_linea where envio_id = $1 and variacion_id = $2", [envio, w]);
-    await m.envios.cambiarCantidad(e.org, envio, linW, 3);
+    await m.envios.cambiarLinea(e.org, envio, linW, 3);
     await m.envios.guardarFlete(e.org, envio, { monto: 900, facturaId: null, criterio: "unidades" });
     assert.equal(await n("select flete_unit_ars from full_envio_linea where id = $1", [linW]), 100);
     const r = await m.envios.despachar(e.org, envio, "u");
@@ -140,6 +140,13 @@ if (url) {
     c = await m.lectura.conciliar(e.org, full, e.canal);
     assert.equal(c.ajustes, 1);
     assert.equal(await n("select stock_disponible_deposito($1, $2, $3)", [e.org, v, full]), 7);
+
+    // Tildados de la sugerencia y vaciar.
+    const tercero = await m.envios.crearEnvio(e.org, "u", e.canal, e.propio);
+    assert.deepEqual(await m.envios.agregarVarios(e.org, tercero, [{ variacion: v, cantidad: 2 }, { variacion: w, cantidad: 0 }]), { agregados: 1, unidades: 2 });
+    assert.equal(await n("select item_id = 'MLA2' from full_envio_linea where envio_id = $1", [tercero]) ? 1 : 0, 1);
+    await assert.rejects(m.envios.cambiarLinea(e.org, tercero, await id("select id from full_envio_linea where envio_id = $1", [tercero]), 2, { item: "MLA3", variacion: "" }), /no es de este producto/);
+    assert.equal(await m.envios.vaciarEnvio(e.org, tercero), 1);
 
     // Otro envío que se cierra con faltantes que vuelven.
     const otro = await m.envios.crearEnvio(e.org, "u", e.canal, e.propio);

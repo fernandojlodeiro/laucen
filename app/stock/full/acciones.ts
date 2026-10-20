@@ -9,8 +9,8 @@ import { deFondo } from "@/lib/tareas-fondo";
 import { ErrorErp } from "@/lib/erp/base";
 import { formatearNumero } from "@/lib/numeros";
 import {
-  crearEnvio, guardarCabecera, guardarFlete, borrarEnvio, agregarLinea, cambiarCantidad, borrarLinea, agregarSugeridos, despachar,
-  recibirAMano, cerrarEnvio, esCriterio, SUGERENCIA_DEFECTO,
+  crearEnvio, guardarCabecera, guardarFlete, borrarEnvio, agregarLinea, cambiarLinea, vaciarEnvio, borrarLinea, agregarVarios, despachar,
+  recibirAMano, cerrarEnvio, esCriterio,
 } from "@/lib/full/envios";
 import { leerFull } from "@/lib/full/lectura";
 
@@ -71,8 +71,9 @@ export async function accionCantidadLinea(fd: FormData) {
   const s = await entrarErp("full_ver");
   const e = id(fd, "envio");
   await intentar(ficha(e), async () => {
-    await cambiarCantidad(s.org.id, e, id(fd, "linea"), entero(fd, "cantidad") ?? 0);
-    return "Cantidad cambiada.";
+    const [item, variacion = ""] = String(fd.get("publicacion") ?? "").split("~");
+    await cambiarLinea(s.org.id, e, id(fd, "linea"), entero(fd, "cantidad") ?? 0, item ? { item, variacion } : null);
+    return "Grabado.";
   });
 }
 
@@ -85,15 +86,24 @@ export async function accionBorrarLinea(fd: FormData) {
   });
 }
 
-export async function accionSugeridos(fd: FormData) {
+/** «Agregar los tildados» de la sugerencia: cada fila tildada (s_<variación>) con su cantidad (c_<variación>). */
+export async function accionAgregarTildados(fd: FormData) {
   const s = await entrarErp("full_ver");
   const e = id(fd, "envio");
   await intentar(ficha(e), async () => {
-    const dias = (k: string, d: number) => Math.min(365, Math.max(1, entero(fd, k) ?? d));
-    const r = await agregarSugeridos(s.org.id, e, {
-      diasFull: dias("dias_full", SUGERENCIA_DEFECTO.diasFull), diasDejar: dias("dias_dejar", SUGERENCIA_DEFECTO.diasDejar), diasVentas: dias("dias_ventas", SUGERENCIA_DEFECTO.diasVentas),
-    });
-    return r.agregados ? `Se sumaron ${n(r.agregados)} productos (${n(r.unidades)} unidades). Revisá las cantidades.` : "No hay nada para sugerir con esos días (o ya está todo en el envío).";
+    const items = [...fd.keys()].filter((k) => /^s_\d+$/.test(k) && fd.get(k) === "on")
+      .map((k) => { const v = Number(k.slice(2)); return { variacion: v, cantidad: entero(fd, `c_${v}`) ?? 0 }; });
+    const r = await agregarVarios(s.org.id, e, items);
+    return { ir: ficha(e, "?ok=" + encodeURIComponent(`Se sumaron ${n(r.agregados)} productos (${n(r.unidades)} unidades).`)) };
+  });
+}
+
+export async function accionVaciarEnvio(fd: FormData) {
+  const s = await entrarErp("full_ver");
+  const e = id(fd);
+  await intentar(ficha(e), async () => {
+    const t = await vaciarEnvio(s.org.id, e);
+    return `Se sacaron ${n(t)} productos del envío.`;
   });
 }
 

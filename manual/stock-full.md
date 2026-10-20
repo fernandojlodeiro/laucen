@@ -11,7 +11,7 @@ resumen: Armar, despachar y seguir los envíos de mercadería a Full de una cuen
 
 Para mandar mercadería del depósito propio a **Full** de una cuenta de Mercado Libre y seguirla hasta que llega, sin perder la cuenta del stock:
 
-- Se arma el envío con los productos y las cantidades (a mano o con una **sugerencia** según lo que vende cada producto).
+- Se arma el envío con los productos y las cantidades (a mano, o tildando los que convienen de una **sugerencia** según lo que vende cada producto).
 - Al **despacharlo**, las unidades salen del depósito propio y quedan **«En camino a Full»**: desde ese momento no se venden por ningún canal.
 - Cuando Mercado Libre las cuenta en Full, el sistema las **recibe solo** y pasan al depósito Full de esa cuenta.
 - Las ventas Full de esa cuenta descuentan del depósito Full; el resto de los canales (las otras cuentas, la tienda, el local) sigue vendiendo lo que queda en el depósito propio.
@@ -38,10 +38,10 @@ El envío también se crea en Mercado Libre, en la Central de vendedores (secci�
 - **Datos del envío**: **Nº del envío en Mercado Libre**, **Entrega en Full (turno)** y **Notas**. Se cambian con el lápiz en cualquier estado.
 - Recuadros: **Productos**, **Unidades**, **Recibidas en Full**, **Pendientes**, **Despachado** y **Recibido** (o **Cerrado**).
 - Caja **Flete del envío** con su lápiz: **Monto (sin IVA)**, **Factura de gasto** (enlace a la factura) y **Cómo se reparte**. Debajo, cuánto da en promedio por unidad.
-- Tabla **Productos**: foto y SKU (enlace a la ficha), la **Publicación** de la cuenta (su número abre el historial; la ↗ abre Mercado Libre), el **Código ML**, **Vende/día en la cuenta**, **Vende/día en lo demás** (los otros canales), **En Full**, **En camino** (de otros envíos), **Disponible en** el depósito de origen (en rojo si no alcanza), **Cantidad**, y cuando ya salió, **Recibido** y **Faltante**; al final, el **Flete por unidad**.
-  - En borrador, cada fila tiene el lápiz (cambia la cantidad ahí mismo) y el tacho (lo saca del envío).
+- Tabla **Productos** (con **«Vaciar el envío»** a la derecha del título, en borrador): foto y SKU (enlace a la ficha), la **Publicación** de la cuenta a la que va (su número abre el historial; la ↗ abre Mercado Libre; debajo, el plan, la marca de catálogo y cuánto vendió), el **Código ML**, **Vende/día en la cuenta**, **Vende/día en lo demás** (los otros canales), **En Full**, **En camino** (de otros envíos), **Disponible en** el depósito de origen (en rojo si no alcanza), **Cantidad**, y cuando ya salió, **Recibido** y **Faltante**; al final, el **Flete por unidad**.
+  - En borrador, cada fila tiene el lápiz (cambia ahí mismo la cantidad y la publicación) y el tacho (lo saca del envío).
   - En camino, cada fila con unidades pendientes tiene **«Recibir…»**, para recibir a mano.
-- En borrador, abajo: **Agregar productos** (buscador; cada resultado con su cantidad y **«Agregar»**) y **Agregar sugeridos** (con sus tres números de días).
+- En borrador, abajo: **Agregar productos** (buscador; cada resultado con su cantidad y **«Agregar»**) y **Sugeridos** con el botón **«Ver sugeridos»**. Abre la lista de sugeridos sin agregar nada: los tres números de días con **«Recalcular»**, y por producto una caja **Mandar** para tildar, la publicación a la que iría, lo que vende, lo que hay y la **Cantidad** sugerida (se puede cambiar). **«Agregar los tildados»** suma sólo los tildados; **«Cerrar sugeridos»** la esconde.
 - En camino, abajo: **Cerrar el envío**, con **«Cerrar: lo que falta vuelve al depósito»** y **«Cerrar: lo que falta se perdió»**.
 
 ### Pestaña Stock en Full
@@ -58,13 +58,13 @@ El envío también se crea en Mercado Libre, en la Central de vendedores (secci�
 1. Apretá **«Nuevo envío»**, elegí la **Cuenta de Mercado Libre** y el depósito de donde **Sale**, y apretá **«Crear»**. Si la cuenta todavía no tiene depósito Full, se crea solo («Full» y el nombre de la cuenta).
 2. En la ficha, sumá productos:
    - con el buscador de **Agregar productos**: escribí, poné la cantidad y apretá **«Agregar»**;
-   - o con **«Agregar sugeridos»** (ver «Criterios y reglas»).
-3. Revisá las cantidades con el lápiz de cada fila. Sacá lo que no va con el tacho.
+   - o con **«Ver sugeridos»**: tildá en **Mandar** los que querés, corregí la cantidad si hace falta y apretá **«Agregar los tildados»**. Después, **«Cerrar sugeridos»** (ver «Criterios y reglas»).
+3. Revisá cada fila con el lápiz: la cantidad y la **publicación** a la que va. Sacá lo que no va con el tacho, o todo junto con **«Vaciar el envío»**.
 
 ### Crear el envío en Mercado Libre y anotar el número
 
 1. En la Central de vendedores de Mercado Libre, creá el envío a Full con los mismos productos y cantidades.
-2. Volvé a la ficha del envío, apretá el lápiz y cargá el **Nº del envío en Mercado Libre** y la **Entrega en Full (turno)**. Apretá **«Grabar»**.
+2. Volvé a la ficha del envío, apretá el lápiz y cargá el **Nº del envío en Mercado Libre** y la **Entrega en Full (turno)**. Apretá **«Grabar»**. El número queda de referencia: Mercado Libre no deja leer el contenido del envío desde otro sistema, así que los productos y cantidades se cargan en el sistema.
 
 ### Etiquetar y despachar
 
@@ -114,6 +114,10 @@ Se puede cargar antes o después de despachar, y cambiar cuando llega la factura
 - Cada ajuste queda en [Movimientos de stock](/stock/movimientos) con la nota «Igualado con Full de Mercado Libre» y lo que decía cada uno.
 - Las unidades no disponibles no se cuentan en el depósito Full: se ven en la columna «No disponible en ML».
 
+### A qué publicación va cada producto
+
+En Full el stock es de cada **publicación** (cada una tiene su Código ML), no del producto: lo que se manda a Full sólo lo vende la publicación elegida, y las demás publicaciones del mismo producto en la cuenta siguen vendiendo lo del depósito propio. En el envío viene elegida, en este orden: la que ya está en Full, la que más vendió en los últimos 60 días, la de catálogo, y la del plan más barato (Clásica). Se cambia con el lápiz de la fila. Tiene que ser la misma que se elige en el envío de Mercado Libre, y las etiquetas salen con su Código ML.
+
 ### La sugerencia
 
 Para cada producto que la cuenta publica y vendió en los últimos días elegidos (60 de entrada), sin contar kits:
@@ -122,7 +126,7 @@ Para cada producto que la cuenta publica y vendió en los últimos días elegido
 - **Puede mandar** = el disponible en el depósito de origen menos lo que venden por día los demás canales × días a dejar en el depósito (30 de entrada).
 - **Sugerido** = el menor de los dos (si da cero o menos, no se suma).
 
-Sólo suma productos que todavía no están en el envío.
+Muestra sólo productos que todavía no están en el envío, del que más vende al que menos, y no agrega nada hasta que se tildan y se aprieta «Agregar los tildados».
 
 ### El flete
 
@@ -137,6 +141,12 @@ Sólo suma productos que todavía no están en el envío.
 - En la [Rentabilidad por venta](/informes/rentabilidad), cada unidad vendida desde el depósito Full resta el flete por unidad del último envío de ese producto a esa cuenta despachado hasta el día de la venta (si la venta es anterior a todos, el del primero).
 
 ## Preguntas frecuentes
+
+**Cargué el número del envío de Mercado Libre y no trajo nada. ¿Está bien?**
+Sí. Mercado Libre no deja leer el contenido de un envío desde otro sistema; el número queda de referencia. Los productos se cargan en el sistema (a mano o tildando los sugeridos), con las mismas cantidades que en Mercado Libre.
+
+**¿A qué publicación conviene mandar?**
+A la que más vende (suele ser la de catálogo, que compite en la página del producto). Lo que mandás a Full sólo lo vende esa publicación; las demás del mismo producto siguen saliendo del depósito propio.
 
 **¿Tengo que crear el envío también en Mercado Libre?**
 Sí. Mercado Libre no deja crearlo desde otro sistema. Armalo acá (con la sugerencia y las etiquetas) y copiá los productos y cantidades en la Central de vendedores.

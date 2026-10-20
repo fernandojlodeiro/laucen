@@ -6,6 +6,7 @@
 import { pool } from "@/db";
 import { consulta, una, enTransaccion, ErrorErp, type Consultor } from "@/lib/erp/base";
 import { SQL_CODIGO, completarCodigoFull } from "@/lib/deposito/etiquetas-full";
+import { PLAN_PUBLICACION, ORDEN_PLAN_PUBLICACION } from "@/app/catalogo/publicaciones/lista";
 
 export type EstadoEnvio = "borrador" | "despachado" | "recibido" | "cerrado";
 export const ESTADOS_ENVIO: Record<EstadoEnvio, { texto: string; tono: "gris" | "azul" | "verde" | "amarillo" }> = {
@@ -137,14 +138,34 @@ export async function borrarEnvio(org: string, id: number) {
 
 // ── Líneas ───────────────────────────────────────────────
 
-/** La publicación de la cuenta para esa variación (la que lleva el Código ML de la etiqueta): la que
- *  ya está en Full, si no la que tiene el código, si no una activa. */
+/** Las publicaciones de la cuenta para mandar a Full. En Full el stock es de cada publicación (su
+ *  Código ML), no del producto: lo que se manda sólo lo vende esa publicación. */
+export type PublicacionCuenta = {
+  variacion_id: number; item_id: string; variation_id: string; plan: string | null; catalogo: boolean; estado: string | null;
+  logistica: string | null; codigo: string | null; vendidas: number;
+};
+
+const CODIGO_MI = SQL_CODIGO.replace(/\bm\./g, "mi.");
+
+/** Las publicaciones no cerradas de esas variaciones en la cuenta, la recomendada primero: la que más
+ *  vendió en los últimos `dias`, después la de catálogo, después la más barata para el vendedor. */
+export async function publicacionesDe(org: string, canalId: number, variaciones: number[], dias = SUGERENCIA_DEFECTO.diasVentas): Promise<PublicacionCuenta[]> {
+  if (!variaciones.length) return [];
+  return consulta<PublicacionCuenta>(`
+    select pu.variacion_id::int, mi.item_id, coalesce(mi.variation_id, '') variation_id, ${PLAN_PUBLICACION} plan,
+           coalesce((pu.datos_externos ->> 'catalogo')::boolean, false) catalogo, mi.estado, mi.logistica, ${CODIGO_MI} codigo,
+           coalesce((select sum(l.cantidad) from pedido pe join pedido_linea l on l.pedido_id = pe.id
+                      where pe.organizacion_id = $1 and pe.canal_id = $2 and l.datos_externos -> 'ml' ->> 'item_id' = mi.item_id
+                        and pe.estado not in ('presupuesto', 'nuevo', 'cancelado', 'devuelto') and pe.fecha >= now() - make_interval(days => $4)), 0)::int vendidas
+      from meli_item mi join publicacion pu on pu.id = mi.publicacion_id
+     where mi.organizacion_id = $1 and mi.canal_id = $2 and pu.variacion_id = any($3::bigint[]) and coalesce(mi.estado, '') <> 'closed'
+     order by pu.variacion_id, (mi.logistica = 'fulfillment') desc, vendidas desc, catalogo desc, ${ORDEN_PLAN_PUBLICACION}, (mi.estado = 'active') desc, mi.item_id`,
+    [org, canalId, variaciones, dias]);
+}
+
+/** La recomendada de una variación (ver publicacionesDe), o null si la cuenta no la publica. */
 async function publicacionDe(org: string, canalId: number, variacionId: number) {
-  return una<{ item_id: string; variation_id: string; codigo: string | null }>(`
-    select m.item_id, coalesce(m.variation_id, '') variation_id, ${SQL_CODIGO} codigo
-      from meli_item m join publicacion pu on pu.id = m.publicacion_id
-     where m.organizacion_id = $1 and m.canal_id = $2 and pu.variacion_id = $3 and coalesce(m.estado, '') <> 'closed'
-     order by (m.logistica = 'fulfillment') desc, (${SQL_CODIGO}) is null, (m.estado = 'active') desc, m.item_id limit 1`, [org, canalId, variacionId]);
+  return (await publicacionesDe(org, canalId, [variacionId]))[0] ?? null;
 }
 
 /** Suma un producto al envío (si ya estaba, suma la cantidad). Avisa si la cuenta no lo publica. */
@@ -166,13 +187,32 @@ export async function agregarLinea(org: string, envioId: number, variacionId: nu
   return pub ? null : `${v.sku} no tiene publicación en ${e.canal}: para mandarlo a Full, primero publicalo en esa cuenta.`;
 }
 
-export async function cambiarCantidad(org: string, envioId: number, lineaId: number, cantidad: number) {
+/** Cambia la cantidad de una línea y, si viene, la publicación de la cuenta a la que va. */
+export async function cambiarLinea(org: string, envioId: number, lineaId: number, cantidad: number, publicacion?: { item: string; variacion: string } | null) {
   if (!Number.isInteger(cantidad) || cantidad <= 0) throw new ErrorErp("Poné cuántas unidades van (para sacarlo, usá el tacho).");
+  const e = await envio(org, envioId);
+  if (!e) throw new ErrorErp("Ese envío no existe.");
+  if (publicacion) {
+    const l = await una<{ v: number }>("select variacion_id::int v from full_envio_linea where id = $1 and envio_id = $2", [lineaId, envioId]);
+    const ok = l && (await publicacionesDe(org, e.canal_id, [l.v])).find((p) => p.item_id === publicacion.item && p.variation_id === publicacion.variacion);
+    if (!ok) throw new ErrorErp("Esa publicación no es de este producto en la cuenta.");
+    if (!ok.codigo) await completarCodigoFull(org, e.canal_id, ok.item_id, ok.variation_id).catch(() => null);
+  }
   await enTransaccion(async (c) => {
     await envioPara(c, org, envioId, ["borrador"]);
-    await c.query("update full_envio_linea set cantidad = $4 where organizacion_id = $1 and envio_id = $2 and id = $3", [org, envioId, lineaId, cantidad]);
+    await c.query(`update full_envio_linea set cantidad = $4, item_id = coalesce($5, item_id), variation_id = coalesce($6, variation_id)
+                    where organizacion_id = $1 and envio_id = $2 and id = $3`, [org, envioId, lineaId, cantidad, publicacion?.item ?? null, publicacion?.variacion ?? null]);
   });
   await prorratearFlete(org, envioId);
+}
+
+/** Saca todos los productos del envío (borrador). */
+export async function vaciarEnvio(org: string, envioId: number): Promise<number> {
+  const n = await enTransaccion(async (c) => {
+    await envioPara(c, org, envioId, ["borrador"]);
+    return (await c.query("delete from full_envio_linea where organizacion_id = $1 and envio_id = $2", [org, envioId])).rowCount ?? 0;
+  });
+  return n;
 }
 
 export async function borrarLinea(org: string, envioId: number, lineaId: number) {
@@ -228,25 +268,38 @@ export function cantidadSugerida(x: Contexto, p: ParametrosSugerencia): number {
   return Math.max(0, Math.min(necesita, puede));
 }
 
-/** Suma al envío lo sugerido de los productos que todavía no tiene. Devuelve cuántos sumó. */
-export async function agregarSugeridos(org: string, envioId: number, p: ParametrosSugerencia): Promise<{ agregados: number; unidades: number }> {
+/** Lo sugerido para el envío (sin agregar nada): los productos que todavía no tiene, con cantidad > 0. */
+export async function sugeridos(org: string, envioId: number, p: ParametrosSugerencia): Promise<(Contexto & { sugerido: number })[]> {
+  const e = await envio(org, envioId);
+  if (!e) throw new ErrorErp("Ese envío no existe.");
+  const ya = new Set((await consulta<{ v: number }>("select variacion_id::int v from full_envio_linea where envio_id = $1", [envioId])).map((x) => x.v));
+  return (await contexto(org, e, p.diasVentas))
+    .filter((x) => !ya.has(x.variacion_id))
+    .map((x) => ({ ...x, sugerido: cantidadSugerida(x, p) }))
+    .filter((x) => x.sugerido > 0)
+    .sort((a, b) => b.vendidas_cuenta - a.vendidas_cuenta);
+}
+
+/** Suma varios productos de una vez (los tildados de la sugerencia), cada uno a su publicación recomendada. */
+export async function agregarVarios(org: string, envioId: number, items: { variacion: number; cantidad: number }[]): Promise<{ agregados: number; unidades: number }> {
   const e = await envio(org, envioId);
   if (!e) throw new ErrorErp("Ese envío no existe.");
   if (e.estado !== "borrador") throw new ErrorErp("El envío ya salió: no se le pueden agregar productos.");
-  const ya = new Set((await consulta<{ v: number }>("select variacion_id::int v from full_envio_linea where envio_id = $1", [envioId])).map((x) => x.v));
-  const filas = await contexto(org, e, p.diasVentas);
-  let agregados = 0, unidades = 0;
-  for (const x of filas) {
-    if (ya.has(x.variacion_id)) continue;
-    const n = cantidadSugerida(x, p);
-    if (n <= 0) continue;
-    const pub = await publicacionDe(org, e.canal_id, x.variacion_id);
-    await consulta(`insert into full_envio_linea (organizacion_id, envio_id, variacion_id, item_id, variation_id, cantidad) values ($1, $2, $3, $4, $5, $6)
-                    on conflict (envio_id, variacion_id) do nothing`, [org, envioId, x.variacion_id, pub?.item_id ?? null, pub?.variation_id ?? "", n]);
-    agregados++; unidades += n;
+  const validos = items.filter((x) => x.variacion > 0 && Number.isInteger(x.cantidad) && x.cantidad > 0);
+  if (!validos.length) throw new ErrorErp("No tildaste ningún producto (o les falta la cantidad).");
+  const pubs = await publicacionesDe(org, e.canal_id, validos.map((x) => x.variacion));
+  let unidades = 0;
+  for (const x of validos) {
+    const pub = pubs.find((p) => p.variacion_id === x.variacion) ?? null;
+    if (pub && !pub.codigo) await completarCodigoFull(org, e.canal_id, pub.item_id, pub.variation_id).catch(() => null);
+    await consulta(`
+      insert into full_envio_linea (organizacion_id, envio_id, variacion_id, item_id, variation_id, cantidad) values ($1, $2, $3, $4, $5, $6)
+      on conflict (envio_id, variacion_id) do update set cantidad = full_envio_linea.cantidad + excluded.cantidad`,
+      [org, envioId, x.variacion, pub?.item_id ?? null, pub?.variation_id ?? "", x.cantidad]);
+    unidades += x.cantidad;
   }
-  if (agregados) await prorratearFlete(org, envioId);
-  return { agregados, unidades };
+  await prorratearFlete(org, envioId);
+  return { agregados: validos.length, unidades };
 }
 
 // ── Despachar, recibir, cerrar ───────────────────────────
