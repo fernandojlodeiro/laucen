@@ -29,7 +29,7 @@ import { MarcaCatalogo, textoPlan } from "@/app/catalogo/publicaciones/lista";
 import { COOKIE_IMPRESORA_FULL, esImpresoraFull } from "@/lib/deposito/etiquetas-full-tipos";
 import { SQL_CODIGO } from "@/lib/deposito/etiquetas-full";
 import {
-  envio as leerEnvio, contexto, lineasReparto, sugeridos as calcularSugeridos, publicacionesDe, repartirFlete, facturasParaFlete,
+  envio as leerEnvio, contexto, lineasReparto, sugeridos as calcularSugeridos, publicacionesDe, agruparPorCodigo, type GrupoFull, repartirFlete, facturasParaFlete,
   ESTADOS_ENVIO, CRITERIOS_FLETE, SUGERENCIA_DEFECTO,
 } from "@/lib/full/envios";
 import { diaAR } from "../piezas";
@@ -80,8 +80,19 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
     publicacionesDe(s.org.id, e.canal_id, lineas.map((l) => l.variacion_id)),
     verSugeridos ? calcularSugeridos(s.org.id, eid, param) : Promise.resolve([]),
   ]);
-  const pubsDe = (v: number) => pubs.filter((p) => p.variacion_id === v);
-  const sugPubs = verSugeridos ? await publicacionesDe(s.org.id, e.canal_id, sug.map((x) => x.variacion_id)) : [];
+  // Las publicaciones de cada producto, agrupadas por Código ML: las de un grupo comparten el stock de Full.
+  const grupos = agruparPorCodigo(pubs);
+  const gruposDe = (v: number) => grupos.filter((g) => g.variacion_id === v);
+  const grupoDe = (v: number, item: string | null, variation: string) => gruposDe(v).find((g) => g.publicaciones.some((p) => p.item_id === item && p.variation_id === variation));
+  const sugGrupos = verSugeridos ? agruparPorCodigo(await publicacionesDe(s.org.id, e.canal_id, sug.map((x) => x.variacion_id))) : [];
+  /** El grupo en una línea: el plan de cada publicación (la de catálogo con su marca) y cuánto vendieron. */
+  const textoGrupo = (g: GrupoFull) => g.publicaciones.map((p) => `${p.item_id}${p.catalogo ? " (catálogo)" : ""}`).join(" + ");
+  const PlanesGrupo = ({ g }: { g: GrupoFull }) => (
+    <span className="block text-[10px] text-[#5C6B76]">
+      {[...new Set(g.publicaciones.map((p) => textoPlan(p.plan)).filter(Boolean))].join(" / ")} {g.catalogo && <MarcaCatalogo />} · vendió {n(g.vendidas)} en {dias} días
+      {gruposDe(g.variacion_id).length > 1 ? ` · ${gruposDe(g.variacion_id).length} códigos de Full en la cuenta` : ""}
+    </span>
+  );
   const ctxDe = new Map(ctx.map((c) => [c.variacion_id, c]));
   const { usado, sinDato } = repartirFlete(reparto, e.flete_criterio, e.flete_ars);
   const unidades = lineas.reduce((t, l) => t + l.cantidad, 0);
@@ -200,13 +211,13 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
       </TituloSeccion>
       <p className="text-[11px] text-[#5C6B76] mb-1">
         Vendidas por día: promedio de los últimos {dias} días. «En camino» es lo de otros envíos que todavía no llegó. En Full el stock es de cada
-        publicación, no del producto: lo que mandás sólo lo vende la publicación elegida (con el lápiz se cambia). Viene elegida la que más vendió.
+        publicación, no del producto: lo que mandás lo venden sólo las publicaciones de ese Código ML (la común y su gemela de catálogo). Con el lápiz se elige el código; viene el que más vendió.
       </p>
       <div className={`${CAJA_TABLA} mb-3`}>
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH}>Producto</th><th className={TH}>Publicación</th><th className={TH}>Código ML</th>
+              <th className={TH}>Producto</th><th className={TH}>Publicaciones que lo venden desde Full</th><th className={TH}>Código ML</th>
               <th className={THN}>Vende/día en la cuenta</th><th className={THN}>Vende/día en lo demás</th><th className={THN}>En Full</th><th className={THN}>En camino</th>
               <th className={THN}>Disponible en {e.origen}</th><th className={THN}>Cantidad</th>
               {!borrador && <><th className={THN}>Recibido</th><th className={THN}>Faltante</th></>}
@@ -230,19 +241,25 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
                   </td>
                   <td className={`${TD} whitespace-nowrap`}>
                     {editarFila ? (
-                      <select name="publicacion" form={`fl-${l.id}`} defaultValue={l.item_id ? `${l.item_id}~${l.variation_id}` : ""} className={CAMPO} aria-label="Publicación">
-                        {pubsDe(l.variacion_id).map((p) => (
-                          <option key={`${p.item_id}~${p.variation_id}`} value={`${p.item_id}~${p.variation_id}`}>
-                            {p.item_id} · {textoPlan(p.plan) ?? "—"}{p.catalogo ? " · Catálogo" : ""} · vendió {p.vendidas}{p.estado !== "active" ? " · pausada" : ""}
+                      <select name="publicacion" form={`fl-${l.id}`} defaultValue={(() => { const g = grupoDe(l.variacion_id, l.item_id, l.variation_id); return g ? `${g.principal.item_id}~${g.principal.variation_id}` : ""; })()}
+                        className={CAMPO} aria-label="Código de Full">
+                        {gruposDe(l.variacion_id).map((g) => (
+                          <option key={g.clave} value={`${g.principal.item_id}~${g.principal.variation_id}`}>
+                            {g.codigo ?? "sin código"} · {[...new Set(g.publicaciones.map((p) => textoPlan(p.plan)).filter(Boolean))].join(" / ")} · {textoGrupo(g)} · vendió {g.vendidas}
                           </option>
                         ))}
                       </select>
                     ) : l.item_id ? (() => {
-                      const p = pubsDe(l.variacion_id).find((x) => x.item_id === l.item_id && x.variation_id === l.variation_id);
+                      const g = grupoDe(l.variacion_id, l.item_id, l.variation_id);
+                      const items = g ? g.publicaciones : [{ item_id: l.item_id, catalogo: false }];
                       return (
                         <>
-                          <span className="font-mono"><Link href={historialPublicacion(l.item_id)} className="text-[#16577F] hover:underline">{l.item_id}</Link> <a href={enlaceMl(l.item_id)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a></span>
-                          {p && <span className="block text-[10px] text-[#5C6B76]">{textoPlan(p.plan)} {p.catalogo && <MarcaCatalogo />} · vendió {n(p.vendidas)} en {dias} días{pubsDe(l.variacion_id).length > 1 ? ` · ${pubsDe(l.variacion_id).length} publicaciones` : ""}</span>}
+                          {items.map((p) => (
+                            <span key={p.item_id} className="mr-2 font-mono">
+                              <Link href={historialPublicacion(p.item_id)} className="text-[#16577F] hover:underline">{p.item_id}</Link> <a href={enlaceMl(p.item_id)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a>
+                            </span>
+                          ))}
+                          {g && <PlanesGrupo g={g} />}
                         </>
                       );
                     })() : <span className="text-[#C03420]">Sin publicación en la cuenta</span>}
@@ -352,7 +369,7 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
             <table className={TABLA}>
               <thead className={THEAD}>
                 <tr>
-                  <th className={TH}>Mandar</th><th className={TH}>Producto</th><th className={TH}>Iría a la publicación</th>
+                  <th className={TH}>Mandar</th><th className={TH}>Producto</th><th className={TH}>Iría al código de Full</th>
                   <th className={THN}>Vende/día en la cuenta</th><th className={THN}>Vende/día en lo demás</th><th className={THN}>En Full</th>
                   <th className={THN}>En camino</th><th className={THN}>Disponible en {e.origen}</th><th className={THN}>Cantidad</th>
                 </tr>
@@ -360,14 +377,14 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
               <tbody>
                 {sug.length === 0 && <tr><td colSpan={9} className={`${TD} text-[#5C6B76]`}>Con esos días no hay nada para sugerir (o ya está todo en el envío).</td></tr>}
                 {sug.map((x) => {
-                  const p = sugPubs.find((y) => y.variacion_id === x.variacion_id);
+                  const g = sugGrupos.find((y) => y.variacion_id === x.variacion_id);
                   const d = param.diasVentas;
                   const pd = (v: number) => formatearNumero(Math.round((v / d) * 10) / 10, "decimal");
                   return (
                     <tr key={x.variacion_id} className={TR}>
                       <td className={TD}><input type="checkbox" name={`s_${x.variacion_id}`} aria-label={`Mandar ${x.sku}`} className="h-4 w-4" /></td>
                       <td className={TD}><span className="font-mono">{x.sku}</span> <span className="text-[#5C6B76]">{x.titulo}</span></td>
-                      <td className={`${TD} whitespace-nowrap`}>{p ? <><span className="font-mono">{p.item_id}</span> <span className="text-[10px] text-[#5C6B76]">{textoPlan(p.plan)}</span> {p.catalogo && <MarcaCatalogo />}</> : "—"}</td>
+                      <td className={`${TD} whitespace-nowrap`}>{g ? <><span className="font-mono">{g.codigo ?? "sin código"}</span> <span className="font-mono text-[10px]">{textoGrupo(g)}</span><PlanesGrupo g={g} /></> : "—"}</td>
                       <td className={TDN}>{pd(x.vendidas_cuenta)}</td>
                       <td className={TDN}>{pd(x.vendidas_otros)}</td>
                       <td className={TDN}>{n(x.en_full)}</td>

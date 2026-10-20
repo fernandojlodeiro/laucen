@@ -114,9 +114,11 @@ Se puede cargar antes o después de despachar, y cambiar cuando llega la factura
 - Cada ajuste queda en [Movimientos de stock](/stock/movimientos) con la nota «Igualado con Full de Mercado Libre» y lo que decía cada uno.
 - Las unidades no disponibles no se cuentan en el depósito Full: se ven en la columna «No disponible en ML».
 
-### A qué publicación va cada producto
+### A qué publicaciones va cada producto
 
-En Full el stock es de cada **publicación** (cada una tiene su Código ML), no del producto: lo que se manda a Full sólo lo vende la publicación elegida, y las demás publicaciones del mismo producto en la cuenta siguen vendiendo lo del depósito propio. En el envío viene elegida, en este orden: la que ya está en Full, la que más vendió en los últimos 60 días, la de catálogo, y la del plan más barato (Clásica). Se cambia con el lápiz de la fila. Tiene que ser la misma que se elige en el envío de Mercado Libre, y las etiquetas salen con su Código ML.
+En Full el stock no es del producto sino de cada **Código ML** (el de la etiqueta). Una publicación común y su gemela de catálogo sincronizada comparten el mismo código, y por lo tanto el mismo stock de Full. Pero cada plan de cuotas (Clásica, Premium, 3x…) tiene su propio código, aunque Mercado Libre lo muestre como una variante de la misma publicación: lo que se manda con el código de la Clásica sólo lo venden la Clásica y su gemela de catálogo; los demás planes del producto siguen vendiendo lo del depósito propio.
+
+Por eso en el envío cada producto va a un **código de Full**, y se ven juntas las publicaciones que lo comparten (con su plan, la marca de catálogo y cuánto vendieron en los últimos 60 días). Viene elegido, en este orden: el que ya está en Full, el que más vendió, el que tiene catálogo, y el del plan más barato (Clásica). Se cambia con el lápiz de la fila. Tiene que ser el mismo que se elige en el envío de Mercado Libre: las etiquetas salen con ese código.
 
 ### La sugerencia
 
@@ -146,7 +148,7 @@ Muestra sólo productos que todavía no están en el envío, del que más vende 
 Sí. Mercado Libre no deja leer el contenido de un envío desde otro sistema; el número queda de referencia. Los productos se cargan en el sistema (a mano o tildando los sugeridos), con las mismas cantidades que en Mercado Libre.
 
 **¿A qué publicación conviene mandar?**
-A la que más vende (suele ser la de catálogo, que compite en la página del producto). Lo que mandás a Full sólo lo vende esa publicación; las demás del mismo producto siguen saliendo del depósito propio.
+Al código de Full que más vende, que suele ser el de la Clásica con su gemela de catálogo (compite en la página del producto). Lo que mandás lo venden sólo las publicaciones de ese código; los otros planes del producto siguen saliendo del depósito propio.
 
 **¿Tengo que crear el envío también en Mercado Libre?**
 Sí. Mercado Libre no deja crearlo desde otro sistema. Armalo acá (con la sugerencia y las etiquetas) y copiá los productos y cantidades en la Central de vendedores.

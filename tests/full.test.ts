@@ -29,6 +29,17 @@ test("Full: reparto del flete por volumen, y por unidades si a alguno le falta e
   assert.equal(repartirFlete(lineas, "valor", null).porUnidad.get(1), null);
 });
 
+test("Full: las publicaciones se agrupan por Código ML; la principal es la común", async () => {
+  const { agruparPorCodigo } = await import("@/lib/full/envios");
+  const p = (item: string, codigo: string | null, up: string, catalogo: boolean, vendidas: number) =>
+    ({ variacion_id: 1, item_id: item, variation_id: "", plan: "clasica", catalogo, estado: "active", logistica: "xd_drop_off", codigo, producto_ml: up, vendidas });
+  const g = agruparPorCodigo([p("MLA2", "ICPP", "U1", true, 4), p("MLA1", "ICPP", "U1", false, 1), p("MLA3", null, "U2", false, 0), p("MLA4", null, "U2", true, 0)]);
+  assert.equal(g.length, 2);
+  assert.equal(g[0].principal.item_id, "MLA1");
+  assert.equal(g[0].vendidas, 5);
+  assert.deepEqual(g[1].publicaciones.map((x) => x.item_id), ["MLA3", "MLA4"]);
+});
+
 test("Full: sugerencia y plan de conciliación", async () => {
   const { cantidadSugerida } = await import("@/lib/full/envios");
   const { planConciliacion, leerRespuestaFull } = await import("@/lib/full/lectura");

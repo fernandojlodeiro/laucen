@@ -142,8 +142,36 @@ export async function borrarEnvio(org: string, id: number) {
  *  Código ML), no del producto: lo que se manda sólo lo vende esa publicación. */
 export type PublicacionCuenta = {
   variacion_id: number; item_id: string; variation_id: string; plan: string | null; catalogo: boolean; estado: string | null;
-  logistica: string | null; codigo: string | null; vendidas: number;
+  logistica: string | null; codigo: string | null; producto_ml: string | null; vendidas: number;
 };
+
+/** Las publicaciones que comparten el stock de Full: las del mismo Código ML (o, si ML todavía no lo
+ *  dio, del mismo producto de ML: una publicación y su gemela de catálogo sincronizada). */
+export type GrupoFull = {
+  clave: string; variacion_id: number; codigo: string | null; principal: PublicacionCuenta; publicaciones: PublicacionCuenta[];
+  vendidas: number; catalogo: boolean; enFull: boolean;
+};
+
+/** Agrupa por Código ML, en el orden recomendado (el de publicacionesDe: la primera de cada grupo
+ *  decide su lugar). La principal es la publicación común (no la de catálogo). */
+export function agruparPorCodigo(pubs: PublicacionCuenta[]): GrupoFull[] {
+  const grupos = new Map<string, GrupoFull>();
+  for (const p of pubs) {
+    const clave = `${p.variacion_id}:${p.codigo ?? p.producto_ml ?? `${p.item_id}~${p.variation_id}`}`;
+    const g = grupos.get(clave);
+    if (!g) {
+      grupos.set(clave, { clave, variacion_id: p.variacion_id, codigo: p.codigo, principal: p, publicaciones: [p], vendidas: p.vendidas, catalogo: p.catalogo, enFull: p.logistica === "fulfillment" });
+      continue;
+    }
+    g.publicaciones.push(p);
+    g.vendidas += p.vendidas;
+    g.catalogo ||= p.catalogo;
+    g.enFull ||= p.logistica === "fulfillment";
+    g.codigo ??= p.codigo;
+    if (g.principal.catalogo && !p.catalogo) g.principal = p;
+  }
+  return [...grupos.values()];
+}
 
 const CODIGO_MI = SQL_CODIGO.replace(/\bm\./g, "mi.");
 
@@ -154,6 +182,7 @@ export async function publicacionesDe(org: string, canalId: number, variaciones:
   return consulta<PublicacionCuenta>(`
     select pu.variacion_id::int, mi.item_id, coalesce(mi.variation_id, '') variation_id, ${PLAN_PUBLICACION} plan,
            coalesce((pu.datos_externos ->> 'catalogo')::boolean, false) catalogo, mi.estado, mi.logistica, ${CODIGO_MI} codigo,
+           coalesce(pu.datos_externos ->> 'user_product_id', mi.datos_externos -> 'ml' ->> 'user_product_id') producto_ml,
            coalesce((select sum(l.cantidad) from pedido pe join pedido_linea l on l.pedido_id = pe.id
                       where pe.organizacion_id = $1 and pe.canal_id = $2 and l.datos_externos -> 'ml' ->> 'item_id' = mi.item_id
                         and pe.estado not in ('presupuesto', 'nuevo', 'cancelado', 'devuelto') and pe.fecha >= now() - make_interval(days => $4)), 0)::int vendidas
@@ -163,9 +192,10 @@ export async function publicacionesDe(org: string, canalId: number, variaciones:
     [org, canalId, variaciones, dias]);
 }
 
-/** La recomendada de una variación (ver publicacionesDe), o null si la cuenta no la publica. */
+/** La recomendada de una variación: la principal del primer grupo (ver publicacionesDe), o null si la
+ *  cuenta no la publica. */
 async function publicacionDe(org: string, canalId: number, variacionId: number) {
-  return (await publicacionesDe(org, canalId, [variacionId]))[0] ?? null;
+  return agruparPorCodigo(await publicacionesDe(org, canalId, [variacionId]))[0]?.principal ?? null;
 }
 
 /** Suma un producto al envío (si ya estaba, suma la cantidad). Avisa si la cuenta no lo publica. */
@@ -290,7 +320,7 @@ export async function agregarVarios(org: string, envioId: number, items: { varia
   const pubs = await publicacionesDe(org, e.canal_id, validos.map((x) => x.variacion));
   let unidades = 0;
   for (const x of validos) {
-    const pub = pubs.find((p) => p.variacion_id === x.variacion) ?? null;
+    const pub = agruparPorCodigo(pubs.filter((p) => p.variacion_id === x.variacion))[0]?.principal ?? null;
     if (pub && !pub.codigo) await completarCodigoFull(org, e.canal_id, pub.item_id, pub.variation_id).catch(() => null);
     await consulta(`
       insert into full_envio_linea (organizacion_id, envio_id, variacion_id, item_id, variation_id, cantidad) values ($1, $2, $3, $4, $5, $6)
