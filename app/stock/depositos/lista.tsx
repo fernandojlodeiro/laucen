@@ -5,7 +5,7 @@
 import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { traducido, type Lista } from "@/lib/listas/tipos";
 
-export const TIPOS_DEPOSITO: Record<string, string> = { propio: "Propio", full_ml: "Full de Mercado Libre", tercerizado: "Tercerizado", caja_abierta: "Caja abierta" };
+export const TIPOS_DEPOSITO: Record<string, string> = { propio: "Propio", full_ml: "Full de Mercado Libre", tercerizado: "Tercerizado", caja_abierta: "Caja abierta", transito: "En camino a Full" };
 const UBICACIONES = "(select count(*) from ubicacion u where u.deposito_id = d.id)";
 const UNIDADES = "(select coalesce(sum(s.cantidad), 0) from stock s join ubicacion u on u.id = s.ubicacion_id where u.deposito_id = d.id)";
 export const UNIDADES_UBICACION = "(select coalesce(sum(s.cantidad), 0) from stock s where s.ubicacion_id = u.id)";

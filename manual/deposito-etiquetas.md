@@ -13,7 +13,7 @@ Imprime etiquetas con código de barras:
 
 - **De producto**: título, SKU, código de barras y, si se pide, el precio de una lista. Para pegar en los productos y después escanearlos en el picking y la recepción.
 - **De ubicación**: el código de la ubicación bien grande con su código de barras. Para pegar en las estanterías y escanearlas en la recepción.
-- **De Full de Mercado Libre**: la etiqueta que Mercado Libre pide en cada unidad (o en cada pack, si la publicación se vende por pack) que se manda a Full. Es igual a la que se baja de la Central de vendedores ("Descargá las etiquetas para tus productos"), pero sin tener que bajarla en cada envío.
+- **De Full de Mercado Libre**: la etiqueta que Mercado Libre pide en cada unidad (o en cada pack, si la publicación se vende por pack) que se manda a Full. Es igual a la que se baja de la Central de vendedores ("Descargá las etiquetas para tus productos"), pero sin tener que bajarla en cada envío. También se imprimen de una vez todas las de un envío con el botón **«Etiquetas»** de su ficha en [Envíos a Full](/stock/full).
 
 Se imprime en impresora térmica (una etiqueta de 50 × 25 mm por hoja) o en hoja A4 (grilla de 3 × 8, 24 etiquetas de 70 × 37 mm).
 

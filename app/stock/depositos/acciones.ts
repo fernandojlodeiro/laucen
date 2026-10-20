@@ -6,7 +6,7 @@ import { consulta, una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, texto, entero, id, tildado } from "@/lib/erp/acciones";
 
 const BASE = "/stock/depositos";
-const TIPOS = ["propio", "full_ml", "tercerizado", "caja_abierta"];
+const TIPOS = ["propio", "full_ml", "tercerizado", "caja_abierta", "transito"];
 
 function volverDe(fd: FormData) {
   const v = texto(fd, "volver");

@@ -18,7 +18,7 @@ create table if not exists deposito (
   id               bigint generated always as identity primary key,
   organizacion_id  text not null references organizaciones(id) on delete cascade,
   nombre           text not null,
-  tipo             text not null default 'propio' check (tipo in ('propio', 'full_ml', 'tercerizado', 'caja_abierta')),
+  tipo             text not null default 'propio' check (tipo in ('propio', 'full_ml', 'tercerizado', 'caja_abierta', 'transito')),
   usa_ubicaciones  boolean not null default false,
   direccion        text,
   estado           text not null default 'activo' check (estado in ('activo', 'archivado')),
@@ -27,6 +27,15 @@ create table if not exists deposito (
 );
 alter table deposito enable row level security;
 select erp_politica_org('deposito');
+-- «En camino a Full» (tipo transito, db/full.sql): lo que salió del depósito propio y todavía no
+-- llegó a Full. No vende por ningún canal. Las bases viejas tienen el check sin este tipo.
+do $$ begin
+  if not exists (select 1 from pg_constraint where conrelid = 'public.deposito'::regclass and conname = 'deposito_tipo_check'
+                   and pg_get_constraintdef(oid) like '%transito%') then
+    alter table deposito drop constraint if exists deposito_tipo_check;
+    alter table deposito add constraint deposito_tipo_check check (tipo in ('propio', 'full_ml', 'tercerizado', 'caja_abierta', 'transito'));
+  end if;
+end $$;
 
 create table if not exists ubicacion (
   id               bigint generated always as identity primary key,

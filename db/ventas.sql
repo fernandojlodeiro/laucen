@@ -72,10 +72,13 @@ alter table publicacion enable row level security;
 select erp_politica_org('publicacion');
 
 /** Disponible para un canal = suma de lo disponible en sus depósitos. */
+-- Lo que está en Full (o en camino a Full) no cuenta: lo vende Mercado Libre desde su depósito
+-- y sólo por las publicaciones Full, que Laucen no toca. Sumarlo haría que las publicaciones
+-- que salen del depósito propio informen unidades que no están (db/full.sql).
 create or replace function public.stock_disponible_canal(p_org text, p_variacion bigint, p_canal bigint)
 returns int language sql stable as $$
   select coalesce(sum(stock_disponible_deposito(p_org, p_variacion, cd.deposito_id)), 0)::int
-    from canal_deposito cd join deposito d on d.id = cd.deposito_id and d.estado = 'activo'
+    from canal_deposito cd join deposito d on d.id = cd.deposito_id and d.estado = 'activo' and d.tipo not in ('full_ml', 'transito')
    where cd.canal_id = p_canal and cd.organizacion_id = p_org
 $$;
 

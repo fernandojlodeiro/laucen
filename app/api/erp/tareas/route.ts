@@ -23,6 +23,7 @@ import { hayMotivosPendientes, leerMotivosPendientes } from "@/lib/mercadolibre/
 import { traerFacturacionMl, facturacionPendiente } from "@/lib/mercadolibre/facturacion";
 import { revisarFacturadas } from "@/lib/facturacion/revision";
 import { reintentarFacturasWhatsapp } from "@/lib/facturacion/envio";
+import { hayLecturaFullPendiente, leerFull } from "@/lib/full/lectura";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -105,7 +106,10 @@ export async function GET(req: Request) {
   // Por qué está en revisión cada publicación (sólo lectura, una vez por día cada una).
   const motivos = await hayMotivosPendientes().catch(() => false);
   if (motivos) informe.motivos_revision_ml = true;
-  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos) {
+  // Lo que hay en Full de cada cuenta (sólo lectura, cada media hora) y la conciliación (lib/full/lectura.ts).
+  const full = await hayLecturaFullPendiente().catch(() => false);
+  if (full) informe.full_ml = true;
+  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos || full) {
     after(async () => {
       await Promise.all([
         (async () => {
@@ -126,6 +130,14 @@ export async function GET(req: Request) {
             }
           } catch (e) {
             console.error("[tareas] Mercado Libre", e instanceof Error ? e.message : e);
+          }
+        })(),
+        (async () => {
+          if (!full) return;
+          try {
+            console.log("[tareas] Full ML", JSON.stringify(await leerFull(null, t0 + 90_000)));
+          } catch (e) {
+            console.error("[tareas] Full ML", e instanceof Error ? e.message : e);
           }
         })(),
         (async () => {
