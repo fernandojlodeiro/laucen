@@ -210,7 +210,7 @@ Antes de que salga sola una factura (la facturación automática de [Facturació
 - **Si no hay nada escrito**, o lo escrito no tiene que ver con la factura, factura como siempre.
 - **Si pidió algo claro para la factura**, lo aplica y factura:
   - una **leyenda** (un número de subsidio, de expediente, de orden de compra…) → va a "Observaciones de la factura";
-  - **factura A** o **facturar a un CUIT** → pasa el CUIT (y la razón social, si la dio) a la ficha del cliente, sin consultar el padrón de ARCA. Quien pide factura A queda como **Responsable Inscripto** y la factura sale A. Si pide un CUIT sin pedir factura A, la condición de IVA no cambia.
+  - **factura A** o **facturar a un CUIT** → pasa el CUIT (y la razón social, si la dio) a la ficha del cliente, sin consultar el padrón de ARCA. Quien da un CUIT o pide factura A queda como **Responsable Inscripto**, salvo que diga expresamente otra cosa (monotributista, exento…). Si la ficha ya tenía una condición de IVA distinta de consumidor final, no se pisa a menos que el comprador la diga. Con Responsable Inscripto, la factura sale A.
 - **Si hay duda** (otra razón social o domicilio sin CUIT, pide A sin dar el CUIT, un CUIT que no es válido o que en ARCA no corresponde a A, partir la factura, otro importe, algo que no se entiende…), **no factura**: el pedido queda con **"⚠ Factura retenida: no se facturó sola"** y el motivo, arriba del bloque «Facturación», y avisa en la barra de estado (**"Facturas"**), en la ventana y en el aviso de Windows (ver [Mis avisos](/config/avisos)). Corregí lo que haga falta en la ficha del cliente y en las Observaciones de la factura, y apretá **"Facturar"**.
 
 Con los mismos datos no se vuelve a leer: sólo cuando el comprador escribe algo nuevo o cambian las notas.
