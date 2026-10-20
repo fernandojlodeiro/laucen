@@ -50,6 +50,13 @@ export async function emisorConPadron(org: string): Promise<Emisor | null> {
                        order by es_principal desc, id limit 1`, [org]);
 }
 
+/** Las razones sociales con certificado de ARCA cargado, la principal primero (para probar el padrón con cada una). */
+export async function emisoresConPadron(org: string): Promise<Emisor[]> {
+  return consulta<Emisor>(`select ${COLUMNAS_EMISOR} from emisor
+                       where organizacion_id = $1 and exists (select 1 from arca_credencial a where a.emisor_id = emisor.id and a.ambiente = emisor.ambiente and a.certificado is not null)
+                       order by es_principal desc, id`, [org]);
+}
+
 /** Todas las razones sociales de la organización, la principal primero. */
 export async function emisoresDe(org: string): Promise<Emisor[]> {
   return consulta<Emisor>(`select ${COLUMNAS_EMISOR} from emisor where organizacion_id = $1 order by es_principal desc, id`, [org]);
