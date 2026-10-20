@@ -31,7 +31,7 @@ type SP = { canal?: string; editar?: string; q?: string; contiene?: string; toda
 const ORDEN: Record<string, (f: Relampago) => string | number | null> = {
   sku: (f) => f.sku, producto: (f) => f.titulo, cuenta: (f) => f.cuenta, plan: (f) => f.plan, estado: (f) => f.estado, cuando: (f) => f.desde,
   stock: (f) => f.stock, entra: (f) => f.stockEntrar, hoy: (f) => f.hoy, recibis: (f) => f.recibisHoy, costo: (f) => f.costoHoyPct,
-  rel: (f) => f.rel, baja: (f) => f.bajaPct, recibiras: (f) => f.recibisRel, costorel: (f) => f.costoRelPct, dif: (f) => f.diferencia,
+  clasica: (f) => f.clasica, rel: (f) => f.rel, baja: (f) => f.bajaPct, recibiras: (f) => f.recibisRel, costorel: (f) => f.costoRelPct, dif: (f) => f.diferencia,
   difpct: (f) => (f.costoRelPct != null && f.costoHoyPct != null ? f.costoRelPct - f.costoHoyPct : null), piso: (f) => f.piso,
 };
 const PCTS = [0, 1, 2, 3, 5, 7, 10];
@@ -96,9 +96,9 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
       {canal && !todasCuentas && (
         <div className="mb-3">
           <Interruptor accion={accionInterruptor} prendido={canal.relampagoAuto} campos={{ canal: String(canal.id), clave: "relampago_auto", volver: aqui() }}
-            etiqueta={`Entrar solo a las ofertas relámpago de ${canal.nombre} (hasta ${RELAMPAGO_AUTO_PCT} % debajo de lo que paga hoy el comprador, con todas las unidades)`}
+            etiqueta={`Entrar solo a las ofertas relámpago de ${canal.nombre} (hasta ${RELAMPAGO_AUTO_PCT} % debajo de la Clásica de la lista, con todas las unidades)`}
             ayuda={canal.relampagoAuto
-              ? `Prendido: cada 10 minutos Laucen entra solo a las propuestas de esta cuenta cuyo precio de «Entraría a» no baja más de ${RELAMPAGO_AUTO_PCT} % lo que paga hoy el comprador y que alcanzan el piso (si tiene), con todas las unidades disponibles hasta el máximo que acepta la oferta. Tiene prioridad sobre las otras campañas. Las que entrarían ahora: ${todas.filter((f) => f.canal_id === canal.id && entraSola(f)).length}.`
+              ? `Prendido: cada 10 minutos Laucen entra solo a las propuestas de esta cuenta cuyo precio de «Entraría a» no baja más de ${RELAMPAGO_AUTO_PCT} % la Clásica de la lista y que alcanzan el piso (si tiene), con todas las unidades disponibles hasta el máximo que acepta la oferta. Tiene prioridad sobre las otras campañas. Las que entrarían ahora: ${todas.filter((f) => f.canal_id === canal.id && entraSola(f)).length}.`
               : "Apagado: a las ofertas relámpago se entra sólo con «Entrar» o con «Preparar las que alcanzan el piso»."} />
         </div>
       )}
@@ -115,7 +115,7 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
         </FiltroVivo>
         <BotonPreguntar grupo="hasta" clase={VERDE} texto={`Entrar a ${nHasta}`} corriendo="Mandando…"
           campos={{ canal: todasCuentas ? "" : String(canal?.id ?? ""), pct: String(hastaPct), volver: aqui() }}
-          pregunta={`¿Entrar a ${nHasta} ofertas relámpago${todasCuentas ? " (todas las cuentas)" : ` de ${canal?.nombre ?? ""}`} que bajan ${hastaPct} % o menos lo que paga hoy el comprador? Una sola publicación por producto (al azar entre sus publicaciones y cuentas), con todas las unidades disponibles. El día y la hora los fija Mercado Libre; una vez activa no se puede borrar.`} />
+          pregunta={`¿Entrar a ${nHasta} ofertas relámpago${todasCuentas ? " (todas las cuentas)" : ` de ${canal?.nombre ?? ""}`} que bajan ${hastaPct} % o menos la Clásica de la lista? Una sola publicación por producto (al azar entre sus publicaciones y cuentas), con todas las unidades disponibles. El día y la hora los fija Mercado Libre; una vez activa no se puede borrar.`} />
         <span>· una por producto, con todas las unidades</span>
       </div>
       <PreguntaArriba accion={accionEntrarRelampagosHasta} grupo="hasta" />
@@ -129,12 +129,12 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
             <tr>
               <th className={TH}>Entrar</th><ThOrden col="sku" className={TH}>SKU</ThOrden><ThOrden col="producto" className={TH}>Producto</ThOrden><ThOrden col="cuenta" className={TH}>Cuenta</ThOrden><th className={TH}>Publicación</th><ThOrden col="plan" className={TH}>Plan</ThOrden><ThOrden col="estado" className={TH}>Estado</ThOrden>
               <ThOrden col="cuando" className={TH}>Cuándo</ThOrden><ThOrden col="stock" n className={THN}>Stock<br />tenés</ThOrden><ThOrden col="entra" n className={THN}>Entra<br />con</ThOrden><ThOrden col="hoy" n className={THN}>Hoy<br />paga</ThOrden><ThOrden col="recibis" n className={THN}>Hoy<br />recibís</ThOrden><ThOrden col="costo" n className={THN}>Costo<br />hoy</ThOrden>
-              <th className={THN}>Rango<br />de ML</th><ThOrden col="rel" n className={THN}>Entraría<br />a</ThOrden><ThOrden col="baja" n desc={false} className={THN} title="Cuánto más barato que hoy entra">Baja<br />%</ThOrden><ThOrden col="recibiras" n className={THN}>Recibirás</ThOrden><ThOrden col="costorel" n className={THN}>Costo<br />relámpago</ThOrden>
+              <th className={THN}>Rango<br />de ML</th><ThOrden col="clasica" n className={THN} title="La Clásica de la lista de precios: la base para medir cuánto baja">Clásica<br />lista</ThOrden><ThOrden col="rel" n className={THN}>Entraría<br />a</ThOrden><ThOrden col="baja" n desc={false} className={THN} title="Cuánto más barato que la Clásica de la lista entra">Baja<br />%</ThOrden><ThOrden col="recibiras" n className={THN}>Recibirás</ThOrden><ThOrden col="costorel" n className={THN}>Costo<br />relámpago</ThOrden>
               <ThOrden col="dif" n className={THN}>Diferencia</ThOrden><ThOrden col="difpct" n desc={false} className={THN}>Diferencia<br />%</ThOrden><ThOrden col="piso" n className={THN}>Piso</ThOrden><th />
             </tr>
           </thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={21} className={`${TD} text-[#5C6B76]`}>{q ? "Ninguna coincide con la búsqueda." : "Mercado Libre no te propone ninguna oferta relámpago en esta cuenta ahora."}</td></tr>}
+            {filas.length === 0 && <tr><td colSpan={22} className={`${TD} text-[#5C6B76]`}>{q ? "Ninguna coincide con la búsqueda." : "Mercado Libre no te propone ninguna oferta relámpago en esta cuenta ahora."}</td></tr>}
             {filas.map((f) => {
               const color = f.alcanza === true && f.conStock !== false ? "text-[#1E7B3A]" : f.alcanza === false || f.conStock === false ? "text-[#C03420]" : "";
               const difPct = f.costoRelPct != null && f.costoHoyPct != null ? Math.round((f.costoRelPct - f.costoHoyPct) * 10) / 10 : null;
@@ -182,6 +182,7 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
                   <td className={TDN}>{pesos(f.recibisHoy)}{f.aporte ? <span className="block text-[10px] text-[#5C6B76]" title="Lo que pone Mercado Libre en la campaña de hoy; en la relámpago no lo pone.">con {pesos(f.aporte)} de ML</span> : null}</td>
                   <td className={TDN}>{pct(f.costoHoyPct)}</td>
                   <td className={`${TDN} text-[11px] text-[#5C6B76]`}>{pesos(f.min)} a<br />{pesos(f.max)}</td>
+                  <td className={TDN}>{pesos(f.clasica)}</td>
                   <td className={TDN}>
                     {edita && f.estado === "candidate"
                       ? <CampoNumero name="precio" form={idForm} valor={f.elegido} tipo="pesos" placeholder={f.rel == null ? "" : formatear(f.rel, "ARS")} className="w-28" />
@@ -217,7 +218,7 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
         <b> Costo hoy</b>: qué parte de lo que paga hoy el comprador se lleva Mercado Libre (comisión y envío). <b>Costo relámpago</b>: qué parte de ese mismo precio de hoy no te llega si vendés en la oferta (el descuento más la comisión y el envío). <b>Diferencia %</b>: cuántos puntos más te cuesta cada venta en la oferta.
         <b> Rango de ML</b>: el precio más bajo y el más alto que acepta la propuesta; Mercado Libre lo calcula sobre el precio publicado (el tachado).
         <b> Entraría a</b>: un peso debajo de lo que paga hoy el comprador, sin pasar el más alto del rango; si Mercado Libre lo rechaza por «no creíble», el precio que propone para la relámpago (en general 5 % debajo de hoy).
-        <b> Baja %</b>: cuánto más barato que hoy entra. <b>«Entrar a todas las que bajan hasta X %»</b>: con un clic entra a las que bajan eso o menos, alcanzan el piso y tienen el stock que piden; una sola publicación por producto (al azar entre sus publicaciones y cuentas; se saltea un producto que ya tiene una relámpago), con todas las unidades disponibles. Los títulos se tocan para ordenar.
+        <b> Clásica lista</b>: el precio de la lista Clásica del producto. <b>Baja %</b>: cuánto más barato que esa Clásica entra (negativo: entra más caro); se mide siempre contra la Clásica de la lista, no contra lo que paga hoy el comprador, que en un plan de cuotas o en la cuenta que no gana va más caro. <b>«Entrar a todas las que bajan hasta X %»</b>: con un clic entra a las que bajan eso o menos, alcanzan el piso y tienen el stock que piden; una sola publicación por producto (al azar entre sus publicaciones y cuentas; se saltea un producto que ya tiene una relámpago), con todas las unidades disponibles. Los títulos se tocan para ordenar.
         <b> Cuándo</b>: el día y la hora los fija Mercado Libre recién cuando aceptás; no se eligen.
         <b> Stock tenés</b>: el disponible de la publicación. <b>Entra con</b>: las unidades que se comprometen (de entrada, el mínimo que pide la propuesta; abajo, el mínimo y el máximo que acepta); en una aceptada, las que le quedan a la oferta.
         <b> Piso</b>: lo mínimo que aceptás recibir por una venta de ese producto (vale para todas las cuentas). En verde, las que lo alcanzan y tienen el stock; en rojo, las que no.

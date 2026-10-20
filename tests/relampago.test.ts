@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { precioRelampago, recibis, costoPct, fechaRelampago, entraSola, stockAuto, unaPorProducto, type Relampago } from "@/lib/precios-ml/relampago";
+import { precioRelampago, recibis, costoPct, fechaRelampago, entraSola, bajaSobreClasica, stockAuto, unaPorProducto, type Relampago } from "@/lib/precios-ml/relampago";
 
 test("recibis: precio menos comisión menos envío; sin un dato, no se sabe", () => {
   assert.equal(recibis(962_999, 122_949.69, 9_590), 830_459);
@@ -35,12 +35,18 @@ test("fechaRelampago: lo que dice ML, en hora argentina", () => {
   assert.equal(fechaRelampago(null), null);
 });
 
-test("entraSola: hasta 5 % debajo de hoy, con piso alcanzado si hay, con stock", () => {
-  const base = { estado: "candidate", rel: 1_119_945, hoy: 1_119_946, alcanza: null, piso: null, stock: 8, stock_min: 5 };
+test("entraSola: hasta 5 % debajo de la Clásica de la lista, con piso alcanzado si hay, con stock", () => {
+  const base = { estado: "candidate", rel: 1_119_945, clasica: 1_119_946, alcanza: null, piso: null, stock: 8, stock_min: 5 };
   assert.equal(entraSola(base), true);
   assert.equal(entraSola({ ...base, rel: 1_063_949 }), true, "5 % justo");
-  assert.equal(entraSola({ ...base, hoy: 949_240, rel: 901_778 }), true, "el sugerido de ML, 5 % justo");
+  assert.equal(entraSola({ ...base, clasica: 949_240, rel: 901_778 }), true, "el sugerido de ML, 5 % justo");
   assert.equal(entraSola({ ...base, rel: 1_000_000 }), false, "más de 5 %");
+  // Fer, 20/10: la ET5 Premium de DEIROLAB SA hoy a $ 669.904; la relámpago a $ 478.082 baja 4,4 % la Clásica ($ 499.999).
+  assert.equal(entraSola({ ...base, clasica: 499_999, rel: 478_082 }), true, "contra la Clásica, no contra el precio inflado del plan");
+  assert.equal(entraSola({ ...base, clasica: 499_999, rel: 560_000 }), true, "más cara que la Clásica");
+  assert.equal(entraSola({ ...base, clasica: null }), false, "sin Clásica en la lista no entra sola");
+  assert.equal(bajaSobreClasica(478_082, 499_999), 4.4);
+  assert.equal(bajaSobreClasica(560_000, 499_999), -12);
   assert.equal(entraSola({ ...base, piso: 900_000, alcanza: null }), false, "con piso y sin costos leídos, espera");
   assert.equal(entraSola({ ...base, piso: 900_000, alcanza: true }), true);
   assert.equal(entraSola({ ...base, stock: 3 }), false, "no llega al mínimo");

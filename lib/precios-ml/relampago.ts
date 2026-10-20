@@ -56,6 +56,10 @@ export type FilaRelampago = {
   hoy: number | null; hoy_comision: number | null; hoy_envio: number | null;
   rel: number | null; max: number | null; rel_comision: number | null; rel_envio: number | null; min: number | null; sugerido: number | null; tags: unknown;
   piso: number | null; elegido: number | null; elegido_stock: number | null; restante: number | null;
+  /** La Clásica de la lista de precios del canal (Fer, 20/10): la base contra la que se mide cuánto baja una relámpago,
+   *  en cualquier publicación y plan (no lo que paga hoy el comprador, que en un plan de cuotas o en la cuenta que no gana
+   *  va inflado). */
+  clasica: number | null;
   /** Lo que pone Mercado Libre de su bolsillo en la campaña con que se vende hoy (ej. «Potencia tus ventas»: meli_percentage
    *  sobre el precio publicado). Entra a lo que se recibe hoy; en la relámpago no lo pone. */
   aporte: number | null;
@@ -65,7 +69,8 @@ export type Relampago = FilaRelampago & {
   plan: PlanOClasica | null; recibisHoy: number | null; recibisRel: number | null; diferencia: number | null; alcanza: boolean | null; conStock: boolean | null;
   /** Con cuántas unidades entra: las que eligió Fer en la fila, si no el mínimo que pide; en una aceptada, las que le quedan. */
   stockEntrar: number | null;
-  /** Cuánto más barato que hoy entra, en % con un decimal (Fer, 13/10: ordenar por lo que exige ML). */
+  /** Cuánto más barato que la Clásica de la lista entra, en % con un decimal (Fer, 20/10; negativo = entra más caro que la
+   *  Clásica). Sin Clásica en la lista, null. */
   bajaPct: number | null;
   costoHoyPct: number | null; costoRelPct: number | null;
 };
@@ -96,7 +101,7 @@ export async function relampagos(org: string, canal: number | null = null): Prom
            x.hoy::float8 hoy, ch.comision::float8 hoy_comision, ch.envio::float8 hoy_envio,
            y.rel::float8 rel, x.max::float8 max, cr.comision::float8 rel_comision, cr.envio::float8 rel_envio,
            coalesce(p.min_precio, (p.datos ->> 'min_discounted_price')::numeric)::float8 min, (p.datos ->> 'suggested_discounted_price')::float8 sugerido,
-           ps.piso::float8 piso, rp.precio::float8 elegido,
+           ps.piso::float8 piso, rp.precio::float8 elegido, cl.lista_ars::float8 clasica,
            (select max((d.datos ->> 'original_price')::numeric * (d.datos ->> 'meli_percentage')::numeric / 100)
               from ml_promo_item d where d.canal_id = p.canal_id and d.item_id = p.item_id and d.estado = 'started'
                and (d.datos ->> 'meli_percentage')::numeric > 0 and round((d.datos ->> 'price')::numeric) = round(x.hoy))::float8 aporte, rp.stock elegido_stock, (p.datos -> 'stock' ->> 'remaining_stock')::int restante
@@ -110,6 +115,11 @@ export async function relampagos(org: string, canal: number | null = null): Prom
       left join ml_relampago_costo ch on ch.canal_id = p.canal_id and ch.item_id = p.item_id and ch.precio = round(x.hoy, 2)
       left join ml_relampago_costo cr on cr.canal_id = p.canal_id and cr.item_id = p.item_id and cr.precio = y.rel
       left join ml_relampago_piso ps on ps.organizacion_id = p.organizacion_id and ps.producto_id = v.producto_id
+      -- La Clásica de la lista del canal (la del canal; si no tiene, «Clásicas»), como en lib/precios-ml/datos.ts (canalesMl).
+      left join lateral (select lista_ars from precio_de(p.organizacion_id, pu.variacion_id,
+                           coalesce(c.lista_precios_id, (select l.id from lista_precios l where l.organizacion_id = c.organizacion_id
+                                                            and lower(l.nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') order by l.id limit 1)),
+                           (now() at time zone 'America/Argentina/Buenos_Aires')::date)) cl on true
      where p.organizacion_id = $1 and p.tipo = 'LIGHTNING' and p.estado in ('candidate', 'pending', 'started')
        and ($2::bigint is null or p.canal_id = $2)
      order by v.sku, c.nombre`, [org, canal]);
@@ -125,7 +135,7 @@ export async function relampagos(org: string, canal: number | null = null): Prom
       diferencia: recibisHoy != null && recibisRel != null ? recibisRel - recibisHoy : null,
       alcanza: f.piso == null || recibisRel == null ? null : recibisRel >= f.piso,
       stockEntrar: f.estado !== "candidate" ? f.restante : (f.elegido_stock ?? f.stock_min),
-      bajaPct: f.rel == null || f.hoy == null || f.hoy <= 0 ? null : Math.round(((f.hoy - f.rel) / f.hoy) * 1000) / 10,
+      bajaPct: bajaSobreClasica(f.rel, f.clasica),
       conStock: f.estado !== "candidate" || f.stock == null || (f.elegido_stock ?? f.stock_min) == null ? null : f.stock >= (f.elegido_stock ?? f.stock_min)!,
     };
   });
@@ -311,18 +321,24 @@ export async function enviosRelampago(org: string): Promise<Map<string, { estado
     .map((x) => [x.item_id, { estado: x.estado, error: x.error, precio: x.precio }]));
 }
 
-/** Cuánto más barata que hoy puede ser una relámpago para entrar sola (Fer, 12/10): hasta 5 % debajo de lo que paga hoy
- *  el comprador. */
+/** Cuánto más barata que la Clásica de la lista puede ser una relámpago para entrar sola (Fer, 12/10 y 20/10). */
 export const RELAMPAGO_AUTO_PCT = 5;
 
+/** Cuánto baja `precio` contra la Clásica de la lista, en % con un decimal (negativo: más caro que la Clásica). Pura. */
+export function bajaSobreClasica(precio: number | null, clasica: number | null): number | null {
+  if (precio == null || clasica == null || clasica <= 0) return null;
+  return Math.round(((clasica - precio) / clasica) * 1000) / 10;
+}
+
 /** Si una propuesta entra sola: todavía no aceptada, con precio dentro del rango que no baje más de RELAMPAGO_AUTO_PCT % de
- *  lo que paga hoy el comprador, que alcance el piso (si hay) y con stock para lo que pide. Pura. */
-export function entraSola(f: Pick<Relampago, "estado" | "rel" | "hoy" | "alcanza" | "piso" | "stock" | "stock_min">): boolean {
-  if (f.estado !== "candidate" || f.rel == null || f.hoy == null) return false;
+ *  la Clásica de la lista (Fer, 20/10: no de lo que paga hoy, que en un plan de cuotas va inflado), que alcance el piso (si
+ *  hay) y con stock para lo que pide. Sin Clásica en la lista no entra. Pura. */
+export function entraSola(f: Pick<Relampago, "estado" | "rel" | "clasica" | "alcanza" | "piso" | "stock" | "stock_min">): boolean {
+  if (f.estado !== "candidate" || f.rel == null || f.clasica == null || f.clasica <= 0) return false;
   // Con piso, hace falta saber que lo alcanza (sin los costos leídos todavía, espera a la próxima vuelta).
   if (f.piso != null && f.alcanza !== true) return false;
-  // Un peso de tolerancia: el precio que propone ML es justo 5 % debajo de hoy, en pesos enteros.
-  if (f.rel < f.hoy * (1 - RELAMPAGO_AUTO_PCT / 100) - 1) return false;
+  // Un peso de tolerancia (pesos enteros).
+  if (f.rel < f.clasica * (1 - RELAMPAGO_AUTO_PCT / 100) - 1) return false;
   return f.stock != null && f.stock > 0 && (f.stock_min == null || f.stock >= f.stock_min);
 }
 
