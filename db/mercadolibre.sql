@@ -346,6 +346,27 @@ create index if not exists ml_barrida_org on ml_barrida (organizacion_id, noche 
 alter table ml_barrida enable row level security;
 select erp_politica_org('ml_barrida');
 
+-- Consultas de sólo lectura a la API de ML (Fer, 21/10): una sesión de Code o Cowork anota un GET
+-- (ruta relativa, ej. /inventories/X/stock/fulfillment) con la cuenta, y el proceso de fondo lo
+-- hace con la llave de esa cuenta y guarda la respuesta (lib/mercadolibre/consultas.ts). Sirve para
+-- averiguar qué devuelve ML sin salir de Laucen. Nunca escribe en ML: sólo GET.
+create table if not exists ml_consulta (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  ruta             text not null check (ruta ~ '^/[^/]'),
+  motivo           text,
+  pedido_por       text,
+  estado           text not null default 'pendiente' check (estado in ('pendiente', 'respondida', 'error')),
+  status           int,
+  respuesta        jsonb,
+  creado_ts        timestamptz not null default now(),
+  respondida_ts    timestamptz
+);
+create index if not exists ml_consulta_pendiente on ml_consulta (id) where estado = 'pendiente';
+alter table ml_consulta enable row level security;
+select erp_politica_org('ml_consulta');
+
 -- Los jobs de pg_cron que llaman a la app (Fer, 3/10: nada de procesos que
 -- corran porque sí). 'erp-tareas' se revisa cada 2 minutos pero sólo llama a
 -- /api/erp/tareas si hay algo pendiente de verdad (facturar un pedido, un
@@ -378,6 +399,7 @@ declare
                  where e.tipo = 'stock_bajo_umbral' and e.procesado_ts is null and c.tipo = 'mercadolibre'
                    and coalesce((c.config ->> 'sincronizar_stock')::boolean, false))
      or exists (select 1 from public.stock_cambio_pendiente where creado_ts < now() - interval '1 minute')
+     or exists (select 1 from public.ml_consulta where estado = 'pendiente')
      -- Motivos de revisión de ML sin leer en el último día (lib/mercadolibre/moderaciones.ts).
      or exists (select 1 from public.meli_item m left join public.meli_moderacion mm on mm.canal_id = m.canal_id and mm.item_id = m.item_id
                  where m.estado = 'under_review' and (mm.leido_ts is null or mm.leido_ts < now() - interval '1 day'))

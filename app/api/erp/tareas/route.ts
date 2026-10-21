@@ -24,6 +24,7 @@ import { traerFacturacionMl, facturacionPendiente } from "@/lib/mercadolibre/fac
 import { revisarFacturadas } from "@/lib/facturacion/revision";
 import { reintentarFacturasWhatsapp } from "@/lib/facturacion/envio";
 import { hayLecturaFullPendiente, leerFull } from "@/lib/full/lectura";
+import { hayConsultasPendientes, responderConsultas } from "@/lib/mercadolibre/consultas";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -109,7 +110,10 @@ export async function GET(req: Request) {
   // Lo que hay en Full de cada cuenta (sólo lectura, cada media hora) y la conciliación (lib/full/lectura.ts).
   const full = await hayLecturaFullPendiente().catch(() => false);
   if (full) informe.full_ml = true;
-  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos || full) {
+  // Consultas de sólo lectura a ML que pidió una sesión (lib/mercadolibre/consultas.ts).
+  const consultasMl = await hayConsultasPendientes().catch(() => false);
+  if (consultasMl) informe.consultas_ml = true;
+  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos || full || consultasMl) {
     after(async () => {
       await Promise.all([
         (async () => {
@@ -130,6 +134,14 @@ export async function GET(req: Request) {
             }
           } catch (e) {
             console.error("[tareas] Mercado Libre", e instanceof Error ? e.message : e);
+          }
+        })(),
+        (async () => {
+          if (!consultasMl) return;
+          try {
+            console.log("[tareas] consultas ML", JSON.stringify(await responderConsultas(t0 + 60_000)));
+          } catch (e) {
+            console.error("[tareas] consultas ML", e instanceof Error ? e.message : e);
           }
         })(),
         (async () => {
