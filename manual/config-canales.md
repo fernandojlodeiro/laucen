@@ -47,6 +47,17 @@ La primera vez que una organización sin ningún canal abre la pantalla, el sist
 - Cada fila lleva de fondo el **color** de su canal (ver "Color del canal" en Criterios).
 - Abajo, el paginador de 50 en 50 y dos ayudas: qué es el umbral de pausa y qué es la llave API.
 
+### Caja "Reparto del stock entre cuentas de Mercado Libre"
+
+Debajo de la lista, para todas las cuentas de Mercado Libre juntas:
+
+- El interruptor **"Repartir el stock entre cuentas cuando queda poco"** (pregunta "Sí" / "No" antes de cambiar). Apagado, como nace: cada cuenta muestra el disponible entero.
+- Tres datos, que abren en vista y se cambian con el **lápiz** de arriba a la derecha de la caja (**Grabar** / **Cancelar**):
+  - **Repartir con (unidades o menos)**: desde cuánto disponible se reparte. De entrada, 10.
+  - **Sólo si el precio de lista es menor a ($)**: los productos más caros no se reparten. De entrada, $ 100.000.
+  - **Primera en el empate**: la cuenta que va primero cuando dos cuentas vendieron lo mismo del producto. "Ninguna (al azar)" si no se elige.
+- Al prenderlo o grabar con el reparto prendido, hace una pasada y avisa cuántas cantidades, pausas y reactivaciones quedaron en la cola.
+
 ### Detalle de un canal (al tocar su nombre)
 
 Debajo de la lista aparecen las cajas del canal elegido (su fila queda resaltada):
@@ -164,6 +175,12 @@ Si la cuenta ya estaba conectada (por ejemplo desde otra pantalla) y no tiene ca
 
 Apagarlo: "Laucen ya no toca el stock ni las pausas en Mercado Libre."
 
+### Prender el reparto del stock entre cuentas
+
+1. En **Configuración › Canales**, debajo de la lista, caja **"Reparto del stock entre cuentas de Mercado Libre"**: revisá los datos (lápiz para cambiarlos).
+2. Prendé **"Repartir el stock entre cuentas cuando queda poco"** y confirmá con "Sí".
+3. Lo que encoló se ve en la [Cola de Mercado Libre](/config/canales/cola), pestaña Pendientes.
+
 ### Prender que las facturas se suban solas a Mercado Libre
 
 1. Prendé **"Subir facturas a Mercado Libre"** en la caja de la cuenta.
@@ -260,6 +277,20 @@ Apagado (como nace): no se toca nada en ML. Prendido, para cada publicación vin
 - Para un **kit**, si cambia el stock de un componente también se revisa la publicación del kit.
 - **Cuándo se revisa**: al instante, en cada cambio de stock; y como red de seguridad, en las tareas periódicas (cada media hora) y en la barrida nocturna.
 - Lo que se graba en Laucen (pausada, cantidad informada) se graba recién cuando ML acepta el cambio.
+- **Ventas en camino**: Mercado Libre avisa que una publicación cambió unos segundos antes de mandar la orden. Si en ese aviso subieron sus vendidos, la venta ya pasó: el stock de las demás publicaciones y cuentas se ajusta en ese momento, descontando lo vendido, sin esperar la orden. Cuando la orden entra como pedido deja de descontarse aparte (ya lo descuenta el pedido). Si a los 30 minutos la orden no entró, se deja de descontar; para entonces la revisión de cada media hora ya la trajo.
+
+### Reparto del stock entre cuentas de Mercado Libre
+
+Cada cuenta de Mercado Libre muestra su propio stock, y Mercado Libre controla el de cada cuenta por separado. Si todas muestran el disponible entero, un comprador puede armar un carrito con publicaciones de varias cuentas y llevarse entre todas más de lo que hay: Mercado Libre avisa cada venta recién cuando se paga, y para entonces ya están todas hechas. El reparto lo evita cuando queda poco:
+
+- Corre sólo en las cuentas con el interruptor **"Laucen manda el stock a ML y pausa al llegar al umbral"** prendido, y sólo si el interruptor del reparto está prendido.
+- Se reparte un producto cuando su **disponible es igual o menor** que "Repartir con" y su **precio de lista** (el de la lista de precios de la cuenta; si las cuentas usan listas distintas, el más alto) es **menor** que el tope. Sin precio de lista, no se reparte.
+- El disponible se reparte **de a una unidad por cuenta**, en este orden: primero la cuenta que **más vendió** ese producto (lo que informa Mercado Libre de sus publicaciones, sumadas); en el empate, la cuenta elegida en **"Primera en el empate"**; después, **al azar**. El sorteo es fijo para cada producto y cuenta, así no cambia de una revisión a la otra. Si sobran unidades, se da otra vuelta en el mismo orden.
+- Dentro de una cuenta, las publicaciones que comparten stock en Mercado Libre (una común y su gemela de catálogo) reciben lo mismo; si la cuenta tiene publicaciones con stock separado, lo suyo se reparte entre ellas de a una, primero la que más vendió.
+- **La suma de lo que muestran todas las cuentas nunca pasa lo que hay.** Ejemplo: con 6 unidades y 5 cuentas, la que más vendió muestra 2 y las demás 1.
+- La publicación a la que no le toca nada se **pausa** por stock y se **reactiva** sola cuando le vuelve a tocar (por ejemplo, porque entró mercadería o porque otra cuenta vendió y cambió el orden).
+- El umbral de pausa sigue igual: si el disponible llega al umbral, se pausan todas.
+- Las publicaciones de Full y las pausadas a mano no entran en el reparto.
 
 ### Interruptor "Subir facturas a Mercado Libre"
 

@@ -52,6 +52,11 @@ export async function variacionPorSku(org: string, sku: string): Promise<number 
   return v ? Number(v.id) : null;
 }
 
+/** Los vendidos de un item de ML (uno, o uno por variación). */
+export function vendidosDeItem(it: ItemMl): { variation_id: string; vendidos: number | null }[] {
+  return filasDeItem(it).map((f) => ({ variation_id: f.variation_id, vendidos: f.vendidos }));
+}
+
 /** Los SKU que tiene un item de ML (el suyo, o el de cada variación). */
 export function skusDeItem(it: ItemMl): string[] {
   return filasDeItem(it).map((f) => f.sku).filter((x): x is string => !!x);

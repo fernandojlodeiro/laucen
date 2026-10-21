@@ -11,8 +11,8 @@ import { importarPregunta, barrerPreguntas, sugerirPendientes } from "@/lib/merc
 import { importarMensaje, sugerirMensajesPendientes } from "@/lib/mercadolibre/mensajes";
 import { completarPlazosDespacho } from "@/lib/mercadolibre/envios";
 import { importarReclamoDeNotificacion, barrerReclamos } from "@/lib/mercadolibre/reclamos";
-import { guardarItem, type ItemMl } from "@/lib/mercadolibre/publicaciones";
-import { sincronizarStockMl, variacionesConEventos } from "@/lib/mercadolibre/stock";
+import { guardarItem, vendidosDeItem, type ItemMl } from "@/lib/mercadolibre/publicaciones";
+import { anotarVentasEnCamino, sincronizarStockMl, variacionesConEventos } from "@/lib/mercadolibre/stock";
 
 export type Notificacion = { resource?: string; user_id?: number | string; topic?: string; application_id?: number | string };
 
@@ -56,7 +56,12 @@ async function procesarUna(cuenta: CuentaMl, topic: string, recurso: string) {
       return;
     case "items": {
       const r = await ml<ItemMl>(cuenta, "GET", `/items/${ultimo(recurso)}?include_attributes=all`);
-      if (r.status === 200) await guardarItem(cuenta, r.datos);
+      if (r.status !== 200) return;
+      // Si sus vendidos subieron, vendió: la orden llega unos segundos después, pero las
+      // demás cuentas se ajustan ya (ventas en camino, lib/mercadolibre/stock.ts).
+      const vendieron = cuenta.canalId ? await anotarVentasEnCamino(cuenta.organizacionId, cuenta.canalId, r.datos.id, vendidosDeItem(r.datos)) : [];
+      await guardarItem(cuenta, r.datos);
+      if (vendieron.length) await sincronizarStockMl(cuenta.organizacionId, vendieron);
       return;
     }
     // Cambió el precio de venta o una oferta (campaña) de una publicación: se relee ya, así las pantallas

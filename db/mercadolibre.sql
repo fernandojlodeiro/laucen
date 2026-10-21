@@ -625,3 +625,51 @@ create table if not exists video_ml (
   creado_ts        timestamptz not null default now()
 );
 alter table video_ml enable row level security;
+
+-- ── Ventas en camino (lib/mercadolibre/stock.ts) ───────────
+-- ML avisa que cambió una publicación unos segundos antes que la orden. Si en
+-- ese aviso subieron sus vendidos, la venta ya pasó: se anota acá y el stock de
+-- las demás cuentas se ajusta sin esperar la orden. `desde_ts`: cuándo se
+-- habían leído los vendidos anteriores (lo que entró como pedido después de
+-- eso ya está descontado del stock y no se vuelve a contar).
+create table if not exists ml_venta_en_camino (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  item_id          text not null,
+  variation_id     text not null default '',
+  variacion_id     bigint not null references variacion(id) on delete cascade,
+  vendidas         int not null,
+  desde_ts         timestamptz not null,
+  creado_ts        timestamptz not null default now()
+);
+create index if not exists ml_venta_en_camino_var on ml_venta_en_camino (organizacion_id, variacion_id, creado_ts);
+alter table ml_venta_en_camino enable row level security;
+select erp_politica_org('ml_venta_en_camino');
+
+/** Compara los vendidos que trae ML con los guardados en meli_item y, si
+ *  subieron en una publicación vinculada, anota la venta en camino y guarda
+ *  los nuevos. Todo con la fila tomada: dos avisos a la vez no la cuentan dos
+ *  veces. Devuelve la variación de Laucen si anotó algo (si no, null). */
+create or replace function public.ml_anotar_vendidos(p_org text, p_canal bigint, p_item text, p_variation text, p_vendidos int)
+returns bigint language plpgsql as $$
+declare
+  m record;
+  v bigint;
+begin
+  select vendidos, actualizado_ts into m from meli_item
+   where canal_id = p_canal and item_id = p_item and variation_id = p_variation and organizacion_id = p_org
+   for update;
+  if not found or m.vendidos is null or p_vendidos is null or p_vendidos <= m.vendidos then return null; end if;
+  select variacion_id into v from publicacion
+   where organizacion_id = p_org and canal_id = p_canal and id_externo = p_item and coalesce(variacion_externa, '') = p_variation
+     and estado <> 'cerrada'
+   order by id limit 1;
+  update meli_item set vendidos = p_vendidos, actualizado_ts = now()
+   where canal_id = p_canal and item_id = p_item and variation_id = p_variation;
+  if v is null then return null; end if;
+  insert into ml_venta_en_camino (organizacion_id, canal_id, item_id, variation_id, variacion_id, vendidas, desde_ts)
+  values (p_org, p_canal, p_item, p_variation, v, p_vendidos - m.vendidos, m.actualizado_ts);
+  delete from ml_venta_en_camino where organizacion_id = p_org and creado_ts < now() - interval '1 day';
+  return v;
+end $$;

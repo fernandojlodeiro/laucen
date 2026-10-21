@@ -3,7 +3,7 @@
 
 import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import Link from "next/link";
-import { FiltroVivo } from "@/app/componentes/BuscadorVivo";
+import { FiltroVivo, CasillaViva } from "@/app/componentes/BuscadorVivo";
 import PrecioPublicacion from "@/app/componentes/PrecioPublicacion";
 import { consulta } from "@/lib/erp/base";
 import { precioDe, listasDePrecios } from "@/lib/precios";
@@ -51,7 +51,7 @@ export type Producto = {
 type Props = {
   s: Sesion & { moneda: Moneda };
   p: Producto;
-  sp: { editar?: string; orden?: string; dir?: string; pcanal?: string };
+  sp: { editar?: string; orden?: string; dir?: string; pcanal?: string; pdisp?: string };
   seccion: string;
   /** Datos, Costo y Cucardas: en edición (?editar=ficha); si no, en vista. */
   editando: boolean;
@@ -1032,7 +1032,10 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
   // Filtro por canal (Fer, 8/10); de entrada, todos.
   const canalesPub = [...new Map(todasLasFilas.map((f) => [f.canal_id, f.canal])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
   const canalFiltro = Number(sp.pcanal) || 0;
-  const filas = canalFiltro ? todasLasFilas.filter((f) => f.canal_id === canalFiltro) : todasLasFilas;
+  // «Con disponible» (Fer, 21/10): sólo las activas que muestran stock (en ML, lo que ML tiene cargado; en la web, el disponible del canal).
+  const conDisponible = sp.pdisp === "1";
+  const filas = todasLasFilas.filter((f) => (!canalFiltro || f.canal_id === canalFiltro)
+    && (!conDisponible || (f.estado === "activa" && ((f.canal_tipo === "mercadolibre" ? f.stock_ml : f.disp_web) ?? 0) > 0)));
   const tono = (e: string) => (e === "activa" ? "verde" : e === "pausada" ? "amarillo" : "gris") as "verde" | "amarillo" | "gris";
   // Se ordena tocando el título de la columna (Fer, 7/10); son pocas filas, en memoria.
   const CLAVES: Record<string, (f: (typeof filas)[number]) => string | number | null> = {
@@ -1091,6 +1094,7 @@ export async function SeccionPublicaciones({ s, p, sp }: Props) {
             <option value="">Todos los canales ({todasLasFilas.length})</option>
             {canalesPub.map(([id, nombre]) => <option key={id} value={id}>{nombre} ({todasLasFilas.filter((f) => f.canal_id === id).length})</option>)}
           </FiltroVivo>
+          <CasillaViva parametro="pdisp" activo={conDisponible} etiqueta="Con disponible" ayuda="Sólo las publicaciones activas que tienen stock" />
           <span>Vendidos en Mercado Libre: <b className="text-[#1F2A33] tabular-nums">{filas.reduce((t, f) => t + (f.vendidos ?? 0), 0).toLocaleString("es-AR")}</b></span>
         </span>
         {/* Publicarlo en una cuenta de ML copiando una publicación parecida (queda esperando el clic en la cola). */}
