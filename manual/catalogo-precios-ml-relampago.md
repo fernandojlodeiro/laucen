@@ -81,3 +81,11 @@ Los títulos de las columnas se tocan para ordenar (por ejemplo «Baja %», de m
 
 ## Cuándo aparece una propuesta
 Mercado Libre puede proponer una relámpago en cualquier momento. Laucen trae cada media hora la lista de propuestas de cada cuenta y relee enseguida las publicaciones nuevas para saber el rango de precios que acepta; una propuesta nueva aparece en esta pantalla en menos de una hora. Las que Mercado Libre retira desaparecen solas.
+
+## Ofertas compartidas
+Además de la relámpago común, Mercado Libre propone **ofertas compartidas**: la **relámpago compartida** y las compartidas comunes («Potencia tus ventas», «Tec Week», «Ofertas compartidas»…). Aparecen en esta misma pantalla, con la columna **Oferta** que dice cuál es.
+- En una compartida **el precio lo pone Mercado Libre** (no se cambia con el lápiz) y el descuento se reparte: una parte la ponés vos y otra la pone Mercado Libre, las dos sobre tu precio publicado. En «Rango de ML» dice cuánto ponés vos y cuánto Mercado Libre.
+- **Baja %** mide **lo que ponés vos** (tu precio publicado menos tu parte del descuento) contra el precio del esquema de esa publicación. **Recibirás** suma lo que pone Mercado Libre.
+- **Entrar solo a las ofertas compartidas** (interruptor por cuenta, apagado de entrada): prendido, cada 10 minutos Laucen acepta solo las compartidas de esa cuenta en las que lo que ponés vos no baja más de **5 %** el precio del esquema y que alcanzan el piso (si el producto tiene piso). De las relámpago compartidas entra una sola por producto (contando también las relámpago comunes, con todas las unidades disponibles); de las compartidas comunes, una por publicación: la que menos te cuesta, y ninguna si la publicación ya está en otra compartida.
+- Mientras una publicación está en una relámpago compartida aceptada, Laucen no le toca el precio ni las campañas.
+

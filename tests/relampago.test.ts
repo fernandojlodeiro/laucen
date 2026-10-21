@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { precioRelampago, recibis, costoPct, fechaRelampago, entraSola, bajaSobre, stockAuto, unaPorProducto, type Relampago } from "@/lib/precios-ml/relampago";
+import { precioRelampago, recibis, costoPct, fechaRelampago, entraSola, bajaSobre, elegirOfertas, claveCola, stockAuto, unaPorProducto, type Relampago } from "@/lib/precios-ml/relampago";
 
 test("recibis: precio menos comisión menos envío; sin un dato, no se sabe", () => {
   assert.equal(recibis(962_999, 122_949.69, 9_590), 830_459);
@@ -63,13 +63,23 @@ test("stockAuto: todas las unidades hasta el máximo de la oferta, o las elegida
 });
 
 test("unaPorProducto: una publicación por producto, salteando los que ya tienen una relámpago", () => {
-  const f = (item_id: string, producto_id: number, estado = "candidate", rel = 100) => ({ item_id, producto_id, estado, rel } as Relampago);
+  const f = (item_id: string, producto_id: number, estado = "candidate", rel = 100) => ({ item_id, producto_id, estado, rel, tipo_promo: "LIGHTNING", promocion_id: "LGH-MLA1000" } as Relampago);
   const cand = [f("A1", 1), f("A2", 1), f("A3", 1), f("B1", 2), f("C1", 3)];
   const todas = [...cand, f("C2", 3, "pending")];
   const r = unaPorProducto(cand, todas, new Map(), () => 0);
   assert.deepEqual(r.map((x) => x.item_id), ["A1", "B1"], "una del 1, la del 2; el 3 ya tiene una aceptada");
-  const conEnvio = unaPorProducto(cand, todas, new Map([["B1", { estado: "ok", error: null, precio: 100 }]]), () => 0);
+  const conEnvio = unaPorProducto(cand, todas, new Map([["relampago:B1", { estado: "ok", error: null, precio: 100 }]]), () => 0);
   assert.deepEqual(conEnvio.map((x) => x.item_id), ["A1"], "el 2 ya se mandó");
-  const rechazada = unaPorProducto(cand, todas, new Map([["B1", { estado: "error", error: "no creíble", precio: 105 }]]), () => 0);
+  const rechazada = unaPorProducto(cand, todas, new Map([["relampago:B1", { estado: "error", error: "no creíble", precio: 105 }]]), () => 0);
   assert.deepEqual(rechazada.map((x) => x.item_id), ["A1", "B1"], "rechazada a otro precio: se vuelve a probar");
+});
+
+test("elegirOfertas (Fer, 21/10): relámpago común y compartida, una por producto; compartidas, una por publicación (la más barata para el vendedor)", () => {
+  const f = (item_id: string, producto_id: number, tipo_promo: string, promocion_id: string, pct_vendedor: number | null = null, estado = "candidate") =>
+    ({ item_id, producto_id, estado, rel: 100, tipo_promo, promocion_id, pct_vendedor, canal_id: 1 } as Relampago);
+  const cand = [f("A1", 1, "LIGHTNING", "LGH"), f("A2", 1, "SMART_LIGHTNING", "P-REL"), f("B1", 2, "SMART", "P-TEC", 4), f("B1", 2, "SMART", "P-OCT", 2), f("C1", 3, "SMART", "P-TEC", 3)];
+  const todas = [...cand, f("C1", 3, "SMART", "P-POT", 1, "started")];
+  const r = elegirOfertas(cand, todas, new Map(), () => 0);
+  assert.deepEqual(r.map((x) => `${x.item_id}/${x.promocion_id}`), ["A1/LGH", "B1/P-OCT"], "una relámpago del producto 1; en B1 la que menos pone el vendedor; C1 ya está en una compartida");
+  assert.equal(claveCola(cand[3]), "compartida:P-OCT:B1");
 });
