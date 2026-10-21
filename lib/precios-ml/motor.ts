@@ -438,7 +438,7 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
     const pa: PropuestaPub = { pub, rol: "otro", lista: null, venta: null, piso: null, entrar: [], salir: [], volumen: [], cambiaPrecio: false, cambiaVolumen: false, avisos: [] };
     if (clasica == null || pub.estado === "cerrada") return pa;
     // En oferta relámpago (aceptada o en curso): ML no deja tocarle el precio ni las campañas hasta que termine (Fer, 12/10).
-    if (pub.campanas.some((c) => c.tipo === "LIGHTNING" && (c.estado === "started" || c.estado === "pending"))) {
+    if (pub.campanas.some((c) => (c.tipo === "LIGHTNING" || c.tipo === "SMART_LIGHTNING") && (c.estado === "started" || c.estado === "pending"))) {
       pa.rol = "apagado";
       pa.avisos.push("En oferta relámpago: no se toca hasta que termine.");
       return pa;

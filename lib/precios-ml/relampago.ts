@@ -65,7 +65,22 @@ export type FilaRelampago = {
   /** Lo que pone Mercado Libre de su bolsillo en la campaña con que se vende hoy (ej. «Potencia tus ventas»: meli_percentage
    *  sobre el precio publicado). Entra a lo que se recibe hoy; en la relámpago no lo pone. */
   aporte: number | null;
+  /** Qué oferta es (Fer, 21/10): LIGHTNING (relámpago), SMART_LIGHTNING (relámpago compartida) o SMART (oferta compartida:
+   *  «Potencia tus ventas», «Tec Week»…). En las compartidas el precio lo pone ML y el descuento se reparte: el vendedor
+   *  pone pct_vendedor y ML pct_meli, sobre `original` (el precio publicado). */
+  tipo_promo: string; nombre_promo: string | null; ref_id: string | null;
+  pct_vendedor: number | null; pct_meli: number | null; original: number | null;
 };
+
+/** Las ofertas que maneja esta pantalla. */
+export const TIPOS_OFERTA = ["LIGHTNING", "SMART_LIGHTNING", "SMART"] as const;
+/** Oferta compartida: el precio lo pone ML y pone parte del descuento. */
+export const esCompartida = (tipo: string | null | undefined) => tipo === "SMART" || tipo === "SMART_LIGHTNING";
+/** Las que son relámpago (una por producto): la común y la compartida. */
+export const esRelampago = (tipo: string | null | undefined) => tipo === "LIGHTNING" || tipo === "SMART_LIGHTNING";
+/** La fila de la cola para entrar: una relámpago común por publicación, y una compartida por publicación y campaña. */
+export const claveCola = (f: Pick<FilaRelampago, "item_id" | "tipo_promo" | "promocion_id">) =>
+  f.tipo_promo === "LIGHTNING" ? `relampago:${f.item_id}` : `compartida:${f.promocion_id}:${f.item_id}`;
 
 export type Relampago = FilaRelampago & {
   plan: PlanOClasica | null; recibisHoy: number | null; recibisRel: number | null; diferencia: number | null; alcanza: boolean | null; conStock: boolean | null;
@@ -75,7 +90,12 @@ export type Relampago = FilaRelampago & {
    *  el que sale de esa Clásica con la comisión del plan y el % extra del grupo (sin el % de la cuenta que no gana). Es la
    *  base contra la que se mide cuánto baja la relámpago. Sin Clásica en la lista, null. */
   base: number | null;
-  /** Cuánto más barato que `base` entra, en % con un decimal (negativo = más caro). */
+  /** Lo que de verdad pone el vendedor por venta: en una relámpago, el precio de entrada; en una compartida, el precio
+   *  publicado menos la parte del descuento que pone el vendedor (la de ML no sale de su bolsillo). */
+  efectivo: number | null;
+  /** Lo que pone ML por venta en una compartida (precio publicado × pct_meli). */
+  aporteRel: number;
+  /** Cuánto más barato que `base` entra lo que pone el vendedor (`efectivo`), en % con un decimal (negativo = más caro). */
   bajaPct: number | null;
   costoHoyPct: number | null; costoRelPct: number | null;
 };
@@ -91,7 +111,7 @@ const PRECIOS_SQL = `
                             and q.estado = 'error' and q.ultimo_error ilike '%CREDIBILITY%' order by q.id desc limit 1) rz on true
       cross join lateral (select coalesce(pc.monto, (m.datos_externos -> 'ml' ->> 'price')::numeric) hoy,
                                  coalesce(p.max_precio, (p.datos ->> 'max_discounted_price')::numeric) max) x
-      cross join lateral (select case when p.estado <> 'candidate' and p.datos ->> 'price' is not null then round((p.datos ->> 'price')::numeric, 2)
+      cross join lateral (select case when (p.estado <> 'candidate' or p.tipo <> 'LIGHTNING') and p.datos ->> 'price' is not null then round((p.datos ->> 'price')::numeric, 2)
                                       else round(coalesce(rp.precio, least(floor(x.max), ceil(x.hoy) - 1,
                                         case when rz.precio is not null then floor(nullif((p.datos ->> 'price')::numeric, 0)) end)), 2) end rel) y`;
 
@@ -109,7 +129,10 @@ export async function relampagos(org: string, canal: number | null = null): Prom
            ps.piso::float8 piso, rp.precio::float8 elegido, cl.lista_ars::float8 clasica, pr.familia_id::int familia_id,
            (select max((d.datos ->> 'original_price')::numeric * (d.datos ->> 'meli_percentage')::numeric / 100)
               from ml_promo_item d where d.canal_id = p.canal_id and d.item_id = p.item_id and d.estado = 'started'
-               and (d.datos ->> 'meli_percentage')::numeric > 0 and round((d.datos ->> 'price')::numeric) = round(x.hoy))::float8 aporte, rp.stock elegido_stock, (p.datos -> 'stock' ->> 'remaining_stock')::int restante
+               and (d.datos ->> 'meli_percentage')::numeric > 0 and round((d.datos ->> 'price')::numeric) = round(x.hoy))::float8 aporte, rp.stock elegido_stock, (p.datos -> 'stock' ->> 'remaining_stock')::int restante,
+           p.tipo tipo_promo, coalesce(nullif(p.nombre, ''), k.nombre) nombre_promo, p.datos ->> 'ref_id' ref_id,
+           (p.datos ->> 'seller_percentage')::float8 pct_vendedor, (p.datos ->> 'meli_percentage')::float8 pct_meli,
+           (p.datos ->> 'original_price')::float8 original
       from ml_promo_item p
       join canal c on c.id = p.canal_id
       join meli_item m on m.canal_id = p.canal_id and m.item_id = p.item_id and m.estado = 'active'
@@ -125,9 +148,9 @@ export async function relampagos(org: string, canal: number | null = null): Prom
                            coalesce(c.lista_precios_id, (select l.id from lista_precios l where l.organizacion_id = c.organizacion_id
                                                             and lower(l.nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') order by l.id limit 1)),
                            (now() at time zone 'America/Argentina/Buenos_Aires')::date)) cl on true
-     where p.organizacion_id = $1 and p.tipo = 'LIGHTNING' and p.estado in ('candidate', 'pending', 'started')
+     where p.organizacion_id = $1 and p.tipo = any($3::text[]) and p.estado in ('candidate', 'pending', 'started')
        and ($2::bigint is null or p.canal_id = $2)
-     order by v.sku, c.nombre`, [org, canal]);
+     order by v.sku, c.nombre, p.tipo, p.promocion_id`, [org, canal, TIPOS_OFERTA]);
   const [com, familias, grupos] = filas.length ? await Promise.all([comisionesMl(), familiasDe(org), gruposPlanes(org)]) : [null, null, null];
   return filas.map((f) => {
     const plan = planDePublicacion(f.tipo, f.tags);
@@ -143,16 +166,21 @@ export async function relampagos(org: string, canal: number | null = null): Prom
     }
     const sinAporte = recibis(f.hoy, f.hoy_comision, f.hoy_envio);
     const recibisHoy = sinAporte == null ? null : Math.round(sinAporte + (f.aporte ?? 0));
-    const recibisRel = recibis(f.rel, f.rel_comision, f.rel_envio);
+    // Compartida: ML pone su parte del descuento (sobre el precio publicado) y no sale del bolsillo del vendedor.
+    const compartida = esCompartida(f.tipo_promo);
+    const aporteRel = compartida && f.original != null && f.pct_meli != null ? Math.round(f.original * f.pct_meli / 100) : 0;
+    const efectivo = !compartida ? f.rel : f.original != null && f.pct_vendedor != null ? Math.round(f.original * (1 - f.pct_vendedor / 100)) : null;
+    const sinAporteRel = recibis(f.rel, f.rel_comision, f.rel_envio);
+    const recibisRel = sinAporteRel == null ? null : sinAporteRel + aporteRel;
     // Un precio de entrada fuera del rango no se puede usar (en una propuesta todavía no aceptada).
     if (f.estado === "candidate" && f.rel != null && ((f.min != null && f.rel < f.min) || (f.max != null && f.rel > f.max))) f.rel = null;
     return {
-      ...f, plan, base, recibisHoy, recibisRel,
+      ...f, plan, base, efectivo, aporteRel, recibisHoy, recibisRel,
       costoHoyPct: costoPct(f.hoy, recibisHoy), costoRelPct: f.rel == null ? null : costoPct(f.hoy, recibisRel),
       diferencia: recibisHoy != null && recibisRel != null ? recibisRel - recibisHoy : null,
       alcanza: f.piso == null || recibisRel == null ? null : recibisRel >= f.piso,
       stockEntrar: f.estado !== "candidate" ? f.restante : (f.elegido_stock ?? f.stock_min),
-      bajaPct: bajaSobre(f.rel, base),
+      bajaPct: bajaSobre(f.rel == null ? null : efectivo, base),
       conStock: f.estado !== "candidate" || f.stock == null || (f.elegido_stock ?? f.stock_min) == null ? null : f.stock >= (f.elegido_stock ?? f.stock_min)!,
     };
   });
@@ -162,7 +190,7 @@ export async function relampagos(org: string, canal: number | null = null): Prom
 export async function cuentaRelampagos(org: string, canal: number | null = null): Promise<number> {
   return (await una<{ n: number }>(`
     select count(*)::int n from ml_promo_item p join meli_item m on m.canal_id = p.canal_id and m.item_id = p.item_id and m.estado = 'active'
-     where p.organizacion_id = $1 and p.tipo = 'LIGHTNING' and p.estado in ('candidate', 'pending', 'started') and ($2::bigint is null or p.canal_id = $2)`, [org, canal]))?.n ?? 0;
+     where p.organizacion_id = $1 and p.tipo = any($3::text[]) and p.estado in ('candidate', 'pending', 'started') and ($2::bigint is null or p.canal_id = $2)`, [org, canal, TIPOS_OFERTA]))?.n ?? 0;
 }
 
 /** Lo que cobra ML a ese precio en esa publicación: comisión y envío gratis. */
@@ -188,7 +216,7 @@ export async function actualizarCostosRelampago(hasta: number): Promise<number> 
       ${PRECIOS_SQL}
       cross join lateral (values (round(x.hoy, 2)), (y.rel)) z(precio)
       left join ml_relampago_costo k on k.canal_id = p.canal_id and k.item_id = p.item_id and k.precio = z.precio
-     where p.tipo = 'LIGHTNING' and p.estado in ('candidate', 'pending', 'started') and z.precio is not null
+     where p.tipo in ('LIGHTNING', 'SMART_LIGHTNING', 'SMART') and p.estado in ('candidate', 'pending', 'started') and z.precio is not null
        and (k.item_id is null or k.leido_ts < now() - interval '1 day' or k.comision is null or k.envio is null)
      limit 400`);
   if (!faltan.length) return 0;
@@ -221,14 +249,15 @@ export async function guardarPiso(org: string, producto: number, piso: number | 
 /** Lo que Fer cambia en la fila (un solo lápiz): el precio y el stock con que entra (vacío: el sugerido / el mínimo; dentro
  *  de lo que acepta ML y del stock que hay) y el piso del producto (vale para todas las cuentas; vacío: sin piso). Si
  *  cambia el precio, lee enseguida lo que cobra ML a ese precio, para que la fila muestre cuánto se recibe. */
-export async function guardarFilaRelampago(org: string, canal: number, item: string, d: { precio: number | null; stock: number | null; piso: number | null }): Promise<void> {
-  const f = (await relampagos(org, canal)).find((x) => x.item_id === item);
+export async function guardarFilaRelampago(org: string, canal: number, item: string, d: { precio: number | null; stock: number | null; piso: number | null }, promocion: string | null = null): Promise<void> {
+  const f = (await relampagos(org, canal)).find((x) => x.item_id === item && (!promocion || x.promocion_id === promocion));
   if (!f) throw new ErrorErp("Esa publicación ya no tiene propuesta de oferta relámpago.");
   await guardarPiso(org, f.producto_id, d.piso);
   if (f.estado !== "candidate") {
     if (d.precio != null || d.stock != null) throw new ErrorErp("Esa oferta ya está aceptada: el precio y el stock ya no se cambian (el piso sí quedó grabado).");
     return;
   }
+  if (d.precio != null && esCompartida(f.tipo_promo)) throw new ErrorErp("En una oferta compartida el precio lo pone Mercado Libre: no se cambia (el piso sí quedó grabado).");
   if (d.precio != null && ((f.min != null && d.precio < f.min) || (f.max != null && d.precio > f.max)))
     throw new ErrorErp(`Mercado Libre acepta un precio entre $ ${Math.ceil(f.min ?? 0).toLocaleString("es-AR")} y $ ${Math.floor(f.max ?? 0).toLocaleString("es-AR")}.`);
   if (d.stock != null) {
@@ -294,10 +323,10 @@ export async function actualizarFechasRelampago(hasta: number): Promise<number> 
 export async function prepararRelampagos(org: string, usuario: string, canal: number | null): Promise<{ lotes: number[]; filas: number }> {
   const filas = (await relampagos(org, canal)).filter((f) => f.estado === "candidate" && f.alcanza === true && f.conStock !== false && f.rel != null && f.stockEntrar != null);
   const yaPedidas = new Set((await consulta<{ item_id: string }>(
-    "select item_id from ml_cola where organizacion_id = $1 and item_id like 'relampago:%' and estado in ('preparado', 'pendiente', 'enviando', 'ok') and creado_ts > now() - interval '7 days'", [org]))
+    "select item_id from ml_cola where organizacion_id = $1 and (item_id like 'relampago:%' or item_id like 'compartida:%') and estado in ('preparado', 'pendiente', 'enviando', 'ok') and creado_ts > now() - interval '7 days'", [org]))
     .map((x) => x.item_id));
   const porCanal = new Map<number, Relampago[]>();
-  for (const f of filas) if (!yaPedidas.has(`relampago:${f.item_id}`)) porCanal.set(f.canal_id, [...(porCanal.get(f.canal_id) ?? []), f]);
+  for (const f of filas) if (!yaPedidas.has(claveCola(f))) porCanal.set(f.canal_id, [...(porCanal.get(f.canal_id) ?? []), f]);
   const lotes: number[] = [];
   for (const [c, fs] of porCanal) {
     const cambios: CambioMl[] = fs.map(cambioEntrar);
@@ -306,20 +335,28 @@ export async function prepararRelampagos(org: string, usuario: string, canal: nu
   return { lotes, filas: [...porCanal.values()].reduce((s, x) => s + x.length, 0) };
 }
 
-/** El pedido para entrar a la oferta relámpago de una publicación (como dice el manual: deal_price, stock, promotion_type). */
+/** El pedido para entrar a una oferta de una publicación. Relámpago (como dice el manual): deal_price, stock, promotion_type.
+ *  Compartida (SMART, SMART_LIGHTNING): el precio lo pone ML; se acepta la propuesta por su campaña y su ref_id (offer_id),
+ *  con stock en la relámpago compartida. */
 function cambioEntrar(f: Relampago, stock: number | null = f.stockEntrar): CambioMl {
+  const pesos = (x: number | null) => `$ ${(x ?? 0).toLocaleString("es-AR")}`;
+  const que = f.tipo_promo === "LIGHTNING" ? "la oferta relámpago" : f.tipo_promo === "SMART_LIGHTNING" ? "la relámpago compartida" : `la oferta compartida «${f.nombre_promo ?? f.promocion_id}»`;
+  const cuerpo = f.tipo_promo === "LIGHTNING" ? { deal_price: f.rel, stock, promotion_type: "LIGHTNING" }
+    : { promotion_id: f.promocion_id, promotion_type: f.tipo_promo, ...(f.ref_id ? { offer_id: f.ref_id } : {}), ...(f.tipo_promo === "SMART_LIGHTNING" && stock != null ? { stock } : {}) };
   return {
-    canalId: f.canal_id, itemId: `relampago:${f.item_id}`, tipo: "campana", antes: { estado: "candidata a oferta relámpago" },
+    canalId: f.canal_id, itemId: claveCola(f), tipo: "campana", antes: { estado: `candidata a ${que}` },
     payload: {
-      descripcion: `Entrar a la oferta relámpago: ${f.item_id} (${f.sku}) a $ ${f.rel!.toLocaleString("es-AR")} con ${stock} u.; recibís $ ${(f.recibisRel ?? 0).toLocaleString("es-AR")} (hoy $ ${(f.recibisHoy ?? 0).toLocaleString("es-AR")})`,
-      pedidos: [{ metodo: "POST", ruta: `/seller-promotions/items/${f.item_id}?app_version=v2`, cuerpo: { deal_price: f.rel, stock, promotion_type: "LIGHTNING" } }],
+      descripcion: `Entrar a ${que}: ${f.item_id} (${f.sku}), el comprador paga ${pesos(f.rel)}${esCompartida(f.tipo_promo) ? ` (ponés ${f.pct_vendedor ?? "?"} %, ML ${f.pct_meli ?? "?"} %)` : ""}${f.tipo_promo !== "SMART" ? ` con ${stock} u.` : ""}; recibís ${pesos(f.recibisRel)} (hoy ${pesos(f.recibisHoy)})`,
+      // El precio con que se entró (para no reintentar al mismo precio una que ML rechazó).
+      precio_oferta: f.rel,
+      pedidos: [{ metodo: "POST", ruta: `/seller-promotions/items/${f.item_id}?app_version=v2`, cuerpo }],
     },
   };
 }
 
 /** «Entrar» de una fila (el clic de Fer): va directo a la cola de ML, sin lote. */
-export async function entrarRelampago(org: string, usuario: string, canal: number, item: string): Promise<Relampago> {
-  const f = (await relampagos(org, canal)).find((x) => x.item_id === item);
+export async function entrarRelampago(org: string, usuario: string, canal: number, item: string, promocion: string | null = null): Promise<Relampago> {
+  const f = (await relampagos(org, canal)).find((x) => x.item_id === item && (!promocion || x.promocion_id === promocion));
   if (!f) throw new ErrorErp("Esa publicación ya no tiene propuesta de oferta relámpago.");
   if (f.estado !== "candidate") throw new ErrorErp("Esa oferta ya está aceptada.");
   if (f.rel == null) throw new ErrorErp("El precio de entrada queda fuera del rango que acepta Mercado Libre: no se puede entrar.");
@@ -329,12 +366,12 @@ export async function entrarRelampago(org: string, usuario: string, canal: numbe
   return f;
 }
 
-/** Lo último que se mandó para entrar, por publicación (para la pantalla). */
+/** Lo último que se mandó para entrar, por fila de la cola (claveCola: para la pantalla y para no repetir). */
 export async function enviosRelampago(org: string): Promise<Map<string, { estado: string; error: string | null; precio: number | null }>> {
   return new Map((await consulta<{ item_id: string; estado: string; error: string | null; precio: number | null }>(`
-    select distinct on (item_id) substr(item_id, 11) item_id, estado, ultimo_error error,
-           (payload -> 'pedidos' -> 0 -> 'cuerpo' ->> 'deal_price')::float8 precio from ml_cola
-     where organizacion_id = $1 and item_id like 'relampago:%' and creado_ts > now() - interval '7 days' order by item_id, id desc`, [org]))
+    select distinct on (item_id) item_id, estado, ultimo_error error,
+           coalesce((payload -> 'pedidos' -> 0 -> 'cuerpo' ->> 'deal_price')::float8, (payload ->> 'precio_oferta')::float8) precio from ml_cola
+     where organizacion_id = $1 and (item_id like 'relampago:%' or item_id like 'compartida:%') and creado_ts > now() - interval '7 days' order by item_id, id desc`, [org]))
     .map((x) => [x.item_id, { estado: x.estado, error: x.error, precio: x.precio }]));
 }
 
@@ -351,12 +388,15 @@ export function bajaSobre(precio: number | null, base: number | null): number | 
  *  precio del esquema para su tipo de publicación (Fer, 20/10: la Clásica de la lista en una Clásica; en un plan de cuotas,
  *  el precio del plan que sale de esa Clásica con su comisión; nunca lo que paga hoy el comprador), que alcance el piso (si
  *  hay) y con stock para lo que pide. Sin precio de esquema no entra. Pura. */
-export function entraSola(f: Pick<Relampago, "estado" | "rel" | "base" | "alcanza" | "piso" | "stock" | "stock_min">): boolean {
+export function entraSola(f: Pick<Relampago, "estado" | "rel" | "base" | "alcanza" | "piso" | "stock" | "stock_min"> & { efectivo?: number | null }): boolean {
   if (f.estado !== "candidate" || f.rel == null || f.base == null || f.base <= 0) return false;
+  // En una compartida se mide lo que pone el vendedor, no lo que paga el comprador (Fer, 21/10).
+  const pone = f.efectivo === undefined ? f.rel : f.efectivo;
+  if (pone == null) return false;
   // Con piso, hace falta saber que lo alcanza (sin los costos leídos todavía, espera a la próxima vuelta).
   if (f.piso != null && f.alcanza !== true) return false;
   // Un peso de tolerancia (pesos enteros).
-  if (f.rel < f.base * (1 - RELAMPAGO_AUTO_PCT / 100) - 1) return false;
+  if (pone < f.base * (1 - RELAMPAGO_AUTO_PCT / 100) - 1) return false;
   return f.stock != null && f.stock > 0 && (f.stock_min == null || f.stock >= f.stock_min);
 }
 
@@ -371,16 +411,18 @@ export function stockAuto(f: Pick<Relampago, "stock" | "stock_max" | "elegido_st
  *  Fer): las propuestas que cumplen entraSola entran con todas las unidades, antes que cualquier otra campaña (mientras
  *  está aceptada, el esquema de precios no toca esa publicación). Una vez por propuesta. */
 export async function entrarRelampagosAuto(hasta: number): Promise<number> {
-  const canales = await consulta<{ organizacion_id: string; id: number }>(
-    "select organizacion_id, id::int id from canal where (config ->> 'relampago_auto')::boolean is true");
+  // «Entrar solo a las relámpago» (relampago_auto) y «Entrar solo a las compartidas» (compartidas_auto; Fer, 21/10).
+  const canales = await consulta<{ organizacion_id: string; id: number; rel: boolean; comp: boolean }>(`
+    select organizacion_id, id::int id, coalesce((config ->> 'relampago_auto')::boolean, false) rel, coalesce((config ->> 'compartidas_auto')::boolean, false) comp
+      from canal where (config ->> 'relampago_auto')::boolean is true or (config ->> 'compartidas_auto')::boolean is true`);
   let n = 0;
   for (const c of canales) {
     if (Date.now() > hasta) break;
     const enviados = await enviosRelampago(c.organizacion_id);
-    // Uno por producto también entre cuentas (Fer, 13/10): los productos que ya tienen una relámpago (en cualquier cuenta).
     const todas = await relampagos(c.organizacion_id, null);
-    const cambios = unaPorProducto(todas.filter((f) => f.canal_id === c.id && entraSola(f)), todas, enviados)
-      .map((f) => cambioEntrar(f, stockAuto(f)));
+    const prendida = (f: Relampago) => (f.tipo_promo === "LIGHTNING" ? c.rel : c.comp);
+    const elegidas = elegirOfertas(todas.filter((f) => f.canal_id === c.id && prendida(f) && entraSola(f)), todas, enviados);
+    const cambios = elegidas.map((f) => cambioEntrar(f, stockAuto(f)));
     if (!cambios.length) continue;
     await encolar(c.organizacion_id, cambios.map((x) => ({ ...x, prioridad: 40 })), { origen: "automatico" });
     n += cambios.length;
@@ -390,11 +432,29 @@ export async function entrarRelampagosAuto(hasta: number): Promise<number> {
 
 type Envios = Map<string, { estado: string; error: string | null; precio: number | null }>;
 
+/** Ya se pidió entrar (o ML la rechazó al mismo precio: no se repite hasta que cambie). */
+const enviadaA = (enviados: Envios, f: Relampago) => { const e = enviados.get(claveCola(f)); return !!e && !(e.estado === "error" && e.precio !== f.rel); };
+
+/** De las propuestas que entran, cuáles se piden: de las relámpago (común o compartida), una sola por producto
+ *  (unaPorProducto); de las compartidas que no son relámpago, una por publicación (la que menos pone el vendedor),
+ *  salteando las publicaciones que ya están en una compartida. */
+export function elegirOfertas(candidatas: Relampago[], todas: Relampago[], enviados: Envios, azar: () => number = Math.random): Relampago[] {
+  const rel = unaPorProducto(candidatas.filter((f) => esRelampago(f.tipo_promo)), todas.filter((f) => esRelampago(f.tipo_promo)), enviados, azar);
+  const ocupadas = new Set(todas.filter((f) => f.tipo_promo === "SMART" && (f.estado !== "candidate" || enviadaA(enviados, f))).map((f) => `${f.canal_id}|${f.item_id}`));
+  const porItem = new Map<string, Relampago>();
+  for (const f of candidatas) {
+    if (f.tipo_promo !== "SMART" || ocupadas.has(`${f.canal_id}|${f.item_id}`) || enviadaA(enviados, f)) continue;
+    const k = `${f.canal_id}|${f.item_id}`, ya = porItem.get(k);
+    if (!ya || (f.pct_vendedor ?? 100) < (ya.pct_vendedor ?? 100)) porItem.set(k, f);
+  }
+  return [...rel, ...porItem.values()];
+}
+
 /** De las propuestas `candidatas`, una sola por producto (al azar entre sus publicaciones y cuentas; Fer, 13/10: no
  *  entrar con el mismo producto en varias publicaciones), salteando los productos que ya tienen una relámpago aceptada o
  *  mandada en `todas`. Una que ML rechazó se vuelve a probar sólo si cambió su precio de entrada. */
 export function unaPorProducto(candidatas: Relampago[], todas: Relampago[], enviados: Envios, azar: () => number = Math.random): Relampago[] {
-  const enviada = (f: Relampago) => { const e = enviados.get(f.item_id); return !!e && !(e.estado === "error" && e.precio !== f.rel); };
+  const enviada = (f: Relampago) => enviadaA(enviados, f);
   const ocupados = new Set(todas.filter((f) => f.estado !== "candidate" || enviada(f)).map((f) => f.producto_id));
   const porProducto = new Map<number, Relampago[]>();
   for (const f of candidatas) {
@@ -405,14 +465,15 @@ export function unaPorProducto(candidatas: Relampago[], todas: Relampago[], envi
 }
 
 /** «Entrar a todas las que bajan hasta X %» (el clic de Fer): las propuestas de la cuenta (o de todas) que entran con
- *  una baja de hasta `maxPct` % sobre lo que paga hoy, alcanzan el piso y tienen el stock que piden; una por producto,
- *  con todas las unidades disponibles (hasta el máximo de la oferta). Van directo a la cola. */
+ *  una baja de hasta `maxPct` % sobre el precio del esquema (en una compartida, lo que pone el vendedor), alcanzan el piso
+ *  y tienen el stock que piden; de las relámpago una por producto, de las compartidas una por publicación, con todas las
+ *  unidades disponibles (hasta el máximo de la oferta). Van directo a la cola. */
 export async function entrarRelampagosHasta(org: string, usuario: string, canal: number | null, maxPct: number): Promise<Relampago[]> {
   const todas = await relampagos(org, null);
   const candidatas = todas.filter((f) => (canal == null || f.canal_id === canal) && f.estado === "candidate" && f.rel != null
     && f.bajaPct != null && f.bajaPct <= maxPct + 0.05 && f.alcanza !== false && f.stock != null && f.stock > 0
     && (f.stock_min == null || f.stock >= f.stock_min));
-  const elegidas = unaPorProducto(candidatas, todas, await enviosRelampago(org));
+  const elegidas = elegirOfertas(candidatas, todas, await enviosRelampago(org));
   if (elegidas.length) await encolar(org, elegidas.map((f) => cambioEntrar(f, stockAuto(f))), { origen: "boton", usuarioId: usuario });
   return elegidas;
 }

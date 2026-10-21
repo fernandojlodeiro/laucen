@@ -283,8 +283,8 @@ export async function leerItemsDeCampana(org: string, canal: number, c: FilaCamp
   // (candidate) de la cuenta sale entera de acá, pero sin el precio más alto que acepta ML, que sólo trae la lectura de
   // cada publicación. Las propuestas nuevas, y las que Laucen tiene y ya no están, se releen primero (lectura.ts lee
   // primero las que tienen leido_ts más viejo).
-  if (c.tipo === "LIGHTNING") {
-    const releer = await propuestasRelampagoNuevas(org, canal, c.promocion_id, pedir, hastaMs);
+  if (c.tipo === "LIGHTNING" || c.tipo === "SMART_LIGHTNING" || c.tipo === "SMART") {
+    const releer = await propuestasRelampagoNuevas(org, canal, c.promocion_id, c.tipo, pedir, hastaMs);
     if (releer.length) {
       await consulta(`insert into ml_promo_leida (canal_id, item_id, organizacion_id, leido_ts) select $1, x, $3, '-infinity' from unnest($2::text[]) x
         on conflict (canal_id, item_id) do update set leido_ts = '-infinity'`, [canal, releer, org]);
@@ -296,12 +296,12 @@ export async function leerItemsDeCampana(org: string, canal: number, c: FilaCamp
 
 /** Las publicaciones a releer por una oferta relámpago: las que ML propone y Laucen no tiene como propuesta, y (si la
  *  lista se leyó entera) las que Laucen tiene como propuesta y ML ya no. */
-async function propuestasRelampagoNuevas(org: string, canal: number, promocion: string, pedir: Pedir, hastaMs: number): Promise<string[]> {
+async function propuestasRelampagoNuevas(org: string, canal: number, promocion: string, tipo: string, pedir: Pedir, hastaMs: number): Promise<string[]> {
   const vistas = new Set<string>();
   let token: string | null = null, completo = true;
   for (let pagina = 0; pagina < 40; pagina++) {
     if (Date.now() > hastaMs - 2_000) { completo = false; break; }
-    const r = await pedir(`/seller-promotions/promotions/${promocion}/items?promotion_type=LIGHTNING&app_version=v2&status=candidate&limit=50${token ? `&search_after=${encodeURIComponent(token)}` : ""}`);
+    const r = await pedir(`/seller-promotions/promotions/${promocion}/items?promotion_type=${encodeURIComponent(tipo)}&app_version=v2&status=candidate&limit=50${token ? `&search_after=${encodeURIComponent(token)}` : ""}`);
     if (r.status !== 200) { completo = false; break; }
     const pag = lista(r.datos);
     for (const x of pag) if (x.id != null) vistas.add(String(x.id));
@@ -311,7 +311,7 @@ async function propuestasRelampagoNuevas(org: string, canal: number, promocion: 
     if (!token || !pag.length) break;
   }
   const tiene = new Set((await consulta<{ item_id: string }>(
-    "select item_id from ml_promo_item where organizacion_id = $1 and canal_id = $2 and tipo = 'LIGHTNING' and estado = 'candidate'", [org, canal])).map((x) => x.item_id));
+    "select item_id from ml_promo_item where organizacion_id = $1 and canal_id = $2 and promocion_id = $3 and estado = 'candidate'", [org, canal, promocion])).map((x) => x.item_id));
   const nuevas = [...vistas].filter((i) => !tiene.has(i));
   const idas = completo ? [...tiene].filter((i) => !vistas.has(i)) : [];
   return [...nuevas, ...idas];
