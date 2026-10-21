@@ -23,6 +23,9 @@ export async function responderConsultas(hastaMs: number): Promise<{ respondidas
     if (Date.now() > hastaMs) break;
     const cuenta = rutaValida(p.ruta) ? await cuentaDelCanal(p.organizacion_id, p.canal_id) : null;
     const r = cuenta ? await ml(cuenta, "GET", p.ruta) : { status: 0, datos: { message: cuenta === null && rutaValida(p.ruta) ? "esa cuenta no está conectada" : "ruta no válida" } };
+    // Límite de pedidos de ML (algunas rutas, como el detalle de Full de la facturación, dejan 5 por
+    // minuto): queda pendiente para la próxima vuelta y se corta esta.
+    if (r.status === 429) break;
     let texto = JSON.stringify(r.datos ?? null);
     if (texto.length > MAXIMO) texto = JSON.stringify({ recortada: true, inicio: texto.slice(0, MAXIMO) });
     const ok = r.status >= 200 && r.status < 300;
