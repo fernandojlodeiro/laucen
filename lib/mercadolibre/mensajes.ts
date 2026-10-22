@@ -239,11 +239,11 @@ export async function enviarMensaje(org: string, packId: string, texto: string, 
   if (!comprador) throw new ErrorErp("No se sabe quién es el comprador de esta conversación.");
   await mlOk(cuenta, "POST", `/messages/packs/${packId}/sellers/${cuenta.meliUserId}?tag=post_sale`,
     { from: { user_id: cuenta.meliUserId }, to: { user_id: Number(comprador) }, text: t }).catch((e) => {
-    // ML rechaza (403 «the format is not allowed») el PRIMER mensaje del vendedor en una compra sin envío (retiro) mandado
-    // desde Laucen (Fer, 22/10, pedido 150344): el mismo texto salió bien desde la web de ML y, después de ese primero,
-    // todos los de Laucen salieron (también la dirección completa). Se dice claro qué hacer.
+    // ML rechaza a veces (403 «the format is not allowed») un mensaje desde Laucen que desde su web sale bien (Fer, 22/10:
+    // pedido 150344 y el pack 2000016634887584). La causa todavía no está clara (no es el texto, ni el «¡», ni ser el
+    // primero, ni la falta de envío); se dice claro qué hacer.
     if (e instanceof ErrorErp && /format is not allowed/i.test(e.message)) {
-      throw new ErrorErp("En una compra sin envío (retiro), Mercado Libre no deja que el primer mensaje salga desde Laucen. Mandá ese primero desde Mercado Libre («Ver la venta», arriba); los siguientes ya salen desde acá.");
+      throw new ErrorErp("Mercado Libre no aceptó este mensaje desde Laucen (pasa en algunas conversaciones; desde su web sale). Mandalo desde Mercado Libre: «Ver la venta», arriba.");
     }
     throw e;
   });

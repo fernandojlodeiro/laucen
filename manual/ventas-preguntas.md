@@ -136,7 +136,7 @@ La publicación no está atada a un producto de Laucen; vinculala en [Vincular c
 No: Mercado Libre no lo permite y la propia pantalla lo recuerda.
 
 **¿Por qué mi mensaje no salió?**
-Puede superar los 350 caracteres, estar vacío o la cuenta de Mercado Libre estar desconectada; el aviso rojo dice cuál. En una compra sin envío (retiro), Mercado Libre no deja que el primer mensaje del vendedor salga desde Laucen: el aviso lo dice; ese primero se manda desde Mercado Libre («Ver la venta») y los siguientes ya salen desde Laucen.
+Puede superar los 350 caracteres, estar vacío o la cuenta de Mercado Libre estar desconectada; el aviso rojo dice cuál. En algunas conversaciones Mercado Libre no acepta el mensaje desde Laucen aunque desde su web salga: el aviso lo dice, y ese mensaje se manda desde Mercado Libre («Ver la venta»).
 
 **¿Qué es el "Pack" de una conversación?**
 El número de la venta (o del carrito) en Mercado Libre. Si dice "sin pedido en Laucen", esa venta todavía no entró como pedido.
