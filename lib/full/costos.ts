@@ -159,16 +159,18 @@ export function periodosLeibles(hoy = new Date()): string[] {
   return out;
 }
 
-/** Qué período falta leer de cada cuenta: los nunca leídos (salvo los que ML ya no deja), los abiertos
- *  cada 12 h y los que dieron error cada 6 h. */
+/** Qué período falta leer de cada cuenta: los nunca leídos (salvo los que ML ya no deja), los abiertos y
+ *  los dos últimos (el que corre contesta 200 vacío y se va llenando) cada 12 h, y los que dieron error cada 6 h. */
 async function pendientes(org: string | null, canal?: number) {
   return consulta<{ organizacion_id: string; canal_id: number; periodo: string }>(`
     select c.organizacion_id, c.id::int canal_id, to_char(p.periodo, 'YYYY-MM-DD') periodo
       from canal c cross join unnest($3::date[]) p(periodo)
       left join full_cargo_lectura l on l.canal_id = c.id and l.periodo = p.periodo
      where c.tipo = 'mercadolibre' and c.estado = 'activo' and ($1::text is null or c.organizacion_id = $1) and ($2::bigint is null or c.id = $2)
-       and (l.estado is null or (l.estado = 'abierto' and l.leido_ts < now() - interval '12 hours') or (l.estado = 'error' and l.leido_ts < now() - interval '6 hours'))
-     order by p.periodo desc, c.id`, [org, canal ?? null, periodosLeibles()]);
+       and (l.estado is null
+            or ((l.estado = 'abierto' or (l.estado = 'ok' and p.periodo >= $4::date)) and l.leido_ts < now() - interval '12 hours')
+            or (l.estado = 'error' and l.leido_ts < now() - interval '6 hours'))
+     order by p.periodo desc, c.id`, [org, canal ?? null, periodosLeibles(), periodosLeibles()[1]]);
 }
 
 export async function hayCargosFullPendientes(): Promise<boolean> {
@@ -199,7 +201,8 @@ export async function leerCargosFull(org: string | null, hastaMs: number, opts: 
       const r = await ml<{ total?: number; results?: CargoMl[]; message?: string }>(cuenta, "GET",
         `/billing/integration/periods/key/${p.periodo}/group/ML/full/details?document_type=BILL&offset=${offset}&limit=200`);
       if (r.status === 429) { estado = "cortado"; break; }
-      if (r.status === 400) { estado = "abierto"; break; }
+      // 400: el período todavía no cerró; en uno viejo, ML no lo da (como el 404).
+      if (r.status === 400) { estado = p.periodo >= periodosLeibles()[1] ? "abierto" : "fuera"; break; }
       if (r.status === 404) { estado = "fuera"; break; }
       if (r.status !== 200) { estado = "error"; error = `ML contestó ${r.status}`; break; }
       const lista = Array.isArray(r.datos?.results) ? r.datos.results : [];
