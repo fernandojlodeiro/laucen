@@ -41,3 +41,9 @@ test("descripcionCopiada: cambia el encabezado y el pie de origen por los de des
 test("instruccionesExtra: la IA sabe por qué cuenta entró (para las reglas de una sola cuenta)", () => {
   assert.match(instruccionesExtra({ ...TEXTOS_VACIOS, cuenta: "ML PUNTO" }), /cuenta «ML PUNTO»/);
 });
+
+test("textoParaMl: el texto de un mensaje como lo acepta Mercado Libre", async () => {
+  const { textoParaMl } = await import("@/lib/mercadolibre/mensajes");
+  assert.equal(textoParaMl("¡Hola!\u00A0Te escribimos \u201Cya\u201D\u2026\r\nSaludos, el equipo.\u200B "), '¡Hola! Te escribimos "ya"...\nSaludos, el equipo.');
+});
+

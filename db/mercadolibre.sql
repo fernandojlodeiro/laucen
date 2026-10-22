@@ -673,3 +673,20 @@ begin
   delete from ml_venta_en_camino where organizacion_id = p_org and creado_ts < now() - interval '1 day';
   return v;
 end $$;
+
+-- ── Mensajes que ML rechazó desde Laucen (lib/mercadolibre/mensajes.ts) ──
+-- ML rechazó con «the format is not allowed» mensajes desde la pantalla que por la cola salían (22/10). Se guarda
+-- lo que se mandó, con el código de cada carácter, para encontrar la causa si vuelve a pasar.
+create table if not exists ml_mensaje_rechazado (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint,
+  pack_id          text not null,
+  ruta             text not null,
+  cuerpo           jsonb not null,
+  codigos          text,
+  error            text,
+  creado_ts        timestamptz not null default now()
+);
+alter table ml_mensaje_rechazado enable row level security;
+select erp_politica_org('ml_mensaje_rechazado');

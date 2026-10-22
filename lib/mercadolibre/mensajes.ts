@@ -218,6 +218,18 @@ export async function sugerirMensajesPendientes(opts: { org?: string; max?: numb
   return res;
 }
 
+/** El texto de un mensaje como lo acepta Mercado Libre (sólo letras latinas, ISO-8859-1): saltos de renglón simples,
+ *  espacios comunes, sin caracteres invisibles ni de control, y la puntuación «tipográfica» en su forma simple. Puro. */
+export function textoParaMl(s: string): string {
+  return s.replace(/\r\n?/g, "\n")
+    .replace(/[\u00A0\u2007\u202F\u2000-\u200A]/g, " ")
+    .replace(/[\u200B-\u200D\u2060\uFEFF\u00AD]/g, "")
+    .replace(/[\u201C\u201D\u201E]/g, '"').replace(/[\u2018\u2019\u201A]/g, "'")
+    .replace(/\u2026/g, "...").replace(/[\u2013\u2014]/g, "-")
+    .replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, "")
+    .replace(/[ ]+\n/g, "\n").trim();
+}
+
 /** Manda un mensaje al comprador del pack. Sin usuario y con `auto`: lo mandó la IA sola. */
 export async function enviarMensaje(org: string, packId: string, texto: string, usuarioId: string | null = null, o: { auto?: boolean } = {}) {
   if (!texto.trim()) throw new ErrorErp("El mensaje está vacío.");
@@ -225,7 +237,8 @@ export async function enviarMensaje(org: string, packId: string, texto: string, 
   if (!conv) throw new ErrorErp("La conversación no existe.");
   // La firma del canal va siempre, la escriba una persona o la IA (si ya la trae, no se repite).
   const firma = (await textosCanal(org, conv.canal_id)).firma;
-  const t = agregarFirma(texto, firma);
+  // Tal como lo acepta siempre ML (el mismo texto mandado por la cola salía y desde la caja de la pantalla no: 22/10).
+  const t = textoParaMl(agregarFirma(textoParaMl(texto), firma));
   if (t.length > 350) {
     throw new ErrorErp(t !== texto.trim()
       ? `Mercado Libre acepta hasta 350 caracteres por mensaje, contando la firma (${firma.trim().length + 1}): acortá el texto a ${349 - firma.trim().length}.`
@@ -237,13 +250,17 @@ export async function enviarMensaje(org: string, packId: string, texto: string, 
     ? (await una<{ c: string | null }>("select datos_externos #>> '{ml,orden,buyer,id}' c from pedido where id = $1", [conv.pedido_id]))?.c
     : (await una<{ c: string | null }>("select datos_externos #>> '{ml,from,user_id}' c from meli_mensaje where pack_id = $1 and not de_vendedor limit 1", [packId]))?.c;
   if (!comprador) throw new ErrorErp("No se sabe quién es el comprador de esta conversación.");
-  await mlOk(cuenta, "POST", `/messages/packs/${packId}/sellers/${cuenta.meliUserId}?tag=post_sale`,
-    { from: { user_id: cuenta.meliUserId }, to: { user_id: Number(comprador) }, text: t }).catch((e) => {
-    // ML rechaza a veces (403 «the format is not allowed») un mensaje desde Laucen que desde su web sale bien (Fer, 22/10:
-    // pedido 150344 y el pack 2000016634887584). La causa todavía no está clara (no es el texto, ni el «¡», ni ser el
-    // primero, ni la falta de envío); se dice claro qué hacer.
+  const ruta = `/messages/packs/${packId}/sellers/${cuenta.meliUserId}?tag=post_sale`;
+  const cuerpo = { from: { user_id: cuenta.meliUserId }, to: { user_id: Number(comprador) }, text: t };
+  await mlOk(cuenta, "POST", ruta, cuerpo).catch(async (e) => {
+    // ML rechazó (403 «the format is not allowed») dos mensajes desde la pantalla que, con el mismo texto y en la
+    // misma conversación, salieron por la cola (Fer, 22/10: pedido 150344 y el pack 2000016634887584). Se limpia el
+    // texto (textoParaMl) y, si vuelve a pasar, queda guardado lo que se mandó, carácter por carácter, para comparar.
     if (e instanceof ErrorErp && /format is not allowed/i.test(e.message)) {
-      throw new ErrorErp("Mercado Libre no aceptó este mensaje desde Laucen (pasa en algunas conversaciones; desde su web sale). Mandalo desde Mercado Libre: «Ver la venta», arriba.");
+      await consulta(`insert into ml_mensaje_rechazado (organizacion_id, canal_id, pack_id, ruta, cuerpo, codigos, error)
+                      values ($1, $2, $3, $4, $5::jsonb, $6, $7)`,
+        [org, conv.canal_id, packId, ruta, JSON.stringify(cuerpo), [...t].map((c) => c.codePointAt(0)!.toString(16)).join(" "), e.message.slice(0, 500)]).catch(() => {});
+      throw new ErrorErp("Mercado Libre no aceptó este mensaje desde Laucen. Mandalo desde Mercado Libre («Ver la venta», arriba); quedó anotado para revisar la causa.");
     }
     throw e;
   });
