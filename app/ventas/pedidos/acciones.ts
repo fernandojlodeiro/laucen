@@ -50,7 +50,9 @@ export async function crearClienteDesdePedido(d: {
     if (dni && /^\d{11}$/.test(dni)) return { error: "Ese número tiene 11 cifras: es un CUIT o CUIL, va en «CUIT / CUIL»." };
     const whatsapp = d.whatsapp.trim() ? whatsappNormal(d.whatsapp) : null;
     if (d.whatsapp.trim() && !whatsapp) return { error: "El WhatsApp no parece un celular: escribilo con la característica (ej. 351 555-1234)." };
-    const iva = Object.hasOwn(CONDICIONES_IVA, d.condicionIva) ? d.condicionIva : null;
+    // Sin elegir (Fer, 22/10): con CUIT, Responsable inscripto; sin CUIT y con DNI, Consumidor final. La pantalla ya
+    // la sugiere; esto la asegura aunque la pantalla abierta sea de antes del cambio.
+    const iva = Object.hasOwn(CONDICIONES_IVA, d.condicionIva) ? d.condicionIva : cuit ? "responsable_inscripto" : dni ? "consumidor_final" : null;
     // ¿Ya está cargado? (Fer, 22/10) Mismo CUIT o DNI: no se crea otro, se ofrece elegir el que está.
     // Misma razón social: se avisa, y si es otro cliente se puede grabar igual.
     const repetidos = (donde: string, valores: unknown[]) => consulta<{ id: number }>(
