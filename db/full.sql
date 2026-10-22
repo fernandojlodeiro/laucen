@@ -219,3 +219,27 @@ returns numeric language sql stable as $$
    where canal_id = p_canal and variacion_id = p_variacion
      and mes = date_trunc('month', p_fecha at time zone 'America/Argentina/Buenos_Aires')::date
 $$;
+
+-- ── Remito para el transportista (Fer, 22/10) ────────────────
+-- Cada envío: el transportista (un proveedor; el envío nuevo trae el último usado), cuántos bultos y
+-- el valor declarado (si queda vacío, el remito usa el sugerido: la mercadería al costo sin IVA, en
+-- pesos). Los datos de destino son siempre los mismos: uno por organización (Stock › Envíos a
+-- Full › Datos del remito).
+alter table full_envio add column if not exists valor_declarado_ars numeric(16, 2);
+alter table full_envio add column if not exists transportista_id bigint references proveedor(id) on delete set null;
+alter table full_envio add column if not exists bultos int;
+create table if not exists full_remito_datos (
+  organizacion_id  text primary key references organizaciones(id) on delete cascade,
+  destinatario     text,
+  cuit             text,
+  direccion        text,
+  localidad        text,
+  provincia        text,
+  codigo_postal    text,
+  telefono         text,
+  horario          text,
+  observaciones    text,
+  actualizado_ts   timestamptz not null default now()
+);
+alter table full_remito_datos enable row level security;
+select erp_politica_org('full_remito_datos');

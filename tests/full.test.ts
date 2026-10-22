@@ -29,6 +29,16 @@ test("Full: reparto del flete por volumen, y por unidades si a alguno le falta e
   assert.equal(repartirFlete(lineas, "valor", null).porUnidad.get(1), null);
 });
 
+test("Full: bultos sugeridos del remito (grandes en su caja, chicos juntos)", async () => {
+  const { bultosSugeridos } = await import("@/lib/full/remito");
+  // 3 impresoras (≈ 50 × 40 × 30 cm, 9 kg) + 2 pesadas chicas: una caja por unidad.
+  assert.equal(bultosSugeridos([{ cantidad: 3, volumen: 60_000, peso: 9_000 }, { cantidad: 2, volumen: 4_000, peso: 6_000 }]), 5);
+  // 100 placas de 1.000 cm³ = 100.000 cm³ → 2 cajas de 76.800; sin medidas cuentan 2.000 cm³ c/u.
+  assert.equal(bultosSugeridos([{ cantidad: 100, volumen: 1_000, peso: 50 }]), 2);
+  assert.equal(bultosSugeridos([{ cantidad: 10, volumen: null, peso: null }]), 1);
+  assert.equal(bultosSugeridos([{ cantidad: 0, volumen: 60_000, peso: 9_000 }]), 0);
+});
+
 test("Full: las publicaciones se agrupan por Código ML; la principal es la común", async () => {
   const { agruparPorCodigo } = await import("@/lib/full/envios");
   const p = (item: string, codigo: string | null, up: string, catalogo: boolean, vendidas: number) =>

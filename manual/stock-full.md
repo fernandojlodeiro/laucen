@@ -2,7 +2,7 @@
 titulo: Envíos a Full
 menu: Stock › Envíos a Full
 ruta: /stock/full
-rutas: /stock/full, /stock/full/[id], /stock/full/stock, /stock/full/costos
+rutas: /stock/full, /stock/full/[id], /stock/full/stock, /stock/full/costos, /stock/full/remito
 permiso: full_ver
 resumen: Armar, despachar y seguir los envíos de mercadería a Full de una cuenta de Mercado Libre, cargar su flete, ver lo que hay en Full al lado de lo que dice el sistema y lo que cuesta tenerlo ahí.
 ---
@@ -22,7 +22,7 @@ El envío también se crea en Mercado Libre, en la Central de vendedores (secci�
 ## Cómo se llega
 
 - Menú **Stock › Envíos a Full**.
-- Arriba, tres pestañas: **Envíos** (la lista de envíos), **Stock en Full** (lo que hay en Full de cada cuenta) y **Costos de Full** (las tarifas y lo que cobró Mercado Libre).
+- Arriba, cuatro pestañas: **Envíos** (la lista de envíos), **Stock en Full** (lo que hay en Full de cada cuenta), **Costos de Full** (las tarifas y lo que cobró Mercado Libre) y **Datos del remito** (a dónde van los envíos).
 
 ## Qué hay en la pantalla
 
@@ -34,9 +34,10 @@ El envío también se crea en Mercado Libre, en la Central de vendedores (secci�
 
 ### Ficha del envío
 
-- Arriba a la derecha: **«Etiquetas»** (abre en otra pestaña el PDF con una etiqueta por unidad, con el Código ML de cada publicación), el lápiz, y según el estado **«Despachar»** y el tacho (borrador) o **«Leer Full ahora»** (en camino).
+- Arriba a la derecha: **«Etiquetas»** (abre en otra pestaña el PDF con una etiqueta por unidad, con el Código ML de cada publicación), **«Remito»** (abre en otra pestaña el remito para el transportista), el lápiz, y según el estado **«Despachar»** y el tacho (borrador) o **«Leer Full ahora»** (en camino).
 - **Datos del envío**: **Nº del envío en Mercado Libre**, **Entrega en Full (turno)** y **Notas**. Se cambian con el lápiz en cualquier estado.
 - Recuadros: **Productos**, **Unidades**, **Recibidas en Full**, **Pendientes**, **Despachado** y **Recibido** (o **Cerrado**).
+- Caja **Remito para el transportista** con su lápiz: **Transportista (proveedor)** (enlace al proveedor), **Bultos** y **Valor declarado**. Vacíos, muestran lo sugerido. Si algún producto no tiene costo cargado, lo avisa abajo.
 - Caja **Flete del envío** con su lápiz: **Monto (sin IVA)**, **Factura de gasto** (enlace a la factura) y **Cómo se reparte**. Debajo, cuánto da en promedio por unidad.
 - Tabla **Productos** (con **«Vaciar el envío»** a la derecha del título, en borrador): foto y SKU (enlace a la ficha), la **Publicación** de la cuenta a la que va (su número abre el historial; la ↗ abre Mercado Libre; debajo, el plan, la marca de catálogo y cuánto vendió), el **Código ML**, **Vende/día en la cuenta**, **Vende/día en lo demás** (los otros canales), **En Full**, **En camino** (de otros envíos), **Disponible en** el depósito de origen (en rojo si no alcanza), **Cantidad**, y cuando ya salió, **Recibido** y **Faltante**; al final, el **Flete por unidad**.
   - En borrador, cada fila tiene el lápiz (cambia ahí mismo la cantidad y la publicación) y el tacho (lo saca del envío).
@@ -50,6 +51,11 @@ El envío también se crea en Mercado Libre, en la Central de vendedores (secci�
 - Debajo de las pestañas, cuándo se leyó Full por última vez en cada cuenta.
 - Buscador por SKU, título, Código ML o publicación.
 - Columnas (ordenables): **Producto** (foto, SKU, título y la publicación), **Cuenta**, **Código ML**, **Disponible en ML**, **No disponible en ML** (con el detalle: en traslado, dañado, perdido, en retiro…), **En Full según el sistema**, **Diferencia**, **En camino**, **Vendidas** (últimos 60 días en esa cuenta), **Días que cubre**, **Tamaño en Full** (el que midió Mercado Libre; si no coincide con las medidas de la ficha, debajo dice cuál daría la ficha), **Cuesta por día** (unidades × tarifa de su tamaño), **Días en Full** (de la unidad más vieja; en rojo desde 20 días antes de que empiece el cargo de stock antiguo) y **Lectura** (hora de la última lectura, o «Error» si Mercado Libre no contestó).
+
+### Pestaña Datos del remito
+
+- Arriba a la derecha, el lápiz (en edición, **«Grabar»** y **«Cancelar»**).
+- **Destinatario**, **CUIT**, **Dirección**, **Código postal**, **Localidad**, **Provincia**, **Teléfono**, **Horario de recepción** y **Observaciones** (van en todos los remitos).
 
 ### Pestaña Costos de Full
 
@@ -94,6 +100,13 @@ En **Cerrar el envío**, elegí:
 1. Andá a la pestaña **Costos de Full**.
 2. Tocá el lápiz de la fila del tamaño.
 3. Cambiá los valores y apretá **«Guardar»**. El costo estimado se recalcula enseguida.
+
+### Imprimir el remito para el transportista
+
+1. La primera vez, cargá el destino en la pestaña **Datos del remito** (lápiz, completar, **«Grabar»**). Queda para todos los envíos.
+2. En la ficha del envío, caja **Remito para el transportista**, apretá el lápiz.
+3. Elegí el **Transportista** de la lista de proveedores (el envío nuevo ya trae el del último envío). Revisá los **Bultos** y el **Valor declarado**: si los dejás vacíos, va lo sugerido. Apretá **«Grabar»**.
+4. Apretá **«Remito»** arriba a la derecha: abre el PDF para imprimir. Se imprime de nuevo cuando haga falta.
 
 ### Cargar el flete
 
@@ -166,13 +179,23 @@ Muestra sólo productos que todavía no están en el envío, del que más vende 
 - **Stock antiguo**: desde los 120 días en Full Mercado Libre cobra además un cargo mensual por unidad. La columna **Días en Full** avisa en rojo 20 días antes.
 - **Tarifas**: Mercado Libre no las informa al sistema; se cargan en la pestaña Costos de Full. Si cobra a un precio que no coincide con ninguna, aparece el aviso.
 
+### El remito
+
+- Lleva el membrete de la empresa (logo, nombre, razón social de la cuenta de Mercado Libre, CUIT, dirección y contacto), el número del envío, la fecha del día en que se imprime y la aclaración «Documento no válido como factura».
+- Recuadros: **Sale de** (el depósito de origen y su dirección), **Destino** (lo de la pestaña Datos del remito, con el número del envío en Mercado Libre, el turno y la cuenta) y **Transporte** (el proveedor, su CUIT, dirección y teléfono, los bultos y las unidades).
+- El detalle: cantidad, SKU, Código ML y descripción de cada producto, y el total de unidades.
+- El **valor declarado** en números y en letras, las observaciones y los lugares para la firma de quien entrega y del transportista.
+- **Valor declarado sugerido**: cada unidad del envío a su costo, sin IVA y en pesos. Si el costo del producto está en dólares, se pasa a pesos con el tipo de cambio del día. Un producto sin costo cargado no suma.
+- **Bultos sugeridos** (aproximado): un producto de 30 litros o más, o de 5 kg o más por unidad, va en su propia caja (un bulto por unidad). Los más chicos se juntan en cajas de 60 × 40 × 40 cm llenas al 80 %; uno sin medidas cuenta como de 2 litros.
+- **Transportista**: se elige de los proveedores y queda guardado en cada envío, para saber con quién se mandó cada mercadería. El envío nuevo trae el del último envío.
+
 ## Preguntas frecuentes
 
 **Cargué el número del envío de Mercado Libre y no trajo nada. ¿Está bien?**
 Sí. Mercado Libre no deja leer el contenido de un envío desde otro sistema; el número queda de referencia. Los productos se cargan en el sistema (a mano o tildando los sugeridos), con las mismas cantidades que en Mercado Libre.
 
 **¿A qué publicación conviene mandar?**
-Al código de Full que más vende, que suele ser el de la Clásica con su gemela de catálogo (compite en la página del producto). Lo que mandás lo venden sólo las publicaciones de ese código; los otros planes del producto siguen saliendo del depósito propio.
+Al código de Full que más vende, que suele ser el de la Clásica con su gemela de catálogo (compite en la página del producto). Lo que mandás lo venden sólo las publicaciones de ese código. Si los planes de cuotas del producto (Clásica, Premium, 3x, 9x) están en el mismo producto de Mercado Libre, comparten el código y todos venden lo que hay en Full; si no, los otros planes siguen saliendo del depósito propio.
 
 **¿Tengo que crear el envío también en Mercado Libre?**
 Sí. Mercado Libre no deja crearlo desde otro sistema. Armalo acá (con la sugerencia y las etiquetas) y copiá los productos y cantidades en la Central de vendedores.

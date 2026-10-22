@@ -15,7 +15,7 @@ import type { Moneda } from "@/lib/moneda";
 
 const W = 595.28, H = 841.89, M = 36;
 const AZUL = rgb(0.086, 0.341, 0.498), GRIS = rgb(0.36, 0.42, 0.46), LINEA = rgb(0.89, 0.91, 0.94), FONDO = rgb(0.97, 0.98, 0.99);
-const IVA: Record<string, string> = {
+export const IVA: Record<string, string> = {
   responsable_inscripto: "IVA Responsable Inscripto", monotributo: "Responsable Monotributo", exento: "IVA Exento",
   consumidor_final: "Consumidor final", no_responsable: "No responsable",
 };
@@ -24,13 +24,13 @@ const plata = (n: number, m: Moneda) => `${m === "USD" ? "US$" : "$"} ${n.toLoca
 
 // Lo que la fuente estándar (WinAnsi) sabe dibujar; lo demás, "?".
 const EXTRA = new Set("€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ");
-const limpio = (s: string) => [...String(s ?? "").normalize("NFC")].map((ch) => {
+export const limpio = (s: string) => [...String(s ?? "").normalize("NFC")].map((ch) => {
   const c = ch.charCodeAt(0);
   return (c >= 0x20 && c <= 0x7e) || (c >= 0xa0 && c <= 0xff) || EXTRA.has(ch) ? ch : ch === "\t" || ch === "\n" ? " " : "?";
 }).join("");
 
 /** Corta un texto en renglones que entren en `ancho` (como mucho `max`; el último con "…"). */
-function renglones(s: string, f: PDFFont, tam: number, ancho: number, max = 99): string[] {
+export function renglones(s: string, f: PDFFont, tam: number, ancho: number, max = 99): string[] {
   const out: string[] = [];
   let linea = "";
   for (const palabra of limpio(s).split(/\s+/).filter(Boolean)) {
@@ -51,7 +51,7 @@ function renglones(s: string, f: PDFFont, tam: number, ancho: number, max = 99):
 }
 
 /** Una imagen de internet lista para el PDF (achicada a `lado` px, en JPG). null si no se pudo. */
-async function imagen(doc: PDFDocument, url: string | null | undefined, lado: number): Promise<PDFImage | null> {
+export async function imagen(doc: PDFDocument, url: string | null | undefined, lado: number): Promise<PDFImage | null> {
   if (!url || !/^https:\/\//.test(url)) return null;
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(6000) });

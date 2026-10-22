@@ -14,6 +14,7 @@ import {
 } from "@/lib/full/envios";
 import { leerFull } from "@/lib/full/lectura";
 import { leerCargosFull, guardarTarifa, recalcularCostosFull, esTamano } from "@/lib/full/costos";
+import { guardarRemitoEnvio, guardarDatosRemito, CAMPOS_REMITO, type DatosRemito } from "@/lib/full/remito";
 
 const ficha = (envio: number, extra = "") => `/stock/full/${envio}${extra}`;
 const n = (x: number) => formatearNumero(x, "entero");
@@ -176,5 +177,24 @@ export async function accionLeerCargos() {
     if (r.abiertos) partes.push(`${n(r.abiertos)} todavía abiertos en ML`);
     if (r.errores) partes.push(`${n(r.errores)} con error`);
     return partes.join(" · ") + ". Lo que falta se lee solo cada media hora.";
+  });
+}
+
+/** Remito del envío: transportista, bultos y valor declarado (vacío = el sugerido). */
+export async function accionGuardarRemito(fd: FormData) {
+  const s = await entrarErp("full_ver");
+  const e = id(fd);
+  await intentar(ficha(e, "?editar=remito"), async () => {
+    await guardarRemitoEnvio(s.org.id, e, { transportista: id(fd, "transportista") || null, bultos: entero(fd, "bultos"), valor: numero(fd, "valor") });
+    return { ir: ficha(e, "?ok=" + encodeURIComponent("Grabado.")) };
+  });
+}
+
+/** Los datos fijos del remito (destino en Full, transportista habitual, observaciones). */
+export async function accionGuardarDatosRemito(fd: FormData) {
+  const s = await entrarErp("full_ver");
+  await intentar("/stock/full/remito?editar=ficha", async () => {
+    await guardarDatosRemito(s.org.id, Object.fromEntries(CAMPOS_REMITO.map((k) => [k, texto(fd, k)])) as DatosRemito);
+    return { ir: "/stock/full/remito?ok=" + encodeURIComponent("Grabado.") };
   });
 }

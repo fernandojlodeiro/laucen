@@ -33,9 +33,10 @@ import {
   ESTADOS_ENVIO, CRITERIOS_FLETE, SUGERENCIA_DEFECTO,
 } from "@/lib/full/envios";
 import { diaAR } from "../piezas";
+import { sugeridosRemito, proveedoresTransporte } from "@/lib/full/remito";
 import {
   accionGuardarEnvio, accionGuardarFlete, accionBorrarEnvio, accionAgregarLinea, accionCantidadLinea, accionBorrarLinea,
-  accionAgregarTildados, accionVaciarEnvio, accionDespachar, accionRecibirAMano, accionCerrarEnvio, accionLeerFull,
+  accionAgregarTildados, accionVaciarEnvio, accionDespachar, accionRecibirAMano, accionCerrarEnvio, accionLeerFull, accionGuardarRemito,
 } from "../acciones";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +58,7 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
   const enCamino = e.estado === "despachado";
   const editando = editandoFicha(sp);
   const editandoFlete = editandoFicha(sp, "flete");
+  const editandoRemito = editandoFicha(sp, "remito");
   const base = `/stock/full/${eid}`;
   // La sugerencia se abre con «Ver sugeridos» y se cierra con «Cerrar sugeridos» (?sugeridos=1, con sus días).
   const verSugeridos = borrador && sp.sugeridos === "1";
@@ -73,12 +75,14 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
            l.cantidad, l.recibido, l.faltante, l.flete_unit_ars::float, l.colecta_unit_ars::float
       from full_envio_linea l join variacion v on v.id = l.variacion_id
      where l.organizacion_id = $1 and l.envio_id = $2 order by v.sku`, [s.org.id, eid, e.canal_id]);
-  const [ctx, reparto, facturas, pubs, sug] = await Promise.all([
+  const [ctx, reparto, facturas, pubs, sug, sugRemito, transportes] = await Promise.all([
     lineas.length ? contexto(s.org.id, e, SUGERENCIA_DEFECTO.diasVentas, lineas.map((l) => l.variacion_id)) : Promise.resolve([]),
     lineasReparto(s.org.id, eid),
     editandoFlete ? facturasParaFlete(s.org.id, e.flete_factura_id) : Promise.resolve([]),
     publicacionesDe(s.org.id, e.canal_id, lineas.map((l) => l.variacion_id)),
     verSugeridos ? calcularSugeridos(s.org.id, eid, param) : Promise.resolve([]),
+    sugeridosRemito(s.org.id, eid),
+    editandoRemito ? proveedoresTransporte(s.org.id, e.transportista_id) : Promise.resolve([]),
   ]);
   // Las publicaciones de cada producto, agrupadas por Código ML: las de un grupo comparten el stock de Full.
   const grupos = agruparPorCodigo(pubs);
@@ -128,6 +132,7 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
       acciones={
         <span className="inline-flex flex-wrap items-center gap-2">
           {etiquetas && !editando && <a href={etiquetas} target="_blank" rel="noopener noreferrer" className={SUAVE}>Etiquetas</a>}
+          {lineas.length > 0 && !editando && <a href={`${base}/remito`} target="_blank" rel="noopener noreferrer" className={SUAVE}>Remito</a>}
           {enCamino && !editando && <BotonTarea accion={accionLeerFull} tipo="full-lectura" texto="Leer Full ahora" clase={SUAVE} campos={{ canal: String(e.canal_id) }} />}
           {borrador && !editando && lineas.length > 0 && (
             <BotonConfirmar accion={accionDespachar} campos={{ id: String(eid) }} clase={VERDE} texto="Despachar" corriendo="Despachando…"
@@ -196,6 +201,47 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
                   {unidades ? `En promedio, ${formatear(Math.round((e.flete_ars / unidades) * 100) / 100, "ARS")} por unidad. ` : ""}
                   {usado !== e.flete_criterio && sinDato.length ? <span className="text-[#8a6100]">Se repartió por unidades porque a {sinDato.length === 1 ? "un producto le falta" : `${n(sinDato.length)} productos les falta`} el dato ({sinDato.slice(0, 5).join(", ")}{sinDato.length > 5 ? "…" : ""}). </span> : null}
                   Lo que le toca a cada unidad se resta en la <Link href="/informes/rentabilidad" className="text-[#16577F] hover:underline">rentabilidad</Link> de cada venta que sale de Full.
+                </p>
+              )}
+            </>
+          )}
+        </form>
+      </div>
+
+      <div className={`${CAJA} mb-4`}>
+        <TituloSeccion titulo="Remito para el transportista">
+          <BotonesFicha editando={editandoRemito} ver={aqui()} editar={aqui({ editar: "remito" })} form="remito" />
+        </TituloSeccion>
+        <form id="remito" action={accionGuardarRemito} className="flex flex-wrap gap-4 items-start">
+          <input type="hidden" name="id" value={eid} />
+          {editandoRemito ? (
+            <>
+              <label className="flex-1 min-w-72"><span className={ETIQUETA}>Transportista (proveedor)</span>
+                <ElegirDeLista name="transportista" opciones={transportes} valor={e.transportista_id} vacio="Sin transportista" placeholder="Buscá el proveedor…" etiqueta="Transportista" /></label>
+              <label className="w-36"><span className={ETIQUETA}>Bultos</span>
+                <CampoNumero name="bultos" valor={e.bultos} tipo="entero" placeholder={n(sugRemito.bultos)} className={`${CAMPO} w-full`} />
+                <span className="block text-[10px] text-[#5C6B76] mt-0.5">Sugerido: {n(sugRemito.bultos)} (aprox.).</span></label>
+              <label className="w-48"><span className={ETIQUETA}>Valor declarado ($)</span>
+                <CampoNumero name="valor" valor={e.valor_declarado_ars} tipo="pesos" placeholder={formatearNumero(sugRemito.valor, "pesos")} className={`${CAMPO} w-full`} />
+                <span className="block text-[10px] text-[#5C6B76] mt-0.5">Sugerido: {formatear(sugRemito.valor, "ARS")}.</span></label>
+              <p className="basis-full text-[11px] text-[#5C6B76]">
+                Vacíos, el remito usa lo sugerido. Valor sugerido: cada unidad al costo, sin IVA y en pesos (el costo en dólares, al tipo de cambio de hoy).
+                Bultos sugeridos: un producto grande o pesado (desde 30 litros o 5 kg por unidad) va en su propia caja; los chicos se juntan en cajas de 60 × 40 × 40 cm.
+                El transportista de un envío nuevo es el del último envío. El destino se carga en la pestaña <Link href="/stock/full/remito" className="text-[#16577F] hover:underline">Datos del remito</Link>.
+              </p>
+            </>
+          ) : (
+            <>
+              <Dato etiqueta="Transportista (proveedor)" className="flex-1 min-w-72">
+                {e.transportista_id ? <Link href={`/compras/proveedores?id=${e.transportista_id}`} className="text-[#16577F] hover:underline">{e.transportista}</Link> : null}
+              </Dato>
+              <Dato etiqueta="Bultos" numero className="w-36">{e.bultos != null ? n(e.bultos) : <span className="text-[#5C6B76]">{n(sugRemito.bultos)} (sugerido)</span>}</Dato>
+              <Dato etiqueta="Valor declarado" numero className="w-48">
+                {e.valor_declarado_ars != null ? formatear(e.valor_declarado_ars, "ARS") : <span className="text-[#5C6B76]">{formatear(sugRemito.valor, "ARS")} (sugerido)</span>}
+              </Dato>
+              {sugRemito.sinCosto.length > 0 && (
+                <p className="basis-full text-[11px] text-[#8a6100]">
+                  {sugRemito.sinCosto.length === 1 ? "Un producto no tiene" : `${n(sugRemito.sinCosto.length)} productos no tienen`} costo cargado y no suma al valor sugerido ({sugRemito.sinCosto.slice(0, 5).join(", ")}{sugRemito.sinCosto.length > 5 ? "…" : ""}).
                 </p>
               )}
             </>
