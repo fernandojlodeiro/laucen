@@ -96,17 +96,13 @@ export default async function Relampago({ searchParams }: { searchParams: Promis
         pregunta="¿Preparar el lote para entrar a las ofertas que alcanzan el piso y tienen el stock que piden? Sale a Mercado Libre recién con tu clic en «Mandar a Mercado Libre». Una oferta relámpago aceptada no se puede borrar." />}>
       <Avisos sp={sp} />
       {canal && !todasCuentas && (
-        <div className="mb-3">
-          <Interruptor accion={accionInterruptor} prendido={canal.relampagoAuto} campos={{ canal: String(canal.id), clave: "relampago_auto", volver: aqui() }}
-            etiqueta={`Entrar solo a las ofertas relámpago de ${canal.nombre} (hasta ${RELAMPAGO_AUTO_PCT} % debajo del precio del esquema para su tipo de publicación, con todas las unidades)`}
-            ayuda={canal.relampagoAuto
-              ? `Prendido: cada 10 minutos Laucen entra solo a las propuestas de esta cuenta cuyo precio de «Entraría a» no baja más de ${RELAMPAGO_AUTO_PCT} % el precio del esquema (columna «Esquema») y que alcanzan el piso (si tiene), con todas las unidades disponibles hasta el máximo que acepta la oferta. Tiene prioridad sobre las otras campañas. Las que entrarían ahora: ${todas.filter((f) => f.canal_id === canal.id && entraSola(f)).length}.`
-              : "Apagado: a las ofertas relámpago se entra sólo con «Entrar» o con «Preparar las que alcanzan el piso»."} />
-          <Interruptor accion={accionInterruptor} prendido={canal.compartidasAuto} campos={{ canal: String(canal.id), clave: "compartidas_auto", volver: aqui() }}
-            etiqueta={`Entrar solo a las ofertas compartidas de ${canal.nombre} (lo que ponés vos, hasta ${RELAMPAGO_AUTO_PCT} % debajo del precio del esquema)`}
-            ayuda={canal.compartidasAuto
-              ? `Prendido: cada 10 minutos Laucen acepta solo las relámpago compartidas y las ofertas compartidas («Potencia tus ventas», «Tec Week»…) de esta cuenta en las que lo que ponés vos no baja más de ${RELAMPAGO_AUTO_PCT} % el precio del esquema y alcanzan el piso (si tiene). Las relámpago, una por producto; las otras, una por publicación (la que menos te cuesta). Las que entrarían ahora: ${todas.filter((f) => f.canal_id === canal.id && esCompartida(f.tipo_promo) && entraSola(f)).length}.`
-              : "Apagado: a las ofertas compartidas se entra sólo con «Entrar»."} />
+        <div className="mb-3 inline-flex flex-wrap gap-x-8 gap-y-2 rounded border border-[#E3E9F0] bg-white px-3 py-2">
+          <Interruptor compacto accion={accionInterruptor} prendido={canal.relampagoAuto} campos={{ canal: String(canal.id), clave: "relampago_auto", volver: aqui() }}
+            etiqueta="Entrar solo a las relámpago"
+            ayuda={`Hasta ${RELAMPAGO_AUTO_PCT} % debajo del precio del esquema, con todas las unidades.${canal.relampagoAuto ? ` Entrarían ahora: ${todas.filter((f) => f.canal_id === canal.id && f.tipo_promo === "LIGHTNING" && entraSola(f)).length}.` : ""}`} />
+          <Interruptor compacto accion={accionInterruptor} prendido={canal.compartidasAuto} campos={{ canal: String(canal.id), clave: "compartidas_auto", volver: aqui() }}
+            etiqueta="Entrar solo a las compartidas"
+            ayuda={`Lo que ponés vos, hasta ${RELAMPAGO_AUTO_PCT} % debajo del precio del esquema.${canal.compartidasAuto ? ` Entrarían ahora: ${todas.filter((f) => f.canal_id === canal.id && esCompartida(f.tipo_promo) && entraSola(f)).length}.` : ""}`} />
         </div>
       )}
       {canal && <BarraPml org={s.org.id} canales={canales} canal={canal} ver="relampago" todas={todasCuentas} derecha={<>
