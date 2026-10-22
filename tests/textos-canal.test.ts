@@ -37,3 +37,7 @@ test("descripcionCopiada: cambia el encabezado y el pie de origen por los de des
   assert.equal(descripcionCopiada("Otro encabezado\nTécnica", origen, destino).texto, "Otro encabezado\nTécnica");
   assert.equal(descripcionCopiada("Técnica", { encabezado: "", pie: "" }, destino).separada, false);
 });
+
+test("instruccionesExtra: la IA sabe por qué cuenta entró (para las reglas de una sola cuenta)", () => {
+  assert.match(instruccionesExtra({ ...TEXTOS_VACIOS, cuenta: "ML PUNTO" }), /cuenta «ML PUNTO»/);
+});

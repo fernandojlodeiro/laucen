@@ -10,16 +10,18 @@
 
 import { consulta, una } from "@/lib/erp/base";
 
-export type TextosCanal = { firma: string; reglasIa: string; encabezado: string; pie: string };
+/** `cuenta`: el nombre del canal, para que la IA sepa en qué cuenta entró la pregunta o el mensaje
+ *  (Fer, 22/10: hay reglas que valen para una sola cuenta, ej. el retiro en ML PUNTO). */
+export type TextosCanal = { firma: string; reglasIa: string; encabezado: string; pie: string; cuenta?: string };
 
 export const TEXTOS_VACIOS: TextosCanal = { firma: "", reglasIa: "", encabezado: "", pie: "" };
 
 export async function textosCanal(org: string, canal: number | string | null | undefined): Promise<TextosCanal> {
   if (!canal) return { ...TEXTOS_VACIOS, reglasIa: await reglasIaEmpresa(org) };
-  const r = await una<{ firma: string | null; reglas: string | null; enc: string | null; pie: string | null }>(`
-    select config ->> 'firma' firma, (${SQL_REGLAS}) reglas, config ->> 'desc_encabezado' enc, config ->> 'desc_pie' pie
+  const r = await una<{ firma: string | null; reglas: string | null; enc: string | null; pie: string | null; nombre: string | null }>(`
+    select config ->> 'firma' firma, (${SQL_REGLAS}) reglas, config ->> 'desc_encabezado' enc, config ->> 'desc_pie' pie, nombre
       from canal where id = $2 and organizacion_id = $1`, [org, canal]).catch(() => null);
-  return r ? { firma: r.firma ?? "", reglasIa: r.reglas ?? "", encabezado: r.enc ?? "", pie: r.pie ?? "" } : TEXTOS_VACIOS;
+  return r ? { firma: r.firma ?? "", reglasIa: r.reglas ?? "", encabezado: r.enc ?? "", pie: r.pie ?? "", cuenta: r.nombre ?? "" } : TEXTOS_VACIOS;
 }
 
 /** Los textos propios del canal (las reglas de la IA son de la empresa y no se tocan acá). */
@@ -47,6 +49,7 @@ export async function guardarReglasIa(org: string, texto: string): Promise<void>
  *  (la despedida es la firma). Pura: se prueba sin base. */
 export function instruccionesExtra(t: TextosCanal): string {
   const partes: string[] = [];
+  if (t.cuenta) partes.push(`Esta conversación entró por la cuenta «${t.cuenta}» de la tienda.`);
   if (t.firma) partes.push("No termines con saludo ni firma: al final de tu texto se agrega sola la firma de la tienda.");
   if (t.reglasIa) partes.push(`Reglas de esta tienda, que valen por encima de lo anterior:\n${t.reglasIa}`);
   return partes.length ? `\n\n${partes.join("\n\n")}` : "";
