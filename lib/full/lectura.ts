@@ -17,6 +17,7 @@ import { consulta, una, enTransaccion } from "@/lib/erp/base";
 import { ml, cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { SQL_CODIGO } from "@/lib/deposito/etiquetas-full";
 import { recibirLinea } from "@/lib/full/envios";
+import { fotoStockDia, recalcularCostosFull } from "@/lib/full/costos";
 
 /** Cuánto tiene que quedarse quieto lo que dice ML antes de igualar Laucen. */
 export const MINUTOS_QUIETO = 10;
@@ -87,6 +88,7 @@ export type ResultadoLectura = { cuentas: number; leidos: number; errores: strin
 /** Lee Full de las cuentas (todas, o las de `org` / `canal`) y concilia. */
 export async function leerFull(org: string | null, hastaMs: number = Date.now() + 60_000, canal?: number): Promise<ResultadoLectura> {
   const res: ResultadoLectura = { cuentas: 0, leidos: 0, errores: [], recibidas: 0, ajustes: 0, envios_recibidos: 0 };
+  const orgs = new Set<string>();
   for (const d of await depositosFull(org, canal)) {
     if (Date.now() > hastaMs) break;
     const cuenta = await cuentaDelCanal(d.organizacion_id, d.canal_id);
@@ -116,11 +118,15 @@ export async function leerFull(org: string | null, hastaMs: number = Date.now() 
       }
     }
     const c = await conciliar(d.organizacion_id, d.deposito_id, d.canal_id);
+    // La foto del día para repartir el costo de almacenamiento (lib/full/costos.ts).
+    await fotoStockDia(d.organizacion_id, d.canal_id, d.deposito_id).catch((e) => res.errores.push(`foto del día: ${(e as Error).message}`));
+    orgs.add(d.organizacion_id);
     res.recibidas += c.recibidas; res.ajustes += c.ajustes; res.envios_recibidos += c.envios_recibidos;
     await consulta(`insert into full_lectura (canal_id, organizacion_id, leido_ts, resumen) values ($1, $2, now(), $3::jsonb)
                     on conflict (canal_id) do update set leido_ts = now(), resumen = excluded.resumen`,
       [d.canal_id, d.organizacion_id, JSON.stringify({ ...c, errores: res.errores.length })]);
   }
+  for (const o of orgs) await recalcularCostosFull(o).catch((e) => res.errores.push(`costos: ${(e as Error).message}`));
   return res;
 }
 

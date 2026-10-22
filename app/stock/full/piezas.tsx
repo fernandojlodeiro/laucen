@@ -3,14 +3,16 @@
 import Pestanas from "@/app/componentes/Pestanas";
 import { una } from "@/lib/erp/base";
 
-export async function PestanasFull({ org, activa }: { org: string; activa: "envios" | "stock" }) {
-  const c = await una<{ envios: number; stock: number }>(`
+export async function PestanasFull({ org, activa }: { org: string; activa: "envios" | "stock" | "costos" }) {
+  const c = await una<{ envios: number; stock: number; costos: number }>(`
     select (select count(*) from full_envio where organizacion_id = $1)::int envios,
-           (select count(distinct variacion_id) from full_stock where organizacion_id = $1 and variacion_id is not null)::int stock`, [org]);
+           (select count(distinct variacion_id) from full_stock where organizacion_id = $1 and variacion_id is not null)::int stock,
+           (select count(distinct (canal_id, date_trunc('month', fecha))) from full_cargo where organizacion_id = $1)::int costos`, [org]);
   return (
     <Pestanas items={[
       { href: "/stock/full", texto: "Envíos", cuenta: c?.envios ?? 0, activa: activa === "envios" },
       { href: "/stock/full/stock", texto: "Stock en Full", cuenta: c?.stock ?? 0, activa: activa === "stock" },
+      { href: "/stock/full/costos", texto: "Costos de Full", cuenta: c?.costos ?? 0, activa: activa === "costos" },
     ]} />
   );
 }

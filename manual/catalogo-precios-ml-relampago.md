@@ -19,7 +19,7 @@ Catálogo › Precios en Mercado Libre, pestaña **«Ofertas relámpago»**. El 
 
 ## Qué hay en la pantalla
 
-Arriba, el interruptor **«Entrar solo a las ofertas relámpago»** de la cuenta elegida (ver «Criterios y reglas»).
+Arriba, en un recuadro, dos llaves de la cuenta elegida: **«Entrar solo a las relámpago»** y **«Entrar solo a las compartidas»** (ver «Criterios y reglas» y «Ofertas compartidas»). Prendidas, debajo dicen cuántas entrarían ahora.
 
 Arriba, al lado de la cuenta: **«Todas las cuentas»** (las propuestas de todas las cuentas de Mercado Libre juntas), y a la derecha **«Sólo aceptadas»** (deja sólo las que ya aceptaste o están en curso: todo lo que tenés en oferta relámpago) y el **buscador** (por SKU, producto o número de publicación; mientras escribís, con la caja «Comienza por»; un ? al principio busca en cualquier parte). La tabla tiene su propia barra para correr de costado y hacia abajo, con los títulos fijos arriba.
 
@@ -86,6 +86,6 @@ Mercado Libre puede proponer una relámpago en cualquier momento. Laucen trae ca
 Además de la relámpago común, Mercado Libre propone **ofertas compartidas**: la **relámpago compartida** y las compartidas comunes («Potencia tus ventas», «Tec Week», «Ofertas compartidas»…). Aparecen en esta misma pantalla, con la columna **Oferta** que dice cuál es.
 - En una compartida **el precio lo pone Mercado Libre** (no se cambia con el lápiz) y el descuento se reparte: una parte la ponés vos y otra la pone Mercado Libre, las dos sobre tu precio publicado. En «Rango de ML» dice cuánto ponés vos y cuánto Mercado Libre.
 - **Baja %** mide **lo que ponés vos** (tu precio publicado menos tu parte del descuento) contra el precio del esquema de esa publicación. **Recibirás** suma lo que pone Mercado Libre.
-- **Entrar solo a las ofertas compartidas** (interruptor por cuenta, apagado de entrada): prendido, cada 10 minutos Laucen acepta solo las compartidas de esa cuenta en las que lo que ponés vos no baja más de **5 %** el precio del esquema y que alcanzan el piso (si el producto tiene piso). De las relámpago compartidas entra una sola por producto (contando también las relámpago comunes, con todas las unidades disponibles); de las compartidas comunes, una por publicación: la que menos te cuesta, y ninguna si la publicación ya está en otra compartida.
+- **Entrar solo a las compartidas** (interruptor por cuenta, apagado de entrada): prendido, cada 10 minutos Laucen acepta solo las compartidas de esa cuenta en las que lo que ponés vos no baja más de **5 %** el precio del esquema y que alcanzan el piso (si el producto tiene piso). De las relámpago compartidas entra una sola por producto (contando también las relámpago comunes, con todas las unidades disponibles); de las compartidas comunes, una por publicación: la que menos te cuesta, y ninguna si la publicación ya está en otra compartida.
 - Mientras una publicación está en una relámpago compartida aceptada, Laucen no le toca el precio ni las campañas.
 

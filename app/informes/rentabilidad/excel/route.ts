@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     { titulo: `${BASES_COSTO[f.costo]}`, valor: (r) => (r.sin_costo > 0 ? null : r.costo), formato: "importe", ancho: 14 },
     { titulo: "Costo estimado (FOB + 40 %)", valor: (r) => (r.estimados > 0 ? "Sí" : ""), ancho: 12 },
     { titulo: "Flete a Full", valor: (r) => r.flete || null, formato: "importe", ancho: 14 },
+    { titulo: "Almacenamiento Full", valor: (r) => r.almacenamiento || null, formato: "importe", ancho: 14 },
     { titulo: "Margen", valor: (r) => r.margen, formato: "importe", ancho: 14 },
     { titulo: "Margen %", valor: (r) => r.margen_pct, formato: "pct", ancho: 10 },
   ];
@@ -39,6 +40,6 @@ export async function GET(req: NextRequest) {
   ];
   const t = totalesRentabilidad(filas);
   const vacios = porVenta ? [null, null, null, null] : [null, null];
-  const pie = [["Total", ...vacios, t.unidades, t.venta, t.cargos, null, t.costo, null, t.flete, t.margen, t.margenPct]];
+  const pie = [["Total", ...vacios, t.unidades, t.venta, t.cargos, null, t.costo, null, t.flete, t.almacenamiento, t.margen, t.margenPct]];
   return respuestaExcel(porVenta ? "Rentabilidad por venta" : "Rentabilidad por producto", "Rentabilidad", columnas, filas, pie);
 }

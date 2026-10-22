@@ -23,7 +23,7 @@ type SP = Record<string, string | undefined>;
 const pct = (n: number | null) => (n == null ? "—" : `${n.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`);
 
 const ORDEN: Record<string, (f: FilaRentabilidad) => string | number | null> = {
-  fecha: (f) => f.fecha, venta: (f) => f.venta, cargos: (f) => f.cargos, costo: (f) => f.costo, flete: (f) => f.flete, margen: (f) => f.margen, margen_pct: (f) => f.margen_pct,
+  fecha: (f) => f.fecha, venta: (f) => f.venta, cargos: (f) => f.cargos, costo: (f) => f.costo, flete: (f) => f.flete, almacenamiento: (f) => f.almacenamiento, margen: (f) => f.margen, margen_pct: (f) => f.margen_pct,
   unidades: (f) => f.unidades, sku: (f) => f.sku, titulo: (f) => f.titulo, canal: (f) => f.canal, ventas: (f) => f.ventas,
 };
 
@@ -45,7 +45,7 @@ export default async function Rentabilidad({ searchParams }: { searchParams: Pro
 
   return (
     <Pantalla titulo="Rentabilidad por venta"
-      subtitulo="Lo vendido, lo que cobró el canal (cargos de la facturación de Mercado Libre: comisión, envío, cargo fijo; sin impuestos), el costo de la mercadería al tipo de cambio del día de la venta, el flete a Full de lo que salió de Full y el margen."
+      subtitulo="Lo vendido, lo que cobró el canal (cargos de la facturación de Mercado Libre: comisión, envío, cargo fijo; sin impuestos), el costo de la mercadería al tipo de cambio del día de la venta, el flete y el almacenamiento de Full de lo que salió de Full y el margen."
       acciones={<a href={url(`${BASE}/excel`, params)} className={VERDE}>Descargar Excel</a>}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <RangoFechas desde={f.desde} hasta={f.hasta} limpiar={["p"]} />
@@ -59,8 +59,8 @@ export default async function Rentabilidad({ searchParams }: { searchParams: Pro
           ayuda="Para los productos que no tienen ese costo pero sí costo FOB: una referencia hasta calcular su costo real" />}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 mb-3 text-xs">
-        {[["Venta", pesos(t.venta)], ["Cargos del canal", pesos(t.cargos)], ["Costo", pesos(t.costo)], ["Flete a Full", pesos(t.flete)], ["Margen", pesos(t.margen)], ["Margen %", pct(t.margenPct)]].map(([k, v]) => (
+      <div className="grid grid-cols-2 sm:grid-cols-7 gap-2 mb-3 text-xs">
+        {[["Venta", pesos(t.venta)], ["Cargos del canal", pesos(t.cargos)], ["Costo", pesos(t.costo)], ["Flete a Full", pesos(t.flete)], ["Almacenamiento Full", pesos(t.almacenamiento)], ["Margen", pesos(t.margen)], ["Margen %", pct(t.margenPct)]].map(([k, v]) => (
           <div key={k} className="bg-white border border-[#E3E9F0] rounded-xl p-2"><span className="block text-[11px] text-[#5C6B76]">{k}</span><b className="tabular-nums">{v}</b></div>
         ))}
       </div>
@@ -82,11 +82,11 @@ export default async function Rentabilidad({ searchParams }: { searchParams: Pro
                 <ThOrden col="sku">Código</ThOrden><ThOrden col="titulo">Producto</ThOrden><ThOrden col="ventas" n>Ventas</ThOrden>
               </>}
               <ThOrden col="unidades" n>Unidades</ThOrden><ThOrden col="venta" n porDefecto={!porVenta}>Venta</ThOrden><ThOrden col="cargos" n>Cargos</ThOrden>
-              <ThOrden col="costo" n>Costo</ThOrden><ThOrden col="flete" n>Flete a Full</ThOrden><ThOrden col="margen" n>Margen</ThOrden><ThOrden col="margen_pct" n>Margen %</ThOrden>
+              <ThOrden col="costo" n>Costo</ThOrden><ThOrden col="flete" n>Flete a Full</ThOrden><ThOrden col="almacenamiento" n>Almacenamiento Full</ThOrden><ThOrden col="margen" n>Margen</ThOrden><ThOrden col="margen_pct" n>Margen %</ThOrden>
             </tr>
           </thead>
           <tbody>
-            {vista.length === 0 && <tr><td colSpan={11} className={`${TD} text-[#5C6B76]`}>No hay ventas en esas fechas.</td></tr>}
+            {vista.length === 0 && <tr><td colSpan={12} className={`${TD} text-[#5C6B76]`}>No hay ventas en esas fechas.</td></tr>}
             {vista.map((r) => (
               <tr key={r.clave} data-canal={r.canal_id ?? undefined} className={TR}>
                 {porVenta ? <>
@@ -105,6 +105,7 @@ export default async function Rentabilidad({ searchParams }: { searchParams: Pro
                 <td className={TDN}>{r.sin_costo > 0 ? <span className="text-[#8a6100]">sin costo</span>
                   : r.estimados > 0 ? <span className="text-[#8a6100]" title={`Costo estimado: FOB + ${RECARGO_ESTIMADO_PCT} %`}>≈ {pesos(r.costo)}</span> : pesos(r.costo)}</td>
                 <td className={TDN} title="El flete del envío a Full que le toca a lo que salió de Full">{r.flete ? pesos(r.flete) : ""}</td>
+                <td className={TDN} title="Lo que costó guardar en Full las unidades vendidas (cobrado por ML o estimado si todavía no lo facturó)">{r.almacenamiento ? pesos(r.almacenamiento) : ""}</td>
                 <td className={`${TDN} font-semibold ${r.margen != null && r.margen < 0 ? "text-[#C03420]" : ""}`}>{pesos(r.margen)}</td>
                 <td className={`${TDN} ${r.margen_pct != null && r.margen_pct < 0 ? "text-[#C03420]" : ""}`}>{pct(r.margen_pct)}</td>
               </tr>

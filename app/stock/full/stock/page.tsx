@@ -14,9 +14,11 @@ import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import { entrarErp, Pantalla, Avisos, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN } from "@/app/componentes/erp";
 import { formatearNumero } from "@/lib/numeros";
+import { formatear } from "@/lib/moneda";
 import { fechaHora } from "@/app/ventas/formato";
 import { enlaceMl, historialPublicacion } from "@/app/informes/cambios-publicaciones/formato";
 import { MINUTOS_QUIETO } from "@/lib/full/lectura";
+import { tamanosDe, tarifas, TAMANOS, DIAS_STOCK_ANTIGUO, type Tamano } from "@/lib/full/costos";
 import { PestanasFull } from "../piezas";
 import { accionLeerFull } from "../acciones";
 
@@ -70,6 +72,30 @@ export default async function StockFull({ searchParams }: { searchParams: Promis
            (select string_agg(fs.error, ' · ') from full_stock fs where fs.canal_id = x.canal_id and (fs.variacion_id = x.variacion_id or fs.inventory_id = x.inventory_id)) error
       from una x left join variacion v on v.id = x.variacion_id
      order by v.sku nulls last, x.inventory_id`, [s.org.id, DIAS]);
+  // Tamaño de Full (el que midió ML, y el de la ficha), costo por día y antigüedad de lo que hay en Full.
+  const tars = new Map((await tarifas(s.org.id)).map((t) => [t.tamano, t.almacenamiento_dia]));
+  const tamDe = new Map<string, { ml: Tamano | null; ficha: Tamano | null; usado: Tamano | null }>();
+  for (const canal of [...new Set(todas.map((f) => f.canal_id))]) {
+    const m = await tamanosDe(s.org.id, canal, todas.filter((f) => f.canal_id === canal && f.variacion_id).map((f) => f.variacion_id!));
+    for (const [v, t] of m) tamDe.set(`${canal}:${v}`, t);
+  }
+  // Antigüedad: lo que hay se supone de los envíos recibidos más nuevos (lo viejo sale primero).
+  const recepciones = await consulta<{ canal_id: number; v: number; recibido: number; fecha: Date }>(`
+    select e.canal_id::int, l.variacion_id::int v, l.recibido, coalesce(e.recibido_ts, e.cerrado_ts, e.despachado_ts) fecha
+      from full_envio_linea l join full_envio e on e.id = l.envio_id
+     where e.organizacion_id = $1 and l.recibido > 0 order by fecha desc`, [s.org.id]);
+  const diasEnFull = (f: Fila) => {
+    if (!f.variacion_id || f.laucen <= 0) return null;
+    let quedan = f.laucen, fecha: Date | null = null;
+    for (const r of recepciones) {
+      if (r.canal_id !== f.canal_id || r.v !== f.variacion_id) continue;
+      fecha = r.fecha; quedan -= r.recibido;
+      if (quedan <= 0) break;
+    }
+    return fecha ? Math.floor((Date.now() - new Date(fecha).getTime()) / 86_400_000) : null;
+  };
+  const tamano = (f: Fila) => (f.variacion_id ? tamDe.get(`${f.canal_id}:${f.variacion_id}`) ?? null : null);
+  const porDia = (f: Fila) => { const t = tamano(f)?.usado; return t ? (Math.max(f.laucen, 0) * (tars.get(t) ?? 0)) : null; };
   const lecturas = await consulta<{ cuenta: string; leido_ts: Date }>(`
     select c.nombre cuenta, fl.leido_ts from full_lectura fl join canal c on c.id = fl.canal_id where fl.organizacion_id = $1 order by c.nombre`, [s.org.id]);
 
@@ -78,7 +104,7 @@ export default async function StockFull({ searchParams }: { searchParams: Promis
   const cobertura = (f: Fila) => (f.vendidas > 0 ? Math.round(((f.ml ?? f.laucen) / (f.vendidas / DIAS)) * 10) / 10 : null);
   const ordenadas = ordenarEnMemoria(filtradas, sp, {
     sku: (f) => f.sku, cuenta: (f) => f.cuenta, ml: (f) => f.ml, no_disponible: (f) => f.no_disponible, laucen: (f) => f.laucen,
-    diferencia: (f) => (f.ml ?? 0) - f.laucen, en_camino: (f) => f.en_camino, vendidas: (f) => f.vendidas, cobertura: (f) => cobertura(f), leido: (f) => (f.leido_ts ? new Date(f.leido_ts).getTime() : null),
+    diferencia: (f) => (f.ml ?? 0) - f.laucen, en_camino: (f) => f.en_camino, vendidas: (f) => f.vendidas, cobertura: (f) => cobertura(f), tamano: (f) => tamano(f)?.usado ?? null, por_dia: (f) => porDia(f), dias: (f) => diasEnFull(f), leido: (f) => (f.leido_ts ? new Date(f.leido_ts).getTime() : null),
   });
   const filas = paginarEnMemoria(ordenadas, sp);
   const n = (x: number | null | undefined) => (x == null ? "—" : formatearNumero(x, "entero"));
@@ -100,11 +126,12 @@ export default async function StockFull({ searchParams }: { searchParams: Promis
               <ThOrden col="sku" porDefecto>Producto</ThOrden><ThOrden col="cuenta">Cuenta</ThOrden><th className="py-1.5 px-2 text-left font-semibold">Código ML</th>
               <ThOrden col="ml" n>Disponible en ML</ThOrden><ThOrden col="no_disponible" n>No disponible en ML</ThOrden><ThOrden col="laucen" n>En Full según Laucen</ThOrden>
               <ThOrden col="diferencia" n>Diferencia</ThOrden><ThOrden col="en_camino" n>En camino</ThOrden><ThOrden col="vendidas" n>Vendidas ({DIAS} días)</ThOrden>
-              <ThOrden col="cobertura" n>Días que cubre</ThOrden><ThOrden col="leido" n>Lectura</ThOrden>
+              <ThOrden col="cobertura" n>Días que cubre</ThOrden><ThOrden col="tamano">Tamaño en Full</ThOrden><ThOrden col="por_dia" n>Cuesta por día</ThOrden>
+              <ThOrden col="dias" n>Días en Full</ThOrden><ThOrden col="leido" n>Lectura</ThOrden>
             </tr>
           </thead>
           <tbody>
-            {filas.length === 0 && <tr><td colSpan={11} className={`${TD} text-[#5C6B76]`}>{q ? "Nada con esa búsqueda." : "Todavía no hay nada en Full. Aparece cuando se despacha el primer envío o Mercado Libre muestra stock en Full."}</td></tr>}
+            {filas.length === 0 && <tr><td colSpan={14} className={`${TD} text-[#5C6B76]`}>{q ? "Nada con esa búsqueda." : "Todavía no hay nada en Full. Aparece cuando se despacha el primer envío o Mercado Libre muestra stock en Full."}</td></tr>}
             {filas.map((f) => {
               const dif = f.ml == null ? null : f.ml - f.laucen;
               const cob = cobertura(f);
@@ -128,6 +155,15 @@ export default async function StockFull({ searchParams }: { searchParams: Promis
                   <td className={TDN}>{f.en_camino ? n(f.en_camino) : ""}</td>
                   <td className={TDN}>{n(f.vendidas)}</td>
                   <td className={TDN}>{cob == null ? "—" : formatearNumero(cob, "decimal")}</td>
+                  <td className={TD}>{(() => {
+                    const t = tamano(f);
+                    if (!t?.usado) return <span className="text-[#8a6100]" title="Faltan medidas o peso del paquete">sin medidas</span>;
+                    return <>{TAMANOS[t.usado].texto}{t.ml && t.ficha && t.ml !== t.ficha && (
+                      <span className="block text-[10px] text-[#C03420]" title="Mercado Libre midió el paquete distinto de lo cargado en la ficha">según la ficha: {TAMANOS[t.ficha].texto}</span>)}</>;
+                  })()}</td>
+                  <td className={TDN}>{porDia(f) != null ? formatear(porDia(f)!, "ARS") : "—"}</td>
+                  <td className={`${TDN} ${(diasEnFull(f) ?? 0) >= DIAS_STOCK_ANTIGUO - 20 ? "text-[#C03420] font-bold" : ""}`}
+                    title={(diasEnFull(f) ?? 0) >= DIAS_STOCK_ANTIGUO - 20 ? `Desde los ${DIAS_STOCK_ANTIGUO} días Mercado Libre cobra además stock antiguo` : undefined}>{n(diasEnFull(f))}</td>
                   <td className={`${TDN} text-[11px]`}>{f.error ? <span className="text-[#C03420]" title={f.error}>Error</span> : f.leido_ts ? fechaHora(f.leido_ts) : "—"}</td>
                 </tr>
               );
