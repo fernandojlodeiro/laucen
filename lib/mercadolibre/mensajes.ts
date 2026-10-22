@@ -58,7 +58,35 @@ export async function importarConversacion(cuenta: CuentaMl, packId: string, mar
      where c.organizacion_id = $1 and c.pack_id = $2 and c.sugerencia is not null
        and exists (select 1 from meli_mensaje m where m.organizacion_id = c.organizacion_id and m.pack_id = c.pack_id
                       and not m.de_vendedor and m.fecha > c.sugerencia_ts)`, [org, packId]);
+  // Contestada desde la web de ML (ML no avisa los mensajes del vendedor; entran al releer): la propuesta de la IA ya no va.
+  await consulta(`
+    update meli_conversacion c set sugerencia = null
+     where c.organizacion_id = $1 and c.pack_id = $2 and c.sugerencia is not null
+       and (select m.de_vendedor from meli_mensaje m where m.organizacion_id = c.organizacion_id and m.pack_id = c.pack_id order by m.fecha desc limit 1)`, [org, packId]);
   return (r.datos.messages ?? []).length;
+}
+
+/** ¿La conversación espera respuesta? El último mensaje es del comprador, de los últimos 15 días (Fer, 22/10:
+ *  la pestaña cuenta las sin responder, no las sin leer). `c`: el alias de meli_conversacion. */
+export const SQL_SIN_RESPONDER = (c: string) => `(${c}.ultimo_ts > now() - interval '15 days' and coalesce((select not m.de_vendedor from meli_mensaje m
+  where m.organizacion_id = ${c}.organizacion_id and m.pack_id = ${c}.pack_id order by m.fecha desc limit 1), false))`;
+
+/** ML no avisa los mensajes que el vendedor manda desde su web: las conversaciones que esperan respuesta se
+ *  releen (en el barrido de media hora y al abrirlas), así una contestada desde ML deja de figurar sin responder. */
+export async function releerSinResponder(cuenta: CuentaMl, hastaMs: number, max = 30): Promise<number> {
+  if (!cuenta.canalId) return 0;
+  const packs = await consulta<{ pack_id: string }>(`
+    select c.pack_id from meli_conversacion c where c.organizacion_id = $1 and c.canal_id = $2 and ${SQL_SIN_RESPONDER("c")}
+     order by c.ultimo_ts desc limit $3`, [cuenta.organizacionId, cuenta.canalId, max]);
+  let n = 0;
+  for (const p of packs) {
+    if (Date.now() > hastaMs) break;
+    // Conserva lo ya leído en Laucen (releer recalcula «sin leer» con lo que dice ML).
+    const leida = await una("select 1 from meli_conversacion where organizacion_id = $1 and pack_id = $2 and sin_leer = 0", [cuenta.organizacionId, p.pack_id]);
+    try { await importarConversacion(cuenta, p.pack_id); n++; } catch { /* sigue con las demás */ }
+    if (leida) await consulta("update meli_conversacion set sin_leer = 0 where organizacion_id = $1 and pack_id = $2", [cuenta.organizacionId, p.pack_id]);
+  }
+  return n;
 }
 
 /** Desde una notificación "messages": el recurso es el id del mensaje; de
@@ -95,6 +123,32 @@ Si traigo productos_pedidos, el comprador pide también otros productos: cada un
 Mirá toda la conversación: si en cualquier mensaje el comprador pidió hablar con una persona, el estado es "persona".
 ${FORMATO_IA}`;
 
+/** La compra leída de ML (sólo lectura) cuando no está en Laucen: una venta anterior al día desde el que se traen
+ *  pedidos (Fer, 22/10: sin ella la IA no sabía qué producto era y contestó genérico). Lo que diga la venta: producto,
+ *  cantidad, garantía con que se vendió, fecha y estado. Si ML no la da, null. */
+async function compraDeMl(org: string, canalId: string | null, packId: string): Promise<Record<string, unknown> | null> {
+  const cuenta = canalId ? await cuentaDelCanal(org, Number(canalId)) : null;
+  if (!cuenta) return null;
+  type OrdenMl = { date_created?: string; status?: string; tags?: string[];
+    order_items?: { quantity?: number; item?: { title?: string; warranty?: string | null; seller_sku?: string | null } }[] };
+  let ordenes: OrdenMl[] = [];
+  const o = await ml<OrdenMl>(cuenta, "GET", `/orders/${packId}`).catch(() => null);
+  if (o?.status === 200) ordenes = [o.datos];
+  else {
+    const pack = await ml<{ orders?: { id: number }[] }>(cuenta, "GET", `/packs/${packId}`).catch(() => null);
+    for (const x of pack?.status === 200 ? pack.datos.orders ?? [] : []) {
+      const r = await ml<OrdenMl>(cuenta, "GET", `/orders/${x.id}`).catch(() => null);
+      if (r?.status === 200) ordenes.push(r.datos);
+    }
+  }
+  if (!ordenes.length) return null;
+  return {
+    nota: "Compra anterior a Laucen: leída de Mercado Libre",
+    fecha: ordenes[0].date_created ?? null, estado: ordenes[0].status ?? null, entregado: ordenes.some((x) => x.tags?.includes("delivered")),
+    lineas: ordenes.flatMap((x) => (x.order_items ?? []).map((l) => ({ titulo: l.item?.title ?? null, cantidad: l.quantity ?? null, garantia: l.item?.warranty ?? null }))),
+  };
+}
+
 export async function sugerirMensaje(org: string, packId: string): Promise<{ texto: string; estado: EstadoIa }> {
   if (!hayClaude()) throw new ErrorErp("Falta la llave de Claude: no se puede sugerir la respuesta.");
   const conv = await una<{ pedido_id: string | null; canal_id: string | null }>("select pedido_id, canal_id from meli_conversacion where organizacion_id = $1 and pack_id = $2", [org, packId]);
@@ -105,7 +159,7 @@ export async function sugerirMensaje(org: string, packId: string): Promise<{ tex
     select p.estado, p.fecha, p.total_ars, (select json_agg(json_build_object('titulo', l.titulo, 'cantidad', l.cantidad)) from pedido_linea l where l.pedido_id = p.id) lineas,
            (select json_build_object('estado', e.estado, 'subestado', e.subestado, 'logistica', e.logistica, 'tracking', e.tracking, 'entrega_estimada', e.entrega_estimada)
               from envio e where e.pedido_id = p.id order by e.id desc limit 1) envio
-      from pedido p where p.id = $1`, [conv.pedido_id]) : null;
+      from pedido p where p.id = $1`, [conv.pedido_id]) : await compraDeMl(org, conv?.canal_id ?? null, packId);
   // ¿Pide otros productos? Se buscan entre las publicaciones de esta cuenta (lib/mercadolibre/productos-pedidos.ts).
   const ultimo = mensajes[mensajes.length - 1];
   const delComprador = mensajes.filter((m) => !m.de_vendedor && m.texto).slice(-3).map((m) => m.texto).join("\n");

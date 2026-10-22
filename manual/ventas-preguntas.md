@@ -29,7 +29,7 @@ Para cada una, la **IA propone sola una respuesta** apenas entra (con los datos 
 
 **Pestañas principales**:
 - **"Preguntas (N)"**: N = preguntas sin responder.
-- **"Mensajes (N)"**: N = conversaciones con mensajes sin leer.
+- **"Mensajes (N)"**: N = conversaciones **sin responder**: el último mensaje es del comprador y es de los últimos 15 días. Abrirlas no las descuenta; las descuenta contestarlas (desde Laucen o desde Mercado Libre).
 
 ### Pestaña Preguntas
 
@@ -47,7 +47,7 @@ Dos pestañas chicas: **"Sin responder (N)"** y **"Respondidas (N)"**.
 
 ### Pestaña Mensajes
 
-- **A la izquierda**, la lista de conversaciones (las que tienen mensajes sin leer primero, después por el último mensaje; hasta 100): el cliente (o "Pack …"), la marca **"N sin leer"**, la cuenta, el Nº de pedido, hace cuánto y el último mensaje.
+- **A la izquierda**, la lista de conversaciones (las sin responder primero, después las que tienen mensajes sin leer, después por el último mensaje; hasta 100): el cliente (o "Pack …"), las marcas **"Sin responder"** y **"N sin leer"**, la cuenta, el Nº de pedido, hace cuánto y el último mensaje.
 - **Quién respondió**: debajo de cada mensaje de la tienda dice "Respondió <nombre>". Si mandó **exactamente** lo que había propuesto la IA, sin cambiar nada (ni una coma), dice "Respondió <nombre> con la IA"; si cambió algo, queda sólo el nombre. Igual en las preguntas.
 - **A la derecha**, la conversación elegida: el comprador, la cuenta y el enlace **"Pedido N"** (o "Pack … (sin pedido en Laucen)"), el botón **"Actualizar"**, los mensajes (los de la tienda a la derecha, con **"Respondió <nombre>"** de quien lo mandó desde Laucen, o "Respondió alguien desde Mercado Libre" si se escribió fuera de Laucen; los del comprador a la izquierda) y abajo el cuadro **"Mensaje"** con **"Proponer con IA"** y **"Enviar"**.
 - Sin conversación elegida: "Elegí una conversación para verla y contestar."
@@ -113,6 +113,8 @@ Apretá **"Actualizar"** en la conversación: la vuelve a leer entera desde Merc
 - **Límites**: una respuesta a una pregunta, hasta 2.000 caracteres; un mensaje de posventa, hasta 350.
 - **"Stock del canal"**: lo disponible para ese canal según Laucen (nunca menos de 0). Si la publicación no está vinculada a un producto, no se puede calcular.
 - **Leído / sin leer**: abrir una conversación en Laucen la marca leída **en Laucen**. En Mercado Libre se marca leída al contestar o al tocar "Actualizar".
+- **Contestadas desde Mercado Libre**: Mercado Libre no avisa los mensajes que se mandan desde su web. Las conversaciones sin responder se vuelven a leer de Mercado Libre cada media hora y al abrirlas; así una contestada desde Mercado Libre deja de figurar sin responder y la propuesta de la IA se descarta.
+- **Compras que no están en Laucen** (por ejemplo, anteriores al día desde el que se traen los pedidos): para proponer la respuesta, la IA lee la compra de Mercado Libre (producto, cantidad, garantía con que se vendió, fecha y si se entregó).
 - **Quién respondió**: queda guardado el usuario de Laucen que mandó la respuesta.
 - Responder una pregunta o mandar un mensaje es una acción tuya con un clic: no pasa por la cola de cambios de Mercado Libre.
 

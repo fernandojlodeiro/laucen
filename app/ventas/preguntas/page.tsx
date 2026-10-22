@@ -11,6 +11,8 @@ import { BotonEnviar } from "@/app/radar/Cliente";
 import Pestanas from "@/app/componentes/Pestanas";
 import { entrarErp, Pantalla, Avisos, Estado, url, CAJA, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
+import { SQL_SIN_RESPONDER, importarConversacion } from "@/lib/mercadolibre/mensajes";
+import { cuentaDelCanal } from "@/lib/mercadolibre/api";
 import { Interruptor } from "@/app/radar/Piezas";
 import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
@@ -45,11 +47,11 @@ export default async function PreguntasYMensajes({ searchParams }: { searchParam
   const ver = sp.ver === "mensajes" ? "mensajes" : sp.ver === "respondidas" ? "respondidas" : "preguntas";
   // ?canal= viene del tablero de Mercado Libre: sólo las de esa cuenta.
   const canal = Number(sp.canal) || null;
-  const cuentas = await consulta<{ pendientes: number; respondidas: number; sin_leer: number }>(`
+  const cuentas = await consulta<{ pendientes: number; respondidas: number; sin_responder: number }>(`
     select (select count(*) from meli_pregunta where organizacion_id = $1 and estado = 'UNANSWERED' and ($2::bigint is null or canal_id = $2))::int pendientes,
            (select count(*) from meli_pregunta where organizacion_id = $1 and estado = 'ANSWERED' and ($2::bigint is null or canal_id = $2))::int respondidas,
-           (select count(*) from meli_conversacion where organizacion_id = $1 and sin_leer > 0 and ($2::bigint is null or canal_id = $2))::int sin_leer`, [s.org.id, canal]);
-  const { pendientes, respondidas, sin_leer } = cuentas[0] ?? { pendientes: 0, respondidas: 0, sin_leer: 0 };
+           (select count(*) from meli_conversacion c where c.organizacion_id = $1 and ${SQL_SIN_RESPONDER("c")} and ($2::bigint is null or c.canal_id = $2))::int sin_responder`, [s.org.id, canal]);
+  const { pendientes, respondidas, sin_responder } = cuentas[0] ?? { pendientes: 0, respondidas: 0, sin_responder: 0 };
   const auto = await respuestaAuto(s.org.id);
   const cual = ver === "mensajes" ? "mensajes" : "preguntas";
 
@@ -66,10 +68,10 @@ export default async function PreguntasYMensajes({ searchParams }: { searchParam
         </div>
       )}>
       <Avisos sp={sp} />
-      {/* La cuenta de cada pestaña es lo que espera: preguntas sin responder, conversaciones sin leer. */}
+      {/* La cuenta de cada pestaña es lo que espera: preguntas y conversaciones sin responder (Fer, 22/10). */}
       <Pestanas items={[
         { href: url("/ventas/preguntas", { canal }), texto: "Preguntas", activa: ver !== "mensajes", cuenta: pendientes },
-        { href: url("/ventas/preguntas", { ver: "mensajes", canal }), texto: "Mensajes", activa: ver === "mensajes", cuenta: sin_leer },
+        { href: url("/ventas/preguntas", { ver: "mensajes", canal }), texto: "Mensajes", activa: ver === "mensajes", cuenta: sin_responder },
       ]} />
       {ver === "mensajes" ? <Mensajes org={s.org.id} pack={sp.pack} canal={canal} auto={auto.mensajes} />
         : (
@@ -224,23 +226,30 @@ async function Respondidas({ org, canal }: { org: string; canal: number | null }
 async function Mensajes({ org, pack, canal, auto }: { org: string; pack?: string; canal: number | null; auto: boolean }) {
   // Abrir una conversación la da por leída en Laucen (en ML se marca al
   // contestar o al tocar "Actualizar").
+  // Una que espera respuesta se relee de ML antes (ML no avisa lo que se contesta desde su web).
+  if (pack) {
+    const c = await una<{ canal_id: number }>(`select c.canal_id::int from meli_conversacion c where c.organizacion_id = $1 and c.pack_id = $2 and ${SQL_SIN_RESPONDER("c")}`, [org, pack]);
+    const cuenta = c ? await cuentaDelCanal(org, c.canal_id) : null;
+    if (cuenta) await importarConversacion(cuenta, pack).catch(() => {});
+  }
   if (pack) await consulta("update meli_conversacion set sin_leer = 0 where organizacion_id = $1 and pack_id = $2 and sin_leer > 0", [org, pack]);
   const conversaciones = await consulta<{
     pack_id: string; canal: string | null; canal_id: number | null; firma: string | null; pedido_id: number | null; cliente: string | null; sin_leer: number; ultimo_ts: Date | null; ultimo: string | null;
-    pidio_persona: boolean;
+    pidio_persona: boolean; sin_responder: boolean;
   }>(`
     select c.pack_id, ca.nombre canal, c.canal_id::int, nullif(trim(ca.config ->> 'firma'), '') firma, c.pedido_id::int, cl.nombre cliente, c.sin_leer, c.ultimo_ts, (c.pidio_persona_ts is not null) pidio_persona,
+           ${SQL_SIN_RESPONDER("c")} sin_responder,
            (select m.texto from meli_mensaje m where m.organizacion_id = c.organizacion_id and m.pack_id = c.pack_id order by m.fecha desc limit 1) ultimo
       from meli_conversacion c
       left join canal ca on ca.id = c.canal_id
       left join pedido p on p.id = c.pedido_id
       left join cliente cl on cl.id = p.cliente_id
      where c.organizacion_id = $1 and ($2::bigint is null or c.canal_id = $2)
-     order by (c.sin_leer > 0) desc, c.ultimo_ts desc nulls last
+     order by ${SQL_SIN_RESPONDER("c")} desc, (c.sin_leer > 0) desc, c.ultimo_ts desc nulls last
      limit 100`, [org, canal]);
   const elegida = pack ? conversaciones.find((c) => c.pack_id === pack)
     ?? await una<(typeof conversaciones)[number]>(`
-      select c.pack_id, ca.nombre canal, c.canal_id::int, nullif(trim(ca.config ->> 'firma'), '') firma, c.pedido_id::int, cl.nombre cliente, c.sin_leer, c.ultimo_ts, null ultimo, (c.pidio_persona_ts is not null) pidio_persona
+      select c.pack_id, ca.nombre canal, c.canal_id::int, nullif(trim(ca.config ->> 'firma'), '') firma, c.pedido_id::int, cl.nombre cliente, c.sin_leer, c.ultimo_ts, null ultimo, (c.pidio_persona_ts is not null) pidio_persona, ${SQL_SIN_RESPONDER("c")} sin_responder
         from meli_conversacion c left join canal ca on ca.id = c.canal_id left join pedido p on p.id = c.pedido_id left join cliente cl on cl.id = p.cliente_id
        where c.organizacion_id = $1 and c.pack_id = $2`, [org, pack]) : null;
 
@@ -255,6 +264,7 @@ async function Mensajes({ org, pack, canal, auto }: { org: string; pack?: string
               <span className={`truncate ${c.sin_leer ? "font-bold" : "font-semibold"}`}>{c.cliente ?? `Pack ${c.pack_id}`}</span>
               <span className="flex gap-1">
                 {c.pidio_persona && <Estado texto="Pidió una persona" tono="ambar" />}
+                {c.sin_responder && <Estado texto="Sin responder" tono="amarillo" />}
                 {c.sin_leer > 0 && <Estado texto={`${c.sin_leer} sin leer`} tono="azul" />}
               </span>
             </div>
