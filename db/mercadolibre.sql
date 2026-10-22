@@ -400,6 +400,7 @@ declare
                    and coalesce((c.config ->> 'sincronizar_stock')::boolean, false))
      or exists (select 1 from public.stock_cambio_pendiente where creado_ts < now() - interval '1 minute')
      or exists (select 1 from public.ml_consulta where estado = 'pendiente')
+     or exists (select 1 from public.ml_preparacion where estado = 'pendiente' or (estado = 'trabajando' and tomada_ts < now() - interval '5 minutes'))
      -- Motivos de revisión de ML sin leer en el último día (lib/mercadolibre/moderaciones.ts).
      or exists (select 1 from public.meli_item m left join public.meli_moderacion mm on mm.canal_id = m.canal_id and mm.item_id = m.item_id
                  where m.estado = 'under_review' and (mm.leido_ts is null or mm.leido_ts < now() - interval '1 day'))
@@ -704,3 +705,25 @@ create table if not exists ml_titulo_revisado (
 );
 alter table ml_titulo_revisado enable row level security;
 select erp_politica_org('ml_titulo_revisado');
+
+-- ── Lotes que pide preparar una sesión (lib/mercadolibre/preparaciones.ts) ──
+-- Una sesión de Code no tiene la llave de las cuentas: anota acá qué lote hay que armar (agrupar planes, eliminar los
+-- viejos ya agrupados, revisar títulos con IA) y el proceso de fondo (/api/erp/tareas) lo arma. Sólo PREPARA: el lote
+-- queda «Preparado, falta tu clic» y nada sale a Mercado Libre sin el clic de Fer.
+create table if not exists ml_preparacion (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  tipo             text not null check (tipo in ('agrupar', 'cierre_agrupados', 'titulos')),
+  max              int,
+  motivo           text,
+  pedido_por       text,
+  estado           text not null default 'pendiente' check (estado in ('pendiente', 'trabajando', 'hecha', 'error')),
+  resultado        jsonb,
+  creado_ts        timestamptz not null default now(),
+  tomada_ts        timestamptz,
+  hecha_ts         timestamptz
+);
+create index if not exists ml_preparacion_pendiente on ml_preparacion (id) where estado in ('pendiente', 'trabajando');
+alter table ml_preparacion enable row level security;
+select erp_politica_org('ml_preparacion');

@@ -26,6 +26,7 @@ import { reintentarFacturasWhatsapp } from "@/lib/facturacion/envio";
 import { hayLecturaFullPendiente, leerFull } from "@/lib/full/lectura";
 import { hayCargosFullPendientes, leerCargosFull } from "@/lib/full/costos";
 import { hayConsultasPendientes, responderConsultas } from "@/lib/mercadolibre/consultas";
+import { hayPreparacionesPendientes, prepararPendientes } from "@/lib/mercadolibre/preparaciones";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -117,7 +118,10 @@ export async function GET(req: Request) {
   // Consultas de sólo lectura a ML que pidió una sesión (lib/mercadolibre/consultas.ts).
   const consultasMl = await hayConsultasPendientes().catch(() => false);
   if (consultasMl) informe.consultas_ml = true;
-  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos || full || consultasMl || cargosFull) {
+  // Lotes que pidió preparar una sesión (agrupar planes, títulos; lib/mercadolibre/preparaciones.ts). Sólo prepara.
+  const preparaciones = await hayPreparacionesPendientes().catch(() => false);
+  if (preparaciones) informe.preparaciones_ml = true;
+  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos || full || consultasMl || cargosFull || preparaciones) {
     after(async () => {
       await Promise.all([
         (async () => {
@@ -138,6 +142,14 @@ export async function GET(req: Request) {
             }
           } catch (e) {
             console.error("[tareas] Mercado Libre", e instanceof Error ? e.message : e);
+          }
+        })(),
+        (async () => {
+          if (!preparaciones) return;
+          try {
+            console.log("[tareas] preparaciones ML", JSON.stringify(await prepararPendientes(t0 + 110_000)));
+          } catch (e) {
+            console.error("[tareas] preparaciones ML", e instanceof Error ? e.message : e);
           }
         })(),
         (async () => {
