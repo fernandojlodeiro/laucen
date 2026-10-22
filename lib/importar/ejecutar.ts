@@ -229,7 +229,9 @@ async function filaCliente(c: PoolClient, ctx: Ctx, d: Record<string, Valor>): P
   let cuit = normalizarCuit(cuitTxt);
   if (cuitTxt && !cuit) avisos.push(`CUIT "${cuitTxt}" sin 11 dígitos: quedó sin cargar`);
   if (!cuit && docNum?.length === 11) cuit = normalizarCuit(docNum);
-  const docTipo = docNum ? tipoDocumento(docTipoTxt, docNum) : null;
+  // Uno de 11 números es el CUIT: queda sólo en el CUIT, no también como documento (Fer, 22/10).
+  const dni = docNum?.length === 11 ? null : docNum;
+  const docTipo = dni ? tipoDocumento(docTipoTxt, dni) : null;
   const apodo = txt(get(ctx, d, "apodo_ml"));
   const partes = separarNombre(nombre);
 
@@ -247,24 +249,27 @@ async function filaCliente(c: PoolClient, ctx: Ctx, d: Record<string, Valor>): P
 
   // Toda la fila original, para no perder ninguna columna.
   const crudo = JSON.stringify({ virtual_seller: d });
-  const valores = [ctx.org, nombre, tipo, email, txt(get(ctx, d, "telefono")), docTipo, docNum, iva,
+  const valores = [ctx.org, nombre, tipo, email, txt(get(ctx, d, "telefono")), docTipo, dni, iva,
     razon, cuit, apodo, txt(get(ctx, d, "telefono_movil")), partes.nombre, partes.apellido,
     txt(get(ctx, d, "notas")), crudo];
   const creado = !id;
   if (id) {
     await c.query(`
-      update cliente set nombre = $2, tipo = coalesce($3, tipo), email = coalesce($4, email), telefono = coalesce($5, telefono),
+      update cliente set nombre = $2, tipo = coalesce($3, tipo), email = coalesce($4, email),
+             telefono = coalesce($5, case when whatsapp_normal($12) is null then $12 end, telefono),
              documento_tipo = coalesce($6, documento_tipo), documento_numero = coalesce($7, documento_numero),
              condicion_iva = coalesce($8, condicion_iva), razon_social = coalesce($9, razon_social), cuit = coalesce($10, cuit),
-             apodo_ml = coalesce($11, apodo_ml), telefono_movil = coalesce($12, telefono_movil),
+             -- El celular es el WhatsApp (Fer, 22/10); si no parece un celular, va al teléfono.
+             apodo_ml = coalesce($11, apodo_ml), whatsapp = coalesce(whatsapp_normal($12), whatsapp),
              nombre_pila = coalesce($13, nombre_pila), apellido = coalesce($14, apellido),
              notas = coalesce($15, notas), datos_externos = datos_externos || $16::jsonb
        where id = $17 and organizacion_id = $1`, [...valores, id]);
   } else {
     const r = await c.query<{ id: string }>(`
       insert into cliente (organizacion_id, nombre, tipo, email, telefono, documento_tipo, documento_numero, condicion_iva,
-                           razon_social, cuit, apodo_ml, telefono_movil, nombre_pila, apellido, notas, datos_externos)
-      values ($1, $2, coalesce($3, 'consumidor_final'), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb) returning id`, valores);
+                           razon_social, cuit, apodo_ml, whatsapp, nombre_pila, apellido, notas, datos_externos)
+      values ($1, $2, coalesce($3, 'consumidor_final'), $4, coalesce($5, case when whatsapp_normal($12) is null then $12 end), $6, $7, $8, $9, $10, $11,
+              whatsapp_normal($12), $13, $14, $15, $16::jsonb) returning id`, valores);
     id = Number(r.rows[0].id);
   }
 

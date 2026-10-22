@@ -77,7 +77,7 @@ export async function VistaCc({ org, tercero, sp, moneda = "ARS" }: { org: strin
 /** Dónde se busca el cliente o proveedor (regla común, lib/busqueda.ts): todos sus campos de texto. */
 const CAMPOS_TERCERO: Record<Tercero, CampoBusqueda[]> = {
   cliente: ["id::text", "nombre", "razon_social", "nombre_pila", "apellido", "apodo_ml", "email", "tipo", "documento_tipo",
-    { num: "documento_numero" }, { num: "cuit" }, { num: "telefono" }, { num: "telefono_movil" }, "condicion_iva", "notas"],
+    { num: "documento_numero" }, { num: "cuit" }, { num: "telefono" }, { num: "whatsapp" }, "condicion_iva", "notas"],
   proveedor: ["id::text", "nombre", "razon_social", { num: "cuit" }, "condicion_iva", "pais", "email", { num: "telefono" },
     { num: "telefono_movil" }, "contacto", "calle", "localidad", "provincia", "codigo_postal", "moneda", "condiciones_pago", "notas", "estado"],
 };

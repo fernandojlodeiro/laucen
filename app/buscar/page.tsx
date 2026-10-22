@@ -60,7 +60,7 @@ const candidatos = (tabla: string, clave: string, fuentes: Fuente[]) => `cand as
 /** Los datos de un cliente (alias `a`): nombre, razón social, apodo, mail, CUIT, documento, teléfonos, notas. */
 const camposCliente = (a: string): CampoSimple[] => [
   `${a}.id::text`, `${a}.nombre`, `${a}.razon_social`, `${a}.apodo_ml`, `${a}.email`, `${a}.nombre_pila`, `${a}.apellido`, `${a}.notas`,
-  { num: `${a}.cuit` }, { num: `${a}.documento_numero` }, { num: `${a}.telefono` }, { num: `${a}.telefono_movil` }, `${a}.telefono_aclaracion`, `${a}.telefono_movil_aclaracion`,
+  { num: `${a}.cuit` }, { num: `${a}.documento_numero` }, { num: `${a}.telefono` }, { num: `${a}.whatsapp` }, `${a}.telefono_aclaracion`,
 ];
 /** Los datos de un proveedor que lo nombran en otra sección (alias `a`). */
 const camposProveedor = (a: string): CampoSimple[] => [`${a}.nombre`, `${a}.razon_social`, `${a}.contacto`, `${a}.email`, { num: `${a}.cuit` }];
@@ -297,7 +297,7 @@ export default async function Buscar({ searchParams }: { searchParams: Promise<{
         { id: "k.cliente_id", de: "cliente_cuenta k", donde: "k.organizacion_id = $1", campos: ["k.email"] },
       ])}
       select c.id::int, c.nombre, c.razon_social, c.email, c.documento_tipo, c.documento_numero, c.cuit,
-             array[c.telefono_movil, c.telefono_movil_aclaracion, c.telefono, c.telefono_aclaracion] telefonos,
+             array[c.whatsapp, null, c.telefono, c.telefono_aclaracion] telefonos,
              (select d.localidad from cliente_direccion d where d.cliente_id = c.id order by d.principal desc, d.id limit 1) localidad
         from cand c
        where ${exacta([...camposCliente("c"),

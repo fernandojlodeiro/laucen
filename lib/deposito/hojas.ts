@@ -90,7 +90,7 @@ export async function datosHojas(org: string, pedidoIds: number[]): Promise<Dato
   }>(`
     select p.id::int, p.id_externo, p.fecha, p.notas, p.envio envio_json, ca.nombre canal, ca.tipo canal_tipo,
            ${sqlACobrar("p")} a_cobrar, p.total_ars::float total_ars,
-           cl.nombre cliente, cl.apodo_ml, coalesce(cl.telefono_movil, cl.telefono) telefono,
+           cl.nombre cliente, cl.apodo_ml, coalesce(regexp_replace(cl.whatsapp, '^549([0-9]{10})$', '\\1'), cl.telefono) telefono,
            e.id_externo e_id_externo, e.canal_id::int e_canal, e.id::int e_envio_id, e.estado e_estado, e.logistica, e.despachar_antes, e.receptor, e.direccion e_direccion,
            (exists (select 1 from picking_pedido pp where pp.pedido_id = p.id and pp.impreso_ts is not null)
              or exists (select 1 from envio e2 where e2.pedido_id = p.id and e2.etiqueta_impresa_ts is not null)) impreso

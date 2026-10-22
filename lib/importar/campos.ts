@@ -54,7 +54,7 @@ export const DESTINOS: Record<Destino, { nombre: string; ayuda: string; campos: 
       { clave: "apodo_ml", etiqueta: "Apodo de Mercado Libre", ayuda: "Sirve para reconocerlo cuando vuelva a comprar en ML.", alias: ["apodo mlibre", "apodo ml", "nickname", "apodo"] },
       { clave: "email", etiqueta: "Mail", alias: ["correo electronico", "email", "mail", "e-mail", "correo"] },
       { clave: "telefono", etiqueta: "Teléfono", alias: ["telefono", "tel"] },
-      { clave: "telefono_movil", etiqueta: "Celular", alias: ["movil", "celular", "whatsapp"] },
+      { clave: "telefono_movil", etiqueta: "Celular / WhatsApp", ayuda: "En los clientes va al WhatsApp (en los proveedores, al celular).", alias: ["movil", "celular", "whatsapp"] },
       { clave: "calle", etiqueta: "Dirección (calle y número)", ayuda: "La dirección principal (fiscal).", alias: ["direccion", "calle", "domicilio"] },
       { clave: "numero", etiqueta: "Número (altura), si viene aparte", alias: ["numero", "altura"] },
       { clave: "localidad", etiqueta: "Localidad", alias: ["ciudad de correo", "localidad", "ciudad"] },

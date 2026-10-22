@@ -131,7 +131,7 @@ function ClienteNuevo({ nombreInicial, alCrear, alCerrar }: { nombreInicial: str
       </div>
       <label><span className={ETIQUETA}>Tipo</span>
         <select value={v.tipo} onChange={poner("tipo")} className={`${CAMPO} w-full`}>
-          <option value="consumidor_final">Consumidor final</option><option value="mayorista">Mayorista</option>
+          <option value="consumidor_final">Minorista</option><option value="mayorista">Mayorista</option>
         </select></label>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={guardar} disabled={grabando} className={`${PRIMARIO} disabled:opacity-60`}>{grabando ? "Grabando…" : "Grabar y elegir"}</button>

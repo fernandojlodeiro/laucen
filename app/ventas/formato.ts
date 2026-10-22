@@ -28,7 +28,8 @@ export const TONO_PAGO: Record<EstadoPago, Tono> = {
   pendiente: "amarillo", pagado: "verde", a_cobrar: "ambar", a_convenir: "gris", reembolsado: "rojo",
 };
 
-export const TIPOS_CLIENTE = { consumidor_final: "Consumidor final", mayorista: "Mayorista" } as const;
+// El tipo comercial (no la condición de IVA): "consumidor_final" en la base, "Minorista" en pantalla (Fer, 22/10).
+export const TIPOS_CLIENTE = { consumidor_final: "Minorista", mayorista: "Mayorista" } as const;
 export const DOCUMENTOS = ["DNI", "CUIT", "CUIL", "PASAPORTE", "OTRO"] as const;
 export const CONDICIONES_IVA = {
   consumidor_final: "Consumidor final", responsable_inscripto: "Responsable inscripto",

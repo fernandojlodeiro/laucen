@@ -72,7 +72,7 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   }>(`
     select p.estado, p.id_externo, ${sqlEstadoPago("p")} estado_pago, ${sqlSinEsperarPago("p")} sin_esperar,
            (me.tipo = 'retiro' or p.envio ->> 'metodo' = 'Retira') is true retiro, p.total_ars::float, p.medio_pago, p.codigo_seguimiento codigo, p.canal_id::int, c.tipo canal_tipo,
-           cl.nombre cliente, cl.telefono, cl.telefono_movil movil, me.nombre envio, me.tipo envio_tipo, me.seguimiento, to_char(p.vigencia, 'YYYY-MM-DD') vigencia
+           cl.nombre cliente, cl.telefono, cl.whatsapp movil, me.nombre envio, me.tipo envio_tipo, me.seguimiento, to_char(p.vigencia, 'YYYY-MM-DD') vigencia
       from pedido p join canal c on c.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
       left join metodo_envio me on me.id = p.metodo_envio_id
      where p.id = $1 and p.organizacion_id = $2`, [pid, org]);

@@ -184,7 +184,7 @@ async function correr(nombre: string, e: Record<string, unknown>, chat: Chat, t:
     case "estado_pedido": case "pedidos_del_cliente": {
       const filas = await consulta<{ id: number; fecha: string; estado: string; estado_pago: string; total: string; moneda: "ARS" | "USD"; telefono: string | null; movil: string | null; cliente_id: number | null; metodo_tipo: string | null; tracking: string | null; envio_estado: string | null }>(`
         select p.id::int, to_char(p.fecha at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YYYY') fecha, p.estado, p.estado_pago, p.moneda,
-               case when p.moneda = 'USD' then p.total_usd else p.total_ars end total, cl.telefono, cl.telefono_movil movil, p.cliente_id::int,
+               case when p.moneda = 'USD' then p.total_usd else p.total_ars end total, cl.telefono, cl.whatsapp movil, p.cliente_id::int,
                me.tipo metodo_tipo,
                (select tracking from envio where pedido_id = p.id order by id desc limit 1) tracking,
                (select estado from envio where pedido_id = p.id order by id desc limit 1) envio_estado

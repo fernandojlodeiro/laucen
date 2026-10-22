@@ -441,13 +441,20 @@ alter table cliente add column if not exists telefono_movil_aclaracion text;
 -- (camposCliente) en un solo texto en minúsculas, con documento, CUIT y teléfonos también sólo
 -- en números, y un índice de trigramas. prefiltroCliente() (app/ventas/clientes/lista.tsx) lo usa.
 create extension if not exists pg_trgm with schema extensions;
+-- El WhatsApp entra al texto de búsqueda (Fer, 22/10: el celular pasó a ser el WhatsApp): si la columna es la vieja, se rearma.
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'cliente' and column_name = 'busqueda'
+                and generation_expression not like '%whatsapp%') then
+    alter table cliente drop column busqueda;
+  end if;
+end $$;
 alter table cliente add column if not exists busqueda text generated always as (lower(
   id::text || ' ' || coalesce(nombre, '') || ' ' || coalesce(razon_social, '') || ' ' || coalesce(nombre_pila, '') || ' ' || coalesce(apellido, '') || ' ' ||
   coalesce(email, '') || ' ' || coalesce(apodo_ml, '') || ' ' || coalesce(documento_tipo, '') || ' ' || coalesce(documento_numero, '') || ' ' || coalesce(cuit, '') || ' ' ||
-  coalesce(telefono, '') || ' ' || coalesce(telefono_aclaracion, '') || ' ' || coalesce(telefono_movil, '') || ' ' || coalesce(telefono_movil_aclaracion, '') || ' ' ||
+  coalesce(telefono, '') || ' ' || coalesce(telefono_aclaracion, '') || ' ' || coalesce(whatsapp, '') || ' ' ||
   coalesce(notas, '') || ' ' ||
   regexp_replace(coalesce(documento_numero, ''), '[^0-9]', '', 'g') || ' ' || regexp_replace(coalesce(cuit, ''), '[^0-9]', '', 'g') || ' ' ||
-  regexp_replace(coalesce(telefono, ''), '[^0-9]', '', 'g') || ' ' || regexp_replace(coalesce(telefono_movil, ''), '[^0-9]', '', 'g'))) stored;
+  regexp_replace(coalesce(telefono, ''), '[^0-9]', '', 'g') || ' ' || regexp_replace(coalesce(whatsapp, ''), '^549', '', 'g'))) stored;
 create index if not exists cliente_busqueda_trgm on cliente using gin (busqueda extensions.gin_trgm_ops);
 -- Lo mismo con las direcciones (la pantalla Clientes busca también en ellas).
 alter table cliente_direccion add column if not exists busqueda text generated always as (lower(
@@ -483,6 +490,37 @@ update cliente set telefono = telefono where telefono ~ '[^0-9]';
 update cliente set telefono_movil = telefono_movil where telefono_movil ~ '[^0-9]';
 update proveedor set telefono = telefono where telefono ~ '[^0-9]';
 update proveedor set telefono_movil = telefono_movil where telefono_movil ~ '[^0-9]';
+
+-- ── Ficha del cliente (Fer, 22/10): el celular es el WhatsApp, y el CUIT va una sola vez. ──
+-- Un número cualquiera al formato de WhatsApp (5493511234567): sin 0 ni 15, con 549 adelante.
+-- null si no parece un celular argentino ni un número internacional (con +).
+create or replace function whatsapp_normal(v text) returns text language sql immutable as $$
+  select case
+    when d ~ '^549[0-9]{10}$' then d
+    when d ~ '^54[0-9]{10}$' then '549' || substr(d, 3)
+    when l ~ '^[0-9]{10}$' then '549' || l
+    when v ~ '^\s*\+' and d ~ '^[1-9][0-9]{10,14}$' then d
+  end
+  from (select regexp_replace(coalesce(v, ''), '[^0-9]', '', 'g') d) a,
+       lateral (select regexp_replace(regexp_replace(a.d, '^0', ''), '^([0-9]{2,4})15([0-9]{6,8})$', '\1\2') l) b
+$$;
+-- El celular pasa al WhatsApp (si no tenía uno; si tenía otro, al teléfono o a las notas) y su
+-- aclaración, a la del teléfono. Después no se escribe más: la columna queda vacía.
+update cliente set
+  whatsapp = coalesce(whatsapp, whatsapp_normal(telefono_movil)),
+  telefono = case when telefono is null and telefono_movil is not null and whatsapp_normal(telefono_movil) is distinct from coalesce(whatsapp, whatsapp_normal(telefono_movil))
+                  then telefono_movil else telefono end,
+  notas = case when telefono is not null and telefono_movil is not null and telefono_movil <> telefono and whatsapp_normal(telefono_movil) is distinct from coalesce(whatsapp, whatsapp_normal(telefono_movil))
+               then concat_ws(E'\n', notas, 'Celular: ' || telefono_movil) else notas end,
+  telefono_aclaracion = case when telefono_aclaracion is null then telefono_movil_aclaracion
+                             when telefono_movil_aclaracion is null then telefono_aclaracion
+                             else telefono_aclaracion || ' · ' || telefono_movil_aclaracion end,
+  telefono_movil = null, telefono_movil_aclaracion = null
+ where telefono_movil is not null or telefono_movil_aclaracion is not null;
+-- Un documento de 11 números es un CUIT/CUIL: va al CUIT (si no tenía otro) y deja de figurar como documento.
+update cliente set cuit = coalesce(cuit, regexp_replace(documento_numero, '[^0-9]', '', 'g')), documento_tipo = null, documento_numero = null
+ where length(regexp_replace(coalesce(documento_numero, ''), '[^0-9]', '', 'g')) = 11
+   and (cuit is null or cuit = regexp_replace(documento_numero, '[^0-9]', '', 'g'));
 
 -- Cuenta corriente con límite de crédito (Fer, 7/10). Un pedido a cuenta
 -- corriente (estado_pago 'a_convenir') entra a preparar sólo si el cliente

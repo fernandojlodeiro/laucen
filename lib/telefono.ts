@@ -26,3 +26,16 @@ export function telefonoConAclaracion(numero: string | null | undefined, aclarac
   const t = telefonoLegible(numero), a = (aclaracion ?? "").trim();
   return t && a ? `${t} (${a})` : t || a;
 }
+
+/** Un número cualquiera al formato de WhatsApp, sólo números con 549 adelante y sin 0 ni 15
+ *  ("011 15 5012-3456" → "5491150123456"); null si no parece un celular argentino ni un número
+ *  internacional (con +). Misma regla que whatsapp_normal() de db/administracion.sql. */
+export function whatsappNormal(v: string | null | undefined): string | null {
+  const d = String(v ?? "").replace(/\D/g, "");
+  const l = d.replace(/^0/, "").replace(/^(\d{2,4})15(\d{6,8})$/, "$1$2");
+  if (/^549\d{10}$/.test(d)) return d;
+  if (/^54\d{10}$/.test(d)) return `549${d.slice(2)}`;
+  if (/^\d{10}$/.test(l)) return `549${l}`;
+  if (/^\s*\+/.test(String(v ?? "")) && /^[1-9]\d{10,14}$/.test(d)) return d;
+  return null;
+}

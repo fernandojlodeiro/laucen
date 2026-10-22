@@ -112,7 +112,7 @@ const crearCliente: Accion = {
          and (($2::text is not null and regexp_replace(coalesce(documento_numero, ''), '\\D', '', 'g') = regexp_replace($2, '\\D', '', 'g'))
            or ($3::text is not null and lower(email) = $3)) limit 3`, [org, datos.documento_numero, datos.email]);
     const detalle = [
-      `Nombre: ${nombre}`, `Tipo: ${datos.tipo === "mayorista" ? "Mayorista" : "Consumidor final"}`,
+      `Nombre: ${nombre}`, `Tipo: ${datos.tipo === "mayorista" ? "Mayorista" : "Minorista"}`,
       ...(datos.documento_numero ? [`${datos.documento_tipo}: ${datos.documento_numero}`] : []),
       ...(datos.email ? [`Mail: ${datos.email}`] : []), ...(datos.telefono ? [`Teléfono: ${datos.telefono}`] : []),
       ...parecidos.map((p) => `Ojo: ya existe un cliente con ese documento o mail: N.º ${p.id} ${p.nombre}`),

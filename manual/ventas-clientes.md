@@ -4,7 +4,7 @@ menu: Ventas › Clientes
 ruta: /ventas/clientes
 rutas: /ventas/clientes, /ventas/clientes/[id]
 permiso: clientes_ver
-resumen: Los clientes de todos los canales (los crean los pedidos): lista con buscador, ficha con datos fiscales, lista de precios propia, cuenta corriente, direcciones, identidades por canal y sus pedidos.
+resumen: Los clientes de todos los canales (los crean los pedidos o el alta "Nuevo cliente"): lista con buscador, ficha con razón social, contacto, datos fiscales (CUIT, DNI, condición de IVA), WhatsApp, lista de precios propia, cuenta corriente, direcciones, identidades por canal y sus pedidos.
 ---
 
 ## Para qué sirve
@@ -27,36 +27,35 @@ Subtítulo: "Los crean los pedidos; acá se miran y se corrigen sus datos".
 **Arriba a la derecha**: el desplegable de columnas del Excel, **"⬇ Descargar Excel"**, **"⚙ Configurar…"** y **"+ Nuevo cliente"**.
 
 **Filtros**:
-- Buscador **"Buscar en todos los datos del cliente"**, con la caja **"Comienza por"** (tildada de entrada). Busca en todos sus datos: N.º, nombre, razón social, nombre de pila, apellido, mail, apodo de Mercado Libre, tipo y número de documento, CUIT, teléfono, celular, sus internos / aclaraciones, notas y los datos de sus direcciones (calle, número, piso, localidad, provincia, código postal, quién recibe y su teléfono, referencia). El CUIT, el documento y los teléfonos se encuentran escritos con o sin guiones, puntos o espacios.
-- Desplegable **"Todos los tipos"** / **"Consumidor final"** / **"Mayorista"**.
+- Buscador **"Buscar en todos los datos del cliente"**, con la caja **"Comienza por"** (tildada de entrada). Busca en todos sus datos: N.º, nombre, razón social, nombre y apellido del contacto, mail, apodo de Mercado Libre, DNI, CUIT, teléfono, su interno / aclaración, WhatsApp, notas y los datos de sus direcciones (calle, número, piso, localidad, provincia, código postal, quién recibe y su teléfono, referencia). El CUIT, el documento y los teléfonos se encuentran escritos con o sin guiones, puntos o espacios.
+- Desplegable **"Todos los tipos"** / **"Minorista"** / **"Mayorista"**.
 
 **"Vista"** (arriba de la tabla): elegí qué columnas ver o armá otras con **"⚙ Configurar vistas…"**.
 
 **Columnas de la vista "Estándar"**: **N.º** (el número interno del cliente), **Nombre** (enlace a la ficha), **Tipo** (tocándolo filtra por ese tipo), **Documento**, **Condición IVA**, **Mail** (abre el correo), **Teléfono**, **Pedidos** (cantidad; tocándolo abre [Pedidos](/ventas/pedidos) filtrado por ese cliente) y **Último pedido**.
 
-**Otras columnas** disponibles para vistas y Excel: Razón social, Nombre de pila, Apellido, Número de documento, CUIT, Celular, los internos / aclaraciones de cada teléfono, Apodo en Mercado Libre, Lista de precios, Cuenta corriente (Sí/No), Dirección, Localidad, Provincia, Código postal, **Total comprado**, Alta y Notas.
+**Otras columnas** disponibles para vistas y Excel: Razón social, Nombre del contacto, Apellido del contacto, Número de documento, CUIT / CUIL, WhatsApp, el interno / aclaración del teléfono, Apodo en Mercado Libre, Lista de precios, Cuenta corriente (Sí/No), Dirección, Localidad, Provincia, Código postal, **Total comprado**, Alta y Notas.
 
 **Orden** de entrada: por nombre. Se ordena tocando el título de la columna.
 
 ### El alta "Nuevo cliente"
 
-Se abre con **"+ Nuevo cliente"**: un renglón con **"Nombre o razón social"**, el tipo (Consumidor final / Mayorista), el tipo de documento (DNI, CUIT, CUIL, PASAPORTE, OTRO), **"Número"**, **"Mail"**, **"Teléfono"** y el botón **"Crear"**. Al crear, vas directo a la ficha del cliente nuevo para completar el resto.
+Se abre con **"+ Nuevo cliente"** y pide **los mismos datos que la ficha** (ver abajo), en el mismo orden. Sólo la **"Razón social"** es obligatoria. Con **"Crear"** se graba y vas a la ficha del cliente nuevo.
 
 ### La ficha del cliente
 
-Título: el nombre del cliente; debajo "Cliente N.º … · cliente desde el …". En el camino: "Ventas › Clientes › N.º …".
+Título: la razón social del cliente; debajo "Cliente N.º … · cliente desde el …". En el camino: "Ventas › Clientes › N.º …".
 
 **Arriba a la derecha**: el **lápiz** (editar) y el **tacho** (borrar, con "¿Borrar el cliente?" **"Sí"** / **"No"**). Si el cliente tiene pedidos, en lugar del tacho dice "No se puede borrar: tiene N pedidos."
 
-**Datos** (en modo vista; con el lápiz pasan a editables):
-- **"Nombre (como se lo conoce)"** y **"Tipo"** (Consumidor final / Mayorista).
-- **"Razón social (para facturar)"** y **"CUIT"**. Debajo del CUIT, si se puede consultar ARCA, el botón **"Validar en el padrón de ARCA"**.
-- **"Apellido"**, **"Nombre de pila"**, **"Apodo en Mercado Libre"**.
-- **"Mail"**, **"Teléfono"**, **"Celular"**, cada teléfono con su **"Interno / aclaración"** al lado (ej. "INT 32"). El teléfono se escribe como quieras: se guarda sólo con sus números y se muestra ordenado ("011 4613-0698 (INT 32)"); si escribís el interno pegado al número, Laucen lo pasa solo a la aclaración.
-- **"WhatsApp confirmado"**: el número con el que el cliente nos escribe por WhatsApp, en formato internacional (5493511234567; un número de 10 cifras se completa solo con 549). **Se carga solo** cuando el cliente nos escribe por WhatsApp (debajo dice «Nos escribió desde este número» y la fecha); también se puede escribir a mano (dice «Cargado a mano»). Es el número al que se le mandan la factura y los mensajes con plantilla. Los teléfonos de arriba son sólo teléfonos: no se da por hecho que tengan WhatsApp.
+**Datos** (en modo vista; con el lápiz pasan a editables), en este orden:
+- **"Razón social (sale en la factura)"** y **"Tipo"** (**Minorista** / **Mayorista**). La razón social es el nombre del cliente en todo el sistema y **el nombre con el que sale la factura**. El tipo es comercial (a quién le vendés), no su condición frente al IVA.
+- **"Apellido del contacto"**, **"Nombre del contacto"** (los dos opcionales: la persona con la que se habla; el nombre se usa para saludarlo en los mensajes) y **"Apodo en Mercado Libre"**.
+- Los datos fiscales, juntos: **"CUIT / CUIL"**, **"DNI"** y **"Condición IVA"** (Consumidor final, Responsable inscripto, Monotributo, Exento, No responsable, o "Sin cargar"). CUIT y DNI son opcionales y pueden estar los dos (por ejemplo, una persona inscripta en IVA tiene CUIT y DNI). Debajo del CUIT, si se puede consultar ARCA, el botón **"Validar en el padrón de ARCA"**.
+- **"Mail"**, **"Teléfono"** y su **"Interno / aclaración"** (ej. "INT 32"). El teléfono se escribe como quieras: se guarda sólo con sus números y se muestra ordenado ("011 4613-0698 (INT 32)"); si escribís el interno pegado al número, Laucen lo pasa solo a la aclaración.
+- **"WhatsApp"**: el celular del cliente. Se escribe como venga ("351 15 555-1234", "0351 155551234", "+54 9 351 555-1234"): se guarda en formato internacional (5493515551234) y se muestra ordenado. **Se carga solo** cuando el cliente nos escribe por WhatsApp (debajo dice «Nos escribió desde este número» y la fecha); escrito a mano dice «Cargado a mano». Es el número al que se le mandan la factura y los mensajes.
 - Las casillas **"Enviarle la factura por WhatsApp"** y **"Enviarle la factura por mail"**: de entrada, las dos tildadas. Destildá la que el cliente no quiera. El envío por mail todavía no está disponible (falta configurar el correo); la casilla queda guardada para cuando lo esté.
-- **"Documento"** (tipo y número) y **"Condición IVA"** (Consumidor final, Responsable inscripto, Monotributo, Exento, No responsable, o "Sin cargar").
-- **"Lista de precios propia"** ("Para mayoristas. Vacío = la del canal.").
+- **"Lista de precios"**: **"Por defecto"** o una lista. Por defecto, cada pedido usa la lista del canal por donde entra (tienda web, Mercado Libre, mostrador…); con una lista elegida, todos sus pedidos usan ésa (lo típico para un mayorista).
 - **"Notas"**.
 - **"Cuenta corriente"**: en edición, la caja **"Puede comprar en cuenta corriente / a convenir"**.
 - **"Límite de crédito"** (en pesos): hasta cuánto puede deber en cuenta corriente. Vacío = sin límite cargado (sus pedidos a cuenta no se preparan).
@@ -82,10 +81,10 @@ Título: el nombre del cliente; debajo "Cliente N.º … · cliente desde el …
 
 1. Abrí la ficha del cliente.
 2. Tocá el **lápiz** arriba a la derecha.
-3. Corregí **"Razón social (para facturar)"**, **"CUIT"**, **"Condición IVA"** y lo que haga falta.
+3. Corregí **"Razón social (sale en la factura)"**, **"CUIT / CUIL"**, **"DNI"**, **"Condición IVA"** y lo que haga falta.
 4. Apretá **"Grabar"**. Vuelve a la vista con el aviso "Guardado.". Con **"Cancelar"** volvés sin guardar.
 
-Errores típicos: "El cliente necesita un nombre." y "El CUIT tiene que tener 11 dígitos." (el CUIT se guarda con guiones, 20-12345678-9, se escriba como se escriba).
+Errores típicos: "El cliente necesita una razón social.", "El CUIT tiene que tener 11 dígitos." (el CUIT se muestra con guiones, 20-12345678-9, se escriba como se escriba), "Ese número tiene 11 cifras: es un CUIT o CUIL, va en el campo «CUIT / CUIL»." (en el DNI) y "El WhatsApp no parece un celular: escribilo con la característica (ej. 351 555-1234).".
 
 ### Traer los datos del padrón de ARCA
 
@@ -97,8 +96,8 @@ El botón sólo aparece si el cliente tiene CUIT y la empresa ya tiene cargados 
 
 ### Darle una lista de precios propia (mayorista)
 
-1. Lápiz → **"Lista de precios propia"** → elegí la lista → **"Grabar"**.
-2. Desde ahí, los pedidos de ese cliente usan esa lista en vez de la del canal (también en "Nuevo pedido" al elegirlo).
+1. Lápiz → **"Lista de precios"** → elegí la lista → **"Grabar"**.
+2. Desde ahí, los pedidos de ese cliente usan esa lista en vez de la del canal (también en "Nuevo pedido" al elegirlo). Para volver a la del canal, elegí **"Por defecto"**.
 
 ### Habilitar la cuenta corriente
 
@@ -114,9 +113,9 @@ El botón sólo aparece si el cliente tiene CUIT y la empresa ya tiene cargados 
 
 ### Dar de alta un cliente a mano
 
-1. **"+ Nuevo cliente"**.
-2. Completá al menos el **"Nombre o razón social"** (lo demás es opcional) y apretá **"Crear"**.
-3. Vas a la ficha nueva para completar el resto con el lápiz.
+1. **"+ Nuevo cliente"**, arriba a la derecha.
+2. Completá la **"Razón social"** (obligatoria) y los datos que tengas: tipo, contacto, CUIT, DNI, condición de IVA, mail, teléfono, WhatsApp, lista de precios, notas.
+3. Apretá **"Crear"**: vas a la ficha del cliente nuevo.
 
 Normalmente no hace falta: los pedidos crean los clientes solos.
 
@@ -129,11 +128,13 @@ Sólo se puede si **no tiene ningún pedido**. Tacho arriba a la derecha → **"
 
 - **El buscador es rápido aunque haya más de 100.000 clientes**: busca en todos los datos del cliente y de sus direcciones con un índice, así contesta al instante mientras tipeás.
 - **Quién crea los clientes**: los pedidos. Al entrar un pedido, Laucen busca al cliente en este orden: el id del comprador en ese canal (identidad) → el CUIT → el número de documento → el apodo de Mercado Libre → el mail. Si lo encuentra, **completa sólo los datos que le faltan** (nunca pisa uno que ya estaba cargado) y suma los datos originales. Si no, lo crea. Si vino el id del canal, deja la identidad guardada para encontrarlo la próxima vez.
-- **Nombre** de un cliente que llega de Mercado Libre: la razón social si es empresa; si no, "Apellido, Nombre"; si no, quien recibe el envío o el apodo.
+- **Razón social / nombre** de un cliente que llega de Mercado Libre: la razón social si es empresa; si no, "Apellido, Nombre"; si no, quien recibe el envío o el apodo.
 - **Documentos de relleno** (1111111, 00000000, menos de 6 dígitos) no se toman como documento.
 - **Direcciones** que llegan con los pedidos: se suman sin repetir (no se agrega una con la misma calle, número y localidad, o el mismo id del canal). La primera queda principal.
 - **Condición de IVA**: decide el tipo de factura. Si la empresa es Responsable Inscripta: cliente Responsable Inscripto o Monotributo → factura **A** (y necesita **CUIT**); el resto → factura **B**. Sin condición cargada se toma como consumidor final. Para la factura, el documento es el CUIT (11 dígitos) o, si no, el DNI.
-- **Lista de precios propia**: si tiene, manda sobre la del canal en todos sus pedidos.
+- **Lista de precios**: "Por defecto" = la del canal por donde entra cada pedido. Si el cliente tiene una elegida, manda sobre la del canal en todos sus pedidos.
+- **CUIT y DNI**: un número de 11 cifras es un CUIT o CUIL y va sólo en "CUIT / CUIL" (también cuando llega con un pedido o una importación); el DNI va aparte.
+- **WhatsApp**: el celular que llega con un pedido o una importación se guarda como el WhatsApp del cliente (si ya tenía uno, no se pisa); si no parece un celular, queda como teléfono.
 - **Cuenta corriente**: habilita el medio "Cuenta corriente / a convenir" en la tienda y la opción "Cuenta corriente" al cargar un pedido a mano (que exige un cliente).
 - **Límite de crédito**: un pedido a cuenta corriente (pago "A convenir") **entra a preparar sólo si** el cliente tiene la cuenta habilitada, un límite cargado y **el saldo de su cuenta más sus pedidos a cuenta todavía sin facturar no pasan el límite** (el pedido mismo incluido). Si lo pasan, el pedido queda **frenado**: se crea y reserva el stock igual, pero no aparece en el picking hasta que haya crédito (cobrando, o subiendo el límite). Los pedidos más viejos tienen prioridad: se suman los de número menor o igual, más los que ya entraron a preparar. Un pedido facturado deja de contar como "pedido" y pasa a estar en el saldo. Todo en pesos (un pedido en dólares cuenta por su total en pesos).
 - **Padrón de ARCA**: pisa razón social, condición de IVA y CUIT con lo que dice ARCA; el domicilio fiscal de ARCA viene en un solo texto (calle y número juntos).
@@ -150,7 +151,7 @@ No: se crean solos con cada venta.
 Abrí la ficha del cliente, cargá el CUIT (lápiz → "CUIT" → "Grabar") y volvé a facturar.
 
 **¿Cómo hago que un mayorista pague sus precios?**
-En su ficha, "Lista de precios propia" → la lista mayorista.
+En su ficha, "Lista de precios" → la lista mayorista.
 
 **No puedo borrar un cliente.**
 Tiene pedidos. Un cliente con pedidos no se borra.

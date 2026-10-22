@@ -39,20 +39,23 @@ export async function crearClienteDesdePedido(d: {
     // CUIT, CUIL y DNI se guardan sólo con números (el pasaporte u otro, tal cual).
     const docTxt = d.documentoNumero.trim().slice(0, 30);
     const docNum = (docTipo === "CUIT" || docTipo === "CUIL" || docTipo === "DNI" ? docTxt.replace(/\D/g, "") : docTxt) || null;
+    // El CUIT o CUIL va sólo en el CUIT, no también como documento (Fer, 22/10: se veía dos veces en la ficha).
     let cuit: string | null = null;
-    if (docNum && docTipo === "CUIT") {
+    const esCuit = !!docNum && (docTipo === "CUIT" || docTipo === "CUIL");
+    if (esCuit) {
       cuit = normalizarCuit(docNum);
-      if (!cuit) return { error: "El CUIT tiene que tener 11 números." };
+      if (!cuit) return { error: `El ${docTipo} tiene que tener 11 números.` };
     }
     if (docNum) {
       const repetido = await una<{ id: number; nombre: string }>(
-        "select id::int, nombre from cliente where organizacion_id = $1 and documento_numero = $2 limit 1", [s.org.id, docNum]);
+        `select id::int, nombre from cliente where organizacion_id = $1 and ${esCuit ? "cuit" : "documento_numero"} = $2 limit 1`, [s.org.id, esCuit ? cuit : docNum]);
       if (repetido) return { error: `Ya hay un cliente con ese documento: N.º ${repetido.id} · ${repetido.nombre}. Buscalo en el cuadro.` };
     }
     const r = await una<{ id: number }>(`
       insert into cliente (organizacion_id, nombre, tipo, email, telefono, documento_tipo, documento_numero, cuit)
       values ($1, $2, $3, $4, $5, $6, $7, $8) returning id::int`,
-      [s.org.id, nombre, d.tipo === "mayorista" ? "mayorista" : "consumidor_final", d.email.trim() || null, d.telefono.trim() || null, docTipo, docNum, cuit]);
+      [s.org.id, nombre, d.tipo === "mayorista" ? "mayorista" : "consumidor_final", d.email.trim() || null, d.telefono.trim() || null,
+        esCuit ? null : docTipo, esCuit ? null : docNum, cuit]);
     revalidatePath("/ventas/clientes");
     return { cliente: { id: r!.id, nombre, documento: docNum ? `${docTipo ?? ""} ${docNum}`.trim() : null, email: d.email.trim() || null, cuentaCorriente: false, direccion: null } };
   } catch (e) {

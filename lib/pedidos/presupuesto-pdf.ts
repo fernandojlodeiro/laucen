@@ -74,7 +74,7 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
     select p.id::int, to_char(p.fecha at time zone 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') fecha, to_char(p.vigencia, 'YYYY-MM-DD') vigencia, p.estado,
            p.canal_id::int, p.total_ars::float, p.total_usd::float, p.costo_envio_ars::float envio_ars, p.notas, p.envio,
            cl.nombre cliente, cl.razon_social, cl.cuit, cl.documento_tipo doc_tipo, cl.documento_numero doc_nro, cl.condicion_iva cond_iva,
-           cl.email, coalesce(cl.telefono_movil, cl.telefono) telefono, cl.id::int cliente_id
+           cl.email, coalesce(regexp_replace(cl.whatsapp, '^549([0-9]{10})$', '\\1'), cl.telefono) telefono, cl.id::int cliente_id
       from pedido p left join cliente cl on cl.id = p.cliente_id where p.id = $1 and p.organizacion_id = $2`, [pedidoId, org]);
   if (!p) throw new ErrorErp("El presupuesto no existe.");
   const lineas = await consulta<Linea>(`

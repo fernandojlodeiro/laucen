@@ -168,6 +168,7 @@ export type ClienteEntrada = {
   apodo_ml?: string | null;
   nombre_pila?: string | null;
   apellido?: string | null;
+  /** El celular: se guarda como el WhatsApp del cliente (whatsapp_normal); si no parece un celular, como teléfono. */
   telefono_movil?: string | null;
   /** El dato crudo tal como vino, por origen (ej. {"ml": {billing_info…}}): se guarda entero. */
   datos_externos?: Record<string, unknown> | null;
@@ -516,24 +517,29 @@ async function clienteDelPedido(c: PoolClient, org: string, canalId: number, e: 
   const nombre = limpio(d.nombre) || limpio(d.razon_social)
     || [limpio(d.apellido), limpio(d.nombre_pila)].filter(Boolean).join(", ") || limpio(d.email) || limpio(d.apodo_ml)
     || (d.id_externo ? `Cliente ${d.id_externo}` : "");
+  // Un documento de 11 números es el CUIT: queda sólo en el CUIT, no también como documento (Fer, 22/10).
+  const dni = doc && doc.length !== 11 ? doc : null;
   const valores = [org, nombre || null, d.tipo === "mayorista" ? "mayorista" : null, limpio(d.email), limpio(d.telefono),
-    doc ? normalDoc(d.documento_tipo) ?? (doc.length === 11 ? "CUIT" : "DNI") : null, doc, condicionIva(d.condicion_iva),
+    dni ? normalDoc(d.documento_tipo) ?? "DNI" : null, dni, condicionIva(d.condicion_iva),
     limpio(d.razon_social), cuit, limpio(d.apodo_ml), limpio(d.nombre_pila), limpio(d.apellido), limpio(d.telefono_movil),
     JSON.stringify(d.datos_externos ?? {})];
   if (id) {
     await c.query(`
-      update cliente set nombre = coalesce(nombre, $2), tipo = coalesce($3, tipo), email = coalesce(email, $4), telefono = coalesce(telefono, $5),
+      update cliente set nombre = coalesce(nombre, $2), tipo = coalesce($3, tipo), email = coalesce(email, $4),
+             telefono = coalesce(telefono, $5, case when whatsapp_normal($14) is null then $14 end),
              documento_tipo = coalesce(documento_tipo, $6), documento_numero = coalesce(documento_numero, $7),
              condicion_iva = coalesce(condicion_iva, $8), razon_social = coalesce(razon_social, $9), cuit = coalesce(cuit, $10),
              apodo_ml = coalesce(apodo_ml, $11), nombre_pila = coalesce(nombre_pila, $12), apellido = coalesce(apellido, $13),
-             telefono_movil = coalesce(telefono_movil, $14), datos_externos = datos_externos || $15::jsonb
+             -- El celular es el WhatsApp (Fer, 22/10); si no parece un celular, va al teléfono.
+             whatsapp = coalesce(whatsapp, whatsapp_normal($14)), datos_externos = datos_externos || $15::jsonb
        where id = $16 and organizacion_id = $1`, [...valores, id]);
   } else {
     if (!nombre) throw new ErrorErp("El cliente necesita al menos un nombre, un mail o su id en el canal.");
     const r = await c.query<{ id: string }>(`
       insert into cliente (organizacion_id, nombre, tipo, email, telefono, documento_tipo, documento_numero, condicion_iva,
-                           razon_social, cuit, apodo_ml, nombre_pila, apellido, telefono_movil, datos_externos)
-      values ($1, $2, coalesce($3, 'consumidor_final'), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb) returning id`, valores);
+                           razon_social, cuit, apodo_ml, nombre_pila, apellido, whatsapp, datos_externos)
+      values ($1, $2, coalesce($3, 'consumidor_final'), $4, coalesce($5, case when whatsapp_normal($14) is null then $14 end), $6, $7, $8, $9, $10, $11, $12, $13,
+              whatsapp_normal($14), $15::jsonb) returning id`, valores);
     id = Number(r.rows[0].id);
   }
   for (const [etiqueta, x] of [["Fiscal", d.direccion], ["Envío", d.direccion_envio]] as const) {
