@@ -201,8 +201,8 @@ export async function leerCargosFull(org: string | null, hastaMs: number, opts: 
       const r = await ml<{ total?: number; results?: CargoMl[]; message?: string }>(cuenta, "GET",
         `/billing/integration/periods/key/${p.periodo}/group/ML/full/details?document_type=BILL&offset=${offset}&limit=200`);
       if (r.status === 429) { estado = "cortado"; break; }
-      // 400: el período todavía no cerró; en uno viejo, ML no lo da (como el 404).
-      if (r.status === 400) { estado = p.periodo >= periodosLeibles()[1] ? "abierto" : "fuera"; break; }
+      // 400: el período todavía no cerró, o ML falló de paso (pasa también con meses cerrados): se relee cada 12 h.
+      if (r.status === 400) { estado = "abierto"; break; }
       if (r.status === 404) { estado = "fuera"; break; }
       if (r.status !== 200) { estado = "error"; error = `ML contestó ${r.status}`; break; }
       const lista = Array.isArray(r.datos?.results) ? r.datos.results : [];
