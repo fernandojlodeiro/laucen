@@ -7,6 +7,9 @@ import { entrarErp, Pantalla, Estado, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD,
 import { fechaHora } from "@/app/ventas/formato";
 import type { ResumenVs } from "@/lib/seguimiento/importar-vs";
 import SubirSeguimientosVs from "./SubirSeguimientosVs";
+import { BotonTarea } from "@/app/componentes/TareasFondo";
+import { SUAVE } from "@/app/botones";
+import { accionReimportarSeguimientosVs } from "./acciones";
 
 export const dynamic = "force-dynamic";
 // La importación corre de fondo después de contestar: miles de filas.
@@ -17,8 +20,8 @@ const n = (x: number | undefined) => (x ?? 0).toLocaleString("es-AR");
 
 export default async function ImportarSeguimientosVs() {
   const s = await entrarErp("productos_ver");
-  const imps = await consulta<{ id: number; archivo: string; ts: Date; estado: keyof typeof ESTADOS; resumen: Partial<ResumenVs>; error: string | null }>(`
-    select id::int, archivo, ts, estado, resumen, error from seguimiento_importacion where organizacion_id = $1 order by id desc limit 30`, [s.org.id]);
+  const imps = await consulta<{ id: number; archivo: string; ts: Date; estado: keyof typeof ESTADOS; resumen: Partial<ResumenVs>; error: string | null; ruta: string | null }>(`
+    select id::int, archivo, ts, estado, resumen, error, ruta from seguimiento_importacion where organizacion_id = $1 order by id desc limit 30`, [s.org.id]);
   return (
     <Pantalla titulo="Importar seguimientos de Virtual Seller" ancho="max-w-5xl" camino={[{ texto: "Importar de Virtual Seller" }]}
       subtitulo="El informe «Seguimientos totales» de Virtual Seller: cada publicación de la competencia que se seguía pasa a seguirse en el producto, ya revisada.">
@@ -39,10 +42,10 @@ export default async function ImportarSeguimientosVs() {
             <tr><th className={THN}>Fecha</th><th className={TH}>Archivo</th><th className={TH}>Estado</th><th className={THN}>Filas</th><th className={THN}>Nuevas</th>
               <th className={THN}>Al día / ya estaban</th><th className={THN}>Productos</th><th className={THN} title="Activas / pausadas o terminadas">Activas / pausadas</th>
               <th className={THN} title="Eran de nuestras cuentas">Nuestras</th><th className={THN} title="Seguimientos de notebooks: no entran">Notebooks</th>
-              <th className={TH}>No entraron</th></tr>
+              <th className={TH}>No entraron</th><th /></tr>
           </thead>
           <tbody>
-            {imps.length === 0 && <tr><td colSpan={11} className={`${TD} text-[#5C6B76]`}>Todavía no hay ninguna.</td></tr>}
+            {imps.length === 0 && <tr><td colSpan={12} className={`${TD} text-[#5C6B76]`}>Todavía no hay ninguna.</td></tr>}
             {imps.map((i) => {
               const r = i.resumen, [t, tono] = ESTADOS[i.estado] ?? [i.estado, "gris"];
               return (
@@ -79,6 +82,12 @@ export default async function ImportarSeguimientosVs() {
                     ) : null}
                     {!r.noEncontrados?.length && !r.sinPublicacionActiva?.length && "—"}
                     {(r.sinId || r.sinPublicacion) ? <span className="block text-[10px] text-[#5C6B76]">{r.sinId ? `${r.sinId} sin ID de seguimiento` : ""}{r.sinId && r.sinPublicacion ? " · " : ""}{r.sinPublicacion ? `${r.sinPublicacion} sin número de publicación` : ""}</span> : null}
+                  </td>
+                  <td className={`${TD} text-right whitespace-nowrap`}>
+                    {i.ruta && i.estado !== "corriendo" && (
+                      <BotonTarea accion={accionReimportarSeguimientosVs} tipo="seguimientos-vs" clase={SUAVE} texto="Volver a importar" campos={{ id: String(i.id) }}
+                        pregunta="¿Importar otra vez este archivo? No duplica: suma lo que antes no entró" />
+                    )}
                   </td>
                 </tr>
               );

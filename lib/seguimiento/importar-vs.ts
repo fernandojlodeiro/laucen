@@ -18,11 +18,27 @@ import { SQL_CON_ML_ACTIVA, SQL_A_LA_VENTA, SQL_ES_NOTEBOOK, esTituloNotebook } 
 import { numeroVs } from "@/lib/importar/virtualseller";
 import type { Hoja, Valor } from "@/lib/importar/leer";
 
-/** Nuestro SKU a partir del ID del seguimiento: sin «SEG-» adelante ni «-AAAA-N» al final. null si no queda nada. Pura. */
+/** Nuestro SKU a partir del ID del seguimiento: sin «SEG-» adelante ni «-AAAA-N» al final. null si no queda nada. Pura.
+ *  Si trae un «SKU» + número en cualquier lado (Fer, 22/10: «A8SEG-SKU03373-2025-1», «SKU00452-19», «SKU03514.2024-1»,
+ *  «SKU017852021-1», «SKU003305-2019-2»), ése: cinco cifras (con «-U» si lo trae). Con varios SKU distintos, no se adivina. */
 export function skuDeIdSeguimiento(id: string | null | undefined): string | null {
   if (!id) return null;
-  const s = id.trim().toUpperCase().replace(/^SEG[\s_-]+/, "").replace(/[\s_-]+(19|20)\d{2}[\s_-]+\d+$/, "").trim();
+  const t = id.trim().toUpperCase();
+  const skus = [...t.matchAll(/SKU(\d{5,})(-U(?![A-Z0-9]))?/g)].map((m) => {
+    let d = m[1];
+    if (d.length === 6 && d.startsWith("0")) d = d.slice(1);   // un cero de más
+    else if (d.length > 5) d = d.slice(0, 5);                   // el año pegado
+    return `SKU${d}${m[2] ?? ""}`;
+  });
+  if (new Set(skus).size === 1) return skus[0];
+  if (skus.length > 1) return t;
+  const s = t.replace(/^SEG[\s_-]+/, "").replace(/[\s_.-]+(19|20)\d{2}([\s_.-]+\d+)?$/, "").trim();
   return s || null;
+}
+
+/** Los viejos tienen de ID el número de nuestra publicación y la fecha («MLA754852459 21/04/2023 12:43»). Pura. */
+export function itemDeIdSeguimiento(id: string | null | undefined): string | null {
+  return (id ?? "").trim().toUpperCase().match(/^(MLAU?\d{6,})\b/)?.[1] ?? null;
 }
 
 /** El estado de Virtual Seller (el de Mercado Libre, en inglés) como lo guarda el seguimiento. Pura. */
@@ -113,11 +129,18 @@ export async function importarSeguimientosVs(org: string, filas: FilaVs[], archi
     union all
     select upper(v.sku), v.producto_id::int from variacion v where v.organizacion_id = $1 and upper(v.sku) = any($2::text[])`, [org, skus]))
     if (!porSku.has(x.sku)) porSku.set(x.sku, x.producto_id);
+  // Los que tienen de ID el número de nuestra publicación: el producto de esa publicación (vinculada en Laucen).
+  const propiosId = [...new Set(filas.map((f) => itemDeIdSeguimiento(f.idSeguimiento)).filter(Boolean))] as string[];
+  const porItem = new Map<string, number>();
+  if (propiosId.length) for (const x of await consulta<{ item_id: string; producto_id: number }>(`
+    select distinct on (m.item_id) m.item_id, v.producto_id::int from meli_item m join publicacion pu on pu.id = m.publicacion_id join variacion v on v.id = pu.variacion_id
+     where m.organizacion_id = $1 and m.item_id = any($2::text[])`, [org, propiosId])) porItem.set(x.item_id, x.producto_id);
+  const productoDe = (f: FilaVs) => (f.sku ? porSku.get(f.sku) : undefined) ?? porItem.get(itemDeIdSeguimiento(f.idSeguimiento) ?? "");
   // De cada producto: si es una notebook, si tiene publicación activa en Mercado Libre y si está a la venta.
   const info = new Map<number, { notebook: boolean; conMl: boolean; aLaVenta: boolean }>();
   for (const x of await consulta<{ id: number; notebook: boolean; con_ml: boolean; a_la_venta: boolean }>(`
     select p.id::int, ${SQL_ES_NOTEBOOK} notebook, ${SQL_CON_ML_ACTIVA} con_ml, ${SQL_A_LA_VENTA} a_la_venta
-      from producto p where p.organizacion_id = $1 and p.id = any($2::bigint[])`, [org, [...new Set(porSku.values())]]))
+      from producto p where p.organizacion_id = $1 and p.id = any($2::bigint[])`, [org, [...new Set([...porSku.values(), ...porItem.values()])]]))
     info.set(x.id, { notebook: x.notebook, conMl: x.con_ml, aLaVenta: x.a_la_venta });
   const sinMl = new Map<string, number>();
   const faltan = new Map<string, { id: string; filas: number }>();
@@ -126,9 +149,9 @@ export async function importarSeguimientosVs(org: string, filas: FilaVs[], archi
     if (!f.sku) { r.sinId++; continue; }
     if (!f.itemId) { r.sinPublicacion++; continue; }
     if (apodos.has((f.vendedor ?? "").toUpperCase().trim()) || propiasIds.has(f.itemId)) { r.propias++; continue; }
-    const pid = porSku.get(f.sku);
+    const pid = productoDe(f);
     // Las notebooks no interesan (Fer, 22/10), ni las de un producto que ya no está o no tiene ninguna publicación activa.
-    if (esTituloNotebook(f.titulo) || (pid && info.get(pid)?.notebook)) { r.notebooks++; continue; }
+    if (esTituloNotebook(f.titulo) || /^(SEG\s+)?NOT(EBOOK)?\b/i.test(f.idSeguimiento ?? "") || (pid && info.get(pid)?.notebook)) { r.notebooks++; continue; }
     if (pid && !info.get(pid)?.conMl) { sinMl.set(f.sku, (sinMl.get(f.sku) ?? 0) + 1); continue; }
     if (!pid) { const x = faltan.get(f.sku) ?? { id: f.idSeguimiento ?? f.sku, filas: 0 }; x.filas++; faltan.set(f.sku, x); continue; }
     const k = `${pid}|${f.itemId}`;

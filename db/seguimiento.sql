@@ -195,3 +195,5 @@ create table if not exists seguimiento_importacion (
 create index if not exists seguimiento_importacion_org on seguimiento_importacion (organizacion_id, id desc);
 alter table seguimiento_importacion enable row level security;
 select erp_politica_org('seguimiento_importacion');
+-- Dónde quedó el archivo en Storage, para «Volver a importar» (Fer, 22/10: se mejoró cómo se lee el ID del seguimiento).
+alter table seguimiento_importacion add column if not exists ruta text;
