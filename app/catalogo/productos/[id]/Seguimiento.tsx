@@ -2,7 +2,8 @@
 // lib/seguimiento/): las publicaciones de la competencia que se siguen y, para
 // elegir más, la búsqueda en Mercado Libre con «Seguir» al lado de cada una.
 
-import { consulta } from "@/lib/erp/base";
+import { consulta, una } from "@/lib/erp/base";
+import { SQL_A_LA_VENTA } from "@/lib/seguimiento/a-la-venta";
 import { formatear, type Moneda } from "@/lib/moneda";
 import { ultimaBusqueda, catalogosPegados, configSeguimiento, enlaceDe, esPack, parecido, type PubEncontrada } from "@/lib/seguimiento";
 import Link from "next/link";
@@ -78,7 +79,7 @@ function Entrega({ dias, demora, gratis }: { dias: number | null | undefined; de
 
 export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string; internacionales?: string; borden?: string; hist?: string; editar?: string; pausadas?: string } }) {
   const hist = Number(sp.hist) || null;
-  const [seguidas, busqueda, conf, lecturas, catalogos, regla] = await Promise.all([
+  const [seguidas, busqueda, conf, lecturas, catalogos, regla, venta] = await Promise.all([
     consulta<Seguida>(`
       select sp.id::int, sp.item_id, sp.catalogo_id, sp.titulo, sp.foto, sp.permalink, sp.vendedor, sp.tienda_oficial, sp.precio::float8, sp.precio_original::float8,
              sp.moneda, sp.estado, sp.tipo_publicacion, sp.cuotas, sp.envio_gratis, sp.leido_ts, sp.error, sp.entrega_dias, sp.internacional, sp.excluido,
@@ -110,6 +111,8 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
        order by l.ts desc limit 2000`, [s.org.id, p.id, hist]) : Promise.resolve([] as Lectura[]),
     catalogosPegados(s.org.id, p.id).catch(() => []),
     reglaDe(s.org.id, p.id).catch(() => null),
+    // Si no está a la venta, las comunes no se releen solas (Fer, 22/10).
+    una<{ ok: boolean }>(`select ${SQL_A_LA_VENTA} ok from producto p where p.id = $1 and p.organizacion_id = $2`, [p.id, s.org.id]).catch(() => null),
   ]);
   // La referencia de la regla de precio (si está prendida): la elegida o la más barata de las activas con precio. Si la
   // elegida deja de estar activa, la que sigue (Fer, 14/10), igual que en lib/seguimiento/regla.ts.
@@ -234,6 +237,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
         <p className="text-[11px] text-[#5C6B76] mb-2">
           Se vuelven a leer cada {conf.frecuenciaDias} día{conf.frecuenciaDias === 1 ? "" : "s"}, a la madrugada (Configuración › Seguimiento de publicaciones).
           Las de catálogo se leen gratis; las comunes, con un costo chico.
+          {venta && !venta.ok && <> <b className="text-[#7A5600]">Este producto no está a la venta</b> (sin publicación activa en Mercado Libre o sin stock disponible): las comunes no se releen solas; quedan de referencia y «Leer ahora» las lee a pedido.</>}
           Las marcadas 🤖 las siguió sola la búsqueda de precio de mercado: no cuentan para la regla de precio hasta que tildás «Revisada».
         </p>
         <div className={CAJA_TABLA}>

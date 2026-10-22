@@ -65,3 +65,11 @@ test("lee el informe (HTML guardado como .xls)", () => {
 test("otro archivo: avisa que no es el informe", () => {
   assert.throws(() => leerSeguimientosVs({ columnas: ["SKU", "Precio"], filas: [] }), /informe de seguimientos/);
 });
+
+test("notebooks: el título de enfrente alcanza para dejarlas afuera", async () => {
+  const { esTituloNotebook } = await import("@/lib/seguimiento/a-la-venta");
+  assert.equal(esTituloNotebook("Notebook Lenovo Ideapad 15"), true);
+  assert.equal(esTituloNotebook("  laptop hp 14"), true);
+  assert.equal(esTituloNotebook("Cooler para notebook"), false);
+  assert.equal(esTituloNotebook(null), false);
+});

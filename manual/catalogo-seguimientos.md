@@ -43,12 +43,12 @@ Virtual Seller exporta un informe con todos los seguimientos de precios que ten�
 
 Cómo se lee el informe:
 - **El producto sale del ID del seguimiento**: el SKU nuestro antes del año y el número («SKU00680-U-2026-1» es el SKU00680-U; los viejos traen «SEG-» adelante, que se saca). La columna SKU del informe no se usa: es el código del vendedor de enfrente.
-- **Las publicaciones de nuestras cuentas no entran.**
+- **No entran**: las publicaciones de nuestras cuentas; las de **notebooks** (por la familia Notebooks del producto o porque el título de la publicación empieza con «Notebook»); las de un SKU que ya no está en el catálogo; y las de un producto **sin ninguna publicación activa en Mercado Libre**. La tabla **Importaciones** cuenta las notebooks y lista, tocándolos, los SKU sin publicación activa y los que no están en el catálogo.
 - Cada publicación entra **revisada** (la eligió una persona en Virtual Seller), con su vendedor, título, último precio (y el tachado), tipo de publicación, cuotas y estado; ese precio queda como la primera lectura del historial.
 - **Las pausadas o terminadas entran igual**: se ven aparte, en **Pausadas o terminadas** de la pestaña Seguimiento, y la regla de precio no las usa.
 - Los vendedores chinos de Mercado Libre (apodo «CN…ARR») quedan marcados **🌐 Internacional**: no cuentan para la regla.
 - Si una ya se seguía, queda como estaba (no cambia de dónde salió); el precio y el estado se ponen al día si lo que había era más viejo. Importar el mismo archivo dos veces no duplica nada.
-- Después se leen como todas las demás, cada tantos días ([Seguimiento de publicaciones](/config/seguimiento)), dentro del tope de gasto del mes.
+- Después se releen solas cada tantos días ([Seguimiento de publicaciones](/config/seguimiento)) **sólo las de productos a la venta** (con publicación activa en Mercado Libre y stock disponible), dentro del tope de gasto del mes; la columna **Productos** dice cuántos están a la venta. Las de los demás quedan de referencia en la pestaña Seguimiento del producto, con el último precio del informe, y se leen sólo a pedido (**Leer ahora**). Las de catálogo se leen gratis.
 
 ## Criterios y reglas
 

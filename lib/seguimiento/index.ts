@@ -15,6 +15,7 @@ import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { correrConEntrada, costosFinales } from "@/lib/apify";
 import { ml, cuentasDe, type CuentaMl } from "@/lib/mercadolibre/api";
 import { revisarReglasDe } from "@/lib/seguimiento/regla";
+import { SQL_A_LA_VENTA } from "@/lib/seguimiento/a-la-venta";
 
 const ACTOR = "scrapesage~mercadolibre-scraper";
 // Lo que cobra el actor (bitácora #102): US$ 2 cada 1.000 resultados; con el detalle de cada publicación, 8.
@@ -598,16 +599,21 @@ async function leerUserProduct(cuenta: CuentaMl, s: Seguida): Promise<boolean> {
   return true;
 }
 
-/** Lee las seguidas que tocan (pasaron los días de la configuración, o nunca se leyeron), o las de un producto. */
+/** Lee las seguidas que tocan (pasaron los días de la configuración, o nunca se leyeron), o las de un producto. En la vuelta
+ *  sola (sin producto ni ids), las comunes sólo de productos a la venta. */
 export async function leerSeguidas(org: string, o: { productoId?: number; todas?: boolean; ids?: number[] } = {}): Promise<{ catalogo: number; comunes: number; sinPresupuesto: number }> {
   const { frecuenciaDias } = await configSeguimiento(org);
   const seguidas = await consulta<Seguida>(`
-    select id::int, item_id, catalogo_id, permalink, producto_id::int, vendedor_id::float8 vendedor_id from seguimiento_pub
-     where organizacion_id = $1 and ($2::bigint is null or producto_id = $2) and ($5::bigint[] is null or id = any($5::bigint[]))
-       and ($3 or leido_ts is null or leido_ts < now() - make_interval(days => $4) + interval '2 hours')
+    select sp.id::int, sp.item_id, sp.catalogo_id, sp.permalink, sp.producto_id::int, sp.vendedor_id::float8 vendedor_id from seguimiento_pub sp
+     where sp.organizacion_id = $1 and ($2::bigint is null or sp.producto_id = $2) and ($5::bigint[] is null or sp.id = any($5::bigint[]))
+       and ($3 or sp.leido_ts is null or sp.leido_ts < now() - make_interval(days => $4) + interval '2 hours')
        -- Lo que falló hace poco no se reintenta enseguida (salvo pedido a mano).
-       and ($3 or intento_ts is null or intento_ts < now() - interval '20 hours')
-     order by leido_ts nulls first limit 2000`, [org, o.productoId ?? null, !!o.todas, frecuenciaDias, o.ids?.length ? o.ids : null]);
+       and ($3 or sp.intento_ts is null or sp.intento_ts < now() - interval '20 hours')
+       -- En la vuelta sola, las que cuestan (las comunes, con Apify) sólo de productos a la venta: con publicación activa
+       -- en Mercado Libre y stock disponible (Fer, 22/10). Las de catálogo y MLAU se leen gratis por la API.
+       and (not $6 or sp.catalogo_id is not null or sp.item_id like 'MLAU%'
+            or exists (select 1 from producto p where p.id = sp.producto_id and ${SQL_A_LA_VENTA}))
+     order by sp.leido_ts nulls first limit 2000`, [org, o.productoId ?? null, !!o.todas, frecuenciaDias, o.ids?.length ? o.ids : null, !o.productoId && !o.ids?.length]);
   if (!seguidas.length) return { catalogo: 0, comunes: 0, sinPresupuesto: 0 };
   const cuenta = (await nuestras(org)).cuentas[0];
   // Las MLAU (productos de vendedor) no se leen con Apify: la API dice en qué catálogo compiten (si compiten).

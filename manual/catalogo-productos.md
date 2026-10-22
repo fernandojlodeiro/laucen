@@ -225,7 +225,7 @@ Para agregar publicaciones que ya conocés: **+ Agregar por número**, pegá los
 
 Las publicaciones **MLAU…** («producto de vendedor») se leen sólo si compiten en un catálogo; si no, Mercado Libre no deja leer su precio y la fila lo dice en rojo: en ese caso conviene seguir su número **MLA…**.
 
-**Leer ahora** relee las de este producto en el momento (pregunta antes, porque las comunes cuestan). Además se releen solas cada tantos días (ver [Seguimiento de publicaciones](/config/seguimiento)). El tacho deja de seguir una.
+**Leer ahora** relee las de este producto en el momento (pregunta antes, porque las comunes cuestan). Además se releen solas cada tantos días (ver [Seguimiento de publicaciones](/config/seguimiento)), pero las comunes sólo si el producto está a la venta (con publicación activa en Mercado Libre y stock disponible); si no lo está, arriba de la tabla lo dice y quedan de referencia hasta que apretés **Leer ahora**. El tacho deja de seguir una.
 
 Debajo del precio de cada publicación que seguís está **su último cambio**: ▲ (verde) o ▼ (rojo), cuánto en pesos y en %, y la fecha desde la que tiene el precio de hoy; si nunca cambió, «igual desde el comienzo (dd/mm)», con la fecha en que se empezó a seguir. **La fila se pinta de amarillo si cambió en la última lectura**, y **de rosa si además es la referencia de la regla de precio**. La que usa la regla para comparar lleva la marca **🎯 Referencia de la regla** (la elegida, o la más barata de las activas si la regla compara contra la más barata).
 
