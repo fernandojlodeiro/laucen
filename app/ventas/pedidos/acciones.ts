@@ -33,7 +33,9 @@ export type ClienteHallado = {
  *  razón social, CUIT / CUIL y DNI por separado, condición de IVA, mail, teléfono y WhatsApp. */
 export async function crearClienteDesdePedido(d: {
   nombre: string; tipo: string; cuit: string; dni: string; condicionIva: string; email: string; telefono: string; whatsapp: string;
-}): Promise<{ cliente?: ClienteHallado; error?: string }> {
+  /** Ya se avisó que hay otro con la misma razón social y es otro cliente. */
+  igual?: boolean;
+}): Promise<{ cliente?: ClienteHallado; error?: string; repetidos?: ClienteHallado[]; forzable?: boolean }> {
   const s = await entrarErp("pedidos_ver");
   try {
     const nombre = d.nombre.trim().slice(0, 200);
@@ -49,10 +51,21 @@ export async function crearClienteDesdePedido(d: {
     const whatsapp = d.whatsapp.trim() ? whatsappNormal(d.whatsapp) : null;
     if (d.whatsapp.trim() && !whatsapp) return { error: "El WhatsApp no parece un celular: escribilo con la característica (ej. 351 555-1234)." };
     const iva = Object.hasOwn(CONDICIONES_IVA, d.condicionIva) ? d.condicionIva : null;
-    for (const [col, valor, que] of [["cuit", cuit, "ese CUIT"], ["documento_numero", dni, "ese DNI"]] as const) {
-      if (!valor) continue;
-      const repetido = await una<{ id: number; nombre: string }>(`select id::int, nombre from cliente where organizacion_id = $1 and ${col} = $2 limit 1`, [s.org.id, valor]);
-      if (repetido) return { error: `Ya hay un cliente con ${que}: N.º ${repetido.id} · ${repetido.nombre}. Buscalo en el cuadro.` };
+    // ¿Ya está cargado? (Fer, 22/10) Mismo CUIT o DNI: no se crea otro, se ofrece elegir el que está.
+    // Misma razón social: se avisa, y si es otro cliente se puede grabar igual.
+    const repetidos = (donde: string, valores: unknown[]) => consulta<{ id: number }>(
+      `select id::int from cliente where organizacion_id = $1 and (${donde}) order by id limit 5`, [s.org.id, ...valores]);
+    const porDocumento = cuit || dni
+      ? await repetidos("cuit = $2 or regexp_replace(coalesce(documento_numero, ''), '\\D', '', 'g') = $3", [cuit ?? "-", dni?.replace(/\D/g, "") || "-"]) : [];
+    if (porDocumento.length) {
+      return { error: `Ya está cargado: hay ${porDocumento.length === 1 ? "un cliente" : "clientes"} con ${cuit && dni ? "ese CUIT o DNI" : cuit ? "ese CUIT" : "ese DNI"}.`,
+        repetidos: await clientesHallados(s.org.id, porDocumento.map((r) => r.id)) };
+    }
+    if (!d.igual) {
+      const porNombre = await repetidos("lower(btrim(nombre)) = lower($2) or lower(btrim(razon_social)) = lower($2)", [nombre]);
+      if (porNombre.length) {
+        return { error: "Ya hay un cliente con esa razón social. ¿Es el mismo?", repetidos: await clientesHallados(s.org.id, porNombre.map((r) => r.id)), forzable: true };
+      }
     }
     const r = await una<{ id: number }>(`
       insert into cliente (organizacion_id, nombre, razon_social, tipo, cuit, documento_tipo, documento_numero, condicion_iva, email, telefono, whatsapp)
@@ -67,6 +80,25 @@ export async function crearClienteDesdePedido(d: {
   }
 }
 
+/** Los clientes como los muestra el pedido (N.º, nombre, CUIT y DNI, mail, cuenta corriente, dirección): por id, o los
+ *  que encuentra el buscador. */
+async function clientesHallados(org: string, ids: number[] | null, b?: { prefiltro: string; busqueda: string; valores: unknown[] }): Promise<ClienteHallado[]> {
+  const valores = b ? b.valores : [org, ids];
+  const filas = await consulta<{ id: number; nombre: string; cuit: string | null; dni: string | null; email: string | null; cuenta_corriente: boolean; direccion: ClienteHallado["direccion"] }>(`
+    select cl.id::int, cl.nombre, cl.cuit, nullif(concat_ws(' ', cl.documento_tipo, cl.documento_numero), '') dni, cl.email,
+           coalesce(cl.cuenta_corriente, false) cuenta_corriente,
+           (select jsonb_build_object('calle', d.calle, 'numero', d.numero, 'localidad', d.localidad, 'provincia', d.provincia, 'codigo_postal', d.codigo_postal)
+              from cliente_direccion d where d.cliente_id = cl.id order by (d.etiqueta = 'Envío') desc, d.principal desc, d.id limit 1) direccion
+      from cliente cl
+     where cl.organizacion_id = $1
+       and ${b ? `${b.prefiltro} and ${b.busqueda}` : "cl.id = any($2::bigint[])"}
+     order by cl.nombre limit 20`, valores);
+  return filas.map((f) => ({
+    id: f.id, nombre: f.nombre, documento: [f.cuit && `CUIT ${cuitLegible(f.cuit)}`, f.dni].filter(Boolean).join(" · ") || null,
+    email: f.email, cuentaCorriente: f.cuenta_corriente, direccion: f.direccion,
+  }));
+}
+
 /** Clientes que coinciden con lo tipeado (en todos sus datos: N.º, nombre, razón social,
  *  documento, CUIT, mail, teléfonos, apodo de ML, notas), hasta 20. */
 export async function buscarClientesPedido(q: string, comienza: boolean): Promise<ClienteHallado[]> {
@@ -76,20 +108,7 @@ export async function buscarClientesPedido(q: string, comienza: boolean): Promis
   // El filtro previo usa el índice de cliente.busqueda (rápido aunque haya miles de clientes).
   const valores: unknown[] = [s.org.id, parametroBusqueda(t, comienza)];
   const prefiltro = prefiltroCliente("cl", t, valores);
-  const filas = await consulta<{ id: number; nombre: string; cuit: string | null; dni: string | null; email: string | null; cuenta_corriente: boolean; direccion: ClienteHallado["direccion"] }>(`
-    select cl.id::int, cl.nombre, cl.cuit, nullif(concat_ws(' ', cl.documento_tipo, cl.documento_numero), '') dni, cl.email,
-           coalesce(cl.cuenta_corriente, false) cuenta_corriente,
-           (select jsonb_build_object('calle', d.calle, 'numero', d.numero, 'localidad', d.localidad, 'provincia', d.provincia, 'codigo_postal', d.codigo_postal)
-              from cliente_direccion d where d.cliente_id = cl.id order by (d.etiqueta = 'Envío') desc, d.principal desc, d.id limit 1) direccion
-      from cliente cl
-     where cl.organizacion_id = $1
-       and ${prefiltro}
-       and ${sqlBusqueda("$2", camposCliente("cl"))}
-     order by cl.nombre limit 20`, valores);
-  return filas.map((f) => ({
-    id: f.id, nombre: f.nombre, documento: [f.cuit && `CUIT ${cuitLegible(f.cuit)}`, f.dni].filter(Boolean).join(" · ") || null,
-    email: f.email, cuentaCorriente: f.cuenta_corriente, direccion: f.direccion,
-  }));
+  return clientesHallados(s.org.id, null, { prefiltro, busqueda: sqlBusqueda("$2", camposCliente("cl")), valores });
 }
 
 export type ProductoHallado = { id: number; sku: string; titulo: string; precio: number | null; disponible: number };
