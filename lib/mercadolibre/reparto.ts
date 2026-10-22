@@ -81,7 +81,7 @@ export function repartir(total: number, cuentas: CuentaReparto[], variacion: num
   return res;
 }
 
-type FilaReparto = { pub: number; variacion: number; canal: number; grupo: string; vendidos: number; disponible: number; precio: number | null };
+type FilaReparto = { pub: number; variacion: number; canal: number; lista: number | null; grupo: string; vendidos: number; disponible: number };
 
 /** Lo que le toca a cada publicación de ML de estas variaciones, sólo para las
  *  que entran en el reparto (disponible ≤ desde y precio de lista < tope). Las
@@ -95,12 +95,10 @@ export async function repartoDe(org: string, variaciones: number[], enCamino: Ma
   // Todas las publicaciones que muestran stock en ML, de todas las cuentas que
   // sincronizan (aunque la pasada sea de una sola cuenta): el reparto es entre todas.
   const filas = await consulta<FilaReparto>(`
-    select p.id::int pub, p.variacion_id::int variacion, p.canal_id::int canal,
+    select p.id::int pub, p.variacion_id::int variacion, p.canal_id::int canal, c.lista_precios_id::int lista,
            p.canal_id || ':' || coalesce(nullif(p.datos_externos ->> 'user_product_id', ''), 'pub' || p.id) grupo,
            coalesce(mi.vendidos, 0)::int vendidos,
-           stock_disponible_canal(p.organizacion_id, p.variacion_id, p.canal_id)::int disponible,
-           (select x.lista_ars from precio_de(p.organizacion_id, p.variacion_id, c.lista_precios_id,
-              (now() at time zone 'America/Argentina/Buenos_Aires')::date) x)::float8 precio
+           stock_disponible_canal(p.organizacion_id, p.variacion_id, p.canal_id)::int disponible
       from publicacion p join canal c on c.id = p.canal_id
       join meli_cuenta mc on mc.canal_id = c.id and mc.estado = 'activa'
       left join meli_item mi on mi.canal_id = p.canal_id and mi.item_id = p.id_externo and mi.variation_id = coalesce(p.variacion_externa, '')
@@ -110,14 +108,27 @@ export async function repartoDe(org: string, variaciones: number[], enCamino: Ma
        and coalesce(p.datos_externos ->> 'logistica', '') <> 'fulfillment'`, [org, variaciones]);
   const porVar = new Map<number, FilaReparto[]>();
   for (const f of filas) porVar.set(f.variacion, [...(porVar.get(f.variacion) ?? []), f]);
-  for (const [v, fs] of porVar) {
-    // Sin precio de lista no se sabe si entra: sigue como siempre.
-    const precios = fs.map((f) => f.precio).filter((x): x is number => x != null);
-    if (!precios.length || Math.max(...precios) >= c.topePrecio) continue;
+  // Primero lo que entra por cantidad (barato); el precio de lista, sólo de ésas
+  // y una vez por producto y lista (precio_de por cada publicación del catálogo tardaba ~35 s).
+  const dispDe = (v: number, fs: FilaReparto[]) => {
     const camino = enCamino.get(v) ?? 0;
-    const dispCanal = new Map(fs.map((f) => [f.canal, Math.max(0, f.disponible - camino)]));
+    return new Map(fs.map((f) => [f.canal, Math.max(0, f.disponible - camino)]));
+  };
+  // Sin stock no hay nada que repartir (se pausa igual por el umbral).
+  const candidatas = [...porVar].filter(([v, fs]) => { const t = Math.max(0, ...dispDe(v, fs).values()); return t > 0 && t <= c.desde; });
+  if (!candidatas.length) return res;
+  const listas = [...new Set(filas.map((f) => f.lista).filter((x): x is number => x != null))];
+  const precios = new Map((await consulta<{ variacion: number; precio: number }>(`
+    select v.id::int variacion, max(x.lista_ars)::float8 precio
+      from unnest($2::bigint[]) v(id) cross join unnest($3::bigint[]) l(id)
+      cross join lateral precio_de($1, v.id, l.id, (now() at time zone 'America/Argentina/Buenos_Aires')::date) x
+     group by v.id`, [org, candidatas.map(([v]) => v), listas])).map((f) => [f.variacion, f.precio]));
+  for (const [v, fs] of candidatas) {
+    // Sin precio de lista no se sabe si entra: sigue como siempre.
+    const precio = precios.get(v);
+    if (precio == null || precio >= c.topePrecio) continue;
+    const dispCanal = dispDe(v, fs);
     const total = Math.max(0, ...dispCanal.values());
-    if (total > c.desde) continue;
     const cuentas = new Map<number, CuentaReparto>();
     for (const f of fs) {
       const cu = cuentas.get(f.canal) ?? { canal: f.canal, vendidos: 0, grupos: [] };

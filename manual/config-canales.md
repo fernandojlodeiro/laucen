@@ -56,7 +56,7 @@ Debajo de la lista, para todas las cuentas de Mercado Libre juntas:
   - **Repartir con (unidades o menos)**: desde cuánto disponible se reparte. De entrada, 10.
   - **Sólo si el precio de lista es menor a ($)**: los productos más caros no se reparten. De entrada, $ 100.000.
   - **Primera en el empate**: la cuenta que va primero cuando dos cuentas vendieron lo mismo del producto. "Ninguna (al azar)" si no se elige.
-- Al prenderlo o grabar con el reparto prendido, hace una pasada y avisa cuántas cantidades, pausas y reactivaciones quedaron en la cola.
+- Al prenderlo, apagarlo o grabar con el reparto prendido, la pantalla queda libre y la pasada por todas las publicaciones corre de fondo: al terminar aparece el cartel abajo a la derecha con cuántas cantidades, pausas y reactivaciones quedaron en la cola.
 
 ### Detalle de un canal (al tocar su nombre)
 
