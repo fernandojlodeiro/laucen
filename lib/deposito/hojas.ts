@@ -149,7 +149,7 @@ export async function datosHojas(org: string, pedidoIds: number[]): Promise<Dato
     const pack = env.pack_id != null && String(env.pack_id) !== p.id_externo ? String(env.pack_id) : null;
     return {
       pedidoId: p.id, idExterno: p.id_externo, pack, cliente: p.cliente, apodo: p.apodo_ml, canal: p.canal, fecha: p.fecha,
-      logistica: p.logistica && p.e_estado !== "cancelled" ? (LOGISTICA_TEXTO[p.logistica] ?? p.logistica) : etiqueta.tipo === "propia" ? (etiqueta.retiro ? "Retira" : (etiqueta.metodo ?? "Envío propio")) : null,
+      logistica: p.logistica && p.e_estado !== "cancelled" ? (LOGISTICA_TEXTO[p.logistica] ?? p.logistica) : etiqueta.tipo === "propia" ? (etiqueta.retiro ? RETIRA_LOCAL : (etiqueta.metodo ?? "Envío propio")) : null,
       despacharAntes: p.despachar_antes, notas: p.notas, reimpresion: p.impreso, etiqueta, lineas: ordenarLineas(crudas),
       aCobrar: p.a_cobrar ? p.total_ars : null,
     };
@@ -344,6 +344,8 @@ async function paginaPropia(l: Lienzo, d: DatosHoja, e: Extract<EtiquetaHoja, { 
 }
 
 const negro = rgb(0, 0, 0), gris = rgb(0.35, 0.38, 0.42);
+/** La logística de lo que retira el cliente en el local (también va como cartel en la hoja). */
+const RETIRA_LOCAL = "RETIRA POR EL LOCAL";
 
 /** Los datos del encabezado de la hoja. */
 const datosEncabezado = (d: DatosHoja): [string, string][] => [
@@ -453,6 +455,8 @@ async function hoja(l: Lienzo, d: DatosHoja, inicio?: { p: PDFPage; y: number; n
       const rs = renglones(val, l.fb, sz, ancho - 82 * k);
       for (const r of rs.slice(0, 2)) { t(r, x, sz, l.fb); y -= sz * 1.3; }
     }
+    // Lo retira el cliente en el local (también las ventas de Mercado Libre sin envío, Fer 22/10): bien grande.
+    if (d.logistica === RETIRA_LOCAL) { y -= 16 * k; t(RETIRA_LOCAL, m, 14 * k, l.fb); y -= 6 * k; }
     // «A cobrar»: el total, bien grande, para cobrarlo al entregar.
     if (d.aCobrar != null) { y -= 4 * k; y -= recuadroACobrar(p, l.fb, m, y - 34 * k, ancho, d.aCobrar, k); y -= 4 * k; }
     // Las notas del comprador arriba, en negrita: hay que leerlas al preparar.

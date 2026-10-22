@@ -52,11 +52,13 @@ const LOGISTICA_CORTA: Record<string, string> = {
 
 /** Por dónde sale un pedido (Fer, 6/10): su grupo y una marca corta ("Colecta", "Flex", "OCA sucursal", "Retira"…). */
 export function envioDe(p: Pick<PedidoParaPreparar, "canal_tipo" | "logistica" | "metodo_tipo" | "metodo_nombre" | "retira">): { grupo: GrupoEnvio; marca: string } {
+  // Retira por el local: lo marcado así y las ventas de Mercado Libre sin envío (Fer, 22/10), antes que el resto.
+  if (p.retira) return { grupo: "retiro", marca: "Retira por el local" };
   if (p.canal_tipo === "mercadolibre") return { grupo: "meli", marca: LOGISTICA_CORTA[p.logistica ?? ""] ?? "Meli" };
   if (p.logistica === "oca" || p.metodo_tipo === "oca" || p.metodo_tipo === "oca_sucursal") {
     return { grupo: "oca", marca: p.metodo_tipo === "oca_sucursal" ? "OCA sucursal" : "OCA domicilio" };
   }
-  if (p.retira || p.metodo_tipo === "retiro") return { grupo: "retiro", marca: "Retira" };
+  if (p.metodo_tipo === "retiro") return { grupo: "retiro", marca: "Retira por el local" };
   return { grupo: "otros", marca: p.metodo_tipo === "a_convenir" ? "A convenir" : p.metodo_nombre ? p.metodo_nombre.slice(0, 18) : "Envío" };
 }
 
@@ -73,7 +75,8 @@ export function pedidosParaPreparar(org: string, depositoId: number) {
            (select count(*)::int from pedido_linea where pedido_id = p.id and variacion_id is not null) lineas,
            e.despachar_antes, e.logistica, ${SQL_DEPOSITO}::int deposito_id, p.carrito_ultimo_evento_ts, ${sqlCarritoEnEspera("p")} en_espera,
            ${sqlACobrar("p")} a_cobrar, p.total_ars::float total_ars,
-           ca.tipo canal_tipo, me.tipo metodo_tipo, me.nombre metodo_nombre, coalesce(p.envio ->> 'metodo' = 'Retira', false) retira,
+           ca.tipo canal_tipo, me.tipo metodo_tipo, me.nombre metodo_nombre, (coalesce(p.envio ->> 'metodo' = 'Retira', false)
+             or (ca.tipo = 'mercadolibre' and e.logistica is null and coalesce((p.envio ->> 'sin_envio')::boolean, false))) retira,
            coalesce((select json_agg(json_build_object('cantidad', x.cantidad, 'texto', x.texto) order by x.orden, x.id)
                        from (select l.id, l.orden, l.cantidad::int, coalesce(nullif(l.titulo, ''), l.sku, 'Sin título') texto
                                from pedido_linea l where l.pedido_id = p.id and l.variacion_id is not null
