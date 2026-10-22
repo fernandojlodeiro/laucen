@@ -76,7 +76,9 @@ export async function madreDe(org: string, canal: number, sku: string): Promise<
          and not coalesce((m.datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false)
          and coalesce(m.logistica, '') <> 'fulfillment')
     select item_id, up, ml from x
-     order by count(*) over (partition by up) desc, sum(vendidos) over (partition by up) desc, (estado = 'active') desc, vendidos desc, item_id limit 1`, [org, canal, sku]);
+     -- La madre nueva, si la hay (ml_madre_nueva: la vieja tiene características que ML ya no acepta).
+     order by coalesce(up = (select f.up from ml_madre_nueva f where f.canal_id = $2 and f.sku = $3), false) desc,
+              count(*) over (partition by up) desc, sum(vendidos) over (partition by up) desc, (estado = 'active') desc, vendidos desc, item_id limit 1`, [org, canal, sku]);
   return r ? { itemId: r.item_id, up: r.up, ml: r.ml } : null;
 }
 
@@ -105,10 +107,11 @@ async function gruposSeparados(org: string, canal: number): Promise<Grupo[]> {
        where p.organizacion_id = $1 and p.canal_id = $2 and p.estado in ('activa', 'pausada') and p.variacion_externa is null
          and coalesce(p.datos_externos ->> 'logistica', '') <> 'fulfillment' and p.datos_externos ->> 'user_product_id' is not null),
     ups as (
-      select variacion, up, sum(vendidos) v,
-             -- La madre: el producto de ML con más planes (así se crean menos publicaciones), después el de más ventas.
-             row_number() over (partition by variacion order by count(*) filter (where not catalogo) desc, sum(vendidos) desc, min(id)) rk
-        from x group by variacion, up)
+      select variacion, x.up, sum(vendidos) v,
+             -- La madre: la madre nueva si la hay (ml_madre_nueva); si no, el producto de ML con más planes (así se crean
+             -- menos publicaciones), después el de más ventas.
+             row_number() over (partition by variacion order by bool_or(f.up is not null) desc, count(*) filter (where not catalogo) desc, sum(vendidos) desc, min(x.id)) rk
+        from x left join ml_madre_nueva f on f.canal_id = $2 and f.sku = x.sku and f.up = x.up group by variacion, x.up)
     select x.*, u.v::int ventas_up, (select u2.up from ups u2 where u2.variacion = x.variacion and u2.rk = 1) madre_up
       from x join ups u using (variacion, up)
      order by x.variacion, x.id`, [org, canal]);
@@ -218,7 +221,10 @@ export async function prepararCierreAgrupados(org: string, canal: number, usuari
   const cambios: CambioMl[] = [];
   for (const g of grupos) {
     const enMadre = new Set(g.pubs.filter((p) => p.up === g.madreUp && !p.catalogo).map(plan));
-    const ups = new Set(g.pubs.filter((p) => p.up !== g.madreUp && p.ventas_up === 0 && !p.catalogo && enMadre.has(plan(p))).map((p) => p.up));
+    // Sólo el producto viejo cuyos planes están TODOS en el de la madre (con una madre nueva, el viejo puede tener
+    // planes que la nueva todavía no tiene: se elimina recién cuando se crearon).
+    const viejos = new Set(g.pubs.filter((p) => p.up !== g.madreUp && p.ventas_up === 0 && !p.catalogo).map((p) => p.up));
+    const ups = new Set([...viejos].filter((up) => g.pubs.filter((p) => p.up === up && !p.catalogo).every((p) => enMadre.has(plan(p)))));
     for (const p of g.pubs.filter((x) => ups.has(x.up))) {
       cambios.push({
         canalId: canal, itemId: p.item_id, variationId: null, publicacionId: p.id, tipo: "otro", antes: { estado: "en otro producto de ML, sin ventas" },
