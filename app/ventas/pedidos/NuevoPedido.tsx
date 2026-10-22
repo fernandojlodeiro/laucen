@@ -104,14 +104,26 @@ function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerrar }: {
   const cifras = documentoInicial.replace(/\D/g, "");
   const [v, setV] = useState({
     nombre: nombreInicial, tipo: "consumidor_final", cuit: cifras.length === 11 ? documentoInicial : "", dni: cifras && cifras.length !== 11 ? documentoInicial : "",
-    condicionIva: "", email: "", telefono: "", whatsapp: "",
+    condicionIva: cifras.length === 11 ? "responsable_inscripto" : cifras ? "consumidor_final" : "", email: "", telefono: "", whatsapp: "",
   });
+  // La condición de IVA se sugiere sola (Fer, 22/10): con CUIT, Responsable inscripto; sin CUIT y con DNI, Consumidor
+  // final. Si la persona la eligió a mano, ya no se toca.
+  const [ivaElegida, setIvaElegida] = useState(false);
   const [error, setError] = useState("");
   // Los que ya están cargados con esos datos (mismo CUIT, DNI o razón social): se ofrece elegirlos.
   const [repetidos, setRepetidos] = useState<ClienteHallado[]>([]);
   const [forzable, setForzable] = useState(false);
   const [grabando, grabar] = useTransition();
-  const poner = (k: keyof typeof v) => (e: { target: { value: string } }) => { setV((x) => ({ ...x, [k]: e.target.value })); setRepetidos([]); };
+  const poner = (k: keyof typeof v) => (e: { target: { value: string } }) => {
+    const valor = e.target.value;
+    if (k === "condicionIva") setIvaElegida(true);
+    setV((x) => {
+      const y = { ...x, [k]: valor };
+      if ((k === "cuit" || k === "dni") && !ivaElegida) y.condicionIva = y.cuit.trim() ? "responsable_inscripto" : y.dni.trim() ? "consumidor_final" : "";
+      return y;
+    });
+    setRepetidos([]);
+  };
   const sinEnter = (e: React.KeyboardEvent) => { if (e.key === "Enter") e.preventDefault(); };
   const campo = (k: keyof typeof v, etiqueta: string, extra: { placeholder?: string; className?: string; autoFocus?: boolean } = {}) => (
     <label className={extra.className}><span className={ETIQUETA}>{etiqueta}</span>
@@ -182,7 +194,8 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
 }) {
   const [canal, setCanal] = useState<number>(edicion?.canalId ?? canales[0]?.id ?? 0);
   const [moneda, setMoneda] = useState<"ARS" | "USD">(edicion?.moneda ?? canales[0]?.moneda ?? "ARS");
-  const [quien, setQuien] = useState<"consumidor" | "cliente">(edicion?.cliente ? "cliente" : "consumidor");
+  // De entrada, «Un cliente» (Fer, 22/10); al editar, lo que tenía el pedido.
+  const [quien, setQuien] = useState<"consumidor" | "cliente">(edicion ? (edicion.cliente ? "cliente" : "consumidor") : "cliente");
   const [cliente, setCliente] = useState<ClienteHallado | null>(edicion?.cliente ?? null);
   const [lineas, setLineas] = useState<Linea[]>(() => (edicion?.lineas ?? []).map((l, i) => ({ ...l, clave: 1000 + i, version: 0 })));
   const [borrando, setBorrando] = useState<number | null>(null);
@@ -238,6 +251,13 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
     setTotal(Math.round(t * 100) / 100);
   };
   useEffect(recalcular, [lineas, entrega]);
+  // Sólo lo que cambia el total (cantidad, precio, descuento de una línea, costo del envío). Recalcular con
+  // cualquier campo redibujaba el formulario en el «input» de un desplegable, antes de su «change», y el
+  // desplegable volvía a su valor anterior (Fer, 22/10: la condición de IVA del cliente nuevo no cambiaba).
+  const alCambiar = (e: React.FormEvent<HTMLFormElement>) => {
+    const n = (e.target as HTMLInputElement).name ?? "";
+    if (/^l_\d+_(cantidad|precio|descuento)$/.test(n) || n === "costo_envio") recalcular();
+  };
 
   /** Cambió el canal o el cliente: la lista de precios puede ser otra. Los
    *  precios de las líneas vuelven al de la lista nueva. */
@@ -300,7 +320,7 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
   }
 
   return (
-    <form ref={form} id={formId} action={enviar} onInput={recalcular} onChange={recalcular} className="grid gap-4 text-xs"
+    <form ref={form} id={formId} action={enviar} onInput={alCambiar} onChange={alCambiar} className="grid gap-4 text-xs"
       onKeyDown={enterEnLinea}
       onFocus={(e) => { const t = e.target as unknown as HTMLInputElement; if (/^l_\d+_(cantidad|precio|descuento)$/.test(t.name ?? "")) t.select(); }}>
       {error && <p role="alert" className="rounded-lg px-3 py-2 bg-[#FDF1EF] text-[#C03420]">{error}</p>}
