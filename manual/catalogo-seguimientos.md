@@ -18,11 +18,13 @@ Menú **Catálogo › Seguimientos**.
 ## Qué hay en la pantalla
 
 - Buscador **"Buscar SKU o título"** con "Comienza por".
+- **Excluir notebooks**: tildada de entrada; destildada, aparecen también las notebooks.
 - **Ver**: de entrada **Con publicaciones sin revisar (N)**; también **Precio de mercado confirmado (N)**, **Sin seguimiento** (los productos activos que no siguen nada) y **Todos los que siguen algo**.
-- Una fila por producto: foto y **SKU** (lleva a la pestaña Seguimiento de su ficha) con el título; **Clásica** de hoy con la marca del precio de mercado (✓ verde confirmado, ? ámbar monitoreado sin confirmar, ○ gris sin seguimiento); **Sigue** (cuántas publicaciones sigue, sin las excluidas de la regla); **Sin revisar** (las seguidas solas que nadie confirmó); **Más barata seguida** (precio y vendedor; «sin revisar» si es una de ésas); **Mercado** (el precio de la última búsqueda de precio de mercado y cuántas publicaciones iguales encontró) y **Dif.** (el mercado contra la Clásica, en verde si está más arriba).
-- Se ordena tocando el título de cada columna; de a 50 filas.
+- Una fila por producto: foto y **SKU** (lleva a la pestaña Seguimiento de su ficha) con el título; **Clásica** de hoy con la marca del precio de mercado (✓ verde confirmado, ? ámbar monitoreado sin confirmar, ○ gris sin seguimiento); **Dispo.** (stock disponible en los depósitos activos); **Stock $** (la plata en stock: disponible × Clásica); **Sigue** (cuántas publicaciones sigue, sin las excluidas de la regla); **Sin revisar** (las seguidas solas que nadie confirmó); **Más barata seguida** (precio y vendedor; «sin revisar» si es una de ésas); **Mercado** (el precio de la última búsqueda de precio de mercado y cuántas publicaciones iguales encontró) y **Dif.** (el mercado contra la Clásica, en verde si está más arriba).
+- Se ordena tocando el título de cada columna; sin tocar ninguno, **de la que tiene más plata en stock a la que menos** (Stock $). De a 50 filas.
+- La Clásica y el stock de los productos que siguen algo se calculan cada 15 minutos (así la pantalla abre rápido): un cambio de precio o de stock puede tardar eso en verse acá.
 
-Arriba a la derecha, **Importar de Virtual Seller** lleva a la pantalla para subir el informe de seguimientos de Virtual Seller (ver abajo).
+Arriba a la derecha, **⚙ Configuración** lleva a [Seguimiento de publicaciones](/config/seguimiento) (cada cuánto se leen, tope de gasto, pausadas) y **Importar de Virtual Seller** lleva a la pantalla para subir el informe de seguimientos de Virtual Seller (ver abajo).
 
 ## Cómo se hace
 
@@ -60,6 +62,8 @@ Cómo se lee el informe:
 - Aparecen también los productos inactivos que siguen algo.
 
 ## Relacionado
+
+- [Revisar los seguimientos antes de prender las reglas](/manuales/guia-seguimientos) (guía paso a paso)
 
 - [Productos](/catalogo/productos) (pestaña Seguimiento, la marca del precio de mercado)
 - [Sugerencia de compra](/compras/sugerencia) (búsqueda de precio de mercado)

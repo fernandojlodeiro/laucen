@@ -27,7 +27,7 @@ type Seguida = {
   leido_ts: Date | null; error: string | null; cambio: number | null; entrega_dias: number | null; lecturas: number;
   internacional: boolean | null; excluido: boolean;
   /** La agregó sola la búsqueda de precio de mercado (origen «auto») y si una persona ya la revisó. */
-  origen: string; origen_detalle: string | null; pausada_desde: Date | null; confirmada: boolean; confirmada_ts: Date | null; confirmada_por: string | null; motivo_ia: string | null; creado_ts: Date;
+  origen: string; origen_detalle: string | null; pausada_desde: Date | null; disponible: number | null; vendidos: number | null; confirmada: boolean; confirmada_ts: Date | null; confirmada_por: string | null; motivo_ia: string | null; creado_ts: Date;
   /** La primera lectura (el comienzo del seguimiento) y cuántos cambios de precio o estado hubo. */
   desde: string | null; cambios: number;
   /** El último cambio de precio (entre dos lecturas seguidas), y si fue en la última lectura. */
@@ -83,7 +83,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
     consulta<Seguida>(`
       select sp.id::int, sp.item_id, sp.catalogo_id, sp.titulo, sp.foto, sp.permalink, sp.vendedor, sp.tienda_oficial, sp.precio::float8, sp.precio_original::float8,
              sp.moneda, sp.estado, sp.tipo_publicacion, sp.cuotas, sp.envio_gratis, sp.leido_ts, sp.error, sp.entrega_dias, sp.internacional, sp.excluido,
-             sp.origen, sp.origen_detalle, sp.pausada_desde, sp.confirmada, sp.confirmada_ts, sp.confirmada_por, sp.motivo_ia, sp.creado_ts,
+             sp.origen, sp.origen_detalle, sp.pausada_desde, sp.disponible, sp.vendidos, sp.confirmada, sp.confirmada_ts, sp.confirmada_por, sp.motivo_ia, sp.creado_ts,
              -- Cuánto cambió el precio desde la lectura anterior.
              (select (sp.precio - l.precio)::float8 from seguimiento_lectura l where l.seguimiento_id = sp.id and l.precio is not null
                order by l.ts desc offset 1 limit 1) cambio,
@@ -174,7 +174,10 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
                       </span>
                     </span>
                   </td>
-                  <td className={TD}>{x.vendedor ?? "—"}{x.tienda_oficial && <span className="block text-[10px] text-[#1F6E4A]">Tienda oficial</span>}</td>
+                  <td className={TD}>
+                    {x.vendedor ?? "—"}{x.tienda_oficial && <span className="block text-[10px] text-[#1F6E4A]">Tienda oficial</span>}
+                    <StockCompetidor disponible={x.disponible} vendidos={x.vendidos} />
+                  </td>
                   <td className={TDN}>
                     <Precio precio={x.precio} original={x.precio_original} moneda={x.moneda} />
                     <UltimoCambio u={x.ultimo} desde={x.desde} />
@@ -445,6 +448,20 @@ function deDondeCorto(x: Seguida): string {
   if (x.origen === "busqueda") return `con «+ Seguir» · ${diaMes(x.creado_ts)}`;
   if (x.origen === "manual") return `por número · ${diaMes(x.creado_ts)}`;
   return "";
+}
+
+/** El stock y lo vendido de la publicación de enfrente, como lo muestra Mercado Libre (Fer, 22/10): exacto si son pocas
+ *  (en ámbar hasta 5: se le acaba pronto); si son muchas, Mercado Libre lo redondea («26» = más de 25). */
+function StockCompetidor({ disponible, vendidos }: { disponible: number | null; vendidos: number | null }) {
+  if (disponible == null && vendidos == null) return null;
+  const disp = disponible == null ? null : disponible > 25 ? `más de ${disponible - 1}` : String(disponible);
+  return (
+    <span className="block text-[10px] text-[#5C6B76] whitespace-nowrap" title="Lo que muestra Mercado Libre en la última lectura">
+      {disp != null && <span className={disponible! <= 5 ? "text-[#7A5600] font-semibold" : ""}>{disp} disp.</span>}
+      {disp != null && vendidos != null && " · "}
+      {vendidos != null && <>{vendidos.toLocaleString("es-AR")} vend.</>}
+    </span>
+  );
 }
 
 /** Debajo del estado de una pausada (Fer, 22/10): cada cuánto se relee y hasta cuándo, o que ya no se relee sola y

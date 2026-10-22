@@ -575,13 +575,21 @@ async function grabarComunes(org: string, tanda: Seguida[], c: Awaited<ReturnTyp
                            tienda_oficial = coalesce($5, tienda_oficial), precio = coalesce($6, precio), precio_original = $7, moneda = coalesce($8, moneda),
                            estado = coalesce($9, case when $6 is not null then 'activa' else estado end), tipo_publicacion = coalesce($10, tipo_publicacion),
                            cuotas = coalesce($11, cuotas), envio_gratis = coalesce($12, envio_gratis), catalogo_id = coalesce(catalogo_id, $13),
+                           disponible = $14, vendidos = coalesce($15, vendidos),
                            leido_ts = now(), intento_ts = now(), error = null where id = $1`,
       [s.id, p.titulo !== "(sin título)" ? p.titulo : null, p.foto, p.vendedor, p.tiendaOficial, p.precio, p.precioOriginal, p.moneda, p.estado,
-        p.tipoPublicacion, p.cuotas, p.envioGratis, p.catalogoId ?? catalogoDeApify(e.x, s.item_id)]);
+        p.tipoPublicacion, p.cuotas, p.envioGratis, p.catalogoId ?? catalogoDeApify(e.x, s.item_id), ...stockDeApify(e.x)]);
     await anotarLectura(org, s.id, "apify", p, e.x);
     leidas++;
   }
   return leidas;
+}
+
+/** Stock y vendidos de la publicación según Apify (availableQuantity / soldQuantity; null si no vino). Pura. */
+export function stockDeApify(x: unknown): [number | null, number | null] {
+  const o = (x ?? {}) as { availableQuantity?: unknown; soldQuantity?: unknown };
+  const n = (v: unknown) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Math.round(Number(v)));
+  return [n(o.availableQuantity), n(o.soldQuantity)];
 }
 
 /** El catálogo en el que compite, según lo que trae Apify de la publicación («sku»: MLA… del producto de catálogo). Pura. */

@@ -215,3 +215,8 @@ drop trigger if exists seguimiento_pub_pausada_desde on seguimiento_pub;
 create trigger seguimiento_pub_pausada_desde before insert or update of estado, pausada_desde on seguimiento_pub
   for each row execute function seguimiento_pub_pausada_desde();
 update seguimiento_pub set pausada_desde = coalesce(leido_ts, creado_ts) where estado = 'pausada' and pausada_desde is null;
+
+-- Stock y vendidos de la publicación de la competencia (Fer, 22/10), como los muestra Mercado Libre (lo trae la lectura
+-- con Apify): exacto cuando son pocas; si son muchas, redondeado («26» = más de 25, «51» = más de 50).
+alter table seguimiento_pub add column if not exists disponible int;
+alter table seguimiento_pub add column if not exists vendidos int;

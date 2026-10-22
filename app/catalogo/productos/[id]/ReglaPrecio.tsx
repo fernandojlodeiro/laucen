@@ -22,7 +22,7 @@ const fecha = (d: Date) => new Date(d).toLocaleString("es-AR", { timeZone: "Amer
 
 export default async function ReglaPrecio({ org, productoId, seguidas, editando, ver, editar }: {
   org: string; productoId: number;
-  seguidas: { id: number; item_id: string; vendedor: string | null; precio: number | null; estado: string | null; moneda: string | null; excluido: boolean; internacional: boolean | null }[];
+  seguidas: { id: number; item_id: string; vendedor: string | null; precio: number | null; estado: string | null; moneda: string | null; excluido: boolean; internacional: boolean | null; confirmada: boolean }[];
   editando: boolean; ver: string; editar: string;
 }) {
   const v = await vistaRegla(org, productoId);
@@ -33,7 +33,7 @@ export default async function ReglaPrecio({ org, productoId, seguidas, editando,
   const campos = { producto_id: String(productoId) };
   // Lo más importante, arriba y en grande (Fer, 12/10): qué haría la regla, o cuánto estás de la referencia si está apagada.
   const candidatas: Candidata[] = seguidas.map((s) => ({ id: s.id, nombre: s.vendedor ?? s.item_id, precio: s.precio, estado: s.estado, moneda: s.moneda,
-    excluido: s.excluido, internacional: s.internacional }));
+    excluido: s.excluido, internacional: s.internacional, confirmada: s.confirmada }));
   const prendida = r.modo !== "apagada";
   const hoy = simular(v.clasicas, candidatas, r);
 
