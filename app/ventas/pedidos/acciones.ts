@@ -88,7 +88,7 @@ export async function buscarClientesPedido(q: string, comienza: boolean): Promis
 export type ProductoHallado = { id: number; sku: string; titulo: string; precio: number | null; disponible: number };
 
 /** La lista de precios que usa el pedido: la del cliente si tiene, si no la
- *  del canal (lo mismo que hace crearPedido). */
+ *  del canal y si tampoco, la lista por defecto (lo mismo que hace crearPedido). */
 async function listaDelPedido(org: string, canalId: number, clienteId: number | null, o: { listaId?: number | null; moneda?: Moneda | null } = {}) {
   // Elegidas a mano en el formulario (Fer, 7/10): la lista y la moneda.
   if (o.listaId) {
@@ -96,9 +96,9 @@ async function listaDelPedido(org: string, canalId: number, clienteId: number | 
     if (l) return { listaId: l.id, moneda: o.moneda ?? l.moneda };
   }
   const r = await una<{ lista: string | null; moneda: Moneda | null }>(`
-    select coalesce(cl.lista_precios_id, ca.lista_precios_id) lista, l.moneda_base moneda
+    select coalesce(cl.lista_precios_id, ca.lista_precios_id, lista_por_defecto($1)) lista, l.moneda_base moneda
       from canal ca left join cliente cl on cl.id = $3 and cl.organizacion_id = $1
-      left join lista_precios l on l.id = coalesce(cl.lista_precios_id, ca.lista_precios_id)
+      left join lista_precios l on l.id = coalesce(cl.lista_precios_id, ca.lista_precios_id, lista_por_defecto($1))
      where ca.id = $2 and ca.organizacion_id = $1`, [org, canalId, clienteId]);
   return { listaId: r?.lista ? Number(r.lista) : null, moneda: o.moneda ?? ((r?.moneda ?? "ARS") as Moneda) };
 }

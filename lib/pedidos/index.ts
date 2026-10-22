@@ -265,7 +265,10 @@ export async function crearPedido(org: string, entrada: PedidoEntrada, quien: st
       ? (await c.query<{ id: string }>("select id from lista_precios where id = $1 and organizacion_id = $2", [entrada.lista_precios_id, org])).rows[0]
       : null;
     if (entrada.lista_precios_id && !elegida) throw new ErrorErp("Esa lista de precios no existe.");
-    const listaId = elegida ? Number(elegida.id) : listaCliente ? Number(listaCliente) : canal.lista_precios_id ? Number(canal.lista_precios_id) : null;
+    // La elegida > la del cliente > la del canal > la lista por defecto de la organización (Fer, 22/10).
+    const porDefecto = !elegida && !listaCliente && !canal.lista_precios_id
+      ? (await c.query<{ id: string | null }>("select lista_por_defecto($1) id", [org])).rows[0]?.id : null;
+    const listaId = elegida ? Number(elegida.id) : listaCliente ? Number(listaCliente) : canal.lista_precios_id ? Number(canal.lista_precios_id) : porDefecto ? Number(porDefecto) : null;
     const moneda: Moneda = esMoneda(entrada.moneda) ? entrada.moneda : (canal.moneda_base ?? "ARS");
     const fecha = entrada.fecha ? entrada.fecha.slice(0, 10) : undefined;
 
@@ -402,7 +405,7 @@ export async function agregarLineas(org: string, pedidoId: number, entrada: Line
   o: { permitir_sin_vincular?: boolean; nota?: string } = {}): Promise<void> {
   if (!entrada.length) return;
   const p = (await c.query<{ estado: EstadoPedido; moneda: Moneda; afecta_stock: boolean; deposito_id: string | null; canal_id: string; lista: string | null; fecha: string; reservado_ts: Date | null }>(`
-    select p.estado, p.moneda, p.afecta_stock, p.deposito_id, p.canal_id, coalesce(p.lista_precios_id, cl.lista_precios_id, ca.lista_precios_id) lista, p.reservado_ts,
+    select p.estado, p.moneda, p.afecta_stock, p.deposito_id, p.canal_id, coalesce(p.lista_precios_id, cl.lista_precios_id, ca.lista_precios_id, lista_por_defecto(p.organizacion_id)) lista, p.reservado_ts,
            to_char(p.fecha at time zone 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') fecha
       from pedido p join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
      where p.id = $1 and p.organizacion_id = $2 for update of p`, [pedidoId, org])).rows[0];

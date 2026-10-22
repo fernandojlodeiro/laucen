@@ -75,12 +75,13 @@ export const LISTA_LISTAS_PRECIOS: Lista = {
     { clave: "l_formula", titulo: "Se calcula desde", valor: (f) => f.formula, ancho: 30 },
     { clave: "l_orden", titulo: "Orden", valor: (f) => f.orden, formato: "entero" },
     { clave: "l_estado", titulo: "Estado", valor: (f) => (f.estado === "activa" ? "Activa" : "Archivada") },
+    { clave: "l_por_defecto", titulo: "Por defecto", valor: (f) => f.por_defecto, formato: "sino" },
     { clave: "l_precios", titulo: "Variaciones con precio", valor: (f) => f.precios, formato: "entero" },
   ],
   enPantalla: ["l_nombre", "l_moneda", "l_formula", "l_orden", "l_estado", "l_precios"],
   filas: async (ctx, sp) => {
-    const filas = await consulta<{ id: number; nombre: string; moneda_base: string; estado: string; orden: number; base: string | null; coeficiente: number | null; precios: number }>(`
-      select l.id::int, l.nombre, l.moneda_base, l.estado, l.orden, b.nombre base, l.coeficiente::float8,
+    const filas = await consulta<{ id: number; nombre: string; moneda_base: string; estado: string; orden: number; por_defecto: boolean; base: string | null; coeficiente: number | null; precios: number }>(`
+      select l.id::int, l.nombre, l.moneda_base, l.estado, l.orden, l.por_defecto, b.nombre base, l.coeficiente::float8,
              (select count(distinct variacion_id) from precio x where x.lista_id = l.id)::int precios
         from lista_precios l left join lista_precios b on b.id = l.base_lista_id
        where l.organizacion_id = $1 order by l.orden, l.nombre`, [ctx.org]);

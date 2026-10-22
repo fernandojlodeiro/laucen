@@ -39,7 +39,7 @@ export async function canalesMl(org: string): Promise<CanalMl[]> {
     select c.id::int, c.nombre, coalesce(c.lista_precios_id, l2.id)::int lista_id, coalesce(l1.nombre, l2.nombre) lista, c.config
       from canal c
       left join lista_precios l1 on l1.id = c.lista_precios_id
-      left join lateral (select id, nombre from lista_precios where organizacion_id = c.organizacion_id and lower(nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') order by id limit 1) l2 on true
+      left join lateral (select id, nombre from lista_precios where organizacion_id = c.organizacion_id and (por_defecto or lower(nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica')) order by por_defecto desc, id limit 1) l2 on true
      where c.organizacion_id = $1 and c.tipo = 'mercadolibre' and c.estado <> 'archivado'
      order by c.nombre`, [org]);
   return filas.map((f) => ({

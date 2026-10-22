@@ -104,6 +104,6 @@ export async function precioMasivoPorPorcentaje(org: string, args: {
 
 /** Las listas de la organización. */
 export function listasDePrecios(org: string) {
-  return consulta<{ id: number; nombre: string; moneda_base: Moneda; estado: string; orden: number }>(
-    "select id::int, nombre, moneda_base, estado, orden from lista_precios where organizacion_id = $1 order by orden, nombre", [org]);
+  return consulta<{ id: number; nombre: string; moneda_base: Moneda; estado: string; orden: number; por_defecto: boolean }>(
+    "select id::int, nombre, moneda_base, estado, orden, por_defecto from lista_precios where organizacion_id = $1 order by orden, nombre", [org]);
 }

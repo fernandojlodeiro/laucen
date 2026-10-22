@@ -55,7 +55,7 @@ Título: la razón social del cliente; debajo "Cliente N.º … · cliente desde
 - **"Mail"**, **"Teléfono"** y su **"Interno / aclaración"** (ej. "INT 32"). El teléfono se escribe como quieras: se guarda sólo con sus números y se muestra ordenado ("011 4613-0698 (INT 32)"); si escribís el interno pegado al número, Laucen lo pasa solo a la aclaración.
 - **"WhatsApp"**: el celular del cliente. Se escribe como venga ("351 15 555-1234", "0351 155551234", "+54 9 351 555-1234"): se guarda en formato internacional (5493515551234) y se muestra ordenado. **Se carga solo** cuando el cliente nos escribe por WhatsApp (debajo dice «Nos escribió desde este número» y la fecha); escrito a mano dice «Cargado a mano». Es el número al que se le mandan la factura y los mensajes.
 - Las casillas **"Enviarle la factura por WhatsApp"** y **"Enviarle la factura por mail"**: de entrada, las dos tildadas. Destildá la que el cliente no quiera. El envío por mail todavía no está disponible (falta configurar el correo); la casilla queda guardada para cuando lo esté.
-- **"Lista de precios"**: **"Por defecto"** o una lista. Por defecto, cada pedido usa la lista del canal por donde entra (tienda web, Mercado Libre, mostrador…); con una lista elegida, todos sus pedidos usan ésa (lo típico para un mayorista).
+- **"Lista de precios"**: **"Por defecto"** o una lista. Con "Por defecto", cada pedido usa la lista del canal por donde entra (tienda web, Mercado Libre, mostrador…) y, si el canal no tiene, la [lista por defecto](/catalogo/precios); con una lista elegida, todos sus pedidos usan ésa (lo típico para un mayorista).
 - **"Notas"**.
 - **"Cuenta corriente"**: en edición, la caja **"Puede comprar en cuenta corriente / a convenir"**.
 - **"Límite de crédito"** (en pesos): hasta cuánto puede deber en cuenta corriente. Vacío = sin límite cargado (sus pedidos a cuenta no se preparan).
@@ -132,7 +132,7 @@ Sólo se puede si **no tiene ningún pedido**. Tacho arriba a la derecha → **"
 - **Documentos de relleno** (1111111, 00000000, menos de 6 dígitos) no se toman como documento.
 - **Direcciones** que llegan con los pedidos: se suman sin repetir (no se agrega una con la misma calle, número y localidad, o el mismo id del canal). La primera queda principal.
 - **Condición de IVA**: decide el tipo de factura. Si la empresa es Responsable Inscripta: cliente Responsable Inscripto o Monotributo → factura **A** (y necesita **CUIT**); el resto → factura **B**. Sin condición cargada se toma como consumidor final. Para la factura, el documento es el CUIT (11 dígitos) o, si no, el DNI.
-- **Lista de precios**: "Por defecto" = la del canal por donde entra cada pedido. Si el cliente tiene una elegida, manda sobre la del canal en todos sus pedidos.
+- **Lista de precios**: "Por defecto" = la del canal por donde entra cada pedido; si el canal no tiene, la lista marcada "Por defecto" en [Listas de precios](/catalogo/precios). Si el cliente tiene una elegida, manda sobre la del canal en todos sus pedidos.
 - **CUIT y DNI**: un número de 11 cifras es un CUIT o CUIL y va sólo en "CUIT / CUIL" (también cuando llega con un pedido o una importación); el DNI va aparte.
 - **WhatsApp**: el celular que llega con un pedido o una importación se guarda como el WhatsApp del cliente (si ya tenía uno, no se pisa); si no parece un celular, queda como teléfono.
 - **Cuenta corriente**: habilita el medio "Cuenta corriente / a convenir" en la tienda y la opción "Cuenta corriente" al cargar un pedido a mano (que exige un cliente).

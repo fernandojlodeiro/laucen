@@ -16,7 +16,7 @@ export type DatosCliente = {
   cuenta_corriente: boolean; limite_cc: string | null;
 };
 
-export const AYUDA_LISTA = "Por defecto: la del canal por donde entra cada pedido (tienda web, Mercado Libre, mostrador…). Para mayoristas, elegí su lista.";
+export const AYUDA_LISTA = "Por defecto: la del canal por donde entra cada pedido (tienda web, Mercado Libre, mostrador…) y, si el canal no tiene, la lista por defecto. Para mayoristas, elegí su lista.";
 
 const AYUDA = "block text-[10px] text-[#5C6B76] mt-0.5";
 

@@ -159,7 +159,7 @@ const crearPedido: Accion = {
     const clienteId = Number(e.cliente_id) || null;
     const cliente = clienteId ? await una<{ nombre: string; lista: number | null }>("select coalesce(razon_social, nombre) nombre, lista_precios_id::int lista from cliente where id = $1 and organizacion_id = $2", [clienteId, org]) : null;
     if (clienteId && !cliente) throw new ErrorErp(`No existe el cliente N.º ${clienteId}.`);
-    const listaId = cliente?.lista ?? canal.lista;
+    const listaId = cliente?.lista ?? canal.lista ?? (await una<{ id: number | null }>("select lista_por_defecto($1)::int id", [org]))?.id ?? null;
     const entrada = Array.isArray(e.lineas) ? e.lineas as Record<string, unknown>[] : [];
     const lineas: PedidoAMano["lineas"] = [], detalle: string[] = [];
     let total = 0;

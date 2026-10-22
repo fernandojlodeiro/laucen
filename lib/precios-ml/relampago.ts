@@ -143,10 +143,10 @@ export async function relampagos(org: string, canal: number | null = null): Prom
       left join ml_relampago_costo ch on ch.canal_id = p.canal_id and ch.item_id = p.item_id and ch.precio = round(x.hoy, 2)
       left join ml_relampago_costo cr on cr.canal_id = p.canal_id and cr.item_id = p.item_id and cr.precio = y.rel
       left join ml_relampago_piso ps on ps.organizacion_id = p.organizacion_id and ps.producto_id = v.producto_id
-      -- La Clásica de la lista del canal (la del canal; si no tiene, «Clásicas»), como en lib/precios-ml/datos.ts (canalesMl).
+      -- La Clásica de la lista del canal (la del canal; si no tiene, la por defecto o «Clásicas»), como en lib/precios-ml/datos.ts (canalesMl).
       left join lateral (select lista_ars from precio_de(p.organizacion_id, pu.variacion_id,
                            coalesce(c.lista_precios_id, (select l.id from lista_precios l where l.organizacion_id = c.organizacion_id
-                                                            and lower(l.nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') order by l.id limit 1)),
+                                                            and (l.por_defecto or lower(l.nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica')) order by l.por_defecto desc, l.id limit 1)),
                            (now() at time zone 'America/Argentina/Buenos_Aires')::date)) cl on true
      where p.organizacion_id = $1 and p.tipo = any($3::text[]) and p.estado in ('candidate', 'pending', 'started')
        and ($2::bigint is null or p.canal_id = $2)
