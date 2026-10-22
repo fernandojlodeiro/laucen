@@ -40,3 +40,11 @@ test("Clásica y Premium sin marca de plan; la Clásica es gold_special", () => 
   assert.equal(cl.tags, undefined);
   assert.equal(cuerpoAgrupado(madre, "premium", 1, 1).tags, undefined);
 });
+
+test("una medida en cero («0 mA») no se manda: ML la rechaza al crear", () => {
+  const m: ItemMadre = { ...madre, attributes: [...(madre.attributes ?? []), { id: "MAX_SUPPORTED_CURRENT", value_name: "0 mA" }, { id: "VOLTAGE", value_name: "5 V" }] };
+  const ids = (cuerpoAgrupado(m, "premium", 1, 1).attributes as { id: string }[]).map((a) => a.id);
+  assert.ok(!ids.includes("MAX_SUPPORTED_CURRENT"));
+  assert.ok(ids.includes("VOLTAGE"));
+});
+

@@ -22,11 +22,14 @@ import { ml, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import { encolarLoteConBoton, type CambioMl, type PedidoMl } from "@/lib/mercadolibre/cola";
 import { comprobarAlta, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { planDe, type PlanPrueba } from "@/lib/mercadolibre/prueba-planes";
+import { campanaPropiaDe, pedidoCampanaPropia } from "@/lib/precios-ml/campana-propia";
 
 export type ItemMadre = ItemGuardado & { official_store_id?: number | null };
 
 /** Lo que no se copia: lo calcula ML (PACKAGE_*) o no se puede mandar. */
 const NO_COPIAR = (id: string) => /^PACKAGE_/.test(id) || id === "IS_TOM_BRAND";
+/** Una medida en cero («0 mA»): ML la rechaza al crear (lote 144, 22/10) aunque la madre la tenga guardada. */
+const MEDIDA_EN_CERO = (v: string | null | undefined) => !!v && /^\s*0+([.,]0+)?\s*[a-zA-Zµμ%°Ω]+\s*$/.test(v);
 
 const nombrePlan: Record<PlanPrueba, string> = { clasica: "Clásica", premium: "Premium", "3x_campaign": "Premium 3x", "9x_campaign": "Premium 9x", "12x_campaign": "Premium 12x" };
 
@@ -35,7 +38,7 @@ const nombrePlan: Record<PlanPrueba, string> = { clasica: "Clásica", premium: "
 export function cuerpoAgrupado(madre: ItemMadre, plan: PlanPrueba, precio: number, cantidad: number, sacar: string[] = []): Record<string, unknown> {
   const atributos = (madre.attributes ?? [])
     .filter((a) => !NO_COPIAR(a.id) && !sacar.includes(a.id)
-      && ((a.value_id != null && a.value_id !== "-1") || (a.value_name != null && a.value_name.trim() !== "")))
+      && ((a.value_id != null && a.value_id !== "-1") || (a.value_name != null && a.value_name.trim() !== "" && !MEDIDA_EN_CERO(a.value_name))))
     .map((a) => ({ id: a.id, ...(a.value_id && a.value_id !== "-1" ? { value_id: a.value_id } : {}), ...(a.value_name != null ? { value_name: a.value_name } : {}) }));
   const condiciones = (madre.sale_terms ?? []).filter((t) => t.id !== "INSTALLMENTS_CAMPAIGN" && (t.value_id || t.value_name))
     .map((t) => ({ id: t.id, ...(t.value_id ? { value_id: t.value_id } : { value_name: t.value_name }) }));
@@ -61,8 +64,8 @@ export function cuerpoAgrupado(madre: ItemMadre, plan: PlanPrueba, precio: numbe
   };
 }
 
-/** La publicación común (no de catálogo, sin variaciones) de esa cuenta cuyo producto de ML junta
- *  más ventas: la «madre» que copian los planes para quedar en su producto. */
+/** La publicación común (no de catálogo, sin variaciones) de esa cuenta cuyo producto de ML tiene más
+ *  planes (después, más ventas): la «madre» que copian los planes para quedar en su producto. */
 export async function madreDe(org: string, canal: number, sku: string): Promise<{ itemId: string; up: string | null; ml: ItemMadre } | null> {
   const r = await una<{ item_id: string; up: string | null; ml: ItemMadre }>(`
     with x as (
@@ -73,7 +76,7 @@ export async function madreDe(org: string, canal: number, sku: string): Promise<
          and not coalesce((m.datos_externos -> 'ml' ->> 'catalog_listing')::boolean, false)
          and coalesce(m.logistica, '') <> 'fulfillment')
     select item_id, up, ml from x
-     order by sum(vendidos) over (partition by up) desc, (estado = 'active') desc, vendidos desc, item_id limit 1`, [org, canal, sku]);
+     order by count(*) over (partition by up) desc, sum(vendidos) over (partition by up) desc, (estado = 'active') desc, vendidos desc, item_id limit 1`, [org, canal, sku]);
   return r ? { itemId: r.item_id, up: r.up, ml: r.ml } : null;
 }
 
@@ -103,7 +106,8 @@ async function gruposSeparados(org: string, canal: number): Promise<Grupo[]> {
          and coalesce(p.datos_externos ->> 'logistica', '') <> 'fulfillment' and p.datos_externos ->> 'user_product_id' is not null),
     ups as (
       select variacion, up, sum(vendidos) v,
-             row_number() over (partition by variacion order by bool_or(not catalogo) desc, sum(vendidos) desc, min(id)) rk
+             -- La madre: el producto de ML con más planes (así se crean menos publicaciones), después el de más ventas.
+             row_number() over (partition by variacion order by count(*) filter (where not catalogo) desc, sum(vendidos) desc, min(id)) rk
         from x group by variacion, up)
     select x.*, u.v::int ventas_up, (select u2.up from ups u2 where u2.variacion = x.variacion and u2.rk = 1) madre_up
       from x join ups u using (variacion, up)
@@ -141,6 +145,7 @@ export async function prepararAgrupar(org: string, canal: number, usuarioId: str
   const res: ResultadoAgrupar = { productos: 0, altas: 0, loteId: null, rechazos: [], quedan: 0 };
   const altas: CambioMl[] = [];
   const max = opts.max ?? 20;
+  const propia = await campanaPropiaDe(org, canal);
   for (const g of grupos) {
     const enMadre = new Set(g.pubs.filter((p) => p.up === g.madreUp && !p.catalogo).map(plan));
     const viejas = g.pubs.filter((p) => p.up !== g.madreUp && !p.catalogo && !enMadre.has(plan(p)) && !enCola.has(`agrupar:${g.sku}:${plan(p)}`));
@@ -156,8 +161,20 @@ export async function prepararAgrupar(org: string, canal: number, usuarioId: str
       const pl = plan(v);
       if (!pl || hechos.has(pl)) continue;
       hechos.add(pl);
-      const precio = v.precio ?? m.ml.price ?? 0;
-      if (!(precio > 0)) { res.rechazos.push(`${g.sku} ${nombrePlan[pl]}: sin precio`); continue; }
+      const precioViejo = v.precio ?? m.ml.price ?? 0;
+      if (!(precioViejo > 0)) { res.rechazos.push(`${g.sku} ${nombrePlan[pl]}: sin precio`); continue; }
+      // La campaña en que está la vieja, al mismo precio (así el comprador no paga el tachado).
+      const camp = await una<{ promocion_id: string; tipo: string; precio: number }>(`
+        select promocion_id, tipo, precio::float8 precio from ml_promo_item
+         where canal_id = $1 and item_id = $2 and estado = 'started' and precio > 0 and (hasta is null or hasta > now())
+         order by precio limit 1`, [canal, v.item_id]);
+      // Se publica siempre al tachado (Fer, 22/10: publicada al precio de venta, ML después no la deja entrar a una
+      // campaña por «precio no creíble»). Sin campaña en la vieja: al tachado de los otros planes del producto en la
+      // cuenta, y entra a la campaña propia de la cuenta al precio que tenía la vieja.
+      const tachado = Math.max(precioViejo, ...g.pubs.filter((p) => !p.catalogo && p.precio != null).map((p) => p.precio!));
+      const conPropia = !(camp && camp.precio < precioViejo) && propia && tachado > precioViejo + 0.5;
+      const precio = conPropia ? tachado : precioViejo;
+      const venta = camp && camp.precio < precioViejo ? camp.precio : conPropia ? precioViejo : null;
       const r = await comprobarAgrupado(cuenta, m.ml, pl, precio, g.disp);
       if (!r.ok) { res.rechazos.push(`${g.sku} ${nombrePlan[pl]}: ${r.motivo}`); continue; }
       const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: r.cuerpo }];
@@ -165,19 +182,14 @@ export async function prepararAgrupar(org: string, canal: number, usuarioId: str
       // La gemela de catálogo de la vieja (mismo producto de ML): la nueva también compite ahí.
       const gemela = g.pubs.find((p) => p.up === v.up && p.catalogo && p.catalogo_prod)?.catalogo_prod ?? null;
       if (gemela) pedidos.push({ metodo: "POST", ruta: "/items/catalog_listings", cuerpo: { item_id: "{id}", catalog_product_id: gemela }, seguirSiFalla: true });
-      // La campaña en que está la vieja, al mismo precio (así el comprador no paga el tachado).
-      const camp = await una<{ promocion_id: string; tipo: string; precio: number }>(`
-        select promocion_id, tipo, precio::float8 precio from ml_promo_item
-         where canal_id = $1 and item_id = $2 and estado = 'started' and precio > 0 and (hasta is null or hasta > now())
-         order by precio limit 1`, [canal, v.item_id]);
-      if (camp && camp.precio < precio) {
+      if (camp && camp.precio < precioViejo) {
         pedidos.push({ metodo: "POST", ruta: "/seller-promotions/items/{id}?app_version=v2", seguirSiFalla: true,
           cuerpo: { promotion_id: camp.promocion_id, promotion_type: camp.tipo, deal_price: camp.precio } });
-      }
+      } else if (conPropia && propia) pedidos.push(pedidoCampanaPropia(propia.id, precioViejo));
       altas.push({
         canalId: canal, itemId: `agrupar:${g.sku}:${pl}`, tipo: "crear", antes: { estado: `${nombrePlan[pl]} en otro producto (${v.item_id})` },
         payload: {
-          descripcion: `Alta en ${nombre}: ${g.sku} ${nombrePlan[pl]} $ ${precio.toLocaleString("es-AR")}${camp && camp.precio < precio ? ` (con campaña $ ${camp.precio.toLocaleString("es-AR")})` : ""}; copia exacta de ${g.madre} para quedar en su mismo producto (${v.ventas_up > 0 ? `${v.item_id} tiene ventas y queda` : `reemplaza a ${v.item_id}`})${gemela ? `, y entra al catálogo ${gemela}` : ""}`,
+          descripcion: `Alta en ${nombre}: ${g.sku} ${nombrePlan[pl]} $ ${precio.toLocaleString("es-AR")}${venta != null ? ` (con campaña $ ${venta.toLocaleString("es-AR")})` : ""}; copia exacta de ${g.madre} para quedar en su mismo producto (${v.ventas_up > 0 ? `${v.item_id} tiene ventas y queda` : `reemplaza a ${v.item_id}`})${gemela ? `, y entra al catálogo ${gemela}` : ""}`,
           origen: { canal, item_id: g.madre }, reemplaza: v.item_id, pedidos,
         },
       });

@@ -13,8 +13,11 @@
 // cuenta, en orden: más vendidos del producto en la cuenta (lo que informa ML
 // de sus publicaciones) → la cuenta preferida en el empate (.BAIRES) → al azar
 // (un sorteo fijo por producto y cuenta, así no cambia en cada pasada). La
-// suma de lo publicado nunca pasa lo que hay. La cuenta que queda en 0 se
-// pausa por stock y se reactiva sola cuando le vuelve a tocar.
+// suma de lo que le toca a cada cuenta nunca pasa lo que hay. Todas las
+// publicaciones de una cuenta (Clásica, Premium, planes de cuotas, catálogo)
+// muestran lo de la cuenta, estén o no en el mismo producto de ML (Fer, 22/10).
+// La cuenta que queda en 0 se pausa por stock y se reactiva sola cuando le
+// vuelve a tocar.
 //
 // Prendido en Configuración › Canales, caja «Reparto del stock entre cuentas
 // de ML» (config_org 'reparto_stock_ml'). Lo usa lib/mercadolibre/stock.ts.
@@ -96,7 +99,9 @@ export async function repartoDe(org: string, variaciones: number[], enCamino: Ma
   // sincronizan (aunque la pasada sea de una sola cuenta): el reparto es entre todas.
   const filas = await consulta<FilaReparto>(`
     select p.id::int pub, p.variacion_id::int variacion, p.canal_id::int canal, c.lista_precios_id::int lista,
-           p.canal_id || ':' || coalesce(nullif(p.datos_externos ->> 'user_product_id', ''), 'pub' || p.id) grupo,
+           -- Todas las publicaciones de una cuenta muestran lo mismo, estén o no en el mismo producto de ML (Fer, 22/10:
+           -- «es el mismo producto y no lo van a comprar dos veces en la misma cuenta»): no se pausan planes por el reparto.
+           p.canal_id::text grupo,
            coalesce(mi.vendidos, 0)::int vendidos,
            stock_disponible_canal(p.organizacion_id, p.variacion_id, p.canal_id)::int disponible
       from publicacion p join canal c on c.id = p.canal_id
