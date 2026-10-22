@@ -11,7 +11,7 @@
 // en "Lo que sabe" y el estado de los pedidos de ESE cliente (por el
 // teléfono). Nunca cambia nada del sistema.
 
-import { reglasIaEmpresa } from "@/lib/canales/textos";
+import { reglasIaEmpresa, reglasSinMarcas } from "@/lib/canales/textos";
 import Anthropic from "@anthropic-ai/sdk";
 import { clienteClaude, hayClaude } from "@/lib/claude";
 import { consulta, una } from "@/lib/erp/base";
@@ -145,7 +145,8 @@ async function contexto(c: ConfigMensajes, chat: Chat, t: Tienda | null): Promis
   const casos = await casosAbiertos(chat.organizacionId, chat.id);
   lineas.push(casos.length ? `- Casos abiertos de este chat (esperando a una persona): ${casos.map((k) => `#${k.id} ${k.asunto}`).join("; ")}.` : "- No hay casos abiertos en este chat.");
   // Las reglas de la empresa para la IA (Configuración › Respuestas de la IA): las mismas que preguntas y mensajes de ML.
-  const reglas = (await reglasIaEmpresa(chat.organizacionId)).trim();
+  // Los textos fijos ([[ ]]) son para el bot de Mercado Libre: acá van tal cual, sin los corchetes.
+  const reglas = reglasSinMarcas(await reglasIaEmpresa(chat.organizacionId)).trim();
   return `Contexto:\n${lineas.join("\n")}\n\nLo que la tienda te pidió que sepas (puede estar vacío):\n${c.info.trim() || "(nada)"}`
     + (reglas ? `\n\nReglas de esta tienda, que valen por encima de lo anterior:\n${reglas}` : "");
 }

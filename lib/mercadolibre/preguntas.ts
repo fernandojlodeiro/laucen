@@ -8,7 +8,7 @@ import { igualALaSugerencia, leerPropuesta, FORMATO_IA, type EstadoIa } from "@/
 import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { pedirClaude, hayClaude } from "@/lib/claude";
-import { textosCanal, instruccionesExtra, conFirma, agregarFirma } from "@/lib/canales/textos";
+import { textosCanal, instruccionesExtra, conFirma, agregarFirma, separarFijos, ponerFijos } from "@/lib/canales/textos";
 import { ml, mlOk, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 import type { ItemMl } from "@/lib/mercadolibre/publicaciones";
 import { buscarProductosPedidos } from "@/lib/mercadolibre/productos-pedidos";
@@ -117,7 +117,8 @@ export async function sugerirRespuesta(org: string, preguntaId: number): Promise
   if ("error" in r) throw new ErrorErp(`La IA no pudo proponer una respuesta (${r.error.slice(0, 120)}).`);
   const p = leerPropuesta(r.texto);
   // La firma del canal la pone Laucen, no la IA (lib/canales/textos.ts).
-  const texto = conFirma(p.texto, textos.firma, 1990);
+  // Los textos fijos de las reglas ([[ ]]) van letra por letra: la IA dejó su marca (lib/canales/textos.ts).
+  const texto = conFirma(ponerFijos(p.texto, separarFijos(textos.reglasIa).fijos), textos.firma, 1990);
   await consulta("update meli_pregunta set sugerencia = $3, sugerencia_ts = now(), ia_estado = $4 where id = $1 and organizacion_id = $2", [preguntaId, org, texto, p.estado]);
   return { texto, estado: p.estado };
 }
