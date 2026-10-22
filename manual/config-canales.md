@@ -102,6 +102,7 @@ Con cuenta:
 - El renglón de la cola: "Cola: N pendientes", "N con error" (en rojo si hay), "N preparados esperando tu clic" y la última barrida nocturna (fecha, revisadas y diferencias; o "Barrida de esta noche en curso" / "Todavía no hubo barrida nocturna"). Cada parte lleva a la Cola filtrada.
 - **"Traer publicaciones de ML"**: trae (o actualiza) las publicaciones de esa cuenta de Mercado Libre y vincula solas las que coinciden por SKU. Trabaja hasta unos 4 minutos; si no llegó a traer todas, avisa que se apriete de nuevo y sigue desde donde quedó. Apretarlo de más no duplica nada. Es el mismo botón que está en [Vincular con Mercado Libre](/catalogo/publicaciones/ml).
 - **"Traer pedidos y preguntas ahora"**: no espera el barrido automático.
+- **"Agrupar planes de cuotas (preparar)"** y **"Eliminar planes viejos ya agrupados (preparar)"**: ver "Planes de cuotas en un mismo producto" en Criterios. Los dos corren de fondo y dejan un lote preparado que sale recién con tu clic.
 - **"Vincular publicaciones"**: lleva a [Vincular con Mercado Libre](/catalogo/publicaciones/ml) con este canal.
 - Interruptor **"Laucen manda el stock a ML y pausa al llegar al umbral"**.
 - Interruptor **"Subir facturas a Mercado Libre"**.
@@ -291,6 +292,14 @@ Cada cuenta de Mercado Libre muestra su propio stock, y Mercado Libre controla e
 - La publicación a la que no le toca nada se **pausa** por stock y se **reactiva** sola cuando le vuelve a tocar (por ejemplo, porque entró mercadería o porque otra cuenta vendió y cambió el orden).
 - El umbral de pausa sigue igual: si el disponible llega al umbral, se pausan todas.
 - Las publicaciones de Full y las pausadas a mano no entran en el reparto.
+
+### Planes de cuotas en un mismo producto
+
+En Mercado Libre, dentro de una cuenta, la Clásica, la Premium y los planes de cuotas (3x, 9x, 12x) **comparten el stock** (y el código de Full) sólo si están en **el mismo producto** de Mercado Libre. Si quedan en productos distintos, cada uno muestra su propio stock y un comprador puede llevarse más de lo que hay.
+
+- **Las publicaciones nuevas** de una cuenta que ya tiene la publicación común del producto (al publicar en todas las cuentas o al crear los planes que faltan) se crean como **copia exacta** de esa publicación común: el mismo título, las mismas fotos y características, la misma garantía y factura, la tienda oficial de la cuenta. Así Mercado Libre las suma a su mismo producto. El título se varía entre cuentas, nunca entre planes de una misma cuenta.
+- **Las que ya quedaron separadas**: en la caja de la cuenta, **"Agrupar planes de cuotas (preparar)"** busca los productos con algún plan en otro producto de Mercado Libre que no tiene ventas, y prepara un lote (de a 20 productos por vez) que crea cada plan de nuevo copiando la publicación común cuyo producto junta más ventas: al mismo precio de la vieja, en su misma campaña y, si la vieja tenía gemela de catálogo, también en el catálogo. Lo que tiene ventas no se toca.
+- Cuando esas altas salieron y quedaron agrupadas, **"Eliminar planes viejos ya agrupados (preparar)"** prepara otro lote que cierra y elimina las viejas sin ventas (y sus gemelas de catálogo) cuyo plan ya está en el producto de la publicación común.
 
 ### Interruptor "Subir facturas a Mercado Libre"
 

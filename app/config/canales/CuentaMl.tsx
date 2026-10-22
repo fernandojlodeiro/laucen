@@ -12,7 +12,7 @@ import { estadoColaCanal } from "@/lib/mercadolibre/cola";
 import { emisoresDe } from "@/lib/arca/facturar";
 import { CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { accionTraerPublicaciones } from "@/app/catalogo/publicaciones/ml/acciones";
-import { accionAsignarRazonSocial, accionSincronizarStock, accionSubirFacturas, accionSoltarCuenta, accionTraerAhora, accionUsarCuenta } from "./acciones-ml";
+import { accionAsignarRazonSocial, accionSincronizarStock, accionSubirFacturas, accionSoltarCuenta, accionTraerAhora, accionUsarCuenta, accionAgruparPlanes, accionCerrarAgrupados } from "./acciones-ml";
 
 export default async function CuentaMl({ org, canal }: { org: string; canal: number }) {
   const cuenta = await una<{ id: number; nickname: string | null; estado: string; ultimo_error: string | null; pedidos_desde: Date | null }>(
@@ -87,6 +87,9 @@ export default async function CuentaMl({ org, canal }: { org: string; canal: num
           <div className="flex flex-wrap gap-2">
             <BotonTarea accion={accionTraerPublicaciones} tipo={`publicaciones-ml:${canal}`} campos={{ canal: String(canal) }} clase={SUAVE} texto="Traer publicaciones de ML" />
             <BotonTarea accion={accionTraerAhora} tipo={`traer-ml:${canal}`} campos={{ canal: String(canal) }} clase={SUAVE} texto="Traer pedidos y preguntas ahora" />
+            {/* Que la Clásica y los planes de cuotas queden en un mismo producto de ML y compartan el stock (agrupar.ts). */}
+            <BotonTarea accion={accionAgruparPlanes} tipo={`agrupar-ml:${canal}`} campos={{ canal: String(canal) }} clase={SUAVE} texto="Agrupar planes de cuotas (preparar)" />
+            <BotonTarea accion={accionCerrarAgrupados} tipo={`agrupar-cierre-ml:${canal}`} campos={{ canal: String(canal) }} clase={SUAVE} texto="Eliminar planes viejos ya agrupados (preparar)" />
             <Link href={`/catalogo/publicaciones/ml?canal=${canal}`} className={SUAVE}>Vincular publicaciones</Link>
           </div>
           <Interruptor accion={accionSincronizarStock} prendido={sincroniza} campos={campos}

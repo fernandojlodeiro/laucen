@@ -25,6 +25,7 @@ import { sinFotosConMarca } from "@/lib/mercadolibre/fotos-marca";
 import { ajusteAlta, atributosConocidos, catalogoSegunMarca, catalogoVetado, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
+import { comprobarAgrupado, madreDe } from "@/lib/mercadolibre/agrupar";
 import { canalesMl, comisionesMl, familiasDe, reglasCanal, type CanalMl } from "@/lib/precios-ml/datos";
 import { gruposPlanes, ganadorDe } from "@/lib/precios-ml/grupos";
 import {
@@ -269,15 +270,19 @@ async function altasEnCanal(org: string, plan: PlanTodas, datos: DatosOrigen, c:
   const ajuste = await ajusteAlta(org, c.id, sku);
   const conocidos = await atributosConocidos(org, sku);
   const propia = await campanaPropiaDe(org, c.id);
+  const madre = await madreDe(org, c.id, sku);
   for (const f of deEsta) {
     if (Date.now() > hasta) { res.sinTiempo++; continue; }
     const tag = f.plan === "clasica" ? null : PLAN_INFO[f.plan].tag;
     const item: ItemGuardado = { ...datos.ml, attributes: datos.atributos, price: f.publicar!, available_quantity: stock,
       ...(ajuste?.categoria ? { category_id: ajuste.categoria } : {}),
       listing_type_id: f.plan === "clasica" ? "gold_special" : "gold_pro", sale_terms: (datos.ml.sale_terms ?? []).filter((t) => t.id !== "INSTALLMENTS_CAMPAIGN") };
-    const r = await comprobarAlta(cuenta, (x) => {
+    // Si la cuenta ya tiene la publicación común, el plan la copia exacta para quedar en su mismo producto de ML y
+    // compartir el stock (agrupar.ts, Fer 22/10). Si no, se copia la de origen, con el título mezclado una vez por
+    // cuenta (no por plan: con otro título ML le abre otro producto).
+    const r = madre ? await comprobarAgrupado(cuenta, madre.ml, f.plan, f.publicar!, stock) : await comprobarAlta(cuenta, (x) => {
       const cuerpo = armarCuerpoCopia(item, sku, { variarTitulo: false, rotarFotos: false },
-        { modelo: datos.modelo, marca: marca.cambiada ? marca.marca : null, semillaTitulo: ajuste?.sinMezclar ? null : `${c.id}:${f.plan}:${sku}`, conocidos, ...x });
+        { modelo: datos.modelo, marca: marca.cambiada ? marca.marca : null, semillaTitulo: ajuste?.sinMezclar ? null : `${c.id}:${sku}`, conocidos, ...x });
       return tag ? { ...cuerpo, tags: [tag] } : cuerpo;
     }, { paquetes: [await paqueteDeLaucen(org, sku)], conocidos,
       ia: { titulo: (datos.ml.family_name ?? datos.ml.title ?? "").trim(), descripcion: datos.texto, categoria: item.category_id ?? null } });

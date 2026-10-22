@@ -15,6 +15,7 @@ import { fijarInterruptor } from "@/lib/precios-ml/datos";
 import { sincronizarPreciosMl } from "@/lib/precios-ml/preparar";
 import { asegurarCuentasDeCanalesSinFallar } from "@/lib/administracion/contabilidad";
 import { leerReparto, guardarReparto } from "@/lib/mercadolibre/reparto";
+import { prepararAgrupar, prepararCierreAgrupados } from "@/lib/mercadolibre/agrupar";
 import { leerNumero } from "@/lib/numeros";
 
 const volver = (canal: number) => `/config/canales?c=${canal}`;
@@ -185,5 +186,33 @@ export async function accionGuardarReparto(fd: FormData) {
       msg = "Grabado. La pasada por todas las publicaciones corre de fondo: al terminar aparece el cartel abajo a la derecha.";
     }
     return { ir: `${BASE_REPARTO}?ok=${encodeURIComponent(msg)}` };
+  });
+}
+
+/** Prepara (sin mandar) el lote que rehace, copiando la publicación común de la cuenta, los planes de cuotas que
+ *  quedaron en otro producto de ML y no tienen ventas (lib/mercadolibre/agrupar.ts). De a 20 productos por vez. */
+export async function accionAgruparPlanes(fd: FormData) {
+  const s = await entrarErp("canales_ver");
+  const canal = id(fd, "canal");
+  return deFondo(s, `agrupar-ml:${canal}`, "Agrupar planes de cuotas", async () => {
+    await canalMl(s.org.id, fd);
+    const r = await prepararAgrupar(s.org.id, canal, s.usuario.id, { max: 20, hasta: Date.now() + 240_000 });
+    revalidatePath("/config/canales");
+    if (!r.loteId) return `No hay planes para agrupar${r.rechazos.length ? ` (${r.rechazos.length} con problemas: ${r.rechazos.slice(0, 3).join("; ")})` : ""}.`;
+    return `Lote ${r.loteId} preparado: ${r.altas} altas agrupadas de ${r.productos} productos${r.quedan ? `; quedan ${r.quedan} productos para la próxima vuelta` : ""}${r.rechazos.length ? `; ${r.rechazos.length} no se pudieron armar (${r.rechazos.slice(0, 3).join("; ")})` : ""}. Mandalo desde Configuración › Cola de Mercado Libre, pestaña Lotes preparados.`;
+  });
+}
+
+/** Prepara (sin mandar) el lote que cierra y elimina los planes viejos sin ventas cuyo plan ya está en el producto de
+ *  la publicación común de la cuenta (lib/mercadolibre/agrupar.ts). */
+export async function accionCerrarAgrupados(fd: FormData) {
+  const s = await entrarErp("canales_ver");
+  const canal = id(fd, "canal");
+  return deFondo(s, `agrupar-cierre-ml:${canal}`, "Eliminar planes viejos ya agrupados", async () => {
+    await canalMl(s.org.id, fd);
+    const r = await prepararCierreAgrupados(s.org.id, canal, s.usuario.id);
+    revalidatePath("/config/canales");
+    return r.loteId ? `Lote ${r.loteId} preparado: ${r.cerrar} publicaciones viejas para eliminar. Mandalo desde Configuración › Cola de Mercado Libre, pestaña Lotes preparados.`
+      : "No hay planes viejos para eliminar: ningún plan sin ventas en otro producto tiene todavía su reemplazo agrupado.";
   });
 }

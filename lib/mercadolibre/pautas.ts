@@ -1,6 +1,8 @@
 // Pautas de las publicaciones nuevas en Mercado Libre (Fer, 10/10):
-//   · Título: la primera palabra queda; el resto se mezcla distinto en cada cuenta y
-//     plan (así no hay dos títulos idénticos). Hasta 60 letras.
+//   · Título: la primera palabra queda; el resto se mezcla distinto en cada cuenta (así
+//     no hay dos títulos idénticos entre cuentas). Hasta 60 letras. Dentro de una cuenta,
+//     los planes de cuotas copian tal cual la publicación común (lib/mercadolibre/agrupar.ts,
+//     Fer 22/10): con otro título ML les abre otro producto y no comparten el stock.
 //   · Marca: los productos «sin marca» (Tiendavirtual, Daitom, Deirolab, Laucen,
 //     Genérico, OEM, en blanco) y los «Arduino» (no son originales: trajeron denuncias)
 //     llevan la marca de la cuenta (canal.config.marca_publicaciones: DEIROLAB SA y SAS
