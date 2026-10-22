@@ -134,7 +134,7 @@ export type ResultadoAgrupar = { productos: number; altas: number; loteId: numbe
  *  la madre se crea copiando la madre, al precio de la publicación vieja, en su misma campaña y, si la vieja tenía
  *  gemela de catálogo, también en el catálogo. También si la vieja tiene ventas (Fer, 22/10): se crea la agrupada y
  *  la vieja queda (no se elimina). Un lote que espera el clic de Fer. */
-export async function prepararAgrupar(org: string, canal: number, usuarioId: string | null, opts: { max?: number; hasta?: number; saltar?: Set<string> } = {}): Promise<ResultadoAgrupar> {
+export async function prepararAgrupar(org: string, canal: number, usuarioId: string | null, opts: { max?: number; hasta?: number; saltar?: Set<string>; saltarSku?: Set<string> } = {}): Promise<ResultadoAgrupar> {
   const hasta = opts.hasta ?? Date.now() + 240_000;
   const cuenta = await cuentaDelCanal(org, canal);
   if (!cuenta || cuenta.estado !== "activa") throw new ErrorErp("La cuenta de Mercado Libre no está conectada.");
@@ -150,6 +150,7 @@ export async function prepararAgrupar(org: string, canal: number, usuarioId: str
   const max = opts.max ?? 20;
   const propia = await campanaPropiaDe(org, canal);
   for (const g of grupos) {
+    if (opts.saltarSku?.has(g.sku)) continue;
     const enMadre = new Set(g.pubs.filter((p) => p.up === g.madreUp && !p.catalogo).map(plan));
     const viejas = g.pubs.filter((p) => p.up !== g.madreUp && !p.catalogo && !enMadre.has(plan(p)) && !enCola.has(`agrupar:${g.sku}:${plan(p)}`));
     if (!viejas.length) continue;
@@ -211,9 +212,9 @@ export type ResultadoCierre = { cerrar: number; loteId: number | null };
 /** El cierre de las viejas: cada publicación (y su gemela de catálogo) que está en otro producto que el de la madre,
  *  sin ventas en ese producto (las que tienen ventas quedan, Fer 22/10), cuyo plan ya está en el producto de la
  *  madre. Un lote que espera el clic de Fer. */
-export async function prepararCierreAgrupados(org: string, canal: number, usuarioId: string | null): Promise<ResultadoCierre> {
+export async function prepararCierreAgrupados(org: string, canal: number, usuarioId: string | null, saltarSku?: Set<string>): Promise<ResultadoCierre> {
   const nombre = (await una<{ nombre: string }>("select nombre from canal where id = $1", [canal]))?.nombre ?? "la cuenta";
-  const grupos = await gruposSeparados(org, canal);
+  const grupos = (await gruposSeparados(org, canal)).filter((g) => !saltarSku?.has(g.sku));
   const cambios: CambioMl[] = [];
   for (const g of grupos) {
     const enMadre = new Set(g.pubs.filter((p) => p.up === g.madreUp && !p.catalogo).map(plan));

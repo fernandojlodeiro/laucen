@@ -302,7 +302,7 @@ async function Agrupado({ org, aqui }: { org: string; aqui: string }) {
                     <td className={TDN}>{f.cierres}</td>
                     <td className={`${TD} text-[11px]`}>{rech.length === 0 ? "—" : (
                       <details><summary className="cursor-pointer text-[#C03420]">{rech.length}</summary>
-                        <ul className="mt-1 grid gap-0.5">{rech.map(([k, m]) => <li key={k}><b>{k.replace(/^agrupar:/, "").replace(":", " ")}</b>: {m}</li>)}</ul>
+                        <ul className="mt-1 grid gap-0.5">{rech.map(([k, m]) => <li key={k}><b>{k.replace(/^(agrupar|sku):/, "").replace(":", " ")}</b>: {m}</li>)}</ul>
                       </details>)}</td>
                   </tr>
                 );
