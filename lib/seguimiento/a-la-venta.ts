@@ -8,6 +8,11 @@ import { SQL_DISPONIBLE } from "@/lib/catalogo-alertas";
 export const SQL_CON_ML_ACTIVA = `exists (select 1 from publicacion pu join variacion v on v.id = pu.variacion_id join canal ca on ca.id = pu.canal_id
                  where v.producto_id = p.id and pu.estado = 'activa' and ca.tipo = 'mercadolibre')`;
 
+/** Tiene alguna publicación activa o pausada en Mercado Libre (Fer, 22/10: una pausada por falta de stock igual
+ *  interesa; sus seguimientos se cargan de referencia, aunque no se relean solos). */
+export const SQL_CON_ML_VIVA = `exists (select 1 from publicacion pu join variacion v on v.id = pu.variacion_id join canal ca on ca.id = pu.canal_id
+                 where v.producto_id = p.id and pu.estado in ('activa', 'pausada') and ca.tipo = 'mercadolibre')`;
+
 export const SQL_A_LA_VENTA = `(${SQL_CON_ML_ACTIVA} and ${SQL_DISPONIBLE} > 0)`;
 
 /** Notebooks (Fer, 22/10): sus seguimientos no se importan. Por la familia «Notebooks» o el título. */

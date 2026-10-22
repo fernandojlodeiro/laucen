@@ -8,13 +8,13 @@
 //   · Las pausadas o terminadas entran igual: se ven aparte y la regla de precio no las usa (sólo mira las activas).
 //   · Si ya se seguía, no se pisa su origen; el precio y el estado se ponen al día si lo nuestro era más viejo.
 //   · No entran (Fer, 22/10): las de notebooks, las de un SKU que ya no está en el catálogo y las de un producto sin
-//     ninguna publicación activa en Mercado Libre. Las que entran se releen solas sólo si el producto está a la venta
-//     (lib/seguimiento/a-la-venta.ts); las demás quedan de referencia.
+//     ninguna publicación activa ni pausada en Mercado Libre. Las que entran se releen solas sólo si el producto está a
+//     la venta (lib/seguimiento/a-la-venta.ts); las de un producto pausado quedan de referencia para cuando se compre.
 
 import { consulta, ErrorErp } from "@/lib/erp/base";
 import { nuestras } from "@/lib/seguimiento";
 import { revisarReglasDe } from "@/lib/seguimiento/regla";
-import { SQL_CON_ML_ACTIVA, SQL_A_LA_VENTA, SQL_ES_NOTEBOOK, esTituloNotebook } from "@/lib/seguimiento/a-la-venta";
+import { SQL_CON_ML_VIVA, SQL_A_LA_VENTA, SQL_ES_NOTEBOOK, esTituloNotebook } from "@/lib/seguimiento/a-la-venta";
 import { numeroVs } from "@/lib/importar/virtualseller";
 import type { Hoja, Valor } from "@/lib/importar/leer";
 
@@ -103,7 +103,7 @@ export type ResumenVs = {
   nuevas: number; actualizadas: number; yaEstaban: number; productos: number; activas: number; pausadas: number; internacionales: number;
   /** Notebooks: no se importan (Fer, 22/10). */
   notebooks: number;
-  /** Productos sin ninguna publicación activa en Mercado Libre: no se importan (Fer, 22/10). */
+  /** Productos sin ninguna publicación activa ni pausada en Mercado Libre (sólo cerradas o ninguna): no se importan (Fer, 22/10). */
   sinPublicacionActiva: { sku: string; filas: number }[];
   /** De los importados, cuántos productos están a la venta (publicación activa y stock): sólo ésos se releen solos. */
   productosALaVenta: number;
@@ -139,7 +139,7 @@ export async function importarSeguimientosVs(org: string, filas: FilaVs[], archi
   // De cada producto: si es una notebook, si tiene publicación activa en Mercado Libre y si está a la venta.
   const info = new Map<number, { notebook: boolean; conMl: boolean; aLaVenta: boolean }>();
   for (const x of await consulta<{ id: number; notebook: boolean; con_ml: boolean; a_la_venta: boolean }>(`
-    select p.id::int, ${SQL_ES_NOTEBOOK} notebook, ${SQL_CON_ML_ACTIVA} con_ml, ${SQL_A_LA_VENTA} a_la_venta
+    select p.id::int, ${SQL_ES_NOTEBOOK} notebook, ${SQL_CON_ML_VIVA} con_ml, ${SQL_A_LA_VENTA} a_la_venta
       from producto p where p.organizacion_id = $1 and p.id = any($2::bigint[])`, [org, [...new Set([...porSku.values(), ...porItem.values()])]]))
     info.set(x.id, { notebook: x.notebook, conMl: x.con_ml, aLaVenta: x.a_la_venta });
   const sinMl = new Map<string, number>();
@@ -150,7 +150,7 @@ export async function importarSeguimientosVs(org: string, filas: FilaVs[], archi
     if (!f.itemId) { r.sinPublicacion++; continue; }
     if (apodos.has((f.vendedor ?? "").toUpperCase().trim()) || propiasIds.has(f.itemId)) { r.propias++; continue; }
     const pid = productoDe(f);
-    // Las notebooks no interesan (Fer, 22/10), ni las de un producto que ya no está o no tiene ninguna publicación activa.
+    // Las notebooks no interesan (Fer, 22/10), ni las de un producto que ya no está o sólo tiene publicaciones cerradas.
     if (esTituloNotebook(f.titulo) || /^(SEG\s+)?NOT(EBOOK)?\b/i.test(f.idSeguimiento ?? "") || (pid && info.get(pid)?.notebook)) { r.notebooks++; continue; }
     if (pid && !info.get(pid)?.conMl) { sinMl.set(f.sku, (sinMl.get(f.sku) ?? 0) + 1); continue; }
     if (!pid) { const x = faltan.get(f.sku) ?? { id: f.idSeguimiento ?? f.sku, filas: 0 }; x.filas++; faltan.set(f.sku, x); continue; }
@@ -214,7 +214,7 @@ export function textoResumen(r: ResumenVs): string {
   return `Seguimientos de Virtual Seller: ${p}, en ${r.productos} productos (${r.activas} activas, ${r.pausadas} pausadas o terminadas).`
     + (r.productos ? ` Se releen solos los de ${r.productosALaVenta} productos a la venta.` : "")
     + (r.notebooks ? ` ${r.notebooks} de notebooks no entraron.` : "")
-    + (r.sinPublicacionActiva.length ? ` ${r.sinPublicacionActiva.length} SKU sin publicación activa no entraron.` : "")
+    + (r.sinPublicacionActiva.length ? ` ${r.sinPublicacionActiva.length} SKU sin publicación activa ni pausada no entraron.` : "")
     + (r.noEncontrados.length ? ` ${r.noEncontrados.length} SKU no están en el catálogo.` : "")
     + (r.propias ? ` ${r.propias} eran nuestras y no entraron.` : "");
 }

@@ -28,8 +28,8 @@ export default async function ImportarSeguimientosVs() {
       <SubirSeguimientosVs organizacionId={s.org.id} />
       <ul className="text-[11px] text-[#5C6B76] mt-2 mb-5 list-disc pl-4 grid gap-0.5">
         <li>El producto sale del «ID Seguimiento» (el SKU nuestro antes del año: «SKU00680-U-2026-1» → SKU00680-U; con «SEG-» adelante, también). La columna SKU del informe no se usa.</li>
-        <li>No entran: las publicaciones de nuestras cuentas, las de notebooks, las de un SKU que ya no está en el catálogo y las de un producto sin ninguna publicación activa en Mercado Libre.</li>
-        <li>Se releen solas (lo que cuesta) sólo las de productos a la venta: con publicación activa en Mercado Libre y stock disponible. Las demás quedan de referencia en la pestaña Seguimiento del producto y se leen a pedido con «Leer ahora».</li>
+        <li>No entran: las publicaciones de nuestras cuentas, las de notebooks, las de un SKU que ya no está en el catálogo y las de un producto sin ninguna publicación activa ni pausada en Mercado Libre (sólo cerradas o ninguna).</li>
+        <li>Se releen solas (lo que cuesta) sólo las de productos a la venta: con publicación activa en Mercado Libre y stock disponible. Las de un producto pausado o sin stock entran igual y quedan de referencia en la pestaña Seguimiento del producto (para cuando se vuelva a comprar); se leen a pedido con «Leer ahora».</li>
         <li>Entran revisadas, con el último precio y estado del informe. Las pausadas o terminadas entran igual: se ven aparte en la pestaña Seguimiento y la regla de precio no las usa.</li>
         <li>Los vendedores chinos (apodo «CN…ARR») quedan marcados como internacionales: no cuentan para la regla.</li>
         <li>Si una ya se seguía, no cambia su origen; el precio y el estado se ponen al día si lo que había era más viejo. Se puede importar el mismo archivo dos veces sin duplicar nada.</li>
@@ -66,7 +66,7 @@ export default async function ImportarSeguimientosVs() {
                   <td className={TD}>
                     {r.sinPublicacionActiva?.length ? (
                       <details>
-                        <summary className="cursor-pointer text-[#7A5600]">{r.sinPublicacionActiva.length} SKU sin publicación activa</summary>
+                        <summary className="cursor-pointer text-[#7A5600]">{r.sinPublicacionActiva.length} SKU sin publicación activa ni pausada</summary>
                         <ul className="mt-1 text-[11px] max-h-60 overflow-y-auto">
                           {r.sinPublicacionActiva.map((x) => <li key={x.sku}><span className="font-mono">{x.sku}</span> <span className="text-[#5C6B76]">({x.filas} fila{x.filas === 1 ? "" : "s"})</span></li>)}
                         </ul>
