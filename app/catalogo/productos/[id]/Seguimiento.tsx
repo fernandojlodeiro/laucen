@@ -17,7 +17,7 @@ import BuscarSeguimiento from "./BuscarSeguimiento";
 import { reglaDe } from "@/lib/seguimiento/regla";
 import ReglaPrecio from "./ReglaPrecio";
 import CasillaAccion from "@/app/componentes/CasillaAccion";
-import { accionSeguir, accionSeguirPorNumero, accionDejarDeSeguir, accionLeerSeguimiento, accionCerrarCatalogo, accionExcluirDeRegla, accionConfirmarSeguida, accionConfirmarTodas } from "@/app/catalogo/productos/acciones-seguimiento";
+import { accionSeguir, accionSeguirPorNumero, accionDejarDeSeguir, accionLeerSeguimiento, accionCerrarCatalogo, accionExcluirDeRegla, accionConfirmarSeguida, accionConfirmarTodas, accionReanudarSeguida } from "@/app/catalogo/productos/acciones-seguimiento";
 import type { PubJuzgada } from "@/lib/seguimiento/comparables";
 
 type Seguida = {
@@ -27,7 +27,7 @@ type Seguida = {
   leido_ts: Date | null; error: string | null; cambio: number | null; entrega_dias: number | null; lecturas: number;
   internacional: boolean | null; excluido: boolean;
   /** La agregó sola la búsqueda de precio de mercado (origen «auto») y si una persona ya la revisó. */
-  origen: string; origen_detalle: string | null; confirmada: boolean; confirmada_ts: Date | null; confirmada_por: string | null; motivo_ia: string | null; creado_ts: Date;
+  origen: string; origen_detalle: string | null; pausada_desde: Date | null; confirmada: boolean; confirmada_ts: Date | null; confirmada_por: string | null; motivo_ia: string | null; creado_ts: Date;
   /** La primera lectura (el comienzo del seguimiento) y cuántos cambios de precio o estado hubo. */
   desde: string | null; cambios: number;
   /** El último cambio de precio (entre dos lecturas seguidas), y si fue en la última lectura. */
@@ -83,7 +83,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
     consulta<Seguida>(`
       select sp.id::int, sp.item_id, sp.catalogo_id, sp.titulo, sp.foto, sp.permalink, sp.vendedor, sp.tienda_oficial, sp.precio::float8, sp.precio_original::float8,
              sp.moneda, sp.estado, sp.tipo_publicacion, sp.cuotas, sp.envio_gratis, sp.leido_ts, sp.error, sp.entrega_dias, sp.internacional, sp.excluido,
-             sp.origen, sp.origen_detalle, sp.confirmada, sp.confirmada_ts, sp.confirmada_por, sp.motivo_ia, sp.creado_ts,
+             sp.origen, sp.origen_detalle, sp.pausada_desde, sp.confirmada, sp.confirmada_ts, sp.confirmada_por, sp.motivo_ia, sp.creado_ts,
              -- Cuánto cambió el precio desde la lectura anterior.
              (select (sp.precio - l.precio)::float8 from seguimiento_lectura l where l.seguimiento_id = sp.id and l.precio is not null
                order by l.ts desc offset 1 limit 1) cambio,
@@ -181,7 +181,10 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
                   </td>
                   <td className={TD}>{x.tipo_publicacion ? TIPOS[x.tipo_publicacion] ?? x.tipo_publicacion : "—"}{x.cuotas && <span className="block text-[10px] text-[#5C6B76]">{x.cuotas}</span>}</td>
                   <td className={TD}><Entrega dias={x.entrega_dias} demora={conf.demoraDias} gratis={x.envio_gratis} /></td>
-                  <td className={TD}><Estado texto={ESTADOS[x.estado ?? "sin_dato"]?.t ?? x.estado ?? "—"} tono={ESTADOS[x.estado ?? "sin_dato"]?.tono ?? "gris"} /></td>
+                  <td className={TD}>
+                    <Estado texto={ESTADOS[x.estado ?? "sin_dato"]?.t ?? x.estado ?? "—"} tono={ESTADOS[x.estado ?? "sin_dato"]?.tono ?? "gris"} />
+                    <LecturaPausada x={x} conf={conf} productoId={p.id} />
+                  </td>
                   <td className={`${TD} whitespace-nowrap`}>{hace(x.leido_ts)}{x.error && <span className="block text-[10px] text-[#C03420] max-w-48 whitespace-normal">{x.error}</span>}</td>
                   <td className={TD}>
                     <CasillaAccion accion={accionConfirmarSeguida} campos={{ id: String(x.id), producto_id: String(p.id) }} activa={x.confirmada}
@@ -442,6 +445,25 @@ function deDondeCorto(x: Seguida): string {
   if (x.origen === "busqueda") return `con «+ Seguir» · ${diaMes(x.creado_ts)}`;
   if (x.origen === "manual") return `por número · ${diaMes(x.creado_ts)}`;
   return "";
+}
+
+/** Debajo del estado de una pausada (Fer, 22/10): cada cuánto se relee y hasta cuándo, o que ya no se relee sola y
+ *  el botón «Reanudar». Una terminada no se relee. */
+function LecturaPausada({ x, conf, productoId }: { x: Seguida; conf: { pausadasDias: number; pausadasMeses: number }; productoId: number }) {
+  if (x.estado === "cerrada") return <span className="block text-[10px] text-[#5C6B76] mt-0.5">No se relee (terminada)</span>;
+  if (x.estado !== "pausada" || !x.pausada_desde) return null;
+  const hasta = new Date(x.pausada_desde);
+  hasta.setMonth(hasta.getMonth() + conf.pausadasMeses);
+  if (conf.pausadasMeses > 0 && hasta.getTime() < Date.now()) return (
+    <span className="block mt-0.5">
+      <span className="block text-[10px] text-[#7A5600] max-w-44 whitespace-normal">⏸ No se relee: pausada hace más de {conf.pausadasMeses} {conf.pausadasMeses === 1 ? "mes" : "meses"} (desde {diaMes(x.pausada_desde)})</span>
+      <BotonTarea accion={accionReanudarSeguida} tipo={`seguimiento-reanudar-${x.id}`} clase={SUAVE} texto="Reanudar"
+        campos={{ id: String(x.id), producto_id: String(productoId) }} />
+    </span>
+  );
+  return <span className="block text-[10px] text-[#5C6B76] mt-0.5 max-w-44 whitespace-normal">
+    Se relee cada {conf.pausadasDias} días{conf.pausadasMeses > 0 ? ` hasta el ${diaMes(hasta)}` : ""}
+  </span>;
 }
 
 /** El último cambio de precio de una seguida: «▲ $ 5.408 (27,8 %) · 12/10 (antes $ 19.455)». */

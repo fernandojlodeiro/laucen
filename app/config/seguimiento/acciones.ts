@@ -9,7 +9,8 @@ import { motivoErp } from "@/lib/erp/base";
 export async function accionGuardarConfigSeguimiento(fd: FormData) {
   const s = await entrarErp("empresa_config");
   try {
-    await guardarConfigSeguimiento(s.org.id, { frecuenciaDias: leerNumero(fd.get("frecuencia_dias")) ?? 0, topeUsd: leerNumero(fd.get("tope_usd")) ?? -1, demoraDias: leerNumero(fd.get("demora_dias")) ?? 0, autoMax: leerNumero(fd.get("auto_max")) ?? -1 });
+    await guardarConfigSeguimiento(s.org.id, { frecuenciaDias: leerNumero(fd.get("frecuencia_dias")) ?? 0, topeUsd: leerNumero(fd.get("tope_usd")) ?? -1, demoraDias: leerNumero(fd.get("demora_dias")) ?? 0, autoMax: leerNumero(fd.get("auto_max")) ?? -1,
+      pausadasDias: leerNumero(fd.get("pausadas_dias")) ?? 0, pausadasMeses: leerNumero(fd.get("pausadas_meses")) ?? -1 });
   } catch (e) {
     redirect(`/config/seguimiento?editar=ficha&error=${encodeURIComponent(motivoErp(e))}`);
   }

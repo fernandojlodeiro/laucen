@@ -197,3 +197,21 @@ alter table seguimiento_importacion enable row level security;
 select erp_politica_org('seguimiento_importacion');
 -- Dónde quedó el archivo en Storage, para «Volver a importar» (Fer, 22/10: se mejoró cómo se lee el ID del seguimiento).
 alter table seguimiento_importacion add column if not exists ruta text;
+
+-- Desde cuándo está pausada la publicación de la competencia (Fer, 22/10): se relee cada «pausadas_dias» y, pasados
+-- «pausadas_meses», deja de releerse sola hasta «Reanudar» (que la vuelve a poner en hoy). La pone el disparador al
+-- cambiar el estado; vuelve a null cuando deja de estar pausada.
+alter table seguimiento_pub add column if not exists pausada_desde timestamptz;
+create or replace function seguimiento_pub_pausada_desde() returns trigger language plpgsql as $$
+begin
+  if new.estado = 'pausada' then
+    if tg_op = 'INSERT' or old.estado is distinct from 'pausada' then new.pausada_desde := coalesce(new.pausada_desde, new.leido_ts, now()); end if;
+  else
+    new.pausada_desde := null;
+  end if;
+  return new;
+end $$;
+drop trigger if exists seguimiento_pub_pausada_desde on seguimiento_pub;
+create trigger seguimiento_pub_pausada_desde before insert or update of estado, pausada_desde on seguimiento_pub
+  for each row execute function seguimiento_pub_pausada_desde();
+update seguimiento_pub set pausada_desde = coalesce(leido_ts, creado_ts) where estado = 'pausada' and pausada_desde is null;

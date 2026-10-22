@@ -25,17 +25,21 @@ const POR_RESULTADO = { busqueda: 0.002, lectura: 0.008 };
 
 /** `demoraDias`: una publicación que tarda más que esto en llegar no compite (se esconde en la búsqueda y se marca en rojo). */
 /** `autoMax`: cuántas publicaciones comparables sigue sola la búsqueda de precio de mercado en cada producto (0 = ninguna). */
-export type ConfigSeguimiento = { frecuenciaDias: number; topeUsd: number; demoraDias: number; autoMax: number };
-export const CONFIG_DEFECTO: ConfigSeguimiento = { frecuenciaDias: 7, topeUsd: 30, demoraDias: 10, autoMax: 8 };
+/** `pausadasDias` / `pausadasMeses` (Fer, 22/10): una publicación de la competencia que está pausada se relee cada
+ *  `pausadasDias`, y después de `pausadasMeses` pausada deja de releerse sola hasta que alguien toca «Reanudar» (0 = nunca deja). */
+export type ConfigSeguimiento = { frecuenciaDias: number; topeUsd: number; demoraDias: number; autoMax: number; pausadasDias: number; pausadasMeses: number };
+export const CONFIG_DEFECTO: ConfigSeguimiento = { frecuenciaDias: 7, topeUsd: 30, demoraDias: 10, autoMax: 8, pausadasDias: 30, pausadasMeses: 3 };
 
 export async function configSeguimiento(org: string): Promise<ConfigSeguimiento> {
-  const r = await una<{ valor: { frecuencia_dias?: number; tope_usd?: number; demora_dias?: number; auto_max?: number } }>(
+  const r = await una<{ valor: { frecuencia_dias?: number; tope_usd?: number; demora_dias?: number; auto_max?: number; pausadas_dias?: number; pausadas_meses?: number } }>(
     "select valor from config_org where organizacion_id = $1 and clave = 'seguimiento'", [org]).catch(() => null);
   return {
     frecuenciaDias: Number(r?.valor?.frecuencia_dias) > 0 ? Number(r!.valor.frecuencia_dias) : CONFIG_DEFECTO.frecuenciaDias,
     topeUsd: r?.valor?.tope_usd != null && Number(r.valor.tope_usd) >= 0 ? Number(r.valor.tope_usd) : CONFIG_DEFECTO.topeUsd,
     demoraDias: Number(r?.valor?.demora_dias) > 0 ? Number(r!.valor.demora_dias) : CONFIG_DEFECTO.demoraDias,
     autoMax: r?.valor?.auto_max != null && Number(r.valor.auto_max) >= 0 ? Number(r.valor.auto_max) : CONFIG_DEFECTO.autoMax,
+    pausadasDias: Number(r?.valor?.pausadas_dias) > 0 ? Number(r!.valor.pausadas_dias) : CONFIG_DEFECTO.pausadasDias,
+    pausadasMeses: r?.valor?.pausadas_meses != null && Number(r.valor.pausadas_meses) >= 0 ? Number(r.valor.pausadas_meses) : CONFIG_DEFECTO.pausadasMeses,
   };
 }
 
@@ -44,10 +48,12 @@ export async function guardarConfigSeguimiento(org: string, c: ConfigSeguimiento
   if (!(c.topeUsd >= 0) || c.topeUsd > 1000) throw new ErrorErp("El tope de gasto va de US$ 0 a US$ 1.000 por mes.");
   if (!Number.isInteger(c.demoraDias) || c.demoraDias < 1 || c.demoraDias > 120) throw new ErrorErp("«No compite si tarda más de»: de 1 a 120 días.");
   if (!Number.isInteger(c.autoMax) || c.autoMax < 0 || c.autoMax > 30) throw new ErrorErp("«Seguir solas por producto»: de 0 a 30.");
+  if (!Number.isInteger(c.pausadasDias) || c.pausadasDias < 1 || c.pausadasDias > 365) throw new ErrorErp("«Pausadas: leer cada»: de 1 a 365 días.");
+  if (!Number.isInteger(c.pausadasMeses) || c.pausadasMeses < 0 || c.pausadasMeses > 36) throw new ErrorErp("«Pausadas: dejar de leer después de»: de 0 a 36 meses (0 = nunca).");
   await consulta(`
     insert into config_org (organizacion_id, clave, valor) values ($1, 'seguimiento', $2::jsonb)
     on conflict (coalesce(organizacion_id, ''), clave) do update set valor = excluded.valor, actualizado_ts = now()`,
-    [org, JSON.stringify({ frecuencia_dias: c.frecuenciaDias, tope_usd: c.topeUsd, demora_dias: c.demoraDias, auto_max: c.autoMax })]);
+    [org, JSON.stringify({ frecuencia_dias: c.frecuenciaDias, tope_usd: c.topeUsd, demora_dias: c.demoraDias, auto_max: c.autoMax, pausadas_dias: c.pausadasDias, pausadas_meses: c.pausadasMeses })]);
 }
 
 /** Lo gastado en Apify por el seguimiento este mes (hora argentina). */
@@ -378,6 +384,11 @@ export async function seguirPorNumero(org: string, productoId: number, texto: st
   return { nuevas: nuevos.length, repetidas: items.size - nuevos.length, ids: nuevos, catalogos: [...catalogos] };
 }
 
+/** «Reanudar» una pausada que dejó de releerse: vuelve a contar los meses desde hoy. */
+export async function reanudarSeguida(org: string, id: number): Promise<void> {
+  await consulta("update seguimiento_pub set pausada_desde = now() where id = $1 and organizacion_id = $2", [id, org]);
+}
+
 export async function dejarDeSeguir(org: string, id: number): Promise<void> {
   await consulta("delete from seguimiento_pub where id = $1 and organizacion_id = $2", [id, org]);
 }
@@ -602,18 +613,22 @@ async function leerUserProduct(cuenta: CuentaMl, s: Seguida): Promise<boolean> {
 /** Lee las seguidas que tocan (pasaron los días de la configuración, o nunca se leyeron), o las de un producto. En la vuelta
  *  sola (sin producto ni ids), las comunes sólo de productos a la venta. */
 export async function leerSeguidas(org: string, o: { productoId?: number; todas?: boolean; ids?: number[] } = {}): Promise<{ catalogo: number; comunes: number; sinPresupuesto: number }> {
-  const { frecuenciaDias } = await configSeguimiento(org);
+  const { frecuenciaDias, pausadasDias, pausadasMeses } = await configSeguimiento(org);
   const seguidas = await consulta<Seguida>(`
     select sp.id::int, sp.item_id, sp.catalogo_id, sp.permalink, sp.producto_id::int, sp.vendedor_id::float8 vendedor_id from seguimiento_pub sp
      where sp.organizacion_id = $1 and ($2::bigint is null or sp.producto_id = $2) and ($5::bigint[] is null or sp.id = any($5::bigint[]))
-       and ($3 or sp.leido_ts is null or sp.leido_ts < now() - make_interval(days => $4) + interval '2 hours')
+       -- Las pausadas de la competencia, cada «pausadas_dias» (Fer, 22/10).
+       and ($3 or sp.leido_ts is null or sp.leido_ts < now() - make_interval(days => case when sp.estado = 'pausada' then $7 else $4 end) + interval '2 hours')
        -- Lo que falló hace poco no se reintenta enseguida (salvo pedido a mano).
        and ($3 or sp.intento_ts is null or sp.intento_ts < now() - interval '20 hours')
        -- En la vuelta sola, las que cuestan (las comunes, con Apify) sólo de productos a la venta: con publicación activa
        -- en Mercado Libre y stock disponible (Fer, 22/10). Las de catálogo y MLAU se leen gratis por la API.
        and (not $6 or sp.catalogo_id is not null or sp.item_id like 'MLAU%'
             or exists (select 1 from producto p where p.id = sp.producto_id and ${SQL_A_LA_VENTA}))
-     order by sp.leido_ts nulls first limit 2000`, [org, o.productoId ?? null, !!o.todas, frecuenciaDias, o.ids?.length ? o.ids : null, !o.productoId && !o.ids?.length]);
+       -- Pausada hace más de «pausadas_meses»: frenada hasta «Reanudar». Terminada: Mercado Libre no la reactiva, no se lee más.
+       and (not $6 or not (sp.estado = 'pausada' and $8 > 0 and sp.pausada_desde < now() - make_interval(months => $8)))
+       and (not $6 or sp.estado is distinct from 'cerrada')
+     order by sp.leido_ts nulls first limit 2000`, [org, o.productoId ?? null, !!o.todas, frecuenciaDias, o.ids?.length ? o.ids : null, !o.productoId && !o.ids?.length, pausadasDias, pausadasMeses]);
   if (!seguidas.length) return { catalogo: 0, comunes: 0, sinPresupuesto: 0 };
   const cuenta = (await nuestras(org)).cuentas[0];
   // Las MLAU (productos de vendedor) no se leen con Apify: la API dice en qué catálogo compiten (si compiten).
