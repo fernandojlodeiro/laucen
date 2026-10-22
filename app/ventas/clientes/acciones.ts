@@ -141,8 +141,10 @@ export async function accionBorrarCliente(fd: FormData) {
 
 // ── Direcciones ──────────────────────────────────────────
 
+/** Calle, número, piso/depto, localidad, provincia, CP y país. La etiqueta no se pide (Fer, 22/10): la ponen los
+ *  pedidos y el padrón («Fiscal», «Envío») y al corregir una dirección queda como estaba. */
 function datosDireccion(fd: FormData) {
-  return [texto(fd, "etiqueta"), texto(fd, "calle"), texto(fd, "numero"), texto(fd, "piso_depto"), texto(fd, "localidad"),
+  return [texto(fd, "calle"), texto(fd, "numero"), texto(fd, "piso_depto"), texto(fd, "localidad"),
     texto(fd, "provincia"), texto(fd, "codigo_postal"), texto(fd, "pais") ?? "AR"];
 }
 
@@ -152,11 +154,11 @@ export async function accionAgregarDireccion(fd: FormData) {
   await intentar(ficha(cid), async () => {
     await delaOrg(s.org.id, cid);
     const d = datosDireccion(fd);
-    if (!d[1] && !d[4]) throw new ErrorErp("La dirección necesita al menos la calle o la localidad.");
+    if (!d[0] && !d[3]) throw new ErrorErp("La dirección necesita al menos la calle o la localidad.");
     // La primera dirección del cliente nace principal.
     await consulta(`
-      insert into cliente_direccion (organizacion_id, cliente_id, etiqueta, calle, numero, piso_depto, localidad, provincia, codigo_postal, pais, principal)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, not exists (select 1 from cliente_direccion where cliente_id = $2))`,
+      insert into cliente_direccion (organizacion_id, cliente_id, calle, numero, piso_depto, localidad, provincia, codigo_postal, pais, principal)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, not exists (select 1 from cliente_direccion where cliente_id = $2))`,
       [s.org.id, cid, ...d]);
     revalidatePath(ficha(cid));
     return "Dirección agregada.";
@@ -168,8 +170,8 @@ export async function accionGuardarDireccion(fd: FormData) {
   const cid = id(fd, "cliente_id");
   await intentar(ficha(cid), async () => {
     const r = await consulta(`
-      update cliente_direccion set etiqueta = $4, calle = $5, numero = $6, piso_depto = $7, localidad = $8, provincia = $9,
-                                   codigo_postal = $10, pais = $11
+      update cliente_direccion set calle = $4, numero = $5, piso_depto = $6, localidad = $7, provincia = $8,
+                                   codigo_postal = $9, pais = $10
        where id = $2 and cliente_id = $3 and organizacion_id = $1 returning id`,
       [s.org.id, id(fd), cid, ...datosDireccion(fd)]);
     if (!r.length) throw new ErrorErp("La dirección no existe.");

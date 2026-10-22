@@ -11,7 +11,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { parametroBusqueda, sqlBusqueda } from "@/lib/busqueda";
 import { camposCliente, prefiltroCliente } from "@/app/ventas/clientes/lista";
 import { editarPedido } from "@/lib/pedidos/editar";
-import { consulta, una, ErrorErp, motivoErp } from "@/lib/erp/base";
+import { consulta, una, enTransaccion, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, numero, texto } from "@/lib/erp/acciones";
 import { crearPedidoAMano, type PedidoAMano } from "@/lib/pedidos/a-mano";
 import { precioDe } from "@/lib/precios";
@@ -22,6 +22,7 @@ import { CONDICIONES_IVA } from "@/app/ventas/formato";
 import { cuitLegible } from "@/lib/cuit";
 import { cuitCierra, CUIT_NO_CIERRA } from "@/lib/cuit-verificador";
 import { whatsappNormal } from "@/lib/telefono";
+import { provinciaNormal } from "@/lib/provincias";
 
 
 export type ClienteHallado = {
@@ -34,6 +35,7 @@ export type ClienteHallado = {
  *  razón social, CUIT / CUIL y DNI por separado, condición de IVA, mail, teléfono y WhatsApp. */
 export async function crearClienteDesdePedido(d: {
   nombre: string; tipo: string; cuit: string; dni: string; condicionIva: string; email: string; telefono: string; whatsapp: string;
+  calle: string; numero: string; pisoDepto: string; localidad: string; provincia: string; codigoPostal: string;
   /** Ya se avisó que hay otro con la misma razón social y es otro cliente. */
   igual?: boolean;
 }): Promise<{ cliente?: ClienteHallado; error?: string; repetidos?: ClienteHallado[]; forzable?: boolean }> {
@@ -50,6 +52,11 @@ export async function crearClienteDesdePedido(d: {
     const dniTxt = d.dni.trim().slice(0, 30);
     const dni = (/^[\d.\s-]+$/.test(dniTxt) ? dniTxt.replace(/\D/g, "") : dniTxt) || null;
     if (dni && /^\d{11}$/.test(dni)) return { error: "Ese número tiene 11 cifras: es un CUIT o CUIL, va en «CUIT / CUIL»." };
+    // La dirección, obligatoria (Fer, 22/10): al menos calle, número, localidad y provincia.
+    const dir = { calle: d.calle.trim(), numero: d.numero.trim(), piso: d.pisoDepto.trim(), localidad: d.localidad.trim(),
+      provincia: provinciaNormal(d.provincia), cp: d.codigoPostal.trim() };
+    if (!dir.calle || !dir.numero || !dir.localidad) return { error: "Falta la dirección: calle, número y localidad." };
+    if (!dir.provincia) return { error: "Elegí la provincia de la dirección." };
     const whatsapp = d.whatsapp.trim() ? whatsappNormal(d.whatsapp) : null;
     if (d.whatsapp.trim() && !whatsapp) return { error: "El WhatsApp no parece un celular: escribilo con la característica (ej. 351 555-1234)." };
     // Sin elegir (Fer, 22/10): con CUIT, Responsable inscripto; sin CUIT y con DNI, Consumidor final. La pantalla ya
@@ -71,14 +78,22 @@ export async function crearClienteDesdePedido(d: {
         return { error: "Ya hay un cliente con esa razón social. ¿Es el mismo?", repetidos: await clientesHallados(s.org.id, porNombre.map((r) => r.id)), forzable: true };
       }
     }
-    const r = await una<{ id: number }>(`
-      insert into cliente (organizacion_id, nombre, razon_social, tipo, cuit, documento_tipo, documento_numero, condicion_iva, email, telefono, whatsapp)
-      values ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10) returning id::int`,
-      [s.org.id, nombre, d.tipo === "mayorista" ? "mayorista" : "consumidor_final", cuit, dni ? "DNI" : null, dni, iva,
-        d.email.trim() || null, d.telefono.trim() || null, whatsapp]);
+    const id = await enTransaccion(async (c) => {
+      const r = await c.query<{ id: string }>(`
+        insert into cliente (organizacion_id, nombre, razon_social, tipo, cuit, documento_tipo, documento_numero, condicion_iva, email, telefono, whatsapp)
+        values ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10) returning id`,
+        [s.org.id, nombre, d.tipo === "mayorista" ? "mayorista" : "consumidor_final", cuit, dni ? "DNI" : null, dni, iva,
+          d.email.trim() || null, d.telefono.trim() || null, whatsapp]);
+      const cid = Number(r.rows[0].id);
+      await c.query(`insert into cliente_direccion (organizacion_id, cliente_id, calle, numero, piso_depto, localidad, provincia, codigo_postal, pais, principal)
+                     values ($1, $2, $3, $4, $5, $6, $7, $8, 'AR', true)`,
+        [s.org.id, cid, dir.calle, dir.numero, dir.piso || null, dir.localidad, dir.provincia, dir.cp || null]);
+      return cid;
+    });
     revalidatePath("/ventas/clientes");
     const documento = [cuit && `CUIT ${cuitLegible(cuit)}`, dni && `DNI ${dni}`].filter(Boolean).join(" · ") || null;
-    return { cliente: { id: r!.id, nombre, documento, email: d.email.trim() || null, cuentaCorriente: false, direccion: null } };
+    return { cliente: { id, nombre, documento, email: d.email.trim() || null, cuentaCorriente: false,
+      direccion: { calle: dir.calle, numero: dir.numero, localidad: dir.localidad, provincia: dir.provincia, codigo_postal: dir.cp || null } } };
   } catch (e) {
     return { error: motivoErp(e) };
   }

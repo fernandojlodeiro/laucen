@@ -32,7 +32,7 @@ export function filtrarOpciones(opciones: Opcion[], texto: string): Opcion[] {
 
 export default function ElegirDeLista({
   name, opciones: inicial, valor = null, vacio = "Sin elegir", placeholder = "Buscá…", etiqueta, parametro, limpiar = [],
-  crear, className = "",
+  crear, alElegir, className = "",
 }: {
   name?: string;
   opciones: Opcion[];
@@ -47,6 +47,8 @@ export default function ElegirDeLista({
   limpiar?: string[];
   /** Crea una opción nueva con lo escrito (un botón explícito, nunca al dar Enter). */
   crear?: (texto: string) => Promise<Opcion | { error: string }>;
+  /** Avisa lo elegido (para quien guarda otra cosa que el id, ej. ElegirProvincia). */
+  alElegir?: (o: Opcion | null) => void;
   className?: string;
 }) {
   const cambiar = usarCambiarParametro();
@@ -77,6 +79,7 @@ export default function ElegirDeLista({
   const elegir = (o: Opcion | null) => {
     const id = o?.id ?? null;
     setElegido(id); setTexto(o?.texto ?? ""); setAbierto(false); setError(null);
+    alElegir?.(o);
     if (parametro) cambiar({ [parametro]: id != null ? String(id) : null, ...Object.fromEntries(limpiar.map((k) => [k, null])) });
   };
 

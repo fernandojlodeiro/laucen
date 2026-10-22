@@ -522,6 +522,30 @@ update cliente set cuit = coalesce(cuit, regexp_replace(documento_numero, '[^0-9
  where length(regexp_replace(coalesce(documento_numero, ''), '[^0-9]', '', 'g')) = 11
    and (cuit is null or cuit = regexp_replace(documento_numero, '[^0-9]', '', 'g'));
 
+-- Provincias escritas siempre igual (Fer, 22/10): las 24 de lib/provincias.ts. Lo que llega de otra forma
+-- ("CORDOBA", "CABA", "Ciudad Autónoma de Buenos Aires") se pasa al nombre de la lista; lo que no es
+-- ninguna (otro país) queda como vino.
+create or replace function provincia_normal(v text) returns text language sql immutable as $$
+  with t as (select btrim(regexp_replace(translate(lower(coalesce(v, '')), 'áéíóúü', 'aeiouu'), '\s+', ' ', 'g')) k)
+  select coalesce(
+    (select p from unnest(array['Buenos Aires', 'Capital Federal', 'Catamarca', 'Chaco', 'Chubut', 'Córdoba', 'Corrientes', 'Entre Ríos',
+       'Formosa', 'Jujuy', 'La Pampa', 'La Rioja', 'Mendoza', 'Misiones', 'Neuquén', 'Río Negro', 'Salta', 'San Juan', 'San Luis',
+       'Santa Cruz', 'Santa Fe', 'Santiago del Estero', 'Tierra del Fuego', 'Tucumán']) p, t
+      where translate(lower(p), 'áéíóúü', 'aeiouu') = t.k),
+    (select case when t.k in ('caba', 'c.a.b.a.', 'capital', 'ciudad de buenos aires', 'ciudad autonoma de buenos aires', 'ciudad autonoma buenos aires') then 'Capital Federal'
+                 when t.k in ('provincia de buenos aires', 'bs as', 'bs. as.', 'pba') then 'Buenos Aires'
+                 when t.k like 'tierra del fuego%' then 'Tierra del Fuego' end from t),
+    nullif(btrim(v), ''))
+$$;
+create or replace function cliente_direccion_provincia() returns trigger language plpgsql as $$
+begin
+  new.provincia := provincia_normal(new.provincia);
+  return new;
+end $$;
+drop trigger if exists cliente_direccion_provincia on cliente_direccion;
+create trigger cliente_direccion_provincia before insert or update of provincia on cliente_direccion for each row execute function cliente_direccion_provincia();
+update cliente_direccion set provincia = provincia where provincia is distinct from provincia_normal(provincia);
+
 -- Cuenta corriente con límite de crédito (Fer, 7/10). Un pedido a cuenta
 -- corriente (estado_pago 'a_convenir') entra a preparar sólo si el cliente
 -- tiene la cuenta corriente habilitada, un límite cargado (en pesos) y el

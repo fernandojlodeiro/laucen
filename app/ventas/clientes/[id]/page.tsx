@@ -19,6 +19,7 @@ import {
 import { TituloSeccion as TituloSeccionErp } from "@/app/componentes/erp";
 import { fecha, TONO_ESTADO, TIPOS_CLIENTE, CONDICIONES_IVA, etiqueta } from "@/app/ventas/formato";
 import CamposCliente, { AYUDA_LISTA } from "../CamposCliente";
+import ElegirProvincia from "@/app/componentes/ElegirProvincia";
 import {
   accionGuardarCliente, accionBorrarCliente, accionAgregarDireccion, accionGuardarDireccion,
   accionDireccionPrincipal, accionBorrarDireccion, accionQuitarIdentidad,
@@ -46,10 +47,13 @@ type Direccion = {
   receptor: string | null; receptor_telefono: string | null; referencia: string | null;
 };
 
+// La etiqueta («Fiscal», «Envío») no se pide (Fer, 22/10): la ponen solos los pedidos y el padrón, y la factura toma la
+// «Fiscal». La provincia se elige de las 24 (ElegirProvincia).
 const CAMPOS_DIR = [
-  ["etiqueta", "Etiqueta", "w-24"], ["calle", "Calle", "w-40"], ["numero", "Nº", "w-16"], ["piso_depto", "Piso/depto", "w-20"],
-  ["localidad", "Localidad", "w-32"], ["provincia", "Provincia", "w-28"], ["codigo_postal", "CP", "w-16"], ["pais", "País", "w-12"],
+  ["calle", "Calle", "w-40"], ["numero", "Nº", "w-16"], ["piso_depto", "Piso/depto", "w-20"],
+  ["localidad", "Localidad", "w-32"],
 ] as const;
+const CAMPOS_DIR_FIN = [["codigo_postal", "CP", "w-16"], ["pais", "País", "w-12"]] as const;
 
 export default async function FichaCliente({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SP> }) {
   const s = await entrarErp("clientes_ver");
@@ -193,22 +197,26 @@ export default async function FichaCliente({ params, searchParams }: { params: P
       <AltaNueva texto="Nueva dirección" sinBoton className="mb-2">
         <form action={accionAgregarDireccion} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="cliente_id" value={cid} />
-          {CAMPOS_DIR.map(([k, ph, w], i) => <input key={k} name={k} placeholder={ph} aria-label={ph} defaultValue={k === "pais" ? "AR" : ""} className={`${CAMPO} ${w}`} autoFocus={i === 0} />)}
+          {CAMPOS_DIR.map(([k, ph, w], i) => <input key={k} name={k} placeholder={ph} aria-label={ph} className={`${CAMPO} ${w}`} autoFocus={i === 0} />)}
+          <ElegirProvincia name="provincia" className="w-40" />
+          {CAMPOS_DIR_FIN.map(([k, ph, w]) => <input key={k} name={k} placeholder={ph} aria-label={ph} defaultValue={k === "pais" ? "AR" : ""} className={`${CAMPO} ${w}`} />)}
           <button className={PRIMARIO}>Crear</button>
         </form>
       </AltaNueva>
       <div className={`${CAJA_TABLA} mb-5`}>
         <table className={TABLA}>
-          <thead className={THEAD}><tr><th className={TH}>Etiqueta</th><th className={TH}>Dirección</th><th className={TH} /><th /></tr></thead>
+          <thead className={THEAD}><tr><th className={TH}>Dirección</th><th className={TH} /><th /></tr></thead>
           <tbody>
-            {direcciones.length === 0 && <tr><td colSpan={4} className={`${TD} text-[#5C6B76]`}>Sin direcciones.</td></tr>}
+            {direcciones.length === 0 && <tr><td colSpan={3} className={`${TD} text-[#5C6B76]`}>Sin direcciones.</td></tr>}
             {direcciones.map((d) => editar === d.id ? (
               <tr key={d.id} className={`${TR} bg-[#FAFBFC]`}>
-                <td colSpan={4} className={TD}>
+                <td colSpan={3} className={TD}>
                   <form action={accionGuardarDireccion} className="flex flex-wrap items-center gap-2">
                     <input type="hidden" name="id" value={d.id} />
                     <input type="hidden" name="cliente_id" value={cid} />
                     {CAMPOS_DIR.map(([k, ph, w]) => <input key={k} name={k} placeholder={ph} aria-label={ph} defaultValue={d[k] ?? ""} className={`${CAMPO} ${w}`} />)}
+                    <ElegirProvincia name="provincia" valor={d.provincia} className="w-40" />
+                    {CAMPOS_DIR_FIN.map(([k, ph, w]) => <input key={k} name={k} placeholder={ph} aria-label={ph} defaultValue={d[k] ?? ""} className={`${CAMPO} ${w}`} />)}
                     <button className={VERDE}>Guardar</button>
                     <Link href={volver} className={SUAVE} scroll={false}>Cancelar</Link>
                   </form>
@@ -216,7 +224,6 @@ export default async function FichaCliente({ params, searchParams }: { params: P
               </tr>
             ) : (
               <tr key={d.id} className={TR}>
-                <td className={TD}>{d.etiqueta ?? "—"}</td>
                 <td className={TD}>{direccionTexto(d)}{extrasDireccion(d) && <span className="block text-[11px] text-[#5C6B76]">{extrasDireccion(d)}</span>}</td>
                 <td className={TD}>
                   {d.principal ? <Estado texto="Principal" tono="verde" /> : (

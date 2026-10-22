@@ -10,6 +10,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { leerNumero, formatearNumero } from "@/lib/numeros";
 import { cuitCierra } from "@/lib/cuit-verificador";
+import ElegirProvincia from "@/app/componentes/ElegirProvincia";
+import { PROVINCIA_POR_DEFECTO } from "@/lib/provincias";
 import { PRIMARIO, SUAVE, ICONO_BORRAR } from "@/app/botones";
 import IconoTacho from "@/app/componentes/IconoTacho";
 import {
@@ -106,6 +108,8 @@ function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerrar }: {
   const [v, setV] = useState({
     nombre: nombreInicial, tipo: "consumidor_final", cuit: cifras.length === 11 ? documentoInicial : "", dni: cifras && cifras.length !== 11 ? documentoInicial : "",
     condicionIva: cifras.length === 11 ? "responsable_inscripto" : cifras ? "consumidor_final" : "", email: "", telefono: "", whatsapp: "",
+    // Una dirección, aunque sea una (Fer, 22/10); la provincia, de las 24 (Córdoba de entrada).
+    calle: "", numero: "", pisoDepto: "", localidad: "", provincia: PROVINCIA_POR_DEFECTO, codigoPostal: "",
   });
   // La condición de IVA se sugiere sola (Fer, 22/10): con CUIT, Responsable inscripto; sin CUIT y con DNI, Consumidor
   // final. Si la persona la eligió a mano, ya no se toca.
@@ -184,6 +188,17 @@ function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerrar }: {
         {campo("email", "Mail")}
         {campo("telefono", "Teléfono")}
         {campo("whatsapp", "WhatsApp", { placeholder: "351 555-1234" })}
+      </div>
+      <div className="grid grid-cols-6 gap-2">
+        {campo("calle", "Calle", { className: "col-span-3" })}
+        {campo("numero", "Número")}
+        {campo("pisoDepto", "Piso / depto", { className: "col-span-2" })}
+      </div>
+      <div className="grid grid-cols-6 gap-2">
+        {campo("localidad", "Localidad", { className: "col-span-3" })}
+        <label className="col-span-2"><span className={ETIQUETA}>Provincia</span>
+          <ElegirProvincia alCambiar={(x) => setV((y) => ({ ...y, provincia: x }))} /></label>
+        {campo("codigoPostal", "CP")}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => guardar()} disabled={grabando} className={`${PRIMARIO} disabled:opacity-60`}>{grabando ? "Grabando…" : "Grabar y elegir"}</button>
@@ -548,7 +563,7 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
               <label className="col-span-1"><span className={ETIQUETA}>Número</span><input name="numero" defaultValue={dir.numero ?? ""} className={`${CAMPO} w-full`} /></label>
               <label className="col-span-1"><span className={ETIQUETA}>Piso/depto</span><input name="piso_depto" defaultValue={dir.piso_depto ?? ""} className={`${CAMPO} w-full`} /></label>
               <label className="col-span-3"><span className={ETIQUETA}>Localidad</span><input name="localidad" defaultValue={dir.localidad ?? ""} className={`${CAMPO} w-full`} /></label>
-              <label className="col-span-2"><span className={ETIQUETA}>Provincia</span><input name="provincia" defaultValue={dir.provincia ?? ""} className={`${CAMPO} w-full`} /></label>
+              <label className="col-span-2"><span className={ETIQUETA}>Provincia</span><ElegirProvincia name="provincia" valor={dir.provincia || undefined} /></label>
               <label className="col-span-1"><span className={ETIQUETA}>CP</span><input name="codigo_postal" defaultValue={dir.codigo_postal ?? ""} className={`${CAMPO} w-full`} /></label>
               <label className="col-span-4"><span className={ETIQUETA}>Referencia</span><input name="referencia" defaultValue={dir.referencia ?? ""} className={`${CAMPO} w-full`} /></label>
               <label className="col-span-2"><span className={ETIQUETA}>Costo del envío ({moneda === "USD" ? "US$" : "$"})</span>
