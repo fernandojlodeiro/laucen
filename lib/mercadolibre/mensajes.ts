@@ -186,7 +186,14 @@ export async function enviarMensaje(org: string, packId: string, texto: string, 
     : (await una<{ c: string | null }>("select datos_externos #>> '{ml,from,user_id}' c from meli_mensaje where pack_id = $1 and not de_vendedor limit 1", [packId]))?.c;
   if (!comprador) throw new ErrorErp("No se sabe quién es el comprador de esta conversación.");
   await mlOk(cuenta, "POST", `/messages/packs/${packId}/sellers/${cuenta.meliUserId}?tag=post_sale`,
-    { from: { user_id: cuenta.meliUserId }, to: { user_id: Number(comprador) }, text: t });
+    { from: { user_id: cuenta.meliUserId }, to: { user_id: Number(comprador) }, text: t }).catch((e) => {
+    // ML rechaza (403 «the format is not allowed») mensajes desde Laucen en una compra con retiro, sin envío (Fer, 22/10:
+    // pedido 150344; el mismo texto salió bien desde la web de ML). Se dice claro qué hacer mientras se averigua la causa.
+    if (e instanceof ErrorErp && /format is not allowed/i.test(e.message)) {
+      throw new ErrorErp("Mercado Libre no deja mandar este mensaje desde Laucen (pasa en compras con retiro, sin envío). Mandalo desde Mercado Libre: «Ver la venta», arriba, y respondé ahí.");
+    }
+    throw e;
+  });
   await importarConversacion(cuenta, packId, true);
   // Quién lo mandó: el mensaje recién vuelto de ML con ese mismo texto. Si es justo lo que propuso la IA, también "con la IA".
   if (usuarioId) await consulta(`
