@@ -124,11 +124,11 @@ export default async function StockFull({ searchParams }: { searchParams: Promis
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <ThOrden col="sku" porDefecto>Producto</ThOrden><ThOrden col="cuenta">Cuenta</ThOrden><th className="py-1.5 px-2 text-left font-semibold">Código ML</th>
-              <ThOrden col="ml" n>Disponible en ML</ThOrden><ThOrden col="no_disponible" n>No disponible en ML</ThOrden><ThOrden col="laucen" n>En Full según Laucen</ThOrden>
-              <ThOrden col="diferencia" n>Diferencia</ThOrden><ThOrden col="en_camino" n>En camino</ThOrden><ThOrden col="vendidas" n>Vendidas ({DIAS} días)</ThOrden>
-              <ThOrden col="cobertura" n>Días que cubre</ThOrden><ThOrden col="tamano">Tamaño en Full</ThOrden><ThOrden col="por_dia" n>Cuesta por día</ThOrden>
-              <ThOrden col="dias" n>Días en Full</ThOrden><ThOrden col="leido" n>Lectura</ThOrden>
+              <ThOrden col="sku" porDefecto>Producto</ThOrden><ThOrden col="cuenta">Cuenta</ThOrden><th className="py-1.5 px-2 text-left font-semibold" title="Código de Full (Código ML)">Código</th>
+              <ThOrden col="ml" n title="Disponible para vender en Full, según Mercado Libre">ML dispo.</ThOrden><ThOrden col="no_disponible" n title="En Full pero no disponible, según Mercado Libre (en traslado, dañado, perdido, en retiro…)">ML no disp.</ThOrden><ThOrden col="laucen" n title="En Full según Laucen">Laucen</ThOrden>
+              <ThOrden col="diferencia" n title="Diferencia entre Mercado Libre y Laucen">Dif.</ThOrden><ThOrden col="en_camino" n title="En camino a Full (envíos despachados que todavía no llegaron)">En camino</ThOrden><ThOrden col="vendidas" n title={`Vendidas en los últimos ${DIAS} días en la cuenta`}>Vend. {DIAS}d</ThOrden>
+              <ThOrden col="cobertura" n title="Días que cubre lo que hay, al ritmo de venta">Cubre</ThOrden><ThOrden col="tamano" title="Tamaño en Full">Tamaño</ThOrden><ThOrden col="por_dia" n title="Cuesta por día (unidades × tarifa del tamaño)">$/día</ThOrden>
+              <ThOrden col="dias" n title="Días en Full de la unidad más vieja">Días</ThOrden><ThOrden col="leido" n title="Última lectura de Mercado Libre">Lectura</ThOrden>
             </tr>
           </thead>
           <tbody>

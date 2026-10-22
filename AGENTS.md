@@ -177,6 +177,8 @@ Listas de los ABM (pedido de Fer, 3/10):
   columnas con las que se decide (cantidades, stock, dónde está, estado), después lo secundario; las listas
   largas (publicaciones que lo venden, códigos, detalles) **al final**. Lo importante tiene que verse sin
   desplazar la tabla de costado.
+  **El ancho de una columna lo marca el dato, nunca el título**: títulos de columna cortos o abreviados
+  («Cant.», «Dispo.», «Vta/día») y el nombre completo en `title`, que se ve al pasar el mouse.
 - **Clientes y proveedores muestran su "N.º"** (el id interno): primera columna y en la ficha.
 - **Todo ABM tiene "Descargar Excel" con configuraciones** (pedido de Fer, 3/10): arriba a la
   derecha, al lado de "Nuevo …" (`<AccionesExcel>` de `app/listas/piezas.tsx`). Baja lo que se ve
