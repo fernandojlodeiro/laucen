@@ -626,15 +626,15 @@ export async function leerSeguidas(org: string, o: { productoId?: number; todas?
     select sp.id::int, sp.item_id, sp.catalogo_id, sp.permalink, sp.producto_id::int, sp.vendedor_id::float8 vendedor_id from seguimiento_pub sp
      where sp.organizacion_id = $1 and ($2::bigint is null or sp.producto_id = $2) and ($5::bigint[] is null or sp.id = any($5::bigint[]))
        -- Las pausadas de la competencia, cada «pausadas_dias» (Fer, 22/10).
-       and ($3 or sp.leido_ts is null or sp.leido_ts < now() - make_interval(days => case when sp.estado = 'pausada' then $7 else $4 end) + interval '2 hours')
+       and ($3 or sp.leido_ts is null or sp.leido_ts < now() - make_interval(days => case when sp.estado = 'pausada' then $7::int else $4::int end) + interval '2 hours')
        -- Lo que falló hace poco no se reintenta enseguida (salvo pedido a mano).
        and ($3 or sp.intento_ts is null or sp.intento_ts < now() - interval '20 hours')
        -- En la vuelta sola, las que cuestan (las comunes, con Apify) sólo de productos a la venta: con publicación activa
        -- en Mercado Libre y stock disponible (Fer, 22/10). Las de catálogo y MLAU se leen gratis por la API.
-       and (not $6 or sp.catalogo_id is not null or sp.item_id like 'MLAU%'
+       and (not $6::boolean or sp.catalogo_id is not null or sp.item_id like 'MLAU%'
             or exists (select 1 from producto p where p.id = sp.producto_id and ${SQL_A_LA_VENTA}))
        -- Pausada hace más de «pausadas_meses»: frenada hasta «Reanudar».
-       and (not $6 or not (sp.estado = 'pausada' and $8 > 0 and sp.pausada_desde < now() - make_interval(months => $8)))
+       and (not $6::boolean or not (sp.estado = 'pausada' and $8::int > 0 and sp.pausada_desde < now() - make_interval(months => $8::int)))
      order by sp.leido_ts nulls first limit 2000`, [org, o.productoId ?? null, !!o.todas, frecuenciaDias, o.ids?.length ? o.ids : null, !o.productoId && !o.ids?.length, pausadasDias, pausadasMeses]);
   if (!seguidas.length) return { catalogo: 0, comunes: 0, sinPresupuesto: 0 };
   const cuenta = (await nuestras(org)).cuentas[0];
