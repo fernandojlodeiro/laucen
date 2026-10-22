@@ -34,7 +34,7 @@ El envío también se crea en Mercado Libre, en la Central de vendedores (secci�
 
 ### Ficha del envío
 
-- Arriba a la derecha: **«Etiquetas»** (abre en otra pestaña el PDF con una etiqueta por unidad, con el Código ML de cada publicación), **«Remito»** (abre en otra pestaña el remito para el transportista), el lápiz, y según el estado **«Despachar»** y el tacho (borrador) o **«Leer Full ahora»** (en camino).
+- Arriba a la derecha: **«Etiquetas»** (abre en otra pestaña el PDF con una etiqueta por unidad, con el Código ML de cada publicación), **«Remito»** (abre en otra pestaña el remito para el transportista), el lápiz, y según el estado **«Despachar»** y el tacho (borrador) o **«Leer Full ahora»** y **«Deshacer el despacho»** (en camino, mientras no llegó nada).
 - **Datos del envío**: **Nº del envío en Mercado Libre**, **Entrega en Full (turno)** y **Notas**. Se cambian con el lápiz en cualquier estado.
 - Recuadros: **Productos**, **Unidades**, **Recibidas en Full**, **Pendientes**, **Despachado** y **Recibido** (o **Cerrado**).
 - Caja **Remito para el transportista** con su lápiz: **Transportista (proveedor)** (enlace al proveedor), **Bultos** y **Valor declarado**. Vacíos, muestran lo sugerido. Si algún producto no tiene costo cargado, lo avisa abajo.
@@ -84,6 +84,7 @@ El envío también se crea en Mercado Libre, en la Central de vendedores (secci�
 1. Apretá **«Etiquetas»**: abre el PDF con una etiqueta por unidad, en la impresora elegida la última vez en [Etiquetas › Full](/deposito/etiquetas/full).
 2. Pegá cada etiqueta en su unidad y prepará las cajas.
 3. Apretá **«Despachar»** y confirmá. Las unidades salen del depósito de origen y quedan «En camino a Full». Si de algún producto no alcanza el disponible, no se mueve nada y el sistema dice cuál y cuánto hay.
+4. Si el transporte todavía no pasó y hace falta cambiar algo, **«Deshacer el despacho»** (arriba a la derecha, mientras no haya llegado nada a Full): las unidades vuelven a las ubicaciones del depósito de origen de donde salieron y el envío vuelve a borrador. Se edita y se aprieta **«Despachar»** de nuevo.
 
 ### Recibir
 

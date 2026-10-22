@@ -37,7 +37,7 @@ import { diaAR } from "../piezas";
 import { sugeridosRemito, proveedoresTransporte } from "@/lib/full/remito";
 import {
   accionGuardarEnvio, accionGuardarFlete, accionBorrarEnvio, accionAgregarLinea, accionCantidadLinea, accionBorrarLinea,
-  accionAgregarTildados, accionVaciarEnvio, accionDespachar, accionRecibirAMano, accionCerrarEnvio, accionLeerFull, accionGuardarRemito,
+  accionAgregarTildados, accionVaciarEnvio, accionDespachar, accionRecibirAMano, accionCerrarEnvio, accionLeerFull, accionGuardarRemito, accionDeshacerDespacho,
 } from "../acciones";
 
 export const dynamic = "force-dynamic";
@@ -136,6 +136,10 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
         <span className="inline-flex flex-wrap items-center gap-2">
           {etiquetas && !editando && <a href={etiquetas} target="_blank" rel="noopener noreferrer" className={SUAVE}>Etiquetas</a>}
           {lineas.length > 0 && !editando && <a href={`${base}/remito`} target="_blank" rel="noopener noreferrer" className={SUAVE}>Remito</a>}
+          {enCamino && !editando && recibidas === 0 && faltantes === 0 && (
+            <BotonConfirmar accion={accionDeshacerDespacho} campos={{ id: String(eid) }} clase={SUAVE} texto="Deshacer el despacho" corriendo="Deshaciendo…"
+              pregunta={`¿Deshacer el despacho? Las ${n(unidades)} unidades vuelven a ${e.origen} (y se vuelven a vender por todos los canales) y el envío queda en borrador para editarlo. Después apretás «Despachar» de nuevo.`} />
+          )}
           {enCamino && !editando && <BotonTarea accion={accionLeerFull} tipo="full-lectura" texto="Leer Full ahora" clase={SUAVE} campos={{ canal: String(e.canal_id) }} />}
           {borrador && !editando && lineas.length > 0 && (
             <BotonConfirmar accion={accionDespachar} campos={{ id: String(eid) }} clase={VERDE} texto="Despachar" corriendo="Despachando…"

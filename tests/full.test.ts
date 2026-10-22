@@ -148,6 +148,12 @@ if (url) {
     await m.envios.cambiarLinea(e.org, envio, linW, 3);
     await m.envios.guardarFlete(e.org, envio, { monto: 900, facturaId: null, criterio: "unidades" });
     assert.equal(await n("select flete_unit_ars from full_envio_linea where id = $1", [linW]), 100);
+    // Despachar, deshacer (vuelve todo y queda en borrador), sumar con el envío en camino y volver a despachar.
+    assert.deepEqual(await m.envios.despachar(e.org, envio, "u"), { productos: 2, unidades: 9 });
+    assert.equal(await n("select stock_disponible_deposito($1, $2, $3)", [e.org, v, e.propio]), 4);
+    assert.equal(await m.envios.deshacerDespacho(e.org, envio, "u"), 9);
+    assert.equal(await n("select stock_disponible_deposito($1, $2, $3)", [e.org, v, e.propio]), 10, "deshacer devuelve todo");
+    assert.equal(await q<{ estado: string }>("select estado from full_envio where id = $1", [envio]).then((x) => x[0].estado), "borrador");
     const r = await m.envios.despachar(e.org, envio, "u");
     assert.deepEqual(r, { productos: 2, unidades: 9 });
     assert.equal(await n("select stock_disponible_deposito($1, $2, $3)", [e.org, v, e.propio]), 4);

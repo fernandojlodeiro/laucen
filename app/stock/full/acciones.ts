@@ -11,7 +11,7 @@ import { redirect } from "next/navigation";
 import { formatearNumero } from "@/lib/numeros";
 import {
   crearEnvio, guardarCabecera, guardarFlete, borrarEnvio, agregarLinea, cambiarLinea, vaciarEnvio, borrarLinea, agregarVarios, despachar,
-  recibirAMano, cerrarEnvio, esCriterio,
+  recibirAMano, cerrarEnvio, esCriterio, deshacerDespacho,
 } from "@/lib/full/envios";
 import { leerFull } from "@/lib/full/lectura";
 import { leerCargosFull, guardarTarifa, recalcularCostosFull, esTamano } from "@/lib/full/costos";
@@ -124,6 +124,16 @@ export async function accionDespachar(fd: FormData) {
     const r = await despachar(s.org.id, e, s.usuario.id);
     revalidatePath("/stock/consulta");
     return `Despachado: ${n(r.unidades)} unidades de ${n(r.productos)} productos pasaron a «En camino a Full».`;
+  });
+}
+
+export async function accionDeshacerDespacho(fd: FormData) {
+  const s = await entrarErp("full_ver");
+  const e = id(fd);
+  await intentar(ficha(e), async () => {
+    const n = await deshacerDespacho(s.org.id, e, s.usuario.id);
+    revalidatePath("/stock/consulta");
+    return `Despacho deshecho: ${n === 1 ? "la unidad volvió" : `${formatearNumero(n, "entero")} unidades volvieron`} al depósito y el envío está en borrador otra vez.`;
   });
 }
 

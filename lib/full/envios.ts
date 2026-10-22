@@ -408,6 +408,38 @@ export async function despachar(org: string, envioId: number, usuario: string): 
   });
 }
 
+/** Deshacer el despacho (Fer, 22/10: el transporte todavía no vino y quiere sumar productos): mientras
+ *  no llegó nada a Full, cada unidad vuelve de «En camino a Full» a la ubicación de donde salió (lo
+ *  que dicen los movimientos de este envío; si esa ubicación ya no está activa, a la general del
+ *  depósito de origen) y el envío vuelve a borrador. */
+export async function deshacerDespacho(org: string, envioId: number, usuario: string): Promise<number> {
+  return enTransaccion(async (c) => {
+    const e = await envioPara(c, org, envioId, ["despachado"]);
+    const llego = (await c.query("select 1 from full_envio_linea where envio_id = $1 and (recibido > 0 or faltante > 0) limit 1", [envioId])).rowCount;
+    if (llego) throw new ErrorErp("Ya llegaron unidades a Full: el despacho no se puede deshacer.");
+    if (!e.ubicacion_transito_id) throw new ErrorErp("El envío no tiene su lugar «En camino a Full».");
+    // Lo que entró a «En camino» desde cada ubicación, menos lo que ya volvió a ella (un despacho deshecho antes).
+    const volver = (await c.query<{ variacion_id: string; ubic: string; kit: string | null; n: number; activa: boolean }>(`
+      select m.variacion_id, x.ubic, m.kit_variacion_id kit, sum(x.signo * m.cantidad)::int n, bool_and(u.estado = 'activa' and u.deposito_id = $3) activa
+        from movimiento_stock m
+        cross join lateral (values (m.ubicacion_origen_id, 1), (m.ubicacion_destino_id, -1)) x(ubic, signo)
+        join ubicacion u on u.id = x.ubic
+       where m.organizacion_id = $1 and m.referencia_tipo = 'full_envio' and m.referencia_id = $2::text
+         and $4 in (m.ubicacion_origen_id, m.ubicacion_destino_id) and x.ubic <> $4
+       group by m.variacion_id, x.ubic, m.kit_variacion_id
+      having sum(x.signo * m.cantidad) > 0`, [org, String(envioId), e.deposito_origen_id, e.ubicacion_transito_id])).rows;
+    const general = await ubicacionGeneral(c, e.deposito_origen_id);
+    let total = 0;
+    for (const v of volver) {
+      await moverStock(c, org, Number(v.variacion_id), "transferencia", v.n, e.ubicacion_transito_id, v.activa ? Number(v.ubic) : general,
+        envioId, usuario, "Despacho deshecho: vuelve al depósito", v.kit ? Number(v.kit) : null);
+      total += v.n;
+    }
+    await c.query("update full_envio set estado = 'borrador', despachado_ts = null where organizacion_id = $1 and id = $2", [org, envioId]);
+    return total;
+  });
+}
+
 /** Recibe en Full `cantidad` de una línea (de "En camino" a la general del depósito Full). Si con
  *  eso llegó todo el envío, queda "Recibido". Para usar dentro de una transacción. */
 export async function recibirLinea(c: Consultor, org: string, lineaId: number, cantidad: number, usuario: string, nota: string): Promise<void> {
