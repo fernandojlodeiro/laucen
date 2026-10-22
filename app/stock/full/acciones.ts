@@ -6,7 +6,8 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, id, entero, numero, texto } from "@/lib/erp/acciones";
 import { deFondo } from "@/lib/tareas-fondo";
-import { ErrorErp } from "@/lib/erp/base";
+import { ErrorErp, motivoErp } from "@/lib/erp/base";
+import { redirect } from "next/navigation";
 import { formatearNumero } from "@/lib/numeros";
 import {
   crearEnvio, guardarCabecera, guardarFlete, borrarEnvio, agregarLinea, cambiarLinea, vaciarEnvio, borrarLinea, agregarVarios, despachar,
@@ -63,11 +64,17 @@ export async function accionBorrarEnvio(fd: FormData) {
 export async function accionAgregarLinea(fd: FormData) {
   const s = await entrarErp("full_ver");
   const e = id(fd, "envio");
-  await intentar(ficha(e), async () => {
+  // El aviso va al lado del buscador (?agregado= / ?agregar_error=) y la página vuelve a ese recuadro (#agregar).
+  let ir: string;
+  try {
     const aviso = await agregarLinea(s.org.id, e, id(fd, "variacion"), entero(fd, "cantidad") ?? 0, s.usuario.id);
     revalidatePath("/stock/consulta");
-    return { ir: ficha(e, `?${aviso ? "error" : "ok"}=` + encodeURIComponent(aviso ?? "Agregado.")) };
-  });
+    const sku = texto(fd, "sku");
+    ir = ficha(e, aviso ? `?agregar_error=${encodeURIComponent(aviso)}#agregar` : `?agregado=${encodeURIComponent(`Agregado${sku ? `: ${sku}` : ""}. Ya está en la tabla de productos.`)}#agregar`);
+  } catch (err) {
+    ir = ficha(e, `?agregar_error=${encodeURIComponent(motivoErp(err))}#agregar`);
+  }
+  redirect(ir);
 }
 
 export async function accionCantidadLinea(fd: FormData) {

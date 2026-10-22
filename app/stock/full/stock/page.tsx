@@ -12,6 +12,7 @@ import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import FotosProducto from "@/app/componentes/FotosProducto";
+import TituloCorto from "@/app/componentes/TituloCorto";
 import { entrarErp, Pantalla, Avisos, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN } from "@/app/componentes/erp";
 import { formatearNumero } from "@/lib/numeros";
 import { formatear } from "@/lib/moneda";
@@ -137,12 +138,15 @@ export default async function StockFull({ searchParams }: { searchParams: Promis
               const cob = cobertura(f);
               return (
                 <tr key={f.clave} className={TR} data-canal={f.canal_id}>
-                  <td className={TD}>
-                    <span className="inline-flex items-center gap-2 align-middle">
+                  <td className={`${TD} min-w-56 max-w-80`}>
+                    <div className="flex items-start gap-2">
                       <FotosProducto fotos={f.fotos} titulo={f.titulo ?? ""} />
-                      {f.producto_id ? <Link href={`/catalogo/productos/${f.producto_id}`} className="font-mono text-[#16577F] hover:underline">{f.sku}</Link> : <span className="text-[#8a6100]">Sin producto en Laucen</span>}
-                    </span>{" "}<span className="text-[#5C6B76]">{f.titulo}</span>
-                    {f.item_id && <span className="block font-mono text-[10px]"><Link href={historialPublicacion(f.item_id)} className="text-[#16577F] hover:underline">{f.item_id}</Link> <a href={enlaceMl(f.item_id)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a></span>}
+                      <div className="min-w-0">
+                        {f.producto_id ? <Link href={`/catalogo/productos/${f.producto_id}`} className="font-mono text-[#16577F] hover:underline">{f.sku}</Link> : <span className="text-[#8a6100]">Sin producto en Laucen</span>}
+                        <TituloCorto titulo={f.titulo} />
+                        {f.item_id && <span className="block font-mono text-[10px]"><Link href={historialPublicacion(f.item_id)} className="text-[#16577F] hover:underline">{f.item_id}</Link> <a href={enlaceMl(f.item_id)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a></span>}
+                      </div>
+                    </div>
                   </td>
                   <td className={TD}>{f.cuenta}</td>
                   <td className={`${TD} font-mono`}>{f.inventory_id ?? "—"}</td>
