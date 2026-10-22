@@ -45,33 +45,13 @@ export async function guardarReglasIa(org: string, texto: string): Promise<void>
     on conflict (coalesce(organizacion_id, ''), clave) do update set valor = excluded.valor, actualizado_ts = now()`, [org, texto.trim()]);
 }
 
-/** Textos fijos de las reglas (Fer, 22/10): lo que va entre [[ ]] se dice tal cual, letra por letra (ej. «num...ero
- *  de co..nta...cto», escrito así para que el bot de Mercado Libre no lo frene). La IA no lo ve: en su lugar ve
- *  una marca (FIJO1, FIJO2…) y Laucen la cambia por el texto exacto en lo que propone (así no lo «corrige»). Pura. */
-export function separarFijos(reglas: string): { reglas: string; fijos: string[] } {
-  const fijos: string[] = [];
-  const r = reglas.replace(/\[\[([\s\S]*?)\]\]/g, (_, x: string) => { fijos.push(x); return `FIJO${fijos.length}`; });
-  return { reglas: r, fijos };
-}
-
-/** Cambia las marcas FIJOn que dejó la IA por su texto exacto. Pura. */
-export function ponerFijos(texto: string, fijos: string[]): string {
-  if (!fijos.length) return texto;
-  return texto.replace(/[«"'\[(]*\bFIJO(\d+)\b[»"'\])]*/g, (todo, n: string) => fijos[Number(n) - 1] ?? todo);
-}
-
-/** Las reglas con los textos fijos tal cual, sin los [[ ]] (para WhatsApp, donde no hay bot de Mercado Libre). Pura. */
-export const reglasSinMarcas = (reglas: string) => reglas.replace(/\[\[([\s\S]*?)\]\]/g, "$1");
-
 /** Lo que se suma a las instrucciones de la IA de preguntas y mensajes. Con firma, la IA no se despide
  *  (la despedida es la firma). Pura: se prueba sin base. */
 export function instruccionesExtra(t: TextosCanal): string {
   const partes: string[] = [];
   if (t.cuenta) partes.push(`Esta conversación entró por la cuenta «${t.cuenta}» de la tienda.`);
   if (t.firma) partes.push("No termines con saludo ni firma: al final de tu texto se agrega sola la firma de la tienda.");
-  const { reglas, fijos } = separarFijos(t.reglasIa);
-  if (reglas) partes.push(`Reglas de esta tienda, que valen por encima de lo anterior:\n${reglas}`);
-  if (fijos.length) partes.push(`Las reglas nombran textos fijos (${fijos.map((_, i) => `FIJO${i + 1}`).join(", ")}): cuando una regla diga que digas uno, escribí en ese lugar sólo su marca, tal cual (por ejemplo FIJO1), sin comillas ni nada alrededor; Laucen la reemplaza por el texto exacto.`);
+  if (t.reglasIa) partes.push(`Reglas de esta tienda, que valen por encima de lo anterior:\n${t.reglasIa}`);
   return partes.length ? `\n\n${partes.join("\n\n")}` : "";
 }
 

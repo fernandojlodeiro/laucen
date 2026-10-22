@@ -5,7 +5,7 @@
 // comprador pidió hablar con una persona: ahí no contesta más.
 
 import { buscarProductosPedidos } from "@/lib/mercadolibre/productos-pedidos";
-import { textosCanal, instruccionesExtra, conFirma, agregarFirma, separarFijos, ponerFijos } from "@/lib/canales/textos";
+import { textosCanal, instruccionesExtra, conFirma, agregarFirma } from "@/lib/canales/textos";
 import { igualALaSugerencia, leerPropuesta, FORMATO_IA, type EstadoIa } from "@/lib/mercadolibre/sugerencia";
 import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
@@ -173,8 +173,7 @@ export async function sugerirMensaje(org: string, packId: string): Promise<{ tex
   if ("error" in r) throw new ErrorErp(`La IA no pudo proponer una respuesta (${r.error.slice(0, 120)}).`);
   const p = leerPropuesta(r.texto);
   // La firma del canal la pone Laucen, no la IA (lib/canales/textos.ts); con ella, sigue dentro de los 350 de ML.
-  // Los textos fijos de las reglas ([[ ]]) van letra por letra: la IA dejó su marca (lib/canales/textos.ts).
-  const texto = conFirma(ponerFijos(p.texto, separarFijos(textos.reglasIa).fijos), textos.firma, 350);
+  const texto = conFirma(p.texto, textos.firma, 350);
   // Si pidió una persona, queda marcado para siempre: la IA no contesta más sola esta conversación.
   await consulta(`update meli_conversacion set sugerencia = $3, sugerencia_ts = now(), ia_estado = $4,
                          pidio_persona_ts = coalesce(pidio_persona_ts, case when $4 = 'persona' then now() end)

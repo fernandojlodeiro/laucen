@@ -41,15 +41,3 @@ test("descripcionCopiada: cambia el encabezado y el pie de origen por los de des
 test("instruccionesExtra: la IA sabe por qué cuenta entró (para las reglas de una sola cuenta)", () => {
   assert.match(instruccionesExtra({ ...TEXTOS_VACIOS, cuenta: "ML PUNTO" }), /cuenta «ML PUNTO»/);
 });
-
-test("textos fijos: la IA ve una marca y lo propuesto lleva el texto exacto, letra por letra", async () => {
-  const { separarFijos, ponerFijos, reglasSinMarcas } = await import("@/lib/canales/textos");
-  const reglas = "En la mensajería, pedí [[Podrías pasarnos un num...ero ..de... co....nn..ta...cto?]] y nada más.";
-  const { reglas: r, fijos } = separarFijos(reglas);
-  assert.equal(r, "En la mensajería, pedí FIJO1 y nada más.");
-  assert.match(instruccionesExtra({ ...TEXTOS_VACIOS, reglasIa: reglas }), /FIJO1/);
-  assert.doesNotMatch(instruccionesExtra({ ...TEXTOS_VACIOS, reglasIa: reglas }), /num\.\.\.ero/);
-  assert.equal(ponerFijos("¡Hola! «FIJO1»", fijos), "¡Hola! Podrías pasarnos un num...ero ..de... co....nn..ta...cto?");
-  assert.equal(reglasSinMarcas(reglas), "En la mensajería, pedí Podrías pasarnos un num...ero ..de... co....nn..ta...cto? y nada más.");
-});
-

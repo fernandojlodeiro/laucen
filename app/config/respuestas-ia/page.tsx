@@ -37,7 +37,6 @@ export default async function RespuestasIa({ searchParams }: { searchParams: Pro
           Una regla por renglón. Valen por encima de las instrucciones de siempre de la IA, en todas las cuentas de Mercado Libre y en WhatsApp.
           Ej.: «Nunca sugerir abrir un reclamo ni una mediación en Mercado Libre». La firma del final de cada respuesta es de cada canal:
           se carga en <Link href="/config/canales" className="text-[#16577F] hover:underline">Canales</Link>, caja «Textos de …».
-          Un texto entre <b>[[ ]]</b> se dice tal cual, letra por letra (la IA no lo corrige), ej.: «pedí [[un num...ero de co..nta...cto]]».
         </p>
       </section>
     </Pantalla>
