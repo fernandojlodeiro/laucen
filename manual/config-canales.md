@@ -103,6 +103,7 @@ Con cuenta:
 - **"Traer publicaciones de ML"**: trae (o actualiza) las publicaciones de esa cuenta de Mercado Libre y vincula solas las que coinciden por SKU. Trabaja hasta unos 4 minutos; si no llegó a traer todas, avisa que se apriete de nuevo y sigue desde donde quedó. Apretarlo de más no duplica nada. Es el mismo botón que está en [Vincular con Mercado Libre](/catalogo/publicaciones/ml).
 - **"Traer pedidos y preguntas ahora"**: no espera el barrido automático.
 - **"Agrupar planes de cuotas (preparar)"** y **"Eliminar planes viejos ya agrupados (preparar)"**: ver "Planes de cuotas en un mismo producto" en Criterios. Los dos corren de fondo y dejan un lote preparado que sale recién con tu clic.
+- **"Revisar títulos con IA (preparar)"**: ver "Títulos con criterio" en Criterios. Corre de fondo y deja un lote preparado con los títulos a cambiar.
 - **"Vincular publicaciones"**: lleva a [Vincular con Mercado Libre](/catalogo/publicaciones/ml) con este canal.
 - Interruptor **"Laucen manda el stock a ML y pausa al llegar al umbral"**.
 - Interruptor **"Subir facturas a Mercado Libre"**.
@@ -300,6 +301,13 @@ En Mercado Libre, dentro de una cuenta, la Clásica, la Premium y los planes de 
 - **Las publicaciones nuevas** de una cuenta que ya tiene la publicación común del producto (al publicar en todas las cuentas o al crear los planes que faltan) se crean como **copia exacta** de esa publicación común: el mismo título, las mismas fotos y características, la misma garantía y factura, la tienda oficial de la cuenta. Así Mercado Libre las suma a su mismo producto. El título se varía entre cuentas, nunca entre planes de una misma cuenta.
 - **Las que ya quedaron separadas**: en la caja de la cuenta, **"Agrupar planes de cuotas (preparar)"** busca los productos con algún plan en otro producto de Mercado Libre y prepara un lote (de a 20 productos por vez) que crea cada plan de nuevo copiando la publicación común cuyo producto ya tiene más planes (y, a igualdad, más ventas). **Siempre se publica al tachado**, para que después pueda entrar a campañas (Mercado Libre rechaza subir el precio para entrar a una campaña por «precio no creíble»): al mismo precio publicado de la vieja y en su misma campaña; si la vieja no estaba en campaña, al tachado de los otros planes del producto y en la campaña propia de la cuenta, al precio que tenía la vieja. Si la vieja tenía gemela de catálogo, la nueva también entra al catálogo. Vale también para las viejas con ventas: se crea la agrupada y la vieja sigue (no se elimina).
 - Cuando esas altas salieron y quedaron agrupadas, **"Eliminar planes viejos ya agrupados (preparar)"** prepara otro lote que cierra y elimina las viejas **sin ventas** (y sus gemelas de catálogo) cuyo plan ya está en el producto de la publicación común. Las que tienen ventas quedan.
+
+### Títulos con criterio
+
+Cada cuenta de Mercado Libre muestra el mismo producto con un título distinto. Ese título lo arma una IA con criterio: la primera palabra (qué es el producto) va adelante y el resto se arma con **bloques que no se separan** (marca y modelo, «Ryzen 7 3700u», número y unidad, «8gb Ram», «512gb Ssd», «15.6 Pulgadas»); entre cuentas cambia el orden de los bloques o se usa un sinónimo, sin inventar ni sacar datos, hasta 60 letras. Dentro de una cuenta, todos los planes de un producto llevan el mismo título (si no, no comparten el stock).
+
+- Al publicar en una cuenta copiando la publicación de otra, el título lo arma la IA (distinto de los de las otras cuentas).
+- **"Revisar títulos con IA (preparar)"** (en la caja de la cuenta): la IA revisa, de a 50 productos por vez, los títulos de la cuenta en los productos de Mercado Libre **sin ventas**. Los bien armados quedan como están; los mal armados se corrigen. Prepara un lote que sale con tu clic; el título cambia en todas las publicaciones de ese producto de Mercado Libre. Lo revisado no se vuelve a revisar por 30 días. Conviene hacerlo después de agrupar los planes de la cuenta.
 
 ### Interruptor "Subir facturas a Mercado Libre"
 

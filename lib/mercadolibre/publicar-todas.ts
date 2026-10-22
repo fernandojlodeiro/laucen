@@ -26,6 +26,7 @@ import { ajusteAlta, atributosConocidos, catalogoSegunMarca, catalogoVetado, lim
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import { comprobarAgrupado, madreDe } from "@/lib/mercadolibre/agrupar";
+import { tituloParaCuenta } from "@/lib/mercadolibre/titulos-ia";
 import { canalesMl, comisionesMl, familiasDe, reglasCanal, type CanalMl } from "@/lib/precios-ml/datos";
 import { gruposPlanes, ganadorDe } from "@/lib/precios-ml/grupos";
 import {
@@ -271,10 +272,14 @@ async function altasEnCanal(org: string, plan: PlanTodas, datos: DatosOrigen, c:
   const conocidos = await atributosConocidos(org, sku);
   const propia = await campanaPropiaDe(org, c.id);
   const madre = await madreDe(org, c.id, sku);
+  // Sin publicación común en la cuenta, el título lo arma la IA con criterio (bloques enteros, distinto de las otras
+  // cuentas; titulos-ia.ts). Si la IA no contesta, la mezcla de siempre (una por cuenta).
+  const tituloIa = !madre && !ajuste?.sinMezclar
+    ? await tituloParaCuenta(org, sku, c.id, c.nombre, (datos.ml.family_name ?? datos.ml.title ?? "").trim(), { modelo: datos.modelo }).catch(() => null) : null;
   for (const f of deEsta) {
     if (Date.now() > hasta) { res.sinTiempo++; continue; }
     const tag = f.plan === "clasica" ? null : PLAN_INFO[f.plan].tag;
-    const item: ItemGuardado = { ...datos.ml, attributes: datos.atributos, price: f.publicar!, available_quantity: stock,
+    const item: ItemGuardado = { ...datos.ml, ...(tituloIa ? { family_name: tituloIa } : {}), attributes: datos.atributos, price: f.publicar!, available_quantity: stock,
       ...(ajuste?.categoria ? { category_id: ajuste.categoria } : {}),
       listing_type_id: f.plan === "clasica" ? "gold_special" : "gold_pro", sale_terms: (datos.ml.sale_terms ?? []).filter((t) => t.id !== "INSTALLMENTS_CAMPAIGN") };
     // Si la cuenta ya tiene la publicación común, el plan la copia exacta para quedar en su mismo producto de ML y
@@ -282,7 +287,7 @@ async function altasEnCanal(org: string, plan: PlanTodas, datos: DatosOrigen, c:
     // cuenta (no por plan: con otro título ML le abre otro producto).
     const r = madre ? await comprobarAgrupado(cuenta, madre.ml, f.plan, f.publicar!, stock) : await comprobarAlta(cuenta, (x) => {
       const cuerpo = armarCuerpoCopia(item, sku, { variarTitulo: false, rotarFotos: false },
-        { modelo: datos.modelo, marca: marca.cambiada ? marca.marca : null, semillaTitulo: ajuste?.sinMezclar ? null : `${c.id}:${sku}`, conocidos, ...x });
+        { modelo: datos.modelo, marca: marca.cambiada ? marca.marca : null, semillaTitulo: ajuste?.sinMezclar || tituloIa ? null : `${c.id}:${sku}`, conocidos, ...x });
       return tag ? { ...cuerpo, tags: [tag] } : cuerpo;
     }, { paquetes: [await paqueteDeLaucen(org, sku)], conocidos,
       ia: { titulo: (datos.ml.family_name ?? datos.ml.title ?? "").trim(), descripcion: datos.texto, categoria: item.category_id ?? null } });

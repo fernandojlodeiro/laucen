@@ -16,6 +16,7 @@ import { sinFotosConMarca } from "@/lib/mercadolibre/fotos-marca";
 import { ajusteAlta, atributosConocidos, catalogoSegunMarca, catalogoVetado, limpiarDescripcion, marcaDeCuenta, marcaFinal } from "@/lib/mercadolibre/pautas";
 import { catalogoParaAlta } from "@/lib/mercadolibre/catalogo-marca";
 import { comprobarAgrupado } from "@/lib/mercadolibre/agrupar";
+import { tituloParaCuenta } from "@/lib/mercadolibre/titulos-ia";
 import { armarCuerpoCopia, comprobarAlta, modeloDeLaucen, paqueteDeLaucen, type ItemGuardado } from "@/lib/mercadolibre/copiar";
 import { calcularCanal } from "@/lib/precios-ml/datos";
 import { filtrarCalculo, type FiltroPrecios } from "@/lib/precios-ml/preparar";
@@ -79,6 +80,10 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
     const conocidos = await atributosConocidos(org, info.sku);
     // Sin las fotos con la marca «Tiendavirtual» (pautas, fotos-marca.ts).
     o.ml.pictures = await sinFotosConMarca(o.ml.pictures ?? []);
+    // Copiando de otra cuenta, el título lo arma la IA con criterio (bloques enteros, distinto de las otras cuentas;
+    // titulos-ia.ts). Si la IA no contesta, la mezcla de siempre (una por cuenta).
+    const tituloIa = o.canal_id !== canalId && !ajuste?.sinMezclar
+      ? await tituloParaCuenta(org, info.sku, canalId, c.nombre, (o.ml.family_name ?? o.ml.title ?? "").trim(), { modelo }).catch(() => null) : null;
     for (const f of faltan) {
       if (Date.now() > hasta) { res.sinTiempo++; continue; }
       // El catálogo según su marca (catalogo-marca.ts): el de una marca vetada no se publica; una página de otra marca, sin catálogo.
@@ -93,7 +98,7 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
       // Con descuento en el esquema se publica al tachado (uno por modelo) y la campaña la baja a su precio.
       const publicar = propuesta.tachadoPct > 0 && propuesta.tachado != null && descuentoVisible(propuesta.tachado, f.precio) >= DESCUENTO_MINIMO_ML ? propuesta.tachado : f.precio;
       const tag = PLAN_INFO[f.plan].tag;
-      const item: ItemGuardado = { ...o.ml, price: publicar, available_quantity: stock, listing_type_id: "gold_pro", ...(ajuste?.categoria ? { category_id: ajuste.categoria } : {}),
+      const item: ItemGuardado = { ...o.ml, ...(tituloIa ? { family_name: tituloIa } : {}), price: publicar, available_quantity: stock, listing_type_id: "gold_pro", ...(ajuste?.categoria ? { category_id: ajuste.categoria } : {}),
         sale_terms: (o.ml.sale_terms ?? []).filter((t) => t.id !== "INSTALLMENTS_CAMPAIGN") };
       // Si la cuenta ya tiene la publicación común, el plan la copia exacta para quedar en su mismo producto de ML y
       // compartir el stock (agrupar.ts, Fer 22/10). Si no, se copia la de otra cuenta, con el título mezclado una vez
@@ -101,7 +106,7 @@ export async function prepararPlanesFaltantes(org: string, canalId: number, filt
       const madre = o.canal_id === canalId && !o.ml.catalog_listing ? o.ml : null;
       const r = madre ? await comprobarAgrupado(cuenta, madre, f.plan, publicar, stock) : await comprobarAlta(cuenta, (x) => {
         const cuerpo = armarCuerpoCopia(item, info.sku, { variarTitulo: false, rotarFotos: false },
-          { modelo, marca: marca.cambiada ? marca.marca : null, semillaTitulo: ajuste?.sinMezclar ? null : `${canalId}:${info.sku}`, conocidos, ...x });
+          { modelo, marca: marca.cambiada ? marca.marca : null, semillaTitulo: ajuste?.sinMezclar || tituloIa ? null : `${canalId}:${info.sku}`, conocidos, ...x });
         return tag ? { ...cuerpo, tags: [tag] } : cuerpo;
       }, { paquetes: [await paqueteDeLaucen(org, info.sku)], conocidos,
         ia: { titulo: (o.ml.family_name ?? o.ml.title ?? "").trim(), descripcion: texto, categoria: item.category_id ?? null } });

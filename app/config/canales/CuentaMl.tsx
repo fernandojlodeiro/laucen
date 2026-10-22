@@ -12,7 +12,7 @@ import { estadoColaCanal } from "@/lib/mercadolibre/cola";
 import { emisoresDe } from "@/lib/arca/facturar";
 import { CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { accionTraerPublicaciones } from "@/app/catalogo/publicaciones/ml/acciones";
-import { accionAsignarRazonSocial, accionSincronizarStock, accionSubirFacturas, accionSoltarCuenta, accionTraerAhora, accionUsarCuenta, accionAgruparPlanes, accionCerrarAgrupados } from "./acciones-ml";
+import { accionAsignarRazonSocial, accionSincronizarStock, accionSubirFacturas, accionSoltarCuenta, accionTraerAhora, accionUsarCuenta, accionAgruparPlanes, accionCerrarAgrupados, accionRevisarTitulos } from "./acciones-ml";
 
 export default async function CuentaMl({ org, canal }: { org: string; canal: number }) {
   const cuenta = await una<{ id: number; nickname: string | null; estado: string; ultimo_error: string | null; pedidos_desde: Date | null }>(
@@ -90,6 +90,8 @@ export default async function CuentaMl({ org, canal }: { org: string; canal: num
             {/* Que la Clásica y los planes de cuotas queden en un mismo producto de ML y compartan el stock (agrupar.ts). */}
             <BotonTarea accion={accionAgruparPlanes} tipo={`agrupar-ml:${canal}`} campos={{ canal: String(canal) }} clase={SUAVE} texto="Agrupar planes de cuotas (preparar)" />
             <BotonTarea accion={accionCerrarAgrupados} tipo={`agrupar-cierre-ml:${canal}`} campos={{ canal: String(canal) }} clase={SUAVE} texto="Eliminar planes viejos ya agrupados (preparar)" />
+            {/* La IA revisa los títulos de los productos sin ventas: bloques enteros, distintos de las otras cuentas (titulos-ia.ts). */}
+            <BotonTarea accion={accionRevisarTitulos} tipo={`titulos-ml:${canal}`} campos={{ canal: String(canal) }} clase={SUAVE} texto="Revisar títulos con IA (preparar)" />
             <Link href={`/catalogo/publicaciones/ml?canal=${canal}`} className={SUAVE}>Vincular publicaciones</Link>
           </div>
           <Interruptor accion={accionSincronizarStock} prendido={sincroniza} campos={campos}

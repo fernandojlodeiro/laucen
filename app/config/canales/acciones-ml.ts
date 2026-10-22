@@ -16,6 +16,7 @@ import { sincronizarPreciosMl } from "@/lib/precios-ml/preparar";
 import { asegurarCuentasDeCanalesSinFallar } from "@/lib/administracion/contabilidad";
 import { leerReparto, guardarReparto } from "@/lib/mercadolibre/reparto";
 import { prepararAgrupar, prepararCierreAgrupados } from "@/lib/mercadolibre/agrupar";
+import { prepararRevisionTitulos } from "@/lib/mercadolibre/titulos-ia";
 import { leerNumero } from "@/lib/numeros";
 
 const volver = (canal: number) => `/config/canales?c=${canal}`;
@@ -214,5 +215,21 @@ export async function accionCerrarAgrupados(fd: FormData) {
     revalidatePath("/config/canales");
     return r.loteId ? `Lote ${r.loteId} preparado: ${r.cerrar} publicaciones viejas para eliminar. Mandalo desde Configuración › Cola de Mercado Libre, pestaña Lotes preparados.`
       : "No hay planes viejos para eliminar: ningún plan sin ventas en otro producto tiene todavía su reemplazo agrupado.";
+  });
+}
+
+/** Revisa con la IA los títulos de la cuenta en los productos de ML sin ventas y prepara (sin mandar) el lote con los
+ *  que hay que cambiar (lib/mercadolibre/titulos-ia.ts). De a 50 productos por vez. */
+export async function accionRevisarTitulos(fd: FormData) {
+  const s = await entrarErp("canales_ver");
+  const canal = id(fd, "canal");
+  return deFondo(s, `titulos-ml:${canal}`, "Revisar títulos con IA", async () => {
+    await canalMl(s.org.id, fd);
+    const r = await prepararRevisionTitulos(s.org.id, canal, s.usuario.id, { max: 50, hasta: Date.now() + 240_000 });
+    revalidatePath("/config/canales");
+    const resto = `${r.quedan ? `; quedan ${r.quedan} productos para la próxima vuelta` : ""}${r.errores ? `; ${r.errores} sin respuesta de la IA` : ""}`;
+    return r.loteId
+      ? `Lote ${r.loteId} preparado: de ${r.revisados} títulos revisados, ${r.cambian} hay que cambiarlos${resto}. Mandalo desde Configuración › Cola de Mercado Libre, pestaña Lotes preparados.`
+      : `Revisados ${r.revisados} títulos: están bien armados${resto}.`;
   });
 }

@@ -690,3 +690,17 @@ create table if not exists ml_mensaje_rechazado (
 );
 alter table ml_mensaje_rechazado enable row level security;
 select erp_politica_org('ml_mensaje_rechazado');
+
+-- ── Títulos revisados con IA (lib/mercadolibre/titulos-ia.ts) ──
+-- Cada producto de ML (user_product_id) de una cuenta que la IA ya revisó: no se vuelve a revisar por 30 días.
+create table if not exists ml_titulo_revisado (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  up               text not null,
+  titulo_antes     text,
+  titulo_ia        text,
+  revisado_ts      timestamptz not null default now(),
+  primary key (canal_id, up)
+);
+alter table ml_titulo_revisado enable row level security;
+select erp_politica_org('ml_titulo_revisado');
