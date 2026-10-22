@@ -625,9 +625,8 @@ export async function leerSeguidas(org: string, o: { productoId?: number; todas?
        -- en Mercado Libre y stock disponible (Fer, 22/10). Las de catálogo y MLAU se leen gratis por la API.
        and (not $6 or sp.catalogo_id is not null or sp.item_id like 'MLAU%'
             or exists (select 1 from producto p where p.id = sp.producto_id and ${SQL_A_LA_VENTA}))
-       -- Pausada hace más de «pausadas_meses»: frenada hasta «Reanudar». Terminada: Mercado Libre no la reactiva, no se lee más.
+       -- Pausada hace más de «pausadas_meses»: frenada hasta «Reanudar».
        and (not $6 or not (sp.estado = 'pausada' and $8 > 0 and sp.pausada_desde < now() - make_interval(months => $8)))
-       and (not $6 or sp.estado is distinct from 'cerrada')
      order by sp.leido_ts nulls first limit 2000`, [org, o.productoId ?? null, !!o.todas, frecuenciaDias, o.ids?.length ? o.ids : null, !o.productoId && !o.ids?.length, pausadasDias, pausadasMeses]);
   if (!seguidas.length) return { catalogo: 0, comunes: 0, sinPresupuesto: 0 };
   const cuenta = (await nuestras(org)).cuentas[0];
@@ -650,6 +649,8 @@ export async function leerSeguidas(org: string, o: { productoId?: number; todas?
       if (d != null) await consulta("update seguimiento_pub set entrega_dias = $2 where id = $1", [x.id, d]);
     }
   }
+  // Las que Mercado Libre dice terminadas se dejan de seguir (Fer, 22/10): una terminada no vuelve.
+  await consulta("delete from seguimiento_pub where organizacion_id = $1 and id = any($2::bigint[]) and estado = 'cerrada'", [org, seguidas.map((x) => x.id)]);
   // Con lo recién leído, la regla de precio de cada producto (lib/seguimiento/regla.ts).
   await revisarReglasDe(org, [...new Set(seguidas.map((x) => x.producto_id))]).catch((e) => console.error("[seguimiento] reglas", e));
   return { catalogo, comunes: leidas, sinPresupuesto };

@@ -5,7 +5,8 @@
 // los viejos, con «SEG-» adelante). La columna SKU del informe no sirve (es la del vendedor de enfrente).
 //   · Las de nuestras cuentas no entran (son las publicaciones nuestras que se monitoreaban).
 //   · Entran revisadas (las eligió una persona en Virtual Seller), con origen «importado» y de dónde vienen.
-//   · Las pausadas o terminadas entran igual: se ven aparte y la regla de precio no las usa (sólo mira las activas).
+//   · Las pausadas entran igual: se ven aparte y la regla de precio no las usa (sólo mira las activas). Las terminadas,
+//     no (Fer, 22/10: una terminada no vuelve; si una seguida aparece terminada al leerla, se deja de seguir).
 //   · Si ya se seguía, no se pisa su origen; el precio y el estado se ponen al día si lo nuestro era más viejo.
 //   · No entran (Fer, 22/10): las de notebooks, las de un SKU que ya no está en el catálogo y las de un producto sin
 //     ninguna publicación activa ni pausada en Mercado Libre. Las que entran se releen solas sólo si el producto está a
@@ -101,6 +102,8 @@ export function leerSeguimientosVs(h: Hoja): FilaVs[] {
 export type ResumenVs = {
   filas: number; propias: number; sinPublicacion: number; sinId: number; repetidas: number;
   nuevas: number; actualizadas: number; yaEstaban: number; productos: number; activas: number; pausadas: number; internacionales: number;
+  /** Terminadas: no se importan (Fer, 22/10: una terminada no vuelve). */
+  terminadas?: number;
   /** Notebooks: no se importan (Fer, 22/10). */
   notebooks: number;
   /** Productos sin ninguna publicación activa ni pausada en Mercado Libre (sólo cerradas o ninguna): no se importan (Fer, 22/10). */
@@ -149,6 +152,7 @@ export async function importarSeguimientosVs(org: string, filas: FilaVs[], archi
     if (!f.sku) { r.sinId++; continue; }
     if (!f.itemId) { r.sinPublicacion++; continue; }
     if (apodos.has((f.vendedor ?? "").toUpperCase().trim()) || propiasIds.has(f.itemId)) { r.propias++; continue; }
+    if (f.estado === "cerrada") { r.terminadas = (r.terminadas ?? 0) + 1; continue; }
     const pid = productoDe(f);
     // Las notebooks no interesan (Fer, 22/10), ni las de un producto que ya no está o sólo tiene publicaciones cerradas.
     if (esTituloNotebook(f.titulo) || /^(SEG\s+)?NOT(EBOOK)?\b/i.test(f.idSeguimiento ?? "") || (pid && info.get(pid)?.notebook)) { r.notebooks++; continue; }
@@ -211,9 +215,10 @@ export async function importarSeguimientosVs(org: string, filas: FilaVs[], archi
 /** El resumen en una frase, para el cartel. Pura. */
 export function textoResumen(r: ResumenVs): string {
   const p = [`${r.nuevas} nuevas`, r.actualizadas ? `${r.actualizadas} puestas al día` : null, r.yaEstaban ? `${r.yaEstaban} ya estaban` : null].filter(Boolean).join(", ");
-  return `Seguimientos de Virtual Seller: ${p}, en ${r.productos} productos (${r.activas} activas, ${r.pausadas} pausadas o terminadas).`
+  return `Seguimientos de Virtual Seller: ${p}, en ${r.productos} productos (${r.activas} activas, ${r.pausadas} pausadas).`
     + (r.productos ? ` Se releen solos los de ${r.productosALaVenta} productos a la venta.` : "")
     + (r.notebooks ? ` ${r.notebooks} de notebooks no entraron.` : "")
+    + (r.terminadas ? ` ${r.terminadas} terminadas no entraron.` : "")
     + (r.sinPublicacionActiva.length ? ` ${r.sinPublicacionActiva.length} SKU sin publicación activa ni pausada no entraron.` : "")
     + (r.noEncontrados.length ? ` ${r.noEncontrados.length} SKU no están en el catálogo.` : "")
     + (r.propias ? ` ${r.propias} eran nuestras y no entraron.` : "");

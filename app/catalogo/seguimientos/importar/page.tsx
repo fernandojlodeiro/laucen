@@ -28,9 +28,9 @@ export default async function ImportarSeguimientosVs() {
       <SubirSeguimientosVs organizacionId={s.org.id} />
       <ul className="text-[11px] text-[#5C6B76] mt-2 mb-5 list-disc pl-4 grid gap-0.5">
         <li>El producto sale del «ID Seguimiento» (el SKU nuestro antes del año: «SKU00680-U-2026-1» → SKU00680-U; con «SEG-» adelante, también). La columna SKU del informe no se usa.</li>
-        <li>No entran: las publicaciones de nuestras cuentas, las de notebooks, las de un SKU que ya no está en el catálogo y las de un producto sin ninguna publicación activa ni pausada en Mercado Libre (sólo cerradas o ninguna).</li>
+        <li>No entran: las publicaciones de nuestras cuentas, las terminadas, las de notebooks, las de un SKU que ya no está en el catálogo y las de un producto sin ninguna publicación activa ni pausada en Mercado Libre (sólo cerradas o ninguna).</li>
         <li>Se releen solas (lo que cuesta) sólo las de productos a la venta: con publicación activa en Mercado Libre y stock disponible. Las de un producto pausado o sin stock entran igual y quedan de referencia en la pestaña Seguimiento del producto (para cuando se vuelva a comprar); se leen a pedido con «Leer ahora».</li>
-        <li>Entran revisadas, con el último precio y estado del informe. Las pausadas o terminadas entran igual: se ven aparte en la pestaña Seguimiento y la regla de precio no las usa.</li>
+        <li>Entran revisadas, con el último precio y estado del informe. Las pausadas entran igual: se ven aparte en la pestaña Seguimiento y la regla de precio no las usa.</li>
         <li>Los vendedores chinos (apodo «CN…ARR») quedan marcados como internacionales: no cuentan para la regla.</li>
         <li>Si una ya se seguía, no cambia su origen; el precio y el estado se ponen al día si lo que había era más viejo. Se puede importar el mismo archivo dos veces sin duplicar nada.</li>
       </ul>
@@ -40,12 +40,12 @@ export default async function ImportarSeguimientosVs() {
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr><th className={THN}>Fecha</th><th className={TH}>Archivo</th><th className={TH}>Estado</th><th className={THN}>Filas</th><th className={THN}>Nuevas</th>
-              <th className={THN}>Al día / ya estaban</th><th className={THN}>Productos</th><th className={THN} title="Activas / pausadas o terminadas">Activas / pausadas</th>
-              <th className={THN} title="Eran de nuestras cuentas">Nuestras</th><th className={THN} title="Seguimientos de notebooks: no entran">Notebooks</th>
+              <th className={THN}>Al día / ya estaban</th><th className={THN}>Productos</th><th className={THN} title="Activas / pausadas">Activas / pausadas</th>
+              <th className={THN} title="Eran de nuestras cuentas">Nuestras</th><th className={THN} title="Seguimientos de notebooks: no entran">Notebooks</th><th className={THN} title="Publicaciones terminadas: no entran">Terminadas</th>
               <th className={TH}>No entraron</th><th /></tr>
           </thead>
           <tbody>
-            {imps.length === 0 && <tr><td colSpan={12} className={`${TD} text-[#5C6B76]`}>Todavía no hay ninguna.</td></tr>}
+            {imps.length === 0 && <tr><td colSpan={13} className={`${TD} text-[#5C6B76]`}>Todavía no hay ninguna.</td></tr>}
             {imps.map((i) => {
               const r = i.resumen, [t, tono] = ESTADOS[i.estado] ?? [i.estado, "gris"];
               return (
@@ -63,6 +63,7 @@ export default async function ImportarSeguimientosVs() {
                   <td className={TDN}>{n(r.activas)} / {n(r.pausadas)}</td>
                   <td className={TDN}>{n(r.propias)}</td>
                   <td className={TDN}>{n(r.notebooks)}</td>
+                  <td className={TDN}>{n(r.terminadas)}</td>
                   <td className={TD}>
                     {r.sinPublicacionActiva?.length ? (
                       <details>

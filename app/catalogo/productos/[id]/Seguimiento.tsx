@@ -250,7 +250,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
                 <th className={TH}>Entrega</th><th className={TH}>Estado</th><th className={TH}>Leída</th><th className={TH} title="Tildada: una persona la revisó (las agregadas a mano ya nacen revisadas)">Revisada</th><th className={TH} title="Tildada: se sigue, pero no cuenta para la regla de precio">Fuera de la regla</th><th /><th /></tr>
             </thead>
             <tbody>
-              {activas.length === 0 && <tr><td colSpan={11} className={`${TD} text-[#5C6B76]`}>{pausadas.length ? "Ninguna activa: las que seguís están pausadas o terminadas (abajo)." : "Todavía no seguís ninguna: buscalas abajo y tocá «Seguir», o agregalas por número."}</td></tr>}
+              {activas.length === 0 && <tr><td colSpan={11} className={`${TD} text-[#5C6B76]`}>{pausadas.length ? "Ninguna activa: las que seguís están pausadas (abajo)." : "Todavía no seguís ninguna: buscalas abajo y tocá «Seguir», o agregalas por número."}</td></tr>}
               {activas.flatMap(fila)}
             </tbody>
           </table>
@@ -258,8 +258,8 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
         {pausadas.length > 0 && (
           <div className="mt-3">
             <Link href={conPausadas(!verPausadas)} scroll={false} className={SUAVE}
-              title="Las que el vendedor pausó, terminó o ya no figuran en el catálogo: se siguen leyendo, pero la regla de precio no las usa">
-              {verPausadas ? "▾" : "▸"} Pausadas o terminadas ({pausadas.length})
+              title="Las que el vendedor pausó o ya no figuran en el catálogo: la regla de precio no las usa (las terminadas se dejan de seguir solas)">
+              {verPausadas ? "▾" : "▸"} Pausadas ({pausadas.length})
             </Link>
             {verPausadas && (
               <div className={`${CAJA_TABLA} mt-2`}>
@@ -448,9 +448,8 @@ function deDondeCorto(x: Seguida): string {
 }
 
 /** Debajo del estado de una pausada (Fer, 22/10): cada cuánto se relee y hasta cuándo, o que ya no se relee sola y
- *  el botón «Reanudar». Una terminada no se relee. */
+ *  el botón «Reanudar». (Las terminadas se dejan de seguir al leerlas.) */
 function LecturaPausada({ x, conf, productoId }: { x: Seguida; conf: { pausadasDias: number; pausadasMeses: number }; productoId: number }) {
-  if (x.estado === "cerrada") return <span className="block text-[10px] text-[#5C6B76] mt-0.5">No se relee (terminada)</span>;
   if (x.estado !== "pausada" || !x.pausada_desde) return null;
   const hasta = new Date(x.pausada_desde);
   hasta.setMonth(hasta.getMonth() + conf.pausadasMeses);
