@@ -163,12 +163,12 @@ export function periodosLeibles(hoy = new Date()): string[] {
  *  cada 12 h y los que dieron error cada 6 h. */
 async function pendientes(org: string | null, canal?: number) {
   return consulta<{ organizacion_id: string; canal_id: number; periodo: string }>(`
-    select c.organizacion_id, c.id::int canal_id, p.periodo
+    select c.organizacion_id, c.id::int canal_id, to_char(p.periodo, 'YYYY-MM-DD') periodo
       from canal c cross join unnest($3::date[]) p(periodo)
       left join full_cargo_lectura l on l.canal_id = c.id and l.periodo = p.periodo
      where c.tipo = 'mercadolibre' and c.estado = 'activo' and ($1::text is null or c.organizacion_id = $1) and ($2::bigint is null or c.id = $2)
        and (l.estado is null or (l.estado = 'abierto' and l.leido_ts < now() - interval '12 hours') or (l.estado = 'error' and l.leido_ts < now() - interval '6 hours'))
-     order by p.periodo desc, c.id`, [org, canal ?? null, periodosLeibles()]).then((r) => r.map((x) => ({ ...x, periodo: String(x.periodo).slice(0, 10) })));
+     order by p.periodo desc, c.id`, [org, canal ?? null, periodosLeibles()]);
 }
 
 export async function hayCargosFullPendientes(): Promise<boolean> {
@@ -197,7 +197,7 @@ export async function leerCargosFull(org: string | null, hastaMs: number, opts: 
       if (pedidos >= max) { estado = "cortado"; break; }
       pedidos++;
       const r = await ml<{ total?: number; results?: CargoMl[]; message?: string }>(cuenta, "GET",
-        `/billing/integration/periods/key/${p.periodo}/group/ML/full/details?document_type=BILL&offset=${offset}&limit=500`);
+        `/billing/integration/periods/key/${p.periodo}/group/ML/full/details?document_type=BILL&offset=${offset}&limit=200`);
       if (r.status === 429) { estado = "cortado"; break; }
       if (r.status === 400) { estado = "abierto"; break; }
       if (r.status === 404) { estado = "fuera"; break; }
