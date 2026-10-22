@@ -10,6 +10,7 @@
 // cuenta del tablero y la de la lista coincidan.
 
 import { sqlReservaSinPagar } from "@/lib/pedidos/reserva";
+import { SQL_SIN_RESPONDER } from "@/lib/mercadolibre/sql-mensajes";
 import { consulta } from "@/lib/erp/base";
 import { CONDICION_ENVIOS } from "@/app/ventas/envios/lista";
 import { CONDICION_RECLAMOS } from "@/lib/reclamos";
@@ -42,7 +43,7 @@ export type Metricas = {
   paraDespachar: number; despacharAntes: Date | null; despacharVencidos: number;
   enCamino: number;
   preguntas: { sinResponder: number; total: number; masVieja: Date | null };
-  mensajes: { sinLeer: number; total: number };
+  mensajes: { sinResponder: number; total: number };
   reclamos: { abiertos: number; esperanRespuesta: number; urgentes: number; enMediacion: number; total: number };
   devoluciones: { abiertas: number; enCamino: number; total: number };
   ventas: { hoy: number; hoyArs: number; hoyUsd: number; sieteDias: number; sieteDiasArs: number; sieteDiasUsd: number };
@@ -54,7 +55,7 @@ const vacio = (): Metricas => ({
   etiquetas: { sinImprimir: 0, porDespachar: 0, vencidos: 0 },
   pedidosParaPreparar: 0, reservados: 0, reservadosVencen: 0, frenadosCc: 0, enCamino: 0, pedidosSinDespachar: 0, enPreparacion: 0, paraDespachar: 0, despacharAntes: null, despacharVencidos: 0,
   preguntas: { sinResponder: 0, total: 0, masVieja: null },
-  mensajes: { sinLeer: 0, total: 0 },
+  mensajes: { sinResponder: 0, total: 0 },
   reclamos: { abiertos: 0, esperanRespuesta: 0, urgentes: 0, enMediacion: 0, total: 0 },
   devoluciones: { abiertas: 0, enCamino: 0, total: 0 },
   ventas: { hoy: 0, hoyArs: 0, hoyUsd: 0, sieteDias: 0, sieteDiasArs: 0, sieteDiasUsd: 0 },
@@ -119,9 +120,9 @@ export async function metricasPorCanal(org: string, canales: number[], { soloMl 
       select canal_id::int canal, count(*) filter (where estado = 'UNANSWERED')::int sin_responder, count(*)::int total,
              min(fecha) filter (where estado = 'UNANSWERED') mas_vieja
         from meli_pregunta where organizacion_id = $1 and canal_id = any($2::bigint[]) group by canal_id`),
-    q<{ sin_leer: number; total: number }>(`
-      select canal_id::int canal, count(*) filter (where sin_leer > 0)::int sin_leer, count(*)::int total
-        from meli_conversacion where organizacion_id = $1 and canal_id = any($2::bigint[]) group by canal_id`),
+    q<{ sin_responder: number; total: number }>(`
+      select c.canal_id::int canal, count(*) filter (where ${SQL_SIN_RESPONDER("c")})::int sin_responder, count(*)::int total
+        from meli_conversacion c where c.organizacion_id = $1 and c.canal_id = any($2::bigint[]) group by c.canal_id`),
     q<{ abiertos: number; esperan: number; urgentes: number; mediacion: number; total: number; dev_abiertas: number; dev_camino: number; dev_total: number }>(`
       select r.canal_id::int canal,
              count(*) filter (where r.estado <> 'resuelto')::int abiertos,
@@ -151,7 +152,7 @@ export async function metricasPorCanal(org: string, canales: number[], { soloMl 
     x.paraDespachar = f.para_despachar; x.despacharAntes = f.antes; x.despacharVencidos = f.vencidos;
   });
   for (const f of preguntas) poner(f.canal, (x) => { x.preguntas = { sinResponder: f.sin_responder, total: f.total, masVieja: f.mas_vieja }; });
-  for (const f of mensajes) poner(f.canal, (x) => { x.mensajes = { sinLeer: f.sin_leer, total: f.total }; });
+  for (const f of mensajes) poner(f.canal, (x) => { x.mensajes = { sinResponder: f.sin_responder, total: f.total }; });
   for (const f of reclamos) poner(f.canal, (x) => {
     x.reclamos = { abiertos: f.abiertos, esperanRespuesta: f.esperan, urgentes: f.urgentes, enMediacion: f.mediacion, total: f.total };
     x.devoluciones = { abiertas: f.dev_abiertas, enCamino: f.dev_camino, total: f.dev_total };
@@ -225,7 +226,7 @@ export const sumar = (ms: Metricas[]): Metricas => {
     if (m.despacharAntes && (!t.despacharAntes || m.despacharAntes < t.despacharAntes)) t.despacharAntes = m.despacharAntes;
     t.preguntas.sinResponder += m.preguntas.sinResponder; t.preguntas.total += m.preguntas.total;
     if (m.preguntas.masVieja && (!t.preguntas.masVieja || m.preguntas.masVieja < t.preguntas.masVieja)) t.preguntas.masVieja = m.preguntas.masVieja;
-    t.mensajes.sinLeer += m.mensajes.sinLeer; t.mensajes.total += m.mensajes.total;
+    t.mensajes.sinResponder += m.mensajes.sinResponder; t.mensajes.total += m.mensajes.total;
     for (const k of Object.keys(t.reclamos) as (keyof Metricas["reclamos"])[]) t.reclamos[k] += m.reclamos[k];
     for (const k of Object.keys(t.devoluciones) as (keyof Metricas["devoluciones"])[]) t.devoluciones[k] += m.devoluciones[k];
     for (const k of Object.keys(t.ventas) as (keyof Metricas["ventas"])[]) t.ventas[k] += m.ventas[k];

@@ -29,7 +29,7 @@ Para cada una, la **IA propone sola una respuesta** apenas entra (con los datos 
 
 **Pestañas principales**:
 - **"Preguntas (N)"**: N = preguntas sin responder.
-- **"Mensajes (N)"**: N = conversaciones **sin responder**: el último mensaje es del comprador y es de los últimos 15 días. Abrirlas no las descuenta; las descuenta contestarlas (desde Laucen o desde Mercado Libre).
+- **"Mensajes (N)"** (y el contador de Mensajes de la barra de estado y del tablero de Mercado Libre): N = conversaciones **sin responder**: el último mensaje es del comprador y es de los últimos 15 días. Abrirlas no las descuenta; las descuenta contestarlas (desde Laucen o desde Mercado Libre).
 
 ### Pestaña Preguntas
 
@@ -88,7 +88,7 @@ Si no hay ninguna publicación activa de ese producto, la lista lo dice. Mercado
 
 1. Andá a la pestaña **Mensajes** y elegí la conversación de la izquierda. Al abrirla, queda leída en Laucen.
 2. La IA ya deja propuesta una respuesta con los datos del pedido y del envío; si no está o querés otra, apretá **"Proponer con IA"**.
-3. Revisá o escribí el texto en **"Mensaje"** (hasta 350 caracteres; sin teléfonos, mails ni links).
+3. Revisá o escribí el texto en **"Mensaje"** (hasta 350 caracteres; sin teléfonos, mails ni links). **Proponer con IA** escribe ahí una propuesta (mientras trabaja dice «Proponiendo…»); al cambiar de conversación, la caja muestra lo de la conversación nueva.
 4. Apretá **"Enviar"**. El mensaje sale a Mercado Libre, la conversación se vuelve a leer y queda marcada como leída también en Mercado Libre. Aviso: "Mensaje enviado."
 
 ### Ver lo último de una conversación
@@ -136,7 +136,7 @@ La publicación no está atada a un producto de Laucen; vinculala en [Vincular c
 No: Mercado Libre no lo permite y la propia pantalla lo recuerda.
 
 **¿Por qué mi mensaje no salió?**
-Puede superar los 350 caracteres, estar vacío o la cuenta de Mercado Libre estar desconectada; el aviso rojo dice cuál. En algunas compras con retiro (sin envío), Mercado Libre no deja mandar el mensaje desde Laucen: el aviso lo dice, y el mensaje se manda desde Mercado Libre («Ver la venta»).
+Puede superar los 350 caracteres, estar vacío o la cuenta de Mercado Libre estar desconectada; el aviso rojo dice cuál. En una compra sin envío (retiro), Mercado Libre no deja que el primer mensaje del vendedor salga desde Laucen: el aviso lo dice; ese primero se manda desde Mercado Libre («Ver la venta») y los siguientes ya salen desde Laucen.
 
 **¿Qué es el "Pack" de una conversación?**
 El número de la venta (o del carrito) en Mercado Libre. Si dice "sin pedido en Laucen", esa venta todavía no entró como pedido.

@@ -6,6 +6,7 @@
 
 import { una } from "@/lib/erp/base";
 import { sqlPedidoPendiente } from "@/lib/pedidos";
+import { SQL_SIN_RESPONDER } from "@/lib/mercadolibre/sql-mensajes";
 import type { ClaveContador, Contador } from "@/lib/avisos-tipos";
 import type { PermisoKey } from "@/lib/permisos";
 
@@ -27,8 +28,9 @@ const CONTADORES: { clave: ClaveContador; texto: string; href: string; permiso: 
   },
   {
     clave: "mensajes", texto: "Mensajes", href: "/ventas/preguntas?ver=mensajes", permiso: "preguntas_ver",
-    sql: `select coalesce(sum(sin_leer), 0)::int n, floor(extract(epoch from max(ultimo_ts)) * 1000)::float8 marca
-            from meli_conversacion where organizacion_id = $1 and sin_leer > 0`,
+    // Las conversaciones sin responder, no las sin leer (Fer, 22/10): abrirla no la descuenta, contestarla sí.
+    sql: `select count(*)::int n, floor(extract(epoch from max(c.ultimo_ts)) * 1000)::float8 marca
+            from meli_conversacion c where c.organizacion_id = $1 and ${SQL_SIN_RESPONDER("c")}`,
   },
   {
     clave: "preguntas", texto: "Preguntas", href: "/ventas/preguntas", permiso: "preguntas_ver",

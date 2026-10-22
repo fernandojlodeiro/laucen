@@ -9,6 +9,8 @@ import { textosCanal, instruccionesExtra, conFirma, agregarFirma } from "@/lib/c
 import { igualALaSugerencia, leerPropuesta, FORMATO_IA, type EstadoIa } from "@/lib/mercadolibre/sugerencia";
 import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
+import { SQL_SIN_RESPONDER } from "@/lib/mercadolibre/sql-mensajes";
+export { SQL_SIN_RESPONDER };
 import { pedirClaude, hayClaude } from "@/lib/claude";
 import { ml, mlOk, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 
@@ -66,10 +68,6 @@ export async function importarConversacion(cuenta: CuentaMl, packId: string, mar
   return (r.datos.messages ?? []).length;
 }
 
-/** ¿La conversación espera respuesta? El último mensaje es del comprador, de los últimos 15 días (Fer, 22/10:
- *  la pestaña cuenta las sin responder, no las sin leer). `c`: el alias de meli_conversacion. */
-export const SQL_SIN_RESPONDER = (c: string) => `(${c}.ultimo_ts > now() - interval '15 days' and coalesce((select not m.de_vendedor from meli_mensaje m
-  where m.organizacion_id = ${c}.organizacion_id and m.pack_id = ${c}.pack_id order by m.fecha desc limit 1), false))`;
 
 /** ML no avisa los mensajes que el vendedor manda desde su web: las conversaciones que esperan respuesta se
  *  releen (en el barrido de media hora y al abrirlas), así una contestada desde ML deja de figurar sin responder. */
@@ -241,10 +239,11 @@ export async function enviarMensaje(org: string, packId: string, texto: string, 
   if (!comprador) throw new ErrorErp("No se sabe quién es el comprador de esta conversación.");
   await mlOk(cuenta, "POST", `/messages/packs/${packId}/sellers/${cuenta.meliUserId}?tag=post_sale`,
     { from: { user_id: cuenta.meliUserId }, to: { user_id: Number(comprador) }, text: t }).catch((e) => {
-    // ML rechaza (403 «the format is not allowed») mensajes desde Laucen en una compra con retiro, sin envío (Fer, 22/10:
-    // pedido 150344; el mismo texto salió bien desde la web de ML). Se dice claro qué hacer mientras se averigua la causa.
+    // ML rechaza (403 «the format is not allowed») el PRIMER mensaje del vendedor en una compra sin envío (retiro) mandado
+    // desde Laucen (Fer, 22/10, pedido 150344): el mismo texto salió bien desde la web de ML y, después de ese primero,
+    // todos los de Laucen salieron (también la dirección completa). Se dice claro qué hacer.
     if (e instanceof ErrorErp && /format is not allowed/i.test(e.message)) {
-      throw new ErrorErp("Mercado Libre no deja mandar este mensaje desde Laucen (pasa en compras con retiro, sin envío). Mandalo desde Mercado Libre: «Ver la venta», arriba, y respondé ahí.");
+      throw new ErrorErp("En una compra sin envío (retiro), Mercado Libre no deja que el primer mensaje salga desde Laucen. Mandá ese primero desde Mercado Libre («Ver la venta», arriba); los siguientes ya salen desde acá.");
     }
     throw e;
   });

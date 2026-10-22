@@ -7,7 +7,6 @@ import { BotonTarea } from "@/app/componentes/TareasFondo";
 import Link from "next/link";
 import { consulta, una } from "@/lib/erp/base";
 import { PRIMARIO, SUAVE } from "@/app/botones";
-import { BotonEnviar } from "@/app/radar/Cliente";
 import Pestanas from "@/app/componentes/Pestanas";
 import { entrarErp, Pantalla, Avisos, Estado, url, CAJA, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
@@ -18,6 +17,7 @@ import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { planDe } from "@/lib/mercadolibre/prueba-planes";
 import { nombrePlan } from "@/lib/mercadolibre/buscar-publicaciones";
 import CajaRespuesta from "./CajaRespuesta";
+import BotonesRespuesta from "./BotonesRespuesta";
 import PreguntasAnteriores from "./PreguntasAnteriores";
 import {
   accionTraerPreguntas, accionProponerRespuesta, accionResponder,
@@ -184,14 +184,11 @@ async function SinResponder({ org, canal, auto }: { org: string; canal: number |
             <input type="hidden" name="id" value={q.id} />
             <label className="block">
               <span className={ETIQUETA}>Respuesta{q.sugerencia ? " (la propuso la IA: revisala)" : ""}</span>
-              <CajaRespuesta name="texto" defaultValue={q.sugerencia ?? ""} rows={3} maxLength={2000} className={`${CAMPO} w-full`} canalId={q.canal_id} plan={planDePregunta(q)} />
+              <CajaRespuesta key={`${q.id}:${q.sugerencia ?? ""}`} name="texto" defaultValue={q.sugerencia ?? ""} rows={3} maxLength={2000} className={`${CAMPO} w-full`} canalId={q.canal_id} plan={planDePregunta(q)} />
               <span className="block text-[11px] text-[#5C6B76]">Escribí <b>#</b> y el nombre de un producto para buscar una de tus publicaciones: queda su link en la respuesta.</span>
               {q.firma && <span className="text-[11px] text-[#5C6B76]">Al mandarla se agrega al final la firma «{q.firma}» (si no la tiene).</span>}
             </label>
-            <div className="flex flex-wrap gap-2">
-              <button formAction={accionProponerRespuesta} className={SUAVE}>Proponer con IA</button>
-              <BotonEnviar clase={PRIMARIO} corriendo="Enviando…">Responder</BotonEnviar>
-            </div>
+            <BotonesRespuesta proponer={accionProponerRespuesta} claseProponer={SUAVE} claseEnviar={PRIMARIO} textoEnviar="Responder" />
           </form>
         </section>
       ))}
@@ -323,13 +320,10 @@ async function Hilo({ org, conv, auto }: { org: string; conv: { pack_id: string;
         <input type="hidden" name="pack" value={conv.pack_id} />
         <label className="block">
           <span className={ETIQUETA}>Mensaje{sug?.sugerencia ? " (lo propuso la IA: revisalo)" : ""}</span>
-          <CajaRespuesta name="texto" defaultValue={sug?.sugerencia ?? ""} rows={3} maxLength={350} className={`${CAMPO} w-full`} canalId={conv.canal_id} />
+          <CajaRespuesta key={`${conv.pack_id}:${sug?.sugerencia ?? ""}`} name="texto" defaultValue={sug?.sugerencia ?? ""} rows={3} maxLength={350} className={`${CAMPO} w-full`} canalId={conv.canal_id} />
           <span className="text-[11px] text-[#5C6B76]">Hasta 350 caracteres (el límite de Mercado Libre). Sin teléfonos ni mails. Con # y el nombre de un producto se busca una de tus publicaciones y queda su link.{conv.firma ? ` Al mandarlo se agrega al final la firma «${conv.firma}» (si no la tiene), que también cuenta.` : ""}</span>
         </label>
-        <div className="flex flex-wrap gap-2">
-          <button formAction={accionProponerMensaje} className={SUAVE}>Proponer con IA</button>
-          <BotonEnviar clase={PRIMARIO} corriendo="Enviando…">Enviar</BotonEnviar>
-        </div>
+        <BotonesRespuesta proponer={accionProponerMensaje} claseProponer={SUAVE} claseEnviar={PRIMARIO} textoEnviar="Enviar" />
       </form>
     </section>
   );
