@@ -62,6 +62,9 @@ export async function crearClienteDesdePedido(d: {
     // Sin elegir (Fer, 22/10): con CUIT, Responsable inscripto; sin CUIT y con DNI, Consumidor final. La pantalla ya
     // la sugiere; esto la asegura aunque la pantalla abierta sea de antes del cambio.
     const iva = Object.hasOwn(CONDICIONES_IVA, d.condicionIva) ? d.condicionIva : cuit ? "responsable_inscripto" : dni ? "consumidor_final" : null;
+    // Obligatoria, y salvo consumidor final va con CUIT (Fer, 22/10).
+    if (!iva) return { error: "Elegí la condición de IVA." };
+    if (iva !== "consumidor_final" && !cuit) return { error: "Con esa condición de IVA hace falta el CUIT: sólo un consumidor final puede quedar sin CUIT." };
     // ¿Ya está cargado? (Fer, 22/10) Mismo CUIT o DNI: no se crea otro, se ofrece elegir el que está.
     // Misma razón social: se avisa, y si es otro cliente se puede grabar igual.
     const repetidos = (donde: string, valores: unknown[]) => consulta<{ id: number }>(

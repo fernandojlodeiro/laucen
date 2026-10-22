@@ -74,10 +74,15 @@ async function datosDe(fd: FormData, org: string, permisos: Parameters<typeof ti
   const limite = conCc ? leerNumero(fd.get("limite_cc")) : null;
   if (limite != null && limite < 0) throw new ErrorErp("El límite de crédito no puede ser negativo.");
   const dni = dniDe(fd);
+  // La condición de IVA es obligatoria, y salvo consumidor final va con CUIT (Fer, 22/10).
+  const iva = condicionIva(fd);
+  const cuit = cuitDe(fd);
+  if (!iva) throw new ErrorErp("Elegí la condición de IVA.");
+  if (iva !== "consumidor_final" && !cuit) throw new ErrorErp("Con esa condición de IVA hace falta el CUIT: sólo un consumidor final puede quedar sin CUIT.");
   return {
     nombre: razon, razon_social: razon, tipo: tipo(fd), apellido: texto(fd, "apellido"), nombre_pila: texto(fd, "nombre_pila"),
-    apodo_ml: texto(fd, "apodo_ml"), cuit: cuitDe(fd), documento_tipo: dni ? "DNI" : null, documento_numero: dni,
-    condicion_iva: condicionIva(fd), email: texto(fd, "email"), telefono: texto(fd, "telefono"),
+    apodo_ml: texto(fd, "apodo_ml"), cuit, documento_tipo: dni ? "DNI" : null, documento_numero: dni,
+    condicion_iva: iva, email: texto(fd, "email"), telefono: texto(fd, "telefono"),
     telefono_aclaracion: texto(fd, "telefono_aclaracion"), whatsapp: whatsappDe(fd),
     factura_por_whatsapp: fd.get("factura_por_whatsapp") === "on", factura_por_mail: fd.get("factura_por_mail") === "on",
     lista_precios_id: lista, notas: texto(fd, "notas"),

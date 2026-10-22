@@ -179,10 +179,13 @@ function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerrar }: {
         {campo("dni", "DNI", { placeholder: "12345678" })}
         <label><span className={ETIQUETA}>Condición IVA</span>
           <select value={v.condicionIva} onChange={poner("condicionIva")} className={`${CAMPO} w-full`}>
-            <option value="">Sin cargar</option>
+            <option value="" disabled>Elegí…</option>
             <option value="consumidor_final">Consumidor final</option><option value="responsable_inscripto">Responsable inscripto</option>
             <option value="monotributo">Monotributo</option><option value="exento">Exento</option><option value="no_responsable">No responsable</option>
-          </select></label>
+          </select>
+          {v.condicionIva && v.condicionIva !== "consumidor_final" && !v.cuit.trim() && (
+            <span className="block text-[10px] text-[#C03420] mt-0.5">Con esta condición hace falta el CUIT.</span>
+          )}</label>
       </div>
       <div className="grid grid-cols-3 gap-2">
         {campo("email", "Mail")}
