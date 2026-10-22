@@ -27,12 +27,13 @@ import {
   type Producto, SeccionDatos, SeccionCosto, SeccionVariaciones, SeccionAtributos, SeccionFotos, SeccionCucardas, SeccionKit,
   SeccionPrecios, SeccionStock, SeccionPublicaciones,
 } from "./secciones";
+import SeccionVentas from "./Ventas";
 
 export const dynamic = "force-dynamic";
 // Las tareas de fondo de la pestaña Seguimiento (buscar en ML con Apify y abrir los catálogos) corren hasta este tope.
 export const maxDuration = 300;
 
-type SP = { seccion?: string; editar?: string; ok?: string; error?: string; orden?: string; dir?: string; pcanal?: string; pdisp?: string; packs?: string; propias?: string; demoradas?: string; borden?: string; hist?: string; internacionales?: string };
+type SP = { seccion?: string; editar?: string; ok?: string; error?: string; orden?: string; dir?: string; pcanal?: string; pdisp?: string; packs?: string; propias?: string; demoradas?: string; borden?: string; hist?: string; internacionales?: string; pausadas?: string; excluidas?: string; detalle?: string; p?: string };
 
 export default async function FichaProducto({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SP> }) {
   const s = await entrarErp("productos_ver");
@@ -77,6 +78,9 @@ export default async function FichaProducto({ params, searchParams }: { params: 
            (select count(*) from publicacion pu join variacion v on v.id = pu.variacion_id where v.producto_id = $2 and pu.organizacion_id = $1)::int publicaciones,
            (select count(*) from cucarda c where c.organizacion_id = $1 and c.estado = 'activa')::int cucardas_activas,
            (select count(*) from seguimiento_pub sg where sg.producto_id = $2 and sg.organizacion_id = $1)::int seguimiento,
+           -- Ventas: renglones vendidos en todos los canales, sin las canceladas (pestaña Ventas).
+           (select count(*) from venta_estadistica e where e.organizacion_id = $1 and e.variacion_id = any(array(select v.id from variacion v where v.producto_id = $2))
+              and e.estado not in ('cancelled', 'cancelado', 'invalid'))::int ventas,
            ${sqlEstadoMercado("$2::bigint")} mercado,
            -- Compras: renglones de invoices confirmados y de compras por courier (las vinculadas a un invoice no cuentan dos veces).
            ((select count(*) from compra_invoice_linea l join compra_invoice i on i.id = l.invoice_id join variacion v on v.id = l.variacion_id
@@ -110,6 +114,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
     ["stock", "Stock", n.stock ?? 0],
     ["compras", "Compras", n.compras ?? 0],
     ["publicaciones", "Publicaciones", n.publicaciones ?? 0],
+    ["ventas", "Ventas", n.ventas ?? 0],
     ["seguimiento", "Seguimiento", n.seguimiento ?? 0],
   ];
   const seccion = secciones.some(([k]) => k === sp.seccion) ? sp.seccion! : "datos";
@@ -173,6 +178,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
       {seccion === "compras" && <SeccionCompras org={s.org.id} productoId={p.id} />}
       {seccion === "publicaciones" && <SeccionPublicaciones {...props} />}
       {seccion === "seguimiento" && <SeccionSeguimiento s={s} p={p} sp={sp} />}
+      {seccion === "ventas" && <SeccionVentas org={s.org.id} productoId={p.id} sp={sp} aqui={aqui} />}
     </Pantalla>
   );
 }

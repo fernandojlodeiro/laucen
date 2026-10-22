@@ -278,6 +278,14 @@ Todos los cambios de la lista (los de la regla y los hechos a mano, con quién) 
 
 La caja muestra **tu Clásica hoy**, la **referencia** (quién y a cuánto) y a cuánto quedarías, la última revisión con su resultado y, al desplegar **Lo que hizo la regla (N)**, cada cambio: cuándo, SKU, antes, después, contra quién y su estado (**Espera tu clic**, **Aplicado**, **Descartado** o **Reemplazado**).
 
+### Ver cómo se viene vendiendo (pestaña Ventas)
+
+La pestaña **Ventas (N)** de la ficha (N = renglones vendidos en toda la historia) muestra, en una tabla, para **Últimos 7 días**, **Último mes**, **Últimos 3 meses**, **Último año** y **Toda la historia**: cuántas **ventas** (compras distintas: un pedido o una venta de Mercado Libre), cuántas **unidades**, el **monto** que pagaron los compradores y las **unidades por día**. Debajo, la fecha de la última venta.
+
+**Ver detalle**, arriba a la derecha de la caja, abre **Venta por venta**, de la más nueva a la más vieja, de a 50: fecha, la venta (el **pedido**, que lleva a su ficha; si no tiene pedido, el número de **Mercado Libre** con ↗; o el número del historial anterior), el **canal** (cada fila con el color de su canal), el **cliente** (lleva a su ficha si está cargado), la cantidad, el precio por unidad y el total. **Ocultar detalle** lo cierra.
+
+Cuenta todos los canales —Mercado Libre, la tienda web, el local y el historial de ventas importado—, sin las canceladas: es lo mismo que mira [Sugerencia de compra](/compras/sugerencia).
+
 ### Comprobar la familia con Mercado Libre (la lupa 🔍)
 
 Al lado del buscador de **Familia** (en el alta y en la ficha, en edición) está la lupa **🔍**. Al pasar el mouse explica qué hace. Al apretarla:
