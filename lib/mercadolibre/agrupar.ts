@@ -12,10 +12,10 @@
 //   · cuerpoAgrupado: el cuerpo de POST /items para sumar un plan al producto de la
 //     publicación «madre» de la cuenta (lo usan publicar-todas.ts y precios-ml/faltantes.ts).
 //   · madreDe: la publicación común de la cuenta cuyo producto junta más ventas.
-//   · prepararAgrupar: rehace los planes que quedaron en otro producto y no tienen ventas
+//   · prepararAgrupar: rehace los planes que quedaron en otro producto, tengan o no ventas
 //     (Configuración › Canales, cuenta de ML): un lote con las altas agrupadas que espera
-//     el clic de Fer. prepararCierreAgrupados: otro lote que cierra y elimina las viejas
-//     cuando su plan ya está en el producto de la madre.
+//     el clic de Fer. prepararCierreAgrupados: otro lote que cierra y elimina las viejas SIN
+//     ventas cuando su plan ya está en el producto de la madre (las que tienen ventas quedan).
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { ml, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
@@ -83,10 +83,12 @@ export async function comprobarAgrupado(cuenta: CuentaMl, madre: ItemMadre, plan
   return comprobarAlta(cuenta, (x) => cuerpoAgrupado(madre, plan, precio, cantidad, x.sacar));
 }
 
-type Pub = { id: number; item_id: string; up: string; catalogo: boolean; tipo: string | null; tags: unknown; terms: unknown; precio: number | null; vendidos: number; catalogo_prod: string | null };
+type Pub = { id: number; item_id: string; up: string; catalogo: boolean; tipo: string | null; tags: unknown; terms: unknown; precio: number | null; vendidos: number; catalogo_prod: string | null;
+  /** Lo vendido entre todas las publicaciones de su producto de ML (con ventas, la vieja no se elimina). */
+  ventas_up: number };
 type Grupo = { variacion: number; sku: string; madre: string; madreUp: string; disp: number; pubs: Pub[] };
 
-/** Los productos de la cuenta con algún plan en otro producto de ML que el de la madre, sin ventas en ese producto. */
+/** Los productos de la cuenta con algún plan en otro producto de ML que el de la madre (con o sin ventas). */
 async function gruposSeparados(org: string, canal: number): Promise<Grupo[]> {
   const filas = await consulta<Pub & { variacion: number; sku: string; madre_up: string; disp: number }>(`
     with x as (
@@ -103,9 +105,8 @@ async function gruposSeparados(org: string, canal: number): Promise<Grupo[]> {
       select variacion, up, sum(vendidos) v,
              row_number() over (partition by variacion order by bool_or(not catalogo) desc, sum(vendidos) desc, min(id)) rk
         from x group by variacion, up)
-    select x.*, (select u2.up from ups u2 where u2.variacion = x.variacion and u2.rk = 1) madre_up
+    select x.*, u.v::int ventas_up, (select u2.up from ups u2 where u2.variacion = x.variacion and u2.rk = 1) madre_up
       from x join ups u using (variacion, up)
-     where u.rk = 1 or u.v = 0
      order by x.variacion, x.id`, [org, canal]);
   const porVar = new Map<number, typeof filas>();
   for (const f of filas) porVar.set(f.variacion, [...(porVar.get(f.variacion) ?? []), f]);
@@ -123,9 +124,10 @@ const plan = (p: Pick<Pub, "tipo" | "tags" | "terms">) => planDe(p.tipo ?? "", p
 
 export type ResultadoAgrupar = { productos: number; altas: number; loteId: number | null; rechazos: string[]; quedan: number };
 
-/** Las altas agrupadas de los planes que quedaron en otro producto (sin ventas): cada plan que todavía no está en
- *  el producto de la madre se crea copiando la madre, al precio de la publicación vieja, en su misma campaña y,
- *  si la vieja tenía gemela de catálogo, también en el catálogo. Un lote que espera el clic de Fer. */
+/** Las altas agrupadas de los planes que quedaron en otro producto: cada plan que todavía no está en el producto de
+ *  la madre se crea copiando la madre, al precio de la publicación vieja, en su misma campaña y, si la vieja tenía
+ *  gemela de catálogo, también en el catálogo. También si la vieja tiene ventas (Fer, 22/10): se crea la agrupada y
+ *  la vieja queda (no se elimina). Un lote que espera el clic de Fer. */
 export async function prepararAgrupar(org: string, canal: number, usuarioId: string | null, opts: { max?: number; hasta?: number } = {}): Promise<ResultadoAgrupar> {
   const hasta = opts.hasta ?? Date.now() + 240_000;
   const cuenta = await cuentaDelCanal(org, canal);
@@ -175,7 +177,7 @@ export async function prepararAgrupar(org: string, canal: number, usuarioId: str
       altas.push({
         canalId: canal, itemId: `agrupar:${g.sku}:${pl}`, tipo: "crear", antes: { estado: `${nombrePlan[pl]} en otro producto (${v.item_id})` },
         payload: {
-          descripcion: `Alta en ${nombre}: ${g.sku} ${nombrePlan[pl]} $ ${precio.toLocaleString("es-AR")}${camp && camp.precio < precio ? ` (con campaña $ ${camp.precio.toLocaleString("es-AR")})` : ""}; copia exacta de ${g.madre} para quedar en su mismo producto (reemplaza a ${v.item_id})${gemela ? `, y entra al catálogo ${gemela}` : ""}`,
+          descripcion: `Alta en ${nombre}: ${g.sku} ${nombrePlan[pl]} $ ${precio.toLocaleString("es-AR")}${camp && camp.precio < precio ? ` (con campaña $ ${camp.precio.toLocaleString("es-AR")})` : ""}; copia exacta de ${g.madre} para quedar en su mismo producto (${v.ventas_up > 0 ? `${v.item_id} tiene ventas y queda` : `reemplaza a ${v.item_id}`})${gemela ? `, y entra al catálogo ${gemela}` : ""}`,
           origen: { canal, item_id: g.madre }, reemplaza: v.item_id, pedidos,
         },
       });
@@ -191,14 +193,15 @@ export async function prepararAgrupar(org: string, canal: number, usuarioId: str
 export type ResultadoCierre = { cerrar: number; loteId: number | null };
 
 /** El cierre de las viejas: cada publicación (y su gemela de catálogo) que está en otro producto que el de la madre,
- *  sin ventas, cuyo plan ya está en el producto de la madre. Un lote que espera el clic de Fer. */
+ *  sin ventas en ese producto (las que tienen ventas quedan, Fer 22/10), cuyo plan ya está en el producto de la
+ *  madre. Un lote que espera el clic de Fer. */
 export async function prepararCierreAgrupados(org: string, canal: number, usuarioId: string | null): Promise<ResultadoCierre> {
   const nombre = (await una<{ nombre: string }>("select nombre from canal where id = $1", [canal]))?.nombre ?? "la cuenta";
   const grupos = await gruposSeparados(org, canal);
   const cambios: CambioMl[] = [];
   for (const g of grupos) {
     const enMadre = new Set(g.pubs.filter((p) => p.up === g.madreUp && !p.catalogo).map(plan));
-    const ups = new Set(g.pubs.filter((p) => p.up !== g.madreUp && !p.catalogo && enMadre.has(plan(p))).map((p) => p.up));
+    const ups = new Set(g.pubs.filter((p) => p.up !== g.madreUp && p.ventas_up === 0 && !p.catalogo && enMadre.has(plan(p))).map((p) => p.up));
     for (const p of g.pubs.filter((x) => ups.has(x.up))) {
       cambios.push({
         canalId: canal, itemId: p.item_id, variationId: null, publicacionId: p.id, tipo: "otro", antes: { estado: "en otro producto de ML, sin ventas" },
