@@ -111,6 +111,11 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   );
 
   if (esMl) {
+    // El aviso a ML de que lo retiró (sale solo por la cola con el botón): cómo le fue, acá mismo.
+    const avisos = p.ml_retira ? await consulta<{ estado: string; error: string | null; enviado: Date | null }>(`
+      select estado, ultimo_error error, enviado_ts enviado from ml_cola
+       where organizacion_id = $1 and canal_id = $2 and tipo = 'otro' and item_id like 'orden %' and payload ->> 'descripcion' like $3
+       order by id`, [org, p.canal_id, `%(pedido ${pid})`]) : [];
     // «Cancelar pedido» de ML va arriba (AccionesPedido). Una venta sin envío que retira en el local (Fer, 22/10):
     // «Cliente presente: retira» la entrega, la factura si falta y le avisa a ML que se concretó.
     return (
@@ -125,10 +130,18 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
               <form action={accionClientePresente} className="flex flex-wrap items-end gap-2">
                 <input type="hidden" name="pedido_id" value={pid} />
                 <BotonEnviar clase={VERDE} corriendo="Entregando y avisando…">Cliente presente: retira</BotonEnviar>
-                <span className="text-[11px] text-[#5C6B76]">Queda entregado, se factura si falta (la factura se sube a Mercado Libre) y se le avisa a Mercado Libre que el comprador ya lo tiene.</span>
+                <span className="text-[11px] text-[#5C6B76]">Queda entregado, se factura si falta (la factura se sube a Mercado Libre) y se le avisa solo a Mercado Libre que el comprador ya lo tiene.</span>
               </form>
             </div>
           </>
+        )}
+        {avisos.length > 0 && (
+          <p className="text-xs mb-4">
+            <span className="text-[#5C6B76]">Aviso a Mercado Libre de que lo retiró: </span>
+            {avisos.every((a) => a.estado === "ok") ? <Estado texto={`Recibido${avisos[0].enviado ? ` el ${fechaHora(avisos[0].enviado)}` : ""}`} tono="verde" />
+              : avisos.some((a) => a.estado === "error") ? <><Estado texto="Falló" tono="rojo" /> <span className="text-[#C03420]">{avisos.find((a) => a.estado === "error")?.error}</span></>
+              : <Estado texto="Mandándose…" tono="amarillo" />}
+          </p>
         )}
         {pagos.length > 0 && <><h2 className="text-sm font-bold mb-2">Pagos</h2><div className="mb-4">{TablaPagos}</div></>}
       </>
