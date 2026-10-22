@@ -116,7 +116,7 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
 
   // Buscador para sumar productos (borrador).
   const q = (sp.q ?? "").trim();
-  const hallados = borrador && q.length >= 2 ? await consulta<{ id: number; producto_id: number; sku: string; titulo: string; fotos: string[] | null; origen: number; publicada: boolean }>(`
+  const hallados = (borrador || enCamino) && q.length >= 2 ? await consulta<{ id: number; producto_id: number; sku: string; titulo: string; fotos: string[] | null; origen: number; publicada: boolean }>(`
     select v.id::int, v.producto_id::int, v.sku, titulo_variacion(v.id) titulo,
            (select array_agg(pf.url order by pf.orden) from producto_foto pf where pf.producto_id = v.producto_id) fotos,
            stock_disponible_deposito($1, v.id, $3) origen,
@@ -274,7 +274,8 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
             {lineas.length === 0 && <tr><td colSpan={13} className={`${TD} text-[#5C6B76]`}>Todavía no hay productos: buscalos abajo o mirá los sugeridos.</td></tr>}
             {lineas.map((l) => {
               const c = ctxDe.get(l.variacion_id);
-              const editarFila = borrador && sp.editar === `l-${l.id}`;
+              // En camino, el lápiz cambia sólo la publicación (la cantidad ya salió del depósito).
+              const editarFila = (borrador || (enCamino && l.recibido === 0)) && sp.editar === `l-${l.id}`;
               const recibirFila = enCamino && sp.recibir === String(l.id);
               const pend = l.cantidad - l.recibido - l.faltante;
               return (
@@ -320,7 +321,8 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
                     {editarFila ? (
                       <form id={`fl-${l.id}`} action={accionCantidadLinea} className="inline-flex items-center gap-1">
                         <input type="hidden" name="envio" value={eid} /><input type="hidden" name="linea" value={l.id} />
-                        <CampoNumero name="cantidad" valor={l.cantidad} tipo="entero" className={`${CAMPO} w-20`} />
+                        {borrador ? <CampoNumero name="cantidad" valor={l.cantidad} tipo="entero" className={`${CAMPO} w-20`} />
+                          : <><input type="hidden" name="cantidad" value={l.cantidad} /><span className="tabular-nums">{n(l.cantidad)}</span></>}
                         <button className={VERDE}>Guardar</button>
                         <Link href={aqui()} className={SUAVE} scroll={false}>Cancelar</Link>
                       </form>
@@ -336,6 +338,7 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
                         <TachoConfirmar accion={accionBorrarLinea} campos={{ envio: String(eid), linea: String(l.id) }} pregunta="¿Sacarlo del envío?" />
                       </span>
                     )}
+                    {enCamino && !editarFila && l.recibido === 0 && <Lapiz href={aqui({ editar: `l-${l.id}` })} />}
                     {enCamino && pend > 0 && (recibirFila ? (
                       <form action={accionRecibirAMano} className="inline-flex items-center gap-1">
                         <input type="hidden" name="envio" value={eid} /><input type="hidden" name="linea" value={l.id} />
@@ -352,10 +355,11 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
         </table>
       </div>
 
-      {borrador && (
+      {(borrador || enCamino) && (
         <div className="grid gap-4 md:grid-cols-2 mb-4">
           <div className={CAJA}>
             <TituloSeccion titulo="Agregar productos" />
+            {enCamino && <p className="text-[11px] text-[#8a6100] mb-1">El envío ya salió: lo que agregues sale ahora de {e.origen} y queda «En camino a Full».</p>}
             <BuscadorVivo q={q} comienza={sp.contiene !== "1"} placeholder="Buscar por SKU, código de barras o título" limpiar={["editar", "recibir"]} />
             {hallados.length > 0 && (
               <table className={`${TABLA} mt-2`}>
@@ -384,7 +388,7 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
             )}
             {q.length >= 2 && hallados.length === 0 && <p className="text-[11px] text-[#8a6100] mt-2">No hay productos con «{q}».</p>}
           </div>
-          <div className={CAJA}>
+          {borrador && <div className={CAJA}>
             <TituloSeccion titulo="Sugeridos">
               {verSugeridos
                 ? <Link href={url(base, { q: sp.q, contiene: sp.contiene })} className={SUAVE} scroll={false}>Cerrar sugeridos</Link>
@@ -394,7 +398,7 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
               Muestra, sin agregar nada, los productos que {e.canal} publica y vendió: lo que vende en los días a cubrir, menos lo que ya hay en Full y en camino,
               sin dejar {e.origen} por debajo de lo que venden los demás canales en los días a dejar. Tildás los que querés mandar y apretás «Agregar los tildados».
             </p>
-          </div>
+          </div>}
         </div>
       )}
 

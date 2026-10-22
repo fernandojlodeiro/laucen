@@ -41,9 +41,9 @@ El envío también se crea en Mercado Libre, en la Central de vendedores (secci�
 - Caja **Flete del envío** con su lápiz: **Monto (sin IVA)**, **Factura de gasto** (enlace a la factura) y **Cómo se reparte**. Debajo, cuánto da en promedio por unidad.
 - Tabla **Productos** (con **«Vaciar el envío»** a la derecha del título, en borrador): foto y SKU (enlace a la ficha), la **Publicación** de la cuenta a la que va (su número abre el historial; la ↗ abre Mercado Libre; debajo, el plan, la marca de catálogo y cuánto vendió), el **Código ML**, **Vende/día en la cuenta**, **Vende/día en lo demás** (los otros canales), **En Full**, **En camino** (de otros envíos), **Disponible en** el depósito de origen (en rojo si no alcanza), **Cantidad**, y cuando ya salió, **Recibido** y **Faltante**; al final, el **Flete por unidad**.
   - En borrador, cada fila tiene el lápiz (cambia ahí mismo la cantidad y la publicación) y el tacho (lo saca del envío).
-  - En camino, cada fila con unidades pendientes tiene **«Recibir…»**, para recibir a mano.
+  - En camino, cada fila con unidades pendientes tiene **«Recibir…»**, para recibir a mano, y mientras no llegó nada, el lápiz para cambiar sólo la publicación (la cantidad ya salió del depósito).
 - En borrador, abajo: **Agregar productos** (buscador; cada resultado con su cantidad y **«Agregar»**) y **Sugeridos** con el botón **«Ver sugeridos»**. Abre la lista de sugeridos sin agregar nada: los tres números de días con **«Recalcular»**, y por producto una caja **Mandar** para tildar, la publicación a la que iría, lo que vende, lo que hay y la **Cantidad** sugerida (se puede cambiar). **«Agregar los tildados»** suma sólo los tildados; **«Cerrar sugeridos»** la esconde.
-- En camino, abajo: **Cerrar el envío**, con **«Cerrar: lo que falta vuelve al depósito»** y **«Cerrar: lo que falta se perdió»**.
+- En camino, abajo: **Agregar productos** (para sumar algo que se agregó al envío de Mercado Libre después de despachar: sale en el momento del depósito de origen y queda «En camino a Full») y **Cerrar el envío**, con **«Cerrar: lo que falta vuelve al depósito»** y **«Cerrar: lo que falta se perdió»**.
 
 ### Pestaña Stock en Full
 
@@ -199,6 +199,9 @@ Al código de Full que más vende, que suele ser el de la Clásica con su gemela
 
 **¿Tengo que crear el envío también en Mercado Libre?**
 Sí. Mercado Libre no deja crearlo desde otro sistema. Armalo acá (con la sugerencia y las etiquetas) y copiá los productos y cantidades en la Central de vendedores.
+
+**Agregué un producto al envío de Mercado Libre después de despachar. ¿Lo cargo acá?**
+Sí. En la ficha del envío, abajo, **Agregar productos**: buscalo, poné la cantidad y apretá **«Agregar»**. Como el envío ya salió, esas unidades salen en el momento del depósito de origen y quedan «En camino a Full». Revisá con el lápiz de la fila que vaya a la publicación correcta y volvé a imprimir el remito.
 
 **¿Por qué después de despachar no veo esas unidades en el depósito propio?**
 Porque están «En camino a Full». Se ven en la [Consulta de stock](/stock/consulta), en el depósito «En camino a Full».

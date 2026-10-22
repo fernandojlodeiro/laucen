@@ -64,7 +64,8 @@ export async function accionAgregarLinea(fd: FormData) {
   const s = await entrarErp("full_ver");
   const e = id(fd, "envio");
   await intentar(ficha(e), async () => {
-    const aviso = await agregarLinea(s.org.id, e, id(fd, "variacion"), entero(fd, "cantidad") ?? 0);
+    const aviso = await agregarLinea(s.org.id, e, id(fd, "variacion"), entero(fd, "cantidad") ?? 0, s.usuario.id);
+    revalidatePath("/stock/consulta");
     return { ir: ficha(e, `?${aviso ? "error" : "ok"}=` + encodeURIComponent(aviso ?? "Agregado.")) };
   });
 }
