@@ -752,3 +752,19 @@ create table if not exists ml_agrupado_auto (
 );
 alter table ml_agrupado_auto enable row level security;
 select erp_politica_org('ml_agrupado_auto');
+
+-- ── Madre nueva de un producto en una cuenta (lib/mercadolibre/agrupado-auto.ts; Fer, 22/10) ──
+-- Cuando una copia exacta de la madre no queda en su producto de ML (la madre tiene características que ML ya no
+-- acepta en un alta), el producto de ML de esa copia pasa a ser la madre: ahí se crean los demás planes, y la
+-- madre vieja queda sola (si no tiene ventas, se elimina con el resto de los planes viejos).
+create table if not exists ml_madre_nueva (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  sku              text not null,
+  up               text not null,
+  madre_vieja      text,
+  creado_ts        timestamptz not null default now(),
+  primary key (canal_id, sku)
+);
+alter table ml_madre_nueva enable row level security;
+select erp_politica_org('ml_madre_nueva');
