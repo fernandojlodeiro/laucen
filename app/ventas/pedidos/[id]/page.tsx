@@ -3,6 +3,7 @@
 // el bloque de facturación) y, para lo que no es de Mercado Libre, el bloque
 // "Operación" (confirmar pago, estado siguiente, avisar por WhatsApp).
 
+import { faltaParaFacturar } from "@/lib/datos-factura";
 import Link from "next/link";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import { formatear, enMoneda, tcDelDia } from "@/lib/moneda";
@@ -19,7 +20,7 @@ import { tienePermiso } from "@/lib/permisos";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { BotonEnviar } from "@/app/radar/Cliente";
 import { ESTADOS_CBTE, numeroCbte, nombreTipo, type EstadoCbte } from "@/app/administracion/facturacion/comun";
-import { accionFacturar, accionSubirFacturaMlPedido, accionRefacturar, accionLoteFacturaCorregida, accionLiberarFactura, accionLeyendaFactura, accionFacturaWhatsapp } from "./acciones";
+import { accionFacturar, accionSubirFacturaMlPedido, accionRefacturar, accionLiberarFactura, accionLeyendaFactura, accionFacturaWhatsapp } from "./acciones";
 import { sqlEstadoFacturaMl } from "@/lib/mercadolibre/facturas";
 import { TextoFacturaMl, BotonFacturaMl, puedeSubir } from "@/app/administracion/facturacion/FacturaMl";
 import Operacion from "./Operacion";
@@ -131,6 +132,16 @@ export default async function DetallePedido({ params, searchParams }: { params: 
   const fx = await una<{ leyenda: string | null; retenida: string | null; retenida_ts: Date | null; lectura: string | null; leida_ts: string | null }>(`
     select factura_leyenda leyenda, factura_retenida retenida, factura_retenida_ts retenida_ts, factura_revision ->> 'motivo' lectura, factura_revision ->> 'ts' leida_ts
       from pedido where id = $1 and organizacion_id = $2`, [pid, s.org.id]);
+  // Mensajería del pedido (sólo se muestra si hay): los mensajes de Mercado Libre de la venta y el WhatsApp del cliente desde que se hizo el pedido.
+  const mensajes = await consulta<{ cuando: Date; donde: string; nuestro: boolean; auto: boolean; texto: string }>(`
+    select fecha cuando, 'Mercado Libre' donde, de_vendedor nuestro, (auto or con_ia) auto, texto from meli_mensaje
+     where pedido_id = $1 and organizacion_id = $2 and coalesce(texto, '') <> ''
+    union all
+    select x.ts, 'WhatsApp', x.direccion = 'saliente', x.usuario_id is null, x.texto
+      from chat_mensaje x join chat ch on ch.id = x.chat_id
+     where ch.organizacion_id = $2 and ch.cliente_id is not null and ch.cliente_id = $3 and coalesce(x.texto, '') <> ''
+       and x.ts >= (select creado_ts from pedido where id = $1)
+     order by 1`, [pid, s.org.id, c.cliente_id ?? 0]);
   const editandoLeyenda = sp.editar === "leyenda";
   const ofrecerFacturar = puedeFacturar && !facturado && !["presupuesto", "nuevo", "cancelado"].includes(c.estado);
 
@@ -157,8 +168,8 @@ export default async function DetallePedido({ params, searchParams }: { params: 
          order by (ca.tipo = 'local') desc, ca.nombre`, [s.org.id, canalPedido]),
       consulta<{ id: number; nombre: string; moneda: "ARS" | "USD" }>(
         "select id::int, nombre, moneda_base moneda from lista_precios where organizacion_id = $1 and estado = 'activa' order by orden, nombre", [s.org.id]),
-      c.cliente_id ? una<{ id: number; nombre: string; documento: string | null; email: string | null; cuenta_corriente: boolean }>(`
-        select id::int, nombre, nullif(concat_ws(' ', documento_tipo, documento_numero), '') documento, email, coalesce(cuenta_corriente, false) cuenta_corriente
+      c.cliente_id ? una<{ id: number; nombre: string; documento: string | null; email: string | null; cuenta_corriente: boolean; cuit: string | null; condicion_iva: string | null }>(`
+        select id::int, nombre, nullif(concat_ws(' ', documento_tipo, documento_numero), '') documento, email, coalesce(cuenta_corriente, false) cuenta_corriente, cuit, condicion_iva
           from cliente where id = $1`, [c.cliente_id]) : null,
       consulta<{ variacion: number; sku: string; titulo: string; disponible: number; cantidad: number; lista: number | null; unit: number; descuento: number }>(`
         select l.variacion_id::int variacion, coalesce(v.sku, l.sku, '') sku, coalesce(titulo_variacion(v.id), l.titulo) titulo,
@@ -175,7 +186,8 @@ export default async function DetallePedido({ params, searchParams }: { params: 
     const edicion: EdicionPedido = {
       pedidoId: pid, tipo: c.estado === "presupuesto" ? "presupuesto" : "pedido", canalId: canalPedido,
       moneda: pe!.moneda, listaId: pe!.lista,
-      cliente: cli ? { id: cli.id, nombre: cli.nombre, documento: cli.documento, email: cli.email, cuentaCorriente: cli.cuenta_corriente, direccion: null } : null,
+      cliente: cli ? { id: cli.id, nombre: cli.nombre, documento: cli.documento, email: cli.email, cuentaCorriente: cli.cuenta_corriente, direccion: null,
+        faltaFacturar: faltaParaFacturar(cli.condicion_iva, cli.cuit) } : null,
       // Con precio de lista y descuento, se muestran los dos (lista × (1 − descuento) = el precio que tenía); si no, el precio tal cual.
       lineas: lineasEd.map((l) => ({ variacion: l.variacion, sku: l.sku, titulo: l.titulo, sugerido: null, disponible: l.disponible, cantidad: l.cantidad,
         precio: l.lista && l.descuento ? l.lista : l.unit, descuento: l.lista && l.descuento ? l.descuento : null })),
@@ -315,6 +327,22 @@ export default async function DetallePedido({ params, searchParams }: { params: 
         </div>
       </div>
 
+      {mensajes.length > 0 && (
+        <section className="mb-4">
+          <h2 className="text-sm font-bold mb-2">Mensajes ({mensajes.length})</h2>
+          <div className={`${CAJA} space-y-2`}>
+            {mensajes.map((m, i) => (
+              <div key={i} className={`flex ${m.nuestro ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${m.nuestro ? "bg-[#E7F1F8]" : "bg-[#F1F3F5]"}`}>
+                  <p className="whitespace-pre-wrap">{m.texto}</p>
+                  <p className="text-[10px] text-[#5C6B76] mt-1 text-right">{m.nuestro ? (m.auto ? "La IA" : "Nosotros") : "Comprador"} · {m.donde} · {fechaHora(m.cuando)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {cargos.length > 0 && <CargosMl cargos={cargos} total={v === "USD" ? c.total_usd : c.total_ars} moneda={v} />}
 
       <Operacion org={s.org.id} pid={pid} sp={sp} />
@@ -397,13 +425,6 @@ export default async function DetallePedido({ params, searchParams }: { params: 
           <form action={accionRefacturar}>
             <input type="hidden" name="pedido_id" value={pid} />
             <BotonEnviar clase={fx?.retenida ? PRIMARIO : SUAVE} corriendo="Refacturando…">Refacturar con datos actuales</BotonEnviar>
-          </form>
-        )}
-        {/* Venta de ML ya refacturada: un lote con la factura nueva y el aviso al comprador, que sale con el clic en la cola. */}
-        {puedeFacturar && facturado && comprobantes.some((x) => x.es_ml) && comprobantes.some((x) => x.asociado_id != null) && (
-          <form action={accionLoteFacturaCorregida}>
-            <input type="hidden" name="pedido_id" value={pid} />
-            <BotonEnviar clase={SUAVE} corriendo="Preparando…">Preparar factura corregida para Mercado Libre</BotonEnviar>
           </form>
         )}
       </div>

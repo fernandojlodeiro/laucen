@@ -85,6 +85,8 @@ volverse comerciante e importador. Entiende lógica de programación (variable, 
 conoce los lenguajes y frameworks nuevos. Hablale en criollo: no le expliques como si no supiera
 nada, pero no asumas que conoce una librería o framework puntual sin decir qué hace.
 
+**Tuteá a Fer (voseo rioplatense) y llamalo Fer; nunca de usted** (pedido de Fer, 14/10).
+
 Contestale corto y concreto. Primero la respuesta, después el porqué si lo pide. Si hay más de
 un camino, dáselo en opciones numeradas con una recomendada, y esperá el sí — no elijas por él.
 
@@ -169,6 +171,14 @@ Listas de los ABM (pedido de Fer, 3/10):
   pedido de Fer 5/10 y 8/10): **siempre primero, a la izquierda del SKU** (nunca después de un texto de
   largo variable), todas del mismo tamaño (28 px en listas) y sin foto queda el lugar vacío para que lo
   que sigue quede alineado; al tocarla abre todas. Vale también en el buscador general y en la ficha.
+- **Tablas angostas, lo importante a la izquierda** (pedido de Fer, 22/10): el título de un producto o
+  publicación va **en dos renglones como máximo**, chico y gris debajo del SKU, con el texto entero al pasar
+  el mouse (`app/componentes/TituloCorto.tsx`), y su celda con ancho acotado (`max-w-80`). Primero las
+  columnas con las que se decide (cantidades, stock, dónde está, estado), después lo secundario; las listas
+  largas (publicaciones que lo venden, códigos, detalles) **al final**. Lo importante tiene que verse sin
+  desplazar la tabla de costado.
+  **El ancho de una columna lo marca el dato, nunca el título**: títulos de columna cortos o abreviados
+  («Cant.», «Dispo.», «Vta/día») y el nombre completo en `title`, que se ve al pasar el mouse.
 - **Clientes y proveedores muestran su "N.º"** (el id interno): primera columna y en la ficha.
 - **Todo ABM tiene "Descargar Excel" con configuraciones** (pedido de Fer, 3/10): arriba a la
   derecha, al lado de "Nuevo …" (`<AccionesExcel>` de `app/listas/piezas.tsx`). Baja lo que se ve
@@ -292,6 +302,13 @@ criollo, nunca se muestra crudo (`motivoLegible()` en `app/auth-actions.ts`).
   respeta los límites de la API y queda registrado qué se mandó, cuándo y con qué resultado.
 
 ## Disciplina técnica (todo va a main)
+
+- **Cuando hay plata en juego, se contesta con el código leído entero** (pedido de Fer, 14/10). Toda pregunta
+  sobre precios, campañas, cobros, comisiones, costos, facturación o stock que se vende se contesta recién
+  después de leer el camino completo que lo hace en el código —de dónde sale el dato, qué filtros y
+  excepciones pasa, qué se manda y a quién—, no una consulta suelta ni la primera función que aparece. La
+  respuesta nombra el archivo donde está. Si no se llegó a leer todo, se dice «no lo verifiqué» en vez de
+  afirmar. Nunca se contesta de memoria, ni por cómo «debería» andar, ni por lo que dijo otra sesión.
 
 - **Manual del sistema (pedido de Fer, 3/10): toda pantalla nueva o cambiada actualiza su página
   en `manual/` en el mismo commit** — qué es, dónde está, cómo se hace y, sobre todo, los

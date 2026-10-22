@@ -9,6 +9,9 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { leerNumero, formatearNumero } from "@/lib/numeros";
+import { cuitCierra } from "@/lib/cuit-verificador";
+import ElegirProvincia from "@/app/componentes/ElegirProvincia";
+import { PROVINCIA_POR_DEFECTO } from "@/lib/provincias";
 import { PRIMARIO, SUAVE, ICONO_BORRAR } from "@/app/botones";
 import IconoTacho from "@/app/componentes/IconoTacho";
 import {
@@ -95,48 +98,115 @@ function CuadroBusqueda({ b, placeholder, alEnter, alFlecha, id }: {
   );
 }
 
-/** Alta rápida de un cliente que no apareció en el buscador: pide los datos ahí mismo. */
-function ClienteNuevo({ nombreInicial, alCrear, alCerrar }: { nombreInicial: string; alCrear: (c: ClienteHallado) => void; alCerrar: () => void }) {
-  const [v, setV] = useState({ nombre: nombreInicial, tipo: "consumidor_final", documentoTipo: "DNI", documentoNumero: "", email: "", telefono: "" });
+/** Alta rápida de un cliente que no apareció en el buscador: pide ahí mismo los datos principales de la
+ *  ficha (Fer, 22/10: CUIT / CUIL y DNI por separado, sin desplegable de tipo de documento). */
+function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerrar }: {
+  nombreInicial: string; documentoInicial: string; alCrear: (c: ClienteHallado) => void; alCerrar: () => void;
+}) {
+  // Si lo que se buscó era un número, va a su campo: 11 cifras = CUIT, si no, DNI.
+  const cifras = documentoInicial.replace(/\D/g, "");
+  const [v, setV] = useState({
+    nombre: nombreInicial, tipo: "consumidor_final", cuit: cifras.length === 11 ? documentoInicial : "", dni: cifras && cifras.length !== 11 ? documentoInicial : "",
+    condicionIva: cifras.length === 11 ? "responsable_inscripto" : cifras ? "consumidor_final" : "", email: "", telefono: "", whatsapp: "",
+    // Una dirección, aunque sea una (Fer, 22/10); la provincia, de las 24 (Córdoba de entrada).
+    calle: "", numero: "", pisoDepto: "", localidad: "", provincia: PROVINCIA_POR_DEFECTO, codigoPostal: "",
+  });
+  // La condición de IVA se sugiere sola (Fer, 22/10): con CUIT, Responsable inscripto; sin CUIT y con DNI, Consumidor
+  // final. Si la persona la eligió a mano, ya no se toca.
+  const [ivaElegida, setIvaElegida] = useState(false);
   const [error, setError] = useState("");
+  // Los que ya están cargados con esos datos (mismo CUIT, DNI o razón social): se ofrece elegirlos.
+  const [repetidos, setRepetidos] = useState<ClienteHallado[]>([]);
+  const [forzable, setForzable] = useState(false);
   const [grabando, grabar] = useTransition();
-  const poner = (k: keyof typeof v) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }));
-  const guardar = () => {
-    setError("");
+  const poner = (k: keyof typeof v) => (e: { target: { value: string } }) => {
+    const valor = e.target.value;
+    if (k === "condicionIva") setIvaElegida(true);
+    setV((x) => {
+      const y = { ...x, [k]: valor };
+      if ((k === "cuit" || k === "dni") && !ivaElegida) y.condicionIva = y.cuit.trim() ? "responsable_inscripto" : y.dni.trim() ? "consumidor_final" : "";
+      return y;
+    });
+    setRepetidos([]);
+  };
+  const sinEnter = (e: React.KeyboardEvent) => { if (e.key === "Enter") e.preventDefault(); };
+  const campo = (k: keyof typeof v, etiqueta: string, extra: { placeholder?: string; className?: string; autoFocus?: boolean } = {}) => (
+    <label className={extra.className}><span className={ETIQUETA}>{etiqueta}</span>
+      <input value={v[k]} onChange={poner(k)} onKeyDown={sinEnter} placeholder={extra.placeholder} autoFocus={extra.autoFocus} className={`${CAMPO} w-full`} /></label>
+  );
+  const guardar = (igual = false) => {
+    setError(""); setRepetidos([]);
     grabar(async () => {
-      const r = await crearClienteDesdePedido(v);
-      if (r.cliente) alCrear(r.cliente); else setError(r.error ?? "No se pudo crear el cliente.");
+      const r = await crearClienteDesdePedido({ ...v, igual });
+      if (r.cliente) return alCrear(r.cliente);
+      setError(r.error ?? "No se pudo crear el cliente.");
+      setRepetidos(r.repetidos ?? []); setForzable(!!r.forzable);
     });
   };
   return (
     <div className="mt-2 max-w-xl rounded-xl border border-[#C9D3DD] bg-[#FAFBFC] p-3 grid gap-2">
       <div className="flex items-center justify-between"><b className="text-sm">Cliente nuevo</b>
         <button type="button" onClick={alCerrar} aria-label="Cerrar" className="h-6 w-6 rounded-full text-[#5C6B76] hover:bg-[#E3E9F0] leading-none">×</button></div>
-      {error && <p role="alert" className="rounded-lg px-2 py-1.5 bg-[#FDF1EF] text-[#C03420]">{error}</p>}
-      <label><span className={ETIQUETA}>Nombre o razón social</span>
-        <input value={v.nombre} onChange={poner("nombre")} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className={`${CAMPO} w-full`} autoFocus /></label>
+      {error && (
+        <div role="alert" className="rounded-lg px-2 py-1.5 bg-[#FDF1EF] text-[#C03420] grid gap-1">
+          <span>{error}</span>
+          {repetidos.map((c) => (
+            <div key={c.id} className="flex flex-wrap items-center gap-2 text-[#1B2A35]">
+              <span><span className="text-[#5C6B76]">N.º {c.id} · </span><b>{c.nombre}</b>{c.documento && <span className="text-[#5C6B76]"> · {c.documento}</span>}</span>
+              <button type="button" className={SUAVE} onClick={() => alCrear(c)}>Elegir éste</button>
+            </div>
+          ))}
+          {repetidos.length > 0 && forzable && (
+            <div><button type="button" className={SUAVE} disabled={grabando} onClick={() => guardar(true)}>Es otro cliente: grabarlo igual</button></div>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-2">
-        <label><span className={ETIQUETA}>Documento</span>
-          <select value={v.documentoTipo} onChange={poner("documentoTipo")} className={`${CAMPO} w-full`}>
-            {["DNI", "CUIT", "CUIL", "PASAPORTE", "OTRO"].map((d) => <option key={d}>{d}</option>)}
+        {campo("nombre", "Razón social (sale en la factura)", { className: "col-span-2", autoFocus: true })}
+        <label><span className={ETIQUETA}>Tipo</span>
+          <select value={v.tipo} onChange={poner("tipo")} className={`${CAMPO} w-full`}>
+            <option value="consumidor_final">Minorista</option><option value="mayorista">Mayorista</option>
           </select></label>
-        <label className="col-span-2"><span className={ETIQUETA}>Número</span>
-          <input value={v.documentoNumero} onChange={poner("documentoNumero")} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className={`${CAMPO} w-full`} /></label>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <label><span className={ETIQUETA}>Mail</span>
-          <input value={v.email} onChange={poner("email")} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className={`${CAMPO} w-full`} /></label>
-        <label><span className={ETIQUETA}>Teléfono</span>
-          <input value={v.telefono} onChange={poner("telefono")} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className={`${CAMPO} w-full`} /></label>
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          {campo("cuit", "CUIT / CUIL", { placeholder: "20-12345678-9" })}
+          {/^\d{11}$/.test(v.cuit.replace(/\D/g, "")) && !cuitCierra(v.cuit.replace(/\D/g, "")) && (
+            <span className="block text-[10px] text-[#C03420] mt-0.5">No es válido: el último número no corresponde.</span>
+          )}
+          {v.cuit.replace(/\D/g, "").length > 11 && <span className="block text-[10px] text-[#C03420] mt-0.5">Tiene más de 11 números.</span>}
+        </div>
+        {campo("dni", "DNI", { placeholder: "12345678" })}
+        <label><span className={ETIQUETA}>Condición IVA</span>
+          <select value={v.condicionIva} onChange={poner("condicionIva")} className={`${CAMPO} w-full`}>
+            <option value="" disabled>Elegí…</option>
+            <option value="consumidor_final">Consumidor final</option><option value="responsable_inscripto">Responsable inscripto</option>
+            <option value="monotributo">Monotributo</option><option value="exento">Exento</option><option value="no_responsable">No responsable</option>
+          </select>
+          {v.condicionIva && v.condicionIva !== "consumidor_final" && !v.cuit.trim() && (
+            <span className="block text-[10px] text-[#C03420] mt-0.5">Con esta condición hace falta el CUIT.</span>
+          )}</label>
       </div>
-      <label><span className={ETIQUETA}>Tipo</span>
-        <select value={v.tipo} onChange={poner("tipo")} className={`${CAMPO} w-full`}>
-          <option value="consumidor_final">Consumidor final</option><option value="mayorista">Mayorista</option>
-        </select></label>
+      <div className="grid grid-cols-3 gap-2">
+        {campo("email", "Mail")}
+        {campo("telefono", "Teléfono")}
+        {campo("whatsapp", "WhatsApp", { placeholder: "351 555-1234" })}
+      </div>
+      <div className="grid grid-cols-6 gap-2">
+        {campo("calle", "Calle", { className: "col-span-3" })}
+        {campo("numero", "Número")}
+        {campo("pisoDepto", "Piso / depto", { className: "col-span-2" })}
+      </div>
+      <div className="grid grid-cols-6 gap-2">
+        {campo("localidad", "Localidad", { className: "col-span-3" })}
+        <label className="col-span-2"><span className={ETIQUETA}>Provincia</span>
+          <ElegirProvincia alCambiar={(x) => setV((y) => ({ ...y, provincia: x }))} /></label>
+        {campo("codigoPostal", "CP")}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={guardar} disabled={grabando} className={`${PRIMARIO} disabled:opacity-60`}>{grabando ? "Grabando…" : "Grabar y elegir"}</button>
+        <button type="button" onClick={() => guardar()} disabled={grabando} className={`${PRIMARIO} disabled:opacity-60`}>{grabando ? "Grabando…" : "Grabar y elegir"}</button>
         <button type="button" onClick={alCerrar} className={SUAVE}>Cancelar</button>
-        <a href="/ventas/clientes" target="_blank" rel="noreferrer" className="text-[#16577F] underline">Cargarlo con todos los datos (se abre aparte)</a>
+        <a href="/ventas/clientes?nuevo=nuevo-cliente" target="_blank" rel="noreferrer" className="text-[#16577F] underline">Cargarlo con todos los datos (se abre aparte)</a>
       </div>
     </div>
   );
@@ -149,7 +219,8 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
 }) {
   const [canal, setCanal] = useState<number>(edicion?.canalId ?? canales[0]?.id ?? 0);
   const [moneda, setMoneda] = useState<"ARS" | "USD">(edicion?.moneda ?? canales[0]?.moneda ?? "ARS");
-  const [quien, setQuien] = useState<"consumidor" | "cliente">(edicion?.cliente ? "cliente" : "consumidor");
+  // De entrada, «Un cliente» (Fer, 22/10); al editar, lo que tenía el pedido.
+  const [quien, setQuien] = useState<"consumidor" | "cliente">(edicion ? (edicion.cliente ? "cliente" : "consumidor") : "cliente");
   const [cliente, setCliente] = useState<ClienteHallado | null>(edicion?.cliente ?? null);
   const [lineas, setLineas] = useState<Linea[]>(() => (edicion?.lineas ?? []).map((l, i) => ({ ...l, clave: 1000 + i, version: 0 })));
   const [borrando, setBorrando] = useState<number | null>(null);
@@ -205,6 +276,13 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
     setTotal(Math.round(t * 100) / 100);
   };
   useEffect(recalcular, [lineas, entrega]);
+  // Sólo lo que cambia el total (cantidad, precio, descuento de una línea, costo del envío). Recalcular con
+  // cualquier campo redibujaba el formulario en el «input» de un desplegable, antes de su «change», y el
+  // desplegable volvía a su valor anterior (Fer, 22/10: la condición de IVA del cliente nuevo no cambiaba).
+  const alCambiar = (e: React.FormEvent<HTMLFormElement>) => {
+    const n = (e.target as HTMLInputElement).name ?? "";
+    if (/^l_\d+_(cantidad|precio|descuento)$/.test(n) || n === "costo_envio") recalcular();
+  };
 
   /** Cambió el canal o el cliente: la lista de precios puede ser otra. Los
    *  precios de las líneas vuelven al de la lista nueva. */
@@ -267,7 +345,7 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
   }
 
   return (
-    <form ref={form} id={formId} action={enviar} onInput={recalcular} onChange={recalcular} className="grid gap-4 text-xs"
+    <form ref={form} id={formId} action={enviar} onInput={alCambiar} onChange={alCambiar} className="grid gap-4 text-xs"
       onKeyDown={enterEnLinea}
       onFocus={(e) => { const t = e.target as unknown as HTMLInputElement; if (/^l_\d+_(cantidad|precio|descuento)$/.test(t.name ?? "")) t.select(); }}>
       {error && <p role="alert" className="rounded-lg px-3 py-2 bg-[#FDF1EF] text-[#C03420]">{error}</p>}
@@ -318,6 +396,9 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
               <input type="radio" name="quien" value="cliente" checked={quien === "cliente"} className="accent-[#16577F]"
                 onChange={() => { setQuien("cliente"); if (cliente) void reprecio(canal, cliente.id); }} /> Un cliente
             </label>
+            {!altaCliente && !(quien === "cliente" && cliente) && (
+              <button type="button" className={SUAVE} onClick={() => { setQuien("cliente"); setAltaCliente(true); }}>+ Cliente nuevo</button>
+            )}
           </div>
         </fieldset>
       </div>
@@ -333,6 +414,13 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
                 {cliente.cuentaCorriente && <span className="text-[#1F6E4A]"> · con cuenta corriente</span>}
               </span>
               <button type="button" className={SUAVE} onClick={() => { setCliente(null); void reprecio(canal, null); }}>Cambiar</button>
+              {cliente.faltaFacturar && (
+                <p role="alert" className="w-full rounded-lg px-3 py-2 bg-[#FDE7B0] text-[#3D2600] border border-[#C98A00]">
+                  <b>Faltan datos para facturar:</b> {cliente.faltaFacturar}. Completalo antes de facturar.{" "}
+                  <a href={`/ventas/clientes/${cliente.id}?editar=ficha`} target="_blank" rel="noreferrer" className="font-semibold text-[#16577F] underline">Completar en la ficha (se abre aparte)</a>
+                  {" "}y después «Cambiar» y volvé a elegirlo.
+                </p>
+              )}
             </div>
           ) : (
             <div className="relative">
@@ -352,9 +440,10 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
                 </ul>
               )}
               {bCliente.texto.trim().length >= 2 && !bCliente.buscando && !altaCliente && (
-                <button type="button" className={`${SUAVE} mt-2`} onClick={() => setAltaCliente(true)}>+ Cargar cliente nuevo</button>
+                <button type="button" className={`${SUAVE} mt-2`} onClick={() => setAltaCliente(true)}>+ Cliente nuevo</button>
               )}
               {altaCliente && <ClienteNuevo nombreInicial={/\d/.test(bCliente.texto) && !/[a-z]/i.test(bCliente.texto) ? "" : bCliente.texto}
+                documentoInicial={/\d/.test(bCliente.texto) && !/[a-z]/i.test(bCliente.texto) ? bCliente.texto.trim() : ""}
                 alCerrar={() => setAltaCliente(false)} alCrear={(c) => { setAltaCliente(false); elegirCliente(c); }} />}
             </div>
           )}
@@ -484,7 +573,7 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
               <label className="col-span-1"><span className={ETIQUETA}>Número</span><input name="numero" defaultValue={dir.numero ?? ""} className={`${CAMPO} w-full`} /></label>
               <label className="col-span-1"><span className={ETIQUETA}>Piso/depto</span><input name="piso_depto" defaultValue={dir.piso_depto ?? ""} className={`${CAMPO} w-full`} /></label>
               <label className="col-span-3"><span className={ETIQUETA}>Localidad</span><input name="localidad" defaultValue={dir.localidad ?? ""} className={`${CAMPO} w-full`} /></label>
-              <label className="col-span-2"><span className={ETIQUETA}>Provincia</span><input name="provincia" defaultValue={dir.provincia ?? ""} className={`${CAMPO} w-full`} /></label>
+              <label className="col-span-2"><span className={ETIQUETA}>Provincia</span><ElegirProvincia name="provincia" valor={dir.provincia || undefined} /></label>
               <label className="col-span-1"><span className={ETIQUETA}>CP</span><input name="codigo_postal" defaultValue={dir.codigo_postal ?? ""} className={`${CAMPO} w-full`} /></label>
               <label className="col-span-4"><span className={ETIQUETA}>Referencia</span><input name="referencia" defaultValue={dir.referencia ?? ""} className={`${CAMPO} w-full`} /></label>
               <label className="col-span-2"><span className={ETIQUETA}>Costo del envío ({moneda === "USD" ? "US$" : "$"})</span>

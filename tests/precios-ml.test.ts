@@ -212,6 +212,14 @@ test("propuesta: precio mínimo por plan, destacado al precio para ganar en las 
   const p2 = proponer({ ...e, clasica: 75_000 }, reglas);
   assert.deepEqual(p2.faltan.map((f) => f.plan), ["12x_campaign"]);
   assert.equal(pedidoCrear(p2.faltan[0]), null);
+
+  // Plan apagado (Fer, 16/10): no se crea, pero la publicación que ya existe lleva su precio por coeficiente.
+  const p3 = proponer({ ...e, pubs: [...e.pubs, pub({ publicacionId: 3, itemId: "MLA3", plan: "3x_campaign", precioListaMl: 5_000, campanas: [] })] }, reglas);
+  const tres = p3.pubs[2];
+  assert.equal(tres.rol, "plan");
+  assert.equal(tres.venta, pl["3x_campaign"].precio);
+  assert.equal(tres.cambiaPrecio, true);
+  assert.ok(!p3.faltan.some((f) => f.plan === "3x_campaign"));
 });
 
 test("esquema de notebooks (7/10): un tachado por modelo, la cuenta que no gana va más cara, los planes van por campaña", () => {
@@ -553,4 +561,25 @@ test("gemela de catálogo: nunca cambia su precio publicado, sólo campañas (10
   assert.equal(gem.cambiaPrecio, false);
   assert.equal(gem.lista, 100_000);
   assert.equal(gem.venta, 50_000);
+});
+
+test("pausada (Fer, 14/10): igual que una activa — precio publicado (el tachado) y campaña; si está en una a otro precio, sale y vuelve a entrar", () => {
+  const reglas: ReglasCanal = { tachado: [{ nivel: "general", tachado_pct: 25 }], planes: [], volumen: [], reglaStock: true };
+  const candidata = { id: "P1", tipo: "SELLER_CAMPAIGN", estado: "candidate", precio: null, min: 5_000, max: 11_000 };
+  const base = { variacionId: 1, productoId: 7, lugar, clasica: 10_000, stock: 0, comisiones, comisionEstimada: false };
+  const sola = proponer({ ...base, pubs: [pub({ estado: "pausada", precioListaMl: 8_000, precioVentaMl: 8_000, campanas: [candidata] })] }, reglas).pubs[0];
+  assert.equal(sola.cambiaPrecio, true);
+  assert.equal(sola.lista, 12_500);
+  assert.deepEqual(sola.entrar.map((c) => c.id), ["P1"]);
+  const enCampana = proponer({ ...base, pubs: [pub({ estado: "pausada", precioListaMl: 11_000, precioVentaMl: 9_000,
+    campanas: [{ ...candidata, estado: "started", precio: 9_000 }] })] }, reglas).pubs[0];
+  assert.deepEqual(enCampana.salir.map((c) => c.id), ["P1"]);
+  assert.deepEqual(enCampana.entrar.map((c) => c.id), ["P1"], "vuelve a entrar al precio nuevo");
+  // Sin campañas leídas, como una activa: va sin tachado al precio del esquema (con tachado, ML rechaza la campaña).
+  const sinLeer = proponer({ ...base, pubs: [pub({ estado: "pausada", precioListaMl: 8_000, campanas: [] })] }, reglas).pubs[0];
+  assert.equal(sinLeer.lista, 10_000);
+  // Con una activa del mismo plan, el destacado y las campañas de la Clásica salen de la activa.
+  const dos = proponer({ ...base, pubs: [pub({ publicacionId: 1, itemId: "MLA1", estado: "pausada", precioListaMl: 12_500 }),
+    pub({ publicacionId: 2, itemId: "MLA2", estado: "activa", precioListaMl: 12_500, campanas: [candidata] })] }, reglas);
+  assert.deepEqual(dos.pubs[1].entrar.map((c) => c.id), ["P1"]);
 });

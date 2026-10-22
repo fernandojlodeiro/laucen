@@ -47,6 +47,17 @@ La primera vez que una organización sin ningún canal abre la pantalla, el sist
 - Cada fila lleva de fondo el **color** de su canal (ver "Color del canal" en Criterios).
 - Abajo, el paginador de 50 en 50 y dos ayudas: qué es el umbral de pausa y qué es la llave API.
 
+### Caja "Reparto del stock entre cuentas de Mercado Libre"
+
+Debajo de la lista, para todas las cuentas de Mercado Libre juntas:
+
+- El interruptor **"Repartir el stock entre cuentas cuando queda poco"** (pregunta "Sí" / "No" antes de cambiar). Apagado, como nace: cada cuenta muestra el disponible entero.
+- Tres datos, que abren en vista y se cambian con el **lápiz** de arriba a la derecha de la caja (**Grabar** / **Cancelar**):
+  - **Repartir con (unidades o menos)**: desde cuánto disponible se reparte. De entrada, 10.
+  - **Sólo si el precio de lista es menor a ($)**: los productos más caros no se reparten. De entrada, $ 100.000.
+  - **Primera en el empate**: la cuenta que va primero cuando dos cuentas vendieron lo mismo del producto. "Ninguna (al azar)" si no se elige.
+- Al prenderlo, apagarlo o grabar con el reparto prendido, la pantalla queda libre y la pasada por todas las publicaciones corre de fondo: al terminar aparece el cartel abajo a la derecha con cuántas cantidades, pausas y reactivaciones quedaron en la cola.
+
 ### Detalle de un canal (al tocar su nombre)
 
 Debajo de la lista aparecen las cajas del canal elegido (su fila queda resaltada):
@@ -164,6 +175,12 @@ Si la cuenta ya estaba conectada (por ejemplo desde otra pantalla) y no tiene ca
 
 Apagarlo: "Laucen ya no toca el stock ni las pausas en Mercado Libre."
 
+### Prender el reparto del stock entre cuentas
+
+1. En **Configuración › Canales**, debajo de la lista, caja **"Reparto del stock entre cuentas de Mercado Libre"**: revisá los datos (lápiz para cambiarlos).
+2. Prendé **"Repartir el stock entre cuentas cuando queda poco"** y confirmá con "Sí".
+3. Lo que encoló se ve en la [Cola de Mercado Libre](/config/canales/cola), pestaña Pendientes.
+
 ### Prender que las facturas se suban solas a Mercado Libre
 
 1. Prendé **"Subir facturas a Mercado Libre"** en la caja de la cuenta.
@@ -260,6 +277,47 @@ Apagado (como nace): no se toca nada en ML. Prendido, para cada publicación vin
 - Para un **kit**, si cambia el stock de un componente también se revisa la publicación del kit.
 - **Cuándo se revisa**: al instante, en cada cambio de stock; y como red de seguridad, en las tareas periódicas (cada media hora) y en la barrida nocturna.
 - Lo que se graba en Laucen (pausada, cantidad informada) se graba recién cuando ML acepta el cambio.
+- **Ventas en camino**: Mercado Libre avisa que una publicación cambió unos segundos antes de mandar la orden. Si en ese aviso subieron sus vendidos, la venta ya pasó: el stock de las demás publicaciones y cuentas se ajusta en ese momento, descontando lo vendido, sin esperar la orden. Cuando la orden entra como pedido deja de descontarse aparte (ya lo descuenta el pedido). Si a los 30 minutos la orden no entró, se deja de descontar; para entonces la revisión de cada media hora ya la trajo.
+
+### Reparto del stock entre cuentas de Mercado Libre
+
+Cada cuenta de Mercado Libre muestra su propio stock, y Mercado Libre controla el de cada cuenta por separado. Si todas muestran el disponible entero, un comprador puede armar un carrito con publicaciones de varias cuentas y llevarse entre todas más de lo que hay: Mercado Libre avisa cada venta recién cuando se paga, y para entonces ya están todas hechas. El reparto lo evita cuando queda poco:
+
+- Corre sólo en las cuentas con el interruptor **"Laucen manda el stock a ML y pausa al llegar al umbral"** prendido, y sólo si el interruptor del reparto está prendido.
+- Se reparte un producto cuando su **disponible es igual o menor** que "Repartir con" y su **precio de lista** (el de la lista de precios de la cuenta; si las cuentas usan listas distintas, el más alto) es **menor** que el tope. Sin precio de lista, no se reparte.
+- El disponible se reparte **de a una unidad por cuenta**, en este orden: primero la cuenta que **más vendió** ese producto (lo que informa Mercado Libre de sus publicaciones, sumadas); en el empate, la cuenta elegida en **"Primera en el empate"**; después, **al azar**. El sorteo es fijo para cada producto y cuenta, así no cambia de una revisión a la otra. Si sobran unidades, se da otra vuelta en el mismo orden.
+- Dentro de una cuenta, **todas sus publicaciones del producto** (Clásica, Premium, planes de cuotas y las de catálogo) muestran lo que le tocó a la cuenta. No se pausa ningún plan por el reparto.
+- **La suma de lo que le toca a cada cuenta nunca pasa lo que hay.** Ejemplo: con 6 unidades y 5 cuentas, la que más vendió muestra 2 y las demás 1.
+- La publicación a la que no le toca nada se **pausa** por stock y se **reactiva** sola cuando le vuelve a tocar (por ejemplo, porque entró mercadería o porque otra cuenta vendió y cambió el orden).
+- El umbral de pausa sigue igual: si el disponible llega al umbral, se pausan todas.
+- Las publicaciones de Full y las pausadas a mano no entran en el reparto.
+
+### Planes de cuotas en un mismo producto
+
+**Agrupar todo en tandas**: en la [Cola de Mercado Libre](/config/canales/cola), pestaña Lotes preparados, arriba, el recuadro «Agrupar planes de cuotas en todas las cuentas». Un clic en **«Agrupar todo en tandas»** pone a agrupar todas las cuentas conectadas, y sale solo, sin más clics:
+
+- Cuenta por cuenta, de a una tanda por vez: si hay planes viejos que ya están en el producto agrupado, la tanda los elimina (los de las condiciones de abajo); si no, crea hasta 25 publicaciones agrupadas.
+- Cada tanda espera que la anterior de esa cuenta haya salido entera y 10 minutos más, para no cargar a Mercado Libre. Cada tanda queda en la lista de lotes como un lote ya mandado, con el resultado de cada publicación.
+- El recuadro muestra, por cuenta, el estado (Andando, Frenado, Terminado), cuántas tandas salieron, cuántas publicaciones agrupadas se crearon y cuántas viejas se eliminaron, y las que Mercado Libre no aceptó con su motivo (por ejemplo, que la publicación base no tiene una característica que hoy pide). Ésas no se vuelven a probar.
+- Antes de cada tanda, Laucen controla que cada publicación agrupada que se creó haya quedado de verdad en el producto de la publicación base (la «madre»). Si una quedó en otro producto de Mercado Libre (pasa cuando la madre tiene características que Mercado Libre ya no acepta en una publicación nueva), esa publicación nueva pasa a ser la **madre nueva**: las tandas siguientes crean ahí los planes que le faltan, copiándola a ella, y la madre vieja queda sola. Cuando todos sus planes ya están en la madre nueva, la vieja se elimina si no tiene ventas; si tiene, queda y comparte el stock con las demás publicaciones de la cuenta.
+- Si una copia de la madre nueva tampoco queda en su producto, ese producto sale del agrupado automático (no se crean ni se eliminan más publicaciones suyas) y aparece entre las no aceptadas. Si en una tanda pasa con casi un tercio o más, esa cuenta se frena sola y lo dice en su fila.
+- Un producto viejo se elimina sólo cuando **todos** sus planes ya están en el producto de la madre.
+- **«Frenar»** para todas las cuentas: no sale ninguna tanda más (lo que ya estaba en la cola termina de salir). Volver a apretar «Agrupar todo en tandas» sigue desde donde quedó.
+
+También se puede pedir un lote suelto de agrupar, de eliminar los viejos o de revisar títulos: lo arma Laucen de fondo y queda en la misma pestaña esperando tu clic.
+
+En Mercado Libre, dentro de una cuenta, la Clásica, la Premium y los planes de cuotas (3x, 9x, 12x) **comparten el stock** (y el código de Full) sólo si están en **el mismo producto** de Mercado Libre. Si quedan en productos distintos, cada uno muestra su propio stock y un comprador puede llevarse más de lo que hay.
+
+- **Las publicaciones nuevas** de una cuenta que ya tiene la publicación común del producto (al publicar en todas las cuentas o al crear los planes que faltan) se crean como **copia exacta** de esa publicación común: el mismo título, las mismas fotos y características, la misma garantía y factura, la tienda oficial de la cuenta. Así Mercado Libre las suma a su mismo producto. El título se varía entre cuentas, nunca entre planes de una misma cuenta.
+- **Las que ya quedaron separadas**: a pedido, Laucen arma (de fondo) un lote que busca los productos con algún plan en otro producto de Mercado Libre y prepara un lote (de a 20 productos por vez) que crea cada plan de nuevo copiando la publicación común cuyo producto ya tiene más planes (y, a igualdad, más ventas). **Siempre se publica al tachado**, para que después pueda entrar a campañas (Mercado Libre rechaza subir el precio para entrar a una campaña por «precio no creíble»): al mismo precio publicado de la vieja y en su misma campaña; si la vieja no estaba en campaña, al tachado de los otros planes del producto y en la campaña propia de la cuenta, al precio que tenía la vieja. Si la vieja tenía gemela de catálogo, la nueva también entra al catálogo. Vale también para las viejas con ventas: se crea la agrupada y la vieja sigue (no se elimina).
+- Cuando esas altas salieron y quedaron agrupadas, otro lote cierra y elimina las viejas **sin ventas** (y sus gemelas de catálogo) cuando todos sus planes ya están en el producto de la publicación común. Las que tienen ventas quedan.
+
+### Títulos con criterio
+
+Cada cuenta de Mercado Libre muestra el mismo producto con un título distinto. Ese título lo arma una IA con criterio: la primera palabra (qué es el producto) va adelante y el resto se arma con **bloques que no se separan** (marca y modelo, «Ryzen 7 3700u», número y unidad, «8gb Ram», «512gb Ssd», «15.6 Pulgadas»); entre cuentas cambia el orden de los bloques o se usa un sinónimo, sin inventar ni sacar datos, hasta 60 letras. Dentro de una cuenta, todos los planes de un producto llevan el mismo título (si no, no comparten el stock).
+
+- Al publicar en una cuenta copiando la publicación de otra, el título lo arma la IA (distinto de los de las otras cuentas).
+- **Revisión de títulos**: a pedido, la IA revisa, de a 50 productos por vez, los títulos de la cuenta en los productos de Mercado Libre **sin ventas**. Los bien armados quedan como están; los mal armados se corrigen. Laucen prepara un lote que sale con tu clic; el título cambia en todas las publicaciones de ese producto de Mercado Libre. Lo revisado no se vuelve a revisar por 30 días. Conviene hacerlo después de agrupar los planes de la cuenta.
 
 ### Interruptor "Subir facturas a Mercado Libre"
 

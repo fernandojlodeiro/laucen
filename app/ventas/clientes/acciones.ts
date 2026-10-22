@@ -1,8 +1,9 @@
 "use server";
 
 import { normalizarCuit } from "@/lib/clientes";
+import { cuitCierra, CUIT_NO_CIERRA } from "@/lib/cuit-verificador";
 
-// Clientes: alta manual mínima (para corregir), ficha, direcciones e
+// Clientes: alta manual (con todos los datos de la ficha), ficha, direcciones e
 // identidades por canal. En operación normal los clientes los crean los
 // pedidos (lib/pedidos, crearPedido).
 
@@ -10,8 +11,8 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, id } from "@/lib/erp/acciones";
-import { DOCUMENTOS, CONDICIONES_IVA } from "@/app/ventas/formato";
-import { padronAlCliente } from "@/lib/arca/padron-cliente";
+import { CONDICIONES_IVA } from "@/app/ventas/formato";
+import { whatsappNormal } from "@/lib/telefono";
 import { tienePermiso } from "@/lib/permisos";
 import { leerNumero } from "@/lib/numeros";
 
@@ -19,10 +20,6 @@ const LISTADO = "/ventas/clientes";
 const ficha = (n: number) => `/ventas/clientes/${n}`;
 
 const tipo = (fd: FormData) => (fd.get("tipo") === "mayorista" ? "mayorista" : "consumidor_final");
-const documentoTipo = (fd: FormData) => {
-  const t = texto(fd, "documento_tipo");
-  return t && (DOCUMENTOS as readonly string[]).includes(t) ? t : null;
-};
 const condicionIva = (fd: FormData) => {
   const t = texto(fd, "condicion_iva");
   return t && Object.hasOwn(CONDICIONES_IVA, t) ? t : null;
@@ -34,70 +31,101 @@ async function delaOrg(org: string, clienteId: number) {
   if (!c) throw new ErrorErp("El cliente no existe.");
 }
 
-export async function accionCrearCliente(fd: FormData) {
-  const s = await entrarErp("clientes_ver");
-  await intentar(LISTADO, async () => {
-    const nombre = texto(fd, "nombre");
-    if (!nombre) throw new ErrorErp("El cliente necesita un nombre.");
-    const r = await una<{ id: number }>(`
-      insert into cliente (organizacion_id, nombre, tipo, email, telefono, documento_tipo, documento_numero)
-      values ($1, $2, $3, $4, $5, $6, $7) returning id::int`,
-      [s.org.id, nombre, tipo(fd), texto(fd, "email"), texto(fd, "telefono"), documentoTipo(fd), texto(fd, "documento_numero")]);
-    revalidatePath(LISTADO);
-    return { ir: `${ficha(r!.id)}?ok=${encodeURIComponent("Cliente creado.")}` };
-  });
-}
-
 /** CUIT sólo con números (se muestra con guiones, cuitLegible); si no tiene 11 dígitos, avisa en vez de guardarlo mal. */
 function cuitDe(fd: FormData): string | null {
   const t = texto(fd, "cuit");
   if (!t) return null;
   const c = normalizarCuit(t);
   if (!c) throw new ErrorErp("El CUIT tiene que tener 11 dígitos.");
+  // El dígito verificador (Fer, 22/10; la cuenta, sin consultar ARCA).
+  if (!cuitCierra(c)) throw new ErrorErp(CUIT_NO_CIERRA);
   return c;
 }
 
-/** El WhatsApp en formato internacional, sólo números (5493511234567); un número local de 10 dígitos se completa con 549. */
-function whatsappDe(fd: FormData): string | null {
-  let d = String(fd.get("whatsapp") ?? "").replace(/\D/g, "");
-  if (!d) return null;
-  if (d.length === 10) d = `549${d}`;
-  if (d.length < 11 || d.length > 15) throw new ErrorErp("El WhatsApp va en formato internacional, sólo números (ej. 5493511234567).");
+/** El DNI (Fer, 22/10: el CUIT va en su campo, el DNI en éste). Con puntos o espacios, se guarda sólo con números. */
+function dniDe(fd: FormData): string | null {
+  const t = texto(fd, "documento_numero");
+  if (!t) return null;
+  const d = /^[\d.\s-]+$/.test(t) ? t.replace(/\D/g, "") : t;
+  if (/^\d{11}$/.test(d)) throw new ErrorErp("Ese número tiene 11 cifras: es un CUIT o CUIL, va en el campo «CUIT / CUIL».");
   return d;
+}
+
+/** El WhatsApp en formato internacional, sólo números (5493511234567): se acepta como se escriba (con 0, 15, +54…). */
+function whatsappDe(fd: FormData): string | null {
+  const t = texto(fd, "whatsapp");
+  if (!t) return null;
+  const w = whatsappNormal(t);
+  if (!w) throw new ErrorErp("El WhatsApp no parece un celular: escribilo con la característica (ej. 351 555-1234).");
+  return w;
+}
+
+/** Todos los datos del formulario del cliente (CamposCliente: alta y ficha), validados. La razón social
+ *  es también su nombre en las listas (Fer, 22/10: la factura sale con ése). */
+async function datosDe(fd: FormData, org: string, permisos: Parameters<typeof tienePermiso>[0]) {
+  const razon = texto(fd, "razon_social");
+  if (!razon) throw new ErrorErp("El cliente necesita una razón social.");
+  const lista = id(fd, "lista_precios_id") || null;
+  if (lista && !(await una("select 1 from lista_precios where id = $1 and organizacion_id = $2", [lista, org]))) {
+    throw new ErrorErp("Esa lista de precios no existe.");
+  }
+  const conCc = fd.get("con_cc") === "1";
+  if (conCc && !tienePermiso(permisos, "cc_asignar")) throw new ErrorErp("No tenés permiso para cambiar la cuenta corriente ni el límite de crédito.");
+  const limite = conCc ? leerNumero(fd.get("limite_cc")) : null;
+  if (limite != null && limite < 0) throw new ErrorErp("El límite de crédito no puede ser negativo.");
+  const dni = dniDe(fd);
+  // La condición de IVA es obligatoria, y salvo consumidor final va con CUIT (Fer, 22/10).
+  const iva = condicionIva(fd);
+  const cuit = cuitDe(fd);
+  if (!iva) throw new ErrorErp("Elegí la condición de IVA.");
+  if (iva !== "consumidor_final" && !cuit) throw new ErrorErp("Con esa condición de IVA hace falta el CUIT: sólo un consumidor final puede quedar sin CUIT.");
+  return {
+    nombre: razon, razon_social: razon, tipo: tipo(fd), apellido: texto(fd, "apellido"), nombre_pila: texto(fd, "nombre_pila"),
+    apodo_ml: texto(fd, "apodo_ml"), cuit, documento_tipo: dni ? "DNI" : null, documento_numero: dni,
+    condicion_iva: iva, email: texto(fd, "email"), telefono: texto(fd, "telefono"),
+    telefono_aclaracion: texto(fd, "telefono_aclaracion"), whatsapp: whatsappDe(fd),
+    factura_por_whatsapp: fd.get("factura_por_whatsapp") === "on", factura_por_mail: fd.get("factura_por_mail") === "on",
+    lista_precios_id: lista, notas: texto(fd, "notas"),
+    // La ficha manda la casilla de cuenta corriente y el límite (con_cc) sólo a quien tiene «cc_asignar»; sin ella, quedan como estaban.
+    cuenta_corriente: conCc ? fd.get("cuenta_corriente") === "on" : null, limite_cc: conCc ? limite : null,
+  };
+}
+
+export async function accionCrearCliente(fd: FormData) {
+  const s = await entrarErp("clientes_ver");
+  await intentar(LISTADO, async () => {
+    const d = await datosDe(fd, s.org.id, s.permisos);
+    const r = await una<{ id: number }>(`
+      insert into cliente (organizacion_id, nombre, razon_social, tipo, apellido, nombre_pila, apodo_ml, cuit, documento_tipo, documento_numero,
+                           condicion_iva, email, telefono, telefono_aclaracion, whatsapp, factura_por_whatsapp, factura_por_mail,
+                           lista_precios_id, notas, cuenta_corriente, limite_cc)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, coalesce($20, false), $21) returning id::int`,
+      [s.org.id, d.nombre, d.razon_social, d.tipo, d.apellido, d.nombre_pila, d.apodo_ml, d.cuit, d.documento_tipo, d.documento_numero,
+        d.condicion_iva, d.email, d.telefono, d.telefono_aclaracion, d.whatsapp, d.factura_por_whatsapp, d.factura_por_mail,
+        d.lista_precios_id, d.notas, d.cuenta_corriente, d.limite_cc]);
+    revalidatePath(LISTADO);
+    return { ir: `${ficha(r!.id)}?ok=${encodeURIComponent("Cliente creado.")}` };
+  });
 }
 
 export async function accionGuardarCliente(fd: FormData) {
   const s = await entrarErp("clientes_ver");
   const cid = id(fd);
   await intentar(ficha(cid), async () => {
-    const nombre = texto(fd, "nombre");
-    if (!nombre) throw new ErrorErp("El cliente necesita un nombre.");
-    const lista = id(fd, "lista_precios_id") || null;
-    if (lista && !(await una("select 1 from lista_precios where id = $1 and organizacion_id = $2", [lista, s.org.id]))) {
-      throw new ErrorErp("Esa lista de precios no existe.");
-    }
-    const conCc = fd.get("con_cc") === "1";
-    if (conCc && !tienePermiso(s.permisos, "cc_asignar")) throw new ErrorErp("No tenés permiso para cambiar la cuenta corriente ni el límite de crédito.");
-    const limite = conCc ? leerNumero(fd.get("limite_cc")) : null;
-    if (limite != null && limite < 0) throw new ErrorErp("El límite de crédito no puede ser negativo.");
+    const d = await datosDe(fd, s.org.id, s.permisos);
     const r = await consulta(`
-      update cliente set nombre = $3, tipo = $4, email = $5, telefono = $6, documento_tipo = $7, documento_numero = $8,
-                         condicion_iva = $9, lista_precios_id = $10, notas = $11, razon_social = $12, cuit = $13,
-                         apellido = $14, nombre_pila = $15, apodo_ml = $16, telefono_movil = $17,
-                         cuenta_corriente = coalesce($18, cuenta_corriente),
-                         limite_cc = case when $18::boolean is null then limite_cc else $21::numeric end,
-                         telefono_aclaracion = $19, telefono_movil_aclaracion = $20,
-                         -- El WhatsApp confirmado: si una persona lo cambia, deja de figurar "nos escribió desde acá".
-                         whatsapp_confirmado_ts = case when whatsapp is distinct from $22 then null else whatsapp_confirmado_ts end, whatsapp = $22,
-                         factura_por_whatsapp = $23, factura_por_mail = $24
+      update cliente set nombre = $3, razon_social = $4, tipo = $5, apellido = $6, nombre_pila = $7, apodo_ml = $8, cuit = $9,
+                         documento_tipo = $10, documento_numero = $11, condicion_iva = $12, email = $13, telefono = $14,
+                         telefono_aclaracion = $15,
+                         -- El WhatsApp: si una persona lo cambia, deja de figurar "nos escribió desde acá".
+                         whatsapp_confirmado_ts = case when whatsapp is distinct from $16 then null else whatsapp_confirmado_ts end, whatsapp = $16,
+                         factura_por_whatsapp = $17, factura_por_mail = $18, lista_precios_id = $19, notas = $20,
+                         cuenta_corriente = coalesce($21, cuenta_corriente),
+                         limite_cc = case when $21::boolean is null then limite_cc else $22::numeric end
        where id = $2 and organizacion_id = $1 returning id`,
-      [s.org.id, cid, nombre, tipo(fd), texto(fd, "email"), texto(fd, "telefono"), documentoTipo(fd),
-        texto(fd, "documento_numero"), condicionIva(fd), lista, texto(fd, "notas"), texto(fd, "razon_social"), cuitDe(fd),
-        texto(fd, "apellido"), texto(fd, "nombre_pila"), texto(fd, "apodo_ml"), texto(fd, "telefono_movil"),
-        // La ficha manda la casilla de cuenta corriente y el límite (con_cc) sólo a quien tiene «cc_asignar»; sin ella, quedan como estaban.
-        conCc ? fd.get("cuenta_corriente") === "on" : null,
-        texto(fd, "telefono_aclaracion"), texto(fd, "telefono_movil_aclaracion"), conCc ? limite : null,
-        whatsappDe(fd), fd.get("factura_por_whatsapp") === "on", fd.get("factura_por_mail") === "on"]);
+      [s.org.id, cid, d.nombre, d.razon_social, d.tipo, d.apellido, d.nombre_pila, d.apodo_ml, d.cuit, d.documento_tipo, d.documento_numero,
+        d.condicion_iva, d.email, d.telefono, d.telefono_aclaracion, d.whatsapp, d.factura_por_whatsapp, d.factura_por_mail,
+        d.lista_precios_id, d.notas, d.cuenta_corriente, d.limite_cc]);
     if (!r.length) throw new ErrorErp("El cliente no existe.");
     revalidatePath(ficha(cid));
     return "Guardado.";
@@ -118,8 +146,10 @@ export async function accionBorrarCliente(fd: FormData) {
 
 // ── Direcciones ──────────────────────────────────────────
 
+/** Calle, número, piso/depto, localidad, provincia, CP y país. La etiqueta no se pide (Fer, 22/10): la ponen los
+ *  pedidos y el padrón («Fiscal», «Envío») y al corregir una dirección queda como estaba. */
 function datosDireccion(fd: FormData) {
-  return [texto(fd, "etiqueta"), texto(fd, "calle"), texto(fd, "numero"), texto(fd, "piso_depto"), texto(fd, "localidad"),
+  return [texto(fd, "calle"), texto(fd, "numero"), texto(fd, "piso_depto"), texto(fd, "localidad"),
     texto(fd, "provincia"), texto(fd, "codigo_postal"), texto(fd, "pais") ?? "AR"];
 }
 
@@ -129,11 +159,11 @@ export async function accionAgregarDireccion(fd: FormData) {
   await intentar(ficha(cid), async () => {
     await delaOrg(s.org.id, cid);
     const d = datosDireccion(fd);
-    if (!d[1] && !d[4]) throw new ErrorErp("La dirección necesita al menos la calle o la localidad.");
+    if (!d[0] && !d[3]) throw new ErrorErp("La dirección necesita al menos la calle o la localidad.");
     // La primera dirección del cliente nace principal.
     await consulta(`
-      insert into cliente_direccion (organizacion_id, cliente_id, etiqueta, calle, numero, piso_depto, localidad, provincia, codigo_postal, pais, principal)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, not exists (select 1 from cliente_direccion where cliente_id = $2))`,
+      insert into cliente_direccion (organizacion_id, cliente_id, calle, numero, piso_depto, localidad, provincia, codigo_postal, pais, principal)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, not exists (select 1 from cliente_direccion where cliente_id = $2))`,
       [s.org.id, cid, ...d]);
     revalidatePath(ficha(cid));
     return "Dirección agregada.";
@@ -145,8 +175,8 @@ export async function accionGuardarDireccion(fd: FormData) {
   const cid = id(fd, "cliente_id");
   await intentar(ficha(cid), async () => {
     const r = await consulta(`
-      update cliente_direccion set etiqueta = $4, calle = $5, numero = $6, piso_depto = $7, localidad = $8, provincia = $9,
-                                   codigo_postal = $10, pais = $11
+      update cliente_direccion set calle = $4, numero = $5, piso_depto = $6, localidad = $7, provincia = $8,
+                                   codigo_postal = $9, pais = $10
        where id = $2 and cliente_id = $3 and organizacion_id = $1 returning id`,
       [s.org.id, id(fd), cid, ...datosDireccion(fd)]);
     if (!r.length) throw new ErrorErp("La dirección no existe.");
@@ -191,23 +221,3 @@ export async function accionQuitarIdentidad(fd: FormData) {
     return "Identidad quitada.";
   });
 }
-
-// ── Padrón de ARCA ───────────────────────────────────────
-
-/** Trae del padrón de ARCA la razón social, la condición frente al IVA y el
- *  domicilio fiscal del CUIT guardado, y los pisa en el cliente (la dirección
- *  va con etiqueta "Fiscal": si ya hay una, se actualiza). */
-export async function accionValidarPadron(fd: FormData) {
-  const s = await entrarErp("clientes_ver");
-  const cid = id(fd);
-  await intentar(ficha(cid), async () => {
-    const c = await una<{ cuit: string | null }>("select cuit from cliente where id = $1 and organizacion_id = $2", [cid, s.org.id]);
-    if (!c) throw new ErrorErp("El cliente no existe.");
-    if (!c.cuit) throw new ErrorErp("El cliente no tiene CUIT guardado.");
-    const { persona: p, cambios } = await padronAlCliente(s.org.id, cid, c.cuit);
-    revalidatePath(ficha(cid));
-    const estado = p.estado && p.estado !== "ACTIVO" ? ` Ojo: en ARCA figura ${p.estado.toLowerCase()}.` : "";
-    return (cambios.length ? `Validado en ARCA. Cambió: ${cambios.join(" · ")}.` : "Validado en ARCA: los datos ya coincidían.") + estado;
-  });
-}
-

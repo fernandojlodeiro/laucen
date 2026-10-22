@@ -42,6 +42,8 @@ export const RUTAS_PUBLICAS = [
   "/api/whatsapp/webhook",
   // Los avisos de Windows: los pide la base (pg_cron) con erp_llave; el portero del navegador es un archivo suelto.
   "/api/avisos/push",
+  // La exportación de Mercado Pago: la pide la base (pg_net) con erp_llave; sólo lee de Mercado Pago.
+  "/api/mercadopago/exportacion",
   "/sw-avisos.js",
 ];
 

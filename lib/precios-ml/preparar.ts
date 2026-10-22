@@ -134,8 +134,10 @@ export async function sincronizarPreciosMl(org: string, opts: { canal?: number; 
     const { precios: todos, volumen } = cambiosDe(c.id, calculo.propuestas);
     // Una publicación a la que ya se le mandó un precio o una campaña y todavía no se volvió a leer de ML no se
     // recalcula (Fer, 11/10: con las campañas viejas en Laucen, cada 30 minutos salía y volvía a entrar al mismo precio).
+    // Pero si lo calculado ahora es distinto de lo último mandado (Fer cambió de nuevo el precio), sale igual.
     const sinLeer = await mandadosSinLeer(c.id);
-    const precios = todos.filter((x) => !sinLeer.has(x.itemId));
+    const ultimos = sinLeer.size ? await ultimosMandados(c.id, [...sinLeer.keys()]) : new Map<string, string>();
+    const precios = todos.filter((x) => !sinLeer.has(x.itemId) || ultimos.get(x.itemId) !== firma(x.payload));
     if (precios.length || volumen.length) {
       const r = await encolar(org, [...precios, ...volumen], { origen: "automatico" });
       res.encoladas += r.encoladas + r.reemplazadas;
@@ -143,6 +145,28 @@ export async function sincronizarPreciosMl(org: string, opts: { canal?: number; 
     await grabarDestacados(org, c.id, calculo.propuestas);
   }
   return res;
+}
+
+/** JSON con las claves ordenadas (el payload vuelve de la base como jsonb, con otro orden). */
+function firma(x: unknown): string {
+  const ordenar = (v: unknown): unknown => Array.isArray(v) ? v.map(ordenar)
+    : v && typeof v === "object" ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, ordenar((v as Record<string, unknown>)[k])])) : v;
+  return JSON.stringify(ordenar(x));
+}
+
+/** Lo último que se mandó de precio y campañas a cada una de esas publicaciones (su payload, en firma). */
+async function ultimosMandados(canal: number, items: string[]): Promise<Map<string, string>> {
+  return new Map((await consulta<{ item_id: string; payload: unknown }>(`
+    select distinct on (item_id) item_id, payload from ml_cola
+     where canal_id = $1 and item_id = any($2::text[]) and tipo in ('precio', 'campana') and estado in ('ok', 'pendiente', 'enviando')
+     order by item_id, id desc`, [canal, items])).map((x) => [x.item_id, firma(x.payload)]));
+}
+
+/** Un precio cambiado a mano (Fer, 14/10): se recalcula ese producto en el acto en las cuentas que sincronizan precios
+ *  (activas y pausadas), sin esperar la vuelta de cada media hora. */
+export async function precioCambiadoAMano(org: string, variacionId: number): Promise<ResultadoAuto | null> {
+  if (!(await haySincronizacionPrecios(org)).length) return null;
+  return sincronizarPreciosMl(org, { variaciones: [variacionId] });
 }
 
 /** Las publicaciones de la cuenta a las que se les mandó (o se les está por mandar) un precio o una campaña en las
@@ -166,7 +190,8 @@ export async function haySincronizacionPrecios(org?: string): Promise<string[]> 
 }
 
 /** Lo automático de cada vuelta del barrido: los precios que cambiaron
- *  (eventos precio_cambiado, que nadie más consume) y una pasada entera por
+ *  (eventos precio_cambiado, que nadie más consume) y las publicaciones que se reactivaron (publicacion_reactivada:
+ *  entran a su campaña) y una pasada entera por
  *  noche (los productos en dólares cambian con el tipo de cambio, el stock
  *  cambia los escalones de volumen). Sólo organizaciones con el interruptor. */
 export async function vueltaAutomatica(ahora = new Date()): Promise<Record<string, ResultadoAuto>> {
@@ -175,7 +200,7 @@ export async function vueltaAutomatica(ahora = new Date()): Promise<Record<strin
     const ev = await consulta<{ variacion_id: number }>(`
       with ev as (
         update evento set procesado_ts = now(), procesado_por = 'precios_ml'
-         where organizacion_id = $1 and tipo = 'precio_cambiado' and procesado_ts is null
+         where organizacion_id = $1 and tipo in ('precio_cambiado', 'publicacion_reactivada') and procesado_ts is null
         returning (payload ->> 'variacion_id')::int variacion_id)
       select distinct variacion_id from ev where variacion_id is not null`, [org]);
     const hora = Number(ahora.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires", hour: "numeric", hourCycle: "h23" }));

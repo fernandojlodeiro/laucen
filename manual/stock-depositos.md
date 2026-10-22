@@ -48,7 +48,7 @@ Al tocar un depósito (o si hay uno solo activo, de entrada) se abre la caja **U
 ### Crear un depósito
 
 1. Apretá **"Nuevo depósito"**.
-2. Poné el nombre y elegí el **Tipo**: **"Propio"**, **"Full de Mercado Libre"**, **"Tercerizado"** o **"Caja abierta"**.
+2. Poné el nombre y elegí el **Tipo**: **"Propio"**, **"Full de Mercado Libre"**, **"Tercerizado"**, **"Caja abierta"** o **"En camino a Full"** (los dos de Full los crean solos los [envíos a Full](/stock/full)).
 3. Prendé **"Usa ubicaciones"** si vas a ordenarlo por estantes; si no, dejalo apagado.
 4. Si querés, la dirección.
 5. Apretá **"Crear"**. El sistema crea solo su ubicación **GENERAL** y lo deja abierto para cargar ubicaciones.
@@ -89,7 +89,8 @@ Abrí el depósito, buscá la ubicación y tocá su código o sus unidades: se d
 - **"Usa ubicaciones"**: sólo con el interruptor prendido se pueden crear ubicaciones y aparecen para elegir en ajustes, recepción e informes. Apagarlo no borra las ubicaciones ni su stock: el stock que tengan se sigue viendo en la consulta y la pantalla avisa cuántas quedaron con stock.
 - **Tipos de depósito**:
   - **Propio**: el depósito de la empresa. Es el que se toma por defecto para un pedido cuando el canal no tiene depósito asignado.
-  - **Full de Mercado Libre**: la mercadería que está en Full. No aparece en Picking, Recepción ni Etiquetas, y las publicaciones de Full no reciben stock de Laucen (lo maneja Mercado Libre).
+  - **Full de Mercado Libre**: la mercadería que está en Full de una cuenta. Lo crea solo el primer [envío a Full](/stock/full) de la cuenta y queda asociado a ella. No aparece en Picking, Recepción ni Etiquetas, no suma al stock que se informa a Mercado Libre ni a la tienda, y las publicaciones de Full no reciben stock del sistema (lo maneja Mercado Libre).
+  - **En camino a Full**: lo despachado a Full que todavía no llegó, con una ubicación por envío. Lo crea solo el primer envío despachado. No vende por ningún canal.
   - **Tercerizado**: un depósito de terceros.
   - **Caja abierta**: donde va lo devuelto con la caja abierta en la [Recepción](/deposito/recepcion) (se usa el primero activo de este tipo).
 - **Archivado**: un depósito archivado deja de contar para el stock disponible de los canales (no se informa a Mercado Libre ni a la tienda), no suma en la consulta ni en los informes, y no se ofrece en las pantallas de trabajo. Guarda su historia y se puede volver a activar con el lápiz. Una ubicación archivada no se ofrece para recibir, reservar ni ajustar.
@@ -127,5 +128,6 @@ Sí, con el lápiz; el stock queda en la misma ubicación con el código nuevo. 
 - [Ajustes de stock](/stock/ajustes) (transferencias)
 - [Etiquetas](/deposito/etiquetas)
 - [Canales](/config/canales)
+- [Envíos a Full](/stock/full)
 - [Picking](/deposito/picking) y [Recepción](/deposito/recepcion)
 - [Stock por ubicación](/informes/stock-por-ubicacion)

@@ -74,6 +74,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Picking", href: "/deposito/picking", permiso: "picking_ver", icono: "🧺" },
       { texto: "Recepción", href: "/deposito/recepcion", permiso: "recepcion_ver", icono: "📥" },
       { texto: "Etiquetas", href: "/deposito/etiquetas", permiso: "etiquetas_ver" },
+      { texto: "Envíos a Full", href: "/stock/full", permiso: "full_ver", icono: "🚛" },
       { texto: "Ajustes", href: "/stock/ajustes", permiso: "stock_ajustar" },
       { texto: "Movimientos de stock", href: "/stock/movimientos", permiso: "stock_ver" },
     ],
@@ -99,6 +100,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Libros de IVA", href: "/administracion/libros-iva", permiso: "libros_iva_ver" },
       { texto: "Facturación de Mercado Libre", href: "/administracion/facturacion-ml", permiso: "facturacion_ml_ver" },
       { texto: "Mercado Pago", href: "/administracion/mercadopago", permiso: "mercadopago_ver" },
+      { texto: "Gastos de Mercado Pago", href: "/administracion/mercadopago/gastos", permiso: "mercadopago_ver" },
     ],
   },
   {

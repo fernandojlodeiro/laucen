@@ -153,8 +153,9 @@ Mensajes típicos si no se puede:
 
 ### El envío en la factura
 
-- Si el comprador pagó el envío, la factura lleva una línea **«Envío»** con ese importe (con IVA 21 %), además de los productos. En las ventas de Mercado Libre el importe sale de lo que Mercado Libre informa que pagó el comprador; si el envío fue gratis para el comprador, no hay línea. Mercado Libre exige que ese monto figure en la factura.
-
+- **El envío nunca va solo en la factura**, aunque Mercado Libre se lo haya cobrado al comprador.
+- **Si el comprador pide un cambio de la factura por mensaje** (otro CUIT, pasarla de B a A, el envío, una leyenda), apenas llega el mensaje la IA le contesta que sí y, si la factura ya estaba hecha, la corrige en el acto con nota de crédito y factura nueva. Si todavía no estaba hecha, sólo toma nota y la factura sale ya con el cambio.
+- **Si el comprador lo pide por mensaje** (que se le facture el envío o el flete), la IA lo toma como un pedido claro: le contesta que sí, marca el pedido y, si ya estaba facturado, hace sola la nota de crédito y la factura nueva con una línea «Envío» (IVA 21 %) por lo que pagó de envío. La factura nueva se sube a la venta y se le avisa al comprador. Si no pagó envío (le salió gratis), no hay nada que sumar y la factura queda como está.
 ### Qué tipo de comprobante sale (A, B o C)
 
 - Si la empresa **no** es Responsable Inscripto (monotributo o exento): siempre **Factura C** (no discrimina IVA).

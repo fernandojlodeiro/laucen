@@ -28,7 +28,7 @@ export default async function AccionesPedido({ org, pid, editable, superadmin = 
   const p = await una<{ estado: EstadoPedido; estado_pago: string; id_externo: string | null; codigo: string | null; canal_id: number; canal_tipo: string;
     cliente: string | null; telefono: string | null; movil: string | null }>(`
     select p.estado, ${sqlEstadoPago("p")} estado_pago, p.id_externo, p.codigo_seguimiento codigo, p.canal_id::int, c.tipo canal_tipo,
-           cl.nombre cliente, cl.telefono, cl.telefono_movil movil
+           cl.nombre cliente, cl.telefono, cl.whatsapp movil
       from pedido p join canal c on c.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
      where p.id = $1 and p.organizacion_id = $2`, [pid, org]);
   if (!p) return null;

@@ -369,6 +369,18 @@ alter table lista_precios add column if not exists coeficiente numeric(8, 4) che
 -- familia rige SÓLO en las listas que tienen "Aplica descuentos" tildado (la de la
 -- tienda web). En las demás (Clásicas, la del Local…) precio de venta = precio de lista.
 alter table lista_precios add column if not exists aplica_descuentos boolean not null default false;
+-- Lista por defecto (Fer, 22/10): una por organización. La usa un pedido sólo cuando ni el cliente
+-- ni el canal tienen lista (manda: la elegida en el pedido > la del cliente > la del canal > ésta).
+-- Se marca en Catálogo › Listas de precios («Hacer por defecto»); de entrada, la Clásica.
+alter table lista_precios add column if not exists por_defecto boolean not null default false;
+create unique index if not exists lista_precios_una_por_defecto on lista_precios (organizacion_id) where por_defecto;
+update lista_precios l set por_defecto = true
+ where l.id = (select min(x.id) from lista_precios x where x.organizacion_id = l.organizacion_id and x.estado = 'activa'
+                 and lower(x.nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica'))
+   and not exists (select 1 from lista_precios o where o.organizacion_id = l.organizacion_id and o.por_defecto);
+create or replace function lista_por_defecto(p_org text) returns bigint language sql stable as $$
+  select id from lista_precios where organizacion_id = p_org and por_defecto
+$$;
 
 -- Precio en dólares (Fer, 3/10): un producto (o una variación, que pisa al
 -- producto) marcado "precio en dólares" guarda su precio en USD y los pesos se

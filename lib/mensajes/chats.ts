@@ -38,17 +38,16 @@ const SQL_CHAT = `select id::int, organizacion_id "organizacionId", canal, exter
 
 export const chatPorId = (org: string, id: number) => una<Chat>(`${SQL_CHAT} where organizacion_id = $1 and id = $2`, [org, id]);
 
-/** El cliente de la ficha con ese teléfono (o celular), comparando los últimos 10 dígitos. */
+/** El cliente de la ficha con ese WhatsApp (o teléfono), comparando los últimos 10 dígitos. */
 export async function clientePorTelefono(org: string, telefono: string): Promise<number | null> {
   const d = ultimos10(telefono);
   if (d.length !== 10) return null;
-  // Primero el WhatsApp confirmado (el número desde el que ya nos escribió); después los teléfonos de la ficha.
+  // Primero el WhatsApp de la ficha; después el teléfono.
   const r = await una<{ id: number }>(`
     select id::int from cliente
      where organizacion_id = $1
        and $2 in (right(regexp_replace(coalesce(whatsapp, ''), '\\D', '', 'g'), 10),
-                  right(regexp_replace(regexp_replace(coalesce(telefono, ''), '\\D', '', 'g'), '^0?(\\d{2,4})15(\\d{6,8})$', '\\1\\2'), 10),
-                  right(regexp_replace(regexp_replace(coalesce(telefono_movil, ''), '\\D', '', 'g'), '^0?(\\d{2,4})15(\\d{6,8})$', '\\1\\2'), 10))
+                  right(regexp_replace(regexp_replace(coalesce(telefono, ''), '\\D', '', 'g'), '^0?(\\d{2,4})15(\\d{6,8})$', '\\1\\2'), 10))
      order by (right(regexp_replace(coalesce(whatsapp, ''), '\\D', '', 'g'), 10) = $2) desc, id desc limit 1`, [org, d]);
   return r?.id ?? null;
 }

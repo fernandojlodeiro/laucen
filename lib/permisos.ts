@@ -47,6 +47,7 @@ export type PermisoKey =
   | "picking_sin_escanear"
   | "recepcion_ver"
   | "etiquetas_ver"
+  | "full_ver"
   | "facturacion_ver"
   | "tienda_config"
   | "tienda_dominios"
@@ -112,6 +113,7 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "picking_sin_escanear", label: "Preparar sin escanear", ayuda: "Dar un pedido por preparado con sólo su número (o su botón «Preparado», o escaneando su hoja), sin escanear cada producto: tilda todo. Provisorio, mientras no todos los productos tienen etiqueta." },
   { key: "recepcion_ver", label: "Recepción", ayuda: "Recibir mercadería y devoluciones escaneando." },
   { key: "etiquetas_ver", label: "Etiquetas", ayuda: "Imprimir etiquetas de producto y de ubicación." },
+  { key: "full_ver", label: "Envíos a Full", ayuda: "Armar y despachar envíos a Full de Mercado Libre, su flete y el stock que hay en Full." },
   { key: "facturacion_ver", label: "Facturación", ayuda: "Facturas y notas de crédito electrónicas (ARCA)." },
   { key: "empresa_config", label: "Empresa", ayuda: "Datos de la empresa, logo y datos fiscales." },
   { key: "tienda_config", label: "Tienda web", ayuda: "Configurar la tienda web y sus métodos de envío." },
@@ -170,7 +172,7 @@ export const FUNCIONES: PermisoKey[] = [
   "panel_ver", "tablero_ml_ver", "pedidos_ver", "clientes_ver", "productos_ver", "familias_ver", "precios_ver", "precios_ml_ver",
   "publicaciones_ver", "cucardas_ver", "depositos_ver", "stock_ver", "stock_ajustar", "canales_ver",
   "tipo_cambio_ver", "usuarios_ver", "importar_ver", "proveedores_ver",
-  "envios_ver", "preguntas_ver", "reclamos_ver", "picking_ver", "recepcion_ver", "etiquetas_ver", "facturacion_ver",
+  "envios_ver", "preguntas_ver", "reclamos_ver", "picking_ver", "recepcion_ver", "etiquetas_ver", "full_ver", "facturacion_ver",
   "tienda_config", "empresa_config", "medios_pago_ver", "reglas_ver",
   "compras_ver", "despachos_ver", "cuentas_corrientes_ver", "tesoreria_ver", "contabilidad_ver",
   "informes_stock_ver", "informes_publicaciones_ver", "facturacion_ml_ver", "mercadopago_ver", "informes_ventas_ver",

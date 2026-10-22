@@ -26,7 +26,7 @@ import MarcaMercado from "@/app/componentes/MarcaMercado";
 import { Desplegable } from "@/app/informes/Filtros";
 import { ESTADOS_MERCADO, esEstadoMercado, filtroEstadoMercado, sqlEstadoMercado, type EstadoMercado } from "@/lib/seguimiento/estado-mercado";
 import { LISTA_PRECIOS, LISTA_LISTAS_PRECIOS, DONDE_PRECIOS, valoresPrecios } from "./lista";
-import { accionBorrarLista, accionCrearLista, accionGuardarLista, accionGuardarPrecio, accionMasivo } from "./acciones";
+import { accionBorrarLista, accionCrearLista, accionGuardarLista, accionGuardarPrecio, accionListaPorDefecto, accionMasivo } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -220,7 +220,17 @@ export default async function Precios({ searchParams }: { searchParams: Promise<
                 <td className={TD}>{l.moneda_base === "USD" ? "Dólares" : "Pesos"}</td>
                 <td className={`${TD} text-[#5C6B76] whitespace-nowrap`}>{formula(l.id) || "—"}</td>
                 <td className={TDN}>{l.orden}</td>
-                <td className={TD}><Estado texto={l.estado === "activa" ? "Activa" : "Archivada"} tono={l.estado === "activa" ? "verde" : "gris"} /></td>
+                <td className={TD}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Estado texto={l.estado === "activa" ? "Activa" : "Archivada"} tono={l.estado === "activa" ? "verde" : "gris"} />
+                    {l.por_defecto ? <Estado texto="Por defecto" tono="azul" /> : l.estado === "activa" && (
+                      <form action={accionListaPorDefecto}>
+                        <input type="hidden" name="id" value={l.id} />
+                        <button className={SUAVE}>Hacer por defecto</button>
+                      </form>
+                    )}
+                  </span>
+                </td>
                 <td className={TDN}><Link href={url(BASE, { lista: l.id, ...filtrosL })} className="text-[#16577F] hover:underline">{nPrecios.get(l.id) ?? 0}</Link></td>
                 <td className={`${TD} text-right whitespace-nowrap`}>
                   <span className="inline-flex gap-1">

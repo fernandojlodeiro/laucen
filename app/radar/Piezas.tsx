@@ -2,26 +2,32 @@
 // cada cosa dibujada como lo que es (AGENTS.md → Convenciones de interfaz).
 
 /** Un interruptor de verdad (pista + perilla) que manda un formulario. */
-export function Interruptor({ accion, prendido, campos, etiqueta, deshabilitado, ayuda }: {
+export function Interruptor({ accion, prendido, campos, etiqueta, deshabilitado, ayuda, compacto }: {
   accion: (fd: FormData) => Promise<void>;
   prendido: boolean;
   campos: Record<string, string>;
   etiqueta: string;
   deshabilitado?: boolean;
   ayuda?: string;
+  /** La llave a la izquierda, pegada al texto (Fer, 22/10: con la llave a la otra punta del renglón, ni se veía). */
+  compacto?: boolean;
 }) {
+  const llave = (
+    <button role="switch" aria-checked={prendido} aria-label={etiqueta} disabled={deshabilitado}
+      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition disabled:opacity-40 ${prendido ? "bg-[#167655]" : "bg-[#C9D3DD]"}`}>
+      <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition ${prendido ? "translate-x-4" : "translate-x-0.5"}`} />
+    </button>
+  );
   return (
-    <form action={accion} className="flex items-center justify-between gap-3 text-xs">
+    <form action={accion} className={compacto ? "inline-flex items-start gap-2 text-xs" : "flex items-center justify-between gap-3 text-xs"}>
       {Object.entries(campos).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
       <input type="hidden" name="valor" value={prendido ? "0" : "1"} />
-      <span>
-        {etiqueta}
+      {compacto && llave}
+      <span className={compacto ? "max-w-[420px]" : undefined}>
+        {compacto ? <b className="font-semibold">{etiqueta}</b> : etiqueta}
         {ayuda && <span className="block text-[11px] text-[#5C6B76]">{ayuda}</span>}
       </span>
-      <button role="switch" aria-checked={prendido} aria-label={etiqueta} disabled={deshabilitado}
-        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition disabled:opacity-40 ${prendido ? "bg-[#167655]" : "bg-[#C9D3DD]"}`}>
-        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition ${prendido ? "translate-x-4" : "translate-x-0.5"}`} />
-      </button>
+      {!compacto && llave}
     </form>
   );
 }

@@ -78,6 +78,12 @@ export default async function MercadoPago({ searchParams }: { searchParams: Prom
     const d = lecturas.get(id)?.datos ?? {};
     return d.disponible ? d : { ...d, disponible: ultimos.get(id) ?? null };
   };
+  // La exportación histórica (lib/mercadopago/cola-export.ts): cómo va cada cuenta, contando los períodos de la cola.
+  const exportacion = await consulta<{ conexion_id: number; listos: number; vacios: number; en_curso: number; errores: number; total: number; actualizado: string | null }>(`
+    select conexion_id::int, count(*) filter (where estado = 'listo')::int listos, count(*) filter (where estado = 'vacio')::int vacios,
+           count(*) filter (where estado in ('pendiente', 'pedido'))::int en_curso, count(*) filter (where estado = 'error')::int errores, count(*)::int total,
+           to_char(max(actualizado_ts) at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') actualizado
+      from mp_export_item where organizacion_id = $1 group by conexion_id`, [s.org.id]).catch(() => []);
   const sinConectar = await consulta<{ id: number; nombre: string }>(`
     select c.id::int, c.nombre from canal c where c.organizacion_id = $1 and c.estado = 'activo'
        and not exists (select 1 from canal_mp x where x.canal_id = c.id) order by c.nombre`, [s.org.id]);
@@ -140,6 +146,39 @@ export default async function MercadoPago({ searchParams }: { searchParams: Prom
           </div>
           <p className="text-[11px] text-[#5C6B76] mt-1">
             El disponible sale del Reporte de Liquidaciones que Laucen le pide a Mercado Pago (lo arma en unos minutos; se pide uno nuevo cada hora). Lo «a liberar» y lo cobrado salen de los pagos de la cuenta.
+          </p>
+        </section>
+      )}
+
+      {exportacion.length > 0 && (
+        <section className="mb-6">
+          <TituloSeccion titulo={`Exportación histórica (${exportacion.length})`}>
+            <a href="/administracion/mercadopago/exportacion?parte=movimientos" className={SUAVE}>Movimientos (.zip)</a>
+            <a href="/administracion/mercadopago/exportacion?parte=excel" className={SUAVE}>Excel (.zip)</a>
+          </TituloSeccion>
+          <p className="text-xs mb-2">
+            Originales tal cual los entregó Mercado Pago, una cuenta por archivo:{" "}
+            {conexiones.map((c, k) => <span key={c.id}>{k ? " · " : ""}<a href={`/administracion/mercadopago/exportacion?parte=originales&cuenta=${c.mpUserId}`} className="text-[#16577F] hover:underline">{c.nombre ?? c.email} ({c.mpUserId})</a></span>)}
+          </p>
+          <div className={CAJA_TABLA}>
+            <table className={TABLA}>
+              <thead className={THEAD}><tr><th className={TH}>Cuenta</th><th className={THN}>Bajados</th><th className={THN}>Sin movimientos</th><th className={THN}>En curso</th><th className={THN}>Fallaron</th><th className={TH}>Último cambio</th></tr></thead>
+              <tbody>
+                {exportacion.map((e) => {
+                  const c = conexiones.find((x) => x.id === e.conexion_id);
+                  return (
+                    <tr key={e.conexion_id} className={TR}>
+                      <td className={TD}>{c?.nombre ?? c?.email ?? `Cuenta ${e.conexion_id}`}</td>
+                      <td className={TDN}>{e.listos} de {e.total}</td><td className={TDN}>{e.vacios}</td><td className={TDN}>{e.en_curso}</td>
+                      <td className={TDN}>{e.errores ? <span className="text-[#C03420] font-semibold">{e.errores}</span> : 0}</td><td className={TD}>{e.actualizado ?? "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[11px] text-[#5C6B76] mt-1">
+            Mes por mes, Laucen le pide a Mercado Pago el reporte de todas las transacciones, el de liquidaciones y los pagos, y los baja solo, de fondo. La descarga trae los movimientos de cada cuenta y todos juntos, sin duplicados, con su cobertura, controles de saldo y diccionario de campos.
           </p>
         </section>
       )}

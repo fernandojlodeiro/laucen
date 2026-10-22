@@ -95,12 +95,12 @@ Un producto sin ninguna publicación común activa en ninguna cuenta no se puede
 
 ## Criterios y reglas
 
-- **Qué publicaciones aparecen:** sólo las **activas** de la cuenta vinculadas a un producto, con número de ML. Las pausadas no aparecen y no se tocan nunca (ni su precio ni sus campañas); un plan que la cuenta tiene sólo en una publicación pausada tampoco se vuelve a crear. Una fila por publicación, más una fila por cada plan habilitado que no tiene publicación (papel «Nueva»). Orden de siempre: por SKU.
+- **Qué publicaciones aparecen:** las **activas y las pausadas** de la cuenta vinculadas a un producto, con número de ML. Una pausada se trata igual que una activa (precio, campañas y volumen); un plan que la cuenta tiene en una publicación pausada no se vuelve a crear. Una fila por publicación, más una fila por cada plan habilitado que no tiene publicación (papel «Nueva»). Orden de siempre: por SKU.
 - **Papeles:**
   - **Clásica**: la publicación Clásica. Va al tachado y entra a campaña a la Clásica.
   - **Destacado**: el plan de cuotas elegido para ir al precio para ganar; va con tachado y en las mismas campañas que la Clásica.
   - **Plan**: un plan habilitado no destacado; va a su precio por coeficiente, sin campaña.
-  - **Plan apagado**: un plan que el grupo de categorías del producto no usa en [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas), o un producto con la Clásica debajo de $ 33.000 (el mínimo para los planes); **no se toca**.
+  - **Plan apagado**: una publicación a la que no se le puede calcular precio (por ejemplo, en oferta relámpago); **no se toca**. Una publicación de un plan que el grupo de categorías no usa, o con la Clásica debajo del mínimo del plan, **sí lleva su precio** (papel «Plan», con el aviso): apagar un plan sólo frena que se creen publicaciones nuevas de ese plan.
   - **Sin tocar**: no se calcula (falta la Clásica, tipo de publicación desconocido).
   - **Nueva**: un plan habilitado sin publicación; se puede crear.
 - Las fórmulas (tachado, precio de cada plan, elección del destacado, volumen, campañas) están explicadas paso a paso, con un ejemplo, en [Precios en Mercado Libre](/catalogo/precios-ml).

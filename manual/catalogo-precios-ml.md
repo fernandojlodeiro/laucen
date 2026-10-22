@@ -161,7 +161,7 @@ Pestaña «Alertas» → mirá «Qué pasa» (trae el estado que informa ML y el
 
 ## Criterios y reglas
 
-**Sólo publicaciones activas.** Los precios, las campañas, las alertas y las publicaciones de planes que faltan se calculan sólo con las publicaciones activas de cada cuenta. Las pausadas no se muestran ni se tocan.
+**Activas y pausadas.** El precio se calcula y se manda a las publicaciones **activas y pausadas** de cada cuenta (no a las cerradas ni a las que Mercado Libre bloqueó), así se puede corregir el precio de un producto antes de cargarle stock. Una pausada se trata igual que una activa: precio publicado (el tachado), campaña y descuento por volumen (Mercado Libre la deja en sus campañas aunque esté pausada). Así, cuando se reactiva, ya sale a su precio. Al reactivarse, Laucen igual la vuelve a revisar en el barrido siguiente. Un plan que la cuenta tiene en una publicación pausada no se vuelve a crear.
 
 ### 1. De dónde sale la Clásica
 - El **precio de lista** de la variación es la **Clásica**; el **tachado = Clásica ÷ (1 − descuento que ve el comprador)**, redondeado a pesos. Sin descuento son el mismo precio. Ejemplo: lista $ 1.256.226 y descuento 45 % → tachado $ 2.284.047.
@@ -207,7 +207,7 @@ Paso a paso:
 
 **Quién gana cada plan**: tus cuentas venden los mismos productos; para que no compitan entre ellas, en la Clásica y en cada plan **una sola cuenta tiene el precio más bajo** (gana) y las demás van un % más caras (por ejemplo, **3 %**; «¿Gana?» en la vista previa: «Gana» o «+3 %»). La Clásica de una cuenta que no gana = Clásica de la lista × 1,03; el plan = su precio por coeficiente (calculado con la Clásica de la lista) × 1,03. Quién gana y el % se deciden **por grupo de categorías, para todas las cuentas**, en la columna «Quién gana» de [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas): una cuenta fija o «Rota» (los productos se reparten parejo entre las cuentas que no ganan nada fijo en el grupo; cada producto cae siempre en la misma). Para forzar otra cosa: «Excepciones», para una categoría o un producto (gana lo más específico; se ve «gana» o «no gana: +3 %»).
 
-Un plan **se usa** (queda "habilitado") sólo si tiene «Usar» tildado en el grupo del producto y la Clásica es de **$ 33.000 o más** (desde ahí Mercado Libre da envío gratis; ver [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas)). Si no, su publicación queda con papel «Plan apagado» y **no se toca**.
+Un plan **se usa** (queda "habilitado") sólo si tiene «Usar» tildado en el grupo del producto y la Clásica es de **$ 33.000 o más** (desde ahí Mercado Libre da envío gratis; ver [Precios en ML › Planes de cuotas](/catalogo/precios-ml/planes-cuotas)). Si no, **no se crean publicaciones nuevas de ese plan**; pero la publicación de ese plan que ya existe **lleva su precio igual**, calculado como el de cualquier plan (Clásica, comisión y el % extra del plan), con su tachado y sus campañas.
 
 Si dos planes habilitados se le muestran al comprador con la misma cantidad de cuotas, la vista previa avisa que sobra uno («manda lo que ve el comprador»).
 
@@ -253,7 +253,8 @@ Regla de la casa: **ningún precio sale a Mercado Libre sin un clic**.
 - **Con «Sincronizar precios» prendido** (prenderlo es el clic): Laucen recalcula y manda a la cola **sin esperar**, sólo precios, campañas y volumen (nunca publicaciones nuevas):
   - al prender el interruptor (primera pasada);
   - al grabar en esta pantalla el descuento y quién gana, una excepción, un rango de volumen, o al borrar una excepción;
-  - en cada barrido (cada 30 minutos), para las variaciones cuyo precio cambió en alguna lista;
+  - **al cambiar a mano el precio de un producto** en una lista (Catálogo › Precios o la ficha del producto): ese producto se recalcula en el acto en todas las cuentas, en sus publicaciones activas y pausadas;
+  - en cada barrido (cada 30 minutos), para las variaciones cuyo precio cambió en alguna lista por otro camino (importación, seguimiento, carga masiva) y para las publicaciones que se reactivaron;
   - en cada barrido, para las publicaciones a las que Mercado Libre les **ofreció una campaña nueva** con precio (una publicación recién creada o una campaña que apareció): así entran sin esperar a la noche. Mercado Libre las ofrece y Laucen las lee cada hora;
   - una **pasada entera por noche** (entre las 2 y las 4, hora argentina), que toma los cambios del tipo de cambio en productos en dólares y del stock en los escalones de volumen.
 - Todo pasa por la cola: se manda con ritmo, se reintenta si ML corta o falla, y queda registrado qué se mandó, cuándo y con qué resultado. Un cambio automático que dio error no se vuelve a mandar igual durante 6 horas.

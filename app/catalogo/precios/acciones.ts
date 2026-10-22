@@ -2,10 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
-import { consulta, ErrorErp } from "@/lib/erp/base";
+import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, entero, numero, id } from "@/lib/erp/acciones";
 import { guardarPrecio, precioMasivoPorPorcentaje } from "@/lib/precios";
 import { esMoneda } from "@/lib/moneda";
+import { after } from "next/server";
+import { precioCambiadoAMano } from "@/lib/precios-ml/preparar";
+
+/** Un precio a mano va a Mercado Libre en el acto (Fer, 14/10), de fondo para no demorar la pantalla. */
+const alMlEnElActo = (org: string, variacion: number) =>
+  after(() => precioCambiadoAMano(org, variacion).catch((e) => console.error("[precios ml] en el acto", e instanceof Error ? e.message : e)));
 
 const BASE = "/catalogo/precios";
 
@@ -59,6 +65,9 @@ export async function accionGuardarLista(fd: FormData) {
       if (coef == null) throw new ErrorErp("Falta el coeficiente (ej. 0,90).");
       if (coef <= 0 || coef >= 10000) throw new ErrorErp("El coeficiente tiene que ser mayor que cero (ej. 0,90 o 1,15).");
     }
+    if (fd.get("estado") === "archivada" && await una("select 1 from lista_precios where id = $2 and organizacion_id = $1 and por_defecto", [s.org.id, lid])) {
+      throw new ErrorErp("Es la lista por defecto: antes de archivarla, hacé por defecto otra.");
+    }
     await consulta(`update lista_precios set nombre = $3, moneda_base = $4, orden = $5, estado = $6, base_lista_id = $7, coeficiente = $8, aplica_descuentos = $9
                      where id = $2 and organizacion_id = $1`,
       [s.org.id, lid, nombre, moneda(fd), entero(fd, "orden") ?? 0, fd.get("estado") === "archivada" ? "archivada" : "activa", baseId, coef, fd.get("aplica_descuentos") === "1"]);
@@ -72,9 +81,27 @@ export async function accionBorrarLista(fd: FormData) {
   await intentar(BASE, async () => {
     // Los precios de la lista se van con ella (cascade); los canales y
     // clientes que la usaban quedan sin lista.
+    if (await una("select 1 from lista_precios where id = $2 and organizacion_id = $1 and por_defecto", [s.org.id, id(fd)])) {
+      throw new ErrorErp("Es la lista por defecto: antes de borrarla, hacé por defecto otra.");
+    }
     await consulta("delete from lista_precios where id = $2 and organizacion_id = $1", [s.org.id, id(fd)]);
     revalidatePath(BASE);
     return "Lista borrada, con sus precios.";
+  });
+}
+
+/** La lista por defecto (Fer, 22/10): la usa un pedido cuando ni el cliente ni el canal tienen lista. Una sola por organización. */
+export async function accionListaPorDefecto(fd: FormData) {
+  const s = await entrarErp("precios_ver");
+  await intentar(BASE, async () => {
+    await enTransaccion(async (c) => {
+      const r = await c.query("select 1 from lista_precios where id = $2 and organizacion_id = $1 and estado = 'activa'", [s.org.id, id(fd)]);
+      if (!r.rowCount) throw new ErrorErp("Esa lista no existe o está archivada.");
+      await c.query("update lista_precios set por_defecto = false where organizacion_id = $1 and por_defecto and id <> $2", [s.org.id, id(fd)]);
+      await c.query("update lista_precios set por_defecto = true where organizacion_id = $1 and id = $2", [s.org.id, id(fd)]);
+    });
+    revalidatePath(BASE);
+    return "Quedó como lista por defecto.";
   });
 }
 
@@ -88,6 +115,7 @@ export async function accionGuardarPrecio(fd: FormData) {
     await guardarPrecio(s.org.id, {
       listaId: id(fd, "lista"), variacionId: id(fd, "variacion"), importe, moneda: moneda(fd), usuarioId: s.usuario.id,
     });
+    alMlEnElActo(s.org.id, id(fd, "variacion"));
     revalidatePath(BASE);
     return "Precio guardado (rige desde hoy).";
   });

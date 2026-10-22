@@ -2,6 +2,7 @@
 // de ML los mueve ML): confirmar el pago, pasarlo al estado siguiente, avisar
 // al cliente por WhatsApp. Y los pagos del pedido (de cualquier canal).
 
+import { SQL_ML_RETIRA } from "@/lib/pedidos/retiro";
 import { motivoFrenoCc } from "@/lib/administracion/credito";
 import { vencimientoDe } from "@/lib/pedidos/reserva";
 import { queArrastraCancelar, motivoNoCancelable } from "@/lib/pedidos/cancelar";
@@ -68,12 +69,12 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   const p = await una<{
     estado: EstadoPedido; estado_pago: string; total_ars: number; id_externo: string | null; medio_pago: string | null; codigo: string | null; canal_id: number; canal_tipo: string;
     cliente: string | null; telefono: string | null; movil: string | null; envio: string | null; envio_tipo: string | null;
-    sin_esperar: boolean; retiro: boolean; seguimiento: string | null; vigencia: string | null;
+    sin_esperar: boolean; retiro: boolean; ml_retira: boolean; seguimiento: string | null; vigencia: string | null;
   }>(`
     select p.estado, p.id_externo, ${sqlEstadoPago("p")} estado_pago, ${sqlSinEsperarPago("p")} sin_esperar,
-           (me.tipo = 'retiro' or p.envio ->> 'metodo' = 'Retira') is true retiro, p.total_ars::float, p.medio_pago, p.codigo_seguimiento codigo, p.canal_id::int, c.tipo canal_tipo,
-           cl.nombre cliente, cl.telefono, cl.telefono_movil movil, me.nombre envio, me.tipo envio_tipo, me.seguimiento, to_char(p.vigencia, 'YYYY-MM-DD') vigencia
-      from pedido p join canal c on c.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
+           (me.tipo = 'retiro' or p.envio ->> 'metodo' = 'Retira') is true retiro, ${SQL_ML_RETIRA} ml_retira, p.total_ars::float, p.medio_pago, p.codigo_seguimiento codigo, p.canal_id::int, c.tipo canal_tipo,
+           cl.nombre cliente, cl.telefono, cl.whatsapp movil, me.nombre envio, me.tipo envio_tipo, me.seguimiento, to_char(p.vigencia, 'YYYY-MM-DD') vigencia
+      from pedido p join canal c on c.id = p.canal_id join canal ca on ca.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
       left join metodo_envio me on me.id = p.metodo_envio_id
      where p.id = $1 and p.organizacion_id = $2`, [pid, org]);
   if (!p) return null;
@@ -110,9 +111,38 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   );
 
   if (esMl) {
-    // «Cancelar pedido» de ML va arriba (AccionesPedido).
+    // El aviso a ML de que lo retiró (sale solo por la cola con el botón): cómo le fue, acá mismo.
+    const avisos = p.ml_retira ? await consulta<{ estado: string; error: string | null; enviado: Date | null }>(`
+      select estado, ultimo_error error, enviado_ts enviado from ml_cola
+       where organizacion_id = $1 and canal_id = $2 and tipo = 'otro' and item_id like 'orden %' and payload ->> 'descripcion' like $3
+       order by id`, [org, p.canal_id, `%(pedido ${pid})`]) : [];
+    // «Cancelar pedido» de ML va arriba (AccionesPedido). Una venta sin envío que retira en el local (Fer, 22/10):
+    // «Cliente presente: retira» la entrega, la factura si falta y le avisa a ML que se concretó.
     return (
       <>
+        {p.ml_retira && p.estado === "preparado" && (
+          <>
+            <h2 className="text-sm font-bold mb-2">Operación</h2>
+            {sp.b === "op" && (sp.ok || sp.error) && (
+              <p role={sp.error ? "alert" : undefined} className={`text-xs rounded-lg px-3 py-2 mb-2 ${sp.error ? "bg-[#FDF1EF] text-[#C03420]" : "bg-[#EEF7F1] text-[#1F6E4A]"}`}>{sp.error ?? sp.ok}</p>
+            )}
+            <div className={`${CAJA} mb-4`}>
+              <form action={accionClientePresente} className="flex flex-wrap items-end gap-2">
+                <input type="hidden" name="pedido_id" value={pid} />
+                <BotonEnviar clase={VERDE} corriendo="Entregando y avisando…">Cliente presente: retira</BotonEnviar>
+                <span className="text-[11px] text-[#5C6B76]">Queda entregado, se factura si falta (la factura se sube a Mercado Libre) y se le avisa solo a Mercado Libre que el comprador ya lo tiene.</span>
+              </form>
+            </div>
+          </>
+        )}
+        {avisos.length > 0 && (
+          <p className="text-xs mb-4">
+            <span className="text-[#5C6B76]">Aviso a Mercado Libre de que lo retiró: </span>
+            {avisos.every((a) => a.estado === "ok") ? <Estado texto={`Recibido${avisos[0].enviado ? ` el ${fechaHora(avisos[0].enviado)}` : ""}`} tono="verde" />
+              : avisos.some((a) => a.estado === "error") ? <><Estado texto="Falló" tono="rojo" /> <span className="text-[#C03420]">{avisos.find((a) => a.estado === "error")?.error}</span></>
+              : <Estado texto="Mandándose…" tono="amarillo" />}
+          </p>
+        )}
         {pagos.length > 0 && <><h2 className="text-sm font-bold mb-2">Pagos</h2><div className="mb-4">{TablaPagos}</div></>}
       </>
     );
@@ -152,7 +182,8 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   const aCobrar = p.estado_pago === "a_cobrar" && !CERRADOS.includes(p.estado);
   // Retiro ya preparado (Fer, 7/10): «Cliente presente: retira» cobra si hace falta, entrega y factura en un clic.
   const clientePresente = p.retiro && p.estado === "preparado";
-  const entregarYCobrar = aCobrar && clientePresente;
+  // Sin pagar y no a cuenta corriente: al retirar se elige con qué pagó (clientePresenteRetira lo exige).
+  const pideMedio = clientePresente && !["pagado", "a_convenir"].includes(p.estado_pago);
   // Seguimiento automático (OCA): despachado y entregado los marca el transportista, sin botones.
   const automatico = p.seguimiento === "automatico";
 
@@ -177,7 +208,7 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
         {clientePresente && (
           <form action={accionClientePresente} className="flex flex-wrap items-end gap-2">
             <input type="hidden" name="pedido_id" value={pid} />
-            {entregarYCobrar && (
+            {pideMedio && (
               <label><span className={ETIQUETA}>Cobró con</span>
                 <select name="medio" defaultValue={medioSugerido} className={CAMPO} required>
                   {!medioSugerido && <option value="">Elegí…</option>}
@@ -185,7 +216,7 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
                 </select></label>
             )}
             <BotonEnviar clase={VERDE} corriendo="Entregando y facturando…">
-              {entregarYCobrar ? `Cliente presente: retira y paga ${formatear(p.total_ars, "ARS")}` : "Cliente presente: retira"}
+              {pideMedio ? `Cliente presente: retira y paga ${formatear(p.total_ars, "ARS")}` : "Cliente presente: retira"}
             </BotonEnviar>
             <span className="text-[11px] text-[#5C6B76]">Queda entregado y, si no tiene factura, se factura en el momento.</span>
           </form>
@@ -193,7 +224,7 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
         {automatico && ["preparado", "despachado"].includes(p.estado) && (
           <p className="text-[11px] text-[#5C6B76]">El envío lo sigue el transportista: el pedido pasa solo a «Despachado» cuando lo retiran y a «Entregado» cuando lo entregan.</p>
         )}
-        {pagoPendiente && !entregarYCobrar && (
+        {pagoPendiente && !pideMedio && (
           <form action={accionConfirmarPago} className="flex flex-wrap items-end gap-2">
             <input type="hidden" name="pedido_id" value={pid} />
             <label><span className={ETIQUETA}>Pagó con</span>

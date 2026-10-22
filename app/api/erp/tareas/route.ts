@@ -23,6 +23,11 @@ import { hayMotivosPendientes, leerMotivosPendientes } from "@/lib/mercadolibre/
 import { traerFacturacionMl, facturacionPendiente } from "@/lib/mercadolibre/facturacion";
 import { revisarFacturadas } from "@/lib/facturacion/revision";
 import { reintentarFacturasWhatsapp } from "@/lib/facturacion/envio";
+import { hayLecturaFullPendiente, leerFull } from "@/lib/full/lectura";
+import { hayCargosFullPendientes, leerCargosFull } from "@/lib/full/costos";
+import { hayConsultasPendientes, responderConsultas } from "@/lib/mercadolibre/consultas";
+import { hayPreparacionesPendientes, prepararPendientes } from "@/lib/mercadolibre/preparaciones";
+import { hayAgrupadoPendiente, avanzarAgrupado } from "@/lib/mercadolibre/agrupado-auto";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -105,7 +110,22 @@ export async function GET(req: Request) {
   // Por qué está en revisión cada publicación (sólo lectura, una vez por día cada una).
   const motivos = await hayMotivosPendientes().catch(() => false);
   if (motivos) informe.motivos_revision_ml = true;
-  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos) {
+  // Lo que hay en Full de cada cuenta (sólo lectura, cada media hora) y la conciliación (lib/full/lectura.ts).
+  const full = await hayLecturaFullPendiente().catch(() => false);
+  if (full) informe.full_ml = true;
+  // Lo que cobró ML por Full (facturación, sólo lectura; 5 pedidos por minuto: unos pocos por vuelta).
+  const cargosFull = await hayCargosFullPendientes().catch(() => false);
+  if (cargosFull) informe.cargos_full_ml = true;
+  // Consultas de sólo lectura a ML que pidió una sesión (lib/mercadolibre/consultas.ts).
+  const consultasMl = await hayConsultasPendientes().catch(() => false);
+  if (consultasMl) informe.consultas_ml = true;
+  // Lotes que pidió preparar una sesión (agrupar planes, títulos; lib/mercadolibre/preparaciones.ts). Sólo prepara.
+  const preparaciones = await hayPreparacionesPendientes().catch(() => false);
+  if (preparaciones) informe.preparaciones_ml = true;
+  // El agrupado de planes en tandas que autorizó Fer con un clic (lib/mercadolibre/agrupado-auto.ts).
+  const agrupado = await hayAgrupadoPendiente().catch(() => false);
+  if (agrupado) informe.agrupado_ml = true;
+  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos || full || consultasMl || cargosFull || preparaciones || agrupado) {
     after(async () => {
       await Promise.all([
         (async () => {
@@ -126,6 +146,31 @@ export async function GET(req: Request) {
             }
           } catch (e) {
             console.error("[tareas] Mercado Libre", e instanceof Error ? e.message : e);
+          }
+        })(),
+        (async () => {
+          try {
+            if (preparaciones) console.log("[tareas] preparaciones ML", JSON.stringify(await prepararPendientes(t0 + 110_000)));
+            if (agrupado) console.log("[tareas] agrupado ML", JSON.stringify(await avanzarAgrupado(t0 + 110_000)));
+          } catch (e) {
+            console.error("[tareas] preparaciones ML", e instanceof Error ? e.message : e);
+          }
+        })(),
+        (async () => {
+          if (!consultasMl) return;
+          try {
+            console.log("[tareas] consultas ML", JSON.stringify(await responderConsultas(t0 + 60_000)));
+          } catch (e) {
+            console.error("[tareas] consultas ML", e instanceof Error ? e.message : e);
+          }
+        })(),
+        (async () => {
+          if (!full && !cargosFull) return;
+          try {
+            if (full) console.log("[tareas] Full ML", JSON.stringify(await leerFull(null, t0 + 90_000)));
+            if (cargosFull) console.log("[tareas] cargos de Full ML", JSON.stringify(await leerCargosFull(null, t0 + 100_000)));
+          } catch (e) {
+            console.error("[tareas] Full ML", e instanceof Error ? e.message : e);
           }
         })(),
         (async () => {

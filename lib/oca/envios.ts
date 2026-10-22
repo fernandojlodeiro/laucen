@@ -185,7 +185,7 @@ export async function altaOca(org: string, pedidoId: number): Promise<string> {
   if (ya) throw new ErrorErp(`Este pedido ya tiene el envío de OCA ${ya.tracking ?? ""}.`);
   const p = await una<DatosPedido>(`
     select p.id::int, p.canal_id::int, p.estado, p.total_ars::float, p.costo_envio_ars::float, p.envio, me.tipo metodo_tipo, me.nombre metodo_nombre,
-           cl.nombre cliente, cl.email, cl.telefono, cl.telefono_movil movil
+           cl.nombre cliente, cl.email, cl.telefono, regexp_replace(cl.whatsapp, '^549([0-9]{10})$', '\\1') movil
       from pedido p left join metodo_envio me on me.id = p.metodo_envio_id left join cliente cl on cl.id = p.cliente_id
      where p.organizacion_id = $1 and p.id = $2`, [org, pedidoId]);
   if (!p) throw new ErrorErp("El pedido no existe.");

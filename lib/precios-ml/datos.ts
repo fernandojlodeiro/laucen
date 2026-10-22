@@ -26,6 +26,8 @@ export type CanalMl = {
   marca: string | null;
   /** «Entrar solo a las ofertas relámpago» (lib/precios-ml/relampago.ts, entrarRelampagosAuto). */
   relampagoAuto: boolean;
+  /** «Entrar solo a las ofertas compartidas» (SMART y SMART_LIGHTNING; lib/precios-ml/relampago.ts). */
+  compartidasAuto: boolean;
 };
 
 const bool = (v: unknown, defecto: boolean) => (v === true || v === "true" ? true : v === false || v === "false" ? false : defecto);
@@ -37,7 +39,7 @@ export async function canalesMl(org: string): Promise<CanalMl[]> {
     select c.id::int, c.nombre, coalesce(c.lista_precios_id, l2.id)::int lista_id, coalesce(l1.nombre, l2.nombre) lista, c.config
       from canal c
       left join lista_precios l1 on l1.id = c.lista_precios_id
-      left join lateral (select id, nombre from lista_precios where organizacion_id = c.organizacion_id and lower(nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') order by id limit 1) l2 on true
+      left join lateral (select id, nombre from lista_precios where organizacion_id = c.organizacion_id and (por_defecto or lower(nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica')) order by por_defecto desc, id limit 1) l2 on true
      where c.organizacion_id = $1 and c.tipo = 'mercadolibre' and c.estado <> 'archivado'
      order by c.nombre`, [org]);
   return filas.map((f) => ({
@@ -49,6 +51,7 @@ export async function canalesMl(org: string): Promise<CanalMl[]> {
     crearFaltantesAuto: bool(f.config?.crear_faltantes_auto, false),
     catalogoPropioAuto: bool(f.config?.catalogo_propio_auto, false),
     relampagoAuto: bool(f.config?.relampago_auto, false),
+    compartidasAuto: bool(f.config?.compartidas_auto, false),
     marca: typeof f.config?.marca_publicaciones === "string" && f.config.marca_publicaciones.trim() ? f.config.marca_publicaciones.trim() : null,
     autoAltas: (() => {
       const a = (f.config?.auto_altas ?? {}) as { ultima_vuelta?: string; total?: number };
@@ -164,13 +167,13 @@ export async function calcularCanal(org: string, canalId: number, opts: { variac
   }
   const volMl = new Map(volumen.map((v) => [`${v.item_id}|${v.variation_id}`, v.payload?.escalones ?? null]));
 
-  // Las pausadas no se muestran ni se tocan (Fer, 8/10): sólo cuentan para no crear de nuevo un plan que ya
-  // tiene publicación. Una variación sin ninguna publicación activa en la cuenta no se calcula.
+  // Las pausadas también llevan precio (Fer, 14/10: el precio se corrige antes de cargar stock; si no, al reactivarse
+  // salía con el de la última vez). Sin campañas hasta reactivarse (lib/precios-ml/motor.ts).
   const porVariacion = new Map<number, FilaPub[]>();
   const pausados = new Map<number, Set<string>>();
   for (const f of filas) {
-    if (f.estado === "activa") porVariacion.set(f.variacion_id, [...(porVariacion.get(f.variacion_id) ?? []), f]);
-    else pausados.set(f.variacion_id, new Set([...(pausados.get(f.variacion_id) ?? []), planDePublicacion(f.tipo, f.tags) ?? ""]));
+    porVariacion.set(f.variacion_id, [...(porVariacion.get(f.variacion_id) ?? []), f]);
+    if (f.estado !== "activa") pausados.set(f.variacion_id, new Set([...(pausados.get(f.variacion_id) ?? []), planDePublicacion(f.tipo, f.tags) ?? ""]));
   }
   const propuestas: Calculo["propuestas"] = [];
   for (const [variacionId, fs] of porVariacion) {
@@ -355,7 +358,7 @@ export async function replicarVolumen(org: string, canal: number): Promise<numbe
 }
 
 /** Prende o apaga un interruptor del canal (canal.config). */
-export async function fijarInterruptor(org: string, canal: number, clave: "sincronizar_precios" | "leer_precio_ganar" | "volumen_regla_stock" | "sacar_envio_gratis" | "crear_faltantes_auto" | "catalogo_propio_auto" | "relampago_auto", valor: boolean): Promise<void> {
+export async function fijarInterruptor(org: string, canal: number, clave: "sincronizar_precios" | "leer_precio_ganar" | "volumen_regla_stock" | "sacar_envio_gratis" | "crear_faltantes_auto" | "catalogo_propio_auto" | "relampago_auto" | "compartidas_auto", valor: boolean): Promise<void> {
   await canalMl(org, canal);
   await consulta("update canal set config = config || jsonb_build_object($3::text, $4::boolean) where id = $2 and organizacion_id = $1", [org, canal, clave, valor]);
 }

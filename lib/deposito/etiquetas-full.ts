@@ -29,7 +29,7 @@ export * from "./etiquetas-full-tipos";
 
 /** SQL: el inventory_id de una fila de meli_item (`m`): el de su variante,
  *  o el de la publicación si no tiene variantes. */
-const SQL_CODIGO = `case when coalesce(m.variation_id, '') = '' then m.datos_externos->'ml'->>'inventory_id'
+export const SQL_CODIGO = `case when coalesce(m.variation_id, '') = '' then m.datos_externos->'ml'->>'inventory_id'
   else (select v->>'inventory_id' from jsonb_array_elements(case when jsonb_typeof(m.datos_externos->'ml'->'variations') = 'array'
           then m.datos_externos->'ml'->'variations' else '[]'::jsonb end) v where v->>'id' = m.variation_id limit 1) end`;
 const SQL_SKU = "coalesce((select v.sku from publicacion pu join variacion v on v.id = pu.variacion_id where pu.id = m.publicacion_id), m.sku)";

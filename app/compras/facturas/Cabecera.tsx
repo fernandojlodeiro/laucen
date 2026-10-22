@@ -24,7 +24,7 @@ export async function opcionesCabecera(org: string) {
   await asegurarPlan(org);
   const [proveedores, depositos, recepciones, cuentas, tc, razones] = await Promise.all([
     consulta<{ id: number; nombre: string }>("select id::int, nombre from proveedor where organizacion_id = $1 and estado = 'activo' order by nombre", [org]),
-    consulta<{ id: number; nombre: string }>("select id::int, nombre from deposito where organizacion_id = $1 and estado = 'activo' and tipo <> 'full_ml' order by id", [org]),
+    consulta<{ id: number; nombre: string }>("select id::int, nombre from deposito where organizacion_id = $1 and estado = 'activo' and tipo not in ('full_ml', 'transito') order by id", [org]),
     consulta<{ id: number; creado_ts: Date; deposito: string; proveedor: string | null; documento: string | null }>(`
       select r.id::int, r.creado_ts, d.nombre deposito, pr.nombre proveedor, r.documento
         from recepcion r join deposito d on d.id = r.deposito_id left join proveedor pr on pr.id = r.proveedor_id

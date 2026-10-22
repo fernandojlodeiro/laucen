@@ -28,7 +28,7 @@ Todas las listas, sin buscador (son pocas; para buscar productos está el buscad
 - **Lista**: tocándola, abajo se ve su grilla de precios (la fila elegida se pinta y dice "(viendo abajo)").
 - **Moneda base**: Pesos o Dólares.
 - **Se calcula desde**: "= Clásicas × 0,9" si es una lista derivada; "—" si tiene precios propios.
-- **Orden**, **Estado** (Activa / Archivada), **Variaciones con precio** (cuántas variaciones tienen precio cargado a mano en esa lista).
+- **Orden**, **Estado** (Activa / Archivada; la lista por defecto lleva además la marca **"Por defecto"** y las demás activas, el botón **"Hacer por defecto"**), **Variaciones con precio** (cuántas variaciones tienen precio cargado a mano en esa lista).
 - **Lápiz** (la fila se convierte en sus campos) y **tacho** ("¿Borrar la lista y sus precios?").
 
 Al editar una lista: nombre, moneda base, **Se calcula desde** ("Ninguna (precios propios)" o una lista), **×** coeficiente (ej. 0,90), la caja **Aplica descuentos**, orden, estado, **Guardar** / **Cancelar**. En la tabla de listas, la fórmula dice «con descuentos» cuando la lista los aplica.
@@ -81,12 +81,18 @@ También se puede desde la ficha del producto, pestaña **Precios**.
 3. **Seguir**, revisá el resumen y apretá **Cargar precios** → **Sí**.
 4. Avisa "Listo: se cargaron N precios." (o "La lista de origen no tiene precios: no se cargó nada.").
 
+### Elegir la lista por defecto
+
+En la columna **Estado** de la lista que quieras, apretá **"Hacer por defecto"**. Queda con la marca **"Por defecto"** y la anterior deja de serlo (hay una sola).
+
 ### Archivar o borrar una lista
 
 - Archivar: lápiz → Estado **Archivada** → Guardar. Deja de aparecer en la pestaña Precios de las fichas.
 - Borrar: tacho → **Sí**. Se borran todos sus precios; los canales y clientes que la usaban quedan sin lista.
 
 ## Criterios y reglas
+
+- **Lista por defecto**: la usa un pedido sólo cuando ni el pedido, ni el cliente, ni el canal tienen una lista elegida. El orden es: la elegida en el pedido → la del cliente → la del canal → la lista por defecto. No se puede archivar ni borrar la lista por defecto: primero hacé por defecto otra.
 
 **Cómo se calcula cada precio** (lo resuelve una sola cuenta, la misma en todo el sistema: pantallas, pedidos, tienda, Mercado Libre). Para una variación, una lista y un día:
 

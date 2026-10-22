@@ -16,7 +16,7 @@ const volver = (fd: FormData) => texto(fd, "volver") || (id(fd, "canal") ? `${RE
 export async function accionGuardarFilaRelampago(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
   await intentar(volver(fd), async () => {
-    await guardarFilaRelampago(s.org.id, id(fd, "canal"), texto(fd, "item") ?? "", { precio: numero(fd, "precio"), stock: numero(fd, "stock"), piso: numero(fd, "piso") });
+    await guardarFilaRelampago(s.org.id, id(fd, "canal"), texto(fd, "item") ?? "", { precio: numero(fd, "precio"), stock: numero(fd, "stock"), piso: numero(fd, "piso") }, texto(fd, "promo"));
     revalidatePath(RELAMPAGO_PML);
     return "Grabado.";
   });
@@ -37,9 +37,9 @@ export async function accionPrepararRelampagos(fd: FormData) {
 export async function accionEntrarRelampago(fd: FormData) {
   const s = await entrarErp("precios_ml_ver");
   await intentar(volver(fd), async () => {
-    const f = await entrarRelampago(s.org.id, s.usuario.id, id(fd, "canal"), texto(fd, "item") ?? "");
+    const f = await entrarRelampago(s.org.id, s.usuario.id, id(fd, "canal"), texto(fd, "item") ?? "", texto(fd, "promo"));
     revalidatePath(RELAMPAGO_PML);
-    return `Mandada: ${f.item_id} entra a la oferta relámpago a ${f.rel!.toLocaleString("es-AR")} con ${f.stockEntrar} unidades. Sale a Mercado Libre en un par de minutos; en la columna «Entrar» ves si la aceptó.`;
+    return `Mandada: ${f.item_id} entra a la oferta${f.tipo_promo === "LIGHTNING" ? " relámpago" : " compartida"} (el comprador paga ${f.rel!.toLocaleString("es-AR")})${f.tipo_promo === "SMART" ? "" : ` con ${f.stockEntrar} unidades`}. Sale a Mercado Libre en un par de minutos; en la columna «Entrar» ves si la aceptó.`;
   });
 }
 

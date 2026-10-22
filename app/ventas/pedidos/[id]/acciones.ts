@@ -16,7 +16,7 @@ import { deFondo } from "@/lib/tareas-fondo";
 import { pasarAPedido, pasarAPresupuesto, cambiarVigencia } from "@/lib/pedidos/presupuestos";
 import { altaOca, anularOca, envioOcaDe, seguirEnvio } from "@/lib/oca/envios";
 import { cancelarPedido } from "@/lib/pedidos/cancelar";
-import { clientePresenteRetira } from "@/lib/pedidos/retiro";
+import { clientePresenteRetira, clientePresenteRetiraMl } from "@/lib/pedidos/retiro";
 import { reactivarPedido } from "@/lib/pedidos/reserva";
 
 export async function accionFacturar(fd: FormData) {
@@ -203,14 +203,17 @@ export async function accionVigenciaPresupuesto(fd: FormData) {
   });
 }
 
-/** «Cliente presente: retira» (Fer, 7/10): cobra si se paga al retirar, entrega y factura si falta. */
+/** «Cliente presente: retira» (Fer, 7/10): cobra si se paga al retirar, entrega y factura si falta. En una venta
+ *  de Mercado Libre sin envío, además le avisa a ML que se concretó (lib/pedidos/retiro.ts). */
 export async function accionClientePresente(fd: FormData) {
   const s = await entrarErp("pedidos_ver");
   const pid = id(fd, "pedido_id");
   const volver = `/ventas/pedidos/${pid}?b=op`;
   await intentar(volver, async () => {
-    await pedidoOperable(s.org.id, pid);
-    const r = await clientePresenteRetira(s.org.id, pid, s.usuario.id, texto(fd, "medio"));
+    // Una venta de Mercado Libre sin envío también (Fer, 22/10): se entrega, se factura si falta y se le avisa a ML.
+    const esMl = !!(await una("select 1 from pedido p join canal c on c.id = p.canal_id where p.id = $1 and p.organizacion_id = $2 and c.tipo = 'mercadolibre'", [pid, s.org.id]));
+    if (esMl) await exigirCarritoLibre(s.org.id, pid); else await pedidoOperable(s.org.id, pid);
+    const r = esMl ? await clientePresenteRetiraMl(s.org.id, pid, s.usuario.id) : await clientePresenteRetira(s.org.id, pid, s.usuario.id, texto(fd, "medio"));
     revalidatePath(`/ventas/pedidos/${pid}`);
     revalidatePath("/ventas/pedidos");
     const listo = r.hecho.join(" · ");
@@ -260,20 +263,6 @@ export async function accionRefacturar(fd: FormData) {
     revalidatePath(volver);
     revalidatePath("/administracion/facturacion");
     return r;
-  });
-}
-
-/** «Preparar factura corregida para Mercado Libre»: un lote (subir la factura vigente + avisar al comprador) que sale con el clic en la cola. */
-export async function accionLoteFacturaCorregida(fd: FormData) {
-  const s = await entrarErp("facturacion_ver");
-  const pid = id(fd, "pedido_id");
-  const volver = `/ventas/pedidos/${pid}`;
-  await intentar(volver, async () => {
-    if (!pid) throw new ErrorErp("El pedido no existe.");
-    const { prepararLoteFacturaCorregida } = await import("@/lib/mercadolibre/facturas");
-    const r = await prepararLoteFacturaCorregida(s.org.id, pid, s.usuario.id);
-    revalidatePath(volver);
-    return `Lote ${r.lote} preparado (${r.cantidad === 2 ? "la factura y el aviso al comprador" : "el aviso al comprador"}). Falta tu clic en «Mandar a Mercado Libre»: Configuración › Cola de Mercado Libre, pestaña Lotes preparados.`;
   });
 }
 

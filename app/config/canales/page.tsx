@@ -16,11 +16,12 @@ import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { ordenarEnMemoria, paginarEnMemoria } from "@/lib/lista";
 import {
-  entrarErp, Pantalla, Avisos, Lapiz, Estado, TituloSeccion, BotonesFicha, ValorVista, editandoFicha, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
+  entrarErp, Pantalla, Avisos, Lapiz, Estado, TituloSeccion, BotonesFicha, ValorVista, Dato, editandoFicha, url, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import { emisoresDe } from "@/lib/arca/facturar";
 import InterruptorConfirmar from "./InterruptorConfirmar";
-import { accionSincronizarStock, accionSubirFacturas, accionSincronizarPrecios } from "./acciones-ml";
+import { accionSincronizarStock, accionSubirFacturas, accionSincronizarPrecios, accionRepartoActivo, accionGuardarReparto } from "./acciones-ml";
+import { leerReparto } from "@/lib/mercadolibre/reparto";
 import { sembrarEjemploCanales, canalesDeEjemplo } from "./ejemplo";
 import CuentaMl from "./CuentaMl";
 import CuentaMp from "./CuentaMp";
@@ -98,6 +99,13 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
      where d.organizacion_id = $1 and d.estado = 'activo'
        and not exists (select 1 from canal_deposito cd where cd.canal_id = $2 and cd.deposito_id = d.id)
      order by d.nombre`, [s.org.id, elegido.id]) : [];
+
+  // El reparto del stock entre cuentas de ML cuando queda poco (lib/mercadolibre/reparto.ts).
+  const reparto = await leerReparto(s.org.id);
+  const editandoReparto = editandoFicha(sp, "reparto");
+  const cuentasMl = await consulta<{ id: number; nombre: string }>(
+    "select id::int, nombre from canal where organizacion_id = $1 and tipo = 'mercadolibre' and estado <> 'archivado' order by nombre", [s.org.id]);
+  const preferida = cuentasMl.find((c) => c.id === reparto.preferida)?.nombre ?? null;
 
   const selectorLista = (valor: number | null) => (
     <select name="lista" defaultValue={valor ?? ""} className={CAMPO} aria-label="Lista de precios">
@@ -250,6 +258,42 @@ export default async function Canales({ searchParams }: { searchParams: Promise<
       <Paginado total={canales.length} />
       <p className="text-[11px] text-[#5C6B76] mt-1">Umbral de pausa: con ese stock disponible o menos, se pausan las publicaciones del canal (vacío = el de la organización, 1).</p>
       <p className="text-[11px] text-[#5C6B76] mt-1">Llave API: para que otro sistema cargue pedidos o lea el catálogo por la API; hoy no la usa nadie.</p>
+
+      <section className={`${CAJA} mt-6 max-w-3xl`}>
+        <TituloSeccion titulo="Reparto del stock entre cuentas de Mercado Libre">
+          <BotonesFicha editando={editandoReparto} ver={BASE} editar={`${BASE}?editar=reparto`} form="ficha-reparto" />
+        </TituloSeccion>
+        <p className="text-[11px] text-[#5C6B76] mb-2">
+          Cuando queda poco, el disponible se reparte entre las cuentas en vez de mostrarlo entero en cada una: así un comprador no puede
+          llevarse de varias cuentas a la vez más de lo que hay. De a una unidad por cuenta, primero la que más vendió el producto; en el empate,
+          la cuenta elegida abajo y después al azar. La que queda sin unidades se pausa y se reactiva sola cuando le vuelve a tocar.
+        </p>
+        <div className="flex items-center gap-2 text-xs mb-3">
+          <InterruptorConfirmar accion={accionRepartoActivo} prendido={reparto.activo} campos={{}} etiqueta="Repartir el stock entre cuentas cuando queda poco"
+            preguntaPrender="¿Prender? Laucen reparte el stock entre las cuentas" preguntaApagar="¿Apagar el reparto?" />
+          <span>Repartir el stock entre cuentas cuando queda poco: <b>{reparto.activo ? "prendido" : "apagado"}</b></span>
+        </div>
+        {!editandoReparto ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+            <Dato etiqueta="Repartir con (unidades o menos)" numero>{reparto.desde.toLocaleString("es-AR")}</Dato>
+            <Dato etiqueta="Sólo si el precio de lista es menor a ($)" numero>{reparto.topePrecio.toLocaleString("es-AR")}</Dato>
+            <Dato etiqueta="Primera en el empate">{preferida}</Dato>
+          </div>
+        ) : (
+          <form id="ficha-reparto" action={accionGuardarReparto} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+            <label><span className={ETIQUETA}>Repartir con (unidades o menos)</span>
+              <CampoNumero name="desde" valor={reparto.desde} tipo="entero" className={`${CAMPO} w-full`} /></label>
+            <label><span className={ETIQUETA}>Sólo si el precio de lista es menor a ($)</span>
+              <CampoNumero name="tope_precio" valor={reparto.topePrecio} tipo="pesos" className={`${CAMPO} w-full`} /></label>
+            <label><span className={ETIQUETA}>Primera en el empate</span>
+              <select name="preferida" defaultValue={reparto.preferida ?? ""} className={`${CAMPO} w-full`}>
+                <option value="">Ninguna (al azar)</option>
+                {cuentasMl.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select></label>
+          </form>
+        )}
+        <p className="text-[11px] text-[#5C6B76] mt-2">El precio de lista es el de la lista de precios de cada cuenta. Sin precio de lista, el producto no se reparte.</p>
+      </section>
 
       {elegido && (
         <div className="grid gap-4 md:grid-cols-2 mt-6">

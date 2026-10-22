@@ -15,6 +15,7 @@ import { Suspense } from "react";
 import { sesionActual } from "@/lib/tenancy";
 import { tienePermiso } from "@/lib/permisos";
 import { sosVos } from "@/lib/admin";
+import { tieneEspacio } from "@/lib/personal/espacio";
 import { menuPara } from "@/lib/menu";
 import { accesosDe } from "@/lib/accesos";
 import { historialDe } from "@/lib/historial";
@@ -43,7 +44,7 @@ export default async function Marco({ children, version }: { children: React.Rea
   const menu = menuPara(puede, esFer);
 
   // Si la base no responde, el marco se dibuja igual (con lo que haya).
-  const [moneda, tc, avisos, asistente, accesos, historial, inactivos, guias, coloresCanales] = await Promise.all([
+  const [moneda, tc, avisos, asistente, accesos, historial, inactivos, guias, coloresCanales, personal] = await Promise.all([
     monedaVista(sesion.usuario.id, sesion.org.id).catch(() => "ARS" as Moneda),
     tcDelDia(sesion.org.id).catch(() => null),
     estadoAvisos(sesion.usuario.id, sesion.org.id, puede).catch((): EstadoAvisos => ({ contadores: [], ventana: [], prefs: { sonido: false, ventana: { reclamos: false, mensajes: false, preguntas: false, whatsapp: false, pedidos: false, facturas: false }, pedidoDetalle: false, cadaMin: 1 } })),
@@ -53,6 +54,8 @@ export default async function Marco({ children, version }: { children: React.Rea
     buscarInactivos(sesion.usuario.id, sesion.org.id).catch(() => false),
     guiasDelManual().catch(() => []),
     estilosCanales(sesion.org.id).catch(() => ""),
+    // El espacio personal (aparte de la empresa): sólo para su dueño y quien él autorizó.
+    tieneEspacio(sesion.usuario.id).catch(() => false),
   ]);
   // Las guías que puede leer (las de un permiso que no tiene, no se listan).
   const manuales = guias.filter((g) => g.permiso === "todos" || (g.permiso === "fer" ? esFer : puede(g.permiso as Parameters<typeof tienePermiso>[1])))
@@ -77,6 +80,7 @@ export default async function Marco({ children, version }: { children: React.Rea
             {/* Incluir los inactivos (Fer, 6/10): chico, una caja con el ícono del archivo; apagada de entrada. */}
             <CajaInactivos activo={inactivos} />
           </form>
+          {personal && <Link href="/personal" title="Espacio personal (aparte de la empresa)" className="text-xs font-bold rounded-lg px-2 py-1.5 bg-[#EEF3F8] border border-[#E3E9F0] text-[#16577F]">Personal</Link>}
           <form action={accionLogout}>
             <button className="text-xs font-bold rounded-lg px-2 py-1.5 bg-[#EEF3F8] border border-[#E3E9F0] text-[#16577F]">Salir</button>
           </form>
@@ -91,6 +95,7 @@ export default async function Marco({ children, version }: { children: React.Rea
             className="flex-1 min-w-0 text-sm border border-[#E3E9F0] rounded-lg px-3 py-1.5 bg-[#F7F8F6]" />
           <CajaInactivos activo={inactivos} />
         </form>
+        {personal && <Link href="/personal" aria-label="Espacio personal" title="Espacio personal" className="text-sm rounded-lg px-2 py-1 bg-[#EEF3F8] border border-[#E3E9F0]">🔒</Link>}
         <InterruptorMoneda moneda={moneda} />
       </header>
       <div className="md:hidden print:hidden h-12" aria-hidden />

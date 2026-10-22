@@ -286,7 +286,7 @@ export type EntradaVariacion = {
   /** El precio de la lista del canal: la Clásica del esquema (el tachado sale de ella). */
   clasica: number | null; stock: number | null; comisiones: Comisiones; comisionEstimada: boolean;
   pubs: PubMl[];
-  /** Planes que la cuenta tiene sólo en publicaciones pausadas: no se tocan, pero tampoco se vuelven a crear. */
+  /** Planes que la cuenta tiene sólo en publicaciones pausadas: no se vuelven a crear. */
   planesPausados?: PlanOClasica[];
 };
 
@@ -415,7 +415,10 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
   }
 
   // El destacado: entre los planes habilitados que ya tienen publicación con precio para ganar leído.
-  const pubDe = (plan: PlanOClasica) => e.pubs.find((p) => p.plan === plan && p.estado !== "cerrada") ?? null;
+  // Una activa antes que una pausada (las pausadas también llevan precio, Fer 14/10, pero el destacado y las campañas de la
+  // Clásica salen de la activa).
+  const pubDe = (plan: PlanOClasica) => e.pubs.find((p) => p.plan === plan && p.estado === "activa")
+    ?? e.pubs.find((p) => p.plan === plan && p.estado !== "cerrada") ?? null;
   const dest = clasica != null ? elegirDestacado(clasica, e.comisiones.clasica, habilitados.map((p) => ({
     plan: p.plan, priceToWin: pubDe(p.plan)?.priceToWin ?? null, comisionPct: p.comisionPct, margenPct: p.margenPct, cuotasVisibles: p.cuotasVisibles,
   }))) : null;
@@ -435,7 +438,7 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
     const pa: PropuestaPub = { pub, rol: "otro", lista: null, venta: null, piso: null, entrar: [], salir: [], volumen: [], cambiaPrecio: false, cambiaVolumen: false, avisos: [] };
     if (clasica == null || pub.estado === "cerrada") return pa;
     // En oferta relámpago (aceptada o en curso): ML no deja tocarle el precio ni las campañas hasta que termine (Fer, 12/10).
-    if (pub.campanas.some((c) => c.tipo === "LIGHTNING" && (c.estado === "started" || c.estado === "pending"))) {
+    if (pub.campanas.some((c) => (c.tipo === "LIGHTNING" || c.tipo === "SMART_LIGHTNING") && (c.estado === "started" || c.estado === "pending"))) {
       pa.rol = "apagado";
       pa.avisos.push("En oferta relámpago: no se toca hasta que termine.");
       return pa;
@@ -448,12 +451,17 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
       pa.lista = tachadoPct > 0 && tach != null && descuentoVisible(tach, clasica) >= DESCUENTO_MINIMO_ML ? tach : clasica;
     } else if (pub.plan && esPlan(pub.plan)) {
       const pc = planes.find((p) => p.plan === pub.plan)!;
-      if (!pc.habilitado) {
+      // Plan apagado, debajo de su «desde» o en la franja sin planes: no se CREAN publicaciones de ese plan, pero la que
+      // ya existe lleva su precio igual (Fer, 16/10: las Premium apagadas de la impresora 3D quedaron a un precio viejo).
+      if (pc.precio == null) {
         pa.rol = "apagado";
-        pa.avisos.push(!pc.activo ? "El plan no está activo: no se toca."
-          : pc.enFranja ? `Su precio ($ ${Math.round(pc.precio!).toLocaleString("es-AR")}) cae en la franja sin planes, a menos de ${FRANJA_SIN_PLANES_PCT} % abajo del envío gratis ($ ${Math.round(r.envioGratis!).toLocaleString("es-AR")}): no se toca.`
-          : `Debajo del mínimo del plan (${pc.precioMinimo?.toLocaleString("es-AR")}): no se toca.`);
+        pa.avisos.push("Sin precio calculado para el plan: no se toca.");
         return pa;
+      }
+      if (!pc.habilitado) {
+        pa.avisos.push(!pc.activo ? "El plan está apagado: no se crean publicaciones nuevas, pero ésta ya existe y lleva su precio."
+          : pc.enFranja ? `Su precio cae en la franja sin planes (a menos de ${FRANJA_SIN_PLANES_PCT} % abajo del envío gratis): no se crean nuevas, pero ésta ya existe y lleva su precio.`
+          : `Debajo del mínimo del plan (${pc.precioMinimo?.toLocaleString("es-AR")}): no se crean nuevas, pero ésta ya existe y lleva su precio.`);
       }
       if (destacado && destacado.plan === pub.plan) {
         pa.rol = "destacado"; pa.venta = destacado.precio;
@@ -472,6 +480,8 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
     // que el máximo que informa en sus campañas (≈ el precio de referencia reciente menos 1 % a 10 %). Si el esquema da
     // más (o no hay campañas leídas para saberlo), va sin tachado ni campaña: el comprador paga el precio del esquema.
     // Lo que ya está en una campaña y se mantiene o baja, sigue.
+    // Vale igual para una pausada (15/10: con el tachado sin campañas leídas, ML rechazó la campaña por «no creíble» en
+    // 5.773 pausadas y quedaron al tachado sin campaña).
     if (pa.lista != null && pa.venta != null && pa.lista > pa.venta + 0.5
         && !adentro.some((c) => c.precio != null && c.precio > 0 && pa.venta! <= Number(c.precio) + 0.5)) {
       const maximos = pub.campanas.map((c) => (c.max == null ? null : Number(c.max))).filter((m): m is number => m != null && m > 0);
@@ -557,6 +567,8 @@ export function proponer(e: EntradaVariacion, r: ReglasCanal): Propuesta {
     } else {
       pa.salir = adentro;
     }
+    // Pausada (Fer, 14/10: «antes de cargarle stock le quiero corregir el precio»): igual que una activa —precio publicado,
+    // campañas (ML las deja en campaña aunque estén pausadas) y volumen—, así al reactivarse ya está a su precio.
     pa.volumen = preciosPorCantidad(pa.venta!, vol.escalones);
     const antes = (pub.volumenMl ?? []).map((x) => `${x.cantidad}:${x.precio}`).join(",");
     if (pa.volumen.length) pa.cambiaVolumen = antes !== pa.volumen.map((x) => `${x.cantidad}:${x.precio}`).join(",");

@@ -14,7 +14,12 @@
 //             moneda); si falta el de dólares, el promedio / último en pesos;
 //             con «Estimar», si no hay ese costo pero sí FOB, FOB + 40 % (Fer, 12/10: referencia
 //             hasta calcular bien el costo de lo que no vino en las compras por courier);
-//   margen  = venta − cargos − costo (y % sobre la venta).
+//   flete   = lo que se vende desde un depósito Full: el flete del envío a Full repartido por
+//             unidad (el del último envío de ese producto despachado hasta la venta; db/full.sql);
+//   almacenamiento = lo que se vende desde un depósito Full: lo que costó guardar en Full cada unidad
+//             vendida ese mes (lo cobrado por ML repartido por producto, o estimado si ML todavía no
+//             lo facturó; lib/full/costos.ts);
+//   margen  = venta − cargos − costo − flete − almacenamiento (y % sobre la venta).
 // Entran las ventas que no están "nuevo" (sin pagar), canceladas ni devueltas.
 
 import { consulta } from "@/lib/erp/base";
@@ -48,7 +53,7 @@ export function leerFiltroRentabilidad(sp: Record<string, string | undefined>, h
 export type FilaRentabilidad = {
   clave: string; pedido_id: number | null; producto_id: number | null; fecha: string | null; externo: string | null; canal: string | null; canal_id: number | null;
   sku: string | null; titulo: string | null; unidades: number; ventas: number;
-  venta: number; cargos: number; cargos_ml: boolean; costo: number | null; sin_costo: number; estimados: number; margen: number | null; margen_pct: number | null;
+  venta: number; cargos: number; cargos_ml: boolean; costo: number | null; sin_costo: number; estimados: number; flete: number; almacenamiento: number; margen: number | null; margen_pct: number | null;
 };
 
 function costoUnitario(base: BaseCosto, moneda: Moneda) {
@@ -70,6 +75,11 @@ export async function rentabilidad(org: string, f: FiltroRentabilidad, moneda: M
   const precio = usd ? "l.precio_unit_usd" : "l.precio_unit_ars";
   const comision = usd ? "(p.comision_ars / nullif(p.tc_dia, 0))" : "p.comision_ars";
   const real = costoUnitario(f.costo, moneda);
+  const tc = "tc_del_dia(p.organizacion_id, (p.fecha at time zone 'America/Argentina/Buenos_Aires')::date)";
+  const fleteUnit = `(case when exists (select 1 from deposito dd where dd.id = p.deposito_id and dd.tipo = 'full_ml')
+    then flete_full_unitario(p.deposito_id, l.variacion_id, p.fecha) end)${usd ? ` / nullif(${tc}, 0)` : ""}`;
+  const almacenUnit = `(case when exists (select 1 from deposito dd where dd.id = p.deposito_id and dd.tipo = 'full_ml')
+    then almacenamiento_full_unitario(p.canal_id, l.variacion_id, p.fecha) end)${usd ? ` / nullif(${tc}, 0)` : ""}`;
   const estimado = f.estimar && f.costo !== "fob" ? `(${costoUnitario("fob", moneda)} * ${1 + RECARGO_ESTIMADO_PCT / 100})` : "null";
   const base = `
     with l as (
@@ -78,7 +88,9 @@ export async function rentabilidad(org: string, f: FiltroRentabilidad, moneda: M
              sum(${precio} * l.cantidad) over (partition by p.id) venta_p,
              ${cargos} cargos_ml, ${comision} comision_ars,
              l.cantidad * coalesce(${real}, ${estimado}) costo_l,
-             (${real}) is null and (${estimado}) is not null estimado_l
+             (${real}) is null and (${estimado}) is not null estimado_l,
+             l.cantidad * coalesce(${fleteUnit}, 0) flete_l,
+             l.cantidad * coalesce(${almacenUnit}, 0) almacen_l
         from pedido p join canal ca on ca.id = p.canal_id
         join pedido_linea l on l.pedido_id = p.id
         left join variacion v on v.id = l.variacion_id
@@ -95,24 +107,27 @@ export async function rentabilidad(org: string, f: FiltroRentabilidad, moneda: M
              max(id_externo) externo, max(canal) canal, max(canal_id)::int canal_id, null sku,
              string_agg(titulo, ' · ' order by titulo) titulo, sum(cantidad)::int unidades, 1 ventas,
              round(sum(venta_l), 2)::float venta, round(sum(cargos_l), 2)::float cargos, bool_or(cargos_ml is not null) cargos_ml,
-             round(sum(costo_l), 2)::float costo, count(*) filter (where costo_l is null)::int sin_costo, count(*) filter (where estimado_l)::int estimados
+             round(sum(costo_l), 2)::float costo, count(*) filter (where costo_l is null)::int sin_costo, count(*) filter (where estimado_l)::int estimados,
+             round(sum(flete_l), 2)::float flete, round(sum(almacen_l), 2)::float almacenamiento
         from x group by pedido_id order by max(fecha) desc, pedido_id desc`, [org, f.desde, f.hasta, f.canal])
     : await consulta<FilaRentabilidad>(`${base}
       select coalesce(variacion_id::text, 'sin:' || coalesce(sku, titulo)) clave, null::int pedido_id, max(producto_id)::int producto_id, null fecha, null externo, null canal, null::int canal_id,
              max(sku) sku, max(titulo) titulo, sum(cantidad)::int unidades, count(distinct pedido_id)::int ventas,
              round(sum(venta_l), 2)::float venta, round(sum(cargos_l), 2)::float cargos, bool_or(cargos_ml is not null) cargos_ml,
-             round(sum(costo_l), 2)::float costo, count(*) filter (where costo_l is null)::int sin_costo, count(*) filter (where estimado_l)::int estimados
+             round(sum(costo_l), 2)::float costo, count(*) filter (where costo_l is null)::int sin_costo, count(*) filter (where estimado_l)::int estimados,
+             round(sum(flete_l), 2)::float flete, round(sum(almacen_l), 2)::float almacenamiento
         from x group by coalesce(variacion_id::text, 'sin:' || coalesce(sku, titulo)) order by sum(venta_l) desc`, [org, f.desde, f.hasta, f.canal]);
   return filas.map((r) => {
     const costo = r.sin_costo > 0 && r.costo == null ? null : r.costo;
-    const margen = costo == null || r.sin_costo > 0 ? null : Math.round((r.venta - r.cargos - costo) * 100) / 100;
+    const margen = costo == null || r.sin_costo > 0 ? null : Math.round((r.venta - r.cargos - costo - (r.flete ?? 0) - (r.almacenamiento ?? 0)) * 100) / 100;
     return { ...r, costo, margen, margen_pct: margen != null && r.venta ? Math.round((margen / r.venta) * 1000) / 10 : null };
   });
 }
 
 export function totalesRentabilidad(filas: FilaRentabilidad[]) {
-  const t = filas.reduce((a, r) => ({ venta: a.venta + r.venta, cargos: a.cargos + r.cargos, costo: a.costo + (r.costo ?? 0), sinCosto: a.sinCosto + (r.sin_costo > 0 ? 1 : 0),
-    estimados: a.estimados + (r.estimados > 0 ? 1 : 0), unidades: a.unidades + r.unidades }), { venta: 0, cargos: 0, costo: 0, sinCosto: 0, estimados: 0, unidades: 0 });
-  const margen = t.venta - t.cargos - t.costo;
+  const t = filas.reduce((a, r) => ({ venta: a.venta + r.venta, cargos: a.cargos + r.cargos, costo: a.costo + (r.costo ?? 0), flete: a.flete + (r.flete ?? 0), almacenamiento: a.almacenamiento + (r.almacenamiento ?? 0),
+    sinCosto: a.sinCosto + (r.sin_costo > 0 ? 1 : 0), estimados: a.estimados + (r.estimados > 0 ? 1 : 0), unidades: a.unidades + r.unidades }),
+  { venta: 0, cargos: 0, costo: 0, flete: 0, almacenamiento: 0, sinCosto: 0, estimados: 0, unidades: 0 });
+  const margen = t.venta - t.cargos - t.costo - t.flete - t.almacenamiento;
   return { ...t, margen, margenPct: t.venta ? Math.round((margen / t.venta) * 1000) / 10 : null };
 }

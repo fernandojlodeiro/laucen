@@ -112,7 +112,7 @@ const crearCliente: Accion = {
          and (($2::text is not null and regexp_replace(coalesce(documento_numero, ''), '\\D', '', 'g') = regexp_replace($2, '\\D', '', 'g'))
            or ($3::text is not null and lower(email) = $3)) limit 3`, [org, datos.documento_numero, datos.email]);
     const detalle = [
-      `Nombre: ${nombre}`, `Tipo: ${datos.tipo === "mayorista" ? "Mayorista" : "Consumidor final"}`,
+      `Nombre: ${nombre}`, `Tipo: ${datos.tipo === "mayorista" ? "Mayorista" : "Minorista"}`,
       ...(datos.documento_numero ? [`${datos.documento_tipo}: ${datos.documento_numero}`] : []),
       ...(datos.email ? [`Mail: ${datos.email}`] : []), ...(datos.telefono ? [`Teléfono: ${datos.telefono}`] : []),
       ...parecidos.map((p) => `Ojo: ya existe un cliente con ese documento o mail: N.º ${p.id} ${p.nombre}`),
@@ -159,7 +159,7 @@ const crearPedido: Accion = {
     const clienteId = Number(e.cliente_id) || null;
     const cliente = clienteId ? await una<{ nombre: string; lista: number | null }>("select coalesce(razon_social, nombre) nombre, lista_precios_id::int lista from cliente where id = $1 and organizacion_id = $2", [clienteId, org]) : null;
     if (clienteId && !cliente) throw new ErrorErp(`No existe el cliente N.º ${clienteId}.`);
-    const listaId = cliente?.lista ?? canal.lista;
+    const listaId = cliente?.lista ?? canal.lista ?? (await una<{ id: number | null }>("select lista_por_defecto($1)::int id", [org]))?.id ?? null;
     const entrada = Array.isArray(e.lineas) ? e.lineas as Record<string, unknown>[] : [];
     const lineas: PedidoAMano["lineas"] = [], detalle: string[] = [];
     let total = 0;

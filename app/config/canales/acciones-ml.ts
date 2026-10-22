@@ -14,8 +14,11 @@ import { sincronizarStockMl } from "@/lib/mercadolibre/stock";
 import { fijarInterruptor } from "@/lib/precios-ml/datos";
 import { sincronizarPreciosMl } from "@/lib/precios-ml/preparar";
 import { asegurarCuentasDeCanalesSinFallar } from "@/lib/administracion/contabilidad";
+import { leerReparto, guardarReparto } from "@/lib/mercadolibre/reparto";
+import { leerNumero } from "@/lib/numeros";
 
 const volver = (canal: number) => `/config/canales?c=${canal}`;
+const BASE_REPARTO = "/config/canales";
 
 async function canalMl(org: string, fd: FormData) {
   const canal = id(fd, "canal");
@@ -135,5 +138,52 @@ export async function accionSincronizarPrecios(fd: FormData) {
       return `Primera pasada: ${r.revisadas} variaciones revisadas, ${r.encoladas} cambios de precio a la cola de ML.`;
     });
     return "Prendido. La primera pasada corre de fondo: al terminar aparece el cartel abajo a la derecha.";
+  });
+}
+
+/** Prende o apaga el reparto del stock entre cuentas de ML cuando queda poco
+ *  (lib/mercadolibre/reparto.ts). Prenderlo es el clic de Fer. La pasada por
+ *  todo el catálogo corre de fondo: no entra en el tiempo de un clic. */
+export async function accionRepartoActivo(fd: FormData) {
+  const s = await entrarErp("canales_ver");
+  await intentar(BASE_REPARTO, async () => {
+    const prender = fd.get("valor") === "1";
+    await guardarReparto(s.org.id, { ...(await leerReparto(s.org.id)), activo: prender });
+    revalidatePath("/config/canales");
+    await pasadaRepartoDeFondo(s);
+    return `${prender ? "Prendido" : "Apagado"}. La pasada por todas las publicaciones corre de fondo: al terminar aparece el cartel abajo a la derecha.`;
+  });
+}
+
+/** La pasada de stock después de cambiar el reparto, de fondo. */
+async function pasadaRepartoDeFondo(s: { org: { id: string }; usuario: { id: string } }) {
+  await lanzarTarea(s.org.id, s.usuario.id, "reparto-ml", "Reparto del stock entre cuentas de Mercado Libre", async () => {
+    const r = await sincronizarStockMl(s.org.id);
+    return `Reparto: quedaron en la cola para mandar a ML ${r.cantidades} cantidades, ${r.pausadas} pausas y ${r.reactivadas} reactivaciones. Salen solas en los próximos minutos (Configuración › Cola de Mercado Libre).`;
+  });
+}
+
+/** Graba desde cuántas unidades se reparte, el tope de precio y la cuenta primera en el empate. */
+export async function accionGuardarReparto(fd: FormData) {
+  const s = await entrarErp("canales_ver");
+  await intentar(`${BASE_REPARTO}?editar=reparto`, async () => {
+    const desde = leerNumero(fd.get("desde"));
+    const tope = leerNumero(fd.get("tope_precio"));
+    if (desde == null || !Number.isInteger(desde) || desde < 1 || desde > 1000) throw new ErrorErp("«Repartir con» va de 1 a 1.000 unidades, sin decimales.");
+    if (tope == null || !(tope > 0)) throw new ErrorErp("El precio de lista tope tiene que ser mayor que cero.");
+    const pref = id(fd, "preferida") || null;
+    if (pref && !(await una("select 1 from canal where id = $1 and organizacion_id = $2 and tipo = 'mercadolibre'", [pref, s.org.id]))) {
+      throw new ErrorErp("Esa cuenta no es de Mercado Libre.");
+    }
+    const actual = await leerReparto(s.org.id);
+    await guardarReparto(s.org.id, { ...actual, desde, topePrecio: tope, preferida: pref });
+    revalidatePath("/config/canales");
+    // Grabar bien vuelve a la vista; si falla, sigue en edición con el error.
+    let msg = "Grabado.";
+    if (actual.activo) {
+      await pasadaRepartoDeFondo(s);
+      msg = "Grabado. La pasada por todas las publicaciones corre de fondo: al terminar aparece el cartel abajo a la derecha.";
+    }
+    return { ir: `${BASE_REPARTO}?ok=${encodeURIComponent(msg)}` };
   });
 }

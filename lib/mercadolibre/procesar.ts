@@ -8,11 +8,11 @@ import { cuentaPorUsuario, cuentasActivas, ml, type CuentaMl } from "@/lib/merca
 import { importarOrden, barrerOrdenes } from "@/lib/mercadolibre/pedidos";
 import { leerEnvio, guardarEnvio } from "@/lib/mercadolibre/envios";
 import { importarPregunta, barrerPreguntas, sugerirPendientes } from "@/lib/mercadolibre/preguntas";
-import { importarMensaje, sugerirMensajesPendientes } from "@/lib/mercadolibre/mensajes";
+import { importarMensaje, sugerirMensajesPendientes, releerSinResponder } from "@/lib/mercadolibre/mensajes";
 import { completarPlazosDespacho } from "@/lib/mercadolibre/envios";
 import { importarReclamoDeNotificacion, barrerReclamos } from "@/lib/mercadolibre/reclamos";
-import { guardarItem, type ItemMl } from "@/lib/mercadolibre/publicaciones";
-import { sincronizarStockMl, variacionesConEventos } from "@/lib/mercadolibre/stock";
+import { guardarItem, vendidosDeItem, type ItemMl } from "@/lib/mercadolibre/publicaciones";
+import { anotarVentasEnCamino, sincronizarStockMl, variacionesConEventos } from "@/lib/mercadolibre/stock";
 
 export type Notificacion = { resource?: string; user_id?: number | string; topic?: string; application_id?: number | string };
 
@@ -56,7 +56,12 @@ async function procesarUna(cuenta: CuentaMl, topic: string, recurso: string) {
       return;
     case "items": {
       const r = await ml<ItemMl>(cuenta, "GET", `/items/${ultimo(recurso)}?include_attributes=all`);
-      if (r.status === 200) await guardarItem(cuenta, r.datos);
+      if (r.status !== 200) return;
+      // Si sus vendidos subieron, vendió: la orden llega unos segundos después, pero las
+      // demás cuentas se ajustan ya (ventas en camino, lib/mercadolibre/stock.ts).
+      const vendieron = cuenta.canalId ? await anotarVentasEnCamino(cuenta.organizacionId, cuenta.canalId, r.datos.id, vendidosDeItem(r.datos)) : [];
+      await guardarItem(cuenta, r.datos);
+      if (vendieron.length) await sincronizarStockMl(cuenta.organizacionId, vendieron);
       return;
     }
     // Cambió el precio de venta o una oferta (campaña) de una publicación: se relee ya, así las pantallas
@@ -124,6 +129,8 @@ export async function barrido(hastaMs: number) {
     // Los reclamos no frenan lo demás ni marcan la cuenta con error (ML puede no dar permiso de posventa).
     if (Date.now() < hastaMs) { try { r.plazos = await completarPlazosDespacho(c); } catch (e) { r.plazos_error = (e as Error).message; } }
     if (Date.now() < hastaMs) { try { r.reclamos = await barrerReclamos(c, hastaMs); } catch (e) { r.reclamos_error = (e as Error).message; } }
+    // Las contestadas desde la web de ML (ML no las avisa) dejan de figurar sin responder.
+    if (Date.now() < hastaMs) { try { r.mensajes_releidos = await releerSinResponder(c, hastaMs); } catch (e) { r.mensajes_error = (e as Error).message; } }
     if (r.ordenes_error || r.preguntas_error) {
       await consulta("update meli_cuenta set ultimo_error = $2 where id = $1", [c.id, String(r.ordenes_error ?? r.preguntas_error).slice(0, 300)]);
     }

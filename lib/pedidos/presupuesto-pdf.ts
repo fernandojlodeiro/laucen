@@ -15,7 +15,7 @@ import type { Moneda } from "@/lib/moneda";
 
 const W = 595.28, H = 841.89, M = 36;
 const AZUL = rgb(0.086, 0.341, 0.498), GRIS = rgb(0.36, 0.42, 0.46), LINEA = rgb(0.89, 0.91, 0.94), FONDO = rgb(0.97, 0.98, 0.99);
-const IVA: Record<string, string> = {
+export const IVA: Record<string, string> = {
   responsable_inscripto: "IVA Responsable Inscripto", monotributo: "Responsable Monotributo", exento: "IVA Exento",
   consumidor_final: "Consumidor final", no_responsable: "No responsable",
 };
@@ -24,13 +24,13 @@ const plata = (n: number, m: Moneda) => `${m === "USD" ? "US$" : "$"} ${n.toLoca
 
 // Lo que la fuente estándar (WinAnsi) sabe dibujar; lo demás, "?".
 const EXTRA = new Set("€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ");
-const limpio = (s: string) => [...String(s ?? "").normalize("NFC")].map((ch) => {
+export const limpio = (s: string) => [...String(s ?? "").normalize("NFC")].map((ch) => {
   const c = ch.charCodeAt(0);
   return (c >= 0x20 && c <= 0x7e) || (c >= 0xa0 && c <= 0xff) || EXTRA.has(ch) ? ch : ch === "\t" || ch === "\n" ? " " : "?";
 }).join("");
 
 /** Corta un texto en renglones que entren en `ancho` (como mucho `max`; el último con "…"). */
-function renglones(s: string, f: PDFFont, tam: number, ancho: number, max = 99): string[] {
+export function renglones(s: string, f: PDFFont, tam: number, ancho: number, max = 99): string[] {
   const out: string[] = [];
   let linea = "";
   for (const palabra of limpio(s).split(/\s+/).filter(Boolean)) {
@@ -51,7 +51,7 @@ function renglones(s: string, f: PDFFont, tam: number, ancho: number, max = 99):
 }
 
 /** Una imagen de internet lista para el PDF (achicada a `lado` px, en JPG). null si no se pudo. */
-async function imagen(doc: PDFDocument, url: string | null | undefined, lado: number): Promise<PDFImage | null> {
+export async function imagen(doc: PDFDocument, url: string | null | undefined, lado: number): Promise<PDFImage | null> {
   if (!url || !/^https:\/\//.test(url)) return null;
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
@@ -64,7 +64,7 @@ async function imagen(doc: PDFDocument, url: string | null | undefined, lado: nu
   }
 }
 
-type Linea = { cantidad: number; titulo: string; sku: string | null; ars: number; usd: number; foto: string | null; iva_pct: number };
+type Linea = { cantidad: number; titulo: string; sku: string | null; ars: number; usd: number; lista_ars: number | null; lista_usd: number | null; descuento: number; foto: string | null; iva_pct: number };
 
 export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Moneda): Promise<{ pdf: Uint8Array; nombre: string }> {
   const p = await una<{ id: number; fecha: string; vigencia: string | null; estado: string; canal_id: number; total_ars: number; total_usd: number;
@@ -74,11 +74,12 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
     select p.id::int, to_char(p.fecha at time zone 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD') fecha, to_char(p.vigencia, 'YYYY-MM-DD') vigencia, p.estado,
            p.canal_id::int, p.total_ars::float, p.total_usd::float, p.costo_envio_ars::float envio_ars, p.notas, p.envio,
            cl.nombre cliente, cl.razon_social, cl.cuit, cl.documento_tipo doc_tipo, cl.documento_numero doc_nro, cl.condicion_iva cond_iva,
-           cl.email, coalesce(cl.telefono_movil, cl.telefono) telefono, cl.id::int cliente_id
+           cl.email, coalesce(regexp_replace(cl.whatsapp, '^549([0-9]{10})$', '\\1'), cl.telefono) telefono, cl.id::int cliente_id
       from pedido p left join cliente cl on cl.id = p.cliente_id where p.id = $1 and p.organizacion_id = $2`, [pedidoId, org]);
   if (!p) throw new ErrorErp("El presupuesto no existe.");
   const lineas = await consulta<Linea>(`
     select l.cantidad::int, coalesce(titulo_variacion(v.id), l.titulo) titulo, coalesce(v.sku, l.sku) sku, l.precio_unit_ars::float ars, l.precio_unit_usd::float usd,
+           l.precio_lista_ars::float lista_ars, l.precio_lista_usd::float lista_usd, coalesce(l.descuento_pct, 0)::float descuento,
            coalesce(pr.iva_pct, 21)::float iva_pct,
            coalesce((select url from variacion_foto where variacion_id = v.id order by orden limit 1),
                     (select url from producto_foto where producto_id = v.producto_id order by orden, id limit 1)) foto
@@ -155,14 +156,20 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
   y -= altoCliente + 14;
 
   // ── Productos ──
-  const COL = { foto: M, cant: M + 52, desc: M + 92, unit: W - M - 92, sub: W - M };
-  const anchoDesc = COL.unit - 70 - COL.desc;
+  // Con descuento en algún ítem, las columnas son las de la pantalla: Lista, Descuento, Unitario (ya con el descuento) y Subtotal.
+  const conDescuento = lineas.some((l) => l.descuento > 0);
+  const COL = { foto: M, cant: M + 52, desc: M + 92, unit: W - M - 92, sub: W - M, lista: W - M - 224, dcto: W - M - 150 };
+  const anchoDesc = (conDescuento ? COL.lista - 66 : COL.unit - 70) - COL.desc;
   const encabezado = () => {
     pg.drawRectangle({ x: M, y: y - 18, width: W - 2 * M, height: 18, color: AZUL });
     const blanco = rgb(1, 1, 1);
     texto(pg, "Cant.", COL.cant, y - 12.5, 8.5, fb, blanco);
     texto(pg, "Descripción", COL.desc, y - 12.5, 8.5, fb, blanco);
-    derecha(pg, discrimina ? "Precio unit. s/IVA" : "Precio unit.", COL.unit, y - 12.5, 8.5, fb, blanco);
+    if (conDescuento) {
+      derecha(pg, discrimina ? "Lista s/IVA" : "Lista", COL.lista, y - 12.5, 8.5, fb, blanco);
+      derecha(pg, "Descuento", COL.dcto, y - 12.5, 8.5, fb, blanco);
+    }
+    derecha(pg, conDescuento ? (discrimina ? "Unitario s/IVA" : "Unitario") : discrimina ? "Precio unit. s/IVA" : "Precio unit.", COL.unit, y - 12.5, 8.5, fb, blanco);
     derecha(pg, "Subtotal", COL.sub - 6, y - 12.5, 8.5, fb, blanco);
     y -= 18;
   };
@@ -190,6 +197,11 @@ export async function pdfPresupuesto(org: string, pedidoId: number, moneda: Mone
     let yy = y - (FILA - alto) / 2 - 8;
     for (const r of rs) { texto(pg, r, COL.desc, yy, 9); yy -= 11; }
     if (l.sku) texto(pg, l.sku, COL.desc, yy + 1, 7.5, f, GRIS);
+    if (conDescuento) {
+      const lista = moneda === "USD" ? l.lista_usd : l.lista_ars;
+      derecha(pg, lista == null ? "—" : plata(discrimina ? neto(lista, l.iva_pct) : lista, moneda), COL.lista, medio, 9);
+      derecha(pg, l.descuento ? `${l.descuento.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %` : "—", COL.dcto, medio, 9);
+    }
     derecha(pg, plata(unit, moneda), COL.unit, medio, 9);
     derecha(pg, plata(sub, moneda), COL.sub - 6, medio, 9, fb);
     pg.drawLine({ start: { x: M, y: y - FILA }, end: { x: W - M, y: y - FILA }, thickness: 0.5, color: LINEA });

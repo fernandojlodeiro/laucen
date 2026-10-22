@@ -346,6 +346,27 @@ create index if not exists ml_barrida_org on ml_barrida (organizacion_id, noche 
 alter table ml_barrida enable row level security;
 select erp_politica_org('ml_barrida');
 
+-- Consultas de sólo lectura a la API de ML (Fer, 21/10): una sesión de Code o Cowork anota un GET
+-- (ruta relativa, ej. /inventories/X/stock/fulfillment) con la cuenta, y el proceso de fondo lo
+-- hace con la llave de esa cuenta y guarda la respuesta (lib/mercadolibre/consultas.ts). Sirve para
+-- averiguar qué devuelve ML sin salir de Laucen. Nunca escribe en ML: sólo GET.
+create table if not exists ml_consulta (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  ruta             text not null check (ruta ~ '^/[^/]'),
+  motivo           text,
+  pedido_por       text,
+  estado           text not null default 'pendiente' check (estado in ('pendiente', 'respondida', 'error')),
+  status           int,
+  respuesta        jsonb,
+  creado_ts        timestamptz not null default now(),
+  respondida_ts    timestamptz
+);
+create index if not exists ml_consulta_pendiente on ml_consulta (id) where estado = 'pendiente';
+alter table ml_consulta enable row level security;
+select erp_politica_org('ml_consulta');
+
 -- Los jobs de pg_cron que llaman a la app (Fer, 3/10: nada de procesos que
 -- corran porque sí). 'erp-tareas' se revisa cada 2 minutos pero sólo llama a
 -- /api/erp/tareas si hay algo pendiente de verdad (facturar un pedido, un
@@ -378,6 +399,10 @@ declare
                  where e.tipo = 'stock_bajo_umbral' and e.procesado_ts is null and c.tipo = 'mercadolibre'
                    and coalesce((c.config ->> 'sincronizar_stock')::boolean, false))
      or exists (select 1 from public.stock_cambio_pendiente where creado_ts < now() - interval '1 minute')
+     or exists (select 1 from public.ml_consulta where estado = 'pendiente')
+     or exists (select 1 from public.ml_preparacion where estado = 'pendiente' or (estado = 'trabajando' and tomada_ts < now() - interval '5 minutes'))
+     or exists (select 1 from public.ml_agrupado_auto a where a.estado = 'andando' and a.proxima_ts <= now()
+                   and not exists (select 1 from public.ml_cola q where q.canal_id = a.canal_id and q.lote_id is not null and q.estado in ('pendiente', 'enviando')))
      -- Motivos de revisión de ML sin leer en el último día (lib/mercadolibre/moderaciones.ts).
      or exists (select 1 from public.meli_item m left join public.meli_moderacion mm on mm.canal_id = m.canal_id and mm.item_id = m.item_id
                  where m.estado = 'under_review' and (mm.leido_ts is null or mm.leido_ts < now() - interval '1 day'))
@@ -603,3 +628,143 @@ create table if not exists video_ml (
   creado_ts        timestamptz not null default now()
 );
 alter table video_ml enable row level security;
+
+-- ── Ventas en camino (lib/mercadolibre/stock.ts) ───────────
+-- ML avisa que cambió una publicación unos segundos antes que la orden. Si en
+-- ese aviso subieron sus vendidos, la venta ya pasó: se anota acá y el stock de
+-- las demás cuentas se ajusta sin esperar la orden. `desde_ts`: cuándo se
+-- habían leído los vendidos anteriores (lo que entró como pedido después de
+-- eso ya está descontado del stock y no se vuelve a contar).
+create table if not exists ml_venta_en_camino (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  item_id          text not null,
+  variation_id     text not null default '',
+  variacion_id     bigint not null references variacion(id) on delete cascade,
+  vendidas         int not null,
+  desde_ts         timestamptz not null,
+  creado_ts        timestamptz not null default now()
+);
+create index if not exists ml_venta_en_camino_var on ml_venta_en_camino (organizacion_id, variacion_id, creado_ts);
+alter table ml_venta_en_camino enable row level security;
+select erp_politica_org('ml_venta_en_camino');
+
+/** Compara los vendidos que trae ML con los guardados en meli_item y, si
+ *  subieron en una publicación vinculada, anota la venta en camino y guarda
+ *  los nuevos. Todo con la fila tomada: dos avisos a la vez no la cuentan dos
+ *  veces. Devuelve la variación de Laucen si anotó algo (si no, null). */
+create or replace function public.ml_anotar_vendidos(p_org text, p_canal bigint, p_item text, p_variation text, p_vendidos int)
+returns bigint language plpgsql as $$
+declare
+  m record;
+  v bigint;
+begin
+  select vendidos, actualizado_ts into m from meli_item
+   where canal_id = p_canal and item_id = p_item and variation_id = p_variation and organizacion_id = p_org
+   for update;
+  if not found or m.vendidos is null or p_vendidos is null or p_vendidos <= m.vendidos then return null; end if;
+  select variacion_id into v from publicacion
+   where organizacion_id = p_org and canal_id = p_canal and id_externo = p_item and coalesce(variacion_externa, '') = p_variation
+     and estado <> 'cerrada'
+   order by id limit 1;
+  update meli_item set vendidos = p_vendidos, actualizado_ts = now()
+   where canal_id = p_canal and item_id = p_item and variation_id = p_variation;
+  if v is null then return null; end if;
+  insert into ml_venta_en_camino (organizacion_id, canal_id, item_id, variation_id, variacion_id, vendidas, desde_ts)
+  values (p_org, p_canal, p_item, p_variation, v, p_vendidos - m.vendidos, m.actualizado_ts);
+  delete from ml_venta_en_camino where organizacion_id = p_org and creado_ts < now() - interval '1 day';
+  return v;
+end $$;
+
+-- ── Mensajes que ML rechazó desde Laucen (lib/mercadolibre/mensajes.ts) ──
+-- ML rechazó con «the format is not allowed» mensajes desde la pantalla que por la cola salían (22/10). Se guarda
+-- lo que se mandó, con el código de cada carácter, para encontrar la causa si vuelve a pasar.
+create table if not exists ml_mensaje_rechazado (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint,
+  pack_id          text not null,
+  ruta             text not null,
+  cuerpo           jsonb not null,
+  codigos          text,
+  error            text,
+  creado_ts        timestamptz not null default now()
+);
+alter table ml_mensaje_rechazado enable row level security;
+select erp_politica_org('ml_mensaje_rechazado');
+
+-- ── Títulos revisados con IA (lib/mercadolibre/titulos-ia.ts) ──
+-- Cada producto de ML (user_product_id) de una cuenta que la IA ya revisó: no se vuelve a revisar por 30 días.
+create table if not exists ml_titulo_revisado (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  up               text not null,
+  titulo_antes     text,
+  titulo_ia        text,
+  revisado_ts      timestamptz not null default now(),
+  primary key (canal_id, up)
+);
+alter table ml_titulo_revisado enable row level security;
+select erp_politica_org('ml_titulo_revisado');
+
+-- ── Lotes que pide preparar una sesión (lib/mercadolibre/preparaciones.ts) ──
+-- Una sesión de Code no tiene la llave de las cuentas: anota acá qué lote hay que armar (agrupar planes, eliminar los
+-- viejos ya agrupados, revisar títulos con IA) y el proceso de fondo (/api/erp/tareas) lo arma. Sólo PREPARA: el lote
+-- queda «Preparado, falta tu clic» y nada sale a Mercado Libre sin el clic de Fer.
+create table if not exists ml_preparacion (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  tipo             text not null check (tipo in ('agrupar', 'cierre_agrupados', 'titulos')),
+  max              int,
+  motivo           text,
+  pedido_por       text,
+  estado           text not null default 'pendiente' check (estado in ('pendiente', 'trabajando', 'hecha', 'error')),
+  resultado        jsonb,
+  creado_ts        timestamptz not null default now(),
+  tomada_ts        timestamptz,
+  hecha_ts         timestamptz
+);
+create index if not exists ml_preparacion_pendiente on ml_preparacion (id) where estado in ('pendiente', 'trabajando');
+alter table ml_preparacion enable row level security;
+select erp_politica_org('ml_preparacion');
+
+-- ── Agrupado automático de planes, en tandas (lib/mercadolibre/agrupado-auto.ts; Fer, 22/10) ──
+-- Un solo clic de Fer (Configuración › Cola de Mercado Libre, pestaña Lotes preparados) autoriza agrupar todas las
+-- cuentas: el proceso de fondo arma y manda de a una tanda por cuenta (los planes viejos ya agrupados que se
+-- eliminan, o hasta 25 altas agrupadas), espera que salga entera y un rato más, y sigue con la próxima. «Frenar» lo para.
+create table if not exists ml_agrupado_auto (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  estado           text not null default 'andando' check (estado in ('andando', 'frenado', 'terminado')),
+  autorizado_por   text,
+  autorizado_ts    timestamptz not null default now(),
+  proxima_ts       timestamptz not null default now(),
+  lote_id          bigint,
+  tandas           int not null default 0,
+  altas            int not null default 0,
+  cierres          int not null default 0,
+  rechazadas       jsonb not null default '{}'::jsonb,
+  ultimo_error     text,
+  terminado_ts     timestamptz,
+  primary key (organizacion_id, canal_id)
+);
+alter table ml_agrupado_auto enable row level security;
+select erp_politica_org('ml_agrupado_auto');
+
+-- ── Madre nueva de un producto en una cuenta (lib/mercadolibre/agrupado-auto.ts; Fer, 22/10) ──
+-- Cuando una copia exacta de la madre no queda en su producto de ML (la madre tiene características que ML ya no
+-- acepta en un alta), el producto de ML de esa copia pasa a ser la madre: ahí se crean los demás planes, y la
+-- madre vieja queda sola (si no tiene ventas, se elimina con el resto de los planes viejos).
+create table if not exists ml_madre_nueva (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  sku              text not null,
+  up               text not null,
+  madre_vieja      text,
+  creado_ts        timestamptz not null default now(),
+  primary key (canal_id, sku)
+);
+alter table ml_madre_nueva enable row level security;
+select erp_politica_org('ml_madre_nueva');

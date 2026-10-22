@@ -9,6 +9,8 @@ import { textosCanal, instruccionesExtra, conFirma, agregarFirma } from "@/lib/c
 import { igualALaSugerencia, leerPropuesta, FORMATO_IA, type EstadoIa } from "@/lib/mercadolibre/sugerencia";
 import { respuestaAuto } from "@/lib/mercadolibre/respuesta-auto";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
+import { SQL_SIN_RESPONDER } from "@/lib/mercadolibre/sql-mensajes";
+export { SQL_SIN_RESPONDER };
 import { pedirClaude, hayClaude } from "@/lib/claude";
 import { ml, mlOk, cuentaDelCanal, type CuentaMl } from "@/lib/mercadolibre/api";
 
@@ -58,7 +60,31 @@ export async function importarConversacion(cuenta: CuentaMl, packId: string, mar
      where c.organizacion_id = $1 and c.pack_id = $2 and c.sugerencia is not null
        and exists (select 1 from meli_mensaje m where m.organizacion_id = c.organizacion_id and m.pack_id = c.pack_id
                       and not m.de_vendedor and m.fecha > c.sugerencia_ts)`, [org, packId]);
+  // Contestada desde la web de ML (ML no avisa los mensajes del vendedor; entran al releer): la propuesta de la IA ya no va.
+  await consulta(`
+    update meli_conversacion c set sugerencia = null
+     where c.organizacion_id = $1 and c.pack_id = $2 and c.sugerencia is not null
+       and (select m.de_vendedor from meli_mensaje m where m.organizacion_id = c.organizacion_id and m.pack_id = c.pack_id order by m.fecha desc limit 1)`, [org, packId]);
   return (r.datos.messages ?? []).length;
+}
+
+
+/** ML no avisa los mensajes que el vendedor manda desde su web: las conversaciones que esperan respuesta se
+ *  releen (en el barrido de media hora y al abrirlas), así una contestada desde ML deja de figurar sin responder. */
+export async function releerSinResponder(cuenta: CuentaMl, hastaMs: number, max = 30): Promise<number> {
+  if (!cuenta.canalId) return 0;
+  const packs = await consulta<{ pack_id: string }>(`
+    select c.pack_id from meli_conversacion c where c.organizacion_id = $1 and c.canal_id = $2 and ${SQL_SIN_RESPONDER("c")}
+     order by c.ultimo_ts desc limit $3`, [cuenta.organizacionId, cuenta.canalId, max]);
+  let n = 0;
+  for (const p of packs) {
+    if (Date.now() > hastaMs) break;
+    // Conserva lo ya leído en Laucen (releer recalcula «sin leer» con lo que dice ML).
+    const leida = await una("select 1 from meli_conversacion where organizacion_id = $1 and pack_id = $2 and sin_leer = 0", [cuenta.organizacionId, p.pack_id]);
+    try { await importarConversacion(cuenta, p.pack_id); n++; } catch { /* sigue con las demás */ }
+    if (leida) await consulta("update meli_conversacion set sin_leer = 0 where organizacion_id = $1 and pack_id = $2", [cuenta.organizacionId, p.pack_id]);
+  }
+  return n;
 }
 
 /** Desde una notificación "messages": el recurso es el id del mensaje; de
@@ -71,6 +97,21 @@ export async function importarMensaje(cuenta: CuentaMl, recurso: string) {
   const pack = m.message_resources?.find((x) => x.name === "packs" || x.name === "orders")?.id;
   if (!pack) throw new Error(`mensaje ${id}: no dice de qué pedido es`);
   await importarConversacion(cuenta, pack);
+  await revisarFacturaDeLaVenta(cuenta, pack);
+}
+
+/** Llegó un mensaje del comprador: si la venta ya está facturada y pide un cambio de la factura (otro CUIT, factura A,
+ *  el envío…), se refactura en el acto; si la factura todavía no salió, no se hace nada (la revisión corre al facturar).
+ *  No tira: la tarea periódica es la red de seguridad. */
+async function revisarFacturaDeLaVenta(cuenta: CuentaMl, pack: string | number) {
+  try {
+    const p = await una<{ id: number }>("select pedido_id::int id from meli_conversacion where organizacion_id = $1 and pack_id = $2 and pedido_id is not null", [cuenta.organizacionId, String(pack)]);
+    if (!p) return;
+    const { revisarFacturadas } = await import("@/lib/facturacion/revision");
+    await revisarFacturadas(cuenta.organizacionId, Date.now() + 45_000, p.id);
+  } catch (e) {
+    console.error("[revisión de la factura al llegar el mensaje]", e instanceof Error ? e.message : e);
+  }
 }
 
 const INSTRUCCIONES = `Sos quien atiende la posventa de una tienda argentina en Mercado Libre. Escribí la próxima respuesta al comprador, en castellano rioplatense, cordial y breve (1 a 4 oraciones, máximo 350 caracteres, que es el límite de ML).
@@ -79,6 +120,32 @@ Usá SOLO los datos del pedido y del envío que te paso; no prometas fechas que 
 Si traigo productos_pedidos, el comprador pide también otros productos: cada uno trae las publicaciones nuestras que se encontraron (con link, plan y stock disponible) o ninguna. Usá sólo esos datos; qué decir según haya o no stock lo dicen las reglas de la tienda. Un solo link por producto, el de la primera con stock.
 Mirá toda la conversación: si en cualquier mensaje el comprador pidió hablar con una persona, el estado es "persona".
 ${FORMATO_IA}`;
+
+/** La compra leída de ML (sólo lectura) cuando no está en Laucen: una venta anterior al día desde el que se traen
+ *  pedidos (Fer, 22/10: sin ella la IA no sabía qué producto era y contestó genérico). Lo que diga la venta: producto,
+ *  cantidad, garantía con que se vendió, fecha y estado. Si ML no la da, null. */
+async function compraDeMl(org: string, canalId: string | null, packId: string): Promise<Record<string, unknown> | null> {
+  const cuenta = canalId ? await cuentaDelCanal(org, Number(canalId)) : null;
+  if (!cuenta) return null;
+  type OrdenMl = { date_created?: string; status?: string; tags?: string[];
+    order_items?: { quantity?: number; item?: { title?: string; warranty?: string | null; seller_sku?: string | null } }[] };
+  let ordenes: OrdenMl[] = [];
+  const o = await ml<OrdenMl>(cuenta, "GET", `/orders/${packId}`).catch(() => null);
+  if (o?.status === 200) ordenes = [o.datos];
+  else {
+    const pack = await ml<{ orders?: { id: number }[] }>(cuenta, "GET", `/packs/${packId}`).catch(() => null);
+    for (const x of pack?.status === 200 ? pack.datos.orders ?? [] : []) {
+      const r = await ml<OrdenMl>(cuenta, "GET", `/orders/${x.id}`).catch(() => null);
+      if (r?.status === 200) ordenes.push(r.datos);
+    }
+  }
+  if (!ordenes.length) return null;
+  return {
+    nota: "Compra anterior a Laucen: leída de Mercado Libre",
+    fecha: ordenes[0].date_created ?? null, estado: ordenes[0].status ?? null, entregado: ordenes.some((x) => x.tags?.includes("delivered")),
+    lineas: ordenes.flatMap((x) => (x.order_items ?? []).map((l) => ({ titulo: l.item?.title ?? null, cantidad: l.quantity ?? null, garantia: l.item?.warranty ?? null }))),
+  };
+}
 
 export async function sugerirMensaje(org: string, packId: string): Promise<{ texto: string; estado: EstadoIa }> {
   if (!hayClaude()) throw new ErrorErp("Falta la llave de Claude: no se puede sugerir la respuesta.");
@@ -90,7 +157,7 @@ export async function sugerirMensaje(org: string, packId: string): Promise<{ tex
     select p.estado, p.fecha, p.total_ars, (select json_agg(json_build_object('titulo', l.titulo, 'cantidad', l.cantidad)) from pedido_linea l where l.pedido_id = p.id) lineas,
            (select json_build_object('estado', e.estado, 'subestado', e.subestado, 'logistica', e.logistica, 'tracking', e.tracking, 'entrega_estimada', e.entrega_estimada)
               from envio e where e.pedido_id = p.id order by e.id desc limit 1) envio
-      from pedido p where p.id = $1`, [conv.pedido_id]) : null;
+      from pedido p where p.id = $1`, [conv.pedido_id]) : await compraDeMl(org, conv?.canal_id ?? null, packId);
   // ¿Pide otros productos? Se buscan entre las publicaciones de esta cuenta (lib/mercadolibre/productos-pedidos.ts).
   const ultimo = mensajes[mensajes.length - 1];
   const delComprador = mensajes.filter((m) => !m.de_vendedor && m.texto).slice(-3).map((m) => m.texto).join("\n");
@@ -151,6 +218,18 @@ export async function sugerirMensajesPendientes(opts: { org?: string; max?: numb
   return res;
 }
 
+/** El texto de un mensaje como lo acepta Mercado Libre (sólo letras latinas, ISO-8859-1): saltos de renglón simples,
+ *  espacios comunes, sin caracteres invisibles ni de control, y la puntuación «tipográfica» en su forma simple. Puro. */
+export function textoParaMl(s: string): string {
+  return s.replace(/\r\n?/g, "\n")
+    .replace(/[\u00A0\u2007\u202F\u2000-\u200A]/g, " ")
+    .replace(/[\u200B-\u200D\u2060\uFEFF\u00AD]/g, "")
+    .replace(/[\u201C\u201D\u201E]/g, '"').replace(/[\u2018\u2019\u201A]/g, "'")
+    .replace(/\u2026/g, "...").replace(/[\u2013\u2014]/g, "-")
+    .replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, "")
+    .replace(/[ ]+\n/g, "\n").trim();
+}
+
 /** Manda un mensaje al comprador del pack. Sin usuario y con `auto`: lo mandó la IA sola. */
 export async function enviarMensaje(org: string, packId: string, texto: string, usuarioId: string | null = null, o: { auto?: boolean } = {}) {
   if (!texto.trim()) throw new ErrorErp("El mensaje está vacío.");
@@ -158,7 +237,8 @@ export async function enviarMensaje(org: string, packId: string, texto: string, 
   if (!conv) throw new ErrorErp("La conversación no existe.");
   // La firma del canal va siempre, la escriba una persona o la IA (si ya la trae, no se repite).
   const firma = (await textosCanal(org, conv.canal_id)).firma;
-  const t = agregarFirma(texto, firma);
+  // Tal como lo acepta siempre ML (el mismo texto mandado por la cola salía y desde la caja de la pantalla no: 22/10).
+  const t = textoParaMl(agregarFirma(textoParaMl(texto), firma));
   if (t.length > 350) {
     throw new ErrorErp(t !== texto.trim()
       ? `Mercado Libre acepta hasta 350 caracteres por mensaje, contando la firma (${firma.trim().length + 1}): acortá el texto a ${349 - firma.trim().length}.`
@@ -170,8 +250,20 @@ export async function enviarMensaje(org: string, packId: string, texto: string, 
     ? (await una<{ c: string | null }>("select datos_externos #>> '{ml,orden,buyer,id}' c from pedido where id = $1", [conv.pedido_id]))?.c
     : (await una<{ c: string | null }>("select datos_externos #>> '{ml,from,user_id}' c from meli_mensaje where pack_id = $1 and not de_vendedor limit 1", [packId]))?.c;
   if (!comprador) throw new ErrorErp("No se sabe quién es el comprador de esta conversación.");
-  await mlOk(cuenta, "POST", `/messages/packs/${packId}/sellers/${cuenta.meliUserId}?tag=post_sale`,
-    { from: { user_id: cuenta.meliUserId }, to: { user_id: Number(comprador) }, text: t });
+  const ruta = `/messages/packs/${packId}/sellers/${cuenta.meliUserId}?tag=post_sale`;
+  const cuerpo = { from: { user_id: cuenta.meliUserId }, to: { user_id: Number(comprador) }, text: t };
+  await mlOk(cuenta, "POST", ruta, cuerpo).catch(async (e) => {
+    // ML rechazó (403 «the format is not allowed») dos mensajes desde la pantalla que, con el mismo texto y en la
+    // misma conversación, salieron por la cola (Fer, 22/10: pedido 150344 y el pack 2000016634887584). Se limpia el
+    // texto (textoParaMl) y, si vuelve a pasar, queda guardado lo que se mandó, carácter por carácter, para comparar.
+    if (e instanceof ErrorErp && /format is not allowed/i.test(e.message)) {
+      await consulta(`insert into ml_mensaje_rechazado (organizacion_id, canal_id, pack_id, ruta, cuerpo, codigos, error)
+                      values ($1, $2, $3, $4, $5::jsonb, $6, $7)`,
+        [org, conv.canal_id, packId, ruta, JSON.stringify(cuerpo), [...t].map((c) => c.codePointAt(0)!.toString(16)).join(" "), e.message.slice(0, 500)]).catch(() => {});
+      throw new ErrorErp("Mercado Libre no aceptó este mensaje desde Laucen. Mandalo desde Mercado Libre («Ver la venta», arriba); quedó anotado para revisar la causa.");
+    }
+    throw e;
+  });
   await importarConversacion(cuenta, packId, true);
   // Quién lo mandó: el mensaje recién vuelto de ML con ese mismo texto. Si es justo lo que propuso la IA, también "con la IA".
   if (usuarioId) await consulta(`

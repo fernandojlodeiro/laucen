@@ -33,17 +33,17 @@ Título "Rentabilidad por venta" y la aclaración: "Lo vendido, lo que cobró el
 
 ### Recuadros de totales
 
-**Venta**, **Cargos del canal**, **Costo**, **Margen** y **Margen %** de todo lo filtrado.
+**Venta**, **Cargos del canal**, **Costo**, **Flete a Full**, **Almacenamiento Full**, **Margen** y **Margen %** de todo lo filtrado.
 
 Si hay ventas o productos sin costo, o ventas sin cargos de la facturación de ML, aparece un aviso amarillo explicándolo (ver "Criterios y reglas").
 
 ### Tabla "Por venta"
 
-Columnas: **Fecha** (fecha y hora de la venta; enlace al pedido), **Venta** (número del pedido, enlace; debajo, el número de Mercado Libre u otro canal), **Canal**, **Productos** (los títulos de las líneas), **Unidades**, **Venta** (importe), **Cargos**, **Costo** ("sin costo" si algún producto no tiene), **Margen** y **Margen %** (en rojo si son negativos). Orden de entrada: la más reciente primero.
+Columnas: **Fecha** (fecha y hora de la venta; enlace al pedido), **Venta** (número del pedido, enlace; debajo, el número de Mercado Libre u otro canal), **Canal**, **Productos** (los títulos de las líneas), **Unidades**, **Venta** (importe), **Cargos**, **Costo** ("sin costo" si algún producto no tiene), **Flete a Full**, **Almacenamiento Full**, **Margen** y **Margen %** (en rojo si son negativos). Orden de entrada: la más reciente primero.
 
 ### Tabla "Por producto"
 
-Columnas: **Código** (enlace a la ficha del producto), **Producto**, **Ventas** (en cuántas ventas distintas aparece), **Unidades**, **Venta**, **Cargos**, **Costo**, **Margen**, **Margen %**. Orden de entrada: el que más vendió en pesos primero.
+Columnas: **Código** (enlace a la ficha del producto), **Producto**, **Ventas** (en cuántas ventas distintas aparece), **Unidades**, **Venta**, **Cargos**, **Costo**, **Flete a Full**, **Almacenamiento Full**, **Margen**, **Margen %**. Orden de entrada: el que más vendió en pesos primero.
 
 En las dos, se ordena tocando el título de la columna y se ve de a 50 filas con el paginador abajo. Un **asterisco** (*) al lado de los cargos indica que se usó la comisión de la orden porque todavía no hay cargos de la facturación de ML.
 
@@ -92,9 +92,17 @@ Cantidad × costo unitario de la variación, en pesos, según la base elegida:
 - **Costo FOB**: el FOB del producto; si está en pesos va directo, si está en dólares se multiplica por el tipo de cambio del día de la venta.
 - **Costo estimado**: con la caja «Sin costo: estimar con FOB + 40 %» tildada, si el producto no tiene el costo elegido pero sí FOB, se toma el FOB (pasado a pesos como arriba) más un 40 % por flete, courier e impuestos. Es una referencia hasta que el producto tenga su costo calculado: se ve con **≈** delante, en ámbar, y el aviso de arriba dice cuántas ventas o productos lo usan. En el Excel, la columna «Costo estimado (FOB + 40 %)» dice «Sí».
 
+### Flete a Full
+
+Lo que se vendió desde el depósito Full de una cuenta de Mercado Libre lleva el flete del envío a Full: cantidad × flete por unidad del último envío de ese producto a esa cuenta despachado hasta el día de la venta (si la venta es anterior a todos los envíos, el del primero). El flete por unidad sale del flete cargado en el envío, repartido entre sus productos (ver [Envíos a Full](/stock/full)). Las ventas que no salen de Full no llevan flete a Full.
+
+### Almacenamiento Full
+
+Lo que se vendió desde el depósito Full de una cuenta lleva lo que costó tener ese producto en Full: el almacenamiento de ese mes (lo que cobró Mercado Libre repartido por producto, o estimado si todavía no lo facturó) dividido por las unidades vendidas desde Full ese mes, por la cantidad de la venta. Ver [Envíos a Full](/stock/full/costos).
+
 ### Margen
 
-- **Margen** = Venta − Cargos − Costo.
+- **Margen** = Venta − Cargos − Costo − Flete a Full − Almacenamiento Full.
 - **Margen %** = Margen ÷ Venta × 100, con un decimal.
 - Si en una venta (o producto) hay **alguna línea sin costo**, su margen y su margen % no se calculan (se ve "—") y en Costo dice "sin costo".
 - En los **recuadros de totales**, el costo suma lo que haya (las filas sin costo completo suman sólo la parte que tiene costo), así que con productos sin costo **el margen total queda más alto de lo real**. El aviso amarillo dice cuántas ventas o productos están en esa situación.

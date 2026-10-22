@@ -14,7 +14,7 @@ export default async function EtiquetasUbicaciones({ searchParams }: { searchPar
   const s = await entrarErp("etiquetas_ver");
   const sp = await searchParams;
   const depositos = await consulta<{ id: number; nombre: string }>(
-    "select id::int, nombre from deposito where organizacion_id = $1 and estado = 'activo' and tipo <> 'full_ml' order by id", [s.org.id]);
+    "select id::int, nombre from deposito where organizacion_id = $1 and estado = 'activo' and tipo not in ('full_ml', 'transito') order by id", [s.org.id]);
   const dep = depositos.find((d) => d.id === Number(sp.d)) ?? depositos[0];
   const ubicaciones = dep ? await consulta<{ id: number; codigo: string; descripcion: string | null; es_default: boolean }>(`
     select id::int, codigo, descripcion, es_default from ubicacion

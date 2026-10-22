@@ -41,9 +41,9 @@ export function urlDeAutorizacion(clientId: string, state: string, challenge: st
   return `${AUTORIZAR}?${q}`;
 }
 
-type Token = { access_token: string; refresh_token?: string; expires_in: number; user_id: number };
+export type Token = { access_token: string; refresh_token?: string; expires_in: number; user_id: number };
 
-async function pedirToken(campos: Record<string, string>): Promise<Token> {
+export async function pedirToken(campos: Record<string, string>): Promise<Token> {
   const r = await fetch(`${API_MP}/oauth/token`, {
     method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
     body: new URLSearchParams(campos), cache: "no-store", signal: AbortSignal.timeout(20_000),

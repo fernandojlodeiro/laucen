@@ -19,7 +19,7 @@ export async function opcionesDespacho(org: string) {
     // Primero los del exterior (país distinto de AR).
     consulta<{ id: number; nombre: string; pais: string }>(
       "select id::int, nombre, pais from proveedor where organizacion_id = $1 and estado = 'activo' order by (pais = 'AR'), nombre", [org]),
-    consulta<{ id: number; nombre: string }>("select id::int, nombre from deposito where organizacion_id = $1 and estado = 'activo' and tipo <> 'full_ml' order by id", [org]),
+    consulta<{ id: number; nombre: string }>("select id::int, nombre from deposito where organizacion_id = $1 and estado = 'activo' and tipo not in ('full_ml', 'transito') order by id", [org]),
     tcDelDia(org),
     emisoresDe(org),
   ]);

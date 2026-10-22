@@ -4,7 +4,7 @@
 // ficha del cliente y la revisión antes de facturar (lib/facturacion/revision.ts).
 
 import { una, enTransaccion, ErrorErp } from "@/lib/erp/base";
-import { emisorConPadron } from "@/lib/arca/facturar";
+import { emisoresConPadron } from "@/lib/arca/facturar";
 import { consultarCuit, type Persona } from "@/lib/arca/padron";
 
 export const CONDICIONES_IVA_TEXTO: Record<string, string> = {
@@ -16,10 +16,23 @@ export async function padronAlCliente(org: string, clienteId: number, cuit: stri
   const c = await una<{ razon_social: string | null; condicion_iva: string | null; cuit: string | null }>(
     "select razon_social, condicion_iva, cuit from cliente where id = $1 and organizacion_id = $2", [clienteId, org]);
   if (!c) throw new ErrorErp("El cliente no existe.");
-  // Cualquier razón social conectada con ARCA sirve para consultar el padrón.
-  const e = await emisorConPadron(org);
-  if (!e) throw new ErrorErp("Para consultar el padrón hace falta una razón social conectada con ARCA (Configuración → Facturación (ARCA)).");
-  const p = await consultarCuit(e.id, e.ambiente, e.cuit, cuit);
+  // Cualquier razón social conectada con ARCA sirve para consultar el padrón: se prueba con cada una hasta que alguna conteste.
+  const emisores = await emisoresConPadron(org);
+  if (!emisores.length) throw new ErrorErp("Para consultar el padrón hace falta una razón social conectada con ARCA (Configuración → Facturación (ARCA)).");
+  let p: Persona | null = null;
+  const fallas: string[] = [];
+  for (const e of emisores) {
+    try { p = await consultarCuit(e.id, e.ambiente, e.cuit, cuit); break; }
+    catch (err) {
+      const m = err instanceof Error ? err.message : String(err);
+      // El CUIT consultado no existe o no está en el padrón: con otra razón social daría lo mismo.
+      if (!/no autorizado a acceder al servicio|certificado|login|no responde/i.test(m)) throw err;
+      fallas.push(/no autorizado a acceder al servicio/i.test(m) ? `${e.razon_social}: el certificado no tiene habilitado el servicio de consulta de padrón` : `${e.razon_social}: ${m}`);
+    }
+  }
+  if (!p) {
+    throw new ErrorErp(`No se pudo consultar el padrón de ARCA (${fallas.join("; ")}). Para habilitarlo: en ARCA, Administrador de Relaciones de Clave Fiscal, asociar al certificado de Laucen el servicio «ws_sr_constancia_inscripcion» (Consulta de Constancia de Inscripción).`);
+  }
   const cambios: string[] = [];
   if ((c.cuit ?? "").replace(/\D/g, "") !== p.cuit.replace(/\D/g, "")) cambios.push(`CUIT: ${p.cuit}`);
   if (p.razonSocial !== c.razon_social) cambios.push(`razón social: ${p.razonSocial}`);

@@ -26,7 +26,7 @@ export default async function Recepcion({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const [depositos, proveedores, filas] = await Promise.all([
     consulta<{ id: number; nombre: string }>(
-      "select id::int, nombre from deposito where organizacion_id = $1 and estado = 'activo' and tipo <> 'full_ml' order by id", [s.org.id]),
+      "select id::int, nombre from deposito where organizacion_id = $1 and estado = 'activo' and tipo not in ('full_ml', 'transito') order by id", [s.org.id]),
     consulta<{ id: number; nombre: string }>(
       "select id::int, nombre from proveedor where organizacion_id = $1 and estado = 'activo' order by nombre", [s.org.id]),
     consulta<Fila>(`

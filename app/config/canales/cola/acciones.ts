@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, id, texto } from "@/lib/erp/acciones";
 import { reintentarErrores, descartar, mandarLote, descartarLote, sacarDelLote } from "@/lib/mercadolibre/cola";
+import { autorizarAgrupado, frenarAgrupado } from "@/lib/mercadolibre/agrupado-auto";
 
 const BASE = "/config/canales/cola";
 const volver = (fd: FormData) => {
@@ -64,5 +65,24 @@ export async function accionSacarDelLote(fd: FormData) {
     const quedan = await sacarDelLote(s.org.id, id(fd, "id"));
     revalidatePath(BASE);
     return quedan ? `Sacado del lote: no se manda. Quedan ${quedan} en el lote.` : "Sacado del lote. No quedaba nada más: el lote quedó descartado.";
+  });
+}
+
+/** El clic de Fer que autoriza agrupar los planes de todas las cuentas, de a tandas (lib/mercadolibre/agrupado-auto.ts). */
+export async function accionAgruparTodo(fd: FormData) {
+  const s = await entrarErp("canales_ver");
+  await intentar(volver(fd), async () => {
+    const n = await autorizarAgrupado(s.org.id, s.usuario.id);
+    revalidatePath(BASE);
+    return n ? `Agrupado en marcha en ${n} cuenta${n === 1 ? "" : "s"}: sale de a tandas, solo. El avance queda en este recuadro.` : "No hay cuentas de Mercado Libre conectadas.";
+  });
+}
+
+export async function accionFrenarAgrupado(fd: FormData) {
+  const s = await entrarErp("canales_ver");
+  await intentar(volver(fd), async () => {
+    const n = await frenarAgrupado(s.org.id);
+    revalidatePath(BASE);
+    return n ? "Frenado: no sale ninguna tanda más (lo que ya estaba en la cola termina de salir)." : "No estaba andando.";
   });
 }
