@@ -20,9 +20,8 @@ import { fecha, TONO_ESTADO, TIPOS_CLIENTE, CONDICIONES_IVA, etiqueta } from "@/
 import CamposCliente, { AYUDA_LISTA } from "../CamposCliente";
 import {
   accionGuardarCliente, accionBorrarCliente, accionAgregarDireccion, accionGuardarDireccion,
-  accionDireccionPrincipal, accionBorrarDireccion, accionQuitarIdentidad, accionValidarPadron,
+  accionDireccionPrincipal, accionBorrarDireccion, accionQuitarIdentidad,
 } from "../acciones";
-import { emisorConPadron } from "@/lib/arca/facturar";
 import { situacionCc } from "@/lib/administracion/credito";
 import { tienePermiso } from "@/lib/permisos";
 import { formatear } from "@/lib/moneda";
@@ -66,8 +65,6 @@ export default async function FichaCliente({ params, searchParams }: { params: P
   // La ficha abre en vista; ?editar=ficha la edita (?editar=<id> es el lápiz de una dirección).
   const editando = editandoFicha(sp);
   const editar = Number(sp.editar) || 0;
-  // ¿Se puede consultar el padrón de ARCA? Hace falta una razón social conectada.
-  const conPadron = c.cuit ? !!(await emisorConPadron(s.org.id)) : false;
   // Cuenta corriente (Fer, 7/10): habilitarla y su límite, sólo con el permiso «cc_asignar».
   const puedeCc = tienePermiso(s.permisos, "cc_asignar");
   const cc = c.cuenta_corriente || c.limite_cc != null ? await situacionCc(s.org.id, cid) : null;
@@ -130,16 +127,7 @@ export default async function FichaCliente({ params, searchParams }: { params: P
           <Dato etiqueta="Apellido del contacto">{c.apellido}</Dato>
           <Dato etiqueta="Nombre del contacto">{c.nombre_pila}</Dato>
           <Dato etiqueta="Apodo en Mercado Libre">{c.apodo_ml}</Dato>
-          <div>
-            <Dato etiqueta="CUIT / CUIL">{c.cuit ? cuitLegible(c.cuit) : null}</Dato>
-            {conPadron && (
-              <form action={accionValidarPadron} className="mt-1">
-                <input type="hidden" name="id" value={cid} />
-                <button className={SUAVE}>Validar en el padrón de ARCA</button>
-                <span className="block text-[10px] text-[#5C6B76] mt-0.5">Trae razón social, condición IVA y domicilio fiscal del CUIT guardado.</span>
-              </form>
-            )}
-          </div>
+          <Dato etiqueta="CUIT / CUIL">{c.cuit ? cuitLegible(c.cuit) : null}</Dato>
           <Dato etiqueta={`DNI${c.documento_numero && c.documento_tipo && c.documento_tipo !== "DNI" ? ` (cargado como ${c.documento_tipo})` : ""}`}>{c.documento_numero}</Dato>
           <Dato etiqueta="Condición IVA">{c.condicion_iva ? etiqueta(CONDICIONES_IVA, c.condicion_iva) : null}</Dato>
           <Dato etiqueta="Mail">{c.email}</Dato>

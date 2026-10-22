@@ -152,7 +152,8 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   const aCobrar = p.estado_pago === "a_cobrar" && !CERRADOS.includes(p.estado);
   // Retiro ya preparado (Fer, 7/10): «Cliente presente: retira» cobra si hace falta, entrega y factura en un clic.
   const clientePresente = p.retiro && p.estado === "preparado";
-  const entregarYCobrar = aCobrar && clientePresente;
+  // Sin pagar y no a cuenta corriente: al retirar se elige con qué pagó (clientePresenteRetira lo exige).
+  const pideMedio = clientePresente && !["pagado", "a_convenir"].includes(p.estado_pago);
   // Seguimiento automático (OCA): despachado y entregado los marca el transportista, sin botones.
   const automatico = p.seguimiento === "automatico";
 
@@ -177,7 +178,7 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
         {clientePresente && (
           <form action={accionClientePresente} className="flex flex-wrap items-end gap-2">
             <input type="hidden" name="pedido_id" value={pid} />
-            {entregarYCobrar && (
+            {pideMedio && (
               <label><span className={ETIQUETA}>Cobró con</span>
                 <select name="medio" defaultValue={medioSugerido} className={CAMPO} required>
                   {!medioSugerido && <option value="">Elegí…</option>}
@@ -185,7 +186,7 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
                 </select></label>
             )}
             <BotonEnviar clase={VERDE} corriendo="Entregando y facturando…">
-              {entregarYCobrar ? `Cliente presente: retira y paga ${formatear(p.total_ars, "ARS")}` : "Cliente presente: retira"}
+              {pideMedio ? `Cliente presente: retira y paga ${formatear(p.total_ars, "ARS")}` : "Cliente presente: retira"}
             </BotonEnviar>
             <span className="text-[11px] text-[#5C6B76]">Queda entregado y, si no tiene factura, se factura en el momento.</span>
           </form>
@@ -193,7 +194,7 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
         {automatico && ["preparado", "despachado"].includes(p.estado) && (
           <p className="text-[11px] text-[#5C6B76]">El envío lo sigue el transportista: el pedido pasa solo a «Despachado» cuando lo retiran y a «Entregado» cuando lo entregan.</p>
         )}
-        {pagoPendiente && !entregarYCobrar && (
+        {pagoPendiente && !pideMedio && (
           <form action={accionConfirmarPago} className="flex flex-wrap items-end gap-2">
             <input type="hidden" name="pedido_id" value={pid} />
             <label><span className={ETIQUETA}>Pagó con</span>

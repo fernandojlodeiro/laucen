@@ -95,48 +95,81 @@ function CuadroBusqueda({ b, placeholder, alEnter, alFlecha, id }: {
   );
 }
 
-/** Alta rápida de un cliente que no apareció en el buscador: pide los datos ahí mismo. */
-function ClienteNuevo({ nombreInicial, alCrear, alCerrar }: { nombreInicial: string; alCrear: (c: ClienteHallado) => void; alCerrar: () => void }) {
-  const [v, setV] = useState({ nombre: nombreInicial, tipo: "consumidor_final", documentoTipo: "DNI", documentoNumero: "", email: "", telefono: "" });
+/** Alta rápida de un cliente que no apareció en el buscador: pide ahí mismo los datos principales de la
+ *  ficha (Fer, 22/10: CUIT / CUIL y DNI por separado, sin desplegable de tipo de documento). */
+function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerrar }: {
+  nombreInicial: string; documentoInicial: string; alCrear: (c: ClienteHallado) => void; alCerrar: () => void;
+}) {
+  // Si lo que se buscó era un número, va a su campo: 11 cifras = CUIT, si no, DNI.
+  const cifras = documentoInicial.replace(/\D/g, "");
+  const [v, setV] = useState({
+    nombre: nombreInicial, tipo: "consumidor_final", cuit: cifras.length === 11 ? documentoInicial : "", dni: cifras && cifras.length !== 11 ? documentoInicial : "",
+    condicionIva: "", email: "", telefono: "", whatsapp: "",
+  });
   const [error, setError] = useState("");
+  // Los que ya están cargados con esos datos (mismo CUIT, DNI o razón social): se ofrece elegirlos.
+  const [repetidos, setRepetidos] = useState<ClienteHallado[]>([]);
+  const [forzable, setForzable] = useState(false);
   const [grabando, grabar] = useTransition();
-  const poner = (k: keyof typeof v) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }));
-  const guardar = () => {
-    setError("");
+  const poner = (k: keyof typeof v) => (e: { target: { value: string } }) => { setV((x) => ({ ...x, [k]: e.target.value })); setRepetidos([]); };
+  const sinEnter = (e: React.KeyboardEvent) => { if (e.key === "Enter") e.preventDefault(); };
+  const campo = (k: keyof typeof v, etiqueta: string, extra: { placeholder?: string; className?: string; autoFocus?: boolean } = {}) => (
+    <label className={extra.className}><span className={ETIQUETA}>{etiqueta}</span>
+      <input value={v[k]} onChange={poner(k)} onKeyDown={sinEnter} placeholder={extra.placeholder} autoFocus={extra.autoFocus} className={`${CAMPO} w-full`} /></label>
+  );
+  const guardar = (igual = false) => {
+    setError(""); setRepetidos([]);
     grabar(async () => {
-      const r = await crearClienteDesdePedido(v);
-      if (r.cliente) alCrear(r.cliente); else setError(r.error ?? "No se pudo crear el cliente.");
+      const r = await crearClienteDesdePedido({ ...v, igual });
+      if (r.cliente) return alCrear(r.cliente);
+      setError(r.error ?? "No se pudo crear el cliente.");
+      setRepetidos(r.repetidos ?? []); setForzable(!!r.forzable);
     });
   };
   return (
     <div className="mt-2 max-w-xl rounded-xl border border-[#C9D3DD] bg-[#FAFBFC] p-3 grid gap-2">
       <div className="flex items-center justify-between"><b className="text-sm">Cliente nuevo</b>
         <button type="button" onClick={alCerrar} aria-label="Cerrar" className="h-6 w-6 rounded-full text-[#5C6B76] hover:bg-[#E3E9F0] leading-none">×</button></div>
-      {error && <p role="alert" className="rounded-lg px-2 py-1.5 bg-[#FDF1EF] text-[#C03420]">{error}</p>}
-      <label><span className={ETIQUETA}>Nombre o razón social</span>
-        <input value={v.nombre} onChange={poner("nombre")} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className={`${CAMPO} w-full`} autoFocus /></label>
+      {error && (
+        <div role="alert" className="rounded-lg px-2 py-1.5 bg-[#FDF1EF] text-[#C03420] grid gap-1">
+          <span>{error}</span>
+          {repetidos.map((c) => (
+            <div key={c.id} className="flex flex-wrap items-center gap-2 text-[#1B2A35]">
+              <span><span className="text-[#5C6B76]">N.º {c.id} · </span><b>{c.nombre}</b>{c.documento && <span className="text-[#5C6B76]"> · {c.documento}</span>}</span>
+              <button type="button" className={SUAVE} onClick={() => alCrear(c)}>Elegir éste</button>
+            </div>
+          ))}
+          {repetidos.length > 0 && forzable && (
+            <div><button type="button" className={SUAVE} disabled={grabando} onClick={() => guardar(true)}>Es otro cliente: grabarlo igual</button></div>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-2">
-        <label><span className={ETIQUETA}>Documento</span>
-          <select value={v.documentoTipo} onChange={poner("documentoTipo")} className={`${CAMPO} w-full`}>
-            {["DNI", "CUIT", "CUIL", "PASAPORTE", "OTRO"].map((d) => <option key={d}>{d}</option>)}
+        {campo("nombre", "Razón social (sale en la factura)", { className: "col-span-2", autoFocus: true })}
+        <label><span className={ETIQUETA}>Tipo</span>
+          <select value={v.tipo} onChange={poner("tipo")} className={`${CAMPO} w-full`}>
+            <option value="consumidor_final">Minorista</option><option value="mayorista">Mayorista</option>
           </select></label>
-        <label className="col-span-2"><span className={ETIQUETA}>Número</span>
-          <input value={v.documentoNumero} onChange={poner("documentoNumero")} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className={`${CAMPO} w-full`} /></label>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <label><span className={ETIQUETA}>Mail</span>
-          <input value={v.email} onChange={poner("email")} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className={`${CAMPO} w-full`} /></label>
-        <label><span className={ETIQUETA}>Teléfono</span>
-          <input value={v.telefono} onChange={poner("telefono")} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} className={`${CAMPO} w-full`} /></label>
+      <div className="grid grid-cols-3 gap-2">
+        {campo("cuit", "CUIT / CUIL", { placeholder: "20-12345678-9" })}
+        {campo("dni", "DNI", { placeholder: "12345678" })}
+        <label><span className={ETIQUETA}>Condición IVA</span>
+          <select value={v.condicionIva} onChange={poner("condicionIva")} className={`${CAMPO} w-full`}>
+            <option value="">Sin cargar</option>
+            <option value="consumidor_final">Consumidor final</option><option value="responsable_inscripto">Responsable inscripto</option>
+            <option value="monotributo">Monotributo</option><option value="exento">Exento</option><option value="no_responsable">No responsable</option>
+          </select></label>
       </div>
-      <label><span className={ETIQUETA}>Tipo</span>
-        <select value={v.tipo} onChange={poner("tipo")} className={`${CAMPO} w-full`}>
-          <option value="consumidor_final">Minorista</option><option value="mayorista">Mayorista</option>
-        </select></label>
+      <div className="grid grid-cols-3 gap-2">
+        {campo("email", "Mail")}
+        {campo("telefono", "Teléfono")}
+        {campo("whatsapp", "WhatsApp", { placeholder: "351 555-1234" })}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={guardar} disabled={grabando} className={`${PRIMARIO} disabled:opacity-60`}>{grabando ? "Grabando…" : "Grabar y elegir"}</button>
+        <button type="button" onClick={() => guardar()} disabled={grabando} className={`${PRIMARIO} disabled:opacity-60`}>{grabando ? "Grabando…" : "Grabar y elegir"}</button>
         <button type="button" onClick={alCerrar} className={SUAVE}>Cancelar</button>
-        <a href="/ventas/clientes" target="_blank" rel="noreferrer" className="text-[#16577F] underline">Cargarlo con todos los datos (se abre aparte)</a>
+        <a href="/ventas/clientes?nuevo=nuevo-cliente" target="_blank" rel="noreferrer" className="text-[#16577F] underline">Cargarlo con todos los datos (se abre aparte)</a>
       </div>
     </div>
   );
@@ -318,6 +351,9 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
               <input type="radio" name="quien" value="cliente" checked={quien === "cliente"} className="accent-[#16577F]"
                 onChange={() => { setQuien("cliente"); if (cliente) void reprecio(canal, cliente.id); }} /> Un cliente
             </label>
+            {!altaCliente && !(quien === "cliente" && cliente) && (
+              <button type="button" className={SUAVE} onClick={() => { setQuien("cliente"); setAltaCliente(true); }}>+ Cliente nuevo</button>
+            )}
           </div>
         </fieldset>
       </div>
@@ -352,9 +388,10 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
                 </ul>
               )}
               {bCliente.texto.trim().length >= 2 && !bCliente.buscando && !altaCliente && (
-                <button type="button" className={`${SUAVE} mt-2`} onClick={() => setAltaCliente(true)}>+ Cargar cliente nuevo</button>
+                <button type="button" className={`${SUAVE} mt-2`} onClick={() => setAltaCliente(true)}>+ Cliente nuevo</button>
               )}
               {altaCliente && <ClienteNuevo nombreInicial={/\d/.test(bCliente.texto) && !/[a-z]/i.test(bCliente.texto) ? "" : bCliente.texto}
+                documentoInicial={/\d/.test(bCliente.texto) && !/[a-z]/i.test(bCliente.texto) ? bCliente.texto.trim() : ""}
                 alCerrar={() => setAltaCliente(false)} alCrear={(c) => { setAltaCliente(false); elegirCliente(c); }} />}
             </div>
           )}
