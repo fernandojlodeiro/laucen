@@ -13,6 +13,7 @@ import {
   recibirAMano, cerrarEnvio, esCriterio,
 } from "@/lib/full/envios";
 import { leerFull } from "@/lib/full/lectura";
+import { leerCargosFull, guardarTarifa, recalcularCostosFull, esTamano } from "@/lib/full/costos";
 
 const ficha = (envio: number, extra = "") => `/stock/full/${envio}${extra}`;
 const n = (x: number) => formatearNumero(x, "entero");
@@ -150,5 +151,30 @@ export async function accionLeerFull(fd: FormData) {
     if (r.ajustes) partes.push(`${n(r.ajustes)} productos igualados con ML`);
     if (r.errores.length) partes.push(`${n(r.errores.length)} con error (ver la columna «Lectura»)`);
     return partes.join(" · ") + ".";
+  });
+}
+
+/** Una fila de la tabla de tarifas de Full (lápiz de la fila). */
+export async function accionGuardarTarifa(fd: FormData) {
+  const s = await entrarErp("full_ver");
+  await intentar("/stock/full/costos", async () => {
+    const tamano = String(fd.get("tamano") ?? "");
+    if (!esTamano(tamano)) throw new ErrorErp("Ese tamaño no existe.");
+    const v = (k: string) => { const x = numero(fd, k); if (x == null || x < 0) throw new ErrorErp("Poné todos los valores (cero o más)."); return x; };
+    await guardarTarifa(s.org.id, { tamano, almacenamiento_dia: v("almacenamiento_dia"), antiguo_4_6: v("antiguo_4_6"), antiguo_6_12: v("antiguo_6_12"), antiguo_12: v("antiguo_12"), retiro: v("retiro") });
+    await recalcularCostosFull(s.org.id);
+    return { ir: "/stock/full/costos?ok=" + encodeURIComponent("Tarifa grabada; el costo estimado se recalculó.") };
+  });
+}
+
+/** «Leer cargos de ML ahora»: de fondo (5 pedidos por minuto: lee lo que entra y sigue solo después). */
+export async function accionLeerCargos() {
+  const s = await entrarErp("full_ver");
+  return deFondo(s, "full-cargos", "Leer cargos de Full de Mercado Libre", async () => {
+    const r = await leerCargosFull(s.org.id, Date.now() + 50_000, { maxPedidos: 5 });
+    const partes = [`${n(r.periodos)} períodos revisados`, `${n(r.cargos)} cargos leídos`];
+    if (r.abiertos) partes.push(`${n(r.abiertos)} todavía abiertos en ML`);
+    if (r.errores) partes.push(`${n(r.errores)} con error`);
+    return partes.join(" · ") + ". Lo que falta se lee solo cada media hora.";
   });
 }

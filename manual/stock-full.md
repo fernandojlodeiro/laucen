@@ -2,9 +2,9 @@
 titulo: Envíos a Full
 menu: Stock › Envíos a Full
 ruta: /stock/full
-rutas: /stock/full, /stock/full/[id], /stock/full/stock
+rutas: /stock/full, /stock/full/[id], /stock/full/stock, /stock/full/costos
 permiso: full_ver
-resumen: Armar, despachar y seguir los envíos de mercadería a Full de una cuenta de Mercado Libre, cargar su flete y ver lo que hay en Full al lado de lo que dice el sistema.
+resumen: Armar, despachar y seguir los envíos de mercadería a Full de una cuenta de Mercado Libre, cargar su flete, ver lo que hay en Full al lado de lo que dice el sistema y lo que cuesta tenerlo ahí.
 ---
 
 ## Para qué sirve
@@ -22,7 +22,7 @@ El envío también se crea en Mercado Libre, en la Central de vendedores (secci�
 ## Cómo se llega
 
 - Menú **Stock › Envíos a Full**.
-- Arriba, dos pestañas: **Envíos** (la lista de envíos) y **Stock en Full** (lo que hay en Full de cada cuenta).
+- Arriba, tres pestañas: **Envíos** (la lista de envíos), **Stock en Full** (lo que hay en Full de cada cuenta) y **Costos de Full** (las tarifas y lo que cobró Mercado Libre).
 
 ## Qué hay en la pantalla
 
@@ -49,7 +49,14 @@ El envío también se crea en Mercado Libre, en la Central de vendedores (secci�
 - Arriba a la derecha: **«Leer Full ahora»**.
 - Debajo de las pestañas, cuándo se leyó Full por última vez en cada cuenta.
 - Buscador por SKU, título, Código ML o publicación.
-- Columnas (ordenables): **Producto** (foto, SKU, título y la publicación), **Cuenta**, **Código ML**, **Disponible en ML**, **No disponible en ML** (con el detalle: en traslado, dañado, perdido, en retiro…), **En Full según el sistema**, **Diferencia**, **En camino**, **Vendidas** (últimos 60 días en esa cuenta), **Días que cubre** y **Lectura** (hora de la última lectura, o «Error» si Mercado Libre no contestó).
+- Columnas (ordenables): **Producto** (foto, SKU, título y la publicación), **Cuenta**, **Código ML**, **Disponible en ML**, **No disponible en ML** (con el detalle: en traslado, dañado, perdido, en retiro…), **En Full según el sistema**, **Diferencia**, **En camino**, **Vendidas** (últimos 60 días en esa cuenta), **Días que cubre**, **Tamaño en Full** (el que midió Mercado Libre; si no coincide con las medidas de la ficha, debajo dice cuál daría la ficha), **Cuesta por día** (unidades × tarifa de su tamaño), **Días en Full** (de la unidad más vieja; en rojo desde 20 días antes de que empiece el cargo de stock antiguo) y **Lectura** (hora de la última lectura, o «Error» si Mercado Libre no contestó).
+
+### Pestaña Costos de Full
+
+- Arriba a la derecha: **«Leer cargos de ML ahora»**.
+- Un aviso amarillo si Mercado Libre cobró almacenamiento a un precio que no coincide con ninguna tarifa cargada.
+- **Tarifas de Full**: una fila por tamaño (**Pequeño**, **Mediano**, **Grande**, **Extragrande**) con sus medidas, el **Almacenamiento por unidad y día**, el **Stock antiguo** de 4 a 6 meses, de 6 a 12 y de más de 12, y el **Retiro por unidad**. El lápiz de cada fila la convierte en campos editables con **«Guardar»** y **«Cancelar»**.
+- **Por mes y cuenta**: **Almacenamiento cobrado**, **Colecta cobrada**, **Otros cargos**, **Almacenamiento estimado** (de los días que Mercado Libre todavía no facturó) y **Repartido en productos**.
 
 ## Cómo se hace
 
@@ -81,6 +88,12 @@ No hace falta hacer nada: cuando Mercado Libre cuenta las unidades en Full, el s
 En **Cerrar el envío**, elegí:
 - **«Cerrar: lo que falta vuelve al depósito»**: lo que no llegó vuelve al depósito de origen.
 - **«Cerrar: lo que falta se perdió»**: lo que no llegó sale del stock como perdido.
+
+### Corregir una tarifa de Full
+
+1. Andá a la pestaña **Costos de Full**.
+2. Tocá el lápiz de la fila del tamaño.
+3. Cambiá los valores y apretá **«Guardar»**. El costo estimado se recalcula enseguida.
 
 ### Cargar el flete
 
@@ -142,6 +155,17 @@ Muestra sólo productos que todavía no están en el envío, del que más vende 
 - **Flete por unidad** = lo que le toca a la línea ÷ su cantidad. Se recalcula con cada cambio del flete o de las líneas.
 - En la [Rentabilidad por venta](/informes/rentabilidad), cada unidad vendida desde el depósito Full resta el flete por unidad del último envío de ese producto a esa cuenta despachado hasta el día de la venta (si la venta es anterior a todos, el del primero).
 
+### Lo que cuesta tener mercadería en Full
+
+- **Tamaño**: según las medidas y el peso del paquete. **Pequeño** hasta 15 × 20 × 20 cm, **Mediano** hasta 28 × 36 × 51 cm, **Grande** hasta 60 × 70 × 80 cm, los tres hasta 12 kg; si no, **Extragrande**. Se usa el tamaño de las medidas que tomó Mercado Libre del paquete; si Mercado Libre no lo midió, el de las medidas declaradas en la publicación o en la ficha del producto.
+- **Lo cobrado**: cuando Mercado Libre cierra cada mes de facturación, el sistema lee solo lo que cobró por Full en cada cuenta: almacenamiento (por día y por tarifa, sin decir de qué producto), colecta (por producto y envío) y otros cargos (stock antiguo, retiros). Mercado Libre deja leer los últimos 12 meses.
+- **Reparto del almacenamiento**: el sistema anota cada día cuántas unidades de cada producto hay en Full. Lo cobrado un día con una tarifa se reparte entre los productos de ese tamaño que había ese día, según sus unidades, así el total coincide con lo cobrado.
+- **Estimado**: los días que Mercado Libre todavía no facturó se calculan con unidades × tarifa del tamaño. Cuando llega lo cobrado, reemplaza al estimado.
+- **Por unidad vendida**: lo de cada mes se divide por las unidades de ese producto vendidas desde Full ese mes. Si en un mes no se vendió ninguna, lo de ese mes pasa al siguiente.
+- **Colecta**: lo que cobró Mercado Libre por retirar un envío se asigna a la línea del envío con el mismo **Nº del envío en Mercado Libre** y se suma al flete por unidad.
+- **Stock antiguo**: desde los 120 días en Full Mercado Libre cobra además un cargo mensual por unidad. La columna **Días en Full** avisa en rojo 20 días antes.
+- **Tarifas**: Mercado Libre no las informa al sistema; se cargan en la pestaña Costos de Full. Si cobra a un precio que no coincide con ninguna, aparece el aviso.
+
 ## Preguntas frecuentes
 
 **Cargué el número del envío de Mercado Libre y no trajo nada. ¿Está bien?**
@@ -162,8 +186,11 @@ Cuando Mercado Libre las cuenta en su depósito. Puede tardar unos días desde e
 **La pestaña Stock en Full muestra una diferencia.**
 Se iguala sola en la próxima lectura si lo que dice Mercado Libre no cambia en 10 minutos. Si dice «Error» en Lectura, Mercado Libre no contestó para ese código.
 
+**¿Por qué el producto dice Extragrande si por medidas es Grande?**
+Porque Mercado Libre midió el paquete distinto (por ejemplo, más de 12 kg). Debajo del tamaño aparece el que daría la ficha. Si el paquete real pesa menos, corregí las medidas en la publicación de Mercado Libre.
+
 **¿El flete afecta el costo del producto?**
-No cambia el costo del producto: se resta aparte, como «Flete a Full», en la rentabilidad de lo que se vende desde Full.
+No cambia el costo del producto: se resta aparte, como «Flete a Full» (y el almacenamiento como «Almacenamiento Full»), en la rentabilidad de lo que se vende desde Full.
 
 ## Relacionado
 

@@ -43,7 +43,7 @@ export const dynamic = "force-dynamic";
 type SP = { ok?: string; error?: string; editar?: string; recibir?: string; q?: string; contiene?: string; sugeridos?: string; df?: string; dd?: string; dv?: string };
 type Linea = {
   id: number; variacion_id: number; producto_id: number; sku: string; titulo: string; fotos: string[] | null; item_id: string | null; variation_id: string;
-  codigo: string | null; cantidad: number; recibido: number; faltante: number; flete_unit_ars: number | null;
+  codigo: string | null; cantidad: number; recibido: number; faltante: number; flete_unit_ars: number | null; colecta_unit_ars: number | null;
 };
 
 export default async function FichaEnvioFull({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SP> }) {
@@ -70,7 +70,7 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
            (select array_agg(pf.url order by pf.orden) from producto_foto pf where pf.producto_id = v.producto_id) fotos,
            l.item_id, l.variation_id,
            (select ${SQL_CODIGO} from meli_item m where m.canal_id = $3 and m.item_id = l.item_id and coalesce(m.variation_id, '') = l.variation_id limit 1) codigo,
-           l.cantidad, l.recibido, l.faltante, l.flete_unit_ars::float
+           l.cantidad, l.recibido, l.faltante, l.flete_unit_ars::float, l.colecta_unit_ars::float
       from full_envio_linea l join variacion v on v.id = l.variacion_id
      where l.organizacion_id = $1 and l.envio_id = $2 order by v.sku`, [s.org.id, eid, e.canal_id]);
   const [ctx, reparto, facturas, pubs, sug] = await Promise.all([
@@ -281,7 +281,8 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
                     ) : n(l.cantidad)}
                   </td>
                   {!borrador && <><td className={TDN}>{n(l.recibido)}</td><td className={TDN}>{l.faltante ? n(l.faltante) : ""}</td></>}
-                  <td className={TDN}>{l.flete_unit_ars != null ? formatear(l.flete_unit_ars, "ARS") : "—"}</td>
+                  <td className={TDN}>{l.flete_unit_ars != null ? formatear(l.flete_unit_ars, "ARS") : "—"}
+                    {l.colecta_unit_ars != null && <span className="block text-[10px] text-[#5C6B76]" title="Lo que cobró Mercado Libre por la colecta de este producto">+ colecta {formatear(l.colecta_unit_ars, "ARS")}</span>}</td>
                   <td className={`${TD} text-right whitespace-nowrap`}>
                     {borrador && !editarFila && (
                       <span className="inline-flex gap-1">

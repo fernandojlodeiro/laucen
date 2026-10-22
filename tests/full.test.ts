@@ -40,6 +40,23 @@ test("Full: las publicaciones se agrupan por Código ML; la principal es la com�
   assert.deepEqual(g[1].publicaciones.map((x) => x.item_id), ["MLA3", "MLA4"]);
 });
 
+test("Full: tamaño por medidas y peso, y tarifa de un cargo", async () => {
+  const { tamanoDe, medida, tamanoDeTarifa, TARIFAS_DEFECTO } = await import("@/lib/full/costos");
+  assert.equal(tamanoDe([24.6, 63.8, 60.8], 11.04), "grande");
+  assert.equal(tamanoDe([60.2, 22, 63], 14.7), "extragrande");
+  assert.equal(tamanoDe([10, 14, 19], 0.3), "pequeno");
+  assert.equal(tamanoDe([30, 20, 50], 2), "mediano");
+  assert.equal(tamanoDe([90, 10, 10], 1), "extragrande");
+  assert.equal(tamanoDe([10, null, 10], 1), null);
+  assert.equal(medida("60.2 cm"), 60.2);
+  assert.equal(medida("14700 g"), 14.7);
+  assert.equal(medida("0,5 m"), 50);
+  assert.equal(tamanoDeTarifa(0.67, TARIFAS_DEFECTO), "pequeno");
+  assert.equal(tamanoDeTarifa(2, TARIFAS_DEFECTO), "mediano");
+  assert.equal(tamanoDeTarifa(60, TARIFAS_DEFECTO), "extragrande");
+  assert.equal(tamanoDeTarifa(20, TARIFAS_DEFECTO), "grande");
+});
+
 test("Full: sugerencia y plan de conciliación", async () => {
   const { cantidadSugerida } = await import("@/lib/full/envios");
   const { planConciliacion, leerRespuestaFull } = await import("@/lib/full/lectura");
@@ -58,13 +75,13 @@ test("Full: sugerencia y plan de conciliación", async () => {
 if (url) {
   type Mods = {
     db: typeof import("@/db"); esquema: typeof import("@/lib/erp/esquema"); envios: typeof import("@/lib/full/envios");
-    lectura: typeof import("@/lib/full/lectura"); rent: typeof import("@/lib/informes/rentabilidad");
+    lectura: typeof import("@/lib/full/lectura"); rent: typeof import("@/lib/informes/rentabilidad"); costos: typeof import("@/lib/full/costos");
   };
   let m: Mods;
   before(async () => {
     m = {
       db: await import("@/db"), esquema: await import("@/lib/erp/esquema"), envios: await import("@/lib/full/envios"),
-      lectura: await import("@/lib/full/lectura"), rent: await import("@/lib/informes/rentabilidad"),
+      lectura: await import("@/lib/full/lectura"), rent: await import("@/lib/informes/rentabilidad"), costos: await import("@/lib/full/costos"),
     };
     await m.esquema.asegurarEsquemaErp();
   });
@@ -190,5 +207,33 @@ if (url) {
     const filas = await m.rent.rentabilidad(e.org, { desde: hoy, hasta: hoy, canal: 0, costo: "promedio", agrupar: "venta", estimar: false });
     assert.equal(filas.find((f) => f.pedido_id === deFull)?.flete, 200);
     assert.equal(filas.find((f) => f.pedido_id === dePropio)?.flete, 0);
+  });
+
+  test("Full: el almacenamiento cobrado se reparte por tamaño y llega a la rentabilidad; lo no facturado se estima", async () => {
+    const e = await escenario();
+    const chico = await e.producto("5", 10);
+    const grande = await e.producto("6", 10);
+    const envio = await m.envios.crearEnvio(e.org, "u", e.canal, e.propio);
+    const full = await n("select deposito_full_id from full_envio where id = $1", [envio]);
+    // Dos días en Full: 3 chicos (pequeño) y 2 grandes (extragrande); el 1.º facturado, el 2.º no.
+    for (const [v, t, u] of [[chico, "pequeno", 3], [grande, "extragrande", 2]] as const) {
+      await q("insert into full_stock_dia (organizacion_id, canal_id, variacion_id, fecha, unidades, tamano) values ($1, $2, $3, '2026-09-10', $4, $5), ($1, $2, $3, '2026-10-10', $4, $5)", [e.org, e.canal, v, u, t]);
+    }
+    await q("insert into full_cargo_lectura (organizacion_id, canal_id, periodo, estado) values ($1, $2, '2026-09-01', 'ok')", [e.org, e.canal]);
+    await q(`insert into full_cargo (organizacion_id, canal_id, periodo, detalle_id, fecha, tipo, cantidad, por_unidad, monto) values
+             ($1, $2, '2026-09-01', 1, '2026-09-10', 'WAREHOUSING', 3, 0.75, 2.25), ($1, $2, '2026-09-01', 2, '2026-09-10', 'WAREHOUSING', 2, 65, 130)`, [e.org, e.canal]);
+    // Una venta del grande desde Full en septiembre.
+    const p = await id("insert into pedido (organizacion_id, canal_id, estado, fecha, deposito_id, afecta_stock) values ($1, $2, 'entregado', '2026-09-20 12:00-03', $3, false) returning id", [e.org, e.canal, full]);
+    await q("insert into pedido_linea (organizacion_id, pedido_id, variacion_id, cantidad, precio_unit_ars, precio_unit_usd, titulo) values ($1, $2, $3, 1, 1000, 1, 'x')", [e.org, p, grande]);
+    await m.costos.recalcularCostosFull(e.org);
+    const fila = async (v: number, mes: string) => (await q<{ almacenamiento: string; estimado: string; vendidas: number; por_unidad: string | null }>(
+      "select almacenamiento, estimado, vendidas, por_unidad from full_costo_mes where canal_id = $1 and variacion_id = $2 and mes = $3", [e.canal, v, mes]))[0];
+    assert.equal(Number((await fila(grande, "2026-09-01")).almacenamiento), 130);
+    assert.equal(Number((await fila(grande, "2026-09-01")).por_unidad), 130);
+    assert.equal(Number((await fila(chico, "2026-09-01")).almacenamiento), 2.25);
+    assert.equal((await fila(chico, "2026-09-01")).por_unidad, null, "sin ventas: pasa al mes siguiente");
+    assert.equal(Number((await fila(grande, "2026-10-01")).estimado), 130, "octubre no facturado: 2 × $65");
+    const filas = await m.rent.rentabilidad(e.org, { desde: "2026-09-01", hasta: "2026-09-30", canal: 0, costo: "promedio", agrupar: "venta", estimar: false });
+    assert.equal(filas.find((f) => f.pedido_id === p)?.almacenamiento, 130);
   });
 }

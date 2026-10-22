@@ -89,20 +89,6 @@ create index if not exists full_stock_variacion on full_stock (variacion_id);
 alter table full_stock enable row level security;
 select erp_politica_org('full_stock');
 
--- El flete de Full por unidad que le toca a una venta: el del último envío de esa variación a ese
--- depósito Full despachado hasta el día de la venta (o, si la venta es anterior, el primero).
-create or replace function public.flete_full_unitario(p_deposito bigint, p_variacion bigint, p_fecha timestamptz)
-returns numeric language sql stable as $$
-  select coalesce(
-    (select l.flete_unit_ars from full_envio_linea l join full_envio e on e.id = l.envio_id
-      where e.deposito_full_id = p_deposito and l.variacion_id = p_variacion and e.estado <> 'borrador'
-        and e.despachado_ts <= p_fecha and l.flete_unit_ars is not null
-      order by e.despachado_ts desc limit 1),
-    (select l.flete_unit_ars from full_envio_linea l join full_envio e on e.id = l.envio_id
-      where e.deposito_full_id = p_deposito and l.variacion_id = p_variacion and e.estado <> 'borrador' and l.flete_unit_ars is not null
-      order by e.despachado_ts limit 1))
-$$;
-
 -- Cuándo se leyó Full por última vez en cada cuenta (el proceso de fondo lee cada media hora).
 create table if not exists full_lectura (
   canal_id         bigint primary key references canal(id) on delete cascade,
@@ -112,3 +98,124 @@ create table if not exists full_lectura (
 );
 alter table full_lectura enable row level security;
 select erp_politica_org('full_lectura');
+
+-- ── Costos de Full (Fer, 22/10; bitácora #715/#720/#724) ──────────────────────────────────────
+-- Tarifas de Full por tamaño (ML no las da por API; se cargan y se corrigen en Stock › Envíos a Full ›
+-- Costos de Full). Tamaño según medidas y peso del paquete: Pequeño hasta 15×20×20 cm, Mediano hasta
+-- 28×36×51, Grande hasta 60×70×80, todos hasta 12 kg; si no, Extragrande. Valores de la ayuda de ML
+-- leídos el 22/10/2026 (los pone lib/full/costos.ts si faltan).
+create table if not exists full_tarifa (
+  organizacion_id    text not null references organizaciones(id) on delete cascade,
+  tamano             text not null check (tamano in ('pequeno', 'mediano', 'grande', 'extragrande')),
+  almacenamiento_dia numeric(12, 2) not null,
+  antiguo_4_6        numeric(12, 2) not null default 0,
+  antiguo_6_12       numeric(12, 2) not null default 0,
+  antiguo_12         numeric(12, 2) not null default 0,
+  retiro             numeric(12, 2) not null default 0,
+  actualizado_ts     timestamptz not null default now(),
+  primary key (organizacion_id, tamano)
+);
+alter table full_tarifa enable row level security;
+select erp_politica_org('full_tarifa');
+
+-- Lo que ML cobró por Full (GET /billing/integration/periods/key/{K}/group/ML/full/details): una fila
+-- por cargo. Almacenamiento (WAREHOUSING) viene por día y por tarifa, sin producto; colecta
+-- (INBOUND_COLLECT) por producto y envío.
+create table if not exists full_cargo (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  periodo          date not null,
+  detalle_id       bigint not null,
+  fecha            date not null,
+  tipo             text not null,
+  subtipo          text,
+  descripcion      text,
+  cantidad         numeric(14, 3),
+  por_unidad       numeric(14, 4),
+  monto            numeric(16, 2) not null,
+  inventory_id     text,
+  item_id          text,
+  sku              text,
+  envio_ml         text,
+  volumen_m3       numeric(14, 6),
+  datos            jsonb not null default '{}',
+  primary key (canal_id, detalle_id)
+);
+create index if not exists full_cargo_fecha on full_cargo (canal_id, fecha);
+alter table full_cargo enable row level security;
+select erp_politica_org('full_cargo');
+
+-- Qué períodos de facturación ya se leyeron (estado: ok, abierto = ML todavía no lo cerró, error).
+create table if not exists full_cargo_lectura (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  periodo          date not null,
+  estado           text not null,
+  cargos           int not null default 0,
+  error            text,
+  leido_ts         timestamptz not null default now(),
+  primary key (canal_id, periodo)
+);
+alter table full_cargo_lectura enable row level security;
+select erp_politica_org('full_cargo_lectura');
+
+-- Cuántas unidades de cada producto había en el depósito Full de la cuenta cada día (la foto la saca
+-- la lectura de Full; si en un día hay varias, queda la mayor) y su tamaño para Full.
+create table if not exists full_stock_dia (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  variacion_id     bigint not null references variacion(id) on delete cascade,
+  fecha            date not null,
+  unidades         int not null,
+  tamano           text,
+  primary key (canal_id, variacion_id, fecha)
+);
+alter table full_stock_dia enable row level security;
+select erp_politica_org('full_stock_dia');
+
+-- El costo de Full de cada producto por mes (lo recalcula lib/full/costos.ts): almacenamiento cobrado
+-- (repartido) o estimado, otros cargos con producto, unidades vendidas desde Full y lo que le toca a
+-- cada unidad vendida. Lo de un mes sin ventas pasa al siguiente (arrastre).
+create table if not exists full_costo_mes (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  variacion_id     bigint not null references variacion(id) on delete cascade,
+  mes              date not null,
+  almacenamiento   numeric(16, 2) not null default 0,
+  estimado         numeric(16, 2) not null default 0,
+  otros            numeric(16, 2) not null default 0,
+  unidades_dia     int not null default 0,
+  vendidas         int not null default 0,
+  arrastre         numeric(16, 2) not null default 0,
+  por_unidad       numeric(16, 4),
+  primary key (canal_id, variacion_id, mes)
+);
+alter table full_costo_mes enable row level security;
+select erp_politica_org('full_costo_mes');
+
+-- La colecta de Full que le tocó a cada unidad de una línea de envío (del cargo por producto de ML).
+alter table full_envio_linea add column if not exists colecta_unit_ars numeric(16, 4);
+
+-- El flete de Full por unidad que le toca a una venta (más la colecta que cobró ML por esa línea): el
+-- del último envío de esa variación a ese depósito Full despachado hasta el día de la venta (o, si la
+-- venta es anterior, el primero).
+create or replace function public.flete_full_unitario(p_deposito bigint, p_variacion bigint, p_fecha timestamptz)
+returns numeric language sql stable as $$
+  select coalesce(
+    (select coalesce(l.flete_unit_ars, 0) + coalesce(l.colecta_unit_ars, 0) from full_envio_linea l join full_envio e on e.id = l.envio_id
+      where e.deposito_full_id = p_deposito and l.variacion_id = p_variacion and e.estado <> 'borrador'
+        and e.despachado_ts <= p_fecha and (l.flete_unit_ars is not null or l.colecta_unit_ars is not null)
+      order by e.despachado_ts desc limit 1),
+    (select coalesce(l.flete_unit_ars, 0) + coalesce(l.colecta_unit_ars, 0) from full_envio_linea l join full_envio e on e.id = l.envio_id
+      where e.deposito_full_id = p_deposito and l.variacion_id = p_variacion and e.estado <> 'borrador'
+        and (l.flete_unit_ars is not null or l.colecta_unit_ars is not null)
+      order by e.despachado_ts limit 1))
+$$;
+
+-- El almacenamiento de Full por unidad vendida, para la rentabilidad: el del mes de la venta.
+create or replace function public.almacenamiento_full_unitario(p_canal bigint, p_variacion bigint, p_fecha timestamptz)
+returns numeric language sql stable as $$
+  select por_unidad from full_costo_mes
+   where canal_id = p_canal and variacion_id = p_variacion
+     and mes = date_trunc('month', p_fecha at time zone 'America/Argentina/Buenos_Aires')::date
+$$;

@@ -24,6 +24,7 @@ import { traerFacturacionMl, facturacionPendiente } from "@/lib/mercadolibre/fac
 import { revisarFacturadas } from "@/lib/facturacion/revision";
 import { reintentarFacturasWhatsapp } from "@/lib/facturacion/envio";
 import { hayLecturaFullPendiente, leerFull } from "@/lib/full/lectura";
+import { hayCargosFullPendientes, leerCargosFull } from "@/lib/full/costos";
 import { hayConsultasPendientes, responderConsultas } from "@/lib/mercadolibre/consultas";
 
 export const dynamic = "force-dynamic";
@@ -110,10 +111,13 @@ export async function GET(req: Request) {
   // Lo que hay en Full de cada cuenta (sólo lectura, cada media hora) y la conciliación (lib/full/lectura.ts).
   const full = await hayLecturaFullPendiente().catch(() => false);
   if (full) informe.full_ml = true;
+  // Lo que cobró ML por Full (facturación, sólo lectura; 5 pedidos por minuto: unos pocos por vuelta).
+  const cargosFull = await hayCargosFullPendientes().catch(() => false);
+  if (cargosFull) informe.cargos_full_ml = true;
   // Consultas de sólo lectura a ML que pidió una sesión (lib/mercadolibre/consultas.ts).
   const consultasMl = await hayConsultasPendientes().catch(() => false);
   if (consultasMl) informe.consultas_ml = true;
-  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos || full || consultasMl) {
+  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos || full || consultasMl || cargosFull) {
     after(async () => {
       await Promise.all([
         (async () => {
@@ -145,9 +149,10 @@ export async function GET(req: Request) {
           }
         })(),
         (async () => {
-          if (!full) return;
+          if (!full && !cargosFull) return;
           try {
-            console.log("[tareas] Full ML", JSON.stringify(await leerFull(null, t0 + 90_000)));
+            if (full) console.log("[tareas] Full ML", JSON.stringify(await leerFull(null, t0 + 90_000)));
+            if (cargosFull) console.log("[tareas] cargos de Full ML", JSON.stringify(await leerCargosFull(null, t0 + 100_000)));
           } catch (e) {
             console.error("[tareas] Full ML", e instanceof Error ? e.message : e);
           }
