@@ -12,7 +12,6 @@ import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, id } from "@/lib/erp/acciones";
 import { CONDICIONES_IVA } from "@/app/ventas/formato";
 import { whatsappNormal } from "@/lib/telefono";
-import { padronAlCliente } from "@/lib/arca/padron-cliente";
 import { tienePermiso } from "@/lib/permisos";
 import { leerNumero } from "@/lib/numeros";
 
@@ -212,23 +211,3 @@ export async function accionQuitarIdentidad(fd: FormData) {
     return "Identidad quitada.";
   });
 }
-
-// ── Padrón de ARCA ───────────────────────────────────────
-
-/** Trae del padrón de ARCA la razón social, la condición frente al IVA y el
- *  domicilio fiscal del CUIT guardado, y los pisa en el cliente (la dirección
- *  va con etiqueta "Fiscal": si ya hay una, se actualiza). */
-export async function accionValidarPadron(fd: FormData) {
-  const s = await entrarErp("clientes_ver");
-  const cid = id(fd);
-  await intentar(ficha(cid), async () => {
-    const c = await una<{ cuit: string | null }>("select cuit from cliente where id = $1 and organizacion_id = $2", [cid, s.org.id]);
-    if (!c) throw new ErrorErp("El cliente no existe.");
-    if (!c.cuit) throw new ErrorErp("El cliente no tiene CUIT guardado.");
-    const { persona: p, cambios } = await padronAlCliente(s.org.id, cid, c.cuit);
-    revalidatePath(ficha(cid));
-    const estado = p.estado && p.estado !== "ACTIVO" ? ` Ojo: en ARCA figura ${p.estado.toLowerCase()}.` : "";
-    return (cambios.length ? `Validado en ARCA. Cambió: ${cambios.join(" · ")}.` : "Validado en ARCA: los datos ya coincidían.") + estado;
-  });
-}
-

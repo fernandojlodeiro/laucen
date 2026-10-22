@@ -51,7 +51,7 @@ Título: la razón social del cliente; debajo "Cliente N.º … · cliente desde
 **Datos** (en modo vista; con el lápiz pasan a editables), en este orden:
 - **"Razón social (sale en la factura)"** y **"Tipo"** (**Minorista** / **Mayorista**). La razón social es el nombre del cliente en todo el sistema y **el nombre con el que sale la factura**. El tipo es comercial (a quién le vendés), no su condición frente al IVA.
 - **"Apellido del contacto"**, **"Nombre del contacto"** (los dos opcionales: la persona con la que se habla; el nombre se usa para saludarlo en los mensajes) y **"Apodo en Mercado Libre"**.
-- Los datos fiscales, juntos: **"CUIT / CUIL"**, **"DNI"** y **"Condición IVA"** (Consumidor final, Responsable inscripto, Monotributo, Exento, No responsable, o "Sin cargar"). CUIT y DNI son opcionales y pueden estar los dos (por ejemplo, una persona inscripta en IVA tiene CUIT y DNI). Debajo del CUIT, si se puede consultar ARCA, el botón **"Validar en el padrón de ARCA"**.
+- Los datos fiscales, juntos: **"CUIT / CUIL"**, **"DNI"** y **"Condición IVA"** (Consumidor final, Responsable inscripto, Monotributo, Exento, No responsable, o "Sin cargar"). CUIT y DNI son opcionales y pueden estar los dos (por ejemplo, una persona inscripta en IVA tiene CUIT y DNI).
 - **"Mail"**, **"Teléfono"** y su **"Interno / aclaración"** (ej. "INT 32"). El teléfono se escribe como quieras: se guarda sólo con sus números y se muestra ordenado ("011 4613-0698 (INT 32)"); si escribís el interno pegado al número, Laucen lo pasa solo a la aclaración.
 - **"WhatsApp"**: el celular del cliente. Se escribe como venga ("351 15 555-1234", "0351 155551234", "+54 9 351 555-1234"): se guarda en formato internacional (5493515551234) y se muestra ordenado. **Se carga solo** cuando el cliente nos escribe por WhatsApp (debajo dice «Nos escribió desde este número» y la fecha); escrito a mano dice «Cargado a mano». Es el número al que se le mandan la factura y los mensajes.
 - Las casillas **"Enviarle la factura por WhatsApp"** y **"Enviarle la factura por mail"**: de entrada, las dos tildadas. Destildá la que el cliente no quiera. El envío por mail todavía no está disponible (falta configurar el correo); la casilla queda guardada para cuando lo esté.
@@ -85,14 +85,6 @@ Título: la razón social del cliente; debajo "Cliente N.º … · cliente desde
 4. Apretá **"Grabar"**. Vuelve a la vista con el aviso "Guardado.". Con **"Cancelar"** volvés sin guardar.
 
 Errores típicos: "El cliente necesita una razón social.", "El CUIT tiene que tener 11 dígitos." (el CUIT se muestra con guiones, 20-12345678-9, se escriba como se escriba), "Ese número tiene 11 cifras: es un CUIT o CUIL, va en el campo «CUIT / CUIL»." (en el DNI) y "El WhatsApp no parece un celular: escribilo con la característica (ej. 351 555-1234).".
-
-### Traer los datos del padrón de ARCA
-
-1. Con el CUIT ya guardado, en la ficha (modo vista) apretá **"Validar en el padrón de ARCA"**.
-2. Laucen consulta ARCA y **pisa** en el cliente la razón social, la condición de IVA y el CUIT, y deja el domicilio fiscal en una dirección con etiqueta **"Fiscal"** (la actualiza si ya había una, o la agrega).
-3. El aviso dice qué cambió ("Validado en ARCA. Cambió: …") o "Validado en ARCA: los datos ya coincidían.". Si en ARCA el CUIT no está activo, lo avisa ("Ojo: en ARCA figura …").
-
-El botón sólo aparece si el cliente tiene CUIT y la empresa ya tiene cargados sus datos de facturación y el certificado de ARCA.
 
 ### Darle una lista de precios propia (mayorista)
 
@@ -137,7 +129,6 @@ Sólo se puede si **no tiene ningún pedido**. Tacho arriba a la derecha → **"
 - **WhatsApp**: el celular que llega con un pedido o una importación se guarda como el WhatsApp del cliente (si ya tenía uno, no se pisa); si no parece un celular, queda como teléfono.
 - **Cuenta corriente**: habilita el medio "Cuenta corriente / a convenir" en la tienda y la opción "Cuenta corriente" al cargar un pedido a mano (que exige un cliente).
 - **Límite de crédito**: un pedido a cuenta corriente (pago "A convenir") **entra a preparar sólo si** el cliente tiene la cuenta habilitada, un límite cargado y **el saldo de su cuenta más sus pedidos a cuenta todavía sin facturar no pasan el límite** (el pedido mismo incluido). Si lo pasan, el pedido queda **frenado**: se crea y reserva el stock igual, pero no aparece en el picking hasta que haya crédito (cobrando, o subiendo el límite). Los pedidos más viejos tienen prioridad: se suman los de número menor o igual, más los que ya entraron a preparar. Un pedido facturado deja de contar como "pedido" y pasa a estar en el saldo. Todo en pesos (un pedido en dólares cuenta por su total en pesos).
-- **Padrón de ARCA**: pisa razón social, condición de IVA y CUIT con lo que dice ARCA; el domicilio fiscal de ARCA viene en un solo texto (calle y número juntos).
 - **Borrar**: no se puede borrar un cliente con pedidos. Quitar una identidad sólo hace que el próximo pedido de ese comprador no lo encuentre por ese camino.
 - **"Total comprado"**: suma de los totales en pesos de sus pedidos, sin los cancelados ni los devueltos.
 - **"Pedidos"**: cuenta todos sus pedidos, de cualquier estado.
@@ -158,9 +149,6 @@ Tiene pedidos. Un cliente con pedidos no se borra.
 
 **Aparecen dos clientes que son la misma persona.**
 Pasa si entraron con datos distintos (sin documento ni mail en común). No hay un botón para unirlos; se puede corregir uno de los dos.
-
-**¿Qué hace "Validar en el padrón de ARCA"?**
-Trae de ARCA la razón social, la condición de IVA y el domicilio fiscal del CUIT y los pisa en el cliente.
 
 **¿Para qué sirven las "Identidades por canal"?**
 Son el usuario del cliente en cada canal (por ejemplo, su id de comprador de Mercado Libre): así su próxima compra se asigna a este mismo cliente.
