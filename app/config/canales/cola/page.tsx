@@ -19,7 +19,8 @@ import { AccionesExcel } from "@/app/listas/piezas";
 import { camposDe, ordenDe } from "@/lib/listas/tipos";
 import { LISTA_COLA, PESTANAS_COLA, CONDICION_COLA, filtrosCola, type PestanaCola } from "./lista";
 import { TIPOS_COLA, ORIGENES_COLA, ESTADOS_COLA, TONO_COLA, describirCambio, describirAntes } from "./formato";
-import { accionReintentarErrores, accionDescartar, accionMandarLote, accionDescartarLote, accionSacarDelLote } from "./acciones";
+import { accionReintentarErrores, accionDescartar, accionMandarLote, accionDescartarLote, accionSacarDelLote, accionAgruparTodo, accionFrenarAgrupado } from "./acciones";
+import { estadoAgrupado, TANDA } from "@/lib/mercadolibre/agrupado-auto";
 
 export const dynamic = "force-dynamic";
 
@@ -191,6 +192,7 @@ async function Lotes({ org, sp, aqui }: { org: string; sp: SP; aqui: string }) {
   const estadoLote = (e: string) => e === "preparado" ? <Estado texto="Preparado, falta tu clic" tono="amarillo" /> : e === "enviado" ? <Estado texto="Mandado" tono="verde" /> : <Estado texto="Descartado" />;
   return (
     <div className="grid gap-4">
+      <Agrupado org={org} aqui={aqui} />
       {/* El lote elegido arriba: con muchos lotes, abajo quedaba fuera de la vista y no se veía el botón (Fer, 7/10). */}
       {elegido && (
         <section className={CAJA}>
@@ -261,6 +263,55 @@ async function Lotes({ org, sp, aqui }: { org: string; sp: SP; aqui: string }) {
         </table>
       </div>
     </div>
+  );
+}
+
+/** El agrupado de planes en todas las cuentas, con un clic y de a tandas (lib/mercadolibre/agrupado-auto.ts). */
+async function Agrupado({ org, aqui }: { org: string; aqui: string }) {
+  const filas = await estadoAgrupado(org);
+  const andando = filas.some((f) => f.estado === "andando");
+  const ESTADO: Record<string, [string, "verde" | "azul" | "gris"]> = { andando: ["Andando", "azul"], frenado: ["Frenado", "gris"], terminado: ["Terminado", "verde"] };
+  return (
+    <section className={CAJA}>
+      <TituloSeccion titulo="Agrupar planes de cuotas en todas las cuentas">
+        {andando
+          ? <BotonConfirmar accion={accionFrenarAgrupado} campos={{ volver: aqui }} clase={APAGAR} texto="Frenar" pregunta="¿Frenar el agrupado?" corriendo="…" />
+          : <BotonConfirmar accion={accionAgruparTodo} campos={{ volver: aqui }} clase={VERDE} texto="Agrupar todo en tandas"
+              pregunta="¿Agrupar los planes de todas las cuentas? Sale solo, de a tandas" corriendo="…" />}
+      </TituloSeccion>
+      <p className="text-[11px] text-[#5C6B76] mb-2">
+        Deja todos los planes (Clásica, Premium, cuotas) de un producto en el mismo producto de Mercado Libre, para que compartan el stock. Con un clic sale solo, cuenta por cuenta, de a tandas: primero se eliminan los planes viejos sin ventas que ya están en el producto agrupado; después se crean hasta {TANDA} publicaciones agrupadas; cada tanda espera que la anterior haya salido entera y 10 minutos más. Cada tanda queda abajo como un lote mandado. Lo que Mercado Libre no acepta queda anotado y no se vuelve a probar.
+      </p>
+      {filas.length > 0 && (
+        <div className={CAJA_TABLA}>
+          <table className={TABLA}>
+            <thead className={THEAD}><tr><th className={TH}>Cuenta</th><th className={TH}>Estado</th><th className={THN}>Tandas</th><th className={THN}>Altas agrupadas</th><th className={THN}>Eliminadas</th><th className={TH}>No aceptadas</th></tr></thead>
+            <tbody>
+              {filas.map((f) => {
+                const rech = Object.entries(f.rechazadas ?? {});
+                const [texto, tono] = ESTADO[f.estado] ?? [f.estado, "gris"];
+                return (
+                  <tr key={f.canal_id} data-canal={f.canal_id} className={TR}>
+                    <td className={TD}>{f.canal}</td>
+                    <td className={TD}><Estado texto={texto} tono={tono} />
+                      {f.estado === "andando" && f.en_cola > 0 && f.lote_id && <div className="text-[10px] text-[#5C6B76]">saliendo el <Link href={url(BASE, { ver: "lotes", lote: f.lote_id })} className="text-[#16577F] hover:underline">lote {f.lote_id}</Link> ({f.en_cola} por salir)</div>}
+                      {f.terminado_ts && <div className="text-[10px] text-[#5C6B76]">{fechaHora(f.terminado_ts)}</div>}
+                      {f.ultimo_error && <div className="text-[10px] text-[#C03420]">{f.ultimo_error}</div>}</td>
+                    <td className={TDN}>{f.tandas}</td>
+                    <td className={TDN}>{f.altas}</td>
+                    <td className={TDN}>{f.cierres}</td>
+                    <td className={`${TD} text-[11px]`}>{rech.length === 0 ? "—" : (
+                      <details><summary className="cursor-pointer text-[#C03420]">{rech.length}</summary>
+                        <ul className="mt-1 grid gap-0.5">{rech.map(([k, m]) => <li key={k}><b>{k.replace(/^agrupar:/, "").replace(":", " ")}</b>: {m}</li>)}</ul>
+                      </details>)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 

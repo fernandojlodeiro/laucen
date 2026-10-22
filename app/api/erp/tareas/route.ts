@@ -27,6 +27,7 @@ import { hayLecturaFullPendiente, leerFull } from "@/lib/full/lectura";
 import { hayCargosFullPendientes, leerCargosFull } from "@/lib/full/costos";
 import { hayConsultasPendientes, responderConsultas } from "@/lib/mercadolibre/consultas";
 import { hayPreparacionesPendientes, prepararPendientes } from "@/lib/mercadolibre/preparaciones";
+import { hayAgrupadoPendiente, avanzarAgrupado } from "@/lib/mercadolibre/agrupado-auto";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -121,7 +122,10 @@ export async function GET(req: Request) {
   // Lotes que pidió preparar una sesión (agrupar planes, títulos; lib/mercadolibre/preparaciones.ts). Sólo prepara.
   const preparaciones = await hayPreparacionesPendientes().catch(() => false);
   if (preparaciones) informe.preparaciones_ml = true;
-  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos || full || consultasMl || cargosFull || preparaciones) {
+  // El agrupado de planes en tandas que autorizó Fer con un clic (lib/mercadolibre/agrupado-auto.ts).
+  const agrupado = await hayAgrupadoPendiente().catch(() => false);
+  if (agrupado) informe.agrupado_ml = true;
+  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos || full || consultasMl || cargosFull || preparaciones || agrupado) {
     after(async () => {
       await Promise.all([
         (async () => {
@@ -145,9 +149,9 @@ export async function GET(req: Request) {
           }
         })(),
         (async () => {
-          if (!preparaciones) return;
           try {
-            console.log("[tareas] preparaciones ML", JSON.stringify(await prepararPendientes(t0 + 110_000)));
+            if (preparaciones) console.log("[tareas] preparaciones ML", JSON.stringify(await prepararPendientes(t0 + 110_000)));
+            if (agrupado) console.log("[tareas] agrupado ML", JSON.stringify(await avanzarAgrupado(t0 + 110_000)));
           } catch (e) {
             console.error("[tareas] preparaciones ML", e instanceof Error ? e.message : e);
           }

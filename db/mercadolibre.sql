@@ -401,6 +401,8 @@ declare
      or exists (select 1 from public.stock_cambio_pendiente where creado_ts < now() - interval '1 minute')
      or exists (select 1 from public.ml_consulta where estado = 'pendiente')
      or exists (select 1 from public.ml_preparacion where estado = 'pendiente' or (estado = 'trabajando' and tomada_ts < now() - interval '5 minutes'))
+     or exists (select 1 from public.ml_agrupado_auto a where a.estado = 'andando' and a.proxima_ts <= now()
+                   and not exists (select 1 from public.ml_cola q where q.canal_id = a.canal_id and q.lote_id is not null and q.estado in ('pendiente', 'enviando')))
      -- Motivos de revisión de ML sin leer en el último día (lib/mercadolibre/moderaciones.ts).
      or exists (select 1 from public.meli_item m left join public.meli_moderacion mm on mm.canal_id = m.canal_id and mm.item_id = m.item_id
                  where m.estado = 'under_review' and (mm.leido_ts is null or mm.leido_ts < now() - interval '1 day'))
@@ -727,3 +729,26 @@ create table if not exists ml_preparacion (
 create index if not exists ml_preparacion_pendiente on ml_preparacion (id) where estado in ('pendiente', 'trabajando');
 alter table ml_preparacion enable row level security;
 select erp_politica_org('ml_preparacion');
+
+-- ── Agrupado automático de planes, en tandas (lib/mercadolibre/agrupado-auto.ts; Fer, 22/10) ──
+-- Un solo clic de Fer (Configuración › Cola de Mercado Libre, pestaña Lotes preparados) autoriza agrupar todas las
+-- cuentas: el proceso de fondo arma y manda de a una tanda por cuenta (los planes viejos ya agrupados que se
+-- eliminan, o hasta 25 altas agrupadas), espera que salga entera y un rato más, y sigue con la próxima. «Frenar» lo para.
+create table if not exists ml_agrupado_auto (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  estado           text not null default 'andando' check (estado in ('andando', 'frenado', 'terminado')),
+  autorizado_por   text,
+  autorizado_ts    timestamptz not null default now(),
+  proxima_ts       timestamptz not null default now(),
+  lote_id          bigint,
+  tandas           int not null default 0,
+  altas            int not null default 0,
+  cierres          int not null default 0,
+  rechazadas       jsonb not null default '{}'::jsonb,
+  ultimo_error     text,
+  terminado_ts     timestamptz,
+  primary key (organizacion_id, canal_id)
+);
+alter table ml_agrupado_auto enable row level security;
+select erp_politica_org('ml_agrupado_auto');

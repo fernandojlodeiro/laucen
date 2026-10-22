@@ -294,7 +294,14 @@ Cada cuenta de Mercado Libre muestra su propio stock, y Mercado Libre controla e
 
 ### Planes de cuotas en un mismo producto
 
-(Los lotes de agrupar, eliminar los viejos y revisar títulos no tienen botón: los arma Laucen de fondo cuando se le pide, y aparecen en la [Cola de Mercado Libre](/config/canales/cola), pestaña Lotes preparados, esperando tu clic.)
+**Agrupar todo en tandas**: en la [Cola de Mercado Libre](/config/canales/cola), pestaña Lotes preparados, arriba, el recuadro «Agrupar planes de cuotas en todas las cuentas». Un clic en **«Agrupar todo en tandas»** pone a agrupar todas las cuentas conectadas, y sale solo, sin más clics:
+
+- Cuenta por cuenta, de a una tanda por vez: si hay planes viejos que ya están en el producto agrupado, la tanda los elimina (los de las condiciones de abajo); si no, crea hasta 25 publicaciones agrupadas.
+- Cada tanda espera que la anterior de esa cuenta haya salido entera y 10 minutos más, para no cargar a Mercado Libre. Cada tanda queda en la lista de lotes como un lote ya mandado, con el resultado de cada publicación.
+- El recuadro muestra, por cuenta, el estado (Andando, Frenado, Terminado), cuántas tandas salieron, cuántas publicaciones agrupadas se crearon y cuántas viejas se eliminaron, y las que Mercado Libre no aceptó con su motivo (por ejemplo, que la publicación base no tiene una característica que hoy pide). Ésas no se vuelven a probar.
+- **«Frenar»** para todas las cuentas: no sale ninguna tanda más (lo que ya estaba en la cola termina de salir). Volver a apretar «Agrupar todo en tandas» sigue desde donde quedó.
+
+También se puede pedir un lote suelto de agrupar, de eliminar los viejos o de revisar títulos: lo arma Laucen de fondo y queda en la misma pestaña esperando tu clic.
 
 En Mercado Libre, dentro de una cuenta, la Clásica, la Premium y los planes de cuotas (3x, 9x, 12x) **comparten el stock** (y el código de Full) sólo si están en **el mismo producto** de Mercado Libre. Si quedan en productos distintos, cada uno muestra su propio stock y un comprador puede llevarse más de lo que hay.
 

@@ -126,23 +126,26 @@ async function gruposSeparados(org: string, canal: number): Promise<Grupo[]> {
 
 const plan = (p: Pick<Pub, "tipo" | "tags" | "terms">) => planDe(p.tipo ?? "", p.tags, p.terms);
 
-export type ResultadoAgrupar = { productos: number; altas: number; loteId: number | null; rechazos: string[]; quedan: number };
+export type ResultadoAgrupar = { productos: number; altas: number; loteId: number | null; rechazos: string[]; quedan: number;
+  /** Lo mismo que `rechazos`, por clave (agrupar:SKU:plan → motivo), para no volver a probarlas (agrupado-auto.ts). */
+  rechazadas: Record<string, string> };
 
 /** Las altas agrupadas de los planes que quedaron en otro producto: cada plan que todavía no está en el producto de
  *  la madre se crea copiando la madre, al precio de la publicación vieja, en su misma campaña y, si la vieja tenía
  *  gemela de catálogo, también en el catálogo. También si la vieja tiene ventas (Fer, 22/10): se crea la agrupada y
  *  la vieja queda (no se elimina). Un lote que espera el clic de Fer. */
-export async function prepararAgrupar(org: string, canal: number, usuarioId: string | null, opts: { max?: number; hasta?: number } = {}): Promise<ResultadoAgrupar> {
+export async function prepararAgrupar(org: string, canal: number, usuarioId: string | null, opts: { max?: number; hasta?: number; saltar?: Set<string> } = {}): Promise<ResultadoAgrupar> {
   const hasta = opts.hasta ?? Date.now() + 240_000;
   const cuenta = await cuentaDelCanal(org, canal);
   if (!cuenta || cuenta.estado !== "activa") throw new ErrorErp("La cuenta de Mercado Libre no está conectada.");
   const nombre = (await una<{ nombre: string }>("select nombre from canal where id = $1", [canal]))?.nombre ?? "la cuenta";
-  // Lo que ya espera en la cola (de una vuelta anterior) no se repite.
+  // Lo que ya está en la cola (de una vuelta anterior, también lo que ML rechazó) no se repite, ni lo que se pide saltar.
   const enCola = new Set((await consulta<{ item_id: string }>(
-    "select item_id from ml_cola where organizacion_id = $1 and canal_id = $2 and tipo = 'crear' and item_id like 'agrupar:%' and estado in ('preparado', 'pendiente', 'enviando', 'ok')",
+    "select item_id from ml_cola where organizacion_id = $1 and canal_id = $2 and tipo = 'crear' and item_id like 'agrupar:%' and estado in ('preparado', 'pendiente', 'enviando', 'ok', 'error')",
     [org, canal])).map((r) => r.item_id));
+  for (const k of opts.saltar ?? []) enCola.add(k);
   const grupos = await gruposSeparados(org, canal);
-  const res: ResultadoAgrupar = { productos: 0, altas: 0, loteId: null, rechazos: [], quedan: 0 };
+  const res: ResultadoAgrupar = { productos: 0, altas: 0, loteId: null, rechazos: [], quedan: 0, rechazadas: {} };
   const altas: CambioMl[] = [];
   const max = opts.max ?? 20;
   const propia = await campanaPropiaDe(org, canal);
@@ -162,7 +165,8 @@ export async function prepararAgrupar(org: string, canal: number, usuarioId: str
       if (!pl || hechos.has(pl)) continue;
       hechos.add(pl);
       const precioViejo = v.precio ?? m.ml.price ?? 0;
-      if (!(precioViejo > 0)) { res.rechazos.push(`${g.sku} ${nombrePlan[pl]}: sin precio`); continue; }
+      const rechazar = (motivo: string) => { res.rechazos.push(`${g.sku} ${nombrePlan[pl]}: ${motivo}`); res.rechazadas[`agrupar:${g.sku}:${pl}`] = motivo; };
+      if (!(precioViejo > 0)) { rechazar("sin precio"); continue; }
       // La campaña en que está la vieja, al mismo precio (así el comprador no paga el tachado).
       const camp = await una<{ promocion_id: string; tipo: string; precio: number }>(`
         select promocion_id, tipo, precio::float8 precio from ml_promo_item
@@ -176,7 +180,7 @@ export async function prepararAgrupar(org: string, canal: number, usuarioId: str
       const precio = conPropia ? tachado : precioViejo;
       const venta = camp && camp.precio < precioViejo ? camp.precio : conPropia ? precioViejo : null;
       const r = await comprobarAgrupado(cuenta, m.ml, pl, precio, g.disp);
-      if (!r.ok) { res.rechazos.push(`${g.sku} ${nombrePlan[pl]}: ${r.motivo}`); continue; }
+      if (!r.ok) { rechazar(r.motivo); continue; }
       const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: r.cuerpo }];
       if (texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: texto }, seguirSiFalla: true });
       // La gemela de catálogo de la vieja (mismo producto de ML): la nueva también compite ahí.
