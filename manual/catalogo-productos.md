@@ -213,7 +213,10 @@ Para elegir cuáles seguir:
 En un producto de catálogo, Mercado Libre muestra el título del catálogo para todos los vendedores que compiten en él, aunque cada uno haya publicado con otro título: por eso esos renglones dicen «el título es el del catálogo».
 4. De entrada **no se muestran los packs ni las de varias unidades** («Pack de 2», «5 X…», «x10», «kit», «combo», «lote», «10 unidades»), salvo que el producto también sea un pack, **ni las nuestras** (se reconocen por el número de publicación y por la cuenta). Tampoco **las internacionales** (vendedor de afuera o entrega internacional: su precio no se compara porque le faltan los impuestos; llevan la marca **🌐 Internacional**) ni **las que tardan en llegar más de lo que compite** (ver [Seguimiento de publicaciones](/config/seguimiento)). Las cajas **Mostrar también packs y varias unidades (N)**, **Mostrar también las nuestras (N)** y **Mostrar también las que tardan más de N días (N)** y **Mostrar también las internacionales (N)** las agregan; las nuestras dicen **Nuestra**.
 5. La columna **IA** dice si la inteligencia artificial juzga que es **el mismo producto** que el nuestro: **✓ Comparable** (en verde) o **✗ No**, con el motivo corto («mismo modelo, 5 lentes y LED», «es otro modelo», «Es nuestra», «Pack o varias unidades»…). Sirve para elegir rápido; no sigue nada sola.
-6. Al lado de cada una, **+ Seguir** la agrega (sin costo). Las que ya seguís dicen **✓ Siguiendo**.
+6. Al lado de cada una, **+ Seguir** la agrega (sin costo).
+7. **Excluir**: tildada, esa publicación no la querés seguir nunca en este producto. Deja de aparecer en la lista (también en las búsquedas siguientes) y la búsqueda de precio de mercado no la sigue sola ni la cuenta. La caja **Mostrar las excluidas (N)** las vuelve a mostrar, para destildar alguna.
+
+En la lista de la búsqueda no aparecen las que ya seguís (están arriba), ni las de un vendedor que también tiene esa publicación en Clásica (si el vendedor tiene Clásica y Premium, sólo se ofrece la Clásica) o con número MLA (si además tiene una MLAU, que no se puede leer).
 
 La última búsqueda queda guardada: volver a la pestaña no cuesta; buscar de nuevo, sí.
 
@@ -238,6 +241,8 @@ En cada fila de las que seguís:
 - **El tacho, a la derecha de la fila**, deja de seguirla (pregunta ahí mismo «Sí» / «No»).
 - **Fuera de la regla — Excluir**: tildada, la seguís y ves su precio, pero **la regla de precio no la tiene en cuenta** (por ejemplo, un vendedor que a veces pone un precio puntual muy bajo). Graba al tocarla y la regla se vuelve a revisar enseguida.
 - **🌐 Internacional**: tampoco cuenta para la regla.
+
+**Lo repetido de un mismo vendedor se deja de seguir solo**: si un vendedor tiene la publicación en Clásica y en otro tipo (Premium…), se sigue sólo la Clásica; si la publica como MLAU y como MLA, sólo la MLA. Si un vendedor sólo tiene Premium, se sigue la Premium.
 
 **📈 Historial (N)**, a la derecha de cada publicación que seguís, abre debajo de ella **sólo las veces que cambió algo** —el precio, el estado o el tipo de publicación— (N es cuántos cambios hubo), de la más nueva a la más vieja: desde cuándo, precio (con el tachado si tenía descuento), **cuánto cambió** (▼ en rojo si bajó, ▲ en verde si subió, en pesos y en %), tipo y estado. El último renglón es el **Comienzo del seguimiento**. Las lecturas que encontraron todo igual no se muestran; al pie dice cuándo fue la última lectura. Tocándolo de nuevo se cierra.
 
@@ -265,7 +270,8 @@ Criterios:
 - Compara contra las seguidas **activas**, **revisadas** y con precio leído (las pausadas o que no figuran en el catálogo no cuentan: si la que era la referencia se pausa, pasa sola a la siguiente más barata), sin las **excluidas** ni las **internacionales**. El precio de la referencia es el que paga el comprador.
 - El objetivo se redondea a pesos enteros, hacia abajo. Si el producto tiene varias variaciones, se revisa cada una con su propia Clásica.
 - Un producto con precio en dólares sigue en dólares: se baja en la misma proporción.
-- **Cuándo se revisa**: sola, después de cada lectura de las seguidas (la vuelta automática o **Leer ahora**); al grabar la regla; y con **Revisar ahora** (usa lo último leído, sin volver a leer).
+- **Cuándo se revisa**: sola, después de cada lectura de las seguidas (la vuelta automática o **Leer ahora**); al grabar la regla; y con **Revisar ahora**, que la recalcula en el momento con los precios ya leídos (no vuelve a leer ni gasta): si la Clásica tiene que cambiar, deja una propuesta nueva para **Aplicar** (en automático, la cambia); si no, anota en «Última revisión» que no hace falta.
+- **Contra quién**, en una regla nueva, viene en **el más barato de los que sigo**. El **piso** y el **techo** no se completan solos: los carga quien arma la regla.
 - Lo propuesto que no se aplicó se reemplaza por lo de la revisión siguiente.
 
 Todos los cambios de la lista (los de la regla y los hechos a mano, con quién) se ven en [Historial de precios de lista](/catalogo/precios/historial).

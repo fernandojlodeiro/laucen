@@ -220,3 +220,16 @@ update seguimiento_pub set pausada_desde = coalesce(leido_ts, creado_ts) where e
 -- con Apify): exacto cuando son pocas; si son muchas, redondeado («26» = más de 25, «51» = más de 50).
 alter table seguimiento_pub add column if not exists disponible int;
 alter table seguimiento_pub add column if not exists vendidos int;
+
+-- Publicaciones encontradas que no se quieren seguir nunca en un producto (Fer, 22/10): la caja «Excluir» de la
+-- búsqueda. No vuelven a aparecer en las búsquedas de ese producto ni las sigue sola la búsqueda de precio de mercado.
+create table if not exists seguimiento_descartada (
+  organizacion_id   text not null references organizaciones(id) on delete cascade,
+  producto_id       bigint not null references producto(id) on delete cascade,
+  item_id           text not null,
+  ts                timestamptz not null default now(),
+  usuario_id        text,
+  primary key (organizacion_id, producto_id, item_id)
+);
+alter table seguimiento_descartada enable row level security;
+select erp_politica_org('seguimiento_descartada');

@@ -5,7 +5,7 @@
 import { consulta, una } from "@/lib/erp/base";
 import { SQL_A_LA_VENTA } from "@/lib/seguimiento/a-la-venta";
 import { formatear, type Moneda } from "@/lib/moneda";
-import { ultimaBusqueda, catalogosPegados, configSeguimiento, enlaceDe, esPack, parecido, type PubEncontrada } from "@/lib/seguimiento";
+import { ultimaBusqueda, catalogosPegados, configSeguimiento, descartadas, enlaceDe, esPack, parecido, sobraDeVendedor, type PubEncontrada } from "@/lib/seguimiento";
 import Link from "next/link";
 import { CasillaViva, FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
@@ -17,7 +17,7 @@ import BuscarSeguimiento from "./BuscarSeguimiento";
 import { reglaDe } from "@/lib/seguimiento/regla";
 import ReglaPrecio from "./ReglaPrecio";
 import CasillaAccion from "@/app/componentes/CasillaAccion";
-import { accionSeguir, accionSeguirPorNumero, accionDejarDeSeguir, accionLeerSeguimiento, accionCerrarCatalogo, accionExcluirDeRegla, accionConfirmarSeguida, accionConfirmarTodas, accionReanudarSeguida } from "@/app/catalogo/productos/acciones-seguimiento";
+import { accionSeguir, accionSeguirPorNumero, accionDejarDeSeguir, accionLeerSeguimiento, accionCerrarCatalogo, accionExcluirDeRegla, accionConfirmarSeguida, accionConfirmarTodas, accionReanudarSeguida, accionDescartarEncontrada } from "@/app/catalogo/productos/acciones-seguimiento";
 import type { PubJuzgada } from "@/lib/seguimiento/comparables";
 
 type Seguida = {
@@ -77,9 +77,9 @@ function Entrega({ dias, demora, gratis }: { dias: number | null | undefined; de
   );
 }
 
-export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string; internacionales?: string; borden?: string; hist?: string; editar?: string; pausadas?: string } }) {
+export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string; internacionales?: string; borden?: string; hist?: string; editar?: string; pausadas?: string; excluidas?: string } }) {
   const hist = Number(sp.hist) || null;
-  const [seguidas, busqueda, conf, lecturas, catalogos, regla, venta] = await Promise.all([
+  const [seguidas, busqueda, conf, lecturas, catalogos, regla, venta, fuera] = await Promise.all([
     consulta<Seguida>(`
       select sp.id::int, sp.item_id, sp.catalogo_id, sp.titulo, sp.foto, sp.permalink, sp.vendedor, sp.tienda_oficial, sp.precio::float8, sp.precio_original::float8,
              sp.moneda, sp.estado, sp.tipo_publicacion, sp.cuotas, sp.envio_gratis, sp.leido_ts, sp.error, sp.entrega_dias, sp.internacional, sp.excluido,
@@ -113,6 +113,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
     reglaDe(s.org.id, p.id).catch(() => null),
     // Si no está a la venta, las comunes no se releen solas (Fer, 22/10).
     una<{ ok: boolean }>(`select ${SQL_A_LA_VENTA} ok from producto p where p.id = $1 and p.organizacion_id = $2`, [p.id, s.org.id]).catch(() => null),
+    descartadas(s.org.id, p.id).catch(() => new Set<string>()),
   ]);
   // La referencia de la regla de precio (si está prendida): la elegida o la más barata de las activas con precio. Si la
   // elegida deja de estar activa, la que sigue (Fer, 14/10), igual que en lib/seguimiento/regla.ts.
@@ -127,7 +128,13 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
   const seguidosIds = new Set(seguidas.map((x) => x.item_id));
   // Los resultados: sin packs (si el nuestro no lo es) ni los nuestros, salvo que se pidan; los más parecidos al nuestro primero.
   const nuestroEsPack = esPack(p.titulo);
-  const todos = (busqueda?.resultados ?? []).filter((r) => !r.esCatalogo)
+  // En la búsqueda sólo lo que se puede elegir (Fer, 22/10): ni lo que ya se sigue (está arriba), ni lo repetido de un
+  // vendedor que tiene una Clásica (o una MLA), ni lo excluido a mano (salvo «Mostrar las excluidas»).
+  const verExcluidas = sp.excluidas === "1";
+  const otrasDeVendedor = [...(busqueda?.resultados ?? []), ...seguidas.map((x) => ({ itemId: x.item_id, vendedor: x.vendedor, tipoPublicacion: x.tipo_publicacion }))];
+  const elegibles = (busqueda?.resultados ?? []).filter((r) => !r.esCatalogo && !seguidosIds.has(r.itemId) && !sobraDeVendedor(r, otrasDeVendedor));
+  const excluidas = elegibles.filter((r) => fuera.has(r.itemId)).length;
+  const todos = elegibles.filter((r) => verExcluidas || !fuera.has(r.itemId))
     .map((r) => ({ ...r, pack: !nuestroEsPack && esPack(r.titulo), parecido: parecido(p.titulo, r.titulo) }));
   const demora = (r: PubEncontrada) => r.entregaDias != null && r.entregaDias > conf.demoraDias;
   const packs = todos.filter((r) => r.pack).length, propias = todos.filter((r) => r.propia).length, demoradas = todos.filter(demora).length;
@@ -143,7 +150,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
   // El enlace al historial de una seguida (o cerrarlo), sin perder lo demás de la dirección.
   const conHist = (id: number | null) => {
     const q = new URLSearchParams({ seccion: "seguimiento" });
-    for (const k of ["packs", "propias", "demoradas", "internacionales", "borden", "pausadas"] as const) if (sp[k]) q.set(k, sp[k]!);
+    for (const k of ["packs", "propias", "demoradas", "internacionales", "borden", "pausadas", "excluidas"] as const) if (sp[k]) q.set(k, sp[k]!);
     if (id) q.set("hist", String(id));
     return `/catalogo/productos/${p.id}?${q}`;
   };
@@ -310,6 +317,8 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
             <CasillaViva parametro="packs" activo={verPacks} etiqueta={`Mostrar también packs y varias unidades (${packs})`} />
             <CasillaViva parametro="propias" activo={verPropias} etiqueta={`Mostrar también las nuestras (${propias})`} />
             <CasillaViva parametro="demoradas" activo={verDemoradas} etiqueta={`Mostrar también las que tardan más de ${conf.demoraDias} días (${demoradas})`} />
+            <CasillaViva parametro="excluidas" activo={verExcluidas} etiqueta={`Mostrar las excluidas (${excluidas})`}
+              ayuda="Las que tildaste «Excluir»: no se muestran ni las sigue sola la búsqueda de precio de mercado. Destildá «Excluir» para que vuelvan." />
             <CasillaViva parametro="internacionales" activo={verInternacionales} etiqueta={`Mostrar también las internacionales (${internacionales})`}
               ayuda="Vendedores de afuera o con entrega internacional: su precio no se compara porque le faltan los impuestos." />
             <label className="flex items-center gap-1">Ordenar:
@@ -321,7 +330,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
           </div>
         )}
         {busqueda && resultados.length > 0 && (
-          <TablaEncontradas filas={resultados} productoId={p.id} seguidos={seguidosIds} demora={conf.demoraDias} />
+          <TablaEncontradas filas={resultados} productoId={p.id} seguidos={seguidosIds} demora={conf.demoraDias} fuera={fuera} />
         )}
       </section>
     </div>
@@ -381,13 +390,14 @@ function Historial({ lecturas, moneda }: { lecturas: Lectura[]; moneda: string |
 }
 
 /** Una lista de publicaciones encontradas (búsqueda o catálogo pegado), con «+ Seguir» al lado de cada una. */
-function TablaEncontradas({ filas, productoId, seguidos, demora }: { filas: (PubJuzgada & { pack?: boolean })[]; productoId: number; seguidos: Set<string>; demora: number }) {
+function TablaEncontradas({ filas, productoId, seguidos, demora, fuera }: { filas: (PubJuzgada & { pack?: boolean })[]; productoId: number; seguidos: Set<string>; demora: number; fuera?: Set<string> }) {
   return (
     <div className={`${CAJA_TABLA} mt-2`}>
       <table className={TABLA}>
         <thead className={THEAD}>
           <tr><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Tipo y cuotas</th><th className={TH}>Entrega</th>
-            <th className={TH} title="Si la IA la juzga el mismo producto que el nuestro (y por qué)">IA</th><th /></tr>
+            <th className={TH} title="Si la IA la juzga el mismo producto que el nuestro (y por qué)">IA</th>
+            {fuera && <th className={TH} title="Tildada: no la querés seguir nunca en este producto; no vuelve a aparecer en las búsquedas">Excluir</th>}<th /></tr>
         </thead>
         <tbody>
           {filas.map((r) => (
@@ -412,6 +422,12 @@ function TablaEncontradas({ filas, productoId, seguidos, demora }: { filas: (Pub
                   : r.comparable ? <span className="text-[#1F6E4A]"><b>✓ Comparable</b>{r.motivoIa && <span className="block text-[10px]">{r.motivoIa}</span>}</span>
                   : <span className="text-[#5C6B76]">✗ No{r.motivoIa && <span className="block text-[10px]">{r.motivoIa}</span>}</span>}
               </td>
+              {fuera && (
+                <td className={TD}>
+                  {!r.propia && <CasillaAccion accion={accionDescartarEncontrada} campos={{ item: r.itemId, producto_id: String(productoId) }} activa={fuera.has(r.itemId)}
+                    etiqueta="Excluir" ayuda="No la quiero seguir nunca en este producto: no vuelve a aparecer en las búsquedas ni la sigue sola la búsqueda de precio de mercado" />}
+                </td>
+              )}
               <td className={`${TD} text-right whitespace-nowrap`}>
                 {r.propia ? <span className="text-[11px] text-[#5C6B76]">Nuestra</span>
                   : seguidos.has(r.itemId) ? <span className="text-[11px] text-[#1F6E4A] font-semibold">✓ Siguiendo</span>

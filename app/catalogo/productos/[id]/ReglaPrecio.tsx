@@ -48,14 +48,14 @@ export default async function ReglaPrecio({ org, productoId, seguidas, editando,
         {!editando && r.modo !== "apagada" && (
           <form action={accionRevisarRegla}>
             <input type="hidden" name="producto_id" value={productoId} />
-            <button className={SUAVE} title="Con lo último leído de las que seguís, sin volver a leerlas">Revisar ahora</button>
+            <button className={SUAVE} title="Vuelve a calcular la regla ahora, con los precios ya leídos de las que seguís (no las lee de nuevo ni gasta). Si la Clásica tiene que cambiar, deja una propuesta nueva para «Aplicar» (en automático, la cambia); si no, anota que no hace falta.">Revisar ahora</button>
           </form>
         )}
         <BotonesFicha editando={editando} ver={ver} editar={editar} form="regla" />
       </TituloSeccion>
       <p className="text-[11px] text-[#5C6B76] mb-3">
         Baja el precio de la <b>lista Clásicas</b> de este producto según lo que cobran las publicaciones que seguís. No toca Mercado Libre: desde la
-        lista, el esquema de precios lo lleva a todas las cuentas y todos los planes. Baja hasta el objetivo sin pasar el piso; con «También subir», sube hasta el objetivo sin pasar el techo. Se revisa sola después de cada lectura.
+        lista, el esquema de precios lo lleva a todas las cuentas y todos los planes. Baja hasta el objetivo sin pasar el piso; con «También subir», sube hasta el objetivo sin pasar el techo. Se revisa sola después de cada lectura y al grabar la regla; «Revisar ahora» la recalcula en el momento con lo ya leído (sin gastar). Sólo mira las seguidas <b>revisadas</b>: las 🤖 automáticas sin revisar no cuentan.
       </p>
 
       {editando ? (

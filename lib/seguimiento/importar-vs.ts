@@ -13,7 +13,7 @@
 //     la venta (lib/seguimiento/a-la-venta.ts); las de un producto pausado quedan de referencia para cuando se compre.
 
 import { consulta, ErrorErp } from "@/lib/erp/base";
-import { nuestras } from "@/lib/seguimiento";
+import { nuestras, limpiarRepetidas } from "@/lib/seguimiento";
 import { revisarReglasDe } from "@/lib/seguimiento/regla";
 import { SQL_CON_ML_VIVA, SQL_A_LA_VENTA, SQL_ES_NOTEBOOK, esTituloNotebook } from "@/lib/seguimiento/a-la-venta";
 import { numeroVs } from "@/lib/importar/virtualseller";
@@ -102,6 +102,8 @@ export function leerSeguimientosVs(h: Hoja): FilaVs[] {
 export type ResumenVs = {
   filas: number; propias: number; sinPublicacion: number; sinId: number; repetidas: number;
   nuevas: number; actualizadas: number; yaEstaban: number; productos: number; activas: number; pausadas: number; internacionales: number;
+  /** Borradas por repetidas del mismo vendedor (no Clásica con Clásica, MLAU con MLA). */
+  repetidasVendedor?: number;
   /** Terminadas: no se importan (Fer, 22/10: una terminada no vuelve). */
   terminadas?: number;
   /** Notebooks: no se importan (Fer, 22/10). */
@@ -207,6 +209,8 @@ export async function importarSeguimientosVs(org: string, filas: FilaVs[], archi
       select organizacion_id, id, $3::timestamptz, 'importado', precio, precio_original, estado, tipo_publicacion, jsonb_build_object('archivo', $4::text)
         from seguimiento_pub where organizacion_id = $1 and id = any($2::bigint[])`, [org, conLectura, cuando, archivo]);
   }
+  // Lo repetido de un mismo vendedor (no Clásica con Clásica, MLAU con MLA) no se sigue (Fer, 22/10).
+  r.repetidasVendedor = await limpiarRepetidas(org, [...new Set(lista.map((d) => d.producto_id as number))]);
   // Con lo nuevo, la regla de precio de los productos que la tengan prendida.
   await revisarReglasDe(org, [...new Set(lista.map((d) => d.producto_id as number))]).catch((e) => console.error("[seguimiento vs] reglas", e));
   return r;
@@ -219,6 +223,7 @@ export function textoResumen(r: ResumenVs): string {
     + (r.productos ? ` Se releen solos los de ${r.productosALaVenta} productos a la venta.` : "")
     + (r.notebooks ? ` ${r.notebooks} de notebooks no entraron.` : "")
     + (r.terminadas ? ` ${r.terminadas} terminadas no entraron.` : "")
+    + (r.repetidasVendedor ? ` ${r.repetidasVendedor} repetidas del mismo vendedor (no Clásica o MLAU) se dejaron de seguir.` : "")
     + (r.sinPublicacionActiva.length ? ` ${r.sinPublicacionActiva.length} SKU sin publicación activa ni pausada no entraron.` : "")
     + (r.noEncontrados.length ? ` ${r.noEncontrados.length} SKU no están en el catálogo.` : "")
     + (r.propias ? ` ${r.propias} eran nuestras y no entraron.` : "");

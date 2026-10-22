@@ -384,6 +384,45 @@ export async function seguirPorNumero(org: string, productoId: number, texto: st
   return { nuevas: nuevos.length, repetidas: items.size - nuevos.length, ids: nuevos, catalogos: [...catalogos] };
 }
 
+/** Las publicaciones que no se quieren seguir nunca en este producto (caja «Excluir» de la búsqueda; Fer, 22/10). */
+export async function descartadas(org: string, productoId: number): Promise<Set<string>> {
+  const r = await consulta<{ item_id: string }>("select item_id from seguimiento_descartada where organizacion_id = $1 and producto_id = $2", [org, productoId]);
+  return new Set(r.map((x) => x.item_id));
+}
+
+export async function descartar(org: string, productoId: number, itemId: string, si: boolean, usuario: string | null): Promise<void> {
+  if (si) await consulta(`insert into seguimiento_descartada (organizacion_id, producto_id, item_id, usuario_id) values ($1, $2, $3, $4)
+                          on conflict do nothing`, [org, productoId, itemId, usuario]);
+  else await consulta("delete from seguimiento_descartada where organizacion_id = $1 and producto_id = $2 and item_id = $3", [org, productoId, itemId]);
+}
+
+/** El mismo vendedor en SQL (alias a y b): por su número, o por el apodo sin el «(número)» que agrega Virtual Seller. */
+const MISMO_VENDEDOR = `((a.vendedor_id is not null and a.vendedor_id = b.vendedor_id)
+  or regexp_replace(upper(trim(a.vendedor)), '\\s*\\(\\d+\\)$', '') = regexp_replace(upper(trim(b.vendedor)), '\\s*\\(\\d+\\)$', ''))`;
+
+/** Deja de seguir lo repetido de un mismo vendedor en un producto (Fer, 22/10): una publicación que no es Clásica si el
+ *  vendedor tiene una Clásica, y una MLAU (que no se puede leer) si tiene una MLA. Devuelve cuántas borró. */
+export async function limpiarRepetidas(org: string, productos?: number[]): Promise<number> {
+  const r = await consulta<{ id: number }>(`
+    delete from seguimiento_pub a where a.organizacion_id = $1 and ($2::bigint[] is null or a.producto_id = any($2::bigint[]))
+       and ((a.tipo_publicacion is not null and a.tipo_publicacion <> 'gold_special'
+             and exists (select 1 from seguimiento_pub b where b.producto_id = a.producto_id and b.id <> a.id and b.tipo_publicacion = 'gold_special' and ${MISMO_VENDEDOR}))
+         or (a.item_id like 'MLAU%'
+             and exists (select 1 from seguimiento_pub b where b.producto_id = a.producto_id and b.id <> a.id and b.item_id not like 'MLAU%' and ${MISMO_VENDEDOR})))
+    returning a.id::int`, [org, productos?.length ? productos : null]);
+  return r.length;
+}
+
+/** ¿Sobra esta publicación de una lista (búsqueda), porque el mismo vendedor tiene una Clásica (o una MLA, si es MLAU)? Pura. */
+export function sobraDeVendedor(p: { itemId: string; vendedor?: string | null; vendedorId?: number | null; tipoPublicacion?: string | null },
+  otras: { itemId: string; vendedor?: string | null; vendedorId?: number | null; tipoPublicacion?: string | null }[]): boolean {
+  const nombre = (v?: string | null) => (v ?? "").trim().toUpperCase().replace(/\s*\(\d+\)$/, "");
+  const mismo = (o: typeof otras[number]) => o.itemId !== p.itemId && ((p.vendedorId != null && o.vendedorId === p.vendedorId) || (!!nombre(p.vendedor) && nombre(o.vendedor) === nombre(p.vendedor)));
+  if (p.tipoPublicacion && p.tipoPublicacion !== "gold_special" && otras.some((o) => mismo(o) && o.tipoPublicacion === "gold_special")) return true;
+  if (p.itemId.startsWith("MLAU") && otras.some((o) => mismo(o) && !o.itemId.startsWith("MLAU"))) return true;
+  return false;
+}
+
 /** «Reanudar» una pausada que dejó de releerse: vuelve a contar los meses desde hoy. */
 export async function reanudarSeguida(org: string, id: number): Promise<void> {
   await consulta("update seguimiento_pub set pausada_desde = now() where id = $1 and organizacion_id = $2", [id, org]);
@@ -400,8 +439,9 @@ export async function seguirAutomaticas(org: string, productoId: number, pubs: (
   await consulta(`delete from seguimiento_pub where organizacion_id = $1 and producto_id = $2 and origen = 'auto' and not confirmada
                    and not (item_id = any($3::text[]))`, [org, productoId, pubs.map((p) => p.itemId)]);
   let n = 0;
+  const fuera = await descartadas(org, productoId);
   for (const p of pubs) {
-    if (p.esCatalogo || p.propia) continue;
+    if (p.esCatalogo || p.propia || fuera.has(p.itemId)) continue;
     const r = await una<{ id: number }>(`
       insert into seguimiento_pub (organizacion_id, producto_id, item_id, catalogo_id, titulo, foto, permalink, vendedor, tienda_oficial,
                                    precio, precio_original, moneda, estado, tipo_publicacion, cuotas, envio_gratis, origen, leido_ts, intento_ts, vendedor_id,
@@ -657,8 +697,10 @@ export async function leerSeguidas(org: string, o: { productoId?: number; todas?
       if (d != null) await consulta("update seguimiento_pub set entrega_dias = $2 where id = $1", [x.id, d]);
     }
   }
-  // Las que Mercado Libre dice terminadas se dejan de seguir (Fer, 22/10): una terminada no vuelve.
+  // Las que Mercado Libre dice terminadas se dejan de seguir (Fer, 22/10): una terminada no vuelve. Y lo repetido de un
+  // mismo vendedor (no Clásica con Clásica, MLAU con MLA), que con la lectura recién se sabe.
   await consulta("delete from seguimiento_pub where organizacion_id = $1 and id = any($2::bigint[]) and estado = 'cerrada'", [org, seguidas.map((x) => x.id)]);
+  await limpiarRepetidas(org, [...new Set(seguidas.map((x) => x.producto_id))]);
   // Con lo recién leído, la regla de precio de cada producto (lib/seguimiento/regla.ts).
   await revisarReglasDe(org, [...new Set(seguidas.map((x) => x.producto_id))]).catch((e) => console.error("[seguimiento] reglas", e));
   return { catalogo, comunes: leidas, sinPresupuesto };
