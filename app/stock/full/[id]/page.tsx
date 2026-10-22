@@ -122,7 +122,9 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
            stock_disponible_deposito($1, v.id, $3) origen,
            exists (select 1 from publicacion pu where pu.variacion_id = v.id and pu.canal_id = $4 and pu.estado <> 'cerrada') publicada
       from variacion v join producto p on p.id = v.producto_id
-     where v.organizacion_id = $1 and v.estado <> 'archivada' and p.estado <> 'archivado' and ${sqlBusqueda("$2", camposVariacionYProducto("v", "p"))}
+     where v.organizacion_id = $1 and v.estado <> 'archivada' and p.estado <> 'archivado' and ${sqlBusqueda("$2", [...camposVariacionYProducto("v", "p"),
+       // También por el número de publicación (MLA…) o el Código ML de la cuenta del envío.
+       { de: "select 1 from meli_item m join publicacion pu on pu.id = m.publicacion_id where pu.variacion_id = v.id and m.canal_id = $4", campos: ["m.item_id", SQL_CODIGO] }])}
      order by v.sku limit 15`, [s.org.id, parametroBusqueda(q, sp.contiene !== "1"), e.deposito_origen_id, e.canal_id]) : [];
 
   const est = ESTADOS_ENVIO[e.estado];
@@ -360,7 +362,7 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
           <div className={CAJA}>
             <TituloSeccion titulo="Agregar productos" />
             {enCamino && <p className="text-[11px] text-[#8a6100] mb-1">El envío ya salió: lo que agregues sale ahora de {e.origen} y queda «En camino a Full».</p>}
-            <BuscadorVivo q={q} comienza={sp.contiene !== "1"} placeholder="Buscar por SKU, código de barras o título" limpiar={["editar", "recibir"]} />
+            <BuscadorVivo q={q} comienza={sp.contiene !== "1"} placeholder="Buscar por SKU, código de barras, título, MLA o Código ML" limpiar={["editar", "recibir"]} />
             {hallados.length > 0 && (
               <table className={`${TABLA} mt-2`}>
                 <tbody>
