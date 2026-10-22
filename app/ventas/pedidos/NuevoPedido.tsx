@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { leerNumero, formatearNumero } from "@/lib/numeros";
+import { cuitCierra } from "@/lib/cuit-verificador";
 import { PRIMARIO, SUAVE, ICONO_BORRAR } from "@/app/botones";
 import IconoTacho from "@/app/componentes/IconoTacho";
 import {
@@ -164,7 +165,13 @@ function ClienteNuevo({ nombreInicial, documentoInicial, alCrear, alCerrar }: {
           </select></label>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        {campo("cuit", "CUIT / CUIL", { placeholder: "20-12345678-9" })}
+        <div>
+          {campo("cuit", "CUIT / CUIL", { placeholder: "20-12345678-9" })}
+          {/^\d{11}$/.test(v.cuit.replace(/\D/g, "")) && !cuitCierra(v.cuit.replace(/\D/g, "")) && (
+            <span className="block text-[10px] text-[#C03420] mt-0.5">No es válido: el último número no corresponde.</span>
+          )}
+          {v.cuit.replace(/\D/g, "").length > 11 && <span className="block text-[10px] text-[#C03420] mt-0.5">Tiene más de 11 números.</span>}
+        </div>
         {campo("dni", "DNI", { placeholder: "12345678" })}
         <label><span className={ETIQUETA}>Condición IVA</span>
           <select value={v.condicionIva} onChange={poner("condicionIva")} className={`${CAMPO} w-full`}>

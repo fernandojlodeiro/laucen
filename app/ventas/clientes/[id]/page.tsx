@@ -2,6 +2,7 @@
 // corrige), direcciones, identidades por canal y sus pedidos.
 
 import { cuitLegible } from "@/lib/cuit";
+import { cuitCierra } from "@/lib/cuit-verificador";
 import { telefonoLegible } from "@/lib/telefono";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -127,7 +128,9 @@ export default async function FichaCliente({ params, searchParams }: { params: P
           <Dato etiqueta="Apellido del contacto">{c.apellido}</Dato>
           <Dato etiqueta="Nombre del contacto">{c.nombre_pila}</Dato>
           <Dato etiqueta="Apodo en Mercado Libre">{c.apodo_ml}</Dato>
-          <Dato etiqueta="CUIT / CUIL">{c.cuit ? cuitLegible(c.cuit) : null}</Dato>
+          <Dato etiqueta="CUIT / CUIL" ayuda={c.cuit && !cuitCierra(c.cuit) ? <span className="text-[#C03420]">No es válido: el último número no corresponde. Corregilo con el lápiz.</span> : undefined}>
+            {c.cuit ? cuitLegible(c.cuit) : null}
+          </Dato>
           <Dato etiqueta={`DNI${c.documento_numero && c.documento_tipo && c.documento_tipo !== "DNI" ? ` (cargado como ${c.documento_tipo})` : ""}`}>{c.documento_numero}</Dato>
           <Dato etiqueta="Condición IVA">{c.condicion_iva ? etiqueta(CONDICIONES_IVA, c.condicion_iva) : null}</Dato>
           <Dato etiqueta="Mail">{c.email}</Dato>

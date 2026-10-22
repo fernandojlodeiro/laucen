@@ -20,6 +20,7 @@ import type { Moneda } from "@/lib/moneda";
 import { normalizarCuit } from "@/lib/clientes";
 import { CONDICIONES_IVA } from "@/app/ventas/formato";
 import { cuitLegible } from "@/lib/cuit";
+import { cuitCierra, CUIT_NO_CIERRA } from "@/lib/cuit-verificador";
 import { whatsappNormal } from "@/lib/telefono";
 
 
@@ -44,6 +45,7 @@ export async function crearClienteDesdePedido(d: {
     if (d.cuit.trim()) {
       cuit = normalizarCuit(d.cuit);
       if (!cuit) return { error: "El CUIT / CUIL tiene que tener 11 números." };
+      if (!cuitCierra(cuit)) return { error: CUIT_NO_CIERRA };
     }
     const dniTxt = d.dni.trim().slice(0, 30);
     const dni = (/^[\d.\s-]+$/.test(dniTxt) ? dniTxt.replace(/\D/g, "") : dniTxt) || null;

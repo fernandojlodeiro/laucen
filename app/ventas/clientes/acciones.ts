@@ -1,6 +1,7 @@
 "use server";
 
 import { normalizarCuit } from "@/lib/clientes";
+import { cuitCierra, CUIT_NO_CIERRA } from "@/lib/cuit-verificador";
 
 // Clientes: alta manual (con todos los datos de la ficha), ficha, direcciones e
 // identidades por canal. En operación normal los clientes los crean los
@@ -36,6 +37,8 @@ function cuitDe(fd: FormData): string | null {
   if (!t) return null;
   const c = normalizarCuit(t);
   if (!c) throw new ErrorErp("El CUIT tiene que tener 11 dígitos.");
+  // El dígito verificador (Fer, 22/10; la cuenta, sin consultar ARCA).
+  if (!cuitCierra(c)) throw new ErrorErp(CUIT_NO_CIERRA);
   return c;
 }
 
