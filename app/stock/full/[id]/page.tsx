@@ -270,21 +270,25 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
           <thead className={THEAD}>
             <tr>
               <th className={TH}>Producto</th>
-              <th className={THN}>Cantidad</th>
-              {!borrador && <><th className={THN}>Recibido</th><th className={THN}>Faltante</th></>}
-              <th className={THN} title={`Disponible para mandar en ${e.origen}`}>Disponible en {e.origen}</th>
-              <th className={THN}>En Full</th>
-              <th className={THN} title="De otros envíos que todavía no llegaron">En camino (otros)</th>
-              <th className={THN} title={`Promedio de los últimos ${dias} días en ${e.canal}`}>Vende/día cuenta</th>
-              <th className={THN} title={`Promedio de los últimos ${dias} días en los demás canales`}>Vende/día resto</th>
-              <th className={TH}>Código ML</th>
-              <th className={THN}>Flete por unidad</th>
+              <th className={THN} title="Unidades de este envío">Cant.</th>
+              {!borrador && <>
+                <th className={THN} title="De este envío: salieron del depósito y todavía no llegaron a Full">En camino</th>
+                <th className={THN} title="De este envío: ya contadas en Full">Recib.</th>
+                <th className={THN} title="De este envío: no llegaron (al cerrar el envío)">Falta</th>
+              </>}
+              <th className={THN} title={`Disponible para mandar en ${e.origen}`}>Dispo.</th>
+              <th className={THN} title={`Lo que ya hay en Full de ${e.canal}`}>Full</th>
+              <th className={THN} title="De otros envíos a Full que todavía no llegaron">Otros env.</th>
+              <th className={THN} title={`Vendidas por día en ${e.canal} (promedio de los últimos ${dias} días)`}>Vta/día</th>
+              <th className={THN} title={`Vendidas por día en los demás canales (promedio de los últimos ${dias} días)`}>Vta/día resto</th>
+              <th className={TH} title="Código de Full (Código ML) al que va">Código</th>
+              <th className={THN} title="Flete por unidad (y colecta de Mercado Libre, cuando la cobra)">Flete/u.</th>
               <th />
-              <th className={TH}>Publicaciones que venden ese stock</th>
+              <th className={TH} title="Publicaciones de la cuenta que venden el stock de ese código">Publicaciones</th>
             </tr>
           </thead>
           <tbody>
-            {lineas.length === 0 && <tr><td colSpan={14} className={`${TD} text-[#5C6B76]`}>Todavía no hay productos: buscalos abajo o mirá los sugeridos.</td></tr>}
+            {lineas.length === 0 && <tr><td colSpan={16} className={`${TD} text-[#5C6B76]`}>Todavía no hay productos: buscalos abajo o mirá los sugeridos.</td></tr>}
             {lineas.map((l) => {
               const c = ctxDe.get(l.variacion_id);
               // En camino, el lápiz cambia sólo la publicación (la cantidad ya salió del depósito).
@@ -308,7 +312,7 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
                       ? <CampoNumero name="cantidad" valor={l.cantidad} tipo="entero" form={`fl-${l.id}`} className={`${CAMPO} w-20`} />
                       : n(l.cantidad)}
                   </td>
-                  {!borrador && <><td className={TDN}>{n(l.recibido)}</td><td className={TDN}>{l.faltante ? n(l.faltante) : ""}</td></>}
+                  {!borrador && <><td className={`${TDN} ${pend > 0 ? "font-bold text-[#16577F]" : ""}`}>{pend > 0 ? n(pend) : ""}</td><td className={TDN}>{n(l.recibido)}</td><td className={TDN}>{l.faltante ? n(l.faltante) : ""}</td></>}
                   <td className={`${TDN} ${borrador && c && c.disponible_origen < l.cantidad ? "text-[#C03420] font-bold" : ""}`}>{c ? n(c.disponible_origen) : "—"}</td>
                   <td className={TDN}>{c ? n(c.en_full) : "—"}</td>
                   <td className={TDN}>{c ? n(c.en_camino) : "—"}</td>
