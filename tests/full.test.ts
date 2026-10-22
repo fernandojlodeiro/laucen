@@ -226,6 +226,9 @@ if (url) {
     const p = await id("insert into pedido (organizacion_id, canal_id, estado, fecha, deposito_id, afecta_stock) values ($1, $2, 'entregado', '2026-09-20 12:00-03', $3, false) returning id", [e.org, e.canal, full]);
     await q("insert into pedido_linea (organizacion_id, pedido_id, variacion_id, cantidad, precio_unit_ars, precio_unit_usd, titulo) values ($1, $2, $3, 1, 1000, 1, 'x')", [e.org, p, grande]);
     await m.costos.recalcularCostosFull(e.org);
+    // Los períodos que faltan leer salen como AAAA-MM-01 (no como fecha de JavaScript).
+    const { hayCargosFullPendientes } = m.costos;
+    assert.equal(await hayCargosFullPendientes(), true);
     const fila = async (v: number, mes: string) => (await q<{ almacenamiento: string; estimado: string; vendidas: number; por_unidad: string | null }>(
       "select almacenamiento, estimado, vendidas, por_unidad from full_costo_mes where canal_id = $1 and variacion_id = $2 and mes = $3", [e.canal, v, mes]))[0];
     assert.equal(Number((await fila(grande, "2026-09-01")).almacenamiento), 130);
