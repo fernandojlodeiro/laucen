@@ -160,7 +160,8 @@ Errores típicos: "Elegí el cliente (o marcá «Consumidor final»).", "Línea 
 
 1. Cuando el pedido está **Preparado** y el cliente viene a buscarlo, en **"Operación"** apretá **"Cliente presente: retira"**.
 2. Si lo paga al retirar («A cobrar»), el botón dice **"Cliente presente: retira y paga $ …"**: elegí antes en **"Cobró con"** con qué pagó.
-3. En un solo paso: se confirma el cobro (si hacía falta), el pedido queda **Entregado** (el stock reservado pasa a vendido) y, **si todavía no tiene factura, se factura en el momento**. Aviso: "Entregado · Factura B … emitida." Si la factura no sale (por ejemplo, ARCA no responde), el pedido queda entregado igual y el aviso dice qué falló: se reintenta desde la factura.
+   Si es **a cuenta corriente**, no se cobra: queda entregado y la factura se carga a su cuenta.
+3. En un solo paso: se confirma el cobro (si hacía falta), el pedido queda **Entregado** (es el estado de "ya lo retiró"; el stock reservado pasa a vendido) y, **si todavía no tiene factura, se factura en el momento** (y si el cliente tiene WhatsApp y la casilla "Enviarle la factura por WhatsApp", se le manda). Aviso: "Entregado · Factura B … emitida." Si la factura no sale (por ejemplo, ARCA no responde), el pedido queda entregado igual y el aviso dice qué falló: se reintenta desde la factura.
 
 ### Avanzar el estado a mano (pedidos que no son de Mercado Libre)
 

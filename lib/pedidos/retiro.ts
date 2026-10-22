@@ -1,6 +1,6 @@
 // «Cliente presente: retira» (Fer, 7/10): el cliente vino al local a buscar su
 // pedido. En un solo paso: si se cobra al retirar («A cobrar»), se confirma el
-// cobro con el medio que dijo; el pedido queda entregado (el stock sale como
+// cobro con el medio que dijo (a cuenta corriente no se cobra); el pedido queda entregado (el stock sale como
 // vendido); y si todavía no tiene factura, se factura en el momento. Si la
 // factura falla, el pedido queda entregado igual y se avisa (se reintenta
 // desde la factura).
@@ -15,7 +15,11 @@ export async function clientePresenteRetira(org: string, pedidoId: number, quien
   if (!p) throw new ErrorErp("El pedido no existe.");
   if (p.estado !== "preparado") throw new ErrorErp("Primero preparalo: el cliente retira un pedido preparado.");
   const hecho: string[] = [], fallo: string[] = [];
-  if (p.estado_pago !== "pagado") {
+  if (p.estado_pago === "a_convenir") {
+    // A cuenta corriente: no se cobra ahora; se entrega y la factura lo carga a su cuenta.
+    await cambiarEstado(org, pedidoId, "entregado", quien, "cliente presente: retiró (a cuenta corriente)");
+    hecho.push("entregado a cuenta corriente");
+  } else if (p.estado_pago !== "pagado") {
     if (!medio) throw new ErrorErp("Elegí con qué pagó.");
     await entregarYCobrar(org, pedidoId, medio, quien);
     hecho.push("cobrado y entregado");
