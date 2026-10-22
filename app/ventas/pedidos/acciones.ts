@@ -23,10 +23,13 @@ import { cuitLegible } from "@/lib/cuit";
 import { cuitCierra, CUIT_NO_CIERRA } from "@/lib/cuit-verificador";
 import { whatsappNormal } from "@/lib/telefono";
 import { provinciaNormal } from "@/lib/provincias";
+import { faltaParaFacturar } from "@/lib/datos-factura";
 
 
 export type ClienteHallado = {
   id: number; nombre: string; documento: string | null; email: string | null; cuentaCorriente: boolean;
+  /** Qué le falta para facturarle (lib/datos-factura.ts); null si nada. */
+  faltaFacturar?: string | null;
   direccion: { calle: string | null; numero: string | null; localidad: string | null; provincia: string | null; codigo_postal: string | null } | null;
 };
 
@@ -106,8 +109,8 @@ export async function crearClienteDesdePedido(d: {
  *  que encuentra el buscador. */
 async function clientesHallados(org: string, ids: number[] | null, b?: { prefiltro: string; busqueda: string; valores: unknown[] }): Promise<ClienteHallado[]> {
   const valores = b ? b.valores : [org, ids];
-  const filas = await consulta<{ id: number; nombre: string; cuit: string | null; dni: string | null; email: string | null; cuenta_corriente: boolean; direccion: ClienteHallado["direccion"] }>(`
-    select cl.id::int, cl.nombre, cl.cuit, nullif(concat_ws(' ', cl.documento_tipo, cl.documento_numero), '') dni, cl.email,
+  const filas = await consulta<{ id: number; nombre: string; cuit: string | null; condicion_iva: string | null; dni: string | null; email: string | null; cuenta_corriente: boolean; direccion: ClienteHallado["direccion"] }>(`
+    select cl.id::int, cl.nombre, cl.cuit, cl.condicion_iva, nullif(concat_ws(' ', cl.documento_tipo, cl.documento_numero), '') dni, cl.email,
            coalesce(cl.cuenta_corriente, false) cuenta_corriente,
            (select jsonb_build_object('calle', d.calle, 'numero', d.numero, 'localidad', d.localidad, 'provincia', d.provincia, 'codigo_postal', d.codigo_postal)
               from cliente_direccion d where d.cliente_id = cl.id order by (d.etiqueta = 'Envío') desc, d.principal desc, d.id limit 1) direccion
@@ -117,7 +120,7 @@ async function clientesHallados(org: string, ids: number[] | null, b?: { prefilt
      order by cl.nombre limit 20`, valores);
   return filas.map((f) => ({
     id: f.id, nombre: f.nombre, documento: [f.cuit && `CUIT ${cuitLegible(f.cuit)}`, f.dni].filter(Boolean).join(" · ") || null,
-    email: f.email, cuentaCorriente: f.cuenta_corriente, direccion: f.direccion,
+    email: f.email, cuentaCorriente: f.cuenta_corriente, direccion: f.direccion, faltaFacturar: faltaParaFacturar(f.condicion_iva, f.cuit),
   }));
 }
 

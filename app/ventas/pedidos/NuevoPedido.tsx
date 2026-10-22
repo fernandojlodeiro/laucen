@@ -414,6 +414,13 @@ export default function NuevoPedido({ canales, listas, edicion, formId }: {
                 {cliente.cuentaCorriente && <span className="text-[#1F6E4A]"> · con cuenta corriente</span>}
               </span>
               <button type="button" className={SUAVE} onClick={() => { setCliente(null); void reprecio(canal, null); }}>Cambiar</button>
+              {cliente.faltaFacturar && (
+                <p role="alert" className="w-full rounded-lg px-3 py-2 bg-[#FDE7B0] text-[#3D2600] border border-[#C98A00]">
+                  <b>Faltan datos para facturar:</b> {cliente.faltaFacturar}. Completalo antes de facturar.{" "}
+                  <a href={`/ventas/clientes/${cliente.id}?editar=ficha`} target="_blank" rel="noreferrer" className="font-semibold text-[#16577F] underline">Completar en la ficha (se abre aparte)</a>
+                  {" "}y después «Cambiar» y volvé a elegirlo.
+                </p>
+              )}
             </div>
           ) : (
             <div className="relative">
