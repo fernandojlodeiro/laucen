@@ -86,12 +86,12 @@ export async function accionCorregirDdjj(fd: FormData) {
         const v = (k: string) => num(fd, `j${c}_${k}`);
         const saldoPagar = v("a_pagar"), saldoFavor = v("a_favor");
         js.push({ codigo: c, coeficiente: v("coeficiente"), base: v("base"), alicuota: v("alicuota"), determinado: v("determinado"), retenciones: v("retenciones"),
-          percepciones: v("percepciones"), percepciones_aduaneras: v("percepciones_aduaneras"), recaudaciones_bancarias: v("recaudaciones_bancarias"),
+          percepciones: v("percepciones"), percepciones_aduaneras: v("percepciones_aduaneras"), recaudaciones_bancarias: v("recaudaciones_bancarias"), deducciones: v("deducciones"),
           saldo_anterior: v("saldo_anterior"), saldo: Math.round((saldoPagar - saldoFavor) * 100) / 100 });
       }
       const nueva = codigoJurisdiccion(texto(fd, "jur_nueva"));
       if (nueva && !js.some((j) => j.codigo === nueva)) js.push({ codigo: nueva, coeficiente: 0, base: 0, alicuota: 0, determinado: 0, retenciones: 0, percepciones: 0,
-        percepciones_aduaneras: 0, recaudaciones_bancarias: 0, saldo_anterior: 0, saldo: 0 });
+        percepciones_aduaneras: 0, recaudaciones_bancarias: 0, deducciones: 0, saldo_anterior: 0, saldo: 0 });
       for (const j of js) if (j.coeficiente > 1) j.coeficiente = j.coeficiente / 100;
       await corregirDdjj(s.org.id, id, datosDe("iibb", { base_total: num(fd, "base_total"), jurisdicciones: js }) as DatosIibb, extra);
       return nueva ? { ir: `${ruta}?editar=ficha&ok=${encodeURIComponent(`Agregada ${nombreJurisdiccion(nueva)}: cargale sus importes.`)}` } : "Declaración grabada.";
@@ -156,7 +156,8 @@ export async function accionGrabarMunicipal(fd: FormData) {
 export async function accionBuscarDrive() {
   const s = await entrarErp("impuestos_ver");
   return deFondo(s, "ddjj-drive", "Buscar declaraciones en el Drive", async () => {
-    const r = await leerDdjjDelDrive(s.org.id, s.usuario.id);
+    // Corta a los 4 minutos (la pantalla tiene 5): lo que quede, en la próxima vuelta.
+    const r = await leerDdjjDelDrive(s.org.id, s.usuario.id, { hastaMs: Date.now() + 240_000 });
     revalidatePath(BASE);
     return `Drive: ${textoResultado(r)}`;
   });

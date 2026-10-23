@@ -36,6 +36,7 @@ const CAMPOS_JUR: [string, string, string][] = [
   ["coeficiente", "Coef.", "Coeficiente unificado"], ["alicuota", "Alíc.", "Alícuota %"], ["base", "Base", "Base imponible atribuida"],
   ["determinado", "Determ.", "Impuesto determinado"], ["retenciones", "Ret.", "Retenciones"], ["percepciones", "Percep.", "Percepciones"],
   ["percepciones_aduaneras", "Aduana", "Percepciones aduaneras"], ["recaudaciones_bancarias", "Recaud.", "Recaudaciones bancarias y SIRTAC"],
+  ["deducciones", "Restan", "Valores que restan (en el resumen del CM03: saldos a favor, retenciones, percepciones… juntos)"],
   ["saldo_anterior", "Saldo ant.", "Saldo a favor del mes anterior"], ["a_pagar", "A pagar", "Saldo a pagar"], ["a_favor", "A favor", "Saldo a favor"],
 ];
 

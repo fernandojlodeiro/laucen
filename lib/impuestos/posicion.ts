@@ -229,9 +229,12 @@ export async function posicionMes(org: string, emisorId: number, mes: string) {
   const iva = calcularIva({ debito: c.debito, credito: c.credito, pagosACuenta: c.percepcionesIva, anterior: ivaAnt ? (datosDe("iva", ivaAnt.datos) as DatosIva) : null });
 
   const dIibbAnt = iibbAnt ? (datosDe("iibb", iibbAnt.datos) as DatosIibb) : null;
-  const jurs = c.rs.jurisdicciones.length ? c.rs.jurisdicciones
-    : (dIibbAnt?.jurisdicciones ?? []).map((j) => ({ codigo: j.codigo, coeficiente: j.coeficiente, alicuota: j.alicuota }));
-  if (!jurs.length) avisos.push("Faltan las provincias de Ingresos Brutos (coeficiente y alícuota): se cargan solas al subir una declaración de IIBB, o a mano en la pestaña «Provincias».");
+  // Sólo las que tienen coeficiente (el resumen del CM03 no lo trae: se carga a mano en «Provincias»).
+  const conCoef = c.rs.jurisdicciones.filter((j) => j.coeficiente > 0);
+  const jurs = conCoef.length ? conCoef
+    : (dIibbAnt?.jurisdicciones ?? []).filter((j) => j.coeficiente > 0).map((j) => ({ codigo: j.codigo, coeficiente: j.coeficiente, alicuota: j.alicuota }));
+  if (!jurs.length) avisos.push("Faltan el coeficiente unificado y la alícuota de cada provincia de Ingresos Brutos (la declaración mensual resumida no los trae): cargalos con el lápiz en la pestaña «Provincias». Sin eso, el impuesto determinado de IIBB da cero; las percepciones y los saldos a favor sí se ven.");
+  else if (c.rs.jurisdicciones.some((j) => !(j.coeficiente > 0))) avisos.push(`Sin coeficiente en «Provincias»: ${c.rs.jurisdicciones.filter((j) => !(j.coeficiente > 0)).map((j) => nombreJurisdiccion(j.codigo)).join(", ")}. Su impuesto determinado da cero.`);
   const anteriores = new Map((dIibbAnt?.jurisdicciones ?? []).map((j) => [j.codigo, j.saldo < 0 ? -j.saldo : 0]));
   const iibb = calcularIibb({ base: c.base, jurisdicciones: jurs, percepciones: c.percepcionesIibb, aduaneras: c.aduaneras, retenciones: c.retenciones, anteriores, sede: c.rs.sede });
 
@@ -276,22 +279,30 @@ export async function controlDdjj(org: string, d: FilaDdjj, cargado?: Cargado): 
     }
   } else if (d.impuesto === "iibb") {
     const x = datosDe("iibb", d.datos) as DatosIibb;
-    comparar(difs, "Base imponible total (ventas sin IVA)", x.base_total, c.base);
-    const jurs = x.jurisdicciones.map((j) => ({ codigo: j.codigo, coeficiente: j.coeficiente, alicuota: j.alicuota }));
+    // El resumen del CM03 no trae la base ni el detalle de cada descuento: trae «valores que restan» juntos.
+    const resumen = !x.base_total && x.jurisdicciones.every((j) => !(j.percepciones + j.percepciones_aduaneras + j.retenciones + j.recaudaciones_bancarias) );
+    if (x.base_total) comparar(difs, "Base imponible total (ventas sin IVA)", x.base_total, c.base);
+    // Para repartir lo que no trae provincia (aduana, Mercado Pago): los coeficientes de la declaración o, si no los trae, los cargados.
+    const conCoef = x.jurisdicciones.filter((j) => j.coeficiente > 0);
+    const jurs = (conCoef.length ? conCoef : c.rs.jurisdicciones.filter((j) => j.coeficiente > 0)).map((j) => ({ codigo: j.codigo, coeficiente: j.coeficiente, alicuota: j.alicuota }));
     const calc = calcularIibb({ base: c.base, jurisdicciones: jurs, percepciones: c.percepcionesIibb, aduaneras: c.aduaneras, retenciones: c.retenciones, anteriores: new Map(), sede: c.rs.sede });
     const p = prev ? (datosDe("iibb", prev.datos) as DatosIibb) : null;
-    const codigos = [...new Set([...x.jurisdicciones.map((j) => j.codigo), ...calc.filas.filter((f) => f.percepciones).map((f) => f.codigo)])].sort();
+    const codigos = [...new Set([...x.jurisdicciones.map((j) => j.codigo), ...calc.filas.filter((f) => f.percepciones || f.aduaneras || f.retenciones).map((f) => f.codigo)])].sort();
     for (const cod of codigos) {
       const j = x.jurisdicciones.find((y) => y.codigo === cod);
       const l = calc.filas.find((y) => y.codigo === cod);
       const n = nombreJurisdiccion(cod);
+      const pj = p?.jurisdicciones.find((y) => y.codigo === cod);
+      const ant = pj && pj.saldo < 0 ? -pj.saldo : 0;
+      if (resumen) {
+        comparar(difs, `${n}: valores que restan (saldo a favor anterior + percepciones + retenciones; Laucen reparte aduana y Mercado Pago por coeficiente)`,
+          j?.deducciones ?? 0, (l?.percepciones ?? 0) + (l?.aduaneras ?? 0) + (l?.retenciones ?? 0) + (p ? ant : j?.saldo_anterior ?? 0));
+        continue;
+      }
       comparar(difs, `${n}: percepciones`, j?.percepciones ?? 0, l?.percepciones ?? 0);
       comparar(difs, `${n}: percepciones aduaneras (Laucen las reparte por coeficiente)`, j?.percepciones_aduaneras ?? 0, l?.aduaneras ?? 0);
       comparar(difs, `${n}: retenciones y recaudaciones (Laucen reparte lo de Mercado Pago por coeficiente)`, (j?.retenciones ?? 0) + (j?.recaudaciones_bancarias ?? 0), l?.retenciones ?? 0);
-      if (p) {
-        const pj = p.jurisdicciones.find((y) => y.codigo === cod);
-        comparar(difs, `${n}: saldo a favor anterior (contra la declaración del mes anterior)`, j?.saldo_anterior ?? 0, pj && pj.saldo < 0 ? -pj.saldo : 0);
-      }
+      if (p) comparar(difs, `${n}: saldo a favor anterior (contra la declaración del mes anterior)`, j?.saldo_anterior ?? 0, ant);
     }
   } else {
     const x = datosDe("municipal", d.datos) as DatosMunicipal;

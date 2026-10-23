@@ -38,6 +38,8 @@ export async function corregirDdjj(org: string, id: number, datos: DatosDdjj, ex
 }
 
 export async function borrarDdjj(org: string, id: number) {
+  // Si vino del Drive, se olvida que se leyó: la próxima búsqueda la vuelve a leer.
+  await consulta("delete from drive_archivo_leido where organizacion_id = $1 and ddjj_id = $2", [org, id]);
   const r = await una<{ emisor_id: number; impuesto: Impuesto }>("delete from ddjj where organizacion_id = $1 and id = $2 returning emisor_id::int, impuesto", [org, id]);
   if (!r) throw new ErrorErp("La declaración no existe.");
   await aplicarVigente(org, r.emisor_id, r.impuesto);
@@ -50,8 +52,9 @@ async function aplicarVigente(org: string, emisorId: number, impuesto: Impuesto)
     order by periodo desc, rectificativa desc, id desc limit 1`, [org, emisorId, impuesto]);
   if (!u) return;
   if (impuesto === "iibb") {
+    // Sólo si la declaración trae los coeficientes (un resumen del SIFERE trae sólo los saldos): si no, quedan los que estaban.
     const d = datosDe("iibb", u.datos) as DatosIibb;
-    if (!d.jurisdicciones.length) return;
+    if (!d.jurisdicciones.some((j) => j.coeficiente > 0)) return;
     for (const j of d.jurisdicciones) {
       await consulta(`insert into iibb_jurisdiccion (organizacion_id, emisor_id, codigo, coeficiente, alicuota) values ($1, $2, $3, $4, $5)
         on conflict (emisor_id, codigo) do update set coeficiente = excluded.coeficiente, alicuota = excluded.alicuota, actualizado_ts = now()`,

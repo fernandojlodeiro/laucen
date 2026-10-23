@@ -29,7 +29,8 @@ import { BotonTarea } from "@/app/componentes/TareasFondo";
 import { consulta, una } from "@/lib/erp/base";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// 300: el botón «Buscar en el Drive» corre de fondo en esta misma función (lee varios PDF con la IA).
+export const maxDuration = 300;
 
 const BASE = "/administracion/impuestos";
 type SP = { rs?: string; ver?: string; mes?: string; p?: string; editar?: string; nuevo?: string; ok?: string; error?: string };

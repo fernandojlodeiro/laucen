@@ -66,7 +66,7 @@ Título: el impuesto, el mes y, si es rectificativa, su número; debajo, la raz�
 
 - **Presentada el** y **Notas**.
 - IVA: Débito fiscal, Crédito fiscal, Saldo técnico a favor del mes anterior, Saldo técnico a favor que queda, Retenciones, percepciones y pagos a cuenta, Libre disponibilidad a favor del mes anterior, Libre disponibilidad a favor que queda y A pagar.
-- Ingresos Brutos: **Base imponible total** y la tabla de provincias con Coef., Alíc., Base, Determ., Ret., Percep., Aduana, Recaud. (bancarias y SIRTAC), Saldo ant., A pagar y A favor. En edición, cada número es un campo y abajo está **Agregar una provincia (se agrega al grabar)**.
+- Ingresos Brutos: **Base imponible total** y la tabla de provincias con Coef., Alíc., Base, Determ., Ret., Percep., Aduana, Recaud. (bancarias y SIRTAC), Restan (los valores que restan del resumen del CM03), Saldo ant., A pagar y A favor. En edición, cada número es un campo y abajo está **Agregar una provincia (se agrega al grabar)**.
 - Municipal: Base imponible, Alícuota %, Contribución determinada, Mínimo, Retenciones y percepciones, Saldo a favor anterior, A pagar y A favor.
 - Abajo, **Diferencias con lo cargado en Laucen (N)** con la tabla, o "Coincide con lo cargado en Laucen ese mes y con la declaración del mes anterior."
 
@@ -87,7 +87,7 @@ Errores típicos: "No se reconoce de qué impuesto es la declaración…", "No s
 Si el contador sube las declaraciones a las carpetas de cada mes del Drive, el sistema las carga solo:
 - Mira la carpeta de cada mes según la ruta de cada razón social de [Configuración › Google Drive](/config/google-drive) (los últimos tres meses) y, adentro, las subcarpetas cuyo nombre dice **IVA** (no "IVA digital"), **IIBB** o **Ingresos Brutos**, y **Comercio** o **Industria**, y también los archivos sueltos en la carpeta del mes.
 - Lee con la IA cada PDF o foto nuevo o cambiado. Si es una declaración, la carga a la razón social de su CUIT (aunque esté en la carpeta de la otra). Si es un cedulón, un VEP o un comprobante de pago, lo saltea (queda anotado como "no es una declaración").
-- Una declaración que ya estaba cargada (mismo impuesto, mes y rectificativa) **no se pisa**: puede tener correcciones a mano.
+- Una declaración que ya estaba cargada (mismo impuesto, mes y rectificativa) **no se pisa**: puede tener correcciones a mano. Para que se vuelva a leer del Drive, borrala con el tacho de su ficha y apretá **Buscar en el Drive**.
 - Cada archivo se lee una sola vez; si se cambia en el Drive, se vuelve a leer. Uno que dio error se vuelve a probar en la próxima búsqueda.
 - Busca solo **una vez por noche**, y cuando se aprieta **Buscar en el Drive** (corre de fondo; al terminar aparece el cartel con el resultado).
 - **Ver el PDF** / **Bajar el PDF** de una declaración leída del Drive lo trae del Drive (si lo movieron o borraron, avisa).
@@ -111,7 +111,7 @@ En **Diferencias**, cada renglón dice qué no coincide. Puede ser que falte car
 - **Débito y crédito de IVA**: los de los [libros de IVA](/administracion/libros-iva) de ese mes y esa razón social (los mismos que se presentan). Las notas de crédito restan.
 - **Percepciones de IVA**: las de las facturas de compra registradas y el IVA adicional de los despachos.
 - **Base de Ingresos Brutos y de la municipal**: las ventas del mes sin IVA (neto gravado + no gravado + exento de los comprobantes autorizados, en pesos; las notas de crédito restan).
-- **Coeficiente y alícuota de cada provincia**: los de la pestaña Provincias. Se cargan solos de la **última declaración de Ingresos Brutos** que se sube (la del mes más nuevo); también se pueden cambiar a mano. Sin provincias cargadas, se usan las de la última declaración.
+- **Coeficiente y alícuota de cada provincia**: los de la pestaña Provincias. Se cargan solos de la **última declaración de Ingresos Brutos** que se sube si la declaración los trae; el **resumen mensual del CM03** (el que trae sólo impuesto determinado, valores que restan, valores que suman y saldo por provincia) no los trae: la lista de provincias queda cargada y el coeficiente y la alícuota se cargan con el lápiz. Una provincia sin coeficiente da impuesto determinado cero (sale un aviso). Sin provincias cargadas, se usan las de la última declaración.
 - **Percepciones de IIBB de las compras**: cada factura de compra registrada, en la provincia que dice la factura (se lee de la factura subida, o se elige en su cabecera en "Provincia de la percepción IIBB"). Si la factura no lo dice, la provincia del proveedor (queda recordada la primera vez que se elige) y si tampoco, la sede (Córdoba).
 - **Percepciones aduaneras**: el IIBB de los despachos registrados del mes. **Lo que descuenta Mercado Pago**: los impuestos que Mercado Pago descontó en los cobros del mes, de las cuentas de los canales de esa razón social (las devoluciones restan). Estos dos no dicen la provincia: se **reparten por el coeficiente unificado**. La declaración del contador trae el reparto real, así que en esos renglones puede haber diferencias chicas.
 - **Saldos anteriores**: los que dejó la declaración del **mes anterior** (en IIBB, el saldo a favor de cada provincia). Si no está cargada, se usa la última que haya y sale un aviso; si no hay ninguna, cero.
@@ -136,7 +136,7 @@ En **Diferencias**, cada renglón dice qué no coincide. Puede ser que falte car
 
 Con más de $ 1 de diferencia:
 - **IVA**: débito, crédito y pagos a cuenta contra lo cargado ese mes; saldo técnico y de libre disponibilidad anteriores contra lo que dejó la declaración del mes anterior.
-- **Ingresos Brutos**: la base total; en cada provincia, las percepciones, las percepciones aduaneras, retenciones + recaudaciones (contra lo de Mercado Pago) y el saldo a favor anterior contra la declaración del mes anterior.
+- **Ingresos Brutos**: con el resumen mensual del CM03, en cada provincia los **valores que restan** contra lo que suma Laucen (saldo a favor del mes anterior + percepciones + aduana + Mercado Pago). Con la declaración completa: la base total; en cada provincia, las percepciones, las percepciones aduaneras, retenciones + recaudaciones (contra lo de Mercado Pago) y el saldo a favor anterior contra la declaración del mes anterior.
 - **Municipal**: la base y el saldo a favor anterior.
 
 Un mes de antes de empezar a facturar con el sistema da diferencias en las ventas: es normal.

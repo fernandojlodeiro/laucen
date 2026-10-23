@@ -33,7 +33,7 @@ export function ultimosMeses(hoy: string, n: number) {
 export type ResultadoDrive = { cargadas: number; yaEstaban: number; otros: number; errores: string[]; carpetas: number; cortado: boolean };
 
 export async function leerDdjjDelDrive(org: string, usuarioId: string, opts: { meses?: number; hastaMs?: number } = {}): Promise<ResultadoDrive> {
-  const hasta = opts.hastaMs ?? Date.now() + 250_000;
+  const hasta = opts.hastaMs ?? Date.now() + 45_000;
   const res: ResultadoDrive = { cargadas: 0, yaEstaban: 0, otros: 0, errores: [], carpetas: 0, cortado: false };
   const rutas = await rutasDe(org);
   if (!Object.keys(rutas).length) throw new Error("Falta la ruta de las carpetas de cada mes: cargala en Configuración › Google Drive.");

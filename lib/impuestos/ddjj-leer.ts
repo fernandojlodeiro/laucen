@@ -34,6 +34,8 @@ export type JurisdiccionDdjj = {
   percepciones: number;
   percepciones_aduaneras: number;
   recaudaciones_bancarias: number;
+  /** "Valores que restan" del resumen del CM03 (saldos a favor anteriores + retenciones + percepciones + …, juntos). */
+  deducciones: number;
   saldo_anterior: number;          // saldo a favor del período anterior
   saldo: number;                   // > 0 a pagar · < 0 a favor
 };
@@ -107,7 +109,7 @@ export function datosIibb(x: { base_total?: unknown; jurisdicciones?: Record<str
     const fila: JurisdiccionDdjj = {
       codigo, coeficiente: Math.round(coef * 1e8) / 1e8, base: pos(j.base), alicuota: Math.abs(numero(j.alicuota)), determinado: pos(j.determinado),
       retenciones: pos(j.retenciones), percepciones: pos(j.percepciones), percepciones_aduaneras: pos(j.percepciones_aduaneras),
-      recaudaciones_bancarias: pos(j.recaudaciones_bancarias), saldo_anterior: pos(j.saldo_anterior), saldo: saldoConSigno(j),
+      recaudaciones_bancarias: pos(j.recaudaciones_bancarias), deducciones: pos(j.deducciones), saldo_anterior: pos(j.saldo_anterior), saldo: saldoConSigno(j),
     };
     const ya = js.find((y) => y.codigo === codigo);
     if (ya) Object.assign(ya, fila); else js.push(fila);
@@ -164,7 +166,7 @@ Si es una declaración, decidí de qué impuesto es:
 Formato:
 {"impuesto": "iva" | "iibb" | "municipal", "cuit": "11 dígitos del contribuyente", "periodo": "AAAA-MM" (el período fiscal declarado), "rectificativa": 0 si es original o el número de rectificativa, "fecha_presentacion": "AAAA-MM-DD" o null,
  "iva": {"debito": total del débito fiscal, "credito": total del crédito fiscal computable, "saldo_tecnico_anterior": saldo técnico a favor del contribuyente del período anterior, "saldo_tecnico_favor": saldo técnico a favor del contribuyente que queda para el período siguiente, "pagos_a_cuenta": total de retenciones, percepciones y pagos a cuenta computados en el período, "saldo_libre_anterior": saldo de libre disponibilidad a favor del período anterior, "saldo_libre_favor": saldo de libre disponibilidad a favor que queda, "a_pagar": saldo del impuesto a favor de ARCA (a pagar)} (sólo si es IVA),
- "iibb": {"base_total": base imponible total del país, "jurisdicciones": [{"codigo": 901..924 (código de jurisdicción de la Comisión Arbitral: 901 CABA, 902 Buenos Aires, 904 Córdoba, 921 Santa Fe, etc.), "provincia": "nombre", "coeficiente": coeficiente unificado tal cual figura, "base": base imponible atribuida, "alicuota": alícuota en %, "determinado": impuesto determinado, "retenciones": retenciones sufridas, "percepciones": percepciones sufridas (no aduaneras), "percepciones_aduaneras": percepciones aduaneras, "recaudaciones_bancarias": recaudaciones bancarias (SIRCREB) y de otros regímenes de recaudación (SIRTAC), "saldo_anterior": saldo a favor del período anterior, "a_pagar": saldo a pagar de la jurisdicción (0 si da a favor), "a_favor": saldo a favor de la jurisdicción (0 si da a pagar)}]} (sólo si es Ingresos Brutos; una entrada por cada jurisdicción de la declaración),
+ "iibb": {"base_total": base imponible total del país, "jurisdicciones": [{"codigo": 901..924 (código de jurisdicción de la Comisión Arbitral: 901 CABA, 902 Buenos Aires, 904 Córdoba, 921 Santa Fe, etc.), "provincia": "nombre", "coeficiente": coeficiente unificado tal cual figura, "base": base imponible atribuida, "alicuota": alícuota en %, "determinado": impuesto determinado, "retenciones": retenciones sufridas, "percepciones": percepciones sufridas (no aduaneras), "percepciones_aduaneras": percepciones aduaneras, "recaudaciones_bancarias": recaudaciones bancarias (SIRCREB) y de otros regímenes de recaudación (SIRTAC), "saldo_anterior": saldo a favor del período anterior, "deducciones": el total de "Valores Restan" de la jurisdicción (si la declaración es el resumen que sólo trae Impuesto Determinado, Valores Restan, Valores Suman, A Favor Contribuyente y A Favor Fisco), "a_pagar": saldo a pagar de la jurisdicción ("A Favor Fisco" / "A Pagar"; 0 si da a favor), "a_favor": saldo a favor de la jurisdicción ("A Favor Contribuyente"; 0 si da a pagar)}]} (sólo si es Ingresos Brutos; una entrada por cada jurisdicción de la declaración; si un dato como el coeficiente, la base o la alícuota no figura, 0, no lo calcules),
  "municipal": {"base": base imponible, "alicuota": alícuota en %, "determinado": contribución determinada, "minimo": mínimo de la actividad, "retenciones": retenciones y percepciones sufridas, "saldo_anterior": saldo a favor anterior, "a_pagar": saldo a pagar, "a_favor": saldo a favor} (sólo si es la municipal)}
 Importes en pesos con punto decimal (12345.67), sin signo. Si un dato no está, 0 o null. No inventes nada.`;
 
