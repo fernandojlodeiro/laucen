@@ -25,14 +25,15 @@ export default function ResultadoRegla({ s, prendida, titulo }: { s: Simulacion;
       {s.filas.map((f) => {
         if (f.actual == null) return <div key={f.sku} className="text-sm">{varias && <span className="font-mono mr-2">{f.sku}</span>}sin precio en la lista</div>;
         if (!prendida) {
-          // Apagada: cuánto estás arriba o abajo de la referencia.
-          const d = ((f.actual - s.referencia!.precio!) / s.referencia!.precio!) * 100;
+          // Apagada: cuánto estás arriba o abajo de la referencia. «Igual» sólo si es el mismo precio (Fer, 22/10: $ 1 de
+          // diferencia también se dice, en pesos).
+          const dif = Math.round(f.actual - s.referencia!.precio!), d = (dif / s.referencia!.precio!) * 100;
           return (
             <div key={f.sku} className="text-lg leading-snug">
               {varias && <span className="font-mono text-sm mr-2">{f.sku}</span>}
               Tu Clásica {$(f.actual)}:{" "}
-              {Math.abs(d) < 0.05 ? <b>igual que la referencia</b>
-                : <b className={d > 0 ? ROJO : VERDE}>{pct(d)} {d > 0 ? "más arriba" : "más abajo"}</b>}
+              {dif === 0 ? <b>igual que la referencia</b>
+                : <b className={d > 0 ? ROJO : VERDE}>{$(Math.abs(dif))} {d > 0 ? "más arriba" : "más abajo"} ({Math.abs(d) < 0.1 ? "menos de 0,1 %" : pct(d)})</b>}
             </div>
           );
         }

@@ -16,7 +16,7 @@ import { deFondo } from "@/lib/tareas-fondo";
 import { pasarAPedido, pasarAPresupuesto, cambiarVigencia } from "@/lib/pedidos/presupuestos";
 import { altaOca, anularOca, envioOcaDe, seguirEnvio } from "@/lib/oca/envios";
 import { cancelarPedido } from "@/lib/pedidos/cancelar";
-import { clientePresenteRetira } from "@/lib/pedidos/retiro";
+import { clientePresenteRetira, clientePresenteRetiraMl } from "@/lib/pedidos/retiro";
 import { reactivarPedido } from "@/lib/pedidos/reserva";
 
 export async function accionFacturar(fd: FormData) {
@@ -203,14 +203,17 @@ export async function accionVigenciaPresupuesto(fd: FormData) {
   });
 }
 
-/** «Cliente presente: retira» (Fer, 7/10): cobra si se paga al retirar, entrega y factura si falta. */
+/** «Cliente presente: retira» (Fer, 7/10): cobra si se paga al retirar, entrega y factura si falta. En una venta
+ *  de Mercado Libre sin envío, además le avisa a ML que se concretó (lib/pedidos/retiro.ts). */
 export async function accionClientePresente(fd: FormData) {
   const s = await entrarErp("pedidos_ver");
   const pid = id(fd, "pedido_id");
   const volver = `/ventas/pedidos/${pid}?b=op`;
   await intentar(volver, async () => {
-    await pedidoOperable(s.org.id, pid);
-    const r = await clientePresenteRetira(s.org.id, pid, s.usuario.id, texto(fd, "medio"));
+    // Una venta de Mercado Libre sin envío también (Fer, 22/10): se entrega, se factura si falta y se le avisa a ML.
+    const esMl = !!(await una("select 1 from pedido p join canal c on c.id = p.canal_id where p.id = $1 and p.organizacion_id = $2 and c.tipo = 'mercadolibre'", [pid, s.org.id]));
+    if (esMl) await exigirCarritoLibre(s.org.id, pid); else await pedidoOperable(s.org.id, pid);
+    const r = esMl ? await clientePresenteRetiraMl(s.org.id, pid, s.usuario.id) : await clientePresenteRetira(s.org.id, pid, s.usuario.id, texto(fd, "medio"));
     revalidatePath(`/ventas/pedidos/${pid}`);
     revalidatePath("/ventas/pedidos");
     const listo = r.hecho.join(" · ");

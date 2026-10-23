@@ -65,3 +65,28 @@ test("lee el informe (HTML guardado como .xls)", () => {
 test("otro archivo: avisa que no es el informe", () => {
   assert.throws(() => leerSeguimientosVs({ columnas: ["SKU", "Precio"], filas: [] }), /informe de seguimientos/);
 });
+
+test("notebooks: el título de enfrente alcanza para dejarlas afuera", async () => {
+  const { esTituloNotebook } = await import("@/lib/seguimiento/a-la-venta");
+  assert.equal(esTituloNotebook("Notebook Lenovo Ideapad 15"), true);
+  assert.equal(esTituloNotebook("  laptop hp 14"), true);
+  assert.equal(esTituloNotebook("Cooler para notebook"), false);
+  assert.equal(esTituloNotebook(null), false);
+});
+
+test("IDs escritos de otra forma (archivo completo, 22/10)", async () => {
+  const { itemDeIdSeguimiento } = await import("@/lib/seguimiento/importar-vs");
+  assert.equal(skuDeIdSeguimiento("A8SEG-SKU03373-2025-1"), "SKU03373");
+  assert.equal(skuDeIdSeguimiento("SKU00452-19"), "SKU00452");
+  assert.equal(skuDeIdSeguimiento("SKU03514.2024-1"), "SKU03514");
+  assert.equal(skuDeIdSeguimiento("SKU017852021-1"), "SKU01785");
+  assert.equal(skuDeIdSeguimiento("SKU003305-2019-2"), "SKU03305");
+  assert.equal(skuDeIdSeguimiento("SKU02602 -2020-2"), "SKU02602");
+  assert.equal(skuDeIdSeguimiento("SKU02579 - Seguimiento"), "SKU02579");
+  assert.equal(skuDeIdSeguimiento("SKU00680-U-2026-1"), "SKU00680-U");
+  assert.equal(skuDeIdSeguimiento("SKU01741/SKU01016-2025-1"), "SKU01741/SKU01016-2025-1");
+  assert.equal(skuDeIdSeguimiento("SDCS/32GB 2019-2"), "SDCS/32GB");
+  assert.equal(skuDeIdSeguimiento("WONDERBOOM2/BLACK-2019"), "WONDERBOOM2/BLACK");
+  assert.equal(itemDeIdSeguimiento("MLA754852459 21/04/2023 12:43"), "MLA754852459");
+  assert.equal(itemDeIdSeguimiento("SKU00452-19"), null);
+});

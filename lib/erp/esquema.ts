@@ -32,6 +32,12 @@ export async function correrEsquemaErp(base: Pool): Promise<void> {
         await cliente.query("commit");
         return;
       }
+      // Este mismo deploy ya los corrió (otro servidor que arrancó antes): no se repiten (Fer, 22/10: cada arranque de un
+      // servidor nuevo tardaba varios segundos corriendo los 27 .sql, con actualizaciones y un refresco de vista pesados).
+      if (r.rows[0] && new Date(r.rows[0].build_time).getTime() === new Date(build).getTime()) {
+        await cliente.query("commit");
+        return;
+      }
     }
     for (const archivo of ARCHIVOS_ERP) {
       const sql = await readFile(path.join(process.cwd(), "db", `${archivo}.sql`), "utf8");

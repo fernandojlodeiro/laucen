@@ -64,7 +64,7 @@ Título: la razón social del cliente; debajo "Cliente N.º … · cliente desde
 
 **"Datos originales (tal como llegaron)"**: un desplegable con lo que mandó cada origen (por ejemplo, Mercado Libre o Virtual Seller), tal cual vino. Sólo para consulta.
 
-**"Direcciones"**: tabla con Etiqueta, Dirección (con "Recibe: …" y "Referencia: …" si las tiene), la marca **"Principal"** o el botón **"Hacer principal"**, y el lápiz y el tacho de cada fila. Al lado del título, **"+ Nueva dirección"** (Etiqueta, Calle, Nº, Piso/depto, Localidad, Provincia, CP, País → **"Crear"**).
+**"Direcciones"**: tabla con la Dirección (con "Recibe: …" y "Referencia: …" si las tiene), la marca **"Principal"** o el botón **"Hacer principal"**, y el lápiz y el tacho de cada fila. Al lado del título, **"+ Nueva dirección"** (Calle, Nº, Piso/depto, Localidad, **Provincia**, CP, País → **"Crear"**). La provincia se elige de las 24 escribiendo un par de letras (filtra al momento; "caba" encuentra Capital Federal); de entrada propone Córdoba.
 
 **"Identidades por canal"**: el id del cliente en cada canal (por ejemplo, su usuario de Mercado Libre), con un tacho para quitarla ("¿Quitar?"). "Las crean los pedidos."
 
@@ -84,7 +84,7 @@ Título: la razón social del cliente; debajo "Cliente N.º … · cliente desde
 3. Corregí **"Razón social (sale en la factura)"**, **"CUIT / CUIL"**, **"DNI"**, **"Condición IVA"** y lo que haga falta.
 4. Apretá **"Grabar"**. Vuelve a la vista con el aviso "Guardado.". Con **"Cancelar"** volvés sin guardar.
 
-Errores típicos: "El cliente necesita una razón social.", "El CUIT tiene que tener 11 dígitos." (el CUIT se muestra con guiones, 20-12345678-9, se escriba como se escriba), "Ese número tiene 11 cifras: es un CUIT o CUIL, va en el campo «CUIT / CUIL»." (en el DNI) y "El WhatsApp no parece un celular: escribilo con la característica (ej. 351 555-1234).".
+Errores típicos: "El cliente necesita una razón social.", "El CUIT tiene que tener 11 dígitos." (el CUIT se muestra con guiones, 20-12345678-9, se escriba como se escriba), "Ese CUIT no es válido: el último número (el verificador) no corresponde a los anteriores…" (el último número del CUIT se calcula con los otros diez: si no da, hay un número cambiado; no se consulta a ARCA), "Ese número tiene 11 cifras: es un CUIT o CUIL, va en el campo «CUIT / CUIL»." (en el DNI) y "El WhatsApp no parece un celular: escribilo con la característica (ej. 351 555-1234).".
 
 ### Darle una lista de precios propia (mayorista)
 
@@ -122,9 +122,13 @@ Sólo se puede si **no tiene ningún pedido**. Tacho arriba a la derecha → **"
 - **Quién crea los clientes**: los pedidos. Al entrar un pedido, Laucen busca al cliente en este orden: el id del comprador en ese canal (identidad) → el CUIT → el número de documento → el apodo de Mercado Libre → el mail. Si lo encuentra, **completa sólo los datos que le faltan** (nunca pisa uno que ya estaba cargado) y suma los datos originales. Si no, lo crea. Si vino el id del canal, deja la identidad guardada para encontrarlo la próxima vez.
 - **Razón social / nombre** de un cliente que llega de Mercado Libre: la razón social si es empresa; si no, "Apellido, Nombre"; si no, quien recibe el envío o el apodo.
 - **Documentos de relleno** (1111111, 00000000, menos de 6 dígitos) no se toman como documento.
+- **Provincias**: siempre una de las 24, escrita igual (Buenos Aires, Capital Federal, Catamarca, Chaco, Chubut, Córdoba, Corrientes, Entre Ríos, Formosa, Jujuy, La Pampa, La Rioja, Mendoza, Misiones, Neuquén, Río Negro, Salta, San Juan, San Luis, Santa Cruz, Santa Fe, Santiago del Estero, Tierra del Fuego, Tucumán). Lo que llega de un pedido o una importación escrito de otra forma ("CORDOBA", "CABA") se guarda con el nombre de la lista.
+- **Dirección fiscal y de envío**: las direcciones que llegan con los pedidos quedan marcadas solas como fiscal o de envío (no se ve ni se carga a mano). La factura usa la fiscal; si no hay, la principal.
 - **Direcciones** que llegan con los pedidos: se suman sin repetir (no se agrega una con la misma calle, número y localidad, o el mismo id del canal). La primera queda principal.
 - **Condición de IVA**: decide el tipo de factura. Si la empresa es Responsable Inscripta: cliente Responsable Inscripto o Monotributo → factura **A** (y necesita **CUIT**); el resto → factura **B**. Sin condición cargada se toma como consumidor final. Para la factura, el documento es el CUIT (11 dígitos) o, si no, el DNI.
 - **Lista de precios**: "Por defecto" = la del canal por donde entra cada pedido; si el canal no tiene, la lista marcada "Por defecto" en [Listas de precios](/catalogo/precios). Si el cliente tiene una elegida, manda sobre la del canal en todos sus pedidos.
+- **Condición de IVA obligatoria**: no se puede grabar un cliente sin condición de IVA, y si no es **Consumidor final** tiene que tener **CUIT** (en el alta, en la ficha y en el cliente nuevo de un pedido). Un cliente que ya estaba sin condición la pide la próxima vez que se graba su ficha.
+- **CUIT válido**: al grabar (en el alta, en la ficha y en el cliente nuevo de un pedido) se controla el dígito verificador del CUIT, sin consultar ARCA. Un CUIT ya cargado que no es válido se marca en rojo en la ficha ("No es válido…") y hay que corregirlo para volver a grabarla.
 - **CUIT y DNI**: un número de 11 cifras es un CUIT o CUIL y va sólo en "CUIT / CUIL" (también cuando llega con un pedido o una importación); el DNI va aparte.
 - **WhatsApp**: el celular que llega con un pedido o una importación se guarda como el WhatsApp del cliente (si ya tenía uno, no se pisa); si no parece un celular, queda como teléfono.
 - **Cuenta corriente**: habilita el medio "Cuenta corriente / a convenir" en la tienda y la opción "Cuenta corriente" al cargar un pedido a mano (que exige un cliente).

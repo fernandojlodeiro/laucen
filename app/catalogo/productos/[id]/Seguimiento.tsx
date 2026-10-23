@@ -2,9 +2,10 @@
 // lib/seguimiento/): las publicaciones de la competencia que se siguen y, para
 // elegir más, la búsqueda en Mercado Libre con «Seguir» al lado de cada una.
 
-import { consulta } from "@/lib/erp/base";
+import { consulta, una } from "@/lib/erp/base";
+import { SQL_A_LA_VENTA } from "@/lib/seguimiento/a-la-venta";
 import { formatear, type Moneda } from "@/lib/moneda";
-import { ultimaBusqueda, catalogosPegados, configSeguimiento, enlaceDe, esPack, parecido, type PubEncontrada } from "@/lib/seguimiento";
+import { ultimaBusqueda, catalogosPegados, configSeguimiento, descartadas, enlaceDe, esPack, parecido, sobraDeVendedor, type PubEncontrada } from "@/lib/seguimiento";
 import Link from "next/link";
 import { CasillaViva, FiltroVivo } from "@/app/componentes/BuscadorVivo";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
@@ -16,7 +17,7 @@ import BuscarSeguimiento from "./BuscarSeguimiento";
 import { reglaDe } from "@/lib/seguimiento/regla";
 import ReglaPrecio from "./ReglaPrecio";
 import CasillaAccion from "@/app/componentes/CasillaAccion";
-import { accionSeguir, accionSeguirPorNumero, accionDejarDeSeguir, accionLeerSeguimiento, accionCerrarCatalogo, accionExcluirDeRegla, accionConfirmarSeguida, accionConfirmarTodas } from "@/app/catalogo/productos/acciones-seguimiento";
+import { accionSeguir, accionSeguirPorNumero, accionDejarDeSeguir, accionLeerSeguimiento, accionCerrarCatalogo, accionExcluirDeRegla, accionConfirmarSeguida, accionConfirmarTodas, accionReanudarSeguida, accionDescartarEncontrada } from "@/app/catalogo/productos/acciones-seguimiento";
 import type { PubJuzgada } from "@/lib/seguimiento/comparables";
 
 type Seguida = {
@@ -26,7 +27,7 @@ type Seguida = {
   leido_ts: Date | null; error: string | null; cambio: number | null; entrega_dias: number | null; lecturas: number;
   internacional: boolean | null; excluido: boolean;
   /** La agregó sola la búsqueda de precio de mercado (origen «auto») y si una persona ya la revisó. */
-  origen: string; origen_detalle: string | null; confirmada: boolean; confirmada_ts: Date | null; confirmada_por: string | null; motivo_ia: string | null; creado_ts: Date;
+  origen: string; origen_detalle: string | null; pausada_desde: Date | null; disponible: number | null; vendidos: number | null; confirmada: boolean; confirmada_ts: Date | null; confirmada_por: string | null; motivo_ia: string | null; creado_ts: Date;
   /** La primera lectura (el comienzo del seguimiento) y cuántos cambios de precio o estado hubo. */
   desde: string | null; cambios: number;
   /** El último cambio de precio (entre dos lecturas seguidas), y si fue en la última lectura. */
@@ -76,13 +77,13 @@ function Entrega({ dias, demora, gratis }: { dias: number | null | undefined; de
   );
 }
 
-export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string; internacionales?: string; borden?: string; hist?: string; editar?: string; pausadas?: string } }) {
+export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string; internacionales?: string; borden?: string; hist?: string; editar?: string; pausadas?: string; excluidas?: string } }) {
   const hist = Number(sp.hist) || null;
-  const [seguidas, busqueda, conf, lecturas, catalogos, regla] = await Promise.all([
+  const [seguidas, busqueda, conf, lecturas, catalogos, regla, venta, fuera] = await Promise.all([
     consulta<Seguida>(`
       select sp.id::int, sp.item_id, sp.catalogo_id, sp.titulo, sp.foto, sp.permalink, sp.vendedor, sp.tienda_oficial, sp.precio::float8, sp.precio_original::float8,
              sp.moneda, sp.estado, sp.tipo_publicacion, sp.cuotas, sp.envio_gratis, sp.leido_ts, sp.error, sp.entrega_dias, sp.internacional, sp.excluido,
-             sp.origen, sp.origen_detalle, sp.confirmada, sp.confirmada_ts, sp.confirmada_por, sp.motivo_ia, sp.creado_ts,
+             sp.origen, sp.origen_detalle, sp.pausada_desde, sp.disponible, sp.vendidos, sp.confirmada, sp.confirmada_ts, sp.confirmada_por, sp.motivo_ia, sp.creado_ts,
              -- Cuánto cambió el precio desde la lectura anterior.
              (select (sp.precio - l.precio)::float8 from seguimiento_lectura l where l.seguimiento_id = sp.id and l.precio is not null
                order by l.ts desc offset 1 limit 1) cambio,
@@ -110,6 +111,9 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
        order by l.ts desc limit 2000`, [s.org.id, p.id, hist]) : Promise.resolve([] as Lectura[]),
     catalogosPegados(s.org.id, p.id).catch(() => []),
     reglaDe(s.org.id, p.id).catch(() => null),
+    // Si no está a la venta, las comunes no se releen solas (Fer, 22/10).
+    una<{ ok: boolean }>(`select ${SQL_A_LA_VENTA} ok from producto p where p.id = $1 and p.organizacion_id = $2`, [p.id, s.org.id]).catch(() => null),
+    descartadas(s.org.id, p.id).catch(() => new Set<string>()),
   ]);
   // La referencia de la regla de precio (si está prendida): la elegida o la más barata de las activas con precio. Si la
   // elegida deja de estar activa, la que sigue (Fer, 14/10), igual que en lib/seguimiento/regla.ts.
@@ -124,7 +128,13 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
   const seguidosIds = new Set(seguidas.map((x) => x.item_id));
   // Los resultados: sin packs (si el nuestro no lo es) ni los nuestros, salvo que se pidan; los más parecidos al nuestro primero.
   const nuestroEsPack = esPack(p.titulo);
-  const todos = (busqueda?.resultados ?? []).filter((r) => !r.esCatalogo)
+  // En la búsqueda sólo lo que se puede elegir (Fer, 22/10): ni lo que ya se sigue (está arriba), ni lo repetido de un
+  // vendedor que tiene una Clásica (o una MLA), ni lo excluido a mano (salvo «Mostrar las excluidas»).
+  const verExcluidas = sp.excluidas === "1";
+  const otrasDeVendedor = [...(busqueda?.resultados ?? []), ...seguidas.map((x) => ({ itemId: x.item_id, vendedor: x.vendedor, tipoPublicacion: x.tipo_publicacion }))];
+  const elegibles = (busqueda?.resultados ?? []).filter((r) => !r.esCatalogo && !seguidosIds.has(r.itemId) && !sobraDeVendedor(r, otrasDeVendedor));
+  const excluidas = elegibles.filter((r) => fuera.has(r.itemId)).length;
+  const todos = elegibles.filter((r) => verExcluidas || !fuera.has(r.itemId))
     .map((r) => ({ ...r, pack: !nuestroEsPack && esPack(r.titulo), parecido: parecido(p.titulo, r.titulo) }));
   const demora = (r: PubEncontrada) => r.entregaDias != null && r.entregaDias > conf.demoraDias;
   const packs = todos.filter((r) => r.pack).length, propias = todos.filter((r) => r.propia).length, demoradas = todos.filter(demora).length;
@@ -140,7 +150,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
   // El enlace al historial de una seguida (o cerrarlo), sin perder lo demás de la dirección.
   const conHist = (id: number | null) => {
     const q = new URLSearchParams({ seccion: "seguimiento" });
-    for (const k of ["packs", "propias", "demoradas", "internacionales", "borden", "pausadas"] as const) if (sp[k]) q.set(k, sp[k]!);
+    for (const k of ["packs", "propias", "demoradas", "internacionales", "borden", "pausadas", "excluidas"] as const) if (sp[k]) q.set(k, sp[k]!);
     if (id) q.set("hist", String(id));
     return `/catalogo/productos/${p.id}?${q}`;
   };
@@ -171,14 +181,20 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
                       </span>
                     </span>
                   </td>
-                  <td className={TD}>{x.vendedor ?? "—"}{x.tienda_oficial && <span className="block text-[10px] text-[#1F6E4A]">Tienda oficial</span>}</td>
+                  <td className={TD}>
+                    {x.vendedor ?? "—"}{x.tienda_oficial && <span className="block text-[10px] text-[#1F6E4A]">Tienda oficial</span>}
+                    <StockCompetidor disponible={x.disponible} vendidos={x.vendidos} />
+                  </td>
                   <td className={TDN}>
                     <Precio precio={x.precio} original={x.precio_original} moneda={x.moneda} />
                     <UltimoCambio u={x.ultimo} desde={x.desde} />
                   </td>
                   <td className={TD}>{x.tipo_publicacion ? TIPOS[x.tipo_publicacion] ?? x.tipo_publicacion : "—"}{x.cuotas && <span className="block text-[10px] text-[#5C6B76]">{x.cuotas}</span>}</td>
                   <td className={TD}><Entrega dias={x.entrega_dias} demora={conf.demoraDias} gratis={x.envio_gratis} /></td>
-                  <td className={TD}><Estado texto={ESTADOS[x.estado ?? "sin_dato"]?.t ?? x.estado ?? "—"} tono={ESTADOS[x.estado ?? "sin_dato"]?.tono ?? "gris"} /></td>
+                  <td className={TD}>
+                    <Estado texto={ESTADOS[x.estado ?? "sin_dato"]?.t ?? x.estado ?? "—"} tono={ESTADOS[x.estado ?? "sin_dato"]?.tono ?? "gris"} />
+                    <LecturaPausada x={x} conf={conf} productoId={p.id} />
+                  </td>
                   <td className={`${TD} whitespace-nowrap`}>{hace(x.leido_ts)}{x.error && <span className="block text-[10px] text-[#C03420] max-w-48 whitespace-normal">{x.error}</span>}</td>
                   <td className={TD}>
                     <CasillaAccion accion={accionConfirmarSeguida} campos={{ id: String(x.id), producto_id: String(p.id) }} activa={x.confirmada}
@@ -234,6 +250,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
         <p className="text-[11px] text-[#5C6B76] mb-2">
           Se vuelven a leer cada {conf.frecuenciaDias} día{conf.frecuenciaDias === 1 ? "" : "s"}, a la madrugada (Configuración › Seguimiento de publicaciones).
           Las de catálogo se leen gratis; las comunes, con un costo chico.
+          {venta && !venta.ok && <> <b className="text-[#7A5600]">Este producto no está a la venta</b> (sin publicación activa en Mercado Libre o sin stock disponible): las comunes no se releen solas; quedan de referencia y «Leer ahora» las lee a pedido.</>}
           Las marcadas 🤖 las siguió sola la búsqueda de precio de mercado: no cuentan para la regla de precio hasta que tildás «Revisada».
         </p>
         <div className={CAJA_TABLA}>
@@ -243,7 +260,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
                 <th className={TH}>Entrega</th><th className={TH}>Estado</th><th className={TH}>Leída</th><th className={TH} title="Tildada: una persona la revisó (las agregadas a mano ya nacen revisadas)">Revisada</th><th className={TH} title="Tildada: se sigue, pero no cuenta para la regla de precio">Fuera de la regla</th><th /><th /></tr>
             </thead>
             <tbody>
-              {activas.length === 0 && <tr><td colSpan={11} className={`${TD} text-[#5C6B76]`}>{pausadas.length ? "Ninguna activa: las que seguís están pausadas o terminadas (abajo)." : "Todavía no seguís ninguna: buscalas abajo y tocá «Seguir», o agregalas por número."}</td></tr>}
+              {activas.length === 0 && <tr><td colSpan={11} className={`${TD} text-[#5C6B76]`}>{pausadas.length ? "Ninguna activa: las que seguís están pausadas (abajo)." : "Todavía no seguís ninguna: buscalas abajo y tocá «Seguir», o agregalas por número."}</td></tr>}
               {activas.flatMap(fila)}
             </tbody>
           </table>
@@ -251,8 +268,8 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
         {pausadas.length > 0 && (
           <div className="mt-3">
             <Link href={conPausadas(!verPausadas)} scroll={false} className={SUAVE}
-              title="Las que el vendedor pausó, terminó o ya no figuran en el catálogo: se siguen leyendo, pero la regla de precio no las usa">
-              {verPausadas ? "▾" : "▸"} Pausadas o terminadas ({pausadas.length})
+              title="Las que el vendedor pausó o ya no figuran en el catálogo: la regla de precio no las usa (las terminadas se dejan de seguir solas)">
+              {verPausadas ? "▾" : "▸"} Pausadas ({pausadas.length})
             </Link>
             {verPausadas && (
               <div className={`${CAJA_TABLA} mt-2`}>
@@ -300,6 +317,8 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
             <CasillaViva parametro="packs" activo={verPacks} etiqueta={`Mostrar también packs y varias unidades (${packs})`} />
             <CasillaViva parametro="propias" activo={verPropias} etiqueta={`Mostrar también las nuestras (${propias})`} />
             <CasillaViva parametro="demoradas" activo={verDemoradas} etiqueta={`Mostrar también las que tardan más de ${conf.demoraDias} días (${demoradas})`} />
+            <CasillaViva parametro="excluidas" activo={verExcluidas} etiqueta={`Mostrar las excluidas (${excluidas})`}
+              ayuda="Las que tildaste «Excluir»: no se muestran ni las sigue sola la búsqueda de precio de mercado. Destildá «Excluir» para que vuelvan." />
             <CasillaViva parametro="internacionales" activo={verInternacionales} etiqueta={`Mostrar también las internacionales (${internacionales})`}
               ayuda="Vendedores de afuera o con entrega internacional: su precio no se compara porque le faltan los impuestos." />
             <label className="flex items-center gap-1">Ordenar:
@@ -311,7 +330,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
           </div>
         )}
         {busqueda && resultados.length > 0 && (
-          <TablaEncontradas filas={resultados} productoId={p.id} seguidos={seguidosIds} demora={conf.demoraDias} />
+          <TablaEncontradas filas={resultados} productoId={p.id} seguidos={seguidosIds} demora={conf.demoraDias} fuera={fuera} />
         )}
       </section>
     </div>
@@ -371,13 +390,14 @@ function Historial({ lecturas, moneda }: { lecturas: Lectura[]; moneda: string |
 }
 
 /** Una lista de publicaciones encontradas (búsqueda o catálogo pegado), con «+ Seguir» al lado de cada una. */
-function TablaEncontradas({ filas, productoId, seguidos, demora }: { filas: (PubJuzgada & { pack?: boolean })[]; productoId: number; seguidos: Set<string>; demora: number }) {
+function TablaEncontradas({ filas, productoId, seguidos, demora, fuera }: { filas: (PubJuzgada & { pack?: boolean })[]; productoId: number; seguidos: Set<string>; demora: number; fuera?: Set<string> }) {
   return (
     <div className={`${CAJA_TABLA} mt-2`}>
       <table className={TABLA}>
         <thead className={THEAD}>
           <tr><th className={TH}>Publicación</th><th className={TH}>Vendedor</th><th className={THN}>Precio</th><th className={TH}>Tipo y cuotas</th><th className={TH}>Entrega</th>
-            <th className={TH} title="Si la IA la juzga el mismo producto que el nuestro (y por qué)">IA</th><th /></tr>
+            <th className={TH} title="Si la IA la juzga el mismo producto que el nuestro (y por qué)">IA</th>
+            {fuera && <th className={TH} title="Tildada: no la querés seguir nunca en este producto; no vuelve a aparecer en las búsquedas">Excluir</th>}<th /></tr>
         </thead>
         <tbody>
           {filas.map((r) => (
@@ -402,6 +422,12 @@ function TablaEncontradas({ filas, productoId, seguidos, demora }: { filas: (Pub
                   : r.comparable ? <span className="text-[#1F6E4A]"><b>✓ Comparable</b>{r.motivoIa && <span className="block text-[10px]">{r.motivoIa}</span>}</span>
                   : <span className="text-[#5C6B76]">✗ No{r.motivoIa && <span className="block text-[10px]">{r.motivoIa}</span>}</span>}
               </td>
+              {fuera && (
+                <td className={TD}>
+                  {!r.propia && <CasillaAccion accion={accionDescartarEncontrada} campos={{ item: r.itemId, producto_id: String(productoId) }} activa={fuera.has(r.itemId)}
+                    etiqueta="Excluir" ayuda="No la quiero seguir nunca en este producto: no vuelve a aparecer en las búsquedas ni la sigue sola la búsqueda de precio de mercado" />}
+                </td>
+              )}
               <td className={`${TD} text-right whitespace-nowrap`}>
                 {r.propia ? <span className="text-[11px] text-[#5C6B76]">Nuestra</span>
                   : seguidos.has(r.itemId) ? <span className="text-[11px] text-[#1F6E4A] font-semibold">✓ Siguiendo</span>
@@ -438,6 +464,38 @@ function deDondeCorto(x: Seguida): string {
   if (x.origen === "busqueda") return `con «+ Seguir» · ${diaMes(x.creado_ts)}`;
   if (x.origen === "manual") return `por número · ${diaMes(x.creado_ts)}`;
   return "";
+}
+
+/** El stock y lo vendido de la publicación de enfrente, como lo muestra Mercado Libre (Fer, 22/10): exacto si son pocas
+ *  (en ámbar hasta 5: se le acaba pronto); si son muchas, Mercado Libre lo redondea («26» = más de 25). */
+function StockCompetidor({ disponible, vendidos }: { disponible: number | null; vendidos: number | null }) {
+  if (disponible == null && vendidos == null) return null;
+  const disp = disponible == null ? null : disponible > 25 ? `más de ${disponible - 1}` : String(disponible);
+  return (
+    <span className="block text-[10px] text-[#5C6B76] whitespace-nowrap" title="Lo que muestra Mercado Libre en la última lectura">
+      {disp != null && <span className={disponible! <= 5 ? "text-[#7A5600] font-semibold" : ""}>{disp} disp.</span>}
+      {disp != null && vendidos != null && " · "}
+      {vendidos != null && <>{vendidos.toLocaleString("es-AR")} vend.</>}
+    </span>
+  );
+}
+
+/** Debajo del estado de una pausada (Fer, 22/10): cada cuánto se relee y hasta cuándo, o que ya no se relee sola y
+ *  el botón «Reanudar». (Las terminadas se dejan de seguir al leerlas.) */
+function LecturaPausada({ x, conf, productoId }: { x: Seguida; conf: { pausadasDias: number; pausadasMeses: number }; productoId: number }) {
+  if (x.estado !== "pausada" || !x.pausada_desde) return null;
+  const hasta = new Date(x.pausada_desde);
+  hasta.setMonth(hasta.getMonth() + conf.pausadasMeses);
+  if (conf.pausadasMeses > 0 && hasta.getTime() < Date.now()) return (
+    <span className="block mt-0.5">
+      <span className="block text-[10px] text-[#7A5600] max-w-44 whitespace-normal">⏸ No se relee: pausada hace más de {conf.pausadasMeses} {conf.pausadasMeses === 1 ? "mes" : "meses"} (desde {diaMes(x.pausada_desde)})</span>
+      <BotonTarea accion={accionReanudarSeguida} tipo={`seguimiento-reanudar-${x.id}`} clase={SUAVE} texto="Reanudar"
+        campos={{ id: String(x.id), producto_id: String(productoId) }} />
+    </span>
+  );
+  return <span className="block text-[10px] text-[#5C6B76] mt-0.5 max-w-44 whitespace-normal">
+    Se relee cada {conf.pausadasDias} días{conf.pausadasMeses > 0 ? ` hasta el ${diaMes(hasta)}` : ""}
+  </span>;
 }
 
 /** El último cambio de precio de una seguida: «▲ $ 5.408 (27,8 %) · 12/10 (antes $ 19.455)». */

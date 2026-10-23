@@ -1,6 +1,7 @@
 "use server";
 
 import { normalizarCuit } from "@/lib/clientes";
+import { cuitCierra, CUIT_NO_CIERRA } from "@/lib/cuit-verificador";
 
 // Clientes: alta manual (con todos los datos de la ficha), ficha, direcciones e
 // identidades por canal. En operación normal los clientes los crean los
@@ -36,6 +37,8 @@ function cuitDe(fd: FormData): string | null {
   if (!t) return null;
   const c = normalizarCuit(t);
   if (!c) throw new ErrorErp("El CUIT tiene que tener 11 dígitos.");
+  // El dígito verificador (Fer, 22/10; la cuenta, sin consultar ARCA).
+  if (!cuitCierra(c)) throw new ErrorErp(CUIT_NO_CIERRA);
   return c;
 }
 
@@ -71,10 +74,15 @@ async function datosDe(fd: FormData, org: string, permisos: Parameters<typeof ti
   const limite = conCc ? leerNumero(fd.get("limite_cc")) : null;
   if (limite != null && limite < 0) throw new ErrorErp("El límite de crédito no puede ser negativo.");
   const dni = dniDe(fd);
+  // La condición de IVA es obligatoria, y salvo consumidor final va con CUIT (Fer, 22/10).
+  const iva = condicionIva(fd);
+  const cuit = cuitDe(fd);
+  if (!iva) throw new ErrorErp("Elegí la condición de IVA.");
+  if (iva !== "consumidor_final" && !cuit) throw new ErrorErp("Con esa condición de IVA hace falta el CUIT: sólo un consumidor final puede quedar sin CUIT.");
   return {
     nombre: razon, razon_social: razon, tipo: tipo(fd), apellido: texto(fd, "apellido"), nombre_pila: texto(fd, "nombre_pila"),
-    apodo_ml: texto(fd, "apodo_ml"), cuit: cuitDe(fd), documento_tipo: dni ? "DNI" : null, documento_numero: dni,
-    condicion_iva: condicionIva(fd), email: texto(fd, "email"), telefono: texto(fd, "telefono"),
+    apodo_ml: texto(fd, "apodo_ml"), cuit, documento_tipo: dni ? "DNI" : null, documento_numero: dni,
+    condicion_iva: iva, email: texto(fd, "email"), telefono: texto(fd, "telefono"),
     telefono_aclaracion: texto(fd, "telefono_aclaracion"), whatsapp: whatsappDe(fd),
     factura_por_whatsapp: fd.get("factura_por_whatsapp") === "on", factura_por_mail: fd.get("factura_por_mail") === "on",
     lista_precios_id: lista, notas: texto(fd, "notas"),
@@ -138,8 +146,10 @@ export async function accionBorrarCliente(fd: FormData) {
 
 // ── Direcciones ──────────────────────────────────────────
 
+/** Calle, número, piso/depto, localidad, provincia, CP y país. La etiqueta no se pide (Fer, 22/10): la ponen los
+ *  pedidos y el padrón («Fiscal», «Envío») y al corregir una dirección queda como estaba. */
 function datosDireccion(fd: FormData) {
-  return [texto(fd, "etiqueta"), texto(fd, "calle"), texto(fd, "numero"), texto(fd, "piso_depto"), texto(fd, "localidad"),
+  return [texto(fd, "calle"), texto(fd, "numero"), texto(fd, "piso_depto"), texto(fd, "localidad"),
     texto(fd, "provincia"), texto(fd, "codigo_postal"), texto(fd, "pais") ?? "AR"];
 }
 
@@ -149,11 +159,11 @@ export async function accionAgregarDireccion(fd: FormData) {
   await intentar(ficha(cid), async () => {
     await delaOrg(s.org.id, cid);
     const d = datosDireccion(fd);
-    if (!d[1] && !d[4]) throw new ErrorErp("La dirección necesita al menos la calle o la localidad.");
+    if (!d[0] && !d[3]) throw new ErrorErp("La dirección necesita al menos la calle o la localidad.");
     // La primera dirección del cliente nace principal.
     await consulta(`
-      insert into cliente_direccion (organizacion_id, cliente_id, etiqueta, calle, numero, piso_depto, localidad, provincia, codigo_postal, pais, principal)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, not exists (select 1 from cliente_direccion where cliente_id = $2))`,
+      insert into cliente_direccion (organizacion_id, cliente_id, calle, numero, piso_depto, localidad, provincia, codigo_postal, pais, principal)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, not exists (select 1 from cliente_direccion where cliente_id = $2))`,
       [s.org.id, cid, ...d]);
     revalidatePath(ficha(cid));
     return "Dirección agregada.";
@@ -165,8 +175,8 @@ export async function accionGuardarDireccion(fd: FormData) {
   const cid = id(fd, "cliente_id");
   await intentar(ficha(cid), async () => {
     const r = await consulta(`
-      update cliente_direccion set etiqueta = $4, calle = $5, numero = $6, piso_depto = $7, localidad = $8, provincia = $9,
-                                   codigo_postal = $10, pais = $11
+      update cliente_direccion set calle = $4, numero = $5, piso_depto = $6, localidad = $7, provincia = $8,
+                                   codigo_postal = $9, pais = $10
        where id = $2 and cliente_id = $3 and organizacion_id = $1 returning id`,
       [s.org.id, id(fd), cid, ...datosDireccion(fd)]);
     if (!r.length) throw new ErrorErp("La dirección no existe.");

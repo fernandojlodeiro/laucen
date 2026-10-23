@@ -202,9 +202,9 @@ No cuentan las publicaciones excluidas de la regla. Para ver los que falta revis
 
 ### Seguir publicaciones de la competencia (pestaña Seguimiento)
 
-La pestaña **Seguimiento (N)** de la ficha guarda las publicaciones de otros vendedores que querés vigilar, con lo último que se leyó de cada una: foto, título (con ↗ a Mercado Libre), número, si es de catálogo, **vendedor** (y si es tienda oficial), **precio** (con el precio tachado si tiene descuento, y ▼/▲ con cuánto cambió desde la lectura anterior), **tipo** de publicación (Clásica, Premium…) y cuotas, **entrega** (en cuántos días llega a Capital Federal, en rojo si tarda más de lo que compite, y si el envío es gratis), **estado** (Activa, Pausada, Terminada, "No figura en el catálogo" o "Sin leer todavía") y cuándo se **leyó**. Ordenadas de la más barata a la más cara.
+La pestaña **Seguimiento (N)** de la ficha guarda las publicaciones de otros vendedores que querés vigilar, con lo último que se leyó de cada una: foto, título (con ↗ a Mercado Libre), número, si es de catálogo, **vendedor** (y si es tienda oficial; debajo, cuántas unidades tiene a la venta y cuántas vendió según la última lectura, en ámbar si tiene 5 o menos; si son muchas, Mercado Libre muestra un aproximado: «más de 25»), **precio** (con el precio tachado si tiene descuento, y ▼/▲ con cuánto cambió desde la lectura anterior), **tipo** de publicación (Clásica, Premium…) y cuotas, **entrega** (en cuántos días llega a Capital Federal, en rojo si tarda más de lo que compite, y si el envío es gratis), **estado** (Activa, Pausada, Terminada, "No figura en el catálogo" o "Sin leer todavía") y cuándo se **leyó**. Ordenadas de la más barata a la más cara.
 
-Arriba se ven sólo las que están a la venta (el número del título cuenta ésas). **Las pausadas, terminadas o que ya no figuran en el catálogo van aparte**: debajo de la tabla, el botón **▸ Pausadas o terminadas (N)** las muestra en otra tabla igual (tocándolo de nuevo se esconde). Se siguen leyendo, así que si el vendedor la vuelve a activar, vuelve sola a la tabla de arriba; mientras tanto, la regla de precio no la usa.
+Arriba se ven sólo las que están a la venta (el número del título cuenta ésas). **Las pausadas o que ya no figuran en el catálogo van aparte**: debajo de la tabla, el botón **▸ Pausadas (N)** las muestra en otra tabla igual (tocándolo de nuevo se esconde). Mientras tanto, la regla de precio no la usa. Debajo del estado de cada pausada dice cada cuánto se relee y hasta cuándo («Se relee cada 30 días hasta el dd/mm»); si el vendedor la vuelve a activar, vuelve sola a la tabla de arriba. Pasados los meses que diga [Seguimiento de publicaciones](/config/seguimiento), deja de releerse sola y dice **«⏸ No se relee: pausada hace más de N meses»**, con el botón **Reanudar** debajo: la lee en el momento (de fondo; el cartel avisa abajo a la derecha) y la vuelve a releer por otros N meses. Si una lectura encuentra una publicación terminada, se deja de seguir sola (desaparece de la lista).
 
 Para elegir cuáles seguir:
 1. En el recuadro **Buscar en Mercado Libre para seguir**, el texto ya viene con el título del producto (se puede cambiar).
@@ -213,7 +213,10 @@ Para elegir cuáles seguir:
 En un producto de catálogo, Mercado Libre muestra el título del catálogo para todos los vendedores que compiten en él, aunque cada uno haya publicado con otro título: por eso esos renglones dicen «el título es el del catálogo».
 4. De entrada **no se muestran los packs ni las de varias unidades** («Pack de 2», «5 X…», «x10», «kit», «combo», «lote», «10 unidades»), salvo que el producto también sea un pack, **ni las nuestras** (se reconocen por el número de publicación y por la cuenta). Tampoco **las internacionales** (vendedor de afuera o entrega internacional: su precio no se compara porque le faltan los impuestos; llevan la marca **🌐 Internacional**) ni **las que tardan en llegar más de lo que compite** (ver [Seguimiento de publicaciones](/config/seguimiento)). Las cajas **Mostrar también packs y varias unidades (N)**, **Mostrar también las nuestras (N)** y **Mostrar también las que tardan más de N días (N)** y **Mostrar también las internacionales (N)** las agregan; las nuestras dicen **Nuestra**.
 5. La columna **IA** dice si la inteligencia artificial juzga que es **el mismo producto** que el nuestro: **✓ Comparable** (en verde) o **✗ No**, con el motivo corto («mismo modelo, 5 lentes y LED», «es otro modelo», «Es nuestra», «Pack o varias unidades»…). Sirve para elegir rápido; no sigue nada sola.
-6. Al lado de cada una, **+ Seguir** la agrega (sin costo). Las que ya seguís dicen **✓ Siguiendo**.
+6. Al lado de cada una, **+ Seguir** la agrega (sin costo).
+7. **Excluir**: tildada, esa publicación no la querés seguir nunca en este producto. Deja de aparecer en la lista (también en las búsquedas siguientes) y la búsqueda de precio de mercado no la sigue sola ni la cuenta. La caja **Mostrar las excluidas (N)** las vuelve a mostrar, para destildar alguna.
+
+En la lista de la búsqueda no aparecen las que ya seguís (están arriba), ni las de un vendedor que también tiene esa publicación en Clásica (si el vendedor tiene Clásica y Premium, sólo se ofrece la Clásica) o con número MLA (si además tiene una MLAU, que no se puede leer).
 
 La última búsqueda queda guardada: volver a la pestaña no cuesta; buscar de nuevo, sí.
 
@@ -225,7 +228,7 @@ Para agregar publicaciones que ya conocés: **+ Agregar por número**, pegá los
 
 Las publicaciones **MLAU…** («producto de vendedor») se leen sólo si compiten en un catálogo; si no, Mercado Libre no deja leer su precio y la fila lo dice en rojo: en ese caso conviene seguir su número **MLA…**.
 
-**Leer ahora** relee las de este producto en el momento (pregunta antes, porque las comunes cuestan). Además se releen solas cada tantos días (ver [Seguimiento de publicaciones](/config/seguimiento)). El tacho deja de seguir una.
+**Leer ahora** relee las de este producto en el momento (pregunta antes, porque las comunes cuestan). Además se releen solas cada tantos días (ver [Seguimiento de publicaciones](/config/seguimiento)), pero las comunes sólo si el producto está a la venta (con publicación activa en Mercado Libre y stock disponible); si no lo está, arriba de la tabla lo dice y quedan de referencia hasta que apretés **Leer ahora**. El tacho deja de seguir una.
 
 Debajo del precio de cada publicación que seguís está **su último cambio**: ▲ (verde) o ▼ (rojo), cuánto en pesos y en %, y la fecha desde la que tiene el precio de hoy; si nunca cambió, «igual desde el comienzo (dd/mm)», con la fecha en que se empezó a seguir. **La fila se pinta de amarillo si cambió en la última lectura**, y **de rosa si además es la referencia de la regla de precio**. La que usa la regla para comparar lleva la marca **🎯 Referencia de la regla** (la elegida, o la más barata de las activas si la regla compara contra la más barata).
 
@@ -239,13 +242,15 @@ En cada fila de las que seguís:
 - **Fuera de la regla — Excluir**: tildada, la seguís y ves su precio, pero **la regla de precio no la tiene en cuenta** (por ejemplo, un vendedor que a veces pone un precio puntual muy bajo). Graba al tocarla y la regla se vuelve a revisar enseguida.
 - **🌐 Internacional**: tampoco cuenta para la regla.
 
+**Lo repetido de un mismo vendedor se deja de seguir solo**: si un vendedor tiene la publicación en Clásica y en otro tipo (Premium…), se sigue sólo la Clásica; si la publica como MLAU y como MLA, sólo la MLA. Si un vendedor sólo tiene Premium, se sigue la Premium.
+
 **📈 Historial (N)**, a la derecha de cada publicación que seguís, abre debajo de ella **sólo las veces que cambió algo** —el precio, el estado o el tipo de publicación— (N es cuántos cambios hubo), de la más nueva a la más vieja: desde cuándo, precio (con el tachado si tenía descuento), **cuánto cambió** (▼ en rojo si bajó, ▲ en verde si subió, en pesos y en %), tipo y estado. El último renglón es el **Comienzo del seguimiento**. Las lecturas que encontraron todo igual no se muestran; al pie dice cuándo fue la última lectura. Tocándolo de nuevo se cierra.
 
 ### Regla de precio (pestaña Seguimiento)
 
 Arriba de la caja de la regla hay un **cuadro con lo más importante, en letra grande**:
 - **Con la regla prendida**: a cuánto llevaría hoy cada Clásica, **en verde si sube y en rojo si baja**, con cuánto en pesos y en %; o «Se queda en …» y por qué (ya está en el objetivo, en el piso, en el techo…).
-- **Con la regla apagada**: **qué % estás más arriba (en rojo) o más abajo (en verde)** que la referencia.
+- **Con la regla apagada**: **cuántos pesos y qué % estás más arriba (en rojo) o más abajo (en verde)** que la referencia; «igual que la referencia» sólo si es el mismo precio.
 En los dos casos dice cuál es la referencia (la más barata de las que seguís, sin las excluidas ni las internacionales, o la elegida) y a cuánto está.
 
 Debajo de las publicaciones que seguís está la caja **Regla de precio**: mirando lo que cobran esas publicaciones, **baja (y, si querés, sube) el precio de la lista Clásicas** de este producto. No toca Mercado Libre directo: desde la lista, el esquema de precios lo lleva a todas las cuentas y todos los planes (ver [Cómo funcionan los precios](/catalogo/precios-ml)).
@@ -262,15 +267,24 @@ Criterios:
 
 - **Baja** si tu Clásica está por encima del objetivo; si el objetivo queda por debajo del piso, baja hasta el piso.
 - **Sube sólo con «También subir»**, si tu Clásica está por debajo del objetivo; si el objetivo queda por encima del techo, sube hasta el techo. Sin esa caja, si ya estás más barato no hace nada.
-- Compara contra las seguidas **activas**, **revisadas** y con precio leído (las pausadas, terminadas o que no figuran en el catálogo no cuentan: si la que era la referencia se pausa, pasa sola a la siguiente más barata), sin las **excluidas** ni las **internacionales**. El precio de la referencia es el que paga el comprador.
+- Compara contra las seguidas **activas**, **revisadas** y con precio leído (las pausadas o que no figuran en el catálogo no cuentan: si la que era la referencia se pausa, pasa sola a la siguiente más barata), sin las **excluidas** ni las **internacionales**. El precio de la referencia es el que paga el comprador.
 - El objetivo se redondea a pesos enteros, hacia abajo. Si el producto tiene varias variaciones, se revisa cada una con su propia Clásica.
 - Un producto con precio en dólares sigue en dólares: se baja en la misma proporción.
-- **Cuándo se revisa**: sola, después de cada lectura de las seguidas (la vuelta automática o **Leer ahora**); al grabar la regla; y con **Revisar ahora** (usa lo último leído, sin volver a leer).
+- **Cuándo se revisa**: sola, después de cada lectura de las seguidas (la vuelta automática o **Leer ahora**); al grabar la regla; y con **Revisar ahora**, que la recalcula en el momento con los precios ya leídos (no vuelve a leer ni gasta): si la Clásica tiene que cambiar, deja una propuesta nueva para **Aplicar** (en automático, la cambia); si no, anota en «Última revisión» que no hace falta.
+- **Contra quién**, en una regla nueva, viene en **el más barato de los que sigo**. El **piso** y el **techo** no se completan solos: los carga quien arma la regla.
 - Lo propuesto que no se aplicó se reemplaza por lo de la revisión siguiente.
 
 Todos los cambios de la lista (los de la regla y los hechos a mano, con quién) se ven en [Historial de precios de lista](/catalogo/precios/historial).
 
 La caja muestra **tu Clásica hoy**, la **referencia** (quién y a cuánto) y a cuánto quedarías, la última revisión con su resultado y, al desplegar **Lo que hizo la regla (N)**, cada cambio: cuándo, SKU, antes, después, contra quién y su estado (**Espera tu clic**, **Aplicado**, **Descartado** o **Reemplazado**).
+
+### Ver cómo se viene vendiendo (pestaña Ventas)
+
+La pestaña **Ventas (N)** de la ficha (N = renglones vendidos en toda la historia) muestra, en una tabla, para **Últimos 7 días**, **Último mes**, **Últimos 3 meses**, **Último año** y **Toda la historia**: cuántas **ventas** (compras distintas: un pedido o una venta de Mercado Libre), cuántas **unidades**, el **monto** que pagaron los compradores y las **unidades por día**. Debajo, la fecha de la última venta.
+
+**Ver detalle**, arriba a la derecha de la caja, abre **Venta por venta**, de la más nueva a la más vieja, de a 50: fecha, la venta (el **pedido**, que lleva a su ficha; si no tiene pedido, el número de **Mercado Libre** con ↗; o el número del historial anterior), el **canal** (cada fila con el color de su canal), el **cliente** (lleva a su ficha si está cargado), la cantidad, el precio por unidad y el total. **Ocultar detalle** lo cierra.
+
+Cuenta todos los canales —Mercado Libre, la tienda web, el local y el historial de ventas importado—, sin las canceladas: es lo mismo que mira [Sugerencia de compra](/compras/sugerencia).
 
 ### Comprobar la familia con Mercado Libre (la lupa 🔍)
 

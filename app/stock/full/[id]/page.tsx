@@ -17,6 +17,7 @@ import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import ElegirDeLista from "@/app/componentes/ElegirDeLista";
 import FotosProducto from "@/app/componentes/FotosProducto";
+import TituloCorto from "@/app/componentes/TituloCorto";
 import {
   entrarErp, Pantalla, Avisos, Estado, Dato, Lapiz, BotonesFicha, TituloSeccion, editandoFicha, url,
   CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA,
@@ -36,12 +37,12 @@ import { diaAR } from "../piezas";
 import { sugeridosRemito, proveedoresTransporte } from "@/lib/full/remito";
 import {
   accionGuardarEnvio, accionGuardarFlete, accionBorrarEnvio, accionAgregarLinea, accionCantidadLinea, accionBorrarLinea,
-  accionAgregarTildados, accionVaciarEnvio, accionDespachar, accionRecibirAMano, accionCerrarEnvio, accionLeerFull, accionGuardarRemito,
+  accionAgregarTildados, accionVaciarEnvio, accionDespachar, accionRecibirAMano, accionCerrarEnvio, accionLeerFull, accionGuardarRemito, accionDeshacerDespacho,
 } from "../acciones";
 
 export const dynamic = "force-dynamic";
 
-type SP = { ok?: string; error?: string; editar?: string; recibir?: string; q?: string; contiene?: string; sugeridos?: string; df?: string; dd?: string; dv?: string };
+type SP = { ok?: string; error?: string; agregado?: string; agregar_error?: string; editar?: string; recibir?: string; q?: string; contiene?: string; sugeridos?: string; df?: string; dd?: string; dv?: string };
 type Linea = {
   id: number; variacion_id: number; producto_id: number; sku: string; titulo: string; fotos: string[] | null; item_id: string | null; variation_id: string;
   codigo: string | null; cantidad: number; recibido: number; faltante: number; flete_unit_ars: number | null; colecta_unit_ars: number | null;
@@ -116,13 +117,15 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
 
   // Buscador para sumar productos (borrador).
   const q = (sp.q ?? "").trim();
-  const hallados = borrador && q.length >= 2 ? await consulta<{ id: number; producto_id: number; sku: string; titulo: string; fotos: string[] | null; origen: number; publicada: boolean }>(`
+  const hallados = (borrador || enCamino) && q.length >= 2 ? await consulta<{ id: number; producto_id: number; sku: string; titulo: string; fotos: string[] | null; origen: number; publicada: boolean }>(`
     select v.id::int, v.producto_id::int, v.sku, titulo_variacion(v.id) titulo,
            (select array_agg(pf.url order by pf.orden) from producto_foto pf where pf.producto_id = v.producto_id) fotos,
            stock_disponible_deposito($1, v.id, $3) origen,
            exists (select 1 from publicacion pu where pu.variacion_id = v.id and pu.canal_id = $4 and pu.estado <> 'cerrada') publicada
       from variacion v join producto p on p.id = v.producto_id
-     where v.organizacion_id = $1 and v.estado <> 'archivada' and p.estado <> 'archivado' and ${sqlBusqueda("$2", camposVariacionYProducto("v", "p"))}
+     where v.organizacion_id = $1 and v.estado <> 'archivada' and p.estado <> 'archivado' and ${sqlBusqueda("$2", [...camposVariacionYProducto("v", "p"),
+       // También por el número de publicación (MLA…) o el Código ML de la cuenta del envío.
+       { de: "select 1 from meli_item m join publicacion pu on pu.id = m.publicacion_id where pu.variacion_id = v.id and m.canal_id = $4", campos: ["m.item_id", SQL_CODIGO] }])}
      order by v.sku limit 15`, [s.org.id, parametroBusqueda(q, sp.contiene !== "1"), e.deposito_origen_id, e.canal_id]) : [];
 
   const est = ESTADOS_ENVIO[e.estado];
@@ -133,6 +136,10 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
         <span className="inline-flex flex-wrap items-center gap-2">
           {etiquetas && !editando && <a href={etiquetas} target="_blank" rel="noopener noreferrer" className={SUAVE}>Etiquetas</a>}
           {lineas.length > 0 && !editando && <a href={`${base}/remito`} target="_blank" rel="noopener noreferrer" className={SUAVE}>Remito</a>}
+          {enCamino && !editando && recibidas === 0 && faltantes === 0 && (
+            <BotonConfirmar accion={accionDeshacerDespacho} campos={{ id: String(eid) }} clase={SUAVE} texto="Deshacer el despacho" corriendo="Deshaciendo…"
+              pregunta={`¿Deshacer el despacho? Las ${n(unidades)} unidades vuelven a ${e.origen} (y se vuelven a vender por todos los canales) y el envío queda en borrador para editarlo. Después apretás «Despachar» de nuevo.`} />
+          )}
           {enCamino && !editando && <BotonTarea accion={accionLeerFull} tipo="full-lectura" texto="Leer Full ahora" clase={SUAVE} campos={{ canal: String(e.canal_id) }} />}
           {borrador && !editando && lineas.length > 0 && (
             <BotonConfirmar accion={accionDespachar} campos={{ id: String(eid) }} clase={VERDE} texto="Despachar" corriendo="Despachando…"
@@ -256,94 +263,111 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
         )}
       </TituloSeccion>
       <p className="text-[11px] text-[#5C6B76] mb-1">
-        Vendidas por día: promedio de los últimos {dias} días. «En camino» es lo de otros envíos que todavía no llegó. En Full el stock es de cada
-        publicación, no del producto: lo que mandás lo venden sólo las publicaciones de ese Código ML (la común y su gemela de catálogo). Con el lápiz se elige el código; viene el que más vendió.
+        Lo que mandás lo venden sólo las publicaciones de su Código ML (última columna). Con el lápiz de la fila se elige el código; viene el que más vendió.
       </p>
       <div className={`${CAJA_TABLA} mb-3`}>
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <th className={TH}>Producto</th><th className={TH}>Publicaciones que lo venden desde Full</th><th className={TH}>Código ML</th>
-              <th className={THN}>Vende/día en la cuenta</th><th className={THN}>Vende/día en lo demás</th><th className={THN}>En Full</th><th className={THN}>En camino</th>
-              <th className={THN}>Disponible en {e.origen}</th><th className={THN}>Cantidad</th>
-              {!borrador && <><th className={THN}>Recibido</th><th className={THN}>Faltante</th></>}
-              <th className={THN}>Flete por unidad</th><th />
+              <th className={TH}>Producto</th>
+              <th className={THN} title="Unidades de este envío">Cant.</th>
+              {!borrador && <>
+                <th className={THN} title="De este envío: salieron del depósito y todavía no llegaron a Full">En camino</th>
+                <th className={THN} title="De este envío: ya contadas en Full">Recib.</th>
+                <th className={THN} title="De este envío: no llegaron (al cerrar el envío)">Falta</th>
+              </>}
+              <th className={THN} title={`Disponible para mandar en ${e.origen}`}>Dispo.</th>
+              <th className={THN} title={`Lo que ya hay en Full de ${e.canal}`}>Full</th>
+              <th className={THN} title="De otros envíos a Full que todavía no llegaron">Otros env.</th>
+              <th className={THN} title={`Vendidas por día en ${e.canal} (promedio de los últimos ${dias} días)`}>Vta/día</th>
+              <th className={THN} title={`Vendidas por día en los demás canales (promedio de los últimos ${dias} días)`}>Vta/día resto</th>
+              <th className={TH} title="Código de Full (Código ML) al que va">Código</th>
+              <th className={THN} title="Flete por unidad (y colecta de Mercado Libre, cuando la cobra)">Flete/u.</th>
+              <th />
+              <th className={TH} title="Publicaciones de la cuenta que venden el stock de ese código">Publicaciones</th>
             </tr>
           </thead>
           <tbody>
-            {lineas.length === 0 && <tr><td colSpan={13} className={`${TD} text-[#5C6B76]`}>Todavía no hay productos: buscalos abajo o mirá los sugeridos.</td></tr>}
+            {lineas.length === 0 && <tr><td colSpan={16} className={`${TD} text-[#5C6B76]`}>Todavía no hay productos: buscalos abajo o mirá los sugeridos.</td></tr>}
             {lineas.map((l) => {
               const c = ctxDe.get(l.variacion_id);
-              const editarFila = borrador && sp.editar === `l-${l.id}`;
+              // En camino, el lápiz cambia sólo la publicación (la cantidad ya salió del depósito).
+              const editarFila = (borrador || (enCamino && l.recibido === 0)) && sp.editar === `l-${l.id}`;
               const recibirFila = enCamino && sp.recibir === String(l.id);
               const pend = l.cantidad - l.recibido - l.faltante;
+              const g = grupoDe(l.variacion_id, l.item_id, l.variation_id);
               return (
                 <tr key={l.id} className={TR} data-canal={e.canal_id}>
-                  <td className={TD}>
-                    <span className="inline-flex items-center gap-2 align-middle">
+                  <td className={`${TD} min-w-56 max-w-80`}>
+                    <div className="flex items-start gap-2">
                       <FotosProducto fotos={l.fotos} titulo={l.titulo} />
-                      <Link href={`/catalogo/productos/${l.producto_id}`} className="font-mono text-[#16577F] hover:underline">{l.sku}</Link>
-                    </span>{" "}<span className="text-[#5C6B76]">{l.titulo}</span>
+                      <div className="min-w-0">
+                        <Link href={`/catalogo/productos/${l.producto_id}`} className="font-mono text-[#16577F] hover:underline">{l.sku}</Link>
+                        <TituloCorto titulo={l.titulo} />
+                      </div>
+                    </div>
                   </td>
-                  <td className={`${TD} whitespace-nowrap`}>
+                  <td className={`${TDN} font-bold`}>
+                    {editarFila && borrador
+                      ? <CampoNumero name="cantidad" valor={l.cantidad} tipo="entero" form={`fl-${l.id}`} className={`${CAMPO} w-20`} />
+                      : n(l.cantidad)}
+                  </td>
+                  {!borrador && <><td className={`${TDN} ${pend > 0 ? "font-bold text-[#16577F]" : ""}`}>{pend > 0 ? n(pend) : ""}</td><td className={TDN}>{n(l.recibido)}</td><td className={TDN}>{l.faltante ? n(l.faltante) : ""}</td></>}
+                  <td className={`${TDN} ${borrador && c && c.disponible_origen < l.cantidad ? "text-[#C03420] font-bold" : ""}`}>{c ? n(c.disponible_origen) : "—"}</td>
+                  <td className={TDN}>{c ? n(c.en_full) : "—"}</td>
+                  <td className={TDN}>{c ? n(c.en_camino) : "—"}</td>
+                  <td className={TDN}>{c ? porDia(c.vendidas_cuenta) : "—"}</td>
+                  <td className={TDN}>{c ? porDia(c.vendidas_otros) : "—"}</td>
+                  <td className={`${TD} font-mono whitespace-nowrap`}>
                     {editarFila ? (
-                      <select name="publicacion" form={`fl-${l.id}`} defaultValue={(() => { const g = grupoDe(l.variacion_id, l.item_id, l.variation_id); return g ? `${g.principal.item_id}~${g.principal.variation_id}` : ""; })()}
-                        className={CAMPO} aria-label="Código de Full">
-                        {gruposDe(l.variacion_id).map((g) => (
-                          <option key={g.clave} value={`${g.principal.item_id}~${g.principal.variation_id}`}>
-                            {g.codigo ?? "sin código"} · {[...new Set(g.publicaciones.map((p) => textoPlan(p.plan)).filter(Boolean))].join(" / ")} · {textoGrupo(g)} · vendió {g.vendidas}
+                      <select name="publicacion" form={`fl-${l.id}`} defaultValue={g ? `${g.principal.item_id}~${g.principal.variation_id}` : ""}
+                        className={`${CAMPO} max-w-72`} aria-label="Código de Full">
+                        {gruposDe(l.variacion_id).map((x) => (
+                          <option key={x.clave} value={`${x.principal.item_id}~${x.principal.variation_id}`}>
+                            {x.codigo ?? "sin código"} · {[...new Set(x.publicaciones.map((p) => textoPlan(p.plan)).filter(Boolean))].join(" / ")} · {textoGrupo(x)} · vendió {x.vendidas}
                           </option>
                         ))}
                       </select>
-                    ) : l.item_id ? (() => {
-                      const g = grupoDe(l.variacion_id, l.item_id, l.variation_id);
-                      const items = g ? g.publicaciones : [{ item_id: l.item_id, catalogo: false }];
-                      return (
-                        <>
-                          {items.map((p) => (
-                            <span key={p.item_id} className="mr-2 font-mono">
-                              <Link href={historialPublicacion(p.item_id)} className="text-[#16577F] hover:underline">{p.item_id}</Link> <a href={enlaceMl(p.item_id)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a>
-                            </span>
-                          ))}
-                          {g && <PlanesGrupo g={g} />}
-                        </>
-                      );
-                    })() : <span className="text-[#C03420]">Sin publicación en la cuenta</span>}
+                    ) : l.codigo ?? "—"}
                   </td>
-                  <td className={`${TD} font-mono`}>{l.codigo ?? "—"}</td>
-                  <td className={TDN}>{c ? porDia(c.vendidas_cuenta) : "—"}</td>
-                  <td className={TDN}>{c ? porDia(c.vendidas_otros) : "—"}</td>
-                  <td className={TDN}>{c ? n(c.en_full) : "—"}</td>
-                  <td className={TDN}>{c ? n(c.en_camino) : "—"}</td>
-                  <td className={`${TDN} ${borrador && c && c.disponible_origen < l.cantidad ? "text-[#C03420] font-bold" : ""}`}>{c ? n(c.disponible_origen) : "—"}</td>
-                  <td className={TDN}>
-                    {editarFila ? (
-                      <form id={`fl-${l.id}`} action={accionCantidadLinea} className="inline-flex items-center gap-1">
-                        <input type="hidden" name="envio" value={eid} /><input type="hidden" name="linea" value={l.id} />
-                        <CampoNumero name="cantidad" valor={l.cantidad} tipo="entero" className={`${CAMPO} w-20`} />
-                        <button className={VERDE}>Guardar</button>
-                        <Link href={aqui()} className={SUAVE} scroll={false}>Cancelar</Link>
-                      </form>
-                    ) : n(l.cantidad)}
-                  </td>
-                  {!borrador && <><td className={TDN}>{n(l.recibido)}</td><td className={TDN}>{l.faltante ? n(l.faltante) : ""}</td></>}
                   <td className={TDN}>{l.flete_unit_ars != null ? formatear(l.flete_unit_ars, "ARS") : "—"}
                     {l.colecta_unit_ars != null && <span className="block text-[10px] text-[#5C6B76]" title="Lo que cobró Mercado Libre por la colecta de este producto">+ colecta {formatear(l.colecta_unit_ars, "ARS")}</span>}</td>
                   <td className={`${TD} text-right whitespace-nowrap`}>
-                    {borrador && !editarFila && (
-                      <span className="inline-flex gap-1">
-                        <Lapiz href={aqui({ editar: `l-${l.id}` })} />
-                        <TachoConfirmar accion={accionBorrarLinea} campos={{ envio: String(eid), linea: String(l.id) }} pregunta="¿Sacarlo del envío?" />
-                      </span>
-                    )}
-                    {enCamino && pend > 0 && (recibirFila ? (
-                      <form action={accionRecibirAMano} className="inline-flex items-center gap-1">
+                    {editarFila ? (
+                      <form id={`fl-${l.id}`} action={accionCantidadLinea} className="inline-flex items-center gap-1">
                         <input type="hidden" name="envio" value={eid} /><input type="hidden" name="linea" value={l.id} />
-                        <CampoNumero name="cantidad" valor={pend} tipo="entero" className={`${CAMPO} w-16`} />
-                        <BotonEnviar clase={VERDE} corriendo="Recibiendo…">Recibir</BotonEnviar>
+                        {!borrador && <input type="hidden" name="cantidad" value={l.cantidad} />}
+                        <button className={VERDE}>Guardar</button>
                         <Link href={aqui()} className={SUAVE} scroll={false}>Cancelar</Link>
                       </form>
-                    ) : <Link href={aqui({ recibir: l.id })} className={SUAVE} scroll={false}>Recibir…</Link>)}
+                    ) : (
+                      <span className="inline-flex items-center gap-1">
+                        {(borrador || (enCamino && l.recibido === 0)) && <Lapiz href={aqui({ editar: `l-${l.id}` })} />}
+                        {borrador && <TachoConfirmar accion={accionBorrarLinea} campos={{ envio: String(eid), linea: String(l.id) }} pregunta="¿Sacarlo del envío?" />}
+                        {enCamino && pend > 0 && (recibirFila ? (
+                          <form action={accionRecibirAMano} className="inline-flex items-center gap-1">
+                            <input type="hidden" name="envio" value={eid} /><input type="hidden" name="linea" value={l.id} />
+                            <CampoNumero name="cantidad" valor={pend} tipo="entero" className={`${CAMPO} w-16`} />
+                            <BotonEnviar clase={VERDE} corriendo="Recibiendo…">Recibir</BotonEnviar>
+                            <Link href={aqui()} className={SUAVE} scroll={false}>Cancelar</Link>
+                          </form>
+                        ) : <Link href={aqui({ recibir: l.id })} className={SUAVE} scroll={false}>Recibir…</Link>)}
+                      </span>
+                    )}
+                  </td>
+                  <td className={`${TD} min-w-48 max-w-72 text-[11px]`}>
+                    {l.item_id ? (
+                      <>
+                        <span className="flex flex-wrap gap-x-2 font-mono">
+                          {(g ? g.publicaciones : [{ item_id: l.item_id, catalogo: false }]).map((p) => (
+                            <span key={p.item_id} className="whitespace-nowrap">
+                              <Link href={historialPublicacion(p.item_id)} className="text-[#16577F] hover:underline">{p.item_id}</Link> <a href={enlaceMl(p.item_id)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a>
+                            </span>
+                          ))}
+                        </span>
+                        {g && <PlanesGrupo g={g} />}
+                      </>
+                    ) : <span className="text-[#C03420]">Sin publicación en la cuenta</span>}
                   </td>
                 </tr>
               );
@@ -352,27 +376,33 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
         </table>
       </div>
 
-      {borrador && (
+      {(borrador || enCamino) && (
         <div className="grid gap-4 md:grid-cols-2 mb-4">
-          <div className={CAJA}>
+          <div id="agregar" className={`${CAJA} scroll-mt-4`}>
             <TituloSeccion titulo="Agregar productos" />
-            <BuscadorVivo q={q} comienza={sp.contiene !== "1"} placeholder="Buscar por SKU, código de barras o título" limpiar={["editar", "recibir"]} />
+            {sp.agregado && <p role="status" className="text-xs rounded-lg px-3 py-2 mb-2 bg-[#E8F6EE] text-[#1E6B3A]">{sp.agregado}</p>}
+            {sp.agregar_error && <p role="alert" className="text-xs rounded-lg px-3 py-2 mb-2 bg-[#FDECEA] text-[#C03420]">{sp.agregar_error}</p>}
+            {enCamino && <p className="text-[11px] text-[#8a6100] mb-1">El envío ya salió: lo que agregues sale ahora de {e.origen} y queda «En camino a Full».</p>}
+            <BuscadorVivo q={q} comienza={sp.contiene !== "1"} placeholder="Buscar por SKU, código de barras, título, MLA o Código ML" limpiar={["editar", "recibir"]} />
             {hallados.length > 0 && (
               <table className={`${TABLA} mt-2`}>
                 <tbody>
                   {hallados.map((h) => (
                     <tr key={h.id} className={TR}>
-                      <td className={TD}>
-                        <span className="inline-flex items-center gap-2 align-middle">
+                      <td className={`${TD} max-w-72`}>
+                        <div className="flex items-start gap-2">
                           <FotosProducto fotos={h.fotos} titulo={h.titulo} />
-                          <Link href={`/catalogo/productos/${h.producto_id}`} className="font-mono text-[#16577F] hover:underline">{h.sku}</Link>
-                        </span>{" "}<span className="text-[#5C6B76]">{h.titulo}</span>
+                          <div className="min-w-0">
+                            <Link href={`/catalogo/productos/${h.producto_id}`} className="font-mono text-[#16577F] hover:underline">{h.sku}</Link>
+                            <TituloCorto titulo={h.titulo} />
+                          </div>
+                        </div>
                         {!h.publicada && <span className="block text-[10px] text-[#C03420]">No está publicado en {e.canal}</span>}
                       </td>
                       <td className={TDN} title={`Disponible en ${e.origen}`}>{n(h.origen)}</td>
                       <td className={`${TD} text-right`}>
                         <form action={accionAgregarLinea} className="inline-flex items-center gap-1">
-                          <input type="hidden" name="envio" value={eid} /><input type="hidden" name="variacion" value={h.id} />
+                          <input type="hidden" name="envio" value={eid} /><input type="hidden" name="variacion" value={h.id} /><input type="hidden" name="sku" value={h.sku} />
                           <CampoNumero name="cantidad" valor={1} tipo="entero" className={`${CAMPO} w-16`} />
                           <BotonEnviar clase={PRIMARIO} corriendo="…">Agregar</BotonEnviar>
                         </form>
@@ -384,7 +414,7 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
             )}
             {q.length >= 2 && hallados.length === 0 && <p className="text-[11px] text-[#8a6100] mt-2">No hay productos con «{q}».</p>}
           </div>
-          <div className={CAJA}>
+          {borrador && <div className={CAJA}>
             <TituloSeccion titulo="Sugeridos">
               {verSugeridos
                 ? <Link href={url(base, { q: sp.q, contiene: sp.contiene })} className={SUAVE} scroll={false}>Cerrar sugeridos</Link>
@@ -394,7 +424,7 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
               Muestra, sin agregar nada, los productos que {e.canal} publica y vendió: lo que vende en los días a cubrir, menos lo que ya hay en Full y en camino,
               sin dejar {e.origen} por debajo de lo que venden los demás canales en los días a dejar. Tildás los que querés mandar y apretás «Agregar los tildados».
             </p>
-          </div>
+          </div>}
         </div>
       )}
 
@@ -430,7 +460,7 @@ export default async function FichaEnvioFull({ params, searchParams }: { params:
                   return (
                     <tr key={x.variacion_id} className={TR}>
                       <td className={TD}><input type="checkbox" name={`s_${x.variacion_id}`} aria-label={`Mandar ${x.sku}`} className="h-4 w-4" /></td>
-                      <td className={TD}><span className="font-mono">{x.sku}</span> <span className="text-[#5C6B76]">{x.titulo}</span></td>
+                      <td className={`${TD} max-w-72`}><span className="font-mono">{x.sku}</span><TituloCorto titulo={x.titulo} /></td>
                       <td className={`${TD} whitespace-nowrap`}>{g ? <><span className="font-mono">{g.codigo ?? "sin código"}</span> <span className="font-mono text-[10px]">{textoGrupo(g)}</span><PlanesGrupo g={g} /></> : "—"}</td>
                       <td className={TDN}>{pd(x.vendidas_cuenta)}</td>
                       <td className={TDN}>{pd(x.vendidas_otros)}</td>

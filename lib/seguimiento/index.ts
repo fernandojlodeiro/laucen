@@ -11,10 +11,11 @@
 // - Leer las seguidas comunes: Apify, por su dirección.
 // Todo lo pago respeta el tope mensual (config 'seguimiento').
 
-import { consulta, una, ErrorErp } from "@/lib/erp/base";
+import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { correrConEntrada, costosFinales } from "@/lib/apify";
 import { ml, cuentasDe, type CuentaMl } from "@/lib/mercadolibre/api";
 import { revisarReglasDe } from "@/lib/seguimiento/regla";
+import { SQL_A_LA_VENTA } from "@/lib/seguimiento/a-la-venta";
 
 const ACTOR = "scrapesage~mercadolibre-scraper";
 // Lo que cobra el actor (bitácora #102): US$ 2 cada 1.000 resultados; con el detalle de cada publicación, 8.
@@ -24,17 +25,21 @@ const POR_RESULTADO = { busqueda: 0.002, lectura: 0.008 };
 
 /** `demoraDias`: una publicación que tarda más que esto en llegar no compite (se esconde en la búsqueda y se marca en rojo). */
 /** `autoMax`: cuántas publicaciones comparables sigue sola la búsqueda de precio de mercado en cada producto (0 = ninguna). */
-export type ConfigSeguimiento = { frecuenciaDias: number; topeUsd: number; demoraDias: number; autoMax: number };
-export const CONFIG_DEFECTO: ConfigSeguimiento = { frecuenciaDias: 7, topeUsd: 30, demoraDias: 10, autoMax: 8 };
+/** `pausadasDias` / `pausadasMeses` (Fer, 22/10): una publicación de la competencia que está pausada se relee cada
+ *  `pausadasDias`, y después de `pausadasMeses` pausada deja de releerse sola hasta que alguien toca «Reanudar» (0 = nunca deja). */
+export type ConfigSeguimiento = { frecuenciaDias: number; topeUsd: number; demoraDias: number; autoMax: number; pausadasDias: number; pausadasMeses: number };
+export const CONFIG_DEFECTO: ConfigSeguimiento = { frecuenciaDias: 7, topeUsd: 30, demoraDias: 10, autoMax: 8, pausadasDias: 30, pausadasMeses: 3 };
 
 export async function configSeguimiento(org: string): Promise<ConfigSeguimiento> {
-  const r = await una<{ valor: { frecuencia_dias?: number; tope_usd?: number; demora_dias?: number; auto_max?: number } }>(
+  const r = await una<{ valor: { frecuencia_dias?: number; tope_usd?: number; demora_dias?: number; auto_max?: number; pausadas_dias?: number; pausadas_meses?: number } }>(
     "select valor from config_org where organizacion_id = $1 and clave = 'seguimiento'", [org]).catch(() => null);
   return {
     frecuenciaDias: Number(r?.valor?.frecuencia_dias) > 0 ? Number(r!.valor.frecuencia_dias) : CONFIG_DEFECTO.frecuenciaDias,
     topeUsd: r?.valor?.tope_usd != null && Number(r.valor.tope_usd) >= 0 ? Number(r.valor.tope_usd) : CONFIG_DEFECTO.topeUsd,
     demoraDias: Number(r?.valor?.demora_dias) > 0 ? Number(r!.valor.demora_dias) : CONFIG_DEFECTO.demoraDias,
     autoMax: r?.valor?.auto_max != null && Number(r.valor.auto_max) >= 0 ? Number(r.valor.auto_max) : CONFIG_DEFECTO.autoMax,
+    pausadasDias: Number(r?.valor?.pausadas_dias) > 0 ? Number(r!.valor.pausadas_dias) : CONFIG_DEFECTO.pausadasDias,
+    pausadasMeses: r?.valor?.pausadas_meses != null && Number(r.valor.pausadas_meses) >= 0 ? Number(r.valor.pausadas_meses) : CONFIG_DEFECTO.pausadasMeses,
   };
 }
 
@@ -43,10 +48,12 @@ export async function guardarConfigSeguimiento(org: string, c: ConfigSeguimiento
   if (!(c.topeUsd >= 0) || c.topeUsd > 1000) throw new ErrorErp("El tope de gasto va de US$ 0 a US$ 1.000 por mes.");
   if (!Number.isInteger(c.demoraDias) || c.demoraDias < 1 || c.demoraDias > 120) throw new ErrorErp("«No compite si tarda más de»: de 1 a 120 días.");
   if (!Number.isInteger(c.autoMax) || c.autoMax < 0 || c.autoMax > 30) throw new ErrorErp("«Seguir solas por producto»: de 0 a 30.");
+  if (!Number.isInteger(c.pausadasDias) || c.pausadasDias < 1 || c.pausadasDias > 365) throw new ErrorErp("«Pausadas: leer cada»: de 1 a 365 días.");
+  if (!Number.isInteger(c.pausadasMeses) || c.pausadasMeses < 0 || c.pausadasMeses > 36) throw new ErrorErp("«Pausadas: dejar de leer después de»: de 0 a 36 meses (0 = nunca).");
   await consulta(`
     insert into config_org (organizacion_id, clave, valor) values ($1, 'seguimiento', $2::jsonb)
     on conflict (coalesce(organizacion_id, ''), clave) do update set valor = excluded.valor, actualizado_ts = now()`,
-    [org, JSON.stringify({ frecuencia_dias: c.frecuenciaDias, tope_usd: c.topeUsd, demora_dias: c.demoraDias, auto_max: c.autoMax })]);
+    [org, JSON.stringify({ frecuencia_dias: c.frecuenciaDias, tope_usd: c.topeUsd, demora_dias: c.demoraDias, auto_max: c.autoMax, pausadas_dias: c.pausadasDias, pausadas_meses: c.pausadasMeses })]);
 }
 
 /** Lo gastado en Apify por el seguimiento este mes (hora argentina). */
@@ -377,6 +384,80 @@ export async function seguirPorNumero(org: string, productoId: number, texto: st
   return { nuevas: nuevos.length, repetidas: items.size - nuevos.length, ids: nuevos, catalogos: [...catalogos] };
 }
 
+/** Las publicaciones que no se quieren seguir nunca en este producto (caja «Excluir» de la búsqueda; Fer, 22/10). */
+export async function descartadas(org: string, productoId: number): Promise<Set<string>> {
+  const r = await consulta<{ item_id: string }>("select item_id from seguimiento_descartada where organizacion_id = $1 and producto_id = $2", [org, productoId]);
+  return new Set(r.map((x) => x.item_id));
+}
+
+export async function descartar(org: string, productoId: number, itemId: string, si: boolean, usuario: string | null): Promise<void> {
+  if (si) await consulta(`insert into seguimiento_descartada (organizacion_id, producto_id, item_id, usuario_id) values ($1, $2, $3, $4)
+                          on conflict do nothing`, [org, productoId, itemId, usuario]);
+  else await consulta("delete from seguimiento_descartada where organizacion_id = $1 and producto_id = $2 and item_id = $3", [org, productoId, itemId]);
+}
+
+/** Las MLAU a las que Cowork les encontró la MLA (seguimiento_mlau_tarea; Fer, 23/10): se sigue la MLA en su lugar,
+ *  con la misma revisión, origen y exclusión (y si era la elegida de una regla, pasa a serlo la MLA), y se deja de seguir la
+ *  MLAU. La MLA queda sin leer: la toma la próxima lectura. Devuelve cuántas reemplazó. */
+export async function aplicarMlauEncontradas(org: string): Promise<number> {
+  const tareas = await consulta<{ seguimiento_id: number; producto_id: number; mla: string }>(`
+    select t.seguimiento_id::int, t.producto_id::int, t.mla from seguimiento_mlau_tarea t
+     where t.organizacion_id = $1 and t.resultado = 'encontrada' and t.mla is not null and t.aplicado_ts is null`, [org]);
+  let n = 0;
+  for (const t of tareas) {
+    await enTransaccion(async (c) => {
+      const viejo = await c.query("select id from seguimiento_pub where id = $1 and organizacion_id = $2", [t.seguimiento_id, org]);
+      if (viejo.rowCount) {
+        const nuevo = await c.query<{ id: number }>(`
+          insert into seguimiento_pub (organizacion_id, producto_id, item_id, titulo, foto, permalink, vendedor, vendedor_id, tienda_oficial, precio, precio_original,
+                                       moneda, estado, tipo_publicacion, origen, origen_detalle, confirmada, confirmada_ts, confirmada_por, motivo_ia, excluido, internacional)
+          select organizacion_id, producto_id, $3, titulo, foto, $4, vendedor, vendedor_id, tienda_oficial, precio, precio_original,
+                 moneda, 'sin_dato', tipo_publicacion, origen, coalesce(origen_detalle || ' · ', '') || 'MLA de ' || item_id, confirmada, confirmada_ts, confirmada_por, motivo_ia, excluido, internacional
+            from seguimiento_pub where id = $1 and organizacion_id = $2
+          on conflict (organizacion_id, producto_id, item_id) do update set confirmada = seguimiento_pub.confirmada or excluded.confirmada
+          returning id::int`, [t.seguimiento_id, org, t.mla, enlaceDe(t.mla)]);
+        await c.query("update seguimiento_regla set seguimiento_id = $2 where organizacion_id = $3 and seguimiento_id = $1", [t.seguimiento_id, nuevo.rows[0].id, org]);
+        await c.query("delete from seguimiento_pub where id = $1 and organizacion_id = $2", [t.seguimiento_id, org]);
+      }
+      await c.query("update seguimiento_mlau_tarea set resultado = 'aplicada', aplicado_ts = now() where seguimiento_id = $1", [t.seguimiento_id]);
+    });
+    n++;
+  }
+  return n;
+}
+
+/** El mismo vendedor en SQL (alias a y b): por su número, o por el apodo sin el «(número)» que agrega Virtual Seller. */
+const MISMO_VENDEDOR = `((a.vendedor_id is not null and a.vendedor_id = b.vendedor_id)
+  or regexp_replace(upper(trim(a.vendedor)), '\\s*\\(\\d+\\)$', '') = regexp_replace(upper(trim(b.vendedor)), '\\s*\\(\\d+\\)$', ''))`;
+
+/** Deja de seguir lo repetido de un mismo vendedor en un producto (Fer, 22/10): una publicación que no es Clásica si el
+ *  vendedor tiene una Clásica, y una MLAU (que no se puede leer) si tiene una MLA. Devuelve cuántas borró. */
+export async function limpiarRepetidas(org: string, productos?: number[]): Promise<number> {
+  const r = await consulta<{ id: number }>(`
+    delete from seguimiento_pub a where a.organizacion_id = $1 and ($2::bigint[] is null or a.producto_id = any($2::bigint[]))
+       and ((a.tipo_publicacion is not null and a.tipo_publicacion <> 'gold_special'
+             and exists (select 1 from seguimiento_pub b where b.producto_id = a.producto_id and b.id <> a.id and b.tipo_publicacion = 'gold_special' and ${MISMO_VENDEDOR}))
+         or (a.item_id like 'MLAU%'
+             and exists (select 1 from seguimiento_pub b where b.producto_id = a.producto_id and b.id <> a.id and b.item_id not like 'MLAU%' and ${MISMO_VENDEDOR})))
+    returning a.id::int`, [org, productos?.length ? productos : null]);
+  return r.length;
+}
+
+/** ¿Sobra esta publicación de una lista (búsqueda), porque el mismo vendedor tiene una Clásica (o una MLA, si es MLAU)? Pura. */
+export function sobraDeVendedor(p: { itemId: string; vendedor?: string | null; vendedorId?: number | null; tipoPublicacion?: string | null },
+  otras: { itemId: string; vendedor?: string | null; vendedorId?: number | null; tipoPublicacion?: string | null }[]): boolean {
+  const nombre = (v?: string | null) => (v ?? "").trim().toUpperCase().replace(/\s*\(\d+\)$/, "");
+  const mismo = (o: typeof otras[number]) => o.itemId !== p.itemId && ((p.vendedorId != null && o.vendedorId === p.vendedorId) || (!!nombre(p.vendedor) && nombre(o.vendedor) === nombre(p.vendedor)));
+  if (p.tipoPublicacion && p.tipoPublicacion !== "gold_special" && otras.some((o) => mismo(o) && o.tipoPublicacion === "gold_special")) return true;
+  if (p.itemId.startsWith("MLAU") && otras.some((o) => mismo(o) && !o.itemId.startsWith("MLAU"))) return true;
+  return false;
+}
+
+/** «Reanudar» una pausada que dejó de releerse: vuelve a contar los meses desde hoy. */
+export async function reanudarSeguida(org: string, id: number): Promise<void> {
+  await consulta("update seguimiento_pub set pausada_desde = now() where id = $1 and organizacion_id = $2", [id, org]);
+}
+
 export async function dejarDeSeguir(org: string, id: number): Promise<void> {
   await consulta("delete from seguimiento_pub where id = $1 and organizacion_id = $2", [id, org]);
 }
@@ -388,8 +469,9 @@ export async function seguirAutomaticas(org: string, productoId: number, pubs: (
   await consulta(`delete from seguimiento_pub where organizacion_id = $1 and producto_id = $2 and origen = 'auto' and not confirmada
                    and not (item_id = any($3::text[]))`, [org, productoId, pubs.map((p) => p.itemId)]);
   let n = 0;
+  const fuera = await descartadas(org, productoId);
   for (const p of pubs) {
-    if (p.esCatalogo || p.propia) continue;
+    if (p.esCatalogo || p.propia || fuera.has(p.itemId)) continue;
     const r = await una<{ id: number }>(`
       insert into seguimiento_pub (organizacion_id, producto_id, item_id, catalogo_id, titulo, foto, permalink, vendedor, tienda_oficial,
                                    precio, precio_original, moneda, estado, tipo_publicacion, cuotas, envio_gratis, origen, leido_ts, intento_ts, vendedor_id,
@@ -563,13 +645,21 @@ async function grabarComunes(org: string, tanda: Seguida[], c: Awaited<ReturnTyp
                            tienda_oficial = coalesce($5, tienda_oficial), precio = coalesce($6, precio), precio_original = $7, moneda = coalesce($8, moneda),
                            estado = coalesce($9, case when $6 is not null then 'activa' else estado end), tipo_publicacion = coalesce($10, tipo_publicacion),
                            cuotas = coalesce($11, cuotas), envio_gratis = coalesce($12, envio_gratis), catalogo_id = coalesce(catalogo_id, $13),
+                           disponible = $14, vendidos = coalesce($15, vendidos),
                            leido_ts = now(), intento_ts = now(), error = null where id = $1`,
       [s.id, p.titulo !== "(sin título)" ? p.titulo : null, p.foto, p.vendedor, p.tiendaOficial, p.precio, p.precioOriginal, p.moneda, p.estado,
-        p.tipoPublicacion, p.cuotas, p.envioGratis, p.catalogoId ?? catalogoDeApify(e.x, s.item_id)]);
+        p.tipoPublicacion, p.cuotas, p.envioGratis, p.catalogoId ?? catalogoDeApify(e.x, s.item_id), ...stockDeApify(e.x)]);
     await anotarLectura(org, s.id, "apify", p, e.x);
     leidas++;
   }
   return leidas;
+}
+
+/** Stock y vendidos de la publicación según Apify (availableQuantity / soldQuantity; null si no vino). Pura. */
+export function stockDeApify(x: unknown): [number | null, number | null] {
+  const o = (x ?? {}) as { availableQuantity?: unknown; soldQuantity?: unknown };
+  const n = (v: unknown) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Math.round(Number(v)));
+  return [n(o.availableQuantity), n(o.soldQuantity)];
 }
 
 /** El catálogo en el que compite, según lo que trae Apify de la publicación («sku»: MLA… del producto de catálogo). Pura. */
@@ -598,16 +688,24 @@ async function leerUserProduct(cuenta: CuentaMl, s: Seguida): Promise<boolean> {
   return true;
 }
 
-/** Lee las seguidas que tocan (pasaron los días de la configuración, o nunca se leyeron), o las de un producto. */
+/** Lee las seguidas que tocan (pasaron los días de la configuración, o nunca se leyeron), o las de un producto. En la vuelta
+ *  sola (sin producto ni ids), las comunes sólo de productos a la venta. */
 export async function leerSeguidas(org: string, o: { productoId?: number; todas?: boolean; ids?: number[] } = {}): Promise<{ catalogo: number; comunes: number; sinPresupuesto: number }> {
-  const { frecuenciaDias } = await configSeguimiento(org);
+  const { frecuenciaDias, pausadasDias, pausadasMeses } = await configSeguimiento(org);
   const seguidas = await consulta<Seguida>(`
-    select id::int, item_id, catalogo_id, permalink, producto_id::int, vendedor_id::float8 vendedor_id from seguimiento_pub
-     where organizacion_id = $1 and ($2::bigint is null or producto_id = $2) and ($5::bigint[] is null or id = any($5::bigint[]))
-       and ($3 or leido_ts is null or leido_ts < now() - make_interval(days => $4) + interval '2 hours')
+    select sp.id::int, sp.item_id, sp.catalogo_id, sp.permalink, sp.producto_id::int, sp.vendedor_id::float8 vendedor_id from seguimiento_pub sp
+     where sp.organizacion_id = $1 and ($2::bigint is null or sp.producto_id = $2) and ($5::bigint[] is null or sp.id = any($5::bigint[]))
+       -- Las pausadas de la competencia, cada «pausadas_dias» (Fer, 22/10).
+       and ($3 or sp.leido_ts is null or sp.leido_ts < now() - make_interval(days => case when sp.estado = 'pausada' then $7::int else $4::int end) + interval '2 hours')
        -- Lo que falló hace poco no se reintenta enseguida (salvo pedido a mano).
-       and ($3 or intento_ts is null or intento_ts < now() - interval '20 hours')
-     order by leido_ts nulls first limit 2000`, [org, o.productoId ?? null, !!o.todas, frecuenciaDias, o.ids?.length ? o.ids : null]);
+       and ($3 or sp.intento_ts is null or sp.intento_ts < now() - interval '20 hours')
+       -- En la vuelta sola, las que cuestan (las comunes, con Apify) sólo de productos a la venta: con publicación activa
+       -- en Mercado Libre y stock disponible (Fer, 22/10). Las de catálogo y MLAU se leen gratis por la API.
+       and (not $6::boolean or sp.catalogo_id is not null or sp.item_id like 'MLAU%'
+            or exists (select 1 from producto p where p.id = sp.producto_id and ${SQL_A_LA_VENTA}))
+       -- Pausada hace más de «pausadas_meses»: frenada hasta «Reanudar».
+       and (not $6::boolean or not (sp.estado = 'pausada' and $8::int > 0 and sp.pausada_desde < now() - make_interval(months => $8::int)))
+     order by sp.leido_ts nulls first limit 2000`, [org, o.productoId ?? null, !!o.todas, frecuenciaDias, o.ids?.length ? o.ids : null, !o.productoId && !o.ids?.length, pausadasDias, pausadasMeses]);
   if (!seguidas.length) return { catalogo: 0, comunes: 0, sinPresupuesto: 0 };
   const cuenta = (await nuestras(org)).cuentas[0];
   // Las MLAU (productos de vendedor) no se leen con Apify: la API dice en qué catálogo compiten (si compiten).
@@ -629,6 +727,10 @@ export async function leerSeguidas(org: string, o: { productoId?: number; todas?
       if (d != null) await consulta("update seguimiento_pub set entrega_dias = $2 where id = $1", [x.id, d]);
     }
   }
+  // Las que Mercado Libre dice terminadas se dejan de seguir (Fer, 22/10): una terminada no vuelve. Y lo repetido de un
+  // mismo vendedor (no Clásica con Clásica, MLAU con MLA), que con la lectura recién se sabe.
+  await consulta("delete from seguimiento_pub where organizacion_id = $1 and id = any($2::bigint[]) and estado = 'cerrada'", [org, seguidas.map((x) => x.id)]);
+  await limpiarRepetidas(org, [...new Set(seguidas.map((x) => x.producto_id))]);
   // Con lo recién leído, la regla de precio de cada producto (lib/seguimiento/regla.ts).
   await revisarReglasDe(org, [...new Set(seguidas.map((x) => x.producto_id))]).catch((e) => console.error("[seguimiento] reglas", e));
   return { catalogo, comunes: leidas, sinPresupuesto };

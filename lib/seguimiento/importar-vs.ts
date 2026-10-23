@@ -5,20 +5,41 @@
 // los viejos, con «SEG-» adelante). La columna SKU del informe no sirve (es la del vendedor de enfrente).
 //   · Las de nuestras cuentas no entran (son las publicaciones nuestras que se monitoreaban).
 //   · Entran revisadas (las eligió una persona en Virtual Seller), con origen «importado» y de dónde vienen.
-//   · Las pausadas o terminadas entran igual: se ven aparte y la regla de precio no las usa (sólo mira las activas).
+//   · Las pausadas entran igual: se ven aparte y la regla de precio no las usa (sólo mira las activas). Las terminadas,
+//     no (Fer, 22/10: una terminada no vuelve; si una seguida aparece terminada al leerla, se deja de seguir).
 //   · Si ya se seguía, no se pisa su origen; el precio y el estado se ponen al día si lo nuestro era más viejo.
+//   · No entran (Fer, 22/10): las de notebooks, las de un SKU que ya no está en el catálogo y las de un producto sin
+//     ninguna publicación activa ni pausada en Mercado Libre. Las que entran se releen solas sólo si el producto está a
+//     la venta (lib/seguimiento/a-la-venta.ts); las de un producto pausado quedan de referencia para cuando se compre.
 
 import { consulta, ErrorErp } from "@/lib/erp/base";
-import { nuestras } from "@/lib/seguimiento";
+import { nuestras, limpiarRepetidas } from "@/lib/seguimiento";
 import { revisarReglasDe } from "@/lib/seguimiento/regla";
+import { SQL_CON_ML_VIVA, SQL_A_LA_VENTA, SQL_ES_NOTEBOOK, esTituloNotebook } from "@/lib/seguimiento/a-la-venta";
 import { numeroVs } from "@/lib/importar/virtualseller";
 import type { Hoja, Valor } from "@/lib/importar/leer";
 
-/** Nuestro SKU a partir del ID del seguimiento: sin «SEG-» adelante ni «-AAAA-N» al final. null si no queda nada. Pura. */
+/** Nuestro SKU a partir del ID del seguimiento: sin «SEG-» adelante ni «-AAAA-N» al final. null si no queda nada. Pura.
+ *  Si trae un «SKU» + número en cualquier lado (Fer, 22/10: «A8SEG-SKU03373-2025-1», «SKU00452-19», «SKU03514.2024-1»,
+ *  «SKU017852021-1», «SKU003305-2019-2»), ése: cinco cifras (con «-U» si lo trae). Con varios SKU distintos, no se adivina. */
 export function skuDeIdSeguimiento(id: string | null | undefined): string | null {
   if (!id) return null;
-  const s = id.trim().toUpperCase().replace(/^SEG[\s_-]+/, "").replace(/[\s_-]+(19|20)\d{2}[\s_-]+\d+$/, "").trim();
+  const t = id.trim().toUpperCase();
+  const skus = [...t.matchAll(/SKU(\d{5,})(-U(?![A-Z0-9]))?/g)].map((m) => {
+    let d = m[1];
+    if (d.length === 6 && d.startsWith("0")) d = d.slice(1);   // un cero de más
+    else if (d.length > 5) d = d.slice(0, 5);                   // el año pegado
+    return `SKU${d}${m[2] ?? ""}`;
+  });
+  if (new Set(skus).size === 1) return skus[0];
+  if (skus.length > 1) return t;
+  const s = t.replace(/^SEG[\s_-]+/, "").replace(/[\s_.-]+(19|20)\d{2}([\s_.-]+\d+)?$/, "").trim();
   return s || null;
+}
+
+/** Los viejos tienen de ID el número de nuestra publicación y la fecha («MLA754852459 21/04/2023 12:43»). Pura. */
+export function itemDeIdSeguimiento(id: string | null | undefined): string | null {
+  return (id ?? "").trim().toUpperCase().match(/^(MLAU?\d{6,})\b/)?.[1] ?? null;
 }
 
 /** El estado de Virtual Seller (el de Mercado Libre, en inglés) como lo guarda el seguimiento. Pura. */
@@ -81,6 +102,16 @@ export function leerSeguimientosVs(h: Hoja): FilaVs[] {
 export type ResumenVs = {
   filas: number; propias: number; sinPublicacion: number; sinId: number; repetidas: number;
   nuevas: number; actualizadas: number; yaEstaban: number; productos: number; activas: number; pausadas: number; internacionales: number;
+  /** Borradas por repetidas del mismo vendedor (no Clásica con Clásica, MLAU con MLA). */
+  repetidasVendedor?: number;
+  /** Terminadas: no se importan (Fer, 22/10: una terminada no vuelve). */
+  terminadas?: number;
+  /** Notebooks: no se importan (Fer, 22/10). */
+  notebooks: number;
+  /** Productos sin ninguna publicación activa ni pausada en Mercado Libre (sólo cerradas o ninguna): no se importan (Fer, 22/10). */
+  sinPublicacionActiva: { sku: string; filas: number }[];
+  /** De los importados, cuántos productos están a la venta (publicación activa y stock): sólo ésos se releen solos. */
+  productosALaVenta: number;
   /** Los SKU del ID de seguimiento que no están en el catálogo (con un ejemplo del ID y cuántas filas). */
   noEncontrados: { sku: string; id: string; filas: number }[];
 };
@@ -90,7 +121,8 @@ const LOTE = 400;
 /** Graba las filas leídas. `cuando`: la fecha del informe (la de la primera lectura). */
 export async function importarSeguimientosVs(org: string, filas: FilaVs[], archivo: string, cuando: Date = new Date()): Promise<ResumenVs> {
   const { apodos } = await nuestras(org);
-  const r: ResumenVs = { filas: filas.length, propias: 0, sinPublicacion: 0, sinId: 0, repetidas: 0, nuevas: 0, actualizadas: 0, yaEstaban: 0, productos: 0, activas: 0, pausadas: 0, internacionales: 0, noEncontrados: [] };
+  const r: ResumenVs = { filas: filas.length, propias: 0, sinPublicacion: 0, sinId: 0, repetidas: 0, nuevas: 0, actualizadas: 0, yaEstaban: 0, productos: 0, activas: 0, pausadas: 0, internacionales: 0,
+    notebooks: 0, sinPublicacionActiva: [], productosALaVenta: 0, noEncontrados: [] };
   // Las publicaciones nuestras (también las de cuentas viejas, si quedaron en Laucen).
   const items = [...new Set(filas.map((f) => f.itemId).filter(Boolean))] as string[];
   const propiasIds = new Set((await consulta<{ id: string }>("select item_id id from meli_item where organizacion_id = $1 and item_id = any($2::text[])", [org, items])).map((x) => x.id));
@@ -102,13 +134,31 @@ export async function importarSeguimientosVs(org: string, filas: FilaVs[], archi
     union all
     select upper(v.sku), v.producto_id::int from variacion v where v.organizacion_id = $1 and upper(v.sku) = any($2::text[])`, [org, skus]))
     if (!porSku.has(x.sku)) porSku.set(x.sku, x.producto_id);
+  // Los que tienen de ID el número de nuestra publicación: el producto de esa publicación (vinculada en Laucen).
+  const propiosId = [...new Set(filas.map((f) => itemDeIdSeguimiento(f.idSeguimiento)).filter(Boolean))] as string[];
+  const porItem = new Map<string, number>();
+  if (propiosId.length) for (const x of await consulta<{ item_id: string; producto_id: number }>(`
+    select distinct on (m.item_id) m.item_id, v.producto_id::int from meli_item m join publicacion pu on pu.id = m.publicacion_id join variacion v on v.id = pu.variacion_id
+     where m.organizacion_id = $1 and m.item_id = any($2::text[])`, [org, propiosId])) porItem.set(x.item_id, x.producto_id);
+  const productoDe = (f: FilaVs) => (f.sku ? porSku.get(f.sku) : undefined) ?? porItem.get(itemDeIdSeguimiento(f.idSeguimiento) ?? "");
+  // De cada producto: si es una notebook, si tiene publicación activa en Mercado Libre y si está a la venta.
+  const info = new Map<number, { notebook: boolean; conMl: boolean; aLaVenta: boolean }>();
+  for (const x of await consulta<{ id: number; notebook: boolean; con_ml: boolean; a_la_venta: boolean }>(`
+    select p.id::int, ${SQL_ES_NOTEBOOK} notebook, ${SQL_CON_ML_VIVA} con_ml, ${SQL_A_LA_VENTA} a_la_venta
+      from producto p where p.organizacion_id = $1 and p.id = any($2::bigint[])`, [org, [...new Set([...porSku.values(), ...porItem.values()])]]))
+    info.set(x.id, { notebook: x.notebook, conMl: x.con_ml, aLaVenta: x.a_la_venta });
+  const sinMl = new Map<string, number>();
   const faltan = new Map<string, { id: string; filas: number }>();
   const datos = new Map<string, Record<string, unknown>>();
   for (const f of filas) {
     if (!f.sku) { r.sinId++; continue; }
     if (!f.itemId) { r.sinPublicacion++; continue; }
     if (apodos.has((f.vendedor ?? "").toUpperCase().trim()) || propiasIds.has(f.itemId)) { r.propias++; continue; }
-    const pid = porSku.get(f.sku);
+    if (f.estado === "cerrada") { r.terminadas = (r.terminadas ?? 0) + 1; continue; }
+    const pid = productoDe(f);
+    // Las notebooks no interesan (Fer, 22/10), ni las de un producto que ya no está o sólo tiene publicaciones cerradas.
+    if (esTituloNotebook(f.titulo) || /^(SEG\s+)?NOT(EBOOK)?\b/i.test(f.idSeguimiento ?? "") || (pid && info.get(pid)?.notebook)) { r.notebooks++; continue; }
+    if (pid && !info.get(pid)?.conMl) { sinMl.set(f.sku, (sinMl.get(f.sku) ?? 0) + 1); continue; }
     if (!pid) { const x = faltan.get(f.sku) ?? { id: f.idSeguimiento ?? f.sku, filas: 0 }; x.filas++; faltan.set(f.sku, x); continue; }
     const k = `${pid}|${f.itemId}`;
     if (datos.has(k)) r.repetidas++;
@@ -118,13 +168,16 @@ export async function importarSeguimientosVs(org: string, filas: FilaVs[], archi
       detalle: `Virtual Seller, seguimiento ${f.idSeguimiento}`,
     });
   }
+  r.sinPublicacionActiva = [...sinMl].map(([sku, filas]) => ({ sku, filas })).sort((a, b) => b.filas - a.filas);
   r.noEncontrados = [...faltan].map(([sku, x]) => ({ sku, ...x })).sort((a, b) => b.filas - a.filas);
   const lista = [...datos.values()];
   for (const d of lista) {
     if (d.estado === "activa") r.activas++; else r.pausadas++;
     if (d.internacional) r.internacionales++;
   }
-  r.productos = new Set(lista.map((d) => d.producto_id)).size;
+  const pids = new Set(lista.map((d) => d.producto_id as number));
+  r.productos = pids.size;
+  r.productosALaVenta = [...pids].filter((x) => info.get(x)?.aLaVenta).length;
   for (let i = 0; i < lista.length; i += LOTE) {
     const lote = lista.slice(i, i + LOTE);
     // Nuevas: revisadas, origen «importado». Ya seguidas: no se pisa el origen (salvo una automática sin revisar, que
@@ -156,6 +209,8 @@ export async function importarSeguimientosVs(org: string, filas: FilaVs[], archi
       select organizacion_id, id, $3::timestamptz, 'importado', precio, precio_original, estado, tipo_publicacion, jsonb_build_object('archivo', $4::text)
         from seguimiento_pub where organizacion_id = $1 and id = any($2::bigint[])`, [org, conLectura, cuando, archivo]);
   }
+  // Lo repetido de un mismo vendedor (no Clásica con Clásica, MLAU con MLA) no se sigue (Fer, 22/10).
+  r.repetidasVendedor = await limpiarRepetidas(org, [...new Set(lista.map((d) => d.producto_id as number))]);
   // Con lo nuevo, la regla de precio de los productos que la tengan prendida.
   await revisarReglasDe(org, [...new Set(lista.map((d) => d.producto_id as number))]).catch((e) => console.error("[seguimiento vs] reglas", e));
   return r;
@@ -164,7 +219,12 @@ export async function importarSeguimientosVs(org: string, filas: FilaVs[], archi
 /** El resumen en una frase, para el cartel. Pura. */
 export function textoResumen(r: ResumenVs): string {
   const p = [`${r.nuevas} nuevas`, r.actualizadas ? `${r.actualizadas} puestas al día` : null, r.yaEstaban ? `${r.yaEstaban} ya estaban` : null].filter(Boolean).join(", ");
-  return `Seguimientos de Virtual Seller: ${p}, en ${r.productos} productos (${r.activas} activas, ${r.pausadas} pausadas o terminadas).`
+  return `Seguimientos de Virtual Seller: ${p}, en ${r.productos} productos (${r.activas} activas, ${r.pausadas} pausadas).`
+    + (r.productos ? ` Se releen solos los de ${r.productosALaVenta} productos a la venta.` : "")
+    + (r.notebooks ? ` ${r.notebooks} de notebooks no entraron.` : "")
+    + (r.terminadas ? ` ${r.terminadas} terminadas no entraron.` : "")
+    + (r.repetidasVendedor ? ` ${r.repetidasVendedor} repetidas del mismo vendedor (no Clásica o MLAU) se dejaron de seguir.` : "")
+    + (r.sinPublicacionActiva.length ? ` ${r.sinPublicacionActiva.length} SKU sin publicación activa ni pausada no entraron.` : "")
     + (r.noEncontrados.length ? ` ${r.noEncontrados.length} SKU no están en el catálogo.` : "")
     + (r.propias ? ` ${r.propias} eran nuestras y no entraron.` : "");
 }

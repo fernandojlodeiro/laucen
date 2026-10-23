@@ -64,8 +64,10 @@ const r2 = (x: number) => Math.round((x + Number.EPSILON) * 100) / 100;
 export const TIPO_TEXTO: Record<number, string> = {
   1: "FA", 2: "ND A", 3: "NC A", 6: "FB", 7: "ND B", 8: "NC B", 11: "FC", 12: "ND C", 13: "NC C",
   19: "FE", 20: "ND E", 21: "NC E", 51: "FM", 52: "ND M", 53: "NC M", 66: "Despacho",
+  17: "LSP A", 18: "LSP B", 63: "Liq. A", 64: "Liq. B",
 };
-const TIPO_LETRA: Record<number, string> = { 1: "A", 2: "A", 3: "A", 6: "B", 7: "B", 8: "B", 11: "C", 12: "C", 13: "C", 19: "E", 20: "E", 21: "E", 51: "M", 52: "M", 53: "M", 66: "" };
+const TIPO_LETRA: Record<number, string> = { 1: "A", 2: "A", 3: "A", 6: "B", 7: "B", 8: "B", 11: "C", 12: "C", 13: "C", 19: "E", 20: "E", 21: "E", 51: "M", 52: "M", 53: "M", 66: "",
+  17: "A", 18: "B", 63: "A", 64: "B" };
 export const letraDeTipo = (t: number) => TIPO_LETRA[t] ?? "";
 export const esNotaCredito = (t: number) => [3, 8, 13, 21, 53].includes(t);
 

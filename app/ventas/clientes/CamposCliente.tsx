@@ -44,8 +44,8 @@ export default function CamposCliente({ c, listas, puedeCc }: {
       <label><span className={ETIQUETA}>DNI{c?.documento_numero && c.documento_tipo && c.documento_tipo !== "DNI" ? ` (cargado como ${c.documento_tipo})` : ""}</span>
         <input name="documento_numero" defaultValue={c?.documento_numero ?? ""} placeholder="12345678" className={`${CAMPO} w-full`} /></label>
       <label><span className={ETIQUETA}>Condición IVA</span>
-        <select name="condicion_iva" defaultValue={c?.condicion_iva ?? ""} className={`${CAMPO} w-full`}>
-          <option value="">Sin cargar</option>
+        <select name="condicion_iva" defaultValue={c?.condicion_iva ?? ""} required className={`${CAMPO} w-full`}>
+          <option value="" disabled>Elegí la condición…</option>
           {Object.entries(CONDICIONES_IVA).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select></label>
 

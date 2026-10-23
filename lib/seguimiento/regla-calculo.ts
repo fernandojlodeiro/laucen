@@ -33,14 +33,15 @@ export function decidir(actual: number, objetivo: number, piso: number, techo: n
 }
 
 /** Una publicación seguida, para elegir la referencia. */
-export type Candidata = { id: number; nombre: string; precio: number | null; estado: string | null; moneda: string | null; excluido: boolean; internacional: boolean | null };
+export type Candidata = { id: number; nombre: string; precio: number | null; estado: string | null; moneda: string | null; excluido: boolean; internacional: boolean | null; confirmada?: boolean };
 export type Parametros = { contra: "mas_barato" | "una"; seguimientoId: number | null; como: ComoRegla; diferencia: number; piso: number | null; subir: boolean; techo: number | null };
 
-/** La referencia: la elegida o la más barata de las activas con precio en pesos, sin excluidas ni internacionales. Pura. */
+/** La referencia: la elegida o la más barata de las activas con precio en pesos, revisadas, sin excluidas ni
+ *  internacionales; si la elegida no sirve, la más barata (igual que lib/seguimiento/regla.ts). Pura. */
 export function referenciaEntre(c: Candidata[], p: Pick<Parametros, "contra" | "seguimientoId">): Candidata | null {
-  const validas = c.filter((x) => x.estado === "activa" && x.precio != null && (x.moneda ?? "ARS") === "ARS" && !x.excluido && !x.internacional);
-  if (p.contra === "una") return validas.find((x) => x.id === p.seguimientoId) ?? null;
-  return validas.sort((a, b) => a.precio! - b.precio!)[0] ?? null;
+  const validas = c.filter((x) => x.estado === "activa" && x.precio != null && (x.moneda ?? "ARS") === "ARS" && !x.excluido && !x.internacional && x.confirmada !== false)
+    .sort((a, b) => a.precio! - b.precio!);
+  return (p.contra === "una" ? validas.find((x) => x.id === p.seguimientoId) : undefined) ?? validas[0] ?? null;
 }
 
 export type Simulacion = {

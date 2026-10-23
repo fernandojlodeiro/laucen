@@ -6,11 +6,12 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, id, entero, numero, texto } from "@/lib/erp/acciones";
 import { deFondo } from "@/lib/tareas-fondo";
-import { ErrorErp } from "@/lib/erp/base";
+import { ErrorErp, motivoErp } from "@/lib/erp/base";
+import { redirect } from "next/navigation";
 import { formatearNumero } from "@/lib/numeros";
 import {
   crearEnvio, guardarCabecera, guardarFlete, borrarEnvio, agregarLinea, cambiarLinea, vaciarEnvio, borrarLinea, agregarVarios, despachar,
-  recibirAMano, cerrarEnvio, esCriterio,
+  recibirAMano, cerrarEnvio, esCriterio, deshacerDespacho,
 } from "@/lib/full/envios";
 import { leerFull } from "@/lib/full/lectura";
 import { leerCargosFull, guardarTarifa, recalcularCostosFull, esTamano } from "@/lib/full/costos";
@@ -63,10 +64,17 @@ export async function accionBorrarEnvio(fd: FormData) {
 export async function accionAgregarLinea(fd: FormData) {
   const s = await entrarErp("full_ver");
   const e = id(fd, "envio");
-  await intentar(ficha(e), async () => {
-    const aviso = await agregarLinea(s.org.id, e, id(fd, "variacion"), entero(fd, "cantidad") ?? 0);
-    return { ir: ficha(e, `?${aviso ? "error" : "ok"}=` + encodeURIComponent(aviso ?? "Agregado.")) };
-  });
+  // El aviso va al lado del buscador (?agregado= / ?agregar_error=) y la página vuelve a ese recuadro (#agregar).
+  let ir: string;
+  try {
+    const aviso = await agregarLinea(s.org.id, e, id(fd, "variacion"), entero(fd, "cantidad") ?? 0, s.usuario.id);
+    revalidatePath("/stock/consulta");
+    const sku = texto(fd, "sku");
+    ir = ficha(e, aviso ? `?agregar_error=${encodeURIComponent(aviso)}#agregar` : `?agregado=${encodeURIComponent(`Agregado${sku ? `: ${sku}` : ""}. Ya está en la tabla de productos.`)}#agregar`);
+  } catch (err) {
+    ir = ficha(e, `?agregar_error=${encodeURIComponent(motivoErp(err))}#agregar`);
+  }
+  redirect(ir);
 }
 
 export async function accionCantidadLinea(fd: FormData) {
@@ -116,6 +124,16 @@ export async function accionDespachar(fd: FormData) {
     const r = await despachar(s.org.id, e, s.usuario.id);
     revalidatePath("/stock/consulta");
     return `Despachado: ${n(r.unidades)} unidades de ${n(r.productos)} productos pasaron a «En camino a Full».`;
+  });
+}
+
+export async function accionDeshacerDespacho(fd: FormData) {
+  const s = await entrarErp("full_ver");
+  const e = id(fd);
+  await intentar(ficha(e), async () => {
+    const n = await deshacerDespacho(s.org.id, e, s.usuario.id);
+    revalidatePath("/stock/consulta");
+    return `Despacho deshecho: ${n === 1 ? "la unidad volvió" : `${formatearNumero(n, "entero")} unidades volvieron`} al depósito y el envío está en borrador otra vez.`;
   });
 }
 

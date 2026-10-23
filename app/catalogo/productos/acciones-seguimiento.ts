@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { intentar, texto, id, numero } from "@/lib/erp/acciones";
 import { deFondo, lanzarTarea } from "@/lib/tareas-fondo";
-import { buscarParaSeguir, seguirDeBusqueda, seguirPorNumero, dejarDeSeguir, leerSeguidas, listarCatalogo, cerrarCatalogo, excluirDeRegla, marcarInternacionales, confirmarSeguidas, ultimaBusqueda } from "@/lib/seguimiento";
+import { reanudarSeguida, descartar, buscarParaSeguir, seguirDeBusqueda, seguirPorNumero, dejarDeSeguir, leerSeguidas, listarCatalogo, cerrarCatalogo, excluirDeRegla, marcarInternacionales, confirmarSeguidas, ultimaBusqueda } from "@/lib/seguimiento";
 import { analizarBusqueda } from "@/lib/seguimiento/auto";
 import { guardarRegla, revisarRegla, aplicarPropuesta, descartarPropuesta } from "@/lib/seguimiento/regla";
 
@@ -189,5 +189,29 @@ export async function accionConfirmarTodas(fd: FormData) {
     const r = await revisarRegla(s.org.id, pid, s.usuario.id);
     revalidatePath(`/catalogo/productos/${pid}`);
     return `Confirmada${n === 1 ? "" : "s"} ${n}. ${r}`;
+  });
+}
+
+/** «Reanudar» una pausada que dejó de releerse sola (Fer, 22/10): vuelve a contar los meses desde hoy y la lee ya. */
+export async function accionReanudarSeguida(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id"), sid = id(fd);
+  return deFondo(s, `seguimiento-reanudar-${sid}`, "Reanudar el seguimiento", async () => {
+    await reanudarSeguida(s.org.id, sid);
+    const l = await leerSeguidas(s.org.id, { productoId: pid, todas: true, ids: [sid] });
+    revalidatePath(`/catalogo/productos/${pid}`);
+    return l.catalogo + l.comunes ? "Reanudada y leída." : l.sinPresupuesto ? "Reanudada; no se leyó porque se llegó al tope de gasto del mes." : "Reanudada; Mercado Libre no devolvió la publicación.";
+  });
+}
+
+/** «Excluir» de la búsqueda (Fer, 22/10): no la quiero seguir nunca en este producto; no vuelve a aparecer. */
+export async function accionDescartarEncontrada(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  const si = fd.get("valor") === "1";
+  await intentar(`${volver(pid)}${si ? "" : "&excluidas=1"}`, async () => {
+    await descartar(s.org.id, pid, texto(fd, "item") ?? "", si, s.usuario.id);
+    revalidatePath(`/catalogo/productos/${pid}`);
+    return si ? "Excluida: no vuelve a aparecer en las búsquedas de este producto." : "Vuelve a aparecer en las búsquedas.";
   });
 }

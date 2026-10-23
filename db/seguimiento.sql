@@ -195,3 +195,64 @@ create table if not exists seguimiento_importacion (
 create index if not exists seguimiento_importacion_org on seguimiento_importacion (organizacion_id, id desc);
 alter table seguimiento_importacion enable row level security;
 select erp_politica_org('seguimiento_importacion');
+-- Dónde quedó el archivo en Storage, para «Volver a importar» (Fer, 22/10: se mejoró cómo se lee el ID del seguimiento).
+alter table seguimiento_importacion add column if not exists ruta text;
+
+-- Desde cuándo está pausada la publicación de la competencia (Fer, 22/10): se relee cada «pausadas_dias» y, pasados
+-- «pausadas_meses», deja de releerse sola hasta «Reanudar» (que la vuelve a poner en hoy). La pone el disparador al
+-- cambiar el estado; vuelve a null cuando deja de estar pausada.
+alter table seguimiento_pub add column if not exists pausada_desde timestamptz;
+create or replace function seguimiento_pub_pausada_desde() returns trigger language plpgsql as $$
+begin
+  if new.estado = 'pausada' then
+    if tg_op = 'INSERT' or old.estado is distinct from 'pausada' then new.pausada_desde := coalesce(new.pausada_desde, new.leido_ts, now()); end if;
+  else
+    new.pausada_desde := null;
+  end if;
+  return new;
+end $$;
+drop trigger if exists seguimiento_pub_pausada_desde on seguimiento_pub;
+create trigger seguimiento_pub_pausada_desde before insert or update of estado, pausada_desde on seguimiento_pub
+  for each row execute function seguimiento_pub_pausada_desde();
+update seguimiento_pub set pausada_desde = coalesce(leido_ts, creado_ts) where estado = 'pausada' and pausada_desde is null;
+
+-- Stock y vendidos de la publicación de la competencia (Fer, 22/10), como los muestra Mercado Libre (lo trae la lectura
+-- con Apify): exacto cuando son pocas; si son muchas, redondeado («26» = más de 25, «51» = más de 50).
+alter table seguimiento_pub add column if not exists disponible int;
+alter table seguimiento_pub add column if not exists vendidos int;
+
+-- Publicaciones encontradas que no se quieren seguir nunca en un producto (Fer, 22/10): la caja «Excluir» de la
+-- búsqueda. No vuelven a aparecer en las búsquedas de ese producto ni las sigue sola la búsqueda de precio de mercado.
+create table if not exists seguimiento_descartada (
+  organizacion_id   text not null references organizaciones(id) on delete cascade,
+  producto_id       bigint not null references producto(id) on delete cascade,
+  item_id           text not null,
+  ts                timestamptz not null default now(),
+  usuario_id        text,
+  primary key (organizacion_id, producto_id, item_id)
+);
+alter table seguimiento_descartada enable row level security;
+select erp_politica_org('seguimiento_descartada');
+
+-- MLAU que no se pueden leer (Mercado Libre no da su precio): Cowork busca con el navegador la MLA de esa misma
+-- publicación y la anota en `mla` (Fer, 23/10). La vuelta del seguimiento reemplaza cada MLAU por su MLA (misma
+-- revisión, origen y exclusión) y la lee. resultado: pendiente · encontrada · sin_mla (no hay MLA: sólo se vende como
+-- producto de vendedor) · no_existe (la publicación ya no está) · aplicada (ya reemplazada).
+create table if not exists seguimiento_mlau_tarea (
+  seguimiento_id    bigint primary key,
+  organizacion_id   text not null references organizaciones(id) on delete cascade,
+  producto_id       bigint not null references producto(id) on delete cascade,
+  sku               text,
+  item_mlau         text not null,
+  vendedor          text,
+  titulo            text,
+  precio            numeric(16, 2),
+  permalink         text,
+  mla               text check (mla is null or mla ~ '^MLA[0-9]{6,}$'),
+  resultado         text not null default 'pendiente' check (resultado in ('pendiente', 'encontrada', 'sin_mla', 'no_existe', 'aplicada')),
+  nota              text,
+  actualizado_ts    timestamptz not null default now(),
+  aplicado_ts       timestamptz
+);
+alter table seguimiento_mlau_tarea enable row level security;
+select erp_politica_org('seguimiento_mlau_tarea');

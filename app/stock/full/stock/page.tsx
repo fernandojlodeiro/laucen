@@ -12,6 +12,7 @@ import { ThOrden, Paginado } from "@/app/componentes/Lista";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import BuscadorVivo from "@/app/componentes/BuscadorVivo";
 import FotosProducto from "@/app/componentes/FotosProducto";
+import TituloCorto from "@/app/componentes/TituloCorto";
 import { entrarErp, Pantalla, Avisos, CAJA_TABLA, TABLA, THEAD, TR, TD, TDN } from "@/app/componentes/erp";
 import { formatearNumero } from "@/lib/numeros";
 import { formatear } from "@/lib/moneda";
@@ -123,11 +124,11 @@ export default async function StockFull({ searchParams }: { searchParams: Promis
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr>
-              <ThOrden col="sku" porDefecto>Producto</ThOrden><ThOrden col="cuenta">Cuenta</ThOrden><th className="py-1.5 px-2 text-left font-semibold">Código ML</th>
-              <ThOrden col="ml" n>Disponible en ML</ThOrden><ThOrden col="no_disponible" n>No disponible en ML</ThOrden><ThOrden col="laucen" n>En Full según Laucen</ThOrden>
-              <ThOrden col="diferencia" n>Diferencia</ThOrden><ThOrden col="en_camino" n>En camino</ThOrden><ThOrden col="vendidas" n>Vendidas ({DIAS} días)</ThOrden>
-              <ThOrden col="cobertura" n>Días que cubre</ThOrden><ThOrden col="tamano">Tamaño en Full</ThOrden><ThOrden col="por_dia" n>Cuesta por día</ThOrden>
-              <ThOrden col="dias" n>Días en Full</ThOrden><ThOrden col="leido" n>Lectura</ThOrden>
+              <ThOrden col="sku" porDefecto>Producto</ThOrden><ThOrden col="cuenta">Cuenta</ThOrden><th className="py-1.5 px-2 text-left font-semibold" title="Código de Full (Código ML)">Código</th>
+              <ThOrden col="ml" n title="Disponible para vender en Full, según Mercado Libre">ML dispo.</ThOrden><ThOrden col="no_disponible" n title="En Full pero no disponible, según Mercado Libre (en traslado, dañado, perdido, en retiro…)">ML no disp.</ThOrden><ThOrden col="laucen" n title="En Full según Laucen">Laucen</ThOrden>
+              <ThOrden col="diferencia" n title="Diferencia entre Mercado Libre y Laucen">Dif.</ThOrden><ThOrden col="en_camino" n title="En camino a Full (envíos despachados que todavía no llegaron)">En camino</ThOrden><ThOrden col="vendidas" n title={`Vendidas en los últimos ${DIAS} días en la cuenta`}>Vend. {DIAS}d</ThOrden>
+              <ThOrden col="cobertura" n title="Días que cubre lo que hay, al ritmo de venta">Cubre</ThOrden><ThOrden col="tamano" title="Tamaño en Full">Tamaño</ThOrden><ThOrden col="por_dia" n title="Cuesta por día (unidades × tarifa del tamaño)">$/día</ThOrden>
+              <ThOrden col="dias" n title="Días en Full de la unidad más vieja">Días</ThOrden><ThOrden col="leido" n title="Última lectura de Mercado Libre">Lectura</ThOrden>
             </tr>
           </thead>
           <tbody>
@@ -137,12 +138,15 @@ export default async function StockFull({ searchParams }: { searchParams: Promis
               const cob = cobertura(f);
               return (
                 <tr key={f.clave} className={TR} data-canal={f.canal_id}>
-                  <td className={TD}>
-                    <span className="inline-flex items-center gap-2 align-middle">
+                  <td className={`${TD} min-w-56 max-w-80`}>
+                    <div className="flex items-start gap-2">
                       <FotosProducto fotos={f.fotos} titulo={f.titulo ?? ""} />
-                      {f.producto_id ? <Link href={`/catalogo/productos/${f.producto_id}`} className="font-mono text-[#16577F] hover:underline">{f.sku}</Link> : <span className="text-[#8a6100]">Sin producto en Laucen</span>}
-                    </span>{" "}<span className="text-[#5C6B76]">{f.titulo}</span>
-                    {f.item_id && <span className="block font-mono text-[10px]"><Link href={historialPublicacion(f.item_id)} className="text-[#16577F] hover:underline">{f.item_id}</Link> <a href={enlaceMl(f.item_id)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a></span>}
+                      <div className="min-w-0">
+                        {f.producto_id ? <Link href={`/catalogo/productos/${f.producto_id}`} className="font-mono text-[#16577F] hover:underline">{f.sku}</Link> : <span className="text-[#8a6100]">Sin producto en Laucen</span>}
+                        <TituloCorto titulo={f.titulo} />
+                        {f.item_id && <span className="block font-mono text-[10px]"><Link href={historialPublicacion(f.item_id)} className="text-[#16577F] hover:underline">{f.item_id}</Link> <a href={enlaceMl(f.item_id)} target="_blank" rel="noopener noreferrer" className="text-[#16577F]">↗</a></span>}
+                      </div>
+                    </div>
                   </td>
                   <td className={TD}>{f.cuenta}</td>
                   <td className={`${TD} font-mono`}>{f.inventory_id ?? "—"}</td>

@@ -4,14 +4,14 @@
 // Configuración › Seguimiento de publicaciones («Seguir solas por producto»).
 
 import { una } from "@/lib/erp/base";
-import { configSeguimiento, guardarBusqueda, seguirAutomaticas, type PubEncontrada } from "@/lib/seguimiento";
+import { configSeguimiento, descartadas, guardarBusqueda, seguirAutomaticas, type PubEncontrada } from "@/lib/seguimiento";
 import { analizar, type Analisis } from "@/lib/seguimiento/comparables";
 
 export type Resultado = Analisis & { seguidas: number };
 
 /** Analiza la búsqueda de un producto, la guarda con la marca de la IA y (con `seguir`) sigue las comparables. */
 export async function analizarBusqueda(org: string, productoId: number, texto: string, lista: PubEncontrada[], o: { seguir: boolean; ts?: Date }): Promise<Resultado> {
-  const [p, conf] = await Promise.all([
+  const [p, conf, fuera] = await Promise.all([
     // Con la Clásica de hoy de la variación principal: las de precio muy distinto no se comparan.
     una<{ titulo: string; descripcion: string | null; clasica: number | null }>(`
       select p.titulo, p.descripcion,
@@ -21,9 +21,11 @@ export async function analizarBusqueda(org: string, productoId: number, texto: s
         from producto p left join variacion va on va.producto_id = p.id and va.es_default
        where p.id = $1 and p.organizacion_id = $2`, [productoId, org]),
     configSeguimiento(org),
+    descartadas(org, productoId),
   ]);
-  const a = await analizar({ titulo: p?.titulo ?? texto, descripcion: p?.descripcion, clasica: p?.clasica ?? null }, lista, conf.demoraDias);
-  await guardarBusqueda(org, productoId, texto, a.lista);
+  // Las excluidas a mano (caja «Excluir» de la búsqueda) no se juzgan ni cuentan para el precio de mercado (Fer, 22/10).
+  const a = await analizar({ titulo: p?.titulo ?? texto, descripcion: p?.descripcion, clasica: p?.clasica ?? null }, lista.filter((x) => !fuera.has(x.itemId)), conf.demoraDias);
+  await guardarBusqueda(org, productoId, texto, [...a.lista, ...lista.filter((x) => fuera.has(x.itemId)).map((x) => ({ ...x, comparable: false, motivoIa: "Excluida a mano" }))]);
   const seguidas = o.seguir && conf.autoMax > 0 ? await seguirAutomaticas(org, productoId, a.comparables.slice(0, conf.autoMax), o.ts) : 0;
   return { ...a, seguidas };
 }

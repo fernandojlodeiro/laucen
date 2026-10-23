@@ -1,6 +1,7 @@
 // Configuración › Seguimiento de publicaciones (pedido de Fer, 10/10): cada
 // cuántos días se releen las publicaciones de la competencia que se siguen y
-// el tope de gasto del mes en Apify (lib/seguimiento/).
+// el tope de gasto del mes en Apify (lib/seguimiento/). Las pausadas de la competencia tienen su propia frecuencia y
+// un límite de meses (Fer, 22/10).
 
 import { una } from "@/lib/erp/base";
 import { configSeguimiento, gastoDelMes } from "@/lib/seguimiento";
@@ -38,6 +39,10 @@ export default async function ConfigSeguimiento({ searchParams }: { searchParams
               <CampoNumero name="demora_dias" valor={c.demoraDias} tipo="entero" className={`${CAMPO} w-full`} /></label>
             <label className="w-40"><span className={ETIQUETA}>Seguir solas por producto</span>
               <CampoNumero name="auto_max" valor={c.autoMax} tipo="entero" className={`${CAMPO} w-full`} /></label>
+            <label className="w-40"><span className={ETIQUETA}>Pausadas: leer cada (días)</span>
+              <CampoNumero name="pausadas_dias" valor={c.pausadasDias} tipo="entero" className={`${CAMPO} w-full`} /></label>
+            <label className="w-40"><span className={ETIQUETA}>Pausadas: dejar de leer después de (meses)</span>
+              <CampoNumero name="pausadas_meses" valor={c.pausadasMeses} tipo="entero" className={`${CAMPO} w-full`} /></label>
           </>
         ) : (
           <>
@@ -45,6 +50,8 @@ export default async function ConfigSeguimiento({ searchParams }: { searchParams
             <Dato etiqueta="Tope de gasto por mes (US$)" numero className="w-40">{formatearNumero(c.topeUsd, "decimal")}</Dato>
             <Dato etiqueta="No compite si tarda más de (días)" numero className="w-40">{String(c.demoraDias)}</Dato>
             <Dato etiqueta="Seguir solas por producto" numero className="w-40">{String(c.autoMax)}</Dato>
+            <Dato etiqueta="Pausadas: leer cada (días)" numero className="w-40">{String(c.pausadasDias)}</Dato>
+            <Dato etiqueta="Pausadas: dejar de leer después de (meses)" numero className="w-40">{String(c.pausadasMeses)}</Dato>
           </>
         )}
         <p className="w-full text-[11px] text-[#5C6B76]">
@@ -55,6 +62,13 @@ export default async function ConfigSeguimiento({ searchParams }: { searchParams
           La búsqueda de precio de mercado (Compras › Sugerencia de compra) sigue sola, en cada producto, hasta esa cantidad de
           publicaciones que la IA juzga iguales al producto (las más baratas); quedan «sin confirmar» hasta que una persona las revisa
           (0 = no seguir ninguna sola).
+        </p>
+        <p className="w-full text-[11px] text-[#5C6B76]">
+          Solas se releen las comunes sólo de productos a la venta (con publicación activa en Mercado Libre y stock disponible); las
+          de un producto pausado o sin stock quedan de referencia y se leen con «Leer ahora». Una publicación de la competencia que
+          está pausada se relee cada «Pausadas: leer cada» días y, cuando lleva pausada más de los meses elegidos, deja de leerse sola
+          hasta que se toca «Reanudar» en la pestaña Seguimiento del producto (0 meses = no deja nunca). Las terminadas no se releen
+          (Mercado Libre no las reactiva).
         </p>
       </form>
       <div className={`${CAJA} mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3`}>

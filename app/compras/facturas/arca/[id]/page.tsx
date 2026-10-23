@@ -80,12 +80,19 @@ export default async function VistaPreviaArca({ params, searchParams }: { params
             <NuevaCuenta accion={accionCrearCuentaArca}>
               <label><span className={ETIQUETA}>Código</span><input name="codigo" form="importar" defaultValue={sugerida.codigo} className={`${CAMPO} w-24`} /></label>
               <label className="flex-1 min-w-48"><span className={ETIQUETA}>Nombre</span><input name="nombre" form="importar" placeholder="Ej. Publicidad" className={`${CAMPO} w-full`} autoFocus /></label>
-              <label><span className={ETIQUETA}>Queda elegida para</span>
-                <select name="para" form="importar" defaultValue="" className={`${CAMPO} max-w-xs`}>
-                  <option value="">— Ningún proveedor —</option>
-                  {v.proveedores.map((p) => <option key={p.cuit} value={p.cuit}>{p.nombre}</option>)}
-                </select>
-              </label>
+              {/* Para qué proveedores de este archivo queda elegida (Fer, 22/10): varios a la vez, tildando. */}
+              <fieldset className="w-full">
+                <span className={ETIQUETA}>Queda elegida para (los proveedores de este archivo; tildá los que van a esta cuenta)</span>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1 text-xs max-h-48 overflow-auto rounded-lg border border-[#E3E9F0] bg-white p-2">
+                  {v.proveedores.map((p) => (
+                    <label key={p.cuit} className="flex items-center gap-1.5">
+                      <input type="checkbox" name="para" value={p.cuit} form="importar" className="h-4 w-4" />
+                      <span className="truncate" title={p.nombre}>{p.nombre}</span>
+                      <span className="text-[10px] text-[#5C6B76] whitespace-nowrap">({p.nuevas})</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
             </NuevaCuenta>
             <p className="text-[11px] text-[#5C6B76] mt-1">
               Se crea como cuenta de egreso imputable{sugerida.madre ? <>, bajo <b>{sugerida.madre.codigo} {sugerida.madre.nombre}</b> (la cuenta madre sale del código)</> : null}.

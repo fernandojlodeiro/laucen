@@ -203,20 +203,29 @@ async function publicacionDe(org: string, canalId: number, variacionId: number) 
 }
 
 /** Suma un producto al envío (si ya estaba, suma la cantidad). Avisa si la cuenta no lo publica. */
-export async function agregarLinea(org: string, envioId: number, variacionId: number, cantidad: number): Promise<string | null> {
+/** Suma un producto al envío. En camino (ya despachado), las unidades salen en el momento del depósito de
+ *  origen a «En camino a Full» (Fer, 22/10: se agregó al envío de ML después de despacharlo). */
+export async function agregarLinea(org: string, envioId: number, variacionId: number, cantidad: number, usuario: string | null = null): Promise<string | null> {
   if (!Number.isInteger(cantidad) || cantidad <= 0) throw new ErrorErp("Poné cuántas unidades van.");
   const e = await envio(org, envioId);
   if (!e) throw new ErrorErp("Ese envío no existe.");
-  if (e.estado !== "borrador") throw new ErrorErp("El envío ya salió: no se le pueden agregar productos.");
+  if (e.estado !== "borrador" && e.estado !== "despachado") throw new ErrorErp("El envío ya llegó: no se le pueden agregar productos.");
   const v = await una<{ sku: string }>("select sku from variacion where id = $1 and organizacion_id = $2", [variacionId, org]);
   if (!v) throw new ErrorErp("Ese producto no existe.");
   const pub = await publicacionDe(org, e.canal_id, variacionId);
   if (pub && !pub.codigo) await completarCodigoFull(org, e.canal_id, pub.item_id, pub.variation_id).catch(() => null);
-  await consulta(`
-    insert into full_envio_linea (organizacion_id, envio_id, variacion_id, item_id, variation_id, cantidad) values ($1, $2, $3, $4, $5, $6)
-    on conflict (envio_id, variacion_id) do update set cantidad = full_envio_linea.cantidad + excluded.cantidad,
-      item_id = coalesce(excluded.item_id, full_envio_linea.item_id), variation_id = excluded.variation_id`,
-    [org, envioId, variacionId, pub?.item_id ?? null, pub?.variation_id ?? "", cantidad]);
+  await enTransaccion(async (c) => {
+    const actual = await envioPara(c, org, envioId, ["borrador", "despachado"]);
+    await c.query(`
+      insert into full_envio_linea (organizacion_id, envio_id, variacion_id, item_id, variation_id, cantidad) values ($1, $2, $3, $4, $5, $6)
+      on conflict (envio_id, variacion_id) do update set cantidad = full_envio_linea.cantidad + excluded.cantidad,
+        item_id = coalesce(excluded.item_id, full_envio_linea.item_id), variation_id = excluded.variation_id`,
+      [org, envioId, variacionId, pub?.item_id ?? null, pub?.variation_id ?? "", cantidad]);
+    if (actual.estado === "despachado") {
+      if (!actual.ubicacion_transito_id) throw new ErrorErp("El envío no tiene su lugar «En camino a Full».");
+      await sacarDelDeposito(c, org, variacionId, cantidad, actual.deposito_origen_id, actual.ubicacion_transito_id, envioId, usuario ?? "");
+    }
+  });
   await prorratearFlete(org, envioId);
   return pub ? null : `${v.sku} no tiene publicación en ${e.canal}: para mandarlo a Full, primero publicalo en esa cuenta.`;
 }
@@ -233,7 +242,14 @@ export async function cambiarLinea(org: string, envioId: number, lineaId: number
     if (!ok.codigo) await completarCodigoFull(org, e.canal_id, ok.item_id, ok.variation_id).catch(() => null);
   }
   await enTransaccion(async (c) => {
-    await envioPara(c, org, envioId, ["borrador"]);
+    const actual = await envioPara(c, org, envioId, ["borrador", "despachado"]);
+    // En camino sólo se cambia la publicación (la cantidad ya salió del depósito), y antes de que llegue algo.
+    if (actual.estado === "despachado") {
+      const l = (await c.query<{ cantidad: number; recibido: number }>("select cantidad, recibido from full_envio_linea where id = $1 and envio_id = $2", [lineaId, envioId])).rows[0];
+      if (!l) throw new ErrorErp("Esa línea no es de este envío.");
+      if (l.cantidad !== cantidad) throw new ErrorErp("El envío ya salió: la cantidad no se cambia (si no llega todo, se resuelve al cerrar el envío).");
+      if (l.recibido > 0) throw new ErrorErp("Ya llegaron unidades a Full: la publicación no se cambia.");
+    }
     await c.query(`update full_envio_linea set cantidad = $4, item_id = coalesce($5, item_id), variation_id = coalesce($6, variation_id)
                     where organizacion_id = $1 and envio_id = $2 and id = $3`, [org, envioId, lineaId, cantidad, publicacion?.item ?? null, publicacion?.variacion ?? null]);
   });
@@ -389,6 +405,38 @@ export async function despachar(org: string, envioId: number, usuario: string): 
     for (const l of lineas) await sacarDelDeposito(c, org, Number(l.variacion_id), l.cantidad, e.deposito_origen_id, ubic, envioId, usuario);
     await c.query("update full_envio set estado = 'despachado', ubicacion_transito_id = $3, despachado_ts = now() where organizacion_id = $1 and id = $2", [org, envioId, ubic]);
     return { productos: lineas.length, unidades: lineas.reduce((t, l) => t + l.cantidad, 0) };
+  });
+}
+
+/** Deshacer el despacho (Fer, 22/10: el transporte todavía no vino y quiere sumar productos): mientras
+ *  no llegó nada a Full, cada unidad vuelve de «En camino a Full» a la ubicación de donde salió (lo
+ *  que dicen los movimientos de este envío; si esa ubicación ya no está activa, a la general del
+ *  depósito de origen) y el envío vuelve a borrador. */
+export async function deshacerDespacho(org: string, envioId: number, usuario: string): Promise<number> {
+  return enTransaccion(async (c) => {
+    const e = await envioPara(c, org, envioId, ["despachado"]);
+    const llego = (await c.query("select 1 from full_envio_linea where envio_id = $1 and (recibido > 0 or faltante > 0) limit 1", [envioId])).rowCount;
+    if (llego) throw new ErrorErp("Ya llegaron unidades a Full: el despacho no se puede deshacer.");
+    if (!e.ubicacion_transito_id) throw new ErrorErp("El envío no tiene su lugar «En camino a Full».");
+    // Lo que entró a «En camino» desde cada ubicación, menos lo que ya volvió a ella (un despacho deshecho antes).
+    const volver = (await c.query<{ variacion_id: string; ubic: string; kit: string | null; n: number; activa: boolean }>(`
+      select m.variacion_id, x.ubic, m.kit_variacion_id kit, sum(x.signo * m.cantidad)::int n, bool_and(u.estado = 'activa' and u.deposito_id = $3) activa
+        from movimiento_stock m
+        cross join lateral (values (m.ubicacion_origen_id, 1), (m.ubicacion_destino_id, -1)) x(ubic, signo)
+        join ubicacion u on u.id = x.ubic
+       where m.organizacion_id = $1 and m.referencia_tipo = 'full_envio' and m.referencia_id = $2::text
+         and $4 in (m.ubicacion_origen_id, m.ubicacion_destino_id) and x.ubic <> $4
+       group by m.variacion_id, x.ubic, m.kit_variacion_id
+      having sum(x.signo * m.cantidad) > 0`, [org, String(envioId), e.deposito_origen_id, e.ubicacion_transito_id])).rows;
+    const general = await ubicacionGeneral(c, e.deposito_origen_id);
+    let total = 0;
+    for (const v of volver) {
+      await moverStock(c, org, Number(v.variacion_id), "transferencia", v.n, e.ubicacion_transito_id, v.activa ? Number(v.ubic) : general,
+        envioId, usuario, "Despacho deshecho: vuelve al depósito", v.kit ? Number(v.kit) : null);
+      total += v.n;
+    }
+    await c.query("update full_envio set estado = 'borrador', despachado_ts = null where organizacion_id = $1 and id = $2", [org, envioId]);
+    return total;
   });
 }
 

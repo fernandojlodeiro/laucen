@@ -34,23 +34,23 @@ El envío también se crea en Mercado Libre, en la Central de vendedores (secci�
 
 ### Ficha del envío
 
-- Arriba a la derecha: **«Etiquetas»** (abre en otra pestaña el PDF con una etiqueta por unidad, con el Código ML de cada publicación), **«Remito»** (abre en otra pestaña el remito para el transportista), el lápiz, y según el estado **«Despachar»** y el tacho (borrador) o **«Leer Full ahora»** (en camino).
+- Arriba a la derecha: **«Etiquetas»** (abre en otra pestaña el PDF con una etiqueta por unidad, con el Código ML de cada publicación), **«Remito»** (abre en otra pestaña el remito para el transportista), el lápiz, y según el estado **«Despachar»** y el tacho (borrador) o **«Leer Full ahora»** y **«Deshacer el despacho»** (en camino, mientras no llegó nada).
 - **Datos del envío**: **Nº del envío en Mercado Libre**, **Entrega en Full (turno)** y **Notas**. Se cambian con el lápiz en cualquier estado.
 - Recuadros: **Productos**, **Unidades**, **Recibidas en Full**, **Pendientes**, **Despachado** y **Recibido** (o **Cerrado**).
 - Caja **Remito para el transportista** con su lápiz: **Transportista (proveedor)** (enlace al proveedor), **Bultos** y **Valor declarado**. Vacíos, muestran lo sugerido. Si algún producto no tiene costo cargado, lo avisa abajo.
 - Caja **Flete del envío** con su lápiz: **Monto (sin IVA)**, **Factura de gasto** (enlace a la factura) y **Cómo se reparte**. Debajo, cuánto da en promedio por unidad.
-- Tabla **Productos** (con **«Vaciar el envío»** a la derecha del título, en borrador): foto y SKU (enlace a la ficha), la **Publicación** de la cuenta a la que va (su número abre el historial; la ↗ abre Mercado Libre; debajo, el plan, la marca de catálogo y cuánto vendió), el **Código ML**, **Vende/día en la cuenta**, **Vende/día en lo demás** (los otros canales), **En Full**, **En camino** (de otros envíos), **Disponible en** el depósito de origen (en rojo si no alcanza), **Cantidad**, y cuando ya salió, **Recibido** y **Faltante**; al final, el **Flete por unidad**.
+- Tabla **Productos** (con **«Vaciar el envío»** a la derecha del título, en borrador; al pasar el mouse por el título de una columna se ve su nombre completo): foto, SKU (enlace a la ficha) y el título en dos renglones; **Cant.** (de este envío), y cuando ya salió, **En camino** (de este envío, lo que todavía no llegó a Full), **Recib.** y **Falta**; **Dispo.** (disponible en el depósito de origen, en rojo si no alcanza), **Full** (lo que ya hay en Full de la cuenta), **Otros env.** (de otros envíos a Full que todavía no llegaron), **Vta/día** (en la cuenta) y **Vta/día resto** (los otros canales), el **Código** de Full, el **Flete/u.**, los botones de la fila y, al final, las **Publicaciones** que venden ese stock (su número abre el historial; la ↗ abre Mercado Libre; debajo, el plan, la marca de catálogo y cuánto vendió).
   - En borrador, cada fila tiene el lápiz (cambia ahí mismo la cantidad y la publicación) y el tacho (lo saca del envío).
-  - En camino, cada fila con unidades pendientes tiene **«Recibir…»**, para recibir a mano.
-- En borrador, abajo: **Agregar productos** (buscador; cada resultado con su cantidad y **«Agregar»**) y **Sugeridos** con el botón **«Ver sugeridos»**. Abre la lista de sugeridos sin agregar nada: los tres números de días con **«Recalcular»**, y por producto una caja **Mandar** para tildar, la publicación a la que iría, lo que vende, lo que hay y la **Cantidad** sugerida (se puede cambiar). **«Agregar los tildados»** suma sólo los tildados; **«Cerrar sugeridos»** la esconde.
-- En camino, abajo: **Cerrar el envío**, con **«Cerrar: lo que falta vuelve al depósito»** y **«Cerrar: lo que falta se perdió»**.
+  - En camino, cada fila con unidades pendientes tiene **«Recibir…»**, para recibir a mano, y mientras no llegó nada, el lápiz para cambiar sólo la publicación (la cantidad ya salió del depósito).
+- En borrador, abajo: **Agregar productos** (el aviso de lo agregado aparece en el mismo recuadro; buscador por SKU, código de barras, título, número de publicación de la cuenta o Código ML; cada resultado con su cantidad y **«Agregar»**) y **Sugeridos** con el botón **«Ver sugeridos»**. Abre la lista de sugeridos sin agregar nada: los tres números de días con **«Recalcular»**, y por producto una caja **Mandar** para tildar, la publicación a la que iría, lo que vende, lo que hay y la **Cantidad** sugerida (se puede cambiar). **«Agregar los tildados»** suma sólo los tildados; **«Cerrar sugeridos»** la esconde.
+- En camino, abajo: **Agregar productos** (para sumar algo que se agregó al envío de Mercado Libre después de despachar: sale en el momento del depósito de origen y queda «En camino a Full») y **Cerrar el envío**, con **«Cerrar: lo que falta vuelve al depósito»** y **«Cerrar: lo que falta se perdió»**.
 
 ### Pestaña Stock en Full
 
 - Arriba a la derecha: **«Leer Full ahora»**.
 - Debajo de las pestañas, cuándo se leyó Full por última vez en cada cuenta.
 - Buscador por SKU, título, Código ML o publicación.
-- Columnas (ordenables): **Producto** (foto, SKU, título y la publicación), **Cuenta**, **Código ML**, **Disponible en ML**, **No disponible en ML** (con el detalle: en traslado, dañado, perdido, en retiro…), **En Full según el sistema**, **Diferencia**, **En camino**, **Vendidas** (últimos 60 días en esa cuenta), **Días que cubre**, **Tamaño en Full** (el que midió Mercado Libre; si no coincide con las medidas de la ficha, debajo dice cuál daría la ficha), **Cuesta por día** (unidades × tarifa de su tamaño), **Días en Full** (de la unidad más vieja; en rojo desde 20 días antes de que empiece el cargo de stock antiguo) y **Lectura** (hora de la última lectura, o «Error» si Mercado Libre no contestó).
+- Columnas (ordenables; al pasar el mouse por el título se ve el nombre completo): **Producto** (foto, SKU, título y la publicación), **Cuenta**, **Código** (el Código ML), **ML dispo.** (disponible en Full según Mercado Libre), **ML no disp.** (con el detalle: en traslado, dañado, perdido, en retiro…), **Laucen** (en Full según el sistema), **Dif.**, **En camino**, **Vend. 60d** (vendidas en los últimos 60 días en esa cuenta), **Cubre** (días que cubre), **Tamaño** (en Full; el que midió Mercado Libre; si no coincide con las medidas de la ficha, debajo dice cuál daría la ficha), **$/día** (cuesta por día: unidades × tarifa de su tamaño), **Días** (en Full, de la unidad más vieja; en rojo desde 20 días antes de que empiece el cargo de stock antiguo) y **Lectura** (hora de la última lectura, o «Error» si Mercado Libre no contestó).
 
 ### Pestaña Datos del remito
 
@@ -84,6 +84,7 @@ El envío también se crea en Mercado Libre, en la Central de vendedores (secci�
 1. Apretá **«Etiquetas»**: abre el PDF con una etiqueta por unidad, en la impresora elegida la última vez en [Etiquetas › Full](/deposito/etiquetas/full).
 2. Pegá cada etiqueta en su unidad y prepará las cajas.
 3. Apretá **«Despachar»** y confirmá. Las unidades salen del depósito de origen y quedan «En camino a Full». Si de algún producto no alcanza el disponible, no se mueve nada y el sistema dice cuál y cuánto hay.
+4. Si el transporte todavía no pasó y hace falta cambiar algo, **«Deshacer el despacho»** (arriba a la derecha, mientras no haya llegado nada a Full): las unidades vuelven a las ubicaciones del depósito de origen de donde salieron y el envío vuelve a borrador. Se edita y se aprieta **«Despachar»** de nuevo.
 
 ### Recibir
 
@@ -199,6 +200,9 @@ Al código de Full que más vende, que suele ser el de la Clásica con su gemela
 
 **¿Tengo que crear el envío también en Mercado Libre?**
 Sí. Mercado Libre no deja crearlo desde otro sistema. Armalo acá (con la sugerencia y las etiquetas) y copiá los productos y cantidades en la Central de vendedores.
+
+**Agregué un producto al envío de Mercado Libre después de despachar. ¿Lo cargo acá?**
+Sí. En la ficha del envío, abajo, **Agregar productos**: buscalo, poné la cantidad y apretá **«Agregar»**. Como el envío ya salió, esas unidades salen en el momento del depósito de origen y quedan «En camino a Full». Revisá con el lápiz de la fila que vaya a la publicación correcta y volvé a imprimir el remito.
 
 **¿Por qué después de despachar no veo esas unidades en el depósito propio?**
 Porque están «En camino a Full». Se ven en la [Consulta de stock](/stock/consulta), en el depósito «En camino a Full».

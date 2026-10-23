@@ -22,7 +22,7 @@ const fecha = (d: Date) => new Date(d).toLocaleString("es-AR", { timeZone: "Amer
 
 export default async function ReglaPrecio({ org, productoId, seguidas, editando, ver, editar }: {
   org: string; productoId: number;
-  seguidas: { id: number; item_id: string; vendedor: string | null; precio: number | null; estado: string | null; moneda: string | null; excluido: boolean; internacional: boolean | null }[];
+  seguidas: { id: number; item_id: string; vendedor: string | null; precio: number | null; estado: string | null; moneda: string | null; excluido: boolean; internacional: boolean | null; confirmada: boolean }[];
   editando: boolean; ver: string; editar: string;
 }) {
   const v = await vistaRegla(org, productoId);
@@ -33,7 +33,7 @@ export default async function ReglaPrecio({ org, productoId, seguidas, editando,
   const campos = { producto_id: String(productoId) };
   // Lo más importante, arriba y en grande (Fer, 12/10): qué haría la regla, o cuánto estás de la referencia si está apagada.
   const candidatas: Candidata[] = seguidas.map((s) => ({ id: s.id, nombre: s.vendedor ?? s.item_id, precio: s.precio, estado: s.estado, moneda: s.moneda,
-    excluido: s.excluido, internacional: s.internacional }));
+    excluido: s.excluido, internacional: s.internacional, confirmada: s.confirmada }));
   const prendida = r.modo !== "apagada";
   const hoy = simular(v.clasicas, candidatas, r);
 
@@ -48,14 +48,14 @@ export default async function ReglaPrecio({ org, productoId, seguidas, editando,
         {!editando && r.modo !== "apagada" && (
           <form action={accionRevisarRegla}>
             <input type="hidden" name="producto_id" value={productoId} />
-            <button className={SUAVE} title="Con lo último leído de las que seguís, sin volver a leerlas">Revisar ahora</button>
+            <button className={SUAVE} title="Vuelve a calcular la regla ahora, con los precios ya leídos de las que seguís (no las lee de nuevo ni gasta). Si la Clásica tiene que cambiar, deja una propuesta nueva para «Aplicar» (en automático, la cambia); si no, anota que no hace falta.">Revisar ahora</button>
           </form>
         )}
         <BotonesFicha editando={editando} ver={ver} editar={editar} form="regla" />
       </TituloSeccion>
       <p className="text-[11px] text-[#5C6B76] mb-3">
         Baja el precio de la <b>lista Clásicas</b> de este producto según lo que cobran las publicaciones que seguís. No toca Mercado Libre: desde la
-        lista, el esquema de precios lo lleva a todas las cuentas y todos los planes. Baja hasta el objetivo sin pasar el piso; con «También subir», sube hasta el objetivo sin pasar el techo. Se revisa sola después de cada lectura.
+        lista, el esquema de precios lo lleva a todas las cuentas y todos los planes. Baja hasta el objetivo sin pasar el piso; con «También subir», sube hasta el objetivo sin pasar el techo. Se revisa sola después de cada lectura y al grabar la regla; «Revisar ahora» la recalcula en el momento con lo ya leído (sin gastar). Sólo mira las seguidas <b>revisadas</b>: las 🤖 automáticas sin revisar no cuentan.
       </p>
 
       {editando ? (

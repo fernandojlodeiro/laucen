@@ -18,11 +18,13 @@ Menú **Catálogo › Seguimientos**.
 ## Qué hay en la pantalla
 
 - Buscador **"Buscar SKU o título"** con "Comienza por".
+- **Excluir notebooks**: tildada de entrada; destildada, aparecen también las notebooks.
 - **Ver**: de entrada **Con publicaciones sin revisar (N)**; también **Precio de mercado confirmado (N)**, **Sin seguimiento** (los productos activos que no siguen nada) y **Todos los que siguen algo**.
-- Una fila por producto: foto y **SKU** (lleva a la pestaña Seguimiento de su ficha) con el título; **Clásica** de hoy con la marca del precio de mercado (✓ verde confirmado, ? ámbar monitoreado sin confirmar, ○ gris sin seguimiento); **Sigue** (cuántas publicaciones sigue, sin las excluidas de la regla); **Sin revisar** (las seguidas solas que nadie confirmó); **Más barata seguida** (precio y vendedor; «sin revisar» si es una de ésas); **Mercado** (el precio de la última búsqueda de precio de mercado y cuántas publicaciones iguales encontró) y **Dif.** (el mercado contra la Clásica, en verde si está más arriba).
-- Se ordena tocando el título de cada columna; de a 50 filas.
+- Una fila por producto: foto y **SKU** (lleva a la pestaña Seguimiento de su ficha) con el título; **Clásica** de hoy con la marca del precio de mercado (✓ verde confirmado, ? ámbar monitoreado sin confirmar, ○ gris sin seguimiento); **Dispo.** (stock disponible en los depósitos activos); **Stock $** (la plata en stock: disponible × Clásica); **Sigue** (cuántas publicaciones sigue, sin las excluidas de la regla); **Sin revisar** (las seguidas solas que nadie confirmó); **Más barata seguida** (precio y vendedor; «sin revisar» si es una de ésas); **Mercado** (el precio de la última búsqueda de precio de mercado y cuántas publicaciones iguales encontró) y **Dif.** (el mercado contra la Clásica, en verde si está más arriba).
+- Se ordena tocando el título de cada columna; sin tocar ninguno, **de la que tiene más plata en stock a la que menos** (Stock $). De a 50 filas.
+- La Clásica y el stock de los productos que siguen algo se calculan cada 15 minutos (así la pantalla abre rápido): un cambio de precio o de stock puede tardar eso en verse acá.
 
-Arriba a la derecha, **Importar de Virtual Seller** lleva a la pantalla para subir el informe de seguimientos de Virtual Seller (ver abajo).
+Arriba a la derecha, **⚙ Configuración** lleva a [Seguimiento de publicaciones](/config/seguimiento) (cada cuánto se leen, tope de gasto, pausadas) y **Importar de Virtual Seller** lleva a la pantalla para subir el informe de seguimientos de Virtual Seller (ver abajo).
 
 ## Cómo se hace
 
@@ -39,16 +41,16 @@ Virtual Seller exporta un informe con todos los seguimientos de precios que ten�
 
 1. En **Catálogo › Seguimientos**, botón **Importar de Virtual Seller**, arriba a la derecha ([abrir](/catalogo/seguimientos/importar)).
 2. Elegí el archivo tal como lo bajaste de Virtual Seller (.xls) y apretá **Importar**.
-3. Se importa de fondo: el botón dice «Trabajando…», podés ir a otra pantalla y al terminar aparece un cartel abajo a la derecha con lo que entró. La tabla **Importaciones (N)** de esa pantalla guarda cada importación: filas, nuevas, puestas al día o que ya estaban, productos, activas y pausadas, las que eran nuestras, y los **SKU que no están** en el catálogo (tocándolo, la lista con el ID del seguimiento y cuántas filas).
+3. Se importa de fondo: el botón dice «Trabajando…», podés ir a otra pantalla y al terminar aparece un cartel abajo a la derecha con lo que entró. Cada importación tiene a la derecha **Volver a importar**, que lee otra vez el mismo archivo (pregunta antes): no duplica nada y suma lo que antes no había entrado. La tabla **Importaciones (N)** de esa pantalla guarda cada importación: filas, nuevas, puestas al día o que ya estaban, productos, activas y pausadas, las que eran nuestras, y los **SKU que no están** en el catálogo (tocándolo, la lista con el ID del seguimiento y cuántas filas).
 
 Cómo se lee el informe:
-- **El producto sale del ID del seguimiento**: el SKU nuestro antes del año y el número («SKU00680-U-2026-1» es el SKU00680-U; los viejos traen «SEG-» adelante, que se saca). La columna SKU del informe no se usa: es el código del vendedor de enfrente.
-- **Las publicaciones de nuestras cuentas no entran.**
+- **El producto sale del ID del seguimiento**: el SKU nuestro antes del año y el número («SKU00680-U-2026-1» es el SKU00680-U; los viejos traen «SEG-» adelante, que se saca). Si el ID trae un «SKU» y cinco cifras en cualquier lado, ése vale aunque esté escrito de otra forma («A8SEG-SKU03373-2025-1», «SKU00452-19», «SKU03514.2024-1», «SKU003305-2019-2» → SKU03305). Si el ID es el número de una publicación nuestra con la fecha («MLA754852459 21/04/2023 12:43»), el producto es el de esa publicación. Un ID con varios SKU juntos o sólo con texto («SEG PIONEER») no se puede asignar. La columna SKU del informe no se usa: es el código del vendedor de enfrente.
+- **No entran**: las publicaciones de nuestras cuentas; las **terminadas**; las de **notebooks** (por la familia Notebooks del producto o porque el título de la publicación empieza con «Notebook»); las de un SKU que ya no está en el catálogo; y las de un producto **sin ninguna publicación activa ni pausada en Mercado Libre** (sólo cerradas, o ninguna). Las de un producto con la publicación pausada (por ejemplo, por falta de stock) **sí entran**, para tenerlas cargadas cuando se vuelva a comprar. La tabla **Importaciones** cuenta las notebooks y lista, tocándolos, los SKU sin publicación activa ni pausada y los que no están en el catálogo.
 - Cada publicación entra **revisada** (la eligió una persona en Virtual Seller), con su vendedor, título, último precio (y el tachado), tipo de publicación, cuotas y estado; ese precio queda como la primera lectura del historial.
-- **Las pausadas o terminadas entran igual**: se ven aparte, en **Pausadas o terminadas** de la pestaña Seguimiento, y la regla de precio no las usa.
+- **Las pausadas entran igual**: se ven aparte, en **Pausadas** de la pestaña Seguimiento, y la regla de precio no las usa.
 - Los vendedores chinos de Mercado Libre (apodo «CN…ARR») quedan marcados **🌐 Internacional**: no cuentan para la regla.
 - Si una ya se seguía, queda como estaba (no cambia de dónde salió); el precio y el estado se ponen al día si lo que había era más viejo. Importar el mismo archivo dos veces no duplica nada.
-- Después se leen como todas las demás, cada tantos días ([Seguimiento de publicaciones](/config/seguimiento)), dentro del tope de gasto del mes.
+- Después se releen solas cada tantos días ([Seguimiento de publicaciones](/config/seguimiento)) **sólo las de productos a la venta** (con publicación activa en Mercado Libre y stock disponible), dentro del tope de gasto del mes; la columna **Productos** dice cuántos están a la venta. Las de los demás quedan de referencia en la pestaña Seguimiento del producto, con el último precio del informe, y se leen sólo a pedido (**Leer ahora**). Las de catálogo se leen gratis.
 
 ## Criterios y reglas
 
@@ -60,6 +62,8 @@ Cómo se lee el informe:
 - Aparecen también los productos inactivos que siguen algo.
 
 ## Relacionado
+
+- [Revisar los seguimientos antes de prender las reglas](/manuales/guia-seguimientos) (guía paso a paso)
 
 - [Productos](/catalogo/productos) (pestaña Seguimiento, la marca del precio de mercado)
 - [Sugerencia de compra](/compras/sugerencia) (búsqueda de precio de mercado)

@@ -3,6 +3,7 @@
 // el bloque de facturación) y, para lo que no es de Mercado Libre, el bloque
 // "Operación" (confirmar pago, estado siguiente, avisar por WhatsApp).
 
+import { faltaParaFacturar } from "@/lib/datos-factura";
 import Link from "next/link";
 import FotosProducto from "@/app/componentes/FotosProducto";
 import { formatear, enMoneda, tcDelDia } from "@/lib/moneda";
@@ -167,8 +168,8 @@ export default async function DetallePedido({ params, searchParams }: { params: 
          order by (ca.tipo = 'local') desc, ca.nombre`, [s.org.id, canalPedido]),
       consulta<{ id: number; nombre: string; moneda: "ARS" | "USD" }>(
         "select id::int, nombre, moneda_base moneda from lista_precios where organizacion_id = $1 and estado = 'activa' order by orden, nombre", [s.org.id]),
-      c.cliente_id ? una<{ id: number; nombre: string; documento: string | null; email: string | null; cuenta_corriente: boolean }>(`
-        select id::int, nombre, nullif(concat_ws(' ', documento_tipo, documento_numero), '') documento, email, coalesce(cuenta_corriente, false) cuenta_corriente
+      c.cliente_id ? una<{ id: number; nombre: string; documento: string | null; email: string | null; cuenta_corriente: boolean; cuit: string | null; condicion_iva: string | null }>(`
+        select id::int, nombre, nullif(concat_ws(' ', documento_tipo, documento_numero), '') documento, email, coalesce(cuenta_corriente, false) cuenta_corriente, cuit, condicion_iva
           from cliente where id = $1`, [c.cliente_id]) : null,
       consulta<{ variacion: number; sku: string; titulo: string; disponible: number; cantidad: number; lista: number | null; unit: number; descuento: number }>(`
         select l.variacion_id::int variacion, coalesce(v.sku, l.sku, '') sku, coalesce(titulo_variacion(v.id), l.titulo) titulo,
@@ -185,7 +186,8 @@ export default async function DetallePedido({ params, searchParams }: { params: 
     const edicion: EdicionPedido = {
       pedidoId: pid, tipo: c.estado === "presupuesto" ? "presupuesto" : "pedido", canalId: canalPedido,
       moneda: pe!.moneda, listaId: pe!.lista,
-      cliente: cli ? { id: cli.id, nombre: cli.nombre, documento: cli.documento, email: cli.email, cuentaCorriente: cli.cuenta_corriente, direccion: null } : null,
+      cliente: cli ? { id: cli.id, nombre: cli.nombre, documento: cli.documento, email: cli.email, cuentaCorriente: cli.cuenta_corriente, direccion: null,
+        faltaFacturar: faltaParaFacturar(cli.condicion_iva, cli.cuit) } : null,
       // Con precio de lista y descuento, se muestran los dos (lista × (1 − descuento) = el precio que tenía); si no, el precio tal cual.
       lineas: lineasEd.map((l) => ({ variacion: l.variacion, sku: l.sku, titulo: l.titulo, sugerido: null, disponible: l.disponible, cantidad: l.cantidad,
         precio: l.lista && l.descuento ? l.lista : l.unit, descuento: l.lista && l.descuento ? l.descuento : null })),
