@@ -47,6 +47,7 @@ Pestañas, con su cantidad: **IVA Ventas (N)**, **IVA Compras (N)**, **Avisos (N
 **Libro de IVA Digital (ARCA)**, al pie:
 - Si no elegiste un mes entero: "Los archivos se arman por mes entero: elegí un mes arriba."
 - Con un mes: **Bajar los 5 archivos (.zip)** y un botón por archivo con su cantidad de renglones: ventas cbte, ventas alicuotas, compras cbte, compras alicuotas, importaciones.
+- Al lado, si Google Drive está conectado y tiene la carpeta del contador: **Mandar al Drive del contador** (corre de fondo: el botón pasa a "Trabajando…" y al terminar aparece el cartel). Si no, el enlace "Conectar Google Drive para mandárselos al contador", que lleva a [Configuración › Google Drive](/config/google-drive).
 - El aviso: antes de presentar, validarlos importándolos en el Libro de IVA Digital de ARCA (Portal IVA → Libro IVA Digital → Importar), que el primero lo revise el contador, y mirar la pestaña «Avisos».
 
 ## Cómo se hace
@@ -68,6 +69,11 @@ Elegí período (y canal, si querés, en ventas), andá a la pestaña del libro 
 2. Revisá la pestaña **Avisos**.
 3. Apretá **Bajar los 5 archivos (.zip)** (o el archivo suelto que necesites).
 4. Importalos en ARCA (Portal IVA → Libro IVA Digital → Importar) para validarlos. El primero, que lo revise el contador.
+
+### Mandárselos al contador por Google Drive
+1. Elegí un **Mes** entero (y la razón social, si hay más de una).
+2. En el recuadro «Libro de IVA Digital (ARCA)», apretá **Mandar al Drive del contador**.
+3. Al terminar sale "Listo: 5 archivos del Libro de IVA de mm/aaaa en el Drive del contador." Quedan en la carpeta del contador, en la subcarpeta "AAAA-MM · razón social". Si se mandan de nuevo, se reemplazan (no se duplican).
 
 ### Ver sólo las ventas de un canal
 En la pestaña IVA Ventas, elegí el **Canal**. Aparece la aclaración "Filtrado por canal: el resumen de arriba y los archivos de ARCA son siempre de todos los canales."

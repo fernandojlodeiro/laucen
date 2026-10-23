@@ -49,3 +49,28 @@ create table if not exists ddjj (
 );
 create index if not exists ddjj_org on ddjj (organizacion_id, impuesto, periodo);
 alter table ddjj enable row level security;
+
+-- Google Drive (Fer, 23/10): la aplicación de Google de Laucen (una para todo el sistema, la carga el dueño en
+-- /admin/google) y la conexión de cada organización con su Drive: la llave para seguir subiendo (refresh_token, nunca
+-- se muestra) y la carpeta del contador que crea Laucen (permiso drive.file: Laucen sólo ve lo que crea).
+create table if not exists plataforma_google (
+  id              int primary key check (id = 1),
+  client_id       text not null,
+  client_secret   text not null,
+  actualizado_ts  timestamptz not null default now()
+);
+alter table plataforma_google enable row level security;
+
+create table if not exists google_drive (
+  organizacion_id  text primary key references organizaciones(id) on delete cascade,
+  refresh_token    text,
+  cuenta_email     text,
+  carpeta_id       text,
+  carpeta_nombre   text,
+  compartida_con   text,
+  conectado_ts     timestamptz,
+  ultimo_envio_ts  timestamptz,
+  ultimo_envio     text,
+  actualizado_ts   timestamptz not null default now()
+);
+alter table google_drive enable row level security;
