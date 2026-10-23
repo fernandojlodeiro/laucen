@@ -231,41 +231,74 @@ export async function accionDespachoABorrador(fd: FormData) {
 
 // ── Leer el PDF del despacho con la IA y la mercadería (Fer, 23/10) ─────────
 
-/** El PDF ya subido a Storage (bucket "importaciones"): la IA lo lee y carga la cabecera, los gastos y los impuestos
- *  del borrador (en pesos, con el dólar del despacho). Lo que el borrador ya tenía con otro concepto (ej. el
- *  despachante) queda. La mercadería leída queda guardada para usarla como líneas si no hay invoices. */
+/** Baja el PDF de Storage (bucket "importaciones") y se lo da a la IA. */
+async function leerPdfSubido(org: string, ruta: string) {
+  if (!ruta?.startsWith(`${org}/`) || ruta.includes("..")) throw new ErrorErp("El archivo no es de esta organización.");
+  const sb = await supabaseServer();
+  const { data, error } = await sb.storage.from("importaciones").download(ruta);
+  if (error || !data) throw new ErrorErp("No se pudo bajar el PDF que subiste. Probá de nuevo.");
+  const r = await leerDespachoPdf(await data.arrayBuffer());
+  if ("error" in r) throw new ErrorErp(r.error);
+  return r.lectura;
+}
+
+/** Carga lo leído en el borrador: cabecera, razón social (por el CUIT del importador), proveedor (por el nombre del
+ *  vendedor), depósito principal si no tiene, y los gastos e impuestos en pesos. Lo que el borrador ya tenía con otro
+ *  concepto (ej. el despachante) queda. Devuelve el aviso para la pantalla. */
+async function aplicarLectura(org: string, did: number, l: LecturaDespacho, ruta: string): Promise<string> {
+  const d = await borrador(org, did);
+  const x = aDespacho(l);
+  const cuit = String(l.cuit_importador ?? "").replace(/\D/g, "");
+  const emisor = cuit ? await una<{ id: number }>("select id::int from emisor where organizacion_id = $1 and regexp_replace(cuit, '\\D', '', 'g') = $2", [org, cuit]) : null;
+  const prov = l.vendedor ? await una<{ id: number }>(
+    "select id::int from proveedor where organizacion_id = $1 and estado = 'activo' and lower(nombre) = lower($2) order by id limit 1", [org, l.vendedor.trim()]) : null;
+  const juntar = (antes: Item[], nuevos: Item[]) => [...antes.filter((i) => !nuevos.some((n) => n.concepto === i.concepto)), ...nuevos];
+  await consulta(`
+    update despacho_importacion set numero = coalesce($3, numero), fecha = coalesce($4::date, fecha), cotizacion = coalesce($5, cotizacion),
+           flete_usd = coalesce($6, flete_usd), seguro_usd = coalesce($7, seguro_usd), gastos = $8::jsonb, impuestos = $9::jsonb,
+           emisor_id = coalesce($10, emisor_id), proveedor_id = coalesce(proveedor_id, $11), archivo = $12, lectura = $13::jsonb,
+           deposito_id = coalesce(deposito_id, (select id from deposito where organizacion_id = $1 and estado = 'activo' and tipo not in ('full_ml', 'transito') order by id limit 1))
+     where id = $2 and organizacion_id = $1`,
+    [org, did, l.numero?.replace(/\s+/g, "") || null, esFecha(l.fecha) ? l.fecha : null, Number(l.cotizacion) > 0 ? Number(l.cotizacion) : null,
+      l.flete_usd ?? null, l.seguro_usd ?? null, JSON.stringify(juntar(d.gastos, x.gastos)), JSON.stringify(juntar(d.impuestos, x.impuestos)),
+      emisor?.id ?? null, prov?.id ?? null, ruta, JSON.stringify(l)]);
+  const partes = [`Leído: ${x.gastos.length} gasto${x.gastos.length === 1 ? "" : "s"} y ${x.impuestos.length} impuesto${x.impuestos.length === 1 ? "" : "s"}`,
+    l.items.length ? `${l.items.length} renglón${l.items.length === 1 ? "" : "es"} de mercadería` : null].filter(Boolean).join(", ");
+  return `${partes}. Revisalo antes de registrar.${x.avisos.length ? " Ojo: " + x.avisos.join(" ") : ""}`;
+}
+
+/** «Leer el despacho (PDF)» en un borrador que ya existe. */
 export async function accionLeerDespachoPdf(a: { despachoId: number; ruta: string; archivo: string }): Promise<{ ok: string } | { motivo: string }> {
   const s = await entrarErp("despachos_ver");
   try {
-    if (!a.ruta?.startsWith(`${s.org.id}/`) || a.ruta.includes("..")) throw new ErrorErp("El archivo no es de esta organización.");
-    const d = await borrador(s.org.id, a.despachoId);
-    const sb = await supabaseServer();
-    const { data, error } = await sb.storage.from("importaciones").download(a.ruta);
-    if (error || !data) throw new ErrorErp("No se pudo bajar el PDF que subiste. Probá de nuevo.");
-    const r = await leerDespachoPdf(await data.arrayBuffer());
-    if ("error" in r) throw new ErrorErp(r.error);
-    const l = r.lectura;
-    const x = aDespacho(l);
-    const cuit = String(l.cuit_importador ?? "").replace(/\D/g, "");
-    const emisor = cuit ? await una<{ id: number }>("select id::int from emisor where organizacion_id = $1 and regexp_replace(cuit, '\\D', '', 'g') = $2", [s.org.id, cuit]) : null;
-    const prov = l.vendedor ? await una<{ id: number }>(
-      "select id::int from proveedor where organizacion_id = $1 and estado = 'activo' and lower(nombre) = lower($2) order by id limit 1", [s.org.id, l.vendedor.trim()]) : null;
-    // Lo leído pisa el mismo concepto; lo demás del borrador queda.
-    const juntar = (antes: Item[], nuevos: Item[]) => [...antes.filter((i) => !nuevos.some((n) => n.concepto === i.concepto)), ...nuevos];
-    const fecha = esFecha(l.fecha) ? l.fecha : null;
-    await consulta(`
-      update despacho_importacion set numero = coalesce($3, numero), fecha = coalesce($4::date, fecha), cotizacion = coalesce($5, cotizacion),
-             flete_usd = coalesce($6, flete_usd), seguro_usd = coalesce($7, seguro_usd), gastos = $8::jsonb, impuestos = $9::jsonb,
-             emisor_id = coalesce($10, emisor_id), proveedor_id = coalesce(proveedor_id, $11), archivo = $12, lectura = $13::jsonb,
-             deposito_id = coalesce(deposito_id, (select id from deposito where organizacion_id = $1 and estado = 'activo' and tipo not in ('full_ml', 'transito') order by id limit 1))
-       where id = $2 and organizacion_id = $1`,
-      [s.org.id, a.despachoId, l.numero?.replace(/\s+/g, "") || null, fecha, Number(l.cotizacion) > 0 ? Number(l.cotizacion) : null,
-        l.flete_usd ?? null, l.seguro_usd ?? null, JSON.stringify(juntar(d.gastos, x.gastos)), JSON.stringify(juntar(d.impuestos, x.impuestos)),
-        emisor?.id ?? null, prov?.id ?? null, a.ruta, JSON.stringify(l)]);
+    await borrador(s.org.id, a.despachoId);
+    const l = await leerPdfSubido(s.org.id, a.ruta);
+    const ok = await aplicarLectura(s.org.id, a.despachoId, l, a.ruta);
     revalidatePath(detalle(a.despachoId));
-    const partes = [`Leído: ${x.gastos.length} gasto${x.gastos.length === 1 ? "" : "s"} y ${x.impuestos.length} impuesto${x.impuestos.length === 1 ? "" : "s"}`,
-      l.items.length ? `${l.items.length} renglón${l.items.length === 1 ? "" : "es"} de mercadería` : null].filter(Boolean).join(", ");
-    return { ok: `${partes}. Revisalo antes de registrar.${x.avisos.length ? " Ojo: " + x.avisos.join(" ") : ""}` };
+    return { ok };
+  } catch (e) {
+    return { motivo: motivoErp(e) };
+  }
+}
+
+/** «Subir despacho (PDF)» desde la lista (Fer, 23/10): crea el despacho de cero con lo que lee la IA. */
+export async function accionCrearDespachoDesdePdf(a: { ruta: string; archivo: string }): Promise<{ id: number; ok: string } | { motivo: string }> {
+  const s = await entrarErp("despachos_ver");
+  try {
+    const l = await leerPdfSubido(s.org.id, a.ruta);
+    const numero = l.numero?.replace(/\s+/g, "") || null;
+    if (numero) {
+      const ya = await una<{ id: number }>("select id::int from despacho_importacion where organizacion_id = $1 and numero = $2 and estado <> 'anulado'", [s.org.id, numero]);
+      if (ya) throw new ErrorErp(`El despacho ${numero} ya está cargado (#${ya.id}): abrilo desde la lista.`);
+    }
+    const tc = await una<{ v: string | null }>("select tc_del_dia($1, coalesce($2::date, current_date)) v", [s.org.id, esFecha(l.fecha) ? l.fecha : null]);
+    const cot = Number(l.cotizacion) > 0 ? Number(l.cotizacion) : Number(tc?.v) > 0 ? Number(tc!.v) : null;
+    if (!cot) throw new ErrorErp("No se leyó el dólar del despacho y no hay tipo de cambio cargado: crealo a mano.");
+    const r = await una<{ id: number }>(`insert into despacho_importacion (organizacion_id, fecha, cotizacion, usuario_id) values ($1, coalesce($2::date, current_date), $3, $4) returning id::int`,
+      [s.org.id, esFecha(l.fecha) ? l.fecha : null, cot, s.usuario.id]);
+    const ok = await aplicarLectura(s.org.id, r!.id, l, a.ruta);
+    revalidatePath(LISTA);
+    return { id: r!.id, ok };
   } catch (e) {
     return { motivo: motivoErp(e) };
   }

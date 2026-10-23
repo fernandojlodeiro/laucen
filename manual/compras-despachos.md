@@ -29,7 +29,7 @@ La factura del proveedor del exterior y las del despachante **no** se cargan ac�
 
 ### La lista
 
-Arriba a la derecha: **Descargar Excel** (con configuraciones) y **+ Nuevo despacho**.
+Arriba a la derecha: **Descargar Excel** (con configuraciones), **Subir despacho (PDF)** (crea el despacho leyendo su PDF con la IA; ver "Cargar un despacho desde su PDF") y **+ Nuevo despacho** (a mano).
 
 Filtros: **Proveedor** (sólo los que tienen despachos), **Estado** (Todos, Borrador, Registrado, Anulado), **Filtrar** y **Limpiar**.
 
@@ -88,8 +88,8 @@ Errores típicos:
 
 ### Cargar un despacho desde su PDF
 
-1. Creá el despacho con **+ Nuevo despacho** (con la cotización del día; después se corrige sola con la del despacho).
-2. En el detalle, en **Leer el despacho (PDF)**, elegí el PDF y apretá **Leer el despacho**. Esperá a que termine.
+1. En [Despachos de importación](/compras/despachos), arriba a la derecha, apretá **Subir despacho (PDF)** y elegí el PDF del despacho oficializado. El botón dice "Leyendo con la IA…" (tarda alrededor de un minuto) y se crea el despacho en borrador con todo lo leído: número, fecha, dólar, flete, seguro, razón social, proveedor, depósito principal, gastos, impuestos y la mercadería según el despacho. Se abre solo para revisarlo. Si ese número de despacho ya estaba cargado, avisa y no lo repite.
+2. En un despacho que ya existe, la caja **Leer el despacho (PDF)** del detalle hace lo mismo sobre ese borrador.
 3. Revisá la cabecera, los **Gastos** y los **Impuestos** que cargó; corregí con el lápiz lo que haga falta y agregá lo que no está en el despacho (por ejemplo, el despachante).
 4. La mercadería: **Asignar un invoice** del proveedor (uno o varios) para que entre con sus productos y el stock; o, si no tenés el invoice, **Usar como líneas** la mercadería del despacho (no entra al stock); o cargá las líneas a mano.
 5. Elegí el **Depósito donde entra**, grabá la cabecera y **Registrar**.
