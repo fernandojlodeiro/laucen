@@ -140,6 +140,12 @@ create table if not exists despacho_linea (
 create index if not exists despacho_linea_d on despacho_linea (despacho_id, orden);
 alter table despacho_linea enable row level security;
 select erp_politica_org('despacho_linea');
+-- Leer el PDF del despacho con la IA (Fer, 23/10): el archivo (bucket "importaciones") y lo que leyó.
+alter table despacho_importacion add column if not exists archivo text;
+alter table despacho_importacion add column if not exists lectura jsonb;
+-- La mercadería sale de los invoices del proveedor, asignados al despacho (o a mano, o de lo leído en el despacho).
+alter table despacho_linea add column if not exists invoice_linea_id bigint;
+alter table compra_invoice add column if not exists despacho_id bigint references despacho_importacion(id) on delete set null;
 
 -- ── Cuentas corrientes ────────────────────────────────────
 -- Un renglón por documento que genera deuda o la cancela. `importe` > 0

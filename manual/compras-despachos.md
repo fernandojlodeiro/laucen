@@ -54,7 +54,10 @@ Título "Despacho" con su número; debajo, fecha y proveedor.
 **En borrador:**
 - Arriba a la derecha: **Registrar** y el **tacho** (borrar el borrador).
 - **Cabecera** con su estado, "FOB (suma de las líneas)" y el botón **Grabar cabecera**. Campos: **Nº de despacho** (ej. 26001IC04012345X), **Proveedor del exterior (opcional)** (se busca escribiendo: filtra mientras escribís; si no está, **"+ Crear «…»"** lo da de alta ahí mismo con ese nombre y queda elegido; el CUIT, el país y la condición de IVA se completan después en [Proveedores](/compras/proveedores)), **Fecha**, **Cotización del dólar** (de entrada la del día), **Flete (US$)**, **Seguro (US$)**, **Depósito donde entra** y **Notas**. El FOB no se carga: es la suma de las líneas.
+- **Leer el despacho (PDF)**: elegís el PDF del despacho oficializado y apretás **Leer el despacho**. La IA lo lee (tarda alrededor de un minuto: el botón dice "Leyendo con la IA…") y carga en el borrador el número, la fecha de oficialización, el dólar del despacho, el flete, el seguro, la razón social importadora (por su CUIT), el proveedor (si hay uno con el nombre del vendedor) y la liquidación: derechos, tasa estadística, arancel SIM y otros conceptos van a **Gastos**; IVA, IVA adicional, Ganancias e Ingresos Brutos van a **Impuestos**. La liquidación del despacho viene en dólares: cada importe se pasa a pesos con el dólar del despacho. Lo que el borrador ya tenía con otro concepto (por ejemplo, el despachante) queda. Al terminar dice qué cargó y si algo no cierra; siempre hay que revisarlo antes de registrar.
 - **Gastos (suman al costo)** e **Impuestos (crédito fiscal, no costo)**: dos tablas de Concepto e Importe ($), con su total. Cada renglón tiene lápiz (se edita en la fila, con **Guardar** / **Cancelar**) y tacho. Abajo de cada una, para agregar: **Concepto** (con sugerencias), importe y **Agregar**. Sugerencias de gastos: Derechos de importación, Tasa estadística, Despachante, Depósito fiscal, Flete interno, Gastos bancarios. De impuestos: IVA, IVA adicional, Ganancias, IIBB.
+- **Mercadería: invoices del proveedor (N)**: los invoices asignados a este despacho (enlace a cada uno, fecha, proveedor, renglones, unidades y total en dólares) con un tacho para quitarlo ("¿Quitarlo? Se borran sus líneas."). Debajo, **Asignar un invoice**: se busca escribiendo entre los invoices que no están en ningún despacho (primero los del proveedor) → **Asignar**: sus renglones pasan a las líneas con su producto, cantidad y precio como FOB unitario.
+- **Mercadería según el despacho (N)** (si se leyó el PDF): lo que dice el despacho que entró —descripción con marca y modelo, NCM, cantidad, FOB unitario y total—. Si todavía no hay líneas, el botón **Usar como líneas** las carga desde ahí (sin producto: no entran al stock). Si ya hay líneas y no suman el mismo FOB, avisa la diferencia ("revisá que estén todos los invoices").
 - **Líneas**: Descripción, NCM, Cantidad, FOB unit., FOB total; lápiz y tacho en cada una. Las líneas sin producto dicen "(sin producto: no entra al stock)".
 - **Agregar línea**: buscador "Buscar producto por SKU, código o título" (con **Mostrar inactivos** y **Buscar**), **Producto** (o "— Línea libre (sin producto: no entra al stock) —"), **Descripción (si es libre)**, **NCM**, **Cantidad**, **FOB unit. (US$)** y **Agregar**.
 - **Prorrateo: costo puesto en depósito**: por línea, Cantidad, Parte del FOB (%), Costo unit. ($), Costo unit. (US$) y Costo total ($). Se recalcula con cada cambio.
@@ -81,6 +84,14 @@ Errores típicos:
 - "Poné el concepto." / "Poné el importe en pesos." (en gastos e impuestos).
 - Al registrar: "Elegí a qué depósito entra la mercadería.", "El depósito elegido no tiene ubicación general, así que la mercadería no tiene dónde entrar: elegí otro depósito.", "Falta la cotización del dólar del despacho.", "El despacho no tiene líneas con FOB.".
 - "El despacho ya está registrado: no se cambia.".
+
+### Cargar un despacho desde su PDF
+
+1. Creá el despacho con **+ Nuevo despacho** (con la cotización del día; después se corrige sola con la del despacho).
+2. En el detalle, en **Leer el despacho (PDF)**, elegí el PDF y apretá **Leer el despacho**. Esperá a que termine.
+3. Revisá la cabecera, los **Gastos** y los **Impuestos** que cargó; corregí con el lápiz lo que haga falta y agregá lo que no está en el despacho (por ejemplo, el despachante).
+4. La mercadería: **Asignar un invoice** del proveedor (uno o varios) para que entre con sus productos y el stock; o, si no tenés el invoice, **Usar como líneas** la mercadería del despacho (no entra al stock); o cargá las líneas a mano.
+5. Elegí el **Depósito donde entra**, grabá la cabecera y **Registrar**.
 
 ### Corregir un borrador
 Cambiá la cabecera y apretá **Grabar cabecera**. Gastos, impuestos y líneas se editan con su lápiz en la fila y se borran con su tacho.

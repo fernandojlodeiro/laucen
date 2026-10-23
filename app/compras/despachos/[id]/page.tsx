@@ -18,12 +18,18 @@ import { fecha as fechaAR, fechaHora } from "@/app/ventas/formato";
 import { ESTADO_DESPACHO, buscarVariaciones, pct } from "../../comun";
 import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
 import { CamposDespacho, opcionesDespacho } from "../Cabecera";
+import LeerDespacho from "./LeerDespacho";
+import ElegirDeLista from "@/app/componentes/ElegirDeLista";
+import type { LecturaDespacho } from "@/lib/compras/despacho-leer";
 import {
   accionGuardarDespacho, accionAgregarItem, accionGuardarItem, accionBorrarItem, accionAgregarLineaDespacho,
   accionGuardarLineaDespacho, accionBorrarLineaDespacho, accionBorrarDespacho, accionRegistrarDespacho,
+  accionAsignarInvoice, accionQuitarInvoice, accionUsarMercaderiaDespacho,
 } from "../acciones";
 
 export const dynamic = "force-dynamic";
+// Leer el PDF con la IA tarda (la acción corre con el tiempo de esta página).
+export const maxDuration = 300;
 
 type SP = { editar?: string; q?: string; inactivos?: string; ok?: string; error?: string };
 
@@ -32,6 +38,7 @@ type Despacho = {
   id: number; numero: string | null; proveedor_id: number | null; proveedor: string | null; fecha: string; cotizacion: number;
   fob_usd: number; flete_usd: number; seguro_usd: number; gastos: Item[]; impuestos: Item[]; deposito_id: number | null; deposito: string | null;
   estado: string; notas: string | null; registrado_ts: Date | null; emisor_id: number | null; emisor: string | null;
+  archivo: string | null; lectura: LecturaDespacho | null;
 };
 type Linea = {
   id: number; variacion_id: number | null; descripcion: string; ncm: string | null; cantidad: number; fob_unit_usd: number;
@@ -51,12 +58,27 @@ export default async function DetalleDespacho({ params, searchParams }: { params
   const d = await una<Despacho>(`
     select d.id::int, d.numero, d.proveedor_id::int, p.nombre proveedor, to_char(d.fecha, 'YYYY-MM-DD') fecha, d.cotizacion::float,
            d.fob_usd::float, d.flete_usd::float, d.seguro_usd::float, d.gastos, d.impuestos, d.deposito_id::int, dep.nombre deposito,
-           d.estado, d.notas, d.registrado_ts, d.emisor_id::int, (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = d.emisor_id) emisor
+           d.estado, d.notas, d.registrado_ts, d.emisor_id::int, (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = d.emisor_id) emisor,
+           d.archivo, d.lectura
       from despacho_importacion d left join proveedor p on p.id = d.proveedor_id left join deposito dep on dep.id = d.deposito_id
      where d.id = $1 and d.organizacion_id = $2`, [did, s.org.id]);
   if (!d) notFound();
   const borrador = d.estado === "borrador";
   const q = sp.q?.trim() ?? "";
+  // Los invoices asignados a este despacho y, en borrador, los que se le pueden asignar (los que no tienen despacho).
+  const invoices = await consulta<{ id: number; numero: string | null; archivo: string; fecha: string | null; proveedor: string | null; despacho_id: number | null;
+    renglones: number; unidades: number; total: number | null; mismo: boolean }>(`
+    select i.id::int, i.numero, i.archivo, to_char(i.fecha, 'DD/MM/YYYY') fecha, p.nombre proveedor, i.despacho_id::int,
+           (select count(*)::int from compra_invoice_linea l where l.invoice_id = i.id) renglones,
+           (select coalesce(sum(l.cantidad), 0)::float from compra_invoice_linea l where l.invoice_id = i.id) unidades,
+           (select sum(l.cantidad * l.precio_usd)::float from compra_invoice_linea l where l.invoice_id = i.id) total,
+           (i.proveedor_id is not distinct from $3::bigint) mismo
+      from compra_invoice i left join proveedor p on p.id = i.proveedor_id
+     where i.organizacion_id = $1 and (i.despacho_id = $2 or ($4 and i.despacho_id is null))
+     order by (i.despacho_id = $2) desc nulls last, (i.proveedor_id is not distinct from $3::bigint) desc, i.fecha desc nulls last, i.id desc limit 200`,
+    [s.org.id, did, d.proveedor_id, d.estado === "borrador"]);
+  const asignados = invoices.filter((i) => i.despacho_id === did);
+  const libres = invoices.filter((i) => i.despacho_id == null);
   const [lineas, calc, opciones, encontradas] = await Promise.all([
     consulta<Linea>(`
       select id::int, variacion_id::int, descripcion, ncm, cantidad, fob_unit_usd::float, costo_unit_ars::float, costo_unit_usd::float
@@ -176,10 +198,73 @@ export default async function DetalleDespacho({ params, searchParams }: { params
         </div>
       )}
 
+      {borrador && <LeerDespacho organizacionId={s.org.id} despachoId={did} leido={d.archivo} />}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <TablaItems cual="gastos" titulo="Gastos (suman al costo)" ayuda="En pesos: derechos, tasa estadística, despachante, depósito fiscal, flete interno…" />
         <TablaItems cual="impuestos" titulo="Impuestos (crédito fiscal, no costo)" ayuda="En pesos: IVA, IVA adicional, Ganancias, IIBB." />
       </div>
+
+      {/* La mercadería (Fer, 23/10): de los invoices del proveedor asignados al despacho, de lo que leyó la IA del despacho o a mano. */}
+      <h2 className="text-sm font-bold mb-1">Mercadería: invoices del proveedor ({asignados.length})</h2>
+      <p className="text-[11px] text-[#5C6B76] mb-1">Asignar un invoice pasa sus renglones a las líneas, con su producto, cantidad y precio (el FOB). El despacho se puede registrar sin invoices: con la mercadería que leyó la IA del despacho o con líneas cargadas a mano.</p>
+      <div className={`${CAJA_TABLA} mb-2`}>
+        <table className={TABLA}>
+          <thead className={THEAD}><tr><th className={TH}>Invoice</th><th className={TH}>Fecha</th><th className={TH}>Proveedor</th><th className={THN}>Renglones</th><th className={THN}>Unidades</th><th className={THN}>Total</th>{borrador && <th />}</tr></thead>
+          <tbody>
+            {asignados.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>Ningún invoice asignado.</td></tr>}
+            {asignados.map((i) => (
+              <tr key={i.id} className={TR}>
+                <td className={TD}><Link href={`/compras/invoices/${i.id}`} className="text-[#16577F] hover:underline">{i.numero ?? i.archivo}</Link></td>
+                <td className={TD}>{i.fecha ?? "—"}</td><td className={TD}>{i.proveedor ?? "—"}</td>
+                <td className={TDN}>{i.renglones}</td><td className={TDN}>{i.unidades.toLocaleString("es-AR")}</td><td className={TDN}>{formatear(i.total, "USD")}</td>
+                {borrador && <td className={`${TD} text-right`}><TachoConfirmar accion={accionQuitarInvoice} campos={{ despacho: String(did), invoice: String(i.id) }} pregunta="¿Quitarlo? Se borran sus líneas." /></td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {borrador && (
+        <form action={accionAsignarInvoice} className="flex flex-wrap items-end gap-2 mb-3">
+          <input type="hidden" name="despacho" value={did} />
+          <div className="min-w-72 flex-1 max-w-xl"><span className={ETIQUETA}>Asignar un invoice (los que no están en ningún despacho; primero los del proveedor)</span>
+            <ElegirDeLista name="invoice" opciones={libres.map((i) => ({ id: i.id, texto: `${i.numero ?? i.archivo}${i.fecha ? ` · ${i.fecha}` : ""}`,
+              detalle: [i.proveedor, `${i.renglones} renglones`, i.total != null ? formatear(i.total, "USD") : "sin precio"].filter(Boolean).join(" · ") }))}
+              vacio="Elegí el invoice" placeholder="Buscá el invoice…" etiqueta="Invoice" /></div>
+          <BotonEnviar clase={PRIMARIO} corriendo="Asignando…">Asignar</BotonEnviar>
+        </form>
+      )}
+      {d.lectura && d.lectura.items.length > 0 && (() => {
+        const fobLeido = d.lectura.items.reduce((t, i) => t + Number(i.cantidad) * Number(i.fob_unit_usd), 0);
+        return (
+          <div className={`${CAJA} mb-3`}>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+              <h3 className="text-xs font-bold">Mercadería según el despacho ({d.lectura.items.length})</h3>
+              {borrador && lineas.length === 0 && (
+                <BotonConfirmar accion={accionUsarMercaderiaDespacho} campos={{ despacho: String(did) }} clase={SUAVE} texto="Usar como líneas"
+                  pregunta="¿Cargar esta mercadería como líneas? Quedan sin producto: no entran al stock." corriendo="Cargando…" />
+              )}
+            </div>
+            <table className={TABLA}>
+              <thead className={THEAD}><tr><th className={TH}>Descripción</th><th className={TH}>NCM</th><th className={THN}>Cant.</th><th className={THN}>FOB unit.</th><th className={THN}>FOB total</th></tr></thead>
+              <tbody>
+                {d.lectura.items.map((i, k) => (
+                  <tr key={k} className={TR}>
+                    <td className={TD}>{i.descripcion}</td><td className={`${TD} font-mono`}>{i.ncm ?? "—"}</td>
+                    <td className={TDN}>{Number(i.cantidad).toLocaleString("es-AR")}</td><td className={TDN}>{formatear(Number(i.fob_unit_usd), "USD")}</td>
+                    <td className={TDN}>{formatear(Number(i.cantidad) * Number(i.fob_unit_usd), "USD")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {lineas.length > 0 && Math.abs(fobLeido - calc.fobTotal) > 1 && (
+              <p className="text-[11px] mt-1 rounded-lg px-2 py-1 bg-[#FFF8E5] text-[#8a6100]">
+                Las líneas suman {formatear(calc.fobTotal, "USD")} de FOB y el despacho dice {formatear(fobLeido, "USD")}: revisá que estén todos los invoices.
+              </p>
+            )}
+          </div>
+        );
+      })()}
 
       <h2 className="text-sm font-bold mb-2">Líneas</h2>
       <div className={`${CAJA_TABLA} mb-3`}>
