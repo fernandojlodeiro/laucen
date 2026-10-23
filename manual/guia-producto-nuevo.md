@@ -46,6 +46,7 @@ Lápiz arriba a la derecha → completar → **Grabar**.
 - **IVA** (21 %, 10,5 %…), **Umbral de pausa** (con cuánto stock se pausa en ML; vacío = el del canal) y **Stock mínimo** (debajo avisa el panel).
 - **Precio en dólares**: tildalo si el precio se piensa en dólares; los pesos siguen solos al tipo de cambio de cada día.
 - **Descripción larga**: es la que va a Mercado Libre y a la web.
+- **Datos técnicos para la IA** (opcional): lo que conviene que la IA sepa para contestar preguntas técnicas (memoria, ampliaciones, discos, compatibilidad). No se publica.
 
 ### Paso 3 · Variaciones o componentes (si corresponde)
 

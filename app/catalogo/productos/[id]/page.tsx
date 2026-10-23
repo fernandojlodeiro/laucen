@@ -43,7 +43,7 @@ export default async function FichaProducto({ params, searchParams }: { params: 
   if (!Number.isInteger(pid) || pid <= 0) notFound();
 
   const p = await una<Producto>(`
-    select p.id::int, p.sku_base, p.titulo, p.descripcion, p.familia_id::int, f.nombre familia, p.marca, p.marca_id::int, p.tipo, p.estado, p.codigo_barras,
+    select p.id::int, p.sku_base, p.titulo, p.descripcion, p.notas_ia, p.familia_id::int, f.nombre familia, p.marca, p.marca_id::int, p.tipo, p.estado, p.codigo_barras,
            p.modelo, p.linea, p.garantia, p.condicion, p.categoria_ml, p.atributos_ml, p.kit_vs, p.precio_en_dolares, p.no_publicable,
            p.proveedor_id::int, (select pr.nombre from proveedor pr where pr.id = p.proveedor_id) proveedor,
            p.peso_g, p.largo_cm::float8, p.ancho_cm::float8, p.alto_cm::float8, p.descuento_pct::float8, p.umbral_pausa, p.stock_minimo,

@@ -66,7 +66,7 @@ async function contexto(cuenta: CuentaMl, itemId: string, publicacionId: number 
   let laucen: Record<string, unknown> | null = null;
   if (publicacionId) {
     laucen = await una(`
-      select titulo_variacion(p.variacion_id) titulo, pr.descripcion, pr.marca, pr.peso_g, pr.largo_cm, pr.ancho_cm, pr.alto_cm,
+      select titulo_variacion(p.variacion_id) titulo, pr.descripcion, pr.notas_ia datos_tecnicos, pr.marca, pr.peso_g, pr.largo_cm, pr.ancho_cm, pr.alto_cm,
              greatest(stock_disponible_canal(p.organizacion_id, p.variacion_id, p.canal_id), 0) disponible,
              (select string_agg(a.nombre || ': ' || a.valor, '; ') from producto_atributo a where a.producto_id = pr.id) atributos
         from publicacion p join variacion v on v.id = p.variacion_id join producto pr on pr.id = v.producto_id
@@ -89,7 +89,7 @@ async function contexto(cuenta: CuentaMl, itemId: string, publicacionId: number 
 
 const INSTRUCCIONES = `Sos quien atiende las preguntas de una tienda argentina en Mercado Libre. Escribí la respuesta a la pregunta del comprador, en castellano rioplatense, cordial y breve (1 a 3 oraciones, nunca más de 600 caracteres), empezando con "Hola" y terminando con un saludo corto ("Saludos!").
 Reglas de Mercado Libre que no se pueden romper: nada de teléfonos, mails, direcciones, redes sociales ni nombres de otras tiendas; no invitar a comprar por fuera de ML. Links: sólo los de publicaciones nuestras de Mercado Libre que figuren en DATOS.productos_pedidos, nunca otros.
-Usá SOLO los datos que te paso (publicación, ficha y stock). Si el dato no está, no lo inventes: decí que lo consultás o sugerí ver la descripción. Si preguntan por stock, usá el disponible. Si preguntan por envío, decí lo que figura (envío gratis o Full) sin prometer fechas exactas.
+Usá SOLO los datos que te paso (publicación, ficha y stock). Para una pregunta técnica (memoria, ampliaciones, discos, compatibilidad, etc.), mirá primero ficha_laucen.datos_tecnicos: es lo que la tienda sabe del equipo y manda sobre lo demás. Si el dato no está, no lo inventes: decí que lo consultás o sugerí ver la descripción. Si preguntan por stock, usá el disponible. Si preguntan por envío, decí lo que figura (envío gratis o Full) sin prometer fechas exactas.
 Si DATOS trae productos_pedidos, el comprador pregunta también por esos otros productos: cada uno trae las publicaciones nuestras que se encontraron (con link, plan y stock disponible) o ninguna. Usá sólo esos datos; qué decir según haya o no stock lo dicen las reglas de la tienda. Un solo link por producto, el de la primera con stock.
 ${FORMATO_IA}`;
 

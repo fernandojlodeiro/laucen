@@ -32,3 +32,8 @@ Lo que sí es de cada cuenta es la **firma** del final de cada respuesta (por ej
 - Se aplican desde la próxima respuesta que proponga o mande la IA; lo que ya estaba propuesto queda como estaba.
 - Hasta 5000 letras.
 - Lo que la IA promete sobre la factura se cumple solo: antes de facturar, el sistema lee lo que pidió el comprador (ver "Revisión antes de facturar" en [Pedidos](/ventas/pedidos)).
+
+## Preguntas frecuentes
+
+**¿Dónde cargo los datos técnicos de un producto (memoria, ampliaciones, discos)?**
+En la ficha del producto, campo **Datos técnicos para la IA**, no en estas reglas: así la IA los lee sólo cuando le preguntan por ese producto. Ver [Productos](/catalogo/productos).
