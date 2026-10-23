@@ -97,3 +97,24 @@ create table if not exists drive_archivo_leido (
 alter table drive_archivo_leido enable row level security;
 alter table google_drive add column if not exists ddjj_leido_ts timestamptz;
 alter table google_drive add column if not exists ddjj_resultado text;
+
+-- Ventas facturadas con otro sistema (Fer, 23/10: Virtual Seller hasta el 3/10/2026, mismo punto de venta): se importan
+-- de los TXT del Libro de IVA Digital (ventas: comprobantes + alícuotas) y entran al libro de IVA ventas, a sus TXT y a
+-- la posición de impuestos como si las hubiera emitido Laucen. `datos` = el comprobante del libro (lib/administracion/
+-- libro-iva.ts, CbteIva sin id). Un comprobante que también está en Laucen (mismo tipo, punto de venta y número) no se importa.
+create table if not exists venta_externa (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  emisor_id        bigint not null references emisor(id) on delete cascade,
+  sistema          text not null,
+  fecha            date not null,
+  tipo             int not null,
+  punto_venta      int not null,
+  numero           bigint not null,
+  datos            jsonb not null,
+  archivo          text,
+  importado_ts     timestamptz not null default now(),
+  unique (emisor_id, tipo, punto_venta, numero)
+);
+create index if not exists venta_externa_fecha on venta_externa (organizacion_id, emisor_id, fecha);
+alter table venta_externa enable row level security;

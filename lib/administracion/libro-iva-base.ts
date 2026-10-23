@@ -1,7 +1,8 @@
 // Libros de IVA: de la base a los comprobantes del libro (lib/administracion/libro-iva.ts).
 //
 //   · Ventas: los comprobantes electrónicos autorizados en producción
-//     (`comprobante`), por fecha; homologación no entra.
+//     (`comprobante`), por fecha; homologación no entra. Más las facturadas
+//     con otro sistema e importadas de sus TXT (venta_externa).
 //   · Compras: las facturas de compra registradas (`factura_compra`; A y M
 //     dan crédito fiscal, B y C no) y los despachos de importación
 //     registrados (`despacho_importacion`, tipo 066: el IVA es crédito
@@ -10,6 +11,7 @@
 //   · Avisos: lo que conviene mirar antes de presentar.
 
 import { consulta } from "@/lib/erp/base";
+import { huecosDeNumeracion, ventasExternasDelPeriodo } from "@/lib/administracion/ventas-externas";
 import { CONDICION_RECEPTOR_TEXTO } from "@/lib/arca/facturar";
 import {
   ADUANA, alicuotaDe, baseIvaDespacho, clasificarImpuestosDespacho, tipoCompra, textoComprobante,
@@ -160,6 +162,10 @@ export async function avisosDelPeriodo(org: string, desde: string, hasta: string
     if (otro) avisos.push({ texto: `Posible duplicado: ${textoComprobante(c)} de ${c.nombre} está dos veces (fechas ${fechaAr(otro.fecha)} y ${fechaAr(c.fecha)}).`, enlace: c.enlace });
     else vistos.set(k, c);
   }
+  // Huecos de numeración en ventas (entre Laucen y otro sistema también: comparten el punto de venta).
+  for (const h of huecosDeNumeracion(ventas)) {
+    avisos.push({ texto: `Falta${h.hasta > h.desde ? "n los comprobantes" : " el comprobante"} ${textoComprobante({ tipo: h.tipo, puntoVenta: h.puntoVenta, numero: String(h.desde) })}${h.hasta > h.desde ? ` a ${h.hasta}` : ""} (salta la numeración en el período: ¿anulado, de otro sistema sin importar, o de otra razón social?).` });
+  }
   // Duplicados en ventas (no deberían: el número lo da ARCA).
   const vv = new Set<string>();
   for (const c of ventas) {
@@ -207,7 +213,10 @@ export async function avisosDelPeriodo(org: string, desde: string, hasta: string
 
 /** Todo lo del período de una razón social: ventas (de todos los canales), compras y avisos. */
 export async function libroIvaPeriodo(org: string, desde: string, hasta: string, emisorId: number | null = null) {
-  const [ventas, { compras, avisos: avisosCompras }] = await Promise.all([ventasDelPeriodo(org, desde, hasta, null, emisorId), comprasDelPeriodo(org, desde, hasta, emisorId)]);
+  const [propias, externas, { compras, avisos: avisosCompras }] = await Promise.all([ventasDelPeriodo(org, desde, hasta, null, emisorId),
+    ventasExternasDelPeriodo(org, desde, hasta, emisorId), comprasDelPeriodo(org, desde, hasta, emisorId)]);
+  // Las facturadas con otro sistema (Virtual Seller) entran igual que las de Laucen (lib/administracion/ventas-externas.ts).
+  const ventas = [...propias, ...externas];
   const avisos = [...avisosCompras, ...(await avisosDelPeriodo(org, desde, hasta, ventas, compras, emisorId))];
   return { ventas, compras, avisos };
 }

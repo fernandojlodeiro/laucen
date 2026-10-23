@@ -219,3 +219,22 @@ test("período: mes entero o no; zip con CRC correcto", () => {
   assert.equal(z.readUInt32LE(z.length - 22), 0x06054b50);
   assert.equal(z.readUInt16LE(z.length - 12), 2);
 });
+
+test("ventas de otro sistema: se leen los mismos TXT que escribe el libro, y se marcan los huecos", async () => {
+  const { leerLibroVentas, huecosDeNumeracion } = await import("@/lib/administracion/ventas-externas");
+  const { lineaVentaCbte, lineasVentaAlicuotas } = await import("@/lib/administracion/libro-iva");
+  const c = {
+    origen: "venta" as const, id: 1, fecha: "2026-09-30", tipo: 1, puntoVenta: 2, numero: "19123", docTipo: 80, docNro: "30714306339", nombre: "CLIENTE SA",
+    condicionIva: null, moneda: "PES" as const, cotizacion: 1, nc: false, alicuotas: [{ pct: 21, base: 1000, iva: 210 }, { pct: 10.5, base: 200, iva: 21 }],
+    noGravado: 0, exento: 0, sinDiscriminar: 0, percepcionIva: 0, percepcionNacionales: 0, percepcionIibb: 12.5, percepcionMunicipal: 0, impuestosInternos: 0, otros: 0, total: 1443.5,
+  };
+  const { cbtes, errores } = leerLibroVentas(lineaVentaCbte(c) + "\r\n", lineasVentaAlicuotas(c).join("\r\n"));
+  assert.deepEqual(errores, []);
+  assert.equal(cbtes.length, 1);
+  const x = cbtes[0];
+  assert.deepEqual([x.fecha, x.tipo, x.puntoVenta, x.numero, x.docNro, x.nombre, x.total, x.percepcionIibb], ["2026-09-30", 1, 2, "19123", "30714306339", "CLIENTE SA", 1443.5, 12.5]);
+  assert.deepEqual(x.alicuotas, c.alicuotas);
+  assert.equal(lineaVentaCbte({ ...x, origen: "venta", id: 1 }), lineaVentaCbte(c));
+  assert.deepEqual(huecosDeNumeracion([{ tipo: 6, puntoVenta: 2, numero: "10" }, { tipo: 6, puntoVenta: 2, numero: "13" }, { tipo: 1, puntoVenta: 2, numero: "5" }]),
+    [{ tipo: 6, puntoVenta: 2, desde: 11, hasta: 12 }]);
+});

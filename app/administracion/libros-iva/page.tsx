@@ -10,11 +10,14 @@ import Link from "next/link";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import { conexionDrive, rutasDe } from "@/lib/google/drive";
-import { accionMandarAlDrive } from "./acciones";
+import { accionMandarAlDrive, accionImportarVentasExternas } from "./acciones";
+import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
+import { resumenVentasExternas } from "@/lib/administracion/ventas-externas";
 import Pestanas from "@/app/componentes/Pestanas";
 import RangoFechas from "@/app/componentes/RangoFechas";
 import { Paginado } from "@/app/componentes/Lista";
-import { entrarErp, Pantalla, Avisos, url, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
+import { BotonEnviar } from "@/app/radar/Cliente";
+import { entrarErp, Pantalla, Avisos, url, CAMPO, ETIQUETA, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN } from "@/app/componentes/erp";
 import { Desplegable } from "@/app/informes/Filtros";
 import { paginarEnMemoria } from "@/lib/lista";
 import {
@@ -34,6 +37,7 @@ const n2 = (x: number, cero = "") => (x === 0 ? cero : x.toLocaleString("es-AR",
 const plata = (signo: string) => (x: number) => `${signo} ${n2(x, "0,00")}`;
 const pct = (k: number) => `${String(k).replace(".", ",")} %`;
 const fechaAr = (f: string) => f.split("-").reverse().join("/");
+const IMPORTAR = "Importar ventas de otro sistema";
 const DOC: Record<number, string> = { 80: "CUIT", 86: "CUIL", 96: "DNI", 99: "Sin identificar" };
 
 export default async function LibrosIva({ searchParams }: { searchParams: Promise<SPLibro> }) {
@@ -45,7 +49,7 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
   const canal = canalDe(sp);
   // Cada razón social presenta su libro de IVA: se mira de una sola (la principal, sin elegir).
   const rs = await elegirRazonSocial(org, sp.rs, { todas: false });
-  const [{ ventas, compras, avisos }, canales, drive, rutas] = await Promise.all([libroIvaPeriodo(org, desde, hasta, rs.id), canalesConVentas(org), conexionDrive(org), rutasDe(org)]);
+  const [{ ventas, compras, avisos }, canales, drive, rutas, externas] = await Promise.all([libroIvaPeriodo(org, desde, hasta, rs.id), canalesConVentas(org), conexionDrive(org), rutasDe(org), resumenVentasExternas(org)]);
 
   // En dólares se mira el mismo libro con cada comprobante al dólar de su día (los archivos para ARCA siguen en pesos).
   const enDolares = s.moneda === "USD";
@@ -65,8 +69,35 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
   return (
     <Pantalla titulo="Libros de IVA" ancho="max-w-[1400px]"
       subtitulo="Libro IVA Ventas y Libro IVA Compras: comprobantes del período por fecha, con neto gravado e IVA por alícuota. Las notas de crédito restan; lo que está en dólares va a la cotización del comprobante."
-      acciones={libro !== "avisos" ? <a href={url(`${BASE}/excel`, { ...filtros, libro, canal: libro === "ventas" ? sp.canal : undefined })} className={VERDE}>Descargar Excel</a> : undefined}>
+      acciones={<>
+        {libro !== "avisos" && <a href={url(`${BASE}/excel`, { ...filtros, libro, canal: libro === "ventas" ? sp.canal : undefined })} className={VERDE}>Descargar Excel</a>}
+        <BotonNuevo texto={IMPORTAR} />
+      </>}>
       <Avisos sp={sp} />
+      <AltaNueva texto={IMPORTAR} sinBoton>
+        <form action={accionImportarVentasExternas} className="flex flex-wrap items-end gap-3">
+          <input type="hidden" name="volver" value={url(BASE, filtros)} />
+          {rs.multi
+            ? <label><span className={ETIQUETA}>Razón social</span>
+                <select name="rs" defaultValue={rs.id ?? undefined} className={CAMPO}>
+                  {rs.razones.map((x) => <option key={x.id} value={x.id}>{nombreRs(x)}</option>)}
+                </select></label>
+            : <input type="hidden" name="rs" value={rs.id ?? ""} />}
+          <label><span className={ETIQUETA}>Sistema</span><input name="sistema" defaultValue="Virtual Seller" className={CAMPO} /></label>
+          <label><span className={ETIQUETA}>TXT de comprobantes de ventas</span><input type="file" name="comprobantes" required accept=".txt,text/plain" className="text-xs" /></label>
+          <label><span className={ETIQUETA}>TXT de alícuotas de ventas</span><input type="file" name="alicuotas" required accept=".txt,text/plain" className="text-xs" /></label>
+          <BotonEnviar clase={PRIMARIO} corriendo="Importando…">Importar</BotonEnviar>
+          <p className="w-full text-[11px] text-[#5C6B76]">
+            Los dos archivos del Libro de IVA Digital de ventas que exporta el otro sistema, del mismo período. Lo que también está en Laucen (mismo tipo, punto de venta y número)
+            se saltea; volver a importar el mismo período reemplaza lo anterior, no duplica.
+          </p>
+        </form>
+        {externas.length > 0 && (
+          <ul className="mt-2 text-[11px] text-[#5C6B76]">
+            {externas.map((x) => <li key={`${x.emisor_id}${x.sistema}`}>Ya importado: {(() => { const r = rs.razones.find((y) => y.id === x.emisor_id); return r ? nombreRs(r) : `Razón social ${x.emisor_id}`; })()} · {x.sistema} · {x.n.toLocaleString("es-AR")} comprobantes del {fechaAr(x.desde)} al {fechaAr(x.hasta)}</li>)}
+          </ul>
+        )}
+      </AltaNueva>
       <div className="flex flex-wrap items-center gap-3 mb-3">
         {rs.multi && <SelectorRazonSocial razones={rs.razones.map((x) => ({ id: x.id, nombre: nombreRs(x) }))} valor={rs.id} todas={false} />}
         <Desplegable parametro="mes" etiqueta="Mes" valor={mesElegido} limpiar={["desde", "hasta", "p"]}
