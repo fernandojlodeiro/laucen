@@ -279,6 +279,14 @@ Apagado (como nace): no se toca nada en ML. Prendido, para cada publicación vin
 - Lo que se graba en Laucen (pausada, cantidad informada) se graba recién cuando ML acepta el cambio.
 - **Ventas en camino**: Mercado Libre avisa que una publicación cambió unos segundos antes de mandar la orden. Si en ese aviso subieron sus vendidos, la venta ya pasó: el stock de las demás publicaciones y cuentas se ajusta en ese momento, descontando lo vendido, sin esperar la orden. Cuando la orden entra como pedido deja de descontarse aparte (ya lo descuenta el pedido). Si a los 30 minutos la orden no entró, se deja de descontar; para entonces la revisión de cada media hora ya la trajo.
 
+### Publicaciones sin producto
+
+Una publicación de Mercado Libre activa tiene que estar siempre vinculada a un producto de Laucen: sin producto, nadie le maneja el stock y se puede vender lo que no hay.
+
+- Cada publicación que crea Laucen queda vinculada a su producto en el momento de crearse.
+- Cada vez que Laucen lee una publicación de Mercado Libre, si no está vinculada la vincula por su SKU o, si no tiene SKU, por otra publicación de la misma cuenta en el mismo producto de Mercado Libre (un plan de cuotas, la de catálogo).
+- Si así tampoco se puede, y está activa, **se pausa en el momento**. Se vuelve a activar vinculándola al producto (en la ficha del producto) o cargándole el SKU en Mercado Libre.
+
 ### Reparto del stock entre cuentas de Mercado Libre
 
 Cada cuenta de Mercado Libre muestra su propio stock, y Mercado Libre controla el de cada cuenta por separado. Si todas muestran el disponible entero, un comprador puede armar un carrito con publicaciones de varias cuentas y llevarse entre todas más de lo que hay: Mercado Libre avisa cada venta recién cuando se paga, y para entonces ya están todas hechas. El reparto lo evita cuando queda poco:

@@ -489,7 +489,11 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
             if (cortado) fallos.push(errorLegible(status, datos));
             if (fallos.length) notaCreada = `Se creó ${[creada, ...otras].join(", ")}, pero falló: ${[...new Set(fallos)].join(" · ")}`;
             status = 200; datos = { id: creada, ...(otras.length ? { otras } : {}) };
-            const vincular = fila.efecto?.vincular?.variacionId;
+            // A qué producto de Laucen va: el que dice el cambio o, si no, el de la publicación de la que se copió.
+            const origen = (fila.payload as { origen?: { canal?: number; item_id?: string } } | null)?.origen;
+            const vincular = fila.efecto?.vincular?.variacionId ?? (origen?.item_id ? Number((await una<{ variacion_id: string }>(
+              "select variacion_id from publicacion where canal_id = $1 and id_externo = $2 order by variacion_externa nulls first limit 1",
+              [origen.canal ?? Number(fila.canal_id), origen.item_id]))?.variacion_id ?? 0) || null : null);
             for (const id of [creada, ...otras]) {
               if (vincular) {
                 await consulta(`

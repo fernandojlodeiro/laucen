@@ -298,6 +298,10 @@ criollo, nunca se muestra crudo (`motivoLegible()` en `app/auth-actions.ts`).
   se puede.
 - Lo automático (stock que llega al umbral → pausar, reactivar, precios que siguen a la Clásica)
   sólo corre en un canal si Fer prendió su interruptor (`canal.config`); prenderlo es su clic.
+- **JAMÁS una publicación activa sin producto de Laucen** (Fer, 23/10): sin producto nadie le maneja el stock y se
+  vende lo que no hay (y Fer nunca cancela una venta en ML: le baja la reputación). Toda alta queda vinculada a su
+  variación al crearse (`Efecto.vincular` o la publicación de origen, en la cola), y `guardarItem` vincula por SKU o
+  por el producto de ML de otra publicación de la cuenta; la activa que no se puede vincular se pausa en el momento.
 - Todo lo que va a Mercado Libre pasa por la cola (`lib/mercadolibre/cola.ts`): se reintenta,
   respeta los límites de la API y queda registrado qué se mandó, cuándo y con qué resultado.
 
