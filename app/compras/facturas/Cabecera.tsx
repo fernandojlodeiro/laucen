@@ -12,6 +12,7 @@ import { LETRAS } from "../comun";
 import ElegirDeLista from "@/app/componentes/ElegirDeLista";
 import { cuitLegible } from "@/lib/cuit";
 import { accionCrearProveedorRapido } from "@/app/compras/proveedores/acciones";
+import { accionCrearCuentaGasto } from "./acciones";
 
 export type DatosCabecera = {
   proveedor_id: number | null; letra: string; es_nota_credito: boolean; punto_venta: number | null; numero: string | null;
@@ -92,11 +93,10 @@ export function CamposCabecera({ d, o, conImpuestos = false }: { d: DatosCabecer
             <option key={r.id} value={r.id}>#{r.id} · {fechaAR(r.creado_ts)} · {r.deposito}{r.proveedor ? ` · ${r.proveedor}` : ""}{r.documento ? ` · ${r.documento}` : ""}</option>
           ))}
         </select></label>
-      <label className="col-span-2"><span className={ETIQUETA}>Cuenta de gasto (si no es mercadería)</span>
-        <select name="cuenta_gasto" defaultValue={d.cuenta_gasto_id ?? ""} className={`${CAMPO} w-full`}>
-          <option value="">— Es mercadería —</option>
-          {o.cuentas.map((c) => <option key={c.id} value={c.id}>{c.codigo} {c.nombre}</option>)}
-        </select></label>
+      {/* Con buscador y «+ Crear» (Fer, 23/10); la elegida queda recordada en el proveedor. */}
+      <div className="col-span-2"><span className={ETIQUETA}>Cuenta de gasto (si no es mercadería; queda recordada en el proveedor)</span>
+        <ElegirDeLista name="cuenta_gasto" valor={d.cuenta_gasto_id} vacio="— Es mercadería —" placeholder="Buscá o creá la cuenta…" etiqueta="Cuenta de gasto"
+          opciones={o.cuentas.map((c) => ({ id: c.id, texto: `${c.codigo} ${c.nombre}` }))} crear={accionCrearCuentaGasto} /></div>
       {conImpuestos && (
         <>
           <label><span className={ETIQUETA}>Percepción IVA</span>

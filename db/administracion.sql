@@ -66,6 +66,10 @@ alter table factura_compra add column if not exists cae text;
 -- El código de comprobante de ARCA (Fer, 22/10), cuando no sale de la letra: liquidaciones de servicios
 -- públicos (17, 18) y de los bancos (63, 64). Lo usa el Libro IVA; null = el de la letra (factura / NC / ND).
 alter table factura_compra add column if not exists tipo_cbte smallint;
+-- El PDF de la factura, subido desde Laucen (Fer, 23/10; bucket "importaciones"), para verlo o bajarlo.
+alter table factura_compra add column if not exists archivo text;
+-- Cuándo la importación de ARCA (Mis Comprobantes) la encontró igual: validada dos veces (el comprobante y ARCA).
+alter table factura_compra add column if not exists validada_arca_ts timestamptz;
 -- Vinculada a una recepción (3/10): por producto, lo facturado contra lo
 -- recibido y la diferencia valorizada al costo de la factura, como quedó al
 -- registrarla ([{variacion_id, facturado, recibido, diferencia,

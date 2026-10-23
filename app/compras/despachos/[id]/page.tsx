@@ -166,7 +166,11 @@ export default async function DetalleDespacho({ params, searchParams }: { params
       titulo={<>Despacho <span className="font-mono">{d.numero ?? `#${d.id} (sin número)`}</span></>}
       camino={[{ texto: d.numero ?? `#${d.id}` }]}
       subtitulo={<>{fechaAR(d.fecha)}{d.proveedor ? ` · ${d.proveedor}` : ""}</>}
-      acciones={borrador ? (
+      acciones={<>
+        {/* El PDF del despacho, guardado al subirlo (Fer, 23/10): verlo en otra pestaña o bajarlo. */}
+        {d.archivo && <a href={`/compras/despachos/${did}/pdf`} target="_blank" rel="noreferrer" className={SUAVE}>Ver el PDF</a>}
+        {d.archivo && <a href={`/compras/despachos/${did}/pdf?bajar=1`} className={SUAVE}>Bajar el PDF</a>}
+        {borrador ? (
         <>
           {/* La acción final del borrador, arriba a la derecha (AGENTS.md). */}
           <BotonConfirmar accion={accionRegistrarDespacho} campos={{ id: String(did) }} clase={VERDE} texto="Registrar"
@@ -178,7 +182,8 @@ export default async function DetalleDespacho({ params, searchParams }: { params
       ) : (
         <BotonConfirmar accion={accionDespachoABorrador} campos={{ id: String(did) }} clase={SUAVE} texto="Volver a borrador"
           pregunta="¿Volver a borrador? Se anula su asiento; después lo corregís (o lo borrás con el tacho) y lo registrás de nuevo." corriendo="Volviendo…" />
-      )) : undefined}>
+      )) : null}
+      </>}>
       <Avisos sp={sp} />
 
       {borrador && opciones ? (

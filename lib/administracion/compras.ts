@@ -50,9 +50,10 @@ export async function agregarLineaFactura(org: string, facturaId: number, d: { v
 /** Registra la factura: stock, costo y cuenta corriente. */
 export async function registrarFactura(org: string, facturaId: number, usuarioId: string) {
   const f = await una<{ estado: string; proveedor_id: number; moneda: "ARS" | "USD"; cotizacion: string; total: string; fecha: string; vencimiento: string | null;
-    deposito_id: number | null; recepcion_id: number | null; letra: string; punto_venta: number | null; numero: string | null; es_nota_credito: boolean; es_nota_debito: boolean; emisor_id: number | null }>(`
+    deposito_id: number | null; recepcion_id: number | null; letra: string; punto_venta: number | null; numero: string | null; es_nota_credito: boolean; es_nota_debito: boolean; emisor_id: number | null;
+    cuenta_gasto_id: number | null }>(`
     select emisor_id::int, estado, proveedor_id::int, moneda, cotizacion, total, to_char(fecha, 'YYYY-MM-DD') fecha, to_char(vencimiento, 'YYYY-MM-DD') vencimiento,
-           deposito_id::int, recepcion_id::int, letra, punto_venta, numero, es_nota_credito, es_nota_debito
+           deposito_id::int, recepcion_id::int, letra, punto_venta, numero, es_nota_credito, es_nota_debito, cuenta_gasto_id::int
       from factura_compra where id = $1 and organizacion_id = $2`, [facturaId, org]);
   if (!f) throw new ErrorErp("La factura no existe.");
   if (f.estado !== "borrador") throw new ErrorErp("La factura ya estaba registrada.");
@@ -64,6 +65,8 @@ export async function registrarFactura(org: string, facturaId: number, usuarioId
   const lineas = await consulta<{ variacion_id: number | null; cantidad: string; costo_unit: string }>(
     "select variacion_id::int, cantidad, costo_unit from factura_compra_linea where factura_id = $1 order by orden, id", [facturaId]);
   const conStock = lineas.filter((l) => l.variacion_id);
+  // Un gasto sin cuenta no se registra (Fer, 23/10): nada de "Gastos varios" por descarte. La del exterior (E) va a Importaciones en curso.
+  if (!conStock.length && !f.cuenta_gasto_id && f.letra !== "E") throw new ErrorErp("Elegí la cuenta de gasto de la factura (queda recordada en el proveedor).");
   if (conStock.length && !f.recepcion_id && !f.deposito_id && !f.es_nota_credito) throw new ErrorErp("Elegí a qué depósito entra la mercadería (o vinculá la recepción por la que ya entró).");
   const totalArs = r2(Number(f.total) * cot);
   const totalUsd = f.moneda === "USD" ? Number(f.total) : r2(totalArs / tcUsd);

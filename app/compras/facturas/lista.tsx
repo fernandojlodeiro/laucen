@@ -33,7 +33,7 @@ const CAMPOS: Campo[] = [
   { clave: "letra", titulo: "Letra", sql: "f.letra" },
   { clave: "nota_credito", titulo: "Nota de crédito", sql: "f.es_nota_credito", formato: "sino" },
   { clave: "nota_debito", titulo: "Nota de débito", sql: "f.es_nota_debito", formato: "sino" },
-  { clave: "origen", titulo: "Origen", sql: "f.origen", valor: (f) => (f.origen === "arca_mc" ? "ARCA (Mis Comprobantes)" : "A mano") },
+  { clave: "origen", titulo: "Origen", sql: "f.origen", valor: (f) => (f.origen === "arca_mc" ? "ARCA (Mis Comprobantes)" : f.origen === "pdf" ? "Subida (PDF)" : "A mano") },
   { clave: "cae", titulo: "CAE", sql: "f.cae" },
   { clave: "punto_venta", titulo: "Punto de venta", sql: "f.punto_venta", formato: "entero" },
   { clave: "numero", titulo: "Número", sql: "f.numero::text", orden: "f.numero" },
@@ -58,6 +58,11 @@ const CAMPOS: Campo[] = [
     clave: "estado", titulo: "Estado", sql: "f.estado", valor: (f) => ESTADO_FACTURA[f.estado]?.texto ?? f.estado,
     celda: (f) => { const e = ESTADO_FACTURA[f.estado] ?? ESTADO_FACTURA.borrador; return <Estado texto={e.texto} tono={e.tono} />; },
   },
+  {
+    clave: "arca", titulo: "ARCA", sql: "(case when f.origen = 'arca_mc' then 'De ARCA' when f.validada_arca_ts is not null then 'Validada' else '' end)",
+    valor: (f) => (f.arca === "De ARCA" ? "Vino de ARCA" : f.arca === "Validada" ? "Validada con ARCA" : null),
+    celda: (f) => (f.arca === "Validada" ? <span title="Cargada con su comprobante y encontrada igual en ARCA"><Estado texto="✓✓ Validada" tono="verde" /></span> : f.arca === "De ARCA" ? <span className="text-[11px] text-[#5C6B76]" title="Cargada desde Mis Comprobantes: falta el comprobante">De ARCA</span> : null),
+  },
   { clave: "emisor", titulo: "Razón social", sql: "(select coalesce(e.nombre, e.razon_social) from emisor e where e.id = f.emisor_id)", ancho: 24 },
   { clave: "notas", titulo: "Notas", sql: "f.notas", orden: false, ancho: 40 },
 ];
@@ -70,7 +75,7 @@ export const LISTA_FACTURAS_COMPRA: Lista = {
   vistas: true,
   porDefecto: "fecha",
   campos: CAMPOS,
-  enPantalla: ["fecha", "proveedor", "comprobante", "lineas", "total", "estado"],
+  enPantalla: ["fecha", "proveedor", "comprobante", "lineas", "total", "estado", "arca"],
   siempre: "f.id::int id, f.proveedor_id::int proveedor_id",
   consulta: async (ctx, sp) => {
     const { proveedor, estado } = filtrosFacturasCompra(sp);

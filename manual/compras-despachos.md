@@ -51,6 +51,8 @@ Sólo la cabecera y el botón **Crear y cargar las líneas**. Si no hay tipo de 
 
 Título "Despacho" con su número; debajo, fecha y proveedor.
 
+Si el despacho se cargó desde su PDF, arriba a la derecha (en borrador y registrado) están **Ver el PDF** (lo abre en otra pestaña) y **Bajar el PDF** (lo descarga): el archivo queda guardado con el despacho.
+
 **En borrador:**
 - Arriba a la derecha: **Registrar** y el **tacho** (borrar el borrador).
 - **Cabecera** con su estado, "FOB (suma de las líneas)" y el botón **Grabar cabecera**. Campos: **Nº de despacho** (ej. 26001IC04012345X), **Proveedor del exterior (opcional)** (se busca escribiendo: filtra mientras escribís; si no está, **"+ Crear «…»"** lo da de alta ahí mismo con ese nombre y queda elegido; el CUIT, el país y la condición de IVA se completan después en [Proveedores](/compras/proveedores)), **Fecha**, **Cotización del dólar** (de entrada la del día), **Flete (US$)**, **Seguro (US$)**, **Depósito donde entra** (de entrada, el depósito principal: el primero de los propios) y **Notas**. El FOB no se carga: es la suma de las líneas.

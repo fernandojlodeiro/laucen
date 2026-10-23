@@ -16,7 +16,10 @@ Cada comprobante se arma en **borrador** y después se **registra**. Registrar e
 - deja la **deuda en la cuenta corriente** del proveedor;
 - queda para el **asiento contable** y para el **Libro IVA Compras**.
 
-Hay dos maneras de cargarlas: **a mano** (con "+ Nueva factura") o **importando el archivo "Mis Comprobantes – Recibidos" de ARCA** (con "Importar de ARCA (Mis Comprobantes)"), que crea y registra todas las del mes de una vez.
+Hay tres maneras de cargarlas:
+- **Subiendo el PDF (o una foto) de la factura** con **Subir factura**: la IA la lee, se arma sola y, si es un gasto y el proveedor ya tiene su cuenta de gasto, queda registrada. El archivo queda guardado con la factura para verlo o bajarlo cuando haga falta. Es la forma recomendada para los gastos y servicios, a medida que llegan.
+- **A mano** (con "+ Nueva factura").
+- **Importando el archivo "Mis Comprobantes – Recibidos" de ARCA** (con "Importar de ARCA (Mis Comprobantes)"). A fin de mes sirve de **control**: las que ya estaban cargadas e iguales quedan **validadas con ARCA** (✓✓: tenés el comprobante y además está en ARCA), las que están distintas aparecen en la pestaña **Diferencias** para corregirlas, y las que faltaban se agregan.
 
 ## Cómo se llega
 
@@ -32,14 +35,15 @@ Hay dos maneras de cargarlas: **a mano** (con "+ Nueva factura") o **importando 
 
 Arriba a la derecha:
 - **Descargar Excel** (con desplegable de configuraciones y "Configurar…"): baja la lista con los filtros y la vista de la pantalla, todas las filas.
+- **Subir factura**: elegís el PDF o la foto (JPG, PNG o WEBP) de una factura que te emitieron; ver "Subir una factura de gastos".
 - **Importar de ARCA (Mis Comprobantes)**: abre, debajo del título, el formulario para subir el archivo de ARCA.
 - **+ Nueva factura**: lleva a la pantalla de alta a mano.
 
-Filtros: **Proveedor** (Todos o uno), **Estado** (Todos, Borrador, Registrada, Anulada), botón **Filtrar** y, si hay filtro, **Limpiar**.
+Filtros: **Proveedor** (un buscador: escribís parte del nombre o del CUIT y elegís; filtra al momento; la X lo borra y vuelve a "Todos los proveedores"), **Estado** (Todos, Borrador, Registrada, Anulada), botón **Filtrar** y, si hay filtro, **Limpiar**.
 
 Encima de la tabla, a la derecha, el selector **Vista** (qué columnas se ven y en qué orden; "Estándar" es la de siempre y la última elegida queda recordada).
 
-Columnas de la vista Estándar: **Fecha**, **Proveedor**, **Comprobante** (ej. "A 00003-00001234"; "NC A …" si es nota de crédito, "ND A …" si es nota de débito, "s/n" si no tiene número), **Líneas**, **Total** (en su moneda) y **Estado**. Se pueden sumar en una vista: CUIT del proveedor, Letra, Nota de crédito, Nota de débito, **Origen** ("ARCA (Mis Comprobantes)" o "A mano"), CAE, Punto de venta, Número, Vencimiento, Moneda, Cotización, Neto, IVA, Percepción IVA, Percepción IIBB, Otros impuestos, No gravado, Total $, Total US$, Depósito y Notas. Los importes de las notas de crédito se muestran en negativo.
+Columnas de la vista Estándar: **Fecha**, **Proveedor**, **Comprobante** (ej. "A 00003-00001234"; "NC A …" si es nota de crédito, "ND A …" si es nota de débito, "s/n" si no tiene número), **Líneas**, **Total** (en su moneda), **Estado** y **ARCA** ("✓✓ Validada" si se cargó con su comprobante y la importación de ARCA la encontró igual; "De ARCA" si se cargó desde Mis Comprobantes y falta el comprobante; vacío si todavía no se controló). Se pueden sumar en una vista: CUIT del proveedor, Letra, Nota de crédito, Nota de débito, **Origen** ("ARCA (Mis Comprobantes)", "Subida (PDF)" o "A mano"), CAE, Punto de venta, Número, Vencimiento, Moneda, Cotización, Neto, IVA, Percepción IVA, Percepción IIBB, Otros impuestos, No gravado, Total $, Total US$, Depósito y Notas. Los importes de las notas de crédito se muestran en negativo.
 
 La fecha, el comprobante y la cantidad de líneas llevan al detalle; el proveedor lleva a su fila en Proveedores. Lista de a 50 filas, con paginador; se ordena tocando el título de la columna. Sin orden elegido: de la más nueva a la más vieja.
 
@@ -51,9 +55,12 @@ Sólo la cabecera (ver los campos más abajo) y el botón **Crear y cargar las l
 
 Título: "Factura de compra", "Nota de crédito de compra" o "Nota de débito de compra" con su número. Debajo, el proveedor (enlace) y la fecha.
 
+Si la factura se subió con su archivo, arriba a la derecha están **Ver la factura** (la abre en otra pestaña) y **Bajar la factura** (la descarga). Si está validada con ARCA, un cartel verde lo dice: "Validada con ARCA: la importación de Mis Comprobantes del dd/mm/aaaa la encontró igual."
+
 **En borrador:**
 - Arriba a la derecha: **Registrar** (verde) y el **tacho** para borrar el borrador.
-- Caja **Cabecera** con su estado y el botón **Grabar cabecera**. Campos: **Proveedor** (se busca escribiendo: filtra mientras escribís; si no está, **"+ Crear «…»"** lo da de alta ahí mismo con ese nombre y queda elegido; el CUIT, el país y la condición de IVA se completan después en [Proveedores](/compras/proveedores)), **Letra** (A, B, C, M, E (exterior), X (otro, sin IVA)), **Es nota de crédito** (caja para tildar), **Punto de venta**, **Número**, **Fecha**, **Vencimiento**, **Moneda** (Pesos / Dólares), **Cotización (si es en dólares)** (de entrada, la cotización del día), **Depósito donde entra**, **O la recepción por la que ya entró** (las últimas 100 recepciones de compra), **Cuenta de gasto (si no es mercadería)** ("— Es mercadería —" o una cuenta del plan), **Percepción IVA**, **Percepción IIBB**, **Otros impuestos**, **No gravado** y **Notas**.
+- Caja **Cabecera** con su estado y el botón **Grabar cabecera**. Campos: **Proveedor** (se busca escribiendo: filtra mientras escribís; si no está, **"+ Crear «…»"** lo da de alta ahí mismo con ese nombre y queda elegido; el CUIT, el país y la condición de IVA se completan después en [Proveedores](/compras/proveedores)), **Letra** (A, B, C, M, E (exterior), X (otro, sin IVA)), **Es nota de crédito** (caja para tildar), **Punto de venta**, **Número**, **Fecha**, **Vencimiento**, **Moneda** (Pesos / Dólares), **Cotización (si es en dólares)** (de entrada, la cotización del día), **Depósito donde entra**, **O la recepción por la que ya entró** (las últimas 100 recepciones de compra), **Cuenta de gasto (si no es mercadería)** (se busca escribiendo; "— Es mercadería —" o una cuenta del plan; si no está, **"+ Crear «…»"** crea ahí mismo una cuenta de egreso con ese nombre y queda elegida; al grabar, queda recordada en el proveedor), **Percepción IVA**, **Percepción IIBB**, **Otros impuestos**, **No gravado** y **Notas**.
+- Si es un gasto (sin productos) y todavía no tiene cuenta de gasto, un cartel amarillo: "Falta la cuenta de gasto. Elegila (o creala)…". Sin cuenta no se registra.
 - **Líneas**: Descripción, Cantidad, Costo unit. (neto), IVA, Neto, IVA $. Las líneas sin producto dicen "(sin producto)". Cada una tiene lápiz (se edita en la fila: descripción, cantidad, costo unitario, IVA, con **Guardar** / **Cancelar**) y tacho.
 - Caja **Agregar línea**: un buscador "Buscar producto por SKU, código o título" (busca en todos los datos de la variación y de su producto) con **Mostrar inactivos** y **Buscar**; después el desplegable **Producto** ("— Línea libre (sin producto: no mueve stock) —" o los productos encontrados, hasta 30), **Descripción (si es libre)**, **Cantidad** (de entrada 1), **Costo unit. neto ($ o US$)**, **IVA** y **Agregar**.
 - **IVA por alícuota** (neto gravado e IVA de cada alícuota) y la caja de totales: Neto, IVA, percepciones, otros impuestos, no gravado (si tienen importe), **Total** y, si es en dólares, **En pesos**.
@@ -66,13 +73,14 @@ Si la factura está vinculada a una recepción y lo recibido no dio igual a lo f
 
 Título "Importar de ARCA (Mis Comprobantes)". Debajo, el nombre del archivo, cuántos comprobantes tiene y qué versión de columnas trae ("con IVA por alícuota" o "con el IVA en un solo número (se deduce la alícuota)").
 
-- Arriba a la derecha, si hay algo nuevo: **Importar N comprobantes nuevos**.
-- Si el archivo ya se importó: "Última importación de este archivo: X cargadas · Y ya estaban · …" y la lista de errores, si hubo.
+- Arriba a la derecha, si hay algo para hacer, un botón verde que dice qué va a hacer: **Importar N nuevas**, **Validar N cargadas** o **Importar N nuevas y validar M cargadas**.
+- Si el archivo ya se importó: "Última importación de este archivo: X cargadas · Y ya estaban · Z validadas con ARCA · …" y la lista de errores, si hubo.
+- Si hay comprobantes distintos de lo cargado, un cartel amarillo que manda a la pestaña **Diferencias**.
 - Si hubo renglones que no se pudieron leer: "Renglones que no se pudieron leer (N):" con el motivo de cada uno (muestra hasta 30).
-- Si no hay nada nuevo: "No hay nada nuevo para importar: todo lo del archivo ya está cargado."
-- **Cuenta de gasto de cada proveedor**: una fila por proveedor del archivo con Proveedor (los que no existen dicen "Nuevo: se crea al importar"; los de Mercado Libre llevan la etiqueta "Mercado Libre"), CUIT, cuántas **Nuevas** tiene y el desplegable **Cuenta de gasto** (primero las cuentas de egreso, después el resto).
+- Si no hay nada para hacer: "No hay nada nuevo para importar ni para validar: todo lo del archivo ya está cargado y validado."
+- **Cuenta de gasto de cada proveedor**: una fila por proveedor del archivo con Proveedor (los que no existen dicen "Nuevo: se crea al importar"; los de Mercado Libre llevan la etiqueta "Mercado Libre"), CUIT, cuántas **Nuevas** tiene y el desplegable **Cuenta de gasto** (primero las cuentas de egreso, después el resto). Viene elegida la que el proveedor tiene recordada (Mercado Libre: "Comisiones de canales"); si no tiene ninguna, dice "Elegí la cuenta…" con el borde amarillo y **hay que elegirla** para poder importar sus comprobantes nuevos.
 - A la derecha del título "Cuenta de gasto de cada proveedor", si tenés también el permiso de **Contabilidad**: **+ Nueva cuenta**. Abre debajo un formulario chico con **Código** (ya sugerido), **Nombre**, **Queda elegida para** (los proveedores de este archivo, cada uno con una caja para tildar y entre paréntesis cuántas facturas nuevas trae: se pueden tildar varios), el botón **Crear** y la aclaración "Se crea como cuenta de egreso imputable, bajo … (la cuenta madre sale del código)"; **Cancelar** lo cierra.
-- Pestañas para filtrar los comprobantes por estado, cada una con su cantidad: **Todos**, **Nuevas**, **Ya cargadas**, **Cargadas a mano distintas**, **Con error**, **Repetidas** (las que tienen cero no se muestran, salvo Todos y Nuevas).
+- Pestañas para filtrar los comprobantes por estado, cada una con su cantidad: **Todos**, **Nuevas**, **Ya cargadas**, **Diferencias**, **Con error**, **Repetidas** (las que tienen cero no se muestran, salvo Todos y Nuevas).
 - La tabla: Fecha, Proveedor (con CUIT; "(nuevo)" si se va a crear), Comprobante (tipo y número; si ya está cargado, enlace a la factura), Neto gravado (y el desglose si tiene varias alícuotas), IVA (y la alícuota), No gravado / exento, Percepciones / otros, Total (y "TC" si es en dólares) y Estado (con el motivo o el aviso). En las facturas B y C, neto, IVA y percepciones se muestran "—": el total entero es gasto.
 
 ## Cómo se hace
@@ -85,11 +93,13 @@ Es la forma recomendada para cargar todo lo del mes (incluye las facturas de Mer
 2. En Laucen, andá a [Facturas de compra](/compras/facturas) y apretá **Importar de ARCA (Mis Comprobantes)**.
 3. En "Archivo de ARCA → Mis Comprobantes → Recibidos (.csv o .xlsx)" elegí el archivo y apretá **Subir y ver**. Todavía no se registra nada.
 4. Se abre la **vista previa**. Revisá:
-   - la tabla **Cuenta de gasto de cada proveedor**: elegí a qué cuenta contable va el neto de las facturas de cada proveedor (viene propuesta: la que tenía recordada el proveedor; si no tiene, "Gastos varios", y para Mercado Libre, "Comisiones de canales");
+   - la tabla **Cuenta de gasto de cada proveedor**: a qué cuenta contable va el neto de las facturas de cada proveedor (viene la que tenía recordada el proveedor, y para Mercado Libre, "Comisiones de canales"; si no tiene ninguna, elegila: no se asigna una cualquiera);
    - si falta la cuenta adecuada, creala ahí mismo (ver "Crear una cuenta de gasto desde la vista previa", abajo);
-   - las pestañas **Cargadas a mano distintas** y **Con error**, que son las que no se van a importar y conviene arreglar a mano.
-5. Apretá **Importar N comprobantes nuevos** (arriba a la derecha).
-6. Sale el resumen: "Listo: X cargadas, Y ya estaban, Z cargadas a mano distintas (no se tocaron), N con error." Las nuevas quedan **registradas** (no en borrador).
+   - las pestañas **Diferencias** y **Con error**, que son las que no se van a importar y conviene arreglar a mano.
+5. Apretá el botón verde de arriba a la derecha (**Importar N nuevas y validar M cargadas**).
+6. Sale el resumen: "Listo: X cargadas, Y ya estaban, Z validadas con ARCA, W con diferencias (mirá la pestaña «Diferencias»), N con error." Las nuevas quedan **registradas** (no en borrador); las que ya estaban cargadas e iguales quedan **validadas con ARCA**.
+
+Si falta elegir la cuenta de algún proveedor con comprobantes nuevos, no importa nada y avisa: "Elegí la cuenta de gasto de: …".
 
 El libro queda armado en [Libros de IVA](/administracion/libros-iva), pestaña **IVA Compras**, eligiendo ese mes.
 
@@ -115,11 +125,26 @@ Sirve cuando un proveedor necesita una cuenta que todavía no está en el plan (
 
 La cuenta se crea siempre como **egreso** e **imputable**, y queda en el [plan de cuentas](/administracion/contabilidad) como cualquier otra (ahí se puede renombrar, recodificar o desactivar). El código se valida igual que en Contabilidad. Errores típicos: "La cuenta necesita un nombre.", "El código va con números separados por puntos (ej. 5.2.06).", "Ya hay una cuenta con el código 5.2.06 (…).": el formulario sigue abierto con el error.
 
+### Subir una factura de gastos (PDF o foto)
+
+1. En [Facturas de compra](/compras/facturas), arriba a la derecha, apretá **Subir factura** y elegí el PDF o la foto de la factura.
+2. El botón pasa a "Subiendo…" y después a "Leyendo con la IA…" (tarda menos de un minuto). Se abre sola la factura con un mensaje:
+   - "Leída y registrada con la cuenta de gasto del proveedor.": listo, quedó registrada, con su cuenta corriente y su asiento.
+   - "Leída. El proveedor … todavía no tiene cuenta de gasto: elegila en la cabecera (queda recordada) y registrala.": la factura queda en borrador. En la cabecera, en **Cuenta de gasto**, elegí una o escribí el nombre de una nueva y apretá **"+ Crear «…»"**; **Grabar cabecera** y **Registrar**. Desde ahí el proveedor la tiene recordada: sus próximas facturas se registran solas.
+   - "Quedó en borrador: el total armado (…) no coincide con el de la factura (…). Revisala.": corregí lo que no cierra y registrala.
+3. El archivo queda guardado con la factura: **Ver la factura** / **Bajar la factura**, arriba a la derecha de su detalle.
+
+Qué hace sola: lee tipo y letra, punto de venta, número, fecha, CUIT y razón social del proveedor, moneda, neto e IVA por alícuota, no gravado, exento, percepciones, otros tributos, total y CAE. Busca el proveedor por CUIT y, si no existe, lo crea. La razón social a la que va la factura sale del CUIT del receptor. Arma las líneas igual que la importación de ARCA (ver "Importación de ARCA: cómo arma cada factura").
+
+Errores típicos: "No se reconoce el tipo de comprobante: cargala a mano.", "No se leyó el CUIT del proveedor…", "No se leyó la fecha…", "No se leyó el número…", "La factura está a nombre del CUIT …, que no es de ninguna de tus razones sociales.", "Esa factura ya está cargada (factura de compra #N).", "La factura leída no cierra: … Cargala a mano.".
+
+Es para facturas de **gastos y servicios**: las líneas son sin producto. La mercadería se sigue cargando a mano, con sus productos.
+
 ### Cargar una factura a mano
 
 1. En [Facturas de compra](/compras/facturas), apretá **+ Nueva factura**.
 2. Completá la cabecera: **Proveedor** (obligatorio), **Letra**, si **Es nota de crédito**, **Punto de venta**, **Número**, **Fecha** (obligatoria; de entrada, hoy), **Vencimiento**, **Moneda** y, si es en dólares, **Cotización**.
-3. Si es mercadería: elegí **Depósito donde entra** o, si la mercadería ya entró por una recepción del depósito, **O la recepción por la que ya entró**. Si es un gasto o servicio, elegí la **Cuenta de gasto (si no es mercadería)**.
+3. Si es mercadería: elegí **Depósito donde entra** o, si la mercadería ya entró por una recepción del depósito, **O la recepción por la que ya entró**. Si es un gasto o servicio, elegí la **Cuenta de gasto (si no es mercadería)**; si el proveedor ya tiene una recordada, viene elegida.
 4. Apretá **Crear y cargar las líneas**. Te lleva al detalle con "Factura creada: cargale las líneas.".
 5. En **Agregar línea**:
    - para mercadería: escribí SKU, código de barras o título, apretá **Buscar**, elegí el **Producto**, poné **Cantidad**, **Costo unit. neto** (sin IVA) y el **IVA**, y **Agregar**;
@@ -135,7 +160,7 @@ Errores típicos:
 - "Ese comprobante de ese proveedor ya está cargado (factura #N).": mismo proveedor, letra, tipo, punto de venta y número que otra que no está anulada.
 - "El punto de venta y el número no pueden ser negativos." / "Las percepciones e impuestos no pueden ser negativos.".
 - En las líneas: "Poné una cantidad mayor a cero.", "Poné el costo unitario (neto, sin IVA).", "Elegí la alícuota de IVA.", "Una línea sin producto necesita una descripción.".
-- Al registrar: "La factura tiene total cero: cargale líneas o importes.", "Falta la cotización del dólar de la factura.", "No hay tipo de cambio para el dd/mm/aaaa." (factura en pesos y no hay cotización cargada en [Tipo de cambio](/config/tipo-cambio) para esa fecha o antes), "Elegí a qué depósito entra la mercadería (o vinculá la recepción por la que ya entró).", "El depósito elegido no tiene ubicación general, así que la mercadería no tiene dónde entrar: elegí otro depósito.", "Las cantidades de mercadería tienen que ser enteras.".
+- Al registrar: "Elegí la cuenta de gasto de la factura (queda recordada en el proveedor)." (un gasto sin cuenta; no pasa con la letra E), "La factura tiene total cero: cargale líneas o importes.", "Falta la cotización del dólar de la factura.", "No hay tipo de cambio para el dd/mm/aaaa." (factura en pesos y no hay cotización cargada en [Tipo de cambio](/config/tipo-cambio) para esa fecha o antes), "Elegí a qué depósito entra la mercadería (o vinculá la recepción por la que ya entró).", "El depósito elegido no tiene ubicación general, así que la mercadería no tiene dónde entrar: elegí otro depósito.", "Las cantidades de mercadería tienen que ser enteras.".
 - "La factura ya está registrada: no se cambia.": se intentó modificar una registrada.
 
 ### Cargar una nota de crédito de un proveedor
@@ -166,12 +191,17 @@ Sólo para facturas **sin mercadería** (gastos, servicios, la del proveedor del
 ### Borrar un borrador
 Tacho de arriba a la derecha → "¿Borrar el borrador?" → **Sí**. Sólo se pueden borrar borradores.
 
-### Qué hacer con una "Cargada a mano distinta" de la importación
-Es un comprobante que ya estaba cargado a mano con el mismo número pero:
-- sigue en **borrador** ("Está cargada a mano y sigue en borrador: registrala o borrala."), o
-- tiene **otro total** u otra moneda ("Está cargada con otro total (…): revisala.").
+### Qué hacer con una "Diferencia" de la importación de ARCA
+Es un comprobante que ya estaba cargado con el mismo número pero no coincide con lo que dice ARCA. El motivo lo dice:
+- sigue en **borrador** ("Está cargada y sigue en borrador: registrala o borrala."),
+- tiene **otro total** (diferencia de más de $ 1) u **otra moneda**, o
+- tiene **otra fecha**.
 
-La importación no la toca. Abrí la factura (el comprobante de la vista previa es un enlace), corregila o borrala si era un borrador, y volvé a subir el archivo: la que borraste entra como nueva.
+La importación no la toca. Abrí la factura (el comprobante de la vista previa es un enlace), corregila (si está registrada, con **Volver a borrador**) y volvé a subir el archivo de ARCA: si ahora coincide, queda validada.
+
+### Validación con ARCA
+- **Validada con ARCA (✓✓)**: una factura cargada con su comprobante (subida o a mano) que la importación de Mis Comprobantes encontró igual: mismo proveedor, tipo, punto de venta y número, mismo total (con hasta $ 1 de diferencia), misma moneda y misma fecha, y registrada. Se marca al apretar el botón de importar/validar, con la fecha de ese día.
+- Las que entraron desde ARCA (no se tenía el comprobante) dicen "De ARCA": no se validan contra sí mismas.
 
 ## Criterios y reglas
 
@@ -203,7 +233,7 @@ La importación no la toca. Abrí la factura (el comprobante de la vista previa 
 
 ### Asiento contable
 No se hace a mano: lo genera el sistema solo (las tareas periódicas, enseguida de importar de ARCA, o el botón de [Contabilidad](/administracion/contabilidad)). Para cada factura registrada, en pesos:
-- **Debe**: Mercaderías (el neto de las líneas con producto); la cuenta de gasto elegida (el neto de las líneas libres + no gravado; si no se eligió cuenta, "Gastos varios", o "Importaciones en curso" si la letra es E); IVA crédito fiscal (el IVA); Percepciones de IVA; Percepciones de IIBB; Impuestos (otros impuestos).
+- **Debe**: Mercaderías (el neto de las líneas con producto); la cuenta de gasto elegida (el neto de las líneas libres + no gravado; la del exterior, letra E, sin cuenta elegida va a "Importaciones en curso"); IVA crédito fiscal (el IVA); Percepciones de IVA; Percepciones de IIBB; Impuestos (otros impuestos).
 - **Haber**: Proveedores (el total en pesos).
 - Las notas de crédito, al revés.
 
@@ -253,7 +283,7 @@ Cada comprobante se compara con las facturas no anuladas del mismo CUIT, letra, 
 Por eso **subir dos veces el mismo mes no duplica**: lo que ya entró aparece como "Ya cargada".
 
 ### Cuenta de gasto en la importación
-- Se propone la cuenta recordada en el proveedor; si no tiene, **Gastos varios**; si el proveedor es Mercado Libre / Mercado Pago (por su CUIT o porque el nombre dice Mercado Libre o Mercado Pago), **Comisiones de canales**.
+- Se propone la cuenta recordada en el proveedor; si no tiene ninguna, **no se propone ninguna**: hay que elegirla para importar sus comprobantes nuevos (no se manda nada a una cuenta cualquiera). Si el proveedor es Mercado Libre / Mercado Pago (por su CUIT o porque el nombre dice Mercado Libre o Mercado Pago), **Comisiones de canales**.
 - La cuenta elegida queda **recordada en el proveedor** para la próxima importación (también en los proveedores existentes que no tenían nada nuevo).
 - **Código sugerido para una cuenta nueva** ("+ Nueva cuenta"): como las facturas de compra casi siempre son gastos, es el próximo código libre de egreso: el de la cuenta imputable de egreso con el código más alto, más uno en la última parte y con sus ceros (después de 5.2.05, 5.2.06; después de 5.2.09, 5.2.10). Si ese código ya está usado, sigue con el próximo. Si cambiaste el código, tiene que ir con números separados por puntos y no existir. La cuenta cuelga de la madre que le corresponde por el código (el código más cercano que existe acortándolo de a una parte). El detalle, en [Contabilidad](/administracion/contabilidad).
 - Crear una cuenta desde la vista previa **no importa nada** y no borra lo elegido en los desplegables: vuelve a la misma vista previa con todo como estaba, más la cuenta nueva.

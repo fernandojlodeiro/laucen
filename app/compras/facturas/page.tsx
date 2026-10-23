@@ -3,6 +3,8 @@
 // estado. Cada una se arma en borrador y se registra desde su detalle.
 
 import Link from "next/link";
+import ElegirDeLista from "@/app/componentes/ElegirDeLista";
+import SubirFactura from "./SubirFactura";
 import { consulta } from "@/lib/erp/base";
 import { PRIMARIO, SUAVE } from "@/app/botones";
 import { entrarErp, Pantalla, Avisos, CAMPO, ETIQUETA } from "@/app/componentes/erp";
@@ -16,6 +18,8 @@ import { accionSubirArca } from "./arca/acciones";
 import { LISTA_FACTURAS_COMPRA, filtrosFacturasCompra } from "./lista";
 
 export const dynamic = "force-dynamic";
+// «Subir factura» la lee con la IA: la acción corre con el tiempo de esta página.
+export const maxDuration = 300;
 
 const IMPORTAR = "Importar de ARCA (Mis Comprobantes)";
 
@@ -26,7 +30,7 @@ export default async function FacturasCompra({ searchParams }: { searchParams: P
   const sp = await searchParams;
   const { proveedor: proveedorId, estado } = filtrosFacturasCompra(sp);
   const [proveedores, vista] = await Promise.all([
-    consulta<{ id: number; nombre: string }>("select id::int, nombre from proveedor where organizacion_id = $1 order by estado, nombre", [s.org.id]),
+    consulta<{ id: number; nombre: string; cuit: string | null }>("select id::int, nombre, cuit from proveedor where organizacion_id = $1 order by estado, nombre", [s.org.id]),
     paginaDeVista(LISTA_FACTURAS_COMPRA, { org: s.org.id, moneda: s.moneda }, sp),
   ]);
   const rs = await elegirRazonSocial(s.org.id, sp.rs);
@@ -34,7 +38,7 @@ export default async function FacturasCompra({ searchParams }: { searchParams: P
 
   return (
     <Pantalla titulo="Facturas de compra" subtitulo="Lo que te facturan los proveedores: mercadería, servicios, el proveedor del exterior y el despachante"
-      acciones={<><AccionesExcel lista={LISTA_FACTURAS_COMPRA} org={s.org.id} vista={vista.activa?.id} /><BotonNuevo texto={IMPORTAR} /><Link href="/compras/facturas/nueva" className={PRIMARIO}>+ Nueva factura</Link></>}>
+      acciones={<><AccionesExcel lista={LISTA_FACTURAS_COMPRA} org={s.org.id} vista={vista.activa?.id} /><SubirFactura organizacionId={s.org.id} /><BotonNuevo texto={IMPORTAR} /><Link href="/compras/facturas/nueva" className={PRIMARIO}>+ Nueva factura</Link></>}>
       <Avisos sp={sp} />
       <AltaNueva texto={IMPORTAR} sinBoton>
         <form action={accionSubirArca} className="flex flex-wrap items-end gap-3">
@@ -54,10 +58,9 @@ export default async function FacturasCompra({ searchParams }: { searchParams: P
         {rs.multi && rs.id && <input type="hidden" name="rs" value={rs.id} />}
         {rs.multi && <SelectorRazonSocial razones={rs.razones.map((x) => ({ id: x.id, nombre: nombreRs(x) }))} valor={rs.id} />}
         <label><span className={ETIQUETA}>Proveedor</span>
-          <select name="proveedor" defaultValue={proveedorId || ""} className={CAMPO}>
-            <option value="">Todos</option>
-            {proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-          </select></label>
+          {/* Buscador, nunca un desplegable largo (Fer, 23/10): al elegir filtra solo. */}
+          <ElegirDeLista name="proveedor" parametro="proveedor" limpiar={["p"]} valor={proveedorId || null} vacio="Todos los proveedores" etiqueta="Proveedor"
+            opciones={proveedores.map((p) => ({ id: p.id, texto: p.nombre, detalle: p.cuit ?? undefined }))} className="w-72" /></label>
         <label><span className={ETIQUETA}>Estado</span>
           <select name="estado" defaultValue={estado} className={CAMPO}>
             <option value="">Todos</option>

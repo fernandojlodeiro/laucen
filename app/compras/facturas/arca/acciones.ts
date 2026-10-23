@@ -93,7 +93,8 @@ export async function accionImportarArca(fd: FormData) {
     const r = await importarLote(s.org.id, lote, cuentas, s.usuario.id);
     revalidatePath(LISTA);
     const partes = [`${r.cargadas} cargada${r.cargadas === 1 ? "" : "s"}`, `${r.yaEstaban} ya estaba${r.yaEstaban === 1 ? "" : "n"}`];
-    if (r.distintas) partes.push(`${r.distintas} cargada${r.distintas === 1 ? "" : "s"} a mano distinta${r.distintas === 1 ? "" : "s"} (no se tocaron)`);
+    if (r.validadas) partes.push(`${r.validadas} validada${r.validadas === 1 ? "" : "s"} con ARCA`);
+    if (r.distintas) partes.push(`${r.distintas} con diferencias (mirá la pestaña «Diferencias»)`);
     if (r.errores.length) partes.push(`${r.errores.length} con error`);
     return `Listo: ${partes.join(", ")}.`;
   });
