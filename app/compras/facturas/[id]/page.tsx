@@ -21,7 +21,7 @@ import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
 import { CamposCabecera, opcionesCabecera } from "../Cabecera";
 import type { DiferenciaRecepcion } from "@/lib/administracion/diferencias";
 import {
-  accionGuardarCabecera, accionAgregarLinea, accionGuardarLinea, accionBorrarLinea, accionBorrarFactura, accionRegistrarFactura,
+  accionGuardarCabecera, accionAgregarLinea, accionGuardarLinea, accionBorrarLinea, accionBorrarFactura, accionRegistrarFactura, accionVolverABorrador,
 } from "../acciones";
 
 export const dynamic = "force-dynamic";
@@ -71,6 +71,7 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
        where v.organizacion_id = $1 and v.id = any($2::bigint[])`, [s.org.id, difs.map((d) => d.variacion_id)]) : [],
   ]);
   const prod = new Map(prodDif.map((p) => [p.id, p]));
+  const conProducto = lineas.some((l) => l.variacion_id != null);
   const totalDif = Math.round(difs.reduce((t, d) => t + d.importe, 0) * 100) / 100;
   const editar = borrador ? Number(sp.editar) || 0 : 0;
   const aqui = (extra: Record<string, string | number | null> = {}) => url(`/compras/facturas/${fid}`, { q: q || null, ...extra });
@@ -98,7 +99,18 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
             pregunta="¿Registrar? Ingresa el stock, actualiza el costo y deja la deuda al proveedor. Después no se puede cambiar." corriendo="Registrando…" />
           <TachoConfirmar accion={accionBorrarFactura} campos={{ id: String(fid) }} pregunta="¿Borrar el borrador?" />
         </>
-      ) : <Link href={`/administracion/cuentas-corrientes?tercero=proveedor&id=${f.proveedor_id}`} className={SUAVE}>Estado de cuenta del proveedor</Link>}>
+      ) : (
+        <>
+          {f.estado === "registrada" && (conProducto ? (
+            <span className="text-[11px] text-[#5C6B76] self-center max-w-xs text-right">Tiene mercadería: no vuelve a borrador (se corrige con una nota de crédito o de débito).</span>
+          ) : (
+            <BotonConfirmar accion={accionVolverABorrador} campos={{ id: String(fid) }} clase={SUAVE} texto="Volver a borrador"
+              pregunta="¿Volver a borrador? Sale de la cuenta corriente del proveedor (si tenía pagos imputados, quedan sin imputar) y se anulan sus asientos. Después la corregís y la registrás de nuevo."
+              corriendo="Volviendo…" />
+          ))}
+          <Link href={`/administracion/cuentas-corrientes?tercero=proveedor&id=${f.proveedor_id}`} className={SUAVE}>Estado de cuenta del proveedor</Link>
+        </>
+      )}>
       <Avisos sp={sp} />
 
       {borrador && opciones ? (

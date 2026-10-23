@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, numero, entero, id, tildado } from "@/lib/erp/acciones";
-import { recalcularFactura, agregarLineaFactura, registrarFactura } from "@/lib/administracion/compras";
+import { recalcularFactura, agregarLineaFactura, registrarFactura, volverABorrador } from "@/lib/administracion/compras";
 import { deLaOrg, tituloVariacion, LETRAS, ALICUOTAS } from "../comun";
 
 const LISTA = "/compras/facturas";
@@ -169,5 +169,17 @@ export async function accionRegistrarFactura(fd: FormData) {
     revalidatePath(LISTA);
     revalidatePath(detalle(fid));
     return "Factura registrada: entró el stock, se actualizó el costo y quedó la deuda en la cuenta corriente.";
+  });
+}
+
+/** «Volver a borrador» (Fer, 23/10): deshace el registro (cuenta corriente y asientos) para corregirla. */
+export async function accionVolverABorrador(fd: FormData) {
+  const s = await entrarErp("compras_ver");
+  const fid = id(fd);
+  await intentar(detalle(fid), async () => {
+    await volverABorrador(s.org.id, fid);
+    revalidatePath(LISTA);
+    revalidatePath(detalle(fid));
+    return "Volvió a borrador: se sacó de la cuenta corriente y se anularon sus asientos. Corregila y registrala de nuevo.";
   });
 }

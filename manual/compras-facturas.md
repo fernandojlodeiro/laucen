@@ -58,7 +58,7 @@ Título: "Factura de compra", "Nota de crédito de compra" o "Nota de débito de
 - Caja **Agregar línea**: un buscador "Buscar producto por SKU, código o título" (busca en todos los datos de la variación y de su producto) con **Mostrar inactivos** y **Buscar**; después el desplegable **Producto** ("— Línea libre (sin producto: no mueve stock) —" o los productos encontrados, hasta 30), **Descripción (si es libre)**, **Cantidad** (de entrada 1), **Costo unit. neto ($ o US$)**, **IVA** y **Agregar**.
 - **IVA por alícuota** (neto gravado e IVA de cada alícuota) y la caja de totales: Neto, IVA, percepciones, otros impuestos, no gravado (si tienen importe), **Total** y, si es en dólares, **En pesos**.
 
-**Registrada (o anulada):** todo en sólo lectura: Estado (con fecha y hora de registro), Proveedor (enlace a su cuenta corriente), Fecha y vencimiento, Moneda y cotización, Depósito (o "Recepción #N" con enlace), Cuenta de gasto ("Mercadería" si no tiene), Notas, las líneas y los totales. Arriba a la derecha, **Estado de cuenta del proveedor**.
+**Registrada (o anulada):** todo en sólo lectura: Estado (con fecha y hora de registro), Proveedor (enlace a su cuenta corriente), Fecha y vencimiento, Moneda y cotización, Depósito (o "Recepción #N" con enlace), Cuenta de gasto ("Mercadería" si no tiene), Notas, las líneas y los totales. Arriba a la derecha, **Estado de cuenta del proveedor** y, en una registrada sin mercadería, **Volver a borrador** (ver "Corregir una factura registrada"); si tiene mercadería, en su lugar dice que se corrige con una nota de crédito o de débito.
 
 Si la factura está vinculada a una recepción y lo recibido no dio igual a lo facturado, aparece además la tabla **Diferencia con la recepción (N)** (N = productos con diferencia): **Producto** (SKU con enlace a su ficha, su foto si tiene, y el título), **Facturado**, **Recibido**, **Diferencia** ("faltan 2" o "sobran 2"), **Costo unit. ($)** e **Importe ($)**, y al pie **Egreso por diferencias** (o **Recupero por diferencias** si sobró más de lo que faltó) con el total.
 
@@ -154,6 +154,14 @@ Cargala a mano **sin productos** (líneas libres). La del exterior va con letra 
 
 ### Corregir un borrador
 Cambiá la cabecera y apretá **Grabar cabecera**; las líneas se editan con el lápiz de cada fila (**Guardar**) o se borran con el tacho. Cada cambio recalcula los totales.
+
+### Corregir una factura registrada
+
+1. En el detalle de la factura, arriba a la derecha, apretá **Volver a borrador** y confirmá con **Sí**.
+2. La factura sale de la cuenta corriente del proveedor (si tenía pagos o notas de crédito imputados, quedan sin imputar) y se anulan sus asientos. Vuelve a estar en **Borrador**.
+3. Corregí lo que haga falta (letra, número, fecha, cuenta de gasto, líneas…) y apretá **Registrar**: vuelve a la cuenta corriente, se imputa sola contra lo que haya pendiente y se hace su asiento nuevo.
+
+Sólo para facturas **sin mercadería** (gastos, servicios, la del proveedor del exterior, la del despachante): una con productos movió stock y costo al registrarse, y eso no se deshace; se corrige con una nota de crédito o de débito.
 
 ### Borrar un borrador
 Tacho de arriba a la derecha → "¿Borrar el borrador?" → **Sí**. Sólo se pueden borrar borradores.
