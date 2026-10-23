@@ -11,8 +11,8 @@
 //   cmv                         CMV · Mercaderías (al costo promedio, por comprobante de venta)
 //   cobro_pedido                Mercado Pago de la cuenta de ML o de la tienda (o Cobros de canales) + Comisiones · Deudores (pedido pagado y facturado, cliente sin cuenta corriente);
 //                               si va a una cuenta de fondos, deja también su movimiento ahí (lib/administracion/cobros-fondos.ts)
-//   compra                      Mercaderías / gasto + IVA crédito + percepciones · Proveedores (factura de compra registrada)
-//   despacho                    Mercaderías + crédito fiscal · Importaciones en curso
+//   compra                      Mercaderías / gasto + IVA crédito + percepciones (las de IIBB, cada una a la cuenta de su provincia) · Proveedores (factura de compra registrada)
+//   despacho                    Mercaderías + crédito fiscal (la percepción de IIBB, repartida por coeficiente entre las provincias) · Importaciones en curso
 //   cobro / pago                Fondos + retenciones · Deudores / Proveedores · Fondos + retenciones a depositar (recibos)
 //   movimiento                  Fondos · contrapartida elegida (movimientos sueltos)
 //   transferencia               Fondos destino · Fondos origen
@@ -30,6 +30,8 @@
 // generales (Ventas, Cobros de canales a liquidar).
 
 import type { PoolClient } from "pg";
+import { asegurarCuentasIibb, rolIibb } from "@/lib/impuestos/cuentas";
+import { nombreJurisdiccion, provinciasDePercepcion, SEDE_POR_DEFECTO } from "@/lib/impuestos/jurisdicciones";
 import type { Moneda } from "@/lib/moneda";
 import { consulta, una, una as unaBase, enTransaccion, ErrorErp, type Consultor } from "@/lib/erp/base";
 import { codigoValido, proximoCodigo, proximoCodigoBajo, madreDe, TIPOS_CUENTA, type TipoCuenta } from "@/lib/administracion/plan-codigos";
@@ -299,6 +301,7 @@ const cuentaFondos = (rol: Record<string, number>, tipo: string, propia: string 
 /** Genera los asientos que falten. Corta al pasar `hasta` (ms) para no pasarse del tiempo de la función. */
 export async function contabilizarPendientes(org: string, hasta = Date.now() + 60_000) {
   await asegurarPlan(org);
+  await asegurarCuentasIibb(org).catch(() => 0);
   await asegurarCuentasDeCanalesSinFallar(org);
   const hechos: Record<string, number> = {};
   const errores: string[] = [];
@@ -382,8 +385,9 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
   // Facturas de compra.
   const fcs = await consulta<{ id: number; fecha: string; letra: string; es_nota_credito: boolean; es_nota_debito: boolean; cotizacion: string; moneda: string; iva: string; percepcion_iva: string;
     percepcion_iibb: string; otros_impuestos: string; no_gravado: string; total_ars: string; cuenta_gasto_id: number | null; punto_venta: number | null; numero: string | null;
-    proveedor: string; neto_merc: string; neto_otro: string; emisor_id: number | null }>(`
-    select f.id::int, f.emisor_id::int emisor_id, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.letra, f.es_nota_credito, f.es_nota_debito, f.cotizacion, f.moneda, f.iva, f.percepcion_iva, f.percepcion_iibb,
+    proveedor: string; neto_merc: string; neto_otro: string; emisor_id: number | null; iibb_detalle: { jur: number; importe: number }[] | null; jur_proveedor: number | null; sede: number | null }>(`
+    select f.id::int, f.emisor_id::int emisor_id, f.percepcion_iibb_detalle iibb_detalle, pr.iibb_jurisdiccion jur_proveedor,
+           (select e.iibb_sede from emisor e where e.id = f.emisor_id) sede, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.letra, f.es_nota_credito, f.es_nota_debito, f.cotizacion, f.moneda, f.iva, f.percepcion_iva, f.percepcion_iibb,
            f.otros_impuestos, f.no_gravado, f.total_ars, f.cuenta_gasto_id::int, f.punto_venta, f.numero, pr.nombre proveedor,
            coalesce((select sum(neto) from factura_compra_linea l where l.factura_id = f.id and l.variacion_id is not null), 0) neto_merc,
            coalesce((select sum(neto) from factura_compra_linea l where l.factura_id = f.id and l.variacion_id is null), 0) neto_otro
@@ -400,7 +404,9 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
         { cuentaId: destinoOtro, debe: s * (Number(f.neto_otro) + Number(f.no_gravado)) * k },
         { cuentaId: rol.iva_credito, debe: s * Number(f.iva) * k },
         { cuentaId: rol.percepcion_iva, debe: s * Number(f.percepcion_iva) * k },
-        { cuentaId: rol.percepcion_iibb, debe: s * Number(f.percepcion_iibb) * k },
+        // Cada percepción de IIBB a la cuenta de su provincia (lib/impuestos/cuentas.ts), o a la general.
+        ...provinciasDePercepcion(Number(f.percepcion_iibb), f.iibb_detalle, f.jur_proveedor, f.sede ?? SEDE_POR_DEFECTO)
+          .map((x) => ({ cuentaId: rol[rolIibb(x.jur)] ?? rol.percepcion_iibb, debe: s * x.importe * k, detalle: `IIBB ${nombreJurisdiccion(x.jur)}` })),
         { cuentaId: rol.impuestos, debe: s * Number(f.otros_impuestos) * k },
         { cuentaId: rol.proveedores, haber: s * total },
       ] });
@@ -413,6 +419,9 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
     select d.id::int, d.emisor_id::int emisor_id, to_char(d.fecha, 'YYYY-MM-DD') fecha, d.numero, d.impuestos,
            coalesce((select sum(l.cantidad * l.costo_unit_ars) from despacho_linea l where l.despacho_id = d.id), 0) costo
       from despacho_importacion d where d.organizacion_id = $1 and d.estado = 'registrado' and ${sinAsiento("despacho", "d")} order by d.fecha, d.id limit 200`, [org]);
+  // La percepción aduanera de IIBB se reparte entre las provincias por el coeficiente unificado de la razón social.
+  const coefs = desp.length ? await consulta<{ emisor_id: number; codigo: number; coeficiente: number }>(
+    "select emisor_id::int, codigo, coeficiente::float from iibb_jurisdiccion where organizacion_id = $1 and coeficiente > 0", [org]) : [];
   await correr("despacho", desp, async (c, rol, d) => {
     const lineas: Linea[] = [{ cuentaId: rol.mercaderias, debe: Number(d.costo) }];
     let tot = Number(d.costo);
@@ -421,7 +430,16 @@ export async function contabilizarPendientes(org: string, hasta = Date.now() + 6
       const n = (i.concepto ?? "").toLowerCase();
       const cta = /adicional|percep.*iva/.test(n) ? rol.percepcion_iva : /iva/.test(n) ? rol.iva_credito : /ganancia/.test(n) ? rol.retenciones_sufridas
         : /iibb|brutos/.test(n) ? rol.percepcion_iibb : rol.impuestos;
-      lineas.push({ cuentaId: cta, debe: imp, detalle: i.concepto });
+      const js = cta === rol.percepcion_iibb ? coefs.filter((x) => x.emisor_id === d.emisor_id && rol[rolIibb(x.codigo)]) : [];
+      const suma = js.reduce((t, x) => t + x.coeficiente, 0);
+      if (js.length && suma > 0) {
+        let resto = r2(imp);
+        js.forEach((x, k) => {
+          const v = k === js.length - 1 ? resto : r2(imp * x.coeficiente / suma);
+          resto = r2(resto - v);
+          lineas.push({ cuentaId: rol[rolIibb(x.codigo)], debe: v, detalle: `${i.concepto} · ${nombreJurisdiccion(x.codigo)}` });
+        });
+      } else lineas.push({ cuentaId: cta, debe: imp, detalle: i.concepto });
       tot += imp;
     }
     lineas.push({ cuentaId: rol.importaciones_en_curso, haber: tot });

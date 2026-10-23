@@ -29,6 +29,10 @@ export type Efecto = {
   publicacion?: { id: number; estado?: "activa" | "pausada" | "cerrada"; pausada_por_stock?: boolean; pausada_manual?: boolean; cantidad_publicada?: number; precio_canal?: number };
   /** Una acción sobre un reclamo (lib/mercadolibre/reclamos.ts): queda en su historia. */
   reclamo?: { id: number; descripcion: string };
+  /** Un alta: la publicación creada (y las de catálogo que salgan con ella) se vincula a esta variación en el momento,
+   *  así Laucen le maneja el stock aunque no tenga SKU en ML (23/10: altas agrupadas de madres sin SKU quedaron sueltas,
+   *  activas con 1 unidad, y se vendieron sin stock). */
+  vincular?: { variacionId: number };
 };
 
 export type CambioMl = {
@@ -485,9 +489,24 @@ export async function procesarCola(hastaMs: number, opts: { enviar?: Enviar; sub
             if (cortado) fallos.push(errorLegible(status, datos));
             if (fallos.length) notaCreada = `Se creó ${[creada, ...otras].join(", ")}, pero falló: ${[...new Set(fallos)].join(" · ")}`;
             status = 200; datos = { id: creada, ...(otras.length ? { otras } : {}) };
+            // A qué producto de Laucen va: el que dice el cambio o, si no, el de la publicación de la que se copió.
+            const origen = (fila.payload as { origen?: { canal?: number; item_id?: string } } | null)?.origen;
+            const vincular = fila.efecto?.vincular?.variacionId ?? (origen?.item_id ? Number((await una<{ variacion_id: string }>(
+              "select variacion_id from publicacion where canal_id = $1 and id_externo = $2 order by variacion_externa nulls first limit 1",
+              [origen.canal ?? Number(fila.canal_id), origen.item_id]))?.variacion_id ?? 0) || null : null);
             for (const id of [creada, ...otras]) {
+              if (vincular) {
+                await consulta(`
+                  insert into publicacion (organizacion_id, variacion_id, canal_id, id_externo, variacion_externa, estado)
+                  values ($1, $2, $3, $4, null, 'activa')
+                  on conflict (canal_id, id_externo, coalesce(variacion_externa, '')) where id_externo is not null do nothing`,
+                  [fila.organizacion_id, vincular, Number(fila.canal_id), id]).catch((e) => console.error("[cola ML] vincular", id, e instanceof Error ? e.message : e));
+              }
               try { await (await import("@/lib/mercadolibre/publicaciones")).importarItem(cuenta, id); } catch { /* la barrida la trae */ }
             }
+            // Que el stock de la nueva quede como el de las demás (pausada si no hay).
+            if (vincular) await consulta("insert into stock_cambio_pendiente (organizacion_id, variacion_id) values ($1, $2) on conflict do nothing",
+              [fila.organizacion_id, vincular]).catch(() => {});
           }
           if (status === 429) frenar = 60_000;
           else if (status === 401) frenar = 300_000;

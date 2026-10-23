@@ -64,9 +64,10 @@ export function skusDeItem(it: ItemMl): string[] {
 
 /** Guarda un item en meli_item y, si su SKU coincide con una variación de
  *  Laucen y no estaba vinculado, lo vincula. Devuelve cuántas filas vinculó. */
-export async function guardarItem(cuenta: CuentaMl, it: ItemMl): Promise<number> {
+export async function guardarItem(cuenta: CuentaMl, it: ItemMl, opts: { pausarSueltas?: boolean } = {}): Promise<number> {
   const org = cuenta.organizacionId;
   let vinculadas = 0;
+  const sueltas: string[] = [];
   // Las que se borraron de Laucen a propósito no vuelven (meli_item_descartado).
   if (await una("select 1 from meli_item_descartado where canal_id = $1 and item_id = $2", [cuenta.canalId, it.id])) return 0;
   // Eliminada en ML (sub_status "deleted"): ML la sigue devolviendo y avisando, pero ya no existe para nadie.
@@ -94,8 +95,21 @@ export async function guardarItem(cuenta: CuentaMl, it: ItemMl): Promise<number>
       const v = await variacionPorSku(org, f.sku);
       if (v) { pubId = await vincular(cuenta, it.id, f.variation_id, v); vinculadas++; }
     }
+    if (!pubId && !f.variation_id && it.user_product_id) {
+      // Sin SKU: por su producto de ML, si otra publicación de la cuenta en el mismo producto ya está vinculada
+      // (un plan de cuotas, la de catálogo, una copia agrupada).
+      const h = await una<{ variacion_id: string }>(`
+        select p.variacion_id from meli_item m join publicacion p on p.canal_id = m.canal_id and p.id_externo = m.item_id and p.variacion_externa is null
+         where m.canal_id = $1 and m.item_id <> $2 and m.variation_id = '' and m.datos_externos -> 'ml' ->> 'user_product_id' = $3 limit 1`,
+        [cuenta.canalId, it.id, it.user_product_id]);
+      if (h) { pubId = await vincular(cuenta, it.id, "", Number(h.variacion_id)); vinculadas++; }
+    }
     if (pubId) await refrescarPublicacion(cuenta, pubId, it, f);
+    else if (it.status === "active") sueltas.push(f.variation_id);
   }
+  // Regla de Fer (23/10): JAMÁS una publicación activa sin producto de Laucen. Sin producto, Laucen no le maneja el stock
+  // y se vende lo que no hay (pasó con copias agrupadas sin SKU). La que no se pudo vincular se pausa en el momento.
+  if (sueltas.length && opts.pausarSueltas !== false) await pausarSuelta(cuenta, it);
   return vinculadas;
 }
 
@@ -112,6 +126,17 @@ export async function olvidarEliminada(cuenta: CuentaMl, it: Pick<ItemMl, "id" |
   });
 }
 export const MOTIVO_ELIMINADA = "eliminada en ML";
+
+/** Pausa ya (al frente de la cola) una publicación activa que no está vinculada a ningún producto de Laucen. */
+async function pausarSuelta(cuenta: CuentaMl, it: Pick<ItemMl, "id" | "title">): Promise<void> {
+  if (cuenta.canalId == null) return;
+  const { encolar, arrancarCola, PRIORIDAD } = await import("@/lib/mercadolibre/cola");
+  await encolar(cuenta.organizacionId, [{
+    canalId: cuenta.canalId, itemId: it.id, tipo: "estado", prioridad: PRIORIDAD.pausa, antes: { estado: "active" },
+    payload: { estado: "paused", descripcion: `Pausar ${it.id} (${it.title ?? ""}): está activa y no está vinculada a ningún producto de Laucen, así que nadie le maneja el stock. Se vincula en la ficha del producto (o se carga su SKU en ML).` },
+  }], { origen: "automatico" });
+  arrancarCola();
+}
 
 async function refrescarPublicacion(cuenta: CuentaMl, pubId: number, it: ItemMl, f: ReturnType<typeof filasDeItem>[number]) {
   const estado = it.status === "active" ? "activa" : it.status === "paused" ? "pausada" : "cerrada";

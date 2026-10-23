@@ -7,9 +7,11 @@
 
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
-import { consulta, una, ErrorErp } from "@/lib/erp/base";
+import { consulta, una, ErrorErp, motivoErp } from "@/lib/erp/base";
+import { supabaseServer } from "@/lib/supabase";
+import { leerDespachoPdf, aDespacho, type LecturaDespacho } from "@/lib/compras/despacho-leer";
 import { intentar, texto, numero, entero, id } from "@/lib/erp/acciones";
-import { registrarDespacho } from "@/lib/administracion/compras";
+import { registrarDespacho, despachoABorrador } from "@/lib/administracion/compras";
 import { deLaOrg, tituloVariacion } from "../comun";
 
 const LISTA = "/compras/despachos";
@@ -212,5 +214,147 @@ export async function accionRegistrarDespacho(fd: FormData) {
     revalidatePath(LISTA);
     revalidatePath(detalle(did));
     return "Despacho registrado: entró el stock y quedó el costo puesto en depósito de cada producto.";
+  });
+}
+
+/** «Volver a borrador» (Fer, 23/10): anula su asiento para corregirlo (o borrarlo) y registrarlo de nuevo. */
+export async function accionDespachoABorrador(fd: FormData) {
+  const s = await entrarErp("despachos_ver");
+  const did = id(fd);
+  await intentar(detalle(did), async () => {
+    await despachoABorrador(s.org.id, did);
+    revalidatePath(LISTA);
+    revalidatePath(detalle(did));
+    return "Volvió a borrador: se anuló su asiento. Corregilo (o borralo con el tacho) y registralo de nuevo.";
+  });
+}
+
+// ── Leer el PDF del despacho con la IA y la mercadería (Fer, 23/10) ─────────
+
+/** Baja el PDF de Storage (bucket "importaciones") y se lo da a la IA. */
+async function leerPdfSubido(org: string, ruta: string) {
+  if (!ruta?.startsWith(`${org}/`) || ruta.includes("..")) throw new ErrorErp("El archivo no es de esta organización.");
+  const sb = await supabaseServer();
+  const { data, error } = await sb.storage.from("importaciones").download(ruta);
+  if (error || !data) throw new ErrorErp("No se pudo bajar el PDF que subiste. Probá de nuevo.");
+  const r = await leerDespachoPdf(await data.arrayBuffer());
+  if ("error" in r) throw new ErrorErp(r.error);
+  return r.lectura;
+}
+
+/** Carga lo leído en el borrador recién creado: cabecera, razón social (por el CUIT del importador), proveedor (por el nombre del
+ *  vendedor), depósito principal si no tiene, y los gastos e impuestos en pesos. Lo que el borrador ya tenía con otro
+ *  concepto (ej. el despachante) queda. Devuelve el aviso para la pantalla. */
+async function aplicarLectura(org: string, did: number, l: LecturaDespacho, ruta: string): Promise<string> {
+  const d = await borrador(org, did);
+  const x = aDespacho(l);
+  const cuit = String(l.cuit_importador ?? "").replace(/\D/g, "");
+  const emisor = cuit ? await una<{ id: number }>("select id::int from emisor where organizacion_id = $1 and regexp_replace(cuit, '\\D', '', 'g') = $2", [org, cuit]) : null;
+  const prov = l.vendedor ? await una<{ id: number }>(
+    "select id::int from proveedor where organizacion_id = $1 and estado = 'activo' and lower(nombre) = lower($2) order by id limit 1", [org, l.vendedor.trim()]) : null;
+  const juntar = (antes: Item[], nuevos: Item[]) => [...antes.filter((i) => !nuevos.some((n) => n.concepto === i.concepto)), ...nuevos];
+  await consulta(`
+    update despacho_importacion set numero = coalesce($3, numero), fecha = coalesce($4::date, fecha), cotizacion = coalesce($5, cotizacion),
+           flete_usd = coalesce($6, flete_usd), seguro_usd = coalesce($7, seguro_usd), gastos = $8::jsonb, impuestos = $9::jsonb,
+           emisor_id = coalesce($10, emisor_id), proveedor_id = coalesce(proveedor_id, $11), archivo = $12, lectura = $13::jsonb,
+           deposito_id = coalesce(deposito_id, (select id from deposito where organizacion_id = $1 and estado = 'activo' and tipo not in ('full_ml', 'transito') order by id limit 1))
+     where id = $2 and organizacion_id = $1`,
+    [org, did, l.numero?.replace(/\s+/g, "") || null, esFecha(l.fecha) ? l.fecha : null, Number(l.cotizacion) > 0 ? Number(l.cotizacion) : null,
+      l.flete_usd ?? null, l.seguro_usd ?? null, JSON.stringify(juntar(d.gastos, x.gastos)), JSON.stringify(juntar(d.impuestos, x.impuestos)),
+      emisor?.id ?? null, prov?.id ?? null, ruta, JSON.stringify(l)]);
+  const partes = [`Leído: ${x.gastos.length} gasto${x.gastos.length === 1 ? "" : "s"} y ${x.impuestos.length} impuesto${x.impuestos.length === 1 ? "" : "s"}`,
+    l.items.length ? `${l.items.length} renglón${l.items.length === 1 ? "" : "es"} de mercadería` : null].filter(Boolean).join(", ");
+  return `${partes}. Revisalo antes de registrar.${x.avisos.length ? " Ojo: " + x.avisos.join(" ") : ""}`;
+}
+
+/** «Subir despacho (PDF)» desde la lista (Fer, 23/10): crea el despacho de cero con lo que lee la IA. */
+export async function accionCrearDespachoDesdePdf(a: { ruta: string; archivo: string }): Promise<{ id: number; ok: string } | { motivo: string }> {
+  const s = await entrarErp("despachos_ver");
+  try {
+    const l = await leerPdfSubido(s.org.id, a.ruta);
+    const numero = l.numero?.replace(/\s+/g, "") || null;
+    if (numero) {
+      const ya = await una<{ id: number }>("select id::int from despacho_importacion where organizacion_id = $1 and numero = $2 and estado <> 'anulado'", [s.org.id, numero]);
+      if (ya) throw new ErrorErp(`El despacho ${numero} ya está cargado (#${ya.id}): abrilo desde la lista.`);
+    }
+    const tc = await una<{ v: string | null }>("select tc_del_dia($1, coalesce($2::date, current_date)) v", [s.org.id, esFecha(l.fecha) ? l.fecha : null]);
+    const cot = Number(l.cotizacion) > 0 ? Number(l.cotizacion) : Number(tc?.v) > 0 ? Number(tc!.v) : null;
+    if (!cot) throw new ErrorErp("No se leyó el dólar del despacho y no hay tipo de cambio cargado: crealo a mano.");
+    const r = await una<{ id: number }>(`insert into despacho_importacion (organizacion_id, fecha, cotizacion, usuario_id) values ($1, coalesce($2::date, current_date), $3, $4) returning id::int`,
+      [s.org.id, esFecha(l.fecha) ? l.fecha : null, cot, s.usuario.id]);
+    const ok = await aplicarLectura(s.org.id, r!.id, l, a.ruta);
+    revalidatePath(LISTA);
+    return { id: r!.id, ok };
+  } catch (e) {
+    return { motivo: motivoErp(e) };
+  }
+}
+
+/** Sin invoices: la mercadería que leyó la IA del despacho pasa a ser las líneas (sin producto: no entran al stock). */
+export async function accionUsarMercaderiaDespacho(fd: FormData) {
+  const s = await entrarErp("despachos_ver");
+  const did = id(fd, "despacho");
+  await intentar(detalle(did), async () => {
+    await borrador(s.org.id, did);
+    const d = await una<{ lectura: LecturaDespacho | null; n: number }>(
+      "select lectura, (select count(*)::int from despacho_linea where despacho_id = $1) n from despacho_importacion where id = $1 and organizacion_id = $2", [did, s.org.id]);
+    const items = (d?.lectura?.items ?? []).filter((i) => Number(i.cantidad) > 0);
+    if (!items.length) throw new ErrorErp("No hay mercadería leída del despacho.");
+    if (d!.n) throw new ErrorErp("El despacho ya tiene líneas: borralas antes de usar la mercadería del despacho.");
+    for (const [k, i] of items.entries()) {
+      await consulta(`insert into despacho_linea (organizacion_id, despacho_id, descripcion, ncm, cantidad, fob_unit_usd, orden) values ($1, $2, $3, $4, $5, $6, $7)`,
+        [s.org.id, did, i.descripcion.slice(0, 300), i.ncm, Math.round(Number(i.cantidad)), Number(i.fob_unit_usd) || 0, k + 1]);
+    }
+    await sincronizarFob(s.org.id, did);
+    revalidatePath(detalle(did));
+    return `Se cargaron ${items.length} líneas del despacho (sin producto: no entran al stock).`;
+  });
+}
+
+/** Asigna un invoice del proveedor al despacho: sus renglones pasan a ser líneas (con su producto, cantidad y precio FOB). */
+export async function accionAsignarInvoice(fd: FormData) {
+  const s = await entrarErp("despachos_ver");
+  const did = id(fd, "despacho");
+  await intentar(detalle(did), async () => {
+    await borrador(s.org.id, did);
+    const iid = id(fd, "invoice");
+    const inv = await una<{ despacho_id: number | null; numero: string | null; archivo: string }>(
+      "select despacho_id::int, numero, archivo from compra_invoice where id = $1 and organizacion_id = $2", [iid, s.org.id]);
+    if (!inv) throw new ErrorErp("Elegí el invoice.");
+    if (inv.despacho_id && inv.despacho_id !== did) throw new ErrorErp(`Ese invoice ya está asignado al despacho #${inv.despacho_id}.`);
+    if (inv.despacho_id === did) throw new ErrorErp("Ese invoice ya está asignado a este despacho.");
+    const ls = await consulta<{ id: number; variacion_id: number | null; sku: string | null; descripcion: string | null; cantidad: string; precio_usd: string | null }>(
+      "select id::int, variacion_id::int, sku, descripcion, cantidad, precio_usd from compra_invoice_linea where invoice_id = $1 and organizacion_id = $2 order by fila, id", [iid, s.org.id]);
+    if (!ls.length) throw new ErrorErp("El invoice no tiene renglones: cargalos en su ficha (Compras › Invoices).");
+    const sinPrecio = ls.filter((l) => l.precio_usd == null).length;
+    if (sinPrecio) throw new ErrorErp(`${sinPrecio} renglón${sinPrecio === 1 ? "" : "es"} del invoice no tiene${sinPrecio === 1 ? "" : "n"} precio: completalo${sinPrecio === 1 ? "" : "s"} en su ficha.`);
+    for (const l of ls) {
+      const cant = Math.round(Number(l.cantidad));
+      if (!(cant > 0)) continue;
+      const desc = [l.sku, l.descripcion].filter(Boolean).join(" · ") || (l.variacion_id ? await tituloVariacion(s.org.id, l.variacion_id) : null) || "Sin descripción";
+      await consulta(`insert into despacho_linea (organizacion_id, despacho_id, variacion_id, descripcion, cantidad, fob_unit_usd, invoice_linea_id, orden)
+                      values ($1, $2, $3, $4, $5, $6, $7, (select coalesce(max(orden), 0) + 1 from despacho_linea where despacho_id = $2))`,
+        [s.org.id, did, l.variacion_id, desc.slice(0, 300), cant, Number(l.precio_usd), l.id]);
+    }
+    await consulta("update compra_invoice set despacho_id = $3 where id = $1 and organizacion_id = $2", [iid, s.org.id, did]);
+    await sincronizarFob(s.org.id, did);
+    revalidatePath(detalle(did));
+    return `Invoice ${inv.numero ?? inv.archivo} asignado: ${ls.length} renglones pasaron a las líneas.`;
+  });
+}
+
+/** Saca un invoice del despacho: se borran las líneas que trajo. */
+export async function accionQuitarInvoice(fd: FormData) {
+  const s = await entrarErp("despachos_ver");
+  const did = id(fd, "despacho");
+  await intentar(detalle(did), async () => {
+    await borrador(s.org.id, did);
+    const iid = id(fd, "invoice");
+    await consulta(`delete from despacho_linea where despacho_id = $2 and organizacion_id = $1
+                      and invoice_linea_id in (select id from compra_invoice_linea where invoice_id = $3)`, [s.org.id, did, iid]);
+    await consulta("update compra_invoice set despacho_id = null where id = $1 and organizacion_id = $2 and despacho_id = $3", [iid, s.org.id, did]);
+    await sincronizarFob(s.org.id, did);
+    revalidatePath(detalle(did));
+    return "Invoice quitado del despacho, con sus líneas.";
   });
 }

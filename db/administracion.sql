@@ -63,6 +63,13 @@ create unique index if not exists factura_compra_numero_tipo on factura_compra (
 -- De dónde vino (null = a mano; 'arca_mc' = "Mis Comprobantes" de ARCA) y su CAE.
 alter table factura_compra add column if not exists origen text;
 alter table factura_compra add column if not exists cae text;
+-- El código de comprobante de ARCA (Fer, 22/10), cuando no sale de la letra: liquidaciones de servicios
+-- públicos (17, 18) y de los bancos (63, 64). Lo usa el Libro IVA; null = el de la letra (factura / NC / ND).
+alter table factura_compra add column if not exists tipo_cbte smallint;
+-- El PDF de la factura, subido desde Laucen (Fer, 23/10; bucket "importaciones"), para verlo o bajarlo.
+alter table factura_compra add column if not exists archivo text;
+-- Cuándo la importación de ARCA (Mis Comprobantes) la encontró igual: validada dos veces (el comprobante y ARCA).
+alter table factura_compra add column if not exists validada_arca_ts timestamptz;
 -- Vinculada a una recepción (3/10): por producto, lo facturado contra lo
 -- recibido y la diferencia valorizada al costo de la factura, como quedó al
 -- registrarla ([{variacion_id, facturado, recibido, diferencia,
@@ -137,6 +144,12 @@ create table if not exists despacho_linea (
 create index if not exists despacho_linea_d on despacho_linea (despacho_id, orden);
 alter table despacho_linea enable row level security;
 select erp_politica_org('despacho_linea');
+-- Leer el PDF del despacho con la IA (Fer, 23/10): el archivo (bucket "importaciones") y lo que leyó.
+alter table despacho_importacion add column if not exists archivo text;
+alter table despacho_importacion add column if not exists lectura jsonb;
+-- La mercadería sale de los invoices del proveedor, asignados al despacho (o a mano, o de lo leído en el despacho).
+alter table despacho_linea add column if not exists invoice_linea_id bigint;
+alter table compra_invoice add column if not exists despacho_id bigint references despacho_importacion(id) on delete set null;
 
 -- ── Cuentas corrientes ────────────────────────────────────
 -- Un renglón por documento que genera deuda o la cancela. `importe` > 0

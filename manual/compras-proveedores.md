@@ -82,7 +82,7 @@ Tocá el número de la columna **Facturas**: abre [Facturas de compra](/compras/
 - **CUIT**: se guarda normalizado (sólo los 11 números) si es válido. En Argentina es obligatorio que tenga 11 dígitos si se carga; vacío está permitido.
 - **País**: se guarda con dos letras en mayúscula (lo que escribas se recorta a dos letras). Vacío = AR.
 - **Moneda habitual**: es informativa (se muestra en la lista); cada factura elige su propia moneda.
-- **Cuenta de gasto recordada**: cuando importás facturas de ARCA y elegís la cuenta de gasto de un proveedor, esa cuenta queda guardada en el proveedor y se propone la próxima vez. No se edita desde esta pantalla: se cambia en la vista previa de la próxima importación.
+- **Cuenta de gasto recordada**: cuando elegís la cuenta de gasto de un proveedor (en una factura suya o en la importación de ARCA), queda guardada en el proveedor y se usa sola en sus próximas facturas. Un proveedor sin cuenta recordada no registra gastos hasta que se la elijas. No se edita desde esta pantalla: se cambia en la cabecera de una factura suya o en la vista previa de la importación.
 - **Proveedores creados por la importación de ARCA**: se crean con el nombre que trae ARCA (como nombre y razón social), el CUIT, la nota "Creado al importar Mis Comprobantes de ARCA" y una condición de IVA deducida por la letra: si factura A o M, Responsable inscripto; si factura C, Monotributo; si factura B, queda sin cargar.
 - **Búsqueda del proveedor por CUIT** (en la importación de ARCA y en la facturación de Mercado Libre): se comparan sólo los dígitos del CUIT. Si hay dos proveedores con el mismo CUIT, se usa el activo (y entre ellos, el más viejo). Por eso conviene que cada proveedor argentino tenga bien cargado su CUIT.
 - **Libro de IVA**: en el Libro IVA Compras sale la razón social del proveedor (si está vacía, el nombre) y su CUIT; si el CUIT no tiene 11 dígitos, el comprobante sale "sin identificar" y aparece un aviso.
@@ -107,7 +107,7 @@ En [Cuentas corrientes](/administracion/cuentas-corrientes), pestaña de proveed
 Poné el país (ej. "CN") y dejá el CUIT vacío o con su identificación local: para países distintos de AR no se exige el formato de 11 dígitos.
 
 **¿Cómo cambio la cuenta contable a la que van las facturas de un proveedor?**
-En la vista previa de la próxima importación de ARCA, en "Cuenta de gasto de cada proveedor". Para una factura cargada a mano, se elige en su campo "Cuenta de gasto (si no es mercadería)".
+En la cabecera de cualquier factura suya en borrador, campo "Cuenta de gasto (si no es mercadería)" (al grabar queda recordada), o en la vista previa de la próxima importación de ARCA, en "Cuenta de gasto de cada proveedor".
 
 **¿Puedo traer los proveedores de Virtual Seller?**
 Sí, desde [Importar datos](/importar), con el archivo "Clientes y proveedores": las filas de tipo "Proveedor" vienen acá.

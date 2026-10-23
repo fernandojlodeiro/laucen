@@ -6,6 +6,8 @@ import { tcDelDia } from "@/lib/moneda";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { emisoresDe } from "@/lib/arca/facturar";
+import ElegirDeLista from "@/app/componentes/ElegirDeLista";
+import { accionCrearProveedorRapido } from "@/app/compras/proveedores/acciones";
 
 export type DatosDespacho = {
   numero: string | null; proveedor_id: number | null; fecha: string; cotizacion: number | null;
@@ -38,12 +40,12 @@ export function CamposDespacho({ d, o }: { d: DatosDespacho; o: Awaited<ReturnTy
       )}
       <label><span className={ETIQUETA}>Nº de despacho</span>
         <input name="numero" defaultValue={d.numero ?? ""} placeholder="26001IC04012345X" className={`${CAMPO} w-full font-mono`} /></label>
-      <label><span className={ETIQUETA}>Proveedor del exterior (opcional)</span>
-        <select name="proveedor" defaultValue={d.proveedor_id ?? ""} className={`${CAMPO} w-full`}>
-          <option value="">—</option>
-          {proveedorFuera && <option value={d.proveedor_id!}>(proveedor archivado)</option>}
-          {o.proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}{p.pais !== "AR" ? ` (${p.pais})` : ""}</option>)}
-        </select></label>
+      {/* Con buscador y «+ Crear» ahí mismo (Fer, 22/10). */}
+      <div><span className={ETIQUETA}>Proveedor del exterior (opcional)</span>
+        <ElegirDeLista name="proveedor" valor={d.proveedor_id} vacio="Sin proveedor" placeholder="Buscá o creá el proveedor…" etiqueta="Proveedor"
+          crear={accionCrearProveedorRapido}
+          opciones={[...(proveedorFuera ? [{ id: d.proveedor_id!, texto: "(proveedor archivado)" }] : []),
+            ...o.proveedores.map((p) => ({ id: p.id, texto: p.nombre, detalle: p.pais !== "AR" ? p.pais : undefined }))]} /></div>
       <label><span className={ETIQUETA}>Fecha</span>
         <input type="date" name="fecha" defaultValue={d.fecha} className={`${CAMPO} w-full`} required /></label>
       <label><span className={ETIQUETA}>Cotización del dólar</span>
@@ -53,7 +55,7 @@ export function CamposDespacho({ d, o }: { d: DatosDespacho; o: Awaited<ReturnTy
       <label><span className={ETIQUETA}>Seguro (US$)</span>
         <CampoNumero name="seguro_usd" valor={d.seguro_usd} tipo="usd" className={`${CAMPO} w-full`} /></label>
       <label><span className={ETIQUETA}>Depósito donde entra</span>
-        <select name="deposito" defaultValue={d.deposito_id ?? ""} className={`${CAMPO} w-full`}>
+        <select name="deposito" defaultValue={d.deposito_id ?? o.depositos[0]?.id ?? ""} className={`${CAMPO} w-full`}>
           <option value="">—</option>
           {o.depositos.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
         </select></label>

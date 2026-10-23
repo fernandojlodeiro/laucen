@@ -27,7 +27,7 @@ export type EstadoCbte = "nueva" | "ya_cargada" | "distinta" | "repetida" | "err
 export const ESTADOS_CBTE: Record<EstadoCbte, { texto: string; tono: "verde" | "gris" | "amarillo" | "rojo" | "azul" }> = {
   nueva: { texto: "Nueva", tono: "azul" },
   ya_cargada: { texto: "Ya cargada", tono: "gris" },
-  distinta: { texto: "Cargada a mano distinta", tono: "amarillo" },
+  distinta: { texto: "Diferencia con lo cargado", tono: "amarillo" },
   repetida: { texto: "Repetida en el archivo", tono: "gris" },
   error: { texto: "Con error", tono: "rojo" },
 };
@@ -44,9 +44,11 @@ export async function guardarLote(org: string, archivo: string, l: LecturaArca, 
 
 export type FilaPrevia = {
   c: CbteArca; estado: EstadoCbte; motivo: string | null; facturaId: number | null; proveedorId: number | null; proveedor: string; aviso: string | null;
+  /** Ya cargada e igual, y ya marcada como validada con ARCA en una importación anterior (o vino de ARCA: no hay comprobante que validar). */
+  validada: boolean;
   armada: ReturnType<typeof armarFactura>;
 };
-export type ProveedorPrevio = { cuit: string; nombre: string; proveedorId: number | null; cuentaId: number; nuevas: number; mercadoLibre: boolean };
+export type ProveedorPrevio = { cuit: string; nombre: string; proveedorId: number | null; cuentaId: number | null; nuevas: number; mercadoLibre: boolean };
 
 const clave = (c: { cuit: string; letra: string; nc: boolean; nd: boolean; puntoVenta: number; numero: number }) =>
   `${c.cuit}|${c.letra}|${c.nc ? 1 : 0}|${c.nd ? 1 : 0}|${c.puntoVenta}|${c.numero}`;
@@ -68,8 +70,9 @@ export async function vistaPrevia(org: string, loteId: number) {
      order by regexp_replace(cuit, '\\D', '', 'g'), (estado = 'activo') desc, id`, [org, cuits]);
   const porCuit = new Map(provs.map((p) => [p.cuit, p]));
   const ya = await consulta<{ id: number; cuit: string; letra: string; es_nota_credito: boolean; es_nota_debito: boolean; punto_venta: number; numero: string;
-    total: string; moneda: string; estado: string }>(`
-    select f.id::int, regexp_replace(p.cuit, '\\D', '', 'g') cuit, f.letra, f.es_nota_credito, f.es_nota_debito, f.punto_venta, f.numero::text, f.total, f.moneda, f.estado
+    total: string; moneda: string; estado: string; fecha: string; validada: boolean }>(`
+    select f.id::int, regexp_replace(p.cuit, '\\D', '', 'g') cuit, f.letra, f.es_nota_credito, f.es_nota_debito, f.punto_venta, f.numero::text, f.total, f.moneda, f.estado,
+           to_char(f.fecha, 'YYYY-MM-DD') fecha, (f.validada_arca_ts is not null or f.origen = 'arca_mc') validada
       from factura_compra f join proveedor p on p.id = f.proveedor_id
      where f.organizacion_id = $1 and f.estado <> 'anulada' and regexp_replace(p.cuit, '\\D', '', 'g') = any($2::text[])
        and f.numero = any($3::bigint[]) and f.emisor_id is not distinct from $4`, [org, cuits, [...new Set(cbtes.map((c) => c.numero))], lote.emisor_id]);
@@ -86,14 +89,19 @@ export async function vistaPrevia(org: string, loteId: number) {
     let estado: EstadoCbte = "nueva", motivo: string | null = null;
     if (vistos.has(k)) { estado = "repetida"; motivo = "El mismo comprobante aparece dos veces en el archivo."; }
     else if (ex) {
-      const igual = ex.estado === "registrada" && ex.moneda === c.moneda && Math.abs(Number(ex.total) - c.total) <= 1;
-      estado = igual ? "ya_cargada" : "distinta";
-      motivo = igual ? null : ex.estado !== "registrada" ? "Está cargada a mano y sigue en borrador: registrala o borrala."
-        : `Está cargada con otro total (${Number(ex.total).toLocaleString("es-AR", { minimumFractionDigits: 2 })} ${ex.moneda === "USD" ? "US$" : "$"}): revisala.`;
+      // Lo cargado contra lo de ARCA (Fer, 23/10): total, moneda y fecha. Igual → ya cargada (se valida al importar).
+      const difs: string[] = [];
+      if (ex.estado !== "registrada") difs.push("está cargada y sigue en borrador: registrala o borrala");
+      if (ex.moneda !== c.moneda) difs.push(`está cargada en ${ex.moneda === "USD" ? "dólares" : "pesos"} y en ARCA en ${c.moneda === "USD" ? "dólares" : "pesos"}`);
+      else if (Math.abs(Number(ex.total) - c.total) > 1) difs.push(`está cargada con otro total (${Number(ex.total).toLocaleString("es-AR", { minimumFractionDigits: 2 })} ${ex.moneda === "USD" ? "US$" : "$"}; en ARCA ${c.total.toLocaleString("es-AR", { minimumFractionDigits: 2 })})`);
+      if (ex.fecha !== c.fecha) difs.push(`está cargada con fecha ${ex.fecha.split("-").reverse().join("/")} y en ARCA es ${c.fecha.split("-").reverse().join("/")}`);
+      estado = difs.length ? "distinta" : "ya_cargada";
+      motivo = difs.length ? `${difs.join("; ").replace(/^./, (x) => x.toUpperCase())}. Corregila.` : null;
     } else if (armada.error) { estado = "error"; motivo = armada.error; }
     else if (c.moneda === "USD" && !(c.cotizacion > 0)) { estado = "error"; motivo = "Está en dólares y no trae el tipo de cambio."; }
     vistos.add(k);
-    return { c, estado, motivo, facturaId: ex?.id ?? null, proveedorId: p?.id ?? null, proveedor: p?.nombre ?? c.denominacion, aviso: armada.aviso, armada };
+    return { c, estado, motivo, facturaId: ex?.id ?? null, proveedorId: p?.id ?? null, proveedor: p?.nombre ?? c.denominacion, aviso: armada.aviso, armada,
+      validada: !!ex?.validada };
   });
   const proveedores: ProveedorPrevio[] = cuits.map((cuit) => {
     const p = porCuit.get(cuit);
@@ -101,14 +109,15 @@ export async function vistaPrevia(org: string, loteId: number) {
     const ml = esMercadoLibre(cuit, p?.nombre ?? c.denominacion);
     return {
       cuit, nombre: p?.nombre ?? c.denominacion, proveedorId: p?.id ?? null, mercadoLibre: ml,
-      cuentaId: p?.cuenta_gasto_id ?? (ml ? roles.comisiones : roles.gastos_varios),
+      // La del proveedor; si no tiene, ninguna (Fer, 23/10: se elige, nada de "Gastos varios" por descarte). Mercado Libre: Comisiones de canales.
+      cuentaId: p?.cuenta_gasto_id ?? (ml ? roles.comisiones : null),
       nuevas: filas.filter((f) => f.c.cuit === cuit && f.estado === "nueva").length,
     };
   }).sort((a, b) => b.nuevas - a.nuevas || a.nombre.localeCompare(b.nombre, "es"));
   return { lote, filas, proveedores };
 }
 
-export type Resultado = { cargadas: number; yaEstaban: number; distintas: number; errores: string[]; proveedoresNuevos: number; ts: string };
+export type Resultado = { cargadas: number; yaEstaban: number; distintas: number; errores: string[]; proveedoresNuevos: number; ts: string; validadas?: number };
 
 /** Condición de IVA probable del emisor, por la letra que factura. */
 const condicionPorLetra = (l: string) => (l === "A" || l === "M" ? "responsable_inscripto" : l === "C" ? "monotributo" : null);
@@ -119,7 +128,10 @@ export async function importarLote(org: string, loteId: number, cuentas: Record<
   const v = await vistaPrevia(org, loteId);
   if (!v) throw new ErrorErp("Ese archivo ya no está: subilo de nuevo.");
   const validas = new Set((await consulta<{ id: number }>("select id::int from plan_cuenta where organizacion_id = $1 and imputable", [org])).map((x) => x.id));
-  const res: Resultado = { cargadas: 0, yaEstaban: 0, distintas: 0, errores: [], proveedoresNuevos: 0, ts: new Date().toISOString() };
+  const res: Resultado = { cargadas: 0, yaEstaban: 0, distintas: 0, errores: [], proveedoresNuevos: 0, ts: new Date().toISOString(), validadas: 0 };
+  // Todo proveedor con algo nuevo tiene que tener su cuenta de gasto elegida (Fer, 23/10).
+  const sinCuenta = v.proveedores.filter((p) => p.nuevas > 0 && !(cuentas[p.cuit] && validas.has(Number(cuentas[p.cuit]))) && !p.cuentaId);
+  if (sinCuenta.length) throw new ErrorErp(`Elegí la cuenta de gasto de: ${sinCuenta.map((p) => p.nombre).join(", ")}. Queda recordada en cada proveedor.`);
   // Proveedores: los nuevos se crean; a todos se les recuerda la cuenta.
   const provId = new Map<string, number>();
   for (const p of v.proveedores) {
@@ -137,6 +149,11 @@ export async function importarLote(org: string, loteId: number, cuentas: Record<
     if (elegida) cuentas[p.cuit] = elegida;
   }
   for (const f of v.filas) {
+    if (f.estado === "ya_cargada" && f.facturaId && !f.validada) {
+      // Estaba cargada (con su comprobante) e igual en ARCA: validada dos veces.
+      await consulta("update factura_compra set validada_arca_ts = now() where id = $1 and organizacion_id = $2 and validada_arca_ts is null", [f.facturaId, org]);
+      res.validadas = (res.validadas ?? 0) + 1;
+    }
     if (f.estado === "ya_cargada" || f.estado === "repetida") { res.yaEstaban++; continue; }
     if (f.estado === "distinta") { res.distintas++; continue; }
     const nro = `${f.c.tipoTexto} ${String(f.c.puntoVenta).padStart(5, "0")}-${String(f.c.numero).padStart(8, "0")} de ${f.proveedor}`;
@@ -145,13 +162,13 @@ export async function importarLote(org: string, loteId: number, cuentas: Record<
     const a = f.armada;
     let fid = 0;
     try {
-      const notas = ["Importada de ARCA (Mis Comprobantes).", f.c.numeroHasta ? `Números ${f.c.numero} a ${f.c.numeroHasta}.` : null, a.aviso].filter(Boolean).join(" ");
+      const notas = [`Importada de ARCA (Mis Comprobantes): ${f.c.tipoTexto}.`, f.c.numeroHasta ? `Números ${f.c.numero} a ${f.c.numeroHasta}.` : null, a.aviso].filter(Boolean).join(" ");
       const r = await una<{ id: number }>(`
         insert into factura_compra (organizacion_id, proveedor_id, letra, es_nota_credito, es_nota_debito, punto_venta, numero, fecha, vencimiento, moneda, cotizacion,
-                                    percepcion_iva, percepcion_iibb, otros_impuestos, no_gravado, cuenta_gasto_id, notas, usuario_id, origen, cae, emisor_id)
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'arca_mc', $18, $19) returning id::int`,
+                                    percepcion_iva, percepcion_iibb, otros_impuestos, no_gravado, cuenta_gasto_id, notas, usuario_id, origen, cae, emisor_id, tipo_cbte)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'arca_mc', $18, $19, $20) returning id::int`,
         [org, pid, f.c.letra, f.c.nc, f.c.nd, f.c.puntoVenta, f.c.numero, f.c.fecha, f.c.moneda, f.c.moneda === "USD" ? f.c.cotizacion : 1,
-          a.percepcionIva, a.percepcionIibb, a.otrosImpuestos, a.noGravado, cuentas[f.c.cuit] ?? null, notas, usuarioId, f.c.cae, v.lote.emisor_id]);
+          a.percepcionIva, a.percepcionIibb, a.otrosImpuestos, a.noGravado, cuentas[f.c.cuit] ?? null, notas, usuarioId, f.c.cae, v.lote.emisor_id, f.c.tipo]);
       fid = r!.id;
       let orden = 0;
       for (const l of a.lineas) {

@@ -22,7 +22,8 @@ export default async function NuevoDespacho({ searchParams }: { searchParams: Pr
       <form action={accionCrearDespacho} className={`${CAJA} grid gap-3`}>
         <CamposDespacho o={o} d={{
           numero: null, proveedor_id: null, fecha: hoyAR(), cotizacion: null, flete_usd: 0, seguro_usd: 0,
-          deposito_id: o.depositos.length === 1 ? o.depositos[0].id : null, notas: null,
+          // De entrada, el depósito principal (Fer, 23/10): el primero propio (el de menor número).
+          deposito_id: o.depositos[0]?.id ?? null, notas: null,
         }} />
         <div><BotonEnviar clase={VERDE} corriendo="Creando…">Crear y cargar las líneas</BotonEnviar></div>
       </form>

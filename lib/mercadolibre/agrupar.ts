@@ -49,6 +49,7 @@ export function cuerpoAgrupado(madre: ItemMadre, plan: PlanPrueba, precio: numbe
     category_id: madre.category_id,
     price: precio,
     currency_id: madre.currency_id ?? "ARS",
+    // Nunca más de lo que hay (quien llama no crea nada sin stock).
     available_quantity: Math.max(1, cantidad),
     buying_mode: madre.buying_mode ?? "buy_it_now",
     condition: madre.condition ?? "new",
@@ -91,17 +92,18 @@ export async function comprobarAgrupado(cuenta: CuentaMl, madre: ItemMadre, plan
 type Pub = { id: number; item_id: string; up: string; catalogo: boolean; tipo: string | null; tags: unknown; terms: unknown; precio: number | null; vendidos: number; catalogo_prod: string | null;
   /** Lo vendido entre todas las publicaciones de su producto de ML (con ventas, la vieja no se elimina). */
   ventas_up: number };
-type Grupo = { variacion: number; sku: string; madre: string; madreUp: string; disp: number; pubs: Pub[] };
+type Grupo = { variacion: number; sku: string; madre: string; madreUp: string; disp: number; umbral: number; pubs: Pub[] };
 
 /** Los productos de la cuenta con algún plan en otro producto de ML que el de la madre (con o sin ventas). */
 async function gruposSeparados(org: string, canal: number): Promise<Grupo[]> {
-  const filas = await consulta<Pub & { variacion: number; sku: string; madre_up: string; disp: number }>(`
+  const filas = await consulta<Pub & { variacion: number; sku: string; madre_up: string; disp: number; umbral: number }>(`
     with x as (
       select p.id::int, p.variacion_id::int variacion, v.sku, p.id_externo item_id, p.datos_externos ->> 'user_product_id' up,
              coalesce((p.datos_externos ->> 'catalogo')::boolean, false) catalogo, mi.tipo, mi.datos_externos -> 'ml' -> 'tags' tags,
              mi.datos_externos -> 'ml' -> 'sale_terms' terms, mi.precio::float8 precio, coalesce(mi.vendidos, 0)::int vendidos,
              mi.datos_externos -> 'ml' ->> 'catalog_product_id' catalogo_prod,
-             greatest(stock_disponible_canal(p.organizacion_id, p.variacion_id, p.canal_id), 0)::int disp
+             greatest(stock_disponible_canal(p.organizacion_id, p.variacion_id, p.canal_id), 0)::int disp,
+             umbral_pausa_de(p.organizacion_id, p.variacion_id, p.canal_id)::int umbral
         from publicacion p join variacion v on v.id = p.variacion_id
         join meli_item mi on mi.canal_id = p.canal_id and mi.item_id = p.id_externo and mi.variation_id = ''
        where p.organizacion_id = $1 and p.canal_id = $2 and p.estado in ('activa', 'pausada') and p.variacion_externa is null
@@ -122,7 +124,7 @@ async function gruposSeparados(org: string, canal: number): Promise<Grupo[]> {
     if (!fs.some((f) => f.up !== f.madre_up)) continue;
     const madre = fs.filter((f) => f.up === f.madre_up && !f.catalogo).sort((a, b) => b.vendidos - a.vendidos)[0];
     if (!madre) continue;
-    grupos.push({ variacion: v, sku: fs[0].sku, madre: madre.item_id, madreUp: fs[0].madre_up, disp: fs[0].disp, pubs: fs });
+    grupos.push({ variacion: v, sku: fs[0].sku, madre: madre.item_id, madreUp: fs[0].madre_up, disp: fs[0].disp, umbral: fs[0].umbral ?? 0, pubs: fs });
   }
   return grupos;
 }
@@ -157,6 +159,8 @@ export async function prepararAgrupar(org: string, canal: number, usuarioId: str
     const enMadre = new Set(g.pubs.filter((p) => p.up === g.madreUp && !p.catalogo).map(plan));
     const viejas = g.pubs.filter((p) => p.up !== g.madreUp && !p.catalogo && !enMadre.has(plan(p)) && !enCola.has(`agrupar:${g.sku}:${plan(p)}`));
     if (!viejas.length) continue;
+    // Sin stock (o en el umbral) no se crea nada (23/10: se publicaron activas con 1 unidad productos que no hay hace años).
+    if (g.disp <= g.umbral) continue;
     if (res.productos >= max || Date.now() > hasta) { res.quedan++; continue; }
     const m = await una<{ ml: ItemMadre }>("select datos_externos -> 'ml' ml from meli_item where canal_id = $1 and item_id = $2 and variation_id = ''", [canal, g.madre]);
     if (!m?.ml) { res.rechazos.push(`${g.sku}: Laucen no tiene los datos de la madre ${g.madre}`); continue; }
@@ -196,6 +200,7 @@ export async function prepararAgrupar(org: string, canal: number, usuarioId: str
       } else if (conPropia && propia) pedidos.push(pedidoCampanaPropia(propia.id, precioViejo));
       altas.push({
         canalId: canal, itemId: `agrupar:${g.sku}:${pl}`, tipo: "crear", antes: { estado: `${nombrePlan[pl]} en otro producto (${v.item_id})` },
+        efecto: { vincular: { variacionId: g.variacion } },
         payload: {
           descripcion: `Alta en ${nombre}: ${g.sku} ${nombrePlan[pl]} $ ${precio.toLocaleString("es-AR")}${venta != null ? ` (con campaña $ ${venta.toLocaleString("es-AR")})` : ""}; copia exacta de ${g.madre} para quedar en su mismo producto (${v.ventas_up > 0 ? `${v.item_id} tiene ventas y queda` : `reemplaza a ${v.item_id}`})${gemela ? `, y entra al catálogo ${gemela}` : ""}`,
           origen: { canal, item_id: g.madre }, reemplaza: v.item_id, pedidos,

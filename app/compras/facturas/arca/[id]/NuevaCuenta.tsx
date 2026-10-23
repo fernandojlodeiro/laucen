@@ -16,7 +16,7 @@ export default function NuevaCuenta({ accion, children }: { accion: (fd: FormDat
       if (e.key === "Enter" && e.target instanceof HTMLInputElement) { e.preventDefault(); boton.current?.click(); }
     }}>
       {children}
-      <button ref={boton} type="submit" form="importar" formAction={accion} className={PRIMARIO}>Crear</button>
+      <button ref={boton} type="submit" form="importar" formAction={accion} formNoValidate className={PRIMARIO}>Crear</button>
     </div>
   );
 }

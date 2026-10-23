@@ -175,7 +175,8 @@ async function traerActivas(cuenta: CuentaMl, hastaMs: number, desde: Date): Pro
       for (let i = 0; i < faltan.length; i += 20) {
         const m = await ml<{ code: number; body: ItemMl }[]>(cuenta, "GET", `/items?ids=${faltan.slice(i, i + 20).join(",")}&include_attributes=all`);
         if (m.status !== 200) continue;
-        for (const x of m.datos) if (x.code === 200) { await guardarItem(cuenta, x.body); leidas++; }
+        // Lectura inicial: todavía no existen los productos (se crean y vinculan después), no se pausa nada.
+        for (const x of m.datos) if (x.code === 200) { await guardarItem(cuenta, x.body, { pausarSueltas: false }); leidas++; }
       }
       if (!scroll) break;
     }
