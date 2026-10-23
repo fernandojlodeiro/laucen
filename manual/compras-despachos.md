@@ -60,8 +60,9 @@ Título "Despacho" con su número; debajo, fecha y proveedor.
 - **Mercadería según el despacho (N)** (si se leyó el PDF): lo que dice el despacho que entró —descripción con marca y modelo, NCM, cantidad, FOB unitario y total—. Si todavía no hay líneas, el botón **Usar como líneas** las carga desde ahí (sin producto: no entran al stock). Si ya hay líneas y no suman el mismo FOB, avisa la diferencia ("revisá que estén todos los invoices").
 - **Líneas**: Descripción, NCM, Cantidad, FOB unit., FOB total; lápiz y tacho en cada una. Las líneas sin producto dicen "(sin producto: no entra al stock)".
 - **Agregar línea**: buscador "Buscar producto por SKU, código o título" (con **Mostrar inactivos** y **Buscar**), **Producto** (o "— Línea libre (sin producto: no entra al stock) —"), **Descripción (si es libre)**, **NCM**, **Cantidad**, **FOB unit. (US$)** y **Agregar**.
-- **Prorrateo: costo puesto en depósito**: por línea, Cantidad, Parte del FOB (%), Costo unit. ($), Costo unit. (US$) y Costo total ($). Se recalcula con cada cambio.
-- La caja de totales: FOB × cotización, flete y seguro en pesos, gastos, **Costo total puesto en depósito**, el mismo en dólares, e "Impuestos (crédito fiscal, aparte)".
+- **Prorrateo: costo puesto en depósito**: por línea, Cantidad, Parte del FOB (%), Costo unit. ($), Costo unit. (US$), Costo total ($) y Costo total (US$). Se recalcula con cada cambio.
+- La caja de totales, en dos columnas, pesos y dólares: FOB, flete y seguro, gastos, **Costo total puesto en depósito** e "Impuestos (crédito fiscal, aparte)".
+- **Todo se ve en las dos monedas**: los gastos e impuestos (se cargan en pesos) muestran al lado su equivalente en dólares, y las líneas (se cargan en dólares) su FOB total en pesos. La conversión es siempre con el dólar del despacho (su cotización).
 
 **Registrado:** todo en sólo lectura (Estado con fecha y hora, Proveedor, Cotización, Depósito, FOB, Flete, Seguro, Notas), con el prorrateo que quedó guardado al registrar.
 

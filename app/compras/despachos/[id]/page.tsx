@@ -92,8 +92,9 @@ export default async function DetalleDespacho({ params, searchParams }: { params
   const est = ESTADO_DESPACHO[d.estado] ?? ESTADO_DESPACHO.borrador;
   const cot = d.cotizacion;
   // En dólares, los pesos del despacho se dividen por su cotización (la del despacho).
-  const enUsd = s.moneda === "USD" && cot > 0;
-  const aMon = (ars: number) => (enUsd ? formatear(ars / cot, "USD") : formatear(ars, "ARS"));
+  // Todo en las dos monedas (Fer, 23/10): los pesos y su equivalente en dólares con el dólar del despacho.
+  const pesos = (ars: number) => formatear(ars, "ARS");
+  const dolares = (ars: number) => (cot > 0 ? formatear(ars / cot, "USD") : "—");
   const gastosArs = d.gastos.reduce((t, g) => t + Number(g.importe_ars || 0), 0);
   const impuestosArs = d.impuestos.reduce((t, g) => t + Number(g.importe_ars || 0), 0);
   // Registrado: el costo que quedó guardado; borrador: el cálculo en vivo.
@@ -114,12 +115,12 @@ export default async function DetalleDespacho({ params, searchParams }: { params
         <p className="text-[11px] text-[#5C6B76] mb-1">{ayuda}</p>
         <div className={CAJA_TABLA}>
           <table className={TABLA}>
-            <thead className={THEAD}><tr><th className={TH}>Concepto</th><th className={THN}>Importe ($)</th>{borrador && <th />}</tr></thead>
+            <thead className={THEAD}><tr><th className={TH}>Concepto</th><th className={THN}>Importe ($)</th><th className={THN}>US$</th>{borrador && <th />}</tr></thead>
             <tbody>
-              {items.length === 0 && <tr><td colSpan={3} className={`${TD} text-[#5C6B76]`}>Ninguno.</td></tr>}
+              {items.length === 0 && <tr><td colSpan={4} className={`${TD} text-[#5C6B76]`}>Ninguno.</td></tr>}
               {items.map((g, i) => editar === `${cual[0]}-${i}` ? (
                 <tr key={i} className={`${TR} bg-[#FAFBFC]`}>
-                  <td colSpan={3} className={TD}>
+                  <td colSpan={4} className={TD}>
                     <form action={accionGuardarItem} className="flex flex-wrap items-center gap-2">
                       <input type="hidden" name="despacho" value={did} /><input type="hidden" name="lista" value={cual} /><input type="hidden" name="indice" value={i} />
                       <input name="concepto" defaultValue={g.concepto} list={`conceptos-${cual}`} className={`${CAMPO} flex-1 min-w-32`} aria-label="Concepto" autoFocus />
@@ -132,7 +133,8 @@ export default async function DetalleDespacho({ params, searchParams }: { params
               ) : (
                 <tr key={i} className={TR}>
                   <td className={TD}>{g.concepto}</td>
-                  <td className={TDN}>{aMon(g.importe_ars)}</td>
+                  <td className={TDN}>{pesos(g.importe_ars)}</td>
+                  <td className={TDN}>{dolares(g.importe_ars)}</td>
                   {borrador && (
                     <td className={`${TD} text-right whitespace-nowrap`}>
                       <span className="inline-flex gap-1">
@@ -143,7 +145,7 @@ export default async function DetalleDespacho({ params, searchParams }: { params
                   )}
                 </tr>
               ))}
-              <tr className={`${TR} font-bold`}><td className={TD}>Total</td><td className={TDN}>{aMon(total)}</td>{borrador && <td />}</tr>
+              <tr className={`${TR} font-bold`}><td className={TD}>Total</td><td className={TDN}>{pesos(total)}</td><td className={TDN}>{dolares(total)}</td>{borrador && <td />}</tr>
             </tbody>
           </table>
         </div>
@@ -180,7 +182,7 @@ export default async function DetalleDespacho({ params, searchParams }: { params
           <input type="hidden" name="id" value={did} />
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-bold">Cabecera</h2><Estado texto={est.texto} tono={est.tono} />
-            <span className="ml-auto text-xs text-[#5C6B76]">FOB (suma de las líneas): <b className="tabular-nums">{formatear(calc.fobTotal, "USD")}</b></span>
+            <span className="ml-auto text-xs text-[#5C6B76]">FOB (suma de las líneas): <b className="tabular-nums">{formatear(calc.fobTotal, "USD")}</b> · {pesos(calc.fobTotal * cot)}</span>
             <button className={PRIMARIO}>Grabar cabecera</button>
           </div>
           <CamposDespacho o={opciones} d={d} />
@@ -191,9 +193,9 @@ export default async function DetalleDespacho({ params, searchParams }: { params
           <Dato t="Proveedor">{d.proveedor ?? "—"}</Dato>
           <Dato t="Cotización">{cot.toLocaleString("es-AR")}</Dato>
           <Dato t="Depósito">{d.deposito ?? "—"}</Dato>
-          <Dato t="FOB">{formatear(d.fob_usd, "USD")}</Dato>
-          <Dato t="Flete">{formatear(d.flete_usd, "USD")}</Dato>
-          <Dato t="Seguro">{formatear(d.seguro_usd, "USD")}</Dato>
+          <Dato t="FOB">{formatear(d.fob_usd, "USD")}<div className="text-[#5C6B76]">{pesos(d.fob_usd * cot)}</div></Dato>
+          <Dato t="Flete">{formatear(d.flete_usd, "USD")}<div className="text-[#5C6B76]">{pesos(d.flete_usd * cot)}</div></Dato>
+          <Dato t="Seguro">{formatear(d.seguro_usd, "USD")}<div className="text-[#5C6B76]">{pesos(d.seguro_usd * cot)}</div></Dato>
           {d.notas && <Dato t="Notas">{d.notas}</Dato>}
         </div>
       )}
@@ -270,13 +272,13 @@ export default async function DetalleDespacho({ params, searchParams }: { params
       <div className={`${CAJA_TABLA} mb-3`}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={TH}>Descripción</th><th className={TH}>NCM</th><th className={THN}>Cantidad</th><th className={THN}>FOB unit.</th><th className={THN}>FOB total</th>{borrador && <th />}</tr>
+            <tr><th className={TH}>Descripción</th><th className={TH}>NCM</th><th className={THN}>Cantidad</th><th className={THN}>FOB unit. (US$)</th><th className={THN}>FOB total (US$)</th><th className={THN}>FOB total ($)</th>{borrador && <th />}</tr>
           </thead>
           <tbody>
-            {lineas.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>Todavía no hay líneas.</td></tr>}
+            {lineas.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>Todavía no hay líneas.</td></tr>}
             {lineas.map((l) => editar === `l-${l.id}` ? (
               <tr key={l.id} className={`${TR} bg-[#FAFBFC]`}>
-                <td colSpan={6} className={TD}>
+                <td colSpan={7} className={TD}>
                   <form action={accionGuardarLineaDespacho} className="flex flex-wrap items-center gap-2">
                     <input type="hidden" name="id" value={l.id} /><input type="hidden" name="despacho" value={did} />
                     <input name="descripcion" defaultValue={l.descripcion} className={`${CAMPO} flex-1 min-w-48`} aria-label="Descripción" autoFocus />
@@ -295,6 +297,7 @@ export default async function DetalleDespacho({ params, searchParams }: { params
                 <td className={TDN}>{l.cantidad.toLocaleString("es-AR")}</td>
                 <td className={TDN}>{formatear(l.fob_unit_usd, "USD")}</td>
                 <td className={TDN}>{formatear(l.cantidad * l.fob_unit_usd, "USD")}</td>
+                <td className={TDN}>{pesos(l.cantidad * l.fob_unit_usd * cot)}</td>
                 {borrador && (
                   <td className={`${TD} text-right whitespace-nowrap`}>
                     <span className="inline-flex gap-1">
@@ -345,34 +348,37 @@ export default async function DetalleDespacho({ params, searchParams }: { params
           <thead className={THEAD}>
             <tr>
               <th className={TH}>Descripción</th><th className={THN}>Cantidad</th><th className={THN}>Parte del FOB</th>
-              <th className={THN}>Costo unit. ($)</th><th className={THN}>Costo unit. (US$)</th><th className={THN}>Costo total ($)</th>
+              <th className={THN}>Costo unit. ($)</th><th className={THN}>Costo unit. (US$)</th><th className={THN}>Costo total ($)</th><th className={THN}>Costo total (US$)</th>
             </tr>
           </thead>
           <tbody>
-            {lineas.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>Sin líneas.</td></tr>}
+            {lineas.length === 0 && <tr><td colSpan={7} className={`${TD} text-[#5C6B76]`}>Sin líneas.</td></tr>}
             {lineas.map((l) => (
               <tr key={l.id} className={TR}>
                 <td className={TD}>{l.descripcion}</td>
                 <td className={TDN}>{l.cantidad.toLocaleString("es-AR")}</td>
                 <td className={TDN}>{calc.fobTotal > 0 ? pct((l.cantidad * l.fob_unit_usd * 100) / calc.fobTotal) : "—"}</td>
-                <td className={TDN}>{aMon(unitArs(l))}</td>
+                <td className={TDN}>{pesos(unitArs(l))}</td>
                 <td className={TDN}>{formatear(unitUsd(l), "USD")}</td>
-                <td className={TDN}>{aMon(unitArs(l) * l.cantidad)}</td>
+                <td className={TDN}>{pesos(unitArs(l) * l.cantidad)}</td>
+                <td className={TDN}>{formatear(unitUsd(l) * l.cantidad, "USD")}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <div className={`${CAJA} text-xs grid grid-cols-[1fr_auto] gap-y-1 max-w-md mb-4`}>
-        <span className="text-[#5C6B76]">FOB {formatear(calc.fobTotal, "USD")} × {cot.toLocaleString("es-AR")}</span>
-        <span className="text-right tabular-nums">{aMon(calc.fobTotal * cot)}</span>
-        <span className="text-[#5C6B76]">Flete y seguro {formatear(d.flete_usd + d.seguro_usd, "USD")}</span>
-        <span className="text-right tabular-nums">{aMon((d.flete_usd + d.seguro_usd) * cot)}</span>
-        <span className="text-[#5C6B76]">Gastos</span><span className="text-right tabular-nums">{aMon(gastosArs)}</span>
+      <div className={`${CAJA} text-xs grid grid-cols-[1fr_auto_auto] gap-x-4 gap-y-1 max-w-lg mb-4`}>
+        <span /><span className="text-right text-[#5C6B76]">$</span><span className="text-right text-[#5C6B76]">US$</span>
+        <span className="text-[#5C6B76]">FOB (dólar del despacho: {cot.toLocaleString("es-AR")})</span>
+        <span className="text-right tabular-nums">{pesos(calc.fobTotal * cot)}</span><span className="text-right tabular-nums">{dolares(calc.fobTotal * cot)}</span>
+        <span className="text-[#5C6B76]">Flete y seguro</span>
+        <span className="text-right tabular-nums">{pesos((d.flete_usd + d.seguro_usd) * cot)}</span><span className="text-right tabular-nums">{dolares((d.flete_usd + d.seguro_usd) * cot)}</span>
+        <span className="text-[#5C6B76]">Gastos</span>
+        <span className="text-right tabular-nums">{pesos(gastosArs)}</span><span className="text-right tabular-nums">{dolares(gastosArs)}</span>
         <span className="font-bold">Costo total puesto en depósito</span>
-        <span className="text-right tabular-nums font-bold">{aMon(calc.costoTotalArs)}</span>
-        <span className="text-[#5C6B76]">En dólares</span><span className="text-right tabular-nums">{formatear(cot ? calc.costoTotalArs / cot : null, "USD")}</span>
-        <span className="text-[#5C6B76]">Impuestos (crédito fiscal, aparte)</span><span className="text-right tabular-nums">{aMon(impuestosArs)}</span>
+        <span className="text-right tabular-nums font-bold">{pesos(calc.costoTotalArs)}</span><span className="text-right tabular-nums font-bold">{dolares(calc.costoTotalArs)}</span>
+        <span className="text-[#5C6B76]">Impuestos (crédito fiscal, aparte)</span>
+        <span className="text-right tabular-nums">{pesos(impuestosArs)}</span><span className="text-right tabular-nums">{dolares(impuestosArs)}</span>
       </div>
 
       {borrador && (
