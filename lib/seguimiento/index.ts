@@ -11,7 +11,7 @@
 // - Leer las seguidas comunes: Apify, por su dirección.
 // Todo lo pago respeta el tope mensual (config 'seguimiento').
 
-import { consulta, una, ErrorErp } from "@/lib/erp/base";
+import { consulta, una, enTransaccion, ErrorErp } from "@/lib/erp/base";
 import { correrConEntrada, costosFinales } from "@/lib/apify";
 import { ml, cuentasDe, type CuentaMl } from "@/lib/mercadolibre/api";
 import { revisarReglasDe } from "@/lib/seguimiento/regla";
@@ -394,6 +394,36 @@ export async function descartar(org: string, productoId: number, itemId: string,
   if (si) await consulta(`insert into seguimiento_descartada (organizacion_id, producto_id, item_id, usuario_id) values ($1, $2, $3, $4)
                           on conflict do nothing`, [org, productoId, itemId, usuario]);
   else await consulta("delete from seguimiento_descartada where organizacion_id = $1 and producto_id = $2 and item_id = $3", [org, productoId, itemId]);
+}
+
+/** Las MLAU a las que Cowork les encontró la MLA (seguimiento_mlau_tarea; Fer, 23/10): se sigue la MLA en su lugar,
+ *  con la misma revisión, origen y exclusión (y si era la elegida de una regla, pasa a serlo la MLA), y se deja de seguir la
+ *  MLAU. La MLA queda sin leer: la toma la próxima lectura. Devuelve cuántas reemplazó. */
+export async function aplicarMlauEncontradas(org: string): Promise<number> {
+  const tareas = await consulta<{ seguimiento_id: number; producto_id: number; mla: string }>(`
+    select t.seguimiento_id::int, t.producto_id::int, t.mla from seguimiento_mlau_tarea t
+     where t.organizacion_id = $1 and t.resultado = 'encontrada' and t.mla is not null and t.aplicado_ts is null`, [org]);
+  let n = 0;
+  for (const t of tareas) {
+    await enTransaccion(async (c) => {
+      const viejo = await c.query("select id from seguimiento_pub where id = $1 and organizacion_id = $2", [t.seguimiento_id, org]);
+      if (viejo.rowCount) {
+        const nuevo = await c.query<{ id: number }>(`
+          insert into seguimiento_pub (organizacion_id, producto_id, item_id, titulo, foto, permalink, vendedor, vendedor_id, tienda_oficial, precio, precio_original,
+                                       moneda, estado, tipo_publicacion, origen, origen_detalle, confirmada, confirmada_ts, confirmada_por, motivo_ia, excluido, internacional)
+          select organizacion_id, producto_id, $3, titulo, foto, $4, vendedor, vendedor_id, tienda_oficial, precio, precio_original,
+                 moneda, 'sin_dato', tipo_publicacion, origen, coalesce(origen_detalle || ' · ', '') || 'MLA de ' || item_id, confirmada, confirmada_ts, confirmada_por, motivo_ia, excluido, internacional
+            from seguimiento_pub where id = $1 and organizacion_id = $2
+          on conflict (organizacion_id, producto_id, item_id) do update set confirmada = seguimiento_pub.confirmada or excluded.confirmada
+          returning id::int`, [t.seguimiento_id, org, t.mla, enlaceDe(t.mla)]);
+        await c.query("update seguimiento_regla set seguimiento_id = $2 where organizacion_id = $3 and seguimiento_id = $1", [t.seguimiento_id, nuevo.rows[0].id, org]);
+        await c.query("delete from seguimiento_pub where id = $1 and organizacion_id = $2", [t.seguimiento_id, org]);
+      }
+      await c.query("update seguimiento_mlau_tarea set resultado = 'aplicada', aplicado_ts = now() where seguimiento_id = $1", [t.seguimiento_id]);
+    });
+    n++;
+  }
+  return n;
 }
 
 /** El mismo vendedor en SQL (alias a y b): por su número, o por el apodo sin el «(número)» que agrega Virtual Seller. */

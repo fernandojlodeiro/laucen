@@ -233,3 +233,26 @@ create table if not exists seguimiento_descartada (
 );
 alter table seguimiento_descartada enable row level security;
 select erp_politica_org('seguimiento_descartada');
+
+-- MLAU que no se pueden leer (Mercado Libre no da su precio): Cowork busca con el navegador la MLA de esa misma
+-- publicación y la anota en `mla` (Fer, 23/10). La vuelta del seguimiento reemplaza cada MLAU por su MLA (misma
+-- revisión, origen y exclusión) y la lee. resultado: pendiente · encontrada · sin_mla (no hay MLA: sólo se vende como
+-- producto de vendedor) · no_existe (la publicación ya no está) · aplicada (ya reemplazada).
+create table if not exists seguimiento_mlau_tarea (
+  seguimiento_id    bigint primary key,
+  organizacion_id   text not null references organizaciones(id) on delete cascade,
+  producto_id       bigint not null references producto(id) on delete cascade,
+  sku               text,
+  item_mlau         text not null,
+  vendedor          text,
+  titulo            text,
+  precio            numeric(16, 2),
+  permalink         text,
+  mla               text check (mla is null or mla ~ '^MLA[0-9]{6,}$'),
+  resultado         text not null default 'pendiente' check (resultado in ('pendiente', 'encontrada', 'sin_mla', 'no_existe', 'aplicada')),
+  nota              text,
+  actualizado_ts    timestamptz not null default now(),
+  aplicado_ts       timestamptz
+);
+alter table seguimiento_mlau_tarea enable row level security;
+select erp_politica_org('seguimiento_mlau_tarea');
