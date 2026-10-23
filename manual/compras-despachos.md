@@ -53,7 +53,7 @@ Título "Despacho" con su número; debajo, fecha y proveedor.
 
 **En borrador:**
 - Arriba a la derecha: **Registrar** y el **tacho** (borrar el borrador).
-- **Cabecera** con su estado, "FOB (suma de las líneas)" y el botón **Grabar cabecera**. Campos: **Nº de despacho** (ej. 26001IC04012345X), **Proveedor del exterior (opcional)** (se busca escribiendo: filtra mientras escribís; si no está, **"+ Crear «…»"** lo da de alta ahí mismo con ese nombre y queda elegido; el CUIT, el país y la condición de IVA se completan después en [Proveedores](/compras/proveedores)), **Fecha**, **Cotización del dólar** (de entrada la del día), **Flete (US$)**, **Seguro (US$)**, **Depósito donde entra** y **Notas**. El FOB no se carga: es la suma de las líneas.
+- **Cabecera** con su estado, "FOB (suma de las líneas)" y el botón **Grabar cabecera**. Campos: **Nº de despacho** (ej. 26001IC04012345X), **Proveedor del exterior (opcional)** (se busca escribiendo: filtra mientras escribís; si no está, **"+ Crear «…»"** lo da de alta ahí mismo con ese nombre y queda elegido; el CUIT, el país y la condición de IVA se completan después en [Proveedores](/compras/proveedores)), **Fecha**, **Cotización del dólar** (de entrada la del día), **Flete (US$)**, **Seguro (US$)**, **Depósito donde entra** (de entrada, el depósito principal: el primero de los propios) y **Notas**. El FOB no se carga: es la suma de las líneas.
 - **Leer el despacho (PDF)**: elegís el PDF del despacho oficializado y apretás **Leer el despacho**. La IA lo lee (tarda alrededor de un minuto: el botón dice "Leyendo con la IA…") y carga en el borrador el número, la fecha de oficialización, el dólar del despacho, el flete, el seguro, la razón social importadora (por su CUIT), el proveedor (si hay uno con el nombre del vendedor) y la liquidación: derechos, tasa estadística, arancel SIM y otros conceptos van a **Gastos**; IVA, IVA adicional, Ganancias e Ingresos Brutos van a **Impuestos**. La liquidación del despacho viene en dólares: cada importe se pasa a pesos con el dólar del despacho. Lo que el borrador ya tenía con otro concepto (por ejemplo, el despachante) queda. Al terminar dice qué cargó y si algo no cierra; siempre hay que revisarlo antes de registrar.
 - **Gastos (suman al costo)** e **Impuestos (crédito fiscal, no costo)**: dos tablas de Concepto e Importe ($), con su total. Cada renglón tiene lápiz (se edita en la fila, con **Guardar** / **Cancelar**) y tacho. Abajo de cada una, para agregar: **Concepto** (con sugerencias), importe y **Agregar**. Sugerencias de gastos: Derechos de importación, Tasa estadística, Despachante, Depósito fiscal, Flete interno, Gastos bancarios. De impuestos: IVA, IVA adicional, Ganancias, IIBB.
 - **Mercadería: invoices del proveedor (N)**: los invoices asignados a este despacho (enlace a cada uno, fecha, proveedor, renglones, unidades y total en dólares) con un tacho para quitarlo ("¿Quitarlo? Se borran sus líneas."). Debajo, **Asignar un invoice**: se busca escribiendo entre los invoices que no están en ningún despacho (primero los del proveedor) → **Asignar**: sus renglones pasan a las líneas con su producto, cantidad y precio como FOB unitario.
@@ -64,7 +64,7 @@ Título "Despacho" con su número; debajo, fecha y proveedor.
 - La caja de totales, en dos columnas, pesos y dólares: FOB, flete y seguro, gastos, **Costo total puesto en depósito** e "Impuestos (crédito fiscal, aparte)".
 - **Todo se ve en las dos monedas**: los gastos e impuestos (se cargan en pesos) muestran al lado su equivalente en dólares, y las líneas (se cargan en dólares) su FOB total en pesos. La conversión es siempre con el dólar del despacho (su cotización).
 
-**Registrado:** todo en sólo lectura (Estado con fecha y hora, Proveedor, Cotización, Depósito, FOB, Flete, Seguro, Notas), con el prorrateo que quedó guardado al registrar.
+**Registrado:** arriba a la derecha, **Volver a borrador** (si ninguna línea tiene producto; si tiene, dice que ya entró al stock y no vuelve). Todo en sólo lectura (Estado con fecha y hora, Proveedor, Cotización, Depósito, FOB, Flete, Seguro, Notas), con el prorrateo que quedó guardado al registrar.
 
 ## Cómo se hace
 
@@ -96,6 +96,13 @@ Errores típicos:
 
 ### Corregir un borrador
 Cambiá la cabecera y apretá **Grabar cabecera**. Gastos, impuestos y líneas se editan con su lápiz en la fila y se borran con su tacho.
+
+### Corregir o borrar un despacho registrado
+
+1. En el detalle, arriba a la derecha, **Volver a borrador** → **Sí**. Se anula su asiento y vuelve a **Borrador**.
+2. Corregilo (o leé de nuevo el PDF) y **Registrar**; o borralo con el **tacho** de arriba a la derecha y cargalo de nuevo.
+
+Sólo si sus líneas no tienen producto: con productos, al registrarlo entró el stock y se recalculó el costo, y eso no se deshace.
 
 ### Borrar un borrador
 Tacho de arriba a la derecha → "¿Borrar el borrador?" → **Sí**. Sólo borradores.

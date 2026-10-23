@@ -165,6 +165,22 @@ export async function volverABorrador(org: string, facturaId: number) {
   });
 }
 
+/** «Volver a borrador» un despacho registrado (Fer, 23/10): anula su asiento y lo deja en borrador para corregirlo o
+ *  borrarlo. Sólo sin líneas con producto: con productos, registrar ingresó stock y recalculó el costo promedio, y eso
+ *  no se deshace con certeza. */
+export async function despachoABorrador(org: string, despachoId: number) {
+  await enTransaccion(async (c) => {
+    const d = (await c.query<{ estado: string }>("select estado from despacho_importacion where id = $1 and organizacion_id = $2 for update", [despachoId, org])).rows[0];
+    if (!d) throw new ErrorErp("El despacho no existe.");
+    if (d.estado !== "registrado") throw new ErrorErp("Sólo un despacho registrado vuelve a borrador.");
+    if ((await c.query("select 1 from despacho_linea where despacho_id = $1 and variacion_id is not null limit 1", [despachoId])).rowCount)
+      throw new ErrorErp("Tiene mercadería con producto: al registrarlo entró el stock y se recalculó el costo, y eso no se puede deshacer.");
+    await c.query("update asiento set estado = 'anulado' where organizacion_id = $1 and origen = 'despacho' and referencia_id = $2 and estado = 'vigente'", [org, despachoId]);
+    await c.query("update despacho_linea set costo_unit_ars = null, costo_unit_usd = null where despacho_id = $1", [despachoId]);
+    await c.query("update despacho_importacion set estado = 'borrador', registrado_ts = null where id = $1 and organizacion_id = $2", [despachoId, org]);
+  });
+}
+
 /** Calcula (sin guardar) el costo unitario puesto en depósito de cada línea de un despacho. */
 export async function calcularDespacho(org: string, despachoId: number) {
   const d = await una<{ cotizacion: string; flete_usd: string; seguro_usd: string; gastos: { importe_ars: number }[] }>(

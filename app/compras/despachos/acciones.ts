@@ -11,7 +11,7 @@ import { consulta, una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { supabaseServer } from "@/lib/supabase";
 import { leerDespachoPdf, aDespacho, type LecturaDespacho } from "@/lib/compras/despacho-leer";
 import { intentar, texto, numero, entero, id } from "@/lib/erp/acciones";
-import { registrarDespacho } from "@/lib/administracion/compras";
+import { registrarDespacho, despachoABorrador } from "@/lib/administracion/compras";
 import { deLaOrg, tituloVariacion } from "../comun";
 
 const LISTA = "/compras/despachos";
@@ -217,6 +217,18 @@ export async function accionRegistrarDespacho(fd: FormData) {
   });
 }
 
+/** «Volver a borrador» (Fer, 23/10): anula su asiento para corregirlo (o borrarlo) y registrarlo de nuevo. */
+export async function accionDespachoABorrador(fd: FormData) {
+  const s = await entrarErp("despachos_ver");
+  const did = id(fd);
+  await intentar(detalle(did), async () => {
+    await despachoABorrador(s.org.id, did);
+    revalidatePath(LISTA);
+    revalidatePath(detalle(did));
+    return "Volvió a borrador: se anuló su asiento. Corregilo (o borralo con el tacho) y registralo de nuevo.";
+  });
+}
+
 // ── Leer el PDF del despacho con la IA y la mercadería (Fer, 23/10) ─────────
 
 /** El PDF ya subido a Storage (bucket "importaciones"): la IA lo lee y carga la cabecera, los gastos y los impuestos
@@ -244,7 +256,8 @@ export async function accionLeerDespachoPdf(a: { despachoId: number; ruta: strin
     await consulta(`
       update despacho_importacion set numero = coalesce($3, numero), fecha = coalesce($4::date, fecha), cotizacion = coalesce($5, cotizacion),
              flete_usd = coalesce($6, flete_usd), seguro_usd = coalesce($7, seguro_usd), gastos = $8::jsonb, impuestos = $9::jsonb,
-             emisor_id = coalesce($10, emisor_id), proveedor_id = coalesce(proveedor_id, $11), archivo = $12, lectura = $13::jsonb
+             emisor_id = coalesce($10, emisor_id), proveedor_id = coalesce(proveedor_id, $11), archivo = $12, lectura = $13::jsonb,
+             deposito_id = coalesce(deposito_id, (select id from deposito where organizacion_id = $1 and estado = 'activo' and tipo not in ('full_ml', 'transito') order by id limit 1))
        where id = $2 and organizacion_id = $1`,
       [s.org.id, a.despachoId, l.numero?.replace(/\s+/g, "") || null, fecha, Number(l.cotizacion) > 0 ? Number(l.cotizacion) : null,
         l.flete_usd ?? null, l.seguro_usd ?? null, JSON.stringify(juntar(d.gastos, x.gastos)), JSON.stringify(juntar(d.impuestos, x.impuestos)),

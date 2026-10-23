@@ -55,7 +55,7 @@ export function CamposDespacho({ d, o }: { d: DatosDespacho; o: Awaited<ReturnTy
       <label><span className={ETIQUETA}>Seguro (US$)</span>
         <CampoNumero name="seguro_usd" valor={d.seguro_usd} tipo="usd" className={`${CAMPO} w-full`} /></label>
       <label><span className={ETIQUETA}>Depósito donde entra</span>
-        <select name="deposito" defaultValue={d.deposito_id ?? ""} className={`${CAMPO} w-full`}>
+        <select name="deposito" defaultValue={d.deposito_id ?? o.depositos[0]?.id ?? ""} className={`${CAMPO} w-full`}>
           <option value="">—</option>
           {o.depositos.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
         </select></label>

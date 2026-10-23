@@ -24,7 +24,7 @@ import type { LecturaDespacho } from "@/lib/compras/despacho-leer";
 import {
   accionGuardarDespacho, accionAgregarItem, accionGuardarItem, accionBorrarItem, accionAgregarLineaDespacho,
   accionGuardarLineaDespacho, accionBorrarLineaDespacho, accionBorrarDespacho, accionRegistrarDespacho,
-  accionAsignarInvoice, accionQuitarInvoice, accionUsarMercaderiaDespacho,
+  accionAsignarInvoice, accionQuitarInvoice, accionUsarMercaderiaDespacho, accionDespachoABorrador,
 } from "../acciones";
 
 export const dynamic = "force-dynamic";
@@ -174,11 +174,18 @@ export default async function DetalleDespacho({ params, searchParams }: { params
             pregunta="¿Registrar? Ingresa el stock y deja el costo puesto en depósito. Después no se puede cambiar." corriendo="Registrando…" />
           <TachoConfirmar accion={accionBorrarDespacho} campos={{ id: String(did) }} pregunta="¿Borrar el borrador?" />
         </>
-      ) : undefined}>
+      ) : d.estado === "registrado" ? (lineas.some((l) => l.variacion_id != null) ? (
+        <span className="text-[11px] text-[#5C6B76] self-center max-w-xs text-right">Tiene mercadería con producto: ya entró al stock y no vuelve a borrador.</span>
+      ) : (
+        <BotonConfirmar accion={accionDespachoABorrador} campos={{ id: String(did) }} clase={SUAVE} texto="Volver a borrador"
+          pregunta="¿Volver a borrador? Se anula su asiento; después lo corregís (o lo borrás con el tacho) y lo registrás de nuevo." corriendo="Volviendo…" />
+      )) : undefined}>
       <Avisos sp={sp} />
 
       {borrador && opciones ? (
-        <form action={accionGuardarDespacho} className={`${CAJA} grid gap-3 mb-4`}>
+        // La clave con los datos: después de leer el PDF, los campos muestran lo leído (si no, «Grabar cabecera» volvía a pisar con lo viejo).
+        <form key={[d.numero, d.fecha, d.cotizacion, d.flete_usd, d.seguro_usd, d.proveedor_id, d.emisor_id, d.deposito_id].join("|")}
+          action={accionGuardarDespacho} className={`${CAJA} grid gap-3 mb-4`}>
           <input type="hidden" name="id" value={did} />
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-bold">Cabecera</h2><Estado texto={est.texto} tono={est.tono} />
