@@ -9,6 +9,9 @@ import { CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fecha as fechaAR } from "@/app/ventas/formato";
 import { emisoresDe } from "@/lib/arca/facturar";
 import { LETRAS } from "../comun";
+import ElegirDeLista from "@/app/componentes/ElegirDeLista";
+import { cuitLegible } from "@/lib/cuit";
+import { accionCrearProveedorRapido } from "@/app/compras/proveedores/acciones";
 
 export type DatosCabecera = {
   proveedor_id: number | null; letra: string; es_nota_credito: boolean; punto_venta: number | null; numero: string | null;
@@ -23,7 +26,7 @@ export type DatosCabecera = {
 export async function opcionesCabecera(org: string) {
   await asegurarPlan(org);
   const [proveedores, depositos, recepciones, cuentas, tc, razones] = await Promise.all([
-    consulta<{ id: number; nombre: string }>("select id::int, nombre from proveedor where organizacion_id = $1 and estado = 'activo' order by nombre", [org]),
+    consulta<{ id: number; nombre: string; cuit: string | null; pais: string }>("select id::int, nombre, cuit, pais from proveedor where organizacion_id = $1 and estado = 'activo' order by nombre", [org]),
     consulta<{ id: number; nombre: string }>("select id::int, nombre from deposito where organizacion_id = $1 and estado = 'activo' and tipo not in ('full_ml', 'transito') order by id", [org]),
     consulta<{ id: number; creado_ts: Date; deposito: string; proveedor: string | null; documento: string | null }>(`
       select r.id::int, r.creado_ts, d.nombre deposito, pr.nombre proveedor, r.documento
@@ -39,14 +42,16 @@ export async function opcionesCabecera(org: string) {
 export function CamposCabecera({ d, o, conImpuestos = false }: { d: DatosCabecera; o: Awaited<ReturnType<typeof opcionesCabecera>>; conImpuestos?: boolean }) {
   // Si el elegido quedó archivado, igual tiene que aparecer en la lista.
   const proveedorFuera = d.proveedor_id && !o.proveedores.some((p) => p.id === d.proveedor_id);
+  // Proveedor con buscador y «+ Crear» ahí mismo (Fer, 22/10).
+  const opcionesProv = [
+    ...(proveedorFuera ? [{ id: d.proveedor_id!, texto: "(proveedor archivado)" }] : []),
+    ...o.proveedores.map((p) => ({ id: p.id, texto: p.nombre, detalle: p.cuit ? cuitLegible(p.cuit) : p.pais !== "AR" ? p.pais : undefined })),
+  ];
   return (
     <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 items-start">
-      <label className="col-span-2"><span className={ETIQUETA}>Proveedor</span>
-        <select name="proveedor" defaultValue={d.proveedor_id ?? ""} className={`${CAMPO} w-full`} required>
-          <option value="">Elegí…</option>
-          {proveedorFuera && <option value={d.proveedor_id!}>(proveedor archivado)</option>}
-          {o.proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-        </select></label>
+      <div className="col-span-2"><span className={ETIQUETA}>Proveedor</span>
+        <ElegirDeLista name="proveedor" opciones={opcionesProv} valor={d.proveedor_id} vacio="Sin proveedor" placeholder="Buscá o creá el proveedor…"
+          etiqueta="Proveedor" crear={accionCrearProveedorRapido} /></div>
       {o.razones.length > 1 && (
         <label className="col-span-2"><span className={ETIQUETA}>A nombre de (razón social)</span>
           <select name="emisor" defaultValue={d.emisor_id ?? o.razones.find((r) => r.es_principal)?.id} className={`${CAMPO} w-full`}>
