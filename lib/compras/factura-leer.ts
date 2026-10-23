@@ -4,6 +4,7 @@
 
 import { pedirClaude, jsonDe } from "@/lib/claude";
 import { tipoArca, type CbteArca, type Alicuota } from "@/lib/administracion/arca-mc-leer";
+import { codigoJurisdiccion } from "@/lib/impuestos/jurisdicciones";
 
 /** Lo que devuelve la IA. */
 export type LecturaFactura = {
@@ -22,6 +23,8 @@ export type LecturaFactura = {
   exento: number | null;
   percepcion_iva: number | null;
   percepcion_iibb: number | null;
+  /** Las percepciones de IIBB por provincia, si la factura las discrimina. */
+  percepciones_iibb_provincias?: { provincia: string | number | null; importe: number | null }[] | null;
   otros_tributos: number | null;
   total: number | null;
   cae: string | null;
@@ -52,13 +55,29 @@ export function aComprobante(l: LecturaFactura): { c: CbteArca } | { error: stri
   };
 }
 
+/** Las percepciones de IIBB por provincia leídas ([{jur, importe}]), sólo si suman la percepción de la factura (con
+ *  5 centavos de tolerancia) y se reconoce cada provincia. Pura. */
+export function detalleIibb(l: LecturaFactura, total: number): { jur: number; importe: number }[] | null {
+  if (!(total > 0)) return null;
+  const m = new Map<number, number>();
+  for (const x of l.percepciones_iibb_provincias ?? []) {
+    const jur = codigoJurisdiccion(x?.provincia);
+    const imp = r2(n(x?.importe));
+    if (!imp) continue;
+    if (!jur) return null;
+    m.set(jur, r2((m.get(jur) ?? 0) + imp));
+  }
+  const d = [...m].map(([jur, importe]) => ({ jur, importe }));
+  return d.length && Math.abs(d.reduce((s, x) => s + x.importe, 0) - total) <= 0.05 ? d : null;
+}
+
 const SISTEMA = `Leés comprobantes argentinos (facturas, notas de crédito y de débito, recibos, liquidaciones) que le emitieron a una empresa sus proveedores, y devolvés SÓLO un JSON, sin texto antes ni después:
 {"tipo_codigo": número (el "COD." que figura junto a la letra: 1 Factura A, 2 ND A, 3 NC A, 6 Factura B, 7 ND B, 8 NC B, 11 Factura C, 12 ND C, 13 NC C, 51 Factura M, 201 FCE MiPyME A, 206 FCE B, 211 FCE C, 17/18 liquidación de servicios públicos A/B, 63/64 liquidación A/B; si no lo dice, deducilo de la letra y el tipo),
  "punto_venta": número, "numero": número, "fecha": "AAAA-MM-DD" (de emisión), "vencimiento": "AAAA-MM-DD" o null (del pago),
  "cuit_emisor": "11 dígitos" (el de quien emite, arriba), "razon_social_emisor": "texto", "cuit_receptor": "11 dígitos" (el del cliente, a quién va facturado),
  "moneda": "ARS" | "USD", "cotizacion": número o null (si es en dólares),
  "alicuotas": [{"pct": 21, "neto": número, "iva": número}] (neto gravado e IVA de cada alícuota; vacío si no discrimina IVA, como en B y C),
- "no_gravado": número, "exento": número, "percepcion_iva": número, "percepcion_iibb": número (percepciones de ingresos brutos de cualquier jurisdicción, sumadas),
+ "no_gravado": número, "exento": número, "percepcion_iva": número, "percepcion_iibb": número (percepciones de ingresos brutos de cualquier jurisdicción, sumadas), "percepciones_iibb_provincias": [{"provincia": "Córdoba", "importe": número}] (cada percepción de ingresos brutos con su provincia, si la factura lo dice; vacío si no),
  "otros_tributos": número (impuestos internos, tasas municipales y otros tributos, sumados), "total": número (el importe total), "cae": "14 dígitos" o null}
 Los importes en la moneda del comprobante, con punto decimal (12345.67), sin signo. Si un dato no está, null o 0. No inventes nada.`;
 

@@ -9,7 +9,8 @@ import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, enTransaccion, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { supabaseServer } from "@/lib/supabase";
-import { leerFacturaArchivo, aComprobante } from "@/lib/compras/factura-leer";
+import { detalleIibb, leerFacturaArchivo, aComprobante } from "@/lib/compras/factura-leer";
+import { codigoJurisdiccion } from "@/lib/impuestos/jurisdicciones";
 import { armarFactura } from "@/lib/administracion/arca-mc-leer";
 import { proximoCodigoCuenta, crearCuenta } from "@/lib/administracion/contabilidad";
 import { tienePermiso } from "@/lib/permisos";
@@ -94,6 +95,13 @@ export async function accionGuardarCabecera(fd: FormData) {
        where id = $2 and organizacion_id = $1 and estado = 'borrador'`,
       [s.org.id, fid, c.proveedorId, c.letra, c.esNc, c.puntoVenta, c.nro, c.fecha, c.venc, c.moneda, c.cot, c.depositoId, c.recepcionId, c.cuentaId, c.notas,
         imp("percepcion_iva"), imp("percepcion_iibb"), imp("otros_impuestos"), imp("no_gravado"), c.emisorId]);
+    // La provincia de la percepción de IIBB (Fer, 23/10): elegida, queda en la factura y, si el proveedor no tenía, en él.
+    const jur = codigoJurisdiccion(texto(fd, "iibb_jur"));
+    const perc = imp("percepcion_iibb");
+    if (jur && perc > 0) {
+      await consulta("update factura_compra set percepcion_iibb_detalle = $3::jsonb where id = $2 and organizacion_id = $1", [s.org.id, fid, JSON.stringify([{ jur, importe: perc }])]);
+      await consulta("update proveedor set iibb_jurisdiccion = $3 where id = $2 and organizacion_id = $1 and iibb_jurisdiccion is null", [s.org.id, c.proveedorId, jur]);
+    } else if (!perc) await consulta("update factura_compra set percepcion_iibb_detalle = null where id = $2 and organizacion_id = $1", [s.org.id, fid]);
     await recalcularFactura(s.org.id, fid);
     // La cuenta de gasto elegida queda en el proveedor para las próximas (Fer, 23/10).
     if (c.cuentaId) await consulta("update proveedor set cuenta_gasto_id = $3 where id = $2 and organizacion_id = $1", [s.org.id, c.proveedorId, c.cuentaId]);
@@ -240,6 +248,12 @@ export async function accionSubirFactura(a: { ruta: string; archivo: string; tip
           armada.percepcionIva, armada.percepcionIibb, armada.otrosImpuestos, armada.noGravado, prov!.cuenta_gasto_id,
           [`Subida desde el archivo «${a.archivo}» (${c.tipoTexto}).`, armada.aviso].filter(Boolean).join(" "), s.usuario.id, c.cae, emisor.id, estandar ? null : c.tipo, a.ruta]);
       const id = Number(f.rows[0].id);
+      // Las percepciones de IIBB por provincia, si la factura las discrimina y suman lo mismo.
+      const det = detalleIibb(r.lectura, armada.percepcionIibb);
+      if (det) {
+        await cx.query("update factura_compra set percepcion_iibb_detalle = $2::jsonb where id = $1", [id, JSON.stringify(det)]);
+        if (det.length === 1) await cx.query("update proveedor set iibb_jurisdiccion = $2 where id = $1 and iibb_jurisdiccion is null", [prov!.id, det[0].jur]);
+      }
       let orden = 0;
       for (const l of armada.lineas) {
         await cx.query(`insert into factura_compra_linea (organizacion_id, factura_id, descripcion, cantidad, costo_unit, iva_pct, neto, iva, orden)

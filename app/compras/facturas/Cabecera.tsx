@@ -10,6 +10,7 @@ import { fecha as fechaAR } from "@/app/ventas/formato";
 import { emisoresDe } from "@/lib/arca/facturar";
 import { LETRAS } from "../comun";
 import ElegirDeLista from "@/app/componentes/ElegirDeLista";
+import { CODIGOS_JURISDICCION, nombreJurisdiccion } from "@/lib/impuestos/jurisdicciones";
 import { cuitLegible } from "@/lib/cuit";
 import { accionCrearProveedorRapido } from "@/app/compras/proveedores/acciones";
 import { accionCrearCuentaGasto } from "./acciones";
@@ -21,6 +22,10 @@ export type DatosCabecera = {
   percepcion_iva?: number; percepcion_iibb?: number; otros_impuestos?: number; no_gravado?: number;
   /** A nombre de qué razón social viene facturada (el stock entra igual al general); sin dato, la principal. */
   emisor_id?: number | null;
+  /** La provincia de la percepción de IIBB (si es una sola; con varias, viene null y se respeta el detalle leído). */
+  iibb_jur?: number | null;
+  /** Con varias provincias, el detalle tal cual (para mostrarlo). */
+  iibb_detalle?: { jur: number; importe: number }[] | null;
 };
 
 /** Las listas para elegir (proveedor, depósito, recepción, cuenta) y la cotización del día. */
@@ -103,6 +108,11 @@ export function CamposCabecera({ d, o, conImpuestos = false }: { d: DatosCabecer
             <CampoNumero name="percepcion_iva" valor={d.percepcion_iva ?? 0} tipo="pesos" className={`${CAMPO} w-full`} /></label>
           <label><span className={ETIQUETA}>Percepción IIBB</span>
             <CampoNumero name="percepcion_iibb" valor={d.percepcion_iibb ?? 0} tipo="pesos" className={`${CAMPO} w-full`} /></label>
+          <div><span className={ETIQUETA}>Provincia de la percepción IIBB</span>
+            {(d.iibb_detalle?.length ?? 0) > 1
+              ? <span className="block text-[11px] text-[#5C6B76] pt-1.5">{d.iibb_detalle!.map((x) => `${nombreJurisdiccion(x.jur)} ${x.importe.toLocaleString("es-AR", { minimumFractionDigits: 2 })}`).join(" · ")}</span>
+              : <ElegirDeLista name="iibb_jur" valor={d.iibb_jur ?? null} vacio="La del proveedor (o Córdoba)" etiqueta="Provincia de la percepción IIBB"
+                  opciones={CODIGOS_JURISDICCION.map((c) => ({ id: c, texto: nombreJurisdiccion(c) }))} />}</div>
           <label><span className={ETIQUETA}>Otros impuestos</span>
             <CampoNumero name="otros_impuestos" valor={d.otros_impuestos ?? 0} tipo="pesos" className={`${CAMPO} w-full`} /></label>
           <label><span className={ETIQUETA}>No gravado</span>

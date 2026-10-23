@@ -32,6 +32,7 @@ type Factura = {
   id: number; proveedor_id: number; proveedor: string; letra: string; es_nota_credito: boolean; es_nota_debito: boolean; punto_venta: number | null; numero: string | null;
   fecha: string; vencimiento: string | null; moneda: "ARS" | "USD"; cotizacion: number; neto: number; iva: number;
   iva_detalle: { pct: number; base: number; importe: number }[]; percepcion_iva: number; percepcion_iibb: number; otros_impuestos: number;
+  percepcion_iibb_detalle: { jur: number; importe: number }[] | null; jur_proveedor: number | null;
   no_gravado: number; total: number; total_ars: number; total_usd: number; deposito_id: number | null; deposito: string | null;
   recepcion_id: number | null; cuenta_gasto_id: number | null; cuenta_gasto: string | null; estado: string; notas: string | null; registrada_ts: Date | null;
   diferencia_recepcion: DiferenciaRecepcion[] | null; emisor_id: number | null; emisor: string | null;
@@ -47,7 +48,7 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
   const f = await una<Factura>(`
     select f.id::int, f.proveedor_id::int, p.nombre proveedor, f.letra, f.es_nota_credito, f.es_nota_debito, f.punto_venta, f.numero::text,
            to_char(f.fecha, 'YYYY-MM-DD') fecha, to_char(f.vencimiento, 'YYYY-MM-DD') vencimiento, f.moneda, f.cotizacion::float,
-           f.neto::float, f.iva::float, f.iva_detalle, f.percepcion_iva::float, f.percepcion_iibb::float, f.otros_impuestos::float,
+           f.neto::float, f.iva::float, f.iva_detalle, f.percepcion_iva::float, f.percepcion_iibb::float, f.percepcion_iibb_detalle, p.iibb_jurisdiccion jur_proveedor, f.otros_impuestos::float,
            f.no_gravado::float, f.total::float, f.total_ars::float, f.total_usd::float, f.deposito_id::int, d.nombre deposito,
            f.recepcion_id::int, f.cuenta_gasto_id::int, (pc.codigo || ' ' || pc.nombre) cuenta_gasto, f.estado, f.notas, f.registrada_ts,
            f.diferencia_recepcion, f.emisor_id::int, (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = f.emisor_id) emisor,
@@ -133,7 +134,8 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
             <span className="flex items-center gap-2"><h2 className="text-sm font-bold">Cabecera</h2><Estado texto={est.texto} tono={est.tono} /></span>
             <button className={PRIMARIO}>Grabar cabecera</button>
           </div>
-          <CamposCabecera o={opciones} conImpuestos d={{ ...f, cotizacion: f.moneda === "USD" ? f.cotizacion : null }} />
+          <CamposCabecera o={opciones} conImpuestos d={{ ...f, cotizacion: f.moneda === "USD" ? f.cotizacion : null,
+            iibb_detalle: f.percepcion_iibb_detalle, iibb_jur: f.percepcion_iibb_detalle?.length === 1 ? f.percepcion_iibb_detalle[0].jur : f.jur_proveedor }} />
         </form>
       ) : (
         <div className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4`}>

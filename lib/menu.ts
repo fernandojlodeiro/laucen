@@ -98,6 +98,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Caja y bancos", href: "/administracion/tesoreria", permiso: "tesoreria_ver" },
       { texto: "Contabilidad", href: "/administracion/contabilidad", permiso: "contabilidad_ver" },
       { texto: "Libros de IVA", href: "/administracion/libros-iva", permiso: "libros_iva_ver" },
+      { texto: "Impuestos", href: "/administracion/impuestos", permiso: "impuestos_ver" },
       { texto: "Facturación de Mercado Libre", href: "/administracion/facturacion-ml", permiso: "facturacion_ml_ver" },
       { texto: "Mercado Pago", href: "/administracion/mercadopago", permiso: "mercadopago_ver" },
       { texto: "Gastos de Mercado Pago", href: "/administracion/mercadopago/gastos", permiso: "mercadopago_ver" },
