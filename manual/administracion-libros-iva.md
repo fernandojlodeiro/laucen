@@ -125,6 +125,7 @@ En la pestaña IVA Ventas, elegí el **Canal**. Aparece la aclaración "Filtrado
 - Formato de ARCA (mismo diseño que el ex régimen de información de compras y ventas): campos de ancho fijo, importes en centavos sin punto, fechas AAAAMMDD, textos sin acentos, renglones con fin de línea de Windows.
 - Las ventas son siempre de **todos los canales**, aunque estés filtrando por uno.
 - A un comprobante que discrimina IVA sin ninguna alícuota se le informa una de 0 % con base cero (ARCA pide al menos una).
+- En las **compras**, lo que figura como neto gravado al 0 % (así trae Mis Comprobantes de ARCA la parte exenta de una factura A) se informa en el archivo como **operaciones exentas** y no como alícuota: el Libro de IVA Digital rechaza una alícuota 0 % con importe en una compra. En pantalla se sigue viendo en la columna 0 %.
 - **Hay que validarlos importándolos en ARCA** antes de presentar.
 
 ## Con más de una razón social

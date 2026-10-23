@@ -218,14 +218,23 @@ function codigoOperacion(c: CbteIva) {
   if (!discrimina(c)) return "0";
   const ivaTot = c.alicuotas.reduce((s, a) => s + a.iva, 0);
   if (ivaTot !== 0) return "0";
-  return c.exento > 0 && c.noGravado <= 0 ? "E" : "N";
+  return exentoTxt(c) > 0 && c.noGravado <= 0 ? "E" : "N";
 }
+
+/** En compras, lo que viene como "neto gravado al 0 %" (así lo trae Mis Comprobantes de ARCA para la parte exenta de
+ *  una factura, ej. Alarmas Keeper) se informa como operación exenta y no como alícuota: el Libro de IVA Digital
+ *  rechaza la alícuota 0 % con base en una compra (Fer, 23/10). Las ventas quedan como están. */
+function exentoDeCompra(c: CbteIva) {
+  if (c.origen !== "compra" || !discrimina(c)) return 0;
+  return r2(alicuotasInformadas(c).filter((a) => a.codigo === CODIGO_ALICUOTA[0]).reduce((s, a) => s + a.base, 0));
+}
+const exentoTxt = (c: CbteIva) => r2(c.exento + exentoDeCompra(c));
 
 /** Las alícuotas de un comprobante que discrimina: si no tiene ninguna, va
  *  una de 0 % con base cero (ARCA pide al menos una para A y B). */
 function alicuotasParaTxt(c: CbteIva) {
   if (!discrimina(c)) return [];
-  const a = alicuotasInformadas(c);
+  const a = alicuotasInformadas(c).filter((x) => !(c.origen === "compra" && x.codigo === CODIGO_ALICUOTA[0]));
   return a.length ? a : [{ codigo: 3, base: 0, iva: 0 }];
 }
 
@@ -292,7 +301,7 @@ export function lineaCompraCbte(c: CbteIva): string {
     txt(c.nombre, 30),                                // 8  Apellido y nombre o denominación del vendedor (30)
     importe(c.total),                                 // 9  Importe total de la operación (15)
     importe(discrimina(c) ? c.noGravado : 0),         // 10 Conceptos que no integran el precio neto gravado (15)
-    importe(discrimina(c) ? c.exento : 0),            // 11 Operaciones exentas (15)
+    importe(discrimina(c) ? exentoTxt(c) : 0),        // 11 Operaciones exentas (15) (con lo "gravado al 0 %")
     importe(c.percepcionIva),                         // 12 Percepciones o pagos a cuenta del IVA (15)
     importe(c.percepcionNacionales),                  // 13 Percepciones o pagos a cuenta de otros impuestos nacionales (15)
     importe(c.percepcionIibb),                        // 14 Percepciones de Ingresos Brutos (15)

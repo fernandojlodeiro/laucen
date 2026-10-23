@@ -166,6 +166,19 @@ test("COMPRAS_ALICUOTAS: 84 posiciones, una por alícuota; B y C no van", () => 
   assert.equal(b.slice(104, 119), "000000000121000");
 });
 
+test("compra con parte exenta que ARCA trae como «gravado al 0 %» (Alarmas Keeper): va a operaciones exentas, una sola alícuota", () => {
+  // Factura A 00004-00019624 de septiembre: 41.504,12 al 21 % + 1.980 exento; los renglones, iguales a los que acepta ARCA.
+  const k = base({ origen: "compra", id: 13, fecha: "2026-09-01", tipo: 1, puntoVenta: 4, numero: "19624", docNro: "30627093477", nombre: "ALARMAS KEEPER S R L",
+    alicuotas: [{ pct: 21, base: 41504.12, iva: 8715.87 }, { pct: 0, base: 1980, iva: 0 }], total: 52199.99 });
+  const l = lineaCompraCbte(k);
+  assert.equal(l.slice(104, 119), "000000005219999");  // total
+  assert.equal(l.slice(119, 134), Z15);                // no gravado
+  assert.equal(l.slice(134, 149), "000000000198000");  // operaciones exentas
+  assert.equal(l.slice(237, 239), "10");               // 1 alícuota, código de operación 0
+  assert.equal(l.slice(239, 254), "000000000871587");  // crédito fiscal
+  assert.deepEqual(lineasCompraAlicuotas(k), ["001" + "00004" + "00000000000000019624" + "80" + "00000000030627093477" + "000000004150412" + "0005" + "000000000871587"]);
+});
+
 test("despacho: COMPRAS_CBTE tipo 066 con el número de despacho y COMPRAS_IMPORTACIONES de 50", () => {
   const l = lineaCompraCbte(DESP);
   assert.equal(l.length, 325);
