@@ -256,3 +256,15 @@ create table if not exists seguimiento_mlau_tarea (
 );
 alter table seguimiento_mlau_tarea enable row level security;
 select erp_politica_org('seguimiento_mlau_tarea');
+
+-- «✓ Producto revisado» (Fer, 23/10): una persona miró los seguimientos del producto y los dejó bien. Sirve para ver el
+-- avance de la revisión. Si después entra una publicación seguida nueva, el producto vuelve a «por revisar».
+create table if not exists seguimiento_revision (
+  organizacion_id   text not null references organizaciones(id) on delete cascade,
+  producto_id       bigint not null references producto(id) on delete cascade,
+  revisado_ts       timestamptz not null default now(),
+  revisado_por      text,
+  primary key (organizacion_id, producto_id)
+);
+alter table seguimiento_revision enable row level security;
+select erp_politica_org('seguimiento_revision');
