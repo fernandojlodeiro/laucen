@@ -111,9 +111,11 @@ export async function accionCrearCuentaArca(fd: FormData) {
     if (!tienePermiso(s.permisos, "contabilidad_ver")) throw new ErrorErp("Para crear cuentas contables hace falta el permiso de Contabilidad.");
     const codigo = texto(fd, "codigo"), nombre = texto(fd, "nombre");
     const cuentaId = await crearCuenta(s.org.id, { codigo, nombre, tipo: "egreso", imputable: true });
-    const para = texto(fd, "para");
-    if (para && para in cuentas) cuentas[para] = cuentaId;
+    // Los proveedores tildados (varios): a todos les queda elegida la cuenta nueva.
+    const para = fd.getAll("para").map(String).filter((c) => c in cuentas);
+    for (const c of para) cuentas[c] = cuentaId;
     revalidatePath("/administracion/contabilidad");
-    return { ir: previaCon(lote, cuentas, `Cuenta ${codigo} — ${nombre} creada${para && para in cuentas ? " y elegida para su proveedor" : ": ya está en los desplegables"}.`) };
+    const que = para.length === 0 ? ": ya está en los desplegables" : para.length === 1 ? " y elegida para su proveedor" : ` y elegida para ${para.length} proveedores`;
+    return { ir: previaCon(lote, cuentas, `Cuenta ${codigo} — ${nombre} creada${que}.`) };
   });
 }

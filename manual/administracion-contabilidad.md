@@ -63,6 +63,8 @@ Estado de resultados del período: bloque **Ingresos** (cada cuenta de ingreso c
 
 ### Plan de cuentas
 
+El plan de cuentas es **uno solo para toda la empresa**: lo comparten todas sus razones sociales. Una cuenta creada (acá o desde la importación de ARCA) queda disponible para todas.
+
 - Botón **"Nueva cuenta"** arriba a la derecha: abre el formulario con **Código** (viene sugerido el próximo libre de egreso, ej. 5.2.06), **Nombre**, **Tipo** (Activo, Pasivo, Patrimonio neto, Ingreso, Egreso), la caja **Imputable** (tildada de entrada) y el botón **"Crear"**.
 - Buscador **"Buscar cuenta por código o nombre"** con "Comienza por" (también por N.º, tipo, para qué la usan los asientos automáticos y a qué canal o cuenta está atada).
 - Aclaración: "Las imputables reciben asientos; las otras son títulos que agrupan. Las marcadas "automática" las usan los asientos que se generan solos: se pueden renombrar o recodificar, no borrar. Las "ventas del canal …" y las de Mercado Pago de cada cuenta de Mercado Libre y de la tienda web se crean solas."

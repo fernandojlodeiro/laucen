@@ -63,6 +63,9 @@ create unique index if not exists factura_compra_numero_tipo on factura_compra (
 -- De dónde vino (null = a mano; 'arca_mc' = "Mis Comprobantes" de ARCA) y su CAE.
 alter table factura_compra add column if not exists origen text;
 alter table factura_compra add column if not exists cae text;
+-- El código de comprobante de ARCA (Fer, 22/10), cuando no sale de la letra: liquidaciones de servicios
+-- públicos (17, 18) y de los bancos (63, 64). Lo usa el Libro IVA; null = el de la letra (factura / NC / ND).
+alter table factura_compra add column if not exists tipo_cbte smallint;
 -- Vinculada a una recepción (3/10): por producto, lo facturado contra lo
 -- recibido y la diferencia valorizada al costo de la factura, como quedó al
 -- registrarla ([{variacion_id, facturado, recibido, diferencia,

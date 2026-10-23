@@ -61,7 +61,7 @@ export async function ventasDelPeriodo(org: string, desde: string, hasta: string
   });
 }
 
-type FilaCompra = { id: number; fecha: string; letra: string; es_nota_credito: boolean; es_nota_debito: boolean; punto_venta: number | null; numero: string | null;
+type FilaCompra = { id: number; fecha: string; letra: string; tipo_cbte: number | null; es_nota_credito: boolean; es_nota_debito: boolean; punto_venta: number | null; numero: string | null;
   moneda: string; cotizacion: string; neto: string; iva: string; iva_detalle: { pct: number; base: number; importe: number }[] | null;
   percepcion_iva: string; percepcion_iibb: string; otros_impuestos: string; no_gravado: string; total: string;
   proveedor_id: number; nombre: string; cuit: string | null; condicion_iva: string | null; tc: string | null };
@@ -70,7 +70,7 @@ type FilaCompra = { id: number; fecha: string; letra: string; es_nota_credito: b
 export async function comprasDelPeriodo(org: string, desde: string, hasta: string, emisorId: number | null = null): Promise<{ compras: CbteIva[]; avisos: AvisoLibro[] }> {
   const avisos: AvisoLibro[] = [];
   const facturas = await consulta<FilaCompra>(`
-    select f.id::int, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.letra, f.es_nota_credito, f.es_nota_debito, f.punto_venta, f.numero::text numero,
+    select f.id::int, to_char(f.fecha, 'YYYY-MM-DD') fecha, f.letra, f.tipo_cbte::int tipo_cbte, f.es_nota_credito, f.es_nota_debito, f.punto_venta, f.numero::text numero,
            f.moneda, f.cotizacion, f.neto, f.iva, f.iva_detalle, f.percepcion_iva, f.percepcion_iibb, f.otros_impuestos, f.no_gravado, f.total,
            p.id::int proveedor_id, coalesce(nullif(p.razon_social, ''), p.nombre) nombre, p.cuit, p.condicion_iva,
            coalesce(f.total_ars / nullif(f.total_usd, 0), tc_del_dia(f.organizacion_id, f.fecha)) tc
@@ -79,7 +79,8 @@ export async function comprasDelPeriodo(org: string, desde: string, hasta: strin
   const compras: CbteIva[] = [];
   for (const f of facturas) {
     const enlace = `/compras/facturas/${f.id}`;
-    const tipo = tipoCompra(f.letra, f.es_nota_credito, f.es_nota_debito);
+    // El código de ARCA si vino con la factura (liquidaciones 17, 18, 63, 64); si no, el de su letra.
+    const tipo = f.tipo_cbte ?? tipoCompra(f.letra, f.es_nota_credito, f.es_nota_debito);
     const etiqueta = `${f.es_nota_credito ? "NC" : f.es_nota_debito ? "ND" : "Factura"} ${f.letra} ${f.punto_venta != null ? String(f.punto_venta).padStart(5, "0") + "-" : ""}${f.numero ?? "s/n"} de ${f.nombre}`;
     if (tipo == null || f.letra === "E") {
       avisos.push({ texto: `${etiqueta}: letra ${f.letra}, no entra en el libro (${f.letra === "E" ? "comprobante del exterior: la mercadería entra por el despacho" : "no es un comprobante fiscal"}).`, enlace });

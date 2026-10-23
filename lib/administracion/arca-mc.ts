@@ -145,13 +145,13 @@ export async function importarLote(org: string, loteId: number, cuentas: Record<
     const a = f.armada;
     let fid = 0;
     try {
-      const notas = ["Importada de ARCA (Mis Comprobantes).", f.c.numeroHasta ? `Números ${f.c.numero} a ${f.c.numeroHasta}.` : null, a.aviso].filter(Boolean).join(" ");
+      const notas = [`Importada de ARCA (Mis Comprobantes): ${f.c.tipoTexto}.`, f.c.numeroHasta ? `Números ${f.c.numero} a ${f.c.numeroHasta}.` : null, a.aviso].filter(Boolean).join(" ");
       const r = await una<{ id: number }>(`
         insert into factura_compra (organizacion_id, proveedor_id, letra, es_nota_credito, es_nota_debito, punto_venta, numero, fecha, vencimiento, moneda, cotizacion,
-                                    percepcion_iva, percepcion_iibb, otros_impuestos, no_gravado, cuenta_gasto_id, notas, usuario_id, origen, cae, emisor_id)
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'arca_mc', $18, $19) returning id::int`,
+                                    percepcion_iva, percepcion_iibb, otros_impuestos, no_gravado, cuenta_gasto_id, notas, usuario_id, origen, cae, emisor_id, tipo_cbte)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'arca_mc', $18, $19, $20) returning id::int`,
         [org, pid, f.c.letra, f.c.nc, f.c.nd, f.c.puntoVenta, f.c.numero, f.c.fecha, f.c.moneda, f.c.moneda === "USD" ? f.c.cotizacion : 1,
-          a.percepcionIva, a.percepcionIibb, a.otrosImpuestos, a.noGravado, cuentas[f.c.cuit] ?? null, notas, usuarioId, f.c.cae, v.lote.emisor_id]);
+          a.percepcionIva, a.percepcionIibb, a.otrosImpuestos, a.noGravado, cuentas[f.c.cuit] ?? null, notas, usuarioId, f.c.cae, v.lote.emisor_id, f.c.tipo]);
       fid = r!.id;
       let orden = 0;
       for (const l of a.lineas) {

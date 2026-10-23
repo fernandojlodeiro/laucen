@@ -71,7 +71,7 @@ Título "Importar de ARCA (Mis Comprobantes)". Debajo, el nombre del archivo, cu
 - Si hubo renglones que no se pudieron leer: "Renglones que no se pudieron leer (N):" con el motivo de cada uno (muestra hasta 30).
 - Si no hay nada nuevo: "No hay nada nuevo para importar: todo lo del archivo ya está cargado."
 - **Cuenta de gasto de cada proveedor**: una fila por proveedor del archivo con Proveedor (los que no existen dicen "Nuevo: se crea al importar"; los de Mercado Libre llevan la etiqueta "Mercado Libre"), CUIT, cuántas **Nuevas** tiene y el desplegable **Cuenta de gasto** (primero las cuentas de egreso, después el resto).
-- A la derecha del título "Cuenta de gasto de cada proveedor", si tenés también el permiso de **Contabilidad**: **+ Nueva cuenta**. Abre debajo un formulario chico con **Código** (ya sugerido), **Nombre**, **Queda elegida para** ("— Ningún proveedor —" o uno de los proveedores del archivo), el botón **Crear** y la aclaración "Se crea como cuenta de egreso imputable, bajo … (la cuenta madre sale del código)"; **Cancelar** lo cierra.
+- A la derecha del título "Cuenta de gasto de cada proveedor", si tenés también el permiso de **Contabilidad**: **+ Nueva cuenta**. Abre debajo un formulario chico con **Código** (ya sugerido), **Nombre**, **Queda elegida para** (los proveedores de este archivo, cada uno con una caja para tildar y entre paréntesis cuántas facturas nuevas trae: se pueden tildar varios), el botón **Crear** y la aclaración "Se crea como cuenta de egreso imputable, bajo … (la cuenta madre sale del código)"; **Cancelar** lo cierra.
 - Pestañas para filtrar los comprobantes por estado, cada una con su cantidad: **Todos**, **Nuevas**, **Ya cargadas**, **Cargadas a mano distintas**, **Con error**, **Repetidas** (las que tienen cero no se muestran, salvo Todos y Nuevas).
 - La tabla: Fecha, Proveedor (con CUIT; "(nuevo)" si se va a crear), Comprobante (tipo y número; si ya está cargado, enlace a la factura), Neto gravado (y el desglose si tiene varias alícuotas), IVA (y la alícuota), No gravado / exento, Percepciones / otros, Total (y "TC" si es en dólares) y Estado (con el motivo o el aviso). En las facturas B y C, neto, IVA y percepciones se muestran "—": el total entero es gasto.
 
@@ -110,8 +110,8 @@ Sirve cuando un proveedor necesita una cuenta que todavía no está en el plan (
 1. En la vista previa, apretá **+ Nueva cuenta** (a la derecha del título "Cuenta de gasto de cada proveedor").
 2. El **Código** ya viene sugerido: el próximo libre de egreso (en el plan por defecto, después de 5.2.05 "Gastos varios", el 5.2.06). Se puede cambiar.
 3. Escribí el **Nombre**.
-4. Si es para un proveedor en particular, elegilo en **Queda elegida para**.
-5. Apretá **Crear** (o Enter). Vuelve a la misma vista previa con "Cuenta 5.2.06 — Publicidad creada y elegida para su proveedor." (o "…creada: ya está en los desplegables."). La cuenta nueva aparece en todos los desplegables; **lo que ya habías elegido en los otros proveedores se mantiene**.
+4. En **Queda elegida para**, tildá los proveedores que van a esa cuenta (uno o varios).
+5. Apretá **Crear** (o Enter). Vuelve a la misma vista previa con la cuenta nueva ya elegida en todos los proveedores tildados: "Cuenta 5.2.06 — Publicidad creada y elegida para 3 proveedores." (o "…para su proveedor", o "…creada: ya está en los desplegables." si no tildaste ninguno). La cuenta nueva aparece en todos los desplegables; **lo que ya habías elegido en los otros proveedores se mantiene**.
 
 La cuenta se crea siempre como **egreso** e **imputable**, y queda en el [plan de cuentas](/administracion/contabilidad) como cualquier otra (ahí se puede renombrar, recodificar o desactivar). El código se valida igual que en Contabilidad. Errores típicos: "La cuenta necesita un nombre.", "El código va con números separados por puntos (ej. 5.2.06).", "Ya hay una cuenta con el código 5.2.06 (…).": el formulario sigue abierto con el error.
 
@@ -218,7 +218,7 @@ Cuando la factura está vinculada a una recepción, el asiento de la compra pone
   - la **vieja**, con el neto gravado y el IVA en un solo número;
   - la **nueva**, con neto e IVA por alícuota (0, 2,5, 5, 10,5, 21 y 27 %), y a veces percepciones aparte (de IVA, de Ingresos Brutos, impuestos internos, otros tributos).
 - Obligatorias: Fecha, Tipo, Punto de Venta, Número Desde, Nro. Doc. Emisor (CUIT del emisor) e Imp. Total.
-- Tipos de comprobante que reconoce: facturas, notas de débito, notas de crédito, recibos, notas de venta al contado y tiques de letras A, B, C y M, y las Facturas de Crédito Electrónicas MiPyME (con sus notas). Recibos, tiques y notas de venta cuentan como factura de su letra. Otro tipo: ese renglón no se importa ("el tipo de comprobante … no lo conozco").
+- Tipos de comprobante que reconoce: facturas, notas de débito, notas de crédito, recibos, notas de venta al contado y tiques de letras A, B, C y M, las Facturas de Crédito Electrónicas MiPyME (con sus notas) y las liquidaciones: **Liquidación A** y **Liquidación B** (las de los bancos) y **Liquidación de servicios públicos clase A** y **clase B**. Recibos, tiques, notas de venta y liquidaciones cuentan como factura de su letra (una liquidación A discrimina el IVA como una factura A); en el Libro IVA de compras salen con su propio código de comprobante. Otro tipo: ese renglón no se importa ("el tipo de comprobante … no lo conozco").
 - Renglones que no se leen (y se listan en "Renglones que no se pudieron leer"): fecha que no se entiende, tipo desconocido, emisor sin CUIT de 11 dígitos, sin número, moneda que no es pesos ni dólares.
 - Si el renglón tiene "Número Hasta" mayor que el "Número Desde", se importa como un solo comprobante con el primer número y en las notas queda "Números X a Y".
 
