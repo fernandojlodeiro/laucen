@@ -18,7 +18,6 @@ import { fecha as fechaAR, fechaHora } from "@/app/ventas/formato";
 import { ESTADO_DESPACHO, buscarVariaciones, pct } from "../../comun";
 import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
 import { CamposDespacho, opcionesDespacho } from "../Cabecera";
-import LeerDespacho from "./LeerDespacho";
 import ElegirDeLista from "@/app/componentes/ElegirDeLista";
 import type { LecturaDespacho } from "@/lib/compras/despacho-leer";
 import {
@@ -207,8 +206,6 @@ export default async function DetalleDespacho({ params, searchParams }: { params
         </div>
       )}
 
-      {borrador && <LeerDespacho organizacionId={s.org.id} despachoId={did} leido={d.archivo} />}
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <TablaItems cual="gastos" titulo="Gastos (suman al costo)" ayuda="En pesos: derechos, tasa estadística, despachante, depósito fiscal, flete interno…" />
         <TablaItems cual="impuestos" titulo="Impuestos (crédito fiscal, no costo)" ayuda="En pesos: IVA, IVA adicional, Ganancias, IIBB." />
@@ -380,12 +377,17 @@ export default async function DetalleDespacho({ params, searchParams }: { params
         <span className="text-right tabular-nums">{pesos(calc.fobTotal * cot)}</span><span className="text-right tabular-nums">{dolares(calc.fobTotal * cot)}</span>
         <span className="text-[#5C6B76]">Flete y seguro</span>
         <span className="text-right tabular-nums">{pesos((d.flete_usd + d.seguro_usd) * cot)}</span><span className="text-right tabular-nums">{dolares((d.flete_usd + d.seguro_usd) * cot)}</span>
-        <span className="text-[#5C6B76]">Gastos</span>
+        {/* El nombre de cada gasto (derechos, arancel SIM, tasa estadística…), así se lee qué suma (Fer, 23/10). */}
+        <span className="text-[#5C6B76]">{d.gastos.length ? d.gastos.map((g) => g.concepto).join(", ") : "Gastos"}</span>
         <span className="text-right tabular-nums">{pesos(gastosArs)}</span><span className="text-right tabular-nums">{dolares(gastosArs)}</span>
         <span className="font-bold">Costo total puesto en depósito</span>
         <span className="text-right tabular-nums font-bold">{pesos(calc.costoTotalArs)}</span><span className="text-right tabular-nums font-bold">{dolares(calc.costoTotalArs)}</span>
         <span className="text-[#5C6B76]">Impuestos (crédito fiscal, aparte)</span>
         <span className="text-right tabular-nums">{pesos(impuestosArs)}</span><span className="text-right tabular-nums">{dolares(impuestosArs)}</span>
+        {/* Para cotejar con el «PAGADO» del despacho. */}
+        <span className="font-bold border-t border-[#E3E9F0] pt-1">Gastos + impuestos (el total pagado del despacho)</span>
+        <span className="text-right tabular-nums font-bold border-t border-[#E3E9F0] pt-1">{pesos(gastosArs + impuestosArs)}</span>
+        <span className="text-right tabular-nums font-bold border-t border-[#E3E9F0] pt-1">{dolares(gastosArs + impuestosArs)}</span>
       </div>
 
       {borrador && (

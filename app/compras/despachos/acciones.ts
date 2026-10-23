@@ -242,7 +242,7 @@ async function leerPdfSubido(org: string, ruta: string) {
   return r.lectura;
 }
 
-/** Carga lo leído en el borrador: cabecera, razón social (por el CUIT del importador), proveedor (por el nombre del
+/** Carga lo leído en el borrador recién creado: cabecera, razón social (por el CUIT del importador), proveedor (por el nombre del
  *  vendedor), depósito principal si no tiene, y los gastos e impuestos en pesos. Lo que el borrador ya tenía con otro
  *  concepto (ej. el despachante) queda. Devuelve el aviso para la pantalla. */
 async function aplicarLectura(org: string, did: number, l: LecturaDespacho, ruta: string): Promise<string> {
@@ -265,20 +265,6 @@ async function aplicarLectura(org: string, did: number, l: LecturaDespacho, ruta
   const partes = [`Leído: ${x.gastos.length} gasto${x.gastos.length === 1 ? "" : "s"} y ${x.impuestos.length} impuesto${x.impuestos.length === 1 ? "" : "s"}`,
     l.items.length ? `${l.items.length} renglón${l.items.length === 1 ? "" : "es"} de mercadería` : null].filter(Boolean).join(", ");
   return `${partes}. Revisalo antes de registrar.${x.avisos.length ? " Ojo: " + x.avisos.join(" ") : ""}`;
-}
-
-/** «Leer el despacho (PDF)» en un borrador que ya existe. */
-export async function accionLeerDespachoPdf(a: { despachoId: number; ruta: string; archivo: string }): Promise<{ ok: string } | { motivo: string }> {
-  const s = await entrarErp("despachos_ver");
-  try {
-    await borrador(s.org.id, a.despachoId);
-    const l = await leerPdfSubido(s.org.id, a.ruta);
-    const ok = await aplicarLectura(s.org.id, a.despachoId, l, a.ruta);
-    revalidatePath(detalle(a.despachoId));
-    return { ok };
-  } catch (e) {
-    return { motivo: motivoErp(e) };
-  }
 }
 
 /** «Subir despacho (PDF)» desde la lista (Fer, 23/10): crea el despacho de cero con lo que lee la IA. */
