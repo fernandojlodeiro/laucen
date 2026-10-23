@@ -40,6 +40,9 @@ export function codigoJurisdiccion(v: unknown): number | null {
     if (t.includes(nom)) return c;
   }
   if (/\bpba\b|\bbs ?as\b|pcia buenos aires/.test(t)) return 902;
+  // Los formularios cortan los nombres largos ("SANTIAGO DEL").
+  if (/^santiago\b/.test(t)) return 922;
+  if (/^tierra del\b/.test(t)) return 923;
   return null;
 }
 

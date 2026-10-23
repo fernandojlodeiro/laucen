@@ -99,3 +99,10 @@ test("carpetas del mes en el Drive: de qué impuesto es cada una", async () => {
   assert.equal(impuestoDeCarpeta("Infosistema"), null);
   assert.deepEqual(ultimosMeses("2026-01-15", 3), [{ año: 2026, mes: 1 }, { año: 2025, mes: 12 }, { año: 2025, mes: 11 }]);
 });
+
+test("CM03: la provincia sale del nombre de la fila aunque el código venga corrido; nombres cortados", () => {
+  const d = datosIibb({ jurisdicciones: [{ codigo: 907, provincia: "ENTRE RIOS", determinado: 7814.8 }, { codigo: 908, provincia: "FORMOSA", determinado: 1197.48 }] });
+  assert.deepEqual(d.jurisdicciones.map((j) => j.codigo), [908, 909]);
+  assert.equal(codigoJurisdiccion("SANTIAGO DEL"), 922);
+  assert.equal(codigoJurisdiccion("TIERRA DEL FUEGO"), 923);
+});
