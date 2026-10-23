@@ -9,7 +9,7 @@
 import Link from "next/link";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
-import { conexionDrive } from "@/lib/google/drive";
+import { conexionDrive, rutasDe } from "@/lib/google/drive";
 import { accionMandarAlDrive } from "./acciones";
 import Pestanas from "@/app/componentes/Pestanas";
 import RangoFechas from "@/app/componentes/RangoFechas";
@@ -45,7 +45,7 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
   const canal = canalDe(sp);
   // Cada razón social presenta su libro de IVA: se mira de una sola (la principal, sin elegir).
   const rs = await elegirRazonSocial(org, sp.rs, { todas: false });
-  const [{ ventas, compras, avisos }, canales, drive] = await Promise.all([libroIvaPeriodo(org, desde, hasta, rs.id), canalesConVentas(org), conexionDrive(org)]);
+  const [{ ventas, compras, avisos }, canales, drive, rutas] = await Promise.all([libroIvaPeriodo(org, desde, hasta, rs.id), canalesConVentas(org), conexionDrive(org), rutasDe(org)]);
 
   // En dólares se mira el mismo libro con cada comprobante al dólar de su día (los archivos para ARCA siguen en pesos).
   const enDolares = s.moneda === "USD";
@@ -96,7 +96,7 @@ export default async function LibrosIva({ searchParams }: { searchParams: Promis
       {libro === "compras" && <TablaLibro filas={libroCompras.filas} totales={libroCompras.totales} sp={sp} compras enDolares={enDolares} />}
       {libro === "avisos" && <ListaAvisos avisos={avisos} />}
 
-      <LibroDigital archivos={archivos} filtros={filtros} mes={mesElegido} rs={rs.id} drive={!!drive.carpeta_id && drive.conectado} />
+      <LibroDigital archivos={archivos} filtros={filtros} mes={mesElegido} rs={rs.id} drive={drive.conectado && !drive.permiso_viejo && !!rs.id && !!rutas[String(rs.id)]} />
     </Pantalla>
   );
 }
@@ -239,8 +239,8 @@ function LibroDigital({ archivos, filtros, mes, rs, drive }: {
               return <a key={a.nombre} href={url(`${BASE}/txt`, { ...filtros, archivo: clave })} className={SUAVE}>{clave.replace(/_/g, " ").toLowerCase()} ({a.renglones})</a>;
             })}
             {drive && rs
-              ? <BotonTarea accion={accionMandarAlDrive} tipo="drive-libro-iva" clase={PRIMARIO} texto="Mandar al Drive del contador" campos={{ mes, rs: String(rs) }} />
-              : <Link href="/config/google-drive" className="self-center text-[11px] text-[#16577F] hover:underline">Conectar Google Drive para mandárselos al contador</Link>}
+              ? <BotonTarea accion={accionMandarAlDrive} tipo="drive-libro-iva" clase={PRIMARIO} texto="Mandar al Drive" campos={{ mes, rs: String(rs) }} />
+              : <Link href="/config/google-drive" className="self-center text-[11px] text-[#16577F] hover:underline">Conectar Google Drive (y la ruta de esta razón social) para mandarlos a su carpeta</Link>}
           </div>
           <p className="rounded-lg px-3 py-2 bg-[#FFF8E5] text-[#8a6100]">
             Antes de presentar: estos archivos hay que <b>validarlos importándolos en el Libro de IVA Digital de ARCA</b> (Portal IVA → Libro IVA Digital → Importar), que es el que

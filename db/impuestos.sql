@@ -74,3 +74,7 @@ create table if not exists google_drive (
   actualizado_ts   timestamptz not null default now()
 );
 alter table google_drive enable row level security;
+-- El árbol de carpetas que ya se usa con el contador (Fer, 23/10): la ruta de ejemplo de cada razón social
+-- ({"<emisor_id>": {"texto": "...", "segmentos": [...]}}) y el permiso que dio Google al conectar.
+alter table google_drive add column if not exists rutas jsonb not null default '{}'::jsonb;
+alter table google_drive add column if not exists alcance text;

@@ -75,7 +75,7 @@ En el menú de herramientas internas, **"Aplicación de Mercado Pago"**. La apli
 
 ### Aplicación de Google (/admin/google)
 
-En el menú de herramientas internas, **"Aplicación de Google"**. La aplicación de Google de Laucen, una sola para todo el sistema: con ella cada organización conecta su Google Drive desde [Configuración › Google Drive](/config/google-drive). Muestra si está cargada, los pasos para crearla en Google Cloud (proyecto, habilitar Google Drive API, pantalla de consentimiento publicada, cliente "Aplicación web") con la **URI de redireccionamiento** que hay que poner, y dos campos: **ID de cliente** y **Secreto del cliente**, que se graban con **"Grabar"** (arriba a la derecha) y nunca se vuelven a mostrar. Laucen pide sólo el permiso de crear y ver sus propios archivos, así que la aplicación no necesita la verificación de Google.
+En el menú de herramientas internas, **"Aplicación de Google"**. La aplicación de Google de Laucen, una sola para todo el sistema: con ella cada organización conecta su Google Drive desde [Configuración › Google Drive](/config/google-drive). Muestra si está cargada, los pasos para crearla en Google Cloud (proyecto, habilitar Google Drive API, pantalla de consentimiento publicada, cliente "Aplicación web") con la **URI de redireccionamiento** que hay que poner, y dos campos: **ID de cliente** y **Secreto del cliente**, que se graban con **"Grabar"** (arriba a la derecha) y nunca se vuelven a mostrar. Sin la verificación de Google, al conectar aparece una vez «Google no verificó esta app» (se entra por «Configuración avanzada»); alcanza para hasta 100 usuarios.
 
 ### Apify — scrapers de Mercado Libre
 
