@@ -96,6 +96,10 @@ select erp_politica_org('tipo_cambio', true);
 /** El tipo de cambio (venta) que rige un día: el último cargado hasta esa
  *  fecha; el de la organización gana al global del mismo día. NULL si no hay
  *  ninguno. */
+-- Para el tipo de cambio de un día (Fer, 23/10): sin este índice, cada tc_del_dia recorría y ordenaba la tabla entera
+-- (4 ms) y precio_de lo llama por cada variación: el catálogo de la tienda tardaba 2,3 s; con el índice, 0,1 s.
+create index if not exists tipo_cambio_tipo_fecha on tipo_cambio (tipo, fecha desc);
+
 create or replace function public.tc_del_dia(p_org text, p_fecha date default current_date, p_tipo text default 'oficial')
 returns numeric language sql stable as $$
   select venta from tipo_cambio
