@@ -4,6 +4,7 @@
 
 import { consulta, una } from "@/lib/erp/base";
 import { SQL_A_LA_VENTA } from "@/lib/seguimiento/a-la-venta";
+import { revisionDe, type Revision } from "@/lib/seguimiento/revision";
 import { formatear, type Moneda } from "@/lib/moneda";
 import { ultimaBusqueda, catalogosPegados, configSeguimiento, descartadas, enlaceDe, esPack, parecido, sobraDeVendedor, type PubEncontrada } from "@/lib/seguimiento";
 import Link from "next/link";
@@ -17,7 +18,7 @@ import BuscarSeguimiento from "./BuscarSeguimiento";
 import { reglaDe } from "@/lib/seguimiento/regla";
 import ReglaPrecio from "./ReglaPrecio";
 import CasillaAccion from "@/app/componentes/CasillaAccion";
-import { accionSeguir, accionSeguirPorNumero, accionDejarDeSeguir, accionLeerSeguimiento, accionCerrarCatalogo, accionExcluirDeRegla, accionConfirmarSeguida, accionConfirmarTodas, accionReanudarSeguida, accionDescartarEncontrada } from "@/app/catalogo/productos/acciones-seguimiento";
+import { accionSeguir, accionSeguirPorNumero, accionDejarDeSeguir, accionLeerSeguimiento, accionCerrarCatalogo, accionExcluirDeRegla, accionConfirmarSeguida, accionConfirmarTodas, accionReanudarSeguida, accionDescartarEncontrada, accionProductoRevisado } from "@/app/catalogo/productos/acciones-seguimiento";
 import type { PubJuzgada } from "@/lib/seguimiento/comparables";
 
 type Seguida = {
@@ -79,7 +80,7 @@ function Entrega({ dias, demora, gratis }: { dias: number | null | undefined; de
 
 export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id: string } }; p: { id: number; titulo: string }; sp: { packs?: string; propias?: string; demoradas?: string; internacionales?: string; borden?: string; hist?: string; editar?: string; pausadas?: string; excluidas?: string } }) {
   const hist = Number(sp.hist) || null;
-  const [seguidas, busqueda, conf, lecturas, catalogos, regla, venta, fuera] = await Promise.all([
+  const [seguidas, busqueda, conf, lecturas, catalogos, regla, venta, fuera, revision] = await Promise.all([
     consulta<Seguida>(`
       select sp.id::int, sp.item_id, sp.catalogo_id, sp.titulo, sp.foto, sp.permalink, sp.vendedor, sp.tienda_oficial, sp.precio::float8, sp.precio_original::float8,
              sp.moneda, sp.estado, sp.tipo_publicacion, sp.cuotas, sp.envio_gratis, sp.leido_ts, sp.error, sp.entrega_dias, sp.internacional, sp.excluido,
@@ -114,6 +115,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
     // Si no está a la venta, las comunes no se releen solas (Fer, 22/10).
     una<{ ok: boolean }>(`select ${SQL_A_LA_VENTA} ok from producto p where p.id = $1 and p.organizacion_id = $2`, [p.id, s.org.id]).catch(() => null),
     descartadas(s.org.id, p.id).catch(() => new Set<string>()),
+    revisionDe(s.org.id, p.id).catch(() => null),
   ]);
   // La referencia de la regla de precio (si está prendida): la elegida o la más barata de las activas con precio. Si la
   // elegida deja de estar activa, la que sigue (Fer, 14/10), igual que en lib/seguimiento/regla.ts.
@@ -223,6 +225,7 @@ export default async function SeccionSeguimiento({ s, p, sp }: { s: { org: { id:
 
   return (
     <div className="grid gap-4">
+      <MarcaRevision revision={revision} productoId={p.id} />
       <section className={CAJA}>
         <TituloSeccion titulo={`Publicaciones que seguís (${activas.length})`}>
           <BotonNuevo texto="Agregar por número" />
@@ -464,6 +467,31 @@ function deDondeCorto(x: Seguida): string {
   if (x.origen === "busqueda") return `con «+ Seguir» · ${diaMes(x.creado_ts)}`;
   if (x.origen === "manual") return `por número · ${diaMes(x.creado_ts)}`;
   return "";
+}
+
+/** «✓ Producto revisado» (Fer, 23/10): arriba de todo, quién y cuándo lo revisó, o el botón para marcarlo. */
+function MarcaRevision({ revision, productoId }: { revision: Revision; productoId: number }) {
+  const campos = (valor: string) => (
+    <><input type="hidden" name="producto_id" value={productoId} /><input type="hidden" name="valor" value={valor} /></>
+  );
+  if (!revision) return (
+    <div className="rounded-lg border border-[#F2D27A] bg-[#FFF8E5] px-3 py-2 text-xs flex flex-wrap items-center justify-between gap-2">
+      <span><b>Por revisar.</b> Cuando hayas mirado las publicaciones que se siguen (revisadas, excluidas o borradas las que no sirven), marcá el producto como revisado.</span>
+      <form action={accionProductoRevisado}>{campos("1")}<button className={PRIMARIO}>✓ Producto revisado</button></form>
+    </div>
+  );
+  return (
+    <div className={`rounded-lg border px-3 py-2 text-xs flex flex-wrap items-center justify-between gap-2 ${revision.nuevas ? "border-[#F2D27A] bg-[#FFF8E5]" : "border-[#BFE3CB] bg-[#E6F4EA]"}`}>
+      <span>
+        <b className={revision.nuevas ? "" : "text-[#1F6E4A]"}>✓ Revisado</b> por {revision.por ?? "una persona"} el {new Date(revision.ts).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}.
+        {revision.nuevas > 0 && <> Desde entonces se agregaron <b>{revision.nuevas}</b> publicaciones: volvé a mirarlo.</>}
+      </span>
+      <span className="flex items-center gap-2">
+        {revision.nuevas > 0 && <form action={accionProductoRevisado}>{campos("1")}<button className={PRIMARIO}>✓ Revisado de nuevo</button></form>}
+        <form action={accionProductoRevisado}>{campos("0")}<button className={SUAVE} title="Vuelve a «por revisar»">Desmarcar</button></form>
+      </span>
+    </div>
+  );
 }
 
 /** El stock y lo vendido de la publicación de enfrente, como lo muestra Mercado Libre (Fer, 22/10): exacto si son pocas

@@ -6,7 +6,8 @@ import { unstable_cache } from "next/cache";
 import { consulta } from "@/lib/erp/base";
 import { sqlEstadoMercado, type EstadoMercado } from "@/lib/seguimiento/estado-mercado";
 import { SQL_DISPONIBLE } from "@/lib/catalogo-alertas";
-import { SQL_ES_NOTEBOOK } from "@/lib/seguimiento/a-la-venta";
+import { SQL_ES_NOTEBOOK, SQL_CON_ML_ACTIVA } from "@/lib/seguimiento/a-la-venta";
+import { sqlRevision } from "@/lib/seguimiento/revision";
 
 export type FilaSeguimientos = {
   producto_id: number; sku: string; titulo: string; fotos: string[] | null; estado: EstadoMercado; clasica: number | null;
@@ -14,9 +15,11 @@ export type FilaSeguimientos = {
   mercado: number | null; mercado_n: number | null;
   /** Stock disponible, y su valor a la Clásica (Fer, 22/10: ordenar por la plata que hay en stock). */
   disponible: number; valor_stock: number | null; notebook: boolean;
+  /** A la venta: con publicación activa en Mercado Libre y stock. Revisión: 'revisado', 'cambios' (entró algo después) o null. */
+  a_la_venta: boolean; revision: "revisado" | "cambios" | null; revisado_ts: Date | null; revisado_por: string | null;
 };
 
-type Valores = { clasica: number | null; disponible: number; notebook: boolean };
+type Valores = { clasica: number | null; disponible: number; notebook: boolean; con_ml: boolean };
 
 /** La Clásica, el stock disponible y si es notebook de cada producto con algo seguido. Es lo lento (la Clásica sale de la
  *  función de precios, producto por producto): se guarda 15 minutos (Fer, 22/10: «la pantalla de seguimientos está lenta»). */
@@ -26,11 +29,11 @@ function valores(org: string): Promise<Record<number, Valores>> {
       with lista as (select id from lista_precios where organizacion_id = $1
                       order by lower(nombre) in ('clásicas', 'clasicas', 'clásica', 'clasica') desc, orden, id limit 1)
       select p.id::int, (select pd.lista_ars from lista, precio_de($1, va.id, lista.id) pd)::float8 clasica,
-             ${SQL_DISPONIBLE}::float8 disponible, ${SQL_ES_NOTEBOOK} notebook
+             ${SQL_DISPONIBLE}::float8 disponible, ${SQL_ES_NOTEBOOK} notebook, ${SQL_CON_ML_ACTIVA} con_ml
         from producto p left join variacion va on va.producto_id = p.id and va.es_default
        where p.organizacion_id = $1 and exists (select 1 from seguimiento_pub sg where sg.producto_id = p.id)`, [org]);
-    return Object.fromEntries(r.map((x) => [x.id, { clasica: x.clasica, disponible: Number(x.disponible) || 0, notebook: x.notebook }]));
-  }, ["seguimientos-valores-1", org], { revalidate: 900, tags: [`seguimientos-valores-${org}`] })();
+    return Object.fromEntries(r.map((x) => [x.id, { clasica: x.clasica, disponible: Number(x.disponible) || 0, notebook: x.notebook, con_ml: x.con_ml }]));
+  }, ["seguimientos-valores-2", org], { revalidate: 900, tags: [`seguimientos-valores-${org}`] })();
 }
 
 /** Los productos activos y todos los que siguen algo (aunque estén archivados); con `soloConSeguimiento`, sólo éstos. */
@@ -49,12 +52,14 @@ export async function listaSeguimientos(org: string, o: { soloConSeguimiento: bo
            (select count(*)::int from seguimiento_pub sg where sg.producto_id = p.id and not sg.excluido) seguidas,
            (select count(*)::int from seguimiento_pub sg where sg.producto_id = p.id and not sg.confirmada) sin_revisar,
            b.precio::float8 barata, b.vendedor barata_vendedor, b.confirmada barata_confirmada,
-           pm.p25::float8 mercado, pm.encontradas mercado_n
+           pm.p25::float8 mercado, pm.encontradas mercado_n,
+           ${sqlRevision("p.id")} revision, rv.revisado_ts, rv.revisado_por
       from producto p
       left join variacion va on va.producto_id = p.id and va.es_default
       left join lateral (select sg.precio, sg.vendedor, sg.confirmada from seguimiento_pub sg
                           where sg.producto_id = p.id and sg.estado = 'activa' and sg.precio is not null and coalesce(sg.moneda, 'ARS') = 'ARS'
                             and not sg.excluido and not coalesce(sg.internacional, false) order by sg.precio limit 1) b on true
+      left join seguimiento_revision rv on rv.organizacion_id = p.organizacion_id and rv.producto_id = p.id
       left join precio_mercado pm on pm.organizacion_id = p.organizacion_id and pm.producto_id = p.id and pm.estado = 'ok'
      where p.organizacion_id = $1
        and (exists (select 1 from seguimiento_pub sg where sg.producto_id = p.id) or (not $2 and p.estado <> 'archivado'))
@@ -63,6 +68,7 @@ export async function listaSeguimientos(org: string, o: { soloConSeguimiento: bo
     const x = v[f.producto_id];
     const clasica = x ? x.clasica : f.clasica;
     const disponible = x?.disponible ?? 0;
-    return { ...f, clasica, disponible, valor_stock: clasica != null ? clasica * disponible : null, notebook: x?.notebook ?? /^\s*notebook/i.test(f.titulo) };
+    return { ...f, clasica, disponible, valor_stock: clasica != null ? clasica * disponible : null, notebook: x?.notebook ?? /^\s*notebook/i.test(f.titulo),
+      a_la_venta: !!x?.con_ml && disponible > 0 };
   });
 }
