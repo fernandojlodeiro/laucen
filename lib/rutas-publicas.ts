@@ -8,6 +8,8 @@ export const RUTAS_PUBLICAS = [
   "/olvide",
   "/reset",
   "/auth/callback",
+  // La política de privacidad del sistema (la pide Google para la aplicación de Google Drive).
+  "/privacidad",
   "/api/meli/notificaciones",
   "/api/meli/barrido",
   // La creación automática de lo que falta en ML: la llama pg_cron con meli_llave.

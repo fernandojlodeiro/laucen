@@ -2,7 +2,7 @@
 titulo: Google Drive
 menu: Configuración › Google Drive
 ruta: /config/google-drive
-rutas: /config/google-drive
+rutas: /config/google-drive, /privacidad
 permiso: empresa_config
 resumen: Conectar el Google Drive de la empresa y crear la carpeta del contador, donde el sistema deja los archivos del Libro de IVA Digital de cada mes.
 ---
@@ -49,6 +49,9 @@ En [Libros de IVA](/administracion/libros-iva), con el mes elegido, botón **Man
 - Cada envío va a una subcarpeta "AAAA-MM · razón social" dentro de la carpeta del contador. Si un archivo con el mismo nombre ya está ahí, se reemplaza (no se duplica).
 - Si la carpeta se borró del Drive, el envío avisa: "La carpeta del contador ya no está en el Drive (¿la borraron?): creala de nuevo en Configuración › Google Drive." Apretando **Grabar y compartir** se crea otra.
 - Si alguien le saca el acceso al sistema desde su cuenta de Google, el envío avisa que hay que volver a conectar.
+
+### Política de privacidad
+La página pública [/privacidad](/privacidad) explica qué hace el sistema con los datos de Google (sólo crea su carpeta y sube los archivos que se mandan). Es la que se carga como «Política de privacidad» en la aplicación de Google.
 
 ## Relacionado
 - [Libros de IVA](/administracion/libros-iva)
