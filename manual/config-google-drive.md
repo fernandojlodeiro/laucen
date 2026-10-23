@@ -4,12 +4,14 @@ menu: Configuración › Google Drive
 ruta: /config/google-drive
 rutas: /config/google-drive, /privacidad
 permiso: empresa_config
-resumen: Conectar el Google Drive de la empresa y decir, por razón social, en qué carpeta de cada mes van los archivos del Libro de IVA Digital (el árbol de carpetas que se comparte con el contador).
+resumen: Conectar el Google Drive de la empresa y decir, por razón social, dónde está la carpeta de cada mes (el árbol que se comparte con el contador): ahí van los archivos del Libro de IVA Digital y de ahí se leen las declaraciones del contador.
 ---
 
 ## Para qué sirve
 
 Para que los archivos del Libro de IVA Digital de cada mes queden solos en la carpeta del Drive donde el contador los busca, sin bajarlos y subirlos a mano. Se respeta el árbol de carpetas que ya se usa: por ejemplo Administracion › Impuestos › … › **año** › **mes** › IVA DIGITAL. Cada mes el sistema busca la carpeta del año y la del mes que correspondan y, si todavía no existen, las crea con el mismo formato de nombre.
+
+Con la misma ruta, el sistema **lee las declaraciones juradas** que el contador deja en las subcarpetas IVA, Ingresos Brutos y Comercio e Industria de cada mes (ver [Impuestos](/administracion/impuestos)).
 
 El sistema pide acceso al Drive, pero sólo recorre el camino que se carga acá: el resto del Drive no lo lee ni lo toca.
 

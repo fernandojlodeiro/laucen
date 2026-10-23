@@ -78,3 +78,22 @@ alter table google_drive enable row level security;
 -- ({"<emisor_id>": {"texto": "...", "segmentos": [...]}}) y el permiso que dio Google al conectar.
 alter table google_drive add column if not exists rutas jsonb not null default '{}'::jsonb;
 alter table google_drive add column if not exists alcance text;
+
+-- Las declaraciones que el contador deja en el Drive (Fer, 23/10): cada archivo leído (por su id de Google y su fecha
+-- de modificación), para no pasarlo dos veces por la IA. `estado`: ddjj (cargada), ya_estaba, otro (cedulón, pago u
+-- otro papel que no es una declaración) o error.
+create table if not exists drive_archivo_leido (
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  archivo_id       text not null,
+  nombre           text,
+  modificado       text,
+  carpeta          text,
+  estado           text not null,
+  mensaje          text,
+  ddjj_id          bigint references ddjj(id) on delete set null,
+  leido_ts         timestamptz not null default now(),
+  primary key (organizacion_id, archivo_id)
+);
+alter table drive_archivo_leido enable row level security;
+alter table google_drive add column if not exists ddjj_leido_ts timestamptz;
+alter table google_drive add column if not exists ddjj_resultado text;

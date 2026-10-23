@@ -24,7 +24,9 @@ import { CODIGOS_JURISDICCION, nombreJurisdiccion } from "@/lib/impuestos/jurisd
 import { mesesParaElegir, nombreMes } from "../libros-iva/comun";
 import SubirDdjj from "./SubirDdjj";
 import TablaDiferencias from "./TablaDiferencias";
-import { accionNuevaDdjj, accionGrabarJurisdiccion, accionBorrarJurisdiccion, accionGrabarMunicipal } from "./acciones";
+import { accionNuevaDdjj, accionGrabarJurisdiccion, accionBorrarJurisdiccion, accionGrabarMunicipal, accionBuscarDrive } from "./acciones";
+import { BotonTarea } from "@/app/componentes/TareasFondo";
+import { consulta, una } from "@/lib/erp/base";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -47,7 +49,11 @@ export default async function Impuestos({ searchParams }: { searchParams: Promis
   const ver = sp.ver === "declaraciones" || sp.ver === "diferencias" || sp.ver === "provincias" ? sp.ver : "";
   const filtro = { rs: rs.multi ? String(emisorId) : undefined };
 
-  const [ddjjs, datosRs] = await Promise.all([ddjjDe(org, emisorId), datosRazonSocial(org, emisorId)]);
+  const [ddjjs, datosRs, drive, delDrive] = await Promise.all([ddjjDe(org, emisorId), datosRazonSocial(org, emisorId),
+    una<{ listo: boolean; ddjj_leido_ts: string | null; ddjj_resultado: string | null }>(`select refresh_token is not null and rutas <> '{}'::jsonb listo,
+      ddjj_leido_ts::text, ddjj_resultado from google_drive where organizacion_id = $1`, [org]),
+    consulta<{ nombre: string; carpeta: string; estado: string; mensaje: string | null }>(`select nombre, carpeta, estado, mensaje from drive_archivo_leido
+      where organizacion_id = $1 and estado in ('error', 'otro') order by leido_ts desc limit 30`, [org])]);
   // Las diferencias: las declaraciones (la que vale de cada período) de los últimos 12 meses, contra lo cargado.
   const vigentes = ddjjs.filter((d, i) => ddjjs.findIndex((x) => x.impuesto === d.impuesto && x.periodo === d.periodo) === i).slice(0, 36);
   const porMes = new Map<string, Promise<Cargado>>();
@@ -63,7 +69,11 @@ export default async function Impuestos({ searchParams }: { searchParams: Promis
   return (
     <Pantalla titulo="Impuestos" ancho="max-w-[1400px]"
       subtitulo="IVA, Ingresos Brutos (Convenio Multilateral) y la municipal de Córdoba: las declaraciones del contador, sus diferencias con lo cargado y cómo viene el mes"
-      acciones={<><BotonNuevo texto={NUEVA_DDJJ} /><SubirDdjj organizacionId={org} /></>}>
+      acciones={<>
+        <BotonNuevo texto={NUEVA_DDJJ} />
+        {drive?.listo && <BotonTarea accion={accionBuscarDrive} tipo="ddjj-drive" clase={SUAVE} texto="Buscar en el Drive" />}
+        <SubirDdjj organizacionId={org} />
+      </>}>
       <Avisos sp={sp} />
       <AltaNueva texto={NUEVA_DDJJ} sinBoton>
         <form action={accionNuevaDdjj} className="flex flex-wrap items-end gap-3">
@@ -97,6 +107,7 @@ export default async function Impuestos({ searchParams }: { searchParams: Promis
       ]} />
 
       {!ver && <Posicion org={org} emisorId={emisorId} mes={mes} />}
+      {ver === "declaraciones" && drive?.listo && <DelDrive ts={drive.ddjj_leido_ts} resultado={drive.ddjj_resultado} archivos={delDrive} />}
       {ver === "declaraciones" && <Declaraciones ddjjs={ddjjs} sp={sp} difs={new Map(controles.map((c) => [c.d.id, c.diferencias.length]))} />}
       {ver === "diferencias" && <Diferencias controles={conDifs} revisadas={controles.length} />}
       {ver === "provincias" && datosRs && <Provincias rs={datosRs} emisorId={emisorId} sp={sp} />}
@@ -230,10 +241,10 @@ function Declaraciones({ ddjjs, sp, difs }: { ddjjs: FilaDdjj[]; sp: SP; difs: M
         <table className={TABLA}>
           <thead className={THEAD}>
             <tr><th className={TH}>Mes</th><th className={TH}>Impuesto</th><th className={THN}>Rectif.</th><th className={THN}>A pagar</th><th className={THN}>A favor</th>
-              <th className={TH}>Control</th><th className={TH}>Presentada</th><th className={TH}>PDF</th></tr>
+              <th className={TH}>Control</th><th className={TH}>Presentada</th><th className={TH}>PDF</th><th className={TH}>Origen</th></tr>
           </thead>
           <tbody>
-            {ddjjs.length === 0 && <tr className={TR}><td colSpan={8} className={`${TD} text-[#5C6B76]`}>Todavía no hay declaraciones. Subilas con «Subir declaración», arriba a la derecha.</td></tr>}
+            {ddjjs.length === 0 && <tr className={TR}><td colSpan={9} className={`${TD} text-[#5C6B76]`}>Todavía no hay declaraciones. Subilas con «Subir declaración», arriba a la derecha.</td></tr>}
             {filas.map((d) => {
               const r = resultadoDdjj(d.impuesto, d.datos);
               const n = difs.get(d.id);
@@ -247,6 +258,7 @@ function Declaraciones({ ddjjs, sp, difs }: { ddjjs: FilaDdjj[]; sp: SP; difs: M
                   <td className={TD}>{n == null ? <span className="text-[#5C6B76]">— (reemplazada)</span> : n ? <Link href={`${BASE}/${d.id}`} className="text-[#8a6100] hover:underline">{n} diferencia{n === 1 ? "" : "s"}</Link> : <span className="text-[#1F6E4A]">✓ Coincide</span>}</td>
                   <td className={TD}>{d.fecha_presentacion ? d.fecha_presentacion.split("-").reverse().join("/") : "—"}</td>
                   <td className={TD}>{d.archivo ? <a href={`${BASE}/${d.id}/pdf`} target="_blank" rel="noreferrer" className="text-[#16577F] hover:underline">Ver</a> : "—"}</td>
+                  <td className={TD}>{d.archivo?.startsWith("drive:") ? "Drive" : d.archivo ? "Subida" : "A mano"}</td>
                 </tr>
               );
             })}
@@ -255,6 +267,30 @@ function Declaraciones({ ddjjs, sp, difs }: { ddjjs: FilaDdjj[]; sp: SP; difs: M
       </div>
       <Paginado total={ddjjs.length} />
     </>
+  );
+}
+
+function DelDrive({ ts, resultado, archivos }: { ts: string | null; resultado: string | null; archivos: { nombre: string; carpeta: string; estado: string; mensaje: string | null }[] }) {
+  return (
+    <div className={`${CAJA} mb-3 text-xs`}>
+      <p>
+        <b>Del Drive del contador:</b>{" "}
+        {ts ? <>última búsqueda {new Date(ts).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" })} · {resultado}</>
+          : "todavía no se buscó. Se busca solo cada noche, o con «Buscar en el Drive» (arriba a la derecha)."}
+      </p>
+      {archivos.length > 0 && (
+        <details className="mt-1">
+          <summary className="cursor-pointer text-[#16577F]">Archivos que no se cargaron ({archivos.length})</summary>
+          <ul className="list-disc pl-5 mt-1">
+            {archivos.map((a, i) => (
+              <li key={i} className={a.estado === "error" ? "text-[#C03420]" : "text-[#5C6B76]"}>
+                {a.carpeta} › {a.nombre}: {a.estado === "otro" ? `no es una declaración (${a.mensaje})` : a.mensaje}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
   );
 }
 

@@ -51,6 +51,8 @@ export type DatosDdjj = DatosIva | DatosIibb | DatosMunicipal;
 /** Lo que devuelve la IA. */
 export type LecturaDdjj = {
   impuesto: string | null;
+  /** Si no es una declaración (impuesto "no_es_ddjj"): qué es. */
+  que_es?: string | null;
   cuit: string | null;
   periodo: string | null;          // AAAA-MM
   rectificativa: number | null;
@@ -154,7 +156,8 @@ export function aDdjj(l: LecturaDdjj): { impuesto: Impuesto; periodo: string; cu
 }
 
 const SISTEMA = `Leés declaraciones juradas impositivas argentinas de una empresa y devolvés SÓLO un JSON, sin texto antes ni después.
-Primero decidí de qué impuesto es:
+Primero decidí si es una declaración jurada: si es otra cosa (un cedulón o boleta de pago, un VEP, un comprobante de pago o de transferencia, un acuse de recibo sin los importes de la declaración, una constancia) devolvé sólo {"impuesto": "no_es_ddjj", "que_es": "texto corto"}.
+Si es una declaración, decidí de qué impuesto es:
  - "iva": F.2002 / F.731 de IVA de ARCA (AFIP).
  - "iibb": Ingresos Brutos por Convenio Multilateral (SIFERE, formulario CM03 mensual o CM05 anual), con una columna o renglón por jurisdicción.
  - "municipal": Contribución que incide sobre el comercio, la industria y las empresas de servicios de la Municipalidad de Córdoba.

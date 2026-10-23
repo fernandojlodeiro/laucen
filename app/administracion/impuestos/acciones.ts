@@ -12,6 +12,8 @@ import { leerNumero } from "@/lib/numeros";
 import { aDdjj, datosDe, datosVacios, leerDdjjArchivo, periodoNormal, IMPUESTOS, type DatosIibb, type Impuesto, type JurisdiccionDdjj } from "@/lib/impuestos/ddjj-leer";
 import { borrarDdjj, borrarJurisdiccion, corregirDdjj, grabarDdjj, grabarJurisdiccion, grabarMunicipal } from "@/lib/impuestos/ddjj";
 import { codigoJurisdiccion, nombreJurisdiccion } from "@/lib/impuestos/jurisdicciones";
+import { leerDdjjDelDrive, textoResultado } from "@/lib/impuestos/drive-ddjj";
+import { deFondo } from "@/lib/tareas-fondo";
 
 const BASE = "/administracion/impuestos";
 const texto = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
@@ -147,5 +149,15 @@ export async function accionGrabarMunicipal(fd: FormData) {
     await grabarMunicipal(s.org.id, rs, { inscripta: fd.get("inscripta") === "on", alicuota: leerNumero(fd.get("alicuota")), minimo: leerNumero(fd.get("minimo")) });
     revalidatePath(BASE);
     return "Municipalidad de Córdoba grabada.";
+  });
+}
+
+/** «Buscar en el Drive»: lee de fondo las declaraciones que el contador dejó en las carpetas de los últimos meses. */
+export async function accionBuscarDrive() {
+  const s = await entrarErp("impuestos_ver");
+  return deFondo(s, "ddjj-drive", "Buscar declaraciones en el Drive", async () => {
+    const r = await leerDdjjDelDrive(s.org.id, s.usuario.id);
+    revalidatePath(BASE);
+    return `Drive: ${textoResultado(r)}`;
   });
 }

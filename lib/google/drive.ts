@@ -83,7 +83,7 @@ export async function desconectarDrive(org: string) {
   await consulta("update google_drive set refresh_token = null, cuenta_email = null, actualizado_ts = now() where organizacion_id = $1", [org]);
 }
 
-async function tokenDeAcceso(org: string): Promise<string> {
+export async function tokenDeAcceso(org: string): Promise<string> {
   const app = await appGoogle();
   const f = await una<{ refresh_token: string | null }>("select refresh_token from google_drive where organizacion_id = $1", [org]);
   if (!app || !f?.refresh_token) throw new ErrorErp("Google Drive no está conectado: conectalo en Configuración › Google Drive.");
@@ -184,4 +184,36 @@ export async function subirAlDrive(org: string, emisorId: number, mesAAAAMM: str
   await consulta("update google_drive set ultimo_envio_ts = now(), ultimo_envio = $2 where organizacion_id = $1",
     [org, `${archivos.length} archivo${archivos.length === 1 ? "" : "s"} a ${donde}`]);
   return { cantidad: archivos.length, donde, carpeta: padre };
+}
+
+// ── Leer lo que hay en las carpetas (las declaraciones del contador) ─────────
+
+/** La carpeta del mes de una razón social (el camino de su ruta hasta la carpeta del mes, sin crear nada); null si
+ *  todavía no existe. */
+export async function carpetaDelMes(token: string, segmentos: Segmento[], año: number, mes: number): Promise<string | null> {
+  let padre = "root";
+  for (const seg of segmentos) {
+    const hijo = (await carpetasDe(token, padre)).find((c) => coincide(c.name, seg, año, mes));
+    if (!hijo) return null;
+    padre = hijo.id;
+    if (seg.tipo === "mes") return padre;
+  }
+  return null;
+}
+
+export { carpetasDe };
+
+/** Los PDF e imágenes de una carpeta. */
+export async function archivosDe(token: string, carpeta: string) {
+  const q = `'${comillas(carpeta)}' in parents and trashed = false and (mimeType = 'application/pdf' or mimeType contains 'image/')`;
+  const r = await api<{ files: { id: string; name: string; mimeType: string; modifiedTime: string; size?: string }[] }>(token,
+    `${API}/files?${new URLSearchParams({ q, fields: "files(id,name,mimeType,modifiedTime,size)", spaces: "drive", pageSize: "200" })}`);
+  return r.files;
+}
+
+/** El contenido de un archivo del Drive. */
+export async function bajarDelDrive(token: string, id: string): Promise<ArrayBuffer> {
+  const r = await fetch(`${API}/files/${encodeURIComponent(id)}?alt=media`, { headers: { authorization: `Bearer ${token}` } });
+  if (!r.ok) throw new ErrorErp("No se pudo bajar el archivo del Drive.");
+  return r.arrayBuffer();
 }

@@ -29,6 +29,7 @@ Todo es de una razón social a la vez: cada una presenta sus propias declaracion
 ## Qué hay en la pantalla
 
 Arriba a la derecha:
+- **Buscar en el Drive** (sólo si Google Drive está conectado y tiene la ruta de las carpetas): busca de fondo las declaraciones que dejó el contador en las carpetas de los últimos tres meses; ver "Declaraciones que el contador deja en el Drive".
 - **Nueva declaración a mano**: abre debajo del título un formulario chico con **Impuesto** (IVA, Ingresos Brutos o Municipalidad de Córdoba), **Mes declarado**, **Rectificativa (0 si es la original)** y el botón **Crear y cargar los importes**. Es para cuando no se tiene el PDF.
 - **Subir declaración**: elegís el PDF (o una foto) de la declaración; ver "Subir una declaración".
 
@@ -46,7 +47,9 @@ Arriba, el mes, cuántos comprobantes de venta y de compra tiene y el enlace a l
 
 ### Declaraciones
 
-Una fila por declaración, de la más nueva a la más vieja: **Mes** (lleva a su ficha), **Impuesto**, **Rectif.**, **A pagar**, **A favor**, **Control** ("✓ Coincide", "N diferencias" o "— (reemplazada)" si hay una rectificativa más nueva del mismo mes), **Presentada** y **PDF** (Ver). De a 50 filas.
+Arriba, si Google Drive está conectado, el recuadro **Del Drive del contador**: cuándo se buscó por última vez y qué encontró (declaraciones nuevas, las que ya estaban, papeles que no son declaraciones y errores), y desplegable **Archivos que no se cargaron (N)** con cada uno y el motivo.
+
+Una fila por declaración, de la más nueva a la más vieja: **Mes** (lleva a su ficha), **Impuesto**, **Rectif.**, **A pagar**, **A favor**, **Control** ("✓ Coincide", "N diferencias" o "— (reemplazada)" si hay una rectificativa más nueva del mismo mes), **Presentada**, **PDF** (Ver) y **Origen** (Drive, Subida o A mano). De a 50 filas.
 
 ### Diferencias
 
@@ -78,6 +81,16 @@ Título: el impuesto, el mes y, si es rectificativa, su número; debajo, la raz�
 Si ya había una declaración del mismo impuesto, mes y número de rectificativa, la reemplaza (lo dice el mensaje). Una rectificativa es otra declaración del mismo mes: vale la de número más alto.
 
 Errores típicos: "No se reconoce de qué impuesto es la declaración…", "No se leyó el período de la declaración.", "No se leyó ninguna jurisdicción de la declaración de Ingresos Brutos.", "La declaración es del CUIT …, que no es de ninguna de tus razones sociales.".
+
+### Declaraciones que el contador deja en el Drive
+
+Si el contador sube las declaraciones a las carpetas de cada mes del Drive, el sistema las carga solo:
+- Mira la carpeta de cada mes según la ruta de cada razón social de [Configuración › Google Drive](/config/google-drive) (los últimos tres meses) y, adentro, las subcarpetas cuyo nombre dice **IVA** (no "IVA digital"), **IIBB** o **Ingresos Brutos**, y **Comercio** o **Industria**, y también los archivos sueltos en la carpeta del mes.
+- Lee con la IA cada PDF o foto nuevo o cambiado. Si es una declaración, la carga a la razón social de su CUIT (aunque esté en la carpeta de la otra). Si es un cedulón, un VEP o un comprobante de pago, lo saltea (queda anotado como "no es una declaración").
+- Una declaración que ya estaba cargada (mismo impuesto, mes y rectificativa) **no se pisa**: puede tener correcciones a mano.
+- Cada archivo se lee una sola vez; si se cambia en el Drive, se vuelve a leer. Uno que dio error se vuelve a probar en la próxima búsqueda.
+- Busca solo **una vez por noche**, y cuando se aprieta **Buscar en el Drive** (corre de fondo; al terminar aparece el cartel con el resultado).
+- **Ver el PDF** / **Bajar el PDF** de una declaración leída del Drive lo trae del Drive (si lo movieron o borraron, avisa).
 
 ### Cargar una declaración a mano
 

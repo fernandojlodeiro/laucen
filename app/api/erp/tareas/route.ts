@@ -5,7 +5,8 @@
 // facturadas a cuenta corriente; asientos contables que falten; e
 // importaciones que siguen solas en segundo plano; la cola de salida a
 // Mercado Libre (lib/mercadolibre/cola.ts) y, de 2 a 5, la barrida nocturna
-// y la lectura de la facturación de ML (lib/mercadolibre/facturacion.ts).
+// y la lectura de la facturación de ML (lib/mercadolibre/facturacion.ts) y de las declaraciones juradas que el
+// contador dejó en el Drive (lib/impuestos/drive-ddjj.ts).
 
 import { after } from "next/server";
 import { revalidateTag } from "next/cache";
@@ -28,6 +29,7 @@ import { hayCargosFullPendientes, leerCargosFull } from "@/lib/full/costos";
 import { hayConsultasPendientes, responderConsultas } from "@/lib/mercadolibre/consultas";
 import { hayPreparacionesPendientes, prepararPendientes } from "@/lib/mercadolibre/preparaciones";
 import { hayAgrupadoPendiente, avanzarAgrupado } from "@/lib/mercadolibre/agrupado-auto";
+import { leerDdjjDelDrive, organizacionesParaLeerDrive } from "@/lib/impuestos/drive-ddjj";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -125,9 +127,21 @@ export async function GET(req: Request) {
   // El agrupado de planes en tandas que autorizó Fer con un clic (lib/mercadolibre/agrupado-auto.ts).
   const agrupado = await hayAgrupadoPendiente().catch(() => false);
   if (agrupado) informe.agrupado_ml = true;
-  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos || full || consultasMl || cargosFull || preparaciones || agrupado) {
+  // Las declaraciones que el contador dejó en el Drive (lib/impuestos/drive-ddjj.ts): una vez por noche.
+  const ddjjDrive = enVentanaBarrida() ? await organizacionesParaLeerDrive().catch(() => [] as string[]) : [];
+  if (ddjjDrive.length) informe.ddjj_drive = ddjjDrive.length;
+  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos || full || consultasMl || cargosFull || preparaciones || agrupado || ddjjDrive.length) {
     after(async () => {
       await Promise.all([
+        (async () => {
+          for (const org of ddjjDrive) {
+            try {
+              console.log("[tareas] declaraciones del Drive", org, JSON.stringify(await leerDdjjDelDrive(org, "drive", { hastaMs: t0 + 100_000 })));
+            } catch (e) {
+              console.error("[tareas] declaraciones del Drive", org, e instanceof Error ? e.message : e);
+            }
+          }
+        })(),
         (async () => {
           if (!facturacionMl) return;
           try {

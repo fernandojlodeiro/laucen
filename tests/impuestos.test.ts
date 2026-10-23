@@ -88,3 +88,14 @@ test("municipal: base × alícuota o el mínimo, menos el saldo a favor", () => 
   assert.deepEqual(calcularMunicipal({ base: 1000000, alicuota: 1.5, minimo: 10000, saldoAnterior: 1000 }).saldo, 14000);
   assert.equal(calcularMunicipal({ base: 100000, alicuota: 0.6, minimo: 10000, saldoAnterior: 0 }).determinado, 10000);
 });
+
+test("carpetas del mes en el Drive: de qué impuesto es cada una", async () => {
+  const { impuestoDeCarpeta, ultimosMeses } = await import("@/lib/impuestos/drive-ddjj");
+  assert.equal(impuestoDeCarpeta("IVA"), "iva");
+  assert.equal(impuestoDeCarpeta("IVA DIGITAL"), null);
+  assert.equal(impuestoDeCarpeta("Ingresos Brutos con IIBB"), "iibb");
+  assert.equal(impuestoDeCarpeta("IIBB"), "iibb");
+  assert.equal(impuestoDeCarpeta("Comercio e Industria"), "municipal");
+  assert.equal(impuestoDeCarpeta("Infosistema"), null);
+  assert.deepEqual(ultimosMeses("2026-01-15", 3), [{ año: 2026, mes: 1 }, { año: 2025, mes: 12 }, { año: 2025, mes: 11 }]);
+});
