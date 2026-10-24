@@ -225,3 +225,15 @@ export async function crearPlantilla(wabaId: string, token: string, plantilla: R
   });
   if (!r.ok) { console.error("[wa-plantilla]", wabaId, motivoCrudo(r)); throw new Error(motivoCrudo(r)); }
 }
+
+/** ¿Quién recibe hoy los avisos de esa cuenta (WABA) por nuestra app de Meta? "libre": nadie;
+ *  "laucen": Laucen; "otro": otro sistema con la misma app (CadaMes). La suscripción es por cuenta,
+ *  no por número: suscribir una cuenta que usa CadaMes le cortaría a CadaMes todos sus números. */
+export async function quienRecibe(wabaId: string, token: string): Promise<"libre" | "laucen" | "otro"> {
+  const r = await pedir(`${GRAPH}/${wabaId}/subscribed_apps`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!r.ok) { console.warn("[wa-suscripciones]", wabaId, motivoCrudo(r)); return "otro"; }
+  const apps = (r.data?.data ?? []) as { whatsapp_business_api_data?: { id?: string }; override_callback_uri?: string }[];
+  const nuestra = apps.find((a) => String(a.whatsapp_business_api_data?.id ?? "") === appId());
+  if (!nuestra) return "libre";
+  return nuestra.override_callback_uri?.includes("/api/whatsapp/webhook") && /laucen/i.test(nuestra.override_callback_uri) ? "laucen" : "otro";
+}

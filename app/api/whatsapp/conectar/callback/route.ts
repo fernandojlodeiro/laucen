@@ -4,11 +4,11 @@
 // recibe estos mensajes). Copiado de CadaMes (alta-whatsapp.ts) y adaptado.
 
 import { NextRequest, NextResponse } from "next/server";
-import { consulta, una } from "@/lib/erp/base";
 import { asegurarEsquemaErp } from "@/lib/erp/esquema";
 import { urlPanel } from "@/lib/tienda/dominios";
 import { anotarEvento } from "@/lib/mensajes/chats";
-import { canjearCodigo, claveNueva, datosDelToken, numerosDeLaWaba, registrarNumero, suscribirApp, verificarEstado } from "@/lib/mensajes/meta";
+import { canjearCodigo, datosDelToken, verificarEstado } from "@/lib/mensajes/meta";
+import { guardarPendiente, opcionesDelPermiso, terminarAlta } from "@/lib/mensajes/alta";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -41,36 +41,16 @@ export async function GET(req: NextRequest) {
     console.error("[wa-alta-canje]", org, e);
     return volver("canje");
   }
-  const wabaId = url.searchParams.get("waba_id") || (wabas.length === 1 ? wabas[0] : "");
-  if (!wabaId) return volver(wabas.length > 1 ? "varias_cuentas" : "sin_cuenta");
-
-  let numeros: { id: string; numero: string; nombre: string }[];
-  try { numeros = await numerosDeLaWaba(wabaId, token); } catch (e) { console.error("[wa-alta-numeros]", org, e); return volver("sin_numero"); }
+  // Las cuentas: la que mandó Meta en la vuelta o, si no, todas las del permiso.
+  const pedidaWaba = url.searchParams.get("waba_id");
+  const opciones = await opcionesDelPermiso(pedidaWaba ? [pedidaWaba] : wabas, token);
+  await anotarEvento("alta_opciones", { wabas, numeros: opciones.map((o) => ({ waba: o.waba, id: o.id, numero: o.numero, nombre: o.nombre, ocupado: o.ocupado })) }, org);
+  if (!opciones.length) return volver(wabas.length ? "sin_numero" : "sin_cuenta");
   const pedido = url.searchParams.get("phone_number_id");
-  const num = (pedido ? numeros.find((n) => n.id === pedido) : null) ?? (numeros.length === 1 ? numeros[0] : null);
-  if (!num) return volver(numeros.length > 1 ? "varias_cuentas" : "sin_numero");
-
-  const dueno = await una<{ organizacion_id: string }>("select organizacion_id from wa_credencial where phone_number_id = $1", [num.id]);
-  if (dueno && dueno.organizacion_id !== org) return volver("otro_dueno");
-
-  // La credencial va antes de suscribir: Meta verifica la dirección en el
-  // momento y el webhook busca la clave en esta tabla.
-  const verify = claveNueva();
-  await consulta("update wa_credencial set estado = 'desconectado' where organizacion_id = $1 and phone_number_id <> $2", [org, num.id]);
-  await consulta(`
-    insert into wa_credencial (organizacion_id, phone_number_id, waba_id, numero, nombre, token, verify_token, coexistencia, expira_el, estado)
-    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'activo')
-    on conflict (phone_number_id) do update set waba_id = excluded.waba_id, numero = excluded.numero, nombre = excluded.nombre, token = excluded.token,
-      verify_token = excluded.verify_token, coexistencia = excluded.coexistencia, expira_el = excluded.expira_el, estado = 'activo', conectado_ts = now()`,
-  [org, num.id, wabaId, num.numero, num.nombre, token, verify, coexistencia, expiraEl || null]);
-
-  try {
-    await suscribirApp(wabaId, token, `${base}/api/whatsapp/webhook`, verify);
-  } catch (e) {
-    console.error("[wa-alta-suscribir]", org, e);
-    await consulta("update wa_credencial set estado = 'desconectado' where phone_number_id = $1", [num.id]);
-    return volver("webhooks");
-  }
-  if (!coexistencia) await registrarNumero(num.id, token);
-  return volver("conectado");
+  const elegido = pedido ? opciones.find((n) => n.id === pedido) : opciones.length === 1 ? opciones[0] : null;
+  if (elegido) return volver(await terminarAlta(org, token, expiraEl, elegido, coexistencia));
+  // Varios números: que la persona elija en pantalla.
+  if (!opciones.some((o) => !o.ocupado)) return volver("ocupado");
+  const id = await guardarPendiente(org, token, expiraEl, coexistencia, opciones);
+  return NextResponse.redirect(`${base}/ventas/mensajes/configuracion?wa=elegir&alta=${id}`);
 }
