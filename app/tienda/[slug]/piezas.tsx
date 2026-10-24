@@ -8,6 +8,7 @@ import { formatearNumero } from "@/lib/numeros";
 import type { Moneda } from "@/lib/moneda";
 import type { Plan } from "@/lib/tienda/cuotas";
 import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
+import VideoTarjeta from "./VideoTarjeta";
 import { buscarProductos, POR_PAGINA, type Cucarda, type Filtros, type Orden, type Tarjeta } from "./catalogo";
 
 // ── Estilos comunes ──────────────────────────────────────
@@ -190,7 +191,8 @@ export function TarjetaProducto({ t, p }: { t: Tienda; p: Tarjeta }) {
     <Link href={enlaceProducto(t, p)}
       className="group flex h-full flex-col overflow-hidden rounded-md bg-white shadow-[0_1px_2px_0_rgba(0,0,0,.12)] transition-shadow hover:shadow-[0_7px_16px_0_rgba(0,0,0,.2)]">
       <div className="relative aspect-square border-b border-[var(--linea)] bg-white">
-        {p.foto
+        {p.video ? <VideoTarjeta video={p.video} foto={p.foto} alt={p.titulo} apagado={sinStock} />
+          : p.foto
           ? <img src={p.foto} alt={p.titulo} loading="lazy" decoding="async" className={`h-full w-full object-contain p-3 ${sinStock ? "opacity-50" : ""}`} />
           : <div className="grid h-full w-full place-items-center text-gray-300"><IconoFoto /></div>}
       </div>

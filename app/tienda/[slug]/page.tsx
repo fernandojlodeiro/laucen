@@ -88,11 +88,13 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
   ] : [];
 
   return (
+    <>
+    {/* Fuera del contenedor con space-y: si no, el banner recibía su margen de arriba (Fer, 24/10). */}
+    {datos.length > 0 && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(datos).replace(/</g, "\\u003c") }} />}
     <div className="space-y-10">
-      {datos.length > 0 && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(datos).replace(/</g, "\\u003c") }} />}
       {/* Banners a todo el ancho. */}
       {/* Pegado al encabezado y con la primera fila subiendo sobre su borde de abajo (Fer, 24/10: le sobraba lugar). */}
-      <div className="relative left-1/2 -mb-4 -mt-4 w-screen -translate-x-1/2 sm:-mt-6">
+      <div className="relative left-1/2 -mb-6 -mt-4 w-screen -translate-x-1/2 sm:-mt-6">
         {banners.length ? <Banners banners={banners} /> : (
           <div className="relative aspect-[3/1] overflow-hidden bg-[var(--marca)] lg:aspect-auto lg:h-[340px]">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_20%,rgba(255,255,255,.55),transparent_60%)]" />
@@ -152,5 +154,6 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
         ))}
       </section>
     </div>
+    </>
   );
 }

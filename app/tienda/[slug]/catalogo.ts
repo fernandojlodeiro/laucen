@@ -52,7 +52,9 @@ export type ProductoBase = {
   id: number; titulo: string; marca: string | null; familiaId: number | null; creado: number;
   venta: number; ventaMax: number; lista: number; descuentoPct: number;
   /** Bonificación web en pesos (la mitad del cargo fijo de ML en los baratos; ya está descontada del precio). */
-  bono: number; stock: number; variaciones: number; variacionId: number;
+  bono: number;
+  /** El video del producto (ficha › Fotos): en el celular arranca solo en la tarjeta. */
+  video: string | null; stock: number; variaciones: number; variacionId: number;
   foto: string | null; vendidos: number;
   /** título, marca y SKUs normalizados (sin acentos, en minúsculas), para buscar. */
   texto: string;
@@ -61,7 +63,7 @@ export type ProductoBase = {
 async function leerCatalogo(org: string, canalId: number, listaId: number, moneda: string): Promise<ProductoBase[]> {
   const filas = await consulta<{
     id: number; titulo: string; marca: string | null; familia_id: number | null; creado: string; variacion_id: number; variaciones: number;
-    lista: string; venta: string; venta_max: string; descuento_pct: string; bono: string; stock: number; skus: string | null; sku_base: string; foto: string | null; vendidos: number;
+    lista: string; venta: string; venta_max: string; descuento_pct: string; bono: string; video: string | null; stock: number; skus: string | null; sku_base: string; foto: string | null; vendidos: number;
   }>(`
     with v as (
       select p.id producto_id, v.id variacion_id, v.orden, v.sku,
@@ -89,7 +91,7 @@ async function leerCatalogo(org: string, canalId: number, listaId: number, moned
        where pe.organizacion_id = $1 and pe.estado not in ('cancelado', 'devuelto')
        group by va.producto_id
     )
-    select p.id::int, p.titulo, p.marca, p.familia_id::int, extract(epoch from p.creado_ts)::bigint::text creado, p.sku_base,
+    select p.id::int, p.titulo, p.marca, p.video_url video, p.familia_id::int, extract(epoch from p.creado_ts)::bigint::text creado, p.sku_base,
            a.variacion_id::int, a.variaciones, a.lista, a.venta, a.venta_max, a.descuento_pct, a.bono, a.stock, a.skus,
            coalesce((select url from producto_foto where producto_id = p.id order by orden, id limit 1),
                     (select url from variacion_foto where variacion_id = a.variacion_id order by orden, id limit 1)) foto,
@@ -98,7 +100,7 @@ async function leerCatalogo(org: string, canalId: number, listaId: number, moned
   [org, canalId, listaId, moneda]);
   return filas.map((f) => ({
     id: f.id, titulo: f.titulo, marca: f.marca?.trim() || null, familiaId: f.familia_id, creado: Number(f.creado),
-    venta: Number(f.venta), ventaMax: Number(f.venta_max), lista: Number(f.lista), descuentoPct: Number(f.descuento_pct), bono: Number(f.bono), stock: f.stock,
+    venta: Number(f.venta), ventaMax: Number(f.venta_max), lista: Number(f.lista), descuentoPct: Number(f.descuento_pct), bono: Number(f.bono), video: f.video, stock: f.stock,
     variaciones: f.variaciones, variacionId: f.variacion_id, foto: f.foto, vendidos: f.vendidos,
     texto: normalizar(`${f.titulo} ${f.marca ?? ""} ${f.sku_base} ${f.skus ?? ""}`),
   }));
@@ -110,7 +112,7 @@ export const catalogoDe = cache(async (t: Tienda): Promise<ProductoBase[]> => {
   const todos = await unstable_cache(
     () => leerCatalogo(t.organizacionId, t.canalId, t.listaId!, t.moneda),
     // Cambia la versión cuando cambia la consulta (la copia guardada no se renueva sola).
-    ["tienda-catalogo", "v4", String(t.canalId), String(t.listaId), t.moneda],
+    ["tienda-catalogo", "v5", String(t.canalId), String(t.listaId), t.moneda],
     { revalidate: 60, tags: [`tienda-${t.canalId}`] },
   )();
   return ocultaSinStock(t) ? todos.filter((p) => p.stock > 0) : todos;

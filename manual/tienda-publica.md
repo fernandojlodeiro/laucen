@@ -203,6 +203,7 @@ Cancelado, Devuelto, Entregado, **En camino** (despachado), **Listo para retirar
 
 ### Las tarjetas de producto
 - El título ocupa hasta **tres renglones** (para que se vea el modelo).
+- Un producto con **video** (pestaña Fotos de su ficha): en el celular, el video arranca solo y sin sonido en la tarjeta cuando queda bien a la vista, y se frena al salir; en la compu, al pasar el mouse. Hasta entonces se ve la foto con un ▶ chico. Con ahorro de datos o «menos movimiento» en el teléfono, sólo la foto.
 - El «% OFF» va a la derecha del precio tachado; si en el celular no entra en un renglón, va «47%» arriba de «OFF», centrado en un cuadradito.
 - **Promo web $ …** (cucarda azul): en los productos de menos de $ 33.000 con stock suficiente, lo que se les descuenta del cargo fijo de Mercado Libre (ver [Cuotas y descuentos](/config/tienda/financiacion)).
 
