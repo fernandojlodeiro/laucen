@@ -6,6 +6,7 @@
 import { consulta, una, motivoErp } from "@/lib/erp/base";
 import { prepararAgrupar, prepararCierreAgrupados } from "@/lib/mercadolibre/agrupar";
 import { prepararRevisionTitulos } from "@/lib/mercadolibre/titulos-ia";
+import { prepararCompletarDatos } from "@/lib/mercadolibre/completar-datos";
 
 export async function hayPreparacionesPendientes(): Promise<boolean> {
   return !!(await una("select 1 from ml_preparacion where estado = 'pendiente' or (estado = 'trabajando' and tomada_ts < now() - interval '5 minutes') limit 1"));
@@ -27,6 +28,7 @@ export async function prepararPendientes(hastaMs: number): Promise<{ hechas: num
       const hasta = Math.min(hastaMs - 5_000, Date.now() + 200_000);
       const r = p.tipo === "agrupar" ? await prepararAgrupar(p.organizacion_id, p.canal_id, null, { max: p.max ?? 20, hasta })
         : p.tipo === "cierre_agrupados" ? await prepararCierreAgrupados(p.organizacion_id, p.canal_id, null)
+        : p.tipo === "completar" ? await prepararCompletarDatos(p.organizacion_id, p.canal_id, null)
         : await prepararRevisionTitulos(p.organizacion_id, p.canal_id, null, { max: p.max ?? 50, hasta });
       await consulta("update ml_preparacion set estado = 'hecha', resultado = $2::jsonb, hecha_ts = now() where id = $1", [p.id, JSON.stringify(r)]);
       res.hechas++;
