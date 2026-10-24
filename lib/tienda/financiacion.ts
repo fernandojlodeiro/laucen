@@ -14,12 +14,16 @@
 //     "Opción en terminal" de su tabla); vacío = la cantidad de cuotas.
 //   - costo_pct: lo que cobra el banco por ese plan. Sólo informativo (avisa si
 //     el interés no lo cubre).
+//   - medio: por dónde se cobra el plan. "payway" (de entrada): lo de arriba. "mercadopago": el
+//     comprador paga en Mercado Pago, hasta esas cuotas, con el interés que cobra Mercado Pago (no se
+//     suma nada de este lado); la cuota que se muestra es de referencia (lib/tienda/tasas-mp.ts).
 //   - Descuento por pago contado: un % para transferencia, efectivo y/o débito
 //     (débito = Payway con tarjeta de débito, en un pago).
 
 import type { Tienda } from "@/lib/tienda/tienda";
 
-export type PlanEscala = { cuotas: number; desde: number; costo_pct: number; interes_pct: number; codigo_payway: number | null };
+export type MedioPlan = "payway" | "mercadopago";
+export type PlanEscala = { cuotas: number; desde: number; costo_pct: number; interes_pct: number; codigo_payway: number | null; medio: MedioPlan };
 export type MedioContado = "transferencia" | "efectivo" | "debito";
 export type Financiacion = { activo: boolean; planes: PlanEscala[]; descuento_pct: number; medios_descuento: MedioContado[] };
 
@@ -41,7 +45,8 @@ export function financiacionDe(x: unknown): Financiacion {
   const vistos = new Set<number>();
   const planes = (Array.isArray(f.planes) ? f.planes : [])
     .map((p) => ({ cuotas: Math.trunc(num(p?.cuotas, 0, 24)), desde: num(p?.desde, 0, 1e12), costo_pct: num(p?.costo_pct, 0, 300), interes_pct: num(p?.interes_pct, 0, 300),
-      codigo_payway: Number.isInteger(Number(p?.codigo_payway)) && Number(p?.codigo_payway) > 0 && Number(p?.codigo_payway) < 1000 ? Number(p?.codigo_payway) : null }))
+      codigo_payway: Number.isInteger(Number(p?.codigo_payway)) && Number(p?.codigo_payway) > 0 && Number(p?.codigo_payway) < 1000 ? Number(p?.codigo_payway) : null,
+      medio: (p?.medio === "mercadopago" ? "mercadopago" : "payway") as MedioPlan }))
     .filter((p) => p.cuotas >= 2 && !vistos.has(p.cuotas) && vistos.add(p.cuotas))
     .sort((a, b) => a.cuotas - b.cuotas);
   const medios = (Array.isArray(f.medios_descuento) ? f.medios_descuento : []).filter((m): m is MedioContado => MEDIOS_CONTADO.some((x) => x.clave === m));
@@ -50,15 +55,20 @@ export function financiacionDe(x: unknown): Financiacion {
 
 export const financiacionTienda = (t: Tienda) => financiacionDe(t.config.financiacion);
 
-/** Los planes (cuotas e interés) que le tocan a ese precio: los de "desde" menor o igual. */
-export function planesParaPrecio(f: Financiacion, precio: number) {
-  return f.planes.filter((p) => precio >= p.desde).map((p) => ({ cuotas: p.cuotas, interes_pct: p.interes_pct }));
+/** Los planes que le tocan a ese precio: los de "desde" menor o igual. Con `medio`, sólo los que se
+ *  cobran por ahí. En los de Mercado Pago, el interés es la tasa de referencia de `tasasMp` (si se sabe). */
+export function planesParaPrecio(f: Financiacion, precio: number, o: { medio?: MedioPlan; tasasMp?: Map<number, number> | null } = {}) {
+  return f.planes.filter((p) => precio >= p.desde && (!o.medio || p.medio === o.medio)).map((p) => p.medio === "mercadopago"
+    ? { cuotas: p.cuotas, interes_pct: o.tasasMp?.get(p.cuotas) ?? 0, medio: p.medio, referencia: !!o.tasasMp?.has(p.cuotas) }
+    : { cuotas: p.cuotas, interes_pct: p.interes_pct, medio: p.medio });
 }
 
 /** El plan que se muestra en la tarjeta: el más largo que le toca a ese precio. */
-export function planDeEscala(f: Financiacion, precio: number) {
-  return planesParaPrecio(f, precio).at(-1) ?? null;
+export function planDeEscala(f: Financiacion, precio: number, tasasMp?: Map<number, number> | null) {
+  return planesParaPrecio(f, precio, { tasasMp }).at(-1) ?? null;
 }
+
+export const hayPlanMp = (f: Financiacion) => f.activo && f.planes.some((p) => p.medio === "mercadopago");
 
 /** El % de descuento de un medio de pago con el esquema prendido (null = el esquema no lo decide). */
 export function descuentoContado(f: Financiacion, medio: string): number | null {

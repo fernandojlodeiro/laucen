@@ -16,6 +16,7 @@ import { mediosActivos } from "@/lib/tienda/checkout";
 import { planesDe, planParaMostrar } from "@/lib/tienda/cuotas";
 import { financiacionTienda, planDeEscala, planesParaPrecio } from "@/lib/tienda/financiacion";
 import { contadoDe } from "@/lib/tienda/medios";
+import { tasasMpDe } from "@/lib/tienda/tasas-mp";
 import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { abierta, arbolDe, aTarjetas, cargarTienda, catalogoDe, cucardasDe, envioDe, envioGratis } from "../../catalogo";
 import {
@@ -103,8 +104,9 @@ export default async function Producto({ params, searchParams }: Props) {
   const fotos = v ? [...f.fotosVariacion.filter((x) => x.variacion_id === v.id).map((x) => x.url), ...f.fotosProducto] : f.fotosProducto;
   // Con el esquema de cuotas y descuentos, los planes que le tocan a su precio; si no, los de su familia o producto.
   const fin = financiacionTienda(t);
+  const tasasMp = await tasasMpDe(t);
   const [planes, envio, medios, catalogo, arbol, h, contado] = await Promise.all([
-    !v ? Promise.resolve([]) : fin.activo ? Promise.resolve(planesParaPrecio(fin, v.venta)) : planesDe(t.organizacionId, v.id),
+    !v ? Promise.resolve([]) : fin.activo ? Promise.resolve(planesParaPrecio(fin, v.venta, { tasasMp })) : planesDe(t.organizacionId, v.id),
     envioDe(t), mediosActivos(t), catalogoDe(t), arbolDe(t), headers(), contadoDe(t),
   ]);
   const base = catalogo.find((x) => x.id === p.id);
@@ -113,7 +115,7 @@ export default async function Producto({ params, searchParams }: Props) {
     : [];
   const [yo, relacionados] = await Promise.all([base ? aTarjetas(t, [base]) : Promise.resolve([]), aTarjetas(t, relacionadosBase)]);
   const masVendido = yo[0]?.masVendido ?? false;
-  const plan = fin.activo ? (v ? planDeEscala(fin, v.venta) : null) : planParaMostrar(planes);
+  const plan = fin.activo ? (v ? planDeEscala(fin, v.venta, tasasMp) : null) : planParaMostrar(planes);
   const enlace = (x: Variacion) => `${rutaTienda(t, `/producto/${p.id}`)}?v=${x.id}`;
   const c = t.config;
   const vendidos = textoVendidos(base?.vendidos ?? 0);
@@ -297,7 +299,15 @@ export default async function Producto({ params, searchParams }: Props) {
               <p className="text-base text-[var(--texto)]">Medios de pago</p>
               {planes.some((x) => x.cuotas > 1) && (
                 <ul className="space-y-1">
-                  {planes.filter((x) => x.cuotas > 1).map((x) => (
+                  {planes.filter((x) => x.cuotas > 1).map((x) => x.medio === "mercadopago" ? (
+                    // Por Mercado Pago: el interés lo cobra Mercado Pago; la cuota es de referencia.
+                    <li key={x.cuotas} className="text-[var(--texto)]">
+                      Hasta {x.cuotas} cuotas con Mercado Pago
+                      {v && x.referencia && <> desde <Monto n={Math.round(((v.venta * (1 + x.interes_pct / 100)) / x.cuotas) * 100) / 100} moneda={t.moneda} />
+                        <span className="text-[var(--texto-2)]"> (total aprox. <Monto n={Math.round(v.venta * (1 + x.interes_pct / 100) * 100) / 100} moneda={t.moneda} />)</span></>}
+                      <span className="block text-xs text-[var(--texto-2)]">{x.referencia ? "La cuota exacta depende de tu tarjeta. " : ""}También podés pagar en cuotas sin tarjeta con Mercado Pago.</span>
+                    </li>
+                  ) : (
                     <li key={x.cuotas} className={x.interes_pct === 0 ? "text-[var(--verde)]" : "text-[var(--texto)]"}>
                       {x.cuotas} cuotas {x.interes_pct === 0 ? "sin interés" : "con interés"}
                       {v && <> de <Monto n={Math.round(((v.venta * (1 + x.interes_pct / 100)) / x.cuotas) * 100) / 100} moneda={t.moneda} /></>}

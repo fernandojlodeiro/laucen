@@ -131,7 +131,7 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
   const fin = financiacionTienda(t);
   let cuotas: Cotizacion["cuotas"] = null;
   if (fin.activo && op.medio === "payway") {
-    const planes = planesParaPrecio(fin, subtotal);
+    const planes = planesParaPrecio(fin, subtotal, { medio: "payway" });
     const productosSinInteres = r2(lineas.reduce((s, l) => s + l.montoFinal, 0));
     const elegidas = Math.trunc(Number(op.cuotas)) || 1;
     const plan = planes.find((p) => p.cuotas === elegidas);

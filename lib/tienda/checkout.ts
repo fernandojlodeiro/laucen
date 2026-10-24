@@ -145,7 +145,7 @@ export async function cobrarConPayway(t: Tienda, codigo: string, tarjeta: { toke
     if (tarjeta.cuotas !== p.tienda.cuotas) throw new ErrorErp(`Elegiste ${p.tienda.cuotas === 1 ? "un pago" : `${p.tienda.cuotas} cuotas`} al comprar: el pago es así.`);
   } else {
     const vars = (await consulta<{ v: number }>("select variacion_id::int v from pedido_linea where pedido_id = $1 and variacion_id is not null", [p.id])).map((x) => x.v);
-    const planes = await planesDeLaCompra(t, vars, Number(p.tienda?.subtotal ?? p.total_ars));
+    const planes = await planesDeLaCompra(t, vars, Number(p.tienda?.subtotal ?? p.total_ars), "payway");
     if (tarjeta.cuotas > 1 && !planes.some((pl) => pl.cuotas === tarjeta.cuotas)) throw new ErrorErp("Esa cantidad de cuotas no está disponible para estos productos.");
   }
   const cred = await credencial(t, "payway");
@@ -159,8 +159,9 @@ export async function cobrarConPayway(t: Tienda, codigo: string, tarjeta: { toke
 }
 
 /** Los planes de cuotas de una compra: con el esquema de cuotas prendido, los que le tocan al monto de
- *  los productos (lib/tienda/financiacion.ts); si no, los que comparten todos sus productos. */
-export async function planesDeLaCompra(t: Tienda, variaciones: number[], montoProductos: number) {
+ *  los productos (lib/tienda/financiacion.ts; con `medio`, sólo los que se cobran por ahí); si no, los
+ *  que comparten todos sus productos. */
+export async function planesDeLaCompra(t: Tienda, variaciones: number[], montoProductos: number, medio?: "payway" | "mercadopago") {
   const f = financiacionTienda(t);
-  return f.activo ? planesParaPrecio(f, montoProductos) : planesDelCarrito(t.organizacionId, variaciones);
+  return f.activo ? planesParaPrecio(f, montoProductos, { medio }) : planesDelCarrito(t.organizacionId, variaciones);
 }

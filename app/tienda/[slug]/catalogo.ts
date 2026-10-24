@@ -20,6 +20,7 @@ import { tiendaPorSlug, type Tienda } from "@/lib/tienda/tienda";
 import { conMarca } from "@/lib/tienda/dominios-tienda";
 import { planesDeVariaciones, planParaMostrar, type Plan } from "@/lib/tienda/cuotas";
 import { financiacionTienda, planDeEscala } from "@/lib/tienda/financiacion";
+import { tasasMpDe } from "@/lib/tienda/tasas-mp";
 import { contadoDe } from "@/lib/tienda/medios";
 
 export const POR_PAGINA = 24;
@@ -257,15 +258,15 @@ const masVendidosDe = cache(async (t: Tienda) =>
 export async function aTarjetas(t: Tienda, productos: ProductoBase[]): Promise<Tarjeta[]> {
   if (!productos.length) return [];
   const fin = financiacionTienda(t);
-  const [cucardas, planes, envio, top, contado] = await Promise.all([
+  const [cucardas, planes, envio, top, contado, tasasMp] = await Promise.all([
     cucardasDe(t.organizacionId, productos.map((p) => p.id)),
     fin.activo ? null : planesDeVariaciones(t.organizacionId, productos.map((p) => p.variacionId)),
-    envioDe(t), masVendidosDe(t), contadoDe(t),
+    envioDe(t), masVendidosDe(t), contadoDe(t), tasasMpDe(t),
   ]);
   return productos.map((p) => ({
     ...p, cucardas: cucardasConAuto(p, cucardas.get(p.id) ?? [], top.has(p.id)),
     // Con el esquema de cuotas, el plan más largo que le toca a su precio; si no, el de su familia o producto.
-    plan: planes ? planParaMostrar(planes.get(p.variacionId) ?? []) : planDeEscala(fin, p.venta),
+    plan: planes ? planParaMostrar(planes.get(p.variacionId) ?? []) : planDeEscala(fin, p.venta, tasasMp),
     envioGratis: envioGratis(envio, p.venta), masVendido: top.has(p.id),
     contado: contado ? { precio: Math.round(p.venta * (1 - contado.pct / 100) * 100) / 100, texto: contado.texto } : null,
   }));

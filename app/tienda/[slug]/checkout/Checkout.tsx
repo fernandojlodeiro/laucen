@@ -20,7 +20,7 @@ const ETIQUETA = "block text-sm text-[var(--texto)] mb-1";
 const CAJA = "rounded-md bg-white shadow-[0_1px_2px_0_rgba(0,0,0,.12)]";
 
 const AYUDA_MEDIO: Record<string, string> = {
-  mercadopago: "Te llevamos a Mercado Pago para pagar con tarjeta, dinero en cuenta o efectivo.",
+  mercadopago: "Te llevamos a Mercado Pago para pagar con tarjeta, en cuotas sin tarjeta, con dinero en cuenta o en efectivo. Las cuotas y su interés te los muestra Mercado Pago.",
   payway: "Pagás con tarjeta de crédito o débito en el paso siguiente.",
   payway_debito: "Pagás con tu tarjeta de débito, en un pago, en el paso siguiente.",
   transferencia: "Te mostramos los datos para transferir al confirmar.",

@@ -68,6 +68,16 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
 /** "Mismo precio en 6 cuotas de $ 1.234" (verde, sin interés) o "en 12 cuotas de $ 1.500" (con interés). */
 export function LineaCuotas({ plan, venta, moneda, className = "" }: { plan: Plan | null; venta: number; moneda: Moneda; className?: string }) {
   if (!plan || plan.cuotas < 2) return null;
+  // Por Mercado Pago: "Hasta 12 cuotas de $ … con Mercado Pago" (cuota de referencia) o sin valor si no se sabe la tasa.
+  if (plan.medio === "mercadopago") {
+    const cuota = r2((venta * (1 + plan.interes_pct / 100)) / plan.cuotas);
+    return (
+      <div className={className}>
+        <p className="text-[var(--texto)]">Hasta {plan.cuotas} cuotas{plan.referencia && <> de <Monto n={cuota} moneda={moneda} className="align-baseline" /></>} con Mercado Pago</p>
+        <p className="text-xs text-[var(--texto-2)]">{plan.referencia ? "Cuota de referencia, según tu tarjeta. " : ""}También sin tarjeta.</p>
+      </div>
+    );
+  }
   const sin = plan.interes_pct === 0;
   const cuota = r2((venta * (1 + plan.interes_pct / 100)) / plan.cuotas);
   return (

@@ -7,7 +7,9 @@
 
 import { consulta, una } from "@/lib/erp/base";
 
-export type Plan = { cuotas: number; interes_pct: number };
+/** medio: por dónde se cobra (esquema de cuotas: Payway o Mercado Pago). En uno de Mercado Pago,
+ *  interes_pct es la tasa de referencia de Mercado Pago (referencia = true) o 0 si no se sabe. */
+export type Plan = { cuotas: number; interes_pct: number; medio?: "payway" | "mercadopago"; referencia?: boolean };
 
 const limpiar = (x: unknown): Plan[] =>
   Array.isArray(x) ? x.map((p) => ({ cuotas: Math.trunc(Number(p?.cuotas)), interes_pct: Number(p?.interes_pct ?? 0) }))

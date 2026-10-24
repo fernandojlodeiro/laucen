@@ -18,7 +18,7 @@ Menú **Configuración › Tienda web › Cuotas y descuentos**. Si hay más de 
 ## Qué hay en la pantalla
 
 - **El interruptor de arriba**: prendido, la tienda usa este esquema; apagado, usa los planes por familia o producto de [Cuotas](/config/cuotas) y el descuento que tenga cargado cada medio de pago en [Medios de pago](/config/medios-pago).
-- **Planes de cuotas**: una fila por plan con **Cuotas**, **Desde $** (desde qué precio del producto se ofrece; "Todos" si es desde cero), **Costo del plan** (lo que te cobra el banco o la tarjeta por ese plan, sólo para comparar), **Interés al cliente** ("Sin interés" o el %), **Cód. Payway** (el número que se le manda a Payway para ese plan; vacío = la cantidad de cuotas) y **Cómo queda** (si el interés cubre el costo del plan, si lo ponés vos o si lo cubre el precio).
+- **Planes de cuotas**: una fila por plan con **Cuotas**, **Se cobra con** (Payway o Mercado Pago), **Desde $** (desde qué precio del producto se ofrece; "Todos" si es desde cero), **Costo del plan** (lo que te cobra el banco o la tarjeta por ese plan, sólo para comparar), **Interés al cliente** ("Sin interés" o el %), **Cód. Payway** (el número que se le manda a Payway para ese plan; vacío = la cantidad de cuotas) y **Cómo queda** (si el interés cubre el costo del plan, si lo ponés vos o si lo cubre el precio).
 - **Descuento por pagar contado**: el **%** y **con qué medios** (Transferencia, Efectivo, Tarjeta de débito).
 - **Cómo se ve en la tienda**: cuatro productos con stock (el más barato, dos del medio y el más caro) con lo que va a decir debajo de su precio.
 
@@ -33,7 +33,7 @@ La pantalla abre en vista; se cambia con el **lápiz** de arriba a la derecha, y
 4. **"Grabar"**. Mirá abajo **Cómo se ve en la tienda** para revisar.
 5. Si está apagado, prendé el **interruptor** de arriba.
 
-Ejemplo: 3 cuotas desde $ 0 sin interés, 6 cuotas desde $ 150.000 sin interés y 12 cuotas desde $ 600.000 con 25 % de interés; 10 % de descuento con transferencia, efectivo y débito.
+Ejemplo: 3 cuotas desde $ 0 y 6 cuotas desde $ 150.000, sin interés, por Payway; 12 cuotas desde $ 600.000 por Mercado Pago (con el costo de su comisión, por ejemplo 4,6 %, para comparar); 10 % de descuento con transferencia, efectivo y débito.
 
 ## Criterios y reglas
 
@@ -47,6 +47,8 @@ Ejemplo: 3 cuotas desde $ 0 sin interés, 6 cuotas desde $ 150.000 sin interés 
   - **Transferencia** y **efectivo**: el descuento del esquema si están tildados; si no, sin descuento.
   - **Mercado Pago**: se limita la cantidad máxima de cuotas a la del plan más largo que le toca a la compra; el interés de cada cuota lo pone Mercado Pago según la cuenta.
 - **Cód. Payway**: Payway reconoce el programa de cuotas (y su costo) por ese número, no por la cantidad de cuotas. Con el código vacío se manda la cantidad de cuotas.
+- **Planes por Mercado Pago**: el comprador paga en Mercado Pago, hasta esas cuotas, y **el interés lo cobra Mercado Pago** (Laucen no suma nada; vos pagás la comisión de un cobro de Mercado Pago). Debajo del precio dice "**Hasta 12 cuotas de $ … con Mercado Pago**" con una cuota **de referencia**: la tasa que Mercado Pago informa para Visa y Mastercard (la más baja), consultada con la cuenta de Mercado Pago de la tienda y renovada cada 6 horas; abajo, en chico, "Cuota de referencia, según tu tarjeta. También sin tarjeta." Si Mercado Pago no contesta, dice "Hasta 12 cuotas con Mercado Pago", sin valor. En el pago, la opción Mercado Pago permite hasta la cantidad de cuotas del plan más largo que le toca a la compra; las cuotas por Payway que se eligen en "Tarjeta de crédito" son sólo las de Payway. En esa fila, "Interés al cliente" y "Cód. Payway" no se usan.
+- **Cuotas sin tarjeta**: con Mercado Pago el comprador también puede pagar en cuotas sin tarjeta (se aclara debajo del precio, en la ficha, en el pago y en Ayuda).
 - **Costo del plan**: sólo informativo, para comparar con el interés que cobrás. No cambia ningún precio.
 - **El esquema no toca los precios** ni Mercado Libre: el precio de cada producto sigue siendo el de su lista de precios.
 - Prendido, **reemplaza** en la tienda los planes por familia o producto de [Cuotas](/config/cuotas) y el descuento cargado en [Medios de pago](/config/medios-pago) para transferencia y efectivo (los demás medios conservan el suyo).
