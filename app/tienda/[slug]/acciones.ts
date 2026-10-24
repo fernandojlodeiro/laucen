@@ -95,7 +95,8 @@ export async function cotizarAccion(slug: string, e: Eleccion): Promise<{ resume
     const provincia = typeof e.provincia === "string" ? e.provincia.slice(0, 60) : null;
     const metodoEnvioId = Number.isInteger(e.metodoEnvioId) ? e.metodoEnvioId : null;
     const codigoPostal = typeof e.codigoPostal === "string" ? e.codigoPostal.slice(0, 10) : null;
-    return { resumen: await resumir(t, carrito, { medio, provincia, metodoEnvioId, codigoPostal }) };
+    const cuotas = Math.min(24, Math.max(1, Math.trunc(Number(e.cuotas)) || 1));
+    return { resumen: await resumir(t, carrito, { medio, provincia, metodoEnvioId, codigoPostal, cuotas }) };
   } catch (err) {
     return { error: motivoErp(err) };
   }
@@ -112,7 +113,7 @@ export async function sucursalesOcaAccion(slug: string, cp: string): Promise<{ i
   }
 }
 
-const MEDIOS = ["mercadopago", "payway", "transferencia", "efectivo", "cuenta_corriente"] as const;
+const MEDIOS = ["mercadopago", "payway", "payway_debito", "transferencia", "efectivo", "cuenta_corriente"] as const;
 
 /** Confirma la compra: crea el pedido (comprar), vacía el carrito y dice a dónde seguir. */
 export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { error: string }> {
@@ -148,6 +149,7 @@ export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { 
         sucursalOca: metodo.tipo === "oca_sucursal" ? texto(fd, "sucursal_oca") : null,
       },
       medio,
+      cuotas: Math.min(24, Math.max(1, Math.trunc(Number(fd.get("cuotas"))) || 1)),
       notas: texto(fd, "notas"),
     };
     const r = await comprar(t, datos, { clienteId: cuenta?.clienteId ?? null });

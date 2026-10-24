@@ -3,7 +3,7 @@
 // tarjeta. Las llaves privadas y el access token nunca salen del servidor.
 
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
-import { planesDelCarrito } from "@/lib/tienda/cuotas";
+import { planesDeLaCompra } from "@/lib/tienda/checkout";
 import { crearPreferencia } from "@/lib/tienda/pagos/mercadopago";
 import { URL_PAYWAY } from "@/lib/tienda/pagos/payway";
 import { nombreTienda, type Tienda } from "@/lib/tienda/tienda";
@@ -27,8 +27,9 @@ export async function paywayPublico(t: Tienda): Promise<{ publicKey: string; url
 /** Una preferencia nueva de Mercado Pago para un pedido que no se pudo pagar. Devuelve la dirección de pago. */
 export async function preferenciaNueva(t: Tienda, codigo: string): Promise<string> {
   const org = t.organizacionId;
-  const p = await una<{ id: number; total_ars: string; estado: string; estado_pago: string; email: string | null; nombre: string | null }>(`
-    select p.id::int, p.total_ars, p.estado, p.estado_pago, cl.email, cl.nombre from pedido p left join cliente cl on cl.id = p.cliente_id
+  const p = await una<{ id: number; total_ars: string; estado: string; estado_pago: string; email: string | null; nombre: string | null; subtotal: string | null }>(`
+    select p.id::int, p.total_ars, p.estado, p.estado_pago, cl.email, cl.nombre, p.datos_externos #>> '{tienda,subtotal}' subtotal
+      from pedido p left join cliente cl on cl.id = p.cliente_id
      where p.organizacion_id = $1 and p.canal_id = $2 and p.codigo_seguimiento = $3`, [org, t.canalId, codigo]);
   if (!p) throw new ErrorErp("No encontramos el pedido.");
   if (p.estado_pago === "pagado") throw new ErrorErp("El pedido ya está pagado.");
@@ -36,7 +37,7 @@ export async function preferenciaNueva(t: Tienda, codigo: string): Promise<strin
   const cred = await credencial(t, "mercadopago");
   if (!cred?.datos?.access_token) throw new ErrorErp("Mercado Pago no está disponible ahora. Escribinos y lo resolvemos.");
   const vars = await consulta<{ v: number }>("select variacion_id::int v from pedido_linea where pedido_id = $1 and variacion_id is not null", [p.id]);
-  const planes = await planesDelCarrito(org, vars.map((x) => x.v));
+  const planes = await planesDeLaCompra(t, vars.map((x) => x.v), Number(p.subtotal ?? p.total_ars));
   const seguir = await urlTienda(t, `/pedido/${codigo}`);
   const pref = await crearPreferencia(cred.datos.access_token, {
     pedidoId: p.id, titulo: `${nombreTienda(t)} — pedido ${p.id}`, total: Number(p.total_ars), email: p.email, nombre: p.nombre,

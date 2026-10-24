@@ -1,5 +1,6 @@
 // Cotizar un carrito de la tienda: precios (precioDe con la lista del canal),
-// reglas comerciales, descuento del medio de pago y costo de envío. Es la
+// reglas comerciales, descuento del medio de pago, interés de las cuotas
+// (esquema de cuotas y descuentos, lib/tienda/financiacion.ts) y costo de envío. Es la
 // MISMA cuenta para el carrito, el checkout y el pedido que se crea (el
 // precio final de cada línea va al pedido como precio_unitario).
 
@@ -8,6 +9,8 @@ import { precioDe } from "@/lib/precios";
 import type { Tienda } from "@/lib/tienda/tienda";
 import { cotizarOca } from "@/lib/oca/envios";
 import { tcDelDia } from "@/lib/moneda";
+import { financiacionTienda, planesParaPrecio } from "@/lib/tienda/financiacion";
+import { mediosActivos } from "@/lib/tienda/medios";
 
 export type LineaCarrito = { variacionId: number; cantidad: number };
 
@@ -26,13 +29,16 @@ export type Cotizacion = {
   envio: { metodoId: number | null; nombre: string | null; costo: number; bonificado: boolean; aConvenir: boolean; sinCp?: boolean; plazoDias?: number | null } | null;
   total: number;
   sinStock: string[];
+  /** Con el esquema de cuotas prendido y pagando con tarjeta de crédito (Payway): los planes que le
+   *  tocan a la compra, lo que suman los productos antes del interés y las cuotas elegidas. */
+  cuotas: { planes: { cuotas: number; interes_pct: number }[]; productos: number; elegidas: number } | null;
 };
 
 type Regla = { id: number; nombre: string; condicion: Record<string, unknown>; accion: Record<string, unknown>; acumulable: boolean };
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
-export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: string | null; metodoEnvioId?: number | null; provincia?: string | null; codigoPostal?: string | null } = {}): Promise<Cotizacion> {
+export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: string | null; cuotas?: number | null; metodoEnvioId?: number | null; provincia?: string | null; codigoPostal?: string | null } = {}): Promise<Cotizacion> {
   const org = t.organizacionId;
   if (!t.listaId) throw new ErrorErp("La tienda no tiene lista de precios.");
   const ids = [...new Set(carrito.filter((l) => l.cantidad > 0).map((l) => l.variacionId))];
@@ -107,11 +113,9 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
     if (!r.acumulable) cerrado = true;
   }
 
-  // Descuento (o recargo) del medio de pago.
+  // Descuento (o recargo) del medio de pago (con el esquema de cuotas prendido, el de contado: lib/tienda/medios.ts).
   if (op.medio) {
-    const m = (await consulta<{ nombre: string; descuento_pct: string }>(
-      "select nombre, descuento_pct from medio_pago where organizacion_id = $1 and (canal_id is null or canal_id = $2) and tipo = $3 and activo order by canal_id nulls last limit 1",
-      [org, t.canalId, op.medio]))[0];
+    const m = (await mediosActivos(t)).find((x) => x.tipo === op.medio);
     const pct = Number(m?.descuento_pct ?? 0);
     if (pct) {
       const base = lineas.reduce((s, l) => s + l.montoFinal, 0);
@@ -119,6 +123,25 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
       for (const l of lineas) l.montoFinal = r2(l.montoFinal * (1 - pct / 100));
       descuentos.push({ nombre: `${pct > 0 ? "Descuento" : "Recargo"} por pagar con ${m!.nombre}`, importe });
     }
+  }
+
+  // Cuotas con tarjeta de crédito (Payway), con el esquema prendido: los planes que le tocan al
+  // precio de los productos; el interés del plan elegido se suma a los productos (queda en el pedido
+  // y en la factura, y es lo que se cobra).
+  const fin = financiacionTienda(t);
+  let cuotas: Cotizacion["cuotas"] = null;
+  if (fin.activo && op.medio === "payway") {
+    const planes = planesParaPrecio(fin, subtotal);
+    const productosSinInteres = r2(lineas.reduce((s, l) => s + l.montoFinal, 0));
+    const elegidas = Math.trunc(Number(op.cuotas)) || 1;
+    const plan = planes.find((p) => p.cuotas === elegidas);
+    if (elegidas > 1 && !plan) throw new ErrorErp("Esa cantidad de cuotas no está disponible para esta compra. Elegí otra.");
+    if (plan && plan.interes_pct > 0) {
+      const importe = r2(productosSinInteres * plan.interes_pct / 100);
+      for (const l of lineas) l.montoFinal = r2(l.montoFinal * (1 + plan.interes_pct / 100));
+      descuentos.push({ nombre: `Interés por pagar en ${plan.cuotas} cuotas`, importe: -importe });
+    }
+    cuotas = { planes, productos: productosSinInteres, elegidas: plan ? elegidas : 1 };
   }
   for (const l of lineas) { l.finalUnit = r2(l.montoFinal / l.cantidad); }
   const productos = r2(lineas.reduce((s, l) => s + l.finalUnit * l.cantidad, 0));
@@ -156,6 +179,6 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
   }
   return {
     lineas: lineas.map(({ familias: _f, montoFinal: _m, ...l }) => ({ ...l, subtotal: r2(l.finalUnit * l.cantidad) })),
-    subtotal, descuentos, envio, total: r2(productos + (envio?.costo ?? 0)), sinStock,
+    subtotal, descuentos, envio, total: r2(productos + (envio?.costo ?? 0)), sinStock, cuotas,
   };
 }

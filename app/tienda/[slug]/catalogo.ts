@@ -19,6 +19,8 @@ import { hoyAR } from "@/lib/moneda";
 import { tiendaPorSlug, type Tienda } from "@/lib/tienda/tienda";
 import { conMarca } from "@/lib/tienda/dominios-tienda";
 import { planesDeVariaciones, planParaMostrar, type Plan } from "@/lib/tienda/cuotas";
+import { financiacionTienda, planDeEscala } from "@/lib/tienda/financiacion";
+import { contadoDe } from "@/lib/tienda/medios";
 
 export const POR_PAGINA = 24;
 export const COLOR_POR_DEFECTO = "#3483FA";
@@ -240,6 +242,8 @@ export const envioGratis = (e: InfoEnvio, precio: number) => e.gratisDesde != nu
 // ── Tarjetas y listados ──────────────────────────────────
 export type Tarjeta = ProductoBase & {
   cucardas: Cucarda[]; plan: Plan | null; envioGratis: boolean; masVendido: boolean;
+  /** Precio pagando contado (esquema de cuotas y descuentos): "$ 90.000 con transferencia". */
+  contado: { precio: number; texto: string } | null;
 };
 
 export type Orden = "relevancia" | "menor" | "mayor" | "vendidos";
@@ -252,14 +256,18 @@ const masVendidosDe = cache(async (t: Tienda) =>
 /** De productos del catálogo a tarjetas: cucardas, plan de cuotas y envío. */
 export async function aTarjetas(t: Tienda, productos: ProductoBase[]): Promise<Tarjeta[]> {
   if (!productos.length) return [];
-  const [cucardas, planes, envio, top] = await Promise.all([
+  const fin = financiacionTienda(t);
+  const [cucardas, planes, envio, top, contado] = await Promise.all([
     cucardasDe(t.organizacionId, productos.map((p) => p.id)),
-    planesDeVariaciones(t.organizacionId, productos.map((p) => p.variacionId)),
-    envioDe(t), masVendidosDe(t),
+    fin.activo ? null : planesDeVariaciones(t.organizacionId, productos.map((p) => p.variacionId)),
+    envioDe(t), masVendidosDe(t), contadoDe(t),
   ]);
   return productos.map((p) => ({
-    ...p, cucardas: cucardasConAuto(p, cucardas.get(p.id) ?? [], top.has(p.id)), plan: planParaMostrar(planes.get(p.variacionId) ?? []),
+    ...p, cucardas: cucardasConAuto(p, cucardas.get(p.id) ?? [], top.has(p.id)),
+    // Con el esquema de cuotas, el plan más largo que le toca a su precio; si no, el de su familia o producto.
+    plan: planes ? planParaMostrar(planes.get(p.variacionId) ?? []) : planDeEscala(fin, p.venta),
     envioGratis: envioGratis(envio, p.venta), masVendido: top.has(p.id),
+    contado: contado ? { precio: Math.round(p.venta * (1 - contado.pct / 100) * 100) / 100, texto: contado.texto } : null,
   }));
 }
 

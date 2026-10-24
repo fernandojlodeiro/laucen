@@ -9,7 +9,8 @@ import { notFound } from "next/navigation";
 import { consulta, una } from "@/lib/erp/base";
 import { formatear, type Moneda } from "@/lib/moneda";
 import { cuentaActual } from "@/lib/tienda/cuentas";
-import { planesDelCarrito } from "@/lib/tienda/cuotas";
+import { planesDeLaCompra } from "@/lib/tienda/checkout";
+import { MARCAS_DEBITO } from "@/lib/tienda/financiacion";
 import { MARCAS_PAYWAY } from "@/lib/tienda/pagos/payway";
 import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { cargarTienda, estadoCriollo, linkWhatsapp } from "../../catalogo";
@@ -28,6 +29,7 @@ type Pedido = {
   envio: { metodo?: string | null; a_convenir?: boolean; bonificado?: boolean; direccion?: Record<string, string | null> | null; sucursal_oca?: { id: string; nombre: string; direccion: string } | null };
   medio_pago: string | null; medio: string | null; cliente_id: number | null; email: string | null; nombre: string | null;
   metodo_tipo: string | null; descuentos: { nombre: string; importe: number }[] | null;
+  subtotal: string | null; cuotas: number | null; debito: boolean | null;
 };
 
 async function cargarPedido(t: Tienda, codigo: string) {
@@ -37,7 +39,8 @@ async function cargarPedido(t: Tienda, codigo: string) {
            case when p.moneda = 'USD' then p.total_usd else p.total_ars end total, p.costo_envio_ars, p.envio, p.medio_pago,
            coalesce(p.datos_externos #>> '{tienda,medio}', (select medio from pago where pedido_id = p.id order by id desc limit 1)) medio,
            p.cliente_id::int, cl.email, cl.nombre, me.tipo metodo_tipo,
-           p.datos_externos #> '{tienda,descuentos}' descuentos
+           p.datos_externos #> '{tienda,descuentos}' descuentos, p.datos_externos #>> '{tienda,subtotal}' subtotal,
+           (p.datos_externos #>> '{tienda,cuotas}')::int cuotas, (p.datos_externos #>> '{tienda,debito}')::boolean debito
       from pedido p left join cliente cl on cl.id = p.cliente_id left join metodo_envio me on me.id = p.metodo_envio_id
      where p.organizacion_id = $1 and p.canal_id = $2 and p.codigo_seguimiento = $3`, [org, t.canalId, codigo]);
   if (!p) return null;
@@ -79,7 +82,10 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
   const fallo = sp.pago === "fallo" && pendiente && p.medio === "mercadopago";
   const pagarConTarjeta = pendiente && p.medio === "payway";
   const pw = pagarConTarjeta ? await paywayPublico(t) : null;
-  const planes = pagarConTarjeta ? await planesDelCarrito(t.organizacionId, lineas.flatMap((l) => (l.variacion_id ? [l.variacion_id] : []))) : [];
+  // Cuotas: las elegidas al comprar (esquema de cuotas: el interés ya está en el total) o, en un pedido sin elegir, los planes de la compra.
+  const planes = !pagarConTarjeta || p.debito || p.cuotas ? []
+    : await planesDeLaCompra(t, lineas.flatMap((l) => (l.variacion_id ? [l.variacion_id] : [])), Number(p.subtotal ?? p.total));
+  const marcas = p.debito ? MARCAS_PAYWAY.filter((x) => MARCAS_DEBITO.includes(x.id)) : MARCAS_PAYWAY;
   const wa = linkWhatsapp(t, `Hola, hice el pedido #${p.id}${pendiente && p.medio === "transferencia" ? " y ya transferí" : ""}.`);
   const direccion = p.envio?.direccion;
   // Los precios de las líneas ya tienen aplicados los descuentos: se muestran como ahorro.
@@ -130,7 +136,8 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
       )}
 
       {pagarConTarjeta && (pw
-        ? <PagoPayway slug={t.slug} codigo={codigo} publicKey={pw.publicKey} url={pw.url} total={Number(p.total)} moneda={m} marcas={MARCAS_PAYWAY} planes={planes} />
+        ? <PagoPayway slug={t.slug} codigo={codigo} publicKey={pw.publicKey} url={pw.url} total={Number(p.total)} moneda={m} marcas={marcas} planes={planes}
+            fijas={p.debito ? 1 : p.cuotas} />
         : <Aviso tipo="error">El pago con tarjeta no está disponible ahora. Escribinos y lo resolvemos.</Aviso>)}
 
       {envios.some((e) => e.estado || e.tracking) && (

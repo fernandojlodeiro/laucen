@@ -23,6 +23,7 @@ export type ConfigTienda = {
   devoluciones?: string;        // política de devoluciones (texto que ve el comprador)
   garantia?: string;            // garantía (texto que ve el comprador)
   sobre_nosotros?: string;      // texto de la página "Sobre nosotros"
+  financiacion?: unknown;       // cuotas por escala y descuento contado (lib/tienda/financiacion.ts)
 };
 
 export type Tienda = {
