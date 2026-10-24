@@ -9,7 +9,7 @@ import { precioDe } from "@/lib/precios";
 import type { Tienda } from "@/lib/tienda/tienda";
 import { cotizarOca } from "@/lib/oca/envios";
 import { tcDelDia } from "@/lib/moneda";
-import { financiacionTienda, planesParaPrecio } from "@/lib/tienda/financiacion";
+import { financiacionTienda, planesDisponibles } from "@/lib/tienda/financiacion";
 import { mediosActivos } from "@/lib/tienda/medios";
 
 export type LineaCarrito = { variacionId: number; cantidad: number };
@@ -125,13 +125,12 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
     }
   }
 
-  // Cuotas con tarjeta de crédito (Payway), con el esquema prendido: los planes que le tocan al
-  // precio de los productos; el interés del plan elegido se suma a los productos (queda en el pedido
+  // Cuotas con tarjeta de crédito (Payway), con el esquema prendido: todos sus planes; el interés del plan elegido se suma a los productos (queda en el pedido
   // y en la factura, y es lo que se cobra).
   const fin = financiacionTienda(t);
   let cuotas: Cotizacion["cuotas"] = null;
   if (fin.activo && op.medio === "payway") {
-    const planes = planesParaPrecio(fin, subtotal, { medio: "payway" });
+    const planes = planesDisponibles(fin, { medio: "payway" });
     const productosSinInteres = r2(lineas.reduce((s, l) => s + l.montoFinal, 0));
     const elegidas = Math.trunc(Number(op.cuotas)) || 1;
     const plan = planes.find((p) => p.cuotas === elegidas);

@@ -15,7 +15,7 @@ import { sucursalesOca } from "@/lib/oca/envios";
 import { cotizar, type LineaCarrito } from "@/lib/tienda/cotizar";
 import { mediosActivos, tipoBase } from "@/lib/tienda/medios";
 import { planesDelCarrito } from "@/lib/tienda/cuotas";
-import { codigoPayway, financiacionTienda, planesParaPrecio, MARCAS_DEBITO } from "@/lib/tienda/financiacion";
+import { codigoPayway, financiacionTienda, planesDisponibles, MARCAS_DEBITO } from "@/lib/tienda/financiacion";
 import { crearPreferencia } from "@/lib/tienda/pagos/mercadopago";
 import { cobrar } from "@/lib/tienda/pagos/payway";
 import { confirmarPago, pagoFallido, avisarStockMl } from "@/lib/tienda/pagos/confirmar";
@@ -114,7 +114,7 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
   const seguir = await urlTienda(t, `/pedido/${codigo}`);
   if (d.medio === "mercadopago") {
     const cred = await credencial(t, "mercadopago");
-    const planes = await planesDeLaCompra(t, cot.lineas.map((l) => l.variacionId), cot.subtotal);
+    const planes = await planesDeLaCompra(t, cot.lineas.map((l) => l.variacionId));
     const pref = await crearPreferencia(cred.datos.access_token, {
       pedidoId: pedido.pedidoId, titulo: `${nombreTienda(t)} — pedido ${pedido.pedidoId}`, total: cot.total, email: d.cliente.email, nombre: d.cliente.nombre,
       maxCuotas: planes.length ? planes[planes.length - 1].cuotas : null,
@@ -145,7 +145,7 @@ export async function cobrarConPayway(t: Tienda, codigo: string, tarjeta: { toke
     if (tarjeta.cuotas !== p.tienda.cuotas) throw new ErrorErp(`Elegiste ${p.tienda.cuotas === 1 ? "un pago" : `${p.tienda.cuotas} cuotas`} al comprar: el pago es así.`);
   } else {
     const vars = (await consulta<{ v: number }>("select variacion_id::int v from pedido_linea where pedido_id = $1 and variacion_id is not null", [p.id])).map((x) => x.v);
-    const planes = await planesDeLaCompra(t, vars, Number(p.tienda?.subtotal ?? p.total_ars), "payway");
+    const planes = await planesDeLaCompra(t, vars, "payway");
     if (tarjeta.cuotas > 1 && !planes.some((pl) => pl.cuotas === tarjeta.cuotas)) throw new ErrorErp("Esa cantidad de cuotas no está disponible para estos productos.");
   }
   const cred = await credencial(t, "payway");
@@ -158,10 +158,10 @@ export async function cobrarConPayway(t: Tienda, codigo: string, tarjeta: { toke
   return { aprobado: r.aprobado, detalle: r.detalle };
 }
 
-/** Los planes de cuotas de una compra: con el esquema de cuotas prendido, los que le tocan al monto de
- *  los productos (lib/tienda/financiacion.ts; con `medio`, sólo los que se cobran por ahí); si no, los
- *  que comparten todos sus productos. */
-export async function planesDeLaCompra(t: Tienda, variaciones: number[], montoProductos: number, medio?: "payway" | "mercadopago") {
+/** Los planes de cuotas de una compra: con el esquema de cuotas prendido, todos los suyos
+ *  (lib/tienda/financiacion.ts; con `medio`, sólo los que se cobran por ahí); si no, los que
+ *  comparten todos sus productos. */
+export async function planesDeLaCompra(t: Tienda, variaciones: number[], medio?: "payway" | "mercadopago") {
   const f = financiacionTienda(t);
-  return f.activo ? planesParaPrecio(f, montoProductos, { medio }) : planesDelCarrito(t.organizacionId, variaciones);
+  return f.activo ? planesDisponibles(f, { medio }) : planesDelCarrito(t.organizacionId, variaciones);
 }

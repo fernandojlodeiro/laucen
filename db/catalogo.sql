@@ -391,7 +391,7 @@ alter table producto add column if not exists precio_en_dolares boolean not null
 alter table variacion add column if not exists precio_en_dolares boolean;
 
 -- Precio de la web contra Mercado Libre (Fer, 24/10). Una lista con precio_vs_ml
--- ({activo, objetivo_pct, costo_ref_pct, canal_tachado, comision_defecto_pct}; activo = true) no usa los descuentos
+-- ({activo, objetivo_pct, costo_ref_pct, canal_tachado, comision_defecto_pct, bono_fijo_pct}; activo = true) no usa los descuentos
 -- por familia: su precio de venta es la Clásica menos lo justo para que, pagando con lo más
 -- caro que se cobra al mismo precio (costo_ref_pct: 3 cuotas sin interés), quede objetivo_pct
 -- de lo que queda vendiendo en la Clásica de ML (la comisión de la categoría de ML del
@@ -446,6 +446,30 @@ begin
 exception when undefined_table then return 0;
 end $$;
 
+-- Lo que cobra ML por unidad en la Clásica a ese precio (el cargo fijo de los productos baratos:
+-- ml_costos_cargo_fijo, sin envío); 0 si no hay datos.
+create or replace function public.cargo_fijo_ml(p_precio numeric)
+returns numeric language plpgsql stable as $$
+declare r numeric;
+begin
+  select cargo_fijo into r from ml_costos_cargo_fijo_vigente
+   where tipo = 'gold_special' and logistica = '-' order by (precio <= p_precio) desc, case when precio <= p_precio then -precio else precio end limit 1;
+  return coalesce(r, 0);
+exception when undefined_table then return 0;
+end $$;
+
+-- La bonificación web de una lista con precio_vs_ml (bono_fijo_pct): ese % del cargo fijo de ML,
+-- en pesos. p_lista_ars es el tachado que devolvió precio_de (de ahí se saca la Clásica).
+create or replace function public.bono_web(p_org text, p_variacion bigint, p_lista bigint, p_lista_ars numeric)
+returns numeric language sql stable as $$
+  select coalesce((
+    select round(cargo_fijo_ml(p_lista_ars / (1 + tachado_ml(p_org, p_variacion, (l.precio_vs_ml ->> 'canal_tachado')::bigint) / 100))
+                 * (l.precio_vs_ml ->> 'bono_fijo_pct')::numeric / 100, 0)
+      from lista_precios l
+     where l.id = p_lista and l.organizacion_id = p_org and coalesce((l.precio_vs_ml ->> 'activo')::boolean, false)
+       and coalesce((l.precio_vs_ml ->> 'bono_fijo_pct')::numeric, 0) > 0), 0)
+$$;
+
 create or replace function public.precio_de(p_org text, p_variacion bigint, p_lista bigint, p_fecha date default current_date)
 returns table (
   precio_id bigint, lista_ars numeric, lista_usd numeric, moneda_origen text, vigente_desde date,
@@ -465,19 +489,24 @@ returns table (
     select coalesce(v.precio_en_dolares, p.precio_en_dolares, false) si, tc_del_dia(p_org, p_fecha) tc
       from variacion v join producto p on p.id = v.producto_id where v.id = p_variacion and v.organizacion_id = p_org)
   , vs as (select precio_vs_ml cfg from l where coalesce((precio_vs_ml ->> 'activo')::boolean, false))
-  -- Con precio_vs_ml: venta = base × (1 − descuento contra ML) y lista (tachado) = base × (1 + tachado de ML);
-  -- el descuento que se informa es el de la venta contra ese tachado.
+  -- Con precio_vs_ml: venta = base × (1 − descuento contra ML) − bonificación web (bono_fijo_pct del cargo
+  -- fijo de ML, en los baratos) y lista (tachado) = base × (1 + tachado de ML); el descuento que se informa
+  -- es el de la venta contra ese tachado. k = venta ÷ base.
   select c.id, round(x.ars * (1 + t.pct / 100), 2), round(c.importe_usd * (1 + t.pct / 100), 2),
          case when u.si then 'USD' else c.moneda_origen end, c.vigente_desde,
-         case when t.pct > 0 then round(100 * (1 - (1 - d.pct / 100) / (1 + t.pct / 100)), 2) else d.pct end,
-         round(x.ars * (1 - d.pct / 100), 2),
-         round(c.importe_usd * (1 - d.pct / 100), 2)
+         round(100 * (1 - k.k / (1 + t.pct / 100)), 2),
+         round(x.ars * k.k, 2),
+         round(c.importe_usd * k.k, 2)
     from c
     cross join lateral (select case when exists (select 1 from vs) then descuento_vs_ml(p_org, p_variacion, (select cfg from vs))
                                     when coalesce((select aplica_descuentos from l), false) then descuento_efectivo(p_org, p_variacion) else 0 end pct) d
     cross join lateral (select case when exists (select 1 from vs) then tachado_ml(p_org, p_variacion, ((select cfg from vs) ->> 'canal_tachado')::bigint) else 0 end pct) t
     left join usd u on true
     cross join lateral (select case when u.si and u.tc is not null then round(c.importe_usd * u.tc, 2) else c.importe_ars end ars) x
+    cross join lateral (select case when exists (select 1 from vs) and coalesce(((select cfg from vs) ->> 'bono_fijo_pct')::numeric, 0) > 0
+                                    then round(cargo_fijo_ml(x.ars) * ((select cfg from vs) ->> 'bono_fijo_pct')::numeric / 100, 0) else 0 end monto) b
+    cross join lateral (select case when b.monto > 0 and x.ars > 0 then greatest(0, (x.ars * (1 - d.pct / 100) - b.monto) / x.ars)
+                                    else 1 - d.pct / 100 end k) k
    order by c.prio, c.vigente_desde desc
    limit 1
 $$;

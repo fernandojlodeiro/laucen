@@ -14,13 +14,13 @@ import { consulta, una } from "@/lib/erp/base";
 import { formatearNumero } from "@/lib/numeros";
 import { mediosActivos } from "@/lib/tienda/checkout";
 import { planesDe, planParaMostrar } from "@/lib/tienda/cuotas";
-import { financiacionTienda, planDeEscala, planesParaPrecio } from "@/lib/tienda/financiacion";
+import { cuotasMpDe, financiacionTienda, planDeEscala, planesDisponibles } from "@/lib/tienda/financiacion";
 import { contadoDe } from "@/lib/tienda/medios";
 import { tasasMpDe } from "@/lib/tienda/tasas-mp";
 import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { abierta, arbolDe, aTarjetas, cargarTienda, catalogoDe, cucardasDe, envioDe, envioGratis } from "../../catalogo";
 import {
-  Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAJA, Etiquetas, IconoCamion, IconoEscudo, IconoTienda, IconoVuelta, LineaContado, LineaCuotas, LINK, Migas, Monto, Precio, PrecioSegunPago, TarjetaProducto,
+  Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAJA, Etiquetas, IconoCamion, IconoEscudo, IconoTienda, IconoVuelta, HastaCuotas, LineaContado, LineaCuotas, LINK, Migas, Monto, Precio, PrecioSegunPago, TarjetaProducto,
 } from "../../piezas";
 import { agregarAlCarrito, comprarAhora } from "../../acciones";
 import Carrusel from "../../Carrusel";
@@ -102,11 +102,11 @@ export default async function Producto({ params, searchParams }: Props) {
   const pedida = Number(sp.v);
   const v = variaciones.find((x) => x.id === pedida) ?? variaciones.find((x) => x.disponible > 0) ?? variaciones[0];
   const fotos = v ? [...f.fotosVariacion.filter((x) => x.variacion_id === v.id).map((x) => x.url), ...f.fotosProducto] : f.fotosProducto;
-  // Con el esquema de cuotas y descuentos, los planes que le tocan a su precio; si no, los de su familia o producto.
+  // Con el esquema de cuotas y descuentos, todos sus planes; si no, los de su familia o producto.
   const fin = financiacionTienda(t);
   const tasasMp = await tasasMpDe(t);
   const [planes, envio, medios, catalogo, arbol, h, contado] = await Promise.all([
-    !v ? Promise.resolve([]) : fin.activo ? Promise.resolve(planesParaPrecio(fin, v.venta, { tasasMp })) : planesDe(t.organizacionId, v.id),
+    !v ? Promise.resolve([]) : fin.activo ? Promise.resolve(planesDisponibles(fin, { tasasMp })) : planesDe(t.organizacionId, v.id),
     envioDe(t), mediosActivos(t), catalogoDe(t), arbolDe(t), headers(), contadoDe(t),
   ]);
   const base = catalogo.find((x) => x.id === p.id);
@@ -115,7 +115,8 @@ export default async function Producto({ params, searchParams }: Props) {
     : [];
   const [yo, relacionados] = await Promise.all([base ? aTarjetas(t, [base]) : Promise.resolve([]), aTarjetas(t, relacionadosBase)]);
   const masVendido = yo[0]?.masVendido ?? false;
-  const plan = fin.activo ? (v ? planDeEscala(fin, v.venta, tasasMp) : null) : planParaMostrar(planes);
+  const plan = fin.activo ? (v ? planDeEscala(fin, v.venta) : null) : planParaMostrar(planes);
+  const cuotasMp = fin.activo && v ? cuotasMpDe(fin, v.venta) : null;
   const enlace = (x: Variacion) => `${rutaTienda(t, `/producto/${p.id}`)}?v=${x.id}`;
   const c = t.config;
   const vendidos = textoVendidos(base?.vendidos ?? 0);
@@ -170,7 +171,8 @@ export default async function Producto({ params, searchParams }: Props) {
                   <div className="space-y-1">
                     <Precio lista={v.lista} venta={v.venta} moneda={t.moneda} grande />
                     <LineaCuotas plan={plan} venta={v.venta} moneda={t.moneda} className="text-base" />
-                    <LineaContado contado={contado ? { precio: Math.round(v.venta * (1 - contado.pct / 100) * 100) / 100, texto: contado.texto } : null} moneda={t.moneda} className="text-base" />
+                    <LineaContado contado={contado ? { precio: Math.round(v.venta * (1 - contado.pct / 100) * 100) / 100, texto: contado.texto } : null} moneda={t.moneda} className="mt-1 inline-block text-base" />
+                    {cuotasMp && <p><HastaCuotas cuotas={cuotasMp} /></p>}
                     <a href="#medios" className={`${LINK} inline-block text-sm`}>Ver los medios de pago</a>
                   </div>
 

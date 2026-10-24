@@ -1,5 +1,5 @@
 // Cuotas y descuentos de la tienda web (lib/tienda/financiacion.ts): planes de
-// cuotas por escala de precio (desde qué precio se ofrece cada uno, lo que cobra
+// cuotas (desde qué precio se muestra cada uno en la tarjeta, lo que cobra
 // el banco y el interés que paga el comprador) y el descuento por pagar contado
 // (transferencia, efectivo, débito). Ficha: abre en vista, se edita con el lápiz.
 // El interruptor de arriba lo prende o lo apaga en la tienda.
@@ -8,7 +8,7 @@ import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { formatearNumero } from "@/lib/numeros";
 import { tiendaDelCanal } from "@/lib/tienda/tienda";
-import { financiacionDe, planDeEscala, textoContado, MEDIOS_CONTADO, type Financiacion } from "@/lib/tienda/financiacion";
+import { cuotasMpDe, financiacionDe, planDeEscala, textoContado, MEDIOS_CONTADO, type Financiacion } from "@/lib/tienda/financiacion";
 import { entrarErp, Pantalla, Avisos, BotonesFicha, TituloSeccion, editandoFicha, Dato, CAJA, CAJA_TABLA, TABLA, THEAD, TH, TR, TD, TDN, CAMPO } from "@/app/componentes/erp";
 import CampoNumero from "@/app/componentes/CampoNumero";
 import { Interruptor } from "@/app/radar/Piezas";
@@ -24,12 +24,11 @@ const plata = (n: number) => `$ ${formatearNumero(Math.round(n), "entero")}`;
 const pct = (n: number) => `${n.toLocaleString("es-AR", { maximumFractionDigits: 1 })} %`;
 
 /** Lo que dice la tarjeta de un producto de ese precio. */
-function textoTarjeta(f: Financiacion, precio: number, tasasMp: Map<number, number> | null) {
-  const p = planDeEscala(f, precio, tasasMp);
-  if (!p) return "Sin cuotas (un pago)";
-  const cuota = (precio * (1 + p.interes_pct / 100)) / p.cuotas;
-  if (p.medio === "mercadopago") return p.referencia ? `Hasta ${p.cuotas} cuotas de ${plata(cuota)} con Mercado Pago (referencia)` : `Hasta ${p.cuotas} cuotas con Mercado Pago`;
-  return p.interes_pct === 0 ? `Mismo precio en ${p.cuotas} cuotas sin interés de ${plata(cuota)}` : `en ${p.cuotas} cuotas de ${plata(cuota)}`;
+function textoTarjeta(f: Financiacion, precio: number) {
+  const p = planDeEscala(f, precio);
+  const mp = cuotasMpDe(f, precio);
+  const texto = !p ? "Sin cuotas (un pago)" : `${p.cuotas} cuotas${p.interes_pct === 0 ? " sin interés" : ""} de ${plata((precio * (1 + p.interes_pct / 100)) / p.cuotas)}`;
+  return mp ? `${texto} · «Hasta ${mp} cuotas»` : texto;
 }
 
 export default async function CuotasYDescuentos({ searchParams }: { searchParams: Promise<SP> }) {
@@ -48,7 +47,7 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
   const conStock = t ? (await catalogoDe(t)).filter((p) => p.stock > 0).sort((a, b) => a.venta - b.venta) : [];
   const ejemplos = conStock.length ? [...new Set([0, Math.floor(conStock.length / 3), Math.floor((conStock.length * 2) / 3), conStock.length - 1])].map((i) => conStock[i]) : [];
   // Precio contra Mercado Libre: lo guardado en la lista de la tienda y los canales de ML para el tachado.
-  const vs = tienda ? (await consulta<{ cfg: { activo?: boolean; objetivo_pct?: number; costo_ref_pct?: number; canal_tachado?: number | null; comision_defecto_pct?: number } | null }>(
+  const vs = tienda ? (await consulta<{ cfg: { activo?: boolean; objetivo_pct?: number; costo_ref_pct?: number; canal_tachado?: number | null; comision_defecto_pct?: number; bono_fijo_pct?: number } | null }>(
     "select l.precio_vs_ml cfg from canal c join lista_precios l on l.id = c.lista_precios_id where c.id = $1", [tienda.id]))[0]?.cfg ?? {} : {};
   const canalesMl = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from canal where organizacion_id = $1 and tipo = 'mercadolibre' and estado <> 'archivado' order by id", [s.org.id]);
@@ -104,11 +103,15 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
                   <label><span className="block text-[11px] font-semibold text-[#5C6B76] mb-0.5">Comisión si no se sabe</span>
                     <CampoNumero form="ficha" name="vsml_comision" valor={vs.comision_defecto_pct ?? 16.34} tipo="pct" className={`${CAMPO} w-24`} />
                     <span className="block text-[10px] text-[#5C6B76] mt-0.5">Para productos sin publicación en ML.</span></label>
+                  <label><span className="block text-[11px] font-semibold text-[#5C6B76] mb-0.5">Bonificación web</span>
+                    <CampoNumero form="ficha" name="vsml_bono" valor={vs.bono_fijo_pct ?? null} tipo="pct" className={`${CAMPO} w-24`} placeholder="0" />
+                    <span className="block text-[10px] text-[#5C6B76] mt-0.5">Qué % del cargo fijo de ML (productos baratos) se descuenta, con la cucarda «Bonificación web».</span></label>
                 </> : <>
                   <Dato etiqueta="Te tiene que quedar" numero>{vs.objetivo_pct != null ? pct(vs.objetivo_pct) : null}</Dato>
                   <Dato etiqueta="Costo de cobro de referencia" numero>{vs.costo_ref_pct != null ? pct(vs.costo_ref_pct) : null}</Dato>
                   <Dato etiqueta="Tachado de">{vs.canal_tachado ? canalesMl.find((c) => c.id === vs.canal_tachado)?.nombre ?? null : null}</Dato>
                   <Dato etiqueta="Comisión si no se sabe" numero>{vs.comision_defecto_pct != null ? pct(vs.comision_defecto_pct) : null}</Dato>
+                  <Dato etiqueta="Bonificación web" numero>{vs.bono_fijo_pct ? `${pct(vs.bono_fijo_pct)} del cargo fijo` : null}</Dato>
                 </>}
               </div>
             </div>
@@ -120,8 +123,8 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
             <section className="mb-6">
               <TituloSeccion titulo={`Planes de cuotas (${f.planes.length})`} />
               <p className="text-[11px] text-[#5C6B76] mb-2">
-                Cada plan se ofrece a los productos que cuestan <b>desde</b> su monto. La tarjeta del producto muestra el plan sin interés más largo que le toca (si no hay, el más largo); la ficha y el
-                pago, todos. Interés 0 = sin interés (el costo del plan lo cubre el precio). El interés se suma al total cuando el comprador paga con tarjeta de crédito en cuotas.
+                Al pagar se ofrecen todos los planes, cueste lo que cueste la compra. <b>En la tarjeta desde</b> decide sólo qué se muestra debajo del precio: el plan de Payway
+                sin interés más largo que llega a ese precio, y los de Mercado Pago, la cucarda «Hasta N cuotas». La ficha muestra todos. Interés 0 = sin interés (el costo del plan lo cubre el precio). El interés se suma al total cuando el comprador paga con tarjeta de crédito en cuotas.
                 {editando && " Para sacar un plan, borrá sus cuotas."}
               </p>
               <div className={CAJA_TABLA}>
@@ -129,7 +132,7 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
                   <thead className={THEAD}><tr>
                     <th className={`${TH} text-right`}>Cuotas</th>
                     <th className={TH} title="Payway (cuotas con el interés de esta tabla) o Mercado Pago (el comprador paga ahí, con el interés de Mercado Pago)">Se cobra con</th>
-                    <th className={`${TH} text-right`} title="Desde qué precio del producto se ofrece">Desde $</th>
+                    <th className={`${TH} text-right`} title="Desde qué precio del producto se muestra en la tarjeta (al pagar se ofrece siempre)">En la tarjeta desde $</th>
                     <th className={`${TH} text-right`} title="Lo que te cobra el banco o la tarjeta por este plan (sólo para comparar)">Costo del plan</th>
                     <th className={`${TH} text-right`} title="Lo que paga de más el comprador (0 = sin interés)">Interés al cliente</th>
                     <th className={`${TH} text-right`} title="El número que se le manda a Payway para este plan (la «Opción en terminal» de su tabla, ej. 13 o 16). Vacío: la cantidad de cuotas">Cód. Payway</th>
@@ -203,7 +206,7 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
                         <td className={`${TDN} text-[#5C6B76]`}>{p.lista > p.venta ? <s>{plata(p.lista)}</s> : null}</td>
                         <td className={TDN}>{plata(p.venta)}{p.lista > p.venta && <span className="block text-[#167655] text-[10px] font-semibold">{Math.round((1 - p.venta / p.lista) * 100)}% OFF</span>}</td>
                         <td className={TD}>
-                          <span className="block">{textoTarjeta(f, p.venta, tasasMp)}</span>
+                          <span className="block">{textoTarjeta(f, p.venta)}</span>
                           {f.descuento_pct > 0 && f.medios_descuento.length > 0 && (
                             <span className="block text-[#167655]">{plata(p.venta * (1 - f.descuento_pct / 100))} {textoContado(f.medios_descuento)}</span>
                           )}

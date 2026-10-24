@@ -70,7 +70,7 @@ export async function accionActivarFinanciacion(fd: FormData) {
 }
 
 // ── Precio contra Mercado Libre (lista_precios.precio_vs_ml de la lista de la tienda; db/catalogo.sql) ──
-type PrecioVsMl = { activo: boolean; objetivo_pct: number; costo_ref_pct: number; canal_tachado: number | null; comision_defecto_pct: number };
+type PrecioVsMl = { activo: boolean; objetivo_pct: number; costo_ref_pct: number; canal_tachado: number | null; comision_defecto_pct: number; bono_fijo_pct: number };
 
 async function listaDeLaTienda(org: string, canalId: number) {
   const c = await una<{ lista: string | null; cfg: Partial<PrecioVsMl> | null }>(
@@ -102,6 +102,7 @@ async function guardarVsMl(org: string, canalId: number, fd: FormData) {
     costo_ref_pct: pct("vsml_costo", "El costo de cobro de referencia", 0, 40, 0),
     canal_tachado: canal && canal > 0 ? canal : null,
     comision_defecto_pct: pct("vsml_comision", "La comisión de ML por defecto", 0, 60, 16.34),
+    bono_fijo_pct: pct("vsml_bono", "La bonificación web", 0, 100, 0),
   });
 }
 
@@ -113,7 +114,7 @@ export async function accionActivarVsMl(fd: FormData) {
     const activo = fd.get("valor") === "1";
     if (activo && !cfg.objetivo_pct) throw new ErrorErp("Cargá primero cuánto te tiene que quedar (lápiz de arriba a la derecha).");
     await grabarVsMl(s.org.id, canal, lista, {
-      activo, objetivo_pct: cfg.objetivo_pct ?? 97, costo_ref_pct: cfg.costo_ref_pct ?? 0, canal_tachado: cfg.canal_tachado ?? null, comision_defecto_pct: cfg.comision_defecto_pct ?? 16.34,
+      activo, objetivo_pct: cfg.objetivo_pct ?? 97, costo_ref_pct: cfg.costo_ref_pct ?? 0, canal_tachado: cfg.canal_tachado ?? null, comision_defecto_pct: cfg.comision_defecto_pct ?? 16.34, bono_fijo_pct: cfg.bono_fijo_pct ?? 0,
     });
     return activo ? "Prendido: los precios de la tienda se calculan contra Mercado Libre." : "Apagado: la tienda vuelve a los precios de su lista con los descuentos por familia.";
   });

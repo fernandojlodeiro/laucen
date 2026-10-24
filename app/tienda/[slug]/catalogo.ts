@@ -19,8 +19,7 @@ import { hoyAR } from "@/lib/moneda";
 import { tiendaPorSlug, type Tienda } from "@/lib/tienda/tienda";
 import { conMarca } from "@/lib/tienda/dominios-tienda";
 import { planesDeVariaciones, planParaMostrar, type Plan } from "@/lib/tienda/cuotas";
-import { financiacionTienda, planDeEscala } from "@/lib/tienda/financiacion";
-import { tasasMpDe } from "@/lib/tienda/tasas-mp";
+import { cuotasMpDe, financiacionTienda, planDeEscala } from "@/lib/tienda/financiacion";
 import { contadoDe } from "@/lib/tienda/medios";
 
 export const POR_PAGINA = 24;
@@ -51,7 +50,9 @@ export const normalizar = (s: string) => s.normalize("NFD").replace(/[\u0300-\u0
  *  precio en la lista del canal. El precio es el más bajo de sus variaciones. */
 export type ProductoBase = {
   id: number; titulo: string; marca: string | null; familiaId: number | null; creado: number;
-  venta: number; ventaMax: number; lista: number; descuentoPct: number; stock: number; variaciones: number; variacionId: number;
+  venta: number; ventaMax: number; lista: number; descuentoPct: number;
+  /** Bonificación web en pesos (la mitad del cargo fijo de ML en los baratos; ya está descontada del precio). */
+  bono: number; stock: number; variaciones: number; variacionId: number;
   foto: string | null; vendidos: number;
   /** título, marca y SKUs normalizados (sin acentos, en minúsculas), para buscar. */
   texto: string;
@@ -60,13 +61,13 @@ export type ProductoBase = {
 async function leerCatalogo(org: string, canalId: number, listaId: number, moneda: string): Promise<ProductoBase[]> {
   const filas = await consulta<{
     id: number; titulo: string; marca: string | null; familia_id: number | null; creado: string; variacion_id: number; variaciones: number;
-    lista: string; venta: string; venta_max: string; descuento_pct: string; stock: number; skus: string | null; sku_base: string; foto: string | null; vendidos: number;
+    lista: string; venta: string; venta_max: string; descuento_pct: string; bono: string; stock: number; skus: string | null; sku_base: string; foto: string | null; vendidos: number;
   }>(`
     with v as (
       select p.id producto_id, v.id variacion_id, v.orden, v.sku,
              case when $4 = 'USD' then pr.lista_usd else pr.lista_ars end lista,
              case when $4 = 'USD' then pr.venta_usd else pr.venta_ars end venta,
-             pr.descuento_pct, greatest(stock_disponible_canal($1, v.id, $2), 0) disp
+             pr.descuento_pct, bono_web($1, v.id, $3, pr.lista_ars) bono, greatest(stock_disponible_canal($1, v.id, $2), 0) disp
         from producto p
         join variacion v on v.producto_id = p.id and v.estado = 'activa'
         cross join lateral (select * from precio_de($1, v.id, $3)) pr
@@ -79,6 +80,7 @@ async function leerCatalogo(org: string, canalId: number, listaId: number, moned
       select producto_id, min(venta) venta, max(venta) venta_max, count(*)::int variaciones, sum(disp)::int stock, string_agg(sku, ' ') skus,
              (array_agg(lista order by venta, orden, variacion_id))[1] lista,
              (array_agg(descuento_pct order by venta, orden, variacion_id))[1] descuento_pct,
+             (array_agg(bono order by venta, orden, variacion_id))[1] bono,
              (array_agg(variacion_id order by venta, orden, variacion_id))[1] variacion_id
         from v group by producto_id
     ), vend as (
@@ -88,7 +90,7 @@ async function leerCatalogo(org: string, canalId: number, listaId: number, moned
        group by va.producto_id
     )
     select p.id::int, p.titulo, p.marca, p.familia_id::int, extract(epoch from p.creado_ts)::bigint::text creado, p.sku_base,
-           a.variacion_id::int, a.variaciones, a.lista, a.venta, a.venta_max, a.descuento_pct, a.stock, a.skus,
+           a.variacion_id::int, a.variaciones, a.lista, a.venta, a.venta_max, a.descuento_pct, a.bono, a.stock, a.skus,
            coalesce((select url from producto_foto where producto_id = p.id order by orden, id limit 1),
                     (select url from variacion_foto where variacion_id = a.variacion_id order by orden, id limit 1)) foto,
            coalesce(vend.n, 0) vendidos
@@ -96,7 +98,7 @@ async function leerCatalogo(org: string, canalId: number, listaId: number, moned
   [org, canalId, listaId, moneda]);
   return filas.map((f) => ({
     id: f.id, titulo: f.titulo, marca: f.marca?.trim() || null, familiaId: f.familia_id, creado: Number(f.creado),
-    venta: Number(f.venta), ventaMax: Number(f.venta_max), lista: Number(f.lista), descuentoPct: Number(f.descuento_pct), stock: f.stock,
+    venta: Number(f.venta), ventaMax: Number(f.venta_max), lista: Number(f.lista), descuentoPct: Number(f.descuento_pct), bono: Number(f.bono), stock: f.stock,
     variaciones: f.variaciones, variacionId: f.variacion_id, foto: f.foto, vendidos: f.vendidos,
     texto: normalizar(`${f.titulo} ${f.marca ?? ""} ${f.sku_base} ${f.skus ?? ""}`),
   }));
@@ -243,8 +245,10 @@ export const envioGratis = (e: InfoEnvio, precio: number) => e.gratisDesde != nu
 // ── Tarjetas y listados ──────────────────────────────────
 export type Tarjeta = ProductoBase & {
   cucardas: Cucarda[]; plan: Plan | null; envioGratis: boolean; masVendido: boolean;
-  /** Precio pagando contado (esquema de cuotas y descuentos): "$ 90.000 con transferencia". */
+  /** Precio pagando contado (esquema de cuotas y descuentos): "$ 90.000 con transferencia o débito". */
   contado: { precio: number; texto: string } | null;
+  /** "Hasta 12 cuotas" (con Mercado Pago), en los productos que llegan al "desde" de ese plan. */
+  cuotasMp: number | null;
 };
 
 export type Orden = "relevancia" | "menor" | "mayor" | "vendidos";
@@ -258,19 +262,25 @@ const masVendidosDe = cache(async (t: Tienda) =>
 export async function aTarjetas(t: Tienda, productos: ProductoBase[]): Promise<Tarjeta[]> {
   if (!productos.length) return [];
   const fin = financiacionTienda(t);
-  const [cucardas, planes, envio, top, contado, tasasMp] = await Promise.all([
+  const [cucardas, planes, envio, top, contado] = await Promise.all([
     cucardasDe(t.organizacionId, productos.map((p) => p.id)),
     fin.activo ? null : planesDeVariaciones(t.organizacionId, productos.map((p) => p.variacionId)),
-    envioDe(t), masVendidosDe(t), contadoDe(t), tasasMpDe(t),
+    envioDe(t), masVendidosDe(t), contadoDe(t),
   ]);
   return productos.map((p) => ({
-    ...p, cucardas: cucardasConAuto(p, cucardas.get(p.id) ?? [], top.has(p.id)),
-    // Con el esquema de cuotas, el plan más largo que le toca a su precio; si no, el de su familia o producto.
-    plan: planes ? planParaMostrar(planes.get(p.variacionId) ?? []) : planDeEscala(fin, p.venta, tasasMp),
+    ...p, cucardas: [...cucardaBono(p.bono, t.moneda), ...cucardasConAuto(p, cucardas.get(p.id) ?? [], top.has(p.id))],
+    // Con el esquema de cuotas, el plan sin interés que le toca a su precio; si no, el de su familia o producto.
+    plan: planes ? planParaMostrar(planes.get(p.variacionId) ?? []) : planDeEscala(fin, p.venta),
+    cuotasMp: planes ? null : cuotasMpDe(fin, p.venta),
     envioGratis: envioGratis(envio, p.venta), masVendido: top.has(p.id),
-    contado: contado ? { precio: Math.round(p.venta * (1 - contado.pct / 100) * 100) / 100, texto: contado.texto } : null,
+    contado: contado ? { precio: Math.round(p.venta * (1 - contado.pct / 100) * 100) / 100, texto: contado.corto } : null,
   }));
 }
+
+/** "Bonificación web $ 1.370" (Fer, 24/10): en los productos baratos, lo que se les descuenta del
+ *  cargo fijo de ML (en pesos: en una tienda en dólares no se muestra). */
+export const cucardaBono = (bono: number, moneda: string): Cucarda[] =>
+  bono > 0 && moneda === "ARS" ? [{ nombre: `Bonificación web $ ${bono.toLocaleString("es-AR")}`, color: "var(--verde)" }] : [];
 
 /** Cucardas automáticas (Fer, 7/10: "que algunas tengan una, otras otra"). Las de
  *  verdad: "MÁS VENDIDO" (las ventas, aparte) y "ÚLTIMA UNIDAD" si queda una sola.

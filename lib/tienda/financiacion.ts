@@ -3,9 +3,9 @@
 // descuentos (/config/tienda/financiacion). Prendido, reemplaza los planes por
 // familia o producto (Configuración › Cuotas) en la tienda:
 //
-//   - Planes por escala de precio: cada plan (3, 6, 12 cuotas…) se ofrece a los
-//     productos que cuestan "desde" su monto. La tarjeta muestra el sin interés
-//     más largo que le toca (si no hay, el más largo); la ficha y el checkout, todos los que le tocan.
+//   - Planes (3, 6, 12 cuotas…): al pagar se ofrecen todos, cueste lo que cueste la compra
+//     (Fer, 24/10). "desde" decide sólo qué se muestra en la tarjeta: el de Payway sin interés
+//     más largo cuyo "desde" llega al precio; los de Mercado Pago, la cucarda "Hasta N cuotas".
 //   - interes_pct: lo que paga el comprador por financiar (0 = sin interés: el
 //     costo del plan lo absorbe el precio). Con Payway se cobra de verdad: se
 //     elige en el checkout y queda en el total del pedido (lib/tienda/cotizar.ts).
@@ -55,19 +55,25 @@ export function financiacionDe(x: unknown): Financiacion {
 
 export const financiacionTienda = (t: Tienda) => financiacionDe(t.config.financiacion);
 
-/** Los planes que le tocan a ese precio: los de "desde" menor o igual. Con `medio`, sólo los que se
- *  cobran por ahí. En los de Mercado Pago, el interés es la tasa de referencia de `tasasMp` (si se sabe). */
-export function planesParaPrecio(f: Financiacion, precio: number, o: { medio?: MedioPlan; tasasMp?: Map<number, number> | null } = {}) {
-  return f.planes.filter((p) => precio >= p.desde && (!o.medio || p.medio === o.medio)).map((p) => p.medio === "mercadopago"
+/** Los planes que se pueden elegir al pagar: todos, cueste lo que cueste la compra ("desde" sólo
+ *  decide qué se muestra en la tarjeta). Con `medio`, sólo los que se cobran por ahí. En los de
+ *  Mercado Pago, el interés es la tasa de referencia de `tasasMp` (si se sabe). */
+export function planesDisponibles(f: Financiacion, o: { medio?: MedioPlan; tasasMp?: Map<number, number> | null } = {}) {
+  return f.planes.filter((p) => !o.medio || p.medio === o.medio).map((p) => p.medio === "mercadopago"
     ? { cuotas: p.cuotas, interes_pct: o.tasasMp?.get(p.cuotas) ?? 0, medio: p.medio, referencia: !!o.tasasMp?.has(p.cuotas) }
     : { cuotas: p.cuotas, interes_pct: p.interes_pct, medio: p.medio });
 }
 
-/** El plan que se muestra en la tarjeta: el sin interés más largo que le toca a ese precio ("Mismo
- *  precio en 3 cuotas sin interés"); si no tiene ninguno, el más largo. */
-export function planDeEscala(f: Financiacion, precio: number, tasasMp?: Map<number, number> | null) {
-  const planes = planesParaPrecio(f, precio, { tasasMp });
-  return planes.filter((p) => p.medio === "payway" && p.interes_pct === 0).at(-1) ?? planes.at(-1) ?? null;
+/** El plan que se muestra en la tarjeta: el de Payway más largo con "desde" menor o igual al precio,
+ *  prefiriendo los sin interés ("6 cuotas sin interés de $ …"). */
+export function planDeEscala(f: Financiacion, precio: number) {
+  const planes = planesDisponibles(f, { medio: "payway" }).filter((p) => precio >= (f.planes.find((x) => x.cuotas === p.cuotas)?.desde ?? 0));
+  return planes.filter((p) => p.interes_pct === 0).at(-1) ?? planes.at(-1) ?? null;
+}
+
+/** "Hasta 12 cuotas": el plan de Mercado Pago más largo con "desde" menor o igual al precio (la cucarda de la tarjeta). */
+export function cuotasMpDe(f: Financiacion, precio: number): number | null {
+  return f.planes.filter((p) => p.medio === "mercadopago" && precio >= p.desde).at(-1)?.cuotas ?? null;
 }
 
 export const hayPlanMp = (f: Financiacion) => f.activo && f.planes.some((p) => p.medio === "mercadopago");
@@ -80,9 +86,10 @@ export function descuentoContado(f: Financiacion, medio: string): number | null 
   return f.medios_descuento.includes(clave) ? f.descuento_pct : 0;
 }
 
-/** "con transferencia", "con débito o transferencia", "con transferencia, efectivo o débito". */
-export function textoContado(medios: MedioContado[]): string {
-  const n = medios.map((m) => (m === "debito" ? "débito" : m));
+/** "con transferencia", "con débito o transferencia", "con transferencia, efectivo o débito". Con
+ *  `corto`, sin efectivo si hay otro (la tarjeta, para que entre en una línea). */
+export function textoContado(medios: MedioContado[], corto = false): string {
+  const n = (corto && medios.length > 1 ? medios.filter((m) => m !== "efectivo") : medios).map((m) => (m === "debito" ? "débito" : m));
   return `con ${n.length > 1 ? `${n.slice(0, -1).join(", ")} o ${n.at(-1)}` : n[0]}`;
 }
 

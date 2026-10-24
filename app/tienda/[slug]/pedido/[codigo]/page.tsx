@@ -86,7 +86,7 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
   const pw = pagarConTarjeta ? await paywayPublico(t) : null;
   // Cuotas: las elegidas al comprar (esquema de cuotas: el interés ya está en el total) o, en un pedido sin elegir, los planes de la compra.
   const planes = !pagarConTarjeta || p.debito || p.cuotas ? []
-    : await planesDeLaCompra(t, lineas.flatMap((l) => (l.variacion_id ? [l.variacion_id] : [])), Number(p.subtotal ?? p.total), "payway");
+    : await planesDeLaCompra(t, lineas.flatMap((l) => (l.variacion_id ? [l.variacion_id] : [])), "payway");
   const marcas = p.debito ? MARCAS_PAYWAY.filter((x) => MARCAS_DEBITO.includes(x.id)) : MARCAS_PAYWAY;
   const wa = linkWhatsapp(t, `Hola, hice el pedido #${p.id}${pendiente && p.medio === "transferencia" ? " y ya transferí" : ""}.`);
   const direccion = p.envio?.direccion;

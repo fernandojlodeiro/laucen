@@ -33,11 +33,11 @@ export const mediosActivos = cache(async (t: Tienda): Promise<Medio[]> => {
 
 /** El precio de contado que se muestra debajo del precio ("$ 90.000 con transferencia"): el
  *  descuento del esquema y los medios activos que lo tienen; null si no hay. */
-export const contadoDe = cache(async (t: Tienda): Promise<{ pct: number; texto: string } | null> => {
+export const contadoDe = cache(async (t: Tienda): Promise<{ pct: number; texto: string; corto: string } | null> => {
   const f = financiacionTienda(t);
   if (!f.activo || f.descuento_pct <= 0) return null;
   const tipos = new Set((await mediosActivos(t)).filter((m) => m.descuento_pct === f.descuento_pct).map((m) => m.tipo));
   const claves = (["transferencia", "efectivo", "debito"] as MedioContado[])
     .filter((c) => tipos.has(c === "debito" ? "payway_debito" : c));
-  return claves.length ? { pct: f.descuento_pct, texto: textoContado(claves) } : null;
+  return claves.length ? { pct: f.descuento_pct, texto: textoContado(claves), corto: textoContado(claves, true) } : null;
 });
