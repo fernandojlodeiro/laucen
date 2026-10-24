@@ -159,8 +159,13 @@ export function Precio({ lista, venta, moneda, desde, grande }: { lista: number;
     <div>
       {off > 0 && (
         <div className={`flex items-center gap-2 ${grande ? "" : "justify-between"}`}>
-          <Monto n={lista} moneda={moneda} tachado className={`text-[var(--texto-2)] ${grande ? "text-base" : "text-xs"}`} />
-          <span className={`rounded-[3px] bg-[var(--verde)] px-1.5 py-0.5 font-semibold leading-none text-white ${grande ? "text-sm" : "text-xs"}`}>{off}% OFF</span>
+          <Monto n={lista} moneda={moneda} tachado className={`shrink-0 text-[var(--texto-2)] ${grande ? "text-base" : "text-xs"}`} />
+          {/* En un renglón si entra; con un tachado largo en el celular no entra, y va «47%» arriba de «OFF»,
+              centrados en un cuadradito (Fer, 24/10: estirado a lo ancho en dos renglones quedaba feo). */}
+          <span className={`inline-flex min-w-0 flex-wrap items-center justify-center gap-x-1 rounded-[3px] bg-[var(--verde)] px-1.5 py-0.5 text-center font-semibold leading-[1.1] text-white ${grande ? "text-sm" : "text-xs"} ${
+            !grande && formatearNumero(Math.floor(lista), "entero").length >= 9 ? "max-sm:w-min max-sm:px-2" : "whitespace-nowrap"}`}>
+            <span>{off}%</span><span>OFF</span>
+          </span>
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2">
@@ -191,7 +196,7 @@ export function TarjetaProducto({ t, p }: { t: Tienda; p: Tarjeta }) {
       </div>
       <div className="flex flex-1 flex-col gap-1 p-4 pt-3">
         <Etiquetas lista={p.cucardas} masVendido={p.masVendido} />
-        <h3 className="line-clamp-2 text-sm leading-[1.3] text-[var(--texto)] group-hover:text-[var(--boton)]">{p.titulo}</h3>
+        <h3 className="line-clamp-3 text-sm leading-[1.3] text-[var(--texto)] group-hover:text-[var(--boton)]">{p.titulo}</h3>
         <div className="mt-1"><Precio lista={p.lista} venta={p.venta} moneda={t.moneda} desde={p.ventaMax > p.venta} /></div>
         <LineaCuotas plan={p.plan} venta={p.venta} moneda={t.moneda} className="text-sm" />
         <LineaContado contado={p.contado} moneda={t.moneda} className="mt-1 text-sm" />

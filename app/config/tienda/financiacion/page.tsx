@@ -47,7 +47,7 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
   const conStock = t ? (await catalogoDe(t)).filter((p) => p.stock > 0).sort((a, b) => a.venta - b.venta) : [];
   const ejemplos = conStock.length ? [...new Set([0, Math.floor(conStock.length / 3), Math.floor((conStock.length * 2) / 3), conStock.length - 1])].map((i) => conStock[i]) : [];
   // Precio contra Mercado Libre: lo guardado en la lista de la tienda y los canales de ML para el tachado.
-  const vs = tienda ? (await consulta<{ cfg: { activo?: boolean; objetivo_pct?: number; costo_ref_pct?: number; canal_tachado?: number | null; comision_defecto_pct?: number; bono_fijo_pct?: number } | null }>(
+  const vs = tienda ? (await consulta<{ cfg: { activo?: boolean; objetivo_pct?: number; costo_ref_pct?: number; canal_tachado?: number | null; comision_defecto_pct?: number; bono_fijo_pct?: number; bono_stock_min?: number } | null }>(
     "select l.precio_vs_ml cfg from canal c join lista_precios l on l.id = c.lista_precios_id where c.id = $1", [tienda.id]))[0]?.cfg ?? {} : {};
   const canalesMl = await consulta<{ id: number; nombre: string }>(
     "select id::int, nombre from canal where organizacion_id = $1 and tipo = 'mercadolibre' and estado <> 'archivado' order by id", [s.org.id]);
@@ -103,15 +103,19 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
                   <label><span className="block text-[11px] font-semibold text-[#5C6B76] mb-0.5">Comisión si no se sabe</span>
                     <CampoNumero form="ficha" name="vsml_comision" valor={vs.comision_defecto_pct ?? 16.34} tipo="pct" className={`${CAMPO} w-24`} />
                     <span className="block text-[10px] text-[#5C6B76] mt-0.5">Para productos sin publicación en ML.</span></label>
-                  <label><span className="block text-[11px] font-semibold text-[#5C6B76] mb-0.5">Bonificación web</span>
+                  <label><span className="block text-[11px] font-semibold text-[#5C6B76] mb-0.5">Promo web</span>
                     <CampoNumero form="ficha" name="vsml_bono" valor={vs.bono_fijo_pct ?? null} tipo="pct" className={`${CAMPO} w-24`} placeholder="0" />
-                    <span className="block text-[10px] text-[#5C6B76] mt-0.5">Qué % del cargo fijo de ML (productos baratos) se descuenta, con la cucarda «Bonificación web».</span></label>
+                    <span className="block text-[10px] text-[#5C6B76] mt-0.5">Qué % del cargo fijo por unidad de ML (en los de menos de $ 33.000) se le descuenta al precio, con la cucarda «Promo web».</span></label>
+                  <label><span className="block text-[11px] font-semibold text-[#5C6B76] mb-0.5">Promo web desde (unidades en stock)</span>
+                    <CampoNumero form="ficha" name="vsml_bono_stock" valor={vs.bono_stock_min ?? null} tipo="entero" className={`${CAMPO} w-24`} placeholder="0" />
+                    <span className="block text-[10px] text-[#5C6B76] mt-0.5">Sólo los productos con al menos ese stock en la tienda la tienen (para que no la tengan todos).</span></label>
                 </> : <>
                   <Dato etiqueta="Te tiene que quedar" numero>{vs.objetivo_pct != null ? pct(vs.objetivo_pct) : null}</Dato>
                   <Dato etiqueta="Costo de cobro de referencia" numero>{vs.costo_ref_pct != null ? pct(vs.costo_ref_pct) : null}</Dato>
                   <Dato etiqueta="Tachado de">{vs.canal_tachado ? canalesMl.find((c) => c.id === vs.canal_tachado)?.nombre ?? null : null}</Dato>
                   <Dato etiqueta="Comisión si no se sabe" numero>{vs.comision_defecto_pct != null ? pct(vs.comision_defecto_pct) : null}</Dato>
-                  <Dato etiqueta="Bonificación web" numero>{vs.bono_fijo_pct ? `${pct(vs.bono_fijo_pct)} del cargo fijo` : null}</Dato>
+                  <Dato etiqueta="Promo web" numero>{vs.bono_fijo_pct ? `${pct(vs.bono_fijo_pct)} del cargo fijo` : null}</Dato>
+                  <Dato etiqueta="Promo web desde (unidades en stock)" numero>{vs.bono_stock_min ? String(vs.bono_stock_min) : null}</Dato>
                 </>}
               </div>
             </div>

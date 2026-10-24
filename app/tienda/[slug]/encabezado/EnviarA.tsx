@@ -7,7 +7,8 @@
 import { useEffect, useRef, useState } from "react";
 import { guardarCodigoPostal } from "../acciones";
 
-export default function EnviarA({ slug, linea1, linea2, cp }: { slug: string; linea1: string; linea2: string; cp: string }) {
+/** `compacto` (celular): en un solo renglón chico, para que no le quite lugar a la pantalla. */
+export default function EnviarA({ slug, linea1, linea2, cp, compacto }: { slug: string; linea1: string; linea2: string; cp: string; compacto?: boolean }) {
   const [abierto, setAbierto] = useState(false);
   const caja = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -20,13 +21,15 @@ export default function EnviarA({ slug, linea1, linea2, cp }: { slug: string; li
     <div ref={caja} className="relative">
       <button type="button" onClick={() => setAbierto((x) => !x)} aria-expanded={abierto}
         className="flex items-center gap-1 text-left text-[var(--marca-texto)]">
-        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 opacity-70" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
+        <svg viewBox="0 0 24 24" className={`${compacto ? "h-4 w-4" : "h-5 w-5"} shrink-0 opacity-70`} fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
           <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" />
         </svg>
-        <span className="leading-tight">
-          <span className="block text-xs opacity-60">{linea1}</span>
-          <span className="block max-w-[150px] truncate text-sm">{linea2}</span>
-        </span>
+        {compacto
+          ? <span className="truncate text-xs"><span className="opacity-70">{linea1}</span> {linea2}</span>
+          : <span className="leading-tight">
+              <span className="block text-xs opacity-60">{linea1}</span>
+              <span className="block max-w-[150px] truncate text-sm">{linea2}</span>
+            </span>}
       </button>
       {abierto && (
         <div className="absolute left-0 top-full z-50 mt-2 w-[300px] rounded-md bg-white p-5 text-[var(--texto)] shadow-[0_6px_16px_rgba(0,0,0,.25)]">

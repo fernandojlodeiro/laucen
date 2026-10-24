@@ -277,10 +277,10 @@ export async function aTarjetas(t: Tienda, productos: ProductoBase[]): Promise<T
   }));
 }
 
-/** "Bonificación web $ 1.370" (Fer, 24/10): en los productos baratos, lo que se les descuenta del
- *  cargo fijo de ML (en pesos: en una tienda en dólares no se muestra). */
+/** "Promo web $ 1.370" (Fer, 24/10): en los productos baratos con stock, lo que se les descuenta del
+ *  cargo fijo de ML (en pesos: en una tienda en dólares no se muestra). Azul, para que se destaque. */
 export const cucardaBono = (bono: number, moneda: string): Cucarda[] =>
-  bono > 0 && moneda === "ARS" ? [{ nombre: `Bonificación web $ ${bono.toLocaleString("es-AR")}`, color: "var(--verde)" }] : [];
+  bono > 0 && moneda === "ARS" ? [{ nombre: `Promo web $ ${bono.toLocaleString("es-AR")}`, color: "var(--boton)" }] : [];
 
 /** Cucardas automáticas (Fer, 7/10: "que algunas tengan una, otras otra"). Las de
  *  verdad: "MÁS VENDIDO" (las ventas, aparte) y "ÚLTIMA UNIDAD" si queda una sola.

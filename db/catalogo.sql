@@ -391,7 +391,7 @@ alter table producto add column if not exists precio_en_dolares boolean not null
 alter table variacion add column if not exists precio_en_dolares boolean;
 
 -- Precio de la web contra Mercado Libre (Fer, 24/10). Una lista con precio_vs_ml
--- ({activo, objetivo_pct, costo_ref_pct, canal_tachado, comision_defecto_pct, bono_fijo_pct}; activo = true) no usa los descuentos
+-- ({activo, objetivo_pct, costo_ref_pct, canal_tachado, comision_defecto_pct, bono_fijo_pct, bono_stock_min}; activo = true) no usa los descuentos
 -- por familia: su precio de venta es la Clásica menos lo justo para que, pagando con lo más
 -- caro que se cobra al mismo precio (costo_ref_pct: 3 cuotas sin interés), quede objetivo_pct
 -- de lo que queda vendiendo en la Clásica de ML (la comisión de la categoría de ML del
@@ -458,13 +458,31 @@ begin
 exception when undefined_table then return 0;
 end $$;
 
--- La bonificación web de una lista con precio_vs_ml (bono_fijo_pct): ese % del cargo fijo de ML,
--- en pesos. p_lista_ars es el tachado que devolvió precio_de (de ahí se saca la Clásica).
+-- La promo web (bonificación) de una variación en una lista con precio_vs_ml: bono_fijo_pct % del
+-- cargo fijo de ML a ese precio de la Clásica (p_clasica), en pesos, sólo si su stock en la tienda
+-- de esa lista llega a bono_stock_min unidades (Fer, 24/10: que no la tengan todos). 0 si no va.
+create or replace function public.bono_aplicable(p_org text, p_variacion bigint, p_lista bigint, p_clasica numeric)
+returns numeric language plpgsql stable as $$
+declare cfg jsonb; fijo numeric; v_canal bigint; stock numeric;
+begin
+  select precio_vs_ml into cfg from lista_precios where id = p_lista and organizacion_id = p_org;
+  if not coalesce((cfg ->> 'activo')::boolean, false) or coalesce((cfg ->> 'bono_fijo_pct')::numeric, 0) <= 0 then return 0; end if;
+  fijo := cargo_fijo_ml(p_clasica);
+  if fijo <= 0 then return 0; end if;
+  if coalesce((cfg ->> 'bono_stock_min')::numeric, 0) > 0 then
+    select id into v_canal from canal where organizacion_id = p_org and lista_precios_id = p_lista and tipo = 'web_minorista' order by id limit 1;
+    stock := case when v_canal is null then 0 else stock_disponible_canal(p_org, p_variacion, v_canal) end;
+    if coalesce(stock, 0) < (cfg ->> 'bono_stock_min')::numeric then return 0; end if;
+  end if;
+  return round(fijo * (cfg ->> 'bono_fijo_pct')::numeric / 100, 0);
+end $$;
+
+-- La promo web de una variación para mostrarla (la cucarda): p_lista_ars es el tachado que devolvió
+-- precio_de (de ahí se saca la Clásica).
 create or replace function public.bono_web(p_org text, p_variacion bigint, p_lista bigint, p_lista_ars numeric)
 returns numeric language sql stable as $$
   select coalesce((
-    select round(cargo_fijo_ml(p_lista_ars / (1 + tachado_ml(p_org, p_variacion, (l.precio_vs_ml ->> 'canal_tachado')::bigint) / 100))
-                 * (l.precio_vs_ml ->> 'bono_fijo_pct')::numeric / 100, 0)
+    select bono_aplicable(p_org, p_variacion, p_lista, p_lista_ars / (1 + tachado_ml(p_org, p_variacion, (l.precio_vs_ml ->> 'canal_tachado')::bigint) / 100))
       from lista_precios l
      where l.id = p_lista and l.organizacion_id = p_org and coalesce((l.precio_vs_ml ->> 'activo')::boolean, false)
        and coalesce((l.precio_vs_ml ->> 'bono_fijo_pct')::numeric, 0) > 0), 0)
@@ -503,8 +521,7 @@ returns table (
     cross join lateral (select case when exists (select 1 from vs) then tachado_ml(p_org, p_variacion, ((select cfg from vs) ->> 'canal_tachado')::bigint) else 0 end pct) t
     left join usd u on true
     cross join lateral (select case when u.si and u.tc is not null then round(c.importe_usd * u.tc, 2) else c.importe_ars end ars) x
-    cross join lateral (select case when exists (select 1 from vs) and coalesce(((select cfg from vs) ->> 'bono_fijo_pct')::numeric, 0) > 0
-                                    then round(cargo_fijo_ml(x.ars) * ((select cfg from vs) ->> 'bono_fijo_pct')::numeric / 100, 0) else 0 end monto) b
+    cross join lateral (select case when exists (select 1 from vs) then bono_aplicable(p_org, p_variacion, p_lista, x.ars) else 0 end monto) b
     cross join lateral (select case when b.monto > 0 and x.ars > 0 then greatest(0, (x.ars * (1 - d.pct / 100) - b.monto) / x.ars)
                                     else 1 - d.pct / 100 end k) k
    order by c.prio, c.vigente_desde desc

@@ -2,7 +2,7 @@
 titulo: La tienda que ve el cliente
 menu: Tienda web › Tienda web
 ruta: /tienda/[slug]
-rutas: /tienda/[slug], /tienda/[slug]/ayuda, /tienda/[slug]/nosotros, /tienda/[slug]/terminos, /tienda/[slug]/privacidad, /tienda/[slug]/arrepentimiento, /tienda/[slug]/buscar, /tienda/[slug]/carrito, /tienda/[slug]/checkout, /tienda/[slug]/cuenta, /tienda/[slug]/familia/[id], /tienda/[slug]/pedido/[codigo], /tienda/[slug]/producto/[id], /tienda/[slug]/[...resto]
+rutas: /tienda/[slug], /tienda/[slug]/ayuda, /tienda/[slug]/nosotros, /tienda/[slug]/terminos, /tienda/[slug]/privacidad, /tienda/[slug]/arrepentimiento, /tienda/[slug]/buscar, /tienda/[slug]/carrito, /tienda/[slug]/checkout, /tienda/[slug]/cuenta, /tienda/[slug]/familia/[id], /tienda/[slug]/pedido/[codigo], /tienda/[slug]/producto/[id], /tienda/[slug]/[...resto], /tienda/[slug]/categorias
 permiso: todos
 resumen: Cómo es la tienda web pública (en su dominio propio, ej. daitom.com.ar) que ve el comprador, cómo compra paso a paso y cómo llegan esos pedidos y pagos al sistema.
 ---
@@ -49,7 +49,7 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 - A la izquierda, los filtros: **Filtros aplicados** (cada uno con su X), **Envío gratis**, **Categorías**, **Descuentos** ("Con descuento"), **Marca**, **Precio** (tres rangos armados solos y "Mínimo"/"Máximo").
 - **"Ordenar por"**: Más relevantes, Menor precio, Mayor precio, Más vendidos. Vista en lista o grilla.
 - Cuotas y descuento contado: con el esquema de [Cuotas y descuentos](/config/tienda/financiacion) prendido, debajo del precio va el plan más largo que le toca a su precio y "$ … con transferencia" (u otros medios con descuento).
-- Cada tarjeta, como en Mercado Libre: foto, la cucarda arriba del título ("Más vendido", "Última unidad", las cargadas o una automática), el título, el precio de lista tachado con el recuadro verde "N% OFF" a su derecha, el precio grande ("Desde" si las variaciones tienen distinto precio), las cuotas ("6 cuotas sin interés de $ …"), el precio contado en un recuadro verde suave ("$ … con transferencia o débito"), "Hasta 12 cuotas" en los caros y "Bonificación web $ …" en los baratos (con el esquema de [Cuotas y descuentos](/config/tienda/financiacion)), **"Llega gratis"** en verde si el precio llega al envío gratis, "Sin stock" o "Últimas N disponibles" (2 o 3).
+- Cada tarjeta, como en Mercado Libre: foto, la cucarda arriba del título ("Más vendido", "Última unidad", las cargadas o una automática), el título, el precio de lista tachado con el recuadro verde "N% OFF" a su derecha, el precio grande ("Desde" si las variaciones tienen distinto precio), las cuotas ("6 cuotas sin interés de $ …"), el precio contado en un recuadro verde suave ("$ … con transferencia o débito"), "Hasta 12 cuotas" en los caros y "Promo web $ …" (azul) en los baratos con stock (con el esquema de [Cuotas y descuentos](/config/tienda/financiacion)), **"Llega gratis"** en verde si el precio llega al envío gratis, "Sin stock" o "Últimas N disponibles" (2 o 3).
 - De a 24 productos por página, con "Anterior" / "Siguiente".
 - Sin resultados: "No hay publicaciones que coincidan con "…"." con consejos.
 
@@ -194,6 +194,15 @@ Cancelado, Devuelto, Entregado, **En camino** (despachado), **Listo para retirar
 - El código postal de "Enviar a …" se guarda en el navegador un año y precarga el del checkout.
 - La página del pedido no aparece en buscadores.
 - Catálogos para publicidad (Google, Meta, TikTok) en …/feeds/google.xml, meta.xml y tiktok.xml, y las etiquetas que miden las ventas: ver [Publicidad](/config/tienda/publicidad).
+
+### En el celular
+- **El encabezado** (buscador, menú y carrito) queda pegado arriba: se esconde al bajar por la página y vuelve ni bien se sube un poco, como en Mercado Libre. «Enviar a…» va en un solo renglón chico.
+- **La barra de abajo**, fija: **Inicio**, **Categorías** (la lista de categorías con sus subcategorías), **Ofertas**, **Carrito** (con la cantidad) y **Mi cuenta**. En la compu no está: todo eso va en el encabezado.
+
+### Las tarjetas de producto
+- El título ocupa hasta **tres renglones** (para que se vea el modelo).
+- El «% OFF» va a la derecha del precio tachado; si en el celular no entra en un renglón, va «47%» arriba de «OFF», centrado en un cuadradito.
+- **Promo web $ …** (cucarda azul): en los productos de menos de $ 33.000 con stock suficiente, lo que se les descuenta del cargo fijo de Mercado Libre (ver [Cuotas y descuentos](/config/tienda/financiacion)).
 
 ### La tienda ante los buscadores (Google)
 - **Cada página con su título**: la ficha de un producto se llama «<título del producto> | <marca>», una categoría «<categoría> | <marca>»; la portada, el nombre de la marca. La marca es la del dominio por donde se entró. Al compartir el link de una ficha sale su foto principal.

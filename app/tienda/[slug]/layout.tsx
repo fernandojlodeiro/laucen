@@ -21,6 +21,9 @@ import { EventosDeNavegacion } from "./Publicidad";
 import Buscador from "./encabezado/Buscador";
 import EnviarA from "./encabezado/EnviarA";
 import { MenuCategorias, MenuMovil } from "./encabezado/Menus";
+import Flotante from "./encabezado/Flotante";
+import BarraInferior from "./encabezado/BarraInferior";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -92,7 +95,7 @@ export default async function LayoutTienda({ children, params }: Props & { child
   const linkNav = "text-sm text-[var(--marca-texto)] opacity-80 hover:opacity-100";
 
   return (
-    <div style={variablesTema(t)} className={`${fuente.className} flex min-h-screen flex-col overflow-x-hidden bg-[var(--fondo)] text-[var(--texto)] antialiased`}>
+    <div style={variablesTema(t)} className={`${fuente.className} flex min-h-screen flex-col overflow-x-clip bg-[var(--fondo)] pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0 text-[var(--texto)] antialiased`}>
       {/* Las etiquetas de publicidad del dominio por donde se entró (Configuración › Tienda web › Publicidad); los IDs ya vienen validados. */}
       {pub?.google && <>
         <script async src={`https://www.googletagmanager.com/gtag/js?id=${pub.google.ids[0]}`} />
@@ -106,7 +109,7 @@ export default async function LayoutTienda({ children, params }: Props & { child
         <div className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">La tienda no está tomando pedidos en este momento.</div>
       )}
 
-      <header className="relative z-40 bg-[var(--marca)] shadow-[0_1px_0_rgba(0,0,0,.1)]">
+      <Flotante className="bg-[var(--marca)] shadow-[0_1px_0_rgba(0,0,0,.1)]">
         {/* Compu */}
         <div className="mx-auto hidden max-w-[1200px] px-4 lg:block">
           <div className="flex h-[58px] items-center gap-8 pt-2">
@@ -146,9 +149,10 @@ export default async function LayoutTienda({ children, params }: Props & { child
               ]} />
             {carritoBoton}
           </div>
-          <div className="px-3 pb-2"><EnviarA slug={t.slug} linea1={linea1} linea2={linea2} cp={cp} /></div>
+          <div className="px-3 pb-1.5"><EnviarA slug={t.slug} linea1={linea1} linea2={linea2} cp={cp} compacto /></div>
         </div>
-      </header>
+      </Flotante>
+      <Suspense><BarraInferior base={r()} unidades={unidades} /></Suspense>
 
       <main className="mx-auto w-full max-w-[1200px] flex-1 px-3 py-4 sm:px-4 sm:py-6">{children}</main>
 

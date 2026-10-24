@@ -91,7 +91,8 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
     <div className="space-y-10">
       {datos.length > 0 && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(datos).replace(/</g, "\\u003c") }} />}
       {/* Banners a todo el ancho. */}
-      <div className="relative left-1/2 -mt-4 w-screen -translate-x-1/2 sm:-mt-6">
+      {/* Pegado al encabezado y con la primera fila subiendo sobre su borde de abajo (Fer, 24/10: le sobraba lugar). */}
+      <div className="relative left-1/2 -mb-5 -mt-4 w-screen -translate-x-1/2 sm:-mb-8 sm:-mt-6">
         {banners.length ? <Banners banners={banners} /> : (
           <div className="relative h-[150px] overflow-hidden bg-[var(--marca)] sm:h-[260px] lg:h-[340px]">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_20%,rgba(255,255,255,.55),transparent_60%)]" />
@@ -103,7 +104,7 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
               </div>
               {c.logo && <img src={c.logo} alt="" className="hidden max-h-[60%] max-w-[30%] object-contain opacity-90 sm:block" />}
             </div>
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[var(--fondo)] to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/5 bg-gradient-to-t from-[var(--fondo)] to-transparent" />
           </div>
         )}
       </div>
