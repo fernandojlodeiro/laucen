@@ -16,7 +16,10 @@ export type Marca = Pick<ConfigTienda, "nombre" | "logo" | "color_marca" | "colo
  *  (`redirigeA`: al principal o al dominio de una marca). */
 export type DestinoDominio = { slug: string; canalId: number; principal: boolean; marca: Marca | null; redirigeA: string | null; conCertificado: boolean;
   /** La medición de publicidad de este dominio (lib/tienda/publicidad.ts), tal cual está guardada. */
-  publicidad: unknown };
+  publicidad: unknown;
+  /** El dominio al que apunta el canonical de sus páginas: el principal, en uno de otra marca con
+   *  "canonical hacia el principal" prendido (de fábrica); null = cada página apunta a sí misma. */
+  canonicalA: string | null };
 
 /** ¿Este dominio abre la tienda (principal u otra marca)? */
 export const abreLaTienda = (d: DestinoDominio) => d.principal || !!d.marca;
@@ -27,8 +30,8 @@ let cargando: Promise<Map<string, DestinoDominio>> | null = null;
 
 async function cargar(): Promise<Map<string, DestinoDominio>> {
   const { rows } = await pool.query<{ dominio: string; principal: boolean; estado: string; canal_id: string; slug: string | null; nombre: string;
-    marca: Marca | null; principal_de: string | null; redirige_a: string | null; publicidad: unknown }>(`
-    select d.dominio, d.principal, d.estado, d.canal_id, c.config ->> 'slug' slug, c.nombre, d.marca, d.publicidad,
+    marca: Marca | null; principal_de: string | null; redirige_a: string | null; publicidad: unknown; canonical_principal: boolean | null }>(`
+    select d.dominio, d.principal, d.estado, d.canal_id, c.config ->> 'slug' slug, c.nombre, d.marca, d.publicidad, d.canonical_principal,
            (select p.dominio from tienda_dominio p where p.canal_id = d.canal_id and p.principal) principal_de,
            (select r.dominio from tienda_dominio r where r.id = d.redirige_a_id and r.canal_id = d.canal_id) redirige_a
       from tienda_dominio d join canal c on c.id = d.canal_id
@@ -39,6 +42,7 @@ async function cargar(): Promise<Map<string, DestinoDominio>> {
       slug: f.slug || slugDe(f.nombre), canalId: Number(f.canal_id), principal: f.principal, marca,
       redirigeA: f.principal || marca ? null : f.redirige_a ?? f.principal_de, conCertificado: f.estado === "con_certificado",
       publicidad: f.publicidad,
+      canonicalA: marca && (f.canonical_principal ?? true) && f.principal_de ? f.principal_de : null,
     }];
   }));
 }

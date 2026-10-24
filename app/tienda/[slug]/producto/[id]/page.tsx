@@ -20,7 +20,7 @@ import { tasasMpDe } from "@/lib/tienda/tasas-mp";
 import { condicionCatalogo, etiquetasDelHost, gtinValido, idCatalogo } from "@/lib/tienda/publicidad";
 import { urlTienda } from "@/lib/tienda/dominios-tienda";
 import { EventoPublicidad } from "../../Publicidad";
-import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
+import { nombreTienda, rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { abierta, arbolDe, aTarjetas, cargarTienda, catalogoDe, cucardasDe, envioDe, envioGratis } from "../../catalogo";
 import {
   Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAJA, Etiquetas, IconoCamion, IconoEscudo, IconoTienda, IconoVuelta, HastaCuotas, LineaContado, LineaCuotas, LINK, Migas, Monto, Precio, PrecioSegunPago, TarjetaProducto,
@@ -87,8 +87,11 @@ async function cargar(params: Props["params"]) {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { f } = await cargar(params);
-  return { title: f.p.titulo, description: f.p.descripcion?.slice(0, 160) ?? undefined, openGraph: f.fotosProducto[0] ? { images: [f.fotosProducto[0]] } : undefined };
+  const { t, f } = await cargar(params);
+  // «Título | Daitom» (el template del layout) y la foto principal para cuando se comparte el link.
+  const nombre = nombreTienda(t), foto = f.fotosProducto[0] ?? f.fotosVariacion[0]?.url;
+  return { title: f.p.titulo, description: (f.p.descripcion?.trim() || `${f.p.titulo}. Comprá en ${nombre}.`).slice(0, 160),
+    openGraph: { title: `${f.p.titulo} | ${nombre}`, siteName: nombre, locale: "es_AR", type: "website", ...(foto ? { images: [foto] } : {}) } };
 }
 
 /** "+25 vendidos", como en los marketplaces (escalones), o el número exacto si son pocos. */

@@ -163,6 +163,10 @@ alter table tienda_dominio add column if not exists redirige_a_id bigint referen
 -- contar_al_crear (transferencia y efectivo cuentan como venta al crear el pedido),
 -- datos_comprador (manda el mail y el teléfono del comprador en la compra)}. lib/tienda/publicidad.ts.
 alter table tienda_dominio add column if not exists publicidad jsonb;
+-- Canonical (24/10, bitácora #856): un dominio de otra marca le dice a Google que cada página suya
+-- es la misma del dominio principal (para que no la tome como copia y junte todo ahí). null = el
+-- de fábrica: prendido en los de otra marca. Se apaga para posicionar esa marca por separado.
+alter table tienda_dominio add column if not exists canonical_principal boolean;
 
 -- Portada de la tienda (4/10): los productos que Fer elige a mano para las filas
 -- "Destacados" y "Novedades" de la portada, en el orden que les pone. Una fila por

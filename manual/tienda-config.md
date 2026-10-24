@@ -48,7 +48,7 @@ Debajo, la ficha de la tienda, que abre en **modo vista**. Se edita con el **lá
 - **Mail**, **Dirección del local**, **Horario** (ej. "Lun a vie de 9 a 18").
 
 Justo debajo de esa caja (antes de la ficha), la sección **Dominios (N)**, con el botón **"Nuevo dominio"** al lado del título (sólo con el permiso «Configurar dominios de la tienda»). Sin dominios: "Sin dominio propio: la tienda abre en …/tienda/slug.". Con dominios, una tabla:
-- **Dominio** (se toca para abrirlo), **Tipo** ("Principal", "Otra marca: <nombre>" con su logo, o "Redirige a …"), **Estado** ("Sin conectar a Vercel", "Esperando DNS", "Verificado (falta el certificado)" o "Con certificado: anda"; debajo, en rojo, si algo falló), **Registros DNS a cargar** (tipo, nombre y valor de cada registro; "—" cuando ya anda), **Revisado** (la última vez que se le preguntó a Vercel).
+- **Dominio** (se toca para abrirlo), **Tipo** ("Principal", "Otra marca: <nombre>" con su logo y su interruptor **"Para Google es <dominio principal>"**, o "Redirige a …"), **Estado** ("Sin conectar a Vercel", "Esperando DNS", "Verificado (falta el certificado)" o "Con certificado: anda"; debajo, en rojo, si algo falló), **Registros DNS a cargar** (tipo, nombre y valor de cada registro; "—" cuando ya anda), **Revisado** (la última vez que se le preguntó a Vercel).
 - Al final de cada fila, **"Verificar"** (vuelve a preguntarle a Vercel; no aparece si ya anda) y el tacho ("¿Borrar?" Sí / No).
 - En cada dominio que no es el principal, un **lápiz** a la derecha: abre debajo de la fila sus datos para cambiarlo (que redirija, y a cuál, o que sea otra marca, con sus datos); **"Grabar"** y **"Cancelar"** quedan en el lugar del lápiz.
 - Si falta la llave de Vercel, arriba de la tabla: "Falta la llave de Vercel: los dominios quedan anotados, pero no se conectan hasta que esté."
@@ -110,6 +110,9 @@ Errores típicos:
 5. Esperá: el DNS tarda de minutos a unas horas en propagarse (si cambiaste los nameservers, hasta 24-48 horas). Apretá **"Verificar"** cada tanto.
 6. Cuando el estado dice **"Con certificado: anda"**, la tienda ya abre en ese dominio.
 7. Para que también ande con www (o con otro dominio tuyo): **"Nuevo dominio"** → www.mitienda.com.ar → **"Redirige"** (a: el principal) → **"Crear"**, y cargá su registro. Quien entre por ahí termina en el principal.
+
+### Que Google tome una marca como un sitio aparte
+Cada dominio de otra marca muestra el mismo catálogo que el principal. De fábrica, sus páginas le dicen a Google que son las mismas del dominio principal (el «canonical»), para que no las tome como copias y junte todo en el principal: la marca se sigue viendo con su nombre, pero en Google aparece el principal. Para posicionar esa marca por separado, apagá su interruptor **"Para Google es <dominio principal>"** en **Dominios**.
 
 ### Abrir la tienda con otra marca (otro nombre y logo)
 

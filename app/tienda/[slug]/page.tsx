@@ -13,6 +13,8 @@ import { aTarjetas, arbolDe, cargarTienda, catalogoDe, envioDe, type ProductoBas
 import { CAJA, IconoCamion, IconoCharla, IconoPersona, IconoTarjeta, IconoTienda, TarjetaProducto } from "./piezas";
 import Banners from "./Banners";
 import Carrusel from "./Carrusel";
+import { headers } from "next/headers";
+import { dominioCanonico } from "@/lib/tienda/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -76,8 +78,18 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
     { titulo: "Ayuda", texto: c.horario ? `Te atendemos ${c.horario.charAt(0).toLowerCase()}${c.horario.slice(1)}.` : "¿Tenés dudas? Escribinos.", href: r("/ayuda"), icono: <IconoCharla clase="h-5 w-5" /> },
   ];
 
+  // Para los buscadores (bitácora #856): quién es la tienda y cómo se busca en ella.
+  const dominio = await dominioCanonico(t, (await headers()).get("host"));
+  const datos = dominio ? [
+    { "@context": "https://schema.org", "@type": "Organization", name: nombre, url: `https://${dominio}/`, ...(c.logo ? { logo: c.logo } : {}),
+      ...(c.email ? { email: c.email } : {}) },
+    { "@context": "https://schema.org", "@type": "WebSite", name: nombre, url: `https://${dominio}/`,
+      potentialAction: { "@type": "SearchAction", target: `https://${dominio}/buscar?q={search_term_string}`, "query-input": "required name=search_term_string" } },
+  ] : [];
+
   return (
     <div className="space-y-10">
+      {datos.length > 0 && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(datos).replace(/</g, "\\u003c") }} />}
       {/* Banners a todo el ancho. */}
       <div className="relative left-1/2 -mt-4 w-screen -translate-x-1/2 sm:-mt-6">
         {banners.length ? <Banners banners={banners} /> : (

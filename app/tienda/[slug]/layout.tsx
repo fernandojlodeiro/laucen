@@ -16,6 +16,7 @@ import { abierta, arbolDe, arbolParaMenu, cargarTienda, linkWhatsapp } from "./c
 import { IconoCarrito, IconoWhatsapp } from "./piezas";
 import { variablesTema } from "./tema";
 import { etiquetasDelHost } from "@/lib/tienda/publicidad";
+import { canonicalDe } from "@/lib/tienda/seo";
 import { EventosDeNavegacion } from "./Publicidad";
 import Buscador from "./encabezado/Buscador";
 import EnviarA from "./encabezado/EnviarA";
@@ -30,11 +31,15 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const t = await cargarTienda((await params).slug);
   const nombre = nombreTienda(t);
+  const h = await headers();
+  const canonical = await canonicalDe(t, h.get("host"), h.get("x-ruta") ?? "");
   // El ícono de la pestaña: el logo de la tienda (nunca el de Laucen).
-  // La pestaña dice siempre el nombre de la tienda (Fer, 7/10: «Daitom»), sacado de su configuración:
-  // el template sin %s deja afuera el título de cada página.
-  return { title: { default: nombre, template: nombre }, description: t.config.bajada || `Tienda online de ${nombre}`,
-    icons: t.config.logo ? { icon: t.config.logo, apple: t.config.logo } : { icon: [] } };
+  // Cada página con su título y la marca del dominio («Notebook HP … | Daitom»; bitácora #856: con el
+  // nombre de la tienda solo, para Google todas las fichas se llamaban igual). La portada, el nombre.
+  return { title: { default: nombre, template: `%s | ${nombre}` }, description: t.config.bajada || `Tienda online de ${nombre}`,
+    icons: t.config.logo ? { icon: t.config.logo, apple: t.config.logo } : { icon: [] },
+    alternates: canonical ? { canonical } : undefined,
+    openGraph: { siteName: nombre, locale: "es_AR", type: "website", ...(canonical ? { url: canonical } : {}), ...(t.config.logo ? { images: [t.config.logo] } : {}) } };
 }
 
 const CONDICION_IVA: Record<string, string> = { responsable_inscripto: "IVA Responsable Inscripto", monotributo: "Monotributo", exento: "IVA Exento" };

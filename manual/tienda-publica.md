@@ -2,7 +2,7 @@
 titulo: La tienda que ve el cliente
 menu: Tienda web › Tienda web
 ruta: /tienda/[slug]
-rutas: /tienda/[slug], /tienda/[slug]/ayuda, /tienda/[slug]/nosotros, /tienda/[slug]/terminos, /tienda/[slug]/privacidad, /tienda/[slug]/arrepentimiento, /tienda/[slug]/buscar, /tienda/[slug]/carrito, /tienda/[slug]/checkout, /tienda/[slug]/cuenta, /tienda/[slug]/familia/[id], /tienda/[slug]/pedido/[codigo], /tienda/[slug]/producto/[id]
+rutas: /tienda/[slug], /tienda/[slug]/ayuda, /tienda/[slug]/nosotros, /tienda/[slug]/terminos, /tienda/[slug]/privacidad, /tienda/[slug]/arrepentimiento, /tienda/[slug]/buscar, /tienda/[slug]/carrito, /tienda/[slug]/checkout, /tienda/[slug]/cuenta, /tienda/[slug]/familia/[id], /tienda/[slug]/pedido/[codigo], /tienda/[slug]/producto/[id], /tienda/[slug]/[...resto]
 permiso: todos
 resumen: Cómo es la tienda web pública (en su dominio propio, ej. daitom.com.ar) que ve el comprador, cómo compra paso a paso y cómo llegan esos pedidos y pagos al sistema.
 ---
@@ -194,6 +194,14 @@ Cancelado, Devuelto, Entregado, **En camino** (despachado), **Listo para retirar
 - El código postal de "Enviar a …" se guarda en el navegador un año y precarga el del checkout.
 - La página del pedido no aparece en buscadores.
 - Catálogos para publicidad (Google, Meta, TikTok) en …/feeds/google.xml, meta.xml y tiktok.xml, y las etiquetas que miden las ventas: ver [Publicidad](/config/tienda/publicidad).
+
+### La tienda ante los buscadores (Google)
+- **Cada página con su título**: la ficha de un producto se llama «<título del producto> | <marca>», una categoría «<categoría> | <marca>»; la portada, el nombre de la marca. La marca es la del dominio por donde se entró. Al compartir el link de una ficha sale su foto principal.
+- **robots.txt** propio en cada dominio: los buscadores recorren todo lo público, y no el carrito, el pago, la cuenta, los pedidos ni las búsquedas. Apunta al sitemap del mismo dominio.
+- **sitemap.xml** en cada dominio: la portada, las categorías con productos y las fichas de los productos publicados con stock, con su fecha de última modificación (más Ayuda y Sobre nosotros). En un dominio de otra marca que le dice a Google que es el principal (ver [Tienda web](/config/tienda)), sale vacío.
+- **Canonical**: cada página le dice a Google cuál es su dirección «oficial»: ella misma en el dominio principal; en uno de otra marca, la misma página en el principal (se puede apagar por dominio).
+- **Página no encontrada**: cualquier dirección que no existe muestra la página de la tienda («No encontramos esta página», con «Ir a la tienda» y «Ver todos los productos»), con la marca del dominio. Nunca la del sistema.
+- **Datos para Google**: la portada dice quién es la tienda (nombre, dirección, logo) y cómo se busca en ella; cada ficha, el producto con su precio (ver [Publicidad](/config/tienda/publicidad)).
 
 ## Preguntas frecuentes
 
