@@ -7,7 +7,8 @@
 import { controlarBot } from "@/lib/tienda/antibot";
 import { sucursalesOca } from "@/lib/oca/envios";
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { COOKIE_EVENTOS, etiquetasDelHost, idCatalogo, type Evento } from "@/lib/tienda/publicidad";
 import { redirect } from "next/navigation";
 import { una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { intentar, texto, id } from "@/lib/erp/acciones";
@@ -30,13 +31,21 @@ const refrescar = (t: Tienda) => revalidatePath(rutaTienda(t), "layout");
 /** Variación vendible en esta tienda: de la organización, activa, con producto activo y precio en la lista. */
 async function vendible(t: Tienda, variacionId: number) {
   if (!t.listaId || !variacionId) return null;
-  return una<{ disponible: number }>(`
-    select greatest(stock_disponible_canal($1, v.id, $3), 0)::int disponible
+  return una<{ disponible: number; sku: string | null; titulo: string; venta: string }>(`
+    select greatest(stock_disponible_canal($1, v.id, $3), 0)::int disponible, v.sku, titulo_variacion(v.id) titulo,
+           case when $5 = 'USD' then pr.venta_usd else pr.venta_ars end venta
       from variacion v join producto p on p.id = v.producto_id
+      cross join lateral (select * from precio_de($1, v.id, $4)) pr
      where v.id = $2 and v.organizacion_id = $1 and v.estado = 'activa' and p.estado = 'activo'
-       and exists (select 1 from precio_de($1, v.id, $4) pr
-                    where coalesce(case when $5 = 'USD' then pr.venta_usd else pr.venta_ars end, 0) > 0)`,
+       and coalesce(case when $5 = 'USD' then pr.venta_usd else pr.venta_ars end, 0) > 0`,
     [t.organizacionId, variacionId, t.canalId, t.listaId, t.moneda]);
+}
+
+/** Deja un evento de publicidad para la página siguiente (cookie que lee EventosDeNavegacion), si el
+ *  dominio mide alguna plataforma. */
+async function anotarEvento(e: Evento) {
+  if (!(await etiquetasDelHost((await headers()).get("host")))) return;
+  (await cookies()).set(COOKIE_EVENTOS, JSON.stringify([e]), { path: "/", maxAge: 300, sameSite: "lax", secure: true, httpOnly: false });
 }
 
 // ── Carrito ──────────────────────────────────────────────
@@ -55,6 +64,8 @@ export async function agregarAlCarrito(fd: FormData) {
       throw new ErrorErp(v.disponible === 1 ? "Queda 1 sola unidad." : `Quedan ${v.disponible} unidades${ya ? ` y ya tenés ${ya} en el carrito` : ""}.`);
     }
     await sumarAlCarrito(t.slug, variacionId, cantidad);
+    await anotarEvento({ tipo: "carrito", moneda: t.moneda, valor: Math.round(Number(v.venta) * cantidad * 100) / 100,
+      items: [{ id: idCatalogo(v.sku, variacionId), nombre: v.titulo, precio: Number(v.venta), cantidad }] });
     refrescar(t);
     // "Comprar ahora" va directo a finalizar la compra; "Agregar al carrito", al carrito.
     return { ir: rutaTienda(t, fd.get("ir") === "checkout" ? "/checkout" : "/carrito") };

@@ -158,6 +158,11 @@ select erp_politica_org('tienda_dominio');
 -- Los que redirigen van al principal, o al dominio de `redirige_a_id` (el www de una marca).
 alter table tienda_dominio add column if not exists marca jsonb;
 alter table tienda_dominio add column if not exists redirige_a_id bigint references tienda_dominio(id) on delete set null;
+-- Publicidad por dominio (24/10: Google Ads, Meta y TikTok): {google: {activo, tag_id (AW-…),
+-- conversion_label, ga4_id (G-…)}, meta: {activo, pixel_id}, tiktok: {activo, pixel_id},
+-- contar_al_crear (transferencia y efectivo cuentan como venta al crear el pedido),
+-- datos_comprador (manda el mail y el teléfono del comprador en la compra)}. lib/tienda/publicidad.ts.
+alter table tienda_dominio add column if not exists publicidad jsonb;
 
 -- Portada de la tienda (4/10): los productos que Fer elige a mano para las filas
 -- "Destacados" y "Novedades" de la portada, en el orden que les pone. Una fila por
@@ -298,3 +303,28 @@ create table if not exists tienda_antibot (
   actualizado_ts   timestamptz not null default now()
 );
 alter table tienda_antibot enable row level security;
+
+-- Catálogos para publicidad (24/10: Google Merchant Center, Meta, TikTok; lib/tienda/feed.ts).
+-- Por categoría: el grupo de campaña (custom_label_0; los productos de sus subcategorías también, salvo
+-- que una subcategoría tenga el suyo) o que no vaya al catálogo. Por producto: los que no van.
+create table if not exists tienda_feed_familia (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  familia_id       bigint not null references familia(id) on delete cascade,
+  grupo            text,
+  excluida         boolean not null default false,
+  check (excluida or grupo is not null),
+  unique (canal_id, familia_id)
+);
+alter table tienda_feed_familia enable row level security;
+select erp_politica_org('tienda_feed_familia');
+create table if not exists tienda_feed_producto (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  producto_id      bigint not null references producto(id) on delete cascade,
+  unique (canal_id, producto_id)
+);
+alter table tienda_feed_producto enable row level security;
+select erp_politica_org('tienda_feed_producto');

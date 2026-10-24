@@ -17,6 +17,9 @@ import { planesDe, planParaMostrar } from "@/lib/tienda/cuotas";
 import { cuotasMpDe, financiacionTienda, planDeEscala, planesDisponibles } from "@/lib/tienda/financiacion";
 import { contadoDe } from "@/lib/tienda/medios";
 import { tasasMpDe } from "@/lib/tienda/tasas-mp";
+import { condicionCatalogo, etiquetasDelHost, gtinValido, idCatalogo } from "@/lib/tienda/publicidad";
+import { urlTienda } from "@/lib/tienda/dominios-tienda";
+import { EventoPublicidad } from "../../Publicidad";
 import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { abierta, arbolDe, aTarjetas, cargarTienda, catalogoDe, cucardasDe, envioDe, envioGratis } from "../../catalogo";
 import {
@@ -30,17 +33,18 @@ export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ slug: string; id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-type Variacion = { id: number; titulo: string; orden: number; lista: number; venta: number; disponible: number; atributos: Record<string, string> };
+type Variacion = { id: number; titulo: string; orden: number; lista: number; venta: number; disponible: number; sku: string | null; codigoBarras: string | null; atributos: Record<string, string> };
 
 async function ficha(t: Tienda, productoId: number) {
   const org = t.organizacionId;
-  const p = await una<{ id: number; titulo: string; descripcion: string | null; marca: string | null; familia_id: number | null; familia: string | null }>(`
-    select p.id::int, p.titulo, p.descripcion, p.marca, p.familia_id::int, f.nombre familia
+  const p = await una<{ id: number; titulo: string; descripcion: string | null; marca: string | null; familia_id: number | null; familia: string | null;
+    condicion: string | null; codigo_barras: string | null }>(`
+    select p.id::int, p.titulo, p.descripcion, p.marca, p.familia_id::int, f.nombre familia, p.condicion, p.codigo_barras
       from producto p left join familia f on f.id = p.familia_id
      where p.id = $1 and p.organizacion_id = $2 and p.estado = 'activo' and ${sqlPublicadoEnWeb("p", "$3")}`, [productoId, org, t.canalId]);
   if (!p) return null;
-  const filas = t.listaId ? await consulta<{ id: number; titulo: string; orden: number; lista: string; venta: string; disponible: number }>(`
-    select v.id::int, titulo_variacion(v.id) titulo, v.orden,
+  const filas = t.listaId ? await consulta<{ id: number; titulo: string; orden: number; lista: string; venta: string; disponible: number; sku: string | null; codigo_barras: string | null }>(`
+    select v.id::int, titulo_variacion(v.id) titulo, v.orden, v.sku, v.codigo_barras,
            case when $4 = 'USD' then pr.lista_usd else pr.lista_ars end lista,
            case when $4 = 'USD' then pr.venta_usd else pr.venta_ars end venta,
            greatest(stock_disponible_canal($2, v.id, $3), 0)::int disponible
@@ -60,7 +64,7 @@ async function ficha(t: Tienda, productoId: number) {
     cucardasDe(org, [productoId]),
   ]);
   const variaciones: Variacion[] = filas.map((f) => ({
-    id: f.id, titulo: f.titulo, orden: f.orden, lista: Number(f.lista), venta: Number(f.venta), disponible: f.disponible,
+    id: f.id, titulo: f.titulo, orden: f.orden, lista: Number(f.lista), venta: Number(f.venta), disponible: f.disponible, sku: f.sku, codigoBarras: f.codigo_barras,
     atributos: Object.fromEntries(atributos.filter((a) => a.variacion_id === f.id).map((a) => [a.nombre, a.valor])),
   }));
   // Nombres de atributo en orden de aparición, con sus valores en orden.
@@ -149,8 +153,26 @@ export default async function Producto({ params, searchParams }: Props) {
   const gratis = v ? envioGratis(envio, v.venta) : false;
   const filaInfo = "flex gap-3 text-sm";
 
+  // Publicidad: "vio el producto" (si el dominio mide) y los datos del producto para los buscadores
+  // (schema.org), con el MISMO precio que va al catálogo de Google: el precio grande, sin el tachado.
+  const pub = await etiquetasDelHost(h.get("host"));
+  const urlFicha = v ? await urlTienda(t, `/producto/${p.id}?v=${v.id}`) : null;
+  const gtin = v ? gtinValido(v.codigoBarras) ?? gtinValido(p.codigo_barras) : null;
+  const datosGoogle = v && urlFicha ? {
+    "@context": "https://schema.org", "@type": "Product", name: v.titulo, sku: idCatalogo(v.sku, v.id),
+    image: fotos.slice(0, 10), description: (p.descripcion || v.titulo).slice(0, 5000),
+    ...(p.marca?.trim() ? { brand: { "@type": "Brand", name: p.marca.trim() } } : {}),
+    ...(gtin ? { gtin } : {}),
+    offers: { "@type": "Offer", url: urlFicha, priceCurrency: t.moneda, price: v.venta.toFixed(2),
+      availability: v.disponible > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      itemCondition: { new: "https://schema.org/NewCondition", used: "https://schema.org/UsedCondition", refurbished: "https://schema.org/RefurbishedCondition" }[condicionCatalogo(p.condicion)] },
+  } : null;
+
   return (
     <div className="space-y-3">
+      {datosGoogle && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(datosGoogle).replace(/</g, "\\u003c") }} />}
+      {pub && v && <EventoPublicidad evento={{ tipo: "ver", moneda: t.moneda, valor: v.venta,
+        items: [{ id: idCatalogo(v.sku, v.id), nombre: v.titulo, precio: v.venta, cantidad: 1 }] }} />}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         {volver && <><Link href={volver} className={LINK}>Volver al listado</Link><span className="text-[var(--linea)]" aria-hidden>|</span></>}
         <Migas t={t} partes={camino.map((id) => ({ nombre: arbol.nodos.get(id)?.nombre ?? "", href: rutaTienda(t, `/familia/${id}`) })).filter((x) => x.nombre)} />

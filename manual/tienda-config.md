@@ -31,7 +31,7 @@ Con tienda, una caja de datos que no se editan acá:
 - **Dirección de la tienda**: el enlace a la tienda pública: su dominio principal si ya anda (con certificado), ej. https://daitom.com.ar; si no, laucen.com/tienda/slug. Si el dominio principal todavía no tiene certificado, avisa que la dirección pasa a ser ésa cuando lo tenga.
 - **Estado**: "Activa: toma pedidos" o "Pausada: no toma pedidos", con el enlace "Cambiarlo en Canales".
 - **Lista de precios** (en rojo "Sin lista" si no tiene), con el enlace "Cambiarla en Configuración → Canales".
-- **Feed para Meta (Facebook / Instagram)**: la dirección del feed ("…/feed.xml"), para cargar en Meta Commerce Manager como fuente de datos programada.
+- **Feed para Meta (Facebook / Instagram)**: la dirección del feed ("…/feed.xml"). Los catálogos de Google, Meta y TikTok (y la medición de ventas) están en [Publicidad](/config/tienda/publicidad).
 - **Vende el stock de**: los depósitos del canal (en rojo "Ningún depósito: elegilos en Canales").
 
 Debajo, la ficha de la tienda, que abre en **modo vista**. Se edita con el **lápiz arriba a la derecha** (con una sola tienda, al lado del título de la pantalla; con varias, en el título de cada una); en edición aparecen **"Grabar"** y **"Cancelar"**. Campos:

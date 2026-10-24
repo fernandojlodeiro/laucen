@@ -193,7 +193,7 @@ Cancelado, Devuelto, Entregado, **En camino** (despachado), **Listo para retirar
 
 - El código postal de "Enviar a …" se guarda en el navegador un año y precarga el del checkout.
 - La página del pedido no aparece en buscadores.
-- Feed para Meta (Facebook/Instagram): la tienda publica su catálogo en …/feed.xml (ver [Tienda web](/config/tienda)).
+- Catálogos para publicidad (Google, Meta, TikTok) en …/feeds/google.xml, meta.xml y tiktok.xml, y las etiquetas que miden las ventas: ver [Publicidad](/config/tienda/publicidad).
 
 ## Preguntas frecuentes
 
