@@ -36,8 +36,6 @@ import {
 
 /** Cuánto más cara va la cuenta que no gana un precio (Fer, 7/10). */
 export const AJUSTE_NO_GANA = 3;
-/** La cuenta que gana la Clásica y la de 12 cuotas (Fer, 7/10). */
-const esPrincipal = (c: { nombre: string }) => /BAIRES/i.test(c.nombre);
 
 export type FilaTodas = {
   canal: number; cuenta: string; plan: PlanOClasica; nombre: string;
@@ -123,7 +121,7 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
       (select producto from ml_catalogo_sku where organizacion_id = $1 and sku = $2)) p`, [org, v.sku]))?.p ?? null;
 
   cache.canales ??= await canalesMl(org);
-  const canales = [...cache.canales].sort((a, b) => Number(esPrincipal(b)) - Number(esPrincipal(a)) || a.nombre.localeCompare(b.nombre));
+  const canales = [...cache.canales].sort((a, b) => a.nombre.localeCompare(b.nombre));
   if (!canales.length) throw new ErrorErp("No hay cuentas de Mercado Libre en Laucen.");
 
   // Quién gana: lo que ya tenga elegido el producto se respeta; si no, la regla de Fer.
@@ -146,6 +144,8 @@ export async function planTodas(org: string, productoId: number, variacionId?: n
   const ids = canales.map((c) => c.id);
   const ganador = Object.fromEntries(["clasica", ...PLANES].map((p) => [p, elegido(p) ?? (grupo ? ganadorDe(grupo, p as PlanOClasica, productoId, ids) : null)])) as Record<"clasica" | Plan, number | null>;
   const noGana = grupo?.ajusteNoGana ?? AJUSTE_NO_GANA;
+  // Arriba, la cuenta que gana la Clásica (por su número de canal, nunca por cómo se llama: Fer renombra cuentas).
+  canales.sort((a, b) => Number(b.id === ganador.clasica) - Number(a.id === ganador.clasica) || a.nombre.localeCompare(b.nombre));
 
   // Lo que ya existe (activo, o en la cola esperando salir) en cada cuenta.
   const items = await consulta<{ canal: number; item_id: string; tipo: string; tags: unknown; terms: unknown }>(`

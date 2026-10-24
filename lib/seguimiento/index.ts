@@ -157,7 +157,9 @@ export function aPubEncontrada(x: Record<string, unknown>): PubEncontrada | null
 /** Nuestras cuentas (para marcar como propias las publicaciones que aparecen en la búsqueda). */
 export async function nuestras(org: string): Promise<{ cuentas: CuentaMl[]; apodos: Set<string> }> {
   const cuentas = (await cuentasDe(org)).filter((c) => c.estado === "activa");
-  return { cuentas, apodos: new Set(cuentas.map((c) => (c.nickname ?? "").toUpperCase().trim()).filter(Boolean)) };
+  // Los apodos de hoy y los que tuvieron antes (meli_cuenta.apodos_anteriores): los datos viejos traen el de entonces.
+  const anteriores = await consulta<{ a: string }>("select unnest(apodos_anteriores) a from meli_cuenta where organizacion_id = $1", [org]);
+  return { cuentas, apodos: new Set([...cuentas.map((c) => c.nickname ?? ""), ...anteriores.map((x) => x.a)].map((x) => x.toUpperCase().trim()).filter(Boolean)) };
 }
 
 // ── Buscar para elegir ──────────────────────────────────────

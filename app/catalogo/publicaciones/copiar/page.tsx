@@ -38,7 +38,7 @@ export default async function CopiarEntreCuentas({ searchParams }: { searchParam
 
   const cuentas = await consulta<{ id: number; nombre: string; nickname: string | null }>(`
     select c.id::int, c.nombre, mc.nickname from meli_cuenta mc join canal c on c.id = mc.canal_id
-     where mc.organizacion_id = $1 and mc.estado = 'activa' order by c.id`, [org]);
+     where mc.organizacion_id = $1 and mc.estado = 'activa' order by coalesce((c.config ->> 'orden_copia')::int, 99), c.id`, [org]);
   if (cuentas.length < 2) {
     return (
       <Pantalla titulo="Copiar entre cuentas" subtitulo="Las mismas publicaciones en todas las cuentas de Mercado Libre" ancho="max-w-3xl">
@@ -47,9 +47,9 @@ export default async function CopiarEntreCuentas({ searchParams }: { searchParam
     );
   }
 
-  const origen = cuentas.find((c) => c.id === Number(sp.origen)) ?? cuentas.find((c) => /baires/i.test(c.nombre)) ?? cuentas[0];
-  const destino = cuentas.find((c) => c.id === Number(sp.destino) && c.id !== origen.id)
-    ?? cuentas.find((c) => c.id !== origen.id && /tiendavirtual s$/i.test(c.nombre)) ?? cuentas.find((c) => c.id !== origen.id)!;
+  // De entrada, la primera de «Copiar publicaciones desde» (Configuración › Canales) y la que le sigue; nunca por el nombre.
+  const origen = cuentas.find((c) => c.id === Number(sp.origen)) ?? cuentas[0];
+  const destino = cuentas.find((c) => c.id === Number(sp.destino) && c.id !== origen.id) ?? cuentas.find((c) => c.id !== origen.id)!;
   const soloActivas = sp.est !== "todas";
   const soloFaltan = sp.ver !== "todas";
   const tipo = sp.tipo === "catalogo" || sp.tipo === "normal" ? sp.tipo : "";

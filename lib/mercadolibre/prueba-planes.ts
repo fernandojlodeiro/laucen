@@ -68,10 +68,11 @@ export const MODELOS_ESQUEMA: ModeloEsquema[] = [
   { ...HP15, sku: "15-EF0022NR-16GB", clasica: 1_181_240, ram: "16", titulo: "Notebook Hp Amd Ryzen 7 3700u 16gb Ram 256gb Ssd Windows" },
   G3,
 ];
-const CUENTAS_ESQUEMA = ["ML .BAIRES", "ML PUNTO", "DEIROLAB SA", "DEIROLAB SAS", "TIENDAVIRTUAL S"];
+// Por número de canal (los nombres cambian): 1 = la ex «ML .BAIRES», 7 = la ex «ML PUNTO», 8 DEIROLAB SA, 9 DEIROLAB SAS, 10 TIENDAVIRTUAL S.
+const CUENTAS_ESQUEMA = [1, 7, 8, 9, 10];
 const PLANES_ESQUEMA: PlanPrueba[] = ["clasica", "3x_campaign", "12x_campaign"];
 export const PRUEBA: (ModeloEsquema & { cuenta: string; planes: PlanPrueba[] })[] =
-  MODELOS_ESQUEMA.flatMap((m) => CUENTAS_ESQUEMA.map((cuenta) => ({ cuenta, ...m, planes: PLANES_ESQUEMA })));
+  MODELOS_ESQUEMA.flatMap((m) => CUENTAS_ESQUEMA.map((canal) => ({ cuenta: String(canal), ...m, planes: PLANES_ESQUEMA })));
 
 /** "8gb" → "12gb" en un texto (respeta cómo estaba escrito: "8 GB", "8gb", "8GB"). */
 export const cambiarMemoria = (texto: string, ram: string) => texto.replace(/\b8(\s?)(gb)\b/gi, (_m, esp: string, gb: string) => `${ram}${esp}${gb}`);
@@ -98,8 +99,11 @@ export async function propuestaPrueba(org: string): Promise<{ filas: FilaPrueba[
   const com = await comisionesMl();
   const cat = await una<{ categoria: string | null }>("select categoria from meli_item where organizacion_id = $1 and item_id = $2 limit 1", [org, PRUEBA[0].origen]);
   const { valores, estimada } = comisionesDe(com.porCategoria.get(cat?.categoria ?? "MLA1652"), com.general);
-  const canales = new Map((await consulta<{ id: number; nombre: string }>(
-    "select id::int, nombre from canal where organizacion_id = $1 and tipo = 'mercadolibre' and estado <> 'archivado'", [org])).map((c) => [c.nombre, c.id]));
+  // PRUEBA lleva el número de canal en `cuenta`; en las filas va el nombre de hoy.
+  const filasCanal = await consulta<{ id: number; nombre: string }>(
+    "select id::int, nombre from canal where organizacion_id = $1 and tipo = 'mercadolibre' and estado <> 'archivado'", [org]);
+  const canales = new Map(filasCanal.map((c) => [String(c.id), c.id]));
+  const nombreCanal = new Map(filasCanal.map((c) => [String(c.id), c.nombre]));
   const filas: FilaPrueba[] = [];
   for (const p of PRUEBA) {
     const canal = canales.get(p.cuenta) ?? null;
@@ -117,7 +121,7 @@ export async function propuestaPrueba(org: string): Promise<{ filas: FilaPrueba[
       "select stock_disponible_canal($1, v.id, $2)::int d from variacion v where v.organizacion_id = $1 and v.sku = $3", [org, canal, p.sku]))?.d ?? 0) : 0;
     for (const plan of p.planes) {
       const ya = items.find((i) => planDe(i.tipo, i.tags, i.terms) === plan)?.item_id ?? (enCola.has(`esquema:${p.sku}:${plan}`) ? "en la cola" : null);
-      filas.push({ canal, cuenta: p.cuenta, sku: p.sku, origen: p.origen, plan, tachado: tachadoPrueba(p.clasica), precio: precioPrueba(p.clasica, plan, valores), comision: valores[plan], existe: ya, stock });
+      filas.push({ canal, cuenta: nombreCanal.get(p.cuenta) ?? p.cuenta, sku: p.sku, origen: p.origen, plan, tachado: tachadoPrueba(p.clasica), precio: precioPrueba(p.clasica, plan, valores), comision: valores[plan], existe: ya, stock });
     }
   }
   return { filas, estimada };
@@ -146,8 +150,8 @@ export async function prepararPrueba(org: string, usuarioId: string, hasta = Dat
   const motivosGtin = new Map<string, { id: string; name: string } | null>();
   let sinTiempo = 0;
   for (const p of PRUEBA) {
-    const deEsta = filas.filter((f) => f.cuenta === p.cuenta && f.sku === p.sku);
-    const rech = (motivo: string) => res.rechazos.push({ cuenta: `${p.cuenta} ${p.sku}`, motivo });
+    const deEsta = filas.filter((f) => String(f.canal) === p.cuenta && f.sku === p.sku);
+    const rech = (motivo: string) => res.rechazos.push({ cuenta: `${deEsta[0]?.cuenta ?? `canal ${p.cuenta}`} ${p.sku}`, motivo });
     const canal = deEsta[0]?.canal;
     const faltan = deEsta.filter((f) => !f.existe);
     if (!faltan.length) continue;
@@ -185,7 +189,7 @@ export async function prepararPrueba(org: string, usuarioId: string, hasta = Dat
       if (!motivo) { rech("la categoría no acepta publicar sin código de barras: hace falta el código (UPC) de la caja"); continue; }
       atributos.push({ id: "EMPTY_GTIN_REASON", value_id: motivo.id, value_name: motivo.name });
     }
-    const lote = porCuenta.get(canal) ?? { cuenta: p.cuenta, altas: [], nombres: [] };
+    const lote = porCuenta.get(canal) ?? { cuenta: deEsta[0]?.cuenta ?? p.cuenta, altas: [], nombres: [] };
     porCuenta.set(canal, lote);
     for (const f of faltan) {
       if (Date.now() > hasta) { sinTiempo++; continue; }
@@ -202,13 +206,13 @@ export async function prepararPrueba(org: string, usuarioId: string, hasta = Dat
       });
       const nombre = f.plan === "clasica" ? "Clásica" : f.plan === "premium" ? "Premium común" : `Premium ${PLAN_INFO[f.plan].corto}`;
       if (!c.ok) { rech(`Mercado Libre no acepta la ${nombre}: ${c.motivo}`); continue; }
-      if (c.avisos) res.avisos.push(`${p.cuenta} ${p.sku} (${nombre}): ${c.avisos}`);
+      if (c.avisos) res.avisos.push(`${deEsta[0]?.cuenta ?? p.cuenta} ${p.sku} (${nombre}): ${c.avisos}`);
       const pedidos: PedidoMl[] = [{ metodo: "POST", ruta: "/items", cuerpo: c.cuerpo }];
       if (texto) pedidos.push({ metodo: "POST", ruta: "/items/{id}/description", cuerpo: { plain_text: texto }, seguirSiFalla: true });
       lote.altas.push({
         canalId: canal, itemId: `esquema:${p.sku}:${f.plan}`, tipo: "crear",
         antes: { estado: "no existe en esta cuenta" },
-        payload: { descripcion: `Alta en ${p.cuenta}: ${p.sku} ${nombre} $ ${f.tachado.toLocaleString("es-AR")} (con campaña $ ${f.precio.toLocaleString("es-AR")}; copia de ${p.origen})`, origen: { canal: o.canal, item_id: p.origen }, pedidos },
+        payload: { descripcion: `Alta en ${deEsta[0]?.cuenta ?? p.cuenta}: ${p.sku} ${nombre} $ ${f.tachado.toLocaleString("es-AR")} (con campaña $ ${f.precio.toLocaleString("es-AR")}; copia de ${p.origen})`, origen: { canal: o.canal, item_id: p.origen }, pedidos },
       });
       lote.nombres.push(`${p.sku} ${nombre}`);
     }
