@@ -12,22 +12,25 @@
 import { sqlPublicadoEnWeb } from "@/lib/catalogo/web";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { consulta, una } from "@/lib/erp/base";
 import { hoyAR } from "@/lib/moneda";
 import { tiendaPorSlug, type Tienda } from "@/lib/tienda/tienda";
+import { conMarca } from "@/lib/tienda/dominios-tienda";
 import { planesDeVariaciones, planParaMostrar, type Plan } from "@/lib/tienda/cuotas";
 
 export const POR_PAGINA = 24;
 export const COLOR_POR_DEFECTO = "#3483FA";
 
-/** La tienda del slug (una sola consulta por request); si no existe, 404. */
+/** La tienda del slug (una sola consulta por request), como se ve desde el dominio del pedido; si no existe, 404. */
 export const cargarTienda = cache(async (slug: string): Promise<Tienda> => {
   let s = slug;
   try { s = decodeURIComponent(slug); } catch { /* queda como vino */ }
   const t = await tiendaPorSlug(s);
   if (!t) notFound();
-  return t;
+  // Entrando por el dominio de otra marca, la misma tienda con su nombre y su logo.
+  return conMarca(t, (await headers()).get("host"));
 });
 
 export const abierta = (t: Tienda) => t.estado === "activo";
@@ -67,6 +70,8 @@ async function leerCatalogo(org: string, canalId: number, listaId: number, moned
        where p.organizacion_id = $1 and p.estado = 'activo'
          -- Sólo lo publicado en este canal web (la web es un canal más).
          and ${sqlPublicadoEnWeb("p", "$2")}
+         -- Precio cero (o sin cargar) nunca se ofrece: esa variación no se vende.
+         and coalesce(case when $4 = 'USD' then pr.venta_usd else pr.venta_ars end, 0) > 0
     ), a as (
       select producto_id, min(venta) venta, max(venta) venta_max, count(*)::int variaciones, sum(disp)::int stock, string_agg(sku, ' ') skus,
              (array_agg(lista order by venta, orden, variacion_id))[1] lista,
@@ -99,8 +104,8 @@ export const catalogoDe = cache(async (t: Tienda): Promise<ProductoBase[]> => {
   if (!t.listaId) return [];
   const todos = await unstable_cache(
     () => leerCatalogo(t.organizacionId, t.canalId, t.listaId!, t.moneda),
-    // "v2": descuentos de la web cargados el 7/10 (la copia guardada no se renovaba sola).
-    ["tienda-catalogo", "v2", String(t.canalId), String(t.listaId), t.moneda],
+    // Cambia la versión cuando cambia la consulta (la copia guardada no se renueva sola).
+    ["tienda-catalogo", "v3", String(t.canalId), String(t.listaId), t.moneda],
     { revalidate: 60, tags: [`tienda-${t.canalId}`] },
   )();
   return ocultaSinStock(t) ? todos.filter((p) => p.stock > 0) : todos;

@@ -1,6 +1,6 @@
-// Portada de la tienda: banners que pasan solos, atajos, carruseles de
-// productos (Destacados a mano, Ofertas, Más vendidos, Novedades y lo destacado de las categorías
-// con más productos) y las categorías con foto. Todo sale del mismo catálogo
+// Portada de la tienda: banners que pasan solos, carruseles de productos
+// (Destacados a mano, Ofertas, Más vendidos, Novedades y lo destacado de las
+// categorías con más productos), las categorías con foto y, al pie, atajos chicos. Todo sale del mismo catálogo
 // (catalogo.ts) en memoria: una sola cuenta de precios por request.
 
 import Link from "next/link";
@@ -63,20 +63,18 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
 
   const atajos = [
     cuenta
-      ? { titulo: "Mis compras", texto: "Seguí tus pedidos y comprá más rápido.", boton: "Ver mis compras", href: r("/cuenta"), icono: <IconoPersona clase="h-8 w-8" /> }
-      : { titulo: "Ingresá a tu cuenta", texto: "Mirá tus pedidos y comprá más rápido.", boton: "Ingresar", href: r("/cuenta"), icono: <IconoPersona clase="h-8 w-8" /> },
-    { titulo: "Medios de pago", texto: medios.length ? medios.map((m) => m.nombre).slice(0, 3).join(", ") + (medios.length > 3 ? " y más." : ".") : "Consultanos cómo pagar.",
-      boton: "Ver medios de pago", href: `${r("/ayuda")}#pagos`, icono: <IconoTarjeta clase="h-8 w-8" /> },
+      ? { titulo: "Mis compras", texto: "Seguí tus pedidos y comprá más rápido.", href: r("/cuenta"), icono: <IconoPersona clase="h-5 w-5" /> }
+      : { titulo: "Ingresá a tu cuenta", texto: "Mirá tus pedidos y comprá más rápido.", href: r("/cuenta"), icono: <IconoPersona clase="h-5 w-5" /> },
+    { titulo: "Medios de pago", texto: medios.length ? medios.map((m) => m.nombre).slice(0, 3).join(", ") + (medios.length > 3 ? " y más." : ".") : "Consultanos cómo pagar.", href: `${r("/ayuda")}#pagos`, icono: <IconoTarjeta clase="h-5 w-5" /> },
     { titulo: envio.gratisDesde === 0 ? "Envío gratis" : envio.gratisDesde != null ? `Envío gratis desde ${plata(envio.gratisDesde)}` : envio.aDomicilio ? "Envíos" : "Retiro",
-      texto: envio.aDomicilio ? (envio.aDomicilio.plazo || "Te lo mandamos a tu casa.") : envio.retiro ? `Retirá en ${envio.retiro.nombre}.` : "Coordinamos la entrega con vos.",
-      boton: "Ver formas de entrega", href: `${r("/ayuda")}#envios`, icono: <IconoCamion clase="h-8 w-8" /> },
-    { titulo: "Más vendidos", texto: "Lo que más se llevan nuestros clientes.", boton: "Ver más vendidos", href: `${r("/buscar")}?orden=vendidos`, icono: <IconoTienda clase="h-8 w-8" /> },
-    { titulo: "Ayuda", texto: c.horario ? `Te atendemos ${c.horario.charAt(0).toLowerCase()}${c.horario.slice(1)}.` : "¿Tenés dudas? Escribinos.", boton: "Ir a ayuda", href: r("/ayuda"), icono: <IconoCharla clase="h-8 w-8" /> },
+      texto: envio.aDomicilio ? (envio.aDomicilio.plazo || "Te lo mandamos a tu casa.") : envio.retiro ? `Retirá en ${envio.retiro.nombre}.` : "Coordinamos la entrega con vos.", href: `${r("/ayuda")}#envios`, icono: <IconoCamion clase="h-5 w-5" /> },
+    { titulo: "Más vendidos", texto: "Lo que más se llevan nuestros clientes.", href: `${r("/buscar")}?orden=vendidos`, icono: <IconoTienda clase="h-5 w-5" /> },
+    { titulo: "Ayuda", texto: c.horario ? `Te atendemos ${c.horario.charAt(0).toLowerCase()}${c.horario.slice(1)}.` : "¿Tenés dudas? Escribinos.", href: r("/ayuda"), icono: <IconoCharla clase="h-5 w-5" /> },
   ];
 
   return (
     <div className="space-y-10">
-      {/* Banners a todo el ancho, por debajo de los atajos. */}
+      {/* Banners a todo el ancho. */}
       <div className="relative left-1/2 -mt-4 w-screen -translate-x-1/2 sm:-mt-6">
         {banners.length ? <Banners banners={banners} /> : (
           <div className="relative h-[150px] overflow-hidden bg-[var(--marca)] sm:h-[260px] lg:h-[340px]">
@@ -92,20 +90,6 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[var(--fondo)] to-transparent" />
           </div>
         )}
-      </div>
-
-      {/* Atajos, montados sobre el borde de los banners. */}
-      <div className="relative z-10 -mt-12 sm:-mt-28">
-        <div className="-mx-3 flex gap-3 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-3 sm:px-0 lg:grid-cols-5 [&::-webkit-scrollbar]:hidden">
-          {atajos.map((a) => (
-            <Link key={a.titulo} href={a.href} className={`${CAJA} flex w-[200px] shrink-0 flex-col items-center gap-2 p-4 text-center transition-shadow hover:shadow-[0_7px_16px_0_rgba(0,0,0,.2)] sm:w-auto`}>
-              <p className="text-sm font-semibold text-[var(--texto)]">{a.titulo}</p>
-              <span className="grid h-14 w-14 place-items-center rounded-full bg-[var(--boton-claro)] text-[var(--boton)]">{a.icono}</span>
-              <p className="line-clamp-2 min-h-[2.5em] text-xs text-[var(--texto-2)]">{a.texto}</p>
-              <span className="mt-auto rounded-md bg-[var(--boton)] px-3 py-1.5 text-xs font-semibold text-white">{a.boton}</span>
-            </Link>
-          ))}
-        </div>
       </div>
 
       {!catalogo.length && (
@@ -137,6 +121,19 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
       {porCategoria.map(({ f, productos }) => (
         <Fila key={f.id} t={t} titulo={`Destacados en ${f.nombre}`} ver={{ texto: "Ver más", href: r(`/familia/${f.id}`) }} productos={de(productos)} />
       ))}
+
+      {/* Atajos chicos, al pie de la portada (cuenta, pagos, envíos, más vendidos, ayuda). */}
+      <section aria-label="Atajos" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {atajos.map((a) => (
+          <Link key={a.titulo} href={a.href} className={`${CAJA} flex items-center gap-3 p-3 transition-shadow hover:shadow-[0_7px_16px_0_rgba(0,0,0,.2)]`}>
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--boton-claro)] text-[var(--boton)]">{a.icono}</span>
+            <span className="min-w-0">
+              <span className="block truncate text-xs font-semibold text-[var(--texto)]">{a.titulo}</span>
+              <span className="line-clamp-2 text-[11px] leading-snug text-[var(--texto-2)]">{a.texto}</span>
+            </span>
+          </Link>
+        ))}
+      </section>
     </div>
   );
 }

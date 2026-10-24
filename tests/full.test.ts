@@ -39,6 +39,16 @@ test("Full: bultos sugeridos del remito (grandes en su caja, chicos juntos)", as
   assert.equal(bultosSugeridos([{ cantidad: 0, volumen: 60_000, peso: 9_000 }]), 0);
 });
 
+test("Ventas por canal: períodos del rango y paso automático", async () => {
+  const { periodos, pasoAuto } = await import("@/lib/informes/ventas-canal");
+  assert.deepEqual(periodos("2026-10-01", "2026-10-03", "dia"), ["2026-10-01", "2026-10-02", "2026-10-03"]);
+  assert.deepEqual(periodos("2026-10-01", "2026-10-14", "semana"), ["2026-09-28", "2026-10-05", "2026-10-12"], "la semana empieza el lunes");
+  assert.deepEqual(periodos("2025-11-15", "2026-02-10", "mes"), ["2025-11-01", "2025-12-01", "2026-01-01", "2026-02-01"]);
+  assert.equal(pasoAuto("2026-10-01", "2026-10-31"), "dia");
+  assert.equal(pasoAuto("2026-07-01", "2026-09-30"), "semana");
+  assert.equal(pasoAuto("2024-01-01", "2026-10-24"), "mes");
+});
+
 test("Full: las publicaciones se agrupan por Código ML; la principal es la común", async () => {
   const { agruparPorCodigo } = await import("@/lib/full/envios");
   const p = (item: string, codigo: string | null, up: string, catalogo: boolean, vendidas: number) =>

@@ -768,3 +768,8 @@ create table if not exists ml_madre_nueva (
 );
 alter table ml_madre_nueva enable row level security;
 select erp_politica_org('ml_madre_nueva');
+
+-- Los apodos que tuvo la cuenta en Mercado Libre (Fer, 24/10: renombra las cuentas). El apodo de hoy se vuelve a
+-- leer de ML cada vez que se renueva la llave; el que tenía queda acá, para seguir reconociendo como propias las
+-- publicaciones de datos viejos (ej. el seguimiento importado de Virtual Seller).
+alter table meli_cuenta add column if not exists apodos_anteriores text[] not null default '{}';

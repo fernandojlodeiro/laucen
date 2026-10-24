@@ -70,6 +70,9 @@ export async function guardarLlave(organizacionId: string, t: Token, nickname?: 
     on conflict (organizacion_id, meli_user_id) do update set
       access_token = excluded.access_token, refresh_token = excluded.refresh_token, expira_el = excluded.expira_el,
       nickname = coalesce(excluded.nickname, meli_cuenta.nickname), canal_id = coalesce(excluded.canal_id, meli_cuenta.canal_id),
+      apodos_anteriores = case when excluded.nickname is not null and meli_cuenta.nickname is not null and excluded.nickname <> meli_cuenta.nickname
+                                 and not (meli_cuenta.nickname = any(meli_cuenta.apodos_anteriores))
+                               then meli_cuenta.apodos_anteriores || meli_cuenta.nickname else meli_cuenta.apodos_anteriores end,
       estado = 'activa', ultimo_error = null, actualizado_ts = now()`,
     [organizacionId, t.user_id, nickname ?? null, t.access_token, t.refresh_token, expira, canalId ?? null]);
   const principal = await cuentaDe(organizacionId);
@@ -136,7 +139,10 @@ export async function tokenDeCuenta(cuentaId: number): Promise<string | null> {
       return null;
     }
     await cliente.query("commit");
-    await guardarLlave(f.organizacion_id, t);
+    // El apodo de hoy (la cuenta se puede renombrar en ML); si no se puede leer, queda el que estaba.
+    const yo = await fetch(`${API}/users/me`, { headers: { authorization: `Bearer ${t.access_token}` } })
+      .then((r) => (r.ok ? r.json() : null)).catch(() => null) as { nickname?: string } | null;
+    await guardarLlave(f.organizacion_id, t, yo?.nickname ?? null);
     return t.access_token;
   } catch (e) {
     await cliente.query("rollback").catch(() => {});

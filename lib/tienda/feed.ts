@@ -18,7 +18,8 @@ export async function feedMeta(t: Tienda, base: string): Promise<string> {
            pr.lista_ars lista, pr.venta_ars venta, greatest(stock_disponible_canal($1, v.id, $2), 0) disponible
       from variacion v join producto p on p.id = v.producto_id
       cross join lateral (select * from precio_de($1, v.id, $3)) pr
-     where v.organizacion_id = $1 and v.estado = 'activa' and p.estado = 'activo' and ${sqlPublicadoEnWeb("p", "$2")}`, [t.organizacionId, t.canalId, t.listaId]);
+     where v.organizacion_id = $1 and v.estado = 'activa' and p.estado = 'activo' and ${sqlPublicadoEnWeb("p", "$2")}
+       and coalesce(pr.venta_ars, 0) > 0`, [t.organizacionId, t.canalId, t.listaId]);
   const items = filas.filter((f) => f.foto).map((f) => `
     <item>
       <g:id>${f.variacion_id}</g:id>
