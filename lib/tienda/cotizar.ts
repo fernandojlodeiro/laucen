@@ -62,6 +62,7 @@ export async function cotizar(t: Tienda, carrito: LineaCarrito[], op: { medio?: 
     if (!p) continue; // sin precio en la lista: no se vende
     const venta = t.moneda === "USD" ? p.venta.usd : p.venta.ars;
     const lista = t.moneda === "USD" ? p.lista.usd : p.lista.ars;
+    if (!(venta > 0)) continue; // precio cero: tampoco (nunca un pedido a $ 0)
     if (d.disponible < l.cantidad) sinStock.push(`${d.titulo}: hay ${d.disponible}`);
     lineas.push({
       variacionId: d.id, productoId: d.producto_id, sku: d.sku, titulo: d.titulo, foto: d.foto, cantidad: l.cantidad, disponible: d.disponible,

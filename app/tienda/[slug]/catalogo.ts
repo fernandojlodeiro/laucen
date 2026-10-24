@@ -67,6 +67,8 @@ async function leerCatalogo(org: string, canalId: number, listaId: number, moned
        where p.organizacion_id = $1 and p.estado = 'activo'
          -- Sólo lo publicado en este canal web (la web es un canal más).
          and ${sqlPublicadoEnWeb("p", "$2")}
+         -- Precio cero (o sin cargar) nunca se ofrece: esa variación no se vende.
+         and coalesce(case when $4 = 'USD' then pr.venta_usd else pr.venta_ars end, 0) > 0
     ), a as (
       select producto_id, min(venta) venta, max(venta) venta_max, count(*)::int variaciones, sum(disp)::int stock, string_agg(sku, ' ') skus,
              (array_agg(lista order by venta, orden, variacion_id))[1] lista,
@@ -99,8 +101,8 @@ export const catalogoDe = cache(async (t: Tienda): Promise<ProductoBase[]> => {
   if (!t.listaId) return [];
   const todos = await unstable_cache(
     () => leerCatalogo(t.organizacionId, t.canalId, t.listaId!, t.moneda),
-    // "v2": descuentos de la web cargados el 7/10 (la copia guardada no se renovaba sola).
-    ["tienda-catalogo", "v2", String(t.canalId), String(t.listaId), t.moneda],
+    // Cambia la versión cuando cambia la consulta (la copia guardada no se renueva sola).
+    ["tienda-catalogo", "v3", String(t.canalId), String(t.listaId), t.moneda],
     { revalidate: 60, tags: [`tienda-${t.canalId}`] },
   )();
   return ocultaSinStock(t) ? todos.filter((p) => p.stock > 0) : todos;

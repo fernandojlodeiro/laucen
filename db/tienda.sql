@@ -232,7 +232,8 @@ begin
       if exists (select 1 from publicacion where canal_id = c.id and variacion_id = v and id_externo is null) then continue; end if;
       if not exists (select 1 from variacion vv join producto pr on pr.id = vv.producto_id
                       where vv.id = v and vv.organizacion_id = p_org and vv.estado = 'activa' and pr.estado = 'activo' and not pr.no_publicable) then continue; end if;
-      if c.lista_precios_id is null or (select lista_ars from precio_de(p_org, v, c.lista_precios_id, (now() at time zone 'America/Argentina/Buenos_Aires')::date)) is null then continue; end if;
+      -- Sin precio o con precio cero no se publica (un $ 0 en la web es venderlo regalado).
+      if c.lista_precios_id is null or coalesce((select lista_ars from precio_de(p_org, v, c.lista_precios_id, (now() at time zone 'America/Argentina/Buenos_Aires')::date)), 0) <= 0 then continue; end if;
       if stock_disponible_canal(p_org, v, c.id) <= 0 then continue; end if;
       insert into publicacion (organizacion_id, variacion_id, canal_id, estado, titulo)
       values (p_org, v, c.id, 'activa', titulo_variacion(v))

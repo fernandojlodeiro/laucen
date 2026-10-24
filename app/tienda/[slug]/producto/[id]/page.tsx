@@ -43,7 +43,9 @@ async function ficha(t: Tienda, productoId: number) {
            greatest(stock_disponible_canal($2, v.id, $3), 0)::int disponible
       from variacion v cross join lateral (select * from precio_de($2, v.id, $5)) pr
      where v.producto_id = $1 and v.organizacion_id = $2 and v.estado = 'activa'
+       and coalesce(case when $4 = 'USD' then pr.venta_usd else pr.venta_ars end, 0) > 0
      order by v.orden, v.id`, [productoId, org, t.canalId, t.moneda, t.listaId]) : [];
+  if (!filas.length) return null; // ninguna variación con precio: no se vende
   const ids = filas.map((f) => f.id);
   const [atributos, fotosProducto, fotosVariacion, caracteristicas, cucardas] = await Promise.all([
     consulta<{ variacion_id: number; nombre: string; valor: string }>(
