@@ -17,7 +17,7 @@ export async function metodosEnvio(t: Tienda): Promise<MetodoEnvio[]> {
   return filas.map((m) => ({ ...m, disponible: m.tipo !== "andreani" }));
 }
 
-export type Eleccion = { metodoEnvioId: number | null; medio: string | null; provincia: string | null; codigoPostal?: string | null };
+export type Eleccion = { metodoEnvioId: number | null; medio: string | null; provincia: string | null; codigoPostal?: string | null; cuotas?: number | null };
 
 export type Resumen = {
   /** subtotal de cada línea a precio de venta (los descuentos van aparte, en `descuentos`). */
@@ -30,12 +30,14 @@ export type Resumen = {
   /** Costo de cada método de envío (null si no se pudo calcular). */
   costos: Record<number, { costo: number; bonificado: boolean; aConvenir: boolean; sinCp?: boolean; plazoDias?: number | null } | null>;
   moneda: "ARS" | "USD";
+  /** Planes de cuotas de la compra con tarjeta de crédito (esquema de cuotas prendido), o null. */
+  cuotas: { planes: { cuotas: number; interes_pct: number }[]; productos: number; elegidas: number } | null;
 };
 
 export async function resumir(t: Tienda, carrito: LineaCarrito[], e: Eleccion, metodos?: MetodoEnvio[]): Promise<Resumen> {
   const lista = metodos ?? await metodosEnvio(t);
   const elegido = lista.find((m) => m.id === e.metodoEnvioId && m.disponible);
-  const op = { medio: e.medio, provincia: e.provincia, codigoPostal: e.codigoPostal ?? null };
+  const op = { medio: e.medio, cuotas: e.cuotas ?? null, provincia: e.provincia, codigoPostal: e.codigoPostal ?? null };
   const cot = await cotizar(t, carrito, { ...op, metodoEnvioId: elegido?.id ?? null });
   const costoDe = (x: NonNullable<typeof cot.envio>) => ({ costo: x.costo, bonificado: x.bonificado, aConvenir: x.aConvenir, sinCp: x.sinCp, plazoDias: x.plazoDias ?? null });
   const costos: Resumen["costos"] = {};
@@ -52,6 +54,6 @@ export async function resumir(t: Tienda, carrito: LineaCarrito[], e: Eleccion, m
     lineas: cot.lineas.map((l) => ({ variacionId: l.variacionId, titulo: l.titulo, foto: l.foto, cantidad: l.cantidad, subtotal: Math.round(l.ventaUnit * l.cantidad * 100) / 100 })),
     subtotal: cot.subtotal, descuentos: cot.descuentos,
     envio: cot.envio ? { nombre: cot.envio.nombre, costo: cot.envio.costo, bonificado: cot.envio.bonificado, aConvenir: cot.envio.aConvenir, sinCp: cot.envio.sinCp } : null,
-    total: cot.total, sinStock: cot.sinStock, costos, moneda: t.moneda,
+    total: cot.total, sinStock: cot.sinStock, costos, moneda: t.moneda, cuotas: cot.cuotas,
   };
 }

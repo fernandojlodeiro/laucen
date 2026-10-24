@@ -221,6 +221,9 @@ async function alAutorizar(org: string, comprobanteId: number) {
   // Y al cliente por WhatsApp, si le corresponde (lib/facturacion/envio.ts; no tira).
   const { alAutorizarWhatsapp } = await import("@/lib/facturacion/envio");
   await alAutorizarWhatsapp(org, comprobanteId);
+  // Y por mail, a los clientes con «Factura por mail» tildado (lib/correo/mails.ts; no tira).
+  const { alAutorizarMail } = await import("@/lib/correo/mails");
+  await alAutorizarMail(org, comprobanteId);
 }
 
 /** Manda el comprobante a ARCA y guarda el resultado. */

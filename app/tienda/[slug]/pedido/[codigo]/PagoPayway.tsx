@@ -20,9 +20,11 @@ declare global { interface Window { Decidir?: new (url: string, sinCs: boolean) 
 const CAMPO = "w-full h-12 rounded-md border border-gray-300 bg-white px-3 text-base outline-none focus:border-[var(--boton)] focus:ring-1 focus:ring-[var(--boton)]";
 const ETIQUETA = "block text-sm font-medium text-gray-700 mb-1";
 
-export default function PagoPayway({ slug, codigo, publicKey, url, total, moneda, marcas, planes }: {
+export default function PagoPayway({ slug, codigo, publicKey, url, total, moneda, marcas, planes, fijas }: {
   slug: string; codigo: string; publicKey: string; url: string; total: number; moneda: "ARS" | "USD";
   marcas: { id: number; nombre: string }[]; planes: { cuotas: number; interes_pct: number }[];
+  /** Cuotas elegidas al comprar (con su interés ya en el total): no se cambian acá. */
+  fijas?: number | null;
 }) {
   const router = useRouter();
   const sdk = useRef<DecidirSdk | null>(null);
@@ -30,7 +32,7 @@ export default function PagoPayway({ slug, codigo, publicKey, url, total, moneda
   const [estado, setEstado] = useState<"libre" | "procesando" | "aprobado">("libre");
   const [error, setError] = useState<string | null>(null);
   const [marca, setMarca] = useState(String(marcas[0]?.id ?? ""));
-  const [cuotas, setCuotas] = useState("1");
+  const [cuotas, setCuotas] = useState(String(fijas ?? 1));
 
   function cargarSdk() {
     if (!window.Decidir) { setError("No pudimos cargar el formulario de pago. Recargá la página."); return; }
@@ -68,7 +70,7 @@ export default function PagoPayway({ slug, codigo, publicKey, url, total, moneda
     return <div className="rounded-md border border-green-200 bg-green-50 p-4 text-green-800"><b>¡Pago aprobado!</b> Ya estamos preparando tu pedido.</div>;
   }
 
-  const opciones = [{ cuotas: 1, interes_pct: 0 }, ...planes.filter((p) => p.cuotas > 1)];
+  const opciones = fijas ? [{ cuotas: fijas, interes_pct: 0 }] : [{ cuotas: 1, interes_pct: 0 }, ...planes.filter((p) => p.cuotas > 1)];
   return (
     <section className="rounded-md bg-white shadow-[0_1px_2px_0_rgba(0,0,0,.12)] p-4 sm:p-5">
       <Script src="https://live.decidir.com/static/v2.5/decidir.js" strategy="afterInteractive" onReady={cargarSdk} onError={() => setError("No pudimos cargar el formulario de pago. Recargá la página.")} />
@@ -87,6 +89,7 @@ export default function PagoPayway({ slug, codigo, publicKey, url, total, moneda
               {opciones.map((p) => (
                 <option key={p.cuotas} value={p.cuotas}>
                   {p.cuotas === 1 ? `1 pago de ${precio(total, moneda)}`
+                    : fijas ? `${p.cuotas} cuotas de ${precio(Math.round((total / p.cuotas) * 100) / 100, moneda)}`
                     : p.interes_pct === 0 ? `${p.cuotas} cuotas sin interés de ${precio(Math.round((total / p.cuotas) * 100) / 100, moneda)}`
                     : `${p.cuotas} cuotas (con interés)`}
                 </option>

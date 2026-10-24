@@ -5,12 +5,14 @@
 
 import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "node:crypto";
 import { cookies } from "next/headers";
+import { after } from "next/server";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import type { Tienda } from "@/lib/tienda/tienda";
 
 const DIAS = 60;
 
-async function secreto(): Promise<string> {
+/** El secreto de las firmas de la tienda (sesión del comprador, antibot). */
+export async function secreto(): Promise<string> {
   const r = await una<{ valor: string }>("select valor #>> '{}' valor from config_org where organizacion_id is null and clave = 'tienda_secreto'");
   if (r?.valor) return r.valor;
   const nuevo = randomBytes(32).toString("hex");
@@ -66,6 +68,13 @@ export async function crearCuentaDesdePedido(t: Tienda, codigo: string, clave: s
   const r = await una<{ id: number }>("insert into cliente_cuenta (organizacion_id, cliente_id, email, clave_hash) values ($1, $2, $3, $4) returning id::int",
     [t.organizacionId, p.cliente_id, p.email, hash(clave)]);
   await abrirSesion(t, r!.id);
+  // El mail de bienvenida, desde la marca por donde entró (lib/correo/mails.ts), después de contestar.
+  const email = p.email;
+  after(async () => {
+    const { mailBienvenida } = await import("@/lib/correo/mails");
+    const n = await una<{ nombre: string | null }>("select coalesce(nombre_pila, nombre) nombre from cliente where id = $1", [p.cliente_id]);
+    await mailBienvenida(t, email, n?.nombre ?? null).catch(() => null);
+  });
 }
 
 export async function ingresar(t: Tienda, email: string, clave: string) {

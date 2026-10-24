@@ -4,6 +4,7 @@
 // comprador. Toda la lógica de negocio está en lib/tienda/*; acá se lee el
 // formulario, se verifica contra la tienda (organización y canal) y se vuelve.
 
+import { controlarBot } from "@/lib/tienda/antibot";
 import { sucursalesOca } from "@/lib/oca/envios";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
@@ -95,7 +96,8 @@ export async function cotizarAccion(slug: string, e: Eleccion): Promise<{ resume
     const provincia = typeof e.provincia === "string" ? e.provincia.slice(0, 60) : null;
     const metodoEnvioId = Number.isInteger(e.metodoEnvioId) ? e.metodoEnvioId : null;
     const codigoPostal = typeof e.codigoPostal === "string" ? e.codigoPostal.slice(0, 10) : null;
-    return { resumen: await resumir(t, carrito, { medio, provincia, metodoEnvioId, codigoPostal }) };
+    const cuotas = Math.min(24, Math.max(1, Math.trunc(Number(e.cuotas)) || 1));
+    return { resumen: await resumir(t, carrito, { medio, provincia, metodoEnvioId, codigoPostal, cuotas }) };
   } catch (err) {
     return { error: motivoErp(err) };
   }
@@ -112,12 +114,13 @@ export async function sucursalesOcaAccion(slug: string, cp: string): Promise<{ i
   }
 }
 
-const MEDIOS = ["mercadopago", "payway", "transferencia", "efectivo", "cuenta_corriente"] as const;
+const MEDIOS = ["mercadopago", "payway", "payway_debito", "transferencia", "efectivo", "cuenta_corriente"] as const;
 
 /** Confirma la compra: crea el pedido (comprar), vacía el carrito y dice a dónde seguir. */
 export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { error: string }> {
   try {
     const t = await tiendaDe(fd);
+    await controlarBot(t, "checkout", fd);
     const carrito = await leerCarrito(t.slug);
     const cuenta = await cuentaActual(t);
     const medio = MEDIOS.find((m) => m === fd.get("medio"));
@@ -148,6 +151,7 @@ export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { 
         sucursalOca: metodo.tipo === "oca_sucursal" ? texto(fd, "sucursal_oca") : null,
       },
       medio,
+      cuotas: Math.min(24, Math.max(1, Math.trunc(Number(fd.get("cuotas"))) || 1)),
       notas: texto(fd, "notas"),
     };
     const r = await comprar(t, datos, { clienteId: cuenta?.clienteId ?? null });
@@ -196,6 +200,7 @@ export async function crearCuenta(fd: FormData) {
   const t = await tiendaDe(fd);
   const codigo = String(fd.get("codigo") ?? "");
   await intentar(rutaTienda(t, `/pedido/${encodeURIComponent(codigo)}`), async () => {
+    await controlarBot(t, "crear_cuenta", fd);
     await crearCuentaDesdePedido(t, codigo, String(fd.get("clave") ?? ""));
     refrescar(t);
     return "¡Listo! Ya tenés tu cuenta: la próxima compra es más rápida.";
@@ -208,6 +213,7 @@ export async function ingresarAccion(fd: FormData) {
   await intentar(rutaTienda(t, `/cuenta${volver ? "?volver=checkout" : ""}`), async () => {
     const email = texto(fd, "email"), clave = String(fd.get("clave") ?? "");
     if (!email || !clave) throw new ErrorErp("Completá tu mail y tu contraseña.");
+    await controlarBot(t, "ingresar", fd);
     await ingresar(t, email, clave);
     refrescar(t);
     return volver ? { ir: volver } : undefined;

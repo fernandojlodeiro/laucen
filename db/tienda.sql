@@ -272,3 +272,29 @@ create or replace trigger stock_publicar_web after insert or update of cantidad 
   for each row when (new.cantidad > 0) execute function publicar_web_auto_trg();
 create or replace trigger precio_publicar_web after insert on precio
   for each row execute function publicar_web_auto_trg();
+
+-- Antibot de la tienda (Fer, 24/10: "en el dominio viejo tengo 300.000 clientes creados por bots").
+-- Cada intento de los formularios públicos (checkout, ingresar, crear cuenta) queda acá con su
+-- resultado: es el contador del límite por IP y la auditoría. Sin políticas: sólo el servidor.
+create table if not exists tienda_intento (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint references canal(id) on delete cascade,
+  ruta             text not null,
+  ip               text not null,
+  resultado        text not null check (resultado in ('ok', 'trampa', 'muy_rapido', 'vencido', 'turnstile', 'tope_ip')),
+  user_agent       text,
+  creado_ts        timestamptz not null default now()
+);
+create index if not exists tienda_intento_ip on tienda_intento (ruta, ip, creado_ts);
+create index if not exists tienda_intento_org on tienda_intento (organizacion_id, creado_ts);
+alter table tienda_intento enable row level security;
+
+-- Cloudflare Turnstile de la organización (la clave secreta nunca se muestra). Sin políticas.
+create table if not exists tienda_antibot (
+  organizacion_id  text primary key references organizaciones(id) on delete cascade,
+  site_key         text,
+  secret_key       text,
+  actualizado_ts   timestamptz not null default now()
+);
+alter table tienda_antibot enable row level security;

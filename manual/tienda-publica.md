@@ -48,6 +48,7 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 - Título, migas ("Inicio › Categoría › Subcategoría") y la cantidad de resultados.
 - A la izquierda, los filtros: **Filtros aplicados** (cada uno con su X), **Envío gratis**, **Categorías**, **Descuentos** ("Con descuento"), **Marca**, **Precio** (tres rangos armados solos y "Mínimo"/"Máximo").
 - **"Ordenar por"**: Más relevantes, Menor precio, Mayor precio, Más vendidos. Vista en lista o grilla.
+- Cuotas y descuento contado: con el esquema de [Cuotas y descuentos](/config/tienda/financiacion) prendido, debajo del precio va el plan más largo que le toca a su precio y "$ … con transferencia" (u otros medios con descuento).
 - Cada tarjeta, como en Mercado Libre: foto, la cucarda arriba del título ("Más vendido", "Última unidad", las cargadas o una automática), el título, el precio de lista tachado, el precio grande con el recuadro verde "N% OFF" si hay descuento ("Desde" si las variaciones tienen distinto precio), las cuotas ("Mismo precio en 6 cuotas de $ …" si son sin interés), la pastilla verde **"Llega gratis"** si el precio llega al envío gratis, "Sin stock" o "Últimas N disponibles" (2 o 3).
 - De a 24 productos por página, con "Anterior" / "Siguiente".
 - Sin resultados: "No hay publicaciones que coincidan con "…"." con consejos.

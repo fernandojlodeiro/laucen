@@ -131,6 +131,7 @@ export const MENU: SeccionMenu[] = [
     items: [
       { texto: "Tienda web", href: "/config/tienda", permiso: "tienda_config" },
       { texto: "Portada de la tienda", href: "/config/tienda/portada", permiso: "tienda_config" },
+      { texto: "Cuotas y descuentos", href: "/config/tienda/financiacion", permiso: "tienda_config" },
       { texto: "Medios de pago", href: "/config/medios-pago", permiso: "medios_pago_ver" },
       { texto: "Métodos de envío", href: "/config/envios", permiso: "tienda_config" },
       { texto: "Reglas comerciales", href: "/config/reglas", permiso: "reglas_ver" },
@@ -144,6 +145,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Razones sociales", href: "/config/razones-sociales", permiso: "empresa_config" },
       { texto: "Facturación (ARCA)", href: "/config/arca", permiso: "facturacion_ver" },
       { texto: "Google Drive", href: "/config/google-drive", permiso: "empresa_config" },
+      { texto: "Correo", href: "/config/correo", permiso: "empresa_config" },
       { texto: "Depósitos y ubicaciones", href: "/stock/depositos", permiso: "depositos_ver" },
       { texto: "Canales", href: "/config/canales", permiso: "canales_ver" },
       { texto: "Cola de Mercado Libre", href: "/config/canales/cola", permiso: "canales_ver" },

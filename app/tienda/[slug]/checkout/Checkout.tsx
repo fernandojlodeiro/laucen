@@ -11,6 +11,7 @@ import type { Medio } from "@/lib/tienda/checkout";
 import type { MetodoEnvio, Resumen } from "../resumen";
 import { CONDICIONES_IVA, PROVINCIAS, precio, sinDireccion } from "../comun";
 import { confirmarCompra, cotizarAccion, sucursalesOcaAccion } from "../acciones";
+import Antibot from "../Antibot";
 
 export type Precarga = Partial<Record<"nombre" | "email" | "telefono" | "documento" | "razon_social" | "condicion_iva" | "calle" | "numero" | "piso_depto" | "localidad" | "provincia" | "codigo_postal", string>>;
 
@@ -21,6 +22,7 @@ const CAJA = "rounded-md bg-white shadow-[0_1px_2px_0_rgba(0,0,0,.12)]";
 const AYUDA_MEDIO: Record<string, string> = {
   mercadopago: "Te llevamos a Mercado Pago para pagar con tarjeta, dinero en cuenta o efectivo.",
   payway: "Pagás con tarjeta de crédito o débito en el paso siguiente.",
+  payway_debito: "Pagás con tu tarjeta de débito, en un pago, en el paso siguiente.",
   transferencia: "Te mostramos los datos para transferir al confirmar.",
   efectivo: "Pagás en efectivo al retirar o recibir.",
   cuenta_corriente: "Se carga a tu cuenta corriente.",
@@ -46,12 +48,15 @@ function Campo({ nombre, etiqueta, opcional, ...resto }: { nombre: string; etiqu
   );
 }
 
-export default function Checkout({ slug, medios, metodos, inicial, precarga, eleccion }: {
+export default function Checkout({ slug, medios, metodos, inicial, precarga, eleccion, antibot }: {
   slug: string; medios: Medio[]; metodos: MetodoEnvio[]; inicial: Resumen; precarga: Precarga;
+  antibot: { marca: string; siteKey: string | null };
   eleccion: { metodoEnvioId: number | null; medio: string | null; provincia: string; codigoPostal: string };
 }) {
   const [metodo, setMetodo] = useState(eleccion.metodoEnvioId);
   const [medio, setMedio] = useState(eleccion.medio);
+  const [cuotas, setCuotas] = useState(1);
+  const conDebito = medios.some((x) => x.tipo === "payway_debito");
   const [provincia, setProvincia] = useState(eleccion.provincia);
   const [cp, setCp] = useState(eleccion.codigoPostal);
   const cpCotizado = useRef(eleccion.codigoPostal);
@@ -80,13 +85,13 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
     return () => { vivo = false; };
   }, [aSucursal, cp, slug]);
 
-  function recotizar(cambio: Partial<{ metodoEnvioId: number | null; medio: string | null; provincia: string; codigoPostal: string }>) {
-    const e = { metodoEnvioId: metodo, medio, provincia, codigoPostal: cp, ...cambio };
+  function recotizar(cambio: Partial<{ metodoEnvioId: number | null; medio: string | null; provincia: string; codigoPostal: string; cuotas: number }>) {
+    const e = { metodoEnvioId: metodo, medio, provincia, codigoPostal: cp, cuotas, ...cambio };
     cpCotizado.current = e.codigoPostal;
     const n = ++ultimo.current;
     empezarCalculo(async () => {
       try {
-        const r = await cotizarAccion(slug, { metodoEnvioId: e.metodoEnvioId, medio: e.medio, provincia: e.provincia || null, codigoPostal: e.codigoPostal || null });
+        const r = await cotizarAccion(slug, { metodoEnvioId: e.metodoEnvioId, medio: e.medio, provincia: e.provincia || null, codigoPostal: e.codigoPostal || null, cuotas: e.cuotas });
         if (n !== ultimo.current) return; // llegó una respuesta vieja
         if ("error" in r) setErrorCot(r.error);
         else { setResumen(r.resumen); setErrorCot(null); }
@@ -225,7 +230,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
             {medios.map((x) => (
               <label key={x.tipo} className={`flex cursor-pointer items-start gap-3 rounded-md border p-4 hover:border-[var(--boton)] ${medio === x.tipo ? "border-[var(--boton)] shadow-[0_0_0_1px_var(--boton)]" : "border-black/20"}`}>
                 <input type="radio" name="medio" value={x.tipo} required checked={medio === x.tipo}
-                  onChange={() => { setMedio(x.tipo); recotizar({ medio: x.tipo }); }} className="mt-1 h-5 w-5 accent-[var(--boton)]" />
+                  onChange={() => { setMedio(x.tipo); setCuotas(1); recotizar({ medio: x.tipo, cuotas: 1 }); }} className="mt-1 h-5 w-5 accent-[var(--boton)]" />
                 <span className="flex-1">
                   <span className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-semibold">{x.nombre}</span>
@@ -234,10 +239,31 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
                   </span>
                   {medio === x.tipo && (
                     <span className="mt-1 block text-sm text-gray-600">
-                      {AYUDA_MEDIO[x.tipo]}
+                      {x.tipo === "payway" && conDebito ? "Pagás con tarjeta de crédito en el paso siguiente." : AYUDA_MEDIO[x.tipo]}
                       {x.instrucciones && x.tipo !== "transferencia" && <span className="mt-1 block whitespace-pre-line">{x.instrucciones}</span>}
                     </span>
                   )}
+                  {medio === x.tipo && x.tipo === "payway" && resumen.cuotas && resumen.cuotas.planes.length > 0 && (() => {
+                    // Cada opción con lo que paga: el interés va sobre los productos; el envío, igual.
+                    const c = resumen.cuotas, envio = resumen.envio?.costo ?? 0;
+                    const total = (i: number) => Math.round((c.productos * (1 + i / 100) + envio) * 100) / 100;
+                    return (
+                      <span className="mt-3 block">
+                        <label htmlFor="f-cuotas" className={ETIQUETA}>Cuotas</label>
+                        <select id="f-cuotas" name="cuotas" className={CAMPO} value={cuotas}
+                          onChange={(e) => { const n = Number(e.target.value); setCuotas(n); recotizar({ cuotas: n }); }}>
+                          <option value={1}>1 pago de {precio(total(0), m)}</option>
+                          {c.planes.map((p) => (
+                            <option key={p.cuotas} value={p.cuotas}>
+                              {p.interes_pct === 0
+                                ? `${p.cuotas} cuotas sin interés de ${precio(Math.round(total(0) / p.cuotas * 100) / 100, m)}`
+                                : `${p.cuotas} cuotas de ${precio(Math.round(total(p.interes_pct) / p.cuotas * 100) / 100, m)} (total ${precio(total(p.interes_pct), m)})`}
+                            </option>
+                          ))}
+                        </select>
+                      </span>
+                    );
+                  })()}
                 </span>
               </label>
             ))}
@@ -288,6 +314,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
         <div ref={cajaError}>
           {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>}
         </div>
+        <Antibot marca={antibot.marca} siteKey={antibot.siteKey} />
         <button type="submit" disabled={ocupado || !medios.length || !metodos.some((x) => x.disponible)}
           className="inline-flex h-12 w-full items-center justify-center rounded-md bg-[var(--boton)] text-base font-semibold text-white transition-colors hover:bg-[var(--boton-hover)] disabled:cursor-not-allowed disabled:opacity-50">
           {yendo ? "Te estamos llevando…" : enviando ? "Confirmando…" : "Confirmar compra"}

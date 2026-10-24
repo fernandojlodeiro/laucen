@@ -11,6 +11,8 @@ resumen: Los planes de cuotas de la tienda web (cuántas cuotas y con qué inter
 
 Define **en cuántas cuotas se puede pagar en la tienda web** y si son sin interés o con interés. Los planes se cargan en una **familia** (y los heredan sus subfamilias y sus productos) o en un **producto** puntual.
 
+Si en [Cuotas y descuentos](/config/tienda/financiacion) está prendido el esquema por escala de precio, la tienda usa ése y no los planes de esta pantalla.
+
 Ojo: esto es sólo para la **tienda web**. Las publicaciones de cuotas de Mercado Libre (3, 6, 9 y 12 cuotas sin interés) y su precio se manejan en [Precios en Mercado Libre](/catalogo/precios-ml).
 
 ## Cómo se llega

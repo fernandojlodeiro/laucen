@@ -1,7 +1,6 @@
 // Mandarle la factura al cliente (pedido de Fer, 13/10). Por WhatsApp, al número
 // confirmado de su ficha (cliente.whatsapp) y si la casilla «Enviarle la factura
-// por WhatsApp» está tildada. Por mail todavía no: falta configurar el correo
-// (la casilla ya está en la ficha).
+// por WhatsApp» está tildada. Por mail, la casilla «Factura por mail»: lib/correo/mails.ts.
 // - Una venta de Mercado Libre no se manda por WhatsApp (la factura va a ML),
 //   salvo que el cliente nos haya escrito por WhatsApp por esa compra.
 // - Dentro de las 24 h del último mensaje del cliente va el PDF; fuera, la

@@ -77,6 +77,12 @@ export function LineaCuotas({ plan, venta, moneda, className = "" }: { plan: Pla
   );
 }
 
+/** "$ 90.000 con transferencia": el precio pagando contado (esquema de cuotas y descuentos). */
+export function LineaContado({ contado, moneda, className = "" }: { contado: { precio: number; texto: string } | null; moneda: Moneda; className?: string }) {
+  if (!contado) return null;
+  return <p className={`text-[var(--verde)] ${className}`}><Monto n={contado.precio} moneda={moneda} className="align-baseline font-semibold" /> {contado.texto}</p>;
+}
+
 /** Bloque de precio: tachado chico, precio grande con "% OFF" verde. */
 export function Precio({ lista, venta, moneda, desde, grande }: { lista: number; venta: number; moneda: Moneda; desde?: boolean; grande?: boolean }) {
   const off = pctOff(lista, venta);
@@ -115,6 +121,7 @@ export function TarjetaProducto({ t, p }: { t: Tienda; p: Tarjeta }) {
         <h3 className="line-clamp-2 text-sm leading-[1.3] text-[var(--texto)] group-hover:text-[var(--boton)]">{p.titulo}</h3>
         <div className="mt-1"><Precio lista={p.lista} venta={p.venta} moneda={t.moneda} desde={p.ventaMax > p.venta} /></div>
         <LineaCuotas plan={p.plan} venta={p.venta} moneda={t.moneda} className="text-sm" />
+        <LineaContado contado={p.contado} moneda={t.moneda} className="text-sm" />
         {p.envioGratis && !sinStock && <LlegaGratis />}
         {sinStock && <p className="text-sm text-[var(--texto-2)]">Sin stock</p>}
       </div>
@@ -140,6 +147,7 @@ export function FilaProducto({ t, p }: { t: Tienda; p: Tarjeta }) {
         {p.marca && <p className="text-xs text-[var(--texto-2)]">Por {p.marca}</p>}
         <div className="mt-1"><Precio lista={p.lista} venta={p.venta} moneda={t.moneda} desde={p.ventaMax > p.venta} /></div>
         <LineaCuotas plan={p.plan} venta={p.venta} moneda={t.moneda} className="text-sm" />
+        <LineaContado contado={p.contado} moneda={t.moneda} className="text-sm" />
         {p.envioGratis && !sinStock && <LlegaGratis />}
         {sinStock ? <p className="text-sm text-[var(--texto-2)]">Sin stock</p>
           : p.stock > 1 && p.stock <= 3 && <p className="text-xs text-[var(--texto-2)]">{`Últimas ${p.stock} disponibles`}</p>}
