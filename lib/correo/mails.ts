@@ -54,11 +54,11 @@ async function datosPedido(org: string, pedidoId: number) {
 }
 
 function tablaLineas(lineas: { titulo: string; cantidad: number; unit: string }[], p: DatosPedido) {
-  const filas = lineas.map((l) => `<tr><td style="padding:6px 0;border-bottom:1px solid #eee">${l.cantidad} × ${escapar(l.titulo)}</td>
+  const filas = lineas.map((l) => `<tr><td style="padding:6px 8px 6px 0;border-bottom:1px solid #eee;overflow-wrap:anywhere">${l.cantidad} × ${escapar(l.titulo)}</td>
     <td style="padding:6px 0;border-bottom:1px solid #eee;text-align:right;white-space:nowrap">${formatear(Number(l.unit) * l.cantidad, p.moneda)}</td></tr>`).join("");
   return `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:12px 0">${filas}
-    ${Number(p.costo_envio) > 0 ? `<tr><td style="padding:6px 0">Envío</td><td style="padding:6px 0;text-align:right">${formatear(Number(p.costo_envio), "ARS")}</td></tr>` : ""}
-    <tr><td style="padding:8px 0;font-weight:700">Total</td><td style="padding:8px 0;text-align:right;font-weight:700">${formatear(Number(p.total), p.moneda)}</td></tr></table>`;
+    ${Number(p.costo_envio) > 0 ? `<tr><td style="padding:6px 0">Envío</td><td style="padding:6px 0;text-align:right;white-space:nowrap">${formatear(Number(p.costo_envio), "ARS")}</td></tr>` : ""}
+    <tr><td style="padding:8px 0;font-weight:700">Total</td><td style="padding:8px 0;text-align:right;font-weight:700;white-space:nowrap">${formatear(Number(p.total), p.moneda)}</td></tr></table>`;
 }
 
 /** Los avisos del pedido: recibido, pagado, despachado o listo para retirar. */
@@ -109,18 +109,20 @@ export async function mailPedido(org: string, pedidoId: number, tipo: "recibido"
 
 /** Cómo pagar por transferencia (Fer, 24/10): el total bien grande y cada cuenta con su alias destacado,
  *  para que el comprador transfiera el monto justo apenas compra. Debajo, las instrucciones del medio. */
-function bloqueTransferencia(total: number, moneda: Moneda, cuentas: CuentaTransferencia[], instrucciones: string | null, color?: string | null) {
+export function bloqueTransferencia(total: number, moneda: Moneda, cuentas: CuentaTransferencia[], instrucciones: string | null, color?: string | null) {
   const c = color && /^#[0-9a-f]{6}$/i.test(color) ? color : "#3483FA";
-  const fila = (k: string, v: string, grande = false) =>
-    `<tr><td style="color:#777;font-size:13px;padding:2px 12px 2px 0;white-space:nowrap">${k}</td><td style="font-family:monospace;font-size:${grande ? "17px;font-weight:700" : "14px"};color:#222">${escapar(v)}</td></tr>`;
-  return `<div style="margin:20px 0;border:2px solid ${c};border-radius:12px;padding:18px;text-align:center">
+  // Cada dato en dos renglones (el nombre chico arriba, el valor abajo) y los números largos pueden
+  // cortarse: así entra en el ancho de un celular sin achicar ni partir el total.
+  const dato = (k: string, v: string, grande = false) =>
+    `<div style="margin-top:8px"><div style="color:#777;font-size:12px">${k}</div><div style="font-family:monospace;font-size:${grande ? "18px;font-weight:700" : "14px"};color:#222;word-break:break-all">${escapar(v)}</div></div>`;
+  return `<div style="margin:20px 0;border:2px solid ${c};border-radius:12px;padding:14px 10px;text-align:center">
       <div style="font-size:14px;color:#555">Total a transferir</div>
-      <div style="font-size:34px;font-weight:800;color:#222;margin-top:4px">${escapar(formatear(total, moneda))}</div>
+      <div style="font-size:28px;font-weight:800;color:#222;margin-top:4px;white-space:nowrap">${escapar(formatear(total, moneda))}</div>
     </div>
-    ${cuentas.length ? `<p style="margin-bottom:8px">Transferí ese monto a cualquiera de estas cuentas:</p>
-    ${cuentas.map((x) => `<div style="background:#f6f6f6;border-radius:10px;padding:14px;margin-bottom:10px">
-      <div style="font-weight:700;font-size:15px;margin-bottom:6px">${escapar(x.banco)}</div>
-      <table style="border-collapse:collapse">${x.alias ? fila("Alias", x.alias, true) : ""}${x.cbu ? fila("CBU/CVU", x.cbu) : ""}${x.titular ? fila("Titular", x.titular) : ""}${x.cuit ? fila("CUIT", x.cuit) : ""}</table>
+    ${cuentas.length ? `<p style="margin-bottom:8px">Transferí ese monto a ${cuentas.length > 1 ? "cualquiera de estas cuentas" : "esta cuenta"}:</p>
+    ${cuentas.map((x) => `<div style="background:#f6f6f6;border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <div style="font-weight:700;font-size:15px">${escapar(x.banco)}</div>
+      ${x.alias ? dato("Alias", x.alias, true) : ""}${x.cbu ? dato("CBU/CVU", x.cbu) : ""}${x.titular ? dato("Titular", x.titular) : ""}${x.cuit ? dato("CUIT", x.cuit) : ""}
     </div>`).join("")}` : ""}
     ${instrucciones ? `<p style="white-space:pre-line">${escapar(instrucciones)}</p>` : ""}
     <p>Cuando transfieras, respondé este mail con el comprobante y lo acreditamos.</p>`;

@@ -136,6 +136,16 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
   return (
     <form onSubmit={enviar} className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
       <input type="hidden" name="slug" value={slug} />
+      {/* Compra hecha: mientras abre el pedido (o el pago), que se vea que salió bien y que espere. */}
+      {yendo && (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-white/90 px-6 text-center" role="status" aria-live="polite">
+          <div className="space-y-3">
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-[var(--boton)] border-t-transparent" aria-hidden />
+            <p className="text-lg font-semibold text-[var(--texto)]">¡Listo, recibimos tu pedido!</p>
+            <p className="text-sm text-[var(--texto-2)]">Te estamos llevando al paso siguiente: no cierres esta página.</p>
+          </div>
+        </div>
+      )}
       <div className="space-y-4">
         <Bloque n={1} titulo="Tus datos">
           <Campo nombre="nombre" etiqueta="Nombre y apellido" autoComplete="name" defaultValue={precarga.nombre} />

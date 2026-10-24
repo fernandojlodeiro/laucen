@@ -167,7 +167,8 @@ export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { 
     };
     const r = await comprar(t, datos, { clienteId: cuenta?.clienteId ?? null });
     await vaciarCarrito(t.slug);
-    refrescar(t);
+    // Sin refrescar la página: el navegador ya se va al pedido (o a pagar), y volver a dibujar el
+    // checkout con el carrito vacío mostraba «el carrito está vacío» mientras tanto (Fer, 24/10).
     return { ir: r.ir };
   } catch (err) {
     return { error: motivoErp(err) };
