@@ -116,10 +116,10 @@ Errores típicos:
 Sirve para vender lo mismo bajo dos nombres: un dominio de "otra marca" abre **la misma tienda** (los mismos productos, precios, stock, carrito y pedidos) pero con su propio **nombre, logo, colores de la franja, banners y mail**.
 
 1. En **Dominios**, **"Nuevo dominio"** → el dominio de la otra marca (ej. otramarca.com.ar) → **"Otra marca"**, escribí su nombre en **"Si es otra marca: su nombre"** → **"Crear"**, y cargá sus registros DNS como en un principal.
-2. Apretá el **lápiz** de esa fila y cargá el **logo** (sin logo se ve el nombre escrito), y si querés los **colores de la franja** (tildá "Propio"; sin tildar, los de la tienda), hasta tres **banners** (sin banners, una franja con el nombre: nunca los de la otra marca) y el **mail**. **"Grabar"**.
+2. Apretá el **lápiz** de esa fila y cargá el **logo** (sin logo se ve el nombre escrito), y si querés los **colores de la franja** (tildá "Propio"; sin tildar, los de la tienda), hasta tres **banners** propios (vacíos: se ven los de la tienda) y el **mail** (vacío: el de la tienda con el dominio de la marca, ej. hola@mitienda.com.ar visto desde otramarca.com.ar → hola@otramarca.com.ar). **"Grabar"**.
 3. El www de esa marca: **"Nuevo dominio"** → www.otramarca.com.ar → **"Redirige"**, y en **"Si redirige: a"** elegí otramarca.com.ar.
 
-Quien entra por ese dominio ve esa marca en todas las páginas (también en la pestaña del navegador), y sigue en ese dominio al pagar: la vuelta de Mercado Pago y el link de seguimiento del pedido van a ese dominio, y el WhatsApp que se le manda desde el pedido usa ese nombre. Lo demás (textos de ayuda, devoluciones, garantía, WhatsApp de contacto, dirección, horario y los datos fiscales del pie) es el de la tienda.
+Quien entra por ese dominio ve esa marca en todas las páginas (también en la pestaña del navegador), y sigue en ese dominio al pagar: la vuelta de Mercado Pago y el link de seguimiento del pedido van a ese dominio, y el WhatsApp que se le manda desde el pedido usa ese nombre. El nombre y el mail de la marca también salen en las páginas legales (términos, privacidad, arrepentimiento, sobre nosotros). Lo demás (textos de ayuda, devoluciones, garantía, WhatsApp de contacto, dirección, horario y los datos fiscales del pie) es el de la tienda.
 
 Para cambiar un dominio entre "redirige" y "otra marca", lápiz de la fila → elegí el tipo → **"Grabar"**. Al grabar, Laucen acomoda en Vercel las redirecciones de todos los dominios de la tienda.
 

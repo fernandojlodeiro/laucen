@@ -80,23 +80,31 @@ export async function urlTienda(t: Tienda, resto = ""): Promise<string> {
   return t.dominio ? `https://${t.dominio}${resto}` : urlTiendaDe(t.canalId, t.slug, resto);
 }
 
+/** El mail de la tienda con el dominio por donde se entró: hola@daitom.com.ar
+ *  visto desde www.otramarca.com → hola@otramarca.com. */
+export const mailDelDominio = (email: string | undefined, host: string) => {
+  const local = email?.split("@")[0];
+  return local ? `${local}@${host.replace(/^www\./, "")}` : undefined;
+};
+
 /** La tienda como se ve desde ese dominio: si es de "otra marca" de esa
  *  tienda, con su nombre, logo, colores, banners y mail (y `dominio`, para
  *  que los links que salen —vuelta de los pagos, seguimiento— vuelvan ahí).
  *  Cualquier otro dominio (el principal, el panel) deja la tienda como está. */
 export async function conMarca(t: Tienda, host: string | null | undefined): Promise<Tienda> {
   if (!host) return t;
-  const d = await destinoDeHost(host.split(":")[0].toLowerCase()).catch(() => null);
+  const h = host.split(":")[0].toLowerCase();
+  const d = await destinoDeHost(h).catch(() => null);
   if (!d?.marca || d.canalId !== t.canalId) return t;
   const m = d.marca;
   return {
-    ...t, dominio: d.conCertificado ? host.split(":")[0].toLowerCase() : null,
-    // Nombre, logo y mail propios; colores de la franja y banners, los suyos si los tiene
-    // (sin banners propios, la franja con el nombre: nunca los banners de la otra marca).
+    ...t, dominio: d.conCertificado ? h : null,
+    // Nombre y logo propios. El mail, el suyo o el de la tienda con este dominio (también en
+    // los legales). Colores de la franja y banners, los suyos si los tiene; si no, los de la tienda.
     config: {
-      ...t.config, nombre: m.nombre, logo: m.logo || undefined, email: m.email || t.config.email,
+      ...t.config, nombre: m.nombre, logo: m.logo || undefined, email: m.email || mailDelDominio(t.config.email, h),
       color_marca: m.color_marca || t.config.color_marca, color_marca_texto: m.color_marca_texto || t.config.color_marca_texto,
-      banner: m.banner || undefined, banner_2: m.banner_2 || undefined, banner_3: m.banner_3 || undefined,
+      banner: m.banner || t.config.banner, banner_2: m.banner_2 || t.config.banner_2, banner_3: m.banner_3 || t.config.banner_3,
     },
   };
 }
