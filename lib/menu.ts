@@ -145,6 +145,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Razones sociales", href: "/config/razones-sociales", permiso: "empresa_config" },
       { texto: "Facturación (ARCA)", href: "/config/arca", permiso: "facturacion_ver" },
       { texto: "Google Drive", href: "/config/google-drive", permiso: "empresa_config" },
+      { texto: "Correo", href: "/config/correo", permiso: "empresa_config" },
       { texto: "Depósitos y ubicaciones", href: "/stock/depositos", permiso: "depositos_ver" },
       { texto: "Canales", href: "/config/canales", permiso: "canales_ver" },
       { texto: "Cola de Mercado Libre", href: "/config/canales/cola", permiso: "canales_ver" },
