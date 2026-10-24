@@ -70,7 +70,7 @@ export async function accionActivarFinanciacion(fd: FormData) {
 }
 
 // ── Precio contra Mercado Libre (lista_precios.precio_vs_ml de la lista de la tienda; db/catalogo.sql) ──
-type PrecioVsMl = { activo: boolean; objetivo_pct: number; costo_ref_pct: number; canal_tachado: number | null; comision_defecto_pct: number; bono_fijo_pct: number; bono_stock_min: number };
+type PrecioVsMl = { activo: boolean; objetivo_pct: number; costo_ref_pct: number; canal_tachado: number | null; comision_defecto_pct: number; bono_fijo_pct: number; bono_stock_min: number; bono_tope_pct: number };
 
 async function listaDeLaTienda(org: string, canalId: number) {
   const c = await una<{ lista: string | null; cfg: Partial<PrecioVsMl> | null }>(
@@ -104,6 +104,7 @@ async function guardarVsMl(org: string, canalId: number, fd: FormData) {
     comision_defecto_pct: pct("vsml_comision", "La comisión de ML por defecto", 0, 60, 16.34),
     bono_fijo_pct: pct("vsml_bono", "La promo web", 0, 100, 0),
     bono_stock_min: Math.max(0, Math.min(100000, Math.trunc(leerNumero(fd.get("vsml_bono_stock")) ?? 0))),
+    bono_tope_pct: pct("vsml_bono_tope", "El tope de la promo web", 0, 100, 0),
   });
 }
 
@@ -115,7 +116,7 @@ export async function accionActivarVsMl(fd: FormData) {
     const activo = fd.get("valor") === "1";
     if (activo && !cfg.objetivo_pct) throw new ErrorErp("Cargá primero cuánto te tiene que quedar (lápiz de arriba a la derecha).");
     await grabarVsMl(s.org.id, canal, lista, {
-      activo, objetivo_pct: cfg.objetivo_pct ?? 97, costo_ref_pct: cfg.costo_ref_pct ?? 0, canal_tachado: cfg.canal_tachado ?? null, comision_defecto_pct: cfg.comision_defecto_pct ?? 16.34, bono_fijo_pct: cfg.bono_fijo_pct ?? 0, bono_stock_min: cfg.bono_stock_min ?? 0,
+      activo, objetivo_pct: cfg.objetivo_pct ?? 97, costo_ref_pct: cfg.costo_ref_pct ?? 0, canal_tachado: cfg.canal_tachado ?? null, comision_defecto_pct: cfg.comision_defecto_pct ?? 16.34, bono_fijo_pct: cfg.bono_fijo_pct ?? 0, bono_stock_min: cfg.bono_stock_min ?? 0, bono_tope_pct: cfg.bono_tope_pct ?? 0,
     });
     return activo ? "Prendido: los precios de la tienda se calculan contra Mercado Libre." : "Apagado: la tienda vuelve a los precios de su lista con los descuentos por familia.";
   });

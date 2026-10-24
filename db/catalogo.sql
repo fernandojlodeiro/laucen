@@ -391,7 +391,7 @@ alter table producto add column if not exists precio_en_dolares boolean not null
 alter table variacion add column if not exists precio_en_dolares boolean;
 
 -- Precio de la web contra Mercado Libre (Fer, 24/10). Una lista con precio_vs_ml
--- ({activo, objetivo_pct, costo_ref_pct, canal_tachado, comision_defecto_pct, bono_fijo_pct, bono_stock_min}; activo = true) no usa los descuentos
+-- ({activo, objetivo_pct, costo_ref_pct, canal_tachado, comision_defecto_pct, bono_fijo_pct, bono_stock_min, bono_tope_pct}; activo = true) no usa los descuentos
 -- por familia: su precio de venta es la Clásica menos lo justo para que, pagando con lo más
 -- caro que se cobra al mismo precio (costo_ref_pct: 3 cuotas sin interés), quede objetivo_pct
 -- de lo que queda vendiendo en la Clásica de ML (la comisión de la categoría de ML del
@@ -460,7 +460,8 @@ end $$;
 
 -- La promo web (bonificación) de una variación en una lista con precio_vs_ml: bono_fijo_pct % del
 -- cargo fijo de ML a ese precio de la Clásica (p_clasica), en pesos, sólo si su stock en la tienda
--- de esa lista llega a bono_stock_min unidades (Fer, 24/10: que no la tengan todos). 0 si no va.
+-- de esa lista llega a bono_stock_min unidades (Fer, 24/10: que no la tengan todos), y nunca más de
+-- bono_tope_pct % de la Clásica (Fer, 24/10: un diodo de $ 1.211 quedaba en $ 461). 0 si no va.
 create or replace function public.bono_aplicable(p_org text, p_variacion bigint, p_lista bigint, p_clasica numeric)
 returns numeric language plpgsql stable as $$
 declare cfg jsonb; fijo numeric; v_canal bigint; stock numeric;
@@ -474,7 +475,8 @@ begin
     stock := case when v_canal is null then 0 else stock_disponible_canal(p_org, p_variacion, v_canal) end;
     if coalesce(stock, 0) < (cfg ->> 'bono_stock_min')::numeric then return 0; end if;
   end if;
-  return round(fijo * (cfg ->> 'bono_fijo_pct')::numeric / 100, 0);
+  return round(least(fijo * (cfg ->> 'bono_fijo_pct')::numeric / 100,
+                     case when coalesce((cfg ->> 'bono_tope_pct')::numeric, 0) > 0 then p_clasica * (cfg ->> 'bono_tope_pct')::numeric / 100 else fijo end), 0);
 end $$;
 
 -- La promo web de una variación para mostrarla (la cucarda): p_lista_ars es el tachado que devolvió
