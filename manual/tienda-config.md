@@ -65,9 +65,9 @@ Al editar una fila (lápiz): Nombre, Tipo, **Costo $**, **Gratis desde $** (vac�
 
 ### Medios de pago
 
-Una tabla con los cinco medios, siempre los mismos (no se agregan ni se borran): **Mercado Pago**, **Tarjeta (Payway)**, **Transferencia bancaria**, **Efectivo**, **Cuenta corriente / a convenir**. Columnas: **Medio** (con su ayuda), **Activo** (interruptor Sí/No), **Descuento** ("—", el porcentaje, o "recargo N %"), **Instrucciones para el comprador**, **Orden**, y el lápiz.
+Una tabla con los cinco medios, siempre los mismos (no se agregan ni se borran): **Mercado Pago**, **Tarjeta (Payway)**, **Transferencia bancaria**, **Efectivo**, **Cuenta corriente / a convenir**. Columnas: **Medio** (con su ayuda), **Activo** (interruptor Sí/No), **Descuento** ("—", el porcentaje, o "recargo N %"), **Lo que ve el comprador** (el aviso del pago, las cuentas para transferir y las instrucciones), **Orden**, y el lápiz.
 
-Al editar (lápiz): **Nombre que ve el comprador**, **Descuento %**, **Orden** e **Instrucciones (lo que ve el comprador al elegirlo)**. Ayuda: "Descuento negativo = recargo (ej. -10 = 10 % más caro)." Botones **"Guardar"** y **"Cancelar"**.
+Al editar (lápiz): **Nombre que ve el comprador**, **Descuento %**, **Orden**, **Aviso en el pago** (lo que lee el comprador al elegirlo en el pago; vacío, el texto de fábrica), **Instrucciones** (en la página del pedido y, en transferencia, en el mail) y, en transferencia, **Cuentas para transferir**: un renglón por cuenta con banco o billetera, alias, CBU o CVU, titular y CUIT. Las cuentas van en el mail de "Recibimos tu pedido" y en la página del pedido, debajo del **total a transferir bien grande**, con el alias destacado. Ayuda: "Descuento negativo = recargo (ej. -10 = 10 % más caro)." Botones **"Guardar"** y **"Cancelar"**.
 
 Abajo, **Credenciales** ("Nunca se muestran enteras. Se cambian con el lápiz de cada una: escribí la nueva; un campo vacío deja la que estaba."):
 - **Mercado Pago**: **Access token de producción** y **Public key**. Se muestran sólo como "cargada" o "sin cargar". Al guardar el access token, en [Caja y bancos](/administracion/tesoreria) aparece sola la cuenta **"Mercado Pago — Tienda web"** (con su cuenta contable propia), si no estaba.
@@ -177,7 +177,8 @@ En [Canales](/config/canales), lápiz del canal de la tienda → Estado "Pausado
 ### Poner un descuento por pagar con transferencia
 
 1. Lápiz de **Transferencia bancaria**.
-2. **Descuento %**: ej. 10. En **Instrucciones**, CBU, alias, titular y CUIT (es lo que ve el comprador).
+2. **Descuento %**: ej. 10. En **Cuentas para transferir**, cada cuenta (banco, alias, CBU o CVU, titular y CUIT).
+   Para ofrecer transferencia y efectivo juntos (efectivo sólo al retirar en el local): apagá **Efectivo**, llamá a la transferencia «Transferencia o efectivo» y explicalo en su **Aviso en el pago** y en sus **Instrucciones**.
 3. **"Guardar"**.
 
 Para un recargo, poné el número en negativo (ej. -10 = 10 % más caro).

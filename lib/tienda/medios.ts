@@ -9,13 +9,21 @@ import { consulta } from "@/lib/erp/base";
 import { descuentoContado, financiacionTienda, textoContado, type MedioContado } from "@/lib/tienda/financiacion";
 import type { Tienda } from "@/lib/tienda/tienda";
 
-export type Medio = { id: number; tipo: string; nombre: string; descuento_pct: number; instrucciones: string | null };
+export type Medio = { id: number; tipo: string; nombre: string; descuento_pct: number; instrucciones: string | null; aviso: string | null };
+
+/** Una cuenta para transferir (medio_pago.cuentas). */
+export type CuentaTransferencia = { banco: string; titular: string | null; cuit: string | null; cbu: string | null; alias: string | null };
+export function cuentasDe(x: unknown): CuentaTransferencia[] {
+  const t = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim().slice(0, 80) : null);
+  return (Array.isArray(x) ? x : []).map((c) => ({ banco: t(c?.banco) ?? "", titular: t(c?.titular), cuit: t(c?.cuit), cbu: t(c?.cbu), alias: t(c?.alias) }))
+    .filter((c) => c.banco || c.cbu || c.alias).slice(0, 6);
+}
 
 /** El tipo de medio_pago que hay detrás (payway_debito es Payway). */
 export const tipoBase = (tipo: string) => (tipo === "payway_debito" ? "payway" : tipo);
 
 export const mediosActivos = cache(async (t: Tienda): Promise<Medio[]> => {
-  const filas = await consulta<Medio>(`select distinct on (tipo) id::int, tipo, nombre, descuento_pct::float, instrucciones from medio_pago
+  const filas = await consulta<Medio>(`select distinct on (tipo) id::int, tipo, nombre, descuento_pct::float, instrucciones, aviso from medio_pago
                                         where organizacion_id = $1 and (canal_id is null or canal_id = $2) and activo order by tipo, canal_id nulls last`,
     [t.organizacionId, t.canalId]);
   const f = financiacionTienda(t);

@@ -11,6 +11,7 @@ import { formatear, type Moneda } from "@/lib/moneda";
 import { cuentaActual } from "@/lib/tienda/cuentas";
 import { planesDeLaCompra } from "@/lib/tienda/checkout";
 import { MARCAS_DEBITO } from "@/lib/tienda/financiacion";
+import { cuentasDe } from "@/lib/tienda/medios";
 import { MARCAS_PAYWAY } from "@/lib/tienda/pagos/payway";
 import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { cargarTienda, estadoCriollo, linkWhatsapp } from "../../catalogo";
@@ -60,8 +61,8 @@ async function cargarPedido(t: Tienda, codigo: string) {
     consulta<{ estado: string | null; tracking: string | null; transportista: string | null; entrega: string | null }>(`
       select estado, tracking, transportista, to_char(entrega_estimada at time zone 'America/Argentina/Buenos_Aires', 'DD/MM') entrega
         from envio where pedido_id = $1 and organizacion_id = $2 order by id`, [p.id, org]),
-    p.medio ? una<{ nombre: string; instrucciones: string | null }>(`
-      select nombre, instrucciones from medio_pago where organizacion_id = $1 and (canal_id is null or canal_id = $2) and tipo = $3
+    p.medio ? una<{ nombre: string; instrucciones: string | null; cuentas: unknown }>(`
+      select nombre, instrucciones, cuentas from medio_pago where organizacion_id = $1 and (canal_id is null or canal_id = $2) and tipo = $3
        order by canal_id nulls last limit 1`, [org, t.canalId, p.medio]) : null,
     p.email ? una("select 1 from cliente_cuenta where organizacion_id = $1 and email = lower($2)", [org, p.email]) : null,
   ]);
@@ -146,8 +147,23 @@ export default async function PaginaPedido({ params, searchParams }: Props) {
       {pendiente && (p.medio === "transferencia" || p.medio === "efectivo") && (
         <section className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4 sm:p-5">
           <h2 className="text-lg font-bold">{p.medio === "transferencia" ? "Cómo transferir" : "Cómo pagar"}</h2>
-          <p className="text-sm">Total a pagar: <b className="text-base">{formatear(p.total, m)}</b></p>
-          {medio?.instrucciones && <div className="whitespace-pre-line rounded-md bg-white p-3 font-mono text-sm leading-relaxed">{medio.instrucciones}</div>}
+          <div className="rounded-md bg-white p-3 text-center">
+            <p className="text-sm text-gray-600">Total a {p.medio === "transferencia" ? "transferir" : "pagar"}</p>
+            <p className="text-3xl font-bold tracking-tight">{formatear(p.total, m)}</p>
+          </div>
+          {p.medio === "transferencia" && cuentasDe(medio?.cuentas).length > 0 && (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {cuentasDe(medio?.cuentas).map((c, i) => (
+                <div key={i} className="rounded-md bg-white p-3 text-sm">
+                  <p className="font-semibold">{c.banco}</p>
+                  {c.alias && <p className="mt-1">Alias: <b className="select-all font-mono text-base">{c.alias}</b></p>}
+                  {c.cbu && <p>CBU/CVU: <span className="select-all font-mono">{c.cbu}</span></p>}
+                  {(c.titular || c.cuit) && <p className="text-gray-600">{[c.titular, c.cuit && `CUIT ${c.cuit}`].filter(Boolean).join(" · ")}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+          {medio?.instrucciones && <div className="whitespace-pre-line rounded-md bg-white p-3 text-sm leading-relaxed">{medio.instrucciones}</div>}
           {p.medio === "transferencia" && wa && (
             <a href={wa} target="_blank" rel="noopener" className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-[#25D366] px-5 font-semibold text-white hover:brightness-105 sm:w-auto">
               <IconoWhatsapp clase="h-5 w-5" /> Avisanos por WhatsApp cuando transfieras

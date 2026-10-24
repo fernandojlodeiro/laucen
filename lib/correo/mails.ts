@@ -13,6 +13,7 @@ import { formatear, type Moneda } from "@/lib/moneda";
 import { nombreTienda, tiendaDelCanal, type Tienda } from "@/lib/tienda/tienda";
 import { conMarca, urlTienda } from "@/lib/tienda/dominios-tienda";
 import { enviarMail, escapar, plantilla, type Resultado } from "@/lib/correo/mailer";
+import { cuentasDe, type CuentaTransferencia } from "@/lib/tienda/medios";
 
 const marcaDe = async (t: Tienda) => ({ nombre: nombreTienda(t), web: await urlTienda(t), color: t.config.color_boton ?? null });
 const remitenteDe = (t: Tienda) => ({ nombre: nombreTienda(t), email: t.config.email ?? null });
@@ -72,14 +73,14 @@ export async function mailPedido(org: string, pedidoId: number, tipo: "recibido"
   const boton = seguimiento ? { texto: "Ver mi pedido", url: seguimiento } : undefined;
   let asunto: string, titulo: string, cuerpo: string;
   if (tipo === "recibido") {
-    const medio = p.medio ? await una<{ nombre: string; instrucciones: string | null }>(
-      "select nombre, instrucciones from medio_pago where organizacion_id = $1 and (canal_id is null or canal_id = $2) and tipo = $3 order by canal_id nulls last limit 1",
+    const medio = p.medio ? await una<{ nombre: string; instrucciones: string | null; cuentas: unknown }>(
+      "select nombre, instrucciones, cuentas from medio_pago where organizacion_id = $1 and (canal_id is null or canal_id = $2) and tipo = $3 order by canal_id nulls last limit 1",
       [org, t.canalId, p.medio]) : null;
     asunto = `Recibimos tu pedido #${p.id}`;
     titulo = "¡Recibimos tu pedido!";
     cuerpo = `<p>${saludo(p.nombre)} gracias por tu compra en ${escapar(marca.nombre)}. Este es tu pedido <b>#${p.id}</b>:</p>${tablaLineas(lineas, p)}
       ${medio ? `<p>Medio de pago: <b>${escapar(medio.nombre)}</b>.</p>` : ""}
-      ${p.medio === "transferencia" && medio?.instrucciones ? `<p>Para pagar, transferí el total a:</p><pre style="background:#f6f6f6;border-radius:8px;padding:12px;font-size:13px;white-space:pre-wrap">${escapar(medio.instrucciones)}</pre>` : ""}
+      ${p.medio === "transferencia" ? bloqueTransferencia(Number(p.total), p.moneda, cuentasDe(medio?.cuentas), medio?.instrucciones ?? null, marca.color) : ""}
       ${p.metodo ? `<p>Entrega: <b>${escapar(p.metodo)}</b>.</p>` : ""}
       <p>Te vamos a avisar por acá cada novedad.</p>`;
   } else if (tipo === "pagado") {
@@ -104,6 +105,25 @@ export async function mailPedido(org: string, pedidoId: number, tipo: "recibido"
     para: p.email!, asunto, html: plantilla(marca, titulo, cuerpo, boton), remitente: remitenteDe(t),
     tipo: `pedido_${tipo}`, clave: `pedido:${p.id}:${tipo}`, pedidoId: p.id,
   });
+}
+
+/** Cómo pagar por transferencia (Fer, 24/10): el total bien grande y cada cuenta con su alias destacado,
+ *  para que el comprador transfiera el monto justo apenas compra. Debajo, las instrucciones del medio. */
+function bloqueTransferencia(total: number, moneda: Moneda, cuentas: CuentaTransferencia[], instrucciones: string | null, color?: string | null) {
+  const c = color && /^#[0-9a-f]{6}$/i.test(color) ? color : "#3483FA";
+  const fila = (k: string, v: string, grande = false) =>
+    `<tr><td style="color:#777;font-size:13px;padding:2px 12px 2px 0;white-space:nowrap">${k}</td><td style="font-family:monospace;font-size:${grande ? "17px;font-weight:700" : "14px"};color:#222">${escapar(v)}</td></tr>`;
+  return `<div style="margin:20px 0;border:2px solid ${c};border-radius:12px;padding:18px;text-align:center">
+      <div style="font-size:14px;color:#555">Total a transferir</div>
+      <div style="font-size:34px;font-weight:800;color:#222;margin-top:4px">${escapar(formatear(total, moneda))}</div>
+    </div>
+    ${cuentas.length ? `<p style="margin-bottom:8px">Transferí ese monto a cualquiera de estas cuentas:</p>
+    ${cuentas.map((x) => `<div style="background:#f6f6f6;border-radius:10px;padding:14px;margin-bottom:10px">
+      <div style="font-weight:700;font-size:15px;margin-bottom:6px">${escapar(x.banco)}</div>
+      <table style="border-collapse:collapse">${x.alias ? fila("Alias", x.alias, true) : ""}${x.cbu ? fila("CBU/CVU", x.cbu) : ""}${x.titular ? fila("Titular", x.titular) : ""}${x.cuit ? fila("CUIT", x.cuit) : ""}</table>
+    </div>`).join("")}` : ""}
+    ${instrucciones ? `<p style="white-space:pre-line">${escapar(instrucciones)}</p>` : ""}
+    <p>Cuando transfieras, respondé este mail con el comprobante y lo acreditamos.</p>`;
 }
 
 /** Bienvenida al crear la cuenta en la tienda. */

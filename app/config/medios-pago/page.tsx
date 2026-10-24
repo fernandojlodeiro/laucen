@@ -12,13 +12,14 @@ import {
   entrarErp, Pantalla, Avisos, Lapiz, Dato, BotonesFicha, editandoFicha, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA, CAJA,
 } from "@/app/componentes/erp";
 import { TIPOS_MEDIO, type TipoMedio } from "./comun";
+import { cuentasDe } from "@/lib/tienda/medios";
 import { accionActivarMedio, accionGuardarMedio, accionGuardarCredencial } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
 const BASE = "/config/medios-pago";
 type SP = { editar?: string; ok?: string; error?: string };
-type Medio = { id: number; tipo: TipoMedio; nombre: string; activo: boolean; descuento_pct: number; instrucciones: string | null; orden: number; datos: Record<string, string> | null };
+type Medio = { id: number; tipo: TipoMedio; nombre: string; activo: boolean; descuento_pct: number; instrucciones: string | null; aviso: string | null; cuentas: unknown; orden: number; datos: Record<string, string> | null };
 
 /** Crea apagados los medios que falten (con candado: dos pantallas abiertas a la vez no los duplican). */
 async function asegurarMedios(org: string) {
@@ -43,7 +44,7 @@ export default async function MediosPago({ searchParams }: { searchParams: Promi
   const editar = Number(sp.editar) || 0;
   await asegurarMedios(s.org.id);
   const medios = await consulta<Medio>(`
-    select m.id::int, m.tipo, m.nombre, m.activo, m.descuento_pct::float, m.instrucciones, m.orden, c.datos
+    select m.id::int, m.tipo, m.nombre, m.activo, m.descuento_pct::float, m.instrucciones, m.aviso, m.cuentas, m.orden, c.datos
       from medio_pago m left join medio_pago_credencial c on c.medio_pago_id = m.id
      where m.organizacion_id = $1 and m.canal_id is null order by m.orden, m.id`, [s.org.id]);
   const mp = medios.find((m) => m.tipo === "mercadopago");
@@ -56,7 +57,7 @@ export default async function MediosPago({ searchParams }: { searchParams: Promi
       <div className={`${CAJA_TABLA} mb-5`}>
         <table className={TABLA}>
           <thead className={THEAD}>
-            <tr><th className={TH}>Medio</th><th className={TH}>Activo</th><th className={THN}>Descuento</th><th className={TH}>Instrucciones para el comprador</th><th className={THN}>Orden</th><th /></tr>
+            <tr><th className={TH}>Medio</th><th className={TH}>Activo</th><th className={THN}>Descuento</th><th className={TH}>Lo que ve el comprador</th><th className={THN}>Orden</th><th /></tr>
           </thead>
           <tbody>
             {medios.map((m) => editar === m.id ? (
@@ -70,9 +71,26 @@ export default async function MediosPago({ searchParams }: { searchParams: Promi
                       <CampoNumero name="descuento_pct" valor={m.descuento_pct} tipo="pct" className={`${CAMPO} w-full`} /></label>
                     <label><span className={ETIQUETA}>Orden</span>
                       <CampoNumero name="orden" valor={m.orden} tipo="entero" className={`${CAMPO} w-full`} /></label>
-                    <label className="sm:col-span-3"><span className={ETIQUETA}>Instrucciones (lo que ve el comprador al elegirlo)</span>
-                      <textarea name="instrucciones" defaultValue={m.instrucciones ?? ""} rows={3} className={`${CAMPO} w-full`}
-                        placeholder={m.tipo === "transferencia" ? "CBU: …\nAlias: …\nTitular: … · CUIT: …" : ""} /></label>
+                    <label className="sm:col-span-3"><span className={ETIQUETA}>Aviso en el pago (lo que lee el comprador al elegirlo; vacío: el de fábrica)</span>
+                      <textarea name="aviso" defaultValue={m.aviso ?? ""} rows={2} className={`${CAMPO} w-full`} /></label>
+                    <label className="sm:col-span-3"><span className={ETIQUETA}>Instrucciones (en la página del pedido{m.tipo === "transferencia" ? " y en el mail, debajo de las cuentas" : ""})</span>
+                      <textarea name="instrucciones" defaultValue={m.instrucciones ?? ""} rows={3} className={`${CAMPO} w-full`} /></label>
+                    {m.tipo === "transferencia" && (
+                      <div className="sm:col-span-3">
+                        <span className={ETIQUETA}>Cuentas para transferir (van en el mail del pedido y en la página del pedido, con el total bien grande)</span>
+                        <div className="grid gap-1.5">
+                          {[...cuentasDe(m.cuentas), ...Array.from({ length: 3 }, () => null)].slice(0, Math.max(3, cuentasDe(m.cuentas).length + 1)).map((c, i) => (
+                            <div key={i} className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                              <input name={`banco_${i}`} defaultValue={c?.banco ?? ""} placeholder="Banco o billetera (ej. BBVA)" aria-label="Banco" className={`${CAMPO} w-full`} />
+                              <input name={`alias_${i}`} defaultValue={c?.alias ?? ""} placeholder="Alias" aria-label="Alias" className={`${CAMPO} w-full font-mono`} />
+                              <input name={`cbu_${i}`} defaultValue={c?.cbu ?? ""} placeholder="CBU o CVU" aria-label="CBU o CVU" className={`${CAMPO} w-full font-mono`} />
+                              <input name={`titular_${i}`} defaultValue={c?.titular ?? ""} placeholder="Titular" aria-label="Titular" className={`${CAMPO} w-full`} />
+                              <input name={`cuit_${i}`} defaultValue={c?.cuit ?? ""} placeholder="CUIT" aria-label="CUIT" className={`${CAMPO} w-full font-mono`} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <p className="sm:col-span-3 text-[11px] text-[#5C6B76]">Descuento negativo = recargo (ej. -10 = 10 % más caro). {TIPOS_MEDIO[m.tipo].ayuda}</p>
                     <div className="sm:col-span-3 flex gap-2">
                       <button className={VERDE}>Guardar</button>
@@ -87,7 +105,11 @@ export default async function MediosPago({ searchParams }: { searchParams: Promi
                   <span className="block text-[11px] text-[#5C6B76] max-w-xs">{TIPOS_MEDIO[m.tipo].ayuda}</span></td>
                 <td className={TD}><Interruptor accion={accionActivarMedio} prendido={m.activo} campos={{ id: String(m.id) }} etiqueta={m.activo ? "Sí" : "No"} /></td>
                 <td className={TDN}>{m.descuento_pct === 0 ? "—" : m.descuento_pct < 0 ? `recargo ${pct(-m.descuento_pct)}` : pct(m.descuento_pct)}</td>
-                <td className={`${TD} whitespace-pre-wrap text-[#5C6B76]`}>{m.instrucciones ?? "—"}</td>
+                <td className={`${TD} whitespace-pre-wrap text-[#5C6B76]`}>
+                  {m.aviso && <span className="block text-[#2D3A44]">{m.aviso}</span>}
+                  {cuentasDe(m.cuentas).map((c, i) => <span key={i} className="block">{c.banco}{c.alias ? ` · alias ${c.alias}` : ""}{c.cbu ? ` · ${c.cbu}` : ""}</span>)}
+                  {m.instrucciones ?? (m.aviso || cuentasDe(m.cuentas).length ? null : "—")}
+                </td>
                 <td className={TDN}>{m.orden}</td>
                 <td className={`${TD} text-right`}><Lapiz href={`${BASE}?editar=${m.id}`} /></td>
               </tr>

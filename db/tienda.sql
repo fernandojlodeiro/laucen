@@ -22,6 +22,12 @@ create table if not exists medio_pago (
   creado_ts        timestamptz not null default now(),
   unique (organizacion_id, canal_id, tipo)
 );
+-- Lo que ve el comprador en el pago al elegir el medio (Fer, 24/10: «Transferencia o efectivo» explica
+-- que en efectivo sólo se cobra retirando en el local). Vacío: el texto de fábrica.
+alter table medio_pago add column if not exists aviso text;
+-- Las cuentas para transferir (transferencia): [{banco, titular, cuit, cbu, alias}]. Van en el mail
+-- del pedido y en la página del pedido, con el total bien grande.
+alter table medio_pago add column if not exists cuentas jsonb;
 alter table medio_pago enable row level security;
 select erp_politica_org('medio_pago');
 

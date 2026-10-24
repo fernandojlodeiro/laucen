@@ -239,7 +239,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
                   </span>
                   {medio === x.tipo && (
                     <span className="mt-1 block text-sm text-gray-600">
-                      {x.tipo === "payway" && conDebito ? "Pagás con tarjeta de crédito en el paso siguiente." : AYUDA_MEDIO[x.tipo]}
+                      {x.aviso ? <span className="whitespace-pre-line">{x.aviso}</span> : x.tipo === "payway" && conDebito ? "Pagás con tarjeta de crédito en el paso siguiente." : AYUDA_MEDIO[x.tipo]}
                       {x.instrucciones && x.tipo !== "transferencia" && <span className="mt-1 block whitespace-pre-line">{x.instrucciones}</span>}
                     </span>
                   )}
