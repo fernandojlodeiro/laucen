@@ -1,5 +1,5 @@
 // Marco de la tienda pública, con la experiencia de compra de los grandes
-// marketplaces: franja de color con logo, buscador grande con sugerencias,
+// marketplaces: franja de color con logo (en el celular, sin logo: sólo el buscador), buscador grande con sugerencias,
 // cuenta, compras y carrito; abajo "Enviar a …", el menú de categorías y los
 // atajos (Ofertas, Más vendidos, Ayuda). Pie con links, contacto y datos
 // fiscales. Todos los colores son variables CSS de la tienda (tema.ts).
@@ -115,10 +115,9 @@ export default async function LayoutTienda({ children, params }: Props & { child
           </div>
         </div>
 
-        {/* Celular */}
+        {/* Celular: como los marketplaces, sin logo ni nombre; sólo el buscador (el inicio, en el menú). */}
         <div className="lg:hidden">
           <div className="flex items-center gap-2 px-3 pb-2 pt-2.5">
-            {logo("max-w-[30%]")}
             <div className="min-w-0 flex-1"><Buscador slug={t.slug} accion={r("/buscar")} /></div>
             <MenuMovil arbol={menu} base={r()}
               saludo={cuenta ? `Hola, ${primerNombre}` : "Bienvenido"}

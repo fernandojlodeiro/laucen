@@ -1,8 +1,8 @@
 // Ficha de producto (?v=<variación>), con el armado de los marketplaces:
 // galería con zoom a la izquierda; en el medio condición y vendidos, título,
 // precio, cuotas, variaciones y "Lo que tenés que saber"; a la derecha la caja
-// de compra (envío, stock, cantidad, "Comprar ahora" y "Agregar al carrito"),
-// el vendedor y los medios de pago. Abajo, relacionados, características y
+// de compra (envío, stock, cantidad, "Comprar ahora" y "Agregar al carrito")
+// y los medios de pago (sin caja de "vendedor": la tienda no es un marketplace). Abajo, relacionados, características y
 // descripción. El precio sale de precio_de (la función única), en vivo.
 
 import { sqlPublicadoEnWeb } from "@/lib/catalogo/web";
@@ -14,7 +14,7 @@ import { consulta, una } from "@/lib/erp/base";
 import { formatearNumero } from "@/lib/numeros";
 import { mediosActivos } from "@/lib/tienda/checkout";
 import { planesDe, planParaMostrar } from "@/lib/tienda/cuotas";
-import { nombreTienda, rutaTienda, type Tienda } from "@/lib/tienda/tienda";
+import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { abierta, arbolDe, aTarjetas, cargarTienda, catalogoDe, cucardasDe, envioDe, envioGratis } from "../../catalogo";
 import {
   Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAJA, Etiquetas, IconoCamion, IconoEscudo, IconoTienda, IconoVuelta, LineaCuotas, LINK, Migas, Monto, Precio, TarjetaProducto,
@@ -99,11 +99,9 @@ export default async function Producto({ params, searchParams }: Props) {
   const pedida = Number(sp.v);
   const v = variaciones.find((x) => x.id === pedida) ?? variaciones.find((x) => x.disponible > 0) ?? variaciones[0];
   const fotos = v ? [...f.fotosVariacion.filter((x) => x.variacion_id === v.id).map((x) => x.url), ...f.fotosProducto] : f.fotosProducto;
-  const [planes, envio, medios, catalogo, arbol, emisor, h] = await Promise.all([
+  const [planes, envio, medios, catalogo, arbol, h] = await Promise.all([
     v ? planesDe(t.organizacionId, v.id) : Promise.resolve([]),
-    envioDe(t), mediosActivos(t), catalogoDe(t), arbolDe(t),
-    una<{ condicion_iva: string }>("select condicion_iva from emisor where organizacion_id = $1 and es_principal", [t.organizacionId]),
-    headers(),
+    envioDe(t), mediosActivos(t), catalogoDe(t), arbolDe(t), headers(),
   ]);
   const base = catalogo.find((x) => x.id === p.id);
   const relacionadosBase = p.familia_id
@@ -113,7 +111,6 @@ export default async function Producto({ params, searchParams }: Props) {
   const masVendido = yo[0]?.masVendido ?? false;
   const plan = planParaMostrar(planes);
   const enlace = (x: Variacion) => `${rutaTienda(t, `/producto/${p.id}`)}?v=${x.id}`;
-  const nombre = nombreTienda(t);
   const c = t.config;
   const vendidos = textoVendidos(base?.vendidos ?? 0);
   const plata = (n: number) => `$\u00a0${formatearNumero(n, "entero")}`;
@@ -289,21 +286,6 @@ export default async function Producto({ params, searchParams }: Props) {
                   )}
                 </ul>
               )}
-            </div>
-
-            <div className="space-y-3 rounded-md border border-[var(--linea)] p-4 text-sm">
-              <p className="text-base text-[var(--texto)]">Información del vendedor</p>
-              <div className="flex items-center gap-3">
-                <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-md border border-[var(--linea)] bg-white">
-                  {c.logo ? <img src={c.logo} alt="" className="h-full w-full object-contain p-1" /> : <IconoTienda clase="h-6 w-6 text-[var(--texto-2)]" />}
-                </span>
-                <div>
-                  <p className="font-semibold text-[var(--texto)]">{nombre}</p>
-                  {c.direccion && <p className="text-[var(--texto-2)]">{c.direccion}</p>}
-                </div>
-              </div>
-              {emisor?.condicion_iva === "responsable_inscripto" && <p className="text-[var(--texto-2)]">Hace factura A.</p>}
-              <Link href={rutaTienda(t, "/buscar")} className={LINK}>Ver más productos del vendedor</Link>
             </div>
 
             <div id="medios" className="scroll-mt-4 space-y-3 rounded-md border border-[var(--linea)] p-4 text-sm">

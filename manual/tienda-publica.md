@@ -29,7 +29,7 @@ Cada compra crea un **pedido** en [Pedidos](/ventas/pedidos), en el canal de la 
 - **"Enviar a …"**: muestra la localidad del comprador con cuenta, o el código postal que cargó; si no, "Ingresá tu código postal".
 - El menú de **categorías** (hasta tres niveles), y los atajos **Ofertas**, **Más vendidos** y **Ayuda**.
 - **"Ingresá"** (o "Hola, <nombre>" si tiene cuenta), **"Mis compras"** y el **carrito** con la cantidad de unidades.
-- En el celular, un menú con Inicio, Ofertas, Más vendidos, Mis compras, Carrito y Ayuda.
+- En el celular, sin logo ni nombre (como en los grandes marketplaces): el **buscador** ocupa la franja, con un menú (Inicio, Ofertas, Más vendidos, Mis compras, Carrito y Ayuda) y el carrito.
 - Si la tienda está pausada, un cartel arriba: "La tienda no está tomando pedidos en este momento."
 - Si hay WhatsApp cargado, un botón verde flotante abajo a la derecha.
 
@@ -40,8 +40,8 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 ### Portada
 
 - Los **banners** que pasan solos (si no hay ninguno, una franja con el nombre, la bajada y "Ver todos los productos").
-- Cinco **atajos**: Ingresá a tu cuenta / Mis compras, Medios de pago, Envíos (o "Envío gratis desde $ …"), Más vendidos y Ayuda.
-- Carruseles: **Destacados** (primero; los elegís vos en [Portada de la tienda](/config/tienda/portada)), **Ofertas**, **Más vendidos** (ventas de todos los canales), **Novedades** (los últimos cargados, o los que elijas), la grilla de **Categorías** con foto y **Destacados en …** de las tres categorías con más productos.
+- Carruseles: **Destacados** (primero, justo debajo de los banners; los elegís vos, en el orden que quieras, en [Portada de la tienda](/config/tienda/portada)), **Ofertas**, **Más vendidos** (ventas de todos los canales), **Novedades** (los últimos cargados, o los que elijas), la grilla de **Categorías** con foto y **Destacados en …** de las tres categorías con más productos.
+- Al pie, cinco **atajos** chicos: Ingresá a tu cuenta / Mis compras, Medios de pago, Envíos (o "Envío gratis desde $ …"), Más vendidos y Ayuda.
 
 ### Listados (buscar, categoría, ofertas, más vendidos)
 
@@ -57,7 +57,7 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 - Galería de fotos (las de la variación elegida primero).
 - "Nuevo | +N vendidos", cucardas, "Ver más productos de <marca>", el título, el precio y las cuotas, los botones de cada variación (color, talle…), y "Lo que tenés que saber de este producto".
 - La caja de compra: envío ("Envío gratis a domicilio", "Envío a domicilio por $ …" o "Calculamos el costo al finalizar la compra"; "Retirá gratis" si hay retiro), el stock ("Stock disponible", "¡Última disponible!", "Sin stock"), **Cantidad** (hasta 30 o el stock), **"Comprar ahora"** y **"Agregar al carrito"**; devolución y garantía si están cargadas.
-- "Información del vendedor" (con "Hace factura A." si la empresa es Responsable inscripto) y "Medios de pago" con las cuotas y los descuentos por medio.
+- "Medios de pago" con las cuotas y los descuentos por medio. (No hay caja de "información del vendedor": la tienda es de una sola empresa, no un marketplace.)
 - Abajo: **Productos relacionados** (de la misma categoría, con stock), **Características del producto** y **Descripción**.
 
 ### Carrito
