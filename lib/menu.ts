@@ -112,6 +112,7 @@ export const MENU: SeccionMenu[] = [
       { texto: "Monitoreo de precios y publicaciones", href: "/informes/monitoreo-publicaciones", permiso: "informes_publicaciones_ver" },
       { texto: "Cambios en publicaciones", href: "/informes/cambios-publicaciones", permiso: "informes_publicaciones_ver" },
       { texto: "Promociones de ML", href: "/informes/promociones", permiso: "informes_publicaciones_ver" },
+      { texto: "Ventas por canal", href: "/informes/ventas-canal", permiso: "informes_ventas_ver" },
       { texto: "Rentabilidad por venta", href: "/informes/rentabilidad", permiso: "informes_ventas_ver" },
       { texto: "Ranking de clientes", href: "/informes/ranking-clientes", permiso: "informes_ventas_ver" },
       { texto: "Precios según seguimiento", href: "/informes/precios-seguimiento", permiso: "precios_ver" },

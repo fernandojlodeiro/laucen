@@ -133,7 +133,7 @@ export const PERMISOS: { key: PermisoKey; label: string; ayuda: string }[] = [
   { key: "mercadopago_ver", label: "Mercado Pago", ayuda: "El saldo de Mercado Pago de cada cuenta de Mercado Libre (disponible, a liberar y sus desgloses), leído en el momento. Sólo lectura." },
   { key: "libros_iva_ver", label: "Libros de IVA", ayuda: "Libro IVA Ventas y Compras del mes, saldo técnico, Excel y los archivos del Libro de IVA Digital de ARCA." },
   { key: "impuestos_ver", label: "Impuestos", ayuda: "Las declaraciones juradas de IVA, Ingresos Brutos y la municipal, el control contra lo cargado y la posición del mes en curso." },
-  { key: "informes_ventas_ver", label: "Informes de ventas", ayuda: "Rentabilidad por venta (venta, cargos de Mercado Libre, costo y margen) y ranking de clientes." },
+  { key: "informes_ventas_ver", label: "Informes de ventas", ayuda: "Ventas por canal (monto y pedidos), rentabilidad por venta (venta, cargos de Mercado Libre, costo y margen) y ranking de clientes." },
   { key: "roles_administrar", label: "Administrar roles", ayuda: "Crear, editar y borrar roles y sus permisos (nunca más permisos que los propios)." },
   { key: "asistente_usar", label: "Asistente", ayuda: "Preguntarle al asistente (la carita de abajo a la derecha) cómo se hace cada cosa y datos del sistema." },
   { key: "asistente_config", label: "Configurar el asistente", ayuda: "Nombre, carita, preguntas fuera del sistema y tope de gasto del asistente." },
