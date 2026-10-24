@@ -35,7 +35,12 @@ export function nombreCarpetaMes(s: Extract<Segmento, { tipo: "mes" }>, mes: num
 /** ¿La carpeta `nombre` es la del segmento, para ese año y mes? (sin mayúsculas ni acentos; la del mes, por su número). */
 export function coincide(nombre: string, s: Segmento, año: number, mes: number) {
   if (s.tipo === "año") return nombre.trim() === String(año);
-  if (s.tipo === "mes") return new RegExp(`^0?${mes}(\\D|$)`).test(nombre.trim());
+  // La del mes, por su número donde esté ("09 Septiembre", "Abril 04") o, si no tiene número, por el nombre.
+  if (s.tipo === "mes") {
+    const t = nombre.trim();
+    if (/\d/.test(t)) return new RegExp(`(^|\\D)0?${mes}(\\D|$)`).test(t);
+    return normal(t).startsWith(normal(MESES[mes - 1]).slice(0, 4));
+  }
   return normal(nombre) === normal(s.nombre);
 }
 
@@ -47,4 +52,16 @@ export function nombreNuevo(s: Segmento, año: number, mes: number) {
 /** La ruta para mostrar, de un mes dado: "Administracion › … › 2026 › 10 Octubre › IVA DIGITAL". */
 export function rutaDeMes(segmentos: Segmento[], año: number, mes: number) {
   return segmentos.map((s) => nombreNuevo(s, año, mes)).join(" › ");
+}
+
+/** La carpeta base de algo que se ordena por año y mes debajo («Administracion › … › Servicios y Gastos», que adentro
+ *  tiene 2026 › 10 Octubre). Si la ruta ya trae el año y el mes, se toma igual que parsearRuta. Pura. */
+export function parsearRutaBase(texto: string): { segmentos: Segmento[] } | { error: string } {
+  const p = parsearRuta(texto);
+  if (!("error" in p)) return p;
+  const partes = texto.split(/[\\/]+/).map((x) => x.trim()).filter(Boolean);
+  if (partes.length && /^(mi unidad|my drive)$/i.test(partes[0])) partes.shift();
+  if (!partes.length) return { error: "Pegá la ruta de la carpeta, como se ve en el Drive." };
+  if (partes.some((x) => /^\d{4}$/.test(x))) return p;
+  return { segmentos: [...partes.map((nombre): Segmento => ({ tipo: "fijo", nombre })), { tipo: "año" }, { tipo: "mes", separador: " ", estilo: "titulo" }] };
 }

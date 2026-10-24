@@ -12,7 +12,8 @@ import { ESTADO_FACTURA } from "../comun";
 export function filtrosFacturasCompra(sp: SP) {
   return {
     proveedor: Number(sp.proveedor) || 0,
-    estado: sp.estado && Object.hasOwn(ESTADO_FACTURA, sp.estado) ? sp.estado : "",
+    // «sin_cuenta»: las que quedaron en borrador porque al proveedor le falta la cuenta de gasto (Fer, 24/10).
+    estado: sp.estado === "sin_cuenta" || (sp.estado && Object.hasOwn(ESTADO_FACTURA, sp.estado)) ? sp.estado : "",
   };
 }
 
@@ -81,7 +82,7 @@ export const LISTA_FACTURAS_COMPRA: Lista = {
     const { proveedor, estado } = filtrosFacturasCompra(sp);
     return {
       desde: "factura_compra f join proveedor p on p.id = f.proveedor_id",
-      donde: "f.organizacion_id = $1 and ($2 = 0 or f.proveedor_id = $2) and ($3 = '' or f.estado = $3) and ($4::bigint is null or f.emisor_id = $4)",
+      donde: "f.organizacion_id = $1 and ($2 = 0 or f.proveedor_id = $2) and ($3 = '' or f.estado = $3 or ($3 = 'sin_cuenta' and f.estado = 'borrador' and f.cuenta_gasto_id is null)) and ($4::bigint is null or f.emisor_id = $4)",
       valores: [ctx.org, proveedor, estado, Number(sp.rs) || null],
       orden: "f.fecha desc, f.id desc",
     };

@@ -28,6 +28,10 @@ export type LecturaFactura = {
   otros_tributos: number | null;
   total: number | null;
   cae: string | null;
+  /** false si el papel no es un comprobante (un pago, una transferencia, un cedulón o boleta de impuestos, un resumen). */
+  es_comprobante?: boolean | null;
+  /** Qué es, en pocas palabras, cuando no es un comprobante. */
+  que_es?: string | null;
 };
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
@@ -72,7 +76,9 @@ export function detalleIibb(l: LecturaFactura, total: number): { jur: number; im
 }
 
 const SISTEMA = `Leés comprobantes argentinos (facturas, notas de crédito y de débito, recibos, liquidaciones) que le emitieron a una empresa sus proveedores, y devolvés SÓLO un JSON, sin texto antes ni después:
-{"tipo_codigo": número (el "COD." que figura junto a la letra: 1 Factura A, 2 ND A, 3 NC A, 6 Factura B, 7 ND B, 8 NC B, 11 Factura C, 12 ND C, 13 NC C, 51 Factura M, 201 FCE MiPyME A, 206 FCE B, 211 FCE C, 17/18 liquidación de servicios públicos A/B, 63/64 liquidación A/B; si no lo dice, deducilo de la letra y el tipo),
+{"es_comprobante": true | false (false si NO es un comprobante fiscal emitido por un proveedor: un comprobante de pago o de transferencia, un ticket de pago de un servicio, un cedulón o boleta de impuestos o tasas (Rentas, municipalidad, ARCA), un resumen de cuenta o de tarjeta, un presupuesto; en ese caso el resto puede ir en null),
+ "que_es": "texto corto" (qué es, si no es un comprobante; si no, null),
+ "tipo_codigo": número (el "COD." que figura junto a la letra: 1 Factura A, 2 ND A, 3 NC A, 6 Factura B, 7 ND B, 8 NC B, 11 Factura C, 12 ND C, 13 NC C, 51 Factura M, 201 FCE MiPyME A, 206 FCE B, 211 FCE C, 17/18 liquidación de servicios públicos A/B, 63/64 liquidación A/B; si no lo dice, deducilo de la letra y el tipo),
  "punto_venta": número, "numero": número, "fecha": "AAAA-MM-DD" (de emisión), "vencimiento": "AAAA-MM-DD" o null (del pago),
  "cuit_emisor": "11 dígitos" (el de quien emite, arriba), "razon_social_emisor": "texto", "cuit_receptor": "11 dígitos" (el del cliente, a quién va facturado),
  "moneda": "ARS" | "USD", "cotizacion": número o null (si es en dólares),

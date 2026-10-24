@@ -39,7 +39,9 @@ Arriba a la derecha:
 - **Importar de ARCA (Mis Comprobantes)**: abre, debajo del título, el formulario para subir el archivo de ARCA.
 - **+ Nueva factura**: lleva a la pantalla de alta a mano.
 
-Filtros: **Proveedor** (un buscador: escribís parte del nombre o del CUIT y elegís; filtra al momento; la X lo borra y vuelve a "Todos los proveedores"), **Estado** (Todos, Borrador, Registrada, Anulada), botón **Filtrar** y, si hay filtro, **Limpiar**.
+Debajo, si hay carpetas de facturas cargadas en [Configuración › Google Drive](/config/google-drive): **Leer desde** (un mes; sin elegir, este mes y el anterior), el botón **Buscar facturas en el Drive** y el resultado de la última lectura. Si hay facturas en borrador esperando la cuenta de gasto, un aviso amarillo "N facturas esperando la cuenta de gasto" que las muestra.
+
+Filtros: **Proveedor** (un buscador: escribís parte del nombre o del CUIT y elegís; filtra al momento; la X lo borra y vuelve a "Todos los proveedores"), **Estado** (Todos, Borrador, Registrada, Anulada, Falta la cuenta de gasto), botón **Filtrar** y, si hay filtro, **Limpiar**.
 
 Encima de la tabla, a la derecha, el selector **Vista** (qué columnas se ven y en qué orden; "Estándar" es la de siempre y la última elegida queda recordada).
 
@@ -136,9 +138,22 @@ La cuenta se crea siempre como **egreso** e **imputable**, y queda en el [plan d
 
 Qué hace sola: lee tipo y letra, punto de venta, número, fecha, CUIT y razón social del proveedor, moneda, neto e IVA por alícuota, no gravado, exento, percepciones (las de Ingresos Brutos con su provincia, si la factura lo dice), otros tributos, total y CAE. Busca el proveedor por CUIT y, si no existe, lo crea. La razón social a la que va la factura sale del CUIT del receptor. Arma las líneas igual que la importación de ARCA (ver "Importación de ARCA: cómo arma cada factura").
 
-Errores típicos: "No se reconoce el tipo de comprobante: cargala a mano.", "No se leyó el CUIT del proveedor…", "No se leyó la fecha…", "No se leyó el número…", "La factura está a nombre del CUIT …, que no es de ninguna de tus razones sociales.", "Esa factura ya está cargada (factura de compra #N).", "La factura leída no cierra: … Cargala a mano.".
+Errores típicos: "No se reconoce el tipo de comprobante: cargala a mano.", "No se leyó el CUIT del proveedor…", "No se leyó la fecha…", "No se leyó el número…", "La factura está a nombre del CUIT …, que no es de ninguna de tus razones sociales.", "Esa factura ya estaba cargada (factura de compra #N)." (si no tenía el archivo, se le suma), "No parece una factura (es …).", "La factura leída no cierra: … Cargala a mano.".
 
 Es para facturas de **gastos y servicios**: las líneas son sin producto. La mercadería se sigue cargando a mano, con sus productos.
+
+### Leer las facturas que están en el Drive
+1. Una sola vez: cargá las carpetas en [Configuración › Google Drive](/config/google-drive), recuadro «Carpetas de facturas de compra».
+2. En [Facturas de compra](/compras/facturas), elegí en **Leer desde** el primer mes a leer (sin elegir: este mes y el anterior) y apretá **Buscar facturas en el Drive**. Corre de fondo; al terminar aparece el cartel con el resultado, por ejemplo "Drive: 12 registradas, 5 en borrador (falta la cuenta de gasto o revisar el total), 20 ya estaban cargadas, 30 papeles que no son facturas (pagos, cedulones)."
+3. Tocá el aviso "N facturas esperando la cuenta de gasto" (o elegí ese estado en el filtro): son las que hay que completar. En cada una, elegí la **Cuenta de gasto** en la cabecera y **Registrar**; el proveedor la recuerda para las próximas.
+
+Cómo trata cada archivo:
+- Una factura nueva se carga como en "Subir una factura de gastos": registrada si el proveedor ya tiene cuenta de gasto; si no, en borrador.
+- Una factura que ya estaba cargada (por ejemplo, importada de Mis Comprobantes) no se duplica: si no tenía el archivo, se le suma, y desde su detalle se puede ver.
+- Lo que no es una factura (comprobantes de pago o transferencias, cedulones, boletas de Rentas o de la municipalidad, resúmenes) se saltea.
+- Cada archivo se lee una sola vez; si se cambia en el Drive, se vuelve a leer. Si dio error, se reintenta en la próxima lectura.
+- Si son muchos, corta a los pocos minutos y avisa: apretá de nuevo y sigue donde quedó.
+- Además, se lee sola una vez por noche (este mes y el anterior).
 
 ### Cargar una factura a mano
 

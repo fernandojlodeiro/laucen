@@ -40,3 +40,18 @@ test("errores: sin año, sin nada antes del año, sin mes", () => {
   assert.ok("error" in parsearRuta("2026\\09 Septiembre"));
   assert.ok("error" in parsearRuta("Adm\\2026\\Septiembre"));
 });
+
+test("carpeta del mes con cualquier formato y carpeta base sin año ni mes", async () => {
+  const { coincide, parsearRutaBase } = await import("@/lib/google/ruta");
+  const mes = { tipo: "mes" as const, separador: " ", estilo: "titulo" as const };
+  assert.ok(coincide("09 Sptiembre", mes, 2026, 9));
+  assert.ok(coincide("Abril 04", mes, 2026, 4));
+  assert.ok(coincide("Enero 01", mes, 2026, 1));
+  assert.ok(!coincide("10 Octubre", mes, 2026, 1));
+  assert.ok(!coincide("12 Diciembre", mes, 2026, 2));
+  assert.ok(coincide("Octubre", mes, 2026, 10));
+  const b = parsearRutaBase("\\Mi unidad\\Administracion\\Deirolab\\Servicios y Gastos Deirolab");
+  assert.ok(!("error" in b));
+  if ("error" in b) return;
+  assert.deepEqual(b.segmentos.map((s) => s.tipo), ["fijo", "fijo", "fijo", "año", "mes"]);
+});

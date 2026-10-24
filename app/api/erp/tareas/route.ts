@@ -30,6 +30,7 @@ import { hayConsultasPendientes, responderConsultas } from "@/lib/mercadolibre/c
 import { hayPreparacionesPendientes, prepararPendientes } from "@/lib/mercadolibre/preparaciones";
 import { hayAgrupadoPendiente, avanzarAgrupado } from "@/lib/mercadolibre/agrupado-auto";
 import { leerDdjjDelDrive, organizacionesParaLeerDrive } from "@/lib/impuestos/drive-ddjj";
+import { leerFacturasDelDrive, organizacionesParaLeerFacturas } from "@/lib/compras/drive-facturas";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -130,7 +131,10 @@ export async function GET(req: Request) {
   // Las declaraciones que el contador dejó en el Drive (lib/impuestos/drive-ddjj.ts): una vez por noche.
   const ddjjDrive = enVentanaBarrida() ? await organizacionesParaLeerDrive().catch(() => [] as string[]) : [];
   if (ddjjDrive.length) informe.ddjj_drive = ddjjDrive.length;
-  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos || full || consultasMl || cargosFull || preparaciones || agrupado || ddjjDrive.length) {
+  // Las facturas de compra que se dejan en las carpetas del Drive (lib/compras/drive-facturas.ts): también una vez por noche.
+  const facturasDrive = enVentanaBarrida() ? await organizacionesParaLeerFacturas().catch(() => [] as string[]) : [];
+  if (facturasDrive.length) informe.facturas_drive = facturasDrive.length;
+  if (imps.length || vs.length || cola || barrida || facturacionMl || motivos || full || consultasMl || cargosFull || preparaciones || agrupado || ddjjDrive.length || facturasDrive.length) {
     after(async () => {
       await Promise.all([
         (async () => {
@@ -139,6 +143,13 @@ export async function GET(req: Request) {
               console.log("[tareas] declaraciones del Drive", org, JSON.stringify(await leerDdjjDelDrive(org, "drive", { hastaMs: t0 + 100_000 })));
             } catch (e) {
               console.error("[tareas] declaraciones del Drive", org, e instanceof Error ? e.message : e);
+            }
+          }
+          for (const org of facturasDrive) {
+            try {
+              console.log("[tareas] facturas del Drive", org, JSON.stringify(await leerFacturasDelDrive(org, "drive", { hastaMs: t0 + 110_000 })));
+            } catch (e) {
+              console.error("[tareas] facturas del Drive", org, e instanceof Error ? e.message : e);
             }
           }
         })(),

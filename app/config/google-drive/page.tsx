@@ -5,7 +5,8 @@
 
 import Link from "next/link";
 import { PRIMARIO, SUAVE } from "@/app/botones";
-import { BotonConfirmar, BotonEnviar } from "@/app/radar/Cliente";
+import { BotonConfirmar, BotonEnviar, TachoConfirmar } from "@/app/radar/Cliente";
+import { carpetasFacturas } from "@/lib/compras/drive-facturas";
 import { entrarErp, Pantalla, Avisos, Dato, TituloSeccion, CAJA, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { sosVos } from "@/lib/admin";
 import { emisoresDe } from "@/lib/arca/facturar";
@@ -13,7 +14,7 @@ import { nombreRs } from "@/lib/razon-social";
 import { hoyArgentina } from "@/lib/rango-fechas";
 import { appGoogle, conexionDrive, rutasDe } from "@/lib/google/drive";
 import { rutaDeMes } from "@/lib/google/ruta";
-import { accionRutaDrive, accionDesconectarDrive } from "./acciones";
+import { accionRutaDrive, accionDesconectarDrive, accionAgregarCarpetaFacturas, accionQuitarCarpetaFacturas } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ const fechaHora = (t: string | null) => (t ? new Date(t).toLocaleString("es-AR",
 export default async function GoogleDrive({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
   const s = await entrarErp("empresa_config");
   const sp = await searchParams;
-  const [app, c, esDueno, rutas, razones] = await Promise.all([appGoogle(), conexionDrive(s.org.id), sosVos(), rutasDe(s.org.id), emisoresDe(s.org.id)]);
+  const [app, c, esDueno, rutas, razones, carpetas] = await Promise.all([appGoogle(), conexionDrive(s.org.id), sosVos(), rutasDe(s.org.id), emisoresDe(s.org.id), carpetasFacturas(s.org.id)]);
   const [año, mes] = hoyArgentina().slice(0, 7).split("-").map(Number);
   const listo = c.conectado && !c.permiso_viejo;
   return (
@@ -88,8 +89,37 @@ export default async function GoogleDrive({ searchParams }: { searchParams: Prom
         )}
       </section>
 
+      <section className={`${CAJA} mb-4 text-xs`}>
+        <TituloSeccion titulo="3. Carpetas de facturas de compra" />
+        {!listo ? <p className="text-[#5C6B76]">Primero conectá Google Drive.</p> : (
+          <div className="grid gap-3">
+            <p className="text-[#5C6B76]">
+              Las carpetas donde dejás las facturas de gastos y servicios y las de Mercado Libre, ordenadas por año y mes adentro (por ejemplo
+              <span className="font-mono"> \Mi unidad\Administracion\Deirolab\Servicios y Gastos Deirolab</span>, que tiene 2026 › 10 Octubre). Desde Compras › Facturas de compra,
+              «Buscar facturas en el Drive» las lee y las carga a nombre de la razón social que figura en cada factura. Las subcarpetas del mes (una por cuenta, por ejemplo) también se leen.
+            </p>
+            {carpetas.length > 0 && (
+              <ul className="grid gap-1">
+                {carpetas.map((c, i) => (
+                  <li key={c.texto} className="flex items-center gap-2">
+                    <span className="font-mono">{c.texto}</span>
+                    <span className="text-[#1F6E4A]">este mes: {rutaDeMes(c.segmentos, año, mes)}</span>
+                    <TachoConfirmar accion={accionQuitarCarpetaFacturas} campos={{ indice: String(i) }} pregunta="¿Quitar esta carpeta?" />
+                  </li>
+                ))}
+              </ul>
+            )}
+            <form action={accionAgregarCarpetaFacturas} className="flex flex-wrap items-end gap-2">
+              <label className="grow"><span className={ETIQUETA}>Sumar una carpeta</span>
+                <input name="ruta" required placeholder="\Mi unidad\Administracion\…\Servicios y Gastos" className={`${CAMPO} w-full font-mono`} /></label>
+              <BotonEnviar clase={PRIMARIO} corriendo="Buscando en el Drive…">Sumar</BotonEnviar>
+            </form>
+          </div>
+        )}
+      </section>
+
       <section className={`${CAJA} text-xs`}>
-        <TituloSeccion titulo="3. Mandar los archivos" />
+        <TituloSeccion titulo="4. Mandar los archivos" />
         <p>En <Link href="/administracion/libros-iva" className="text-[#16577F] hover:underline">Administración › Libros de IVA</Link>, eligiendo el mes y la razón social, en el recuadro «Libro de IVA Digital (ARCA)»: botón <b>Mandar al Drive</b>.</p>
         {c.ultimo_envio_ts && <p className="mt-1 text-[#5C6B76]">Último envío: {fechaHora(c.ultimo_envio_ts)} · {c.ultimo_envio}</p>}
       </section>

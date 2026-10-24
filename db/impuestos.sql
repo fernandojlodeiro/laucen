@@ -137,3 +137,9 @@ create table if not exists compra_externa (
 );
 create index if not exists compra_externa_fecha on compra_externa (organizacion_id, emisor_id, fecha);
 alter table compra_externa enable row level security;
+
+-- Carpetas del Drive con facturas de compra (lib/compras/drive-facturas.ts): [{texto, segmentos}], cada una ordenada por año y mes.
+alter table google_drive add column if not exists rutas_facturas jsonb not null default '[]'::jsonb;
+alter table google_drive add column if not exists facturas_leido_ts timestamptz;
+alter table google_drive add column if not exists facturas_resultado text;
+alter table drive_archivo_leido add column if not exists factura_id bigint references factura_compra(id) on delete set null;

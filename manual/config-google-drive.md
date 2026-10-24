@@ -21,11 +21,12 @@ Menú: **Configuración › Google Drive**. También desde [Libros de IVA](/admi
 
 ## Qué hay en la pantalla
 
-Tres recuadros:
+Cuatro recuadros:
 
 1. **Conexión**: sin conectar, el botón **Conectar Google Drive** (arriba a la derecha del recuadro) y cómo es la pantalla de Google. Conectado: **Cuenta de Google**, **Conectada el** y el botón **Desconectar** (pregunta "¿Desconectar Google Drive?" con Sí / No). Si la conexión es de un permiso que no alcanza, un cartel amarillo y el botón **Volver a conectar**. Si falta la aplicación de Google del sistema, lo avisa.
 2. **Dónde van los TXT de cada mes**: una explicación y, por cada razón social, el campo con su nombre para pegar la ruta, el botón **Grabar** y, abajo, dónde van a quedar los archivos este mes ("Este mes van a: Administracion › … › 2026 › 10 Octubre › IVA DIGITAL") o "Sin ruta: no se le pueden mandar archivos."
-3. **Mandar los archivos**: dónde está el botón para mandarlos y, si ya se mandó algo, el **Último envío** (fecha y dónde quedó).
+3. **Carpetas de facturas de compra**: las carpetas donde se dejan las facturas de gastos y servicios y las de Mercado Libre, cada una con dónde busca este mes ("este mes: … › 2026 › 10 Octubre") y su tacho; abajo, el campo **Sumar una carpeta** con el botón **Sumar**.
+4. **Mandar los archivos**: dónde está el botón para mandarlos y, si ya se mandó algo, el **Último envío** (fecha y dónde quedó).
 
 ## Cómo se hace
 
@@ -41,6 +42,14 @@ Tres recuadros:
 3. Abajo del campo se ve dónde van a quedar los archivos del mes en curso.
 
 Errores típicos: "En la ruta no está la carpeta del año…", "Después de la carpeta del año tiene que venir la del mes, empezando con su número…", "No encuentro la carpeta «…» en el Drive de la cuenta conectada…".
+
+### Sumar una carpeta de facturas de compra
+1. En el Drive, copiá la ruta de la carpeta que adentro tiene los años y los meses (por ejemplo `\Mi unidad\Administracion\Deirolab\Servicios y Gastos Deirolab`, que tiene `2026 › 10 Octubre`). También sirve la ruta de un mes cualquiera.
+2. Pegala en **Sumar una carpeta** y apretá **Sumar**: "Carpeta sumada: la encontré en el Drive."
+3. Se pueden sumar varias (una por empresa, la de Mercado Libre…). No hace falta decir de qué razón social es cada una: cada factura va a la razón social que figura como receptora.
+4. Para dejar de leer una, su tacho → **Sí**. Lo que ya se leyó queda cargado.
+
+La carpeta del mes se reconoce por su número, esté adelante o atrás ("09 Septiembre", "Abril 04"), o por el nombre del mes. Se leen también las subcarpetas del mes (por ejemplo, una por cuenta de Mercado Libre).
 
 ### Mandar los archivos de un mes
 En [Libros de IVA](/administracion/libros-iva), con el mes y la razón social elegidos, botón **Mandar al Drive** (ver esa página).

@@ -7,11 +7,14 @@
 
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
-import { consulta, una, enTransaccion, ErrorErp, motivoErp } from "@/lib/erp/base";
+import { consulta, una, ErrorErp, motivoErp } from "@/lib/erp/base";
 import { supabaseServer } from "@/lib/supabase";
-import { detalleIibb, leerFacturaArchivo, aComprobante } from "@/lib/compras/factura-leer";
+import { leerFacturaArchivo } from "@/lib/compras/factura-leer";
+import { cargarFacturaLeida } from "@/lib/compras/factura-cargar";
+import { leerFacturasDelDrive, textoResultadoFacturas } from "@/lib/compras/drive-facturas";
+import { deFondo } from "@/lib/tareas-fondo";
+import { hoyArgentina } from "@/lib/rango-fechas";
 import { codigoJurisdiccion } from "@/lib/impuestos/jurisdicciones";
-import { armarFactura } from "@/lib/administracion/arca-mc-leer";
 import { proximoCodigoCuenta, crearCuenta } from "@/lib/administracion/contabilidad";
 import { tienePermiso } from "@/lib/permisos";
 import { intentar, texto, numero, entero, id, tildado } from "@/lib/erp/acciones";
@@ -216,60 +219,11 @@ export async function accionSubirFactura(a: { ruta: string; archivo: string; tip
     if (error || !data) throw new ErrorErp("No se pudo bajar el archivo que subiste. Probá de nuevo.");
     const r = await leerFacturaArchivo(await data.arrayBuffer(), a.tipo);
     if ("error" in r) throw new ErrorErp(r.error);
-    const x = aComprobante(r.lectura);
-    if ("error" in x) throw new ErrorErp(x.error);
-    const c = x.c;
-    const armada = armarFactura(c);
-    if (armada.error) throw new ErrorErp(`La factura leída no cierra: ${armada.error} Cargala a mano.`);
-    // A nombre de qué razón social: la del CUIT receptor (si no figura, la principal).
-    const receptor = String(r.lectura.cuit_receptor ?? "").replace(/\D/g, "");
-    const emisor = receptor
-      ? await una<{ id: number }>("select id::int from emisor where organizacion_id = $1 and regexp_replace(cuit, '\\D', '', 'g') = $2", [s.org.id, receptor])
-      : await una<{ id: number }>("select id::int from emisor where organizacion_id = $1 and es_principal", [s.org.id]);
-    if (!emisor) throw new ErrorErp(`La factura está a nombre del CUIT ${receptor}, que no es de ninguna de tus razones sociales.`);
-    let prov = await una<{ id: number; nombre: string; cuenta_gasto_id: number | null }>(
-      "select id::int, nombre, cuenta_gasto_id::int from proveedor where organizacion_id = $1 and regexp_replace(cuit, '\\D', '', 'g') = $2 order by (estado = 'activo') desc, id limit 1", [s.org.id, c.cuit]);
-    if (!prov) {
-      const cond = c.letra === "A" || c.letra === "M" ? "responsable_inscripto" : c.letra === "C" ? "monotributo" : null;
-      prov = await una<{ id: number; nombre: string; cuenta_gasto_id: number | null }>(`insert into proveedor (organizacion_id, nombre, razon_social, cuit, condicion_iva, notas)
-        values ($1, $2, $2, $3, $4, 'Creado al subir una factura') returning id::int, nombre, cuenta_gasto_id::int`, [s.org.id, c.denominacion.slice(0, 200), c.cuit, cond]);
-    }
-    const ya = await una<{ id: number }>(`select id::int from factura_compra where organizacion_id = $1 and proveedor_id = $2 and letra = $3 and es_nota_credito = $4
-        and es_nota_debito = $5 and punto_venta is not distinct from $6 and numero = $7 and estado <> 'anulada'`, [s.org.id, prov!.id, c.letra, c.nc, c.nd, c.puntoVenta, c.numero]);
-    if (ya) throw new ErrorErp(`Esa factura ya está cargada (factura de compra #${ya.id}).`);
-    const venc = r.lectura.vencimiento && /^\d{4}-\d{2}-\d{2}$/.test(r.lectura.vencimiento) ? r.lectura.vencimiento : c.fecha;
-    const estandar = [1, 2, 3, 6, 7, 8, 11, 12, 13, 51, 52, 53].includes(c.tipo);
-    const fid = await enTransaccion(async (cx) => {
-      const f = await cx.query<{ id: string }>(`
-        insert into factura_compra (organizacion_id, proveedor_id, letra, es_nota_credito, es_nota_debito, punto_venta, numero, fecha, vencimiento, moneda, cotizacion,
-                                    percepcion_iva, percepcion_iibb, otros_impuestos, no_gravado, cuenta_gasto_id, notas, usuario_id, origen, cae, emisor_id, tipo_cbte, archivo)
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, 'pdf', $19, $20, $21, $22) returning id`,
-        [s.org.id, prov!.id, c.letra, c.nc, c.nd, c.puntoVenta, c.numero, c.fecha, venc, c.moneda, c.moneda === "USD" ? c.cotizacion || null : 1,
-          armada.percepcionIva, armada.percepcionIibb, armada.otrosImpuestos, armada.noGravado, prov!.cuenta_gasto_id,
-          [`Subida desde el archivo «${a.archivo}» (${c.tipoTexto}).`, armada.aviso].filter(Boolean).join(" "), s.usuario.id, c.cae, emisor.id, estandar ? null : c.tipo, a.ruta]);
-      const id = Number(f.rows[0].id);
-      // Las percepciones de IIBB por provincia, si la factura las discrimina y suman lo mismo.
-      const det = detalleIibb(r.lectura, armada.percepcionIibb);
-      if (det) {
-        await cx.query("update factura_compra set percepcion_iibb_detalle = $2::jsonb where id = $1", [id, JSON.stringify(det)]);
-        if (det.length === 1) await cx.query("update proveedor set iibb_jurisdiccion = $2 where id = $1 and iibb_jurisdiccion is null", [prov!.id, det[0].jur]);
-      }
-      let orden = 0;
-      for (const l of armada.lineas) {
-        await cx.query(`insert into factura_compra_linea (organizacion_id, factura_id, descripcion, cantidad, costo_unit, iva_pct, neto, iva, orden)
-                        values ($1, $2, $3, 1, $4, $5, $4, $6, $7)`, [s.org.id, id, l.descripcion, l.neto, l.ivaPct, l.iva, ++orden]);
-      }
-      return id;
-    });
-    const t = await recalcularFactura(s.org.id, fid);
-    if (Math.abs(t.total - c.total) > 0.02) {
-      revalidatePath(LISTA);
-      return { id: fid, ok: `Quedó en borrador: el total armado (${t.total}) no coincide con el de la factura (${c.total}). Revisala.` };
-    }
+    if (r.lectura.es_comprobante === false) throw new ErrorErp(`No parece una factura${r.lectura.que_es ? ` (es ${r.lectura.que_es})` : ""}.`);
+    const f = await cargarFacturaLeida(s.org.id, s.usuario.id, r.lectura, a.ruta, a.archivo);
     revalidatePath(LISTA);
-    if (!prov!.cuenta_gasto_id) return { id: fid, ok: `Leída. El proveedor ${prov!.nombre} todavía no tiene cuenta de gasto: elegila en la cabecera (queda recordada) y registrala.` };
-    await registrarFactura(s.org.id, fid, s.usuario.id);
-    return { id: fid, ok: "Leída y registrada con la cuenta de gasto del proveedor." };
+    if (f.estado === "ya_estaba") throw new ErrorErp(`Esa factura ${f.mensaje}.`);
+    return { id: f.id, ok: f.mensaje.charAt(0).toUpperCase() + f.mensaje.slice(1) };
   } catch (e) {
     return { motivo: motivoErp(e) };
   }
@@ -286,4 +240,20 @@ export async function accionCrearCuentaGasto(nombre: string): Promise<{ id: numb
   } catch (e) {
     return { error: motivoErp(e) };
   }
+}
+
+// «Buscar facturas en el Drive» (Fer, 24/10): lee de fondo las carpetas de facturas cargadas en Configuración › Google
+// Drive (lib/compras/drive-facturas.ts), desde el mes elegido (sin elegir, este mes y el anterior).
+export async function accionBuscarFacturasDrive(fd: FormData) {
+  const s = await entrarErp("compras_ver");
+  const desde = String(fd.get("desde") ?? "");
+  const hoy = hoyArgentina();
+  const meses = /^\d{4}-(0[1-9]|1[0-2])$/.test(desde)
+    ? Math.min(36, Math.max(1, (Number(hoy.slice(0, 4)) - Number(desde.slice(0, 4))) * 12 + Number(hoy.slice(5, 7)) - Number(desde.slice(5, 7)) + 1)) : 2;
+  return deFondo(s, "facturas-drive", "Buscar facturas en el Drive", async () => {
+    // Corta a los 4 minutos (la pantalla tiene 5): lo que quede, en la próxima vuelta (lo ya leído no se vuelve a leer).
+    const r = await leerFacturasDelDrive(s.org.id, s.usuario.id, { meses, hastaMs: Date.now() + 240_000 });
+    revalidatePath(LISTA);
+    return `Drive: ${textoResultadoFacturas(r)}`;
+  });
 }

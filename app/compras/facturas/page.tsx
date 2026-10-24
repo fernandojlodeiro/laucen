@@ -5,9 +5,13 @@
 import Link from "next/link";
 import ElegirDeLista from "@/app/componentes/ElegirDeLista";
 import SubirFactura from "./SubirFactura";
-import { consulta } from "@/lib/erp/base";
+import { consulta, una } from "@/lib/erp/base";
+import { Desplegable } from "@/app/informes/Filtros";
+import { BotonTarea } from "@/app/componentes/TareasFondo";
+import { mesesParaElegir, nombreMes } from "@/app/administracion/libros-iva/comun";
+import { accionBuscarFacturasDrive } from "./acciones";
 import { PRIMARIO, SUAVE } from "@/app/botones";
-import { entrarErp, Pantalla, Avisos, CAMPO, ETIQUETA } from "@/app/componentes/erp";
+import { entrarErp, Pantalla, Avisos, CAMPO, ETIQUETA, url } from "@/app/componentes/erp";
 import { AccionesExcel, TablaVista, paginaDeVista } from "@/app/listas/piezas";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { BotonEnviar } from "@/app/radar/Cliente";
@@ -23,16 +27,21 @@ export const maxDuration = 300;
 
 const IMPORTAR = "Importar de ARCA (Mis Comprobantes)";
 
-type SP = { rs?: string; proveedor?: string; estado?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
+type SP = { rs?: string; proveedor?: string; estado?: string; leer?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
 export default async function FacturasCompra({ searchParams }: { searchParams: Promise<SP> }) {
   const s = await entrarErp("compras_ver");
   const sp = await searchParams;
   const { proveedor: proveedorId, estado } = filtrosFacturasCompra(sp);
-  const [proveedores, vista] = await Promise.all([
+  const [proveedores, vista, drive, sinCuenta] = await Promise.all([
     consulta<{ id: number; nombre: string; cuit: string | null }>("select id::int, nombre, cuit from proveedor where organizacion_id = $1 order by estado, nombre", [s.org.id]),
     paginaDeVista(LISTA_FACTURAS_COMPRA, { org: s.org.id, moneda: s.moneda }, sp),
+    una<{ carpetas: number; ts: string | null; resultado: string | null }>(`select jsonb_array_length(coalesce(rutas_facturas, '[]'::jsonb))::int carpetas,
+      to_char(facturas_leido_ts at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI') ts, facturas_resultado resultado
+      from google_drive where organizacion_id = $1 and refresh_token is not null`, [s.org.id]),
+    una<{ n: number }>("select count(*)::int n from factura_compra where organizacion_id = $1 and estado = 'borrador' and cuenta_gasto_id is null", [s.org.id]),
   ]);
+  const leerDesde = sp.leer && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.leer) ? sp.leer : "";
   const rs = await elegirRazonSocial(s.org.id, sp.rs);
   const hayFiltro = !!(proveedorId || estado || rs.id);
 
@@ -54,6 +63,21 @@ export default async function FacturasCompra({ searchParams }: { searchParams: P
           <p className="w-full text-[11px] text-[#5C6B76]">Primero se ve cada comprobante con su proveedor y si ya estaba cargado; nada se registra hasta apretar «Importar». Subir dos veces el mismo mes no duplica.</p>
         </form>
       </AltaNueva>
+      {(drive?.carpetas || sinCuenta?.n) ? (
+        <div className="flex flex-wrap items-center gap-3 mb-3 text-xs">
+          {!!drive?.carpetas && <>
+            <Desplegable parametro="leer" etiqueta="Leer desde" valor={leerDesde}
+              opciones={[{ valor: "", texto: "Este mes y el anterior" }, ...mesesParaElegir().map((m) => ({ valor: m, texto: nombreMes(m) }))]} />
+            <BotonTarea accion={accionBuscarFacturasDrive} tipo="facturas-drive" clase={SUAVE} texto="Buscar facturas en el Drive" campos={{ desde: leerDesde }} />
+            {drive.ts && <span className="text-[11px] text-[#5C6B76]">Última lectura {drive.ts}: {drive.resultado}</span>}
+          </>}
+          {!!sinCuenta?.n && estado !== "sin_cuenta" && (
+            <Link href={url("/compras/facturas", { estado: "sin_cuenta" })} className="rounded-lg px-2 py-1 bg-[#FFF8E5] text-[#8a6100] hover:underline">
+              {sinCuenta.n} factura{sinCuenta.n === 1 ? "" : "s"} esperando la cuenta de gasto
+            </Link>
+          )}
+        </div>
+      ) : null}
       <form className="flex flex-wrap items-end gap-2 mb-3">
         {rs.multi && rs.id && <input type="hidden" name="rs" value={rs.id} />}
         {rs.multi && <SelectorRazonSocial razones={rs.razones.map((x) => ({ id: x.id, nombre: nombreRs(x) }))} valor={rs.id} />}
@@ -65,6 +89,7 @@ export default async function FacturasCompra({ searchParams }: { searchParams: P
           <select name="estado" defaultValue={estado} className={CAMPO}>
             <option value="">Todos</option>
             {Object.entries(ESTADO_FACTURA).map(([k, v]) => <option key={k} value={k}>{v.texto}</option>)}
+            <option value="sin_cuenta">Falta la cuenta de gasto</option>
           </select></label>
         <button className={PRIMARIO}>Filtrar</button>
         {hayFiltro && <Link href="/compras/facturas" className={SUAVE}>Limpiar</Link>}
