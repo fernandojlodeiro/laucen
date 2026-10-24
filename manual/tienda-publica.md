@@ -55,7 +55,7 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 
 ### Ficha de producto
 
-- Galería de fotos (las de la variación elegida primero).
+- Galería de fotos (las de la variación elegida primero) y, si el producto tiene video (pestaña Fotos de su ficha en el [catálogo](/catalogo/productos)), el video después de la primera foto: en la compu se reproduce solo y sin sonido al elegirlo; en el celular, al deslizar hasta él.
 - "Nuevo | +N vendidos", cucardas, "Ver más productos de <marca>", el título, el precio y las cuotas, los botones de cada variación (color, talle…), y "Lo que tenés que saber de este producto".
 - La caja de compra: envío ("Envío gratis a domicilio", "Envío a domicilio por $ …" o "Calculamos el costo al finalizar la compra"; "Retirá gratis" si hay retiro), el stock ("Stock disponible", "¡Última disponible!", "Sin stock"), **Cantidad** (hasta 30 o el stock), **"Comprar ahora"** y **"Agregar al carrito"**; devolución y garantía si están cargadas.
 - "Medios de pago" con las cuotas y los descuentos por medio; con el esquema de [Cuotas y descuentos](/config/tienda/financiacion), el recuadro "Precio según cómo pagues" (cada forma de pago con su precio y su % OFF). (No hay caja de "información del vendedor": la tienda es de una sola empresa, no un marketplace.)

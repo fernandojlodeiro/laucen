@@ -390,6 +390,42 @@ export async function guardarFotoSubida(fd: FormData): Promise<{ motivo?: string
   }
 }
 
+/** Guarda el video del producto que el navegador ya subió (bucket videos_tienda); reemplaza el anterior. */
+export async function guardarVideoSubido(fd: FormData): Promise<{ motivo?: string }> {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  try {
+    await productoDe(s.org.id, pid);
+    const url = texto(fd, "url"), ruta = texto(fd, "ruta");
+    if (!url || !/^https:\/\//.test(url) || !ruta || !ruta.startsWith(`${s.org.id}/`)) throw new ErrorErp("No llegó bien el video. Probá de nuevo.");
+    const antes = await una<{ video_ruta: string | null }>("select video_ruta from producto where id = $1 and organizacion_id = $2", [pid, s.org.id]);
+    await consulta("update producto set video_url = $3, video_ruta = $4 where id = $1 and organizacion_id = $2", [pid, s.org.id, url, ruta]);
+    if (antes?.video_ruta?.startsWith(`${s.org.id}/`)) {
+      try { await (await supabaseServer()).storage.from("videos_tienda").remove([antes.video_ruta]); } catch { /* queda huérfano */ }
+    }
+    revalidatePath(`${LISTADO}/${pid}`);
+    return {};
+  } catch (e) {
+    return { motivo: motivoErp(e) };
+  }
+}
+
+export async function accionBorrarVideo(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  await intentar(ficha(pid, fd), async () => {
+    await productoDe(s.org.id, pid);
+    const r = await una<{ video_ruta: string | null }>(
+      "update producto p set video_url = null, video_ruta = null from producto antes where p.id = antes.id and p.id = $1 and p.organizacion_id = $2 returning antes.video_ruta",
+      [pid, s.org.id]);
+    if (r?.video_ruta?.startsWith(`${s.org.id}/`)) {
+      try { await (await supabaseServer()).storage.from("videos_tienda").remove([r.video_ruta]); } catch { /* queda huérfano */ }
+    }
+    revalidatePath(`${LISTADO}/${pid}`);
+    return "Video borrado.";
+  });
+}
+
 /** Sube o baja una foto un lugar (intercambia el orden con la vecina). */
 export async function accionMoverFoto(fd: FormData) {
   const s = await entrarErp("productos_ver");

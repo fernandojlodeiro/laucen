@@ -39,8 +39,8 @@ type Variacion = { id: number; titulo: string; orden: number; lista: number; ven
 async function ficha(t: Tienda, productoId: number) {
   const org = t.organizacionId;
   const p = await una<{ id: number; titulo: string; descripcion: string | null; marca: string | null; familia_id: number | null; familia: string | null;
-    condicion: string | null; codigo_barras: string | null }>(`
-    select p.id::int, p.titulo, p.descripcion, p.marca, p.familia_id::int, f.nombre familia, p.condicion, p.codigo_barras
+    condicion: string | null; codigo_barras: string | null; video_url: string | null }>(`
+    select p.id::int, p.titulo, p.descripcion, p.marca, p.familia_id::int, f.nombre familia, p.condicion, p.codigo_barras, p.video_url
       from producto p left join familia f on f.id = p.familia_id
      where p.id = $1 and p.organizacion_id = $2 and p.estado = 'activo' and ${sqlPublicadoEnWeb("p", "$3")}`, [productoId, org, t.canalId]);
   if (!p) return null;
@@ -186,7 +186,7 @@ export default async function Producto({ params, searchParams }: Props) {
         <div className="grid lg:grid-cols-[minmax(0,1fr)_330px]">
           <div className="grid gap-6 p-4 sm:p-6 md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
             <div className="md:hidden">{encabezado}</div>
-            <div><Galeria fotos={fotos} titulo={p.titulo} /></div>
+            <div><Galeria fotos={fotos} titulo={p.titulo} video={p.video_url} /></div>
 
             <div className="space-y-5">
               <AvisosUrl sp={sp} />

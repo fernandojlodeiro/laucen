@@ -388,6 +388,10 @@ $$;
 -- cargar filas nuevas. Sin tipo de cambio cargado, quedan los pesos
 -- congelados al cargar el precio.
 alter table producto add column if not exists precio_en_dolares boolean not null default false;
+-- El video del producto (Fer, 24/10): se ve en la ficha de la tienda, después de la primera foto.
+-- video_url es el link público (bucket videos_tienda) y video_ruta, el archivo (para borrarlo).
+alter table producto add column if not exists video_url text;
+alter table producto add column if not exists video_ruta text;
 alter table variacion add column if not exists precio_en_dolares boolean;
 
 -- Precio de la web contra Mercado Libre (Fer, 24/10). Una lista con precio_vs_ml

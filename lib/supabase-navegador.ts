@@ -13,13 +13,13 @@ export function supabaseNavegador() {
 
 /** Sube un archivo a un bucket y devuelve su ruta (y su link público si el
  *  bucket es público), o un motivo en criollo. */
-export async function subirArchivo(bucket: "productos" | "importaciones" | "videos", organizacionId: string, archivo: File, carpeta = "") {
+export async function subirArchivo(bucket: "productos" | "importaciones" | "videos" | "videos_tienda", organizacionId: string, archivo: File, carpeta = "") {
   const limpio = archivo.name.normalize("NFD").replace(/[^\w.-]+/g, "_").slice(-80);
   const ruta = [organizacionId, carpeta, `${Date.now()}-${limpio}`].filter(Boolean).join("/");
   const sb = supabaseNavegador();
   const { error } = await sb.storage.from(bucket).upload(ruta, archivo, { contentType: archivo.type || undefined, upsert: false });
   if (error) return { motivo: "No se pudo subir el archivo. Probá de nuevo en un momento." } as const;
-  const url = bucket === "productos" ? sb.storage.from(bucket).getPublicUrl(ruta).data.publicUrl : null;
+  const url = bucket === "productos" || bucket === "videos_tienda" ? sb.storage.from(bucket).getPublicUrl(ruta).data.publicUrl : null;
   return { ruta, url } as const;
 }
 
