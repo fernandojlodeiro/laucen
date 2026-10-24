@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
-import { consulta, ErrorErp } from "@/lib/erp/base";
+import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, texto, id } from "@/lib/erp/acciones";
 import { condicionIva, normalizarCuit } from "@/lib/clientes";
 
@@ -54,4 +54,17 @@ export async function accionBorrarProveedor(fd: FormData) {
     revalidatePath(VOLVER);
     return "Borrado.";
   });
+}
+
+/** Alta rápida desde la factura de compra o el despacho (Fer, 22/10): el «+ Crear «…»» del buscador de proveedor.
+ *  Sólo el nombre; el resto (CUIT, país, condición de IVA) se completa en Compras › Proveedores. */
+export async function accionCrearProveedorRapido(nombre: string): Promise<{ id: number; texto: string; detalle?: string } | { error: string }> {
+  const s = await entrarErp("compras_ver");
+  const n = nombre.trim().slice(0, 200);
+  if (!n) return { error: "Escribí el nombre del proveedor." };
+  const ya = await una<{ id: number }>("select id::int from proveedor where organizacion_id = $1 and lower(btrim(nombre)) = lower($2) limit 1", [s.org.id, n]);
+  if (ya) return { error: "Ya hay un proveedor con ese nombre: elegilo de la lista." };
+  const r = await una<{ id: number }>("insert into proveedor (organizacion_id, nombre, razon_social) values ($1, $2, $2) returning id::int", [s.org.id, n]);
+  revalidatePath(VOLVER);
+  return { id: r!.id, texto: n, detalle: "nuevo: completá CUIT y país en Proveedores" };
 }

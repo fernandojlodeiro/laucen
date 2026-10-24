@@ -2,6 +2,7 @@
 // Cada uno se arma en borrador y al registrarlo prorratea flete, seguro y
 // gastos sobre las líneas por su FOB (costo puesto en depósito).
 
+import SubirDespacho from "./SubirDespacho";
 import Link from "next/link";
 import { consulta } from "@/lib/erp/base";
 import { consultaPaginada, leerOrden } from "@/lib/lista";
@@ -19,6 +20,8 @@ import { AccionesExcel } from "@/app/listas/piezas";
 import { LISTA_DESPACHOS, GASTOS_DESPACHO, LINEAS_DESPACHO, COSTO_DESPACHO } from "./lista";
 
 export const dynamic = "force-dynamic";
+// «Subir despacho (PDF)» lee con la IA: la acción corre con el tiempo de esta página.
+export const maxDuration = 300;
 
 type SP = { rs?: string; proveedor?: string; estado?: string; p?: string; orden?: string; dir?: string; ok?: string; error?: string };
 
@@ -57,7 +60,7 @@ export default async function Despachos({ searchParams }: { searchParams: Promis
 
   return (
     <Pantalla titulo="Despachos de importación" subtitulo="La mercadería importada con su FOB, flete, seguro y gastos: queda el costo puesto en depósito"
-      acciones={<><AccionesExcel lista={LISTA_DESPACHOS} org={s.org.id} /><Link href="/compras/despachos/nuevo" className={PRIMARIO}>+ Nuevo despacho</Link></>}>
+      acciones={<><AccionesExcel lista={LISTA_DESPACHOS} org={s.org.id} /><SubirDespacho organizacionId={s.org.id} /><Link href="/compras/despachos/nuevo" className={PRIMARIO}>+ Nuevo despacho</Link></>}>
       <Avisos sp={sp} />
       <form className="flex flex-wrap items-end gap-2 mb-3">
         {rs.multi && rs.id && <input type="hidden" name="rs" value={rs.id} />}

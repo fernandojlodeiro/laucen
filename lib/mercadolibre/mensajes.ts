@@ -116,7 +116,7 @@ async function revisarFacturaDeLaVenta(cuenta: CuentaMl, pack: string | number) 
 
 const INSTRUCCIONES = `Sos quien atiende la posventa de una tienda argentina en Mercado Libre. Escribí la próxima respuesta al comprador, en castellano rioplatense, cordial y breve (1 a 4 oraciones, máximo 350 caracteres, que es el límite de ML).
 Reglas de Mercado Libre: nada de teléfonos, mails ni redes; links, sólo los de publicaciones nuestras de Mercado Libre que figuren en productos_pedidos, nunca otros; no ofrecer arreglos por fuera de ML.
-Usá SOLO los datos del pedido y del envío que te paso; no prometas fechas que no figuran. Si el comprador reclama, primero empatía y una solución concreta dentro de lo que se ve en los datos.
+Usá SOLO los datos del pedido y del envío que te paso; no prometas fechas que no figuran. Para una pregunta técnica del producto comprado (memoria, ampliaciones, discos, compatibilidad, etc.), usá los datos_tecnicos de su línea: es lo que la tienda sabe del equipo. Si el comprador reclama, primero empatía y una solución concreta dentro de lo que se ve en los datos.
 Si traigo productos_pedidos, el comprador pide también otros productos: cada uno trae las publicaciones nuestras que se encontraron (con link, plan y stock disponible) o ninguna. Usá sólo esos datos; qué decir según haya o no stock lo dicen las reglas de la tienda. Un solo link por producto, el de la primera con stock.
 Mirá toda la conversación: si en cualquier mensaje el comprador pidió hablar con una persona, el estado es "persona".
 ${FORMATO_IA}`;
@@ -140,10 +140,17 @@ async function compraDeMl(org: string, canalId: string | null, packId: string): 
     }
   }
   if (!ordenes.length) return null;
+  const items = ordenes.flatMap((x) => x.order_items ?? []);
+  // Los datos técnicos para la IA del producto de Laucen, por el SKU de la venta.
+  const skus = [...new Set(items.map((l) => l.item?.seller_sku).filter((x): x is string => !!x))];
+  const tecnicos = new Map((skus.length ? await consulta<{ sku: string; notas_ia: string }>(`
+    select v.sku, pr.notas_ia from variacion v join producto pr on pr.id = v.producto_id
+     where v.organizacion_id = $1 and v.sku = any($2::text[]) and nullif(trim(pr.notas_ia), '') is not null`, [org, skus]) : []).map((x) => [x.sku, x.notas_ia]));
   return {
     nota: "Compra anterior a Laucen: leída de Mercado Libre",
     fecha: ordenes[0].date_created ?? null, estado: ordenes[0].status ?? null, entregado: ordenes.some((x) => x.tags?.includes("delivered")),
-    lineas: ordenes.flatMap((x) => (x.order_items ?? []).map((l) => ({ titulo: l.item?.title ?? null, cantidad: l.quantity ?? null, garantia: l.item?.warranty ?? null }))),
+    lineas: items.map((l) => ({ titulo: l.item?.title ?? null, cantidad: l.quantity ?? null, garantia: l.item?.warranty ?? null,
+      datos_tecnicos: (l.item?.seller_sku && tecnicos.get(l.item.seller_sku)) || null })),
   };
 }
 
@@ -154,7 +161,10 @@ export async function sugerirMensaje(org: string, packId: string): Promise<{ tex
   const mensajes = await consulta<{ de_vendedor: boolean; texto: string | null; fecha: Date }>(
     "select de_vendedor, texto, fecha from meli_mensaje where organizacion_id = $1 and pack_id = $2 order by fecha", [org, packId]);
   const pedido = conv?.pedido_id ? await una(`
-    select p.estado, p.fecha, p.total_ars, (select json_agg(json_build_object('titulo', l.titulo, 'cantidad', l.cantidad)) from pedido_linea l where l.pedido_id = p.id) lineas,
+    select p.estado, p.fecha, p.total_ars,
+           (select json_agg(json_build_object('titulo', l.titulo, 'cantidad', l.cantidad,
+                   'datos_tecnicos', (select nullif(trim(pr.notas_ia), '') from variacion v join producto pr on pr.id = v.producto_id where v.id = l.variacion_id)))
+              from pedido_linea l where l.pedido_id = p.id) lineas,
            (select json_build_object('estado', e.estado, 'subestado', e.subestado, 'logistica', e.logistica, 'tracking', e.tracking, 'entrega_estimada', e.entrega_estimada)
               from envio e where e.pedido_id = p.id order by e.id desc limit 1) envio
       from pedido p where p.id = $1`, [conv.pedido_id]) : await compraDeMl(org, conv?.canal_id ?? null, packId);

@@ -5,7 +5,7 @@ import { entrarErp } from "@/app/componentes/erp";
 import { parametroBusqueda } from "@/lib/busqueda";
 import { ErrorErp } from "@/lib/erp/base";
 import { intentar, id } from "@/lib/erp/acciones";
-import { agregar, quitar, mover, buscarParaPortada, esLista, type ProductoHallado } from "@/lib/tienda/portada";
+import { agregar, quitar, mover, buscarParaPortada, esLista, sacarFamilia, devolverFamilia, type ProductoHallado } from "@/lib/tienda/portada";
 
 const volver = (canal: number) => `/config/tienda/portada?canal=${canal}`;
 const listaDe = (fd: FormData) => { const l = fd.get("lista"); if (!esLista(l)) throw new ErrorErp("Esa fila no existe."); return l; };
@@ -40,4 +40,19 @@ export async function accionMoverPortada(fd: FormData) {
   const s = await entrarErp("tienda_config");
   const canal = id(fd, "canal_id");
   await intentar(volver(canal), async () => { await mover(s.org.id, canal, listaDe(fd), id(fd, "producto_id"), fd.get("paso") === "-1" ? -1 : 1); });
+}
+
+export async function accionSacarFamilia(fd: FormData) {
+  const s = await entrarErp("tienda_config");
+  const canal = id(fd, "canal_id");
+  await intentar(volver(canal), async () => {
+    await sacarFamilia(s.org.id, canal, Number(fd.get("familia_id")) || 0);
+    return "Listo: esa categoría ya no sale en la portada.";
+  });
+}
+
+export async function accionDevolverFamilia(fd: FormData) {
+  const s = await entrarErp("tienda_config");
+  const canal = id(fd, "canal_id");
+  await intentar(volver(canal), async () => { await devolverFamilia(s.org.id, canal, id(fd, "familia_id")); });
 }

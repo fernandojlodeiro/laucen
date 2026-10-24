@@ -9,6 +9,11 @@ import { CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fecha as fechaAR } from "@/app/ventas/formato";
 import { emisoresDe } from "@/lib/arca/facturar";
 import { LETRAS } from "../comun";
+import ElegirDeLista from "@/app/componentes/ElegirDeLista";
+import { CODIGOS_JURISDICCION, nombreJurisdiccion } from "@/lib/impuestos/jurisdicciones";
+import { cuitLegible } from "@/lib/cuit";
+import { accionCrearProveedorRapido } from "@/app/compras/proveedores/acciones";
+import { accionCrearCuentaGasto } from "./acciones";
 
 export type DatosCabecera = {
   proveedor_id: number | null; letra: string; es_nota_credito: boolean; punto_venta: number | null; numero: string | null;
@@ -17,13 +22,17 @@ export type DatosCabecera = {
   percepcion_iva?: number; percepcion_iibb?: number; otros_impuestos?: number; no_gravado?: number;
   /** A nombre de qué razón social viene facturada (el stock entra igual al general); sin dato, la principal. */
   emisor_id?: number | null;
+  /** La provincia de la percepción de IIBB (si es una sola; con varias, viene null y se respeta el detalle leído). */
+  iibb_jur?: number | null;
+  /** Con varias provincias, el detalle tal cual (para mostrarlo). */
+  iibb_detalle?: { jur: number; importe: number }[] | null;
 };
 
 /** Las listas para elegir (proveedor, depósito, recepción, cuenta) y la cotización del día. */
 export async function opcionesCabecera(org: string) {
   await asegurarPlan(org);
   const [proveedores, depositos, recepciones, cuentas, tc, razones] = await Promise.all([
-    consulta<{ id: number; nombre: string }>("select id::int, nombre from proveedor where organizacion_id = $1 and estado = 'activo' order by nombre", [org]),
+    consulta<{ id: number; nombre: string; cuit: string | null; pais: string }>("select id::int, nombre, cuit, pais from proveedor where organizacion_id = $1 and estado = 'activo' order by nombre", [org]),
     consulta<{ id: number; nombre: string }>("select id::int, nombre from deposito where organizacion_id = $1 and estado = 'activo' and tipo not in ('full_ml', 'transito') order by id", [org]),
     consulta<{ id: number; creado_ts: Date; deposito: string; proveedor: string | null; documento: string | null }>(`
       select r.id::int, r.creado_ts, d.nombre deposito, pr.nombre proveedor, r.documento
@@ -39,14 +48,16 @@ export async function opcionesCabecera(org: string) {
 export function CamposCabecera({ d, o, conImpuestos = false }: { d: DatosCabecera; o: Awaited<ReturnType<typeof opcionesCabecera>>; conImpuestos?: boolean }) {
   // Si el elegido quedó archivado, igual tiene que aparecer en la lista.
   const proveedorFuera = d.proveedor_id && !o.proveedores.some((p) => p.id === d.proveedor_id);
+  // Proveedor con buscador y «+ Crear» ahí mismo (Fer, 22/10).
+  const opcionesProv = [
+    ...(proveedorFuera ? [{ id: d.proveedor_id!, texto: "(proveedor archivado)" }] : []),
+    ...o.proveedores.map((p) => ({ id: p.id, texto: p.nombre, detalle: p.cuit ? cuitLegible(p.cuit) : p.pais !== "AR" ? p.pais : undefined })),
+  ];
   return (
     <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 items-start">
-      <label className="col-span-2"><span className={ETIQUETA}>Proveedor</span>
-        <select name="proveedor" defaultValue={d.proveedor_id ?? ""} className={`${CAMPO} w-full`} required>
-          <option value="">Elegí…</option>
-          {proveedorFuera && <option value={d.proveedor_id!}>(proveedor archivado)</option>}
-          {o.proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-        </select></label>
+      <div className="col-span-2"><span className={ETIQUETA}>Proveedor</span>
+        <ElegirDeLista name="proveedor" opciones={opcionesProv} valor={d.proveedor_id} vacio="Sin proveedor" placeholder="Buscá o creá el proveedor…"
+          etiqueta="Proveedor" crear={accionCrearProveedorRapido} /></div>
       {o.razones.length > 1 && (
         <label className="col-span-2"><span className={ETIQUETA}>A nombre de (razón social)</span>
           <select name="emisor" defaultValue={d.emisor_id ?? o.razones.find((r) => r.es_principal)?.id} className={`${CAMPO} w-full`}>
@@ -87,17 +98,21 @@ export function CamposCabecera({ d, o, conImpuestos = false }: { d: DatosCabecer
             <option key={r.id} value={r.id}>#{r.id} · {fechaAR(r.creado_ts)} · {r.deposito}{r.proveedor ? ` · ${r.proveedor}` : ""}{r.documento ? ` · ${r.documento}` : ""}</option>
           ))}
         </select></label>
-      <label className="col-span-2"><span className={ETIQUETA}>Cuenta de gasto (si no es mercadería)</span>
-        <select name="cuenta_gasto" defaultValue={d.cuenta_gasto_id ?? ""} className={`${CAMPO} w-full`}>
-          <option value="">— Es mercadería —</option>
-          {o.cuentas.map((c) => <option key={c.id} value={c.id}>{c.codigo} {c.nombre}</option>)}
-        </select></label>
+      {/* Con buscador y «+ Crear» (Fer, 23/10); la elegida queda recordada en el proveedor. */}
+      <div className="col-span-2"><span className={ETIQUETA}>Cuenta de gasto (si no es mercadería; queda recordada en el proveedor)</span>
+        <ElegirDeLista name="cuenta_gasto" valor={d.cuenta_gasto_id} vacio="— Es mercadería —" placeholder="Buscá o creá la cuenta…" etiqueta="Cuenta de gasto"
+          opciones={o.cuentas.map((c) => ({ id: c.id, texto: `${c.codigo} ${c.nombre}` }))} crear={accionCrearCuentaGasto} /></div>
       {conImpuestos && (
         <>
           <label><span className={ETIQUETA}>Percepción IVA</span>
             <CampoNumero name="percepcion_iva" valor={d.percepcion_iva ?? 0} tipo="pesos" className={`${CAMPO} w-full`} /></label>
           <label><span className={ETIQUETA}>Percepción IIBB</span>
             <CampoNumero name="percepcion_iibb" valor={d.percepcion_iibb ?? 0} tipo="pesos" className={`${CAMPO} w-full`} /></label>
+          <div><span className={ETIQUETA}>Provincia de la percepción IIBB</span>
+            {(d.iibb_detalle?.length ?? 0) > 1
+              ? <span className="block text-[11px] text-[#5C6B76] pt-1.5">{d.iibb_detalle!.map((x) => `${nombreJurisdiccion(x.jur)} ${x.importe.toLocaleString("es-AR", { minimumFractionDigits: 2 })}`).join(" · ")}</span>
+              : <ElegirDeLista name="iibb_jur" valor={d.iibb_jur ?? null} vacio="La del proveedor (o Córdoba)" etiqueta="Provincia de la percepción IIBB"
+                  opciones={CODIGOS_JURISDICCION.map((c) => ({ id: c, texto: nombreJurisdiccion(c) }))} />}</div>
           <label><span className={ETIQUETA}>Otros impuestos</span>
             <CampoNumero name="otros_impuestos" valor={d.otros_impuestos ?? 0} tipo="pesos" className={`${CAMPO} w-full`} /></label>
           <label><span className={ETIQUETA}>No gravado</span>

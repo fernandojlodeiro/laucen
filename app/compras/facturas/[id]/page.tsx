@@ -21,7 +21,7 @@ import { verInactivos, MostrarInactivos } from "@/app/componentes/Inactivos";
 import { CamposCabecera, opcionesCabecera } from "../Cabecera";
 import type { DiferenciaRecepcion } from "@/lib/administracion/diferencias";
 import {
-  accionGuardarCabecera, accionAgregarLinea, accionGuardarLinea, accionBorrarLinea, accionBorrarFactura, accionRegistrarFactura,
+  accionGuardarCabecera, accionAgregarLinea, accionGuardarLinea, accionBorrarLinea, accionBorrarFactura, accionRegistrarFactura, accionVolverABorrador,
 } from "../acciones";
 
 export const dynamic = "force-dynamic";
@@ -32,9 +32,11 @@ type Factura = {
   id: number; proveedor_id: number; proveedor: string; letra: string; es_nota_credito: boolean; es_nota_debito: boolean; punto_venta: number | null; numero: string | null;
   fecha: string; vencimiento: string | null; moneda: "ARS" | "USD"; cotizacion: number; neto: number; iva: number;
   iva_detalle: { pct: number; base: number; importe: number }[]; percepcion_iva: number; percepcion_iibb: number; otros_impuestos: number;
+  percepcion_iibb_detalle: { jur: number; importe: number }[] | null; jur_proveedor: number | null;
   no_gravado: number; total: number; total_ars: number; total_usd: number; deposito_id: number | null; deposito: string | null;
   recepcion_id: number | null; cuenta_gasto_id: number | null; cuenta_gasto: string | null; estado: string; notas: string | null; registrada_ts: Date | null;
   diferencia_recepcion: DiferenciaRecepcion[] | null; emisor_id: number | null; emisor: string | null;
+  archivo: string | null; validada_arca_ts: Date | null;
 };
 type Linea = { id: number; variacion_id: number | null; sku: string | null; descripcion: string; cantidad: number; costo_unit: number; iva_pct: number; neto: number; iva: number };
 
@@ -46,10 +48,11 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
   const f = await una<Factura>(`
     select f.id::int, f.proveedor_id::int, p.nombre proveedor, f.letra, f.es_nota_credito, f.es_nota_debito, f.punto_venta, f.numero::text,
            to_char(f.fecha, 'YYYY-MM-DD') fecha, to_char(f.vencimiento, 'YYYY-MM-DD') vencimiento, f.moneda, f.cotizacion::float,
-           f.neto::float, f.iva::float, f.iva_detalle, f.percepcion_iva::float, f.percepcion_iibb::float, f.otros_impuestos::float,
+           f.neto::float, f.iva::float, f.iva_detalle, f.percepcion_iva::float, f.percepcion_iibb::float, f.percepcion_iibb_detalle, p.iibb_jurisdiccion jur_proveedor, f.otros_impuestos::float,
            f.no_gravado::float, f.total::float, f.total_ars::float, f.total_usd::float, f.deposito_id::int, d.nombre deposito,
            f.recepcion_id::int, f.cuenta_gasto_id::int, (pc.codigo || ' ' || pc.nombre) cuenta_gasto, f.estado, f.notas, f.registrada_ts,
-           f.diferencia_recepcion, f.emisor_id::int, (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = f.emisor_id) emisor
+           f.diferencia_recepcion, f.emisor_id::int, (select coalesce(e.nombre, e.razon_social) from emisor e where e.id = f.emisor_id) emisor,
+           f.archivo, f.validada_arca_ts
       from factura_compra f join proveedor p on p.id = f.proveedor_id
       left join deposito d on d.id = f.deposito_id
       left join plan_cuenta pc on pc.id = f.cuenta_gasto_id and pc.organizacion_id = f.organizacion_id
@@ -71,6 +74,7 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
        where v.organizacion_id = $1 and v.id = any($2::bigint[])`, [s.org.id, difs.map((d) => d.variacion_id)]) : [],
   ]);
   const prod = new Map(prodDif.map((p) => [p.id, p]));
+  const conProducto = lineas.some((l) => l.variacion_id != null);
   const totalDif = Math.round(difs.reduce((t, d) => t + d.importe, 0) * 100) / 100;
   const editar = borrador ? Number(sp.editar) || 0 : 0;
   const aqui = (extra: Record<string, string | number | null> = {}) => url(`/compras/facturas/${fid}`, { q: q || null, ...extra });
@@ -91,15 +95,37 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
       titulo={<>{f.es_nota_credito ? "Nota de crédito de compra" : f.es_nota_debito ? "Nota de débito de compra" : "Factura de compra"} <span className="font-mono">{numeroFactura(f)}</span></>}
       camino={[{ texto: numeroFactura(f) }]}
       subtitulo={<><Link href={`/compras/proveedores?id=${f.proveedor_id}`} className="text-[#16577F] hover:underline">{f.proveedor}</Link> · {fechaAR(f.fecha)}</>}
-      acciones={borrador ? (
+      acciones={<>
+        {/* El archivo de la factura, si se subió (Fer, 23/10): verlo en otra pestaña o bajarlo. */}
+        {f.archivo && <a href={`/compras/facturas/${fid}/pdf`} target="_blank" rel="noreferrer" className={SUAVE}>Ver la factura</a>}
+        {f.archivo && <a href={`/compras/facturas/${fid}/pdf?bajar=1`} className={SUAVE}>Bajar la factura</a>}
+        {borrador ? (
         <>
           {/* La acción final del borrador, arriba a la derecha (AGENTS.md). */}
           <BotonConfirmar accion={accionRegistrarFactura} campos={{ id: String(fid) }} clase={VERDE} texto="Registrar"
             pregunta="¿Registrar? Ingresa el stock, actualiza el costo y deja la deuda al proveedor. Después no se puede cambiar." corriendo="Registrando…" />
           <TachoConfirmar accion={accionBorrarFactura} campos={{ id: String(fid) }} pregunta="¿Borrar el borrador?" />
         </>
-      ) : <Link href={`/administracion/cuentas-corrientes?tercero=proveedor&id=${f.proveedor_id}`} className={SUAVE}>Estado de cuenta del proveedor</Link>}>
+      ) : (
+        <>
+          {f.estado === "registrada" && (conProducto ? (
+            <span className="text-[11px] text-[#5C6B76] self-center max-w-xs text-right">Tiene mercadería: no vuelve a borrador (se corrige con una nota de crédito o de débito).</span>
+          ) : (
+            <BotonConfirmar accion={accionVolverABorrador} campos={{ id: String(fid) }} clase={SUAVE} texto="Volver a borrador"
+              pregunta="¿Volver a borrador? Sale de la cuenta corriente del proveedor (si tenía pagos imputados, quedan sin imputar) y se anulan sus asientos. Después la corregís y la registrás de nuevo."
+              corriendo="Volviendo…" />
+          ))}
+          <Link href={`/administracion/cuentas-corrientes?tercero=proveedor&id=${f.proveedor_id}`} className={SUAVE}>Estado de cuenta del proveedor</Link>
+        </>
+      )}
+      </>}>
       <Avisos sp={sp} />
+      {borrador && !f.cuenta_gasto_id && !conProducto && f.letra !== "E" && (
+        <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#FDE7B0] text-[#3D2600] border border-[#C98A00]">
+          <b>Falta la cuenta de gasto.</b> Elegila (o creala) en <b>Cuenta de gasto</b> de la cabecera y apretá «Grabar cabecera»: queda recordada en el proveedor para las próximas. Sin cuenta no se registra.
+        </p>
+      )}
+      {f.validada_arca_ts && <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#EEF7F1] text-[#1F6E4A]">Validada con ARCA: la importación de Mis Comprobantes del {fechaAR(f.validada_arca_ts)} la encontró igual.</p>}
 
       {borrador && opciones ? (
         <form id="cabecera" action={accionGuardarCabecera} className={`${CAJA} grid gap-3 mb-4`}>
@@ -108,7 +134,8 @@ export default async function DetalleFacturaCompra({ params, searchParams }: { p
             <span className="flex items-center gap-2"><h2 className="text-sm font-bold">Cabecera</h2><Estado texto={est.texto} tono={est.tono} /></span>
             <button className={PRIMARIO}>Grabar cabecera</button>
           </div>
-          <CamposCabecera o={opciones} conImpuestos d={{ ...f, cotizacion: f.moneda === "USD" ? f.cotizacion : null }} />
+          <CamposCabecera o={opciones} conImpuestos d={{ ...f, cotizacion: f.moneda === "USD" ? f.cotizacion : null,
+            iibb_detalle: f.percepcion_iibb_detalle, iibb_jur: f.percepcion_iibb_detalle?.length === 1 ? f.percepcion_iibb_detalle[0].jur : f.jur_proveedor }} />
         </form>
       ) : (
         <div className={`${CAJA} grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4`}>

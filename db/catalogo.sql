@@ -497,3 +497,8 @@ select erp_politica_org('familia_costo');
 -- minorista o mayorista si tiene una publicación propia (sin id externo) en
 -- ese canal. Una por variación y canal.
 create unique index if not exists publicacion_canal_variacion_propia on publicacion (canal_id, variacion_id) where id_externo is null;
+
+-- Datos técnicos para la IA (Fer, 23/10): lo que la IA usa para contestar preguntas técnicas de un
+-- producto (slots de memoria libres, si es ampliable, bahía para otro disco…). No se publica en ningún
+-- lado; cada producto (también cada kit) tiene los suyos.
+alter table producto add column if not exists notas_ia text;

@@ -97,7 +97,7 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
       calle: d.entrega.calle, numero: d.entrega.numero, piso_depto: d.entrega.piso_depto, localidad: d.entrega.localidad,
       provincia: d.entrega.provincia, codigo_postal: d.entrega.codigo_postal, referencia: d.entrega.referencia }, sucursal_oca: sucursalOca },
     notas: d.notas?.trim() || null,
-    datos_externos: { tienda: { descuentos: cot.descuentos, medio: d.medio, subtotal: cot.subtotal } },
+    datos_externos: { tienda: { descuentos: cot.descuentos, medio: d.medio, subtotal: cot.subtotal, dominio: t.dominio } },
   }, op.clienteId ? `cliente:${op.clienteId}` : "tienda");
   await consulta("update pedido set codigo_seguimiento = $3 where id = $1 and organizacion_id = $2", [pedido.pedidoId, org, codigo]);
   if (pedido.reservo) await avisarStockMl(org, pedido.pedidoId);

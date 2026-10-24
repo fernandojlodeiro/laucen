@@ -47,6 +47,7 @@ Pestañas, con su cantidad: **IVA Ventas (N)**, **IVA Compras (N)**, **Avisos (N
 **Libro de IVA Digital (ARCA)**, al pie:
 - Si no elegiste un mes entero: "Los archivos se arman por mes entero: elegí un mes arriba."
 - Con un mes: **Bajar los 5 archivos (.zip)** y un botón por archivo con su cantidad de renglones: ventas cbte, ventas alicuotas, compras cbte, compras alicuotas, importaciones.
+- Al lado, si Google Drive está conectado y la razón social tiene su ruta cargada: **Mandar al Drive** (corre de fondo: el botón pasa a "Trabajando…" y al terminar aparece el cartel). Si no, el enlace "Conectar Google Drive (y la ruta de esta razón social) para mandarlos a su carpeta", que lleva a [Configuración › Google Drive](/config/google-drive).
 - El aviso: antes de presentar, validarlos importándolos en el Libro de IVA Digital de ARCA (Portal IVA → Libro IVA Digital → Importar), que el primero lo revise el contador, y mirar la pestaña «Avisos».
 
 ## Cómo se hace
@@ -68,6 +69,35 @@ Elegí período (y canal, si querés, en ventas), andá a la pestaña del libro 
 2. Revisá la pestaña **Avisos**.
 3. Apretá **Bajar los 5 archivos (.zip)** (o el archivo suelto que necesites).
 4. Importalos en ARCA (Portal IVA → Libro IVA Digital → Importar) para validarlos. El primero, que lo revise el contador.
+
+### Mandarlos a la carpeta del mes en Google Drive
+1. Elegí un **Mes** entero (y la razón social, si hay más de una).
+2. En el recuadro «Libro de IVA Digital (ARCA)», apretá **Mandar al Drive**.
+3. Al terminar sale "Listo: 5 archivos del Libro de IVA de mm/aaaa en …" con la carpeta donde quedaron (la del año y el mes según la ruta cargada en [Configuración › Google Drive](/config/google-drive); si no existían, se crean). Si se mandan de nuevo, se reemplazan (no se duplican).
+
+### Sumar las ventas facturadas con otro sistema
+Si antes se facturaba con otro sistema (con el mismo punto de venta), sus ventas se suman al libro como si las hubiera emitido este, así el libro y los archivos de ARCA quedan completos y con la numeración seguida.
+1. En el otro sistema, exportá los dos archivos del Libro de IVA Digital de **ventas** (comprobantes y alícuotas), **del mismo período**.
+2. Apretá **+ Importar ventas o compras anteriores** (arriba a la derecha).
+3. En «Ventas facturadas con otro sistema», elegí la razón social, escribí el nombre del sistema y elegí los dos archivos.
+4. Apretá **Importar ventas**. Sale cuántas ventas se sumaron y de qué fechas a qué fechas.
+
+- Lo que también está emitido acá (mismo tipo, punto de venta y número) se saltea: vale lo de acá.
+- Importar de nuevo el mismo período reemplaza lo anterior; no duplica.
+- En la tabla, esas ventas muestran el nombre del sistema al lado del documento del cliente y no tienen enlace.
+- Si la numeración de un tipo de comprobante tiene un salto, la pestaña **Avisos** lo muestra.
+
+### Sumar las compras de antes de cargarlas en el sistema
+Para los meses en que las facturas de compra no se cargaban acá, el libro de IVA compras se completa con lo que ARCA tiene registrado.
+1. En ARCA, **Mis Comprobantes › Recibidos**, bajá el Excel del período (ARCA deja bajar hasta 365 días por vez: si es más, en varios archivos).
+2. Apretá **+ Importar ventas o compras anteriores** (arriba a la derecha).
+3. En «Compras de antes de cargarlas en Laucen», elegí la razón social y el o los archivos.
+4. Apretá **Importar compras**.
+
+- Entran **sólo al libro de IVA** (y a sus archivos, al Excel y a la posición de impuestos): no son facturas de compra, así que no generan deuda con el proveedor, ni asiento, ni piden cuenta de gasto.
+- Las que ya están cargadas como factura de compra se saltean.
+- Si el archivo es del CUIT de la otra razón social, no se importa y avisa.
+- En la tabla, esas compras dicen «anterior a Laucen (Mis Comprobantes)» debajo del proveedor y no tienen enlace.
 
 ### Ver sólo las ventas de un canal
 En la pestaña IVA Ventas, elegí el **Canal**. Aparece la aclaración "Filtrado por canal: el resumen de arriba y los archivos de ARCA son siempre de todos los canales."
@@ -119,6 +149,7 @@ En la pestaña IVA Ventas, elegí el **Canal**. Aparece la aclaración "Filtrado
 - Formato de ARCA (mismo diseño que el ex régimen de información de compras y ventas): campos de ancho fijo, importes en centavos sin punto, fechas AAAAMMDD, textos sin acentos, renglones con fin de línea de Windows.
 - Las ventas son siempre de **todos los canales**, aunque estés filtrando por uno.
 - A un comprobante que discrimina IVA sin ninguna alícuota se le informa una de 0 % con base cero (ARCA pide al menos una).
+- En las **compras**, lo que figura como neto gravado al 0 % (así trae Mis Comprobantes de ARCA la parte exenta de una factura A) se informa en el archivo como **operaciones exentas** y no como alícuota: el Libro de IVA Digital rechaza una alícuota 0 % con importe en una compra. En pantalla se sigue viendo en la columna 0 %.
 - **Hay que validarlos importándolos en ARCA** antes de presentar.
 
 ## Con más de una razón social

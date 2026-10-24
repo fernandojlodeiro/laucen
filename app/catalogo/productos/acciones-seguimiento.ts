@@ -8,9 +8,12 @@ import { intentar, texto, id, numero } from "@/lib/erp/acciones";
 import { deFondo, lanzarTarea } from "@/lib/tareas-fondo";
 import { reanudarSeguida, descartar, buscarParaSeguir, seguirDeBusqueda, seguirPorNumero, dejarDeSeguir, leerSeguidas, listarCatalogo, cerrarCatalogo, excluirDeRegla, marcarInternacionales, confirmarSeguidas, ultimaBusqueda } from "@/lib/seguimiento";
 import { analizarBusqueda } from "@/lib/seguimiento/auto";
+import { marcarRevisado } from "@/lib/seguimiento/revision";
 import { guardarRegla, revisarRegla, aplicarPropuesta, descartarPropuesta } from "@/lib/seguimiento/regla";
 
 const volver = (pid: number) => `/catalogo/productos/${pid}?seccion=seguimiento`;
+/** Aplicar o descartar desde la lista de propuestas pendientes vuelve a esa lista; desde la ficha, a la ficha. */
+const destinoPropuesta = (fd: FormData, pid: number) => (fd.get("volver") === "propuestas" ? "/catalogo/seguimientos/propuestas" : volver(pid));
 
 /** «Buscar en Mercado Libre» (de fondo: tarda uno o dos minutos). */
 export async function accionBuscarSeguimiento(fd: FormData) {
@@ -136,9 +139,10 @@ export async function accionRevisarRegla(fd: FormData) {
 export async function accionAplicarPropuesta(fd: FormData) {
   const s = await entrarErp("productos_ver");
   const pid = id(fd, "producto_id");
-  await intentar(volver(pid), async () => {
+  await intentar(destinoPropuesta(fd, pid), async () => {
     const n = await aplicarPropuesta(s.org.id, pid, s.usuario.id);
     revalidatePath(`/catalogo/productos/${pid}`);
+    revalidatePath("/catalogo/seguimientos/propuestas");
     return `Listo: se cambió la lista Clásicas (${n} variaci${n === 1 ? "ón" : "ones"}). Desde ahí, el esquema de precios lo lleva a todas las cuentas y planes.`;
   });
 }
@@ -146,9 +150,10 @@ export async function accionAplicarPropuesta(fd: FormData) {
 export async function accionDescartarPropuesta(fd: FormData) {
   const s = await entrarErp("productos_ver");
   const pid = id(fd, "producto_id");
-  await intentar(volver(pid), async () => {
+  await intentar(destinoPropuesta(fd, pid), async () => {
     await descartarPropuesta(s.org.id, pid, s.usuario.id);
     revalidatePath(`/catalogo/productos/${pid}`);
+    revalidatePath("/catalogo/seguimientos/propuestas");
     return "Propuesta descartada: la lista queda como estaba.";
   });
 }
@@ -213,5 +218,18 @@ export async function accionDescartarEncontrada(fd: FormData) {
     await descartar(s.org.id, pid, texto(fd, "item") ?? "", si, s.usuario.id);
     revalidatePath(`/catalogo/productos/${pid}`);
     return si ? "Excluida: no vuelve a aparecer en las búsquedas de este producto." : "Vuelve a aparecer en las búsquedas.";
+  });
+}
+
+/** «✓ Producto revisado» (Fer, 23/10): una persona dejó bien los seguimientos del producto. `valor=0` lo desmarca. */
+export async function accionProductoRevisado(fd: FormData) {
+  const s = await entrarErp("productos_ver");
+  const pid = id(fd, "producto_id");
+  const si = fd.get("valor") !== "0";
+  await intentar(volver(pid), async () => {
+    await marcarRevisado(s.org.id, pid, si, s.usuario.email);
+    revalidatePath(`/catalogo/productos/${pid}`);
+    revalidatePath("/catalogo/seguimientos");
+    return si ? "Producto revisado." : "Vuelve a «por revisar».";
   });
 }

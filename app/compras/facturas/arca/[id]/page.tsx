@@ -1,9 +1,10 @@
 // Vista previa de un archivo de "Mis Comprobantes – Recibidos" de ARCA: cada
 // comprobante con su proveedor (por CUIT; "nuevo" si no está), sus importes y
 // su estado contra lo ya cargado; arriba, la cuenta de gasto de cada
-// proveedor (se recuerda), con "Nueva cuenta" para crear una de egreso ahí
-// mismo (quien tiene Contabilidad). "Importar" (arriba a la derecha) registra
-// sólo las nuevas; lo que ya estaba no se toca.
+// proveedor (se recuerda; sin cuenta recordada hay que elegirla), con "Nueva
+// cuenta" para crear una de egreso ahí mismo (quien tiene Contabilidad).
+// "Importar" (arriba a la derecha) registra las nuevas y marca "validadas con
+// ARCA" las que ya estaban cargadas e iguales; las distintas van a "Diferencias".
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -24,7 +25,7 @@ const plata = (n: number) => n.toLocaleString("es-AR", { minimumFractionDigits: 
 const fechaAr = (f: string) => f.split("-").reverse().join("/");
 const VER: { k: "" | EstadoCbte; texto: string }[] = [
   { k: "", texto: "Todos" }, { k: "nueva", texto: "Nuevas" }, { k: "ya_cargada", texto: "Ya cargadas" },
-  { k: "distinta", texto: "Cargadas a mano distintas" }, { k: "error", texto: "Con error" }, { k: "repetida", texto: "Repetidas" },
+  { k: "distinta", texto: "Diferencias" }, { k: "error", texto: "Con error" }, { k: "repetida", texto: "Repetidas" },
 ];
 
 export default async function VistaPreviaArca({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ver?: string; elegidas?: string; ok?: string; error?: string }> }) {
@@ -47,16 +48,19 @@ export default async function VistaPreviaArca({ params, searchParams }: { params
   const base = `/compras/facturas/arca/${v.lote.id}`;
   const conElegidas = sp.elegidas || null;
   const importado = v.lote.estado === "importado";
+  const aValidar = v.filas.filter((f) => f.estado === "ya_cargada" && !f.validada).length;
+  const textoBoton = [n.nueva > 0 && `importar ${n.nueva} nueva${n.nueva === 1 ? "" : "s"}`, aValidar > 0 && `validar ${aValidar} cargada${aValidar === 1 ? "" : "s"}`].filter(Boolean).join(" y ");
 
   return (
     <Pantalla titulo="Importar de ARCA (Mis Comprobantes)" camino={[{ texto: "Importar de ARCA" }]}
       subtitulo={<>{v.lote.archivo} · {v.lote.emisor && <>a nombre de {v.lote.emisor} · </>}{v.filas.length} comprobante{v.filas.length === 1 ? "" : "s"} · columnas {v.lote.version === "nueva" ? "con IVA por alícuota" : "con el IVA en un solo número (se deduce la alícuota)"}</>}
-      acciones={n.nueva > 0 ? <button type="submit" form="importar" className={VERDE}>Importar {n.nueva} comprobante{n.nueva === 1 ? "" : "s"} nuevo{n.nueva === 1 ? "" : "s"}</button> : undefined}>
+      acciones={textoBoton ? <button type="submit" form="importar" className={VERDE}>{textoBoton.replace(/^./, (x) => x.toUpperCase())}</button> : undefined}>
       <Avisos sp={sp} />
       {v.lote.resultado && (
         <div className={`${CAJA} mb-3 text-xs`}>
           <b>Última importación de este archivo:</b> {v.lote.resultado.cargadas} cargadas · {v.lote.resultado.yaEstaban} ya estaban
-          {v.lote.resultado.distintas > 0 && <> · {v.lote.resultado.distintas} cargadas a mano distintas (no se tocaron)</>}
+          {(v.lote.resultado.validadas ?? 0) > 0 && <> · {v.lote.resultado.validadas} validadas con ARCA</>}
+          {v.lote.resultado.distintas > 0 && <> · {v.lote.resultado.distintas} con diferencias (no se tocaron: corregilas)</>}
           {v.lote.resultado.proveedoresNuevos > 0 && <> · {v.lote.resultado.proveedoresNuevos} proveedores nuevos</>}
           {v.lote.resultado.errores.length > 0 && (
             <ul className="mt-1 list-disc pl-5 text-[#C03420]">{v.lote.resultado.errores.map((e, i) => <li key={i}>{e}</li>)}</ul>
@@ -69,11 +73,12 @@ export default async function VistaPreviaArca({ params, searchParams }: { params
           <ul className="list-disc pl-5">{v.lote.errores.slice(0, 30).map((e, i) => <li key={i}>{e}</li>)}</ul>
         </div>
       )}
-      {!importado && n.nueva === 0 && <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#EEF7F1] text-[#1F6E4A]">No hay nada nuevo para importar: todo lo del archivo ya está cargado.</p>}
+      {!importado && !textoBoton && <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#EEF7F1] text-[#1F6E4A]">No hay nada nuevo para importar ni para validar: todo lo del archivo ya está cargado y validado.</p>}
+      {n.distinta > 0 && <p className="text-xs rounded-lg px-3 py-2 mb-3 bg-[#FFF8E5] text-[#8a6100]">Hay {n.distinta} comprobante{n.distinta === 1 ? "" : "s"} cargado{n.distinta === 1 ? "" : "s"} distinto{n.distinta === 1 ? "" : "s"} de lo que dice ARCA: mirá la pestaña «Diferencias», corregilos en su factura y volvé a subir el archivo.</p>}
 
       <div className="mb-4">
         <TituloSeccion titulo="Cuenta de gasto de cada proveedor">{sugerida && <BotonNuevo texto="Nueva cuenta" />}</TituloSeccion>
-        <p className="text-[11px] text-[#5C6B76] mb-2">Adónde va el neto de sus facturas en la contabilidad. Queda recordada en el proveedor para la próxima vez. En las facturas B y C el total entero es gasto (no hay crédito fiscal).</p>
+        <p className="text-[11px] text-[#5C6B76] mb-2">Adónde va el neto de sus facturas en la contabilidad. Queda recordada en el proveedor para la próxima vez; el que no tiene una recordada y trae comprobantes nuevos, hay que elegírsela. En las facturas B y C el total entero es gasto (no hay crédito fiscal).</p>
         {sugerida && (
           <AltaNueva texto="Nueva cuenta" sinBoton className="mb-2">
             {/* Los campos son del formulario "importar" (atributo form): la acción recibe también lo elegido abajo. */}
@@ -116,7 +121,9 @@ export default async function VistaPreviaArca({ params, searchParams }: { params
                   <td className={TDN}>{p.nuevas}</td>
                   <td className={TD}>
                     {/* La clave con el valor: al volver de crear una cuenta, el desplegable toma lo elegido. */}
-                    <select key={elegidas.get(p.cuit) ?? p.cuentaId} name={`cuenta_${p.cuit}`} defaultValue={elegidas.get(p.cuit) ?? p.cuentaId ?? ""} className={`${CAMPO} w-full max-w-xs`}>
+                    <select key={elegidas.get(p.cuit) ?? p.cuentaId ?? "nada"} name={`cuenta_${p.cuit}`} defaultValue={elegidas.get(p.cuit) ?? p.cuentaId ?? ""} required={p.nuevas > 0}
+                      className={`${CAMPO} w-full max-w-xs ${p.nuevas > 0 && !(elegidas.get(p.cuit) ?? p.cuentaId) ? "border-[#E0A100]" : ""}`}>
+                      <option value="">Elegí la cuenta…</option>
                       {orden.map((c) => <option key={c.id} value={c.id}>{c.codigo} — {c.nombre}</option>)}
                     </select>
                   </td>

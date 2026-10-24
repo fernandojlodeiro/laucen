@@ -393,6 +393,9 @@ Una revisión de 2 a 5 de la mañana que compara cada publicación de ML con lo 
 **Un cambio quedó "Con error" con "Mercado Libre no encuentra la publicación". ¿Qué hago?**
 La publicación ya no existe o el MLA está mal vinculado. Revisá la vinculación en [Publicaciones](/catalogo/publicaciones) y descartá el cambio.
 
+**¿Puedo cambiarle el nombre a un canal, o el apodo a la cuenta en Mercado Libre?**
+Sí. El sistema reconoce cada canal y cada cuenta por su número interno, no por el nombre: los precios, quién gana cada plan, el stock, los pedidos, la facturación y los informes siguen igual. El apodo nuevo de Mercado Libre se toma solo la próxima vez que se renueva la conexión de la cuenta (en unas horas), y el anterior se sigue reconociendo como propio. Lo único que no se actualiza solo es un texto escrito a mano que nombre la cuenta: si las [Reglas para la IA](/config/respuestas-ia) dicen algo como «en la cuenta X…», cambiá ahí el nombre viejo por el nuevo, porque la IA recibe el nombre actual del canal.
+
 **¿Cómo conecto una segunda cuenta de ML?**
 Creá un canal nuevo tipo Mercado Libre y conectá la cuenta desde su caja, habiendo cerrado antes la sesión de ML en el navegador (o en una ventana privada).
 

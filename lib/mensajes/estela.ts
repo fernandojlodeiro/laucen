@@ -167,7 +167,7 @@ async function correr(nombre: string, e: Record<string, unknown>, chat: Chat, t:
       const id = Number(e.producto);
       const p = (await catalogoDe(t)).find((x) => x.id === id);
       if (!p) return "Ese producto no está a la venta en la tienda.";
-      const det = await una<{ descripcion: string | null }>("select descripcion from producto where id = $1 and organizacion_id = $2", [id, org]).catch(() => null);
+      const det = await una<{ descripcion: string | null; notas_ia: string | null }>("select descripcion, notas_ia from producto where id = $1 and organizacion_id = $2", [id, org]).catch(() => null);
       const vars = await consulta<{ nombre: string | null; sku: string; venta: string; disp: number }>(`
         select coalesce((select string_agg(a.nombre || ': ' || a.valor, ', ' order by a.orden) from variacion_atributo a where a.variacion_id = v.id), nullif(v.titulo, ''), v.sku) nombre, v.sku,
                case when $4 = 'USD' then pr.venta_usd else pr.venta_ars end venta,
@@ -178,6 +178,7 @@ async function correr(nombre: string, e: Record<string, unknown>, chat: Chat, t:
         `#${p.id} ${p.titulo}${p.marca ? ` (${p.marca})` : ""}`,
         `Link: ${await urlTienda(t, `/producto/${p.id}`)}`,
         ...vars.map((v) => `- ${v.nombre}: ${formatear(Number(v.venta), t.moneda)} — ${v.disp > 0 ? (v.disp <= 3 ? `quedan ${v.disp}` : "hay stock") : "sin stock"}`),
+        det?.notas_ia ? `Datos técnicos (de la tienda; para preguntas técnicas mandan sobre la descripción): ${det.notas_ia.slice(0, 2000)}` : "",
         det?.descripcion ? `Descripción: ${det.descripcion.slice(0, 2500)}` : "",
       ].filter(Boolean).join("\n");
     }

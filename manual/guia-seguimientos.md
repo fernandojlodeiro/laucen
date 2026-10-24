@@ -2,7 +2,7 @@
 titulo: Revisar los seguimientos antes de prender las reglas (guía)
 menu: Catálogo › Seguimientos (guía de revisión)
 ruta: /catalogo/seguimientos
-rutas: /catalogo/seguimientos, /catalogo/productos/[id]
+rutas: /catalogo/seguimientos, /catalogo/productos/[id], /catalogo/seguimientos/propuestas
 permiso: productos_ver
 resumen: Paso a paso para revisar, producto por producto, las publicaciones de la competencia que se siguen (revisarlas, excluir las que no sirven, borrar las que no son el mismo producto) y recién después prender la regla de precio.
 ---
@@ -14,8 +14,8 @@ El sistema sigue publicaciones de la competencia y, con la **regla de precio** p
 ## Cómo se llega
 
 1. Menú **Catálogo › Seguimientos** ([abrir](/catalogo/seguimientos)).
-2. De entrada la lista viene **ordenada por la plata en stock** (columna **Stock $**: stock disponible × Clásica), de más a menos, y **sin notebooks** (caja **Excluir notebooks**, tildada). Conviene revisar en ese orden: primero donde hay más plata parada.
-3. Con **Ver** se elige qué productos mostrar: **Con publicaciones sin revisar**, **Precio de mercado confirmado**, **Sin seguimiento** o **Todos los que siguen algo**.
+2. De entrada la lista muestra **los productos a la venta que faltan revisar**, **ordenados por la plata en stock** (columna **Stock $**: stock disponible × Clásica), de más a menos, y **sin notebooks**. Conviene revisar en ese orden: primero donde hay más plata parada. Arriba de la tabla, **Avance de la revisión** dice cuántos van.
+3. Con **Productos**, **Revisión** y **Ver** se cambia qué productos se muestran (todos, los ya revisados, los que tienen 🤖 automáticas sin revisar…).
 4. Tocá el **SKU**: abre la pestaña **Seguimiento** de la ficha del producto.
 
 ## Cómo se hace
@@ -50,7 +50,11 @@ Algunas filas tienen un número **MLAU…** y un cartel rojo que dice que Mercad
 
 Debajo de la tabla, **▸ Pausadas (N)** abre las publicaciones de la competencia que están pausadas o que ya no figuran en el catálogo. No cuentan para la regla. Se releen de vez en cuando por si vuelven; si pasan muchos meses pausadas dejan de leerse solas y tienen el botón **Reanudar**. No hace falta revisarlas una por una.
 
-### 5. Prender la regla de precio
+### 5. Marcar el producto como revisado
+
+Arriba de todo en la pestaña **Seguimiento**, **✓ Producto revisado**. Así queda registrado quién y cuándo, y el producto pasa a **Revisados** en la lista. Si después entra una publicación nueva, vuelve a **por revisar** hasta que se aprieta **✓ Revisado de nuevo**.
+
+### 6. Prender la regla de precio
 
 Cuando las publicaciones que mandan están revisadas:
 
@@ -61,6 +65,8 @@ Cuando las publicaciones que mandan están revisadas:
 5. **Piso** (obligatorio): la Clásica nunca baja de ahí. Ponelo pensando en el margen mínimo aceptable.
 6. Si querés que también suba cuando la competencia sube: tildá **También subir** y cargá el **Techo**.
 7. Mientras editás, al lado se ve qué haría con cada Clásica. Apretá **Grabar**.
+
+Lo que la regla deja esperando en «Proponer» se ve, de todos los productos juntos, en [Propuestas pendientes](/catalogo/seguimientos/propuestas): ahí se aplica o descarta producto por producto o todo junto.
 
 ## Criterios y reglas
 

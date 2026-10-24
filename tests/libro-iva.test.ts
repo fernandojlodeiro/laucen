@@ -166,6 +166,19 @@ test("COMPRAS_ALICUOTAS: 84 posiciones, una por alícuota; B y C no van", () => 
   assert.equal(b.slice(104, 119), "000000000121000");
 });
 
+test("compra con parte exenta que ARCA trae como «gravado al 0 %» (Alarmas Keeper): va a operaciones exentas, una sola alícuota", () => {
+  // Factura A 00004-00019624 de septiembre: 41.504,12 al 21 % + 1.980 exento; los renglones, iguales a los que acepta ARCA.
+  const k = base({ origen: "compra", id: 13, fecha: "2026-09-01", tipo: 1, puntoVenta: 4, numero: "19624", docNro: "30627093477", nombre: "ALARMAS KEEPER S R L",
+    alicuotas: [{ pct: 21, base: 41504.12, iva: 8715.87 }, { pct: 0, base: 1980, iva: 0 }], total: 52199.99 });
+  const l = lineaCompraCbte(k);
+  assert.equal(l.slice(104, 119), "000000005219999");  // total
+  assert.equal(l.slice(119, 134), Z15);                // no gravado
+  assert.equal(l.slice(134, 149), "000000000198000");  // operaciones exentas
+  assert.equal(l.slice(237, 239), "10");               // 1 alícuota, código de operación 0
+  assert.equal(l.slice(239, 254), "000000000871587");  // crédito fiscal
+  assert.deepEqual(lineasCompraAlicuotas(k), ["001" + "00004" + "00000000000000019624" + "80" + "00000000030627093477" + "000000004150412" + "0005" + "000000000871587"]);
+});
+
 test("despacho: COMPRAS_CBTE tipo 066 con el número de despacho y COMPRAS_IMPORTACIONES de 50", () => {
   const l = lineaCompraCbte(DESP);
   assert.equal(l.length, 325);
@@ -205,4 +218,36 @@ test("período: mes entero o no; zip con CRC correcto", () => {
   assert.equal(z.readUInt32LE(0), 0x04034b50);
   assert.equal(z.readUInt32LE(z.length - 22), 0x06054b50);
   assert.equal(z.readUInt16LE(z.length - 12), 2);
+});
+
+test("ventas de otro sistema: se leen los mismos TXT que escribe el libro, y se marcan los huecos", async () => {
+  const { leerLibroVentas, huecosDeNumeracion } = await import("@/lib/administracion/ventas-externas");
+  const { lineaVentaCbte, lineasVentaAlicuotas } = await import("@/lib/administracion/libro-iva");
+  const c = {
+    origen: "venta" as const, id: 1, fecha: "2026-09-30", tipo: 1, puntoVenta: 2, numero: "19123", docTipo: 80, docNro: "30714306339", nombre: "CLIENTE SA",
+    condicionIva: null, moneda: "PES" as const, cotizacion: 1, nc: false, alicuotas: [{ pct: 21, base: 1000, iva: 210 }, { pct: 10.5, base: 200, iva: 21 }],
+    noGravado: 0, exento: 0, sinDiscriminar: 0, percepcionIva: 0, percepcionNacionales: 0, percepcionIibb: 12.5, percepcionMunicipal: 0, impuestosInternos: 0, otros: 0, total: 1443.5,
+  };
+  const { cbtes, errores } = leerLibroVentas(lineaVentaCbte(c) + "\r\n", lineasVentaAlicuotas(c).join("\r\n"));
+  assert.deepEqual(errores, []);
+  assert.equal(cbtes.length, 1);
+  const x = cbtes[0];
+  assert.deepEqual([x.fecha, x.tipo, x.puntoVenta, x.numero, x.docNro, x.nombre, x.total, x.percepcionIibb], ["2026-09-30", 1, 2, "19123", "30714306339", "CLIENTE SA", 1443.5, 12.5]);
+  assert.deepEqual(x.alicuotas, c.alicuotas);
+  assert.equal(lineaVentaCbte({ ...x, origen: "venta", id: 1 }), lineaVentaCbte(c));
+  assert.deepEqual(huecosDeNumeracion([{ tipo: 6, puntoVenta: 2, numero: "10" }, { tipo: 6, puntoVenta: 2, numero: "13" }, { tipo: 1, puntoVenta: 2, numero: "5" }]),
+    [{ tipo: 6, puntoVenta: 2, desde: 11, hasta: 12 }]);
+});
+
+test("compras de antes de Laucen: Mis Comprobantes como lo lleva el libro (las NC como NC, B y C sin crédito)", async () => {
+  const { deMisComprobantes } = await import("@/lib/administracion/compras-externas");
+  const base = { fila: 1, fecha: "2025-07-14", tipoTexto: "NC A", letra: "A" as const, nd: false, numeroHasta: null, cae: null, cuit: "30703088534",
+    denominacion: "MERCADOLIBRE S.R.L.", moneda: "ARS" as const, cotizacion: 1, noGravado: 0, exento: 0, percepcionIva: 100, percepcionIibb: 50, otrosTributos: 0 };
+  const nc = deMisComprobantes({ ...base, tipo: 3, nc: true, puntoVenta: 58, numero: 404128, alicuotas: [{ pct: 21, neto: 1000, iva: 210 }], netoGravado: 1000, iva: 210, total: 1360 });
+  assert.ok(!("error" in nc));
+  if ("error" in nc) return;
+  assert.deepEqual([nc.tipo, nc.nc, nc.puntoVenta, nc.numero, nc.docNro, nc.percepcionIva, nc.percepcionIibb, nc.total], [3, true, 58, "404128", "30703088534", 100, 50, 1360]);
+  assert.deepEqual(nc.alicuotas, [{ pct: 21, base: 1000, iva: 210 }]);
+  const b = deMisComprobantes({ ...base, tipo: 6, tipoTexto: "Factura B", letra: "B", nc: false, puntoVenta: 1, numero: 5, alicuotas: [], netoGravado: 0, iva: 0, total: 500, percepcionIva: 0, percepcionIibb: 0 });
+  assert.ok(!("error" in b) && b.sinDiscriminar === 500 && b.alicuotas.length === 0);
 });

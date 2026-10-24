@@ -7,9 +7,18 @@
 
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
-import { consulta, una, ErrorErp } from "@/lib/erp/base";
+import { consulta, una, ErrorErp, motivoErp } from "@/lib/erp/base";
+import { supabaseServer } from "@/lib/supabase";
+import { leerFacturaArchivo } from "@/lib/compras/factura-leer";
+import { cargarFacturaLeida } from "@/lib/compras/factura-cargar";
+import { leerFacturasDelDrive, textoResultadoFacturas } from "@/lib/compras/drive-facturas";
+import { deFondo } from "@/lib/tareas-fondo";
+import { hoyArgentina } from "@/lib/rango-fechas";
+import { codigoJurisdiccion } from "@/lib/impuestos/jurisdicciones";
+import { proximoCodigoCuenta, crearCuenta } from "@/lib/administracion/contabilidad";
+import { tienePermiso } from "@/lib/permisos";
 import { intentar, texto, numero, entero, id, tildado } from "@/lib/erp/acciones";
-import { recalcularFactura, agregarLineaFactura, registrarFactura } from "@/lib/administracion/compras";
+import { recalcularFactura, agregarLineaFactura, registrarFactura, volverABorrador } from "@/lib/administracion/compras";
 import { deLaOrg, tituloVariacion, LETRAS, ALICUOTAS } from "../comun";
 
 const LISTA = "/compras/facturas";
@@ -59,6 +68,8 @@ export async function accionCrearFactura(fd: FormData) {
   const s = await entrarErp("compras_ver");
   await intentar(`${LISTA}/nueva`, async () => {
     const c = await cabecera(s.org.id, fd);
+    // Sin cuenta elegida, la del proveedor (si ya tiene una).
+    if (!c.cuentaId) c.cuentaId = (await una<{ id: number | null }>("select cuenta_gasto_id::int id from proveedor where id = $1 and organizacion_id = $2", [c.proveedorId, s.org.id]))?.id ?? null;
     const r = await una<{ id: number }>(`
       insert into factura_compra (organizacion_id, proveedor_id, letra, es_nota_credito, punto_venta, numero, fecha, vencimiento, moneda, cotizacion,
                                   deposito_id, recepcion_id, cuenta_gasto_id, notas, usuario_id, emisor_id)
@@ -87,7 +98,16 @@ export async function accionGuardarCabecera(fd: FormData) {
        where id = $2 and organizacion_id = $1 and estado = 'borrador'`,
       [s.org.id, fid, c.proveedorId, c.letra, c.esNc, c.puntoVenta, c.nro, c.fecha, c.venc, c.moneda, c.cot, c.depositoId, c.recepcionId, c.cuentaId, c.notas,
         imp("percepcion_iva"), imp("percepcion_iibb"), imp("otros_impuestos"), imp("no_gravado"), c.emisorId]);
+    // La provincia de la percepción de IIBB (Fer, 23/10): elegida, queda en la factura y, si el proveedor no tenía, en él.
+    const jur = codigoJurisdiccion(texto(fd, "iibb_jur"));
+    const perc = imp("percepcion_iibb");
+    if (jur && perc > 0) {
+      await consulta("update factura_compra set percepcion_iibb_detalle = $3::jsonb where id = $2 and organizacion_id = $1", [s.org.id, fid, JSON.stringify([{ jur, importe: perc }])]);
+      await consulta("update proveedor set iibb_jurisdiccion = $3 where id = $2 and organizacion_id = $1 and iibb_jurisdiccion is null", [s.org.id, c.proveedorId, jur]);
+    } else if (!perc) await consulta("update factura_compra set percepcion_iibb_detalle = null where id = $2 and organizacion_id = $1", [s.org.id, fid]);
     await recalcularFactura(s.org.id, fid);
+    // La cuenta de gasto elegida queda en el proveedor para las próximas (Fer, 23/10).
+    if (c.cuentaId) await consulta("update proveedor set cuenta_gasto_id = $3 where id = $2 and organizacion_id = $1", [s.org.id, c.proveedorId, c.cuentaId]);
     revalidatePath(detalle(fid));
     return "Cabecera guardada.";
   });
@@ -169,5 +189,71 @@ export async function accionRegistrarFactura(fd: FormData) {
     revalidatePath(LISTA);
     revalidatePath(detalle(fid));
     return "Factura registrada: entró el stock, se actualizó el costo y quedó la deuda en la cuenta corriente.";
+  });
+}
+
+/** «Volver a borrador» (Fer, 23/10): deshace el registro (cuenta corriente y asientos) para corregirla. */
+export async function accionVolverABorrador(fd: FormData) {
+  const s = await entrarErp("compras_ver");
+  const fid = id(fd);
+  await intentar(detalle(fid), async () => {
+    await volverABorrador(s.org.id, fid);
+    revalidatePath(LISTA);
+    revalidatePath(detalle(fid));
+    return "Volvió a borrador: se sacó de la cuenta corriente y se anularon sus asientos. Corregila y registrala de nuevo.";
+  });
+}
+
+// ── Subir la factura (PDF o foto) y que la lea la IA (Fer, 23/10) ─────────
+
+/** «Subir factura» desde la lista: el archivo ya está en Storage (bucket "importaciones"). La IA lo lee, se arma la
+ *  factura como en la importación de ARCA (líneas por alícuota; en B y C el total a gasto), con su proveedor (por CUIT;
+ *  si no existe, se crea) y a nombre de la razón social del CUIT receptor. Si el proveedor ya tiene cuenta de gasto,
+ *  se registra sola; si no, queda en borrador para elegirla (y queda recordada en el proveedor). */
+export async function accionSubirFactura(a: { ruta: string; archivo: string; tipo: string }): Promise<{ id: number; ok: string } | { motivo: string }> {
+  const s = await entrarErp("compras_ver");
+  try {
+    if (!a.ruta?.startsWith(`${s.org.id}/`) || a.ruta.includes("..")) throw new ErrorErp("El archivo no es de esta organización.");
+    const sb = await supabaseServer();
+    const { data, error } = await sb.storage.from("importaciones").download(a.ruta);
+    if (error || !data) throw new ErrorErp("No se pudo bajar el archivo que subiste. Probá de nuevo.");
+    const r = await leerFacturaArchivo(await data.arrayBuffer(), a.tipo);
+    if ("error" in r) throw new ErrorErp(r.error);
+    if (r.lectura.es_comprobante === false) throw new ErrorErp(`No parece una factura${r.lectura.que_es ? ` (es ${r.lectura.que_es})` : ""}.`);
+    const f = await cargarFacturaLeida(s.org.id, s.usuario.id, r.lectura, a.ruta, a.archivo);
+    revalidatePath(LISTA);
+    if (f.estado === "ya_estaba") throw new ErrorErp(`Esa factura ${f.mensaje}.`);
+    return { id: f.id, ok: f.mensaje.charAt(0).toUpperCase() + f.mensaje.slice(1) };
+  } catch (e) {
+    return { motivo: motivoErp(e) };
+  }
+}
+
+/** «+ Crear «…»» del buscador de cuenta de gasto (Fer, 23/10): una cuenta de egreso imputable con el próximo código libre. */
+export async function accionCrearCuentaGasto(nombre: string): Promise<{ id: number; texto: string } | { error: string }> {
+  const s = await entrarErp("compras_ver");
+  try {
+    if (!tienePermiso(s.permisos, "contabilidad_ver")) return { error: "Para crear cuentas contables hace falta el permiso de Contabilidad." };
+    const { codigo } = await proximoCodigoCuenta(s.org.id, "egreso");
+    const id = await crearCuenta(s.org.id, { codigo, nombre: nombre.trim(), tipo: "egreso", imputable: true });
+    return { id, texto: `${codigo} ${nombre.trim()}` };
+  } catch (e) {
+    return { error: motivoErp(e) };
+  }
+}
+
+// «Buscar facturas en el Drive» (Fer, 24/10): lee de fondo las carpetas de facturas cargadas en Configuración › Google
+// Drive (lib/compras/drive-facturas.ts), desde el mes elegido (sin elegir, este mes y el anterior).
+export async function accionBuscarFacturasDrive(fd: FormData) {
+  const s = await entrarErp("compras_ver");
+  const desde = String(fd.get("desde") ?? "");
+  const hoy = hoyArgentina();
+  const meses = /^\d{4}-(0[1-9]|1[0-2])$/.test(desde)
+    ? Math.min(36, Math.max(1, (Number(hoy.slice(0, 4)) - Number(desde.slice(0, 4))) * 12 + Number(hoy.slice(5, 7)) - Number(desde.slice(5, 7)) + 1)) : 2;
+  return deFondo(s, "facturas-drive", "Buscar facturas en el Drive", async () => {
+    // Corta a los 4 minutos (la pantalla tiene 5): lo que quede, en la próxima vuelta (lo ya leído no se vuelve a leer).
+    const r = await leerFacturasDelDrive(s.org.id, s.usuario.id, { meses, hastaMs: Date.now() + 240_000 });
+    revalidatePath(LISTA);
+    return `Drive: ${textoResultadoFacturas(r)}`;
   });
 }

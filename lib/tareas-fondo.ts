@@ -35,6 +35,10 @@ export async function lanzarTarea(org: string, usuarioId: string, tipo: string, 
 
 /** Las de la persona: las que corren y las terminadas que todavía no vio. */
 export async function tareasDe(org: string, usuarioId: string): Promise<TareaVista[]> {
+  // Una que quedó "corriendo" más de 10 minutos se cortó (se pasó del tiempo de su función): se da por caída, así el
+  // botón no queda en "Trabajando…" para siempre.
+  await consulta(`update tarea_fondo set estado = 'error', mensaje = 'No terminó (se cortó): probá de nuevo.', terminado_ts = now()
+                   where organizacion_id = $1 and estado = 'corriendo' and creado_ts < now() - interval '10 minutes'`, [org]);
   return consulta<TareaVista>(`
     select id::int, tipo, titulo, estado, mensaje from tarea_fondo
      where organizacion_id = $1 and (estado = 'corriendo' or (usuario_id = $2 and not avisado and terminado_ts > now() - interval '1 day'))

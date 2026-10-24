@@ -50,9 +50,10 @@ export async function agregarLineaFactura(org: string, facturaId: number, d: { v
 /** Registra la factura: stock, costo y cuenta corriente. */
 export async function registrarFactura(org: string, facturaId: number, usuarioId: string) {
   const f = await una<{ estado: string; proveedor_id: number; moneda: "ARS" | "USD"; cotizacion: string; total: string; fecha: string; vencimiento: string | null;
-    deposito_id: number | null; recepcion_id: number | null; letra: string; punto_venta: number | null; numero: string | null; es_nota_credito: boolean; es_nota_debito: boolean; emisor_id: number | null }>(`
+    deposito_id: number | null; recepcion_id: number | null; letra: string; punto_venta: number | null; numero: string | null; es_nota_credito: boolean; es_nota_debito: boolean; emisor_id: number | null;
+    cuenta_gasto_id: number | null }>(`
     select emisor_id::int, estado, proveedor_id::int, moneda, cotizacion, total, to_char(fecha, 'YYYY-MM-DD') fecha, to_char(vencimiento, 'YYYY-MM-DD') vencimiento,
-           deposito_id::int, recepcion_id::int, letra, punto_venta, numero, es_nota_credito, es_nota_debito
+           deposito_id::int, recepcion_id::int, letra, punto_venta, numero, es_nota_credito, es_nota_debito, cuenta_gasto_id::int
       from factura_compra where id = $1 and organizacion_id = $2`, [facturaId, org]);
   if (!f) throw new ErrorErp("La factura no existe.");
   if (f.estado !== "borrador") throw new ErrorErp("La factura ya estaba registrada.");
@@ -64,6 +65,8 @@ export async function registrarFactura(org: string, facturaId: number, usuarioId
   const lineas = await consulta<{ variacion_id: number | null; cantidad: string; costo_unit: string }>(
     "select variacion_id::int, cantidad, costo_unit from factura_compra_linea where factura_id = $1 order by orden, id", [facturaId]);
   const conStock = lineas.filter((l) => l.variacion_id);
+  // Un gasto sin cuenta no se registra (Fer, 23/10): nada de "Gastos varios" por descarte. La del exterior (E) va a Importaciones en curso.
+  if (!conStock.length && !f.cuenta_gasto_id && f.letra !== "E") throw new ErrorErp("Elegí la cuenta de gasto de la factura (queda recordada en el proveedor).");
   if (conStock.length && !f.recepcion_id && !f.deposito_id && !f.es_nota_credito) throw new ErrorErp("Elegí a qué depósito entra la mercadería (o vinculá la recepción por la que ya entró).");
   const totalArs = r2(Number(f.total) * cot);
   const totalUsd = f.moneda === "USD" ? Number(f.total) : r2(totalArs / tcUsd);
@@ -130,6 +133,55 @@ export async function registrarFactura(org: string, facturaId: number, usuarioId
     await imputarAutomatico(c, org, "proveedor", f.proveedor_id);
   });
   if (conStock.length) await sincronizarStockMl(org, conStock.map((l) => l.variacion_id!)).catch(() => {});
+}
+
+/** «Volver a borrador» (Fer, 23/10): deshace lo que hizo registrarFactura para poder corregirla y registrarla de
+ *  nuevo. Saca su renglón de la cuenta corriente (y las imputaciones contra pagos o notas de crédito, que quedan
+ *  otra vez sin imputar, con sus asientos de diferencia de cambio anulados) y anula sus asientos (compra y
+ *  diferencia con la recepción). Por ahora sólo las que no tienen mercadería: con productos, registrar movió
+ *  stock y costo promedio, y eso no se puede deshacer con certeza. */
+export async function volverABorrador(org: string, facturaId: number) {
+  await enTransaccion(async (c) => {
+    const f = (await c.query<{ estado: string }>("select estado from factura_compra where id = $1 and organizacion_id = $2 for update", [facturaId, org])).rows[0];
+    if (!f) throw new ErrorErp("La factura no existe.");
+    if (f.estado !== "registrada") throw new ErrorErp("Sólo una factura registrada vuelve a borrador.");
+    const conProducto = (await c.query("select 1 from factura_compra_linea where factura_id = $1 and variacion_id is not null limit 1", [facturaId])).rowCount;
+    if (conProducto) throw new ErrorErp("Tiene mercadería: al registrarla entró el stock y se recalculó el costo, y eso no se puede deshacer. Corregila con una nota de crédito o de débito.");
+    const movs = (await c.query<{ id: string }>(
+      "select id from cc_movimiento where organizacion_id = $1 and referencia_tipo = 'factura_compra' and referencia_id = $2 for update", [org, facturaId])).rows.map((m) => m.id);
+    if (movs.length) {
+      const imps = (await c.query<{ id: string; debito_id: string; credito_id: string; importe: string; importe_credito: string }>(
+        "select id, debito_id, credito_id, importe, importe_credito from cc_imputacion where organizacion_id = $1 and (debito_id = any($2::bigint[]) or credito_id = any($2::bigint[]))",
+        [org, movs])).rows;
+      for (const i of imps) {
+        // Lo que la imputación bajó de cada lado vuelve a quedar pendiente (al revés que grabarImputacion).
+        await c.query("update cc_movimiento set pendiente = pendiente + $2 where id = $1", [i.debito_id, i.importe]);
+        await c.query("update cc_movimiento set pendiente = pendiente - $2 where id = $1", [i.credito_id, i.importe_credito]);
+        await c.query("update asiento set estado = 'anulado' where organizacion_id = $1 and origen = 'diferencia_cambio' and referencia_id = $2 and estado = 'vigente'", [org, i.id]);
+        await c.query("delete from cc_imputacion where id = $1", [i.id]);
+      }
+      await c.query("delete from cc_movimiento where id = any($1::bigint[])", [movs]);
+    }
+    await c.query(`update asiento set estado = 'anulado' where organizacion_id = $1 and origen in ('compra', 'diferencia_recepcion') and referencia_id = $2 and estado = 'vigente'`,
+      [org, facturaId]);
+    await c.query("update factura_compra set estado = 'borrador', registrada_ts = null, diferencia_recepcion = null where id = $1 and organizacion_id = $2", [facturaId, org]);
+  });
+}
+
+/** «Volver a borrador» un despacho registrado (Fer, 23/10): anula su asiento y lo deja en borrador para corregirlo o
+ *  borrarlo. Sólo sin líneas con producto: con productos, registrar ingresó stock y recalculó el costo promedio, y eso
+ *  no se deshace con certeza. */
+export async function despachoABorrador(org: string, despachoId: number) {
+  await enTransaccion(async (c) => {
+    const d = (await c.query<{ estado: string }>("select estado from despacho_importacion where id = $1 and organizacion_id = $2 for update", [despachoId, org])).rows[0];
+    if (!d) throw new ErrorErp("El despacho no existe.");
+    if (d.estado !== "registrado") throw new ErrorErp("Sólo un despacho registrado vuelve a borrador.");
+    if ((await c.query("select 1 from despacho_linea where despacho_id = $1 and variacion_id is not null limit 1", [despachoId])).rowCount)
+      throw new ErrorErp("Tiene mercadería con producto: al registrarlo entró el stock y se recalculó el costo, y eso no se puede deshacer.");
+    await c.query("update asiento set estado = 'anulado' where organizacion_id = $1 and origen = 'despacho' and referencia_id = $2 and estado = 'vigente'", [org, despachoId]);
+    await c.query("update despacho_linea set costo_unit_ars = null, costo_unit_usd = null where despacho_id = $1", [despachoId]);
+    await c.query("update despacho_importacion set estado = 'borrador', registrado_ts = null where id = $1 and organizacion_id = $2", [despachoId, org]);
+  });
 }
 
 /** Calcula (sin guardar) el costo unitario puesto en depósito de cada línea de un despacho. */

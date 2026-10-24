@@ -1,8 +1,8 @@
 ---
 titulo: Herramientas internas
-menu: Coordinación › Bitácora · Para probar · Mercado Libre · Costos ML · Ventas ML por categoría · China — pruebas · Piloto · Diagnóstico · Limpieza de datos · Creaciones en ML · Videos en ML
+menu: Coordinación › Bitácora · Para probar · Mercado Libre · Aplicación de Mercado Pago · Aplicación de Google · Costos ML · Ventas ML por categoría · China — pruebas · Piloto · Diagnóstico · Limpieza de datos · Creaciones en ML · Videos en ML
 ruta: /admin/bitacora
-rutas: /admin/bitacora, /admin/para-probar, /admin/meli, /admin/meli/apify, /admin/mercadopago, /admin/costos-ml, /admin/ventas-ml, /admin/china, /admin/piloto, /admin/piloto/[id], /admin/piloto/[id]/revision, /admin/piloto/[id]/validacion, /admin/diagnostico, /admin/limpieza, /admin/limpieza/ajustes, /admin/creaciones, /admin/videos
+rutas: /admin/bitacora, /admin/para-probar, /admin/meli, /admin/meli/apify, /admin/mercadopago, /admin/google, /admin/costos-ml, /admin/ventas-ml, /admin/china, /admin/piloto, /admin/piloto/[id], /admin/piloto/[id]/revision, /admin/piloto/[id]/validacion, /admin/diagnostico, /admin/limpieza, /admin/limpieza/ajustes, /admin/creaciones, /admin/videos
 permiso: fer
 resumen: Herramientas internas, sólo para el dueño del sistema: bitácora y "para probar" (coordinación con las sesiones de Claude), conexión y bancos de prueba de Mercado Libre y Apify, costos de vender en ML, ventas por categoría, pruebas de búsqueda en China, el piloto ML → China → juez y el diagnóstico de la base.
 ---
@@ -72,6 +72,10 @@ Abajo de todo, el resultado: una línea por cada consulta a la API, con el códi
 ### Aplicación de Mercado Pago (/admin/mercadopago)
 
 En el menú de herramientas internas, **"Aplicación de Mercado Pago"**. La aplicación de Mercado Pago de Laucen, una sola para todo el sistema: con ella cada organización conecta sus cuentas de Mercado Pago desde [Canales](/config/canales) ("Conectar Mercado Pago"). Muestra si está cargada y la **URL de redireccionamiento** que hay que poner en la aplicación de Mercado Pago (en developers de Mercado Pago), y dos campos: **Client ID** y **Client Secret**, que se graban con **"Grabar"** (arriba a la derecha) y nunca se vuelven a mostrar.
+
+### Aplicación de Google (/admin/google)
+
+En el menú de herramientas internas, **"Aplicación de Google"**. La aplicación de Google de Laucen, una sola para todo el sistema: con ella cada organización conecta su Google Drive desde [Configuración › Google Drive](/config/google-drive). Muestra si está cargada, los pasos para crearla en Google Cloud (proyecto, habilitar Google Drive API, pantalla de consentimiento publicada, cliente "Aplicación web") con la **URI de redireccionamiento** que hay que poner, y dos campos: **ID de cliente** y **Secreto del cliente**, que se graban con **"Grabar"** (arriba a la derecha) y nunca se vuelven a mostrar. Sin la verificación de Google, al conectar aparece una vez «Google no verificó esta app» (se entra por «Configuración avanzada»); alcanza para hasta 100 usuarios.
 
 ### Apify — scrapers de Mercado Libre
 

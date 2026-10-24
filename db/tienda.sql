@@ -152,6 +152,12 @@ create table if not exists tienda_dominio (
 create unique index if not exists tienda_dominio_principal on tienda_dominio (canal_id) where principal;
 alter table tienda_dominio enable row level security;
 select erp_politica_org('tienda_dominio');
+-- Otra marca (Fer, 24/10): un dominio con `marca` abre la misma tienda (catálogo, precios,
+-- stock, pedidos) pero con su propio nombre, logo, colores de la franja, banners y mail
+-- ({nombre, logo, color_marca, color_marca_texto, banner, banner_2, banner_3, email}).
+-- Los que redirigen van al principal, o al dominio de `redirige_a_id` (el www de una marca).
+alter table tienda_dominio add column if not exists marca jsonb;
+alter table tienda_dominio add column if not exists redirige_a_id bigint references tienda_dominio(id) on delete set null;
 
 -- Portada de la tienda (4/10): los productos que Fer elige a mano para las filas
 -- "Destacados" y "Novedades" de la portada, en el orden que les pone. Una fila por
@@ -170,6 +176,20 @@ create table if not exists tienda_portada_producto (
 create index if not exists tienda_portada_orden on tienda_portada_producto (canal_id, lista, orden);
 alter table tienda_portada_producto enable row level security;
 select erp_politica_org('tienda_portada_producto');
+
+-- Categorías que no salen en la portada (Fer, 24/10: "que resistencias no aparezca en la home"):
+-- sus productos (y los de sus subcategorías) no entran en las filas que se arman solas ni en la
+-- grilla de categorías. Lo elegido a mano en Destacados/Novedades sale igual.
+create table if not exists tienda_portada_familia (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  familia_id       bigint not null references familia(id) on delete cascade,
+  creado_ts        timestamptz not null default now(),
+  unique (canal_id, familia_id)
+);
+alter table tienda_portada_familia enable row level security;
+select erp_politica_org('tienda_portada_familia');
 
 -- OCA (ePak), Fer 6/10: la cuenta de OCA de la organización (una sola). El
 -- usuario y la contraseña de ePak nunca se muestran; sin políticas: sólo el
@@ -232,7 +252,8 @@ begin
       if exists (select 1 from publicacion where canal_id = c.id and variacion_id = v and id_externo is null) then continue; end if;
       if not exists (select 1 from variacion vv join producto pr on pr.id = vv.producto_id
                       where vv.id = v and vv.organizacion_id = p_org and vv.estado = 'activa' and pr.estado = 'activo' and not pr.no_publicable) then continue; end if;
-      if c.lista_precios_id is null or (select lista_ars from precio_de(p_org, v, c.lista_precios_id, (now() at time zone 'America/Argentina/Buenos_Aires')::date)) is null then continue; end if;
+      -- Sin precio o con precio cero no se publica (un $ 0 en la web es venderlo regalado).
+      if c.lista_precios_id is null or coalesce((select lista_ars from precio_de(p_org, v, c.lista_precios_id, (now() at time zone 'America/Argentina/Buenos_Aires')::date)), 0) <= 0 then continue; end if;
       if stock_disponible_canal(p_org, v, c.id) <= 0 then continue; end if;
       insert into publicacion (organizacion_id, variacion_id, canal_id, estado, titulo)
       values (p_org, v, c.id, 'activa', titulo_variacion(v))

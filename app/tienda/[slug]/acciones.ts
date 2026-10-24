@@ -33,7 +33,9 @@ async function vendible(t: Tienda, variacionId: number) {
     select greatest(stock_disponible_canal($1, v.id, $3), 0)::int disponible
       from variacion v join producto p on p.id = v.producto_id
      where v.id = $2 and v.organizacion_id = $1 and v.estado = 'activa' and p.estado = 'activo'
-       and exists (select 1 from precio_de($1, v.id, $4))`, [t.organizacionId, variacionId, t.canalId, t.listaId]);
+       and exists (select 1 from precio_de($1, v.id, $4) pr
+                    where coalesce(case when $5 = 'USD' then pr.venta_usd else pr.venta_ars end, 0) > 0)`,
+    [t.organizacionId, variacionId, t.canalId, t.listaId, t.moneda]);
 }
 
 // ── Carrito ──────────────────────────────────────────────

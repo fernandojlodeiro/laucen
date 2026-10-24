@@ -2,7 +2,7 @@
 titulo: Seguimientos
 menu: Catálogo › Seguimientos
 ruta: /catalogo/seguimientos
-rutas: /catalogo/seguimientos, /catalogo/seguimientos/importar
+rutas: /catalogo/seguimientos, /catalogo/seguimientos/importar, /catalogo/seguimientos/propuestas
 permiso: productos_ver
 resumen: El estado del precio de mercado de cada producto (confirmado, monitoreado sin confirmar o sin seguimiento) y los que tienen publicaciones seguidas solas por revisar.
 ---
@@ -19,21 +19,32 @@ Menú **Catálogo › Seguimientos**.
 
 - Buscador **"Buscar SKU o título"** con "Comienza por".
 - **Excluir notebooks**: tildada de entrada; destildada, aparecen también las notebooks.
-- **Ver**: de entrada **Con publicaciones sin revisar (N)**; también **Precio de mercado confirmado (N)**, **Sin seguimiento** (los productos activos que no siguen nada) y **Todos los que siguen algo**.
-- Una fila por producto: foto y **SKU** (lleva a la pestaña Seguimiento de su ficha) con el título; **Clásica** de hoy con la marca del precio de mercado (✓ verde confirmado, ? ámbar monitoreado sin confirmar, ○ gris sin seguimiento); **Dispo.** (stock disponible en los depósitos activos); **Stock $** (la plata en stock: disponible × Clásica); **Sigue** (cuántas publicaciones sigue, sin las excluidas de la regla); **Sin revisar** (las seguidas solas que nadie confirmó); **Más barata seguida** (precio y vendedor; «sin revisar» si es una de ésas); **Mercado** (el precio de la última búsqueda de precio de mercado y cuántas publicaciones iguales encontró) y **Dif.** (el mercado contra la Clásica, en verde si está más arriba).
+- **Ver**: de entrada **Todos los que siguen algo**; también **Con 🤖 automáticas sin revisar (N)**, **Precio de mercado confirmado (N)** y **Sin seguimiento** (los productos activos que no siguen nada).
+- **Productos**: de entrada **A la venta (N)** (con publicación activa en Mercado Libre y stock disponible); o **Todos**.
+- **Revisión**: de entrada **Por revisar (N)**; también **Revisados (N)** o **Todos**.
+- Arriba de la tabla, **Avance de la revisión**: cuántos de los productos a la venta ya se marcaron **✓ Producto revisado**, y qué porcentaje.
+- Una fila por producto: foto y **SKU** (lleva a la pestaña Seguimiento de su ficha) con el título; **Revisado** (✓ y la fecha si una persona lo marcó revisado; «⚠ hay nuevas» si después entraron publicaciones nuevas; «—» si no); **Clásica** de hoy con la marca del precio de mercado (✓ verde confirmado, ? ámbar monitoreado sin confirmar, ○ gris sin seguimiento); **Dispo.** (stock disponible en los depósitos activos); **Stock $** (la plata en stock: disponible × Clásica); **Sigue** (cuántas publicaciones sigue, sin las excluidas de la regla); **Sin revisar** (las seguidas solas que nadie confirmó); **Más barata seguida** (precio y vendedor; «sin revisar» si es una de ésas); **Mercado** (el precio de la última búsqueda de precio de mercado y cuántas publicaciones iguales encontró) y **Dif.** (el mercado contra la Clásica, en verde si está más arriba).
 - Se ordena tocando el título de cada columna; sin tocar ninguno, **de la que tiene más plata en stock a la que menos** (Stock $). De a 50 filas.
 - La Clásica y el stock de los productos que siguen algo se calculan cada 15 minutos (así la pantalla abre rápido): un cambio de precio o de stock puede tardar eso en verse acá.
 
-Arriba a la derecha, **⚙ Configuración** lleva a [Seguimiento de publicaciones](/config/seguimiento) (cada cuánto se leen, tope de gasto, pausadas) y **Importar de Virtual Seller** lleva a la pantalla para subir el informe de seguimientos de Virtual Seller (ver abajo).
+Arriba a la derecha, **Propuestas pendientes (N)** lleva a la lista de lo que la regla de precio dejó esperando «Aplicar» (ver abajo), **⚙ Configuración** lleva a [Seguimiento de publicaciones](/config/seguimiento) (cada cuánto se leen, tope de gasto, pausadas) y **Importar de Virtual Seller** lleva a la pantalla para subir el informe de seguimientos de Virtual Seller (ver abajo).
 
 ## Cómo se hace
 
 ### Revisar lo que se siguió solo
 
-1. Elegí **Ver: Con publicaciones sin revisar**.
+1. Elegí **Ver: Con 🤖 automáticas sin revisar**.
 2. Tocá el SKU: abre la pestaña **Seguimiento** del producto.
 3. Mirá cada publicación marcada **🤖 Automática · sin revisar** (al pasar el mouse sobre la marca, el motivo de la IA; la ↗ abre la publicación en Mercado Libre).
 4. Si es el mismo producto, tildá **Revisada** en su fila; si no, el tacho la deja de seguir. **✓ Confirmar todas (N)**, arriba a la derecha de la caja, confirma todas juntas.
+
+### Marcar un producto como revisado
+
+En la pestaña **Seguimiento** del producto, arriba de todo, un recuadro dice **Por revisar** con el botón **✓ Producto revisado**. Cuando una persona miró las publicaciones que se siguen (tildó **Revisada** las 🤖 que sirven, excluyó o borró las que no), aprieta ese botón: queda **✓ Revisado por … el …** (con **Desmarcar** para volverlo atrás). Si después entra una publicación seguida nueva, el recuadro avisa cuántas y el producto vuelve a contar como **por revisar** hasta que se aprieta **✓ Revisado de nuevo**.
+
+### Propuestas pendientes
+
+**Propuestas pendientes (N)**, arriba a la derecha ([abrir](/catalogo/seguimientos/propuestas)), junta todo lo que la regla de precio (en «Proponer el cambio y esperar mi clic») dejó esperando: por producto y variación, la **Clásica** de hoy, la **propuesta**, el **cambio** en pesos y %, el **piso** de la regla, **contra quién** compara y desde cuándo espera; primero los cambios más grandes. En cada producto, **Aplicar** cambia la lista Clásicas (desde ahí, el esquema de precios lo lleva a las cuentas y planes) y **Descartar** la deja como está. Arriba a la derecha, **Aplicar todas** y **Descartar todas** (preguntan antes y corren de fondo).
 
 ### Importar los seguimientos de Virtual Seller
 

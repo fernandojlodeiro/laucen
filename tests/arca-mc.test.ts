@@ -91,7 +91,7 @@ test("lee la versión nueva: IVA por alícuota, no gravado, otros tributos, dól
 
 test("importa: proveedores nuevos, cuenta recordada, NC resta, asientos que balancean; dos veces no duplica; lo distinto no se toca", async () => {
   const e = await escenario();
-  const fletes = await e.rol("fletes"), varios = await e.rol("gastos_varios"), comisiones = await e.rol("comisiones");
+  const fletes = await e.rol("fletes"), comisiones = await e.rol("comisiones");
   // Un proveedor que ya existe, con su cuenta recordada.
   const norte = Number((await q<{ id: string }>("insert into proveedor (organizacion_id, nombre, cuit, cuenta_gasto_id) values ($1, 'Distribuidora Norte', '30-71234567-1', $2) returning id", [e.org, fletes]))[0].id);
   // Una factura cargada a mano con otro total (la C de Pérez): no se toca.
@@ -109,7 +109,8 @@ test("importa: proveedores nuevos, cuenta recordada, NC resta, asientos que bala
   const pMl = v.proveedores.find((p) => p.cuit === "30703088534")!;
   assert.ok(pMl.mercadoLibre && pMl.proveedorId == null);
   assert.equal(pMl.cuentaId, comisiones, "Mercado Libre va a comisiones");
-  assert.equal(v.proveedores.find((p) => p.cuit === "30709998885")!.cuentaId, varios);
+  assert.equal(v.proveedores.find((p) => p.cuit === "30709998885")!.cuentaId, null, "sin cuenta recordada no se propone ninguna: hay que elegirla");
+  await assert.rejects(m.mc.importarLote(e.org, lote, {}, "u1"), /Elegí la cuenta de gasto/);
 
   // Elige otra cuenta para Fletes Rápidos: queda recordada.
   const r = await m.mc.importarLote(e.org, lote, { "30709998885": fletes }, "u1");
@@ -147,13 +148,13 @@ test("importa: proveedores nuevos, cuenta recordada, NC resta, asientos que bala
   assert.deepEqual(v2.filas.map((f) => f.estado), ["ya_cargada", "ya_cargada", "ya_cargada", "distinta", "ya_cargada"]);
   assert.equal(v2.proveedores.find((p) => p.cuit === "30709998885")!.cuentaId, fletes, "la cuenta quedó recordada");
   const r2 = await m.mc.importarLote(e.org, lote2, {}, "u1");
-  assert.deepEqual([r2.cargadas, r2.yaEstaban], [0, 4]);
+  assert.deepEqual([r2.cargadas, r2.yaEstaban, r2.validadas], [0, 4, 0]);
 
   // La versión nueva: la FA 777 ya estaba; la ND 777 es otra (numeración propia); la de dólares entra.
   const lote3 = await m.mc.guardarLote(e.org, "nueva.csv", m.leer.leerCsvArca(NUEVA), "u1");
   const v3 = (await m.mc.vistaPrevia(e.org, lote3))!;
   assert.deepEqual(v3.filas.map((f) => f.estado), ["nueva", "nueva", "ya_cargada", "nueva"]);
-  const r3 = await m.mc.importarLote(e.org, lote3, {}, "u1");
+  const r3 = await m.mc.importarLote(e.org, lote3, { "33698765432": fletes }, "u1");
   assert.deepEqual([r3.cargadas, r3.yaEstaban, r3.errores.length], [3, 1, 0]);
   const usd = (await q<{ moneda: string; total_ars: string }>("select f.moneda, f.total_ars from factura_compra f join proveedor p on p.id = f.proveedor_id where f.organizacion_id = $1 and p.cuit = '33698765432'", [e.org]))[0];
   assert.deepEqual([usd.moneda, Number(usd.total_ars)], ["USD", 163410.5]);
