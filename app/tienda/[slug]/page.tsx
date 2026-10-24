@@ -92,9 +92,9 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
       {datos.length > 0 && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(datos).replace(/</g, "\\u003c") }} />}
       {/* Banners a todo el ancho. */}
       {/* Pegado al encabezado y con la primera fila subiendo sobre su borde de abajo (Fer, 24/10: le sobraba lugar). */}
-      <div className="relative left-1/2 -mb-5 -mt-4 w-screen -translate-x-1/2 sm:-mb-8 sm:-mt-6">
+      <div className="relative left-1/2 -mb-4 -mt-4 w-screen -translate-x-1/2 sm:-mt-6">
         {banners.length ? <Banners banners={banners} /> : (
-          <div className="relative h-[150px] overflow-hidden bg-[var(--marca)] sm:h-[260px] lg:h-[340px]">
+          <div className="relative aspect-[3/1] overflow-hidden bg-[var(--marca)] lg:aspect-auto lg:h-[340px]">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_20%,rgba(255,255,255,.55),transparent_60%)]" />
             <div className="relative mx-auto flex h-full max-w-[1200px] items-center gap-6 px-6 pb-[6%] text-[var(--marca-texto)]">
               <div className="flex-1">
