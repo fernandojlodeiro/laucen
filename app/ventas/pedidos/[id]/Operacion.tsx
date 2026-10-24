@@ -14,7 +14,10 @@ import { BotonEnviar } from "@/app/radar/Cliente";
 import { Estado, CAJA, CAJA_TABLA, TABLA, THEAD, TH, THN, TR, TD, TDN, CAMPO, ETIQUETA } from "@/app/componentes/erp";
 import { fechaHora } from "@/app/ventas/formato";
 import { TIPOS_MEDIO } from "@/app/config/medios-pago/comun";
-import { accionConfirmarPago, accionCambiarEstadoPedido, accionClientePresente, accionVigenciaPresupuesto } from "./acciones";
+import { accionConfirmarPago, accionCambiarEstadoPedido, accionClientePresente, accionVigenciaPresupuesto, accionBorrarComprobantePago } from "./acciones";
+import SubirComprobante from "./SubirComprobante";
+import { TachoConfirmar } from "@/app/radar/Cliente";
+import { supabaseServer } from "@/lib/supabase";
 
 const ESTADO_PAGO: Record<string, { texto: string; tono: "verde" | "amarillo" | "rojo" | "gris" }> = {
   pendiente: { texto: "Pendiente", tono: "amarillo" }, aprobado: { texto: "Aprobado", tono: "verde" }, rechazado: { texto: "Rechazado", tono: "rojo" },
@@ -83,6 +86,12 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
   const pagos = await consulta<{ id: number; medio: string; estado: string; importe: number; cuotas: number; detalle: string | null; fecha: Date }>(`
     select id::int, medio, estado, importe_ars::float importe, cuotas, detalle, creado_ts fecha from pago
      where pedido_id = $1 and organizacion_id = $2 order by creado_ts, id`, [pid, org]);
+  // Los comprobantes de pago, con un link firmado por una hora (el bucket es privado).
+  const filasComp = await consulta<{ id: number; ruta: string; nombre: string | null; origen: string; creado: Date }>(
+    "select id::int, ruta, nombre, origen, creado_ts creado from pedido_comprobante_pago where pedido_id = $1 and organizacion_id = $2 order by id", [pid, org]);
+  const sb = filasComp.length ? await supabaseServer() : null;
+  const comprobantes = await Promise.all(filasComp.map(async (c) => ({
+    ...c, url: (await sb!.storage.from("comprobantes").createSignedUrl(c.ruta, 3600).catch(() => null))?.data?.signedUrl ?? null })));
   // Lo que arrastra cancelar (OCA, Payway, la factura), para las preguntas del botón.
   const cancelar = p.canal_tipo !== "mercadolibre" && !CERRADOS.includes(p.estado) ? await queArrastraCancelar(org, pid) : null;
   const nombreMedio = (m: string) => (Object.hasOwn(TIPOS_MEDIO, m) ? TIPOS_MEDIO[m as keyof typeof TIPOS_MEDIO].nombre : m);
@@ -224,6 +233,17 @@ export default async function Operacion({ org, pid, sp }: { org: string; pid: nu
         {automatico && ["preparado", "despachado"].includes(p.estado) && (
           <p className="text-[11px] text-[#5C6B76]">El envío lo sigue el transportista: el pedido pasa solo a «Despachado» cuando lo retiran y a «Entregado» cuando lo entregan.</p>
         )}
+        {/* Comprobantes de pago: los que sube un operador (después, los que lleguen por mail o WhatsApp). */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <SubirComprobante orgId={org} pedidoId={pid} />
+          {comprobantes.map((c) => (
+            <span key={c.id} className="inline-flex items-center gap-1 rounded-lg border border-[#E3E9F0] bg-white px-2 py-1">
+              {c.url ? <a href={c.url} target="_blank" rel="noopener" className="text-[#16577F] underline">{c.nombre ?? "Comprobante"}</a> : <span>{c.nombre ?? "Comprobante"}</span>}
+              <span className="text-[#5C6B76]">· {fechaHora(c.creado)}{c.origen !== "operador" ? ` · por ${c.origen === "mail" ? "mail" : "WhatsApp"}` : ""}</span>
+              <TachoConfirmar accion={accionBorrarComprobantePago} campos={{ pedido_id: String(pid), id: String(c.id) }} pregunta="¿Borrar?" />
+            </span>
+          ))}
+        </div>
         {pagoPendiente && !pideMedio && (
           <form action={accionConfirmarPago} className="flex flex-wrap items-end gap-2">
             <input type="hidden" name="pedido_id" value={pid} />

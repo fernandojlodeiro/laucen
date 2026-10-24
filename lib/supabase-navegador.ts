@@ -13,7 +13,7 @@ export function supabaseNavegador() {
 
 /** Sube un archivo a un bucket y devuelve su ruta (y su link público si el
  *  bucket es público), o un motivo en criollo. */
-export async function subirArchivo(bucket: "productos" | "importaciones" | "videos" | "videos_tienda", organizacionId: string, archivo: File, carpeta = "") {
+export async function subirArchivo(bucket: "productos" | "importaciones" | "videos" | "videos_tienda" | "comprobantes", organizacionId: string, archivo: File, carpeta = "") {
   const limpio = archivo.name.normalize("NFD").replace(/[^\w.-]+/g, "_").slice(-80);
   const ruta = [organizacionId, carpeta, `${Date.now()}-${limpio}`].filter(Boolean).join("/");
   const sb = supabaseNavegador();

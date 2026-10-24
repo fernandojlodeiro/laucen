@@ -5,7 +5,8 @@
 
 import { revalidatePath } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
-import { ErrorErp, una } from "@/lib/erp/base";
+import { ErrorErp, una, consulta, motivoErp } from "@/lib/erp/base";
+import { supabaseServer } from "@/lib/supabase";
 import { intentar, id, texto } from "@/lib/erp/acciones";
 import { cambiarEstado, esEstadoPedido, exigirCarritoLibre, ESTADOS_PEDIDO } from "@/lib/pedidos";
 import { confirmarPago, entregarYCobrar } from "@/lib/tienda/pagos/confirmar";
@@ -306,5 +307,36 @@ export async function accionFacturaWhatsapp(fd: FormData) {
     const r = await enviarFacturaWhatsapp(s.org.id, cid, { manual: true });
     revalidatePath(volver);
     return r;
+  });
+}
+
+/** Guarda el comprobante de pago que el navegador ya subió (bucket privado «comprobantes»). */
+export async function guardarComprobantePago(fd: FormData): Promise<{ motivo?: string }> {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  try {
+    if (!(await una("select 1 from pedido where id = $1 and organizacion_id = $2", [pid, s.org.id]))) throw new ErrorErp("El pedido no existe.");
+    const ruta = texto(fd, "ruta");
+    if (!ruta || !ruta.startsWith(`${s.org.id}/`)) throw new ErrorErp("No llegó bien el comprobante. Probá de nuevo.");
+    await consulta(`insert into pedido_comprobante_pago (organizacion_id, pedido_id, ruta, nombre, tipo, origen, subido_por)
+                    values ($1, $2, $3, $4, $5, 'operador', $6)`, [s.org.id, pid, ruta, texto(fd, "nombre"), texto(fd, "tipo"), s.usuario.id]);
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    return {};
+  } catch (e) {
+    return { motivo: motivoErp(e) };
+  }
+}
+
+export async function accionBorrarComprobantePago(fd: FormData) {
+  const s = await entrarErp("pedidos_ver");
+  const pid = id(fd, "pedido_id");
+  await intentar(`/ventas/pedidos/${pid}?b=op`, async () => {
+    const r = await una<{ ruta: string }>("delete from pedido_comprobante_pago where id = $1 and organizacion_id = $2 and pedido_id = $3 returning ruta",
+      [id(fd, "id"), s.org.id, pid]);
+    if (r?.ruta.startsWith(`${s.org.id}/`)) {
+      try { await (await supabaseServer()).storage.from("comprobantes").remove([r.ruta]); } catch { /* queda huérfano */ }
+    }
+    revalidatePath(`/ventas/pedidos/${pid}`);
+    return "Comprobante borrado.";
   });
 }
