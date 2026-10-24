@@ -171,8 +171,10 @@ export async function accionGuardarDominio(fd: FormData) {
     await consulta("update tienda_dominio set marca = $3::jsonb, redirige_a_id = $4 where id = $1 and organizacion_id = $2",
       [f.id, s.org.id, marca ? JSON.stringify(marca) : null, redirigeA]);
     olvidarDominios();
-    // En Vercel se acomodan todos los de la tienda (el www de una marca redirige a ella).
-    const todos = await consulta<{ id: number }>("select id::int from tienda_dominio where canal_id = $1 and not principal order by id", [f.canal_id]);
+    // En Vercel se acomodan todos los de la tienda (el www de una marca redirige a ella). Primero
+    // las marcas: Vercel no acepta redirigir a un dominio que todavía redirige a otro.
+    const todos = await consulta<{ id: number }>(`select id::int from tienda_dominio where canal_id = $1 and not principal
+                                                   order by (marca ->> 'nombre') is null, id`, [f.canal_id]);
     for (const x of todos) {
       try { await aVercel(s.org.id, x.id); } catch (e) {
         const motivo = e instanceof ErrorErp ? e.message : "Vercel no respondió.";
