@@ -176,7 +176,10 @@ export async function accionGuardarDominio(fd: FormData) {
     const todos = await consulta<{ id: number }>(`select id::int from tienda_dominio where canal_id = $1 and not principal
                                                    order by (marca ->> 'nombre') is null, id`, [f.canal_id]);
     for (const x of todos) {
-      try { await aVercel(s.org.id, x.id); } catch (e) {
+      try {
+        await aVercel(s.org.id, x.id);
+        await consulta("update tienda_dominio set detalle = null where id = $1", [x.id]); // anduvo: fuera el aviso de una vez anterior
+      } catch (e) {
         const motivo = e instanceof ErrorErp ? e.message : "Vercel no respondió.";
         await consulta("update tienda_dominio set detalle = $2, revisado_ts = now() where id = $1", [x.id, motivo]);
       }
