@@ -40,7 +40,7 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 ### Portada
 
 - Los **banners** que pasan solos (si no hay ninguno, una franja con el nombre, la bajada y "Ver todos los productos").
-- Carruseles: **Destacados** (primero, justo debajo de los banners; los elegís vos, en el orden que quieras, en [Portada de la tienda](/config/tienda/portada)), **Ofertas**, **Más vendidos** (ventas de todos los canales), **Novedades** (los últimos cargados, o los que elijas), la grilla de **Categorías** con foto y **Destacados en …** de las tres categorías con más productos.
+- Carruseles: **Destacados** (primero, justo debajo de los banners) y **Novedades** (los que elijas, o los últimos cargados), los dos en [Portada de la tienda](/config/tienda/portada); después **Ofertas**, **Más vendidos** (ventas de todos los canales), la grilla de **Categorías** con foto y **Destacados en …** de las tres categorías con más productos. Las categorías marcadas en Portada de la tienda como "no salen en la portada" quedan afuera de las filas que se arman solas y de la grilla.
 - Al pie, cinco **atajos** chicos: Ingresá a tu cuenta / Mis compras, Medios de pago, Envíos (o "Envío gratis desde $ …"), Más vendidos y Ayuda.
 
 ### Listados (buscar, categoría, ofertas, más vendidos)

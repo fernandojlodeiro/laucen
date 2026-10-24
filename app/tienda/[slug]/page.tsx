@@ -8,7 +8,7 @@ import { mediosActivos } from "@/lib/tienda/checkout";
 import { cuentaActual } from "@/lib/tienda/cuentas";
 import { formatearNumero } from "@/lib/numeros";
 import { nombreTienda, rutaTienda } from "@/lib/tienda/tienda";
-import { idsDe } from "@/lib/tienda/portada";
+import { familiasFueraDe, idsDe } from "@/lib/tienda/portada";
 import { aTarjetas, arbolDe, cargarTienda, catalogoDe, envioDe, type ProductoBase, type Tarjeta } from "./catalogo";
 import { CAJA, IconoCamion, IconoCharla, IconoPersona, IconoTarjeta, IconoTienda, TarjetaProducto } from "./piezas";
 import Banners from "./Banners";
@@ -35,23 +35,27 @@ function Fila({ titulo, ver, productos, t }: { titulo: string; ver?: { texto: st
 
 export default async function InicioTienda({ params }: { params: Promise<{ slug: string }> }) {
   const t = await cargarTienda((await params).slug);
-  const [catalogo, arbol, envio, medios, cuenta, idsDestacados, idsNovedades] = await Promise.all([catalogoDe(t), arbolDe(t), envioDe(t), mediosActivos(t), cuentaActual(t), idsDe(t.canalId, "destacados"), idsDe(t.canalId, "novedades")]);
+  const [catalogo, arbol, envio, medios, cuenta, idsDestacados, idsNovedades, fuera] = await Promise.all([catalogoDe(t), arbolDe(t), envioDe(t), mediosActivos(t), cuentaActual(t), idsDe(t.canalId, "destacados"), idsDe(t.canalId, "novedades"), familiasFueraDe(t.canalId)]);
   const nombre = nombreTienda(t);
   const c = t.config;
   const r = (x = "") => rutaTienda(t, x);
   const conStock = catalogo.filter((p) => p.stock > 0);
+  // Las categorías que no salen en la portada (Configuración › Portada): fuera de las filas automáticas y de la grilla.
+  const afuera = new Set(fuera);
+  const enPortada = conStock.filter((p) => !arbol.cadena(p.familiaId).some((f) => afuera.has(f)));
+  const raices = arbol.raices.filter((f) => !afuera.has(f.id));
 
   // Las filas, del mismo catálogo. Destacados y Novedades las elige Fer a mano (Configuración › Portada
   // de la tienda), en su orden; Novedades, sin elegir, son los últimos cargados.
   const porId = new Map(conStock.map((p) => [p.id, p]));
   const elegidos = (ids: number[]) => ids.map((i) => porId.get(i)).filter((p): p is ProductoBase => !!p);
   const destacados = elegidos(idsDestacados);
-  const ofertas = conStock.filter((p) => p.lista > p.venta).sort((a, b) => b.lista / b.venta - a.lista / a.venta).slice(0, CANTIDAD);
-  const vendidos = conStock.filter((p) => p.vendidos > 0).sort((a, b) => b.vendidos - a.vendidos).slice(0, CANTIDAD);
-  const novedades = idsNovedades.length ? elegidos(idsNovedades) : [...conStock].sort((a, b) => b.creado - a.creado || b.id - a.id).slice(0, CANTIDAD);
-  const principales = [...arbol.raices].sort((a, b) => b.total - a.total).slice(0, 3);
+  const ofertas = enPortada.filter((p) => p.lista > p.venta).sort((a, b) => b.lista / b.venta - a.lista / a.venta).slice(0, CANTIDAD);
+  const vendidos = enPortada.filter((p) => p.vendidos > 0).sort((a, b) => b.vendidos - a.vendidos).slice(0, CANTIDAD);
+  const novedades = idsNovedades.length ? elegidos(idsNovedades) : [...enPortada].sort((a, b) => b.creado - a.creado || b.id - a.id).slice(0, CANTIDAD);
+  const principales = [...raices].sort((a, b) => b.total - a.total).slice(0, 3);
   const porCategoria = principales.map((f) => ({
-    f, productos: conStock.filter((p) => arbol.cadena(p.familiaId).includes(f.id)).sort((a, b) => b.vendidos - a.vendidos || b.creado - a.creado).slice(0, CANTIDAD),
+    f, productos: enPortada.filter((p) => arbol.cadena(p.familiaId).includes(f.id)).sort((a, b) => b.vendidos - a.vendidos || b.creado - a.creado).slice(0, CANTIDAD),
   }));
   const todos = new Map<number, ProductoBase>();
   for (const l of [destacados, ofertas, vendidos, novedades, ...porCategoria.map((x) => x.productos)]) for (const p of l) todos.set(p.id, p);
@@ -97,15 +101,15 @@ export default async function InicioTienda({ params }: { params: Promise<{ slug:
       )}
 
       <Fila t={t} titulo="Destacados" productos={de(destacados)} />
+      <Fila t={t} titulo="Novedades" ver={{ texto: "Ver todo", href: r("/buscar") }} productos={de(novedades)} />
       <Fila t={t} titulo="Ofertas" ver={{ texto: "Ver todas", href: `${r("/buscar")}?ofertas=1` }} productos={de(ofertas)} />
       <Fila t={t} titulo="Más vendidos" ver={{ texto: "Ver más", href: `${r("/buscar")}?orden=vendidos` }} productos={de(vendidos)} />
-      <Fila t={t} titulo="Novedades" ver={{ texto: "Ver todo", href: r("/buscar") }} productos={de(novedades)} />
 
-      {arbol.raices.length > 0 && (
+      {raices.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xl font-normal text-[var(--texto)] sm:text-[26px]">Categorías</h2>
           <div className={`${CAJA} grid grid-cols-3 overflow-hidden sm:grid-cols-4 lg:grid-cols-6`}>
-            {arbol.raices.slice(0, 18).map((f) => (
+            {raices.slice(0, 18).map((f) => (
               <Link key={f.id} href={r(`/familia/${f.id}`)}
                 className="group flex flex-col items-center gap-2 border-b border-r border-[var(--linea)] p-4 text-center hover:shadow-[inset_0_0_0_1px_var(--linea)]">
                 <span className="grid h-16 w-16 place-items-center overflow-hidden rounded-full bg-[var(--fondo)] sm:h-20 sm:w-20">

@@ -177,6 +177,20 @@ create index if not exists tienda_portada_orden on tienda_portada_producto (cana
 alter table tienda_portada_producto enable row level security;
 select erp_politica_org('tienda_portada_producto');
 
+-- Categorías que no salen en la portada (Fer, 24/10: "que resistencias no aparezca en la home"):
+-- sus productos (y los de sus subcategorías) no entran en las filas que se arman solas ni en la
+-- grilla de categorías. Lo elegido a mano en Destacados/Novedades sale igual.
+create table if not exists tienda_portada_familia (
+  id               bigint generated always as identity primary key,
+  organizacion_id  text not null references organizaciones(id) on delete cascade,
+  canal_id         bigint not null references canal(id) on delete cascade,
+  familia_id       bigint not null references familia(id) on delete cascade,
+  creado_ts        timestamptz not null default now(),
+  unique (canal_id, familia_id)
+);
+alter table tienda_portada_familia enable row level security;
+select erp_politica_org('tienda_portada_familia');
+
 -- OCA (ePak), Fer 6/10: la cuenta de OCA de la organización (una sola). El
 -- usuario y la contraseña de ePak nunca se muestran; sin políticas: sólo el
 -- servidor la lee. origen = de dónde sale la mercadería; centro_origen = la

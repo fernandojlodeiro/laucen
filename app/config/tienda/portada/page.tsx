@@ -7,9 +7,11 @@ import { consulta } from "@/lib/erp/base";
 import { entrarErp, Pantalla, Avisos, TituloSeccion, CAJA, TABLA, TD, TDN } from "@/app/componentes/erp";
 import AltaNueva, { BotonNuevo } from "@/app/componentes/AltaNueva";
 import { TachoConfirmar } from "@/app/radar/Cliente";
-import { productosDe, LISTAS_PORTADA, MAX_PORTADA, type ListaPortada } from "@/lib/tienda/portada";
+import { productosDe, familiasFueraConNombre, LISTAS_PORTADA, MAX_PORTADA, type ListaPortada } from "@/lib/tienda/portada";
+import ElegirFamilia from "@/app/componentes/ElegirFamilia";
+import { PRIMARIO } from "@/app/botones";
 import Buscador from "./Buscador";
-import { accionMoverPortada, accionQuitarPortada } from "./acciones";
+import { accionMoverPortada, accionQuitarPortada, accionSacarFamilia, accionDevolverFamilia } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,7 @@ export default async function PortadaTienda({ searchParams }: { searchParams: Pr
   const tienda = tiendas.find((t) => t.id === Number(sp.canal)) ?? tiendas[0];
   const LISTAS: ListaPortada[] = ["destacados", "novedades"];
   const cargadas = tienda ? await Promise.all(LISTAS.map((l) => productosDe(s.org.id, tienda.id, l))) : [];
+  const fuera = tienda ? await familiasFueraConNombre(s.org.id, tienda.id) : [];
 
   return (
     <Pantalla titulo="Portada de la tienda" subtitulo="Elegí los productos de Destacados y de Novedades, y en qué orden salen" ancho="max-w-4xl">
@@ -37,7 +40,7 @@ export default async function PortadaTienda({ searchParams }: { searchParams: Pr
             </div>
           )}
           <p className="text-xs text-[#5C6B76] mb-4">
-            Lo que sigue se arma solo: <b>Ofertas</b> (mayor descuento), <b>Más vendidos</b> (ventas de todos los canales) y <b>Destacados en cada categoría</b>. Sólo se muestran los productos con stock.
+            En la portada, primero <b>Destacados</b> y <b>Novedades</b> (las de acá abajo); después lo que se arma solo: <b>Ofertas</b> (mayor descuento), <b>Más vendidos</b> (ventas de todos los canales) y <b>Destacados en cada categoría</b>. Sólo se muestran los productos con stock.
           </p>
           {LISTAS.map((lista, k) => {
             const info = LISTAS_PORTADA[lista];
@@ -82,6 +85,33 @@ export default async function PortadaTienda({ searchParams }: { searchParams: Pr
               </section>
             );
           })}
+
+          <section className="mb-8">
+            <TituloSeccion titulo={`Categorías que no salen en la portada (${fuera.length})`}>
+              <BotonNuevo texto="Agregar categoría" clave="sacar-familia" />
+            </TituloSeccion>
+            <p className="text-[11px] text-[#5C6B76] mb-2">Sus productos (y los de sus subcategorías) no aparecen en las filas que se arman solas ni en la grilla de categorías de la portada. Se siguen vendiendo y se encuentran con el buscador. Lo que elijas a mano en Destacados o Novedades sale igual.</p>
+            <AltaNueva texto="Agregar categoría" clave="sacar-familia" sinBoton>
+              <form action={accionSacarFamilia} className="flex flex-wrap items-end gap-2 text-xs">
+                <input type="hidden" name="canal_id" value={tienda.id} />
+                <label className="w-80"><ElegirFamilia name="familia_id" vacio="Elegí la categoría…" propias /></label>
+                <button className={PRIMARIO}>Sacar de la portada</button>
+              </form>
+            </AltaNueva>
+            <div className="bg-white border border-[#E3E9F0] rounded-xl overflow-x-auto">
+              <table className={TABLA}>
+                <tbody>
+                  {fuera.length === 0 && <tr><td className={`${TD} text-[#5C6B76]`}>Ninguna: todas las categorías pueden salir en la portada.</td></tr>}
+                  {fuera.map((f) => (
+                    <tr key={f.id} className="border-t border-[#EEF1F4] first:border-t-0">
+                      <td className={TD}><Link href={`/catalogo/productos?familia=${f.id}`} className="text-[#16577F]">{f.nombre}</Link></td>
+                      <td className={`${TD} text-right`}><TachoConfirmar accion={accionDevolverFamilia} campos={{ canal_id: String(tienda.id), familia_id: String(f.id) }} pregunta="¿Que vuelva a salir?" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </>
       )}
     </Pantalla>
