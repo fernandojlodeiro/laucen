@@ -25,7 +25,11 @@ import { urlTienda } from "@/lib/tienda/dominios-tienda";
 
 export type DatosCompra = {
   carrito: LineaCarrito[];
-  cliente: { nombre: string; email: string; telefono?: string | null; documento?: string | null; cuit?: string | null; razon_social?: string | null; condicion_iva?: string | null };
+  cliente: { nombre: string; email: string; telefono?: string | null; documento?: string | null; cuit?: string | null; razon_social?: string | null; condicion_iva?: string | null;
+    /** Con «Necesito factura A»: el domicilio fiscal. */
+    fiscal?: { calle: string; localidad: string; provincia: string; codigo_postal: string } | null;
+    /** «Prefiero recibir la factura por»: mail y/o WhatsApp (cliente.factura_por_mail / factura_por_whatsapp). */
+    facturaPorMail?: boolean; facturaPorWhatsapp?: boolean };
   entrega: { metodoEnvioId: number; calle?: string | null; numero?: string | null; piso_depto?: string | null; localidad?: string | null; provincia?: string | null; codigo_postal?: string | null; referencia?: string | null; sucursalOca?: string | null };
   /** payway_debito: Payway con tarjeta de débito en un pago (el descuento de contado del esquema de cuotas). */
   medio: "mercadopago" | "payway" | "payway_debito" | "transferencia" | "efectivo" | "cuenta_corriente";
@@ -82,10 +86,13 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
     clienteId: op.clienteId ?? null,
     cliente: op.clienteId ? null : {
       nombre: d.cliente.razon_social?.trim() || d.cliente.nombre.trim(), razon_social: d.cliente.razon_social?.trim() || null,
-      email: d.cliente.email.trim().toLowerCase(), telefono: d.cliente.telefono?.trim() || null,
+      // El teléfono del checkout es el WhatsApp: va como celular (cliente.whatsapp si parece uno).
+      email: d.cliente.email.trim().toLowerCase(), telefono_movil: d.cliente.telefono?.trim() || null,
       documento_tipo: doc ? (doc.length === 11 ? "CUIT" : "DNI") : null, documento_numero: doc, cuit: d.cliente.cuit ?? (doc?.length === 11 ? doc : null),
       condicion_iva: d.cliente.condicion_iva ?? null,
-      direccion: d.entrega.calle ? { calle: d.entrega.calle, numero: d.entrega.numero ?? undefined, piso_depto: d.entrega.piso_depto ?? undefined,
+      // La fiscal, la de la factura A; la de envío, la de la entrega.
+      direccion: d.cliente.fiscal ? { calle: d.cliente.fiscal.calle, localidad: d.cliente.fiscal.localidad, provincia: d.cliente.fiscal.provincia, codigo_postal: d.cliente.fiscal.codigo_postal } : null,
+      direccion_envio: d.entrega.calle ? { calle: d.entrega.calle, numero: d.entrega.numero ?? undefined, piso_depto: d.entrega.piso_depto ?? undefined,
         localidad: d.entrega.localidad ?? undefined, provincia: d.entrega.provincia ?? undefined, codigo_postal: d.entrega.codigo_postal ?? undefined } : null,
     },
     moneda: t.moneda,
@@ -103,6 +110,21 @@ export async function comprar(t: Tienda, d: DatosCompra, op: { clienteId?: numbe
       ...(d.medio === "payway_debito" ? { debito: true } : {}), ...(cot.cuotas ? { cuotas: cot.cuotas.elegidas } : {}) } },
   }, op.clienteId ? `cliente:${op.clienteId}` : "tienda");
   await consulta("update pedido set codigo_seguimiento = $3 where id = $1 and organizacion_id = $2", [pedido.pedidoId, org, codigo]);
+  // Cómo quiere la factura y, con factura A, sus datos fiscales (también si ya era cliente).
+  if (pedido.clienteId) {
+    await consulta(`update cliente set factura_por_mail = $3, factura_por_whatsapp = $4,
+                           whatsapp = coalesce(whatsapp, whatsapp_normal($5)),
+                           razon_social = coalesce($6, razon_social), cuit = coalesce($7, cuit), condicion_iva = coalesce($8, condicion_iva)
+                     where id = $1 and organizacion_id = $2`,
+      [pedido.clienteId, org, d.cliente.facturaPorMail ?? true, d.cliente.facturaPorWhatsapp ?? false, d.cliente.telefono?.trim() || null,
+       d.cliente.fiscal ? d.cliente.razon_social?.trim() || null : null, d.cliente.fiscal ? d.cliente.cuit ?? null : null, d.cliente.fiscal ? d.cliente.condicion_iva ?? null : null]);
+    if (d.cliente.fiscal && op.clienteId) {
+      await consulta(`insert into cliente_direccion (organizacion_id, cliente_id, etiqueta, calle, localidad, provincia, codigo_postal, pais, principal)
+                      select $1, $2, 'Fiscal', $3, $4, $5, $6, 'AR', false
+                       where not exists (select 1 from cliente_direccion where cliente_id = $2 and etiqueta = 'Fiscal' and lower(coalesce(calle, '')) = lower($3))`,
+        [org, pedido.clienteId, d.cliente.fiscal.calle, d.cliente.fiscal.localidad, d.cliente.fiscal.provincia, d.cliente.fiscal.codigo_postal]);
+    }
+  }
   if (pedido.reservo) await avisarStockMl(org, pedido.pedidoId);
   // El mail de "recibimos tu pedido", después de contestarle al comprador (no lo demora).
   after(async () => { const { mailPedido } = await import("@/lib/correo/mails"); await mailPedido(org, pedido.pedidoId, "recibido").catch(() => null); });

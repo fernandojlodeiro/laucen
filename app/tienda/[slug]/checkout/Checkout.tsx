@@ -62,6 +62,7 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
   const cpCotizado = useRef(eleccion.codigoPostal);
   const [sucursales, setSucursales] = useState<{ id: string; texto: string }[] | null>(null);
   const [documento, setDocumento] = useState(precarga.documento ?? "");
+  const [facturaA, setFacturaA] = useState(!!precarga.razon_social && precarga.condicion_iva === "responsable_inscripto");
   const [resumen, setResumen] = useState(inicial);
   const [errorCot, setErrorCot] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +74,6 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
 
   const elegido = metodos.find((m) => m.id === metodo);
   const conDireccion = !!elegido && !sinDireccion(elegido.tipo);
-  const esCuit = documento.replace(/\D/g, "").length === 11;
   const m = resumen.moneda;
   const aSucursal = elegido?.tipo === "oca_sucursal";
 
@@ -151,26 +151,57 @@ export default function Checkout({ slug, medios, metodos, inicial, precarga, ele
           <Campo nombre="nombre" etiqueta="Nombre y apellido" autoComplete="name" defaultValue={precarga.nombre} />
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo nombre="email" etiqueta="Mail" type="email" autoComplete="email" inputMode="email" defaultValue={precarga.email} />
-            <Campo nombre="telefono" etiqueta="Teléfono" type="tel" autoComplete="tel" inputMode="tel" defaultValue={precarga.telefono} />
+            <Campo nombre="telefono" etiqueta="WhatsApp" type="tel" autoComplete="tel" inputMode="tel" defaultValue={precarga.telefono} placeholder="Ej. 351 555 1234" />
           </div>
-          <div>
-            <label htmlFor="f-documento" className={ETIQUETA}>DNI o CUIT</label>
-            <input id="f-documento" name="documento" inputMode="numeric" className={CAMPO} required value={documento}
-              onChange={(e) => setDocumento(e.target.value)} placeholder="Sólo números" />
-            {esCuit && <p className="mt-1 text-xs text-gray-500">Si necesitás factura A, completá la razón social y la condición frente al IVA.</p>}
-          </div>
-          {esCuit && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Campo nombre="razon_social" etiqueta="Razón social" opcional defaultValue={precarga.razon_social} />
+          {/* Factura A, como en Mercado Libre: un interruptor; prendido pide los datos fiscales. */}
+          <button type="button" role="switch" aria-checked={facturaA} onClick={() => setFacturaA((x) => !x)} className="flex items-center gap-3 text-left">
+            <span className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${facturaA ? "bg-[var(--boton)]" : "bg-gray-300"}`}>
+              <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition ${facturaA ? "translate-x-5" : "translate-x-0.5"}`} />
+            </span>
+            <span className="text-sm text-[var(--texto)]">Necesito factura A</span>
+          </button>
+          <input type="hidden" name="factura_a" value={facturaA ? "1" : ""} />
+          {facturaA ? (
+            <div className="grid gap-4 rounded-md bg-[var(--fondo)] p-3 sm:grid-cols-2">
+              <Campo nombre="razon_social" etiqueta="Razón social" defaultValue={precarga.razon_social} />
               <div>
-                <label htmlFor="f-condicion_iva" className={ETIQUETA}>Condición frente al IVA <span className="font-normal text-gray-400">(opcional)</span></label>
-                <select id="f-condicion_iva" name="condicion_iva" className={CAMPO} defaultValue={precarga.condicion_iva ?? ""}>
+                <label htmlFor="f-documento" className={ETIQUETA}>CUIT</label>
+                <input id="f-documento" name="documento" inputMode="numeric" className={CAMPO} required value={documento}
+                  onChange={(e) => setDocumento(e.target.value)} placeholder="11 números, sin guiones" />
+              </div>
+              <div className="sm:col-span-2">
+                <label htmlFor="f-condicion_iva" className={ETIQUETA}>Condición frente al IVA</label>
+                <select id="f-condicion_iva" name="condicion_iva" className={CAMPO} required defaultValue={precarga.condicion_iva && precarga.condicion_iva !== "consumidor_final" ? precarga.condicion_iva : ""}>
                   <option value="">Elegí…</option>
-                  {CONDICIONES_IVA.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+                  {CONDICIONES_IVA.filter(([k]) => k !== "consumidor_final").map(([k, n]) => <option key={k} value={k}>{n}</option>)}
                 </select>
               </div>
+              <Campo nombre="fiscal_calle" etiqueta="Domicilio fiscal (calle y número)" autoComplete="off" />
+              <Campo nombre="fiscal_localidad" etiqueta="Localidad" autoComplete="off" />
+              <div>
+                <label htmlFor="f-fiscal_provincia" className={ETIQUETA}>Provincia</label>
+                <select id="f-fiscal_provincia" name="fiscal_provincia" className={CAMPO} required defaultValue="">
+                  <option value="">Elegí…</option>
+                  {PROVINCIAS.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <Campo nombre="fiscal_cp" etiqueta="Código postal" inputMode="numeric" autoComplete="off" />
+            </div>
+          ) : (
+            <div>
+              <label htmlFor="f-documento" className={ETIQUETA}>DNI o CUIT</label>
+              <input id="f-documento" name="documento" inputMode="numeric" className={CAMPO} required value={documento}
+                onChange={(e) => setDocumento(e.target.value)} placeholder="Sólo números" />
             </div>
           )}
+          <fieldset>
+            <legend className={ETIQUETA}>Prefiero recibir la factura por</legend>
+            <div className="flex flex-wrap gap-5 text-sm">
+              <label className="inline-flex items-center gap-2"><input type="checkbox" name="factura_mail" value="1" defaultChecked className="h-5 w-5 accent-[var(--boton)]" /> Mail</label>
+              <label className="inline-flex items-center gap-2"><input type="checkbox" name="factura_whatsapp" value="1" className="h-5 w-5 accent-[var(--boton)]" /> WhatsApp</label>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Podés tildar las dos.</p>
+          </fieldset>
         </Bloque>
 
         <Bloque n={2} titulo="Entrega">

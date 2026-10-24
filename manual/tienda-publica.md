@@ -69,7 +69,7 @@ Las líneas con foto, título, **"Eliminar"**, cantidad con **−** y **+** (el 
 
 Una sola página con tres bloques y el resumen al costado:
 
-1. **Tus datos**: Nombre y apellido, Mail, Teléfono, DNI o CUIT; si es un CUIT, Razón social y Condición frente al IVA (para factura A).
+1. **Tus datos**: Nombre y apellido, Mail, **WhatsApp** y DNI o CUIT. El interruptor **«Necesito factura A»** (como en Mercado Libre) cambia el DNI por los datos fiscales, todos obligatorios: Razón social, CUIT, Condición frente al IVA (responsable inscripto, monotributo o exento) y domicilio fiscal (calle y número, localidad, provincia y código postal). Abajo, **«Prefiero recibir la factura por»** Mail y/o WhatsApp (se pueden tildar las dos; de entrada, Mail).
 2. **Entrega**: los métodos de envío activos, cada uno con su costo ("Gratis", "A convenir", "Según provincia"…); los que piden dirección muestran Calle, Número, Piso / depto, Localidad, Provincia, Código postal y Referencia para el envío. Los de OCA se cotizan con el código postal ("Según código postal" mientras no esté) y muestran en cuántos días hábiles llega; con **OCA a sucursal** aparece **"Sucursal de OCA donde lo retirás"** con las sucursales de ese código postal. Andreani aparece como "Próximamente".
 3. **Medio de pago**: los medios activos, con su descuento y su explicación.
 4. **Notas** (opcional).
@@ -166,7 +166,8 @@ Mercado Pago avisa solo cuando aprueba el pago; puede tardar unos minutos. Si el
 
 - Se vuelve a calcular todo con los precios y el stock **del momento**. Si no alcanza el stock: "No alcanza el stock: … Ajustá las cantidades."
 - Hace falta nombre y un mail válido; con un método que no es retiro ni a convenir, calle, localidad y provincia.
-- Un **DNI o CUIT de 11 dígitos** se toma como CUIT (y permite cargar razón social y condición frente al IVA para factura A).
+- Un **DNI o CUIT de 11 dígitos** se toma como CUIT. Con «Necesito factura A», los datos fiscales quedan en el cliente (y el domicilio fiscal como su dirección «Fiscal»; la de entrega, como «Envío»).
+- **El WhatsApp** del comprador queda como su WhatsApp en la ficha del cliente, y lo que tildó en «Prefiero recibir la factura por» como sus casillas «Factura por mail» y «Enviarle la factura por WhatsApp»: la factura le llega por donde eligió (por WhatsApp, cuando el WhatsApp de la tienda esté conectado).
 - Se crea el **pedido** en el canal de la tienda, en estado **nuevo**, con un **código** de seguimiento secreto (el de la dirección de la página del pedido). Si el comprador tiene cuenta, el pedido queda en su cliente; si no, se crea o se reconoce el cliente con sus datos.
 - Se vacía el carrito.
 - **Según el medio de pago**:

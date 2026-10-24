@@ -143,6 +143,15 @@ export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { 
     if (!metodo) throw new ErrorErp("Elegí cómo lo recibís.");
     const doc = (texto(fd, "documento") ?? "").replace(/\D/g, "");
     const esCuit = doc.length === 11;
+    // «Necesito factura A»: razón social, CUIT, condición frente al IVA y domicilio fiscal, todos.
+    const facturaA = fd.get("factura_a") === "1";
+    const fiscal = facturaA ? { calle: texto(fd, "fiscal_calle") ?? "", localidad: texto(fd, "fiscal_localidad") ?? "", provincia: texto(fd, "fiscal_provincia") ?? "", codigo_postal: texto(fd, "fiscal_cp") ?? "" } : null;
+    if (facturaA) {
+      if (!esCuit) throw new ErrorErp("Para la factura A poné el CUIT: 11 números, sin guiones.");
+      if (!texto(fd, "razon_social")) throw new ErrorErp("Para la factura A poné la razón social.");
+      if (!["responsable_inscripto", "monotributo", "exento"].includes(texto(fd, "condicion_iva") ?? "")) throw new ErrorErp("Para la factura A elegí la condición frente al IVA.");
+      if (!fiscal || Object.values(fiscal).some((v) => !v)) throw new ErrorErp("Para la factura A completá el domicilio fiscal: calle y número, localidad, provincia y código postal.");
+    }
     const conDireccion = !sinDireccion(metodo.tipo);
     const condicion = texto(fd, "condicion_iva");
     const datos: DatosCompra = {
@@ -152,6 +161,7 @@ export async function confirmarCompra(fd: FormData): Promise<{ ir: string } | { 
         documento: doc || null, cuit: esCuit ? doc : null,
         razon_social: esCuit ? texto(fd, "razon_social") : null,
         condicion_iva: esCuit && condicion && CONDICIONES_IVA.some(([k]) => k === condicion) ? condicion : null,
+        fiscal, facturaPorMail: fd.get("factura_mail") === "1", facturaPorWhatsapp: fd.get("factura_whatsapp") === "1",
       },
       entrega: {
         metodoEnvioId: metodo.id,
