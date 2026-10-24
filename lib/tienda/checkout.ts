@@ -14,7 +14,7 @@ import { sucursalesOca } from "@/lib/oca/envios";
 import { cotizar, type LineaCarrito } from "@/lib/tienda/cotizar";
 import { mediosActivos, tipoBase } from "@/lib/tienda/medios";
 import { planesDelCarrito } from "@/lib/tienda/cuotas";
-import { financiacionTienda, planesParaPrecio, MARCAS_DEBITO } from "@/lib/tienda/financiacion";
+import { codigoPayway, financiacionTienda, planesParaPrecio, MARCAS_DEBITO } from "@/lib/tienda/financiacion";
 import { crearPreferencia } from "@/lib/tienda/pagos/mercadopago";
 import { cobrar } from "@/lib/tienda/pagos/payway";
 import { confirmarPago, pagoFallido, avisarStockMl } from "@/lib/tienda/pagos/confirmar";
@@ -147,7 +147,8 @@ export async function cobrarConPayway(t: Tienda, codigo: string, tarjeta: { toke
   }
   const cred = await credencial(t, "payway");
   const r = await cobrar({ private_key: cred.datos.private_key, ambiente: cred.datos.ambiente }, {
-    pedidoId: p.id, token: tarjeta.token, bin: tarjeta.bin, marca: tarjeta.marca, total: Number(p.total_ars), cuotas: tarjeta.cuotas, email: p.email, clienteId: p.cliente_id,
+    // A Payway va el código del plan (ej. 13 = 3 cuotas MiPyME), no siempre la cantidad de cuotas.
+    pedidoId: p.id, token: tarjeta.token, bin: tarjeta.bin, marca: tarjeta.marca, total: Number(p.total_ars), cuotas: codigoPayway(financiacionTienda(t), tarjeta.cuotas), email: p.email, clienteId: p.cliente_id,
   });
   if (r.aprobado) await confirmarPago(org, p.id, { medio: "payway", idExterno: r.id, importe: Number(p.total_ars), cuotas: tarjeta.cuotas, detalle: r.detalle, crudo: r.crudo }, "tienda");
   else await pagoFallido(org, p.id, "payway", r.id, "rechazado", r.detalle, r.crudo);

@@ -43,7 +43,9 @@ export async function accionGuardarFinanciacion(fd: FormData) {
       };
       const desde = leerNumero(fd.get(`desde_${i}`)) ?? 0;
       if (desde < 0) throw new ErrorErp("El monto «desde» no puede ser negativo.");
-      planes.push({ cuotas, desde, costo_pct: pct("costo", "El costo del plan"), interes_pct: pct("interes", "El interés al cliente") });
+      const codigo = leerNumero(fd.get(`codigo_${i}`));
+      if (codigo != null && (!Number.isInteger(codigo) || codigo < 1 || codigo > 999)) throw new ErrorErp("El código de Payway es un número entero (ej. 13 o 16).");
+      planes.push({ cuotas, desde, costo_pct: pct("costo", "El costo del plan"), interes_pct: pct("interes", "El interés al cliente"), codigo_payway: codigo });
     }
     const descuento = leerNumero(fd.get("descuento_pct")) ?? 0;
     if (descuento < 0 || descuento > 90) throw new ErrorErp("El descuento va de 0 a 90 %.");

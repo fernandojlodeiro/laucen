@@ -18,7 +18,7 @@ Menú **Configuración › Tienda web › Cuotas y descuentos**. Si hay más de 
 ## Qué hay en la pantalla
 
 - **El interruptor de arriba**: prendido, la tienda usa este esquema; apagado, usa los planes por familia o producto de [Cuotas](/config/cuotas) y el descuento que tenga cargado cada medio de pago en [Medios de pago](/config/medios-pago).
-- **Planes de cuotas**: una fila por plan con **Cuotas**, **Desde $** (desde qué precio del producto se ofrece; "Todos" si es desde cero), **Costo del plan** (lo que te cobra el banco o la tarjeta por ese plan, sólo para comparar), **Interés al cliente** ("Sin interés" o el %) y **Cómo queda** (si el interés cubre el costo del plan, si lo ponés vos o si lo cubre el precio).
+- **Planes de cuotas**: una fila por plan con **Cuotas**, **Desde $** (desde qué precio del producto se ofrece; "Todos" si es desde cero), **Costo del plan** (lo que te cobra el banco o la tarjeta por ese plan, sólo para comparar), **Interés al cliente** ("Sin interés" o el %), **Cód. Payway** (el número que se le manda a Payway para ese plan; vacío = la cantidad de cuotas) y **Cómo queda** (si el interés cubre el costo del plan, si lo ponés vos o si lo cubre el precio).
 - **Descuento por pagar contado**: el **%** y **con qué medios** (Transferencia, Efectivo, Tarjeta de débito).
 - **Cómo se ve en la tienda**: cuatro productos con stock (el más barato, dos del medio y el más caro) con lo que va a decir debajo de su precio.
 
@@ -28,7 +28,7 @@ La pantalla abre en vista; se cambia con el **lápiz** de arriba a la derecha, y
 
 ### Cargar o cambiar el esquema
 1. Apretá el **lápiz** de arriba a la derecha.
-2. En **Planes de cuotas**, por cada plan: las **cuotas** (de 2 a 24), **desde qué precio** se ofrece, el **costo del plan** y el **interés al cliente** (0 = sin interés). Para sacar un plan, borrá sus cuotas. Aparecen filas vacías para agregar planes nuevos.
+2. En **Planes de cuotas**, por cada plan: (si el plan es de un programa de Payway, como Cuotas MiPyME, poné en **Cód. Payway** la «Opción en terminal» que da Payway: 13 para 3 cuotas y 16 para 6 cuotas) las **cuotas** (de 2 a 24), **desde qué precio** se ofrece, el **costo del plan** y el **interés al cliente** (0 = sin interés). Para sacar un plan, borrá sus cuotas. Aparecen filas vacías para agregar planes nuevos.
 3. En **Descuento por pagar contado**, el **%** y tildá los medios que lo tienen.
 4. **"Grabar"**. Mirá abajo **Cómo se ve en la tienda** para revisar.
 5. Si está apagado, prendé el **interruptor** de arriba.
@@ -46,6 +46,7 @@ Ejemplo: 3 cuotas desde $ 0 sin interés, 6 cuotas desde $ 150.000 sin interés 
   - Con **descuento de débito**, aparecen dos opciones: **"Tarjeta de crédito"** (con las cuotas) y **"Tarjeta de débito"** (un pago, con el descuento). Pagando con débito, sólo se aceptan tarjetas de débito y en un pago.
   - **Transferencia** y **efectivo**: el descuento del esquema si están tildados; si no, sin descuento.
   - **Mercado Pago**: se limita la cantidad máxima de cuotas a la del plan más largo que le toca a la compra; el interés de cada cuota lo pone Mercado Pago según la cuenta.
+- **Cód. Payway**: Payway reconoce el programa de cuotas (y su costo) por ese número, no por la cantidad de cuotas. Con el código vacío se manda la cantidad de cuotas.
 - **Costo del plan**: sólo informativo, para comparar con el interés que cobrás. No cambia ningún precio.
 - **El esquema no toca los precios** ni Mercado Libre: el precio de cada producto sigue siendo el de su lista de precios.
 - Prendido, **reemplaza** en la tienda los planes por familia o producto de [Cuotas](/config/cuotas) y el descuento cargado en [Medios de pago](/config/medios-pago) para transferencia y efectivo (los demás medios conservan el suyo).

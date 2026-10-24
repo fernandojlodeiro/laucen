@@ -87,16 +87,18 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
                     <th className={`${TH} text-right`} title="Desde qué precio del producto se ofrece">Desde $</th>
                     <th className={`${TH} text-right`} title="Lo que te cobra el banco o la tarjeta por este plan (sólo para comparar)">Costo del plan</th>
                     <th className={`${TH} text-right`} title="Lo que paga de más el comprador (0 = sin interés)">Interés al cliente</th>
+                    <th className={`${TH} text-right`} title="El número que se le manda a Payway para este plan (la «Opción en terminal» de su tabla, ej. 13 o 16). Vacío: la cantidad de cuotas">Cód. Payway</th>
                     <th className={TH}>Cómo queda</th>
                   </tr></thead>
                   <tbody>
-                    {filas.length === 0 && <tr><td colSpan={5} className={`${TD} text-[#5C6B76]`}>Sin planes: con el lápiz cargás 3, 6, 12 cuotas o las que quieras.</td></tr>}
+                    {filas.length === 0 && <tr><td colSpan={6} className={`${TD} text-[#5C6B76]`}>Sin planes: con el lápiz cargás 3, 6, 12 cuotas o las que quieras.</td></tr>}
                     {filas.map((p, i) => editando ? (
                       <tr key={i} className={TR}>
                         <td className={TDN}><CampoNumero name={`cuotas_${i}`} valor={p?.cuotas ?? null} tipo="entero" className={`${CAMPO} w-16`} placeholder={["3", "6", "12", "18"][i] ?? ""} /></td>
                         <td className={TDN}><CampoNumero name={`desde_${i}`} valor={p?.desde ?? null} tipo="pesos" className={`${CAMPO} w-32`} placeholder="0" /></td>
                         <td className={TDN}><CampoNumero name={`costo_${i}`} valor={p?.costo_pct ?? null} tipo="pct" className={`${CAMPO} w-20`} placeholder="0" /></td>
                         <td className={TDN}><CampoNumero name={`interes_${i}`} valor={p?.interes_pct ?? null} tipo="pct" className={`${CAMPO} w-20`} placeholder="0" /></td>
+                        <td className={TDN}><CampoNumero name={`codigo_${i}`} valor={p?.codigo_payway ?? null} tipo="entero" className={`${CAMPO} w-16`} placeholder={p ? String(p.cuotas) : ""} /></td>
                         <td className={`${TD} text-[#5C6B76]`}>{p ? "" : "Nuevo plan (opcional)"}</td>
                       </tr>
                     ) : p && (
@@ -105,6 +107,7 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
                         <td className={TDN}>{p.desde > 0 ? plata(p.desde) : "Todos"}</td>
                         <td className={TDN}>{p.costo_pct ? pct(p.costo_pct) : "—"}</td>
                         <td className={TDN}>{p.interes_pct ? pct(p.interes_pct) : "Sin interés"}</td>
+                        <td className={TDN}>{p.codigo_payway ?? <span className="text-[#5C6B76]">{p.cuotas}</span>}</td>
                         <td className={TD}>
                           {p.interes_pct === 0 ? (p.costo_pct ? <span className="text-[#5C6B76]">El {pct(p.costo_pct)} del plan lo cubre el precio</span> : <span className="text-[#5C6B76]">Sin interés</span>)
                             : p.interes_pct < p.costo_pct ? <span className="text-[#8a6100]">Cobrás {pct(p.interes_pct)}; el otro {pct(p.costo_pct - p.interes_pct)} lo ponés vos</span>

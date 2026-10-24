@@ -9,6 +9,9 @@
 //   - interes_pct: lo que paga el comprador por financiar (0 = sin interés: el
 //     costo del plan lo absorbe el precio). Con Payway se cobra de verdad: se
 //     elige en el checkout y queda en el total del pedido (lib/tienda/cotizar.ts).
+//   - codigo_payway: lo que se le manda a Payway como "installments" para ese plan. Payway
+//     distingue el programa por ese número (Cuotas MiPyME: 13 = 3 cuotas, 16 = 6 cuotas,
+//     "Opción en terminal" de su tabla); vacío = la cantidad de cuotas.
 //   - costo_pct: lo que cobra el banco por ese plan. Sólo informativo (avisa si
 //     el interés no lo cubre).
 //   - Descuento por pago contado: un % para transferencia, efectivo y/o débito
@@ -16,7 +19,7 @@
 
 import type { Tienda } from "@/lib/tienda/tienda";
 
-export type PlanEscala = { cuotas: number; desde: number; costo_pct: number; interes_pct: number };
+export type PlanEscala = { cuotas: number; desde: number; costo_pct: number; interes_pct: number; codigo_payway: number | null };
 export type MedioContado = "transferencia" | "efectivo" | "debito";
 export type Financiacion = { activo: boolean; planes: PlanEscala[]; descuento_pct: number; medios_descuento: MedioContado[] };
 
@@ -37,7 +40,8 @@ export function financiacionDe(x: unknown): Financiacion {
   const f = (x ?? {}) as Partial<Financiacion>;
   const vistos = new Set<number>();
   const planes = (Array.isArray(f.planes) ? f.planes : [])
-    .map((p) => ({ cuotas: Math.trunc(num(p?.cuotas, 0, 24)), desde: num(p?.desde, 0, 1e12), costo_pct: num(p?.costo_pct, 0, 300), interes_pct: num(p?.interes_pct, 0, 300) }))
+    .map((p) => ({ cuotas: Math.trunc(num(p?.cuotas, 0, 24)), desde: num(p?.desde, 0, 1e12), costo_pct: num(p?.costo_pct, 0, 300), interes_pct: num(p?.interes_pct, 0, 300),
+      codigo_payway: Number.isInteger(Number(p?.codigo_payway)) && Number(p?.codigo_payway) > 0 && Number(p?.codigo_payway) < 1000 ? Number(p?.codigo_payway) : null }))
     .filter((p) => p.cuotas >= 2 && !vistos.has(p.cuotas) && vistos.add(p.cuotas))
     .sort((a, b) => a.cuotas - b.cuotas);
   const medios = (Array.isArray(f.medios_descuento) ? f.medios_descuento : []).filter((m): m is MedioContado => MEDIOS_CONTADO.some((x) => x.clave === m));
@@ -68,4 +72,11 @@ export function descuentoContado(f: Financiacion, medio: string): number | null 
 export function textoContado(medios: MedioContado[]): string {
   const n = medios.map((m) => (m === "debito" ? "débito" : m));
   return `con ${n.length > 1 ? `${n.slice(0, -1).join(", ")} o ${n.at(-1)}` : n[0]}`;
+}
+
+/** El "installments" que se manda a Payway para pagar en esas cuotas: el código del plan si lo tiene
+ *  (con el esquema prendido), si no la cantidad de cuotas. */
+export function codigoPayway(f: Financiacion, cuotas: number): number {
+  if (!f.activo || cuotas <= 1) return cuotas;
+  return f.planes.find((p) => p.cuotas === cuotas)?.codigo_payway ?? cuotas;
 }
