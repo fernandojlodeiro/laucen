@@ -7,12 +7,13 @@
 //   3. las columnas del producto: modelo, código de barras, peso y medidas del paquete.
 // Arma un lote con botón (PUT /items/{madre} con sólo lo que falta). Lo que no tiene dato queda listado.
 // Las que se completan salen de rechazadas y el agrupado vuelve a correr sólo para esos SKU
-// (ml_agrupado_auto.solo_skus), recién cuando el lote salió (espera_lote).
+// (ml_agrupado_auto.solo_skus), recién cuando no queda ningún lote de completar de la cuenta sin salir.
 
 import { consulta, una } from "@/lib/erp/base";
 import { encolarLoteConBoton, type CambioMl } from "@/lib/mercadolibre/cola";
 import { madreDe } from "@/lib/mercadolibre/agrupar";
 
+export const SIN_GTIN: Valor = { id: "EMPTY_GTIN_REASON", value_id: "17055160", value_name: "El producto no tiene código registrado" };
 const PAQUETE = ["SELLER_PACKAGE_HEIGHT", "SELLER_PACKAGE_WIDTH", "SELLER_PACKAGE_LENGTH", "SELLER_PACKAGE_WEIGHT"];
 
 /** Las características que pide el motivo del rechazo. */
@@ -73,7 +74,11 @@ export async function prepararCompletarDatos(org: string, canal: number, usuario
     for (const attr of x.attrs) {
       if (tiene.has(attr)) continue;
       const v = await valorDe(org, sku, attr);
-      if (v) agregar.push(v); else faltan.push(attr);
+      if (v) agregar.push(v);
+      // Sin código de barras en ningún lado: ML lo pide «condicional» cuando la marca no es propia (ej. «OEM»), y se
+      // cumple diciendo por qué no tiene (EMPTY_GTIN_REASON, valor de ML «El producto no tiene código registrado»).
+      else if (attr === "GTIN") { if (!tiene.has("EMPTY_GTIN_REASON")) agregar.push(SIN_GTIN); }
+      else faltan.push(attr);
     }
     if (faltan.length) { res.sinDato.push(`${sku}: Laucen no tiene ${faltan.join(", ")}`); continue; }
     claves.push(...x.claves);
@@ -92,7 +97,9 @@ export async function prepararCompletarDatos(org: string, canal: number, usuario
   if (res.skus.length) {
     // Las completadas salen de rechazadas y el agrupado vuelve a correr sólo para ellas, cuando salga el lote.
     await consulta(`
-      update ml_agrupado_auto set rechazadas = rechazadas - $3::text[], solo_skus = $4::text[], espera_lote = $5,
+      update ml_agrupado_auto set rechazadas = rechazadas - $3::text[],
+             -- Si ya había una vuelta pendiente para otros SKU (otro lote de completar), se suman.
+             solo_skus = (select array_agg(distinct x) from unnest(coalesce(solo_skus, '{}') || $4::text[]) x), espera_lote = coalesce($5, espera_lote),
              estado = 'andando', terminado_ts = null, ultimo_error = null, proxima_ts = now()
        where organizacion_id = $1 and canal_id = $2`, [org, canal, claves, res.skus, res.loteId]);
   }

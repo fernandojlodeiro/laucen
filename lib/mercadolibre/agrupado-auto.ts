@@ -93,8 +93,9 @@ export async function estadoAgrupado(org: string): Promise<FilaAgrupado[]> {
 // La misma condición que el cron de pg_cron (db/mercadolibre.sql): andando, en hora y sin lotes de la cuenta por salir.
 const LISTA = `a.estado = 'andando' and a.proxima_ts <= now()
   and not exists (select 1 from ml_cola q where q.canal_id = a.canal_id and q.lote_id is not null and q.estado in ('pendiente', 'enviando'))
-  -- El lote que completa datos en las madres (completar-datos.ts): se espera a que salga (o se descarte).
-  and not exists (select 1 from ml_cola q where q.lote_id = a.espera_lote and q.estado in ('preparado', 'pendiente', 'enviando'))`;
+  -- Los lotes que completan datos en las madres (completar-datos.ts): se espera a que salgan (o se descarten).
+  and not exists (select 1 from ml_cola q join ml_lote l on l.id = q.lote_id
+                   where q.canal_id = a.canal_id and l.descripcion like 'Completar datos de %' and q.estado in ('preparado', 'pendiente', 'enviando'))`;
 
 export async function hayAgrupadoPendiente(): Promise<boolean> {
   return !!(await una(`select 1 from ml_agrupado_auto a where ${LISTA} limit 1`));

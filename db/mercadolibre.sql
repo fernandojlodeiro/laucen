@@ -403,7 +403,8 @@ declare
      or exists (select 1 from public.ml_preparacion where estado = 'pendiente' or (estado = 'trabajando' and tomada_ts < now() - interval '5 minutes'))
      or exists (select 1 from public.ml_agrupado_auto a where a.estado = 'andando' and a.proxima_ts <= now()
                    and not exists (select 1 from public.ml_cola q where q.canal_id = a.canal_id and q.lote_id is not null and q.estado in ('pendiente', 'enviando'))
-                   and not exists (select 1 from public.ml_cola q where q.lote_id = a.espera_lote and q.estado in ('preparado', 'pendiente', 'enviando')))
+                   and not exists (select 1 from public.ml_cola q join public.ml_lote l on l.id = q.lote_id
+                                    where q.canal_id = a.canal_id and l.descripcion like 'Completar datos de %' and q.estado in ('preparado', 'pendiente', 'enviando')))
      -- Motivos de revisión de ML sin leer en el último día (lib/mercadolibre/moderaciones.ts).
      or exists (select 1 from public.meli_item m left join public.meli_moderacion mm on mm.canal_id = m.canal_id and mm.item_id = m.item_id
                  where m.estado = 'under_review' and (mm.leido_ts is null or mm.leido_ts < now() - interval '1 day'))
