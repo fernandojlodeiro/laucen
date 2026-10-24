@@ -63,13 +63,13 @@ function CamposMarca({ m, org }: { m: Marca | null; org: string }) {
     <>
       <label><span className={ETIQUETA}>Nombre de la marca</span>
         <input name="marca_nombre" defaultValue={m?.nombre ?? ""} placeholder="Tienda Virtual" className={`${CAMPO} w-full`} /></label>
-      <label><span className={ETIQUETA}>Mail (vacío: el de la tienda)</span>
+      <label><span className={ETIQUETA}>Mail (vacío: el de la tienda con este dominio)</span>
         <input name="marca_email" type="email" defaultValue={m?.email ?? ""} className={`${CAMPO} w-full`} /></label>
       <div><span className={ETIQUETA}>Logo (sin logo: el nombre escrito)</span>
         <SubirImagen name="marca_logo" valor={m?.logo ?? null} organizacionId={org} etiqueta="Logo" /></div>
       {color("color_marca", "Color de la franja", COLORES_POR_DEFECTO.marca)}
       {color("color_marca_texto", "Texto sobre la franja", COLORES_POR_DEFECTO.marcaTexto)}
-      <div><span className={ETIQUETA}>Banner (sin banners: una franja con el nombre)</span>
+      <div><span className={ETIQUETA}>Banner (vacío: los de la tienda)</span>
         <SubirImagen name="marca_banner" valor={m?.banner ?? null} organizacionId={org} etiqueta="Banner" alto="h-16" /></div>
       <div><span className={ETIQUETA}>Banner 2</span>
         <SubirImagen name="marca_banner_2" valor={m?.banner_2 ?? null} organizacionId={org} etiqueta="Banner 2" alto="h-16" /></div>
@@ -242,7 +242,7 @@ export default async function ConfigTiendaPantalla({ searchParams }: { searchPar
                                   </span></div>
                                 <CamposMarca m={d.marca} org={s.org.id} />
                               </form>
-                              <p className="text-[11px] text-[#5C6B76] mt-2">Como otra marca, el dominio muestra la misma tienda (productos, precios, stock, carrito y pedidos) con este nombre, logo, colores, banners y mail; los pagos y los links de seguimiento vuelven a este dominio. Lo demás (textos de ayuda, devoluciones, WhatsApp, dirección) es el de la tienda.</p>
+                              <p className="text-[11px] text-[#5C6B76] mt-2">Como otra marca, el dominio muestra la misma tienda (productos, precios, stock, carrito y pedidos) con este nombre y logo (colores, banners y mail: los propios si los cargás; si no, los de la tienda, con el mail en este dominio); los pagos y los links de seguimiento vuelven a este dominio. Lo demás (textos de ayuda, devoluciones, WhatsApp, dirección) es el de la tienda.</p>
                             </td></tr>
                           )}
                         </Fragment>);
