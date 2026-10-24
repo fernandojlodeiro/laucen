@@ -215,7 +215,7 @@ export default async function LayoutTienda({ children, params }: Props & { child
 
       {wa && (
         <a href={wa} target="_blank" rel="noopener" aria-label="Escribinos por WhatsApp"
-          className="fixed bottom-4 right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-white shadow-lg transition hover:scale-105">
+          className="fixed bottom-[calc(68px+env(safe-area-inset-bottom))] right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-white shadow-lg transition hover:scale-105 lg:bottom-4">
           <IconoWhatsapp />
         </a>
       )}
