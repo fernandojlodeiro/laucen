@@ -82,7 +82,7 @@ export function LineaCuotas({ plan, venta, moneda, className = "" }: { plan: Pla
   const cuota = r2((venta * (1 + plan.interes_pct / 100)) / plan.cuotas);
   return (
     <p className={`${sin ? "text-[var(--verde)]" : "text-[var(--texto)]"} ${className}`}>
-      {sin ? "Mismo precio en " : "en "}{plan.cuotas} cuotas de <Monto n={cuota} moneda={moneda} className="align-baseline" />
+      {sin ? "Mismo precio en " : "en "}{plan.cuotas} cuotas{sin ? " sin interés" : ""} de <Monto n={cuota} moneda={moneda} className="align-baseline" />
     </p>
   );
 }
@@ -91,6 +91,52 @@ export function LineaCuotas({ plan, venta, moneda, className = "" }: { plan: Pla
 export function LineaContado({ contado, moneda, className = "" }: { contado: { precio: number; texto: string } | null; moneda: Moneda; className?: string }) {
   if (!contado) return null;
   return <p className={`text-[var(--verde)] ${className}`}><Monto n={contado.precio} moneda={moneda} className="align-baseline font-semibold" /> {contado.texto}</p>;
+}
+
+/** "Precio según cómo pagues" (ficha, esquema de cuotas y descuentos): cada forma de pago con su
+ *  precio y su % OFF contra el tachado, para que se vea de frente que contado sale menos y que en
+ *  6 cuotas sale más. Los planes de Mercado Pago van sin % (el interés lo pone Mercado Pago). */
+export function PrecioSegunPago({ lista, venta, moneda, planes, contado }: {
+  lista: number; venta: number; moneda: Moneda; planes: Plan[]; contado: { pct: number; texto: string } | null;
+}) {
+  const conMp = planes.some((x) => x.medio === "mercadopago");
+  const filas: { nombre: string; total: number | null; detalle?: React.ReactNode; verde?: boolean }[] = [];
+  if (contado && contado.pct > 0) {
+    const nombre = contado.texto.replace(/^con /, "");
+    filas.push({ nombre: nombre.charAt(0).toUpperCase() + nombre.slice(1), total: r2(venta * (1 - contado.pct / 100)), verde: true });
+  }
+  filas.push({ nombre: conMp ? "Tarjeta en 1 pago o Mercado Pago" : "Tarjeta en 1 pago", total: venta });
+  for (const x of planes.filter((x) => x.cuotas > 1)) {
+    const total = r2(venta * (1 + x.interes_pct / 100));
+    const cuota = <Monto n={r2(total / x.cuotas)} moneda={moneda} className="align-baseline" />;
+    if (x.medio === "mercadopago") filas.push({ nombre: `Hasta ${x.cuotas} cuotas con Mercado Pago`, total: null,
+      detalle: <>{x.referencia && <>Desde {cuota} por cuota, según tu tarjeta. </>}Con el interés de Mercado Pago. También sin tarjeta.</> });
+    else filas.push({ nombre: `${x.cuotas} cuotas ${x.interes_pct === 0 ? "sin interés" : "fijas"}`, total, detalle: <>{x.cuotas} cuotas de {cuota}</>, verde: x.interes_pct === 0 });
+  }
+  return (
+    <div className="space-y-2">
+      <p className="text-base text-[var(--texto)]">Precio según cómo pagues</p>
+      <ul className="divide-y divide-[var(--linea)] rounded-md border border-[var(--linea)]">
+        {filas.map((f) => {
+          const off = f.total == null ? 0 : pctOff(lista, f.total);
+          return (
+            <li key={f.nombre} className="flex items-start justify-between gap-3 px-3 py-2">
+              <div className="min-w-0">
+                <p className={f.verde ? "text-[var(--verde)]" : "text-[var(--texto)]"}>{f.nombre}</p>
+                {f.detalle && <p className="text-xs text-[var(--texto-2)]">{f.detalle}</p>}
+              </div>
+              {f.total != null && (
+                <div className="shrink-0 text-right">
+                  <Monto n={f.total} moneda={moneda} className="font-semibold text-[var(--texto)]" />
+                  {off > 0 && <p className="text-xs font-semibold text-[var(--verde)]">{off}% OFF</p>}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 }
 
 /** Bloque de precio: tachado chico, precio grande con "% OFF" verde. */

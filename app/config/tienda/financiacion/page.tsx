@@ -14,7 +14,7 @@ import CampoNumero from "@/app/componentes/CampoNumero";
 import { Interruptor } from "@/app/radar/Piezas";
 import { catalogoDe } from "@/app/tienda/[slug]/catalogo";
 import { tasasMpDe } from "@/lib/tienda/tasas-mp";
-import { accionActivarFinanciacion, accionGuardarFinanciacion } from "./acciones";
+import { accionActivarFinanciacion, accionActivarVsMl, accionGuardarFinanciacion } from "./acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,7 @@ function textoTarjeta(f: Financiacion, precio: number, tasasMp: Map<number, numb
   if (!p) return "Sin cuotas (un pago)";
   const cuota = (precio * (1 + p.interes_pct / 100)) / p.cuotas;
   if (p.medio === "mercadopago") return p.referencia ? `Hasta ${p.cuotas} cuotas de ${plata(cuota)} con Mercado Pago (referencia)` : `Hasta ${p.cuotas} cuotas con Mercado Pago`;
-  return p.interes_pct === 0 ? `Mismo precio en ${p.cuotas} cuotas de ${plata(cuota)}` : `en ${p.cuotas} cuotas de ${plata(cuota)}`;
+  return p.interes_pct === 0 ? `Mismo precio en ${p.cuotas} cuotas sin interés de ${plata(cuota)}` : `en ${p.cuotas} cuotas de ${plata(cuota)}`;
 }
 
 export default async function CuotasYDescuentos({ searchParams }: { searchParams: Promise<SP> }) {
@@ -47,6 +47,11 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
   const tasasMp = t && f.planes.some((p) => p.medio === "mercadopago") ? await tasasMpDe({ ...t, config: { ...t.config, financiacion: { ...f, activo: true } } }) : null;
   const conStock = t ? (await catalogoDe(t)).filter((p) => p.stock > 0).sort((a, b) => a.venta - b.venta) : [];
   const ejemplos = conStock.length ? [...new Set([0, Math.floor(conStock.length / 3), Math.floor((conStock.length * 2) / 3), conStock.length - 1])].map((i) => conStock[i]) : [];
+  // Precio contra Mercado Libre: lo guardado en la lista de la tienda y los canales de ML para el tachado.
+  const vs = tienda ? (await consulta<{ cfg: { activo?: boolean; objetivo_pct?: number; costo_ref_pct?: number; canal_tachado?: number | null; comision_defecto_pct?: number } | null }>(
+    "select l.precio_vs_ml cfg from canal c join lista_precios l on l.id = c.lista_precios_id where c.id = $1", [tienda.id]))[0]?.cfg ?? {} : {};
+  const canalesMl = await consulta<{ id: number; nombre: string }>(
+    "select id::int, nombre from canal where organizacion_id = $1 and tipo = 'mercadolibre' and estado <> 'archivado' order by id", [s.org.id]);
   const filas = editando ? [...f.planes, ...Array.from({ length: Math.max(2, 4 - f.planes.length) }, () => null)] : f.planes;
 
   return (
@@ -73,13 +78,49 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
             </p>
           </div>
 
+          <section className="mb-6">
+            <TituloSeccion titulo="Precio de la web contra Mercado Libre" />
+            <div className={`${CAJA} text-xs`}>
+              <Interruptor accion={accionActivarVsMl} prendido={!!vs.activo} campos={{ canal_id: String(tienda.id) }} compacto
+                etiqueta={vs.activo ? "Prendido: el precio de cada producto se calcula contra Mercado Libre" : "Apagado: la tienda usa su lista con los descuentos por familia"} />
+              <p className="text-[11px] text-[#5C6B76] mt-1 mb-3">
+                El precio de cada producto es el de la Clásica de Mercado Libre menos lo justo para que, cobrando con lo más caro que se ofrece al mismo
+                precio (las cuotas sin interés), te quede lo que pongas acá de lo que te queda vendiéndolo en la Clásica, con la comisión real de su
+                categoría (sin envío). El precio tachado es el mismo tachado que muestra Mercado Libre en ese canal.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-start">
+                {editando ? <>
+                  <label><span className="block text-[11px] font-semibold text-[#5C6B76] mb-0.5">Te tiene que quedar</span>
+                    <CampoNumero form="ficha" name="vsml_objetivo" valor={vs.objetivo_pct ?? 97} tipo="pct" className={`${CAMPO} w-24`} />
+                    <span className="block text-[10px] text-[#5C6B76] mt-0.5">De lo que te queda en ML (97 = hasta 3 % menos).</span></label>
+                  <label><span className="block text-[11px] font-semibold text-[#5C6B76] mb-0.5">Costo de cobro de referencia</span>
+                    <CampoNumero form="ficha" name="vsml_costo" valor={vs.costo_ref_pct ?? null} tipo="pct" className={`${CAMPO} w-24`} placeholder="0" />
+                    <span className="block text-[10px] text-[#5C6B76] mt-0.5">Lo que cuesta el plan sin interés más largo, con IVA.</span></label>
+                  <label><span className="block text-[11px] font-semibold text-[#5C6B76] mb-0.5">Tachado de</span>
+                    <select form="ficha" name="vsml_canal" defaultValue={vs.canal_tachado ?? ""} className={`${CAMPO} w-full`}>
+                      <option value="">Sin tachado</option>
+                      {canalesMl.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    </select></label>
+                  <label><span className="block text-[11px] font-semibold text-[#5C6B76] mb-0.5">Comisión si no se sabe</span>
+                    <CampoNumero form="ficha" name="vsml_comision" valor={vs.comision_defecto_pct ?? 16.34} tipo="pct" className={`${CAMPO} w-24`} />
+                    <span className="block text-[10px] text-[#5C6B76] mt-0.5">Para productos sin publicación en ML.</span></label>
+                </> : <>
+                  <Dato etiqueta="Te tiene que quedar" numero>{vs.objetivo_pct != null ? pct(vs.objetivo_pct) : null}</Dato>
+                  <Dato etiqueta="Costo de cobro de referencia" numero>{vs.costo_ref_pct != null ? pct(vs.costo_ref_pct) : null}</Dato>
+                  <Dato etiqueta="Tachado de">{vs.canal_tachado ? canalesMl.find((c) => c.id === vs.canal_tachado)?.nombre ?? null : null}</Dato>
+                  <Dato etiqueta="Comisión si no se sabe" numero>{vs.comision_defecto_pct != null ? pct(vs.comision_defecto_pct) : null}</Dato>
+                </>}
+              </div>
+            </div>
+          </section>
+
           <form id="ficha" action={accionGuardarFinanciacion}>
             <input type="hidden" name="canal_id" value={tienda.id} />
 
             <section className="mb-6">
               <TituloSeccion titulo={`Planes de cuotas (${f.planes.length})`} />
               <p className="text-[11px] text-[#5C6B76] mb-2">
-                Cada plan se ofrece a los productos que cuestan <b>desde</b> su monto. La tarjeta del producto muestra el plan más largo que le toca; la ficha y el
+                Cada plan se ofrece a los productos que cuestan <b>desde</b> su monto. La tarjeta del producto muestra el plan sin interés más largo que le toca (si no hay, el más largo); la ficha y el
                 pago, todos. Interés 0 = sin interés (el costo del plan lo cubre el precio). El interés se suma al total cuando el comprador paga con tarjeta de crédito en cuotas.
                 {editando && " Para sacar un plan, borrá sus cuotas."}
               </p>
@@ -154,12 +195,13 @@ export default async function CuotasYDescuentos({ searchParams }: { searchParams
               <p className="text-[11px] text-[#5C6B76] mb-2">Con lo grabado{f.activo ? "" : " (cuando lo prendas)"}, algunos productos con stock: el más barato, dos del medio y el más caro.</p>
               <div className={CAJA_TABLA}>
                 <table className={TABLA}>
-                  <thead className={THEAD}><tr><th className={TH}>Producto</th><th className={`${TH} text-right`}>Precio</th><th className={TH}>Debajo del precio</th></tr></thead>
+                  <thead className={THEAD}><tr><th className={TH}>Producto</th><th className={`${TH} text-right`}>Tachado</th><th className={`${TH} text-right`}>Precio</th><th className={TH}>Debajo del precio</th></tr></thead>
                   <tbody>
                     {ejemplos.map((p) => (
                       <tr key={p.id} className={TR}>
                         <td className={TD}><Link href={`/catalogo/productos/${p.id}`} className="text-[#16577F]">{p.titulo}</Link></td>
-                        <td className={TDN}>{plata(p.venta)}</td>
+                        <td className={`${TDN} text-[#5C6B76]`}>{p.lista > p.venta ? <s>{plata(p.lista)}</s> : null}</td>
+                        <td className={TDN}>{plata(p.venta)}{p.lista > p.venta && <span className="block text-[#167655] text-[10px] font-semibold">{Math.round((1 - p.venta / p.lista) * 100)}% OFF</span>}</td>
                         <td className={TD}>
                           <span className="block">{textoTarjeta(f, p.venta, tasasMp)}</span>
                           {f.descuento_pct > 0 && f.medios_descuento.length > 0 && (

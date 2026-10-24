@@ -390,12 +390,68 @@ $$;
 alter table producto add column if not exists precio_en_dolares boolean not null default false;
 alter table variacion add column if not exists precio_en_dolares boolean;
 
+-- Precio de la web contra Mercado Libre (Fer, 24/10). Una lista con precio_vs_ml
+-- ({activo, objetivo_pct, costo_ref_pct, canal_tachado, comision_defecto_pct}; activo = true) no usa los descuentos
+-- por familia: su precio de venta es la Clásica menos lo justo para que, pagando con lo más
+-- caro que se cobra al mismo precio (costo_ref_pct: 3 cuotas sin interés), quede objetivo_pct
+-- de lo que queda vendiendo en la Clásica de ML (la comisión de la categoría de ML del
+-- producto, ml_costos_comisiones, con IVA: se compara sin IVA porque se recupera). Y su precio
+-- de lista (el tachado) es el de ML: la Clásica más el % de la regla de tachado del canal de ML
+-- elegido (ml_regla_precio: producto → familia más cercana → general).
+alter table lista_precios add column if not exists precio_vs_ml jsonb;
+
+-- plpgsql: las tablas de ML se crean en otros .sql que corren después.
+create or replace function public.comision_clasica_ml(p_variacion bigint, p_defecto numeric)
+returns numeric language plpgsql stable as $$
+declare r numeric;
+begin
+  select c.clasica_pct into r
+    from publicacion pu join variacion v on v.id = pu.variacion_id
+    join variacion v2 on v2.producto_id = v.producto_id and v2.id = p_variacion
+    join ml_costos_comisiones_vigente c on c.categoria_id = pu.categoria_externa
+   where pu.id_externo is not null and pu.categoria_externa is not null and c.clasica_pct is not null
+   order by (pu.variacion_id = p_variacion) desc, (pu.tipo_publicacion = 'gold_special') desc, (pu.estado = 'activa') desc, pu.id desc
+   limit 1;
+  return coalesce(r, p_defecto);
+exception when undefined_table then return p_defecto;
+end $$;
+
+create or replace function public.descuento_vs_ml(p_org text, p_variacion bigint, p_cfg jsonb)
+returns numeric language plpgsql stable as $$
+declare
+  obj numeric := coalesce((p_cfg ->> 'objetivo_pct')::numeric, 97) / 100;
+  costo numeric := coalesce((p_cfg ->> 'costo_ref_pct')::numeric, 0) / 100;
+  com numeric := comision_clasica_ml(p_variacion, coalesce((p_cfg ->> 'comision_defecto_pct')::numeric, 16.34224));
+begin
+  -- Lo que queda en ML (sin IVA de la comisión) × objetivo = lo que tiene que quedar en la web después del costo de cobro.
+  return greatest(0, least(60, round(100 * (1 - obj * (1 - com / 121) / (1 - costo)), 2)));
+end $$;
+
+create or replace function public.tachado_ml(p_org text, p_variacion bigint, p_canal bigint)
+returns numeric language plpgsql stable as $$
+declare r numeric; v_prod bigint; v_fam bigint;
+begin
+  if p_canal is null then return 0; end if;
+  select p.id, p.familia_id into v_prod, v_fam from variacion v join producto p on p.id = v.producto_id where v.id = p_variacion and v.organizacion_id = p_org;
+  select tachado_pct into r from ml_regla_precio where canal_id = p_canal and nivel = 'producto' and producto_id = v_prod and tachado_pct is not null;
+  if r is null then
+    with recursive cad as (
+      select f.id, f.padre_id, 0 n from familia f where f.id = v_fam
+      union all select f.id, f.padre_id, cad.n + 1 from familia f join cad on f.id = cad.padre_id where cad.n < 20)
+    select m.tachado_pct into r from cad join ml_regla_precio m on m.canal_id = p_canal and m.nivel = 'familia' and m.familia_id = cad.id
+     where m.tachado_pct is not null order by cad.n limit 1;
+  end if;
+  if r is null then select tachado_pct into r from ml_regla_precio where canal_id = p_canal and nivel = 'general'; end if;
+  return coalesce(r, 0);
+exception when undefined_table then return 0;
+end $$;
+
 create or replace function public.precio_de(p_org text, p_variacion bigint, p_lista bigint, p_fecha date default current_date)
 returns table (
   precio_id bigint, lista_ars numeric, lista_usd numeric, moneda_origen text, vigente_desde date,
   descuento_pct numeric, venta_ars numeric, venta_usd numeric
 ) language sql stable as $$
-  with l as (select base_lista_id, coalesce(coeficiente, 1) coef, aplica_descuentos from lista_precios where id = p_lista and organizacion_id = p_org),
+  with l as (select base_lista_id, coalesce(coeficiente, 1) coef, aplica_descuentos, precio_vs_ml from lista_precios where id = p_lista and organizacion_id = p_org),
   c as (
     select pr.id, pr.importe_ars, pr.importe_usd, pr.moneda_origen, pr.vigente_desde, 0 prio
       from precio pr
@@ -408,11 +464,18 @@ returns table (
   , usd as (
     select coalesce(v.precio_en_dolares, p.precio_en_dolares, false) si, tc_del_dia(p_org, p_fecha) tc
       from variacion v join producto p on p.id = v.producto_id where v.id = p_variacion and v.organizacion_id = p_org)
-  select c.id, x.ars, c.importe_usd, case when u.si then 'USD' else c.moneda_origen end, c.vigente_desde, d.pct,
+  , vs as (select precio_vs_ml cfg from l where coalesce((precio_vs_ml ->> 'activo')::boolean, false))
+  -- Con precio_vs_ml: venta = base × (1 − descuento contra ML) y lista (tachado) = base × (1 + tachado de ML);
+  -- el descuento que se informa es el de la venta contra ese tachado.
+  select c.id, round(x.ars * (1 + t.pct / 100), 2), round(c.importe_usd * (1 + t.pct / 100), 2),
+         case when u.si then 'USD' else c.moneda_origen end, c.vigente_desde,
+         case when t.pct > 0 then round(100 * (1 - (1 - d.pct / 100) / (1 + t.pct / 100)), 2) else d.pct end,
          round(x.ars * (1 - d.pct / 100), 2),
          round(c.importe_usd * (1 - d.pct / 100), 2)
     from c
-    cross join lateral (select case when coalesce((select aplica_descuentos from l), false) then descuento_efectivo(p_org, p_variacion) else 0 end pct) d
+    cross join lateral (select case when exists (select 1 from vs) then descuento_vs_ml(p_org, p_variacion, (select cfg from vs))
+                                    when coalesce((select aplica_descuentos from l), false) then descuento_efectivo(p_org, p_variacion) else 0 end pct) d
+    cross join lateral (select case when exists (select 1 from vs) then tachado_ml(p_org, p_variacion, ((select cfg from vs) ->> 'canal_tachado')::bigint) else 0 end pct) t
     left join usd u on true
     cross join lateral (select case when u.si and u.tc is not null then round(c.importe_usd * u.tc, 2) else c.importe_ars end ars) x
    order by c.prio, c.vigente_desde desc

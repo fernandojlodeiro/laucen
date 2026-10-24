@@ -20,7 +20,7 @@ import { tasasMpDe } from "@/lib/tienda/tasas-mp";
 import { rutaTienda, type Tienda } from "@/lib/tienda/tienda";
 import { abierta, arbolDe, aTarjetas, cargarTienda, catalogoDe, cucardasDe, envioDe, envioGratis } from "../../catalogo";
 import {
-  Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAJA, Etiquetas, IconoCamion, IconoEscudo, IconoTienda, IconoVuelta, LineaContado, LineaCuotas, LINK, Migas, Monto, Precio, TarjetaProducto,
+  Aviso, AvisosUrl, BOTON, BOTON_SUAVE, CAJA, Etiquetas, IconoCamion, IconoEscudo, IconoTienda, IconoVuelta, LineaContado, LineaCuotas, LINK, Migas, Monto, Precio, PrecioSegunPago, TarjetaProducto,
 } from "../../piezas";
 import { agregarAlCarrito, comprarAhora } from "../../acciones";
 import Carrusel from "../../Carrusel";
@@ -297,7 +297,9 @@ export default async function Producto({ params, searchParams }: Props) {
 
             <div id="medios" className="scroll-mt-4 space-y-3 rounded-md border border-[var(--linea)] p-4 text-sm">
               <p className="text-base text-[var(--texto)]">Medios de pago</p>
-              {planes.some((x) => x.cuotas > 1) && (
+              {fin.activo && v ? (
+                <PrecioSegunPago lista={v.lista} venta={v.venta} moneda={t.moneda} planes={planes} contado={contado} />
+              ) : planes.some((x) => x.cuotas > 1) && (
                 <ul className="space-y-1">
                   {planes.filter((x) => x.cuotas > 1).map((x) => x.medio === "mercadopago" ? (
                     // Por Mercado Pago: el interés lo cobra Mercado Pago; la cuota es de referencia.

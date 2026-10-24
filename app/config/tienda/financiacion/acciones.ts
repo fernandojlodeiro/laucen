@@ -3,7 +3,7 @@
 // Cuotas y descuentos de la tienda (canal.config.financiacion, lib/tienda/financiacion.ts):
 // grabar el esquema y prenderlo o apagarlo.
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { entrarErp } from "@/app/componentes/erp";
 import { consulta, una, ErrorErp } from "@/lib/erp/base";
 import { intentar, id } from "@/lib/erp/acciones";
@@ -52,6 +52,7 @@ export async function accionGuardarFinanciacion(fd: FormData) {
     if (descuento < 0 || descuento > 90) throw new ErrorErp("El descuento va de 0 a 90 %.");
     const medios = MEDIOS_CONTADO.map((m) => m.clave).filter((k) => fd.get(`medio_${k}`));
     await grabar(s.org.id, canal, { ...antes, planes: planes.sort((a, b) => a.cuotas - b.cuotas), descuento_pct: descuento, medios_descuento: medios });
+    await guardarVsMl(s.org.id, canal, fd);
     return "Grabado. La tienda ya muestra el esquema nuevo.";
   });
 }
@@ -65,5 +66,55 @@ export async function accionActivarFinanciacion(fd: FormData) {
     if (activo && !antes.planes.length && antes.descuento_pct <= 0) throw new ErrorErp("Cargá primero los planes o el descuento (lápiz de arriba a la derecha).");
     await grabar(s.org.id, canal, { ...antes, activo });
     return activo ? "Prendido: la tienda usa este esquema de cuotas y descuentos." : "Apagado: la tienda vuelve a los planes de Configuración › Cuotas y a los descuentos de cada medio de pago.";
+  });
+}
+
+// ── Precio contra Mercado Libre (lista_precios.precio_vs_ml de la lista de la tienda; db/catalogo.sql) ──
+type PrecioVsMl = { activo: boolean; objetivo_pct: number; costo_ref_pct: number; canal_tachado: number | null; comision_defecto_pct: number };
+
+async function listaDeLaTienda(org: string, canalId: number) {
+  const c = await una<{ lista: string | null; cfg: Partial<PrecioVsMl> | null }>(
+    `select c.lista_precios_id lista, l.precio_vs_ml cfg from canal c left join lista_precios l on l.id = c.lista_precios_id
+      where c.id = $1 and c.organizacion_id = $2 and c.tipo = 'web_minorista'`, [canalId, org]);
+  if (!c?.lista) throw new ErrorErp("La tienda no tiene lista de precios (Configuración › Tienda web).");
+  return { lista: Number(c.lista), cfg: c.cfg ?? {} };
+}
+
+async function grabarVsMl(org: string, canalId: number, lista: number, cfg: PrecioVsMl) {
+  await consulta("update lista_precios set precio_vs_ml = $3::jsonb where id = $1 and organizacion_id = $2", [lista, org, JSON.stringify(cfg)]);
+  revalidateTag(`tienda-${canalId}`);
+  revalidatePath(BASE);
+}
+
+/** Lo que se graba con el lápiz de la ficha (junto con los planes). */
+async function guardarVsMl(org: string, canalId: number, fd: FormData) {
+  if (!fd.has("vsml_objetivo")) return;
+  const { lista, cfg } = await listaDeLaTienda(org, canalId);
+  const pct = (k: string, nombre: string, min: number, max: number, defecto: number) => {
+    const v = leerNumero(fd.get(k)) ?? defecto;
+    if (v < min || v > max) throw new ErrorErp(`${nombre} va de ${min} a ${max} %.`);
+    return v;
+  };
+  const canal = leerNumero(fd.get("vsml_canal"));
+  await grabarVsMl(org, canalId, lista, {
+    activo: !!cfg.activo,
+    objetivo_pct: pct("vsml_objetivo", "Lo que te tiene que quedar", 50, 150, 97),
+    costo_ref_pct: pct("vsml_costo", "El costo de cobro de referencia", 0, 40, 0),
+    canal_tachado: canal && canal > 0 ? canal : null,
+    comision_defecto_pct: pct("vsml_comision", "La comisión de ML por defecto", 0, 60, 16.34),
+  });
+}
+
+export async function accionActivarVsMl(fd: FormData) {
+  const s = await entrarErp("tienda_config");
+  const canal = id(fd, "canal_id");
+  await intentar(`${BASE}?canal=${canal}`, async () => {
+    const { lista, cfg } = await listaDeLaTienda(s.org.id, canal);
+    const activo = fd.get("valor") === "1";
+    if (activo && !cfg.objetivo_pct) throw new ErrorErp("Cargá primero cuánto te tiene que quedar (lápiz de arriba a la derecha).");
+    await grabarVsMl(s.org.id, canal, lista, {
+      activo, objetivo_pct: cfg.objetivo_pct ?? 97, costo_ref_pct: cfg.costo_ref_pct ?? 0, canal_tachado: cfg.canal_tachado ?? null, comision_defecto_pct: cfg.comision_defecto_pct ?? 16.34,
+    });
+    return activo ? "Prendido: los precios de la tienda se calculan contra Mercado Libre." : "Apagado: la tienda vuelve a los precios de su lista con los descuentos por familia.";
   });
 }

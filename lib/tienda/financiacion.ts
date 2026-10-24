@@ -4,8 +4,8 @@
 // familia o producto (Configuración › Cuotas) en la tienda:
 //
 //   - Planes por escala de precio: cada plan (3, 6, 12 cuotas…) se ofrece a los
-//     productos que cuestan "desde" su monto. La tarjeta muestra el plan más
-//     largo que le toca; la ficha y el checkout, todos los que le tocan.
+//     productos que cuestan "desde" su monto. La tarjeta muestra el sin interés
+//     más largo que le toca (si no hay, el más largo); la ficha y el checkout, todos los que le tocan.
 //   - interes_pct: lo que paga el comprador por financiar (0 = sin interés: el
 //     costo del plan lo absorbe el precio). Con Payway se cobra de verdad: se
 //     elige en el checkout y queda en el total del pedido (lib/tienda/cotizar.ts).
@@ -63,9 +63,11 @@ export function planesParaPrecio(f: Financiacion, precio: number, o: { medio?: M
     : { cuotas: p.cuotas, interes_pct: p.interes_pct, medio: p.medio });
 }
 
-/** El plan que se muestra en la tarjeta: el más largo que le toca a ese precio. */
+/** El plan que se muestra en la tarjeta: el sin interés más largo que le toca a ese precio ("Mismo
+ *  precio en 3 cuotas sin interés"); si no tiene ninguno, el más largo. */
 export function planDeEscala(f: Financiacion, precio: number, tasasMp?: Map<number, number> | null) {
-  return planesParaPrecio(f, precio, { tasasMp }).at(-1) ?? null;
+  const planes = planesParaPrecio(f, precio, { tasasMp });
+  return planes.filter((p) => p.medio === "payway" && p.interes_pct === 0).at(-1) ?? planes.at(-1) ?? null;
 }
 
 export const hayPlanMp = (f: Financiacion) => f.activo && f.planes.some((p) => p.medio === "mercadopago");

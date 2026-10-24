@@ -49,7 +49,7 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 - A la izquierda, los filtros: **Filtros aplicados** (cada uno con su X), **Envío gratis**, **Categorías**, **Descuentos** ("Con descuento"), **Marca**, **Precio** (tres rangos armados solos y "Mínimo"/"Máximo").
 - **"Ordenar por"**: Más relevantes, Menor precio, Mayor precio, Más vendidos. Vista en lista o grilla.
 - Cuotas y descuento contado: con el esquema de [Cuotas y descuentos](/config/tienda/financiacion) prendido, debajo del precio va el plan más largo que le toca a su precio y "$ … con transferencia" (u otros medios con descuento).
-- Cada tarjeta, como en Mercado Libre: foto, la cucarda arriba del título ("Más vendido", "Última unidad", las cargadas o una automática), el título, el precio de lista tachado, el precio grande con el recuadro verde "N% OFF" si hay descuento ("Desde" si las variaciones tienen distinto precio), las cuotas ("Mismo precio en 6 cuotas de $ …" si son sin interés), la pastilla verde **"Llega gratis"** si el precio llega al envío gratis, "Sin stock" o "Últimas N disponibles" (2 o 3).
+- Cada tarjeta, como en Mercado Libre: foto, la cucarda arriba del título ("Más vendido", "Última unidad", las cargadas o una automática), el título, el precio de lista tachado, el precio grande con el recuadro verde "N% OFF" si hay descuento ("Desde" si las variaciones tienen distinto precio), las cuotas ("Mismo precio en 3 cuotas sin interés de $ …"), el precio contado ("$ … con transferencia, efectivo o débito", con el esquema de [Cuotas y descuentos](/config/tienda/financiacion)), la pastilla verde **"Llega gratis"** si el precio llega al envío gratis, "Sin stock" o "Últimas N disponibles" (2 o 3).
 - De a 24 productos por página, con "Anterior" / "Siguiente".
 - Sin resultados: "No hay publicaciones que coincidan con "…"." con consejos.
 
@@ -58,7 +58,7 @@ Columnas **Ayuda** (Cómo comprar, Envíos y retiros, Medios de pago, Devolucion
 - Galería de fotos (las de la variación elegida primero).
 - "Nuevo | +N vendidos", cucardas, "Ver más productos de <marca>", el título, el precio y las cuotas, los botones de cada variación (color, talle…), y "Lo que tenés que saber de este producto".
 - La caja de compra: envío ("Envío gratis a domicilio", "Envío a domicilio por $ …" o "Calculamos el costo al finalizar la compra"; "Retirá gratis" si hay retiro), el stock ("Stock disponible", "¡Última disponible!", "Sin stock"), **Cantidad** (hasta 30 o el stock), **"Comprar ahora"** y **"Agregar al carrito"**; devolución y garantía si están cargadas.
-- "Medios de pago" con las cuotas y los descuentos por medio. (No hay caja de "información del vendedor": la tienda es de una sola empresa, no un marketplace.)
+- "Medios de pago" con las cuotas y los descuentos por medio; con el esquema de [Cuotas y descuentos](/config/tienda/financiacion), el recuadro "Precio según cómo pagues" (cada forma de pago con su precio y su % OFF). (No hay caja de "información del vendedor": la tienda es de una sola empresa, no un marketplace.)
 - Abajo: **Productos relacionados** (de la misma categoría, con stock), **Características del producto** y **Descripción**.
 
 ### Carrito
