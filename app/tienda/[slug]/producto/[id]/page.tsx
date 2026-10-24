@@ -28,6 +28,7 @@ import {
 import { agregarAlCarrito, comprarAhora } from "../../acciones";
 import Carrusel from "../../Carrusel";
 import Galeria from "./Galeria";
+import Cantidad from "./Cantidad";
 
 export const dynamic = "force-dynamic";
 
@@ -296,9 +297,7 @@ export default async function Producto({ params, searchParams }: Props) {
                     <input type="hidden" name="variacion" value={v.id} />
                     <div className="flex flex-wrap items-center gap-2 text-sm">
                       <label htmlFor="cantidad" className="text-[var(--texto)]">Cantidad:</label>
-                      <select id="cantidad" name="cantidad" defaultValue="1" className="rounded bg-transparent py-1 font-semibold text-[var(--texto)] outline-none focus:ring-1 focus:ring-[var(--boton)]">
-                        {Array.from({ length: Math.min(v.disponible, 30) }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n === 1 ? "1 unidad" : `${n} unidades`}</option>)}
-                      </select>
+                      <Cantidad key={v.id} disponible={v.disponible} />
                       <span className="text-[var(--texto-2)]">({v.disponible === 1 ? "1 disponible" : `${formatearNumero(v.disponible, "entero")} disponibles`})</span>
                     </div>
                     <div className="space-y-2">
