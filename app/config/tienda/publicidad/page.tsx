@@ -193,7 +193,7 @@ export default async function Publicidad({ searchParams }: { searchParams: Promi
         <AltaNueva texto="Agregar categoría" clave="grupo" sinBoton>
           <form action={accionReglaFamilia} className="flex flex-wrap items-end gap-2 text-xs">
             <input type="hidden" name="canal_id" value={tienda.id} />
-            <label className="w-72"><ElegirFamilia name="familia_id" vacio="Elegí la categoría…" propias /></label>
+            <label className="w-72"><ElegirFamilia name="familia_id" vacio="Elegí la categoría…" /></label>
             <label className="w-48"><span className={ETIQUETA}>Grupo</span>
               <input name="grupo" list="grupos-campana" required placeholder="notebooks" className={`${CAMPO} w-full`} />
               <datalist id="grupos-campana">{[...new Set([...GRUPOS, ...grupos.map((g) => g.grupo!)])].map((g) => <option key={g} value={g} />)}</datalist></label>
@@ -226,7 +226,7 @@ export default async function Publicidad({ searchParams }: { searchParams: Promi
             <form action={accionReglaFamilia} className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="canal_id" value={tienda.id} />
               <input type="hidden" name="excluir" value="1" />
-              <label className="w-72"><ElegirFamilia name="familia_id" vacio="Elegí la categoría…" propias /></label>
+              <label className="w-72"><ElegirFamilia name="familia_id" vacio="Elegí la categoría…" /></label>
               <button className={PRIMARIO}>Sacar la categoría</button>
             </form>
             <form action={accionExcluirProducto} className="flex flex-wrap items-end gap-2">
