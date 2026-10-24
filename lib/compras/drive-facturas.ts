@@ -45,6 +45,16 @@ export async function quitarCarpetaFacturas(org: string, indice: number) {
     [org, JSON.stringify(actuales.filter((_, i) => i !== indice))]);
 }
 
+/** El tipo por el contenido y no por lo que dice el Drive: hay fotos guardadas como PDF y PDF sin extensión. */
+function tipoReal(datos: ArrayBuffer, declarado: string) {
+  const b = new Uint8Array(datos.slice(0, 8));
+  if (b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return "application/pdf";
+  if (b[0] === 0xff && b[1] === 0xd8) return "image/jpeg";
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return "image/png";
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46) return "image/webp";
+  return declarado;
+}
+
 /** Los PDF e imágenes de la carpeta del mes y de sus subcarpetas (hasta dos niveles: una por cuenta de Mercado Libre, por ejemplo). */
 async function archivosDelMes(token: string, carpeta: string, nombre: string, nivel = 0): Promise<{ id: string; name: string; mimeType: string; modifiedTime: string; size?: string; donde: string }[]> {
   const propios = (await archivosDe(token, carpeta)).map((f) => ({ ...f, donde: nombre }));
@@ -81,8 +91,15 @@ export async function leerFacturasDelDrive(org: string, usuarioId: string, opts:
           [org, f.id, f.name, reintentar ? null : f.modifiedTime, f.donde, estado, mensaje, facturaId]);
         try {
           if (Number(f.size ?? 0) > 20_000_000) throw new Error("es muy grande para leerlo");
-          const l = await leerFacturaArchivo(await bajarDelDrive(token, f.id), f.mimeType);
+          const datos = await bajarDelDrive(token, f.id);
+          const l = await leerFacturaArchivo(datos, tipoReal(datos, f.mimeType));
           if ("error" in l) throw new Error(l.error); // pasajero: se reintenta
+          // Una factura bonificada (total cero) no suma nada al libro ni a la cuenta corriente.
+          if (l.lectura.es_comprobante !== false && Number(l.lectura.total) === 0) {
+            await anotar("otro", "comprobante con total cero (bonificado): no se carga");
+            res.otros++;
+            continue;
+          }
           if (l.lectura.es_comprobante === false) {
             await anotar("otro", l.lectura.que_es ?? "no es una factura");
             res.otros++;
