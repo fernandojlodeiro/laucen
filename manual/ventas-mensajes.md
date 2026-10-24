@@ -42,6 +42,7 @@ La pantalla se actualiza sola cada pocos segundos.
 2. Se abre Meta: entrá con tu Facebook, elegí la cuenta de WhatsApp Business del negocio y el número.
 3. Te pide escanear un código con la app WhatsApp Business del teléfono: escanealo.
 4. Volvés a Laucen con el aviso "¡WhatsApp conectado!". Desde ese momento los mensajes nuevos llegan a Chats y los contesta la IA.
+5. Si en Meta quedó permiso sobre más de un número (por ejemplo, porque la cuenta de Meta también tiene el número de otro negocio), Laucen no conecta ninguno solo: muestra **"¿Qué número conectás a Laucen?"** con cada número y su botón **"Conectar este número"**. Un número cuya cuenta de WhatsApp ya usa otro sistema aparece como **"Ya lo usa otro sistema"** y no se puede conectar: conectarlo le cortaría los mensajes a ese sistema (hay que pasarlo a una cuenta de WhatsApp propia en Meta).
 
 ### Contestar vos un chat
 1. Abrí el chat.
