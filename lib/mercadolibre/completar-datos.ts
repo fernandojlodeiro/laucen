@@ -26,18 +26,19 @@ type Valor = { id: string; value_id?: string; value_name: string };
 
 async function valorDe(org: string, sku: string, attr: string): Promise<Valor | null> {
   const r = await una<{ value_id: string | null; value_name: string | null }>(`
-    with v as (select v.id, v.codigo_barras cb_v, p.* from variacion v join producto p on p.id = v.producto_id
+    with v as (select v.id var_id, v.codigo_barras cb_v, p.atributos_ml, p.codigo_barras, p.modelo, p.peso_g, p.alto_cm, p.ancho_cm, p.largo_cm
+                 from variacion v join producto p on p.id = v.producto_id
                 where v.organizacion_id = $1 and lower(v.sku) = lower($2) limit 1)
     select * from (
-      select null value_id, a ->> 'value_name' value_name, 1 o from v, jsonb_array_elements(coalesce(v.atributos_ml, '[]')) a
-       where a ->> 'id' = $3 and coalesce(a ->> 'value_name', '') <> ''
+      select null::text value_id, a ->> 'value_name' value_name, 1 o from v, jsonb_array_elements(coalesce(v.atributos_ml, '[]')) a
+       where a ->> 'id' = $3::text and coalesce(a ->> 'value_name', '') <> ''
       union all
       select nullif(a ->> 'value_id', '-1'), a ->> 'value_name', 2 from v
-        join publicacion p on p.variacion_id = v.id join meli_item m on m.canal_id = p.canal_id and m.item_id = p.id_externo,
+        join publicacion pu on pu.variacion_id = v.var_id join meli_item m on m.canal_id = pu.canal_id and m.item_id = pu.id_externo,
         jsonb_array_elements(coalesce(m.datos_externos -> 'ml' -> 'attributes', '[]')) a
        where a ->> 'id' = $3 and coalesce(a ->> 'value_name', '') <> '' and coalesce(a ->> 'value_id', '') <> '-1'
       union all
-      select null, case $3 when 'GTIN' then coalesce(v.cb_v, v.codigo_barras) when 'MODEL' then v.modelo
+      select null, case $3::text when 'GTIN' then coalesce(v.cb_v, v.codigo_barras) when 'MODEL' then v.modelo
                           when 'SELLER_PACKAGE_WEIGHT' then v.peso_g || ' g' when 'SELLER_PACKAGE_HEIGHT' then v.alto_cm || ' cm'
                           when 'SELLER_PACKAGE_WIDTH' then v.ancho_cm || ' cm' when 'SELLER_PACKAGE_LENGTH' then v.largo_cm || ' cm' end, 3 from v
     ) x where coalesce(value_name, '') <> '' order by o, (value_id is not null) desc limit 1`, [org, sku, attr]);
