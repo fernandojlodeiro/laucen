@@ -12,22 +12,25 @@
 import { sqlPublicadoEnWeb } from "@/lib/catalogo/web";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { consulta, una } from "@/lib/erp/base";
 import { hoyAR } from "@/lib/moneda";
 import { tiendaPorSlug, type Tienda } from "@/lib/tienda/tienda";
+import { conMarca } from "@/lib/tienda/dominios-tienda";
 import { planesDeVariaciones, planParaMostrar, type Plan } from "@/lib/tienda/cuotas";
 
 export const POR_PAGINA = 24;
 export const COLOR_POR_DEFECTO = "#3483FA";
 
-/** La tienda del slug (una sola consulta por request); si no existe, 404. */
+/** La tienda del slug (una sola consulta por request), como se ve desde el dominio del pedido; si no existe, 404. */
 export const cargarTienda = cache(async (slug: string): Promise<Tienda> => {
   let s = slug;
   try { s = decodeURIComponent(slug); } catch { /* queda como vino */ }
   const t = await tiendaPorSlug(s);
   if (!t) notFound();
-  return t;
+  // Entrando por el dominio de otra marca, la misma tienda con su nombre y su logo.
+  return conMarca(t, (await headers()).get("host"));
 });
 
 export const abierta = (t: Tienda) => t.estado === "activo";

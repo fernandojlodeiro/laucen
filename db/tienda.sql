@@ -152,6 +152,12 @@ create table if not exists tienda_dominio (
 create unique index if not exists tienda_dominio_principal on tienda_dominio (canal_id) where principal;
 alter table tienda_dominio enable row level security;
 select erp_politica_org('tienda_dominio');
+-- Otra marca (Fer, 24/10): un dominio con `marca` abre la misma tienda (catálogo, precios,
+-- stock, pedidos) pero con su propio nombre, logo, colores de la franja, banners y mail
+-- ({nombre, logo, color_marca, color_marca_texto, banner, banner_2, banner_3, email}).
+-- Los que redirigen van al principal, o al dominio de `redirige_a_id` (el www de una marca).
+alter table tienda_dominio add column if not exists marca jsonb;
+alter table tienda_dominio add column if not exists redirige_a_id bigint references tienda_dominio(id) on delete set null;
 
 -- Portada de la tienda (4/10): los productos que Fer elige a mano para las filas
 -- "Destacados" y "Novedades" de la portada, en el orden que les pone. Una fila por

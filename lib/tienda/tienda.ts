@@ -28,6 +28,8 @@ export type ConfigTienda = {
 export type Tienda = {
   organizacionId: string; canalId: number; nombreCanal: string; listaId: number | null; moneda: "ARS" | "USD";
   slug: string; config: ConfigTienda; estado: string;
+  /** El dominio de "otra marca" por donde se está mirando (lib/tienda/dominios-tienda.ts, conMarca); null = la tienda tal cual. */
+  dominio: string | null;
 };
 
 export const slugDe = (texto: string) =>
@@ -38,7 +40,7 @@ type Fila = { organizacion_id: string; id: string; nombre: string; lista_precios
 
 const aTienda = (f: Fila): Tienda => ({
   organizacionId: f.organizacion_id, canalId: Number(f.id), nombreCanal: f.nombre, listaId: f.lista_precios_id ? Number(f.lista_precios_id) : null,
-  moneda: f.moneda ?? "ARS", slug: f.config?.slug || slugDe(f.nombre), estado: f.estado,
+  moneda: f.moneda ?? "ARS", slug: f.config?.slug || slugDe(f.nombre), estado: f.estado, dominio: null,
   // Sin logo propio, la tienda usa el de la empresa (Configuración → Empresa).
   config: { ...(f.config ?? {}), logo: f.config?.logo || f.logo_empresa || undefined },
 });

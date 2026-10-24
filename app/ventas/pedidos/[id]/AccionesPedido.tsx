@@ -12,7 +12,7 @@ import { sqlEstadoPago, type EstadoPedido } from "@/lib/pedidos";
 import { queArrastraCancelar, motivoNoCancelable } from "@/lib/pedidos/cancelar";
 import { motivoNoPresupuesto } from "@/lib/pedidos/presupuestos";
 import { tiendaDelCanal, nombreTienda } from "@/lib/tienda/tienda";
-import { urlTienda } from "@/lib/tienda/dominios-tienda";
+import { conMarca, urlTienda } from "@/lib/tienda/dominios-tienda";
 import { Lapiz } from "@/app/componentes/erp";
 import { BotonTarea } from "@/app/componentes/TareasFondo";
 import { PRIMARIO, SUAVE, VERDE } from "@/app/botones";
@@ -26,9 +26,9 @@ const CERRADOS: EstadoPedido[] = ["entregado", "cancelado", "devuelto"];
 
 export default async function AccionesPedido({ org, pid, editable, superadmin = false }: { org: string; pid: number; editable: boolean; superadmin?: boolean }) {
   const p = await una<{ estado: EstadoPedido; estado_pago: string; id_externo: string | null; codigo: string | null; canal_id: number; canal_tipo: string;
-    cliente: string | null; telefono: string | null; movil: string | null }>(`
+    cliente: string | null; telefono: string | null; movil: string | null; dominio: string | null }>(`
     select p.estado, ${sqlEstadoPago("p")} estado_pago, p.id_externo, p.codigo_seguimiento codigo, p.canal_id::int, c.tipo canal_tipo,
-           cl.nombre cliente, cl.telefono, cl.whatsapp movil
+           cl.nombre cliente, cl.telefono, cl.whatsapp movil, p.datos_externos -> 'tienda' ->> 'dominio' dominio
       from pedido p join canal c on c.id = p.canal_id left join cliente cl on cl.id = p.cliente_id
      where p.id = $1 and p.organizacion_id = $2`, [pid, org]);
   if (!p) return null;
@@ -52,7 +52,9 @@ export default async function AccionesPedido({ org, pid, editable, superadmin = 
   const tel = telefonoWhatsapp(p.movil) ?? telefonoWhatsapp(p.telefono);
   let wa: string | null = null;
   if (tel) {
-    const t = p.canal_tipo === "web_minorista" ? await tiendaDelCanal(org, p.canal_id) : null;
+    // Comprado en el dominio de otra marca: el mensaje, con ese nombre y ese link.
+    const tc = p.canal_tipo === "web_minorista" ? await tiendaDelCanal(org, p.canal_id) : null;
+    const t = tc ? await conMarca(tc, p.dominio) : null;
     const seguimiento = !esPresupuesto && t && p.codigo ? await urlTienda(t, `/pedido/${p.codigo}`) : null;
     const despacho = p.estado === "despachado"
       ? (await una<{ nota: string | null }>("select nota from pedido_estado_historial where pedido_id = $1 and estado_nuevo = 'despachado' order by fecha desc, id desc limit 1", [pid]))?.nota ?? null

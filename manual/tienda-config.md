@@ -48,8 +48,9 @@ Debajo, la ficha de la tienda, que abre en **modo vista**. Se edita con el **lá
 - **Mail**, **Dirección del local**, **Horario** (ej. "Lun a vie de 9 a 18").
 
 Justo debajo de esa caja (antes de la ficha), la sección **Dominios (N)**, con el botón **"Nuevo dominio"** al lado del título (sólo con el permiso «Configurar dominios de la tienda»). Sin dominios: "Sin dominio propio: la tienda abre en …/tienda/slug.". Con dominios, una tabla:
-- **Dominio** (se toca para abrirlo), **Tipo** ("Principal" o "Redirige a …"), **Estado** ("Sin conectar a Vercel", "Esperando DNS", "Verificado (falta el certificado)" o "Con certificado: anda"; debajo, en rojo, si algo falló), **Registros DNS a cargar** (tipo, nombre y valor de cada registro; "—" cuando ya anda), **Revisado** (la última vez que se le preguntó a Vercel).
+- **Dominio** (se toca para abrirlo), **Tipo** ("Principal", "Otra marca: <nombre>" con su logo, o "Redirige a …"), **Estado** ("Sin conectar a Vercel", "Esperando DNS", "Verificado (falta el certificado)" o "Con certificado: anda"; debajo, en rojo, si algo falló), **Registros DNS a cargar** (tipo, nombre y valor de cada registro; "—" cuando ya anda), **Revisado** (la última vez que se le preguntó a Vercel).
 - Al final de cada fila, **"Verificar"** (vuelve a preguntarle a Vercel; no aparece si ya anda) y el tacho ("¿Borrar?" Sí / No).
+- En cada dominio que no es el principal, un **lápiz** a la derecha: abre debajo de la fila sus datos para cambiarlo (que redirija, y a cuál, o que sea otra marca, con sus datos); **"Grabar"** y **"Cancelar"** quedan en el lugar del lápiz.
 - Si falta la llave de Vercel, arriba de la tabla: "Falta la llave de Vercel: los dominios quedan anotados, pero no se conectan hasta que esté."
 
 ### Métodos de envío
@@ -108,19 +109,34 @@ Errores típicos:
    - Si el dominio tiene correo, no toques sus registros MX.
 5. Esperá: el DNS tarda de minutos a unas horas en propagarse (si cambiaste los nameservers, hasta 24-48 horas). Apretá **"Verificar"** cada tanto.
 6. Cuando el estado dice **"Con certificado: anda"**, la tienda ya abre en ese dominio.
-7. Para que también ande con www (o con otro dominio tuyo): **"Nuevo dominio"** → www.mitienda.com.ar → **"Redirige al principal"** → **"Crear"**, y cargá su registro. Quien entre por ahí termina en el principal.
+7. Para que también ande con www (o con otro dominio tuyo): **"Nuevo dominio"** → www.mitienda.com.ar → **"Redirige"** (a: el principal) → **"Crear"**, y cargá su registro. Quien entre por ahí termina en el principal.
+
+### Abrir la tienda con otra marca (otro nombre y logo)
+
+Sirve para vender lo mismo bajo dos nombres: un dominio de "otra marca" abre **la misma tienda** (los mismos productos, precios, stock, carrito y pedidos) pero con su propio **nombre, logo, colores de la franja, banners y mail**.
+
+1. En **Dominios**, **"Nuevo dominio"** → el dominio de la otra marca (ej. otramarca.com.ar) → **"Otra marca"**, escribí su nombre en **"Si es otra marca: su nombre"** → **"Crear"**, y cargá sus registros DNS como en un principal.
+2. Apretá el **lápiz** de esa fila y cargá el **logo** (sin logo se ve el nombre escrito), y si querés los **colores de la franja** (tildá "Propio"; sin tildar, los de la tienda), hasta tres **banners** (sin banners, una franja con el nombre: nunca los de la otra marca) y el **mail**. **"Grabar"**.
+3. El www de esa marca: **"Nuevo dominio"** → www.otramarca.com.ar → **"Redirige"**, y en **"Si redirige: a"** elegí otramarca.com.ar.
+
+Quien entra por ese dominio ve esa marca en todas las páginas (también en la pestaña del navegador), y sigue en ese dominio al pagar: la vuelta de Mercado Pago y el link de seguimiento del pedido van a ese dominio, y el WhatsApp que se le manda desde el pedido usa ese nombre. Lo demás (textos de ayuda, devoluciones, garantía, WhatsApp de contacto, dirección, horario y los datos fiscales del pie) es el de la tienda.
+
+Para cambiar un dominio entre "redirige" y "otra marca", lápiz de la fila → elegí el tipo → **"Grabar"**. Al grabar, Laucen acomoda en Vercel las redirecciones de todos los dominios de la tienda.
 
 Errores típicos:
 - "Escribí un dominio válido, sin https:// (ej. mitienda.com.ar)."
 - "Ese dominio ya está cargado." / "Ese dominio ya lo usa otra organización."
 - "Ese dominio es del sistema: no se puede usar para una tienda." (laucen.com y los suyos).
 - "La tienda ya tiene dominio principal (…). Para cambiarlo, borralo primero."
-- "Primero cargá el dominio principal de la tienda: los demás redirigen a él."
+- "Primero cargá el dominio principal de la tienda: los demás redirigen a él o son otra marca."
+- "Poné el nombre de la marca (lo que ve el comprador en ese dominio)."
+- "Elegí a qué dominio redirige: el principal o el de otra marca."
+- "Hay dominios que redirigen a éste: cambialos primero (o dejalo como otra marca)."
 - "Ese dominio ya está conectado a otro proyecto de Vercel: hay que sacarlo de allá primero."
 
 ### Sacar un dominio
 
-Tacho de la fila → **"Sí"**. Laucen lo saca también de Vercel. Un principal no se puede borrar mientras haya dominios que redirigen a él ("Primero borrá los dominios que redirigen a éste.").
+Tacho de la fila → **"Sí"**. Laucen lo saca también de Vercel. Un principal no se puede borrar mientras la tienda tenga otros dominios ("Primero borrá los demás dominios de la tienda…"), ni uno de otra marca mientras haya dominios que redirigen a él ("Primero borrá o cambiá los dominios que redirigen a éste.").
 
 ### Ocultar los productos sin stock
 
@@ -166,7 +182,7 @@ Para un recargo, poné el número en negativo (ej. -10 = 10 % más caro).
 - **Precios**: salen de la lista de precios del canal; un producto sin precio en esa lista no se vende en la tienda.
 - **Stock**: el disponible del canal (la suma de sus depósitos activos).
 - **Slug**: único entre todas las tiendas del sistema (de cualquier organización), porque las direcciones son de todos. Se guarda en minúsculas. Si no tiene slug, se usa el nombre del canal en minúsculas y con guiones.
-- **Dominios propios**: los carga cada organización en la sección Dominios; el sistema no trae ninguno fijo. **Uno principal por tienda** (abre la tienda) y los demás **redirigen** al principal (redirección permanente, conservando la página). En el dominio de una tienda todo abre la tienda (incluso /login), salvo lo que es de la API. Un dominio es de **una sola organización**: no puede estar en dos.
+- **Dominios propios**: los carga cada organización en la sección Dominios; el sistema no trae ninguno fijo. **Uno principal por tienda** (abre la tienda), los de **otra marca** (abren la misma tienda con su nombre, logo, colores, banners y mail) y los demás **redirigen** al principal o a una marca (redirección permanente, conservando la página). En el dominio de una tienda todo abre la tienda (incluso /login), salvo lo que es de la API. Un dominio es de **una sola organización**: no puede estar en dos.
 - **El dominio va con la tienda, no con el slug**: cambiar el slug no lo desconecta.
 - **Dominios del sistema**: el panel es **laucen.com**; laucen.com.ar y los www redirigen a laucen.com. No se pueden cargar como dominio de una tienda.
 - **Estados de un dominio**: "Sin conectar a Vercel" (todavía no se agregó: falta la llave o Vercel no respondió; se reintenta con "Verificar") → "Esperando DNS" (Vercel no ve los registros todavía) → "Verificado (falta el certificado)" → "Con certificado: anda" (abre con https).
